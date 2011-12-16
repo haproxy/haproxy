@@ -323,24 +323,22 @@ int protocol_disable_all(void)
 /*           All supported ACL keywords must be declared here.          */
 /************************************************************************/
 
-/* set test->i to the number of connexions to the same listening socket */
+/* set temp integer to the number of connexions to the same listening socket */
 static int
 acl_fetch_dconn(struct proxy *px, struct session *l4, void *l7, int dir,
                 struct acl_expr *expr, struct acl_test *test)
 {
-	test->i = l4->listener->nbconn;
+	temp_pattern.data.integer = l4->listener->nbconn;
 	return 1;
 }
 
-/* set test->i to the id of the socket (listener) */
+/* set temp integer to the id of the socket (listener) */
 static int
 acl_fetch_so_id(struct proxy *px, struct session *l4, void *l7, int dir,
                 struct acl_expr *expr, struct acl_test *test) {
 
 	test->flags = ACL_TEST_F_READ_ONLY;
-
-	test->i = l4->listener->luid;
-
+	temp_pattern.data.integer = l4->listener->luid;
 	return 1;
 }
 

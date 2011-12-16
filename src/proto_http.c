@@ -7919,7 +7919,7 @@ acl_fetch_stcode(struct proxy *px, struct session *l4, void *l7, int dir,
 	len = txn->rsp.sl.st.c_l;
 	ptr = txn->rsp.sol + txn->rsp.sl.st.c;
 
-	test->i = __strl2ui(ptr, len);
+	temp_pattern.data.integer = __strl2ui(ptr, len);
 	test->flags = ACL_TEST_F_VOL_1ST;
 	return 1;
 }
@@ -7999,7 +7999,7 @@ acl_fetch_url_port(struct proxy *px, struct session *l4, void *l7, int dir,
 
 	/* Same optimization as url_ip */
 	url2sa(txn->req.sol + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &l4->req->cons->addr.to);
-	test->i = ntohs(((struct sockaddr_in *)&l4->req->cons->addr.to)->sin_port);
+	temp_pattern.data.integer = ntohs(((struct sockaddr_in *)&l4->req->cons->addr.to)->sin_port);
 
 	if (px->options & PR_O_HTTP_PROXY)
 		l4->flags |= SN_ADDR_SET;
@@ -8093,7 +8093,7 @@ acl_fetch_hdr_cnt(struct proxy *px, struct session *l4, void *l7, char *sol,
 	while (http_find_header2(expr->arg.str, expr->arg_len, sol, idx, &ctx))
 		cnt++;
 
-	test->i = cnt;
+	temp_pattern.data.integer = cnt;
 	test->flags = ACL_TEST_F_VOL_HDR;
 	return 1;
 }
@@ -8154,7 +8154,7 @@ acl_fetch_hdr_val(struct proxy *px, struct session *l4, void *l7, char *sol,
 	if (http_find_header2(expr->arg.str, expr->arg_len, sol, idx, ctx)) {
 		test->flags |= ACL_TEST_F_FETCH_MORE;
 		test->flags |= ACL_TEST_F_VOL_HDR;
-		test->i = strl2ic((char *)ctx->line + ctx->val, ctx->vlen);
+		temp_pattern.data.integer = strl2ic((char *)ctx->line + ctx->val, ctx->vlen);
 		return 1;
 	}
 

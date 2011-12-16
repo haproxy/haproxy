@@ -2232,22 +2232,22 @@ void session_shutdown(struct session *session, int why)
 /*           All supported ACL keywords must be declared here.          */
 /************************************************************************/
 
-/* set test->i to the General Purpose Counter 0 value in the stksess entry <ts> */
+/* set temp integer to the General Purpose Counter 0 value in the stksess entry <ts> */
 static int
 acl_fetch_get_gpc0(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	test->i = 0;
+	temp_pattern.data.integer = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_GPC0);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		test->i = stktable_data_cast(ptr, gpc0);
+		temp_pattern.data.integer = stktable_data_cast(ptr, gpc0);
 	}
 	return 1;
 }
 
-/* set test->i to the General Purpose Counter 0 value from the session's tracked
+/* set temp integer to the General Purpose Counter 0 value from the session's tracked
  * frontend counters.
  */
 static int
@@ -2259,7 +2259,7 @@ acl_fetch_sc1_get_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
 	return acl_fetch_get_gpc0(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
-/* set test->i to the General Purpose Counter 0 value from the session's tracked
+/* set temp integer to the General Purpose Counter 0 value from the session's tracked
  * backend counters.
  */
 static int
@@ -2271,7 +2271,7 @@ acl_fetch_sc2_get_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
 	return acl_fetch_get_gpc0(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
-/* set test->i to the General Purpose Counter 0 value from the session's source
+/* set temp integer to the General Purpose Counter 0 value from the session's source
  * address in the table pointed to by expr.
  */
 static int
@@ -2294,24 +2294,24 @@ acl_fetch_src_get_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
 }
 
 /* Increment the General Purpose Counter 0 value in the stksess entry <ts> and
- * return it into test->i.
+ * return it into temp integer.
  */
 static int
 acl_fetch_inc_gpc0(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	test->i = 0;
+	temp_pattern.data.integer = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_GPC0);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		test->i = ++stktable_data_cast(ptr, gpc0);
+		temp_pattern.data.integer = ++stktable_data_cast(ptr, gpc0);
 	}
 	return 1;
 }
 
 /* Increment the General Purpose Counter 0 value from the session's tracked
- * frontend counters and return it into test->i.
+ * frontend counters and return it into temp integer.
  */
 static int
 acl_fetch_sc1_inc_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -2323,7 +2323,7 @@ acl_fetch_sc1_inc_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
 }
 
 /* Increment the General Purpose Counter 0 value from the session's tracked
- * backend counters and return it into test->i.
+ * backend counters and return it into temp integer.
  */
 static int
 acl_fetch_sc2_inc_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -2335,7 +2335,7 @@ acl_fetch_sc2_inc_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
 }
 
 /* Increment the General Purpose Counter 0 value from the session's source
- * address in the table pointed to by expr, and return it into test->i.
+ * address in the table pointed to by expr, and return it into temp integer.
  */
 static int
 acl_fetch_src_inc_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -2357,25 +2357,25 @@ acl_fetch_src_inc_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
 }
 
 /* Clear the General Purpose Counter 0 value in the stksess entry <ts> and
- * return its previous value into test->i.
+ * return its previous value into temp integer.
  */
 static int
 acl_fetch_clr_gpc0(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	test->i = 0;
+	temp_pattern.data.integer = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_GPC0);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		test->i = stktable_data_cast(ptr, gpc0);
+		temp_pattern.data.integer = stktable_data_cast(ptr, gpc0);
 		stktable_data_cast(ptr, gpc0) = 0;
 	}
 	return 1;
 }
 
 /* Clear the General Purpose Counter 0 value from the session's tracked
- * frontend counters and return its previous value into test->i.
+ * frontend counters and return its previous value into temp integer.
  */
 static int
 acl_fetch_sc1_clr_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -2387,7 +2387,7 @@ acl_fetch_sc1_clr_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
 }
 
 /* Clear the General Purpose Counter 0 value from the session's tracked
- * backend counters and return its previous value into test->i.
+ * backend counters and return its previous value into temp integer.
  */
 static int
 acl_fetch_sc2_clr_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -2399,7 +2399,7 @@ acl_fetch_sc2_clr_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
 }
 
 /* Clear the General Purpose Counter 0 value from the session's source address
- * in the table pointed to by expr, and return its previous value into test->i.
+ * in the table pointed to by expr, and return its previous value into temp integer.
  */
 static int
 acl_fetch_src_clr_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -2420,22 +2420,22 @@ acl_fetch_src_clr_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
 	return acl_fetch_clr_gpc0(&px->table, test, stktable_update_key(&px->table, key));
 }
 
-/* set test->i to the cumulated number of connections in the stksess entry <ts> */
+/* set temp integer to the cumulated number of connections in the stksess entry <ts> */
 static int
 acl_fetch_conn_cnt(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	test->i = 0;
+	temp_pattern.data.integer = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_CONN_CNT);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		test->i = stktable_data_cast(ptr, conn_cnt);
+		temp_pattern.data.integer = stktable_data_cast(ptr, conn_cnt);
 	}
 	return 1;
 }
 
-/* set test->i to the cumulated number of connections from the session's tracked FE counters */
+/* set temp integer to the cumulated number of connections from the session's tracked FE counters */
 static int
 acl_fetch_sc1_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
                        struct acl_expr *expr, struct acl_test *test)
@@ -2446,7 +2446,7 @@ acl_fetch_sc1_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 	return acl_fetch_conn_cnt(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
-/* set test->i to the cumulated number of connections from the session's tracked BE counters */
+/* set temp integer to the cumulated number of connections from the session's tracked BE counters */
 static int
 acl_fetch_sc2_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
                        struct acl_expr *expr, struct acl_test *test)
@@ -2457,7 +2457,7 @@ acl_fetch_sc2_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 	return acl_fetch_conn_cnt(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
-/* set test->i to the cumulated number of connections from the session's source
+/* set temp integer to the cumulated number of connections from the session's source
  * address in the table pointed to by expr.
  */
 static int
@@ -2479,23 +2479,23 @@ acl_fetch_src_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 	return acl_fetch_conn_cnt(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
-/* set test->i to the connection rate in the stksess entry <ts> over the configured period */
+/* set temp integer to the connection rate in the stksess entry <ts> over the configured period */
 static int
 acl_fetch_conn_rate(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	test->i = 0;
+	temp_pattern.data.integer = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_CONN_RATE);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		test->i = read_freq_ctr_period(&stktable_data_cast(ptr, conn_rate),
+		temp_pattern.data.integer = read_freq_ctr_period(&stktable_data_cast(ptr, conn_rate),
 					       table->data_arg[STKTABLE_DT_CONN_RATE].u);
 	}
 	return 1;
 }
 
-/* set test->i to the connection rate from the session's tracked FE counters over
+/* set temp integer to the connection rate from the session's tracked FE counters over
  * the configured period.
  */
 static int
@@ -2508,7 +2508,7 @@ acl_fetch_sc1_conn_rate(struct proxy *px, struct session *l4, void *l7, int dir,
 	return acl_fetch_conn_rate(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
-/* set test->i to the connection rate from the session's tracked BE counters over
+/* set temp integer to the connection rate from the session's tracked BE counters over
  * the configured period.
  */
 static int
@@ -2521,7 +2521,7 @@ acl_fetch_sc2_conn_rate(struct proxy *px, struct session *l4, void *l7, int dir,
 	return acl_fetch_conn_rate(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
-/* set test->i to the connection rate from the session's source address in the
+/* set temp integer to the connection rate from the session's source address in the
  * table pointed to by expr, over the configured period.
  */
 static int
@@ -2543,7 +2543,7 @@ acl_fetch_src_conn_rate(struct proxy *px, struct session *l4, void *l7, int dir,
 	return acl_fetch_conn_rate(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
-/* set test->i to the number of connections from the session's source address
+/* set temp integer to the number of connections from the session's source address
  * in the table pointed to by expr, after updating it.
  */
 static int
@@ -2572,28 +2572,28 @@ acl_fetch_src_updt_conn_cnt(struct proxy *px, struct session *l4, void *l7, int 
 	if (!ptr)
 		return 0; /* parameter not stored in this table */
 
-	test->i = ++stktable_data_cast(ptr, conn_cnt);
+	temp_pattern.data.integer = ++stktable_data_cast(ptr, conn_cnt);
 	test->flags = ACL_TEST_F_VOL_TEST;
 	return 1;
 }
 
-/* set test->i to the number of concurrent connections in the stksess entry <ts> */
+/* set temp integer to the number of concurrent connections in the stksess entry <ts> */
 static int
 acl_fetch_conn_cur(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	test->i = 0;
+	temp_pattern.data.integer = 0;
 
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_CONN_CUR);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		test->i = stktable_data_cast(ptr, conn_cur);
+		temp_pattern.data.integer = stktable_data_cast(ptr, conn_cur);
 	}
 	return 1;
 }
 
-/* set test->i to the number of concurrent connections from the session's tracked FE counters */
+/* set temp integer to the number of concurrent connections from the session's tracked FE counters */
 static int
 acl_fetch_sc1_conn_cur(struct proxy *px, struct session *l4, void *l7, int dir,
                        struct acl_expr *expr, struct acl_test *test)
@@ -2604,7 +2604,7 @@ acl_fetch_sc1_conn_cur(struct proxy *px, struct session *l4, void *l7, int dir,
 	return acl_fetch_conn_cur(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
-/* set test->i to the number of concurrent connections from the session's tracked BE counters */
+/* set temp integer to the number of concurrent connections from the session's tracked BE counters */
 static int
 acl_fetch_sc2_conn_cur(struct proxy *px, struct session *l4, void *l7, int dir,
                        struct acl_expr *expr, struct acl_test *test)
@@ -2615,7 +2615,7 @@ acl_fetch_sc2_conn_cur(struct proxy *px, struct session *l4, void *l7, int dir,
 	return acl_fetch_conn_cur(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
-/* set test->i to the number of concurrent connections from the session's source
+/* set temp integer to the number of concurrent connections from the session's source
  * address in the table pointed to by expr.
  */
 static int
@@ -2637,22 +2637,22 @@ acl_fetch_src_conn_cur(struct proxy *px, struct session *l4, void *l7, int dir,
 	return acl_fetch_conn_cur(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
-/* set test->i to the cumulated number of sessions in the stksess entry <ts> */
+/* set temp integer to the cumulated number of sessions in the stksess entry <ts> */
 static int
 acl_fetch_sess_cnt(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	test->i = 0;
+	temp_pattern.data.integer = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_SESS_CNT);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		test->i = stktable_data_cast(ptr, sess_cnt);
+		temp_pattern.data.integer = stktable_data_cast(ptr, sess_cnt);
 	}
 	return 1;
 }
 
-/* set test->i to the cumulated number of sessions from the session's tracked FE counters */
+/* set temp integer to the cumulated number of sessions from the session's tracked FE counters */
 static int
 acl_fetch_sc1_sess_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
                        struct acl_expr *expr, struct acl_test *test)
@@ -2663,7 +2663,7 @@ acl_fetch_sc1_sess_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 	return acl_fetch_sess_cnt(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
-/* set test->i to the cumulated number of sessions from the session's tracked BE counters */
+/* set temp integer to the cumulated number of sessions from the session's tracked BE counters */
 static int
 acl_fetch_sc2_sess_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
                        struct acl_expr *expr, struct acl_test *test)
@@ -2674,7 +2674,7 @@ acl_fetch_sc2_sess_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 	return acl_fetch_sess_cnt(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
-/* set test->i to the cumulated number of session from the session's source
+/* set temp integer to the cumulated number of session from the session's source
  * address in the table pointed to by expr.
  */
 static int
@@ -2696,23 +2696,23 @@ acl_fetch_src_sess_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 	return acl_fetch_sess_cnt(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
-/* set test->i to the session rate in the stksess entry <ts> over the configured period */
+/* set temp integer to the session rate in the stksess entry <ts> over the configured period */
 static int
 acl_fetch_sess_rate(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	test->i = 0;
+	temp_pattern.data.integer = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_SESS_RATE);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		test->i = read_freq_ctr_period(&stktable_data_cast(ptr, sess_rate),
+		temp_pattern.data.integer = read_freq_ctr_period(&stktable_data_cast(ptr, sess_rate),
 					       table->data_arg[STKTABLE_DT_SESS_RATE].u);
 	}
 	return 1;
 }
 
-/* set test->i to the session rate from the session's tracked FE counters over
+/* set temp integer to the session rate from the session's tracked FE counters over
  * the configured period.
  */
 static int
@@ -2725,7 +2725,7 @@ acl_fetch_sc1_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
 	return acl_fetch_sess_rate(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
-/* set test->i to the session rate from the session's tracked BE counters over
+/* set temp integer to the session rate from the session's tracked BE counters over
  * the configured period.
  */
 static int
@@ -2738,7 +2738,7 @@ acl_fetch_sc2_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
 	return acl_fetch_sess_rate(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
-/* set test->i to the session rate from the session's source address in the
+/* set temp integer to the session rate from the session's source address in the
  * table pointed to by expr, over the configured period.
  */
 static int
@@ -2760,22 +2760,22 @@ acl_fetch_src_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
 	return acl_fetch_sess_rate(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
-/* set test->i to the cumulated number of sessions in the stksess entry <ts> */
+/* set temp integer to the cumulated number of sessions in the stksess entry <ts> */
 static int
 acl_fetch_http_req_cnt(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	test->i = 0;
+	temp_pattern.data.integer = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_HTTP_REQ_CNT);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		test->i = stktable_data_cast(ptr, http_req_cnt);
+		temp_pattern.data.integer = stktable_data_cast(ptr, http_req_cnt);
 	}
 	return 1;
 }
 
-/* set test->i to the cumulated number of sessions from the session's tracked FE counters */
+/* set temp integer to the cumulated number of sessions from the session's tracked FE counters */
 static int
 acl_fetch_sc1_http_req_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
                            struct acl_expr *expr, struct acl_test *test)
@@ -2786,7 +2786,7 @@ acl_fetch_sc1_http_req_cnt(struct proxy *px, struct session *l4, void *l7, int d
 	return acl_fetch_http_req_cnt(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
-/* set test->i to the cumulated number of sessions from the session's tracked BE counters */
+/* set temp integer to the cumulated number of sessions from the session's tracked BE counters */
 static int
 acl_fetch_sc2_http_req_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
                            struct acl_expr *expr, struct acl_test *test)
@@ -2797,7 +2797,7 @@ acl_fetch_sc2_http_req_cnt(struct proxy *px, struct session *l4, void *l7, int d
 	return acl_fetch_http_req_cnt(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
-/* set test->i to the cumulated number of session from the session's source
+/* set temp integer to the cumulated number of session from the session's source
  * address in the table pointed to by expr.
  */
 static int
@@ -2819,23 +2819,23 @@ acl_fetch_src_http_req_cnt(struct proxy *px, struct session *l4, void *l7, int d
 	return acl_fetch_http_req_cnt(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
-/* set test->i to the session rate in the stksess entry <ts> over the configured period */
+/* set temp integer to the session rate in the stksess entry <ts> over the configured period */
 static int
 acl_fetch_http_req_rate(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	test->i = 0;
+	temp_pattern.data.integer = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_HTTP_REQ_RATE);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		test->i = read_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
+		temp_pattern.data.integer = read_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
 					       table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u);
 	}
 	return 1;
 }
 
-/* set test->i to the session rate from the session's tracked FE counters over
+/* set temp integer to the session rate from the session's tracked FE counters over
  * the configured period.
  */
 static int
@@ -2848,7 +2848,7 @@ acl_fetch_sc1_http_req_rate(struct proxy *px, struct session *l4, void *l7, int 
 	return acl_fetch_http_req_rate(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
-/* set test->i to the session rate from the session's tracked BE counters over
+/* set temp integer to the session rate from the session's tracked BE counters over
  * the configured period.
  */
 static int
@@ -2861,7 +2861,7 @@ acl_fetch_sc2_http_req_rate(struct proxy *px, struct session *l4, void *l7, int 
 	return acl_fetch_http_req_rate(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
-/* set test->i to the session rate from the session's source address in the
+/* set temp integer to the session rate from the session's source address in the
  * table pointed to by expr, over the configured period.
  */
 static int
@@ -2883,22 +2883,22 @@ acl_fetch_src_http_req_rate(struct proxy *px, struct session *l4, void *l7, int 
 	return acl_fetch_http_req_rate(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
-/* set test->i to the cumulated number of sessions in the stksess entry <ts> */
+/* set temp integer to the cumulated number of sessions in the stksess entry <ts> */
 static int
 acl_fetch_http_err_cnt(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	test->i = 0;
+	temp_pattern.data.integer = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_HTTP_ERR_CNT);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		test->i = stktable_data_cast(ptr, http_err_cnt);
+		temp_pattern.data.integer = stktable_data_cast(ptr, http_err_cnt);
 	}
 	return 1;
 }
 
-/* set test->i to the cumulated number of sessions from the session's tracked FE counters */
+/* set temp integer to the cumulated number of sessions from the session's tracked FE counters */
 static int
 acl_fetch_sc1_http_err_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
                            struct acl_expr *expr, struct acl_test *test)
@@ -2909,7 +2909,7 @@ acl_fetch_sc1_http_err_cnt(struct proxy *px, struct session *l4, void *l7, int d
 	return acl_fetch_http_err_cnt(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
-/* set test->i to the cumulated number of sessions from the session's tracked BE counters */
+/* set temp integer to the cumulated number of sessions from the session's tracked BE counters */
 static int
 acl_fetch_sc2_http_err_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
                            struct acl_expr *expr, struct acl_test *test)
@@ -2920,7 +2920,7 @@ acl_fetch_sc2_http_err_cnt(struct proxy *px, struct session *l4, void *l7, int d
 	return acl_fetch_http_err_cnt(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
-/* set test->i to the cumulated number of session from the session's source
+/* set temp integer to the cumulated number of session from the session's source
  * address in the table pointed to by expr.
  */
 static int
@@ -2942,23 +2942,23 @@ acl_fetch_src_http_err_cnt(struct proxy *px, struct session *l4, void *l7, int d
 	return acl_fetch_http_err_cnt(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
-/* set test->i to the session rate in the stksess entry <ts> over the configured period */
+/* set temp integer to the session rate in the stksess entry <ts> over the configured period */
 static int
 acl_fetch_http_err_rate(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	test->i = 0;
+	temp_pattern.data.integer = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_HTTP_ERR_RATE);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		test->i = read_freq_ctr_period(&stktable_data_cast(ptr, http_err_rate),
+		temp_pattern.data.integer = read_freq_ctr_period(&stktable_data_cast(ptr, http_err_rate),
 					       table->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u);
 	}
 	return 1;
 }
 
-/* set test->i to the session rate from the session's tracked FE counters over
+/* set temp integer to the session rate from the session's tracked FE counters over
  * the configured period.
  */
 static int
@@ -2971,7 +2971,7 @@ acl_fetch_sc1_http_err_rate(struct proxy *px, struct session *l4, void *l7, int 
 	return acl_fetch_http_err_rate(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
-/* set test->i to the session rate from the session's tracked BE counters over
+/* set temp integer to the session rate from the session's tracked BE counters over
  * the configured period.
  */
 static int
@@ -2984,7 +2984,7 @@ acl_fetch_sc2_http_err_rate(struct proxy *px, struct session *l4, void *l7, int 
 	return acl_fetch_http_err_rate(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
-/* set test->i to the session rate from the session's source address in the
+/* set temp integer to the session rate from the session's source address in the
  * table pointed to by expr, over the configured period.
  */
 static int
@@ -3006,23 +3006,23 @@ acl_fetch_src_http_err_rate(struct proxy *px, struct session *l4, void *l7, int 
 	return acl_fetch_http_err_rate(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
-/* set test->i to the number of kbytes received from clients matching the stksess entry <ts> */
+/* set temp integer to the number of kbytes received from clients matching the stksess entry <ts> */
 static int
 acl_fetch_kbytes_in(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	test->i = 0;
+	temp_pattern.data.integer = 0;
 
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_BYTES_IN_CNT);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		test->i = stktable_data_cast(ptr, bytes_in_cnt) >> 10;
+		temp_pattern.data.integer = stktable_data_cast(ptr, bytes_in_cnt) >> 10;
 	}
 	return 1;
 }
 
-/* set test->i to the number of kbytes received from clients according to the
+/* set temp integer to the number of kbytes received from clients according to the
  * session's tracked FE counters.
  */
 static int
@@ -3035,7 +3035,7 @@ acl_fetch_sc1_kbytes_in(struct proxy *px, struct session *l4, void *l7, int dir,
 	return acl_fetch_kbytes_in(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
-/* set test->i to the number of kbytes received from clients according to the
+/* set temp integer to the number of kbytes received from clients according to the
  * session's tracked BE counters.
  */
 static int
@@ -3048,7 +3048,7 @@ acl_fetch_sc2_kbytes_in(struct proxy *px, struct session *l4, void *l7, int dir,
 	return acl_fetch_kbytes_in(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
-/* set test->i to the number of kbytes received from the session's source
+/* set temp integer to the number of kbytes received from the session's source
  * address in the table pointed to by expr.
  */
 static int
@@ -3070,25 +3070,25 @@ acl_fetch_src_kbytes_in(struct proxy *px, struct session *l4, void *l7, int dir,
 	return acl_fetch_kbytes_in(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
-/* set test->i to the bytes rate from clients in the stksess entry <ts> over the
+/* set temp integer to the bytes rate from clients in the stksess entry <ts> over the
  * configured period.
  */
 static int
 acl_fetch_bytes_in_rate(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	test->i = 0;
+	temp_pattern.data.integer = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_BYTES_IN_RATE);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		test->i = read_freq_ctr_period(&stktable_data_cast(ptr, bytes_in_rate),
+		temp_pattern.data.integer = read_freq_ctr_period(&stktable_data_cast(ptr, bytes_in_rate),
 					       table->data_arg[STKTABLE_DT_BYTES_IN_RATE].u);
 	}
 	return 1;
 }
 
-/* set test->i to the bytes rate from clients from the session's tracked FE
+/* set temp integer to the bytes rate from clients from the session's tracked FE
  * counters over the configured period.
  */
 static int
@@ -3101,7 +3101,7 @@ acl_fetch_sc1_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, int 
 	return acl_fetch_bytes_in_rate(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
-/* set test->i to the bytes rate from clients from the session's tracked BE
+/* set temp integer to the bytes rate from clients from the session's tracked BE
  * counters over the configured period.
  */
 static int
@@ -3114,7 +3114,7 @@ acl_fetch_sc2_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, int 
 	return acl_fetch_bytes_in_rate(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
-/* set test->i to the bytes rate from clients from the session's source address
+/* set temp integer to the bytes rate from clients from the session's source address
  * in the table pointed to by expr, over the configured period.
  */
 static int
@@ -3136,23 +3136,23 @@ acl_fetch_src_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, int 
 	return acl_fetch_bytes_in_rate(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
-/* set test->i to the number of kbytes sent to clients matching the stksess entry <ts> */
+/* set temp integer to the number of kbytes sent to clients matching the stksess entry <ts> */
 static int
 acl_fetch_kbytes_out(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	test->i = 0;
+	temp_pattern.data.integer = 0;
 
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_BYTES_OUT_CNT);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		test->i = stktable_data_cast(ptr, bytes_out_cnt) >> 10;
+		temp_pattern.data.integer = stktable_data_cast(ptr, bytes_out_cnt) >> 10;
 	}
 	return 1;
 }
 
-/* set test->i to the number of kbytes sent to clients according to the session's
+/* set temp integer to the number of kbytes sent to clients according to the session's
  * tracked FE counters.
  */
 static int
@@ -3165,7 +3165,7 @@ acl_fetch_sc1_kbytes_out(struct proxy *px, struct session *l4, void *l7, int dir
 	return acl_fetch_kbytes_out(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
-/* set test->i to the number of kbytes sent to clients according to the session's
+/* set temp integer to the number of kbytes sent to clients according to the session's
  * tracked BE counters.
  */
 static int
@@ -3178,7 +3178,7 @@ acl_fetch_sc2_kbytes_out(struct proxy *px, struct session *l4, void *l7, int dir
 	return acl_fetch_kbytes_out(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
-/* set test->i to the number of kbytes sent to the session's source address in
+/* set temp integer to the number of kbytes sent to the session's source address in
  * the table pointed to by expr.
  */
 static int
@@ -3200,25 +3200,25 @@ acl_fetch_src_kbytes_out(struct proxy *px, struct session *l4, void *l7, int dir
 	return acl_fetch_kbytes_out(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
-/* set test->i to the bytes rate to clients in the stksess entry <ts> over the
+/* set temp integer to the bytes rate to clients in the stksess entry <ts> over the
  * configured period.
  */
 static int
 acl_fetch_bytes_out_rate(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	test->i = 0;
+	temp_pattern.data.integer = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_BYTES_OUT_RATE);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		test->i = read_freq_ctr_period(&stktable_data_cast(ptr, bytes_out_rate),
+		temp_pattern.data.integer = read_freq_ctr_period(&stktable_data_cast(ptr, bytes_out_rate),
 					       table->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u);
 	}
 	return 1;
 }
 
-/* set test->i to the bytes rate to clients from the session's tracked FE counters
+/* set temp integer to the bytes rate to clients from the session's tracked FE counters
  * over the configured period.
  */
 static int
@@ -3231,7 +3231,7 @@ acl_fetch_sc1_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, int
 	return acl_fetch_bytes_out_rate(l4->stkctr1_table, test, l4->stkctr1_entry);
 }
 
-/* set test->i to the bytes rate to clients from the session's tracked BE counters
+/* set temp integer to the bytes rate to clients from the session's tracked BE counters
  * over the configured period.
  */
 static int
@@ -3244,7 +3244,7 @@ acl_fetch_sc2_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, int
 	return acl_fetch_bytes_out_rate(l4->stkctr2_table, test, l4->stkctr2_entry);
 }
 
-/* set test->i to the bytes rate to client from the session's source address in
+/* set temp integer to the bytes rate to client from the session's source address in
  * the table pointed to by expr, over the configured period.
  */
 static int
@@ -3266,7 +3266,7 @@ acl_fetch_src_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, int
 	return acl_fetch_bytes_out_rate(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
-/* set test->i to the number of used entries in the table pointed to by expr. */
+/* set temp integer to the number of used entries in the table pointed to by expr. */
 static int
 acl_fetch_table_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
                        struct acl_expr *expr, struct acl_test *test)
@@ -3278,11 +3278,11 @@ acl_fetch_table_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0; /* table not found */
 
 	test->flags = ACL_TEST_F_VOL_TEST;
-	test->i = px->table.current;
+	temp_pattern.data.integer = px->table.current;
 	return 1;
 }
 
-/* set test->i to the number of free entries in the table pointed to by expr. */
+/* set temp integer to the number of free entries in the table pointed to by expr. */
 static int
 acl_fetch_table_avl(struct proxy *px, struct session *l4, void *l7, int dir,
                             struct acl_expr *expr, struct acl_test *test)
@@ -3294,7 +3294,7 @@ acl_fetch_table_avl(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0; /* table not found */
 
 	test->flags = ACL_TEST_F_VOL_TEST;
-	test->i = px->table.size - px->table.current;
+	temp_pattern.data.integer = px->table.size - px->table.current;
 	return 1;
 }
 

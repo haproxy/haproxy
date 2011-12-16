@@ -1286,12 +1286,12 @@ pattern_fetch_src6(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
-/* set test->i to the connection's source port */
+/* set temp integer to the connection's source port */
 static int
 acl_fetch_sport(struct proxy *px, struct session *l4, void *l7, int dir,
                 struct acl_expr *expr, struct acl_test *test)
 {
-	if (!(test->i = get_host_port(&l4->si[0].addr.from)))
+	if (!(temp_pattern.data.integer = get_host_port(&l4->si[0].addr.from)))
 		return 0;
 
 	test->flags = 0;
@@ -1350,7 +1350,7 @@ pattern_fetch_dst6(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
-/* set test->i to the frontend connexion's destination port */
+/* set temp integer to the frontend connexion's destination port */
 static int
 acl_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
                 struct acl_expr *expr, struct acl_test *test)
@@ -1358,7 +1358,7 @@ acl_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!(l4->flags & SN_FRT_ADDR_SET))
 		get_frt_addr(l4);
 
-	if (!(test->i = get_host_port(&l4->si[0].addr.to)))
+	if (!(temp_pattern.data.integer = get_host_port(&l4->si[0].addr.to)))
 		return 0;
 
 	test->flags = 0;

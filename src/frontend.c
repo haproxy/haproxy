@@ -514,19 +514,17 @@ int make_proxy_line(char *buf, int buf_len, struct sockaddr_storage *src, struct
 	return ret;
 }
 
-/* set test->i to the id of the frontend */
+/* set temp integer to the id of the frontend */
 static int
 acl_fetch_fe_id(struct proxy *px, struct session *l4, void *l7, int dir,
                 struct acl_expr *expr, struct acl_test *test) {
 
 	test->flags = ACL_TEST_F_READ_ONLY;
-
-	test->i = l4->fe->uuid;
-
+	temp_pattern.data.integer = l4->fe->uuid;
 	return 1;
 }
 
-/* set test->i to the number of connections per second reaching the frontend */
+/* set temp integer to the number of connections per second reaching the frontend */
 static int
 acl_fetch_fe_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
                        struct acl_expr *expr, struct acl_test *test)
@@ -541,11 +539,11 @@ acl_fetch_fe_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!px)
 		return 0;
 
-	test->i = read_freq_ctr(&px->fe_sess_per_sec);
+	temp_pattern.data.integer = read_freq_ctr(&px->fe_sess_per_sec);
 	return 1;
 }
 
-/* set test->i to the number of concurrent connections on the frontend */
+/* set temp integer to the number of concurrent connections on the frontend */
 static int
 acl_fetch_fe_conn(struct proxy *px, struct session *l4, void *l7, int dir,
 		  struct acl_expr *expr, struct acl_test *test)
@@ -560,7 +558,7 @@ acl_fetch_fe_conn(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!px)
 		return 0;
 
-	test->i = px->feconn;
+	temp_pattern.data.integer = px->feconn;
 	return 1;
 }
 

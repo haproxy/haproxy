@@ -1340,7 +1340,7 @@ int backend_parse_balance(const char **args, char *err, int errlen, struct proxy
 /*             All supported keywords must be declared here.            */
 /************************************************************************/
 
-/* set test->i to the number of enabled servers on the proxy */
+/* set temp integer to the number of enabled servers on the proxy */
 static int
 acl_fetch_nbsrv(struct proxy *px, struct session *l4, void *l7, int dir,
                 struct acl_expr *expr, struct acl_test *test)
@@ -1356,11 +1356,11 @@ acl_fetch_nbsrv(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	if (px->srv_act)
-		test->i = px->srv_act;
+		temp_pattern.data.integer = px->srv_act;
 	else if (px->lbprm.fbck)
-		test->i = 1;
+		temp_pattern.data.integer = 1;
 	else
-		test->i = px->srv_bck;
+		temp_pattern.data.integer = px->srv_bck;
 
 	return 1;
 }
@@ -1383,7 +1383,7 @@ acl_fetch_srv_is_up(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
-/* set test->i to the number of enabled servers on the proxy */
+/* set temp integer to the number of enabled servers on the proxy */
 static int
 acl_fetch_connslots(struct proxy *px, struct session *l4, void *l7, int dir,
 		    struct acl_expr *expr, struct acl_test *test)
@@ -1399,7 +1399,7 @@ acl_fetch_connslots(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!px)
 		return 0;
 
-	test->i = 0;
+	temp_pattern.data.integer = 0;
 	iterator = px->srv;
 	while (iterator) {
 		if ((iterator->state & SRV_RUNNING) == 0) {
@@ -1407,31 +1407,31 @@ acl_fetch_connslots(struct proxy *px, struct session *l4, void *l7, int dir,
 			continue;
 		}
 		if (iterator->maxconn == 0 || iterator->maxqueue == 0) {
-			test->i = -1;
+			/* configuration is stupid */
+			temp_pattern.data.integer = -1;
 			return 1;
 		}
 
-		test->i += (iterator->maxconn - iterator->cur_sess)
-			+  (iterator->maxqueue - iterator->nbpend);
+		temp_pattern.data.integer += (iterator->maxconn - iterator->cur_sess)
+		                          +  (iterator->maxqueue - iterator->nbpend);
 		iterator = iterator->next;
 	}
 
 	return 1;
 }
 
-/* set test->i to the id of the backend */
+/* set temp integer to the id of the backend */
 static int
 acl_fetch_be_id(struct proxy *px, struct session *l4, void *l7, int dir,
                 struct acl_expr *expr, struct acl_test *test) {
 
 	test->flags = ACL_TEST_F_READ_ONLY;
-
-	test->i = l4->be->uuid;
+	temp_pattern.data.integer = l4->be->uuid;
 
 	return 1;
 }
 
-/* set test->i to the id of the server */
+/* set temp integer to the id of the server */
 static int
 acl_fetch_srv_id(struct proxy *px, struct session *l4, void *l7, int dir,
                 struct acl_expr *expr, struct acl_test *test) {
@@ -1440,13 +1440,12 @@ acl_fetch_srv_id(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	test->flags = ACL_TEST_F_READ_ONLY;
-
-	test->i = target_srv(&l4->target)->puid;
+	temp_pattern.data.integer = target_srv(&l4->target)->puid;
 
 	return 1;
 }
 
-/* set test->i to the number of connections per second reaching the backend */
+/* set temp integer to the number of connections per second reaching the backend */
 static int
 acl_fetch_be_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
                        struct acl_expr *expr, struct acl_test *test)
@@ -1461,11 +1460,11 @@ acl_fetch_be_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!px)
 		return 0;
 
-	test->i = read_freq_ctr(&px->be_sess_per_sec);
+	temp_pattern.data.integer = read_freq_ctr(&px->be_sess_per_sec);
 	return 1;
 }
 
-/* set test->i to the number of concurrent connections on the backend */
+/* set temp integer to the number of concurrent connections on the backend */
 static int
 acl_fetch_be_conn(struct proxy *px, struct session *l4, void *l7, int dir,
 		  struct acl_expr *expr, struct acl_test *test)
@@ -1480,11 +1479,11 @@ acl_fetch_be_conn(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!px)
 		return 0;
 
-	test->i = px->beconn;
+	temp_pattern.data.integer = px->beconn;
 	return 1;
 }
 
-/* set test->i to the total number of queued connections on the backend */
+/* set temp integer to the total number of queued connections on the backend */
 static int
 acl_fetch_queue_size(struct proxy *px, struct session *l4, void *l7, int dir,
 		   struct acl_expr *expr, struct acl_test *test)
@@ -1499,11 +1498,11 @@ acl_fetch_queue_size(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!px)
 		return 0;
 
-	test->i = px->totpend;
+	temp_pattern.data.integer = px->totpend;
 	return 1;
 }
 
-/* set test->i to the total number of queued connections on the backend divided
+/* set temp integer to the total number of queued connections on the backend divided
  * by the number of running servers and rounded up. If there is no running
  * server, we return twice the total, just as if we had half a running server.
  * This is more or less correct anyway, since we expect the last server to come
@@ -1533,21 +1532,21 @@ acl_fetch_avg_queue_size(struct proxy *px, struct session *l4, void *l7, int dir
 		nbsrv = px->srv_bck;
 
 	if (nbsrv > 0)
-		test->i = (px->totpend + nbsrv - 1) / nbsrv;
+		temp_pattern.data.integer = (px->totpend + nbsrv - 1) / nbsrv;
 	else
-		test->i = px->totpend * 2;
+		temp_pattern.data.integer = px->totpend * 2;
 
 	return 1;
 }
 
-/* set test->i to the number of concurrent connections on the server in the backend */
+/* set temp integer to the number of concurrent connections on the server in the backend */
 static int
 acl_fetch_srv_conn(struct proxy *px, struct session *l4, void *l7, int dir,
 		  struct acl_expr *expr, struct acl_test *test)
 {
 	struct server *srv = expr->arg.srv;
 
-	test->i = srv->cur_sess;
+	temp_pattern.data.integer = srv->cur_sess;
 	return 1;
 }
 

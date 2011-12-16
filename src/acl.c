@@ -102,7 +102,7 @@ acl_fetch_req_len(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!l4 || !l4->req)
 		return 0;
 
-	test->i = l4->req->l;
+	temp_pattern.data.integer = l4->req->l;
 	test->flags = ACL_TEST_F_VOLATILE | ACL_TEST_F_MAY_CHANGE;
 	return 1;
 }
@@ -155,7 +155,7 @@ acl_fetch_ssl_hello_type(struct proxy *px, struct session *l4, void *l7, int dir
 		goto not_ssl_hello;
 	}
 
-	test->i = hs_type;
+	temp_pattern.data.integer = hs_type;
 	test->flags = ACL_TEST_F_VOLATILE;
 
 	return 1;
@@ -268,7 +268,7 @@ acl_fetch_req_ssl_ver(struct proxy *px, struct session *l4, void *l7, int dir,
 	/* OK that's enough. We have at least the whole message, and we have
 	 * the protocol version.
 	 */
-	test->i = version;
+	temp_pattern.data.integer = version;
 	test->flags = ACL_TEST_F_VOLATILE;
 	return 1;
 
@@ -552,7 +552,7 @@ acl_fetch_rdp_cookie_cnt(struct proxy *px, struct session *l4, void *l7, int dir
 		return 0;
 
 	test->flags = ACL_TEST_F_VOLATILE;
-	test->i = ret;
+	temp_pattern.data.integer = ret;
 
 	return 1;
 }
@@ -813,8 +813,8 @@ int acl_match_dom(struct acl_test *test, struct acl_pattern *pattern)
 /* Checks that the integer in <test> is included between min and max */
 int acl_match_int(struct acl_test *test, struct acl_pattern *pattern)
 {
-	if ((!pattern->val.range.min_set || pattern->val.range.min <= test->i) &&
-	    (!pattern->val.range.max_set || test->i <= pattern->val.range.max))
+	if ((!pattern->val.range.min_set || pattern->val.range.min <= temp_pattern.data.integer) &&
+	    (!pattern->val.range.max_set || temp_pattern.data.integer <= pattern->val.range.max))
 		return ACL_PAT_PASS;
 	return ACL_PAT_FAIL;
 }
