@@ -832,10 +832,10 @@ int acl_match_ip(struct acl_test *test, struct acl_pattern *pattern)
 {
 	struct in_addr *s;
 
-	if (test->i != AF_INET)
+	if (temp_pattern.type != PATTERN_TYPE_IP)
 		return ACL_PAT_FAIL;
 
-	s = (void *)test->ptr;
+	s = &temp_pattern.data.ip;
 	if (((s->s_addr ^ pattern->val.ipv4.addr.s_addr) & pattern->val.ipv4.mask.s_addr) == 0)
 		return ACL_PAT_PASS;
 	return ACL_PAT_FAIL;
@@ -848,11 +848,10 @@ void *acl_lookup_ip(struct acl_test *test, struct acl_expr *expr)
 {
 	struct in_addr *s;
 
-	if (test->i != AF_INET)
+	if (temp_pattern.type != PATTERN_TYPE_IP)
 		return ACL_PAT_FAIL;
 
-	s = (void *)test->ptr;
-
+	s = &temp_pattern.data.ip;
 	return ebmb_lookup_longest(&expr->pattern_tree, &s->s_addr);
 }
 

@@ -1245,20 +1245,25 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 /*           All supported ACL keywords must be declared here.          */
 /************************************************************************/
 
-/* set test->ptr to point to the source IPv4/IPv6 address and test->i to the family */
+/* copy the source IPv4/v6 address into temp_pattern */
 static int
 acl_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
               struct acl_expr *expr, struct acl_test *test)
 {
-	test->i = l4->si[0].addr.from.ss_family;
-	if (test->i == AF_INET)
-		test->ptr = (char *)&((struct sockaddr_in *)&l4->si[0].addr.from)->sin_addr;
-	else if (test->i == AF_INET6)
-		test->ptr = (char *)&((struct sockaddr_in6 *)(&l4->si[0].addr.from))->sin6_addr;
-	else
+	switch (l4->si[0].addr.from.ss_family) {
+	case AF_INET:
+		temp_pattern.data.ip = ((struct sockaddr_in *)&l4->si[0].addr.from)->sin_addr;
+		temp_pattern.type = PATTERN_TYPE_IP;
+		break;
+	case AF_INET6:
+		temp_pattern.data.ipv6 = ((struct sockaddr_in6 *)(&l4->si[0].addr.from))->sin6_addr;
+		temp_pattern.type = PATTERN_TYPE_IPV6;
+		break;
+	default:
 		return 0;
+	}
 
-	test->flags = ACL_TEST_F_READ_ONLY;
+	test->flags = 0;
 	return 1;
 }
 
@@ -1307,15 +1312,20 @@ acl_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!(l4->flags & SN_FRT_ADDR_SET))
 		get_frt_addr(l4);
 
-	test->i = l4->si[0].addr.to.ss_family;
-	if (test->i == AF_INET)
-		test->ptr = (char *)&((struct sockaddr_in *)&l4->si[0].addr.to)->sin_addr;
-	else if (test->i == AF_INET6)
-		test->ptr = (char *)&((struct sockaddr_in6 *)(&l4->si[0].addr.to))->sin6_addr;
-	else
+	switch (l4->si[0].addr.to.ss_family) {
+	case AF_INET:
+		temp_pattern.data.ip = ((struct sockaddr_in *)&l4->si[0].addr.to)->sin_addr;
+		temp_pattern.type = PATTERN_TYPE_IP;
+		break;
+	case AF_INET6:
+		temp_pattern.data.ipv6 = ((struct sockaddr_in6 *)(&l4->si[0].addr.to))->sin6_addr;
+		temp_pattern.type = PATTERN_TYPE_IPV6;
+		break;
+	default:
 		return 0;
+	}
 
-	test->flags = ACL_TEST_F_READ_ONLY;
+	test->flags = 0;
 	return 1;
 }
 

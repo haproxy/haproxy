@@ -7967,8 +7967,10 @@ acl_fetch_url_ip(struct proxy *px, struct session *l4, void *l7, int dir,
 
 	/* Parse HTTP request */
 	url2sa(txn->req.sol + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &l4->req->cons->addr.to);
-	test->ptr = (void *)&((struct sockaddr_in *)&l4->req->cons->addr.to)->sin_addr;
-	test->i = AF_INET;
+	if (((struct sockaddr_in *)&l4->req->cons->addr.to)->sin_family != AF_INET)
+		return 0;
+	temp_pattern.type = PATTERN_TYPE_IP;
+	temp_pattern.data.ip = ((struct sockaddr_in *)&l4->req->cons->addr.to)->sin_addr;
 
 	/*
 	 * If we are parsing url in frontend space, we prepare backend stage
@@ -7977,7 +7979,7 @@ acl_fetch_url_ip(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (px->options & PR_O_HTTP_PROXY)
 		l4->flags |= SN_ADDR_SET;
 
-	test->flags = ACL_TEST_F_READ_ONLY;
+	test->flags = 0;
 	return 1;
 }
 
@@ -8215,15 +8217,14 @@ acl_fetch_hdr_ip(struct proxy *px, struct session *l4, void *l7, char *sol,
 		/* search for header from the beginning */
 		ctx->idx = 0;
 
-	if (http_find_header2(expr->arg.str, expr->arg_len, sol, idx, ctx)) {
+	while (http_find_header2(expr->arg.str, expr->arg_len, sol, idx, ctx)) {
 		test->flags |= ACL_TEST_F_FETCH_MORE;
 		test->flags |= ACL_TEST_F_VOL_HDR;
 		/* Same optimization as url_ip */
-		memset(&((struct sockaddr_in *)&l4->req->cons->addr.to)->sin_addr, 0, sizeof(((struct sockaddr_in *)&l4->req->cons->addr.to)->sin_addr));
-		url2ipv4((char *)ctx->line + ctx->val, &((struct sockaddr_in *)&l4->req->cons->addr.to)->sin_addr);
-		test->ptr = (void *)&((struct sockaddr_in *)&l4->req->cons->addr.to)->sin_addr;
-		test->i = AF_INET;
-		return 1;
+		temp_pattern.type = PATTERN_TYPE_IP;
+		if (url2ipv4((char *)ctx->line + ctx->val, &temp_pattern.data.ip))
+			return 1;
+		/* Dods not look like an IP address, let's fetch next one */
 	}
 
 	test->flags &= ~ACL_TEST_F_FETCH_MORE;
