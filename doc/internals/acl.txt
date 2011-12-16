@@ -1,0 +1,82 @@
+2011/12/16 - How ACLs work internally in haproxy - w@1wt.eu
+
+An ACL is declared by the keyword "acl" followed by a name, followed by a
+matching method, followed by one or multiple pattern values :
+
+    acl internal  src  127.0.0.0/8 10.0.0.0/8 192.168.0.0/16
+
+In the statement above, "internal" is the ACL's name (acl->name), "src" is the
+ACL keyword defining the matching method (acl_expr->kw) and the IP addresses
+are patterns of type acl_pattern to match against the source address.
+
+The acl_pattern struct may define one single pattern, a range of values or a
+tree of values to match against. The type of the patterns is implied by the
+ACL keyword. For instance, the "src" keyword implies IPv4 patterns.
+
+The line above constitutes an ACL expression (acl_expr). ACL expressions are
+formed of a keyword, an optional argument for the keyword, and a list of
+patterns (in fact, both a list and a root tree).
+
+Dynamic values are extracted according to a fetch function defined by the ACL
+keyword. This fetch function fills or updates a struct acl_test with all the
+extracted information so that a match function can compare it against all the
+patterns. The fetch function is called iteratively by the ACL engine until it
+reports no more value. This makes sense for instance when checking IP addresses
+found in HTTP headers, which can appear multiple times. The acl_test is kept
+intact between calls and even holds a context so that the fetch function knows
+where to start from for subsequent calls. The match function may also use the
+context eventhough it was not designed for that purpose.
+
+An ACL is defined only by its name and can be a series of ACL expressions. The
+ACL is deemed true when any of its expressions is true. They are evaluated in
+the declared order and can involve multiple matching methods.
+
+So in summary :
+
+  - an ACL is a series of tests to perform on a stream, any of which is enough
+    to validate the result.
+    
+  - each test is defined by an expression associating a keyword and a series of
+    patterns.
+
+  - a keyword implies several things at once :
+    - the type of the patterns and how to parse them
+    - the method to fetch the required information from the stream
+    - the method to match the fetched information against the patterns
+
+  - a fetch function fills an acl_test struct which is passed to the match
+    function defined by the keyword
+
+  - the match function tries to match the value in the acl_test against the
+    pattern list declared in the expression which involved its acl_keyword.
+
+
+ACLs are used by conditional processing rules. A rule generally uses an "if" or
+"unless" keyword followed by an ACL condition (acl_cond). This condition is a
+series of term suites which are ORed together. Each term suite is a series of
+terms which are ANDed together. Terms may be negated before being evaluated in
+a suite. A term simply is a pointer to an ACL.
+
+We could then represent a rule by the following BNF :
+
+  rule = if-cond 
+       | unless-cond
+
+  if-cond (struct acl_cond with ->pol = ACL_COND_IF)
+      = "if" condition
+
+  unless-cond (struct acl_cond with ->pol = ACL_COND_UNLESS)
+      = "unless" condition
+
+  condition
+      = term-suite
+      | term-suite "||" term-suite
+      | term-suite "or" term-suite
+
+  term-suite (struct acl_term_suite)
+      = term
+      | term term
+
+  term = acl
+       | "!" acl
+
