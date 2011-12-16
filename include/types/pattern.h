@@ -70,7 +70,7 @@ struct pattern_arg {
 union pattern_data {
 	struct in_addr ip;        /* used for ipv4 type */
 	struct in6_addr ipv6;     /* used for ipv6 type */
-	uint32_t integer;         /* used for unsigned 32bits integer type */
+	int integer;              /* used for unsigned 32bits integer type */
 	struct chunk str;         /* used for char string type or buffers*/
 };
 
