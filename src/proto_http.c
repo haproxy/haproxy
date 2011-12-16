@@ -7483,45 +7483,53 @@ void http_capture_bad_message(struct error_snapshot *es, struct session *s,
 	es->ev_id = error_snapshot_id++;
 }
 
-/* return the IP address pointed to by occurrence <occ> of header <hname> in
- * HTTP message <msg> indexed in <idx>. If <occ> is strictly positive, the
- * occurrence number corresponding to this value is returned. If <occ> is
- * strictly negative, the occurrence number before the end corresponding to
- * this value is returned. If <occ> is null, any value is returned, so it is
- * not recommended to use it that way. Negative occurrences are limited to
- * a small value because it is required to keep them in memory while scanning.
- * IP address 0.0.0.0 is returned if no match is found.
+/* Return in <vptr> and <vlen> the pointer and length of occurrence <occ> of
+ * header whose name is <hname> of length <hlen>. If <ctx> is null, lookup is
+ * performed over the whole headers. Otherwise it must contain a valid header
+ * context, initialised with ctx->idx=0 for the first lookup in a series. If
+ * <occ> is positive or null, occurrence #occ from the beginning (or last ctx)
+ * is returned. Occ #0 and #1 are equivalent. If <occ> is negative (and no less
+ * than -MAX_HDR_HISTORY), the occurrence is counted from the last one which is
+ * -1.
+ * The return value is 0 if nothing was found, or non-zero otherwise.
  */
-unsigned int get_ip_from_hdr2(struct http_msg *msg, const char *hname, int hlen, struct hdr_idx *idx, int occ)
+unsigned int http_get_hdr(struct http_msg *msg, const char *hname, int hlen,
+			  struct hdr_idx *idx, int occ,
+			  struct hdr_ctx *ctx, char **vptr, int *vlen)
 {
-	struct hdr_ctx ctx;
-	unsigned int hdr_hist[MAX_HDR_HISTORY];
+	struct hdr_ctx local_ctx;
+	char *ptr_hist[MAX_HDR_HISTORY];
+	int len_hist[MAX_HDR_HISTORY];
 	unsigned int hist_ptr;
-	int found = 0;
+	int found;
 
-	ctx.idx = 0;
+	if (!ctx) {
+		local_ctx.idx = 0;
+		ctx = &local_ctx;
+	}
+
 	if (occ >= 0) {
-		while (http_find_header2(hname, hlen, msg->sol, idx, &ctx)) {
+		/* search from the beginning */
+		while (http_find_header2(hname, hlen, msg->sol, idx, ctx)) {
 			occ--;
 			if (occ <= 0) {
-				found = 1;
-				break;
+				*vptr = ctx->line + ctx->val;
+				*vlen = ctx->vlen;
+				return 1;
 			}
 		}
-		if (!found)
-			return 0;
-		return inetaddr_host_lim(ctx.line+ctx.val, ctx.line+ctx.val+ctx.vlen);
+		return 0;
 	}
 
 	/* negative occurrence, we scan all the list then walk back */
 	if (-occ > MAX_HDR_HISTORY)
 		return 0;
 
-	hist_ptr = 0;
-	hdr_hist[hist_ptr] = 0;
-	while (http_find_header2(hname, hlen, msg->sol, idx, &ctx)) {
-		hdr_hist[hist_ptr++] = inetaddr_host_lim(ctx.line+ctx.val, ctx.line+ctx.val+ctx.vlen);
-		if (hist_ptr >= MAX_HDR_HISTORY)
+	found = hist_ptr = 0;
+	while (http_find_header2(hname, hlen, msg->sol, idx, ctx)) {
+		ptr_hist[hist_ptr] = ctx->line + ctx->val;
+		len_hist[hist_ptr] = ctx->vlen;
+		if (++hist_ptr >= MAX_HDR_HISTORY)
 			hist_ptr = 0;
 		found++;
 	}
@@ -7533,7 +7541,9 @@ unsigned int get_ip_from_hdr2(struct http_msg *msg, const char *hname, int hlen,
 	hist_ptr += occ;
 	if (hist_ptr >= MAX_HDR_HISTORY)
 		hist_ptr -= MAX_HDR_HISTORY;
-	return hdr_hist[hist_ptr];
+	*vptr = ptr_hist[hist_ptr];
+	*vlen = len_hist[hist_ptr];
+	return 1;
 }
 
 /*
@@ -8489,8 +8499,13 @@ pattern_fetch_hdr_ip(struct proxy *px, struct session *l4, void *l7, int dir,
                      const struct pattern_arg *arg_p, int arg_i, union pattern_data *data)
 {
 	struct http_txn *txn = l7;
+	const char *vptr;
+	int vlen;
 
-	data->ip.s_addr = htonl(get_ip_from_hdr2(&txn->req, arg_p->data.str.str, arg_p->data.str.len, &txn->hdr_idx, -1));
+	if (!http_get_hdr(&txn->req, arg_p->data.str.str, arg_p->data.str.len, &txn->hdr_idx, -1, NULL, &vptr, &vlen))
+		return 0;
+
+	data->ip.s_addr = htonl(inetaddr_host_lim(vptr, vptr + vlen));
 	return data->ip.s_addr != 0;
 }
 

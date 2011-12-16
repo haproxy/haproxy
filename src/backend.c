@@ -881,15 +881,19 @@ static void assign_tproxy_address(struct session *s)
 			break;
 		case SRV_TPROXY_DYN:
 			if (srv->bind_hdr_occ) {
+				char *vptr;
+				int vlen;
+
 				/* bind to the IP in a header */
 				((struct sockaddr_in *)&s->req->cons->addr.from)->sin_family = AF_INET;
 				((struct sockaddr_in *)&s->req->cons->addr.from)->sin_port = 0;
-				((struct sockaddr_in *)&s->req->cons->addr.from)->sin_addr.s_addr =
-					htonl(get_ip_from_hdr2(&s->txn.req,
-					                       srv->bind_hdr_name,
-					                       srv->bind_hdr_len,
-					                       &s->txn.hdr_idx,
-					                       srv->bind_hdr_occ));
+				((struct sockaddr_in *)&s->req->cons->addr.from)->sin_addr.s_addr = 0;
+
+				if (http_get_hdr(&s->txn.req, srv->bind_hdr_name, srv->bind_hdr_len,
+						 &s->txn.hdr_idx, srv->bind_hdr_occ, NULL, &vptr, &vlen)) {
+					((struct sockaddr_in *)&s->req->cons->addr.from)->sin_addr.s_addr =
+						htonl(inetaddr_host_lim(vptr, vptr + vlen));
+				}
 			}
 			break;
 		default:
@@ -908,15 +912,19 @@ static void assign_tproxy_address(struct session *s)
 			break;
 		case PR_O_TPXY_DYN:
 			if (s->be->bind_hdr_occ) {
+				char *vptr;
+				int vlen;
+
 				/* bind to the IP in a header */
 				((struct sockaddr_in *)&s->req->cons->addr.from)->sin_family = AF_INET;
 				((struct sockaddr_in *)&s->req->cons->addr.from)->sin_port = 0;
-				((struct sockaddr_in *)&s->req->cons->addr.from)->sin_addr.s_addr =
-					htonl(get_ip_from_hdr2(&s->txn.req,
-							       s->be->bind_hdr_name,
-							       s->be->bind_hdr_len,
-							       &s->txn.hdr_idx,
-							       s->be->bind_hdr_occ));
+				((struct sockaddr_in *)&s->req->cons->addr.from)->sin_addr.s_addr = 0;
+
+				if (http_get_hdr(&s->txn.req, s->be->bind_hdr_name, s->be->bind_hdr_len,
+						 &s->txn.hdr_idx, s->be->bind_hdr_occ, NULL, &vptr, &vlen)) {
+					((struct sockaddr_in *)&s->req->cons->addr.from)->sin_addr.s_addr =
+						htonl(inetaddr_host_lim(vptr, vptr + vlen));
+				}
 			}
 			break;
 		default:
