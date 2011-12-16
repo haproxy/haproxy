@@ -1580,11 +1580,10 @@ pattern_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir
 	expr.arg_len = arg_p[0].data.str.len;
 
 	ret = acl_fetch_rdp_cookie(px, l4, NULL, ACL_DIR_REQ, &expr, &test);
-	if (ret == 0 || (test.flags & ACL_TEST_F_MAY_CHANGE) || test.len == 0)
+	if (ret == 0 || (test.flags & ACL_TEST_F_MAY_CHANGE) || temp_pattern.data.str.len == 0)
 		return 0;
 
-	/* init chunk as read only */
-	chunk_initlen(&data->str, test.ptr, 0, test.len);
+	data->str = temp_pattern.data.str;
 	return 1;
 }
 

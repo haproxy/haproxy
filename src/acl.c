@@ -423,8 +423,8 @@ acl_fetch_ssl_hello_sni(struct proxy *px, struct session *l4, void *l7, int dir,
 			name_len = (data[7] << 8) + data[8];
 
 			if (name_type == 0) { /* hostname */
-				test->ptr = data + 9;
-				test->len = name_len;
+				temp_pattern.data.str.str = data + 9;
+				temp_pattern.data.str.len = name_len;
 				test->flags = ACL_TEST_F_VOLATILE;
 				//fprintf(stderr, "found SNI : <");
 				//write(2, test->ptr, test->len);
@@ -513,8 +513,8 @@ acl_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
 	}
 
 	/* data points to cookie value */
-	test->ptr = (char *)data;
-	test->len = 0;
+	temp_pattern.data.str.str = (char *)data;
+	temp_pattern.data.str.len = 0;
 
 	while (bleft > 0 && *data != '\r') {
 		data++;
@@ -527,7 +527,7 @@ acl_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (data[0] != '\r' || data[1] != '\n')
 		goto not_cookie;
 
-	test->len = (char *)data - test->ptr;
+	temp_pattern.data.str.len = (char *)data - temp_pattern.data.str.str;
 	test->flags = ACL_TEST_F_VOLATILE;
 	return 1;
 
@@ -545,8 +545,8 @@ acl_fetch_rdp_cookie_cnt(struct proxy *px, struct session *l4, void *l7, int dir
 
 	ret = acl_fetch_rdp_cookie(px, l4, l7, dir, expr, test);
 
-	test->ptr = NULL;
-	test->len = 0;
+	temp_pattern.data.str.str = NULL;
+	temp_pattern.data.str.len = 0;
 
 	if (test->flags & ACL_TEST_F_MAY_CHANGE)
 		return 0;
@@ -587,12 +587,12 @@ int acl_match_str(struct acl_test *test, struct acl_pattern *pattern)
 {
 	int icase;
 
-	if (pattern->len != test->len)
+	if (pattern->len != temp_pattern.data.str.len)
 		return ACL_PAT_FAIL;
 
 	icase = pattern->flags & ACL_PAT_F_IGNORE_CASE;
-	if ((icase && strncasecmp(pattern->ptr.str, test->ptr, test->len) == 0) ||
-	    (!icase && strncmp(pattern->ptr.str, test->ptr, test->len) == 0))
+	if ((icase && strncasecmp(pattern->ptr.str, temp_pattern.data.str.str, temp_pattern.data.str.len) == 0) ||
+	    (!icase && strncmp(pattern->ptr.str, temp_pattern.data.str.str, temp_pattern.data.str.len) == 0))
 		return ACL_PAT_PASS;
 	return ACL_PAT_FAIL;
 }
@@ -607,12 +607,12 @@ void *acl_lookup_str(struct acl_test *test, struct acl_expr *expr)
 	char prev;
 
 	/* we may have to force a trailing zero on the test pattern */
-	prev = test->ptr[test->len];
+	prev = temp_pattern.data.str.str[temp_pattern.data.str.len];
 	if (prev)
-		test->ptr[test->len] = '\0';
-	node = ebst_lookup(&expr->pattern_tree, test->ptr);
+		temp_pattern.data.str.str[temp_pattern.data.str.len] = '\0';
+	node = ebst_lookup(&expr->pattern_tree, temp_pattern.data.str.str);
 	if (prev)
-		test->ptr[test->len] = prev;
+		temp_pattern.data.str.str[temp_pattern.data.str.len] = prev;
 	return node;
 }
 
@@ -629,28 +629,28 @@ int acl_match_reg(struct acl_test *test, struct acl_pattern *pattern)
 	if (unlikely(test->flags & ACL_TEST_F_READ_ONLY)) {
 		char *new_str;
 
-		new_str = calloc(1, test->len + 1);
+		new_str = calloc(1, temp_pattern.data.str.len + 1);
 		if (!new_str)
 			return ACL_PAT_FAIL;
 
-		memcpy(new_str, test->ptr, test->len);
-		new_str[test->len] = 0;
+		memcpy(new_str, temp_pattern.data.str.str, temp_pattern.data.str.len);
+		new_str[temp_pattern.data.str.len] = 0;
 		if (test->flags & ACL_TEST_F_MUST_FREE)
-			free(test->ptr);
-		test->ptr = new_str;
+			free(temp_pattern.data.str.str);
+		temp_pattern.data.str.str = new_str;
 		test->flags |= ACL_TEST_F_MUST_FREE;
 		test->flags &= ~ACL_TEST_F_READ_ONLY;
 	}
 
-	old_char = test->ptr[test->len];
-	test->ptr[test->len] = 0;
+	old_char = temp_pattern.data.str.str[temp_pattern.data.str.len];
+	temp_pattern.data.str.str[temp_pattern.data.str.len] = 0;
 
-	if (regexec(pattern->ptr.reg, test->ptr, 0, NULL, 0) == 0)
+	if (regexec(pattern->ptr.reg, temp_pattern.data.str.str, 0, NULL, 0) == 0)
 		ret = ACL_PAT_PASS;
 	else
 		ret = ACL_PAT_FAIL;
 
-	test->ptr[test->len] = old_char;
+	temp_pattern.data.str.str[temp_pattern.data.str.len] = old_char;
 	return ret;
 }
 
@@ -659,12 +659,12 @@ int acl_match_beg(struct acl_test *test, struct acl_pattern *pattern)
 {
 	int icase;
 
-	if (pattern->len > test->len)
+	if (pattern->len > temp_pattern.data.str.len)
 		return ACL_PAT_FAIL;
 
 	icase = pattern->flags & ACL_PAT_F_IGNORE_CASE;
-	if ((icase && strncasecmp(pattern->ptr.str, test->ptr, pattern->len) != 0) ||
-	    (!icase && strncmp(pattern->ptr.str, test->ptr, pattern->len) != 0))
+	if ((icase && strncasecmp(pattern->ptr.str, temp_pattern.data.str.str, pattern->len) != 0) ||
+	    (!icase && strncmp(pattern->ptr.str, temp_pattern.data.str.str, pattern->len) != 0))
 		return ACL_PAT_FAIL;
 	return ACL_PAT_PASS;
 }
@@ -674,11 +674,11 @@ int acl_match_end(struct acl_test *test, struct acl_pattern *pattern)
 {
 	int icase;
 
-	if (pattern->len > test->len)
+	if (pattern->len > temp_pattern.data.str.len)
 		return ACL_PAT_FAIL;
 	icase = pattern->flags & ACL_PAT_F_IGNORE_CASE;
-	if ((icase && strncasecmp(pattern->ptr.str, test->ptr + test->len - pattern->len, pattern->len) != 0) ||
-	    (!icase && strncmp(pattern->ptr.str, test->ptr + test->len - pattern->len, pattern->len) != 0))
+	if ((icase && strncasecmp(pattern->ptr.str, temp_pattern.data.str.str + temp_pattern.data.str.len - pattern->len, pattern->len) != 0) ||
+	    (!icase && strncmp(pattern->ptr.str, temp_pattern.data.str.str + temp_pattern.data.str.len - pattern->len, pattern->len) != 0))
 		return ACL_PAT_FAIL;
 	return ACL_PAT_PASS;
 }
@@ -692,20 +692,20 @@ int acl_match_sub(struct acl_test *test, struct acl_pattern *pattern)
 	char *end;
 	char *c;
 
-	if (pattern->len > test->len)
+	if (pattern->len > temp_pattern.data.str.len)
 		return ACL_PAT_FAIL;
 
-	end = test->ptr + test->len - pattern->len;
+	end = temp_pattern.data.str.str + temp_pattern.data.str.len - pattern->len;
 	icase = pattern->flags & ACL_PAT_F_IGNORE_CASE;
 	if (icase) {
-		for (c = test->ptr; c <= end; c++) {
+		for (c = temp_pattern.data.str.str; c <= end; c++) {
 			if (tolower(*c) != tolower(*pattern->ptr.str))
 				continue;
 			if (strncasecmp(pattern->ptr.str, c, pattern->len) == 0)
 				return ACL_PAT_PASS;
 		}
 	} else {
-		for (c = test->ptr; c <= end; c++) {
+		for (c = temp_pattern.data.str.str; c <= end; c++) {
 			if (*c != *pattern->ptr.str)
 				continue;
 			if (strncmp(pattern->ptr.str, c, pattern->len) == 0)
@@ -761,13 +761,13 @@ static int match_word(struct acl_test *test, struct acl_pattern *pattern, unsign
 	while (pl > 0 && is_delimiter(ps[pl - 1], delimiters))
 		pl--;
 
-	if (pl > test->len)
+	if (pl > temp_pattern.data.str.len)
 		return ACL_PAT_FAIL;
 
 	may_match = 1;
 	icase = pattern->flags & ACL_PAT_F_IGNORE_CASE;
-	end = test->ptr + test->len - pl;
-	for (c = test->ptr; c <= end; c++) {
+	end = temp_pattern.data.str.str + temp_pattern.data.str.len - pl;
+	for (c = temp_pattern.data.str.str; c <= end; c++) {
 		if (is_delimiter(*c, delimiters)) {
 			may_match = 1;
 			continue;
@@ -822,8 +822,8 @@ int acl_match_int(struct acl_test *test, struct acl_pattern *pattern)
 /* Checks that the length of the pattern in <test> is included between min and max */
 int acl_match_len(struct acl_test *test, struct acl_pattern *pattern)
 {
-	if ((!pattern->val.range.min_set || pattern->val.range.min <= test->len) &&
-	    (!pattern->val.range.max_set || test->len <= pattern->val.range.max))
+	if ((!pattern->val.range.min_set || pattern->val.range.min <= temp_pattern.data.str.len) &&
+	    (!pattern->val.range.max_set || temp_pattern.data.str.len <= pattern->val.range.max))
 		return ACL_PAT_PASS;
 	return ACL_PAT_FAIL;
 }
@@ -1851,8 +1851,8 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 
 				/* now we may have some cleanup to do */
 				if (test.flags & ACL_TEST_F_MUST_FREE) {
-					free(test.ptr);
-					test.len = 0;
+					free(temp_pattern.data.str.str);
+					temp_pattern.data.str.len = 0;
 				}
 
 				/* we're ORing these terms, so a single PASS is enough */

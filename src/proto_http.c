@@ -7866,8 +7866,8 @@ acl_fetch_rqver(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (len <= 0)
 		return 0;
 
-	test->ptr = ptr;
-	test->len = len;
+	temp_pattern.data.str.str = ptr;
+	temp_pattern.data.str.len = len;
 
 	test->flags = ACL_TEST_F_READ_ONLY | ACL_TEST_F_VOL_1ST;
 	return 1;
@@ -7894,8 +7894,8 @@ acl_fetch_stver(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (len <= 0)
 		return 0;
 
-	test->ptr = ptr;
-	test->len = len;
+	temp_pattern.data.str.str = ptr;
+	temp_pattern.data.str.len = len;
 
 	test->flags = ACL_TEST_F_READ_ONLY | ACL_TEST_F_VOL_1ST;
 	return 1;
@@ -7941,8 +7941,8 @@ acl_fetch_url(struct proxy *px, struct session *l4, void *l7, int dir,
 		/* ensure the indexes are not affected */
 		return 0;
 
-	test->len = txn->req.sl.rq.u_l;
-	test->ptr = txn->req.sol + txn->req.sl.rq.u;
+	temp_pattern.data.str.len = txn->req.sl.rq.u_l;
+	temp_pattern.data.str.str = txn->req.sol + txn->req.sl.rq.u;
 
 	/* we do not need to set READ_ONLY because the data is in a buffer */
 	test->flags = ACL_TEST_F_VOL_1ST;
@@ -8031,8 +8031,9 @@ acl_fetch_hdr(struct proxy *px, struct session *l4, void *l7, char *sol,
 	if (http_find_header2(expr->arg.str, expr->arg_len, sol, idx, ctx)) {
 		test->flags |= ACL_TEST_F_FETCH_MORE;
 		test->flags |= ACL_TEST_F_VOL_HDR;
-		test->len = ctx->vlen;
-		test->ptr = (char *)ctx->line + ctx->val;
+		temp_pattern.data.str.str = (char *)ctx->line + ctx->val;
+		temp_pattern.data.str.len = ctx->vlen;
+
 		return 1;
 	}
 
@@ -8292,12 +8293,12 @@ acl_fetch_path(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	/* OK, we got the '/' ! */
-	test->ptr = ptr;
+	temp_pattern.data.str.str = ptr;
 
 	while (ptr < end && *ptr != '?')
 		ptr++;
 
-	test->len = ptr - test->ptr;
+	temp_pattern.data.str.len = ptr - temp_pattern.data.str.str;
 
 	/* we do not need to set READ_ONLY because the data is in a buffer */
 	test->flags = ACL_TEST_F_VOL_1ST;

@@ -413,7 +413,9 @@ struct server *get_server_rch(struct session *s)
 	expr.arg_len = px->hh_len;
 
 	ret = acl_fetch_rdp_cookie(px, s, NULL, ACL_DIR_REQ, &expr, &test);
-	if (ret == 0 || (test.flags & ACL_TEST_F_MAY_CHANGE) || test.len == 0)
+	len = temp_pattern.data.str.len;
+
+	if (ret == 0 || (test.flags & ACL_TEST_F_MAY_CHANGE) || len == 0)
 		return NULL;
 
 	/* note: we won't hash if there's only one server left */
@@ -423,8 +425,7 @@ struct server *get_server_rch(struct session *s)
 	/* Found a the hh_name in the headers.
 	 * we will compute the hash based on this value ctx.val.
 	 */
-	len = test.len;
-	p = (char *)test.ptr;
+	p = temp_pattern.data.str.str;
 	while (len) {
 		hash = *p + (hash << 6) + (hash << 16) - hash;
 		len--;
@@ -1112,14 +1113,14 @@ int tcp_persist_rdp_cookie(struct session *s, struct buffer *req, int an_bit)
 	expr.arg_len = s->be->rdp_cookie_len;
 
 	ret = acl_fetch_rdp_cookie(px, s, NULL, ACL_DIR_REQ, &expr, &test);
-	if (ret == 0 || (test.flags & ACL_TEST_F_MAY_CHANGE) || test.len == 0)
+	if (ret == 0 || (test.flags & ACL_TEST_F_MAY_CHANGE) || temp_pattern.data.str.len == 0)
 		goto no_cookie;
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
 
-	/* Considering an rdp cookie detected using acl, test.ptr ended with <cr><lf> and should return */
-	addr.sin_addr.s_addr = strtoul(test.ptr, &p, 10);
+	/* Considering an rdp cookie detected using acl, str ended with <cr><lf> and should return */
+	addr.sin_addr.s_addr = strtoul(temp_pattern.data.str.str, &p, 10);
 	if (*p != '.')
 		goto no_cookie;
 	p++;
