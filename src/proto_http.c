@@ -7770,6 +7770,14 @@ static int acl_parse_meth(const char **text, struct acl_pattern *pattern, int *o
 	return 1;
 }
 
+/* This function fetches the method of current HTTP request and stores
+ * it in the global pattern struct as a chunk. There are two possibilities :
+ *   - if the method is known (not HTTP_METH_OTHER), its identifier is stored
+ *     in <len> and <ptr> is NULL ;
+ *   - if the method is unknown (HTTP_METH_OTHER), <ptr> points to the text and
+ *     <len> to its length.
+ * This is intended to be used with acl_match_meth() only.
+ */
 static int
 acl_fetch_meth(struct proxy *px, struct session *l4, void *l7, int dir,
                struct acl_expr *expr, struct acl_test *test)
@@ -7784,35 +7792,43 @@ acl_fetch_meth(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	meth = txn->meth;
-	test->i = meth;
+	temp_pattern.data.str.len = meth;
+	temp_pattern.data.str.str = NULL;
 	if (meth == HTTP_METH_OTHER) {
 		if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
 			/* ensure the indexes are not affected */
 			return 0;
-		test->len = txn->req.sl.rq.m_l;
-		test->ptr = txn->req.sol;
+		temp_pattern.data.str.len = txn->req.sl.rq.m_l;
+		temp_pattern.data.str.str = txn->req.sol;
 	}
 	test->flags = ACL_TEST_F_READ_ONLY | ACL_TEST_F_VOL_1ST;
 	return 1;
 }
 
+/* See above how the method is stored in the global pattern */
 static int acl_match_meth(struct acl_test *test, struct acl_pattern *pattern)
 {
 	int icase;
 
-	if (test->i != pattern->val.i)
+
+	if (temp_pattern.data.str.str == NULL) {
+		/* well-known method */
+		if (temp_pattern.data.str.len == pattern->val.i)
+			return ACL_PAT_PASS;
+		return ACL_PAT_FAIL;
+	}
+
+	/* Uncommon method, only HTTP_METH_OTHER is accepted now */
+	if (pattern->val.i != HTTP_METH_OTHER)
 		return ACL_PAT_FAIL;
 
-	if (test->i != HTTP_METH_OTHER)
-		return ACL_PAT_PASS;
-
 	/* Other method, we must compare the strings */
-	if (pattern->len != test->len)
+	if (pattern->len != temp_pattern.data.str.len)
 		return ACL_PAT_FAIL;
 
 	icase = pattern->flags & ACL_PAT_F_IGNORE_CASE;
-	if ((icase && strncasecmp(pattern->ptr.str, test->ptr, test->len) != 0) ||
-	    (!icase && strncmp(pattern->ptr.str, test->ptr, test->len) != 0))
+	if ((icase && strncasecmp(pattern->ptr.str, temp_pattern.data.str.str, temp_pattern.data.str.len) != 0) ||
+	    (!icase && strncmp(pattern->ptr.str, temp_pattern.data.str.str, temp_pattern.data.str.len) != 0))
 		return ACL_PAT_FAIL;
 	return ACL_PAT_PASS;
 }
