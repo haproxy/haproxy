@@ -19,6 +19,8 @@
 #include <syslog.h>
 #include <time.h>
 
+#include <netinet/tcp.h>
+
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -2582,6 +2584,15 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 		buffer_dont_connect(req);
 		req->flags |= BF_READ_DONTWAIT; /* try to get back here ASAP */
 		s->rep->flags &= ~BF_EXPECT_MORE; /* speed up sending a previous response */
+#ifdef TCP_QUICKACK
+		if (s->listener->options & LI_O_NOQUICKACK) {
+			/* We need more data, we have to re-enable quick-ack in case we
+			 * previously disabled it, otherwise we might cause the client
+			 * to delay next data.
+			 */
+			setsockopt(s->si[0].fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
+		}
+#endif
 
 		if ((msg->msg_state != HTTP_MSG_RQBEFORE) && (txn->flags & TX_WAIT_NEXT_RQ)) {
 			/* If the client starts to talk, let's fall back to
@@ -3692,8 +3703,20 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 		req->analysers |= AN_REQ_HTTP_BODY;
 	}
 
-	if (txn->flags & TX_REQ_XFER_LEN)
+	if (txn->flags & TX_REQ_XFER_LEN) {
 		req->analysers |= AN_REQ_HTTP_XFER_BODY;
+#ifdef TCP_QUICKACK
+		/* We expect some data from the client. Unless we know for sure
+		 * we already have a full request, we have to re-enable quick-ack
+		 * in case we previously disabled it, otherwise we might cause
+		 * the client to delay further data.
+		 */
+		if ((s->listener->options & LI_O_NOQUICKACK) &&
+		    ((txn->flags & TX_REQ_TE_CHNK) ||
+		     (msg->body_len > req->l - txn->req.eoh - 2)))
+			setsockopt(s->si[0].fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
+#endif
+	}
 
 	/*************************************************************
 	 * OK, that's finished for the headers. We have done what we *
