@@ -631,6 +631,16 @@ int main(int argc, char **argv)
 	else if (filter & FILT_COUNT_ONLY)
 		line_filter = NULL;
 
+	if (!line_filter &&
+	    !(filter & (FILT_HTTP_ONLY|FILT_TIME_RESP|FILT_ERRORS_ONLY|FILT_HTTP_STATUS|FILT_QUEUE_ONLY|FILT_QUEUE_SRV_ONLY|FILT_TERM_CODE_NAME))) {
+		/* read the whole file at once first */
+		if (!filter_invert)
+			while (fgets2(stdin) != NULL)
+				lines_out++;
+
+		goto skip_filters;
+	}
+
 	while ((line = fgets2(stdin)) != NULL) {
 		linenum++;
 		time_field = NULL; accept_field = NULL;
@@ -788,7 +798,7 @@ int main(int argc, char **argv)
 			lines_out++; /* we're just counting lines */
 	}
 
-
+ skip_filters:
 	/*****************************************************
 	 * Here we've finished reading all input. Depending on the
 	 * filters, we may still have some analysis to run on the
