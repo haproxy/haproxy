@@ -1431,6 +1431,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->orgto_hdr_name = strdup(defproxy.orgto_hdr_name);
 		}
 
+		if (defproxy.server_id_hdr_len) {
+			curproxy->server_id_hdr_len  = defproxy.server_id_hdr_len;
+			curproxy->server_id_hdr_name = strdup(defproxy.server_id_hdr_name);
+		}
+
 		if (curproxy->cap & PR_CAP_FE) {
 			curproxy->maxconn = defproxy.maxconn;
 			curproxy->backlog = defproxy.backlog;
@@ -1560,6 +1565,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		defproxy.fwdfor_hdr_len = 0;
 		free(defproxy.orgto_hdr_name);
 		defproxy.orgto_hdr_len = 0;
+		free(defproxy.server_id_hdr_name);
+		defproxy.server_id_hdr_len = 0;
 		free(defproxy.expect_str);
 		if (defproxy.expect_regex) regfree(defproxy.expect_regex);
 
@@ -2459,6 +2466,23 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		err_code |= warnif_cond_requires_resp(rule->cond, file, linenum);
 		LIST_ADDQ(&curproxy->http_req_rules, &rule->list);
+	}
+	else if (!strcmp(args[0], "http-send-name-header")) { /* send server name in request header */
+		/* set the header name and length into the proxy structure */
+		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
+			err_code |= ERR_WARN;
+
+		if (!*args[1]) {
+			Alert("parsing [%s:%d] : '%s' requires a header string.\n",
+			      file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		/* set the desired header name */
+		free(curproxy->server_id_hdr_name);
+		curproxy->server_id_hdr_name = strdup(args[1]);
+		curproxy->server_id_hdr_len  = strlen(curproxy->server_id_hdr_name);
 	}
 	else if (!strcmp(args[0], "block")) {  /* early blocking based on ACLs */
 		if (curproxy == &defproxy) {

@@ -2523,6 +2523,22 @@ http-request { allow | deny | auth [realm <realm>] }
   See also : "stats http-request", section 3.4 about userlists and section 7
              about ACL usage.
 
+http-send-name-header [<header>]
+  Add the server name to a request. Use the header string given by <header>
+
+  May be used in sections:   defaults | frontend | listen | backend
+                               yes    |    no    |   yes  |   yes
+
+  Arguments :
+
+    <header>  The header string to use to send the server name
+
+  The "http-send-name-header" statement causes the name of the target
+  server to be added to the headers of an HTTP request.  The name
+  is added with the header string proved.
+
+  See also : "server"
+
 id <value>
   Set a persistent ID to a proxy.
   May be used in sections :   defaults | frontend | listen | backend
@@ -4760,7 +4776,8 @@ server <name> <address>[:[port]] [param*]
                                  no    |    no    |   yes  |   yes
   Arguments :
     <name>    is the internal name assigned to this server. This name will
-              appear in logs and alerts.
+              appear in logs and alerts.  If "http-send-server-name" is
+              set, it will be added to the request header sent to the server.
 
     <address> is the IPv4 or IPv6 address of the server. Alternatively, a
               resolvable hostname is supported, but this name will be resolved
@@ -4787,7 +4804,8 @@ server <name> <address>[:[port]] [param*]
         server first  10.1.1.1:1080 cookie first  check inter 1000
         server second 10.1.1.2:1080 cookie second check inter 1000
 
-  See also: "default-server" and section 5 about server options
+  See also: "default-server", "http-send-name-header" and section 5 about
+             server options
 
 
 source <addr>[:<port>] [usesrc { <addr2>[:<port2>] | client | clientip } ]

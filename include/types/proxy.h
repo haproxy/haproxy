@@ -272,6 +272,8 @@ struct proxy {
 	int fwdfor_hdr_len;			/* length of "x-forwarded-for" header */
 	char *orgto_hdr_name;			/* header to use - default: "x-original-to" */
 	int orgto_hdr_len;			/* length of "x-original-to" header */
+	char *server_id_hdr_name;                   /* the header to use to send the server id (name) */
+	int server_id_hdr_len;                      /* the length of the id (name) header... name */
 
 	unsigned down_trans;			/* up-down transitions */
 	unsigned down_time;			/* total time the proxy was down */

@@ -71,6 +71,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 int http_process_request(struct session *t, struct buffer *req, int an_bit);
 int http_process_tarpit(struct session *s, struct buffer *req, int an_bit);
 int http_process_request_body(struct session *s, struct buffer *req, int an_bit);
+int http_send_name_header(struct http_txn *txn, struct http_msg *msg, struct buffer *buf, struct proxy* be, const char* svr_name);
 int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit);
 int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, struct proxy *px);
 int http_request_forward_body(struct session *s, struct buffer *req, int an_bit);
