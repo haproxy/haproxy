@@ -2873,7 +2873,12 @@ no option accept-invalid-http-request
   server will emit invalid header names for whatever reason (configuration,
   implementation) and the issue will not be immediately fixed. In such a case,
   it is possible to relax HAProxy's header name parser to accept any character
-  even if that does not make sense, by specifying this option.
+  even if that does not make sense, by specifying this option. Similarly, the
+  list of characters allowed to appear in a URI is well defined by RFC3986, and
+  chars 0-31, 32 (space), 34 ('"'), 60 ('<'), 62 ('>'), 92 ('\'), 94 ('^'), 96
+  ('`'), 123 ('{'), 124 ('|'), 125 ('}'), 127 (delete) and anything above are
+  not allowed at all. Haproxy always blocks a number of them (0..32, 127). The
+  remaining ones are blocked by default unless this option is enabled.
 
   This option should never be enabled by default as it hides application bugs
   and open security breaches. It should only be deployed after a problem has
@@ -2881,7 +2886,8 @@ no option accept-invalid-http-request
 
   When this option is enabled, erroneous header names will still be accepted in
   requests, but the complete request will be captured in order to permit later
-  analysis using the "show errors" request on the UNIX stats socket. Doing this
+  analysis using the "show errors" request on the UNIX stats socket. Similarly,
+  requests containing invalid chars in the URI part will be logged. Doing this
   also helps confirming that the issue has been solved.
 
   If this option has been enabled in a "defaults" section, it can be disabled

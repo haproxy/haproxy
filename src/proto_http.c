@@ -1458,9 +1458,14 @@ const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf,
 		}
 
 		if (likely((unsigned char)*ptr >= 128)) {
-			/* FIXME: we should control whether we want to allow them, but
-			 * until now they were allowed.
+			/* non-ASCII chars are forbidden unless option
+			 * accept-invalid-http-request is enabled in the frontend.
+			 * In any case, we capture the faulty char.
 			 */
+			if (msg->err_pos < -1)
+				goto invalid_char;
+			if (msg->err_pos == -1)
+				msg->err_pos = ptr - msg_buf;
 			EAT_AND_JUMP_OR_RETURN(http_msg_rquri, HTTP_MSG_RQURI);
 		}
 
@@ -1470,6 +1475,8 @@ const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf,
 		}
 
 		/* OK forbidden chars, 0..31 or 127 */
+	invalid_char:
+		msg->err_pos = ptr - msg_buf;
 		state = HTTP_MSG_ERROR;
 		break;
 
