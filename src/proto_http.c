@@ -1449,7 +1449,7 @@ const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf,
 
 	case HTTP_MSG_RQURI:
 	http_msg_rquri:
-		if (likely(!HTTP_IS_LWS(*ptr)))
+		if (likely((unsigned char)(*ptr - 33) <= 93)) /* 33 to 126 included */
 			EAT_AND_JUMP_OR_RETURN(http_msg_rquri, HTTP_MSG_RQURI);
 
 		if (likely(HTTP_IS_SPHT(*ptr))) {
@@ -1457,8 +1457,21 @@ const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf,
 			EAT_AND_JUMP_OR_RETURN(http_msg_rquri_sp, HTTP_MSG_RQURI_SP);
 		}
 
-		/* so it's a CR/LF, meaning an HTTP 0.9 request */
-		goto http_msg_req09_uri_e;
+		if (likely((unsigned char)*ptr >= 128)) {
+			/* FIXME: we should control whether we want to allow them, but
+			 * until now they were allowed.
+			 */
+			EAT_AND_JUMP_OR_RETURN(http_msg_rquri, HTTP_MSG_RQURI);
+		}
+
+		if (likely(HTTP_IS_CRLF(*ptr))) {
+			/* so it's a CR/LF, meaning an HTTP 0.9 request */
+			goto http_msg_req09_uri_e;
+		}
+
+		/* OK forbidden chars, 0..31 or 127 */
+		state = HTTP_MSG_ERROR;
+		break;
 
 	case HTTP_MSG_RQURI_SP:
 	http_msg_rquri_sp:
