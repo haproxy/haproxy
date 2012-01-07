@@ -502,7 +502,7 @@ switchstate:
 				                PEER_SESSION_PROTO_NAME " 1.0\n%s\n%s %d\n%s %lu %d\n",
 				                ps->peer->id,
 				                localpeer,
-				                getpid(),
+				                (int)getpid(),
 				                ps->table->table->id,
 				                ps->table->table->type,
 				                (int)ps->table->table->key_size);
