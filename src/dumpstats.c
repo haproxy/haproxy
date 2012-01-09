@@ -3699,7 +3699,10 @@ static int stats_table_request(struct stream_interface *si, bool show)
 			if (eb) {
 				struct stksess *old = si->applet.ctx.table.entry;
 				si->applet.ctx.table.entry = ebmb_entry(eb, struct stksess, key);
-				stksess_kill_if_expired(&si->applet.ctx.table.proxy->table, old);
+				if (show)
+					stksess_kill_if_expired(&si->applet.ctx.table.proxy->table, old);
+				else
+					stksess_kill(&si->applet.ctx.table.proxy->table, old);
 				si->applet.ctx.table.entry->ref_cnt++;
 				break;
 			}
