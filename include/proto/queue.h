@@ -1,23 +1,23 @@
 /*
-  include/proto/queue.h
-  This file defines everything related to queues.
-
-  Copyright (C) 2000-2008 Willy Tarreau - w@1wt.eu
-  
-  This library is free software; you can redistribute it and/or
-  modify it under the terms of the GNU Lesser General Public
-  License as published by the Free Software Foundation, version 2.1
-  exclusively.
-
-  This library is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  Lesser General Public License for more details.
-
-  You should have received a copy of the GNU Lesser General Public
-  License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
+ * include/proto/queue.h
+ * This file defines everything related to queues.
+ *
+ * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation, version 2.1
+ * exclusively.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+ */
 
 #ifndef _PROTO_QUEUE_H
 #define _PROTO_QUEUE_H
@@ -31,6 +31,8 @@
 #include <types/session.h>
 #include <types/server.h>
 #include <types/task.h>
+
+#include <proto/backend.h>
 
 extern struct pool_head *pool2_pendconn;
 
@@ -68,7 +70,7 @@ static inline struct pendconn *pendconn_from_px(const struct proxy *px) {
  * for and if/else usage.
  */
 static inline int may_dequeue_tasks(const struct server *s, const struct proxy *p) {
-	return (s && (s->nbpend || (p->nbpend && (s->state & SRV_RUNNING))) &&
+	return (s && (s->nbpend || (p->nbpend && srv_is_usable(s->state, s->eweight))) &&
 		(!s->maxconn || s->cur_sess < srv_dynamic_maxconn(s)));
 }
 
