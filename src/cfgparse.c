@@ -6076,6 +6076,97 @@ out_uri_auth_compat:
 		curproxy->lbprm.wmult = 1; /* default weight multiplier */
 		curproxy->lbprm.wdiv  = 1; /* default weight divider */
 
+		/*
+		 * If this server supports a maxconn parameter, it needs a dedicated
+		 * tasks to fill the emptied slots when a connection leaves.
+		 * Also, resolve deferred tracking dependency if needed.
+		 */
+		newsrv = curproxy->srv;
+		while (newsrv != NULL) {
+			if (newsrv->minconn > newsrv->maxconn) {
+				/* Only 'minconn' was specified, or it was higher than or equal
+				 * to 'maxconn'. Let's turn this into maxconn and clean it, as
+				 * this will avoid further useless expensive computations.
+				 */
+				newsrv->maxconn = newsrv->minconn;
+			} else if (newsrv->maxconn && !newsrv->minconn) {
+				/* minconn was not specified, so we set it to maxconn */
+				newsrv->minconn = newsrv->maxconn;
+			}
+
+			if (newsrv->trackit) {
+				struct proxy *px;
+				struct server *srv;
+				char *pname, *sname;
+
+				pname = newsrv->trackit;
+				sname = strrchr(pname, '/');
+
+				if (sname)
+					*sname++ = '\0';
+				else {
+					sname = pname;
+					pname = NULL;
+				}
+
+				if (pname) {
+					px = findproxy(pname, PR_CAP_BE);
+					if (!px) {
+						Alert("config : %s '%s', server '%s': unable to find required proxy '%s' for tracking.\n",
+							proxy_type_str(curproxy), curproxy->id,
+							newsrv->id, pname);
+						cfgerr++;
+						goto next_srv;
+					}
+				} else
+					px = curproxy;
+
+				srv = findserver(px, sname);
+				if (!srv) {
+					Alert("config : %s '%s', server '%s': unable to find required server '%s' for tracking.\n",
+						proxy_type_str(curproxy), curproxy->id,
+						newsrv->id, sname);
+					cfgerr++;
+					goto next_srv;
+				}
+
+				if (!(srv->state & SRV_CHECKED)) {
+					Alert("config : %s '%s', server '%s': unable to use %s/%s for "
+						"tracking as it does not have checks enabled.\n",
+						proxy_type_str(curproxy), curproxy->id,
+						newsrv->id, px->id, srv->id);
+					cfgerr++;
+					goto next_srv;
+				}
+
+				if (curproxy != px &&
+					(curproxy->options & PR_O_DISABLE404) != (px->options & PR_O_DISABLE404)) {
+					Alert("config : %s '%s', server '%s': unable to use %s/%s for"
+						"tracking: disable-on-404 option inconsistency.\n",
+						proxy_type_str(curproxy), curproxy->id,
+						newsrv->id, px->id, srv->id);
+					cfgerr++;
+					goto next_srv;
+				}
+
+				/* if the other server is forced disabled, we have to do the same here */
+				if (srv->state & SRV_MAINTAIN) {
+					newsrv->state |= SRV_MAINTAIN;
+					newsrv->state &= ~SRV_RUNNING;
+					newsrv->health = 0;
+				}
+
+				newsrv->track = srv;
+				newsrv->tracknext = srv->tracknext;
+				srv->tracknext = newsrv;
+
+				free(newsrv->trackit);
+				newsrv->trackit = NULL;
+			}
+		next_srv:
+			newsrv = newsrv->next;
+		}
+
 		/* We have to initialize the server lookup mechanism depending
 		 * on what LB algorithm was choosen.
 		 */
@@ -6205,89 +6296,6 @@ out_uri_auth_compat:
 				err_code |= ERR_WARN;
 			}
 #endif
-			newsrv = newsrv->next;
-		}
-
-		/*
-		 * If this server supports a maxconn parameter, it needs a dedicated
-		 * tasks to fill the emptied slots when a connection leaves.
-		 * Also, resolve deferred tracking dependency if needed.
-		 */
-		newsrv = curproxy->srv;
-		while (newsrv != NULL) {
-			if (newsrv->minconn > newsrv->maxconn) {
-				/* Only 'minconn' was specified, or it was higher than or equal
-				 * to 'maxconn'. Let's turn this into maxconn and clean it, as
-				 * this will avoid further useless expensive computations.
-				 */
-				newsrv->maxconn = newsrv->minconn;
-			} else if (newsrv->maxconn && !newsrv->minconn) {
-				/* minconn was not specified, so we set it to maxconn */
-				newsrv->minconn = newsrv->maxconn;
-			}
-
-			if (newsrv->trackit) {
-				struct proxy *px;
-				struct server *srv;
-				char *pname, *sname;
-
-				pname = newsrv->trackit;
-				sname = strrchr(pname, '/');
-
-				if (sname)
-					*sname++ = '\0';
-				else {
-					sname = pname;
-					pname = NULL;
-				}
-
-				if (pname) {
-					px = findproxy(pname, PR_CAP_BE);
-					if (!px) {
-						Alert("config : %s '%s', server '%s': unable to find required proxy '%s' for tracking.\n",
-							proxy_type_str(curproxy), curproxy->id,
-							newsrv->id, pname);
-						cfgerr++;
-						goto next_srv;
-					}
-				} else
-					px = curproxy;
-
-				srv = findserver(px, sname);
-				if (!srv) {
-					Alert("config : %s '%s', server '%s': unable to find required server '%s' for tracking.\n",
-						proxy_type_str(curproxy), curproxy->id,
-						newsrv->id, sname);
-					cfgerr++;
-					goto next_srv;
-				}
-
-				if (!(srv->state & SRV_CHECKED)) {
-					Alert("config : %s '%s', server '%s': unable to use %s/%s for "
-						"tracking as it does not have checks enabled.\n",
-						proxy_type_str(curproxy), curproxy->id,
-						newsrv->id, px->id, srv->id);
-					cfgerr++;
-					goto next_srv;
-				}
-
-				if (curproxy != px &&
-					(curproxy->options & PR_O_DISABLE404) != (px->options & PR_O_DISABLE404)) {
-					Alert("config : %s '%s', server '%s': unable to use %s/%s for"
-						"tracking: disable-on-404 option inconsistency.\n",
-						proxy_type_str(curproxy), curproxy->id,
-						newsrv->id, px->id, srv->id);
-					cfgerr++;
-					goto next_srv;
-				}
-
-				newsrv->track = srv;
-				newsrv->tracknext = srv->tracknext;
-				srv->tracknext = newsrv;
-
-				free(newsrv->trackit);
-			}
-		next_srv:
 			newsrv = newsrv->next;
 		}
 
