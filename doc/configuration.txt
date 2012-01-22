@@ -6616,16 +6616,16 @@ backup
 
 check
   This option enables health checks on the server. By default, a server is
-  always considered available. If "check" is set, the server will receive
-  periodic health checks to ensure that it is really able to serve requests.
-  The default address and port to send the tests to are those of the server,
-  and the default source is the same as the one defined in the backend. It is
-  possible to change the address using the "addr" parameter, the port using the
-  "port" parameter, the source address using the "source" address, and the
-  interval and timers using the "inter", "rise" and "fall" parameters. The
-  request method is define in the backend using the "httpchk", "smtpchk",
-  "mysql-check", "pgsql-check" and "ssl-hello-chk" options. Please refer to
-  those options and parameters for more information.
+  always considered available. If "check" is set, the server is available when
+  accepting periodic TCP connections, to ensure that it is really able to serve
+  requests. The default address and port to send the tests to are those of the
+  server, and the default source is the same as the one defined in the
+  backend. It is possible to change the address using the "addr" parameter, the
+  port using the "port" parameter, the source address using the "source"
+  address, and the interval and timers using the "inter", "rise" and "fall"
+  parameters. The request method is define in the backend using the "httpchk",
+  "smtpchk", "mysql-check", "pgsql-check" and "ssl-hello-chk" options. Please
+  refer to those options and parameters for more information.
 
   Supported in default-server: No
 
