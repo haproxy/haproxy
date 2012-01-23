@@ -123,17 +123,56 @@ void filter_graphs(const char *accept_field, const char *time_field, struct time
 void filter_output_line(const char *accept_field, const char *time_field, struct timer **tptr);
 void filter_accept_holes(const char *accept_field, const char *time_field, struct timer **tptr);
 
-void die(const char *msg)
+void usage(FILE *output, const char *msg)
 {
-	fprintf(stderr,
+	fprintf(output,
 		"%s"
-		"Usage: halog [-q] [-c] [-v] {-gt|-pct|-st|-tc|-srv|-u|-uc|-ue|-ua|-ut|-uao|-uto}\n"
+		"Usage: halog [-h|--help] for long help\n"
+		"       halog [-q] [-c] [-v] {-gt|-pct|-st|-tc|-srv|-u|-uc|-ue|-ua|-ut|-uao|-uto}\n"
 		"       [-s <skip>] [-e|-E] [-H] [-rt|-RT <time>] [-ad <delay>] [-ac <count>]\n"
 		"       [-Q|-QS] [-tcn|-TCN <termcode>] [ -hs|-HS [min][:[max]] ] < log\n"
 		"\n",
 		msg ? msg : ""
 		);
+}
+
+void die(const char *msg)
+{
+	usage(stderr, msg);
 	exit(1);
+}
+
+void help()
+{
+	usage(stdout, NULL);
+	printf(
+	       "Input filters (several filters may be combined) :\n"
+	       " -H                      only match lines containing HTTP logs (ignore TCP)\n"
+	       " -E                      only match lines without any error (no 5xx status)\n"
+	       " -e                      only match lines with errors (status 5xx or negative)\n"
+	       " -rt|-RT <time>          only match response times larger|smaller than <time>\n"
+	       " -Q|-QS                  only match queued requests (any queue|server queue)\n"
+	       " -tcn|-TCN <code>        only match requests with/without termination code <code>\n"
+	       " -hs|-HS <[min][:][max]> only match requests with HTTP status codes within/not\n"
+	       "                         within min..max. Any of them may be omitted. Exact\n"
+	       "                         code is checked for if no ':' is specified.\n"
+	       "Modifiers\n"
+	       " -v                      invert the input filtering condition\n"
+	       " -q                      don't report errors/warnings\n"
+	       "\n"
+	       "Output filters - only one may be used at a time\n"
+	       " -c    only report the number of lines that would have been printed\n"
+	       " -pct  output connect and response times percentiles\n"
+	       " -st   output number of requests per HTTP status code\n"
+	       " -tc   output number of requests per termination code (2 chars)\n"
+	       " -srv  output statistics per server (time, requests, errors)\n"
+	       " -u*   output statistics per URL (time, requests, errors)\n"
+	       "       Additional characters indicate the output sorting key :\n"
+	       "       -u : by URL, -uc : request count, -ue : error count\n"
+	       "       -ua : average response time, -uto : average total time\n"
+	       "       -uao, -uto: average times computed on valid ('OK') requests\n"
+	       );
+	exit(0);
 }
 
 
@@ -600,6 +639,8 @@ int main(int argc, char **argv)
 				die("Fatal: missing output file name.\n");
 			output_file = argv[1];
 		}
+		else if (strcmp(argv[0], "-h") == 0 || strcmp(argv[0], "--help") == 0)
+			help();
 		argc--;
 		argv++;
 	}
