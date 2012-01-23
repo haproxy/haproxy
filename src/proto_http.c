@@ -19,11 +19,11 @@
 #include <syslog.h>
 #include <time.h>
 
-#include <netinet/tcp.h>
-
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+
+#include <netinet/tcp.h>
 
 #include <common/appsession.h>
 #include <common/base64.h>
