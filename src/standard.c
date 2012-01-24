@@ -35,6 +35,330 @@
 char itoa_str[10][171];
 
 /*
+ * unsigned long long ASCII representation
+ *
+ * return the last char '\0' or NULL if no enough
+ * space in dst
+ */
+char *ulltoa(unsigned long long n, char *dst, size_t size)
+{
+	int i = 0;
+	char *res;
+
+	switch(n) {
+		case 1ULL ... 9ULL:
+			i = 0;
+			break;
+
+		case 10ULL ... 99ULL:
+			i = 1;
+			break;
+
+		case 100ULL ... 999ULL:
+			i = 2;
+			break;
+
+		case 1000ULL ... 9999ULL:
+			i = 3;
+			break;
+
+		case 10000ULL ... 99999ULL:
+			i = 4;
+			break;
+
+		case 100000ULL ... 999999ULL:
+			i = 5;
+			break;
+
+		case 1000000ULL ... 9999999ULL:
+			i = 6;
+			break;
+
+		case 10000000ULL ... 99999999ULL:
+			i = 7;
+			break;
+
+		case 100000000ULL ... 999999999ULL:
+			i = 8;
+			break;
+
+		case 1000000000ULL ... 9999999999ULL:
+			i = 9;
+			break;
+
+		case 10000000000ULL ... 99999999999ULL:
+			i = 10;
+			break;
+
+		case 100000000000ULL ... 999999999999ULL:
+			i = 11;
+			break;
+
+		case 1000000000000ULL ... 9999999999999ULL:
+			i = 12;
+			break;
+
+		case 10000000000000ULL ... 99999999999999ULL:
+			i = 13;
+			break;
+
+		case 100000000000000ULL ... 999999999999999ULL:
+			i = 14;
+			break;
+
+		case 1000000000000000ULL ... 9999999999999999ULL:
+			i = 15;
+			break;
+
+		case 10000000000000000ULL ... 99999999999999999ULL:
+			i = 16;
+			break;
+
+		case 100000000000000000ULL ... 999999999999999999ULL:
+			i = 17;
+			break;
+
+		case 1000000000000000000ULL ... 9999999999999999999ULL:
+			i = 18;
+			break;
+
+		case 10000000000000000000ULL ... ULLONG_MAX:
+			i = 19;
+			break;
+	}
+	if (i + 2 > size) // (i + 1) + '\0'
+		return NULL;  // too long
+	res = dst + i + 1;
+	*res = '\0';
+	for (; i >= 0; i--) {
+		dst[i] = n % 10ULL + '0';
+		n /= 10ULL;
+	}
+	return res;
+}
+
+/*
+ * unsigned long ASCII representation
+ *
+ * return the last char '\0' or NULL if no enough
+ * space in dst
+ */
+char *ultoa_o(unsigned long n, char *dst, size_t size)
+{
+	int i = 0;
+	char *res;
+
+	switch (n) {
+		case 0U ... 9UL:
+			i = 0;
+			break;
+
+		case 10U ... 99UL:
+			i = 1;
+			break;
+
+		case 100U ... 999UL:
+			i = 2;
+			break;
+
+		case 1000U ... 9999UL:
+			i = 3;
+			break;
+
+		case 10000U ... 99999UL:
+			i = 4;
+			break;
+
+		case 100000U ... 999999UL:
+			i = 5;
+			break;
+
+		case 1000000U ... 9999999UL:
+			i = 6;
+			break;
+
+		case 10000000U ... 99999999UL:
+			i = 7;
+			break;
+
+		case 100000000U ... 999999999UL:
+			i = 8;
+			break;
+#if __WORDSIZE == 32
+
+		case 1000000000ULL ... ULONG_MAX:
+			i = 9;
+			break;
+
+#elif __WORDSIZE == 64
+
+		case 1000000000ULL ... 9999999999UL:
+			i = 9;
+			break;
+
+		case 10000000000ULL ... 99999999999UL:
+			i = 10;
+			break;
+
+		case 100000000000ULL ... 999999999999UL:
+			i = 11;
+			break;
+
+		case 1000000000000ULL ... 9999999999999UL:
+			i = 12;
+			break;
+
+		case 10000000000000ULL ... 99999999999999UL:
+			i = 13;
+			break;
+
+		case 100000000000000ULL ... 999999999999999UL:
+			i = 14;
+			break;
+
+		case 1000000000000000ULL ... 9999999999999999UL:
+			i = 15;
+			break;
+
+		case 10000000000000000ULL ... 99999999999999999UL:
+			i = 16;
+			break;
+
+		case 100000000000000000ULL ... 999999999999999999UL:
+			i = 17;
+			break;
+
+		case 1000000000000000000ULL ... 9999999999999999999UL:
+			i = 18;
+			break;
+
+		case 10000000000000000000ULL ... ULONG_MAX:
+			i = 19;
+			break;
+
+#endif
+	}
+	if (i + 2 > size) // (i + 1) + '\0'
+		return NULL;  // too long
+	res = dst + i + 1;
+	*res = '\0';
+	for (; i >= 0; i--) {
+		dst[i] = n % 10U + '0';
+		n /= 10U;
+	}
+	return res;
+}
+
+/*
+ * signed long ASCII representation
+ *
+ * return the last char '\0' or NULL if no enough
+ * space in dst
+ */
+char *ltoa_o(long int n, char *dst, size_t size)
+{
+	char *pos = dst;
+
+	if (n < 0) {
+		if (size < 3)
+			return NULL; // min size is '-' + digit + '\0' but another test in ultoa
+		*pos = '-';
+		pos++;
+		dst = ultoa_o(-n, pos, size - 1);
+	} else {
+		dst = ultoa_o(n, dst, size);
+	}
+	return dst;
+}
+
+/*
+ * signed long long ASCII representation
+ *
+ * return the last char '\0' or NULL if no enough
+ * space in dst
+ */
+char *lltoa(long long n, char *dst, size_t size)
+{
+	char *pos = dst;
+
+	if (n < 0) {
+		if (size < 3)
+			return NULL; // min size is '-' + digit + '\0' but another test in ulltoa
+		*pos = '-';
+		pos++;
+		dst = ulltoa(-n, pos, size - 1);
+	} else {
+		dst = ulltoa(n, dst, size);
+	}
+	return dst;
+}
+
+/*
+ * write a ascii representation of a unsigned into dst,
+ * return a pointer to the last character
+ * Pad the ascii representation with '0', using size.
+ */
+char *utoa_pad(unsigned int n, char *dst, size_t size)
+{
+	int i = 0;
+	char *ret;
+
+	switch(n) {
+		case 0U ... 9U:
+			i = 0;
+			break;
+
+		case 10U ... 99U:
+			i = 1;
+			break;
+
+		case 100U ... 999U:
+			i = 2;
+			break;
+
+		case 1000U ... 9999U:
+			i = 3;
+			break;
+
+		case 10000U ... 99999U:
+			i = 4;
+			break;
+
+		case 100000U ... 999999U:
+			i = 5;
+			break;
+
+		case 1000000U ... 9999999U:
+			i = 6;
+			break;
+
+		case 10000000U ... 99999999U:
+			i = 7;
+			break;
+
+		case 100000000U ... 999999999U:
+			i = 8;
+			break;
+
+		case 1000000000U ... 4294967295U:
+			i = 9;
+			break;
+	}
+	if (i + 2 > size) // (i + 1) + '\0'
+		return NULL;  // too long
+	if (i < size)
+		i = size - 2; // padding - '\0'
+
+	ret = dst + i + 1;
+	*ret = '\0';
+	for (; i >= 0; i--) {
+		dst[i] = n % 10U + '0';
+		n /= 10U;
+	}
+	return ret;
+}
+
+/*
  * copies at most <size-1> chars from <src> to <dst>. Last char is always
  * set to 0, unless <size> is 0. The number of chars copied is returned
  * (excluding the terminating zero).
@@ -769,10 +1093,6 @@ int strl2irc(const char *s, int len, int *ret)
  * is returned, the <ret> value is left untouched. It is about 3 times slower
  * than str2irc().
  */
-#ifndef LLONG_MAX
-#define LLONG_MAX 9223372036854775807LL
-#define LLONG_MIN (-LLONG_MAX - 1LL)
-#endif
 
 int strl2llrc(const char *s, int len, long long *ret)
 {

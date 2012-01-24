@@ -31,6 +31,16 @@
 #include <eb32tree.h>
 #include <proto/fd.h>
 
+#ifndef LLONG_MAX
+# define LLONG_MAX 9223372036854775807LL
+# define LLONG_MIN (-LLONG_MAX - 1LL)
+#endif
+
+#ifndef ULLONG_MAX
+# define ULLONG_MAX	(LLONG_MAX * 2ULL + 1)
+#endif
+
+
 /****** string-specific macros and functions ******/
 /* if a > max, then bound <a> to <max>. The macro returns the new <a> */
 #define UBOUND(a, max)	({ typeof(a) b = (max); if ((a) > b) (a) = b; (a); })
@@ -71,6 +81,46 @@ static inline const char *ultoa(unsigned long n)
 {
 	return ultoa_r(n, itoa_str[0], sizeof(itoa_str[0]));
 }
+
+/*
+ * unsigned long long ASCII representation
+ *
+ * return the last char '\0' or NULL if no enough
+ * space in dst
+ */
+char *ulltoa(unsigned long long n, char *dst, size_t size);
+
+
+/*
+ * unsigned long ASCII representation
+ *
+ * return the last char '\0' or NULL if no enough
+ * space in dst
+ */
+char *ultoa_o(unsigned long n, char *dst, size_t size);
+
+/*
+ * signed long ASCII representation
+ *
+ * return the last char '\0' or NULL if no enough
+ * space in dst
+ */
+char *ltoa_o(long int n, char *dst, size_t size);
+
+/*
+ * signed long long ASCII representation
+ *
+ * return the last char '\0' or NULL if no enough
+ * space in dst
+ */
+char *lltoa(long long n, char *dst, size_t size);
+
+/*
+ * write a ascii representation of a unsigned into dst,
+ * return a pointer to the last character
+ * Pad the ascii representation with '0', using size.
+ */
+char *utoa_pad(unsigned int n, char *dst, size_t size);
 
 /* Fast macros to convert up to 10 different parameters inside a same call of
  * expression.
