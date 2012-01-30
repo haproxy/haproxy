@@ -75,6 +75,7 @@ Summary
 8.2.1.        Default log format
 8.2.2.        TCP log format
 8.2.3.        HTTP log format
+8.2.4.        Custom log format
 8.3.      Advanced logging options
 8.3.1.        Disabling logging of external tests
 8.3.2.        Logging before waiting for the session to terminate
@@ -2643,6 +2644,11 @@ no log
     log global
     log 127.0.0.1:514 local0 notice         # only send important events
     log 127.0.0.1:514 local0 notice notice  # same but limit output level
+
+log-format <string>
+   Allows you to custom a log line.
+
+   See also : Custom Log Format (8.2.4)
 
 
 maxconn <conns>
@@ -8216,7 +8222,7 @@ about log facilities.
 8.2. Log formats
 ----------------
 
-HAProxy supports 4 log formats. Several fields are common between these formats
+HAProxy supports 5 log formats. Several fields are common between these formats
 and will be detailed in the following sections. A few of them may vary
 slightly with the configuration, due to indicators specific to certain
 options. The supported formats are as follows :
@@ -8243,6 +8249,8 @@ options. The supported formats are as follows :
     fields arranged in the same order as the CLF format. In this mode, all
     timers, captures, flags, etc... appear one per field after the end of the
     common fields, in the same order they appear in the standard HTTP format.
+
+  - the custom log format, allows you to make your own log line.
 
 Next sections will go deeper into details for each of these formats. Format
 specification will be performed on a "field" basis. Unless stated otherwise, a
@@ -8716,6 +8724,81 @@ Detailed fields description :
     added before this field. This field might be truncated if the request is
     huge and does not fit in the standard syslog buffer (1024 characters). This
     is the reason why this field must always remain the last one.
+
+
+8.2.4 Custom log format
+-----------------------
+
+The directive log-format allows you to custom the logs in http mode. It takes a
+string as argument.
+
+HAproxy understands some log format variables. % precedes log format variables.
+Variables can take arguments using braces ('{}'), and multiple arguments are
+separated by commas within the braces. Flags may be added or removed by
+prefixing them with a '+' or '-' sign.
+
+Special variable "%o" may be used to propagate its flags to all other
+variables on the same format string. This is particularly handy with quoted
+string formats ("Q").
+
+Note: spaces must be escaped. A space character is considered as a separator.
+HAproxy will automatically merge consecutive separators.
+
+Flags are :
+  * Q: quote a string
+
+  Example:
+
+    log-format %T\ %t\ Some\ Text
+    log-format %{+Q}o\ %t\ %s\ %{-Q}r
+
+At the moment, the default HTTP format is defined this way :
+
+    log-format %Ci:%Cp\ [%t]\ %f\ %b/%s\ %Tq/%Tw/%Tc/%Tr/%Tt\ %st\ %B\ %cc\ \
+               %cs\ %ts\ %ac/%fc/%bc/%sc/%rc\ %sq/%bq\ %hr\ %hs\ %{+Q}r
+
+And the default CLF format is defined this way :
+
+    log-format %{+Q}o\ %{-Q}Ci\ -\ -\ [%T]\ %r\ %st\ %B\ \"\"\ \"\"\ %Cp\ \
+               %ms\ %f\ %b\ %s\ \%Tq\ %Tw\ %Tc\ %Tr\ %Tt\ %ts\ %ac\ %fc\ \
+               %bc\ %sc\ %rc\ %sq\ %bq\ %cc\ %cs\ \%hrl\ %hsl
+
+Please refer to the table below for currently defined variables :
+
+    +------+-----------------------------------------------+-------------+
+    | var  | field name (8.2.2 and 8.2.3 for description)  | type        |
+    +------+-----------------------------------------------+-------------+
+    | %o   | special variable, apply flags on all next var |             |
+    +------+-----------------------------------------------+-------------+
+    | %B   | bytes_read                                    | numeric     |
+    | %Ci  | client_ip                                     | string      |
+    | %Cp  | client_port                                   | numeric     |
+    | %Tc  | Tc                                            | numeric     |
+    | %Tq  | Tq                                            | numeric     |
+    | %Tr  | Tr                                            | numeric     |
+    | %Tt  | Tt                                            | numeric     |
+    | %Tw  | Tw                                            | numeric     |
+    | %ac  | actconn                                       | numeric     |
+    | %b   | backend_name                                  | string      |
+    | %bc  | beconn                                        | numeric     |
+    | %bq  | backend_queue                                 | numeric     |
+    | %cc  | captured_request_cookie                       | string      |
+    | %cs  | captured_response_cookie                      | string      |
+    | %f   | frontend_name                                 | string      |
+    | %fc  | feconn                                        | numeric     |
+    | %hr  | captured_request_headers default style        | string      |
+    | %hrl | captured_request_headers CLF style            | string list |
+    | %hs  | captured_response_headers default style       | string      |
+    | %hsl | captured_response_headers CLF style           | string list |
+    | %ms  | accept date milliseconds                      | numeric     |
+    | %r   | http_request                                  | string      |
+    | %rc  | retries                                       | numeric     |
+    | %s   | server_name                                   | string      |
+    | %sc  | srv_conn                                      | numeric     |
+    | %sq  | srv_queue                                     | numeric     |
+    | %st  | status_code                                   | numeric     |
+    | %ts  | termination_state                             | string      |
+    +------+-----------------------------------------------+-------------+
 
 
 8.3. Advanced logging options
