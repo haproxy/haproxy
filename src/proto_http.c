@@ -3956,12 +3956,12 @@ int http_send_name_header(struct http_txn *txn, struct http_msg *msg, struct buf
 
 	struct hdr_ctx ctx;
 
-	ctx.idx = 0;
-
 	char *hdr_name = be->server_id_hdr_name;
 	int hdr_name_len = be->server_id_hdr_len;
 
 	char *hdr_val;
+
+	ctx.idx = 0;
 
 	while (http_find_header2(hdr_name, hdr_name_len, msg->sol, &txn->hdr_idx, &ctx)) {
 		/* remove any existing values from the header */
