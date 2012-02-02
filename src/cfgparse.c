@@ -5574,12 +5574,6 @@ int check_config_validity()
 		proxy = next;
 	}
 
-	if ((curproxy = proxy) == NULL) {
-		Alert("config : no <listen> line. Nothing to do !\n");
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto out;
-	}
-
 	while (curproxy != NULL) {
 		struct switching_rule *rule;
 		struct sticking_rule *mrule;

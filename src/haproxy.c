@@ -548,8 +548,24 @@ void init(int argc, char **argv)
 	}
 
 	if (global.mode & MODE_CHECK) {
-		qfprintf(stdout, "Configuration file is valid\n");
-		exit(0);
+		struct peers *pr;
+		struct proxy *px;
+
+		for (pr = peers; pr; pr = pr->next)
+			if (pr->peers_fe)
+				break;
+
+		for (px = proxy; px; px = px->next)
+			if (px->state == PR_STNEW && px->listen)
+				break;
+
+		if (pr || px) {
+			/* At least one peer or one listener has been found */
+			qfprintf(stdout, "Configuration file is valid\n");
+			exit(0);
+		}
+		qfprintf(stdout, "Configuration file has no error but will not start (no listener) => exit(2).\n");
+		exit(2);
 	}
 
 	global_listener_queue_task = task_new();
