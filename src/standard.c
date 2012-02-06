@@ -22,7 +22,6 @@
 #include <common/config.h>
 #include <common/standard.h>
 #include <eb32tree.h>
-#include <proto/log.h>
 
 /* enough to store 10 integers of :
  *   2^64-1 = 18446744073709551615 or
@@ -1622,6 +1621,113 @@ int v6tov4(struct in_addr *sin_addr, struct in6_addr *sin6_addr)
 
 	return 0;
 }
+
+char *human_time(int t, short hz_div) {
+	static char rv[sizeof("24855d23h")+1];	// longest of "23h59m" and "59m59s"
+	char *p = rv;
+	int cnt=2;				// print two numbers
+
+	if (unlikely(t < 0 || hz_div <= 0)) {
+		sprintf(p, "?");
+		return rv;
+	}
+
+	if (unlikely(hz_div > 1))
+		t /= hz_div;
+
+	if (t >= DAY) {
+		p += sprintf(p, "%dd", t / DAY);
+		cnt--;
+	}
+
+	if (cnt && t % DAY / HOUR) {
+		p += sprintf(p, "%dh", t % DAY / HOUR);
+		cnt--;
+	}
+
+	if (cnt && t % HOUR / MINUTE) {
+		p += sprintf(p, "%dm", t % HOUR / MINUTE);
+		cnt--;
+	}
+
+	if ((cnt && t % MINUTE) || !t)					// also display '0s'
+		p += sprintf(p, "%ds", t % MINUTE / SEC);
+
+	return rv;
+}
+
+const char *monthname[12] = {
+	"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+	"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+};
+
+/* date2str_log: write a date in the format :
+ * 	sprintf(str, "%02d/%s/%04d:%02d:%02d:%02d.%03d",
+ *		tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
+ *		tm.tm_hour, tm.tm_min, tm.tm_sec, (int)date.tv_usec/1000);
+ *
+ * without using sprintf. return a pointer to the last char written (\0) or
+ * NULL if there isn't enough space.
+ */
+char *date2str_log(char *dst, struct tm *tm, struct timeval *date, size_t size)
+{
+
+	if (size < 25) /* the size is fixed: 24 chars + \0 */
+		return NULL;
+
+	dst = utoa_pad((unsigned int)tm->tm_mday, dst, 3); // day
+	*dst++ = '/';
+	memcpy(dst, monthname[tm->tm_mon], 3); // month
+	dst += 3;
+	*dst++ = '/';
+	dst = utoa_pad((unsigned int)tm->tm_year+1900, dst, 5); // year
+	*dst++ = ':';
+	dst = utoa_pad((unsigned int)tm->tm_hour, dst, 3); // hour
+	*dst++ = ':';
+	dst = utoa_pad((unsigned int)tm->tm_min, dst, 3); // minutes
+	*dst++ = ':';
+	dst = utoa_pad((unsigned int)tm->tm_sec, dst, 3); // secondes
+	*dst++ = '.';
+	utoa_pad((unsigned int)(date->tv_usec/1000), dst, 4); // millisecondes
+	dst += 3;  // only the 3 first digits
+	*dst = '\0';
+
+	return dst;
+}
+
+/* gmt2str_log: write a date in the format :
+ * "%02d/%s/%04d:%02d:%02d:%02d +0000" without using snprintf
+ * return a pointer to the last char written (\0) or
+ * NULL if there isn't enough space.
+ */
+char *gmt2str_log(char *dst, struct tm *tm, size_t size)
+{
+	if (size < 27) /* the size is fixed: 24 chars + \0 */
+		return NULL;
+
+	dst = utoa_pad((unsigned int)tm->tm_mday, dst, 3); // day
+	*dst++ = '/';
+	memcpy(dst, monthname[tm->tm_mon], 3); // month
+	dst += 3;
+	*dst++ = '/';
+	dst = utoa_pad((unsigned int)tm->tm_year+1900, dst, 5); // year
+	*dst++ = ':';
+	dst = utoa_pad((unsigned int)tm->tm_hour, dst, 3); // hour
+	*dst++ = ':';
+	dst = utoa_pad((unsigned int)tm->tm_min, dst, 3); // minutes
+	*dst++ = ':';
+	dst = utoa_pad((unsigned int)tm->tm_sec, dst, 3); // secondes
+	*dst++ = ' ';
+	*dst++ = '+';
+	*dst++ = '0';
+	*dst++ = '0';
+	*dst++ = '0';
+	*dst++ = '0';
+	*dst = '\0';
+
+	return dst;
+}
+
 
 /*
  * Local variables:

@@ -27,11 +27,6 @@
 #include <common/config.h>
 #include <common/standard.h>
 
-#define SEC 1
-#define MINUTE (60 * SEC)
-#define HOUR (60 * MINUTE)
-#define DAY (24 * HOUR)
-
 /* eternity when exprimed in timeval */
 #ifndef TV_ETERNITY
 #define TV_ETERNITY     (~0UL)
@@ -68,8 +63,6 @@ extern struct timeval after_poll;       /* system date after leaving poll() */
 
 
 /**** exported functions *************************************************/
-
-
 /*
  * adds <ms> ms to <from>, set the result to <tv> and returns a pointer <tv>
  */
@@ -518,8 +511,6 @@ REGPRM3 static inline struct timeval *__tv_ms_add(struct timeval *tv, const stru
                   *tv1 = *tv2;     \
         tv1;                       \
 })
-
-char *human_time(int t, short hz_div);
 
 /* Update the idle time value twice a second, to be called after
  * tv_update_date() when called after poll(). It relies on <before_poll> to be

@@ -208,40 +208,6 @@ REGPRM2 void tv_update_date(int max_wait, int interrupted)
 	return;
 }
 
-char *human_time(int t, short hz_div) {
-	static char rv[sizeof("24855d23h")+1];	// longest of "23h59m" and "59m59s"
-	char *p = rv;
-	int cnt=2;				// print two numbers
-
-	if (unlikely(t < 0 || hz_div <= 0)) {
-		sprintf(p, "?");
-		return rv;
-	}
-
-	if (unlikely(hz_div > 1))
-		t /= hz_div;
-
-	if (t >= DAY) {
-		p += sprintf(p, "%dd", t / DAY);
-		cnt--;
-	}
-
-	if (cnt && t % DAY / HOUR) {
-		p += sprintf(p, "%dh", t % DAY / HOUR);
-		cnt--;
-	}
-
-	if (cnt && t % HOUR / MINUTE) {
-		p += sprintf(p, "%dm", t % HOUR / MINUTE);
-		cnt--;
-	}
-
-	if ((cnt && t % MINUTE) || !t)					// also display '0s'
-		p += sprintf(p, "%ds", t % MINUTE / SEC);
-
-	return rv;
-}
-
 /*
  * Local variables:
  *  c-indent-level: 8
