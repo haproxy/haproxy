@@ -53,15 +53,24 @@ void Warning(const char *fmt, ...)
 void qfprintf(FILE *out, const char *fmt, ...)
 	__attribute__ ((format(printf, 2, 3)));
 
+/* generate the syslog header one time per second */
+char *hdr_log(char *dst);
+
+/*
+ * This function adds a header to the message and sends the syslog message
+ * using a printf format string
+ */
+void send_log(struct proxy *p, int level, const char *format, ...)
+	__attribute__ ((format(printf, 3, 4)));
+
 /*
  * This function sends a syslog message to both log servers of a proxy,
  * or to global log servers if the proxy is NULL.
  * It also tries not to waste too much time computing the message header.
  * It doesn't care about errors nor does it report them.
  */
-void send_log(struct proxy *p, int level, const char *message, ...)
-	__attribute__ ((format(printf, 3, 4)));
 
+void __send_log(struct proxy *p, int level, char *message, size_t size);
 /*
  * send a log for the session when we have enough info about it
  */

@@ -137,33 +137,16 @@ int get_log_facility(const char *fac)
 	facility = NB_LOG_FACILITIES - 1;
 	while (facility >= 0 && strcmp(log_facilities[facility], fac))
 		facility--;
-	
+
 	return facility;
 }
 
-/*
- * This function sends a syslog message to both log servers of a proxy,
- * or to global log servers if the proxy is NULL.
- * It also tries not to waste too much time computing the message header.
- * It doesn't care about errors nor does it report them.
- */
-void send_log(struct proxy *p, int level, const char *message, ...)
+/* generate the syslog header once a second */
+char *hdr_log(char *dst)
 {
-	static int logfdunix = -1;	/* syslog to AF_UNIX socket */
-	static int logfdinet = -1;	/* syslog to AF_INET socket */
+	int hdr_len = 0;
 	static long tvsec = -1;	/* to force the string to be initialized */
-	va_list argp;
-	static char logmsg[MAX_SYSLOG_LEN];
 	static char *dataptr = NULL;
-	int fac_level;
-	int hdr_len, data_len;
-	struct list *logsrvs = NULL;
-	struct logsrv *tmp = NULL;
-	int nblogger;
-	char *log_ptr;
-
-	if (level < 0 || message == NULL)
-		return;
 
 	if (unlikely(date.tv_sec != tvsec || dataptr == NULL)) {
 		/* this string is rebuild only once a second */
@@ -172,7 +155,7 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 		tvsec = date.tv_sec;
 		get_localtime(tvsec, &tm);
 
-		hdr_len = snprintf(logmsg, sizeof(logmsg),
+		hdr_len = snprintf(dst, MAX_SYSLOG_LEN,
 				   "<<<<>%s %2d %02d:%02d:%02d %s%s[%d]: ",
 				   monthname[tm.tm_mon],
 				   tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec,
@@ -182,22 +165,57 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 		 * either -1 or the number of bytes that would be needed to store
 		 * the total message. In both cases, we must adjust it.
 		 */
-		if (hdr_len < 0 || hdr_len > sizeof(logmsg))
-			hdr_len = sizeof(logmsg);
+		if (hdr_len < 0 || hdr_len > MAX_SYSLOG_LEN)
+			hdr_len = MAX_SYSLOG_LEN;
 
-		dataptr = logmsg + hdr_len;
+		dataptr = dst + hdr_len;
 	}
 
-	va_start(argp, message);
-	/*
-	 * FIXME: we take a huge performance hit here. We might have to replace
-	 * vsnprintf() for a hard-coded log writer.
-	 */
-	data_len = vsnprintf(dataptr, logmsg + sizeof(logmsg) - dataptr, message, argp);
-	if (data_len < 0 || data_len > (logmsg + sizeof(logmsg) - dataptr))
-		data_len = logmsg + sizeof(logmsg) - dataptr;
+	return dataptr;
+}
+
+/*
+ * This function adds a header to the message and sends the syslog message
+ * using a printf format string
+ */
+void send_log(struct proxy *p, int level, const char *format, ...)
+{
+	va_list argp;
+	static char logmsg[MAX_SYSLOG_LEN];
+	static char *dataptr = NULL;
+	int  data_len = 0;
+
+	if (level < 0 || format == NULL)
+		return;
+
+	dataptr = hdr_log(logmsg); /* create header */
+	data_len = dataptr - logmsg;
+
+	va_start(argp, format);
+	data_len += vsnprintf(dataptr, MAX_SYSLOG_LEN, format, argp);
+	if (data_len < 0 || data_len > MAX_SYSLOG_LEN)
+		data_len =  MAX_SYSLOG_LEN;
 	va_end(argp);
-	dataptr[data_len - 1] = '\n'; /* force a break on ultra-long lines */
+
+	__send_log(p, level, logmsg, data_len);
+}
+
+/*
+ * This function sends a syslog message.
+ * It doesn't care about errors nor does it report them.
+ */
+void __send_log(struct proxy *p, int level, char *message, size_t size)
+{
+	static int logfdunix = -1;	/* syslog to AF_UNIX socket */
+	static int logfdinet = -1;	/* syslog to AF_INET socket */
+	static char *dataptr = NULL;
+	int fac_level;
+	struct list *logsrvs = NULL;
+	struct logsrv *tmp = NULL;
+	int nblogger;
+	char *log_ptr;
+
+	dataptr = message;
 
 	if (p == NULL) {
 		if (!LIST_ISEMPTY(&global.logsrvs)) {
@@ -211,6 +229,8 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 
 	if (!logsrvs)
 		return;
+
+	message[size - 1] = '\n';
 
 	/* Lazily set up syslog sockets for protocol families of configured
 	 * syslog servers. */
@@ -263,16 +283,15 @@ void send_log(struct proxy *p, int level, const char *message, ...)
 		 * and we change the pointer to the header accordingly.
 		 */
 		fac_level = (logsrv->facility << 3) + MAX(level, logsrv->minlvl);
-		log_ptr = logmsg + 3; /* last digit of the log level */
+		log_ptr = dataptr + 3; /* last digit of the log level */
 		do {
 			*log_ptr = '0' + fac_level % 10;
 			fac_level /= 10;
 			log_ptr--;
-		} while (fac_level && log_ptr > logmsg);
+		} while (fac_level && log_ptr > dataptr);
 		*log_ptr = '<';
-	
-		/* the total syslog message now starts at logptr, for dataptr+data_len-logptr */
-		sent = sendto(*plogfd, log_ptr, dataptr + data_len - log_ptr,
+
+		sent = sendto(*plogfd, log_ptr, size,
 			      MSG_DONTWAIT | MSG_NOSIGNAL,
 			      (struct sockaddr *)&logsrv->addr, get_addr_len(&logsrv->addr));
 		if (sent < 0) {
