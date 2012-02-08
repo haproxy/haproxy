@@ -1323,7 +1323,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	unsigned val;
 	int err_code = 0;
 	struct acl_cond *cond = NULL;
-	struct logsrv *tmp;
+	struct logsrv *tmplogsrv;
+	struct logformat_node *tmplf;
 
 	if (!strcmp(args[0], "listen"))
 		rc = PR_CAP_LISTEN;
@@ -1533,11 +1534,19 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		curproxy->mode = defproxy.mode;
 
 		/* copy default logsrvs to curproxy */
-		list_for_each_entry(tmp, &defproxy.logsrvs, list) {
+		list_for_each_entry(tmplogsrv, &defproxy.logsrvs, list) {
 			struct logsrv *node = malloc(sizeof(struct logsrv));
-			memcpy(node, tmp, sizeof(struct logsrv));
+			memcpy(node, tmplogsrv, sizeof(struct logsrv));
 			LIST_INIT(&node->list);
 			LIST_ADDQ(&curproxy->logsrvs, &node->list);
+		}
+
+		/* copy default log_format to curproxy */
+		list_for_each_entry(tmplf, &defproxy.logformat, list) {
+			struct logformat_node *node = malloc(sizeof(struct logformat_node));
+			memcpy(node, tmplf, sizeof(struct logformat_node));
+			LIST_INIT(&node->list);
+			LIST_ADDQ(&curproxy->logformat, &node->list);
 		}
 
 		curproxy->grace  = defproxy.grace;
@@ -3286,18 +3295,22 @@ stats_error_parsing:
 		}
 
 		if (!strcmp(args[1], "httplog")) {
+			char *logformat;
 			/* generate a complete HTTP log */
 			curproxy->options2 &= ~PR_O2_CLFLOG;
 			curproxy->to_log |= LW_DATE | LW_CLIP | LW_SVID | LW_REQ | LW_PXID | LW_RESP | LW_BYTES;
+			logformat = default_http_log_format;
 			if (*(args[2]) != '\0') {
 				if (!strcmp(args[2], "clf")) {
 					curproxy->options2 |= PR_O2_CLFLOG;
+					logformat = clf_http_log_format;
 				} else {
 					Alert("parsing [%s:%d] : keyword '%s' only supports option 'clf'.\n", file, linenum, args[2]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
 			}
+			parse_logformat_string(logformat, curproxy);
 		}
 		else if (!strcmp(args[1], "tcplog"))
 			/* generate a detailed TCP log */
@@ -4533,6 +4546,15 @@ stats_error_parsing:
 			newsrv->prev_state = newsrv->state;
 		}
 	}
+	else if (strcmp(args[0], "log-format") == 0) {
+		if (!*(args[1])) {
+			Alert("parsing [%s:%d] : %s expects an argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		parse_logformat_string(args[1], curproxy);
+	}
+
 	else if (!strcmp(args[0], "log") && kwm == KWM_NO) {
 		/* delete previous herited or defined syslog servers */
 		struct logsrv *back;
@@ -4543,9 +4565,9 @@ stats_error_parsing:
 			goto out;
 		}
 
-		list_for_each_entry_safe(tmp, back, &curproxy->logsrvs, list) {
-			LIST_DEL(&tmp->list);
-			free(tmp);
+		list_for_each_entry_safe(tmplogsrv, back, &curproxy->logsrvs, list) {
+			LIST_DEL(&tmplogsrv->list);
+			free(tmplogsrv);
 		}
 	}
 	else if (!strcmp(args[0], "log")) {  /* syslog server address */
@@ -4553,9 +4575,9 @@ stats_error_parsing:
 
 		if (*(args[1]) && *(args[2]) == 0 && !strcmp(args[1], "global")) {
 			/* copy global.logrsvs linked list to the end of curproxy->logsrvs */
-			list_for_each_entry(tmp, &global.logsrvs, list) {
+			list_for_each_entry(tmplogsrv, &global.logsrvs, list) {
 				struct logsrv *node = malloc(sizeof(struct logsrv));
-				memcpy(node, tmp, sizeof(struct logsrv));
+				memcpy(node, tmplogsrv, sizeof(struct logsrv));
 				LIST_INIT(&node->list);
 				LIST_ADDQ(&curproxy->logsrvs, &node->list);
 			}

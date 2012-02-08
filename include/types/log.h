@@ -32,6 +32,75 @@
 #define NB_LOG_LEVELS           8
 #define SYSLOG_PORT             514
 
+/* lists of fields that can be logged */
+enum {
+
+	LOG_TEXT = 0, /* raw text */
+
+	LOG_SEPARATOR, /* separator replaced by one space */
+	LOG_VARIABLE,
+
+	/* information fields */
+	LOG_GLOBAL,
+	LOG_CLIENTIP,
+	LOG_CLIENTPORT,
+	LOG_DATE,
+	LOG_DATEGMT,
+	LOG_MS,
+	LOG_FRONTEND,
+	LOG_BACKEND,
+	LOG_SERVER,
+	LOG_BYTES,
+	LOG_T,
+	LOG_TQ,
+	LOG_TW,
+	LOG_TC,
+	LOG_TR,
+	LOG_TT,
+	LOG_STATUS,
+	LOG_CCLIENT,
+	LOG_CSERVER,
+	LOG_TERMSTATE,
+	LOG_CONN,
+	LOG_ACTCONN,
+	LOG_FECONN,
+	LOG_BECONN,
+	LOG_SRVCONN,
+	LOG_RETRIES,
+	LOG_QUEUES,
+	LOG_SRVQUEUE,
+	LOG_BCKQUEUE,
+	LOG_HDRREQUEST,
+	LOG_HDRRESPONS,
+	LOG_HDRREQUESTLIST,
+	LOG_HDRRESPONSLIST,
+	LOG_REQ,
+};
+
+/* enum for parse_logformat */
+enum {
+	LF_TEXT = 0,
+	LF_SEPARATOR,
+	LF_VAR, // after %
+
+	LF_STARTVAR,   // %
+	LF_STARG, // { and within { }
+	LF_EDARG, // end arg }
+};
+
+
+struct logformat_node {
+	struct list list;
+	int type;
+	int options;
+	char *arg;
+};
+
+#define LOG_OPT_WRITTEN 	0x00000001
+#define LOG_OPT_MANDATORY	0x00000002
+#define LOG_OPT_QUOTE		0x00000004
+
+
 
 /* fields that need to be logged. They appear as flags in session->logs.logwait */
 #define LW_DATE		1	/* date */

@@ -34,6 +34,33 @@
 
 extern struct pool_head *pool2_requri;
 
+extern char *log_format;
+extern char default_http_log_format[];
+extern char clf_http_log_format[];
+
+/*
+ * Parse args in a logformat_var
+ */
+int parse_logformat_var_args(char *args, struct logformat_node *node);
+
+/*
+ * Parse a variable '%varname' or '%{args}varname' in logformat
+ *
+ */
+int parse_logformat_var(char *str, size_t len, struct proxy *curproxy);
+
+/*
+ * add to the logformat linked list
+ */
+void add_to_logformat_list(char *start, char *end, int type, struct proxy *curproxy);
+
+/*
+ * Parse the log_format string and fill a linked list.
+ * Variable name are preceded by % and composed by characters [a-zA-Z0-9]* : %varname
+ * You can set arguments using { } : %{many arguments}varname
+ */
+void parse_logformat_string(char *str, struct proxy *curproxy);
+
 /*
  * Displays the message on stderr with the date and pid. Overrides the quiet
  * mode during startup.

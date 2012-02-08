@@ -286,6 +286,7 @@ struct proxy {
 	int (*accept)(struct session *s);       /* application layer's accept() */
 	struct proxy *next;
 	struct list logsrvs;
+	struct list logformat; 			/* log_format linked list */
 	int to_log;				/* things to be logged (LW_*) */
 	int stop_time;                          /* date to stop listening, when stopping != 0 (int ticks) */
 	struct hdr_exp *req_exp;		/* regular expressions for request headers */

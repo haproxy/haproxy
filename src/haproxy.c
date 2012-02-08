@@ -802,6 +802,7 @@ void deinit(void)
 	struct cond_wordlist *cwl, *cwlb;
 	struct uri_auth *uap, *ua = NULL;
 	struct logsrv *log, *logb;
+	struct logformat_node *lf, *lfb;
 	int i;
 
 	deinit_signals();
@@ -910,6 +911,11 @@ void deinit(void)
 		list_for_each_entry_safe(log, logb, &p->logsrvs, list) {
 			LIST_DEL(&log->list);
 			free(log);
+		}
+
+		list_for_each_entry_safe(lf, lfb, &p->logformat, list) {
+			LIST_DEL(&lf->list);
+			free(lf);
 		}
 
 		deinit_tcp_rules(&p->tcp_req.inspect_rules);

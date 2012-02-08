@@ -28,6 +28,7 @@
 #include <common/time.h>
 
 #include <types/global.h>
+#include <types/log.h>
 
 #include <proto/log.h>
 #include <proto/stream_interface.h>
@@ -54,6 +55,299 @@ const char *monthname[12] = {
 
 const char sess_term_cond[10] = "-cCsSPRIDK";	/* normal, CliTo, CliErr, SrvTo, SrvErr, PxErr, Resource, Internal, Down, Killed */
 const char sess_fin_state[8]  = "-RCHDLQT";	/* cliRequest, srvConnect, srvHeader, Data, Last, Queue, Tarpit */
+
+
+/* log_format   */
+struct logformat_type {
+	char *name;
+	int type;
+};
+
+/* log_format variable names */
+static const struct logformat_type logformat_keywords[] = {
+	{ "o", LOG_GLOBAL },  /* global option */
+	{ "Ci", LOG_CLIENTIP },  /* client ip */
+	{ "Cp", LOG_CLIENTPORT }, /* client port */
+	{ "t", LOG_DATE },      /* date */
+	{ "T", LOG_DATEGMT },   /* date GMT */
+	{ "ms", LOG_MS },       /* accept date millisecond */
+	{ "f", LOG_FRONTEND },  /* frontend */
+	{ "b", LOG_BACKEND },   /* backend */
+	{ "s", LOG_SERVER },    /* server */
+	{ "B", LOG_BYTES },     /* bytes read */
+	{ "Tq", LOG_TQ },       /* Tq */
+	{ "Tw", LOG_TW },       /* Tw */
+	{ "Tc", LOG_TC },       /* Tc */
+	{ "Tr", LOG_TR },       /* Tr */
+	{ "Tt", LOG_TT },       /* Tt */
+	{ "st", LOG_STATUS },   /* status code */
+	{ "cc", LOG_CCLIENT },  /* client cookie */
+	{ "cs", LOG_CSERVER },  /* server cookie */
+	{ "ts", LOG_TERMSTATE },/* terminaison state */
+	{ "ac", LOG_ACTCONN },  /* actconn */
+	{ "fc", LOG_FECONN },   /* feconn */
+	{ "bc", LOG_BECONN },   /* beconn */
+	{ "sc", LOG_SRVCONN },  /* srv_conn */
+	{ "rc", LOG_RETRIES },  /* retries */
+	{ "sq", LOG_SRVQUEUE }, /* srv_queue */
+	{ "bq", LOG_BCKQUEUE }, /* backend_queue */
+	{ "hr", LOG_HDRREQUEST }, /* header request */
+	{ "hs", LOG_HDRRESPONS },  /* header response */
+	{ "hrl", LOG_HDRREQUESTLIST }, /* header request list */
+	{ "hsl", LOG_HDRRESPONSLIST },  /* header response list */
+	{ "r", LOG_REQ },  /* request */
+	{ 0, 0 }
+};
+
+char default_http_log_format[] = "%Ci:%Cp [%t] %f %b/%s %Tq/%Tw/%Tc/%Tr/%Tt %st %B %cc %cs %ts %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r"; // default format
+char clf_http_log_format[] = "%{+Q}o %{-Q}Ci - - [%T] %r %st %B \"\" \"\" %Cp %ms %f %b %s %Tq %Tw %Tc %Tr %Tt %ts %ac %fc %bc %sc %rc %sq %bq %cc %cs %hrl %hsl";
+char *log_format = NULL;
+
+struct logformat_var_args {
+	char *name;
+	int mask;
+};
+
+struct logformat_var_args var_args_list[] = {
+// global
+	{ "M", LOG_OPT_MANDATORY },
+	{ "Q", LOG_OPT_QUOTE },
+	{  0,  0 }
+};
+
+/*
+ * Parse args in a logformat_var
+ */
+int parse_logformat_var_args(char *args, struct logformat_node *node)
+{
+	int i = 0;
+	int end = 0;
+	int flags = 0;  // 1 = +  2 = -
+	char *sp = NULL; // start pointer
+
+	if (args == NULL)
+		return 1;
+
+	while (1) {
+		if (*args == '\0')
+			end = 1;
+
+		if (*args == '+') {
+			// add flag
+			sp = args + 1;
+			flags = 1;
+		}
+		if (*args == '-') {
+			// delete flag
+			sp = args + 1;
+			flags = 2;
+		}
+
+		if (*args == '\0' || *args == ',') {
+			*args = '\0';
+			for (i = 0; var_args_list[i].name; i++) {
+				if (strcmp(sp, var_args_list[i].name) == 0) {
+					if (flags == 1) {
+						node->options |= var_args_list[i].mask;
+						break;
+					} else if (flags == 2) {
+						node->options &= ~var_args_list[i].mask;
+						break;
+					}
+				}
+			}
+			sp = NULL;
+			if (end)
+				break;
+		}
+	args++;
+	}
+	return 0;
+}
+
+/*
+ * Parse a variable '%varname' or '%{args}varname' in logformat
+ *
+ */
+int parse_logformat_var(char *str, size_t len, struct proxy *curproxy)
+{
+	int i, j;
+	char *arg = NULL; // arguments
+	int fparam = 0;
+	char *name = NULL;
+	struct logformat_node *node = NULL;
+	char varname[255] = { 0 }; // variable name
+	int logformat_options = 0x00000000;
+
+
+	for (i = 1; i < len; i++) { // escape first char %
+		if (!arg && str[i] == '{') {
+			arg = str + i;
+			fparam = 1;
+		} else if (arg && str[i] == '}') {
+			char *tmp = arg;
+			arg = calloc(str + i - tmp, 1); // without {}
+			strncpy(arg, tmp + 1, str + i - tmp - 1); // copy without { and }
+			arg[str + i - tmp - 1] = '\0';
+			fparam = 0;
+		} else if (!name && !fparam) {
+			strncpy(varname, str + i, len - i + 1);
+			varname[len - i] = '\0';
+			for (j = 0; logformat_keywords[j].name; j++) { // search a log type
+				if (strcmp(varname, logformat_keywords[j].name) == 0) {
+					node = calloc(1, sizeof(struct logformat_node));
+					node->type = logformat_keywords[j].type;
+					node->options = logformat_options;
+					node->arg = arg;
+					parse_logformat_var_args(node->arg, node);
+					if (node->type == LOG_GLOBAL) {
+						logformat_options = node->options;
+						free(node);
+					} else {
+						LIST_ADDQ(&curproxy->logformat, &node->list);
+					}
+					return 0;
+				}
+			}
+			Warning("Warning: No such variable name '%s' in logformat\n", varname);
+			if (arg)
+				free(arg);
+			return -1;
+		}
+	}
+	return -1;
+}
+
+/*
+ *  push to the logformat linked list
+ *
+ *  start: start pointer
+ *  end: end text pointer
+ *  type: string type
+ *
+ *  LOG_TEXT: copy chars from start to end excluding end.
+ *
+*/
+void add_to_logformat_list(char *start, char *end, int type, struct proxy *curproxy)
+{
+	char *str;
+
+	if (type == LOG_TEXT) { /* type text */
+		struct logformat_node *node = calloc(1, sizeof(struct logformat_node));
+
+		str = calloc(end - start + 1, 1);
+		strncpy(str, start, end - start);
+
+		str[end - start] = '\0';
+		node->arg = str;
+		node->type = LOG_TEXT; // type string
+		LIST_ADDQ(&curproxy->logformat, &node->list);
+	} else if (type == LOG_VARIABLE) { /* type variable */
+		parse_logformat_var(start, end - start, curproxy);
+	} else if (type == LOG_SEPARATOR) {
+		struct logformat_node *node = calloc(1, sizeof(struct logformat_node));
+		node->type = LOG_SEPARATOR;
+		LIST_ADDQ(&curproxy->logformat, &node->list);
+	}
+}
+
+/*
+ * Parse the log_format string and fill a linked list.
+ * Variable name are preceded by % and composed by characters [a-zA-Z0-9]* : %varname
+ * You can set arguments using { } : %{many arguments}varname
+ */
+void parse_logformat_string(char *str, struct proxy *curproxy)
+{
+	char *sp = str; /* start pointer */
+	int cformat = -1; /* current token format : LOG_TEXT, LOG_SEPARATOR, LOG_VARIABLE */
+	int pformat = -1; /* previous token format */
+	struct logformat_node *tmplf, *back;
+
+	/* flush the list first. */
+	list_for_each_entry_safe(tmplf, back, &curproxy->logformat, list) {
+		LIST_DEL(&tmplf->list);
+		free(tmplf);
+	}
+
+	while (1) {
+
+		// push the variable only if formats are different, not
+		// within a variable, and not the first iteration
+		if ((cformat != pformat && cformat != -1 && pformat != -1) || *str == '\0') {
+			if (((pformat != LF_STARTVAR && cformat != LF_VAR) &&
+			    (pformat != LF_STARTVAR && cformat != LF_STARG) &&
+			    (pformat != LF_STARG && cformat !=  LF_VAR)) || *str == '\0') {
+				if (pformat > LF_VAR) // unfinished string
+					pformat = LF_TEXT;
+				add_to_logformat_list(sp, str, pformat, curproxy);
+				sp = str;
+				if (*str == '\0')
+					break;
+			    }
+		}
+
+		if (cformat != -1)
+			str++; // consume the string, except on the first tour
+
+		pformat = cformat;
+
+		if (*str == '\0') {
+			cformat = LF_STARTVAR; // for breaking in all cases
+			continue;
+		}
+
+		if (pformat == LF_STARTVAR) { // after a %
+			if ( (*str >= 'a' && *str <= 'z') || // parse varname
+			     (*str >= 'A' && *str <= 'Z') ||
+			     (*str >= '0' && *str <= '9')) {
+				cformat = LF_VAR; // varname
+				continue;
+			} else if (*str == '{') {
+				cformat = LF_STARG; // variable arguments
+				continue;
+			} else { // another unexpected token
+				pformat = LF_TEXT; // redefine the format of the previous token to TEXT
+				cformat = LF_TEXT;
+				continue;
+			}
+
+		} else if (pformat == LF_VAR) { // after a varname
+			if ( (*str >= 'a' && *str <= 'z') || // parse varname
+			     (*str >= 'A' && *str <= 'Z') ||
+			     (*str >= '0' && *str <= '9')) {
+				cformat = LF_VAR;
+				continue;
+			}
+		} else if (pformat  == LF_STARG) { // inside variable arguments
+			if (*str == '}') { // end of varname
+				cformat = LF_EDARG;
+				continue;
+			} else { // all tokens are acceptable within { }
+				cformat = LF_STARG;
+				continue;
+			}
+		} else if (pformat == LF_EDARG) { //  after arguments
+			if ( (*str >= 'a' && *str <= 'z') || // parse a varname
+			     (*str >= 'A' && *str <= 'Z') ||
+			     (*str >= '0' && *str <= '9')) {
+				cformat = LF_VAR;
+				continue;
+			} else { // if no varname after arguments, transform in TEXT
+				pformat = LF_TEXT;
+				cformat = LF_TEXT;
+			}
+		}
+
+		// others tokens that don't match previous conditions
+		if (*str == '%') {
+			cformat = LF_STARTVAR;
+		} else if (*str == ' ') {
+			cformat = LF_SEPARATOR;
+		} else {
+			cformat = LF_TEXT;
+		}
+	}
+}
 
 /*
  * Displays the message on stderr with the date and pid. Overrides the quiet
