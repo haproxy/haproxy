@@ -113,6 +113,14 @@ int get_log_level(const char *lev);
  */
 int get_log_facility(const char *fac);
 
+/*
+ * Write a string in the log string
+ * Take cares of mandatory and quote options
+ *
+ * Return the adress of the \0 character, or NULL on error
+ */
+char *logformat_write_string(char *dst, char *src, size_t size, struct logformat_node *node);
+
 #endif /* _PROTO_LOG_H */
 
 /*

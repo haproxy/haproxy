@@ -430,6 +430,60 @@ int get_log_facility(const char *fac)
 	return facility;
 }
 
+/*
+ * Write a string in the log string
+ * Take cares of mandatory and quote options
+ *
+ * Return the adress of the \0 character, or NULL on error
+ */
+char *logformat_write_string(char *dst, char *src, size_t size, struct logformat_node *node)
+{
+        char *orig = dst;
+
+        if (src == NULL || *src == '\0') {
+                        if (node->options & LOG_OPT_QUOTE) {
+                                if (size > 2) {
+                                        *(dst++) = '"';
+                                        *(dst++) = '"';
+                                        *dst = '\0';
+                                        node->options |= LOG_OPT_WRITTEN;
+                                } else {
+                                        dst = NULL;
+                                        return dst;
+                                }
+                        } else {
+                                if (size > 1) {
+                                        *(dst++) = '-';
+                                        *dst = '\0';
+                                        node->options |= LOG_OPT_WRITTEN;
+                                } else { // error no space available
+                                        dst = NULL;
+                                        return dst;
+                                }
+                        }
+        } else {
+                if (node->options & LOG_OPT_QUOTE) {
+                        if (size-- > 1 ) {
+                                *(dst++) = '"';
+                        } else {
+                                dst = NULL;
+                                return NULL;
+                        }
+                        dst += strlcpy2(dst, src, size);
+                        size -= orig - dst + 1;
+                        if (size > 1) {
+                                *(dst++) = '"';
+                                *dst = '\0';
+                        } else {
+                                dst = NULL;
+                        }
+                } else {
+                        dst += strlcpy2(dst, src, size);
+                }
+        }
+        return dst;
+}
+
 /* generate the syslog header once a second */
 char *hdr_log(char *dst)
 {

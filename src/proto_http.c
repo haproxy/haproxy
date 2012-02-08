@@ -851,227 +851,13 @@ const char sess_set_cookie[8] = "NPDIRU67";	/* No set-cookie, Set-cookie found a
 struct pool_head *pool2_requri;
 struct pool_head *pool2_capture;
 
-void http_sess_clflog(struct session *s)
-{
-	char pn[INET6_ADDRSTRLEN];
-	struct proxy *fe = s->fe;
-	struct proxy *be = s->be;
-	struct proxy *prx_log;
-	struct http_txn *txn = &s->txn;
-	int tolog, level, err;
-	char *uri, *h;
-	const char *svid;
-	struct tm tm;
-	static char tmpline[MAX_SYSLOG_LEN];
-	int hdr;
-	size_t w;
-	int t_request;
-
-	prx_log = fe;
-	err = (s->flags & (SN_ERR_MASK | SN_REDISP)) ||
-		(s->req->cons->conn_retries != be->conn_retries) ||
-		txn->status >= 500;
-
-	if (addr_to_str(&s->req->prod->addr.from, pn, sizeof(pn)) == AF_UNIX)
-		snprintf(pn, sizeof(pn), "unix:%d", s->listener->luid);
-
-	get_gmtime(s->logs.accept_date.tv_sec, &tm);
-
-	/* FIXME: let's limit ourselves to frontend logging for now. */
-	tolog = fe->to_log;
-
-	h = tmpline;
-
-	w = snprintf(h, sizeof(tmpline),
-	             "%s - - [%02d/%s/%04d:%02d:%02d:%02d +0000]",
-	             pn,
-	             tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
-	             tm.tm_hour, tm.tm_min, tm.tm_sec);
-	if (w < 0 || w >= sizeof(tmpline) - (h - tmpline))
-		goto trunc;
-	h += w;
-
-	if (h >= tmpline + sizeof(tmpline) - 4)
-		goto trunc;
-
-	*(h++) = ' ';
-	*(h++) = '\"';
-	uri = txn->uri ? txn->uri : "<BADREQ>";
-	h = encode_string(h, tmpline + sizeof(tmpline) - 1,
-	                  '#', url_encode_map, uri);
-	*(h++) = '\"';
-
-	w = snprintf(h, sizeof(tmpline) - (h - tmpline), " %d %lld", txn->status, s->logs.bytes_out);
-	if (w < 0 || w >= sizeof(tmpline) - (h - tmpline))
-		goto trunc;
-	h += w;
-
-	if (h >= tmpline + sizeof(tmpline) - 9)
-		goto trunc;
-	memcpy(h, " \"-\" \"-\"", 8);
-	h += 8;
-
-	w = snprintf(h, sizeof(tmpline) - (h - tmpline),
-	             " %d %03d",
-		     s->req->prod->addr.from.ss_family == AF_UNIX ? s->listener->luid :
-		         get_host_port(&s->req->prod->addr.from),
-	             (int)s->logs.accept_date.tv_usec/1000);
-	if (w < 0 || w >= sizeof(tmpline) - (h - tmpline))
-		goto trunc;
-	h += w;
-
-	w = strlen(fe->id);
-	if (h >= tmpline + sizeof(tmpline) - 4 - w)
-		goto trunc;
-	*(h++) = ' ';
-	*(h++) = '\"';
-	memcpy(h, fe->id, w);
-	h += w;
-	*(h++) = '\"';
-
-	w = strlen(be->id);
-	if (h >= tmpline + sizeof(tmpline) - 4 - w)
-		goto trunc;
-	*(h++) = ' ';
-	*(h++) = '\"';
-	memcpy(h, be->id, w);
-	h += w;
-	*(h++) = '\"';
-
-	if (!(tolog & LW_SVID))
-		svid = "-";
-	else switch (s->target.type) {
-	case TARG_TYPE_SERVER:
-		svid = s->target.ptr.s->id;
-		break;
-	case TARG_TYPE_APPLET:
-		svid = s->target.ptr.a->name;
-		break;
-	default:
-		svid = "<NOSRV>";
-		break;
-	}
-
-	w = strlen(svid);
-	if (h >= tmpline + sizeof(tmpline) - 4 - w)
-		goto trunc;
-	*(h++) = ' ';
-	*(h++) = '\"';
-	memcpy(h, svid, w);
-	h += w;
-	*(h++) = '\"';
-
-	t_request = -1;
-	if (tv_isge(&s->logs.tv_request, &s->logs.tv_accept))
-		t_request = tv_ms_elapsed(&s->logs.tv_accept, &s->logs.tv_request);
-	w = snprintf(h, sizeof(tmpline) - (h - tmpline),
-	             " %d %ld %ld %ld %ld",
-	             t_request,
-	             (s->logs.t_queue >= 0) ? s->logs.t_queue - t_request : -1,
-	             (s->logs.t_connect >= 0) ? s->logs.t_connect - s->logs.t_queue : -1,
-	             (s->logs.t_data >= 0) ? s->logs.t_data - s->logs.t_connect : -1,
-	             s->logs.t_close);
-	if (w < 0 || w >= sizeof(tmpline) - (h - tmpline))
-		goto trunc;
-	h += w;
-
-	if (h >= tmpline + sizeof(tmpline) - 8)
-		goto trunc;
-	*(h++) = ' ';
-	*(h++) = '\"';
-	*(h++) = sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT];
-	*(h++) = sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT];
-	*(h++) = (be->options & PR_O_COOK_ANY) ? sess_cookie[(txn->flags & TX_CK_MASK) >> TX_CK_SHIFT] : '-',
-	*(h++) = (be->options & PR_O_COOK_ANY) ? sess_set_cookie[(txn->flags & TX_SCK_MASK) >> TX_SCK_SHIFT] : '-';
-	*(h++) = '\"';
-
-	w = snprintf(h, sizeof(tmpline) - (h - tmpline),
-	             " %d %d %d %d %d %ld %ld",
-	             actconn, fe->feconn, be->beconn, target_srv(&s->target) ? target_srv(&s->target)->cur_sess : 0,
-	             (s->req->cons->conn_retries > 0) ? (be->conn_retries - s->req->cons->conn_retries) : be->conn_retries,
-	             s->logs.srv_queue_size, s->logs.prx_queue_size);
-
-	if (w < 0 || w >= sizeof(tmpline) - (h - tmpline))
-		goto trunc;
-	h += w;
-
-	if (txn->cli_cookie) {
-		w = strlen(txn->cli_cookie);
-		if (h >= tmpline + sizeof(tmpline) - 4 - w)
-			goto trunc;
-		*(h++) = ' ';
-		*(h++) = '\"';
-		memcpy(h, txn->cli_cookie, w);
-		h += w;
-		*(h++) = '\"';
-	} else {
-		if (h >= tmpline + sizeof(tmpline) - 5)
-			goto trunc;
-		memcpy(h, " \"-\"", 4);
-		h += 4;
-	}
-
-	if (txn->srv_cookie) {
-		w = strlen(txn->srv_cookie);
-		if (h >= tmpline + sizeof(tmpline) - 4 - w)
-			goto trunc;
-		*(h++) = ' ';
-		*(h++) = '\"';
-		memcpy(h, txn->srv_cookie, w);
-		h += w;
-		*(h++) = '\"';
-	} else {
-		if (h >= tmpline + sizeof(tmpline) - 5)
-			goto trunc;
-		memcpy(h, " \"-\"", 4);
-		h += 4;
-	}
-
-	if ((fe->to_log & LW_REQHDR) && txn->req.cap) {
-		for (hdr = 0; hdr < fe->nb_req_cap; hdr++) {
-			if (h >= sizeof (tmpline) + tmpline - 4)
-				goto trunc;
-			if (txn->req.cap[hdr] != NULL) {
-				*(h++) = ' ';
-				*(h++) = '\"';
-				h = encode_string(h, tmpline + sizeof(tmpline) - 2,
-						'#', hdr_encode_map, txn->req.cap[hdr]);
-				*(h++) = '\"';
-			} else {
-				memcpy(h, " \"-\"", 4);
-				h += 4;
-			}
-		}
-	}
-
-	if ((fe->to_log & LW_RSPHDR) && txn->rsp.cap) {
-		for (hdr = 0; hdr < fe->nb_rsp_cap; hdr++) {
-			if (h >= sizeof (tmpline) + tmpline - 4)
-				goto trunc;
-			if (txn->rsp.cap[hdr] != NULL) {
-				*(h++) = ' ';
-				*(h++) = '\"';
-				h = encode_string(h, tmpline + sizeof(tmpline) - 2,
-						'#', hdr_encode_map, txn->rsp.cap[hdr]);
-				*(h++) = '\"';
-			} else {
-				memcpy(h, " \"-\"", 4);
-				h += 4;
-			}
-		}
-	}
-
-trunc:
-	*h = '\0';
-
-	level = LOG_INFO;
-	if (err && (fe->options2 & PR_O2_LOGERRORS))
-		level = LOG_ERR;
-
-	send_log(prx_log, level, "%s\n", tmpline);
-
-	s->logs.logwait = 0;
-}
+#define LOGCHAR(x) do { \
+			if (MAX_SYSLOG_LEN - (tmplog - logline) > 1) { \
+				*(tmplog++) = (x);                     \
+			} else {                                       \
+				goto out;                              \
+			}                                              \
+		} while(0)
 
 /*
  * send a log for the session when we have enough info about it.
@@ -1085,12 +871,15 @@ void http_sess_log(struct session *s)
 	struct proxy *prx_log;
 	struct http_txn *txn = &s->txn;
 	int tolog, level, err;
-	char *uri, *h;
+	char *uri;
 	const char *svid;
 	struct tm tm;
-	static char tmpline[MAX_SYSLOG_LEN];
 	int t_request;
 	int hdr;
+	int last_isspace = 1;
+	static char logline[MAX_SYSLOG_LEN] = { 0 };
+	static char *tmplog;
+	struct logformat_node *tmp;
 
 	/* if we don't want to log normal traffic, return now */
 	err = (s->flags & (SN_ERR_MASK | SN_REDISP)) ||
@@ -1103,57 +892,11 @@ void http_sess_log(struct session *s)
 		return;
 	prx_log = fe;
 
-	if (prx_log->options2 & PR_O2_CLFLOG)
-		return http_sess_clflog(s);
-
 	if (addr_to_str(&s->req->prod->addr.from, pn, sizeof(pn)) == AF_UNIX)
 		snprintf(pn, sizeof(pn), "unix:%d", s->listener->luid);
 
-	get_localtime(s->logs.accept_date.tv_sec, &tm);
-
 	/* FIXME: let's limit ourselves to frontend logging for now. */
 	tolog = fe->to_log;
-
-	h = tmpline;
-	if (fe->to_log & LW_REQHDR &&
-	    txn->req.cap &&
-	    (h < tmpline + sizeof(tmpline) - 10)) {
-		*(h++) = ' ';
-		*(h++) = '{';
-		for (hdr = 0; hdr < fe->nb_req_cap; hdr++) {
-			if (hdr)
-				*(h++) = '|';
-			if (txn->req.cap[hdr] != NULL)
-				h = encode_string(h, tmpline + sizeof(tmpline) - 7,
-						  '#', hdr_encode_map, txn->req.cap[hdr]);
-		}
-		*(h++) = '}';
-	}
-
-	if (fe->to_log & LW_RSPHDR &&
-	    txn->rsp.cap &&
-	    (h < tmpline + sizeof(tmpline) - 7)) {
-		*(h++) = ' ';
-		*(h++) = '{';
-		for (hdr = 0; hdr < fe->nb_rsp_cap; hdr++) {
-			if (hdr)
-				*(h++) = '|';
-			if (txn->rsp.cap[hdr] != NULL)
-				h = encode_string(h, tmpline + sizeof(tmpline) - 4,
-						  '#', hdr_encode_map, txn->rsp.cap[hdr]);
-		}
-		*(h++) = '}';
-	}
-
-	if (h < tmpline + sizeof(tmpline) - 4) {
-		*(h++) = ' ';
-		*(h++) = '"';
-		uri = txn->uri ? txn->uri : "<BADREQ>";
-		h = encode_string(h, tmpline + sizeof(tmpline) - 1,
-				  '#', url_encode_map, uri);
-		*(h++) = '"';
-	}
-	*h = '\0';
 
 	if (!(tolog & LW_SVID))
 		svid = "-";
@@ -1177,37 +920,331 @@ void http_sess_log(struct session *s)
 	if (err && (fe->options2 & PR_O2_LOGERRORS))
 		level = LOG_ERR;
 
-	send_log(prx_log, level,
-		 "%s:%d [%02d/%s/%04d:%02d:%02d:%02d.%03d]"
-		 " %s %s/%s %d/%ld/%ld/%ld/%s%ld %d %s%lld"
-		 " %s %s %c%c%c%c %d/%d/%d/%d/%s%u %ld/%ld%s\n",
-		 (s->req->prod->addr.from.ss_family == AF_UNIX) ? "unix" : pn,
-		 (s->req->prod->addr.from.ss_family == AF_UNIX) ? s->listener->luid :
-		     get_host_port(&s->req->prod->addr.from),
-		 tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
-		 tm.tm_hour, tm.tm_min, tm.tm_sec, (int)s->logs.accept_date.tv_usec/1000,
-		 fe->id, be->id, svid,
-		 t_request,
-		 (s->logs.t_queue >= 0) ? s->logs.t_queue - t_request : -1,
-		 (s->logs.t_connect >= 0) ? s->logs.t_connect - s->logs.t_queue : -1,
-		 (s->logs.t_data >= 0) ? s->logs.t_data - s->logs.t_connect : -1,
-		 (tolog & LW_BYTES) ? "" : "+", s->logs.t_close,
-		 txn->status,
-		 (tolog & LW_BYTES) ? "" : "+", s->logs.bytes_out,
-		 txn->cli_cookie ? txn->cli_cookie : "-",
-		 txn->srv_cookie ? txn->srv_cookie : "-",
-		 sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT],
-		 sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT],
-		 (be->options & PR_O_COOK_ANY) ? sess_cookie[(txn->flags & TX_CK_MASK) >> TX_CK_SHIFT] : '-',
-		 (be->options & PR_O_COOK_ANY) ? sess_set_cookie[(txn->flags & TX_SCK_MASK) >> TX_SCK_SHIFT] : '-',
-		 actconn, fe->feconn, be->beconn, target_srv(&s->target) ? target_srv(&s->target)->cur_sess : 0,
-		 (s->flags & SN_REDISP)?"+":"",
-		 (s->req->cons->conn_retries>0)?(be->conn_retries - s->req->cons->conn_retries):be->conn_retries,
-		 s->logs.srv_queue_size, s->logs.prx_queue_size, tmpline);
+	/* fill logbuffer */
 
+	tmplog = logline;
+	tmplog = hdr_log(tmplog);
+
+	list_for_each_entry(tmp, &fe->logformat, list) {
+		char *src = NULL;
+		switch (tmp->type) {
+
+			case LOG_SEPARATOR:
+				if (!last_isspace) {
+					LOGCHAR(' ');
+					last_isspace = 1;
+					*tmplog = '\0';
+				}
+				break;
+
+			case LOG_TEXT: // text
+				src = tmp->arg;
+				tmplog += strlcpy2(tmplog, src, MAX_SYSLOG_LEN - (tmplog - logline));
+				if (!tmplog)
+					goto out;
+				last_isspace = 0;
+				break;
+
+			case LOG_CLIENTIP:  // %Ci
+				src = (s->req->prod->addr.from.ss_family == AF_UNIX) ? "unix" : pn;
+				tmplog = logformat_write_string(tmplog, src, MAX_SYSLOG_LEN - (tmplog - logline), tmp);
+
+				if (!tmplog)
+					goto out;
+				last_isspace = 0;
+				break;
+
+			case LOG_CLIENTPORT:  // %Cp
+				tmplog = ltoa_o((s->req->prod->addr.from.ss_family == AF_UNIX) ? s->listener->luid : get_host_port(&s->req->prod->addr.from),
+				                tmplog, MAX_SYSLOG_LEN - (tmplog - logline));
+				if (!tmplog)
+					goto out;
+				last_isspace = 0;
+				break;
+
+			case LOG_DATE: // %t
+				get_localtime(s->logs.accept_date.tv_sec, &tm);
+				tmplog = date2str_log(tmplog, &tm, &(s->logs.accept_date), MAX_SYSLOG_LEN - (tmplog - logline));
+				if (!tmplog)
+					goto out;
+				last_isspace = 0;
+				break;
+
+			case LOG_DATEGMT: // %T
+				get_gmtime(s->logs.accept_date.tv_sec, &tm);
+				tmplog = gmt2str_log(tmplog, &tm, MAX_SYSLOG_LEN - (tmplog - logline));
+				if (!tmplog)
+					goto out;
+				last_isspace = 0;
+				break;
+
+			case LOG_MS: // %ms
+				if ((MAX_SYSLOG_LEN - (tmplog - logline)) < 4) {
+					tmplog = NULL;
+					goto out;
+				}
+				tmplog = utoa_pad((unsigned int)s->logs.accept_date.tv_usec/1000,
+						  tmplog, 4);
+				last_isspace = 0;
+
+				break;
+
+			case LOG_FRONTEND: // %f
+				src = fe->id;
+				tmplog = logformat_write_string(tmplog, src, MAX_SYSLOG_LEN - (tmplog - logline), tmp);
+				if (!tmplog)
+					goto out;
+				last_isspace = 0 ;
+				break;
+
+			case LOG_BACKEND: // %b
+				src = be->id;
+				tmplog = logformat_write_string(tmplog, src, MAX_SYSLOG_LEN - (tmplog - logline), tmp);
+				if (!tmplog)
+					goto out;
+				last_isspace = 0 ;
+				break;
+
+			case LOG_SERVER: // %s
+				src = (char *)svid;
+				tmplog = logformat_write_string(tmplog, src, MAX_SYSLOG_LEN - (tmplog - logline), tmp);
+				if (!tmplog)
+					goto out;
+				last_isspace = 0;
+				break;
+
+			case LOG_TQ: // %Tq
+				tmplog = ltoa_o(t_request, tmplog, MAX_SYSLOG_LEN - (tmplog - logline));
+				if (!tmplog)
+					goto out;
+				last_isspace = 0;
+				break;
+
+			case LOG_TW: // %Tw
+				tmplog = ltoa_o((s->logs.t_queue >= 0) ? s->logs.t_queue - t_request : -1, tmplog, MAX_SYSLOG_LEN - (tmplog - logline));
+				if (!tmplog)
+					goto out;
+				last_isspace = 0;
+				break;
+
+			case LOG_TC: // %Tc
+				tmplog = ltoa_o((s->logs.t_connect >= 0) ? s->logs.t_connect - s->logs.t_queue : -1, tmplog, MAX_SYSLOG_LEN - (tmplog - logline));
+				if (!tmplog)
+					goto out;
+				last_isspace = 0;
+				break;
+
+			case LOG_TR: // %Tr
+				tmplog = ltoa_o((s->logs.t_data >= 0) ? s->logs.t_data - s->logs.t_connect : -1, tmplog, MAX_SYSLOG_LEN - (tmplog - logline));
+				if (!tmplog)
+					goto out;
+				last_isspace = 0;
+				break;
+
+			case LOG_TT:  // %Tt
+				if (!(tolog & LW_BYTES))
+					*(tmplog++) = '+';
+				tmplog = ltoa_o(s->logs.t_close, tmplog, MAX_SYSLOG_LEN - (tmplog - logline));
+				if (!tmplog)
+					goto out;
+				last_isspace = 0;
+				break;
+
+			case LOG_STATUS: // %st
+				tmplog = ultoa_o(txn->status, tmplog, MAX_SYSLOG_LEN - (tmplog - logline));
+				if (!tmplog)
+					goto out;
+				last_isspace = 0;
+				break;
+
+			case LOG_BYTES: // %B
+				if (!(tolog & LW_BYTES))
+					*(tmplog++) = '+';
+				tmplog = lltoa(s->logs.bytes_out, tmplog, MAX_SYSLOG_LEN - (tmplog - logline));
+				if (!tmplog)
+					goto out;
+				last_isspace = 0;
+				break;
+
+			case LOG_CCLIENT: // %cc
+				src = txn->cli_cookie;
+				tmplog = logformat_write_string(tmplog, src, MAX_SYSLOG_LEN - (tmplog - logline), tmp);
+				last_isspace = 0;
+				break;
+
+			case LOG_CSERVER: // %cs
+				src = txn->srv_cookie;
+				tmplog = logformat_write_string(tmplog, src, MAX_SYSLOG_LEN - (tmplog - logline), tmp);
+				last_isspace = 0;
+				break;
+
+			case LOG_TERMSTATE: // %ts
+				if (MAX_SYSLOG_LEN - (tmplog - logline) < 5)
+					goto out;
+				*(tmplog++) = sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT];
+				*(tmplog++) = sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT];
+				*(tmplog++) = (be->options & PR_O_COOK_ANY) ? sess_cookie[(txn->flags & TX_CK_MASK) >> TX_CK_SHIFT] : '-';
+				*(tmplog++) = (be->options & PR_O_COOK_ANY) ? sess_set_cookie[(txn->flags & TX_SCK_MASK) >> TX_SCK_SHIFT] : '-';
+				*tmplog = '\0';
+				last_isspace = 0;
+				break;
+
+			case LOG_ACTCONN: // %ac
+				tmplog = ltoa_o(actconn, tmplog, MAX_SYSLOG_LEN - (tmplog - logline));
+				if (!tmplog)
+					goto out;
+				last_isspace = 0;
+				break;
+
+			case LOG_FECONN:  // %fc
+				tmplog = ltoa_o(fe->feconn, tmplog, MAX_SYSLOG_LEN - (tmplog - logline));
+				if (!tmplog)
+					goto out;
+				last_isspace = 0;
+				break;
+
+			case LOG_BECONN:  // %bc
+				tmplog = ltoa_o(be->beconn, tmplog, MAX_SYSLOG_LEN - (tmplog - logline));
+				if (!tmplog)
+					goto out;
+				last_isspace = 0;
+				break;
+
+			case LOG_SRVCONN:  // %sc
+				tmplog = ultoa_o(target_srv(&s->target) ? target_srv(&s->target)->cur_sess : 0, tmplog, MAX_SYSLOG_LEN - (tmplog - logline));
+				if (!tmplog)
+					goto out;
+				last_isspace = 0;
+				break;
+
+			case LOG_RETRIES:  // %rq
+				if (s->flags & SN_REDISP)
+					*(tmplog++) = '+';
+				tmplog = ltoa_o((s->req->cons->conn_retries>0)?(be->conn_retries - s->req->cons->conn_retries):be->conn_retries, tmplog, MAX_SYSLOG_LEN - (tmplog - logline));
+				last_isspace = 0;
+				break;
+
+			case LOG_SRVQUEUE: // %sq
+				tmplog = ltoa_o(s->logs.srv_queue_size, tmplog, MAX_SYSLOG_LEN - (tmplog - logline));
+				if (!tmplog)
+					goto out;
+				last_isspace = 0;
+				break;
+
+			case LOG_BCKQUEUE:  // %bq
+				tmplog = ltoa_o(s->logs.prx_queue_size, tmplog, MAX_SYSLOG_LEN - (tmplog - logline));
+				if (!tmplog)
+					goto out;
+				last_isspace = 0;
+				break;
+
+			case LOG_HDRREQUEST: // %hr
+				/* request header */
+				if (fe->to_log & LW_REQHDR && txn->req.cap) {
+					if (tmp->options & LOG_OPT_QUOTE)
+						LOGCHAR('"');
+					LOGCHAR('{');
+					for (hdr = 0; hdr < fe->nb_req_cap; hdr++) {
+						if (hdr)
+							LOGCHAR('|');
+						if (txn->req.cap[hdr] != NULL)
+							tmplog = encode_string(tmplog, logline + MAX_SYSLOG_LEN,
+									       '#', hdr_encode_map, txn->req.cap[hdr]);
+					}
+					LOGCHAR('}');
+					last_isspace = 0;
+				}
+				*tmplog = '\0';
+				break;
+
+			case LOG_HDRREQUESTLIST: // %hrl
+				/* request header list */
+				if (fe->to_log & LW_REQHDR && txn->req.cap) {
+					for (hdr = 0; hdr < fe->nb_req_cap; hdr++) {
+						if (hdr > 0)
+							LOGCHAR(' ');
+						if (tmp->options & LOG_OPT_QUOTE)
+							LOGCHAR('"');
+						if (txn->req.cap[hdr] != NULL) {
+							tmplog = encode_string(tmplog, logline + MAX_SYSLOG_LEN,
+									       '#', hdr_encode_map, txn->req.cap[hdr]);
+						} else if (!(tmp->options & LOG_OPT_QUOTE))
+							LOGCHAR('-');
+						if (tmp->options & LOG_OPT_QUOTE)
+							LOGCHAR('"');
+						*tmplog = '\0';
+						last_isspace = 0;
+					}
+				}
+				break;
+
+			case LOG_HDRRESPONS: // %hs
+				/* response header */
+				if (fe->to_log & LW_RSPHDR &&
+				    txn->rsp.cap) {
+					if (tmp->options & LOG_OPT_QUOTE)
+						LOGCHAR('"');
+					LOGCHAR('{');
+					for (hdr = 0; hdr < fe->nb_rsp_cap; hdr++) {
+						if (hdr)
+							LOGCHAR('|');
+						if (txn->rsp.cap[hdr] != NULL)
+							tmplog = encode_string(tmplog, logline + MAX_SYSLOG_LEN,
+									       '#', hdr_encode_map, txn->rsp.cap[hdr]);
+					}
+					LOGCHAR('}');
+					last_isspace = 0;
+					if (tmp->options & LOG_OPT_QUOTE)
+						LOGCHAR('"');
+				}
+				*tmplog = '\0';
+				break;
+
+			case LOG_HDRRESPONSLIST: // %hsl
+				/* response header list */
+				if (fe->to_log & LW_RSPHDR && txn->rsp.cap) {
+					for (hdr = 0; hdr < fe->nb_rsp_cap; hdr++) {
+						if (hdr > 0)
+							LOGCHAR(' ');
+						if (tmp->options & LOG_OPT_QUOTE)
+							LOGCHAR('"');
+						if (txn->rsp.cap[hdr] != NULL) {
+							tmplog = encode_string(tmplog, logline + MAX_SYSLOG_LEN,
+									       '#', hdr_encode_map, txn->rsp.cap[hdr]);
+						} else if (!(tmp->options & LOG_OPT_QUOTE))
+							LOGCHAR('-');
+						if (tmp->options & LOG_OPT_QUOTE)
+							LOGCHAR('"');
+						*tmplog = '\0';
+						last_isspace = 0;
+					}
+				}
+				break;
+
+			case LOG_REQ: // %r
+				/* Request */
+				if (tmp->options & LOG_OPT_QUOTE)
+					LOGCHAR('"');
+				uri = txn->uri ? txn->uri : "<BADREQ>";
+				tmplog = encode_string(tmplog, logline + MAX_SYSLOG_LEN,
+						       '#', url_encode_map, uri);
+				if (tmp->options & LOG_OPT_QUOTE)
+					LOGCHAR('"');
+				*tmplog = '\0';
+				last_isspace = 0;
+				break;
+		}
+	}
+
+out:
+
+	if (tmplog == NULL) // if previous error
+		tmplog = logline + MAX_SYSLOG_LEN - 1;
+
+	__send_log(prx_log, level, logline, tmplog - logline + 2);
 	s->logs.logwait = 0;
-}
 
+}
 
 /*
  * Capture headers from message starting at <som> according to header list
