@@ -438,13 +438,14 @@ endif
 
 ifneq ($(USE_PCRE),)
 # PCREDIR is the directory hosting include/pcre.h and lib/libpcre.*. It is
-# automatically detected but can be forced if required.
+# automatically detected but can be forced if required. Forcing it to an empty
+# string will result in search only in the default paths.
 ifeq ($(PCREDIR),)
 PCREDIR	        := $(shell pcre-config --prefix 2>/dev/null || echo /usr/local)
 endif
 ifeq ($(USE_STATIC_PCRE),)
-OPTIONS_CFLAGS  += -DUSE_PCRE -I$(PCREDIR)/include
-OPTIONS_LDFLAGS += -L$(PCREDIR)/lib -lpcreposix -lpcre
+OPTIONS_CFLAGS  += -DUSE_PCRE $(if $(PCREDIR),-I$(PCREDIR)/include)
+OPTIONS_LDFLAGS += $(if $(PCREDIR),-L$(PCREDIR)/lib) -lpcreposix -lpcre
 endif
 BUILD_OPTIONS   += $(call ignore_implicit,USE_PCRE)
 endif
@@ -455,8 +456,8 @@ ifneq ($(USE_STATIC_PCRE),)
 ifeq ($(PCREDIR),)
 PCREDIR         := $(shell pcre-config --prefix 2>/dev/null || echo /usr/local)
 endif
-OPTIONS_CFLAGS  += -DUSE_PCRE -I$(PCREDIR)/include
-OPTIONS_LDFLAGS += -L$(PCREDIR)/lib -Wl,-Bstatic -lpcreposix -lpcre -Wl,-Bdynamic
+OPTIONS_CFLAGS  += -DUSE_PCRE $(if $(PCREDIR),-I$(PCREDIR)/include)
+OPTIONS_LDFLAGS += $(if $(PCREDIR),-L$(PCREDIR)/lib) -Wl,-Bstatic -lpcreposix -lpcre -Wl,-Bdynamic
 BUILD_OPTIONS   += $(call ignore_implicit,USE_STATIC_PCRE)
 endif
 
