@@ -404,9 +404,12 @@ BUILD_OPTIONS   += $(call ignore_implicit,USE_GETADDRINFO)
 endif
 
 ifneq ($(USE_ZLIB),)
-OPTIONS_CFLAGS  += -DUSE_ZLIB
+# Use ZLIB_INC and ZLIB_LIB to force path to zlib.h and libz.{a,so} if needed.
+ZLIB_INC =
+ZLIB_LIB =
+OPTIONS_CFLAGS  += -DUSE_ZLIB $(if $(ZLIB_INC),-I$(ZLIB_INC))
 BUILD_OPTIONS   += $(call ignore_implicit,USE_ZLIB)
-OPTIONS_LDFLAGS += -lz
+OPTIONS_LDFLAGS += $(if $(ZLIB_LIB),-L$(ZLIB_LIB)) -lz
 endif
 
 ifneq ($(USE_POLL),)
