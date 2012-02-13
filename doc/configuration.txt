@@ -1275,6 +1275,18 @@ balance url_param <param> [check_post [<max_wait>]]
                   algorithm is dynamic, which means that server weights may be
                   adjusted on the fly for slow starts for instance.
 
+      first       The first server with available connection slots receives the
+                  connection. The servers are choosen from the lowest numeric
+                  identifier to the highest (see server parameter "id"), which
+                  defaults to the server's position in the farm. Once a server
+                  reaaches its maxconn value, the next server is used. It does
+                  not make sense to use this algorithm without setting maxconn.
+                  The purpose of this algorithm is to always use the smallest
+                  number of servers so that extra servers can be powered off
+                  during non-intensive hours. This algorithm ignores the server
+                  weight, and brings more benefit to long session such as RDP
+                  or IMAP than HTTP, though it can be useful there too.
+
       source      The source IP address is hashed and divided by the total
                   weight of the running servers to designate which server will
                   receive the request. This ensures that the same client IP

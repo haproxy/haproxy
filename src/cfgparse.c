@@ -46,6 +46,7 @@
 #include <proto/frontend.h>
 #include <proto/hdr_idx.h>
 #include <proto/lb_chash.h>
+#include <proto/lb_fas.h>
 #include <proto/lb_fwlc.h>
 #include <proto/lb_fwrr.h>
 #include <proto/lb_map.h>
@@ -6206,8 +6207,13 @@ out_uri_auth_compat:
 			break;
 
 		case BE_LB_KIND_CB:
-			curproxy->lbprm.algo |= BE_LB_LKUP_LCTREE | BE_LB_PROP_DYN;
-			fwlc_init_server_tree(curproxy);
+			if ((curproxy->lbprm.algo & BE_LB_PARM) == BE_LB_CB_LC) {
+				curproxy->lbprm.algo |= BE_LB_LKUP_LCTREE | BE_LB_PROP_DYN;
+				fwlc_init_server_tree(curproxy);
+			} else {
+				curproxy->lbprm.algo |= BE_LB_LKUP_FSTREE | BE_LB_PROP_DYN;
+				fas_init_server_tree(curproxy);
+			}
 			break;
 
 		case BE_LB_KIND_HI:

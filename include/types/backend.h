@@ -24,6 +24,7 @@
 
 #include <common/config.h>
 #include <types/lb_chash.h>
+#include <types/lb_fas.h>
 #include <types/lb_fwlc.h>
 #include <types/lb_fwrr.h>
 #include <types/lb_map.h>
@@ -52,6 +53,7 @@
 
 /* BE_LB_CB_* is used with BE_LB_KIND_CB */
 #define BE_LB_CB_LC     0x00000  /* least-connections */
+#define BE_LB_CB_FAS    0x00001  /* first available server (opposite of leastconn) */
 
 #define BE_LB_PARM      0x000FF  /* mask to get/clear the LB param */
 
@@ -76,6 +78,7 @@
 #define BE_LB_ALGO_NONE (BE_LB_KIND_NONE | BE_LB_NEED_NONE)    /* not defined */
 #define BE_LB_ALGO_RR   (BE_LB_KIND_RR | BE_LB_NEED_NONE)      /* round robin */
 #define BE_LB_ALGO_LC   (BE_LB_KIND_CB | BE_LB_NEED_NONE | BE_LB_CB_LC)    /* least connections */
+#define BE_LB_ALGO_FAS  (BE_LB_KIND_CB | BE_LB_NEED_NONE | BE_LB_CB_FAS)   /* first available server */
 #define BE_LB_ALGO_SRR  (BE_LB_KIND_RR | BE_LB_NEED_NONE | BE_LB_RR_STATIC) /* static round robin */
 #define BE_LB_ALGO_SH	(BE_LB_KIND_HI | BE_LB_NEED_ADDR | BE_LB_HASH_SRC) /* hash: source IP */
 #define BE_LB_ALGO_UH	(BE_LB_KIND_HI | BE_LB_NEED_HTTP | BE_LB_HASH_URI) /* hash: HTTP URI  */
@@ -93,6 +96,7 @@
 #define BE_LB_LKUP_RRTREE 0x20000  /* FWRR tree lookup */
 #define BE_LB_LKUP_LCTREE 0x30000  /* FWLC tree lookup */
 #define BE_LB_LKUP_CHTREE 0x40000  /* consistent hash  */
+#define BE_LB_LKUP_FSTREE 0x50000  /* FAS tree lookup */
 #define BE_LB_LKUP        0x70000  /* mask to get just the LKUP value */
 
 /* additional properties */
@@ -129,6 +133,7 @@ struct lbprm {
 	struct lb_fwrr fwrr;
 	struct lb_fwlc fwlc;
 	struct lb_chash chash;
+	struct lb_fas fas;
 	/* Call backs for some actions. Some may be NULL (thus should be ignored). */
 	void (*update_server_eweight)(struct server *);  /* to be called after eweight change */
 	void (*set_server_status_up)(struct server *);   /* to be called after status changes to UP */

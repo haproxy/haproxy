@@ -2,7 +2,7 @@
  * include/types/server.h
  * This file defines everything related to servers.
  *
- * Copyright (C) 2000-2011 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -155,7 +155,7 @@ struct server {
 	short check_status, check_code;		/* check result, check code */
 	char check_desc[HCHK_DESC_LEN];		/* health check descritpion */
 
-	int puid;				/* proxy-unique server ID, used for SNMP */
+	int puid;				/* proxy-unique server ID, used for SNMP, and "first" LB algo */
 
 	char *check_data;			/* storage of partial check results */
 	int check_data_len;			/* length of partial check results stored in check_data */

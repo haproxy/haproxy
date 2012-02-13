@@ -1,7 +1,7 @@
 /*
  * Backend variables and functions.
  *
- * Copyright 2000-2010 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2012 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -31,6 +31,7 @@
 #include <proto/backend.h>
 #include <proto/frontend.h>
 #include <proto/lb_chash.h>
+#include <proto/lb_fas.h>
 #include <proto/lb_fwlc.h>
 #include <proto/lb_fwrr.h>
 #include <proto/lb_map.h>
@@ -510,6 +511,10 @@ int assign_server(struct session *s)
 		switch (s->be->lbprm.algo & BE_LB_LKUP) {
 		case BE_LB_LKUP_RRTREE:
 			srv = fwrr_get_next_server(s->be, prev_srv);
+			break;
+
+		case BE_LB_LKUP_FSTREE:
+			srv = fas_get_next_server(s->be, prev_srv);
 			break;
 
 		case BE_LB_LKUP_LCTREE:
@@ -1173,6 +1178,8 @@ const char *backend_lb_algo_str(int algo) {
 		return "roundrobin";
 	else if (algo == BE_LB_ALGO_SRR)
 		return "static-rr";
+	else if (algo == BE_LB_ALGO_FAS)
+		return "first";
 	else if (algo == BE_LB_ALGO_LC)
 		return "leastconn";
 	else if (algo == BE_LB_ALGO_SH)
@@ -1212,6 +1219,10 @@ int backend_parse_balance(const char **args, char *err, int errlen, struct proxy
 	else if (!strcmp(args[0], "static-rr")) {
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_SRR;
+	}
+	else if (!strcmp(args[0], "first")) {
+		curproxy->lbprm.algo &= ~BE_LB_ALGO;
+		curproxy->lbprm.algo |= BE_LB_ALGO_FAS;
 	}
 	else if (!strcmp(args[0], "leastconn")) {
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
