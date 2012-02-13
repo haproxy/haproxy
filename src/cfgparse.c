@@ -5723,6 +5723,13 @@ int check_config_validity()
 				 */
 				target->bind_proc = curproxy->bind_proc ?
 					(target->bind_proc | curproxy->bind_proc) : 0;
+
+				/* Emit a warning if this proxy also has some servers */
+				if (curproxy->srv) {
+					Warning("In proxy '%s', the 'default_backend' rule always has precedence over the servers, which will never be used.\n",
+						curproxy->id);
+					err_code |= ERR_WARN;
+				}
 			}
 		}
 
