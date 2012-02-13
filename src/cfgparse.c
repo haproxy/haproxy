@@ -6205,7 +6205,7 @@ out_uri_auth_compat:
 			}
 			break;
 
-		case BE_LB_KIND_LC:
+		case BE_LB_KIND_CB:
 			curproxy->lbprm.algo |= BE_LB_LKUP_LCTREE | BE_LB_PROP_DYN;
 			fwlc_init_server_tree(curproxy);
 			break;

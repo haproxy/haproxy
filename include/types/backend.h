@@ -2,7 +2,7 @@
  * include/types/backend.h
  * This file assembles definitions for backends
  *
- * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -37,15 +37,22 @@
  * detect incompatibilities.
  */
 
-/* LB parameters. Depends on the LB kind. Right now, only hashing uses this. */
+/* LB parameters are on the lower 8 bits. Depends on the LB kind. */
+
+/* BE_LB_HASH_* is used with BE_LB_KIND_HI */
 #define BE_LB_HASH_SRC  0x00000  /* hash source IP */
 #define BE_LB_HASH_URI  0x00001  /* hash HTTP URI */
 #define BE_LB_HASH_PRM  0x00002  /* hash HTTP URL parameter */
 #define BE_LB_HASH_HDR  0x00003  /* hash HTTP header value */
 #define BE_LB_HASH_RDP  0x00004  /* hash RDP cookie value */
 
+/* BE_LB_RR_* is used with BE_LB_KIND_RR */
 #define BE_LB_RR_DYN    0x00000  /* dynamic round robin (default) */
 #define BE_LB_RR_STATIC 0x00001  /* static round robin */
+
+/* BE_LB_CB_* is used with BE_LB_KIND_CB */
+#define BE_LB_CB_LC     0x00000  /* least-connections */
+
 #define BE_LB_PARM      0x000FF  /* mask to get/clear the LB param */
 
 /* Required input(s) */
@@ -59,7 +66,7 @@
 /* Algorithm */
 #define BE_LB_KIND_NONE 0x00000  /* algorithm not set */
 #define BE_LB_KIND_RR   0x01000  /* round-robin */
-#define BE_LB_KIND_LC   0x02000  /* least connections */
+#define BE_LB_KIND_CB   0x02000  /* connection-based */
 #define BE_LB_KIND_HI   0x03000  /* hash of input (see hash inputs above) */
 #define BE_LB_KIND      0x07000  /* mask to get/clear LB algorithm */
 
@@ -68,7 +75,7 @@
  */
 #define BE_LB_ALGO_NONE (BE_LB_KIND_NONE | BE_LB_NEED_NONE)    /* not defined */
 #define BE_LB_ALGO_RR   (BE_LB_KIND_RR | BE_LB_NEED_NONE)      /* round robin */
-#define BE_LB_ALGO_LC   (BE_LB_KIND_LC | BE_LB_NEED_NONE)      /* least connections */
+#define BE_LB_ALGO_LC   (BE_LB_KIND_CB | BE_LB_NEED_NONE | BE_LB_CB_LC)    /* least connections */
 #define BE_LB_ALGO_SRR  (BE_LB_KIND_RR | BE_LB_NEED_NONE | BE_LB_RR_STATIC) /* static round robin */
 #define BE_LB_ALGO_SH	(BE_LB_KIND_HI | BE_LB_NEED_ADDR | BE_LB_HASH_SRC) /* hash: source IP */
 #define BE_LB_ALGO_UH	(BE_LB_KIND_HI | BE_LB_NEED_HTTP | BE_LB_HASH_URI) /* hash: HTTP URI  */
