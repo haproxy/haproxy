@@ -230,6 +230,8 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	txn->rsp.cap = NULL;
 	txn->hdr_idx.v = NULL;
 	txn->hdr_idx.size = txn->hdr_idx.used = 0;
+	txn->req.flags = 0;
+	txn->rsp.flags = 0;
 
 	if (unlikely((s->req = pool_alloc2(pool2_buffer)) == NULL))
 		goto out_free_task; /* no memory */

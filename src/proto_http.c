@@ -2417,7 +2417,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	    ((msg->sol[msg->sl.rq.v + 5] > '1') ||
 	     ((msg->sol[msg->sl.rq.v + 5] == '1') &&
 	      (msg->sol[msg->sl.rq.v + 7] >= '1'))))
-		txn->flags |= TX_REQ_VER_11;
+		msg->flags |= HTTP_MSGF_VER_11;
 
 	/* "connection" has not been parsed yet */
 	txn->flags &= ~(TX_HDR_CONN_PRS | TX_HDR_CONN_CLO | TX_HDR_CONN_KAL);
@@ -2436,7 +2436,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 		txn->flags |= TX_USE_PX_CONN;
 
 	/* transfer length unknown*/
-	txn->flags &= ~TX_REQ_XFER_LEN;
+	msg->flags &= ~HTTP_MSGF_XFER_LEN;
 
 	/* 5: we may need to capture headers */
 	if (unlikely((s->logs.logwait & LW_REQHDR) && txn->req.cap))
@@ -2484,20 +2484,20 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	use_close_only = 0;
 	ctx.idx = 0;
 	/* set TE_CHNK and XFER_LEN only if "chunked" is seen last */
-	while ((txn->flags & TX_REQ_VER_11) &&
+	while ((msg->flags & HTTP_MSGF_VER_11) &&
 	       http_find_header2("Transfer-Encoding", 17, msg->sol, &txn->hdr_idx, &ctx)) {
 		if (ctx.vlen == 7 && strncasecmp(ctx.line + ctx.val, "chunked", 7) == 0)
-			txn->flags |= (TX_REQ_TE_CHNK | TX_REQ_XFER_LEN);
-		else if (txn->flags & TX_REQ_TE_CHNK) {
+			msg->flags |= (HTTP_MSGF_TE_CHNK | HTTP_MSGF_XFER_LEN);
+		else if (msg->flags & HTTP_MSGF_TE_CHNK) {
 			/* bad transfer-encoding (chunked followed by something else) */
 			use_close_only = 1;
-			txn->flags &= ~(TX_REQ_TE_CHNK | TX_REQ_XFER_LEN);
+			msg->flags &= ~(HTTP_MSGF_TE_CHNK | HTTP_MSGF_XFER_LEN);
 			break;
 		}
 	}
 
 	ctx.idx = 0;
-	while (!(txn->flags & TX_REQ_TE_CHNK) && !use_close_only &&
+	while (!(msg->flags & HTTP_MSGF_TE_CHNK) && !use_close_only &&
 	       http_find_header2("Content-Length", 14, msg->sol, &txn->hdr_idx, &ctx)) {
 		signed long long cl;
 
@@ -2516,18 +2516,18 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			goto return_bad_req;
 		}
 
-		if ((txn->flags & TX_REQ_CNT_LEN) && (msg->chunk_len != cl)) {
+		if ((msg->flags & HTTP_MSGF_CNT_LEN) && (msg->chunk_len != cl)) {
 			msg->err_pos = ctx.line + ctx.val - req->data;
 			goto return_bad_req; /* already specified, was different */
 		}
 
-		txn->flags |= TX_REQ_CNT_LEN | TX_REQ_XFER_LEN;
+		msg->flags |= HTTP_MSGF_CNT_LEN | HTTP_MSGF_XFER_LEN;
 		msg->body_len = msg->chunk_len = cl;
 	}
 
 	/* bodyless requests have a known length */
 	if (!use_close_only)
-		txn->flags |= TX_REQ_XFER_LEN;
+		msg->flags |= HTTP_MSGF_XFER_LEN;
 
 	/* end of job, return OK */
 	req->analysers &= ~an_bit;
@@ -2906,11 +2906,11 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 		if (!(txn->flags & TX_HDR_CONN_PRS)) {
 			/* parse the Connection header and possibly clean it */
 			int to_del = 0;
-			if ((txn->flags & TX_REQ_VER_11) ||
+			if ((msg->flags & HTTP_MSGF_VER_11) ||
 			    ((txn->flags & TX_CON_WANT_MSK) >= TX_CON_WANT_SCL &&
 			     !((s->fe->options2|s->be->options2) & PR_O2_FAKE_KA)))
 				to_del |= 2; /* remove "keep-alive" */
-			if (!(txn->flags & TX_REQ_VER_11))
+			if (!(msg->flags & HTTP_MSGF_VER_11))
 				to_del |= 1; /* remove "close" */
 			http_parse_connection_header(txn, msg, req, to_del);
 		}
@@ -2919,9 +2919,9 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 		if (((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
 		     (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL) &&
 		    ((txn->flags & TX_HDR_CONN_CLO) ||                         /* "connection: close" */
-		     (txn->flags & (TX_REQ_VER_11|TX_HDR_CONN_KAL)) == 0 ||    /* no "connection: k-a" in 1.0 */
+		     (!(msg->flags & HTTP_MSGF_VER_11) && !(txn->flags & TX_HDR_CONN_KAL)) || /* no "connection: k-a" in 1.0 */
 		     ((s->fe->options|s->be->options) & PR_O_HTTP_CLOSE) ||    /* httpclose+any = forceclose */
-		     !(txn->flags & TX_REQ_XFER_LEN) ||                        /* no length known => close */
+		     !(msg->flags & HTTP_MSGF_XFER_LEN) ||                     /* no length known => close */
 		     s->fe->state == PR_STSTOPPED))                            /* frontend is stopping */
 		    txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
 	}
@@ -2996,7 +2996,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 					/* If we have HTTP/1.1 and Expect: 100-continue, then we must
 					 * send an HTTP/1.1 100 Continue intermediate response.
 					 */
-					if (txn->flags & TX_REQ_VER_11) {
+					if (msg->flags & HTTP_MSGF_VER_11) {
 						struct hdr_ctx ctx;
 						ctx.idx = 0;
 						/* Expect is allowed in 1.1, look for it */
@@ -3146,12 +3146,12 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 			s->logs.tv_request = now;
 
 			if (rule->rdr_len >= 1 && *rule->rdr_str == '/' &&
-			    (txn->flags & TX_REQ_XFER_LEN) &&
-			    !(txn->flags & TX_REQ_TE_CHNK) && !txn->req.body_len &&
+			    (msg->flags & HTTP_MSGF_XFER_LEN) &&
+			    !(msg->flags & HTTP_MSGF_TE_CHNK) && !txn->req.body_len &&
 			    ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL ||
 			     (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL)) {
 				/* keep-alive possible */
-				if (!(txn->flags & TX_REQ_VER_11)) {
+				if (!(msg->flags & HTTP_MSGF_VER_11)) {
 					if (unlikely(txn->flags & TX_USE_PX_CONN)) {
 						memcpy(rdr.str + rdr.len, "\r\nProxy-Connection: keep-alive", 30);
 						rdr.len += 30;
@@ -3425,7 +3425,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 	    ((s->fe->options|s->be->options) & PR_O_HTTP_CLOSE)) {
 		unsigned int want_flags = 0;
 
-		if (txn->flags & TX_REQ_VER_11) {
+		if (msg->flags & HTTP_MSGF_VER_11) {
 			if (((txn->flags & TX_CON_WANT_MSK) >= TX_CON_WANT_SCL ||
 			    ((s->fe->options|s->be->options) & PR_O_HTTP_CLOSE)) &&
 			    !((s->fe->options2|s->be->options2) & PR_O2_FAKE_KA))
@@ -3449,12 +3449,12 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 	if (!(s->flags & (SN_ASSIGNED|SN_DIRECT)) &&
 	    s->txn.meth == HTTP_METH_POST && s->be->url_param_name != NULL &&
 	    s->be->url_param_post_limit != 0 &&
-	    (txn->flags & (TX_REQ_CNT_LEN|TX_REQ_TE_CHNK))) {
+	    (msg->flags & (HTTP_MSGF_CNT_LEN|HTTP_MSGF_TE_CHNK))) {
 		buffer_dont_connect(req);
 		req->analysers |= AN_REQ_HTTP_BODY;
 	}
 
-	if (txn->flags & TX_REQ_XFER_LEN) {
+	if (msg->flags & HTTP_MSGF_XFER_LEN) {
 		req->analysers |= AN_REQ_HTTP_XFER_BODY;
 #ifdef TCP_QUICKACK
 		/* We expect some data from the client. Unless we know for sure
@@ -3463,7 +3463,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 		 * the client to delay further data.
 		 */
 		if ((s->listener->options & LI_O_NOQUICKACK) &&
-		    ((txn->flags & TX_REQ_TE_CHNK) ||
+		    ((msg->flags & HTTP_MSGF_TE_CHNK) ||
 		     (msg->body_len > req->l - txn->req.eoh - 2)))
 			setsockopt(s->si[0].fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
 #endif
@@ -3573,7 +3573,7 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 		/* If we have HTTP/1.1 and Expect: 100-continue, then we must
 		 * send an HTTP/1.1 100 Continue intermediate response.
 		 */
-		if (txn->flags & TX_REQ_VER_11) {
+		if (msg->flags & HTTP_MSGF_VER_11) {
 			struct hdr_ctx ctx;
 			ctx.idx = 0;
 			/* Expect is allowed in 1.1, look for it */
@@ -3592,7 +3592,7 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 		 * survives buffer re-alignments.
 		 */
 		req->lr = req->data + msg->sov;
-		if (txn->flags & TX_REQ_TE_CHNK)
+		if (msg->flags & HTTP_MSGF_TE_CHNK)
 			msg->msg_state = HTTP_MSG_CHUNK_SIZE;
 		else
 			msg->msg_state = HTTP_MSG_DATA;
@@ -4214,7 +4214,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 		 * survives buffer re-alignments.
 		 */
 		req->lr = req->data + msg->sov;
-		if (txn->flags & TX_REQ_TE_CHNK)
+		if (msg->flags & HTTP_MSGF_TE_CHNK)
 			msg->msg_state = HTTP_MSG_CHUNK_SIZE;
 		else {
 			msg->msg_state = HTTP_MSG_DATA;
@@ -4241,7 +4241,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 				goto missing_data;
 
 			/* nothing left to forward */
-			if (txn->flags & TX_REQ_TE_CHNK)
+			if (msg->flags & HTTP_MSGF_TE_CHNK)
 				msg->msg_state = HTTP_MSG_DATA_CRLF;
 			else
 				msg->msg_state = HTTP_MSG_DONE;
@@ -4372,7 +4372,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 	/* When TE: chunked is used, we need to get there again to parse remaining
 	 * chunks even if the client has closed, so we don't want to set BF_DONTCLOSE.
 	 */
-	if (txn->flags & TX_REQ_TE_CHNK)
+	if (msg->flags & HTTP_MSGF_TE_CHNK)
 		buffer_dont_close(req);
 
 	/* We know that more data are expected, but we couldn't send more that
@@ -4383,7 +4383,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 	 * flag with the last block of forwarded data, which would cause an
 	 * additional delay to be observed by the receiver.
 	 */
-	if (txn->flags & TX_REQ_TE_CHNK)
+	if (msg->flags & HTTP_MSGF_TE_CHNK)
 		req->flags |= BF_EXPECT_MORE;
 
 	http_silent_debug(__LINE__, s);
@@ -4710,13 +4710,13 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	    ((msg->sol[5] > '1') ||
 	     ((msg->sol[5] == '1') &&
 	      (msg->sol[7] >= '1'))))
-		txn->flags |= TX_RES_VER_11;
+		msg->flags |= HTTP_MSGF_VER_11;
 
 	/* "connection" has not been parsed yet */
 	txn->flags &= ~(TX_HDR_CONN_PRS|TX_HDR_CONN_CLO|TX_HDR_CONN_KAL|TX_CON_CLO_SET|TX_CON_KAL_SET);
 
 	/* transfer length unknown*/
-	txn->flags &= ~TX_RES_XFER_LEN;
+	msg->flags &= ~HTTP_MSGF_XFER_LEN;
 
 	txn->status = strl2ui(msg->sol + msg->sl.st.c, msg->sl.st.c_l);
 
@@ -4817,27 +4817,27 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	if (txn->meth == HTTP_METH_HEAD ||
 	    (txn->status >= 100 && txn->status < 200) ||
 	    txn->status == 204 || txn->status == 304) {
-		txn->flags |= TX_RES_XFER_LEN;
+		msg->flags |= HTTP_MSGF_XFER_LEN;
 		goto skip_content_length;
 	}
 
 	use_close_only = 0;
 	ctx.idx = 0;
-	while ((txn->flags & TX_RES_VER_11) &&
+	while ((msg->flags & HTTP_MSGF_VER_11) &&
 	       http_find_header2("Transfer-Encoding", 17, msg->sol, &txn->hdr_idx, &ctx)) {
 		if (ctx.vlen == 7 && strncasecmp(ctx.line + ctx.val, "chunked", 7) == 0)
-			txn->flags |= (TX_RES_TE_CHNK | TX_RES_XFER_LEN);
-		else if (txn->flags & TX_RES_TE_CHNK) {
+			msg->flags |= (HTTP_MSGF_TE_CHNK | HTTP_MSGF_XFER_LEN);
+		else if (msg->flags & HTTP_MSGF_TE_CHNK) {
 			/* bad transfer-encoding (chunked followed by something else) */
 			use_close_only = 1;
-			txn->flags &= ~(TX_RES_TE_CHNK | TX_RES_XFER_LEN);
+			msg->flags &= ~(HTTP_MSGF_TE_CHNK | HTTP_MSGF_XFER_LEN);
 			break;
 		}
 	}
 
 	/* FIXME: below we should remove the content-length header(s) in case of chunked encoding */
 	ctx.idx = 0;
-	while (!(txn->flags & TX_RES_TE_CHNK) && !use_close_only &&
+	while (!(msg->flags & HTTP_MSGF_TE_CHNK) && !use_close_only &&
 	       http_find_header2("Content-Length", 14, msg->sol, &txn->hdr_idx, &ctx)) {
 		signed long long cl;
 
@@ -4856,12 +4856,12 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 			goto hdr_response_bad;
 		}
 
-		if ((txn->flags & TX_RES_CNT_LEN) && (msg->chunk_len != cl)) {
+		if ((msg->flags & HTTP_MSGF_CNT_LEN) && (msg->chunk_len != cl)) {
 			msg->err_pos = ctx.line + ctx.val - rep->data;
 			goto hdr_response_bad; /* already specified, was different */
 		}
 
-		txn->flags |= TX_RES_CNT_LEN | TX_RES_XFER_LEN;
+		msg->flags |= HTTP_MSGF_CNT_LEN | HTTP_MSGF_XFER_LEN;
 		msg->body_len = msg->chunk_len = cl;
 	}
 
@@ -4940,7 +4940,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 		int to_del = 0;
 
 		/* on unknown transfer length, we must close */
-		if (!(txn->flags & TX_RES_XFER_LEN) &&
+		if (!(msg->flags & HTTP_MSGF_XFER_LEN) &&
 		    (txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN)
 			txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
 
@@ -4948,12 +4948,12 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 		if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_TUN ||
 		    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_CLO) {
 			to_del |= 2; /* remove "keep-alive" on any response */
-			if (!(txn->flags & TX_RES_VER_11))
+			if (!(msg->flags & HTTP_MSGF_VER_11))
 				to_del |= 1; /* remove "close" for HTTP/1.0 responses */
 		}
 		else { /* SCL / KAL */
 			to_del |= 1; /* remove "close" on any response */
-			if ((txn->flags & (TX_RES_VER_11|TX_REQ_VER_11)) == (TX_RES_VER_11|TX_REQ_VER_11))
+			if (txn->req.flags & msg->flags & HTTP_MSGF_VER_11)
 				to_del |= 2; /* remove "keep-alive" on pure 1.1 responses */
 		}
 
@@ -4965,7 +4965,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 		 */
 		if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL) {
 			if ((txn->flags & TX_HDR_CONN_CLO) ||
-			    (txn->flags & (TX_HDR_CONN_KAL|TX_RES_VER_11)) == 0)
+			    (!(txn->flags & TX_HDR_CONN_KAL) && !(msg->flags & HTTP_MSGF_VER_11)))
 				txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_SCL;
 		}
 	}
@@ -5191,14 +5191,14 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 				/* we want a keep-alive response here. Keep-alive header
 				 * required if either side is not 1.1.
 				 */
-				if ((txn->flags & (TX_REQ_VER_11|TX_RES_VER_11)) != (TX_REQ_VER_11|TX_RES_VER_11))
+				if (!(txn->req.flags & msg->flags & HTTP_MSGF_VER_11))
 					want_flags |= TX_CON_KAL_SET;
 			}
 			else {
 				/* we want a close response here. Close header required if
 				 * the server is 1.1, regardless of the client.
 				 */
-				if (txn->flags & TX_RES_VER_11)
+				if (msg->flags & HTTP_MSGF_VER_11)
 					want_flags |= TX_CON_CLO_SET;
 			}
 
@@ -5207,7 +5207,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 		}
 
 	skip_header_mangling:
-		if ((txn->flags & TX_RES_XFER_LEN) ||
+		if ((msg->flags & HTTP_MSGF_XFER_LEN) ||
 		    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_TUN)
 			rep->analysers |= AN_RES_HTTP_XFER_BODY;
 
@@ -5279,7 +5279,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 		 * survives buffer re-alignments.
 		 */
 		res->lr = res->data + msg->sov;
-		if (txn->flags & TX_RES_TE_CHNK)
+		if (msg->flags & HTTP_MSGF_TE_CHNK)
 			msg->msg_state = HTTP_MSG_CHUNK_SIZE;
 		else {
 			msg->msg_state = HTTP_MSG_DATA;
@@ -5307,7 +5307,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 				goto missing_data;
 
 			/* nothing left to forward */
-			if (txn->flags & TX_RES_TE_CHNK)
+			if (msg->flags & HTTP_MSGF_TE_CHNK)
 				msg->msg_state = HTTP_MSG_DATA_CRLF;
 			else
 				msg->msg_state = HTTP_MSG_DONE;
@@ -5421,7 +5421,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	 * Similarly, with keep-alive on the client side, we don't want to forward a
 	 * close.
 	 */
-	if ((txn->flags & TX_RES_TE_CHNK) ||
+	if ((msg->flags & HTTP_MSGF_TE_CHNK) ||
 	    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
 	    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL)
 		buffer_dont_close(res);
@@ -5434,7 +5434,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	 * flag with the last block of forwarded data, which would cause an
 	 * additional delay to be observed by the receiver.
 	 */
-	if (txn->flags & TX_RES_TE_CHNK)
+	if (msg->flags & HTTP_MSGF_TE_CHNK)
 		res->flags |= BF_EXPECT_MORE;
 
 	/* the session handler will take care of timeouts and errors */
@@ -7368,8 +7368,10 @@ void http_init_txn(struct session *s)
 	txn->cookie_first_date = 0;
 	txn->cookie_last_date = 0;
 
+	txn->req.flags = 0;
 	txn->req.sol = txn->req.eol = NULL;
 	txn->req.som = txn->req.eoh = 0; /* relative to the buffer */
+	txn->rsp.flags = 0;
 	txn->rsp.sol = txn->rsp.eol = NULL;
 	txn->rsp.som = txn->rsp.eoh = 0; /* relative to the buffer */
 	txn->req.chunk_len = 0LL;
