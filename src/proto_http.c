@@ -2150,7 +2150,7 @@ int http_parse_chunk_size(struct buffer *buf, struct http_msg *msg)
 			break;
 		if (++ptr >= end)
 			ptr = buf->data;
-		if (chunk & 0xF000000) /* overflow will occur */
+		if (chunk & 0xF8000000) /* integer overflow will occur if result >= 2GB */
 			goto error;
 		chunk = (chunk << 4) + c;
 	}
