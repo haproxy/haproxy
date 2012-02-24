@@ -1241,7 +1241,7 @@ out:
 	if (tmplog == NULL) // if previous error
 		tmplog = logline + MAX_SYSLOG_LEN - 1;
 
-	__send_log(prx_log, level, logline, tmplog - logline + 2);
+	__send_log(prx_log, level, logline, tmplog - logline + 1);
 	s->logs.logwait = 0;
 
 }

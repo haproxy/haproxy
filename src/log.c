@@ -519,7 +519,7 @@ char *hdr_log(char *dst)
 
 /*
  * This function adds a header to the message and sends the syslog message
- * using a printf format string
+ * using a printf format string. It expects an LF-terminated message.
  */
 void send_log(struct proxy *p, int level, const char *format, ...)
 {
@@ -546,6 +546,7 @@ void send_log(struct proxy *p, int level, const char *format, ...)
 /*
  * This function sends a syslog message.
  * It doesn't care about errors nor does it report them.
+ * It overrides the last byte (message[size-1]) with an LF character.
  */
 void __send_log(struct proxy *p, int level, char *message, size_t size)
 {
