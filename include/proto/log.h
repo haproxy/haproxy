@@ -35,8 +35,16 @@
 extern struct pool_head *pool2_requri;
 
 extern char *log_format;
+extern char default_tcp_log_format[];
 extern char default_http_log_format[];
 extern char clf_http_log_format[];
+
+
+/*
+ * send a log for the session when we have enough info about it.
+ * Will not log if the frontend has no log defined.
+ */
+void sess_log(struct session *s);
 
 /*
  * Parse args in a logformat_var
@@ -98,10 +106,6 @@ void send_log(struct proxy *p, int level, const char *format, ...)
  */
 
 void __send_log(struct proxy *p, int level, char *message, size_t size);
-/*
- * send a log for the session when we have enough info about it
- */
-void tcp_sess_log(struct session *s);
 
 /*
  * returns log level for <lev> or -1 if not found.

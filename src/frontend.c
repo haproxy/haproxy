@@ -78,10 +78,7 @@ int frontend_accept(struct session *s)
 	/* FIXME: the logs are horribly complicated now, because they are
 	 * defined in <p>, <p>, and later <be> and <be>.
 	 */
-	if (s->logs.logwait & LW_REQ)
-		s->do_log = http_sess_log;
-	else
-		s->do_log = tcp_sess_log;
+	s->do_log = sess_log;
 
 	/* default error reporting function, may be changed by analysers */
 	s->srv_error = default_srv_error;

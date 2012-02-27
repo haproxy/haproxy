@@ -3313,9 +3313,13 @@ stats_error_parsing:
 			}
 			parse_logformat_string(logformat, curproxy);
 		}
-		else if (!strcmp(args[1], "tcplog"))
+		else if (!strcmp(args[1], "tcplog")) {
+			char *logformat;
 			/* generate a detailed TCP log */
 			curproxy->to_log |= LW_DATE | LW_CLIP | LW_SVID | LW_PXID | LW_BYTES;
+			logformat = default_tcp_log_format;
+			parse_logformat_string(logformat, curproxy);
+		}
 		else if (!strcmp(args[1], "tcpka")) {
 			/* enable TCP keep-alives on client and server sessions */
 			if (warnifnotcap(curproxy, PR_CAP_BE | PR_CAP_FE, file, linenum, args[1], NULL))

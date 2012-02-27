@@ -8741,8 +8741,8 @@ Detailed fields description :
 8.2.4 Custom log format
 -----------------------
 
-The directive log-format allows you to custom the logs in http mode. It takes a
-string as argument.
+The directive log-format allows you to custom the logs in http mode and tcp
+mode. It takes a string as argument.
 
 HAproxy understands some log format variables. % precedes log format variables.
 Variables can take arguments using braces ('{}'), and multiple arguments are
@@ -8769,49 +8769,55 @@ At the moment, the default HTTP format is defined this way :
     log-format %Ci:%Cp\ [%t]\ %f\ %b/%s\ %Tq/%Tw/%Tc/%Tr/%Tt\ %st\ %B\ %cc\ \
                %cs\ %ts\ %ac/%fc/%bc/%sc/%rc\ %sq/%bq\ %hr\ %hs\ %{+Q}r
 
-And the default CLF format is defined this way :
+the default CLF format is defined this way :
 
     log-format %{+Q}o\ %{-Q}Ci\ -\ -\ [%T]\ %r\ %st\ %B\ \"\"\ \"\"\ %Cp\ \
                %ms\ %f\ %b\ %s\ \%Tq\ %Tw\ %Tc\ %Tr\ %Tt\ %ts\ %ac\ %fc\ \
                %bc\ %sc\ %rc\ %sq\ %bq\ %cc\ %cs\ \%hrl\ %hsl
 
+and the default TCP format is defined this way :
+
+    log-format %Ci:%Cp\ [%t]\ %f\ %b/%s\ %Tw/%Tc/%Tt\ %B\ %ts\ \
+               %ac/%fc/%bc/%sc/%rc\ %sq/%bq
+
 Please refer to the table below for currently defined variables :
 
-    +------+-----------------------------------------------+-------------+
-    | var  | field name (8.2.2 and 8.2.3 for description)  | type        |
-    +------+-----------------------------------------------+-------------+
-    | %o   | special variable, apply flags on all next var |             |
-    +------+-----------------------------------------------+-------------+
-    | %B   | bytes_read                                    | numeric     |
-    | %Ci  | client_ip                                     | string      |
-    | %Cp  | client_port                                   | numeric     |
-    | %Tc  | Tc                                            | numeric     |
-    | %Tq  | Tq                                            | numeric     |
-    | %Tr  | Tr                                            | numeric     |
-    | %Tt  | Tt                                            | numeric     |
-    | %Tw  | Tw                                            | numeric     |
-    | %ac  | actconn                                       | numeric     |
-    | %b   | backend_name                                  | string      |
-    | %bc  | beconn                                        | numeric     |
-    | %bq  | backend_queue                                 | numeric     |
-    | %cc  | captured_request_cookie                       | string      |
-    | %cs  | captured_response_cookie                      | string      |
-    | %f   | frontend_name                                 | string      |
-    | %fc  | feconn                                        | numeric     |
-    | %hr  | captured_request_headers default style        | string      |
-    | %hrl | captured_request_headers CLF style            | string list |
-    | %hs  | captured_response_headers default style       | string      |
-    | %hsl | captured_response_headers CLF style           | string list |
-    | %ms  | accept date milliseconds                      | numeric     |
-    | %r   | http_request                                  | string      |
-    | %rc  | retries                                       | numeric     |
-    | %s   | server_name                                   | string      |
-    | %sc  | srv_conn                                      | numeric     |
-    | %sq  | srv_queue                                     | numeric     |
-    | %st  | status_code                                   | numeric     |
-    | %ts  | termination_state                             | string      |
-    +------+-----------------------------------------------+-------------+
+  +---+------+-----------------------------------------------+-------------+
+  | H | var  | field name (8.2.2 and 8.2.3 for description)  | type        |
+  +---+------+-----------------------------------------------+-------------+
+  |   | %o   | special variable, apply flags on all next var |             |
+  +---+------+-----------------------------------------------+-------------+
+  |   | %B   | bytes_read                                    | numeric     |
+  |   | %Ci  | client_ip                                     | string      |
+  |   | %Cp  | client_port                                   | numeric     |
+  |   | %Tc  | Tc                                            | numeric     |
+  | * | %Tq  | Tq                                            | numeric     |
+  | * | %Tr  | Tr                                            | numeric     |
+  |   | %Tt  | Tt                                            | numeric     |
+  |   | %Tw  | Tw                                            | numeric     |
+  |   | %ac  | actconn                                       | numeric     |
+  |   | %b   | backend_name                                  | string      |
+  |   | %bc  | beconn                                        | numeric     |
+  |   | %bq  | backend_queue                                 | numeric     |
+  | * | %cc  | captured_request_cookie                       | string      |
+  | * | %cs  | captured_response_cookie                      | string      |
+  |   | %f   | frontend_name                                 | string      |
+  |   | %fc  | feconn                                        | numeric     |
+  | * | %hr  | captured_request_headers default style        | string      |
+  | * | %hrl | captured_request_headers CLF style            | string list |
+  | * | %hs  | captured_response_headers default style       | string      |
+  | * | %hsl | captured_response_headers CLF style           | string list |
+  |   | %ms  | accept date milliseconds                      | numeric     |
+  | * | %r   | http_request                                  | string      |
+  |   | %rc  | retries                                       | numeric     |
+  |   | %s   | server_name                                   | string      |
+  |   | %sc  | srv_conn                                      | numeric     |
+  |   | %sq  | srv_queue                                     | numeric     |
+  | * | %st  | status_code                                   | numeric     |
+  |   | %ts  | termination_state                             | string      |
+  +---+------+-----------------------------------------------+-------------+
 
+*: mode httplog only
 
 8.3. Advanced logging options
 -----------------------------
