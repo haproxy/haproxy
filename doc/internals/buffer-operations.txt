@@ -1,0 +1,128 @@
+2012/02/27 - Operations on haproxy buffers - w@1wt.eu
+
+
+1) Definitions
+--------------
+
+A buffer is a unidirectional storage between two stream interfaces which are
+most often composed of a socket file descriptor. This storage is fixed sized
+and circular, which means that once data reach the end of the buffer, it loops
+back at the beginning of the buffer :
+
+
+   Representation of a non-wrapping buffer
+   ---------------------------------------
+
+
+           beginning                             end
+               |    -------- length -------->     |
+               V                                  V
+           +-------------------------------------------+
+           |  <--------------- size ---------------->  |
+           +-------------------------------------------+
+
+
+   Representation of a wrapping buffer
+   -----------------------------------
+
+               end                     beginning
+      +------>  |                          |  -------------+
+      |         V                          V               |
+      |    +-------------------------------------------+   |
+      |    |  <--------------- size ---------------->  |   |
+      |    +-------------------------------------------+   |
+      |                                                    |
+      +--------------------- length -----------------------+
+
+
+Buffers are read by two entities :
+  - stream interfaces
+  - analysers
+
+Buffers are filled by two entities :
+  - stream interfaces
+  - hijackers
+
+A stream interface writes at the input of a buffer and reads at its output. An
+analyser has to parse incoming buffer contents, so it reads the input. It does
+not really write the output though it may change the buffer's contents at the
+input, possibly causing data moves. A hijacker it able to write at the output
+of a buffer. Hijackers are not used anymore at the moment though error outputs
+still work the same way.
+
+Buffers are referenced in the session. Each session has two buffers which
+interconnect the two stream interfaces. One buffer is called the request
+buffer, it sees traffic flowing from the client to the server. The other buffer
+is the response buffer, it sees traffic flowing from the server to the client.
+
+By convention, sessions are represented as 2 buffers one on top of the other,
+and with 2 stream interfaces connected to the two buffers. The client connects
+to the left stream interface (which then acts as a server), and the right
+stream interface (which acts as a client) connects to the server. The data
+circulate clockwise, so the upper buffer is the request buffer and the lower
+buffer is the response buffer :
+
+                       ,------------------------.
+               ,-----> |    request buffer      | ------.
+   from   ,--./        `------------------------'        \,--.    to
+  client (    )                                          (    ) server
+          `--'         ,------------------------.        /`--'
+              ^------- |    response buffer     | <-----'
+                       `------------------------'
+
+2) Operations
+-------------
+
+Socket-based stream interfaces write to buffers directly from the I/O layer
+without relying on any specific function.
+
+Function-based stream interfaces do use a number of non-uniform functions to
+read from the buffer's output and to write to the buffer's input. More suited
+names could be :
+
+        int buffer_output_peek_at(buf, ofs, ptr, size);
+        int buffer_output_peek(buf, ptr, size);
+        int buffer_output_read(buf, ptr, size);
+        int buffer_output_skip(buf, size);
+        int buffer_input_write(buf, ptr, size);
+
+Right now some stream interfaces use the following functions which also happen
+to automatically schedule the response for automatic forward :
+
+    buffer_put_block()   [peers]
+    buffer_put_chunk() -> buffer_put_block()
+    buffer_feed_chunk() -> buffer_put_chunk() -> buffer_put_block() [dumpstats]
+    buffer_feed() -> buffer_put_string() -> buffer_put_block()      [dumpstats]
+
+
+The following stream-interface oriented functions are not used :
+
+    buffer_get_char()
+    buffer_write_chunk()
+
+
+Analysers read data from the buffers' input, and may sometimes write data
+there too (or trim data). More suited names could be :
+
+        int buffer_input_peek_at(buf, ofs, ptr, size);
+        int buffer_input_truncate_at(buf, ofs);
+        int buffer_input_peek(buf, ptr, size);
+        int buffer_input_read(buf, ptr, size);
+        int buffer_input_skip(buf, size);
+        int buffer_input_cut(buf, size);
+        int buffer_input_truncate(buf);
+
+
+Functions that are available and need to be renamed :
+  - buffer_skip     : buffer_output_skip
+  - buffer_ignore   : buffer_input_skip ?  => not exactly, more like
+                      buffer_output_skip() without affecting sendmax !
+  - buffer_cut_tail : deletes all pending data after sendmax.
+                      -> buffer_input_truncate(). Used by si_retnclose() only.
+  - buffer_contig_data : buffer_output_contig_data
+  - buffer_pending  : buffer_input_pending_data
+  - buffer_contig_space : buffer_input_contig_space
+
+
+It looks like buf->lr could be removed and be stored in the HTTP message struct
+since it's only used at the HTTP level.

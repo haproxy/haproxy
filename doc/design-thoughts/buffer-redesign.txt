@@ -1,0 +1,129 @@
+2012/02/27 - redesigning buffers for better simplicity - w@1wt.eu
+
+1) Analysis
+-----------
+
+Buffer handling becomes complex because buffers are circular but many of their
+users don't support wrapping operations (eg: HTTP parsing). Due to this fact,
+some buffer operations automatically realign buffers as soon as possible when
+the buffer is empty, which makes it very hard to track buffer pointers outside
+of the buffer struct itself. The buffer contains a pointer to last processed
+data (buf->lr) which is automatically realigned with such operations. But in
+the end, its semantics are often unclear and whether it's safe or not to use it
+isn't always obvious, as it has acquired multiple roles over the time.
+
+A "struct buffer" is declared this way :
+
+    struct buffer {
+	unsigned int flags;             /* BF_* */
+	int rex;                        /* expiration date for a read, in ticks */
+	int wex;                        /* expiration date for a write or connect, in ticks */
+	int rto;                        /* read timeout, in ticks */
+	int wto;                        /* write timeout, in ticks */
+	unsigned int l;                 /* data length */
+	char *r, *w, *lr;               /* read ptr, write ptr, last read */
+	unsigned int size;              /* buffer size in bytes */
+	unsigned int send_max;          /* number of bytes the sender can consume om this buffer, <= l */
+	unsigned int to_forward;        /* number of bytes to forward after send_max without a wake-up */
+	unsigned int analysers;         /* bit field indicating what to do on the buffer */
+	int analyse_exp;                /* expiration date for current analysers (if set) */
+	void (*hijacker)(struct session *, struct buffer *); /* alternative content producer */
+	unsigned char xfer_large;       /* number of consecutive large xfers */
+	unsigned char xfer_small;       /* number of consecutive small xfers */
+	unsigned long long total;       /* total data read */
+	struct stream_interface *prod;  /* producer attached to this buffer */
+	struct stream_interface *cons;  /* consumer attached to this buffer */
+	struct pipe *pipe;		/* non-NULL only when data present */
+	char data[0];                   /* <size> bytes */
+    };
+
+In order to address this, a struct http_msg was created with other pointers to
+the buffer. The issue is that some of these pointers are absolute and other
+ones are relative, sometimes one to another, sometimes to the beginning of the
+buffer, which doesn't help at all for the case where buffers get realigned.
+
+A "struct http_msg" is defined this way :
+
+    struct http_msg {
+	unsigned int msg_state;
+	unsigned int flags;
+	unsigned int col, sov;      /* current header: colon, start of value */
+	unsigned int eoh;           /* End Of Headers, relative to buffer */
+	char *sol;                  /* start of line, also start of message when fully parsed */
+	char *eol;                  /* end of line */
+	unsigned int som;           /* Start Of Message, relative to buffer */
+	int err_pos;                /* err handling: -2=block, -1=pass, 0+=detected */
+	union {                     /* useful start line pointers, relative to ->sol */
+		struct {
+			int l;      /* request line length (not including CR) */
+			int m_l;    /* METHOD length (method starts at ->som) */
+			int u, u_l; /* URI, length */
+			int v, v_l; /* VERSION, length */
+		} rq;               /* request line : field, length */
+		struct {
+			int l;      /* status line length (not including CR) */
+			int v_l;    /* VERSION length (version starts at ->som) */
+			int c, c_l; /* CODE, length */
+			int r, r_l; /* REASON, length */
+		} st;               /* status line : field, length */
+	} sl;                       /* start line */
+	unsigned long long chunk_len;
+	unsigned long long body_len;
+	char **cap;
+    };
+
+
+The first immediate observation is that nothing in a buffer should be relative
+to the beginning of the storage area, everything should be relative to the
+buffer's origin as a floating location. Right now the buffer's origin is equal
+to (buf->w + buf->send_max). It is the place where the first byte of data not
+yet scheduled for being forwarded is found.
+
+  - buf->w is an absolute pointer, just like buf->data.
+  - buf->send_max is a relative value which oscillates between 0 when nothing
+    has to be forwarded, and buf->l when the whole buffer must be forwarded.
+
+
+2) Proposal
+-----------
+
+By having such an origin, we could have everything in http_msg relative to this
+origin. This would resist buffer realigns much better than right now.
+
+At the moment we have msg->som which is relative to buf->data and which points
+to the beginning of the message. The beginning of the message should *always*
+be the buffer's origin. If data are to be skipped in the message, just wait for
+send_max to become zero and move the origin forwards ; this would definitely get
+rid of msg->som. This is already what is done in the HTTP parser except that it
+has to move both buf->lr and msg->som.
+
+Following the same principle, we should then have a relative pointer in
+http_msg to replace buf->lr. It would be relative to the buffer's origin and
+would simply recall what location was last visited.
+
+Doing all this could result in more complex operations where more time is spent
+adding buf->w to buf->send_max and then to msg->anything. It would probably make
+more sense to define the buffer's origin as an absolute pointer and to have
+both the buf->h (head) and buf->t (tail) pointers be positive and negative
+positions relative to this origin. Operating on the buffer would then look like
+this :
+
+  - no buf->l anymore. buf->l is replaced by (head + tail)
+  - no buf->lr anymore. Use origin + msg->last for instance
+  - recv() : head += recv(origin + head);
+  - send() : tail -= send(origin - tail, tail);
+    thus, buf->o effectively replaces buf->send_max.
+  - forward(N) : tail += N; origin += N;
+  - realign() : origin = data
+  - detect risk of wrapping of input : origin + head > data + size
+
+In general it looks like less pointers are manipulated for common operations
+and that maybe an additional wrapping test (hand-made modulo) will have to be
+added so send() and recv() operations.
+
+
+3) Caveats
+----------
+
+The first caveat is that the elements to modify appear at a very large number
+of places.
