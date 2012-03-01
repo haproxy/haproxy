@@ -4035,8 +4035,11 @@ void http_end_txn_clean_session(struct session *s)
 
 	http_silent_debug(__LINE__, s);
 
-	if (s->flags & SN_BE_ASSIGNED)
+	if (s->flags & SN_BE_ASSIGNED) {
 		s->be->beconn--;
+		if (unlikely(s->srv_conn))
+			sess_change_server(s, NULL);
+	}
 
 	s->logs.t_close = tv_ms_elapsed(&s->logs.tv_accept, &now);
 	session_process_counters(s);
@@ -4093,8 +4096,6 @@ void http_end_txn_clean_session(struct session *s)
 			process_srv_queue(target_srv(&s->target));
 	}
 
-	if (unlikely(s->srv_conn))
-		sess_change_server(s, NULL);
 	clear_target(&s->target);
 
 	s->req->cons->state     = s->req->cons->prev_state = SI_ST_INI;
