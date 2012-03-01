@@ -35,7 +35,7 @@ int init_buffer()
  * in the limit of the number of bytes to forward. This must be the only method
  * to use to schedule bytes to be sent. If the requested number is too large, it
  * is automatically adjusted. The number of bytes taken into account is returned.
- * Directly touching ->to_forward will cause lockups when send_max goes down to
+ * Directly touching ->to_forward will cause lockups when ->o goes down to
  * zero if nobody is ready to push the remaining data.
  */
 unsigned long long buffer_forward(struct buffer *buf, unsigned long long bytes)
@@ -45,15 +45,15 @@ unsigned long long buffer_forward(struct buffer *buf, unsigned long long bytes)
 
 	if (!bytes)
 		return 0;
-	data_left = buf->l - buf->send_max;
+	data_left = buf->l - buf->o;
 	if (bytes <= (unsigned long long)data_left) {
-		buf->send_max += bytes;
+		buf->o += bytes;
 		buf->flags &= ~BF_OUT_EMPTY;
 		return bytes;
 	}
 
-	buf->send_max += data_left;
-	if (buf->send_max)
+	buf->o += data_left;
+	if (buf->o)
 		buf->flags &= ~BF_OUT_EMPTY;
 
 	if (buf->l < buffer_max_len(buf))
@@ -115,7 +115,7 @@ int buffer_write(struct buffer *buf, const char *msg, int len)
 
 	memcpy(buf->r, msg, len);
 	buf->l += len;
-	buf->send_max += len;
+	buf->o += len;
 	buf->r += len;
 	buf->total += len;
 	if (buf->r == buf->data + buf->size)
@@ -129,7 +129,7 @@ int buffer_write(struct buffer *buf, const char *msg, int len)
 }
 
 /* Tries to copy character <c> into buffer <buf> after length controls. The
- * send_max and to_forward pointers are updated. If the buffer's input is
+ * ->o and to_forward pointers are updated. If the buffer's input is
  * closed, -2 is returned. If there is not enough room left in the buffer, -1
  * is returned. Otherwise the number of bytes copied is returned (1). Buffer
  * flags FULL, EMPTY and READ_PARTIAL are updated if some data can be
@@ -157,7 +157,7 @@ int buffer_put_char(struct buffer *buf, char c)
 	if (buf->to_forward >= 1) {
 		if (buf->to_forward != BUF_INFINITE_FORWARD)
 			buf->to_forward--;
-		buf->send_max++;
+		buf->o++;
 		buf->flags &= ~BF_OUT_EMPTY;
 	}
 
@@ -166,7 +166,7 @@ int buffer_put_char(struct buffer *buf, char c)
 }
 
 /* Tries to copy block <blk> at once into buffer <buf> after length controls.
- * The send_max and to_forward pointers are updated. If the buffer's input is
+ * The ->o and to_forward pointers are updated. If the buffer's input is
  * closed, -2 is returned. If the block is too large for this buffer, -3 is
  * returned. If there is not enough room left in the buffer, -1 is returned.
  * Otherwise the number of bytes copied is returned (0 being a valid number).
@@ -211,7 +211,7 @@ int buffer_put_block(struct buffer *buf, const char *blk, int len)
 				fwd = buf->to_forward;
 			buf->to_forward -= fwd;
 		}
-		buf->send_max += fwd;
+		buf->o += fwd;
 		buf->flags &= ~BF_OUT_EMPTY;
 	}
 
@@ -254,8 +254,8 @@ int buffer_get_line(struct buffer *buf, char *str, int len)
 
 	p = buf->w;
 
-	if (max > buf->send_max) {
-		max = buf->send_max;
+	if (max > buf->o) {
+		max = buf->o;
 		str[max-1] = 0;
 	}
 	while (max) {
@@ -269,7 +269,7 @@ int buffer_get_line(struct buffer *buf, char *str, int len)
 		if (p == buf->data + buf->size)
 			p = buf->data;
 	}
-	if (ret > 0 && ret < len && ret < buf->send_max &&
+	if (ret > 0 && ret < len && ret < buf->o &&
 	    *(str-1) != '\n' &&
 	    !(buf->flags & (BF_SHUTW|BF_SHUTW_NOW)))
 		ret = 0;
@@ -294,7 +294,7 @@ int buffer_get_block(struct buffer *buf, char *blk, int len, int offset)
 	if (buf->flags & BF_SHUTW)
 		return -1;
 
-	if (len + offset > buf->send_max) {
+	if (len + offset > buf->o) {
 		if (buf->flags & (BF_SHUTW|BF_SHUTW_NOW))
 			return -1;
 		return 0;
@@ -320,7 +320,7 @@ int buffer_get_block(struct buffer *buf, char *blk, int len, int offset)
  * buffer <b>, and moves <end> just after the end of <str>. <b>'s parameters
  * (l, r, lr) are updated to be valid after the shift. the shift value
  * (positive or negative) is returned. If there's no space left, the move is
- * not done. The function does not adjust ->send_max nor BF_OUT_EMPTY because
+ * not done. The function does not adjust ->o nor BF_OUT_EMPTY because
  * it does not make sense to use it on data scheduled to be sent. The string
  * length is taken from parameter <len>. If <len> is null, the <str> pointer
  * is allowed to be null.

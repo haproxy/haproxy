@@ -393,7 +393,7 @@ int tcp_connect_server(struct stream_interface *si)
 	 * machine with the first ACK. We only do this if there are pending
 	 * data in the buffer.
 	 */
-	if ((be->options2 & PR_O2_SMARTCON) && si->ob->send_max)
+	if ((be->options2 & PR_O2_SMARTCON) && si->ob->o)
                 setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, &zero, sizeof(zero));
 #endif
 

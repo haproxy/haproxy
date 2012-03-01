@@ -301,7 +301,7 @@ int stream_sock_read(int fd) {
 			b->l += ret;
 			cur_read += ret;
 
-			/* if we're allowed to directly forward data, we must update send_max */
+			/* if we're allowed to directly forward data, we must update ->o */
 			if (b->to_forward && !(b->flags & (BF_SHUTW|BF_SHUTW_NOW))) {
 				unsigned long fwd = ret;
 				if (b->to_forward != BUF_INFINITE_FORWARD) {
@@ -309,7 +309,7 @@ int stream_sock_read(int fd) {
 						fwd = b->to_forward;
 					b->to_forward -= fwd;
 				}
-				b->send_max += fwd;
+				b->o += fwd;
 				b->flags &= ~BF_OUT_EMPTY;
 			}
 
@@ -446,7 +446,7 @@ int stream_sock_read(int fd) {
 	 * HTTP chunking).
 	 */
 	if (b->pipe || /* always try to send spliced data */
-	    (b->send_max == b->l && (b->cons->flags & SI_FL_WAIT_DATA))) {
+	    (b->o == b->l && (b->cons->flags & SI_FL_WAIT_DATA))) {
 		int last_len = b->pipe ? b->pipe->data : 0;
 
 		b->cons->chk_snd(b->cons);
@@ -588,7 +588,7 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 	 * in the normal buffer.
 	 */
 #endif
-	if (!b->send_max) {
+	if (!b->o) {
 		b->flags |= BF_OUT_EMPTY;
 		return retval;
 	}
@@ -603,8 +603,8 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 			max = b->data + b->size - b->w;
 
 		/* limit the amount of outgoing data if required */
-		if (max > b->send_max)
-			max = b->send_max;
+		if (max > b->o)
+			max = b->o;
 
 		/* check if we want to inform the kernel that we're interested in
 		 * sending more data after this call. We want this if :
@@ -623,8 +623,8 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 			if ((!(b->flags & BF_NEVER_WAIT) &&
 			    ((b->to_forward && b->to_forward != BUF_INFINITE_FORWARD) ||
 			     (b->flags & BF_EXPECT_MORE))) ||
-			    ((b->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK)) == BF_SHUTW_NOW && (max == b->send_max)) ||
-			    (max != b->l && max != b->send_max)) {
+			    ((b->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK)) == BF_SHUTW_NOW && (max == b->o)) ||
+			    (max != b->l && max != b->o)) {
 				send_flag |= MSG_MORE;
 			}
 
@@ -662,8 +662,8 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 				/* optimize data alignment in the buffer */
 				b->r = b->w = b->lr = b->data;
 
-			b->send_max -= ret;
-			if (!b->send_max) {
+			b->o -= ret;
+			if (!b->o) {
 				/* Always clear both flags once everything has been sent, they're one-shot */
 				b->flags &= ~(BF_EXPECT_MORE | BF_SEND_DONTWAIT);
 				if (likely(!b->pipe))
@@ -757,7 +757,7 @@ int stream_sock_write(int fd)
 
 		/* Funny, we were called to write something but there wasn't
 		 * anything. We can get there, for example if we were woken up
-		 * on a write event to finish the splice, but the send_max is 0
+		 * on a write event to finish the splice, but the ->o is 0
 		 * so we cannot write anything from the buffer. Let's disable
 		 * the write event and pretend we never came there.
 		 */
@@ -766,7 +766,7 @@ int stream_sock_write(int fd)
 	if (b->flags & BF_OUT_EMPTY) {
 		/* the connection is established but we can't write. Either the
 		 * buffer is empty, or we just refrain from sending because the
-		 * send_max limit was reached. Maybe we just wrote the last
+		 * ->o limit was reached. Maybe we just wrote the last
 		 * chunk and need to close.
 		 */
 		if (((b->flags & (BF_SHUTW|BF_HIJACK|BF_SHUTW_NOW)) == BF_SHUTW_NOW) &&
@@ -1097,7 +1097,7 @@ void stream_sock_chk_snd(struct stream_interface *si)
 	if (ob->flags & BF_OUT_EMPTY) {
 		/* the connection is established but we can't write. Either the
 		 * buffer is empty, or we just refrain from sending because the
-		 * send_max limit was reached. Maybe we just wrote the last
+		 * ->o limit was reached. Maybe we just wrote the last
 		 * chunk and need to close.
 		 */
 		if (((ob->flags & (BF_SHUTW|BF_HIJACK|BF_AUTO_CLOSE|BF_SHUTW_NOW)) ==

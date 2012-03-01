@@ -393,14 +393,14 @@ static void http_silent_debug(int line, struct session *s)
 			 "[%04d] req: p=%d(%d) s=%d bf=%08x an=%08x data=%p size=%d l=%d w=%p r=%p lr=%p sm=%d fw=%ld tf=%08x\n",
 			 line,
 			 s->si[0].state, s->si[0].fd, s->txn.req.msg_state, s->req->flags, s->req->analysers,
-			 s->req->data, s->req->size, s->req->l, s->req->w, s->req->r, s->req->lr, s->req->send_max, s->req->to_forward, s->txn.flags);
+			 s->req->data, s->req->size, s->req->l, s->req->w, s->req->r, s->req->lr, s->req->o, s->req->to_forward, s->txn.flags);
 	write(-1, trash, size);
 	size = 0;
 	size += snprintf(trash + size, sizeof(trash) - size,
 			 " %04d  rep: p=%d(%d) s=%d bf=%08x an=%08x data=%p size=%d l=%d w=%p r=%p lr=%p sm=%d fw=%ld\n",
 			 line,
 			 s->si[1].state, s->si[1].fd, s->txn.rsp.msg_state, s->rep->flags, s->rep->analysers,
-			 s->rep->data, s->rep->size, s->rep->l, s->rep->w, s->rep->r, s->rep->lr, s->rep->send_max, s->rep->to_forward);
+			 s->rep->data, s->rep->size, s->rep->l, s->rep->w, s->rep->r, s->rep->lr, s->rep->o, s->rep->to_forward);
 
 	write(-1, trash, size);
 }
@@ -1295,13 +1295,13 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 		if (likely(HTTP_IS_TOKEN(*ptr))) {
 			/* we have a start of message, but we have to check
 			 * first if we need to remove some CRLF. We can only
-			 * do this when send_max=0.
+			 * do this when o=0.
 			 */
-			char *beg = buf->w + buf->send_max;
+			char *beg = buf->w + buf->o;
 			if (beg >= buf->data + buf->size)
 				beg -= buf->size;
 			if (unlikely(ptr != beg)) {
-				if (buf->send_max)
+				if (buf->o)
 					goto http_msg_ood;
 				/* Remove empty leading lines, as recommended by RFC2616. */
 				buffer_ignore(buf, ptr - beg);
@@ -1364,13 +1364,13 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 		if (likely(HTTP_IS_TOKEN(*ptr))) {
 			/* we have a start of message, but we have to check
 			 * first if we need to remove some CRLF. We can only
-			 * do this when send_max=0.
+			 * do this when o=0.
 			 */
-			char *beg = buf->w + buf->send_max;
+			char *beg = buf->w + buf->o;
 			if (beg >= buf->data + buf->size)
 				beg -= buf->size;
 			if (likely(ptr != beg)) {
-				if (buf->send_max)
+				if (buf->o)
 					goto http_msg_ood;
 				/* Remove empty leading lines, as recommended by RFC2616. */
 				buffer_ignore(buf, ptr - beg);
@@ -1944,7 +1944,7 @@ int http_skip_chunk_crlf(struct buffer *buf, struct http_msg *msg)
 			ptr = buf->data;
 	}
 
-	if (bytes > buf->l - buf->send_max)
+	if (bytes > buf->l - buf->o)
 		return 0;
 
 	if (*ptr != '\n') {
@@ -2069,7 +2069,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 		    unlikely((req->flags & BF_FULL) ||
 			     req->r < req->lr ||
 			     req->r > req->data + req->size - global.tune.maxrewrite)) {
-			if (req->send_max) {
+			if (req->o) {
 				if (req->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_WRITE_ERROR|BF_WRITE_TIMEOUT))
 					goto failed_keep_alive;
 				/* some data has still not left the buffer, wake us once that's done */
@@ -2092,7 +2092,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 		    unlikely((s->rep->flags & BF_FULL) ||
 			     s->rep->r < s->rep->lr ||
 			     s->rep->r > s->rep->data + s->rep->size - global.tune.maxrewrite)) {
-			if (s->rep->send_max) {
+			if (s->rep->o) {
 				if (s->rep->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_WRITE_ERROR|BF_WRITE_TIMEOUT))
 					goto failed_keep_alive;
 				/* don't let a connection request be initiated */
@@ -3755,8 +3755,8 @@ void http_end_txn_clean_session(struct session *s)
 	}
 
 	/* don't count other requests' data */
-	s->logs.bytes_in  -= s->req->l - s->req->send_max;
-	s->logs.bytes_out -= s->rep->l - s->rep->send_max;
+	s->logs.bytes_in  -= s->req->l - s->req->o;
+	s->logs.bytes_out -= s->rep->l - s->rep->o;
 
 	/* let's do a final log if we need it */
 	if (s->logs.logwait &&
@@ -3775,8 +3775,8 @@ void http_end_txn_clean_session(struct session *s)
 	s->logs.prx_queue_size = 0;  /* we get the number of pending conns before us */
 	s->logs.srv_queue_size = 0; /* we will get this number soon */
 
-	s->logs.bytes_in = s->req->total = s->req->l - s->req->send_max;
-	s->logs.bytes_out = s->rep->total = s->rep->l - s->rep->send_max;
+	s->logs.bytes_in = s->req->total = s->req->l - s->req->o;
+	s->logs.bytes_out = s->rep->total = s->rep->l - s->rep->o;
 
 	if (s->pend_pos)
 		pendconn_free(s->pend_pos);
@@ -3821,8 +3821,8 @@ void http_end_txn_clean_session(struct session *s)
 	 * because the request will wait for it to flush a little
 	 * bit before proceeding.
 	 */
-	if (s->req->l > s->req->send_max) {
-		if (s->rep->send_max &&
+	if (s->req->l > s->req->o) {
+		if (s->rep->o &&
 		    !(s->rep->flags & BF_FULL) &&
 		    s->rep->r <= s->rep->data + s->rep->size - global.tune.maxrewrite)
 			s->rep->flags |= BF_EXPECT_MORE;
@@ -3835,10 +3835,10 @@ void http_end_txn_clean_session(struct session *s)
 	buffer_auto_close(s->rep);
 
 	/* make ->lr point to the first non-forwarded byte */
-	s->req->lr = s->req->w + s->req->send_max;
+	s->req->lr = s->req->w + s->req->o;
 	if (s->req->lr >= s->req->data + s->req->size)
 		s->req->lr -= s->req->size;
-	s->rep->lr = s->rep->w + s->rep->send_max;
+	s->rep->lr = s->rep->w + s->rep->o;
 	if (s->rep->lr >= s->rep->data + s->rep->size)
 		s->rep->lr -= s->req->size;
 
@@ -4087,7 +4087,7 @@ int http_sync_res_state(struct session *s)
 	if (txn->rsp.msg_state == HTTP_MSG_CLOSED) {
 	http_msg_closed:
 		/* drop any pending data */
-		buffer_ignore(buf, buf->l - buf->send_max);
+		buffer_ignore(buf, buf->l - buf->o);
 		buffer_auto_close(buf);
 		buffer_auto_read(buf);
 		goto wait_other_side;
@@ -4153,7 +4153,7 @@ int http_resync_states(struct session *s)
 		buffer_abort(s->req);
 		buffer_auto_close(s->req);
 		buffer_auto_read(s->req);
-		buffer_ignore(s->req, s->req->l - s->req->send_max);
+		buffer_ignore(s->req, s->req->l - s->req->o);
 	}
 	else if (txn->req.msg_state == HTTP_MSG_CLOSED &&
 		 txn->rsp.msg_state == HTTP_MSG_DONE &&
@@ -4189,7 +4189,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 		return 0;
 
 	if ((req->flags & (BF_READ_ERROR|BF_READ_TIMEOUT|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) ||
-	    ((req->flags & BF_SHUTW) && (req->to_forward || req->send_max))) {
+	    ((req->flags & BF_SHUTW) && (req->to_forward || req->o))) {
 		/* Output closed while we were sending data. We must abort and
 		 * wake the other side up.
 		 */
@@ -4267,7 +4267,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 			/* we want the CRLF after the data */
 			int ret;
 
-			req->lr = req->w + req->send_max;
+			req->lr = req->w + req->o;
 			if (req->lr >= req->data + req->size)
 				req->lr -= req->size;
 
@@ -4494,7 +4494,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 		if (unlikely((rep->flags & BF_FULL) ||
 			     rep->r < rep->lr ||
 			     rep->r > rep->data + rep->size - global.tune.maxrewrite)) {
-			if (rep->send_max) {
+			if (rep->o) {
 				/* some data has still not left the buffer, wake us once that's done */
 				if (rep->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_WRITE_ERROR|BF_WRITE_TIMEOUT))
 					goto abort_response;
@@ -4565,7 +4565,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 			rep->analysers = 0;
 			txn->status = 502;
 			rep->prod->flags |= SI_FL_NOLINGER;
-			buffer_ignore(rep, rep->l - rep->send_max);
+			buffer_ignore(rep, rep->l - rep->o);
 			stream_int_retnclose(rep->cons, error_message(s, HTTP_ERR_502));
 
 			if (!(s->flags & SN_ERR_MASK))
@@ -4598,7 +4598,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 			rep->analysers = 0;
 			txn->status = 502;
 			rep->prod->flags |= SI_FL_NOLINGER;
-			buffer_ignore(rep, rep->l - rep->send_max);
+			buffer_ignore(rep, rep->l - rep->o);
 			stream_int_retnclose(rep->cons, error_message(s, HTTP_ERR_502));
 
 			if (!(s->flags & SN_ERR_MASK))
@@ -4623,7 +4623,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 			rep->analysers = 0;
 			txn->status = 504;
 			rep->prod->flags |= SI_FL_NOLINGER;
-			buffer_ignore(rep, rep->l - rep->send_max);
+			buffer_ignore(rep, rep->l - rep->o);
 			stream_int_retnclose(rep->cons, error_message(s, HTTP_ERR_504));
 
 			if (!(s->flags & SN_ERR_MASK))
@@ -4648,7 +4648,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 			rep->analysers = 0;
 			txn->status = 502;
 			rep->prod->flags |= SI_FL_NOLINGER;
-			buffer_ignore(rep, rep->l - rep->send_max);
+			buffer_ignore(rep, rep->l - rep->o);
 			stream_int_retnclose(rep->cons, error_message(s, HTTP_ERR_502));
 
 			if (!(s->flags & SN_ERR_MASK))
@@ -4998,7 +4998,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 					rep->analysers = 0;
 					txn->status = 502;
 					rep->prod->flags |= SI_FL_NOLINGER;
-					buffer_ignore(rep, rep->l - rep->send_max);
+					buffer_ignore(rep, rep->l - rep->o);
 					stream_int_retnclose(rep->cons, error_message(t, HTTP_ERR_502));
 					if (!(t->flags & SN_ERR_MASK))
 						t->flags |= SN_ERR_PRXCOND;
@@ -5259,7 +5259,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 		return 0;
 
 	if ((res->flags & (BF_READ_ERROR|BF_READ_TIMEOUT|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) ||
-	    ((res->flags & BF_SHUTW) && (res->to_forward || res->send_max)) ||
+	    ((res->flags & BF_SHUTW) && (res->to_forward || res->o)) ||
 	    !s->req->analysers) {
 		/* Output closed while we were sending data. We must abort and
 		 * wake the other side up.
@@ -5331,7 +5331,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 			/* we want the CRLF after the data */
 			int ret;
 
-			res->lr = res->w + res->send_max;
+			res->lr = res->w + res->o;
 			if (res->lr >= res->data + res->size)
 				res->lr -= res->size;
 
@@ -7456,8 +7456,8 @@ void http_reset_txn(struct session *s)
 	 * a HEAD with some data, or sending more than the advertised
 	 * content-length.
 	 */
-	if (unlikely(s->rep->l > s->rep->send_max)) {
-		s->rep->l = s->rep->send_max;
+	if (unlikely(s->rep->l > s->rep->o)) {
+		s->rep->l = s->rep->o;
 		s->rep->r = s->rep->w + s->rep->l;
 		if (s->rep->r >= s->rep->data + s->rep->size)
 			s->rep->r -= s->rep->size;

@@ -68,7 +68,7 @@
 #define BF_WRITE_ERROR    0x000800  /* unrecoverable error on consumer side */
 #define BF_WRITE_ACTIVITY (BF_WRITE_NULL|BF_WRITE_PARTIAL|BF_WRITE_ERROR)
 
-#define BF_OUT_EMPTY      0x001000  /* send_max and pipe are empty. Set by last change. */
+#define BF_OUT_EMPTY      0x001000  /* out and pipe are empty. Set by last change. */
 #define BF_SHUTW          0x002000  /* consumer has already shut down */
 #define BF_SHUTW_NOW      0x004000  /* the consumer must shut down for writes ASAP */
 #define BF_AUTO_CLOSE     0x008000  /* producer can forward shutdown to other side */
@@ -183,8 +183,8 @@ struct buffer {
 	unsigned int l;                 /* data length */
 	char *r, *w, *lr;               /* read ptr, write ptr, last read */
 	unsigned int size;              /* buffer size in bytes */
-	unsigned int send_max;          /* number of bytes the sender can consume om this buffer, <= l */
-	unsigned int to_forward;        /* number of bytes to forward after send_max without a wake-up */
+	unsigned int o;                 /* number of out bytes the sender can consume from this buffer */
+	unsigned int to_forward;        /* number of bytes to forward after out without a wake-up */
 	unsigned int analysers;         /* bit field indicating what to do on the buffer */
 	int analyse_exp;                /* expiration date for current analysers (if set) */
 	void (*hijacker)(struct session *, struct buffer *); /* alternative content producer */
@@ -201,7 +201,7 @@ struct buffer {
 /* Note about the buffer structure
 
    The buffer contains two length indicators, one to_forward counter and one
-   send_max limit. First, it must be understood that the buffer is in fact
+   ->o limit. First, it must be understood that the buffer is in fact
    split in two parts :
      - the visible data (->data, for ->l bytes)
      - the invisible data, typically in kernel buffers forwarded directly from
@@ -224,18 +224,18 @@ struct buffer {
    ensure strict ordering of data between buffers.
 
    The producer is responsible for decreasing ->to_forward and increasing
-   ->send_max. The ->to_forward parameter indicates how many bytes may be fed
+   ->o. The ->to_forward parameter indicates how many bytes may be fed
    into either data buffer without waking the parent up. The special value
-   BUF_INFINITE_FORWARD is never decreased nor increased. The ->send_max
+   BUF_INFINITE_FORWARD is never decreased nor increased. The ->o
    parameter says how many bytes may be consumed from the visible buffer. Thus
    it may never exceed ->l. This parameter is updated by any buffer_write() as
    well as any data forwarded through the visible buffer. Since the ->to_forward
-   attribute applies to data after ->w+send_max, an analyser will not see a
-   buffer which has a non-null to_forward with send_max < l. A producer is
-   responsible for raising ->send_max by min(to_forward, l-send_max) when it
+   attribute applies to data after ->w+o, an analyser will not see a
+   buffer which has a non-null to_forward with o < l. A producer is
+   responsible for raising ->o by min(to_forward, l-o) when it
    injects data into the buffer.
 
-   The consumer is responsible for decreasing ->send_max when it sends data
+   The consumer is responsible for decreasing ->o when it sends data
    from the visible buffer, and ->pipe->data when it sends data from the
    invisible buffer.
 
@@ -243,11 +243,11 @@ struct buffer {
    buffer to be forwarded. We know the header length (300) and the amount of
    data to forward (content-length=9000). The buffer already contains 1000
    bytes of data after the 300 bytes of headers. Thus the caller will set
-   ->send_max to 300 indicating that it explicitly wants to send those data,
+   ->o to 300 indicating that it explicitly wants to send those data,
    and set ->to_forward to 9000 (content-length). This value must be normalised
    immediately after updating ->to_forward : since there are already 1300 bytes
-   in the buffer, 300 of which are already counted in ->send_max, and that size
-   is smaller than ->to_forward, we must update ->send_max to 1300 to flush the
+   in the buffer, 300 of which are already counted in ->o, and that size
+   is smaller than ->to_forward, we must update ->o to 1300 to flush the
    whole buffer, and reduce ->to_forward to 8000. After that, the producer may
    try to feed the additional data through the invisible buffer using a
    platform-specific method such as splice().
@@ -272,9 +272,9 @@ struct buffer {
 
    A buffer may contain up to 5 areas :
      - the data waiting to be sent. These data are located between ->w and
-       ->w+send_max ;
+       ->w+o ;
      - the data to process and possibly transform. These data start at
-       ->w+send_max and may be up to r-w bytes long. Generally ->lr remains in
+       ->w+o and may be up to r-w bytes long. Generally ->lr remains in
        this area ;
      - the data to preserve. They start at the end of the previous one and stop
        at ->r. The limit between the two solely depends on the protocol being

@@ -54,7 +54,7 @@ unsigned long long buffer_forward(struct buffer *buf, unsigned long long bytes);
 /* Initialize all fields in the buffer. The BF_OUT_EMPTY flags is set. */
 static inline void buffer_init(struct buffer *buf)
 {
-	buf->send_max = 0;
+	buf->o = 0;
 	buf->to_forward = 0;
 	buf->l = buf->total = 0;
 	buf->pipe = NULL;
@@ -75,7 +75,7 @@ static inline void buffer_init(struct buffer *buf)
  */
 static inline int buffer_reserved(const struct buffer *buf)
 {
-	int ret = global.tune.maxrewrite - buf->to_forward - buf->send_max;
+	int ret = global.tune.maxrewrite - buf->to_forward - buf->o;
 
 	if (buf->to_forward == BUF_INFINITE_FORWARD)
 		return 0;
@@ -213,13 +213,13 @@ static inline int buffer_count(const struct buffer *buf, const char *from, const
  */
 static inline int buffer_pending(const struct buffer *buf)
 {
-	return buf->l - buf->send_max;
+	return buf->l - buf->o;
 }
 
 /* Returns the size of the working area which the caller knows ends at <end>.
  * If <end> equals buf->r (modulo size), then it means that the free area which
  * follows is part of the working area. Otherwise, the working area stops at
- * <end>. It always starts at buf->w+send_max. The work area includes the
+ * <end>. It always starts at buf->w+o. The work area includes the
  * reserved area.
  */
 static inline int buffer_work_area(const struct buffer *buf, const char *end)
@@ -227,7 +227,7 @@ static inline int buffer_work_area(const struct buffer *buf, const char *end)
 	end = buffer_pointer(buf, end);
 	if (end == buf->r) /* pointer exactly at end, lets push forwards */
 		end = buf->w;
-	return buffer_count(buf, buffer_pointer(buf, buf->w + buf->send_max), end);
+	return buffer_count(buf, buffer_pointer(buf, buf->w + buf->o), end);
 }
 
 /* Return 1 if the buffer has less than 1/4 of its capacity free, otherwise 0 */
@@ -242,13 +242,13 @@ static inline int buffer_almost_full(const struct buffer *buf)
  * Return the max amount of bytes that can be read from the buffer at once.
  * Note that this may be lower than the actual buffer length when the data
  * wrap after the end, so it's preferable to call this function again after
- * reading. Also note that this function respects the send_max limit.
+ * reading. Also note that this function respects the ->o limit.
  */
 static inline int buffer_contig_data(struct buffer *buf)
 {
 	int ret;
 
-	if (!buf->send_max || !buf->l)
+	if (!buf->o || !buf->l)
 		return 0;
 
 	if (buf->r > buf->w)
@@ -257,8 +257,8 @@ static inline int buffer_contig_data(struct buffer *buf)
 		ret = buf->data + buf->size - buf->w;
 
 	/* limit the amount of outgoing data if required */
-	if (ret > buf->send_max)
-		ret = buf->send_max;
+	if (ret > buf->o)
+		ret = buf->o;
 
 	return ret;
 }
@@ -296,15 +296,15 @@ static inline void buffer_check_timeouts(struct buffer *b)
 		b->flags |= BF_ANA_TIMEOUT;
 }
 
-/* Schedule all remaining buffer data to be sent. send_max is not touched if it
+/* Schedule all remaining buffer data to be sent. ->o is not touched if it
  * already covers those data. That permits doing a flush even after a forward,
  * although not recommended.
  */
 static inline void buffer_flush(struct buffer *buf)
 {
-	if (buf->send_max < buf->l)
-		buf->send_max = buf->l;
-	if (buf->send_max)
+	if (buf->o < buf->l)
+		buf->o = buf->l;
+	if (buf->o)
 		buf->flags &= ~BF_OUT_EMPTY;
 }
 
@@ -314,7 +314,7 @@ static inline void buffer_flush(struct buffer *buf)
  */
 static inline void buffer_erase(struct buffer *buf)
 {
-	buf->send_max = 0;
+	buf->o = 0;
 	buf->to_forward = 0;
 	buf->r = buf->lr = buf->w = buf->data;
 	buf->l = 0;
@@ -330,14 +330,14 @@ static inline void buffer_erase(struct buffer *buf)
  */
 static inline void buffer_cut_tail(struct buffer *buf)
 {
-	if (!buf->send_max)
+	if (!buf->o)
 		return buffer_erase(buf);
 
 	buf->to_forward = 0;
-	if (buf->l == buf->send_max)
+	if (buf->l == buf->o)
 		return;
 
-	buf->l = buf->send_max;
+	buf->l = buf->o;
 	buf->r = buf->w + buf->l;
 	if (buf->r >= buf->data + buf->size)
 		buf->r -= buf->size;
@@ -456,7 +456,7 @@ static inline int buffer_realign(struct buffer *buf)
  * Advance the buffer's read pointer by <len> bytes. This is useful when data
  * have been read directly from the buffer. It is illegal to call this function
  * with <len> causing a wrapping at the end of the buffer. It's the caller's
- * responsibility to ensure that <len> is never larger than buf->send_max.
+ * responsibility to ensure that <len> is never larger than buf->o.
  */
 static inline void buffer_skip(struct buffer *buf, int len)
 {
@@ -471,8 +471,8 @@ static inline void buffer_skip(struct buffer *buf, int len)
 	if (buf->l < buffer_max_len(buf))
 		buf->flags &= ~BF_FULL;
 
-	buf->send_max -= len;
-	if (!buf->send_max && !buf->pipe)
+	buf->o -= len;
+	if (!buf->o && !buf->pipe)
 		buf->flags |= BF_OUT_EMPTY;
 
 	/* notify that some data was written to the SI from the buffer */
@@ -496,7 +496,7 @@ static inline int buffer_write_chunk(struct buffer *buf, struct chunk *chunk)
 }
 
 /* Tries to copy chunk <chunk> into buffer <buf> after length controls.
- * The send_max and to_forward pointers are updated. If the buffer's input is
+ * The ->o and to_forward pointers are updated. If the buffer's input is
  * closed, -2 is returned. If the block is too large for this buffer, -3 is
  * returned. If there is not enough room left in the buffer, -1 is returned.
  * Otherwise the number of bytes copied is returned (0 being a valid number).
@@ -514,7 +514,7 @@ static inline int buffer_put_chunk(struct buffer *buf, struct chunk *chunk)
 }
 
 /* Tries to copy string <str> at once into buffer <buf> after length controls.
- * The send_max and to_forward pointers are updated. If the buffer's input is
+ * The ->o and to_forward pointers are updated. If the buffer's input is
  * closed, -2 is returned. If the block is too large for this buffer, -3 is
  * returned. If there is not enough room left in the buffer, -1 is returned.
  * Otherwise the number of bytes copied is returned (0 being a valid number).
@@ -530,7 +530,7 @@ static inline int buffer_put_string(struct buffer *buf, const char *str)
  * Return one char from the buffer. If the buffer is empty and closed, return -2.
  * If the buffer is just empty, return -1. The buffer's pointer is not advanced,
  * it's up to the caller to call buffer_skip(buf, 1) when it has consumed the char.
- * Also note that this function respects the send_max limit.
+ * Also note that this function respects the ->o limit.
  */
 static inline int buffer_get_char(struct buffer *buf)
 {
@@ -579,7 +579,7 @@ static inline int buffer_feed(struct buffer *buf, const char *str)
  * buffer <b>, and moves <end> just after the end of <str>. <b>'s parameters
  * (l, r, lr) are updated to be valid after the shift. the shift value
  * (positive or negative) is returned. If there's no space left, the move is
- * not done. The function does not adjust ->send_max nor BF_OUT_EMPTY because
+ * not done. The function does not adjust ->o nor BF_OUT_EMPTY because
  * it does not make sense to use it on data scheduled to be sent.
  */
 static inline int buffer_replace(struct buffer *b, char *pos, char *end, const char *str)
