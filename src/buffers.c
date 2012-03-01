@@ -40,31 +40,29 @@ int init_buffer()
  */
 unsigned long long buffer_forward(struct buffer *buf, unsigned long long bytes)
 {
-	unsigned int data_left;
 	unsigned int new_forward;
+	unsigned int forwarded;
 
 	if (!bytes)
 		return 0;
-	data_left = buf->l - buf->o;
-	if (bytes <= (unsigned long long)data_left) {
+	if (bytes <= (unsigned long long)buf->i) {
 		buf->o += bytes;
+		buf->i -= bytes;
 		buf->flags &= ~BF_OUT_EMPTY;
 		return bytes;
 	}
 
-	buf->o += data_left;
+	forwarded = buf->i;
+	buf->o += forwarded;
+	buf->i = 0;
+
 	if (buf->o)
 		buf->flags &= ~BF_OUT_EMPTY;
 
-	if (buf->l < buffer_max_len(buf))
+	if (buf->o < buffer_max_len(buf))
 		buf->flags &= ~BF_FULL;
 	else
 		buf->flags |= BF_FULL;
-
-	if (likely(bytes == BUF_INFINITE_FORWARD)) {
-		buf->to_forward = bytes;
-		return bytes;
-	}
 
 	/* Note: the case below is the only case where we may return
 	 * a byte count that does not fit into a 32-bit number.
@@ -72,8 +70,13 @@ unsigned long long buffer_forward(struct buffer *buf, unsigned long long bytes)
 	if (likely(buf->to_forward == BUF_INFINITE_FORWARD))
 		return bytes;
 
-	new_forward = buf->to_forward + bytes - data_left;
-	bytes = data_left; /* at least those bytes were scheduled */
+	if (likely(bytes == BUF_INFINITE_FORWARD)) {
+		buf->to_forward = bytes;
+		return bytes;
+	}
+
+	new_forward = buf->to_forward + bytes - forwarded;
+	bytes = forwarded; /* at least those bytes were scheduled */
 
 	if (new_forward <= buf->to_forward) {
 		/* integer overflow detected, let's assume no more than 2G at once */
@@ -114,7 +117,6 @@ int buffer_write(struct buffer *buf, const char *msg, int len)
 		return max;
 
 	memcpy(buf->r, msg, len);
-	buf->l += len;
 	buf->o += len;
 	buf->r += len;
 	buf->total += len;
@@ -122,7 +124,7 @@ int buffer_write(struct buffer *buf, const char *msg, int len)
 		buf->r = buf->data;
 
 	buf->flags &= ~(BF_OUT_EMPTY|BF_FULL);
-	if (buf->l >= buffer_max_len(buf))
+	if (buffer_len(buf) >= buffer_max_len(buf))
 		buf->flags |= BF_FULL;
 
 	return -1;
@@ -145,8 +147,8 @@ int buffer_put_char(struct buffer *buf, char c)
 
 	*buf->r = c;
 
-	buf->l++;
-	if (buf->l >= buffer_max_len(buf))
+	buf->i++;
+	if (buffer_len(buf) >= buffer_max_len(buf))
 		buf->flags |= BF_FULL;
 	buf->flags |= BF_READ_PARTIAL;
 
@@ -158,6 +160,7 @@ int buffer_put_char(struct buffer *buf, char c)
 		if (buf->to_forward != BUF_INFINITE_FORWARD)
 			buf->to_forward--;
 		buf->o++;
+		buf->i--;
 		buf->flags &= ~BF_OUT_EMPTY;
 	}
 
@@ -181,7 +184,7 @@ int buffer_put_block(struct buffer *buf, const char *blk, int len)
 		return -2;
 
 	max = buffer_max_len(buf);
-	if (unlikely(len > max - buf->l)) {
+	if (unlikely(len > max - buffer_len(buf))) {
 		/* we can't write this chunk right now because the buffer is
 		 * almost full or because the block is too large. Return the
 		 * available space or -2 if impossible.
@@ -201,7 +204,7 @@ int buffer_put_block(struct buffer *buf, const char *blk, int len)
 	if (len > max)
 		memcpy(buf->data, blk + max, len - max);
 
-	buf->l += len;
+	buf->i += len;
 	buf->r += len;
 	buf->total += len;
 	if (buf->to_forward) {
@@ -212,6 +215,7 @@ int buffer_put_block(struct buffer *buf, const char *blk, int len)
 			buf->to_forward -= fwd;
 		}
 		buf->o += fwd;
+		buf->i -= fwd;
 		buf->flags &= ~BF_OUT_EMPTY;
 	}
 
@@ -219,7 +223,7 @@ int buffer_put_block(struct buffer *buf, const char *blk, int len)
 		buf->r -= buf->size;
 
 	buf->flags &= ~BF_FULL;
-	if (buf->l >= buffer_max_len(buf))
+	if (buffer_len(buf) >= buffer_max_len(buf))
 		buf->flags |= BF_FULL;
 
 	/* notify that some data was read from the SI into the buffer */
@@ -334,7 +338,7 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int
 	if (delta + b->r >= b->data + b->size)
 		return 0;  /* no space left */
 
-	if (delta + b->r > b->w && b->w >= b->r && b->l)
+	if (delta + b->r > b->w && b->w >= b->r && buffer_not_empty(b))
 		return 0;  /* no space left before wrapping data */
 
 	/* first, protect the end of the buffer */
@@ -347,12 +351,12 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int
 	/* we only move data after the displaced zone */
 	if (b->r  > pos) b->r  += delta;
 	if (b->lr > pos) b->lr += delta;
-	b->l += delta;
+	b->i += delta;
 
 	b->flags &= ~BF_FULL;
-	if (b->l == 0)
+	if (buffer_len(b) == 0)
 		b->r = b->w = b->lr = b->data;
-	if (b->l >= buffer_max_len(b))
+	if (buffer_len(b) >= buffer_max_len(b))
 		b->flags |= BF_FULL;
 
 	return delta;
@@ -389,10 +393,10 @@ int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len)
 	/* we only move data after the displaced zone */
 	if (b->r  > pos) b->r  += delta;
 	if (b->lr > pos) b->lr += delta;
-	b->l += delta;
+	b->i += delta;
 
 	b->flags &= ~BF_FULL;
-	if (b->l >= buffer_max_len(b))
+	if (buffer_len(b) >= buffer_max_len(b))
 		b->flags |= BF_FULL;
 
 	return delta;
@@ -415,7 +419,7 @@ void buffer_bounce_realign(struct buffer *buf)
 		return;
 
 	from = buf->w;
-	to_move = buf->l;
+	to_move = buffer_len(buf);
 	while (to_move) {
 		char last, save;
 
@@ -572,11 +576,11 @@ int chunk_asciiencode(struct chunk *dst, struct chunk *src, char qc) {
 void buffer_dump(FILE *o, struct buffer *b, int from, int to)
 {
 	fprintf(o, "Dumping buffer %p\n", b);
-	fprintf(o, "  data=%p l=%d r=%p w=%p lr=%p\n",
-		b->data, b->l, b->r, b->w, b->lr);
+	fprintf(o, "  data=%p o=%d i=%d r=%p w=%p lr=%p\n",
+		b->data, b->o, b->i, b->r, b->w, b->lr);
 
-	if (!to || to > b->l)
-		to = b->l;
+	if (!to || to > buffer_len(b))
+		to = buffer_len(b);
 
 	fprintf(o, "Dumping contents from byte %d to byte %d\n", from, to);
 	for (; from < to; from++) {

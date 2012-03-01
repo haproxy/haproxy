@@ -1540,9 +1540,9 @@ static void cli_io_handler(struct stream_interface *si)
 	si->ob->wex = TICK_ETERNITY;
 
  out:
-	DPRINTF(stderr, "%s@%d: st=%d, rqf=%x, rpf=%x, rql=%d, rqs=%d, rl=%d, rs=%d\n",
+	DPRINTF(stderr, "%s@%d: st=%d, rqf=%x, rpf=%x, rqh=%d, rqs=%d, rh=%d, rs=%d\n",
 		__FUNCTION__, __LINE__,
-		si->state, req->flags, res->flags, req->l, req->o, res->l, res->o);
+		si->state, req->flags, res->flags, req->i, req->o, res->i, res->o);
 
 	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO)) {
 		/* check that we have released everything then unregister */
@@ -3370,11 +3370,11 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 
 
 		chunk_printf(&msg,
-			     "  req=%p (f=0x%06x an=0x%x l=%d o=%d pipe=%d fwd=%d)\n"
+			     "  req=%p (f=0x%06x an=0x%x i=%d o=%d pipe=%d fwd=%d)\n"
 			     "      an_exp=%s",
 			     sess->req,
 			     sess->req->flags, sess->req->analysers,
-			     sess->req->l, sess->req->o,
+			     sess->req->i, sess->req->o,
 			     sess->req->pipe ? sess->req->pipe->data : 0,
 			     sess->req->to_forward,
 			     sess->req->analyse_exp ?
@@ -3400,11 +3400,11 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 			     sess->req->total);
 
 		chunk_printf(&msg,
-			     "  res=%p (f=0x%06x an=0x%x l=%d o=%d pipe=%d fwd=%d)\n"
+			     "  res=%p (f=0x%06x an=0x%x i=%d o=%d pipe=%d fwd=%d)\n"
 			     "      an_exp=%s",
 			     sess->rep,
 			     sess->rep->flags, sess->rep->analysers,
-			     sess->rep->l, sess->rep->o,
+			     sess->rep->i, sess->rep->o,
 			     sess->rep->pipe ? sess->rep->pipe->data : 0,
 			     sess->rep->to_forward,
 			     sess->rep->analyse_exp ?
@@ -3544,9 +3544,9 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 				     curr_sess->task->calls);
 
 			chunk_printf(&msg,
-				     " rq[f=%06xh,l=%d,an=%02xh,rx=%s",
+				     " rq[f=%06xh,i=%d,an=%02xh,rx=%s",
 				     curr_sess->req->flags,
-				     curr_sess->req->l,
+				     curr_sess->req->i,
 				     curr_sess->req->analysers,
 				     curr_sess->req->rex ?
 				     human_time(TICKS_TO_MS(curr_sess->req->rex - now_ms),
@@ -3565,9 +3565,9 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 						TICKS_TO_MS(1000)) : "");
 
 			chunk_printf(&msg,
-				     " rp[f=%06xh,l=%d,an=%02xh,rx=%s",
+				     " rp[f=%06xh,i=%d,an=%02xh,rx=%s",
 				     curr_sess->rep->flags,
-				     curr_sess->rep->l,
+				     curr_sess->rep->i,
 				     curr_sess->rep->analysers,
 				     curr_sess->rep->rex ?
 				     human_time(TICKS_TO_MS(curr_sess->rep->rex - now_ms),

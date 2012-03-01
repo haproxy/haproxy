@@ -102,7 +102,7 @@ acl_fetch_req_len(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!l4 || !l4->req)
 		return 0;
 
-	temp_pattern.data.integer = l4->req->l;
+	temp_pattern.data.integer = l4->req->i;
 	test->flags = ACL_TEST_F_VOLATILE | ACL_TEST_F_MAY_CHANGE;
 	return 1;
 }
@@ -122,7 +122,7 @@ acl_fetch_ssl_hello_type(struct proxy *px, struct session *l4, void *l7, int dir
 
 	b = ((dir & ACL_DIR_MASK) == ACL_DIR_RTR) ? l4->rep : l4->req;
 
-	bleft = b->l;
+	bleft = b->i;
 	data = (const unsigned char *)b->w;
 
 	if (!bleft)
@@ -187,7 +187,7 @@ acl_fetch_req_ssl_ver(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	msg_len = 0;
-	bleft = l4->req->l;
+	bleft = l4->req->i;
 	if (!bleft)
 		goto too_short;
 
@@ -324,7 +324,7 @@ acl_fetch_ssl_hello_sni(struct proxy *px, struct session *l4, void *l7, int dir,
 
 	b = ((dir & ACL_DIR_MASK) == ACL_DIR_RTR) ? l4->rep : l4->req;
 
-	bleft = b->l;
+	bleft = b->i;
 	data = (unsigned char *)b->w;
 
 	/* Check for SSL/TLS Handshake */
@@ -459,7 +459,7 @@ acl_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
 
 	test->flags = 0;
 
-	bleft = l4->req->l;
+	bleft = l4->req->i;
 	if (bleft <= 11)
 		goto too_short;
 

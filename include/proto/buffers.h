@@ -55,8 +55,9 @@ unsigned long long buffer_forward(struct buffer *buf, unsigned long long bytes);
 static inline void buffer_init(struct buffer *buf)
 {
 	buf->o = 0;
+	buf->i = 0;
 	buf->to_forward = 0;
-	buf->l = buf->total = 0;
+	buf->total = 0;
 	buf->pipe = NULL;
 	buf->analysers = 0;
 	buf->cons = NULL;
@@ -67,6 +68,24 @@ static inline void buffer_init(struct buffer *buf)
 /*****************************************************************/
 /* These functions are used to compute various buffer area sizes */
 /*****************************************************************/
+
+/* Return the buffer's length in bytes by summing the input and the output */
+static inline int buffer_len(const struct buffer *buf)
+{
+	return buf->i + buf->o;
+}
+
+/* Return non-zero only if the buffer is not empty */
+static inline int buffer_not_empty(const struct buffer *buf)
+{
+	return buf->i | buf->o;
+}
+
+/* Return non-zero only if the buffer is empty */
+static inline int buffer_empty(const struct buffer *buf)
+{
+	return !buffer_not_empty(buf);
+}
 
 /* Return the number of reserved bytes in the buffer, which ensures that once
  * all pending data are forwarded, the buffer still has global.tune.maxrewrite
@@ -98,7 +117,7 @@ static inline int buffer_max_len(const struct buffer *buf)
  */
 static inline int buffer_total_space(const struct buffer *buf)
 {
-	return buf->size - buf->l;
+	return buf->size - buffer_len(buf);
 }
 
 /* Return the maximum amount of bytes that can be written into the buffer,
@@ -107,7 +126,7 @@ static inline int buffer_total_space(const struct buffer *buf)
  */
 static inline int buffer_total_space_res(const struct buffer *buf)
 {
-	int len = buffer_max_len(buf) - buf->l;
+	int len = buffer_max_len(buf) - buffer_len(buf);
 	return len < 0 ? 0 : len;
 }
 
@@ -129,7 +148,7 @@ static inline int buffer_contig_area(const struct buffer *buf, const char *start
  */
 static inline int buffer_contig_space(const struct buffer *buf)
 {
-	int space_from_end = buf->l - (buf->r - buf->data);
+	int space_from_end = buffer_len(buf) - (buf->r - buf->data);
 	if (space_from_end < 0) /* data does not wrap */
 		space_from_end = buf->r - buf->data;
 	return buf->size - space_from_end;
@@ -148,9 +167,9 @@ static inline int buffer_contig_space_res(const struct buffer *buf)
 	int res = buffer_reserved(buf);
 	int spare = buf->size - res;
 
-	if (buf->l >= spare)
+	if (buffer_len(buf) >= spare)
 		spare = 0;
-	else if (buf->l) {
+	else if (buffer_len(buf)) {
 		spare = buf->w - res - buf->r;
 		if (spare <= 0)
 			spare += buf->size;
@@ -171,9 +190,9 @@ static inline int buffer_contig_space_with_res(const struct buffer *buf, int res
 	 */
 	int spare = buf->size - res;
 
-	if (buf->l >= spare)
+	if (buffer_len(buf) >= spare)
 		spare = 0;
-	else if (buf->l) {
+	else if (buffer_len(buf)) {
 		spare = buf->w - res - buf->r;
 		if (spare <= 0)
 			spare += buf->size;
@@ -213,7 +232,7 @@ static inline int buffer_count(const struct buffer *buf, const char *from, const
  */
 static inline int buffer_pending(const struct buffer *buf)
 {
-	return buf->l - buf->o;
+	return buf->i;
 }
 
 /* Returns the size of the working area which the caller knows ends at <end>.
@@ -248,7 +267,7 @@ static inline int buffer_contig_data(struct buffer *buf)
 {
 	int ret;
 
-	if (!buf->o || !buf->l)
+	if (!buf->o)
 		return 0;
 
 	if (buf->r > buf->w)
@@ -302,8 +321,8 @@ static inline void buffer_check_timeouts(struct buffer *b)
  */
 static inline void buffer_flush(struct buffer *buf)
 {
-	if (buf->o < buf->l)
-		buf->o = buf->l;
+	buf->o += buf->i;
+	buf->i = 0;
 	if (buf->o)
 		buf->flags &= ~BF_OUT_EMPTY;
 }
@@ -315,9 +334,9 @@ static inline void buffer_flush(struct buffer *buf)
 static inline void buffer_erase(struct buffer *buf)
 {
 	buf->o = 0;
+	buf->i = 0;
 	buf->to_forward = 0;
 	buf->r = buf->lr = buf->w = buf->data;
-	buf->l = 0;
 	buf->flags &= ~(BF_FULL | BF_OUT_EMPTY);
 	if (!buf->pipe)
 		buf->flags |= BF_OUT_EMPTY;
@@ -334,16 +353,16 @@ static inline void buffer_cut_tail(struct buffer *buf)
 		return buffer_erase(buf);
 
 	buf->to_forward = 0;
-	if (buf->l == buf->o)
+	if (!buf->i)
 		return;
 
-	buf->l = buf->o;
-	buf->r = buf->w + buf->l;
+	buf->i = 0;
+	buf->r = buf->w + buf->o;
 	if (buf->r >= buf->data + buf->size)
 		buf->r -= buf->size;
 	buf->lr = buf->r;
 	buf->flags &= ~BF_FULL;
-	if (buf->l >= buffer_max_len(buf))
+	if (buffer_len(buf) >= buffer_max_len(buf))
 		buf->flags |= BF_FULL;
 }
 
@@ -353,12 +372,12 @@ static inline void buffer_cut_tail(struct buffer *buf)
  */
 static inline void buffer_ignore(struct buffer *buf, int n)
 {
-	buf->l -= n;
+	buf->i -= n;
 	buf->w += n;
 	if (buf->w >= buf->data + buf->size)
 		buf->w -= buf->size;
 	buf->flags &= ~BF_FULL;
-	if (buf->l >= buffer_max_len(buf))
+	if (buffer_len(buf) >= buffer_max_len(buf))
 		buf->flags |= BF_FULL;
 }
 
@@ -445,7 +464,7 @@ static inline void buffer_dont_read(struct buffer *buf)
  */
 static inline int buffer_realign(struct buffer *buf)
 {
-	if (buf->l == 0) {
+	if (!(buf->i | buf->o)) {
 		/* let's realign the buffer to optimize I/O */
 		buf->r = buf->w = buf->lr = buf->data;
 	}
@@ -464,14 +483,13 @@ static inline void buffer_skip(struct buffer *buf, int len)
 	if (buf->w >= buf->data + buf->size)
 		buf->w -= buf->size; /* wrap around the buffer */
 
-	buf->l -= len;
-	if (!buf->l)
+	buf->o -= len;
+	if (buffer_len(buf) == 0)
 		buf->r = buf->w = buf->lr = buf->data;
 
-	if (buf->l < buffer_max_len(buf))
+	if (buffer_len(buf) < buffer_max_len(buf))
 		buf->flags &= ~BF_FULL;
 
-	buf->o -= len;
 	if (!buf->o && !buf->pipe)
 		buf->flags |= BF_OUT_EMPTY;
 

@@ -725,13 +725,13 @@ static void sess_update_stream_int(struct session *s, struct stream_interface *s
 {
 	struct server *srv = target_srv(&s->target);
 
-	DPRINTF(stderr,"[%u] %s: sess=%p rq=%p, rp=%p, exp(r,w)=%u,%u rqf=%08x rpf=%08x rql=%d rpl=%d cs=%d ss=%d\n",
+	DPRINTF(stderr,"[%u] %s: sess=%p rq=%p, rp=%p, exp(r,w)=%u,%u rqf=%08x rpf=%08x rqh=%d rqt=%d rph=%d rpt=%d cs=%d ss=%d\n",
 		now_ms, __FUNCTION__,
 		s,
 		s->req, s->rep,
 		s->req->rex, s->rep->wex,
 		s->req->flags, s->rep->flags,
-		s->req->l, s->rep->l, s->rep->cons->state, s->req->cons->state);
+		s->req->i, s->req->o, s->rep->i, s->rep->o, s->rep->cons->state, s->req->cons->state);
 
 	if (si->state == SI_ST_ASS) {
 		/* Server assigned to connection request, we have to try to connect now */
@@ -911,14 +911,15 @@ static void sess_set_term_flags(struct session *s)
  * indicating that a server has been assigned. It may also return SI_ST_QUE,
  * or SI_ST_CLO upon error.
  */
-static void sess_prepare_conn_req(struct session *s, struct stream_interface *si) {
-	DPRINTF(stderr,"[%u] %s: sess=%p rq=%p, rp=%p, exp(r,w)=%u,%u rqf=%08x rpf=%08x rql=%d rpl=%d cs=%d ss=%d\n",
+static void sess_prepare_conn_req(struct session *s, struct stream_interface *si)
+{
+	DPRINTF(stderr,"[%u] %s: sess=%p rq=%p, rp=%p, exp(r,w)=%u,%u rqf=%08x rpf=%08x rqh=%d rqt=%d rph=%d rpt=%d cs=%d ss=%d\n",
 		now_ms, __FUNCTION__,
 		s,
 		s->req, s->rep,
 		s->req->rex, s->rep->wex,
 		s->req->flags, s->rep->flags,
-		s->req->l, s->rep->l, s->rep->cons->state, s->req->cons->state);
+		s->req->i, s->req->o, s->rep->i, s->rep->o, s->rep->cons->state, s->req->cons->state);
 
 	if (si->state != SI_ST_REQ)
 		return;
@@ -961,13 +962,13 @@ static int process_switching_rules(struct session *s, struct buffer *req, int an
 	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
 
-	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->l,
+		req->i,
 		req->analysers);
 
 	/* now check whether we have some switching rules for this request */
@@ -1062,7 +1063,7 @@ static int process_server_rules(struct session *s, struct buffer *req, int an_bi
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->l,
+		req->i + req->o,
 		req->analysers);
 
 	if (!(s->flags & SN_ASSIGNED)) {
@@ -1105,13 +1106,13 @@ static int process_sticking_rules(struct session *s, struct buffer *req, int an_
 	struct proxy    *px   = s->be;
 	struct sticking_rule  *rule;
 
-	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->l,
+		req->i,
 		req->analysers);
 
 	list_for_each_entry(rule, &px->sticking_rules, list) {
@@ -1195,13 +1196,13 @@ static int process_store_rules(struct session *s, struct buffer *rep, int an_bit
 	struct sticking_rule  *rule;
 	int i;
 
-	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		rep,
 		rep->rex, rep->wex,
 		rep->flags,
-		rep->l,
+		rep->i,
 		rep->analysers);
 
 	list_for_each_entry(rule, &px->storersp_rules, list) {
@@ -1435,14 +1436,14 @@ struct task *process_session(struct task *t)
 	/* Check for connection closure */
 
 	DPRINTF(stderr,
-		"[%u] %s:%d: task=%p s=%p, sfl=0x%08x, rq=%p, rp=%p, exp(r,w)=%u,%u rqf=%08x rpf=%08x rql=%d rpl=%d cs=%d ss=%d, cet=0x%x set=0x%x retr=%d\n",
+		"[%u] %s:%d: task=%p s=%p, sfl=0x%08x, rq=%p, rp=%p, exp(r,w)=%u,%u rqf=%08x rpf=%08x rqh=%d rqt=%d rph=%d rpt=%d cs=%d ss=%d, cet=0x%x set=0x%x retr=%d\n",
 		now_ms, __FUNCTION__, __LINE__,
 		t,
 		s, s->flags,
 		s->req, s->rep,
 		s->req->rex, s->rep->wex,
 		s->req->flags, s->rep->flags,
-		s->req->l, s->rep->l, s->rep->cons->state, s->req->cons->state,
+		s->req->i, s->req->o, s->rep->i, s->rep->o, s->rep->cons->state, s->req->cons->state,
 		s->rep->cons->err_type, s->req->cons->err_type,
 		s->req->cons->conn_retries);
 

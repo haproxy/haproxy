@@ -257,8 +257,8 @@ struct server *get_server_ph_post(struct session *s)
 	const char      *params = req->data + msg->sov;
 	const char      *p    = params;
 
-	if (len > req->l - (msg->sov - msg->som))
-		len = req->l - (msg->sov - msg->som);
+	if (len > req->i - (msg->sov - msg->som))
+		len = req->i - (msg->sov - msg->som);
 
 	if (len == 0)
 		return NULL;
@@ -1112,13 +1112,13 @@ int tcp_persist_rdp_cookie(struct session *s, struct buffer *req, int an_bit)
 	struct sockaddr_in addr;
 	char *p;
 
-	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->l,
+		req->i,
 		req->analysers);
 
 	if (s->flags & SN_ASSIGNED)

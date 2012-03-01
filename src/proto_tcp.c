@@ -669,13 +669,13 @@ int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit)
 	struct stktable *t;
 	int partial;
 
-	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->l,
+		req->i,
 		req->analysers);
 
 	/* We don't know whether we have enough data, so must proceed
@@ -787,13 +787,13 @@ int tcp_inspect_response(struct session *s, struct buffer *rep, int an_bit)
 	struct tcp_rule *rule;
 	int partial;
 
-	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		rep,
 		rep->rex, rep->wex,
 		rep->flags,
-		rep->l,
+		rep->i,
 		rep->analysers);
 
 	/* We don't know whether we have enough data, so must proceed
@@ -1477,10 +1477,10 @@ pattern_fetch_payloadlv(struct proxy *px, struct session *l4, void *l7, int dir,
 
 	b = (dir & PATTERN_FETCH_RTR) ? l4->rep : l4->req;
 
-	if (!b || !b->l)
+	if (!b || !b->i)
 		return 0;
 
-	if (len_offset + len_size > b->l)
+	if (len_offset + len_size > b->i)
 		return 0;
 
 	for (i = 0; i < len_size; i++) {
@@ -1490,7 +1490,7 @@ pattern_fetch_payloadlv(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!buf_size)
 		return 0;
 
-	if (buf_offset + buf_size > b->l)
+	if (buf_offset + buf_size > b->i)
 		return 0;
 
 	/* init chunk as read only */
@@ -1550,10 +1550,10 @@ pattern_fetch_payload(struct proxy *px, struct session *l4, void *l7, int dir,
 
 	b = (dir & PATTERN_FETCH_RTR) ? l4->rep : l4->req;
 
-	if (!b || !b->l)
+	if (!b || !b->i)
 		return 0;
 
-	if (buf_offset + buf_size > b->l)
+	if (buf_offset + buf_size > b->i)
 		return 0;
 
 	/* init chunk as read only */

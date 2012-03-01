@@ -1944,7 +1944,7 @@ int http_skip_chunk_crlf(struct buffer *buf, struct http_msg *msg)
 			ptr = buf->data;
 	}
 
-	if (bytes > buf->l - buf->o)
+	if (bytes > buf->i)
 		return 0;
 
 	if (*ptr != '\n') {
@@ -1972,8 +1972,8 @@ void http_buffer_heavy_realign(struct buffer *buf, struct http_msg *msg)
 	 *   - the buffer is in one contiguous block, we move it in-place
 	 *   - the buffer is in two blocks, we move it via the swap_buffer
 	 */
-	if (buf->l) {
-		int block1 = buf->l;
+	if (buf->i) {
+		int block1 = buf->i;
 		int block2 = 0;
 		if (buf->r <= buf->w) {
 			/* non-contiguous block */
@@ -2007,7 +2007,7 @@ void http_buffer_heavy_realign(struct buffer *buf, struct http_msg *msg)
 	}
 
 	buf->flags &= ~BF_FULL;
-	if (buf->l >= buffer_max_len(buf))
+	if (buffer_len(buf) >= buffer_max_len(buf))
 		buf->flags |= BF_FULL;
 }
 
@@ -2047,13 +2047,13 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	struct http_msg *msg = &txn->req;
 	struct hdr_ctx ctx;
 
-	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->l,
+		req->i,
 		req->analysers);
 
 	/* we're speaking HTTP here, so let's speak HTTP to the client */
@@ -2064,7 +2064,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	 * protected area is affected, because we may have to move processed
 	 * data later, which is much more complicated.
 	 */
-	if (req->l && msg->msg_state < HTTP_MSG_ERROR) {
+	if (buffer_not_empty(req) && msg->msg_state < HTTP_MSG_ERROR) {
 		if ((txn->flags & TX_NOT_FIRST) &&
 		    unlikely((req->flags & BF_FULL) ||
 			     req->r < req->lr ||
@@ -2170,7 +2170,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			session_inc_http_err_ctr(s);
 			proxy_inc_fe_req_ctr(s->fe);
 			if (msg->err_pos < 0)
-				msg->err_pos = req->l;
+				msg->err_pos = req->i;
 			goto return_bad_req;
 		}
 
@@ -2592,7 +2592,7 @@ int http_process_req_stat_post(struct stream_interface *si, struct http_txn *txn
 		si->applet.ctx.stats.st_code = STAT_STATUS_EXCD;
 		return 1;
 	}
-	else if (end_params > req->data + req->l) {
+	else if (end_params > req->data + req->i) {
 		/* we need more data */
 		si->applet.ctx.stats.st_code = STAT_STATUS_NONE;
 		return 0;
@@ -2785,13 +2785,13 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
 
-	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->l,
+		req->i,
 		req->analysers);
 
 	/* first check whether we have some ACLs set to block this request */
@@ -3242,13 +3242,13 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 		return 0;
 	}
 
-	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->l,
+		req->i,
 		req->analysers);
 
 	/*
@@ -3464,7 +3464,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 		 */
 		if ((s->listener->options & LI_O_NOQUICKACK) &&
 		    ((msg->flags & HTTP_MSGF_TE_CHNK) ||
-		     (msg->body_len > req->l - txn->req.eoh - 2)))
+		     (msg->body_len > req->i - txn->req.eoh - 2)))
 			setsockopt(s->si[0].fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
 #endif
 	}
@@ -3623,7 +3623,7 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 	if (msg->body_len < limit)
 		limit = msg->body_len;
 
-	if (req->l - (msg->sov - msg->som) >= limit)    /* we have enough bytes now */
+	if (req->i - (msg->sov - msg->som) >= limit)    /* we have enough bytes now */
 		goto http_end;
 
  missing_data:
@@ -3755,8 +3755,8 @@ void http_end_txn_clean_session(struct session *s)
 	}
 
 	/* don't count other requests' data */
-	s->logs.bytes_in  -= s->req->l - s->req->o;
-	s->logs.bytes_out -= s->rep->l - s->rep->o;
+	s->logs.bytes_in  -= s->req->i;
+	s->logs.bytes_out -= s->rep->i;
 
 	/* let's do a final log if we need it */
 	if (s->logs.logwait &&
@@ -3775,8 +3775,8 @@ void http_end_txn_clean_session(struct session *s)
 	s->logs.prx_queue_size = 0;  /* we get the number of pending conns before us */
 	s->logs.srv_queue_size = 0; /* we will get this number soon */
 
-	s->logs.bytes_in = s->req->total = s->req->l - s->req->o;
-	s->logs.bytes_out = s->rep->total = s->rep->l - s->rep->o;
+	s->logs.bytes_in = s->req->total = s->req->i;
+	s->logs.bytes_out = s->rep->total = s->rep->i;
 
 	if (s->pend_pos)
 		pendconn_free(s->pend_pos);
@@ -3821,7 +3821,7 @@ void http_end_txn_clean_session(struct session *s)
 	 * because the request will wait for it to flush a little
 	 * bit before proceeding.
 	 */
-	if (s->req->l > s->req->o) {
+	if (s->req->i) {
 		if (s->rep->o &&
 		    !(s->rep->flags & BF_FULL) &&
 		    s->rep->r <= s->rep->data + s->rep->size - global.tune.maxrewrite)
@@ -4087,7 +4087,7 @@ int http_sync_res_state(struct session *s)
 	if (txn->rsp.msg_state == HTTP_MSG_CLOSED) {
 	http_msg_closed:
 		/* drop any pending data */
-		buffer_ignore(buf, buf->l - buf->o);
+		buffer_ignore(buf, buf->i);
 		buffer_auto_close(buf);
 		buffer_auto_read(buf);
 		goto wait_other_side;
@@ -4153,7 +4153,7 @@ int http_resync_states(struct session *s)
 		buffer_abort(s->req);
 		buffer_auto_close(s->req);
 		buffer_auto_read(s->req);
-		buffer_ignore(s->req, s->req->l - s->req->o);
+		buffer_ignore(s->req, s->req->i);
 	}
 	else if (txn->req.msg_state == HTTP_MSG_CLOSED &&
 		 txn->rsp.msg_state == HTTP_MSG_DONE &&
@@ -4459,13 +4459,13 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	int cur_idx;
 	int n;
 
-	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		rep,
 		rep->rex, rep->wex,
 		rep->flags,
-		rep->l,
+		rep->i,
 		rep->analysers);
 
 	/*
@@ -4490,7 +4490,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	 * protected area is affected, because we may have to move processed
 	 * data later, which is much more complicated.
 	 */
-	if (rep->l && msg->msg_state < HTTP_MSG_ERROR) {
+	if (buffer_not_empty(rep) && msg->msg_state < HTTP_MSG_ERROR) {
 		if (unlikely((rep->flags & BF_FULL) ||
 			     rep->r < rep->lr ||
 			     rep->r > rep->data + rep->size - global.tune.maxrewrite)) {
@@ -4502,7 +4502,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 				rep->flags |= BF_READ_DONTWAIT; /* try to get back here ASAP */
 				return 0;
 			}
-			if (rep->l <= rep->size - global.tune.maxrewrite)
+			if (rep->i <= rep->size - global.tune.maxrewrite)
 				http_buffer_heavy_realign(rep, msg);
 		}
 
@@ -4565,7 +4565,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 			rep->analysers = 0;
 			txn->status = 502;
 			rep->prod->flags |= SI_FL_NOLINGER;
-			buffer_ignore(rep, rep->l - rep->o);
+			buffer_ignore(rep, rep->i);
 			stream_int_retnclose(rep->cons, error_message(s, HTTP_ERR_502));
 
 			if (!(s->flags & SN_ERR_MASK))
@@ -4579,7 +4579,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 		/* too large response does not fit in buffer. */
 		else if (rep->flags & BF_FULL) {
 			if (msg->err_pos < 0)
-				msg->err_pos = rep->l;
+				msg->err_pos = rep->i;
 			goto hdr_response_bad;
 		}
 
@@ -4598,7 +4598,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 			rep->analysers = 0;
 			txn->status = 502;
 			rep->prod->flags |= SI_FL_NOLINGER;
-			buffer_ignore(rep, rep->l - rep->o);
+			buffer_ignore(rep, rep->i);
 			stream_int_retnclose(rep->cons, error_message(s, HTTP_ERR_502));
 
 			if (!(s->flags & SN_ERR_MASK))
@@ -4623,7 +4623,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 			rep->analysers = 0;
 			txn->status = 504;
 			rep->prod->flags |= SI_FL_NOLINGER;
-			buffer_ignore(rep, rep->l - rep->o);
+			buffer_ignore(rep, rep->i);
 			stream_int_retnclose(rep->cons, error_message(s, HTTP_ERR_504));
 
 			if (!(s->flags & SN_ERR_MASK))
@@ -4648,7 +4648,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 			rep->analysers = 0;
 			txn->status = 502;
 			rep->prod->flags |= SI_FL_NOLINGER;
-			buffer_ignore(rep, rep->l - rep->o);
+			buffer_ignore(rep, rep->i);
 			stream_int_retnclose(rep->cons, error_message(s, HTTP_ERR_502));
 
 			if (!(s->flags & SN_ERR_MASK))
@@ -4889,13 +4889,13 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 	struct proxy *cur_proxy;
 	struct cond_wordlist *wl;
 
-	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		t,
 		rep,
 		rep->rex, rep->wex,
 		rep->flags,
-		rep->l,
+		rep->i,
 		rep->analysers);
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY))	/* we need more data */
@@ -4998,7 +4998,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 					rep->analysers = 0;
 					txn->status = 502;
 					rep->prod->flags |= SI_FL_NOLINGER;
-					buffer_ignore(rep, rep->l - rep->o);
+					buffer_ignore(rep, rep->i);
 					stream_int_retnclose(rep->cons, error_message(t, HTTP_ERR_502));
 					if (!(t->flags & SN_ERR_MASK))
 						t->flags |= SN_ERR_PRXCOND;
@@ -7456,9 +7456,9 @@ void http_reset_txn(struct session *s)
 	 * a HEAD with some data, or sending more than the advertised
 	 * content-length.
 	 */
-	if (unlikely(s->rep->l > s->rep->o)) {
-		s->rep->l = s->rep->o;
-		s->rep->r = s->rep->w + s->rep->l;
+	if (unlikely(s->rep->i)) {
+		s->rep->i = 0;
+		s->rep->r = s->rep->w + s->rep->o;
 		if (s->rep->r >= s->rep->data + s->rep->size)
 			s->rep->r -= s->rep->size;
 	}

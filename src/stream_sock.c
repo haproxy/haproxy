@@ -85,7 +85,7 @@ static int stream_sock_splice_in(struct buffer *b, struct stream_interface *si)
 	if (!(b->flags & BF_KERN_SPLICING))
 		return -1;
 
-	if (b->l) {
+	if (buffer_not_empty(b)) {
 		/* We're embarrassed, there are already data pending in
 		 * the buffer and we don't want to have them at two
 		 * locations at a time. Let's indicate we need some
@@ -269,7 +269,7 @@ int stream_sock_read(int fd) {
 #endif
 	cur_read = 0;
 	while (1) {
-		max = buffer_max_len(b) - b->l;
+		max = buffer_max_len(b) - buffer_len(b);
 
 		if (max <= 0) {
 			b->flags |= BF_FULL;
@@ -280,7 +280,7 @@ int stream_sock_read(int fd) {
 		/*
 		 * 1. compute the maximum block size we can read at once.
 		 */
-		if (b->l == 0) {
+		if (buffer_empty(b)) {
 			/* let's realign the buffer to optimize I/O */
 			b->r = b->w = b->lr = b->data;
 		}
@@ -298,7 +298,7 @@ int stream_sock_read(int fd) {
 
 		if (ret > 0) {
 			b->r += ret;
-			b->l += ret;
+			b->i += ret;
 			cur_read += ret;
 
 			/* if we're allowed to directly forward data, we must update ->o */
@@ -310,6 +310,7 @@ int stream_sock_read(int fd) {
 					b->to_forward -= fwd;
 				}
 				b->o += fwd;
+				b->i -= fwd;
 				b->flags &= ~BF_OUT_EMPTY;
 			}
 
@@ -324,11 +325,11 @@ int stream_sock_read(int fd) {
 
 			b->total += ret;
 
-			if (b->l >= buffer_max_len(b)) {
+			if (buffer_len(b) >= buffer_max_len(b)) {
 				/* The buffer is now full, there's no point in going through
 				 * the loop again.
 				 */
-				if (!(b->flags & BF_STREAMER_FAST) && (cur_read == b->l)) {
+				if (!(b->flags & BF_STREAMER_FAST) && (cur_read == buffer_len(b))) {
 					b->xfer_small = 0;
 					b->xfer_large++;
 					if (b->xfer_large >= 3) {
@@ -446,7 +447,7 @@ int stream_sock_read(int fd) {
 	 * HTTP chunking).
 	 */
 	if (b->pipe || /* always try to send spliced data */
-	    (b->o == b->l && (b->cons->flags & SI_FL_WAIT_DATA))) {
+	    (b->i == 0 && (b->cons->flags & SI_FL_WAIT_DATA))) {
 		int last_len = b->pipe ? b->pipe->data : 0;
 
 		b->cons->chk_snd(b->cons);
@@ -624,7 +625,7 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 			    ((b->to_forward && b->to_forward != BUF_INFINITE_FORWARD) ||
 			     (b->flags & BF_EXPECT_MORE))) ||
 			    ((b->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK)) == BF_SHUTW_NOW && (max == b->o)) ||
-			    (max != b->l && max != b->o)) {
+			    (max != b->o)) {
 				send_flag |= MSG_MORE;
 			}
 
@@ -654,15 +655,14 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 			if (b->w == b->data + b->size)
 				b->w = b->data; /* wrap around the buffer */
 
-			b->l -= ret;
-			if (likely(b->l < buffer_max_len(b)))
-				b->flags &= ~BF_FULL;
-
-			if (likely(!b->l))
+			b->o -= ret;
+			if (likely(!buffer_len(b)))
 				/* optimize data alignment in the buffer */
 				b->r = b->w = b->lr = b->data;
 
-			b->o -= ret;
+			if (likely(buffer_len(b) < buffer_max_len(b)))
+				b->flags &= ~BF_FULL;
+
 			if (!b->o) {
 				/* Always clear both flags once everything has been sent, they're one-shot */
 				b->flags &= ~(BF_EXPECT_MORE | BF_SEND_DONTWAIT);
@@ -939,13 +939,13 @@ void stream_sock_data_finish(struct stream_interface *si)
 	struct buffer *ob = si->ob;
 	int fd = si->fd;
 
-	DPRINTF(stderr,"[%u] %s: fd=%d owner=%p ib=%p, ob=%p, exp(r,w)=%u,%u ibf=%08x obf=%08x ibl=%d obl=%d si=%d\n",
+	DPRINTF(stderr,"[%u] %s: fd=%d owner=%p ib=%p, ob=%p, exp(r,w)=%u,%u ibf=%08x obf=%08x ibh=%d ibt=%d obh=%d obd=%d si=%d\n",
 		now_ms, __FUNCTION__,
 		fd, fdtab[fd].owner,
 		ib, ob,
 		ib->rex, ob->wex,
 		ib->flags, ob->flags,
-		ib->l, ob->l, si->state);
+		ib->i, ib->o, ob->i, ob->o, si->state);
 
 	/* Check if we need to close the read side */
 	if (!(ib->flags & BF_SHUTR)) {
@@ -1017,13 +1017,13 @@ void stream_sock_chk_rcv(struct stream_interface *si)
 {
 	struct buffer *ib = si->ib;
 
-	DPRINTF(stderr,"[%u] %s: fd=%d owner=%p ib=%p, ob=%p, exp(r,w)=%u,%u ibf=%08x obf=%08x ibl=%d obl=%d si=%d\n",
+	DPRINTF(stderr,"[%u] %s: fd=%d owner=%p ib=%p, ob=%p, exp(r,w)=%u,%u ibf=%08x obf=%08x ibh=%d ibt=%d obh=%d obd=%d si=%d\n",
 		now_ms, __FUNCTION__,
 		si->fd, fdtab[si->fd].owner,
 		ib, si->ob,
 		ib->rex, si->ob->wex,
 		ib->flags, si->ob->flags,
-		ib->l, si->ob->l, si->state);
+		ib->i, ib->o, si->ob->i, si->ob->o, si->state);
 
 	if (unlikely(si->state != SI_ST_EST || (ib->flags & BF_SHUTR)))
 		return;
@@ -1052,13 +1052,13 @@ void stream_sock_chk_snd(struct stream_interface *si)
 	struct buffer *ob = si->ob;
 	int retval;
 
-	DPRINTF(stderr,"[%u] %s: fd=%d owner=%p ib=%p, ob=%p, exp(r,w)=%u,%u ibf=%08x obf=%08x ibl=%d obl=%d si=%d\n",
+	DPRINTF(stderr,"[%u] %s: fd=%d owner=%p ib=%p, ob=%p, exp(r,w)=%u,%u ibf=%08x obf=%08x ibh=%d ibt=%d obh=%d obd=%d si=%d\n",
 		now_ms, __FUNCTION__,
 		si->fd, fdtab[si->fd].owner,
 		si->ib, ob,
 		si->ib->rex, ob->wex,
 		si->ib->flags, ob->flags,
-		si->ib->l, ob->l, si->state);
+		si->ib->i, si->ib->o, ob->i, ob->o, si->state);
 
 	if (unlikely(si->state != SI_ST_EST || (ob->flags & BF_SHUTW)))
 		return;

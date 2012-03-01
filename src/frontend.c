@@ -253,22 +253,22 @@ int frontend_accept(struct session *s)
 int frontend_decode_proxy_request(struct session *s, struct buffer *req, int an_bit)
 {
 	char *line = req->data;
-	char *end = req->data + req->l;
+	char *end = req->data + req->i;
 	int len;
 
-	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->l,
+		req->i,
 		req->analysers);
 
 	if (req->flags & (BF_READ_ERROR|BF_READ_TIMEOUT))
 		goto fail;
 
-	len = MIN(req->l, 6);
+	len = MIN(req->i, 6);
 	if (!len)
 		goto missing;
 
@@ -277,7 +277,7 @@ int frontend_decode_proxy_request(struct session *s, struct buffer *req, int an_
 		goto fail;
 
 	line += 6;
-	if (req->l < 18) /* shortest possible line */
+	if (req->i < 18) /* shortest possible line */
 		goto missing;
 
 	if (!memcmp(line, "TCP4 ", 5) != 0) {
