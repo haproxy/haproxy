@@ -87,6 +87,22 @@ static inline int buffer_empty(const struct buffer *buf)
 	return !buffer_not_empty(buf);
 }
 
+/* Normalizes a pointer after a subtract */
+static inline char *buffer_wrap_sub(const struct buffer *buf, char *ptr)
+{
+	if (ptr < buf->data)
+		ptr += buf->size;
+	return ptr;
+}
+
+/* Normalizes a pointer after an addition */
+static inline char *buffer_wrap_add(const struct buffer *buf, char *ptr)
+{
+	if (ptr - buf->size >= buf->data)
+		ptr -= buf->size;
+	return ptr;
+}
+
 /* Return the number of reserved bytes in the buffer, which ensures that once
  * all pending data are forwarded, the buffer still has global.tune.maxrewrite
  * bytes free. The result is between 0 and global.maxrewrite, which is itself
