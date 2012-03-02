@@ -273,31 +273,6 @@ static inline int buffer_almost_full(const struct buffer *buf)
 	return 0;
 }
 
-/*
- * Return the max amount of bytes that can be read from the buffer at once.
- * Note that this may be lower than the actual buffer length when the data
- * wrap after the end, so it's preferable to call this function again after
- * reading. Also note that this function respects the ->o limit.
- */
-static inline int buffer_contig_data(struct buffer *buf)
-{
-	int ret;
-
-	if (!buf->o)
-		return 0;
-
-	if (buf->r > buf->w)
-		ret = buf->r - buf->w;
-	else
-		ret = buf->data + buf->size - buf->w;
-
-	/* limit the amount of outgoing data if required */
-	if (ret > buf->o)
-		ret = buf->o;
-
-	return ret;
-}
-
 /* Returns true if the buffer's input is already closed */
 static inline int buffer_input_closed(struct buffer *buf)
 {
