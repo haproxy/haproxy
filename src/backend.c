@@ -985,6 +985,10 @@ int connect_server(struct session *s)
 
 	assign_tproxy_address(s);
 
+	/* flag for logging source ip/port */
+	if (s->fe->options2 & PR_O2_SRC_ADDR)
+		s->req->cons->flags |= SI_FL_SRC_ADDR;
+
 	err = s->req->cons->connect(s->req->cons);
 
 	if (err != SN_ERR_NONE)

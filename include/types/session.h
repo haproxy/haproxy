@@ -84,6 +84,7 @@
 #define SN_IGNORE_PRST	0x00080000	/* ignore persistence */
 #define SN_BE_TRACK_SC1 0x00100000	/* backend tracks stick-counter 1 */
 #define SN_BE_TRACK_SC2 0x00200000	/* backend tracks stick-counter 2 */
+#define SN_BCK_ADDR_SET 0x00400000 	/* set if the backend address has been filled */
 
 /* Termination sequence tracing.
  *

@@ -72,6 +72,7 @@ enum {
 	SI_FL_DONT_WAKE  = 0x0020,  /* resync in progress, don't wake up */
 	SI_FL_INDEP_STR  = 0x0040,  /* independant streams = don't update rex on write */
 	SI_FL_NOLINGER   = 0x0080,  /* may close without lingering. One-shot. */
+	SI_FL_SRC_ADDR   = 0x1000,  /* get the source ip/port with getsockname */
 };
 
 /* target types */

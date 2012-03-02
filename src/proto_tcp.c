@@ -437,6 +437,14 @@ int tcp_connect_server(struct stream_interface *si)
 		}
 	}
 
+	/* needs src ip/port for logging */
+	if (si->flags & SI_FL_SRC_ADDR) {
+		socklen_t addrlen = sizeof(si->addr.to);
+		if (getsockname(fd, (struct sockaddr *)&si->addr.from, &addrlen) == -1) {
+			Warning("Cannot get source address for logging.\n");
+		}
+	}
+
 	fdtab[fd].owner = si;
 	fdtab[fd].state = FD_STCONN; /* connection in progress */
 	fdtab[fd].flags = FD_FL_TCP | FD_FL_TCP_NODELAY;

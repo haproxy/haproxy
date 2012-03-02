@@ -138,7 +138,9 @@ enum {
 #define PR_O2_NODELAY   0x00020000      /* fully interactive mode, never delay outgoing data */
 #define PR_O2_USE_PXHDR 0x00040000      /* use Proxy-Connection for proxy requests */
 #define PR_O2_CHK_SNDST 0x00080000      /* send the state of each server along with HTTP health checks */
-/* unused: 0x00100000 */
+
+#define PR_O2_SRC_ADDR	0x00100000	/* get the source ip and port for logs */
+
 #define PR_O2_FAKE_KA   0x00200000      /* pretend we do keep-alive with server eventhough we close */
 /* unused: 0x00400000 */
 #define PR_O2_EXP_NONE  0x00000000      /* http-check : no expect rule */

@@ -8790,6 +8790,8 @@ Please refer to the table below for currently defined variables :
   |   | %B   | bytes_read                                    | numeric     |
   |   | %Ci  | client_ip                                     | string      |
   |   | %Cp  | client_port                                   | numeric     |
+  |   | %Bi  | backend_source_ip                             | string      |
+  |   | %Bp  | backend_source_port                           | numeric     |
   |   | %Tc  | Tc                                            | numeric     |
   | * | %Tq  | Tq                                            | numeric     |
   | * | %Tr  | Tr                                            | numeric     |

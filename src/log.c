@@ -57,42 +57,47 @@ struct logformat_type {
 	char *name;
 	int type;
 	int mode;
+	int (*config_callback)(struct logformat_node *node, struct proxy *curproxy);
 };
+
+int prepare_addrsource(struct logformat_node *node, struct proxy *curproxy);
 
 /* log_format variable names */
 static const struct logformat_type logformat_keywords[] = {
-	{ "o", LOG_GLOBAL, PR_MODE_TCP },  /* global option */
-	{ "Ci", LOG_CLIENTIP, PR_MODE_TCP },  /* client ip */
-	{ "Cp", LOG_CLIENTPORT, PR_MODE_TCP }, /* client port */
-	{ "t", LOG_DATE, PR_MODE_TCP },      /* date */
-	{ "T", LOG_DATEGMT, PR_MODE_TCP },   /* date GMT */
-	{ "ms", LOG_MS, PR_MODE_TCP },       /* accept date millisecond */
-	{ "f", LOG_FRONTEND, PR_MODE_TCP },  /* frontend */
-	{ "b", LOG_BACKEND, PR_MODE_TCP },   /* backend */
-	{ "s", LOG_SERVER, PR_MODE_TCP },    /* server */
-	{ "B", LOG_BYTES, PR_MODE_TCP },     /* bytes read */
-	{ "Tq", LOG_TQ, PR_MODE_HTTP },       /* Tq */
-	{ "Tw", LOG_TW, PR_MODE_TCP },       /* Tw */
-	{ "Tc", LOG_TC, PR_MODE_TCP },       /* Tc */
-	{ "Tr", LOG_TR, PR_MODE_HTTP },       /* Tr */
-	{ "Tt", LOG_TT, PR_MODE_TCP },       /* Tt */
-	{ "st", LOG_STATUS, PR_MODE_HTTP },   /* status code */
-	{ "cc", LOG_CCLIENT, PR_MODE_HTTP },  /* client cookie */
-	{ "cs", LOG_CSERVER, PR_MODE_HTTP },  /* server cookie */
-	{ "ts", LOG_TERMSTATE, PR_MODE_TCP },/* terminaison state */
-	{ "ac", LOG_ACTCONN, PR_MODE_TCP },  /* actconn */
-	{ "fc", LOG_FECONN, PR_MODE_TCP },   /* feconn */
-	{ "bc", LOG_BECONN, PR_MODE_TCP },   /* beconn */
-	{ "sc", LOG_SRVCONN, PR_MODE_TCP },  /* srv_conn */
-	{ "rc", LOG_RETRIES, PR_MODE_TCP },  /* retries */
-	{ "sq", LOG_SRVQUEUE, PR_MODE_TCP  }, /* srv_queue */
-	{ "bq", LOG_BCKQUEUE, PR_MODE_TCP }, /* backend_queue */
-	{ "hr", LOG_HDRREQUEST, PR_MODE_HTTP }, /* header request */
-	{ "hs", LOG_HDRRESPONS, PR_MODE_HTTP },  /* header response */
-	{ "hrl", LOG_HDRREQUESTLIST, PR_MODE_HTTP }, /* header request list */
-	{ "hsl", LOG_HDRRESPONSLIST, PR_MODE_HTTP },  /* header response list */
-	{ "r", LOG_REQ, PR_MODE_HTTP },  /* request */
-	{ 0, 0 }
+	{ "o", LOG_GLOBAL, PR_MODE_TCP, NULL },  /* global option */
+	{ "Ci", LOG_CLIENTIP, PR_MODE_TCP, NULL },  /* client ip */
+	{ "Cp", LOG_CLIENTPORT, PR_MODE_TCP, NULL }, /* client port */
+	{ "Bp", LOG_SOURCEPORT, PR_MODE_TCP, prepare_addrsource }, /* backend source port */
+	{ "Bi", LOG_SOURCEIP, PR_MODE_TCP, prepare_addrsource }, /* backend source ip */
+	{ "t", LOG_DATE, PR_MODE_TCP, NULL },      /* date */
+	{ "T", LOG_DATEGMT, PR_MODE_TCP, NULL },   /* date GMT */
+	{ "ms", LOG_MS, PR_MODE_TCP, NULL },       /* accept date millisecond */
+	{ "f", LOG_FRONTEND, PR_MODE_TCP, NULL },  /* frontend */
+	{ "b", LOG_BACKEND, PR_MODE_TCP, NULL },   /* backend */
+	{ "s", LOG_SERVER, PR_MODE_TCP, NULL },    /* server */
+	{ "B", LOG_BYTES, PR_MODE_TCP, NULL },     /* bytes read */
+	{ "Tq", LOG_TQ, PR_MODE_HTTP, NULL },       /* Tq */
+	{ "Tw", LOG_TW, PR_MODE_TCP, NULL },       /* Tw */
+	{ "Tc", LOG_TC, PR_MODE_TCP, NULL },       /* Tc */
+	{ "Tr", LOG_TR, PR_MODE_HTTP, NULL },       /* Tr */
+	{ "Tt", LOG_TT, PR_MODE_TCP, NULL },       /* Tt */
+	{ "st", LOG_STATUS, PR_MODE_HTTP, NULL },   /* status code */
+	{ "cc", LOG_CCLIENT, PR_MODE_HTTP, NULL },  /* client cookie */
+	{ "cs", LOG_CSERVER, PR_MODE_HTTP, NULL },  /* server cookie */
+	{ "ts", LOG_TERMSTATE, PR_MODE_TCP, NULL },/* terminaison state */
+	{ "ac", LOG_ACTCONN, PR_MODE_TCP, NULL },  /* actconn */
+	{ "fc", LOG_FECONN, PR_MODE_TCP, NULL },   /* feconn */
+	{ "bc", LOG_BECONN, PR_MODE_TCP, NULL },   /* beconn */
+	{ "sc", LOG_SRVCONN, PR_MODE_TCP, NULL },  /* srv_conn */
+	{ "rc", LOG_RETRIES, PR_MODE_TCP, NULL },  /* retries */
+	{ "sq", LOG_SRVQUEUE, PR_MODE_TCP, NULL  }, /* srv_queue */
+	{ "bq", LOG_BCKQUEUE, PR_MODE_TCP, NULL }, /* backend_queue */
+	{ "hr", LOG_HDRREQUEST, PR_MODE_HTTP, NULL }, /* header request */
+	{ "hs", LOG_HDRRESPONS, PR_MODE_HTTP, NULL },  /* header response */
+	{ "hrl", LOG_HDRREQUESTLIST, PR_MODE_HTTP, NULL }, /* header request list */
+	{ "hsl", LOG_HDRRESPONSLIST, PR_MODE_HTTP, NULL },  /* header response list */
+	{ "r", LOG_REQ, PR_MODE_HTTP, NULL },  /* request */
+	{ 0, 0, 0, NULL }
 };
 
 char default_http_log_format[] = "%Ci:%Cp [%t] %f %b/%s %Tq/%Tw/%Tc/%Tr/%Tt %st %B %cc %cs %ts %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r"; // default format
@@ -111,6 +116,17 @@ struct logformat_var_args var_args_list[] = {
 	{ "Q", LOG_OPT_QUOTE },
 	{  0,  0 }
 };
+
+/*
+ * callback used to configure addr source retrieval
+ */
+int prepare_addrsource(struct logformat_node *node, struct proxy *curproxy)
+{
+	curproxy->options2 |= PR_O2_SRC_ADDR;
+
+	return 0;
+}
+
 
 /*
  * Parse args in a logformat_var
@@ -201,6 +217,11 @@ int parse_logformat_var(char *str, size_t len, struct proxy *curproxy)
 							logformat_options = node->options;
 							free(node);
 						} else {
+							if (logformat_keywords[j].config_callback != NULL) {
+								if (logformat_keywords[j].config_callback(node, curproxy) != 0) {
+									return -1;
+								 }
+							}
 							LIST_ADDQ(&curproxy->logformat, &node->list);
 						}
 						return 0;
@@ -678,6 +699,7 @@ const char sess_set_cookie[8] = "NPDIRU67";	/* No set-cookie, Set-cookie found a
 void sess_log(struct session *s)
 {
 	char pn[INET6_ADDRSTRLEN];
+	char sn[INET6_ADDRSTRLEN];
 	struct proxy *fe = s->fe;
 	struct proxy *be = s->be;
 	struct proxy *prx_log;
@@ -706,6 +728,11 @@ void sess_log(struct session *s)
 
 	if (addr_to_str(&s->req->prod->addr.from, pn, sizeof(pn)) == AF_UNIX)
 		snprintf(pn, sizeof(pn), "unix:%d", s->listener->luid);
+
+	if (be->options2 & PR_O2_SRC_ADDR) {
+	      if (addr_to_str(&s->req->cons->addr.from, sn, sizeof(sn)) == AF_UNIX)
+		snprintf(sn, sizeof(sn), "unix:%d", s->listener->luid);
+	}
 
 	/* FIXME: let's limit ourselves to frontend logging for now. */
 	tolog = fe->to_log;
@@ -768,6 +795,23 @@ void sess_log(struct session *s)
 
 			case LOG_CLIENTPORT:  // %Cp
 				tmplog = ltoa_o((s->req->prod->addr.from.ss_family == AF_UNIX) ? s->listener->luid : get_host_port(&s->req->prod->addr.from),
+				                tmplog, MAX_SYSLOG_LEN - (tmplog - logline));
+				if (!tmplog)
+					goto out;
+				last_isspace = 0;
+				break;
+
+			case LOG_SOURCEIP:  // Bi
+				src = (s->req->cons->addr.from.ss_family == AF_UNIX) ? "unix" : sn;
+				tmplog = logformat_write_string(tmplog, src, MAX_SYSLOG_LEN - (tmplog - logline), tmp);
+
+				if (!tmplog)
+					goto out;
+				last_isspace = 0;
+				break;
+
+			case LOG_SOURCEPORT:  // %Bp
+				tmplog = ltoa_o((s->req->cons->addr.from.ss_family == AF_UNIX) ? s->listener->luid : get_host_port(&s->req->cons->addr.from),
 				                tmplog, MAX_SYSLOG_LEN - (tmplog - logline));
 				if (!tmplog)
 					goto out;
