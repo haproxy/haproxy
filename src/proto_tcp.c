@@ -1484,7 +1484,7 @@ pattern_fetch_payloadlv(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	for (i = 0; i < len_size; i++) {
-		buf_size = (buf_size << 8) + ((unsigned char *)b->w)[i + len_offset];
+		buf_size = (buf_size << 8) + ((unsigned char *)b->p)[i + len_offset];
 	}
 
 	if (!buf_size)
@@ -1494,7 +1494,7 @@ pattern_fetch_payloadlv(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	/* init chunk as read only */
-	chunk_initlen(&data->str, b->w + buf_offset, 0, buf_size);
+	chunk_initlen(&data->str, b->p + buf_offset, 0, buf_size);
 
 	return 1;
 }
@@ -1557,7 +1557,7 @@ pattern_fetch_payload(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	/* init chunk as read only */
-	chunk_initlen(&data->str, b->w + buf_offset, 0, buf_size);
+	chunk_initlen(&data->str, b->p + buf_offset, 0, buf_size);
 
 	return 1;
 }

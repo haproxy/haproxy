@@ -62,7 +62,7 @@ static inline void buffer_init(struct buffer *buf)
 	buf->analysers = 0;
 	buf->cons = NULL;
 	buf->flags = BF_OUT_EMPTY;
-	buf->r = buf->lr = buf->w = buf->data;
+	buf->r = buf->lr = buf->p = buf->data;
 }
 
 /*****************************************************************/
@@ -186,7 +186,7 @@ static inline int buffer_contig_space_res(const struct buffer *buf)
 	if (buffer_len(buf) >= spare)
 		spare = 0;
 	else if (buffer_len(buf)) {
-		spare = buf->w - res - buf->r;
+		spare = buffer_wrap_sub(buf, buf->p - buf->o) - res - buf->r;
 		if (spare <= 0)
 			spare += buf->size;
 		spare = buffer_contig_area(buf, buf->r, spare);
@@ -209,7 +209,7 @@ static inline int buffer_contig_space_with_res(const struct buffer *buf, int res
 	if (buffer_len(buf) >= spare)
 		spare = 0;
 	else if (buffer_len(buf)) {
-		spare = buf->w - res - buf->r;
+		spare = buffer_wrap_sub(buf, buf->p - buf->o) - res - buf->r;
 		if (spare <= 0)
 			spare += buf->size;
 		spare = buffer_contig_area(buf, buf->r, spare);
@@ -254,15 +254,15 @@ static inline int buffer_pending(const struct buffer *buf)
 /* Returns the size of the working area which the caller knows ends at <end>.
  * If <end> equals buf->r (modulo size), then it means that the free area which
  * follows is part of the working area. Otherwise, the working area stops at
- * <end>. It always starts at buf->w+o. The work area includes the
+ * <end>. It always starts at buf->p. The work area includes the
  * reserved area.
  */
 static inline int buffer_work_area(const struct buffer *buf, const char *end)
 {
 	end = buffer_pointer(buf, end);
 	if (end == buf->r) /* pointer exactly at end, lets push forwards */
-		end = buf->w;
-	return buffer_count(buf, buffer_pointer(buf, buf->w + buf->o), end);
+		end = buffer_wrap_sub(buf, buf->p - buf->o);
+	return buffer_count(buf, buf->p, end);
 }
 
 /* Return 1 if the buffer has less than 1/4 of its capacity free, otherwise 0 */
@@ -312,6 +312,7 @@ static inline void buffer_check_timeouts(struct buffer *b)
  */
 static inline void buffer_flush(struct buffer *buf)
 {
+	buf->p = buf->r;
 	buf->o += buf->i;
 	buf->i = 0;
 	if (buf->o)
@@ -327,7 +328,7 @@ static inline void buffer_erase(struct buffer *buf)
 	buf->o = 0;
 	buf->i = 0;
 	buf->to_forward = 0;
-	buf->r = buf->lr = buf->w = buf->data;
+	buf->r = buf->lr = buf->p = buf->data;
 	buf->flags &= ~(BF_FULL | BF_OUT_EMPTY);
 	if (!buf->pipe)
 		buf->flags |= BF_OUT_EMPTY;
@@ -348,7 +349,7 @@ static inline void buffer_cut_tail(struct buffer *buf)
 		return;
 
 	buf->i = 0;
-	buf->r = buf->w + buf->o;
+	buf->r = buf->p;
 	if (buf->r >= buf->data + buf->size)
 		buf->r -= buf->size;
 	buf->lr = buf->r;
@@ -364,9 +365,7 @@ static inline void buffer_cut_tail(struct buffer *buf)
 static inline void buffer_ignore(struct buffer *buf, int n)
 {
 	buf->i -= n;
-	buf->w += n;
-	if (buf->w >= buf->data + buf->size)
-		buf->w -= buf->size;
+	buf->p = buffer_wrap_add(buf, buf->p + n);
 	buf->flags &= ~BF_FULL;
 	if (buffer_len(buf) >= buffer_max_len(buf))
 		buf->flags |= BF_FULL;
@@ -457,7 +456,7 @@ static inline int buffer_realign(struct buffer *buf)
 {
 	if (!(buf->i | buf->o)) {
 		/* let's realign the buffer to optimize I/O */
-		buf->r = buf->w = buf->lr = buf->data;
+		buf->r = buf->p = buf->lr = buf->data;
 	}
 	return buffer_contig_space(buf);
 }
@@ -470,13 +469,9 @@ static inline int buffer_realign(struct buffer *buf)
  */
 static inline void buffer_skip(struct buffer *buf, int len)
 {
-	buf->w += len;
-	if (buf->w >= buf->data + buf->size)
-		buf->w -= buf->size; /* wrap around the buffer */
-
 	buf->o -= len;
 	if (buffer_len(buf) == 0)
-		buf->r = buf->w = buf->lr = buf->data;
+		buf->r = buf->p = buf->lr = buf->data;
 
 	if (buffer_len(buf) < buffer_max_len(buf))
 		buf->flags &= ~BF_FULL;
@@ -549,7 +544,7 @@ static inline int buffer_get_char(struct buffer *buf)
 			return -2;
 		return -1;
 	}
-	return *buf->w;
+	return *buffer_wrap_sub(buf, buf->p - buf->o);
 }
 
 

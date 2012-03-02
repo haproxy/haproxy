@@ -1297,9 +1297,8 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 			 * first if we need to remove some CRLF. We can only
 			 * do this when o=0.
 			 */
-			char *beg = buf->w + buf->o;
-			if (beg >= buf->data + buf->size)
-				beg -= buf->size;
+			char *beg = buf->p;
+
 			if (unlikely(ptr != beg)) {
 				if (buf->o)
 					goto http_msg_ood;
@@ -1366,9 +1365,8 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 			 * first if we need to remove some CRLF. We can only
 			 * do this when o=0.
 			 */
-			char *beg = buf->w + buf->o;
-			if (beg >= buf->data + buf->size)
-				beg -= buf->size;
+			char *beg = buf->p;
+
 			if (likely(ptr != beg)) {
 				if (buf->o)
 					goto http_msg_ood;
@@ -1963,10 +1961,11 @@ int http_skip_chunk_crlf(struct buffer *buf, struct http_msg *msg)
 	return 1;
 }
 
+/* This function may only be used when the buffer's o is empty */
 void http_buffer_heavy_realign(struct buffer *buf, struct http_msg *msg)
 {
 	char *end = buf->data + buf->size;
-	int off = buf->data + buf->size - buf->w;
+	int off = buf->data + buf->size - buf->p;
 
 	/* two possible cases :
 	 *   - the buffer is in one contiguous block, we move it in-place
@@ -1975,20 +1974,20 @@ void http_buffer_heavy_realign(struct buffer *buf, struct http_msg *msg)
 	if (buf->i) {
 		int block1 = buf->i;
 		int block2 = 0;
-		if (buf->r <= buf->w) {
+		if (buf->r <= buf->p) {
 			/* non-contiguous block */
-			block1 = buf->data + buf->size - buf->w;
+			block1 = buf->data + buf->size - buf->p;
 			block2 = buf->r - buf->data;
 		}
 		if (block2)
 			memcpy(swap_buffer, buf->data, block2);
-		memmove(buf->data, buf->w, block1);
+		memmove(buf->data, buf->p, block1);
 		if (block2)
 			memcpy(buf->data + block1, swap_buffer, block2);
 	}
 
 	/* adjust all known pointers */
-	buf->w    = buf->data;
+	buf->p = buf->data;
 	buf->lr  += off; if (buf->lr  >= end) buf->lr  -= buf->size;
 	buf->r   += off; if (buf->r   >= end) buf->r   -= buf->size;
 	msg->sol += off; if (msg->sol >= end) msg->sol -= buf->size;
@@ -3835,13 +3834,8 @@ void http_end_txn_clean_session(struct session *s)
 	buffer_auto_close(s->rep);
 
 	/* make ->lr point to the first non-forwarded byte */
-	s->req->lr = s->req->w + s->req->o;
-	if (s->req->lr >= s->req->data + s->req->size)
-		s->req->lr -= s->req->size;
-	s->rep->lr = s->rep->w + s->rep->o;
-	if (s->rep->lr >= s->rep->data + s->rep->size)
-		s->rep->lr -= s->req->size;
-
+	s->req->lr = s->req->p;
+	s->rep->lr = s->rep->p;
 	s->req->analysers = s->listener->analysers;
 	s->req->analysers &= ~AN_REQ_DECODE_PROXY;
 	s->rep->analysers = 0;
@@ -4267,10 +4261,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 			/* we want the CRLF after the data */
 			int ret;
 
-			req->lr = req->w + req->o;
-			if (req->lr >= req->data + req->size)
-				req->lr -= req->size;
-
+			req->lr = req->p;
 			ret = http_skip_chunk_crlf(req, msg);
 
 			if (ret == 0)
@@ -5331,10 +5322,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 			/* we want the CRLF after the data */
 			int ret;
 
-			res->lr = res->w + res->o;
-			if (res->lr >= res->data + res->size)
-				res->lr -= res->size;
-
+			res->lr = res->p;
 			ret = http_skip_chunk_crlf(res, msg);
 
 			if (!ret)
@@ -7458,9 +7446,7 @@ void http_reset_txn(struct session *s)
 	 */
 	if (unlikely(s->rep->i)) {
 		s->rep->i = 0;
-		s->rep->r = s->rep->w + s->rep->o;
-		if (s->rep->r >= s->rep->data + s->rep->size)
-			s->rep->r -= s->rep->size;
+		s->rep->r = s->rep->p;
 	}
 
 	s->req->rto = s->fe->timeout.client;

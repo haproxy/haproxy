@@ -123,7 +123,7 @@ acl_fetch_ssl_hello_type(struct proxy *px, struct session *l4, void *l7, int dir
 	b = ((dir & ACL_DIR_MASK) == ACL_DIR_RTR) ? l4->rep : l4->req;
 
 	bleft = b->i;
-	data = (const unsigned char *)b->w;
+	data = (const unsigned char *)b->p;
 
 	if (!bleft)
 		goto too_short;
@@ -191,7 +191,7 @@ acl_fetch_req_ssl_ver(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!bleft)
 		goto too_short;
 
-	data = (const unsigned char *)l4->req->w;
+	data = (const unsigned char *)l4->req->p;
 	if ((*data >= 0x14 && *data <= 0x17) || (*data == 0xFF)) {
 		/* SSLv3 header format */
 		if (bleft < 5)
@@ -259,8 +259,8 @@ acl_fetch_req_ssl_ver(struct proxy *px, struct session *l4, void *l7, int dir,
 	 * all the part of the request which fits in a buffer is already
 	 * there.
 	 */
-	if (msg_len > buffer_max_len(l4->req) + l4->req->data - l4->req->w)
-		msg_len = buffer_max_len(l4->req) + l4->req->data - l4->req->w;
+	if (msg_len > buffer_max_len(l4->req) + l4->req->data - l4->req->p)
+		msg_len = buffer_max_len(l4->req) + l4->req->data - l4->req->p;
 
 	if (bleft < msg_len)
 		goto too_short;
@@ -325,7 +325,7 @@ acl_fetch_ssl_hello_sni(struct proxy *px, struct session *l4, void *l7, int dir,
 	b = ((dir & ACL_DIR_MASK) == ACL_DIR_RTR) ? l4->rep : l4->req;
 
 	bleft = b->i;
-	data = (unsigned char *)b->w;
+	data = (unsigned char *)b->p;
 
 	/* Check for SSL/TLS Handshake */
 	if (!bleft)
@@ -463,7 +463,7 @@ acl_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (bleft <= 11)
 		goto too_short;
 
-	data = (const unsigned char *)l4->req->w + 11;
+	data = (const unsigned char *)l4->req->p + 11;
 	bleft -= 11;
 
 	if (bleft <= 7)

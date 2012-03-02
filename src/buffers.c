@@ -46,6 +46,7 @@ unsigned long long buffer_forward(struct buffer *buf, unsigned long long bytes)
 	if (!bytes)
 		return 0;
 	if (bytes <= (unsigned long long)buf->i) {
+		buf->p = buffer_wrap_add(buf, buf->p + bytes);
 		buf->o += bytes;
 		buf->i -= bytes;
 		buf->flags &= ~BF_OUT_EMPTY;
@@ -53,6 +54,7 @@ unsigned long long buffer_forward(struct buffer *buf, unsigned long long bytes)
 	}
 
 	forwarded = buf->i;
+	buf->p = buffer_wrap_add(buf, buf->p + forwarded);
 	buf->o += forwarded;
 	buf->i = 0;
 
@@ -118,10 +120,9 @@ int buffer_write(struct buffer *buf, const char *msg, int len)
 
 	memcpy(buf->r, msg, len);
 	buf->o += len;
-	buf->r += len;
+	buf->p = buffer_wrap_add(buf, buf->p + len);
+	buf->r = buffer_wrap_add(buf, buf->r + len);
 	buf->total += len;
-	if (buf->r == buf->data + buf->size)
-		buf->r = buf->data;
 
 	buf->flags &= ~(BF_OUT_EMPTY|BF_FULL);
 	if (buffer_len(buf) >= buffer_max_len(buf))
@@ -216,6 +217,7 @@ int buffer_put_block(struct buffer *buf, const char *blk, int len)
 		}
 		buf->o += fwd;
 		buf->i -= fwd;
+		buf->p = buffer_wrap_add(buf, buf->p + fwd);
 		buf->flags &= ~BF_OUT_EMPTY;
 	}
 
@@ -256,7 +258,7 @@ int buffer_get_line(struct buffer *buf, char *str, int len)
 		goto out;
 	}
 
-	p = buf->w;
+	p = buffer_wrap_sub(buf, buf->p - buf->o);
 
 	if (max > buf->o) {
 		max = buf->o;
@@ -269,9 +271,7 @@ int buffer_get_line(struct buffer *buf, char *str, int len)
 
 		if (*p == '\n')
 			break;
-		p++;
-		if (p == buf->data + buf->size)
-			p = buf->data;
+		p = buffer_wrap_add(buf, p + 1);
 	}
 	if (ret > 0 && ret < len && ret < buf->o &&
 	    *(str-1) != '\n' &&
@@ -304,14 +304,14 @@ int buffer_get_block(struct buffer *buf, char *blk, int len, int offset)
 		return 0;
 	}
 
-	firstblock = buf->data + buf->size - buf->w;
+	firstblock = buf->data + buf->size - buffer_wrap_sub(buf, buf->p - buf->o);
 	if (firstblock > offset) {
 		if (firstblock >= len + offset) {
-			memcpy(blk, buf->w + offset, len);
+			memcpy(blk, buffer_wrap_sub(buf, buf->p - buf->o) + offset, len);
 			return len;
 		}
 
-		memcpy(blk, buf->w + offset, firstblock - offset);
+		memcpy(blk, buffer_wrap_sub(buf, buf->p - buf->o) + offset, firstblock - offset);
 		memcpy(blk + firstblock - offset, buf->data, len - firstblock + offset);
 		return len;
 	}
@@ -338,7 +338,8 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int
 	if (delta + b->r >= b->data + b->size)
 		return 0;  /* no space left */
 
-	if (delta + b->r > b->w && b->w >= b->r && buffer_not_empty(b))
+	if (delta + b->r > buffer_wrap_sub(b, b->p - b->o) &&
+	    buffer_wrap_sub(b, b->p - b->o) >= b->r && buffer_not_empty(b))
 		return 0;  /* no space left before wrapping data */
 
 	/* first, protect the end of the buffer */
@@ -355,7 +356,7 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int
 
 	b->flags &= ~BF_FULL;
 	if (buffer_len(b) == 0)
-		b->r = b->w = b->lr = b->data;
+		b->r = b->p = b->lr = b->data;
 	if (buffer_len(b) >= buffer_max_len(b))
 		b->flags |= BF_FULL;
 
@@ -414,11 +415,11 @@ void buffer_bounce_realign(struct buffer *buf)
 	int advance, to_move;
 	char *from, *to;
 
-	advance = buf->data + buf->size - buf->w;
+	from = buffer_wrap_sub(buf, buf->p - buf->o);
+	advance = buf->data + buf->size - from;
 	if (!advance)
 		return;
 
-	from = buf->w;
 	to_move = buffer_len(buf);
 	while (to_move) {
 		char last, save;
@@ -576,8 +577,8 @@ int chunk_asciiencode(struct chunk *dst, struct chunk *src, char qc) {
 void buffer_dump(FILE *o, struct buffer *b, int from, int to)
 {
 	fprintf(o, "Dumping buffer %p\n", b);
-	fprintf(o, "  data=%p o=%d i=%d r=%p w=%p lr=%p\n",
-		b->data, b->o, b->i, b->r, b->w, b->lr);
+	fprintf(o, "  data=%p o=%d i=%d r=%p p=%p lr=%p\n",
+		b->data, b->o, b->i, b->r, b->p, b->lr);
 
 	if (!to || to > buffer_len(b))
 		to = buffer_len(b);

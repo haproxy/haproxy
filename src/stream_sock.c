@@ -282,9 +282,10 @@ int stream_sock_read(int fd) {
 		 */
 		if (buffer_empty(b)) {
 			/* let's realign the buffer to optimize I/O */
-			b->r = b->w = b->lr = b->data;
+			b->r = b->p = b->lr = b->data;
 		}
-		else if (b->r > b->w) {
+		else if (b->data + b->o < b->p &&
+			 b->p + b->i < b->data + b->size) {
 			/* remaining space wraps at the end, with a moving limit */
 			if (max > b->data + b->size - b->r)
 				max = b->data + b->size - b->r;
@@ -311,6 +312,7 @@ int stream_sock_read(int fd) {
 				}
 				b->o += fwd;
 				b->i -= fwd;
+				b->p = buffer_wrap_add(b, b->p + fwd);
 				b->flags &= ~BF_OUT_EMPTY;
 			}
 
@@ -598,14 +600,11 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 	 * data left, and that there are sendable buffered data.
 	 */
 	while (1) {
-		if (b->r > b->w)
-			max = b->r - b->w;
-		else
-			max = b->data + b->size - b->w;
+		max = b->o;
 
-		/* limit the amount of outgoing data if required */
-		if (max > b->o)
-			max = b->o;
+		/* outgoing data may wrap at the end */
+		if (b->data + max > b->p)
+			max = b->data + max - b->p;
 
 		/* check if we want to inform the kernel that we're interested in
 		 * sending more data after this call. We want this if :
@@ -633,7 +632,7 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 			if (b->flags & BF_SEND_DONTWAIT)
 				send_flag &= ~MSG_MORE;
 
-			ret = send(si->fd, b->w, max, send_flag);
+			ret = send(si->fd, buffer_wrap_sub(b, b->p - b->o), max, send_flag);
 		} else {
 			int skerr;
 			socklen_t lskerr = sizeof(skerr);
@@ -642,7 +641,7 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 			if (ret == -1 || skerr)
 				ret = -1;
 			else
-				ret = send(si->fd, b->w, max, MSG_DONTWAIT);
+				ret = send(si->fd, buffer_wrap_sub(b, b->p - b->o), max, MSG_DONTWAIT);
 		}
 
 		if (ret > 0) {
@@ -651,14 +650,10 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 
 			b->flags |= BF_WRITE_PARTIAL;
 
-			b->w += ret;
-			if (b->w == b->data + b->size)
-				b->w = b->data; /* wrap around the buffer */
-
 			b->o -= ret;
 			if (likely(!buffer_len(b)))
 				/* optimize data alignment in the buffer */
-				b->r = b->w = b->lr = b->data;
+				b->r = b->p = b->lr = b->data;
 
 			if (likely(buffer_len(b) < buffer_max_len(b)))
 				b->flags &= ~BF_FULL;
