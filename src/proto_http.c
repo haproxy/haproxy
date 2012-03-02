@@ -1279,7 +1279,7 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 
 	state = msg->msg_state;
 	ptr = buf->lr;
-	end = buf->r;
+	end = buffer_wrap_add(buf, buf->p + buf->i);
 
 	if (unlikely(ptr >= end))
 		goto http_msg_ood;
@@ -1753,6 +1753,7 @@ int http_parse_chunk_size(struct buffer *buf, struct http_msg *msg)
 {
 	char *ptr = buf->lr;
 	char *end = buf->data + buf->size;
+	char *stop = buffer_wrap_add(buf, buf->p + buf->i);
 	unsigned int chunk = 0;
 
 	/* The chunk size is in the following form, though we are only
@@ -1761,7 +1762,7 @@ int http_parse_chunk_size(struct buffer *buf, struct http_msg *msg)
 	 */
 	while (1) {
 		int c;
-		if (ptr == buf->r)
+		if (ptr == stop)
 			return 0;
 		c = hex2i(*ptr);
 		if (c < 0) /* not a hex digit anymore */
@@ -1780,7 +1781,7 @@ int http_parse_chunk_size(struct buffer *buf, struct http_msg *msg)
 	while (http_is_spht[(unsigned char)*ptr]) {
 		if (++ptr >= end)
 			ptr = buf->data;
-		if (ptr == buf->r)
+		if (ptr == stop)
 			return 0;
 	}
 
@@ -1793,7 +1794,7 @@ int http_parse_chunk_size(struct buffer *buf, struct http_msg *msg)
 			if (likely(*ptr == '\r')) {
 				if (++ptr >= end)
 					ptr = buf->data;
-				if (ptr == buf->r)
+				if (ptr == stop)
 					return 0;
 			}
 
@@ -1808,13 +1809,13 @@ int http_parse_chunk_size(struct buffer *buf, struct http_msg *msg)
 			/* chunk extension, ends at next CRLF */
 			if (++ptr >= end)
 				ptr = buf->data;
-			if (ptr == buf->r)
+			if (ptr == stop)
 				return 0;
 
 			while (!HTTP_IS_CRLF(*ptr)) {
 				if (++ptr >= end)
 					ptr = buf->data;
-				if (ptr == buf->r)
+				if (ptr == stop)
 					return 0;
 			}
 			/* we have a CRLF now, loop above */
@@ -1860,11 +1861,12 @@ int http_forward_trailers(struct buffer *buf, struct http_msg *msg)
 	while (1) {
 		char *p1 = NULL, *p2 = NULL;
 		char *ptr = buf->lr;
+		char *stop = buffer_wrap_add(buf, buf->p + buf->i);
 		int bytes;
 
 		/* scan current line and stop at LF or CRLF */
 		while (1) {
-			if (ptr == buf->r)
+			if (ptr == stop)
 				return 0;
 
 			if (*ptr == '\n') {
@@ -1974,10 +1976,10 @@ void http_buffer_heavy_realign(struct buffer *buf, struct http_msg *msg)
 	if (buf->i) {
 		int block1 = buf->i;
 		int block2 = 0;
-		if (buf->r <= buf->p) {
+		if (buf->p + buf->i > buf->data + buf->size) {
 			/* non-contiguous block */
 			block1 = buf->data + buf->size - buf->p;
-			block2 = buf->r - buf->data;
+			block2 = buf->p + buf->i - (buf->data + buf->size);
 		}
 		if (block2)
 			memcpy(swap_buffer, buf->data, block2);
@@ -1989,7 +1991,6 @@ void http_buffer_heavy_realign(struct buffer *buf, struct http_msg *msg)
 	/* adjust all known pointers */
 	buf->p = buf->data;
 	buf->lr  += off; if (buf->lr  >= end) buf->lr  -= buf->size;
-	buf->r   += off; if (buf->r   >= end) buf->r   -= buf->size;
 	msg->sol += off; if (msg->sol >= end) msg->sol -= buf->size;
 	msg->eol += off; if (msg->eol >= end) msg->eol -= buf->size;
 
@@ -2066,8 +2067,8 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	if (buffer_not_empty(req) && msg->msg_state < HTTP_MSG_ERROR) {
 		if ((txn->flags & TX_NOT_FIRST) &&
 		    unlikely((req->flags & BF_FULL) ||
-			     req->r < req->lr ||
-			     req->r > req->data + req->size - global.tune.maxrewrite)) {
+			     buffer_wrap_add(req, req->p + req->i) < req->lr ||
+			     buffer_wrap_add(req, req->p + req->i) > req->data + req->size - global.tune.maxrewrite)) {
 			if (req->o) {
 				if (req->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_WRITE_ERROR|BF_WRITE_TIMEOUT))
 					goto failed_keep_alive;
@@ -2076,7 +2077,8 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 				req->flags |= BF_READ_DONTWAIT; /* try to get back here ASAP */
 				return 0;
 			}
-			if (req->r < req->lr || req->r > req->data + req->size - global.tune.maxrewrite)
+			if (buffer_wrap_add(req, req->p + req->i) < req->lr ||
+			    buffer_wrap_add(req, req->p + req->i) > req->data + req->size - global.tune.maxrewrite)
 				http_buffer_heavy_realign(req, msg);
 		}
 
@@ -2089,8 +2091,8 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 		 */
 		if ((txn->flags & TX_NOT_FIRST) &&
 		    unlikely((s->rep->flags & BF_FULL) ||
-			     s->rep->r < s->rep->lr ||
-			     s->rep->r > s->rep->data + s->rep->size - global.tune.maxrewrite)) {
+			     buffer_wrap_add(s->rep, s->rep->p + s->rep->i) < s->rep->lr ||
+			     buffer_wrap_add(s->rep, s->rep->p + s->rep->i) > s->rep->data + s->rep->size - global.tune.maxrewrite)) {
 			if (s->rep->o) {
 				if (s->rep->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_WRITE_ERROR|BF_WRITE_TIMEOUT))
 					goto failed_keep_alive;
@@ -2102,7 +2104,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			}
 		}
 
-		if (likely(req->lr < req->r))
+		if (likely(req->lr < buffer_wrap_add(req, req->p + req->i)))
 			http_msg_analyzer(req, msg, &txn->hdr_idx);
 	}
 
@@ -2591,7 +2593,7 @@ int http_process_req_stat_post(struct stream_interface *si, struct http_txn *txn
 		si->applet.ctx.stats.st_code = STAT_STATUS_EXCD;
 		return 1;
 	}
-	else if (end_params > req->data + req->i) {
+	else if (end_params > req->p + req->i) {
 		/* we need more data */
 		si->applet.ctx.stats.st_code = STAT_STATUS_NONE;
 		return 0;
@@ -3823,7 +3825,7 @@ void http_end_txn_clean_session(struct session *s)
 	if (s->req->i) {
 		if (s->rep->o &&
 		    !(s->rep->flags & BF_FULL) &&
-		    s->rep->r <= s->rep->data + s->rep->size - global.tune.maxrewrite)
+		    buffer_wrap_add(s->rep, s->rep->p + s->rep->i) <= s->rep->data + s->rep->size - global.tune.maxrewrite)
 			s->rep->flags |= BF_EXPECT_MORE;
 	}
 
@@ -4483,8 +4485,8 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	 */
 	if (buffer_not_empty(rep) && msg->msg_state < HTTP_MSG_ERROR) {
 		if (unlikely((rep->flags & BF_FULL) ||
-			     rep->r < rep->lr ||
-			     rep->r > rep->data + rep->size - global.tune.maxrewrite)) {
+			     buffer_wrap_add(rep, rep->p + rep->i) < rep->lr ||
+			     buffer_wrap_add(rep, rep->p + rep->i) > rep->data + rep->size - global.tune.maxrewrite)) {
 			if (rep->o) {
 				/* some data has still not left the buffer, wake us once that's done */
 				if (rep->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_WRITE_ERROR|BF_WRITE_TIMEOUT))
@@ -4497,7 +4499,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 				http_buffer_heavy_realign(rep, msg);
 		}
 
-		if (likely(rep->lr < rep->r))
+		if (likely(rep->lr < buffer_wrap_add(rep, rep->p + rep->i)))
 			http_msg_analyzer(rep, msg, &txn->hdr_idx);
 	}
 
@@ -7231,15 +7233,15 @@ void http_capture_bad_message(struct error_snapshot *es, struct session *s,
                               struct buffer *buf, struct http_msg *msg,
 			      int state, struct proxy *other_end)
 {
-	if (buf->r <= (buf->data + msg->som)) { /* message wraps */
+	if (buffer_wrap_add(buf, buf->p + buf->i) <= (buf->data + msg->som)) { /* message wraps */
 		int len1 = buf->size - msg->som;
-		es->len = buf->r - (buf->data + msg->som) + buf->size;
+		es->len = buffer_wrap_add(buf, buf->p + buf->i) - (buf->data + msg->som) + buf->size;
 		memcpy(es->buf, buf->data + msg->som, MIN(len1, sizeof(es->buf)));
 		if (es->len > len1 && len1 < sizeof(es->buf))
 			memcpy(es->buf, buf->data, MIN(es->len, sizeof(es->buf)) - len1);
 	}
 	else {
-		es->len = buf->r - (buf->data + msg->som);
+		es->len = buffer_wrap_add(buf, buf->p + buf->i) - (buf->data + msg->som);
 		memcpy(es->buf, buf->data + msg->som, MIN(es->len, sizeof(es->buf)));
 	}
 
@@ -7444,10 +7446,8 @@ void http_reset_txn(struct session *s)
 	 * a HEAD with some data, or sending more than the advertised
 	 * content-length.
 	 */
-	if (unlikely(s->rep->i)) {
+	if (unlikely(s->rep->i))
 		s->rep->i = 0;
-		s->rep->r = s->rep->p;
-	}
 
 	s->req->rto = s->fe->timeout.client;
 	s->req->wto = TICK_ETERNITY;
@@ -8118,7 +8118,7 @@ acl_fetch_proto_http(struct proxy *px, struct session *s, void *l7, int dir,
 	}
 
 	/* Try to decode HTTP request */
-	if (likely(req->lr < req->r))
+	if (likely(req->lr < buffer_wrap_add(req, req->p + req->i)))
 		http_msg_analyzer(req, msg, &txn->hdr_idx);
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {

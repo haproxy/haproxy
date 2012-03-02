@@ -96,6 +96,8 @@ unsigned long long buffer_forward(struct buffer *buf, unsigned long long bytes)
  * success, -2 if the message is larger than the buffer size, or the number of
  * bytes available otherwise. The send limit is automatically adjusted with the
  * amount of data written. FIXME-20060521: handle unaligned data.
+ * Note: this function appends data to the buffer's output and possibly overwrites
+ * any pending input data which are assumed not to exist.
  */
 int buffer_write(struct buffer *buf, const char *msg, int len)
 {
@@ -118,10 +120,9 @@ int buffer_write(struct buffer *buf, const char *msg, int len)
 	if (len > max)
 		return max;
 
-	memcpy(buf->r, msg, len);
+	memcpy(buf->p, msg, len);
 	buf->o += len;
 	buf->p = buffer_wrap_add(buf, buf->p + len);
-	buf->r = buffer_wrap_add(buf, buf->r + len);
 	buf->total += len;
 
 	buf->flags &= ~(BF_OUT_EMPTY|BF_FULL);
@@ -146,16 +147,12 @@ int buffer_put_char(struct buffer *buf, char c)
 	if (buf->flags & BF_FULL)
 		return -1;
 
-	*buf->r = c;
+	*buffer_wrap_add(buf, buf->p + buf->i) = c;
 
 	buf->i++;
 	if (buffer_len(buf) >= buffer_max_len(buf))
 		buf->flags |= BF_FULL;
 	buf->flags |= BF_READ_PARTIAL;
-
-	buf->r++;
-	if (buf->r - buf->data == buf->size)
-		buf->r -= buf->size;
 
 	if (buf->to_forward >= 1) {
 		if (buf->to_forward != BUF_INFINITE_FORWARD)
@@ -201,12 +198,11 @@ int buffer_put_block(struct buffer *buf, const char *blk, int len)
 
 	/* OK so the data fits in the buffer in one or two blocks */
 	max = buffer_contig_space_with_res(buf, buf->size - max);
-	memcpy(buf->r, blk, MIN(len, max));
+	memcpy(buffer_wrap_add(buf, buf->p + buf->i), blk, MIN(len, max));
 	if (len > max)
 		memcpy(buf->data, blk + max, len - max);
 
 	buf->i += len;
-	buf->r += len;
 	buf->total += len;
 	if (buf->to_forward) {
 		unsigned long fwd = len;
@@ -220,9 +216,6 @@ int buffer_put_block(struct buffer *buf, const char *blk, int len)
 		buf->p = buffer_wrap_add(buf, buf->p + fwd);
 		buf->flags &= ~BF_OUT_EMPTY;
 	}
-
-	if (buf->r >= buf->data + buf->size)
-		buf->r -= buf->size;
 
 	buf->flags &= ~BF_FULL;
 	if (buffer_len(buf) >= buffer_max_len(buf))
@@ -335,28 +328,28 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int
 
 	delta = len - (end - pos);
 
-	if (delta + b->r >= b->data + b->size)
+	if (delta + buffer_wrap_add(b, b->p + b->i) >= b->data + b->size)
 		return 0;  /* no space left */
 
-	if (delta + b->r > buffer_wrap_sub(b, b->p - b->o) &&
-	    buffer_wrap_sub(b, b->p - b->o) >= b->r && buffer_not_empty(b))
+	if (buffer_not_empty(b) &&
+	    delta + buffer_wrap_add(b, b->p + b->i) > buffer_wrap_sub(b, b->p - b->o) &&
+	    buffer_wrap_sub(b, b->p - b->o) >= buffer_wrap_add(b, b->p + b->i))
 		return 0;  /* no space left before wrapping data */
 
 	/* first, protect the end of the buffer */
-	memmove(end + delta, end, b->r - end);
+	memmove(end + delta, end, buffer_wrap_add(b, b->p + b->i) - end);
 
 	/* now, copy str over pos */
 	if (len)
 		memcpy(pos, str, len);
 
 	/* we only move data after the displaced zone */
-	if (b->r  > pos) b->r  += delta;
 	if (b->lr > pos) b->lr += delta;
 	b->i += delta;
 
 	b->flags &= ~BF_FULL;
 	if (buffer_len(b) == 0)
-		b->r = b->p = b->lr = b->data;
+		b->p = b->lr = b->data;
 	if (buffer_len(b) >= buffer_max_len(b))
 		b->flags |= BF_FULL;
 
@@ -378,11 +371,11 @@ int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len)
 
 	delta = len + 2;
 
-	if (delta + b->r >= b->data + b->size)
+	if (delta + buffer_wrap_add(b, b->p + b->i) >= b->data + b->size)
 		return 0;  /* no space left */
 
 	/* first, protect the end of the buffer */
-	memmove(pos + delta, pos, b->r - pos);
+	memmove(pos + delta, pos, buffer_wrap_add(b, b->p + b->i) - pos);
 
 	/* now, copy str over pos */
 	if (len && str) {
@@ -392,7 +385,6 @@ int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len)
 	}
 
 	/* we only move data after the displaced zone */
-	if (b->r  > pos) b->r  += delta;
 	if (b->lr > pos) b->lr += delta;
 	b->i += delta;
 
@@ -445,11 +437,11 @@ void buffer_bounce_realign(struct buffer *buf)
 			 * empty area is either between buf->r and from or before from or
 			 * after buf->r.
 			 */
-			if (from > buf->r) {
-				if (to >= buf->r && to < from)
+			if (from > buffer_wrap_add(buf, buf->p + buf->i)) {
+				if (to >= buffer_wrap_add(buf, buf->p + buf->i) && to < from)
 					break;
-			} else if (from < buf->r) {
-				if (to < from || to >= buf->r)
+			} else if (from < buffer_wrap_add(buf, buf->p + buf->i)) {
+				if (to < from || to >= buffer_wrap_add(buf, buf->p + buf->i))
 					break;
 			}
 
@@ -577,8 +569,8 @@ int chunk_asciiencode(struct chunk *dst, struct chunk *src, char qc) {
 void buffer_dump(FILE *o, struct buffer *b, int from, int to)
 {
 	fprintf(o, "Dumping buffer %p\n", b);
-	fprintf(o, "  data=%p o=%d i=%d r=%p p=%p lr=%p\n",
-		b->data, b->o, b->i, b->r, b->p, b->lr);
+	fprintf(o, "  data=%p o=%d i=%d p=%p lr=%p\n",
+		b->data, b->o, b->i, b->p, b->lr);
 
 	if (!to || to > buffer_len(b))
 		to = buffer_len(b);

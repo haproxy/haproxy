@@ -62,7 +62,7 @@ static inline void buffer_init(struct buffer *buf)
 	buf->analysers = 0;
 	buf->cons = NULL;
 	buf->flags = BF_OUT_EMPTY;
-	buf->r = buf->lr = buf->p = buf->data;
+	buf->lr = buf->p = buf->data;
 }
 
 /*****************************************************************/
@@ -158,45 +158,25 @@ static inline int buffer_contig_area(const struct buffer *buf, const char *start
 }
 
 /* Return the amount of bytes that can be written into the buffer at once,
- * including reserved space which may be overwritten. This version is optimized
- * to reduce the amount of operations but it's not easy to understand as it is.
- * Drawing a buffer with wrapping data on a paper helps a lot.
+ * including reserved space which may be overwritten.
  */
 static inline int buffer_contig_space(const struct buffer *buf)
 {
-	int space_from_end = buffer_len(buf) - (buf->r - buf->data);
-	if (space_from_end < 0) /* data does not wrap */
-		space_from_end = buf->r - buf->data;
-	return buf->size - space_from_end;
+	const char *left, *right;
+
+	if (buf->data + buf->o <= buf->p)
+		right = buf->data + buf->size;
+	else
+		right = buf->p + buf->size - buf->o;
+
+	left = buffer_wrap_add(buf, buf->p + buf->i);
+	return right - left;
 }
+
 
 /* Return the amount of bytes that can be written into the buffer at once,
- * excluding reserved space, which is preserved. Same comment as above for
- * the optimization leading to hardly understandable code.
- */
-static inline int buffer_contig_space_res(const struct buffer *buf)
-{
-	/* Proceed differently if the buffer is full, partially used or empty.
-	 * The hard situation is when it's partially used and either data or
-	 * reserved space wraps at the end.
-	 */
-	int res = buffer_reserved(buf);
-	int spare = buf->size - res;
-
-	if (buffer_len(buf) >= spare)
-		spare = 0;
-	else if (buffer_len(buf)) {
-		spare = buffer_wrap_sub(buf, buf->p - buf->o) - res - buf->r;
-		if (spare <= 0)
-			spare += buf->size;
-		spare = buffer_contig_area(buf, buf->r, spare);
-	}
-	return spare;
-}
-
-/* Same as above, but lets the caller pass the pre-computed value of
- * buffer_reserved() in <res> if it already knows it, to save some
- * computations.
+ * excluding the amount of reserved space passed in <res>, which is
+ * preserved.
  */
 static inline int buffer_contig_space_with_res(const struct buffer *buf, int res)
 {
@@ -209,12 +189,20 @@ static inline int buffer_contig_space_with_res(const struct buffer *buf, int res
 	if (buffer_len(buf) >= spare)
 		spare = 0;
 	else if (buffer_len(buf)) {
-		spare = buffer_wrap_sub(buf, buf->p - buf->o) - res - buf->r;
-		if (spare <= 0)
-			spare += buf->size;
-		spare = buffer_contig_area(buf, buf->r, spare);
+		spare = buffer_contig_space(buf) - res;
+		if (spare < 0)
+			spare = 0;
 	}
 	return spare;
+}
+
+
+/* Return the amount of bytes that can be written into the buffer at once,
+ * excluding reserved space, which is preserved.
+ */
+static inline int buffer_contig_space_res(const struct buffer *buf)
+{
+	return buffer_contig_space_with_res(buf, buffer_reserved(buf));
 }
 
 /* Normalizes a pointer which is supposed to be relative to the beginning of a
@@ -260,7 +248,8 @@ static inline int buffer_pending(const struct buffer *buf)
 static inline int buffer_work_area(const struct buffer *buf, const char *end)
 {
 	end = buffer_pointer(buf, end);
-	if (end == buf->r) /* pointer exactly at end, lets push forwards */
+	if (end == buffer_wrap_add(buf, buf->p + buf->i))
+		/* pointer exactly at end, lets push forwards */
 		end = buffer_wrap_sub(buf, buf->p - buf->o);
 	return buffer_count(buf, buf->p, end);
 }
@@ -312,7 +301,7 @@ static inline void buffer_check_timeouts(struct buffer *b)
  */
 static inline void buffer_flush(struct buffer *buf)
 {
-	buf->p = buf->r;
+	buf->p = buffer_wrap_add(buf, buf->p + buf->i);
 	buf->o += buf->i;
 	buf->i = 0;
 	if (buf->o)
@@ -328,7 +317,7 @@ static inline void buffer_erase(struct buffer *buf)
 	buf->o = 0;
 	buf->i = 0;
 	buf->to_forward = 0;
-	buf->r = buf->lr = buf->p = buf->data;
+	buf->lr = buf->p = buf->data;
 	buf->flags &= ~(BF_FULL | BF_OUT_EMPTY);
 	if (!buf->pipe)
 		buf->flags |= BF_OUT_EMPTY;
@@ -349,10 +338,7 @@ static inline void buffer_cut_tail(struct buffer *buf)
 		return;
 
 	buf->i = 0;
-	buf->r = buf->p;
-	if (buf->r >= buf->data + buf->size)
-		buf->r -= buf->size;
-	buf->lr = buf->r;
+	buf->lr = buf->p;
 	buf->flags &= ~BF_FULL;
 	if (buffer_len(buf) >= buffer_max_len(buf))
 		buf->flags |= BF_FULL;
@@ -456,7 +442,7 @@ static inline int buffer_realign(struct buffer *buf)
 {
 	if (!(buf->i | buf->o)) {
 		/* let's realign the buffer to optimize I/O */
-		buf->r = buf->p = buf->lr = buf->data;
+		buf->p = buf->lr = buf->data;
 	}
 	return buffer_contig_space(buf);
 }
@@ -471,7 +457,7 @@ static inline void buffer_skip(struct buffer *buf, int len)
 {
 	buf->o -= len;
 	if (buffer_len(buf) == 0)
-		buf->r = buf->p = buf->lr = buf->data;
+		buf->p = buf->lr = buf->data;
 
 	if (buffer_len(buf) < buffer_max_len(buf))
 		buf->flags &= ~BF_FULL;

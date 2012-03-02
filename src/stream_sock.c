@@ -282,23 +282,22 @@ int stream_sock_read(int fd) {
 		 */
 		if (buffer_empty(b)) {
 			/* let's realign the buffer to optimize I/O */
-			b->r = b->p = b->lr = b->data;
+			b->p = b->lr = b->data;
 		}
 		else if (b->data + b->o < b->p &&
 			 b->p + b->i < b->data + b->size) {
 			/* remaining space wraps at the end, with a moving limit */
-			if (max > b->data + b->size - b->r)
-				max = b->data + b->size - b->r;
+			if (max > b->data + b->size - (b->p + b->i))
+				max = b->data + b->size - (b->p + b->i);
 		}
 		/* else max is already OK */
 
 		/*
 		 * 2. read the largest possible block
 		 */
-		ret = recv(fd, b->r, max, 0);
+		ret = recv(fd, buffer_wrap_add(b, b->p + b->i), max, 0);
 
 		if (ret > 0) {
-			b->r += ret;
 			b->i += ret;
 			cur_read += ret;
 
@@ -320,11 +319,6 @@ int stream_sock_read(int fd) {
 				fdtab[fd].state = FD_STREADY;
 
 			b->flags |= BF_READ_PARTIAL;
-
-			if (b->r == b->data + b->size) {
-				b->r = b->data; /* wrap around the buffer */
-			}
-
 			b->total += ret;
 
 			if (buffer_len(b) >= buffer_max_len(b)) {
@@ -653,7 +647,7 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 			b->o -= ret;
 			if (likely(!buffer_len(b)))
 				/* optimize data alignment in the buffer */
-				b->r = b->p = b->lr = b->data;
+				b->lr = b->p = b->data;
 
 			if (likely(buffer_len(b) < buffer_max_len(b)))
 				b->flags &= ~BF_FULL;
