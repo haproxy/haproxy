@@ -282,7 +282,7 @@ int stream_sock_read(int fd) {
 		 */
 		if (buffer_empty(b)) {
 			/* let's realign the buffer to optimize I/O */
-			b->p = b->lr = b->data;
+			b->p = b->data;
 		}
 		else if (b->data + b->o < b->p &&
 			 b->p + b->i < b->data + b->size) {
@@ -647,7 +647,7 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 			b->o -= ret;
 			if (likely(!buffer_len(b)))
 				/* optimize data alignment in the buffer */
-				b->lr = b->p = b->data;
+				b->p = b->data;
 
 			if (likely(buffer_len(b) < buffer_max_len(b)))
 				b->flags &= ~BF_FULL;

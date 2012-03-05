@@ -390,17 +390,17 @@ static void http_silent_debug(int line, struct session *s)
 {
 	int size = 0;
 	size += snprintf(trash + size, sizeof(trash) - size,
-			 "[%04d] req: p=%d(%d) s=%d bf=%08x an=%08x data=%p size=%d l=%d w=%p r=%p lr=%p sm=%d fw=%ld tf=%08x\n",
+			 "[%04d] req: p=%d(%d) s=%d bf=%08x an=%08x data=%p size=%d l=%d w=%p r=%p o=%p sm=%d fw=%ld tf=%08x\n",
 			 line,
 			 s->si[0].state, s->si[0].fd, s->txn.req.msg_state, s->req->flags, s->req->analysers,
-			 s->req->data, s->req->size, s->req->l, s->req->w, s->req->r, s->req->lr, s->req->o, s->req->to_forward, s->txn.flags);
+			 s->req->data, s->req->size, s->req->l, s->req->w, s->req->r, s->req->p, s->req->o, s->req->to_forward, s->txn.flags);
 	write(-1, trash, size);
 	size = 0;
 	size += snprintf(trash + size, sizeof(trash) - size,
-			 " %04d  rep: p=%d(%d) s=%d bf=%08x an=%08x data=%p size=%d l=%d w=%p r=%p lr=%p sm=%d fw=%ld\n",
+			 " %04d  rep: p=%d(%d) s=%d bf=%08x an=%08x data=%p size=%d l=%d w=%p r=%p o=%p sm=%d fw=%ld\n",
 			 line,
 			 s->si[1].state, s->si[1].fd, s->txn.rsp.msg_state, s->rep->flags, s->rep->analysers,
-			 s->rep->data, s->rep->size, s->rep->l, s->rep->w, s->rep->r, s->rep->lr, s->rep->o, s->rep->to_forward);
+			 s->rep->data, s->rep->size, s->rep->l, s->rep->w, s->rep->r, s->rep->p, s->rep->o, s->rep->to_forward);
 
 	write(-1, trash, size);
 }
@@ -951,8 +951,9 @@ void capture_headers(char *som, struct hdr_idx *idx,
  * labels and variable names. Note that msg->sol is left unchanged.
  */
 const char *http_parse_stsline(struct http_msg *msg, const char *msg_buf,
+			       const char *msg_start,
 			       unsigned int state, const char *ptr, const char *end,
-			       char **ret_ptr, unsigned int *ret_state)
+			       unsigned int *ret_ptr, unsigned int *ret_state)
 {
 	switch (state)	{
 	case HTTP_MSG_RPVER:
@@ -1035,7 +1036,7 @@ const char *http_parse_stsline(struct http_msg *msg, const char *msg_buf,
 	if (ret_state)
 		*ret_state = state;
 	if (ret_ptr)
-		*ret_ptr = (char *)ptr;
+		*ret_ptr = ptr - msg_start;
 	return NULL;
 }
 
@@ -1059,8 +1060,9 @@ const char *http_parse_stsline(struct http_msg *msg, const char *msg_buf,
  * labels and variable names. Note that msg->sol is left unchanged.
  */
 const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf,
+			       const char *msg_start,
 			       unsigned int state, const char *ptr, const char *end,
-			       char **ret_ptr, unsigned int *ret_state)
+			       unsigned int *ret_ptr, unsigned int *ret_state)
 {
 	switch (state)	{
 	case HTTP_MSG_RQMETH:
@@ -1177,7 +1179,7 @@ const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf,
 	if (ret_state)
 		*ret_state = state;
 	if (ret_ptr)
-		*ret_ptr = (char *)ptr;
+		*ret_ptr = ptr - msg_start;
 	return NULL;
 }
 
@@ -1278,7 +1280,7 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 	register char *ptr, *end; /* request pointers, to avoid dereferences */
 
 	state = msg->msg_state;
-	ptr = buf->lr;
+	ptr = buffer_wrap_add(buf, buf->p + msg->next);
 	end = buffer_wrap_add(buf, buf->p + buf->i);
 
 	if (unlikely(ptr >= end))
@@ -1332,8 +1334,9 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 	case HTTP_MSG_RPCODE:
 	case HTTP_MSG_RPCODE_SP:
 	case HTTP_MSG_RPREASON:
-		ptr = (char *)http_parse_stsline(msg, buf->data, state, ptr, end,
-						 &buf->lr, &msg->msg_state);
+		ptr = (char *)http_parse_stsline(msg, buf->data, buf->p,
+						 state, ptr, end,
+						 &msg->next, &msg->msg_state);
 		if (unlikely(!ptr))
 			return;
 
@@ -1402,8 +1405,9 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 	case HTTP_MSG_RQURI:
 	case HTTP_MSG_RQURI_SP:
 	case HTTP_MSG_RQVER:
-		ptr = (char *)http_parse_reqline(msg, buf->data, state, ptr, end,
-						 &buf->lr, &msg->msg_state);
+		ptr = (char *)http_parse_reqline(msg, buf->data, buf->p,
+						 state, ptr, end,
+						 &msg->next, &msg->msg_state);
 		if (unlikely(!ptr))
 			return;
 
@@ -1561,8 +1565,8 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 		/* Assumes msg->sol points to the first of either CR or LF */
 		EXPECT_LF_HERE(ptr, http_msg_invalid);
 		ptr++;
-		buf->lr = ptr;
-		msg->col = msg->sov = buf->lr - buf->data;
+		msg->next = ptr - buf->p;
+		msg->col = msg->sov = ptr - buf->data;
 		msg->eoh = msg->sol - buf->data;
 		msg->sol = buf->data + msg->som;
 		msg->msg_state = HTTP_MSG_BODY;
@@ -1581,13 +1585,13 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
  http_msg_ood:
 	/* out of data */
 	msg->msg_state = state;
-	buf->lr = ptr;
+	msg->next = ptr - buf->p;
 	return;
 
  http_msg_invalid:
 	/* invalid message */
 	msg->msg_state = HTTP_MSG_ERROR;
-	buf->lr = ptr;
+	msg->next = ptr - buf->p;
 	return;
 }
 
@@ -1616,7 +1620,7 @@ static int http_upgrade_v09_to_v10(struct buffer *req, struct http_msg *msg, str
 	delta = buffer_replace2(req, cur_end, cur_end, " HTTP/1.0\r\n", 11);
 	http_msg_move_end(msg, delta);
 	cur_end += delta;
-	cur_end = (char *)http_parse_reqline(msg, req->data,
+	cur_end = (char *)http_parse_reqline(msg, req->data, req->p,
 					     HTTP_MSG_RQMETH,
 					     msg->sol, cur_end + 1,
 					     NULL, NULL);
@@ -1741,7 +1745,7 @@ void http_change_connection_header(struct http_txn *txn, struct http_msg *msg, s
 	return;
 }
 
-/* Parse the chunk size at buf->lr. Once done, it adjusts ->lr to point to the
+/* Parse the chunk size at msg->next. Once done, it adjusts ->next to point to the
  * first byte of body, and increments msg->sov by the number of bytes parsed,
  * so that we know we can forward between ->som and ->sov. Note that due to
  * possible wrapping at the end of the buffer, it is possible that msg->sov is
@@ -1751,7 +1755,8 @@ void http_change_connection_header(struct http_txn *txn, struct http_msg *msg, s
  */
 int http_parse_chunk_size(struct buffer *buf, struct http_msg *msg)
 {
-	char *ptr = buf->lr;
+	char *ptr = buffer_wrap_add(buf, buf->p + msg->next);
+	char *ptr_old = ptr;
 	char *end = buf->data + buf->size;
 	char *stop = buffer_wrap_add(buf, buf->p + buf->i);
 	unsigned int chunk = 0;
@@ -1775,7 +1780,7 @@ int http_parse_chunk_size(struct buffer *buf, struct http_msg *msg)
 	}
 
 	/* empty size not allowed */
-	if (ptr == buf->lr)
+	if (ptr == ptr_old)
 		goto error;
 
 	while (http_is_spht[(unsigned char)*ptr]) {
@@ -1826,11 +1831,11 @@ int http_parse_chunk_size(struct buffer *buf, struct http_msg *msg)
 	}
 
 	/* OK we found our CRLF and now <ptr> points to the next byte,
-	 * which may or may not be present. We save that into ->lr and
+	 * which may or may not be present. We save that into ->next and
 	 * ->sov.
 	 */
-	msg->sov += ptr - buf->lr;
-	buf->lr = ptr;
+	msg->sov += ptr - ptr_old;
+	msg->next = buffer_count(buf, buf->p, ptr);
 	msg->chunk_len = chunk;
 	msg->body_len += chunk;
 	msg->msg_state = chunk ? HTTP_MSG_DATA : HTTP_MSG_TRAILERS;
@@ -1841,13 +1846,13 @@ int http_parse_chunk_size(struct buffer *buf, struct http_msg *msg)
 }
 
 /* This function skips trailers in the buffer <buf> associated with HTTP
- * message <msg>. The first visited position is buf->lr. If the end of
+ * message <msg>. The first visited position is msg->next. If the end of
  * the trailers is found, it is automatically scheduled to be forwarded,
  * msg->msg_state switches to HTTP_MSG_DONE, and the function returns >0.
  * If not enough data are available, the function does not change anything
- * except maybe buf->lr and msg->sov if it could parse some lines, and returns
+ * except maybe msg->next and msg->sov if it could parse some lines, and returns
  * zero. If a parse error is encountered, the function returns < 0 and does not
- * change anything except maybe buf->lr and msg->sov. Note that the message
+ * change anything except maybe msg->next and msg->sov. Note that the message
  * must already be in HTTP_MSG_TRAILERS state before calling this function,
  * which implies that all non-trailers data have already been scheduled for
  * forwarding, and that the difference between msg->som and msg->sov exactly
@@ -1857,10 +1862,10 @@ int http_parse_chunk_size(struct buffer *buf, struct http_msg *msg)
  */
 int http_forward_trailers(struct buffer *buf, struct http_msg *msg)
 {
-	/* we have buf->lr which points to next line. Look for CRLF. */
+	/* we have msg->next which points to next line. Look for CRLF. */
 	while (1) {
 		char *p1 = NULL, *p2 = NULL;
-		char *ptr = buf->lr;
+		char *ptr = buffer_wrap_add(buf, buf->p + msg->next);
 		char *stop = buffer_wrap_add(buf, buf->p + buf->i);
 		int bytes;
 
@@ -1894,7 +1899,7 @@ int http_forward_trailers(struct buffer *buf, struct http_msg *msg)
 		if (p2 >= buf->data + buf->size)
 			p2 = buf->data;
 
-		bytes = p2 - buf->lr;
+		bytes = p2 - buffer_wrap_add(buf, buf->p + msg->next);
 		if (bytes < 0)
 			bytes += buf->size;
 
@@ -1903,23 +1908,24 @@ int http_forward_trailers(struct buffer *buf, struct http_msg *msg)
 		if (msg->sov >= buf->size)
 			msg->sov -= buf->size;
 
-		if (p1 == buf->lr) {
+		if (p1 == buffer_wrap_add(buf, buf->p + msg->next)) {
 			/* LF/CRLF at beginning of line => end of trailers at p2.
 			 * Everything was scheduled for forwarding, there's nothing
 			 * left from this message.
 			 */
-			buf->lr = p2;
+			msg->next = buffer_count(buf, buf->p, p2);
 			msg->msg_state = HTTP_MSG_DONE;
 			return 1;
 		}
 		/* OK, next line then */
-		buf->lr = p2;
+		msg->next = buffer_count(buf, buf->p, p2);
 	}
 }
 
 /* This function may be called only in HTTP_MSG_DATA_CRLF. It reads the CRLF or
  * a possible LF alone at the end of a chunk. It automatically adjusts msg->sov,
- * ->som, buf->lr in order to include this part into the next forwarding phase.
+ * ->som, ->next in order to include this part into the next forwarding phase.
+ * Note that the caller must ensure that ->p points to the first byte to parse.
  * It also sets msg_state to HTTP_MSG_CHUNK_SIZE and returns >0 on success. If
  * not enough data are available, the function does not change anything and
  * returns zero. If a parse error is encountered, the function returns < 0 and
@@ -1936,7 +1942,7 @@ int http_skip_chunk_crlf(struct buffer *buf, struct http_msg *msg)
 	 * against the correct length.
 	 */
 	bytes = 1;
-	ptr = buf->lr;
+	ptr = buf->p;
 	if (*ptr == '\r') {
 		bytes++;
 		ptr++;
@@ -1955,7 +1961,7 @@ int http_skip_chunk_crlf(struct buffer *buf, struct http_msg *msg)
 	ptr++;
 	if (ptr >= buf->data + buf->size)
 		ptr = buf->data;
-	buf->lr = ptr;
+	msg->next = bytes;
 	/* prepare the CRLF to be forwarded. msg->som may be before data but we don't care */
 	msg->sov = ptr - buf->data;
 	msg->som = msg->sov - bytes;
@@ -1990,7 +1996,6 @@ void http_buffer_heavy_realign(struct buffer *buf, struct http_msg *msg)
 
 	/* adjust all known pointers */
 	buf->p = buf->data;
-	buf->lr  += off; if (buf->lr  >= end) buf->lr  -= buf->size;
 	msg->sol += off; if (msg->sol >= end) msg->sol -= buf->size;
 	msg->eol += off; if (msg->eol >= end) msg->eol -= buf->size;
 
@@ -2032,7 +2037,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	 *   req->data + msg->som  = beginning of request
 	 *   req->data + msg->eoh  = end of processed headers / start of current one
 	 *   msg->eol              = end of current header or line (LF or CRLF)
-	 *   req->lr = first non-visited byte
+	 *   msg->next = first non-visited byte
 	 *   req->r  = end of data
 	 *
 	 * At end of parsing, we may perform a capture of the error (if any), and
@@ -2067,7 +2072,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	if (buffer_not_empty(req) && msg->msg_state < HTTP_MSG_ERROR) {
 		if ((txn->flags & TX_NOT_FIRST) &&
 		    unlikely((req->flags & BF_FULL) ||
-			     buffer_wrap_add(req, req->p + req->i) < req->lr ||
+			     buffer_wrap_add(req, req->p + req->i) < buffer_wrap_add(req, req->p + msg->next) ||
 			     buffer_wrap_add(req, req->p + req->i) > req->data + req->size - global.tune.maxrewrite)) {
 			if (req->o) {
 				if (req->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_WRITE_ERROR|BF_WRITE_TIMEOUT))
@@ -2077,7 +2082,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 				req->flags |= BF_READ_DONTWAIT; /* try to get back here ASAP */
 				return 0;
 			}
-			if (buffer_wrap_add(req, req->p + req->i) < req->lr ||
+			if (buffer_wrap_add(req, req->p + req->i) < buffer_wrap_add(req, req->p + msg->next) ||
 			    buffer_wrap_add(req, req->p + req->i) > req->data + req->size - global.tune.maxrewrite)
 				http_buffer_heavy_realign(req, msg);
 		}
@@ -2091,7 +2096,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 		 */
 		if ((txn->flags & TX_NOT_FIRST) &&
 		    unlikely((s->rep->flags & BF_FULL) ||
-			     buffer_wrap_add(s->rep, s->rep->p + s->rep->i) < s->rep->lr ||
+			     buffer_wrap_add(s->rep, s->rep->p + s->rep->i) < buffer_wrap_add(s->rep, s->rep->p + txn->rsp.next) ||
 			     buffer_wrap_add(s->rep, s->rep->p + s->rep->i) > s->rep->data + s->rep->size - global.tune.maxrewrite)) {
 			if (s->rep->o) {
 				if (s->rep->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_WRITE_ERROR|BF_WRITE_TIMEOUT))
@@ -2104,7 +2109,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			}
 		}
 
-		if (likely(req->lr < buffer_wrap_add(req, req->p + req->i)))
+		if (likely(msg->next < req->i)) /* some unparsed data are available */
 			http_msg_analyzer(req, msg, &txn->hdr_idx);
 	}
 
@@ -2312,7 +2317,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	 * complete the request parsing by setting a few fields we will need
 	 * later. At this point, we have the last CRLF at req->data + msg->eoh.
 	 * If the request is in HTTP/0.9 form, the rule is still true, and eoh
-	 * points to the CRLF of the request line. req->lr points to the first
+	 * points to the CRLF of the request line. msg->next points to the first
 	 * byte after the last LF. msg->col and msg->sov point to the first
 	 * byte of data. msg->eol cannot be trusted because it may have been
 	 * left uninitialized (for instance in the absence of headers).
@@ -3589,10 +3594,11 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 	if (msg->msg_state < HTTP_MSG_CHUNK_SIZE) {
 		/* we have msg->col and msg->sov which both point to the first
 		 * byte of message body. msg->som still points to the beginning
-		 * of the message. We must save the body in req->lr because it
+		 * of the message. We must save the body in msg->next because it
 		 * survives buffer re-alignments.
 		 */
-		req->lr = req->data + msg->sov;
+		msg->next = buffer_count(req, req->p, req->data + msg->sov);
+
 		if (msg->flags & HTTP_MSGF_TE_CHNK)
 			msg->msg_state = HTTP_MSG_CHUNK_SIZE;
 		else
@@ -3601,7 +3607,7 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 
 	if (msg->msg_state == HTTP_MSG_CHUNK_SIZE) {
 		/* read the chunk size and assign it to ->chunk_len, then
-		 * set ->sov and ->lr to point to the body and switch to DATA or
+		 * set ->sov and ->next to point to the body and switch to DATA or
 		 * TRAILERS state.
 		 */
 		int ret = http_parse_chunk_size(req, msg);
@@ -3835,9 +3841,6 @@ void http_end_txn_clean_session(struct session *s)
 	buffer_auto_read(s->rep);
 	buffer_auto_close(s->rep);
 
-	/* make ->lr point to the first non-forwarded byte */
-	s->req->lr = s->req->p;
-	s->rep->lr = s->rep->p;
 	s->req->analysers = s->listener->analysers;
 	s->req->analysers &= ~AN_REQ_DECODE_PROXY;
 	s->rep->analysers = 0;
@@ -4206,10 +4209,11 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 	if (msg->msg_state < HTTP_MSG_CHUNK_SIZE) {
 		/* we have msg->col and msg->sov which both point to the first
 		 * byte of message body. msg->som still points to the beginning
-		 * of the message. We must save the body in req->lr because it
+		 * of the message. We must save the body in msg->next because it
 		 * survives buffer re-alignments.
 		 */
-		req->lr = req->data + msg->sov;
+		msg->next = buffer_count(req, req->p, req->data + msg->sov);
+
 		if (msg->flags & HTTP_MSGF_TE_CHNK)
 			msg->msg_state = HTTP_MSG_CHUNK_SIZE;
 		else {
@@ -4227,6 +4231,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 			msg->som = msg->sov;
 			if (likely(bytes < 0)) /* sov may have wrapped at the end */
 				bytes += req->size;
+			msg->next -= bytes; /* will be forwarded */
 			msg->chunk_len += (unsigned int)bytes;
 			msg->chunk_len -= buffer_forward(req, msg->chunk_len);
 		}
@@ -4244,7 +4249,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 		}
 		else if (msg->msg_state == HTTP_MSG_CHUNK_SIZE) {
 			/* read the chunk size and assign it to ->chunk_len, then
-			 * set ->sov and ->lr to point to the body and switch to DATA or
+			 * set ->sov and ->next to point to the body and switch to DATA or
 			 * TRAILERS state.
 			 */
 			int ret = http_parse_chunk_size(req, msg);
@@ -4263,7 +4268,6 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 			/* we want the CRLF after the data */
 			int ret;
 
-			req->lr = req->p;
 			ret = http_skip_chunk_crlf(req, msg);
 
 			if (ret == 0)
@@ -4473,7 +4477,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	 *   rep->data + msg->som  = beginning of response
 	 *   rep->data + msg->eoh  = end of processed headers / start of current one
 	 *   msg->eol              = end of current header or line (LF or CRLF)
-	 *   rep->lr = first non-visited byte
+	 *   msg->next = first non-visited byte
 	 *   rep->r  = end of data
 	 * Once we reach MSG_BODY, rep->sol = rep->data + msg->som
 	 */
@@ -4485,7 +4489,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	 */
 	if (buffer_not_empty(rep) && msg->msg_state < HTTP_MSG_ERROR) {
 		if (unlikely((rep->flags & BF_FULL) ||
-			     buffer_wrap_add(rep, rep->p + rep->i) < rep->lr ||
+			     buffer_wrap_add(rep, rep->p + rep->i) < buffer_wrap_add(rep, rep->p + msg->next) ||
 			     buffer_wrap_add(rep, rep->p + rep->i) > rep->data + rep->size - global.tune.maxrewrite)) {
 			if (rep->o) {
 				/* some data has still not left the buffer, wake us once that's done */
@@ -4499,7 +4503,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 				http_buffer_heavy_realign(rep, msg);
 		}
 
-		if (likely(rep->lr < buffer_wrap_add(rep, rep->p + rep->i)))
+		if (likely(msg->next < rep->i))
 			http_msg_analyzer(rep, msg, &txn->hdr_idx);
 	}
 
@@ -5044,7 +5048,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 		 */
 		if (unlikely(txn->status == 100)) {
 			hdr_idx_init(&txn->hdr_idx);
-			buffer_forward(rep, rep->lr - msg->sol);
+			msg->next -= buffer_forward(rep, rep->p + msg->next - msg->sol);
 			msg->msg_state = HTTP_MSG_RPBEFORE;
 			txn->status = 0;
 			rep->analysers |= AN_RES_WAIT_HTTP | an_bit;
@@ -5268,10 +5272,11 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	if (msg->msg_state < HTTP_MSG_CHUNK_SIZE) {
 		/* we have msg->col and msg->sov which both point to the first
 		 * byte of message body. msg->som still points to the beginning
-		 * of the message. We must save the body in req->lr because it
+		 * of the message. We must save the body in msg->next because it
 		 * survives buffer re-alignments.
 		 */
-		res->lr = res->data + msg->sov;
+		msg->next = buffer_count(res, res->p, res->data + msg->sov);
+
 		if (msg->flags & HTTP_MSGF_TE_CHNK)
 			msg->msg_state = HTTP_MSG_CHUNK_SIZE;
 		else {
@@ -5289,10 +5294,10 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 			msg->som = msg->sov;
 			if (likely(bytes < 0)) /* sov may have wrapped at the end */
 				bytes += res->size;
+			msg->next -= bytes; /* will be forwarded */
 			msg->chunk_len += (unsigned int)bytes;
 			msg->chunk_len -= buffer_forward(res, msg->chunk_len);
 		}
-
 
 		if (msg->msg_state == HTTP_MSG_DATA) {
 			/* must still forward */
@@ -5307,7 +5312,8 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 		}
 		else if (msg->msg_state == HTTP_MSG_CHUNK_SIZE) {
 			/* read the chunk size and assign it to ->chunk_len, then
-			 * set ->sov to point to the body and switch to DATA or TRAILERS state.
+			 * set ->sov and ->next to point to the body and switch to DATA or
+			 * TRAILERS state.
 			 */
 			int ret = http_parse_chunk_size(res, msg);
 
@@ -5324,7 +5330,6 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 			/* we want the CRLF after the data */
 			int ret;
 
-			res->lr = res->p;
 			ret = http_skip_chunk_crlf(res, msg);
 
 			if (!ret)
@@ -5402,6 +5407,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 		msg->som = msg->sov;
 		if (likely(bytes < 0)) /* sov may have wrapped at the end */
 			bytes += res->size;
+		msg->next -= bytes; /* will be forwarded */
 		msg->chunk_len += (unsigned int)bytes;
 		msg->chunk_len -= buffer_forward(res, msg->chunk_len);
 	}
@@ -5698,7 +5704,7 @@ int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_e
 
 			http_msg_move_end(&txn->req, delta);
 			cur_end += delta;
-			cur_end = (char *)http_parse_reqline(&txn->req, req->data,
+			cur_end = (char *)http_parse_reqline(&txn->req, req->data, req->p,
 							     HTTP_MSG_RQMETH,
 							     cur_ptr, cur_end + 1,
 							     NULL, NULL);
@@ -6537,7 +6543,7 @@ int apply_filter_to_sts_line(struct session *t, struct buffer *rtr, struct hdr_e
 
 			http_msg_move_end(&txn->rsp, delta);
 			cur_end += delta;
-			cur_end = (char *)http_parse_stsline(&txn->rsp, rtr->data,
+			cur_end = (char *)http_parse_stsline(&txn->rsp, rtr->data, rtr->p,
 							     HTTP_MSG_RPVER,
 							     cur_ptr, cur_end + 1,
 							     NULL, NULL);
@@ -7247,10 +7253,10 @@ void http_capture_bad_message(struct error_snapshot *es, struct session *s,
 
 	if (msg->err_pos >= 0)
 		es->pos  = msg->err_pos - msg->som;
-	else if (buf->lr >= (buf->data + msg->som))
-		es->pos  = buf->lr - (buf->data + msg->som);
+	else if (buffer_wrap_add(buf, buf->p + msg->next) >= (buf->data + msg->som))
+		es->pos  = buffer_wrap_add(buf, buf->p + msg->next) - (buf->data + msg->som);
 	else
-		es->pos  = buf->lr - (buf->data + msg->som) + buf->size;
+		es->pos  = buffer_wrap_add(buf, buf->p + msg->next) - (buf->data + msg->som) + buf->size;
 
 	es->when = date; // user-visible date
 	es->sid  = s->uniq_id;
@@ -7361,9 +7367,11 @@ void http_init_txn(struct session *s)
 	txn->req.flags = 0;
 	txn->req.sol = txn->req.eol = NULL;
 	txn->req.som = txn->req.eoh = 0; /* relative to the buffer */
+	txn->req.next = 0;
 	txn->rsp.flags = 0;
 	txn->rsp.sol = txn->rsp.eol = NULL;
 	txn->rsp.som = txn->rsp.eoh = 0; /* relative to the buffer */
+	txn->rsp.next = 0;
 	txn->req.chunk_len = 0LL;
 	txn->req.body_len = 0LL;
 	txn->rsp.chunk_len = 0LL;
@@ -8118,7 +8126,7 @@ acl_fetch_proto_http(struct proxy *px, struct session *s, void *l7, int dir,
 	}
 
 	/* Try to decode HTTP request */
-	if (likely(req->lr < buffer_wrap_add(req, req->p + req->i)))
+	if (likely(msg->next < req->i))
 		http_msg_analyzer(req, msg, &txn->hdr_idx);
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {

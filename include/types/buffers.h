@@ -180,7 +180,6 @@ struct buffer {
 	int wex;                        /* expiration date for a write or connect, in ticks */
 	int rto;                        /* read timeout, in ticks */
 	int wto;                        /* write timeout, in ticks */
-	char *lr;                       /* last read read */
 	char *p;                        /* buffer's start pointer, separates in and out data */
 	unsigned int size;              /* buffer size in bytes */
 	unsigned int i;                 /* number of input bytes pending for analysis in the buffer */

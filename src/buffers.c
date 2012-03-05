@@ -315,12 +315,13 @@ int buffer_get_block(struct buffer *buf, char *blk, int len, int offset)
 
 /* This function writes the string <str> at position <pos> which must be in
  * buffer <b>, and moves <end> just after the end of <str>. <b>'s parameters
- * (l, r, lr) are updated to be valid after the shift. the shift value
+ * <l> and <r> are updated to be valid after the shift. The shift value
  * (positive or negative) is returned. If there's no space left, the move is
- * not done. The function does not adjust ->o nor BF_OUT_EMPTY because
- * it does not make sense to use it on data scheduled to be sent. The string
- * length is taken from parameter <len>. If <len> is null, the <str> pointer
- * is allowed to be null.
+ * not done. The function does not adjust ->o nor BF_OUT_EMPTY because it
+ * does not make sense to use it on data scheduled to be sent. For the same
+ * reason, it does not make sense to call this function on unparsed data, so
+ * <orig> is not updated. The string length is taken from parameter <len>. If
+ * <len> is null, the <str> pointer is allowed to be null.
  */
 int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int len)
 {
@@ -343,13 +344,11 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int
 	if (len)
 		memcpy(pos, str, len);
 
-	/* we only move data after the displaced zone */
-	if (b->lr > pos) b->lr += delta;
 	b->i += delta;
 
 	b->flags &= ~BF_FULL;
 	if (buffer_len(b) == 0)
-		b->p = b->lr = b->data;
+		b->p = b->data;
 	if (buffer_len(b) >= buffer_max_len(b))
 		b->flags |= BF_FULL;
 
@@ -361,7 +360,8 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int
  * argument informs about the length of string <str> so that we don't have to
  * measure it. It does not include the "\r\n". If <str> is NULL, then the buffer
  * is only opened for len+2 bytes but nothing is copied in. It may be useful in
- * some circumstances. The send limit is *not* adjusted.
+ * some circumstances. The send limit is *not* adjusted. Same comments as above
+ * for the valid use cases.
  *
  * The number of bytes added is returned on success. 0 is returned on failure.
  */
@@ -384,8 +384,6 @@ int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len)
 		pos[len + 1] = '\n';
 	}
 
-	/* we only move data after the displaced zone */
-	if (b->lr > pos) b->lr += delta;
 	b->i += delta;
 
 	b->flags &= ~BF_FULL;
@@ -569,8 +567,8 @@ int chunk_asciiencode(struct chunk *dst, struct chunk *src, char qc) {
 void buffer_dump(FILE *o, struct buffer *b, int from, int to)
 {
 	fprintf(o, "Dumping buffer %p\n", b);
-	fprintf(o, "  data=%p o=%d i=%d p=%p lr=%p\n",
-		b->data, b->o, b->i, b->p, b->lr);
+	fprintf(o, "  data=%p o=%d i=%d p=%p\n",
+		b->data, b->o, b->i, b->p);
 
 	if (!to || to > buffer_len(b))
 		to = buffer_len(b);

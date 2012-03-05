@@ -62,7 +62,7 @@ static inline void buffer_init(struct buffer *buf)
 	buf->analysers = 0;
 	buf->cons = NULL;
 	buf->flags = BF_OUT_EMPTY;
-	buf->lr = buf->p = buf->data;
+	buf->p = buf->data;
 }
 
 /*****************************************************************/
@@ -317,7 +317,7 @@ static inline void buffer_erase(struct buffer *buf)
 	buf->o = 0;
 	buf->i = 0;
 	buf->to_forward = 0;
-	buf->lr = buf->p = buf->data;
+	buf->p = buf->data;
 	buf->flags &= ~(BF_FULL | BF_OUT_EMPTY);
 	if (!buf->pipe)
 		buf->flags |= BF_OUT_EMPTY;
@@ -338,7 +338,6 @@ static inline void buffer_cut_tail(struct buffer *buf)
 		return;
 
 	buf->i = 0;
-	buf->lr = buf->p;
 	buf->flags &= ~BF_FULL;
 	if (buffer_len(buf) >= buffer_max_len(buf))
 		buf->flags |= BF_FULL;
@@ -442,7 +441,7 @@ static inline int buffer_realign(struct buffer *buf)
 {
 	if (!(buf->i | buf->o)) {
 		/* let's realign the buffer to optimize I/O */
-		buf->p = buf->lr = buf->data;
+		buf->p = buf->data;
 	}
 	return buffer_contig_space(buf);
 }
@@ -457,7 +456,7 @@ static inline void buffer_skip(struct buffer *buf, int len)
 {
 	buf->o -= len;
 	if (buffer_len(buf) == 0)
-		buf->p = buf->lr = buf->data;
+		buf->p = buf->data;
 
 	if (buffer_len(buf) < buffer_max_len(buf))
 		buf->flags &= ~BF_FULL;

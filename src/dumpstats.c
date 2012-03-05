@@ -3389,13 +3389,13 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 
 		chunk_printf(&msg,
 			     " wex=%s\n"
-			     "      data=%p p=%d lr=%d total=%lld\n",
+			     "      data=%p p=%d next=%d total=%lld\n",
 			     sess->req->wex ?
 			     human_time(TICKS_TO_MS(sess->req->wex - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>",
 			     sess->req->data,
 			     (int)(sess->req->p - sess->req->data),
-			     (int)(sess->req->lr - sess->req->data),
+			     sess->txn.req.next,
 			     sess->req->total);
 
 		chunk_printf(&msg,
@@ -3418,13 +3418,13 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 
 		chunk_printf(&msg,
 			     " wex=%s\n"
-			     "      data=%p p=%d lr=%d total=%lld\n",
+			     "      data=%p p=%d next=%d total=%lld\n",
 			     sess->rep->wex ?
 			     human_time(TICKS_TO_MS(sess->rep->wex - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>",
 			     sess->rep->data,
 			     (int)(sess->rep->p - sess->rep->data),
-			     (int)(sess->rep->lr - sess->rep->data),
+			     sess->txn.rsp.next,
 			     sess->rep->total);
 
 		if (buffer_feed_chunk(si->ib, &msg) >= 0)
