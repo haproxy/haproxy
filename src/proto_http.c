@@ -4684,9 +4684,13 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 	/* We know that more data are expected, but we couldn't send more that
 	 * what we did. So we always set the BF_EXPECT_MORE flag so that the
 	 * system knows it must not set a PUSH on this first part. Interactive
-	 * modes are already handled by the stream sock layer.
+	 * modes are already handled by the stream sock layer. We must not do
+	 * this in content-length mode because it could present the MSG_MORE
+	 * flag with the last block of forwarded data, which would cause an
+	 * additional delay to be observed by the receiver.
 	 */
-	req->flags |= BF_EXPECT_MORE;
+	if (txn->flags & TX_REQ_TE_CHNK)
+		req->flags |= BF_EXPECT_MORE;
 
 	http_silent_debug(__LINE__, s);
 	return 0;
@@ -5731,9 +5735,13 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	/* We know that more data are expected, but we couldn't send more that
 	 * what we did. So we always set the BF_EXPECT_MORE flag so that the
 	 * system knows it must not set a PUSH on this first part. Interactive
-	 * modes are already handled by the stream sock layer.
+	 * modes are already handled by the stream sock layer. We must not do
+	 * this in content-length mode because it could present the MSG_MORE
+	 * flag with the last block of forwarded data, which would cause an
+	 * additional delay to be observed by the receiver.
 	 */
-	res->flags |= BF_EXPECT_MORE;
+	if (txn->flags & TX_RES_TE_CHNK)
+		res->flags |= BF_EXPECT_MORE;
 
 	/* the session handler will take care of timeouts and errors */
 	http_silent_debug(__LINE__, s);
