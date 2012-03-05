@@ -1495,7 +1495,7 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 			goto http_msg_hdr_l1_sp;
 		}
 		/* we had a header consisting only in spaces ! */
-		msg->eol = buf->p + msg->sov;
+		msg->eol = msg->sov;
 		goto http_msg_complete_header;
 		
 	case HTTP_MSG_HDR_VAL:
@@ -1506,7 +1506,7 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 		if (likely(!HTTP_IS_CRLF(*ptr)))
 			EAT_AND_JUMP_OR_RETURN(http_msg_hdr_val, HTTP_MSG_HDR_VAL);
 
-		msg->eol = ptr;
+		msg->eol = ptr - buf->p;
 		/* Note: we could also copy eol into ->eoh so that we have the
 		 * real header end in case it ends with lots of LWS, but is this
 		 * really needed ?
@@ -1524,8 +1524,8 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 	http_msg_hdr_l2_lws:
 		if (unlikely(HTTP_IS_SPHT(*ptr))) {
 			/* LWS: replace HT,CR,LF with spaces */
-			for (; msg->eol < ptr; msg->eol++)
-				*msg->eol = ' ';
+			for (; buf->p + msg->eol < ptr; msg->eol++)
+				buf->p[msg->eol] = ' ';
 			goto http_msg_hdr_val;
 		}
 	http_msg_complete_header:
@@ -1536,13 +1536,7 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 		 * first CR or LF so we know how the line ends. We insert last
 		 * header into the index.
 		 */
-		/*
-		  fprintf(stderr,"registering %-2d bytes : ", msg->eol - msg->sol);
-		  write(2, msg->sol, msg->eol-msg->sol);
-		  fprintf(stderr,"\n");
-		*/
-
-		if (unlikely(hdr_idx_add(msg->eol - msg->sol, *msg->eol == '\r',
+		if (unlikely(hdr_idx_add((msg->eol + buf->p) - msg->sol, buf->p[msg->eol] == '\r',
 					 idx, idx->tail) < 0))
 			goto http_msg_invalid;
 
@@ -1990,7 +1984,6 @@ void http_buffer_heavy_realign(struct buffer *buf, struct http_msg *msg)
 	/* adjust all known pointers */
 	buf->p = buf->data;
 	msg->sol += off; if (msg->sol >= end) msg->sol -= buf->size;
-	msg->eol += off; if (msg->eol >= end) msg->eol -= buf->size;
 
 	if (msg->err_pos >= 0) {
 		msg->err_pos += off;
@@ -7347,12 +7340,12 @@ void http_init_txn(struct session *s)
 	txn->cookie_last_date = 0;
 
 	txn->req.flags = 0;
-	txn->req.sol = txn->req.eol = NULL;
-	txn->req.som = txn->req.eoh = 0; /* relative to the buffer */
+	txn->req.sol = NULL;
+	txn->req.eol = txn->req.som = txn->req.eoh = 0; /* relative to the buffer */
 	txn->req.next = 0;
 	txn->rsp.flags = 0;
-	txn->rsp.sol = txn->rsp.eol = NULL;
-	txn->rsp.som = txn->rsp.eoh = 0; /* relative to the buffer */
+	txn->rsp.sol = NULL;
+	txn->rsp.eol = txn->rsp.som = txn->rsp.eoh = 0; /* relative to the buffer */
 	txn->rsp.next = 0;
 	txn->req.chunk_len = 0LL;
 	txn->req.body_len = 0LL;
