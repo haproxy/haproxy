@@ -286,20 +286,23 @@ enum {
  *  - som (Start of Message) : relative offset in the buffer of first byte of
  *                             the request being processed or parsed. Reset to
  *                             zero during accept(), and changes while parsing
- *                             chunks.
+ *                             chunks (considered as messages). Relative to
+ *                             buffer origin (->p), may cause wrapping.
  *  - eoh (End of Headers)   : relative offset in the buffer of first byte that
  *                             is not part of a completely processed header.
  *                             During parsing, it points to last header seen
  *                             for states after START. When in HTTP_MSG_BODY,
  *                             eoh points to the first byte of the last CRLF
- *                             preceeding data.
+ *                             preceeding data. Relative to buffer's origin.
  *  - col and sov            : When in HTTP_MSG_BODY, will point to the first
- *                             byte of data (relative to buffer).
+ *                             byte of data (relative to buffer's origin).
  *  - sol (start of line)    : start of line, also start of message when fully parsed.
  *  - eol (End of Line)      : relative offset in the buffer of the first byte
  *                             which marks the end of the line (LF or CRLF).
- * Note that all offsets are relative to the beginning of the buffer. To get
- * them relative to the current request, subtract ->som or ->sol.
+ * Note that all offsets are relative to the origin of the buffer (buf->p)
+ * which always points to the beginning of the message (request or response).
+ * Since a message may not wrap, pointer computations may be one without any
+ * care for wrapping (no addition overflow nor subtract underflow).
  */
 struct http_msg {
 	unsigned int msg_state;                /* where we are in the current message parsing */
@@ -309,7 +312,7 @@ struct http_msg {
 	unsigned int eoh;                      /* End Of Headers, relative to buffer */
 	char *sol;                             /* start of line, also start of message when fully parsed */
 	char *eol;                             /* end of line */
-	unsigned int som;                      /* Start Of Message, relative to buffer */
+	unsigned int som;                      /* Start Of Message, relative to buffer's origin */
 	int err_pos;                           /* err handling: -2=block, -1=pass, 0+=detected */
 	union {                                /* useful start line pointers, relative to ->sol */
 		struct {

@@ -254,7 +254,7 @@ struct server *get_server_ph_post(struct session *s)
 	struct proxy    *px   = s->be;
 	unsigned int     plen = px->url_param_len;
 	unsigned long    len  = msg->body_len;
-	const char      *params = req->data + msg->sov;
+	const char      *params = req->p + msg->sov;
 	const char      *p    = params;
 
 	if (len > req->i - (msg->sov - msg->som))
