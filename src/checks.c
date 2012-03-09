@@ -444,6 +444,7 @@ void set_server_up(struct server *s) {
 	struct server *srv;
 	struct chunk msg;
 	int xferred;
+	unsigned int old_state = s->state;
 
 	if (s->state & SRV_MAINTAIN) {
 		s->health = s->rise;
@@ -461,6 +462,7 @@ void set_server_up(struct server *s) {
 
 		s->last_change = now.tv_sec;
 		s->state |= SRV_RUNNING;
+		s->state &= ~SRV_MAINTAIN;
 
 		if (s->slowstart > 0) {
 			s->state |= SRV_WARMINGUP;
@@ -483,7 +485,7 @@ void set_server_up(struct server *s) {
 
 		chunk_init(&msg, trash, sizeof(trash));
 
-		if (s->state & SRV_MAINTAIN) {
+		if (old_state & SRV_MAINTAIN) {
 			chunk_printf(&msg,
 				"%sServer %s/%s is UP (leaving maintenance)", s->state & SRV_BACKUP ? "Backup " : "",
 				s->proxy->id, s->id);
@@ -505,8 +507,6 @@ void set_server_up(struct server *s) {
 				if (! (srv->state & SRV_MAINTAIN))
 					/* Only notify tracking servers if they're not in maintenance. */
 					set_server_up(srv);
-
-		s->state &= ~SRV_MAINTAIN;
 	}
 
 	if (s->health >= s->rise)
