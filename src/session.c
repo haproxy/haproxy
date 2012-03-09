@@ -217,22 +217,6 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	if (unlikely(fcntl(cfd, F_SETFL, O_NONBLOCK) == -1))
 		goto out_free_task;
 
-	txn = &s->txn;
-	/* Those variables will be checked and freed if non-NULL in
-	 * session.c:session_free(). It is important that they are
-	 * properly initialized.
-	 */
-	txn->sessid = NULL;
-	txn->srv_cookie = NULL;
-	txn->cli_cookie = NULL;
-	txn->uri = NULL;
-	txn->req.cap = NULL;
-	txn->rsp.cap = NULL;
-	txn->hdr_idx.v = NULL;
-	txn->hdr_idx.size = txn->hdr_idx.used = 0;
-	txn->req.flags = 0;
-	txn->rsp.flags = 0;
-
 	if (unlikely((s->req = pool_alloc2(pool2_buffer)) == NULL))
 		goto out_free_task; /* no memory */
 
@@ -274,6 +258,25 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->rep->rex = TICK_ETERNITY;
 	s->rep->wex = TICK_ETERNITY;
 	s->rep->analyse_exp = TICK_ETERNITY;
+
+	txn = &s->txn;
+	/* Those variables will be checked and freed if non-NULL in
+	 * session.c:session_free(). It is important that they are
+	 * properly initialized.
+	 */
+	txn->sessid = NULL;
+	txn->srv_cookie = NULL;
+	txn->cli_cookie = NULL;
+	txn->uri = NULL;
+	txn->req.cap = NULL;
+	txn->rsp.cap = NULL;
+	txn->hdr_idx.v = NULL;
+	txn->hdr_idx.size = txn->hdr_idx.used = 0;
+	txn->req.flags = 0;
+	txn->rsp.flags = 0;
+	/* the HTTP messages need to know what buffer they're associated with */
+	txn->req.buf = s->req;
+	txn->rsp.buf = s->rep;
 
 	/* finish initialization of the accepted file descriptor */
 	fd_insert(cfd);

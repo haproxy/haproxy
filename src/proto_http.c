@@ -951,10 +951,11 @@ void capture_headers(char *som, struct hdr_idx *idx,
  * labels and variable names. Note that msg->sol is left unchanged.
  */
 const char *http_parse_stsline(struct http_msg *msg, const char *msg_buf,
-			       const char *msg_start,
 			       unsigned int state, const char *ptr, const char *end,
 			       unsigned int *ret_ptr, unsigned int *ret_state)
 {
+	const char *msg_start = msg->buf->p;
+
 	switch (state)	{
 	case HTTP_MSG_RPVER:
 	http_msg_rpver:
@@ -1060,10 +1061,11 @@ const char *http_parse_stsline(struct http_msg *msg, const char *msg_buf,
  * labels and variable names. Note that msg->sol is left unchanged.
  */
 const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf,
-			       const char *msg_start,
 			       unsigned int state, const char *ptr, const char *end,
 			       unsigned int *ret_ptr, unsigned int *ret_state)
 {
+	const char *msg_start = msg->buf->p;
+
 	switch (state)	{
 	case HTTP_MSG_RQMETH:
 	http_msg_rqmeth:
@@ -1334,7 +1336,7 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 	case HTTP_MSG_RPCODE:
 	case HTTP_MSG_RPCODE_SP:
 	case HTTP_MSG_RPREASON:
-		ptr = (char *)http_parse_stsline(msg, buf->data, buf->p,
+		ptr = (char *)http_parse_stsline(msg, buf->data,
 						 state, ptr, end,
 						 &msg->next, &msg->msg_state);
 		if (unlikely(!ptr))
@@ -1404,7 +1406,7 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 	case HTTP_MSG_RQURI:
 	case HTTP_MSG_RQURI_SP:
 	case HTTP_MSG_RQVER:
-		ptr = (char *)http_parse_reqline(msg, buf->data, buf->p,
+		ptr = (char *)http_parse_reqline(msg, buf->data,
 						 state, ptr, end,
 						 &msg->next, &msg->msg_state);
 		if (unlikely(!ptr))
@@ -1608,7 +1610,7 @@ static int http_upgrade_v09_to_v10(struct buffer *req, struct http_msg *msg, str
 	delta = buffer_replace2(req, cur_end, cur_end, " HTTP/1.0\r\n", 11);
 	http_msg_move_end(msg, delta);
 	cur_end += delta;
-	cur_end = (char *)http_parse_reqline(msg, req->data, req->p,
+	cur_end = (char *)http_parse_reqline(msg, req->data,
 					     HTTP_MSG_RQMETH,
 					     msg->sol, cur_end + 1,
 					     NULL, NULL);
@@ -5679,7 +5681,7 @@ int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_e
 
 			http_msg_move_end(&txn->req, delta);
 			cur_end += delta;
-			cur_end = (char *)http_parse_reqline(&txn->req, req->data, req->p,
+			cur_end = (char *)http_parse_reqline(&txn->req, req->data,
 							     HTTP_MSG_RQMETH,
 							     cur_ptr, cur_end + 1,
 							     NULL, NULL);
@@ -6518,7 +6520,7 @@ int apply_filter_to_sts_line(struct session *t, struct buffer *rtr, struct hdr_e
 
 			http_msg_move_end(&txn->rsp, delta);
 			cur_end += delta;
-			cur_end = (char *)http_parse_stsline(&txn->rsp, rtr->data, rtr->p,
+			cur_end = (char *)http_parse_stsline(&txn->rsp, rtr->data,
 							     HTTP_MSG_RPVER,
 							     cur_ptr, cur_end + 1,
 							     NULL, NULL);
@@ -7353,6 +7355,8 @@ void http_init_txn(struct session *s)
 	txn->rsp.body_len = 0LL;
 	txn->req.msg_state = HTTP_MSG_RQBEFORE; /* at the very beginning of the request */
 	txn->rsp.msg_state = HTTP_MSG_RPBEFORE; /* at the very beginning of the response */
+	txn->req.buf = s->req;
+	txn->rsp.buf = s->rep;
 
 	txn->auth.method = HTTP_AUTH_UNKNOWN;
 
