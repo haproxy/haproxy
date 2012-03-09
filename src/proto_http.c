@@ -3665,7 +3665,8 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 	return 0;
 }
 
-int http_send_name_header(struct http_txn *txn, struct http_msg *msg, struct buffer *buf, struct proxy* be, const char* srv_name) {
+/* send a server's name with an outgoing request over an established connection */
+int http_send_name_header(struct http_txn *txn, struct proxy* be, const char* srv_name) {
 
 	struct hdr_ctx ctx;
 
@@ -3676,9 +3677,9 @@ int http_send_name_header(struct http_txn *txn, struct http_msg *msg, struct buf
 
 	ctx.idx = 0;
 
-	while (http_find_header2(hdr_name, hdr_name_len, buf->p + msg->sol, &txn->hdr_idx, &ctx)) {
+	while (http_find_header2(hdr_name, hdr_name_len, txn->req.buf->p + txn->req.sol, &txn->hdr_idx, &ctx)) {
 		/* remove any existing values from the header */
-	        http_remove_header2(msg, buf, &txn->hdr_idx, &ctx);
+	        http_remove_header2(&txn->req, txn->req.buf, &txn->hdr_idx, &ctx);
 	}
 
 	/* Add the new header requested with the server value */
@@ -3688,7 +3689,7 @@ int http_send_name_header(struct http_txn *txn, struct http_msg *msg, struct buf
 	*hdr_val++ = ':';
 	*hdr_val++ = ' ';
 	hdr_val += strlcpy2(hdr_val, srv_name, trash + sizeof(trash) - hdr_val);
-	http_header_add_tail2(buf, msg, &txn->hdr_idx, trash, hdr_val - trash);
+	http_header_add_tail2(txn->req.buf, &txn->req, &txn->hdr_idx, trash, hdr_val - trash);
 
 	return 0;
 }
