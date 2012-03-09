@@ -633,10 +633,6 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 				send_flag &= ~MSG_MORE;
 
 			ret = send(si->fd, b->w, max, send_flag);
-
-			/* Always clear both flags once everything has been sent */
-			if (ret == max)
-				b->flags &= ~(BF_EXPECT_MORE | BF_SEND_DONTWAIT);
 		} else {
 			int skerr;
 			socklen_t lskerr = sizeof(skerr);
@@ -668,6 +664,8 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 
 			b->send_max -= ret;
 			if (!b->send_max) {
+				/* Always clear both flags once everything has been sent, they're one-shot */
+				b->flags &= ~(BF_EXPECT_MORE | BF_SEND_DONTWAIT);
 				if (likely(!b->pipe))
 					b->flags |= BF_OUT_EMPTY;
 				break;
