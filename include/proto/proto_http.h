@@ -96,7 +96,7 @@ void http_sess_log(struct session *s);
 void perform_http_redirect(struct session *s, struct stream_interface *si);
 void http_return_srv_error(struct session *s, struct stream_interface *si);
 void http_capture_bad_message(struct error_snapshot *es, struct session *s,
-                              struct buffer *buf, struct http_msg *msg,
+                              struct http_msg *msg,
 			      int state, struct proxy *other_end);
 unsigned int http_get_hdr(struct http_msg *msg, const char *hname, int hlen,
 			  struct hdr_idx *idx, int occ,

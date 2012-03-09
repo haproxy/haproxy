@@ -2164,7 +2164,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 
 			/* we cannot return any message on error */
 			if (msg->err_pos >= 0) {
-				http_capture_bad_message(&s->fe->invalid_req, s, req, msg, msg->msg_state, s->fe);
+				http_capture_bad_message(&s->fe->invalid_req, s, msg, msg->msg_state, s->fe);
 				session_inc_http_err_ctr(s);
 			}
 
@@ -2192,7 +2192,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 
 			/* read timeout : give up with an error message. */
 			if (msg->err_pos >= 0) {
-				http_capture_bad_message(&s->fe->invalid_req, s, req, msg, msg->msg_state, s->fe);
+				http_capture_bad_message(&s->fe->invalid_req, s, msg, msg->msg_state, s->fe);
 				session_inc_http_err_ctr(s);
 			}
 			txn->status = 408;
@@ -2220,7 +2220,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 				goto failed_keep_alive;
 
 			if (msg->err_pos >= 0)
-				http_capture_bad_message(&s->fe->invalid_req, s, req, msg, msg->msg_state, s->fe);
+				http_capture_bad_message(&s->fe->invalid_req, s, msg, msg->msg_state, s->fe);
 			txn->status = 400;
 			stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_400));
 			msg->msg_state = HTTP_MSG_ERROR;
@@ -2311,7 +2311,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	 * to block on that, so we have to capture it now.
 	 */
 	if (unlikely(msg->err_pos >= 0))
-		http_capture_bad_message(&s->fe->invalid_req, s, req, msg, msg->msg_state, s->fe);
+		http_capture_bad_message(&s->fe->invalid_req, s, msg, msg->msg_state, s->fe);
 
 	/*
 	 * 1: identify the method
@@ -2520,7 +2520,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 		/* we detected a parsing error. We want to archive this request
 		 * in the dedicated proxy area for later troubleshooting.
 		 */
-		http_capture_bad_message(&s->fe->invalid_req, s, req, msg, msg->msg_state, s->fe);
+		http_capture_bad_message(&s->fe->invalid_req, s, msg, msg->msg_state, s->fe);
 	}
 
 	txn->req.msg_state = HTTP_MSG_ERROR;
@@ -3184,7 +3184,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 		/* we detected a parsing error. We want to archive this request
 		 * in the dedicated proxy area for later troubleshooting.
 		 */
-		http_capture_bad_message(&s->fe->invalid_req, s, req, msg, msg->msg_state, s->fe);
+		http_capture_bad_message(&s->fe->invalid_req, s, msg, msg->msg_state, s->fe);
 	}
 
 	txn->req.msg_state = HTTP_MSG_ERROR;
@@ -3462,7 +3462,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 		/* we detected a parsing error. We want to archive this request
 		 * in the dedicated proxy area for later troubleshooting.
 		 */
-		http_capture_bad_message(&s->fe->invalid_req, s, req, msg, msg->msg_state, s->fe);
+		http_capture_bad_message(&s->fe->invalid_req, s, msg, msg->msg_state, s->fe);
 	}
 
 	txn->req.msg_state = HTTP_MSG_ERROR;
@@ -4227,7 +4227,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 			else if (ret < 0) {
 				session_inc_http_err_ctr(s);
 				if (msg->err_pos >= 0)
-					http_capture_bad_message(&s->fe->invalid_req, s, req, msg, HTTP_MSG_CHUNK_SIZE, s->be);
+					http_capture_bad_message(&s->fe->invalid_req, s, msg, HTTP_MSG_CHUNK_SIZE, s->be);
 				goto return_bad_req;
 			}
 			/* otherwise we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state */
@@ -4243,7 +4243,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 			else if (ret < 0) {
 				session_inc_http_err_ctr(s);
 				if (msg->err_pos >= 0)
-					http_capture_bad_message(&s->fe->invalid_req, s, req, msg, HTTP_MSG_DATA_CRLF, s->be);
+					http_capture_bad_message(&s->fe->invalid_req, s, msg, HTTP_MSG_DATA_CRLF, s->be);
 				goto return_bad_req;
 			}
 			/* we're in MSG_CHUNK_SIZE now */
@@ -4256,7 +4256,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 			else if (ret < 0) {
 				session_inc_http_err_ctr(s);
 				if (msg->err_pos >= 0)
-					http_capture_bad_message(&s->fe->invalid_req, s, req, msg, HTTP_MSG_TRAILERS, s->be);
+					http_capture_bad_message(&s->fe->invalid_req, s, msg, HTTP_MSG_TRAILERS, s->be);
 				goto return_bad_req;
 			}
 			/* we're in HTTP_MSG_DONE now */
@@ -4281,7 +4281,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 						goto aborted_xfer;
 					}
 					if (msg->err_pos >= 0)
-						http_capture_bad_message(&s->fe->invalid_req, s, req, msg, old_state, s->be);
+						http_capture_bad_message(&s->fe->invalid_req, s, msg, old_state, s->be);
 					goto return_bad_req;
 				}
 				return 1;
@@ -4518,7 +4518,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 			 */
 		hdr_response_bad:
 			if (msg->msg_state == HTTP_MSG_ERROR || msg->err_pos >= 0)
-				http_capture_bad_message(&s->be->invalid_rep, s, rep, msg, msg->msg_state, s->fe);
+				http_capture_bad_message(&s->be->invalid_rep, s, msg, msg->msg_state, s->fe);
 
 			s->be->be_counters.failed_resp++;
 			if (target_srv(&s->target)) {
@@ -4551,7 +4551,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 		/* read error */
 		else if (rep->flags & BF_READ_ERROR) {
 			if (msg->err_pos >= 0)
-				http_capture_bad_message(&s->be->invalid_rep, s, rep, msg, msg->msg_state, s->fe);
+				http_capture_bad_message(&s->be->invalid_rep, s, msg, msg->msg_state, s->fe);
 
 			s->be->be_counters.failed_resp++;
 			if (target_srv(&s->target)) {
@@ -4576,7 +4576,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 		/* read timeout : return a 504 to the client. */
 		else if (rep->flags & BF_READ_TIMEOUT) {
 			if (msg->err_pos >= 0)
-				http_capture_bad_message(&s->be->invalid_rep, s, rep, msg, msg->msg_state, s->fe);
+				http_capture_bad_message(&s->be->invalid_rep, s, msg, msg->msg_state, s->fe);
 
 			s->be->be_counters.failed_resp++;
 			if (target_srv(&s->target)) {
@@ -4601,7 +4601,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 		/* close from server, capture the response if the server has started to respond */
 		else if (rep->flags & BF_SHUTR) {
 			if (msg->msg_state >= HTTP_MSG_RPVER || msg->err_pos >= 0)
-				http_capture_bad_message(&s->be->invalid_rep, s, rep, msg, msg->msg_state, s->fe);
+				http_capture_bad_message(&s->be->invalid_rep, s, msg, msg->msg_state, s->fe);
 
 			s->be->be_counters.failed_resp++;
 			if (target_srv(&s->target)) {
@@ -4626,7 +4626,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 		/* write error to client (we don't send any message then) */
 		else if (rep->flags & BF_WRITE_ERROR) {
 			if (msg->err_pos >= 0)
-				http_capture_bad_message(&s->be->invalid_rep, s, rep, msg, msg->msg_state, s->fe);
+				http_capture_bad_message(&s->be->invalid_rep, s, msg, msg->msg_state, s->fe);
 
 			s->be->be_counters.failed_resp++;
 			rep->analysers = 0;
@@ -4651,7 +4651,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	 */
 
 	if (unlikely(msg->err_pos >= 0))
-		http_capture_bad_message(&s->be->invalid_rep, s, rep, msg, msg->msg_state, s->fe);
+		http_capture_bad_message(&s->be->invalid_rep, s, msg, msg->msg_state, s->fe);
 
 	/*
 	 * 1: get the status code
@@ -5287,7 +5287,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 				goto missing_data;
 			else if (ret < 0) {
 				if (msg->err_pos >= 0)
-					http_capture_bad_message(&s->be->invalid_rep, s, res, msg, HTTP_MSG_CHUNK_SIZE, s->fe);
+					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_CHUNK_SIZE, s->fe);
 				goto return_bad_res;
 			}
 			/* otherwise we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state */
@@ -5302,7 +5302,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 				goto missing_data;
 			else if (ret < 0) {
 				if (msg->err_pos >= 0)
-					http_capture_bad_message(&s->be->invalid_rep, s, res, msg, HTTP_MSG_DATA_CRLF, s->fe);
+					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_DATA_CRLF, s->fe);
 				goto return_bad_res;
 			}
 			/* we're in MSG_CHUNK_SIZE now */
@@ -5314,7 +5314,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 				goto missing_data;
 			else if (ret < 0) {
 				if (msg->err_pos >= 0)
-					http_capture_bad_message(&s->be->invalid_rep, s, res, msg, HTTP_MSG_TRAILERS, s->fe);
+					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_TRAILERS, s->fe);
 				goto return_bad_res;
 			}
 			/* we're in HTTP_MSG_DONE now */
@@ -5340,7 +5340,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 						goto aborted_xfer;
 					}
 					if (msg->err_pos >= 0)
-						http_capture_bad_message(&s->be->invalid_rep, s, res, msg, old_state, s->fe);
+						http_capture_bad_message(&s->be->invalid_rep, s, msg, old_state, s->fe);
 					goto return_bad_res;
 				}
 				return 1;
@@ -7199,12 +7199,16 @@ int stats_check_uri(struct stream_interface *si, struct http_txn *txn, struct pr
 /*
  * Capture a bad request or response and archive it in the proxy's structure.
  * WARNING: it's unlikely that we've reached HTTP_MSG_BODY here so we must not
- * assume that msg->sol = buf->p + msg->som.
+ * assume that msg->sol = msg->buf->p + msg->som. Also, while HTTP requests
+ * or response messages cannot wrap, this function may also be used with chunks
+ * which may wrap.
  */
 void http_capture_bad_message(struct error_snapshot *es, struct session *s,
-                              struct buffer *buf, struct http_msg *msg,
+                              struct http_msg *msg,
 			      int state, struct proxy *other_end)
 {
+	struct buffer *buf = msg->buf;
+
 	if (buffer_wrap_add(buf, buf->p + buf->i) <= (buf->p + msg->som)) { /* message wraps */
 		int len1 = buf->size - msg->som - (buf->p - buf->data);
 		es->len = buffer_wrap_add(buf, buf->p + buf->i) - (buf->p + msg->som) + buf->size;
