@@ -1586,30 +1586,31 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
  * conversion succeeded, 0 in case of error. If the request was already 1.X,
  * nothing is done and 1 is returned.
  */
-static int http_upgrade_v09_to_v10(struct buffer *req, struct http_msg *msg, struct http_txn *txn)
+static int http_upgrade_v09_to_v10(struct http_txn *txn)
 {
 	int delta;
 	char *cur_end;
+	struct http_msg *msg = &txn->req;
 
 	if (msg->sl.rq.v_l != 0)
 		return 1;
 
-	cur_end = req->p + msg->sol + msg->sl.rq.l;
+	cur_end = msg->buf->p + msg->sol + msg->sl.rq.l;
 	delta = 0;
 
 	if (msg->sl.rq.u_l == 0) {
 		/* if no URI was set, add "/" */
-		delta = buffer_replace2(req, cur_end, cur_end, " /", 2);
+		delta = buffer_replace2(msg->buf, cur_end, cur_end, " /", 2);
 		cur_end += delta;
 		http_msg_move_end(msg, delta);
 	}
 	/* add HTTP version */
-	delta = buffer_replace2(req, cur_end, cur_end, " HTTP/1.0\r\n", 11);
+	delta = buffer_replace2(msg->buf, cur_end, cur_end, " HTTP/1.0\r\n", 11);
 	http_msg_move_end(msg, delta);
 	cur_end += delta;
-	cur_end = (char *)http_parse_reqline(msg, req->data,
+	cur_end = (char *)http_parse_reqline(msg, msg->buf->data,
 					     HTTP_MSG_RQMETH,
-					     req->p + msg->sol, cur_end + 1,
+					     msg->buf->p + msg->sol, cur_end + 1,
 					     NULL, NULL);
 	if (unlikely(!cur_end))
 		return 0;
@@ -2390,7 +2391,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 		}
 
 	/* 4. We may have to convert HTTP/0.9 requests to HTTP/1.0 */
-	if (unlikely(msg->sl.rq.v_l == 0) && !http_upgrade_v09_to_v10(req, msg, txn))
+	if (unlikely(msg->sl.rq.v_l == 0) && !http_upgrade_v09_to_v10(txn))
 		goto return_bad_req;
 
 	/* ... and check if the request is HTTP/1.1 or above */
@@ -8117,7 +8118,7 @@ acl_fetch_proto_http(struct proxy *px, struct session *s, void *l7, int dir,
 	if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
 		s->flags |= SN_REDIRECTABLE;
 
-	if (unlikely(msg->sl.rq.v_l == 0) && !http_upgrade_v09_to_v10(req, msg, txn)) {
+	if (unlikely(msg->sl.rq.v_l == 0) && !http_upgrade_v09_to_v10(txn)) {
 		test->flags |= ACL_TEST_F_SET_RES_FAIL;
 		return 1;
 	}
