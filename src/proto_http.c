@@ -1274,10 +1274,11 @@ get_http_auth(struct session *s)
  * the first state, so that none of the msg pointers has to be initialized
  * prior to the first call.
  */
-void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx *idx)
+void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 {
 	unsigned int state;       /* updated only when leaving the FSM */
 	register char *ptr, *end; /* request pointers, to avoid dereferences */
+	struct buffer *buf = msg->buf;
 
 	state = msg->msg_state;
 	ptr = buffer_wrap_add(buf, buf->p + msg->next);
@@ -2084,7 +2085,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 		}
 
 		if (likely(msg->next < req->i)) /* some unparsed data are available */
-			http_msg_analyzer(req, msg, &txn->hdr_idx);
+			http_msg_analyzer(msg, &txn->hdr_idx);
 	}
 
 	/* 1: we might have to print this header in debug mode */
@@ -4472,7 +4473,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 		}
 
 		if (likely(msg->next < rep->i))
-			http_msg_analyzer(rep, msg, &txn->hdr_idx);
+			http_msg_analyzer(msg, &txn->hdr_idx);
 	}
 
 	/* 1: we might have to print this header in debug mode */
@@ -8097,7 +8098,7 @@ acl_fetch_proto_http(struct proxy *px, struct session *s, void *l7, int dir,
 
 	/* Try to decode HTTP request */
 	if (likely(msg->next < req->i))
-		http_msg_analyzer(req, msg, &txn->hdr_idx);
+		http_msg_analyzer(msg, &txn->hdr_idx);
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 		if ((msg->msg_state == HTTP_MSG_ERROR) || (req->flags & BF_FULL)) {
