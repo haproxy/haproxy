@@ -340,7 +340,7 @@ struct server *get_server_hh(struct session *s)
 	ctx.idx = 0;
 
 	/* if the message is chunked, we skip the chunk size, but use the value as len */
-	http_find_header2(px->hh_name, plen, msg->sol, &txn->hdr_idx, &ctx);
+	http_find_header2(px->hh_name, plen, s->req->p + msg->sol, &txn->hdr_idx, &ctx);
 
 	/* if the header is not found or empty, let's fallback to round robin */
 	if (!ctx.idx || !ctx.vlen)
@@ -559,7 +559,7 @@ int assign_server(struct session *s)
 				if (s->txn.req.msg_state < HTTP_MSG_BODY)
 					break;
 				srv = get_server_uh(s->be,
-						    s->txn.req.sol + s->txn.req.sl.rq.u,
+						    s->req->p + s->txn.req.sol + s->txn.req.sl.rq.u,
 						    s->txn.req.sl.rq.u_l);
 				break;
 
@@ -569,7 +569,7 @@ int assign_server(struct session *s)
 					break;
 
 				srv = get_server_ph(s->be,
-						    s->txn.req.sol + s->txn.req.sl.rq.u,
+						    s->req->p + s->txn.req.sol + s->txn.req.sl.rq.u,
 						    s->txn.req.sl.rq.u_l);
 
 				if (!srv && s->txn.meth == HTTP_METH_POST)

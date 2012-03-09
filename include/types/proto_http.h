@@ -311,7 +311,7 @@ struct http_msg {
 	unsigned int next;                     /* pointer to next byte to parse, relative to buf->p */
 	unsigned int sov;                      /* current header: start of value */
 	unsigned int eoh;                      /* End Of Headers, relative to buffer */
-	char *sol;                             /* start of line, also start of message when fully parsed */
+	unsigned int sol;                      /* start of line, also start of message when fully parsed */
 	unsigned int eol;                      /* end of line */
 	unsigned int som;                      /* Start Of Message, relative to buffer's origin */
 	int err_pos;                           /* err handling: -2=block, -1=pass, 0+=detected */
