@@ -1266,9 +1266,11 @@ get_http_auth(struct session *s)
 
 /*
  * This function parses an HTTP message, either a request or a response,
- * depending on the initial msg->msg_state. It can be preempted everywhere
- * when data are missing and recalled at the exact same location with no
- * information loss. The header index is re-initialized when switching from
+ * depending on the initial msg->msg_state. The caller is responsible for
+ * ensuring that the message does not wrap. The function can be preempted
+ * everywhere when data are missing and recalled at the exact same location
+ * with no information loss. The message may even be realigned between two
+ * calls. The header index is re-initialized when switching from
  * MSG_R[PQ]BEFORE to MSG_RPVER|MSG_RQMETH. It modifies msg->sol among other
  * fields. Note that msg->som and msg->sol will be initialized after completing
  * the first state, so that none of the msg pointers has to be initialized
@@ -1281,8 +1283,8 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 	struct buffer *buf = msg->buf;
 
 	state = msg->msg_state;
-	ptr = buffer_wrap_add(buf, buf->p + msg->next);
-	end = buffer_wrap_add(buf, buf->p + buf->i);
+	ptr = buf->p + msg->next;
+	end = buf->p + buf->i;
 
 	if (unlikely(ptr >= end))
 		goto http_msg_ood;
