@@ -1739,12 +1739,13 @@ void http_change_connection_header(struct http_txn *txn, struct http_msg *msg, i
  * Return >0 on success, 0 when some data is missing, <0 on error.
  * Note: this function is designed to parse wrapped CRLF at the end of the buffer.
  */
-int http_parse_chunk_size(struct buffer *buf, struct http_msg *msg)
+int http_parse_chunk_size(struct http_msg *msg)
 {
-	char *ptr = buffer_wrap_add(buf, buf->p + msg->next);
-	char *ptr_old = ptr;
-	char *end = buf->data + buf->size;
-	char *stop = buffer_wrap_add(buf, buf->p + buf->i);
+	const struct buffer *buf = msg->buf;
+	const char *ptr = buffer_wrap_add(buf, buf->p + msg->next);
+	const char *ptr_old = ptr;
+	const char *end = buf->data + buf->size;
+	const char *stop = buffer_wrap_add(buf, buf->p + buf->i);
 	unsigned int chunk = 0;
 
 	/* The chunk size is in the following form, though we are only
@@ -1831,7 +1832,7 @@ int http_parse_chunk_size(struct buffer *buf, struct http_msg *msg)
 	return -1;
 }
 
-/* This function skips trailers in the buffer <buf> associated with HTTP
+/* This function skips trailers in the buffer associated with HTTP
  * message <msg>. The first visited position is msg->next. If the end of
  * the trailers is found, it is automatically scheduled to be forwarded,
  * msg->msg_state switches to HTTP_MSG_DONE, and the function returns >0.
@@ -1846,13 +1847,15 @@ int http_parse_chunk_size(struct buffer *buf, struct http_msg *msg)
  * important to note that this function is designed to be able to parse wrapped
  * headers at end of buffer.
  */
-int http_forward_trailers(struct buffer *buf, struct http_msg *msg)
+int http_forward_trailers(struct http_msg *msg)
 {
+	const struct buffer *buf = msg->buf;
+
 	/* we have msg->next which points to next line. Look for CRLF. */
 	while (1) {
-		char *p1 = NULL, *p2 = NULL;
-		char *ptr = buffer_wrap_add(buf, buf->p + msg->next);
-		char *stop = buffer_wrap_add(buf, buf->p + buf->i);
+		const char *p1 = NULL, *p2 = NULL;
+		const char *ptr = buffer_wrap_add(buf, buf->p + msg->next);
+		const char *stop = buffer_wrap_add(buf, buf->p + buf->i);
 		int bytes;
 
 		/* scan current line and stop at LF or CRLF */
@@ -1918,9 +1921,10 @@ int http_forward_trailers(struct buffer *buf, struct http_msg *msg)
  * does not change anything. Note: this function is designed to parse wrapped
  * CRLF at the end of the buffer.
  */
-int http_skip_chunk_crlf(struct buffer *buf, struct http_msg *msg)
+int http_skip_chunk_crlf(struct http_msg *msg)
 {
-	char *ptr;
+	const struct buffer *buf = msg->buf;
+	const char *ptr;
 	int bytes;
 
 	/* NB: we'll check data availabilty at the end. It's not a
@@ -3586,7 +3590,7 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 		 * set ->sov and ->next to point to the body and switch to DATA or
 		 * TRAILERS state.
 		 */
-		int ret = http_parse_chunk_size(req, msg);
+		int ret = http_parse_chunk_size(msg);
 
 		if (!ret)
 			goto missing_data;
@@ -4226,7 +4230,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 			 * set ->sov and ->next to point to the body and switch to DATA or
 			 * TRAILERS state.
 			 */
-			int ret = http_parse_chunk_size(req, msg);
+			int ret = http_parse_chunk_size(msg);
 
 			if (!ret)
 				goto missing_data;
@@ -4242,7 +4246,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 			/* we want the CRLF after the data */
 			int ret;
 
-			ret = http_skip_chunk_crlf(req, msg);
+			ret = http_skip_chunk_crlf(msg);
 
 			if (ret == 0)
 				goto missing_data;
@@ -4255,7 +4259,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 			/* we're in MSG_CHUNK_SIZE now */
 		}
 		else if (msg->msg_state == HTTP_MSG_TRAILERS) {
-			int ret = http_forward_trailers(req, msg);
+			int ret = http_forward_trailers(msg);
 
 			if (ret == 0)
 				goto missing_data;
@@ -5287,7 +5291,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 			 * set ->sov and ->next to point to the body and switch to DATA or
 			 * TRAILERS state.
 			 */
-			int ret = http_parse_chunk_size(res, msg);
+			int ret = http_parse_chunk_size(msg);
 
 			if (!ret)
 				goto missing_data;
@@ -5302,7 +5306,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 			/* we want the CRLF after the data */
 			int ret;
 
-			ret = http_skip_chunk_crlf(res, msg);
+			ret = http_skip_chunk_crlf(msg);
 
 			if (!ret)
 				goto missing_data;
@@ -5314,7 +5318,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 			/* we're in MSG_CHUNK_SIZE now */
 		}
 		else if (msg->msg_state == HTTP_MSG_TRAILERS) {
-			int ret = http_forward_trailers(res, msg);
+			int ret = http_forward_trailers(msg);
 
 			if (ret == 0)
 				goto missing_data;
