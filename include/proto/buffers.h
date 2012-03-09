@@ -343,17 +343,16 @@ static inline void buffer_cut_tail(struct buffer *buf)
 		buf->flags |= BF_FULL;
 }
 
-/* Cut the <n> next unsent bytes of the buffer. The caller must ensure that <n>
- * is smaller than the actual buffer's length. This is mainly used to remove
- * empty lines at the beginning of a request or a response.
+/* Cut the first <n> pending bytes in a contiguous buffer. It is illegal to
+ * call this function with remaining data waiting to be sent (o > 0). The
+ * caller must ensure that <n> is smaller than the actual buffer's length.
+ * This is mainly used to remove empty lines at the beginning of a request
+ * or a response.
  */
 static inline void buffer_ignore(struct buffer *buf, int n)
 {
 	buf->i -= n;
-	buf->p = buffer_wrap_add(buf, buf->p + n);
-	buf->flags &= ~BF_FULL;
-	if (buffer_len(buf) >= buffer_max_len(buf))
-		buf->flags |= BF_FULL;
+	buf->p += n;
 }
 
 /* marks the buffer as "shutdown" ASAP for reads */

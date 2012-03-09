@@ -4067,7 +4067,7 @@ int http_sync_res_state(struct session *s)
 	if (txn->rsp.msg_state == HTTP_MSG_CLOSED) {
 	http_msg_closed:
 		/* drop any pending data */
-		buffer_ignore(buf, buf->i);
+		buffer_cut_tail(buf);
 		buffer_auto_close(buf);
 		buffer_auto_read(buf);
 		goto wait_other_side;
@@ -4133,7 +4133,7 @@ int http_resync_states(struct session *s)
 		buffer_abort(s->req);
 		buffer_auto_close(s->req);
 		buffer_auto_read(s->req);
-		buffer_ignore(s->req, s->req->i);
+		buffer_cut_tail(s->req);
 	}
 	else if (txn->req.msg_state == HTTP_MSG_CLOSED &&
 		 txn->rsp.msg_state == HTTP_MSG_DONE &&
@@ -4542,7 +4542,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 			rep->analysers = 0;
 			txn->status = 502;
 			rep->prod->flags |= SI_FL_NOLINGER;
-			buffer_ignore(rep, rep->i);
+			buffer_cut_tail(rep);
 			stream_int_retnclose(rep->cons, error_message(s, HTTP_ERR_502));
 
 			if (!(s->flags & SN_ERR_MASK))
@@ -4575,7 +4575,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 			rep->analysers = 0;
 			txn->status = 502;
 			rep->prod->flags |= SI_FL_NOLINGER;
-			buffer_ignore(rep, rep->i);
+			buffer_cut_tail(rep);
 			stream_int_retnclose(rep->cons, error_message(s, HTTP_ERR_502));
 
 			if (!(s->flags & SN_ERR_MASK))
@@ -4600,7 +4600,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 			rep->analysers = 0;
 			txn->status = 504;
 			rep->prod->flags |= SI_FL_NOLINGER;
-			buffer_ignore(rep, rep->i);
+			buffer_cut_tail(rep);
 			stream_int_retnclose(rep->cons, error_message(s, HTTP_ERR_504));
 
 			if (!(s->flags & SN_ERR_MASK))
@@ -4625,7 +4625,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 			rep->analysers = 0;
 			txn->status = 502;
 			rep->prod->flags |= SI_FL_NOLINGER;
-			buffer_ignore(rep, rep->i);
+			buffer_cut_tail(rep);
 			stream_int_retnclose(rep->cons, error_message(s, HTTP_ERR_502));
 
 			if (!(s->flags & SN_ERR_MASK))
@@ -4975,7 +4975,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 					rep->analysers = 0;
 					txn->status = 502;
 					rep->prod->flags |= SI_FL_NOLINGER;
-					buffer_ignore(rep, rep->i);
+					buffer_cut_tail(rep);
 					stream_int_retnclose(rep->cons, error_message(t, HTTP_ERR_502));
 					if (!(t->flags & SN_ERR_MASK))
 						t->flags |= SN_ERR_PRXCOND;
