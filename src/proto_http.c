@@ -1452,10 +1452,8 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 		if (likely(HTTP_IS_TOKEN(*ptr)))
 			EAT_AND_JUMP_OR_RETURN(http_msg_hdr_name, HTTP_MSG_HDR_NAME);
 
-		if (likely(*ptr == ':')) {
-			msg->col = ptr - buf->p;
+		if (likely(*ptr == ':'))
 			EAT_AND_JUMP_OR_RETURN(http_msg_hdr_l1_sp, HTTP_MSG_HDR_L1_SP);
-		}
 
 		if (likely(msg->err_pos < -1) || *ptr == '\n')
 			goto http_msg_invalid;
@@ -1468,7 +1466,7 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 
 	case HTTP_MSG_HDR_L1_SP:
 	http_msg_hdr_l1_sp:
-		/* assumes msg->sol points to the first char and msg->col to the colon */
+		/* assumes msg->sol points to the first char */
 		if (likely(HTTP_IS_SPHT(*ptr)))
 			EAT_AND_JUMP_OR_RETURN(http_msg_hdr_l1_sp, HTTP_MSG_HDR_L1_SP);
 
@@ -1502,9 +1500,8 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 		
 	case HTTP_MSG_HDR_VAL:
 	http_msg_hdr_val:
-		/* assumes msg->sol points to the first char, msg->col to the
-		 * colon, and msg->sov points to the first character of the
-		 * value.
+		/* assumes msg->sol points to the first char, and msg->sov
+		 * points to the first character of the value.
 		 */
 		if (likely(!HTTP_IS_CRLF(*ptr)))
 			EAT_AND_JUMP_OR_RETURN(http_msg_hdr_val, HTTP_MSG_HDR_VAL);
@@ -1534,10 +1531,10 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 	http_msg_complete_header:
 		/*
 		 * It was a new header, so the last one is finished.
-		 * Assumes msg->sol points to the first char, msg->col to the
-		 * colon, msg->sov points to the first character of the value
-		 * and msg->eol to the first CR or LF so we know how the line
-		 * ends. We insert last header into the index.
+		 * Assumes msg->sol points to the first char, msg->sov points
+		 * to the first character of the value and msg->eol to the
+		 * first CR or LF so we know how the line ends. We insert last
+		 * header into the index.
 		 */
 		/*
 		  fprintf(stderr,"registering %-2d bytes : ", msg->eol - msg->sol);
@@ -1563,7 +1560,7 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 		/* Assumes msg->sol points to the first of either CR or LF */
 		EXPECT_LF_HERE(ptr, http_msg_invalid);
 		ptr++;
-		msg->col = msg->sov = msg->next = ptr - buf->p;
+		msg->sov = msg->next = ptr - buf->p;
 		msg->eoh = msg->sol - buf->p;
 		msg->sol = buf->p;
 		msg->msg_state = HTTP_MSG_BODY;
@@ -2308,9 +2305,9 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	 * later. At this point, we have the last CRLF at req->data + msg->eoh.
 	 * If the request is in HTTP/0.9 form, the rule is still true, and eoh
 	 * points to the CRLF of the request line. msg->next points to the first
-	 * byte after the last LF. msg->col and msg->sov point to the first
-	 * byte of data. msg->eol cannot be trusted because it may have been
-	 * left uninitialized (for instance in the absence of headers).
+	 * byte after the last LF. msg->sov points to the first byte of data.
+	 * msg->eol cannot be trusted because it may have been left uninitialized
+	 * (for instance in the absence of headers).
 	 */
 
 	session_inc_http_req_ctr(s);
@@ -3582,10 +3579,9 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 	}
 
 	if (msg->msg_state < HTTP_MSG_CHUNK_SIZE) {
-		/* we have msg->col and msg->sov which both point to the first
-		 * byte of message body. msg->som still points to the beginning
-		 * of the message. We must save the body in msg->next because it
-		 * survives buffer re-alignments.
+		/* we have msg->sov which points to the first byte of message body.
+		 * msg->som still points to the beginning of the message. We must
+		 * save the body in msg->next because it survives buffer re-alignments.
 		 */
 		msg->next = msg->sov;
 
@@ -3611,10 +3607,8 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 	}
 
 	/* Now we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state.
-	 * We have the first non-header byte in msg->col, which is either the
-	 * beginning of the chunk size or of the data. The first data byte is in
-	 * msg->sov, which is equal to msg->col when not using transfer-encoding.
-	 * We're waiting for at least <url_param_post_limit> bytes after msg->sov.
+	 * We have the first data byte is in msg->sov. We're waiting for at
+	 * least <url_param_post_limit> bytes after msg->sov.
 	 */
 
 	if (msg->body_len < limit)
@@ -4197,10 +4191,9 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 	 */
 
 	if (msg->msg_state < HTTP_MSG_CHUNK_SIZE) {
-		/* we have msg->col and msg->sov which both point to the first
-		 * byte of message body. msg->som still points to the beginning
-		 * of the message. We must save the body in msg->next because it
-		 * survives buffer re-alignments.
+		/* we have msg->sov which points to the first byte of message body.
+		 * msg->som still points to the beginning of the message. We must
+		 * save the body in msg->next because it survives buffer re-alignments.
 		 */
 		msg->next = msg->sov;
 
@@ -5260,10 +5253,9 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	buffer_auto_close(res);
 
 	if (msg->msg_state < HTTP_MSG_CHUNK_SIZE) {
-		/* we have msg->col and msg->sov which both point to the first
-		 * byte of message body. msg->som still points to the beginning
-		 * of the message. We must save the body in msg->next because it
-		 * survives buffer re-alignments.
+		/* we have msg->sov which points to the first byte of message body.
+		 * msg->som still points to the beginning of the message. We must
+		 * save the body in msg->next because it survives buffer re-alignments.
 		 */
 		msg->next = msg->sov;
 

@@ -114,7 +114,6 @@ struct chunk *error_message(struct session *s, int msgnum);
 #define http_msg_move_end(msg, bytes) do { \
 		unsigned int _bytes = (bytes);	\
 		(msg)->next += (_bytes);	\
-		(msg)->col += (_bytes);		\
 		(msg)->sov += (_bytes);		\
 		(msg)->eoh += (_bytes);		\
 	} while (0)

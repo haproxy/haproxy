@@ -294,7 +294,7 @@ enum {
  *                             for states after START. When in HTTP_MSG_BODY,
  *                             eoh points to the first byte of the last CRLF
  *                             preceeding data. Relative to buffer's origin.
- *  - col and sov            : When in HTTP_MSG_BODY, will point to the first
+ *  - sov                    : When in HTTP_MSG_BODY, will point to the first
  *                             byte of data (relative to buffer's origin).
  *  - sol (start of line)    : start of line, also start of message when fully parsed.
  *  - eol (End of Line)      : relative offset in the buffer of the first byte
@@ -308,7 +308,7 @@ struct http_msg {
 	unsigned int msg_state;                /* where we are in the current message parsing */
 	unsigned int flags;                    /* flags describing the message (HTTP version, ...) */
 	unsigned int next;                     /* pointer to next byte to parse, relative to buf->p */
-	unsigned int col, sov;                 /* current header: colon, start of value */
+	unsigned int sov;                      /* current header: start of value */
 	unsigned int eoh;                      /* End Of Headers, relative to buffer */
 	char *sol;                             /* start of line, also start of message when fully parsed */
 	char *eol;                             /* end of line */
