@@ -409,19 +409,18 @@ static void http_silent_debug(int line, struct session *s)
 #endif
 
 /*
- * Adds a header and its CRLF at the tail of buffer <b>, just before the last
- * CRLF. Text length is measured first, so it cannot be NULL.
+ * Adds a header and its CRLF at the tail of the message's buffer, just before
+ * the last CRLF. Text length is measured first, so it cannot be NULL.
  * The header is also automatically added to the index <hdr_idx>, and the end
  * of headers is automatically adjusted. The number of bytes added is returned
  * on success, otherwise <0 is returned indicating an error.
  */
-int http_header_add_tail(struct buffer *b, struct http_msg *msg,
-			 struct hdr_idx *hdr_idx, const char *text)
+int http_header_add_tail(struct http_msg *msg, struct hdr_idx *hdr_idx, const char *text)
 {
 	int bytes, len;
 
 	len = strlen(text);
-	bytes = buffer_insert_line2(b, b->p + msg->eoh, text, len);
+	bytes = buffer_insert_line2(msg->buf, msg->buf->p + msg->eoh, text, len);
 	if (!bytes)
 		return -1;
 	http_msg_move_end(msg, bytes);
@@ -429,19 +428,19 @@ int http_header_add_tail(struct buffer *b, struct http_msg *msg,
 }
 
 /*
- * Adds a header and its CRLF at the tail of buffer <b>, just before the last
- * CRLF. <len> bytes are copied, not counting the CRLF. If <text> is NULL, then
+ * Adds a header and its CRLF at the tail of the message's buffer, just before
+ * the last CRLF. <len> bytes are copied, not counting the CRLF. If <text> is NULL, then
  * the buffer is only opened and the space reserved, but nothing is copied.
  * The header is also automatically added to the index <hdr_idx>, and the end
  * of headers is automatically adjusted. The number of bytes added is returned
  * on success, otherwise <0 is returned indicating an error.
  */
-int http_header_add_tail2(struct buffer *b, struct http_msg *msg,
-			 struct hdr_idx *hdr_idx, const char *text, int len)
+int http_header_add_tail2(struct http_msg *msg,
+                          struct hdr_idx *hdr_idx, const char *text, int len)
 {
 	int bytes;
 
-	bytes = buffer_insert_line2(b, b->p + msg->eoh, text, len);
+	bytes = buffer_insert_line2(msg->buf, msg->buf->p + msg->eoh, text, len);
 	if (!bytes)
 		return -1;
 	http_msg_move_end(msg, bytes);
@@ -592,13 +591,12 @@ int http_find_header(const char *name,
 /* Remove one value of a header. This only works on a <ctx> returned by one of
  * the http_find_header functions. The value is removed, as well as surrounding
  * commas if any. If the removed value was alone, the whole header is removed.
- * The ctx is always updated accordingly, as well as buffer <buf> and HTTP
+ * The ctx is always updated accordingly, as well as the buffer and HTTP
  * message <msg>. The new index is returned. If it is zero, it means there is
  * no more header, so any processing may stop. The ctx is always left in a form
  * that can be handled by http_find_header2() to find next occurrence.
  */
-int http_remove_header2(struct http_msg *msg, struct buffer *buf,
-			struct hdr_idx *idx, struct hdr_ctx *ctx)
+int http_remove_header2(struct http_msg *msg, struct hdr_idx *idx, struct hdr_ctx *ctx)
 {
 	int cur_idx = ctx->idx;
 	char *sol = ctx->line;
@@ -611,7 +609,7 @@ int http_remove_header2(struct http_msg *msg, struct buffer *buf,
 	hdr = &idx->v[cur_idx];
 	if (sol[ctx->del] == ':' && ctx->val + ctx->vlen + ctx->tws == hdr->len) {
 		/* This was the only value of the header, we must now remove it entirely. */
-		delta = buffer_replace2(buf, sol, sol + hdr->len + hdr->cr + 1, NULL, 0);
+		delta = buffer_replace2(msg->buf, sol, sol + hdr->len + hdr->cr + 1, NULL, 0);
 		http_msg_move_end(msg, delta);
 		idx->used--;
 		hdr->len = 0;   /* unused entry */
@@ -631,7 +629,7 @@ int http_remove_header2(struct http_msg *msg, struct buffer *buf,
 	 */
 
 	skip_comma = (ctx->val + ctx->vlen + ctx->tws == hdr->len) ? 0 : 1;
-	delta = buffer_replace2(buf, sol + ctx->del + skip_comma,
+	delta = buffer_replace2(msg->buf, sol + ctx->del + skip_comma,
 				sol + ctx->val + ctx->vlen + ctx->tws + skip_comma,
 				NULL, 0);
 	hdr->len += delta;
@@ -1623,18 +1621,16 @@ static int http_upgrade_v09_to_v10(struct buffer *req, struct http_msg *msg, str
 }
 
 /* Parse the Connection: header of an HTTP request, looking for both "close"
- * and "keep-alive" values. If a buffer is provided and we already know that
- * some headers may safely be removed, we remove them now. The <to_del> flags
- * are used for that :
+ * and "keep-alive" values. If we already know that some headers may safely
+ * be removed, we remove them now. The <to_del> flags are used for that :
  *  - bit 0 means remove "close" headers (in HTTP/1.0 requests/responses)
  *  - bit 1 means remove "keep-alive" headers (in HTTP/1.1 reqs/resp to 1.1).
  * The TX_HDR_CONN_* flags are adjusted in txn->flags depending on what was
  * found, and TX_CON_*_SET is adjusted depending on what is left so only
  * harmless combinations may be removed. Do not call that after changes have
- * been processed. If unused, the buffer can be NULL, and no data will be
- * changed.
+ * been processed.
  */
-void http_parse_connection_header(struct http_txn *txn, struct http_msg *msg, struct buffer *buf, int to_del)
+void http_parse_connection_header(struct http_txn *txn, struct http_msg *msg, int to_del)
 {
 	struct hdr_ctx ctx;
 	const char *hdr_val = "Connection";
@@ -1650,18 +1646,18 @@ void http_parse_connection_header(struct http_txn *txn, struct http_msg *msg, st
 
 	ctx.idx = 0;
 	txn->flags &= ~(TX_CON_KAL_SET|TX_CON_CLO_SET);
-	while (http_find_header2(hdr_val, hdr_len, buf->p + msg->sol, &txn->hdr_idx, &ctx)) {
+	while (http_find_header2(hdr_val, hdr_len, msg->buf->p + msg->sol, &txn->hdr_idx, &ctx)) {
 		if (ctx.vlen >= 10 && word_match(ctx.line + ctx.val, ctx.vlen, "keep-alive", 10)) {
 			txn->flags |= TX_HDR_CONN_KAL;
-			if ((to_del & 2) && buf)
-				http_remove_header2(msg, buf, &txn->hdr_idx, &ctx);
+			if (to_del & 2)
+				http_remove_header2(msg, &txn->hdr_idx, &ctx);
 			else
 				txn->flags |= TX_CON_KAL_SET;
 		}
 		else if (ctx.vlen >= 5 && word_match(ctx.line + ctx.val, ctx.vlen, "close", 5)) {
 			txn->flags |= TX_HDR_CONN_CLO;
-			if ((to_del & 1) && buf)
-				http_remove_header2(msg, buf, &txn->hdr_idx, &ctx);
+			if (to_del & 1)
+				http_remove_header2(msg, &txn->hdr_idx, &ctx);
 			else
 				txn->flags |= TX_CON_CLO_SET;
 		}
@@ -1676,7 +1672,7 @@ void http_parse_connection_header(struct http_txn *txn, struct http_msg *msg, st
  * TX_CON_CLO_SET and TX_CON_KAL_SET, depending on what flags are desired. The
  * TX_CON_*_SET flags are adjusted in txn->flags depending on what is left.
  */
-void http_change_connection_header(struct http_txn *txn, struct http_msg *msg, struct buffer *buf, int wanted)
+void http_change_connection_header(struct http_txn *txn, struct http_msg *msg, int wanted)
 {
 	struct hdr_ctx ctx;
 	const char *hdr_val = "Connection";
@@ -1691,18 +1687,18 @@ void http_change_connection_header(struct http_txn *txn, struct http_msg *msg, s
 	}
 
 	txn->flags &= ~(TX_CON_CLO_SET | TX_CON_KAL_SET);
-	while (http_find_header2(hdr_val, hdr_len, buf->p + msg->sol, &txn->hdr_idx, &ctx)) {
+	while (http_find_header2(hdr_val, hdr_len, msg->buf->p + msg->sol, &txn->hdr_idx, &ctx)) {
 		if (ctx.vlen >= 10 && word_match(ctx.line + ctx.val, ctx.vlen, "keep-alive", 10)) {
 			if (wanted & TX_CON_KAL_SET)
 				txn->flags |= TX_CON_KAL_SET;
 			else
-				http_remove_header2(msg, buf, &txn->hdr_idx, &ctx);
+				http_remove_header2(msg, &txn->hdr_idx, &ctx);
 		}
 		else if (ctx.vlen >= 5 && word_match(ctx.line + ctx.val, ctx.vlen, "close", 5)) {
 			if (wanted & TX_CON_CLO_SET)
 				txn->flags |= TX_CON_CLO_SET;
 			else
-				http_remove_header2(msg, buf, &txn->hdr_idx, &ctx);
+				http_remove_header2(msg, &txn->hdr_idx, &ctx);
 		}
 	}
 
@@ -1717,7 +1713,7 @@ void http_change_connection_header(struct http_txn *txn, struct http_msg *msg, s
 			hdr_val = "Proxy-Connection: close";
 			hdr_len = 23;
 		}
-		http_header_add_tail2(buf, msg, &txn->hdr_idx, hdr_val, hdr_len);
+		http_header_add_tail2(msg, &txn->hdr_idx, hdr_val, hdr_len);
 	}
 
 	if ((wanted & TX_CON_KAL_SET) && !(txn->flags & TX_CON_KAL_SET)) {
@@ -1728,7 +1724,7 @@ void http_change_connection_header(struct http_txn *txn, struct http_msg *msg, s
 			hdr_val = "Proxy-Connection: keep-alive";
 			hdr_len = 28;
 		}
-		http_header_add_tail2(buf, msg, &txn->hdr_idx, hdr_val, hdr_len);
+		http_header_add_tail2(msg, &txn->hdr_idx, hdr_val, hdr_len);
 	}
 	return;
 }
@@ -2896,7 +2892,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 				to_del |= 2; /* remove "keep-alive" */
 			if (!(msg->flags & HTTP_MSGF_VER_11))
 				to_del |= 1; /* remove "close" */
-			http_parse_connection_header(txn, msg, req, to_del);
+			http_parse_connection_header(txn, msg, to_del);
 		}
 
 		/* check if client or config asks for explicit close in KAL/SCL */
@@ -2943,7 +2939,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 				continue;
 		}
 
-		if (unlikely(http_header_add_tail(req, &txn->req, &txn->hdr_idx, wl->s) < 0))
+		if (unlikely(http_header_add_tail(&txn->req, &txn->hdr_idx, wl->s) < 0))
 			goto return_bad_req;
 	}
 
@@ -3279,7 +3275,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 		int ret = snprintf(trash, global.tune.bufsize, "%s: %s", s->fe->header_unique_id, s->unique_id);
 		if (ret < 0 || ret > global.tune.bufsize)
 			goto return_bad_req;
-		if(unlikely(http_header_add_tail(req, &txn->req, &txn->hdr_idx, trash) < 0))
+		if (unlikely(http_header_add_tail(&txn->req, &txn->hdr_idx, trash) < 0))
 		   goto return_bad_req;
 	}
 
@@ -3324,8 +3320,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 				}
 				len += sprintf(trash + len, ": %d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
 
-				if (unlikely(http_header_add_tail2(req, &txn->req,
-								   &txn->hdr_idx, trash, len) < 0))
+				if (unlikely(http_header_add_tail2(&txn->req, &txn->hdr_idx, trash, len) < 0))
 					goto return_bad_req;
 			}
 		}
@@ -3353,8 +3348,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 			}
 			len += sprintf(trash + len, ": %s", pn);
 
-			if (unlikely(http_header_add_tail2(req, &txn->req,
-							   &txn->hdr_idx, trash, len) < 0))
+			if (unlikely(http_header_add_tail2(&txn->req, &txn->hdr_idx, trash, len) < 0))
 				goto return_bad_req;
 		}
 	}
@@ -3397,8 +3391,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 				}
 				len += sprintf(trash + len, ": %d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
 
-				if (unlikely(http_header_add_tail2(req, &txn->req,
-								   &txn->hdr_idx, trash, len) < 0))
+				if (unlikely(http_header_add_tail2(&txn->req, &txn->hdr_idx, trash, len) < 0))
 					goto return_bad_req;
 			}
 		}
@@ -3422,7 +3415,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 		}
 
 		if (want_flags != (txn->flags & (TX_CON_CLO_SET|TX_CON_KAL_SET)))
-			http_change_connection_header(txn, msg, req, want_flags);
+			http_change_connection_header(txn, msg, want_flags);
 	}
 
 
@@ -3679,7 +3672,7 @@ int http_send_name_header(struct http_txn *txn, struct proxy* be, const char* sr
 
 	while (http_find_header2(hdr_name, hdr_name_len, txn->req.buf->p + txn->req.sol, &txn->hdr_idx, &ctx)) {
 		/* remove any existing values from the header */
-	        http_remove_header2(&txn->req, txn->req.buf, &txn->hdr_idx, &ctx);
+	        http_remove_header2(&txn->req, &txn->hdr_idx, &ctx);
 	}
 
 	/* Add the new header requested with the server value */
@@ -3689,7 +3682,7 @@ int http_send_name_header(struct http_txn *txn, struct proxy* be, const char* sr
 	*hdr_val++ = ':';
 	*hdr_val++ = ' ';
 	hdr_val += strlcpy2(hdr_val, srv_name, trash + sizeof(trash) - hdr_val);
-	http_header_add_tail2(txn->req.buf, &txn->req, &txn->hdr_idx, trash, hdr_val - trash);
+	http_header_add_tail2(&txn->req, &txn->hdr_idx, trash, hdr_val - trash);
 
 	return 0;
 }
@@ -4930,7 +4923,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 		}
 
 		/* Parse and remove some headers from the connection header */
-		http_parse_connection_header(txn, msg, rep, to_del);
+		http_parse_connection_header(txn, msg, to_del);
 
 		/* Some keep-alive responses are converted to Server-close if
 		 * the server wants to close.
@@ -5005,7 +4998,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 					if (!ret)
 						continue;
 				}
-				if (unlikely(http_header_add_tail(rep, &txn->rsp, &txn->hdr_idx, wl->s) < 0))
+				if (unlikely(http_header_add_tail(&txn->rsp, &txn->hdr_idx, wl->s) < 0))
 					goto return_bad_resp;
 			}
 
@@ -5096,8 +5089,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 			if (t->be->cookie_domain)
 				len += sprintf(trash+len, "; domain=%s", t->be->cookie_domain);
 
-			if (unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
-							   trash, len) < 0))
+			if (unlikely(http_header_add_tail2(&txn->rsp, &txn->hdr_idx, trash, len) < 0))
 				goto return_bad_resp;
 
 			txn->flags &= ~TX_SCK_MASK;
@@ -5116,7 +5108,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 
 				txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
 
-				if (unlikely(http_header_add_tail2(rep, &txn->rsp, &txn->hdr_idx,
+				if (unlikely(http_header_add_tail2(&txn->rsp, &txn->hdr_idx,
 								   "Cache-control: private", 22) < 0))
 					goto return_bad_resp;
 			}
@@ -5175,7 +5167,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 			}
 
 			if (want_flags != (txn->flags & (TX_CON_CLO_SET|TX_CON_KAL_SET)))
-				http_change_connection_header(txn, msg, rep, want_flags);
+				http_change_connection_header(txn, msg, want_flags);
 		}
 
 	skip_header_mangling:
