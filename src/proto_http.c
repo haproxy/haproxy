@@ -1954,9 +1954,13 @@ int http_skip_chunk_crlf(struct buffer *buf, struct http_msg *msg)
 	return 1;
 }
 
-/* This function may only be used when the buffer's o is empty */
-void http_buffer_heavy_realign(struct buffer *buf, struct http_msg *msg)
+/* This function realigns a possibly wrapping http message at the beginning
+ * of its buffer. The function may only be used when the buffer's tail is
+ * empty.
+ */
+void http_message_realign(struct http_msg *msg)
 {
+	struct buffer *buf = msg->buf;
 	int off = buf->data + buf->size - buf->p;
 
 	/* two possible cases :
@@ -2060,7 +2064,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			}
 			if (buffer_wrap_add(req, req->p + req->i) < buffer_wrap_add(req, req->p + msg->next) ||
 			    buffer_wrap_add(req, req->p + req->i) > req->data + req->size - global.tune.maxrewrite)
-				http_buffer_heavy_realign(req, msg);
+				http_message_realign(msg);
 		}
 
 		/* Note that we have the same problem with the response ; we
@@ -4470,7 +4474,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 				return 0;
 			}
 			if (rep->i <= rep->size - global.tune.maxrewrite)
-				http_buffer_heavy_realign(rep, msg);
+				http_message_realign(msg);
 		}
 
 		if (likely(msg->next < rep->i))
