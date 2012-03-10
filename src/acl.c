@@ -423,12 +423,9 @@ acl_fetch_ssl_hello_sni(struct proxy *px, struct session *l4, void *l7, int dir,
 			name_len = (data[7] << 8) + data[8];
 
 			if (name_type == 0) { /* hostname */
-				temp_pattern.data.str.str = data + 9;
+				temp_pattern.data.str.str = (char *)data + 9;
 				temp_pattern.data.str.len = name_len;
 				test->flags = ACL_TEST_F_VOLATILE;
-				//fprintf(stderr, "found SNI : <");
-				//write(2, test->ptr, test->len);
-				//fprintf(stderr, ">\n");
 				return 1;
 			}
 		}
