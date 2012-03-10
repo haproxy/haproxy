@@ -6768,7 +6768,7 @@ observe <mode>
   "layer7". In layer4 mode, only successful/unsuccessful tcp connections are
   significant. In layer7, which is only allowed for http proxies, responses
   received from server are verified, like valid/wrong http code, unparsable
-  headers, a timeout, etc.
+  headers, a timeout, etc. Valid status codes include 100 to 499, 501 and 505.
 
   Supported in default-server: No
 
