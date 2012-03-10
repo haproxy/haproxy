@@ -127,7 +127,7 @@ static inline int buffer_contig_area(const struct buffer *buf, const char *start
  * to reduce the amount of operations but it's not easy to understand as it is.
  * Drawing a buffer with wrapping data on a paper helps a lot.
  */
-static inline int buffer_contig_space(struct buffer *buf)
+static inline int buffer_contig_space(const struct buffer *buf)
 {
 	int space_from_end = buf->l - (buf->r - buf->data);
 	if (space_from_end < 0) /* data does not wrap */
@@ -139,7 +139,7 @@ static inline int buffer_contig_space(struct buffer *buf)
  * excluding reserved space, which is preserved. Same comment as above for
  * the optimization leading to hardly understandable code.
  */
-static inline int buffer_contig_space_res(struct buffer *buf)
+static inline int buffer_contig_space_res(const struct buffer *buf)
 {
 	/* Proceed differently if the buffer is full, partially used or empty.
 	 * The hard situation is when it's partially used and either data or
@@ -163,7 +163,7 @@ static inline int buffer_contig_space_res(struct buffer *buf)
  * buffer_reserved() in <res> if it already knows it, to save some
  * computations.
  */
-static inline int buffer_contig_space_with_res(struct buffer *buf, int res)
+static inline int buffer_contig_space_with_res(const struct buffer *buf, int res)
 {
 	/* Proceed differently if the buffer is full, partially used or empty.
 	 * The hard situation is when it's partially used and either data or
@@ -188,7 +188,7 @@ static inline int buffer_contig_space_with_res(struct buffer *buf, int res)
  * once, so the original pointer must be between ->data-size and ->data+2*size-1,
  * otherwise an invalid pointer might be returned.
  */
-static inline char *buffer_pointer(const struct buffer *buf, char *ptr)
+static inline const char *buffer_pointer(const struct buffer *buf, const char *ptr)
 {
 	if (ptr < buf->data)
 		ptr += buf->size;
@@ -200,7 +200,7 @@ static inline char *buffer_pointer(const struct buffer *buf, char *ptr)
 /* Returns the distance between two pointers, taking into account the ability
  * to wrap around the buffer's end.
  */
-static inline int buffer_count(const struct buffer *buf, char *from, char *to)
+static inline int buffer_count(const struct buffer *buf, const char *from, const char *to)
 {
 	int count = to - from;
 	if (count < 0)
@@ -222,7 +222,7 @@ static inline int buffer_pending(const struct buffer *buf)
  * <end>. It always starts at buf->w+send_max. The work area includes the
  * reserved area.
  */
-static inline int buffer_work_area(const struct buffer *buf, char *end)
+static inline int buffer_work_area(const struct buffer *buf, const char *end)
 {
 	end = buffer_pointer(buf, end);
 	if (end == buf->r) /* pointer exactly at end, lets push forwards */
