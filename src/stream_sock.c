@@ -885,16 +885,15 @@ void stream_sock_shutw(struct stream_interface *si)
 	case SI_ST_QUE:
 	case SI_ST_TAR:
 		si->state = SI_ST_DIS;
+
+		if (si->release)
+			si->release(si);
 	default:
 		si->flags &= ~SI_FL_WAIT_ROOM;
 		si->ib->flags |= BF_SHUTR;
 		si->ib->rex = TICK_ETERNITY;
 		si->exp = TICK_ETERNITY;
-		return;
 	}
-
-	if (si->release)
-		si->release(si);
 }
 
 /*
