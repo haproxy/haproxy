@@ -268,6 +268,7 @@ void init_proto_http()
 	/* memory allocations */
 	pool2_requri = create_pool("requri", REQURI_LEN, MEM_F_SHARED);
 	pool2_capture = create_pool("capture", CAPTURE_LEN, MEM_F_SHARED);
+	pool2_uniqueid = create_pool("uniqueid", UNIQUEID_LEN, MEM_F_SHARED);
 }
 
 /*
@@ -858,6 +859,7 @@ extern const char sess_fin_state[8];
 extern const char *monthname[12];
 struct pool_head *pool2_requri;
 struct pool_head *pool2_capture;
+struct pool_head *pool2_uniqueid;
 
 /*
  * Capture headers from message starting at <som> according to header list
@@ -2397,6 +2399,10 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 		}
 	}
 
+		if (!LIST_ISEMPTY(&s->fe->format_unique_id)) {
+			s->unique_id = pool_alloc2(pool2_uniqueid);
+		}
+
 	/* 4. We may have to convert HTTP/0.9 requests to HTTP/1.0 */
 	if (unlikely(msg->sl.rq.v_l == 0) && !http_upgrade_v09_to_v10(req, msg, txn))
 		goto return_bad_req;
@@ -3272,6 +3278,19 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 	/* It needs to look into the URI unless persistence must be ignored */
 	if ((txn->sessid == NULL) && s->be->appsession_name && !(s->flags & SN_IGNORE_PRST)) {
 		get_srv_from_appsession(s, msg->sol + msg->sl.rq.u, msg->sl.rq.u_l);
+	}
+
+	/* add unique-id if "header-unique-id" is specified */
+
+	if (!LIST_ISEMPTY(&s->fe->format_unique_id))
+		build_logline(s, s->unique_id, UNIQUEID_LEN, &s->fe->format_unique_id);
+
+	if (s->fe->header_unique_id && s->unique_id) {
+		int ret = snprintf(trash, global.tune.bufsize, "%s: %s", s->fe->header_unique_id, s->unique_id);
+		if (ret < 0 || ret > global.tune.bufsize)
+			goto return_bad_req;
+		if(unlikely(http_header_add_tail(req, &txn->req, &txn->hdr_idx, trash) < 0))
+		   goto return_bad_req;
 	}
 
 	/*
@@ -7381,7 +7400,9 @@ void http_end_txn(struct session *s)
 	pool_free2(pool2_capture, txn->cli_cookie);
 	pool_free2(pool2_capture, txn->srv_cookie);
 	pool_free2(apools.sessid, txn->sessid);
+	pool_free2(pool2_uniqueid, s->unique_id);
 
+	s->unique_id = NULL;
 	txn->sessid = NULL;
 	txn->uri = NULL;
 	txn->srv_cookie = NULL;

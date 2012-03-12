@@ -107,6 +107,7 @@ static const struct logformat_type logformat_keywords[] = {
 	{ "pid", LOG_FMT_PID, PR_MODE_TCP, NULL }, /* log pid */
 	{ "rt", LOG_FMT_COUNTER, PR_MODE_TCP, NULL }, /* log counter */
 	{ "H", LOG_FMT_HOSTNAME, PR_MODE_TCP, NULL }, /* Hostname */
+	{ "ID", LOG_FMT_UNIQUEID, PR_MODE_HTTP, NULL }, /* Unique ID */
 	{ 0, 0, 0, NULL }
 };
 
@@ -1305,6 +1306,16 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 					last_isspace = 0;
 				}
 				break;
+
+			case LOG_FMT_UNIQUEID: // %ID
+				src = s->unique_id;
+				ret = lf_text(tmplog, src, maxsize - (tmplog - dst), tmp);
+				if (ret == NULL)
+					goto out;
+				tmplog = ret;
+				last_isspace = 0;
+				break;
+
 		}
 	}
 

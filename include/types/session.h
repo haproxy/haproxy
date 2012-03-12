@@ -207,6 +207,7 @@ struct session {
 	void (*srv_error)(struct session *s,	/* the function to call upon unrecoverable server errors (or NULL) */
 			  struct stream_interface *si);
 	unsigned int uniq_id;			/* unique ID used for the traces */
+	char *unique_id;			/* custom unique ID */
 };
 
 /* parameters to configure tracked counters */

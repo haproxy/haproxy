@@ -439,6 +439,7 @@ void init_new_proxy(struct proxy *p)
 	LIST_INIT(&p->listener_queue);
 	LIST_INIT(&p->logsrvs);
 	LIST_INIT(&p->logformat);
+	LIST_INIT(&p->format_unique_id);
 
 	/* Timeouts are defined as -1 */
 	proxy_reset_timeouts(p);

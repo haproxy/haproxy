@@ -290,6 +290,8 @@ struct proxy {
 	struct proxy *next;
 	struct list logsrvs;
 	struct list logformat; 			/* log_format linked list */
+	char *header_unique_id; 		/* unique-id header */
+	struct list format_unique_id;		/* unique-id format */
 	int to_log;				/* things to be logged (LW_*) */
 	int stop_time;                          /* date to stop listening, when stopping != 0 (int ticks) */
 	struct hdr_exp *req_exp;		/* regular expressions for request headers */

@@ -31,6 +31,8 @@
 #define NB_LOG_FACILITIES       24
 #define NB_LOG_LEVELS           8
 #define SYSLOG_PORT             514
+#define UNIQUEID_LEN            128
+
 
 /* lists of fields that can be logged */
 enum {
@@ -86,6 +88,7 @@ enum {
 	LOG_FMT_HDRRESPONSLIST,
 	LOG_FMT_REQ,
 	LOG_FMT_HOSTNAME,
+	LOG_FMT_UNIQUEID,
 };
 
 /* enum for parse_logformat */

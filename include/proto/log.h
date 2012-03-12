@@ -33,6 +33,7 @@
 #include <types/session.h>
 
 extern struct pool_head *pool2_requri;
+extern struct pool_head *pool2_uniqueid;
 
 extern char *log_format;
 extern char default_tcp_log_format[];

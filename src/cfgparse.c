@@ -1550,6 +1550,18 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			LIST_ADDQ(&curproxy->logformat, &node->list);
 		}
 
+		/* copy default unique_id to curproxy */
+		list_for_each_entry(tmplf, &defproxy.format_unique_id, list) {
+			struct logformat_node *node = malloc(sizeof(struct logformat_node));
+			memcpy(node, tmplf, sizeof(struct logformat_node));
+			LIST_INIT(&node->list);
+			LIST_ADDQ(&curproxy->format_unique_id, &node->list);
+		}
+
+		/* copy default header unique id */
+		if (defproxy.header_unique_id)
+			curproxy->header_unique_id = strdup(defproxy.header_unique_id);
+
 		curproxy->grace  = defproxy.grace;
 		curproxy->conf.used_listener_id = EB_ROOT;
 		curproxy->conf.used_server_id = EB_ROOT;
@@ -4592,6 +4604,26 @@ stats_error_parsing:
 			newsrv->prev_state = newsrv->state;
 		}
 	}
+
+	else if (strcmp(args[0], "unique-id-format") == 0) {
+		if (!*(args[1])) {
+			Alert("parsing [%s:%d] : %s expects an argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		parse_logformat_string(args[1], curproxy, &curproxy->format_unique_id, PR_MODE_HTTP);
+	}
+
+	else if (strcmp(args[0], "unique-id-header") == 0) {
+		if (!*(args[1])) {
+			Alert("parsing [%s:%d] : %s expects an argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		free(curproxy->header_unique_id);
+		curproxy->header_unique_id = strdup(args[1]);
+	}
+
 	else if (strcmp(args[0], "log-format") == 0) {
 		if (!*(args[1])) {
 			Alert("parsing [%s:%d] : %s expects an argument.\n", file, linenum, args[0]);

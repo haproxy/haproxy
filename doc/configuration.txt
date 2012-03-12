@@ -1117,6 +1117,8 @@ timeout server                            X          -         X         X
 timeout srvtimeout          (deprecated)  X          -         X         X
 timeout tarpit                            X          X         X         X
 transparent                 (deprecated)  X          -         X         X
+unique-id-format                          X          X         X         -
+unique-id-header                          X          X         X         -
 use_backend                               -          X         X         -
 use-server                                -          -         X         X
 ------------------------------------+----------+----------+---------+---------
@@ -6564,6 +6566,60 @@ transparent (deprecated)
 
   See also: "option transparent"
 
+unique-id-format <string>
+  Generate a unique ID for each request.
+  May be used in sections :   defaults | frontend | listen | backend
+                                  yes  |    yes   |   yes  |   no
+  Arguments :
+    <string>   is a log-format string.
+
+    This keyword creates a ID for each request using the custom log format. A
+    unique ID is useful to trace a request passing through many components of
+    a complex infrastructure. The newly created ID may also be logged using the
+    %ID tag the log-format string.
+
+    The format should be composed from elements that are guaranteed to be
+    unique when combined together. For instance, if multiple haproxy instances
+    are involved, it might be important to include the node name. It is often
+    needed to log the incoming connection's source and destination addresses
+    and ports. Note that since multiple requests may be performed over the same
+    connection, including a request counter may help differentiate them.
+    Similarly, a timestamp may protect against a rollover of the counter.
+    Logging the process ID will avoid collisions after a service restart.
+
+    It is recommended to use hexadecimal notation for many fields since it
+    makes them more compact and saves space in logs.
+
+    Example:
+
+        unique-id-format %{+X}o\ %Ci:%Cp_%Fi:%Fp_%Ts_%rt:%pid
+
+        will generate:
+
+               7F000001:8296_7F00001E:1F90_4F7B0A69_0003:790A
+
+  See also: "unique-id-header"
+
+unique-id-header <name>
+  Add a unique ID header in the HTTP request.
+  May be used in sections :   defaults | frontend | listen | backend
+                                  yes  |    yes   |   yes  |   no
+  Arguments :
+    <name>   is the name of the header.
+
+    Add a unique-id header in the HTTP request sent to the server, using the
+    unique-id-format. It can't work if the unique-id-format doesn't exist.
+
+    Example:
+
+        unique-id-format %{+X}o\ %Ci:%Cp_%Fi:%Fp_%Ts_%rt:%pid
+        unique-id-header X-Unique-ID
+
+        will generate:
+
+           X-Unique-ID: 7F000001:8296_7F00001E:1F90_4F7B0A69_0003:790A
+
+    See also: "unique-id-format"
 
 use_backend <backend> if <condition>
 use_backend <backend> unless <condition>
@@ -8919,6 +8975,7 @@ Please refer to the table below for currently defined variables :
   |   | %Fi  | frontend_ip                                   | IP          |
   |   | %Fp  | frontend_port                                 | numeric     |
   |   | %H   | hostname                                      | string      |
+  |   | %ID  | unique-id                                     | string      |
   |   | %Si  | server_IP                                     | IP          |
   |   | %Sp  | server_port                                   | numeric     |
   |   | %T   | gmt_date_time                                 | date        |
