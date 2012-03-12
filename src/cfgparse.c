@@ -3352,14 +3352,14 @@ stats_error_parsing:
 					goto out;
 				}
 			}
-			parse_logformat_string(logformat, curproxy);
+			parse_logformat_string(logformat, curproxy, &curproxy->logformat, curproxy->mode);
 		}
 		else if (!strcmp(args[1], "tcplog")) {
 			char *logformat;
 			/* generate a detailed TCP log */
 			curproxy->to_log |= LW_DATE | LW_CLIP | LW_SVID | LW_PXID | LW_BYTES;
 			logformat = default_tcp_log_format;
-			parse_logformat_string(logformat, curproxy);
+			parse_logformat_string(logformat, curproxy, &curproxy->logformat, curproxy->mode);
 		}
 		else if (!strcmp(args[1], "tcpka")) {
 			/* enable TCP keep-alives on client and server sessions */
@@ -4598,7 +4598,7 @@ stats_error_parsing:
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		parse_logformat_string(args[1], curproxy);
+		parse_logformat_string(args[1], curproxy, &curproxy->logformat, curproxy->mode);
 	}
 
 	else if (!strcmp(args[0], "log") && kwm == KWM_NO) {

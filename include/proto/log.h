@@ -40,6 +40,8 @@ extern char default_http_log_format[];
 extern char clf_http_log_format[];
 
 
+int build_logline(struct session *s, char *dst, size_t maxsize, struct list *list_format);
+
 /*
  * send a log for the session when we have enough info about it.
  * Will not log if the frontend has no log defined.
@@ -55,20 +57,19 @@ int parse_logformat_var_args(char *args, struct logformat_node *node);
  * Parse a variable '%varname' or '%{args}varname' in logformat
  *
  */
-int parse_logformat_var(char *str, size_t len, struct proxy *curproxy, int *options);
+int parse_logformat_var(char *str, size_t len, struct proxy *curproxy, struct list *list_format, int *defoptions);
 
 /*
  * add to the logformat linked list
  */
-void add_to_logformat_list(char *start, char *end, int type, struct proxy *curproxy);
+void add_to_logformat_list(char *start, char *end, int type, struct list *list_format);
 
 /*
  * Parse the log_format string and fill a linked list.
  * Variable name are preceded by % and composed by characters [a-zA-Z0-9]* : %varname
  * You can set arguments using { } : %{many arguments}varname
  */
-void parse_logformat_string(char *str, struct proxy *curproxy);
-
+void parse_logformat_string(char *str, struct proxy *curproxy, struct list *list_format, int capabilities);
 /*
  * Displays the message on stderr with the date and pid. Overrides the quiet
  * mode during startup.
