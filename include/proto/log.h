@@ -55,7 +55,7 @@ int parse_logformat_var_args(char *args, struct logformat_node *node);
  * Parse a variable '%varname' or '%{args}varname' in logformat
  *
  */
-int parse_logformat_var(char *str, size_t len, struct proxy *curproxy);
+int parse_logformat_var(char *str, size_t len, struct proxy *curproxy, int *options);
 
 /*
  * add to the logformat linked list

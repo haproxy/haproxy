@@ -182,7 +182,7 @@ int parse_logformat_var_args(char *args, struct logformat_node *node)
  * Parse a variable '%varname' or '%{args}varname' in logformat
  *
  */
-int parse_logformat_var(char *str, size_t len, struct proxy *curproxy)
+int parse_logformat_var(char *str, size_t len, struct proxy *curproxy, int *defoptions)
 {
 	int i, j;
 	char *arg = NULL; // arguments
@@ -190,7 +190,6 @@ int parse_logformat_var(char *str, size_t len, struct proxy *curproxy)
 	char *name = NULL;
 	struct logformat_node *node = NULL;
 	char varname[255] = { 0 }; // variable name
-	int logformat_options = 0x00000000;
 
 	for (i = 1; i < len; i++) { // escape first char %
 		if (!arg && str[i] == '{') {
@@ -210,11 +209,11 @@ int parse_logformat_var(char *str, size_t len, struct proxy *curproxy)
 					if (!((logformat_keywords[j].mode == PR_MODE_HTTP) && (curproxy->mode == PR_MODE_TCP))) {
 						node = calloc(1, sizeof(struct logformat_node));
 						node->type = logformat_keywords[j].type;
-						node->options = logformat_options;
+						node->options = *defoptions;
 						node->arg = arg;
 						parse_logformat_var_args(node->arg, node);
 						if (node->type == LOG_GLOBAL) {
-							logformat_options = node->options;
+							*defoptions = node->options;
 							free(node);
 						} else {
 							if (logformat_keywords[j].config_callback != NULL) {
@@ -266,8 +265,6 @@ void add_to_logformat_list(char *start, char *end, int type, struct proxy *curpr
 		node->arg = str;
 		node->type = LOG_TEXT; // type string
 		LIST_ADDQ(&curproxy->logformat, &node->list);
-	} else if (type == LOG_VARIABLE) { /* type variable */
-		parse_logformat_var(start, end - start, curproxy);
 	} else if (type == LOG_SEPARATOR) {
 		struct logformat_node *node = calloc(1, sizeof(struct logformat_node));
 		node->type = LOG_SEPARATOR;
@@ -286,6 +283,7 @@ void parse_logformat_string(char *str, struct proxy *curproxy)
 	int cformat = -1; /* current token format : LOG_TEXT, LOG_SEPARATOR, LOG_VARIABLE */
 	int pformat = -1; /* previous token format */
 	struct logformat_node *tmplf, *back;
+	int options = 0;
 
 	/* flush the list first. */
 	list_for_each_entry_safe(tmplf, back, &curproxy->logformat, list) {
@@ -303,7 +301,10 @@ void parse_logformat_string(char *str, struct proxy *curproxy)
 			    (pformat != LF_STARG && cformat !=  LF_VAR)) || *str == '\0') {
 				if (pformat > LF_VAR) // unfinished string
 					pformat = LF_TEXT;
-				add_to_logformat_list(sp, str, pformat, curproxy);
+				if (pformat == LF_VAR)
+					parse_logformat_var(sp, str - sp, curproxy, &options);
+				else
+					add_to_logformat_list(sp, str, pformat, curproxy);
 				sp = str;
 				if (*str == '\0')
 					break;
