@@ -8767,12 +8767,12 @@ Flags are :
 At the moment, the default HTTP format is defined this way :
 
     log-format %Ci:%Cp\ [%t]\ %f\ %b/%s\ %Tq/%Tw/%Tc/%Tr/%Tt\ %st\ %B\ %cc\ \
-               %cs\ %ts\ %ac/%fc/%bc/%sc/%rc\ %sq/%bq\ %hr\ %hs\ %{+Q}r
+               %cs\ %tsc\ %ac/%fc/%bc/%sc/%rc\ %sq/%bq\ %hr\ %hs\ %{+Q}r
 
 the default CLF format is defined this way :
 
     log-format %{+Q}o\ %{-Q}Ci\ -\ -\ [%T]\ %r\ %st\ %B\ \"\"\ \"\"\ %Cp\ \
-               %ms\ %f\ %b\ %s\ \%Tq\ %Tw\ %Tc\ %Tr\ %Tt\ %ts\ %ac\ %fc\ \
+               %ms\ %f\ %b\ %s\ \%Tq\ %Tw\ %Tc\ %Tr\ %Tt\ %tsc\ %ac\ %fc\ \
                %bc\ %sc\ %rc\ %sq\ %bq\ %cc\ %cs\ \%hrl\ %hsl
 
 and the default TCP format is defined this way :
@@ -8817,6 +8817,7 @@ Please refer to the table below for currently defined variables :
   |   | %sq  | srv_queue                                     | numeric     |
   | * | %st  | status_code                                   | numeric     |
   |   | %ts  | termination_state                             | string      |
+  | * | %tsc | termination_state with cookie status          | string      |
   +---+------+-----------------------------------------------+-------------+
 
 *: mode httplog only

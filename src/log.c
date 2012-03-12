@@ -85,6 +85,7 @@ static const struct logformat_type logformat_keywords[] = {
 	{ "cc", LOG_CCLIENT, PR_MODE_HTTP, NULL },  /* client cookie */
 	{ "cs", LOG_CSERVER, PR_MODE_HTTP, NULL },  /* server cookie */
 	{ "ts", LOG_TERMSTATE, PR_MODE_TCP, NULL },/* terminaison state */
+	{ "tsc", LOG_TERMSTATE_CK, PR_MODE_HTTP, NULL },/* terminaison state with cookie status */
 	{ "ac", LOG_ACTCONN, PR_MODE_TCP, NULL },  /* actconn */
 	{ "fc", LOG_FECONN, PR_MODE_TCP, NULL },   /* feconn */
 	{ "bc", LOG_BECONN, PR_MODE_TCP, NULL },   /* beconn */
@@ -100,8 +101,8 @@ static const struct logformat_type logformat_keywords[] = {
 	{ 0, 0, 0, NULL }
 };
 
-char default_http_log_format[] = "%Ci:%Cp [%t] %f %b/%s %Tq/%Tw/%Tc/%Tr/%Tt %st %B %cc %cs %ts %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r"; // default format
-char clf_http_log_format[] = "%{+Q}o %{-Q}Ci - - [%T] %r %st %B \"\" \"\" %Cp %ms %f %b %s %Tq %Tw %Tc %Tr %Tt %ts %ac %fc %bc %sc %rc %sq %bq %cc %cs %hrl %hsl";
+char default_http_log_format[] = "%Ci:%Cp [%t] %f %b/%s %Tq/%Tw/%Tc/%Tr/%Tt %st %B %cc %cs %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r"; // default format
+char clf_http_log_format[] = "%{+Q}o %{-Q}Ci - - [%T] %r %st %B \"\" \"\" %Cp %ms %f %b %s %Tq %Tw %Tc %Tr %Tt %tsc %ac %fc %bc %sc %rc %sq %bq %cc %cs %hrl %hsl";
 char default_tcp_log_format[] = "%Ci:%Cp [%t] %f %b/%s %Tw/%Tc/%Tt %B %ts %ac/%fc/%bc/%sc/%rc %sq/%bq";
 char *log_format = NULL;
 
@@ -936,13 +937,17 @@ void sess_log(struct session *s)
 				break;
 
 			case LOG_TERMSTATE: // %ts
-
 				LOGCHAR(sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT]);
 				LOGCHAR(sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT]);
-				if (fe->mode == PR_MODE_HTTP) {
-					LOGCHAR((be->options & PR_O_COOK_ANY) ? sess_cookie[(txn->flags & TX_CK_MASK) >> TX_CK_SHIFT] : '-');
-					LOGCHAR((be->options & PR_O_COOK_ANY) ? sess_set_cookie[(txn->flags & TX_SCK_MASK) >> TX_SCK_SHIFT] : '-');
-				}
+				*tmplog = '\0';
+				last_isspace = 0;
+				break;
+
+			case LOG_TERMSTATE_CK: // %tsc, same as TS with cookie state (for mode HTTP)
+				LOGCHAR(sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT]);
+				LOGCHAR(sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT]);
+				LOGCHAR((be->options & PR_O_COOK_ANY) ? sess_cookie[(txn->flags & TX_CK_MASK) >> TX_CK_SHIFT] : '-');
+				LOGCHAR((be->options & PR_O_COOK_ANY) ? sess_set_cookie[(txn->flags & TX_SCK_MASK) >> TX_SCK_SHIFT] : '-');
 				*tmplog = '\0';
 				last_isspace = 0;
 				break;
