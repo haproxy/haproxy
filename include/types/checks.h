@@ -19,7 +19,7 @@ enum {
 	/* Below we have finished checks */
 	HCHK_STATUS_CHECKED,		/* DUMMY STATUS */
 
-	HCHK_STATUS_HANA,		/* Healt analyze detected enough consecutive errors */
+	HCHK_STATUS_HANA,		/* Health analyze detected enough consecutive errors */
 
 	HCHK_STATUS_SOCKERR,		/* Socket error */
 
@@ -35,7 +35,7 @@ enum {
 	HCHK_STATUS_L7TOUT,		/* L7 (HTTP/SMTP) timeout */
 	HCHK_STATUS_L7RSP,		/* L7 invalid response - protocol error */
 
-	/* Below we have layer 5-7 data avaliable */
+	/* Below we have layer 5-7 data available */
 	HCHK_STATUS_L57DATA,		/* DUMMY STATUS */
 	HCHK_STATUS_L7OKD,		/* L7 check passed */
 	HCHK_STATUS_L7OKCD,		/* L7 check conditionally passed */
