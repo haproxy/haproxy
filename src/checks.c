@@ -51,7 +51,7 @@
 
 static int httpchk_expect(struct server *s, int done);
 
-const struct check_status check_statuses[HCHK_STATUS_SIZE] = {
+static const struct check_status check_statuses[HCHK_STATUS_SIZE] = {
 	[HCHK_STATUS_UNKNOWN]	= { SRV_CHK_UNKNOWN,                   "UNK",     "Unknown" },
 	[HCHK_STATUS_INI]	= { SRV_CHK_UNKNOWN,                   "INI",     "Initializing" },
 	[HCHK_STATUS_START]	= { /* SPECIAL STATUS*/ },
@@ -78,7 +78,7 @@ const struct check_status check_statuses[HCHK_STATUS_SIZE] = {
 	[HCHK_STATUS_L7STS]	= { SRV_CHK_ERROR,                     "L7STS",   "Layer7 wrong status" },
 };
 
-const struct analyze_status analyze_statuses[HANA_STATUS_SIZE] = {		/* 0: ignore, 1: error, 2: OK */
+static const struct analyze_status analyze_statuses[HANA_STATUS_SIZE] = {		/* 0: ignore, 1: error, 2: OK */
 	[HANA_STATUS_UNKNOWN]		= { "Unknown",                         { 0, 0 }},
 
 	[HANA_STATUS_L4_OK]		= { "L4 successful connection",        { 2, 0 }},
@@ -1267,7 +1267,7 @@ static struct task *server_warmup(struct task *t)
  * manages a server health-check. Returns
  * the time the task accepts to wait, or TIME_ETERNITY for infinity.
  */
-struct task *process_chk(struct task *t)
+static struct task *process_chk(struct task *t)
 {
 	int attempts = 0;
 	struct server *s = t->context;
