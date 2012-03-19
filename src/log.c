@@ -506,7 +506,7 @@ char *logformat_write_string(char *dst, char *src, size_t size, struct logformat
 				return NULL;
 			}
 			dst += strlcpy2(dst, src, size);
-			size -= orig - dst + 1;
+			size -= dst - orig + 1;
 			if (size > 1) {
 				*(dst++) = '"';
 				*dst = '\0';
@@ -672,7 +672,7 @@ void __send_log(struct proxy *p, int level, char *message, size_t size)
 		} while (fac_level && log_ptr > dataptr);
 		*log_ptr = '<';
 
-		sent = sendto(*plogfd, log_ptr, size,
+		sent = sendto(*plogfd, log_ptr, size + log_ptr - dataptr,
 			      MSG_DONTWAIT | MSG_NOSIGNAL,
 			      (struct sockaddr *)&logsrv->addr, get_addr_len(&logsrv->addr));
 		if (sent < 0) {
