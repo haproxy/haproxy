@@ -506,7 +506,7 @@ server uses HTTPS.
 
 
 Since haproxy does not handle SSL, this part will have to be extracted from the
-servers (freeing even more ressources) and installed on the load-balancer
+servers (freeing even more resources) and installed on the load-balancer
 itself. Install haproxy and apache+mod_ssl on the old box which will spread the
 load between the new boxes. Apache will work in SSL reverse-proxy-cache. If the
 application is correctly developped, it might even lower its load. However,

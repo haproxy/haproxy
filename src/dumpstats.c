@@ -2012,7 +2012,7 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 			chunk_printf(&msg,
 			     "</ul></td>"
 			     "<td align=\"left\" valign=\"top\" nowrap width=\"1%%\">"
-			     "<b>External ressources:</b><ul style=\"margin-top: 0.25em;\">\n"
+			     "<b>External resources:</b><ul style=\"margin-top: 0.25em;\">\n"
 			     "<li><a href=\"" PRODUCT_URL "\">Primary site</a><br>\n"
 			     "<li><a href=\"" PRODUCT_URL_UPD "\">Updates (v" PRODUCT_BRANCH ")</a><br>\n"
 			     "<li><a href=\"" PRODUCT_URL_DOC "\">Online manual</a><br>\n"
