@@ -106,6 +106,11 @@ char clf_http_log_format[] = "%{+Q}o %{-Q}Ci - - [%T] %r %st %B \"\" \"\" %Cp %m
 char default_tcp_log_format[] = "%Ci:%Cp [%t] %f %b/%s %Tw/%Tc/%Tt %B %ts %ac/%fc/%bc/%sc/%rc %sq/%bq";
 char *log_format = NULL;
 
+/* This is a global syslog line, common to all outgoing messages. It begins
+ * with the syslog tag and the date that are updated by update_log_hdr().
+ */
+static char logline[MAX_SYSLOG_LEN];
+
 struct logformat_var_args {
 	char *name;
 	int mask;
@@ -515,21 +520,23 @@ char *logformat_write_string(char *dst, char *src, size_t size, struct logformat
 	return dst;
 }
 
-/* generate the syslog header once a second */
-char *hdr_log(char *dst)
+/* Re-generate the syslog header at the beginning of logline once a second and
+ * return the pointer to the first character after the header.
+ */
+static char *update_log_hdr()
 {
-	int hdr_len = 0;
-	static long tvsec = -1;	/* to force the string to be initialized */
-	static char *dataptr = NULL;
+	static long tvsec;
+	static char *dataptr = NULL; /* backup of last end of header, NULL first time */
 
 	if (unlikely(date.tv_sec != tvsec || dataptr == NULL)) {
 		/* this string is rebuild only once a second */
 		struct tm tm;
+		int hdr_len;
 
 		tvsec = date.tv_sec;
 		get_localtime(tvsec, &tm);
 
-		hdr_len = snprintf(dst, MAX_SYSLOG_LEN,
+		hdr_len = snprintf(logline, MAX_SYSLOG_LEN,
 				   "<<<<>%s %2d %02d:%02d:%02d %s%s[%d]: ",
 				   monthname[tm.tm_mon],
 				   tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec,
@@ -542,7 +549,7 @@ char *hdr_log(char *dst)
 		if (hdr_len < 0 || hdr_len > MAX_SYSLOG_LEN)
 			hdr_len = MAX_SYSLOG_LEN;
 
-		dataptr = dst + hdr_len;
+		dataptr = logline + hdr_len;
 	}
 
 	return dataptr;
@@ -555,23 +562,22 @@ char *hdr_log(char *dst)
 void send_log(struct proxy *p, int level, const char *format, ...)
 {
 	va_list argp;
-	static char logmsg[MAX_SYSLOG_LEN];
-	static char *dataptr = NULL;
-	int  data_len = 0;
+	char *dataptr;
+	int  data_len;
 
 	if (level < 0 || format == NULL)
 		return;
 
-	dataptr = hdr_log(logmsg); /* create header */
-	data_len = dataptr - logmsg;
+	dataptr = update_log_hdr(); /* update log header and skip it */
+	data_len = dataptr - logline;
 
 	va_start(argp, format);
-	data_len += vsnprintf(dataptr, MAX_SYSLOG_LEN, format, argp);
+	data_len += vsnprintf(dataptr, logline + sizeof(logline) - dataptr, format, argp);
 	if (data_len < 0 || data_len > MAX_SYSLOG_LEN)
 		data_len =  MAX_SYSLOG_LEN;
 	va_end(argp);
 
-	__send_log(p, level, logmsg, data_len);
+	__send_log(p, level, logline, data_len);
 }
 
 /*
@@ -713,8 +719,7 @@ void sess_log(struct session *s)
 	int t_request;
 	int hdr;
 	int last_isspace = 1;
-	static char logline[MAX_SYSLOG_LEN] = { 0 };
-	static char *tmplog;
+	char *tmplog;
 	struct logformat_node *tmp;
 
 	/* if we don't want to log normal traffic, return now */
@@ -763,8 +768,7 @@ void sess_log(struct session *s)
 
 	/* fill logbuffer */
 
-	tmplog = logline;
-	tmplog = hdr_log(tmplog);
+	tmplog = update_log_hdr(); /* update log header and skip it */
 
 	list_for_each_entry(tmp, &fe->logformat, list) {
 		char *src = NULL;

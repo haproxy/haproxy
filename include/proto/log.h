@@ -88,9 +88,6 @@ void Warning(const char *fmt, ...)
 void qfprintf(FILE *out, const char *fmt, ...)
 	__attribute__ ((format(printf, 2, 3)));
 
-/* generate the syslog header one time per second */
-char *hdr_log(char *dst);
-
 /*
  * This function adds a header to the message and sends the syslog message
  * using a printf format string
