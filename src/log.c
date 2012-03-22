@@ -913,7 +913,7 @@ void sess_log(struct session *s)
 				break;
 
 			case LOG_STATUS: // %st
-				tmplog = ultoa_o(txn->status, tmplog, MAX_SYSLOG_LEN - (tmplog - logline));
+				tmplog = ltoa_o(txn->status, tmplog, MAX_SYSLOG_LEN - (tmplog - logline));
 				if (!tmplog)
 					goto out;
 				last_isspace = 0;
