@@ -3252,20 +3252,74 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 			     sess->flags, sess->si[1].conn_retries, sess->srv_conn, sess->pend_pos);
 
 		chunk_printf(&msg,
-			     "  frontend=%s (id=%u mode=%s), listener=%s (id=%u)\n",
+			     "  frontend=%s (id=%u mode=%s), listener=%s (id=%u)",
 			     sess->fe->id, sess->fe->uuid, sess->fe->mode ? "http" : "tcp",
 			     sess->listener ? sess->listener->name ? sess->listener->name : "?" : "?",
 			     sess->listener ? sess->listener->luid : 0);
 
+		stream_sock_get_to_addr(&sess->si[0]);
+		switch (addr_to_str(&sess->si[0].addr.to, pn, sizeof(pn))) {
+		case AF_INET:
+		case AF_INET6:
+			chunk_printf(&msg, " addr=%s:%d\n",
+				     pn, get_host_port(&sess->si[0].addr.to));
+			break;
+		case AF_UNIX:
+			chunk_printf(&msg, " addr=unix:%d\n", sess->listener->luid);
+			break;
+		default:
+			/* no more information to print right now */
+			chunk_printf(&msg, "\n");
+			break;
+		}
+
 		if (sess->be->cap & PR_CAP_BE)
 			chunk_printf(&msg,
-				     "  backend=%s (id=%u mode=%s) server=%s (id=%u)\n",
+				     "  backend=%s (id=%u mode=%s)",
 				     sess->be->id,
-				     sess->be->uuid, sess->be->mode ? "http" : "tcp",
+				     sess->be->uuid, sess->be->mode ? "http" : "tcp");
+		else
+			chunk_printf(&msg, "  backend=<NONE> (id=-1 mode=-)");
+
+		stream_sock_get_from_addr(&sess->si[1]);
+		switch (addr_to_str(&sess->si[1].addr.from, pn, sizeof(pn))) {
+		case AF_INET:
+		case AF_INET6:
+			chunk_printf(&msg, " addr=%s:%d\n",
+				     pn, get_host_port(&sess->si[1].addr.from));
+			break;
+		case AF_UNIX:
+			chunk_printf(&msg, " addr=unix\n");
+			break;
+		default:
+			/* no more information to print right now */
+			chunk_printf(&msg, "\n");
+			break;
+		}
+
+		if (sess->be->cap & PR_CAP_BE)
+			chunk_printf(&msg,
+				     "  server=%s (id=%u)",
 				     target_srv(&sess->target) ? target_srv(&sess->target)->id : "<none>",
 				     target_srv(&sess->target) ? target_srv(&sess->target)->puid : 0);
 		else
-			chunk_printf(&msg, "  backend=<NONE> (id=-1 mode=-) server=<NONE> (id=-1)\n");
+			chunk_printf(&msg, "  server=<NONE> (id=-1)");
+
+		stream_sock_get_to_addr(&sess->si[1]);
+		switch (addr_to_str(&sess->si[1].addr.to, pn, sizeof(pn))) {
+		case AF_INET:
+		case AF_INET6:
+			chunk_printf(&msg, " addr=%s:%d\n",
+				     pn, get_host_port(&sess->si[1].addr.to));
+			break;
+		case AF_UNIX:
+			chunk_printf(&msg, " addr=unix\n");
+			break;
+		default:
+			/* no more information to print right now */
+			chunk_printf(&msg, "\n");
+			break;
+		}
 
 		chunk_printf(&msg,
 			     "  task=%p (state=0x%02x nice=%d calls=%d exp=%s%s)\n",
