@@ -2416,7 +2416,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	txn->flags &= ~TX_REQ_XFER_LEN;
 
 	/* 5: we may need to capture headers */
-	if (unlikely((s->logs.logwait & LW_REQHDR) && s->fe->req_cap))
+	if (unlikely((s->logs.logwait & LW_REQHDR) && txn->req.cap))
 		capture_headers(msg->sol, &txn->hdr_idx,
 				txn->req.cap, s->fe->req_cap);
 
@@ -4672,7 +4672,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	 * 3: we may need to capture headers
 	 */
 	s->logs.logwait &= ~LW_RESP;
-	if (unlikely((s->logs.logwait & LW_RSPHDR) && s->fe->rsp_cap))
+	if (unlikely((s->logs.logwait & LW_RSPHDR) && txn->rsp.cap))
 		capture_headers(msg->sol, &txn->hdr_idx,
 				txn->rsp.cap, s->fe->rsp_cap);
 
