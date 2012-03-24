@@ -6062,14 +6062,33 @@ out_uri_auth_compat:
 		}
 
 		/* The small pools required for the capture lists */
-		if (curproxy->nb_req_cap)
-			curproxy->req_cap_pool = create_pool("ptrcap",
-							     curproxy->nb_req_cap * sizeof(char *),
-							     MEM_F_SHARED);
-		if (curproxy->nb_rsp_cap)
-			curproxy->rsp_cap_pool = create_pool("ptrcap",
-							     curproxy->nb_rsp_cap * sizeof(char *),
-							     MEM_F_SHARED);
+		if (curproxy->nb_req_cap) {
+			if (curproxy->mode == PR_MODE_HTTP) {
+				curproxy->req_cap_pool = create_pool("ptrcap",
+								     curproxy->nb_req_cap * sizeof(char *),
+								     MEM_F_SHARED);
+			} else {
+				Warning("config : 'capture request header' ignored for %s '%s' as it requires HTTP mode.\n",
+					proxy_type_str(curproxy), curproxy->id);
+				err_code |= ERR_WARN;
+				curproxy->to_log &= ~LW_REQHDR;
+				curproxy->nb_req_cap = 0;
+			}
+		}
+
+		if (curproxy->nb_rsp_cap) {
+			if (curproxy->mode == PR_MODE_HTTP) {
+				curproxy->rsp_cap_pool = create_pool("ptrcap",
+								     curproxy->nb_rsp_cap * sizeof(char *),
+								     MEM_F_SHARED);
+			} else {
+				Warning("config : 'capture response header' ignored for %s '%s' as it requires HTTP mode.\n",
+					proxy_type_str(curproxy), curproxy->id);
+				err_code |= ERR_WARN;
+				curproxy->to_log &= ~LW_REQHDR;
+				curproxy->nb_rsp_cap = 0;
+			}
+		}
 
 		/* first, we will invert the servers list order */
 		newsrv = NULL;
