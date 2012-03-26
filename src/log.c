@@ -474,7 +474,7 @@ int get_log_facility(const char *fac)
  */
 char *logformat_write_string(char *dst, char *src, size_t size, struct logformat_node *node)
 {
-	char *orig = dst;
+	int n;
 
 	if (src == NULL || *src == '\0') {
 		if (node->options & LOG_OPT_QUOTE) {
@@ -505,8 +505,9 @@ char *logformat_write_string(char *dst, char *src, size_t size, struct logformat
 				dst = NULL;
 				return NULL;
 			}
-			dst += strlcpy2(dst, src, size);
-			size -= dst - orig + 1;
+			n = strlcpy2(dst, src, size);
+			size -= n;
+			dst += n;
 			if (size > 1) {
 				*(dst++) = '"';
 				*dst = '\0';
@@ -693,7 +694,7 @@ const char sess_set_cookie[8] = "NPDIRU67";	/* No set-cookie, Set-cookie found a
 						   Set-cookie Updated, unknown, unknown */
 
 #define LOGCHAR(x) do { \
-			if (MAX_SYSLOG_LEN - (tmplog - logline) > 1) { \
+			if (tmplog < logline + MAX_SYSLOG_LEN - 1) { \
 				*(tmplog++) = (x);                     \
 			} else {                                       \
 				goto out;                              \
@@ -785,7 +786,7 @@ void sess_log(struct session *s)
 			case LOG_TEXT: // text
 				src = tmp->arg;
 				tmplog += strlcpy2(tmplog, src, MAX_SYSLOG_LEN - (tmplog - logline));
-				if (!tmplog)
+				if (tmplog > logline + MAX_SYSLOG_LEN - 2)
 					goto out;
 				last_isspace = 0;
 				break;
@@ -793,7 +794,6 @@ void sess_log(struct session *s)
 			case LOG_CLIENTIP:  // %Ci
 				src = (s->req->prod->addr.from.ss_family == AF_UNIX) ? "unix" : pn;
 				tmplog = logformat_write_string(tmplog, src, MAX_SYSLOG_LEN - (tmplog - logline), tmp);
-
 				if (!tmplog)
 					goto out;
 				last_isspace = 0;
@@ -810,7 +810,6 @@ void sess_log(struct session *s)
 			case LOG_SOURCEIP:  // Bi
 				src = (s->req->cons->addr.from.ss_family == AF_UNIX) ? "unix" : sn;
 				tmplog = logformat_write_string(tmplog, src, MAX_SYSLOG_LEN - (tmplog - logline), tmp);
-
 				if (!tmplog)
 					goto out;
 				last_isspace = 0;
@@ -847,8 +846,9 @@ void sess_log(struct session *s)
 				}
 				tmplog = utoa_pad((unsigned int)s->logs.accept_date.tv_usec/1000,
 						  tmplog, 4);
+				if (!tmplog)
+					goto out;
 				last_isspace = 0;
-
 				break;
 
 			case LOG_FRONTEND: // %f
@@ -856,7 +856,7 @@ void sess_log(struct session *s)
 				tmplog = logformat_write_string(tmplog, src, MAX_SYSLOG_LEN - (tmplog - logline), tmp);
 				if (!tmplog)
 					goto out;
-				last_isspace = 0 ;
+				last_isspace = 0;
 				break;
 
 			case LOG_BACKEND: // %b
@@ -864,7 +864,7 @@ void sess_log(struct session *s)
 				tmplog = logformat_write_string(tmplog, src, MAX_SYSLOG_LEN - (tmplog - logline), tmp);
 				if (!tmplog)
 					goto out;
-				last_isspace = 0 ;
+				last_isspace = 0;
 				break;
 
 			case LOG_SERVER: // %s
@@ -931,12 +931,16 @@ void sess_log(struct session *s)
 			case LOG_CCLIENT: // %cc
 				src = txn->cli_cookie;
 				tmplog = logformat_write_string(tmplog, src, MAX_SYSLOG_LEN - (tmplog - logline), tmp);
+				if (!tmplog)
+					goto out;
 				last_isspace = 0;
 				break;
 
 			case LOG_CSERVER: // %cs
 				src = txn->srv_cookie;
 				tmplog = logformat_write_string(tmplog, src, MAX_SYSLOG_LEN - (tmplog - logline), tmp);
+				if (!tmplog)
+					goto out;
 				last_isspace = 0;
 				break;
 
@@ -988,6 +992,8 @@ void sess_log(struct session *s)
 				if (s->flags & SN_REDISP)
 					*(tmplog++) = '+';
 				tmplog = ltoa_o((s->req->cons->conn_retries>0)?(be->conn_retries - s->req->cons->conn_retries):be->conn_retries, tmplog, MAX_SYSLOG_LEN - (tmplog - logline));
+				if (!tmplog)
+					goto out;
 				last_isspace = 0;
 				break;
 
@@ -1014,11 +1020,16 @@ void sess_log(struct session *s)
 					for (hdr = 0; hdr < fe->nb_req_cap; hdr++) {
 						if (hdr)
 							LOGCHAR('|');
-						if (txn->req.cap[hdr] != NULL)
+						if (txn->req.cap[hdr] != NULL) {
 							tmplog = encode_string(tmplog, logline + MAX_SYSLOG_LEN,
 									       '#', hdr_encode_map, txn->req.cap[hdr]);
+							if (*tmplog != '\0')
+								goto out;
+						}
 					}
 					LOGCHAR('}');
+					if (tmp->options & LOG_OPT_QUOTE)
+						LOGCHAR('"');
 					last_isspace = 0;
 				}
 				*tmplog = '\0';
@@ -1035,6 +1046,9 @@ void sess_log(struct session *s)
 						if (txn->req.cap[hdr] != NULL) {
 							tmplog = encode_string(tmplog, logline + MAX_SYSLOG_LEN,
 									       '#', hdr_encode_map, txn->req.cap[hdr]);
+							if (*tmplog != '\0')
+								goto out;
+
 						} else if (!(tmp->options & LOG_OPT_QUOTE))
 							LOGCHAR('-');
 						if (tmp->options & LOG_OPT_QUOTE)
@@ -1055,9 +1069,12 @@ void sess_log(struct session *s)
 					for (hdr = 0; hdr < fe->nb_rsp_cap; hdr++) {
 						if (hdr)
 							LOGCHAR('|');
-						if (txn->rsp.cap[hdr] != NULL)
+						if (txn->rsp.cap[hdr] != NULL) {
 							tmplog = encode_string(tmplog, logline + MAX_SYSLOG_LEN,
 									       '#', hdr_encode_map, txn->rsp.cap[hdr]);
+							if (*tmplog != '\0')
+								goto out;
+						}
 					}
 					LOGCHAR('}');
 					last_isspace = 0;
@@ -1078,6 +1095,8 @@ void sess_log(struct session *s)
 						if (txn->rsp.cap[hdr] != NULL) {
 							tmplog = encode_string(tmplog, logline + MAX_SYSLOG_LEN,
 									       '#', hdr_encode_map, txn->rsp.cap[hdr]);
+							if (*tmplog != '\0')
+								goto out;
 						} else if (!(tmp->options & LOG_OPT_QUOTE))
 							LOGCHAR('-');
 						if (tmp->options & LOG_OPT_QUOTE)
@@ -1095,6 +1114,8 @@ void sess_log(struct session *s)
 				uri = txn->uri ? txn->uri : "<BADREQ>";
 				tmplog = encode_string(tmplog, logline + MAX_SYSLOG_LEN,
 						       '#', url_encode_map, uri);
+				if (*tmplog != '\0')
+					goto out;
 				if (tmp->options & LOG_OPT_QUOTE)
 					LOGCHAR('"');
 				*tmplog = '\0';
