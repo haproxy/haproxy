@@ -1,6 +1,105 @@
 ChangeLog :
 ===========
 
+2012/03/26 : 1.5-dev8
+    - MINOR: patch for minor typo (ressources/resources)
+    - MEDIUM: http: add support for sending the server's name in the outgoing request
+    - DOC: mention that default checks are TCP connections
+    - BUG/MINOR: fix options forwardfor if-none when an alternative header name is specified
+    - CLEANUP: Make check_statuses, analyze_statuses and process_chk static
+    - CLEANUP: Fix HCHK spelling errors
+    - BUG/MINOR: fix typo in processing of http-send-name-header
+    - MEDIUM: log: Use linked lists for loggers
+    - BUILD: fix declaration inside a scope block
+    - REORG: log: split send_log function
+    - MINOR: config: Parse the string of the log-format config keyword
+    - MINOR: add ultoa, ulltoa, ltoa, lltoa implementations
+    - MINOR: Date and time fonctions that don't use snprintf
+    - MEDIUM: log: make http_sess_log use log_format
+    - DOC: log-format documentation
+    - MEDIUM: log: use log_format for mode tcplog
+    - MEDIUM: log-format: backend source address %Bi %Bp
+    - BUG/MINOR: log-format: fix %o flag
+    - BUG/MEDIUM: bad length in log_format and __send_log
+    - MINOR: logformat %st is signed
+    - BUILD/MINOR: fix the source URL in the spec file
+    - DOC: acl is http_first_req, not http_req_first
+    - BUG/MEDIUM: don't trim last spaces from headers consisting only of spaces
+    - MINOR: acl: add new matches for header/path/url length
+    - BUILD: halog: make halog build on solaris
+    - BUG/MINOR: don't use a wrong port when connecting to a server with mapped ports
+    - MINOR: remove the client/server side distinction in SI addresses
+    - MINOR: halog: add support for matching queued requests
+    - DOC: indicate that cookie "prefix" and "indirect" should not be mixed
+    - OPTIM/MINOR: move struct sockaddr_storage to the tail of structs
+    - OPTIM/MINOR: make it possible to change pipe size (tune.pipesize)
+    - BUILD/MINOR: silent a build warning in src/pipe.c (fcntl)
+    - OPTIM/MINOR: move the hdr_idx pools out of the proxy struct
+    - MEDIUM: tune.http.maxhdr makes it possible to configure the maximum number of HTTP headers
+    - BUG/MINOR: fix a segfault when parsing a config with undeclared peers
+    - CLEANUP: rename possibly confusing struct field "tracked"
+    - BUG/MEDIUM: checks: fix slowstart behaviour when server tracking is in use
+    - MINOR: config: tolerate server "cookie" setting in non-HTTP mode
+    - MEDIUM: buffers: add some new primitives and rework existing ones
+    - BUG: buffers: don't return a negative value on buffer_total_space_res()
+    - MINOR: buffers: make buffer_pointer() support negative pointers too
+    - CLEANUP: kill buffer_replace() and use an inline instead
+    - BUG: tcp: option nolinger does not work on backends
+    - CLEANUP: ebtree: remove a few annoying signedness warnings
+    - CLEANUP: ebtree: clarify licence and update to 6.0.6
+    - CLEANUP: ebtree: remove 4-year old harmless typo in duplicates insertion code
+    - CLEANUP: ebtree: remove another typo, a wrong initialization in insertion code
+    - BUG: ebtree: ebst_lookup() could return the wrong entry
+    - OPTIM: stream_sock: reduce the amount of in-flight spliced data
+    - OPTIM: stream_sock: save a failed recv syscall when splice returns EAGAIN
+    - MINOR: acl: add support for TLS server name matching using SNI
+    - BUG: http: re-enable TCP quick-ack upon incomplete HTTP requests
+    - BUG: proto_tcp: don't try to bind to a foreign address if sin_family is unknown
+    - MINOR: pattern: export the global temporary pattern
+    - CLEANUP: patterns: get rid of pattern_data_setstring()
+    - MEDIUM: acl: use temp_pattern to store fetched information in the "method" match
+    - MINOR: acl: include pattern.h to make pattern migration more transparent
+    - MEDIUM: pattern: change the pattern data integer from unsigned to signed
+    - MEDIUM: acl: use temp_pattern to store any integer-type information
+    - MEDIUM: acl: use temp_pattern to store any address-type information
+    - CLEANUP: acl: integer part of acl_test is not used anymore
+    - MEDIUM: acl: use temp_pattern to store any string-type information
+    - CLEANUP: acl: remove last data fields from the acl_test struct
+    - MEDIUM: http: replace get_ip_from_hdr2() with http_get_hdr()
+    - MEDIUM: patterns: the hdr() pattern is now of type string
+    - DOC: add minimal documentation on how ACLs work internally
+    - DOC: add a coding-style file
+    - OPTIM: halog: keep a fast path for the lines-count only
+    - CLEANUP: silence a warning when building on sparc
+    - BUG: http: tighten the list of allowed characters in a URI
+    - MEDIUM: http: block non-ASCII characters in URIs by default
+    - DOC: add some documentation from RFC3986 about URI format
+    - BUG/MINOR: cli: correctly remove the whole table on "clear table"
+    - BUG/MEDIUM: correctly disable servers tracking another disabled servers.
+    - BUG/MEDIUM: zero-weight servers must not dequeue requests from the backend
+    - MINOR: halog: add some help on the command line
+    - BUILD: fix build error on FreeBSD
+    - BUG: fix double free in peers config error path
+    - MEDIUM: improve config check return codes
+    - BUILD: make it possible to look for pcre in the default system paths
+    - MINOR: config: emit a warning when 'default_backend' masks servers
+    - MINOR: backend: rework the LC definition to support other connection-based algos
+    - MEDIUM: backend: add the 'first' balancing algorithm
+    - BUG: fix httplog trailing LF
+    - MEDIUM: increase chunk-size limit to 2GB-1
+    - BUG: queue: fix dequeueing sequence on HTTP keep-alive sessions
+    - BUG: http: disable TCP delayed ACKs when forwarding content-length data
+    - BUG: checks: fix server maintenance exit sequence
+    - BUG/MINOR: stream_sock: don't remove BF_EXPECT_MORE and BF_SEND_DONTWAIT on partial writes
+    - DOC: enumerate valid status codes for "observe layer7"
+    - MINOR: buffer: switch a number of buffer args to const
+    - CLEANUP: silence signedness warning in acl.c
+    - BUG: stream_sock: si->release was not called upon shutw()
+    - MINOR: log: use "%ts" to log term status only and "%tsc" to log with cookie
+    - BUG/CRITICAL: log: fix risk of crash in development snapshot
+    - BUG/MAJOR: possible crash when using capture headers on TCP frontends
+    - MINOR: config: disable header captures in TCP mode and complain
+
 2011/09/10 : 1.5-dev7
     - [BUG] fix binary stick-tables
     - [MINOR] http: *_dom matching header functions now also split on ":"
