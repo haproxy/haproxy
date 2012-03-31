@@ -497,7 +497,6 @@ int assign_server(struct session *s)
 	clear_target(&s->target);
 
 	if (s->be->lbprm.algo & BE_LB_KIND) {
-		int len;
 		/* we must check if we have at least one server available */
 		if (!s->be->lbprm.tot_weight) {
 			err = SRV_STATUS_NOSRV;
@@ -538,19 +537,21 @@ int assign_server(struct session *s)
 
 			switch (s->be->lbprm.algo & BE_LB_PARM) {
 			case BE_LB_HASH_SRC:
-				if (s->req->prod->addr.from.ss_family == AF_INET)
-					len = 4;
-				else if (s->req->prod->addr.from.ss_family == AF_INET6)
-					len = 16;
+				if (s->req->prod->addr.from.ss_family == AF_INET) {
+					srv = get_server_sh(s->be,
+							    (void *)&((struct sockaddr_in *)&s->req->prod->addr.from)->sin_addr,
+							    4);
+				}
+				else if (s->req->prod->addr.from.ss_family == AF_INET6) {
+					srv = get_server_sh(s->be,
+							    (void *)&((struct sockaddr_in6 *)&s->req->prod->addr.from)->sin6_addr,
+							    16);
+				}
 				else {
 					/* unknown IP family */
 					err = SRV_STATUS_INTERNAL;
 					goto out;
 				}
-		
-				srv = get_server_sh(s->be,
-						    (void *)&((struct sockaddr_in *)&s->req->prod->addr.from)->sin_addr,
-						    len);
 				break;
 
 			case BE_LB_HASH_URI:
