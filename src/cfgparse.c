@@ -3351,8 +3351,6 @@ stats_error_parsing:
 		if (!strcmp(args[1], "httplog")) {
 			char *logformat;
 			/* generate a complete HTTP log */
-			curproxy->options2 &= ~PR_O2_CLFLOG;
-			curproxy->to_log |= LW_DATE | LW_CLIP | LW_SVID | LW_REQ | LW_PXID | LW_RESP | LW_BYTES;
 			logformat = default_http_log_format;
 			if (*(args[2]) != '\0') {
 				if (!strcmp(args[2], "clf")) {
@@ -3369,7 +3367,6 @@ stats_error_parsing:
 		else if (!strcmp(args[1], "tcplog")) {
 			char *logformat;
 			/* generate a detailed TCP log */
-			curproxy->to_log |= LW_DATE | LW_CLIP | LW_SVID | LW_PXID | LW_BYTES;
 			logformat = default_tcp_log_format;
 			parse_logformat_string(logformat, curproxy, &curproxy->logformat, curproxy->mode);
 		}

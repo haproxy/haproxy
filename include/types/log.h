@@ -117,18 +117,18 @@ struct logformat_node {
 
 
 /* fields that need to be logged. They appear as flags in session->logs.logwait */
-#define LW_DATE		1	/* date */
+#define LW_INIT		1	/* date */
 #define LW_CLIP		2	/* CLient IP */
 #define LW_SVIP		4	/* SerVer IP */
 #define LW_SVID		8	/* server ID */
 #define	LW_REQ		16	/* http REQuest */
 #define LW_RESP		32	/* http RESPonse */
-#define LW_PXIP		64	/* proxy IP */
-#define LW_PXID		128	/* proxy ID */
 #define LW_BYTES	256	/* bytes read from server */
 #define LW_COOKIE	512	/* captured cookie */
 #define LW_REQHDR	1024	/* request header(s) */
 #define LW_RSPHDR	2048	/* response header(s) */
+#define LW_BCKIP	4096	/* backend IP */
+#define LW_FRTIP 	8192	/* frontend IP */
 
 struct logsrv {
 	struct list list;

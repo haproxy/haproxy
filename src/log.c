@@ -58,6 +58,7 @@ struct logformat_type {
 	char *name;
 	int type;
 	int mode;
+	int lw; /* logwait bitsfield */
 	int (*config_callback)(struct logformat_node *node, struct proxy *curproxy);
 };
 
@@ -65,50 +66,50 @@ int prepare_addrsource(struct logformat_node *node, struct proxy *curproxy);
 
 /* log_format variable names */
 static const struct logformat_type logformat_keywords[] = {
-	{ "o", LOG_FMT_GLOBAL, PR_MODE_TCP, NULL },  /* global option */
-	{ "Ci", LOG_FMT_CLIENTIP, PR_MODE_TCP, NULL },  /* client ip */
-	{ "Cp", LOG_FMT_CLIENTPORT, PR_MODE_TCP, NULL }, /* client port */
-	{ "Bp", LOG_FMT_BACKENDPORT, PR_MODE_TCP, prepare_addrsource }, /* backend source port */
-	{ "Bi", LOG_FMT_BACKENDIP, PR_MODE_TCP, prepare_addrsource }, /* backend source ip */
-	{ "Fp", LOG_FMT_FRONTENDPORT, PR_MODE_TCP, NULL }, /* frontend port */
-	{ "Fi", LOG_FMT_FRONTENDIP, PR_MODE_TCP, NULL }, /* frontend ip */
-	{ "Sp", LOG_FMT_SERVERPORT, PR_MODE_TCP, NULL }, /* server destination port */
-	{ "Si", LOG_FMT_SERVERIP, PR_MODE_TCP, NULL }, /* server destination ip */
-	{ "t", LOG_FMT_DATE, PR_MODE_TCP, NULL },      /* date */
-	{ "T", LOG_FMT_DATEGMT, PR_MODE_TCP, NULL },   /* date GMT */
-	{ "Ts", LOG_FMT_TS, PR_MODE_TCP, NULL },   /* timestamp GMT */
-	{ "ms", LOG_FMT_MS, PR_MODE_TCP, NULL },       /* accept date millisecond */
-	{ "f", LOG_FMT_FRONTEND, PR_MODE_TCP, NULL },  /* frontend */
-	{ "b", LOG_FMT_BACKEND, PR_MODE_TCP, NULL },   /* backend */
-	{ "s", LOG_FMT_SERVER, PR_MODE_TCP, NULL },    /* server */
-	{ "B", LOG_FMT_BYTES, PR_MODE_TCP, NULL },     /* bytes read */
-	{ "Tq", LOG_FMT_TQ, PR_MODE_HTTP, NULL },       /* Tq */
-	{ "Tw", LOG_FMT_TW, PR_MODE_TCP, NULL },       /* Tw */
-	{ "Tc", LOG_FMT_TC, PR_MODE_TCP, NULL },       /* Tc */
-	{ "Tr", LOG_FMT_TR, PR_MODE_HTTP, NULL },       /* Tr */
-	{ "Tt", LOG_FMT_TT, PR_MODE_TCP, NULL },       /* Tt */
-	{ "st", LOG_FMT_STATUS, PR_MODE_HTTP, NULL },   /* status code */
-	{ "cc", LOG_FMT_CCLIENT, PR_MODE_HTTP, NULL },  /* client cookie */
-	{ "cs", LOG_FMT_CSERVER, PR_MODE_HTTP, NULL },  /* server cookie */
-	{ "ts", LOG_FMT_TERMSTATE, PR_MODE_TCP, NULL },/* terminaison state */
-	{ "tsc", LOG_FMT_TERMSTATE_CK, PR_MODE_TCP, NULL },/* terminaison state */
-	{ "ac", LOG_FMT_ACTCONN, PR_MODE_TCP, NULL },  /* actconn */
-	{ "fc", LOG_FMT_FECONN, PR_MODE_TCP, NULL },   /* feconn */
-	{ "bc", LOG_FMT_BECONN, PR_MODE_TCP, NULL },   /* beconn */
-	{ "sc", LOG_FMT_SRVCONN, PR_MODE_TCP, NULL },  /* srv_conn */
-	{ "rc", LOG_FMT_RETRIES, PR_MODE_TCP, NULL },  /* retries */
-	{ "sq", LOG_FMT_SRVQUEUE, PR_MODE_TCP, NULL  }, /* srv_queue */
-	{ "bq", LOG_FMT_BCKQUEUE, PR_MODE_TCP, NULL }, /* backend_queue */
-	{ "hr", LOG_FMT_HDRREQUEST, PR_MODE_HTTP, NULL }, /* header request */
-	{ "hs", LOG_FMT_HDRRESPONS, PR_MODE_HTTP, NULL },  /* header response */
-	{ "hrl", LOG_FMT_HDRREQUESTLIST, PR_MODE_HTTP, NULL }, /* header request list */
-	{ "hsl", LOG_FMT_HDRRESPONSLIST, PR_MODE_HTTP, NULL },  /* header response list */
-	{ "r", LOG_FMT_REQ, PR_MODE_HTTP, NULL },  /* request */
-	{ "pid", LOG_FMT_PID, PR_MODE_TCP, NULL }, /* log pid */
-	{ "rt", LOG_FMT_COUNTER, PR_MODE_TCP, NULL }, /* log counter */
-	{ "H", LOG_FMT_HOSTNAME, PR_MODE_TCP, NULL }, /* Hostname */
-	{ "ID", LOG_FMT_UNIQUEID, PR_MODE_HTTP, NULL }, /* Unique ID */
-	{ 0, 0, 0, NULL }
+	{ "o", LOG_FMT_GLOBAL, PR_MODE_TCP, 0, NULL },  /* global option */
+	{ "Ci", LOG_FMT_CLIENTIP, PR_MODE_TCP, LW_CLIP, NULL },  /* client ip */
+	{ "Cp", LOG_FMT_CLIENTPORT, PR_MODE_TCP, LW_CLIP, NULL }, /* client port */
+	{ "Bp", LOG_FMT_BACKENDPORT, PR_MODE_TCP, LW_BCKIP, prepare_addrsource }, /* backend source port */
+	{ "Bi", LOG_FMT_BACKENDIP, PR_MODE_TCP, LW_BCKIP, prepare_addrsource }, /* backend source ip */
+	{ "Fp", LOG_FMT_FRONTENDPORT, PR_MODE_TCP, LW_FRTIP, NULL }, /* frontend port */
+	{ "Fi", LOG_FMT_FRONTENDIP, PR_MODE_TCP, LW_FRTIP, NULL }, /* frontend ip */
+	{ "Sp", LOG_FMT_SERVERPORT, PR_MODE_TCP, LW_SVIP, NULL }, /* server destination port */
+	{ "Si", LOG_FMT_SERVERIP, PR_MODE_TCP, LW_SVIP, NULL }, /* server destination ip */
+	{ "t", LOG_FMT_DATE, PR_MODE_TCP, LW_INIT, NULL },      /* date */
+	{ "T", LOG_FMT_DATEGMT, PR_MODE_TCP, LW_INIT, NULL },   /* date GMT */
+	{ "Ts", LOG_FMT_TS, PR_MODE_TCP, LW_INIT, NULL },   /* timestamp GMT */
+	{ "ms", LOG_FMT_MS, PR_MODE_TCP, LW_INIT, NULL },       /* accept date millisecond */
+	{ "f", LOG_FMT_FRONTEND, PR_MODE_TCP, LW_INIT, NULL },  /* frontend */
+	{ "b", LOG_FMT_BACKEND, PR_MODE_TCP, LW_INIT, NULL },   /* backend */
+	{ "s", LOG_FMT_SERVER, PR_MODE_TCP, LW_SVID, NULL },    /* server */
+	{ "B", LOG_FMT_BYTES, PR_MODE_TCP, LW_BYTES, NULL },     /* bytes read */
+	{ "Tq", LOG_FMT_TQ, PR_MODE_HTTP, LW_BYTES, NULL },       /* Tq */
+	{ "Tw", LOG_FMT_TW, PR_MODE_TCP, LW_BYTES, NULL },       /* Tw */
+	{ "Tc", LOG_FMT_TC, PR_MODE_TCP, LW_BYTES, NULL },       /* Tc */
+	{ "Tr", LOG_FMT_TR, PR_MODE_HTTP, LW_BYTES, NULL },       /* Tr */
+	{ "Tt", LOG_FMT_TT, PR_MODE_TCP, LW_BYTES, NULL },       /* Tt */
+	{ "st", LOG_FMT_STATUS, PR_MODE_HTTP, LW_RESP, NULL },   /* status code */
+	{ "cc", LOG_FMT_CCLIENT, PR_MODE_HTTP, LW_REQHDR, NULL },  /* client cookie */
+	{ "cs", LOG_FMT_CSERVER, PR_MODE_HTTP, LW_RSPHDR, NULL },  /* server cookie */
+	{ "ts", LOG_FMT_TERMSTATE, PR_MODE_TCP, LW_BYTES, NULL },/* termination state */
+	{ "tsc", LOG_FMT_TERMSTATE_CK, PR_MODE_TCP, LW_INIT, NULL },/* termination state */
+	{ "ac", LOG_FMT_ACTCONN, PR_MODE_TCP, LW_BYTES, NULL },  /* actconn */
+	{ "fc", LOG_FMT_FECONN, PR_MODE_TCP, LW_BYTES, NULL },   /* feconn */
+	{ "bc", LOG_FMT_BECONN, PR_MODE_TCP, LW_BYTES, NULL },   /* beconn */
+	{ "sc", LOG_FMT_SRVCONN, PR_MODE_TCP, LW_BYTES, NULL },  /* srv_conn */
+	{ "rc", LOG_FMT_RETRIES, PR_MODE_TCP, LW_BYTES, NULL },  /* retries */
+	{ "sq", LOG_FMT_SRVQUEUE, PR_MODE_TCP, LW_BYTES, NULL  }, /* srv_queue */
+	{ "bq", LOG_FMT_BCKQUEUE, PR_MODE_TCP, LW_BYTES, NULL }, /* backend_queue */
+	{ "hr", LOG_FMT_HDRREQUEST, PR_MODE_HTTP, LW_REQHDR, NULL }, /* header request */
+	{ "hs", LOG_FMT_HDRRESPONS, PR_MODE_HTTP, LW_RSPHDR, NULL },  /* header response */
+	{ "hrl", LOG_FMT_HDRREQUESTLIST, PR_MODE_HTTP, LW_REQHDR, NULL }, /* header request list */
+	{ "hsl", LOG_FMT_HDRRESPONSLIST, PR_MODE_HTTP, LW_RSPHDR, NULL },  /* header response list */
+	{ "r", LOG_FMT_REQ, PR_MODE_HTTP, LW_REQ, NULL },  /* request */
+	{ "pid", LOG_FMT_PID, PR_MODE_TCP, LW_INIT, NULL }, /* log pid */
+	{ "rt", LOG_FMT_COUNTER, PR_MODE_HTTP, LW_REQ, NULL }, /* HTTP request counter */
+	{ "H", LOG_FMT_HOSTNAME, PR_MODE_TCP, LW_INIT, NULL }, /* Hostname */
+	{ "ID", LOG_FMT_UNIQUEID, PR_MODE_HTTP, LW_BYTES, NULL }, /* Unique ID */
+	{ 0, 0, 0, 0, NULL }
 };
 
 char default_http_log_format[] = "%Ci:%Cp [%t] %f %b/%s %Tq/%Tw/%Tc/%Tr/%Tt %st %B %cc %cs %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r"; // default format
@@ -238,6 +239,7 @@ int parse_logformat_var(char *str, size_t len, struct proxy *curproxy, struct li
 									return -1;
 								 }
 							}
+							curproxy->to_log |= logformat_keywords[j].lw;
 							LIST_ADDQ(list_format, &node->list);
 						}
 						return 0;
@@ -305,6 +307,8 @@ void parse_logformat_string(char *str, struct proxy *curproxy, struct list *list
 	int pformat = -1; /* previous token format */
 	struct logformat_node *tmplf, *back;
 	int options = 0;
+
+	curproxy->to_log = LW_INIT;
 
 	/* flush the list first. */
 	list_for_each_entry_safe(tmplf, back, list_format, list) {
