@@ -826,7 +826,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 		else if (strcmp(args[1], "table") == 0) {
 			stats_sock_table_request(si, args, true);
 		}
-		else { /* neither "stat" nor "info" nor "sess" nor "errors" no "table" */
+		else { /* neither "stat" nor "info" nor "sess" nor "errors" nor "table" */
 			return 0;
 		}
 	}
@@ -1513,7 +1513,7 @@ static void cli_io_handler(struct stream_interface *si)
 	if ((res->flags & BF_SHUTR) && (si->state == SI_ST_EST) && (si->applet.st0 != STAT_CLI_GETREQ)) {
 		DPRINTF(stderr, "%s@%d: si to buf closed. req=%08x, res=%08x, st=%d\n",
 			__FUNCTION__, __LINE__, req->flags, res->flags, si->state);
-		/* Other size has closed, let's abort if we have no more processing to do
+		/* Other side has closed, let's abort if we have no more processing to do
 		 * and nothing more to consume. This is comparable to a broken pipe, so
 		 * we forward the close to the request side so that it flows upstream to
 		 * the client.
