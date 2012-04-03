@@ -73,6 +73,8 @@ enum {
 	SI_FL_INDEP_STR  = 0x0040,  /* independant streams = don't update rex on write */
 	SI_FL_NOLINGER   = 0x0080,  /* may close without lingering. One-shot. */
 	SI_FL_SRC_ADDR   = 0x1000,  /* get the source ip/port with getsockname */
+	SI_FL_TO_SET     = 0x2000,  /* addr.to is set */
+	SI_FL_FROM_SET   = 0x4000,  /* addr.from is set */
 };
 
 /* target types */

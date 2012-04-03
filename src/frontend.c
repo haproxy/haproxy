@@ -54,6 +54,7 @@ void get_frt_addr(struct session *s)
 
 	if (get_original_dst(s->si[0].fd, (struct sockaddr_in *)&s->si[0].addr.to, &namelen) == -1)
 		getsockname(s->si[0].fd, (struct sockaddr *)&s->si[0].addr.to, &namelen);
+	s->si[0].flags |= SI_FL_TO_SET;
 	s->flags |= SN_FRT_ADDR_SET;
 }
 

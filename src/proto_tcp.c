@@ -443,6 +443,7 @@ int tcp_connect_server(struct stream_interface *si)
 		if (getsockname(fd, (struct sockaddr *)&si->addr.from, &addrlen) == -1) {
 			Warning("Cannot get source address for logging.\n");
 		}
+		si->flags |= SI_FL_FROM_SET;
 	}
 
 	fdtab[fd].owner = si;
