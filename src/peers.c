@@ -1044,6 +1044,7 @@ quit:
 static struct si_applet peer_applet = {
 	.name = "<PEER>", /* used for logging */
 	.fct = peer_io_handler,
+	.release = peer_session_release,
 };
 
 /*
@@ -1079,7 +1080,6 @@ int peer_accept(struct session *s)
 	 /* we have a dedicated I/O handler for the stats */
 	stream_int_register_handler(&s->si[1], &peer_applet);
 	copy_target(&s->target, &s->si[1].target); // for logging only
-	s->si[1].release = peer_session_release;
 	s->si[1].applet.private = s;
 	s->si[1].applet.st0 = PEER_SESSION_ACCEPT;
 
@@ -1165,7 +1165,6 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->si[0].applet.st0 = PEER_SESSION_CONNECT;
 
 	stream_int_register_handler(&s->si[0], &peer_applet);
-	s->si[0].release = peer_session_release;
 
 	s->si[1].fd = -1; /* just to help with debugging */
 	s->si[1].owner = t;

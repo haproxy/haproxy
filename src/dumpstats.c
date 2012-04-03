@@ -3961,11 +3961,13 @@ static int stats_dump_errors_to_buffer(struct stream_interface *si)
 struct si_applet http_stats_applet = {
 	.name = "<STATS>", /* used for logging */
 	.fct = http_stats_io_handler,
+	.release = NULL,
 };
 
 static struct si_applet cli_applet = {
 	.name = "<CLI>", /* used for logging */
 	.fct = cli_io_handler,
+	.release = NULL,
 };
 
 static struct cfg_kw_list cfg_kws = {{ },{

@@ -189,6 +189,7 @@ struct stream_interface {
 struct si_applet {
 	char *name; /* applet's name to report in logs */
 	void (*fct)(struct stream_interface *);  /* internal I/O handler, may never be NULL */
+	void (*release)(struct stream_interface *);  /* callback to release resources, may be NULL */
 };
 
 #endif /* _TYPES_STREAM_INTERFACE_H */
