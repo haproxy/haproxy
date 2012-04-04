@@ -366,7 +366,7 @@ struct server *findserver(const struct proxy *px, const char *name) {
 			continue;
 		}
 
-		Alert("Refusing to use duplicated server '%s' fould in proxy: %s!\n",
+		Alert("Refusing to use duplicated server '%s' found in proxy: %s!\n",
 			name, px->id);
 
 		return NULL;
