@@ -114,6 +114,8 @@ enum {
 	STAT_PX_ST_FIN,
 };
 
+extern const char *stat_status_codes[];
+
 /* This function is called from the session-level accept() in order to instanciate
  * a new stats socket. It returns a positive value upon success, 0 if the connection
  * needs to be closed and ignored, or a negative value upon critical failure.
@@ -1686,7 +1688,12 @@ static int stats_http_redir(struct stream_interface *si, struct uri_auth *uri)
 			"Content-Type: text/plain\r\n"
 			"Connection: close\r\n"
 			"Location: %s;st=%s",
-			uri->uri_prefix, si->applet.ctx.stats.st_code);
+			uri->uri_prefix,
+			((si->applet.ctx.stats.st_code > STAT_STATUS_INIT) &&
+			 (si->applet.ctx.stats.st_code < STAT_STATUS_SIZE) &&
+			 stat_status_codes[si->applet.ctx.stats.st_code]) ?
+				stat_status_codes[si->applet.ctx.stats.st_code] :
+				stat_status_codes[STAT_STATUS_UNKN]);
 		chunk_printf(&msg, "\r\n\r\n");
 
 		if (buffer_feed_chunk(si->ib, &msg) >= 0)
@@ -2023,29 +2030,30 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 			     );
 
 			if (si->applet.ctx.stats.st_code) {
-				if (strcmp(si->applet.ctx.stats.st_code, STAT_STATUS_DONE) == 0) {
+				switch (si->applet.ctx.stats.st_code) {
+				case STAT_STATUS_DONE:
 					chunk_printf(&msg,
 						     "<p><div class=active3>"
 						     "<a class=lfsb href=\"%s\" title=\"Remove this message\">[X]</a> "
 						     "Action processed successfully."
 						     "</div>\n", uri->uri_prefix);
-				}
-				else if (strcmp(si->applet.ctx.stats.st_code, STAT_STATUS_NONE) == 0) {
+					break;
+				case STAT_STATUS_NONE:
 					chunk_printf(&msg,
 						     "<p><div class=active2>"
 						     "<a class=lfsb href=\"%s\" title=\"Remove this message\">[X]</a> "
 						     "Nothing has changed."
 						     "</div>\n", uri->uri_prefix);
-				}
-				else if (strcmp(si->applet.ctx.stats.st_code, STAT_STATUS_PART) == 0) {
+					break;
+				case STAT_STATUS_PART:
 					chunk_printf(&msg,
 						     "<p><div class=active2>"
 						     "<a class=lfsb href=\"%s\" title=\"Remove this message\">[X]</a> "
 						     "Action partially processed.<br>"
 						     "Some server names are probably unknown or ambiguous (duplicated names in the backend)."
 						     "</div>\n", uri->uri_prefix);
-				}
-				else if (strcmp(si->applet.ctx.stats.st_code, STAT_STATUS_ERRP) == 0) {
+					break;
+				case STAT_STATUS_ERRP:
 					chunk_printf(&msg,
 						     "<p><div class=active0>"
 						     "<a class=lfsb href=\"%s\" title=\"Remove this message\">[X]</a> "
@@ -2056,23 +2064,23 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 						     "<li>Some server names are probably unknown or ambiguous (duplicated names in the backend).</li>"
 						     "</ul>"
 						     "</div>\n", uri->uri_prefix);
-				}
-				else if (strcmp(si->applet.ctx.stats.st_code, STAT_STATUS_EXCD) == 0) {
+					break;
+				case STAT_STATUS_EXCD:
 					chunk_printf(&msg,
 						     "<p><div class=active0>"
 						     "<a class=lfsb href=\"%s\" title=\"Remove this message\">[X]</a> "
 						     "<b>Action not processed : the buffer couldn't store all the data.<br>"
 						     "You should retry with less servers at a time.</b>"
 						     "</div>\n", uri->uri_prefix);
-				}
-				else if (strcmp(si->applet.ctx.stats.st_code, STAT_STATUS_DENY) == 0) {
+					break;
+				case STAT_STATUS_DENY:
 					chunk_printf(&msg,
 						     "<p><div class=active0>"
 						     "<a class=lfsb href=\"%s\" title=\"Remove this message\">[X]</a> "
 						     "<b>Action denied.</b>"
 						     "</div>\n", uri->uri_prefix);
-				}
-				else {
+					break;
+				default:
 					chunk_printf(&msg,
 						     "<p><div class=active6>"
 						     "<a class=lfsb href=\"%s\" title=\"Remove this message\">[X]</a> "

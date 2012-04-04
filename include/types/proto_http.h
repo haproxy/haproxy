@@ -258,6 +258,19 @@ enum {
 	ST_ADM_ACTION_ENABLE,
 };
 
+/* status codes available for the stats admin page */
+enum {
+	STAT_STATUS_INIT = 0,
+	STAT_STATUS_DENY,	/* action denied */
+	STAT_STATUS_DONE,	/* the action is successful */
+	STAT_STATUS_ERRP,	/* an error occured due to invalid values in parameters */
+	STAT_STATUS_EXCD,	/* an error occured because the buffer couldn't store all data */
+	STAT_STATUS_NONE,	/* nothing happened (no action chosen or servers state didn't change) */
+	STAT_STATUS_PART,	/* the action is partially successful */
+	STAT_STATUS_UNKN,	/* an unknown error occured, shouldn't happen */
+	STAT_STATUS_SIZE
+};
+
 /* This is an HTTP message, as described in RFC2616. It can be either a request
  * message or a response message.
  *

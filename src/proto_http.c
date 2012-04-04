@@ -188,6 +188,18 @@ static const char *http_err_msgs[HTTP_ERR_SIZE] = {
 
 };
 
+/* status codes available for the stats admin page (strictly 4 chars length) */
+const char *stat_status_codes[STAT_STATUS_SIZE] = {
+	[STAT_STATUS_DENY] = "DENY",
+	[STAT_STATUS_DONE] = "DONE",
+	[STAT_STATUS_ERRP] = "ERRP",
+	[STAT_STATUS_EXCD] = "EXCD",
+	[STAT_STATUS_NONE] = "NONE",
+	[STAT_STATUS_PART] = "PART",
+	[STAT_STATUS_UNKN] = "UNKN",
+};
+
+
 /* We must put the messages here since GCC cannot initialize consts depending
  * on strlen().
  */
@@ -7132,6 +7144,7 @@ int stats_check_uri(struct stream_interface *si, struct http_txn *txn, struct pr
 		return 0;
 
 	memset(&si->applet.ctx.stats, 0, sizeof(si->applet.ctx.stats));
+	si->applet.ctx.stats.st_code = STAT_STATUS_INIT;
 
 	/* check URI size */
 	if (uri_auth->uri_len > txn->req.sl.rq.u_l)
@@ -7175,22 +7188,15 @@ int stats_check_uri(struct stream_interface *si, struct http_txn *txn, struct pr
 	h = txn->req.sol + txn->req.sl.rq.u + uri_auth->uri_len;
 	while (h <= txn->req.sol + txn->req.sl.rq.u + txn->req.sl.rq.u_l - 8) {
 		if (memcmp(h, ";st=", 4) == 0) {
+			int i;
 			h += 4;
-
-			if (memcmp(h, STAT_STATUS_DONE, 4) == 0)
-				si->applet.ctx.stats.st_code = STAT_STATUS_DONE;
-			else if (memcmp(h, STAT_STATUS_NONE, 4) == 0)
-				si->applet.ctx.stats.st_code = STAT_STATUS_NONE;
-			else if (memcmp(h, STAT_STATUS_PART, 4) == 0)
-				si->applet.ctx.stats.st_code = STAT_STATUS_PART;
-			else if (memcmp(h, STAT_STATUS_ERRP, 4) == 0)
-				si->applet.ctx.stats.st_code = STAT_STATUS_ERRP;
-			else if (memcmp(h, STAT_STATUS_EXCD, 4) == 0)
-				si->applet.ctx.stats.st_code = STAT_STATUS_EXCD;
-			else if (memcmp(h, STAT_STATUS_DENY, 4) == 0)
-				si->applet.ctx.stats.st_code = STAT_STATUS_DENY;
-			else
-				si->applet.ctx.stats.st_code = STAT_STATUS_UNKN;
+			for (i = STAT_STATUS_INIT + 1; i < STAT_STATUS_SIZE; i++) {
+				if (strncmp(stat_status_codes[i], h, 4) == 0) {
+					si->applet.ctx.stats.st_code = i;
+					break;
+				}
+			}
+			si->applet.ctx.stats.st_code = STAT_STATUS_UNKN;
 			break;
 		}
 		h++;

@@ -55,15 +55,6 @@
 #define STAT_CLI_O_TAB  8   /* dump tables */
 #define STAT_CLI_O_CLR  9   /* clear tables */
 
-/* status codes (strictly 4 chars) used in the URL to display a message */
-#define STAT_STATUS_UNKN "UNKN"	/* an unknown error occured, shouldn't happen */
-#define STAT_STATUS_DONE "DONE"	/* the action is successful */
-#define STAT_STATUS_PART "PART"	/* the action is partially successful */
-#define STAT_STATUS_NONE "NONE"	/* nothing happened (no action chosen or servers state didn't change) */
-#define STAT_STATUS_ERRP "ERRP"	/* an error occured due to invalid values in parameters */
-#define STAT_STATUS_EXCD "EXCD"	/* an error occured because the buffer couldn't store all data */
-#define STAT_STATUS_DENY "DENY"	/* action denied */
-
 extern struct si_applet http_stats_applet;
 
 void stats_io_handler(struct stream_interface *si);

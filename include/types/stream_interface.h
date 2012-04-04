@@ -149,7 +149,7 @@ struct stream_interface {
 				int px_st;		/* STAT_PX_ST* */
 				unsigned int flags;	/* STAT_* */
 				int iid, type, sid;	/* proxy id, type and service id if bounding of stats is enabled */
-				const char *st_code;	/* pointer to the status code returned by an action */
+				int st_code;		/* the status code returned by an action */
 			} stats;
 			struct {
 				struct bref bref;	/* back-reference from the session being dumped */
