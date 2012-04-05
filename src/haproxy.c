@@ -797,6 +797,7 @@ void deinit(void)
 	struct hdr_exp *exp, *expb;
 	struct acl *acl, *aclb;
 	struct switching_rule *rule, *ruleb;
+	struct server_rule *srule, *sruleb;
 	struct redirect_rule *rdr, *rdrb;
 	struct wordlist *wl, *wlb;
 	struct cond_wordlist *cwl, *cwlb;
@@ -889,6 +890,13 @@ void deinit(void)
 			LIST_DEL(&acl->list);
 			prune_acl(acl);
 			free(acl);
+		}
+
+		list_for_each_entry_safe(srule, sruleb, &p->server_rules, list) {
+			LIST_DEL(&srule->list);
+			prune_acl_cond(srule->cond);
+			free(srule->cond);
+			free(srule);
 		}
 
 		list_for_each_entry_safe(rule, ruleb, &p->switching_rules, list) {

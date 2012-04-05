@@ -6221,7 +6221,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 				 * empty cookies and mark them as invalid.
 				 * The same behaviour is applied when persistence must be ignored.
 				 */
-				if ((delim == val_beg) || (t->flags & SN_IGNORE_PRST))
+				if ((delim == val_beg) || (t->flags & (SN_IGNORE_PRST | SN_ASSIGNED)))
 					srv = NULL;
 
 				while (srv) {

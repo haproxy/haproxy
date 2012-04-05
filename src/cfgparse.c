@@ -2702,6 +2702,47 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		LIST_INIT(&rule->list);
 		LIST_ADDQ(&curproxy->switching_rules, &rule->list);
 	}
+	else if (strcmp(args[0], "use-server") == 0) {
+		struct server_rule *rule;
+
+		if (curproxy == &defproxy) {
+			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
+			err_code |= ERR_WARN;
+
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects a server name.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if (strcmp(args[2], "if") != 0 && strcmp(args[2], "unless") != 0) {
+			Alert("parsing [%s:%d] : '%s' requires either 'if' or 'unless' followed by a condition.\n",
+			      file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args + 2)) == NULL) {
+			Alert("parsing [%s:%d] : error detected while parsing switching rule.\n",
+			      file, linenum);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		err_code |= warnif_cond_requires_resp(cond, file, linenum);
+
+		rule = (struct server_rule *)calloc(1, sizeof(*rule));
+		rule->cond = cond;
+		rule->srv.name = strdup(args[1]);
+		LIST_INIT(&rule->list);
+		LIST_ADDQ(&curproxy->server_rules, &rule->list);
+		curproxy->be_req_ana |= AN_REQ_SRV_RULES;
+	}
 	else if ((!strcmp(args[0], "force-persist")) ||
 		 (!strcmp(args[0], "ignore-persist"))) {
 		struct persist_rule *rule;
@@ -5603,6 +5644,7 @@ int check_config_validity()
 
 	while (curproxy != NULL) {
 		struct switching_rule *rule;
+		struct server_rule *srule;
 		struct sticking_rule *mrule;
 		struct tcp_rule *trule;
 		struct listener *listener;
@@ -5792,6 +5834,20 @@ int check_config_validity()
 				target->bind_proc = curproxy->bind_proc ?
 					(target->bind_proc | curproxy->bind_proc) : 0;
 			}
+		}
+
+		/* find the target proxy for 'use_backend' rules */
+		list_for_each_entry(srule, &curproxy->server_rules, list) {
+			struct server *target = findserver(curproxy, srule->srv.name);
+
+			if (!target) {
+				Alert("config : %s '%s' : unable to find server '%s' referenced in a 'use-server' rule.\n",
+				      proxy_type_str(curproxy), curproxy->id, srule->srv.name);
+				cfgerr++;
+				continue;
+			}
+			free((void *)srule->srv.name);
+			srule->srv.ptr = target;
 		}
 
 		/* find the target table for 'stick' rules */

@@ -427,6 +427,7 @@ void init_new_proxy(struct proxy *p)
 	LIST_INIT(&p->redirect_rules);
 	LIST_INIT(&p->mon_fail_cond);
 	LIST_INIT(&p->switching_rules);
+	LIST_INIT(&p->server_rules);
 	LIST_INIT(&p->persist_rules);
 	LIST_INIT(&p->sticking_rules);
 	LIST_INIT(&p->storersp_rules);

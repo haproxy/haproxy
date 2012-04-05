@@ -1118,6 +1118,7 @@ timeout srvtimeout          (deprecated)  X          -         X         X
 timeout tarpit                            X          X         X         X
 transparent                 (deprecated)  X          -         X         X
 use_backend                               -          X         X         -
+use-server                                -          -         X         X
 ------------------------------------+----------+----------+---------+---------
  keyword                              defaults   frontend   listen    backend
 
@@ -6595,6 +6596,60 @@ use_backend <backend> unless <condition>
   must decode several protocols on a unique port, one of them being HTTP.
 
   See also: "default_backend", "tcp-request", and section 7 about ACLs.
+
+
+use-server <server> if <condition>
+use-server <server> unless <condition>
+  Only use a specific server if/unless an ACL-based condition is matched.
+  May be used in sections :   defaults | frontend | listen | backend
+                                  no   |    no    |   yes  |   yes
+  Arguments :
+    <server>   is the name of a valid server in the same backend section.
+
+    <condition> is a condition composed of ACLs, as described in section 7.
+
+  By default, connections which arrive to a backend are load-balanced across
+  the available servers according to the configured algorithm, unless a
+  persistence mechanism such as a cookie is used and found in the request.
+
+  Sometimes it is desirable to forward a particular request to a specific
+  server without having to declare a dedicated backend for this server. This
+  can be achieved using the "use-server" rules. These rules are evaluated after
+  the "redirect" rules and before evaluating cookies, and they have precedence
+  on them. There may be as many "use-server" rules as desired. All of these
+  rules are evaluated in their declaration order, and the first one which
+  matches will assign the server.
+
+  If a rule designates a server which is down, and "option persist" is not used
+  and no force-persist rule was validated, it is ignored and evaluation goes on
+  with the next rules until one matches.
+
+  In the first form, the server will be used if the condition is met. In the
+  second form, the server will be used if the condition is not met. If no
+  condition is valid, the processing continues and the server will be assigned
+  according to other persistence mechanisms.
+
+  Note that even if a rule is matched, cookie processing is still performed but
+  does not assign the server. This allows prefixed cookies to have their prefix
+  stripped.
+
+  The "use-server" statement works both in HTTP and TCP mode. This makes it
+  suitable for use with content-based inspection. For instance, a server could
+  be selected in a farm according to the TLS SNI field. And if these servers
+  have their weight set to zero, they will not be used for other traffic.
+
+  Example :
+     # intercept incoming TLS requests based on the SNI field
+     use-server www if { req_ssl_sni -i www.example.com }
+     server     www 192.168.0.1:443 weight 0
+     use-server mail if { req_ssl_sni -i mail.example.com }
+     server     mail 192.168.0.1:587 weight 0
+     use-server imap if { req_ssl_sni -i imap.example.com }
+     server     mail 192.168.0.1:993 weight 0
+     # all the rest is forwarded to this server
+     server  default 192.168.0.2:443 check
+
+  See also: "use_backend", serction 5 about server and section 7 about ACLs.
 
 
 5. Server and default-server options
