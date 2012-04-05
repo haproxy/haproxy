@@ -688,7 +688,7 @@ extern fd_set hdr_encode_map[];
 extern fd_set url_encode_map[];
 
 
-const char sess_cookie[8]     = "NIDVEO67";	/* No cookie, Invalid cookie, cookie for a Down server, Valid cookie, Expired cookie, Old cookie, unknown */
+const char sess_cookie[8]     = "NIDVEOU7";	/* No cookie, Invalid cookie, cookie for a Down server, Valid cookie, Expired cookie, Old cookie, Unused, unknown */
 const char sess_set_cookie[8] = "NPDIRU67";	/* No set-cookie, Set-cookie found and left unchanged (passive),
 						   Set-cookie Deleted, Set-Cookie Inserted, Set-cookie Rewritten,
 						   Set-cookie Updated, unknown, unknown */

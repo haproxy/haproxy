@@ -6249,9 +6249,12 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 				}
 
 				if (!srv && !(txn->flags & (TX_CK_DOWN|TX_CK_EXPIRED|TX_CK_OLD))) {
-					/* no server matched this cookie */
+					/* no server matched this cookie or we deliberately skipped it */
 					txn->flags &= ~TX_CK_MASK;
-					txn->flags |= TX_CK_INVALID;
+					if ((t->flags & (SN_IGNORE_PRST | SN_ASSIGNED)))
+						txn->flags |= TX_CK_UNUSED;
+					else
+						txn->flags |= TX_CK_INVALID;
 				}
 
 				/* depending on the cookie mode, we may have to either :

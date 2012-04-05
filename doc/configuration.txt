@@ -9184,6 +9184,10 @@ each of which has a special meaning :
             the cookie is consider too OLD and is ignored. The request will be
             redispatched just as if there was no cookie.
 
+        U : a cookie was present but was not used to select the server because
+            some other server selection mechanism was used instead (typically a
+            "use-server" rule).
+
         - : does not apply (no cookie set in configuration).
 
   - the last character reports what operations were performed on the persistence

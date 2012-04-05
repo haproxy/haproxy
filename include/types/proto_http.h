@@ -43,6 +43,7 @@
 #define TX_CK_VALID	0x00000060	/* this session had cookie matching a valid server */
 #define TX_CK_EXPIRED	0x00000080	/* this session had an expired cookie (idle for too long) */
 #define TX_CK_OLD	0x000000A0	/* this session had too old a cookie (offered too long ago) */
+#define TX_CK_UNUSED	0x000000C0	/* this session had a cookie but it was not used (eg: use-server was preferred) */
 #define TX_CK_MASK	0x000000E0	/* mask to get this session's cookie flags */
 #define TX_CK_SHIFT	5		/* bit shift */
 
