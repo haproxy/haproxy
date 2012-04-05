@@ -8881,6 +8881,7 @@ HAproxy will automatically merge consecutive separators.
 
 Flags are :
   * Q: quote a string
+  * X: hexadecimal represenation (IPs, Ports, %Ts, %rt, %pid)
 
   Example:
 
@@ -8911,13 +8912,20 @@ Please refer to the table below for currently defined variables :
   |   | %o   | special variable, apply flags on all next var |             |
   +---+------+-----------------------------------------------+-------------+
   |   | %B   | bytes_read                                    | numeric     |
-  |   | %Ci  | client_ip                                     | string      |
+  |   | %Ci  | client_ip                                     | IP          |
   |   | %Cp  | client_port                                   | numeric     |
-  |   | %Bi  | backend_source_ip                             | string      |
+  |   | %Bi  | backend_source_ip                             | IP          |
   |   | %Bp  | backend_source_port                           | numeric     |
+  |   | %Fi  | frontend_ip                                   | IP          |
+  |   | %Fp  | frontend_port                                 | numeric     |
+  |   | %H   | hostname                                      | string      |
+  |   | %Si  | server_IP                                     | IP          |
+  |   | %Sp  | server_port                                   | numeric     |
+  |   | %T   | gmt_date_time                                 | date        |
   |   | %Tc  | Tc                                            | numeric     |
   | * | %Tq  | Tq                                            | numeric     |
   | * | %Tr  | Tr                                            | numeric     |
+  |   | %Ts  | timestamp                                     | numeric     |
   |   | %Tt  | Tt                                            | numeric     |
   |   | %Tw  | Tw                                            | numeric     |
   |   | %ac  | actconn                                       | numeric     |
@@ -8925,6 +8933,7 @@ Please refer to the table below for currently defined variables :
   |   | %bc  | beconn                                        | numeric     |
   |   | %bq  | backend_queue                                 | numeric     |
   | * | %cc  | captured_request_cookie                       | string      |
+  | * | %rt  | http_request_counter                          | numeric     |
   | * | %cs  | captured_response_cookie                      | string      |
   |   | %f   | frontend_name                                 | string      |
   |   | %fc  | feconn                                        | numeric     |
@@ -8933,17 +8942,19 @@ Please refer to the table below for currently defined variables :
   | * | %hs  | captured_response_headers default style       | string      |
   | * | %hsl | captured_response_headers CLF style           | string list |
   |   | %ms  | accept date milliseconds                      | numeric     |
+  |   | %pid | PID                                           | numeric     |
   | * | %r   | http_request                                  | string      |
   |   | %rc  | retries                                       | numeric     |
   |   | %s   | server_name                                   | string      |
   |   | %sc  | srv_conn                                      | numeric     |
   |   | %sq  | srv_queue                                     | numeric     |
   | * | %st  | status_code                                   | numeric     |
+  |   | %t   | date_time                                     | date        |
   |   | %ts  | termination_state                             | string      |
   | * | %tsc | termination_state with cookie status          | string      |
   +---+------+-----------------------------------------------+-------------+
 
-*: mode httplog only
+*: mode http only
 
 8.3. Advanced logging options
 -----------------------------

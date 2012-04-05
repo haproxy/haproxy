@@ -117,11 +117,24 @@ int get_log_facility(const char *fac);
 
 /*
  * Write a string in the log string
- * Take cares of mandatory and quote options
+ * Take cares of quote options
  *
  * Return the adress of the \0 character, or NULL on error
  */
-char *logformat_write_string(char *dst, char *src, size_t size, struct logformat_node *node);
+char *lf_text(char *dst, char *src, size_t size, struct logformat_node *node);
+
+/*
+ * Write a IP adress to the log string
+ * +X option write in hexadecimal notation, most signifant byte on the left
+ */
+char *lf_ip(char *dst, struct sockaddr *sockaddr, size_t size, struct logformat_node *node);
+
+/*
+ * Write a port to the log
+ * +X option write in hexadecimal notation, most signifant byte on the left
+ */
+char *lf_port(char *dst, struct sockaddr *sockaddr, size_t size, struct logformat_node *node);
+
 
 #endif /* _PROTO_LOG_H */
 
