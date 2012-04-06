@@ -8369,37 +8369,30 @@ pattern_fetch_url_param(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
-/* Try to find the last occurrence of a cookie name in a cookie header value.
- * The pointer and size of the last occurrence of the cookie value is returned
- * into *value and *value_l, and the function returns non-zero if the value was
- * found. Otherwise if the cookie was not found, zero is returned and neither
- * value nor value_l are touched. The input hdr string should begin at the
- * header's value, and its size should be in hdr_l. <list> must be non-zero if
- * value may represent a list of values (cookie headers).
+/* Try to find the next occurrence of a cookie name in a cookie header value.
+ * The lookup begins at <hdr>. The pointer and size of the next occurrence of
+ * the cookie value is returned into *value and *value_l, and the function
+ * returns a pointer to the next pointer to search from if the value was found.
+ * Otherwise if the cookie was not found, NULL is returned and neither value
+ * nor value_l are touched. The input <hdr> string should first point to the
+ * header's value, and the <hdr_end> pointer must point to the first character
+ * not part of the value. <list> must be non-zero if value may represent a list
+ * of values (cookie headers). This makes it faster to abort parsing when no
+ * list is expected.
  */
-static int
-extract_cookie_value(char *hdr, size_t hdr_l,
+static char *
+extract_cookie_value(char *hdr, const char *hdr_end,
 		  char *cookie_name, size_t cookie_name_l, int list,
 		  char **value, size_t *value_l)
 {
-	int found = 0;
-	char *equal, *att_end, *att_beg, *hdr_end, *val_beg, *val_end;
+	char *equal, *att_end, *att_beg, *val_beg, *val_end;
 	char *next;
-
-	/* Note that multiple cookies may be delimited with semi-colons, so we
-	 * also have to loop on this.
-	 */
 
 	/* we search at least a cookie name followed by an equal, and more
 	 * generally something like this :
 	 * Cookie:    NAME1  =  VALUE 1  ; NAME2 = VALUE2 ; NAME3 = VALUE3\r\n
 	 */
-	if (hdr_l < cookie_name_l + 1)
-		return 0;
-
-	hdr_end = hdr + hdr_l;
-
-	for (att_beg = hdr; att_beg < hdr_end; att_beg = next + 1) {
+	for (att_beg = hdr; att_beg + cookie_name_l + 1 < hdr_end; att_beg = next + 1) {
 		/* Iterate through all cookies on this line */
 
 		while (att_beg < hdr_end && http_is_spht[(unsigned char)*att_beg])
@@ -8457,12 +8450,10 @@ extract_cookie_value(char *hdr, size_t hdr_l,
 
 		if (att_end - att_beg == cookie_name_l &&
 		    memcmp(att_beg, cookie_name, cookie_name_l) == 0) {
-			found = 1;
+			/* let's return this value and indicate where to go on from */
 			*value = val_beg;
 			*value_l = val_end - val_beg;
-			/* right now we want to catch the last occurrence
-			 * of the cookie, so let's go on searching.
-			 */
+			return next + 1;
 		}
 
 		/* Set-Cookie headers only have the name in the first attr=value part */
@@ -8470,7 +8461,7 @@ extract_cookie_value(char *hdr, size_t hdr_l,
 			break;
 	}
 
-	return found;
+	return NULL;
 }
 
 /* Try to find in request or response message is in <msg> and whose transaction
@@ -8495,12 +8486,15 @@ find_cookie_value(struct http_msg *msg, struct http_txn *txn,
 
 	ctx.idx = 0;
 	while (http_find_header2(hdr_name, hdr_name_len, msg->sol, &txn->hdr_idx, &ctx)) {
+		char *hdr, *end;
+
 		if (ctx.vlen < cookie_name_l + 1)
 			continue;
 
-		found |= extract_cookie_value(ctx.line + ctx.val, ctx.vlen,
-					      cookie_name, cookie_name_l, 1,
-					      value, value_l);
+		hdr = ctx.line + ctx.val;
+		end = hdr + ctx.vlen;
+		while ((hdr = extract_cookie_value(hdr, end, cookie_name, cookie_name_l, 1, value, value_l)))
+			found = 1;
 	}
 	return found;
 }
