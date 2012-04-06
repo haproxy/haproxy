@@ -8167,6 +8167,278 @@ acl_fetch_http_auth(struct proxy *px, struct session *s, void *l7, int dir,
 	return 1;
 }
 
+/* Try to find the next occurrence of a cookie name in a cookie header value.
+ * The lookup begins at <hdr>. The pointer and size of the next occurrence of
+ * the cookie value is returned into *value and *value_l, and the function
+ * returns a pointer to the next pointer to search from if the value was found.
+ * Otherwise if the cookie was not found, NULL is returned and neither value
+ * nor value_l are touched. The input <hdr> string should first point to the
+ * header's value, and the <hdr_end> pointer must point to the first character
+ * not part of the value. <list> must be non-zero if value may represent a list
+ * of values (cookie headers). This makes it faster to abort parsing when no
+ * list is expected.
+ */
+static char *
+extract_cookie_value(char *hdr, const char *hdr_end,
+		  char *cookie_name, size_t cookie_name_l, int list,
+		  char **value, size_t *value_l)
+{
+	char *equal, *att_end, *att_beg, *val_beg, *val_end;
+	char *next;
+
+	/* we search at least a cookie name followed by an equal, and more
+	 * generally something like this :
+	 * Cookie:    NAME1  =  VALUE 1  ; NAME2 = VALUE2 ; NAME3 = VALUE3\r\n
+	 */
+	for (att_beg = hdr; att_beg + cookie_name_l + 1 < hdr_end; att_beg = next + 1) {
+		/* Iterate through all cookies on this line */
+
+		while (att_beg < hdr_end && http_is_spht[(unsigned char)*att_beg])
+			att_beg++;
+
+		/* find att_end : this is the first character after the last non
+		 * space before the equal. It may be equal to hdr_end.
+		 */
+		equal = att_end = att_beg;
+
+		while (equal < hdr_end) {
+			if (*equal == '=' || *equal == ';' || (list && *equal == ','))
+				break;
+			if (http_is_spht[(unsigned char)*equal++])
+				continue;
+			att_end = equal;
+		}
+
+		/* here, <equal> points to '=', a delimitor or the end. <att_end>
+		 * is between <att_beg> and <equal>, both may be identical.
+		 */
+
+		/* look for end of cookie if there is an equal sign */
+		if (equal < hdr_end && *equal == '=') {
+			/* look for the beginning of the value */
+			val_beg = equal + 1;
+			while (val_beg < hdr_end && http_is_spht[(unsigned char)*val_beg])
+				val_beg++;
+
+			/* find the end of the value, respecting quotes */
+			next = find_cookie_value_end(val_beg, hdr_end);
+
+			/* make val_end point to the first white space or delimitor after the value */
+			val_end = next;
+			while (val_end > val_beg && http_is_spht[(unsigned char)*(val_end - 1)])
+				val_end--;
+		} else {
+			val_beg = val_end = next = equal;
+		}
+
+		/* We have nothing to do with attributes beginning with '$'. However,
+		 * they will automatically be removed if a header before them is removed,
+		 * since they're supposed to be linked together.
+		 */
+		if (*att_beg == '$')
+			continue;
+
+		/* Ignore cookies with no equal sign */
+		if (equal == next)
+			continue;
+
+		/* Now we have the cookie name between att_beg and att_end, and
+		 * its value between val_beg and val_end.
+		 */
+
+		if (att_end - att_beg == cookie_name_l &&
+		    memcmp(att_beg, cookie_name, cookie_name_l) == 0) {
+			/* let's return this value and indicate where to go on from */
+			*value = val_beg;
+			*value_l = val_end - val_beg;
+			return next + 1;
+		}
+
+		/* Set-Cookie headers only have the name in the first attr=value part */
+		if (!list)
+			break;
+	}
+
+	return NULL;
+}
+
+/* Iterate over all cookies present in a request. The context is stored in
+ * test->ctx.a[0] for the in-header position, test->ctx.a[1] for the
+ * end-of-header-value, and test->ctx.a[2] for the hdr_idx. If <multi> is
+ * non-null, then multiple cookies may be parsed on the same line.
+ * The cookie name is in expr->arg and the name length in expr->arg_len.
+ */
+static int
+acl_fetch_any_cookie_value(struct proxy *px, struct session *l4, void *l7, char *sol,
+			   const char *hdr_name, int hdr_name_len, int multi,
+			   struct acl_expr *expr, struct acl_test *test)
+{
+	struct http_txn *txn = l7;
+	struct hdr_idx *idx = &txn->hdr_idx;
+	struct hdr_ctx *ctx = (struct hdr_ctx *)&test->ctx.a[2];
+
+	if (!txn)
+		return 0;
+
+	if (!(test->flags & ACL_TEST_F_FETCH_MORE)) {
+		/* search for the header from the beginning, we must first initialize
+		 * the search parameters.
+		 */
+		test->ctx.a[0] = NULL;
+		ctx->idx = 0;
+	}
+
+	while (1) {
+		/* Note: test->ctx.a[0] == NULL every time we need to fetch a new header */
+		if (!test->ctx.a[0]) {
+			if (!http_find_header2(hdr_name, hdr_name_len, sol, idx, ctx))
+				goto out;
+
+			if (ctx->vlen < expr->arg_len + 1)
+				continue;
+
+			test->ctx.a[0] = ctx->line + ctx->val;
+			test->ctx.a[1] = test->ctx.a[0] + ctx->vlen;
+		}
+
+		test->ctx.a[0] = extract_cookie_value(test->ctx.a[0], test->ctx.a[1],
+						      expr->arg.str, expr->arg_len, multi,
+						      &temp_pattern.data.str.str,
+						      &temp_pattern.data.str.len);
+		if (test->ctx.a[0]) {
+			/* one value was returned into temp_pattern.data.str.{str,len} */
+			test->flags |= ACL_TEST_F_FETCH_MORE;
+			test->flags |= ACL_TEST_F_VOL_HDR;
+			return 1;
+		}
+	}
+
+ out:
+	test->flags &= ~ACL_TEST_F_FETCH_MORE;
+	test->flags |= ACL_TEST_F_VOL_HDR;
+	return 0;
+}
+
+static int
+acl_fetch_cookie_value(struct proxy *px, struct session *l4, void *l7, int dir,
+		       struct acl_expr *expr, struct acl_test *test)
+{
+	struct http_txn *txn = l7;
+
+	if (!txn)
+		return 0;
+
+	if (txn->req.msg_state < HTTP_MSG_BODY)
+		return 0;
+
+	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
+		/* ensure the indexes are not affected */
+		return 0;
+
+	/* The Cookie header allows multiple cookies on the same line */
+	return acl_fetch_any_cookie_value(px, l4, txn, txn->req.sol, "Cookie", 6, 1, expr, test);
+}
+
+static int
+acl_fetch_scookie_value(struct proxy *px, struct session *l4, void *l7, int dir,
+		       struct acl_expr *expr, struct acl_test *test)
+{
+	struct http_txn *txn = l7;
+
+	if (!txn)
+		return 0;
+
+	if (txn->rsp.msg_state < HTTP_MSG_BODY)
+		return 0;
+
+	/* The Set-Cookie header allows only one cookie on the same line */
+	return acl_fetch_any_cookie_value(px, l4, txn, txn->rsp.sol, "Set-Cookie", 10, 0, expr, test);
+}
+
+/* Iterate over all cookies present in a request to count how many occurrences
+ * match the name in expr->arg and expr->arg_len. If <multi> is non-null, then
+ * multiple cookies may be parsed on the same line.
+ */
+static int
+acl_fetch_any_cookie_cnt(struct proxy *px, struct session *l4, void *l7, char *sol,
+			 const char *hdr_name, int hdr_name_len, int multi,
+			 struct acl_expr *expr, struct acl_test *test)
+{
+	struct http_txn *txn = l7;
+	struct hdr_idx *idx = &txn->hdr_idx;
+	struct hdr_ctx ctx;
+	int cnt;
+	char *val_beg, *val_end;
+
+	if (!txn)
+		return 0;
+
+	val_beg = NULL;
+	ctx.idx = 0;
+	cnt = 0;
+
+	while (1) {
+		/* Note: val_beg == NULL every time we need to fetch a new header */
+		if (!val_beg) {
+			if (!http_find_header2(hdr_name, hdr_name_len, sol, idx, &ctx))
+				break;
+
+			if (ctx.vlen < expr->arg_len + 1)
+				continue;
+
+			val_beg = ctx.line + ctx.val;
+			val_end = val_beg + ctx.vlen;
+		}
+
+		while ((val_beg = extract_cookie_value(val_beg, val_end,
+						       expr->arg.str, expr->arg_len, multi,
+						       &temp_pattern.data.str.str,
+						       &temp_pattern.data.str.len))) {
+			cnt++;
+		}
+	}
+
+	temp_pattern.data.integer = cnt;
+	test->flags |= ACL_TEST_F_VOL_HDR;
+	return 1;
+}
+
+static int
+acl_fetch_cookie_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+		     struct acl_expr *expr, struct acl_test *test)
+{
+	struct http_txn *txn = l7;
+
+	if (!txn)
+		return 0;
+
+	if (txn->req.msg_state < HTTP_MSG_BODY)
+		return 0;
+
+	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
+		/* ensure the indexes are not affected */
+		return 0;
+
+	/* The Cookie header allows multiple cookies on the same line */
+	return acl_fetch_any_cookie_cnt(px, l4, txn, txn->req.sol, "Cookie", 6, 1, expr, test);
+}
+
+static int
+acl_fetch_scookie_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+		      struct acl_expr *expr, struct acl_test *test)
+{
+	struct http_txn *txn = l7;
+
+	if (!txn)
+		return 0;
+
+	if (txn->rsp.msg_state < HTTP_MSG_BODY)
+		return 0;
+
+	/* The Set-Cookie header allows only one cookie on the same line */
+	return acl_fetch_any_cookie_cnt(px, l4, txn, txn->rsp.sol, "Set-Cookie", 10, 0, expr, test);
+}
+
 /************************************************************************/
 /*             All supported keywords must be declared here.            */
 /************************************************************************/
@@ -8216,6 +8488,26 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "shdr_val",   acl_parse_int,   acl_fetch_shdr_val,acl_match_int, ACL_USE_L7RTR_VOLATILE },
 	{ "shdr_ip",    acl_parse_ip,    acl_fetch_shdr_ip, acl_match_ip,  ACL_USE_L7RTR_VOLATILE|ACL_MAY_LOOKUP },
 
+	{ "cook",       acl_parse_str,   acl_fetch_cookie_value, acl_match_str, ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP },
+	{ "cook_reg",   acl_parse_reg,   acl_fetch_cookie_value, acl_match_reg, ACL_USE_L7REQ_VOLATILE },
+	{ "cook_beg",   acl_parse_str,   acl_fetch_cookie_value, acl_match_beg, ACL_USE_L7REQ_VOLATILE },
+	{ "cook_end",   acl_parse_str,   acl_fetch_cookie_value, acl_match_end, ACL_USE_L7REQ_VOLATILE },
+	{ "cook_sub",   acl_parse_str,   acl_fetch_cookie_value, acl_match_sub, ACL_USE_L7REQ_VOLATILE },
+	{ "cook_dir",   acl_parse_str,   acl_fetch_cookie_value, acl_match_dir, ACL_USE_L7REQ_VOLATILE },
+	{ "cook_dom",   acl_parse_str,   acl_fetch_cookie_value, acl_match_dom, ACL_USE_L7REQ_VOLATILE },
+	{ "cook_len",   acl_parse_int,   acl_fetch_cookie_value, acl_match_len, ACL_USE_L7REQ_VOLATILE },
+	{ "cook_cnt",   acl_parse_int,   acl_fetch_cookie_cnt,   acl_match_int, ACL_USE_L7REQ_VOLATILE },
+
+	{ "scook",      acl_parse_str,   acl_fetch_scookie_value, acl_match_str, ACL_USE_L7RTR_VOLATILE|ACL_MAY_LOOKUP },
+	{ "scook_reg",  acl_parse_reg,   acl_fetch_scookie_value, acl_match_reg, ACL_USE_L7RTR_VOLATILE },
+	{ "scook_beg",  acl_parse_str,   acl_fetch_scookie_value, acl_match_beg, ACL_USE_L7RTR_VOLATILE },
+	{ "scook_end",  acl_parse_str,   acl_fetch_scookie_value, acl_match_end, ACL_USE_L7RTR_VOLATILE },
+	{ "scook_sub",  acl_parse_str,   acl_fetch_scookie_value, acl_match_sub, ACL_USE_L7RTR_VOLATILE },
+	{ "scook_dir",  acl_parse_str,   acl_fetch_scookie_value, acl_match_dir, ACL_USE_L7RTR_VOLATILE },
+	{ "scook_dom",  acl_parse_str,   acl_fetch_scookie_value, acl_match_dom, ACL_USE_L7RTR_VOLATILE },
+	{ "scook_len",  acl_parse_int,   acl_fetch_scookie_value, acl_match_len, ACL_USE_L7RTR_VOLATILE },
+	{ "scook_cnt",  acl_parse_int,   acl_fetch_scookie_cnt,   acl_match_int, ACL_USE_L7RTR_VOLATILE },
+
 	{ "path",       acl_parse_str,   acl_fetch_path,   acl_match_str, ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP },
 	{ "path_reg",   acl_parse_reg,   acl_fetch_path,   acl_match_reg, ACL_USE_L7REQ_VOLATILE },
 	{ "path_beg",   acl_parse_str,   acl_fetch_path,   acl_match_beg, ACL_USE_L7REQ_VOLATILE },
@@ -8224,25 +8516,6 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "path_dir",   acl_parse_str,   acl_fetch_path,   acl_match_dir, ACL_USE_L7REQ_VOLATILE },
 	{ "path_dom",   acl_parse_str,   acl_fetch_path,   acl_match_dom, ACL_USE_L7REQ_VOLATILE },
 	{ "path_len",   acl_parse_int,   acl_fetch_path,   acl_match_len, ACL_USE_L7REQ_VOLATILE },
-
-#if 0
-	{ "line",       acl_parse_str,   acl_fetch_line,   acl_match_str   },
-	{ "line_reg",   acl_parse_reg,   acl_fetch_line,   acl_match_reg   },
-	{ "line_beg",   acl_parse_str,   acl_fetch_line,   acl_match_beg   },
-	{ "line_end",   acl_parse_str,   acl_fetch_line,   acl_match_end   },
-	{ "line_sub",   acl_parse_str,   acl_fetch_line,   acl_match_sub   },
-	{ "line_dir",   acl_parse_str,   acl_fetch_line,   acl_match_dir   },
-	{ "line_dom",   acl_parse_str,   acl_fetch_line,   acl_match_dom   },
-
-	{ "cook",       acl_parse_str,   acl_fetch_cook,   acl_match_str   },
-	{ "cook_reg",   acl_parse_reg,   acl_fetch_cook,   acl_match_reg   },
-	{ "cook_beg",   acl_parse_str,   acl_fetch_cook,   acl_match_beg   },
-	{ "cook_end",   acl_parse_str,   acl_fetch_cook,   acl_match_end   },
-	{ "cook_sub",   acl_parse_str,   acl_fetch_cook,   acl_match_sub   },
-	{ "cook_dir",   acl_parse_str,   acl_fetch_cook,   acl_match_dir   },
-	{ "cook_dom",   acl_parse_str,   acl_fetch_cook,   acl_match_dom   },
-	{ "cook_pst",   acl_parse_none,  acl_fetch_cook,   acl_match_pst   },
-#endif
 
 	{ "http_auth",       acl_parse_nothing, acl_fetch_http_auth, acl_match_auth, ACL_USE_L7REQ_PERMANENT },
 	{ "http_auth_group", acl_parse_strcat,  acl_fetch_http_auth, acl_match_auth, ACL_USE_L7REQ_PERMANENT },
@@ -8367,101 +8640,6 @@ pattern_fetch_url_param(struct proxy *px, struct session *l4, void *l7, int dir,
 	data->str.str = url_param_value;
 	data->str.len = url_param_value_l;
 	return 1;
-}
-
-/* Try to find the next occurrence of a cookie name in a cookie header value.
- * The lookup begins at <hdr>. The pointer and size of the next occurrence of
- * the cookie value is returned into *value and *value_l, and the function
- * returns a pointer to the next pointer to search from if the value was found.
- * Otherwise if the cookie was not found, NULL is returned and neither value
- * nor value_l are touched. The input <hdr> string should first point to the
- * header's value, and the <hdr_end> pointer must point to the first character
- * not part of the value. <list> must be non-zero if value may represent a list
- * of values (cookie headers). This makes it faster to abort parsing when no
- * list is expected.
- */
-static char *
-extract_cookie_value(char *hdr, const char *hdr_end,
-		  char *cookie_name, size_t cookie_name_l, int list,
-		  char **value, size_t *value_l)
-{
-	char *equal, *att_end, *att_beg, *val_beg, *val_end;
-	char *next;
-
-	/* we search at least a cookie name followed by an equal, and more
-	 * generally something like this :
-	 * Cookie:    NAME1  =  VALUE 1  ; NAME2 = VALUE2 ; NAME3 = VALUE3\r\n
-	 */
-	for (att_beg = hdr; att_beg + cookie_name_l + 1 < hdr_end; att_beg = next + 1) {
-		/* Iterate through all cookies on this line */
-
-		while (att_beg < hdr_end && http_is_spht[(unsigned char)*att_beg])
-			att_beg++;
-
-		/* find att_end : this is the first character after the last non
-		 * space before the equal. It may be equal to hdr_end.
-		 */
-		equal = att_end = att_beg;
-
-		while (equal < hdr_end) {
-			if (*equal == '=' || *equal == ';' || (list && *equal == ','))
-				break;
-			if (http_is_spht[(unsigned char)*equal++])
-				continue;
-			att_end = equal;
-		}
-
-		/* here, <equal> points to '=', a delimitor or the end. <att_end>
-		 * is between <att_beg> and <equal>, both may be identical.
-		 */
-
-		/* look for end of cookie if there is an equal sign */
-		if (equal < hdr_end && *equal == '=') {
-			/* look for the beginning of the value */
-			val_beg = equal + 1;
-			while (val_beg < hdr_end && http_is_spht[(unsigned char)*val_beg])
-				val_beg++;
-
-			/* find the end of the value, respecting quotes */
-			next = find_cookie_value_end(val_beg, hdr_end);
-
-			/* make val_end point to the first white space or delimitor after the value */
-			val_end = next;
-			while (val_end > val_beg && http_is_spht[(unsigned char)*(val_end - 1)])
-				val_end--;
-		} else {
-			val_beg = val_end = next = equal;
-		}
-
-		/* We have nothing to do with attributes beginning with '$'. However,
-		 * they will automatically be removed if a header before them is removed,
-		 * since they're supposed to be linked together.
-		 */
-		if (*att_beg == '$')
-			continue;
-
-		/* Ignore cookies with no equal sign */
-		if (equal == next)
-			continue;
-
-		/* Now we have the cookie name between att_beg and att_end, and
-		 * its value between val_beg and val_end.
-		 */
-
-		if (att_end - att_beg == cookie_name_l &&
-		    memcmp(att_beg, cookie_name, cookie_name_l) == 0) {
-			/* let's return this value and indicate where to go on from */
-			*value = val_beg;
-			*value_l = val_end - val_beg;
-			return next + 1;
-		}
-
-		/* Set-Cookie headers only have the name in the first attr=value part */
-		if (!list)
-			break;
-	}
-
-	return NULL;
 }
 
 /* Try to find in request or response message is in <msg> and whose transaction

@@ -7800,6 +7800,69 @@ application layer (layer 7). Those require that a full HTTP request has been
 read, and are only evaluated then. They may require slightly more CPU resources
 than the layer 4 ones, but not much since the request and response are indexed.
 
+cook(<name>) <string>
+  All "cook*" matching criteria inspect all "Cookie" headers to find a cookie
+  with the name between parenthesis. If multiple occurrences of the cookie are
+  found in the request, they will all be evaluated. Spaces around the name and
+  the value are ignored as requested by the Cookie specification (RFC6265). The
+  cookie name is case-sensitive. Use the scook() variant for response cookies
+  sent by the server.
+
+  The "cook" criteria returns true if any of the request cookies <name> match
+  any of the strings. This can be used to check exact for values. For instance,
+  checking that the "profile" cookie is set to either "silver" or "gold" :
+
+     cook(profile) silver gold
+
+cook_beg(<name>) <string>
+  Returns true if any of the request cookies <name> begins with one of the
+  strings. See "cook" for more information on cookie matching. Use the
+  scook_beg() variant for response cookies sent by the server.
+
+cook_cnt(<name>) <integer>
+  Returns true when the number of occurrences of the specified cookie matches
+  the values or ranges specified. This is used to detect presence, absence or
+  abuse of a specific cookie. See "cook" for more information on header
+  matching. Use the scook_cnt() variant for response cookies sent by the
+  server.
+
+cook_dir(<name>) <string>
+  Returns true if any of the request cookies <name> contains one of the strings
+  either isolated or delimited by slashes. This is used to perform filename or
+  directory name matching, though it generally is of limited use with cookies.
+  See "cook" for more information on cookie matching. Use the scook_dir()
+  variant for response cookies sent by the server.
+
+cook_dom(<name>) <string>
+  Returns true if any of the request cookies <name> contains one of the strings
+  either isolated or delimited by dots. This is used to perform domain name
+  matching. See "cook" for more information on cookie matching. Use the
+  scook_dom() variant for response cookies sent by the server.
+
+cook_end(<name>) <string>
+  Returns true if any of the request cookies <name> ends with one of the
+  strings. See "cook" for more information on cookie matching. Use the
+  scook_end() variant for response cookies sent by the server.
+
+cook_len(<name>) <integer>
+  Returns true if any of the request cookies <name> has a length which matches
+  the values or ranges specified. This may be used to detect empty or too large
+  cookie values. Note that an absent cookie does not match a zero-length test.
+  See "cook" for more information on cookie matching. Use the scook_len()
+  variant for response cookies sent by the server.
+
+cook_reg(<name>) <regex>
+  Returns true if any of the request cookies <name> matches any of the regular
+  expressions. It can be used at any time, but it is important to remember that
+  regex matching is slower than other methods. See also other "cook_" criteria,
+  as well as "cook" for more information on cookie matching. Use the
+  scook_reg() variant for response cookies sent by the server.
+
+cook_sub(<name>) <string>
+  Returns true if any of the request cookies <name> contains at least one of
+  the strings. See "cook" for more information on cookie matching. Use the
+  scook_sub() variant for response cookies sent by the server.
+
 hdr <string>
 hdr(<header>) <string>
   Note: all the "hdr*" matching criteria either apply to all headers, or to a
@@ -7868,7 +7931,7 @@ hdr_len(<header>) <integer>
 
 hdr_reg <regex>
 hdr_reg(<header>) <regex>
-  Returns true when one of the headers matches of the regular expressions. It
+  Returns true it one of the headers matches one of the regular expressions. It
   can be used at any time, but it is important to remember that regex matching
   is slower than other methods. See also other "hdr_" criteria, as well as
   "hdr" for more information on header matching. Use the shdr_reg() variant for
