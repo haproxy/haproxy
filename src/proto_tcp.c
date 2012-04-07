@@ -474,7 +474,7 @@ int tcp_connect_server(struct stream_interface *si)
  * ERR_ALERT, ERR_RETRYABLE and ERR_FATAL. ERR_NONE indicates that everything
  * was alright and that no message was returned. ERR_RETRYABLE means that an
  * error occurred but that it may vanish after a retry (eg: port in use), and
- * ERR_FATAL indicates a non-fixable error.ERR_WARN and ERR_ALERT do not alter
+ * ERR_FATAL indicates a non-fixable error. ERR_WARN and ERR_ALERT do not alter
  * the meaning of the error, but just indicate that a message is present which
  * should be displayed with the respective level. Last, ERR_ABORT indicates
  * that it's pointless to try to start other listeners. No error message is

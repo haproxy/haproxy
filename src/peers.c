@@ -184,7 +184,7 @@ static int peer_prepare_datamsg(struct stksess *ts, struct peer_session *ps, cha
  */
 static void peer_session_release(struct stream_interface *si)
 {
-	struct task *t= (struct task *)si->owner;
+	struct task *t = (struct task *)si->owner;
 	struct session *s = (struct session *)t->context;
 	struct peer_session *ps = (struct peer_session *)si->applet.private;
 
