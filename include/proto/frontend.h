@@ -25,7 +25,6 @@
 #include <common/config.h>
 #include <types/session.h>
 
-void get_frt_addr(struct session *s);
 int frontend_accept(struct session *s);
 int frontend_decode_proxy_request(struct session *s, struct buffer *req, int an_bit);
 int make_proxy_line(char *buf, int buf_len, struct sockaddr_storage *src, struct sockaddr_storage *dst);

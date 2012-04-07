@@ -1156,6 +1156,8 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->si[0].err_type = SI_ET_NONE;
 	s->si[0].err_loc = NULL;
 	s->si[0].connect   = NULL;
+	s->si[0].get_src   = NULL;
+	s->si[0].get_dst   = NULL;
 	clear_target(&s->si[0].target);
 	s->si[0].exp = TICK_ETERNITY;
 	s->si[0].flags = SI_FL_NONE;
@@ -1173,6 +1175,8 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->si[1].err_type = SI_ET_NONE;
 	s->si[1].err_loc = NULL;
 	s->si[1].connect = tcp_connect_server;
+	s->si[1].get_src = getsockname;
+	s->si[1].get_dst = getpeername;
 	set_target_proxy(&s->si[1].target, s->be);
 	s->si[1].exp = TICK_ETERNITY;
 	s->si[1].flags = SI_FL_NONE;

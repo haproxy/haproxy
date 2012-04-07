@@ -403,6 +403,7 @@ int tcp_connect_server(struct stream_interface *si)
 	if (global.tune.server_rcvbuf)
                 setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &global.tune.server_rcvbuf, sizeof(global.tune.server_rcvbuf));
 
+	si->flags &= ~SI_FL_FROM_SET;
 	if ((connect(fd, (struct sockaddr *)&si->addr.to, get_addr_len(&si->addr.to)) == -1) &&
 	    (errno != EINPROGRESS) && (errno != EALREADY) && (errno != EISCONN)) {
 
@@ -438,13 +439,8 @@ int tcp_connect_server(struct stream_interface *si)
 	}
 
 	/* needs src ip/port for logging */
-	if (si->flags & SI_FL_SRC_ADDR) {
-		socklen_t addrlen = sizeof(si->addr.from);
-		if (getsockname(fd, (struct sockaddr *)&si->addr.from, &addrlen) == -1) {
-			Warning("Cannot get source address for logging.\n");
-		}
-		si->flags |= SI_FL_FROM_SET;
-	}
+	if (si->flags & SI_FL_SRC_ADDR)
+		stream_sock_get_from_addr(si);
 
 	fdtab[fd].owner = si;
 	fdtab[fd].state = FD_STCONN; /* connection in progress */
@@ -1318,8 +1314,7 @@ static int
 acl_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
               struct acl_expr *expr, struct acl_test *test)
 {
-	if (!(l4->flags & SN_FRT_ADDR_SET))
-		get_frt_addr(l4);
+	stream_sock_get_to_addr(&l4->si[0]);
 
 	switch (l4->si[0].addr.to.ss_family) {
 	case AF_INET:
@@ -1344,8 +1339,7 @@ static int
 pattern_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
                   const struct pattern_arg *arg_p, int arg_i, union pattern_data *data)
 {
-	if (!(l4->flags & SN_FRT_ADDR_SET))
-		get_frt_addr(l4);
+	stream_sock_get_to_addr(&l4->si[0]);
 
 	if (l4->si[0].addr.to.ss_family != AF_INET)
 		return 0;
@@ -1359,8 +1353,7 @@ static int
 pattern_fetch_dst6(struct proxy *px, struct session *l4, void *l7, int dir,
                   const struct pattern_arg *arg_p, int arg_i, union pattern_data *data)
 {
-	if (!(l4->flags & SN_FRT_ADDR_SET))
-		get_frt_addr(l4);
+	stream_sock_get_to_addr(&l4->si[0]);
 
 	if (l4->si[0].addr.to.ss_family != AF_INET6)
 		return 0;
@@ -1374,8 +1367,7 @@ static int
 acl_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
                 struct acl_expr *expr, struct acl_test *test)
 {
-	if (!(l4->flags & SN_FRT_ADDR_SET))
-		get_frt_addr(l4);
+	stream_sock_get_to_addr(&l4->si[0]);
 
 	if (!(temp_pattern.data.integer = get_host_port(&l4->si[0].addr.to)))
 		return 0;
@@ -1388,8 +1380,7 @@ static int
 pattern_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
                     const struct pattern_arg *arg, int i, union pattern_data *data)
 {
-	if (!(l4->flags & SN_FRT_ADDR_SET))
-		get_frt_addr(l4);
+	stream_sock_get_to_addr(&l4->si[0]);
 
 	if (!(data->integer = get_host_port(&l4->si[0].addr.to)))
 		return 0;

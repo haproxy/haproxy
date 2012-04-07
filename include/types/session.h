@@ -50,7 +50,7 @@
 #define SN_FORCE_PRST	0x00000010	/* force persistence here, even if server is down */
 #define SN_MONITOR	0x00000020	/* this session comes from a monitoring system */
 #define SN_CURR_SESS	0x00000040	/* a connection is currently being counted on the server */
-#define SN_FRT_ADDR_SET	0x00000080	/* set if the frontend address has been filled */
+/* unused: 0x00000080 */
 #define SN_REDISP	0x00000100	/* set if this session was redispatched from one server to another */
 #define SN_CONN_TAR	0x00000200	/* set if this session is turning around before reconnecting */
 #define SN_REDIRECTABLE	0x00000400	/* set if this session is redirectable (GET or HEAD) */
@@ -84,7 +84,6 @@
 #define SN_IGNORE_PRST	0x00080000	/* ignore persistence */
 #define SN_BE_TRACK_SC1 0x00100000	/* backend tracks stick-counter 1 */
 #define SN_BE_TRACK_SC2 0x00200000	/* backend tracks stick-counter 2 */
-#define SN_BCK_ADDR_SET 0x00400000 	/* set if the backend address has been filled */
 
 /* Termination sequence tracing.
  *

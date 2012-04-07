@@ -169,6 +169,8 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[0].err_loc   = NULL;
 	s->si[0].connect   = NULL;
 	s->si[0].release   = NULL;
+	s->si[0].get_src   = getpeername;
+	s->si[0].get_dst   = getsockname;
 	clear_target(&s->si[0].target);
 	s->si[0].exp       = TICK_ETERNITY;
 	s->si[0].flags     = SI_FL_NONE;
@@ -193,6 +195,8 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[1].err_loc   = NULL;
 	s->si[1].connect   = NULL;
 	s->si[1].release   = NULL;
+	s->si[1].get_src   = NULL;
+	s->si[1].get_dst   = NULL;
 	clear_target(&s->si[1].target);
 	s->si[1].shutr     = stream_int_shutr;
 	s->si[1].shutw     = stream_int_shutw;

@@ -133,6 +133,8 @@ struct stream_interface {
 	void (*chk_snd)(struct stream_interface *);/* chk_snd function */
 	int  (*connect)(struct stream_interface *); /* connect function if any */
 	void (*release)(struct stream_interface *); /* handler to call after the last close() */
+	int (*get_src)(int, struct sockaddr *, socklen_t *); /* syscall used to retrieve src addr */
+	int (*get_dst)(int, struct sockaddr *, socklen_t *); /* syscall used to retrieve dst addr */
 
 	/* struct members below are the "remote" part, as seen from the buffer side */
 	struct target target;	/* the target to connect to (server, proxy, applet, ...) */

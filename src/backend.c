@@ -688,8 +688,8 @@ int assign_server_address(struct session *s)
 			 * the client asked, which is handy for remapping ports
 			 * locally on multiple addresses at once.
 			 */
-			if (!(s->be->options & PR_O_TRANSP) && !(s->flags & SN_FRT_ADDR_SET))
-				get_frt_addr(s);
+			if (!(s->be->options & PR_O_TRANSP))
+				stream_sock_get_to_addr(s->req->prod);
 
 			if (s->req->prod->addr.to.ss_family == AF_INET) {
 				((struct sockaddr_in *)&s->req->cons->addr.to)->sin_addr = ((struct sockaddr_in *)&s->req->prod->addr.to)->sin_addr;
@@ -703,8 +703,8 @@ int assign_server_address(struct session *s)
 		if (target_srv(&s->target)->state & SRV_MAPPORTS) {
 			int base_port;
 
-			if (!(s->be->options & PR_O_TRANSP) && !(s->flags & SN_FRT_ADDR_SET))
-				get_frt_addr(s);
+			if (!(s->be->options & PR_O_TRANSP))
+				stream_sock_get_to_addr(s->req->prod);
 
 			/* First, retrieve the port from the incoming connection */
 			base_port = get_host_port(&s->req->prod->addr.to);
@@ -720,8 +720,7 @@ int assign_server_address(struct session *s)
 	}
 	else if (s->be->options & PR_O_TRANSP) {
 		/* in transparent mode, use the original dest addr if no dispatch specified */
-		if (!(s->flags & SN_FRT_ADDR_SET))
-			get_frt_addr(s);
+		stream_sock_get_to_addr(s->req->prod);
 
 		if (s->req->prod->addr.to.ss_family == AF_INET || s->req->prod->addr.to.ss_family == AF_INET6) {
 			memcpy(&s->req->cons->addr.to, &s->req->prod->addr.to, MIN(sizeof(s->req->cons->addr.to), sizeof(s->req->prod->addr.to)));
@@ -973,6 +972,8 @@ int connect_server(struct session *s)
 	 */
 	stream_sock_prepare_interface(s->req->cons);
 	s->req->cons->connect = tcp_connect_server;
+	s->req->cons->get_src = getsockname;
+	s->req->cons->get_dst = getpeername;
 	/* the target was only on the session, assign it to the SI now */
 	copy_target(&s->req->cons->target, &s->target);
 
@@ -980,8 +981,7 @@ int connect_server(struct session *s)
 	s->req->cons->send_proxy_ofs = 0;
 	if (s->target.type == TARG_TYPE_SERVER && (s->target.ptr.s->state & SRV_SEND_PROXY)) {
 		s->req->cons->send_proxy_ofs = 1; /* must compute size */
-		if (!(s->flags & SN_FRT_ADDR_SET))
-			get_frt_addr(s);
+		stream_sock_get_to_addr(s->req->prod);
 	}
 
 	assign_tproxy_address(s);
