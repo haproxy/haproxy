@@ -1,6 +1,12 @@
 /*
  * First Available Server load balancing algorithm.
  *
+ * This file implements an algorithm which emerged during a discussion with
+ * Steen Larsen, initially inspired from Anshul Gandhi et.al.'s work now
+ * described as "packing" in section 3.5:
+ *
+ *    http://reports-archive.adm.cs.cmu.edu/anon/2012/CMU-CS-12-109.pdf
+ *
  * Copyright 2000-2012 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or

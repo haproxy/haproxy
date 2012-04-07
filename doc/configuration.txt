@@ -1280,13 +1280,18 @@ balance url_param <param> [check_post [<max_wait>]]
                   connection. The servers are choosen from the lowest numeric
                   identifier to the highest (see server parameter "id"), which
                   defaults to the server's position in the farm. Once a server
-                  reaaches its maxconn value, the next server is used. It does
+                  reaches its maxconn value, the next server is used. It does
                   not make sense to use this algorithm without setting maxconn.
                   The purpose of this algorithm is to always use the smallest
                   number of servers so that extra servers can be powered off
                   during non-intensive hours. This algorithm ignores the server
                   weight, and brings more benefit to long session such as RDP
-                  or IMAP than HTTP, though it can be useful there too.
+                  or IMAP than HTTP, though it can be useful there too. In
+                  order to use this algorithm efficiently, it is recommended
+                  that a cloud controller regularly checks server usage to turn
+                  them off when unused, and regularly checks backend queue to
+                  turn new servers on when the queue inflates. Alternatively,
+                  using "http-check send-state" may inform servers on the load.
 
       source      The source IP address is hashed and divided by the total
                   weight of the running servers to designate which server will
