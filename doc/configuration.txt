@@ -47,6 +47,7 @@ Summary
 3.2.      Performance tuning
 3.3.      Debugging
 3.4.      Userlists
+3.5.      Peers
 
 4.    Proxies
 4.1.      Proxy keywords matrix
@@ -534,7 +535,7 @@ log <address> <facility> [max level [min level]]
   "emerg" messages on all terminals on some default syslog configurations.
   Eight levels are known :
 
-	  emerg  alert  crit   err    warning notice info  debug
+          emerg  alert  crit   err    warning notice info  debug
 
 log-send-hostname [<string>]
   Sets the hostname field in the syslog header. If optional "string" parameter
@@ -562,7 +563,7 @@ pidfile <pidfile>
   starting the process. See also "daemon".
 
 stats socket <path> [{uid | user} <uid>] [{gid | group} <gid>] [mode <mode>]
-  [level <level>]
+             [level <level>]
 
   Creates a UNIX socket in stream mode at location <path>. Any previously
   existing socket will be backed up then replaced. Connections to this socket
@@ -859,7 +860,7 @@ user <username> [password|insecure-password <password>]
 
 
 3.5. Peers
---------------
+----------
 It is possible to synchronize server entries in stick tables between several
 haproxy instances over TCP connections in a multi-master fashion. Each instance
 pushes its local updates and insertions to remote peers. Server IDs are used to
@@ -892,7 +893,7 @@ peer <peername> <ip>:<port>
   peer name. This makes it easier to maintain coherent configuration files
   across all peers.
 
-Example:
+  Example:
     peers mypeers
         peer haproxy1 192.168.0.1:1024
         peer haproxy2 192.168.0.2:1024
@@ -1218,7 +1219,7 @@ backlog <conns>
   Arguments :
     <conns>   is the number of pending connections. Depending on the operating
               system, it may represent the number of already acknowledged
-	      connections, of non-acknowledged ones, or both.
+              connections, of non-acknowledged ones, or both.
 
   In order to protect against SYN flood attacks, one solution is to increase
   the system's SYN backlog size. Depending on the system, sometimes it is just
@@ -1338,25 +1339,25 @@ balance url_param <param> [check_post [<max_wait>]]
                   the query string of each HTTP GET request.
 
                   If the modifier "check_post" is used, then an HTTP POST
-		  request entity will be searched for the parameter argument,
-		  when it is not found in a query string after a question mark
-		  ('?') in the URL. Optionally, specify a number of octets to
-		  wait for before attempting to search the message body. If the
-		  entity can not be searched, then round robin is used for each
-		  request. For instance, if your clients always send the LB
-		  parameter in the first 128 bytes, then specify that. The
-		  default is 48. The entity data will not be scanned until the
-		  required number of octets have arrived at the gateway, this
-		  is the minimum of: (default/max_wait, Content-Length or first
-		  chunk length). If Content-Length is missing or zero, it does
-		  not need to wait for more data than the client promised to
-		  send. When Content-Length is present and larger than
-		  <max_wait>, then waiting is limited to <max_wait> and it is
-		  assumed that this will be enough data to search for the
-		  presence of the parameter. In the unlikely event that
-		  Transfer-Encoding: chunked is used, only the first chunk is
-		  scanned. Parameter values separated by a chunk boundary, may
-		  be randomly balanced if at all.
+                  request entity will be searched for the parameter argument,
+                  when it is not found in a query string after a question mark
+                  ('?') in the URL. Optionally, specify a number of octets to
+                  wait for before attempting to search the message body. If the
+                  entity can not be searched, then round robin is used for each
+                  request. For instance, if your clients always send the LB
+                  parameter in the first 128 bytes, then specify that. The
+                  default is 48. The entity data will not be scanned until the
+                  required number of octets have arrived at the gateway, this
+                  is the minimum of: (default/max_wait, Content-Length or first
+                  chunk length). If Content-Length is missing or zero, it does
+                  not need to wait for more data than the client promised to
+                  send. When Content-Length is present and larger than
+                  <max_wait>, then waiting is limited to <max_wait> and it is
+                  assumed that this will be enough data to search for the
+                  presence of the parameter. In the unlikely event that
+                  Transfer-Encoding: chunked is used, only the first chunk is
+                  scanned. Parameter values separated by a chunk boundary, may
+                  be randomly balanced if at all.
 
                   If the parameter is found followed by an equal sign ('=') and
                   a value, then the value is hashed and divided by the total
@@ -1372,11 +1373,11 @@ balance url_param <param> [check_post [<max_wait>]]
                   that changing a server's weight on the fly will have no
                   effect, but this can be changed using "hash-type".
 
-      hdr(<name>)   The HTTP header <name> will be looked up in each HTTP request.
-                  Just as with the equivalent ACL 'hdr()' function, the header
-                  name in parenthesis is not case sensitive. If the header is
-                  absent or if it does not contain any value, the roundrobin
-                  algorithm is applied instead.
+      hdr(<name>) The HTTP header <name> will be looked up in each HTTP
+                  request. Just as with the equivalent ACL 'hdr()' function,
+                  the header name in parenthesis is not case sensitive. If the
+                  header is absent or if it does not contain any value, the
+                  roundrobin algorithm is applied instead.
 
                   An optional 'use_domain_only' parameter is available, for
                   reducing the hash algorithm to the main domain part with some
@@ -1407,7 +1408,7 @@ balance url_param <param> [check_post [<max_wait>]]
                   changing a server's weight on the fly will have no effect,
                   but this can be changed using "hash-type".
 
-		  See also the rdp_cookie pattern fetch function.
+                  See also the rdp_cookie pattern fetch function.
 
     <arguments> is an optional list of arguments which may be needed by some
                 algorithms. Right now, only "url_param" and "uri" support an
@@ -2392,7 +2393,7 @@ http-check expect [!] <match> <pattern>
   Arguments :
     <match>   is a keyword indicating how to look for a specific pattern in the
               response. The keyword may be one of "status", "rstatus",
-	      "string", or "rstring". The keyword may be preceeded by an
+              "string", or "rstring". The keyword may be preceeded by an
               exclamation mark ("!") to negate the match. Spaces are allowed
               between the exclamation mark and the keyword. See below for more
               details on the supported keywords.
@@ -4241,7 +4242,7 @@ persist rdp-cookie(<name>)
             # apply RDP cookie persistence
             persist rdp-cookie
             # if server is unknown, let's balance on the same cookie.
-	    # alternatively, "balance leastconn" may be useful too.
+            # alternatively, "balance leastconn" may be useful too.
             balance rdp-cookie
             server srv1 1.1.1.1:3389
             server srv2 1.1.1.2:3389
@@ -5734,7 +5735,7 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
                defined using the standard time format, similarly as the various
                timeouts. The maximum duration is slightly above 24 days. See
                section 2.2 for more information. If this delay is not specified,
-	       the session won't automatically expire, but older entries will
+               the session won't automatically expire, but older entries will
                be removed once full. Be sure not to use the "nopurge" parameter
                if not expiration delay is specified.
 
@@ -5935,7 +5936,7 @@ stick store-response <pattern> [table <table>] [{if | unless} <condition>]
     backend https
         mode tcp
         balance roundrobin
-	# maximum SSL session ID length is 32 bytes.
+        # maximum SSL session ID length is 32 bytes.
         stick-table type binary len 32 size 30k expire 30m
         
         acl clienthello req_ssl_hello_type 1
@@ -5957,7 +5958,7 @@ stick store-response <pattern> [table <table>] [{if | unless} <condition>]
 
         # Learn on response if server hello.
         stick store-response payload_lv(43,1) if serverhello
-	
+
         server s1 192.168.1.1:443
         server s2 192.168.1.1:443
 
@@ -8292,64 +8293,64 @@ The list of currently supported pattern fetch functions is the following :
                Ex: see SSL session id  example in "stick table" chapter.
                 
   url_param(<name>)
-	       This extracts the first occurrence of the parameter <name> in
-	       the query string of the request and uses the corresponding value
-               to match. A typical use is to get sticky session through url (e.g.
-	       http://example.com/foo?JESSIONID=some_id with
-	       url_param(JSESSIONID)), for cases where cookies cannot be used.
+               This extracts the first occurrence of the parameter <name> in
+               the query string of the request and uses the corresponding value
+               to match. A typical use is to get sticky session through url
+               (e.g. http://example.com/foo?JESSIONID=some_id with
+               url_param(JSESSIONID)), for cases where cookies cannot be used.
 
   rdp_cookie(<name>)
-	       This extracts the value of the rdp cookie <name> as a string
-	       and uses this value to match. This enables implementation of
-	       persistence based on the mstshash cookie. This is typically
-	       done if there is no msts cookie present.
+               This extracts the value of the rdp cookie <name> as a string
+               and uses this value to match. This enables implementation of
+               persistence based on the mstshash cookie. This is typically
+               done if there is no msts cookie present.
 
-	       This differs from "balance rdp-cookie" in that any balancing
-	       algorithm may be used and thus the distribution of clients
-	       to backend servers is not linked to a hash of the RDP
-	       cookie. It is envisaged that using a balancing algorithm
-	       such as "balance roundrobin" or "balance leastconnect" will
-	       lead to a more even distribution of clients to backend
-	       servers than the hash used by "balance rdp-cookie".
+               This differs from "balance rdp-cookie" in that any balancing
+               algorithm may be used and thus the distribution of clients
+               to backend servers is not linked to a hash of the RDP
+               cookie. It is envisaged that using a balancing algorithm
+               such as "balance roundrobin" or "balance leastconnect" will
+               lead to a more even distribution of clients to backend
+               servers than the hash used by "balance rdp-cookie".
 
-	       Example :
-		listen tse-farm
-		    bind 0.0.0.0:3389
-		    # wait up to 5s for an RDP cookie in the request
-		    tcp-request inspect-delay 5s
-		    tcp-request content accept if RDP_COOKIE
-		    # apply RDP cookie persistence
-		    persist rdp-cookie
-		    # Persist based on the mstshash cookie
-		    # This is only useful makes sense if
-		    # balance rdp-cookie is not used
-		    stick-table type string size 204800
-		    stick on rdp_cookie(mstshash)
-		    server srv1 1.1.1.1:3389
-		    server srv1 1.1.1.2:3389
+               Example :
+                listen tse-farm
+                    bind 0.0.0.0:3389
+                    # wait up to 5s for an RDP cookie in the request
+                    tcp-request inspect-delay 5s
+                    tcp-request content accept if RDP_COOKIE
+                    # apply RDP cookie persistence
+                    persist rdp-cookie
+                    # Persist based on the mstshash cookie
+                    # This is only useful makes sense if
+                    # balance rdp-cookie is not used
+                    stick-table type string size 204800
+                    stick on rdp_cookie(mstshash)
+                    server srv1 1.1.1.1:3389
+                    server srv1 1.1.1.2:3389
 
-	       See also : "balance rdp-cookie", "persist rdp-cookie",
-	       "tcp-request" and the "req_rdp_cookie" ACL.
+               See also : "balance rdp-cookie", "persist rdp-cookie",
+               "tcp-request" and the "req_rdp_cookie" ACL.
 
   cookie(<name>)
-	       This extracts the last occurrence of the cookie name <name> on a
-	       "Cookie" header line from the request and uses the corresponding
-	       value to match. A typical use is to get multiple clients sharing
-	       a same profile use the same server. This can be similar to what
-	       "appsession" does with the "request-learn" statement, but with
-	       support for multi-peer synchronization and state keeping across
-	       restarts.
+               This extracts the last occurrence of the cookie name <name> on a
+               "Cookie" header line from the request and uses the corresponding
+               value to match. A typical use is to get multiple clients sharing
+               a same profile use the same server. This can be similar to what
+               "appsession" does with the "request-learn" statement, but with
+               support for multi-peer synchronization and state keeping across
+               restarts.
 
-	       See also : "appsession"
+               See also : "appsession"
 
   set-cookie(<name>)
-	       This extracts the last occurrence of the cookie name <name> on a
-	       "Set-Cookie" header line from the response and uses the
-	       corresponding value to match. This can be comparable to what
-	       "appsession" does with default options, but with support for
-	        multi-peer synchronization and state keeping across restarts.
+               This extracts the last occurrence of the cookie name <name> on a
+               "Set-Cookie" header line from the response and uses the
+               corresponding value to match. This can be comparable to what
+               "appsession" does with default options, but with support for
+                multi-peer synchronization and state keeping across restarts.
 
-	       See also : "appsession"
+               See also : "appsession"
 
 
 The currently available list of transformations include :
@@ -8917,8 +8918,8 @@ Detailed fields description :
     is the reason why this field must always remain the last one.
 
 
-8.2.4 Custom log format
------------------------
+8.2.4. Custom log format
+------------------------
 
 The directive log-format allows you to custom the logs in http mode and tcp
 mode. It takes a string as argument.
@@ -9377,7 +9378,7 @@ easier finding and understanding.
 
      cD   The client did not send nor acknowledge any data for as long as the
           "timeout client" delay. This is often caused by network failures on
-	  the client side, or the client simply leaving the net uncleanly.
+          the client side, or the client simply leaving the net uncleanly.
 
      CH   The client aborted while waiting for the server to start responding.
           It might be the server taking too long to respond or the client
@@ -9462,7 +9463,7 @@ easier finding and understanding.
 
      PC   The proxy refused to establish a connection to the server because the
           process' socket limit has been reached while attempting to connect.
-	  The global "maxconn" parameter may be increased in the configuration
+          The global "maxconn" parameter may be increased in the configuration
           so that it does not happen anymore. This status is very rare and
           might happen when the global "ulimit-n" parameter is forced by hand.
 
