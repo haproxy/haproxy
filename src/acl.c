@@ -290,7 +290,7 @@ acl_fetch_req_ssl_ver(struct proxy *px, struct session *l4, void *l7, int dir,
  *     - uint24 length                                 (handshake message length)
  *     - ClientHello :
  *       - uint16 client_version             >= 0x0301 (TLSv1)
- *       - uint8 Random[32]
+ *       - uint8 Random[32]                  (4 first ones are timestamp)
  *       - SessionID :
  *         - uint8 session_id_len (0..32)              (SessionID len in bytes)
  *         - uint8 session_id[session_id_len]
@@ -370,7 +370,7 @@ acl_fetch_ssl_hello_sni(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (data[0] < 0x03 || data[1] < 0x01) /* TLSv1 minimum */
 		goto not_ssl_hello;
 
-	ext_len = data[35];
+	ext_len = data[34]; /* session_id_len */
 	if (ext_len > 32 || ext_len > (hs_len - 35)) /* check for correct session_id len */
 		goto not_ssl_hello;
 
