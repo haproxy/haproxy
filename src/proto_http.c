@@ -8203,7 +8203,7 @@ acl_fetch_http_auth(struct proxy *px, struct session *s, void *l7, int dir,
 static char *
 extract_cookie_value(char *hdr, const char *hdr_end,
 		  char *cookie_name, size_t cookie_name_l, int list,
-		  char **value, size_t *value_l)
+		  char **value, int *value_l)
 {
 	char *equal, *att_end, *att_beg, *val_beg, *val_end;
 	char *next;
@@ -8679,7 +8679,7 @@ static int
 find_cookie_value(struct http_msg *msg, struct http_txn *txn,
 		  const char *hdr_name, int hdr_name_len,
 		  char *cookie_name, size_t cookie_name_l, int list,
-		  char **value, size_t *value_l)
+		  char **value, int *value_l)
 {
 	struct hdr_ctx ctx;
 	int found = 0;
@@ -8706,7 +8706,7 @@ pattern_fetch_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
 	struct http_txn *txn = l7;
 	struct http_msg *msg = &txn->req;
 	char  *cookie_value;
-	size_t cookie_value_l;
+	int cookie_value_l;
 	int found = 0;
 
 	found = find_cookie_value(msg, txn, "Cookie", 6,
@@ -8728,7 +8728,7 @@ pattern_fetch_set_cookie(struct proxy *px, struct session *l4, void *l7, int dir
 	struct http_txn *txn = l7;
 	struct http_msg *msg = &txn->rsp;
 	char  *cookie_value;
-	size_t cookie_value_l;
+	int cookie_value_l;
 	int found = 0;
 
 	found = find_cookie_value(msg, txn, "Set-Cookie", 10,
