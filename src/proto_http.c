@@ -2574,7 +2574,8 @@ int http_process_req_stat_post(struct stream_interface *si, struct http_txn *txn
 	int altered_servers = 0;
 
 	char *first_param, *cur_param, *next_param, *end_params;
-	char *st_cur_param, *st_next_param;
+	char *st_cur_param = NULL;
+	char *st_next_param = NULL;
 
 	first_param = req->data + txn->req.eoh + 2;
 	end_params  = first_param + txn->req.body_len;
@@ -8395,7 +8396,7 @@ acl_fetch_any_cookie_cnt(struct proxy *px, struct session *l4, void *l7, char *s
 	if (!txn)
 		return 0;
 
-	val_beg = NULL;
+	val_end = val_beg = NULL;
 	ctx.idx = 0;
 	cnt = 0;
 
