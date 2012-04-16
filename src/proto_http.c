@@ -7897,27 +7897,12 @@ static int
 acl_fetch_hdr_val(struct proxy *px, struct session *l4, void *l7, int dir,
                   struct acl_expr *expr, struct acl_test *test)
 {
-	struct http_txn *txn = l7;
-	struct hdr_idx *idx = &txn->hdr_idx;
-	struct hdr_ctx *ctx = (struct hdr_ctx *)test->ctx.a;
-	const struct http_msg *msg = ((dir & ACL_DIR_MASK) == ACL_DIR_REQ) ? &txn->req : &txn->rsp;
+	int ret = acl_fetch_hdr(px, l4, l7, dir, expr, test);
 
-	CHECK_HTTP_MESSAGE_FIRST();
+	if (ret > 0)
+		temp_pattern.data.integer = strl2ic(temp_pattern.data.str.str, temp_pattern.data.str.len);
 
-	if (!(test->flags & ACL_TEST_F_FETCH_MORE))
-		/* search for header from the beginning */
-		ctx->idx = 0;
-
-	if (http_find_header2(expr->arg.str, expr->arg_len, msg->buf->p + msg->sol, idx, ctx)) {
-		test->flags |= ACL_TEST_F_FETCH_MORE;
-		test->flags |= ACL_TEST_F_VOL_HDR;
-		temp_pattern.data.integer = strl2ic((char *)ctx->line + ctx->val, ctx->vlen);
-		return 1;
-	}
-
-	test->flags &= ~ACL_TEST_F_FETCH_MORE;
-	test->flags |= ACL_TEST_F_VOL_HDR;
-	return 0;
+	return ret;
 }
 
 /* 7. Check on HTTP header's IPv4 address value. The IPv4 address is returned.
@@ -7926,30 +7911,15 @@ static int
 acl_fetch_hdr_ip(struct proxy *px, struct session *l4, void *l7, int dir,
                   struct acl_expr *expr, struct acl_test *test)
 {
-	struct http_txn *txn = l7;
-	struct hdr_idx *idx = &txn->hdr_idx;
-	struct hdr_ctx *ctx = (struct hdr_ctx *)test->ctx.a;
-	const struct http_msg *msg = ((dir & ACL_DIR_MASK) == ACL_DIR_REQ) ? &txn->req : &txn->rsp;
+	int ret;
 
-	CHECK_HTTP_MESSAGE_FIRST();
-
-	if (!(test->flags & ACL_TEST_F_FETCH_MORE))
-		/* search for header from the beginning */
-		ctx->idx = 0;
-
-	while (http_find_header2(expr->arg.str, expr->arg_len, msg->buf->p + msg->sol, idx, ctx)) {
-		test->flags |= ACL_TEST_F_FETCH_MORE;
-		test->flags |= ACL_TEST_F_VOL_HDR;
-		/* Same optimization as url_ip */
+	while ((ret = acl_fetch_hdr(px, l4, l7, dir, expr, test)) > 0) {
 		temp_pattern.type = PATTERN_TYPE_IP;
-		if (url2ipv4((char *)ctx->line + ctx->val, &temp_pattern.data.ip))
-			return 1;
-		/* Dods not look like an IP address, let's fetch next one */
+		if (url2ipv4((char *)temp_pattern.data.str.str, &temp_pattern.data.ip))
+			break;
+		/* if the header doesn't match an IP address, fetch next one */
 	}
-
-	test->flags &= ~ACL_TEST_F_FETCH_MORE;
-	test->flags |= ACL_TEST_F_VOL_HDR;
-	return 0;
+	return ret;
 }
 
 /* 8. Check on URI PATH. A pointer to the PATH is stored. The path starts at
