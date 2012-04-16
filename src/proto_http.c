@@ -1569,6 +1569,11 @@ void http_msg_analyzer(struct buffer *buf, struct http_msg *msg, struct hdr_idx 
 		msg->sol = buf->data + msg->som;
 		msg->msg_state = HTTP_MSG_BODY;
 		return;
+
+	case HTTP_MSG_ERROR:
+		/* this may only happen if we call http_msg_analyser() twice with an error */
+		break;
+
 #ifdef DEBUG_FULL
 	default:
 		fprintf(stderr, "FIXME !!!! impossible state at %s:%d = %d\n", __FILE__, __LINE__, state);
