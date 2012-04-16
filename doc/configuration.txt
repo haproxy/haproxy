@@ -6119,17 +6119,18 @@ tcp-request content <action> [{if | unless} <condition>]
   "track-sc*" actions as well as for changing the default action to a reject.
 
   It is perfectly possible to match layer 7 contents with "tcp-request content"
-  rules, but then it is important to ensure that a full request has been
-  buffered, otherwise no contents will match. In order to achieve this, the
-  best solution involves detecting the HTTP protocol during the inspection
-  period.
+  rules, since HTTP-specific ACL matches are able to preliminarily parse the
+  contents of a buffer before extracting the required data. If the buffered
+  contents do not parse as a valid HTTP message, then the ACL does not match.
+  The parser which is involved there is exactly the same as for all other HTTP
+  processing, so there is no risk of parsing something differently.
 
   Example:
         # Accept HTTP requests containing a Host header saying "example.com"
         # and reject everything else.
         acl is_host_com hdr(Host) -i example.com
         tcp-request inspect-delay 30s
-        tcp-request content accept if HTTP is_host_com
+        tcp-request content accept if is_host_com
         tcp-request content reject
 
   Example:

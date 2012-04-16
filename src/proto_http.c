@@ -7610,6 +7610,9 @@ acl_prefetch_http(struct proxy *px, struct session *s, void *l7, int dir,
 	return 1;
 }
 
+#define CHECK_HTTP_MESSAGE_FIRST() \
+	do { int r = acl_prefetch_http(px, l4, l7, dir, expr, test); if (r <= 0) return r; } while (0)
+
 
 /* 1. Check on METHOD
  * We use the pre-parsed method if it is known, and store its number as an
@@ -7647,11 +7650,7 @@ acl_fetch_meth(struct proxy *px, struct session *l4, void *l7, int dir,
 	int meth;
 	struct http_txn *txn = l7;
 
-	if (!txn)
-		return 0;
-
-	if (txn->req.msg_state < HTTP_MSG_BODY)
-		return 0;
+	CHECK_HTTP_MESSAGE_FIRST();
 
 	meth = txn->meth;
 	temp_pattern.data.str.len = meth;
@@ -7715,11 +7714,7 @@ acl_fetch_rqver(struct proxy *px, struct session *l4, void *l7, int dir,
 	char *ptr;
 	int len;
 
-	if (!txn)
-		return 0;
-
-	if (txn->req.msg_state < HTTP_MSG_BODY)
-		return 0;
+	CHECK_HTTP_MESSAGE_FIRST();
 
 	len = txn->req.sl.rq.v_l;
 	ptr = txn->req.buf->p + txn->req.sol + txn->req.sl.rq.v;
@@ -7743,11 +7738,7 @@ acl_fetch_stver(struct proxy *px, struct session *l4, void *l7, int dir,
 	char *ptr;
 	int len;
 
-	if (!txn)
-		return 0;
-
-	if (txn->rsp.msg_state < HTTP_MSG_BODY)
-		return 0;
+	CHECK_HTTP_MESSAGE_FIRST();
 
 	len = txn->rsp.sl.st.v_l;
 	ptr = txn->rsp.buf->p + txn->rsp.sol;
@@ -7772,11 +7763,7 @@ acl_fetch_stcode(struct proxy *px, struct session *l4, void *l7, int dir,
 	char *ptr;
 	int len;
 
-	if (!txn)
-		return 0;
-
-	if (txn->rsp.msg_state < HTTP_MSG_BODY)
-		return 0;
+	CHECK_HTTP_MESSAGE_FIRST();
 
 	len = txn->rsp.sl.st.c_l;
 	ptr = txn->rsp.buf->p + txn->rsp.sol + txn->rsp.sl.st.c;
@@ -7793,15 +7780,7 @@ acl_fetch_url(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct http_txn *txn = l7;
 
-	if (!txn)
-		return 0;
-
-	if (txn->req.msg_state < HTTP_MSG_BODY)
-		return 0;
-
-	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
-		/* ensure the indexes are not affected */
-		return 0;
+	CHECK_HTTP_MESSAGE_FIRST();
 
 	temp_pattern.data.str.len = txn->req.sl.rq.u_l;
 	temp_pattern.data.str.str = txn->req.buf->p + txn->req.sol + txn->req.sl.rq.u;
@@ -7817,15 +7796,7 @@ acl_fetch_url_ip(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct http_txn *txn = l7;
 
-	if (!txn)
-		return 0;
-
-	if (txn->req.msg_state < HTTP_MSG_BODY)
-		return 0;
-
-	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
-		/* ensure the indexes are not affected */
-		return 0;
+	CHECK_HTTP_MESSAGE_FIRST();
 
 	/* Parse HTTP request */
 	url2sa(txn->req.buf->p + txn->req.sol + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &l4->req->cons->addr.to);
@@ -7851,15 +7822,7 @@ acl_fetch_url_port(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct http_txn *txn = l7;
 
-	if (!txn)
-		return 0;
-
-	if (txn->req.msg_state < HTTP_MSG_BODY)
-		return 0;
-
-	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
-		/* ensure the indexes are not affected */
-		return 0;
+	CHECK_HTTP_MESSAGE_FIRST();
 
 	/* Same optimization as url_ip */
 	url2sa(txn->req.buf->p + txn->req.sol + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &l4->req->cons->addr.to);
@@ -7882,9 +7845,6 @@ acl_fetch_hdr(struct proxy *px, struct session *l4, void *l7, char *sol,
 	struct http_txn *txn = l7;
 	struct hdr_idx *idx = &txn->hdr_idx;
 	struct hdr_ctx *ctx = (struct hdr_ctx *)test->ctx.a;
-
-	if (!txn)
-		return 0;
 
 	if (!(test->flags & ACL_TEST_F_FETCH_MORE))
 		/* search for header from the beginning */
@@ -7910,15 +7870,7 @@ acl_fetch_chdr(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct http_txn *txn = l7;
 
-	if (!txn)
-		return 0;
-
-	if (txn->req.msg_state < HTTP_MSG_BODY)
-		return 0;
-
-	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
-		/* ensure the indexes are not affected */
-		return 0;
+	CHECK_HTTP_MESSAGE_FIRST();
 
 	return acl_fetch_hdr(px, l4, txn, txn->req.buf->p + txn->req.sol, expr, test);
 }
@@ -7929,11 +7881,7 @@ acl_fetch_shdr(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct http_txn *txn = l7;
 
-	if (!txn)
-		return 0;
-
-	if (txn->rsp.msg_state < HTTP_MSG_BODY)
-		return 0;
+	CHECK_HTTP_MESSAGE_FIRST();
 
 	return acl_fetch_hdr(px, l4, txn, txn->rsp.buf->p + txn->rsp.sol, expr, test);
 }
@@ -7949,9 +7897,6 @@ acl_fetch_hdr_cnt(struct proxy *px, struct session *l4, void *l7, char *sol,
 	struct hdr_idx *idx = &txn->hdr_idx;
 	struct hdr_ctx ctx;
 	int cnt;
-
-	if (!txn)
-		return 0;
 
 	ctx.idx = 0;
 	cnt = 0;
@@ -7969,15 +7914,7 @@ acl_fetch_chdr_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct http_txn *txn = l7;
 
-	if (!txn)
-		return 0;
-
-	if (txn->req.msg_state < HTTP_MSG_BODY)
-		return 0;
-
-	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
-		/* ensure the indexes are not affected */
-		return 0;
+	CHECK_HTTP_MESSAGE_FIRST();
 
 	return acl_fetch_hdr_cnt(px, l4, txn, txn->req.buf->p + txn->req.sol, expr, test);
 }
@@ -7988,11 +7925,7 @@ acl_fetch_shdr_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct http_txn *txn = l7;
 
-	if (!txn)
-		return 0;
-
-	if (txn->rsp.msg_state < HTTP_MSG_BODY)
-		return 0;
+	CHECK_HTTP_MESSAGE_FIRST();
 
 	return acl_fetch_hdr_cnt(px, l4, txn, txn->rsp.buf->p + txn->rsp.sol, expr, test);
 }
@@ -8008,9 +7941,6 @@ acl_fetch_hdr_val(struct proxy *px, struct session *l4, void *l7, char *sol,
 	struct http_txn *txn = l7;
 	struct hdr_idx *idx = &txn->hdr_idx;
 	struct hdr_ctx *ctx = (struct hdr_ctx *)test->ctx.a;
-
-	if (!txn)
-		return 0;
 
 	if (!(test->flags & ACL_TEST_F_FETCH_MORE))
 		/* search for header from the beginning */
@@ -8034,15 +7964,7 @@ acl_fetch_chdr_val(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct http_txn *txn = l7;
 
-	if (!txn)
-		return 0;
-
-	if (txn->req.msg_state < HTTP_MSG_BODY)
-		return 0;
-
-	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
-		/* ensure the indexes are not affected */
-		return 0;
+	CHECK_HTTP_MESSAGE_FIRST();
 
 	return acl_fetch_hdr_val(px, l4, txn, txn->req.buf->p + txn->req.sol, expr, test);
 }
@@ -8053,11 +7975,7 @@ acl_fetch_shdr_val(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct http_txn *txn = l7;
 
-	if (!txn)
-		return 0;
-
-	if (txn->rsp.msg_state < HTTP_MSG_BODY)
-		return 0;
+	CHECK_HTTP_MESSAGE_FIRST();
 
 	return acl_fetch_hdr_val(px, l4, txn, txn->rsp.buf->p + txn->rsp.sol, expr, test);
 }
@@ -8072,9 +7990,6 @@ acl_fetch_hdr_ip(struct proxy *px, struct session *l4, void *l7, char *sol,
 	struct http_txn *txn = l7;
 	struct hdr_idx *idx = &txn->hdr_idx;
 	struct hdr_ctx *ctx = (struct hdr_ctx *)test->ctx.a;
-
-	if (!txn)
-		return 0;
 
 	if (!(test->flags & ACL_TEST_F_FETCH_MORE))
 		/* search for header from the beginning */
@@ -8101,15 +8016,7 @@ acl_fetch_chdr_ip(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct http_txn *txn = l7;
 
-	if (!txn)
-		return 0;
-
-	if (txn->req.msg_state < HTTP_MSG_BODY)
-		return 0;
-
-	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
-		/* ensure the indexes are not affected */
-		return 0;
+	CHECK_HTTP_MESSAGE_FIRST();
 
 	return acl_fetch_hdr_ip(px, l4, txn, txn->req.buf->p + txn->req.sol, expr, test);
 }
@@ -8120,11 +8027,7 @@ acl_fetch_shdr_ip(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct http_txn *txn = l7;
 
-	if (!txn)
-		return 0;
-
-	if (txn->rsp.msg_state < HTTP_MSG_BODY)
-		return 0;
+	CHECK_HTTP_MESSAGE_FIRST();
 
 	return acl_fetch_hdr_ip(px, l4, txn, txn->rsp.buf->p + txn->rsp.sol, expr, test);
 }
@@ -8139,15 +8042,7 @@ acl_fetch_path(struct proxy *px, struct session *l4, void *l7, int dir,
 	struct http_txn *txn = l7;
 	char *ptr, *end;
 
-	if (!txn)
-		return 0;
-
-	if (txn->req.msg_state < HTTP_MSG_BODY)
-		return 0;
-
-	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
-		/* ensure the indexes are not affected */
-		return 0;
+	CHECK_HTTP_MESSAGE_FIRST();
 
 	end = txn->req.buf->p + txn->req.sol + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
 	ptr = http_get_path(txn);
@@ -8168,51 +8063,14 @@ acl_fetch_path(struct proxy *px, struct session *l4, void *l7, int dir,
 }
 
 static int
-acl_fetch_proto_http(struct proxy *px, struct session *s, void *l7, int dir,
+acl_fetch_proto_http(struct proxy *px, struct session *l4, void *l7, int dir,
 		     struct acl_expr *expr, struct acl_test *test)
 {
-	struct buffer *req = s->req;
-	struct http_txn *txn = &s->txn;
-	struct http_msg *msg = &txn->req;
-
 	/* Note: hdr_idx.v cannot be NULL in this ACL because the ACL is tagged
 	 * as a layer7 ACL, which involves automatic allocation of hdr_idx.
 	 */
 
-	if (!s || !req)
-		return 0;
-
-	if (unlikely(msg->msg_state >= HTTP_MSG_BODY)) {
-		/* Already decoded as OK */
-		test->flags |= ACL_TEST_F_SET_RES_PASS;
-		return 1;
-	}
-
-	/* Try to decode HTTP request */
-	if (likely(msg->next < req->i))
-		http_msg_analyzer(msg, &txn->hdr_idx);
-
-	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
-		if ((msg->msg_state == HTTP_MSG_ERROR) || (req->flags & BF_FULL)) {
-			test->flags |= ACL_TEST_F_SET_RES_FAIL;
-			return 1;
-		}
-		/* wait for final state */
-		test->flags |= ACL_TEST_F_MAY_CHANGE;
-		return 0;
-	}
-
-	/* OK we got a valid HTTP request. We have some minor preparation to
-	 * perform so that further checks can rely on HTTP tests.
-	 */
-	txn->meth = find_http_meth(msg->buf->p + msg->sol, msg->sl.rq.m_l);
-	if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
-		s->flags |= SN_REDIRECTABLE;
-
-	if (unlikely(msg->sl.rq.v_l == 0) && !http_upgrade_v09_to_v10(txn)) {
-		test->flags |= ACL_TEST_F_SET_RES_FAIL;
-		return 1;
-	}
+	CHECK_HTTP_MESSAGE_FIRST();
 
 	test->flags |= ACL_TEST_F_SET_RES_PASS;
 	return 1;
@@ -8235,19 +8093,18 @@ acl_fetch_http_first_req(struct proxy *px, struct session *s, void *l7, int dir,
 }
 
 static int
-acl_fetch_http_auth(struct proxy *px, struct session *s, void *l7, int dir,
+acl_fetch_http_auth(struct proxy *px, struct session *l4, void *l7, int dir,
 		    struct acl_expr *expr, struct acl_test *test)
 {
 
-	if (!s)
-		return 0;
+	CHECK_HTTP_MESSAGE_FIRST();
 
-	if (!get_http_auth(s))
+	if (!get_http_auth(l4))
 		return 0;
 
 	test->ctx.a[0] = expr->arg.ul;
-	test->ctx.a[1] = s->txn.auth.user;
-	test->ctx.a[2] = s->txn.auth.pass;
+	test->ctx.a[1] = l4->txn.auth.user;
+	test->ctx.a[2] = l4->txn.auth.pass;
 
 	test->flags |= ACL_TEST_F_READ_ONLY | ACL_TEST_F_NULL_MATCH;
 
@@ -8364,9 +8221,6 @@ acl_fetch_any_cookie_value(struct proxy *px, struct session *l4, void *l7, char 
 	struct hdr_idx *idx = &txn->hdr_idx;
 	struct hdr_ctx *ctx = (struct hdr_ctx *)&test->ctx.a[2];
 
-	if (!txn)
-		return 0;
-
 	if (!(test->flags & ACL_TEST_F_FETCH_MORE)) {
 		/* search for the header from the beginning, we must first initialize
 		 * the search parameters.
@@ -8412,15 +8266,7 @@ acl_fetch_cookie_value(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct http_txn *txn = l7;
 
-	if (!txn)
-		return 0;
-
-	if (txn->req.msg_state < HTTP_MSG_BODY)
-		return 0;
-
-	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
-		/* ensure the indexes are not affected */
-		return 0;
+	CHECK_HTTP_MESSAGE_FIRST();
 
 	/* The Cookie header allows multiple cookies on the same line */
 	return acl_fetch_any_cookie_value(px, l4, txn, txn->req.buf->p + txn->req.sol, "Cookie", 6, 1, expr, test);
@@ -8432,11 +8278,7 @@ acl_fetch_scookie_value(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct http_txn *txn = l7;
 
-	if (!txn)
-		return 0;
-
-	if (txn->rsp.msg_state < HTTP_MSG_BODY)
-		return 0;
+	CHECK_HTTP_MESSAGE_FIRST();
 
 	/* The Set-Cookie header allows only one cookie on the same line */
 	return acl_fetch_any_cookie_value(px, l4, txn, txn->rsp.buf->p + txn->rsp.sol, "Set-Cookie", 10, 0, expr, test);
@@ -8456,9 +8298,6 @@ acl_fetch_any_cookie_cnt(struct proxy *px, struct session *l4, void *l7, char *s
 	struct hdr_ctx ctx;
 	int cnt;
 	char *val_beg, *val_end;
-
-	if (!txn)
-		return 0;
 
 	val_end = val_beg = NULL;
 	ctx.idx = 0;
@@ -8496,15 +8335,7 @@ acl_fetch_cookie_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct http_txn *txn = l7;
 
-	if (!txn)
-		return 0;
-
-	if (txn->req.msg_state < HTTP_MSG_BODY)
-		return 0;
-
-	if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
-		/* ensure the indexes are not affected */
-		return 0;
+	CHECK_HTTP_MESSAGE_FIRST();
 
 	/* The Cookie header allows multiple cookies on the same line */
 	return acl_fetch_any_cookie_cnt(px, l4, txn, txn->req.buf->p + txn->req.sol, "Cookie", 6, 1, expr, test);
@@ -8516,11 +8347,7 @@ acl_fetch_scookie_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct http_txn *txn = l7;
 
-	if (!txn)
-		return 0;
-
-	if (txn->rsp.msg_state < HTTP_MSG_BODY)
-		return 0;
+	CHECK_HTTP_MESSAGE_FIRST();
 
 	/* The Set-Cookie header allows only one cookie on the same line */
 	return acl_fetch_any_cookie_cnt(px, l4, txn, txn->rsp.buf->p + txn->rsp.sol, "Set-Cookie", 10, 0, expr, test);
