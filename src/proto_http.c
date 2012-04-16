@@ -7528,6 +7528,87 @@ req_error_parsing:
 /************************************************************************/
 
 
+/* This function ensures that the prerequisites for an L7 fetch are ready,
+ * which means that a request or response is ready. If some data is missing,
+ * a parsing attempt is made. This is useful in TCP-based ACLs which are able
+ * to extract data from L7.
+ *
+ * The function returns :
+ *   0 if some data is missing or if the requested data cannot be fetched
+ *  -1 if it is certain that we'll never have any HTTP message there
+ *   1 if an HTTP message is ready
+ */
+static int
+acl_prefetch_http(struct proxy *px, struct session *s, void *l7, int dir,
+		  struct acl_expr *expr, struct acl_test *test)
+{
+	struct http_txn *txn = l7;
+	struct http_msg *msg = &txn->req;
+
+	/* Note: hdr_idx.v cannot be NULL in this ACL because the ACL is tagged
+	 * as a layer7 ACL, which involves automatic allocation of hdr_idx.
+	 */
+
+	if (unlikely(!s || !txn))
+		return 0;
+
+	/* Check for a dependency on a request */
+
+	if (expr->kw->requires & ACL_USE_L7REQ_ANY) {
+		if (unlikely(!s->req))
+			return 0;
+
+		if (unlikely(txn->req.msg_state < HTTP_MSG_BODY)) {
+			if ((msg->msg_state == HTTP_MSG_ERROR) || (s->req->flags & BF_FULL)) {
+				test->flags |= ACL_TEST_F_SET_RES_FAIL;
+				return -1;
+			}
+
+			/* Try to decode HTTP request */
+			if (likely(msg->next < s->req->i))
+				http_msg_analyzer(msg, &txn->hdr_idx);
+
+			/* Still no valid request ? */
+			if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
+				if ((msg->msg_state == HTTP_MSG_ERROR) || (s->req->flags & BF_FULL)) {
+					test->flags |= ACL_TEST_F_SET_RES_FAIL;
+					return -1;
+				}
+				/* wait for final state */
+				test->flags |= ACL_TEST_F_MAY_CHANGE;
+				return 0;
+			}
+
+			/* OK we just got a valid HTTP request. We have some minor
+			 * preparation to perform so that further checks can rely
+			 * on HTTP tests.
+			 */
+			txn->meth = find_http_meth(msg->buf->p + msg->sol, msg->sl.rq.m_l);
+			if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
+				s->flags |= SN_REDIRECTABLE;
+
+			if (unlikely(msg->sl.rq.v_l == 0) && !http_upgrade_v09_to_v10(txn)) {
+				test->flags |= ACL_TEST_F_SET_RES_FAIL;
+				return -1;
+			}
+		}
+
+		if ((expr->kw->requires & ACL_USE_L7REQ_VOLATILE) &&
+		    txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
+			return 0;  /* data might have moved and indexes changed */
+
+		/* otherwise everything's ready for the request */
+	}
+
+	/* Check for a dependency on a response */
+	if (expr->kw->requires & ACL_USE_L7RTR_ANY) {
+		if (txn->rsp.msg_state < HTTP_MSG_BODY)
+			return 0;
+	}
+
+	/* everything's OK */
+	return 1;
+}
 
 
 /* 1. Check on METHOD
