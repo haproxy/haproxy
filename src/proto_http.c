@@ -7836,21 +7836,23 @@ acl_fetch_url_port(struct proxy *px, struct session *l4, void *l7, int dir,
 }
 
 /* 5. Check on HTTP header. A pointer to the beginning of the value is returned.
- * This generic function is used by both acl_fetch_chdr() and acl_fetch_shdr().
  */
 static int
-acl_fetch_hdr(struct proxy *px, struct session *l4, void *l7, char *sol,
+acl_fetch_hdr(struct proxy *px, struct session *l4, void *l7, int dir,
               struct acl_expr *expr, struct acl_test *test)
 {
 	struct http_txn *txn = l7;
 	struct hdr_idx *idx = &txn->hdr_idx;
 	struct hdr_ctx *ctx = (struct hdr_ctx *)test->ctx.a;
+	const struct http_msg *msg = ((dir & ACL_DIR_MASK) == ACL_DIR_REQ) ? &txn->req : &txn->rsp;
+
+	CHECK_HTTP_MESSAGE_FIRST();
 
 	if (!(test->flags & ACL_TEST_F_FETCH_MORE))
 		/* search for header from the beginning */
 		ctx->idx = 0;
 
-	if (http_find_header2(expr->arg.str, expr->arg_len, sol, idx, ctx)) {
+	if (http_find_header2(expr->arg.str, expr->arg_len, msg->buf->p + msg->sol, idx, ctx)) {
 		test->flags |= ACL_TEST_F_FETCH_MORE;
 		test->flags |= ACL_TEST_F_VOL_HDR;
 		temp_pattern.data.str.str = (char *)ctx->line + ctx->val;
@@ -7864,43 +7866,23 @@ acl_fetch_hdr(struct proxy *px, struct session *l4, void *l7, char *sol,
 	return 0;
 }
 
-static int
-acl_fetch_chdr(struct proxy *px, struct session *l4, void *l7, int dir,
-	       struct acl_expr *expr, struct acl_test *test)
-{
-	struct http_txn *txn = l7;
-
-	CHECK_HTTP_MESSAGE_FIRST();
-
-	return acl_fetch_hdr(px, l4, txn, txn->req.buf->p + txn->req.sol, expr, test);
-}
-
-static int
-acl_fetch_shdr(struct proxy *px, struct session *l4, void *l7, int dir,
-	       struct acl_expr *expr, struct acl_test *test)
-{
-	struct http_txn *txn = l7;
-
-	CHECK_HTTP_MESSAGE_FIRST();
-
-	return acl_fetch_hdr(px, l4, txn, txn->rsp.buf->p + txn->rsp.sol, expr, test);
-}
-
 /* 6. Check on HTTP header count. The number of occurrences is returned.
- * This generic function is used by both acl_fetch_chdr* and acl_fetch_shdr*.
  */
 static int
-acl_fetch_hdr_cnt(struct proxy *px, struct session *l4, void *l7, char *sol,
+acl_fetch_hdr_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
                   struct acl_expr *expr, struct acl_test *test)
 {
 	struct http_txn *txn = l7;
 	struct hdr_idx *idx = &txn->hdr_idx;
 	struct hdr_ctx ctx;
+	const struct http_msg *msg = ((dir & ACL_DIR_MASK) == ACL_DIR_REQ) ? &txn->req : &txn->rsp;
 	int cnt;
+
+	CHECK_HTTP_MESSAGE_FIRST();
 
 	ctx.idx = 0;
 	cnt = 0;
-	while (http_find_header2(expr->arg.str, expr->arg_len, sol, idx, &ctx))
+	while (http_find_header2(expr->arg.str, expr->arg_len, msg->buf->p + msg->sol, idx, &ctx))
 		cnt++;
 
 	temp_pattern.data.integer = cnt;
@@ -7908,45 +7890,25 @@ acl_fetch_hdr_cnt(struct proxy *px, struct session *l4, void *l7, char *sol,
 	return 1;
 }
 
-static int
-acl_fetch_chdr_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-		   struct acl_expr *expr, struct acl_test *test)
-{
-	struct http_txn *txn = l7;
-
-	CHECK_HTTP_MESSAGE_FIRST();
-
-	return acl_fetch_hdr_cnt(px, l4, txn, txn->req.buf->p + txn->req.sol, expr, test);
-}
-
-static int
-acl_fetch_shdr_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-		   struct acl_expr *expr, struct acl_test *test)
-{
-	struct http_txn *txn = l7;
-
-	CHECK_HTTP_MESSAGE_FIRST();
-
-	return acl_fetch_hdr_cnt(px, l4, txn, txn->rsp.buf->p + txn->rsp.sol, expr, test);
-}
-
 /* 7. Check on HTTP header's integer value. The integer value is returned.
  * FIXME: the type is 'int', it may not be appropriate for everything.
- * This generic function is used by both acl_fetch_chdr* and acl_fetch_shdr*.
  */
 static int
-acl_fetch_hdr_val(struct proxy *px, struct session *l4, void *l7, char *sol,
+acl_fetch_hdr_val(struct proxy *px, struct session *l4, void *l7, int dir,
                   struct acl_expr *expr, struct acl_test *test)
 {
 	struct http_txn *txn = l7;
 	struct hdr_idx *idx = &txn->hdr_idx;
 	struct hdr_ctx *ctx = (struct hdr_ctx *)test->ctx.a;
+	const struct http_msg *msg = ((dir & ACL_DIR_MASK) == ACL_DIR_REQ) ? &txn->req : &txn->rsp;
+
+	CHECK_HTTP_MESSAGE_FIRST();
 
 	if (!(test->flags & ACL_TEST_F_FETCH_MORE))
 		/* search for header from the beginning */
 		ctx->idx = 0;
 
-	if (http_find_header2(expr->arg.str, expr->arg_len, sol, idx, ctx)) {
+	if (http_find_header2(expr->arg.str, expr->arg_len, msg->buf->p + msg->sol, idx, ctx)) {
 		test->flags |= ACL_TEST_F_FETCH_MORE;
 		test->flags |= ACL_TEST_F_VOL_HDR;
 		temp_pattern.data.integer = strl2ic((char *)ctx->line + ctx->val, ctx->vlen);
@@ -7958,44 +7920,24 @@ acl_fetch_hdr_val(struct proxy *px, struct session *l4, void *l7, char *sol,
 	return 0;
 }
 
-static int
-acl_fetch_chdr_val(struct proxy *px, struct session *l4, void *l7, int dir,
-		   struct acl_expr *expr, struct acl_test *test)
-{
-	struct http_txn *txn = l7;
-
-	CHECK_HTTP_MESSAGE_FIRST();
-
-	return acl_fetch_hdr_val(px, l4, txn, txn->req.buf->p + txn->req.sol, expr, test);
-}
-
-static int
-acl_fetch_shdr_val(struct proxy *px, struct session *l4, void *l7, int dir,
-		   struct acl_expr *expr, struct acl_test *test)
-{
-	struct http_txn *txn = l7;
-
-	CHECK_HTTP_MESSAGE_FIRST();
-
-	return acl_fetch_hdr_val(px, l4, txn, txn->rsp.buf->p + txn->rsp.sol, expr, test);
-}
-
 /* 7. Check on HTTP header's IPv4 address value. The IPv4 address is returned.
- * This generic function is used by both acl_fetch_chdr* and acl_fetch_shdr*.
  */
 static int
-acl_fetch_hdr_ip(struct proxy *px, struct session *l4, void *l7, char *sol,
+acl_fetch_hdr_ip(struct proxy *px, struct session *l4, void *l7, int dir,
                   struct acl_expr *expr, struct acl_test *test)
 {
 	struct http_txn *txn = l7;
 	struct hdr_idx *idx = &txn->hdr_idx;
 	struct hdr_ctx *ctx = (struct hdr_ctx *)test->ctx.a;
+	const struct http_msg *msg = ((dir & ACL_DIR_MASK) == ACL_DIR_REQ) ? &txn->req : &txn->rsp;
+
+	CHECK_HTTP_MESSAGE_FIRST();
 
 	if (!(test->flags & ACL_TEST_F_FETCH_MORE))
 		/* search for header from the beginning */
 		ctx->idx = 0;
 
-	while (http_find_header2(expr->arg.str, expr->arg_len, sol, idx, ctx)) {
+	while (http_find_header2(expr->arg.str, expr->arg_len, msg->buf->p + msg->sol, idx, ctx)) {
 		test->flags |= ACL_TEST_F_FETCH_MORE;
 		test->flags |= ACL_TEST_F_VOL_HDR;
 		/* Same optimization as url_ip */
@@ -8008,28 +7950,6 @@ acl_fetch_hdr_ip(struct proxy *px, struct session *l4, void *l7, char *sol,
 	test->flags &= ~ACL_TEST_F_FETCH_MORE;
 	test->flags |= ACL_TEST_F_VOL_HDR;
 	return 0;
-}
-
-static int
-acl_fetch_chdr_ip(struct proxy *px, struct session *l4, void *l7, int dir,
-		   struct acl_expr *expr, struct acl_test *test)
-{
-	struct http_txn *txn = l7;
-
-	CHECK_HTTP_MESSAGE_FIRST();
-
-	return acl_fetch_hdr_ip(px, l4, txn, txn->req.buf->p + txn->req.sol, expr, test);
-}
-
-static int
-acl_fetch_shdr_ip(struct proxy *px, struct session *l4, void *l7, int dir,
-		   struct acl_expr *expr, struct acl_test *test)
-{
-	struct http_txn *txn = l7;
-
-	CHECK_HTTP_MESSAGE_FIRST();
-
-	return acl_fetch_hdr_ip(px, l4, txn, txn->rsp.buf->p + txn->rsp.sol, expr, test);
 }
 
 /* 8. Check on URI PATH. A pointer to the PATH is stored. The path starts at
@@ -8206,21 +8126,37 @@ extract_cookie_value(char *hdr, const char *hdr_end,
 	return NULL;
 }
 
-/* Iterate over all cookies present in a request. The context is stored in
+/* Iterate over all cookies present in a message. The context is stored in
  * test->ctx.a[0] for the in-header position, test->ctx.a[1] for the
- * end-of-header-value, and test->ctx.a[2] for the hdr_idx. If <multi> is
- * non-null, then multiple cookies may be parsed on the same line.
+ * end-of-header-value, and test->ctx.a[2] for the hdr_idx. Depending on
+ * the direction, multiple cookies may be parsed on the same line or not.
  * The cookie name is in expr->arg and the name length in expr->arg_len.
  */
 static int
-acl_fetch_any_cookie_value(struct proxy *px, struct session *l4, void *l7, char *sol,
-			   const char *hdr_name, int hdr_name_len, int multi,
-			   struct acl_expr *expr, struct acl_test *test)
+acl_fetch_cookie_value(struct proxy *px, struct session *l4, void *l7, int dir,
+		       struct acl_expr *expr, struct acl_test *test)
 {
 	struct http_txn *txn = l7;
 	struct hdr_idx *idx = &txn->hdr_idx;
 	struct hdr_ctx *ctx = (struct hdr_ctx *)&test->ctx.a[2];
+	const struct http_msg *msg;
+	const char *hdr_name;
+	int hdr_name_len;
+	char *sol;
 
+	CHECK_HTTP_MESSAGE_FIRST();
+
+	if ((dir & ACL_DIR_MASK) == ACL_DIR_REQ) {
+		msg = &txn->req;
+		hdr_name = "Cookie";
+		hdr_name_len = 6;
+	} else {
+		msg = &txn->rsp;
+		hdr_name = "Set-Cookie";
+		hdr_name_len = 10;
+	}
+
+	sol = msg->buf->p + msg->sol;
 	if (!(test->flags & ACL_TEST_F_FETCH_MORE)) {
 		/* search for the header from the beginning, we must first initialize
 		 * the search parameters.
@@ -8243,7 +8179,8 @@ acl_fetch_any_cookie_value(struct proxy *px, struct session *l4, void *l7, char 
 		}
 
 		test->ctx.a[0] = extract_cookie_value(test->ctx.a[0], test->ctx.a[1],
-						      expr->arg.str, expr->arg_len, multi,
+						      expr->arg.str, expr->arg_len,
+						      (dir & ACL_DIR_MASK) == ACL_DIR_REQ,
 						      &temp_pattern.data.str.str,
 						      &temp_pattern.data.str.len);
 		if (test->ctx.a[0]) {
@@ -8260,45 +8197,37 @@ acl_fetch_any_cookie_value(struct proxy *px, struct session *l4, void *l7, char 
 	return 0;
 }
 
-static int
-acl_fetch_cookie_value(struct proxy *px, struct session *l4, void *l7, int dir,
-		       struct acl_expr *expr, struct acl_test *test)
-{
-	struct http_txn *txn = l7;
-
-	CHECK_HTTP_MESSAGE_FIRST();
-
-	/* The Cookie header allows multiple cookies on the same line */
-	return acl_fetch_any_cookie_value(px, l4, txn, txn->req.buf->p + txn->req.sol, "Cookie", 6, 1, expr, test);
-}
-
-static int
-acl_fetch_scookie_value(struct proxy *px, struct session *l4, void *l7, int dir,
-		       struct acl_expr *expr, struct acl_test *test)
-{
-	struct http_txn *txn = l7;
-
-	CHECK_HTTP_MESSAGE_FIRST();
-
-	/* The Set-Cookie header allows only one cookie on the same line */
-	return acl_fetch_any_cookie_value(px, l4, txn, txn->rsp.buf->p + txn->rsp.sol, "Set-Cookie", 10, 0, expr, test);
-}
-
 /* Iterate over all cookies present in a request to count how many occurrences
  * match the name in expr->arg and expr->arg_len. If <multi> is non-null, then
  * multiple cookies may be parsed on the same line.
  */
 static int
-acl_fetch_any_cookie_cnt(struct proxy *px, struct session *l4, void *l7, char *sol,
-			 const char *hdr_name, int hdr_name_len, int multi,
-			 struct acl_expr *expr, struct acl_test *test)
+acl_fetch_cookie_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+		     struct acl_expr *expr, struct acl_test *test)
 {
 	struct http_txn *txn = l7;
 	struct hdr_idx *idx = &txn->hdr_idx;
 	struct hdr_ctx ctx;
+	const struct http_msg *msg;
+	const char *hdr_name;
+	int hdr_name_len;
 	int cnt;
 	char *val_beg, *val_end;
+	char *sol;
 
+	CHECK_HTTP_MESSAGE_FIRST();
+
+	if ((dir & ACL_DIR_MASK) == ACL_DIR_REQ) {
+		msg = &txn->req;
+		hdr_name = "Cookie";
+		hdr_name_len = 6;
+	} else {
+		msg = &txn->rsp;
+		hdr_name = "Set-Cookie";
+		hdr_name_len = 10;
+	}
+
+	sol = msg->buf->p + msg->sol;
 	val_end = val_beg = NULL;
 	ctx.idx = 0;
 	cnt = 0;
@@ -8317,7 +8246,8 @@ acl_fetch_any_cookie_cnt(struct proxy *px, struct session *l4, void *l7, char *s
 		}
 
 		while ((val_beg = extract_cookie_value(val_beg, val_end,
-						       expr->arg.str, expr->arg_len, multi,
+						       expr->arg.str, expr->arg_len,
+						       (dir & ACL_DIR_MASK) == ACL_DIR_REQ,
 						       &temp_pattern.data.str.str,
 						       &temp_pattern.data.str.len))) {
 			cnt++;
@@ -8327,30 +8257,6 @@ acl_fetch_any_cookie_cnt(struct proxy *px, struct session *l4, void *l7, char *s
 	temp_pattern.data.integer = cnt;
 	test->flags |= ACL_TEST_F_VOL_HDR;
 	return 1;
-}
-
-static int
-acl_fetch_cookie_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-		     struct acl_expr *expr, struct acl_test *test)
-{
-	struct http_txn *txn = l7;
-
-	CHECK_HTTP_MESSAGE_FIRST();
-
-	/* The Cookie header allows multiple cookies on the same line */
-	return acl_fetch_any_cookie_cnt(px, l4, txn, txn->req.buf->p + txn->req.sol, "Cookie", 6, 1, expr, test);
-}
-
-static int
-acl_fetch_scookie_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-		      struct acl_expr *expr, struct acl_test *test)
-{
-	struct http_txn *txn = l7;
-
-	CHECK_HTTP_MESSAGE_FIRST();
-
-	/* The Set-Cookie header allows only one cookie on the same line */
-	return acl_fetch_any_cookie_cnt(px, l4, txn, txn->rsp.buf->p + txn->rsp.sol, "Set-Cookie", 10, 0, expr, test);
 }
 
 /************************************************************************/
@@ -8377,30 +8283,29 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "url_ip",     acl_parse_ip,    acl_fetch_url_ip,   acl_match_ip,   ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP },
 	{ "url_port",   acl_parse_int,   acl_fetch_url_port, acl_match_int,  ACL_USE_L7REQ_VOLATILE },
 
-	/* note: we should set hdr* to use ACL_USE_HDR_VOLATILE, and chdr* to use L7REQ_VOLATILE */
-	{ "hdr",        acl_parse_str,   acl_fetch_chdr,    acl_match_str, ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP },
-	{ "hdr_reg",    acl_parse_reg,   acl_fetch_chdr,    acl_match_reg, ACL_USE_L7REQ_VOLATILE },
-	{ "hdr_beg",    acl_parse_str,   acl_fetch_chdr,    acl_match_beg, ACL_USE_L7REQ_VOLATILE },
-	{ "hdr_end",    acl_parse_str,   acl_fetch_chdr,    acl_match_end, ACL_USE_L7REQ_VOLATILE },
-	{ "hdr_sub",    acl_parse_str,   acl_fetch_chdr,    acl_match_sub, ACL_USE_L7REQ_VOLATILE },
-	{ "hdr_dir",    acl_parse_str,   acl_fetch_chdr,    acl_match_dir, ACL_USE_L7REQ_VOLATILE },
-	{ "hdr_dom",    acl_parse_str,   acl_fetch_chdr,    acl_match_dom, ACL_USE_L7REQ_VOLATILE },
-	{ "hdr_cnt",    acl_parse_int,   acl_fetch_chdr_cnt,acl_match_int, ACL_USE_L7REQ_VOLATILE },
-	{ "hdr_len",    acl_parse_int,   acl_fetch_chdr,    acl_match_len, ACL_USE_L7REQ_VOLATILE },
-	{ "hdr_val",    acl_parse_int,   acl_fetch_chdr_val,acl_match_int, ACL_USE_L7REQ_VOLATILE },
-	{ "hdr_ip",     acl_parse_ip,    acl_fetch_chdr_ip, acl_match_ip,  ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP },
+	{ "hdr",        acl_parse_str,   acl_fetch_hdr,     acl_match_str, ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP },
+	{ "hdr_reg",    acl_parse_reg,   acl_fetch_hdr,     acl_match_reg, ACL_USE_L7REQ_VOLATILE },
+	{ "hdr_beg",    acl_parse_str,   acl_fetch_hdr,     acl_match_beg, ACL_USE_L7REQ_VOLATILE },
+	{ "hdr_end",    acl_parse_str,   acl_fetch_hdr,     acl_match_end, ACL_USE_L7REQ_VOLATILE },
+	{ "hdr_sub",    acl_parse_str,   acl_fetch_hdr,     acl_match_sub, ACL_USE_L7REQ_VOLATILE },
+	{ "hdr_dir",    acl_parse_str,   acl_fetch_hdr,     acl_match_dir, ACL_USE_L7REQ_VOLATILE },
+	{ "hdr_dom",    acl_parse_str,   acl_fetch_hdr,     acl_match_dom, ACL_USE_L7REQ_VOLATILE },
+	{ "hdr_cnt",    acl_parse_int,   acl_fetch_hdr_cnt, acl_match_int, ACL_USE_L7REQ_VOLATILE },
+	{ "hdr_len",    acl_parse_int,   acl_fetch_hdr,     acl_match_len, ACL_USE_L7REQ_VOLATILE },
+	{ "hdr_val",    acl_parse_int,   acl_fetch_hdr_val, acl_match_int, ACL_USE_L7REQ_VOLATILE },
+	{ "hdr_ip",     acl_parse_ip,    acl_fetch_hdr_ip,  acl_match_ip,  ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP },
 
-	{ "shdr",       acl_parse_str,   acl_fetch_shdr,    acl_match_str, ACL_USE_L7RTR_VOLATILE|ACL_MAY_LOOKUP },
-	{ "shdr_reg",   acl_parse_reg,   acl_fetch_shdr,    acl_match_reg, ACL_USE_L7RTR_VOLATILE },
-	{ "shdr_beg",   acl_parse_str,   acl_fetch_shdr,    acl_match_beg, ACL_USE_L7RTR_VOLATILE },
-	{ "shdr_end",   acl_parse_str,   acl_fetch_shdr,    acl_match_end, ACL_USE_L7RTR_VOLATILE },
-	{ "shdr_sub",   acl_parse_str,   acl_fetch_shdr,    acl_match_sub, ACL_USE_L7RTR_VOLATILE },
-	{ "shdr_dir",   acl_parse_str,   acl_fetch_shdr,    acl_match_dir, ACL_USE_L7RTR_VOLATILE },
-	{ "shdr_dom",   acl_parse_str,   acl_fetch_shdr,    acl_match_dom, ACL_USE_L7RTR_VOLATILE },
-	{ "shdr_cnt",   acl_parse_int,   acl_fetch_shdr_cnt,acl_match_int, ACL_USE_L7RTR_VOLATILE },
-	{ "shdr_len",   acl_parse_int,   acl_fetch_shdr,    acl_match_len, ACL_USE_L7RTR_VOLATILE },
-	{ "shdr_val",   acl_parse_int,   acl_fetch_shdr_val,acl_match_int, ACL_USE_L7RTR_VOLATILE },
-	{ "shdr_ip",    acl_parse_ip,    acl_fetch_shdr_ip, acl_match_ip,  ACL_USE_L7RTR_VOLATILE|ACL_MAY_LOOKUP },
+	{ "shdr",       acl_parse_str,   acl_fetch_hdr,     acl_match_str, ACL_USE_L7RTR_VOLATILE|ACL_MAY_LOOKUP },
+	{ "shdr_reg",   acl_parse_reg,   acl_fetch_hdr,     acl_match_reg, ACL_USE_L7RTR_VOLATILE },
+	{ "shdr_beg",   acl_parse_str,   acl_fetch_hdr,     acl_match_beg, ACL_USE_L7RTR_VOLATILE },
+	{ "shdr_end",   acl_parse_str,   acl_fetch_hdr,     acl_match_end, ACL_USE_L7RTR_VOLATILE },
+	{ "shdr_sub",   acl_parse_str,   acl_fetch_hdr,     acl_match_sub, ACL_USE_L7RTR_VOLATILE },
+	{ "shdr_dir",   acl_parse_str,   acl_fetch_hdr,     acl_match_dir, ACL_USE_L7RTR_VOLATILE },
+	{ "shdr_dom",   acl_parse_str,   acl_fetch_hdr,     acl_match_dom, ACL_USE_L7RTR_VOLATILE },
+	{ "shdr_cnt",   acl_parse_int,   acl_fetch_hdr_cnt, acl_match_int, ACL_USE_L7RTR_VOLATILE },
+	{ "shdr_len",   acl_parse_int,   acl_fetch_hdr,     acl_match_len, ACL_USE_L7RTR_VOLATILE },
+	{ "shdr_val",   acl_parse_int,   acl_fetch_hdr_val, acl_match_int, ACL_USE_L7RTR_VOLATILE },
+	{ "shdr_ip",    acl_parse_ip,    acl_fetch_hdr_ip,  acl_match_ip,  ACL_USE_L7RTR_VOLATILE|ACL_MAY_LOOKUP },
 
 	{ "cook",       acl_parse_str,   acl_fetch_cookie_value, acl_match_str, ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP },
 	{ "cook_reg",   acl_parse_reg,   acl_fetch_cookie_value, acl_match_reg, ACL_USE_L7REQ_VOLATILE },
@@ -8412,15 +8317,15 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "cook_len",   acl_parse_int,   acl_fetch_cookie_value, acl_match_len, ACL_USE_L7REQ_VOLATILE },
 	{ "cook_cnt",   acl_parse_int,   acl_fetch_cookie_cnt,   acl_match_int, ACL_USE_L7REQ_VOLATILE },
 
-	{ "scook",      acl_parse_str,   acl_fetch_scookie_value, acl_match_str, ACL_USE_L7RTR_VOLATILE|ACL_MAY_LOOKUP },
-	{ "scook_reg",  acl_parse_reg,   acl_fetch_scookie_value, acl_match_reg, ACL_USE_L7RTR_VOLATILE },
-	{ "scook_beg",  acl_parse_str,   acl_fetch_scookie_value, acl_match_beg, ACL_USE_L7RTR_VOLATILE },
-	{ "scook_end",  acl_parse_str,   acl_fetch_scookie_value, acl_match_end, ACL_USE_L7RTR_VOLATILE },
-	{ "scook_sub",  acl_parse_str,   acl_fetch_scookie_value, acl_match_sub, ACL_USE_L7RTR_VOLATILE },
-	{ "scook_dir",  acl_parse_str,   acl_fetch_scookie_value, acl_match_dir, ACL_USE_L7RTR_VOLATILE },
-	{ "scook_dom",  acl_parse_str,   acl_fetch_scookie_value, acl_match_dom, ACL_USE_L7RTR_VOLATILE },
-	{ "scook_len",  acl_parse_int,   acl_fetch_scookie_value, acl_match_len, ACL_USE_L7RTR_VOLATILE },
-	{ "scook_cnt",  acl_parse_int,   acl_fetch_scookie_cnt,   acl_match_int, ACL_USE_L7RTR_VOLATILE },
+	{ "scook",      acl_parse_str,   acl_fetch_cookie_value, acl_match_str, ACL_USE_L7RTR_VOLATILE|ACL_MAY_LOOKUP },
+	{ "scook_reg",  acl_parse_reg,   acl_fetch_cookie_value, acl_match_reg, ACL_USE_L7RTR_VOLATILE },
+	{ "scook_beg",  acl_parse_str,   acl_fetch_cookie_value, acl_match_beg, ACL_USE_L7RTR_VOLATILE },
+	{ "scook_end",  acl_parse_str,   acl_fetch_cookie_value, acl_match_end, ACL_USE_L7RTR_VOLATILE },
+	{ "scook_sub",  acl_parse_str,   acl_fetch_cookie_value, acl_match_sub, ACL_USE_L7RTR_VOLATILE },
+	{ "scook_dir",  acl_parse_str,   acl_fetch_cookie_value, acl_match_dir, ACL_USE_L7RTR_VOLATILE },
+	{ "scook_dom",  acl_parse_str,   acl_fetch_cookie_value, acl_match_dom, ACL_USE_L7RTR_VOLATILE },
+	{ "scook_len",  acl_parse_int,   acl_fetch_cookie_value, acl_match_len, ACL_USE_L7RTR_VOLATILE },
+	{ "scook_cnt",  acl_parse_int,   acl_fetch_cookie_cnt,   acl_match_int, ACL_USE_L7RTR_VOLATILE },
 
 	{ "path",       acl_parse_str,   acl_fetch_path,   acl_match_str, ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP },
 	{ "path_reg",   acl_parse_reg,   acl_fetch_path,   acl_match_reg, ACL_USE_L7REQ_VOLATILE },
