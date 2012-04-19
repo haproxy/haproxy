@@ -1569,6 +1569,7 @@ pattern_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir
 	int ret;
 	struct acl_expr  expr;
 	struct acl_test  test;
+	struct arg       args[2];
 
 	if (!l4)
 		return 0;
@@ -1576,8 +1577,12 @@ pattern_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir
 	memset(&expr, 0, sizeof(expr));
 	memset(&test, 0, sizeof(test));
 
-	expr.arg.str = arg_p[0].data.str.str;
-	expr.arg_len = arg_p[0].data.str.len;
+	args[0].type = ARGT_STR;
+	args[0].data.str.str = arg_p[0].data.str.str;
+	args[0].data.str.len = arg_p[0].data.str.len;
+	args[1].type = ARGT_STOP;
+
+	expr.args = args;
 
 	ret = acl_fetch_rdp_cookie(px, l4, NULL, ACL_DIR_REQ, &expr, &test);
 	if (ret == 0 || (test.flags & ACL_TEST_F_MAY_CHANGE) || temp_pattern.data.str.len == 0)

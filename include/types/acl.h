@@ -2,7 +2,7 @@
  * include/types/acl.h
  * This file provides structures and types for ACLs.
  *
- * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -26,6 +26,7 @@
 #include <common/config.h>
 #include <common/mini-clist.h>
 
+#include <types/arg.h>
 #include <types/auth.h>
 #include <types/proxy.h>
 #include <types/server.h>
@@ -302,12 +303,7 @@ struct acl_kw_list {
 struct acl_expr {
 	struct list list;           /* chaining */
 	struct acl_keyword *kw;     /* back-reference to the keyword */
-	union {                     /* optional argument of the subject (eg: header or cookie name) */
-		char *str;
-		struct userlist *ul;
-		struct server *srv; /* must be initialised by acl_find_targets */
-	} arg;
-	int arg_len;                /* optional argument length */
+	struct arg *args;           /* optional argument list (eg: header or cookie name) */
 	struct list patterns;       /* list of acl_patterns */
 	struct eb_root pattern_tree;  /* may be used for lookup in large datasets */
 };

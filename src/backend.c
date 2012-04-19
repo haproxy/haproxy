@@ -28,6 +28,7 @@
 #include <types/global.h>
 
 #include <proto/acl.h>
+#include <proto/arg.h>
 #include <proto/backend.h>
 #include <proto/frontend.h>
 #include <proto/lb_chash.h>
@@ -393,6 +394,7 @@ struct server *get_server_hh(struct session *s)
 		return map_get_server_hash(px, hash);
 }
 
+/* RDP Cookie HASH.  */
 struct server *get_server_rch(struct session *s)
 {
 	unsigned long    hash = 0;
@@ -402,6 +404,7 @@ struct server *get_server_rch(struct session *s)
 	int              ret;
 	struct acl_expr  expr;
 	struct acl_test  test;
+	struct arg       args[2];
 
 	/* tot_weight appears to mean srv_count */
 	if (px->lbprm.tot_weight == 0)
@@ -410,8 +413,12 @@ struct server *get_server_rch(struct session *s)
 	memset(&expr, 0, sizeof(expr));
 	memset(&test, 0, sizeof(test));
 
-	expr.arg.str = px->hh_name;
-	expr.arg_len = px->hh_len;
+	args[0].type = ARGT_STR;
+	args[0].data.str.str = px->hh_name;
+	args[0].data.str.len = px->hh_len;
+	args[1].type = ARGT_STOP;
+
+	expr.args = args;
 
 	ret = acl_fetch_rdp_cookie(px, s, NULL, ACL_DIR_REQ, &expr, &test);
 	len = temp_pattern.data.str.len;
@@ -1111,6 +1118,7 @@ int tcp_persist_rdp_cookie(struct session *s, struct buffer *req, int an_bit)
 	struct server *srv = px->srv;
 	struct sockaddr_in addr;
 	char *p;
+	struct arg       args[2];
 
 	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
@@ -1127,8 +1135,12 @@ int tcp_persist_rdp_cookie(struct session *s, struct buffer *req, int an_bit)
 	memset(&expr, 0, sizeof(expr));
 	memset(&test, 0, sizeof(test));
 
-	expr.arg.str = s->be->rdp_cookie_name;
-	expr.arg_len = s->be->rdp_cookie_len;
+	args[0].type = ARGT_STR;
+	args[0].data.str.str = s->be->rdp_cookie_name;
+	args[0].data.str.len = s->be->rdp_cookie_len;
+	args[1].type = ARGT_STOP;
+
+	expr.args = args;
 
 	ret = acl_fetch_rdp_cookie(px, s, NULL, ACL_DIR_REQ, &expr, &test);
 	if (ret == 0 || (test.flags & ACL_TEST_F_MAY_CHANGE) || temp_pattern.data.str.len == 0)
@@ -1365,16 +1377,19 @@ int backend_parse_balance(const char **args, char *err, int errlen, struct proxy
 /*             All supported keywords must be declared here.            */
 /************************************************************************/
 
-/* set temp integer to the number of enabled servers on the proxy */
+/* set temp integer to the number of enabled servers on the proxy.
+ * Accepts either 0 or 1 argument. Argument is a string, other types will lead to
+ * undefined behaviour.
+ */
 static int
 acl_fetch_nbsrv(struct proxy *px, struct session *l4, void *l7, int dir,
                 struct acl_expr *expr, struct acl_test *test)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	if (expr->arg_len) {
+	if (expr->args) {
 		/* another proxy was designated, we must look for it */
 		for (px = proxy; px; px = px->next)
-			if ((px->cap & PR_CAP_BE) && !strcmp(px->id, expr->arg.str))
+			if ((px->cap & PR_CAP_BE) && !strcmp(px->id, expr->args->data.str.str))
 				break;
 	}
 	if (!px)
@@ -1392,12 +1407,14 @@ acl_fetch_nbsrv(struct proxy *px, struct session *l4, void *l7, int dir,
 
 /* report in test->flags a success or failure depending on the designated
  * server's state. There is no match function involved since there's no pattern.
+ * Accepts exactly 1 argument. Argument is a server, other types will lead to
+ * undefined behaviour.
  */
 static int
 acl_fetch_srv_is_up(struct proxy *px, struct session *l4, void *l7, int dir,
 		    struct acl_expr *expr, struct acl_test *test)
 {
-	struct server *srv = expr->arg.srv;
+	struct server *srv = expr->args->data.srv;
 
 	test->flags = ACL_TEST_F_VOL_TEST;
 	if (!(srv->state & SRV_MAINTAIN) &&
@@ -1408,17 +1425,20 @@ acl_fetch_srv_is_up(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
-/* set temp integer to the number of enabled servers on the proxy */
+/* set temp integer to the number of enabled servers on the proxy.
+ * Accepts either 0 or 1 argument. Argument is a string, other types will lead to
+ * undefined behaviour.
+ */
 static int
 acl_fetch_connslots(struct proxy *px, struct session *l4, void *l7, int dir,
 		    struct acl_expr *expr, struct acl_test *test)
 {
 	struct server *iterator;
 	test->flags = ACL_TEST_F_VOL_TEST;
-	if (expr->arg_len) {
+	if (expr->args) {
 		/* another proxy was designated, we must look for it */
 		for (px = proxy; px; px = px->next)
-			if ((px->cap & PR_CAP_BE) && !strcmp(px->id, expr->arg.str))
+			if ((px->cap & PR_CAP_BE) && !strcmp(px->id, expr->args->data.str.str))
 				break;
 	}
 	if (!px)
@@ -1470,16 +1490,19 @@ acl_fetch_srv_id(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
-/* set temp integer to the number of connections per second reaching the backend */
+/* set temp integer to the number of connections per second reaching the backend.
+ * Accepts either 0 or 1 argument. Argument is a string, other types will lead to
+ * undefined behaviour.
+ */
 static int
 acl_fetch_be_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
                        struct acl_expr *expr, struct acl_test *test)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	if (expr->arg_len) {
+	if (expr->args) {
 		/* another proxy was designated, we must look for it */
 		for (px = proxy; px; px = px->next)
-			if ((px->cap & PR_CAP_BE) && !strcmp(px->id, expr->arg.str))
+			if ((px->cap & PR_CAP_BE) && !strcmp(px->id, expr->args->data.str.str))
 				break;
 	}
 	if (!px)
@@ -1489,16 +1512,19 @@ acl_fetch_be_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
-/* set temp integer to the number of concurrent connections on the backend */
+/* set temp integer to the number of concurrent connections on the backend.
+ * Accepts either 0 or 1 argument. Argument is a string, other types will lead to
+ * undefined behaviour.
+ */
 static int
 acl_fetch_be_conn(struct proxy *px, struct session *l4, void *l7, int dir,
 		  struct acl_expr *expr, struct acl_test *test)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	if (expr->arg_len) {
+	if (expr->args) {
 		/* another proxy was designated, we must look for it */
 		for (px = proxy; px; px = px->next)
-			if ((px->cap & PR_CAP_BE) && !strcmp(px->id, expr->arg.str))
+			if ((px->cap & PR_CAP_BE) && !strcmp(px->id, expr->args->data.str.str))
 				break;
 	}
 	if (!px)
@@ -1508,16 +1534,19 @@ acl_fetch_be_conn(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
-/* set temp integer to the total number of queued connections on the backend */
+/* set temp integer to the total number of queued connections on the backend.
+ * Accepts either 0 or 1 argument. Argument is a string, other types will lead to
+ * undefined behaviour.
+ */
 static int
 acl_fetch_queue_size(struct proxy *px, struct session *l4, void *l7, int dir,
 		   struct acl_expr *expr, struct acl_test *test)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	if (expr->arg_len) {
+	if (expr->args) {
 		/* another proxy was designated, we must look for it */
 		for (px = proxy; px; px = px->next)
-			if ((px->cap & PR_CAP_BE) && !strcmp(px->id, expr->arg.str))
+			if ((px->cap & PR_CAP_BE) && !strcmp(px->id, expr->args->data.str.str))
 				break;
 	}
 	if (!px)
@@ -1532,6 +1561,8 @@ acl_fetch_queue_size(struct proxy *px, struct session *l4, void *l7, int dir,
  * server, we return twice the total, just as if we had half a running server.
  * This is more or less correct anyway, since we expect the last server to come
  * back soon.
+ * Accepts either 0 or 1 argument. Argument is a string, other types will lead to
+ * undefined behaviour.
  */
 static int
 acl_fetch_avg_queue_size(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -1540,10 +1571,10 @@ acl_fetch_avg_queue_size(struct proxy *px, struct session *l4, void *l7, int dir
 	int nbsrv;
 
 	test->flags = ACL_TEST_F_VOL_TEST;
-	if (expr->arg_len) {
+	if (expr->args) {
 		/* another proxy was designated, we must look for it */
 		for (px = proxy; px; px = px->next)
-			if ((px->cap & PR_CAP_BE) && !strcmp(px->id, expr->arg.str))
+			if ((px->cap & PR_CAP_BE) && !strcmp(px->id, expr->args->data.str.str))
 				break;
 	}
 	if (!px)
@@ -1564,12 +1595,15 @@ acl_fetch_avg_queue_size(struct proxy *px, struct session *l4, void *l7, int dir
 	return 1;
 }
 
-/* set temp integer to the number of concurrent connections on the server in the backend */
+/* set temp integer to the number of concurrent connections on the server in the backend.
+ * Accepts exactly 1 argument. Argument is a server, other types will lead to
+ * undefined behaviour.
+ */
 static int
 acl_fetch_srv_conn(struct proxy *px, struct session *l4, void *l7, int dir,
 		  struct acl_expr *expr, struct acl_test *test)
 {
-	struct server *srv = expr->arg.srv;
+	struct server *srv = expr->args->data.srv;
 
 	temp_pattern.data.integer = srv->cur_sess;
 	return 1;

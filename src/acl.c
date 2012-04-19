@@ -22,6 +22,7 @@
 #include <types/global.h>
 
 #include <proto/acl.h>
+#include <proto/arg.h>
 #include <proto/auth.h>
 #include <proto/buffers.h>
 #include <proto/log.h>
@@ -446,6 +447,8 @@ acl_fetch_ssl_hello_sni(struct proxy *px, struct session *l4, void *l7, int dir,
 
 /* Fetch the RDP cookie identified in the expression.
  * Note: this decoder only works with non-wrapping data.
+ * Accepts either 0 or 1 argument. Argument is a string (cookie name), other
+ * types will lead to undefined behaviour.
  */
 int
 acl_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -480,17 +483,17 @@ acl_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
 		bleft--;
 	}
 
-	if (expr->arg_len) {
+	if (expr->args) {
 
-		if (bleft <= expr->arg_len)
+		if (bleft <= expr->args->data.str.len)
 			goto too_short;
 
-		if ((data[expr->arg_len] != '=') ||
-		    strncasecmp(expr->arg.str, (const char *)data, expr->arg_len) != 0)
+		if ((data[expr->args->data.str.len] != '=') ||
+		    strncasecmp(expr->args->data.str.str, (const char *)data, expr->args->data.str.len) != 0)
 			goto not_cookie;
 
-		data += expr->arg_len + 1;
-		bleft -= expr->arg_len + 1;
+		data += expr->args->data.str.len + 1;
+		bleft -= expr->args->data.str.len + 1;
 	} else {
 		while (bleft > 0 && *data != '=') {
 			if (*data == '\r' || *data == '\n')
@@ -1241,11 +1244,25 @@ static void free_pattern_tree(struct eb_root *root)
 
 static struct acl_expr *prune_acl_expr(struct acl_expr *expr)
 {
+	struct arg *arg;
+
 	free_pattern_list(&expr->patterns);
 	free_pattern_tree(&expr->pattern_tree);
 	LIST_INIT(&expr->patterns);
-	if (expr->arg_len && expr->arg.str)
-		free(expr->arg.str);
+
+	for (arg = expr->args; arg; arg++) {
+		if (arg->type == ARGT_STOP)
+			break;
+		if (arg->type == ARGT_FE || arg->type == ARGT_BE ||
+		    arg->type == ARGT_TAB || arg->type == ARGT_SRV ||
+		    arg->type == ARGT_USR || arg->type == ARGT_STR) {
+			free(arg->data.str.str);
+			arg->data.str.str = NULL;
+		}
+		arg++;
+	}
+
+	free(expr->args);
 	expr->kw->use_cnt--;
 	return expr;
 }
@@ -1355,22 +1372,26 @@ struct acl_expr *parse_acl_expr(const char **args)
 	aclkw->use_cnt++;
 	LIST_INIT(&expr->patterns);
 	expr->pattern_tree = EB_ROOT_UNIQUE;
-	expr->arg.str = NULL;
-	expr->arg_len = 0;
 
 	arg = strchr(args[0], '(');
 	if (arg != NULL) {
-		char *end, *arg2;
-		/* there is an argument in the form "subject(arg)" */
+		char *end;
+		int nbargs;
+
+		/* there is an argument in the form "subject(arg[,arg]*)" */
 		arg++;
 		end = strchr(arg, ')');
 		if (!end)
 			goto out_free_expr;
-		arg2 = my_strndup(arg, end - arg);
-		if (!arg2)
+
+		/* Parse the arguments. Note that currently we have no way to
+		 * report parsing errors, hence the NULL in the error pointers.
+		 * At the moment only one string arg is supported.
+		 */
+		nbargs = make_arg_list(arg, end - arg, ARG1(STR), &expr->args,
+				       NULL, NULL, NULL);
+		if (nbargs < 0)
 			goto out_free_expr;
-		expr->arg_len = end - arg;
-		expr->arg.str = arg2;
 	}
 
 	args++;
@@ -1935,14 +1956,17 @@ acl_find_targets(struct proxy *p)
 				struct server *srv;
 				char *pname, *sname;
 
-				if (!expr->arg.str || !*expr->arg.str) {
+				/* FIXME: at the moment we check argument types from the keyword,
+				 * but later we'll simlpy inspect argument types.
+				 */
+				if (!expr->args || !expr->args->data.str.len) {
 					Alert("proxy %s: acl %s %s(): missing server name.\n",
 						p->id, acl->name, expr->kw->kw);
 					cfgerr++;
 					continue;
 				}
 
-				pname = expr->arg.str;
+				pname = expr->args->data.str.str;
 				sname = strrchr(pname, '/');
 
 				if (sname)
@@ -1971,15 +1995,17 @@ acl_find_targets(struct proxy *p)
 					continue;
 				}
 
-				free(expr->arg.str);
-				expr->arg_len = 0;
-				expr->arg.srv = srv;
+				free(expr->args->data.str.str);
+				expr->args->data.srv = srv;
 				continue;
 			}
 
 			if (strstr(expr->kw->kw, "http_auth") == expr->kw->kw) {
 
-				if (!expr->arg.str || !*expr->arg.str) {
+				/* FIXME: at the moment we check argument types from the keyword,
+				 * but later we'll simlpy inspect argument types.
+				 */
+				if (!expr->args || !expr->args->data.str.len) {
 					Alert("proxy %s: acl %s %s(): missing userlist name.\n",
 						p->id, acl->name, expr->kw->kw);
 					cfgerr++;
@@ -1987,20 +2013,20 @@ acl_find_targets(struct proxy *p)
 				}
 
 				if (p->uri_auth && p->uri_auth->userlist &&
-				    !strcmp(p->uri_auth->userlist->name, expr->arg.str))
+				    !strcmp(p->uri_auth->userlist->name, expr->args->data.str.str))
 					ul = p->uri_auth->userlist;
 				else
-					ul = auth_find_userlist(expr->arg.str);
+					ul = auth_find_userlist(expr->args->data.str.str);
 
 				if (!ul) {
 					Alert("proxy %s: acl %s %s(%s): unable to find userlist.\n",
-						p->id, acl->name, expr->kw->kw, expr->arg.str);
+						p->id, acl->name, expr->kw->kw, expr->args->data.str.str);
 					cfgerr++;
 					continue;
 				}
 
-				expr->arg_len = 0;
-				expr->arg.ul  = ul;
+				free(expr->args->data.str.str);
+				expr->args->data.usr = ul;
 			}
 
 
@@ -2014,7 +2040,7 @@ acl_find_targets(struct proxy *p)
 				}
 
 				list_for_each_entry(pattern, &expr->patterns, list) {
-					pattern->val.group_mask = auth_resolve_groups(expr->arg.ul, pattern->ptr.str);
+					pattern->val.group_mask = auth_resolve_groups(expr->args->data.usr, pattern->ptr.str);
 
 					free(pattern->ptr.str);
 					pattern->ptr.str = NULL;

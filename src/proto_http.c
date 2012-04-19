@@ -7836,6 +7836,7 @@ acl_fetch_url_port(struct proxy *px, struct session *l4, void *l7, int dir,
 }
 
 /* 5. Check on HTTP header. A pointer to the beginning of the value is returned.
+ * Accepts exactly 1 argument of type string.
  */
 static int
 acl_fetch_hdr(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -7846,13 +7847,16 @@ acl_fetch_hdr(struct proxy *px, struct session *l4, void *l7, int dir,
 	struct hdr_ctx *ctx = (struct hdr_ctx *)test->ctx.a;
 	const struct http_msg *msg = ((dir & ACL_DIR_MASK) == ACL_DIR_REQ) ? &txn->req : &txn->rsp;
 
+	if (!expr->args || expr->args->type != ARGT_STR)
+		return 0;
+
 	CHECK_HTTP_MESSAGE_FIRST();
 
 	if (!(test->flags & ACL_TEST_F_FETCH_MORE))
 		/* search for header from the beginning */
 		ctx->idx = 0;
 
-	if (http_find_header2(expr->arg.str, expr->arg_len, msg->buf->p + msg->sol, idx, ctx)) {
+	if (http_find_header2(expr->args->data.str.str, expr->args->data.str.len, msg->buf->p + msg->sol, idx, ctx)) {
 		test->flags |= ACL_TEST_F_FETCH_MORE;
 		test->flags |= ACL_TEST_F_VOL_HDR;
 		temp_pattern.data.str.str = (char *)ctx->line + ctx->val;
@@ -7867,6 +7871,7 @@ acl_fetch_hdr(struct proxy *px, struct session *l4, void *l7, int dir,
 }
 
 /* 6. Check on HTTP header count. The number of occurrences is returned.
+ * Accepts exactly 1 argument of type string.
  */
 static int
 acl_fetch_hdr_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -7878,11 +7883,14 @@ acl_fetch_hdr_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 	const struct http_msg *msg = ((dir & ACL_DIR_MASK) == ACL_DIR_REQ) ? &txn->req : &txn->rsp;
 	int cnt;
 
+	if (!expr->args || expr->args->type != ARGT_STR)
+		return 0;
+
 	CHECK_HTTP_MESSAGE_FIRST();
 
 	ctx.idx = 0;
 	cnt = 0;
-	while (http_find_header2(expr->arg.str, expr->arg_len, msg->buf->p + msg->sol, idx, &ctx))
+	while (http_find_header2(expr->args->data.str.str, expr->args->data.str.len, msg->buf->p + msg->sol, idx, &ctx))
 		cnt++;
 
 	temp_pattern.data.integer = cnt;
@@ -7982,17 +7990,21 @@ acl_fetch_http_first_req(struct proxy *px, struct session *s, void *l7, int dir,
 	return 1;
 }
 
+/* Accepts exactly 1 argument of type userlist */
 static int
 acl_fetch_http_auth(struct proxy *px, struct session *l4, void *l7, int dir,
 		    struct acl_expr *expr, struct acl_test *test)
 {
+
+	if (!expr->args || expr->args->type != ARGT_USR)
+		return 0;
 
 	CHECK_HTTP_MESSAGE_FIRST();
 
 	if (!get_http_auth(l4))
 		return 0;
 
-	test->ctx.a[0] = expr->arg.ul;
+	test->ctx.a[0] = expr->args->data.usr;
 	test->ctx.a[1] = l4->txn.auth.user;
 	test->ctx.a[2] = l4->txn.auth.pass;
 
@@ -8100,7 +8112,8 @@ extract_cookie_value(char *hdr, const char *hdr_end,
  * test->ctx.a[0] for the in-header position, test->ctx.a[1] for the
  * end-of-header-value, and test->ctx.a[2] for the hdr_idx. Depending on
  * the direction, multiple cookies may be parsed on the same line or not.
- * The cookie name is in expr->arg and the name length in expr->arg_len.
+ * The cookie name is in expr->arg and the name length in expr->args->data.str.len.
+ * Accepts exactly 1 argument of type string.
  */
 static int
 acl_fetch_cookie_value(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -8113,6 +8126,9 @@ acl_fetch_cookie_value(struct proxy *px, struct session *l4, void *l7, int dir,
 	const char *hdr_name;
 	int hdr_name_len;
 	char *sol;
+
+	if (!expr->args || expr->args->type != ARGT_STR)
+		return 0;
 
 	CHECK_HTTP_MESSAGE_FIRST();
 
@@ -8141,7 +8157,7 @@ acl_fetch_cookie_value(struct proxy *px, struct session *l4, void *l7, int dir,
 			if (!http_find_header2(hdr_name, hdr_name_len, sol, idx, ctx))
 				goto out;
 
-			if (ctx->vlen < expr->arg_len + 1)
+			if (ctx->vlen < expr->args->data.str.len + 1)
 				continue;
 
 			test->ctx.a[0] = ctx->line + ctx->val;
@@ -8149,7 +8165,7 @@ acl_fetch_cookie_value(struct proxy *px, struct session *l4, void *l7, int dir,
 		}
 
 		test->ctx.a[0] = extract_cookie_value(test->ctx.a[0], test->ctx.a[1],
-						      expr->arg.str, expr->arg_len,
+						      expr->args->data.str.str, expr->args->data.str.len,
 						      (dir & ACL_DIR_MASK) == ACL_DIR_REQ,
 						      &temp_pattern.data.str.str,
 						      &temp_pattern.data.str.len);
@@ -8168,8 +8184,9 @@ acl_fetch_cookie_value(struct proxy *px, struct session *l4, void *l7, int dir,
 }
 
 /* Iterate over all cookies present in a request to count how many occurrences
- * match the name in expr->arg and expr->arg_len. If <multi> is non-null, then
+ * match the name in expr->arg and expr->args->data.str.len. If <multi> is non-null, then
  * multiple cookies may be parsed on the same line.
+ * Accepts exactly 1 argument of type string.
  */
 static int
 acl_fetch_cookie_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -8184,6 +8201,9 @@ acl_fetch_cookie_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 	int cnt;
 	char *val_beg, *val_end;
 	char *sol;
+
+	if (!expr->args || expr->args->type != ARGT_STR)
+		return 0;
 
 	CHECK_HTTP_MESSAGE_FIRST();
 
@@ -8208,7 +8228,7 @@ acl_fetch_cookie_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 			if (!http_find_header2(hdr_name, hdr_name_len, sol, idx, &ctx))
 				break;
 
-			if (ctx.vlen < expr->arg_len + 1)
+			if (ctx.vlen < expr->args->data.str.len + 1)
 				continue;
 
 			val_beg = ctx.line + ctx.val;
@@ -8216,7 +8236,7 @@ acl_fetch_cookie_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 		}
 
 		while ((val_beg = extract_cookie_value(val_beg, val_end,
-						       expr->arg.str, expr->arg_len,
+						       expr->args->data.str.str, expr->args->data.str.len,
 						       (dir & ACL_DIR_MASK) == ACL_DIR_REQ,
 						       &temp_pattern.data.str.str,
 						       &temp_pattern.data.str.len))) {
