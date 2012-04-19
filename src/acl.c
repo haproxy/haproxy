@@ -1959,91 +1959,88 @@ acl_find_targets(struct proxy *p)
 	struct acl_expr *expr;
 	struct acl_pattern *pattern;
 	struct userlist *ul;
+	struct arg *arg;
 	int cfgerr = 0;
 
 	list_for_each_entry(acl, &p->acl, list) {
 		list_for_each_entry(expr, &acl->expr, list) {
-			if (strcmp(expr->kw->kw, "srv_is_up") == 0 ||
-			    strcmp(expr->kw->kw, "srv_conn") == 0) {
-				struct proxy *px;
-				struct server *srv;
-				char *pname, *sname;
+			for (arg = expr->args; arg; arg++) {
+				if (arg->type == ARGT_STOP)
+					break;
+				else if (arg->type == ARGT_SRV) {
+					struct proxy *px;
+					struct server *srv;
+					char *pname, *sname;
 
-				/* FIXME: at the moment we check argument types from the keyword,
-				 * but later we'll simlpy inspect argument types.
-				 */
-				if (!expr->args || !expr->args->data.str.len) {
-					Alert("proxy %s: acl %s %s(): missing server name.\n",
-						p->id, acl->name, expr->kw->kw);
-					cfgerr++;
-					continue;
-				}
-
-				pname = expr->args->data.str.str;
-				sname = strrchr(pname, '/');
-
-				if (sname)
-					*sname++ = '\0';
-				else {
-					sname = pname;
-					pname = NULL;
-				}
-
-				px = p;
-				if (pname) {
-					px = findproxy(pname, PR_CAP_BE);
-					if (!px) {
-						Alert("proxy %s: acl %s %s(): unable to find proxy '%s'.\n",
-						      p->id, acl->name, expr->kw->kw, pname);
+					if (!expr->args->data.str.len) {
+						Alert("proxy %s: acl '%s' %s(): missing server name.\n",
+						      p->id, acl->name, expr->kw->kw);
 						cfgerr++;
 						continue;
 					}
-				}
 
-				srv = findserver(px, sname);
-				if (!srv) {
-					Alert("proxy %s: acl %s %s(): unable to find server '%s'.\n",
-					      p->id, acl->name, expr->kw->kw, sname);
-					cfgerr++;
+					pname = expr->args->data.str.str;
+					sname = strrchr(pname, '/');
+
+					if (sname)
+						*sname++ = '\0';
+					else {
+						sname = pname;
+						pname = NULL;
+					}
+
+					px = p;
+					if (pname) {
+						px = findproxy(pname, PR_CAP_BE);
+						if (!px) {
+							Alert("proxy %s: acl '%s' %s(): unable to find proxy '%s'.\n",
+							      p->id, acl->name, expr->kw->kw, pname);
+							cfgerr++;
+							continue;
+						}
+					}
+
+					srv = findserver(px, sname);
+					if (!srv) {
+						Alert("proxy %s: acl '%s' %s(): unable to find server '%s'.\n",
+						      p->id, acl->name, expr->kw->kw, sname);
+						cfgerr++;
+						continue;
+					}
+
+					free(expr->args->data.str.str);
+					expr->args->data.srv = srv;
 					continue;
 				}
+				else if (arg->type == ARGT_USR) {
+					if (!expr->args->data.str.len) {
+						Alert("proxy %s: acl '%s' %s(): missing userlist name.\n",
+						      p->id, acl->name, expr->kw->kw);
+						cfgerr++;
+						continue;
+					}
 
-				free(expr->args->data.str.str);
-				expr->args->data.srv = srv;
-				continue;
-			}
+					if (p->uri_auth && p->uri_auth->userlist &&
+					    !strcmp(p->uri_auth->userlist->name, expr->args->data.str.str))
+						ul = p->uri_auth->userlist;
+					else
+						ul = auth_find_userlist(expr->args->data.str.str);
 
-			if (strstr(expr->kw->kw, "http_auth") == expr->kw->kw) {
+					if (!ul) {
+						Alert("proxy %s: acl '%s' %s(%s): unable to find userlist.\n",
+						      p->id, acl->name, expr->kw->kw, expr->args->data.str.str);
+						cfgerr++;
+						continue;
+					}
 
-				/* FIXME: at the moment we check argument types from the keyword,
-				 * but later we'll simlpy inspect argument types.
-				 */
-				if (!expr->args || !expr->args->data.str.len) {
-					Alert("proxy %s: acl %s %s(): missing userlist name.\n",
-						p->id, acl->name, expr->kw->kw);
-					cfgerr++;
-					continue;
+					free(expr->args->data.str.str);
+					expr->args->data.usr = ul;
 				}
-
-				if (p->uri_auth && p->uri_auth->userlist &&
-				    !strcmp(p->uri_auth->userlist->name, expr->args->data.str.str))
-					ul = p->uri_auth->userlist;
-				else
-					ul = auth_find_userlist(expr->args->data.str.str);
-
-				if (!ul) {
-					Alert("proxy %s: acl %s %s(%s): unable to find userlist.\n",
-						p->id, acl->name, expr->kw->kw, expr->args->data.str.str);
-					cfgerr++;
-					continue;
-				}
-
-				free(expr->args->data.str.str);
-				expr->args->data.usr = ul;
-			}
+			} /* end of args processing */
 
 
 			if (!strcmp(expr->kw->kw, "http_auth_group")) {
+				/* note: argument resolved above thanks to ARGT_USR */
 
 				if (LIST_ISEMPTY(&expr->patterns)) {
 					Alert("proxy %s: acl %s %s(): no groups specified.\n",
