@@ -1396,6 +1396,26 @@ struct acl_expr *parse_acl_expr(const char **args)
 			if (nbargs < 0)
 				goto out_free_expr;
 		}
+		else if (ARGM(aclkw->arg_mask) == 1) {
+			int type = (aclkw->arg_mask >> 4) & 15;
+
+			/* If a proxy is noted as a mandatory argument, we'll fake
+			 * an empty one so that acl_find_targets() resolves it as
+			 * the current one later.
+			 */
+			if (type != ARGT_FE && type != ARGT_BE && type != ARGT_TAB)
+				goto out_free_expr;
+
+			/* Build an arg list containing the type as an empty string
+			 * and the usual STOP.
+			 */
+			expr->args = calloc(2, sizeof(*expr->args));
+			expr->args[0].type = type;
+			expr->args[0].data.str.str = strdup("");
+			expr->args[0].data.str.len = 1;
+			expr->args[0].data.str.len = 0;
+			expr->args[1].type = ARGT_STOP;
+		}
 		else if (ARGM(aclkw->arg_mask)) {
 			/* there were some mandatory arguments */
 			goto out_free_expr;
@@ -2013,20 +2033,23 @@ acl_find_targets(struct proxy *p)
 					expr->args->data.srv = srv;
 				}
 				else if (arg->type == ARGT_FE) {
-					struct proxy *prx;
-					char *pname;
+					struct proxy *prx = p;
+					char *pname = p->id;
 
-					if (!expr->args->data.str.len) {
-						Alert("proxy %s: acl '%s' %s(): missing frontend name.\n",
-						      p->id, acl->name, expr->kw->kw);
+					if (expr->args->data.str.len) {
+						pname = expr->args->data.str.str;
+						prx = findproxy(pname, PR_CAP_FE);
+					}
+
+					if (!prx) {
+						Alert("proxy %s: acl '%s' %s(): unable to find frontend '%s'.\n",
+						      p->id, acl->name, expr->kw->kw, pname);
 						cfgerr++;
 						continue;
 					}
 
-					pname = expr->args->data.str.str;
-					prx = findproxy(pname, PR_CAP_FE);
-					if (!prx) {
-						Alert("proxy %s: acl '%s' %s(): unable to find frontend '%s'.\n",
+					if (!(prx->cap & PR_CAP_FE)) {
+						Alert("proxy %s: acl '%s' %s(): proxy '%s' has no frontend capability.\n",
 						      p->id, acl->name, expr->kw->kw, pname);
 						cfgerr++;
 						continue;
@@ -2036,20 +2059,23 @@ acl_find_targets(struct proxy *p)
 					expr->args->data.prx = prx;
 				}
 				else if (arg->type == ARGT_BE) {
-					struct proxy *prx;
-					char *pname;
+					struct proxy *prx = p;
+					char *pname = p->id;
 
-					if (!expr->args->data.str.len) {
-						Alert("proxy %s: acl '%s' %s(): missing backend name.\n",
-						      p->id, acl->name, expr->kw->kw);
+					if (expr->args->data.str.len) {
+						pname = expr->args->data.str.str;
+						prx = findproxy(pname, PR_CAP_BE);
+					}
+
+					if (!prx) {
+						Alert("proxy %s: acl '%s' %s(): unable to find backend '%s'.\n",
+						      p->id, acl->name, expr->kw->kw, pname);
 						cfgerr++;
 						continue;
 					}
 
-					pname = expr->args->data.str.str;
-					prx = findproxy(pname, PR_CAP_BE);
-					if (!prx) {
-						Alert("proxy %s: acl '%s' %s(): unable to find backend '%s'.\n",
+					if (!(prx->cap & PR_CAP_BE)) {
+						Alert("proxy %s: acl '%s' %s(): proxy '%s' has no backend capability.\n",
 						      p->id, acl->name, expr->kw->kw, pname);
 						cfgerr++;
 						continue;
@@ -2059,20 +2085,24 @@ acl_find_targets(struct proxy *p)
 					expr->args->data.prx = prx;
 				}
 				else if (arg->type == ARGT_TAB) {
-					struct proxy *prx;
-					char *pname;
+					struct proxy *prx = p;
+					char *pname = p->id;
 
-					if (!expr->args->data.str.len) {
-						Alert("proxy %s: acl '%s' %s(): missing table name.\n",
-						      p->id, acl->name, expr->kw->kw);
+					if (expr->args->data.str.len) {
+						pname = expr->args->data.str.str;
+						prx = find_stktable(pname);
+					}
+
+					if (!prx) {
+						Alert("proxy %s: acl '%s' %s(): unable to find table '%s'.\n",
+						      p->id, acl->name, expr->kw->kw, pname);
 						cfgerr++;
 						continue;
 					}
 
-					pname = expr->args->data.str.str;
-					prx = find_stktable(pname);
-					if (!prx) {
-						Alert("proxy %s: acl '%s' %s(): unable to find table '%s'.\n",
+
+					if (!prx->table.size) {
+						Alert("proxy %s: acl '%s' %s(): no table in proxy '%s'.\n",
 						      p->id, acl->name, expr->kw->kw, pname);
 						cfgerr++;
 						continue;
