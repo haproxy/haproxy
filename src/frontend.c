@@ -508,7 +508,7 @@ acl_fetch_fe_id(struct proxy *px, struct session *l4, void *l7, int dir,
 }
 
 /* set temp integer to the number of connections per second reaching the frontend.
- * Accepts either 0 or 1 argument. Argument is a string, other types will cause
+ * Accepts either 0 or 1 argument. Argument is a frontend, other types will cause
  * an undefined behaviour.
  */
 static int
@@ -516,21 +516,15 @@ acl_fetch_fe_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
                        struct acl_expr *expr, struct acl_test *test)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	if (expr->args) {
-		/* another proxy was designated, we must look for it */
-		for (px = proxy; px; px = px->next)
-			if ((px->cap & PR_CAP_FE) && !strcmp(px->id, expr->args->data.str.str))
-				break;
-	}
-	if (!px)
-		return 0;
+	if (expr->args)
+		px = expr->args->data.prx;
 
 	temp_pattern.data.integer = read_freq_ctr(&px->fe_sess_per_sec);
 	return 1;
 }
 
 /* set temp integer to the number of concurrent connections on the frontend
- * Accepts either 0 or 1 argument. Argument is a string, other types will cause
+ * Accepts either 0 or 1 argument. Argument is a frontend, other types will cause
  * an undefined behaviour.
  */
 static int
@@ -538,14 +532,8 @@ acl_fetch_fe_conn(struct proxy *px, struct session *l4, void *l7, int dir,
 		  struct acl_expr *expr, struct acl_test *test)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	if (expr->args) {
-		/* another proxy was designated, we must look for it */
-		for (px = proxy; px; px = px->next)
-			if ((px->cap & PR_CAP_FE) && !strcmp(px->id, expr->args->data.str.str))
-				break;
-	}
-	if (!px)
-		return 0;
+	if (expr->args)
+		px = expr->args->data.prx;
 
 	temp_pattern.data.integer = px->feconn;
 	return 1;

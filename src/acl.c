@@ -27,6 +27,7 @@
 #include <proto/buffers.h>
 #include <proto/log.h>
 #include <proto/proxy.h>
+#include <proto/stick_table.h>
 
 #include <ebsttree.h>
 
@@ -2010,7 +2011,75 @@ acl_find_targets(struct proxy *p)
 
 					free(expr->args->data.str.str);
 					expr->args->data.srv = srv;
-					continue;
+				}
+				else if (arg->type == ARGT_FE) {
+					struct proxy *prx;
+					char *pname;
+
+					if (!expr->args->data.str.len) {
+						Alert("proxy %s: acl '%s' %s(): missing frontend name.\n",
+						      p->id, acl->name, expr->kw->kw);
+						cfgerr++;
+						continue;
+					}
+
+					pname = expr->args->data.str.str;
+					prx = findproxy(pname, PR_CAP_FE);
+					if (!prx) {
+						Alert("proxy %s: acl '%s' %s(): unable to find frontend '%s'.\n",
+						      p->id, acl->name, expr->kw->kw, pname);
+						cfgerr++;
+						continue;
+					}
+
+					free(expr->args->data.str.str);
+					expr->args->data.prx = prx;
+				}
+				else if (arg->type == ARGT_BE) {
+					struct proxy *prx;
+					char *pname;
+
+					if (!expr->args->data.str.len) {
+						Alert("proxy %s: acl '%s' %s(): missing backend name.\n",
+						      p->id, acl->name, expr->kw->kw);
+						cfgerr++;
+						continue;
+					}
+
+					pname = expr->args->data.str.str;
+					prx = findproxy(pname, PR_CAP_BE);
+					if (!prx) {
+						Alert("proxy %s: acl '%s' %s(): unable to find backend '%s'.\n",
+						      p->id, acl->name, expr->kw->kw, pname);
+						cfgerr++;
+						continue;
+					}
+
+					free(expr->args->data.str.str);
+					expr->args->data.prx = prx;
+				}
+				else if (arg->type == ARGT_TAB) {
+					struct proxy *prx;
+					char *pname;
+
+					if (!expr->args->data.str.len) {
+						Alert("proxy %s: acl '%s' %s(): missing table name.\n",
+						      p->id, acl->name, expr->kw->kw);
+						cfgerr++;
+						continue;
+					}
+
+					pname = expr->args->data.str.str;
+					prx = find_stktable(pname);
+					if (!prx) {
+						Alert("proxy %s: acl '%s' %s(): unable to find table '%s'.\n",
+						      p->id, acl->name, expr->kw->kw, pname);
+						cfgerr++;
+						continue;
+					}
+
+					free(expr->args->data.str.str);
+					expr->args->data.prx = prx;
 				}
 				else if (arg->type == ARGT_USR) {
 					if (!expr->args->data.str.len) {
