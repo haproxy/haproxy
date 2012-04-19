@@ -277,6 +277,8 @@ struct acl_keyword {
 	             struct acl_expr *expr, struct acl_test *test);
 	int (*match)(struct acl_test *test, struct acl_pattern *pattern);
 	unsigned int requires;   /* bit mask of all ACL_USE_* required to evaluate this keyword */
+	int arg_mask; /* mask describing up to 7 arg types */
+	/* must be after the config params */
 	int use_cnt;
 };
 

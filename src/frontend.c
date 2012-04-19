@@ -31,6 +31,7 @@
 #include <types/global.h>
 
 #include <proto/acl.h>
+#include <proto/arg.h>
 #include <proto/buffers.h>
 #include <proto/fd.h>
 #include <proto/frontend.h>
@@ -551,11 +552,13 @@ acl_fetch_fe_conn(struct proxy *px, struct session *l4, void *l7, int dir,
 }
 
 
-/* Note: must not be declared <const> as its list will be overwritten */
+/* Note: must not be declared <const> as its list will be overwritten.
+ * Please take care of keeping this list alphabetically sorted.
+ */
 static struct acl_kw_list acl_kws = {{ },{
-	{ "fe_id",        acl_parse_int, acl_fetch_fe_id,        acl_match_int, ACL_USE_NOTHING },
-	{ "fe_sess_rate", acl_parse_int, acl_fetch_fe_sess_rate, acl_match_int, ACL_USE_NOTHING },
-	{ "fe_conn",      acl_parse_int, acl_fetch_fe_conn,      acl_match_int, ACL_USE_NOTHING },
+	{ "fe_conn",      acl_parse_int, acl_fetch_fe_conn,      acl_match_int, ACL_USE_NOTHING, ARG1(0,FE) },
+	{ "fe_id",        acl_parse_int, acl_fetch_fe_id,        acl_match_int, ACL_USE_NOTHING, 0 },
+	{ "fe_sess_rate", acl_parse_int, acl_fetch_fe_sess_rate, acl_match_int, ACL_USE_NOTHING, ARG1(0,FE) },
 	{ NULL, NULL, NULL, NULL },
 }};
 

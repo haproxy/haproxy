@@ -1374,24 +1374,37 @@ struct acl_expr *parse_acl_expr(const char **args)
 	expr->pattern_tree = EB_ROOT_UNIQUE;
 
 	arg = strchr(args[0], '(');
-	if (arg != NULL) {
+	if (aclkw->arg_mask) {
+		int nbargs = 0;
 		char *end;
-		int nbargs;
 
-		/* there is an argument in the form "subject(arg[,arg]*)" */
-		arg++;
-		end = strchr(arg, ')');
-		if (!end)
-			goto out_free_expr;
+		if (arg != NULL) {
+			/* there are 0 or more arguments in the form "subject(arg[,arg]*)" */
+			arg++;
+			end = strchr(arg, ')');
+			if (!end)
+				goto out_free_expr;
 
-		/* Parse the arguments. Note that currently we have no way to
-		 * report parsing errors, hence the NULL in the error pointers.
-		 * At the moment only one string arg is supported.
-		 */
-		nbargs = make_arg_list(arg, end - arg, ARG1(STR), &expr->args,
-				       NULL, NULL, NULL);
-		if (nbargs < 0)
+			/* Parse the arguments. Note that currently we have no way to
+			 * report parsing errors, hence the NULL in the error pointers.
+			 * An error is also reported if some mandatory arguments are
+			 * missing.
+			 */
+			nbargs = make_arg_list(arg, end - arg, aclkw->arg_mask, &expr->args,
+					       NULL, NULL, NULL);
+			if (nbargs < 0)
+				goto out_free_expr;
+		}
+		else if (ARGM(aclkw->arg_mask)) {
+			/* there were some mandatory arguments */
 			goto out_free_expr;
+		}
+	}
+	else {
+		if (arg) {
+			/* no argument expected */
+			goto out_free_expr;
+		}
 	}
 
 	args++;
@@ -2064,21 +2077,20 @@ acl_find_targets(struct proxy *p)
 /*             All supported keywords must be declared here.            */
 /************************************************************************/
 
-/* Note: must not be declared <const> as its list will be overwritten */
+/* Note: must not be declared <const> as its list will be overwritten.
+ * Please take care of keeping this list alphabetically sorted.
+ */
 static struct acl_kw_list acl_kws = {{ },{
-	{ "always_true",         acl_parse_nothing,    acl_fetch_true,           acl_match_nothing, ACL_USE_NOTHING },
-	{ "always_false",        acl_parse_nothing,    acl_fetch_false,          acl_match_nothing, ACL_USE_NOTHING },
-	{ "wait_end",            acl_parse_nothing,    acl_fetch_wait_end,       acl_match_nothing, ACL_USE_NOTHING },
-	{ "req_len",             acl_parse_int,        acl_fetch_req_len,        acl_match_int,     ACL_USE_L6REQ_VOLATILE },
-	{ "req_ssl_hello_type",  acl_parse_int,        acl_fetch_ssl_hello_type, acl_match_int,     ACL_USE_L6REQ_VOLATILE },
-	{ "rep_ssl_hello_type",  acl_parse_int,        acl_fetch_ssl_hello_type, acl_match_int,     ACL_USE_L6RTR_VOLATILE },
-	{ "req_ssl_ver",         acl_parse_dotted_ver, acl_fetch_req_ssl_ver,    acl_match_int,     ACL_USE_L6REQ_VOLATILE },
-	{ "req_rdp_cookie",      acl_parse_str,        acl_fetch_rdp_cookie,     acl_match_str,     ACL_USE_L6REQ_VOLATILE|ACL_MAY_LOOKUP },
-	{ "req_rdp_cookie_cnt",  acl_parse_int,        acl_fetch_rdp_cookie_cnt, acl_match_int,     ACL_USE_L6REQ_VOLATILE },
-	{ "req_ssl_sni",         acl_parse_str,        acl_fetch_ssl_hello_sni,  acl_match_str,     ACL_USE_L6REQ_VOLATILE|ACL_MAY_LOOKUP },
-#if 0
-	{ "time",       acl_parse_time,  acl_fetch_time,   acl_match_time  },
-#endif
+	{ "always_false",        acl_parse_nothing,    acl_fetch_false,          acl_match_nothing, ACL_USE_NOTHING, 0 },
+	{ "always_true",         acl_parse_nothing,    acl_fetch_true,           acl_match_nothing, ACL_USE_NOTHING, 0 },
+	{ "rep_ssl_hello_type",  acl_parse_int,        acl_fetch_ssl_hello_type, acl_match_int,     ACL_USE_L6RTR_VOLATILE, 0 },
+	{ "req_len",             acl_parse_int,        acl_fetch_req_len,        acl_match_int,     ACL_USE_L6REQ_VOLATILE, 0 },
+	{ "req_rdp_cookie",      acl_parse_str,        acl_fetch_rdp_cookie,     acl_match_str,     ACL_USE_L6REQ_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
+	{ "req_rdp_cookie_cnt",  acl_parse_int,        acl_fetch_rdp_cookie_cnt, acl_match_int,     ACL_USE_L6REQ_VOLATILE, ARG1(0,STR) },
+	{ "req_ssl_hello_type",  acl_parse_int,        acl_fetch_ssl_hello_type, acl_match_int,     ACL_USE_L6REQ_VOLATILE, 0 },
+	{ "req_ssl_sni",         acl_parse_str,        acl_fetch_ssl_hello_sni,  acl_match_str,     ACL_USE_L6REQ_VOLATILE|ACL_MAY_LOOKUP, 0 },
+	{ "req_ssl_ver",         acl_parse_dotted_ver, acl_fetch_req_ssl_ver,    acl_match_int,     ACL_USE_L6REQ_VOLATILE, 0 },
+	{ "wait_end",            acl_parse_nothing,    acl_fetch_wait_end,       acl_match_nothing, ACL_USE_NOTHING, 0 },
 	{ NULL, NULL, NULL, NULL }
 }};
 

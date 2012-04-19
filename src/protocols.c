@@ -342,10 +342,12 @@ acl_fetch_so_id(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
-/* Note: must not be declared <const> as its list will be overwritten */
+/* Note: must not be declared <const> as its list will be overwritten.
+ * Please take care of keeping this list alphabetically sorted.
+ */
 static struct acl_kw_list acl_kws = {{ },{
-	{ "dst_conn",   acl_parse_int,   acl_fetch_dconn,    acl_match_int, ACL_USE_NOTHING },
-	{ "so_id",      acl_parse_int,   acl_fetch_so_id,    acl_match_int, ACL_USE_NOTHING },
+	{ "dst_conn",   acl_parse_int,   acl_fetch_dconn,    acl_match_int, ACL_USE_NOTHING, 0 },
+	{ "so_id",      acl_parse_int,   acl_fetch_so_id,    acl_match_int, ACL_USE_NOTHING, 0 },
 	{ NULL, NULL, NULL, NULL },
 }};
 
