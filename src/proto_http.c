@@ -8539,11 +8539,11 @@ pattern_fetch_set_cookie(struct proxy *px, struct session *l4, void *l7, int dir
 /************************************************************************/
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct pattern_fetch_kw_list pattern_fetch_keywords = {{ },{
-	{ "hdr", pattern_fetch_hdr, pattern_arg_str, PATTERN_TYPE_STRING, PATTERN_FETCH_REQ },
-	{ "url_param", pattern_fetch_url_param, pattern_arg_str, PATTERN_TYPE_STRING, PATTERN_FETCH_REQ },
-	{ "cookie", pattern_fetch_cookie, pattern_arg_str, PATTERN_TYPE_STRING, PATTERN_FETCH_REQ },
-	{ "set-cookie", pattern_fetch_set_cookie, pattern_arg_str, PATTERN_TYPE_STRING, PATTERN_FETCH_RTR },
-	{ NULL, NULL, NULL, 0, 0 },
+	{ "hdr",        pattern_fetch_hdr,        ARG1(1,STR), PATTERN_TYPE_STRING, PATTERN_FETCH_REQ },
+	{ "url_param",  pattern_fetch_url_param,  ARG1(1,STR), PATTERN_TYPE_STRING, PATTERN_FETCH_REQ },
+	{ "cookie",     pattern_fetch_cookie,     ARG1(1,STR), PATTERN_TYPE_STRING, PATTERN_FETCH_REQ },
+	{ "set-cookie", pattern_fetch_set_cookie, ARG1(1,STR), PATTERN_TYPE_STRING, PATTERN_FETCH_RTR },
+	{ NULL, NULL, 0, 0, 0 },
 }};
 
 

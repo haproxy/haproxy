@@ -38,6 +38,7 @@
 #include <types/server.h>
 
 #include <proto/acl.h>
+#include <proto/arg.h>
 #include <proto/buffers.h>
 #include <proto/frontend.h>
 #include <proto/log.h>
@@ -1389,75 +1390,6 @@ pattern_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
 }
 
 static int
-pattern_arg_fetch_payloadlv(const char *arg, struct arg **arg_p)
-{
-	int member = 0;
-	int len_offset = 0;
-	int len_size = 0;
-	int buf_offset = 0;
-	int relative = 0;
-	int arg_len = strlen(arg);
-	int i;
-
-	for (i = 0; i < arg_len; i++) {
-		if (arg[i] == ',') {
-			member++;
-		} else if (member == 0) {
-			if (arg[i] < '0' || arg[i] > '9')
-				return 0;
-
-			len_offset = 10 * len_offset + arg[i] - '0';
-		} else if (member == 1) {
-			if (arg[i] < '0' || arg[i] > '9')
-				return 0;
-
-			len_size = 10 * len_size + arg[i] - '0';
-		} else if (member == 2) {
-			if (!relative && !buf_offset && arg[i] == '+') {
-				relative = 1;
-				continue;
-			} else if (!relative && !buf_offset && arg[i] == '-') {
-				relative = 2;
-				continue;
-			} else if (arg[i] < '0' || arg[i] > '9')
-				return 0;
-
-			buf_offset = 10 * buf_offset + arg[i] - '0';
-		}
-	}
-
-	if (member < 1)
-		return 0;
-
-	if (!len_size)
-		return 0;
-
-	if (member == 1) {
-		buf_offset = len_offset + len_size;
-	}
-	else if (relative == 1) {
-		buf_offset = len_offset + len_size + buf_offset;
-	}
-	else if (relative == 2) {
-		if (len_offset + len_size < buf_offset)
-			return 0;
-
-		buf_offset = len_offset + len_size - buf_offset;
-	}
-
-	*arg_p = calloc(4, sizeof(struct arg));
-	(*arg_p)[0].type = ARGT_UINT;
-	(*arg_p)[0].data.uint = len_offset;
-	(*arg_p)[1].type = ARGT_UINT;
-	(*arg_p)[1].data.uint = len_size;
-	(*arg_p)[2].type = ARGT_UINT;
-	(*arg_p)[2].data.uint = buf_offset;
-	(*arg_p)[3].type = ARGT_STOP;
-
-	return 1;
-}
-
-static int
 pattern_fetch_payloadlv(struct proxy *px, struct session *l4, void *l7, int dir,
                         const struct arg *arg_p, union pattern_data *data)
 {
@@ -1490,49 +1422,18 @@ pattern_fetch_payloadlv(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!buf_size)
 		return 0;
 
+	/* buf offset may be implicit, absolute or relative */
+	buf_offset = len_offset + len_size;
+	if (arg_p[2].type == ARGT_UINT)
+		buf_offset = arg_p[2].data.uint;
+	else if (arg_p[2].type == ARGT_SINT)
+		buf_offset += arg_p[2].data.sint;
+
 	if (buf_offset + buf_size > b->i)
 		return 0;
 
 	/* init chunk as read only */
 	chunk_initlen(&data->str, b->p + buf_offset, 0, buf_size);
-
-	return 1;
-}
-
-static int
-pattern_arg_fetch_payload (const char *arg, struct arg **arg_p)
-{
-	int member = 0;
-	int buf_offset = 0;
-	int buf_size = 0;
-	int arg_len = strlen(arg);
-	int i;
-
-	for (i = 0 ; i < arg_len ; i++) {
-		if (arg[i] == ',') {
-			member++;
-		} else if (member == 0) {
-			if (arg[i] < '0' || arg[i] > '9')
-				return 0;
-
-			buf_offset = 10 * buf_offset + arg[i] - '0';
-		} else if (member == 1) {
-			if (arg[i] < '0' || arg[i] > '9')
-				return 0;
-
-			buf_size = 10 * buf_size + arg[i] - '0';
-		}
-	}
-
-	if (!buf_size)
-		return 0;
-
-	*arg_p = calloc(3, sizeof(struct arg));
-	(*arg_p)[0].type = ARGT_UINT;
-	(*arg_p)[0].data.uint = buf_offset;
-	(*arg_p)[1].type = ARGT_UINT;
-	(*arg_p)[1].data.uint = buf_size;
-	(*arg_p)[2].type = ARGT_STOP;
 
 	return 1;
 }
@@ -1611,15 +1512,15 @@ static struct acl_kw_list acl_kws = {{ },{
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct pattern_fetch_kw_list pattern_fetch_keywords = {{ },{
-	{ "src",         pattern_fetch_src,       NULL,                         PATTERN_TYPE_IP,        PATTERN_FETCH_REQ },
-	{ "src6",        pattern_fetch_src6,      NULL,                         PATTERN_TYPE_IPV6,      PATTERN_FETCH_REQ },
-	{ "dst",         pattern_fetch_dst,       NULL,                         PATTERN_TYPE_IP,        PATTERN_FETCH_REQ },
-	{ "dst6",        pattern_fetch_dst6,      NULL,                         PATTERN_TYPE_IPV6,      PATTERN_FETCH_REQ },
-	{ "dst_port",    pattern_fetch_dport,     NULL,                         PATTERN_TYPE_INTEGER,   PATTERN_FETCH_REQ },
-	{ "payload",     pattern_fetch_payload,   pattern_arg_fetch_payload,    PATTERN_TYPE_CONSTDATA, PATTERN_FETCH_REQ|PATTERN_FETCH_RTR },
-	{ "payload_lv",  pattern_fetch_payloadlv, pattern_arg_fetch_payloadlv,  PATTERN_TYPE_CONSTDATA, PATTERN_FETCH_REQ|PATTERN_FETCH_RTR },
-	{ "rdp_cookie",  pattern_fetch_rdp_cookie, pattern_arg_str,             PATTERN_TYPE_CONSTSTRING, PATTERN_FETCH_REQ },
-	{ NULL, NULL, NULL, 0, 0 },
+	{ "src",         pattern_fetch_src,       0,                      PATTERN_TYPE_IP,        PATTERN_FETCH_REQ },
+	{ "src6",        pattern_fetch_src6,      0,                      PATTERN_TYPE_IPV6,      PATTERN_FETCH_REQ },
+	{ "dst",         pattern_fetch_dst,       0,                      PATTERN_TYPE_IP,        PATTERN_FETCH_REQ },
+	{ "dst6",        pattern_fetch_dst6,      0,                      PATTERN_TYPE_IPV6,      PATTERN_FETCH_REQ },
+	{ "dst_port",    pattern_fetch_dport,     0,                      PATTERN_TYPE_INTEGER,   PATTERN_FETCH_REQ },
+	{ "payload",     pattern_fetch_payload,   ARG2(2,UINT,UINT),      PATTERN_TYPE_CONSTDATA, PATTERN_FETCH_REQ|PATTERN_FETCH_RTR },
+	{ "payload_lv",  pattern_fetch_payloadlv, ARG3(2,UINT,UINT,SINT), PATTERN_TYPE_CONSTDATA, PATTERN_FETCH_REQ|PATTERN_FETCH_RTR },
+	{ "rdp_cookie",  pattern_fetch_rdp_cookie, ARG1(1,STR),           PATTERN_TYPE_CONSTSTRING, PATTERN_FETCH_REQ },
+	{ NULL, NULL, 0, 0, 0 },
 }};
 
 __attribute__((constructor))

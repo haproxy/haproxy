@@ -13,6 +13,7 @@
 #include <string.h>
 #include <arpa/inet.h>
 
+#include <proto/arg.h>
 #include <proto/pattern.h>
 #include <proto/buffers.h>
 #include <common/standard.h>
@@ -315,9 +316,7 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err
 	expr->fetch = fetch;
 
 	if (end != endw) {
-		int i = end - endw - 2;
-
-		if (!fetch->parse_args) {
+		if (!fetch->arg_mask) {
 			p = my_strndup(str[*idx], endw - str[*idx]);
 			if (p) {
 				snprintf(err, err_size, "fetch method '%s' does not support any args.", p);
@@ -325,12 +324,8 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err
 			}
 			goto out_error;
 		}
-		p = my_strndup(endw + 1, i);
-		if (!p)
-			goto out_error;
-		i = fetch->parse_args(p, &expr->arg_p);
-		free(p);
-		if (!i) {
+
+		if (make_arg_list(endw + 1, end - endw - 2, fetch->arg_mask, &expr->arg_p, NULL, NULL, NULL) < 0) {
 			p = my_strndup(str[*idx], endw - str[*idx]);
 			if (p) {
 				snprintf(err, err_size, "invalid args in fetch method '%s'.", p);
@@ -339,7 +334,7 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err
 			goto out_error;
 		}
 	}
-	else if (fetch->parse_args) {
+	else if (fetch->arg_mask) {
 		p = my_strndup(str[*idx], endw - str[*idx]);
 		if (p) {
 			snprintf(err, err_size, "missing args for fetch method '%s'.", p);
@@ -398,9 +393,7 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err
 		conv_expr->conv = conv;
 
 		if (end != endw) {
-			int i = end - endw - 2;
-
-			if (!conv->parse_args) {
+			if (!conv->arg_mask) {
 				p = my_strndup(str[*idx], endw - str[*idx]);
 
 				if (p) {
@@ -410,12 +403,7 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err
 				goto out_error;
 			}
 
-			p = my_strndup(endw + 1, i);
-			if (!p)
-				goto out_error;
-			i = conv->parse_args(p, &conv_expr->arg_p);
-			free(p);
-			if (!i) {
+			if (make_arg_list(endw + 1, end - endw - 2, conv->arg_mask, &conv_expr->arg_p, NULL, NULL, NULL) < 0) {
 				p = my_strndup(str[*idx], endw - str[*idx]);
 				if (p) {
 					snprintf(err, err_size, "invalid args in conv method '%s'.", p);
@@ -424,7 +412,7 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err
 				goto out_error;
 			}
 		}
-		else if (conv->parse_args) {
+		else if (conv->arg_mask) {
 			p = my_strndup(str[*idx], endw - str[*idx]);
 			if (p) {
 				snprintf(err, err_size, "missing args for conv method '%s'.", p);
@@ -476,37 +464,6 @@ struct pattern *pattern_process(struct proxy *px, struct session *l4, void *l7, 
 	return p;
 }
 
-/* Converts an argument string mask to a arg type IP.
- * Returns non-zero in case of success, 0 on error.
- */
-int pattern_arg_ipmask(const char *arg_str, struct arg **arg_p)
-{
-	*arg_p = calloc(2, sizeof(struct arg));
-	(*arg_p)->type = ARGT_IPV4;
-	arg_p[1]->type = ARGT_STOP;
-
-	if (!str2mask(arg_str, &(*arg_p)->data.ipv4))
-		return 0;
-
-	return 1;
-}
-
-
-/* Converts an argument string to a arg type STRING.
- * Returns non-zero in case of success, 0 on error.
- */
-int pattern_arg_str(const char *arg_str, struct arg **arg_p)
-{
-	*arg_p = calloc(2, sizeof(struct arg));
-	(*arg_p)->type = ARGT_STR;
-	(*arg_p)->data.str.str = strdup(arg_str);
-	(*arg_p)->data.str.len = strlen(arg_str);
-	arg_p[1]->type = ARGT_STOP;
-
-	return 1;
-}
-
-
 /*****************************************************************/
 /*    Pattern format convert functions                           */
 /*****************************************************************/
@@ -548,10 +505,10 @@ static int pattern_conv_ipmask(const struct arg *arg_p, union pattern_data *data
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct pattern_conv_kw_list pattern_conv_kws = {{ },{
-	{ "upper",  pattern_conv_str2upper, NULL,               PATTERN_TYPE_STRING, PATTERN_TYPE_STRING },
-	{ "lower",  pattern_conv_str2lower, NULL,               PATTERN_TYPE_STRING, PATTERN_TYPE_STRING },
-	{ "ipmask", pattern_conv_ipmask,    pattern_arg_ipmask, PATTERN_TYPE_IP,     PATTERN_TYPE_IP },
-	{ NULL, NULL, NULL, 0, 0 },
+	{ "upper",  pattern_conv_str2upper, 0,            PATTERN_TYPE_STRING, PATTERN_TYPE_STRING },
+	{ "lower",  pattern_conv_str2lower, 0,            PATTERN_TYPE_STRING, PATTERN_TYPE_STRING },
+	{ "ipmask", pattern_conv_ipmask,    ARG1(1,MSK4), PATTERN_TYPE_IP,     PATTERN_TYPE_IP },
+	{ NULL, NULL, 0, 0, 0 },
 }};
 
 __attribute__((constructor))

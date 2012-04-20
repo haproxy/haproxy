@@ -64,8 +64,7 @@ struct pattern_conv {
 	const char *kw;                           /* configuration keyword  */
 	int (*process)(const struct arg *arg_p,
 		       union pattern_data *data); /* process function */
-	int (*parse_args)(const char *arg_str,
-			  struct arg **arg_p);    /* argument parser. May be NULL. */
+	unsigned int arg_mask;                    /* arguments (ARG*()) */
 	unsigned int in_type;                     /* input needed pattern type */
 	unsigned int out_type;                    /* output pattern type */
 };
@@ -85,8 +84,7 @@ struct pattern_fetch {
 	               void *l7,
 	               int dir, const struct arg *arg_p,
 	               union pattern_data *data); /* fetch processing function */
-	int (*parse_args)(const char *arg_str,
-			  struct arg **arg_p);    /* argument parser. Can be NULL. */
+	unsigned int arg_mask;                    /* arguments (ARG*()) */
 	unsigned long out_type;                   /* output pattern type */
 	int dir;                                  /* usable directions */
 };
