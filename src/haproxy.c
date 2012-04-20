@@ -758,21 +758,24 @@ static void deinit_tcp_rules(struct list *rules)
 	}
 }
 
-static void deinit_pattern_arg(struct arg *p, int i)
+static void deinit_pattern_arg(struct arg *p)
 {
+	struct arg *p_back = p;
+
 	if (!p)
 		return;
 
-	while (i--) {
-		if (p[i].type == ARGT_FE || p[i].type == ARGT_BE ||
-		    p[i].type == ARGT_TAB || p[i].type == ARGT_SRV ||
-		    p[i].type == ARGT_USR || p[i].type == ARGT_STR) {
-			free(p[i].data.str.str);
-			p[i].data.str.str = NULL;
+	while (p->type != ARGT_STOP) {
+		if (p->type == ARGT_FE || p->type == ARGT_BE ||
+		    p->type == ARGT_TAB || p->type == ARGT_SRV ||
+		    p->type == ARGT_USR || p->type == ARGT_STR) {
+			free(p->data.str.str);
+			p->data.str.str = NULL;
 		}
+		p++;
 	}
 
-	free(p);
+	free(p_back);
 }
 
 static void deinit_stick_rules(struct list *rules)
@@ -785,8 +788,8 @@ static void deinit_stick_rules(struct list *rules)
 		if (rule->expr) {
 			struct pattern_conv_expr *conv_expr, *conv_exprb;
 			list_for_each_entry_safe(conv_expr, conv_exprb, &rule->expr->conv_exprs, list)
-				deinit_pattern_arg(conv_expr->arg_p, conv_expr->arg_i);
-			deinit_pattern_arg(rule->expr->arg_p, rule->expr->arg_i);
+				deinit_pattern_arg(conv_expr->arg_p);
+			deinit_pattern_arg(rule->expr->arg_p);
 			free(rule->expr);
 		}
 		free(rule);

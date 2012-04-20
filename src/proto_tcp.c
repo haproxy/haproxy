@@ -1275,7 +1275,7 @@ acl_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
 /* extract the connection's source ipv4 address */
 static int
 pattern_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
-                  const struct arg *arg_p, int arg_i, union pattern_data *data)
+                  const struct arg *arg_p, union pattern_data *data)
 {
 	if (l4->si[0].addr.from.ss_family != AF_INET )
 		return 0;
@@ -1287,7 +1287,7 @@ pattern_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
 /* extract the connection's source ipv6 address */
 static int
 pattern_fetch_src6(struct proxy *px, struct session *l4, void *l7, int dir,
-                  const struct arg *arg_p, int arg_i, union pattern_data *data)
+                  const struct arg *arg_p, union pattern_data *data)
 {
 	if (l4->si[0].addr.from.ss_family != AF_INET6)
 		return 0;
@@ -1337,7 +1337,7 @@ acl_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
 /* extract the connection's destination ipv4 address */
 static int
 pattern_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
-                  const struct arg *arg_p, int arg_i, union pattern_data *data)
+                  const struct arg *arg_p, union pattern_data *data)
 {
 	stream_sock_get_to_addr(&l4->si[0]);
 
@@ -1351,7 +1351,7 @@ pattern_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
 /* extract the connection's destination ipv6 address */
 static int
 pattern_fetch_dst6(struct proxy *px, struct session *l4, void *l7, int dir,
-                  const struct arg *arg_p, int arg_i, union pattern_data *data)
+                  const struct arg *arg_p, union pattern_data *data)
 {
 	stream_sock_get_to_addr(&l4->si[0]);
 
@@ -1378,7 +1378,7 @@ acl_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
 
 static int
 pattern_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
-                    const struct arg *arg, int i, union pattern_data *data)
+                    const struct arg *arg, union pattern_data *data)
 {
 	stream_sock_get_to_addr(&l4->si[0]);
 
@@ -1389,7 +1389,7 @@ pattern_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
 }
 
 static int
-pattern_arg_fetch_payloadlv(const char *arg, struct arg **arg_p, int *arg_i)
+pattern_arg_fetch_payloadlv(const char *arg, struct arg **arg_p)
 {
 	int member = 0;
 	int len_offset = 0;
@@ -1445,21 +1445,21 @@ pattern_arg_fetch_payloadlv(const char *arg, struct arg **arg_p, int *arg_i)
 		buf_offset = len_offset + len_size - buf_offset;
 	}
 
-	*arg_i = 3;
-	*arg_p = calloc(1, *arg_i*sizeof(struct arg));
+	*arg_p = calloc(4, sizeof(struct arg));
 	(*arg_p)[0].type = ARGT_UINT;
 	(*arg_p)[0].data.uint = len_offset;
 	(*arg_p)[1].type = ARGT_UINT;
 	(*arg_p)[1].data.uint = len_size;
 	(*arg_p)[2].type = ARGT_UINT;
 	(*arg_p)[2].data.uint = buf_offset;
+	(*arg_p)[3].type = ARGT_STOP;
 
 	return 1;
 }
 
 static int
 pattern_fetch_payloadlv(struct proxy *px, struct session *l4, void *l7, int dir,
-                        const struct arg *arg_p, int arg_i, union pattern_data *data)
+                        const struct arg *arg_p, union pattern_data *data)
 {
 	int len_offset = arg_p[0].data.uint;
 	int len_size = arg_p[1].data.uint;
@@ -1500,7 +1500,7 @@ pattern_fetch_payloadlv(struct proxy *px, struct session *l4, void *l7, int dir,
 }
 
 static int
-pattern_arg_fetch_payload (const char *arg, struct arg **arg_p, int *arg_i)
+pattern_arg_fetch_payload (const char *arg, struct arg **arg_p)
 {
 	int member = 0;
 	int buf_offset = 0;
@@ -1527,19 +1527,19 @@ pattern_arg_fetch_payload (const char *arg, struct arg **arg_p, int *arg_i)
 	if (!buf_size)
 		return 0;
 
-	*arg_i = 2;
-	*arg_p = calloc(1, *arg_i*sizeof(struct arg));
+	*arg_p = calloc(3, sizeof(struct arg));
 	(*arg_p)[0].type = ARGT_UINT;
 	(*arg_p)[0].data.uint = buf_offset;
 	(*arg_p)[1].type = ARGT_UINT;
 	(*arg_p)[1].data.uint = buf_size;
+	(*arg_p)[2].type = ARGT_STOP;
 
 	return 1;
 }
 
 static int
 pattern_fetch_payload(struct proxy *px, struct session *l4, void *l7, int dir,
-                      const struct arg *arg_p, int arg_i, union pattern_data *data)
+                      const struct arg *arg_p, union pattern_data *data)
 {
 	int buf_offset = arg_p[0].data.uint;
 	int buf_size = arg_p[1].data.uint;
@@ -1564,7 +1564,7 @@ pattern_fetch_payload(struct proxy *px, struct session *l4, void *l7, int dir,
 
 static int
 pattern_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
-                         const struct arg *arg_p, int arg_i, union pattern_data *data)
+                         const struct arg *arg_p, union pattern_data *data)
 {
 	int ret;
 	struct acl_expr  expr;

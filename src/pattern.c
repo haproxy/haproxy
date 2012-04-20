@@ -328,7 +328,7 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err
 		p = my_strndup(endw + 1, i);
 		if (!p)
 			goto out_error;
-		i = fetch->parse_args(p, &expr->arg_p, &expr->arg_i);
+		i = fetch->parse_args(p, &expr->arg_p);
 		free(p);
 		if (!i) {
 			p = my_strndup(str[*idx], endw - str[*idx]);
@@ -413,7 +413,7 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err
 			p = my_strndup(endw + 1, i);
 			if (!p)
 				goto out_error;
-			i = conv->parse_args(p, &conv_expr->arg_p, &conv_expr->arg_i);
+			i = conv->parse_args(p, &conv_expr->arg_p);
 			free(p);
 			if (!i) {
 				p = my_strndup(str[*idx], endw - str[*idx]);
@@ -458,7 +458,7 @@ struct pattern *pattern_process(struct proxy *px, struct session *l4, void *l7, 
 	if (p == NULL)
 		p = &temp_pattern;
 
-	if (!expr->fetch->process(px, l4, l7, dir, expr->arg_p, expr->arg_i, &p->data))
+	if (!expr->fetch->process(px, l4, l7, dir, expr->arg_p, &p->data))
 		return NULL;
 
 	p->type = expr->fetch->out_type;
@@ -468,7 +468,7 @@ struct pattern *pattern_process(struct proxy *px, struct session *l4, void *l7, 
 			return NULL;
 
 		p->type = conv_expr->conv->in_type;
-		if (!conv_expr->conv->process(conv_expr->arg_p, conv_expr->arg_i, &p->data))
+		if (!conv_expr->conv->process(conv_expr->arg_p, &p->data))
 			return NULL;
 
 		p->type = conv_expr->conv->out_type;
@@ -479,11 +479,11 @@ struct pattern *pattern_process(struct proxy *px, struct session *l4, void *l7, 
 /* Converts an argument string mask to a arg type IP.
  * Returns non-zero in case of success, 0 on error.
  */
-int pattern_arg_ipmask(const char *arg_str, struct arg **arg_p, int *arg_i)
+int pattern_arg_ipmask(const char *arg_str, struct arg **arg_p)
 {
-	*arg_i = 1;
-	*arg_p = calloc(1, *arg_i*sizeof(struct arg));
+	*arg_p = calloc(2, sizeof(struct arg));
 	(*arg_p)->type = ARGT_IPV4;
+	arg_p[1]->type = ARGT_STOP;
 
 	if (!str2mask(arg_str, &(*arg_p)->data.ipv4))
 		return 0;
@@ -495,14 +495,13 @@ int pattern_arg_ipmask(const char *arg_str, struct arg **arg_p, int *arg_i)
 /* Converts an argument string to a arg type STRING.
  * Returns non-zero in case of success, 0 on error.
  */
-int pattern_arg_str(const char *arg_str, struct arg **arg_p, int *arg_i)
+int pattern_arg_str(const char *arg_str, struct arg **arg_p)
 {
-	*arg_i = 1;
-	*arg_p = calloc(1, *arg_i*sizeof(struct arg));
+	*arg_p = calloc(2, sizeof(struct arg));
 	(*arg_p)->type = ARGT_STR;
 	(*arg_p)->data.str.str = strdup(arg_str);
 	(*arg_p)->data.str.len = strlen(arg_str);
-
+	arg_p[1]->type = ARGT_STOP;
 
 	return 1;
 }
@@ -512,7 +511,7 @@ int pattern_arg_str(const char *arg_str, struct arg **arg_p, int *arg_i)
 /*    Pattern format convert functions                           */
 /*****************************************************************/
 
-static int pattern_conv_str2lower(const struct arg *arg_p, int arg_i, union pattern_data *data)
+static int pattern_conv_str2lower(const struct arg *arg_p, union pattern_data *data)
 {
 	int i;
 
@@ -526,7 +525,7 @@ static int pattern_conv_str2lower(const struct arg *arg_p, int arg_i, union patt
 	return 1;
 }
 
-static int pattern_conv_str2upper(const struct arg *arg_p, int arg_i, union pattern_data *data)
+static int pattern_conv_str2upper(const struct arg *arg_p, union pattern_data *data)
 {
 	int i;
 
@@ -540,8 +539,8 @@ static int pattern_conv_str2upper(const struct arg *arg_p, int arg_i, union patt
 	return 1;
 }
 
-/* takes the netmask in arg_i */
-static int pattern_conv_ipmask(const struct arg *arg_p, int arg_i, union pattern_data *data)
+/* takes the netmask in arg_p */
+static int pattern_conv_ipmask(const struct arg *arg_p, union pattern_data *data)
 {
 	data->ip.s_addr &= arg_p->data.ipv4.s_addr;
 	return 1;

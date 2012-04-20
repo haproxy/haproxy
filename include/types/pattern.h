@@ -63,11 +63,9 @@ struct pattern {
 struct pattern_conv {
 	const char *kw;                           /* configuration keyword  */
 	int (*process)(const struct arg *arg_p,
-	               int arg_i,
-	               union pattern_data *data); /* process function */
+		       union pattern_data *data); /* process function */
 	int (*parse_args)(const char *arg_str,
-			  struct arg **arg_p,
-			  int *arg_i);            /* argument parser. Can be NULL. */
+			  struct arg **arg_p);    /* argument parser. May be NULL. */
 	unsigned int in_type;                     /* input needed pattern type */
 	unsigned int out_type;                    /* output pattern type */
 };
@@ -77,7 +75,6 @@ struct pattern_conv_expr {
 	struct list list;                         /* member of a pattern expression */
 	struct pattern_conv *conv;                /* pattern conversion */
 	struct arg *arg_p;                        /* pointer on args */
-	int arg_i;                                /* number of args */
 };
 
 /* pattern fetch */
@@ -87,11 +84,9 @@ struct pattern_fetch {
 	               struct session *l4,
 	               void *l7,
 	               int dir, const struct arg *arg_p,
-	               int arg_i,
 	               union pattern_data *data); /* fetch processing function */
 	int (*parse_args)(const char *arg_str,
-			  struct arg **arg_p,
-			  int *arg_i);            /* argument parser. Can be NULL. */
+			  struct arg **arg_p);    /* argument parser. Can be NULL. */
 	unsigned long out_type;                   /* output pattern type */
 	int dir;                                  /* usable directions */
 };
@@ -101,7 +96,6 @@ struct pattern_expr {
 	struct list list;                         /* member of list of pattern, currently not used */
 	struct pattern_fetch *fetch;              /* pattern fetch */
 	struct arg *arg_p;                        /* pointer on args */
-	int arg_i;                                /* number of args */
 	struct list conv_exprs;                   /* list of conversion expression to apply */
 };
 
