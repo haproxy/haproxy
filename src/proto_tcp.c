@@ -1493,6 +1493,50 @@ pattern_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir
 	return 1;
 }
 
+/* This function is used to validate the arguments passed to a "payload" fetch
+ * keyword. This keyword expects two positive integers, with the second one
+ * being strictly positive. It is assumed that the types are already the correct
+ * ones. Returns 0 on error, non-zero if OK. If <err_msg> is not NULL, it will be
+ * filled with a pointer to an error message in case of error, that the caller
+ * is responsible for freeing. The initial location must either be freeable or
+ * NULL.
+ */
+static int val_payload(struct arg *arg, char **err_msg)
+{
+	if (!arg[1].data.uint) {
+		if (err_msg)
+			memprintf(err_msg, "payload length must be > 0");
+		return 0;
+	}
+	return 1;
+}
+
+/* This function is used to validate the arguments passed to a "payload_lv" fetch
+ * keyword. This keyword allows two positive integers and an optional signed one,
+ * with the second one being strictly positive and the third one being greater than
+ * the opposite of the two others if negative. It is assumed that the types are
+ * already the correct ones. Returns 0 on error, non-zero if OK. If <err_msg> is
+ * not NULL, it will be filled with a pointer to an error message in case of
+ * error, that the caller is responsible for freeing. The initial location must
+ * either be freeable or NULL.
+ */
+static int val_payload_lv(struct arg *arg, char **err_msg)
+{
+	if (!arg[1].data.uint) {
+		if (err_msg)
+			memprintf(err_msg, "payload length must be > 0");
+		return 0;
+	}
+
+	if (arg[2].type == ARGT_SINT &&
+	    (int)(arg[0].data.uint + arg[1].data.uint + arg[2].data.sint) < 0) {
+		if (err_msg)
+			memprintf(err_msg, "payload offset too negative");
+		return 0;
+	}
+	return 1;
+}
+
 static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_LISTEN, "tcp-request", tcp_parse_tcp_req },
 	{ CFG_LISTEN, "tcp-response", tcp_parse_tcp_rep },
@@ -1512,14 +1556,14 @@ static struct acl_kw_list acl_kws = {{ },{
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct pattern_fetch_kw_list pattern_fetch_keywords = {{ },{
-	{ "src",         pattern_fetch_src,       0,                      PATTERN_TYPE_IP,        PATTERN_FETCH_REQ },
-	{ "src6",        pattern_fetch_src6,      0,                      PATTERN_TYPE_IPV6,      PATTERN_FETCH_REQ },
-	{ "dst",         pattern_fetch_dst,       0,                      PATTERN_TYPE_IP,        PATTERN_FETCH_REQ },
-	{ "dst6",        pattern_fetch_dst6,      0,                      PATTERN_TYPE_IPV6,      PATTERN_FETCH_REQ },
-	{ "dst_port",    pattern_fetch_dport,     0,                      PATTERN_TYPE_INTEGER,   PATTERN_FETCH_REQ },
-	{ "payload",     pattern_fetch_payload,   ARG2(2,UINT,UINT),      PATTERN_TYPE_CONSTDATA, PATTERN_FETCH_REQ|PATTERN_FETCH_RTR },
-	{ "payload_lv",  pattern_fetch_payloadlv, ARG3(2,UINT,UINT,SINT), PATTERN_TYPE_CONSTDATA, PATTERN_FETCH_REQ|PATTERN_FETCH_RTR },
-	{ "rdp_cookie",  pattern_fetch_rdp_cookie, ARG1(1,STR),           PATTERN_TYPE_CONSTSTRING, PATTERN_FETCH_REQ },
+	{ "src",         pattern_fetch_src,       0,                      NULL,           PATTERN_TYPE_IP,        PATTERN_FETCH_REQ },
+	{ "src6",        pattern_fetch_src6,      0,                      NULL,           PATTERN_TYPE_IPV6,      PATTERN_FETCH_REQ },
+	{ "dst",         pattern_fetch_dst,       0,                      NULL,           PATTERN_TYPE_IP,        PATTERN_FETCH_REQ },
+	{ "dst6",        pattern_fetch_dst6,      0,                      NULL,           PATTERN_TYPE_IPV6,      PATTERN_FETCH_REQ },
+	{ "dst_port",    pattern_fetch_dport,     0,                      NULL,           PATTERN_TYPE_INTEGER,   PATTERN_FETCH_REQ },
+	{ "payload",     pattern_fetch_payload,   ARG2(2,UINT,UINT),      val_payload,    PATTERN_TYPE_CONSTDATA, PATTERN_FETCH_REQ|PATTERN_FETCH_RTR },
+	{ "payload_lv",  pattern_fetch_payloadlv, ARG3(2,UINT,UINT,SINT), val_payload_lv, PATTERN_TYPE_CONSTDATA, PATTERN_FETCH_REQ|PATTERN_FETCH_RTR },
+	{ "rdp_cookie",  pattern_fetch_rdp_cookie, ARG1(1,STR),           NULL,           PATTERN_TYPE_CONSTSTRING, PATTERN_FETCH_REQ },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 

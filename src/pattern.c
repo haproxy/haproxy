@@ -316,6 +316,8 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err
 	expr->fetch = fetch;
 
 	if (end != endw) {
+		char *err_msg;
+
 		if (!fetch->arg_mask) {
 			p = my_strndup(str[*idx], endw - str[*idx]);
 			if (p) {
@@ -331,6 +333,16 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err
 				snprintf(err, err_size, "invalid args in fetch method '%s'.", p);
 				free(p);
 			}
+			goto out_error;
+		}
+
+		if (fetch->val_args && !fetch->val_args(expr->arg_p, &err_msg)) {
+			p = my_strndup(str[*idx], endw - str[*idx]);
+			if (p) {
+				snprintf(err, err_size, "invalid args in fetch method '%s' : %s.", p, err_msg);
+				free(p);
+			}
+			free(err_msg);
 			goto out_error;
 		}
 	}
@@ -393,6 +405,8 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err
 		conv_expr->conv = conv;
 
 		if (end != endw) {
+			char *err_msg;
+
 			if (!conv->arg_mask) {
 				p = my_strndup(str[*idx], endw - str[*idx]);
 
@@ -409,6 +423,16 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err
 					snprintf(err, err_size, "invalid args in conv method '%s'.", p);
 					free(p);
 				}
+				goto out_error;
+			}
+
+			if (conv->val_args && !conv->val_args(conv_expr->arg_p, &err_msg)) {
+				p = my_strndup(str[*idx], endw - str[*idx]);
+				if (p) {
+					snprintf(err, err_size, "invalid args in conv method '%s' : %s.", p, err_msg);
+					free(p);
+				}
+				free(err_msg);
 				goto out_error;
 			}
 		}
@@ -505,9 +529,9 @@ static int pattern_conv_ipmask(const struct arg *arg_p, union pattern_data *data
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct pattern_conv_kw_list pattern_conv_kws = {{ },{
-	{ "upper",  pattern_conv_str2upper, 0,            PATTERN_TYPE_STRING, PATTERN_TYPE_STRING },
-	{ "lower",  pattern_conv_str2lower, 0,            PATTERN_TYPE_STRING, PATTERN_TYPE_STRING },
-	{ "ipmask", pattern_conv_ipmask,    ARG1(1,MSK4), PATTERN_TYPE_IP,     PATTERN_TYPE_IP },
+	{ "upper",  pattern_conv_str2upper, 0,            NULL, PATTERN_TYPE_STRING, PATTERN_TYPE_STRING },
+	{ "lower",  pattern_conv_str2lower, 0,            NULL, PATTERN_TYPE_STRING, PATTERN_TYPE_STRING },
+	{ "ipmask", pattern_conv_ipmask,    ARG1(1,MSK4), NULL, PATTERN_TYPE_IP,     PATTERN_TYPE_IP },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 

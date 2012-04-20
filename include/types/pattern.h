@@ -65,6 +65,8 @@ struct pattern_conv {
 	int (*process)(const struct arg *arg_p,
 		       union pattern_data *data); /* process function */
 	unsigned int arg_mask;                    /* arguments (ARG*()) */
+	int (*val_args)(struct arg *arg_p,
+			char **err_msg);          /* argument validation function */
 	unsigned int in_type;                     /* input needed pattern type */
 	unsigned int out_type;                    /* output pattern type */
 };
@@ -85,6 +87,8 @@ struct pattern_fetch {
 	               int dir, const struct arg *arg_p,
 	               union pattern_data *data); /* fetch processing function */
 	unsigned int arg_mask;                    /* arguments (ARG*()) */
+	int (*val_args)(struct arg *arg_p,
+			char **err_msg);          /* argument validation function */
 	unsigned long out_type;                   /* output pattern type */
 	int dir;                                  /* usable directions */
 };
