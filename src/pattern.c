@@ -316,7 +316,8 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err
 	expr->fetch = fetch;
 
 	if (end != endw) {
-		char *err_msg;
+		char *err_msg = NULL;
+		int err_arg;
 
 		if (!fetch->arg_mask) {
 			p = my_strndup(str[*idx], endw - str[*idx]);
@@ -327,12 +328,13 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err
 			goto out_error;
 		}
 
-		if (make_arg_list(endw + 1, end - endw - 2, fetch->arg_mask, &expr->arg_p, NULL, NULL, NULL) < 0) {
+		if (make_arg_list(endw + 1, end - endw - 2, fetch->arg_mask, &expr->arg_p, &err_msg, NULL, &err_arg) < 0) {
 			p = my_strndup(str[*idx], endw - str[*idx]);
 			if (p) {
-				snprintf(err, err_size, "invalid args in fetch method '%s'.", p);
+				snprintf(err, err_size, "invalid arg %d in fetch method '%s' : %s.", err_arg+1, p, err_msg);
 				free(p);
 			}
+			free(err_msg);
 			goto out_error;
 		}
 
@@ -405,7 +407,8 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err
 		conv_expr->conv = conv;
 
 		if (end != endw) {
-			char *err_msg;
+			char *err_msg = NULL;
+			int err_arg;
 
 			if (!conv->arg_mask) {
 				p = my_strndup(str[*idx], endw - str[*idx]);
@@ -417,12 +420,13 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err
 				goto out_error;
 			}
 
-			if (make_arg_list(endw + 1, end - endw - 2, conv->arg_mask, &conv_expr->arg_p, NULL, NULL, NULL) < 0) {
+			if (make_arg_list(endw + 1, end - endw - 2, conv->arg_mask, &conv_expr->arg_p, &err_msg, NULL, &err_arg) < 0) {
 				p = my_strndup(str[*idx], endw - str[*idx]);
 				if (p) {
-					snprintf(err, err_size, "invalid args in conv method '%s'.", p);
+					snprintf(err, err_size, "invalid arg %d in conv method '%s' : %s.", err_arg+1, p, err_msg);
 					free(p);
 				}
+				free(err_msg);
 				goto out_error;
 			}
 
