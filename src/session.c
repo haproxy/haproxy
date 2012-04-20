@@ -2347,7 +2347,7 @@ acl_fetch_sc2_get_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
 
 /* set temp integer to the General Purpose Counter 0 value from the session's source
  * address in the table pointed to by expr.
- * Accepts 0 or 1 argument of type table.
+ * Accepts exactly 1 argument of type table.
  */
 static int
 acl_fetch_src_get_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -2359,9 +2359,7 @@ acl_fetch_src_get_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!key)
 		return 0;
 
-	if (expr->args)
-		px = expr->args->data.prx;
-
+	px = expr->args->data.prx;
 	return acl_fetch_get_gpc0(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
@@ -2408,7 +2406,7 @@ acl_fetch_sc2_inc_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
 
 /* Increment the General Purpose Counter 0 value from the session's source
  * address in the table pointed to by expr, and return it into temp integer.
- * Accepts 0 or 1 argument of type table.
+ * Accepts exactly 1 argument of type table.
  */
 static int
 acl_fetch_src_inc_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -2420,9 +2418,7 @@ acl_fetch_src_inc_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!key)
 		return 0;
 
-	if (expr->args)
-		px = expr->args->data.prx;
-
+	px = expr->args->data.prx;
 	return acl_fetch_inc_gpc0(&px->table, test, stktable_update_key(&px->table, key));
 }
 
@@ -2470,7 +2466,7 @@ acl_fetch_sc2_clr_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
 
 /* Clear the General Purpose Counter 0 value from the session's source address
  * in the table pointed to by expr, and return its previous value into temp integer.
- * Accepts 0 or 1 argument of type table.
+ * Accepts exactly 1 argument of type table.
  */
 static int
 acl_fetch_src_clr_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -2482,9 +2478,7 @@ acl_fetch_src_clr_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!key)
 		return 0;
 
-	if (expr->args)
-		px = expr->args->data.prx;
-
+	px = expr->args->data.prx;
 	return acl_fetch_clr_gpc0(&px->table, test, stktable_update_key(&px->table, key));
 }
 
@@ -2527,7 +2521,7 @@ acl_fetch_sc2_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 
 /* set temp integer to the cumulated number of connections from the session's source
  * address in the table pointed to by expr.
- * Accepts 0 or 1 argument of type table.
+ * Accepts exactly 1 argument of type table.
  */
 static int
 acl_fetch_src_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -2539,9 +2533,7 @@ acl_fetch_src_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!key)
 		return 0;
 
-	if (expr->args)
-		px = expr->args->data.prx;
-
+	px = expr->args->data.prx;
 	return acl_fetch_conn_cnt(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
@@ -2589,7 +2581,7 @@ acl_fetch_sc2_conn_rate(struct proxy *px, struct session *l4, void *l7, int dir,
 
 /* set temp integer to the connection rate from the session's source address in the
  * table pointed to by expr, over the configured period.
- * Accepts 0 or 1 argument of type table.
+ * Accepts exactly 1 argument of type table.
  */
 static int
 acl_fetch_src_conn_rate(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -2601,15 +2593,13 @@ acl_fetch_src_conn_rate(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!key)
 		return 0;
 
-	if (expr->args)
-		px = expr->args->data.prx;
-
+	px = expr->args->data.prx;
 	return acl_fetch_conn_rate(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
 /* set temp integer to the number of connections from the session's source address
  * in the table pointed to by expr, after updating it.
- * Accepts 0 or 1 argument of type table.
+ * Accepts exactly 1 argument of type table.
  */
 static int
 acl_fetch_src_updt_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -2623,8 +2613,7 @@ acl_fetch_src_updt_conn_cnt(struct proxy *px, struct session *l4, void *l7, int 
 	if (!key)
 		return 0;
 
-	if (expr->args)
-		px = expr->args->data.prx;
+	px = expr->args->data.prx;
 
 	if ((ts = stktable_update_key(&px->table, key)) == NULL)
 		/* entry does not exist and could not be created */
@@ -2679,7 +2668,7 @@ acl_fetch_sc2_conn_cur(struct proxy *px, struct session *l4, void *l7, int dir,
 
 /* set temp integer to the number of concurrent connections from the session's source
  * address in the table pointed to by expr.
- * Accepts 0 or 1 argument of type table.
+ * Accepts exactly 1 argument of type table.
  */
 static int
 acl_fetch_src_conn_cur(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -2691,9 +2680,7 @@ acl_fetch_src_conn_cur(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!key)
 		return 0;
 
-	if (expr->args)
-		px = expr->args->data.prx;
-
+	px = expr->args->data.prx;
 	return acl_fetch_conn_cur(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
@@ -2736,7 +2723,7 @@ acl_fetch_sc2_sess_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 
 /* set temp integer to the cumulated number of session from the session's source
  * address in the table pointed to by expr.
- * Accepts 0 or 1 argument of type table.
+ * Accepts exactly 1 argument of type table.
  */
 static int
 acl_fetch_src_sess_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -2748,9 +2735,7 @@ acl_fetch_src_sess_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!key)
 		return 0;
 
-	if (expr->args)
-		px = expr->args->data.prx;
-
+	px = expr->args->data.prx;
 	return acl_fetch_sess_cnt(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
@@ -2798,7 +2783,7 @@ acl_fetch_sc2_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
 
 /* set temp integer to the session rate from the session's source address in the
  * table pointed to by expr, over the configured period.
- * Accepts 0 or 1 argument of type table.
+ * Accepts exactly 1 argument of type table.
  */
 static int
 acl_fetch_src_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -2810,9 +2795,7 @@ acl_fetch_src_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!key)
 		return 0;
 
-	if (expr->args)
-		px = expr->args->data.prx;
-
+	px = expr->args->data.prx;
 	return acl_fetch_sess_rate(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
@@ -2855,7 +2838,7 @@ acl_fetch_sc2_http_req_cnt(struct proxy *px, struct session *l4, void *l7, int d
 
 /* set temp integer to the cumulated number of session from the session's source
  * address in the table pointed to by expr.
- * Accepts 0 or 1 argument of type table.
+ * Accepts exactly 1 argument of type table.
  */
 static int
 acl_fetch_src_http_req_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -2867,9 +2850,7 @@ acl_fetch_src_http_req_cnt(struct proxy *px, struct session *l4, void *l7, int d
 	if (!key)
 		return 0;
 
-	if (expr->args)
-		px = expr->args->data.prx;
-
+	px = expr->args->data.prx;
 	return acl_fetch_http_req_cnt(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
@@ -2917,7 +2898,7 @@ acl_fetch_sc2_http_req_rate(struct proxy *px, struct session *l4, void *l7, int 
 
 /* set temp integer to the session rate from the session's source address in the
  * table pointed to by expr, over the configured period.
- * Accepts 0 or 1 argument of type table.
+ * Accepts exactly 1 argument of type table.
  */
 static int
 acl_fetch_src_http_req_rate(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -2929,9 +2910,7 @@ acl_fetch_src_http_req_rate(struct proxy *px, struct session *l4, void *l7, int 
 	if (!key)
 		return 0;
 
-	if (expr->args)
-		px = expr->args->data.prx;
-
+	px = expr->args->data.prx;
 	return acl_fetch_http_req_rate(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
@@ -2974,7 +2953,7 @@ acl_fetch_sc2_http_err_cnt(struct proxy *px, struct session *l4, void *l7, int d
 
 /* set temp integer to the cumulated number of session from the session's source
  * address in the table pointed to by expr.
- * Accepts 0 or 1 argument of type table.
+ * Accepts exactly 1 argument of type table.
  */
 static int
 acl_fetch_src_http_err_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -2986,9 +2965,7 @@ acl_fetch_src_http_err_cnt(struct proxy *px, struct session *l4, void *l7, int d
 	if (!key)
 		return 0;
 
-	if (expr->args)
-		px = expr->args->data.prx;
-
+	px = expr->args->data.prx;
 	return acl_fetch_http_err_cnt(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
@@ -3036,7 +3013,7 @@ acl_fetch_sc2_http_err_rate(struct proxy *px, struct session *l4, void *l7, int 
 
 /* set temp integer to the session rate from the session's source address in the
  * table pointed to by expr, over the configured period.
- * Accepts 0 or 1 argument of type table.
+ * Accepts exactly 1 argument of type table.
  */
 static int
 acl_fetch_src_http_err_rate(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -3048,9 +3025,7 @@ acl_fetch_src_http_err_rate(struct proxy *px, struct session *l4, void *l7, int 
 	if (!key)
 		return 0;
 
-	if (expr->args)
-		px = expr->args->data.prx;
-
+	px = expr->args->data.prx;
 	return acl_fetch_http_err_rate(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
@@ -3098,7 +3073,7 @@ acl_fetch_sc2_kbytes_in(struct proxy *px, struct session *l4, void *l7, int dir,
 
 /* set temp integer to the number of kbytes received from the session's source
  * address in the table pointed to by expr.
- * Accepts 0 or 1 argument of type table.
+ * Accepts exactly 1 argument of type table.
  */
 static int
 acl_fetch_src_kbytes_in(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -3110,9 +3085,7 @@ acl_fetch_src_kbytes_in(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!key)
 		return 0;
 
-	if (expr->args)
-		px = expr->args->data.prx;
-
+	px = expr->args->data.prx;
 	return acl_fetch_kbytes_in(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
@@ -3162,7 +3135,7 @@ acl_fetch_sc2_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, int 
 
 /* set temp integer to the bytes rate from clients from the session's source address
  * in the table pointed to by expr, over the configured period.
- * Accepts 0 or 1 argument of type table.
+ * Accepts exactly 1 argument of type table.
  */
 static int
 acl_fetch_src_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -3174,9 +3147,7 @@ acl_fetch_src_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, int 
 	if (!key)
 		return 0;
 
-	if (expr->args)
-		px = expr->args->data.prx;
-
+	px = expr->args->data.prx;
 	return acl_fetch_bytes_in_rate(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
@@ -3224,7 +3195,7 @@ acl_fetch_sc2_kbytes_out(struct proxy *px, struct session *l4, void *l7, int dir
 
 /* set temp integer to the number of kbytes sent to the session's source address in
  * the table pointed to by expr.
- * Accepts 0 or 1 argument of type table.
+ * Accepts exactly 1 argument of type table.
  */
 static int
 acl_fetch_src_kbytes_out(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -3236,9 +3207,7 @@ acl_fetch_src_kbytes_out(struct proxy *px, struct session *l4, void *l7, int dir
 	if (!key)
 		return 0;
 
-	if (expr->args)
-		px = expr->args->data.prx;
-
+	px = expr->args->data.prx;
 	return acl_fetch_kbytes_out(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
@@ -3288,7 +3257,7 @@ acl_fetch_sc2_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, int
 
 /* set temp integer to the bytes rate to client from the session's source address in
  * the table pointed to by expr, over the configured period.
- * Accepts 0 or 1 argument of type table.
+ * Accepts exactly 1 argument of type table.
  */
 static int
 acl_fetch_src_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -3300,37 +3269,30 @@ acl_fetch_src_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, int
 	if (!key)
 		return 0;
 
-	if (expr->args)
-		px = expr->args->data.prx;
-
+	px = expr->args->data.prx;
 	return acl_fetch_bytes_out_rate(&px->table, test, stktable_lookup_key(&px->table, key));
 }
 
 /* set temp integer to the number of used entries in the table pointed to by expr.
- * Accepts 0 or 1 argument of type table.
+ * Accepts exactly 1 argument of type table.
  */
 static int
 acl_fetch_table_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
                        struct acl_expr *expr, struct acl_test *test)
 {
-	if (expr->args)
-		px = expr->args->data.prx;
-
 	test->flags = ACL_TEST_F_VOL_TEST;
-	temp_pattern.data.integer = px->table.current;
+	temp_pattern.data.integer = expr->args->data.prx->table.current;
 	return 1;
 }
 
 /* set temp integer to the number of free entries in the table pointed to by expr.
- * Accepts 0 or 1 argument of type table.
+ * Accepts exactly 1 argument of type table.
  */
 static int
 acl_fetch_table_avl(struct proxy *px, struct session *l4, void *l7, int dir,
                             struct acl_expr *expr, struct acl_test *test)
 {
-	if (expr->args)
-		px = expr->args->data.prx;
-
+	px = expr->args->data.prx;
 	test->flags = ACL_TEST_F_VOL_TEST;
 	temp_pattern.data.integer = px->table.size - px->table.current;
 	return 1;
