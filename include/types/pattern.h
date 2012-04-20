@@ -22,9 +22,10 @@
 #ifndef _TYPES_PATTERN_H
 #define _TYPES_PATTERN_H
 
-#include <types/buffers.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <types/arg.h>
+#include <types/buffers.h>
 
 /* pattern in and out types */
 enum {
@@ -39,32 +40,10 @@ enum {
 };
 
 
-/* pattern arg types */
-enum {
-	PATTERN_ARG_TYPE_IP = 0,      /* ipv4 type */
-	PATTERN_ARG_TYPE_IPV6,        /* ipv6 type */
-	PATTERN_ARG_TYPE_INTEGER,     /* unsigned 32bits integer type */
-	PATTERN_ARG_TYPE_SINTEGER,    /* signed 32bits integer type */
-	PATTERN_ARG_TYPE_STRING       /* string type */
-};
-
 /* pattern fetch direction */
 #define PATTERN_FETCH_REQ	1
 #define PATTERN_FETCH_RTR	2
 
-
-union pattern_arg_data {
-	struct in_addr ip;        /* used for ipv4 type */
-	struct in6_addr ipv6;     /* used for ipv6 type */
-	uint32_t integer;         /* used for unsigned 32bits integer type */
-	int sinteger;             /* used for signed 32bits integer type */
-	struct chunk str;
-};
-
-struct pattern_arg {
-	int type;                    /* type of arg */
-	union pattern_arg_data data; /* data */
-};
 
 /* pattern result data */
 union pattern_data {
@@ -83,11 +62,11 @@ struct pattern {
 /* pattern conversion */
 struct pattern_conv {
 	const char *kw;                           /* configuration keyword  */
-	int (*process)(const struct pattern_arg *arg_p,
+	int (*process)(const struct arg *arg_p,
 	               int arg_i,
 	               union pattern_data *data); /* process function */
 	int (*parse_args)(const char *arg_str,
-			  struct pattern_arg **arg_p,
+			  struct arg **arg_p,
 			  int *arg_i);            /* argument parser. Can be NULL. */
 	unsigned int in_type;                     /* input needed pattern type */
 	unsigned int out_type;                    /* output pattern type */
@@ -97,7 +76,7 @@ struct pattern_conv {
 struct pattern_conv_expr {
 	struct list list;                         /* member of a pattern expression */
 	struct pattern_conv *conv;                /* pattern conversion */
-	struct pattern_arg *arg_p;                /* pointer on args */
+	struct arg *arg_p;                        /* pointer on args */
 	int arg_i;                                /* number of args */
 };
 
@@ -107,11 +86,11 @@ struct pattern_fetch {
 	int (*process)(struct proxy *px,
 	               struct session *l4,
 	               void *l7,
-	               int dir, const struct pattern_arg *arg_p,
+	               int dir, const struct arg *arg_p,
 	               int arg_i,
 	               union pattern_data *data); /* fetch processing function */
 	int (*parse_args)(const char *arg_str,
-			  struct pattern_arg **arg_p,
+			  struct arg **arg_p,
 			  int *arg_i);            /* argument parser. Can be NULL. */
 	unsigned long out_type;                   /* output pattern type */
 	int dir;                                  /* usable directions */
@@ -121,7 +100,7 @@ struct pattern_fetch {
 struct pattern_expr {
 	struct list list;                         /* member of list of pattern, currently not used */
 	struct pattern_fetch *fetch;              /* pattern fetch */
-	struct pattern_arg *arg_p;                /* pointer on args */
+	struct arg *arg_p;                        /* pointer on args */
 	int arg_i;                                /* number of args */
 	struct list conv_exprs;                   /* list of conversion expression to apply */
 };

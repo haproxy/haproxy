@@ -758,14 +758,19 @@ static void deinit_tcp_rules(struct list *rules)
 	}
 }
 
-static void deinit_pattern_arg(struct pattern_arg *p, int i)
+static void deinit_pattern_arg(struct arg *p, int i)
 {
 	if (!p)
 		return;
 
-	while (i--)
-		if (p[i].type == PATTERN_ARG_TYPE_STRING)
+	while (i--) {
+		if (p[i].type == ARGT_FE || p[i].type == ARGT_BE ||
+		    p[i].type == ARGT_TAB || p[i].type == ARGT_SRV ||
+		    p[i].type == ARGT_USR || p[i].type == ARGT_STR) {
 			free(p[i].data.str.str);
+			p[i].data.str.str = NULL;
+		}
+	}
 
 	free(p);
 }

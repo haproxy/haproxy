@@ -34,6 +34,6 @@ struct pattern *pattern_process(struct proxy *px, struct session *l4,
 void pattern_register_fetches(struct pattern_fetch_kw_list *psl);
 void pattern_register_convs(struct pattern_conv_kw_list *psl);
 
-int pattern_arg_ipmask(const char *arg_str, struct pattern_arg **arg_p, int *arg_i);
-int pattern_arg_str(const char *arg_str, struct pattern_arg **arg_p, int *arg_i);
+int pattern_arg_ipmask(const char *arg_str, struct arg **arg_p, int *arg_i);
+int pattern_arg_str(const char *arg_str, struct arg **arg_p, int *arg_i);
 #endif
