@@ -104,7 +104,7 @@ acl_fetch_req_len(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!l4 || !l4->req)
 		return 0;
 
-	temp_pattern.data.integer = l4->req->i;
+	temp_pattern.data.uint = l4->req->i;
 	test->flags = ACL_TEST_F_VOLATILE | ACL_TEST_F_MAY_CHANGE;
 	return 1;
 }
@@ -157,7 +157,7 @@ acl_fetch_ssl_hello_type(struct proxy *px, struct session *l4, void *l7, int dir
 		goto not_ssl_hello;
 	}
 
-	temp_pattern.data.integer = hs_type;
+	temp_pattern.data.uint = hs_type;
 	test->flags = ACL_TEST_F_VOLATILE;
 
 	return 1;
@@ -270,7 +270,7 @@ acl_fetch_req_ssl_ver(struct proxy *px, struct session *l4, void *l7, int dir,
 	/* OK that's enough. We have at least the whole message, and we have
 	 * the protocol version.
 	 */
-	temp_pattern.data.integer = version;
+	temp_pattern.data.uint = version;
 	test->flags = ACL_TEST_F_VOLATILE;
 	return 1;
 
@@ -553,7 +553,7 @@ acl_fetch_rdp_cookie_cnt(struct proxy *px, struct session *l4, void *l7, int dir
 		return 0;
 
 	test->flags = ACL_TEST_F_VOLATILE;
-	temp_pattern.data.integer = ret;
+	temp_pattern.data.uint = ret;
 
 	return 1;
 }
@@ -814,8 +814,8 @@ int acl_match_dom(struct acl_test *test, struct acl_pattern *pattern)
 /* Checks that the integer in <test> is included between min and max */
 int acl_match_int(struct acl_test *test, struct acl_pattern *pattern)
 {
-	if ((!pattern->val.range.min_set || pattern->val.range.min <= temp_pattern.data.integer) &&
-	    (!pattern->val.range.max_set || temp_pattern.data.integer <= pattern->val.range.max))
+	if ((!pattern->val.range.min_set || pattern->val.range.min <= temp_pattern.data.uint) &&
+	    (!pattern->val.range.max_set || temp_pattern.data.uint <= pattern->val.range.max))
 		return ACL_PAT_PASS;
 	return ACL_PAT_FAIL;
 }
@@ -833,10 +833,10 @@ int acl_match_ip(struct acl_test *test, struct acl_pattern *pattern)
 {
 	struct in_addr *s;
 
-	if (temp_pattern.type != PATTERN_TYPE_IP)
+	if (temp_pattern.type != SMP_T_IPV4)
 		return ACL_PAT_FAIL;
 
-	s = &temp_pattern.data.ip;
+	s = &temp_pattern.data.ipv4;
 	if (((s->s_addr ^ pattern->val.ipv4.addr.s_addr) & pattern->val.ipv4.mask.s_addr) == 0)
 		return ACL_PAT_PASS;
 	return ACL_PAT_FAIL;
@@ -849,10 +849,10 @@ void *acl_lookup_ip(struct acl_test *test, struct acl_expr *expr)
 {
 	struct in_addr *s;
 
-	if (temp_pattern.type != PATTERN_TYPE_IP)
+	if (temp_pattern.type != SMP_T_IPV4)
 		return ACL_PAT_FAIL;
 
-	s = &temp_pattern.data.ip;
+	s = &temp_pattern.data.ipv4;
 	return ebmb_lookup_longest(&expr->pattern_tree, &s->s_addr);
 }
 

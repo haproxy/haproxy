@@ -2311,12 +2311,12 @@ static int
 acl_fetch_get_gpc0(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	temp_pattern.data.integer = 0;
+	temp_pattern.data.uint = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_GPC0);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		temp_pattern.data.integer = stktable_data_cast(ptr, gpc0);
+		temp_pattern.data.uint = stktable_data_cast(ptr, gpc0);
 	}
 	return 1;
 }
@@ -2370,12 +2370,12 @@ static int
 acl_fetch_inc_gpc0(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	temp_pattern.data.integer = 0;
+	temp_pattern.data.uint = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_GPC0);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		temp_pattern.data.integer = ++stktable_data_cast(ptr, gpc0);
+		temp_pattern.data.uint = ++stktable_data_cast(ptr, gpc0);
 	}
 	return 1;
 }
@@ -2429,12 +2429,12 @@ static int
 acl_fetch_clr_gpc0(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	temp_pattern.data.integer = 0;
+	temp_pattern.data.uint = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_GPC0);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		temp_pattern.data.integer = stktable_data_cast(ptr, gpc0);
+		temp_pattern.data.uint = stktable_data_cast(ptr, gpc0);
 		stktable_data_cast(ptr, gpc0) = 0;
 	}
 	return 1;
@@ -2487,12 +2487,12 @@ static int
 acl_fetch_conn_cnt(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	temp_pattern.data.integer = 0;
+	temp_pattern.data.uint = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_CONN_CNT);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		temp_pattern.data.integer = stktable_data_cast(ptr, conn_cnt);
+		temp_pattern.data.uint = stktable_data_cast(ptr, conn_cnt);
 	}
 	return 1;
 }
@@ -2542,12 +2542,12 @@ static int
 acl_fetch_conn_rate(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	temp_pattern.data.integer = 0;
+	temp_pattern.data.uint = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_CONN_RATE);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		temp_pattern.data.integer = read_freq_ctr_period(&stktable_data_cast(ptr, conn_rate),
+		temp_pattern.data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, conn_rate),
 					       table->data_arg[STKTABLE_DT_CONN_RATE].u);
 	}
 	return 1;
@@ -2623,7 +2623,7 @@ acl_fetch_src_updt_conn_cnt(struct proxy *px, struct session *l4, void *l7, int 
 	if (!ptr)
 		return 0; /* parameter not stored in this table */
 
-	temp_pattern.data.integer = ++stktable_data_cast(ptr, conn_cnt);
+	temp_pattern.data.uint = ++stktable_data_cast(ptr, conn_cnt);
 	test->flags = ACL_TEST_F_VOL_TEST;
 	return 1;
 }
@@ -2633,13 +2633,13 @@ static int
 acl_fetch_conn_cur(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	temp_pattern.data.integer = 0;
+	temp_pattern.data.uint = 0;
 
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_CONN_CUR);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		temp_pattern.data.integer = stktable_data_cast(ptr, conn_cur);
+		temp_pattern.data.uint = stktable_data_cast(ptr, conn_cur);
 	}
 	return 1;
 }
@@ -2689,12 +2689,12 @@ static int
 acl_fetch_sess_cnt(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	temp_pattern.data.integer = 0;
+	temp_pattern.data.uint = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_SESS_CNT);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		temp_pattern.data.integer = stktable_data_cast(ptr, sess_cnt);
+		temp_pattern.data.uint = stktable_data_cast(ptr, sess_cnt);
 	}
 	return 1;
 }
@@ -2744,12 +2744,12 @@ static int
 acl_fetch_sess_rate(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	temp_pattern.data.integer = 0;
+	temp_pattern.data.uint = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_SESS_RATE);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		temp_pattern.data.integer = read_freq_ctr_period(&stktable_data_cast(ptr, sess_rate),
+		temp_pattern.data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, sess_rate),
 					       table->data_arg[STKTABLE_DT_SESS_RATE].u);
 	}
 	return 1;
@@ -2804,12 +2804,12 @@ static int
 acl_fetch_http_req_cnt(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	temp_pattern.data.integer = 0;
+	temp_pattern.data.uint = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_HTTP_REQ_CNT);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		temp_pattern.data.integer = stktable_data_cast(ptr, http_req_cnt);
+		temp_pattern.data.uint = stktable_data_cast(ptr, http_req_cnt);
 	}
 	return 1;
 }
@@ -2859,12 +2859,12 @@ static int
 acl_fetch_http_req_rate(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	temp_pattern.data.integer = 0;
+	temp_pattern.data.uint = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_HTTP_REQ_RATE);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		temp_pattern.data.integer = read_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
+		temp_pattern.data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
 					       table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u);
 	}
 	return 1;
@@ -2919,12 +2919,12 @@ static int
 acl_fetch_http_err_cnt(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	temp_pattern.data.integer = 0;
+	temp_pattern.data.uint = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_HTTP_ERR_CNT);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		temp_pattern.data.integer = stktable_data_cast(ptr, http_err_cnt);
+		temp_pattern.data.uint = stktable_data_cast(ptr, http_err_cnt);
 	}
 	return 1;
 }
@@ -2974,12 +2974,12 @@ static int
 acl_fetch_http_err_rate(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	temp_pattern.data.integer = 0;
+	temp_pattern.data.uint = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_HTTP_ERR_RATE);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		temp_pattern.data.integer = read_freq_ctr_period(&stktable_data_cast(ptr, http_err_rate),
+		temp_pattern.data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, http_err_rate),
 					       table->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u);
 	}
 	return 1;
@@ -3034,13 +3034,13 @@ static int
 acl_fetch_kbytes_in(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	temp_pattern.data.integer = 0;
+	temp_pattern.data.uint = 0;
 
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_BYTES_IN_CNT);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		temp_pattern.data.integer = stktable_data_cast(ptr, bytes_in_cnt) >> 10;
+		temp_pattern.data.uint = stktable_data_cast(ptr, bytes_in_cnt) >> 10;
 	}
 	return 1;
 }
@@ -3096,12 +3096,12 @@ static int
 acl_fetch_bytes_in_rate(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	temp_pattern.data.integer = 0;
+	temp_pattern.data.uint = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_BYTES_IN_RATE);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		temp_pattern.data.integer = read_freq_ctr_period(&stktable_data_cast(ptr, bytes_in_rate),
+		temp_pattern.data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, bytes_in_rate),
 					       table->data_arg[STKTABLE_DT_BYTES_IN_RATE].u);
 	}
 	return 1;
@@ -3156,13 +3156,13 @@ static int
 acl_fetch_kbytes_out(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	temp_pattern.data.integer = 0;
+	temp_pattern.data.uint = 0;
 
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_BYTES_OUT_CNT);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		temp_pattern.data.integer = stktable_data_cast(ptr, bytes_out_cnt) >> 10;
+		temp_pattern.data.uint = stktable_data_cast(ptr, bytes_out_cnt) >> 10;
 	}
 	return 1;
 }
@@ -3218,12 +3218,12 @@ static int
 acl_fetch_bytes_out_rate(struct stktable *table, struct acl_test *test, struct stksess *ts)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	temp_pattern.data.integer = 0;
+	temp_pattern.data.uint = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_BYTES_OUT_RATE);
 		if (!ptr)
 			return 0; /* parameter not stored */
-		temp_pattern.data.integer = read_freq_ctr_period(&stktable_data_cast(ptr, bytes_out_rate),
+		temp_pattern.data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, bytes_out_rate),
 					       table->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u);
 	}
 	return 1;
@@ -3281,7 +3281,7 @@ acl_fetch_table_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
                        struct acl_expr *expr, struct acl_test *test)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	temp_pattern.data.integer = expr->args->data.prx->table.current;
+	temp_pattern.data.uint = expr->args->data.prx->table.current;
 	return 1;
 }
 
@@ -3294,7 +3294,7 @@ acl_fetch_table_avl(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	px = expr->args->data.prx;
 	test->flags = ACL_TEST_F_VOL_TEST;
-	temp_pattern.data.integer = px->table.size - px->table.current;
+	temp_pattern.data.uint = px->table.size - px->table.current;
 	return 1;
 }
 

@@ -450,17 +450,17 @@ int stktable_parse_type(char **args, int *myidx, unsigned long *type, size_t *ke
 
 static void *k_int2int(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
 {
-	return (void *)&pdata->integer;
+	return (void *)&pdata->uint;
 }
 
 static void *k_ip2ip(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
 {
-	return (void *)&pdata->ip.s_addr;
+	return (void *)&pdata->ipv4.s_addr;
 }
 
 static void *k_ip2ipv6(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
 {
-	v4tov6(&kdata->ipv6, &pdata->ip);
+	v4tov6(&kdata->ipv6, &pdata->ipv4);
 	return (void *)&kdata->ipv6.s6_addr;
 }
 
@@ -479,13 +479,13 @@ static void *k_ipv62ip(union pattern_data *pdata, union stktable_key_data *kdata
 
 static void *k_ip2int(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
 {
-	kdata->integer = ntohl(pdata->ip.s_addr);
+	kdata->integer = ntohl(pdata->ipv4.s_addr);
 	return (void *)&kdata->integer;
 }
 
 static void *k_int2ip(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
 {
-	kdata->ip.s_addr = htonl(pdata->integer);
+	kdata->ip.s_addr = htonl(pdata->uint);
 	return (void *)&kdata->ip.s_addr;
 }
 
@@ -497,7 +497,7 @@ static void *k_str2str(union pattern_data *pdata, union stktable_key_data *kdata
 
 static void *k_ip2str(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
 {
-	if (!inet_ntop(AF_INET, &pdata->ip, kdata->buf, sizeof(kdata->buf)))
+	if (!inet_ntop(AF_INET, &pdata->ipv4, kdata->buf, sizeof(kdata->buf)))
 		return NULL;
 
 	*len = strlen((const char *)kdata->buf);
@@ -517,7 +517,7 @@ static void *k_int2str(union pattern_data *pdata, union stktable_key_data *kdata
 {
 	void *key;
 
-	key = (void *)ultoa_r(pdata->integer,  kdata->buf,  sizeof(kdata->buf));
+	key = (void *)ultoa_r(pdata->uint,  kdata->buf,  sizeof(kdata->buf));
 	if (!key)
 		return NULL;
 
@@ -570,16 +570,17 @@ static void *k_str2int(union pattern_data *pdata, union stktable_key_data *kdata
  */
 
 typedef void *(*pattern_to_key_fct)(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len);
-static pattern_to_key_fct pattern_to_key[PATTERN_TYPES][STKTABLE_TYPES] = {
+static pattern_to_key_fct pattern_to_key[SMP_TYPES][STKTABLE_TYPES] = {
 /*       table type:   IP          IPV6         INTEGER    STRING      BINARY    */
-/* pattern type: IP */ { k_ip2ip,  k_ip2ipv6,   k_ip2int,  k_ip2str,   NULL      },
+/* patt. type: BOOL */ { NULL,     NULL,        k_int2int, k_int2str,  NULL      },
+/*             UINT */ { k_int2ip, NULL,        k_int2int, k_int2str,  NULL      },
+/*             SINT */ { k_int2ip, NULL,        k_int2int, k_int2str,  NULL      },
+/*             IPV4 */ { k_ip2ip,  k_ip2ipv6,   k_ip2int,  k_ip2str,   NULL      },
 /*             IPV6 */ { NULL,     k_ipv62ipv6, NULL,      k_ipv62str, NULL      },
-/*          INTEGER */ { k_int2ip, NULL,        k_int2int, k_int2str,  NULL      },
-/*           STRING */ { k_str2ip, k_str2ipv6,  k_str2int, k_str2str,  k_str2str },
-/*             DATA */ { NULL,     NULL,        NULL,      NULL,       k_str2str },
-/*      CONSTSTRING */ { k_str2ip, k_str2ipv6,  k_str2int, k_str2str,  k_str2str },
-/*        CONSTDATA */ { NULL,     NULL,        NULL,      NULL     ,  k_str2str },
-
+/*              STR */ { k_str2ip, k_str2ipv6,  k_str2int, k_str2str,  k_str2str },
+/*              BIN */ { NULL,     NULL,        NULL,      NULL,       k_str2str },
+/*             CSTR */ { k_str2ip, k_str2ipv6,  k_str2int, k_str2str,  k_str2str },
+/*             CBIN */ { NULL,     NULL,        NULL,      NULL     ,  k_str2str },
 };
 
 

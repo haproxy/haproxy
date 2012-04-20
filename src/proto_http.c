@@ -7769,7 +7769,7 @@ acl_fetch_stcode(struct proxy *px, struct session *l4, void *l7, int dir,
 	len = txn->rsp.sl.st.c_l;
 	ptr = txn->rsp.buf->p + txn->rsp.sol + txn->rsp.sl.st.c;
 
-	temp_pattern.data.integer = __strl2ui(ptr, len);
+	temp_pattern.data.uint = __strl2ui(ptr, len);
 	test->flags = ACL_TEST_F_VOL_1ST;
 	return 1;
 }
@@ -7803,8 +7803,8 @@ acl_fetch_url_ip(struct proxy *px, struct session *l4, void *l7, int dir,
 	url2sa(txn->req.buf->p + txn->req.sol + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &l4->req->cons->addr.to);
 	if (((struct sockaddr_in *)&l4->req->cons->addr.to)->sin_family != AF_INET)
 		return 0;
-	temp_pattern.type = PATTERN_TYPE_IP;
-	temp_pattern.data.ip = ((struct sockaddr_in *)&l4->req->cons->addr.to)->sin_addr;
+	temp_pattern.type = SMP_T_IPV4;
+	temp_pattern.data.ipv4 = ((struct sockaddr_in *)&l4->req->cons->addr.to)->sin_addr;
 
 	/*
 	 * If we are parsing url in frontend space, we prepare backend stage
@@ -7827,7 +7827,7 @@ acl_fetch_url_port(struct proxy *px, struct session *l4, void *l7, int dir,
 
 	/* Same optimization as url_ip */
 	url2sa(txn->req.buf->p + txn->req.sol + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &l4->req->cons->addr.to);
-	temp_pattern.data.integer = ntohs(((struct sockaddr_in *)&l4->req->cons->addr.to)->sin_port);
+	temp_pattern.data.uint = ntohs(((struct sockaddr_in *)&l4->req->cons->addr.to)->sin_port);
 
 	if (px->options & PR_O_HTTP_PROXY)
 		l4->flags |= SN_ADDR_SET;
@@ -7894,7 +7894,7 @@ acl_fetch_hdr_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 	while (http_find_header2(expr->args->data.str.str, expr->args->data.str.len, msg->buf->p + msg->sol, idx, &ctx))
 		cnt++;
 
-	temp_pattern.data.integer = cnt;
+	temp_pattern.data.uint = cnt;
 	test->flags = ACL_TEST_F_VOL_HDR;
 	return 1;
 }
@@ -7909,7 +7909,7 @@ acl_fetch_hdr_val(struct proxy *px, struct session *l4, void *l7, int dir,
 	int ret = acl_fetch_hdr(px, l4, l7, dir, expr, test);
 
 	if (ret > 0)
-		temp_pattern.data.integer = strl2ic(temp_pattern.data.str.str, temp_pattern.data.str.len);
+		temp_pattern.data.uint = strl2ic(temp_pattern.data.str.str, temp_pattern.data.str.len);
 
 	return ret;
 }
@@ -7923,8 +7923,8 @@ acl_fetch_hdr_ip(struct proxy *px, struct session *l4, void *l7, int dir,
 	int ret;
 
 	while ((ret = acl_fetch_hdr(px, l4, l7, dir, expr, test)) > 0) {
-		temp_pattern.type = PATTERN_TYPE_IP;
-		if (url2ipv4((char *)temp_pattern.data.str.str, &temp_pattern.data.ip))
+		temp_pattern.type = SMP_T_IPV4;
+		if (url2ipv4((char *)temp_pattern.data.str.str, &temp_pattern.data.ipv4))
 			break;
 		/* if the header doesn't match an IP address, fetch next one */
 	}
@@ -8244,7 +8244,7 @@ acl_fetch_cookie_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 		}
 	}
 
-	temp_pattern.data.integer = cnt;
+	temp_pattern.data.uint = cnt;
 	test->flags |= ACL_TEST_F_VOL_HDR;
 	return 1;
 }
@@ -8537,10 +8537,10 @@ pattern_fetch_set_cookie(struct proxy *px, struct session *l4, void *l7, int dir
 /************************************************************************/
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct pattern_fetch_kw_list pattern_fetch_keywords = {{ },{
-	{ "hdr",        pattern_fetch_hdr,        ARG1(1,STR), NULL, PATTERN_TYPE_STRING, PATTERN_FETCH_REQ },
-	{ "url_param",  pattern_fetch_url_param,  ARG1(1,STR), NULL, PATTERN_TYPE_STRING, PATTERN_FETCH_REQ },
-	{ "cookie",     pattern_fetch_cookie,     ARG1(1,STR), NULL, PATTERN_TYPE_STRING, PATTERN_FETCH_REQ },
-	{ "set-cookie", pattern_fetch_set_cookie, ARG1(1,STR), NULL, PATTERN_TYPE_STRING, PATTERN_FETCH_RTR },
+	{ "hdr",        pattern_fetch_hdr,        ARG1(1,STR), NULL, SMP_T_CSTR, PATTERN_FETCH_REQ },
+	{ "url_param",  pattern_fetch_url_param,  ARG1(1,STR), NULL, SMP_T_CSTR, PATTERN_FETCH_REQ },
+	{ "cookie",     pattern_fetch_cookie,     ARG1(1,STR), NULL, SMP_T_CSTR, PATTERN_FETCH_REQ },
+	{ "set-cookie", pattern_fetch_set_cookie, ARG1(1,STR), NULL, SMP_T_CSTR, PATTERN_FETCH_RTR },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 

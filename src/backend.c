@@ -1389,11 +1389,11 @@ acl_fetch_nbsrv(struct proxy *px, struct session *l4, void *l7, int dir,
 	px = expr->args->data.prx;
 
 	if (px->srv_act)
-		temp_pattern.data.integer = px->srv_act;
+		temp_pattern.data.uint = px->srv_act;
 	else if (px->lbprm.fbck)
-		temp_pattern.data.integer = 1;
+		temp_pattern.data.uint = 1;
 	else
-		temp_pattern.data.integer = px->srv_bck;
+		temp_pattern.data.uint = px->srv_bck;
 
 	return 1;
 }
@@ -1429,7 +1429,7 @@ acl_fetch_connslots(struct proxy *px, struct session *l4, void *l7, int dir,
 	struct server *iterator;
 
 	test->flags = ACL_TEST_F_VOL_TEST;
-	temp_pattern.data.integer = 0;
+	temp_pattern.data.uint = 0;
 
 	for (iterator = expr->args->data.prx->srv; iterator; iterator = iterator->next) {
 		if ((iterator->state & SRV_RUNNING) == 0)
@@ -1437,12 +1437,12 @@ acl_fetch_connslots(struct proxy *px, struct session *l4, void *l7, int dir,
 
 		if (iterator->maxconn == 0 || iterator->maxqueue == 0) {
 			/* configuration is stupid */
-			temp_pattern.data.integer = -1;
+			temp_pattern.data.uint = -1;  /* FIXME: stupid value! */
 			return 1;
 		}
 
-		temp_pattern.data.integer += (iterator->maxconn - iterator->cur_sess)
-		                          +  (iterator->maxqueue - iterator->nbpend);
+		temp_pattern.data.uint += (iterator->maxconn - iterator->cur_sess)
+		                       +  (iterator->maxqueue - iterator->nbpend);
 	}
 
 	return 1;
@@ -1454,7 +1454,7 @@ acl_fetch_be_id(struct proxy *px, struct session *l4, void *l7, int dir,
                 struct acl_expr *expr, struct acl_test *test) {
 
 	test->flags = ACL_TEST_F_READ_ONLY;
-	temp_pattern.data.integer = l4->be->uuid;
+	temp_pattern.data.uint = l4->be->uuid;
 
 	return 1;
 }
@@ -1468,7 +1468,7 @@ acl_fetch_srv_id(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	test->flags = ACL_TEST_F_READ_ONLY;
-	temp_pattern.data.integer = target_srv(&l4->target)->puid;
+	temp_pattern.data.uint = target_srv(&l4->target)->puid;
 
 	return 1;
 }
@@ -1482,7 +1482,7 @@ acl_fetch_be_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
                        struct acl_expr *expr, struct acl_test *test)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	temp_pattern.data.integer = read_freq_ctr(&expr->args->data.prx->be_sess_per_sec);
+	temp_pattern.data.uint = read_freq_ctr(&expr->args->data.prx->be_sess_per_sec);
 	return 1;
 }
 
@@ -1495,7 +1495,7 @@ acl_fetch_be_conn(struct proxy *px, struct session *l4, void *l7, int dir,
 		  struct acl_expr *expr, struct acl_test *test)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	temp_pattern.data.integer = expr->args->data.prx->beconn;
+	temp_pattern.data.uint = expr->args->data.prx->beconn;
 	return 1;
 }
 
@@ -1508,7 +1508,7 @@ acl_fetch_queue_size(struct proxy *px, struct session *l4, void *l7, int dir,
 		   struct acl_expr *expr, struct acl_test *test)
 {
 	test->flags = ACL_TEST_F_VOL_TEST;
-	temp_pattern.data.integer = expr->args->data.prx->totpend;
+	temp_pattern.data.uint = expr->args->data.prx->totpend;
 	return 1;
 }
 
@@ -1537,9 +1537,9 @@ acl_fetch_avg_queue_size(struct proxy *px, struct session *l4, void *l7, int dir
 		nbsrv = px->srv_bck;
 
 	if (nbsrv > 0)
-		temp_pattern.data.integer = (px->totpend + nbsrv - 1) / nbsrv;
+		temp_pattern.data.uint = (px->totpend + nbsrv - 1) / nbsrv;
 	else
-		temp_pattern.data.integer = px->totpend * 2;
+		temp_pattern.data.uint = px->totpend * 2;
 
 	return 1;
 }
@@ -1552,7 +1552,7 @@ static int
 acl_fetch_srv_conn(struct proxy *px, struct session *l4, void *l7, int dir,
 		  struct acl_expr *expr, struct acl_test *test)
 {
-	temp_pattern.data.integer = expr->args->data.srv->cur_sess;
+	temp_pattern.data.uint = expr->args->data.srv->cur_sess;
 	return 1;
 }
 

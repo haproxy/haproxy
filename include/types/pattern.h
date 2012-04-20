@@ -27,16 +27,18 @@
 #include <types/arg.h>
 #include <types/buffers.h>
 
-/* pattern in and out types */
+/* input and output sample types */
 enum {
-	PATTERN_TYPE_IP = 0,      /* ipv4 type */
-	PATTERN_TYPE_IPV6,        /* ipv6 type */
-	PATTERN_TYPE_INTEGER,     /* unsigned 32bits integer type */
-	PATTERN_TYPE_STRING,      /* char string type */
-	PATTERN_TYPE_DATA,        /* buffer type */
-	PATTERN_TYPE_CONSTSTRING, /* constant char string type, data need dup before conversion */
-	PATTERN_TYPE_CONSTDATA,   /* constant buffer type, data need dup before conversion */
-	PATTERN_TYPES             /* number of types, must always be last */
+	SMP_T_BOOL = 0,  /* boolean */
+	SMP_T_UINT,      /* unsigned 32bits integer type */
+	SMP_T_SINT,      /* signed 32bits integer type */
+	SMP_T_IPV4,      /* ipv4 type */
+	SMP_T_IPV6,      /* ipv6 type */
+	SMP_T_STR,       /* char string type */
+	SMP_T_BIN,       /* buffer type */
+	SMP_T_CSTR,      /* constant char string type, data need dup before conversion */
+	SMP_T_CBIN,      /* constant buffer type, data need dup before conversion */
+	SMP_TYPES        /* number of types, must always be last */
 };
 
 /* Flags used to describe fetched samples. MAY_CHANGE indicates that the result
@@ -70,10 +72,11 @@ enum {
 
 /* pattern result data */
 union pattern_data {
-	struct in_addr ip;        /* used for ipv4 type */
-	struct in6_addr ipv6;     /* used for ipv6 type */
-	int integer;              /* used for unsigned 32bits integer type */
-	struct chunk str;         /* used for char string type or buffers*/
+	unsigned int    uint;  /* used for unsigned 32bits integers and booleans */
+	int             sint;  /* used for signed 32bits integers */
+	struct in_addr  ipv4;  /* used for ipv4 addresses */
+	struct in6_addr ipv6;  /* used for ipv6 addresses */
+	struct chunk    str;   /* used for char strings or buffers */
 };
 
 /* pattern result */
@@ -100,7 +103,7 @@ union smp_ctx {
  */
 struct sample {
 	unsigned int flags;       /* SMP_F_* */
-	int type;                 /* PATTERN_TYPE_* */
+	int type;                 /* SMP_T_* */
 	union pattern_data data;
 	union smp_ctx ctx;
 };

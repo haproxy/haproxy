@@ -1258,12 +1258,12 @@ acl_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	switch (l4->si[0].addr.from.ss_family) {
 	case AF_INET:
-		temp_pattern.data.ip = ((struct sockaddr_in *)&l4->si[0].addr.from)->sin_addr;
-		temp_pattern.type = PATTERN_TYPE_IP;
+		temp_pattern.data.ipv4 = ((struct sockaddr_in *)&l4->si[0].addr.from)->sin_addr;
+		temp_pattern.type = SMP_T_IPV4;
 		break;
 	case AF_INET6:
 		temp_pattern.data.ipv6 = ((struct sockaddr_in6 *)(&l4->si[0].addr.from))->sin6_addr;
-		temp_pattern.type = PATTERN_TYPE_IPV6;
+		temp_pattern.type = SMP_T_IPV6;
 		break;
 	default:
 		return 0;
@@ -1281,7 +1281,7 @@ pattern_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (l4->si[0].addr.from.ss_family != AF_INET )
 		return 0;
 
-	data->ip.s_addr = ((struct sockaddr_in *)&l4->si[0].addr.from)->sin_addr.s_addr;
+	data->ipv4.s_addr = ((struct sockaddr_in *)&l4->si[0].addr.from)->sin_addr.s_addr;
 	return 1;
 }
 
@@ -1302,7 +1302,7 @@ static int
 acl_fetch_sport(struct proxy *px, struct session *l4, void *l7, int dir,
                 struct acl_expr *expr, struct acl_test *test)
 {
-	if (!(temp_pattern.data.integer = get_host_port(&l4->si[0].addr.from)))
+	if (!(temp_pattern.data.uint = get_host_port(&l4->si[0].addr.from)))
 		return 0;
 
 	test->flags = 0;
@@ -1319,12 +1319,12 @@ acl_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
 
 	switch (l4->si[0].addr.to.ss_family) {
 	case AF_INET:
-		temp_pattern.data.ip = ((struct sockaddr_in *)&l4->si[0].addr.to)->sin_addr;
-		temp_pattern.type = PATTERN_TYPE_IP;
+		temp_pattern.data.ipv4 = ((struct sockaddr_in *)&l4->si[0].addr.to)->sin_addr;
+		temp_pattern.type = SMP_T_IPV4;
 		break;
 	case AF_INET6:
 		temp_pattern.data.ipv6 = ((struct sockaddr_in6 *)(&l4->si[0].addr.to))->sin6_addr;
-		temp_pattern.type = PATTERN_TYPE_IPV6;
+		temp_pattern.type = SMP_T_IPV6;
 		break;
 	default:
 		return 0;
@@ -1345,7 +1345,7 @@ pattern_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (l4->si[0].addr.to.ss_family != AF_INET)
 		return 0;
 
-	data->ip.s_addr = ((struct sockaddr_in *)&l4->si[0].addr.to)->sin_addr.s_addr;
+	data->ipv4.s_addr = ((struct sockaddr_in *)&l4->si[0].addr.to)->sin_addr.s_addr;
 	return 1;
 }
 
@@ -1370,7 +1370,7 @@ acl_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	stream_sock_get_to_addr(&l4->si[0]);
 
-	if (!(temp_pattern.data.integer = get_host_port(&l4->si[0].addr.to)))
+	if (!(temp_pattern.data.uint = get_host_port(&l4->si[0].addr.to)))
 		return 0;
 
 	test->flags = 0;
@@ -1383,7 +1383,7 @@ pattern_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	stream_sock_get_to_addr(&l4->si[0]);
 
-	if (!(data->integer = get_host_port(&l4->si[0].addr.to)))
+	if (!(data->uint = get_host_port(&l4->si[0].addr.to)))
 		return 0;
 
 	return 1;
@@ -1556,14 +1556,14 @@ static struct acl_kw_list acl_kws = {{ },{
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct pattern_fetch_kw_list pattern_fetch_keywords = {{ },{
-	{ "src",         pattern_fetch_src,       0,                      NULL,           PATTERN_TYPE_IP,        PATTERN_FETCH_REQ },
-	{ "src6",        pattern_fetch_src6,      0,                      NULL,           PATTERN_TYPE_IPV6,      PATTERN_FETCH_REQ },
-	{ "dst",         pattern_fetch_dst,       0,                      NULL,           PATTERN_TYPE_IP,        PATTERN_FETCH_REQ },
-	{ "dst6",        pattern_fetch_dst6,      0,                      NULL,           PATTERN_TYPE_IPV6,      PATTERN_FETCH_REQ },
-	{ "dst_port",    pattern_fetch_dport,     0,                      NULL,           PATTERN_TYPE_INTEGER,   PATTERN_FETCH_REQ },
-	{ "payload",     pattern_fetch_payload,   ARG2(2,UINT,UINT),      val_payload,    PATTERN_TYPE_CONSTDATA, PATTERN_FETCH_REQ|PATTERN_FETCH_RTR },
-	{ "payload_lv",  pattern_fetch_payloadlv, ARG3(2,UINT,UINT,SINT), val_payload_lv, PATTERN_TYPE_CONSTDATA, PATTERN_FETCH_REQ|PATTERN_FETCH_RTR },
-	{ "rdp_cookie",  pattern_fetch_rdp_cookie, ARG1(1,STR),           NULL,           PATTERN_TYPE_CONSTSTRING, PATTERN_FETCH_REQ },
+	{ "src",         pattern_fetch_src,       0,                      NULL,           SMP_T_IPV4, PATTERN_FETCH_REQ },
+	{ "src6",        pattern_fetch_src6,      0,                      NULL,           SMP_T_IPV6, PATTERN_FETCH_REQ },
+	{ "dst",         pattern_fetch_dst,       0,                      NULL,           SMP_T_IPV4, PATTERN_FETCH_REQ },
+	{ "dst6",        pattern_fetch_dst6,      0,                      NULL,           SMP_T_IPV6, PATTERN_FETCH_REQ },
+	{ "dst_port",    pattern_fetch_dport,     0,                      NULL,           SMP_T_UINT, PATTERN_FETCH_REQ },
+	{ "payload",     pattern_fetch_payload,   ARG2(2,UINT,UINT),      val_payload,    SMP_T_CBIN, PATTERN_FETCH_REQ|PATTERN_FETCH_RTR },
+	{ "payload_lv",  pattern_fetch_payloadlv, ARG3(2,UINT,UINT,SINT), val_payload_lv, SMP_T_CBIN, PATTERN_FETCH_REQ|PATTERN_FETCH_RTR },
+	{ "rdp_cookie",  pattern_fetch_rdp_cookie, ARG1(1,STR),           NULL,           SMP_T_CSTR, PATTERN_FETCH_REQ },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 

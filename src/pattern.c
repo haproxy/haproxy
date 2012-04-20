@@ -122,7 +122,7 @@ static struct chunk *get_trash_chunk(void)
 
 static int c_ip2int(union pattern_data *data)
 {
-	data->integer = ntohl(data->ip.s_addr);
+	data->uint = ntohl(data->ipv4.s_addr);
 	return 1;
 }
 
@@ -130,7 +130,7 @@ static int c_ip2str(union pattern_data *data)
 {
 	struct chunk *trash = get_trash_chunk();
 
-	if (!inet_ntop(AF_INET, (void *)&data->ip, trash->str, trash->size))
+	if (!inet_ntop(AF_INET, (void *)&data->ipv4, trash->str, trash->size))
 		return 0;
 
 	trash->len = strlen(trash->str);
@@ -141,7 +141,7 @@ static int c_ip2str(union pattern_data *data)
 
 static int c_ip2ipv6(union pattern_data *data)
 {
-	v4tov6(&data->ipv6, &data->ip);
+	v4tov6(&data->ipv6, &data->ipv4);
 	return 1;
 }
 
@@ -160,19 +160,19 @@ static int c_ipv62str(union pattern_data *data)
 /*
 static int c_ipv62ip(union pattern_data *data)
 {
-	return v6tov4(&data->ip, &data->ipv6);
+	return v6tov4(&data->ipv4, &data->ipv6);
 }
 */
 
 static int c_int2ip(union pattern_data *data)
 {
-	data->ip.s_addr = htonl(data->integer);
+	data->ipv4.s_addr = htonl(data->uint);
 	return 1;
 }
 
 static int c_str2ip(union pattern_data *data)
 {
-	if (!buf2ip(data->str.str, data->str.len, &data->ip))
+	if (!buf2ip(data->str.str, data->str.len, &data->ipv4))
 		return 0;
 	return 1;
 }
@@ -187,7 +187,7 @@ static int c_int2str(union pattern_data *data)
 	struct chunk *trash = get_trash_chunk();
 	char *pos;
 
-	pos = ultoa_r(data->integer, trash->str, trash->size);
+	pos = ultoa_r(data->uint, trash->str, trash->size);
 
 	if (!pos)
 		return 0;
@@ -210,7 +210,7 @@ static int c_datadup(union pattern_data *data)
 }
 
 
-static int c_donothing(union pattern_data *data)
+static int c_none(union pattern_data *data)
 {
 	return 1;
 }
@@ -229,7 +229,7 @@ static int c_str2int(union pattern_data *data)
 		ret = ret * 10 + val;
 	}
 
-	data->integer = ret;
+	data->uint = ret;
 	return 1;
 }
 
@@ -240,17 +240,18 @@ static int c_str2int(union pattern_data *data)
 /*****************************************************************/
 
 typedef int (*pattern_cast_fct)(union pattern_data *data);
-static pattern_cast_fct pattern_casts[PATTERN_TYPES][PATTERN_TYPES] = {
-/*            to:   IP           IPV6         INTEGER      STRING       DATA         CONSTSTRING  CONSTDATA */
-/* from:    IP */ { c_donothing, c_ip2ipv6,   c_ip2int,    c_ip2str,    NULL,        c_ip2str,    NULL        },
-/*        IPV6 */ { NULL,        c_donothing, NULL,        c_ipv62str,  NULL,        c_ipv62str,  NULL        },
-/*     INTEGER */ { c_int2ip,    NULL,        c_donothing, c_int2str,   NULL,        c_int2str,   NULL        },
-/*      STRING */ { c_str2ip,    c_str2ipv6,  c_str2int,   c_donothing, c_donothing, c_donothing, c_donothing },
-/*        DATA */ { NULL,        NULL,        NULL,        NULL,        c_donothing, NULL,        c_donothing },
-/* CONSTSTRING */ { c_str2ip,    c_str2ipv6,  c_str2int,   c_datadup,   c_datadup,   c_donothing, c_donothing },
-/*   CONSTDATA */ { NULL,        NULL,        NULL,        NULL,        c_datadup,   NULL,	      c_donothing },
+static pattern_cast_fct pattern_casts[SMP_TYPES][SMP_TYPES] = {
+/*            to:  BOOL       UINT       SINT       IPV4      IPV6        STR         BIN        CSTR        CBIN   */
+/* from: BOOL */ { c_none,    c_none,    c_none,    NULL,     NULL,       NULL,       NULL,      NULL,       NULL   },
+/*       UINT */ { c_none,    c_none,    c_none,    c_int2ip, NULL,       c_int2str,  NULL,      c_int2str,  NULL   },
+/*       SINT */ { c_none,    c_none,    c_none,    c_int2ip, NULL,       c_int2str,  NULL,      c_int2str,  NULL   },
+/*       IPV4 */ { NULL,      c_ip2int,  c_ip2int,  c_none,   c_ip2ipv6,  c_ip2str,   NULL,      c_ip2str,   NULL   },
+/*       IPV6 */ { NULL,      NULL,      NULL,      NULL,     c_none,     c_ipv62str, NULL,      c_ipv62str, NULL   },
+/*        STR */ { c_str2int, c_str2int, c_str2int, c_str2ip, c_str2ipv6, c_none,     c_none,    c_none,     c_none },
+/*        BIN */ { NULL,      NULL,      NULL,      NULL,     NULL,       NULL,       c_none,    NULL,       c_none },
+/*       CSTR */ { c_str2int, c_str2int, c_str2int, c_str2ip, c_str2ipv6, c_datadup,  c_datadup, c_none,     c_none },
+/*       CBIN */ { NULL,      NULL,      NULL,      NULL,     NULL,       NULL,       c_datadup, NULL,       c_none },
 };
-
 
 /*
  * Parse a pattern expression configuration:
@@ -297,7 +298,7 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err
 		}
 		goto out_error;
 	}
-	if (fetch->out_type >= PATTERN_TYPES) {
+	if (fetch->out_type >= SMP_TYPES) {
 
 		p = my_strndup(str[*idx], endw - str[*idx]);
 		if (p) {
@@ -378,8 +379,8 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err
 		if (!conv)
 			break;
 
-		if (conv->in_type >= PATTERN_TYPES ||
-		    conv->out_type >= PATTERN_TYPES) {
+		if (conv->in_type >= SMP_TYPES ||
+		    conv->out_type >= SMP_TYPES) {
 			p = my_strndup(str[*idx], endw - str[*idx]);
 			if (p) {
 				snprintf(err, err_size, "returns type of conv method '%s' is unknown.", p);
@@ -527,15 +528,15 @@ static int pattern_conv_str2upper(const struct arg *arg_p, union pattern_data *d
 /* takes the netmask in arg_p */
 static int pattern_conv_ipmask(const struct arg *arg_p, union pattern_data *data)
 {
-	data->ip.s_addr &= arg_p->data.ipv4.s_addr;
+	data->ipv4.s_addr &= arg_p->data.ipv4.s_addr;
 	return 1;
 }
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct pattern_conv_kw_list pattern_conv_kws = {{ },{
-	{ "upper",  pattern_conv_str2upper, 0,            NULL, PATTERN_TYPE_STRING, PATTERN_TYPE_STRING },
-	{ "lower",  pattern_conv_str2lower, 0,            NULL, PATTERN_TYPE_STRING, PATTERN_TYPE_STRING },
-	{ "ipmask", pattern_conv_ipmask,    ARG1(1,MSK4), NULL, PATTERN_TYPE_IP,     PATTERN_TYPE_IP },
+	{ "upper",  pattern_conv_str2upper, 0,            NULL, SMP_T_STR,  SMP_T_STR  },
+	{ "lower",  pattern_conv_str2lower, 0,            NULL, SMP_T_STR,  SMP_T_STR  },
+	{ "ipmask", pattern_conv_ipmask,    ARG1(1,MSK4), NULL, SMP_T_IPV4, SMP_T_IPV4 },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 
