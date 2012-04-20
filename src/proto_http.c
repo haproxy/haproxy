@@ -8005,11 +8005,10 @@ acl_fetch_http_auth(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!get_http_auth(l4))
 		return 0;
 
-	test->ctx.a[0] = expr->args->data.usr;
-	test->ctx.a[1] = l4->txn.auth.user;
-	test->ctx.a[2] = l4->txn.auth.pass;
-
-	test->flags |= ACL_TEST_F_READ_ONLY | ACL_TEST_F_NULL_MATCH;
+	if (check_user(expr->args->data.usr, 0, l4->txn.auth.user, l4->txn.auth.pass))
+		test->flags |= ACL_TEST_F_SET_RES_PASS;
+	else
+		test->flags |= ACL_TEST_F_SET_RES_FAIL;
 
 	return 1;
 }
@@ -8280,7 +8279,7 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "hdr_sub",         acl_parse_str,     acl_fetch_hdr,            acl_match_sub,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
 	{ "hdr_val",         acl_parse_int,     acl_fetch_hdr_val,        acl_match_int,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
 
-	{ "http_auth",       acl_parse_nothing, acl_fetch_http_auth,      acl_match_auth,    ACL_USE_L7REQ_VOLATILE, ARG1(0,USR) },
+	{ "http_auth",       acl_parse_nothing, acl_fetch_http_auth,      acl_match_nothing, ACL_USE_L7REQ_VOLATILE, ARG1(0,USR) },
 	{ "http_auth_group", acl_parse_strcat,  acl_fetch_http_auth,      acl_match_auth,    ACL_USE_L7REQ_VOLATILE, ARG1(0,USR) },
 	{ "http_first_req",  acl_parse_nothing, acl_fetch_http_first_req, acl_match_nothing, ACL_USE_L7REQ_PERMANENT, 0 },
 

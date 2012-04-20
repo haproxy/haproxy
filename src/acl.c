@@ -1885,10 +1885,6 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 							break;
 						acl_res |= expr->kw->match(&test, pattern);
 					}
-
-					if ((test.flags & ACL_TEST_F_NULL_MATCH) &&
-					    LIST_ISEMPTY(&expr->patterns) && eb_is_empty(&expr->pattern_tree))
-						acl_res |= expr->kw->match(&test, NULL);
 				}
 				/*
 				 * OK now acl_res holds the result of this expression

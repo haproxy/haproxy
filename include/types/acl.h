@@ -88,7 +88,6 @@ enum {
 	ACL_TEST_F_RES_PASS   = 1 << 10,/* with SET_RESULT, sets result to PASS (defaults to FAIL) */
 	ACL_TEST_F_SET_RES_PASS = (ACL_TEST_F_RES_SET|ACL_TEST_F_RES_PASS),  /* sets result to PASS */
 	ACL_TEST_F_SET_RES_FAIL = (ACL_TEST_F_RES_SET),                      /* sets result to FAIL */
-	ACL_TEST_F_NULL_MATCH = 1 << 11,/* call expr->kw->match with NULL pattern if expr->patterns is empty */
 };
 
 /* ACLs can be evaluated on requests and on responses, and on partial or complete data */
