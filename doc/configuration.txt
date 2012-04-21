@@ -2102,7 +2102,7 @@ dispatch <address>:<port>
   Set a default server address
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    no    |   yes  |   yes
-  Arguments : none
+  Arguments :
 
     <address> is the IPv4 address of the default server. Alternatively, a
               resolvable hostname is supported, but this name will be resolved
@@ -2721,15 +2721,15 @@ mode { tcp|http|health }
               it is possible to do the same and even better by combining TCP or
               HTTP modes with the "monitor" keyword.
 
-   When doing content switching, it is mandatory that the frontend and the
-   backend are in the same mode (generally HTTP), otherwise the configuration
-   will be refused.
+  When doing content switching, it is mandatory that the frontend and the
+  backend are in the same mode (generally HTTP), otherwise the configuration
+  will be refused.
 
-   Example :
+  Example :
      defaults http_instances
          mode http
 
-   See also : "monitor", "monitor-net"
+  See also : "monitor", "monitor-net"
 
 
 monitor fail { if | unless } <condition>
@@ -2798,7 +2798,7 @@ monitor-net <source>
 
   Last, please note that only one "monitor-net" statement can be specified in
   a frontend. If more than one is found, only the last one will be considered.
- 
+
   Example :
     # addresses .252 and .253 are just probing us.
     frontend www
@@ -3657,8 +3657,8 @@ option mysql-check [ user <username> ]
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
   Arguments :
-    user <username> This is the username which will be used when connecting
-    to MySQL server.
+    <username> This is the username which will be used when connecting to MySQL
+               server.
 
   If you specify a username, the check consists of sending two MySQL packet,
   one Client Authentication packet, and one QUIT packet, to correctly close
@@ -3700,8 +3700,8 @@ option pgsql-check [ user <username> ]
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
   Arguments :
-    user <username> This is the username which will be used when connecting
-    to PostgreSQL server.
+    <username> This is the username which will be used when connecting to
+               PostgreSQL server.
 
   The check sends a PostgreSQL StartupMessage and waits for either
   Authentication request or ErrorResponse message. It is a basic but useful
@@ -5904,7 +5904,7 @@ stick store-response <pattern> [table <table>] [{if | unless} <condition>]
   when to do it, in order to store it into a stickiness table for further
   requests to match it using the "stick match" statement. Obviously the
   extracted part must make sense and have a chance to be matched in a further
-  request. Storing an ID found in a header of a response makes sense. 
+  request. Storing an ID found in a header of a response makes sense.
   See section 7 for a complete list of possible patterns and transformation
   rules.
 
@@ -5938,7 +5938,7 @@ stick store-response <pattern> [table <table>] [{if | unless} <condition>]
         balance roundrobin
         # maximum SSL session ID length is 32 bytes.
         stick-table type binary len 32 size 30k expire 30m
-        
+
         acl clienthello req_ssl_hello_type 1
         acl serverhello rep_ssl_hello_type 2
 
@@ -5948,7 +5948,7 @@ stick store-response <pattern> [table <table>] [{if | unless} <condition>]
 
         # no timeout on response inspect delay by default.
         tcp-response content accept if serverhello
- 
+
         # SSL session ID (SSLID) may be present on a client or server hello.
         # Its length is coded on 1 byte at offset 43 and its value starts
         # at offset 44.
@@ -6232,7 +6232,7 @@ tcp-response content <action> [{if | unless} <condition>]
   called "TCP content inspection". During this stage, ACL-based rules are
   evaluated every time the response contents are updated, until either an
   "accept" or a "reject" rule matches, or a TCP response inspection delay is
-  set and expires with no matching rule. 
+  set and expires with no matching rule.
 
   Most often, these decisions will consider a protocol recognition or validity.
 
@@ -6574,24 +6574,24 @@ unique-id-format <string>
   Arguments :
     <string>   is a log-format string.
 
-    This keyword creates a ID for each request using the custom log format. A
-    unique ID is useful to trace a request passing through many components of
-    a complex infrastructure. The newly created ID may also be logged using the
-    %ID tag the log-format string.
+  This keyword creates a ID for each request using the custom log format. A
+  unique ID is useful to trace a request passing through many components of
+  a complex infrastructure. The newly created ID may also be logged using the
+  %ID tag the log-format string.
 
-    The format should be composed from elements that are guaranteed to be
-    unique when combined together. For instance, if multiple haproxy instances
-    are involved, it might be important to include the node name. It is often
-    needed to log the incoming connection's source and destination addresses
-    and ports. Note that since multiple requests may be performed over the same
-    connection, including a request counter may help differentiate them.
-    Similarly, a timestamp may protect against a rollover of the counter.
-    Logging the process ID will avoid collisions after a service restart.
+  The format should be composed from elements that are guaranteed to be
+  unique when combined together. For instance, if multiple haproxy instances
+  are involved, it might be important to include the node name. It is often
+  needed to log the incoming connection's source and destination addresses
+  and ports. Note that since multiple requests may be performed over the same
+  connection, including a request counter may help differentiate them.
+  Similarly, a timestamp may protect against a rollover of the counter.
+  Logging the process ID will avoid collisions after a service restart.
 
-    It is recommended to use hexadecimal notation for many fields since it
-    makes them more compact and saves space in logs.
+  It is recommended to use hexadecimal notation for many fields since it
+  makes them more compact and saves space in logs.
 
-    Example:
+  Example:
 
         unique-id-format %{+X}o\ %Ci:%Cp_%Fi:%Fp_%Ts_%rt:%pid
 
@@ -6608,10 +6608,10 @@ unique-id-header <name>
   Arguments :
     <name>   is the name of the header.
 
-    Add a unique-id header in the HTTP request sent to the server, using the
-    unique-id-format. It can't work if the unique-id-format doesn't exist.
+  Add a unique-id header in the HTTP request sent to the server, using the
+  unique-id-format. It can't work if the unique-id-format doesn't exist.
 
-    Example:
+  Example:
 
         unique-id-format %{+X}o\ %Ci:%Cp_%Fi:%Fp_%Ts_%rt:%pid
         unique-id-header X-Unique-ID
@@ -6666,7 +6666,7 @@ use-server <server> unless <condition>
   May be used in sections :   defaults | frontend | listen | backend
                                   no   |    no    |   yes  |   yes
   Arguments :
-    <server>   is the name of a valid server in the same backend section.
+    <server>    is the name of a valid server in the same backend section.
 
     <condition> is a condition composed of ACLs, as described in section 7.
 
@@ -8291,7 +8291,7 @@ The list of currently supported pattern fetch functions is the following :
                If <offset2> is prefixed by '+' or '-', it is relative to
                <lengthoffset> + <lengthsize> else it is absolute.
                Ex: see SSL session id  example in "stick table" chapter.
-                
+
   url_param(<name>)
                This extracts the first occurrence of the parameter <name> in
                the query string of the request and uses the corresponding value
