@@ -37,6 +37,7 @@ int srv_redispatch_connect(struct session *t);
 const char *backend_lb_algo_str(int algo);
 int backend_parse_balance(const char **args, char *err,
 			  int errlen, struct proxy *curproxy);
+int tcp_persist_rdp_cookie(struct session *s, struct buffer *req, int an_bit);
 
 int be_downtime(struct proxy *px);
 void recount_servers(struct proxy *px);

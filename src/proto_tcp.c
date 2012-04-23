@@ -1248,8 +1248,144 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 
 
 /************************************************************************/
+/*       All supported sample fetch functios must be declared here      */
+/************************************************************************/
+
+/* Fetch the request RDP cookie identified in the args, or any cookie if no arg
+ * is passed. It is usable both for ACL and for patterns. Note: this decoder
+ * only works with non-wrapping data. Accepts either 0 or 1 argument. Argument
+ * is a string (cookie name), other types will lead to undefined behaviour.
+ */
+int
+smp_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
+                     const struct arg *args, struct sample *smp)
+{
+	int bleft;
+	const unsigned char *data;
+
+	if (!l4 || !l4->req)
+		return 0;
+
+	smp->flags = 0;
+	smp->type = SMP_T_CSTR;
+
+	bleft = l4->req->i;
+	if (bleft <= 11)
+		goto too_short;
+
+	data = (const unsigned char *)l4->req->p + 11;
+	bleft -= 11;
+
+	if (bleft <= 7)
+		goto too_short;
+
+	if (strncasecmp((const char *)data, "Cookie:", 7) != 0)
+		goto not_cookie;
+
+	data += 7;
+	bleft -= 7;
+
+	while (bleft > 0 && *data == ' ') {
+		data++;
+		bleft--;
+	}
+
+	if (args) {
+
+		if (bleft <= args->data.str.len)
+			goto too_short;
+
+		if ((data[args->data.str.len] != '=') ||
+		    strncasecmp(args->data.str.str, (const char *)data, args->data.str.len) != 0)
+			goto not_cookie;
+
+		data += args->data.str.len + 1;
+		bleft -= args->data.str.len + 1;
+	} else {
+		while (bleft > 0 && *data != '=') {
+			if (*data == '\r' || *data == '\n')
+				goto not_cookie;
+			data++;
+			bleft--;
+		}
+
+		if (bleft < 1)
+			goto too_short;
+
+		if (*data != '=')
+			goto not_cookie;
+
+		data++;
+		bleft--;
+	}
+
+	/* data points to cookie value */
+	smp->data.str.str = (char *)data;
+	smp->data.str.len = 0;
+
+	while (bleft > 0 && *data != '\r') {
+		data++;
+		bleft--;
+	}
+
+	if (bleft < 2)
+		goto too_short;
+
+	if (data[0] != '\r' || data[1] != '\n')
+		goto not_cookie;
+
+	smp->data.str.len = (char *)data - smp->data.str.str;
+	smp->flags = SMP_F_VOLATILE;
+	return 1;
+
+ too_short:
+	smp->flags = SMP_F_MAY_CHANGE;
+ not_cookie:
+	return 0;
+}
+
+static int
+pattern_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
+                         const struct arg *arg_p, struct sample *smp)
+{
+	int ret;
+
+	/* sample type set by smp_fetch_rdp_cookie() */
+	ret = smp_fetch_rdp_cookie(px, l4, NULL, ACL_DIR_REQ, arg_p, smp);
+	if (ret == 0 || (smp->flags & SMP_F_MAY_CHANGE) || smp->data.str.len == 0)
+		return 0;
+	return 1;
+}
+
+/************************************************************************/
 /*           All supported ACL keywords must be declared here.          */
 /************************************************************************/
+
+static int
+acl_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
+                     struct acl_expr *expr, struct sample *smp)
+{
+	return smp_fetch_rdp_cookie(px, l4, l7, dir, expr->args, smp);
+}
+
+/* returns either 1 or 0 depending on whether an RDP cookie is found or not */
+static int
+acl_fetch_rdp_cookie_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+                         struct acl_expr *expr, struct sample *smp)
+{
+	int ret;
+
+	ret = smp_fetch_rdp_cookie(px, l4, l7, dir, expr->args, smp);
+
+	if (smp->flags & SMP_F_MAY_CHANGE)
+		return 0;
+
+	smp->flags = SMP_F_VOLATILE;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = ret;
+	return 1;
+}
+
 
 /* copy the source IPv4/v6 address into temp_pattern */
 static int
@@ -1472,34 +1608,6 @@ pattern_fetch_payload(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
-static int
-pattern_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
-                         const struct arg *arg_p, struct sample *smp)
-{
-	int ret;
-	struct acl_expr  expr;
-	struct arg       args[2];
-
-	if (!l4)
-		return 0;
-
-	memset(&expr, 0, sizeof(expr));
-	memset(smp, 0, sizeof(*smp));
-
-	args[0].type = ARGT_STR;
-	args[0].data.str.str = arg_p[0].data.str.str;
-	args[0].data.str.len = arg_p[0].data.str.len;
-	args[1].type = ARGT_STOP;
-
-	expr.args = args;
-
-	/* type set by acl_fetch_rdp_cookie */
-	ret = acl_fetch_rdp_cookie(px, l4, NULL, ACL_DIR_REQ, &expr, smp);
-	if (ret == 0 || (smp->flags & SMP_F_MAY_CHANGE) || smp->data.str.len == 0)
-		return 0;
-	return 1;
-}
-
 /* This function is used to validate the arguments passed to a "payload" fetch
  * keyword. This keyword expects two positive integers, with the second one
  * being strictly positive. It is assumed that the types are already the correct
@@ -1556,6 +1664,8 @@ static struct cfg_kw_list cfg_kws = {{ },{
 static struct acl_kw_list acl_kws = {{ },{
 	{ "dst",        acl_parse_ip,    acl_fetch_dst,      acl_match_ip,  ACL_USE_TCP4_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "dst_port",   acl_parse_int,   acl_fetch_dport,    acl_match_int, ACL_USE_TCP_PERMANENT, 0  },
+	{ "req_rdp_cookie",     acl_parse_str, acl_fetch_rdp_cookie,     acl_match_str, ACL_USE_L6REQ_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
+	{ "req_rdp_cookie_cnt", acl_parse_int, acl_fetch_rdp_cookie_cnt, acl_match_int, ACL_USE_L6REQ_VOLATILE, ARG1(0,STR) },
 	{ "src",        acl_parse_ip,    acl_fetch_src,      acl_match_ip,  ACL_USE_TCP4_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "src_port",   acl_parse_int,   acl_fetch_sport,    acl_match_int, ACL_USE_TCP_PERMANENT, 0  },
 	{ NULL, NULL, NULL, NULL },

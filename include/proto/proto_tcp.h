@@ -33,8 +33,8 @@ void tcpv6_add_listener(struct listener *listener);
 int tcp_connect_server(struct stream_interface *si);
 int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit);
 int tcp_inspect_response(struct session *s, struct buffer *rep, int an_bit);
-int tcp_persist_rdp_cookie(struct session *s, struct buffer *req, int an_bit);
 int tcp_exec_req_rules(struct session *s);
+int smp_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir, const struct arg *args, struct sample *smp);
 
 /* Converts the TCP source address to a stick_table key usable for table
  * lookups. Returns either NULL if the source cannot be converted (eg: not

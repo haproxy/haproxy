@@ -402,7 +402,6 @@ struct server *get_server_rch(struct session *s)
 	unsigned long    len;
 	const char      *p;
 	int              ret;
-	struct acl_expr  expr;
 	struct sample    smp;
 	struct arg       args[2];
 
@@ -410,7 +409,6 @@ struct server *get_server_rch(struct session *s)
 	if (px->lbprm.tot_weight == 0)
 		return NULL;
 
-	memset(&expr, 0, sizeof(expr));
 	memset(&smp, 0, sizeof(smp));
 
 	args[0].type = ARGT_STR;
@@ -418,9 +416,7 @@ struct server *get_server_rch(struct session *s)
 	args[0].data.str.len = px->hh_len;
 	args[1].type = ARGT_STOP;
 
-	expr.args = args;
-
-	ret = acl_fetch_rdp_cookie(px, s, NULL, ACL_DIR_REQ, &expr, &smp);
+	ret = smp_fetch_rdp_cookie(px, s, NULL, ACL_DIR_REQ, args, &smp);
 	len = smp.data.str.len;
 
 	if (ret == 0 || (smp.flags & SMP_F_MAY_CHANGE) || len == 0)
@@ -1113,7 +1109,6 @@ int tcp_persist_rdp_cookie(struct session *s, struct buffer *req, int an_bit)
 {
 	struct proxy    *px   = s->be;
 	int              ret;
-	struct acl_expr  expr;
 	struct sample    smp;
 	struct server *srv = px->srv;
 	struct sockaddr_in addr;
@@ -1132,7 +1127,6 @@ int tcp_persist_rdp_cookie(struct session *s, struct buffer *req, int an_bit)
 	if (s->flags & SN_ASSIGNED)
 		goto no_cookie;
 
-	memset(&expr, 0, sizeof(expr));
 	memset(&smp, 0, sizeof(smp));
 
 	args[0].type = ARGT_STR;
@@ -1140,9 +1134,7 @@ int tcp_persist_rdp_cookie(struct session *s, struct buffer *req, int an_bit)
 	args[0].data.str.len = s->be->rdp_cookie_len;
 	args[1].type = ARGT_STOP;
 
-	expr.args = args;
-
-	ret = acl_fetch_rdp_cookie(px, s, NULL, ACL_DIR_REQ, &expr, &smp);
+	ret = smp_fetch_rdp_cookie(px, s, NULL, ACL_DIR_REQ, args, &smp);
 	if (ret == 0 || (smp.flags & SMP_F_MAY_CHANGE) || smp.data.str.len == 0)
 		goto no_cookie;
 

@@ -453,118 +453,6 @@ acl_fetch_ssl_hello_sni(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 0;
 }
 
-/* Fetch the RDP cookie identified in the expression.
- * Note: this decoder only works with non-wrapping data.
- * Accepts either 0 or 1 argument. Argument is a string (cookie name), other
- * types will lead to undefined behaviour.
- */
-int
-acl_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
-                     struct acl_expr *expr, struct sample *smp)
-{
-	int bleft;
-	const unsigned char *data;
-
-	if (!l4 || !l4->req)
-		return 0;
-
-	smp->flags = 0;
-	smp->type = SMP_T_CSTR;
-
-	bleft = l4->req->i;
-	if (bleft <= 11)
-		goto too_short;
-
-	data = (const unsigned char *)l4->req->p + 11;
-	bleft -= 11;
-
-	if (bleft <= 7)
-		goto too_short;
-
-	if (strncasecmp((const char *)data, "Cookie:", 7) != 0)
-		goto not_cookie;
-
-	data += 7;
-	bleft -= 7;
-
-	while (bleft > 0 && *data == ' ') {
-		data++;
-		bleft--;
-	}
-
-	if (expr->args) {
-
-		if (bleft <= expr->args->data.str.len)
-			goto too_short;
-
-		if ((data[expr->args->data.str.len] != '=') ||
-		    strncasecmp(expr->args->data.str.str, (const char *)data, expr->args->data.str.len) != 0)
-			goto not_cookie;
-
-		data += expr->args->data.str.len + 1;
-		bleft -= expr->args->data.str.len + 1;
-	} else {
-		while (bleft > 0 && *data != '=') {
-			if (*data == '\r' || *data == '\n')
-				goto not_cookie;
-			data++;
-			bleft--;
-		}
-
-		if (bleft < 1)
-			goto too_short;
-
-		if (*data != '=')
-			goto not_cookie;
-
-		data++;
-		bleft--;
-	}
-
-	/* data points to cookie value */
-	smp->data.str.str = (char *)data;
-	smp->data.str.len = 0;
-
-	while (bleft > 0 && *data != '\r') {
-		data++;
-		bleft--;
-	}
-
-	if (bleft < 2)
-		goto too_short;
-
-	if (data[0] != '\r' || data[1] != '\n')
-		goto not_cookie;
-
-	smp->data.str.len = (char *)data - smp->data.str.str;
-	smp->flags = SMP_F_VOLATILE;
-	return 1;
-
- too_short:
-	smp->flags = SMP_F_MAY_CHANGE;
- not_cookie:
-	return 0;
-}
-
-static int
-acl_fetch_rdp_cookie_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-                         struct acl_expr *expr, struct sample *smp)
-{
-	int ret;
-
-	ret = acl_fetch_rdp_cookie(px, l4, l7, dir, expr, smp);
-
-	if (smp->flags & SMP_F_MAY_CHANGE)
-		return 0;
-
-	smp->flags = SMP_F_VOLATILE;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = ret;
-
-	return 1;
-}
-
-
 /*
  * These functions are exported and may be used by any other component.
  */
@@ -2159,8 +2047,6 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "always_true",         acl_parse_nothing,    acl_fetch_true,           acl_match_nothing, ACL_USE_NOTHING, 0 },
 	{ "rep_ssl_hello_type",  acl_parse_int,        acl_fetch_ssl_hello_type, acl_match_int,     ACL_USE_L6RTR_VOLATILE, 0 },
 	{ "req_len",             acl_parse_int,        acl_fetch_req_len,        acl_match_int,     ACL_USE_L6REQ_VOLATILE, 0 },
-	{ "req_rdp_cookie",      acl_parse_str,        acl_fetch_rdp_cookie,     acl_match_str,     ACL_USE_L6REQ_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
-	{ "req_rdp_cookie_cnt",  acl_parse_int,        acl_fetch_rdp_cookie_cnt, acl_match_int,     ACL_USE_L6REQ_VOLATILE, ARG1(0,STR) },
 	{ "req_ssl_hello_type",  acl_parse_int,        acl_fetch_ssl_hello_type, acl_match_int,     ACL_USE_L6REQ_VOLATILE, 0 },
 	{ "req_ssl_sni",         acl_parse_str,        acl_fetch_ssl_hello_sni,  acl_match_str,     ACL_USE_L6REQ_VOLATILE|ACL_MAY_LOOKUP, 0 },
 	{ "req_ssl_ver",         acl_parse_dotted_ver, acl_fetch_req_ssl_ver,    acl_match_int,     ACL_USE_L6REQ_VOLATILE, 0 },
