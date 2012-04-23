@@ -1258,12 +1258,12 @@ acl_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	switch (l4->si[0].addr.from.ss_family) {
 	case AF_INET:
-		temp_pattern.data.ipv4 = ((struct sockaddr_in *)&l4->si[0].addr.from)->sin_addr;
-		temp_pattern.type = SMP_T_IPV4;
+		smp->data.ipv4 = ((struct sockaddr_in *)&l4->si[0].addr.from)->sin_addr;
+		smp->type = SMP_T_IPV4;
 		break;
 	case AF_INET6:
-		temp_pattern.data.ipv6 = ((struct sockaddr_in6 *)(&l4->si[0].addr.from))->sin6_addr;
-		temp_pattern.type = SMP_T_IPV6;
+		smp->data.ipv6 = ((struct sockaddr_in6 *)(&l4->si[0].addr.from))->sin6_addr;
+		smp->type = SMP_T_IPV6;
 		break;
 	default:
 		return 0;
@@ -1302,7 +1302,8 @@ static int
 acl_fetch_sport(struct proxy *px, struct session *l4, void *l7, int dir,
                 struct acl_expr *expr, struct sample *smp)
 {
-	if (!(temp_pattern.data.uint = get_host_port(&l4->si[0].addr.from)))
+	smp->type = SMP_T_UINT;
+	if (!(smp->data.uint = get_host_port(&l4->si[0].addr.from)))
 		return 0;
 
 	smp->flags = 0;
@@ -1319,12 +1320,12 @@ acl_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
 
 	switch (l4->si[0].addr.to.ss_family) {
 	case AF_INET:
-		temp_pattern.data.ipv4 = ((struct sockaddr_in *)&l4->si[0].addr.to)->sin_addr;
-		temp_pattern.type = SMP_T_IPV4;
+		smp->data.ipv4 = ((struct sockaddr_in *)&l4->si[0].addr.to)->sin_addr;
+		smp->type = SMP_T_IPV4;
 		break;
 	case AF_INET6:
-		temp_pattern.data.ipv6 = ((struct sockaddr_in6 *)(&l4->si[0].addr.to))->sin6_addr;
-		temp_pattern.type = SMP_T_IPV6;
+		smp->data.ipv6 = ((struct sockaddr_in6 *)(&l4->si[0].addr.to))->sin6_addr;
+		smp->type = SMP_T_IPV6;
 		break;
 	default:
 		return 0;
@@ -1370,7 +1371,8 @@ acl_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	stream_sock_get_to_addr(&l4->si[0]);
 
-	if (!(temp_pattern.data.uint = get_host_port(&l4->si[0].addr.to)))
+	smp->type = SMP_T_UINT;
+	if (!(smp->data.uint = get_host_port(&l4->si[0].addr.to)))
 		return 0;
 
 	smp->flags = 0;
@@ -1486,10 +1488,10 @@ pattern_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir
 	expr.args = args;
 
 	ret = acl_fetch_rdp_cookie(px, l4, NULL, ACL_DIR_REQ, &expr, &smp);
-	if (ret == 0 || (smp.flags & SMP_F_MAY_CHANGE) || temp_pattern.data.str.len == 0)
+	if (ret == 0 || (smp.flags & SMP_F_MAY_CHANGE) || smp.data.str.len == 0)
 		return 0;
 
-	data->str = temp_pattern.data.str;
+	data->str = smp.data.str;
 	return 1;
 }
 

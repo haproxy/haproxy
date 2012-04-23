@@ -328,7 +328,8 @@ static int
 acl_fetch_dconn(struct proxy *px, struct session *l4, void *l7, int dir,
                 struct acl_expr *expr, struct sample *smp)
 {
-	temp_pattern.data.uint = l4->listener->nbconn;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = l4->listener->nbconn;
 	return 1;
 }
 
@@ -338,7 +339,8 @@ acl_fetch_so_id(struct proxy *px, struct session *l4, void *l7, int dir,
                 struct acl_expr *expr, struct sample *smp)
 {
 	smp->flags = SMP_F_READ_ONLY;
-	temp_pattern.data.uint = l4->listener->luid;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = l4->listener->luid;
 	return 1;
 }
 

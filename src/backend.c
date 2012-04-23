@@ -421,7 +421,7 @@ struct server *get_server_rch(struct session *s)
 	expr.args = args;
 
 	ret = acl_fetch_rdp_cookie(px, s, NULL, ACL_DIR_REQ, &expr, &smp);
-	len = temp_pattern.data.str.len;
+	len = smp.data.str.len;
 
 	if (ret == 0 || (smp.flags & SMP_F_MAY_CHANGE) || len == 0)
 		return NULL;
@@ -433,7 +433,7 @@ struct server *get_server_rch(struct session *s)
 	/* Found a the hh_name in the headers.
 	 * we will compute the hash based on this value ctx.val.
 	 */
-	p = temp_pattern.data.str.str;
+	p = smp.data.str.str;
 	while (len) {
 		hash = *p + (hash << 6) + (hash << 16) - hash;
 		len--;
@@ -1143,14 +1143,14 @@ int tcp_persist_rdp_cookie(struct session *s, struct buffer *req, int an_bit)
 	expr.args = args;
 
 	ret = acl_fetch_rdp_cookie(px, s, NULL, ACL_DIR_REQ, &expr, &smp);
-	if (ret == 0 || (smp.flags & SMP_F_MAY_CHANGE) || temp_pattern.data.str.len == 0)
+	if (ret == 0 || (smp.flags & SMP_F_MAY_CHANGE) || smp.data.str.len == 0)
 		goto no_cookie;
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
 
 	/* Considering an rdp cookie detected using acl, str ended with <cr><lf> and should return */
-	addr.sin_addr.s_addr = strtoul(temp_pattern.data.str.str, &p, 10);
+	addr.sin_addr.s_addr = strtoul(smp.data.str.str, &p, 10);
 	if (*p != '.')
 		goto no_cookie;
 	p++;
@@ -1386,14 +1386,15 @@ acl_fetch_nbsrv(struct proxy *px, struct session *l4, void *l7, int dir,
                 struct acl_expr *expr, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_TEST;
+	smp->type = SMP_T_UINT;
 	px = expr->args->data.prx;
 
 	if (px->srv_act)
-		temp_pattern.data.uint = px->srv_act;
+		smp->data.uint = px->srv_act;
 	else if (px->lbprm.fbck)
-		temp_pattern.data.uint = 1;
+		smp->data.uint = 1;
 	else
-		temp_pattern.data.uint = px->srv_bck;
+		smp->data.uint = px->srv_bck;
 
 	return 1;
 }
@@ -1410,6 +1411,7 @@ acl_fetch_srv_is_up(struct proxy *px, struct session *l4, void *l7, int dir,
 	struct server *srv = expr->args->data.srv;
 
 	smp->flags = SMP_F_VOL_TEST;
+	smp->type = SMP_T_BOOL;
 	if (!(srv->state & SRV_MAINTAIN) &&
 	    (!(srv->state & SRV_CHECKED) || (srv->state & SRV_RUNNING)))
 		smp->flags |= SMP_F_SET_RES_PASS;
@@ -1429,7 +1431,8 @@ acl_fetch_connslots(struct proxy *px, struct session *l4, void *l7, int dir,
 	struct server *iterator;
 
 	smp->flags = SMP_F_VOL_TEST;
-	temp_pattern.data.uint = 0;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = 0;
 
 	for (iterator = expr->args->data.prx->srv; iterator; iterator = iterator->next) {
 		if ((iterator->state & SRV_RUNNING) == 0)
@@ -1437,11 +1440,11 @@ acl_fetch_connslots(struct proxy *px, struct session *l4, void *l7, int dir,
 
 		if (iterator->maxconn == 0 || iterator->maxqueue == 0) {
 			/* configuration is stupid */
-			temp_pattern.data.uint = -1;  /* FIXME: stupid value! */
+			smp->data.uint = -1;  /* FIXME: stupid value! */
 			return 1;
 		}
 
-		temp_pattern.data.uint += (iterator->maxconn - iterator->cur_sess)
+		smp->data.uint += (iterator->maxconn - iterator->cur_sess)
 		                       +  (iterator->maxqueue - iterator->nbpend);
 	}
 
@@ -1454,8 +1457,9 @@ acl_fetch_be_id(struct proxy *px, struct session *l4, void *l7, int dir,
                 struct acl_expr *expr, struct sample *smp)
 {
 	smp->flags = SMP_F_READ_ONLY;
-	temp_pattern.data.uint = l4->be->uuid;
-
+	smp->flags = SMP_F_VOL_TXN;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = l4->be->uuid;
 	return 1;
 }
 
@@ -1468,7 +1472,8 @@ acl_fetch_srv_id(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	smp->flags = SMP_F_READ_ONLY;
-	temp_pattern.data.uint = target_srv(&l4->target)->puid;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = target_srv(&l4->target)->puid;
 
 	return 1;
 }
@@ -1482,7 +1487,8 @@ acl_fetch_be_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
                        struct acl_expr *expr, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_TEST;
-	temp_pattern.data.uint = read_freq_ctr(&expr->args->data.prx->be_sess_per_sec);
+	smp->type = SMP_T_UINT;
+	smp->data.uint = read_freq_ctr(&expr->args->data.prx->be_sess_per_sec);
 	return 1;
 }
 
@@ -1495,7 +1501,8 @@ acl_fetch_be_conn(struct proxy *px, struct session *l4, void *l7, int dir,
 		  struct acl_expr *expr, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_TEST;
-	temp_pattern.data.uint = expr->args->data.prx->beconn;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = expr->args->data.prx->beconn;
 	return 1;
 }
 
@@ -1508,7 +1515,8 @@ acl_fetch_queue_size(struct proxy *px, struct session *l4, void *l7, int dir,
 		   struct acl_expr *expr, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_TEST;
-	temp_pattern.data.uint = expr->args->data.prx->totpend;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = expr->args->data.prx->totpend;
 	return 1;
 }
 
@@ -1527,6 +1535,7 @@ acl_fetch_avg_queue_size(struct proxy *px, struct session *l4, void *l7, int dir
 	int nbsrv;
 
 	smp->flags = SMP_F_VOL_TEST;
+	smp->type = SMP_T_UINT;
 	px = expr->args->data.prx;
 
 	if (px->srv_act)
@@ -1537,9 +1546,9 @@ acl_fetch_avg_queue_size(struct proxy *px, struct session *l4, void *l7, int dir
 		nbsrv = px->srv_bck;
 
 	if (nbsrv > 0)
-		temp_pattern.data.uint = (px->totpend + nbsrv - 1) / nbsrv;
+		smp->data.uint = (px->totpend + nbsrv - 1) / nbsrv;
 	else
-		temp_pattern.data.uint = px->totpend * 2;
+		smp->data.uint = px->totpend * 2;
 
 	return 1;
 }
@@ -1552,7 +1561,9 @@ static int
 acl_fetch_srv_conn(struct proxy *px, struct session *l4, void *l7, int dir,
 		  struct acl_expr *expr, struct sample *smp)
 {
-	temp_pattern.data.uint = expr->args->data.srv->cur_sess;
+	smp->flags = SMP_F_VOL_TEST;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = expr->args->data.srv->cur_sess;
 	return 1;
 }
 

@@ -18,8 +18,8 @@
 #include <proto/buffers.h>
 #include <common/standard.h>
 
-/* static structure used on pattern_process if <p> is NULL*/
-struct pattern temp_pattern = { };
+/* static structure used on pattern_process if <p> is NULL */
+static struct pattern temp_pattern;
 
 /* trash chunk used for pattern conversions */
 static struct chunk trash_chunk;

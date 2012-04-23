@@ -7554,6 +7554,7 @@ acl_prefetch_http(struct proxy *px, struct session *s, void *l7, int dir,
 		return 0;
 
 	/* Check for a dependency on a request */
+	smp->type = SMP_T_BOOL;
 
 	if (expr->kw->requires & ACL_USE_L7REQ_ANY) {
 		if (unlikely(!s->req))
@@ -7654,14 +7655,15 @@ acl_fetch_meth(struct proxy *px, struct session *l4, void *l7, int dir,
 	CHECK_HTTP_MESSAGE_FIRST();
 
 	meth = txn->meth;
-	temp_pattern.data.str.len = meth;
-	temp_pattern.data.str.str = NULL;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = meth;
 	if (meth == HTTP_METH_OTHER) {
 		if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
 			/* ensure the indexes are not affected */
 			return 0;
-		temp_pattern.data.str.len = txn->req.sl.rq.m_l;
-		temp_pattern.data.str.str = txn->req.buf->p + txn->req.sol;
+		smp->type = SMP_T_CSTR;
+		smp->data.str.len = txn->req.sl.rq.m_l;
+		smp->data.str.str = txn->req.buf->p + txn->req.sol;
 	}
 	smp->flags = SMP_F_READ_ONLY | SMP_F_VOL_1ST;
 	return 1;
@@ -7673,9 +7675,9 @@ static int acl_match_meth(struct sample *smp, struct acl_pattern *pattern)
 	int icase;
 
 
-	if (temp_pattern.data.str.str == NULL) {
+	if (smp->type == SMP_T_UINT) {
 		/* well-known method */
-		if (temp_pattern.data.str.len == pattern->val.i)
+		if (smp->data.uint == pattern->val.i)
 			return ACL_PAT_PASS;
 		return ACL_PAT_FAIL;
 	}
@@ -7685,12 +7687,12 @@ static int acl_match_meth(struct sample *smp, struct acl_pattern *pattern)
 		return ACL_PAT_FAIL;
 
 	/* Other method, we must compare the strings */
-	if (pattern->len != temp_pattern.data.str.len)
+	if (pattern->len != smp->data.str.len)
 		return ACL_PAT_FAIL;
 
 	icase = pattern->flags & ACL_PAT_F_IGNORE_CASE;
-	if ((icase && strncasecmp(pattern->ptr.str, temp_pattern.data.str.str, temp_pattern.data.str.len) != 0) ||
-	    (!icase && strncmp(pattern->ptr.str, temp_pattern.data.str.str, temp_pattern.data.str.len) != 0))
+	if ((icase && strncasecmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) != 0) ||
+	    (!icase && strncmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) != 0))
 		return ACL_PAT_FAIL;
 	return ACL_PAT_PASS;
 }
@@ -7724,8 +7726,9 @@ acl_fetch_rqver(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (len <= 0)
 		return 0;
 
-	temp_pattern.data.str.str = ptr;
-	temp_pattern.data.str.len = len;
+	smp->type = SMP_T_CSTR;
+	smp->data.str.str = ptr;
+	smp->data.str.len = len;
 
 	smp->flags = SMP_F_READ_ONLY | SMP_F_VOL_1ST;
 	return 1;
@@ -7748,8 +7751,9 @@ acl_fetch_stver(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (len <= 0)
 		return 0;
 
-	temp_pattern.data.str.str = ptr;
-	temp_pattern.data.str.len = len;
+	smp->type = SMP_T_CSTR;
+	smp->data.str.str = ptr;
+	smp->data.str.len = len;
 
 	smp->flags = SMP_F_READ_ONLY | SMP_F_VOL_1ST;
 	return 1;
@@ -7769,7 +7773,8 @@ acl_fetch_stcode(struct proxy *px, struct session *l4, void *l7, int dir,
 	len = txn->rsp.sl.st.c_l;
 	ptr = txn->rsp.buf->p + txn->rsp.sol + txn->rsp.sl.st.c;
 
-	temp_pattern.data.uint = __strl2ui(ptr, len);
+	smp->type = SMP_T_UINT;
+	smp->data.uint = __strl2ui(ptr, len);
 	smp->flags = SMP_F_VOL_1ST;
 	return 1;
 }
@@ -7783,10 +7788,9 @@ acl_fetch_url(struct proxy *px, struct session *l4, void *l7, int dir,
 
 	CHECK_HTTP_MESSAGE_FIRST();
 
-	temp_pattern.data.str.len = txn->req.sl.rq.u_l;
-	temp_pattern.data.str.str = txn->req.buf->p + txn->req.sol + txn->req.sl.rq.u;
-
-	/* we do not need to set READ_ONLY because the data is in a buffer */
+	smp->type = SMP_T_CSTR;
+	smp->data.str.len = txn->req.sl.rq.u_l;
+	smp->data.str.str = txn->req.buf->p + txn->req.sol + txn->req.sl.rq.u;
 	smp->flags = SMP_F_VOL_1ST;
 	return 1;
 }
@@ -7803,8 +7807,8 @@ acl_fetch_url_ip(struct proxy *px, struct session *l4, void *l7, int dir,
 	url2sa(txn->req.buf->p + txn->req.sol + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &l4->req->cons->addr.to);
 	if (((struct sockaddr_in *)&l4->req->cons->addr.to)->sin_family != AF_INET)
 		return 0;
-	temp_pattern.type = SMP_T_IPV4;
-	temp_pattern.data.ipv4 = ((struct sockaddr_in *)&l4->req->cons->addr.to)->sin_addr;
+	smp->type = SMP_T_IPV4;
+	smp->data.ipv4 = ((struct sockaddr_in *)&l4->req->cons->addr.to)->sin_addr;
 
 	/*
 	 * If we are parsing url in frontend space, we prepare backend stage
@@ -7827,7 +7831,8 @@ acl_fetch_url_port(struct proxy *px, struct session *l4, void *l7, int dir,
 
 	/* Same optimization as url_ip */
 	url2sa(txn->req.buf->p + txn->req.sol + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &l4->req->cons->addr.to);
-	temp_pattern.data.uint = ntohs(((struct sockaddr_in *)&l4->req->cons->addr.to)->sin_port);
+	smp->type = SMP_T_UINT;
+	smp->data.uint = ntohs(((struct sockaddr_in *)&l4->req->cons->addr.to)->sin_port);
 
 	if (px->options & PR_O_HTTP_PROXY)
 		l4->flags |= SN_ADDR_SET;
@@ -7860,8 +7865,9 @@ acl_fetch_hdr(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (http_find_header2(expr->args->data.str.str, expr->args->data.str.len, msg->buf->p + msg->sol, idx, ctx)) {
 		smp->flags |= SMP_F_NOT_LAST;
 		smp->flags |= SMP_F_VOL_HDR;
-		temp_pattern.data.str.str = (char *)ctx->line + ctx->val;
-		temp_pattern.data.str.len = ctx->vlen;
+		smp->type = SMP_T_CSTR;
+		smp->data.str.str = (char *)ctx->line + ctx->val;
+		smp->data.str.len = ctx->vlen;
 
 		return 1;
 	}
@@ -7894,7 +7900,8 @@ acl_fetch_hdr_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 	while (http_find_header2(expr->args->data.str.str, expr->args->data.str.len, msg->buf->p + msg->sol, idx, &ctx))
 		cnt++;
 
-	temp_pattern.data.uint = cnt;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = cnt;
 	smp->flags = SMP_F_VOL_HDR;
 	return 1;
 }
@@ -7908,8 +7915,10 @@ acl_fetch_hdr_val(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	int ret = acl_fetch_hdr(px, l4, l7, dir, expr, smp);
 
-	if (ret > 0)
-		temp_pattern.data.uint = strl2ic(temp_pattern.data.str.str, temp_pattern.data.str.len);
+	if (ret > 0) {
+		smp->type = SMP_T_UINT;
+		smp->data.uint = strl2ic(smp->data.str.str, smp->data.str.len);
+	}
 
 	return ret;
 }
@@ -7923,8 +7932,8 @@ acl_fetch_hdr_ip(struct proxy *px, struct session *l4, void *l7, int dir,
 	int ret;
 
 	while ((ret = acl_fetch_hdr(px, l4, l7, dir, expr, smp)) > 0) {
-		temp_pattern.type = SMP_T_IPV4;
-		if (url2ipv4((char *)temp_pattern.data.str.str, &temp_pattern.data.ipv4))
+		smp->type = SMP_T_IPV4;
+		if (url2ipv4((char *)smp->data.str.str, &smp->data.ipv4))
 			break;
 		/* if the header doesn't match an IP address, fetch next one */
 	}
@@ -7949,12 +7958,13 @@ acl_fetch_path(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	/* OK, we got the '/' ! */
-	temp_pattern.data.str.str = ptr;
+	smp->type = SMP_T_CSTR;
+	smp->data.str.str = ptr;
 
 	while (ptr < end && *ptr != '?')
 		ptr++;
 
-	temp_pattern.data.str.len = ptr - temp_pattern.data.str.str;
+	smp->data.str.len = ptr - smp->data.str.str;
 
 	/* we do not need to set READ_ONLY because the data is in a buffer */
 	smp->flags = SMP_F_VOL_1ST;
@@ -7971,6 +7981,7 @@ acl_fetch_proto_http(struct proxy *px, struct session *l4, void *l7, int dir,
 
 	CHECK_HTTP_MESSAGE_FIRST();
 
+	smp->type = SMP_T_BOOL;
 	smp->flags |= SMP_F_SET_RES_PASS;
 	return 1;
 }
@@ -7983,6 +7994,7 @@ acl_fetch_http_first_req(struct proxy *px, struct session *s, void *l7, int dir,
 	if (!s)
 		return 0;
 
+	smp->type = SMP_T_BOOL;
 	if (s->txn.flags & TX_NOT_FIRST)
 		smp->flags |= SMP_F_SET_RES_FAIL;
 	else
@@ -8005,6 +8017,7 @@ acl_fetch_http_auth(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!get_http_auth(l4))
 		return 0;
 
+	smp->type = SMP_T_BOOL;
 	if (check_user(expr->args->data.usr, 0, l4->txn.auth.user, l4->txn.auth.pass))
 		smp->flags |= SMP_F_SET_RES_PASS;
 	else
@@ -8164,13 +8177,14 @@ acl_fetch_cookie_value(struct proxy *px, struct session *l4, void *l7, int dir,
 			smp->ctx.a[1] = smp->ctx.a[0] + ctx->vlen;
 		}
 
+		smp->type = SMP_T_CSTR;
 		smp->ctx.a[0] = extract_cookie_value(smp->ctx.a[0], smp->ctx.a[1],
 						 expr->args->data.str.str, expr->args->data.str.len,
 						 (dir & ACL_DIR_MASK) == ACL_DIR_REQ,
-						 &temp_pattern.data.str.str,
-						 &temp_pattern.data.str.len);
+						 &smp->data.str.str,
+						 &smp->data.str.len);
 		if (smp->ctx.a[0]) {
-			/* one value was returned into temp_pattern.data.str.{str,len} */
+			/* one value was returned into smp->data.str.{str,len} */
 			smp->flags |= SMP_F_NOT_LAST;
 			smp->flags |= SMP_F_VOL_HDR;
 			return 1;
@@ -8235,16 +8249,17 @@ acl_fetch_cookie_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 			val_end = val_beg + ctx.vlen;
 		}
 
+		smp->type = SMP_T_CSTR;
 		while ((val_beg = extract_cookie_value(val_beg, val_end,
 						       expr->args->data.str.str, expr->args->data.str.len,
 						       (dir & ACL_DIR_MASK) == ACL_DIR_REQ,
-						       &temp_pattern.data.str.str,
-						       &temp_pattern.data.str.len))) {
+						       &smp->data.str.str,
+						       &smp->data.str.len))) {
 			cnt++;
 		}
 	}
 
-	temp_pattern.data.uint = cnt;
+	smp->data.uint = cnt;
 	smp->flags |= SMP_F_VOL_HDR;
 	return 1;
 }

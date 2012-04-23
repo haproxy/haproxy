@@ -503,7 +503,9 @@ acl_fetch_fe_id(struct proxy *px, struct session *l4, void *l7, int dir,
                 struct acl_expr *expr, struct sample *smp)
 {
 	smp->flags = SMP_F_READ_ONLY;
-	temp_pattern.data.uint = l4->fe->uuid;
+	smp->flags = SMP_F_VOL_SESS;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = l4->fe->uuid;
 	return 1;
 }
 
@@ -516,7 +518,8 @@ acl_fetch_fe_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
                        struct acl_expr *expr, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_TEST;
-	temp_pattern.data.uint = read_freq_ctr(&expr->args->data.prx->fe_sess_per_sec);
+	smp->type = SMP_T_UINT;
+	smp->data.uint = read_freq_ctr(&expr->args->data.prx->fe_sess_per_sec);
 	return 1;
 }
 
@@ -529,7 +532,8 @@ acl_fetch_fe_conn(struct proxy *px, struct session *l4, void *l7, int dir,
 		  struct acl_expr *expr, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_TEST;
-	temp_pattern.data.uint = expr->args->data.prx->feconn;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = expr->args->data.prx->feconn;
 	return 1;
 }
 
