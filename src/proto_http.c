@@ -7541,7 +7541,7 @@ req_error_parsing:
  */
 static int
 acl_prefetch_http(struct proxy *px, struct session *s, void *l7, int dir,
-		  struct acl_expr *expr, struct acl_test *test)
+		  struct acl_expr *expr, struct sample *smp)
 {
 	struct http_txn *txn = l7;
 	struct http_msg *msg = &txn->req;
@@ -7561,7 +7561,7 @@ acl_prefetch_http(struct proxy *px, struct session *s, void *l7, int dir,
 
 		if (unlikely(txn->req.msg_state < HTTP_MSG_BODY)) {
 			if ((msg->msg_state == HTTP_MSG_ERROR) || (s->req->flags & BF_FULL)) {
-				test->flags |= ACL_TEST_F_SET_RES_FAIL;
+				smp->flags |= SMP_F_SET_RES_FAIL;
 				return -1;
 			}
 
@@ -7572,11 +7572,11 @@ acl_prefetch_http(struct proxy *px, struct session *s, void *l7, int dir,
 			/* Still no valid request ? */
 			if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 				if ((msg->msg_state == HTTP_MSG_ERROR) || (s->req->flags & BF_FULL)) {
-					test->flags |= ACL_TEST_F_SET_RES_FAIL;
+					smp->flags |= SMP_F_SET_RES_FAIL;
 					return -1;
 				}
 				/* wait for final state */
-				test->flags |= ACL_TEST_F_MAY_CHANGE;
+				smp->flags |= SMP_F_MAY_CHANGE;
 				return 0;
 			}
 
@@ -7589,7 +7589,7 @@ acl_prefetch_http(struct proxy *px, struct session *s, void *l7, int dir,
 				s->flags |= SN_REDIRECTABLE;
 
 			if (unlikely(msg->sl.rq.v_l == 0) && !http_upgrade_v09_to_v10(txn)) {
-				test->flags |= ACL_TEST_F_SET_RES_FAIL;
+				smp->flags |= SMP_F_SET_RES_FAIL;
 				return -1;
 			}
 		}
@@ -7612,7 +7612,7 @@ acl_prefetch_http(struct proxy *px, struct session *s, void *l7, int dir,
 }
 
 #define CHECK_HTTP_MESSAGE_FIRST() \
-	do { int r = acl_prefetch_http(px, l4, l7, dir, expr, test); if (r <= 0) return r; } while (0)
+	do { int r = acl_prefetch_http(px, l4, l7, dir, expr, smp); if (r <= 0) return r; } while (0)
 
 
 /* 1. Check on METHOD
@@ -7646,7 +7646,7 @@ static int acl_parse_meth(const char **text, struct acl_pattern *pattern, int *o
  */
 static int
 acl_fetch_meth(struct proxy *px, struct session *l4, void *l7, int dir,
-               struct acl_expr *expr, struct acl_test *test)
+               struct acl_expr *expr, struct sample *smp)
 {
 	int meth;
 	struct http_txn *txn = l7;
@@ -7663,12 +7663,12 @@ acl_fetch_meth(struct proxy *px, struct session *l4, void *l7, int dir,
 		temp_pattern.data.str.len = txn->req.sl.rq.m_l;
 		temp_pattern.data.str.str = txn->req.buf->p + txn->req.sol;
 	}
-	test->flags = ACL_TEST_F_READ_ONLY | ACL_TEST_F_VOL_1ST;
+	smp->flags = SMP_F_READ_ONLY | SMP_F_VOL_1ST;
 	return 1;
 }
 
 /* See above how the method is stored in the global pattern */
-static int acl_match_meth(struct acl_test *test, struct acl_pattern *pattern)
+static int acl_match_meth(struct sample *smp, struct acl_pattern *pattern)
 {
 	int icase;
 
@@ -7709,7 +7709,7 @@ static int acl_parse_ver(const char **text, struct acl_pattern *pattern, int *op
 
 static int
 acl_fetch_rqver(struct proxy *px, struct session *l4, void *l7, int dir,
-                struct acl_expr *expr, struct acl_test *test)
+                struct acl_expr *expr, struct sample *smp)
 {
 	struct http_txn *txn = l7;
 	char *ptr;
@@ -7727,13 +7727,13 @@ acl_fetch_rqver(struct proxy *px, struct session *l4, void *l7, int dir,
 	temp_pattern.data.str.str = ptr;
 	temp_pattern.data.str.len = len;
 
-	test->flags = ACL_TEST_F_READ_ONLY | ACL_TEST_F_VOL_1ST;
+	smp->flags = SMP_F_READ_ONLY | SMP_F_VOL_1ST;
 	return 1;
 }
 
 static int
 acl_fetch_stver(struct proxy *px, struct session *l4, void *l7, int dir,
-                struct acl_expr *expr, struct acl_test *test)
+                struct acl_expr *expr, struct sample *smp)
 {
 	struct http_txn *txn = l7;
 	char *ptr;
@@ -7751,14 +7751,14 @@ acl_fetch_stver(struct proxy *px, struct session *l4, void *l7, int dir,
 	temp_pattern.data.str.str = ptr;
 	temp_pattern.data.str.len = len;
 
-	test->flags = ACL_TEST_F_READ_ONLY | ACL_TEST_F_VOL_1ST;
+	smp->flags = SMP_F_READ_ONLY | SMP_F_VOL_1ST;
 	return 1;
 }
 
 /* 3. Check on Status Code. We manipulate integers here. */
 static int
 acl_fetch_stcode(struct proxy *px, struct session *l4, void *l7, int dir,
-                 struct acl_expr *expr, struct acl_test *test)
+                 struct acl_expr *expr, struct sample *smp)
 {
 	struct http_txn *txn = l7;
 	char *ptr;
@@ -7770,14 +7770,14 @@ acl_fetch_stcode(struct proxy *px, struct session *l4, void *l7, int dir,
 	ptr = txn->rsp.buf->p + txn->rsp.sol + txn->rsp.sl.st.c;
 
 	temp_pattern.data.uint = __strl2ui(ptr, len);
-	test->flags = ACL_TEST_F_VOL_1ST;
+	smp->flags = SMP_F_VOL_1ST;
 	return 1;
 }
 
 /* 4. Check on URL/URI. A pointer to the URI is stored. */
 static int
 acl_fetch_url(struct proxy *px, struct session *l4, void *l7, int dir,
-              struct acl_expr *expr, struct acl_test *test)
+              struct acl_expr *expr, struct sample *smp)
 {
 	struct http_txn *txn = l7;
 
@@ -7787,13 +7787,13 @@ acl_fetch_url(struct proxy *px, struct session *l4, void *l7, int dir,
 	temp_pattern.data.str.str = txn->req.buf->p + txn->req.sol + txn->req.sl.rq.u;
 
 	/* we do not need to set READ_ONLY because the data is in a buffer */
-	test->flags = ACL_TEST_F_VOL_1ST;
+	smp->flags = SMP_F_VOL_1ST;
 	return 1;
 }
 
 static int
 acl_fetch_url_ip(struct proxy *px, struct session *l4, void *l7, int dir,
-		 struct acl_expr *expr, struct acl_test *test)
+		 struct acl_expr *expr, struct sample *smp)
 {
 	struct http_txn *txn = l7;
 
@@ -7813,13 +7813,13 @@ acl_fetch_url_ip(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (px->options & PR_O_HTTP_PROXY)
 		l4->flags |= SN_ADDR_SET;
 
-	test->flags = 0;
+	smp->flags = 0;
 	return 1;
 }
 
 static int
 acl_fetch_url_port(struct proxy *px, struct session *l4, void *l7, int dir,
-		   struct acl_expr *expr, struct acl_test *test)
+		   struct acl_expr *expr, struct sample *smp)
 {
 	struct http_txn *txn = l7;
 
@@ -7832,7 +7832,7 @@ acl_fetch_url_port(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (px->options & PR_O_HTTP_PROXY)
 		l4->flags |= SN_ADDR_SET;
 
-	test->flags = ACL_TEST_F_READ_ONLY;
+	smp->flags = SMP_F_READ_ONLY;
 	return 1;
 }
 
@@ -7841,11 +7841,11 @@ acl_fetch_url_port(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_hdr(struct proxy *px, struct session *l4, void *l7, int dir,
-              struct acl_expr *expr, struct acl_test *test)
+              struct acl_expr *expr, struct sample *smp)
 {
 	struct http_txn *txn = l7;
 	struct hdr_idx *idx = &txn->hdr_idx;
-	struct hdr_ctx *ctx = (struct hdr_ctx *)test->ctx.a;
+	struct hdr_ctx *ctx = (struct hdr_ctx *)smp->ctx.a;
 	const struct http_msg *msg = ((dir & ACL_DIR_MASK) == ACL_DIR_REQ) ? &txn->req : &txn->rsp;
 
 	if (!expr->args || expr->args->type != ARGT_STR)
@@ -7853,21 +7853,21 @@ acl_fetch_hdr(struct proxy *px, struct session *l4, void *l7, int dir,
 
 	CHECK_HTTP_MESSAGE_FIRST();
 
-	if (!(test->flags & ACL_TEST_F_FETCH_MORE))
+	if (!(smp->flags & SMP_F_NOT_LAST))
 		/* search for header from the beginning */
 		ctx->idx = 0;
 
 	if (http_find_header2(expr->args->data.str.str, expr->args->data.str.len, msg->buf->p + msg->sol, idx, ctx)) {
-		test->flags |= ACL_TEST_F_FETCH_MORE;
-		test->flags |= ACL_TEST_F_VOL_HDR;
+		smp->flags |= SMP_F_NOT_LAST;
+		smp->flags |= SMP_F_VOL_HDR;
 		temp_pattern.data.str.str = (char *)ctx->line + ctx->val;
 		temp_pattern.data.str.len = ctx->vlen;
 
 		return 1;
 	}
 
-	test->flags &= ~ACL_TEST_F_FETCH_MORE;
-	test->flags |= ACL_TEST_F_VOL_HDR;
+	smp->flags &= ~SMP_F_NOT_LAST;
+	smp->flags |= SMP_F_VOL_HDR;
 	return 0;
 }
 
@@ -7876,7 +7876,7 @@ acl_fetch_hdr(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_hdr_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-                  struct acl_expr *expr, struct acl_test *test)
+                  struct acl_expr *expr, struct sample *smp)
 {
 	struct http_txn *txn = l7;
 	struct hdr_idx *idx = &txn->hdr_idx;
@@ -7895,7 +7895,7 @@ acl_fetch_hdr_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 		cnt++;
 
 	temp_pattern.data.uint = cnt;
-	test->flags = ACL_TEST_F_VOL_HDR;
+	smp->flags = SMP_F_VOL_HDR;
 	return 1;
 }
 
@@ -7904,9 +7904,9 @@ acl_fetch_hdr_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_hdr_val(struct proxy *px, struct session *l4, void *l7, int dir,
-                  struct acl_expr *expr, struct acl_test *test)
+                  struct acl_expr *expr, struct sample *smp)
 {
-	int ret = acl_fetch_hdr(px, l4, l7, dir, expr, test);
+	int ret = acl_fetch_hdr(px, l4, l7, dir, expr, smp);
 
 	if (ret > 0)
 		temp_pattern.data.uint = strl2ic(temp_pattern.data.str.str, temp_pattern.data.str.len);
@@ -7918,11 +7918,11 @@ acl_fetch_hdr_val(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_hdr_ip(struct proxy *px, struct session *l4, void *l7, int dir,
-                  struct acl_expr *expr, struct acl_test *test)
+                  struct acl_expr *expr, struct sample *smp)
 {
 	int ret;
 
-	while ((ret = acl_fetch_hdr(px, l4, l7, dir, expr, test)) > 0) {
+	while ((ret = acl_fetch_hdr(px, l4, l7, dir, expr, smp)) > 0) {
 		temp_pattern.type = SMP_T_IPV4;
 		if (url2ipv4((char *)temp_pattern.data.str.str, &temp_pattern.data.ipv4))
 			break;
@@ -7936,7 +7936,7 @@ acl_fetch_hdr_ip(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_path(struct proxy *px, struct session *l4, void *l7, int dir,
-               struct acl_expr *expr, struct acl_test *test)
+               struct acl_expr *expr, struct sample *smp)
 {
 	struct http_txn *txn = l7;
 	char *ptr, *end;
@@ -7957,13 +7957,13 @@ acl_fetch_path(struct proxy *px, struct session *l4, void *l7, int dir,
 	temp_pattern.data.str.len = ptr - temp_pattern.data.str.str;
 
 	/* we do not need to set READ_ONLY because the data is in a buffer */
-	test->flags = ACL_TEST_F_VOL_1ST;
+	smp->flags = SMP_F_VOL_1ST;
 	return 1;
 }
 
 static int
 acl_fetch_proto_http(struct proxy *px, struct session *l4, void *l7, int dir,
-		     struct acl_expr *expr, struct acl_test *test)
+		     struct acl_expr *expr, struct sample *smp)
 {
 	/* Note: hdr_idx.v cannot be NULL in this ACL because the ACL is tagged
 	 * as a layer7 ACL, which involves automatic allocation of hdr_idx.
@@ -7971,22 +7971,22 @@ acl_fetch_proto_http(struct proxy *px, struct session *l4, void *l7, int dir,
 
 	CHECK_HTTP_MESSAGE_FIRST();
 
-	test->flags |= ACL_TEST_F_SET_RES_PASS;
+	smp->flags |= SMP_F_SET_RES_PASS;
 	return 1;
 }
 
 /* return a valid test if the current request is the first one on the connection */
 static int
 acl_fetch_http_first_req(struct proxy *px, struct session *s, void *l7, int dir,
-		     struct acl_expr *expr, struct acl_test *test)
+		     struct acl_expr *expr, struct sample *smp)
 {
 	if (!s)
 		return 0;
 
 	if (s->txn.flags & TX_NOT_FIRST)
-		test->flags |= ACL_TEST_F_SET_RES_FAIL;
+		smp->flags |= SMP_F_SET_RES_FAIL;
 	else
-		test->flags |= ACL_TEST_F_SET_RES_PASS;
+		smp->flags |= SMP_F_SET_RES_PASS;
 
 	return 1;
 }
@@ -7994,7 +7994,7 @@ acl_fetch_http_first_req(struct proxy *px, struct session *s, void *l7, int dir,
 /* Accepts exactly 1 argument of type userlist */
 static int
 acl_fetch_http_auth(struct proxy *px, struct session *l4, void *l7, int dir,
-		    struct acl_expr *expr, struct acl_test *test)
+		    struct acl_expr *expr, struct sample *smp)
 {
 
 	if (!expr->args || expr->args->type != ARGT_USR)
@@ -8006,9 +8006,9 @@ acl_fetch_http_auth(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	if (check_user(expr->args->data.usr, 0, l4->txn.auth.user, l4->txn.auth.pass))
-		test->flags |= ACL_TEST_F_SET_RES_PASS;
+		smp->flags |= SMP_F_SET_RES_PASS;
 	else
-		test->flags |= ACL_TEST_F_SET_RES_FAIL;
+		smp->flags |= SMP_F_SET_RES_FAIL;
 
 	return 1;
 }
@@ -8109,19 +8109,19 @@ extract_cookie_value(char *hdr, const char *hdr_end,
 }
 
 /* Iterate over all cookies present in a message. The context is stored in
- * test->ctx.a[0] for the in-header position, test->ctx.a[1] for the
- * end-of-header-value, and test->ctx.a[2] for the hdr_idx. Depending on
+ * smp->ctx.a[0] for the in-header position, smp->ctx.a[1] for the
+ * end-of-header-value, and smp->ctx.a[2] for the hdr_idx. Depending on
  * the direction, multiple cookies may be parsed on the same line or not.
  * The cookie name is in expr->arg and the name length in expr->args->data.str.len.
  * Accepts exactly 1 argument of type string.
  */
 static int
 acl_fetch_cookie_value(struct proxy *px, struct session *l4, void *l7, int dir,
-		       struct acl_expr *expr, struct acl_test *test)
+		       struct acl_expr *expr, struct sample *smp)
 {
 	struct http_txn *txn = l7;
 	struct hdr_idx *idx = &txn->hdr_idx;
-	struct hdr_ctx *ctx = (struct hdr_ctx *)&test->ctx.a[2];
+	struct hdr_ctx *ctx = (struct hdr_ctx *)&smp->ctx.a[2];
 	const struct http_msg *msg;
 	const char *hdr_name;
 	int hdr_name_len;
@@ -8143,43 +8143,43 @@ acl_fetch_cookie_value(struct proxy *px, struct session *l4, void *l7, int dir,
 	}
 
 	sol = msg->buf->p + msg->sol;
-	if (!(test->flags & ACL_TEST_F_FETCH_MORE)) {
+	if (!(smp->flags & SMP_F_NOT_LAST)) {
 		/* search for the header from the beginning, we must first initialize
 		 * the search parameters.
 		 */
-		test->ctx.a[0] = NULL;
+		smp->ctx.a[0] = NULL;
 		ctx->idx = 0;
 	}
 
 	while (1) {
-		/* Note: test->ctx.a[0] == NULL every time we need to fetch a new header */
-		if (!test->ctx.a[0]) {
+		/* Note: smp->ctx.a[0] == NULL every time we need to fetch a new header */
+		if (!smp->ctx.a[0]) {
 			if (!http_find_header2(hdr_name, hdr_name_len, sol, idx, ctx))
 				goto out;
 
 			if (ctx->vlen < expr->args->data.str.len + 1)
 				continue;
 
-			test->ctx.a[0] = ctx->line + ctx->val;
-			test->ctx.a[1] = test->ctx.a[0] + ctx->vlen;
+			smp->ctx.a[0] = ctx->line + ctx->val;
+			smp->ctx.a[1] = smp->ctx.a[0] + ctx->vlen;
 		}
 
-		test->ctx.a[0] = extract_cookie_value(test->ctx.a[0], test->ctx.a[1],
-						      expr->args->data.str.str, expr->args->data.str.len,
-						      (dir & ACL_DIR_MASK) == ACL_DIR_REQ,
-						      &temp_pattern.data.str.str,
-						      &temp_pattern.data.str.len);
-		if (test->ctx.a[0]) {
+		smp->ctx.a[0] = extract_cookie_value(smp->ctx.a[0], smp->ctx.a[1],
+						 expr->args->data.str.str, expr->args->data.str.len,
+						 (dir & ACL_DIR_MASK) == ACL_DIR_REQ,
+						 &temp_pattern.data.str.str,
+						 &temp_pattern.data.str.len);
+		if (smp->ctx.a[0]) {
 			/* one value was returned into temp_pattern.data.str.{str,len} */
-			test->flags |= ACL_TEST_F_FETCH_MORE;
-			test->flags |= ACL_TEST_F_VOL_HDR;
+			smp->flags |= SMP_F_NOT_LAST;
+			smp->flags |= SMP_F_VOL_HDR;
 			return 1;
 		}
 	}
 
  out:
-	test->flags &= ~ACL_TEST_F_FETCH_MORE;
-	test->flags |= ACL_TEST_F_VOL_HDR;
+	smp->flags &= ~SMP_F_NOT_LAST;
+	smp->flags |= SMP_F_VOL_HDR;
 	return 0;
 }
 
@@ -8190,7 +8190,7 @@ acl_fetch_cookie_value(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_cookie_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-		     struct acl_expr *expr, struct acl_test *test)
+		     struct acl_expr *expr, struct sample *smp)
 {
 	struct http_txn *txn = l7;
 	struct hdr_idx *idx = &txn->hdr_idx;
@@ -8245,7 +8245,7 @@ acl_fetch_cookie_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 	}
 
 	temp_pattern.data.uint = cnt;
-	test->flags |= ACL_TEST_F_VOL_HDR;
+	smp->flags |= SMP_F_VOL_HDR;
 	return 1;
 }
 

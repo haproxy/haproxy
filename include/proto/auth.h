@@ -21,7 +21,7 @@ extern struct userlist *userlist;
 struct userlist *auth_find_userlist(char *name);
 unsigned int auth_resolve_groups(struct userlist *l, char *groups);
 void userlist_free(struct userlist *ul);
-int acl_match_auth(struct acl_test *test, struct acl_pattern *pattern);
+int acl_match_auth(struct sample *smp, struct acl_pattern *pattern);
 int check_user(struct userlist *ul, unsigned int group_mask, const char *user, const char *pass);
 
 #endif /* _PROTO_AUTH_H */

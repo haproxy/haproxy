@@ -500,9 +500,9 @@ int make_proxy_line(char *buf, int buf_len, struct sockaddr_storage *src, struct
 /* set temp integer to the id of the frontend */
 static int
 acl_fetch_fe_id(struct proxy *px, struct session *l4, void *l7, int dir,
-                struct acl_expr *expr, struct acl_test *test) {
-
-	test->flags = ACL_TEST_F_READ_ONLY;
+                struct acl_expr *expr, struct sample *smp)
+{
+	smp->flags = SMP_F_READ_ONLY;
 	temp_pattern.data.uint = l4->fe->uuid;
 	return 1;
 }
@@ -513,9 +513,9 @@ acl_fetch_fe_id(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_fe_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                       struct acl_expr *expr, struct acl_test *test)
+                       struct acl_expr *expr, struct sample *smp)
 {
-	test->flags = ACL_TEST_F_VOL_TEST;
+	smp->flags = SMP_F_VOL_TEST;
 	temp_pattern.data.uint = read_freq_ctr(&expr->args->data.prx->fe_sess_per_sec);
 	return 1;
 }
@@ -526,9 +526,9 @@ acl_fetch_fe_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_fe_conn(struct proxy *px, struct session *l4, void *l7, int dir,
-		  struct acl_expr *expr, struct acl_test *test)
+		  struct acl_expr *expr, struct sample *smp)
 {
-	test->flags = ACL_TEST_F_VOL_TEST;
+	smp->flags = SMP_F_VOL_TEST;
 	temp_pattern.data.uint = expr->args->data.prx->feconn;
 	return 1;
 }

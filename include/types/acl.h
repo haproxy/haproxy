@@ -28,6 +28,7 @@
 
 #include <types/arg.h>
 #include <types/auth.h>
+#include <types/pattern.h>
 #include <types/proxy.h>
 #include <types/server.h>
 #include <types/session.h>
@@ -68,26 +69,6 @@ enum {
 	ACL_COND_NONE,		/* no polarity set yet */
 	ACL_COND_IF,		/* positive condition (after 'if') */
 	ACL_COND_UNLESS,	/* negative condition (after 'unless') */
-};
-
-/* possible flags for intermediate test values. The flags are maintained
- * across consecutive fetches for a same entry (eg: parse all req lines).
- */
-enum {
-	ACL_TEST_F_READ_ONLY  = 1 << 0, /* test data are read-only */
-	ACL_TEST_F_MUST_FREE  = 1 << 1, /* test data must be freed after end of evaluation */
-	ACL_TEST_F_VOL_TEST   = 1 << 2, /* result must not survive longer than the test (eg: time) */
-	ACL_TEST_F_VOL_HDR    = 1 << 3, /* result sensitive to changes in headers */
-	ACL_TEST_F_VOL_1ST    = 1 << 4, /* result sensitive to changes in first line (eg: URI) */
-	ACL_TEST_F_VOL_TXN    = 1 << 5, /* result sensitive to new transaction (eg: persist) */
-	ACL_TEST_F_VOL_SESS   = 1 << 6, /* result sensitive to new session (eg: IP) */
-	ACL_TEST_F_VOLATILE   = (1<<2)|(1<<3)|(1<<4)|(1<<5)|(1<<6),
-	ACL_TEST_F_FETCH_MORE = 1 << 7, /* if test does not match, retry with next entry (for multi-match) */
-	ACL_TEST_F_MAY_CHANGE = 1 << 8, /* if test does not match, retry later (eg: request size) */
-	ACL_TEST_F_RES_SET    = 1 << 9, /* for fetch() function to assign the result without calling match() */
-	ACL_TEST_F_RES_PASS   = 1 << 10,/* with SET_RESULT, sets result to PASS (defaults to FAIL) */
-	ACL_TEST_F_SET_RES_PASS = (ACL_TEST_F_RES_SET|ACL_TEST_F_RES_PASS),  /* sets result to PASS */
-	ACL_TEST_F_SET_RES_FAIL = (ACL_TEST_F_RES_SET),                      /* sets result to FAIL */
 };
 
 /* ACLs can be evaluated on requests and on responses, and on partial or complete data */
@@ -236,21 +217,6 @@ struct acl_pattern {
 	int flags;                      /* expr or pattern flags. */
 };
 
-/* The structure exchanged between an acl_fetch_* function responsible for
- * retrieving a value, and an acl_match_* function responsible for testing it.
- */
-struct acl_test {
-	int flags;              /* ACL_TEST_F_* set to 0 on first call */
-	union {                 /* fetch_* functions context for any purpose */
-		void *p;        /* any pointer */
-		int i;          /* any integer */
-		long long ll;   /* any long long or smaller */
-		double d;       /* any float or double */
-		void *a[8];     /* any array of up to 8 pointers */
-	} ctx;
-};
-
-
 /*
  * ACL keyword: Associates keywords with parsers, methods to retrieve the value and testers.
  */
@@ -273,8 +239,8 @@ struct acl_keyword {
 	const char *kw;
 	int (*parse)(const char **text, struct acl_pattern *pattern, int *opaque);
 	int (*fetch)(struct proxy *px, struct session *l4, void *l7, int dir,
-	             struct acl_expr *expr, struct acl_test *test);
-	int (*match)(struct acl_test *test, struct acl_pattern *pattern);
+	             struct acl_expr *expr, struct sample *smp);
+	int (*match)(struct sample *smp, struct acl_pattern *pattern);
 	unsigned int requires;   /* bit mask of all ACL_USE_* required to evaluate this keyword */
 	int arg_mask; /* mask describing up to 7 arg types */
 	/* must be after the config params */

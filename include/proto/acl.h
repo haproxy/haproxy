@@ -135,13 +135,13 @@ void acl_unregister_keywords(struct acl_kw_list *kwl);
 int acl_parse_nothing(const char **text, struct acl_pattern *pattern, int *opaque);
 
 /* NB: For two strings to be identical, it is required that their lengths match */
-int acl_match_str(struct acl_test *test, struct acl_pattern *pattern);
+int acl_match_str(struct sample *smp, struct acl_pattern *pattern);
 
 /* Checks that the length of the pattern in <test> is included between min and max */
-int acl_match_len(struct acl_test *test, struct acl_pattern *pattern);
+int acl_match_len(struct sample *smp, struct acl_pattern *pattern);
 
 /* Checks that the integer in <test> is included between min and max */
-int acl_match_int(struct acl_test *test, struct acl_pattern *pattern);
+int acl_match_int(struct sample *smp, struct acl_pattern *pattern);
 
 /* Parse an integer. It is put both in min and max. */
 int acl_parse_int(const char **text, struct acl_pattern *pattern, int *opaque);
@@ -172,45 +172,45 @@ int acl_parse_ip(const char **text, struct acl_pattern *pattern, int *opaque);
 
 /* always fake a data retrieval */
 int acl_fetch_nothing(struct proxy *px, struct session *l4, void *l7, int dir,
-		      struct acl_expr *expr, struct acl_test *test);
+                      struct acl_expr *expr, struct sample *smp);
 
 /* always return false */
-int acl_match_nothing(struct acl_test *test, struct acl_pattern *pattern);
+int acl_match_nothing(struct sample *smp, struct acl_pattern *pattern);
 
 /* Fetch the RDP cookie identified in the expression. */
 int acl_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
-                         struct acl_expr *expr, struct acl_test *test);
+                         struct acl_expr *expr, struct sample *smp);
 
 /* Checks that the pattern matches the end of the tested string. */
-int acl_match_end(struct acl_test *test, struct acl_pattern *pattern);
+int acl_match_end(struct sample *smp, struct acl_pattern *pattern);
 
 /* Checks that the pattern matches the beginning of the tested string. */
-int acl_match_beg(struct acl_test *test, struct acl_pattern *pattern);
+int acl_match_beg(struct sample *smp, struct acl_pattern *pattern);
 
 /* Checks that the pattern is included inside the tested string. */
-int acl_match_sub(struct acl_test *test, struct acl_pattern *pattern);
+int acl_match_sub(struct sample *smp, struct acl_pattern *pattern);
 
 /* Checks that the pattern is included inside the tested string, but enclosed
  * between slashes or at the beginning or end of the string. Slashes at the
  * beginning or end of the pattern are ignored.
  */
-int acl_match_dir(struct acl_test *test, struct acl_pattern *pattern);
+int acl_match_dir(struct sample *smp, struct acl_pattern *pattern);
 
 /* Checks that the pattern is included inside the tested string, but enclosed
  * between dots or at the beginning or end of the string. Dots at the beginning
  * or end of the pattern are ignored.
  */
-int acl_match_dom(struct acl_test *test, struct acl_pattern *pattern);
+int acl_match_dom(struct sample *smp, struct acl_pattern *pattern);
 
 /* Check that the IPv4 address in <test> matches the IP/mask in pattern */
-int acl_match_ip(struct acl_test *test, struct acl_pattern *pattern);
+int acl_match_ip(struct sample *smp, struct acl_pattern *pattern);
 
 /* Executes a regex. It needs to change the data. If it is marked READ_ONLY
  * then it will be allocated and duplicated in place so that others may use
  * it later on. Note that this is embarrassing because we always try to avoid
  * allocating memory at run time.
  */
-int acl_match_reg(struct acl_test *test, struct acl_pattern *pattern);
+int acl_match_reg(struct sample *smp, struct acl_pattern *pattern);
 
 #endif /* _PROTO_ACL_H */
 

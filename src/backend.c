@@ -403,7 +403,7 @@ struct server *get_server_rch(struct session *s)
 	const char      *p;
 	int              ret;
 	struct acl_expr  expr;
-	struct acl_test  test;
+	struct sample    smp;
 	struct arg       args[2];
 
 	/* tot_weight appears to mean srv_count */
@@ -411,7 +411,7 @@ struct server *get_server_rch(struct session *s)
 		return NULL;
 
 	memset(&expr, 0, sizeof(expr));
-	memset(&test, 0, sizeof(test));
+	memset(&smp, 0, sizeof(smp));
 
 	args[0].type = ARGT_STR;
 	args[0].data.str.str = px->hh_name;
@@ -420,10 +420,10 @@ struct server *get_server_rch(struct session *s)
 
 	expr.args = args;
 
-	ret = acl_fetch_rdp_cookie(px, s, NULL, ACL_DIR_REQ, &expr, &test);
+	ret = acl_fetch_rdp_cookie(px, s, NULL, ACL_DIR_REQ, &expr, &smp);
 	len = temp_pattern.data.str.len;
 
-	if (ret == 0 || (test.flags & ACL_TEST_F_MAY_CHANGE) || len == 0)
+	if (ret == 0 || (smp.flags & SMP_F_MAY_CHANGE) || len == 0)
 		return NULL;
 
 	/* note: we won't hash if there's only one server left */
@@ -1114,7 +1114,7 @@ int tcp_persist_rdp_cookie(struct session *s, struct buffer *req, int an_bit)
 	struct proxy    *px   = s->be;
 	int              ret;
 	struct acl_expr  expr;
-	struct acl_test  test;
+	struct sample    smp;
 	struct server *srv = px->srv;
 	struct sockaddr_in addr;
 	char *p;
@@ -1133,7 +1133,7 @@ int tcp_persist_rdp_cookie(struct session *s, struct buffer *req, int an_bit)
 		goto no_cookie;
 
 	memset(&expr, 0, sizeof(expr));
-	memset(&test, 0, sizeof(test));
+	memset(&smp, 0, sizeof(smp));
 
 	args[0].type = ARGT_STR;
 	args[0].data.str.str = s->be->rdp_cookie_name;
@@ -1142,8 +1142,8 @@ int tcp_persist_rdp_cookie(struct session *s, struct buffer *req, int an_bit)
 
 	expr.args = args;
 
-	ret = acl_fetch_rdp_cookie(px, s, NULL, ACL_DIR_REQ, &expr, &test);
-	if (ret == 0 || (test.flags & ACL_TEST_F_MAY_CHANGE) || temp_pattern.data.str.len == 0)
+	ret = acl_fetch_rdp_cookie(px, s, NULL, ACL_DIR_REQ, &expr, &smp);
+	if (ret == 0 || (smp.flags & SMP_F_MAY_CHANGE) || temp_pattern.data.str.len == 0)
 		goto no_cookie;
 
 	memset(&addr, 0, sizeof(addr));
@@ -1383,9 +1383,9 @@ int backend_parse_balance(const char **args, char *err, int errlen, struct proxy
  */
 static int
 acl_fetch_nbsrv(struct proxy *px, struct session *l4, void *l7, int dir,
-                struct acl_expr *expr, struct acl_test *test)
+                struct acl_expr *expr, struct sample *smp)
 {
-	test->flags = ACL_TEST_F_VOL_TEST;
+	smp->flags = SMP_F_VOL_TEST;
 	px = expr->args->data.prx;
 
 	if (px->srv_act)
@@ -1398,23 +1398,23 @@ acl_fetch_nbsrv(struct proxy *px, struct session *l4, void *l7, int dir,
 	return 1;
 }
 
-/* report in test->flags a success or failure depending on the designated
+/* report in smp->flags a success or failure depending on the designated
  * server's state. There is no match function involved since there's no pattern.
  * Accepts exactly 1 argument. Argument is a server, other types will lead to
  * undefined behaviour.
  */
 static int
 acl_fetch_srv_is_up(struct proxy *px, struct session *l4, void *l7, int dir,
-		    struct acl_expr *expr, struct acl_test *test)
+		    struct acl_expr *expr, struct sample *smp)
 {
 	struct server *srv = expr->args->data.srv;
 
-	test->flags = ACL_TEST_F_VOL_TEST;
+	smp->flags = SMP_F_VOL_TEST;
 	if (!(srv->state & SRV_MAINTAIN) &&
 	    (!(srv->state & SRV_CHECKED) || (srv->state & SRV_RUNNING)))
-		test->flags |= ACL_TEST_F_SET_RES_PASS;
+		smp->flags |= SMP_F_SET_RES_PASS;
 	else
-		test->flags |= ACL_TEST_F_SET_RES_FAIL;
+		smp->flags |= SMP_F_SET_RES_FAIL;
 	return 1;
 }
 
@@ -1424,11 +1424,11 @@ acl_fetch_srv_is_up(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_connslots(struct proxy *px, struct session *l4, void *l7, int dir,
-		    struct acl_expr *expr, struct acl_test *test)
+		    struct acl_expr *expr, struct sample *smp)
 {
 	struct server *iterator;
 
-	test->flags = ACL_TEST_F_VOL_TEST;
+	smp->flags = SMP_F_VOL_TEST;
 	temp_pattern.data.uint = 0;
 
 	for (iterator = expr->args->data.prx->srv; iterator; iterator = iterator->next) {
@@ -1451,9 +1451,9 @@ acl_fetch_connslots(struct proxy *px, struct session *l4, void *l7, int dir,
 /* set temp integer to the id of the backend */
 static int
 acl_fetch_be_id(struct proxy *px, struct session *l4, void *l7, int dir,
-                struct acl_expr *expr, struct acl_test *test) {
-
-	test->flags = ACL_TEST_F_READ_ONLY;
+                struct acl_expr *expr, struct sample *smp)
+{
+	smp->flags = SMP_F_READ_ONLY;
 	temp_pattern.data.uint = l4->be->uuid;
 
 	return 1;
@@ -1462,12 +1462,12 @@ acl_fetch_be_id(struct proxy *px, struct session *l4, void *l7, int dir,
 /* set temp integer to the id of the server */
 static int
 acl_fetch_srv_id(struct proxy *px, struct session *l4, void *l7, int dir,
-                struct acl_expr *expr, struct acl_test *test) {
-
+                struct acl_expr *expr, struct sample *smp)
+{
 	if (!target_srv(&l4->target))
 		return 0;
 
-	test->flags = ACL_TEST_F_READ_ONLY;
+	smp->flags = SMP_F_READ_ONLY;
 	temp_pattern.data.uint = target_srv(&l4->target)->puid;
 
 	return 1;
@@ -1479,9 +1479,9 @@ acl_fetch_srv_id(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_be_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                       struct acl_expr *expr, struct acl_test *test)
+                       struct acl_expr *expr, struct sample *smp)
 {
-	test->flags = ACL_TEST_F_VOL_TEST;
+	smp->flags = SMP_F_VOL_TEST;
 	temp_pattern.data.uint = read_freq_ctr(&expr->args->data.prx->be_sess_per_sec);
 	return 1;
 }
@@ -1492,9 +1492,9 @@ acl_fetch_be_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_be_conn(struct proxy *px, struct session *l4, void *l7, int dir,
-		  struct acl_expr *expr, struct acl_test *test)
+		  struct acl_expr *expr, struct sample *smp)
 {
-	test->flags = ACL_TEST_F_VOL_TEST;
+	smp->flags = SMP_F_VOL_TEST;
 	temp_pattern.data.uint = expr->args->data.prx->beconn;
 	return 1;
 }
@@ -1505,9 +1505,9 @@ acl_fetch_be_conn(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_queue_size(struct proxy *px, struct session *l4, void *l7, int dir,
-		   struct acl_expr *expr, struct acl_test *test)
+		   struct acl_expr *expr, struct sample *smp)
 {
-	test->flags = ACL_TEST_F_VOL_TEST;
+	smp->flags = SMP_F_VOL_TEST;
 	temp_pattern.data.uint = expr->args->data.prx->totpend;
 	return 1;
 }
@@ -1522,11 +1522,11 @@ acl_fetch_queue_size(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_avg_queue_size(struct proxy *px, struct session *l4, void *l7, int dir,
-		   struct acl_expr *expr, struct acl_test *test)
+		   struct acl_expr *expr, struct sample *smp)
 {
 	int nbsrv;
 
-	test->flags = ACL_TEST_F_VOL_TEST;
+	smp->flags = SMP_F_VOL_TEST;
 	px = expr->args->data.prx;
 
 	if (px->srv_act)
@@ -1550,7 +1550,7 @@ acl_fetch_avg_queue_size(struct proxy *px, struct session *l4, void *l7, int dir
  */
 static int
 acl_fetch_srv_conn(struct proxy *px, struct session *l4, void *l7, int dir,
-		  struct acl_expr *expr, struct acl_test *test)
+		  struct acl_expr *expr, struct sample *smp)
 {
 	temp_pattern.data.uint = expr->args->data.srv->cur_sess;
 	return 1;

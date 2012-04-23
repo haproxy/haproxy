@@ -2308,9 +2308,9 @@ void session_shutdown(struct session *session, int why)
 
 /* set temp integer to the General Purpose Counter 0 value in the stksess entry <ts> */
 static int
-acl_fetch_get_gpc0(struct stktable *table, struct acl_test *test, struct stksess *ts)
+acl_fetch_get_gpc0(struct stktable *table, struct sample *smp, struct stksess *ts)
 {
-	test->flags = ACL_TEST_F_VOL_TEST;
+	smp->flags = SMP_F_VOL_TEST;
 	temp_pattern.data.uint = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_GPC0);
@@ -2326,11 +2326,11 @@ acl_fetch_get_gpc0(struct stktable *table, struct acl_test *test, struct stksess
  */
 static int
 acl_fetch_sc1_get_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
-                       struct acl_expr *expr, struct acl_test *test)
+                       struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
 		return 0;
-	return acl_fetch_get_gpc0(l4->stkctr1_table, test, l4->stkctr1_entry);
+	return acl_fetch_get_gpc0(l4->stkctr1_table, smp, l4->stkctr1_entry);
 }
 
 /* set temp integer to the General Purpose Counter 0 value from the session's tracked
@@ -2338,11 +2338,11 @@ acl_fetch_sc1_get_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_sc2_get_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
-                       struct acl_expr *expr, struct acl_test *test)
+                       struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
 		return 0;
-	return acl_fetch_get_gpc0(l4->stkctr2_table, test, l4->stkctr2_entry);
+	return acl_fetch_get_gpc0(l4->stkctr2_table, smp, l4->stkctr2_entry);
 }
 
 /* set temp integer to the General Purpose Counter 0 value from the session's source
@@ -2351,7 +2351,7 @@ acl_fetch_sc2_get_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_src_get_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
-		       struct acl_expr *expr, struct acl_test *test)
+		       struct acl_expr *expr, struct sample *smp)
 {
 	struct stktable_key *key;
 
@@ -2360,16 +2360,16 @@ acl_fetch_src_get_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	px = expr->args->data.prx;
-	return acl_fetch_get_gpc0(&px->table, test, stktable_lookup_key(&px->table, key));
+	return acl_fetch_get_gpc0(&px->table, smp, stktable_lookup_key(&px->table, key));
 }
 
 /* Increment the General Purpose Counter 0 value in the stksess entry <ts> and
  * return it into temp integer.
  */
 static int
-acl_fetch_inc_gpc0(struct stktable *table, struct acl_test *test, struct stksess *ts)
+acl_fetch_inc_gpc0(struct stktable *table, struct sample *smp, struct stksess *ts)
 {
-	test->flags = ACL_TEST_F_VOL_TEST;
+	smp->flags = SMP_F_VOL_TEST;
 	temp_pattern.data.uint = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_GPC0);
@@ -2385,11 +2385,11 @@ acl_fetch_inc_gpc0(struct stktable *table, struct acl_test *test, struct stksess
  */
 static int
 acl_fetch_sc1_inc_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
-                       struct acl_expr *expr, struct acl_test *test)
+                       struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
 		return 0;
-	return acl_fetch_inc_gpc0(l4->stkctr1_table, test, l4->stkctr1_entry);
+	return acl_fetch_inc_gpc0(l4->stkctr1_table, smp, l4->stkctr1_entry);
 }
 
 /* Increment the General Purpose Counter 0 value from the session's tracked
@@ -2397,11 +2397,11 @@ acl_fetch_sc1_inc_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_sc2_inc_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
-                       struct acl_expr *expr, struct acl_test *test)
+                       struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
 		return 0;
-	return acl_fetch_inc_gpc0(l4->stkctr2_table, test, l4->stkctr2_entry);
+	return acl_fetch_inc_gpc0(l4->stkctr2_table, smp, l4->stkctr2_entry);
 }
 
 /* Increment the General Purpose Counter 0 value from the session's source
@@ -2410,7 +2410,7 @@ acl_fetch_sc2_inc_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_src_inc_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
-		       struct acl_expr *expr, struct acl_test *test)
+		       struct acl_expr *expr, struct sample *smp)
 {
 	struct stktable_key *key;
 
@@ -2419,16 +2419,16 @@ acl_fetch_src_inc_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	px = expr->args->data.prx;
-	return acl_fetch_inc_gpc0(&px->table, test, stktable_update_key(&px->table, key));
+	return acl_fetch_inc_gpc0(&px->table, smp, stktable_update_key(&px->table, key));
 }
 
 /* Clear the General Purpose Counter 0 value in the stksess entry <ts> and
  * return its previous value into temp integer.
  */
 static int
-acl_fetch_clr_gpc0(struct stktable *table, struct acl_test *test, struct stksess *ts)
+acl_fetch_clr_gpc0(struct stktable *table, struct sample *smp, struct stksess *ts)
 {
-	test->flags = ACL_TEST_F_VOL_TEST;
+	smp->flags = SMP_F_VOL_TEST;
 	temp_pattern.data.uint = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_GPC0);
@@ -2445,11 +2445,11 @@ acl_fetch_clr_gpc0(struct stktable *table, struct acl_test *test, struct stksess
  */
 static int
 acl_fetch_sc1_clr_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
-                       struct acl_expr *expr, struct acl_test *test)
+                       struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
 		return 0;
-	return acl_fetch_clr_gpc0(l4->stkctr1_table, test, l4->stkctr1_entry);
+	return acl_fetch_clr_gpc0(l4->stkctr1_table, smp, l4->stkctr1_entry);
 }
 
 /* Clear the General Purpose Counter 0 value from the session's tracked
@@ -2457,11 +2457,11 @@ acl_fetch_sc1_clr_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_sc2_clr_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
-                       struct acl_expr *expr, struct acl_test *test)
+                       struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
 		return 0;
-	return acl_fetch_clr_gpc0(l4->stkctr2_table, test, l4->stkctr2_entry);
+	return acl_fetch_clr_gpc0(l4->stkctr2_table, smp, l4->stkctr2_entry);
 }
 
 /* Clear the General Purpose Counter 0 value from the session's source address
@@ -2470,7 +2470,7 @@ acl_fetch_sc2_clr_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_src_clr_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
-		       struct acl_expr *expr, struct acl_test *test)
+		       struct acl_expr *expr, struct sample *smp)
 {
 	struct stktable_key *key;
 
@@ -2479,14 +2479,14 @@ acl_fetch_src_clr_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	px = expr->args->data.prx;
-	return acl_fetch_clr_gpc0(&px->table, test, stktable_update_key(&px->table, key));
+	return acl_fetch_clr_gpc0(&px->table, smp, stktable_update_key(&px->table, key));
 }
 
 /* set temp integer to the cumulated number of connections in the stksess entry <ts> */
 static int
-acl_fetch_conn_cnt(struct stktable *table, struct acl_test *test, struct stksess *ts)
+acl_fetch_conn_cnt(struct stktable *table, struct sample *smp, struct stksess *ts)
 {
-	test->flags = ACL_TEST_F_VOL_TEST;
+	smp->flags = SMP_F_VOL_TEST;
 	temp_pattern.data.uint = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_CONN_CNT);
@@ -2500,23 +2500,23 @@ acl_fetch_conn_cnt(struct stktable *table, struct acl_test *test, struct stksess
 /* set temp integer to the cumulated number of connections from the session's tracked FE counters */
 static int
 acl_fetch_sc1_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-                       struct acl_expr *expr, struct acl_test *test)
+                       struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
 		return 0;
 
-	return acl_fetch_conn_cnt(l4->stkctr1_table, test, l4->stkctr1_entry);
+	return acl_fetch_conn_cnt(l4->stkctr1_table, smp, l4->stkctr1_entry);
 }
 
 /* set temp integer to the cumulated number of connections from the session's tracked BE counters */
 static int
 acl_fetch_sc2_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-                       struct acl_expr *expr, struct acl_test *test)
+                       struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
 		return 0;
 
-	return acl_fetch_conn_cnt(l4->stkctr2_table, test, l4->stkctr2_entry);
+	return acl_fetch_conn_cnt(l4->stkctr2_table, smp, l4->stkctr2_entry);
 }
 
 /* set temp integer to the cumulated number of connections from the session's source
@@ -2525,7 +2525,7 @@ acl_fetch_sc2_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_src_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-		       struct acl_expr *expr, struct acl_test *test)
+		       struct acl_expr *expr, struct sample *smp)
 {
 	struct stktable_key *key;
 
@@ -2534,14 +2534,14 @@ acl_fetch_src_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	px = expr->args->data.prx;
-	return acl_fetch_conn_cnt(&px->table, test, stktable_lookup_key(&px->table, key));
+	return acl_fetch_conn_cnt(&px->table, smp, stktable_lookup_key(&px->table, key));
 }
 
 /* set temp integer to the connection rate in the stksess entry <ts> over the configured period */
 static int
-acl_fetch_conn_rate(struct stktable *table, struct acl_test *test, struct stksess *ts)
+acl_fetch_conn_rate(struct stktable *table, struct sample *smp, struct stksess *ts)
 {
-	test->flags = ACL_TEST_F_VOL_TEST;
+	smp->flags = SMP_F_VOL_TEST;
 	temp_pattern.data.uint = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_CONN_RATE);
@@ -2558,12 +2558,12 @@ acl_fetch_conn_rate(struct stktable *table, struct acl_test *test, struct stkses
  */
 static int
 acl_fetch_sc1_conn_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                        struct acl_expr *expr, struct acl_test *test)
+                        struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
 		return 0;
 
-	return acl_fetch_conn_rate(l4->stkctr1_table, test, l4->stkctr1_entry);
+	return acl_fetch_conn_rate(l4->stkctr1_table, smp, l4->stkctr1_entry);
 }
 
 /* set temp integer to the connection rate from the session's tracked BE counters over
@@ -2571,12 +2571,12 @@ acl_fetch_sc1_conn_rate(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_sc2_conn_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                        struct acl_expr *expr, struct acl_test *test)
+                        struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
 		return 0;
 
-	return acl_fetch_conn_rate(l4->stkctr2_table, test, l4->stkctr2_entry);
+	return acl_fetch_conn_rate(l4->stkctr2_table, smp, l4->stkctr2_entry);
 }
 
 /* set temp integer to the connection rate from the session's source address in the
@@ -2585,7 +2585,7 @@ acl_fetch_sc2_conn_rate(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_src_conn_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-			struct acl_expr *expr, struct acl_test *test)
+			struct acl_expr *expr, struct sample *smp)
 {
 	struct stktable_key *key;
 
@@ -2594,7 +2594,7 @@ acl_fetch_src_conn_rate(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	px = expr->args->data.prx;
-	return acl_fetch_conn_rate(&px->table, test, stktable_lookup_key(&px->table, key));
+	return acl_fetch_conn_rate(&px->table, smp, stktable_lookup_key(&px->table, key));
 }
 
 /* set temp integer to the number of connections from the session's source address
@@ -2603,7 +2603,7 @@ acl_fetch_src_conn_rate(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_src_updt_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-			    struct acl_expr *expr, struct acl_test *test)
+			    struct acl_expr *expr, struct sample *smp)
 {
 	struct stksess *ts;
 	struct stktable_key *key;
@@ -2624,15 +2624,15 @@ acl_fetch_src_updt_conn_cnt(struct proxy *px, struct session *l4, void *l7, int 
 		return 0; /* parameter not stored in this table */
 
 	temp_pattern.data.uint = ++stktable_data_cast(ptr, conn_cnt);
-	test->flags = ACL_TEST_F_VOL_TEST;
+	smp->flags = SMP_F_VOL_TEST;
 	return 1;
 }
 
 /* set temp integer to the number of concurrent connections in the stksess entry <ts> */
 static int
-acl_fetch_conn_cur(struct stktable *table, struct acl_test *test, struct stksess *ts)
+acl_fetch_conn_cur(struct stktable *table, struct sample *smp, struct stksess *ts)
 {
-	test->flags = ACL_TEST_F_VOL_TEST;
+	smp->flags = SMP_F_VOL_TEST;
 	temp_pattern.data.uint = 0;
 
 	if (ts != NULL) {
@@ -2647,23 +2647,23 @@ acl_fetch_conn_cur(struct stktable *table, struct acl_test *test, struct stksess
 /* set temp integer to the number of concurrent connections from the session's tracked FE counters */
 static int
 acl_fetch_sc1_conn_cur(struct proxy *px, struct session *l4, void *l7, int dir,
-                       struct acl_expr *expr, struct acl_test *test)
+                       struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
 		return 0;
 
-	return acl_fetch_conn_cur(l4->stkctr1_table, test, l4->stkctr1_entry);
+	return acl_fetch_conn_cur(l4->stkctr1_table, smp, l4->stkctr1_entry);
 }
 
 /* set temp integer to the number of concurrent connections from the session's tracked BE counters */
 static int
 acl_fetch_sc2_conn_cur(struct proxy *px, struct session *l4, void *l7, int dir,
-                       struct acl_expr *expr, struct acl_test *test)
+                       struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
 		return 0;
 
-	return acl_fetch_conn_cur(l4->stkctr2_table, test, l4->stkctr2_entry);
+	return acl_fetch_conn_cur(l4->stkctr2_table, smp, l4->stkctr2_entry);
 }
 
 /* set temp integer to the number of concurrent connections from the session's source
@@ -2672,7 +2672,7 @@ acl_fetch_sc2_conn_cur(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_src_conn_cur(struct proxy *px, struct session *l4, void *l7, int dir,
-                       struct acl_expr *expr, struct acl_test *test)
+                       struct acl_expr *expr, struct sample *smp)
 {
 	struct stktable_key *key;
 
@@ -2681,14 +2681,14 @@ acl_fetch_src_conn_cur(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	px = expr->args->data.prx;
-	return acl_fetch_conn_cur(&px->table, test, stktable_lookup_key(&px->table, key));
+	return acl_fetch_conn_cur(&px->table, smp, stktable_lookup_key(&px->table, key));
 }
 
 /* set temp integer to the cumulated number of sessions in the stksess entry <ts> */
 static int
-acl_fetch_sess_cnt(struct stktable *table, struct acl_test *test, struct stksess *ts)
+acl_fetch_sess_cnt(struct stktable *table, struct sample *smp, struct stksess *ts)
 {
-	test->flags = ACL_TEST_F_VOL_TEST;
+	smp->flags = SMP_F_VOL_TEST;
 	temp_pattern.data.uint = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_SESS_CNT);
@@ -2702,23 +2702,23 @@ acl_fetch_sess_cnt(struct stktable *table, struct acl_test *test, struct stksess
 /* set temp integer to the cumulated number of sessions from the session's tracked FE counters */
 static int
 acl_fetch_sc1_sess_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-                       struct acl_expr *expr, struct acl_test *test)
+                       struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
 		return 0;
 
-	return acl_fetch_sess_cnt(l4->stkctr1_table, test, l4->stkctr1_entry);
+	return acl_fetch_sess_cnt(l4->stkctr1_table, smp, l4->stkctr1_entry);
 }
 
 /* set temp integer to the cumulated number of sessions from the session's tracked BE counters */
 static int
 acl_fetch_sc2_sess_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-                       struct acl_expr *expr, struct acl_test *test)
+                       struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
 		return 0;
 
-	return acl_fetch_sess_cnt(l4->stkctr2_table, test, l4->stkctr2_entry);
+	return acl_fetch_sess_cnt(l4->stkctr2_table, smp, l4->stkctr2_entry);
 }
 
 /* set temp integer to the cumulated number of session from the session's source
@@ -2727,7 +2727,7 @@ acl_fetch_sc2_sess_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_src_sess_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-		       struct acl_expr *expr, struct acl_test *test)
+		       struct acl_expr *expr, struct sample *smp)
 {
 	struct stktable_key *key;
 
@@ -2736,14 +2736,14 @@ acl_fetch_src_sess_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	px = expr->args->data.prx;
-	return acl_fetch_sess_cnt(&px->table, test, stktable_lookup_key(&px->table, key));
+	return acl_fetch_sess_cnt(&px->table, smp, stktable_lookup_key(&px->table, key));
 }
 
 /* set temp integer to the session rate in the stksess entry <ts> over the configured period */
 static int
-acl_fetch_sess_rate(struct stktable *table, struct acl_test *test, struct stksess *ts)
+acl_fetch_sess_rate(struct stktable *table, struct sample *smp, struct stksess *ts)
 {
-	test->flags = ACL_TEST_F_VOL_TEST;
+	smp->flags = SMP_F_VOL_TEST;
 	temp_pattern.data.uint = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_SESS_RATE);
@@ -2760,12 +2760,12 @@ acl_fetch_sess_rate(struct stktable *table, struct acl_test *test, struct stkses
  */
 static int
 acl_fetch_sc1_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                        struct acl_expr *expr, struct acl_test *test)
+                        struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
 		return 0;
 
-	return acl_fetch_sess_rate(l4->stkctr1_table, test, l4->stkctr1_entry);
+	return acl_fetch_sess_rate(l4->stkctr1_table, smp, l4->stkctr1_entry);
 }
 
 /* set temp integer to the session rate from the session's tracked BE counters over
@@ -2773,12 +2773,12 @@ acl_fetch_sc1_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_sc2_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                        struct acl_expr *expr, struct acl_test *test)
+                        struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
 		return 0;
 
-	return acl_fetch_sess_rate(l4->stkctr2_table, test, l4->stkctr2_entry);
+	return acl_fetch_sess_rate(l4->stkctr2_table, smp, l4->stkctr2_entry);
 }
 
 /* set temp integer to the session rate from the session's source address in the
@@ -2787,7 +2787,7 @@ acl_fetch_sc2_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_src_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-			struct acl_expr *expr, struct acl_test *test)
+			struct acl_expr *expr, struct sample *smp)
 {
 	struct stktable_key *key;
 
@@ -2796,14 +2796,14 @@ acl_fetch_src_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	px = expr->args->data.prx;
-	return acl_fetch_sess_rate(&px->table, test, stktable_lookup_key(&px->table, key));
+	return acl_fetch_sess_rate(&px->table, smp, stktable_lookup_key(&px->table, key));
 }
 
 /* set temp integer to the cumulated number of sessions in the stksess entry <ts> */
 static int
-acl_fetch_http_req_cnt(struct stktable *table, struct acl_test *test, struct stksess *ts)
+acl_fetch_http_req_cnt(struct stktable *table, struct sample *smp, struct stksess *ts)
 {
-	test->flags = ACL_TEST_F_VOL_TEST;
+	smp->flags = SMP_F_VOL_TEST;
 	temp_pattern.data.uint = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_HTTP_REQ_CNT);
@@ -2817,23 +2817,23 @@ acl_fetch_http_req_cnt(struct stktable *table, struct acl_test *test, struct stk
 /* set temp integer to the cumulated number of sessions from the session's tracked FE counters */
 static int
 acl_fetch_sc1_http_req_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-                           struct acl_expr *expr, struct acl_test *test)
+                           struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
 		return 0;
 
-	return acl_fetch_http_req_cnt(l4->stkctr1_table, test, l4->stkctr1_entry);
+	return acl_fetch_http_req_cnt(l4->stkctr1_table, smp, l4->stkctr1_entry);
 }
 
 /* set temp integer to the cumulated number of sessions from the session's tracked BE counters */
 static int
 acl_fetch_sc2_http_req_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-                           struct acl_expr *expr, struct acl_test *test)
+                           struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
 		return 0;
 
-	return acl_fetch_http_req_cnt(l4->stkctr2_table, test, l4->stkctr2_entry);
+	return acl_fetch_http_req_cnt(l4->stkctr2_table, smp, l4->stkctr2_entry);
 }
 
 /* set temp integer to the cumulated number of session from the session's source
@@ -2842,7 +2842,7 @@ acl_fetch_sc2_http_req_cnt(struct proxy *px, struct session *l4, void *l7, int d
  */
 static int
 acl_fetch_src_http_req_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-                           struct acl_expr *expr, struct acl_test *test)
+                           struct acl_expr *expr, struct sample *smp)
 {
 	struct stktable_key *key;
 
@@ -2851,14 +2851,14 @@ acl_fetch_src_http_req_cnt(struct proxy *px, struct session *l4, void *l7, int d
 		return 0;
 
 	px = expr->args->data.prx;
-	return acl_fetch_http_req_cnt(&px->table, test, stktable_lookup_key(&px->table, key));
+	return acl_fetch_http_req_cnt(&px->table, smp, stktable_lookup_key(&px->table, key));
 }
 
 /* set temp integer to the session rate in the stksess entry <ts> over the configured period */
 static int
-acl_fetch_http_req_rate(struct stktable *table, struct acl_test *test, struct stksess *ts)
+acl_fetch_http_req_rate(struct stktable *table, struct sample *smp, struct stksess *ts)
 {
-	test->flags = ACL_TEST_F_VOL_TEST;
+	smp->flags = SMP_F_VOL_TEST;
 	temp_pattern.data.uint = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_HTTP_REQ_RATE);
@@ -2875,12 +2875,12 @@ acl_fetch_http_req_rate(struct stktable *table, struct acl_test *test, struct st
  */
 static int
 acl_fetch_sc1_http_req_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                            struct acl_expr *expr, struct acl_test *test)
+                            struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
 		return 0;
 
-	return acl_fetch_http_req_rate(l4->stkctr1_table, test, l4->stkctr1_entry);
+	return acl_fetch_http_req_rate(l4->stkctr1_table, smp, l4->stkctr1_entry);
 }
 
 /* set temp integer to the session rate from the session's tracked BE counters over
@@ -2888,12 +2888,12 @@ acl_fetch_sc1_http_req_rate(struct proxy *px, struct session *l4, void *l7, int 
  */
 static int
 acl_fetch_sc2_http_req_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                            struct acl_expr *expr, struct acl_test *test)
+                            struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
 		return 0;
 
-	return acl_fetch_http_req_rate(l4->stkctr2_table, test, l4->stkctr2_entry);
+	return acl_fetch_http_req_rate(l4->stkctr2_table, smp, l4->stkctr2_entry);
 }
 
 /* set temp integer to the session rate from the session's source address in the
@@ -2902,7 +2902,7 @@ acl_fetch_sc2_http_req_rate(struct proxy *px, struct session *l4, void *l7, int 
  */
 static int
 acl_fetch_src_http_req_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                            struct acl_expr *expr, struct acl_test *test)
+                            struct acl_expr *expr, struct sample *smp)
 {
 	struct stktable_key *key;
 
@@ -2911,14 +2911,14 @@ acl_fetch_src_http_req_rate(struct proxy *px, struct session *l4, void *l7, int 
 		return 0;
 
 	px = expr->args->data.prx;
-	return acl_fetch_http_req_rate(&px->table, test, stktable_lookup_key(&px->table, key));
+	return acl_fetch_http_req_rate(&px->table, smp, stktable_lookup_key(&px->table, key));
 }
 
 /* set temp integer to the cumulated number of sessions in the stksess entry <ts> */
 static int
-acl_fetch_http_err_cnt(struct stktable *table, struct acl_test *test, struct stksess *ts)
+acl_fetch_http_err_cnt(struct stktable *table, struct sample *smp, struct stksess *ts)
 {
-	test->flags = ACL_TEST_F_VOL_TEST;
+	smp->flags = SMP_F_VOL_TEST;
 	temp_pattern.data.uint = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_HTTP_ERR_CNT);
@@ -2932,23 +2932,23 @@ acl_fetch_http_err_cnt(struct stktable *table, struct acl_test *test, struct stk
 /* set temp integer to the cumulated number of sessions from the session's tracked FE counters */
 static int
 acl_fetch_sc1_http_err_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-                           struct acl_expr *expr, struct acl_test *test)
+                           struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
 		return 0;
 
-	return acl_fetch_http_err_cnt(l4->stkctr1_table, test, l4->stkctr1_entry);
+	return acl_fetch_http_err_cnt(l4->stkctr1_table, smp, l4->stkctr1_entry);
 }
 
 /* set temp integer to the cumulated number of sessions from the session's tracked BE counters */
 static int
 acl_fetch_sc2_http_err_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-                           struct acl_expr *expr, struct acl_test *test)
+                           struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
 		return 0;
 
-	return acl_fetch_http_err_cnt(l4->stkctr2_table, test, l4->stkctr2_entry);
+	return acl_fetch_http_err_cnt(l4->stkctr2_table, smp, l4->stkctr2_entry);
 }
 
 /* set temp integer to the cumulated number of session from the session's source
@@ -2957,7 +2957,7 @@ acl_fetch_sc2_http_err_cnt(struct proxy *px, struct session *l4, void *l7, int d
  */
 static int
 acl_fetch_src_http_err_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-                           struct acl_expr *expr, struct acl_test *test)
+                           struct acl_expr *expr, struct sample *smp)
 {
 	struct stktable_key *key;
 
@@ -2966,14 +2966,14 @@ acl_fetch_src_http_err_cnt(struct proxy *px, struct session *l4, void *l7, int d
 		return 0;
 
 	px = expr->args->data.prx;
-	return acl_fetch_http_err_cnt(&px->table, test, stktable_lookup_key(&px->table, key));
+	return acl_fetch_http_err_cnt(&px->table, smp, stktable_lookup_key(&px->table, key));
 }
 
 /* set temp integer to the session rate in the stksess entry <ts> over the configured period */
 static int
-acl_fetch_http_err_rate(struct stktable *table, struct acl_test *test, struct stksess *ts)
+acl_fetch_http_err_rate(struct stktable *table, struct sample *smp, struct stksess *ts)
 {
-	test->flags = ACL_TEST_F_VOL_TEST;
+	smp->flags = SMP_F_VOL_TEST;
 	temp_pattern.data.uint = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_HTTP_ERR_RATE);
@@ -2990,12 +2990,12 @@ acl_fetch_http_err_rate(struct stktable *table, struct acl_test *test, struct st
  */
 static int
 acl_fetch_sc1_http_err_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                            struct acl_expr *expr, struct acl_test *test)
+                            struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
 		return 0;
 
-	return acl_fetch_http_err_rate(l4->stkctr1_table, test, l4->stkctr1_entry);
+	return acl_fetch_http_err_rate(l4->stkctr1_table, smp, l4->stkctr1_entry);
 }
 
 /* set temp integer to the session rate from the session's tracked BE counters over
@@ -3003,12 +3003,12 @@ acl_fetch_sc1_http_err_rate(struct proxy *px, struct session *l4, void *l7, int 
  */
 static int
 acl_fetch_sc2_http_err_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                            struct acl_expr *expr, struct acl_test *test)
+                            struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
 		return 0;
 
-	return acl_fetch_http_err_rate(l4->stkctr2_table, test, l4->stkctr2_entry);
+	return acl_fetch_http_err_rate(l4->stkctr2_table, smp, l4->stkctr2_entry);
 }
 
 /* set temp integer to the session rate from the session's source address in the
@@ -3017,7 +3017,7 @@ acl_fetch_sc2_http_err_rate(struct proxy *px, struct session *l4, void *l7, int 
  */
 static int
 acl_fetch_src_http_err_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-			struct acl_expr *expr, struct acl_test *test)
+			struct acl_expr *expr, struct sample *smp)
 {
 	struct stktable_key *key;
 
@@ -3026,14 +3026,14 @@ acl_fetch_src_http_err_rate(struct proxy *px, struct session *l4, void *l7, int 
 		return 0;
 
 	px = expr->args->data.prx;
-	return acl_fetch_http_err_rate(&px->table, test, stktable_lookup_key(&px->table, key));
+	return acl_fetch_http_err_rate(&px->table, smp, stktable_lookup_key(&px->table, key));
 }
 
 /* set temp integer to the number of kbytes received from clients matching the stksess entry <ts> */
 static int
-acl_fetch_kbytes_in(struct stktable *table, struct acl_test *test, struct stksess *ts)
+acl_fetch_kbytes_in(struct stktable *table, struct sample *smp, struct stksess *ts)
 {
-	test->flags = ACL_TEST_F_VOL_TEST;
+	smp->flags = SMP_F_VOL_TEST;
 	temp_pattern.data.uint = 0;
 
 	if (ts != NULL) {
@@ -3050,12 +3050,12 @@ acl_fetch_kbytes_in(struct stktable *table, struct acl_test *test, struct stkses
  */
 static int
 acl_fetch_sc1_kbytes_in(struct proxy *px, struct session *l4, void *l7, int dir,
-                        struct acl_expr *expr, struct acl_test *test)
+                        struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
 		return 0;
 
-	return acl_fetch_kbytes_in(l4->stkctr1_table, test, l4->stkctr1_entry);
+	return acl_fetch_kbytes_in(l4->stkctr1_table, smp, l4->stkctr1_entry);
 }
 
 /* set temp integer to the number of kbytes received from clients according to the
@@ -3063,12 +3063,12 @@ acl_fetch_sc1_kbytes_in(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_sc2_kbytes_in(struct proxy *px, struct session *l4, void *l7, int dir,
-                        struct acl_expr *expr, struct acl_test *test)
+                        struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
 		return 0;
 
-	return acl_fetch_kbytes_in(l4->stkctr2_table, test, l4->stkctr2_entry);
+	return acl_fetch_kbytes_in(l4->stkctr2_table, smp, l4->stkctr2_entry);
 }
 
 /* set temp integer to the number of kbytes received from the session's source
@@ -3077,7 +3077,7 @@ acl_fetch_sc2_kbytes_in(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_src_kbytes_in(struct proxy *px, struct session *l4, void *l7, int dir,
-			struct acl_expr *expr, struct acl_test *test)
+			struct acl_expr *expr, struct sample *smp)
 {
 	struct stktable_key *key;
 
@@ -3086,16 +3086,16 @@ acl_fetch_src_kbytes_in(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	px = expr->args->data.prx;
-	return acl_fetch_kbytes_in(&px->table, test, stktable_lookup_key(&px->table, key));
+	return acl_fetch_kbytes_in(&px->table, smp, stktable_lookup_key(&px->table, key));
 }
 
 /* set temp integer to the bytes rate from clients in the stksess entry <ts> over the
  * configured period.
  */
 static int
-acl_fetch_bytes_in_rate(struct stktable *table, struct acl_test *test, struct stksess *ts)
+acl_fetch_bytes_in_rate(struct stktable *table, struct sample *smp, struct stksess *ts)
 {
-	test->flags = ACL_TEST_F_VOL_TEST;
+	smp->flags = SMP_F_VOL_TEST;
 	temp_pattern.data.uint = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_BYTES_IN_RATE);
@@ -3112,12 +3112,12 @@ acl_fetch_bytes_in_rate(struct stktable *table, struct acl_test *test, struct st
  */
 static int
 acl_fetch_sc1_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                            struct acl_expr *expr, struct acl_test *test)
+                            struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
 		return 0;
 
-	return acl_fetch_bytes_in_rate(l4->stkctr1_table, test, l4->stkctr1_entry);
+	return acl_fetch_bytes_in_rate(l4->stkctr1_table, smp, l4->stkctr1_entry);
 }
 
 /* set temp integer to the bytes rate from clients from the session's tracked BE
@@ -3125,12 +3125,12 @@ acl_fetch_sc1_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, int 
  */
 static int
 acl_fetch_sc2_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                            struct acl_expr *expr, struct acl_test *test)
+                            struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
 		return 0;
 
-	return acl_fetch_bytes_in_rate(l4->stkctr2_table, test, l4->stkctr2_entry);
+	return acl_fetch_bytes_in_rate(l4->stkctr2_table, smp, l4->stkctr2_entry);
 }
 
 /* set temp integer to the bytes rate from clients from the session's source address
@@ -3139,7 +3139,7 @@ acl_fetch_sc2_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, int 
  */
 static int
 acl_fetch_src_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                            struct acl_expr *expr, struct acl_test *test)
+                            struct acl_expr *expr, struct sample *smp)
 {
 	struct stktable_key *key;
 
@@ -3148,14 +3148,14 @@ acl_fetch_src_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, int 
 		return 0;
 
 	px = expr->args->data.prx;
-	return acl_fetch_bytes_in_rate(&px->table, test, stktable_lookup_key(&px->table, key));
+	return acl_fetch_bytes_in_rate(&px->table, smp, stktable_lookup_key(&px->table, key));
 }
 
 /* set temp integer to the number of kbytes sent to clients matching the stksess entry <ts> */
 static int
-acl_fetch_kbytes_out(struct stktable *table, struct acl_test *test, struct stksess *ts)
+acl_fetch_kbytes_out(struct stktable *table, struct sample *smp, struct stksess *ts)
 {
-	test->flags = ACL_TEST_F_VOL_TEST;
+	smp->flags = SMP_F_VOL_TEST;
 	temp_pattern.data.uint = 0;
 
 	if (ts != NULL) {
@@ -3172,12 +3172,12 @@ acl_fetch_kbytes_out(struct stktable *table, struct acl_test *test, struct stkse
  */
 static int
 acl_fetch_sc1_kbytes_out(struct proxy *px, struct session *l4, void *l7, int dir,
-                         struct acl_expr *expr, struct acl_test *test)
+                         struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
 		return 0;
 
-	return acl_fetch_kbytes_out(l4->stkctr1_table, test, l4->stkctr1_entry);
+	return acl_fetch_kbytes_out(l4->stkctr1_table, smp, l4->stkctr1_entry);
 }
 
 /* set temp integer to the number of kbytes sent to clients according to the session's
@@ -3185,12 +3185,12 @@ acl_fetch_sc1_kbytes_out(struct proxy *px, struct session *l4, void *l7, int dir
  */
 static int
 acl_fetch_sc2_kbytes_out(struct proxy *px, struct session *l4, void *l7, int dir,
-                         struct acl_expr *expr, struct acl_test *test)
+                         struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
 		return 0;
 
-	return acl_fetch_kbytes_out(l4->stkctr2_table, test, l4->stkctr2_entry);
+	return acl_fetch_kbytes_out(l4->stkctr2_table, smp, l4->stkctr2_entry);
 }
 
 /* set temp integer to the number of kbytes sent to the session's source address in
@@ -3199,7 +3199,7 @@ acl_fetch_sc2_kbytes_out(struct proxy *px, struct session *l4, void *l7, int dir
  */
 static int
 acl_fetch_src_kbytes_out(struct proxy *px, struct session *l4, void *l7, int dir,
-			 struct acl_expr *expr, struct acl_test *test)
+			 struct acl_expr *expr, struct sample *smp)
 {
 	struct stktable_key *key;
 
@@ -3208,16 +3208,16 @@ acl_fetch_src_kbytes_out(struct proxy *px, struct session *l4, void *l7, int dir
 		return 0;
 
 	px = expr->args->data.prx;
-	return acl_fetch_kbytes_out(&px->table, test, stktable_lookup_key(&px->table, key));
+	return acl_fetch_kbytes_out(&px->table, smp, stktable_lookup_key(&px->table, key));
 }
 
 /* set temp integer to the bytes rate to clients in the stksess entry <ts> over the
  * configured period.
  */
 static int
-acl_fetch_bytes_out_rate(struct stktable *table, struct acl_test *test, struct stksess *ts)
+acl_fetch_bytes_out_rate(struct stktable *table, struct sample *smp, struct stksess *ts)
 {
-	test->flags = ACL_TEST_F_VOL_TEST;
+	smp->flags = SMP_F_VOL_TEST;
 	temp_pattern.data.uint = 0;
 	if (ts != NULL) {
 		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_BYTES_OUT_RATE);
@@ -3234,12 +3234,12 @@ acl_fetch_bytes_out_rate(struct stktable *table, struct acl_test *test, struct s
  */
 static int
 acl_fetch_sc1_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                             struct acl_expr *expr, struct acl_test *test)
+                             struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
 		return 0;
 
-	return acl_fetch_bytes_out_rate(l4->stkctr1_table, test, l4->stkctr1_entry);
+	return acl_fetch_bytes_out_rate(l4->stkctr1_table, smp, l4->stkctr1_entry);
 }
 
 /* set temp integer to the bytes rate to clients from the session's tracked BE counters
@@ -3247,12 +3247,12 @@ acl_fetch_sc1_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, int
  */
 static int
 acl_fetch_sc2_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                             struct acl_expr *expr, struct acl_test *test)
+                             struct acl_expr *expr, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
 		return 0;
 
-	return acl_fetch_bytes_out_rate(l4->stkctr2_table, test, l4->stkctr2_entry);
+	return acl_fetch_bytes_out_rate(l4->stkctr2_table, smp, l4->stkctr2_entry);
 }
 
 /* set temp integer to the bytes rate to client from the session's source address in
@@ -3261,7 +3261,7 @@ acl_fetch_sc2_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, int
  */
 static int
 acl_fetch_src_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                             struct acl_expr *expr, struct acl_test *test)
+                             struct acl_expr *expr, struct sample *smp)
 {
 	struct stktable_key *key;
 
@@ -3270,7 +3270,7 @@ acl_fetch_src_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, int
 		return 0;
 
 	px = expr->args->data.prx;
-	return acl_fetch_bytes_out_rate(&px->table, test, stktable_lookup_key(&px->table, key));
+	return acl_fetch_bytes_out_rate(&px->table, smp, stktable_lookup_key(&px->table, key));
 }
 
 /* set temp integer to the number of used entries in the table pointed to by expr.
@@ -3278,9 +3278,9 @@ acl_fetch_src_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, int
  */
 static int
 acl_fetch_table_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-                       struct acl_expr *expr, struct acl_test *test)
+                    struct acl_expr *expr, struct sample *smp)
 {
-	test->flags = ACL_TEST_F_VOL_TEST;
+	smp->flags = SMP_F_VOL_TEST;
 	temp_pattern.data.uint = expr->args->data.prx->table.current;
 	return 1;
 }
@@ -3290,10 +3290,10 @@ acl_fetch_table_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_table_avl(struct proxy *px, struct session *l4, void *l7, int dir,
-                            struct acl_expr *expr, struct acl_test *test)
+                    struct acl_expr *expr, struct sample *smp)
 {
 	px = expr->args->data.prx;
-	test->flags = ACL_TEST_F_VOL_TEST;
+	smp->flags = SMP_F_VOL_TEST;
 	temp_pattern.data.uint = px->table.size - px->table.current;
 	return 1;
 }

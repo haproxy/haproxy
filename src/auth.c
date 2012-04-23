@@ -167,12 +167,12 @@ check_user(struct userlist *ul, unsigned int group_mask, const char *user, const
 }
 
 int
-acl_match_auth(struct acl_test *test, struct acl_pattern *pattern)
+acl_match_auth(struct sample *smp, struct acl_pattern *pattern)
 {
 
-	struct userlist *ul = test->ctx.a[0];
-	char *user = test->ctx.a[1];
-	char *pass = test->ctx.a[2];
+	struct userlist *ul = smp->ctx.a[0];
+	char *user = smp->ctx.a[1];
+	char *pass = smp->ctx.a[2];
 	unsigned int group_mask = pattern->val.group_mask;
 
 	if (check_user(ul, group_mask, user, pass))
