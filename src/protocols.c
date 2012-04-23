@@ -326,7 +326,7 @@ int protocol_disable_all(void)
 /* set temp integer to the number of connexions to the same listening socket */
 static int
 acl_fetch_dconn(struct proxy *px, struct session *l4, void *l7, int dir,
-                struct acl_expr *expr, struct sample *smp)
+                const struct arg *args, struct sample *smp)
 {
 	smp->type = SMP_T_UINT;
 	smp->data.uint = l4->listener->nbconn;
@@ -336,7 +336,7 @@ acl_fetch_dconn(struct proxy *px, struct session *l4, void *l7, int dir,
 /* set temp integer to the id of the socket (listener) */
 static int
 acl_fetch_so_id(struct proxy *px, struct session *l4, void *l7, int dir,
-                struct acl_expr *expr, struct sample *smp)
+                const struct arg *args, struct sample *smp)
 {
 	smp->type = SMP_T_UINT;
 	smp->data.uint = l4->listener->luid;

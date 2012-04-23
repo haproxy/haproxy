@@ -239,7 +239,7 @@ struct acl_keyword {
 	const char *kw;
 	int (*parse)(const char **text, struct acl_pattern *pattern, int *opaque);
 	int (*fetch)(struct proxy *px, struct session *l4, void *l7, int dir,
-	             struct acl_expr *expr, struct sample *smp);
+	             const struct arg *args, struct sample *smp);
 	int (*match)(struct sample *smp, struct acl_pattern *pattern);
 	unsigned int requires;   /* bit mask of all ACL_USE_* required to evaluate this keyword */
 	int arg_mask; /* mask describing up to 7 arg types */

@@ -1363,19 +1363,19 @@ pattern_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir
 
 static int
 acl_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
-                     struct acl_expr *expr, struct sample *smp)
+                     const struct arg *args, struct sample *smp)
 {
-	return smp_fetch_rdp_cookie(px, l4, l7, dir, expr->args, smp);
+	return smp_fetch_rdp_cookie(px, l4, l7, dir, args, smp);
 }
 
 /* returns either 1 or 0 depending on whether an RDP cookie is found or not */
 static int
 acl_fetch_rdp_cookie_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
-                         struct acl_expr *expr, struct sample *smp)
+                         const struct arg *args, struct sample *smp)
 {
 	int ret;
 
-	ret = smp_fetch_rdp_cookie(px, l4, l7, dir, expr->args, smp);
+	ret = smp_fetch_rdp_cookie(px, l4, l7, dir, args, smp);
 
 	if (smp->flags & SMP_F_MAY_CHANGE)
 		return 0;
@@ -1390,7 +1390,7 @@ acl_fetch_rdp_cookie_cnt(struct proxy *px, struct session *l4, void *l7, int dir
 /* copy the source IPv4/v6 address into temp_pattern */
 static int
 acl_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
-              struct acl_expr *expr, struct sample *smp)
+              const struct arg *args, struct sample *smp)
 {
 	switch (l4->si[0].addr.from.ss_family) {
 	case AF_INET:
@@ -1438,7 +1438,7 @@ pattern_fetch_src6(struct proxy *px, struct session *l4, void *l7, int dir,
 /* set temp integer to the connection's source port */
 static int
 acl_fetch_sport(struct proxy *px, struct session *l4, void *l7, int dir,
-                struct acl_expr *expr, struct sample *smp)
+                const struct arg *args, struct sample *smp)
 {
 	smp->type = SMP_T_UINT;
 	if (!(smp->data.uint = get_host_port(&l4->si[0].addr.from)))
@@ -1452,7 +1452,7 @@ acl_fetch_sport(struct proxy *px, struct session *l4, void *l7, int dir,
 /* set test->ptr to point to the frontend's IPv4/IPv6 address and test->i to the family */
 static int
 acl_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
-              struct acl_expr *expr, struct sample *smp)
+              const struct arg *args, struct sample *smp)
 {
 	stream_sock_get_to_addr(&l4->si[0]);
 
@@ -1507,7 +1507,7 @@ pattern_fetch_dst6(struct proxy *px, struct session *l4, void *l7, int dir,
 /* set temp integer to the frontend connexion's destination port */
 static int
 acl_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
-                struct acl_expr *expr, struct sample *smp)
+                const struct arg *args, struct sample *smp)
 {
 	stream_sock_get_to_addr(&l4->si[0]);
 

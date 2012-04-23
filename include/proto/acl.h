@@ -172,7 +172,7 @@ int acl_parse_ip(const char **text, struct acl_pattern *pattern, int *opaque);
 
 /* always fake a data retrieval */
 int acl_fetch_nothing(struct proxy *px, struct session *l4, void *l7, int dir,
-                      struct acl_expr *expr, struct sample *smp);
+                      const struct arg *args, struct sample *smp);
 
 /* always return false */
 int acl_match_nothing(struct sample *smp, struct acl_pattern *pattern);

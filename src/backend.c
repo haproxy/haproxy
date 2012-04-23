@@ -1375,11 +1375,11 @@ int backend_parse_balance(const char **args, char *err, int errlen, struct proxy
  */
 static int
 acl_fetch_nbsrv(struct proxy *px, struct session *l4, void *l7, int dir,
-                struct acl_expr *expr, struct sample *smp)
+                const struct arg *args, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
-	px = expr->args->data.prx;
+	px = args->data.prx;
 
 	if (px->srv_act)
 		smp->data.uint = px->srv_act;
@@ -1398,9 +1398,9 @@ acl_fetch_nbsrv(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_srv_is_up(struct proxy *px, struct session *l4, void *l7, int dir,
-		    struct acl_expr *expr, struct sample *smp)
+                    const struct arg *args, struct sample *smp)
 {
-	struct server *srv = expr->args->data.srv;
+	struct server *srv = args->data.srv;
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_BOOL;
@@ -1418,7 +1418,7 @@ acl_fetch_srv_is_up(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_connslots(struct proxy *px, struct session *l4, void *l7, int dir,
-		    struct acl_expr *expr, struct sample *smp)
+                    const struct arg *args, struct sample *smp)
 {
 	struct server *iterator;
 
@@ -1426,7 +1426,7 @@ acl_fetch_connslots(struct proxy *px, struct session *l4, void *l7, int dir,
 	smp->type = SMP_T_UINT;
 	smp->data.uint = 0;
 
-	for (iterator = expr->args->data.prx->srv; iterator; iterator = iterator->next) {
+	for (iterator = args->data.prx->srv; iterator; iterator = iterator->next) {
 		if ((iterator->state & SRV_RUNNING) == 0)
 			continue;
 
@@ -1446,7 +1446,7 @@ acl_fetch_connslots(struct proxy *px, struct session *l4, void *l7, int dir,
 /* set temp integer to the id of the backend */
 static int
 acl_fetch_be_id(struct proxy *px, struct session *l4, void *l7, int dir,
-                struct acl_expr *expr, struct sample *smp)
+                const struct arg *args, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_TXN;
 	smp->type = SMP_T_UINT;
@@ -1457,7 +1457,7 @@ acl_fetch_be_id(struct proxy *px, struct session *l4, void *l7, int dir,
 /* set temp integer to the id of the server */
 static int
 acl_fetch_srv_id(struct proxy *px, struct session *l4, void *l7, int dir,
-                struct acl_expr *expr, struct sample *smp)
+                 const struct arg *args, struct sample *smp)
 {
 	if (!target_srv(&l4->target))
 		return 0;
@@ -1474,11 +1474,11 @@ acl_fetch_srv_id(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_be_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
-                       struct acl_expr *expr, struct sample *smp)
+                       const struct arg *args, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
-	smp->data.uint = read_freq_ctr(&expr->args->data.prx->be_sess_per_sec);
+	smp->data.uint = read_freq_ctr(&args->data.prx->be_sess_per_sec);
 	return 1;
 }
 
@@ -1488,11 +1488,11 @@ acl_fetch_be_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_be_conn(struct proxy *px, struct session *l4, void *l7, int dir,
-		  struct acl_expr *expr, struct sample *smp)
+                  const struct arg *args, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
-	smp->data.uint = expr->args->data.prx->beconn;
+	smp->data.uint = args->data.prx->beconn;
 	return 1;
 }
 
@@ -1502,11 +1502,11 @@ acl_fetch_be_conn(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_queue_size(struct proxy *px, struct session *l4, void *l7, int dir,
-		   struct acl_expr *expr, struct sample *smp)
+                     const struct arg *args, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
-	smp->data.uint = expr->args->data.prx->totpend;
+	smp->data.uint = args->data.prx->totpend;
 	return 1;
 }
 
@@ -1520,13 +1520,13 @@ acl_fetch_queue_size(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_avg_queue_size(struct proxy *px, struct session *l4, void *l7, int dir,
-		   struct acl_expr *expr, struct sample *smp)
+                         const struct arg *args, struct sample *smp)
 {
 	int nbsrv;
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
-	px = expr->args->data.prx;
+	px = args->data.prx;
 
 	if (px->srv_act)
 		nbsrv = px->srv_act;
@@ -1549,11 +1549,11 @@ acl_fetch_avg_queue_size(struct proxy *px, struct session *l4, void *l7, int dir
  */
 static int
 acl_fetch_srv_conn(struct proxy *px, struct session *l4, void *l7, int dir,
-		  struct acl_expr *expr, struct sample *smp)
+                   const struct arg *args, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
-	smp->data.uint = expr->args->data.srv->cur_sess;
+	smp->data.uint = args->data.srv->cur_sess;
 	return 1;
 }
 

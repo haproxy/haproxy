@@ -66,7 +66,7 @@ static struct acl_kw_list acl_keywords = {
 /* force TRUE to be returned at the fetch level */
 static int
 acl_fetch_true(struct proxy *px, struct session *l4, void *l7, int dir,
-               struct acl_expr *expr, struct sample *smp)
+               const struct arg *args, struct sample *smp)
 {
 	smp->type = SMP_T_BOOL;
 	smp->data.uint = 1;
@@ -78,7 +78,7 @@ acl_fetch_true(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_wait_end(struct proxy *px, struct session *l4, void *l7, int dir,
-                   struct acl_expr *expr, struct sample *smp)
+                   const struct arg *args, struct sample *smp)
 {
 	if (dir & ACL_PARTIAL) {
 		smp->flags |= SMP_F_MAY_CHANGE;
@@ -92,7 +92,7 @@ acl_fetch_wait_end(struct proxy *px, struct session *l4, void *l7, int dir,
 /* force FALSE to be returned at the fetch level */
 static int
 acl_fetch_false(struct proxy *px, struct session *l4, void *l7, int dir,
-                struct acl_expr *expr, struct sample *smp)
+                const struct arg *args, struct sample *smp)
 {
 	smp->type = SMP_T_BOOL;
 	smp->data.uint = 0;
@@ -102,7 +102,7 @@ acl_fetch_false(struct proxy *px, struct session *l4, void *l7, int dir,
 /* return the number of bytes in the request buffer */
 static int
 acl_fetch_req_len(struct proxy *px, struct session *l4, void *l7, int dir,
-                  struct acl_expr *expr, struct sample *smp)
+                  const struct arg *args, struct sample *smp)
 {
 	if (!l4 || !l4->req)
 		return 0;
@@ -116,7 +116,7 @@ acl_fetch_req_len(struct proxy *px, struct session *l4, void *l7, int dir,
 
 static int
 acl_fetch_ssl_hello_type(struct proxy *px, struct session *l4, void *l7, int dir,
-                         struct acl_expr *expr, struct sample *smp)
+                         const struct arg *args, struct sample *smp)
 {
 	int hs_len;
 	int hs_type, bleft;
@@ -185,7 +185,7 @@ acl_fetch_ssl_hello_type(struct proxy *px, struct session *l4, void *l7, int dir
  */
 static int
 acl_fetch_req_ssl_ver(struct proxy *px, struct session *l4, void *l7, int dir,
-                      struct acl_expr *expr, struct sample *smp)
+                      const struct arg *args, struct sample *smp)
 {
 	int version, bleft, msg_len;
 	const unsigned char *data;
@@ -321,7 +321,7 @@ acl_fetch_req_ssl_ver(struct proxy *px, struct session *l4, void *l7, int dir,
  */
 static int
 acl_fetch_ssl_hello_sni(struct proxy *px, struct session *l4, void *l7, int dir,
-                        struct acl_expr *expr, struct sample *smp)
+                        const struct arg *args, struct sample *smp)
 {
 	int hs_len, ext_len, bleft;
 	struct buffer *b;
@@ -465,7 +465,7 @@ int acl_parse_nothing(const char **text, struct acl_pattern *pattern, int *opaqu
 
 /* always fake a data retrieval */
 int acl_fetch_nothing(struct proxy *px, struct session *l4, void *l7, int dir,
-		      struct acl_expr *expr, struct sample *smp)
+                      const struct arg *args, struct sample *smp)
 {
 	return 1;
 }
@@ -1733,7 +1733,7 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 				/* we need to reset context and flags */
 				memset(&smp, 0, sizeof(smp));
 			fetch_next:
-				if (!expr->kw->fetch(px, l4, l7, dir, expr, &smp)) {
+				if (!expr->kw->fetch(px, l4, l7, dir, expr->args, &smp)) {
 					/* maybe we could not fetch because of missing data */
 					if (smp.flags & SMP_F_MAY_CHANGE && dir & ACL_PARTIAL)
 						acl_res |= ACL_PAT_MISS;
