@@ -118,6 +118,8 @@ static struct chunk *get_trash_chunk(void)
 
 /******************************************************************/
 /*          Pattern casts functions                               */
+/*   Note: these functions do *NOT* set the output type on the    */
+/*   sample, the caller is responsible for doing this on return.  */
 /******************************************************************/
 
 static int c_ip2int(struct sample *smp)
@@ -466,6 +468,10 @@ out_error:
  * pattern is not found or when format conversion failed.
  *  If <p> is not null, function returns results in structure pointed by <p>.
  *  If <p> is null, functions returns a pointer on a static pattern structure.
+ *
+ * Note: the fetch functions are required to properly set the return type. The
+ * conversion functions must do so too. However the cast functions do not need
+ * to since they're made to cast mutiple types according to what is required.
  */
 struct sample *pattern_process(struct proxy *px, struct session *l4, void *l7, int dir,
                                struct pattern_expr *expr, struct sample *p)
@@ -479,23 +485,21 @@ struct sample *pattern_process(struct proxy *px, struct session *l4, void *l7, i
 	if (!expr->fetch->process(px, l4, l7, dir, expr->arg_p, p))
 		return NULL;
 
-	p->type = expr->fetch->out_type;
-
 	list_for_each_entry(conv_expr, &expr->conv_exprs, list) {
 		if (!pattern_casts[p->type][conv_expr->conv->in_type](p))
 			return NULL;
 
+		/* force the output type after a cast */
 		p->type = conv_expr->conv->in_type;
 		if (!conv_expr->conv->process(conv_expr->arg_p, p))
 			return NULL;
-
-		p->type = conv_expr->conv->out_type;
 	}
 	return p;
 }
 
 /*****************************************************************/
 /*    Pattern format convert functions                           */
+/*    These functions set the data type on return.               */
 /*****************************************************************/
 
 static int pattern_conv_str2lower(const struct arg *arg_p, struct sample *smp)
@@ -509,6 +513,7 @@ static int pattern_conv_str2lower(const struct arg *arg_p, struct sample *smp)
 		if ((smp->data.str.str[i] >= 'A') && (smp->data.str.str[i] <= 'Z'))
 			smp->data.str.str[i] += 'a' - 'A';
 	}
+	smp->type = SMP_T_STR;
 	return 1;
 }
 
@@ -523,6 +528,7 @@ static int pattern_conv_str2upper(const struct arg *arg_p, struct sample *smp)
 		if ((smp->data.str.str[i] >= 'a') && (smp->data.str.str[i] <= 'z'))
 			smp->data.str.str[i] += 'A' - 'a';
 	}
+	smp->type = SMP_T_STR;
 	return 1;
 }
 
@@ -530,6 +536,7 @@ static int pattern_conv_str2upper(const struct arg *arg_p, struct sample *smp)
 static int pattern_conv_ipmask(const struct arg *arg_p, struct sample *smp)
 {
 	smp->data.ipv4.s_addr &= arg_p->data.ipv4.s_addr;
+	smp->type = SMP_T_IPV4;
 	return 1;
 }
 

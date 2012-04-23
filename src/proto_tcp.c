@@ -1281,6 +1281,7 @@ pattern_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (l4->si[0].addr.from.ss_family != AF_INET )
 		return 0;
 
+	smp->type = SMP_T_IPV4;
 	smp->data.ipv4.s_addr = ((struct sockaddr_in *)&l4->si[0].addr.from)->sin_addr.s_addr;
 	return 1;
 }
@@ -1293,6 +1294,7 @@ pattern_fetch_src6(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (l4->si[0].addr.from.ss_family != AF_INET6)
 		return 0;
 
+	smp->type = SMP_T_IPV6;
 	memcpy(smp->data.ipv6.s6_addr, ((struct sockaddr_in6 *)&l4->si[0].addr.from)->sin6_addr.s6_addr, sizeof(smp->data.ipv6.s6_addr));
 	return 1;
 }
@@ -1346,6 +1348,7 @@ pattern_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (l4->si[0].addr.to.ss_family != AF_INET)
 		return 0;
 
+	smp->type = SMP_T_IPV4;
 	smp->data.ipv4.s_addr = ((struct sockaddr_in *)&l4->si[0].addr.to)->sin_addr.s_addr;
 	return 1;
 }
@@ -1360,6 +1363,7 @@ pattern_fetch_dst6(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (l4->si[0].addr.to.ss_family != AF_INET6)
 		return 0;
 
+	smp->type = SMP_T_IPV6;
 	memcpy(smp->data.ipv6.s6_addr, ((struct sockaddr_in6 *)&l4->si[0].addr.to)->sin6_addr.s6_addr, sizeof(smp->data.ipv6.s6_addr));
 	return 1;
 }
@@ -1383,6 +1387,7 @@ static int
 pattern_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
                     const struct arg *arg, struct sample *smp)
 {
+	smp->type = SMP_T_UINT;
 	stream_sock_get_to_addr(&l4->si[0]);
 
 	if (!(smp->data.uint = get_host_port(&l4->si[0].addr.to)))
@@ -1435,6 +1440,7 @@ pattern_fetch_payloadlv(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	/* init chunk as read only */
+	smp->type = SMP_T_CBIN;
 	chunk_initlen(&smp->data.str, b->p + buf_offset, 0, buf_size);
 
 	return 1;
@@ -1460,6 +1466,7 @@ pattern_fetch_payload(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	/* init chunk as read only */
+	smp->type = SMP_T_CBIN;
 	chunk_initlen(&smp->data.str, b->p + buf_offset, 0, buf_size);
 
 	return 1;
@@ -1486,6 +1493,7 @@ pattern_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir
 
 	expr.args = args;
 
+	/* type set by acl_fetch_rdp_cookie */
 	ret = acl_fetch_rdp_cookie(px, l4, NULL, ACL_DIR_REQ, &expr, smp);
 	if (ret == 0 || (smp->flags & SMP_F_MAY_CHANGE) || smp->data.str.len == 0)
 		return 0;

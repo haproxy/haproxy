@@ -8352,6 +8352,7 @@ pattern_fetch_hdr(struct proxy *px, struct session *l4, void *l7, int dir,
 {
 	struct http_txn *txn = l7;
 
+	smp->type = SMP_T_CSTR;
 	return http_get_hdr(&txn->req, arg_p->data.str.str, arg_p->data.str.len, &txn->hdr_idx,
 			    -1, NULL, &smp->data.str.str, &smp->data.str.len);
 }
@@ -8455,6 +8456,7 @@ pattern_fetch_url_param(struct proxy *px, struct session *l4, void *l7, int dir,
 				  &url_param_value, &url_param_value_l))
 		return 0;
 
+	smp->type = SMP_T_CSTR;
 	smp->data.str.str = url_param_value;
 	smp->data.str.len = url_param_value_l;
 	return 1;
@@ -8508,6 +8510,7 @@ pattern_fetch_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
 				  arg_p->data.str.str, arg_p->data.str.len, 1,
 				  &cookie_value, &cookie_value_l);
 	if (found) {
+		smp->type = SMP_T_CSTR;
 		smp->data.str.str = cookie_value;
 		smp->data.str.len = cookie_value_l;
 	}
@@ -8530,6 +8533,7 @@ pattern_fetch_set_cookie(struct proxy *px, struct session *l4, void *l7, int dir
 				  arg_p->data.str.str, arg_p->data.str.len, 1,
 				  &cookie_value, &cookie_value_l);
 	if (found) {
+		smp->type = SMP_T_CSTR;
 		smp->data.str.str = cookie_value;
 		smp->data.str.len = cookie_value_l;
 	}
