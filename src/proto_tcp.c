@@ -1361,13 +1361,6 @@ pattern_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir
 /*           All supported ACL keywords must be declared here.          */
 /************************************************************************/
 
-static int
-acl_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
-                     const struct arg *args, struct sample *smp)
-{
-	return smp_fetch_rdp_cookie(px, l4, l7, dir, args, smp);
-}
-
 /* returns either 1 or 0 depending on whether an RDP cookie is found or not */
 static int
 acl_fetch_rdp_cookie_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
@@ -1664,7 +1657,7 @@ static struct cfg_kw_list cfg_kws = {{ },{
 static struct acl_kw_list acl_kws = {{ },{
 	{ "dst",        acl_parse_ip,    acl_fetch_dst,      acl_match_ip,  ACL_USE_TCP4_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "dst_port",   acl_parse_int,   acl_fetch_dport,    acl_match_int, ACL_USE_TCP_PERMANENT, 0  },
-	{ "req_rdp_cookie",     acl_parse_str, acl_fetch_rdp_cookie,     acl_match_str, ACL_USE_L6REQ_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
+	{ "req_rdp_cookie",     acl_parse_str, smp_fetch_rdp_cookie,     acl_match_str, ACL_USE_L6REQ_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
 	{ "req_rdp_cookie_cnt", acl_parse_int, acl_fetch_rdp_cookie_cnt, acl_match_int, ACL_USE_L6REQ_VOLATILE, ARG1(0,STR) },
 	{ "src",        acl_parse_ip,    acl_fetch_src,      acl_match_ip,  ACL_USE_TCP4_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "src_port",   acl_parse_int,   acl_fetch_sport,    acl_match_int, ACL_USE_TCP_PERMANENT, 0  },
