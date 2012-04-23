@@ -7665,7 +7665,7 @@ acl_fetch_meth(struct proxy *px, struct session *l4, void *l7, int dir,
 		smp->data.str.len = txn->req.sl.rq.m_l;
 		smp->data.str.str = txn->req.buf->p + txn->req.sol;
 	}
-	smp->flags = SMP_F_READ_ONLY | SMP_F_VOL_1ST;
+	smp->flags = SMP_F_VOL_1ST;
 	return 1;
 }
 
@@ -7730,7 +7730,7 @@ acl_fetch_rqver(struct proxy *px, struct session *l4, void *l7, int dir,
 	smp->data.str.str = ptr;
 	smp->data.str.len = len;
 
-	smp->flags = SMP_F_READ_ONLY | SMP_F_VOL_1ST;
+	smp->flags = SMP_F_VOL_1ST;
 	return 1;
 }
 
@@ -7755,7 +7755,7 @@ acl_fetch_stver(struct proxy *px, struct session *l4, void *l7, int dir,
 	smp->data.str.str = ptr;
 	smp->data.str.len = len;
 
-	smp->flags = SMP_F_READ_ONLY | SMP_F_VOL_1ST;
+	smp->flags = SMP_F_VOL_1ST;
 	return 1;
 }
 
@@ -7837,7 +7837,7 @@ acl_fetch_url_port(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (px->options & PR_O_HTTP_PROXY)
 		l4->flags |= SN_ADDR_SET;
 
-	smp->flags = SMP_F_READ_ONLY;
+	smp->flags = 0;
 	return 1;
 }
 
@@ -7965,8 +7965,6 @@ acl_fetch_path(struct proxy *px, struct session *l4, void *l7, int dir,
 		ptr++;
 
 	smp->data.str.len = ptr - smp->data.str.str;
-
-	/* we do not need to set READ_ONLY because the data is in a buffer */
 	smp->flags = SMP_F_VOL_1ST;
 	return 1;
 }

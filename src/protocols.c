@@ -338,7 +338,6 @@ static int
 acl_fetch_so_id(struct proxy *px, struct session *l4, void *l7, int dir,
                 struct acl_expr *expr, struct sample *smp)
 {
-	smp->flags = SMP_F_READ_ONLY;
 	smp->type = SMP_T_UINT;
 	smp->data.uint = l4->listener->luid;
 	return 1;

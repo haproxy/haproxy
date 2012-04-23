@@ -623,31 +623,13 @@ static void *acl_lookup_str(struct sample *smp, struct acl_expr *expr)
 	return node;
 }
 
-/* Executes a regex. It needs to change the data. If it is marked READ_ONLY
- * then it will be allocated and duplicated in place so that others may use
- * it later on. Note that this is embarrassing because we always try to avoid
- * allocating memory at run time.
+/* Executes a regex. It temporarily changes the data to add a trailing zero,
+ * and restores the previous character when leaving.
  */
 int acl_match_reg(struct sample *smp, struct acl_pattern *pattern)
 {
 	char old_char;
 	int ret;
-
-	if (unlikely(smp->flags & SMP_F_READ_ONLY)) {
-		char *new_str;
-
-		new_str = calloc(1, smp->data.str.len + 1);
-		if (!new_str)
-			return ACL_PAT_FAIL;
-
-		memcpy(new_str, smp->data.str.str, smp->data.str.len);
-		new_str[smp->data.str.len] = 0;
-		if (smp->flags & SMP_F_MUST_FREE)
-			free(smp->data.str.str);
-		smp->data.str.str = new_str;
-		smp->flags |= SMP_F_MUST_FREE;
-		smp->flags &= ~SMP_F_READ_ONLY;
-	}
 
 	old_char = smp->data.str.str[smp->data.str.len];
 	smp->data.str.str[smp->data.str.len] = 0;
@@ -1902,12 +1884,6 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 				 * FIXME: implement cache.
 				 *
 				 */
-
-				/* now we may have some cleanup to do */
-				if (smp.flags & SMP_F_MUST_FREE) {
-					free(smp.data.str.str);
-					smp.data.str.len = 0;
-				}
 
 				/* we're ORing these terms, so a single PASS is enough */
 				if (acl_res == ACL_PAT_PASS)

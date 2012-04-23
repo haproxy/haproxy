@@ -54,10 +54,6 @@ enum {
 	SMP_F_VOL_TXN    = 1 << 5, /* result sensitive to new transaction (eg: HTTP version) */
 	SMP_F_VOL_SESS   = 1 << 6, /* result sensitive to new session (eg: src IP) */
 	SMP_F_VOLATILE   = (1<<2)|(1<<3)|(1<<4)|(1<<5)|(1<<6), /* any volatility condition */
-
-	SMP_F_READ_ONLY  = 1 << 7, /* returned data must not be altered */
-	SMP_F_MUST_FREE  = 1 << 10, /* migration: this sample must be freed ASAP */
-
 };
 
 /* pattern fetch direction */

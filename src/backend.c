@@ -1456,7 +1456,6 @@ static int
 acl_fetch_be_id(struct proxy *px, struct session *l4, void *l7, int dir,
                 struct acl_expr *expr, struct sample *smp)
 {
-	smp->flags = SMP_F_READ_ONLY;
 	smp->flags = SMP_F_VOL_TXN;
 	smp->type = SMP_T_UINT;
 	smp->data.uint = l4->be->uuid;
@@ -1471,7 +1470,6 @@ acl_fetch_srv_id(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!target_srv(&l4->target))
 		return 0;
 
-	smp->flags = SMP_F_READ_ONLY;
 	smp->type = SMP_T_UINT;
 	smp->data.uint = target_srv(&l4->target)->puid;
 

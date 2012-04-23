@@ -205,10 +205,8 @@ int acl_match_dom(struct sample *smp, struct acl_pattern *pattern);
 /* Check that the IPv4 address in <test> matches the IP/mask in pattern */
 int acl_match_ip(struct sample *smp, struct acl_pattern *pattern);
 
-/* Executes a regex. It needs to change the data. If it is marked READ_ONLY
- * then it will be allocated and duplicated in place so that others may use
- * it later on. Note that this is embarrassing because we always try to avoid
- * allocating memory at run time.
+/* Executes a regex. It temporarily changes the data to add a trailing zero,
+ * and restores the previous character when leaving.
  */
 int acl_match_reg(struct sample *smp, struct acl_pattern *pattern);
 
