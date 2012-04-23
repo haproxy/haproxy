@@ -1276,24 +1276,24 @@ acl_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
 /* extract the connection's source ipv4 address */
 static int
 pattern_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
-                  const struct arg *arg_p, union pattern_data *data)
+                  const struct arg *arg_p, struct sample *smp)
 {
 	if (l4->si[0].addr.from.ss_family != AF_INET )
 		return 0;
 
-	data->ipv4.s_addr = ((struct sockaddr_in *)&l4->si[0].addr.from)->sin_addr.s_addr;
+	smp->data.ipv4.s_addr = ((struct sockaddr_in *)&l4->si[0].addr.from)->sin_addr.s_addr;
 	return 1;
 }
 
 /* extract the connection's source ipv6 address */
 static int
 pattern_fetch_src6(struct proxy *px, struct session *l4, void *l7, int dir,
-                  const struct arg *arg_p, union pattern_data *data)
+                  const struct arg *arg_p, struct sample *smp)
 {
 	if (l4->si[0].addr.from.ss_family != AF_INET6)
 		return 0;
 
-	memcpy(data->ipv6.s6_addr, ((struct sockaddr_in6 *)&l4->si[0].addr.from)->sin6_addr.s6_addr, sizeof(data->ipv6.s6_addr));
+	memcpy(smp->data.ipv6.s6_addr, ((struct sockaddr_in6 *)&l4->si[0].addr.from)->sin6_addr.s6_addr, sizeof(smp->data.ipv6.s6_addr));
 	return 1;
 }
 
@@ -1339,28 +1339,28 @@ acl_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
 /* extract the connection's destination ipv4 address */
 static int
 pattern_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
-                  const struct arg *arg_p, union pattern_data *data)
+                  const struct arg *arg_p, struct sample *smp)
 {
 	stream_sock_get_to_addr(&l4->si[0]);
 
 	if (l4->si[0].addr.to.ss_family != AF_INET)
 		return 0;
 
-	data->ipv4.s_addr = ((struct sockaddr_in *)&l4->si[0].addr.to)->sin_addr.s_addr;
+	smp->data.ipv4.s_addr = ((struct sockaddr_in *)&l4->si[0].addr.to)->sin_addr.s_addr;
 	return 1;
 }
 
 /* extract the connection's destination ipv6 address */
 static int
 pattern_fetch_dst6(struct proxy *px, struct session *l4, void *l7, int dir,
-                  const struct arg *arg_p, union pattern_data *data)
+                  const struct arg *arg_p, struct sample *smp)
 {
 	stream_sock_get_to_addr(&l4->si[0]);
 
 	if (l4->si[0].addr.to.ss_family != AF_INET6)
 		return 0;
 
-	memcpy(data->ipv6.s6_addr, ((struct sockaddr_in6 *)&l4->si[0].addr.to)->sin6_addr.s6_addr, sizeof(data->ipv6.s6_addr));
+	memcpy(smp->data.ipv6.s6_addr, ((struct sockaddr_in6 *)&l4->si[0].addr.to)->sin6_addr.s6_addr, sizeof(smp->data.ipv6.s6_addr));
 	return 1;
 }
 
@@ -1381,11 +1381,11 @@ acl_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
 
 static int
 pattern_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
-                    const struct arg *arg, union pattern_data *data)
+                    const struct arg *arg, struct sample *smp)
 {
 	stream_sock_get_to_addr(&l4->si[0]);
 
-	if (!(data->uint = get_host_port(&l4->si[0].addr.to)))
+	if (!(smp->data.uint = get_host_port(&l4->si[0].addr.to)))
 		return 0;
 
 	return 1;
@@ -1393,7 +1393,7 @@ pattern_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
 
 static int
 pattern_fetch_payloadlv(struct proxy *px, struct session *l4, void *l7, int dir,
-                        const struct arg *arg_p, union pattern_data *data)
+                        const struct arg *arg_p, struct sample *smp)
 {
 	int len_offset = arg_p[0].data.uint;
 	int len_size = arg_p[1].data.uint;
@@ -1435,14 +1435,14 @@ pattern_fetch_payloadlv(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	/* init chunk as read only */
-	chunk_initlen(&data->str, b->p + buf_offset, 0, buf_size);
+	chunk_initlen(&smp->data.str, b->p + buf_offset, 0, buf_size);
 
 	return 1;
 }
 
 static int
 pattern_fetch_payload(struct proxy *px, struct session *l4, void *l7, int dir,
-                      const struct arg *arg_p, union pattern_data *data)
+                      const struct arg *arg_p, struct sample *smp)
 {
 	int buf_offset = arg_p[0].data.uint;
 	int buf_size = arg_p[1].data.uint;
@@ -1460,25 +1460,24 @@ pattern_fetch_payload(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	/* init chunk as read only */
-	chunk_initlen(&data->str, b->p + buf_offset, 0, buf_size);
+	chunk_initlen(&smp->data.str, b->p + buf_offset, 0, buf_size);
 
 	return 1;
 }
 
 static int
 pattern_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
-                         const struct arg *arg_p, union pattern_data *data)
+                         const struct arg *arg_p, struct sample *smp)
 {
 	int ret;
 	struct acl_expr  expr;
-	struct sample    smp;
 	struct arg       args[2];
 
 	if (!l4)
 		return 0;
 
 	memset(&expr, 0, sizeof(expr));
-	memset(&smp, 0, sizeof(smp));
+	memset(smp, 0, sizeof(*smp));
 
 	args[0].type = ARGT_STR;
 	args[0].data.str.str = arg_p[0].data.str.str;
@@ -1487,11 +1486,9 @@ pattern_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir
 
 	expr.args = args;
 
-	ret = acl_fetch_rdp_cookie(px, l4, NULL, ACL_DIR_REQ, &expr, &smp);
-	if (ret == 0 || (smp.flags & SMP_F_MAY_CHANGE) || smp.data.str.len == 0)
+	ret = acl_fetch_rdp_cookie(px, l4, NULL, ACL_DIR_REQ, &expr, smp);
+	if (ret == 0 || (smp->flags & SMP_F_MAY_CHANGE) || smp->data.str.len == 0)
 		return 0;
-
-	data->str = smp.data.str;
 	return 1;
 }
 

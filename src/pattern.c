@@ -120,74 +120,74 @@ static struct chunk *get_trash_chunk(void)
 /*          Pattern casts functions                               */
 /******************************************************************/
 
-static int c_ip2int(union pattern_data *data)
+static int c_ip2int(struct sample *smp)
 {
-	data->uint = ntohl(data->ipv4.s_addr);
+	smp->data.uint = ntohl(smp->data.ipv4.s_addr);
 	return 1;
 }
 
-static int c_ip2str(union pattern_data *data)
+static int c_ip2str(struct sample *smp)
 {
 	struct chunk *trash = get_trash_chunk();
 
-	if (!inet_ntop(AF_INET, (void *)&data->ipv4, trash->str, trash->size))
+	if (!inet_ntop(AF_INET, (void *)&smp->data.ipv4, trash->str, trash->size))
 		return 0;
 
 	trash->len = strlen(trash->str);
-	data->str = *trash;
+	smp->data.str = *trash;
 
 	return 1;
 }
 
-static int c_ip2ipv6(union pattern_data *data)
+static int c_ip2ipv6(struct sample *smp)
 {
-	v4tov6(&data->ipv6, &data->ipv4);
+	v4tov6(&smp->data.ipv6, &smp->data.ipv4);
 	return 1;
 }
 
-static int c_ipv62str(union pattern_data *data)
+static int c_ipv62str(struct sample *smp)
 {
 	struct chunk *trash = get_trash_chunk();
 
-	if (!inet_ntop(AF_INET6, (void *)&data->ipv6, trash->str, trash->size))
+	if (!inet_ntop(AF_INET6, (void *)&smp->data.ipv6, trash->str, trash->size))
 		return 0;
 
 	trash->len = strlen(trash->str);
-	data->str = *trash;
+	smp->data.str = *trash;
 	return 1;
 }
 
 /*
-static int c_ipv62ip(union pattern_data *data)
+static int c_ipv62ip(struct sample *smp)
 {
-	return v6tov4(&data->ipv4, &data->ipv6);
+	return v6tov4(&smp->data.ipv4, &smp->data.ipv6);
 }
 */
 
-static int c_int2ip(union pattern_data *data)
+static int c_int2ip(struct sample *smp)
 {
-	data->ipv4.s_addr = htonl(data->uint);
+	smp->data.ipv4.s_addr = htonl(smp->data.uint);
 	return 1;
 }
 
-static int c_str2ip(union pattern_data *data)
+static int c_str2ip(struct sample *smp)
 {
-	if (!buf2ip(data->str.str, data->str.len, &data->ipv4))
+	if (!buf2ip(smp->data.str.str, smp->data.str.len, &smp->data.ipv4))
 		return 0;
 	return 1;
 }
 
-static int c_str2ipv6(union pattern_data *data)
+static int c_str2ipv6(struct sample *smp)
 {
-	return inet_pton(AF_INET6, data->str.str, &data->ipv6);
+	return inet_pton(AF_INET6, smp->data.str.str, &smp->data.ipv6);
 }
 
-static int c_int2str(union pattern_data *data)
+static int c_int2str(struct sample *smp)
 {
 	struct chunk *trash = get_trash_chunk();
 	char *pos;
 
-	pos = ultoa_r(data->uint, trash->str, trash->size);
+	pos = ultoa_r(smp->data.uint, trash->str, trash->size);
 
 	if (!pos)
 		return 0;
@@ -195,33 +195,33 @@ static int c_int2str(union pattern_data *data)
 	trash->size = trash->size - (pos - trash->str);
 	trash->str = pos;
 	trash->len = strlen(pos);
-	data->str = *trash;
+	smp->data.str = *trash;
 	return 1;
 }
 
-static int c_datadup(union pattern_data *data)
+static int c_datadup(struct sample *smp)
 {
 	struct chunk *trash = get_trash_chunk();
 
-	trash->len = data->str.len < trash->size ? data->str.len : trash->size;
-	memcpy(trash->str, data->str.str, trash->len);
-	data->str = *trash;
+	trash->len = smp->data.str.len < trash->size ? smp->data.str.len : trash->size;
+	memcpy(trash->str, smp->data.str.str, trash->len);
+	smp->data.str = *trash;
 	return 1;
 }
 
 
-static int c_none(union pattern_data *data)
+static int c_none(struct sample *smp)
 {
 	return 1;
 }
 
-static int c_str2int(union pattern_data *data)
+static int c_str2int(struct sample *smp)
 {
 	int i;
 	uint32_t ret = 0;
 
-	for (i = 0; i < data->str.len; i++) {
-		uint32_t val = data->str.str[i] - '0';
+	for (i = 0; i < smp->data.str.len; i++) {
+		uint32_t val = smp->data.str.str[i] - '0';
 
 		if (val > 9)
 			break;
@@ -229,7 +229,7 @@ static int c_str2int(union pattern_data *data)
 		ret = ret * 10 + val;
 	}
 
-	data->uint = ret;
+	smp->data.uint = ret;
 	return 1;
 }
 
@@ -239,7 +239,7 @@ static int c_str2int(union pattern_data *data)
 /*           NULL pointer used for impossible pattern casts      */
 /*****************************************************************/
 
-typedef int (*pattern_cast_fct)(union pattern_data *data);
+typedef int (*pattern_cast_fct)(struct sample *smp);
 static pattern_cast_fct pattern_casts[SMP_TYPES][SMP_TYPES] = {
 /*            to:  BOOL       UINT       SINT       IPV4      IPV6        STR         BIN        CSTR        CBIN   */
 /* from: BOOL */ { c_none,    c_none,    c_none,    NULL,     NULL,       NULL,       NULL,      NULL,       NULL   },
@@ -475,17 +475,18 @@ struct sample *pattern_process(struct proxy *px, struct session *l4, void *l7, i
 	if (p == NULL)
 		p = &temp_smp;
 
-	if (!expr->fetch->process(px, l4, l7, dir, expr->arg_p, &p->data))
+	p->flags = 0;
+	if (!expr->fetch->process(px, l4, l7, dir, expr->arg_p, p))
 		return NULL;
 
 	p->type = expr->fetch->out_type;
 
 	list_for_each_entry(conv_expr, &expr->conv_exprs, list) {
-		if (!pattern_casts[p->type][conv_expr->conv->in_type](&p->data))
+		if (!pattern_casts[p->type][conv_expr->conv->in_type](p))
 			return NULL;
 
 		p->type = conv_expr->conv->in_type;
-		if (!conv_expr->conv->process(conv_expr->arg_p, &p->data))
+		if (!conv_expr->conv->process(conv_expr->arg_p, p))
 			return NULL;
 
 		p->type = conv_expr->conv->out_type;
@@ -497,38 +498,38 @@ struct sample *pattern_process(struct proxy *px, struct session *l4, void *l7, i
 /*    Pattern format convert functions                           */
 /*****************************************************************/
 
-static int pattern_conv_str2lower(const struct arg *arg_p, union pattern_data *data)
+static int pattern_conv_str2lower(const struct arg *arg_p, struct sample *smp)
 {
 	int i;
 
-	if (!data->str.size)
+	if (!smp->data.str.size)
 		return 0;
 
-	for (i = 0; i < data->str.len; i++) {
-		if ((data->str.str[i] >= 'A') && (data->str.str[i] <= 'Z'))
-			data->str.str[i] += 'a' - 'A';
+	for (i = 0; i < smp->data.str.len; i++) {
+		if ((smp->data.str.str[i] >= 'A') && (smp->data.str.str[i] <= 'Z'))
+			smp->data.str.str[i] += 'a' - 'A';
 	}
 	return 1;
 }
 
-static int pattern_conv_str2upper(const struct arg *arg_p, union pattern_data *data)
+static int pattern_conv_str2upper(const struct arg *arg_p, struct sample *smp)
 {
 	int i;
 
-	if (!data->str.size)
+	if (!smp->data.str.size)
 		return 0;
 
-	for (i = 0; i < data->str.len; i++) {
-		if ((data->str.str[i] >= 'a') && (data->str.str[i] <= 'z'))
-			data->str.str[i] += 'A' - 'a';
+	for (i = 0; i < smp->data.str.len; i++) {
+		if ((smp->data.str.str[i] >= 'a') && (smp->data.str.str[i] <= 'z'))
+			smp->data.str.str[i] += 'A' - 'a';
 	}
 	return 1;
 }
 
 /* takes the netmask in arg_p */
-static int pattern_conv_ipmask(const struct arg *arg_p, union pattern_data *data)
+static int pattern_conv_ipmask(const struct arg *arg_p, struct sample *smp)
 {
-	data->ipv4.s_addr &= arg_p->data.ipv4.s_addr;
+	smp->data.ipv4.s_addr &= arg_p->data.ipv4.s_addr;
 	return 1;
 }
 

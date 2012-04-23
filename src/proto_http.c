@@ -8348,12 +8348,12 @@ static struct acl_kw_list acl_kws = {{ },{
 /* Returns the last occurrence of specified header. */
 static int
 pattern_fetch_hdr(struct proxy *px, struct session *l4, void *l7, int dir,
-		  const struct arg *arg_p, union pattern_data *data)
+		  const struct arg *arg_p, struct sample *smp)
 {
 	struct http_txn *txn = l7;
 
 	return http_get_hdr(&txn->req, arg_p->data.str.str, arg_p->data.str.len, &txn->hdr_idx,
-			    -1, NULL, &data->str.str, &data->str.len);
+			    -1, NULL, &smp->data.str.str, &smp->data.str.len);
 }
 
 /*
@@ -8443,7 +8443,7 @@ find_url_param_value(char* path, size_t path_l,
 
 static int
 pattern_fetch_url_param(struct proxy *px, struct session *l4, void *l7, int dir,
-                     const struct arg *arg_p, union pattern_data *data)
+                     const struct arg *arg_p, struct sample *smp)
 {
 	struct http_txn *txn = l7;
 	struct http_msg *msg = &txn->req;
@@ -8455,8 +8455,8 @@ pattern_fetch_url_param(struct proxy *px, struct session *l4, void *l7, int dir,
 				  &url_param_value, &url_param_value_l))
 		return 0;
 
-	data->str.str = url_param_value;
-	data->str.len = url_param_value_l;
+	smp->data.str.str = url_param_value;
+	smp->data.str.len = url_param_value_l;
 	return 1;
 }
 
@@ -8496,7 +8496,7 @@ find_cookie_value(struct http_msg *msg, struct http_txn *txn,
 
 static int
 pattern_fetch_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
-                     const struct arg *arg_p, union pattern_data *data)
+                     const struct arg *arg_p, struct sample *smp)
 {
 	struct http_txn *txn = l7;
 	struct http_msg *msg = &txn->req;
@@ -8508,8 +8508,8 @@ pattern_fetch_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
 				  arg_p->data.str.str, arg_p->data.str.len, 1,
 				  &cookie_value, &cookie_value_l);
 	if (found) {
-		data->str.str = cookie_value;
-		data->str.len = cookie_value_l;
+		smp->data.str.str = cookie_value;
+		smp->data.str.len = cookie_value_l;
 	}
 
 	return found;
@@ -8518,7 +8518,7 @@ pattern_fetch_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
 
 static int
 pattern_fetch_set_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
-			 const struct arg *arg_p, union pattern_data *data)
+			 const struct arg *arg_p, struct sample *smp)
 {
 	struct http_txn *txn = l7;
 	struct http_msg *msg = &txn->rsp;
@@ -8530,8 +8530,8 @@ pattern_fetch_set_cookie(struct proxy *px, struct session *l4, void *l7, int dir
 				  arg_p->data.str.str, arg_p->data.str.len, 1,
 				  &cookie_value, &cookie_value_l);
 	if (found) {
-		data->str.str = cookie_value;
-		data->str.len = cookie_value_l;
+		smp->data.str.str = cookie_value;
+		smp->data.str.len = cookie_value_l;
 	}
 
 	return found;

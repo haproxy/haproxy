@@ -448,76 +448,76 @@ int stktable_parse_type(char **args, int *myidx, unsigned long *type, size_t *ke
 /*    typed pattern to typed table key functions                 */
 /*****************************************************************/
 
-static void *k_int2int(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
+static void *k_int2int(struct sample *smp, union stktable_key_data *kdata, size_t *len)
 {
-	return (void *)&pdata->uint;
+	return (void *)&smp->data.uint;
 }
 
-static void *k_ip2ip(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
+static void *k_ip2ip(struct sample *smp, union stktable_key_data *kdata, size_t *len)
 {
-	return (void *)&pdata->ipv4.s_addr;
+	return (void *)&smp->data.ipv4.s_addr;
 }
 
-static void *k_ip2ipv6(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
+static void *k_ip2ipv6(struct sample *smp, union stktable_key_data *kdata, size_t *len)
 {
-	v4tov6(&kdata->ipv6, &pdata->ipv4);
+	v4tov6(&kdata->ipv6, &smp->data.ipv4);
 	return (void *)&kdata->ipv6.s6_addr;
 }
 
-static void *k_ipv62ipv6(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
+static void *k_ipv62ipv6(struct sample *smp, union stktable_key_data *kdata, size_t *len)
 {
-	return (void *)&pdata->ipv6.s6_addr;
+	return (void *)&smp->data.ipv6.s6_addr;
 }
 
 /*
-static void *k_ipv62ip(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
+static void *k_ipv62ip(struct sample *smp, union stktable_key_data *kdata, size_t *len)
 {
-	v6tov4(&kdata->ip, &pdata->ipv6);
+	v6tov4(&kdata->ip, &smp->data.ipv6);
 	return (void *)&kdata->ip.s_addr;
 }
 */
 
-static void *k_ip2int(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
+static void *k_ip2int(struct sample *smp, union stktable_key_data *kdata, size_t *len)
 {
-	kdata->integer = ntohl(pdata->ipv4.s_addr);
+	kdata->integer = ntohl(smp->data.ipv4.s_addr);
 	return (void *)&kdata->integer;
 }
 
-static void *k_int2ip(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
+static void *k_int2ip(struct sample *smp, union stktable_key_data *kdata, size_t *len)
 {
-	kdata->ip.s_addr = htonl(pdata->uint);
+	kdata->ip.s_addr = htonl(smp->data.uint);
 	return (void *)&kdata->ip.s_addr;
 }
 
-static void *k_str2str(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
+static void *k_str2str(struct sample *smp, union stktable_key_data *kdata, size_t *len)
 {
-	*len = pdata->str.len;
-	return (void *)pdata->str.str;
+	*len = smp->data.str.len;
+	return (void *)smp->data.str.str;
 }
 
-static void *k_ip2str(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
+static void *k_ip2str(struct sample *smp, union stktable_key_data *kdata, size_t *len)
 {
-	if (!inet_ntop(AF_INET, &pdata->ipv4, kdata->buf, sizeof(kdata->buf)))
+	if (!inet_ntop(AF_INET, &smp->data.ipv4, kdata->buf, sizeof(kdata->buf)))
 		return NULL;
 
 	*len = strlen((const char *)kdata->buf);
 	return (void *)kdata->buf;
 }
 
-static void *k_ipv62str(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
+static void *k_ipv62str(struct sample *smp, union stktable_key_data *kdata, size_t *len)
 {
-	if (!inet_ntop(AF_INET6, &pdata->ipv6, kdata->buf, sizeof(kdata->buf)))
+	if (!inet_ntop(AF_INET6, &smp->data.ipv6, kdata->buf, sizeof(kdata->buf)))
 		return NULL;
 
 	*len = strlen((const char *)kdata->buf);
 	return (void *)kdata->buf;
 }
 
-static void *k_int2str(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
+static void *k_int2str(struct sample *smp, union stktable_key_data *kdata, size_t *len)
 {
 	void *key;
 
-	key = (void *)ultoa_r(pdata->uint,  kdata->buf,  sizeof(kdata->buf));
+	key = (void *)ultoa_r(smp->data.uint,  kdata->buf,  sizeof(kdata->buf));
 	if (!key)
 		return NULL;
 
@@ -525,29 +525,29 @@ static void *k_int2str(union pattern_data *pdata, union stktable_key_data *kdata
 	return key;
 }
 
-static void *k_str2ip(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
+static void *k_str2ip(struct sample *smp, union stktable_key_data *kdata, size_t *len)
 {
-	if (!buf2ip(pdata->str.str, pdata->str.len, &kdata->ip))
+	if (!buf2ip(smp->data.str.str, smp->data.str.len, &kdata->ip))
 		return NULL;
 
 	return (void *)&kdata->ip.s_addr;
 }
 
-static void *k_str2ipv6(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
+static void *k_str2ipv6(struct sample *smp, union stktable_key_data *kdata, size_t *len)
 {
-	if (!inet_pton(AF_INET6, pdata->str.str, &kdata->ipv6))
+	if (!inet_pton(AF_INET6, smp->data.str.str, &kdata->ipv6))
 		return NULL;
 
 	return (void *)&kdata->ipv6.s6_addr;
 }
 
-static void *k_str2int(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len)
+static void *k_str2int(struct sample *smp, union stktable_key_data *kdata, size_t *len)
 {
 	int i;
 
 	kdata->integer = 0;
-	for (i = 0; i < pdata->str.len; i++) {
-		uint32_t val = pdata->str.str[i] - '0';
+	for (i = 0; i < smp->data.str.len; i++) {
+		uint32_t val = smp->data.str.str[i] - '0';
 
 		if (val > 9)
 			break;
@@ -569,7 +569,7 @@ static void *k_str2int(union pattern_data *pdata, union stktable_key_data *kdata
  * relevant and could cause confusion in configuration.
  */
 
-typedef void *(*pattern_to_key_fct)(union pattern_data *pdata, union stktable_key_data *kdata, size_t *len);
+typedef void *(*pattern_to_key_fct)(struct sample *smp, union stktable_key_data *kdata, size_t *len);
 static pattern_to_key_fct pattern_to_key[SMP_TYPES][STKTABLE_TYPES] = {
 /*       table type:   IP          IPV6         INTEGER    STRING      BINARY    */
 /* patt. type: BOOL */ { NULL,     NULL,        k_int2int, k_int2str,  NULL      },
@@ -593,14 +593,14 @@ static pattern_to_key_fct pattern_to_key[SMP_TYPES][STKTABLE_TYPES] = {
 struct stktable_key *stktable_fetch_key(struct stktable *t, struct proxy *px, struct session *l4, void *l7, int dir,
                                         struct pattern_expr *expr)
 {
-	struct sample *ptrn;
+	struct sample *smp;
 
-	ptrn = pattern_process(px, l4, l7, dir, expr, NULL);
-	if (!ptrn)
+	smp = pattern_process(px, l4, l7, dir, expr, NULL);
+	if (!smp)
 		return NULL;
 
 	static_table_key.key_len = t->key_size;
-	static_table_key.key = pattern_to_key[ptrn->type][t->type](&ptrn->data, &static_table_key.data, &static_table_key.key_len);
+	static_table_key.key = pattern_to_key[smp->type][t->type](smp, &static_table_key.data, &static_table_key.key_len);
 
 	if (!static_table_key.key)
 		return NULL;

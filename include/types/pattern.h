@@ -61,15 +61,6 @@ enum {
 #define PATTERN_FETCH_RTR	2
 
 
-/* pattern result data */
-union pattern_data {
-	unsigned int    uint;  /* used for unsigned 32bits integers and booleans */
-	int             sint;  /* used for signed 32bits integers */
-	struct in_addr  ipv4;  /* used for ipv4 addresses */
-	struct in6_addr ipv6;  /* used for ipv6 addresses */
-	struct chunk    str;   /* used for char strings or buffers */
-};
-
 /* a sample context might be used by any sample fetch function in order to
  * store information needed across multiple calls (eg: restart point for a
  * next occurrence). By definition it may store up to 8 pointers, or any
@@ -89,7 +80,13 @@ union smp_ctx {
 struct sample {
 	unsigned int flags;       /* SMP_F_* */
 	int type;                 /* SMP_T_* */
-	union pattern_data data;
+	union {
+		unsigned int    uint;  /* used for unsigned 32bits integers and booleans */
+		int             sint;  /* used for signed 32bits integers */
+		struct in_addr  ipv4;  /* used for ipv4 addresses */
+		struct in6_addr ipv6;  /* used for ipv6 addresses */
+		struct chunk    str;   /* used for char strings or buffers */
+	} data;                        /* sample data */
 	union smp_ctx ctx;
 };
 
@@ -97,7 +94,7 @@ struct sample {
 struct pattern_conv {
 	const char *kw;                           /* configuration keyword  */
 	int (*process)(const struct arg *arg_p,
-		       union pattern_data *data); /* process function */
+		       struct sample *smp);       /* process function */
 	unsigned int arg_mask;                    /* arguments (ARG*()) */
 	int (*val_args)(struct arg *arg_p,
 			char **err_msg);          /* argument validation function */
@@ -119,7 +116,7 @@ struct pattern_fetch {
 	               struct session *l4,
 	               void *l7,
 	               int dir, const struct arg *arg_p,
-	               union pattern_data *data); /* fetch processing function */
+	               struct sample *smp);       /* fetch processing function */
 	unsigned int arg_mask;                    /* arguments (ARG*()) */
 	int (*val_args)(struct arg *arg_p,
 			char **err_msg);          /* argument validation function */
