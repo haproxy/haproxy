@@ -593,7 +593,7 @@ static pattern_to_key_fct pattern_to_key[SMP_TYPES][STKTABLE_TYPES] = {
 struct stktable_key *stktable_fetch_key(struct stktable *t, struct proxy *px, struct session *l4, void *l7, int dir,
                                         struct pattern_expr *expr)
 {
-	struct pattern *ptrn;
+	struct sample *ptrn;
 
 	ptrn = pattern_process(px, l4, l7, dir, expr, NULL);
 	if (!ptrn)

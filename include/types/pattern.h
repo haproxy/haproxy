@@ -70,12 +70,6 @@ union pattern_data {
 	struct chunk    str;   /* used for char strings or buffers */
 };
 
-/* pattern result */
-struct pattern {
-	int type;                 /* current type of data */
-	union pattern_data data;  /* data */
-};
-
 /* a sample context might be used by any sample fetch function in order to
  * store information needed across multiple calls (eg: restart point for a
  * next occurrence). By definition it may store up to 8 pointers, or any

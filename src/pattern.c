@@ -18,8 +18,8 @@
 #include <proto/buffers.h>
 #include <common/standard.h>
 
-/* static structure used on pattern_process if <p> is NULL */
-static struct pattern temp_pattern;
+/* static sample used in pattern_process() when <p> is NULL */
+static struct sample temp_smp;
 
 /* trash chunk used for pattern conversions */
 static struct chunk trash_chunk;
@@ -467,13 +467,13 @@ out_error:
  *  If <p> is not null, function returns results in structure pointed by <p>.
  *  If <p> is null, functions returns a pointer on a static pattern structure.
  */
-struct pattern *pattern_process(struct proxy *px, struct session *l4, void *l7, int dir,
-                                struct pattern_expr *expr, struct pattern *p)
+struct sample *pattern_process(struct proxy *px, struct session *l4, void *l7, int dir,
+                               struct pattern_expr *expr, struct sample *p)
 {
 	struct pattern_conv_expr *conv_expr;
 
 	if (p == NULL)
-		p = &temp_pattern;
+		p = &temp_smp;
 
 	if (!expr->fetch->process(px, l4, l7, dir, expr->arg_p, &p->data))
 		return NULL;
