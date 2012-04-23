@@ -39,6 +39,29 @@ enum {
 	PATTERN_TYPES             /* number of types, must always be last */
 };
 
+/* Flags used to describe fetched samples. MAY_CHANGE indicates that the result
+ * of the fetch might still evolve, for instance because of more data expected,
+ * even if the fetch has failed. VOL_* indicates how long a result may be cached.
+ */
+enum {
+	SMP_F_NOT_LAST   = 1 << 0, /* other occurrences might exist for this sample */
+	SMP_F_MAY_CHANGE = 1 << 1, /* sample is unstable and might change (eg: request length) */
+	SMP_F_VOL_TEST   = 1 << 2, /* result must not survive longer than the test (eg: time) */
+	SMP_F_VOL_1ST    = 1 << 3, /* result sensitive to changes in first line (eg: URI) */
+	SMP_F_VOL_HDR    = 1 << 4, /* result sensitive to changes in headers */
+	SMP_F_VOL_TXN    = 1 << 5, /* result sensitive to new transaction (eg: HTTP version) */
+	SMP_F_VOL_SESS   = 1 << 6, /* result sensitive to new session (eg: src IP) */
+	SMP_F_VOLATILE   = (1<<2)|(1<<3)|(1<<4)|(1<<5)|(1<<6), /* any volatility condition */
+
+	SMP_F_READ_ONLY  = 1 << 7, /* returned data must not be altered */
+	SMP_F_RES_SET    = 1 << 8, /* migration: ACL match must reflect the RES_PASS flag */
+	SMP_F_RES_PASS   = 1 << 9, /* migration: returned data is a TRUE boolean */
+	SMP_F_SET_RES_PASS = (SMP_F_RES_SET|SMP_F_RES_PASS),  /* migration: force ACLs to PASS */
+	SMP_F_SET_RES_FAIL = (SMP_F_RES_SET),  /* migration: force ACLs to FAIL */
+
+	SMP_F_MUST_FREE  = 1 << 10, /* migration: this sample must be freed ASAP */
+
+};
 
 /* pattern fetch direction */
 #define PATTERN_FETCH_REQ	1
@@ -57,6 +80,29 @@ union pattern_data {
 struct pattern {
 	int type;                 /* current type of data */
 	union pattern_data data;  /* data */
+};
+
+/* a sample context might be used by any sample fetch function in order to
+ * store information needed across multiple calls (eg: restart point for a
+ * next occurrence). By definition it may store up to 8 pointers, or any
+ * scalar (double, int, long long).
+ */
+union smp_ctx {
+	void *p;        /* any pointer */
+	int i;          /* any integer */
+	long long ll;   /* any long long or smaller */
+	double d;       /* any float or double */
+	void *a[8];     /* any array of up to 8 pointers */
+};
+
+/* a sample is a typed data extracted from a stream. It has a type, contents,
+ * validity constraints, a context for use in iterative calls.
+ */
+struct sample {
+	unsigned int flags;       /* SMP_F_* */
+	int type;                 /* PATTERN_TYPE_* */
+	union pattern_data data;
+	union smp_ctx ctx;
 };
 
 /* pattern conversion */
