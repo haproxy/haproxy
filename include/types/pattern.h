@@ -56,11 +56,6 @@ enum {
 	SMP_F_VOLATILE   = (1<<2)|(1<<3)|(1<<4)|(1<<5)|(1<<6), /* any volatility condition */
 
 	SMP_F_READ_ONLY  = 1 << 7, /* returned data must not be altered */
-	SMP_F_RES_SET    = 1 << 8, /* migration: ACL match must reflect the RES_PASS flag */
-	SMP_F_RES_PASS   = 1 << 9, /* migration: returned data is a TRUE boolean */
-	SMP_F_SET_RES_PASS = (SMP_F_RES_SET|SMP_F_RES_PASS),  /* migration: force ACLs to PASS */
-	SMP_F_SET_RES_FAIL = (SMP_F_RES_SET),  /* migration: force ACLs to FAIL */
-
 	SMP_F_MUST_FREE  = 1 << 10, /* migration: this sample must be freed ASAP */
 
 };

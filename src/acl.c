@@ -69,7 +69,7 @@ acl_fetch_true(struct proxy *px, struct session *l4, void *l7, int dir,
                struct acl_expr *expr, struct sample *smp)
 {
 	smp->type = SMP_T_BOOL;
-	smp->flags |= SMP_F_SET_RES_PASS;
+	smp->data.uint = 1;
 	return 1;
 }
 
@@ -85,7 +85,7 @@ acl_fetch_wait_end(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 	}
 	smp->type = SMP_T_BOOL;
-	smp->flags |= SMP_F_SET_RES_PASS;
+	smp->data.uint = 1;
 	return 1;
 }
 
@@ -95,7 +95,7 @@ acl_fetch_false(struct proxy *px, struct session *l4, void *l7, int dir,
                 struct acl_expr *expr, struct sample *smp)
 {
 	smp->type = SMP_T_BOOL;
-	smp->flags |= SMP_F_SET_RES_FAIL;
+	smp->data.uint = 0;
 	return 1;
 }
 
@@ -1870,8 +1870,8 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 					continue;
 				}
 
-				if (smp.flags & SMP_F_RES_SET) {
-					if (smp.flags & SMP_F_RES_PASS)
+				if (smp.type == SMP_T_BOOL) {
+					if (smp.data.uint)
 						acl_res |= ACL_PAT_PASS;
 					else
 						acl_res |= ACL_PAT_FAIL;

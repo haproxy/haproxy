@@ -7562,7 +7562,7 @@ acl_prefetch_http(struct proxy *px, struct session *s, void *l7, int dir,
 
 		if (unlikely(txn->req.msg_state < HTTP_MSG_BODY)) {
 			if ((msg->msg_state == HTTP_MSG_ERROR) || (s->req->flags & BF_FULL)) {
-				smp->flags |= SMP_F_SET_RES_FAIL;
+				smp->data.uint = 0;
 				return -1;
 			}
 
@@ -7573,7 +7573,7 @@ acl_prefetch_http(struct proxy *px, struct session *s, void *l7, int dir,
 			/* Still no valid request ? */
 			if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 				if ((msg->msg_state == HTTP_MSG_ERROR) || (s->req->flags & BF_FULL)) {
-					smp->flags |= SMP_F_SET_RES_FAIL;
+					smp->data.uint = 0;
 					return -1;
 				}
 				/* wait for final state */
@@ -7590,7 +7590,7 @@ acl_prefetch_http(struct proxy *px, struct session *s, void *l7, int dir,
 				s->flags |= SN_REDIRECTABLE;
 
 			if (unlikely(msg->sl.rq.v_l == 0) && !http_upgrade_v09_to_v10(txn)) {
-				smp->flags |= SMP_F_SET_RES_FAIL;
+				smp->data.uint = 0;
 				return -1;
 			}
 		}
@@ -7982,7 +7982,7 @@ acl_fetch_proto_http(struct proxy *px, struct session *l4, void *l7, int dir,
 	CHECK_HTTP_MESSAGE_FIRST();
 
 	smp->type = SMP_T_BOOL;
-	smp->flags |= SMP_F_SET_RES_PASS;
+	smp->data.uint = 1;
 	return 1;
 }
 
@@ -7995,11 +7995,7 @@ acl_fetch_http_first_req(struct proxy *px, struct session *s, void *l7, int dir,
 		return 0;
 
 	smp->type = SMP_T_BOOL;
-	if (s->txn.flags & TX_NOT_FIRST)
-		smp->flags |= SMP_F_SET_RES_FAIL;
-	else
-		smp->flags |= SMP_F_SET_RES_PASS;
-
+	smp->data.uint = !(s->txn.flags & TX_NOT_FIRST);
 	return 1;
 }
 
@@ -8018,11 +8014,7 @@ acl_fetch_http_auth(struct proxy *px, struct session *l4, void *l7, int dir,
 		return 0;
 
 	smp->type = SMP_T_BOOL;
-	if (check_user(expr->args->data.usr, 0, l4->txn.auth.user, l4->txn.auth.pass))
-		smp->flags |= SMP_F_SET_RES_PASS;
-	else
-		smp->flags |= SMP_F_SET_RES_FAIL;
-
+	smp->data.uint = check_user(expr->args->data.usr, 0, l4->txn.auth.user, l4->txn.auth.pass);
 	return 1;
 }
 

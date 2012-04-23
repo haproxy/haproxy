@@ -1414,9 +1414,9 @@ acl_fetch_srv_is_up(struct proxy *px, struct session *l4, void *l7, int dir,
 	smp->type = SMP_T_BOOL;
 	if (!(srv->state & SRV_MAINTAIN) &&
 	    (!(srv->state & SRV_CHECKED) || (srv->state & SRV_RUNNING)))
-		smp->flags |= SMP_F_SET_RES_PASS;
+		smp->data.uint = 1;
 	else
-		smp->flags |= SMP_F_SET_RES_FAIL;
+		smp->data.uint = 0;
 	return 1;
 }
 
