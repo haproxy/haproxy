@@ -1486,10 +1486,10 @@ static int
 smp_fetch_payload_lv(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                      const struct arg *arg_p, struct sample *smp)
 {
-	int len_offset = arg_p[0].data.uint;
-	int len_size = arg_p[1].data.uint;
-	int buf_offset = arg_p[2].data.uint;
-	int buf_size = 0;
+	unsigned int len_offset = arg_p[0].data.uint;
+	unsigned int len_size = arg_p[1].data.uint;
+	unsigned int buf_offset;
+	unsigned int buf_size = 0;
 	struct buffer *b;
 	int i;
 
@@ -1512,17 +1512,18 @@ smp_fetch_payload_lv(struct proxy *px, struct session *l4, void *l7, unsigned in
 		buf_size = (buf_size << 8) + ((unsigned char *)b->p)[i + len_offset];
 	}
 
-	if (!buf_size) {
-		smp->flags = 0;
-		return 0;
-	}
-
 	/* buf offset may be implicit, absolute or relative */
 	buf_offset = len_offset + len_size;
 	if (arg_p[2].type == ARGT_UINT)
 		buf_offset = arg_p[2].data.uint;
 	else if (arg_p[2].type == ARGT_SINT)
 		buf_offset += arg_p[2].data.sint;
+
+	if (!buf_size || buf_size > b->size || buf_offset + buf_size > b->size) {
+		/* will never match */
+		smp->flags = 0;
+		return 0;
+	}
 
 	if (buf_offset + buf_size > b->i)
 		goto too_short;
@@ -1542,8 +1543,8 @@ static int
 smp_fetch_payload(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                   const struct arg *arg_p, struct sample *smp)
 {
-	int buf_offset = arg_p[0].data.uint;
-	int buf_size = arg_p[1].data.uint;
+	unsigned int buf_offset = arg_p[0].data.uint;
+	unsigned int buf_size = arg_p[1].data.uint;
 	struct buffer *b;
 
 	if (!l4)
@@ -1553,6 +1554,12 @@ smp_fetch_payload(struct proxy *px, struct session *l4, void *l7, unsigned int o
 
 	if (!b)
 		return 0;
+
+	if (!buf_size || buf_size > b->size || buf_offset + buf_size > b->size) {
+		/* will never match */
+		smp->flags = 0;
+		return 0;
+	}
 
 	if (buf_offset + buf_size > b->i)
 		goto too_short;
