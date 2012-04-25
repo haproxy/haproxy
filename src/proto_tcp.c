@@ -1380,9 +1380,9 @@ acl_fetch_rdp_cookie_cnt(struct proxy *px, struct session *l4, void *l7, unsigne
 }
 
 
-/* copy the source IPv4/v6 address into temp_pattern */
+/* fetch the connection's source IPv4/IPv6 address */
 static int
-acl_fetch_src(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_src(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
               const struct arg *args, struct sample *smp)
 {
 	switch (l4->si[0].addr.from.ss_family) {
@@ -1399,19 +1399,6 @@ acl_fetch_src(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 	}
 
 	smp->flags = 0;
-	return 1;
-}
-
-/* extract the connection's source ipv4 address */
-static int
-pattern_fetch_src(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                  const struct arg *arg_p, struct sample *smp)
-{
-	if (l4->si[0].addr.from.ss_family != AF_INET )
-		return 0;
-
-	smp->type = SMP_T_IPV4;
-	smp->data.ipv4.s_addr = ((struct sockaddr_in *)&l4->si[0].addr.from)->sin_addr.s_addr;
 	return 1;
 }
 
@@ -1441,10 +1428,9 @@ smp_fetch_sport(struct proxy *px, struct session *l4, void *l7, unsigned int opt
 	return 1;
 }
 
-
-/* set test->ptr to point to the frontend's IPv4/IPv6 address and test->i to the family */
+/* fetch the connection's destination IPv4/IPv6 address */
 static int
-acl_fetch_dst(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_dst(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
               const struct arg *args, struct sample *smp)
 {
 	stream_sock_get_to_addr(&l4->si[0]);
@@ -1463,22 +1449,6 @@ acl_fetch_dst(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 	}
 
 	smp->flags = 0;
-	return 1;
-}
-
-
-/* extract the connection's destination ipv4 address */
-static int
-pattern_fetch_dst(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                  const struct arg *arg_p, struct sample *smp)
-{
-	stream_sock_get_to_addr(&l4->si[0]);
-
-	if (l4->si[0].addr.to.ss_family != AF_INET)
-		return 0;
-
-	smp->type = SMP_T_IPV4;
-	smp->data.ipv4.s_addr = ((struct sockaddr_in *)&l4->si[0].addr.to)->sin_addr.s_addr;
 	return 1;
 }
 
@@ -1642,20 +1612,24 @@ static struct cfg_kw_list cfg_kws = {{ },{
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct acl_kw_list acl_kws = {{ },{
-	{ "dst",        acl_parse_ip,    acl_fetch_dst,      acl_match_ip,  ACL_USE_TCP4_PERMANENT|ACL_MAY_LOOKUP, 0 },
+	{ "dst",        acl_parse_ip,    smp_fetch_dst,      acl_match_ip,  ACL_USE_TCP4_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "dst_port",   acl_parse_int,   smp_fetch_dport,    acl_match_int, ACL_USE_TCP_PERMANENT, 0  },
 	{ "req_rdp_cookie",     acl_parse_str, smp_fetch_rdp_cookie,     acl_match_str, ACL_USE_L6REQ_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
 	{ "req_rdp_cookie_cnt", acl_parse_int, acl_fetch_rdp_cookie_cnt, acl_match_int, ACL_USE_L6REQ_VOLATILE, ARG1(0,STR) },
-	{ "src",        acl_parse_ip,    acl_fetch_src,      acl_match_ip,  ACL_USE_TCP4_PERMANENT|ACL_MAY_LOOKUP, 0 },
+	{ "src",        acl_parse_ip,    smp_fetch_src,      acl_match_ip,  ACL_USE_TCP4_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "src_port",   acl_parse_int,   smp_fetch_sport,    acl_match_int, ACL_USE_TCP_PERMANENT, 0  },
 	{ NULL, NULL, NULL, NULL },
 }};
 
-/* Note: must not be declared <const> as its list will be overwritten */
+/* Note: must not be declared <const> as its list will be overwritten.
+ * Note: fetches that may return multiple types must be declared as the lowest
+ * common denominator, the type that can be casted into all other ones. For
+ * instance v4/v6 must be declared v4.
+ */
 static struct pattern_fetch_kw_list pattern_fetch_keywords = {{ },{
-	{ "src",         pattern_fetch_src,       0,                      NULL,           SMP_T_IPV4, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "src",         smp_fetch_src,           0,                      NULL,           SMP_T_IPV4, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "src6",        pattern_fetch_src6,      0,                      NULL,           SMP_T_IPV6, SMP_CAP_REQ|SMP_CAP_RES },
-	{ "dst",         pattern_fetch_dst,       0,                      NULL,           SMP_T_IPV4, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "dst",         smp_fetch_dst,           0,                      NULL,           SMP_T_IPV4, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "dst6",        pattern_fetch_dst6,      0,                      NULL,           SMP_T_IPV6, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "dst_port",    smp_fetch_dport,         0,                      NULL,           SMP_T_UINT, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "payload",     pattern_fetch_payload,   ARG2(2,UINT,UINT),      val_payload,    SMP_T_CBIN, SMP_CAP_REQ|SMP_CAP_RES },
