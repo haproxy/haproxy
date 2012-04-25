@@ -7935,7 +7935,7 @@ hdr(<header>) <string>
   Use the shdr() variant for response headers sent by the server.
 
   The "hdr" criteria returns true if any of the headers matching the criteria
-  match any of the strings. This can be used to check exact for values. For
+  match any of the strings. This can be used to check for exact values. For
   instance, checking that "connection: close" is set :
 
      hdr(Connection) -i close
@@ -8126,6 +8126,52 @@ url_sub <string>
   Returns true when the URL contains one of the strings. It can be used to
   detect particular patterns in query strings for example. See also "path_sub".
 
+urlp(<name>) <string>
+  Note: all "urlp*" matching criteria apply to the first occurrence of the
+  parameter <name> in the query string. The parameter name is case-sensitive.
+
+  The "urlp" matching criteria returns true if the designated URL parameter
+  matches any of the strings. This can be used to check for exact values.
+
+urlp_beg(<name>) <string>
+  Returns true when the URL parameter "<name>" begins with one of the strings.
+  This can be used to check whether a URL begins with a slash or with a
+  protocol scheme.
+
+urlp_dir(<name>) <string>
+  Returns true when the URL parameter "<name>" contains one of the strings
+  either isolated or delimited with slashes. This is used to perform filename
+  or directory name matching in a specific URL parameter without the risk of
+  wrong match due to colliding prefixes. See also "path_dir" and "urlp_sub".
+
+urlp_dom(<name>) <string>
+  Returns true when one of the strings is found isolated or delimited with dots
+  in the URL parameter "<name>". This is used to perform domain name matching
+  in a specific URL parameter without the risk of wrong match due to colliding
+  prefixes. See also "urlp_sub".
+
+urlp_end(<name>) <string>
+  Returns true when the URL parameter "<name>" ends with one of the strings.
+
+urlp_ip(<name>) <ip_address>
+  Returns true when the URL parameter "<name>" contains an IPv4 address which
+  matches one of the specified IP addresses.
+
+urlp_len(<name>) <integer>
+  Returns true when the URL parameter "<name>" has a length matching the values
+  or ranges specified. This is used to detect abusive requests for instance.
+
+urlp_reg(<name>) <regex>
+  Returns true when the URL parameter "<name>" matches one of the regular
+  expressions. It can be used any time, but it is important to remember that
+  regex matching is slower than other methods. See also "path_reg" and all
+  "urlp_" criteria.
+
+urlp_sub(<name>) <string>
+  Returns true when the URL parameter "<name>" contains one of the strings. It
+  can be used to detect particular patterns in query strings for example. See
+  also "path_sub" and other "urlp_" criteria.
+
 
 7.6. Pre-defined ACLs
 ---------------------
@@ -8292,6 +8338,11 @@ The list of currently supported pattern fetch functions is the following :
                If <offset2> is prefixed by '+' or '-', it is relative to
                <lengthoffset> + <lengthsize> else it is absolute.
                Ex: see SSL session id  example in "stick table" chapter.
+
+  src_port     This is the source TCP port of the session on the client side,
+               which is the port the client connected from. It is very unlikely
+               that this function will be useful but it's available at no cost.
+               It is of type integer and only works with such tables.
 
   url_param(<name>)
                This extracts the first occurrence of the parameter <name> in

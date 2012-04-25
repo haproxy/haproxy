@@ -1430,7 +1430,7 @@ pattern_fetch_src6(struct proxy *px, struct session *l4, void *l7, unsigned int 
 
 /* set temp integer to the connection's source port */
 static int
-acl_fetch_sport(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_sport(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp)
 {
 	smp->type = SMP_T_UINT;
@@ -1499,7 +1499,7 @@ pattern_fetch_dst6(struct proxy *px, struct session *l4, void *l7, unsigned int 
 
 /* set temp integer to the frontend connexion's destination port */
 static int
-acl_fetch_dport(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_dport(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp)
 {
 	stream_sock_get_to_addr(&l4->si[0]);
@@ -1509,19 +1509,6 @@ acl_fetch_dport(struct proxy *px, struct session *l4, void *l7, unsigned int opt
 		return 0;
 
 	smp->flags = 0;
-	return 1;
-}
-
-static int
-pattern_fetch_dport(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                    const struct arg *arg, struct sample *smp)
-{
-	smp->type = SMP_T_UINT;
-	stream_sock_get_to_addr(&l4->si[0]);
-
-	if (!(smp->data.uint = get_host_port(&l4->si[0].addr.to)))
-		return 0;
-
 	return 1;
 }
 
@@ -1656,11 +1643,11 @@ static struct cfg_kw_list cfg_kws = {{ },{
  */
 static struct acl_kw_list acl_kws = {{ },{
 	{ "dst",        acl_parse_ip,    acl_fetch_dst,      acl_match_ip,  ACL_USE_TCP4_PERMANENT|ACL_MAY_LOOKUP, 0 },
-	{ "dst_port",   acl_parse_int,   acl_fetch_dport,    acl_match_int, ACL_USE_TCP_PERMANENT, 0  },
+	{ "dst_port",   acl_parse_int,   smp_fetch_dport,    acl_match_int, ACL_USE_TCP_PERMANENT, 0  },
 	{ "req_rdp_cookie",     acl_parse_str, smp_fetch_rdp_cookie,     acl_match_str, ACL_USE_L6REQ_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
 	{ "req_rdp_cookie_cnt", acl_parse_int, acl_fetch_rdp_cookie_cnt, acl_match_int, ACL_USE_L6REQ_VOLATILE, ARG1(0,STR) },
 	{ "src",        acl_parse_ip,    acl_fetch_src,      acl_match_ip,  ACL_USE_TCP4_PERMANENT|ACL_MAY_LOOKUP, 0 },
-	{ "src_port",   acl_parse_int,   acl_fetch_sport,    acl_match_int, ACL_USE_TCP_PERMANENT, 0  },
+	{ "src_port",   acl_parse_int,   smp_fetch_sport,    acl_match_int, ACL_USE_TCP_PERMANENT, 0  },
 	{ NULL, NULL, NULL, NULL },
 }};
 
@@ -1670,10 +1657,11 @@ static struct pattern_fetch_kw_list pattern_fetch_keywords = {{ },{
 	{ "src6",        pattern_fetch_src6,      0,                      NULL,           SMP_T_IPV6, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "dst",         pattern_fetch_dst,       0,                      NULL,           SMP_T_IPV4, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "dst6",        pattern_fetch_dst6,      0,                      NULL,           SMP_T_IPV6, SMP_CAP_REQ|SMP_CAP_RES },
-	{ "dst_port",    pattern_fetch_dport,     0,                      NULL,           SMP_T_UINT, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "dst_port",    smp_fetch_dport,         0,                      NULL,           SMP_T_UINT, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "payload",     pattern_fetch_payload,   ARG2(2,UINT,UINT),      val_payload,    SMP_T_CBIN, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "payload_lv",  pattern_fetch_payloadlv, ARG3(2,UINT,UINT,SINT), val_payload_lv, SMP_T_CBIN, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "rdp_cookie",  pattern_fetch_rdp_cookie, ARG1(1,STR),           NULL,           SMP_T_CSTR, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "src_port",    smp_fetch_sport,         0,                      NULL,           SMP_T_UINT, SMP_CAP_REQ|SMP_CAP_RES },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 

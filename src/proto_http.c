@@ -8257,93 +8257,6 @@ acl_fetch_cookie_cnt(struct proxy *px, struct session *l4, void *l7, unsigned in
 }
 
 /************************************************************************/
-/*             All supported keywords must be declared here.            */
-/************************************************************************/
-
-/* Note: must not be declared <const> as its list will be overwritten.
- * Please take care of keeping this list alphabetically sorted.
- */
-static struct acl_kw_list acl_kws = {{ },{
-	{ "cook",            acl_parse_str,     acl_fetch_cookie_value,   acl_match_str,     ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
-	{ "cook_beg",        acl_parse_str,     acl_fetch_cookie_value,   acl_match_beg,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "cook_cnt",        acl_parse_int,     acl_fetch_cookie_cnt,     acl_match_int,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "cook_dir",        acl_parse_str,     acl_fetch_cookie_value,   acl_match_dir,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "cook_dom",        acl_parse_str,     acl_fetch_cookie_value,   acl_match_dom,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "cook_end",        acl_parse_str,     acl_fetch_cookie_value,   acl_match_end,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "cook_len",        acl_parse_int,     acl_fetch_cookie_value,   acl_match_len,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "cook_reg",        acl_parse_reg,     acl_fetch_cookie_value,   acl_match_reg,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "cook_sub",        acl_parse_str,     acl_fetch_cookie_value,   acl_match_sub,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-
-	{ "hdr",             acl_parse_str,     acl_fetch_hdr,            acl_match_str,     ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
-	{ "hdr_beg",         acl_parse_str,     acl_fetch_hdr,            acl_match_beg,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "hdr_cnt",         acl_parse_int,     acl_fetch_hdr_cnt,        acl_match_int,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "hdr_dir",         acl_parse_str,     acl_fetch_hdr,            acl_match_dir,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "hdr_dom",         acl_parse_str,     acl_fetch_hdr,            acl_match_dom,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "hdr_end",         acl_parse_str,     acl_fetch_hdr,            acl_match_end,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "hdr_ip",          acl_parse_ip,      acl_fetch_hdr_ip,         acl_match_ip,      ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
-	{ "hdr_len",         acl_parse_int,     acl_fetch_hdr,            acl_match_len,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "hdr_reg",         acl_parse_reg,     acl_fetch_hdr,            acl_match_reg,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "hdr_sub",         acl_parse_str,     acl_fetch_hdr,            acl_match_sub,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "hdr_val",         acl_parse_int,     acl_fetch_hdr_val,        acl_match_int,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-
-	{ "http_auth",       acl_parse_nothing, acl_fetch_http_auth,      acl_match_nothing, ACL_USE_L7REQ_VOLATILE, ARG1(0,USR) },
-	{ "http_auth_group", acl_parse_strcat,  acl_fetch_http_auth,      acl_match_auth,    ACL_USE_L7REQ_VOLATILE, ARG1(0,USR) },
-	{ "http_first_req",  acl_parse_nothing, acl_fetch_http_first_req, acl_match_nothing, ACL_USE_L7REQ_PERMANENT, 0 },
-
-	{ "method",          acl_parse_meth,    acl_fetch_meth,           acl_match_meth,    ACL_USE_L7REQ_PERMANENT, 0 },
-
-	{ "path",            acl_parse_str,     acl_fetch_path,           acl_match_str,     ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, 0 },
-	{ "path_beg",        acl_parse_str,     acl_fetch_path,           acl_match_beg,     ACL_USE_L7REQ_VOLATILE, 0 },
-	{ "path_dir",        acl_parse_str,     acl_fetch_path,           acl_match_dir,     ACL_USE_L7REQ_VOLATILE, 0 },
-	{ "path_dom",        acl_parse_str,     acl_fetch_path,           acl_match_dom,     ACL_USE_L7REQ_VOLATILE, 0 },
-	{ "path_end",        acl_parse_str,     acl_fetch_path,           acl_match_end,     ACL_USE_L7REQ_VOLATILE, 0 },
-	{ "path_len",        acl_parse_int,     acl_fetch_path,           acl_match_len,     ACL_USE_L7REQ_VOLATILE, 0 },
-	{ "path_reg",        acl_parse_reg,     acl_fetch_path,           acl_match_reg,     ACL_USE_L7REQ_VOLATILE, 0 },
-	{ "path_sub",        acl_parse_str,     acl_fetch_path,           acl_match_sub,     ACL_USE_L7REQ_VOLATILE, 0 },
-
-	{ "req_proto_http",  acl_parse_nothing, acl_fetch_proto_http,     acl_match_nothing, ACL_USE_L7REQ_PERMANENT, 0 },
-	{ "req_ver",         acl_parse_ver,     acl_fetch_rqver,          acl_match_str,     ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, 0 },
-	{ "resp_ver",        acl_parse_ver,     acl_fetch_stver,          acl_match_str,     ACL_USE_L7RTR_VOLATILE|ACL_MAY_LOOKUP, 0 },
-
-	{ "scook",           acl_parse_str,     acl_fetch_cookie_value,   acl_match_str,     ACL_USE_L7RTR_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
-	{ "scook_beg",       acl_parse_str,     acl_fetch_cookie_value,   acl_match_beg,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "scook_cnt",       acl_parse_int,     acl_fetch_cookie_cnt,     acl_match_int,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "scook_dir",       acl_parse_str,     acl_fetch_cookie_value,   acl_match_dir,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "scook_dom",       acl_parse_str,     acl_fetch_cookie_value,   acl_match_dom,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "scook_end",       acl_parse_str,     acl_fetch_cookie_value,   acl_match_end,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "scook_len",       acl_parse_int,     acl_fetch_cookie_value,   acl_match_len,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "scook_reg",       acl_parse_reg,     acl_fetch_cookie_value,   acl_match_reg,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "scook_sub",       acl_parse_str,     acl_fetch_cookie_value,   acl_match_sub,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-
-	{ "shdr",            acl_parse_str,     acl_fetch_hdr,            acl_match_str,     ACL_USE_L7RTR_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
-	{ "shdr_beg",        acl_parse_str,     acl_fetch_hdr,            acl_match_beg,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "shdr_cnt",        acl_parse_int,     acl_fetch_hdr_cnt,        acl_match_int,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "shdr_dir",        acl_parse_str,     acl_fetch_hdr,            acl_match_dir,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "shdr_dom",        acl_parse_str,     acl_fetch_hdr,            acl_match_dom,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "shdr_end",        acl_parse_str,     acl_fetch_hdr,            acl_match_end,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "shdr_ip",         acl_parse_ip,      acl_fetch_hdr_ip,         acl_match_ip,      ACL_USE_L7RTR_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
-	{ "shdr_len",        acl_parse_int,     acl_fetch_hdr,            acl_match_len,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "shdr_reg",        acl_parse_reg,     acl_fetch_hdr,            acl_match_reg,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "shdr_sub",        acl_parse_str,     acl_fetch_hdr,            acl_match_sub,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "shdr_val",        acl_parse_int,     acl_fetch_hdr_val,        acl_match_int,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-
-	{ "status",          acl_parse_int,     acl_fetch_stcode,         acl_match_int,     ACL_USE_L7RTR_PERMANENT, 0 },
-
-	{ "url",             acl_parse_str,     acl_fetch_url,            acl_match_str,     ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, 0 },
-	{ "url_beg",         acl_parse_str,     acl_fetch_url,            acl_match_beg,     ACL_USE_L7REQ_VOLATILE, 0 },
-	{ "url_dir",         acl_parse_str,     acl_fetch_url,            acl_match_dir,     ACL_USE_L7REQ_VOLATILE, 0 },
-	{ "url_dom",         acl_parse_str,     acl_fetch_url,            acl_match_dom,     ACL_USE_L7REQ_VOLATILE, 0 },
-	{ "url_end",         acl_parse_str,     acl_fetch_url,            acl_match_end,     ACL_USE_L7REQ_VOLATILE, 0 },
-	{ "url_ip",          acl_parse_ip,      acl_fetch_url_ip,         acl_match_ip,      ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, 0 },
-	{ "url_len",         acl_parse_int,     acl_fetch_url,            acl_match_len,     ACL_USE_L7REQ_VOLATILE, 0 },
-	{ "url_port",        acl_parse_int,     acl_fetch_url_port,       acl_match_int,     ACL_USE_L7REQ_VOLATILE, 0 },
-	{ "url_reg",         acl_parse_reg,     acl_fetch_url,            acl_match_reg,     ACL_USE_L7REQ_VOLATILE, 0 },
-	{ "url_sub",         acl_parse_str,     acl_fetch_url,            acl_match_sub,     ACL_USE_L7REQ_VOLATILE, 0 },
-
-	{ NULL, NULL, NULL, NULL },
-}};
-
-/************************************************************************/
 /*     The code below is dedicated to pattern fetching and matching     */
 /************************************************************************/
 
@@ -8417,7 +8330,7 @@ find_url_param_pos(char* query_string, size_t query_string_l,
 static int
 find_url_param_value(char* path, size_t path_l,
                      char* url_param_name, size_t url_param_name_l,
-                     char** value, size_t* value_l)
+                     char** value, int* value_l)
 {
 	char *query_string, *qs_end;
 	char *arg_start;
@@ -8445,22 +8358,24 @@ find_url_param_value(char* path, size_t path_l,
 }
 
 static int
-pattern_fetch_url_param(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                     const struct arg *arg_p, struct sample *smp)
+smp_fetch_url_param(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                    const struct arg *args, struct sample *smp)
 {
 	struct http_txn *txn = l7;
 	struct http_msg *msg = &txn->req;
-	char  *url_param_value;
-	size_t url_param_value_l;
+
+	if (!args || args->type != ARGT_STR)
+		return 0;
+
+	CHECK_HTTP_MESSAGE_FIRST();
 
 	if (!find_url_param_value(msg->buf->p + msg->sol + msg->sl.rq.u, msg->sl.rq.u_l,
-				  arg_p->data.str.str, arg_p->data.str.len,
-				  &url_param_value, &url_param_value_l))
+				  args->data.str.str, args->data.str.len,
+				  &smp->data.str.str, &smp->data.str.len))
 		return 0;
 
 	smp->type = SMP_T_CSTR;
-	smp->data.str.str = url_param_value;
-	smp->data.str.len = url_param_value_l;
+	smp->flags = SMP_F_VOL_1ST;
 	return 1;
 }
 
@@ -8544,12 +8459,109 @@ pattern_fetch_set_cookie(struct proxy *px, struct session *l4, void *l7, unsigne
 }
 
 /************************************************************************/
-/*             All supported keywords must be declared here.            */
+/*          All supported ACL keywords must be declared here.           */
+/************************************************************************/
+
+/* Note: must not be declared <const> as its list will be overwritten.
+ * Please take care of keeping this list alphabetically sorted.
+ */
+static struct acl_kw_list acl_kws = {{ },{
+	{ "cook",            acl_parse_str,     acl_fetch_cookie_value,   acl_match_str,     ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
+	{ "cook_beg",        acl_parse_str,     acl_fetch_cookie_value,   acl_match_beg,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "cook_cnt",        acl_parse_int,     acl_fetch_cookie_cnt,     acl_match_int,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "cook_dir",        acl_parse_str,     acl_fetch_cookie_value,   acl_match_dir,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "cook_dom",        acl_parse_str,     acl_fetch_cookie_value,   acl_match_dom,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "cook_end",        acl_parse_str,     acl_fetch_cookie_value,   acl_match_end,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "cook_len",        acl_parse_int,     acl_fetch_cookie_value,   acl_match_len,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "cook_reg",        acl_parse_reg,     acl_fetch_cookie_value,   acl_match_reg,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "cook_sub",        acl_parse_str,     acl_fetch_cookie_value,   acl_match_sub,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+
+	{ "hdr",             acl_parse_str,     acl_fetch_hdr,            acl_match_str,     ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
+	{ "hdr_beg",         acl_parse_str,     acl_fetch_hdr,            acl_match_beg,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "hdr_cnt",         acl_parse_int,     acl_fetch_hdr_cnt,        acl_match_int,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "hdr_dir",         acl_parse_str,     acl_fetch_hdr,            acl_match_dir,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "hdr_dom",         acl_parse_str,     acl_fetch_hdr,            acl_match_dom,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "hdr_end",         acl_parse_str,     acl_fetch_hdr,            acl_match_end,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "hdr_ip",          acl_parse_ip,      acl_fetch_hdr_ip,         acl_match_ip,      ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
+	{ "hdr_len",         acl_parse_int,     acl_fetch_hdr,            acl_match_len,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "hdr_reg",         acl_parse_reg,     acl_fetch_hdr,            acl_match_reg,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "hdr_sub",         acl_parse_str,     acl_fetch_hdr,            acl_match_sub,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "hdr_val",         acl_parse_int,     acl_fetch_hdr_val,        acl_match_int,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+
+	{ "http_auth",       acl_parse_nothing, acl_fetch_http_auth,      acl_match_nothing, ACL_USE_L7REQ_VOLATILE, ARG1(0,USR) },
+	{ "http_auth_group", acl_parse_strcat,  acl_fetch_http_auth,      acl_match_auth,    ACL_USE_L7REQ_VOLATILE, ARG1(0,USR) },
+	{ "http_first_req",  acl_parse_nothing, acl_fetch_http_first_req, acl_match_nothing, ACL_USE_L7REQ_PERMANENT, 0 },
+
+	{ "method",          acl_parse_meth,    acl_fetch_meth,           acl_match_meth,    ACL_USE_L7REQ_PERMANENT, 0 },
+
+	{ "path",            acl_parse_str,     acl_fetch_path,           acl_match_str,     ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, 0 },
+	{ "path_beg",        acl_parse_str,     acl_fetch_path,           acl_match_beg,     ACL_USE_L7REQ_VOLATILE, 0 },
+	{ "path_dir",        acl_parse_str,     acl_fetch_path,           acl_match_dir,     ACL_USE_L7REQ_VOLATILE, 0 },
+	{ "path_dom",        acl_parse_str,     acl_fetch_path,           acl_match_dom,     ACL_USE_L7REQ_VOLATILE, 0 },
+	{ "path_end",        acl_parse_str,     acl_fetch_path,           acl_match_end,     ACL_USE_L7REQ_VOLATILE, 0 },
+	{ "path_len",        acl_parse_int,     acl_fetch_path,           acl_match_len,     ACL_USE_L7REQ_VOLATILE, 0 },
+	{ "path_reg",        acl_parse_reg,     acl_fetch_path,           acl_match_reg,     ACL_USE_L7REQ_VOLATILE, 0 },
+	{ "path_sub",        acl_parse_str,     acl_fetch_path,           acl_match_sub,     ACL_USE_L7REQ_VOLATILE, 0 },
+
+	{ "req_proto_http",  acl_parse_nothing, acl_fetch_proto_http,     acl_match_nothing, ACL_USE_L7REQ_PERMANENT, 0 },
+	{ "req_ver",         acl_parse_ver,     acl_fetch_rqver,          acl_match_str,     ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, 0 },
+	{ "resp_ver",        acl_parse_ver,     acl_fetch_stver,          acl_match_str,     ACL_USE_L7RTR_VOLATILE|ACL_MAY_LOOKUP, 0 },
+
+	{ "scook",           acl_parse_str,     acl_fetch_cookie_value,   acl_match_str,     ACL_USE_L7RTR_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
+	{ "scook_beg",       acl_parse_str,     acl_fetch_cookie_value,   acl_match_beg,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "scook_cnt",       acl_parse_int,     acl_fetch_cookie_cnt,     acl_match_int,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "scook_dir",       acl_parse_str,     acl_fetch_cookie_value,   acl_match_dir,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "scook_dom",       acl_parse_str,     acl_fetch_cookie_value,   acl_match_dom,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "scook_end",       acl_parse_str,     acl_fetch_cookie_value,   acl_match_end,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "scook_len",       acl_parse_int,     acl_fetch_cookie_value,   acl_match_len,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "scook_reg",       acl_parse_reg,     acl_fetch_cookie_value,   acl_match_reg,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "scook_sub",       acl_parse_str,     acl_fetch_cookie_value,   acl_match_sub,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+
+	{ "shdr",            acl_parse_str,     acl_fetch_hdr,            acl_match_str,     ACL_USE_L7RTR_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
+	{ "shdr_beg",        acl_parse_str,     acl_fetch_hdr,            acl_match_beg,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "shdr_cnt",        acl_parse_int,     acl_fetch_hdr_cnt,        acl_match_int,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "shdr_dir",        acl_parse_str,     acl_fetch_hdr,            acl_match_dir,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "shdr_dom",        acl_parse_str,     acl_fetch_hdr,            acl_match_dom,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "shdr_end",        acl_parse_str,     acl_fetch_hdr,            acl_match_end,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "shdr_ip",         acl_parse_ip,      acl_fetch_hdr_ip,         acl_match_ip,      ACL_USE_L7RTR_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
+	{ "shdr_len",        acl_parse_int,     acl_fetch_hdr,            acl_match_len,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "shdr_reg",        acl_parse_reg,     acl_fetch_hdr,            acl_match_reg,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "shdr_sub",        acl_parse_str,     acl_fetch_hdr,            acl_match_sub,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "shdr_val",        acl_parse_int,     acl_fetch_hdr_val,        acl_match_int,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+
+	{ "status",          acl_parse_int,     acl_fetch_stcode,         acl_match_int,     ACL_USE_L7RTR_PERMANENT, 0 },
+
+	{ "url",             acl_parse_str,     acl_fetch_url,            acl_match_str,     ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, 0 },
+	{ "url_beg",         acl_parse_str,     acl_fetch_url,            acl_match_beg,     ACL_USE_L7REQ_VOLATILE, 0 },
+	{ "url_dir",         acl_parse_str,     acl_fetch_url,            acl_match_dir,     ACL_USE_L7REQ_VOLATILE, 0 },
+	{ "url_dom",         acl_parse_str,     acl_fetch_url,            acl_match_dom,     ACL_USE_L7REQ_VOLATILE, 0 },
+	{ "url_end",         acl_parse_str,     acl_fetch_url,            acl_match_end,     ACL_USE_L7REQ_VOLATILE, 0 },
+	{ "url_ip",          acl_parse_ip,      acl_fetch_url_ip,         acl_match_ip,      ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, 0 },
+	{ "url_len",         acl_parse_int,     acl_fetch_url,            acl_match_len,     ACL_USE_L7REQ_VOLATILE, 0 },
+	{ "url_port",        acl_parse_int,     acl_fetch_url_port,       acl_match_int,     ACL_USE_L7REQ_VOLATILE, 0 },
+	{ "url_reg",         acl_parse_reg,     acl_fetch_url,            acl_match_reg,     ACL_USE_L7REQ_VOLATILE, 0 },
+	{ "url_sub",         acl_parse_str,     acl_fetch_url,            acl_match_sub,     ACL_USE_L7REQ_VOLATILE, 0 },
+
+	{ "urlp",            acl_parse_str,     smp_fetch_url_param,      acl_match_str,     ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, ARG1(1,STR) },
+	{ "urlp_beg",        acl_parse_str,     smp_fetch_url_param,      acl_match_beg,     ACL_USE_L7REQ_VOLATILE, ARG1(1,STR) },
+	{ "urlp_dir",        acl_parse_str,     smp_fetch_url_param,      acl_match_dir,     ACL_USE_L7REQ_VOLATILE, ARG1(1,STR) },
+	{ "urlp_dom",        acl_parse_str,     smp_fetch_url_param,      acl_match_dom,     ACL_USE_L7REQ_VOLATILE, ARG1(1,STR) },
+	{ "urlp_end",        acl_parse_str,     smp_fetch_url_param,      acl_match_end,     ACL_USE_L7REQ_VOLATILE, ARG1(1,STR) },
+	{ "urlp_ip",         acl_parse_ip,      smp_fetch_url_param,      acl_match_ip,      ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, ARG1(1,STR) },
+	{ "urlp_len",        acl_parse_int,     smp_fetch_url_param,      acl_match_len,     ACL_USE_L7REQ_VOLATILE, ARG1(1,STR) },
+	{ "urlp_reg",        acl_parse_reg,     smp_fetch_url_param,      acl_match_reg,     ACL_USE_L7REQ_VOLATILE, ARG1(1,STR) },
+	{ "urlp_sub",        acl_parse_str,     smp_fetch_url_param,      acl_match_sub,     ACL_USE_L7REQ_VOLATILE, ARG1(1,STR) },
+
+	{ NULL, NULL, NULL, NULL },
+}};
+
+/************************************************************************/
+/*         All supported pattern keywords must be declared here.        */
 /************************************************************************/
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct pattern_fetch_kw_list pattern_fetch_keywords = {{ },{
 	{ "hdr",        pattern_fetch_hdr,        ARG1(1,STR), NULL, SMP_T_CSTR, SMP_CAP_REQ },
-	{ "url_param",  pattern_fetch_url_param,  ARG1(1,STR), NULL, SMP_T_CSTR, SMP_CAP_REQ },
+	{ "url_param",  smp_fetch_url_param,      ARG1(1,STR), NULL, SMP_T_CSTR, SMP_CAP_REQ },
 	{ "cookie",     pattern_fetch_cookie,     ARG1(1,STR), NULL, SMP_T_CSTR, SMP_CAP_REQ },
 	{ "set-cookie", pattern_fetch_set_cookie, ARG1(1,STR), NULL, SMP_T_CSTR, SMP_CAP_RES },
 	{ NULL, NULL, 0, 0, 0 },
