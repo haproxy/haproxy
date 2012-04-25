@@ -8070,6 +8070,18 @@ path_sub <string>
   detect particular patterns in paths, such as "../" for example. See also
   "path_dir".
 
+payload(<offset>,<length>) <string>
+  Returns true if the block of <length> bytes, starting at byte <offset> in the
+  request or response buffer (depending on the rule) exactly matches one of the
+  strings.
+
+payload_lv(<offset1>,<length>[,<offset2>])
+  Returns true if the block whose size is specified at <offset1> for <length>
+  bytes, and which starts at <offset2> if specified or just after the length in
+  the request or response buffer (depending on the rule) exactly matches one of
+  the strings. The <offset2> parameter also supports relative offsets if
+  prepended with a '+' or '-' sign.
+
 req_ver <string>
   Applies to the version string in the HTTP request, eg: "1.0". Some predefined
   ACL already check for versions 1.0 and 1.1.

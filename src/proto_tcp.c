@@ -1483,8 +1483,8 @@ smp_fetch_dport(struct proxy *px, struct session *l4, void *l7, unsigned int opt
 }
 
 static int
-pattern_fetch_payloadlv(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                        const struct arg *arg_p, struct sample *smp)
+smp_fetch_payload_lv(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                     const struct arg *arg_p, struct sample *smp)
 {
 	int len_offset = arg_p[0].data.uint;
 	int len_size = arg_p[1].data.uint;
@@ -1502,18 +1502,20 @@ pattern_fetch_payloadlv(struct proxy *px, struct session *l4, void *l7, unsigned
 
 	b = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? l4->rep : l4->req;
 
-	if (!b || !b->i)
+	if (!b)
 		return 0;
 
 	if (len_offset + len_size > b->i)
-		return 0;
+		goto too_short;
 
 	for (i = 0; i < len_size; i++) {
 		buf_size = (buf_size << 8) + ((unsigned char *)b->p)[i + len_offset];
 	}
 
-	if (!buf_size)
+	if (!buf_size) {
+		smp->flags = 0;
 		return 0;
+	}
 
 	/* buf offset may be implicit, absolute or relative */
 	buf_offset = len_offset + len_size;
@@ -1523,18 +1525,22 @@ pattern_fetch_payloadlv(struct proxy *px, struct session *l4, void *l7, unsigned
 		buf_offset += arg_p[2].data.sint;
 
 	if (buf_offset + buf_size > b->i)
-		return 0;
+		goto too_short;
 
 	/* init chunk as read only */
 	smp->type = SMP_T_CBIN;
 	chunk_initlen(&smp->data.str, b->p + buf_offset, 0, buf_size);
-
+	smp->flags = SMP_F_VOLATILE;
 	return 1;
+
+ too_short:
+	smp->flags = SMP_F_MAY_CHANGE;
+	return 0;
 }
 
 static int
-pattern_fetch_payload(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                      const struct arg *arg_p, struct sample *smp)
+smp_fetch_payload(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                  const struct arg *arg_p, struct sample *smp)
 {
 	int buf_offset = arg_p[0].data.uint;
 	int buf_size = arg_p[1].data.uint;
@@ -1545,17 +1551,21 @@ pattern_fetch_payload(struct proxy *px, struct session *l4, void *l7, unsigned i
 
 	b = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? l4->rep : l4->req;
 
-	if (!b || !b->i)
+	if (!b)
 		return 0;
 
 	if (buf_offset + buf_size > b->i)
-		return 0;
+		goto too_short;
 
 	/* init chunk as read only */
 	smp->type = SMP_T_CBIN;
 	chunk_initlen(&smp->data.str, b->p + buf_offset, 0, buf_size);
-
+	smp->flags = SMP_F_VOLATILE;
 	return 1;
+
+ too_short:
+	smp->flags = SMP_F_MAY_CHANGE;
+	return 0;
 }
 
 /* This function is used to validate the arguments passed to a "payload" fetch
@@ -1614,6 +1624,8 @@ static struct cfg_kw_list cfg_kws = {{ },{
 static struct acl_kw_list acl_kws = {{ },{
 	{ "dst",        acl_parse_ip,    smp_fetch_dst,      acl_match_ip,  ACL_USE_TCP4_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "dst_port",   acl_parse_int,   smp_fetch_dport,    acl_match_int, ACL_USE_TCP_PERMANENT, 0  },
+	{ "payload",    acl_parse_str,   smp_fetch_payload,  acl_match_str, ACL_USE_L6REQ_VOLATILE|ACL_MAY_LOOKUP, ARG2(2,UINT,UINT) },
+	{ "payload_lv", acl_parse_str, smp_fetch_payload_lv, acl_match_str, ACL_USE_L6REQ_VOLATILE|ACL_MAY_LOOKUP, ARG3(2,UINT,UINT,SINT) },
 	{ "req_rdp_cookie",     acl_parse_str, smp_fetch_rdp_cookie,     acl_match_str, ACL_USE_L6REQ_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
 	{ "req_rdp_cookie_cnt", acl_parse_int, acl_fetch_rdp_cookie_cnt, acl_match_int, ACL_USE_L6REQ_VOLATILE, ARG1(0,STR) },
 	{ "src",        acl_parse_ip,    smp_fetch_src,      acl_match_ip,  ACL_USE_TCP4_PERMANENT|ACL_MAY_LOOKUP, 0 },
@@ -1632,8 +1644,8 @@ static struct pattern_fetch_kw_list pattern_fetch_keywords = {{ },{
 	{ "dst",         smp_fetch_dst,           0,                      NULL,           SMP_T_IPV4, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "dst6",        pattern_fetch_dst6,      0,                      NULL,           SMP_T_IPV6, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "dst_port",    smp_fetch_dport,         0,                      NULL,           SMP_T_UINT, SMP_CAP_REQ|SMP_CAP_RES },
-	{ "payload",     pattern_fetch_payload,   ARG2(2,UINT,UINT),      val_payload,    SMP_T_CBIN, SMP_CAP_REQ|SMP_CAP_RES },
-	{ "payload_lv",  pattern_fetch_payloadlv, ARG3(2,UINT,UINT,SINT), val_payload_lv, SMP_T_CBIN, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "payload",     smp_fetch_payload,       ARG2(2,UINT,UINT),      val_payload,    SMP_T_CBIN, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "payload_lv",  smp_fetch_payload_lv,    ARG3(2,UINT,UINT,SINT), val_payload_lv, SMP_T_CBIN, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "rdp_cookie",  pattern_fetch_rdp_cookie, ARG1(1,STR),           NULL,           SMP_T_CSTR, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "src_port",    smp_fetch_sport,         0,                      NULL,           SMP_T_UINT, SMP_CAP_REQ|SMP_CAP_RES },
 	{ NULL, NULL, 0, 0, 0 },
