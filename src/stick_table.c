@@ -600,6 +600,9 @@ struct stktable_key *stktable_fetch_key(struct stktable *t, struct proxy *px, st
 	if (!smp)
 		return NULL;
 
+	if (!pattern_to_key[smp->type][t->type])
+		return NULL;
+
 	static_table_key.key_len = t->key_size;
 	static_table_key.key = pattern_to_key[smp->type][t->type](smp, &static_table_key.data, &static_table_key.key_len);
 

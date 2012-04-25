@@ -487,8 +487,20 @@ struct sample *pattern_process(struct proxy *px, struct session *l4, void *l7,
 		return NULL;
 
 	list_for_each_entry(conv_expr, &expr->conv_exprs, list) {
-		if (!pattern_casts[p->type][conv_expr->conv->in_type](p))
+		/* we want to ensure that p->type can be casted into
+		 * conv_expr->conv->in_type. We have 3 possibilities :
+		 *  - NULL   => not castable.
+		 *  - c_none => nothing to do (let's optimize it)
+		 *  - other  => apply cast and prepare to fail
+		 */
+		if (!pattern_casts[p->type][conv_expr->conv->in_type])
 			return NULL;
+
+		if (pattern_casts[p->type][conv_expr->conv->in_type] != c_none &&
+		    !pattern_casts[p->type][conv_expr->conv->in_type](p))
+			return NULL;
+
+		/* OK cast succeeded */
 
 		/* force the output type after a cast */
 		p->type = conv_expr->conv->in_type;
