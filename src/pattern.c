@@ -463,7 +463,7 @@ out_error:
 
 /*
  * Process a fetch + format conversion of defined by the pattern expression <expr>
- * on request or response considering the <dir> parameter.
+ * on request or response considering the <opt> parameter.
  * Returns a pointer on a typed pattern structure containing the result or NULL if
  * pattern is not found or when format conversion failed.
  *  If <p> is not null, function returns results in structure pointed by <p>.
@@ -473,7 +473,8 @@ out_error:
  * conversion functions must do so too. However the cast functions do not need
  * to since they're made to cast mutiple types according to what is required.
  */
-struct sample *pattern_process(struct proxy *px, struct session *l4, void *l7, int dir,
+struct sample *pattern_process(struct proxy *px, struct session *l4, void *l7,
+			       unsigned int opt,
                                struct pattern_expr *expr, struct sample *p)
 {
 	struct pattern_conv_expr *conv_expr;
@@ -482,7 +483,7 @@ struct sample *pattern_process(struct proxy *px, struct session *l4, void *l7, i
 		p = &temp_smp;
 
 	p->flags = 0;
-	if (!expr->fetch->process(px, l4, l7, dir, expr->arg_p, p))
+	if (!expr->fetch->process(px, l4, l7, opt, expr->arg_p, p))
 		return NULL;
 
 	list_for_each_entry(conv_expr, &expr->conv_exprs, list) {

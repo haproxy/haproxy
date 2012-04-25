@@ -416,7 +416,7 @@ struct server *get_server_rch(struct session *s)
 	args[0].data.str.len = px->hh_len;
 	args[1].type = ARGT_STOP;
 
-	ret = smp_fetch_rdp_cookie(px, s, NULL, ACL_DIR_REQ, args, &smp);
+	ret = smp_fetch_rdp_cookie(px, s, NULL, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, args, &smp);
 	len = smp.data.str.len;
 
 	if (ret == 0 || (smp.flags & SMP_F_MAY_CHANGE) || len == 0)
@@ -1134,7 +1134,7 @@ int tcp_persist_rdp_cookie(struct session *s, struct buffer *req, int an_bit)
 	args[0].data.str.len = s->be->rdp_cookie_len;
 	args[1].type = ARGT_STOP;
 
-	ret = smp_fetch_rdp_cookie(px, s, NULL, ACL_DIR_REQ, args, &smp);
+	ret = smp_fetch_rdp_cookie(px, s, NULL, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, args, &smp);
 	if (ret == 0 || (smp.flags & SMP_F_MAY_CHANGE) || smp.data.str.len == 0)
 		goto no_cookie;
 
@@ -1374,7 +1374,7 @@ int backend_parse_balance(const char **args, char *err, int errlen, struct proxy
  * undefined behaviour.
  */
 static int
-acl_fetch_nbsrv(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_nbsrv(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_TEST;
@@ -1397,7 +1397,7 @@ acl_fetch_nbsrv(struct proxy *px, struct session *l4, void *l7, int dir,
  * undefined behaviour.
  */
 static int
-acl_fetch_srv_is_up(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_srv_is_up(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                     const struct arg *args, struct sample *smp)
 {
 	struct server *srv = args->data.srv;
@@ -1417,7 +1417,7 @@ acl_fetch_srv_is_up(struct proxy *px, struct session *l4, void *l7, int dir,
  * undefined behaviour.
  */
 static int
-acl_fetch_connslots(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_connslots(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                     const struct arg *args, struct sample *smp)
 {
 	struct server *iterator;
@@ -1445,7 +1445,7 @@ acl_fetch_connslots(struct proxy *px, struct session *l4, void *l7, int dir,
 
 /* set temp integer to the id of the backend */
 static int
-acl_fetch_be_id(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_be_id(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_TXN;
@@ -1456,7 +1456,7 @@ acl_fetch_be_id(struct proxy *px, struct session *l4, void *l7, int dir,
 
 /* set temp integer to the id of the server */
 static int
-acl_fetch_srv_id(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_srv_id(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                  const struct arg *args, struct sample *smp)
 {
 	if (!target_srv(&l4->target))
@@ -1473,7 +1473,7 @@ acl_fetch_srv_id(struct proxy *px, struct session *l4, void *l7, int dir,
  * undefined behaviour.
  */
 static int
-acl_fetch_be_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_be_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_TEST;
@@ -1487,7 +1487,7 @@ acl_fetch_be_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
  * undefined behaviour.
  */
 static int
-acl_fetch_be_conn(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_be_conn(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                   const struct arg *args, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_TEST;
@@ -1501,7 +1501,7 @@ acl_fetch_be_conn(struct proxy *px, struct session *l4, void *l7, int dir,
  * undefined behaviour.
  */
 static int
-acl_fetch_queue_size(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_queue_size(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                      const struct arg *args, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_TEST;
@@ -1519,7 +1519,7 @@ acl_fetch_queue_size(struct proxy *px, struct session *l4, void *l7, int dir,
  * undefined behaviour.
  */
 static int
-acl_fetch_avg_queue_size(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_avg_queue_size(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                          const struct arg *args, struct sample *smp)
 {
 	int nbsrv;
@@ -1548,7 +1548,7 @@ acl_fetch_avg_queue_size(struct proxy *px, struct session *l4, void *l7, int dir
  * undefined behaviour.
  */
 static int
-acl_fetch_srv_conn(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_srv_conn(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                    const struct arg *args, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_TEST;

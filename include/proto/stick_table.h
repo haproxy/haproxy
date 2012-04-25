@@ -47,7 +47,7 @@ struct stksess *stktable_lookup(struct stktable *t, struct stksess *ts);
 struct stksess *stktable_lookup_key(struct stktable *t, struct stktable_key *key);
 struct stksess *stktable_update_key(struct stktable *table, struct stktable_key *key);
 struct stktable_key *stktable_fetch_key(struct stktable *t, struct proxy *px,
-				        struct session *l4, void *l7, int dir,
+				        struct session *l4, void *l7, unsigned int opt,
 				        struct pattern_expr *expr);
 int stktable_compatible_pattern(struct pattern_expr *expr, unsigned long table_type);
 int stktable_get_data_type(char *name);

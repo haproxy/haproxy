@@ -586,16 +586,17 @@ static pattern_to_key_fct pattern_to_key[SMP_TYPES][STKTABLE_TYPES] = {
 
 /*
  * Process a fetch + format conversion as defined by the pattern expression <expr>
- * on request or response considering the <dir> parameter. Returns either NULL if
+ * on request or response considering the <opt> parameter. Returns either NULL if
  * no key could be extracted, or a pointer to the converted result stored in
  * static_table_key in format <table_type>.
  */
-struct stktable_key *stktable_fetch_key(struct stktable *t, struct proxy *px, struct session *l4, void *l7, int dir,
+struct stktable_key *stktable_fetch_key(struct stktable *t, struct proxy *px, struct session *l4, void *l7,
+					unsigned int opt,
                                         struct pattern_expr *expr)
 {
 	struct sample *smp;
 
-	smp = pattern_process(px, l4, l7, dir, expr, NULL);
+	smp = pattern_process(px, l4, l7, opt, expr, NULL);
 	if (!smp)
 		return NULL;
 

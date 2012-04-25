@@ -982,7 +982,7 @@ static int process_switching_rules(struct session *s, struct buffer *req, int an
 		list_for_each_entry(rule, &s->fe->switching_rules, list) {
 			int ret;
 
-			ret = acl_exec_cond(rule->cond, s->fe, s, &s->txn, ACL_DIR_REQ);
+			ret = acl_exec_cond(rule->cond, s->fe, s, &s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
 			ret = acl_pass(ret);
 			if (rule->cond->pol == ACL_COND_UNLESS)
 				ret = !ret;
@@ -1017,7 +1017,7 @@ static int process_switching_rules(struct session *s, struct buffer *req, int an
 		int ret = 1;
 
 		if (prst_rule->cond) {
-	                ret = acl_exec_cond(prst_rule->cond, s->be, s, &s->txn, ACL_DIR_REQ);
+	                ret = acl_exec_cond(prst_rule->cond, s->be, s, &s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
 			ret = acl_pass(ret);
 			if (prst_rule->cond->pol == ACL_COND_UNLESS)
 				ret = !ret;
@@ -1074,7 +1074,7 @@ static int process_server_rules(struct session *s, struct buffer *req, int an_bi
 		list_for_each_entry(rule, &px->server_rules, list) {
 			int ret;
 
-			ret = acl_exec_cond(rule->cond, s->be, s, &s->txn, ACL_DIR_REQ);
+			ret = acl_exec_cond(rule->cond, s->be, s, &s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
 			ret = acl_pass(ret);
 			if (rule->cond->pol == ACL_COND_UNLESS)
 				ret = !ret;
@@ -1132,7 +1132,7 @@ static int process_sticking_rules(struct session *s, struct buffer *req, int an_
 			continue;
 
 		if (rule->cond) {
-	                ret = acl_exec_cond(rule->cond, px, s, &s->txn, ACL_DIR_REQ);
+	                ret = acl_exec_cond(rule->cond, px, s, &s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
 			ret = acl_pass(ret);
 			if (rule->cond->pol == ACL_COND_UNLESS)
 				ret = !ret;
@@ -1141,7 +1141,7 @@ static int process_sticking_rules(struct session *s, struct buffer *req, int an_
 		if (ret) {
 			struct stktable_key *key;
 
-			key = stktable_fetch_key(rule->table.t, px, s, &s->txn, PATTERN_FETCH_REQ, rule->expr);
+			key = stktable_fetch_key(rule->table.t, px, s, &s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->expr);
 			if (!key)
 				continue;
 
@@ -1225,7 +1225,7 @@ static int process_store_rules(struct session *s, struct buffer *rep, int an_bit
 			continue;
 
 		if (rule->cond) {
-	                ret = acl_exec_cond(rule->cond, px, s, &s->txn, ACL_DIR_RTR);
+	                ret = acl_exec_cond(rule->cond, px, s, &s->txn, SMP_OPT_DIR_RES|SMP_OPT_FINAL);
 	                ret = acl_pass(ret);
 			if (rule->cond->pol == ACL_COND_UNLESS)
 				ret = !ret;
@@ -1234,7 +1234,7 @@ static int process_store_rules(struct session *s, struct buffer *rep, int an_bit
 		if (ret) {
 			struct stktable_key *key;
 
-			key = stktable_fetch_key(rule->table.t, px, s, &s->txn, PATTERN_FETCH_RTR, rule->expr);
+			key = stktable_fetch_key(rule->table.t, px, s, &s->txn, SMP_OPT_DIR_RES|SMP_OPT_FINAL, rule->expr);
 			if (!key)
 				continue;
 
@@ -2326,7 +2326,7 @@ acl_fetch_get_gpc0(struct stktable *table, struct sample *smp, struct stksess *t
  * frontend counters.
  */
 static int
-acl_fetch_sc1_get_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc1_get_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
@@ -2338,7 +2338,7 @@ acl_fetch_sc1_get_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
  * backend counters.
  */
 static int
-acl_fetch_sc2_get_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc2_get_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
@@ -2351,7 +2351,7 @@ acl_fetch_sc2_get_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
  * Accepts exactly 1 argument of type table.
  */
 static int
-acl_fetch_src_get_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_src_get_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp)
 {
 	struct stktable_key *key;
@@ -2386,7 +2386,7 @@ acl_fetch_inc_gpc0(struct stktable *table, struct sample *smp, struct stksess *t
  * frontend counters and return it into temp integer.
  */
 static int
-acl_fetch_sc1_inc_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc1_inc_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
@@ -2398,7 +2398,7 @@ acl_fetch_sc1_inc_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
  * backend counters and return it into temp integer.
  */
 static int
-acl_fetch_sc2_inc_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc2_inc_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
@@ -2411,7 +2411,7 @@ acl_fetch_sc2_inc_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
  * Accepts exactly 1 argument of type table.
  */
 static int
-acl_fetch_src_inc_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_src_inc_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp)
 {
 	struct stktable_key *key;
@@ -2447,7 +2447,7 @@ acl_fetch_clr_gpc0(struct stktable *table, struct sample *smp, struct stksess *t
  * frontend counters and return its previous value into temp integer.
  */
 static int
-acl_fetch_sc1_clr_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc1_clr_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
@@ -2459,7 +2459,7 @@ acl_fetch_sc1_clr_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
  * backend counters and return its previous value into temp integer.
  */
 static int
-acl_fetch_sc2_clr_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc2_clr_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
@@ -2472,7 +2472,7 @@ acl_fetch_sc2_clr_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
  * Accepts exactly 1 argument of type table.
  */
 static int
-acl_fetch_src_clr_gpc0(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_src_clr_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp)
 {
 	struct stktable_key *key;
@@ -2503,7 +2503,7 @@ acl_fetch_conn_cnt(struct stktable *table, struct sample *smp, struct stksess *t
 
 /* set temp integer to the cumulated number of connections from the session's tracked FE counters */
 static int
-acl_fetch_sc1_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc1_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
@@ -2514,7 +2514,7 @@ acl_fetch_sc1_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 
 /* set temp integer to the cumulated number of connections from the session's tracked BE counters */
 static int
-acl_fetch_sc2_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc2_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
@@ -2528,7 +2528,7 @@ acl_fetch_sc2_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
  * Accepts exactly 1 argument of type table.
  */
 static int
-acl_fetch_src_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_src_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp)
 {
 	struct stktable_key *key;
@@ -2562,7 +2562,7 @@ acl_fetch_conn_rate(struct stktable *table, struct sample *smp, struct stksess *
  * the configured period.
  */
 static int
-acl_fetch_sc1_conn_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc1_conn_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                         const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
@@ -2575,7 +2575,7 @@ acl_fetch_sc1_conn_rate(struct proxy *px, struct session *l4, void *l7, int dir,
  * the configured period.
  */
 static int
-acl_fetch_sc2_conn_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc2_conn_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                         const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
@@ -2589,7 +2589,7 @@ acl_fetch_sc2_conn_rate(struct proxy *px, struct session *l4, void *l7, int dir,
  * Accepts exactly 1 argument of type table.
  */
 static int
-acl_fetch_src_conn_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_src_conn_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                         const struct arg *args, struct sample *smp)
 {
 	struct stktable_key *key;
@@ -2607,7 +2607,7 @@ acl_fetch_src_conn_rate(struct proxy *px, struct session *l4, void *l7, int dir,
  * Accepts exactly 1 argument of type table.
  */
 static int
-acl_fetch_src_updt_conn_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_src_updt_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                             const struct arg *args, struct sample *smp)
 {
 	struct stksess *ts;
@@ -2653,7 +2653,7 @@ acl_fetch_conn_cur(struct stktable *table, struct sample *smp, struct stksess *t
 
 /* set temp integer to the number of concurrent connections from the session's tracked FE counters */
 static int
-acl_fetch_sc1_conn_cur(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc1_conn_cur(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
@@ -2664,7 +2664,7 @@ acl_fetch_sc1_conn_cur(struct proxy *px, struct session *l4, void *l7, int dir,
 
 /* set temp integer to the number of concurrent connections from the session's tracked BE counters */
 static int
-acl_fetch_sc2_conn_cur(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc2_conn_cur(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
@@ -2678,7 +2678,7 @@ acl_fetch_sc2_conn_cur(struct proxy *px, struct session *l4, void *l7, int dir,
  * Accepts exactly 1 argument of type table.
  */
 static int
-acl_fetch_src_conn_cur(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_src_conn_cur(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp)
 {
 	struct stktable_key *key;
@@ -2709,7 +2709,7 @@ acl_fetch_sess_cnt(struct stktable *table, struct sample *smp, struct stksess *t
 
 /* set temp integer to the cumulated number of sessions from the session's tracked FE counters */
 static int
-acl_fetch_sc1_sess_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc1_sess_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
@@ -2720,7 +2720,7 @@ acl_fetch_sc1_sess_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
 
 /* set temp integer to the cumulated number of sessions from the session's tracked BE counters */
 static int
-acl_fetch_sc2_sess_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc2_sess_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
@@ -2734,7 +2734,7 @@ acl_fetch_sc2_sess_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
  * Accepts exactly 1 argument of type table.
  */
 static int
-acl_fetch_src_sess_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_src_sess_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp)
 {
 	struct stktable_key *key;
@@ -2768,7 +2768,7 @@ acl_fetch_sess_rate(struct stktable *table, struct sample *smp, struct stksess *
  * the configured period.
  */
 static int
-acl_fetch_sc1_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc1_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                         const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
@@ -2781,7 +2781,7 @@ acl_fetch_sc1_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
  * the configured period.
  */
 static int
-acl_fetch_sc2_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc2_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                         const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
@@ -2795,7 +2795,7 @@ acl_fetch_sc2_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
  * Accepts exactly 1 argument of type table.
  */
 static int
-acl_fetch_src_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_src_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                         const struct arg *args, struct sample *smp)
 {
 	struct stktable_key *key;
@@ -2826,7 +2826,7 @@ acl_fetch_http_req_cnt(struct stktable *table, struct sample *smp, struct stkses
 
 /* set temp integer to the cumulated number of sessions from the session's tracked FE counters */
 static int
-acl_fetch_sc1_http_req_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc1_http_req_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                            const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
@@ -2837,7 +2837,7 @@ acl_fetch_sc1_http_req_cnt(struct proxy *px, struct session *l4, void *l7, int d
 
 /* set temp integer to the cumulated number of sessions from the session's tracked BE counters */
 static int
-acl_fetch_sc2_http_req_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc2_http_req_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                            const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
@@ -2851,7 +2851,7 @@ acl_fetch_sc2_http_req_cnt(struct proxy *px, struct session *l4, void *l7, int d
  * Accepts exactly 1 argument of type table.
  */
 static int
-acl_fetch_src_http_req_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_src_http_req_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                            const struct arg *args, struct sample *smp)
 {
 	struct stktable_key *key;
@@ -2885,7 +2885,7 @@ acl_fetch_http_req_rate(struct stktable *table, struct sample *smp, struct stkse
  * the configured period.
  */
 static int
-acl_fetch_sc1_http_req_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc1_http_req_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                             const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
@@ -2898,7 +2898,7 @@ acl_fetch_sc1_http_req_rate(struct proxy *px, struct session *l4, void *l7, int 
  * the configured period.
  */
 static int
-acl_fetch_sc2_http_req_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc2_http_req_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                             const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
@@ -2912,7 +2912,7 @@ acl_fetch_sc2_http_req_rate(struct proxy *px, struct session *l4, void *l7, int 
  * Accepts exactly 1 argument of type table.
  */
 static int
-acl_fetch_src_http_req_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_src_http_req_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                             const struct arg *args, struct sample *smp)
 {
 	struct stktable_key *key;
@@ -2943,7 +2943,7 @@ acl_fetch_http_err_cnt(struct stktable *table, struct sample *smp, struct stkses
 
 /* set temp integer to the cumulated number of sessions from the session's tracked FE counters */
 static int
-acl_fetch_sc1_http_err_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc1_http_err_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                            const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
@@ -2954,7 +2954,7 @@ acl_fetch_sc1_http_err_cnt(struct proxy *px, struct session *l4, void *l7, int d
 
 /* set temp integer to the cumulated number of sessions from the session's tracked BE counters */
 static int
-acl_fetch_sc2_http_err_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc2_http_err_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                            const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
@@ -2968,7 +2968,7 @@ acl_fetch_sc2_http_err_cnt(struct proxy *px, struct session *l4, void *l7, int d
  * Accepts exactly 1 argument of type table.
  */
 static int
-acl_fetch_src_http_err_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_src_http_err_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                            const struct arg *args, struct sample *smp)
 {
 	struct stktable_key *key;
@@ -3002,7 +3002,7 @@ acl_fetch_http_err_rate(struct stktable *table, struct sample *smp, struct stkse
  * the configured period.
  */
 static int
-acl_fetch_sc1_http_err_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc1_http_err_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                             const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
@@ -3015,7 +3015,7 @@ acl_fetch_sc1_http_err_rate(struct proxy *px, struct session *l4, void *l7, int 
  * the configured period.
  */
 static int
-acl_fetch_sc2_http_err_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc2_http_err_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                             const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
@@ -3029,7 +3029,7 @@ acl_fetch_sc2_http_err_rate(struct proxy *px, struct session *l4, void *l7, int 
  * Accepts exactly 1 argument of type table.
  */
 static int
-acl_fetch_src_http_err_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_src_http_err_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                             const struct arg *args, struct sample *smp)
 {
 	struct stktable_key *key;
@@ -3063,7 +3063,7 @@ acl_fetch_kbytes_in(struct stktable *table, struct sample *smp, struct stksess *
  * session's tracked FE counters.
  */
 static int
-acl_fetch_sc1_kbytes_in(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc1_kbytes_in(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                         const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
@@ -3076,7 +3076,7 @@ acl_fetch_sc1_kbytes_in(struct proxy *px, struct session *l4, void *l7, int dir,
  * session's tracked BE counters.
  */
 static int
-acl_fetch_sc2_kbytes_in(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc2_kbytes_in(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                         const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
@@ -3090,7 +3090,7 @@ acl_fetch_sc2_kbytes_in(struct proxy *px, struct session *l4, void *l7, int dir,
  * Accepts exactly 1 argument of type table.
  */
 static int
-acl_fetch_src_kbytes_in(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_src_kbytes_in(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp)
 {
 	struct stktable_key *key;
@@ -3126,7 +3126,7 @@ acl_fetch_bytes_in_rate(struct stktable *table, struct sample *smp, struct stkse
  * counters over the configured period.
  */
 static int
-acl_fetch_sc1_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc1_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                             const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
@@ -3139,7 +3139,7 @@ acl_fetch_sc1_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, int 
  * counters over the configured period.
  */
 static int
-acl_fetch_sc2_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc2_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                             const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
@@ -3153,7 +3153,7 @@ acl_fetch_sc2_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, int 
  * Accepts exactly 1 argument of type table.
  */
 static int
-acl_fetch_src_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_src_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                             const struct arg *args, struct sample *smp)
 {
 	struct stktable_key *key;
@@ -3187,7 +3187,7 @@ acl_fetch_kbytes_out(struct stktable *table, struct sample *smp, struct stksess 
  * tracked FE counters.
  */
 static int
-acl_fetch_sc1_kbytes_out(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc1_kbytes_out(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                          const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
@@ -3200,7 +3200,7 @@ acl_fetch_sc1_kbytes_out(struct proxy *px, struct session *l4, void *l7, int dir
  * tracked BE counters.
  */
 static int
-acl_fetch_sc2_kbytes_out(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc2_kbytes_out(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                          const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
@@ -3214,7 +3214,7 @@ acl_fetch_sc2_kbytes_out(struct proxy *px, struct session *l4, void *l7, int dir
  * Accepts exactly 1 argument of type table.
  */
 static int
-acl_fetch_src_kbytes_out(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_src_kbytes_out(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                          const struct arg *args, struct sample *smp)
 {
 	struct stktable_key *key;
@@ -3250,7 +3250,7 @@ acl_fetch_bytes_out_rate(struct stktable *table, struct sample *smp, struct stks
  * over the configured period.
  */
 static int
-acl_fetch_sc1_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc1_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                              const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr1_entry)
@@ -3263,7 +3263,7 @@ acl_fetch_sc1_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, int
  * over the configured period.
  */
 static int
-acl_fetch_sc2_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sc2_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                              const struct arg *args, struct sample *smp)
 {
 	if (!l4->stkctr2_entry)
@@ -3277,7 +3277,7 @@ acl_fetch_sc2_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, int
  * Accepts exactly 1 argument of type table.
  */
 static int
-acl_fetch_src_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_src_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                              const struct arg *args, struct sample *smp)
 {
 	struct stktable_key *key;
@@ -3294,7 +3294,7 @@ acl_fetch_src_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, int
  * Accepts exactly 1 argument of type table.
  */
 static int
-acl_fetch_table_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_table_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                     const struct arg *args, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_TEST;
@@ -3307,7 +3307,7 @@ acl_fetch_table_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
  * Accepts exactly 1 argument of type table.
  */
 static int
-acl_fetch_table_avl(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_table_avl(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                     const struct arg *args, struct sample *smp)
 {
 	px = args->data.prx;

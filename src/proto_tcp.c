@@ -690,15 +690,15 @@ int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit)
 	 */
 
 	if (req->flags & (BF_SHUTR|BF_FULL) || !s->be->tcp_req.inspect_delay || tick_is_expired(req->analyse_exp, now_ms))
-		partial = 0;
+		partial = SMP_OPT_FINAL;
 	else
-		partial = ACL_PARTIAL;
+		partial = 0;
 
 	list_for_each_entry(rule, &s->be->tcp_req.inspect_rules, list) {
 		int ret = ACL_PAT_PASS;
 
 		if (rule->cond) {
-			ret = acl_exec_cond(rule->cond, s->be, s, &s->txn, ACL_DIR_REQ | partial);
+			ret = acl_exec_cond(rule->cond, s->be, s, &s->txn, SMP_OPT_DIR_REQ | partial);
 			if (ret == ACL_PAT_MISS) {
 				buffer_dont_connect(req);
 				/* just set the request timeout once at the beginning of the request */
@@ -808,15 +808,15 @@ int tcp_inspect_response(struct session *s, struct buffer *rep, int an_bit)
 	 */
 
 	if (rep->flags & BF_SHUTR || tick_is_expired(rep->analyse_exp, now_ms))
-		partial = 0;
+		partial = SMP_OPT_FINAL;
 	else
-		partial = ACL_PARTIAL;
+		partial = 0;
 
 	list_for_each_entry(rule, &s->be->tcp_rep.inspect_rules, list) {
 		int ret = ACL_PAT_PASS;
 
 		if (rule->cond) {
-			ret = acl_exec_cond(rule->cond, s->be, s, &s->txn, ACL_DIR_RTR | partial);
+			ret = acl_exec_cond(rule->cond, s->be, s, &s->txn, SMP_OPT_DIR_RES | partial);
 			if (ret == ACL_PAT_MISS) {
 				/* just set the analyser timeout once at the beginning of the response */
 				if (!tick_isset(rep->analyse_exp) && s->be->tcp_rep.inspect_delay)
@@ -880,7 +880,7 @@ int tcp_exec_req_rules(struct session *s)
 		ret = ACL_PAT_PASS;
 
 		if (rule->cond) {
-			ret = acl_exec_cond(rule->cond, s->fe, s, NULL, ACL_DIR_REQ);
+			ret = acl_exec_cond(rule->cond, s->fe, s, NULL, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
 			ret = acl_pass(ret);
 			if (rule->cond->pol == ACL_COND_UNLESS)
 				ret = !ret;
@@ -1257,7 +1257,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
  * is a string (cookie name), other types will lead to undefined behaviour.
  */
 int
-smp_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
+smp_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                      const struct arg *args, struct sample *smp)
 {
 	int bleft;
@@ -1345,13 +1345,13 @@ smp_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
 }
 
 static int
-pattern_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir,
+pattern_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                          const struct arg *arg_p, struct sample *smp)
 {
 	int ret;
 
 	/* sample type set by smp_fetch_rdp_cookie() */
-	ret = smp_fetch_rdp_cookie(px, l4, NULL, ACL_DIR_REQ, arg_p, smp);
+	ret = smp_fetch_rdp_cookie(px, l4, NULL, opt, arg_p, smp);
 	if (ret == 0 || (smp->flags & SMP_F_MAY_CHANGE) || smp->data.str.len == 0)
 		return 0;
 	return 1;
@@ -1363,12 +1363,12 @@ pattern_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, int dir
 
 /* returns either 1 or 0 depending on whether an RDP cookie is found or not */
 static int
-acl_fetch_rdp_cookie_cnt(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_rdp_cookie_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                          const struct arg *args, struct sample *smp)
 {
 	int ret;
 
-	ret = smp_fetch_rdp_cookie(px, l4, l7, dir, args, smp);
+	ret = smp_fetch_rdp_cookie(px, l4, l7, opt, args, smp);
 
 	if (smp->flags & SMP_F_MAY_CHANGE)
 		return 0;
@@ -1382,7 +1382,7 @@ acl_fetch_rdp_cookie_cnt(struct proxy *px, struct session *l4, void *l7, int dir
 
 /* copy the source IPv4/v6 address into temp_pattern */
 static int
-acl_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_src(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
               const struct arg *args, struct sample *smp)
 {
 	switch (l4->si[0].addr.from.ss_family) {
@@ -1404,7 +1404,7 @@ acl_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
 
 /* extract the connection's source ipv4 address */
 static int
-pattern_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
+pattern_fetch_src(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                   const struct arg *arg_p, struct sample *smp)
 {
 	if (l4->si[0].addr.from.ss_family != AF_INET )
@@ -1417,7 +1417,7 @@ pattern_fetch_src(struct proxy *px, struct session *l4, void *l7, int dir,
 
 /* extract the connection's source ipv6 address */
 static int
-pattern_fetch_src6(struct proxy *px, struct session *l4, void *l7, int dir,
+pattern_fetch_src6(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                   const struct arg *arg_p, struct sample *smp)
 {
 	if (l4->si[0].addr.from.ss_family != AF_INET6)
@@ -1430,7 +1430,7 @@ pattern_fetch_src6(struct proxy *px, struct session *l4, void *l7, int dir,
 
 /* set temp integer to the connection's source port */
 static int
-acl_fetch_sport(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_sport(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp)
 {
 	smp->type = SMP_T_UINT;
@@ -1444,7 +1444,7 @@ acl_fetch_sport(struct proxy *px, struct session *l4, void *l7, int dir,
 
 /* set test->ptr to point to the frontend's IPv4/IPv6 address and test->i to the family */
 static int
-acl_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_dst(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
               const struct arg *args, struct sample *smp)
 {
 	stream_sock_get_to_addr(&l4->si[0]);
@@ -1469,7 +1469,7 @@ acl_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
 
 /* extract the connection's destination ipv4 address */
 static int
-pattern_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
+pattern_fetch_dst(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                   const struct arg *arg_p, struct sample *smp)
 {
 	stream_sock_get_to_addr(&l4->si[0]);
@@ -1484,7 +1484,7 @@ pattern_fetch_dst(struct proxy *px, struct session *l4, void *l7, int dir,
 
 /* extract the connection's destination ipv6 address */
 static int
-pattern_fetch_dst6(struct proxy *px, struct session *l4, void *l7, int dir,
+pattern_fetch_dst6(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                   const struct arg *arg_p, struct sample *smp)
 {
 	stream_sock_get_to_addr(&l4->si[0]);
@@ -1499,7 +1499,7 @@ pattern_fetch_dst6(struct proxy *px, struct session *l4, void *l7, int dir,
 
 /* set temp integer to the frontend connexion's destination port */
 static int
-acl_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_dport(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp)
 {
 	stream_sock_get_to_addr(&l4->si[0]);
@@ -1513,7 +1513,7 @@ acl_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
 }
 
 static int
-pattern_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
+pattern_fetch_dport(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                     const struct arg *arg, struct sample *smp)
 {
 	smp->type = SMP_T_UINT;
@@ -1526,7 +1526,7 @@ pattern_fetch_dport(struct proxy *px, struct session *l4, void *l7, int dir,
 }
 
 static int
-pattern_fetch_payloadlv(struct proxy *px, struct session *l4, void *l7, int dir,
+pattern_fetch_payloadlv(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                         const struct arg *arg_p, struct sample *smp)
 {
 	int len_offset = arg_p[0].data.uint;
@@ -1543,7 +1543,7 @@ pattern_fetch_payloadlv(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!l4)
 		return 0;
 
-	b = (dir & PATTERN_FETCH_RTR) ? l4->rep : l4->req;
+	b = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? l4->rep : l4->req;
 
 	if (!b || !b->i)
 		return 0;
@@ -1576,7 +1576,7 @@ pattern_fetch_payloadlv(struct proxy *px, struct session *l4, void *l7, int dir,
 }
 
 static int
-pattern_fetch_payload(struct proxy *px, struct session *l4, void *l7, int dir,
+pattern_fetch_payload(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                       const struct arg *arg_p, struct sample *smp)
 {
 	int buf_offset = arg_p[0].data.uint;
@@ -1586,7 +1586,7 @@ pattern_fetch_payload(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!l4)
 		return 0;
 
-	b = (dir & PATTERN_FETCH_RTR) ? l4->rep : l4->req;
+	b = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? l4->rep : l4->req;
 
 	if (!b || !b->i)
 		return 0;
@@ -1666,14 +1666,14 @@ static struct acl_kw_list acl_kws = {{ },{
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct pattern_fetch_kw_list pattern_fetch_keywords = {{ },{
-	{ "src",         pattern_fetch_src,       0,                      NULL,           SMP_T_IPV4, PATTERN_FETCH_REQ },
-	{ "src6",        pattern_fetch_src6,      0,                      NULL,           SMP_T_IPV6, PATTERN_FETCH_REQ },
-	{ "dst",         pattern_fetch_dst,       0,                      NULL,           SMP_T_IPV4, PATTERN_FETCH_REQ },
-	{ "dst6",        pattern_fetch_dst6,      0,                      NULL,           SMP_T_IPV6, PATTERN_FETCH_REQ },
-	{ "dst_port",    pattern_fetch_dport,     0,                      NULL,           SMP_T_UINT, PATTERN_FETCH_REQ },
-	{ "payload",     pattern_fetch_payload,   ARG2(2,UINT,UINT),      val_payload,    SMP_T_CBIN, PATTERN_FETCH_REQ|PATTERN_FETCH_RTR },
-	{ "payload_lv",  pattern_fetch_payloadlv, ARG3(2,UINT,UINT,SINT), val_payload_lv, SMP_T_CBIN, PATTERN_FETCH_REQ|PATTERN_FETCH_RTR },
-	{ "rdp_cookie",  pattern_fetch_rdp_cookie, ARG1(1,STR),           NULL,           SMP_T_CSTR, PATTERN_FETCH_REQ },
+	{ "src",         pattern_fetch_src,       0,                      NULL,           SMP_T_IPV4, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "src6",        pattern_fetch_src6,      0,                      NULL,           SMP_T_IPV6, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "dst",         pattern_fetch_dst,       0,                      NULL,           SMP_T_IPV4, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "dst6",        pattern_fetch_dst6,      0,                      NULL,           SMP_T_IPV6, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "dst_port",    pattern_fetch_dport,     0,                      NULL,           SMP_T_UINT, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "payload",     pattern_fetch_payload,   ARG2(2,UINT,UINT),      val_payload,    SMP_T_CBIN, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "payload_lv",  pattern_fetch_payloadlv, ARG3(2,UINT,UINT,SINT), val_payload_lv, SMP_T_CBIN, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "rdp_cookie",  pattern_fetch_rdp_cookie, ARG1(1,STR),           NULL,           SMP_T_CSTR, SMP_CAP_REQ|SMP_CAP_RES },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 

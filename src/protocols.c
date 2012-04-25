@@ -325,7 +325,7 @@ int protocol_disable_all(void)
 
 /* set temp integer to the number of connexions to the same listening socket */
 static int
-acl_fetch_dconn(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_dconn(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp)
 {
 	smp->type = SMP_T_UINT;
@@ -335,7 +335,7 @@ acl_fetch_dconn(struct proxy *px, struct session *l4, void *l7, int dir,
 
 /* set temp integer to the id of the socket (listener) */
 static int
-acl_fetch_so_id(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_so_id(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp)
 {
 	smp->type = SMP_T_UINT;

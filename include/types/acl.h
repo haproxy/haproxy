@@ -71,14 +71,6 @@ enum {
 	ACL_COND_UNLESS,	/* negative condition (after 'unless') */
 };
 
-/* ACLs can be evaluated on requests and on responses, and on partial or complete data */
-enum {
-	ACL_DIR_REQ = 0,        /* ACL evaluated on request */
-	ACL_DIR_RTR = (1 << 0), /* ACL evaluated on response */
-	ACL_DIR_MASK = (ACL_DIR_REQ | ACL_DIR_RTR),
-	ACL_PARTIAL = (1 << 1), /* partial data, return MISS if data are missing */
-};
-
 /* possible flags for expressions or patterns */
 enum {
 	ACL_PAT_F_IGNORE_CASE = 1 << 0,       /* ignore case */
@@ -238,7 +230,7 @@ struct acl_expr;
 struct acl_keyword {
 	const char *kw;
 	int (*parse)(const char **text, struct acl_pattern *pattern, int *opaque);
-	int (*fetch)(struct proxy *px, struct session *l4, void *l7, int dir,
+	int (*fetch)(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 	             const struct arg *args, struct sample *smp);
 	int (*match)(struct sample *smp, struct acl_pattern *pattern);
 	unsigned int requires;   /* bit mask of all ACL_USE_* required to evaluate this keyword */

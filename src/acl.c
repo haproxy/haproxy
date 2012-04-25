@@ -65,7 +65,7 @@ static struct acl_kw_list acl_keywords = {
 
 /* force TRUE to be returned at the fetch level */
 static int
-acl_fetch_true(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_true(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                const struct arg *args, struct sample *smp)
 {
 	smp->type = SMP_T_BOOL;
@@ -77,10 +77,10 @@ acl_fetch_true(struct proxy *px, struct session *l4, void *l7, int dir,
  * used with content inspection.
  */
 static int
-acl_fetch_wait_end(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_wait_end(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                    const struct arg *args, struct sample *smp)
 {
-	if (dir & ACL_PARTIAL) {
+	if (!(opt & SMP_OPT_FINAL)) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}
@@ -91,7 +91,7 @@ acl_fetch_wait_end(struct proxy *px, struct session *l4, void *l7, int dir,
 
 /* force FALSE to be returned at the fetch level */
 static int
-acl_fetch_false(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_false(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp)
 {
 	smp->type = SMP_T_BOOL;
@@ -101,7 +101,7 @@ acl_fetch_false(struct proxy *px, struct session *l4, void *l7, int dir,
 
 /* return the number of bytes in the request buffer */
 static int
-acl_fetch_req_len(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_req_len(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                   const struct arg *args, struct sample *smp)
 {
 	if (!l4 || !l4->req)
@@ -115,7 +115,7 @@ acl_fetch_req_len(struct proxy *px, struct session *l4, void *l7, int dir,
 
 
 static int
-acl_fetch_ssl_hello_type(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_ssl_hello_type(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                          const struct arg *args, struct sample *smp)
 {
 	int hs_len;
@@ -126,7 +126,7 @@ acl_fetch_ssl_hello_type(struct proxy *px, struct session *l4, void *l7, int dir
 	if (!l4)
 		goto not_ssl_hello;
 
-	b = ((dir & ACL_DIR_MASK) == ACL_DIR_RTR) ? l4->rep : l4->req;
+	b = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? l4->rep : l4->req;
 
 	bleft = b->i;
 	data = (const unsigned char *)b->p;
@@ -184,7 +184,7 @@ acl_fetch_ssl_hello_type(struct proxy *px, struct session *l4, void *l7, int dir
  * Note: this decoder only works with non-wrapping data.
  */
 static int
-acl_fetch_req_ssl_ver(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_req_ssl_ver(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                       const struct arg *args, struct sample *smp)
 {
 	int version, bleft, msg_len;
@@ -320,7 +320,7 @@ acl_fetch_req_ssl_ver(struct proxy *px, struct session *l4, void *l7, int dir,
  *             - opaque hostname[name_len bytes]
  */
 static int
-acl_fetch_ssl_hello_sni(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_ssl_hello_sni(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                         const struct arg *args, struct sample *smp)
 {
 	int hs_len, ext_len, bleft;
@@ -330,7 +330,7 @@ acl_fetch_ssl_hello_sni(struct proxy *px, struct session *l4, void *l7, int dir,
 	if (!l4)
 		goto not_ssl_hello;
 
-	b = ((dir & ACL_DIR_MASK) == ACL_DIR_RTR) ? l4->rep : l4->req;
+	b = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? l4->rep : l4->req;
 
 	bleft = b->i;
 	data = (unsigned char *)b->p;
@@ -464,7 +464,7 @@ int acl_parse_nothing(const char **text, struct acl_pattern *pattern, int *opaqu
 }
 
 /* always fake a data retrieval */
-int acl_fetch_nothing(struct proxy *px, struct session *l4, void *l7, int dir,
+int acl_fetch_nothing(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                       const struct arg *args, struct sample *smp)
 {
 	return 1;
@@ -1681,8 +1681,8 @@ struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, co
 
 /* Execute condition <cond> and return either ACL_PAT_FAIL, ACL_PAT_MISS or
  * ACL_PAT_PASS depending on the test results. ACL_PAT_MISS may only be
- * returned if <dir> contains ACL_PARTIAL, indicating that incomplete data
- * is being examined.
+ * returned if <opt> does not contain SMP_OPT_FINAL, indicating that incomplete
+ * data is being examined.
  * This function only computes the condition, it does not apply the polarity
  * required by IF/UNLESS, it's up to the caller to do this using something like
  * this :
@@ -1693,7 +1693,7 @@ struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, co
  *     if (cond->pol == ACL_COND_UNLESS)
  *         res = !res;
  */
-int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, void *l7, int dir)
+int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, void *l7, unsigned int opt)
 {
 	__label__ fetch_next;
 	struct acl_term_suite *suite;
@@ -1733,9 +1733,9 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 				/* we need to reset context and flags */
 				memset(&smp, 0, sizeof(smp));
 			fetch_next:
-				if (!expr->kw->fetch(px, l4, l7, dir, expr->args, &smp)) {
+				if (!expr->kw->fetch(px, l4, l7, opt, expr->args, &smp)) {
 					/* maybe we could not fetch because of missing data */
-					if (smp.flags & SMP_F_MAY_CHANGE && dir & ACL_PARTIAL)
+					if (smp.flags & SMP_F_MAY_CHANGE && !(opt & SMP_OPT_FINAL))
 						acl_res |= ACL_PAT_MISS;
 					continue;
 				}
@@ -1784,7 +1784,7 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 				 * later and give another chance for a new match (eg: request
 				 * size, time, ...)
 				 */
-				if (smp.flags & SMP_F_MAY_CHANGE && dir & ACL_PARTIAL)
+				if (smp.flags & SMP_F_MAY_CHANGE && !(opt & SMP_OPT_FINAL))
 					acl_res |= ACL_PAT_MISS;
 			}
 			/*

@@ -1120,7 +1120,7 @@ static int create_cond_regex_rule(const char *file, int line,
 		goto err;
 	}
 
-	if (dir == ACL_DIR_REQ)
+	if (dir == SMP_OPT_DIR_REQ)
 		err_code |= warnif_cond_requires_resp(cond, file, line);
 	else
 		err_code |= warnif_cond_requires_req(cond, file, line);
@@ -1138,7 +1138,7 @@ static int create_cond_regex_rule(const char *file, int line,
 		goto err;
 	}
 
-	err = chain_regex((dir == ACL_DIR_REQ) ? &px->req_exp : &px->rsp_exp,
+	err = chain_regex((dir == SMP_OPT_DIR_REQ) ? &px->req_exp : &px->rsp_exp,
 			  preg, action, repl ? strdup(repl) : NULL, cond);
 	if (repl && err) {
 		Alert("parsing [%s:%d] : '%s' : invalid character or unterminated sequence in replacement string near '%c'.\n",
@@ -1147,7 +1147,7 @@ static int create_cond_regex_rule(const char *file, int line,
 		goto err;
 	}
 
-	if (dir == ACL_DIR_REQ && warnif_misplaced_reqxxx(px, file, line, cmd))
+	if (dir == SMP_OPT_DIR_REQ && warnif_misplaced_reqxxx(px, file, line, cmd))
 		err_code |= ERR_WARN;
 
 	return err_code;
@@ -3005,7 +3005,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		if (flags & STK_ON_RSP) {
-			if (!(expr->fetch->dir & PATTERN_FETCH_RTR)) {
+			if (!(expr->fetch->cap & SMP_CAP_RES)) {
 				Alert("parsing [%s:%d] : '%s': fetch method '%s' can not be used on response.\n",
 				      file, linenum, args[0], expr->fetch->kw);
 		                err_code |= ERR_ALERT | ERR_FATAL;
@@ -3013,7 +3013,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			        goto out;
 			}
 		} else {
-			if (!(expr->fetch->dir & PATTERN_FETCH_REQ)) {
+			if (!(expr->fetch->cap & SMP_CAP_REQ)) {
 				Alert("parsing [%s:%d] : '%s': fetch method '%s' can not be used on request.\n",
 				      file, linenum, args[0], expr->fetch->kw);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -4882,56 +4882,56 @@ stats_error_parsing:
 		}
 
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   ACL_DIR_REQ, ACT_REPLACE, 0,
+						   SMP_OPT_DIR_REQ, ACT_REPLACE, 0,
 						   args[0], args[1], args[2], (const char **)args+3);
 		if (err_code & ERR_FATAL)
 			goto out;
 	}
 	else if (!strcmp(args[0], "reqdel")) {  /* delete request header from a regex */
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   ACL_DIR_REQ, ACT_REMOVE, 0,
+						   SMP_OPT_DIR_REQ, ACT_REMOVE, 0,
 						   args[0], args[1], NULL, (const char **)args+2);
 		if (err_code & ERR_FATAL)
 			goto out;
 	}
 	else if (!strcmp(args[0], "reqdeny")) {  /* deny a request if a header matches this regex */
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   ACL_DIR_REQ, ACT_DENY, 0,
+						   SMP_OPT_DIR_REQ, ACT_DENY, 0,
 						   args[0], args[1], NULL, (const char **)args+2);
 		if (err_code & ERR_FATAL)
 			goto out;
 	}
 	else if (!strcmp(args[0], "reqpass")) {  /* pass this header without allowing or denying the request */
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   ACL_DIR_REQ, ACT_PASS, 0,
+						   SMP_OPT_DIR_REQ, ACT_PASS, 0,
 						   args[0], args[1], NULL, (const char **)args+2);
 		if (err_code & ERR_FATAL)
 			goto out;
 	}
 	else if (!strcmp(args[0], "reqallow")) {  /* allow a request if a header matches this regex */
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   ACL_DIR_REQ, ACT_ALLOW, 0,
+						   SMP_OPT_DIR_REQ, ACT_ALLOW, 0,
 						   args[0], args[1], NULL, (const char **)args+2);
 		if (err_code & ERR_FATAL)
 			goto out;
 	}
 	else if (!strcmp(args[0], "reqtarpit")) {  /* tarpit a request if a header matches this regex */
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   ACL_DIR_REQ, ACT_TARPIT, 0,
+						   SMP_OPT_DIR_REQ, ACT_TARPIT, 0,
 						   args[0], args[1], NULL, (const char **)args+2);
 		if (err_code & ERR_FATAL)
 			goto out;
 	}
 	else if (!strcmp(args[0], "reqsetbe")) { /* switch the backend from a regex, respecting case */
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   ACL_DIR_REQ, ACT_SETBE, 0,
+						   SMP_OPT_DIR_REQ, ACT_SETBE, 0,
 						   args[0], args[1], args[2], (const char **)args+3);
 		if (err_code & ERR_FATAL)
 			goto out;
 	}
 	else if (!strcmp(args[0], "reqisetbe")) { /* switch the backend from a regex, ignoring case */
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   ACL_DIR_REQ, ACT_SETBE, REG_ICASE,
+						   SMP_OPT_DIR_REQ, ACT_SETBE, REG_ICASE,
 						   args[0], args[1], args[2], (const char **)args+3);
 		if (err_code & ERR_FATAL)
 			goto out;
@@ -4945,42 +4945,42 @@ stats_error_parsing:
 		}
 
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   ACL_DIR_REQ, ACT_REPLACE, REG_ICASE,
+						   SMP_OPT_DIR_REQ, ACT_REPLACE, REG_ICASE,
 						   args[0], args[1], args[2], (const char **)args+3);
 		if (err_code & ERR_FATAL)
 			goto out;
 	}
 	else if (!strcmp(args[0], "reqidel")) {  /* delete request header from a regex ignoring case */
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   ACL_DIR_REQ, ACT_REMOVE, REG_ICASE,
+						   SMP_OPT_DIR_REQ, ACT_REMOVE, REG_ICASE,
 						   args[0], args[1], NULL, (const char **)args+2);
 		if (err_code & ERR_FATAL)
 			goto out;
 	}
 	else if (!strcmp(args[0], "reqideny")) {  /* deny a request if a header matches this regex ignoring case */
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   ACL_DIR_REQ, ACT_DENY, REG_ICASE,
+						   SMP_OPT_DIR_REQ, ACT_DENY, REG_ICASE,
 						   args[0], args[1], NULL, (const char **)args+2);
 		if (err_code & ERR_FATAL)
 			goto out;
 	}
 	else if (!strcmp(args[0], "reqipass")) {  /* pass this header without allowing or denying the request */
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   ACL_DIR_REQ, ACT_PASS, REG_ICASE,
+						   SMP_OPT_DIR_REQ, ACT_PASS, REG_ICASE,
 						   args[0], args[1], NULL, (const char **)args+2);
 		if (err_code & ERR_FATAL)
 			goto out;
 	}
 	else if (!strcmp(args[0], "reqiallow")) {  /* allow a request if a header matches this regex ignoring case */
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   ACL_DIR_REQ, ACT_ALLOW, REG_ICASE,
+						   SMP_OPT_DIR_REQ, ACT_ALLOW, REG_ICASE,
 						   args[0], args[1], NULL, (const char **)args+2);
 		if (err_code & ERR_FATAL)
 			goto out;
 	}
 	else if (!strcmp(args[0], "reqitarpit")) {  /* tarpit a request if a header matches this regex ignoring case */
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   ACL_DIR_REQ, ACT_TARPIT, REG_ICASE,
+						   SMP_OPT_DIR_REQ, ACT_TARPIT, REG_ICASE,
 						   args[0], args[1], NULL, (const char **)args+2);
 		if (err_code & ERR_FATAL)
 			goto out;
@@ -5033,21 +5033,21 @@ stats_error_parsing:
 		}
 
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   ACL_DIR_RTR, ACT_REPLACE, 0,
+						   SMP_OPT_DIR_RES, ACT_REPLACE, 0,
 						   args[0], args[1], args[2], (const char **)args+3);
 		if (err_code & ERR_FATAL)
 			goto out;
 	}
 	else if (!strcmp(args[0], "rspdel")) {  /* delete response header from a regex */
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   ACL_DIR_RTR, ACT_REMOVE, 0,
+						   SMP_OPT_DIR_RES, ACT_REMOVE, 0,
 						   args[0], args[1], NULL, (const char **)args+2);
 		if (err_code & ERR_FATAL)
 			goto out;
 	}
 	else if (!strcmp(args[0], "rspdeny")) {  /* block response header from a regex */
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   ACL_DIR_RTR, ACT_DENY, 0,
+						   SMP_OPT_DIR_RES, ACT_DENY, 0,
 						   args[0], args[1], NULL, (const char **)args+2);
 		if (err_code & ERR_FATAL)
 			goto out;
@@ -5061,21 +5061,21 @@ stats_error_parsing:
 		}
 
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   ACL_DIR_RTR, ACT_REPLACE, REG_ICASE,
+						   SMP_OPT_DIR_RES, ACT_REPLACE, REG_ICASE,
 						   args[0], args[1], args[2], (const char **)args+3);
 		if (err_code & ERR_FATAL)
 			goto out;
 	}
 	else if (!strcmp(args[0], "rspidel")) {  /* delete response header from a regex ignoring case */
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   ACL_DIR_RTR, ACT_REMOVE, REG_ICASE,
+						   SMP_OPT_DIR_RES, ACT_REMOVE, REG_ICASE,
 						   args[0], args[1], NULL, (const char **)args+2);
 		if (err_code & ERR_FATAL)
 			goto out;
 	}
 	else if (!strcmp(args[0], "rspideny")) {  /* block response header from a regex ignoring case */
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
-						   ACL_DIR_RTR, ACT_DENY, REG_ICASE,
+						   SMP_OPT_DIR_RES, ACT_DENY, REG_ICASE,
 						   args[0], args[1], NULL, (const char **)args+2);
 		if (err_code & ERR_FATAL)
 			goto out;

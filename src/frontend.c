@@ -499,7 +499,7 @@ int make_proxy_line(char *buf, int buf_len, struct sockaddr_storage *src, struct
 
 /* set temp integer to the id of the frontend */
 static int
-acl_fetch_fe_id(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_fe_id(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_SESS;
@@ -513,7 +513,7 @@ acl_fetch_fe_id(struct proxy *px, struct session *l4, void *l7, int dir,
  * an undefined behaviour.
  */
 static int
-acl_fetch_fe_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_fe_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_TEST;
@@ -527,7 +527,7 @@ acl_fetch_fe_sess_rate(struct proxy *px, struct session *l4, void *l7, int dir,
  * an undefined behaviour.
  */
 static int
-acl_fetch_fe_conn(struct proxy *px, struct session *l4, void *l7, int dir,
+acl_fetch_fe_conn(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                   const struct arg *args, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_TEST;

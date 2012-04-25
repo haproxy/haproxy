@@ -41,6 +41,26 @@ enum {
 	SMP_TYPES        /* number of types, must always be last */
 };
 
+/* Sample fetch capabilities are used to declare keywords. Right now only
+ * the supportd fetch directions are specified.
+ */
+enum {
+	SMP_CAP_REQ = 1 << 0, /* fetch supported on request */
+	SMP_CAP_RES = 1 << 1, /* fetch supported on response */
+};
+
+/* Sample fetch options are passed to sample fetch functions to add precision
+ * about what is desired :
+ *   - fetch direction (req/resp)
+ *   - intermediary / final fetch
+ */
+enum {
+	SMP_OPT_DIR_REQ = 0,    /* direction = request */
+	SMP_OPT_DIR_RES = 1,    /* direction = response */
+	SMP_OPT_DIR     = (SMP_OPT_DIR_REQ|SMP_OPT_DIR_RES), /* mask to get direction */
+	SMP_OPT_FINAL   = 2,    /* final fetch, contents won't change anymore */
+};
+
 /* Flags used to describe fetched samples. MAY_CHANGE indicates that the result
  * of the fetch might still evolve, for instance because of more data expected,
  * even if the fetch has failed. VOL_* indicates how long a result may be cached.
@@ -55,11 +75,6 @@ enum {
 	SMP_F_VOL_SESS   = 1 << 6, /* result sensitive to new session (eg: src IP) */
 	SMP_F_VOLATILE   = (1<<2)|(1<<3)|(1<<4)|(1<<5)|(1<<6), /* any volatility condition */
 };
-
-/* pattern fetch direction */
-#define PATTERN_FETCH_REQ	1
-#define PATTERN_FETCH_RTR	2
-
 
 /* a sample context might be used by any sample fetch function in order to
  * store information needed across multiple calls (eg: restart point for a
@@ -115,13 +130,14 @@ struct pattern_fetch {
 	int (*process)(struct proxy *px,
 	               struct session *l4,
 	               void *l7,
-	               int dir, const struct arg *arg_p,
+		       unsigned int opt,          /* fetch options (SMP_OPT_*) */
+		       const struct arg *arg_p,
 	               struct sample *smp);       /* fetch processing function */
 	unsigned int arg_mask;                    /* arguments (ARG*()) */
 	int (*val_args)(struct arg *arg_p,
 			char **err_msg);          /* argument validation function */
 	unsigned long out_type;                   /* output pattern type */
-	int dir;                                  /* usable directions */
+	unsigned int cap;                         /* fetch capabilities (SMP_CAP_*) */
 };
 
 /* pattern expression */

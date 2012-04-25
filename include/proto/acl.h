@@ -94,7 +94,7 @@ struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, co
  * condition, it does not apply the polarity required by IF/UNLESS, it's up to
  * the caller to do this.
  */
-int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, void *l7, int dir);
+int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, void *l7, unsigned int opt);
 
 /* Reports a pointer to the first ACL used in condition <cond> which requires
  * at least one of the USE_FLAGS in <require>. Returns NULL if none matches.
@@ -171,7 +171,7 @@ int acl_parse_reg(const char **text, struct acl_pattern *pattern, int *opaque);
 int acl_parse_ip(const char **text, struct acl_pattern *pattern, int *opaque);
 
 /* always fake a data retrieval */
-int acl_fetch_nothing(struct proxy *px, struct session *l4, void *l7, int dir,
+int acl_fetch_nothing(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                       const struct arg *args, struct sample *smp);
 
 /* always return false */
