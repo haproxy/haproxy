@@ -8139,10 +8139,11 @@ extract_cookie_value(char *hdr, const char *hdr_end,
  * end-of-header-value, and smp->ctx.a[2] for the hdr_idx. Depending on
  * the direction, multiple cookies may be parsed on the same line or not.
  * The cookie name is in args and the name length in args->data.str.len.
- * Accepts exactly 1 argument of type string.
+ * Accepts exactly 1 argument of type string. If the input options indicate
+ * that no iterating is desired, then only last value is fetched if any.
  */
 static int
-acl_fetch_cookie_value(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_cookie_value(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp)
 {
 	struct http_txn *txn = l7;
@@ -8152,6 +8153,8 @@ acl_fetch_cookie_value(struct proxy *px, struct session *l4, void *l7, unsigned 
 	const char *hdr_name;
 	int hdr_name_len;
 	char *sol;
+	int occ = 0;
+	int found = 0;
 
 	if (!args || args->type != ARGT_STR)
 		return 0;
@@ -8168,6 +8171,15 @@ acl_fetch_cookie_value(struct proxy *px, struct session *l4, void *l7, unsigned 
 		hdr_name_len = 10;
 	}
 
+	if (!occ && !(opt & SMP_OPT_ITERATE))
+		/* no explicit occurrence and single fetch => last cookie by default */
+		occ = -1;
+
+	/* OK so basically here, either we want only one value and it's the
+	 * last one, or we want to iterate over all of them and we fetch the
+	 * next one.
+	 */
+
 	sol = msg->buf->p + msg->sol;
 	if (!(smp->flags & SMP_F_NOT_LAST)) {
 		/* search for the header from the beginning, we must first initialize
@@ -8176,6 +8188,8 @@ acl_fetch_cookie_value(struct proxy *px, struct session *l4, void *l7, unsigned 
 		smp->ctx.a[0] = NULL;
 		ctx->idx = 0;
 	}
+
+	smp->flags |= SMP_F_VOL_HDR;
 
 	while (1) {
 		/* Note: smp->ctx.a[0] == NULL every time we need to fetch a new header */
@@ -8197,17 +8211,21 @@ acl_fetch_cookie_value(struct proxy *px, struct session *l4, void *l7, unsigned 
 						 &smp->data.str.str,
 						 &smp->data.str.len);
 		if (smp->ctx.a[0]) {
-			/* one value was returned into smp->data.str.{str,len} */
-			smp->flags |= SMP_F_NOT_LAST;
-			smp->flags |= SMP_F_VOL_HDR;
-			return 1;
+			found = 1;
+			if (occ >= 0) {
+				/* one value was returned into smp->data.str.{str,len} */
+				smp->flags |= SMP_F_NOT_LAST;
+				return 1;
+			}
 		}
+		/* if we're looking for last occurrence, let's loop */
 	}
-
+	/* all cookie headers and values were scanned. If we're looking for the
+	 * last occurrence, we may return it now.
+	 */
  out:
 	smp->flags &= ~SMP_F_NOT_LAST;
-	smp->flags |= SMP_F_VOL_HDR;
-	return 0;
+	return found;
 }
 
 /* Iterate over all cookies present in a request to count how many occurrences
@@ -8388,85 +8406,6 @@ smp_fetch_url_param(struct proxy *px, struct session *l4, void *l7, unsigned int
 	return 1;
 }
 
-/* Try to find in request or response message is in <msg> and whose transaction
- * is in <txn> the last occurrence of a cookie name in all cookie header values
- * whose header name is <hdr_name> with name of length <hdr_name_len>. The
- * pointer and size of the last occurrence of the cookie value is returned into
- * <value> and <value_l>, and the function returns non-zero if the value was
- * found. Otherwise if the cookie was not found, zero is returned and neither
- * value nor value_l are touched. The input hdr string should begin at the
- * header's value, and its size should be in hdr_l. <list> must be non-zero if
- * value may represent a list of values (cookie headers).
- */
-
-static int
-find_cookie_value(struct http_msg *msg, struct http_txn *txn,
-		  const char *hdr_name, int hdr_name_len,
-		  char *cookie_name, size_t cookie_name_l, int list,
-		  char **value, int *value_l)
-{
-	struct hdr_ctx ctx;
-	int found = 0;
-
-	ctx.idx = 0;
-	while (http_find_header2(hdr_name, hdr_name_len, msg->buf->p + msg->sol, &txn->hdr_idx, &ctx)) {
-		char *hdr, *end;
-		if (ctx.vlen < cookie_name_l + 1)
-			continue;
-
-		hdr = ctx.line + ctx.val;
-		end = hdr + ctx.vlen;
-		while ((hdr = extract_cookie_value(hdr, end, cookie_name, cookie_name_l, 1, value, value_l)))
-			found = 1;
-	}
-	return found;
-}
-
-static int
-pattern_fetch_cookie(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                     const struct arg *arg_p, struct sample *smp)
-{
-	struct http_txn *txn = l7;
-	struct http_msg *msg = &txn->req;
-	char  *cookie_value;
-	int cookie_value_l;
-	int found = 0;
-
-	found = find_cookie_value(msg, txn, "Cookie", 6,
-				  arg_p->data.str.str, arg_p->data.str.len, 1,
-				  &cookie_value, &cookie_value_l);
-	if (found) {
-		smp->type = SMP_T_CSTR;
-		smp->data.str.str = cookie_value;
-		smp->data.str.len = cookie_value_l;
-	}
-
-	return found;
-}
-
-
-static int
-pattern_fetch_set_cookie(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-			 const struct arg *arg_p, struct sample *smp)
-{
-	struct http_txn *txn = l7;
-	struct http_msg *msg = &txn->rsp;
-	char  *cookie_value;
-	int cookie_value_l;
-	int found = 0;
-
-	found = find_cookie_value(msg, txn, "Set-Cookie", 10,
-				  arg_p->data.str.str, arg_p->data.str.len, 1,
-				  &cookie_value, &cookie_value_l);
-	if (found) {
-		smp->type = SMP_T_CSTR;
-		smp->data.str.str = cookie_value;
-		smp->data.str.len = cookie_value_l;
-	}
-
-	return found;
-}
-
 /* This function is used to validate the arguments passed to any "hdr" fetch
  * keyword. These keywords support an optional positive or negative occurrence
  * number. We must ensure that the number is greater than -MAX_HDR_HISTORY. It
@@ -8493,15 +8432,15 @@ static int val_hdr(struct arg *arg, char **err_msg)
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct acl_kw_list acl_kws = {{ },{
-	{ "cook",            acl_parse_str,     acl_fetch_cookie_value,   acl_match_str,     ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
-	{ "cook_beg",        acl_parse_str,     acl_fetch_cookie_value,   acl_match_beg,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "cook",            acl_parse_str,     smp_fetch_cookie_value,   acl_match_str,     ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
+	{ "cook_beg",        acl_parse_str,     smp_fetch_cookie_value,   acl_match_beg,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
 	{ "cook_cnt",        acl_parse_int,     acl_fetch_cookie_cnt,     acl_match_int,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "cook_dir",        acl_parse_str,     acl_fetch_cookie_value,   acl_match_dir,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "cook_dom",        acl_parse_str,     acl_fetch_cookie_value,   acl_match_dom,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "cook_end",        acl_parse_str,     acl_fetch_cookie_value,   acl_match_end,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "cook_len",        acl_parse_int,     acl_fetch_cookie_value,   acl_match_len,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "cook_reg",        acl_parse_reg,     acl_fetch_cookie_value,   acl_match_reg,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "cook_sub",        acl_parse_str,     acl_fetch_cookie_value,   acl_match_sub,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "cook_dir",        acl_parse_str,     smp_fetch_cookie_value,   acl_match_dir,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "cook_dom",        acl_parse_str,     smp_fetch_cookie_value,   acl_match_dom,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "cook_end",        acl_parse_str,     smp_fetch_cookie_value,   acl_match_end,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "cook_len",        acl_parse_int,     smp_fetch_cookie_value,   acl_match_len,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "cook_reg",        acl_parse_reg,     smp_fetch_cookie_value,   acl_match_reg,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "cook_sub",        acl_parse_str,     smp_fetch_cookie_value,   acl_match_sub,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
 
 	{ "hdr",             acl_parse_str,     smp_fetch_hdr,            acl_match_str,     ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, ARG2(0,STR,SINT), val_hdr },
 	{ "hdr_beg",         acl_parse_str,     smp_fetch_hdr,            acl_match_beg,     ACL_USE_L7REQ_VOLATILE, ARG2(0,STR,SINT), val_hdr },
@@ -8534,15 +8473,15 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "req_ver",         acl_parse_ver,     acl_fetch_rqver,          acl_match_str,     ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, 0 },
 	{ "resp_ver",        acl_parse_ver,     acl_fetch_stver,          acl_match_str,     ACL_USE_L7RTR_VOLATILE|ACL_MAY_LOOKUP, 0 },
 
-	{ "scook",           acl_parse_str,     acl_fetch_cookie_value,   acl_match_str,     ACL_USE_L7RTR_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
-	{ "scook_beg",       acl_parse_str,     acl_fetch_cookie_value,   acl_match_beg,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "scook",           acl_parse_str,     smp_fetch_cookie_value,   acl_match_str,     ACL_USE_L7RTR_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
+	{ "scook_beg",       acl_parse_str,     smp_fetch_cookie_value,   acl_match_beg,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
 	{ "scook_cnt",       acl_parse_int,     acl_fetch_cookie_cnt,     acl_match_int,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "scook_dir",       acl_parse_str,     acl_fetch_cookie_value,   acl_match_dir,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "scook_dom",       acl_parse_str,     acl_fetch_cookie_value,   acl_match_dom,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "scook_end",       acl_parse_str,     acl_fetch_cookie_value,   acl_match_end,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "scook_len",       acl_parse_int,     acl_fetch_cookie_value,   acl_match_len,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "scook_reg",       acl_parse_reg,     acl_fetch_cookie_value,   acl_match_reg,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "scook_sub",       acl_parse_str,     acl_fetch_cookie_value,   acl_match_sub,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "scook_dir",       acl_parse_str,     smp_fetch_cookie_value,   acl_match_dir,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "scook_dom",       acl_parse_str,     smp_fetch_cookie_value,   acl_match_dom,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "scook_end",       acl_parse_str,     smp_fetch_cookie_value,   acl_match_end,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "scook_len",       acl_parse_int,     smp_fetch_cookie_value,   acl_match_len,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "scook_reg",       acl_parse_reg,     smp_fetch_cookie_value,   acl_match_reg,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "scook_sub",       acl_parse_str,     smp_fetch_cookie_value,   acl_match_sub,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
 
 	{ "shdr",            acl_parse_str,     smp_fetch_hdr,            acl_match_str,     ACL_USE_L7RTR_VOLATILE|ACL_MAY_LOOKUP, ARG2(0,STR,SINT), val_hdr },
 	{ "shdr_beg",        acl_parse_str,     smp_fetch_hdr,            acl_match_beg,     ACL_USE_L7RTR_VOLATILE, ARG2(0,STR,SINT), val_hdr },
@@ -8589,8 +8528,8 @@ static struct acl_kw_list acl_kws = {{ },{
 static struct pattern_fetch_kw_list pattern_fetch_keywords = {{ },{
 	{ "hdr",        smp_fetch_hdr,            ARG2(1,STR,SINT), val_hdr, SMP_T_CSTR, SMP_CAP_REQ },
 	{ "url_param",  smp_fetch_url_param,      ARG1(1,STR), NULL, SMP_T_CSTR, SMP_CAP_REQ },
-	{ "cookie",     pattern_fetch_cookie,     ARG1(1,STR), NULL, SMP_T_CSTR, SMP_CAP_REQ },
-	{ "set-cookie", pattern_fetch_set_cookie, ARG1(1,STR), NULL, SMP_T_CSTR, SMP_CAP_RES },
+	{ "cookie",     smp_fetch_cookie_value,   ARG1(1,STR), NULL, SMP_T_CSTR, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "set-cookie", smp_fetch_cookie_value,   ARG1(1,STR), NULL, SMP_T_CSTR, SMP_CAP_RES }, /* deprecated */
 	{ NULL, NULL, 0, 0, 0 },
 }};
 

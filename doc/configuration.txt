@@ -8407,16 +8407,20 @@ The list of currently supported pattern fetch functions is the following :
 
   cookie(<name>)
                This extracts the last occurrence of the cookie name <name> on a
-               "Cookie" header line from the request and uses the corresponding
-               value to match. A typical use is to get multiple clients sharing
-               a same profile use the same server. This can be similar to what
-               "appsession" does with the "request-learn" statement, but with
-               support for multi-peer synchronization and state keeping across
-               restarts.
+               "Cookie" header line from the request, or a "Set-Cookie" header
+               from the response, and uses the corresponding value to match. A
+               typical use is to get multiple clients sharing a same profile
+               use the same server. This can be similar to what "appsession"
+               does with the "request-learn" statement, but with support for
+               multi-peer synchronization and state keeping across restarts.
 
                See also : "appsession"
 
   set-cookie(<name>)
+               This fetch function is deprecated and has been superseded by the
+               "cookie" fetch which is capable of handling both requests and
+               responses. This keyword will disappear soon.
+
                This extracts the last occurrence of the cookie name <name> on a
                "Set-Cookie" header line from the response and uses the
                corresponding value to match. This can be comparable to what
