@@ -486,6 +486,9 @@ struct sample *pattern_process(struct proxy *px, struct session *l4, void *l7,
 	if (!expr->fetch->process(px, l4, l7, opt, expr->arg_p, p))
 		return NULL;
 
+	if (p->flags & SMP_F_MAY_CHANGE)
+		return NULL; /* we can only use stable patterns */
+
 	list_for_each_entry(conv_expr, &expr->conv_exprs, list) {
 		/* we want to ensure that p->type can be casted into
 		 * conv_expr->conv->in_type. We have 3 possibilities :
