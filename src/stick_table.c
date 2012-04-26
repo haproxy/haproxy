@@ -609,6 +609,9 @@ struct stktable_key *stktable_fetch_key(struct stktable *t, struct proxy *px, st
 	if (!static_table_key.key)
 		return NULL;
 
+	if (static_table_key.key_len == 0)
+		return NULL;
+
 	if ((static_table_key.key_len < t->key_size) && (t->type != STKTABLE_TYPE_STRING)) {
 		/* need padding with null */
 
@@ -634,7 +637,6 @@ struct stktable_key *stktable_fetch_key(struct stktable *t, struct proxy *px, st
 
 		memset(static_table_key.key + static_table_key.key_len, 0, t->key_size - static_table_key.key_len);
 	}
-
 
 	return &static_table_key;
 }
