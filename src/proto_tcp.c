@@ -1344,19 +1344,6 @@ smp_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, unsigned in
 	return 0;
 }
 
-static int
-pattern_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                         const struct arg *arg_p, struct sample *smp)
-{
-	int ret;
-
-	/* sample type set by smp_fetch_rdp_cookie() */
-	ret = smp_fetch_rdp_cookie(px, l4, NULL, opt, arg_p, smp);
-	if (ret == 0 || (smp->flags & SMP_F_MAY_CHANGE) || smp->data.str.len == 0)
-		return 0;
-	return 1;
-}
-
 /************************************************************************/
 /*           All supported ACL keywords must be declared here.          */
 /************************************************************************/
@@ -1653,7 +1640,7 @@ static struct pattern_fetch_kw_list pattern_fetch_keywords = {{ },{
 	{ "dst_port",    smp_fetch_dport,         0,                      NULL,           SMP_T_UINT, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "payload",     smp_fetch_payload,       ARG2(2,UINT,UINT),      val_payload,    SMP_T_CBIN, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "payload_lv",  smp_fetch_payload_lv,    ARG3(2,UINT,UINT,SINT), val_payload_lv, SMP_T_CBIN, SMP_CAP_REQ|SMP_CAP_RES },
-	{ "rdp_cookie",  pattern_fetch_rdp_cookie, ARG1(1,STR),           NULL,           SMP_T_CSTR, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "rdp_cookie",  smp_fetch_rdp_cookie,    ARG1(1,STR),            NULL,           SMP_T_CSTR, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "src_port",    smp_fetch_sport,         0,                      NULL,           SMP_T_UINT, SMP_CAP_REQ|SMP_CAP_RES },
 	{ NULL, NULL, 0, 0, 0 },
 }};
