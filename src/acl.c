@@ -1271,6 +1271,9 @@ struct acl_expr *parse_acl_expr(const char **args)
 					       NULL, NULL, NULL);
 			if (nbargs < 0)
 				goto out_free_expr;
+
+			if (aclkw->val_args && !aclkw->val_args(expr->args, NULL))
+				goto out_free_expr; /* invalid keyword argument */
 		}
 		else if (ARGM(aclkw->arg_mask) == 1) {
 			int type = (aclkw->arg_mask >> 4) & 15;
