@@ -7927,12 +7927,16 @@ cook_sub(<name>) <string>
   scook_sub() variant for response cookies sent by the server.
 
 hdr <string>
-hdr(<header>) <string>
+hdr(<header>[,<occ>]) <string>
   Note: all the "hdr*" matching criteria either apply to all headers, or to a
   particular header whose name is passed between parenthesis and without any
   space. The header name is not case-sensitive. The header matching complies
   with RFC2616, and treats as separate headers all values delimited by commas.
-  Use the shdr() variant for response headers sent by the server.
+  If an occurrence number is specified as the optional second argument, only
+  this occurrence will be considered. Positive values indicate a position from
+  the first occurrence, 1 being the first one. Negative values indicate
+  positions relative to the last one, -1 being the last one. Use the shdr()
+  variant for response headers sent by the server.
 
   The "hdr" criteria returns true if any of the headers matching the criteria
   match any of the strings. This can be used to check for exact values. For
@@ -7941,7 +7945,7 @@ hdr(<header>) <string>
      hdr(Connection) -i close
 
 hdr_beg <string>
-hdr_beg(<header>) <string>
+hdr_beg(<header>[,<occ>]) <string>
   Returns true when one of the headers begins with one of the strings. See
   "hdr" for more information on header matching. Use the shdr_beg() variant for
   response headers sent by the server.
@@ -7957,7 +7961,7 @@ hdr_cnt(<header>) <integer>
   the shdr_cnt() variant for response headers sent by the server.
 
 hdr_dir <string>
-hdr_dir(<header>) <string>
+hdr_dir(<header>[,<occ>]) <string>
   Returns true when one of the headers contains one of the strings either
   isolated or delimited by slashes. This is used to perform filename or
   directory name matching, and may be used with Referer. See "hdr" for more
@@ -7965,7 +7969,7 @@ hdr_dir(<header>) <string>
   headers sent by the server.
 
 hdr_dom <string>
-hdr_dom(<header>) <string>
+hdr_dom(<header>[,<occ>]) <string>
   Returns true when one of the headers contains one of the strings either
   isolated or delimited by dots. This is used to perform domain name matching,
   and may be used with the Host header. See "hdr" for more information on
@@ -7973,27 +7977,27 @@ hdr_dom(<header>) <string>
   server.
 
 hdr_end <string>
-hdr_end(<header>) <string>
+hdr_end(<header>[,<occ>]) <string>
   Returns true when one of the headers ends with one of the strings. See "hdr"
   for more information on header matching. Use the shdr_end() variant for
   response headers sent by the server.
 
 hdr_ip <ip_address>
-hdr_ip(<header>) <ip_address>
+hdr_ip(<header>[,<occ>]) <ip_address>
   Returns true when one of the headers' values contains an IP address matching
   <ip_address>. This is mainly used with headers such as X-Forwarded-For or
   X-Client-IP. See "hdr" for more information on header matching. Use the
   shdr_ip() variant for response headers sent by the server.
 
 hdr_len <integer>
-hdr_len(<header>) <integer>
+hdr_len(<header>[,<occ>]) <integer>
   Returns true when at least one of the headers has a length which matches the
   values or ranges specified. This may be used to detect empty or too large
   headers. See "hdr" for more information on header matching. Use the
   shdr_len() variant for response headers sent by the server.
 
 hdr_reg <regex>
-hdr_reg(<header>) <regex>
+hdr_reg(<header>[,<occ>]) <regex>
   Returns true it one of the headers matches one of the regular expressions. It
   can be used at any time, but it is important to remember that regex matching
   is slower than other methods. See also other "hdr_" criteria, as well as
@@ -8001,13 +8005,13 @@ hdr_reg(<header>) <regex>
   response headers sent by the server.
 
 hdr_sub <string>
-hdr_sub(<header>) <string>
+hdr_sub(<header>[,<occ>]) <string>
   Returns true when one of the headers contains one of the strings. See "hdr"
   for more information on header matching. Use the shdr_sub() variant for
   response headers sent by the server.
 
 hdr_val <integer>
-hdr_val(<header>) <integer>
+hdr_val(<header>[,<occ>]) <integer>
   Returns true when one of the headers starts with a number which matches the
   values or ranges specified. This may be used to limit content-length to
   acceptable values for example. See "hdr" for more information on header
@@ -8331,8 +8335,13 @@ The list of currently supported pattern fetch functions is the following :
                ports to some clients for a whole application session. It is of
                type integer and only works with such tables.
 
-  hdr(<name>)  This extracts the last occurrence of header <name> in an HTTP
-               request. A typical use is with the X-Forwarded-For header once
+  hdr(<name>[,<occ>])
+               This extracts the last occurrence of header <name> in an HTTP
+               request. Optionally, a specific occurrence might be specified as
+               a position number. Positive values indicate a position from the
+               first occurrence, with 1 being the first one. Negative values
+               indicate positions relative to the last one, with -1 being the
+               last one. A typical use is with the X-Forwarded-For header once
                converted to IP, associated with an IP stick-table.
 
   payload(<offset>,<length>)

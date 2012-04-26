@@ -7261,7 +7261,7 @@ void http_capture_bad_message(struct error_snapshot *es, struct session *s,
  * -1.
  * The return value is 0 if nothing was found, or non-zero otherwise.
  */
-unsigned int http_get_hdr(struct http_msg *msg, const char *hname, int hlen,
+unsigned int http_get_hdr(const struct http_msg *msg, const char *hname, int hlen,
 			  struct hdr_idx *idx, int occ,
 			  struct hdr_ctx *ctx, char **vptr, int *vlen)
 {
@@ -7843,39 +7843,54 @@ acl_fetch_url_port(struct proxy *px, struct session *l4, void *l7, unsigned int 
 	return 1;
 }
 
-/* 5. Check on HTTP header. A pointer to the beginning of the value is returned.
- * Accepts exactly 1 argument of type string.
+/* Fetch an HTTP header. A pointer to the beginning of the value is returned.
+ * Accepts an optional argument of type string containing the header field name,
+ * and an optional argument of type signed or unsigned integer to request an
+ * explicit occurrence of the header. Note that in the event of a missing name,
+ * headers are considered from the first one.
  */
 static int
-acl_fetch_hdr(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_hdr(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
               const struct arg *args, struct sample *smp)
 {
 	struct http_txn *txn = l7;
 	struct hdr_idx *idx = &txn->hdr_idx;
 	struct hdr_ctx *ctx = (struct hdr_ctx *)smp->ctx.a;
 	const struct http_msg *msg = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) ? &txn->req : &txn->rsp;
+	int occ = 0;
+	const char *name_str = NULL;
+	int name_len = 0;
 
-	if (!args || args->type != ARGT_STR)
-		return 0;
+	if (args) {
+		if (args[0].type != ARGT_STR)
+			return 0;
+		name_str = args[0].data.str.str;
+		name_len = args[0].data.str.len;
+
+		if (args[1].type == ARGT_UINT || args[1].type == ARGT_SINT)
+			occ = args[1].data.uint;
+	}
 
 	CHECK_HTTP_MESSAGE_FIRST();
 
-	if (!(smp->flags & SMP_F_NOT_LAST))
+	if (ctx && !(smp->flags & SMP_F_NOT_LAST))
 		/* search for header from the beginning */
 		ctx->idx = 0;
 
-	if (http_find_header2(args->data.str.str, args->data.str.len, msg->buf->p + msg->sol, idx, ctx)) {
-		smp->flags |= SMP_F_NOT_LAST;
-		smp->flags |= SMP_F_VOL_HDR;
-		smp->type = SMP_T_CSTR;
-		smp->data.str.str = (char *)ctx->line + ctx->val;
-		smp->data.str.len = ctx->vlen;
+	if (!occ && !(opt & SMP_OPT_ITERATE))
+		/* no explicit occurrence and single fetch => last header by default */
+		occ = -1;
 
+	if (!occ)
+		/* prepare to report multiple occurrences for ACL fetches */
+		smp->flags |= SMP_F_NOT_LAST;
+
+	smp->type = SMP_T_CSTR;
+	smp->flags |= SMP_F_VOL_HDR;
+	if (http_get_hdr(msg, name_str, name_len, idx, occ, ctx, &smp->data.str.str, &smp->data.str.len))
 		return 1;
-	}
 
 	smp->flags &= ~SMP_F_NOT_LAST;
-	smp->flags |= SMP_F_VOL_HDR;
 	return 0;
 }
 
@@ -7883,7 +7898,7 @@ acl_fetch_hdr(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
  * Accepts exactly 1 argument of type string.
  */
 static int
-acl_fetch_hdr_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_hdr_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                   const struct arg *args, struct sample *smp)
 {
 	struct http_txn *txn = l7;
@@ -7908,14 +7923,16 @@ acl_fetch_hdr_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int o
 	return 1;
 }
 
-/* 7. Check on HTTP header's integer value. The integer value is returned.
- * FIXME: the type is 'int', it may not be appropriate for everything.
+/* Fetch an HTTP header's integer value. The integer value is returned. It
+ * takes a mandatory argument of type string and an optional one of type int
+ * to designate a specific occurrence. It returns an unsigned integer, which
+ * may or may not be appropriate for everything.
  */
 static int
-acl_fetch_hdr_val(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_hdr_val(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                   const struct arg *args, struct sample *smp)
 {
-	int ret = acl_fetch_hdr(px, l4, l7, opt, args, smp);
+	int ret = smp_fetch_hdr(px, l4, l7, opt, args, smp);
 
 	if (ret > 0) {
 		smp->type = SMP_T_UINT;
@@ -7925,19 +7942,23 @@ acl_fetch_hdr_val(struct proxy *px, struct session *l4, void *l7, unsigned int o
 	return ret;
 }
 
-/* 7. Check on HTTP header's IPv4 address value. The IPv4 address is returned.
+/* Fetch an HTTP header's integer value. The integer value is returned. It
+ * takes a mandatory argument of type string and an optional one of type int
+ * to designate a specific occurrence. It returns an IPv4 address.
  */
 static int
-acl_fetch_hdr_ip(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_hdr_ip(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                  const struct arg *args, struct sample *smp)
 {
 	int ret;
 
-	while ((ret = acl_fetch_hdr(px, l4, l7, opt, args, smp)) > 0) {
+	while ((ret = smp_fetch_hdr(px, l4, l7, opt, args, smp)) > 0) {
 		smp->type = SMP_T_IPV4;
 		if (url2ipv4((char *)smp->data.str.str, &smp->data.ipv4))
 			break;
 		/* if the header doesn't match an IP address, fetch next one */
+		if (!(smp->flags & SMP_F_NOT_LAST))
+			return 0;
 	}
 	return ret;
 }
@@ -8260,18 +8281,6 @@ acl_fetch_cookie_cnt(struct proxy *px, struct session *l4, void *l7, unsigned in
 /*     The code below is dedicated to pattern fetching and matching     */
 /************************************************************************/
 
-/* Returns the last occurrence of specified header. */
-static int
-pattern_fetch_hdr(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-		  const struct arg *arg_p, struct sample *smp)
-{
-	struct http_txn *txn = l7;
-
-	smp->type = SMP_T_CSTR;
-	return http_get_hdr(&txn->req, arg_p->data.str.str, arg_p->data.str.len, &txn->hdr_idx,
-			    -1, NULL, &smp->data.str.str, &smp->data.str.len);
-}
-
 /*
  * Given a path string and its length, find the position of beginning of the
  * query string. Returns NULL if no query string is found in the path.
@@ -8458,6 +8467,24 @@ pattern_fetch_set_cookie(struct proxy *px, struct session *l4, void *l7, unsigne
 	return found;
 }
 
+/* This function is used to validate the arguments passed to any "hdr" fetch
+ * keyword. These keywords support an optional positive or negative occurrence
+ * number. We must ensure that the number is greater than -MAX_HDR_HISTORY. It
+ * is assumed that the types are already the correct ones. Returns 0 on error,
+ * non-zero if OK. If <err> is not NULL, it will be filled with a pointer to an
+ * error message in case of error, that the caller is responsible for freeing.
+ * The initial location must either be freeable or NULL.
+ */
+static int val_hdr(struct arg *arg, char **err_msg)
+{
+	if (arg && arg[1].type == ARGT_SINT && arg[1].data.sint < -MAX_HDR_HISTORY) {
+		if (err_msg)
+			memprintf(err_msg, "header occurrence must be >= %d", -MAX_HDR_HISTORY);
+		return 0;
+	}
+	return 1;
+}
+
 /************************************************************************/
 /*          All supported ACL keywords must be declared here.           */
 /************************************************************************/
@@ -8476,17 +8503,17 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "cook_reg",        acl_parse_reg,     acl_fetch_cookie_value,   acl_match_reg,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
 	{ "cook_sub",        acl_parse_str,     acl_fetch_cookie_value,   acl_match_sub,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
 
-	{ "hdr",             acl_parse_str,     acl_fetch_hdr,            acl_match_str,     ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
-	{ "hdr_beg",         acl_parse_str,     acl_fetch_hdr,            acl_match_beg,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "hdr_cnt",         acl_parse_int,     acl_fetch_hdr_cnt,        acl_match_int,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "hdr_dir",         acl_parse_str,     acl_fetch_hdr,            acl_match_dir,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "hdr_dom",         acl_parse_str,     acl_fetch_hdr,            acl_match_dom,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "hdr_end",         acl_parse_str,     acl_fetch_hdr,            acl_match_end,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "hdr_ip",          acl_parse_ip,      acl_fetch_hdr_ip,         acl_match_ip,      ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
-	{ "hdr_len",         acl_parse_int,     acl_fetch_hdr,            acl_match_len,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "hdr_reg",         acl_parse_reg,     acl_fetch_hdr,            acl_match_reg,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "hdr_sub",         acl_parse_str,     acl_fetch_hdr,            acl_match_sub,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "hdr_val",         acl_parse_int,     acl_fetch_hdr_val,        acl_match_int,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "hdr",             acl_parse_str,     smp_fetch_hdr,            acl_match_str,     ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, ARG2(0,STR,SINT), val_hdr },
+	{ "hdr_beg",         acl_parse_str,     smp_fetch_hdr,            acl_match_beg,     ACL_USE_L7REQ_VOLATILE, ARG2(0,STR,SINT), val_hdr },
+	{ "hdr_cnt",         acl_parse_int,     smp_fetch_hdr_cnt,        acl_match_int,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "hdr_dir",         acl_parse_str,     smp_fetch_hdr,            acl_match_dir,     ACL_USE_L7REQ_VOLATILE, ARG2(0,STR,SINT), val_hdr },
+	{ "hdr_dom",         acl_parse_str,     smp_fetch_hdr,            acl_match_dom,     ACL_USE_L7REQ_VOLATILE, ARG2(0,STR,SINT), val_hdr },
+	{ "hdr_end",         acl_parse_str,     smp_fetch_hdr,            acl_match_end,     ACL_USE_L7REQ_VOLATILE, ARG2(0,STR,SINT), val_hdr },
+	{ "hdr_ip",          acl_parse_ip,      smp_fetch_hdr_ip,         acl_match_ip,      ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, ARG2(0,STR,SINT), val_hdr },
+	{ "hdr_len",         acl_parse_int,     smp_fetch_hdr,            acl_match_len,     ACL_USE_L7REQ_VOLATILE, ARG2(0,STR,SINT), val_hdr },
+	{ "hdr_reg",         acl_parse_reg,     smp_fetch_hdr,            acl_match_reg,     ACL_USE_L7REQ_VOLATILE, ARG2(0,STR,SINT), val_hdr },
+	{ "hdr_sub",         acl_parse_str,     smp_fetch_hdr,            acl_match_sub,     ACL_USE_L7REQ_VOLATILE, ARG2(0,STR,SINT), val_hdr },
+	{ "hdr_val",         acl_parse_int,     smp_fetch_hdr_val,        acl_match_int,     ACL_USE_L7REQ_VOLATILE, ARG2(0,STR,SINT), val_hdr },
 
 	{ "http_auth",       acl_parse_nothing, acl_fetch_http_auth,      acl_match_nothing, ACL_USE_L7REQ_VOLATILE, ARG1(0,USR) },
 	{ "http_auth_group", acl_parse_strcat,  acl_fetch_http_auth,      acl_match_auth,    ACL_USE_L7REQ_VOLATILE, ARG1(0,USR) },
@@ -8517,17 +8544,17 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "scook_reg",       acl_parse_reg,     acl_fetch_cookie_value,   acl_match_reg,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
 	{ "scook_sub",       acl_parse_str,     acl_fetch_cookie_value,   acl_match_sub,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
 
-	{ "shdr",            acl_parse_str,     acl_fetch_hdr,            acl_match_str,     ACL_USE_L7RTR_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
-	{ "shdr_beg",        acl_parse_str,     acl_fetch_hdr,            acl_match_beg,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "shdr_cnt",        acl_parse_int,     acl_fetch_hdr_cnt,        acl_match_int,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "shdr_dir",        acl_parse_str,     acl_fetch_hdr,            acl_match_dir,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "shdr_dom",        acl_parse_str,     acl_fetch_hdr,            acl_match_dom,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "shdr_end",        acl_parse_str,     acl_fetch_hdr,            acl_match_end,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "shdr_ip",         acl_parse_ip,      acl_fetch_hdr_ip,         acl_match_ip,      ACL_USE_L7RTR_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
-	{ "shdr_len",        acl_parse_int,     acl_fetch_hdr,            acl_match_len,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "shdr_reg",        acl_parse_reg,     acl_fetch_hdr,            acl_match_reg,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "shdr_sub",        acl_parse_str,     acl_fetch_hdr,            acl_match_sub,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "shdr_val",        acl_parse_int,     acl_fetch_hdr_val,        acl_match_int,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "shdr",            acl_parse_str,     smp_fetch_hdr,            acl_match_str,     ACL_USE_L7RTR_VOLATILE|ACL_MAY_LOOKUP, ARG2(0,STR,SINT), val_hdr },
+	{ "shdr_beg",        acl_parse_str,     smp_fetch_hdr,            acl_match_beg,     ACL_USE_L7RTR_VOLATILE, ARG2(0,STR,SINT), val_hdr },
+	{ "shdr_cnt",        acl_parse_int,     smp_fetch_hdr_cnt,        acl_match_int,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "shdr_dir",        acl_parse_str,     smp_fetch_hdr,            acl_match_dir,     ACL_USE_L7RTR_VOLATILE, ARG2(0,STR,SINT), val_hdr },
+	{ "shdr_dom",        acl_parse_str,     smp_fetch_hdr,            acl_match_dom,     ACL_USE_L7RTR_VOLATILE, ARG2(0,STR,SINT), val_hdr },
+	{ "shdr_end",        acl_parse_str,     smp_fetch_hdr,            acl_match_end,     ACL_USE_L7RTR_VOLATILE, ARG2(0,STR,SINT), val_hdr },
+	{ "shdr_ip",         acl_parse_ip,      smp_fetch_hdr_ip,         acl_match_ip,      ACL_USE_L7RTR_VOLATILE|ACL_MAY_LOOKUP, ARG2(0,STR,SINT), val_hdr },
+	{ "shdr_len",        acl_parse_int,     smp_fetch_hdr,            acl_match_len,     ACL_USE_L7RTR_VOLATILE, ARG2(0,STR,SINT), val_hdr },
+	{ "shdr_reg",        acl_parse_reg,     smp_fetch_hdr,            acl_match_reg,     ACL_USE_L7RTR_VOLATILE, ARG2(0,STR,SINT), val_hdr },
+	{ "shdr_sub",        acl_parse_str,     smp_fetch_hdr,            acl_match_sub,     ACL_USE_L7RTR_VOLATILE, ARG2(0,STR,SINT), val_hdr },
+	{ "shdr_val",        acl_parse_int,     smp_fetch_hdr_val,        acl_match_int,     ACL_USE_L7RTR_VOLATILE, ARG2(0,STR,SINT), val_hdr },
 
 	{ "status",          acl_parse_int,     acl_fetch_stcode,         acl_match_int,     ACL_USE_L7RTR_PERMANENT, 0 },
 
@@ -8560,7 +8587,7 @@ static struct acl_kw_list acl_kws = {{ },{
 /************************************************************************/
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct pattern_fetch_kw_list pattern_fetch_keywords = {{ },{
-	{ "hdr",        pattern_fetch_hdr,        ARG1(1,STR), NULL, SMP_T_CSTR, SMP_CAP_REQ },
+	{ "hdr",        smp_fetch_hdr,            ARG2(1,STR,SINT), val_hdr, SMP_T_CSTR, SMP_CAP_REQ },
 	{ "url_param",  smp_fetch_url_param,      ARG1(1,STR), NULL, SMP_T_CSTR, SMP_CAP_REQ },
 	{ "cookie",     pattern_fetch_cookie,     ARG1(1,STR), NULL, SMP_T_CSTR, SMP_CAP_REQ },
 	{ "set-cookie", pattern_fetch_set_cookie, ARG1(1,STR), NULL, SMP_T_CSTR, SMP_CAP_RES },
