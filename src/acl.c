@@ -1682,7 +1682,7 @@ struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, co
 /* Execute condition <cond> and return either ACL_PAT_FAIL, ACL_PAT_MISS or
  * ACL_PAT_PASS depending on the test results. ACL_PAT_MISS may only be
  * returned if <opt> does not contain SMP_OPT_FINAL, indicating that incomplete
- * data is being examined.
+ * data is being examined. The function automatically sets SMP_OPT_ITERATE.
  * This function only computes the condition, it does not apply the polarity
  * required by IF/UNLESS, it's up to the caller to do this using something like
  * this :
@@ -1703,6 +1703,11 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 	struct acl_pattern *pattern;
 	struct sample smp;
 	int acl_res, suite_res, cond_res;
+
+	/* ACLs are iterated over all values, so let's always set the flag to
+	 * indicate this to the fetch functions.
+	 */
+	opt |= SMP_OPT_ITERATE;
 
 	/* We're doing a logical OR between conditions so we initialize to FAIL.
 	 * The MISS status is propagated down from the suites.

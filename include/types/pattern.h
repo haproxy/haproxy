@@ -59,6 +59,7 @@ enum {
 	SMP_OPT_DIR_RES = 1,    /* direction = response */
 	SMP_OPT_DIR     = (SMP_OPT_DIR_REQ|SMP_OPT_DIR_RES), /* mask to get direction */
 	SMP_OPT_FINAL   = 2,    /* final fetch, contents won't change anymore */
+	SMP_OPT_ITERATE = 4,    /* fetches may be iterated if supported (for ACLs) */
 };
 
 /* Flags used to describe fetched samples. MAY_CHANGE indicates that the result
