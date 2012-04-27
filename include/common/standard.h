@@ -253,6 +253,14 @@ int str2mask(const char *str, struct in_addr *mask);
 int str2net(const char *str, struct in_addr *addr, struct in_addr *mask);
 
 /*
+ * converts <str> to two struct in6_addr* which must be pre-allocated.
+ * The format is "addr[/mask]", where "addr" cannot be empty, and mask
+ * is an optionnal number of bits (128 being the default).
+ * Returns 1 if OK, 0 if error.
+ */
+int str62net(const char *str, struct in6_addr *addr, unsigned char *mask);
+
+/*
  * Parse IP address found in url.
  */
 int url2ipv4(const char *addr, struct in_addr *dst);

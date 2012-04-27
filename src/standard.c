@@ -782,6 +782,47 @@ int str2net(const char *str, struct in_addr *addr, struct in_addr *mask)
 
 
 /*
+ * converts <str> to two struct in6_addr* which must be pre-allocated.
+ * The format is "addr[/mask]", where "addr" cannot be empty, and mask
+ * is an optionnal number of bits (128 being the default).
+ * Returns 1 if OK, 0 if error.
+ */
+int str62net(const char *str, struct in6_addr *addr, unsigned char *mask)
+{
+	char *c, *s;
+	int ret_val = 0;
+	char *err;
+	unsigned long len = 128;
+
+	s = strdup(str);
+	if (!s)
+		return 0;
+
+	memset(mask, 0, sizeof(*mask));
+	memset(addr, 0, sizeof(*addr));
+
+	if ((c = strrchr(s, '/')) != NULL) {
+		*c++ = '\0'; /* c points to the mask */
+		if (!*c)
+			goto out_free;
+
+		len = strtoul(c, &err, 10);
+		if ((err && *err) || (unsigned)len > 128)
+			goto out_free;
+	}
+	*mask = len; /* OK we have a valid mask in <len> */
+
+	if (!inet_pton(AF_INET6, s, addr))
+		goto out_free;
+
+	ret_val = 1;
+ out_free:
+	free(s);
+	return ret_val;
+}
+
+
+/*
  * Parse IPv4 address found in url.
  */
 int url2ipv4(const char *addr, struct in_addr *dst)
