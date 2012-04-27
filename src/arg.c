@@ -97,12 +97,15 @@ int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
 		switch (arg->type) {
 		case ARGT_SINT:
 			if (in == beg)	  // empty number
-				goto parse_err;
+				goto empty_err;
 			else if (*beg < '0' || *beg > '9') {
-				arg->data.sint = strl2uic(beg + 1, in - beg - 1);
-				if (*beg == '-')
+				beg++;
+				arg->data.sint = read_uint(&beg, in);
+				if (beg < in)
+					goto parse_err;
+				if (*word == '-')
 					arg->data.sint = -arg->data.sint;
-				else if (*beg != '+')    // invalid first character
+				else if (*word != '+')    // invalid first character
 					goto parse_err;
 				break;
 			}
@@ -112,9 +115,11 @@ int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
 
 		case ARGT_UINT:
 			if (in == beg)    // empty number
-				goto parse_err;
+				goto empty_err;
 
-			arg->data.uint = strl2uic(beg, in - beg);
+			arg->data.uint = read_uint(&beg, in);
+			if (beg < in)
+				goto parse_err;
 			break;
 
 		case ARGT_FE:
@@ -135,7 +140,7 @@ int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
 
 		case ARGT_IPV4:
 			if (in == beg)    // empty address
-				goto parse_err;
+				goto empty_err;
 
 			if (inet_pton(AF_INET, word, &arg->data.ipv4) <= 0)
 				goto parse_err;
@@ -143,7 +148,7 @@ int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
 
 		case ARGT_MSK4:
 			if (in == beg)    // empty mask
-				goto parse_err;
+				goto empty_err;
 
 			if (!str2mask(word, &arg->data.ipv4))
 				goto parse_err;
@@ -153,18 +158,18 @@ int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
 
 		case ARGT_IPV6:
 			if (in == beg)    // empty address
-				goto parse_err;
+				goto empty_err;
 
 			if (inet_pton(AF_INET6, word, &arg->data.ipv6) <= 0)
 				goto parse_err;
 			break;
 
 		case ARGT_MSK6: /* not yet implemented */
-			goto parse_err;
+			goto not_impl;
 
 		case ARGT_TIME:
 			if (in == beg)    // empty time
-				goto parse_err;
+				goto empty_err;
 
 			ptr_err = parse_time_err(word, &arg->data.uint, TIME_UNIT_MS);
 			if (ptr_err)
@@ -175,7 +180,7 @@ int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
 
 		case ARGT_SIZE:
 			if (in == beg)    // empty size
-				goto parse_err;
+				goto empty_err;
 
 			ptr_err = parse_size_err(word, &arg->data.uint);
 			if (ptr_err)
@@ -186,7 +191,7 @@ int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
 
 			/* FIXME: other types need to be implemented here */
 		default:
-			goto parse_err;
+			goto not_impl;
 		}
 
 		pos++;
@@ -217,7 +222,8 @@ int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
 		if (err_msg) {
 			/* the caller is responsible for freeing this message */
 			word = my_strndup(in, len);
-			memprintf(err_msg, "End of arguments expected at '%s'", word);
+			memprintf(err_msg, "end of arguments expected at position %d, but got '%s'",
+				  pos + 1, word);
 			free(word); word = NULL;
 		}
 		goto err;
@@ -234,12 +240,6 @@ int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
 		*err_ptr = in;
 	return pos;
 
- parse_err:
-	if (err_msg) {
-		memprintf(err_msg, "Failed to parse '%s' as type '%s'",
-			  word, arg_type_names[(mask >> (pos * 4)) & 15]);
-	}
-
  err:
 	free(word);
 	free(arg_list);
@@ -248,4 +248,25 @@ int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
 	if (err_ptr)
 		*err_ptr = in;
 	return -1;
+
+ empty_err:
+	if (err_msg) {
+		memprintf(err_msg, "expected type '%s' at position %d, but got nothing",
+			  arg_type_names[(mask >> (pos * 4)) & 15], pos + 1);
+	}
+	goto err;
+
+ parse_err:
+	if (err_msg) {
+		memprintf(err_msg, "failed to parse '%s' as type '%s' at position %d",
+			  word, arg_type_names[(mask >> (pos * 4)) & 15], pos + 1);
+	}
+	goto err;
+
+ not_impl:
+	if (err_msg) {
+		memprintf(err_msg, "parsing for type '%s' was not implemented, please report this bug",
+			  arg_type_names[(mask >> (pos * 4)) & 15]);
+	}
+	goto err;
 }
