@@ -202,6 +202,10 @@ struct acl_pattern {
 			struct in_addr addr;
 			struct in_addr mask;
 		} ipv4;                         /* IPv4 address */
+		struct {
+			struct in6_addr addr;
+			unsigned char mask;     /* number of bits */
+		} ipv6;                         /* IPv6 address/mask */
 		struct acl_time time;           /* valid hours and days */
 		unsigned int group_mask;
 		struct eb_root *tree;           /* tree storing all values if any */

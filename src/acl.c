@@ -707,14 +707,70 @@ int acl_match_len(struct sample *smp, struct acl_pattern *pattern)
 
 int acl_match_ip(struct sample *smp, struct acl_pattern *pattern)
 {
-	struct in_addr *s;
+	unsigned int v4; /* in network byte order */
+	struct in6_addr *v6;
+	int bits, pos;
+	struct in6_addr tmp6;
 
-	if (smp->type != SMP_T_IPV4 || pattern->type != SMP_T_IPV4)
-		return ACL_PAT_FAIL;
+	if (pattern->type == SMP_T_IPV4) {
+		if (smp->type == SMP_T_IPV4) {
+			v4 = smp->data.ipv4.s_addr;
+		}
+		else if (smp->type == SMP_T_IPV6) {
+			/* v4 match on a V6 sample. We want to check at least for
+			 * the following forms :
+			 *   - ::ffff:ip:v4 (ipv4 mapped)
+			 *   - ::0000:ip:v4 (old ipv4 mapped)
+			 *   - 2002:ip:v4:: (6to4)
+			 */
+			if (*(uint32_t*)&smp->data.ipv6.s6_addr[0] == 0 &&
+			    *(uint32_t*)&smp->data.ipv6.s6_addr[4]  == 0 &&
+			    (*(uint32_t*)&smp->data.ipv6.s6_addr[8] == 0 ||
+			     *(uint32_t*)&smp->data.ipv6.s6_addr[8] == htonl(0xFFFF))) {
+				v4 = *(uint32_t*)&smp->data.ipv6.s6_addr[12];
+			}
+			else if (*(uint16_t*)&smp->data.ipv6.s6_addr[0] == htons(0x2002)) {
+				v4 = htonl((ntohs(*(uint16_t*)&smp->data.ipv6.s6_addr[2]) << 16) +
+				            ntohs(*(uint16_t*)&smp->data.ipv6.s6_addr[4]));
+			}
+			else
+				return ACL_PAT_FAIL;
+		}
+		else
+			return ACL_PAT_FAIL;
 
-	s = &smp->data.ipv4;
-	if (((s->s_addr ^ pattern->val.ipv4.addr.s_addr) & pattern->val.ipv4.mask.s_addr) == 0)
+		if (((v4 ^ pattern->val.ipv4.addr.s_addr) & pattern->val.ipv4.mask.s_addr) == 0)
+			return ACL_PAT_PASS;
+		else
+			return ACL_PAT_FAIL;
+	}
+	else if (pattern->type == SMP_T_IPV6) {
+		if (smp->type == SMP_T_IPV4) {
+			/* Convert the IPv4 sample address to IPv4 with the
+			 * mapping method using the ::ffff: prefix.
+			 */
+			memset(&tmp6, 0, 10);
+			*(uint16_t*)&tmp6.s6_addr[10] = htons(0xffff);
+			*(uint32_t*)&tmp6.s6_addr[12] = smp->data.ipv4.s_addr;
+			v6 = &tmp6;
+		}
+		else if (smp->type == SMP_T_IPV6) {
+			v6 = &smp->data.ipv6;
+		}
+		else {
+			return ACL_PAT_FAIL;
+		}
+
+		bits = pattern->val.ipv6.mask;
+		for (pos = 0; bits > 0; pos += 4, bits -= 32) {
+			v4 = *(uint32_t*)&v6->s6_addr[pos] ^ *(uint32_t*)&pattern->val.ipv6.addr.s6_addr[pos];
+			if (bits < 32)
+				v4 &= (~0U) << (32-bits);
+			if (v4)
+				return ACL_PAT_FAIL;
+		}
 		return ACL_PAT_PASS;
+	}
 	return ACL_PAT_FAIL;
 }
 
@@ -1033,7 +1089,6 @@ int acl_parse_ip(const char **text, struct acl_pattern *pattern, int *opaque, ch
 	if (pattern->flags & ACL_PAT_F_TREE_OK)
 		tree = pattern->val.tree;
 
-	pattern->type = SMP_T_IPV4;
 	if (str2net(*text, &pattern->val.ipv4.addr, &pattern->val.ipv4.mask)) {
 		unsigned int mask = ntohl(pattern->val.ipv4.mask.s_addr);
 		struct ebmb_node *node;
@@ -1042,6 +1097,7 @@ int acl_parse_ip(const char **text, struct acl_pattern *pattern, int *opaque, ch
 		 * the left. This means that this mask + its lower bit added
 		 * once again is null.
 		 */
+		pattern->type = SMP_T_IPV4;
 		if (mask + (mask & -mask) == 0 && tree) {
 			mask = mask ? 33 - flsnz(mask & -mask) : 0; /* equals cidr value */
 			/* FIXME: insert <addr>/<mask> into the tree here */
@@ -1060,9 +1116,14 @@ int acl_parse_ip(const char **text, struct acl_pattern *pattern, int *opaque, ch
 		}
 		return 1;
 	}
+	else if (str62net(*text, &pattern->val.ipv6.addr, &pattern->val.ipv6.mask)) {
+		/* no tree support right now */
+		pattern->type = SMP_T_IPV6;
+		return 1;
+	}
 	else {
 		if (err)
-			memprintf(err, "'%s' is not a valid IPv4 address", *text);
+			memprintf(err, "'%s' is not a valid IPv4 or IPv6 address", *text);
 		return 0;
 	}
 }

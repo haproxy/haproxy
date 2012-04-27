@@ -61,7 +61,7 @@ Summary
 7.1.      Matching integers
 7.2.      Matching strings
 7.3.      Matching regular expressions (regexes)
-7.4.      Matching IPv4 addresses
+7.4.      Matching IPv4 and IPv6 addresses
 7.5.      Available matching criteria
 7.5.1.        Matching at Layer 4 and below
 7.5.2.        Matching contents at Layer 4
@@ -6731,7 +6731,7 @@ address if they are used:
 
 The currently supported settings are the following ones.
 
-addr <ipv4>
+addr <ipv4|ipv6>
   Using the "addr" parameter, it becomes possible to use a different IP address
   to send health-checks. On some servers, it may be desirable to dedicate an IP
   address to specific component able to perform complex tests which are more
@@ -7264,7 +7264,7 @@ the "--" flag before the first string. Same principle applies of course to
 match the string "--".
 
 
-7.4. Matching IPv4 addresses
+7.4. Matching IPv4 and IPv6 addresses
 ----------------------------
 
 IPv4 addresses values can be specified either as plain addresses or with a
@@ -7275,6 +7275,24 @@ difficult to read and debug configurations. If hostnames are used, you should
 at least ensure that they are present in /etc/hosts so that the configuration
 does not depend on any random DNS match at the moment the configuration is
 parsed.
+
+IPv6 may be entered in their usual form, with or without a netmask appended.
+Only bit counts are accepted for IPv6 netmasks. In order to avoid any risk of
+trouble with randomly resolved IP addresses, host names are never allowed in
+IPv6 patterns.
+
+HAProxy is also able to match IPv4 addresses with IPv6 addresses in the
+following situations :
+  - tested address is IPv4, pattern address is IPv4, the match applies
+    in IPv4 using the supplied mask if any.
+  - tested address is IPv6, pattern address is IPv6, the match applies
+    in IPv6 using the supplied mask if any.
+  - tested address is IPv6, pattern address is IPv4, the match applies in IPv4
+    using the pattern's mask if the IPv6 address matches with 2002:IPV4::,
+    ::IPV4 or ::ffff:IPV4, otherwise it fails.
+  - tested address is IPv4, pattern address is IPv6, the IPv4 address is first
+    converted to IPv6 by prefixing ::ffff: in front of it, then the match is
+    applied in IPv6 using the supplied IPv6 mask.
 
 
 7.5. Available matching criteria
@@ -7359,8 +7377,8 @@ connslots(<backend>) <integer>
   will be -1.
 
 dst <ip_address>
-  Applies to the local IPv4 address the client connected to. It can be used to
-  switch to a different backend for some alternative addresses.
+  Applies to the local IPv4 or IPv6 address the client connected to. It can be
+  used to switch to a different backend for some alternative addresses.
 
 dst_conn <integer>
   Applies to the number of currently established connections on the same socket
@@ -7555,9 +7573,9 @@ so_id <integer>
   Applies to the socket's id. Useful in frontends with many bind keywords.
 
 src <ip_address>
-  Applies to the client's IPv4 address. It is usually used to limit access to
-  certain resources such as statistics. Note that it is the TCP-level source
-  address which is used, and not the address of a client behind a proxy.
+  Applies to the client's IPv4 or IPv6 address. It is usually used to limit
+  access to certain resources such as statistics. Note that it is the TCP-level
+  source address which is used, and not the address of a client behind a proxy.
 
 src_bytes_in_rate <integer>
 src_bytes_in_rate(<table>) <integer>
@@ -7983,10 +8001,10 @@ hdr_end(<header>[,<occ>]) <string>
   response headers sent by the server.
 
 hdr_ip <ip_address>
-hdr_ip(<header>[,<occ>]) <ip_address>
-  Returns true when one of the headers' values contains an IP address matching
-  <ip_address>. This is mainly used with headers such as X-Forwarded-For or
-  X-Client-IP. See "hdr" for more information on header matching. Use the
+hdr_ip(<header>[,<occ>]) <address>
+  Returns true when one of the headers' values contains an IPv4 or IPv6 address
+  matching <address>. This is mainly used with headers such as X-Forwarded-For
+  or X-Client-IP. See "hdr" for more information on header matching. Use the
   shdr_ip() variant for response headers sent by the server.
 
 hdr_len <integer>
@@ -8118,10 +8136,10 @@ url_end <string>
   Returns true when the URL ends with one of the strings. It has very limited
   use. "path_end" should be used instead for filename matching.
 
-url_ip <ip_address>
-  Applies to the IP address specified in the absolute URI in an HTTP request.
-  It can be used to prevent access to certain resources such as local network.
-  It is useful with option "http_proxy".
+url_ip <address>
+  Applies to the IPv4 or IPv6 address specified in the absolute URI in an HTTP
+  request. It can be used to prevent access to certain resources such as local
+  network. It is useful with option "http_proxy".
 
 url_len <integer>
   Returns true when the url length matches the values or ranges specified. This
@@ -8170,8 +8188,8 @@ urlp_end(<name>) <string>
   Returns true when the URL parameter "<name>" ends with one of the strings.
 
 urlp_ip(<name>) <ip_address>
-  Returns true when the URL parameter "<name>" contains an IPv4 address which
-  matches one of the specified IP addresses.
+  Returns true when the URL parameter "<name>" contains an IPv4 or IPv6 address
+  which matches one of the specified addresses.
 
 urlp_len(<name>) <integer>
   Returns true when the URL parameter "<name>" has a length matching the values
