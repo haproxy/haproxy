@@ -709,7 +709,7 @@ int acl_match_ip(struct sample *smp, struct acl_pattern *pattern)
 {
 	struct in_addr *s;
 
-	if (smp->type != SMP_T_IPV4)
+	if (smp->type != SMP_T_IPV4 || pattern->type != SMP_T_IPV4)
 		return ACL_PAT_FAIL;
 
 	s = &smp->data.ipv4;
@@ -738,6 +738,7 @@ int acl_parse_str(const char **text, struct acl_pattern *pattern, int *opaque, c
 	int len;
 
 	len  = strlen(*text);
+	pattern->type = SMP_T_CSTR;
 
 	if (pattern->flags & ACL_PAT_F_TREE_OK) {
 		/* we're allowed to put the data in a tree whose root is pointed
@@ -779,6 +780,7 @@ acl_parse_strcat(const char **text, struct acl_pattern *pattern, int *opaque, ch
 	for (i = 0; *text[i]; i++)
 		len += strlen(text[i])+1;
 
+	pattern->type = SMP_T_CSTR;
 	pattern->ptr.str = s = calloc(1, len);
 	if (!pattern->ptr.str) {
 		if (err)
@@ -847,7 +849,7 @@ int acl_parse_int(const char **text, struct acl_pattern *pattern, int *opaque, c
 	unsigned int j, last, skip = 0;
 	const char *ptr = *text;
 
-
+	pattern->type = SMP_T_UINT;
 	while (!isdigit((unsigned char)*ptr)) {
 		switch (get_std_op(ptr)) {
 		case STD_OP_EQ: *opaque = 0; break;
@@ -1023,7 +1025,7 @@ int acl_parse_dotted_ver(const char **text, struct acl_pattern *pattern, int *op
 /* Parse an IP address and an optional mask in the form addr[/mask].
  * The addr may either be an IPv4 address or a hostname. The mask
  * may either be a dotted mask or a number of bits. Returns 1 if OK,
- * otherwise 0.
+ * otherwise 0. NOTE: IP address patterns are typed (IPV4/IPV6).
  */
 int acl_parse_ip(const char **text, struct acl_pattern *pattern, int *opaque, char **err)
 {
@@ -1031,6 +1033,7 @@ int acl_parse_ip(const char **text, struct acl_pattern *pattern, int *opaque, ch
 	if (pattern->flags & ACL_PAT_F_TREE_OK)
 		tree = pattern->val.tree;
 
+	pattern->type = SMP_T_IPV4;
 	if (str2net(*text, &pattern->val.ipv4.addr, &pattern->val.ipv4.mask)) {
 		unsigned int mask = ntohl(pattern->val.ipv4.mask.s_addr);
 		struct ebmb_node *node;
@@ -1248,6 +1251,7 @@ static int acl_read_patterns_from_file(	struct acl_keyword *aclkw,
 			pattern->val.tree = &expr->pattern_tree;
 		}
 
+		pattern->type = SMP_TYPES; /* unspecified type by default */
 		if (!aclkw->parse(args, pattern, &opaque, err))
 			goto out_free_pattern;
 
@@ -1416,6 +1420,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 		}
 		pattern->flags = patflags;
 
+		pattern->type = SMP_TYPES; /* unspecified type */
 		ret = aclkw->parse(args, pattern, &opaque, err);
 		if (!ret)
 			goto out_free_pattern;

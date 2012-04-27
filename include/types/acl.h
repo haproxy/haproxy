@@ -181,9 +181,16 @@ struct acl_time {
 	int h2:5, m2:6;         /* 0..24:0..60. Use 24:0 for all day. */
 };
 
-/* The acl will be linked to from the proxy where it is declared */
+/* This describes one ACL pattern, which might be a single value or a tree of
+ * values. All patterns for a single ACL expression are linked together. Some
+ * of them might have a type (eg: IP). Right now, the types are shared with
+ * the samples, though it is possible that in the future this will change to
+ * accommodate for other types (eg: meth, regex). Unsigned and constant types
+ * are preferred when there is a doubt.
+ */
 struct acl_pattern {
 	struct list list;                       /* chaining */
+	int type;                               /* type of the ACL pattern (SMP_T_*) */
 	union {
 		int i;                          /* integer value */
 		struct {
@@ -209,14 +216,13 @@ struct acl_pattern {
 	int flags;                      /* expr or pattern flags. */
 };
 
-/*
- * ACL keyword: Associates keywords with parsers, methods to retrieve the value and testers.
- */
-
 /* some dummy declarations to silent the compiler */
 struct proxy;
 struct session;
 
+/*
+ * ACL keyword: Associates keywords with parsers, methods to retrieve the value and testers.
+ */
 /*
  * NOTE:
  * The 'parse' function is called to parse words in the configuration. It must
@@ -268,6 +274,7 @@ struct acl_expr {
 	struct eb_root pattern_tree;  /* may be used for lookup in large datasets */
 };
 
+/* The acl will be linked to from the proxy where it is declared */
 struct acl {
 	struct list list;           /* chaining */
 	char *name;		    /* acl name */
