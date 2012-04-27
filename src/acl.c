@@ -1144,9 +1144,14 @@ static struct acl_expr *prune_acl_expr(struct acl_expr *expr)
 	return expr;
 }
 
+
+/* Reads patterns from a file. If <err_msg> is non-NULL, an error message will
+ * be returned there on errors and the caller will have to free it.
+ */
 static int acl_read_patterns_from_file(	struct acl_keyword *aclkw,
 					struct acl_expr *expr,
-					const char *filename, int patflags)
+					const char *filename, int patflags,
+					char **err)
 {
 	FILE *file;
 	char *c;
@@ -1154,10 +1159,13 @@ static int acl_read_patterns_from_file(	struct acl_keyword *aclkw,
 	struct acl_pattern *pattern;
 	int opaque;
 	int ret = 0;
+	int line = 0;
 
 	file = fopen(filename, "r");
-	if (!file)
+	if (!file) {
+		memprintf(err, "failed to open pattern file <%s>", filename);
 		return 0;
+	}
 
 	/* now parse all patterns. The file may contain only one pattern per
 	 * line. If the line contains spaces, they will be part of the pattern.
@@ -1167,7 +1175,7 @@ static int acl_read_patterns_from_file(	struct acl_keyword *aclkw,
 	pattern = NULL;
 	args[1] = "";
 	while (fgets(trash, sizeof(trash), file) != NULL) {
-
+		line++;
 		c = trash;
 
 		/* ignore lines beginning with a dash */
@@ -1191,8 +1199,10 @@ static int acl_read_patterns_from_file(	struct acl_keyword *aclkw,
 		/* we keep the previous pattern along iterations as long as it's not used */
 		if (!pattern)
 			pattern = (struct acl_pattern *)malloc(sizeof(*pattern));
-		if (!pattern)
+		if (!pattern) {
+			memprintf(err, "out of memory when loading patterns from file <%s>", filename);
 			goto out_close;
+		}
 
 		memset(pattern, 0, sizeof(*pattern));
 		pattern->flags = patflags;
@@ -1205,8 +1215,11 @@ static int acl_read_patterns_from_file(	struct acl_keyword *aclkw,
 			pattern->val.tree = &expr->pattern_tree;
 		}
 
-		if (!aclkw->parse(args, pattern, &opaque))
+		if (!aclkw->parse(args, pattern, &opaque)) {
+			memprintf(err, "failed to parse pattern '%s' at line %d of file <%s>",
+				  *args, line, filename);
 			goto out_free_pattern;
+		}
 
 		/* if the parser did not feed the tree, let's chain the pattern to the list */
 		if (!(pattern->flags & ACL_PAT_F_TREE)) {
@@ -1348,11 +1361,8 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 		if ((*args)[1] == 'i')
 			patflags |= ACL_PAT_F_IGNORE_CASE;
 		else if ((*args)[1] == 'f') {
-			if (!acl_read_patterns_from_file(aclkw, expr, args[1], patflags | ACL_PAT_F_FROM_FILE)) {
-				if (err)
-					memprintf(err, "failed to load some ACL patterns from file '%s'", args[1]);
+			if (!acl_read_patterns_from_file(aclkw, expr, args[1], patflags | ACL_PAT_F_FROM_FILE, err))
 				goto out_free_expr;
-			}
 			args++;
 		}
 		else if ((*args)[1] == '-') {
