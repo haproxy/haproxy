@@ -229,7 +229,7 @@ struct session;
 struct acl_expr;
 struct acl_keyword {
 	const char *kw;
-	int (*parse)(const char **text, struct acl_pattern *pattern, int *opaque);
+	int (*parse)(const char **text, struct acl_pattern *pattern, int *opaque, char **err);
 	int (*fetch)(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 	             const struct arg *args, struct sample *smp);
 	int (*match)(struct sample *smp, struct acl_pattern *pattern);

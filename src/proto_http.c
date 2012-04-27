@@ -7624,7 +7624,7 @@ acl_prefetch_http(struct proxy *px, struct session *s, void *l7, unsigned int op
  * We use the pre-parsed method if it is known, and store its number as an
  * integer. If it is unknown, we use the pointer and the length.
  */
-static int acl_parse_meth(const char **text, struct acl_pattern *pattern, int *opaque)
+static int acl_parse_meth(const char **text, struct acl_pattern *pattern, int *opaque, char **err)
 {
 	int len, meth;
 
@@ -7634,8 +7634,11 @@ static int acl_parse_meth(const char **text, struct acl_pattern *pattern, int *o
 	pattern->val.i = meth;
 	if (meth == HTTP_METH_OTHER) {
 		pattern->ptr.str = strdup(*text);
-		if (!pattern->ptr.str)
+		if (!pattern->ptr.str) {
+			if (err)
+				memprintf(err, "out of memory while loading pattern");
 			return 0;
+		}
 		pattern->len = len;
 	}
 	return 1;
@@ -7704,11 +7707,14 @@ static int acl_match_meth(struct sample *smp, struct acl_pattern *pattern)
 /* 2. Check on Request/Status Version
  * We simply compare strings here.
  */
-static int acl_parse_ver(const char **text, struct acl_pattern *pattern, int *opaque)
+static int acl_parse_ver(const char **text, struct acl_pattern *pattern, int *opaque, char **err)
 {
 	pattern->ptr.str = strdup(*text);
-	if (!pattern->ptr.str)
+	if (!pattern->ptr.str) {
+		if (err)
+			memprintf(err, "out of memory while loading pattern");
 		return 0;
+	}
 	pattern->len = strlen(*text);
 	return 1;
 }

@@ -133,7 +133,7 @@ void acl_unregister_keywords(struct acl_kw_list *kwl);
 
 
 /* ignore the current line */
-int acl_parse_nothing(const char **text, struct acl_pattern *pattern, int *opaque);
+int acl_parse_nothing(const char **text, struct acl_pattern *pattern, int *opaque, char **err);
 
 /* NB: For two strings to be identical, it is required that their lengths match */
 int acl_match_str(struct sample *smp, struct acl_pattern *pattern);
@@ -145,31 +145,31 @@ int acl_match_len(struct sample *smp, struct acl_pattern *pattern);
 int acl_match_int(struct sample *smp, struct acl_pattern *pattern);
 
 /* Parse an integer. It is put both in min and max. */
-int acl_parse_int(const char **text, struct acl_pattern *pattern, int *opaque);
+int acl_parse_int(const char **text, struct acl_pattern *pattern, int *opaque, char **err);
 
 /* Parse an version. It is put both in min and max. */
-int acl_parse_dotted_ver(const char **text, struct acl_pattern *pattern, int *opaque);
+int acl_parse_dotted_ver(const char **text, struct acl_pattern *pattern, int *opaque, char **err);
 
 /* Parse a range of integers delimited by either ':' or '-'. If only one
  * integer is read, it is set as both min and max.
  */
-int acl_parse_range(const char **text, struct acl_pattern *pattern, int *opaque);
+int acl_parse_range(const char **text, struct acl_pattern *pattern, int *opaque, char **err);
 
 /* Parse a string. It is allocated and duplicated. */
-int acl_parse_str(const char **text, struct acl_pattern *pattern, int *opaque);
+int acl_parse_str(const char **text, struct acl_pattern *pattern, int *opaque, char **err);
 
 /* Parse and concatenate strings into one. It is allocated and duplicated. */
-int acl_parse_strcat(const char **text, struct acl_pattern *pattern, int *opaque);
+int acl_parse_strcat(const char **text, struct acl_pattern *pattern, int *opaque, char **err);
 
 /* Parse a regex. It is allocated. */
-int acl_parse_reg(const char **text, struct acl_pattern *pattern, int *opaque);
+int acl_parse_reg(const char **text, struct acl_pattern *pattern, int *opaque, char **err);
 
 /* Parse an IP address and an optional mask in the form addr[/mask].
  * The addr may either be an IPv4 address or a hostname. The mask
  * may either be a dotted mask or a number of bits. Returns 1 if OK,
  * otherwise 0.
  */
-int acl_parse_ip(const char **text, struct acl_pattern *pattern, int *opaque);
+int acl_parse_ip(const char **text, struct acl_pattern *pattern, int *opaque, char **err);
 
 /* always fake a data retrieval */
 int acl_fetch_nothing(struct proxy *px, struct session *l4, void *l7, unsigned int opt,

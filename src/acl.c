@@ -458,7 +458,7 @@ acl_fetch_ssl_hello_sni(struct proxy *px, struct session *l4, void *l7, unsigned
  */
 
 /* ignore the current line */
-int acl_parse_nothing(const char **text, struct acl_pattern *pattern, int *opaque)
+int acl_parse_nothing(const char **text, struct acl_pattern *pattern, int *opaque, char **err)
 {
 	return 1;
 }
@@ -733,7 +733,7 @@ static void *acl_lookup_ip(struct sample *smp, struct acl_expr *expr)
 }
 
 /* Parse a string. It is allocated and duplicated. */
-int acl_parse_str(const char **text, struct acl_pattern *pattern, int *opaque)
+int acl_parse_str(const char **text, struct acl_pattern *pattern, int *opaque, char **err)
 {
 	int len;
 
@@ -746,8 +746,11 @@ int acl_parse_str(const char **text, struct acl_pattern *pattern, int *opaque)
 		struct ebmb_node *node;
 
 		node = calloc(1, sizeof(*node) + len + 1);
-		if (!node)
+		if (!node) {
+			if (err)
+				memprintf(err, "out of memory while loading string pattern");
 			return 0;
+		}
 		memcpy(node->key, *text, len + 1);
 		if (ebst_insert(pattern->val.tree, node) != node)
 			free(node); /* was a duplicate */
@@ -756,15 +759,18 @@ int acl_parse_str(const char **text, struct acl_pattern *pattern, int *opaque)
 	}
 
 	pattern->ptr.str = strdup(*text);
-	if (!pattern->ptr.str)
+	if (!pattern->ptr.str) {
+		if (err)
+			memprintf(err, "out of memory while loading string pattern");
 		return 0;
+	}
 	pattern->len = len;
 	return 1;
 }
 
 /* Parse and concatenate all further strings into one. */
 int
-acl_parse_strcat(const char **text, struct acl_pattern *pattern, int *opaque)
+acl_parse_strcat(const char **text, struct acl_pattern *pattern, int *opaque, char **err)
 {
 
 	int len = 0, i;
@@ -774,8 +780,11 @@ acl_parse_strcat(const char **text, struct acl_pattern *pattern, int *opaque)
 		len += strlen(text[i])+1;
 
 	pattern->ptr.str = s = calloc(1, len);
-	if (!pattern->ptr.str)
+	if (!pattern->ptr.str) {
+		if (err)
+			memprintf(err, "out of memory while loading pattern");
 		return 0;
+	}
 
 	for (i = 0; *text[i]; i++)
 		s += sprintf(s, i?" %s":"%s", text[i]);
@@ -792,19 +801,24 @@ static void acl_free_reg(void *ptr)
 }
 
 /* Parse a regex. It is allocated. */
-int acl_parse_reg(const char **text, struct acl_pattern *pattern, int *opaque)
+int acl_parse_reg(const char **text, struct acl_pattern *pattern, int *opaque, char **err)
 {
 	regex_t *preg;
 	int icase;
 
 	preg = calloc(1, sizeof(regex_t));
 
-	if (!preg)
+	if (!preg) {
+		if (err)
+			memprintf(err, "out of memory while loading pattern");
 		return 0;
+	}
 
 	icase = (pattern->flags & ACL_PAT_F_IGNORE_CASE) ? REG_ICASE : 0;
 	if (regcomp(preg, *text, REG_EXTENDED | REG_NOSUB | icase) != 0) {
 		free(preg);
+		if (err)
+			memprintf(err, "regex '%s' is invalid", *text);
 		return 0;
 	}
 
@@ -823,8 +837,11 @@ int acl_parse_reg(const char **text, struct acl_pattern *pattern, int *opaque)
  * rejected for other operators. The operator may be changed at any time.
  * The operator is stored in the 'opaque' argument.
  *
+ * If err is non-NULL, an error message will be returned there on errors and
+ * the caller will have to free it.
+ *
  */
-int acl_parse_int(const char **text, struct acl_pattern *pattern, int *opaque)
+int acl_parse_int(const char **text, struct acl_pattern *pattern, int *opaque, char **err)
 {
 	signed long long i;
 	unsigned int j, last, skip = 0;
@@ -839,6 +856,8 @@ int acl_parse_int(const char **text, struct acl_pattern *pattern, int *opaque)
 		case STD_OP_LT: *opaque = 3; break;
 		case STD_OP_LE: *opaque = 4; break;
 		default:
+			if (err)
+				memprintf(err, "'%s' is neither a number nor a supported operator", ptr);
 			return 0;
 		}
 
@@ -863,9 +882,12 @@ int acl_parse_int(const char **text, struct acl_pattern *pattern, int *opaque)
                 i += j;
         }
 
-	if (last && *opaque >= 1 && *opaque <= 4)
+	if (last && *opaque >= 1 && *opaque <= 4) {
 		/* having a range with a min or a max is absurd */
+		if (err)
+			memprintf(err, "integer range '%s' specified with a comparison operator", text[skip]);
 		return 0;
+	}
 
 	if (!last)
 		pattern->val.range.min = i;
@@ -912,7 +934,7 @@ int acl_parse_int(const char **text, struct acl_pattern *pattern, int *opaque)
  *    acl valid_ssl       ssl_req_proto 3.0-3.1
  *
  */
-int acl_parse_dotted_ver(const char **text, struct acl_pattern *pattern, int *opaque)
+int acl_parse_dotted_ver(const char **text, struct acl_pattern *pattern, int *opaque, char **err)
 {
 	signed long long i;
 	unsigned int j, last, skip = 0;
@@ -927,6 +949,8 @@ int acl_parse_dotted_ver(const char **text, struct acl_pattern *pattern, int *op
 		case STD_OP_LT: *opaque = 3; break;
 		case STD_OP_LE: *opaque = 4; break;
 		default:
+			if (err)
+				memprintf(err, "'%s' is neither a number nor a supported operator", ptr);
 			return 0;
 		}
 
@@ -964,9 +988,12 @@ int acl_parse_dotted_ver(const char **text, struct acl_pattern *pattern, int *op
 	if (i < 65536)
 		i <<= 16;
 
-	if (last && *opaque >= 1 && *opaque <= 4)
+	if (last && *opaque >= 1 && *opaque <= 4) {
 		/* having a range with a min or a max is absurd */
+		if (err)
+			memprintf(err, "version range '%s' specified with a comparison operator", text[skip]);
 		return 0;
+	}
 
 	if (!last)
 		pattern->val.range.min = i;
@@ -998,7 +1025,7 @@ int acl_parse_dotted_ver(const char **text, struct acl_pattern *pattern, int *op
  * may either be a dotted mask or a number of bits. Returns 1 if OK,
  * otherwise 0.
  */
-int acl_parse_ip(const char **text, struct acl_pattern *pattern, int *opaque)
+int acl_parse_ip(const char **text, struct acl_pattern *pattern, int *opaque, char **err)
 {
 	struct eb_root *tree = NULL;
 	if (pattern->flags & ACL_PAT_F_TREE_OK)
@@ -1016,8 +1043,11 @@ int acl_parse_ip(const char **text, struct acl_pattern *pattern, int *opaque)
 			mask = mask ? 33 - flsnz(mask & -mask) : 0; /* equals cidr value */
 			/* FIXME: insert <addr>/<mask> into the tree here */
 			node = calloc(1, sizeof(*node) + 4); /* reserve 4 bytes for IPv4 address */
-			if (!node)
+			if (!node) {
+				if (err)
+					memprintf(err, "out of memory while loading IPv4 pattern");
 				return 0;
+			}
 			memcpy(node->key, &pattern->val.ipv4.addr, 4); /* network byte order */
 			node->node.pfx = mask;
 			if (ebmb_insert_prefix(tree, node, 4) != node)
@@ -1027,8 +1057,11 @@ int acl_parse_ip(const char **text, struct acl_pattern *pattern, int *opaque)
 		}
 		return 1;
 	}
-	else
+	else {
+		if (err)
+			memprintf(err, "'%s' is not a valid IPv4 address", *text);
 		return 0;
+	}
 }
 
 /*
@@ -1215,11 +1248,8 @@ static int acl_read_patterns_from_file(	struct acl_keyword *aclkw,
 			pattern->val.tree = &expr->pattern_tree;
 		}
 
-		if (!aclkw->parse(args, pattern, &opaque)) {
-			memprintf(err, "failed to parse pattern '%s' at line %d of file <%s>",
-				  *args, line, filename);
+		if (!aclkw->parse(args, pattern, &opaque, err))
 			goto out_free_pattern;
-		}
 
 		/* if the parser did not feed the tree, let's chain the pattern to the list */
 		if (!(pattern->flags & ACL_PAT_F_TREE)) {
@@ -1386,12 +1416,10 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 		}
 		pattern->flags = patflags;
 
-		ret = aclkw->parse(args, pattern, &opaque);
-		if (!ret) {
-			if (err)
-				memprintf(err, "failed to parse some ACL patterns");
+		ret = aclkw->parse(args, pattern, &opaque, err);
+		if (!ret)
 			goto out_free_pattern;
-		}
+
 		LIST_ADDQ(&expr->patterns, &pattern->list);
 		args += ret;
 	}
