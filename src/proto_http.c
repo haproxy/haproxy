@@ -7506,10 +7506,12 @@ req_error_parsing:
 
 	if (strcmp(args[cur_arg], "if") == 0 || strcmp(args[cur_arg], "unless") == 0) {
 		struct acl_cond *cond;
+		char *errmsg = NULL;
 
-		if ((cond = build_acl_cond(file, linenum, proxy, args+cur_arg)) == NULL) {
-			Alert("parsing [%s:%d] : error detected while parsing an 'http-request %s' condition.\n",
-			      file, linenum, args[0]);
+		if ((cond = build_acl_cond(file, linenum, proxy, args+cur_arg, &errmsg)) == NULL) {
+			Alert("parsing [%s:%d] : error detected while parsing an 'http-request %s' condition : %s.\n",
+			      file, linenum, args[0], errmsg);
+			free(errmsg);
 			return NULL;
 		}
 		rule->cond = cond;

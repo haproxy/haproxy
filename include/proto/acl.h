@@ -59,7 +59,7 @@ struct acl_keyword *find_acl_kw(const char *kw);
  * Right now, the only accepted syntax is :
  * <subject> [<value>...]
  */
-struct acl_expr *parse_acl_expr(const char **args);
+struct acl_expr *parse_acl_expr(const char **args, char **err);
 
 /* Purge everything in the acl <acl>, then return <acl>. */
 struct acl *prune_acl(struct acl *acl);
@@ -70,7 +70,7 @@ struct acl *prune_acl(struct acl *acl);
  *
  * args syntax: <aclname> <acl_expr>
  */
-struct acl *parse_acl(const char **args, struct list *known_acl);
+struct acl *parse_acl(const char **args, struct list *known_acl, char **err);
 
 /* Purge everything in the acl_cond <cond>, then return <cond>. */
 struct acl_cond *prune_acl_cond(struct acl_cond *cond);
@@ -79,15 +79,16 @@ struct acl_cond *prune_acl_cond(struct acl_cond *cond);
  * known ACLs passed in <known_acl>. The new condition is returned (or NULL in
  * case of low memory). Supports multiple conditions separated by "or".
  */
-struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int pol);
+struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int pol, char **err);
 
 /* Builds an ACL condition starting at the if/unless keyword. The complete
  * condition is returned. NULL is returned in case of error or if the first
  * word is neither "if" nor "unless". It automatically sets the file name and
  * the line number in the condition for better error reporting, and adds the
- * ACL requirements to the proxy's acl_requires.
+ * ACL requirements to the proxy's acl_requires. If <err> is not NULL, it will
+ * be set to an error message upon errors, that the caller will have to free.
  */
-struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, const char **args);
+struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, const char **args, char **err);
 
 /* Execute condition <cond> and return either ACL_PAT_FAIL, ACL_PAT_MISS or
  * ACL_PAT_PASS depending on the test results. This function only computes the

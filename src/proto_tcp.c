@@ -962,10 +962,13 @@ static int tcp_parse_response_rule(char **args, int arg, int section_type,
 	}
 
 	if (strcmp(args[arg], "if") == 0 || strcmp(args[arg], "unless") == 0) {
-		if ((rule->cond = build_acl_cond(NULL, 0, curpx, (const char **)args+arg)) == NULL) {
+		char *errmsg = NULL;
+
+		if ((rule->cond = build_acl_cond(NULL, 0, curpx, (const char **)args+arg, &errmsg)) == NULL) {
 			snprintf(err, errlen,
-				 "error detected in %s '%s' while parsing '%s' condition",
-				 proxy_type_str(curpx), curpx->id, args[arg]);
+				 "error detected in %s '%s' while parsing '%s' condition : %s",
+				 proxy_type_str(curpx), curpx->id, args[arg], errmsg);
+			free(errmsg);
 			return -1;
 		}
 	}
@@ -1032,10 +1035,13 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 	}
 
 	if (strcmp(args[arg], "if") == 0 || strcmp(args[arg], "unless") == 0) {
-		if ((rule->cond = build_acl_cond(NULL, 0, curpx, (const char **)args+arg)) == NULL) {
+		char *errmsg = NULL;
+
+		if ((rule->cond = build_acl_cond(NULL, 0, curpx, (const char **)args+arg, &errmsg)) == NULL) {
 			snprintf(err, errlen,
-				 "error detected in %s '%s' while parsing '%s' condition",
-				 proxy_type_str(curpx), curpx->id, args[arg]);
+				 "error detected in %s '%s' while parsing '%s' condition : %s",
+				 proxy_type_str(curpx), curpx->id, args[arg], errmsg);
+			free(errmsg);
 			return -1;
 		}
 	}

@@ -1224,11 +1224,14 @@ static int acl_read_patterns_from_file(	struct acl_keyword *aclkw,
 	return ret;
 }
 
-/* Parse an ACL expression starting at <args>[0], and return it.
+/* Parse an ACL expression starting at <args>[0], and return it. If <err> is
+ * not NULL, it will be filled with a pointer to an error message in case of
+ * error. This pointer must be freeable or NULL.
+ *
  * Right now, the only accepted syntax is :
  * <subject> [<value>...]
  */
-struct acl_expr *parse_acl_expr(const char **args)
+struct acl_expr *parse_acl_expr(const char **args, char **err)
 {
 	__label__ out_return, out_free_expr, out_free_pattern;
 	struct acl_expr *expr;
@@ -1238,12 +1241,18 @@ struct acl_expr *parse_acl_expr(const char **args)
 	const char *arg;
 
 	aclkw = find_acl_kw(args[0]);
-	if (!aclkw || !aclkw->parse)
+	if (!aclkw || !aclkw->parse) {
+		if (err)
+			memprintf(err, "unknown ACL keyword '%s'", *args);
 		goto out_return;
+	}
 
 	expr = (struct acl_expr *)calloc(1, sizeof(*expr));
-	if (!expr)
+	if (!expr) {
+		if (err)
+			memprintf(err, "out of memory when parsing ACL expression");
 		goto out_return;
+	}
 
 	expr->kw = aclkw;
 	aclkw->use_cnt++;
@@ -1259,8 +1268,11 @@ struct acl_expr *parse_acl_expr(const char **args)
 			/* there are 0 or more arguments in the form "subject(arg[,arg]*)" */
 			arg++;
 			end = strchr(arg, ')');
-			if (!end)
+			if (!end) {
+				if (err)
+					memprintf(err, "missing closing ')' after arguments to ACL keyword '%s'", aclkw->kw);
 				goto out_free_expr;
+			}
 
 			/* Parse the arguments. Note that currently we have no way to
 			 * report parsing errors, hence the NULL in the error pointers.
@@ -1268,12 +1280,22 @@ struct acl_expr *parse_acl_expr(const char **args)
 			 * missing.
 			 */
 			nbargs = make_arg_list(arg, end - arg, aclkw->arg_mask, &expr->args,
-					       NULL, NULL, NULL);
-			if (nbargs < 0)
+					       err, NULL, NULL);
+			if (nbargs < 0) {
+				/* note that make_arg_list will have set <err> here */
+				if (err)
+					memprintf(err, "in argument to '%s', %s", aclkw->kw, *err);
 				goto out_free_expr;
+			}
 
-			if (aclkw->val_args && !aclkw->val_args(expr->args, NULL))
-				goto out_free_expr; /* invalid keyword argument */
+			if (aclkw->val_args && !aclkw->val_args(expr->args, err)) {
+				/* invalid keyword argument, error must have been
+				 * set by val_args().
+				 */
+				if (err)
+					memprintf(err, "in argument to '%s', %s", aclkw->kw, *err);
+				goto out_free_expr;
+			}
 		}
 		else if (ARGM(aclkw->arg_mask) == 1) {
 			int type = (aclkw->arg_mask >> 4) & 15;
@@ -1282,8 +1304,11 @@ struct acl_expr *parse_acl_expr(const char **args)
 			 * an empty one so that acl_find_targets() resolves it as
 			 * the current one later.
 			 */
-			if (type != ARGT_FE && type != ARGT_BE && type != ARGT_TAB)
+			if (type != ARGT_FE && type != ARGT_BE && type != ARGT_TAB) {
+				if (err)
+					memprintf(err, "ACL keyword '%s' expects %d arguments", aclkw->kw, ARGM(aclkw->arg_mask));
 				goto out_free_expr;
+			}
 
 			/* Build an arg list containing the type as an empty string
 			 * and the usual STOP.
@@ -1297,12 +1322,16 @@ struct acl_expr *parse_acl_expr(const char **args)
 		}
 		else if (ARGM(aclkw->arg_mask)) {
 			/* there were some mandatory arguments */
+			if (err)
+				memprintf(err, "ACL keyword '%s' expects %d arguments", aclkw->kw, ARGM(aclkw->arg_mask));
 			goto out_free_expr;
 		}
 	}
 	else {
 		if (arg) {
 			/* no argument expected */
+			if (err)
+				memprintf(err, "ACL keyword '%s' takes no argument", aclkw->kw);
 			goto out_free_expr;
 		}
 	}
@@ -1319,8 +1348,11 @@ struct acl_expr *parse_acl_expr(const char **args)
 		if ((*args)[1] == 'i')
 			patflags |= ACL_PAT_F_IGNORE_CASE;
 		else if ((*args)[1] == 'f') {
-			if (!acl_read_patterns_from_file(aclkw, expr, args[1], patflags | ACL_PAT_F_FROM_FILE))
+			if (!acl_read_patterns_from_file(aclkw, expr, args[1], patflags | ACL_PAT_F_FROM_FILE)) {
+				if (err)
+					memprintf(err, "failed to load some ACL patterns from file '%s'", args[1]);
 				goto out_free_expr;
+			}
 			args++;
 		}
 		else if ((*args)[1] == '-') {
@@ -1337,13 +1369,19 @@ struct acl_expr *parse_acl_expr(const char **args)
 	while (**args) {
 		int ret;
 		pattern = (struct acl_pattern *)calloc(1, sizeof(*pattern));
-		if (!pattern)
+		if (!pattern) {
+			if (err)
+				memprintf(err, "out of memory when parsing ACL pattern");
 			goto out_free_expr;
+		}
 		pattern->flags = patflags;
 
 		ret = aclkw->parse(args, pattern, &opaque);
-		if (!ret)
+		if (!ret) {
+			if (err)
+				memprintf(err, "failed to parse some ACL patterns");
 			goto out_free_pattern;
+		}
 		LIST_ADDQ(&expr->patterns, &pattern->list);
 		args += ret;
 	}
@@ -1378,23 +1416,31 @@ struct acl *prune_acl(struct acl *acl) {
 /* Parse an ACL with the name starting at <args>[0], and with a list of already
  * known ACLs in <acl>. If the ACL was not in the list, it will be added.
  * A pointer to that ACL is returned. If the ACL has an empty name, then it's
- * an anonymous one and it won't be merged with any other one.
+ * an anonymous one and it won't be merged with any other one. If <err> is not
+ * NULL, it will be filled with an appropriate error. This pointer must be
+ * freeable or NULL.
  *
  * args syntax: <aclname> <acl_expr>
  */
-struct acl *parse_acl(const char **args, struct list *known_acl)
+struct acl *parse_acl(const char **args, struct list *known_acl, char **err)
 {
 	__label__ out_return, out_free_acl_expr, out_free_name;
 	struct acl *cur_acl;
 	struct acl_expr *acl_expr;
 	char *name;
+	const char *pos;
 
-	if (**args && invalid_char(*args))
+	if (**args && (pos = invalid_char(*args))) {
+		if (err)
+			memprintf(err, "invalid character in ACL name : '%c'", *pos);
 		goto out_return;
+	}
 
-	acl_expr = parse_acl_expr(args + 1);
-	if (!acl_expr)
+	acl_expr = parse_acl_expr(args + 1, err);
+	if (!acl_expr) {
+		/* parse_acl_expr will have filled <err> here */
 		goto out_return;
+	}
 
 	/* Check for args beginning with an opening parenthesis just after the
 	 * subject, as this is almost certainly a typo. Right now we can only
@@ -1415,11 +1461,17 @@ struct acl *parse_acl(const char **args, struct list *known_acl)
 
 	if (!cur_acl) {
 		name = strdup(args[0]);
-		if (!name)
+		if (!name) {
+			if (err)
+				memprintf(err, "out of memory when parsing ACL");
 			goto out_free_acl_expr;
+		}
 		cur_acl = (struct acl *)calloc(1, sizeof(*cur_acl));
-		if (cur_acl == NULL)
+		if (cur_acl == NULL) {
+			if (err)
+				memprintf(err, "out of memory when parsing ACL");
 			goto out_free_name;
+		}
 
 		LIST_INIT(&cur_acl->expr);
 		LIST_ADDQ(known_acl, &cur_acl->list);
@@ -1470,9 +1522,11 @@ const struct {
 /* Find a default ACL from the default_acl list, compile it and return it.
  * If the ACL is not found, NULL is returned. In theory, it cannot fail,
  * except when default ACLs are broken, in which case it will return NULL.
- * If <known_acl> is not NULL, the ACL will be queued at its tail.
+ * If <known_acl> is not NULL, the ACL will be queued at its tail. If <err> is
+ * not NULL, it will be filled with an error message if an error occurs. This
+ * pointer must be freeable or NULL.
  */
-struct acl *find_acl_default(const char *acl_name, struct list *known_acl)
+struct acl *find_acl_default(const char *acl_name, struct list *known_acl, char **err)
 {
 	__label__ out_return, out_free_acl_expr, out_free_name;
 	struct acl *cur_acl;
@@ -1485,19 +1539,31 @@ struct acl *find_acl_default(const char *acl_name, struct list *known_acl)
 			break;
 	}
 
-	if (default_acl_list[index].name == NULL)
+	if (default_acl_list[index].name == NULL) {
+		if (err)
+			memprintf(err, "no such ACL : '%s'", acl_name);
 		return NULL;
+	}
 
-	acl_expr = parse_acl_expr((const char **)default_acl_list[index].expr);
-	if (!acl_expr)
+	acl_expr = parse_acl_expr((const char **)default_acl_list[index].expr, err);
+	if (!acl_expr) {
+		/* parse_acl_expr must have filled err here */
 		goto out_return;
+	}
 
 	name = strdup(acl_name);
-	if (!name)
+	if (!name) {
+		if (err)
+			memprintf(err, "out of memory when building default ACL '%s'", acl_name);
 		goto out_free_acl_expr;
+	}
+
 	cur_acl = (struct acl *)calloc(1, sizeof(*cur_acl));
-	if (cur_acl == NULL)
+	if (cur_acl == NULL) {
+		if (err)
+			memprintf(err, "out of memory when building default ACL '%s'", acl_name);
 		goto out_free_name;
+	}
 
 	cur_acl->name = name;
 	cur_acl->requires |= acl_expr->kw->requires;
@@ -1534,9 +1600,12 @@ struct acl_cond *prune_acl_cond(struct acl_cond *cond)
 
 /* Parse an ACL condition starting at <args>[0], relying on a list of already
  * known ACLs passed in <known_acl>. The new condition is returned (or NULL in
- * case of low memory). Supports multiple conditions separated by "or".
+ * case of low memory). Supports multiple conditions separated by "or". If
+ * <err> is not NULL, it will be filled with a pointer to an error message in
+ * case of error, that the caller is responsible for freeing. The initial
+ * location must either be freeable or NULL.
  */
-struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int pol)
+struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int pol, char **err)
 {
 	__label__ out_return, out_free_suite, out_free_term;
 	int arg, neg;
@@ -1547,8 +1616,11 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
 	struct acl_cond *cond;
 
 	cond = (struct acl_cond *)calloc(1, sizeof(*cond));
-	if (cond == NULL)
+	if (cond == NULL) {
+		if (err)
+			memprintf(err, "out of memory when parsing condition");
 		goto out_return;
+	}
 
 	LIST_INIT(&cond->list);
 	LIST_INIT(&cond->suites);
@@ -1588,21 +1660,29 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
 			while (*args[arg_end] && strcmp(args[arg_end], "}") != 0)
 				arg_end++;
 
-			if (!*args[arg_end])
+			if (!*args[arg_end]) {
+				if (err)
+					memprintf(err, "missing closing '}' in condition");
 				goto out_free_suite;
+			}
 
 			args_new = calloc(1, (arg_end - arg + 1) * sizeof(*args_new));
-			if (!args_new)
+			if (!args_new) {
+				if (err)
+					memprintf(err, "out of memory when parsing condition");
 				goto out_free_suite;
+			}
 
 			args_new[0] = "";
 			memcpy(args_new + 1, args + arg + 1, (arg_end - arg) * sizeof(*args_new));
 			args_new[arg_end - arg] = "";
-			cur_acl = parse_acl(args_new, known_acl);
+			cur_acl = parse_acl(args_new, known_acl, err);
 			free(args_new);
 
-			if (!cur_acl)
+			if (!cur_acl) {
+				/* note that parse_acl() must have filled <err> here */
 				goto out_free_suite;
+			}
 			arg = arg_end;
 		}
 		else {
@@ -1613,15 +1693,20 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
 			 */
 			cur_acl = find_acl_by_name(word, known_acl);
 			if (cur_acl == NULL) {
-				cur_acl = find_acl_default(word, known_acl);
-				if (cur_acl == NULL)
+				cur_acl = find_acl_default(word, known_acl, err);
+				if (cur_acl == NULL) {
+					/* note that find_acl_default() must have filled <err> here */
 					goto out_free_suite;
+				}
 			}
 		}
 
 		cur_term = (struct acl_term *)calloc(1, sizeof(*cur_term));
-		if (cur_term == NULL)
+		if (cur_term == NULL) {
+			if (err)
+				memprintf(err, "out of memory when parsing condition");
 			goto out_free_suite;
+		}
 
 		cur_term->acl = cur_acl;
 		cur_term->neg = neg;
@@ -1629,8 +1714,11 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
 
 		if (!cur_suite) {
 			cur_suite = (struct acl_term_suite *)calloc(1, sizeof(*cur_suite));
-			if (cur_term == NULL)
+			if (cur_term == NULL) {
+				if (err)
+					memprintf(err, "out of memory when parsing condition");
 				goto out_free_term;
+			}
 			LIST_INIT(&cur_suite->terms);
 			LIST_ADDQ(&cond->suites, &cur_suite->list);
 		}
@@ -1653,12 +1741,18 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
  * condition is returned. NULL is returned in case of error or if the first
  * word is neither "if" nor "unless". It automatically sets the file name and
  * the line number in the condition for better error reporting, and adds the
- * ACL requirements to the proxy's acl_requires.
+ * ACL requirements to the proxy's acl_requires. If <err> is not NULL, it will
+ * be filled with a pointer to an error message in case of error, that the
+ * caller is responsible for freeing. The initial location must either be
+ * freeable or NULL.
  */
-struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, const char **args)
+struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, const char **args, char **err)
 {
 	int pol = ACL_COND_NONE;
 	struct acl_cond *cond = NULL;
+
+	if (err)
+		*err = NULL;
 
 	if (!strcmp(*args, "if")) {
 		pol = ACL_COND_IF;
@@ -1668,12 +1762,17 @@ struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, co
 		pol = ACL_COND_UNLESS;
 		args++;
 	}
-	else
+	else {
+		if (err)
+			memprintf(err, "conditions must start with either 'if' or 'unless'");
 		return NULL;
+	}
 
-	cond = parse_acl_cond(args, &px->acl, pol);
-	if (!cond)
+	cond = parse_acl_cond(args, &px->acl, pol, err);
+	if (!cond) {
+		/* note that parse_acl_cond must have filled <err> here */
 		return NULL;
+	}
 
 	cond->file = file;
 	cond->line = line;
