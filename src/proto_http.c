@@ -8304,7 +8304,7 @@ acl_fetch_cookie_cnt(struct proxy *px, struct session *l4, void *l7, unsigned in
 }
 
 /************************************************************************/
-/*     The code below is dedicated to pattern fetching and matching     */
+/*           The code below is dedicated to sample fetches              */
 /************************************************************************/
 
 /*
@@ -8533,7 +8533,7 @@ static struct acl_kw_list acl_kws = {{ },{
 /*         All supported pattern keywords must be declared here.        */
 /************************************************************************/
 /* Note: must not be declared <const> as its list will be overwritten */
-static struct pattern_fetch_kw_list pattern_fetch_keywords = {{ },{
+static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
 	{ "hdr",        smp_fetch_hdr,            ARG2(1,STR,SINT), val_hdr, SMP_T_CSTR, SMP_CAP_REQ },
 	{ "url_param",  smp_fetch_url_param,      ARG1(1,STR), NULL, SMP_T_CSTR, SMP_CAP_REQ },
 	{ "cookie",     smp_fetch_cookie_value,   ARG1(1,STR), NULL, SMP_T_CSTR, SMP_CAP_REQ|SMP_CAP_RES },
@@ -8546,7 +8546,7 @@ __attribute__((constructor))
 static void __http_protocol_init(void)
 {
 	acl_register_keywords(&acl_kws);
-	pattern_register_fetches(&pattern_fetch_keywords);
+	sample_register_fetches(&sample_fetch_keywords);
 }
 
 

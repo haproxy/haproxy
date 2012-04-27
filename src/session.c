@@ -3386,7 +3386,7 @@ int parse_track_counters(char **args, int *arg,
 			 struct track_ctr_prm *prm,
 			 struct proxy *defpx, char *err, int errlen)
 {
-	int pattern_type = 0;
+	int sample_type = 0;
 	char *kw = args[*arg - 1];
 
 	/* parse the arguments of "track-sc[12]" before the condition in the
@@ -3396,7 +3396,7 @@ int parse_track_counters(char **args, int *arg,
 	while (args[*arg]) {
 		if (strcmp(args[*arg], "src") == 0) {
 			prm->type = STKTABLE_TYPE_IP;
-			pattern_type = 1;
+			sample_type = 1;
 		}
 		else if (strcmp(args[*arg], "table") == 0) {
 			if (!args[*arg + 1]) {
@@ -3416,7 +3416,7 @@ int parse_track_counters(char **args, int *arg,
 		(*arg)++;
 	}
 
-	if (!pattern_type) {
+	if (!sample_type) {
 		snprintf(err, errlen,
 			 "%s key not specified in %s '%s' (found %s, only 'src' is supported).",
 			 kw, proxy_type_str(curpx), curpx->id, quote_arg(args[*arg]));

@@ -2968,7 +2968,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	}
 	else if (!strcmp(args[0], "stick")) {
 		struct sticking_rule *rule;
-		struct pattern_expr *expr;
+		struct sample_expr *expr;
 		int myidx = 0;
 		char *errmsg = NULL;
 		const char *name = NULL;
@@ -3015,7 +3015,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		expr = pattern_parse_expr(args, &myidx, trash, sizeof(trash));
+		expr = sample_parse_expr(args, &myidx, trash, sizeof(trash));
 		if (!expr) {
 			Alert("parsing [%s:%d] : '%s': %s\n", file, linenum, args[0], trash);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -5930,8 +5930,8 @@ int check_config_validity()
 				      curproxy->id, mrule->table.name ? mrule->table.name : curproxy->id);
 				cfgerr++;
 			}
-			else if (!stktable_compatible_pattern(mrule->expr,  target->table.type)) {
-				Alert("Proxy '%s': type of pattern not usable with type of stick-table '%s'.\n",
+			else if (!stktable_compatible_sample(mrule->expr,  target->table.type)) {
+				Alert("Proxy '%s': type of fetch not usable with type of stick-table '%s'.\n",
 				      curproxy->id, mrule->table.name ? mrule->table.name : curproxy->id);
 				cfgerr++;
 			}
@@ -5963,8 +5963,8 @@ int check_config_validity()
 				      curproxy->id, mrule->table.name ? mrule->table.name : curproxy->id);
 				cfgerr++;
 			}
-			else if (!stktable_compatible_pattern(mrule->expr, target->table.type)) {
-				Alert("Proxy '%s': type of pattern not usable with type of stick-table '%s'.\n",
+			else if (!stktable_compatible_sample(mrule->expr, target->table.type)) {
+				Alert("Proxy '%s': type of fetch not usable with type of stick-table '%s'.\n",
 				      curproxy->id, mrule->table.name ? mrule->table.name : curproxy->id);
 				cfgerr++;
 			}

@@ -371,7 +371,7 @@ struct persist_rule {
 struct sticking_rule {
 	struct list list;                       /* list linked to from the proxy */
 	struct acl_cond *cond;                  /* acl condition to meet */
-	struct pattern_expr *expr;              /* fetch expr to fetch key */
+	struct sample_expr *expr;               /* fetch expr to fetch key */
 	int flags;                              /* STK_* */
 	union {
 		struct stktable *t;	        /* target table */

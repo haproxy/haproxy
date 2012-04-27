@@ -18,58 +18,58 @@
 #include <proto/buffers.h>
 #include <common/standard.h>
 
-/* static sample used in pattern_process() when <p> is NULL */
+/* static sample used in sample_process() when <p> is NULL */
 static struct sample temp_smp;
 
-/* trash chunk used for pattern conversions */
+/* trash chunk used for sample conversions */
 static struct chunk trash_chunk;
 
-/* trash buffers used or pattern conversions */
-static char pattern_trash_buf1[BUFSIZE];
-static char pattern_trash_buf2[BUFSIZE];
+/* trash buffers used or sample conversions */
+static char sample_trash_buf1[BUFSIZE];
+static char sample_trash_buf2[BUFSIZE];
 
-/* pattern_trash_buf point on used buffer*/
-static char *pattern_trash_buf = pattern_trash_buf1;
+/* sample_trash_buf point on used buffer*/
+static char *sample_trash_buf = sample_trash_buf1;
 
-/* list head of all known pattern fetch keywords */
-static struct pattern_fetch_kw_list pattern_fetches = {
-	.list = LIST_HEAD_INIT(pattern_fetches.list)
+/* list head of all known sample fetch keywords */
+static struct sample_fetch_kw_list sample_fetches = {
+	.list = LIST_HEAD_INIT(sample_fetches.list)
 };
 
-/* list head of all known pattern format conversion keywords */
-static struct pattern_conv_kw_list pattern_convs = {
-	.list = LIST_HEAD_INIT(pattern_convs.list)
+/* list head of all known sample format conversion keywords */
+static struct sample_conv_kw_list sample_convs = {
+	.list = LIST_HEAD_INIT(sample_convs.list)
 };
 
 /*
- * Registers the pattern fetch keyword list <kwl> as a list of valid keywords for next
+ * Registers the sample fetch keyword list <kwl> as a list of valid keywords for next
  * parsing sessions.
  */
-void pattern_register_fetches(struct pattern_fetch_kw_list *pfkl)
+void sample_register_fetches(struct sample_fetch_kw_list *pfkl)
 {
-	LIST_ADDQ(&pattern_fetches.list, &pfkl->list);
+	LIST_ADDQ(&sample_fetches.list, &pfkl->list);
 }
 
 /*
- * Registers the pattern format coverstion keyword list <pckl> as a list of valid keywords for next
+ * Registers the sample format coverstion keyword list <pckl> as a list of valid keywords for next
  * parsing sessions.
  */
-void pattern_register_convs(struct pattern_conv_kw_list *pckl)
+void sample_register_convs(struct sample_conv_kw_list *pckl)
 {
-	LIST_ADDQ(&pattern_convs.list, &pckl->list);
+	LIST_ADDQ(&sample_convs.list, &pckl->list);
 }
 
 /*
- * Returns the pointer on pattern fetch keyword structure identified by
+ * Returns the pointer on sample fetch keyword structure identified by
  * string of <len> in buffer <kw>.
  *
  */
-struct pattern_fetch *find_pattern_fetch(const char *kw, int len)
+struct sample_fetch *find_sample_fetch(const char *kw, int len)
 {
 	int index;
-	struct pattern_fetch_kw_list *kwl;
+	struct sample_fetch_kw_list *kwl;
 
-	list_for_each_entry(kwl, &pattern_fetches.list, list) {
+	list_for_each_entry(kwl, &sample_fetches.list, list) {
 		for (index = 0; kwl->kw[index].kw != NULL; index++) {
 			if (strncmp(kwl->kw[index].kw, kw, len) == 0 &&
 			    kwl->kw[index].kw[len] == '\0')
@@ -80,16 +80,16 @@ struct pattern_fetch *find_pattern_fetch(const char *kw, int len)
 }
 
 /*
- * Returns the pointer on pattern format conversion keyword structure identified by
+ * Returns the pointer on sample format conversion keyword structure identified by
  * string of <len> in buffer <kw>.
  *
  */
-struct pattern_conv *find_pattern_conv(const char *kw, int len)
+struct sample_conv *find_sample_conv(const char *kw, int len)
 {
 	int index;
-	struct pattern_conv_kw_list *kwl;
+	struct sample_conv_kw_list *kwl;
 
-	list_for_each_entry(kwl, &pattern_convs.list, list) {
+	list_for_each_entry(kwl, &sample_convs.list, list) {
 		for (index = 0; kwl->kw[index].kw != NULL; index++) {
 			if (strncmp(kwl->kw[index].kw, kw, len) == 0 &&
 			    kwl->kw[index].kw[len] == '\0')
@@ -101,23 +101,23 @@ struct pattern_conv *find_pattern_conv(const char *kw, int len)
 
 
 /*
-* Returns a static trash struct chunk to use in pattern casts or format conversions
+* Returns a static trash struct chunk to use in sample casts or format conversions
 * Swiths the 2 available trash buffers to protect data during convert
 */
 static struct chunk *get_trash_chunk(void)
 {
-	if (pattern_trash_buf == pattern_trash_buf1)
-		pattern_trash_buf = pattern_trash_buf2;
+	if (sample_trash_buf == sample_trash_buf1)
+		sample_trash_buf = sample_trash_buf2;
 	else
-		pattern_trash_buf = pattern_trash_buf1;
+		sample_trash_buf = sample_trash_buf1;
 
-	chunk_init(&trash_chunk, pattern_trash_buf, BUFSIZE);
+	chunk_init(&trash_chunk, sample_trash_buf, BUFSIZE);
 
 	return &trash_chunk;
 }
 
 /******************************************************************/
-/*          Pattern casts functions                               */
+/*          Sample casts functions                                */
 /*   Note: these functions do *NOT* set the output type on the    */
 /*   sample, the caller is responsible for doing this on return.  */
 /******************************************************************/
@@ -236,13 +236,13 @@ static int c_str2int(struct sample *smp)
 }
 
 /*****************************************************************/
-/*      Pattern casts matrix:                                    */
-/*           pattern_casts[from type][to type]                   */
-/*           NULL pointer used for impossible pattern casts      */
+/*      Sample casts matrix:                                     */
+/*           sample_casts[from type][to type]                    */
+/*           NULL pointer used for impossible sample casts       */
 /*****************************************************************/
 
-typedef int (*pattern_cast_fct)(struct sample *smp);
-static pattern_cast_fct pattern_casts[SMP_TYPES][SMP_TYPES] = {
+typedef int (*sample_cast_fct)(struct sample *smp);
+static sample_cast_fct sample_casts[SMP_TYPES][SMP_TYPES] = {
 /*            to:  BOOL       UINT       SINT       IPV4      IPV6        STR         BIN        CSTR        CBIN   */
 /* from: BOOL */ { c_none,    c_none,    c_none,    NULL,     NULL,       NULL,       NULL,      NULL,       NULL   },
 /*       UINT */ { c_none,    c_none,    c_none,    c_int2ip, NULL,       c_int2str,  NULL,      c_int2str,  NULL   },
@@ -256,17 +256,17 @@ static pattern_cast_fct pattern_casts[SMP_TYPES][SMP_TYPES] = {
 };
 
 /*
- * Parse a pattern expression configuration:
+ * Parse a sample expression configuration:
  *        fetch keyword followed by format conversion keywords.
- * Returns a pointer on allocated pattern expression structure.
+ * Returns a pointer on allocated sample expression structure.
  */
-struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err_size)
+struct sample_expr *sample_parse_expr(char **str, int *idx, char *err, int err_size)
 {
 	const char *endw;
 	const char *end;
-	struct pattern_expr *expr;
-	struct pattern_fetch *fetch;
-	struct pattern_conv *conv;
+	struct sample_expr *expr;
+	struct sample_fetch *fetch;
+	struct sample_conv *conv;
 	unsigned long prev_type;
 	char *p;
 
@@ -291,7 +291,7 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err
 		goto out_error;
 	}
 
-	fetch = find_pattern_fetch(str[*idx], endw - str[*idx]);
+	fetch = find_sample_fetch(str[*idx], endw - str[*idx]);
 	if (!fetch) {
 		p = my_strndup(str[*idx], endw - str[*idx]);
 		if (p) {
@@ -311,7 +311,7 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err
 	}
 
 	prev_type = fetch->out_type;
-	expr = calloc(1, sizeof(struct pattern_expr));
+	expr = calloc(1, sizeof(struct sample_expr));
 	if (!expr)
 		goto out_error;
 
@@ -361,7 +361,7 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err
 	}
 
 	for (*idx += 1; *(str[*idx]); (*idx)++) {
-		struct pattern_conv_expr *conv_expr;
+		struct sample_conv_expr *conv_expr;
 
 		end = str[*idx] + strlen(str[*idx]);
 		endw = strchr(str[*idx], '(');
@@ -377,7 +377,7 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err
 			goto out_error;
 		}
 
-		conv = find_pattern_conv(str[*idx], endw - str[*idx]);
+		conv = find_sample_conv(str[*idx], endw - str[*idx]);
 		if (!conv)
 			break;
 
@@ -392,7 +392,7 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err
 		}
 
 		/* If impossible type conversion */
-		if (!pattern_casts[prev_type][conv->in_type]) {
+		if (!sample_casts[prev_type][conv->in_type]) {
 			p = my_strndup(str[*idx], endw - str[*idx]);
 			if (p) {
 				snprintf(err, err_size, "conv method '%s' cannot be applied.", p);
@@ -402,7 +402,7 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err
 		}
 
 		prev_type = conv->out_type;
-		conv_expr = calloc(1, sizeof(struct pattern_conv_expr));
+		conv_expr = calloc(1, sizeof(struct sample_conv_expr));
 		if (!conv_expr)
 			goto out_error;
 
@@ -457,27 +457,27 @@ struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err
 	return expr;
 
 out_error:
-	/* TODO: prune_pattern_expr(expr); */
+	/* TODO: prune_sample_expr(expr); */
 	return NULL;
 }
 
 /*
- * Process a fetch + format conversion of defined by the pattern expression <expr>
+ * Process a fetch + format conversion of defined by the sample expression <expr>
  * on request or response considering the <opt> parameter.
- * Returns a pointer on a typed pattern structure containing the result or NULL if
- * pattern is not found or when format conversion failed.
+ * Returns a pointer on a typed sample structure containing the result or NULL if
+ * sample is not found or when format conversion failed.
  *  If <p> is not null, function returns results in structure pointed by <p>.
- *  If <p> is null, functions returns a pointer on a static pattern structure.
+ *  If <p> is null, functions returns a pointer on a static sample structure.
  *
  * Note: the fetch functions are required to properly set the return type. The
  * conversion functions must do so too. However the cast functions do not need
  * to since they're made to cast mutiple types according to what is required.
  */
-struct sample *pattern_process(struct proxy *px, struct session *l4, void *l7,
-			       unsigned int opt,
-                               struct pattern_expr *expr, struct sample *p)
+struct sample *sample_process(struct proxy *px, struct session *l4, void *l7,
+                              unsigned int opt,
+                              struct sample_expr *expr, struct sample *p)
 {
-	struct pattern_conv_expr *conv_expr;
+	struct sample_conv_expr *conv_expr;
 
 	if (p == NULL)
 		p = &temp_smp;
@@ -487,7 +487,7 @@ struct sample *pattern_process(struct proxy *px, struct session *l4, void *l7,
 		return NULL;
 
 	if (p->flags & SMP_F_MAY_CHANGE)
-		return NULL; /* we can only use stable patterns */
+		return NULL; /* we can only use stable samples */
 
 	list_for_each_entry(conv_expr, &expr->conv_exprs, list) {
 		/* we want to ensure that p->type can be casted into
@@ -496,11 +496,11 @@ struct sample *pattern_process(struct proxy *px, struct session *l4, void *l7,
 		 *  - c_none => nothing to do (let's optimize it)
 		 *  - other  => apply cast and prepare to fail
 		 */
-		if (!pattern_casts[p->type][conv_expr->conv->in_type])
+		if (!sample_casts[p->type][conv_expr->conv->in_type])
 			return NULL;
 
-		if (pattern_casts[p->type][conv_expr->conv->in_type] != c_none &&
-		    !pattern_casts[p->type][conv_expr->conv->in_type](p))
+		if (sample_casts[p->type][conv_expr->conv->in_type] != c_none &&
+		    !sample_casts[p->type][conv_expr->conv->in_type](p))
 			return NULL;
 
 		/* OK cast succeeded */
@@ -514,11 +514,11 @@ struct sample *pattern_process(struct proxy *px, struct session *l4, void *l7,
 }
 
 /*****************************************************************/
-/*    Pattern format convert functions                           */
+/*    Sample format convert functions                            */
 /*    These functions set the data type on return.               */
 /*****************************************************************/
 
-static int pattern_conv_str2lower(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_str2lower(const struct arg *arg_p, struct sample *smp)
 {
 	int i;
 
@@ -533,7 +533,7 @@ static int pattern_conv_str2lower(const struct arg *arg_p, struct sample *smp)
 	return 1;
 }
 
-static int pattern_conv_str2upper(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_str2upper(const struct arg *arg_p, struct sample *smp)
 {
 	int i;
 
@@ -549,7 +549,7 @@ static int pattern_conv_str2upper(const struct arg *arg_p, struct sample *smp)
 }
 
 /* takes the netmask in arg_p */
-static int pattern_conv_ipmask(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_ipmask(const struct arg *arg_p, struct sample *smp)
 {
 	smp->data.ipv4.s_addr &= arg_p->data.ipv4.s_addr;
 	smp->type = SMP_T_IPV4;
@@ -557,16 +557,16 @@ static int pattern_conv_ipmask(const struct arg *arg_p, struct sample *smp)
 }
 
 /* Note: must not be declared <const> as its list will be overwritten */
-static struct pattern_conv_kw_list pattern_conv_kws = {{ },{
-	{ "upper",  pattern_conv_str2upper, 0,            NULL, SMP_T_STR,  SMP_T_STR  },
-	{ "lower",  pattern_conv_str2lower, 0,            NULL, SMP_T_STR,  SMP_T_STR  },
-	{ "ipmask", pattern_conv_ipmask,    ARG1(1,MSK4), NULL, SMP_T_IPV4, SMP_T_IPV4 },
+static struct sample_conv_kw_list sample_conv_kws = {{ },{
+	{ "upper",  sample_conv_str2upper, 0,            NULL, SMP_T_STR,  SMP_T_STR  },
+	{ "lower",  sample_conv_str2lower, 0,            NULL, SMP_T_STR,  SMP_T_STR  },
+	{ "ipmask", sample_conv_ipmask,    ARG1(1,MSK4), NULL, SMP_T_IPV4, SMP_T_IPV4 },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 
 __attribute__((constructor))
-static void __pattern_init(void)
+static void __sample_init(void)
 {
-	/* register pattern format convert keywords */
-	pattern_register_convs(&pattern_conv_kws);
+	/* register sample format convert keywords */
+	sample_register_convs(&sample_conv_kws);
 }

@@ -758,7 +758,7 @@ static void deinit_tcp_rules(struct list *rules)
 	}
 }
 
-static void deinit_pattern_arg(struct arg *p)
+static void deinit_sample_arg(struct arg *p)
 {
 	struct arg *p_back = p;
 
@@ -786,10 +786,10 @@ static void deinit_stick_rules(struct list *rules)
 		LIST_DEL(&rule->list);
 		deinit_acl_cond(rule->cond);
 		if (rule->expr) {
-			struct pattern_conv_expr *conv_expr, *conv_exprb;
+			struct sample_conv_expr *conv_expr, *conv_exprb;
 			list_for_each_entry_safe(conv_expr, conv_exprb, &rule->expr->conv_exprs, list)
-				deinit_pattern_arg(conv_expr->arg_p);
-			deinit_pattern_arg(rule->expr->arg_p);
+				deinit_sample_arg(conv_expr->arg_p);
+			deinit_sample_arg(rule->expr->arg_p);
 			free(rule->expr);
 		}
 		free(rule);

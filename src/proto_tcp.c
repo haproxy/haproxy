@@ -1258,7 +1258,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 /************************************************************************/
 
 /* Fetch the request RDP cookie identified in the args, or any cookie if no arg
- * is passed. It is usable both for ACL and for patterns. Note: this decoder
+ * is passed. It is usable both for ACL and for samples. Note: this decoder
  * only works with non-wrapping data. Accepts either 0 or 1 argument. Argument
  * is a string (cookie name), other types will lead to undefined behaviour.
  */
@@ -1397,8 +1397,8 @@ smp_fetch_src(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 
 /* extract the connection's source ipv6 address */
 static int
-pattern_fetch_src6(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                  const struct arg *arg_p, struct sample *smp)
+smp_fetch_src6(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+               const struct arg *arg_p, struct sample *smp)
 {
 	if (l4->si[0].addr.from.ss_family != AF_INET6)
 		return 0;
@@ -1447,8 +1447,8 @@ smp_fetch_dst(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 
 /* extract the connection's destination ipv6 address */
 static int
-pattern_fetch_dst6(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                  const struct arg *arg_p, struct sample *smp)
+smp_fetch_dst6(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+               const struct arg *arg_p, struct sample *smp)
 {
 	stream_sock_get_to_addr(&l4->si[0]);
 
@@ -1638,11 +1638,11 @@ static struct acl_kw_list acl_kws = {{ },{
  * common denominator, the type that can be casted into all other ones. For
  * instance v4/v6 must be declared v4.
  */
-static struct pattern_fetch_kw_list pattern_fetch_keywords = {{ },{
+static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
 	{ "src",         smp_fetch_src,           0,                      NULL,           SMP_T_IPV4, SMP_CAP_REQ|SMP_CAP_RES },
-	{ "src6",        pattern_fetch_src6,      0,                      NULL,           SMP_T_IPV6, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "src6",        smp_fetch_src6,          0,                      NULL,           SMP_T_IPV6, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "dst",         smp_fetch_dst,           0,                      NULL,           SMP_T_IPV4, SMP_CAP_REQ|SMP_CAP_RES },
-	{ "dst6",        pattern_fetch_dst6,      0,                      NULL,           SMP_T_IPV6, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "dst6",        smp_fetch_dst6,          0,                      NULL,           SMP_T_IPV6, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "dst_port",    smp_fetch_dport,         0,                      NULL,           SMP_T_UINT, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "payload",     smp_fetch_payload,       ARG2(2,UINT,UINT),      val_payload,    SMP_T_CBIN, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "payload_lv",  smp_fetch_payload_lv,    ARG3(2,UINT,UINT,SINT), val_payload_lv, SMP_T_CBIN, SMP_CAP_REQ|SMP_CAP_RES },
@@ -1656,7 +1656,7 @@ static void __tcp_protocol_init(void)
 {
 	protocol_register(&proto_tcpv4);
 	protocol_register(&proto_tcpv6);
-	pattern_register_fetches(&pattern_fetch_keywords);
+	sample_register_fetches(&sample_fetch_keywords);
 	cfg_register_keywords(&cfg_kws);
 	acl_register_keywords(&acl_kws);
 }

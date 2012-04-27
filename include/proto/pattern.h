@@ -25,10 +25,10 @@
 #include <types/pattern.h>
 #include <types/stick_table.h>
 
-struct pattern_expr *pattern_parse_expr(char **str, int *idx, char *err, int err_size);
-struct sample *pattern_process(struct proxy *px, struct session *l4,
-                               void *l7, unsigned int dir, struct pattern_expr *expr,
+struct sample_expr *sample_parse_expr(char **str, int *idx, char *err, int err_size);
+struct sample *sample_process(struct proxy *px, struct session *l4,
+                               void *l7, unsigned int dir, struct sample_expr *expr,
                                struct sample *p);
-void pattern_register_fetches(struct pattern_fetch_kw_list *psl);
-void pattern_register_convs(struct pattern_conv_kw_list *psl);
+void sample_register_fetches(struct sample_fetch_kw_list *psl);
+void sample_register_convs(struct sample_conv_kw_list *psl);
 #endif

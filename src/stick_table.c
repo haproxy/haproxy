@@ -30,7 +30,7 @@
 #include <proto/peers.h>
 #include <types/global.h>
 
-/* structure used to return a table key built from a pattern */
+/* structure used to return a table key built from a sample */
 struct stktable_key static_table_key;
 
 /*
@@ -445,7 +445,7 @@ int stktable_parse_type(char **args, int *myidx, unsigned long *type, size_t *ke
 }
 
 /*****************************************************************/
-/*    typed pattern to typed table key functions                 */
+/*    typed sample to typed table key functions                  */
 /*****************************************************************/
 
 static void *k_int2int(struct sample *smp, union stktable_key_data *kdata, size_t *len)
@@ -558,9 +558,9 @@ static void *k_str2int(struct sample *smp, union stktable_key_data *kdata, size_
 }
 
 /*****************************************************************/
-/*      typed pattern to typed table key matrix:                 */
-/*         pattern_to_key[from pattern type][to table key type]  */
-/*         NULL pointer used for impossible pattern casts        */
+/*      typed sample to typed table key matrix:                  */
+/*         sample_to_key[from sample type][to table key type]    */
+/*         NULL pointer used for impossible sample casts         */
 /*****************************************************************/
 
 /*
@@ -569,8 +569,8 @@ static void *k_str2int(struct sample *smp, union stktable_key_data *kdata, size_
  * relevant and could cause confusion in configuration.
  */
 
-typedef void *(*pattern_to_key_fct)(struct sample *smp, union stktable_key_data *kdata, size_t *len);
-static pattern_to_key_fct pattern_to_key[SMP_TYPES][STKTABLE_TYPES] = {
+typedef void *(*sample_to_key_fct)(struct sample *smp, union stktable_key_data *kdata, size_t *len);
+static sample_to_key_fct sample_to_key[SMP_TYPES][STKTABLE_TYPES] = {
 /*       table type:   IP          IPV6         INTEGER    STRING      BINARY    */
 /* patt. type: BOOL */ { NULL,     NULL,        k_int2int, k_int2str,  NULL      },
 /*             UINT */ { k_int2ip, NULL,        k_int2int, k_int2str,  NULL      },
@@ -585,26 +585,26 @@ static pattern_to_key_fct pattern_to_key[SMP_TYPES][STKTABLE_TYPES] = {
 
 
 /*
- * Process a fetch + format conversion as defined by the pattern expression <expr>
+ * Process a fetch + format conversion as defined by the sample expression <expr>
  * on request or response considering the <opt> parameter. Returns either NULL if
  * no key could be extracted, or a pointer to the converted result stored in
  * static_table_key in format <table_type>.
  */
 struct stktable_key *stktable_fetch_key(struct stktable *t, struct proxy *px, struct session *l4, void *l7,
 					unsigned int opt,
-                                        struct pattern_expr *expr)
+                                        struct sample_expr *expr)
 {
 	struct sample *smp;
 
-	smp = pattern_process(px, l4, l7, opt, expr, NULL);
+	smp = sample_process(px, l4, l7, opt, expr, NULL);
 	if (!smp)
 		return NULL;
 
-	if (!pattern_to_key[smp->type][t->type])
+	if (!sample_to_key[smp->type][t->type])
 		return NULL;
 
 	static_table_key.key_len = t->key_size;
-	static_table_key.key = pattern_to_key[smp->type][t->type](smp, &static_table_key.data, &static_table_key.key_len);
+	static_table_key.key = sample_to_key[smp->type][t->type](smp, &static_table_key.data, &static_table_key.key_len);
 
 	if (!static_table_key.key)
 		return NULL;
@@ -642,22 +642,22 @@ struct stktable_key *stktable_fetch_key(struct stktable *t, struct proxy *px, st
 }
 
 /*
- * Returns 1 if pattern expression <expr> result can be converted to table key of
+ * Returns 1 if sample expression <expr> result can be converted to table key of
  * type <table_type>, otherwise zero. Used in configuration check.
  */
-int stktable_compatible_pattern(struct pattern_expr *expr, unsigned long table_type)
+int stktable_compatible_sample(struct sample_expr *expr, unsigned long table_type)
 {
 	if (table_type >= STKTABLE_TYPES)
 		return 0;
 
 	if (LIST_ISEMPTY(&expr->conv_exprs)) {
-		if (!pattern_to_key[expr->fetch->out_type][table_type])
+		if (!sample_to_key[expr->fetch->out_type][table_type])
 			return 0;
 	} else {
-		struct pattern_conv_expr *conv_expr;
+		struct sample_conv_expr *conv_expr;
 		conv_expr = LIST_PREV(&expr->conv_exprs, typeof(conv_expr), list);
 
-		if (!pattern_to_key[conv_expr->conv->out_type][table_type])
+		if (!sample_to_key[conv_expr->conv->out_type][table_type])
 			return 0;
 	}
 	return 1;

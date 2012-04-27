@@ -106,27 +106,27 @@ struct sample {
 	union smp_ctx ctx;
 };
 
-/* pattern conversion */
-struct pattern_conv {
+/* Descriptor for a sample conversion */
+struct sample_conv {
 	const char *kw;                           /* configuration keyword  */
 	int (*process)(const struct arg *arg_p,
 		       struct sample *smp);       /* process function */
 	unsigned int arg_mask;                    /* arguments (ARG*()) */
 	int (*val_args)(struct arg *arg_p,
 			char **err_msg);          /* argument validation function */
-	unsigned int in_type;                     /* input needed pattern type */
-	unsigned int out_type;                    /* output pattern type */
+	unsigned int in_type;                     /* expected input sample type */
+	unsigned int out_type;                    /* output sample type */
 };
 
-/* pattern conversion expression */
-struct pattern_conv_expr {
-	struct list list;                         /* member of a pattern expression */
-	struct pattern_conv *conv;                /* pattern conversion */
-	struct arg *arg_p;                        /* pointer on args */
+/* sample conversion expression */
+struct sample_conv_expr {
+	struct list list;                         /* member of a sample_expr */
+	struct sample_conv *conv;                 /* sample conversion used */
+	struct arg *arg_p;                        /* optional arguments */
 };
 
-/* pattern fetch */
-struct pattern_fetch {
+/* Descriptor for a sample fetch method */
+struct sample_fetch {
 	const char *kw;                           /* configuration keyword */
 	int (*process)(struct proxy *px,
 	               struct session *l4,
@@ -137,28 +137,28 @@ struct pattern_fetch {
 	unsigned int arg_mask;                    /* arguments (ARG*()) */
 	int (*val_args)(struct arg *arg_p,
 			char **err_msg);          /* argument validation function */
-	unsigned long out_type;                   /* output pattern type */
+	unsigned long out_type;                   /* output sample type */
 	unsigned int cap;                         /* fetch capabilities (SMP_CAP_*) */
 };
 
-/* pattern expression */
-struct pattern_expr {
-	struct list list;                         /* member of list of pattern, currently not used */
-	struct pattern_fetch *fetch;              /* pattern fetch */
-	struct arg *arg_p;                        /* pointer on args */
+/* sample expression */
+struct sample_expr {
+	struct list list;                         /* member of list of sample, currently not used */
+	struct sample_fetch *fetch;               /* sample fetch method */
+	struct arg *arg_p;                        /* optional pointer to arguments to fetch function */
 	struct list conv_exprs;                   /* list of conversion expression to apply */
 };
 
-/* pattern fetch keywords list */
-struct pattern_fetch_kw_list {
-	struct list list;                         /* head of pattern fetch keyword list */
-	struct pattern_fetch kw[VAR_ARRAY];       /* array of pattern fetches */
+/* sample fetch keywords list */
+struct sample_fetch_kw_list {
+	struct list list;                         /* head of sample fetch keyword list */
+	struct sample_fetch kw[VAR_ARRAY];        /* array of sample fetch descriptors */
 };
 
-/* pattern conversion keywords list */
-struct pattern_conv_kw_list {
-	struct list list;                         /* head of pattern conversion keyword list */
-	struct pattern_conv kw[VAR_ARRAY];        /* array of pattern ions */
+/* sample conversion keywords list */
+struct sample_conv_kw_list {
+	struct list list;                         /* head of sample conversion keyword list */
+	struct sample_conv kw[VAR_ARRAY];         /* array of sample conversion descriptors */
 };
 
 #endif /* _TYPES_PATTERN_H */
