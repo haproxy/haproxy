@@ -42,11 +42,11 @@
 #include <proto/buffers.h>
 #include <proto/frontend.h>
 #include <proto/log.h>
-#include <proto/pattern.h>
 #include <proto/port_range.h>
 #include <proto/protocols.h>
 #include <proto/proto_tcp.h>
 #include <proto/proxy.h>
+#include <proto/sample.h>
 #include <proto/session.h>
 #include <proto/stick_table.h>
 #include <proto/stream_sock.h>

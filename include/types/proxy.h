@@ -36,7 +36,6 @@
 #include <eb32tree.h>
 
 #include <types/acl.h>
-#include <types/pattern.h>
 #include <types/backend.h>
 #include <types/buffers.h>
 #include <types/counters.h>
@@ -44,6 +43,7 @@
 #include <types/log.h>
 #include <types/protocols.h>
 #include <types/proto_http.h>
+#include <types/sample.h>
 #include <types/session.h>
 #include <types/server.h>
 #include <types/stick_table.h>

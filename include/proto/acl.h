@@ -24,7 +24,7 @@
 
 #include <common/config.h>
 #include <types/acl.h>
-#include <proto/pattern.h>
+#include <proto/sample.h>
 
 /*
  * FIXME: we need destructor functions too !

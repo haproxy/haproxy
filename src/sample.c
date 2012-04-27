@@ -1,7 +1,8 @@
 /*
- * Patterns management functions.
+ * Sample management functions.
  *
  * Copyright 2009-2010 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
+ * Copyright (C) 2012 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -13,10 +14,11 @@
 #include <string.h>
 #include <arpa/inet.h>
 
-#include <proto/arg.h>
-#include <proto/pattern.h>
-#include <proto/buffers.h>
 #include <common/standard.h>
+
+#include <proto/arg.h>
+#include <proto/buffers.h>
+#include <proto/sample.h>
 
 /* static sample used in sample_process() when <p> is NULL */
 static struct sample temp_smp;

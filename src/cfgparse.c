@@ -51,7 +51,6 @@
 #include <proto/lb_fwrr.h>
 #include <proto/lb_map.h>
 #include <proto/log.h>
-#include <proto/pattern.h>
 #include <proto/port_range.h>
 #include <proto/protocols.h>
 #include <proto/proto_tcp.h>
@@ -59,6 +58,7 @@
 #include <proto/proto_http.h>
 #include <proto/proxy.h>
 #include <proto/peers.h>
+#include <proto/sample.h>
 #include <proto/server.h>
 #include <proto/session.h>
 #include <proto/task.h>

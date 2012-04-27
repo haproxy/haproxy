@@ -28,8 +28,8 @@
 
 #include <types/arg.h>
 #include <types/auth.h>
-#include <types/pattern.h>
 #include <types/proxy.h>
+#include <types/sample.h>
 #include <types/server.h>
 #include <types/session.h>
 

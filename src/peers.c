@@ -32,7 +32,6 @@
 #include <proto/fd.h>
 #include <proto/log.h>
 #include <proto/hdr_idx.h>
-#include <proto/pattern.h>
 #include <proto/protocols.h>
 #include <proto/proto_tcp.h>
 #include <proto/proto_http.h>

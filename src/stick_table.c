@@ -22,8 +22,8 @@
 #include <ebmbtree.h>
 #include <ebsttree.h>
 
-#include <proto/pattern.h>
 #include <proto/proxy.h>
+#include <proto/sample.h>
 #include <proto/session.h>
 #include <proto/stick_table.h>
 #include <proto/task.h>

@@ -1,8 +1,9 @@
 /*
- * include/types/pattern.h
- * Macros, variables and structures for patterns management.
+ * include/types/sample.h
+ * Macros, variables and structures for sample management.
  *
  * Copyright (C) 2009-2010 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
+ * Copyright (C) 2012 Willy Tarreau <w@1wt.eu>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,8 +20,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_PATTERN_H
-#define _TYPES_PATTERN_H
+#ifndef _TYPES_SAMPLE_H
+#define _TYPES_SAMPLE_H
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -161,4 +162,4 @@ struct sample_conv_kw_list {
 	struct sample_conv kw[VAR_ARRAY];         /* array of sample conversion descriptors */
 };
 
-#endif /* _TYPES_PATTERN_H */
+#endif /* _TYPES_SAMPLE_H */

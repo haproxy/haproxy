@@ -52,11 +52,11 @@
 #include <proto/frontend.h>
 #include <proto/log.h>
 #include <proto/hdr_idx.h>
-#include <proto/pattern.h>
 #include <proto/proto_tcp.h>
 #include <proto/proto_http.h>
 #include <proto/proxy.h>
 #include <proto/queue.h>
+#include <proto/sample.h>
 #include <proto/server.h>
 #include <proto/session.h>
 #include <proto/stream_interface.h>
