@@ -8448,6 +8448,12 @@ The list of currently supported pattern fetch functions is the following :
                last one. A typical use is with the X-Forwarded-For header once
                converted to IP, associated with an IP stick-table.
 
+  path         This extracts the request's URL path (without the host part). A
+               typical use is with prefetch-capable caches, and with portals
+               which need to aggregate multiple information from databases and
+               keep them in caches. Note that with outgoing caches, it would be
+               wiser to use "url" instead.
+
   payload(<offset>,<length>)
                This extracts a binary block of <length> bytes, and starting
                at bytes <offset> in the buffer of request or response (request
@@ -8468,6 +8474,21 @@ The list of currently supported pattern fetch functions is the following :
                which is the port the client connected from. It is very unlikely
                that this function will be useful but it's available at no cost.
                It is of type integer and only works with such tables.
+
+  url          This extracts the request's URL as presented in the request. A
+               typical use is with prefetch-capable caches, and with portals
+               which need to aggregate multiple information from databases and
+               keep them in caches. See also "path".
+
+  url_ip       This extracts the IP address from the request's URL when the
+               host part is presented as an IP address. Its use is very
+               limited. For instance, a monitoring system might use this field
+               as an alternative for the source IP in order to test what path a
+               given source address would follow, or to force an entry in a
+               table for a given source address.
+
+  url_port     This extracts the port part from the request's URL. It probably
+               is totally useless but it was available at no cost.
 
   url_param(<name>)
                This extracts the first occurrence of the parameter <name> in
