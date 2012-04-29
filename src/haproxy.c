@@ -1292,14 +1292,13 @@ int main(int argc, char **argv)
 
 	/* chroot if needed */
 	if (global.chroot != NULL) {
-		if (chroot(global.chroot) == -1) {
+		if (chroot(global.chroot) == -1 || chdir("/") == -1) {
 			Alert("[%s.main()] Cannot chroot(%s).\n", argv[0], global.chroot);
 			if (nb_oldpids)
 				tell_old_pids(SIGTTIN);
 			protocol_unbind_all();
 			exit(1);
 		}
-		chdir("/");
 	}
 
 	if (nb_oldpids)

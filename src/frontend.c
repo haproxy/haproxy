@@ -181,7 +181,7 @@ int frontend_accept(struct session *s)
 			break;
 		}
 
-		write(1, trash, len);
+		if (write(1, trash, len) < 0) /* shut gcc warning */;
 	}
 
 	if (s->fe->mode == PR_MODE_HTTP)

@@ -103,7 +103,7 @@ static struct task *appsession_refresh(struct task *t)
 						*/
 						len = sprintf(trash, "appsession_refresh: cleaning up expired Session '%s' on Server %s\n", 
 							      element->sessid, element->serverid?element->serverid:"(null)");
-						write(1, trash, len);
+						if (write(1, trash, len) < 0) /* shut gcc warning */;
 					}
 					/* delete the expired element from within the hash table */
 					LIST_DEL(&element->hash_list);

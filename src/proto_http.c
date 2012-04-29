@@ -7347,7 +7347,7 @@ void debug_hdr(const char *dir, struct session *t, const char *start, const char
 	UBOUND(max, sizeof(trash) - len - 1);
 	len += strlcpy2(trash + len, start, max + 1);
 	trash[len++] = '\n';
-	write(1, trash, len);
+	if (write(1, trash, len) < 0) /* shut gcc warning */;
 }
 
 /*
