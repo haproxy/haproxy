@@ -8041,6 +8041,50 @@ smp_fetch_path(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 	return 1;
 }
 
+/* This produces a concatenation of the first occurrence of the Host header
+ * followed by the path component if it begins with a slash ('/'). This means
+ * that '*' will not be added, resulting in exactly the first Host entry.
+ * If no Host header is found, then the path is returned as-is. The returned
+ * value is stored in the trash so it does not need to be marked constant.
+ */
+static int
+smp_fetch_base(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+               const struct arg *args, struct sample *smp)
+{
+	struct http_txn *txn = l7;
+	char *ptr, *end, *beg;
+	struct hdr_ctx ctx;
+
+	CHECK_HTTP_MESSAGE_FIRST();
+
+	ctx.idx = 0;
+	if (!http_find_header2("Host", 4, txn->req.buf->p + txn->req.sol, &txn->hdr_idx, &ctx) ||
+	    !ctx.vlen)
+		return smp_fetch_path(px, l4, l7, opt, args, smp);
+
+	/* OK we have the header value in ctx.line+ctx.val for ctx.vlen bytes */
+	memcpy(trash, ctx.line + ctx.val, ctx.vlen);
+	smp->type = SMP_T_STR;
+	smp->data.str.str = trash;
+	smp->data.str.len = ctx.vlen;
+
+	/* now retrieve the path */
+	end = txn->req.buf->p + txn->req.sol + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
+	beg = http_get_path(txn);
+	if (!beg)
+		beg = end;
+
+	for (ptr = beg; ptr < end && *ptr != '?'; ptr++);
+
+	if (beg < ptr && *beg == '/') {
+		memcpy(smp->data.str.str + smp->data.str.len, beg, ptr - beg);
+		smp->data.str.len += ptr - beg;
+	}
+
+	smp->flags = SMP_F_VOL_1ST;
+	return 1;
+}
+
 static int
 acl_fetch_proto_http(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                      const struct arg *args, struct sample *smp)
@@ -8530,6 +8574,15 @@ static int val_hdr(struct arg *arg, char **err_msg)
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct acl_kw_list acl_kws = {{ },{
+	{ "base",            acl_parse_str,     smp_fetch_base,           acl_match_str,     ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, 0 },
+	{ "base_beg",        acl_parse_str,     smp_fetch_base,           acl_match_beg,     ACL_USE_L7REQ_VOLATILE, 0 },
+	{ "base_dir",        acl_parse_str,     smp_fetch_base,           acl_match_dir,     ACL_USE_L7REQ_VOLATILE, 0 },
+	{ "base_dom",        acl_parse_str,     smp_fetch_base,           acl_match_dom,     ACL_USE_L7REQ_VOLATILE, 0 },
+	{ "base_end",        acl_parse_str,     smp_fetch_base,           acl_match_end,     ACL_USE_L7REQ_VOLATILE, 0 },
+	{ "base_len",        acl_parse_int,     smp_fetch_base,           acl_match_len,     ACL_USE_L7REQ_VOLATILE, 0 },
+	{ "base_reg",        acl_parse_reg,     smp_fetch_base,           acl_match_reg,     ACL_USE_L7REQ_VOLATILE, 0 },
+	{ "base_sub",        acl_parse_str,     smp_fetch_base,           acl_match_sub,     ACL_USE_L7REQ_VOLATILE, 0 },
+
 	{ "cook",            acl_parse_str,     smp_fetch_cookie,         acl_match_str,     ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
 	{ "cook_beg",        acl_parse_str,     smp_fetch_cookie,         acl_match_beg,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
 	{ "cook_cnt",        acl_parse_int,     acl_fetch_cookie_cnt,     acl_match_int,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
@@ -8627,6 +8680,7 @@ static struct acl_kw_list acl_kws = {{ },{
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
 	{ "hdr",        smp_fetch_hdr,            ARG2(1,STR,SINT), val_hdr, SMP_T_CSTR, SMP_CAP_REQ },
+	{ "base",       smp_fetch_base,           0,           NULL, SMP_T_CSTR, SMP_CAP_REQ },
 	{ "path",       smp_fetch_path,           0,           NULL, SMP_T_CSTR, SMP_CAP_REQ },
 	{ "url",        smp_fetch_url,            0,           NULL, SMP_T_CSTR, SMP_CAP_REQ },
 	{ "url_ip",     smp_fetch_url_ip,         0,           NULL, SMP_T_IPV4, SMP_CAP_REQ },

@@ -7968,6 +7968,47 @@ application layer (layer 7). Those require that a full HTTP request has been
 read, and are only evaluated then. They may require slightly more CPU resources
 than the layer 4 ones, but not much since the request and response are indexed.
 
+base <string>
+  Returns true when the concatenation of the first Host header and the path
+  part of the request, which starts at the first slash and ends before the
+  question mark, equals one of the strings. It may be used to match known
+  files in virtual hosting environments, such as "www.example.com/favicon.ico".
+  See also "path" and "uri".
+
+base_beg <string>
+  Returns true when the base (see above) begins with one of the strings. This
+  can be used to send certain directory names to alternative backends. See also
+  "path_beg".
+
+base_dir <string>
+  Returns true when one of the strings is found isolated or delimited with
+  slashes in the base (see above). Probably of little use, see "url_dir" and
+  "path_dir" instead.
+
+base_dom <string>
+  Returns true when one of the strings is found isolated or delimited with dots
+  in the base (see above). Probably of little use, see "path_dom" and "url_dom"
+  instead.
+
+base_end <string>
+  Returns true when the base (see above) ends with one of the strings. This may
+  be used to control file name extension, though "path_end" is cheaper.
+
+base_len <integer>
+  Returns true when the base (see above) length matches the values or ranges
+  specified.  This may be used to detect abusive requests for instance.
+
+base_reg <regex>
+  Returns true when the base (see above) matches one of the regular
+  expressions. It can be used any time, but it is important to remember that
+  regex matching is slower than other methods. See also "path_reg", "url_reg"
+  and all "base_" criteria.
+
+base_sub <string>
+  Returns true when the base (see above) contains one of the strings. It can be
+  used to detect particular patterns in paths, such as "../" for example. See
+  also "base_dir".
+
 cook(<name>) <string>
   All "cook*" matching criteria inspect all "Cookie" headers to find a cookie
   with the name between parenthesis. If multiple occurrences of the cookie are
@@ -8209,11 +8250,12 @@ status <integer>
 
 url <string>
   Applies to the whole URL passed in the request. The only real use is to match
-  "*", for which there already is a predefined ACL.
+  "*", for which there already is a predefined ACL. See also "base".
 
 url_beg <string>
   Returns true when the URL begins with one of the strings. This can be used to
-  check whether a URL begins with a slash or with a protocol scheme.
+  check whether a URL begins with a slash or with a protocol scheme. See also
+  "base_beg".
 
 url_dir <string>
   Returns true when one of the strings is found isolated or delimited with
@@ -8248,7 +8290,7 @@ url_port <integer>
 url_reg <regex>
   Returns true when the URL matches one of the regular expressions. It can be
   used any time, but it is important to remember that regex matching is slower
-  than other methods. See also "path_reg" and all "url_" criteria.
+  than other methods. See also "base_reg", "path_reg" and all "url_" criteria.
 
 url_sub <string>
   Returns true when the URL contains one of the strings. It can be used to
@@ -8420,6 +8462,14 @@ much as possible, the pattern fetch functions use the same name as their
 equivalent used in ACLs.
 
 The list of currently supported pattern fetch functions is the following :
+
+  base         This returns the concatenation of the first Host header and the
+               path part of the request, which starts at the first slash and
+               ends before the question mark. It can be useful in virtual
+               hosted environments to detect URL abuses as well as to improve
+               shared caches efficiency. Using this with a limited size stick
+               table also allows one to collect statistics about most commonly
+               requested objects by host/path.
 
   src          This is the source IPv4 address of the client of the session.
                It is of type IPv4 and works on both IPv4 and IPv6 tables.
