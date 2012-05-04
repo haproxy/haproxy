@@ -295,7 +295,7 @@ int stream_sock_read(int fd) {
 		/*
 		 * 2. read the largest possible block
 		 */
-		ret = recv(fd, buffer_wrap_add(b, b->p + b->i), max, 0);
+		ret = recv(fd, bi_end(b), max, 0);
 
 		if (ret > 0) {
 			b->i += ret;
@@ -311,7 +311,7 @@ int stream_sock_read(int fd) {
 				}
 				b->o += fwd;
 				b->i -= fwd;
-				b->p = buffer_wrap_add(b, b->p + fwd);
+				b->p = b_ptr(b, fwd);
 				b->flags &= ~BF_OUT_EMPTY;
 			}
 
@@ -626,7 +626,7 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 			if (b->flags & BF_SEND_DONTWAIT)
 				send_flag &= ~MSG_MORE;
 
-			ret = send(si->fd, buffer_wrap_sub(b, b->p - b->o), max, send_flag);
+			ret = send(si->fd, bo_ptr(b), max, send_flag);
 		} else {
 			int skerr;
 			socklen_t lskerr = sizeof(skerr);
@@ -635,7 +635,7 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 			if (ret == -1 || skerr)
 				ret = -1;
 			else
-				ret = send(si->fd, buffer_wrap_sub(b, b->p - b->o), max, MSG_DONTWAIT);
+				ret = send(si->fd, bo_ptr(b), max, MSG_DONTWAIT);
 		}
 
 		if (ret > 0) {

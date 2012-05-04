@@ -46,7 +46,7 @@ unsigned long long buffer_forward(struct buffer *buf, unsigned long long bytes)
 	if (!bytes)
 		return 0;
 	if (bytes <= (unsigned long long)buf->i) {
-		buf->p = buffer_wrap_add(buf, buf->p + bytes);
+		buf->p = b_ptr(buf, (unsigned int)bytes);
 		buf->o += bytes;
 		buf->i -= bytes;
 		buf->flags &= ~BF_OUT_EMPTY;
@@ -54,7 +54,7 @@ unsigned long long buffer_forward(struct buffer *buf, unsigned long long bytes)
 	}
 
 	forwarded = buf->i;
-	buf->p = buffer_wrap_add(buf, buf->p + forwarded);
+	buf->p = bi_end(buf);
 	buf->o += forwarded;
 	buf->i = 0;
 
@@ -122,7 +122,7 @@ int buffer_write(struct buffer *buf, const char *msg, int len)
 
 	memcpy(buf->p, msg, len);
 	buf->o += len;
-	buf->p = buffer_wrap_add(buf, buf->p + len);
+	buf->p = b_ptr(buf, len);
 	buf->total += len;
 
 	buf->flags &= ~(BF_OUT_EMPTY|BF_FULL);
@@ -147,7 +147,7 @@ int buffer_put_char(struct buffer *buf, char c)
 	if (buf->flags & BF_FULL)
 		return -1;
 
-	*buffer_wrap_add(buf, buf->p + buf->i) = c;
+	*bi_end(buf) = c;
 
 	buf->i++;
 	if (buffer_len(buf) >= buffer_max_len(buf))
@@ -198,7 +198,7 @@ int buffer_put_block(struct buffer *buf, const char *blk, int len)
 
 	/* OK so the data fits in the buffer in one or two blocks */
 	max = buffer_contig_space_with_res(buf, buf->size - max);
-	memcpy(buffer_wrap_add(buf, buf->p + buf->i), blk, MIN(len, max));
+	memcpy(bi_end(buf), blk, MIN(len, max));
 	if (len > max)
 		memcpy(buf->data, blk + max, len - max);
 
@@ -213,7 +213,7 @@ int buffer_put_block(struct buffer *buf, const char *blk, int len)
 		}
 		buf->o += fwd;
 		buf->i -= fwd;
-		buf->p = buffer_wrap_add(buf, buf->p + fwd);
+		buf->p = b_ptr(buf, fwd);
 		buf->flags &= ~BF_OUT_EMPTY;
 	}
 
@@ -251,7 +251,7 @@ int buffer_get_line(struct buffer *buf, char *str, int len)
 		goto out;
 	}
 
-	p = buffer_wrap_sub(buf, buf->p - buf->o);
+	p = bo_ptr(buf);
 
 	if (max > buf->o) {
 		max = buf->o;
@@ -297,14 +297,14 @@ int buffer_get_block(struct buffer *buf, char *blk, int len, int offset)
 		return 0;
 	}
 
-	firstblock = buf->data + buf->size - buffer_wrap_sub(buf, buf->p - buf->o);
+	firstblock = buf->data + buf->size - bo_ptr(buf);
 	if (firstblock > offset) {
 		if (firstblock >= len + offset) {
-			memcpy(blk, buffer_wrap_sub(buf, buf->p - buf->o) + offset, len);
+			memcpy(blk, bo_ptr(buf) + offset, len);
 			return len;
 		}
 
-		memcpy(blk, buffer_wrap_sub(buf, buf->p - buf->o) + offset, firstblock - offset);
+		memcpy(blk, bo_ptr(buf) + offset, firstblock - offset);
 		memcpy(blk + firstblock - offset, buf->data, len - firstblock + offset);
 		return len;
 	}
@@ -329,16 +329,16 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int
 
 	delta = len - (end - pos);
 
-	if (delta + buffer_wrap_add(b, b->p + b->i) >= b->data + b->size)
+	if (bi_end(b) + delta >= b->data + b->size)
 		return 0;  /* no space left */
 
 	if (buffer_not_empty(b) &&
-	    delta + buffer_wrap_add(b, b->p + b->i) > buffer_wrap_sub(b, b->p - b->o) &&
-	    buffer_wrap_sub(b, b->p - b->o) >= buffer_wrap_add(b, b->p + b->i))
+	    bi_end(b) + delta > bo_ptr(b) &&
+	    bo_ptr(b) >= bi_end(b))
 		return 0;  /* no space left before wrapping data */
 
 	/* first, protect the end of the buffer */
-	memmove(end + delta, end, buffer_wrap_add(b, b->p + b->i) - end);
+	memmove(end + delta, end, bi_end(b) - end);
 
 	/* now, copy str over pos */
 	if (len)
@@ -371,11 +371,11 @@ int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len)
 
 	delta = len + 2;
 
-	if (delta + buffer_wrap_add(b, b->p + b->i) >= b->data + b->size)
+	if (bi_end(b) + delta >= b->data + b->size)
 		return 0;  /* no space left */
 
 	/* first, protect the end of the buffer */
-	memmove(pos + delta, pos, buffer_wrap_add(b, b->p + b->i) - pos);
+	memmove(pos + delta, pos, bi_end(b) - pos);
 
 	/* now, copy str over pos */
 	if (len && str) {
@@ -405,7 +405,7 @@ void buffer_bounce_realign(struct buffer *buf)
 	int advance, to_move;
 	char *from, *to;
 
-	from = buffer_wrap_sub(buf, buf->p - buf->o);
+	from = bo_ptr(buf);
 	advance = buf->data + buf->size - from;
 	if (!advance)
 		return;
@@ -435,11 +435,11 @@ void buffer_bounce_realign(struct buffer *buf)
 			 * empty area is either between buf->r and from or before from or
 			 * after buf->r.
 			 */
-			if (from > buffer_wrap_add(buf, buf->p + buf->i)) {
-				if (to >= buffer_wrap_add(buf, buf->p + buf->i) && to < from)
+			if (from > bi_end(buf)) {
+				if (to >= bi_end(buf) && to < from)
 					break;
-			} else if (from < buffer_wrap_add(buf, buf->p + buf->i)) {
-				if (to < from || to >= buffer_wrap_add(buf, buf->p + buf->i))
+			} else if (from < bi_end(buf)) {
+				if (to < from || to >= bi_end(buf))
 					break;
 			}
 

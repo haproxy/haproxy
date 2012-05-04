@@ -1744,10 +1744,10 @@ void http_change_connection_header(struct http_txn *txn, struct http_msg *msg, i
 int http_parse_chunk_size(struct http_msg *msg)
 {
 	const struct buffer *buf = msg->buf;
-	const char *ptr = buffer_wrap_add(buf, buf->p + msg->next);
+	const char *ptr = b_ptr(buf, msg->next);
 	const char *ptr_old = ptr;
 	const char *end = buf->data + buf->size;
-	const char *stop = buffer_wrap_add(buf, buf->p + buf->i);
+	const char *stop = bi_end(buf);
 	unsigned int chunk = 0;
 
 	/* The chunk size is in the following form, though we are only
@@ -1856,8 +1856,8 @@ int http_forward_trailers(struct http_msg *msg)
 	/* we have msg->next which points to next line. Look for CRLF. */
 	while (1) {
 		const char *p1 = NULL, *p2 = NULL;
-		const char *ptr = buffer_wrap_add(buf, buf->p + msg->next);
-		const char *stop = buffer_wrap_add(buf, buf->p + buf->i);
+		const char *ptr = b_ptr(buf, msg->next);
+		const char *stop = bi_end(buf);
 		int bytes;
 
 		/* scan current line and stop at LF or CRLF */
@@ -1890,7 +1890,7 @@ int http_forward_trailers(struct http_msg *msg)
 		if (p2 >= buf->data + buf->size)
 			p2 = buf->data;
 
-		bytes = p2 - buffer_wrap_add(buf, buf->p + msg->next);
+		bytes = p2 - b_ptr(buf, msg->next);
 		if (bytes < 0)
 			bytes += buf->size;
 
@@ -1899,7 +1899,7 @@ int http_forward_trailers(struct http_msg *msg)
 		if (msg->sov >= buf->size)
 			msg->sov -= buf->size;
 
-		if (p1 == buffer_wrap_add(buf, buf->p + msg->next)) {
+		if (p1 == b_ptr(buf, msg->next)) {
 			/* LF/CRLF at beginning of line => end of trailers at p2.
 			 * Everything was scheduled for forwarding, there's nothing
 			 * left from this message.
@@ -2058,8 +2058,8 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	if (buffer_not_empty(req) && msg->msg_state < HTTP_MSG_ERROR) {
 		if ((txn->flags & TX_NOT_FIRST) &&
 		    unlikely((req->flags & BF_FULL) ||
-			     buffer_wrap_add(req, req->p + req->i) < buffer_wrap_add(req, req->p + msg->next) ||
-			     buffer_wrap_add(req, req->p + req->i) > req->data + req->size - global.tune.maxrewrite)) {
+			     bi_end(req) < b_ptr(req, msg->next) ||
+			     bi_end(req) > req->data + req->size - global.tune.maxrewrite)) {
 			if (req->o) {
 				if (req->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_WRITE_ERROR|BF_WRITE_TIMEOUT))
 					goto failed_keep_alive;
@@ -2068,8 +2068,8 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 				req->flags |= BF_READ_DONTWAIT; /* try to get back here ASAP */
 				return 0;
 			}
-			if (buffer_wrap_add(req, req->p + req->i) < buffer_wrap_add(req, req->p + msg->next) ||
-			    buffer_wrap_add(req, req->p + req->i) > req->data + req->size - global.tune.maxrewrite)
+			if (bi_end(req) < b_ptr(req, msg->next) ||
+			    bi_end(req) > req->data + req->size - global.tune.maxrewrite)
 				http_message_realign(msg);
 		}
 
@@ -2082,8 +2082,8 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 		 */
 		if ((txn->flags & TX_NOT_FIRST) &&
 		    unlikely((s->rep->flags & BF_FULL) ||
-			     buffer_wrap_add(s->rep, s->rep->p + s->rep->i) < buffer_wrap_add(s->rep, s->rep->p + txn->rsp.next) ||
-			     buffer_wrap_add(s->rep, s->rep->p + s->rep->i) > s->rep->data + s->rep->size - global.tune.maxrewrite)) {
+			     bi_end(s->rep) < b_ptr(s->rep, txn->rsp.next) ||
+			     bi_end(s->rep) > s->rep->data + s->rep->size - global.tune.maxrewrite)) {
 			if (s->rep->o) {
 				if (s->rep->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_WRITE_ERROR|BF_WRITE_TIMEOUT))
 					goto failed_keep_alive;
@@ -3812,7 +3812,7 @@ void http_end_txn_clean_session(struct session *s)
 	if (s->req->i) {
 		if (s->rep->o &&
 		    !(s->rep->flags & BF_FULL) &&
-		    buffer_wrap_add(s->rep, s->rep->p + s->rep->i) <= s->rep->data + s->rep->size - global.tune.maxrewrite)
+		    bi_end(s->rep) <= s->rep->data + s->rep->size - global.tune.maxrewrite)
 			s->rep->flags |= BF_EXPECT_MORE;
 	}
 
@@ -4469,8 +4469,8 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	 */
 	if (buffer_not_empty(rep) && msg->msg_state < HTTP_MSG_ERROR) {
 		if (unlikely((rep->flags & BF_FULL) ||
-			     buffer_wrap_add(rep, rep->p + rep->i) < buffer_wrap_add(rep, rep->p + msg->next) ||
-			     buffer_wrap_add(rep, rep->p + rep->i) > rep->data + rep->size - global.tune.maxrewrite)) {
+			     bi_end(rep) < b_ptr(rep, msg->next) ||
+			     bi_end(rep) > rep->data + rep->size - global.tune.maxrewrite)) {
 			if (rep->o) {
 				/* some data has still not left the buffer, wake us once that's done */
 				if (rep->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_WRITE_ERROR|BF_WRITE_TIMEOUT))
@@ -7221,24 +7221,24 @@ void http_capture_bad_message(struct error_snapshot *es, struct session *s,
 {
 	struct buffer *buf = msg->buf;
 
-	if (buffer_wrap_add(buf, buf->p + buf->i) <= (buf->p + msg->som)) { /* message wraps */
+	if (bi_end(buf) <= (buf->p + msg->som)) { /* message wraps */
 		int len1 = buf->size - msg->som - (buf->p - buf->data);
-		es->len = buffer_wrap_add(buf, buf->p + buf->i) - (buf->p + msg->som) + buf->size;
+		es->len = bi_end(buf) - (buf->p + msg->som) + buf->size;
 		memcpy(es->buf, buf->p + msg->som, MIN(len1, sizeof(es->buf)));
 		if (es->len > len1 && len1 < sizeof(es->buf))
 			memcpy(es->buf, buf->data, MIN(es->len, sizeof(es->buf)) - len1);
 	}
 	else {
-		es->len = buffer_wrap_add(buf, buf->p + buf->i) - (buf->p + msg->som);
+		es->len = bi_end(buf) - (buf->p + msg->som);
 		memcpy(es->buf, buf->p + msg->som, MIN(es->len, sizeof(es->buf)));
 	}
 
 	if (msg->err_pos >= 0)
 		es->pos  = msg->err_pos - msg->som - (buf->p - buf->data);
-	else if (buffer_wrap_add(buf, buf->p + msg->next) >= (buf->p + msg->som))
-		es->pos  = buffer_wrap_add(buf, buf->p + msg->next) - (buf->p + msg->som);
+	else if (b_ptr(buf, msg->next) >= (buf->p + msg->som))
+		es->pos  = b_ptr(buf, msg->next) - (buf->p + msg->som);
 	else
-		es->pos  = buffer_wrap_add(buf, buf->p + msg->next) - (buf->p + msg->som) + buf->size;
+		es->pos  = b_ptr(buf, msg->next) - (buf->p + msg->som) + buf->size;
 
 	es->when = date; // user-visible date
 	es->sid  = s->uniq_id;

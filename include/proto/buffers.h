@@ -69,6 +69,75 @@ static inline void buffer_init(struct buffer *buf)
 /* These functions are used to compute various buffer area sizes */
 /*****************************************************************/
 
+/* Returns an absolute pointer for a position relative to the current buffer's
+ * pointer. It is written so that it is optimal when <ofs> is a const. It is
+ * written as a macro instead of an inline function so that the compiler knows
+ * when it can optimize out the sign test on <ofs> when passed an unsigned int.
+ */
+#define b_ptr(b, ofs) \
+	({            \
+		char *__ret = (b)->p + (ofs);                   \
+		if ((ofs) > 0 && __ret >= (b)->data + (b)->size)    \
+			__ret -= (b)->size;                     \
+		else if ((ofs) < 0 && __ret < (b)->data)        \
+			__ret += (b)->size;                     \
+		__ret;                                          \
+	})
+
+/* Returns the start of the input data in a buffer */
+static inline char *bi_ptr(const struct buffer *b)
+{
+	return b->p;
+}
+
+/* Returns the end of the input data in a buffer (pointer to next
+ * insertion point).
+ */
+static inline char *bi_end(const struct buffer *b)
+{
+	char *ret = b->p + b->i;
+
+	if (ret >= b->data + b->size)
+		ret -= b->size;
+	return ret;
+}
+
+/* Returns the amount of input data that can contiguously be read at once */
+static inline int bi_contig_data(const struct buffer *b)
+{
+	int data = b->data + b->size - b->p;
+
+	if (data > b->i)
+		data = b->i;
+	return data;
+}
+
+/* Returns the start of the output data in a buffer */
+static inline char *bo_ptr(const struct buffer *b)
+{
+	char *ret = b->p - b->o;
+
+	if (ret < b->data)
+		ret += b->size;
+	return ret;
+}
+
+/* Returns the end of the output data in a buffer */
+static inline char *bo_end(const struct buffer *b)
+{
+	return b->p;
+}
+
+/* Returns the amount of output data that can contiguously be read at once */
+static inline int bo_contig_data(const struct buffer *b)
+{
+	char *beg = b->p - b->o;
+
+	if (beg < b->data)
+		return b->data - beg;
+	return b->o;
+}
+
 /* Return the buffer's length in bytes by summing the input and the output */
 static inline int buffer_len(const struct buffer *buf)
 {
