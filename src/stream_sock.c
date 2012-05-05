@@ -309,10 +309,7 @@ int stream_sock_read(int fd) {
 						fwd = b->to_forward;
 					b->to_forward -= fwd;
 				}
-				b->o += fwd;
-				b->i -= fwd;
-				b->p = b_ptr(b, fwd);
-				b->flags &= ~BF_OUT_EMPTY;
+				b_adv(b, fwd);
 			}
 
 			if (fdtab[fd].state == FD_STCONN)

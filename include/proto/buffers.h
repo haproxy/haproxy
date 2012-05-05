@@ -242,6 +242,19 @@ static inline int buffer_contig_space(const struct buffer *buf)
 	return right - left;
 }
 
+/* Advances the buffer by <adv> bytes, which means that the buffer
+ * pointer advances, and that as many bytes from in are transferred
+ * to out. The caller is responsible for ensuring that adv is always
+ * smaller than or equal to b->i. The BF_OUT_EMPTY flag is updated.
+ */
+static inline void b_adv(struct buffer *b, unsigned int adv)
+{
+	b->i -= adv;
+	b->o += adv;
+	if (b->o)
+		b->flags &= ~BF_OUT_EMPTY;
+	b->p = b_ptr(b, adv);
+}
 
 /* Return the amount of bytes that can be written into the buffer at once,
  * excluding the amount of reserved space passed in <res>, which is

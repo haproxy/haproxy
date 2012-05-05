@@ -42,29 +42,26 @@ unsigned long long buffer_forward(struct buffer *buf, unsigned long long bytes)
 {
 	unsigned int new_forward;
 	unsigned int forwarded;
+	unsigned int bytes32;
 
-	if (!bytes)
-		return 0;
-	if (bytes <= (unsigned long long)buf->i) {
-		buf->p = b_ptr(buf, (unsigned int)bytes);
-		buf->o += bytes;
-		buf->i -= bytes;
-		buf->flags &= ~BF_OUT_EMPTY;
-		return bytes;
+	bytes32 = bytes;
+
+	/* hint: avoid comparisons on long long for the fast case, since if the
+	 * length does not fit in an unsigned it, it will never be forwarded at
+	 * once anyway.
+	 */
+	if (bytes <= ~0U) {
+		if (bytes32 <= buf->i) {
+			/* OK this amount of bytes might be forwarded at once */
+			if (!bytes32)
+				return 0;
+			b_adv(buf, bytes32);
+			return bytes;
+		}
 	}
 
 	forwarded = buf->i;
-	buf->p = bi_end(buf);
-	buf->o += forwarded;
-	buf->i = 0;
-
-	if (buf->o)
-		buf->flags &= ~BF_OUT_EMPTY;
-
-	if (buf->o < buffer_max_len(buf))
-		buf->flags &= ~BF_FULL;
-	else
-		buf->flags |= BF_FULL;
+	b_adv(buf, buf->i);
 
 	/* Note: the case below is the only case where we may return
 	 * a byte count that does not fit into a 32-bit number.
@@ -211,10 +208,7 @@ int buffer_put_block(struct buffer *buf, const char *blk, int len)
 				fwd = buf->to_forward;
 			buf->to_forward -= fwd;
 		}
-		buf->o += fwd;
-		buf->i -= fwd;
-		buf->p = b_ptr(buf, fwd);
-		buf->flags &= ~BF_OUT_EMPTY;
+		b_adv(buf, fwd);
 	}
 
 	buf->flags &= ~BF_FULL;
