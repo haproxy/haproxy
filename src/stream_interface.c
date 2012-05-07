@@ -313,6 +313,8 @@ struct task *stream_int_register_handler(struct stream_interface *si, struct si_
 	si->sock.shutw   = stream_int_shutw;
 	si->sock.chk_rcv = stream_int_chk_rcv;
 	si->sock.chk_snd = stream_int_chk_snd;
+	si->sock.read    = NULL;
+	si->sock.write   = NULL;
 	si->connect = NULL;
 	set_target_applet(&si->target, app);
 	si->applet.state = 0;
@@ -340,6 +342,8 @@ struct task *stream_int_register_handler_task(struct stream_interface *si,
 	si->sock.shutw   = stream_int_shutw;
 	si->sock.chk_rcv = stream_int_chk_rcv;
 	si->sock.chk_snd = stream_int_chk_snd;
+	si->sock.read    = NULL;
+	si->sock.write   = NULL;
 	si->connect = NULL;
 	clear_target(&si->target);
 	si->release   = NULL;

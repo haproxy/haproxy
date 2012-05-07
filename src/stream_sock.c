@@ -1305,6 +1305,8 @@ void stream_sock_prepare_interface(struct stream_interface *si)
 	si->sock.shutw   = stream_sock_shutw;
 	si->sock.chk_rcv = stream_sock_chk_rcv;
 	si->sock.chk_snd = stream_sock_chk_snd;
+	si->sock.read    = stream_sock_read;
+	si->sock.write   = stream_sock_write;
 }
 
 
