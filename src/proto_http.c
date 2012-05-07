@@ -656,7 +656,7 @@ static void http_server_error(struct session *t, struct stream_interface *si,
 	buffer_auto_read(si->ib);
 	if (status > 0 && msg) {
 		t->txn.status = status;
-		buffer_write(si->ib, msg->str, msg->len);
+		bo_inject(si->ib, msg->str, msg->len);
 	}
 	if (!(t->flags & SN_ERR_MASK))
 		t->flags |= err;
@@ -1308,7 +1308,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 				if (buf->o)
 					goto http_msg_ood;
 				/* Remove empty leading lines, as recommended by RFC2616. */
-				buffer_ignore(buf, ptr - beg);
+				bi_fast_delete(buf, ptr - beg);
 			}
 			msg->sol = msg->som = ptr - buf->p;
 			hdr_idx_init(idx);
@@ -1375,7 +1375,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 				if (buf->o)
 					goto http_msg_ood;
 				/* Remove empty leading lines, as recommended by RFC2616. */
-				buffer_ignore(buf, ptr - beg);
+				bi_fast_delete(buf, ptr - beg);
 			}
 			msg->sol = msg->som = ptr - buf->p;
 			/* we will need this when keep-alive will be supported
@@ -1998,7 +1998,7 @@ void http_message_realign(struct http_msg *msg)
 	}
 
 	buf->flags &= ~BF_FULL;
-	if (buffer_len(buf) >= buffer_max_len(buf))
+	if (bi_full(buf))
 		buf->flags |= BF_FULL;
 }
 
@@ -2994,7 +2994,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 						/* Expect is allowed in 1.1, look for it */
 						if (http_find_header2("Expect", 6, req->p + msg->sol, &txn->hdr_idx, &ctx) &&
 						    unlikely(ctx.vlen == 12 && strncasecmp(ctx.line+ctx.val, "100-continue", 12) == 0)) {
-							buffer_write(s->rep, http_100_chunk.str, http_100_chunk.len);
+							bo_inject(s->rep, http_100_chunk.str, http_100_chunk.len);
 						}
 					}
 					msg->msg_state = HTTP_MSG_100_SENT;
@@ -3154,9 +3154,9 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 				}
 				memcpy(rdr.str + rdr.len, "\r\n\r\n", 4);
 				rdr.len += 4;
-				buffer_write(req->prod->ob, rdr.str, rdr.len);
+				bo_inject(req->prod->ob, rdr.str, rdr.len);
 				/* "eat" the request */
-				buffer_ignore(req, msg->sov - msg->som);
+				bi_fast_delete(req, msg->sov - msg->som);
 				msg->som = msg->sov;
 				req->analysers = AN_REQ_HTTP_XFER_BODY;
 				s->rep->analysers = AN_RES_HTTP_XFER_BODY;
@@ -3568,7 +3568,7 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 			/* Expect is allowed in 1.1, look for it */
 			if (http_find_header2("Expect", 6, req->p + msg->sol, &txn->hdr_idx, &ctx) &&
 			    unlikely(ctx.vlen == 12 && strncasecmp(ctx.line+ctx.val, "100-continue", 12) == 0)) {
-				buffer_write(s->rep, http_100_chunk.str, http_100_chunk.len);
+				bo_inject(s->rep, http_100_chunk.str, http_100_chunk.len);
 			}
 		}
 		msg->msg_state = HTTP_MSG_100_SENT;
@@ -4067,7 +4067,7 @@ int http_sync_res_state(struct session *s)
 	if (txn->rsp.msg_state == HTTP_MSG_CLOSED) {
 	http_msg_closed:
 		/* drop any pending data */
-		buffer_cut_tail(buf);
+		bi_erase(buf);
 		buffer_auto_close(buf);
 		buffer_auto_read(buf);
 		goto wait_other_side;
@@ -4133,7 +4133,7 @@ int http_resync_states(struct session *s)
 		buffer_abort(s->req);
 		buffer_auto_close(s->req);
 		buffer_auto_read(s->req);
-		buffer_cut_tail(s->req);
+		bi_erase(s->req);
 	}
 	else if (txn->req.msg_state == HTTP_MSG_CLOSED &&
 		 txn->rsp.msg_state == HTTP_MSG_DONE &&
@@ -4542,7 +4542,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 			rep->analysers = 0;
 			txn->status = 502;
 			rep->prod->flags |= SI_FL_NOLINGER;
-			buffer_cut_tail(rep);
+			bi_erase(rep);
 			stream_int_retnclose(rep->cons, error_message(s, HTTP_ERR_502));
 
 			if (!(s->flags & SN_ERR_MASK))
@@ -4575,7 +4575,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 			rep->analysers = 0;
 			txn->status = 502;
 			rep->prod->flags |= SI_FL_NOLINGER;
-			buffer_cut_tail(rep);
+			bi_erase(rep);
 			stream_int_retnclose(rep->cons, error_message(s, HTTP_ERR_502));
 
 			if (!(s->flags & SN_ERR_MASK))
@@ -4600,7 +4600,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 			rep->analysers = 0;
 			txn->status = 504;
 			rep->prod->flags |= SI_FL_NOLINGER;
-			buffer_cut_tail(rep);
+			bi_erase(rep);
 			stream_int_retnclose(rep->cons, error_message(s, HTTP_ERR_504));
 
 			if (!(s->flags & SN_ERR_MASK))
@@ -4625,7 +4625,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 			rep->analysers = 0;
 			txn->status = 502;
 			rep->prod->flags |= SI_FL_NOLINGER;
-			buffer_cut_tail(rep);
+			bi_erase(rep);
 			stream_int_retnclose(rep->cons, error_message(s, HTTP_ERR_502));
 
 			if (!(s->flags & SN_ERR_MASK))
@@ -4975,7 +4975,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 					rep->analysers = 0;
 					txn->status = 502;
 					rep->prod->flags |= SI_FL_NOLINGER;
-					buffer_cut_tail(rep);
+					bi_erase(rep);
 					stream_int_retnclose(rep->cons, error_message(t, HTTP_ERR_502));
 					if (!(t->flags & SN_ERR_MASK))
 						t->flags |= SN_ERR_PRXCOND;

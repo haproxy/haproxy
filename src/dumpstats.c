@@ -428,7 +428,7 @@ static int stats_dump_table_head_to_buffer(struct chunk *msg, struct stream_inte
 	if (target && s->listener->perm.ux.level < ACCESS_LVL_OPER)
 		chunk_printf(msg, "# contents not dumped due to insufficient privileges\n");
 
-	if (buffer_feed_chunk(si->ib, msg) >= 0)
+	if (bi_putchk(si->ib, msg) == -1)
 		return 0;
 
 	return 1;
@@ -499,7 +499,7 @@ static int stats_dump_table_entry_to_buffer(struct chunk *msg, struct stream_int
 	}
 	chunk_printf(msg, "\n");
 
-	if (buffer_feed_chunk(si->ib, msg) >= 0)
+	if (bi_putchk(si->ib, msg) == -1)
 		return 0;
 
 	return 1;
@@ -924,7 +924,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 
 			/* return server's effective weight at the moment */
 			snprintf(trash, sizeof(trash), "%d (initial %d)\n", sv->uweight, sv->iweight);
-			buffer_feed(si->ib, trash);
+			bi_putstr(si->ib, trash);
 			return 1;
 		}
 		else { /* not "get weight" */
@@ -1386,7 +1386,7 @@ static void cli_io_handler(struct stream_interface *si)
 			if (buffer_almost_full(si->ib))
 				break;
 
-			reql = buffer_get_line(si->ob, trash, sizeof(trash));
+			reql = bo_getline(si->ob, trash, sizeof(trash));
 			if (reql <= 0) { /* closed or EOL not found */
 				if (reql == 0)
 					break;
@@ -1446,7 +1446,7 @@ static void cli_io_handler(struct stream_interface *si)
 			}
 
 			/* re-adjust req buffer */
-			buffer_skip(si->ob, reql);
+			bo_skip(si->ob, reql);
 			req->flags |= BF_READ_DONTWAIT; /* we plan to read small requests */
 		}
 		else {	/* output functions: first check if the output buffer is closed then abort */
@@ -1457,7 +1457,7 @@ static void cli_io_handler(struct stream_interface *si)
 
 			switch (si->applet.st0) {
 			case STAT_CLI_PRINT:
-				if (buffer_feed(si->ib, si->applet.ctx.cli.msg) < 0)
+				if (bi_putstr(si->ib, si->applet.ctx.cli.msg) != -1)
 					si->applet.st0 = STAT_CLI_PROMPT;
 				break;
 			case STAT_CLI_O_INFO:
@@ -1487,7 +1487,7 @@ static void cli_io_handler(struct stream_interface *si)
 
 			/* The post-command prompt is either LF alone or LF + '> ' in interactive mode */
 			if (si->applet.st0 == STAT_CLI_PROMPT) {
-				if (buffer_feed(si->ib, si->applet.st1 ? "\n> " : "\n") < 0)
+				if (bi_putstr(si->ib, si->applet.st1 ? "\n> " : "\n") != -1)
 					si->applet.st0 = STAT_CLI_GETREQ;
 			}
 
@@ -1573,7 +1573,7 @@ static int stats_dump_raw_to_buffer(struct stream_interface *si)
 	case STAT_ST_HEAD:
 		if (si->applet.ctx.stats.flags & STAT_SHOW_STAT) {
 			print_csv_header(&msg);
-			if (buffer_feed_chunk(si->ib, &msg) >= 0)
+			if (bi_putchk(si->ib, &msg) == -1)
 				return 0;
 		}
 
@@ -1623,7 +1623,7 @@ static int stats_dump_raw_to_buffer(struct stream_interface *si)
 				     nb_tasks_cur, run_queue_cur, idle_pct,
 				     global.node, global.desc?global.desc:""
 				     );
-			if (buffer_feed_chunk(si->ib, &msg) >= 0)
+			if (bi_putchk(si->ib, &msg) == -1)
 				return 0;
 		}
 
@@ -1696,7 +1696,7 @@ static int stats_http_redir(struct stream_interface *si, struct uri_auth *uri)
 				stat_status_codes[STAT_STATUS_UNKN]);
 		chunk_printf(&msg, "\r\n\r\n");
 
-		if (buffer_feed_chunk(si->ib, &msg) >= 0)
+		if (bi_putchk(si->ib, &msg) == -1)
 			return 0;
 
 		s->txn.status = 303;
@@ -1800,7 +1800,7 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 		chunk_printf(&msg, "\r\n");
 
 		s->txn.status = 200;
-		if (buffer_feed_chunk(rep, &msg) >= 0)
+		if (bi_putchk(rep, &msg) == -1)
 			return 0;
 
 		if (!(s->flags & SN_ERR_MASK))  // this is not really an error but it is
@@ -1915,7 +1915,7 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 		} else {
 			print_csv_header(&msg);
 		}
-		if (buffer_feed_chunk(rep, &msg) >= 0)
+		if (bi_putchk(rep, &msg) == -1)
 			return 0;
 
 		si->applet.state = STAT_ST_INFO;
@@ -2090,7 +2090,7 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 				chunk_printf(&msg,"<p>\n");
 			}
 
-			if (buffer_feed_chunk(rep, &msg) >= 0)
+			if (bi_putchk(rep, &msg) == -1)
 				return 0;
 		}
 
@@ -2121,7 +2121,7 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 	case STAT_ST_END:
 		if (!(si->applet.ctx.stats.flags & STAT_FMT_CSV)) {
 			chunk_printf(&msg, "</body></html>\n");
-			if (buffer_feed_chunk(rep, &msg) >= 0)
+			if (bi_putchk(rep, &msg) == -1)
 				return 0;
 		}
 
@@ -2250,7 +2250,7 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 				     "<th>Thrtle</th>\n"
 				     "</tr>");
 
-			if (buffer_feed_chunk(rep, &msg) >= 0)
+			if (bi_putchk(rep, &msg) == -1)
 				return 0;
 		}
 
@@ -2407,7 +2407,7 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 				chunk_printf(&msg, "\n");
 			}
 
-			if (buffer_feed_chunk(rep, &msg) >= 0)
+			if (bi_putchk(rep, &msg) == -1)
 				return 0;
 		}
 
@@ -2543,7 +2543,7 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 				     relative_pid, px->uuid, l->luid, STATS_TYPE_SO);
 			}
 
-			if (buffer_feed_chunk(rep, &msg) >= 0)
+			if (bi_putchk(rep, &msg) == -1)
 				return 0;
 		}
 
@@ -2953,7 +2953,7 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 				/* finish with EOL */
 				chunk_printf(&msg, "\n");
 			}
-			if (buffer_feed_chunk(rep, &msg) >= 0)
+			if (bi_putchk(rep, &msg) == -1)
 				return 0;
 		} /* for sv */
 
@@ -3148,7 +3148,7 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 				chunk_printf(&msg, "\n");
 
 			}
-			if (buffer_feed_chunk(rep, &msg) >= 0)
+			if (bi_putchk(rep, &msg) == -1)
 				return 0;
 		}
 
@@ -3176,7 +3176,7 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 
 			chunk_printf(&msg, "<p>\n");
 
-			if (buffer_feed_chunk(rep, &msg) >= 0)
+			if (bi_putchk(rep, &msg) == -1)
 				return 0;
 		}
 
@@ -3212,7 +3212,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 	if (si->applet.ctx.sess.section > 0 && si->applet.ctx.sess.uid != sess->uniq_id) {
 		/* session changed, no need to go any further */
 		chunk_printf(&msg, "  *** session terminated while we were watching it ***\n");
-		if (buffer_feed_chunk(si->ib, &msg) >= 0)
+		if (bi_putchk(si->ib, &msg) == -1)
 			return 0;
 		si->applet.ctx.sess.target = NULL;
 		si->applet.ctx.sess.uid = 0;
@@ -3427,7 +3427,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 			     sess->txn.rsp.next,
 			     sess->rep->total);
 
-		if (buffer_feed_chunk(si->ib, &msg) >= 0)
+		if (bi_putchk(si->ib, &msg) == -1)
 			return 0;
 
 		/* use other states to dump the contents */
@@ -3611,7 +3611,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 
 			chunk_printf(&msg, "\n");
 
-			if (buffer_feed_chunk(si->ib, &msg) >= 0) {
+			if (bi_putchk(si->ib, &msg) == -1) {
 				/* let's try again later from this session. We add ourselves into
 				 * this session's users so that it can remove us upon termination.
 				 */
@@ -3630,7 +3630,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 			else
 				chunk_printf(&msg, "Session not found.\n");
 
-			if (buffer_feed_chunk(si->ib, &msg) >= 0)
+			if (bi_putchk(si->ib, &msg) == -1)
 				return 0;
 
 			si->applet.ctx.sess.target = NULL;
@@ -3890,7 +3890,7 @@ static int stats_dump_errors_to_buffer(struct stream_interface *si)
 			     tm.tm_hour, tm.tm_min, tm.tm_sec, (int)(date.tv_usec/1000),
 			     error_snapshot_id);
 
-		if (buffer_feed_chunk(si->ib, &msg) >= 0) {
+		if (bi_putchk(si->ib, &msg) == -1) {
 			/* Socket buffer full. Let's try again later from the same point */
 			return 0;
 		}
@@ -3962,7 +3962,7 @@ static int stats_dump_errors_to_buffer(struct stream_interface *si)
 				break;
 			}
 
-			if (buffer_feed_chunk(si->ib, &msg) >= 0) {
+			if (bi_putchk(si->ib, &msg) == -1) {
 				/* Socket buffer full. Let's try again later from the same point */
 				return 0;
 			}
@@ -3974,7 +3974,7 @@ static int stats_dump_errors_to_buffer(struct stream_interface *si)
 			/* the snapshot changed while we were dumping it */
 			chunk_printf(&msg,
 				     "  WARNING! update detected on this snapshot, dump interrupted. Please re-check!\n");
-			if (buffer_feed_chunk(si->ib, &msg) >= 0)
+			if (bi_putchk(si->ib, &msg) == -1)
 				return 0;
 			goto next;
 		}
@@ -3989,7 +3989,7 @@ static int stats_dump_errors_to_buffer(struct stream_interface *si)
 			if (newptr == si->applet.ctx.errors.ptr)
 				return 0;
 
-			if (buffer_feed_chunk(si->ib, &msg) >= 0) {
+			if (bi_putchk(si->ib, &msg) == -1) {
 				/* Socket buffer full. Let's try again later from the same point */
 				return 0;
 			}

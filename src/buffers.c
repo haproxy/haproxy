@@ -96,7 +96,7 @@ unsigned long long buffer_forward(struct buffer *buf, unsigned long long bytes)
  * Note: this function appends data to the buffer's output and possibly overwrites
  * any pending input data which are assumed not to exist.
  */
-int buffer_write(struct buffer *buf, const char *msg, int len)
+int bo_inject(struct buffer *buf, const char *msg, int len)
 {
 	int max;
 
@@ -123,7 +123,7 @@ int buffer_write(struct buffer *buf, const char *msg, int len)
 	buf->total += len;
 
 	buf->flags &= ~(BF_OUT_EMPTY|BF_FULL);
-	if (buffer_len(buf) >= buffer_max_len(buf))
+	if (bi_full(buf))
 		buf->flags |= BF_FULL;
 
 	return -1;
@@ -136,7 +136,7 @@ int buffer_write(struct buffer *buf, const char *msg, int len)
  * flags FULL, EMPTY and READ_PARTIAL are updated if some data can be
  * transferred.
  */
-int buffer_put_char(struct buffer *buf, char c)
+int bi_putchr(struct buffer *buf, char c)
 {
 	if (unlikely(buffer_input_closed(buf)))
 		return -2;
@@ -147,7 +147,7 @@ int buffer_put_char(struct buffer *buf, char c)
 	*bi_end(buf) = c;
 
 	buf->i++;
-	if (buffer_len(buf) >= buffer_max_len(buf))
+	if (bi_full(buf))
 		buf->flags |= BF_FULL;
 	buf->flags |= BF_READ_PARTIAL;
 
@@ -171,7 +171,7 @@ int buffer_put_char(struct buffer *buf, char c)
  * Buffer flags FULL, EMPTY and READ_PARTIAL are updated if some data can be
  * transferred.
  */
-int buffer_put_block(struct buffer *buf, const char *blk, int len)
+int bi_putblk(struct buffer *buf, const char *blk, int len)
 {
 	int max;
 
@@ -212,7 +212,7 @@ int buffer_put_block(struct buffer *buf, const char *blk, int len)
 	}
 
 	buf->flags &= ~BF_FULL;
-	if (buffer_len(buf) >= buffer_max_len(buf))
+	if (bi_full(buf))
 		buf->flags |= BF_FULL;
 
 	/* notify that some data was read from the SI into the buffer */
@@ -225,12 +225,12 @@ int buffer_put_block(struct buffer *buf, const char *blk, int len)
  *   >0 : number of bytes read. Includes the \n if present before len or end.
  *   =0 : no '\n' before end found. <str> is left undefined.
  *   <0 : no more bytes readable because output is shut.
- * The buffer status is not changed. The caller must call buffer_skip() to
+ * The buffer status is not changed. The caller must call bo_skip() to
  * update it. The '\n' is waited for as long as neither the buffer nor the
  * output are full. If either of them is full, the string may be returned
  * as is, without the '\n'.
  */
-int buffer_get_line(struct buffer *buf, char *str, int len)
+int bo_getline(struct buffer *buf, char *str, int len)
 {
 	int ret, max;
 	char *p;
@@ -275,10 +275,10 @@ int buffer_get_line(struct buffer *buf, char *str, int len)
  *   >0 : number of bytes read, equal to requested size.
  *   =0 : not enough data available. <blk> is left undefined.
  *   <0 : no more bytes readable because output is shut.
- * The buffer status is not changed. The caller must call buffer_skip() to
+ * The buffer status is not changed. The caller must call bo_skip() to
  * update it.
  */
-int buffer_get_block(struct buffer *buf, char *blk, int len, int offset)
+int bo_getblk(struct buffer *buf, char *blk, int len, int offset)
 {
 	int firstblock;
 
@@ -343,7 +343,7 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int
 	b->flags &= ~BF_FULL;
 	if (buffer_len(b) == 0)
 		b->p = b->data;
-	if (buffer_len(b) >= buffer_max_len(b))
+	if (bi_full(b))
 		b->flags |= BF_FULL;
 
 	return delta;
@@ -381,7 +381,7 @@ int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len)
 	b->i += delta;
 
 	b->flags &= ~BF_FULL;
-	if (buffer_len(b) >= buffer_max_len(b))
+	if (bi_full(b))
 		b->flags |= BF_FULL;
 
 	return delta;

@@ -2,7 +2,7 @@
  * include/proto/buffers.h
  * Buffer management definitions, macros and inline functions.
  *
- * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -40,11 +40,11 @@ extern struct pool_head *pool2_buffer;
 int init_buffer();
 
 /* SI-to-buffer functions : buffer_{get,put}_{char,block,string,chunk} */
-int buffer_write(struct buffer *buf, const char *msg, int len);
-int buffer_put_block(struct buffer *buf, const char *str, int len);
-int buffer_put_char(struct buffer *buf, char c);
-int buffer_get_line(struct buffer *buf, char *str, int len);
-int buffer_get_block(struct buffer *buf, char *blk, int len, int offset);
+int bo_inject(struct buffer *buf, const char *msg, int len);
+int bi_putblk(struct buffer *buf, const char *str, int len);
+int bi_putchr(struct buffer *buf, char c);
+int bo_getline(struct buffer *buf, char *str, int len);
+int bo_getblk(struct buffer *buf, char *blk, int len, int offset);
 int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int len);
 int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len);
 void buffer_dump(FILE *o, struct buffer *b, int from, int to);
@@ -197,22 +197,68 @@ static inline int buffer_max_len(const struct buffer *buf)
 	return buf->size - buffer_reserved(buf);
 }
 
+/* Returns non-zero if the buffer input is considered full. The reserved space
+ * is taken into account if ->to_forward indicates that an end of transfer is
+ * close to happen. The test is optimized to avoid as many operations as
+ * possible for the fast case and to be used as an "if" condition.
+ */
+static inline int bi_full(const struct buffer *b)
+{
+	int rem = b->size;
+
+	rem -= b->o;
+	rem -= b->i;
+	if (!rem)
+		return 1; /* buffer already full */
+
+	if (b->to_forward >= b->size ||
+	    (BUF_INFINITE_FORWARD < MAX_RANGE(typeof(b->size)) && // just there to ensure gcc
+	     b->to_forward == BUF_INFINITE_FORWARD))              // avoids the useless second
+		return 0;                                         // test whenever possible
+
+	rem -= global.tune.maxrewrite;
+	rem += b->o;
+	rem += b->to_forward;
+	return rem <= 0;
+}
+
+/* Returns the amount of space available at the input of the buffer, taking the
+ * reserved space into account if ->to_forward indicates that an end of transfer
+ * is close to happen. The test is optimized to avoid as many operations as
+ * possible for the fast case.
+ */
+static inline int bi_avail(const struct buffer *b)
+{
+	int rem = b->size;
+	int rem2;
+
+	rem -= b->o;
+	rem -= b->i;
+	if (!rem)
+		return rem; /* buffer already full */
+
+	if (b->to_forward >= b->size ||
+	    (BUF_INFINITE_FORWARD < MAX_RANGE(typeof(b->size)) && // just there to ensure gcc
+	     b->to_forward == BUF_INFINITE_FORWARD))              // avoids the useless second
+		return rem;                                         // test whenever possible
+
+	rem2 = rem - global.tune.maxrewrite;
+	rem2 += b->o;
+	rem2 += b->to_forward;
+
+	if (rem > rem2)
+		rem = rem2;
+	if (rem > 0)
+		return rem;
+	return 0;
+}
+
 /* Return the maximum amount of bytes that can be written into the buffer,
  * including reserved space which may be overwritten.
  */
 static inline int buffer_total_space(const struct buffer *buf)
 {
 	return buf->size - buffer_len(buf);
-}
-
-/* Return the maximum amount of bytes that can be written into the buffer,
- * excluding the reserved space, which is preserved. 0 may be returned if
- * the reserved space was already reached or used.
- */
-static inline int buffer_total_space_res(const struct buffer *buf)
-{
-	int len = buffer_max_len(buf) - buffer_len(buf);
-	return len < 0 ? 0 : len;
 }
 
 /* Returns the number of contiguous bytes between <start> and <start>+<count>,
@@ -410,7 +456,7 @@ static inline void buffer_erase(struct buffer *buf)
  * stopped. This is mainly to be used to send error messages after existing
  * data.
  */
-static inline void buffer_cut_tail(struct buffer *buf)
+static inline void bi_erase(struct buffer *buf)
 {
 	if (!buf->o)
 		return buffer_erase(buf);
@@ -421,7 +467,7 @@ static inline void buffer_cut_tail(struct buffer *buf)
 
 	buf->i = 0;
 	buf->flags &= ~BF_FULL;
-	if (buffer_len(buf) >= buffer_max_len(buf))
+	if (bi_full(buf))
 		buf->flags |= BF_FULL;
 }
 
@@ -431,7 +477,7 @@ static inline void buffer_cut_tail(struct buffer *buf)
  * This is mainly used to remove empty lines at the beginning of a request
  * or a response.
  */
-static inline void buffer_ignore(struct buffer *buf, int n)
+static inline void bi_fast_delete(struct buffer *buf, int n)
 {
 	buf->i -= n;
 	buf->p += n;
@@ -533,36 +579,20 @@ static inline int buffer_realign(struct buffer *buf)
  * with <len> causing a wrapping at the end of the buffer. It's the caller's
  * responsibility to ensure that <len> is never larger than buf->o.
  */
-static inline void buffer_skip(struct buffer *buf, int len)
+static inline void bo_skip(struct buffer *buf, int len)
 {
 	buf->o -= len;
-	if (buffer_len(buf) == 0)
-		buf->p = buf->data;
-
-	if (buffer_len(buf) < buffer_max_len(buf))
-		buf->flags &= ~BF_FULL;
-
 	if (!buf->o && !buf->pipe)
 		buf->flags |= BF_OUT_EMPTY;
 
+	if (buffer_len(buf) == 0)
+		buf->p = buf->data;
+
+	if (!bi_full(buf))
+		buf->flags &= ~BF_FULL;
+
 	/* notify that some data was written to the SI from the buffer */
 	buf->flags |= BF_WRITE_PARTIAL;
-}
-
-/* writes the chunk <chunk> to buffer <buf>. Returns -1 in case of success,
- * -2 if it is larger than the buffer size, or the number of bytes available
- * otherwise. If the chunk has been written, its size is automatically reset
- * to zero. The send limit is automatically adjusted with the amount of data
- * written.
- */
-static inline int buffer_write_chunk(struct buffer *buf, struct chunk *chunk)
-{
-	int ret;
-
-	ret = buffer_write(buf, chunk->str, chunk->len);
-	if (ret == -1)
-		chunk->len = 0;
-	return ret;
 }
 
 /* Tries to copy chunk <chunk> into buffer <buf> after length controls.
@@ -573,11 +603,11 @@ static inline int buffer_write_chunk(struct buffer *buf, struct chunk *chunk)
  * Buffer flags FULL, EMPTY and READ_PARTIAL are updated if some data can be
  * transferred. The chunk's length is updated with the number of bytes sent.
  */
-static inline int buffer_put_chunk(struct buffer *buf, struct chunk *chunk)
+static inline int bi_putchk(struct buffer *buf, struct chunk *chunk)
 {
 	int ret;
 
-	ret = buffer_put_block(buf, chunk->str, chunk->len);
+	ret = bi_putblk(buf, chunk->str, chunk->len);
 	if (ret > 0)
 		chunk->len -= ret;
 	return ret;
@@ -591,18 +621,18 @@ static inline int buffer_put_chunk(struct buffer *buf, struct chunk *chunk)
  * Buffer flags FULL, EMPTY and READ_PARTIAL are updated if some data can be
  * transferred.
  */
-static inline int buffer_put_string(struct buffer *buf, const char *str)
+static inline int bi_putstr(struct buffer *buf, const char *str)
 {
-	return buffer_put_block(buf, str, strlen(str));
+	return bi_putblk(buf, str, strlen(str));
 }
 
 /*
  * Return one char from the buffer. If the buffer is empty and closed, return -2.
  * If the buffer is just empty, return -1. The buffer's pointer is not advanced,
- * it's up to the caller to call buffer_skip(buf, 1) when it has consumed the char.
+ * it's up to the caller to call bo_skip(buf, 1) when it has consumed the char.
  * Also note that this function respects the ->o limit.
  */
-static inline int buffer_get_char(struct buffer *buf)
+static inline int bo_getchr(struct buffer *buf)
 {
 	/* closed or empty + imminent close = -2; empty = -1 */
 	if (unlikely(buf->flags & (BF_OUT_EMPTY|BF_SHUTW))) {
@@ -612,38 +642,6 @@ static inline int buffer_get_char(struct buffer *buf)
 	}
 	return *buffer_wrap_sub(buf, buf->p - buf->o);
 }
-
-
-/* DEPRECATED, just provided for compatibility, use buffer_put_chunk() instead !!!
- * returns >= 0 if the buffer is too small to hold the message, -1 if the
- * transfer was OK, -2 in case of failure.
- */
-static inline int buffer_feed_chunk(struct buffer *buf, struct chunk *msg)
-{
-	int ret = buffer_put_chunk(buf, msg);
-	if (ret >= 0) /* transfer OK */
-		return -1;
-	if (ret == -1) /* missing room */
-		return 1;
-	/* failure */
-	return -2;
-}
-
-/* DEPRECATED, just provided for compatibility, use buffer_put_string() instead !!!
- * returns >= 0 if the buffer is too small to hold the message, -1 if the
- * transfer was OK, -2 in case of failure.
- */
-static inline int buffer_feed(struct buffer *buf, const char *str)
-{
-	int ret = buffer_put_string(buf, str);
-	if (ret >= 0) /* transfer OK */
-		return -1;
-	if (ret == -1) /* missing room */
-		return 1;
-	/* failure */
-	return -2;
-}
-
 
 /* This function writes the string <str> at position <pos> which must be in
  * buffer <b>, and moves <end> just after the end of <str>. <b>'s parameters

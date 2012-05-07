@@ -74,9 +74,9 @@ void stream_int_retnclose(struct stream_interface *si, const struct chunk *msg)
 	buffer_auto_close(si->ib);
 	buffer_erase(si->ib);
 
-	buffer_cut_tail(si->ob);
+	bi_erase(si->ob);
 	if (likely(msg && msg->len))
-		buffer_write(si->ob, msg->str, msg->len);
+		bo_inject(si->ob, msg->str, msg->len);
 
 	si->ob->wex = tick_add_ifset(now_ms, si->ob->wto);
 	buffer_auto_read(si->ob);

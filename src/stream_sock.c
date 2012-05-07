@@ -269,9 +269,9 @@ int stream_sock_read(int fd) {
 #endif
 	cur_read = 0;
 	while (1) {
-		max = buffer_max_len(b) - buffer_len(b);
+		max = bi_avail(b);
 
-		if (max <= 0) {
+		if (!max) {
 			b->flags |= BF_FULL;
 			si->flags |= SI_FL_WAIT_ROOM;
 			break;
@@ -318,7 +318,7 @@ int stream_sock_read(int fd) {
 			b->flags |= BF_READ_PARTIAL;
 			b->total += ret;
 
-			if (buffer_len(b) >= buffer_max_len(b)) {
+			if (bi_full(b)) {
 				/* The buffer is now full, there's no point in going through
 				 * the loop again.
 				 */
@@ -646,7 +646,7 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
 				/* optimize data alignment in the buffer */
 				b->p = b->data;
 
-			if (likely(buffer_len(b) < buffer_max_len(b)))
+			if (likely(!bi_full(b)))
 				b->flags &= ~BF_FULL;
 
 			if (!b->o) {
