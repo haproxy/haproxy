@@ -8332,20 +8332,12 @@ The list of currently supported pattern fetch functions is the following :
                On IPv6 tables, IPv4 address is mapped to its IPv6 equivalent,
                according to RFC 4291.
 
-  src6         This is the source IPv6 address of the client of the session.
-               It is of type IPv6 and only works with such tables.
-
   dst          This is the destination IPv4 address of the session on the
                client side, which is the address the client connected to.
                It can be useful when running in transparent mode. It is of
                type IPv4 and works on both IPv4 and IPv6 tables.
                On IPv6 tables, IPv4 address is mapped to its IPv6 equivalent,
                according to RFC 4291.
-
-  dst6         This is the destination IPv6 address of the session on the
-               client side, which is the address the client connected to.
-               It can be useful when running in transparent mode. It is of
-               type IPv6 and only works with such tables.
 
   dst_port     This is the destination TCP port of the session on the client
                side, which is the port the client connected to. This might be

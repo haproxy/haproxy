@@ -1393,19 +1393,6 @@ smp_fetch_src(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 	return 1;
 }
 
-/* extract the connection's source ipv6 address */
-static int
-smp_fetch_src6(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-               const struct arg *arg_p, struct sample *smp)
-{
-	if (l4->si[0].addr.from.ss_family != AF_INET6)
-		return 0;
-
-	smp->type = SMP_T_IPV6;
-	memcpy(smp->data.ipv6.s6_addr, ((struct sockaddr_in6 *)&l4->si[0].addr.from)->sin6_addr.s6_addr, sizeof(smp->data.ipv6.s6_addr));
-	return 1;
-}
-
 /* set temp integer to the connection's source port */
 static int
 smp_fetch_sport(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
@@ -1440,21 +1427,6 @@ smp_fetch_dst(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 	}
 
 	smp->flags = 0;
-	return 1;
-}
-
-/* extract the connection's destination ipv6 address */
-static int
-smp_fetch_dst6(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-               const struct arg *arg_p, struct sample *smp)
-{
-	stream_sock_get_to_addr(&l4->si[0]);
-
-	if (l4->si[0].addr.to.ss_family != AF_INET6)
-		return 0;
-
-	smp->type = SMP_T_IPV6;
-	memcpy(smp->data.ipv6.s6_addr, ((struct sockaddr_in6 *)&l4->si[0].addr.to)->sin6_addr.s6_addr, sizeof(smp->data.ipv6.s6_addr));
 	return 1;
 }
 
@@ -1638,9 +1610,7 @@ static struct acl_kw_list acl_kws = {{ },{
  */
 static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
 	{ "src",         smp_fetch_src,           0,                      NULL,           SMP_T_IPV4, SMP_CAP_REQ|SMP_CAP_RES },
-	{ "src6",        smp_fetch_src6,          0,                      NULL,           SMP_T_IPV6, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "dst",         smp_fetch_dst,           0,                      NULL,           SMP_T_IPV4, SMP_CAP_REQ|SMP_CAP_RES },
-	{ "dst6",        smp_fetch_dst6,          0,                      NULL,           SMP_T_IPV6, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "dst_port",    smp_fetch_dport,         0,                      NULL,           SMP_T_UINT, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "payload",     smp_fetch_payload,       ARG2(2,UINT,UINT),      val_payload,    SMP_T_CBIN, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "payload_lv",  smp_fetch_payload_lv,    ARG3(2,UINT,UINT,SINT), val_payload_lv, SMP_T_CBIN, SMP_CAP_REQ|SMP_CAP_RES },
