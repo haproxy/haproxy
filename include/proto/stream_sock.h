@@ -78,8 +78,8 @@ static inline void stream_sock_get_to_addr(struct stream_interface *si)
 		return;
 	}
 #endif
-	if (si->get_dst &&
-	    si->get_dst(si->fd, (struct sockaddr *)&si->addr.to, &namelen) != -1)
+	if (si->proto->get_dst &&
+	    si->proto->get_dst(si->fd, (struct sockaddr *)&si->addr.to, &namelen) != -1)
 		si->flags |= SI_FL_TO_SET;
 	return;
 }
@@ -95,8 +95,8 @@ static inline void stream_sock_get_from_addr(struct stream_interface *si)
 		return;
 
 	namelen = sizeof(si->addr.to);
-	if (si->get_src &&
-	    si->get_src(si->fd, (struct sockaddr *)&si->addr.from, &namelen) != -1)
+	if (si->proto->get_src &&
+	    si->proto->get_src(si->fd, (struct sockaddr *)&si->addr.from, &namelen) != -1)
 		si->flags |= SI_FL_FROM_SET;
 	return;
 }

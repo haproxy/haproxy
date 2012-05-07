@@ -331,7 +331,7 @@ struct task *stream_int_register_handler(struct stream_interface *si, struct si_
 	DPRINTF(stderr, "registering handler %p for si %p (was %p)\n", app, si, si->owner);
 
 	stream_interface_prepare(si, &stream_int_embedded);
-	si->connect = NULL;
+	si->proto = NULL;
 	set_target_applet(&si->target, app);
 	si->applet.state = 0;
 	si->release   = app->release;
@@ -354,7 +354,7 @@ struct task *stream_int_register_handler_task(struct stream_interface *si,
 	DPRINTF(stderr, "registering handler %p for si %p (was %p)\n", fct, si, si->owner);
 
 	stream_interface_prepare(si, &stream_int_task);
-	si->connect = NULL;
+	si->proto = NULL;
 	clear_target(&si->target);
 	si->release   = NULL;
 	si->flags |= SI_FL_WAIT_DATA;

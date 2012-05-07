@@ -36,6 +36,7 @@
 #include <proto/lb_fwlc.h>
 #include <proto/lb_fwrr.h>
 #include <proto/lb_map.h>
+#include <proto/protocols.h>
 #include <proto/proto_http.h>
 #include <proto/proto_tcp.h>
 #include <proto/queue.h>
@@ -974,9 +975,7 @@ int connect_server(struct session *s)
 	 * session's freshly assigned target with the stream interface's.
 	 */
 	stream_interface_prepare(s->req->cons, &stream_sock);
-	s->req->cons->connect = tcp_connect_server;
-	s->req->cons->get_src = getsockname;
-	s->req->cons->get_dst = getpeername;
+
 	/* the target was only on the session, assign it to the SI now */
 	copy_target(&s->req->cons->target, &s->target);
 
@@ -987,13 +986,22 @@ int connect_server(struct session *s)
 		stream_sock_get_to_addr(s->req->prod);
 	}
 
+	/* set the correct protocol on the output stream interface */
+	if (s->target.type == TARG_TYPE_SERVER)
+		s->req->cons->proto = target_srv(&s->target)->proto;
+	else if (s->target.type == TARG_TYPE_PROXY) {
+		s->req->cons->proto = protocol_by_family(s->req->cons->addr.to.ss_family);
+		if (!s->req->cons->proto)
+			return SN_ERR_INTERNAL;
+	}
+
 	assign_tproxy_address(s);
 
 	/* flag for logging source ip/port */
 	if (s->fe->options2 & PR_O2_SRC_ADDR)
 		s->req->cons->flags |= SI_FL_SRC_ADDR;
 
-	err = s->req->cons->connect(s->req->cons);
+	err = s->req->cons->proto->connect(s->req->cons);
 
 	if (err != SN_ERR_NONE)
 		return err;

@@ -169,10 +169,8 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[0].state     = s->si[0].prev_state = SI_ST_EST;
 	s->si[0].err_type  = SI_ET_NONE;
 	s->si[0].err_loc   = NULL;
-	s->si[0].connect   = NULL;
+	s->si[0].proto     = l->proto;
 	s->si[0].release   = NULL;
-	s->si[0].get_src   = getpeername;
-	s->si[0].get_dst   = getsockname;
 	clear_target(&s->si[0].target);
 	s->si[0].exp       = TICK_ETERNITY;
 	s->si[0].flags     = SI_FL_NONE;
@@ -195,10 +193,8 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[1].err_type  = SI_ET_NONE;
 	s->si[1].conn_retries = 0;  /* used for logging too */
 	s->si[1].err_loc   = NULL;
-	s->si[1].connect   = NULL;
+	s->si[1].proto     = NULL;
 	s->si[1].release   = NULL;
-	s->si[1].get_src   = NULL;
-	s->si[1].get_dst   = NULL;
 	clear_target(&s->si[1].target);
 	s->si[1].sock.shutr= stream_int_shutr;
 	s->si[1].sock.shutw= stream_int_shutw;
@@ -685,7 +681,7 @@ static int sess_update_st_cer(struct session *s, struct stream_interface *si)
 /*
  * This function handles the transition between the SI_ST_CON state and the
  * SI_ST_EST state. It must only be called after switching from SI_ST_CON (or
- * SI_ST_INI) to SI_ST_EST, but only when a ->connect function is defined.
+ * SI_ST_INI) to SI_ST_EST, but only when a ->proto is defined.
  */
 static void sess_establish(struct session *s, struct stream_interface *si)
 {
@@ -713,7 +709,7 @@ static void sess_establish(struct session *s, struct stream_interface *si)
 
 	rep->analysers |= s->fe->fe_rsp_ana | s->be->be_rsp_ana;
 	rep->flags |= BF_READ_ATTACHED; /* producer is now attached */
-	if (si->connect) {
+	if (si->proto) {
 		/* real connections have timeouts */
 		req->wto = s->be->timeout.server;
 		rep->rto = s->be->timeout.server;
@@ -1920,7 +1916,8 @@ struct task *process_session(struct task *t)
 				 */
 				s->req->cons->state = SI_ST_REQ; /* new connection requested */
 				s->req->cons->conn_retries = s->be->conn_retries;
-				if (unlikely(s->req->cons->target.type == TARG_TYPE_APPLET && !s->req->cons->connect)) {
+				if (unlikely(s->req->cons->target.type == TARG_TYPE_APPLET &&
+					     !(s->req->cons->proto && s->req->cons->proto->connect))) {
 					s->req->cons->state = SI_ST_EST; /* connection established */
 					s->rep->flags |= BF_READ_ATTACHED; /* producer is now attached */
 					s->req->wex = TICK_ETERNITY;

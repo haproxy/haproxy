@@ -73,6 +73,7 @@ struct peer {
 	} conf;		  	  /* config information */
 	time_t last_change;
 	struct sockaddr_storage addr;  /* peer address */
+	struct protocol *proto;	       /* peer address protocol */
 	struct peer *next;	  /* next peer in the list */
 };
 

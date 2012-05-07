@@ -1266,6 +1266,15 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 		newpeer->addr = *sk;
+		newpeer->proto = protocol_by_family(newpeer->addr.ss_family);
+
+		if (!sk) {
+			Alert("parsing [%s:%d] : Unknown protocol family %d '%s'\n",
+			      file, linenum, newpeer->addr.ss_family, args[2]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
 		set_host_port(&newpeer->addr, realport);
 
 		if (strcmp(newpeer->id, localpeer) == 0) {
@@ -4080,6 +4089,14 @@ stats_error_parsing:
 				goto out;
 			}
 			newsrv->addr = *sk;
+			newsrv->proto = protocol_by_family(newsrv->addr.ss_family);
+
+			if (!sk) {
+				Alert("parsing [%s:%d] : Unknown protocol family %d '%s'\n",
+				      file, linenum, newsrv->addr.ss_family, args[2]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
 			set_host_port(&newsrv->addr, realport);
 
 			newsrv->check_port	= curproxy->defsrv.check_port;

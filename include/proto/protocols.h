@@ -125,6 +125,8 @@ int protocol_unbind_all(void);
  */
 int protocol_enable_all(void);
 
+/* returns the protocol associated to family <family> or NULL if not found */
+struct protocol *protocol_by_family(int family);
 
 #endif /* _PROTO_PROTOCOLS_H */
 

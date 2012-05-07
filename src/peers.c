@@ -1154,9 +1154,8 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->si[0].state = s->si[0].prev_state = SI_ST_EST;
 	s->si[0].err_type = SI_ET_NONE;
 	s->si[0].err_loc = NULL;
-	s->si[0].connect   = NULL;
-	s->si[0].get_src   = NULL;
-	s->si[0].get_dst   = NULL;
+	s->si[0].proto   = NULL;
+	s->si[0].release = NULL;
 	clear_target(&s->si[0].target);
 	s->si[0].exp = TICK_ETERNITY;
 	s->si[0].flags = SI_FL_NONE;
@@ -1173,9 +1172,8 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->si[1].conn_retries = p->conn_retries;
 	s->si[1].err_type = SI_ET_NONE;
 	s->si[1].err_loc = NULL;
-	s->si[1].connect = tcp_connect_server;
-	s->si[1].get_src = getsockname;
-	s->si[1].get_dst = getpeername;
+	s->si[1].proto = peer->proto;
+	s->si[1].release = NULL;
 	set_target_proxy(&s->si[1].target, s->be);
 	s->si[1].exp = TICK_ETERNITY;
 	s->si[1].flags = SI_FL_NONE;
@@ -1183,7 +1181,6 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 		s->si[1].flags |= SI_FL_INDEP_STR;
 
 	stream_interface_prepare(&s->si[1], &stream_sock);
-	s->si[1].release = NULL;
 
 	session_init_srv_conn(s);
 	set_target_proxy(&s->target, s->be);

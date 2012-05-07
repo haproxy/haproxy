@@ -319,6 +319,18 @@ int protocol_disable_all(void)
 	return err;
 }
 
+/* Returns the protocol handler for socket family <family> or NULL if not found */
+struct protocol *protocol_by_family(int family)
+{
+	struct protocol *proto;
+
+	list_for_each_entry(proto, &protocols, list) {
+		if (proto->sock_domain == family)
+			return proto;
+	}
+	return NULL;
+}
+
 /************************************************************************/
 /*           All supported ACL keywords must be declared here.          */
 /************************************************************************/

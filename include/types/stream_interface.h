@@ -137,10 +137,7 @@ struct stream_interface {
 	void *err_loc;          /* commonly the server, NULL when SI_ET_NONE */
 
 	struct sock_ops sock;   /* socket level operations */
-
-	int  (*connect)(struct stream_interface *); /* connect function if any */
-	int (*get_src)(int, struct sockaddr *, socklen_t *); /* syscall used to retrieve src addr */
-	int (*get_dst)(int, struct sockaddr *, socklen_t *); /* syscall used to retrieve dst addr */
+	struct protocol *proto; /* socket protocol */
 
 	void (*release)(struct stream_interface *); /* handler to call after the last close() */
 
