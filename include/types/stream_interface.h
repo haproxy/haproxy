@@ -91,6 +91,7 @@ enum {
 struct server;
 struct proxy;
 struct si_applet;
+struct stream_interface;
 
 struct target {
 	int type;
@@ -101,6 +102,16 @@ struct target {
 		struct si_applet *a;  /* when type is TARG_TYPE_APPLET */
 		struct task *t;       /* when type is TARG_TYPE_TASK */
 	} ptr;
+};
+
+struct sock_ops {
+	void (*update)(struct stream_interface *);  /* I/O update function */
+	void (*shutr)(struct stream_interface *);   /* shutr function */
+	void (*shutw)(struct stream_interface *);   /* shutw function */
+	void (*chk_rcv)(struct stream_interface *); /* chk_rcv function */
+	void (*chk_snd)(struct stream_interface *); /* chk_snd function */
+	int (*read)(int fd);                        /* read callback after poll() */
+	int (*write)(int fd);                       /* wrtie callback after poll() */
 };
 
 /* A stream interface has 3 parts :
@@ -125,16 +136,13 @@ struct stream_interface {
 	unsigned int err_type;  /* first error detected, one of SI_ET_* */
 	void *err_loc;          /* commonly the server, NULL when SI_ET_NONE */
 
-	/* these struct members are used by the buffer side to act on the remote side */
-	void (*update)(struct stream_interface *); /* I/O update function */
-	void (*shutr)(struct stream_interface *);  /* shutr function */
-	void (*shutw)(struct stream_interface *);  /* shutw function */
-	void (*chk_rcv)(struct stream_interface *);/* chk_rcv function */
-	void (*chk_snd)(struct stream_interface *);/* chk_snd function */
+	struct sock_ops sock;   /* socket level operations */
+
 	int  (*connect)(struct stream_interface *); /* connect function if any */
-	void (*release)(struct stream_interface *); /* handler to call after the last close() */
 	int (*get_src)(int, struct sockaddr *, socklen_t *); /* syscall used to retrieve src addr */
 	int (*get_dst)(int, struct sockaddr *, socklen_t *); /* syscall used to retrieve dst addr */
+
+	void (*release)(struct stream_interface *); /* handler to call after the last close() */
 
 	/* struct members below are the "remote" part, as seen from the buffer side */
 	struct target target;	/* the target to connect to (server, proxy, applet, ...) */

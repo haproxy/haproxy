@@ -1376,7 +1376,7 @@ static void cli_io_handler(struct stream_interface *si)
 			/* Let's close for real now. We just close the request
 			 * side, the conditions below will complete if needed.
 			 */
-			si->shutw(si);
+			si->sock.shutw(si);
 			break;
 		}
 		else if (si->applet.st0 == STAT_CLI_GETREQ) {
@@ -1518,7 +1518,7 @@ static void cli_io_handler(struct stream_interface *si)
 		 * we forward the close to the request side so that it flows upstream to
 		 * the client.
 		 */
-		si->shutw(si);
+		si->sock.shutw(si);
 	}
 
 	if ((req->flags & BF_SHUTW) && (si->state == SI_ST_EST) && (si->applet.st0 < STAT_CLI_OUTPUT)) {
@@ -1528,12 +1528,12 @@ static void cli_io_handler(struct stream_interface *si)
 		 * the client side has closed. So we'll forward this state downstream
 		 * on the response buffer.
 		 */
-		si->shutr(si);
+		si->sock.shutr(si);
 		res->flags |= BF_READ_NULL;
 	}
 
 	/* update all other flags and resync with the other side */
-	si->update(si);
+	si->sock.update(si);
 
 	/* we don't want to expire timeouts while we're processing requests */
 	si->ib->rex = TICK_ETERNITY;
@@ -1735,26 +1735,26 @@ static void http_stats_io_handler(struct stream_interface *si)
 		if (s->txn.meth == HTTP_METH_POST) {
 			if (stats_http_redir(si, s->be->uri_auth)) {
 				si->applet.st0 = 1;
-				si->shutw(si);
+				si->sock.shutw(si);
 			}
 		} else {
 			if (stats_dump_http(si, s->be->uri_auth)) {
 				si->applet.st0 = 1;
-				si->shutw(si);
+				si->sock.shutw(si);
 			}
 		}
 	}
 
 	if ((res->flags & BF_SHUTR) && (si->state == SI_ST_EST))
-		si->shutw(si);
+		si->sock.shutw(si);
 
 	if ((req->flags & BF_SHUTW) && (si->state == SI_ST_EST) && si->applet.st0) {
-		si->shutr(si);
+		si->sock.shutr(si);
 		res->flags |= BF_READ_NULL;
 	}
 
 	/* update all other flags and resync with the other side */
-	si->update(si);
+	si->sock.update(si);
 
 	/* we don't want to expire timeouts while we're processing requests */
 	si->ib->rex = TICK_ETERNITY;

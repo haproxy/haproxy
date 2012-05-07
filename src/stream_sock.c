@@ -94,7 +94,7 @@ static int stream_sock_splice_in(struct buffer *b, struct stream_interface *si)
 		si->flags |= SI_FL_WAIT_ROOM;
 		EV_FD_CLR(fd, DIR_RD);
 		b->rex = TICK_ETERNITY;
-		b->cons->chk_snd(b->cons);
+		b->cons->sock.chk_snd(b->cons);
 		return 1;
 	}
 
@@ -443,7 +443,7 @@ int stream_sock_read(int fd) {
 	    (b->i == 0 && (b->cons->flags & SI_FL_WAIT_DATA))) {
 		int last_len = b->pipe ? b->pipe->data : 0;
 
-		b->cons->chk_snd(b->cons);
+		b->cons->sock.chk_snd(b->cons);
 
 		/* check if the consumer has freed some space */
 		if (!(b->flags & BF_FULL) &&
@@ -790,7 +790,7 @@ int stream_sock_write(int fd)
 		/* the producer might be waiting for more room to store data */
 		if (likely((b->flags & (BF_SHUTW|BF_WRITE_PARTIAL|BF_FULL|BF_DONT_READ)) == BF_WRITE_PARTIAL &&
 			   (b->prod->flags & SI_FL_WAIT_ROOM)))
-			b->prod->chk_rcv(b->prod);
+			b->prod->sock.chk_rcv(b->prod);
 
 		/* we have to wake up if there is a special event or if we don't have
 		 * any more data to forward and it's not planned to send any more.
@@ -1300,11 +1300,11 @@ int stream_sock_accept(int fd)
 /* Prepare a stream interface to be used in socket mode. */
 void stream_sock_prepare_interface(struct stream_interface *si)
 {
-	si->update = stream_sock_data_finish;
-	si->shutr = stream_sock_shutr;
-	si->shutw = stream_sock_shutw;
-	si->chk_rcv = stream_sock_chk_rcv;
-	si->chk_snd = stream_sock_chk_snd;
+	si->sock.update  = stream_sock_data_finish;
+	si->sock.shutr   = stream_sock_shutr;
+	si->sock.shutw   = stream_sock_shutw;
+	si->sock.chk_rcv = stream_sock_chk_rcv;
+	si->sock.chk_snd = stream_sock_chk_snd;
 }
 
 

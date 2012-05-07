@@ -1023,15 +1023,15 @@ incomplete:
 				si->applet.st0 = PEER_SESSION_END;
 				/* fall through */
 			case PEER_SESSION_END: {
-				si->shutw(si);
-				si->shutr(si);
+				si->sock.shutw(si);
+				si->sock.shutr(si);
 				si->ib->flags |= BF_READ_NULL;
 				goto quit;
 			}
 		}
 	}
 out:
-	si->update(si);
+	si->sock.update(si);
 	si->ob->flags |= BF_READ_DONTWAIT;
 	/* we don't want to expire timeouts while we're processing requests */
 	si->ib->rex = TICK_ETERNITY;

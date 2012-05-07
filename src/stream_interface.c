@@ -108,7 +108,7 @@ void stream_int_update_embedded(struct stream_interface *si)
 		return;
 
 	if ((si->ob->flags & (BF_OUT_EMPTY|BF_SHUTW|BF_HIJACK|BF_SHUTW_NOW)) == (BF_OUT_EMPTY|BF_SHUTW_NOW))
-		si->shutw(si);
+		si->sock.shutw(si);
 
 	if ((si->ob->flags & (BF_FULL|BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK)) == 0)
 		si->flags |= SI_FL_WAIT_DATA;
@@ -134,11 +134,11 @@ void stream_int_update_embedded(struct stream_interface *si)
 	old_flags = si->flags;
 	if (likely((si->ob->flags & (BF_SHUTW|BF_WRITE_PARTIAL|BF_FULL|BF_DONT_READ)) == BF_WRITE_PARTIAL &&
 		   (si->ob->prod->flags & SI_FL_WAIT_ROOM)))
-		si->ob->prod->chk_rcv(si->ob->prod);
+		si->ob->prod->sock.chk_rcv(si->ob->prod);
 
 	if (((si->ib->flags & (BF_READ_PARTIAL|BF_OUT_EMPTY)) == BF_READ_PARTIAL) &&
 	    (si->ib->cons->flags & SI_FL_WAIT_DATA)) {
-		si->ib->cons->chk_snd(si->ib->cons);
+		si->ib->cons->sock.chk_snd(si->ib->cons);
 		/* check if the consumer has freed some space */
 		if (!(si->ib->flags & BF_FULL))
 			si->flags &= ~SI_FL_WAIT_ROOM;
@@ -308,11 +308,11 @@ struct task *stream_int_register_handler(struct stream_interface *si, struct si_
 {
 	DPRINTF(stderr, "registering handler %p for si %p (was %p)\n", app, si, si->owner);
 
-	si->update  = stream_int_update_embedded;
-	si->shutr   = stream_int_shutr;
-	si->shutw   = stream_int_shutw;
-	si->chk_rcv = stream_int_chk_rcv;
-	si->chk_snd = stream_int_chk_snd;
+	si->sock.update  = stream_int_update_embedded;
+	si->sock.shutr   = stream_int_shutr;
+	si->sock.shutw   = stream_int_shutw;
+	si->sock.chk_rcv = stream_int_chk_rcv;
+	si->sock.chk_snd = stream_int_chk_snd;
 	si->connect = NULL;
 	set_target_applet(&si->target, app);
 	si->applet.state = 0;
@@ -335,11 +335,11 @@ struct task *stream_int_register_handler_task(struct stream_interface *si,
 
 	DPRINTF(stderr, "registering handler %p for si %p (was %p)\n", fct, si, si->owner);
 
-	si->update  = stream_int_update;
-	si->shutr   = stream_int_shutr;
-	si->shutw   = stream_int_shutw;
-	si->chk_rcv = stream_int_chk_rcv;
-	si->chk_snd = stream_int_chk_snd;
+	si->sock.update  = stream_int_update;
+	si->sock.shutr   = stream_int_shutr;
+	si->sock.shutw   = stream_int_shutw;
+	si->sock.chk_rcv = stream_int_chk_rcv;
+	si->sock.chk_snd = stream_int_chk_snd;
 	si->connect = NULL;
 	clear_target(&si->target);
 	si->release   = NULL;
