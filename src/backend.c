@@ -973,7 +973,7 @@ int connect_server(struct session *s)
 	 * decide here if we can reuse the connection by comparing the
 	 * session's freshly assigned target with the stream interface's.
 	 */
-	stream_sock_prepare_interface(s->req->cons);
+	stream_interface_prepare(s->req->cons, &stream_sock);
 	s->req->cons->connect = tcp_connect_server;
 	s->req->cons->get_src = getsockname;
 	s->req->cons->get_dst = getpeername;

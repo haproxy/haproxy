@@ -41,6 +41,9 @@ void stream_int_shutw(struct stream_interface *si);
 void stream_int_chk_rcv(struct stream_interface *si);
 void stream_int_chk_snd(struct stream_interface *si);
 
+extern struct sock_ops stream_int_embedded;
+extern struct sock_ops stream_int_task;
+
 struct task *stream_int_register_handler(struct stream_interface *si,
 					 struct si_applet *app);
 struct task *stream_int_register_handler_task(struct stream_interface *si,
@@ -93,6 +96,11 @@ static inline struct server *target_srv(struct target *t)
 	if (!t || t->type != TARG_TYPE_SERVER)
 		return NULL;
 	return t->ptr.s;
+}
+
+static inline void stream_interface_prepare(struct stream_interface *si, const struct sock_ops *ops)
+{
+	memcpy(&si->sock, ops, sizeof(si->sock));
 }
 
 #endif /* _PROTO_STREAM_INTERFACE_H */

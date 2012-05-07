@@ -32,6 +32,28 @@
 #include <proto/stream_sock.h>
 #include <proto/task.h>
 
+/* socket operations for embedded tasks */
+struct sock_ops stream_int_embedded = {
+	.update  = stream_int_update_embedded,
+	.shutr   = stream_int_shutr,
+	.shutw   = stream_int_shutw,
+	.chk_rcv = stream_int_chk_rcv,
+	.chk_snd = stream_int_chk_snd,
+	.read    = NULL,
+	.write   = NULL,
+};
+
+/* socket operations for external tasks */
+struct sock_ops stream_int_task = {
+	.update  = stream_int_update,
+	.shutr   = stream_int_shutr,
+	.shutw   = stream_int_shutw,
+	.chk_rcv = stream_int_chk_rcv,
+	.chk_snd = stream_int_chk_snd,
+	.read    = NULL,
+	.write   = NULL,
+};
+
 /*
  * This function only has to be called once after a wakeup event in case of
  * suspected timeout. It controls the stream interface timeouts and sets
@@ -308,13 +330,7 @@ struct task *stream_int_register_handler(struct stream_interface *si, struct si_
 {
 	DPRINTF(stderr, "registering handler %p for si %p (was %p)\n", app, si, si->owner);
 
-	si->sock.update  = stream_int_update_embedded;
-	si->sock.shutr   = stream_int_shutr;
-	si->sock.shutw   = stream_int_shutw;
-	si->sock.chk_rcv = stream_int_chk_rcv;
-	si->sock.chk_snd = stream_int_chk_snd;
-	si->sock.read    = NULL;
-	si->sock.write   = NULL;
+	stream_interface_prepare(si, &stream_int_embedded);
 	si->connect = NULL;
 	set_target_applet(&si->target, app);
 	si->applet.state = 0;
@@ -337,13 +353,7 @@ struct task *stream_int_register_handler_task(struct stream_interface *si,
 
 	DPRINTF(stderr, "registering handler %p for si %p (was %p)\n", fct, si, si->owner);
 
-	si->sock.update  = stream_int_update;
-	si->sock.shutr   = stream_int_shutr;
-	si->sock.shutw   = stream_int_shutw;
-	si->sock.chk_rcv = stream_int_chk_rcv;
-	si->sock.chk_snd = stream_int_chk_snd;
-	si->sock.read    = NULL;
-	si->sock.write   = NULL;
+	stream_interface_prepare(si, &stream_int_task);
 	si->connect = NULL;
 	clear_target(&si->target);
 	si->release   = NULL;

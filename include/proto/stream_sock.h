@@ -39,8 +39,8 @@ void stream_sock_shutr(struct stream_interface *si);
 void stream_sock_shutw(struct stream_interface *si);
 void stream_sock_chk_rcv(struct stream_interface *si);
 void stream_sock_chk_snd(struct stream_interface *si);
-void stream_sock_prepare_interface(struct stream_interface *si);
 
+extern struct sock_ops stream_sock;
 
 /* This either returns the sockname or the original destination address. Code
  * inspired from Patrick Schaaf's example of nf_getsockname() implementation.
