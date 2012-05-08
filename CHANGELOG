@@ -1,6 +1,134 @@
 ChangeLog :
 ===========
 
+2012/05/08 : 1.5-dev9
+    - MINOR: Add release callback to si_applet
+    - CLEANUP: Fix some minor typos
+    - MINOR: Add TO/FROM_SET flags to struct stream_interface
+    - CLEANUP: Fix some minor whitespace issues
+    - MINOR: stats admin: allow unordered parameters in POST requests
+    - CLEANUP: fix typo in findserver() log message
+    - MINOR: stats admin: use the backend id instead of its name in the form
+    - MINOR: stats admin: reduce memcmp()/strcmp() calls on status codes
+    - DOC: cleanup indentation, alignment, columns and chapters
+    - DOC: fix some keywords arguments documentation
+    - MINOR: cli: display the 4 IP addresses and ports on "show sess XXX"
+    - BUG/MAJOR: log: possible segfault with logformat
+    - MEDIUM: log: split of log_format generation
+    - MEDIUM: log: New format-log flags: %Fi %Fp %Si %Sp %Ts %rt %H %pid
+    - MEDIUM: log: Unique ID
+    - MINOR: log: log-format: usable without httplog and tcplog
+    - BUG/MEDIUM: balance source did not properly hash IPv6 addresses
+    - MINOR: contrib/iprange: add a network IP range to mask converter
+    - MEDIUM: session: implement the "use-server" directive
+    - MEDIUM: log: add a new cookie flag 'U' to report situations where cookie is not used
+    - MEDIUM: http: make extract_cookie_value() iterate over cookie values
+    - MEDIUM: http: add cookie and scookie ACLs
+    - CLEANUP: lb_first: add reference to a paper describing the original idea
+    - MEDIUM: stream_sock: add a get_src and get_dst callback and remove SN_FRT_ADDR_SET
+    - BUG/MINOR: acl: req_ssl_sni would randomly fail if a session ID is present
+    - BUILD: http: make extract_cookie_value() return an int not size_t
+    - BUILD: http: stop gcc-4.1.2 from complaining about possibly uninitialized values
+    - CLEANUP: http: message parser must ignore HTTP_MSG_ERROR
+    - MINOR: standard: add a memprintf() function to build formatted error messages
+    - CLEANUP: remove a few warning about unchecked return values in debug code
+    - MEDIUM: move message-related flags from transaction to message
+    - DOC: add a diagram to explain how circular buffers work
+    - MAJOR: buffer rework: replace ->send_max with ->o
+    - MAJOR: buffer: replace buf->l with buf->{o+i}
+    - MINOR: buffers: provide simple pointer normalization functions
+    - MINOR: buffers: remove unused function buffer_contig_data()
+    - MAJOR: buffers: replace buf->w with buf->p - buf->o
+    - MAJOR: buffers: replace buf->r with buf->p + buf->i
+    - MAJOR: http: move buffer->lr to http_msg->next
+    - MAJOR: http: change msg->{som,col,sov,eoh} to be relative to buffer origin
+    - CLEANUP: http: remove unused http_msg->col
+    - MAJOR: http: turn http_msg->eol to a buffer-relative offset
+    - MEDIUM: http: add a pointer to the buffer in http_msg
+    - MAJOR: http: make http_msg->sol relative to buffer's origin
+    - MEDIUM: http: http_send_name_header: remove references to msg and buffer
+    - MEDIUM: http: remove buffer arg in a few header manipulation functions
+    - MEDIUM: http: remove buffer arg in http_capture_bad_message
+    - MEDIUM: http: remove buffer arg in http_msg_analyzer
+    - MEDIUM: http: remove buffer arg in http_upgrade_v09_to_v10
+    - MEDIUM: http: remove buffer arg in http_buffer_heavy_realign
+    - MEDIUM: http: remove buffer arg in chunk parsing functions
+    - MINOR: http: remove useless wrapping checks in http_msg_analyzer
+    - MEDIUM: buffers: fix unsafe use of buffer_ignore at some places
+    - MEDIUM: buffers: add new pointer wrappers and get rid of almost all buffer_wrap_add calls
+    - MEDIUM: buffers: implement b_adv() to advance a buffer's pointer
+    - MEDIUM: buffers: rename a number of buffer management functions
+    - MEDIUM: http: add a prefetch function for ACL pattern fetch
+    - MEDIUM: http: make all ACL fetch function use acl_prefetch_http()
+    - BUG/MINOR: http_auth: ACLs are volatile, not permanent
+    - MEDIUM: http/acl: merge all request and response ACL fetches of headers and cookies
+    - MEDIUM: http/acl: make acl_fetch_hdr_{ip,val} rely on acl_fetch_hdr()
+    - MEDIUM: add a new typed argument list parsing framework
+    - MAJOR: acl: make use of the new argument parsing framework
+    - MAJOR: acl: store the ACL argument types in the ACL keyword declaration
+    - MEDIUM: acl: acl_find_target() now resolves arguments based on their types
+    - MAJOR: acl: make acl_find_targets also resolve proxy names at config time
+    - MAJOR: acl: ensure that implicit table and proxies are valid
+    - MEDIUM: acl: remove unused tests for missing args when args are mandatory
+    - MEDIUM: pattern: replace type pattern_arg with type arg
+    - MEDIUM: pattern: get rid of arg_i in all functions making use of arguments
+    - MEDIUM: pattern: use the standard arg parser
+    - MEDIUM: pattern: add an argument validation callback to pattern descriptors
+    - MEDIUM: pattern: report the precise argument parsing error when known.
+    - MEDIUM: acl: remove the ACL_TEST_F_NULL_MATCH flag
+    - MINOR: pattern: add a new 'sample' type to store fetched data
+    - MEDIUM: pattern: add new sample types to replace pattern types
+    - MAJOR: acl: make use of the new sample struct and get rid of acl_test
+    - MEDIUM: pattern/acl: get rid of temp_pattern in ACLs
+    - MEDIUM: acl: get rid of the SET_RES flags
+    - MEDIUM: get rid of SMP_F_READ_ONLY and SMP_F_MUST_FREE
+    - MINOR: pattern: replace struct pattern with struct sample
+    - MEDIUM: pattern: integrate pattern_data into sample and use sample everywhere
+    - MEDIUM: pattern: retrieve the sample type in the sample, not in the keyword description
+    - MEDIUM: acl/pattern: switch rdp_cookie functions stack up-down
+    - MEDIUM: acl: replace acl_expr with args in acl fetch_* functions
+    - MINOR: tcp: replace acl_fetch_rdp_cookie with smp_fetch_rdp_cookie
+    - MEDIUM: acl/pattern: use the same direction scheme
+    - MEDIUM: acl/pattern: start merging common sample fetch functions
+    - MEDIUM: pattern: ensure that sample types always cast into other types.
+    - MEDIUM: acl/pattern: factor out the src/dst address fetches
+    - MEDIUM: acl: implement payload and payload_lv
+    - CLEANUP: pattern: ensure that payload and payload_lv always stay in the buffer
+    - MINOR: stick_table: centralize the handling of empty keys
+    - MINOR: pattern: centralize handling of unstable data in pattern_process()
+    - MEDIUM: pattern: use smp_fetch_rdp_cookie instead of the pattern specific version
+    - MINOR: acl: set SMP_OPT_ITERATE on fetch functions
+    - MINOR: acl: add a val_args field to keywords
+    - MINOR: proto_tcp: validate arguments of payload and payload_lv ACLs
+    - MEDIUM: http: merge acl and pattern header fetch functions
+    - MEDIUM: http: merge ACL and pattern cookie fetches into a single one
+    - MEDIUM: acl: report parsing errors to the caller
+    - MINOR: arg: improve error reporting on invalid arguments
+    - MINOR: acl: report errors encountered when loading patterns from files
+    - MEDIUM: acl: extend the pattern parsers to report meaningful errors
+    - REORG: use the name "sample" instead of "pattern" to designate extracted data
+    - REORG: rename "pattern" files
+    - MINOR: acl: add types to ACL patterns
+    - MINOR: standard: add an IPv6 parsing function (str62net)
+    - MEDIUM: acl: support IPv6 address matching
+    - REORG: stream_interface: create a struct sock_ops to hold socket operations
+    - REORG/MEDIUM: move protocol->{read,write} to sock_ops
+    - REORG/MEDIUM: stream_interface: initialize socket ops from descriptors
+    - REORG/MEDIUM: replace stream interface protocol functions by a proto pointer
+    - REORG/MEDIUM: move the default accept function from sockstream to protocols.c
+    - MEDIUM: proto_tcp: remove src6 and dst6 pattern fetch methods
+    - BUG/MINOR: http: error snapshots are wrong if buffer wraps
+    - BUG/MINOR: http: ensure that msg->err_pos is always relative to buf->p
+    - MEDIUM: http: improve error capture reports
+    - MINOR: acl: add the cook_val() match to match a cookie against an integer
+    - BUG/MEDIUM: send_proxy: fix initialisation of send_proxy_ofs
+    - MEDIUM: memory: add the ability to poison memory at run time
+    - BUG/MEDIUM: log: ensure that unique_id is properly initialized
+    - MINOR: cfgparse: use a common errmsg pointer for all parsers
+    - MEDIUM: cfgparse: make backend_parse_balance() use memprintf to report errors
+    - MEDIUM: cfgparse: use the new error reporting framework for remaining cfg_keywords
+    - MINOR: http: replace http_message_realign() with  buffer_slow_realign()
+
 2012/03/26 : 1.5-dev8
     - MINOR: patch for minor typo (ressources/resources)
     - MEDIUM: http: add support for sending the server's name in the outgoing request
