@@ -19,6 +19,7 @@
 #include <proto/log.h>
 
 static struct list pools = LIST_HEAD_INIT(pools);
+char mem_poison_byte = 0;
 
 /* Try to find an existing shared pool with the same characteristics and
  * returns it, otherwise creates this one. NULL is returned if no memory
@@ -87,13 +88,15 @@ void *pool_refill_alloc(struct pool_head *pool)
 
 	if (pool->limit && (pool->allocated >= pool->limit))
 		return NULL;
-	ret = MALLOC(pool->size);
+	ret = CALLOC(1, pool->size);
 	if (!ret) {
 		pool_gc2();
-		ret = MALLOC(pool->size);
+		ret = CALLOC(1, pool->size);
 		if (!ret)
 			return NULL;
 	}
+	if (mem_poison_byte)
+		memset(ret, mem_poison_byte, pool->size);
 	pool->allocated++;
 	pool->used++;
 	return ret;

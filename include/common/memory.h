@@ -129,6 +129,8 @@ struct pool_head {
 	char name[12];		/* name of the pool */
 };
 
+/* poison each newly allocated area with this byte if not null */
+extern char mem_poison_byte;
 
 /* Allocate a new entry for pool <pool>, and return it for immediate use.
  * NULL is returned if no memory is available for a new creation.

@@ -222,6 +222,7 @@ void usage(char *name)
 		"        [ -p <pidfile> ] [ -m <max megs> ] [ -C <dir> ]\n"
 		"        -v displays version ; -vv shows known build options.\n"
 		"        -d enters debug mode ; -db only disables background mode.\n"
+		"        -dM[<byte>] poisons memory with <byte> (defaults to 0x50)\n"
 		"        -V enters verbose mode (disables quiet mode)\n"
 		"        -D goes daemon ; -C changes to <dir> before loading files.\n"
 		"        -q quiet mode : don't display messages\n"
@@ -451,6 +452,8 @@ void init(int argc, char **argv)
 				arg_mode |= MODE_VERBOSE;
 			else if (*flag == 'd' && flag[1] == 'b')
 				arg_mode |= MODE_FOREGROUND;
+			else if (*flag == 'd' && flag[1] == 'M')
+				mem_poison_byte = flag[2] ? strtol(flag + 2, NULL, 0) : 'P';
 			else if (*flag == 'd')
 				arg_mode |= MODE_DEBUG;
 			else if (*flag == 'c')
