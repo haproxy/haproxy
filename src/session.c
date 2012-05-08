@@ -97,6 +97,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	LIST_ADDQ(&sessions, &s->list);
 	LIST_INIT(&s->back_refs);
 
+	s->unique_id = NULL;
 	s->term_trace = 0;
 	s->si[0].addr.from = *addr;
 	s->logs.accept_date = date; /* user-visible date for logging */

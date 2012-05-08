@@ -1204,6 +1204,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->srv_error = default_srv_error;
 
 	s->uniq_id = 0;
+	s->unique_id = NULL;
 
 	txn = &s->txn;
 	/* Those variables will be checked and freed if non-NULL in
