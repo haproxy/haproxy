@@ -48,6 +48,7 @@ int bo_getblk(struct buffer *buf, char *blk, int len, int offset);
 int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int len);
 int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len);
 void buffer_dump(FILE *o, struct buffer *b, int from, int to);
+void buffer_slow_realign(struct buffer *buf);
 void buffer_bounce_realign(struct buffer *buf);
 unsigned long long buffer_forward(struct buffer *buf, unsigned long long bytes);
 

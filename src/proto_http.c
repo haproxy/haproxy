@@ -1961,40 +1961,6 @@ int http_skip_chunk_crlf(struct http_msg *msg)
 	return 1;
 }
 
-/* This function realigns a possibly wrapping http message at the beginning
- * of its buffer. The function may only be used when the buffer's tail is
- * empty.
- */
-void http_message_realign(struct http_msg *msg)
-{
-	struct buffer *buf = msg->buf;
-
-	/* two possible cases :
-	 *   - the buffer is in one contiguous block, we move it in-place
-	 *   - the buffer is in two blocks, we move it via the swap_buffer
-	 */
-	if (buf->i) {
-		int block1 = buf->i;
-		int block2 = 0;
-		if (buf->p + buf->i > buf->data + buf->size) {
-			/* non-contiguous block */
-			block1 = buf->data + buf->size - buf->p;
-			block2 = buf->p + buf->i - (buf->data + buf->size);
-		}
-		if (block2)
-			memcpy(swap_buffer, buf->data, block2);
-		memmove(buf->data, buf->p, block1);
-		if (block2)
-			memcpy(buf->data + block1, swap_buffer, block2);
-	}
-
-	/* adjust all known pointers */
-	buf->p = buf->data;
-	buf->flags &= ~BF_FULL;
-	if (bi_full(buf))
-		buf->flags |= BF_FULL;
-}
-
 /* This stream analyser waits for a complete HTTP request. It returns 1 if the
  * processing can continue on next analysers, or zero if it either needs more
  * data or wants to immediately abort the request (eg: timeout, error, ...). It
@@ -2063,7 +2029,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			}
 			if (bi_end(req) < b_ptr(req, msg->next) ||
 			    bi_end(req) > req->data + req->size - global.tune.maxrewrite)
-				http_message_realign(msg);
+				buffer_slow_realign(msg->buf);
 		}
 
 		/* Note that we have the same problem with the response ; we
@@ -4473,7 +4439,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 				return 0;
 			}
 			if (rep->i <= rep->size - global.tune.maxrewrite)
-				http_message_realign(msg);
+				buffer_slow_realign(msg->buf);
 		}
 
 		if (likely(msg->next < rep->i))
