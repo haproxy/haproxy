@@ -1110,7 +1110,6 @@ static int create_cond_regex_rule(const char *file, int line,
 		if ((cond = build_acl_cond(file, line, px, cond_start, &errmsg)) == NULL) {
 			Alert("parsing [%s:%d] : error detected while parsing a '%s' condition : %s.\n",
 			      file, line, cmd, errmsg);
-			free(errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto err;
 		}
@@ -1152,8 +1151,10 @@ static int create_cond_regex_rule(const char *file, int line,
 	if (dir == SMP_OPT_DIR_REQ && warnif_misplaced_reqxxx(px, file, line, cmd))
 		err_code |= ERR_WARN;
 
+	free(errmsg);
 	return err_code;
  err:
+	free(errmsg);
 	free(preg);
 	return err_code;
 }
@@ -1337,6 +1338,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	struct acl_cond *cond = NULL;
 	struct logsrv *tmplogsrv;
 	struct logformat_node *tmplf;
+	char *errmsg = NULL;
 
 	if (!strcmp(args[0], "listen"))
 		rc = PR_CAP_LISTEN;
@@ -2084,8 +2086,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		curproxy->bind_proc = set;
 	}
 	else if (!strcmp(args[0], "acl")) {  /* add an ACL */
-		char *errmsg = NULL;
-
 		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -2102,7 +2102,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		if (parse_acl((const char **)args + 1, &curproxy->acl, &errmsg) == NULL) {
 			Alert("parsing [%s:%d] : error detected while parsing ACL '%s' : %s.\n",
 			      file, linenum, args[1], errmsg);
-			free(errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -2521,8 +2520,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		curproxy->server_id_hdr_len  = strlen(curproxy->server_id_hdr_name);
 	}
 	else if (!strcmp(args[0], "block")) {  /* early blocking based on ACLs */
-		char *errmsg = NULL;
-
 		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -2539,7 +2536,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args + 1, &errmsg)) == NULL) {
 			Alert("parsing [%s:%d] : error detected while parsing blocking condition : %s.\n",
 			      file, linenum, errmsg);
-			free(errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -2637,13 +2633,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			}
 			else if (strcmp(args[cur_arg], "if") == 0 ||
 				 strcmp(args[cur_arg], "unless") == 0) {
-				char *errmsg = NULL;
-
 				cond = build_acl_cond(file, linenum, curproxy, (const char **)args + cur_arg, &errmsg);
 				if (!cond) {
 					Alert("parsing [%s:%d] : '%s': error detected while parsing redirect condition : %s.\n",
 					      file, linenum, args[0], errmsg);
-					free(errmsg);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
@@ -2696,7 +2689,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	}
 	else if (!strcmp(args[0], "use_backend")) {
 		struct switching_rule *rule;
-		char *errmsg = NULL;
 
 		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
@@ -2723,7 +2715,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args + 2, &errmsg)) == NULL) {
 			Alert("parsing [%s:%d] : error detected while parsing switching rule : %s.\n",
 			      file, linenum, errmsg);
-			free(errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -2738,7 +2729,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	}
 	else if (strcmp(args[0], "use-server") == 0) {
 		struct server_rule *rule;
-		char *errmsg = NULL;
 
 		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
@@ -2765,7 +2755,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args + 2, &errmsg)) == NULL) {
 			Alert("parsing [%s:%d] : error detected while parsing switching rule : %s.\n",
 			      file, linenum, errmsg);
-			free(errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -2782,7 +2771,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	else if ((!strcmp(args[0], "force-persist")) ||
 		 (!strcmp(args[0], "ignore-persist"))) {
 		struct persist_rule *rule;
-		char *errmsg = NULL;
 
 		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
@@ -2803,7 +2791,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args + 1, &errmsg)) == NULL) {
 			Alert("parsing [%s:%d] : error detected while parsing a '%s' rule : %s.\n",
 			      file, linenum, args[0], errmsg);
-			free(errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -2979,7 +2966,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		struct sticking_rule *rule;
 		struct sample_expr *expr;
 		int myidx = 0;
-		char *errmsg = NULL;
 		const char *name = NULL;
 		int flags;
 
@@ -3058,7 +3044,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args + myidx, &errmsg)) == NULL) {
 				Alert("parsing [%s:%d] : '%s': error detected while parsing sticking condition : %s.\n",
 				      file, linenum, args[0], errmsg);
-				free(errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				free(expr);
 				goto out;
@@ -3098,7 +3083,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto stats_error_parsing;
 		} else if (!strcmp(args[1], "admin")) {
 			struct stats_admin_rule *rule;
-			char *errmsg = NULL;
 
 			if (curproxy == &defproxy) {
 				Alert("parsing [%s:%d]: '%s %s' not allowed in 'defaults' section.\n", file, linenum, args[0], args[1]);
@@ -3121,7 +3105,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args + 2, &errmsg)) == NULL) {
 				Alert("parsing [%s:%d] : error detected while parsing a '%s %s' rule : %s.\n",
 				      file, linenum, args[0], args[1], errmsg);
-				free(errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
@@ -3876,8 +3859,6 @@ stats_error_parsing:
 			err_code |= ERR_WARN;
 
 		if (strcmp(args[1], "fail") == 0) {
-			char *errmsg = NULL;
-
 			/* add a condition to fail monitor requests */
 			if (strcmp(args[2], "if") != 0 && strcmp(args[2], "unless") != 0) {
 				Alert("parsing [%s:%d] : '%s %s' requires either 'if' or 'unless' followed by a condition.\n",
@@ -3889,7 +3870,6 @@ stats_error_parsing:
 			if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args + 2, &errmsg)) == NULL) {
 				Alert("parsing [%s:%d] : error detected while parsing a '%s %s' condition : %s.\n",
 				      file, linenum, args[0], args[1], errmsg);
-				free(errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
@@ -5028,7 +5008,6 @@ stats_error_parsing:
 	}
 	else if (!strcmp(args[0], "reqadd")) {  /* add request header */
 		struct cond_wordlist *wl;
-		char *errmsg = NULL;
 
 		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
@@ -5048,7 +5027,6 @@ stats_error_parsing:
 			if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args+2, &errmsg)) == NULL) {
 				Alert("parsing [%s:%d] : error detected while parsing a '%s' condition : %s.\n",
 				      file, linenum, args[0], errmsg);
-				free(errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
@@ -5125,7 +5103,6 @@ stats_error_parsing:
 	}
 	else if (!strcmp(args[0], "rspadd")) {  /* add response header */
 		struct cond_wordlist *wl;
-		char *errmsg = NULL;
 
 		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
@@ -5145,7 +5122,6 @@ stats_error_parsing:
 			if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args+2, &errmsg)) == NULL) {
 				Alert("parsing [%s:%d] : error detected while parsing a '%s' condition : %s.\n",
 				      file, linenum, args[0], errmsg);
-				free(errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
@@ -5295,6 +5271,7 @@ stats_error_parsing:
 		goto out;
 	}
  out:
+	free(errmsg);
 	return err_code;
 }
 
