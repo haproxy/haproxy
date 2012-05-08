@@ -949,7 +949,7 @@ void capture_headers(char *som, struct hdr_idx *idx,
  * within its state machine and use the same macros, hence the need for same
  * labels and variable names. Note that msg->sol is left unchanged.
  */
-const char *http_parse_stsline(struct http_msg *msg, const char *msg_buf,
+const char *http_parse_stsline(struct http_msg *msg,
 			       unsigned int state, const char *ptr, const char *end,
 			       unsigned int *ret_ptr, unsigned int *ret_state)
 {
@@ -1059,7 +1059,7 @@ const char *http_parse_stsline(struct http_msg *msg, const char *msg_buf,
  * within its state machine and use the same macros, hence the need for same
  * labels and variable names. Note that msg->sol is left unchanged.
  */
-const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf,
+const char *http_parse_reqline(struct http_msg *msg,
 			       unsigned int state, const char *ptr, const char *end,
 			       unsigned int *ret_ptr, unsigned int *ret_state)
 {
@@ -1120,7 +1120,7 @@ const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf,
 			if (msg->err_pos < -1)
 				goto invalid_char;
 			if (msg->err_pos == -1)
-				msg->err_pos = ptr - msg_buf;
+				msg->err_pos = ptr - msg_start;
 			EAT_AND_JUMP_OR_RETURN(http_msg_rquri, HTTP_MSG_RQURI);
 		}
 
@@ -1131,7 +1131,7 @@ const char *http_parse_reqline(struct http_msg *msg, const char *msg_buf,
 
 		/* OK forbidden chars, 0..31 or 127 */
 	invalid_char:
-		msg->err_pos = ptr - msg_buf;
+		msg->err_pos = ptr - msg_start;
 		state = HTTP_MSG_ERROR;
 		break;
 
@@ -1337,7 +1337,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 	case HTTP_MSG_RPCODE:
 	case HTTP_MSG_RPCODE_SP:
 	case HTTP_MSG_RPREASON:
-		ptr = (char *)http_parse_stsline(msg, buf->data,
+		ptr = (char *)http_parse_stsline(msg,
 						 state, ptr, end,
 						 &msg->next, &msg->msg_state);
 		if (unlikely(!ptr))
@@ -1406,7 +1406,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 	case HTTP_MSG_RQURI:
 	case HTTP_MSG_RQURI_SP:
 	case HTTP_MSG_RQVER:
-		ptr = (char *)http_parse_reqline(msg, buf->data,
+		ptr = (char *)http_parse_reqline(msg,
 						 state, ptr, end,
 						 &msg->next, &msg->msg_state);
 		if (unlikely(!ptr))
@@ -1461,7 +1461,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 			goto http_msg_invalid;
 
 		if (msg->err_pos == -1) /* capture error pointer */
-			msg->err_pos = ptr - buf->data; /* >= 0 now */
+			msg->err_pos = ptr - buf->p; /* >= 0 now */
 
 		/* and we still accept this non-token character */
 		EAT_AND_JUMP_OR_RETURN(http_msg_hdr_name, HTTP_MSG_HDR_NAME);
@@ -1611,7 +1611,7 @@ static int http_upgrade_v09_to_v10(struct http_txn *txn)
 	delta = buffer_replace2(msg->buf, cur_end, cur_end, " HTTP/1.0\r\n", 11);
 	http_msg_move_end(msg, delta);
 	cur_end += delta;
-	cur_end = (char *)http_parse_reqline(msg, msg->buf->data,
+	cur_end = (char *)http_parse_reqline(msg,
 					     HTTP_MSG_RQMETH,
 					     msg->buf->p + msg->sol, cur_end + 1,
 					     NULL, NULL);
@@ -1831,7 +1831,7 @@ int http_parse_chunk_size(struct http_msg *msg)
 	msg->msg_state = chunk ? HTTP_MSG_DATA : HTTP_MSG_TRAILERS;
 	return 1;
  error:
-	msg->err_pos = ptr - buf->data;
+	msg->err_pos = buffer_count(buf, buf->p, ptr);
 	return -1;
 }
 
@@ -1875,7 +1875,7 @@ int http_forward_trailers(struct http_msg *msg)
 
 			if (*ptr == '\r') {
 				if (p1) {
-					msg->err_pos = ptr - buf->data;
+					msg->err_pos = buffer_count(buf, buf->p, ptr);
 					return -1;
 				}
 				p1 = ptr;
@@ -1947,7 +1947,7 @@ int http_skip_chunk_crlf(struct http_msg *msg)
 		return 0;
 
 	if (*ptr != '\n') {
-		msg->err_pos = ptr - buf->data;
+		msg->err_pos = buffer_count(buf, buf->p, ptr);
 		return -1;
 	}
 
@@ -1968,7 +1968,6 @@ int http_skip_chunk_crlf(struct http_msg *msg)
 void http_message_realign(struct http_msg *msg)
 {
 	struct buffer *buf = msg->buf;
-	int off = buf->data + buf->size - buf->p;
 
 	/* two possible cases :
 	 *   - the buffer is in one contiguous block, we move it in-place
@@ -1991,13 +1990,6 @@ void http_message_realign(struct http_msg *msg)
 
 	/* adjust all known pointers */
 	buf->p = buf->data;
-
-	if (msg->err_pos >= 0) {
-		msg->err_pos += off;
-		if (msg->err_pos >= buf->size)
-			msg->err_pos -= buf->size;
-	}
-
 	buf->flags &= ~BF_FULL;
 	if (bi_full(buf))
 		buf->flags |= BF_FULL;
@@ -2495,22 +2487,22 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 		signed long long cl;
 
 		if (!ctx.vlen) {
-			msg->err_pos = ctx.line + ctx.val - req->data;
+			msg->err_pos = ctx.line + ctx.val - req->p;
 			goto return_bad_req;
 		}
 
 		if (strl2llrc(ctx.line + ctx.val, ctx.vlen, &cl)) {
-			msg->err_pos = ctx.line + ctx.val - req->data;
+			msg->err_pos = ctx.line + ctx.val - req->p;
 			goto return_bad_req; /* parse failure */
 		}
 
 		if (cl < 0) {
-			msg->err_pos = ctx.line + ctx.val - req->data;
+			msg->err_pos = ctx.line + ctx.val - req->p;
 			goto return_bad_req;
 		}
 
 		if ((msg->flags & HTTP_MSGF_CNT_LEN) && (msg->chunk_len != cl)) {
-			msg->err_pos = ctx.line + ctx.val - req->data;
+			msg->err_pos = ctx.line + ctx.val - req->p;
 			goto return_bad_req; /* already specified, was different */
 		}
 
@@ -4820,22 +4812,22 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 		signed long long cl;
 
 		if (!ctx.vlen) {
-			msg->err_pos = ctx.line + ctx.val - rep->data;
+			msg->err_pos = ctx.line + ctx.val - rep->p;
 			goto hdr_response_bad;
 		}
 
 		if (strl2llrc(ctx.line + ctx.val, ctx.vlen, &cl)) {
-			msg->err_pos = ctx.line + ctx.val - rep->data;
+			msg->err_pos = ctx.line + ctx.val - rep->p;
 			goto hdr_response_bad; /* parse failure */
 		}
 
 		if (cl < 0) {
-			msg->err_pos = ctx.line + ctx.val - rep->data;
+			msg->err_pos = ctx.line + ctx.val - rep->p;
 			goto hdr_response_bad;
 		}
 
 		if ((msg->flags & HTTP_MSGF_CNT_LEN) && (msg->chunk_len != cl)) {
-			msg->err_pos = ctx.line + ctx.val - rep->data;
+			msg->err_pos = ctx.line + ctx.val - rep->p;
 			goto hdr_response_bad; /* already specified, was different */
 		}
 
@@ -5683,7 +5675,7 @@ int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_e
 
 			http_msg_move_end(&txn->req, delta);
 			cur_end += delta;
-			cur_end = (char *)http_parse_reqline(&txn->req, req->data,
+			cur_end = (char *)http_parse_reqline(&txn->req,
 							     HTTP_MSG_RQMETH,
 							     cur_ptr, cur_end + 1,
 							     NULL, NULL);
@@ -6522,7 +6514,7 @@ int apply_filter_to_sts_line(struct session *t, struct buffer *rtr, struct hdr_e
 
 			http_msg_move_end(&txn->rsp, delta);
 			cur_end += delta;
-			cur_end = (char *)http_parse_stsline(&txn->rsp, rtr->data,
+			cur_end = (char *)http_parse_stsline(&txn->rsp,
 							     HTTP_MSG_RPVER,
 							     cur_ptr, cur_end + 1,
 							     NULL, NULL);
@@ -7211,35 +7203,31 @@ int stats_check_uri(struct stream_interface *si, struct http_txn *txn, struct pr
 
 /*
  * Capture a bad request or response and archive it in the proxy's structure.
- * WARNING: it's unlikely that we've reached HTTP_MSG_BODY here so we must not
- * assume that msg->sol = msg->buf->p + msg->som. Also, while HTTP requests
- * or response messages cannot wrap, this function may also be used with chunks
- * which may wrap.
+ * By default it tries to report the error position as msg->err_pos. However if
+ * this one is not set, it will then report msg->next, which is the last known
+ * parsing point. The function is able to deal with wrapping buffers. It always
+ * displays buffers as a contiguous area starting at buf->p.
  */
 void http_capture_bad_message(struct error_snapshot *es, struct session *s,
                               struct http_msg *msg,
 			      int state, struct proxy *other_end)
 {
 	struct buffer *buf = msg->buf;
+	int len1, len2;
 
-	if (bi_end(buf) <= (buf->p + msg->som)) { /* message wraps */
-		int len1 = buf->size - msg->som - (buf->p - buf->data);
-		es->len = bi_end(buf) - (buf->p + msg->som) + buf->size;
-		memcpy(es->buf, buf->p + msg->som, MIN(len1, sizeof(es->buf)));
-		if (es->len > len1 && len1 < sizeof(es->buf))
-			memcpy(es->buf + len1, buf->data, MIN(es->len, sizeof(es->buf)) - len1);
-	}
-	else {
-		es->len = bi_end(buf) - (buf->p + msg->som);
-		memcpy(es->buf, buf->p + msg->som, MIN(es->len, sizeof(es->buf)));
-	}
+	es->len = MIN(buf->i, sizeof(es->buf));
+	len1 = buf->data + buf->size - buf->p;
+	len1 = MIN(len1, es->len);
+	len2 = es->len - len1; /* remaining data if buffer wraps */
+
+	memcpy(es->buf, buf->p, len1);
+	if (len2)
+		memcpy(es->buf + len1, buf->data, len2);
 
 	if (msg->err_pos >= 0)
-		es->pos  = msg->err_pos - msg->som - (buf->p - buf->data);
-	else if (b_ptr(buf, msg->next) >= (buf->p + msg->som))
-		es->pos  = b_ptr(buf, msg->next) - (buf->p + msg->som);
+		es->pos = msg->err_pos;
 	else
-		es->pos  = b_ptr(buf, msg->next) - (buf->p + msg->som) + buf->size;
+		es->pos = msg->next;
 
 	es->when = date; // user-visible date
 	es->sid  = s->uniq_id;
