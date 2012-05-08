@@ -3385,10 +3385,9 @@ static struct acl_kw_list acl_kws = {{ },{
 int parse_track_counters(char **args, int *arg,
 			 int section_type, struct proxy *curpx,
 			 struct track_ctr_prm *prm,
-			 struct proxy *defpx, char *err, int errlen)
+			 struct proxy *defpx, char **err)
 {
 	int sample_type = 0;
-	char *kw = args[*arg - 1];
 
 	/* parse the arguments of "track-sc[12]" before the condition in the
 	 * following form :
@@ -3401,9 +3400,7 @@ int parse_track_counters(char **args, int *arg,
 		}
 		else if (strcmp(args[*arg], "table") == 0) {
 			if (!args[*arg + 1]) {
-				snprintf(err, errlen,
-					 "missing table for %s in %s '%s'.",
-					 kw, proxy_type_str(curpx), curpx->id);
+				memprintf(err, "missing table name");
 				return -1;
 			}
 			/* we copy the table name for now, it will be resolved later */
@@ -3418,9 +3415,9 @@ int parse_track_counters(char **args, int *arg,
 	}
 
 	if (!sample_type) {
-		snprintf(err, errlen,
-			 "%s key not specified in %s '%s' (found %s, only 'src' is supported).",
-			 kw, proxy_type_str(curpx), curpx->id, quote_arg(args[*arg]));
+		memprintf(err,
+		          "tracking key not specified (found %s, only 'src' is supported)",
+		          quote_arg(args[*arg]));
 		return -1;
 	}
 

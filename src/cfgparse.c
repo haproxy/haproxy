@@ -454,6 +454,7 @@ static int warnif_cond_requires_req(const struct acl_cond *cond, const char *fil
 int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 {
 	int err_code = 0;
+	char *errmsg = NULL;
 
 	if (!strcmp(args[0], "global")) {  /* new section */
 		/* no option, nothing special to do */
@@ -1032,13 +1033,13 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 					/* prepare error message just in case */
 					snprintf(trash, sizeof(trash),
 						 "error near '%s' in '%s' section", args[0], "global");
-					rc = kwl->kw[index].parse(args, CFG_GLOBAL, NULL, NULL, trash, sizeof(trash));
+					rc = kwl->kw[index].parse(args, CFG_GLOBAL, NULL, NULL, &errmsg);
 					if (rc < 0) {
-						Alert("parsing [%s:%d] : %s\n", file, linenum, trash);
+						Alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
 						err_code |= ERR_ALERT | ERR_FATAL;
 					}
 					else if (rc > 0) {
-						Warning("parsing [%s:%d] : %s\n", file, linenum, trash);
+						Warning("parsing [%s:%d] : %s\n", file, linenum, errmsg);
 						err_code |= ERR_WARN;
 						goto out;
 					}
@@ -1052,6 +1053,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	}
 
  out:
+	free(errmsg);
 	return err_code;
 }
 
@@ -5249,14 +5251,14 @@ stats_error_parsing:
 					/* prepare error message just in case */
 					snprintf(trash, sizeof(trash),
 						 "error near '%s' in %s section", args[0], cursection);
-					rc = kwl->kw[index].parse(args, CFG_LISTEN, curproxy, &defproxy, trash, sizeof(trash));
+					rc = kwl->kw[index].parse(args, CFG_LISTEN, curproxy, &defproxy, &errmsg);
 					if (rc < 0) {
-						Alert("parsing [%s:%d] : %s\n", file, linenum, trash);
+						Alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
 					}
 					else if (rc > 0) {
-						Warning("parsing [%s:%d] : %s\n", file, linenum, trash);
+						Warning("parsing [%s:%d] : %s\n", file, linenum, errmsg);
 						err_code |= ERR_WARN;
 						goto out;
 					}

@@ -46,7 +46,7 @@ void default_srv_error(struct session *s, struct stream_interface *si);
 int parse_track_counters(char **args, int *arg,
 			 int section_type, struct proxy *curpx,
 			 struct track_ctr_prm *prm,
-			 struct proxy *defpx, char *err, int errlen);
+			 struct proxy *defpx, char **err);
 
 /* Remove the refcount from the session to the tracked counters, and clear the
  * pointer to ensure this is only performed once. The caller is responsible for

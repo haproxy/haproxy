@@ -125,15 +125,15 @@ int get_backend_server(const char *bk_name, const char *sv_name,
 
 /* This function parses a "timeout" statement in a proxy section. It returns
  * -1 if there is any error, 1 for a warning, otherwise zero. If it does not
- * return zero, it may write an error message into the <err> buffer, for at
- * most <errlen> bytes, trailing zero included. The trailing '\n' must not
- * be written. The function must be called with <args> pointing to the first
- * command line word, with <proxy> pointing to the proxy being parsed, and
- * <defpx> to the default proxy or NULL. As a special case for compatibility
- * with older configs, it also accepts "{cli|srv|con}timeout" in args[0].
+ * return zero, it will write an error or warning message into a preallocated
+ * buffer returned at <err>. The trailing is not be written. The function must
+ * be called with <args> pointing to the first command line word, with <proxy>
+ * pointing to the proxy being parsed, and <defpx> to the default proxy or NULL.
+ * As a special case for compatibility with older configs, it also accepts
+ * "{cli|srv|con}timeout" in args[0].
  */
 static int proxy_parse_timeout(char **args, int section, struct proxy *proxy,
-			       struct proxy *defpx, char *err, int errlen)
+                               struct proxy *defpx, char **err)
 {
 	unsigned timeout;
 	int retval, cap;
@@ -184,32 +184,32 @@ static int proxy_parse_timeout(char **args, int section, struct proxy *proxy,
 		td = &defpx->timeout.queue;
 		cap = PR_CAP_BE;
 	} else {
-		snprintf(err, errlen,
-			 "timeout '%s': must be 'client', 'server', 'connect', 'check', "
-			 "'queue', 'http-keep-alive', 'http-request' or 'tarpit'",
-			 args[0]);
+		memprintf(err,
+		          "'timeout' supports 'client', 'server', 'connect', 'check', "
+		          "'queue', 'http-keep-alive', 'http-request' or 'tarpit', (got '%s')",
+		          args[0]);
 		return -1;
 	}
 
 	if (*args[1] == 0) {
-		snprintf(err, errlen, "%s timeout expects an integer value (in milliseconds)", name);
+		memprintf(err, "'timeout %s' expects an integer value (in milliseconds)", name);
 		return -1;
 	}
 
 	res = parse_time_err(args[1], &timeout, TIME_UNIT_MS);
 	if (res) {
-		snprintf(err, errlen, "unexpected character '%c' in %s timeout", *res, name);
+		memprintf(err, "unexpected character '%c' in 'timeout %s'", *res, name);
 		return -1;
 	}
 
 	if (!(proxy->cap & cap)) {
-		snprintf(err, errlen, "%s timeout will be ignored because %s '%s' has no %s capability",
-			 name, proxy_type_str(proxy), proxy->id,
-			 (cap & PR_CAP_BE) ? "backend" : "frontend");
+		memprintf(err, "'timeout %s' will be ignored because %s '%s' has no %s capability",
+		          name, proxy_type_str(proxy), proxy->id,
+		          (cap & PR_CAP_BE) ? "backend" : "frontend");
 		retval = 1;
 	}
 	else if (defpx && *tv != *td) {
-		snprintf(err, errlen, "overwriting %s timeout which was already specified", name);
+		memprintf(err, "overwriting 'timeout %s' which was already specified", name);
 		retval = 1;
 	}
 
@@ -219,59 +219,51 @@ static int proxy_parse_timeout(char **args, int section, struct proxy *proxy,
 
 /* This function parses a "rate-limit" statement in a proxy section. It returns
  * -1 if there is any error, 1 for a warning, otherwise zero. If it does not
- * return zero, it may write an error message into the <err> buffer, for at
- * most <errlen> bytes, trailing zero included. The trailing '\n' must not
- * be written. The function must be called with <args> pointing to the first
- * command line word, with <proxy> pointing to the proxy being parsed, and
- * <defpx> to the default proxy or NULL.
+ * return zero, it will write an error or warning message into a preallocated
+ * buffer returned at <err>. The function must be called with <args> pointing
+ * to the first command line word, with <proxy> pointing to the proxy being
+ * parsed, and <defpx> to the default proxy or NULL.
  */
 static int proxy_parse_rate_limit(char **args, int section, struct proxy *proxy,
-			          struct proxy *defpx, char *err, int errlen)
+                                  struct proxy *defpx, char **err)
 {
 	int retval, cap;
-	char *res, *name;
+	char *res;
 	unsigned int *tv = NULL;
 	unsigned int *td = NULL;
 	unsigned int val;
 
 	retval = 0;
 
-	/* simply skip "rate-limit" */
-	if (strcmp(args[0], "rate-limit") == 0)
-		args++;
-
-	name = args[0];
-	if (!strcmp(args[0], "sessions")) {
-		name = "sessions";
+	if (strcmp(args[1], "sessions") == 0) {
 		tv = &proxy->fe_sps_lim;
 		td = &defpx->fe_sps_lim;
 		cap = PR_CAP_FE;
-	} else {
-		snprintf(err, errlen,
-			 "%s '%s': must be 'sessions'",
-			 "rate-limit", args[0]);
+	}
+	else {
+		memprintf(err, "'%s' only supports 'sessions' (got '%s')", args[0], args[1]);
 		return -1;
 	}
 
-	if (*args[1] == 0) {
-		snprintf(err, errlen, "%s %s expects expects an integer value (in sessions/second)", "rate-limit", name);
+	if (*args[2] == 0) {
+		memprintf(err, "'%s %s' expects expects an integer value (in sessions/second)", args[0], args[1]);
 		return -1;
 	}
 
-	val = strtoul(args[1], &res, 0);
+	val = strtoul(args[2], &res, 0);
 	if (*res) {
-		snprintf(err, errlen, "%s %s: unexpected character '%c' in integer value '%s'", "rate-limit", name, *res, args[1]);
+		memprintf(err, "'%s %s' : unexpected character '%c' in integer value '%s'", args[0], args[1], *res, args[2]);
 		return -1;
 	}
 
 	if (!(proxy->cap & cap)) {
-		snprintf(err, errlen, "%s %s will be ignored because %s '%s' has no %s capability",
-			 "rate-limit", name, proxy_type_str(proxy), proxy->id,
+		memprintf(err, "%s %s will be ignored because %s '%s' has no %s capability",
+			 args[0], args[1], proxy_type_str(proxy), proxy->id,
 			 (cap & PR_CAP_BE) ? "backend" : "frontend");
 		retval = 1;
 	}
 	else if (defpx && *tv != *td) {
-		snprintf(err, errlen, "overwriting %s %s which was already specified", "rate-limit", name);
+		memprintf(err, "overwriting %s %s which was already specified", args[0], args[1]);
 		retval = 1;
 	}
 

@@ -936,11 +936,11 @@ int tcp_exec_req_rules(struct session *s)
 /* Parse a tcp-response rule. Return a negative value in case of failure */
 static int tcp_parse_response_rule(char **args, int arg, int section_type,
 				  struct proxy *curpx, struct proxy *defpx,
-				  struct tcp_rule *rule, char *err, int errlen)
+				  struct tcp_rule *rule, char **err)
 {
 	if (curpx == defpx || !(curpx->cap & PR_CAP_BE)) {
-		snprintf(err, errlen, "%s %s is only allowed in 'backend' sections",
-			 args[0], args[1]);
+		memprintf(err, "%s %s is only allowed in 'backend' sections",
+		          args[0], args[1]);
 		return -1;
 	}
 
@@ -953,26 +953,23 @@ static int tcp_parse_response_rule(char **args, int arg, int section_type,
 		rule->action = TCP_ACT_REJECT;
 	}
 	else {
-		snprintf(err, errlen,
-			 "'%s %s' expects 'accept' or 'reject' in %s '%s' (was '%s')",
-			 args[0], args[1], proxy_type_str(curpx), curpx->id, args[arg]);
+		memprintf(err,
+		          "'%s %s' expects 'accept' or 'reject' in %s '%s' (got '%s')",
+		          args[0], args[1], proxy_type_str(curpx), curpx->id, args[arg]);
 		return -1;
 	}
 
 	if (strcmp(args[arg], "if") == 0 || strcmp(args[arg], "unless") == 0) {
-		char *errmsg = NULL;
-
-		if ((rule->cond = build_acl_cond(NULL, 0, curpx, (const char **)args+arg, &errmsg)) == NULL) {
-			snprintf(err, errlen,
-				 "error detected in %s '%s' while parsing '%s' condition : %s",
-				 proxy_type_str(curpx), curpx->id, args[arg], errmsg);
-			free(errmsg);
+		if ((rule->cond = build_acl_cond(NULL, 0, curpx, (const char **)args+arg, err)) == NULL) {
+			memprintf(err,
+			          "'%s %s %s' : error detected in %s '%s' while parsing '%s' condition : %s",
+			          args[0], args[1], args[2], proxy_type_str(curpx), curpx->id, args[arg], *err);
 			return -1;
 		}
 	}
 	else if (*args[arg]) {
-		snprintf(err, errlen,
-			 "'%s %s %s' only accepts 'if' or 'unless', in %s '%s' (was '%s')",
+		memprintf(err,
+			 "'%s %s %s' only accepts 'if' or 'unless', in %s '%s' (got '%s')",
 			 args[0], args[1], args[2], proxy_type_str(curpx), curpx->id, args[arg]);
 		return -1;
 	}
@@ -984,11 +981,11 @@ static int tcp_parse_response_rule(char **args, int arg, int section_type,
 /* Parse a tcp-request rule. Return a negative value in case of failure */
 static int tcp_parse_request_rule(char **args, int arg, int section_type,
 				  struct proxy *curpx, struct proxy *defpx,
-				  struct tcp_rule *rule, char *err, int errlen)
+				  struct tcp_rule *rule, char **err)
 {
 	if (curpx == defpx) {
-		snprintf(err, errlen, "%s %s is not allowed in 'defaults' sections",
-			 args[0], args[1]);
+		memprintf(err, "%s %s is not allowed in 'defaults' sections",
+		          args[0], args[1]);
 		return -1;
 	}
 
@@ -1002,50 +999,55 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 	}
 	else if (strcmp(args[arg], "track-sc1") == 0) {
 		int ret;
+		int kw = arg;
 
 		arg++;
 		ret = parse_track_counters(args, &arg, section_type, curpx,
-					   &rule->act_prm.trk_ctr, defpx, err, errlen);
+					   &rule->act_prm.trk_ctr, defpx, err);
 
-		if (ret < 0) /* nb: warnings are not handled yet */
-			return -1;
-
+		if (ret < 0) { /* nb: warnings are not handled yet */
+			memprintf(err,
+			          "'%s %s %s' : %s in %s '%s'",
+			          args[0], args[1], args[kw], *err, proxy_type_str(curpx), curpx->id);
+			return ret;
+		}
 		rule->action = TCP_ACT_TRK_SC1;
 	}
 	else if (strcmp(args[arg], "track-sc2") == 0) {
 		int ret;
+		int kw = arg;
 
 		arg++;
 		ret = parse_track_counters(args, &arg, section_type, curpx,
-					   &rule->act_prm.trk_ctr, defpx, err, errlen);
+					   &rule->act_prm.trk_ctr, defpx, err);
 
-		if (ret < 0) /* nb: warnings are not handled yet */
-			return -1;
-
+		if (ret < 0) { /* nb: warnings are not handled yet */
+			memprintf(err,
+			          "'%s %s %s' : %s in %s '%s'",
+			          args[0], args[1], args[kw], *err, proxy_type_str(curpx), curpx->id);
+			return ret;
+		}
 		rule->action = TCP_ACT_TRK_SC2;
 	}
 	else {
-		snprintf(err, errlen,
-			 "'%s %s' expects 'accept', 'reject', 'track-sc1' "
-			 "or 'track-sc2' in %s '%s' (was '%s')",
-			 args[0], args[1], proxy_type_str(curpx), curpx->id, args[arg]);
+		memprintf(err,
+		          "'%s %s' expects 'accept', 'reject', 'track-sc1' "
+		          "or 'track-sc2' in %s '%s' (got '%s')",
+		          args[0], args[1], proxy_type_str(curpx), curpx->id, args[arg]);
 		return -1;
 	}
 
 	if (strcmp(args[arg], "if") == 0 || strcmp(args[arg], "unless") == 0) {
-		char *errmsg = NULL;
-
-		if ((rule->cond = build_acl_cond(NULL, 0, curpx, (const char **)args+arg, &errmsg)) == NULL) {
-			snprintf(err, errlen,
-				 "error detected in %s '%s' while parsing '%s' condition : %s",
-				 proxy_type_str(curpx), curpx->id, args[arg], errmsg);
-			free(errmsg);
+		if ((rule->cond = build_acl_cond(NULL, 0, curpx, (const char **)args+arg, err)) == NULL) {
+			memprintf(err,
+			          "'%s %s %s' : error detected in %s '%s' while parsing '%s' condition : %s",
+			          args[0], args[1], args[2], proxy_type_str(curpx), curpx->id, args[arg], *err);
 			return -1;
 		}
 	}
 	else if (*args[arg]) {
-		snprintf(err, errlen,
-			 "'%s %s %s' only accepts 'if' or 'unless', in %s '%s' (was '%s')",
+		memprintf(err,
+			 "'%s %s %s' only accepts 'if' or 'unless', in %s '%s' (got '%s')",
 			 args[0], args[1], args[2], proxy_type_str(curpx), curpx->id, args[arg]);
 		return -1;
 	}
@@ -1056,41 +1058,39 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
  * keyword.
  */
 static int tcp_parse_tcp_rep(char **args, int section_type, struct proxy *curpx,
-			     struct proxy *defpx, char *err, int errlen)
+                             struct proxy *defpx, char **err)
 {
 	const char *ptr = NULL;
 	unsigned int val;
-	int retlen;
 	int warn = 0;
 	int arg;
 	struct tcp_rule *rule;
 
 	if (!*args[1]) {
-		snprintf(err, errlen, "missing argument for '%s' in %s '%s'",
-			 args[0], proxy_type_str(curpx), curpx->id);
+		memprintf(err, "missing argument for '%s' in %s '%s'",
+		          args[0], proxy_type_str(curpx), curpx->id);
 		return -1;
 	}
 
 	if (strcmp(args[1], "inspect-delay") == 0) {
 		if (curpx == defpx || !(curpx->cap & PR_CAP_BE)) {
-			snprintf(err, errlen, "%s %s is only allowed in 'backend' sections",
-				 args[0], args[1]);
+			memprintf(err, "%s %s is only allowed in 'backend' sections",
+			          args[0], args[1]);
 			return -1;
 		}
 
 		if (!*args[2] || (ptr = parse_time_err(args[2], &val, TIME_UNIT_MS))) {
-			retlen = snprintf(err, errlen,
-					  "'%s %s' expects a positive delay in milliseconds, in %s '%s'",
-					  args[0], args[1], proxy_type_str(curpx), curpx->id);
-			if (ptr && retlen < errlen)
-				retlen += snprintf(err + retlen, errlen - retlen,
-						   " (unexpected character '%c')", *ptr);
+			memprintf(err,
+			          "'%s %s' expects a positive delay in milliseconds, in %s '%s'",
+			          args[0], args[1], proxy_type_str(curpx), curpx->id);
+			if (ptr)
+				memprintf(err, "%s (unexpected character '%c')", *err, *ptr);
 			return -1;
 		}
 
 		if (curpx->tcp_rep.inspect_delay) {
-			snprintf(err, errlen, "ignoring %s %s (was already defined) in %s '%s'",
-				 args[0], args[1], proxy_type_str(curpx), curpx->id);
+			memprintf(err, "ignoring %s %s (was already defined) in %s '%s'",
+			          args[0], args[1], proxy_type_str(curpx), curpx->id);
 			return 1;
 		}
 		curpx->tcp_rep.inspect_delay = val;
@@ -1103,7 +1103,7 @@ static int tcp_parse_tcp_rep(char **args, int section_type, struct proxy *curpx,
 
 	if (strcmp(args[1], "content") == 0) {
 		arg++;
-		if (tcp_parse_response_rule(args, arg, section_type, curpx, defpx, rule, err, errlen) < 0)
+		if (tcp_parse_response_rule(args, arg, section_type, curpx, defpx, rule, err) < 0)
 			goto error;
 
 		if (rule->cond && (rule->cond->requires & ACL_USE_L6REQ_VOLATILE)) {
@@ -1113,18 +1113,18 @@ static int tcp_parse_tcp_rep(char **args, int section_type, struct proxy *curpx,
 			acl = cond_find_require(rule->cond, ACL_USE_L6REQ_VOLATILE);
 			name = acl ? acl->name : "(unknown)";
 
-			retlen = snprintf(err, errlen,
-					  "acl '%s' involves some request-only criteria which will be ignored.",
-					  name);
+			memprintf(err,
+			          "acl '%s' involves some request-only criteria which will be ignored in '%s %s'",
+			          name, args[0], args[1]);
 			warn++;
 		}
 
 		LIST_ADDQ(&curpx->tcp_rep.inspect_rules, &rule->list);
 	}
 	else {
-		retlen = snprintf(err, errlen,
-				  "'%s' expects 'inspect-delay' or 'content' in %s '%s' (was '%s')",
-				  args[0], proxy_type_str(curpx), curpx->id, args[1]);
+		memprintf(err,
+		          "'%s' expects 'inspect-delay' or 'content' in %s '%s' (got '%s')",
+		          args[0], proxy_type_str(curpx), curpx->id, args[1]);
 		goto error;
 	}
 
@@ -1139,41 +1139,42 @@ static int tcp_parse_tcp_rep(char **args, int section_type, struct proxy *curpx,
  * keyword.
  */
 static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
-			     struct proxy *defpx, char *err, int errlen)
+                             struct proxy *defpx, char **err)
 {
 	const char *ptr = NULL;
 	unsigned int val;
-	int retlen;
 	int warn = 0;
 	int arg;
 	struct tcp_rule *rule;
 
 	if (!*args[1]) {
-		snprintf(err, errlen, "missing argument for '%s' in %s '%s'",
-			 args[0], proxy_type_str(curpx), curpx->id);
+		if (curpx == defpx)
+			memprintf(err, "missing argument for '%s' in defaults section", args[0]);
+		else
+			memprintf(err, "missing argument for '%s' in %s '%s'",
+			          args[0], proxy_type_str(curpx), curpx->id);
 		return -1;
 	}
 
 	if (!strcmp(args[1], "inspect-delay")) {
 		if (curpx == defpx) {
-			snprintf(err, errlen, "%s %s is not allowed in 'defaults' sections",
-				 args[0], args[1]);
+			memprintf(err, "%s %s is not allowed in 'defaults' sections",
+			          args[0], args[1]);
 			return -1;
 		}
 
 		if (!*args[2] || (ptr = parse_time_err(args[2], &val, TIME_UNIT_MS))) {
-			retlen = snprintf(err, errlen,
-					  "'%s %s' expects a positive delay in milliseconds, in %s '%s'",
-					  args[0], args[1], proxy_type_str(curpx), curpx->id);
-			if (ptr && retlen < errlen)
-				retlen += snprintf(err+retlen, errlen - retlen,
-						   " (unexpected character '%c')", *ptr);
+			memprintf(err,
+			          "'%s %s' expects a positive delay in milliseconds, in %s '%s'",
+			          args[0], args[1], proxy_type_str(curpx), curpx->id);
+			if (ptr)
+				memprintf(err, "%s (unexpected character '%c')", *err, *ptr);
 			return -1;
 		}
 
 		if (curpx->tcp_req.inspect_delay) {
-			snprintf(err, errlen, "ignoring %s %s (was already defined) in %s '%s'",
-				 args[0], args[1], proxy_type_str(curpx), curpx->id);
+			memprintf(err, "ignoring %s %s (was already defined) in %s '%s'",
+			          args[0], args[1], proxy_type_str(curpx), curpx->id);
 			return 1;
 		}
 		curpx->tcp_req.inspect_delay = val;
@@ -1186,7 +1187,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 
 	if (strcmp(args[1], "content") == 0) {
 		arg++;
-		if (tcp_parse_request_rule(args, arg, section_type, curpx, defpx, rule, err, errlen) < 0)
+		if (tcp_parse_request_rule(args, arg, section_type, curpx, defpx, rule, err) < 0)
 			goto error;
 
 		if (rule->cond && (rule->cond->requires & ACL_USE_RTR_ANY)) {
@@ -1196,9 +1197,9 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 			acl = cond_find_require(rule->cond, ACL_USE_RTR_ANY);
 			name = acl ? acl->name : "(unknown)";
 
-			retlen = snprintf(err, errlen,
-					  "acl '%s' involves some response-only criteria which will be ignored.",
-					  name);
+			memprintf(err,
+			          "acl '%s' involves some response-only criteria which will be ignored in '%s %s'",
+			          name, args[0], args[1]);
 			warn++;
 		}
 		LIST_ADDQ(&curpx->tcp_req.inspect_rules, &rule->list);
@@ -1207,12 +1208,12 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 		arg++;
 
 		if (!(curpx->cap & PR_CAP_FE)) {
-			snprintf(err, errlen, "%s %s is not allowed because %s %s is not a frontend",
-				 args[0], args[1], proxy_type_str(curpx), curpx->id);
+			memprintf(err, "%s %s is not allowed because %s %s is not a frontend",
+			          args[0], args[1], proxy_type_str(curpx), curpx->id);
 			goto error;
 		}
 
-		if (tcp_parse_request_rule(args, arg, section_type, curpx, defpx, rule, err, errlen) < 0)
+		if (tcp_parse_request_rule(args, arg, section_type, curpx, defpx, rule, err) < 0)
 			goto error;
 
 		if (rule->cond && (rule->cond->requires & (ACL_USE_RTR_ANY|ACL_USE_L6_ANY|ACL_USE_L7_ANY))) {
@@ -1223,24 +1224,29 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 			name = acl ? acl->name : "(unknown)";
 
 			if (acl->requires & (ACL_USE_L6_ANY|ACL_USE_L7_ANY)) {
-				retlen = snprintf(err, errlen,
-						  "'%s %s' may not reference acl '%s' which makes use of "
-						  "payload in %s '%s'. Please use '%s content' for this.",
-						  args[0], args[1], name, proxy_type_str(curpx), curpx->id, args[0]);
+				memprintf(err,
+				          "'%s %s' may not reference acl '%s' which makes use of "
+				          "payload in %s '%s'. Please use '%s content' for this.",
+				          args[0], args[1], name, proxy_type_str(curpx), curpx->id, args[0]);
 				goto error;
 			}
 			if (acl->requires & ACL_USE_RTR_ANY)
-				retlen = snprintf(err, errlen,
-						  "acl '%s' involves some response-only criteria which will be ignored.",
-						  name);
+				memprintf(err,
+				          "acl '%s' involves some response-only criteria which will be ignored in '%s %s'",
+				          name, args[0], args[1]);
 			warn++;
 		}
 		LIST_ADDQ(&curpx->tcp_req.l4_rules, &rule->list);
 	}
 	else {
-		retlen = snprintf(err, errlen,
-				  "'%s' expects 'inspect-delay', 'connection', or 'content' in %s '%s' (was '%s')",
-				  args[0], proxy_type_str(curpx), curpx->id, args[1]);
+		if (curpx == defpx)
+			memprintf(err,
+			          "'%s' expects 'inspect-delay', 'connection', or 'content' in defaults section (got '%s')",
+			          args[0], args[1]);
+		else
+			memprintf(err,
+			          "'%s' expects 'inspect-delay', 'connection', or 'content' in %s '%s' (got '%s')",
+			          args[0], args[1], proxy_type_str(curpx), curpx->id);
 		goto error;
 	}
 

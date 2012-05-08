@@ -170,39 +170,38 @@ static struct proxy *alloc_stats_fe(const char *name)
 }
 
 /* This function parses a "stats" statement in the "global" section. It returns
- * -1 if there is any error, otherwise zero. If it returns -1, it may write an
- * error message into ther <err> buffer, for at most <errlen> bytes, trailing
- * zero included. The trailing '\n' must not be written. The function must be
- * called with <args> pointing to the first word after "stats".
+ * -1 if there is any error, otherwise zero. If it returns -1, it will write an
+ * error message into the <err> buffer which will be preallocated. The trailing
+ * '\n' must not be written. The function must be called with <args> pointing to
+ * the first word after "stats".
  */
 static int stats_parse_global(char **args, int section_type, struct proxy *curpx,
-			      struct proxy *defpx, char *err, int errlen)
+			      struct proxy *defpx, char **err)
 {
-	args++;
-	if (!strcmp(args[0], "socket")) {
+	if (!strcmp(args[1], "socket")) {
 		struct sockaddr_un *su;
 		int cur_arg;
 
-		if (*args[1] == 0) {
-			snprintf(err, errlen, "'stats socket' in global section expects a path to a UNIX socket");
+		if (*args[2] == 0) {
+			memprintf(err, "'%s %s' in global section expects a path to a UNIX socket", args[0], args[1]);
 			return -1;
 		}
 
 		if (global.stats_sock.state != LI_NEW) {
-			snprintf(err, errlen, "'stats socket' already specified in global section");
+			memprintf(err, "'%s %s' already specified in global section", args[0], args[1]);
 			return -1;
 		}
 
-		su = str2sun(args[1]);
+		su = str2sun(args[2]);
 		if (!su) {
-			snprintf(err, errlen, "'stats socket' path would require truncation");
+			memprintf(err, "'%s %s' : path would require truncation", args[0], args[1]);
 			return -1;
 		}
 		memcpy(&global.stats_sock.addr, su, sizeof(struct sockaddr_un)); // guaranteed to fit
 
 		if (!global.stats_fe) {
 			if ((global.stats_fe = alloc_stats_fe("GLOBAL")) == NULL) {
-				snprintf(err, errlen, "out of memory");
+				memprintf(err, "'%s %s' : out of memory trying to allocate a frontend", args[0], args[1]);
 				return -1;
 			}
 		}
@@ -222,7 +221,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		global.stats_sock.next  = global.stats_fe->listen;
 		global.stats_fe->listen = &global.stats_sock;
 
-		cur_arg = 2;
+		cur_arg = 3;
 		while (*args[cur_arg]) {
 			if (!strcmp(args[cur_arg], "uid")) {
 				global.stats_sock.perm.ux.uid = atol(args[cur_arg + 1]);
@@ -240,8 +239,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 				struct passwd *user;
 				user = getpwnam(args[cur_arg + 1]);
 				if (!user) {
-					snprintf(err, errlen, "unknown user '%s' in 'global' section ('stats user')",
-						 args[cur_arg + 1]);
+					memprintf(err, "'%s %s' : unknown user '%s'", args[0], args[1], args[cur_arg + 1]);
 					return -1;
 				}
 				global.stats_sock.perm.ux.uid = user->pw_uid;
@@ -251,8 +249,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 				struct group *group;
 				group = getgrnam(args[cur_arg + 1]);
 				if (!group) {
-					snprintf(err, errlen, "unknown group '%s' in 'global' section ('stats group')",
-						 args[cur_arg + 1]);
+					memprintf(err, "'%s %s' : unknown group '%s'", args[0], args[1], args[cur_arg + 1]);
 					return -1;
 				}
 				global.stats_sock.perm.ux.gid = group->gr_gid;
@@ -266,13 +263,15 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 				else if (!strcmp(args[cur_arg+1], "admin"))
 					global.stats_sock.perm.ux.level = ACCESS_LVL_ADMIN;
 				else {
-					snprintf(err, errlen, "'stats socket level' only supports 'user', 'operator', and 'admin'");
+					memprintf(err, "'%s %s' : '%s' only supports 'user', 'operator', and 'admin' (got '%s')",
+						  args[0], args[1], args[cur_arg], args[cur_arg+1]);
 					return -1;
 				}
 				cur_arg += 2;
 			}
 			else {
-				snprintf(err, errlen, "'stats socket' only supports 'user', 'uid', 'group', 'gid', 'level', and 'mode'");
+				memprintf(err, "'%s %s' only supports 'user', 'uid', 'group', 'gid', 'level', and 'mode' (got '%s')",
+					  args[0], args[1], args[cur_arg]);
 				return -1;
 			}
 		}
@@ -280,45 +279,45 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		uxst_add_listener(&global.stats_sock);
 		global.maxsock++;
 	}
-	else if (!strcmp(args[0], "timeout")) {
+	else if (!strcmp(args[1], "timeout")) {
 		unsigned timeout;
-		const char *res = parse_time_err(args[1], &timeout, TIME_UNIT_MS);
+		const char *res = parse_time_err(args[2], &timeout, TIME_UNIT_MS);
 
 		if (res) {
-			snprintf(err, errlen, "unexpected character '%c' in 'stats timeout' in 'global' section", *res);
+			memprintf(err, "'%s %s' : unexpected character '%c'", args[0], args[1], *res);
 			return -1;
 		}
 
 		if (!timeout) {
-			snprintf(err, errlen, "a positive value is expected for 'stats timeout' in 'global section'");
+			memprintf(err, "'%s %s' expects a positive value", args[0], args[1]);
 			return -1;
 		}
 		if (!global.stats_fe) {
 			if ((global.stats_fe = alloc_stats_fe("GLOBAL")) == NULL) {
-				snprintf(err, errlen, "out of memory");
+				memprintf(err, "'%s %s' : out of memory trying to allocate a frontend", args[0], args[1]);
 				return -1;
 			}
 		}
 		global.stats_fe->timeout.client = MS_TO_TICKS(timeout);
 	}
-	else if (!strcmp(args[0], "maxconn")) {
-		int maxconn = atol(args[1]);
+	else if (!strcmp(args[1], "maxconn")) {
+		int maxconn = atol(args[2]);
 
 		if (maxconn <= 0) {
-			snprintf(err, errlen, "a positive value is expected for 'stats maxconn' in 'global section'");
+			memprintf(err, "'%s %s' expects a positive value", args[0], args[1]);
 			return -1;
 		}
 
 		if (!global.stats_fe) {
 			if ((global.stats_fe = alloc_stats_fe("GLOBAL")) == NULL) {
-				snprintf(err, errlen, "out of memory");
+				memprintf(err, "'%s %s' : out of memory trying to allocate a frontend", args[0], args[1]);
 				return -1;
 			}
 		}
 		global.stats_fe->maxconn = maxconn;
 	}
 	else {
-		snprintf(err, errlen, "'stats' only supports 'socket', 'maxconn' and 'timeout' in 'global' section");
+		memprintf(err, "'%s' only supports 'socket', 'maxconn' and 'timeout' (got '%s')", args[0], args[1]);
 		return -1;
 	}
 	return 0;
