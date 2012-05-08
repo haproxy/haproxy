@@ -8147,8 +8147,8 @@ extract_cookie_value(char *hdr, const char *hdr_end,
  * that no iterating is desired, then only last value is fetched if any.
  */
 static int
-smp_fetch_cookie_value(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+smp_fetch_cookie(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                 const struct arg *args, struct sample *smp)
 {
 	struct http_txn *txn = l7;
 	struct hdr_idx *idx = &txn->hdr_idx;
@@ -8299,6 +8299,23 @@ acl_fetch_cookie_cnt(struct proxy *px, struct session *l4, void *l7, unsigned in
 	return 1;
 }
 
+/* Fetch an cookie's integer value. The integer value is returned. It
+ * takes a mandatory argument of type string. It relies on smp_fetch_cookie().
+ */
+static int
+smp_fetch_cookie_val(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                     const struct arg *args, struct sample *smp)
+{
+	int ret = smp_fetch_cookie(px, l4, l7, opt, args, smp);
+
+	if (ret > 0) {
+		smp->type = SMP_T_UINT;
+		smp->data.uint = strl2ic(smp->data.str.str, smp->data.str.len);
+	}
+
+	return ret;
+}
+
 /************************************************************************/
 /*           The code below is dedicated to sample fetches              */
 /************************************************************************/
@@ -8436,15 +8453,16 @@ static int val_hdr(struct arg *arg, char **err_msg)
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct acl_kw_list acl_kws = {{ },{
-	{ "cook",            acl_parse_str,     smp_fetch_cookie_value,   acl_match_str,     ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
-	{ "cook_beg",        acl_parse_str,     smp_fetch_cookie_value,   acl_match_beg,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "cook",            acl_parse_str,     smp_fetch_cookie,         acl_match_str,     ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
+	{ "cook_beg",        acl_parse_str,     smp_fetch_cookie,         acl_match_beg,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
 	{ "cook_cnt",        acl_parse_int,     acl_fetch_cookie_cnt,     acl_match_int,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "cook_dir",        acl_parse_str,     smp_fetch_cookie_value,   acl_match_dir,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "cook_dom",        acl_parse_str,     smp_fetch_cookie_value,   acl_match_dom,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "cook_end",        acl_parse_str,     smp_fetch_cookie_value,   acl_match_end,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "cook_len",        acl_parse_int,     smp_fetch_cookie_value,   acl_match_len,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "cook_reg",        acl_parse_reg,     smp_fetch_cookie_value,   acl_match_reg,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
-	{ "cook_sub",        acl_parse_str,     smp_fetch_cookie_value,   acl_match_sub,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "cook_dir",        acl_parse_str,     smp_fetch_cookie,         acl_match_dir,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "cook_dom",        acl_parse_str,     smp_fetch_cookie,         acl_match_dom,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "cook_end",        acl_parse_str,     smp_fetch_cookie,         acl_match_end,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "cook_len",        acl_parse_int,     smp_fetch_cookie,         acl_match_len,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "cook_reg",        acl_parse_reg,     smp_fetch_cookie,         acl_match_reg,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "cook_sub",        acl_parse_str,     smp_fetch_cookie,         acl_match_sub,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
+	{ "cook_val",        acl_parse_int,     smp_fetch_cookie_val,     acl_match_int,     ACL_USE_L7REQ_VOLATILE, ARG1(0,STR) },
 
 	{ "hdr",             acl_parse_str,     smp_fetch_hdr,            acl_match_str,     ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, ARG2(0,STR,SINT), val_hdr },
 	{ "hdr_beg",         acl_parse_str,     smp_fetch_hdr,            acl_match_beg,     ACL_USE_L7REQ_VOLATILE, ARG2(0,STR,SINT), val_hdr },
@@ -8477,15 +8495,16 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "req_ver",         acl_parse_ver,     acl_fetch_rqver,          acl_match_str,     ACL_USE_L7REQ_VOLATILE|ACL_MAY_LOOKUP, 0 },
 	{ "resp_ver",        acl_parse_ver,     acl_fetch_stver,          acl_match_str,     ACL_USE_L7RTR_VOLATILE|ACL_MAY_LOOKUP, 0 },
 
-	{ "scook",           acl_parse_str,     smp_fetch_cookie_value,   acl_match_str,     ACL_USE_L7RTR_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
-	{ "scook_beg",       acl_parse_str,     smp_fetch_cookie_value,   acl_match_beg,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "scook",           acl_parse_str,     smp_fetch_cookie,         acl_match_str,     ACL_USE_L7RTR_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
+	{ "scook_beg",       acl_parse_str,     smp_fetch_cookie,         acl_match_beg,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
 	{ "scook_cnt",       acl_parse_int,     acl_fetch_cookie_cnt,     acl_match_int,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "scook_dir",       acl_parse_str,     smp_fetch_cookie_value,   acl_match_dir,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "scook_dom",       acl_parse_str,     smp_fetch_cookie_value,   acl_match_dom,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "scook_end",       acl_parse_str,     smp_fetch_cookie_value,   acl_match_end,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "scook_len",       acl_parse_int,     smp_fetch_cookie_value,   acl_match_len,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "scook_reg",       acl_parse_reg,     smp_fetch_cookie_value,   acl_match_reg,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
-	{ "scook_sub",       acl_parse_str,     smp_fetch_cookie_value,   acl_match_sub,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "scook_dir",       acl_parse_str,     smp_fetch_cookie,         acl_match_dir,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "scook_dom",       acl_parse_str,     smp_fetch_cookie,         acl_match_dom,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "scook_end",       acl_parse_str,     smp_fetch_cookie,         acl_match_end,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "scook_len",       acl_parse_int,     smp_fetch_cookie,         acl_match_len,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "scook_reg",       acl_parse_reg,     smp_fetch_cookie,         acl_match_reg,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "scook_sub",       acl_parse_str,     smp_fetch_cookie,         acl_match_sub,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
+	{ "scook_val",       acl_parse_int,     smp_fetch_cookie_val,     acl_match_int,     ACL_USE_L7RTR_VOLATILE, ARG1(0,STR) },
 
 	{ "shdr",            acl_parse_str,     smp_fetch_hdr,            acl_match_str,     ACL_USE_L7RTR_VOLATILE|ACL_MAY_LOOKUP, ARG2(0,STR,SINT), val_hdr },
 	{ "shdr_beg",        acl_parse_str,     smp_fetch_hdr,            acl_match_beg,     ACL_USE_L7RTR_VOLATILE, ARG2(0,STR,SINT), val_hdr },
@@ -8532,8 +8551,8 @@ static struct acl_kw_list acl_kws = {{ },{
 static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
 	{ "hdr",        smp_fetch_hdr,            ARG2(1,STR,SINT), val_hdr, SMP_T_CSTR, SMP_CAP_REQ },
 	{ "url_param",  smp_fetch_url_param,      ARG1(1,STR), NULL, SMP_T_CSTR, SMP_CAP_REQ },
-	{ "cookie",     smp_fetch_cookie_value,   ARG1(1,STR), NULL, SMP_T_CSTR, SMP_CAP_REQ|SMP_CAP_RES },
-	{ "set-cookie", smp_fetch_cookie_value,   ARG1(1,STR), NULL, SMP_T_CSTR, SMP_CAP_RES }, /* deprecated */
+	{ "cookie",     smp_fetch_cookie,         ARG1(1,STR), NULL, SMP_T_CSTR, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "set-cookie", smp_fetch_cookie,         ARG1(1,STR), NULL, SMP_T_CSTR, SMP_CAP_RES }, /* deprecated */
 	{ NULL, NULL, 0, 0, 0 },
 }};
 

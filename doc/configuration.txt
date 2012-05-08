@@ -7944,6 +7944,13 @@ cook_sub(<name>) <string>
   the strings. See "cook" for more information on cookie matching. Use the
   scook_sub() variant for response cookies sent by the server.
 
+cook_val(<name>) <integer>
+  Returns true if any of the request cookies <name> starts with a number which
+  matches the values or ranges specified. This may be used to select a server
+  based on application-specific cookies. Note that an absent cookie does not
+  match any value. See "cook" for more information on cookie matching. Use the
+  scook_val() variant for response cookies sent by the server.
+
 hdr <string>
 hdr(<header>[,<occ>]) <string>
   Note: all the "hdr*" matching criteria either apply to all headers, or to a
