@@ -3963,9 +3963,8 @@ stats_error_parsing:
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
-		memcpy(trash, "error near 'balance'", 21);
-		if (backend_parse_balance((const char **)args + 1, trash, sizeof(trash), curproxy) < 0) {
-			Alert("parsing [%s:%d] : %s\n", file, linenum, trash);
+		if (backend_parse_balance((const char **)args + 1, &errmsg, curproxy) < 0) {
+			Alert("parsing [%s:%d] : %s %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}

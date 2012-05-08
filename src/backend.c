@@ -1215,12 +1215,12 @@ const char *backend_lb_algo_str(int algo) {
 
 /* This function parses a "balance" statement in a backend section describing
  * <curproxy>. It returns -1 if there is any error, otherwise zero. If it
- * returns -1, it may write an error message into ther <err> buffer, for at
- * most <errlen> bytes, trailing zero included. The trailing '\n' will not be
- * written. The function must be called with <args> pointing to the first word
- * after "balance".
+ * returns -1, it will write an error message into the <err> buffer which will
+ * automatically be allocated and must be passed as NULL. The trailing '\n'
+ * will not be written. The function must be called with <args> pointing to the
+ * first word after "balance".
  */
-int backend_parse_balance(const char **args, char *err, int errlen, struct proxy *curproxy)
+int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 {
 	if (!*(args[0])) {
 		/* if no option is set, use round-robin by default */
@@ -1258,7 +1258,7 @@ int backend_parse_balance(const char **args, char *err, int errlen, struct proxy
 		while (*args[arg]) {
 			if (!strcmp(args[arg], "len")) {
 				if (!*args[arg+1] || (atoi(args[arg+1]) <= 0)) {
-					snprintf(err, errlen, "'balance uri len' expects a positive integer (got '%s').", args[arg+1]);
+					memprintf(err, "%s : '%s' expects a positive integer (got '%s').", args[0], args[arg], args[arg+1]);
 					return -1;
 				}
 				curproxy->uri_len_limit = atoi(args[arg+1]);
@@ -1266,7 +1266,7 @@ int backend_parse_balance(const char **args, char *err, int errlen, struct proxy
 			}
 			else if (!strcmp(args[arg], "depth")) {
 				if (!*args[arg+1] || (atoi(args[arg+1]) <= 0)) {
-					snprintf(err, errlen, "'balance uri depth' expects a positive integer (got '%s').", args[arg+1]);
+					memprintf(err, "%s : '%s' expects a positive integer (got '%s').", args[0], args[arg], args[arg+1]);
 					return -1;
 				}
 				/* hint: we store the position of the ending '/' (depth+1) so
@@ -1276,14 +1276,14 @@ int backend_parse_balance(const char **args, char *err, int errlen, struct proxy
 				arg += 2;
 			}
 			else {
-				snprintf(err, errlen, "'balance uri' only accepts parameters 'len' and 'depth' (got '%s').", args[arg]);
+				memprintf(err, "%s only accepts parameters 'len' and 'depth' (got '%s').", args[0], args[arg]);
 				return -1;
 			}
 		}
 	}
 	else if (!strcmp(args[0], "url_param")) {
 		if (!*args[1]) {
-			snprintf(err, errlen, "'balance url_param' requires an URL parameter name.");
+			memprintf(err, "%s requires an URL parameter name.", args[0]);
 			return -1;
 		}
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
@@ -1294,7 +1294,7 @@ int backend_parse_balance(const char **args, char *err, int errlen, struct proxy
 		curproxy->url_param_len  = strlen(args[1]);
 		if (*args[2]) {
 			if (strcmp(args[2], "check_post")) {
-				snprintf(err, errlen, "'balance url_param' only accepts check_post modifier.");
+				memprintf(err, "%s only accepts 'check_post' modifier (got '%s').", args[0], args[2]);
 				return -1;
 			}
 			if (*args[3]) {
@@ -1315,7 +1315,7 @@ int backend_parse_balance(const char **args, char *err, int errlen, struct proxy
 		end = strchr(beg, ')');
 
 		if (!end || end == beg) {
-			snprintf(err, errlen, "'balance hdr(name)' requires an http header field name.");
+			memprintf(err, "hdr requires an http header field name.");
 			return -1;
 		}
 
@@ -1329,7 +1329,7 @@ int backend_parse_balance(const char **args, char *err, int errlen, struct proxy
 
 		if (*args[1]) {
 			if (strcmp(args[1], "use_domain_only")) {
-				snprintf(err, errlen, "'balance hdr(name)' only accepts 'use_domain_only' modifier.");
+				memprintf(err, "%s only accepts 'use_domain_only' modifier (got '%s').", args[0], args[1]);
 				return -1;
 			}
 			curproxy->hh_match_domain = 1;
@@ -1347,7 +1347,7 @@ int backend_parse_balance(const char **args, char *err, int errlen, struct proxy
 			end = strchr(beg, ')');
 
 			if (!end || end == beg) {
-				snprintf(err, errlen, "'balance rdp-cookie(name)' requires an rdp cookie name.");
+				memprintf(err, "rdp-cookie : missing cookie name.");
 				return -1;
 			}
 
@@ -1361,12 +1361,12 @@ int backend_parse_balance(const char **args, char *err, int errlen, struct proxy
 			curproxy->hh_len  = strlen(curproxy->hh_name);
 		}
 		else { /* syntax */
-			snprintf(err, errlen, "'balance rdp-cookie(name)' requires an rdp cookie name.");
+			memprintf(err, "rdp-cookie : missing cookie name.");
 			return -1;
 		}
 	}
 	else {
-		snprintf(err, errlen, "'balance' only supports 'roundrobin', 'static-rr', 'leastconn', 'source', 'uri', 'url_param', 'hdr(name)' and 'rdp-cookie(name)' options.");
+		memprintf(err, "only supports 'roundrobin', 'static-rr', 'leastconn', 'source', 'uri', 'url_param', 'hdr(name)' and 'rdp-cookie(name)' options.");
 		return -1;
 	}
 	return 0;
