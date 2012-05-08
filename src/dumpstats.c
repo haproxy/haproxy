@@ -3925,42 +3925,54 @@ static int stats_dump_errors_to_buffer(struct stream_interface *si)
 
 			char pn[INET6_ADDRSTRLEN];
 			struct tm tm;
+			int port;
 
 			get_localtime(es->when.tv_sec, &tm);
 			chunk_printf(&msg, " \n[%02d/%s/%04d:%02d:%02d:%02d.%03d]",
 				     tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
 				     tm.tm_hour, tm.tm_min, tm.tm_sec, (int)(es->when.tv_usec/1000));
 
-			addr_to_str(&es->src, pn, sizeof(pn));
+			switch (addr_to_str(&es->src, pn, sizeof(pn))) {
+			case AF_INET:
+			case AF_INET6:
+				port = get_host_port(&es->src);
+				break;
+			default:
+				port = 0;
+			}
+
 			switch (si->applet.ctx.errors.buf) {
 			case 0:
 				chunk_printf(&msg,
 					     " frontend %s (#%d): invalid request\n"
-					     "  src %s, session #%d, backend %s (#%d), server %s (#%d)\n"
-					     "  HTTP internal state %d, buffer flags 0x%08x, event #%u\n"
-					     "  request length %d bytes, error at position %d:\n \n",
+					     "  backend %s (#%d)",
 					     si->applet.ctx.errors.px->id, si->applet.ctx.errors.px->uuid,
-					     pn, es->sid, (es->oe->cap & PR_CAP_BE) ? es->oe->id : "<NONE>",
-					     (es->oe->cap & PR_CAP_BE) ? es->oe->uuid : -1,
-					     es->srv ? es->srv->id : "<NONE>",
-					     es->srv ? es->srv->puid : -1,
-					     es->state, es->flags, es->ev_id,
-					     es->len, es->pos);
+					     (es->oe->cap & PR_CAP_BE) ? es->oe->id : "<NONE>",
+					     (es->oe->cap & PR_CAP_BE) ? es->oe->uuid : -1);
 				break;
 			case 1:
 				chunk_printf(&msg,
 					     " backend %s (#%d) : invalid response\n"
-					     "  src %s, session #%d, frontend %s (#%d), server %s (#%d)\n"
-					     "  HTTP internal state %d, buffer flags 0x%08x, event #%u\n"
-					     "  response length %d bytes, error at position %d:\n \n",
+					     "  frontend %s (#%d)",
 					     si->applet.ctx.errors.px->id, si->applet.ctx.errors.px->uuid,
-					     pn, es->sid, es->oe->id, es->oe->uuid,
-					     es->srv ? es->srv->id : "<NONE>",
-					     es->srv ? es->srv->puid : -1,
-					     es->state, es->flags, es->ev_id,
-					     es->len, es->pos);
+					     es->oe->id, es->oe->uuid);
 				break;
 			}
+
+			chunk_printf(&msg,
+				     ", server %s (#%d), event #%u\n"
+				     "  src %s:%d, session #%d, session flags 0x%08x\n"
+				     "  HTTP msg state %d, msg flags 0x%08x, tx flags 0x%08x\n"
+				     "  HTTP chunk len %lld bytes, HTTP body len %lld bytes\n"
+				     "  buffer flags 0x%08x, out %d bytes, total %lld bytes\n"
+				     "  pending %d bytes, wrapping at %d, error at position %d:\n \n",
+				     es->srv ? es->srv->id : "<NONE>", es->srv ? es->srv->puid : -1,
+				     es->ev_id,
+				     pn, port, es->sid, es->s_flags,
+				     es->state, es->m_flags, es->t_flags,
+				     es->m_clen, es->m_blen,
+				     es->b_flags, es->b_out, es->b_tot,
+				     es->len, es->b_wrap, es->pos);
 
 			if (bi_putchk(si->ib, &msg) == -1) {
 				/* Socket buffer full. Let's try again later from the same point */

@@ -177,7 +177,15 @@ struct error_snapshot {
 	unsigned int sid;		/* ID of the faulty session */
 	unsigned int ev_id;		/* event number (counter incremented for each capture) */
 	unsigned int state;		/* message state before the error (when saved) */
-	unsigned int flags;		/* buffer flags */
+	unsigned int b_flags;		/* buffer flags */
+	unsigned int s_flags;		/* session flags */
+	unsigned int t_flags;		/* transaction flags */
+	unsigned int m_flags;		/* message flags */
+	unsigned int b_out;		/* pending output bytes */
+	unsigned int b_wrap;		/* position where the buffer is expected to wrap */
+	unsigned long long b_tot;	/* total bytes transferred via this buffer */
+	unsigned long long m_clen;	/* chunk len for this message */
+	unsigned long long m_blen;	/* body len for this message */
 	struct server *srv;		/* server associated with the error (or NULL) */
 	struct proxy *oe;		/* other end = frontend or backend involved */
 	struct sockaddr_storage src;	/* client's address */

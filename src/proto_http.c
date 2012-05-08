@@ -7235,8 +7235,16 @@ void http_capture_bad_message(struct error_snapshot *es, struct session *s,
 	es->oe   = other_end;
 	es->src  = s->req->prod->addr.from;
 	es->state = state;
-	es->flags = buf->flags;
 	es->ev_id = error_snapshot_id++;
+	es->b_flags = buf->flags;
+	es->s_flags = s->flags;
+	es->t_flags = s->txn.flags;
+	es->m_flags = msg->flags;
+	es->b_out = buf->o;
+	es->b_wrap = buf->data + buf->size - buf->p;
+	es->b_tot = buf->total;
+	es->m_clen = msg->chunk_len;
+	es->m_blen = msg->body_len;
 }
 
 /* Return in <vptr> and <vlen> the pointer and length of occurrence <occ> of
