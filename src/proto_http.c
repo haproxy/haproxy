@@ -7227,7 +7227,7 @@ void http_capture_bad_message(struct error_snapshot *es, struct session *s,
 		es->len = bi_end(buf) - (buf->p + msg->som) + buf->size;
 		memcpy(es->buf, buf->p + msg->som, MIN(len1, sizeof(es->buf)));
 		if (es->len > len1 && len1 < sizeof(es->buf))
-			memcpy(es->buf, buf->data, MIN(es->len, sizeof(es->buf)) - len1);
+			memcpy(es->buf + len1, buf->data, MIN(es->len, sizeof(es->buf)) - len1);
 	}
 	else {
 		es->len = bi_end(buf) - (buf->p + msg->som);
