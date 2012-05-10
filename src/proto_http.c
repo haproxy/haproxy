@@ -8009,6 +8009,38 @@ acl_fetch_http_auth(struct proxy *px, struct session *l4, void *l7, unsigned int
 	return 1;
 }
 
+/* Accepts exactly 1 argument of type userlist */
+static int
+acl_fetch_http_auth_grp(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                        const struct arg *args, struct sample *smp)
+{
+
+	if (!args || args->type != ARGT_USR)
+		return 0;
+
+	CHECK_HTTP_MESSAGE_FIRST();
+
+	if (!get_http_auth(l4))
+		return 0;
+
+	/* acl_match_auth() will need several information at once */
+	smp->ctx.a[0] = args->data.usr;      /* user list */
+	smp->ctx.a[1] = l4->txn.auth.user;   /* user name */
+	smp->ctx.a[2] = l4->txn.auth.pass;   /* password */
+
+	/* if the user does not belong to the userlist or has a wrong password,
+	 * report that it unconditionally does not match. Otherwise we return
+	 * a non-zero integer which will be ignored anyway since all the params
+	 * that acl_match_auth() will use are in test->ctx.a[0,1,2].
+	 */
+	smp->type = SMP_T_BOOL;
+	smp->data.uint = check_user(args->data.usr, 0, l4->txn.auth.user, l4->txn.auth.pass);
+	if (smp->data.uint)
+		smp->type = SMP_T_UINT;
+
+	return 1;
+}
+
 /* Try to find the next occurrence of a cookie name in a cookie header value.
  * The lookup begins at <hdr>. The pointer and size of the next occurrence of
  * the cookie value is returned into *value and *value_l, and the function
@@ -8443,7 +8475,7 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "hdr_val",         acl_parse_int,     smp_fetch_hdr_val,        acl_match_int,     ACL_USE_L7REQ_VOLATILE, ARG2(0,STR,SINT), val_hdr },
 
 	{ "http_auth",       acl_parse_nothing, acl_fetch_http_auth,      acl_match_nothing, ACL_USE_L7REQ_VOLATILE, ARG1(0,USR) },
-	{ "http_auth_group", acl_parse_strcat,  acl_fetch_http_auth,      acl_match_auth,    ACL_USE_L7REQ_VOLATILE, ARG1(0,USR) },
+	{ "http_auth_group", acl_parse_strcat,  acl_fetch_http_auth_grp,  acl_match_auth,    ACL_USE_L7REQ_VOLATILE, ARG1(0,USR) },
 	{ "http_first_req",  acl_parse_nothing, acl_fetch_http_first_req, acl_match_nothing, ACL_USE_L7REQ_PERMANENT, 0 },
 
 	{ "method",          acl_parse_meth,    acl_fetch_meth,           acl_match_meth,    ACL_USE_L7REQ_PERMANENT, 0 },
