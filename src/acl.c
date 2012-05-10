@@ -2214,6 +2214,11 @@ acl_find_targets(struct proxy *p)
 				}
 			} /* end of args processing */
 
+			/* don't try to resolve groups if we're not certain of having
+			 * resolved userlists first.
+			 */
+			if (cfgerr)
+				break;
 
 			if (!strcmp(expr->kw->kw, "http_auth_group")) {
 				/* note: argument resolved above thanks to ARGT_USR */
