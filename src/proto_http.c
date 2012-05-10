@@ -7150,13 +7150,13 @@ int stats_check_uri(struct stream_interface *si, struct http_txn *txn, struct pr
 		if (memcmp(h, ";st=", 4) == 0) {
 			int i;
 			h += 4;
+			si->applet.ctx.stats.st_code = STAT_STATUS_UNKN;
 			for (i = STAT_STATUS_INIT + 1; i < STAT_STATUS_SIZE; i++) {
 				if (strncmp(stat_status_codes[i], h, 4) == 0) {
 					si->applet.ctx.stats.st_code = i;
 					break;
 				}
 			}
-			si->applet.ctx.stats.st_code = STAT_STATUS_UNKN;
 			break;
 		}
 		h++;
