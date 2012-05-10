@@ -137,7 +137,7 @@ check_user(struct userlist *ul, unsigned int group_mask, const char *user, const
 
 #ifdef DEBUG_AUTH
 	fprintf(stderr, "cfg: user=%s, pass=%s, group_mask=%u, flags=%X",
-		u->user, u->pass, u->group_mask, u->flags);
+		u->user, u->pass, u->u.group_mask, u->flags);
 #endif
 
 	/*

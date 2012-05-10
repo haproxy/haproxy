@@ -6685,7 +6685,7 @@ out_uri_auth_compat:
 			fprintf(stderr, "group %s, id %d, mask %08X, users:", curuserlist->groups[g], g , 1 << g);
 
 			for (curuser = curuserlist->users; curuser; curuser = curuser->next) {
-				if (curuser->group_mask & (1 << g))
+				if (curuser->u.group_mask & (1 << g))
 					fprintf(stderr, " %s", curuser->user);
 			}
 
