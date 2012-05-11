@@ -56,6 +56,12 @@ static inline void clear_target(struct target *dest)
 	dest->ptr.v = NULL;
 }
 
+static inline void set_target_client(struct target *dest)
+{
+	dest->type = TARG_TYPE_CLIENT;
+	dest->ptr.v = NULL;
+}
+
 static inline void set_target_server(struct target *dest, struct server *s)
 {
 	dest->type = TARG_TYPE_SERVER;

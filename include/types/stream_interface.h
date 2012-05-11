@@ -80,6 +80,7 @@ enum {
 /* target types */
 enum {
 	TARG_TYPE_NONE = 0,         /* no target set, pointer is NULL by definition */
+	TARG_TYPE_CLIENT,           /* target is a client, pointer is NULL by definition */
 	TARG_TYPE_PROXY,            /* target is a proxy   ; use address with the proxy's settings */
 	TARG_TYPE_SERVER,           /* target is a server  ; use address with server's and its proxy's settings */
 	TARG_TYPE_APPLET,           /* target is an applet ; use only the applet */

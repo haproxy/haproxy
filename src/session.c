@@ -173,7 +173,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[0].proto     = l->proto;
 	s->si[0].release   = NULL;
 	s->si[0].send_proxy_ofs = 0;
-	clear_target(&s->si[0].target);
+	set_target_client(&s->si[0].target);
 	s->si[0].exp       = TICK_ETERNITY;
 	s->si[0].flags     = SI_FL_NONE;
 
