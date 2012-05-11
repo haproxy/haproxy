@@ -714,51 +714,11 @@ static int sock_raw_write(int fd)
 	if (b->flags & BF_SHUTW)
 		goto out_wakeup;
 
-	if (likely(!(b->flags & BF_OUT_EMPTY) || si->send_proxy_ofs)) {
-		/* OK there are data waiting to be sent */
-		retval = sock_raw_write_loop(si, b);
-		if (retval < 0)
-			goto out_error;
-		else if (retval == 0 && si->send_proxy_ofs)
-			goto out_may_wakeup; /* we failed to send the PROXY string */
-	}
-	else  {
-		/* may be we have received a connection acknowledgement in TCP mode without data */
-		if (likely(fdtab[fd].state == FD_STCONN)) {
-			/* We have no data to send to check the connection, and
-			 * getsockopt() will not inform us whether the connection
-			 * is still pending. So we'll reuse connect() to check the
-			 * state of the socket. This has the advantage of givig us
-			 * the following info :
-			 *  - error
-			 *  - connecting (EALREADY, EINPROGRESS)
-			 *  - connected (EISCONN, 0)
-			 */
-			if ((connect(fd, fdinfo[fd].peeraddr, fdinfo[fd].peerlen) == 0))
-				errno = 0;
-
-			if (errno == EALREADY || errno == EINPROGRESS) {
-				retval = 0;
-				goto out_may_wakeup;
-			}
-
-			if (errno && errno != EISCONN)
-				goto out_error;
-
-			/* OK we just need to indicate that we got a connection
-			 * and that we wrote nothing.
-			 */
-			b->flags |= BF_WRITE_NULL;
-			fdtab[fd].state = FD_STREADY;
-		}
-
-		/* Funny, we were called to write something but there wasn't
-		 * anything. We can get there, for example if we were woken up
-		 * on a write event to finish the splice, but the ->o is 0
-		 * so we cannot write anything from the buffer. Let's disable
-		 * the write event and pretend we never came there.
-		 */
-	}
+	retval = sock_raw_write_loop(si, b);
+	if (retval < 0)
+		goto out_error;
+	else if (retval == 0 && si->send_proxy_ofs)
+		goto out_may_wakeup; /* we failed to send the PROXY string */
 
 	if (b->flags & BF_OUT_EMPTY) {
 		/* the connection is established but we can't write. Either the

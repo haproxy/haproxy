@@ -60,6 +60,8 @@
 
 static int tcp_bind_listeners(struct protocol *proto, char *errmsg, int errlen);
 static int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen);
+static int tcp_connect_write(int fd);
+static int tcp_connect_read(int fd);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct protocol proto_tcpv4 = {
@@ -449,10 +451,21 @@ int tcp_connect_server(struct stream_interface *si)
 	fdtab[fd].owner = si;
 	fdtab[fd].state = FD_STCONN; /* connection in progress */
 	fdtab[fd].flags = FD_FL_TCP | FD_FL_TCP_NODELAY;
-	fdtab[fd].cb[DIR_RD].f = si->sock.read;
 	fdtab[fd].cb[DIR_RD].b = si->ib;
-	fdtab[fd].cb[DIR_WR].f = si->sock.write;
 	fdtab[fd].cb[DIR_WR].b = si->ob;
+
+	/* If we have nothing to send or if we want to initialize the sock layer,
+	 * we want to confirm that the TCP connection is established before doing
+	 * so, so we use our own write callback then switch to the sock layer.
+	 */
+	if (si->sock.init || ((si->ob->flags & BF_OUT_EMPTY) && !si->send_proxy_ofs)) {
+		fdtab[fd].cb[DIR_RD].f = tcp_connect_read;
+		fdtab[fd].cb[DIR_WR].f = tcp_connect_write;
+	}
+	else {
+		fdtab[fd].cb[DIR_RD].f = si->sock.read;
+		fdtab[fd].cb[DIR_WR].f = si->sock.write;
+	}
 
 	fdinfo[fd].peeraddr = (struct sockaddr *)&si->addr.to;
 	fdinfo[fd].peerlen = get_addr_len(&si->addr.to);
@@ -500,6 +513,122 @@ int tcp_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
 #endif
 	else
 		return getsockname(fd, sa, &salen);
+}
+
+/* This is the callback which is set when a connection establishment is pending
+ * and we have nothing to send, or if we have an init function we want to call
+ * once the connection is established.
+ */
+static int tcp_connect_write(int fd)
+{
+	struct stream_interface *si = fdtab[fd].owner;
+	struct buffer *b = si->ob;
+	int retval = 1;
+
+	if (fdtab[fd].state == FD_STERROR)
+		goto out_error;
+
+	if (fdtab[fd].state != FD_STCONN) {
+		retval = 0;
+		goto out_ignore; /* strange we were called while ready */
+	}
+
+	/* we might have been called just after an asynchronous shutw */
+	if (b->flags & BF_SHUTW)
+		goto out_wakeup;
+
+	/* We have no data to send to check the connection, and
+	 * getsockopt() will not inform us whether the connection
+	 * is still pending. So we'll reuse connect() to check the
+	 * state of the socket. This has the advantage of giving us
+	 * the following info :
+	 *  - error
+	 *  - connecting (EALREADY, EINPROGRESS)
+	 *  - connected (EISCONN, 0)
+	 */
+	if ((connect(fd, fdinfo[fd].peeraddr, fdinfo[fd].peerlen) == 0))
+		errno = 0;
+
+	if (errno == EALREADY || errno == EINPROGRESS) {
+		retval = 0;
+		goto out_ignore;
+	}
+
+	if (errno && errno != EISCONN)
+		goto out_error;
+
+	/* OK we just need to indicate that we got a connection
+	 * and that we wrote nothing.
+	 */
+	b->flags |= BF_WRITE_NULL;
+
+	/* The FD is ready now, we can hand the handlers to the socket layer */
+	fdtab[fd].cb[DIR_RD].f = si->sock.read;
+	fdtab[fd].cb[DIR_WR].f = si->sock.write;
+	fdtab[fd].state = FD_STREADY;
+
+ out_wakeup:
+	task_wakeup(si->owner, TASK_WOKEN_IO);
+
+ out_ignore:
+	fdtab[fd].ev &= ~FD_POLL_OUT;
+	return retval;
+
+ out_error:
+	/* Write error on the file descriptor. We mark the FD as STERROR so
+	 * that we don't use it anymore. The error is reported to the stream
+	 * interface which will take proper action. We must not perturbate the
+	 * buffer because the stream interface wants to ensure transparent
+	 * connection retries.
+	 */
+
+	fdtab[fd].state = FD_STERROR;
+	fdtab[fd].ev &= ~FD_POLL_STICKY;
+	EV_FD_REM(fd);
+	si->flags |= SI_FL_ERR;
+	goto out_wakeup;
+}
+
+
+/* might be used on connect error */
+static int tcp_connect_read(int fd)
+{
+	struct stream_interface *si = fdtab[fd].owner;
+	int retval;
+
+	retval = 1;
+
+	if (fdtab[fd].state == FD_STERROR)
+		goto out_error;
+
+	if (fdtab[fd].state != FD_STCONN) {
+		retval = 0;
+		goto out_ignore; /* strange we were called while ready */
+	}
+
+	/* stop here if we reached the end of data */
+	if ((fdtab[fd].ev & (FD_POLL_IN|FD_POLL_HUP)) == FD_POLL_HUP)
+		goto out_error;
+
+ out_wakeup:
+	task_wakeup(si->owner, TASK_WOKEN_IO);
+ out_ignore:
+	fdtab[fd].ev &= ~FD_POLL_IN;
+	return retval;
+
+ out_error:
+	/* Read error on the file descriptor. We mark the FD as STERROR so
+	 * that we don't use it anymore. The error is reported to the stream
+	 * interface which will take proper action. We must not perturbate the
+	 * buffer because the stream interface wants to ensure transparent
+	 * connection retries.
+	 */
+
+	fdtab[fd].state = FD_STERROR;
+	fdtab[fd].ev &= ~FD_POLL_STICKY;
+	EV_FD_REM(fd);
+	si->flags |= SI_FL_ERR;
+	goto out_wakeup;
 }
 
 
