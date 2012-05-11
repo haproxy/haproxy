@@ -1,7 +1,7 @@
 /*
- * Functions operating on SOCK_STREAM and buffers.
+ * Functions used to send/receive data using SOCK_STREAM sockets.
  *
- * Copyright 2000-2011 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2012 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -41,6 +41,16 @@
 
 #include <types/global.h>
 
+/* main event functions used to move data between sockets and buffers */
+static int sock_raw_read(int fd);
+static int sock_raw_write(int fd);
+static void sock_raw_data_finish(struct stream_interface *si);
+static void sock_raw_shutr(struct stream_interface *si);
+static void sock_raw_shutw(struct stream_interface *si);
+static void sock_raw_chk_rcv(struct stream_interface *si);
+static void sock_raw_chk_snd(struct stream_interface *si);
+
+
 #if defined(CONFIG_HAP_LINUX_SPLICE)
 #include <common/splice.h>
 
@@ -71,7 +81,7 @@
  * This function automatically allocates a pipe from the pipe pool. It also
  * carefully ensures to clear b->pipe whenever it leaves the pipe empty.
  */
-static int stream_sock_splice_in(struct buffer *b, struct stream_interface *si)
+static int sock_raw_splice_in(struct buffer *b, struct stream_interface *si)
 {
 	static int splice_detects_close;
 	int fd = si->fd;
@@ -216,14 +226,15 @@ static int stream_sock_splice_in(struct buffer *b, struct stream_interface *si)
  * able to read more data without polling first. Returns non-zero
  * otherwise.
  */
-int stream_sock_read(int fd) {
+static int sock_raw_read(int fd)
+{
 	struct stream_interface *si = fdtab[fd].owner;
 	struct buffer *b = si->ib;
 	int ret, max, retval, cur_read;
 	int read_poll = MAX_READ_POLL_LOOPS;
 
 #ifdef DEBUG_FULL
-	fprintf(stderr,"stream_sock_read : fd=%d, ev=0x%02x, owner=%p\n", fd, fdtab[fd].ev, fdtab[fd].owner);
+	fprintf(stderr,"sock_raw_read : fd=%d, ev=0x%02x, owner=%p\n", fd, fdtab[fd].ev, fdtab[fd].owner);
 #endif
 
 	retval = 1;
@@ -255,7 +266,7 @@ int stream_sock_read(int fd) {
 		if (fdtab[fd].ev & FD_POLL_HUP)
 			goto out_shutdown_r;
 
-		retval = stream_sock_splice_in(b, si);
+		retval = sock_raw_splice_in(b, si);
 
 		if (retval >= 0) {
 			if (si->flags & SI_FL_ERR)
@@ -479,7 +490,7 @@ int stream_sock_read(int fd) {
 	b->flags |= BF_READ_NULL;
 	if (b->flags & BF_AUTO_CLOSE)
 		buffer_shutw_now(b);
-	stream_sock_shutr(si);
+	sock_raw_shutr(si);
 	goto out_wakeup;
 
  out_error:
@@ -505,7 +516,7 @@ int stream_sock_read(int fd) {
  * before calling it again, otherwise 1. If a pipe was associated with the
  * buffer and it empties it, it releases it as well.
  */
-static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
+static int sock_raw_write_loop(struct stream_interface *si, struct buffer *b)
 {
 	int write_poll = MAX_WRITE_POLL_LOOPS;
 	int retval = 1;
@@ -685,14 +696,14 @@ static int stream_sock_write_loop(struct stream_interface *si, struct buffer *b)
  * It returns 0 if the caller needs to poll before calling it again, otherwise
  * non-zero.
  */
-int stream_sock_write(int fd)
+static int sock_raw_write(int fd)
 {
 	struct stream_interface *si = fdtab[fd].owner;
 	struct buffer *b = si->ob;
 	int retval = 1;
 
 #ifdef DEBUG_FULL
-	fprintf(stderr,"stream_sock_write : fd=%d, owner=%p\n", fd, fdtab[fd].owner);
+	fprintf(stderr,"sock_raw_write : fd=%d, owner=%p\n", fd, fdtab[fd].owner);
 #endif
 
 	retval = 1;
@@ -705,7 +716,7 @@ int stream_sock_write(int fd)
 
 	if (likely(!(b->flags & BF_OUT_EMPTY) || si->send_proxy_ofs)) {
 		/* OK there are data waiting to be sent */
-		retval = stream_sock_write_loop(si, b);
+		retval = sock_raw_write_loop(si, b);
 		if (retval < 0)
 			goto out_error;
 		else if (retval == 0 && si->send_proxy_ofs)
@@ -757,7 +768,7 @@ int stream_sock_write(int fd)
 		 */
 		if (((b->flags & (BF_SHUTW|BF_HIJACK|BF_SHUTW_NOW)) == BF_SHUTW_NOW) &&
 		    (si->state == SI_ST_EST)) {
-			stream_sock_shutw(si);
+			sock_raw_shutw(si);
 			goto out_wakeup;
 		}
 		
@@ -828,7 +839,7 @@ int stream_sock_write(int fd)
  * updated to reflect the new state. It does also close everything is the SI was
  * marked as being in error state.
  */
-void stream_sock_shutw(struct stream_interface *si)
+static void sock_raw_shutw(struct stream_interface *si)
 {
 	si->ob->flags &= ~BF_SHUTW_NOW;
 	if (si->ob->flags & BF_SHUTW)
@@ -888,7 +899,7 @@ void stream_sock_shutw(struct stream_interface *si)
  * or closes the file descriptor and marks itself as closed. The buffer flags are
  * updated to reflect the new state.
  */
-void stream_sock_shutr(struct stream_interface *si)
+static void sock_raw_shutr(struct stream_interface *si)
 {
 	si->ib->flags &= ~BF_SHUTR_NOW;
 	if (si->ib->flags & BF_SHUTR)
@@ -914,12 +925,12 @@ void stream_sock_shutr(struct stream_interface *si)
 }
 
 /*
- * Updates a connected stream_sock file descriptor status and timeouts
+ * Updates a connected sock_raw file descriptor status and timeouts
  * according to the buffers' flags. It should only be called once after the
  * buffer flags have settled down, and before they are cleared. It doesn't
  * harm to call it as often as desired (it just slightly hurts performance).
  */
-void stream_sock_data_finish(struct stream_interface *si)
+static void sock_raw_data_finish(struct stream_interface *si)
 {
 	struct buffer *ib = si->ib;
 	struct buffer *ob = si->ob;
@@ -999,7 +1010,7 @@ void stream_sock_data_finish(struct stream_interface *si)
  * for free space in the buffer. Note that it intentionally does not update
  * timeouts, so that we can still check them later at wake-up.
  */
-void stream_sock_chk_rcv(struct stream_interface *si)
+static void sock_raw_chk_rcv(struct stream_interface *si)
 {
 	struct buffer *ib = si->ib;
 
@@ -1033,7 +1044,7 @@ void stream_sock_chk_rcv(struct stream_interface *si)
  * for data in the buffer. Note that it intentionally does not update timeouts,
  * so that we can still check them later at wake-up.
  */
-void stream_sock_chk_snd(struct stream_interface *si)
+static void sock_raw_chk_snd(struct stream_interface *si)
 {
 	struct buffer *ob = si->ob;
 	int retval;
@@ -1057,7 +1068,7 @@ void stream_sock_chk_snd(struct stream_interface *si)
 	     (fdtab[si->fd].ev & FD_POLL_OUT)))   /* we'll be called anyway */
 		return;
 
-	retval = stream_sock_write_loop(si, ob);
+	retval = sock_raw_write_loop(si, ob);
 	/* here, we have :
 	 *   retval < 0 if an error was encountered during write.
 	 *   retval = 0 if we can't write anymore without polling
@@ -1089,7 +1100,7 @@ void stream_sock_chk_snd(struct stream_interface *si)
 		if (((ob->flags & (BF_SHUTW|BF_HIJACK|BF_AUTO_CLOSE|BF_SHUTW_NOW)) ==
 		     (BF_AUTO_CLOSE|BF_SHUTW_NOW)) &&
 		    (si->state == SI_ST_EST)) {
-			stream_sock_shutw(si);
+			sock_raw_shutw(si);
 			goto out_wakeup;
 		}
 
@@ -1139,14 +1150,14 @@ void stream_sock_chk_snd(struct stream_interface *si)
 }
 
 /* stream sock operations */
-struct sock_ops stream_sock = {
-	.update  = stream_sock_data_finish,
-	.shutr   = stream_sock_shutr,
-	.shutw   = stream_sock_shutw,
-	.chk_rcv = stream_sock_chk_rcv,
-	.chk_snd = stream_sock_chk_snd,
-	.read    = stream_sock_read,
-	.write   = stream_sock_write,
+struct sock_ops sock_raw = {
+	.update  = sock_raw_data_finish,
+	.shutr   = sock_raw_shutr,
+	.shutw   = sock_raw_shutw,
+	.chk_rcv = sock_raw_chk_rcv,
+	.chk_snd = sock_raw_chk_snd,
+	.read    = sock_raw_read,
+	.write   = sock_raw_write,
 };
 
 /*

@@ -1182,7 +1182,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	if (s->be->options2 & PR_O2_INDEPSTR)
 		s->si[1].flags |= SI_FL_INDEP_STR;
 
-	stream_interface_prepare(&s->si[1], &stream_sock);
+	stream_interface_prepare(&s->si[1], &sock_raw);
 
 	session_init_srv_conn(s);
 	set_target_proxy(&s->target, s->be);

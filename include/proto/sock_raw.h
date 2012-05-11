@@ -2,7 +2,7 @@
  * include/proto/sock_raw.h
  * This file contains definition for raw stream socket operations
  *
- * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,44 +19,14 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_STREAM_SOCK_H
-#define _PROTO_STREAM_SOCK_H
+#ifndef _PROTO_SOCK_RAW_H
+#define _PROTO_SOCK_RAW_H
 
-#include <stdlib.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-
-#include <common/config.h>
 #include <types/stream_interface.h>
 
+extern struct sock_ops sock_raw;
 
-/* main event functions used to move data between sockets and buffers */
-int stream_sock_read(int fd);
-int stream_sock_write(int fd);
-void stream_sock_data_finish(struct stream_interface *si);
-void stream_sock_shutr(struct stream_interface *si);
-void stream_sock_shutw(struct stream_interface *si);
-void stream_sock_chk_rcv(struct stream_interface *si);
-void stream_sock_chk_snd(struct stream_interface *si);
-
-extern struct sock_ops stream_sock;
-
-/* This either returns the sockname or the original destination address. Code
- * inspired from Patrick Schaaf's example of nf_getsockname() implementation.
- */
-static inline int get_original_dst(int fd, struct sockaddr_in *sa, socklen_t *salen) {
-#if defined(TPROXY) && defined(SO_ORIGINAL_DST)
-    return getsockopt(fd, SOL_IP, SO_ORIGINAL_DST, (void *)sa, salen);
-#else
-#if defined(TPROXY) && defined(USE_GETSOCKNAME)
-    return getsockname(fd, (struct sockaddr *)sa, salen);
-#else
-    return -1;
-#endif
-#endif
-}
-
-#endif /* _PROTO_STREAM_SOCK_H */
+#endif /* _PROTO_SOCK_RAW_H */
 
 /*
  * Local variables:

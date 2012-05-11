@@ -974,7 +974,7 @@ int connect_server(struct session *s)
 	 * decide here if we can reuse the connection by comparing the
 	 * session's freshly assigned target with the stream interface's.
 	 */
-	stream_interface_prepare(s->req->cons, &stream_sock);
+	stream_interface_prepare(s->req->cons, &sock_raw);
 
 	/* the target was only on the session, assign it to the SI now */
 	copy_target(&s->req->cons->target, &s->target);
