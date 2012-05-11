@@ -968,31 +968,29 @@ int connect_server(struct session *s)
 			return SN_ERR_INTERNAL;
 	}
 
-	/* Prepare the stream interface for a TCP connection. Later
-	 * we may assign a protocol-specific connect() function.
-	 * NOTE: when we later support HTTP keep-alive, we'll have to
-	 * decide here if we can reuse the connection by comparing the
-	 * session's freshly assigned target with the stream interface's.
-	 */
-	stream_interface_prepare(s->req->cons, &sock_raw);
-
 	/* the target was only on the session, assign it to the SI now */
 	copy_target(&s->req->cons->target, &s->target);
+
+	/* set the correct protocol on the output stream interface */
+	if (s->target.type == TARG_TYPE_SERVER) {
+		s->req->cons->proto = target_srv(&s->target)->proto;
+		stream_interface_prepare(s->req->cons, target_srv(&s->target)->sock);
+	}
+	else if (s->target.type == TARG_TYPE_PROXY) {
+		/* proxies exclusively run on sock_raw right now */
+		s->req->cons->proto = protocol_by_family(s->req->cons->addr.to.ss_family);
+		stream_interface_prepare(s->req->cons, &sock_raw);
+		if (!s->req->cons->proto)
+			return SN_ERR_INTERNAL;
+	}
+	else
+		return SN_ERR_INTERNAL;  /* how did we get there ? */
 
 	/* process the case where the server requires the PROXY protocol to be sent */
 	s->req->cons->send_proxy_ofs = 0;
 	if (s->target.type == TARG_TYPE_SERVER && (s->target.ptr.s->state & SRV_SEND_PROXY)) {
 		s->req->cons->send_proxy_ofs = 1; /* must compute size */
 		si_get_to_addr(s->req->prod);
-	}
-
-	/* set the correct protocol on the output stream interface */
-	if (s->target.type == TARG_TYPE_SERVER)
-		s->req->cons->proto = target_srv(&s->target)->proto;
-	else if (s->target.type == TARG_TYPE_PROXY) {
-		s->req->cons->proto = protocol_by_family(s->req->cons->addr.to.ss_family);
-		if (!s->req->cons->proto)
-			return SN_ERR_INTERNAL;
 	}
 
 	assign_tproxy_address(s);

@@ -61,6 +61,7 @@
 #include <proto/sample.h>
 #include <proto/server.h>
 #include <proto/session.h>
+#include <proto/sock_raw.h>
 #include <proto/task.h>
 #include <proto/stick_table.h>
 
@@ -1270,6 +1271,8 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		}
 		newpeer->addr = *sk;
 		newpeer->proto = protocol_by_family(newpeer->addr.ss_family);
+		newpeer->sock  = &sock_raw;
+		newpeer->sock_init_arg = NULL;
 
 		if (!sk) {
 			Alert("parsing [%s:%d] : Unknown protocol family %d '%s'\n",
@@ -4071,6 +4074,8 @@ stats_error_parsing:
 			}
 			newsrv->addr = *sk;
 			newsrv->proto = protocol_by_family(newsrv->addr.ss_family);
+			newsrv->sock  = &sock_raw;
+			newsrv->sock_init_arg = NULL;
 
 			if (!sk) {
 				Alert("parsing [%s:%d] : Unknown protocol family %d '%s'\n",
