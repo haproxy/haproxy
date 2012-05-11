@@ -42,6 +42,7 @@ static void stream_int_chk_snd(struct stream_interface *si);
 
 /* socket operations for embedded tasks */
 struct sock_ops stream_int_embedded = {
+	.init    = NULL,
 	.update  = stream_int_update_embedded,
 	.shutr   = stream_int_shutr,
 	.shutw   = stream_int_shutw,
@@ -53,6 +54,7 @@ struct sock_ops stream_int_embedded = {
 
 /* socket operations for external tasks */
 struct sock_ops stream_int_task = {
+	.init    = NULL,
 	.update  = stream_int_update,
 	.shutr   = stream_int_shutr,
 	.shutw   = stream_int_shutw,

@@ -106,6 +106,7 @@ struct target {
 };
 
 struct sock_ops {
+	int (*init)(struct stream_interface *, void *); /* init function */
 	void (*update)(struct stream_interface *);  /* I/O update function */
 	void (*shutr)(struct stream_interface *);   /* shutr function */
 	void (*shutw)(struct stream_interface *);   /* shutw function */
