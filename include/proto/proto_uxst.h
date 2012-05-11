@@ -27,6 +27,8 @@
 #include <types/task.h>
 
 void uxst_add_listener(struct listener *listener);
+int uxst_get_src(int fd, struct sockaddr *sa, socklen_t salen, int dir);
+int uxst_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir);
 
 #endif /* _PROTO_PROTO_UXST_H */
 

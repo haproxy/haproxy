@@ -109,6 +109,40 @@ static inline void stream_interface_prepare(struct stream_interface *si, const s
 	memcpy(&si->sock, ops, sizeof(si->sock));
 }
 
+
+/* Retrieves the source address for the stream interface. */
+static inline void si_get_from_addr(struct stream_interface *si)
+{
+	if (si->flags & SI_FL_FROM_SET)
+		return;
+
+	if (!si->proto || !si->proto->get_src)
+		return;
+
+	if (si->proto->get_src(si->fd, (struct sockaddr *)&si->addr.from,
+			       sizeof(si->addr.from),
+			       si->target.type != TARG_TYPE_CLIENT) == -1)
+		return;
+	si->flags |= SI_FL_FROM_SET;
+}
+
+/* Retrieves the original destination address for the stream interface. */
+static inline void si_get_to_addr(struct stream_interface *si)
+{
+	if (si->flags & SI_FL_TO_SET)
+		return;
+
+	if (!si->proto || !si->proto->get_dst)
+		return;
+
+	if (si->proto->get_dst(si->fd, (struct sockaddr *)&si->addr.to,
+			       sizeof(si->addr.to),
+			       si->target.type != TARG_TYPE_CLIENT) == -1)
+		return;
+	si->flags |= SI_FL_TO_SET;
+}
+
+
 #endif /* _PROTO_STREAM_INTERFACE_H */
 
 /*

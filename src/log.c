@@ -859,7 +859,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_FRONTENDIP: // %Fi
-				stream_sock_get_to_addr(s->req->prod);
+				si_get_to_addr(s->req->prod);
 				ret = lf_ip(tmplog, (struct sockaddr *)&s->req->prod->addr.to,
 					    dst + maxsize - tmplog, tmp);
 				if (ret == NULL)
@@ -869,7 +869,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case  LOG_FMT_FRONTENDPORT: // %Fp
-				stream_sock_get_to_addr(s->req->prod);
+				si_get_to_addr(s->req->prod);
 				if (s->req->prod->addr.to.ss_family == AF_UNIX) {
 					ret = ltoa_o(s->listener->luid,
 						     tmplog, dst + maxsize - tmplog);

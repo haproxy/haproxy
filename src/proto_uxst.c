@@ -61,6 +61,8 @@ static struct protocol proto_unix = {
 	.unbind_all = uxst_unbind_listeners,
 	.enable_all = enable_all_listeners,
 	.disable_all = disable_all_listeners,
+	.get_src = uxst_get_src,
+	.get_dst = uxst_get_dst,
 	.listeners = LIST_HEAD_INIT(proto_unix.listeners),
 	.nb_listeners = 0,
 };
@@ -68,6 +70,35 @@ static struct protocol proto_unix = {
 /********************************
  * 1) low-level socket functions
  ********************************/
+
+/*
+ * Retrieves the source address for the socket <fd>, with <dir> indicating
+ * if we're a listener (=0) or an initiator (!=0). It returns 0 in case of
+ * success, -1 in case of error. The socket's source address is stored in
+ * <sa> for <salen> bytes.
+ */
+int uxst_get_src(int fd, struct sockaddr *sa, socklen_t salen, int dir)
+{
+	if (dir)
+		return getsockname(fd, sa, &salen);
+	else
+		return getpeername(fd, sa, &salen);
+}
+
+
+/*
+ * Retrieves the original destination address for the socket <fd>, with <dir>
+ * indicating if we're a listener (=0) or an initiator (!=0). It returns 0 in
+ * case of success, -1 in case of error. The socket's source address is stored
+ * in <sa> for <salen> bytes.
+ */
+int uxst_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
+{
+	if (dir)
+		return getpeername(fd, sa, &salen);
+	else
+		return getsockname(fd, sa, &salen);
+}
 
 
 /* Tries to destroy the UNIX stream socket <path>. The socket must not be used

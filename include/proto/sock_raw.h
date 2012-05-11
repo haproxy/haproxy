@@ -56,51 +56,6 @@ static inline int get_original_dst(int fd, struct sockaddr_in *sa, socklen_t *sa
 #endif
 }
 
-
-/*
- * Retrieves the original destination address for the stream interface. On the
- * client side, if the original destination address was translated, the original
- * address is retrieved.
- */
-static inline void stream_sock_get_to_addr(struct stream_interface *si)
-{
-	socklen_t namelen;
-
-	if (si->flags & SI_FL_TO_SET)
-		return;
-
-	namelen = sizeof(si->addr.to);
-
-#if defined(TPROXY) && defined(SO_ORIGINAL_DST)
-	if (getsockopt(si->fd, SOL_IP, SO_ORIGINAL_DST, (struct sockaddr *)&si->addr.to, &namelen) != -1) {
-		si->flags |= SI_FL_TO_SET;
-		return;
-	}
-#endif
-	if (si->proto->get_dst &&
-	    si->proto->get_dst(si->fd, (struct sockaddr *)&si->addr.to, &namelen) != -1)
-		si->flags |= SI_FL_TO_SET;
-	return;
-}
-
-/*
- * Retrieves the source address for the stream interface.
- */
-static inline void stream_sock_get_from_addr(struct stream_interface *si)
-{
-	socklen_t namelen;
-
-	if (si->flags & SI_FL_FROM_SET)
-		return;
-
-	namelen = sizeof(si->addr.to);
-	if (si->proto->get_src &&
-	    si->proto->get_src(si->fd, (struct sockaddr *)&si->addr.from, &namelen) != -1)
-		si->flags |= SI_FL_FROM_SET;
-	return;
-}
-
-
 #endif /* _PROTO_STREAM_SOCK_H */
 
 /*

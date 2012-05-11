@@ -3335,7 +3335,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 			/* Add an X-Original-To header unless the destination IP is
 			 * in the 'except' network range.
 			 */
-			stream_sock_get_to_addr(s->req->prod);
+			si_get_to_addr(s->req->prod);
 
 			if (s->req->prod->addr.to.ss_family == AF_INET &&
 			    ((!s->fe->except_mask_to.s_addr ||

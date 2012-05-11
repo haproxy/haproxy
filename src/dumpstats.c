@@ -3256,7 +3256,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 			     sess->listener ? sess->listener->name ? sess->listener->name : "?" : "?",
 			     sess->listener ? sess->listener->luid : 0);
 
-		stream_sock_get_to_addr(&sess->si[0]);
+		si_get_to_addr(&sess->si[0]);
 		switch (addr_to_str(&sess->si[0].addr.to, pn, sizeof(pn))) {
 		case AF_INET:
 		case AF_INET6:
@@ -3280,7 +3280,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 		else
 			chunk_printf(&msg, "  backend=<NONE> (id=-1 mode=-)");
 
-		stream_sock_get_from_addr(&sess->si[1]);
+		si_get_from_addr(&sess->si[1]);
 		switch (addr_to_str(&sess->si[1].addr.from, pn, sizeof(pn))) {
 		case AF_INET:
 		case AF_INET6:
@@ -3304,7 +3304,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 		else
 			chunk_printf(&msg, "  server=<NONE> (id=-1)");
 
-		stream_sock_get_to_addr(&sess->si[1]);
+		si_get_to_addr(&sess->si[1]);
 		switch (addr_to_str(&sess->si[1].addr.to, pn, sizeof(pn))) {
 		case AF_INET:
 		case AF_INET6:

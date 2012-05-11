@@ -139,8 +139,8 @@ int frontend_accept(struct session *s)
 		else {
 			char pn[INET6_ADDRSTRLEN], sn[INET6_ADDRSTRLEN];
 
-			stream_sock_get_from_addr(s->req->prod);
-			stream_sock_get_to_addr(s->req->prod);
+			si_get_from_addr(s->req->prod);
+			si_get_to_addr(s->req->prod);
 
 			switch (addr_to_str(&s->req->prod->addr.from, pn, sizeof(pn))) {
 			case AF_INET:
@@ -165,7 +165,7 @@ int frontend_accept(struct session *s)
 		char pn[INET6_ADDRSTRLEN];
 		int len = 0;
 
-		stream_sock_get_from_addr(s->req->prod);
+		si_get_from_addr(s->req->prod);
 
 		switch (addr_to_str(&s->req->prod->addr.from, pn, sizeof(pn))) {
 		case AF_INET:

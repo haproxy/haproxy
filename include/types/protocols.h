@@ -157,8 +157,8 @@ struct protocol {
 	int (*enable_all)(struct protocol *proto);	/* enable all bound listeners */
 	int (*disable_all)(struct protocol *proto);	/* disable all bound listeners */
 	int (*connect)(struct stream_interface *);      /* connect function if any */
-	int (*get_src)(int, struct sockaddr *, socklen_t *); /* syscall used to retrieve src addr */
-	int (*get_dst)(int, struct sockaddr *, socklen_t *); /* syscall used to retrieve dst addr */
+	int (*get_src)(int fd, struct sockaddr *, socklen_t, int dir); /* syscall used to retrieve src addr */
+	int (*get_dst)(int fd, struct sockaddr *, socklen_t, int dir); /* syscall used to retrieve dst addr */
 
 	struct list listeners;				/* list of listeners using this protocol */
 	int nb_listeners;				/* number of listeners */

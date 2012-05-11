@@ -50,6 +50,7 @@
 #include <proto/session.h>
 #include <proto/sock_raw.h>
 #include <proto/stick_table.h>
+#include <proto/stream_interface.h>
 #include <proto/task.h>
 #include <proto/buffers.h>
 
@@ -75,6 +76,8 @@ static struct protocol proto_tcpv4 = {
 	.bind_all = tcp_bind_listeners,
 	.unbind_all = unbind_all_listeners,
 	.enable_all = enable_all_listeners,
+	.get_src = tcp_get_src,
+	.get_dst = tcp_get_dst,
 	.listeners = LIST_HEAD_INIT(proto_tcpv4.listeners),
 	.nb_listeners = 0,
 };
@@ -94,6 +97,8 @@ static struct protocol proto_tcpv6 = {
 	.bind_all = tcp_bind_listeners,
 	.unbind_all = unbind_all_listeners,
 	.enable_all = enable_all_listeners,
+	.get_src = tcp_get_src,
+	.get_dst = tcp_get_dst,
 	.listeners = LIST_HEAD_INIT(proto_tcpv6.listeners),
 	.nb_listeners = 0,
 };
@@ -439,7 +444,7 @@ int tcp_connect_server(struct stream_interface *si)
 
 	/* needs src ip/port for logging */
 	if (si->flags & SI_FL_SRC_ADDR)
-		stream_sock_get_from_addr(si);
+		si_get_from_addr(si);
 
 	fdtab[fd].owner = si;
 	fdtab[fd].state = FD_STCONN; /* connection in progress */
@@ -460,6 +465,41 @@ int tcp_connect_server(struct stream_interface *si)
 	si->exp = tick_add_ifset(now_ms, be->timeout.connect);
 
 	return SN_ERR_NONE;  /* connection is OK */
+}
+
+
+/*
+ * Retrieves the source address for the socket <fd>, with <dir> indicating
+ * if we're a listener (=0) or an initiator (!=0). It returns 0 in case of
+ * success, -1 in case of error. The socket's source address is stored in
+ * <sa> for <salen> bytes.
+ */
+int tcp_get_src(int fd, struct sockaddr *sa, socklen_t salen, int dir)
+{
+	if (dir)
+		return getsockname(fd, sa, &salen);
+	else
+		return getpeername(fd, sa, &salen);
+}
+
+
+/*
+ * Retrieves the original destination address for the socket <fd>, with <dir>
+ * indicating if we're a listener (=0) or an initiator (!=0). In the case of a
+ * listener, if the original destination address was translated, the original
+ * address is retrieved. It returns 0 in case of success, -1 in case of error.
+ * The socket's source address is stored in <sa> for <salen> bytes.
+ */
+int tcp_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
+{
+	if (dir)
+		return getpeername(fd, sa, &salen);
+#if defined(TPROXY) && defined(SO_ORIGINAL_DST)
+	else if (getsockopt(fd, SOL_IP, SO_ORIGINAL_DST, sa, &salen) == 0)
+		return 0;
+#endif
+	else
+		return getsockname(fd, sa, &salen);
 }
 
 
@@ -1417,7 +1457,7 @@ static int
 smp_fetch_dst(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
               const struct arg *args, struct sample *smp)
 {
-	stream_sock_get_to_addr(&l4->si[0]);
+	si_get_to_addr(&l4->si[0]);
 
 	switch (l4->si[0].addr.to.ss_family) {
 	case AF_INET:
@@ -1441,7 +1481,7 @@ static int
 smp_fetch_dport(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp)
 {
-	stream_sock_get_to_addr(&l4->si[0]);
+	si_get_to_addr(&l4->si[0]);
 
 	smp->type = SMP_T_UINT;
 	if (!(smp->data.uint = get_host_port(&l4->si[0].addr.to)))

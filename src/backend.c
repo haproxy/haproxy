@@ -693,7 +693,7 @@ int assign_server_address(struct session *s)
 			 * locally on multiple addresses at once.
 			 */
 			if (!(s->be->options & PR_O_TRANSP))
-				stream_sock_get_to_addr(s->req->prod);
+				si_get_to_addr(s->req->prod);
 
 			if (s->req->prod->addr.to.ss_family == AF_INET) {
 				((struct sockaddr_in *)&s->req->cons->addr.to)->sin_addr = ((struct sockaddr_in *)&s->req->prod->addr.to)->sin_addr;
@@ -708,7 +708,7 @@ int assign_server_address(struct session *s)
 			int base_port;
 
 			if (!(s->be->options & PR_O_TRANSP))
-				stream_sock_get_to_addr(s->req->prod);
+				si_get_to_addr(s->req->prod);
 
 			/* First, retrieve the port from the incoming connection */
 			base_port = get_host_port(&s->req->prod->addr.to);
@@ -724,7 +724,7 @@ int assign_server_address(struct session *s)
 	}
 	else if (s->be->options & PR_O_TRANSP) {
 		/* in transparent mode, use the original dest addr if no dispatch specified */
-		stream_sock_get_to_addr(s->req->prod);
+		si_get_to_addr(s->req->prod);
 
 		if (s->req->prod->addr.to.ss_family == AF_INET || s->req->prod->addr.to.ss_family == AF_INET6) {
 			memcpy(&s->req->cons->addr.to, &s->req->prod->addr.to, MIN(sizeof(s->req->cons->addr.to), sizeof(s->req->prod->addr.to)));
@@ -983,7 +983,7 @@ int connect_server(struct session *s)
 	s->req->cons->send_proxy_ofs = 0;
 	if (s->target.type == TARG_TYPE_SERVER && (s->target.ptr.s->state & SRV_SEND_PROXY)) {
 		s->req->cons->send_proxy_ofs = 1; /* must compute size */
-		stream_sock_get_to_addr(s->req->prod);
+		si_get_to_addr(s->req->prod);
 	}
 
 	/* set the correct protocol on the output stream interface */
