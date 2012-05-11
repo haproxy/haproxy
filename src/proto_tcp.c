@@ -48,8 +48,8 @@
 #include <proto/proxy.h>
 #include <proto/sample.h>
 #include <proto/session.h>
+#include <proto/sock_raw.h>
 #include <proto/stick_table.h>
-#include <proto/stream_sock.h>
 #include <proto/task.h>
 #include <proto/buffers.h>
 

@@ -41,8 +41,8 @@
 #include <proto/proto_http.h>
 #include <proto/proxy.h>
 #include <proto/session.h>
+#include <proto/sock_raw.h>
 #include <proto/stream_interface.h>
-#include <proto/stream_sock.h>
 #include <proto/task.h>
 
 /* Finish a session accept() for a proxy (TCP or HTTP). It returns a negative

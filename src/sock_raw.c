@@ -36,7 +36,7 @@
 #include <proto/log.h>
 #include <proto/pipe.h>
 #include <proto/protocols.h>
-#include <proto/stream_sock.h>
+#include <proto/sock_raw.h>
 #include <proto/task.h>
 
 #include <types/global.h>

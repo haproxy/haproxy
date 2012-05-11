@@ -59,8 +59,8 @@
 #include <proto/sample.h>
 #include <proto/server.h>
 #include <proto/session.h>
+#include <proto/sock_raw.h>
 #include <proto/stream_interface.h>
-#include <proto/stream_sock.h>
 #include <proto/task.h>
 
 const char HTTP_100[] =

@@ -85,7 +85,7 @@
 #include <proto/server.h>
 #include <proto/session.h>
 #include <proto/signal.h>
-#include <proto/stream_sock.h>
+#include <proto/sock_raw.h>
 #include <proto/task.h>
 
 #ifdef CONFIG_HAP_CTTPROXY

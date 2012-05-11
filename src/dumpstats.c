@@ -52,8 +52,8 @@
 #include <proto/proxy.h>
 #include <proto/session.h>
 #include <proto/server.h>
+#include <proto/sock_raw.h>
 #include <proto/stream_interface.h>
-#include <proto/stream_sock.h>
 #include <proto/task.h>
 
 static int stats_dump_raw_to_buffer(struct stream_interface *si);

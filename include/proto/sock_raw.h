@@ -1,6 +1,6 @@
 /*
- * include/proto/stream_sock.h
- * This file contains client-side definitions.
+ * include/proto/sock_raw.h
+ * This file contains definition for raw stream socket operations
  *
  * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
  *

@@ -32,8 +32,8 @@
 
 #include <proto/frontend.h>
 #include <proto/log.h>
+#include <proto/sock_raw.h>
 #include <proto/stream_interface.h>
-#include <proto/stream_sock.h>
 
 const char *log_facilities[NB_LOG_FACILITIES] = {
 	"kern", "user", "mail", "daemon",
