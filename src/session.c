@@ -199,8 +199,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[1].release   = NULL;
 	s->si[1].send_proxy_ofs = 0;
 	clear_target(&s->si[1].target);
-	s->si[1].sock.shutr= stream_int_shutr;
-	s->si[1].sock.shutw= stream_int_shutw;
+	stream_interface_prepare(&s->si[1], &stream_int_embedded);
 	s->si[1].exp       = TICK_ETERNITY;
 	s->si[1].flags     = SI_FL_NONE;
 

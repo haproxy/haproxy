@@ -1,7 +1,7 @@
 /*
  * Functions managing stream_interface structures
  *
- * Copyright 2000-2011 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2012 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -31,6 +31,14 @@
 #include <proto/sock_raw.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
+
+/* socket functions used when running a stream interface as a task */
+static void stream_int_update(struct stream_interface *si);
+static void stream_int_update_embedded(struct stream_interface *si);
+static void stream_int_shutr(struct stream_interface *si);
+static void stream_int_shutw(struct stream_interface *si);
+static void stream_int_chk_rcv(struct stream_interface *si);
+static void stream_int_chk_snd(struct stream_interface *si);
 
 /* socket operations for embedded tasks */
 struct sock_ops stream_int_embedded = {
@@ -107,7 +115,7 @@ void stream_int_retnclose(struct stream_interface *si, const struct chunk *msg)
 }
 
 /* default update function for scheduled tasks, not used for embedded tasks */
-void stream_int_update(struct stream_interface *si)
+static void stream_int_update(struct stream_interface *si)
 {
 	DPRINTF(stderr, "%s: si=%p, si->state=%d ib->flags=%08x ob->flags=%08x\n",
 		__FUNCTION__,
@@ -118,7 +126,7 @@ void stream_int_update(struct stream_interface *si)
 }
 
 /* default update function for embedded tasks, to be used at the end of the i/o handler */
-void stream_int_update_embedded(struct stream_interface *si)
+static void stream_int_update_embedded(struct stream_interface *si)
 {
 	int old_flags = si->flags;
 
@@ -197,7 +205,7 @@ void stream_int_update_embedded(struct stream_interface *si)
 }
 
 /* default shutr function for scheduled tasks */
-void stream_int_shutr(struct stream_interface *si)
+static void stream_int_shutr(struct stream_interface *si)
 {
 	DPRINTF(stderr, "%s: si=%p, si->state=%d ib->flags=%08x ob->flags=%08x\n",
 		__FUNCTION__,
@@ -227,7 +235,7 @@ void stream_int_shutr(struct stream_interface *si)
 }
 
 /* default shutw function for scheduled tasks */
-void stream_int_shutw(struct stream_interface *si)
+static void stream_int_shutw(struct stream_interface *si)
 {
 	DPRINTF(stderr, "%s: si=%p, si->state=%d ib->flags=%08x ob->flags=%08x\n",
 		__FUNCTION__,
@@ -268,7 +276,7 @@ void stream_int_shutw(struct stream_interface *si)
 }
 
 /* default chk_rcv function for scheduled tasks */
-void stream_int_chk_rcv(struct stream_interface *si)
+static void stream_int_chk_rcv(struct stream_interface *si)
 {
 	struct buffer *ib = si->ib;
 
@@ -293,7 +301,7 @@ void stream_int_chk_rcv(struct stream_interface *si)
 }
 
 /* default chk_snd function for scheduled tasks */
-void stream_int_chk_snd(struct stream_interface *si)
+static void stream_int_chk_snd(struct stream_interface *si)
 {
 	struct buffer *ob = si->ob;
 

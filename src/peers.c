@@ -1177,12 +1177,11 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->si[1].release = NULL;
 	s->si[1].send_proxy_ofs = 0;
 	set_target_proxy(&s->si[1].target, s->be);
+	stream_interface_prepare(&s->si[1], &sock_raw);
 	s->si[1].exp = TICK_ETERNITY;
 	s->si[1].flags = SI_FL_NONE;
 	if (s->be->options2 & PR_O2_INDEPSTR)
 		s->si[1].flags |= SI_FL_INDEP_STR;
-
-	stream_interface_prepare(&s->si[1], &sock_raw);
 
 	session_init_srv_conn(s);
 	set_target_proxy(&s->target, s->be);

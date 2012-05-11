@@ -2,7 +2,7 @@
  * include/proto/stream_interface.h
  * This file contains stream_interface function prototypes
  *
- * Copyright (C) 2000-2011 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -32,14 +32,6 @@
 int stream_int_check_timeouts(struct stream_interface *si);
 void stream_int_report_error(struct stream_interface *si);
 void stream_int_retnclose(struct stream_interface *si, const struct chunk *msg);
-
-/* functions used when running a stream interface as a task */
-void stream_int_update(struct stream_interface *si);
-void stream_int_update_embedded(struct stream_interface *si);
-void stream_int_shutr(struct stream_interface *si);
-void stream_int_shutw(struct stream_interface *si);
-void stream_int_chk_rcv(struct stream_interface *si);
-void stream_int_chk_snd(struct stream_interface *si);
 
 extern struct sock_ops stream_int_embedded;
 extern struct sock_ops stream_int_task;
