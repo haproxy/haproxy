@@ -705,4 +705,10 @@ char *gmt2str_log(char *dst, struct tm *tm, size_t size);
 char *memprintf(char **out, const char *format, ...)
 	__attribute__ ((format(printf, 2, 3)));
 
+
+/* debugging macro to emit messages using write() on fd #-1 so that strace sees
+ * them.
+ */
+#define fddebug(msg...) do { char *_m = NULL; memprintf(&_m, ##msg); if (_m) write(-1, _m, strlen(_m)); free(_m); } while (0)
+
 #endif /* _COMMON_STANDARD_H */
