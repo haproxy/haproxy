@@ -284,9 +284,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	fdtab[cfd].state = FD_STREADY;
 	fdtab[cfd].flags = 0;
 	fdtab[cfd].cb[DIR_RD].f = s->si[0].sock.read;
-	fdtab[cfd].cb[DIR_RD].b = s->req;
 	fdtab[cfd].cb[DIR_WR].f = s->si[0].sock.write;
-	fdtab[cfd].cb[DIR_WR].b = s->rep;
 	fdinfo[cfd].peeraddr = (struct sockaddr *)&s->si[0].addr.from;
 	fdinfo[cfd].peerlen  = sizeof(s->si[0].addr.from);
 	EV_FD_SET(cfd, DIR_RD);

@@ -451,8 +451,6 @@ int tcp_connect_server(struct stream_interface *si)
 	fdtab[fd].owner = si;
 	fdtab[fd].state = FD_STCONN; /* connection in progress */
 	fdtab[fd].flags = FD_FL_TCP | FD_FL_TCP_NODELAY;
-	fdtab[fd].cb[DIR_RD].b = si->ib;
-	fdtab[fd].cb[DIR_WR].b = si->ob;
 
 	/* If we have nothing to send or if we want to initialize the sock layer,
 	 * we want to confirm that the TCP connection is established before doing
@@ -755,7 +753,6 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	fdtab[fd].flags = FD_FL_TCP | ((listener->options & LI_O_NOLINGER) ? FD_FL_TCP_NOLING : 0);
 	fdtab[fd].cb[DIR_RD].f = listener->proto->accept;
 	fdtab[fd].cb[DIR_WR].f = NULL; /* never called */
-	fdtab[fd].cb[DIR_RD].b = fdtab[fd].cb[DIR_WR].b = NULL;
 
 	fdinfo[fd].peeraddr = NULL;
 	fdinfo[fd].peerlen = 0;

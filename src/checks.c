@@ -1434,9 +1434,7 @@ static struct task *process_chk(struct task *t)
 						fd_insert(fd);
 						fdtab[fd].owner = t;
 						fdtab[fd].cb[DIR_RD].f = &event_srv_chk_r;
-						fdtab[fd].cb[DIR_RD].b = NULL;
 						fdtab[fd].cb[DIR_WR].f = &event_srv_chk_w;
-						fdtab[fd].cb[DIR_WR].b = NULL;
 						fdinfo[fd].peeraddr = (struct sockaddr *)&sa;
 						fdinfo[fd].peerlen = get_addr_len(&sa);
 						fdtab[fd].state = FD_STCONN; /* connection in progress */

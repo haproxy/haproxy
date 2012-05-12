@@ -69,7 +69,6 @@ enum {
 struct fdtab {
 	struct {
 		int (*f)(int fd);            /* read/write function */
-		struct buffer *b;            /* read/write buffer */
 	} cb[DIR_SIZE];
 	void *owner;                         /* the session (or proxy) associated with this fd */
 	struct {                             /* used by pollers which support speculative polling */

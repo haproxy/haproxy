@@ -264,7 +264,6 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	fd_insert(fd);
 	fdtab[fd].cb[DIR_RD].f = listener->proto->accept;
 	fdtab[fd].cb[DIR_WR].f = NULL; /* never called */
-	fdtab[fd].cb[DIR_RD].b = fdtab[fd].cb[DIR_WR].b = NULL;
 	fdtab[fd].owner = listener; /* reference the listener instead of a task */
 	fdtab[fd].state = FD_STLISTEN;
 	fdinfo[fd].peeraddr = NULL;
