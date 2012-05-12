@@ -1547,6 +1547,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->timeout.tarpit = defproxy.timeout.tarpit;
 			curproxy->timeout.httpreq = defproxy.timeout.httpreq;
 			curproxy->timeout.httpka = defproxy.timeout.httpka;
+			curproxy->timeout.tunnel = defproxy.timeout.tunnel;
 			curproxy->source_addr = defproxy.source_addr;
 		}
 
@@ -6127,7 +6128,8 @@ out_uri_auth_compat:
 		if ((curproxy->mode == PR_MODE_TCP || curproxy->mode == PR_MODE_HTTP) &&
 		    (((curproxy->cap & PR_CAP_FE) && !curproxy->timeout.client) ||
 		     ((curproxy->cap & PR_CAP_BE) && (curproxy->srv) &&
-		      (!curproxy->timeout.connect || !curproxy->timeout.server)))) {
+		      (!curproxy->timeout.connect ||
+		       (!curproxy->timeout.server && (curproxy->mode == PR_MODE_HTTP || !curproxy->timeout.tunnel)))))) {
 			Warning("config : missing timeouts for %s '%s'.\n"
 				"   | While not properly invalid, you will certainly encounter various problems\n"
 				"   | with such a configuration. To fix this, please ensure that all following\n"

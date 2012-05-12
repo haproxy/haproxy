@@ -2001,6 +2001,16 @@ struct task *process_session(struct task *t)
 		 */
 		if (!(s->rep->flags & (BF_SHUTR|BF_SHUTW_NOW)))
 			buffer_forward(s->rep, BUF_INFINITE_FORWARD);
+
+		/* if we have no analyser anymore in any direction and have a
+		 * tunnel timeout set, use it now.
+		 */
+		if (!s->req->analysers && s->be->timeout.tunnel) {
+			s->req->rto = s->req->wto = s->rep->rto = s->rep->wto =
+				s->be->timeout.tunnel;
+			s->req->rex = s->req->wex = s->rep->rex = s->rep->wex =
+				tick_add(now_ms, s->be->timeout.tunnel);
+		}
 	}
 
 	/* check if it is wise to enable kernel splicing to forward response data */

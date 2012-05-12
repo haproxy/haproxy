@@ -263,6 +263,7 @@ struct proxy {
 		int httpreq;                    /* maximum time for complete HTTP request */
 		int httpka;                     /* maximum time for a new HTTP request when using keep-alive */
 		int check;                      /* maximum time for complete check */
+		int tunnel;                     /* I/O timeout to use in tunnel mode (in ticks) */
 	} timeout;
 	char *id, *desc;			/* proxy id (name) and description */
 	struct list pendconns;			/* pending connections with no server assigned yet */

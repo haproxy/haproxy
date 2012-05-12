@@ -1117,6 +1117,7 @@ timeout queue                             X          -         X         X
 timeout server                            X          -         X         X
 timeout srvtimeout          (deprecated)  X          -         X         X
 timeout tarpit                            X          X         X         X
+timeout tunnel                            X          -         X         X
 transparent                 (deprecated)  X          -         X         X
 unique-id-format                          X          X         X         -
 unique-id-header                          X          X         X         -
@@ -3551,7 +3552,7 @@ no option independant-streams
   data sent to the server. Doing so will typically break large HTTP posts from
   slow lines, so use it with caution.
 
-  See also : "timeout client" and "timeout server"
+  See also : "timeout client", "timeout server" and "timeout tunnel"
 
 
 option ldap-check
@@ -5014,7 +5015,8 @@ srvtimeout <timeout> (deprecated)
   This parameter is provided for compatibility but is currently deprecated.
   Please use "timeout server" instead.
 
-  See also : "timeout server", "timeout client" and "clitimeout".
+  See also : "timeout server", "timeout tunnel", "timeout client" and
+             "clitimeout".
 
 
 stats admin { if | unless } <cond>
@@ -6334,7 +6336,9 @@ timeout clitimeout <timeout> (deprecated)
   client timeout remains equal to the server timeout in order to avoid complex
   situations to debug. It is a good practice to cover one or several TCP packet
   losses by specifying timeouts that are slightly above multiples of 3 seconds
-  (eg: 4 or 5 seconds).
+  (eg: 4 or 5 seconds). If some long-lived sessions are mixed with short-lived
+  sessions (eg: WebSocket and HTTP), it's worth considering "timeout tunnel",
+  which overrides "timeout client" and "timeout server" for tunnels.
 
   This parameter is specific to frontends, but can be specified once for all in
   "defaults" sections. This is in fact one of the easiest solutions not to
@@ -6347,7 +6351,7 @@ timeout clitimeout <timeout> (deprecated)
   to use it to write new configurations. The form "timeout clitimeout" is
   provided only by backwards compatibility but its use is strongly discouraged.
 
-  See also : "clitimeout", "timeout server".
+  See also : "clitimeout", "timeout server", "timeout tunnel".
 
 
 timeout connect <timeout>
@@ -6508,7 +6512,10 @@ timeout srvtimeout <timeout> (deprecated)
   order to avoid complex situations to debug. Whatever the expected server
   response times, it is a good practice to cover at least one or several TCP
   packet losses by specifying timeouts that are slightly above multiples of 3
-  seconds (eg: 4 or 5 seconds minimum).
+  seconds (eg: 4 or 5 seconds minimum). If some long-lived sessions are mixed
+  with short-lived sessions (eg: WebSocket and HTTP), it's worth considering
+  "timeout tunnel", which overrides "timeout client" and "timeout server" for
+  tunnels.
 
   This parameter is specific to backends, but can be specified once for all in
   "defaults" sections. This is in fact one of the easiest solutions not to
@@ -6521,7 +6528,7 @@ timeout srvtimeout <timeout> (deprecated)
   to use it to write new configurations. The form "timeout srvtimeout" is
   provided only by backwards compatibility but its use is strongly discouraged.
 
-  See also : "srvtimeout", "timeout client".
+  See also : "srvtimeout", "timeout client" and "timeout tunnel".
 
 
 timeout tarpit <timeout>
@@ -6544,6 +6551,47 @@ timeout tarpit <timeout>
   with no "timeout tarpit" parameter.
 
   See also : "timeout connect", "contimeout".
+
+
+timeout tunnel <timeout>
+  Set the maximum inactivity time on the client and server side for tunnels.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments :
+    <timeout> is the timeout value specified in milliseconds by default, but
+              can be in any other unit if the number is suffixed by the unit,
+              as explained at the top of this document.
+
+  The tunnel timeout applies when a bidirectionnal connection is established
+  between a client and a server, and the connection remains inactive in both
+  directions. This timeout supersedes both the client and server timeouts once
+  the connection becomes a tunnel. In TCP, this timeout is used as soon as no
+  analyser remains attached to either connection (eg: tcp content rules are
+  accepted). In HTTP, this timeout is used when a connection is upgraded (eg:
+  when switching to the WebSocket protocol, or forwarding a CONNECT request
+  to a proxy), or after the first response when no keepalive/close option is
+  specified.
+
+  The value is specified in milliseconds by default, but can be in any other
+  unit if the number is suffixed by the unit, as specified at the top of this
+  document. Whatever the expected normal idle time, it is a good practice to
+  cover at least one or several TCP packet losses by specifying timeouts that
+  are slightly above multiples of 3 seconds (eg: 4 or 5 seconds minimum).
+
+  This parameter is specific to backends, but can be specified once for all in
+  "defaults" sections. This is in fact one of the easiest solutions not to
+  forget about it.
+
+  Example :
+        defaults http
+            option http-server-close
+            timeout connect 5s
+            timeout client 30s
+            timeout client 30s
+            timeout server 30s
+            timeout tunnel  1h    # timeout to use with WebSocket and CONNECT
+
+  See also : "timeout client", "timeout server".
 
 
 transparent (deprecated)

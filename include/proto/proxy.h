@@ -69,6 +69,7 @@ static inline void proxy_reset_timeouts(struct proxy *proxy)
 	proxy->timeout.appsession = TICK_ETERNITY;
 	proxy->timeout.httpreq = TICK_ETERNITY;
 	proxy->timeout.check = TICK_ETERNITY;
+	proxy->timeout.tunnel = TICK_ETERNITY;
 }
 
 /* increase the number of cumulated connections received on the designated frontend */
