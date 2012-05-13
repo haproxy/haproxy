@@ -2213,7 +2213,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 		req->flags |= BF_READ_DONTWAIT; /* try to get back here ASAP */
 		s->rep->flags &= ~BF_EXPECT_MORE; /* speed up sending a previous response */
 #ifdef TCP_QUICKACK
-		if (s->listener->options & LI_O_NOQUICKACK) {
+		if (s->listener->options & LI_O_NOQUICKACK && req->i) {
 			/* We need more data, we have to re-enable quick-ack in case we
 			 * previously disabled it, otherwise we might cause the client
 			 * to delay next data.
