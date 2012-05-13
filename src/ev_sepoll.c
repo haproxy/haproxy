@@ -105,10 +105,13 @@
  * The FD array has to hold a back reference to the speculative list. This
  * reference is only valid if at least one of the directions is marked SPEC.
  *
+ * We store the FD state in the 4 lower bits of fdtab[fd].spec.e, and save the
+ * previous state upon changes in the 4 higher bits, so that changes are easy
+ * to spot.
  */
 
-#define FD_EV_IN_SL	1
-#define FD_EV_IN_PL	4
+#define FD_EV_IN_SL	1U
+#define FD_EV_IN_PL	4U
 
 #define FD_EV_IDLE	0
 #define FD_EV_SPEC	(FD_EV_IN_SL)
@@ -133,6 +136,7 @@
 #define FD_EV_MASK_W	(FD_EV_MASK_R << 1)
 
 #define FD_EV_MASK	(FD_EV_MASK_W | FD_EV_MASK_R)
+#define FD_EV_MASK_OLD	(FD_EV_MASK << 4)
 
 /* This is the minimum number of events successfully processed in speculative
  * mode above which we agree to return without checking epoll() (1/2 times).
@@ -141,7 +145,6 @@
 
 static int nbspec = 0;          // current size of the spec list
 static int absmaxevents = 0;    // absolute maximum amounts of polled events
-static int fd_created = 0;      // fd creation detector, reset upon poll() entry.
 
 static unsigned int *spec_list = NULL;	// speculative I/O list
 
@@ -228,7 +231,6 @@ REGPRM2 static int __fd_set(const int fd, int dir)
 		if (unlikely(i != FD_EV_IDLE))
 			return 0;
 		// switch to SPEC state and allocate a SPEC entry.
-		fd_created++;
 		alloc_spec_entry(fd);
 	}
 	fdtab[fd].spec.e ^= (unsigned int)(FD_EV_IN_SL << dir);
@@ -275,7 +277,7 @@ REGPRM1 static void __fd_rem(int fd)
 REGPRM1 static void __fd_clo(int fd)
 {
 	release_spec_entry(fd);
-	fdtab[fd].spec.e &= ~(FD_EV_MASK);
+	fdtab[fd].spec.e &= ~(FD_EV_MASK | FD_EV_MASK_OLD);
 }
 
 /*
@@ -283,101 +285,51 @@ REGPRM1 static void __fd_clo(int fd)
  */
 REGPRM2 static void _do_poll(struct poller *p, int exp)
 {
-	static unsigned int last_skipped;
-	static unsigned int spec_processed;
-	int status, eo;
+	int status, eo, en;
 	int fd, opcode;
 	int count;
 	int spec_idx;
 	int wait_time;
-	int looping = 0;
 
-
- re_poll_once:
-	/* Here we have two options :
-	 * - either walk the list forwards and hope to match more events
-	 * - or walk it backwards to minimize the number of changes and
-	 *   to make better use of the cache.
-	 * Tests have shown that walking backwards improves perf by 0.2%.
-	 */
-
-	status = 0;
+	/* first, update the poll list according to what changed in the spec list */
 	spec_idx = nbspec;
 	while (likely(spec_idx > 0)) {
-		int done;
-
 		spec_idx--;
 		fd = spec_list[spec_idx];
-		eo = fdtab[fd].spec.e;  /* save old events */
+		en = fdtab[fd].spec.e & 15;  /* new events */
+		eo = fdtab[fd].spec.e >> 4;  /* previous events */
 
-		if (looping && --fd_created < 0) {
-			/* we were just checking the newly created FDs */
-			break;
-		}
-		/*
-		 * Process the speculative events.
-		 *
-		 * Principle: events which are marked FD_EV_SPEC are processed
-		 * with their assigned function. If the function returns 0, it
-		 * means there is nothing doable without polling first. We will
-		 * then convert the event to a pollable one by assigning them
-		 * the WAIT status.
+		/* If an fd with a poll bit is present here, it means that it
+		 * has last requested a poll, or is leaving from a poll. Given
+		 * that an FD is fully in the poll list or in the spec list but
+		 * not in both at once, we'll first ensure that if it is
+		 * already being polled in one direction and requests a spec
+		 * access, then we'll turn that into a polled access in order
+		 * to save a syscall which will likely return EAGAIN.
 		 */
 
-#ifdef DEBUG_DEV
-		if (fdtab[fd].state == FD_STCLOSE) {
-			fprintf(stderr,"fd=%d, fdtab[].ev=%x, fdtab[].spec.e=%x, .s=%d, idx=%d\n",
-				fd, fdtab[fd].ev, fdtab[fd].spec.e, fdtab[fd].spec.s1, spec_idx);
+		if ((en & FD_EV_RW_PL) && (en & FD_EV_RW_SL)) {
+			/* convert SPEC to WAIT if fd already being polled */
+			if ((en & FD_EV_MASK_R) == FD_EV_SPEC_R)
+				en = (en & ~FD_EV_MASK_R) | FD_EV_WAIT_R;
+
+			if ((en & FD_EV_MASK_W) == FD_EV_SPEC_W)
+				en = (en & ~FD_EV_MASK_W) | FD_EV_WAIT_W;
 		}
-#endif
-		done = 0;
-		fdtab[fd].ev &= FD_POLL_STICKY;
-		if ((eo & FD_EV_MASK_R) == FD_EV_SPEC_R) {
-			/* The owner is interested in reading from this FD */
-			if (fdtab[fd].state != FD_STERROR) {
-				/* Pretend there is something to read */
-				fdtab[fd].ev |= FD_POLL_IN;
-				if (!fdtab[fd].cb[DIR_RD].f(fd))
-					fdtab[fd].spec.e ^= (FD_EV_WAIT_R ^ FD_EV_SPEC_R);
-				else
-					done = 1;
-			}
-		}
-		else if ((eo & FD_EV_MASK_R) == FD_EV_STOP_R) {
+
+		if ((en & FD_EV_MASK_R) == FD_EV_STOP_R) {
 			/* This FD was being polled and is now being removed. */
-			fdtab[fd].spec.e &= ~FD_EV_MASK_R;
+			en &= ~FD_EV_MASK_R;
 		}
-		
-		if ((eo & FD_EV_MASK_W) == FD_EV_SPEC_W) {
-			/* The owner is interested in writing to this FD */
-			if (fdtab[fd].state != FD_STERROR) {
-				/* Pretend there is something to write */
-				fdtab[fd].ev |= FD_POLL_OUT;
-				if (!fdtab[fd].cb[DIR_WR].f(fd))
-					fdtab[fd].spec.e ^= (FD_EV_WAIT_W ^ FD_EV_SPEC_W);
-				else
-					done = 1;
-			}
-		}
-		else if ((eo & FD_EV_MASK_W) == FD_EV_STOP_W) {
+
+		if ((en & FD_EV_MASK_W) == FD_EV_STOP_W) {
 			/* This FD was being polled and is now being removed. */
-			fdtab[fd].spec.e &= ~FD_EV_MASK_W;
+			en &= ~FD_EV_MASK_W;
 		}
 
-		status += done;
-		/* one callback might already have closed the fd by itself */
-		if (fdtab[fd].state == FD_STCLOSE)
-			continue;
-
-		/* Now, we will adjust the event in the poll list. Indeed, it
-		 * is possible that an event which was previously in the poll
-		 * list now goes out, and the opposite is possible too. We can
-		 * have opposite changes for READ and WRITE too.
-		 */
-
-		if ((eo ^ fdtab[fd].spec.e) & FD_EV_RW_PL) {
-			/* poll status changed*/
-			if ((fdtab[fd].spec.e & FD_EV_RW_PL) == 0) {
+		if ((eo ^ en) & FD_EV_RW_PL) {
+			/* poll status changed */
+			if ((en & FD_EV_RW_PL) == 0) {
 				/* fd removed from poll list */
 				opcode = EPOLL_CTL_DEL;
 			}
@@ -392,63 +344,32 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 
 			/* construct the epoll events based on new state */
 			ev.events = 0;
-			if (fdtab[fd].spec.e & FD_EV_WAIT_R)
+			if (en & FD_EV_WAIT_R)
 				ev.events |= EPOLLIN;
 
-			if (fdtab[fd].spec.e & FD_EV_WAIT_W)
+			if (en & FD_EV_WAIT_W)
 				ev.events |= EPOLLOUT;
 
 			ev.data.fd = fd;
 			epoll_ctl(epoll_fd, opcode, fd, &ev);
 		}
 
+		fdtab[fd].spec.e = (en << 4) + en;  /* save new events */
 
 		if (!(fdtab[fd].spec.e & FD_EV_RW_SL)) {
 			/* This fd switched to combinations of either WAIT or
 			 * IDLE. It must be removed from the spec list.
 			 */
 			release_spec_entry(fd);
-			continue;
 		}
 	}
 
-	/* It may make sense to immediately return here if there are enough
-	 * processed events, without passing through epoll_wait() because we
-	 * have exactly done a poll.
-	 * Measures have shown a great performance increase if we call the
-	 * epoll_wait() only the second time after speculative accesses have
-	 * succeeded. This reduces the number of unsucessful calls to
-	 * epoll_wait() by a factor of about 3, and the total number of calls
-	 * by about 2.
-	 * However, when we do that after having processed too many events,
-	 * events waiting in epoll() starve for too long a time and tend to
-	 * become themselves eligible for speculative polling. So we try to
-	 * limit this practise to reasonable situations.
-	 */
+	/* compute the epoll_wait() timeout */
 
-	spec_processed += status;
-
-	if (looping) {
-		last_skipped++;
-		return;
-	}
-
-	if (status >= MIN_RETURN_EVENTS && spec_processed < absmaxevents) {
-		/* We have processed at least MIN_RETURN_EVENTS, it's worth
-		 * returning now without checking epoll_wait().
-		 */
-		if (++last_skipped <= 1) {
-			tv_update_date(0, 1);
-			return;
-		}
-	}
-	last_skipped = 0;
-
-	if (nbspec || status || run_queue || signal_queue_len) {
-		/* Maybe we have processed some events that we must report, or
-		 * maybe we still have events in the spec list, or there are
+	if (nbspec || run_queue || signal_queue_len) {
+		/* Maybe we still have events in the spec list, or there are
 		 * some tasks left pending in the run_queue, so we must not
-		 * wait in epoll() otherwise we will delay their delivery by
+		 * wait in epoll() otherwise we would delay their delivery by
 		 * the next timeout.
 		 */
 		wait_time = 0;
@@ -465,21 +386,14 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		}
 	}
 
-	/* now let's wait for real events. We normally use maxpollevents as a
-	 * high limit, unless <nbspec> is already big, in which case we need
-	 * to compensate for the high number of events processed there.
-	 */
-	fd = MIN(absmaxevents, spec_processed);
-	fd = MAX(global.tune.maxpollevents, fd);
-	fd = MIN(maxfd, fd);
-	/* we want to detect if an accept() will create new speculative FDs here */
-	fd_created = 0;
-	spec_processed = 0;
+	/* now let's wait for real events */
+	fd = MIN(maxfd, global.tune.maxpollevents);
 	gettimeofday(&before_poll, NULL);
 	status = epoll_wait(epoll_fd, epoll_events, fd, wait_time);
 	tv_update_date(wait_time, status);
 	measure_idle();
 
+	/* process events */
 	for (count = 0; count < status; count++) {
 		int e = epoll_events[count].events;
 		fd = epoll_events[count].data.fd;
@@ -487,10 +401,6 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		/* it looks complicated but gcc can optimize it away when constants
 		 * have same values.
 		 */
-		DPRINTF(stderr, "%s:%d: fd=%d, ev=0x%08x, e=0x%08x\n",
-			__FUNCTION__, __LINE__,
-			fd, fdtab[fd].ev, e);
-
 		fdtab[fd].ev &= FD_POLL_STICKY;
 		fdtab[fd].ev |= 
 			((e & EPOLLIN ) ? FD_POLL_IN  : 0) |
@@ -514,17 +424,64 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		}
 	}
 
-	if (fd_created) {
-		/* we have created some fds, certainly in return of an accept(),
-		 * and they're marked as speculative. If we can manage to perform
-		 * a read(), we're almost sure to collect all the request at once
-		 * and avoid several expensive wakeups. So let's try now. Anyway,
-		 * if we fail, the tasks are still woken up, and the FD gets marked
-		 * for poll mode.
+	/* now process speculative events if any */
+
+	/* Here we have two options :
+	 * - either walk the list forwards and hope to match more events
+	 * - or walk it backwards to minimize the number of changes and
+	 *   to make better use of the cache.
+	 * Tests have shown that walking backwards improves perf by 0.2%.
+	 */
+
+	spec_idx = nbspec;
+	while (likely(spec_idx > 0)) {
+		spec_idx--;
+		fd = spec_list[spec_idx];
+		eo = fdtab[fd].spec.e;  /* save old events */
+
+		/*
+		 * Process the speculative events.
+		 *
+		 * Principle: events which are marked FD_EV_SPEC are processed
+		 * with their assigned function. If the function returns 0, it
+		 * means there is nothing doable without polling first. We will
+		 * then convert the event to a pollable one by assigning them
+		 * the WAIT status.
 		 */
-		looping = 1;
-		goto re_poll_once;
+
+		fdtab[fd].ev &= FD_POLL_STICKY;
+		if ((eo & FD_EV_MASK_R) == FD_EV_SPEC_R) {
+			/* The owner is interested in reading from this FD */
+			if (fdtab[fd].state != FD_STERROR) {
+				/* Pretend there is something to read */
+				fdtab[fd].ev |= FD_POLL_IN;
+				if (!fdtab[fd].cb[DIR_RD].f(fd))
+					fdtab[fd].spec.e ^= (FD_EV_WAIT_R ^ FD_EV_SPEC_R);
+			}
+		}
+
+		if ((eo & FD_EV_MASK_W) == FD_EV_SPEC_W) {
+			/* The owner is interested in writing to this FD */
+			if (fdtab[fd].state != FD_STERROR) {
+				/* Pretend there is something to write */
+				fdtab[fd].ev |= FD_POLL_OUT;
+				if (!fdtab[fd].cb[DIR_WR].f(fd))
+					fdtab[fd].spec.e ^= (FD_EV_WAIT_W ^ FD_EV_SPEC_W);
+			}
+		}
+
+		/* one callback might already have closed the fd by itself */
+		if (fdtab[fd].state == FD_STCLOSE)
+			continue;
+
+		if (!(fdtab[fd].spec.e & (FD_EV_RW_SL|FD_EV_RW_PL))) {
+			/* This fd switched to IDLE, it can be removed from the spec list. */
+			release_spec_entry(fd);
+			continue;
+		}
 	}
+
+	/* in the end, we have processed status + spec_processed FDs */
 }
 
 /*
