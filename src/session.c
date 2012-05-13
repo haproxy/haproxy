@@ -1359,8 +1359,11 @@ struct task *process_session(struct task *t)
 			s->req->cons->sock.shutw(s->req->cons);
 		}
 
-		if (unlikely((s->req->flags & (BF_SHUTR|BF_READ_TIMEOUT)) == BF_READ_TIMEOUT))
+		if (unlikely((s->req->flags & (BF_SHUTR|BF_READ_TIMEOUT)) == BF_READ_TIMEOUT)) {
+			if (s->req->prod->flags & SI_FL_NOHALF)
+				s->req->prod->flags |= SI_FL_NOLINGER;
 			s->req->prod->sock.shutr(s->req->prod);
+		}
 
 		buffer_check_timeouts(s->rep);
 
@@ -1369,8 +1372,11 @@ struct task *process_session(struct task *t)
 			s->rep->cons->sock.shutw(s->rep->cons);
 		}
 
-		if (unlikely((s->rep->flags & (BF_SHUTR|BF_READ_TIMEOUT)) == BF_READ_TIMEOUT))
+		if (unlikely((s->rep->flags & (BF_SHUTR|BF_READ_TIMEOUT)) == BF_READ_TIMEOUT)) {
+			if (s->rep->prod->flags & SI_FL_NOHALF)
+				s->rep->prod->flags |= SI_FL_NOLINGER;
 			s->rep->prod->sock.shutr(s->rep->prod);
+		}
 	}
 
 	/* 1b: check for low-level errors reported at the stream interface.
@@ -1907,8 +1913,11 @@ struct task *process_session(struct task *t)
 		buffer_shutr_now(s->req);
 
 	/* shutdown(read) pending */
-	if (unlikely((s->req->flags & (BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTR_NOW))
+	if (unlikely((s->req->flags & (BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTR_NOW)) {
+		if (s->req->prod->flags & SI_FL_NOHALF)
+			s->req->prod->flags |= SI_FL_NOLINGER;
 		s->req->prod->sock.shutr(s->req->prod);
+	}
 
 	/* it's possible that an upper layer has requested a connection setup or abort.
 	 * There are 2 situations where we decide to establish a new connection :
@@ -2049,8 +2058,11 @@ struct task *process_session(struct task *t)
 		buffer_shutr_now(s->rep);
 
 	/* shutdown(read) pending */
-	if (unlikely((s->rep->flags & (BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTR_NOW))
+	if (unlikely((s->rep->flags & (BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTR_NOW)) {
+		if (s->rep->prod->flags & SI_FL_NOHALF)
+			s->rep->prod->flags |= SI_FL_NOLINGER;
 		s->rep->prod->sock.shutr(s->rep->prod);
+	}
 
 	if (s->req->prod->state == SI_ST_DIS || s->req->cons->state == SI_ST_DIS)
 		goto resync_stream_interface;

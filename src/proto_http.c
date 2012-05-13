@@ -3424,6 +3424,11 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 	req->analyse_exp = TICK_ETERNITY;
 	req->analysers &= ~an_bit;
 
+	/* if the server closes the connection, we want to immediately react
+	 * and close the socket to save packets and syscalls.
+	 */
+	req->cons->flags |= SI_FL_NOHALF;
+
 	s->logs.tv_request = now;
 	/* OK let's go on with the BODY now */
 	return 1;
@@ -3670,7 +3675,7 @@ void http_end_txn_clean_session(struct session *s)
 	 */
 	http_silent_debug(__LINE__, s);
 
-	s->req->cons->flags |= SI_FL_NOLINGER;
+	s->req->cons->flags |= SI_FL_NOLINGER | SI_FL_NOHALF;
 	s->req->cons->sock.shutr(s->req->cons);
 	s->req->cons->sock.shutw(s->req->cons);
 

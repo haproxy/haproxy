@@ -819,11 +819,13 @@ static void sock_raw_shutw(struct stream_interface *si)
 		if (si->flags & SI_FL_ERR) {
 			/* quick close, the socket is already shut. Remove pending flags. */
 			si->flags &= ~SI_FL_NOLINGER;
-		} else if (si->flags & SI_FL_NOLINGER) {
+		}
+		else if (si->flags & SI_FL_NOLINGER) {
 			si->flags &= ~SI_FL_NOLINGER;
 			setsockopt(si->fd, SOL_SOCKET, SO_LINGER,
 				   (struct linger *) &nolinger, sizeof(struct linger));
-		} else {
+		}
+		else if (!(si->flags & SI_FL_NOHALF)) {
 			EV_FD_CLR(si->fd, DIR_WR);
 			shutdown(si->fd, SHUT_WR);
 
@@ -857,7 +859,8 @@ static void sock_raw_shutw(struct stream_interface *si)
  * This function performs a shutdown-read on a stream interface in a connected or
  * init state (it does nothing for other states). It either shuts the read side
  * or closes the file descriptor and marks itself as closed. The buffer flags are
- * updated to reflect the new state.
+ * updated to reflect the new state. If the stream interface has SI_FL_NOHALF,
+ * we also forward the close to the write side.
  */
 static void sock_raw_shutr(struct stream_interface *si)
 {
@@ -879,6 +882,10 @@ static void sock_raw_shutr(struct stream_interface *si)
 		if (si->release)
 			si->release(si);
 		return;
+	}
+	else if (si->flags & SI_FL_NOHALF) {
+		/* we want to immediately forward this close to the write side */
+		return sock_raw_shutw(si);
 	}
 	EV_FD_CLR(si->fd, DIR_RD);
 	return;
