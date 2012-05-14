@@ -2576,6 +2576,10 @@ void default_srv_error(struct session *s, struct stream_interface *si)
 		err = SN_ERR_SRVCL;
 		fin = SN_FINST_C;
 	}
+	else if (err_type & SI_ET_CONN_RES) {
+		err = SN_ERR_RESOURCE;
+		fin = SN_FINST_C;
+	}
 	else /* SI_ET_CONN_OTHER and others */ {
 		err = SN_ERR_INTERNAL;
 		fin = SN_FINST_C;

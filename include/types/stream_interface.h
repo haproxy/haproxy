@@ -57,10 +57,11 @@ enum {
 	SI_ET_CONN_TO    = 0x0008,  /* connection timeout */
 	SI_ET_CONN_ERR   = 0x0010,  /* connection error (eg: no server available) */
 	SI_ET_CONN_ABRT  = 0x0020,  /* connection aborted by external cause (eg: abort) */
-	SI_ET_CONN_OTHER = 0x0040,  /* connection aborted for other reason (eg: 500) */
-	SI_ET_DATA_TO    = 0x0080,  /* timeout during data phase */
-	SI_ET_DATA_ERR   = 0x0100,  /* error during data phase */
-	SI_ET_DATA_ABRT  = 0x0200,  /* data phase aborted by external cause */
+	SI_ET_CONN_RES   = 0x0040,  /* connection aborted due to lack of resources */
+	SI_ET_CONN_OTHER = 0x0080,  /* connection aborted for other reason (eg: 500) */
+	SI_ET_DATA_TO    = 0x0100,  /* timeout during data phase */
+	SI_ET_DATA_ERR   = 0x0200,  /* error during data phase */
+	SI_ET_DATA_ABRT  = 0x0400,  /* data phase aborted by external cause */
 };
 
 /* flags set after I/O (16 bit) */
