@@ -1,6 +1,27 @@
 ChangeLog :
 ===========
 
+2012/05/14 : 1.5-dev10
+    - BUG/MINOR: stats admin: "Unexpected result" was displayed unconditionally
+    - BUG/MAJOR: acl: http_auth_group() must not accept any user from the userlist
+    - CLEANUP: auth: make the code build again with DEBUG_AUTH
+    - BUG/MEDIUM: config: don't crash at config load time on invalid userlist names
+    - REORG: use the name sock_raw instead of stream_sock
+    - MINOR: stream_interface: add a client target : TARG_TYPE_CLIENT
+    - BUG/MEDIUM: stream_interface: restore get_src/get_dst
+    - CLEANUP: sock_raw: remove last references to stream_sock
+    - CLEANUP: stream_interface: stop exporting socket layer functions
+    - MINOR: stream_interface: add an init callback to sock_ops
+    - MEDIUM: stream_interface: derive the socket operations from the target
+    - MAJOR: fd: remove the need for the socket layer to recheck the connection
+    - MINOR: session: call the socket layer init function when a session establishes
+    - MEDIUM: session: add support for tunnel timeouts
+    - MINOR: standard: add a new debug macro : fddebug()
+    - CLEANUP: fd: remove unused cb->b pointers in the struct fdtab
+    - OPTIM: proto_http: don't enable quick-ack on empty buffers
+    - OPTIM/MAJOR: ev_sepoll: process spec events after polled events
+    - OPTIM/MEDIUM: stream_interface: add a new SI_FL_NOHALF flag
+
 2012/05/08 : 1.5-dev9
     - MINOR: Add release callback to si_applet
     - CLEANUP: Fix some minor typos
