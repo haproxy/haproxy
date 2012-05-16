@@ -4593,7 +4593,7 @@ reqirep <search> <string> [{if | unless} <cond>]   (ignore case)
 
   Example :
      # replace "/static/" with "/" at the beginning of any request path.
-     reqrep ^([^\ ]*)\ /static/(.*)     \1\ /\2
+     reqrep ^([^\ :]*)\ /static/(.*)     \1\ /\2
      # replace "www.mydomain.com" with "www" in the host name.
      reqirep ^Host:\ www.mydomain.com   Host:\ www
 
@@ -5354,7 +5354,7 @@ stats show-desc [ <desc> ]
 
   Though this statement alone is enough to enable statistics reporting, it is
   recommended to set all other settings in order to avoid relying on default
-  unobvious parameters.
+  unobvious parameters.  By default description is not shown.
 
   Example :
     # internal monitoring access (unlimited)
@@ -5378,7 +5378,7 @@ stats show-legends
 
   Though this statement alone is enough to enable statistics reporting, it is
   recommended to set all other settings in order to avoid relying on default
-  unobvious parameters.
+  unobvious parameters.  Default behaviour is not to show this information.
 
   See also: "stats enable", "stats uri".
 
@@ -5393,7 +5393,7 @@ stats show-node [ <name> ]
 
   This statement is useful for users that offer shared services to their
   customers, where node or description might be different on a stats page
-  provided for each customer.
+  provided for each customer.  Default behaviour is not to show host name.
 
   Though this statement alone is enough to enable statistics reporting, it is
   recommended to set all other settings in order to avoid relying on default
