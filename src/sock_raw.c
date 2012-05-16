@@ -529,7 +529,7 @@ static int sock_raw_write_loop(struct stream_interface *si, struct buffer *b)
 		 * (which is recomputed every time since it's constant). If
 		 * it is positive, it means we have to send from the start.
 		 */
-		ret = make_proxy_line(trash, sizeof(trash),
+		ret = make_proxy_line(trash, trashlen,
 				      &b->prod->addr.from, &b->prod->addr.to);
 		if (!ret)
 			return -1;

@@ -35,12 +35,12 @@ index ddadddd..28bbfce 100644
 +
 +			if (1) {
 +				for (i=0; i<16096; i++)
-+					chunk_printf(&msg, sizeof(trash), "*");
++					chunk_printf(&msg, trashlen, "*");
 +
-+				chunk_printf(&msg, sizeof(trash), "\n");
++				chunk_printf(&msg, trashlen, "\n");
 +#if 0
  			if (!(s->data_ctx.stats.flags & STAT_FMT_CSV)) {
- 				chunk_printf(&msg, sizeof(trash),
+				chunk_printf(&msg, trashlen,
  				     /* name, queue */
 @@ -694,6 +702,7 @@ int stats_dump_proxy(struct session *s, struct proxy *px, struct uri_auth *uri)
  				     px->failed_req,
@@ -48,7 +48,7 @@ index ddadddd..28bbfce 100644
  				     px->state == PR_STIDLE ? "FULL" : "STOP");
 +#endif
  			} else {
- 				chunk_printf(&msg, sizeof(trash),
+				chunk_printf(&msg, trashlen,
  				     /* pxid, name, queue cur, queue max, */
 
 

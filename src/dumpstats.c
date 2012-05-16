@@ -573,7 +573,7 @@ static void stats_sock_table_key_request(struct stream_interface *si, char **arg
 
 	if (show) {
 		struct chunk msg;
-		chunk_init(&msg, trash, sizeof(trash));
+		chunk_init(&msg, trash, trashlen);
 		if (!stats_dump_table_head_to_buffer(&msg, si, px, px))
 			return;
 		stats_dump_table_entry_to_buffer(&msg, si, px, ts);
@@ -922,7 +922,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			}
 
 			/* return server's effective weight at the moment */
-			snprintf(trash, sizeof(trash), "%d (initial %d)\n", sv->uweight, sv->iweight);
+			snprintf(trash, trashlen, "%d (initial %d)\n", sv->uweight, sv->iweight);
 			bi_putstr(si->ib, trash);
 			return 1;
 		}
@@ -1385,7 +1385,7 @@ static void cli_io_handler(struct stream_interface *si)
 			if (buffer_almost_full(si->ib))
 				break;
 
-			reql = bo_getline(si->ob, trash, sizeof(trash));
+			reql = bo_getline(si->ob, trash, trashlen);
 			if (reql <= 0) { /* closed or EOL not found */
 				if (reql == 0)
 					break;
@@ -1561,7 +1561,7 @@ static int stats_dump_raw_to_buffer(struct stream_interface *si)
 	struct chunk msg;
 	unsigned int up;
 
-	chunk_init(&msg, trash, sizeof(trash));
+	chunk_init(&msg, trash, trashlen);
 
 	switch (si->applet.state) {
 	case STAT_ST_INIT:
@@ -1677,7 +1677,7 @@ static int stats_http_redir(struct stream_interface *si, struct uri_auth *uri)
 	struct session *s = si->applet.private;
 	struct chunk msg;
 
-	chunk_init(&msg, trash, sizeof(trash));
+	chunk_init(&msg, trash, trashlen);
 
 	switch (si->applet.state) {
 	case STAT_ST_INIT:
@@ -1781,7 +1781,7 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 	struct chunk msg;
 	unsigned int up;
 
-	chunk_init(&msg, trash, sizeof(trash));
+	chunk_init(&msg, trash, trashlen);
 
 	switch (si->applet.state) {
 	case STAT_ST_INIT:
@@ -2151,7 +2151,7 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 	struct listener *l;
 	struct chunk msg;
 
-	chunk_init(&msg, trash, sizeof(trash));
+	chunk_init(&msg, trash, trashlen);
 
 	switch (si->applet.ctx.stats.px_st) {
 	case STAT_PX_ST_INIT:
@@ -3205,7 +3205,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 	extern const char *monthname[12];
 	char pn[INET6_ADDRSTRLEN];
 
-	chunk_init(&msg, trash, sizeof(trash));
+	chunk_init(&msg, trash, trashlen);
 	sess = si->applet.ctx.sess.target;
 
 	if (si->applet.ctx.sess.section > 0 && si->applet.ctx.sess.uid != sess->uniq_id) {
@@ -3459,7 +3459,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 		return 1;
 	}
 
-	chunk_init(&msg, trash, sizeof(trash));
+	chunk_init(&msg, trash, trashlen);
 
 	switch (si->applet.state) {
 	case STAT_ST_INIT:
@@ -3680,7 +3680,7 @@ static int stats_table_request(struct stream_interface *si, bool show)
 		return 1;
 	}
 
-	chunk_init(&msg, trash, sizeof(trash));
+	chunk_init(&msg, trash, trashlen);
 
 	while (si->applet.state != STAT_ST_FIN) {
 		switch (si->applet.state) {
@@ -3875,7 +3875,7 @@ static int stats_dump_errors_to_buffer(struct stream_interface *si)
 	if (unlikely(si->ib->flags & (BF_WRITE_ERROR|BF_SHUTW)))
 		return 1;
 
-	chunk_init(&msg, trash, sizeof(trash));
+	chunk_init(&msg, trash, trashlen);
 
 	if (!si->applet.ctx.errors.px) {
 		/* the function had not been called yet, let's prepare the

@@ -231,7 +231,7 @@ switchstate:
 				si->applet.st0 = PEER_SESSION_GETVERSION;
 				/* fall through */
 			case PEER_SESSION_GETVERSION:
-				reql = bo_getline(si->ob, trash, sizeof(trash));
+				reql = bo_getline(si->ob, trash, trashlen);
 				if (reql <= 0) { /* closed or EOL not found */
 					if (reql == 0)
 						goto out;
@@ -262,7 +262,7 @@ switchstate:
 				si->applet.st0 = PEER_SESSION_GETHOST;
 				/* fall through */
 			case PEER_SESSION_GETHOST:
-				reql = bo_getline(si->ob, trash, sizeof(trash));
+				reql = bo_getline(si->ob, trash, trashlen);
 				if (reql <= 0) { /* closed or EOL not found */
 					if (reql == 0)
 						goto out;
@@ -292,7 +292,7 @@ switchstate:
 			case PEER_SESSION_GETPEER: {
 				struct peer *curpeer;
 				char *p;
-				reql = bo_getline(si->ob, trash, sizeof(trash));
+				reql = bo_getline(si->ob, trash, trashlen);
 				if (reql <= 0) { /* closed or EOL not found */
 					if (reql == 0)
 						goto out;
@@ -345,7 +345,7 @@ switchstate:
 				size_t key_size;
 				char *p;
 
-				reql = bo_getline(si->ob, trash, sizeof(trash));
+				reql = bo_getline(si->ob, trash, trashlen);
 				if (reql <= 0) { /* closed or EOL not found */
 					if (reql == 0)
 						goto out;
@@ -446,7 +446,7 @@ switchstate:
 			case PEER_SESSION_SENDSUCCESS:{
 				struct peer_session *ps = (struct peer_session *)si->applet.private;
 
-				repl = snprintf(trash, sizeof(trash), "%d\n", PEER_SESSION_SUCCESSCODE);
+				repl = snprintf(trash, trashlen, "%d\n", PEER_SESSION_SUCCESSCODE);
 				repl = bi_putblk(si->ib, trash, repl);
 				if (repl <= 0) {
 					if (repl == -1)
@@ -497,7 +497,7 @@ switchstate:
 				struct peer_session *ps = (struct peer_session *)si->applet.private;
 
 				/* Send headers */
-				repl = snprintf(trash, sizeof(trash),
+				repl = snprintf(trash, trashlen,
 				                PEER_SESSION_PROTO_NAME " 1.0\n%s\n%s %d\n%s %lu %d\n",
 				                ps->peer->id,
 				                localpeer,
@@ -506,7 +506,7 @@ switchstate:
 				                ps->table->table->type,
 				                (int)ps->table->table->key_size);
 
-				if (repl >= sizeof(trash)) {
+				if (repl >= trashlen) {
 					si->applet.st0 = PEER_SESSION_END;
 					goto switchstate;
 				}
@@ -529,7 +529,7 @@ switchstate:
 				if (si->ib->flags & BF_WRITE_PARTIAL)
 					ps->statuscode = PEER_SESSION_CONNECTEDCODE;
 
-				reql = bo_getline(si->ob, trash, sizeof(trash));
+				reql = bo_getline(si->ob, trash, trashlen);
 				if (reql <= 0) { /* closed or EOL not found */
 					if (reql == 0)
 						goto out;
@@ -904,7 +904,7 @@ incomplete:
 							}
 
 							ts = eb32_entry(eb, struct stksess, upd);
-							msglen = peer_prepare_datamsg(ts, ps, trash, sizeof(trash));
+							msglen = peer_prepare_datamsg(ts, ps, trash, trashlen);
 							if (msglen) {
 								/* message to buffer */
 								repl = bi_putblk(si->ib, trash, msglen);
@@ -938,7 +938,7 @@ incomplete:
 							}
 
 							ts = eb32_entry(eb, struct stksess, upd);
-							msglen = peer_prepare_datamsg(ts, ps, trash, sizeof(trash));
+							msglen = peer_prepare_datamsg(ts, ps, trash, trashlen);
 							if (msglen) {
 								/* message to buffer */
 								repl = bi_putblk(si->ib, trash, msglen);
@@ -996,7 +996,7 @@ incomplete:
 						}
 
 						ts = eb32_entry(eb, struct stksess, upd);
-						msglen = peer_prepare_datamsg(ts, ps, trash, sizeof(trash));
+						msglen = peer_prepare_datamsg(ts, ps, trash, trashlen);
 						if (msglen) {
 							/* message to buffer */
 							repl = bi_putblk(si->ib, trash, msglen);
@@ -1016,7 +1016,7 @@ incomplete:
 				goto out;
 			}
 			case PEER_SESSION_EXIT:
-				repl = snprintf(trash, sizeof(trash), "%d\n", si->applet.st1);
+				repl = snprintf(trash, trashlen, "%d\n", si->applet.st1);
 
 				if (bi_putblk(si->ib, trash, repl) == -1)
 					goto out;
