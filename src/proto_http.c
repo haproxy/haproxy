@@ -3634,18 +3634,30 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 	return 0;
 }
 
-/* send a server's name with an outgoing request over an established connection */
+/* send a server's name with an outgoing request over an established connection.
+ * Note: this function is designed to be called once the request has been scheduled
+ * for being forwarded. This is the reason why it rewinds the buffer before
+ * proceeding.
+ */
 int http_send_name_header(struct http_txn *txn, struct proxy* be, const char* srv_name) {
 
 	struct hdr_ctx ctx;
 
 	char *hdr_name = be->server_id_hdr_name;
 	int hdr_name_len = be->server_id_hdr_len;
-
+	struct buffer *req = txn->req.buf;
 	char *hdr_val;
+	unsigned int old_o, old_i;
 
 	ctx.idx = 0;
 
+	old_o = req->o;
+	if (old_o) {
+		/* The request was already skipped, let's restore it */
+		b_rew(req, old_o);
+	}
+
+	old_i = req->i;
 	while (http_find_header2(hdr_name, hdr_name_len, txn->req.buf->p + txn->req.sol, &txn->hdr_idx, &ctx)) {
 		/* remove any existing values from the header */
 	        http_remove_header2(&txn->req, &txn->hdr_idx, &ctx);
@@ -3659,6 +3671,14 @@ int http_send_name_header(struct http_txn *txn, struct proxy* be, const char* sr
 	*hdr_val++ = ' ';
 	hdr_val += strlcpy2(hdr_val, srv_name, trash + trashlen - hdr_val);
 	http_header_add_tail2(&txn->req, &txn->hdr_idx, trash, hdr_val - trash);
+
+	if (old_o) {
+		/* If this was a forwarded request, we must readjust the amount of
+		 * data to be forwarded in order to take into account the size
+		 * variations.
+		 */
+		b_adv(req, old_o + req->i - old_i);
+	}
 
 	return 0;
 }

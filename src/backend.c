@@ -30,6 +30,7 @@
 #include <proto/acl.h>
 #include <proto/arg.h>
 #include <proto/backend.h>
+#include <proto/buffers.h>
 #include <proto/frontend.h>
 #include <proto/lb_chash.h>
 #include <proto/lb_fas.h>
@@ -256,11 +257,11 @@ struct server *get_server_ph_post(struct session *s)
 	struct proxy    *px   = s->be;
 	unsigned int     plen = px->url_param_len;
 	unsigned long    len  = msg->body_len;
-	const char      *params = req->p + msg->sov;
+	const char      *params = b_ptr(req, (int)(msg->sov - req->o));
 	const char      *p    = params;
 
-	if (len > req->i - (msg->sov - msg->som))
-		len = req->i - (msg->sov - msg->som);
+	if (len > buffer_len(req) - (msg->sov - msg->som))
+		len = buffer_len(req) - (msg->sov - msg->som);
 
 	if (len == 0)
 		return NULL;
@@ -342,7 +343,7 @@ struct server *get_server_hh(struct session *s)
 	ctx.idx = 0;
 
 	/* if the message is chunked, we skip the chunk size, but use the value as len */
-	http_find_header2(px->hh_name, plen, s->req->p + msg->sol, &txn->hdr_idx, &ctx);
+	http_find_header2(px->hh_name, plen, b_ptr(s->req, (int)(msg->sol - s->req->o)), &txn->hdr_idx, &ctx);
 
 	/* if the header is not found or empty, let's fallback to round robin */
 	if (!ctx.idx || !ctx.vlen)
@@ -405,6 +406,7 @@ struct server *get_server_rch(struct session *s)
 	int              ret;
 	struct sample    smp;
 	struct arg       args[2];
+	int rewind;
 
 	/* tot_weight appears to mean srv_count */
 	if (px->lbprm.tot_weight == 0)
@@ -417,8 +419,12 @@ struct server *get_server_rch(struct session *s)
 	args[0].data.str.len = px->hh_len;
 	args[1].type = ARGT_STOP;
 
+	b_rew(s->req, rewind = s->req->o);
+
 	ret = smp_fetch_rdp_cookie(px, s, NULL, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, args, &smp);
 	len = smp.data.str.len;
+
+	b_adv(s->req, rewind);
 
 	if (ret == 0 || (smp.flags & SMP_F_MAY_CHANGE) || len == 0)
 		return NULL;
@@ -563,7 +569,7 @@ int assign_server(struct session *s)
 				if (s->txn.req.msg_state < HTTP_MSG_BODY)
 					break;
 				srv = get_server_uh(s->be,
-						    s->req->p + s->txn.req.sol + s->txn.req.sl.rq.u,
+						    b_ptr(s->req, (int)(s->txn.req.sol + s->txn.req.sl.rq.u - s->req->o)),
 						    s->txn.req.sl.rq.u_l);
 				break;
 
@@ -573,7 +579,7 @@ int assign_server(struct session *s)
 					break;
 
 				srv = get_server_ph(s->be,
-						    s->req->p + s->txn.req.sol + s->txn.req.sl.rq.u,
+						    b_ptr(s->req, (int)(s->txn.req.sol + s->txn.req.sl.rq.u - s->req->o)),
 						    s->txn.req.sl.rq.u_l);
 
 				if (!srv && s->txn.meth == HTTP_METH_POST)
@@ -892,17 +898,20 @@ static void assign_tproxy_address(struct session *s)
 			if (srv->bind_hdr_occ) {
 				char *vptr;
 				int vlen;
+				int rewind;
 
 				/* bind to the IP in a header */
 				((struct sockaddr_in *)&s->req->cons->addr.from)->sin_family = AF_INET;
 				((struct sockaddr_in *)&s->req->cons->addr.from)->sin_port = 0;
 				((struct sockaddr_in *)&s->req->cons->addr.from)->sin_addr.s_addr = 0;
 
+				b_rew(s->req, rewind = s->req->o);
 				if (http_get_hdr(&s->txn.req, srv->bind_hdr_name, srv->bind_hdr_len,
 						 &s->txn.hdr_idx, srv->bind_hdr_occ, NULL, &vptr, &vlen)) {
 					((struct sockaddr_in *)&s->req->cons->addr.from)->sin_addr.s_addr =
 						htonl(inetaddr_host_lim(vptr, vptr + vlen));
 				}
+				b_adv(s->req, rewind);
 			}
 			break;
 		default:
@@ -923,17 +932,20 @@ static void assign_tproxy_address(struct session *s)
 			if (s->be->bind_hdr_occ) {
 				char *vptr;
 				int vlen;
+				int rewind;
 
 				/* bind to the IP in a header */
 				((struct sockaddr_in *)&s->req->cons->addr.from)->sin_family = AF_INET;
 				((struct sockaddr_in *)&s->req->cons->addr.from)->sin_port = 0;
 				((struct sockaddr_in *)&s->req->cons->addr.from)->sin_addr.s_addr = 0;
 
+				b_rew(s->req, rewind = s->req->o);
 				if (http_get_hdr(&s->txn.req, s->be->bind_hdr_name, s->be->bind_hdr_len,
 						 &s->txn.hdr_idx, s->be->bind_hdr_occ, NULL, &vptr, &vlen)) {
 					((struct sockaddr_in *)&s->req->cons->addr.from)->sin_addr.s_addr =
 						htonl(inetaddr_host_lim(vptr, vptr + vlen));
 				}
+				b_adv(s->req, rewind);
 			}
 			break;
 		default:
