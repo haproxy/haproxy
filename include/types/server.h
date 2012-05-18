@@ -169,6 +169,7 @@ struct server {
 	int check_data_len;			/* length of partial check results stored in check_data */
 
 #ifdef USE_OPENSSL
+	int use_ssl;				/* ssl enabled */
 	struct {
 		SSL_CTX *ctx;
 		SSL_SESSION *reused_sess;

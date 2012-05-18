@@ -4144,6 +4144,9 @@ stats_error_parsing:
 			newsrv->onerror		= curproxy->defsrv.onerror;
 			newsrv->consecutive_errors_limit
 						= curproxy->defsrv.consecutive_errors_limit;
+#ifdef OPENSSL
+			newsrv->use_ssl		= curproxy->defsrv.use_ssl;
+#endif
 			newsrv->uweight = newsrv->iweight
 						= curproxy->defsrv.iweight;
 
@@ -4379,6 +4382,17 @@ stats_error_parsing:
 				newsrv->state &= ~SRV_RUNNING;
 				newsrv->health = 0;
 				cur_arg += 1;
+			}
+			else if (!strcmp(args[cur_arg], "ssl")) {
+#ifdef USE_OPENSSL
+				newsrv->use_ssl = 1;
+				cur_arg += 1;
+#else /* USE_OPENSSL */
+				Alert("parsing [%s:%d]: '%s' option not implemented.\n",
+				      file, linenum, args[cur_arg]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+#endif /* USE_OPENSSL */
 			}
 			else if (!defsrv && !strcmp(args[cur_arg], "observe")) {
 				if (!strcmp(args[cur_arg + 1], "none"))
@@ -6340,6 +6354,45 @@ out_uri_auth_compat:
 				newsrv->minconn = newsrv->maxconn;
 			}
 
+#ifdef USE_OPENSSL
+#ifndef SSL_OP_NO_COMPRESSION     /* needs OpenSSL >= 0.9.9 */
+#define SSL_OP_NO_COMPRESSION 0
+#endif
+#ifndef SSL_MODE_RELEASE_BUFFERS  /* needs OpenSSL >= 1.0.0 */
+#define SSL_MODE_RELEASE_BUFFERS 0
+#endif
+#ifndef SSL_OP_NO_COMPRESSION     /* needs OpenSSL >= 0.9.9 */
+#define SSL_OP_NO_COMPRESSION 0
+#endif
+			if (newsrv->use_ssl) {
+				int ssloptions =
+					SSL_OP_ALL | /* all known workarounds for bugs */
+					SSL_OP_NO_SSLv2 |
+					SSL_OP_NO_COMPRESSION;
+				int sslmode =
+					SSL_MODE_ENABLE_PARTIAL_WRITE |
+					SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
+					SSL_MODE_RELEASE_BUFFERS;
+
+				/* Initiate SSL context for current server */
+				newsrv->ssl_ctx.reused_sess = NULL;
+				newsrv->data = &ssl_sock;
+				newsrv->ssl_ctx.ctx = SSL_CTX_new(SSLv23_client_method());
+				if(!newsrv->ssl_ctx.ctx) {
+
+					Alert("config : %s '%s', server '%s': unable to allocate ssl context.\n",
+						proxy_type_str(curproxy), curproxy->id,
+						newsrv->id);
+						cfgerr++;
+						goto next_srv;
+				}
+
+				SSL_CTX_set_options(newsrv->ssl_ctx.ctx, ssloptions);
+				SSL_CTX_set_mode(newsrv->ssl_ctx.ctx, sslmode);
+				SSL_CTX_set_verify(newsrv->ssl_ctx.ctx, SSL_VERIFY_NONE, NULL);
+				SSL_CTX_set_session_cache_mode(newsrv->ssl_ctx.ctx, SSL_SESS_CACHE_OFF);
+			}
+#endif /* USE_OPENSSL */
 			if (newsrv->trackit) {
 				struct proxy *px;
 				struct server *srv;
