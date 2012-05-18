@@ -25,6 +25,10 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#ifdef USE_OPENSSL
+#include <openssl/ssl.h>
+#endif
+
 #include <common/config.h>
 #include <common/mini-clist.h>
 #include <eb32tree.h>
@@ -164,6 +168,12 @@ struct server {
 	struct connection *check_conn;		/* connection state for health checks */
 	int check_data_len;			/* length of partial check results stored in check_data */
 
+#ifdef USE_OPENSSL
+	struct {
+		SSL_CTX *ctx;
+		SSL_SESSION *reused_sess;
+	} ssl_ctx;
+#endif
 	struct {
 		const char *file;		/* file where the section appears */
 		int line;			/* line where the section appears */
