@@ -180,7 +180,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		s->si[0].flags = SI_FL_CAP_SPLTCP; /* TCP/TCPv6 splicing possible */
 
 	/* add the various callbacks */
-	stream_interface_prepare(&s->si[0], &sock_raw);
+	stream_interface_prepare(&s->si[0], l->sock);
 
 	/* pre-initialize the other side's stream interface to an INIT state. The
 	 * callbacks will be initialized before attempting to connect.

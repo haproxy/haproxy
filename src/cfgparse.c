@@ -265,6 +265,7 @@ static int str2listener(char *str, struct proxy *curproxy, const char *file, int
 
 			l->fd = -1;
 			l->addr = ss;
+			l->sock = &sock_raw;
 			l->state = LI_INIT;
 
 			if (ss.ss_family == AF_INET) {

@@ -102,6 +102,7 @@ struct listener {
 	int options;			/* socket options : LI_O_* */
 	struct licounters *counters;	/* statistics counters */
 	struct protocol *proto;		/* protocol this listener belongs to */
+	struct sock_ops *sock;          /* listener socket operations */
 	int nbconn;			/* current number of connections on this listener */
 	int maxconn;			/* maximum connections allowed on this listener */
 	unsigned int backlog;		/* if set, listen backlog */
