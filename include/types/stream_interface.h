@@ -122,6 +122,7 @@ struct target {
 		struct server *s;     /* when type is TARG_TYPE_SERVER */
 		struct si_applet *a;  /* when type is TARG_TYPE_APPLET */
 		struct task *t;       /* when type is TARG_TYPE_TASK */
+		struct listener *l;   /* when type is TARG_TYPE_CLIENT */
 	} ptr;
 };
 

@@ -63,10 +63,10 @@ static inline void clear_target(struct target *dest)
 	dest->ptr.v = NULL;
 }
 
-static inline void set_target_client(struct target *dest)
+static inline void set_target_client(struct target *dest, struct listener *l)
 {
 	dest->type = TARG_TYPE_CLIENT;
-	dest->ptr.v = NULL;
+	dest->ptr.l = l;
 }
 
 static inline void set_target_server(struct target *dest, struct server *s)
@@ -109,6 +109,13 @@ static inline struct server *target_srv(struct target *t)
 	if (!t || t->type != TARG_TYPE_SERVER)
 		return NULL;
 	return t->ptr.s;
+}
+
+static inline struct listener *target_client(struct target *t)
+{
+	if (!t || t->type != TARG_TYPE_CLIENT)
+		return NULL;
+	return t->ptr.l;
 }
 
 static inline void stream_interface_prepare(struct stream_interface *si, const struct sock_ops *ops)
