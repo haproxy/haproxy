@@ -452,11 +452,11 @@ int tcp_connect_server(struct stream_interface *si)
 	fdtab[fd].state = FD_STCONN; /* connection in progress */
 	fdtab[fd].flags = FD_FL_TCP | FD_FL_TCP_NODELAY;
 
-	/* If we have nothing to send or if we want to initialize the sock layer,
-	 * we want to confirm that the TCP connection is established before doing
-	 * so, so we use our own write callback then switch to the sock layer.
+	/* If we have nothing to send, we want to confirm that the TCP
+	 * connection is established before doing so, so we use our own write
+	 * callback then switch to the sock layer.
 	 */
-	if (si->sock.init || ((si->ob->flags & BF_OUT_EMPTY) && !si->send_proxy_ofs)) {
+	if ((si->ob->flags & BF_OUT_EMPTY) && !si->send_proxy_ofs) {
 		fdtab[fd].cb[DIR_RD].f = tcp_connect_read;
 		fdtab[fd].cb[DIR_WR].f = tcp_connect_write;
 	}

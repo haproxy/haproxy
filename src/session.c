@@ -715,14 +715,6 @@ static void sess_establish(struct session *s, struct stream_interface *si)
 		rep->rto = s->be->timeout.server;
 	}
 	req->wex = TICK_ETERNITY;
-
-	if (si->sock.init) {
-		/* initialize the socket layer if needed */
-		void *arg = NULL;
-		if (target_srv(&s->target))
-			arg = target_srv(&s->target)->sock_init_arg;
-		si->sock.init(si, arg);
-	}
 }
 
 /* Update stream interface status for input states SI_ST_ASS, SI_ST_QUE, SI_ST_TAR.

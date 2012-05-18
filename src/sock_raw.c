@@ -1118,7 +1118,6 @@ static void sock_raw_chk_snd(struct stream_interface *si)
 
 /* stream sock operations */
 struct sock_ops sock_raw = {
-	.init    = NULL,
 	.update  = sock_raw_data_finish,
 	.shutr   = sock_raw_shutr,
 	.shutw   = sock_raw_shutw,
