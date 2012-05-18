@@ -4181,17 +4181,15 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 	}
 
 	while (1) {
-		int bytes;
+		unsigned int bytes;
 
 		http_silent_debug(__LINE__, s);
-		/* we may have some data pending */
+		/* we may have some data pending between sol and sov */
 		bytes = msg->sov - msg->sol;
 		if (msg->chunk_len || bytes) {
 			msg->sol = msg->sov;
-			if (likely(bytes < 0)) /* sov may have wrapped at the end */
-				bytes += req->size;
 			msg->next -= bytes; /* will be forwarded */
-			msg->chunk_len += (unsigned int)bytes;
+			msg->chunk_len += bytes;
 			msg->chunk_len -= buffer_forward(req, msg->chunk_len);
 		}
 
@@ -5205,7 +5203,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 {
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &s->txn.rsp;
-	int bytes;
+	unsigned int bytes;
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
 		return 0;
@@ -5240,17 +5238,13 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	}
 
 	while (1) {
-		int bytes;
-
 		http_silent_debug(__LINE__, s);
-		/* we may have some data pending */
+		/* we may have some data pending between sol and sov */
 		bytes = msg->sov - msg->sol;
 		if (msg->chunk_len || bytes) {
 			msg->sol = msg->sov;
-			if (likely(bytes < 0)) /* sov may have wrapped at the end */
-				bytes += res->size;
 			msg->next -= bytes; /* will be forwarded */
-			msg->chunk_len += (unsigned int)bytes;
+			msg->chunk_len += bytes;
 			msg->chunk_len -= buffer_forward(res, msg->chunk_len);
 		}
 
@@ -5356,14 +5350,12 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 	if (!s->req->analysers)
 		goto return_bad_res;
 
-	/* forward any pending data */
+	/* forward any data pending between sol and sov */
 	bytes = msg->sov - msg->sol;
 	if (msg->chunk_len || bytes) {
 		msg->sol = msg->sov;
-		if (likely(bytes < 0)) /* sov may have wrapped at the end */
-			bytes += res->size;
 		msg->next -= bytes; /* will be forwarded */
-		msg->chunk_len += (unsigned int)bytes;
+		msg->chunk_len += bytes;
 		msg->chunk_len -= buffer_forward(res, msg->chunk_len);
 	}
 
