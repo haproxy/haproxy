@@ -27,6 +27,10 @@
 #include <sys/stat.h>
 #include <sys/un.h>
 
+#ifdef USE_OPENSSL
+#include <openssl/ssl.h>
+#endif
+
 #include <common/config.h>
 #include <common/mini-clist.h>
 #include <eb32tree.h>
@@ -126,6 +130,11 @@ struct listener {
 	char *interface;		/* interface name or NULL */
 	int maxseg;			/* for TCP, advertised MSS */
 
+#ifdef USE_OPENSSL
+	struct {
+		SSL_CTX *ctx;
+	} ssl_ctx;
+#endif
 	/* warning: this struct is huge, keep it at the bottom */
 	struct sockaddr_storage addr;	/* the address we listen to */
 	struct {
