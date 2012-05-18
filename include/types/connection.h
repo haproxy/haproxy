@@ -79,10 +79,11 @@ enum {
 
 	/* flags below are used for connection handshakes */
 	CO_FL_SI_SEND_PROXY = 0x00000020,  /* send a valid PROXY protocol header */
+	CO_FL_SSL_WAIT_HS   = 0x00000040,  /* wait for an SSL handshake to complete */
 	CO_FL_ACCEPT_PROXY  = 0x00000080,  /* send a valid PROXY protocol header */
 
 	/* below we have all handshake flags grouped into one */
-	CO_FL_HANDSHAKE     = CO_FL_SI_SEND_PROXY | CO_FL_ACCEPT_PROXY,
+	CO_FL_HANDSHAKE     = CO_FL_SI_SEND_PROXY | CO_FL_SSL_WAIT_HS | CO_FL_ACCEPT_PROXY,
 
 	CO_FL_INIT_SESS     = 0x00000800,  /* initialize a session before using data */
 
