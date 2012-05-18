@@ -1303,15 +1303,13 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 			 * first if we need to remove some CRLF. We can only
 			 * do this when o=0.
 			 */
-			char *beg = buf->p;
-
-			if (unlikely(ptr != beg)) {
+			if (unlikely(ptr != buf->p)) {
 				if (buf->o)
 					goto http_msg_ood;
 				/* Remove empty leading lines, as recommended by RFC2616. */
-				bi_fast_delete(buf, ptr - beg);
+				bi_fast_delete(buf, ptr - buf->p);
 			}
-			msg->sol = msg->som = ptr - buf->p;
+			msg->sol = msg->som = 0;
 			hdr_idx_init(idx);
 			state = HTTP_MSG_RPVER;
 			goto http_msg_rpver;
@@ -1370,15 +1368,13 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 			 * first if we need to remove some CRLF. We can only
 			 * do this when o=0.
 			 */
-			char *beg = buf->p;
-
-			if (likely(ptr != beg)) {
+			if (likely(ptr != buf->p)) {
 				if (buf->o)
 					goto http_msg_ood;
 				/* Remove empty leading lines, as recommended by RFC2616. */
-				bi_fast_delete(buf, ptr - beg);
+				bi_fast_delete(buf, ptr - buf->p);
 			}
-			msg->sol = msg->som = ptr - buf->p;
+			msg->sol = msg->som = 0;
 			/* we will need this when keep-alive will be supported
 			   hdr_idx_init(idx);
 			 */
