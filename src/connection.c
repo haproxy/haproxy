@@ -19,6 +19,10 @@
 #include <proto/session.h>
 #include <proto/stream_interface.h>
 
+#ifdef USE_OPENSSL
+#include <proto/ssl_sock.h>
+#endif
+
 /* I/O callback for fd-based connections. It calls the read/write handlers
  * provided by the connection's sock_ops, which must be valid. It returns 0.
  */
@@ -52,6 +56,11 @@ int conn_fd_handler(int fd)
 		if (conn->flags & CO_FL_SI_SEND_PROXY)
 			if (!conn_si_send_proxy(conn, CO_FL_SI_SEND_PROXY))
 				goto leave;
+#ifdef USE_OPENSSL
+		if (conn->flags & CO_FL_SSL_WAIT_HS)
+			if (!ssl_sock_handshake(conn, CO_FL_SSL_WAIT_HS))
+				goto leave;
+#endif
 	}
 
 	/* Once we're purely in the data phase, we disable handshake polling */
