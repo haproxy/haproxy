@@ -63,6 +63,9 @@
 #include <proto/server.h>
 #include <proto/session.h>
 #include <proto/raw_sock.h>
+#ifdef USE_OPENSSL
+#include <proto/ssl_sock.h>
+#endif /*USE_OPENSSL */
 #include <proto/task.h>
 #include <proto/stick_table.h>
 
@@ -1784,6 +1787,30 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 					l->options |= LI_O_FOREIGN;
 
 				cur_arg ++;
+				continue;
+#else
+				Alert("parsing [%s:%d] : '%s' : '%s' option not implemented.\n",
+				      file, linenum, args[0], args[cur_arg]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+#endif
+			}
+
+			if (!strcmp(args[cur_arg], "ssl")) { /* use ssl certificate */
+#ifdef USE_OPENSSL
+				struct listener *l;
+
+				if (!*args[cur_arg + 1]) {
+					Alert("parsing [%s:%d] : '%s' : missing certificate.\n",
+					      file, linenum, args[0]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				for (l = curproxy->listen; l != last_listen; l = l->next)
+					l->ssl_cert = strdup(args[cur_arg + 1]);
+
+				cur_arg += 2;
 				continue;
 #else
 				Alert("parsing [%s:%d] : '%s' : '%s' option not implemented.\n",
@@ -6590,6 +6617,57 @@ out_uri_auth_compat:
 				}
 			}
 
+#ifdef USE_OPENSSL
+#ifndef SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION	/* needs OpenSSL >= 0.9.7 */
+#define SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION 0
+#endif
+#ifndef SSL_OP_NO_COMPRESSION                           /* needs OpenSSL >= 0.9.9 */
+#define SSL_OP_NO_COMPRESSION 0
+#endif
+#ifndef SSL_MODE_RELEASE_BUFFERS                        /* needs OpenSSL >= 1.0.0 */
+#define SSL_MODE_RELEASE_BUFFERS 0
+#endif
+			/* Initialize SSL */
+			if (listener->ssl_cert) {
+				int ssloptions =
+					SSL_OP_ALL | /* all known workarounds for bugs */
+					SSL_OP_NO_SSLv2 |
+					SSL_OP_NO_COMPRESSION |
+					SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION;
+				int sslmode =
+					SSL_MODE_ENABLE_PARTIAL_WRITE |
+					SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
+					SSL_MODE_RELEASE_BUFFERS;
+
+				listener->data = &ssl_sock; /* data layer */
+				listener->ssl_ctx.ctx = SSL_CTX_new(SSLv23_server_method());
+				if (!listener->ssl_ctx.ctx) {
+					Alert("Proxy '%s': unable to allocate SSL context to bind listener %d (%s:%d) using cert '%s'.\n",
+					      curproxy->id, listener->luid, listener->conf.file, listener->conf.line, listener->ssl_cert);
+					cfgerr++;
+					goto skip_ssl;
+				}
+				SSL_CTX_set_options(listener->ssl_ctx.ctx, ssloptions);
+				SSL_CTX_set_mode(listener->ssl_ctx.ctx, sslmode);
+				SSL_CTX_set_verify(listener->ssl_ctx.ctx, SSL_VERIFY_NONE, NULL);
+				SSL_CTX_set_session_cache_mode(listener->ssl_ctx.ctx, SSL_SESS_CACHE_SERVER);
+
+				if (SSL_CTX_use_PrivateKey_file(listener->ssl_ctx.ctx, listener->ssl_cert, SSL_FILETYPE_PEM) <= 0) {
+					Alert("Proxy '%s': unable to load SSL private key from file '%s' in listener %d (%s:%d).\n",
+					      curproxy->id, listener->ssl_cert, listener->luid, listener->conf.file, listener->conf.line);
+					cfgerr++;
+					goto skip_ssl;
+				}
+
+				if (SSL_CTX_use_certificate_chain_file(listener->ssl_ctx.ctx, listener->ssl_cert) <= 0) {
+					Alert("Proxy '%s': unable to load SSL certificate from file '%s' in listener %d (%s:%d).\n",
+					      curproxy->id, listener->ssl_cert, listener->luid, listener->conf.file, listener->conf.line);
+					cfgerr++;
+					goto skip_ssl;
+				}
+			}
+		skip_ssl:
+#endif /* USE_OPENSSL */
 			if (curproxy->options & PR_O_TCP_NOLING)
 				listener->options |= LI_O_NOLINGER;
 			listener->maxconn = curproxy->maxconn;

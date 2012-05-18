@@ -131,6 +131,7 @@ struct listener {
 	int maxseg;			/* for TCP, advertised MSS */
 
 #ifdef USE_OPENSSL
+	char *ssl_cert;			/* ssl certificate */
 	struct {
 		SSL_CTX *ctx;
 	} ssl_ctx;
