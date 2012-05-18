@@ -329,7 +329,6 @@ struct server *get_server_hh(struct session *s)
 {
 	unsigned long    hash = 0;
 	struct http_txn *txn  = &s->txn;
-	struct http_msg *msg  = &txn->req;
 	struct proxy    *px   = s->be;
 	unsigned int     plen = px->hh_len;
 	unsigned long    len;
@@ -343,7 +342,7 @@ struct server *get_server_hh(struct session *s)
 	ctx.idx = 0;
 
 	/* if the message is chunked, we skip the chunk size, but use the value as len */
-	http_find_header2(px->hh_name, plen, b_ptr(s->req, (int)(msg->sol - s->req->o)), &txn->hdr_idx, &ctx);
+	http_find_header2(px->hh_name, plen, b_ptr(s->req, -s->req->o), &txn->hdr_idx, &ctx);
 
 	/* if the header is not found or empty, let's fallback to round robin */
 	if (!ctx.idx || !ctx.vlen)
@@ -569,7 +568,7 @@ int assign_server(struct session *s)
 				if (s->txn.req.msg_state < HTTP_MSG_BODY)
 					break;
 				srv = get_server_uh(s->be,
-						    b_ptr(s->req, (int)(s->txn.req.sol + s->txn.req.sl.rq.u - s->req->o)),
+						    b_ptr(s->req, (int)(s->txn.req.sl.rq.u - s->req->o)),
 						    s->txn.req.sl.rq.u_l);
 				break;
 
@@ -579,7 +578,7 @@ int assign_server(struct session *s)
 					break;
 
 				srv = get_server_ph(s->be,
-						    b_ptr(s->req, (int)(s->txn.req.sol + s->txn.req.sl.rq.u - s->req->o)),
+						    b_ptr(s->req, (int)(s->txn.req.sl.rq.u - s->req->o)),
 						    s->txn.req.sl.rq.u_l);
 
 				if (!srv && s->txn.meth == HTTP_METH_POST)

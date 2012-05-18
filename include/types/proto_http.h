@@ -296,7 +296,7 @@ enum {
  *                             preceeding data. Relative to buffer's origin.
  *  - sov                    : When in HTTP_MSG_BODY, will point to the first
  *                             byte of data (relative to buffer's origin).
- *  - sol (start of line)    : start of line, also start of message when fully parsed.
+ *  - sol (start of line)    : start of current line during parsing, or zero.
  *  - eol (End of Line)      : relative offset in the buffer of the first byte
  *                             which marks the end of the line (LF or CRLF).
  * Note that all offsets are relative to the origin of the buffer (buf->p)
@@ -311,7 +311,7 @@ struct http_msg {
 	unsigned int next;                     /* pointer to next byte to parse, relative to buf->p */
 	unsigned int sov;                      /* current header: start of value */
 	unsigned int eoh;                      /* End Of Headers, relative to buffer */
-	unsigned int sol;                      /* start of line, also start of message when fully parsed */
+	unsigned int sol;                      /* start of current line during parsing otherwise zero */
 	unsigned int eol;                      /* end of line */
 	unsigned int som;                      /* Start Of Message, relative to buffer's origin */
 	int err_pos;                           /* err handling: -2=block, -1=pass, 0+=detected */
