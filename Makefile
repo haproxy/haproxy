@@ -25,6 +25,7 @@
 #   USE_CRYPT_H          : set it if your system requires including crypt.h
 #   USE_VSYSCALL         : enable vsyscall on Linux x86, bypassing libc
 #   USE_GETADDRINFO      : use getaddrinfo() to resolve IPv6 host names.
+#   USE_OPENSSL          : enable use of OpenSSL. Recommended, but see below.
 #
 # Options can be forced by specifying "USE_xxx=1" or can be disabled by using
 # "USE_xxx=" (empty string).
@@ -460,6 +461,17 @@ ifneq ($(DLMALLOC_SRC),)
 # DLMALLOC_THRES may be changed to match PAGE_SIZE on every platform
 DLMALLOC_THRES = 4096
 OPTIONS_OBJS  += src/dlmalloc.o
+endif
+
+ifneq ($(USE_OPENSSL),)
+# OpenSSL is packaged in various forms and with various dependences.
+# In general -lssl is enough, but on some platforms, -lcrypto may be needed,
+# as well as -lz. Pass them in the "ADDLIB" variable if needed. Similarly,
+# use ADDINC and ADDLIB to specify -I and -L if your OpenSSL library is not
+# in the standard path.
+OPTIONS_CFLAGS  += -DUSE_OPENSSL
+OPTIONS_LDFLAGS += -lssl
+OPTIONS_OBJS  += src/ssl_sock.o
 endif
 
 ifneq ($(USE_PCRE),)
