@@ -1273,9 +1273,9 @@ get_http_auth(struct session *s)
  * with no information loss. The message may even be realigned between two
  * calls. The header index is re-initialized when switching from
  * MSG_R[PQ]BEFORE to MSG_RPVER|MSG_RQMETH. It modifies msg->sol among other
- * fields. Note that msg->som and msg->sol will be initialized after completing
- * the first state, so that none of the msg pointers has to be initialized
- * prior to the first call.
+ * fields. Note that msg->sol will be initialized after completing the first
+ * state, so that none of the msg pointers has to be initialized prior to the
+ * first call.
  */
 void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 {
@@ -1309,7 +1309,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 				/* Remove empty leading lines, as recommended by RFC2616. */
 				bi_fast_delete(buf, ptr - buf->p);
 			}
-			msg->sol = msg->som = 0;
+			msg->sol = 0;
 			hdr_idx_init(idx);
 			state = HTTP_MSG_RPVER;
 			goto http_msg_rpver;
@@ -1374,7 +1374,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 				/* Remove empty leading lines, as recommended by RFC2616. */
 				bi_fast_delete(buf, ptr - buf->p);
 			}
-			msg->sol = msg->som = 0;
+			msg->sol = 0;
 			/* we will need this when keep-alive will be supported
 			   hdr_idx_init(idx);
 			 */
@@ -1732,9 +1732,7 @@ void http_change_connection_header(struct http_txn *txn, struct http_msg *msg, i
 
 /* Parse the chunk size at msg->next. Once done, it adjusts ->next to point to the
  * first byte of body, and increments msg->sov by the number of bytes parsed,
- * so that we know we can forward between ->som and ->sov. Note that due to
- * possible wrapping at the end of the buffer, it is possible that msg->sov is
- * lower than msg->som.
+ * so that we know we can forward between ->sol and ->sov.
  * Return >0 on success, 0 when some data is missing, <0 on error.
  * Note: this function is designed to parse wrapped CRLF at the end of the buffer.
  */
@@ -1841,7 +1839,7 @@ int http_parse_chunk_size(struct http_msg *msg)
  * change anything except maybe msg->next and msg->sov. Note that the message
  * must already be in HTTP_MSG_TRAILERS state before calling this function,
  * which implies that all non-trailers data have already been scheduled for
- * forwarding, and that the difference between msg->som and msg->sov exactly
+ * forwarding, and that the difference between msg->sol and msg->sov exactly
  * matches the length of trailers already parsed and not forwarded. It is also
  * important to note that this function is designed to be able to parse wrapped
  * headers at end of buffer.
@@ -1912,7 +1910,7 @@ int http_forward_trailers(struct http_msg *msg)
 
 /* This function may be called only in HTTP_MSG_DATA_CRLF. It reads the CRLF or
  * a possible LF alone at the end of a chunk. It automatically adjusts msg->sov,
- * ->som, ->next in order to include this part into the next forwarding phase.
+ * ->sol, ->next in order to include this part into the next forwarding phase.
  * Note that the caller must ensure that ->p points to the first byte to parse.
  * It also sets msg_state to HTTP_MSG_CHUNK_SIZE and returns >0 on success. If
  * not enough data are available, the function does not change anything and
@@ -1950,8 +1948,8 @@ int http_skip_chunk_crlf(struct http_msg *msg)
 	ptr++;
 	if (ptr >= buf->data + buf->size)
 		ptr = buf->data;
-	/* prepare the CRLF to be forwarded (between ->som and ->sov) */
-	msg->som = 0;
+	/* prepare the CRLF to be forwarded (between ->sol and ->sov) */
+	msg->sol = 0;
 	msg->sov = msg->next = bytes;
 	msg->msg_state = HTTP_MSG_CHUNK_SIZE;
 	return 1;
@@ -1975,11 +1973,11 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 	 * For the parsing, we use a 28 states FSM.
 	 *
 	 * Here is the information we currently have :
-	 *   req->p + msg->som  = beginning of request
+	 *   req->p             = beginning of request
 	 *   req->p + msg->eoh  = end of processed headers / start of current one
-	 *   msg->eol              = end of current header or line (LF or CRLF)
-	 *   msg->next = first non-visited byte
-	 *   req->r  = end of data
+	 *   req->p + req->i    = end of input data
+	 *   msg->eol           = end of current header or line (LF or CRLF)
+	 *   msg->next          = first non-visited byte
 	 *
 	 * At end of parsing, we may perform a capture of the error (if any), and
 	 * we will set a few fields (msg->sol, txn->meth, sn->flags/SN_REDIRECTABLE).
@@ -2060,7 +2058,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 		     (msg->msg_state >= HTTP_MSG_BODY || msg->msg_state == HTTP_MSG_ERROR))) {
 		char *eol, *sol;
 
-		sol = req->p + msg->som;
+		sol = req->p;
 		eol = sol + msg->sl.rq.l;
 		debug_hdr("clireq", s, sol, eol);
 
@@ -2340,7 +2338,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 
 			if (urilen >= REQURI_LEN)
 				urilen = REQURI_LEN - 1;
-			memcpy(txn->uri, &req->p[msg->som], urilen);
+			memcpy(txn->uri, req->p, urilen);
 			txn->uri[urilen] = 0;
 
 			if (!(s->logs.logwait &= ~LW_REQ))
@@ -3110,8 +3108,8 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 				rdr.len += 4;
 				bo_inject(req->prod->ob, rdr.str, rdr.len);
 				/* "eat" the request */
-				bi_fast_delete(req, msg->sov - msg->som);
-				msg->som = msg->sov;
+				bi_fast_delete(req, msg->sov);
+				msg->sov = 0;
 				req->analysers = AN_REQ_HTTP_XFER_BODY;
 				s->rep->analysers = AN_RES_HTTP_XFER_BODY;
 				txn->req.msg_state = HTTP_MSG_CLOSED;
@@ -3535,8 +3533,9 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 
 	if (msg->msg_state < HTTP_MSG_CHUNK_SIZE) {
 		/* we have msg->sov which points to the first byte of message body.
-		 * msg->som still points to the beginning of the message. We must
-		 * save the body in msg->next because it survives buffer re-alignments.
+		 * req->p still points to the beginning of the message and msg->sol
+		 * is still null. We must save the body in msg->next because it
+		 * survives buffer re-alignments.
 		 */
 		msg->next = msg->sov;
 
@@ -3569,7 +3568,7 @@ int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
 	if (msg->body_len < limit)
 		limit = msg->body_len;
 
-	if (req->i - (msg->sov - msg->som) >= limit)    /* we have enough bytes now */
+	if (req->i - msg->sov >= limit)    /* we have enough bytes now */
 		goto http_end;
 
  missing_data:
@@ -4136,8 +4135,8 @@ int http_resync_states(struct session *s)
  * be between MSG_BODY and MSG_DONE (inclusive). It returns zero if it needs to
  * read more data, or 1 once we can go on with next request or end the session.
  * When in MSG_DATA or MSG_TRAILERS, it will automatically forward chunk_len
- * bytes of pending data + the headers if not already done (between som and sov).
- * It eventually adjusts som to match sov after the data in between have been sent.
+ * bytes of pending data + the headers if not already done (between sol and sov).
+ * It eventually adjusts sol to match sov after the data in between have been sent.
  */
 int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 {
@@ -4168,8 +4167,9 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 
 	if (msg->msg_state < HTTP_MSG_CHUNK_SIZE) {
 		/* we have msg->sov which points to the first byte of message body.
-		 * msg->som still points to the beginning of the message. We must
-		 * save the body in msg->next because it survives buffer re-alignments.
+		 * req->p still points to the beginning of the message and msg->sol
+		 * is still null. We must save the body in msg->next because it
+		 * survives buffer re-alignments.
 		 */
 		msg->next = msg->sov;
 
@@ -4185,9 +4185,9 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
 
 		http_silent_debug(__LINE__, s);
 		/* we may have some data pending */
-		bytes = msg->sov - msg->som;
+		bytes = msg->sov - msg->sol;
 		if (msg->chunk_len || bytes) {
-			msg->som = msg->sov;
+			msg->sol = msg->sov;
 			if (likely(bytes < 0)) /* sov may have wrapped at the end */
 				bytes += req->size;
 			msg->next -= bytes; /* will be forwarded */
@@ -4433,11 +4433,11 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 	 * For the parsing, we use a 28 states FSM.
 	 *
 	 * Here is the information we currently have :
-	 *   rep->data + msg->som  = beginning of response
-	 *   rep->data + msg->eoh  = end of processed headers / start of current one
-	 *   msg->eol              = end of current header or line (LF or CRLF)
-	 *   msg->next = first non-visited byte
-	 *   rep->r  = end of data
+	 *   rep->p             = beginning of response
+	 *   rep->p + msg->eoh  = end of processed headers / start of current one
+	 *   rep->p + rep->i    = end of input data
+	 *   msg->eol           = end of current header or line (LF or CRLF)
+	 *   msg->next          = first non-visited byte
 	 */
 
 	/* There's a protected area at the end of the buffer for rewriting
@@ -4471,7 +4471,7 @@ int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
 		     (msg->msg_state >= HTTP_MSG_BODY || msg->msg_state == HTTP_MSG_ERROR))) {
 		char *eol, *sol;
 
-		sol = rep->p + msg->som;
+		sol = rep->p;
 		eol = sol + msg->sl.st.l;
 		debug_hdr("srvrep", s, sol, eol);
 
@@ -5198,8 +5198,8 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
  * be between MSG_BODY and MSG_DONE (inclusive). It returns zero if it needs to
  * read more data, or 1 once we can go on with next request or end the session.
  * When in MSG_DATA or MSG_TRAILERS, it will automatically forward chunk_len
- * bytes of pending data + the headers if not already done (between som and sov).
- * It eventually adjusts som to match sov after the data in between have been sent.
+ * bytes of pending data + the headers if not already done (between sol and sov).
+ * It eventually adjusts sol to match sov after the data in between have been sent.
  */
 int http_response_forward_body(struct session *s, struct buffer *res, int an_bit)
 {
@@ -5226,8 +5226,9 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 
 	if (msg->msg_state < HTTP_MSG_CHUNK_SIZE) {
 		/* we have msg->sov which points to the first byte of message body.
-		 * msg->som still points to the beginning of the message. We must
-		 * save the body in msg->next because it survives buffer re-alignments.
+		 * rep->p still points to the beginning of the message and msg->sol
+		 * is still null. We must save the body in msg->next because it
+		 * survives buffer re-alignments.
 		 */
 		msg->next = msg->sov;
 
@@ -5243,9 +5244,9 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 
 		http_silent_debug(__LINE__, s);
 		/* we may have some data pending */
-		bytes = msg->sov - msg->som;
+		bytes = msg->sov - msg->sol;
 		if (msg->chunk_len || bytes) {
-			msg->som = msg->sov;
+			msg->sol = msg->sov;
 			if (likely(bytes < 0)) /* sov may have wrapped at the end */
 				bytes += res->size;
 			msg->next -= bytes; /* will be forwarded */
@@ -5356,9 +5357,9 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
 		goto return_bad_res;
 
 	/* forward any pending data */
-	bytes = msg->sov - msg->som;
+	bytes = msg->sov - msg->sol;
 	if (msg->chunk_len || bytes) {
-		msg->som = msg->sov;
+		msg->sol = msg->sov;
 		if (likely(bytes < 0)) /* sov may have wrapped at the end */
 			bytes += res->size;
 		msg->next -= bytes; /* will be forwarded */
@@ -7327,10 +7328,10 @@ void http_init_txn(struct session *s)
 	txn->cookie_last_date = 0;
 
 	txn->req.flags = 0;
-	txn->req.sol = txn->req.eol = txn->req.som = txn->req.eoh = 0; /* relative to the buffer */
+	txn->req.sol = txn->req.eol = txn->req.eoh = 0; /* relative to the buffer */
 	txn->req.next = 0;
 	txn->rsp.flags = 0;
-	txn->rsp.sol = txn->rsp.eol = txn->rsp.som = txn->rsp.eoh = 0; /* relative to the buffer */
+	txn->rsp.sol = txn->rsp.eol = txn->rsp.eoh = 0; /* relative to the buffer */
 	txn->rsp.next = 0;
 	txn->req.chunk_len = 0LL;
 	txn->req.body_len = 0LL;

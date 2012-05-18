@@ -283,11 +283,6 @@ enum {
  * The values there are a little bit obscure, because their meaning can change
  * during the parsing :
  *
- *  - som (Start of Message) : relative offset in the buffer of first byte of
- *                             the request being processed or parsed. Reset to
- *                             zero during accept(), and changes while parsing
- *                             chunks (considered as messages). Relative to
- *                             buffer origin (->p), may cause wrapping.
  *  - eoh (End of Headers)   : relative offset in the buffer of first byte that
  *                             is not part of a completely processed header.
  *                             During parsing, it points to last header seen
@@ -313,18 +308,17 @@ struct http_msg {
 	unsigned int eoh;                      /* End Of Headers, relative to buffer */
 	unsigned int sol;                      /* start of current line during parsing otherwise zero */
 	unsigned int eol;                      /* end of line */
-	unsigned int som;                      /* Start Of Message, relative to buffer's origin */
 	int err_pos;                           /* err handling: -2=block, -1=pass, 0+=detected */
 	union {                                /* useful start line pointers, relative to ->sol */
 		struct {
 			int l;                 /* request line length (not including CR) */
-			int m_l;               /* METHOD length (method starts at ->som) */
+			int m_l;               /* METHOD length (method starts at buf->p) */
 			int u, u_l;            /* URI, length */
 			int v, v_l;            /* VERSION, length */
 		} rq;                          /* request line : field, length */
 		struct {
 			int l;                 /* status line length (not including CR) */
-			int v_l;               /* VERSION length (version starts at ->som) */
+			int v_l;               /* VERSION length (version starts at buf->p) */
 			int c, c_l;            /* CODE, length */
 			int r, r_l;            /* REASON, length */
 		} st;                          /* status line : field, length */
