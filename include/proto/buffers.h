@@ -303,6 +303,19 @@ static inline void b_adv(struct buffer *b, unsigned int adv)
 	b->p = b_ptr(b, adv);
 }
 
+/* Rewinds the buffer by <adv> bytes, which means that the buffer pointer goes
+ * backwards, and that as many bytes from out are moved to in. The caller is
+ * responsible for ensuring that adv is always smaller than or equal to b->o.
+ */
+static inline void b_rew(struct buffer *b, unsigned int adv)
+{
+	b->i += adv;
+	b->o -= adv;
+	if (!b->o && !b->pipe)
+		b->flags |= BF_OUT_EMPTY;
+	b->p = b_ptr(b, -adv);
+}
+
 /* Return the amount of bytes that can be written into the buffer at once,
  * excluding the amount of reserved space passed in <res>, which is
  * preserved.
