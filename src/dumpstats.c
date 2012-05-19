@@ -989,10 +989,14 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			/* static LB algorithms are a bit harder to update */
 			if (px->lbprm.update_server_eweight)
 				px->lbprm.update_server_eweight(sv);
-			else if (sv->eweight)
-				px->lbprm.set_server_status_up(sv);
-			else
-				px->lbprm.set_server_status_down(sv);
+			else if (sv->eweight) {
+				if (px->lbprm.set_server_status_up)
+					px->lbprm.set_server_status_up(sv);
+			}
+			else {
+				if (px->lbprm.set_server_status_down)
+					px->lbprm.set_server_status_down(sv);
+			}
 
 			return 1;
 		}

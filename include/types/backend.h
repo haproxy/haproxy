@@ -134,7 +134,7 @@ struct lbprm {
 	struct lb_fwlc fwlc;
 	struct lb_chash chash;
 	struct lb_fas fas;
-	/* Call backs for some actions. Some may be NULL (thus should be ignored). */
+	/* Call backs for some actions. Any of them may be NULL (thus should be ignored). */
 	void (*update_server_eweight)(struct server *);  /* to be called after eweight change */
 	void (*set_server_status_up)(struct server *);   /* to be called after status changes to UP */
 	void (*set_server_status_down)(struct server *); /* to be called after status changes to DOWN */

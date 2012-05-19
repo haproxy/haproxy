@@ -390,7 +390,8 @@ void set_server_down(struct server *s)
 
 		s->last_change = now.tv_sec;
 		s->state &= ~(SRV_RUNNING | SRV_GOINGDOWN);
-		s->proxy->lbprm.set_server_status_down(s);
+		if (s->proxy->lbprm.set_server_status_down)
+			s->proxy->lbprm.set_server_status_down(s);
 
 		if (s->onmarkeddown & HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS)
 			shutdown_sessions(s);
@@ -476,7 +477,8 @@ void set_server_up(struct server *s) {
 			}
 			task_schedule(s->warmup, tick_add(now_ms, MS_TO_TICKS(MAX(1000, s->slowstart / 20))));
 		}
-		s->proxy->lbprm.set_server_status_up(s);
+		if (s->proxy->lbprm.set_server_status_up)
+			s->proxy->lbprm.set_server_status_up(s);
 
 		/* check if we can handle some connections queued at the proxy. We
 		 * will take as many as we can handle.
@@ -521,7 +523,8 @@ static void set_server_disabled(struct server *s) {
 	int xferred;
 
 	s->state |= SRV_GOINGDOWN;
-	s->proxy->lbprm.set_server_status_down(s);
+	if (s->proxy->lbprm.set_server_status_down)
+		s->proxy->lbprm.set_server_status_down(s);
 
 	/* we might have sessions queued on this server and waiting for
 	 * a connection. Those which are redispatchable will be queued
@@ -558,7 +561,8 @@ static void set_server_enabled(struct server *s) {
 	int xferred;
 
 	s->state &= ~SRV_GOINGDOWN;
-	s->proxy->lbprm.set_server_status_up(s);
+	if (s->proxy->lbprm.set_server_status_up)
+		s->proxy->lbprm.set_server_status_up(s);
 
 	/* check if we can handle some connections queued at the proxy. We
 	 * will take as many as we can handle.
