@@ -167,7 +167,7 @@ struct server *get_server_uh(struct proxy *px, char *uri, int uri_len)
 			if (slashes == px->uri_dirs_depth1) /* depth+1 */
 				break;
 		}
-		else if (c == '?')
+		else if (c == '?' && !px->uri_whole)
 			break;
 
 		hash = c + (hash << 6) + (hash << 16) - hash;
@@ -1264,6 +1264,8 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;
 		curproxy->lbprm.algo |= BE_LB_ALGO_UH;
 
+		curproxy->uri_whole = 0;
+
 		while (*args[arg]) {
 			if (!strcmp(args[arg], "len")) {
 				if (!*args[arg+1] || (atoi(args[arg+1]) <= 0)) {
@@ -1284,8 +1286,12 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 				curproxy->uri_dirs_depth1 = atoi(args[arg+1]) + 1;
 				arg += 2;
 			}
+			else if (!strcmp(args[arg], "whole")) {
+				curproxy->uri_whole = 1;
+				arg += 1;
+			}
 			else {
-				memprintf(err, "%s only accepts parameters 'len' and 'depth' (got '%s').", args[0], args[arg]);
+				memprintf(err, "%s only accepts parameters 'len', 'depth', and 'whole' (got '%s').", args[0], args[arg]);
 				return -1;
 			}
 		}

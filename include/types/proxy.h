@@ -239,6 +239,7 @@ struct proxy {
 	unsigned url_param_post_limit;		/* if checking POST body for URI parameter, max body to wait for */
 	int  uri_len_limit;			/* character limit for uri balancing algorithm */
 	int  uri_dirs_depth1;			/* directories+1 (slashes) limit for uri balancing algorithm */
+	int  uri_whole;				/* if != 0, calculates the hash from the whole uri. Still honors the len_limit and dirs_depth1 */
 	char *hh_name;				/* name of the header parameter used for hashing */
 	int  hh_len;				/* strlen(hh_name), computed only once */
 	int  hh_match_domain;			/* toggle use of special match function */

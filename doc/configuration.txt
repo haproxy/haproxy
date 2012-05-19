@@ -1311,18 +1311,20 @@ balance url_param <param> [check_post [<max_wait>]]
                   weight on the fly will have no effect, but this can be
                   changed using "hash-type".
 
-      uri         The left part of the URI (before the question mark) is hashed
-                  and divided by the total weight of the running servers. The
-                  result designates which server will receive the request. This
-                  ensures that a same URI will always be directed to the same
-                  server as long as no server goes up or down. This is used
-                  with proxy caches and anti-virus proxies in order to maximize
-                  the cache hit rate. Note that this algorithm may only be used
-                  in an HTTP backend. This algorithm is static by default,
-                  which means that changing a server's weight on the fly will
-                  have no effect, but this can be changed using "hash-type".
+      uri         This algorithm hashes either the left part of the URI (before
+                  the question mark) or the whole URI (if the "whole" parameter
+                  is present) and divides the hash value by the total weight of
+                  the running servers. The result designates which server will
+                  receive the request. This ensures that the same URI will
+                  always be directed to the same server as long as no server
+                  goes up or down. This is used with proxy caches and
+                  anti-virus proxies in order to maximize the cache hit rate.
+                  Note that this algorithm may only be used in an HTTP backend.
+                  This algorithm is static by default, which means that
+                  changing a server's weight on the fly will have no effect,
+                  but this can be changed using "hash-type".
 
-                  This algorithm support two optional parameters "len" and
+                  This algorithm supports two optional parameters "len" and
                   "depth", both followed by a positive integer number. These
                   options may be helpful when it is needed to balance servers
                   based on the beginning of the URI only. The "len" parameter
