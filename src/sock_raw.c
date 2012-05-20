@@ -32,7 +32,6 @@
 #include <proto/buffers.h>
 #include <proto/fd.h>
 #include <proto/freq_ctr.h>
-#include <proto/frontend.h>
 #include <proto/log.h>
 #include <proto/pipe.h>
 #include <proto/protocols.h>
@@ -524,43 +523,6 @@ static int sock_raw_write_loop(struct stream_interface *si, struct buffer *b)
 	int retval = 1;
 	int ret, max;
 
-	if (unlikely(si->send_proxy_ofs)) {
-		/* The target server expects a PROXY line to be sent first.
-		 * If the send_proxy_ofs is negative, it corresponds to the
-		 * offset to start sending from then end of the proxy string
-		 * (which is recomputed every time since it's constant). If
-		 * it is positive, it means we have to send from the start.
-		 */
-		ret = make_proxy_line(trash, trashlen,
-				      &b->prod->addr.from, &b->prod->addr.to);
-		if (!ret)
-			return -1;
-
-		if (si->send_proxy_ofs > 0)
-			si->send_proxy_ofs = -ret; /* first call */
-
-		/* we have to send trash from (ret+sp for -sp bytes) */
-		ret = send(si->fd, trash + ret + si->send_proxy_ofs, -si->send_proxy_ofs,
-			   (b->flags & BF_OUT_EMPTY) ? 0 : MSG_MORE);
-		if (ret > 0) {
-			if (fdtab[si->fd].state == FD_STCONN) {
-				fdtab[si->fd].state = FD_STREADY;
-				si->exp = TICK_ETERNITY;
-			}
-
-			si->send_proxy_ofs += ret; /* becomes zero once complete */
-			b->flags |= BF_WRITE_NULL; /* connect() succeeded */
-		}
-		else if (ret == 0 || errno == EAGAIN) {
-			/* nothing written, we need to poll for write first */
-			return 0;
-		}
-		else {
-			/* bad, we got an error */
-			return -1;
-		}
-	}
-
 #if defined(CONFIG_HAP_LINUX_SPLICE)
 	while (b->pipe) {
 		ret = splice(b->pipe->cons, NULL, si->fd, NULL, b->pipe->data,
@@ -723,8 +685,6 @@ static int sock_raw_write(int fd)
 	retval = sock_raw_write_loop(si, b);
 	if (retval < 0)
 		goto out_error;
-	else if (retval == 0 && si->send_proxy_ofs)
-		goto out_may_wakeup; /* we failed to send the PROXY string */
 
 	if (b->flags & BF_OUT_EMPTY) {
 		/* the connection is established but we can't write. Either the
@@ -745,7 +705,6 @@ static int sock_raw_write(int fd)
 		b->wex = TICK_ETERNITY;
 	}
 
- out_may_wakeup:
 	if (b->flags & BF_WRITE_ACTIVITY) {
 		/* update timeout if we have written something */
 		if ((b->flags & (BF_OUT_EMPTY|BF_SHUTW|BF_WRITE_PARTIAL)) == BF_WRITE_PARTIAL)
@@ -1033,7 +992,7 @@ static void sock_raw_chk_snd(struct stream_interface *si)
 	if (unlikely(si->state != SI_ST_EST || (ob->flags & BF_SHUTW)))
 		return;
 
-	if (unlikely((ob->flags & BF_OUT_EMPTY) && !(si->send_proxy_ofs)))  /* called with nothing to send ! */
+	if (unlikely(ob->flags & BF_OUT_EMPTY))  /* called with nothing to send ! */
 		return;
 
 	if (!ob->pipe &&                          /* spliced data wants to be forwarded ASAP */
@@ -1057,8 +1016,6 @@ static void sock_raw_chk_snd(struct stream_interface *si)
 		si->flags |= SI_FL_ERR;
 		goto out_wakeup;
 	}
-	else if (retval == 0 && si->send_proxy_ofs)
-		goto out_may_wakeup; /* we failed to send the PROXY string */
 
 	/* OK, so now we know that retval >= 0 means that some data might have
 	 * been sent, and that we may have to poll first. We have to do that
@@ -1091,7 +1048,6 @@ static void sock_raw_chk_snd(struct stream_interface *si)
 			ob->wex = tick_add_ifset(now_ms, ob->wto);
 	}
 
- out_may_wakeup:
 	if (likely(ob->flags & BF_WRITE_ACTIVITY)) {
 		/* update timeout if we have written something */
 		if ((ob->flags & (BF_OUT_EMPTY|BF_SHUTW|BF_WRITE_PARTIAL)) == BF_WRITE_PARTIAL)

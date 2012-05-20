@@ -456,7 +456,7 @@ int tcp_connect_server(struct stream_interface *si)
 	 * connection is established before doing so, so we use our own write
 	 * callback then switch to the sock layer.
 	 */
-	if ((si->ob->flags & BF_OUT_EMPTY) && !si->send_proxy_ofs) {
+	if ((si->ob->flags & BF_OUT_EMPTY) || si->send_proxy_ofs) {
 		fdtab[fd].cb[DIR_RD].f = tcp_connect_read;
 		fdtab[fd].cb[DIR_WR].f = tcp_connect_write;
 	}
@@ -515,56 +515,98 @@ int tcp_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
 
 /* This is the callback which is set when a connection establishment is pending
  * and we have nothing to send, or if we have an init function we want to call
- * once the connection is established.
+ * once the connection is established. It returns zero if it needs some polling
+ * before being called again.
  */
 static int tcp_connect_write(int fd)
 {
 	struct stream_interface *si = fdtab[fd].owner;
 	struct buffer *b = si->ob;
-	int retval = 1;
+	int retval = 0;
 
 	if (fdtab[fd].state == FD_STERROR)
 		goto out_error;
 
-	if (fdtab[fd].state != FD_STCONN) {
-		retval = 0;
+	if (fdtab[fd].state != FD_STCONN)
 		goto out_ignore; /* strange we were called while ready */
-	}
 
 	/* we might have been called just after an asynchronous shutw */
 	if (b->flags & BF_SHUTW)
 		goto out_wakeup;
 
-	/* We have no data to send to check the connection, and
-	 * getsockopt() will not inform us whether the connection
-	 * is still pending. So we'll reuse connect() to check the
-	 * state of the socket. This has the advantage of giving us
-	 * the following info :
-	 *  - error
-	 *  - connecting (EALREADY, EINPROGRESS)
-	 *  - connected (EISCONN, 0)
+	/* If we have a PROXY line to send, we'll use this to validate the
+	 * connection, in which case the connection is validated only once
+	 * we've sent the whole proxy line. Otherwise we use connect().
 	 */
-	if ((connect(fd, fdinfo[fd].peeraddr, fdinfo[fd].peerlen) == 0))
-		errno = 0;
+	if (si->send_proxy_ofs) {
+		int ret;
 
-	if (errno == EALREADY || errno == EINPROGRESS) {
-		retval = 0;
-		goto out_ignore;
+		/* The target server expects a PROXY line to be sent first.
+		 * If the send_proxy_ofs is negative, it corresponds to the
+		 * offset to start sending from then end of the proxy string
+		 * (which is recomputed every time since it's constant). If
+		 * it is positive, it means we have to send from the start.
+		 */
+		ret = make_proxy_line(trash, trashlen, &b->prod->addr.from, &b->prod->addr.to);
+		if (!ret)
+			goto out_error;
+
+		if (si->send_proxy_ofs > 0)
+			si->send_proxy_ofs = -ret; /* first call */
+
+		/* we have to send trash from (ret+sp for -sp bytes) */
+		ret = send(si->fd, trash + ret + si->send_proxy_ofs, -si->send_proxy_ofs,
+			   (b->flags & BF_OUT_EMPTY) ? 0 : MSG_MORE);
+
+		if (ret == 0)
+			goto out_ignore;
+
+		if (ret < 0) {
+			if (errno == EAGAIN)
+				goto out_ignore;
+			goto out_error;
+		}
+
+		si->send_proxy_ofs += ret; /* becomes zero once complete */
+		if (si->send_proxy_ofs != 0)
+			goto out_ignore;
+
+		/* OK we've sent the whole line, we're connected */
 	}
+	else {
+		/* We have no data to send to check the connection, and
+		 * getsockopt() will not inform us whether the connection
+		 * is still pending. So we'll reuse connect() to check the
+		 * state of the socket. This has the advantage of giving us
+		 * the following info :
+		 *  - error
+		 *  - connecting (EALREADY, EINPROGRESS)
+		 *  - connected (EISCONN, 0)
+		 */
+		if ((connect(fd, fdinfo[fd].peeraddr, fdinfo[fd].peerlen) < 0)) {
+			if (errno == EALREADY || errno == EINPROGRESS)
+				goto out_ignore;
 
-	if (errno && errno != EISCONN)
-		goto out_error;
+			if (errno && errno != EISCONN)
+				goto out_error;
+
+			/* otherwise we're connected */
+		}
+	}
 
 	/* OK we just need to indicate that we got a connection
 	 * and that we wrote nothing.
 	 */
 	b->flags |= BF_WRITE_NULL;
 
-	/* The FD is ready now, we can hand the handlers to the socket layer */
+	/* The FD is ready now, we can hand the handlers to the socket layer
+	 * and forward the event there to start working on the socket.
+	 */
 	fdtab[fd].cb[DIR_RD].f = si->sock.read;
 	fdtab[fd].cb[DIR_WR].f = si->sock.write;
 	fdtab[fd].state = FD_STREADY;
 	si->exp = TICK_ETERNITY;
+	return si->sock.write(fd);
 
  out_wakeup:
 	task_wakeup(si->owner, TASK_WOKEN_IO);
@@ -585,6 +627,7 @@ static int tcp_connect_write(int fd)
 	fdtab[fd].ev &= ~FD_POLL_STICKY;
 	EV_FD_REM(fd);
 	si->flags |= SI_FL_ERR;
+	retval = 1;
 	goto out_wakeup;
 }
 
