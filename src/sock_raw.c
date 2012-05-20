@@ -323,8 +323,10 @@ static int sock_raw_read(int fd)
 				b_adv(b, fwd);
 			}
 
-			if (fdtab[fd].state == FD_STCONN)
+			if (fdtab[fd].state == FD_STCONN) {
 				fdtab[fd].state = FD_STREADY;
+				si->exp = TICK_ETERNITY;
+			}
 
 			b->flags |= BF_READ_PARTIAL;
 			b->total += ret;
@@ -541,8 +543,10 @@ static int sock_raw_write_loop(struct stream_interface *si, struct buffer *b)
 		ret = send(si->fd, trash + ret + si->send_proxy_ofs, -si->send_proxy_ofs,
 			   (b->flags & BF_OUT_EMPTY) ? 0 : MSG_MORE);
 		if (ret > 0) {
-			if (fdtab[si->fd].state == FD_STCONN)
+			if (fdtab[si->fd].state == FD_STCONN) {
 				fdtab[si->fd].state = FD_STREADY;
+				si->exp = TICK_ETERNITY;
+			}
 
 			si->send_proxy_ofs += ret; /* becomes zero once complete */
 			b->flags |= BF_WRITE_NULL; /* connect() succeeded */
@@ -647,8 +651,10 @@ static int sock_raw_write_loop(struct stream_interface *si, struct buffer *b)
 		}
 
 		if (ret > 0) {
-			if (fdtab[si->fd].state == FD_STCONN)
+			if (fdtab[si->fd].state == FD_STCONN) {
 				fdtab[si->fd].state = FD_STREADY;
+				si->exp = TICK_ETERNITY;
+			}
 
 			b->flags |= BF_WRITE_PARTIAL;
 

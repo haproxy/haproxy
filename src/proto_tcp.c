@@ -564,6 +564,7 @@ static int tcp_connect_write(int fd)
 	fdtab[fd].cb[DIR_RD].f = si->sock.read;
 	fdtab[fd].cb[DIR_WR].f = si->sock.write;
 	fdtab[fd].state = FD_STREADY;
+	si->exp = TICK_ETERNITY;
 
  out_wakeup:
 	task_wakeup(si->owner, TASK_WOKEN_IO);
