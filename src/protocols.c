@@ -339,6 +339,18 @@ int listener_accept(int fd)
 			}
 		}
 
+		/* if this connection comes from a known monitoring system, we want to ignore
+		 * it as soon as possible, which means closing it immediately if it is only a
+		 * TCP-based monitoring check.
+		 */
+		if (unlikely((l->options & LI_O_CHK_MONNET) &&
+			     (p->mode == PR_MODE_TCP) &&
+			     addr.ss_family == AF_INET &&
+			     (((struct sockaddr_in *)&addr)->sin_addr.s_addr & p->mon_mask.s_addr) == p->mon_net.s_addr)) {
+			close(cfd);
+			continue;
+		}
+
 		if (unlikely(cfd >= global.maxsock)) {
 			send_log(p, LOG_EMERG,
 				 "Proxy %s reached the configured maximum connection limit. Please check the global 'maxconn' value.\n",

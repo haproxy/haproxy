@@ -75,21 +75,6 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->stkctr1_table = NULL;
 	s->stkctr2_table = NULL;
 
-	/* if this session comes from a known monitoring system, we want to ignore
-	 * it as soon as possible, which means closing it immediately for TCP, but
-	 * cleanly.
-	 */
-	if (unlikely((l->options & LI_O_CHK_MONNET) &&
-		     addr->ss_family == AF_INET &&
-		     (((struct sockaddr_in *)addr)->sin_addr.s_addr & p->mon_mask.s_addr) == p->mon_net.s_addr)) {
-		if (p->mode == PR_MODE_TCP) {
-			ret = 0; /* successful termination */
-			goto out_free_session;
-		}
-		s->flags |= SN_MONITOR;
-		s->logs.logwait = 0;
-	}
-
 	if (unlikely((t = task_new()) == NULL))
 		goto out_free_session;
 
@@ -121,6 +106,17 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	 */
 	s->be  = s->fe  = p;
 	s->req = s->rep = NULL; /* will be allocated later */
+
+	/* if this session comes from a known monitoring system, we want to ignore
+	 * it as soon as possible, which means closing it immediately for TCP, but
+	 * cleanly.
+	 */
+	if (unlikely((l->options & LI_O_CHK_MONNET) &&
+		     addr->ss_family == AF_INET &&
+		     (((struct sockaddr_in *)addr)->sin_addr.s_addr & p->mon_mask.s_addr) == p->mon_net.s_addr)) {
+		s->flags |= SN_MONITOR;
+		s->logs.logwait = 0;
+	}
 
 	/* now evaluate the tcp-request layer4 rules. Since we expect to be able
 	 * to abort right here as soon as possible, we check the rules before
