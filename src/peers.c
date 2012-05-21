@@ -1149,7 +1149,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 
 	s->req = s->rep = NULL; /* will be allocated later */
 
-	s->si[0].fd = -1;
+	s->si[0].conn.t.sock.fd = -1;
 	s->si[0].owner = t;
 	s->si[0].state = s->si[0].prev_state = SI_ST_EST;
 	s->si[0].err_type = SI_ET_NONE;
@@ -1167,7 +1167,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 
 	stream_int_register_handler(&s->si[0], &peer_applet);
 
-	s->si[1].fd = -1; /* just to help with debugging */
+	s->si[1].conn.t.sock.fd = -1; /* just to help with debugging */
 	s->si[1].owner = t;
 	s->si[1].state = s->si[1].prev_state = SI_ST_ASS;
 	s->si[1].conn_retries = p->conn_retries;

@@ -52,7 +52,7 @@
  */
 int frontend_accept(struct session *s)
 {
-	int cfd = s->si[0].fd;
+	int cfd = si_fd(&s->si[0]);
 
 	tv_zero(&s->logs.tv_request);
 	s->logs.t_queue = -1;

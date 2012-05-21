@@ -2211,7 +2211,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
 			 * previously disabled it, otherwise we might cause the client
 			 * to delay next data.
 			 */
-			setsockopt(s->si[0].fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
+			setsockopt(si_fd(&s->si[0]), IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
 		}
 #endif
 
@@ -3406,7 +3406,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 		if ((s->listener->options & LI_O_NOQUICKACK) &&
 		    ((msg->flags & HTTP_MSGF_TE_CHNK) ||
 		     (msg->body_len > req->i - txn->req.eoh - 2)))
-			setsockopt(s->si[0].fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
+			setsockopt(si_fd(&s->si[0]), IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
 #endif
 	}
 
@@ -3759,7 +3759,7 @@ void http_end_txn_clean_session(struct session *s)
 	clear_target(&s->target);
 
 	s->req->cons->state     = s->req->cons->prev_state = SI_ST_INI;
-	s->req->cons->fd        = -1; /* just to help with debugging */
+	s->req->cons->conn.t.sock.fd = -1; /* just to help with debugging */
 	s->req->cons->err_type  = SI_ET_NONE;
 	s->req->cons->conn_retries = 0;  /* used for logging too */
 	s->req->cons->err_loc   = NULL;
@@ -7293,7 +7293,7 @@ void debug_hdr(const char *dir, struct session *t, const char *start, const char
 {
 	int len, max;
 	len = sprintf(trash, "%08x:%s.%s[%04x:%04x]: ", t->uniq_id, t->be->id,
-		      dir, (unsigned  short)t->req->prod->fd, (unsigned short)t->req->cons->fd);
+		      dir, (unsigned  short)si_fd(t->req->prod), (unsigned short)si_fd(t->req->cons));
 	max = end - start;
 	UBOUND(max, trashlen - len - 1);
 	len += strlcpy2(trash + len, start, max + 1);

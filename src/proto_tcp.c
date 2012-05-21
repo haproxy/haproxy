@@ -237,7 +237,7 @@ int tcp_connect_server(struct stream_interface *si)
 		return SN_ERR_INTERNAL;
 	}
 
-	if ((fd = si->fd = socket(si->addr.to.ss_family, SOCK_STREAM, IPPROTO_TCP)) == -1) {
+	if ((fd = si->conn.t.sock.fd = socket(si->addr.to.ss_family, SOCK_STREAM, IPPROTO_TCP)) == -1) {
 		qfprintf(stderr, "Cannot get a server socket.\n");
 
 		if (errno == ENFILE)
@@ -555,7 +555,7 @@ static int tcp_connect_write(int fd)
 			si->send_proxy_ofs = -ret; /* first call */
 
 		/* we have to send trash from (ret+sp for -sp bytes) */
-		ret = send(si->fd, trash + ret + si->send_proxy_ofs, -si->send_proxy_ofs,
+		ret = send(fd, trash + ret + si->send_proxy_ofs, -si->send_proxy_ofs,
 			   (b->flags & BF_OUT_EMPTY) ? 0 : MSG_MORE);
 
 		if (ret == 0)

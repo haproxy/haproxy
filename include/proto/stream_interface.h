@@ -52,6 +52,11 @@ static inline const struct sock_ops *si_data(struct stream_interface *si)
 	return si->conn.data;
 }
 
+static inline int si_fd(struct stream_interface *si)
+{
+	return si->conn.t.sock.fd;
+}
+
 static inline void clear_target(struct target *dest)
 {
 	dest->type = TARG_TYPE_NONE;
@@ -121,7 +126,7 @@ static inline void si_get_from_addr(struct stream_interface *si)
 	if (!si_ctrl(si) || !si_ctrl(si)->get_src)
 		return;
 
-	if (si_ctrl(si)->get_src(si->fd, (struct sockaddr *)&si->addr.from,
+	if (si_ctrl(si)->get_src(si_fd(si), (struct sockaddr *)&si->addr.from,
 	                         sizeof(si->addr.from),
 	                         si->target.type != TARG_TYPE_CLIENT) == -1)
 		return;
@@ -137,7 +142,7 @@ static inline void si_get_to_addr(struct stream_interface *si)
 	if (!si_ctrl(si) || !si_ctrl(si)->get_dst)
 		return;
 
-	if (si_ctrl(si)->get_dst(si->fd, (struct sockaddr *)&si->addr.to,
+	if (si_ctrl(si)->get_dst(si_fd(si), (struct sockaddr *)&si->addr.to,
 	                         sizeof(si->addr.to),
 	                         si->target.type != TARG_TYPE_CLIENT) == -1)
 		return;

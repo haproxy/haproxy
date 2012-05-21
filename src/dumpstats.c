@@ -3347,7 +3347,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 			     &sess->si[0],
 			     sess->si[0].state,
 			     sess->si[0].flags,
-			     sess->si[0].fd,
+			     si_fd(&sess->si[0]),
 			     sess->si[0].exp ?
 			             tick_is_expired(sess->si[0].exp, now_ms) ? "<PAST>" :
 			                     human_time(TICKS_TO_MS(sess->si[0].exp - now_ms),
@@ -3359,7 +3359,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 			     &sess->si[1],
 			     sess->si[1].state,
 			     sess->si[1].flags,
-			     sess->si[1].fd,
+			     si_fd(&sess->si[1]),
 			     sess->si[1].exp ?
 			             tick_is_expired(sess->si[1].exp, now_ms) ? "<PAST>" :
 			                     human_time(TICKS_TO_MS(sess->si[1].exp - now_ms),
@@ -3590,7 +3590,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 				     " s0=[%d,%1xh,fd=%d,ex=%s]",
 				     curr_sess->si[0].state,
 				     curr_sess->si[0].flags,
-				     curr_sess->si[0].fd,
+				     si_fd(&curr_sess->si[0]),
 				     curr_sess->si[0].exp ?
 				     human_time(TICKS_TO_MS(curr_sess->si[0].exp - now_ms),
 						TICKS_TO_MS(1000)) : "");
@@ -3599,7 +3599,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 				     " s1=[%d,%1xh,fd=%d,ex=%s]",
 				     curr_sess->si[1].state,
 				     curr_sess->si[1].flags,
-				     curr_sess->si[1].fd,
+				     si_fd(&curr_sess->si[1]),
 				     curr_sess->si[1].exp ?
 				     human_time(TICKS_TO_MS(curr_sess->si[1].exp - now_ms),
 						TICKS_TO_MS(1000)) : "");

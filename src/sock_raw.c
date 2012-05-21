@@ -84,7 +84,7 @@ static void sock_raw_chk_snd(struct stream_interface *si);
 static int sock_raw_splice_in(struct buffer *b, struct stream_interface *si)
 {
 	static int splice_detects_close;
-	int fd = si->fd;
+	int fd = si_fd(si);
 	int ret;
 	unsigned long max;
 	int retval = 1;
@@ -526,7 +526,7 @@ static int sock_raw_write_loop(struct stream_interface *si, struct buffer *b)
 
 #if defined(CONFIG_HAP_LINUX_SPLICE)
 	while (b->pipe) {
-		ret = splice(b->pipe->cons, NULL, si->fd, NULL, b->pipe->data,
+		ret = splice(b->pipe->cons, NULL, si_fd(si), NULL, b->pipe->data,
 			     SPLICE_F_MOVE|SPLICE_F_NONBLOCK);
 		if (ret <= 0) {
 			if (ret == 0 || errno == EAGAIN) {
@@ -601,21 +601,21 @@ static int sock_raw_write_loop(struct stream_interface *si, struct buffer *b)
 			if (b->flags & BF_SEND_DONTWAIT)
 				send_flag &= ~MSG_MORE;
 
-			ret = send(si->fd, bo_ptr(b), max, send_flag);
+			ret = send(si_fd(si), bo_ptr(b), max, send_flag);
 		} else {
 			int skerr;
 			socklen_t lskerr = sizeof(skerr);
 
-			ret = getsockopt(si->fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
+			ret = getsockopt(si_fd(si), SOL_SOCKET, SO_ERROR, &skerr, &lskerr);
 			if (ret == -1 || skerr)
 				ret = -1;
 			else
-				ret = send(si->fd, bo_ptr(b), max, MSG_DONTWAIT);
+				ret = send(si_fd(si), bo_ptr(b), max, MSG_DONTWAIT);
 		}
 
 		if (ret > 0) {
-			if (fdtab[si->fd].state == FD_STCONN) {
-				fdtab[si->fd].state = FD_STREADY;
+			if (fdtab[si_fd(si)].state == FD_STCONN) {
+				fdtab[si_fd(si)].state = FD_STREADY;
 				si->exp = TICK_ETERNITY;
 			}
 
@@ -788,12 +788,12 @@ static void sock_raw_shutw(struct stream_interface *si)
 		}
 		else if (si->flags & SI_FL_NOLINGER) {
 			si->flags &= ~SI_FL_NOLINGER;
-			setsockopt(si->fd, SOL_SOCKET, SO_LINGER,
+			setsockopt(si_fd(si), SOL_SOCKET, SO_LINGER,
 				   (struct linger *) &nolinger, sizeof(struct linger));
 		}
 		else if (!(si->flags & SI_FL_NOHALF)) {
-			EV_FD_CLR(si->fd, DIR_WR);
-			shutdown(si->fd, SHUT_WR);
+			EV_FD_CLR(si_fd(si), DIR_WR);
+			shutdown(si_fd(si), SHUT_WR);
 
 			if (!(si->ib->flags & (BF_SHUTR|BF_DONT_READ)))
 				return;
@@ -804,7 +804,7 @@ static void sock_raw_shutw(struct stream_interface *si)
 		/* we may have to close a pending connection, and mark the
 		 * response buffer as shutr
 		 */
-		fd_delete(si->fd);
+		fd_delete(si_fd(si));
 		/* fall through */
 	case SI_ST_CER:
 	case SI_ST_QUE:
@@ -841,7 +841,7 @@ static void sock_raw_shutr(struct stream_interface *si)
 		return;
 
 	if (si->ob->flags & BF_SHUTW) {
-		fd_delete(si->fd);
+		fd_delete(si_fd(si));
 		si->state = SI_ST_DIS;
 		si->exp = TICK_ETERNITY;
 
@@ -853,7 +853,7 @@ static void sock_raw_shutr(struct stream_interface *si)
 		/* we want to immediately forward this close to the write side */
 		return sock_raw_shutw(si);
 	}
-	EV_FD_CLR(si->fd, DIR_RD);
+	EV_FD_CLR(si_fd(si), DIR_RD);
 	return;
 }
 
@@ -867,7 +867,7 @@ static void sock_raw_data_finish(struct stream_interface *si)
 {
 	struct buffer *ib = si->ib;
 	struct buffer *ob = si->ob;
-	int fd = si->fd;
+	int fd = si_fd(si);
 
 	DPRINTF(stderr,"[%u] %s: fd=%d owner=%p ib=%p, ob=%p, exp(r,w)=%u,%u ibf=%08x obf=%08x ibh=%d ibt=%d obh=%d obd=%d si=%d\n",
 		now_ms, __FUNCTION__,
@@ -949,7 +949,7 @@ static void sock_raw_chk_rcv(struct stream_interface *si)
 
 	DPRINTF(stderr,"[%u] %s: fd=%d owner=%p ib=%p, ob=%p, exp(r,w)=%u,%u ibf=%08x obf=%08x ibh=%d ibt=%d obh=%d obd=%d si=%d\n",
 		now_ms, __FUNCTION__,
-		si->fd, fdtab[si->fd].owner,
+		si_fd(si), fdtab[si_fd(si)].owner,
 		ib, si->ob,
 		ib->rex, si->ob->wex,
 		ib->flags, si->ob->flags,
@@ -962,12 +962,12 @@ static void sock_raw_chk_rcv(struct stream_interface *si)
 		/* stop reading */
 		if ((ib->flags & (BF_FULL|BF_HIJACK|BF_DONT_READ)) == BF_FULL)
 			si->flags |= SI_FL_WAIT_ROOM;
-		EV_FD_COND_C(si->fd, DIR_RD);
+		EV_FD_COND_C(si_fd(si), DIR_RD);
 	}
 	else {
 		/* (re)start reading */
 		si->flags &= ~SI_FL_WAIT_ROOM;
-		EV_FD_COND_S(si->fd, DIR_RD);
+		EV_FD_COND_S(si_fd(si), DIR_RD);
 	}
 }
 
@@ -984,7 +984,7 @@ static void sock_raw_chk_snd(struct stream_interface *si)
 
 	DPRINTF(stderr,"[%u] %s: fd=%d owner=%p ib=%p, ob=%p, exp(r,w)=%u,%u ibf=%08x obf=%08x ibh=%d ibt=%d obh=%d obd=%d si=%d\n",
 		now_ms, __FUNCTION__,
-		si->fd, fdtab[si->fd].owner,
+		si_fd(si), fdtab[si_fd(si)].owner,
 		si->ib, ob,
 		si->ib->rex, ob->wex,
 		si->ib->flags, ob->flags,
@@ -998,7 +998,7 @@ static void sock_raw_chk_snd(struct stream_interface *si)
 
 	if (!ob->pipe &&                          /* spliced data wants to be forwarded ASAP */
 	    (!(si->flags & SI_FL_WAIT_DATA) ||    /* not waiting for data */
-	     (fdtab[si->fd].ev & FD_POLL_OUT)))   /* we'll be called anyway */
+	     (fdtab[si_fd(si)].ev & FD_POLL_OUT)))   /* we'll be called anyway */
 		return;
 
 	retval = sock_raw_write_loop(si, ob);
@@ -1011,9 +1011,9 @@ static void sock_raw_chk_snd(struct stream_interface *si)
 		/* Write error on the file descriptor. We mark the FD as STERROR so
 		 * that we don't use it anymore and we notify the task.
 		 */
-		fdtab[si->fd].state = FD_STERROR;
-		fdtab[si->fd].ev &= ~FD_POLL_STICKY;
-		EV_FD_REM(si->fd);
+		fdtab[si_fd(si)].state = FD_STERROR;
+		fdtab[si_fd(si)].ev &= ~FD_POLL_STICKY;
+		EV_FD_REM(si_fd(si));
 		si->flags |= SI_FL_ERR;
 		goto out_wakeup;
 	}
@@ -1043,7 +1043,7 @@ static void sock_raw_chk_snd(struct stream_interface *si)
 		/* Otherwise there are remaining data to be sent in the buffer,
 		 * which means we have to poll before doing so.
 		 */
-		EV_FD_COND_S(si->fd, DIR_WR);
+		EV_FD_COND_S(si_fd(si), DIR_WR);
 		si->flags &= ~SI_FL_WAIT_DATA;
 		if (!tick_isset(ob->wex))
 			ob->wex = tick_add_ifset(now_ms, ob->wto);

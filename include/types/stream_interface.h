@@ -105,6 +105,11 @@ struct stream_interface;
 struct connection {
 	const struct sock_ops *data;  /* operations at the data layer */
 	const struct protocol *ctrl;  /* operations at the control layer, generally a protocol */
+	union {                       /* definitions which depend on connection type */
+		struct {              /*** information used by socket-based connections ***/
+			int fd;       /* file descriptor for a stream driver when known */
+		} sock;
+	} t;
 };
 
 struct target {
@@ -158,7 +163,6 @@ struct stream_interface {
 	struct target target;	/* the target to connect to (server, proxy, applet, ...) */
 	int conn_retries;	/* number of connect retries left */
 	int send_proxy_ofs;	/* <0 = offset to (re)send from the end, >0 = send all */
-	int fd;                 /* file descriptor for a stream driver when known */
 	struct {
 		int state;                 /* applet state, initialized to zero */
 		void *private;             /* may be used by any function above */

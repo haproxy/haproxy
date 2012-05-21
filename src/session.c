@@ -161,7 +161,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	}
 
 	/* this part should be common with other protocols */
-	s->si[0].fd        = cfd;
+	s->si[0].conn.t.sock.fd = cfd;
 	s->si[0].owner     = t;
 	s->si[0].state     = s->si[0].prev_state = SI_ST_EST;
 	s->si[0].err_type  = SI_ET_NONE;
@@ -185,7 +185,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	/* pre-initialize the other side's stream interface to an INIT state. The
 	 * callbacks will be initialized before attempting to connect.
 	 */
-	s->si[1].fd        = -1; /* just to help with debugging */
+	s->si[1].conn.t.sock.fd = -1; /* just to help with debugging */
 	s->si[1].owner     = t;
 	s->si[1].state     = s->si[1].prev_state = SI_ST_INI;
 	s->si[1].err_type  = SI_ET_NONE;
@@ -543,7 +543,7 @@ static int sess_update_st_con_tcp(struct session *s, struct stream_interface *si
 		si->exp   = TICK_ETERNITY;
 		si->state = SI_ST_CER;
 		si->flags &= ~SI_FL_CAP_SPLICE;
-		fd_delete(si->fd);
+		fd_delete(si_fd(si));
 
 		if (si->release)
 			si->release(si);
@@ -2079,8 +2079,8 @@ struct task *process_session(struct task *t)
 		    s->si[1].prev_state == SI_ST_EST) {
 			len = sprintf(trash, "%08x:%s.srvcls[%04x:%04x]\n",
 				      s->uniq_id, s->be->id,
-				      (unsigned short)s->si[0].fd,
-				      (unsigned short)s->si[1].fd);
+				      (unsigned short)si_fd(&s->si[0]),
+				      (unsigned short)si_fd(&s->si[1]));
 			if (write(1, trash, len) < 0) /* shut gcc warning */;
 		}
 
@@ -2088,8 +2088,8 @@ struct task *process_session(struct task *t)
 		    s->si[0].prev_state == SI_ST_EST) {
 			len = sprintf(trash, "%08x:%s.clicls[%04x:%04x]\n",
 				      s->uniq_id, s->be->id,
-				      (unsigned short)s->si[0].fd,
-				      (unsigned short)s->si[1].fd);
+				      (unsigned short)si_fd(&s->si[0]),
+				      (unsigned short)si_fd(&s->si[1]));
 			if (write(1, trash, len) < 0) /* shut gcc warning */;
 		}
 	}
@@ -2196,7 +2196,7 @@ struct task *process_session(struct task *t)
 		int len;
 		len = sprintf(trash, "%08x:%s.closed[%04x:%04x]\n",
 			      s->uniq_id, s->be->id,
-			      (unsigned short)s->req->prod->fd, (unsigned short)s->req->cons->fd);
+			      (unsigned short)si_fd(s->req->prod), (unsigned short)si_fd(s->req->cons));
 		if (write(1, trash, len) < 0) /* shut gcc warning */;
 	}
 
