@@ -227,6 +227,7 @@ static void stream_int_shutr(struct stream_interface *si)
 		si->state = SI_ST_DIS;
 		si->exp = TICK_ETERNITY;
 
+		si_data_close(si);
 		if (si->release)
 			si->release(si);
 	}
@@ -263,6 +264,7 @@ static void stream_int_shutw(struct stream_interface *si)
 		si->state = SI_ST_DIS;
 		/* fall through */
 
+		si_data_close(si);
 		if (si->release)
 			si->release(si);
 	default:

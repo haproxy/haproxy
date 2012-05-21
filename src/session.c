@@ -545,6 +545,7 @@ static int sess_update_st_con_tcp(struct session *s, struct stream_interface *si
 		si->flags &= ~SI_FL_CAP_SPLICE;
 		fd_delete(si_fd(si));
 
+		si_data_close(si);
 		if (si->release)
 			si->release(si);
 

@@ -811,6 +811,7 @@ static void sock_raw_shutw(struct stream_interface *si)
 	case SI_ST_TAR:
 		si->state = SI_ST_DIS;
 
+		si_data_close(si);
 		if (si->release)
 			si->release(si);
 	default:
@@ -845,6 +846,7 @@ static void sock_raw_shutr(struct stream_interface *si)
 		si->state = SI_ST_DIS;
 		si->exp = TICK_ETERNITY;
 
+		si_data_close(si);
 		if (si->release)
 			si->release(si);
 		return;
