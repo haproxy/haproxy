@@ -49,6 +49,7 @@ struct sock_ops stream_int_embedded = {
 	.chk_snd = stream_int_chk_snd,
 	.read    = NULL,
 	.write   = NULL,
+	.close   = NULL,
 };
 
 /* socket operations for external tasks */
@@ -60,6 +61,7 @@ struct sock_ops stream_int_task = {
 	.chk_snd = stream_int_chk_snd,
 	.read    = NULL,
 	.write   = NULL,
+	.close   = NULL,
 };
 
 /*

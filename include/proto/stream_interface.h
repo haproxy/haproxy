@@ -189,6 +189,13 @@ static inline int si_connect(struct stream_interface *si)
 	return si_ctrl(si)->connect(si);
 }
 
+/* Calls the close() function of the data layer if any */
+static inline void si_data_close(struct stream_interface *si)
+{
+	if (si->conn.data->close)
+		si->conn.data->close(&si->conn);
+}
+
 #endif /* _PROTO_STREAM_INTERFACE_H */
 
 /*

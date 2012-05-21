@@ -1088,6 +1088,7 @@ struct sock_ops sock_raw = {
 	.chk_snd = sock_raw_chk_snd,
 	.read    = sock_raw_read,
 	.write   = sock_raw_write,
+	.close   = NULL,
 };
 
 /*
