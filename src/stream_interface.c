@@ -341,7 +341,6 @@ struct task *stream_int_register_handler(struct stream_interface *si, struct si_
 	stream_interface_prepare(si, &stream_int_embedded);
 	si->conn.ctrl = NULL;
 	set_target_applet(&si->target, app);
-	si->applet.state = 0;
 	si->release   = app->release;
 	si->flags |= SI_FL_WAIT_DATA;
 	return si->owner;

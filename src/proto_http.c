@@ -2967,7 +2967,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
 		s->task->nice = -32; /* small boost for HTTP statistics */
 		stream_int_register_handler(s->rep->prod, &http_stats_applet);
 		copy_target(&s->target, &s->rep->prod->target); // for logging only
-		s->rep->prod->applet.private = s;
+		s->rep->prod->conn.data_ctx = s;
 		s->rep->prod->applet.st0 = s->rep->prod->applet.st1 = 0;
 		req->analysers = 0;
 		if (s->fe == s->be) /* report it if the request was intercepted by the frontend */

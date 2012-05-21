@@ -114,6 +114,8 @@ static inline struct server *target_srv(struct target *t)
 static inline void stream_interface_prepare(struct stream_interface *si, const struct sock_ops *ops)
 {
 	si->conn.data = ops;
+	si->conn.data_st = 0;
+	si->conn.data_ctx = NULL;
 }
 
 

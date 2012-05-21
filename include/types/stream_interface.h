@@ -110,6 +110,8 @@ struct connection {
 			int fd;       /* file descriptor for a stream driver when known */
 		} sock;
 	} t;
+	int data_st;                  /* data layer state, initialized to zero */
+	void *data_ctx;               /* general purpose pointer, initialized to NULL */
 };
 
 struct target {
@@ -164,8 +166,6 @@ struct stream_interface {
 	int conn_retries;	/* number of connect retries left */
 	int send_proxy_ofs;	/* <0 = offset to (re)send from the end, >0 = send all */
 	struct {
-		int state;                 /* applet state, initialized to zero */
-		void *private;             /* may be used by any function above */
 		unsigned int st0, st1;     /* may be used by any function above */
 		union {
 			struct {
