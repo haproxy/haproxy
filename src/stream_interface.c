@@ -138,7 +138,7 @@ static void stream_int_update_embedded(struct stream_interface *si)
 		return;
 
 	if ((si->ob->flags & (BF_OUT_EMPTY|BF_SHUTW|BF_HIJACK|BF_SHUTW_NOW)) == (BF_OUT_EMPTY|BF_SHUTW_NOW))
-		si->sock.shutw(si);
+		si_shutw(si);
 
 	if ((si->ob->flags & (BF_FULL|BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK)) == 0)
 		si->flags |= SI_FL_WAIT_DATA;
@@ -164,11 +164,11 @@ static void stream_int_update_embedded(struct stream_interface *si)
 	old_flags = si->flags;
 	if (likely((si->ob->flags & (BF_SHUTW|BF_WRITE_PARTIAL|BF_FULL|BF_DONT_READ)) == BF_WRITE_PARTIAL &&
 		   (si->ob->prod->flags & SI_FL_WAIT_ROOM)))
-		si->ob->prod->sock.chk_rcv(si->ob->prod);
+		si_chk_rcv(si->ob->prod);
 
 	if (((si->ib->flags & (BF_READ_PARTIAL|BF_OUT_EMPTY)) == BF_READ_PARTIAL) &&
 	    (si->ib->cons->flags & SI_FL_WAIT_DATA)) {
-		si->ib->cons->sock.chk_snd(si->ib->cons);
+		si_chk_snd(si->ib->cons);
 		/* check if the consumer has freed some space */
 		if (!(si->ib->flags & BF_FULL))
 			si->flags &= ~SI_FL_WAIT_ROOM;
@@ -339,7 +339,7 @@ struct task *stream_int_register_handler(struct stream_interface *si, struct si_
 	DPRINTF(stderr, "registering handler %p for si %p (was %p)\n", app, si, si->owner);
 
 	stream_interface_prepare(si, &stream_int_embedded);
-	si->proto = NULL;
+	si->conn.ctrl = NULL;
 	set_target_applet(&si->target, app);
 	si->applet.state = 0;
 	si->release   = app->release;
@@ -362,7 +362,7 @@ struct task *stream_int_register_handler_task(struct stream_interface *si,
 	DPRINTF(stderr, "registering handler %p for si %p (was %p)\n", fct, si, si->owner);
 
 	stream_interface_prepare(si, &stream_int_task);
-	si->proto = NULL;
+	si->conn.ctrl = NULL;
 	clear_target(&si->target);
 	si->release   = NULL;
 	si->flags |= SI_FL_WAIT_DATA;

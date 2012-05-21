@@ -1023,15 +1023,15 @@ incomplete:
 				si->applet.st0 = PEER_SESSION_END;
 				/* fall through */
 			case PEER_SESSION_END: {
-				si->sock.shutw(si);
-				si->sock.shutr(si);
+				si_shutw(si);
+				si_shutr(si);
 				si->ib->flags |= BF_READ_NULL;
 				goto quit;
 			}
 		}
 	}
 out:
-	si->sock.update(si);
+	si_update(si);
 	si->ob->flags |= BF_READ_DONTWAIT;
 	/* we don't want to expire timeouts while we're processing requests */
 	si->ib->rex = TICK_ETERNITY;
@@ -1154,7 +1154,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->si[0].state = s->si[0].prev_state = SI_ST_EST;
 	s->si[0].err_type = SI_ET_NONE;
 	s->si[0].err_loc = NULL;
-	s->si[0].proto   = NULL;
+	s->si[0].conn.ctrl = NULL;
 	s->si[0].release = NULL;
 	s->si[0].send_proxy_ofs = 0;
 	set_target_client(&s->si[0].target);
@@ -1173,7 +1173,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->si[1].conn_retries = p->conn_retries;
 	s->si[1].err_type = SI_ET_NONE;
 	s->si[1].err_loc = NULL;
-	s->si[1].proto = peer->proto;
+	s->si[1].conn.ctrl = peer->proto;
 	s->si[1].release = NULL;
 	s->si[1].send_proxy_ofs = 0;
 	set_target_proxy(&s->si[1].target, s->be);

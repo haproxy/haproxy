@@ -166,7 +166,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[0].state     = s->si[0].prev_state = SI_ST_EST;
 	s->si[0].err_type  = SI_ET_NONE;
 	s->si[0].err_loc   = NULL;
-	s->si[0].proto     = l->proto;
+	s->si[0].conn.ctrl = l->proto;
 	s->si[0].release   = NULL;
 	s->si[0].send_proxy_ofs = 0;
 	set_target_client(&s->si[0].target);
@@ -191,7 +191,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[1].err_type  = SI_ET_NONE;
 	s->si[1].conn_retries = 0;  /* used for logging too */
 	s->si[1].err_loc   = NULL;
-	s->si[1].proto     = NULL;
+	s->si[1].conn.ctrl = NULL;
 	s->si[1].release   = NULL;
 	s->si[1].send_proxy_ofs = 0;
 	clear_target(&s->si[1].target);
@@ -279,8 +279,8 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	fdtab[cfd].owner = &s->si[0];
 	fdtab[cfd].state = FD_STREADY;
 	fdtab[cfd].flags = 0;
-	fdtab[cfd].cb[DIR_RD].f = s->si[0].sock.read;
-	fdtab[cfd].cb[DIR_WR].f = s->si[0].sock.write;
+	fdtab[cfd].cb[DIR_RD].f = si_data(&s->si[0])->read;
+	fdtab[cfd].cb[DIR_WR].f = si_data(&s->si[0])->write;
 	fdinfo[cfd].peeraddr = (struct sockaddr *)&s->si[0].addr.from;
 	fdinfo[cfd].peerlen  = sizeof(s->si[0].addr.from);
 	EV_FD_SET(cfd, DIR_RD);
@@ -565,7 +565,7 @@ static int sess_update_st_con_tcp(struct session *s, struct stream_interface *si
 		      (((req->flags & (BF_OUT_EMPTY|BF_WRITE_ACTIVITY)) == BF_OUT_EMPTY) ||
 		       s->be->options & PR_O_ABRT_CLOSE)))) {
 		/* give up */
-		si->sock.shutw(si);
+		si_shutw(si);
 		si->err_type |= SI_ET_CONN_ABRT;
 		si->err_loc  = target_srv(&s->target);
 		si->flags &= ~SI_FL_CAP_SPLICE;
@@ -626,7 +626,7 @@ static int sess_update_st_cer(struct session *s, struct stream_interface *si)
 			process_srv_queue(target_srv(&s->target));
 
 		/* shutw is enough so stop a connecting socket */
-		si->sock.shutw(si);
+		si_shutw(si);
 		si->ob->flags |= BF_WRITE_ERROR;
 		si->ib->flags |= BF_READ_ERROR;
 
@@ -705,7 +705,7 @@ static void sess_establish(struct session *s, struct stream_interface *si)
 
 	rep->analysers |= s->fe->fe_rsp_ana | s->be->be_rsp_ana;
 	rep->flags |= BF_READ_ATTACHED; /* producer is now attached */
-	if (si->proto) {
+	if (si_ctrl(si)) {
 		/* real connections have timeouts */
 		req->wto = s->be->timeout.server;
 		rep->rto = s->be->timeout.server;
@@ -765,8 +765,8 @@ static void sess_update_stream_int(struct session *s, struct stream_interface *s
 				process_srv_queue(srv);
 
 			/* Failed and not retryable. */
-			si->sock.shutr(si);
-			si->sock.shutw(si);
+			si_shutr(si);
+			si_shutw(si);
 			si->ob->flags |= BF_WRITE_ERROR;
 
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
@@ -814,8 +814,8 @@ static void sess_update_stream_int(struct session *s, struct stream_interface *s
 			if (srv)
 				srv->counters.failed_conns++;
 			s->be->be_counters.failed_conns++;
-			si->sock.shutr(si);
-			si->sock.shutw(si);
+			si_shutr(si);
+			si_shutw(si);
 			si->ob->flags |= BF_WRITE_TIMEOUT;
 			if (!si->err_type)
 				si->err_type = SI_ET_QUEUE_TO;
@@ -832,8 +832,8 @@ static void sess_update_stream_int(struct session *s, struct stream_interface *s
 			/* give up */
 			si->exp = TICK_ETERNITY;
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
-			si->sock.shutr(si);
-			si->sock.shutw(si);
+			si_shutr(si);
+			si_shutw(si);
 			si->err_type |= SI_ET_QUEUE_ABRT;
 			si->state = SI_ST_CLO;
 			if (s->srv_error)
@@ -851,8 +851,8 @@ static void sess_update_stream_int(struct session *s, struct stream_interface *s
 		     (si->ob->flags & BF_OUT_EMPTY || s->be->options & PR_O_ABRT_CLOSE))) {
 			/* give up */
 			si->exp = TICK_ETERNITY;
-			si->sock.shutr(si);
-			si->sock.shutw(si);
+			si_shutr(si);
+			si_shutw(si);
 			si->err_type |= SI_ET_CONN_ABRT;
 			si->state = SI_ST_CLO;
 			if (s->srv_error)
@@ -930,8 +930,8 @@ static void sess_prepare_conn_req(struct session *s, struct stream_interface *si
 			return;
 
 		/* we did not get any server, let's check the cause */
-		si->sock.shutr(si);
-		si->sock.shutw(si);
+		si_shutr(si);
+		si_shutw(si);
 		si->ob->flags |= BF_WRITE_ERROR;
 		if (!si->err_type)
 			si->err_type = SI_ET_CONN_OTHER;
@@ -1344,26 +1344,26 @@ struct task *process_session(struct task *t)
 
 		if (unlikely((s->req->flags & (BF_SHUTW|BF_WRITE_TIMEOUT)) == BF_WRITE_TIMEOUT)) {
 			s->req->cons->flags |= SI_FL_NOLINGER;
-			s->req->cons->sock.shutw(s->req->cons);
+			si_shutw(s->req->cons);
 		}
 
 		if (unlikely((s->req->flags & (BF_SHUTR|BF_READ_TIMEOUT)) == BF_READ_TIMEOUT)) {
 			if (s->req->prod->flags & SI_FL_NOHALF)
 				s->req->prod->flags |= SI_FL_NOLINGER;
-			s->req->prod->sock.shutr(s->req->prod);
+			si_shutr(s->req->prod);
 		}
 
 		buffer_check_timeouts(s->rep);
 
 		if (unlikely((s->rep->flags & (BF_SHUTW|BF_WRITE_TIMEOUT)) == BF_WRITE_TIMEOUT)) {
 			s->rep->cons->flags |= SI_FL_NOLINGER;
-			s->rep->cons->sock.shutw(s->rep->cons);
+			si_shutw(s->rep->cons);
 		}
 
 		if (unlikely((s->rep->flags & (BF_SHUTR|BF_READ_TIMEOUT)) == BF_READ_TIMEOUT)) {
 			if (s->rep->prod->flags & SI_FL_NOHALF)
 				s->rep->prod->flags |= SI_FL_NOLINGER;
-			s->rep->prod->sock.shutr(s->rep->prod);
+			si_shutr(s->rep->prod);
 		}
 	}
 
@@ -1377,8 +1377,8 @@ struct task *process_session(struct task *t)
 	srv = target_srv(&s->target);
 	if (unlikely(s->si[0].flags & SI_FL_ERR)) {
 		if (s->si[0].state == SI_ST_EST || s->si[0].state == SI_ST_DIS) {
-			s->si[0].sock.shutr(&s->si[0]);
-			s->si[0].sock.shutw(&s->si[0]);
+			si_shutr(&s->si[0]);
+			si_shutw(&s->si[0]);
 			stream_int_report_error(&s->si[0]);
 			if (!(s->req->analysers) && !(s->rep->analysers)) {
 				s->be->be_counters.cli_aborts++;
@@ -1395,8 +1395,8 @@ struct task *process_session(struct task *t)
 
 	if (unlikely(s->si[1].flags & SI_FL_ERR)) {
 		if (s->si[1].state == SI_ST_EST || s->si[1].state == SI_ST_DIS) {
-			s->si[1].sock.shutr(&s->si[1]);
-			s->si[1].sock.shutw(&s->si[1]);
+			si_shutr(&s->si[1]);
+			si_shutw(&s->si[1]);
 			stream_int_report_error(&s->si[1]);
 			s->be->be_counters.failed_resp++;
 			if (srv)
@@ -1893,7 +1893,7 @@ struct task *process_session(struct task *t)
 
 	/* shutdown(write) pending */
 	if (unlikely((s->req->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_OUT_EMPTY)) == (BF_SHUTW_NOW|BF_OUT_EMPTY)))
-		s->req->cons->sock.shutw(s->req->cons);
+		si_shutw(s->req->cons);
 
 	/* shutdown(write) done on server side, we must stop the client too */
 	if (unlikely((s->req->flags & (BF_SHUTW|BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTW &&
@@ -1904,7 +1904,7 @@ struct task *process_session(struct task *t)
 	if (unlikely((s->req->flags & (BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTR_NOW)) {
 		if (s->req->prod->flags & SI_FL_NOHALF)
 			s->req->prod->flags |= SI_FL_NOLINGER;
-		s->req->prod->sock.shutr(s->req->prod);
+		si_shutr(s->req->prod);
 	}
 
 	/* it's possible that an upper layer has requested a connection setup or abort.
@@ -1922,7 +1922,7 @@ struct task *process_session(struct task *t)
 				s->req->cons->state = SI_ST_REQ; /* new connection requested */
 				s->req->cons->conn_retries = s->be->conn_retries;
 				if (unlikely(s->req->cons->target.type == TARG_TYPE_APPLET &&
-					     !(s->req->cons->proto && s->req->cons->proto->connect))) {
+					     !(si_ctrl(s->req->cons) && si_ctrl(s->req->cons)->connect))) {
 					s->req->cons->state = SI_ST_EST; /* connection established */
 					s->rep->flags |= BF_READ_ATTACHED; /* producer is now attached */
 					s->req->wex = TICK_ETERNITY;
@@ -2038,7 +2038,7 @@ struct task *process_session(struct task *t)
 
 	/* shutdown(write) pending */
 	if (unlikely((s->rep->flags & (BF_SHUTW|BF_OUT_EMPTY|BF_SHUTW_NOW)) == (BF_OUT_EMPTY|BF_SHUTW_NOW)))
-		s->rep->cons->sock.shutw(s->rep->cons);
+		si_shutw(s->rep->cons);
 
 	/* shutdown(write) done on the client side, we must stop the server too */
 	if (unlikely((s->rep->flags & (BF_SHUTW|BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTW) &&
@@ -2049,7 +2049,7 @@ struct task *process_session(struct task *t)
 	if (unlikely((s->rep->flags & (BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTR_NOW)) {
 		if (s->rep->prod->flags & SI_FL_NOHALF)
 			s->rep->prod->flags |= SI_FL_NOLINGER;
-		s->rep->prod->sock.shutr(s->rep->prod);
+		si_shutr(s->rep->prod);
 	}
 
 	if (s->req->prod->state == SI_ST_DIS || s->req->cons->state == SI_ST_DIS)
@@ -2101,10 +2101,10 @@ struct task *process_session(struct task *t)
 			session_process_counters(s);
 
 		if (s->rep->cons->state == SI_ST_EST && s->rep->cons->target.type != TARG_TYPE_APPLET)
-			s->rep->cons->sock.update(s->rep->cons);
+			si_update(s->rep->cons);
 
 		if (s->req->cons->state == SI_ST_EST && s->req->cons->target.type != TARG_TYPE_APPLET)
-			s->req->cons->sock.update(s->req->cons);
+			si_update(s->req->cons);
 
 		s->req->flags &= ~(BF_READ_NULL|BF_READ_PARTIAL|BF_WRITE_NULL|BF_WRITE_PARTIAL|BF_READ_ATTACHED);
 		s->rep->flags &= ~(BF_READ_NULL|BF_READ_PARTIAL|BF_WRITE_NULL|BF_WRITE_PARTIAL|BF_READ_ATTACHED);

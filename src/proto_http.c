@@ -803,8 +803,8 @@ void perform_http_redirect(struct session *s, struct stream_interface *si)
 	}
 
 	/* prepare to return without error. */
-	si->sock.shutr(si);
-	si->sock.shutw(si);
+	si_shutr(si);
+	si_shutw(si);
 	si->err_type = SI_ET_NONE;
 	si->err_loc  = NULL;
 	si->state    = SI_ST_CLO;
@@ -3690,8 +3690,8 @@ void http_end_txn_clean_session(struct session *s)
 	http_silent_debug(__LINE__, s);
 
 	s->req->cons->flags |= SI_FL_NOLINGER | SI_FL_NOHALF;
-	s->req->cons->sock.shutr(s->req->cons);
-	s->req->cons->sock.shutw(s->req->cons);
+	si_shutr(s->req->cons);
+	si_shutw(s->req->cons);
 
 	http_silent_debug(__LINE__, s);
 

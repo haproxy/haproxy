@@ -95,6 +95,18 @@ struct proxy;
 struct si_applet;
 struct stream_interface;
 
+/* This structure describes a connection with its methods and data.
+ * A connection may be performed to proxy or server via a local or remote
+ * socket, and can also be made to an internal applet. It can support
+ * several data schemes (applet, raw, ssl, ...). It can support several
+ * connection control schemes, generally a protocol for socket-oriented
+ * connections, but other methods for applets.
+ */
+struct connection {
+	const struct sock_ops *data;  /* operations at the data layer */
+	const struct protocol *ctrl;  /* operations at the control layer, generally a protocol */
+};
+
 struct target {
 	int type;
 	union {
@@ -138,8 +150,7 @@ struct stream_interface {
 	unsigned int err_type;  /* first error detected, one of SI_ET_* */
 	void *err_loc;          /* commonly the server, NULL when SI_ET_NONE */
 
-	struct sock_ops sock;   /* socket level operations */
-	struct protocol *proto; /* socket protocol */
+	struct connection conn; /* descriptor for a connection */
 
 	void (*release)(struct stream_interface *); /* handler to call after the last close() */
 

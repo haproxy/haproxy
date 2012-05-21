@@ -461,8 +461,8 @@ int tcp_connect_server(struct stream_interface *si)
 		fdtab[fd].cb[DIR_WR].f = tcp_connect_write;
 	}
 	else {
-		fdtab[fd].cb[DIR_RD].f = si->sock.read;
-		fdtab[fd].cb[DIR_WR].f = si->sock.write;
+		fdtab[fd].cb[DIR_RD].f = si_data(si)->read;
+		fdtab[fd].cb[DIR_WR].f = si_data(si)->write;
 	}
 
 	fdinfo[fd].peeraddr = (struct sockaddr *)&si->addr.to;
@@ -602,11 +602,11 @@ static int tcp_connect_write(int fd)
 	/* The FD is ready now, we can hand the handlers to the socket layer
 	 * and forward the event there to start working on the socket.
 	 */
-	fdtab[fd].cb[DIR_RD].f = si->sock.read;
-	fdtab[fd].cb[DIR_WR].f = si->sock.write;
+	fdtab[fd].cb[DIR_RD].f = si_data(si)->read;
+	fdtab[fd].cb[DIR_WR].f = si_data(si)->write;
 	fdtab[fd].state = FD_STREADY;
 	si->exp = TICK_ETERNITY;
-	return si->sock.write(fd);
+	return si_data(si)->write(fd);
 
  out_wakeup:
 	task_wakeup(si->owner, TASK_WOKEN_IO);

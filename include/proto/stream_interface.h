@@ -42,6 +42,16 @@ struct task *stream_int_register_handler_task(struct stream_interface *si,
 					      struct task *(*fct)(struct task *));
 void stream_int_unregister_handler(struct stream_interface *si);
 
+static inline const struct protocol *si_ctrl(struct stream_interface *si)
+{
+	return si->conn.ctrl;
+}
+
+static inline const struct sock_ops *si_data(struct stream_interface *si)
+{
+	return si->conn.data;
+}
+
 static inline void clear_target(struct target *dest)
 {
 	dest->type = TARG_TYPE_NONE;
@@ -98,7 +108,7 @@ static inline struct server *target_srv(struct target *t)
 
 static inline void stream_interface_prepare(struct stream_interface *si, const struct sock_ops *ops)
 {
-	memcpy(&si->sock, ops, sizeof(si->sock));
+	si->conn.data = ops;
 }
 
 
@@ -108,12 +118,12 @@ static inline void si_get_from_addr(struct stream_interface *si)
 	if (si->flags & SI_FL_FROM_SET)
 		return;
 
-	if (!si->proto || !si->proto->get_src)
+	if (!si_ctrl(si) || !si_ctrl(si)->get_src)
 		return;
 
-	if (si->proto->get_src(si->fd, (struct sockaddr *)&si->addr.from,
-			       sizeof(si->addr.from),
-			       si->target.type != TARG_TYPE_CLIENT) == -1)
+	if (si_ctrl(si)->get_src(si->fd, (struct sockaddr *)&si->addr.from,
+	                         sizeof(si->addr.from),
+	                         si->target.type != TARG_TYPE_CLIENT) == -1)
 		return;
 	si->flags |= SI_FL_FROM_SET;
 }
@@ -124,16 +134,53 @@ static inline void si_get_to_addr(struct stream_interface *si)
 	if (si->flags & SI_FL_TO_SET)
 		return;
 
-	if (!si->proto || !si->proto->get_dst)
+	if (!si_ctrl(si) || !si_ctrl(si)->get_dst)
 		return;
 
-	if (si->proto->get_dst(si->fd, (struct sockaddr *)&si->addr.to,
-			       sizeof(si->addr.to),
-			       si->target.type != TARG_TYPE_CLIENT) == -1)
+	if (si_ctrl(si)->get_dst(si->fd, (struct sockaddr *)&si->addr.to,
+	                         sizeof(si->addr.to),
+	                         si->target.type != TARG_TYPE_CLIENT) == -1)
 		return;
 	si->flags |= SI_FL_TO_SET;
 }
 
+/* Sends a shutr to the connection using the data layer */
+static inline void si_shutr(struct stream_interface *si)
+{
+	si_data(si)->shutr(si);
+}
+
+/* Sends a shutw to the connection using the data layer */
+static inline void si_shutw(struct stream_interface *si)
+{
+	si_data(si)->shutw(si);
+}
+
+/* Calls the data state update on the stream interfaace */
+static inline void si_update(struct stream_interface *si)
+{
+	si_data(si)->update(si);
+}
+
+/* Calls chk_rcv on the connection using the data layer */
+static inline void si_chk_rcv(struct stream_interface *si)
+{
+	si_data(si)->chk_rcv(si);
+}
+
+/* Calls chk_snd on the connection using the data layer */
+static inline void si_chk_snd(struct stream_interface *si)
+{
+	si_data(si)->chk_snd(si);
+}
+
+/* Calls chk_snd on the connection using the ctrl layer */
+static inline int si_connect(struct stream_interface *si)
+{
+	if (unlikely(!si_ctrl(si) || !si_ctrl(si)->connect))
+		return SN_ERR_INTERNAL;
+	return si_ctrl(si)->connect(si);
+}
 
 #endif /* _PROTO_STREAM_INTERFACE_H */
 
