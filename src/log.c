@@ -50,7 +50,7 @@ const char *log_levels[NB_LOG_LEVELS] = {
 	"warning", "notice", "info", "debug"
 };
 
-const char sess_term_cond[10] = "-cCsSPRIDK";	/* normal, CliTo, CliErr, SrvTo, SrvErr, PxErr, Resource, Internal, Down, Killed */
+const char sess_term_cond[16] = "-cCsSPRIDKUIIIII"; /* normal, CliTo, CliErr, SrvTo, SrvErr, PxErr, Resource, Internal, Down, Killed, Up, -- */
 const char sess_fin_state[8]  = "-RCHDLQT";	/* cliRequest, srvConnect, srvHeader, Data, Last, Queue, Tarpit */
 
 

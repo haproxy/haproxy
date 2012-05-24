@@ -358,15 +358,30 @@ static int check_for_pending(struct server *s)
 	return xferred;
 }
 
-/* Shutdown connections when their server goes down.
+/* Shutdown all connections of a server. The caller must pass a termination
+ * code in <why>, which must be one of SN_ERR_* indicating the reason for the
+ * shutdown.
  */
-static void shutdown_sessions(struct server *srv)
+static void shutdown_sessions(struct server *srv, int why)
 {
 	struct session *session, *session_bck;
 
 	list_for_each_entry_safe(session, session_bck, &srv->actconns, by_srv)
 		if (session->srv_conn == srv)
-			session_shutdown(session, SN_ERR_DOWN);
+			session_shutdown(session, why);
+}
+
+/* Shutdown all connections of all backup servers of a proxy. The caller must
+ * pass a termination code in <why>, which must be one of SN_ERR_* indicating
+ * the reason for the shutdown.
+ */
+static void shutdown_backup_sessions(struct proxy *px, int why)
+{
+	struct server *srv;
+
+	for (srv = px->srv; srv != NULL; srv = srv->next)
+		if (srv->state & SRV_BACKUP)
+			shutdown_sessions(srv, why);
 }
 
 /* Sets server <s> down, notifies by all available means, recounts the
@@ -394,7 +409,7 @@ void set_server_down(struct server *s)
 			s->proxy->lbprm.set_server_status_down(s);
 
 		if (s->onmarkeddown & HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS)
-			shutdown_sessions(s);
+			shutdown_sessions(s, SN_ERR_DOWN);
 
 		/* we might have sessions queued on this server and waiting for
 		 * a connection. Those which are redispatchable will be queued
@@ -479,6 +494,15 @@ void set_server_up(struct server *s) {
 		}
 		if (s->proxy->lbprm.set_server_status_up)
 			s->proxy->lbprm.set_server_status_up(s);
+
+		/* If the server is set with "on-marked-up shutdown-backup-sessions",
+		 * and it's not a backup server and its effective weight is > 0,
+		 * then it can accept new connections, so we shut down all sessions
+		 * on all backup servers.
+		 */
+		if ((s->onmarkedup & HANA_ONMARKEDUP_SHUTDOWNBACKUPSESSIONS) &&
+		    !(s->state & SRV_BACKUP) && s->eweight)
+			shutdown_backup_sessions(s->proxy, SN_ERR_UP);
 
 		/* check if we can handle some connections queued at the proxy. We
 		 * will take as many as we can handle.

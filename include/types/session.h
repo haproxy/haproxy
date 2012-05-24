@@ -67,6 +67,7 @@
 #define SN_ERR_INTERNAL	0x00007000	/* the proxy encountered an internal error */
 #define SN_ERR_DOWN	0x00008000	/* the proxy killed a session because the backend became unavailable */
 #define SN_ERR_KILLED	0x00009000	/* the proxy killed a session because it was asked to do so */
+#define SN_ERR_UP	0x0000a000	/* the proxy killed a session because a preferred backend became available */
 #define SN_ERR_MASK	0x0000f000	/* mask to get only session error flags */
 #define SN_ERR_SHIFT	12		/* bit shift */
 

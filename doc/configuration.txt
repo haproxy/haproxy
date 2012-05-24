@@ -6970,7 +6970,30 @@ on-error <mode>
 on-marked-down <action>
   Modify what occurs when a server is marked down.
   Currently one action is available:
-  - shutdown-sessions: Shutdown peer sessions
+  - shutdown-sessions: Shutdown peer sessions. When this setting is enabled,
+    all connections to the server are immediately terminated when the server
+    goes down. It might be used if the health check detects more complex cases
+    than a simple connection status, and long timeouts would cause the service
+    to remain unresponsive for too long a time. For instance, a health check
+    might detect that a database is stuck and that there's no chance to reuse
+    existing connections anymore. Connections killed this way are logged with
+    a 'D' termination code (for "Down").
+
+  Actions are disabled by default
+
+  Supported in default-server: Yes
+
+on-marked-up <action>
+  Modify what occurs when a server is marked up.
+  Currently one action is available:
+  - shutdown-backup-sessions: Shutdown sessions on all backup servers. This is
+    done only if the server is not in backup state and if it is not disabled
+    (it must have an effective weight > 0). This can be used sometimes to force
+    an active server to take all the traffic back after recovery when dealing
+    with long sessions (eg: LDAP, SQL, ...). Doing this can cause more trouble
+    than it tries to solve (eg: incomplete transactions), so use this feature
+    with extreme care. Sessions killed because a server comes up are logged
+    with an 'U' termination code (for "Up").
 
   Actions are disabled by default
 
@@ -9406,6 +9429,10 @@ each of which has a special meaning :
 
         D : the session was killed by haproxy because the server was detected
             as down and was configured to kill all connections when going down.
+
+        U : the session was killed by haproxy on this backup server because an
+            active server was detected as up and was configured to kill all
+            backup connections when going up.
 
         K : the session was actively killed by an admin operating on haproxy.
 

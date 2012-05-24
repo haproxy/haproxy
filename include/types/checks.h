@@ -75,8 +75,12 @@ enum {
 
 enum {
 	HANA_ONMARKEDDOWN_NONE	= 0,
-
 	HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS,	/* Shutdown peer sessions */
+};
+
+enum {
+	HANA_ONMARKEDUP_NONE	= 0,
+	HANA_ONMARKEDUP_SHUTDOWNBACKUPSESSIONS,	/* Shutdown peer sessions */
 };
 
 enum {

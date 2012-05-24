@@ -4406,6 +4406,18 @@ stats_error_parsing:
 
 				cur_arg += 2;
 			}
+			else if (!strcmp(args[cur_arg], "on-marked-up")) {
+				if (!strcmp(args[cur_arg + 1], "shutdown-backup-sessions"))
+					newsrv->onmarkedup = HANA_ONMARKEDUP_SHUTDOWNBACKUPSESSIONS;
+				else {
+					Alert("parsing [%s:%d]: '%s' expects 'shutdown-backup-sessions' but got '%s'\n",
+						file, linenum, args[cur_arg], args[cur_arg + 1]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				cur_arg += 2;
+			}
 			else if (!strcmp(args[cur_arg], "error-limit")) {
 				if (!*args[cur_arg + 1]) {
 					Alert("parsing [%s:%d]: '%s' expects an integer argument.\n",
