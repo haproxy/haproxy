@@ -793,8 +793,10 @@ static int event_srv_chk_w(int fd)
 			ret = send(fd, check_req, check_len, MSG_DONTWAIT | MSG_NOSIGNAL);
 			if (ret == check_len) {
 				/* we allow up to <timeout.check> if nonzero for a responce */
-				if (s->proxy->timeout.check)
+				if (s->proxy->timeout.check) {
 					t->expire = tick_add_ifset(now_ms, s->proxy->timeout.check);
+					task_queue(t);
+				}
 				EV_FD_SET(fd, DIR_RD);   /* prepare for reading reply */
 				goto out_nowake;
 			}
