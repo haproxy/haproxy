@@ -122,6 +122,11 @@ SMALL_OPTS =
 # use at all.
 DEBUG =
 
+#### Trace options
+# Use TRACE=1 to trace function calls to file "trace.out" or to stderr if not
+# possible.
+TRACE =
+
 #### Additional include and library dirs
 # Redefine this if you want to add some special PATH to include/libs
 ADDINC =
@@ -478,6 +483,12 @@ ifneq ($(VERDATE),)
 COPTS += -DCONFIG_HAPROXY_DATE=\"$(VERDATE)\"
 endif
 
+ifneq ($(TRACE),)
+# if tracing is enabled, we want it to be as fast as possible
+TRACE_COPTS := $(filter-out -O0 -O1 -O2 -pg -finstrument-functions,$(COPTS)) -O3 -fomit-frame-pointer
+COPTS += -finstrument-functions
+endif
+
 #### Global link options
 # These options are added at the end of the "ld" command line. Use LDFLAGS to
 # add options at the beginning of the "ld" command line if needed.
@@ -523,6 +534,10 @@ EBTREE_OBJS = $(EBTREE_DIR)/ebtree.o \
               $(EBTREE_DIR)/ebmbtree.o $(EBTREE_DIR)/ebsttree.o \
               $(EBTREE_DIR)/ebimtree.o $(EBTREE_DIR)/ebistree.o
 
+ifneq ($(TRACE),)
+OBJS += src/trace.o
+endif
+
 # Not used right now
 LIB_EBTREE = $(EBTREE_DIR)/libebtree.a
 
@@ -537,6 +552,9 @@ objsize: haproxy
 
 %.o:	%.c
 	$(CC) $(COPTS) -c -o $@ $<
+
+src/trace.o: src/trace.c
+	$(CC) $(TRACE_COPTS) -c -o $@ $<
 
 src/haproxy.o:	src/haproxy.c
 	$(CC) $(COPTS) \
