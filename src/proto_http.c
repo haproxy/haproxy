@@ -3249,9 +3249,10 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
 	 */
 	if ((s->fe->options | s->be->options) & PR_O_FWDFOR) {
 		struct hdr_ctx ctx = { .idx = 0 };
-
 		if (!((s->fe->options | s->be->options) & PR_O_FF_ALWAYS) &&
-		    http_find_header2(s->be->fwdfor_hdr_name, s->be->fwdfor_hdr_len, req->p, &txn->hdr_idx, &ctx)) {
+			http_find_header2(s->be->fwdfor_hdr_len ? s->be->fwdfor_hdr_name : s->fe->fwdfor_hdr_name,
+			                  s->be->fwdfor_hdr_len ? s->be->fwdfor_hdr_len : s->fe->fwdfor_hdr_len,
+			                  req->p, &txn->hdr_idx, &ctx)) {
 			/* The header is set to be added only if none is present
 			 * and we found it, so don't do anything.
 			 */
