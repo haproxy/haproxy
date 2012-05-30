@@ -754,6 +754,8 @@ http_get_path(struct http_txn *txn)
 /* Returns a 302 for a redirectable request. This may only be called just after
  * the stream interface has moved to SI_ST_ASS. Unprocessable requests are
  * left unchanged and will follow normal proxy processing.
+ * NOTE: this function is designed to support being called once data are scheduled
+ * for forwarding.
  */
 void perform_http_redirect(struct session *s, struct stream_interface *si)
 {
@@ -761,7 +763,7 @@ void perform_http_redirect(struct session *s, struct stream_interface *si)
 	struct chunk rdr;
 	struct server *srv;
 	char *path;
-	int len;
+	int len, rewind;
 
 	/* 1: create the response header */
 	rdr.len = strlen(HTTP_302);
@@ -781,13 +783,20 @@ void perform_http_redirect(struct session *s, struct stream_interface *si)
 		rdr.len += srv->rdr_len;
 	}
 
-	/* 3: add the request URI */
+	/* 3: add the request URI. Since it was already forwarded, we need
+	 * to temporarily rewind the buffer.
+	 */
 	txn = &s->txn;
+	b_rew(s->req, rewind = s->req->o);
+
 	path = http_get_path(txn);
+	len = buffer_count(s->req, path, b_ptr(s->req, txn->req.sl.rq.u + txn->req.sl.rq.u_l));
+
+	b_adv(s->req, rewind);
+
 	if (!path)
 		return;
 
-	len = txn->req.sl.rq.u_l + (s->req->p + txn->req.sl.rq.u) - path;
 	if (rdr.len + len > rdr.size - 4) /* 4 for CRLF-CRLF */
 		return;
 
