@@ -313,7 +313,7 @@ static inline void b_rew(struct buffer *b, unsigned int adv)
 	b->o -= adv;
 	if (!b->o && !b->pipe)
 		b->flags |= BF_OUT_EMPTY;
-	b->p = b_ptr(b, -adv);
+	b->p = b_ptr(b, (int)-adv);
 }
 
 /* Return the amount of bytes that can be written into the buffer at once,
