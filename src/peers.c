@@ -1162,10 +1162,10 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->si[0].flags = SI_FL_NONE;
 	if (s->fe->options2 & PR_O2_INDEPSTR)
 		s->si[0].flags |= SI_FL_INDEP_STR;
-	s->si[0].conn.data_ctx = (void *)ps;
-	s->si[0].applet.st0 = PEER_SESSION_CONNECT;
 
 	stream_int_register_handler(&s->si[0], &peer_applet);
+	s->si[0].applet.st0 = PEER_SESSION_CONNECT;
+	s->si[0].conn.data_ctx = (void *)ps;
 
 	s->si[1].conn.t.sock.fd = -1; /* just to help with debugging */
 	s->si[1].owner = t;

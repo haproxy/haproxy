@@ -336,7 +336,8 @@ static void stream_int_chk_snd(struct stream_interface *si)
  * it is solicited. The task's processing function must call the applet's
  * function before returning. It must be deleted by the task handler using
  * stream_int_unregister_handler(), possibly from within the function itself.
- * It also pre-initializes applet.state to zero.
+ * It also pre-initializes applet.state to zero and the connection context
+ * to NULL.
  */
 struct task *stream_int_register_handler(struct stream_interface *si, struct si_applet *app)
 {
