@@ -161,14 +161,14 @@ enum {
 /* end of proxy->options2 */
 
 /* Cookie settings for pr->ck_opts */
-#define PR_CK_RW    0x00000001      /* rewrite all direct cookies with the right serverid */
-#define PR_CK_IND   0x00000002      /* keep only indirect cookies */
-#define PR_CK_INS   0x00000004      /* insert cookies when not accessing a server directly */
-#define PR_CK_PFX   0x00000008      /* rewrite all cookies by prefixing the right serverid */
-#define PR_CK_ANY   (PR_CK_RW | PR_CK_IND | PR_CK_INS | PR_CK_PFX)
-#define PR_CK_NOC   0x00000010      /* add a 'Cache-control' header with the cookie */
-#define PR_CK_POST  0x00000020      /* don't insert cookies for requests other than a POST */
-#define PR_CK_PSV   0x00000040      /* cookie ... preserve */
+#define PR_CK_RW        0x00000001      /* rewrite all direct cookies with the right serverid */
+#define PR_CK_IND       0x00000002      /* keep only indirect cookies */
+#define PR_CK_INS       0x00000004      /* insert cookies when not accessing a server directly */
+#define PR_CK_PFX       0x00000008      /* rewrite all cookies by prefixing the right serverid */
+#define PR_CK_ANY       (PR_CK_RW | PR_CK_IND | PR_CK_INS | PR_CK_PFX)
+#define PR_CK_NOC       0x00000010      /* add a 'Cache-control' header with the cookie */
+#define PR_CK_POST      0x00000020      /* don't insert cookies for requests other than a POST */
+#define PR_CK_PSV       0x00000040      /* cookie ... preserve */
 
 /* bits for sticking rules */
 #define STK_IS_MATCH	0x00000001	/* match on request fetch */

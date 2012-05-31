@@ -6410,12 +6410,6 @@ out_uri_auth_compat:
 		if (curproxy->mode != PR_MODE_HTTP) {
 			int optnum;
 
-			if (curproxy->ck_opts) {
-				Warning("config : 'cookie' statement ignored for %s '%s' as it requires HTTP mode.\n",
-					proxy_type_str(curproxy), curproxy->id);
-				err_code |= ERR_WARN;
-			}
-
 			if (curproxy->uri_auth) {
 				Warning("config : 'stats' statement ignored for %s '%s' as it requires HTTP mode.\n",
 					proxy_type_str(curproxy), curproxy->id);
