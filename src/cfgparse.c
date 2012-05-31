@@ -1539,6 +1539,14 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->monitor_uri_len = defproxy.monitor_uri_len;
 			if (defproxy.defbe.name)
 				curproxy->defbe.name = strdup(defproxy.defbe.name);
+
+			/* get either a pointer to the logformat string or a copy of it */
+			curproxy->logformat_string = defproxy.logformat_string;
+			if (curproxy->logformat_string &&
+			    curproxy->logformat_string != default_http_log_format &&
+			    curproxy->logformat_string != default_tcp_log_format &&
+			    curproxy->logformat_string != clf_http_log_format)
+				curproxy->logformat_string = strdup(curproxy->logformat_string);
 		}
 
 		if (curproxy->cap & PR_CAP_BE) {
@@ -1562,14 +1570,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			LIST_INIT(&node->list);
 			LIST_ADDQ(&curproxy->logsrvs, &node->list);
 		}
-
-		/* get either a pointer to the logformat string or a copy of it */
-		curproxy->logformat_string = defproxy.logformat_string;
-		if (curproxy->logformat_string &&
-		    curproxy->logformat_string != default_http_log_format &&
-		    curproxy->logformat_string != default_tcp_log_format &&
-		    curproxy->logformat_string != clf_http_log_format)
-			curproxy->logformat_string = strdup(curproxy->logformat_string);
 
 		curproxy->uniqueid_format_string = defproxy.uniqueid_format_string;
 		if (curproxy->uniqueid_format_string)
@@ -6223,6 +6223,14 @@ out_uri_auth_compat:
 		}
 
 		/* compile the log format */
+		if (!(curproxy->cap & PR_CAP_FE)) {
+			if (curproxy->logformat_string != default_http_log_format &&
+			    curproxy->logformat_string != default_tcp_log_format &&
+			    curproxy->logformat_string != clf_http_log_format)
+				free(curproxy->logformat_string);
+			curproxy->logformat_string = NULL;
+		}
+
 		if (curproxy->logformat_string)
 			parse_logformat_string(curproxy->logformat_string, curproxy, &curproxy->logformat, curproxy->mode);
 
