@@ -5085,6 +5085,12 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
 			if (t->be->cookie_domain)
 				len += sprintf(trash+len, "; domain=%s", t->be->cookie_domain);
 
+			if (t->be->ck_opts & PR_CK_HTTPONLY)
+				len += sprintf(trash+len, "; HttpOnly");
+
+			if (t->be->ck_opts & PR_CK_SECURE)
+				len += sprintf(trash+len, "; Secure");
+
 			if (unlikely(http_header_add_tail2(&txn->rsp, &txn->hdr_idx, trash, len) < 0))
 				goto return_bad_resp;
 

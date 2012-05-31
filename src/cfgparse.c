@@ -2161,6 +2161,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			else if (!strcmp(args[cur_arg], "prefix")) {
 				curproxy->ck_opts |= PR_CK_PFX;
 			}
+			else if (!strcmp(args[cur_arg], "httponly")) {
+				curproxy->ck_opts |= PR_CK_HTTPONLY;
+			}
+			else if (!strcmp(args[cur_arg], "secure")) {
+				curproxy->ck_opts |= PR_CK_SECURE;
+			}
 			else if (!strcmp(args[cur_arg], "domain")) {
 				if (!*args[cur_arg + 1]) {
 					Alert("parsing [%s:%d]: '%s' expects <domain> as argument.\n",

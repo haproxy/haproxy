@@ -169,6 +169,8 @@ enum {
 #define PR_CK_NOC       0x00000010      /* add a 'Cache-control' header with the cookie */
 #define PR_CK_POST      0x00000020      /* don't insert cookies for requests other than a POST */
 #define PR_CK_PSV       0x00000040      /* cookie ... preserve */
+#define PR_CK_HTTPONLY  0x00000080      /* emit the "HttpOnly" attribute */
+#define PR_CK_SECURE    0x00000100      /* emit the "Secure" attribute */
 
 /* bits for sticking rules */
 #define STK_IS_MATCH	0x00000001	/* match on request fetch */

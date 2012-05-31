@@ -1891,8 +1891,8 @@ contimeout <timeout> (deprecated)
 
 
 cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
-              [ postonly ] [ preserve ] [ domain <domain> ]*
-              [ maxidle <idle> ] [ maxlife <life> ]
+              [ postonly ] [ preserve ] [ httponly ] [ secure ]
+              [ domain <domain> ]* [ maxidle <idle> ] [ maxlife <life> ]
   Enable cookie-based persistence in a backend.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
@@ -1989,6 +1989,18 @@ cookie <name> [ rewrite | insert | prefix ] [ indirect ] [ nocache ]
               check option, it is possible to perform a completely graceful
               shutdown because users will definitely leave the server after
               they logout.
+
+    httponly  This option tells haproxy to add an "HttpOnly" cookie attribute
+              when a cookie is inserted. This attribute is used so that a
+              user agent doesn't share the cookie with non-HTTP components.
+              Please check RFC6265 for more information on this attribute.
+
+    secure    This option tells haproxy to add a "Secure" cookie attribute when
+              a cookie is inserted. This attribute is used so that a user agent
+              never emits this cookie over non-secure channels, which means
+              that a cookie learned with this flag will be presented only over
+              SSL/TLS connections. Please check RFC6265 for more information on
+              this attribute.
 
     domain    This option allows to specify the domain at which a cookie is
               inserted. It requires exactly one parameter: a valid domain
