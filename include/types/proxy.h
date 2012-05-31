@@ -344,6 +344,8 @@ struct proxy {
 	int no_options;				/* PR_O_REDISP, PR_O_TRANSP, ... */
 	int no_options2;			/* PR_O2_* */
 
+	char *logformat_string;			/* log format string */
+	char *uniqueid_format_string;		/* unique-id format string */
 	struct {
 		const char *file;		/* file where the section appears */
 		int line;			/* line where the section appears */

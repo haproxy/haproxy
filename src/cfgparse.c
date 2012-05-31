@@ -1345,7 +1345,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	int err_code = 0;
 	struct acl_cond *cond = NULL;
 	struct logsrv *tmplogsrv;
-	struct logformat_node *tmplf;
 	char *errmsg = NULL;
 
 	if (!strcmp(args[0], "listen"))
@@ -1564,21 +1563,17 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			LIST_ADDQ(&curproxy->logsrvs, &node->list);
 		}
 
-		/* copy default log_format to curproxy */
-		list_for_each_entry(tmplf, &defproxy.logformat, list) {
-			struct logformat_node *node = malloc(sizeof(struct logformat_node));
-			memcpy(node, tmplf, sizeof(struct logformat_node));
-			LIST_INIT(&node->list);
-			LIST_ADDQ(&curproxy->logformat, &node->list);
-		}
+		/* get either a pointer to the logformat string or a copy of it */
+		curproxy->logformat_string = defproxy.logformat_string;
+		if (curproxy->logformat_string &&
+		    curproxy->logformat_string != default_http_log_format &&
+		    curproxy->logformat_string != default_tcp_log_format &&
+		    curproxy->logformat_string != clf_http_log_format)
+			curproxy->logformat_string = strdup(curproxy->logformat_string);
 
-		/* copy default unique_id to curproxy */
-		list_for_each_entry(tmplf, &defproxy.format_unique_id, list) {
-			struct logformat_node *node = malloc(sizeof(struct logformat_node));
-			memcpy(node, tmplf, sizeof(struct logformat_node));
-			LIST_INIT(&node->list);
-			LIST_ADDQ(&curproxy->format_unique_id, &node->list);
-		}
+		curproxy->uniqueid_format_string = defproxy.uniqueid_format_string;
+		if (curproxy->uniqueid_format_string)
+			curproxy->uniqueid_format_string = strdup(curproxy->uniqueid_format_string);
 
 		/* copy default header unique id */
 		if (defproxy.header_unique_id)
@@ -1613,6 +1608,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		defproxy.server_id_hdr_len = 0;
 		free(defproxy.expect_str);
 		if (defproxy.expect_regex) regfree(defproxy.expect_regex);
+
+		if (defproxy.logformat_string == default_http_log_format ||
+		    defproxy.logformat_string == default_tcp_log_format ||
+		    defproxy.logformat_string == clf_http_log_format)
+			free(defproxy.logformat_string);
+
+		free(defproxy.uniqueid_format_string);
 
 		for (rc = 0; rc < HTTP_ERR_SIZE; rc++)
 			chunk_destroy(&defproxy.errmsg[rc]);
@@ -3384,13 +3386,19 @@ stats_error_parsing:
 					goto out;
 				}
 			}
-			parse_logformat_string(logformat, curproxy, &curproxy->logformat, curproxy->mode);
+			if (curproxy->logformat_string != default_http_log_format &&
+			    curproxy->logformat_string != default_tcp_log_format &&
+			    curproxy->logformat_string != clf_http_log_format)
+				free(curproxy->logformat_string);
+			curproxy->logformat_string = logformat;
 		}
 		else if (!strcmp(args[1], "tcplog")) {
-			char *logformat;
 			/* generate a detailed TCP log */
-			logformat = default_tcp_log_format;
-			parse_logformat_string(logformat, curproxy, &curproxy->logformat, curproxy->mode);
+			if (curproxy->logformat_string != default_http_log_format &&
+			    curproxy->logformat_string != default_tcp_log_format &&
+			    curproxy->logformat_string != clf_http_log_format)
+				free(curproxy->logformat_string);
+			curproxy->logformat_string = default_tcp_log_format;
 		}
 		else if (!strcmp(args[1], "tcpka")) {
 			/* enable TCP keep-alives on client and server sessions */
@@ -4639,7 +4647,8 @@ stats_error_parsing:
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		parse_logformat_string(args[1], curproxy, &curproxy->format_unique_id, PR_MODE_HTTP);
+		free(curproxy->uniqueid_format_string);
+		curproxy->uniqueid_format_string = strdup(args[1]);
 	}
 
 	else if (strcmp(args[0], "unique-id-header") == 0) {
@@ -4658,7 +4667,12 @@ stats_error_parsing:
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		parse_logformat_string(args[1], curproxy, &curproxy->logformat, curproxy->mode);
+
+		if (curproxy->logformat_string != default_http_log_format &&
+		    curproxy->logformat_string != default_tcp_log_format &&
+		    curproxy->logformat_string != clf_http_log_format)
+			free(curproxy->logformat_string);
+		curproxy->logformat_string = strdup(args[1]);
 	}
 
 	else if (!strcmp(args[0], "log") && kwm == KWM_NO) {
@@ -6207,6 +6221,13 @@ out_uri_auth_compat:
 				curproxy->nb_rsp_cap = 0;
 			}
 		}
+
+		/* compile the log format */
+		if (curproxy->logformat_string)
+			parse_logformat_string(curproxy->logformat_string, curproxy, &curproxy->logformat, curproxy->mode);
+
+		if (curproxy->uniqueid_format_string)
+			parse_logformat_string(curproxy->uniqueid_format_string, curproxy, &curproxy->format_unique_id, PR_MODE_HTTP);
 
 		/* first, we will invert the servers list order */
 		newsrv = NULL;

@@ -831,6 +831,12 @@ void deinit(void)
 		free(p->capture_name);
 		free(p->monitor_uri);
 		free(p->rdp_cookie_name);
+		if (p->logformat_string == default_http_log_format ||
+		    p->logformat_string == default_tcp_log_format ||
+		    p->logformat_string == clf_http_log_format)
+			free(p->logformat_string);
+
+		free(p->uniqueid_format_string);
 
 		for (i = 0; i < HTTP_ERR_SIZE; i++)
 			chunk_destroy(&p->errmsg[i]);
