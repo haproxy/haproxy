@@ -154,9 +154,7 @@ int bi_putchr(struct buffer *buf, char c)
 	if (buf->to_forward >= 1) {
 		if (buf->to_forward != BUF_INFINITE_FORWARD)
 			buf->to_forward--;
-		buf->o++;
-		buf->i--;
-		buf->flags &= ~BF_OUT_EMPTY;
+		b_adv(buf, 1);
 	}
 
 	buf->total++;
