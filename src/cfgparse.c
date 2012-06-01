@@ -1610,9 +1610,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		free(defproxy.expect_str);
 		if (defproxy.expect_regex) regfree(defproxy.expect_regex);
 
-		if (defproxy.logformat_string == default_http_log_format ||
-		    defproxy.logformat_string == default_tcp_log_format ||
-		    defproxy.logformat_string == clf_http_log_format)
+		if (defproxy.logformat_string != default_http_log_format &&
+		    defproxy.logformat_string != default_tcp_log_format &&
+		    defproxy.logformat_string != clf_http_log_format)
 			free(defproxy.logformat_string);
 
 		free(defproxy.uniqueid_format_string);
