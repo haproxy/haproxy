@@ -772,11 +772,10 @@ static void deinit_sample_arg(struct arg *p)
 		return;
 
 	while (p->type != ARGT_STOP) {
-		if (p->type == ARGT_FE || p->type == ARGT_BE ||
-		    p->type == ARGT_TAB || p->type == ARGT_SRV ||
-		    p->type == ARGT_USR || p->type == ARGT_STR) {
+		if (p->type == ARGT_STR || p->unresolved) {
 			free(p->data.str.str);
 			p->data.str.str = NULL;
+			p->unresolved = 0;
 		}
 		p++;
 	}

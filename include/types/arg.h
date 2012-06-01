@@ -63,8 +63,9 @@ union arg_data {
 };
 
 struct arg {
-	int type;              /* argument type */
-	union arg_data data;   /* argument data */
+	unsigned char type;       /* argument type, ARGT_* */
+	unsigned char unresolved; /* argument contains a string in <str> that must be resolved and freed */
+	union arg_data data;      /* argument data */
 };
 
 

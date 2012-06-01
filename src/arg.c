@@ -127,6 +127,11 @@ int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
 		case ARGT_TAB:
 		case ARGT_SRV:
 		case ARGT_USR:
+			/* These argument types need to be stored as strings during
+			 * parsing then resolved later.
+			 */
+			arg->unresolved = 1;
+			/* fall through */
 		case ARGT_STR:
 			/* all types that must be resolved are stored as strings
 			 * during the parsing. The caller must at one point resolve

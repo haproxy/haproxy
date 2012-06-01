@@ -1227,11 +1227,10 @@ static struct acl_expr *prune_acl_expr(struct acl_expr *expr)
 	for (arg = expr->args; arg; arg++) {
 		if (arg->type == ARGT_STOP)
 			break;
-		if (arg->type == ARGT_FE || arg->type == ARGT_BE ||
-		    arg->type == ARGT_TAB || arg->type == ARGT_SRV ||
-		    arg->type == ARGT_USR || arg->type == ARGT_STR) {
+		if (arg->type == ARGT_STR || arg->unresolved) {
 			free(arg->data.str.str);
 			arg->data.str.str = NULL;
+			arg->unresolved = 0;
 		}
 		arg++;
 	}
@@ -2065,6 +2064,8 @@ acl_find_targets(struct proxy *p)
 			for (arg = expr->args; arg; arg++) {
 				if (arg->type == ARGT_STOP)
 					break;
+				else if (!arg->unresolved)
+					continue;
 				else if (arg->type == ARGT_SRV) {
 					struct proxy *px;
 					struct server *srv;
@@ -2107,6 +2108,8 @@ acl_find_targets(struct proxy *p)
 					}
 
 					free(expr->args->data.str.str);
+					expr->args->data.str.str = NULL;
+					arg->unresolved = 0;
 					expr->args->data.srv = srv;
 				}
 				else if (arg->type == ARGT_FE) {
@@ -2133,6 +2136,8 @@ acl_find_targets(struct proxy *p)
 					}
 
 					free(expr->args->data.str.str);
+					expr->args->data.str.str = NULL;
+					arg->unresolved = 0;
 					expr->args->data.prx = prx;
 				}
 				else if (arg->type == ARGT_BE) {
@@ -2159,6 +2164,8 @@ acl_find_targets(struct proxy *p)
 					}
 
 					free(expr->args->data.str.str);
+					expr->args->data.str.str = NULL;
+					arg->unresolved = 0;
 					expr->args->data.prx = prx;
 				}
 				else if (arg->type == ARGT_TAB) {
@@ -2186,6 +2193,8 @@ acl_find_targets(struct proxy *p)
 					}
 
 					free(expr->args->data.str.str);
+					expr->args->data.str.str = NULL;
+					arg->unresolved = 0;
 					expr->args->data.prx = prx;
 				}
 				else if (arg->type == ARGT_USR) {
@@ -2210,6 +2219,8 @@ acl_find_targets(struct proxy *p)
 					}
 
 					free(expr->args->data.str.str);
+					expr->args->data.str.str = NULL;
+					arg->unresolved = 0;
 					expr->args->data.usr = ul;
 				}
 			} /* end of args processing */
