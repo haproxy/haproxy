@@ -2611,6 +2611,9 @@ int http_process_req_stat_post(struct stream_interface *si, struct http_txn *txn
 				else if (strcmp(value, "start") == 0) {
 					action = ST_ADM_ACTION_START;
 				}
+				else if (strcmp(value, "shutdown") == 0) {
+					action = ST_ADM_ACTION_SHUTDOWN;
+				}
 				else {
 					si->applet.ctx.stats.st_code = STAT_STATUS_ERRP;
 					goto out;
@@ -2679,6 +2682,18 @@ int http_process_req_stat_post(struct stream_interface *si, struct http_txn *txn
 						}
 						altered_servers++;
 						total_servers++;
+						break;
+					case ST_ADM_ACTION_SHUTDOWN:
+						if (px->state != PR_STSTOPPED) {
+							struct session *sess, *sess_bck;
+
+							list_for_each_entry_safe(sess, sess_bck, &sv->actconns, by_srv)
+								if (sess->srv_conn == sv)
+									session_shutdown(sess, SN_ERR_KILLED);
+
+							altered_servers++;
+							total_servers++;
+						}
 						break;
 					}
 				} else {

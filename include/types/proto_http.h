@@ -264,6 +264,7 @@ enum {
 	ST_ADM_ACTION_ENABLE,
 	ST_ADM_ACTION_STOP,
 	ST_ADM_ACTION_START,
+	ST_ADM_ACTION_SHUTDOWN,
 };
 
 /* status codes available for the stats admin page */

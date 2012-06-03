@@ -3173,6 +3173,7 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 					"<option value=\"enable\">Enable</option>"
 					"<option value=\"stop\">Soft Stop</option>"
 					"<option value=\"start\">Soft Start</option>"
+					"<option value=\"shutdown\">Kill Sessions</option>"
 					"</select>"
 					"<input type=\"hidden\" name=\"b\" value=\"#%d\">"
 					"&nbsp;<input type=\"submit\" value=\"Apply\">"
