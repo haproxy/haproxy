@@ -19,8 +19,8 @@
 #   USE_SEPOLL           : enable speculative epoll(). Automatic.
 #   USE_STATIC_PCRE      : enable static libpcre. Recommended.
 #   USE_TPROXY           : enable transparent proxy. Automatic.
-#   USE_LINUX_TPROXY     : enable full transparent proxy (needs kernel 2.6.28).
-#   USE_LINUX_SPLICE     : enable kernel 2.6 splicing (broken on old kernels)
+#   USE_LINUX_TPROXY     : enable full transparent proxy. Automatic.
+#   USE_LINUX_SPLICE     : enable kernel 2.6 splicing. Automatic.
 #   USE_LIBCRYPT         : enable crypted passwords using -lcrypt
 #   USE_CRYPT_H          : set it if your system requires including crypt.h
 #   USE_VSYSCALL         : enable vsyscall on Linux x86, bypassing libc
@@ -220,6 +220,18 @@ ifeq ($(TARGET),linux26)
   USE_TPROXY      = implicit
   USE_LIBCRYPT    = implicit
 else
+ifeq ($(TARGET),linux2628)
+  # This is for standard Linux >= 2.6.28 with netfilter, epoll, tproxy and splice
+  USE_GETSOCKNAME = implicit
+  USE_NETFILTER   = implicit
+  USE_POLL        = implicit
+  USE_EPOLL       = implicit
+  USE_SEPOLL      = implicit
+  USE_TPROXY      = implicit
+  USE_LIBCRYPT    = implicit
+  USE_LINUX_SPLICE= implicit
+  USE_LINUX_TPROXY= implicit
+else
 ifeq ($(TARGET),solaris)
   # This is for Solaris 8
   # We also enable getaddrinfo() which works since solaris 8.
@@ -254,6 +266,7 @@ endif # cygwin
 endif # openbsd
 endif # freebsd
 endif # solaris
+endif # linux2628
 endif # linux26
 endif # linux24e
 endif # linux24
@@ -505,7 +518,7 @@ all:
 	@echo
 	@echo "Please choose the target among the following supported list :"
 	@echo
-	@echo "   linux26, linux24, linux24e, linux22, solaris"
+	@echo "   linux2628, linux26, linux24, linux24e, linux22, solaris"
 	@echo "   freebsd, openbsd, cygwin, custom, generic"
 	@echo
 	@echo "Use \"generic\" if you don't want any optimization, \"custom\" if you"

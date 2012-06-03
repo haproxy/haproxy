@@ -1,9 +1,9 @@
                          ----------------------
                              HAProxy how-to
                          ----------------------
-                            version 1.5-dev7
+                            version 1.5-dev11
                              willy tarreau
-                               2011/09/10
+                               2012/06/04
 
 
 1) How to build it
@@ -25,6 +25,7 @@ and assign it to the TARGET variable :
   - linux24     for Linux 2.4 and above (default)
   - linux24e    for Linux 2.4 with support for a working epoll (> 0.21)
   - linux26     for Linux 2.6 and above
+  - linux2628   for Linux 2.6.28 and above (enables splice and tproxy)
   - solaris     for Solaris 8 or 10 (others untested)
   - freebsd     for FreeBSD 5 to 8.0 (others untested)
   - openbsd     for OpenBSD 3.1 to 4.6 (others untested)
