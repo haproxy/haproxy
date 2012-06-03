@@ -1,6 +1,48 @@
 ChangeLog :
 ===========
 
+2012/06/04 : 1.5-dev11
+    - BUG/MEDIUM: option forwardfor if-none doesn't work with some configurations
+    - BUG/MAJOR: trash must always be the size of a buffer
+    - DOC: fix minor regex example issue and improve doc on stats
+    - MINOR: stream_interface: add a pointer to the listener for TARG_TYPE_CLIENT
+    - MEDIUM: protocol: add a pointer to struct sock_ops to the listener struct
+    - MINOR: checks: add on-marked-up option
+    - MINOR: balance uri: added 'whole' parameter to include query string in hash calculation
+    - MEDIUM: stream_interface: remove the si->init
+    - MINOR: buffers: add a rewind function
+    - BUG/MAJOR: fix regression on content-based hashing and http-send-name-header
+    - MAJOR: http: stop using msg->sol outside the parsers
+    - CLEANUP: http: make it more obvious that msg->som is always null outside of chunks
+    - MEDIUM: http: get rid of msg->som which is not used anymore
+    - MEDIUM: http: msg->sov and msg->sol will never wrap
+    - BUG/MAJOR: checks: don't call set_server_status_* when no LB algo is set
+    - BUG/MINOR: stop connect timeout when connect succeeds
+    - REORG: move the send-proxy code to tcp_connect_write()
+    - REORG/MINOR: session: detect the TCP monitor checks at the protocol accept
+    - MINOR: stream_interface: introduce a new "struct connection" type
+    - REORG/MINOR: stream_interface: move si->fd to struct connection
+    - REORG/MEDIUM: stream_interface: move applet->state and private to connection
+    - MINOR: stream_interface: add a data channel close function
+    - MEDIUM: stream_interface: call si_data_close() before releasing the si
+    - MINOR: peers: use the socket layer operations from the peer instead of sock_raw
+    - BUG/MINOR: checks: expire on timeout.check if smaller than timeout.connect
+    - MINOR: add a new function call tracer for debugging purposes
+    - BUG/MINOR: perform_http_redirect also needs to rewind the buffer
+    - BUG/MAJOR: b_rew() must pass a signed offset to b_ptr()
+    - BUG/MEDIUM: register peer sync handler in the proper order
+    - BUG/MEDIUM: buffers: fix bi_putchr() to correctly advance the pointer
+    - BUG/MINOR: fix option httplog validation with TCP frontends
+    - BUG/MINOR: log: don't report logformat errors in backends
+    - REORG/MINOR: use dedicated proxy flags for the cookie handling
+    - BUG/MINOR: config: do not report twice the incompatibility between cookie and non-http
+    - MINOR: http: add support for "httponly" and "secure" cookie attributes
+    - BUG/MEDIUM: ensure that unresolved arguments are freed exactly once
+    - BUG/MINOR: commit 196729ef used wrong condition resulting in freeing constants
+    - MEDIUM: stats: add support for soft stop/soft start in the admin interface
+    - MEDIUM: stats: add the ability to kill sessions from the admin interface
+    - BUILD: add support for linux kernels >= 2.6.28
+
 2012/05/14 : 1.5-dev10
     - BUG/MINOR: stats admin: "Unexpected result" was displayed unconditionally
     - BUG/MAJOR: acl: http_auth_group() must not accept any user from the userlist
