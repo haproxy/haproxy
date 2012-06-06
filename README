@@ -29,6 +29,7 @@ and assign it to the TARGET variable :
   - solaris     for Solaris 8 or 10 (others untested)
   - freebsd     for FreeBSD 5 to 8.0 (others untested)
   - openbsd     for OpenBSD 3.1 to 4.6 (others untested)
+  - aix52       for AIX 5.2
   - cygwin      for Cygwin
   - generic     for any other OS.
   - custom      to manually adjust every setting
@@ -107,6 +108,8 @@ variables in the BSD makefiles.
 AIX 5.3 is known to work with the generic target. However, for the binary to
 also run on 5.2 or earlier, you need to build with DEFINE="-D_MSGQSUPPORT",
 otherwise __fd_select() will be used while not being present in the libc.
+If you get build errors because of strange symbols or section mismatches,
+simply remove -g from DEBUG_CFLAGS.
 
 
 2) How to install it
