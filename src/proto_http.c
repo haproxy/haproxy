@@ -6907,7 +6907,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *res)
 					txn->flags &= ~TX_SCK_MASK;
 					txn->flags |= TX_SCK_REPLACED;
 				}
-				else if (srv && srv && (t->be->ck_opts & PR_CK_PFX)) {
+				else if (srv && srv->cookie && (t->be->ck_opts & PR_CK_PFX)) {
 					/* insert the cookie name associated with this server
 					 * before existing cookie, and insert a delimiter between them..
 					 */
