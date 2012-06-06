@@ -505,13 +505,14 @@ static int stats_dump_table_entry_to_buffer(struct chunk *msg, struct stream_int
 	return 1;
 }
 
-static void stats_sock_table_key_request(struct stream_interface *si, char **args, bool show)
+static void stats_sock_table_key_request(struct stream_interface *si, char **args, int action)
 {
 	struct session *s = si->conn.data_ctx;
 	struct proxy *px = si->applet.ctx.table.target;
 	struct stksess *ts;
 	uint32_t uint32_key;
 	unsigned char ip6_key[sizeof(struct in6_addr)];
+	struct chunk msg;
 
 	si->applet.st0 = STAT_CLI_OUTPUT;
 
@@ -553,10 +554,17 @@ static void stats_sock_table_key_request(struct stream_interface *si, char **arg
 		static_table_key.key_len = strlen(args[4]);
 		break;
 	default:
-		if (show)
-			si->applet.ctx.cli.msg = "Showing keys from tables of type other than ip, ipv6 and integer is not supported\n";
-		else
-			si->applet.ctx.cli.msg = "Removing keys from ip tables of type other than ip, ipv6 and integer is not supported\n";
+		switch (action) {
+		case STAT_CLI_O_TAB:
+			si->applet.ctx.cli.msg = "Showing keys from tables of type other than ip, ipv6, string and integer is not supported\n";
+			break;
+		case STAT_CLI_O_CLR:
+			si->applet.ctx.cli.msg = "Removing keys from ip tables of type other than ip, ipv6, string and integer is not supported\n";
+			break;
+		default:
+			si->applet.ctx.cli.msg = "Unknown action\n";
+			break;
+		}
 		si->applet.st0 = STAT_CLI_PRINT;
 		return;
 	}
@@ -569,26 +577,34 @@ static void stats_sock_table_key_request(struct stream_interface *si, char **arg
 	}
 
 	ts = stktable_lookup_key(&px->table, &static_table_key);
-	if (!ts)
-		return;
 
-	if (show) {
-		struct chunk msg;
+	switch (action) {
+	case STAT_CLI_O_TAB:
+		if (!ts)
+			return;
 		chunk_init(&msg, trash, trashlen);
 		if (!stats_dump_table_head_to_buffer(&msg, si, px, px))
 			return;
 		stats_dump_table_entry_to_buffer(&msg, si, px, ts);
 		return;
-	}
 
-	if (ts->ref_cnt) {
-		/* don't delete an entry which is currently referenced */
-		si->applet.ctx.cli.msg = "Entry currently in use, cannot remove\n";
+	case STAT_CLI_O_CLR:
+		if (!ts)
+			return;
+		if (ts->ref_cnt) {
+			/* don't delete an entry which is currently referenced */
+			si->applet.ctx.cli.msg = "Entry currently in use, cannot remove\n";
+			si->applet.st0 = STAT_CLI_PRINT;
+			return;
+		}
+		stksess_kill(&px->table, ts);
+		break;
+
+	default:
+		si->applet.ctx.cli.msg = "Unknown action\n";
 		si->applet.st0 = STAT_CLI_PRINT;
-		return;
+		break;
 	}
-
-	stksess_kill(&px->table, ts);
 }
 
 static void stats_sock_table_data_request(struct stream_interface *si, char **args)
@@ -621,17 +637,14 @@ static void stats_sock_table_data_request(struct stream_interface *si, char **ar
 	}
 }
 
-static void stats_sock_table_request(struct stream_interface *si, char **args, bool show)
+static void stats_sock_table_request(struct stream_interface *si, char **args, int action)
 {
 	si->applet.ctx.table.data_type = -1;
 	si->conn.data_st = STAT_ST_INIT;
 	si->applet.ctx.table.target = NULL;
 	si->applet.ctx.table.proxy = NULL;
 	si->applet.ctx.table.entry = NULL;
-	if (show)
-		si->applet.st0 = STAT_CLI_O_TAB;
-	else
-		si->applet.st0 = STAT_CLI_O_CLR;
+	si->applet.st0 = action;
 
 	if (*args[2]) {
 		si->applet.ctx.table.target = find_stktable(args[2]);
@@ -642,13 +655,13 @@ static void stats_sock_table_request(struct stream_interface *si, char **args, b
 		}
 	}
 	else {
-		if (!show)
+		if (action != STAT_CLI_O_TAB)
 			goto err_args;
 		return;
 	}
 
 	if (strcmp(args[3], "key") == 0)
-		stats_sock_table_key_request(si, args, show);
+		stats_sock_table_key_request(si, args, action);
 	else if (strncmp(args[3], "data.", 5) == 0)
 		stats_sock_table_data_request(si, args);
 	else if (*args[3])
@@ -657,10 +670,17 @@ static void stats_sock_table_request(struct stream_interface *si, char **args, b
 	return;
 
 err_args:
-	if (show)
+	switch (action) {
+	case STAT_CLI_O_TAB:
 		si->applet.ctx.cli.msg = "Optional argument only supports \"data.<store_data_type>\" <operator> <value> and key <key>\n";
-	else
+		break;
+	case STAT_CLI_O_CLR:
 		si->applet.ctx.cli.msg = "Required arguments: <table> \"data.<store_data_type>\" <operator> <value> or <table> key <key>\n";
+		break;
+	default:
+		si->applet.ctx.cli.msg = "Unknown action\n";
+		break;
+	}
 	si->applet.st0 = STAT_CLI_PRINT;
 }
 
@@ -824,7 +844,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			si->applet.st0 = STAT_CLI_O_ERR; // stats_dump_errors_to_buffer
 		}
 		else if (strcmp(args[1], "table") == 0) {
-			stats_sock_table_request(si, args, true);
+			stats_sock_table_request(si, args, STAT_CLI_O_TAB);
 		}
 		else { /* neither "stat" nor "info" nor "sess" nor "errors" nor "table" */
 			return 0;
@@ -889,7 +909,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			return 1;
 		}
 		else if (strcmp(args[1], "table") == 0) {
-			stats_sock_table_request(si, args, false);
+			stats_sock_table_request(si, args, STAT_CLI_O_CLR);
 			/* end of processing */
 			return 1;
 		}
@@ -1477,11 +1497,8 @@ static void cli_io_handler(struct stream_interface *si)
 					si->applet.st0 = STAT_CLI_PROMPT;
 				break;
 			case STAT_CLI_O_TAB:
-				if (stats_table_request(si, true))
-					si->applet.st0 = STAT_CLI_PROMPT;
-				break;
 			case STAT_CLI_O_CLR:
-				if (stats_table_request(si, false))
+				if (stats_table_request(si, si->applet.st0))
 					si->applet.st0 = STAT_CLI_PROMPT;
 				break;
 			default: /* abnormal state */
