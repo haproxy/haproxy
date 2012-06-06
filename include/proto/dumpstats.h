@@ -54,6 +54,7 @@
 #define STAT_CLI_O_ERR  7   /* dump errors */
 #define STAT_CLI_O_TAB  8   /* dump tables */
 #define STAT_CLI_O_CLR  9   /* clear tables */
+#define STAT_CLI_O_SET  10  /* set entries in tables */
 
 extern struct si_applet http_stats_applet;
 

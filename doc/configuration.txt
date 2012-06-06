@@ -10262,6 +10262,13 @@ set rate-limit connections global <value>
   applies to all frontends and the change has an immediate effect. The value
   is passed in number of connections per second.
 
+set table <table> key <key> data.<data_type> <value>
+  Create or update a stick-table entry in the table. If the key is not present,
+  an entry is inserted. See stick-table in section 4.2 to find all possible
+  values for <data_type>. The most likely use consists in dynamically entering
+  entries for source IP addresses, with a flag in gpc0 to dynamically block an
+  IP address or affect its quality of service.
+
 set timeout cli <delay>
   Change the CLI interface timeout for current connection. This can be useful
   during long debugging sessions where the user needs to constantly inspect

@@ -80,6 +80,7 @@ static const char stats_sock_usage_msg[] =
 	"  show table [id]: report table usage stats or dump this table's contents\n"
 	"  get weight     : report a server's current weight\n"
 	"  set weight     : change a server's weight\n"
+	"  set table [id] : update or create a table entry's data\n"
 	"  set timeout    : change a timeout setting\n"
 	"  set maxconn    : change a maxconn setting\n"
 	"  set rate-limit : change a rate limiting value\n"
@@ -513,6 +514,10 @@ static void stats_sock_table_key_request(struct stream_interface *si, char **arg
 	uint32_t uint32_key;
 	unsigned char ip6_key[sizeof(struct in6_addr)];
 	struct chunk msg;
+	long long value;
+	int data_type;
+	void *ptr;
+	struct freq_ctr_period *frqp;
 
 	si->applet.st0 = STAT_CLI_OUTPUT;
 
@@ -600,6 +605,66 @@ static void stats_sock_table_key_request(struct stream_interface *si, char **arg
 		stksess_kill(&px->table, ts);
 		break;
 
+	case STAT_CLI_O_SET:
+		if (strncmp(args[5], "data.", 5) != 0) {
+			si->applet.ctx.cli.msg = "\"data.<type>\" followed by a value expected\n";
+			si->applet.st0 = STAT_CLI_PRINT;
+			return;
+		}
+
+		data_type = stktable_get_data_type(args[5] + 5);
+		if (data_type < 0) {
+			si->applet.ctx.cli.msg = "Unknown data type\n";
+			si->applet.st0 = STAT_CLI_PRINT;
+			return;
+		}
+
+		if (!px->table.data_ofs[data_type]) {
+			si->applet.ctx.cli.msg = "Data type not stored in this table\n";
+			si->applet.st0 = STAT_CLI_PRINT;
+			return;
+		}
+
+		if (!*args[6] || strl2llrc(args[6], strlen(args[6]), &value) != 0) {
+			si->applet.ctx.cli.msg = "Require a valid integer value to store\n";
+			si->applet.st0 = STAT_CLI_PRINT;
+			return;
+		}
+
+		if (ts)
+			stktable_touch(&px->table, ts, 1);
+		else {
+			ts = stksess_new(&px->table, &static_table_key);
+			if (!ts) {
+				/* don't delete an entry which is currently referenced */
+				si->applet.ctx.cli.msg = "Unable to allocate a new entry\n";
+				si->applet.st0 = STAT_CLI_PRINT;
+				return;
+			}
+			stktable_store(&px->table, ts, 1);
+		}
+
+		ptr = stktable_data_ptr(&px->table, ts, data_type);
+		switch (stktable_data_types[data_type].std_type) {
+		case STD_T_SINT:
+			stktable_data_cast(ptr, std_t_sint) = value;
+			break;
+		case STD_T_UINT:
+			stktable_data_cast(ptr, std_t_uint) = value;
+			break;
+		case STD_T_ULL:
+			stktable_data_cast(ptr, std_t_ull) = value;
+			break;
+		case STD_T_FRQP:
+			/* We only reset the previous value so that it slowly fades out */
+			frqp = &stktable_data_cast(ptr, std_t_frqp);
+			frqp->curr_tick = now_ms;
+			frqp->prev_ctr = value;
+			frqp->curr_ctr = 0;
+			break;
+		}
+		break;
+
 	default:
 		si->applet.ctx.cli.msg = "Unknown action\n";
 		si->applet.st0 = STAT_CLI_PRINT;
@@ -607,8 +672,14 @@ static void stats_sock_table_key_request(struct stream_interface *si, char **arg
 	}
 }
 
-static void stats_sock_table_data_request(struct stream_interface *si, char **args)
+static void stats_sock_table_data_request(struct stream_interface *si, char **args, int action)
 {
+	if (action != STAT_CLI_O_TAB) {
+		si->applet.ctx.cli.msg = "content-based lookup is only supported with the \"show\" action";
+		si->applet.st0 = STAT_CLI_PRINT;
+		return;
+	}
+
 	/* condition on stored data value */
 	si->applet.ctx.table.data_type = stktable_get_data_type(args[3] + 5);
 	if (si->applet.ctx.table.data_type < 0) {
@@ -663,7 +734,7 @@ static void stats_sock_table_request(struct stream_interface *si, char **args, i
 	if (strcmp(args[3], "key") == 0)
 		stats_sock_table_key_request(si, args, action);
 	else if (strncmp(args[3], "data.", 5) == 0)
-		stats_sock_table_data_request(si, args);
+		stats_sock_table_data_request(si, args, action);
 	else if (*args[3])
 		goto err_args;
 
@@ -1170,6 +1241,9 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
+		}
+		else if (strcmp(args[1], "table") == 0) {
+			stats_sock_table_request(si, args, STAT_CLI_O_SET);
 		}
 		else { /* unknown "set" parameter */
 			return 0;
