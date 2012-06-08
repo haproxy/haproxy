@@ -410,7 +410,11 @@ int tcp_connect_server(struct stream_interface *si)
                 setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &global.tune.server_rcvbuf, sizeof(global.tune.server_rcvbuf));
 
 	si->flags &= ~SI_FL_FROM_SET;
-	if ((connect(fd, (struct sockaddr *)&si->addr.to, get_addr_len(&si->addr.to)) == -1) &&
+
+	si->conn.peeraddr = (struct sockaddr *)&si->addr.to;
+	si->conn.peerlen  = get_addr_len(&si->addr.to);
+
+	if ((connect(fd, si->conn.peeraddr, si->conn.peerlen) == -1) &&
 	    (errno != EINPROGRESS) && (errno != EALREADY) && (errno != EISCONN)) {
 
 		if (errno == EAGAIN || errno == EADDRINUSE) {
@@ -464,9 +468,6 @@ int tcp_connect_server(struct stream_interface *si)
 		fdtab[fd].cb[DIR_RD].f = si_data(si)->read;
 		fdtab[fd].cb[DIR_WR].f = si_data(si)->write;
 	}
-
-	fdinfo[fd].peeraddr = (struct sockaddr *)&si->addr.to;
-	fdinfo[fd].peerlen = get_addr_len(&si->addr.to);
 
 	fd_insert(fd);
 	EV_FD_SET(fd, DIR_WR);  /* for connect status */
@@ -583,7 +584,7 @@ static int tcp_connect_write(int fd)
 		 *  - connecting (EALREADY, EINPROGRESS)
 		 *  - connected (EISCONN, 0)
 		 */
-		if ((connect(fd, fdinfo[fd].peeraddr, fdinfo[fd].peerlen) < 0)) {
+		if ((connect(fd, si->conn.peeraddr, si->conn.peerlen) < 0)) {
 			if (errno == EALREADY || errno == EINPROGRESS)
 				goto out_ignore;
 
@@ -797,9 +798,6 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	fdtab[fd].flags = FD_FL_TCP | ((listener->options & LI_O_NOLINGER) ? FD_FL_TCP_NOLING : 0);
 	fdtab[fd].cb[DIR_RD].f = listener->proto->accept;
 	fdtab[fd].cb[DIR_WR].f = NULL; /* never called */
-
-	fdinfo[fd].peeraddr = NULL;
-	fdinfo[fd].peerlen = 0;
 	fd_insert(fd);
 
  tcp_return:

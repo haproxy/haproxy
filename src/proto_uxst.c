@@ -266,8 +266,6 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	fdtab[fd].cb[DIR_WR].f = NULL; /* never called */
 	fdtab[fd].owner = listener; /* reference the listener instead of a task */
 	fdtab[fd].state = FD_STLISTEN;
-	fdinfo[fd].peeraddr = NULL;
-	fdinfo[fd].peerlen = 0;
 	return ERR_NONE;
  err_rename:
 	ret = rename(backname, path);

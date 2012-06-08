@@ -84,8 +84,6 @@ struct fdtab {
 struct fdinfo {
 	struct port_range *port_range;       /* optional port range to bind to */
 	int local_port;                      /* optional local port */
-	struct sockaddr *peeraddr;   /* pointer to peer's network address, or NULL if unset */
-	socklen_t peerlen;           /* peer's address length, or 0 if unset */
 };
 
 /*

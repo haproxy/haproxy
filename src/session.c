@@ -84,7 +84,11 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 
 	s->unique_id = NULL;
 	s->term_trace = 0;
+	s->si[0].conn.t.sock.fd = cfd;
+	s->si[0].conn.ctrl = l->proto;
 	s->si[0].addr.from = *addr;
+	s->si[0].conn.peeraddr = (struct sockaddr *)&s->si[0].addr.from;
+	s->si[0].conn.peerlen  = sizeof(s->si[0].addr.from);
 	s->logs.accept_date = date; /* user-visible date for logging */
 	s->logs.tv_accept = now;  /* corrected date for internal use */
 	s->uniq_id = totalconn;
@@ -161,12 +165,10 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	}
 
 	/* this part should be common with other protocols */
-	s->si[0].conn.t.sock.fd = cfd;
 	s->si[0].owner     = t;
 	s->si[0].state     = s->si[0].prev_state = SI_ST_EST;
 	s->si[0].err_type  = SI_ET_NONE;
 	s->si[0].err_loc   = NULL;
-	s->si[0].conn.ctrl = l->proto;
 	s->si[0].release   = NULL;
 	s->si[0].send_proxy_ofs = 0;
 	set_target_client(&s->si[0].target, l);
@@ -281,8 +283,6 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	fdtab[cfd].flags = 0;
 	fdtab[cfd].cb[DIR_RD].f = si_data(&s->si[0])->read;
 	fdtab[cfd].cb[DIR_WR].f = si_data(&s->si[0])->write;
-	fdinfo[cfd].peeraddr = (struct sockaddr *)&s->si[0].addr.from;
-	fdinfo[cfd].peerlen  = sizeof(s->si[0].addr.from);
 	EV_FD_SET(cfd, DIR_RD);
 
 	if (p->accept && (ret = p->accept(s)) <= 0) {

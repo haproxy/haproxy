@@ -112,6 +112,8 @@ struct connection {
 	} t;
 	int data_st;                  /* data layer state, initialized to zero */
 	void *data_ctx;               /* general purpose pointer, initialized to NULL */
+	struct sockaddr *peeraddr;    /* pointer to peer's network address, or NULL if unset */
+	socklen_t peerlen;            /* peer's address length, or 0 if unset */
 };
 
 struct target {
