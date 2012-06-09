@@ -198,7 +198,14 @@ __ebim_insert(struct eb_root *root, struct ebpt_node *new, unsigned int len)
 			 * The last two cases can easily be partially merged.
 			 */
 			bit = equal_bits(new->key, old->key, bit, len);
-			diff = cmp_bits(new->key, old->key, bit);
+
+			/* Note: we can compare more bits than the current node's because as
+			 * long as they are identical, we know we descend along the correct
+			 * side. However we don't want to start to compare past the end.
+			 */
+			diff = 0;
+			if (((unsigned)bit >> 3) < len)
+				diff = cmp_bits(new->key, old->key, bit);
 
 			if (diff < 0) {
 				new->node.leaf_p = new_left;
@@ -263,7 +270,14 @@ __ebim_insert(struct eb_root *root, struct ebpt_node *new, unsigned int len)
 
 			new->node.node_p = old->node.node_p;
 
-			diff = cmp_bits(new->key, old->key, bit);
+			/* Note: we can compare more bits than the current node's because as
+			 * long as they are identical, we know we descend along the correct
+			 * side. However we don't want to start to compare past the end.
+			 */
+			diff = 0;
+			if (((unsigned)bit >> 3) < len)
+				diff = cmp_bits(new->key, old->key, bit);
+
 			if (diff < 0) {
 				new->node.leaf_p = new_left;
 				old->node.node_p = new_rght;
