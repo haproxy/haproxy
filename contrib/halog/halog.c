@@ -672,6 +672,15 @@ int main(int argc, char **argv)
 	else if (filter & FILT_COUNT_ONLY)
 		line_filter = NULL;
 
+#if defined(POSIX_FADV_SEQUENTIAL)
+	/* around 20% performance improvement is observed on Linux with this
+	 * on cold-cache. Surprizingly, WILLNEED is less performant. Don't
+	 * use NOREUSE as it flushes the cache and prevents easy data
+	 * manipulation on logs!
+	 */
+	posix_fadvise(0, 0, 0, POSIX_FADV_SEQUENTIAL);
+#endif
+
 	if (!line_filter &&
 	    !(filter & (FILT_HTTP_ONLY|FILT_TIME_RESP|FILT_ERRORS_ONLY|FILT_HTTP_STATUS|FILT_QUEUE_ONLY|FILT_QUEUE_SRV_ONLY|FILT_TERM_CODE_NAME))) {
 		/* read the whole file at once first */
