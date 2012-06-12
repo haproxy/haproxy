@@ -86,6 +86,117 @@ static inline unsigned long has_zero(unsigned long x)
 	return (sizeof(x) == 8) ? has_zero64(x) : has_zero32(x);
 }
 
+/* find a '\n' between <next> and <end>. Warning: may read slightly past <end>.
+ * If no '\n' is found, <end> is returned.
+ */
+static char *find_lf(char *next, char *end)
+{
+#if defined USE_MEMCHR
+	/* some recent libc use platform-specific optimizations to provide more
+	 * efficient byte search than below (eg: glibc 2.11 on x86_64).
+	 */
+	next = memchr(next, '\n', end - next);
+	if (!next)
+		next = end;
+#else
+	if (sizeof(long) == 4) {  /* 32-bit system */
+		/* this is a speed-up, we read 32 bits at once and check for an
+		 * LF character there. We stop if found then continue one at a
+		 * time.
+		 */
+		while (next < end && (((unsigned long)next) & 3) && *next != '\n')
+			next++;
+
+		/* Now next is multiple of 4 or equal to end. We know we can safely
+		 * read up to 32 bytes past end if needed because they're allocated.
+		 */
+		while (next < end) {
+			if (has_zero32(*(unsigned int *)next ^ 0x0A0A0A0A))
+				break;
+			next += 4;
+			if (has_zero32(*(unsigned int *)next ^ 0x0A0A0A0A))
+				break;
+			next += 4;
+			if (has_zero32(*(unsigned int *)next ^ 0x0A0A0A0A))
+				break;
+			next += 4;
+			if (has_zero32(*(unsigned int *)next ^ 0x0A0A0A0A))
+				break;
+			next += 4;
+			if (has_zero32(*(unsigned int *)next ^ 0x0A0A0A0A))
+				break;
+			next += 4;
+			if (has_zero32(*(unsigned int *)next ^ 0x0A0A0A0A))
+				break;
+			next += 4;
+			if (has_zero32(*(unsigned int *)next ^ 0x0A0A0A0A))
+				break;
+			next += 4;
+			if (has_zero32(*(unsigned int *)next ^ 0x0A0A0A0A))
+				break;
+			next += 4;
+		}
+	}
+	else {  /* 64-bit system */
+		/* this is a speed-up, we read 64 bits at once and check for an
+		 * LF character there. We stop if found then continue one at a
+		 * time.
+		 */
+		if (next <= end) {
+			/* max 3 bytes tested here */
+			while ((((unsigned long)next) & 3) && *next != '\n')
+				next++;
+
+			/* maybe we have can skip 4 more bytes */
+			if ((((unsigned long)next) & 4) && !has_zero32(*(unsigned int *)next ^ 0x0A0A0A0AU))
+				next += 4;
+		}
+
+		/* now next is multiple of 8 or equal to end */
+		while (next <= (end-68)) {
+			if (has_zero64(*(unsigned long long *)next ^ 0x0A0A0A0A0A0A0A0AULL))
+				break;
+			next += 8;
+			if (has_zero64(*(unsigned long long *)next ^ 0x0A0A0A0A0A0A0A0AULL))
+				break;
+			next += 8;
+			if (has_zero64(*(unsigned long long *)next ^ 0x0A0A0A0A0A0A0A0AULL))
+				break;
+			next += 8;
+			if (has_zero64(*(unsigned long long *)next ^ 0x0A0A0A0A0A0A0A0AULL))
+				break;
+			next += 8;
+			if (has_zero64(*(unsigned long long *)next ^ 0x0A0A0A0A0A0A0A0AULL))
+				break;
+			next += 8;
+			if (has_zero64(*(unsigned long long *)next ^ 0x0A0A0A0A0A0A0A0AULL))
+				break;
+			next += 8;
+			if (has_zero64(*(unsigned long long *)next ^ 0x0A0A0A0A0A0A0A0AULL))
+				break;
+			next += 8;
+			if (has_zero64(*(unsigned long long *)next ^ 0x0A0A0A0A0A0A0A0AULL))
+				break;
+			next += 8;
+		}
+
+		/* maybe we can skip 4 more bytes */
+		if (!has_zero32(*(unsigned int *)next ^ 0x0A0A0A0AU))
+			next += 4;
+	}
+
+	/* We finish if needed : if <next> is below <end>, it means we
+	 * found an LF in one of the 4 following bytes.
+	 */
+	while (next < end) {
+		if (*next == '\n')
+			break;
+		next++;
+	}
+#endif
+	return next;
+}
+
 const char *fgets2(FILE *stream)
 {
 	static char buffer[FGETS2_BUFSIZE + 68]; /* Note: +32 is enough on 32-bit systems */
@@ -97,104 +208,12 @@ const char *fgets2(FILE *stream)
 	next = line;
 
 	while (1) {
-		if (sizeof(long) == 4) {  /* 32-bit system */
-			/* this is a speed-up, we read 32 bits at once and check for an
-			 * LF character there. We stop if found then continue one at a
-			 * time.
-			 */
-			while (next < end && (((unsigned long)next) & 3) && *next != '\n')
-				next++;
-
-			/* Now next is multiple of 4 or equal to end. We know we can safely
-			 * read up to 32 bytes past end if needed because they're allocated.
-			 */
-			while (next < end) {
-				if (has_zero32(*(unsigned int *)next ^ 0x0A0A0A0A))
-					break;
-				next += 4;
-				if (has_zero32(*(unsigned int *)next ^ 0x0A0A0A0A))
-					break;
-				next += 4;
-				if (has_zero32(*(unsigned int *)next ^ 0x0A0A0A0A))
-					break;
-				next += 4;
-				if (has_zero32(*(unsigned int *)next ^ 0x0A0A0A0A))
-					break;
-				next += 4;
-				if (has_zero32(*(unsigned int *)next ^ 0x0A0A0A0A))
-					break;
-				next += 4;
-				if (has_zero32(*(unsigned int *)next ^ 0x0A0A0A0A))
-					break;
-				next += 4;
-				if (has_zero32(*(unsigned int *)next ^ 0x0A0A0A0A))
-					break;
-				next += 4;
-				if (has_zero32(*(unsigned int *)next ^ 0x0A0A0A0A))
-					break;
-				next += 4;
-			}
-		}
-		else {  /* 64-bit system */
-			/* this is a speed-up, we read 64 bits at once and check for an
-			 * LF character there. We stop if found then continue one at a
-			 * time.
-			 */
-			if (next <= end) {
-				/* max 3 bytes tested here */
-				while ((((unsigned long)next) & 3) && *next != '\n')
-					next++;
-
-				/* maybe we have can skip 4 more bytes */
-				if ((((unsigned long)next) & 4) && !has_zero32(*(unsigned int *)next ^ 0x0A0A0A0AU))
-					next += 4;
-			}
-
-			/* now next is multiple of 8 or equal to end */
-			while (next <= (end-68)) {
-				if (has_zero64(*(unsigned long long *)next ^ 0x0A0A0A0A0A0A0A0AULL))
-					break;
-				next += 8;
-				if (has_zero64(*(unsigned long long *)next ^ 0x0A0A0A0A0A0A0A0AULL))
-					break;
-				next += 8;
-				if (has_zero64(*(unsigned long long *)next ^ 0x0A0A0A0A0A0A0A0AULL))
-					break;
-				next += 8;
-				if (has_zero64(*(unsigned long long *)next ^ 0x0A0A0A0A0A0A0A0AULL))
-					break;
-				next += 8;
-				if (has_zero64(*(unsigned long long *)next ^ 0x0A0A0A0A0A0A0A0AULL))
-					break;
-				next += 8;
-				if (has_zero64(*(unsigned long long *)next ^ 0x0A0A0A0A0A0A0A0AULL))
-					break;
-				next += 8;
-				if (has_zero64(*(unsigned long long *)next ^ 0x0A0A0A0A0A0A0A0AULL))
-					break;
-				next += 8;
-				if (has_zero64(*(unsigned long long *)next ^ 0x0A0A0A0A0A0A0A0AULL))
-					break;
-				next += 8;
-			}
-
-			/* maybe we can skip 4 more bytes */
-			if (!has_zero32(*(unsigned int *)next ^ 0x0A0A0A0AU))
-				next += 4;
-		}
-
-		/* We finish if needed : if <next> is below <end>, it means we
-		 * found an LF in one of the 4 following bytes.
-		 */
-		while (next < end) {
-			if (*next == '\n') {
-				const char *start = line;
-
-				*next = '\0';
-				line = next + 1;
-				return start;
-			}
-			next++;
+		next = find_lf(next, end);
+		if (next < end) {
+			const char *start = line;
+			*next = '\0';
+			line = next + 1;
+			return start;
 		}
 
 		/* we found an incomplete line. First, let's move the
