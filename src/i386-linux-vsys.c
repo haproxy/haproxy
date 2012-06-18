@@ -184,10 +184,14 @@ static void __i386_linux_vsyscall_init(void)
 #ifdef USE_VSYSCALL_DLSYM
 	void *handle = dlopen("linux-gate.so.1", RTLD_NOW);
 	if (handle) {
-		void *ptr = dlsym(handle, "__kernel_vsyscall");
-		dlclose(handle);
+		void *ptr;
+
+		ptr = dlsym(handle, "__kernel_vsyscall_kml");
+		if (!ptr)
+			ptr = dlsym(handle, "__kernel_vsyscall");
 		if (ptr)
 			vsyscall = ptr;
+		dlclose(handle);
 	}
 #else
 	/* Heuristic: trying to mprotect() the VDSO area will only succeed if
