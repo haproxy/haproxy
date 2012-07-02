@@ -47,23 +47,23 @@ int bo_getline(struct channel *buf, char *str, int len);
 int bo_getblk(struct channel *buf, char *blk, int len, int offset);
 int buffer_replace2(struct channel *b, char *pos, char *end, const char *str, int len);
 int buffer_insert_line2(struct channel *b, char *pos, const char *str, int len);
-void buffer_dump(FILE *o, struct channel *b, int from, int to);
-void buffer_slow_realign(struct channel *buf);
-void buffer_bounce_realign(struct channel *buf);
+void buffer_dump(FILE *o, struct buffer *b, int from, int to);
+void buffer_slow_realign(struct buffer *buf);
+void buffer_bounce_realign(struct buffer *buf);
 unsigned long long buffer_forward(struct channel *buf, unsigned long long bytes);
 
 /* Initialize all fields in the buffer. The BF_OUT_EMPTY flags is set. */
 static inline void buffer_init(struct channel *buf)
 {
-	buf->o = 0;
-	buf->i = 0;
+	buf->buf.o = 0;
+	buf->buf.i = 0;
+	buf->buf.p = buf->buf.data;
 	buf->to_forward = 0;
 	buf->total = 0;
 	buf->pipe = NULL;
 	buf->analysers = 0;
 	buf->cons = NULL;
 	buf->flags = BF_OUT_EMPTY;
-	buf->p = buf->data;
 }
 
 /*****************************************************************/
@@ -86,7 +86,7 @@ static inline void buffer_init(struct channel *buf)
 	})
 
 /* Returns the start of the input data in a buffer */
-static inline char *bi_ptr(const struct channel *b)
+static inline char *bi_ptr(const struct buffer *b)
 {
 	return b->p;
 }
@@ -94,7 +94,7 @@ static inline char *bi_ptr(const struct channel *b)
 /* Returns the end of the input data in a buffer (pointer to next
  * insertion point).
  */
-static inline char *bi_end(const struct channel *b)
+static inline char *bi_end(const struct buffer *b)
 {
 	char *ret = b->p + b->i;
 
@@ -104,7 +104,7 @@ static inline char *bi_end(const struct channel *b)
 }
 
 /* Returns the amount of input data that can contiguously be read at once */
-static inline int bi_contig_data(const struct channel *b)
+static inline int bi_contig_data(const struct buffer *b)
 {
 	int data = b->data + b->size - b->p;
 
@@ -114,7 +114,7 @@ static inline int bi_contig_data(const struct channel *b)
 }
 
 /* Returns the start of the output data in a buffer */
-static inline char *bo_ptr(const struct channel *b)
+static inline char *bo_ptr(const struct buffer *b)
 {
 	char *ret = b->p - b->o;
 
@@ -124,13 +124,13 @@ static inline char *bo_ptr(const struct channel *b)
 }
 
 /* Returns the end of the output data in a buffer */
-static inline char *bo_end(const struct channel *b)
+static inline char *bo_end(const struct buffer *b)
 {
 	return b->p;
 }
 
 /* Returns the amount of output data that can contiguously be read at once */
-static inline int bo_contig_data(const struct channel *b)
+static inline int bo_contig_data(const struct buffer *b)
 {
 	char *beg = b->p - b->o;
 
@@ -140,25 +140,25 @@ static inline int bo_contig_data(const struct channel *b)
 }
 
 /* Return the buffer's length in bytes by summing the input and the output */
-static inline int buffer_len(const struct channel *buf)
+static inline int buffer_len(const struct buffer *buf)
 {
 	return buf->i + buf->o;
 }
 
 /* Return non-zero only if the buffer is not empty */
-static inline int buffer_not_empty(const struct channel *buf)
+static inline int buffer_not_empty(const struct buffer *buf)
 {
 	return buf->i | buf->o;
 }
 
 /* Return non-zero only if the buffer is empty */
-static inline int buffer_empty(const struct channel *buf)
+static inline int buffer_empty(const struct buffer *buf)
 {
 	return !buffer_not_empty(buf);
 }
 
 /* Normalizes a pointer after a subtract */
-static inline char *buffer_wrap_sub(const struct channel *buf, char *ptr)
+static inline char *buffer_wrap_sub(const struct buffer *buf, char *ptr)
 {
 	if (ptr < buf->data)
 		ptr += buf->size;
@@ -166,7 +166,7 @@ static inline char *buffer_wrap_sub(const struct channel *buf, char *ptr)
 }
 
 /* Normalizes a pointer after an addition */
-static inline char *buffer_wrap_add(const struct channel *buf, char *ptr)
+static inline char *buffer_wrap_add(const struct buffer *buf, char *ptr)
 {
 	if (ptr - buf->size >= buf->data)
 		ptr -= buf->size;
@@ -180,7 +180,7 @@ static inline char *buffer_wrap_add(const struct channel *buf, char *ptr)
  */
 static inline int buffer_reserved(const struct channel *buf)
 {
-	int ret = global.tune.maxrewrite - buf->to_forward - buf->o;
+	int ret = global.tune.maxrewrite - buf->to_forward - buf->buf.o;
 
 	if (buf->to_forward == BUF_INFINITE_FORWARD)
 		return 0;
@@ -195,7 +195,7 @@ static inline int buffer_reserved(const struct channel *buf)
  */
 static inline int buffer_max_len(const struct channel *buf)
 {
-	return buf->size - buffer_reserved(buf);
+	return buf->buf.size - buffer_reserved(buf);
 }
 
 /* Returns non-zero if the buffer input is considered full. The reserved space
@@ -205,20 +205,20 @@ static inline int buffer_max_len(const struct channel *buf)
  */
 static inline int bi_full(const struct channel *b)
 {
-	int rem = b->size;
+	int rem = b->buf.size;
 
-	rem -= b->o;
-	rem -= b->i;
+	rem -= b->buf.o;
+	rem -= b->buf.i;
 	if (!rem)
 		return 1; /* buffer already full */
 
-	if (b->to_forward >= b->size ||
-	    (BUF_INFINITE_FORWARD < MAX_RANGE(typeof(b->size)) && // just there to ensure gcc
+	if (b->to_forward >= b->buf.size ||
+	    (BUF_INFINITE_FORWARD < MAX_RANGE(typeof(b->buf.size)) && // just there to ensure gcc
 	     b->to_forward == BUF_INFINITE_FORWARD))              // avoids the useless second
 		return 0;                                         // test whenever possible
 
 	rem -= global.tune.maxrewrite;
-	rem += b->o;
+	rem += b->buf.o;
 	rem += b->to_forward;
 	return rem <= 0;
 }
@@ -230,21 +230,21 @@ static inline int bi_full(const struct channel *b)
  */
 static inline int bi_avail(const struct channel *b)
 {
-	int rem = b->size;
+	int rem = b->buf.size;
 	int rem2;
 
-	rem -= b->o;
-	rem -= b->i;
+	rem -= b->buf.o;
+	rem -= b->buf.i;
 	if (!rem)
 		return rem; /* buffer already full */
 
-	if (b->to_forward >= b->size ||
-	    (BUF_INFINITE_FORWARD < MAX_RANGE(typeof(b->size)) && // just there to ensure gcc
+	if (b->to_forward >= b->buf.size ||
+	    (BUF_INFINITE_FORWARD < MAX_RANGE(typeof(b->buf.size)) && // just there to ensure gcc
 	     b->to_forward == BUF_INFINITE_FORWARD))              // avoids the useless second
 		return rem;                                         // test whenever possible
 
 	rem2 = rem - global.tune.maxrewrite;
-	rem2 += b->o;
+	rem2 += b->buf.o;
 	rem2 += b->to_forward;
 
 	if (rem > rem2)
@@ -257,7 +257,7 @@ static inline int bi_avail(const struct channel *b)
 /* Return the maximum amount of bytes that can be written into the buffer,
  * including reserved space which may be overwritten.
  */
-static inline int buffer_total_space(const struct channel *buf)
+static inline int buffer_total_space(const struct buffer *buf)
 {
 	return buf->size - buffer_len(buf);
 }
@@ -266,7 +266,7 @@ static inline int buffer_total_space(const struct channel *buf)
  * and enforces a limit on buf->data + buf->size. <start> must be within the
  * buffer.
  */
-static inline int buffer_contig_area(const struct channel *buf, const char *start, int count)
+static inline int buffer_contig_area(const struct buffer *buf, const char *start, int count)
 {
 	if (count > buf->data - start + buf->size)
 		count = buf->data - start + buf->size;
@@ -276,7 +276,7 @@ static inline int buffer_contig_area(const struct channel *buf, const char *star
 /* Return the amount of bytes that can be written into the buffer at once,
  * including reserved space which may be overwritten.
  */
-static inline int buffer_contig_space(const struct channel *buf)
+static inline int buffer_contig_space(const struct buffer *buf)
 {
 	const char *left, *right;
 
@@ -296,11 +296,11 @@ static inline int buffer_contig_space(const struct channel *buf)
  */
 static inline void b_adv(struct channel *b, unsigned int adv)
 {
-	b->i -= adv;
-	b->o += adv;
-	if (b->o)
+	b->buf.i -= adv;
+	b->buf.o += adv;
+	if (b->buf.o)
 		b->flags &= ~BF_OUT_EMPTY;
-	b->p = b_ptr(b, adv);
+	b->buf.p = b_ptr(&b->buf, adv);
 }
 
 /* Rewinds the buffer by <adv> bytes, which means that the buffer pointer goes
@@ -309,18 +309,18 @@ static inline void b_adv(struct channel *b, unsigned int adv)
  */
 static inline void b_rew(struct channel *b, unsigned int adv)
 {
-	b->i += adv;
-	b->o -= adv;
-	if (!b->o && !b->pipe)
+	b->buf.i += adv;
+	b->buf.o -= adv;
+	if (!b->buf.o && !b->pipe)
 		b->flags |= BF_OUT_EMPTY;
-	b->p = b_ptr(b, (int)-adv);
+	b->buf.p = b_ptr(&b->buf, (int)-adv);
 }
 
 /* Return the amount of bytes that can be written into the buffer at once,
  * excluding the amount of reserved space passed in <res>, which is
  * preserved.
  */
-static inline int buffer_contig_space_with_res(const struct channel *buf, int res)
+static inline int buffer_contig_space_with_res(const struct buffer *buf, int res)
 {
 	/* Proceed differently if the buffer is full, partially used or empty.
 	 * The hard situation is when it's partially used and either data or
@@ -342,9 +342,9 @@ static inline int buffer_contig_space_with_res(const struct channel *buf, int re
 /* Return the amount of bytes that can be written into the buffer at once,
  * excluding reserved space, which is preserved.
  */
-static inline int buffer_contig_space_res(const struct channel *buf)
+static inline int buffer_contig_space_res(const struct channel *chn)
 {
-	return buffer_contig_space_with_res(buf, buffer_reserved(buf));
+	return buffer_contig_space_with_res(&chn->buf, buffer_reserved(chn));
 }
 
 /* Normalizes a pointer which is supposed to be relative to the beginning of a
@@ -353,7 +353,7 @@ static inline int buffer_contig_space_res(const struct channel *buf)
  * once, so the original pointer must be between ->data-size and ->data+2*size-1,
  * otherwise an invalid pointer might be returned.
  */
-static inline const char *buffer_pointer(const struct channel *buf, const char *ptr)
+static inline const char *buffer_pointer(const struct buffer *buf, const char *ptr)
 {
 	if (ptr < buf->data)
 		ptr += buf->size;
@@ -365,7 +365,7 @@ static inline const char *buffer_pointer(const struct channel *buf, const char *
 /* Returns the distance between two pointers, taking into account the ability
  * to wrap around the buffer's end.
  */
-static inline int buffer_count(const struct channel *buf, const char *from, const char *to)
+static inline int buffer_count(const struct buffer *buf, const char *from, const char *to)
 {
 	int count = to - from;
 	if (count < 0)
@@ -376,7 +376,7 @@ static inline int buffer_count(const struct channel *buf, const char *from, cons
 /* returns the amount of pending bytes in the buffer. It is the amount of bytes
  * that is not scheduled to be sent.
  */
-static inline int buffer_pending(const struct channel *buf)
+static inline int buffer_pending(const struct buffer *buf)
 {
 	return buf->i;
 }
@@ -387,7 +387,7 @@ static inline int buffer_pending(const struct channel *buf)
  * <end>. It always starts at buf->p. The work area includes the
  * reserved area.
  */
-static inline int buffer_work_area(const struct channel *buf, const char *end)
+static inline int buffer_work_area(const struct buffer *buf, const char *end)
 {
 	end = buffer_pointer(buf, end);
 	if (end == buffer_wrap_add(buf, buf->p + buf->i))
@@ -397,7 +397,7 @@ static inline int buffer_work_area(const struct channel *buf, const char *end)
 }
 
 /* Return 1 if the buffer has less than 1/4 of its capacity free, otherwise 0 */
-static inline int buffer_almost_full(const struct channel *buf)
+static inline int buffer_almost_full(const struct buffer *buf)
 {
 	if (buffer_total_space(buf) < buf->size / 4)
 		return 1;
@@ -443,10 +443,10 @@ static inline void buffer_check_timeouts(struct channel *b)
  */
 static inline void buffer_flush(struct channel *buf)
 {
-	buf->p = buffer_wrap_add(buf, buf->p + buf->i);
-	buf->o += buf->i;
-	buf->i = 0;
-	if (buf->o)
+	buf->buf.p = buffer_wrap_add(&buf->buf, buf->buf.p + buf->buf.i);
+	buf->buf.o += buf->buf.i;
+	buf->buf.i = 0;
+	if (buf->buf.o)
 		buf->flags &= ~BF_OUT_EMPTY;
 }
 
@@ -456,10 +456,10 @@ static inline void buffer_flush(struct channel *buf)
  */
 static inline void buffer_erase(struct channel *buf)
 {
-	buf->o = 0;
-	buf->i = 0;
+	buf->buf.o = 0;
+	buf->buf.i = 0;
 	buf->to_forward = 0;
-	buf->p = buf->data;
+	buf->buf.p = buf->buf.data;
 	buf->flags &= ~(BF_FULL | BF_OUT_EMPTY);
 	if (!buf->pipe)
 		buf->flags |= BF_OUT_EMPTY;
@@ -472,14 +472,14 @@ static inline void buffer_erase(struct channel *buf)
  */
 static inline void bi_erase(struct channel *buf)
 {
-	if (!buf->o)
+	if (!buf->buf.o)
 		return buffer_erase(buf);
 
 	buf->to_forward = 0;
-	if (!buf->i)
+	if (!buf->buf.i)
 		return;
 
-	buf->i = 0;
+	buf->buf.i = 0;
 	buf->flags &= ~BF_FULL;
 	if (bi_full(buf))
 		buf->flags |= BF_FULL;
@@ -491,7 +491,7 @@ static inline void bi_erase(struct channel *buf)
  * This is mainly used to remove empty lines at the beginning of a request
  * or a response.
  */
-static inline void bi_fast_delete(struct channel *buf, int n)
+static inline void bi_fast_delete(struct buffer *buf, int n)
 {
 	buf->i -= n;
 	buf->p += n;
@@ -578,7 +578,7 @@ static inline void buffer_dont_read(struct channel *buf)
  * Tries to realign the given buffer, and returns how many bytes can be written
  * there at once without overwriting anything.
  */
-static inline int buffer_realign(struct channel *buf)
+static inline int buffer_realign(struct buffer *buf)
 {
 	if (!(buf->i | buf->o)) {
 		/* let's realign the buffer to optimize I/O */
@@ -595,12 +595,12 @@ static inline int buffer_realign(struct channel *buf)
  */
 static inline void bo_skip(struct channel *buf, int len)
 {
-	buf->o -= len;
-	if (!buf->o && !buf->pipe)
+	buf->buf.o -= len;
+	if (!buf->buf.o && !buf->pipe)
 		buf->flags |= BF_OUT_EMPTY;
 
-	if (buffer_len(buf) == 0)
-		buf->p = buf->data;
+	if (buffer_len(&buf->buf) == 0)
+		buf->buf.p = buf->buf.data;
 
 	if (!bi_full(buf))
 		buf->flags &= ~BF_FULL;
@@ -654,7 +654,7 @@ static inline int bo_getchr(struct channel *buf)
 			return -2;
 		return -1;
 	}
-	return *buffer_wrap_sub(buf, buf->p - buf->o);
+	return *buffer_wrap_sub(&buf->buf, buf->buf.p - buf->buf.o);
 }
 
 /* This function writes the string <str> at position <pos> which must be in

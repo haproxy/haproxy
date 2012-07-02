@@ -174,16 +174,20 @@ struct chunk {
 /* needed for a declaration below */
 struct session;
 
+struct buffer {
+	char *p;                        /* buffer's start pointer, separates in and out data */
+	unsigned int size;              /* buffer size in bytes */
+	unsigned int i;                 /* number of input bytes pending for analysis in the buffer */
+	unsigned int o;                 /* number of out bytes the sender can consume from this buffer */
+	char data[0];                   /* <size> bytes */
+};
+
 struct channel {
 	unsigned int flags;             /* BF_* */
 	int rex;                        /* expiration date for a read, in ticks */
 	int wex;                        /* expiration date for a write or connect, in ticks */
 	int rto;                        /* read timeout, in ticks */
 	int wto;                        /* write timeout, in ticks */
-	char *p;                        /* buffer's start pointer, separates in and out data */
-	unsigned int size;              /* buffer size in bytes */
-	unsigned int i;                 /* number of input bytes pending for analysis in the buffer */
-	unsigned int o;                 /* number of out bytes the sender can consume from this buffer */
 	unsigned int to_forward;        /* number of bytes to forward after out without a wake-up */
 	unsigned int analysers;         /* bit field indicating what to do on the buffer */
 	int analyse_exp;                /* expiration date for current analysers (if set) */
@@ -194,7 +198,7 @@ struct channel {
 	struct stream_interface *prod;  /* producer attached to this buffer */
 	struct stream_interface *cons;  /* consumer attached to this buffer */
 	struct pipe *pipe;		/* non-NULL only when data present */
-	char data[0];                   /* <size> bytes */
+	struct buffer buf;		/* embedded buffer for now, will move */
 };
 
 

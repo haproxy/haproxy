@@ -411,7 +411,7 @@ int tcp_connect_server(struct stream_interface *si)
 	 * machine with the first ACK. We only do this if there are pending
 	 * data in the buffer.
 	 */
-	if ((be->options2 & PR_O2_SMARTCON) && si->ob->o)
+	if ((be->options2 & PR_O2_SMARTCON) && si->ob->buf.o)
                 setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, &zero, sizeof(zero));
 #endif
 
@@ -1403,11 +1403,11 @@ smp_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, unsigned in
 	smp->flags = 0;
 	smp->type = SMP_T_CSTR;
 
-	bleft = l4->req->i;
+	bleft = l4->req->buf.i;
 	if (bleft <= 11)
 		goto too_short;
 
-	data = (const unsigned char *)l4->req->p + 11;
+	data = (const unsigned char *)l4->req->buf.p + 11;
 	bleft -= 11;
 
 	if (bleft <= 7)
@@ -1598,11 +1598,11 @@ smp_fetch_payload_lv(struct proxy *px, struct session *l4, void *l7, unsigned in
 	if (!b)
 		return 0;
 
-	if (len_offset + len_size > b->i)
+	if (len_offset + len_size > b->buf.i)
 		goto too_short;
 
 	for (i = 0; i < len_size; i++) {
-		buf_size = (buf_size << 8) + ((unsigned char *)b->p)[i + len_offset];
+		buf_size = (buf_size << 8) + ((unsigned char *)b->buf.p)[i + len_offset];
 	}
 
 	/* buf offset may be implicit, absolute or relative */
@@ -1612,18 +1612,18 @@ smp_fetch_payload_lv(struct proxy *px, struct session *l4, void *l7, unsigned in
 	else if (arg_p[2].type == ARGT_SINT)
 		buf_offset += arg_p[2].data.sint;
 
-	if (!buf_size || buf_size > b->size || buf_offset + buf_size > b->size) {
+	if (!buf_size || buf_size > b->buf.size || buf_offset + buf_size > b->buf.size) {
 		/* will never match */
 		smp->flags = 0;
 		return 0;
 	}
 
-	if (buf_offset + buf_size > b->i)
+	if (buf_offset + buf_size > b->buf.i)
 		goto too_short;
 
 	/* init chunk as read only */
 	smp->type = SMP_T_CBIN;
-	chunk_initlen(&smp->data.str, b->p + buf_offset, 0, buf_size);
+	chunk_initlen(&smp->data.str, b->buf.p + buf_offset, 0, buf_size);
 	smp->flags = SMP_F_VOLATILE;
 	return 1;
 
@@ -1648,18 +1648,18 @@ smp_fetch_payload(struct proxy *px, struct session *l4, void *l7, unsigned int o
 	if (!b)
 		return 0;
 
-	if (!buf_size || buf_size > b->size || buf_offset + buf_size > b->size) {
+	if (!buf_size || buf_size > b->buf.size || buf_offset + buf_size > b->buf.size) {
 		/* will never match */
 		smp->flags = 0;
 		return 0;
 	}
 
-	if (buf_offset + buf_size > b->i)
+	if (buf_offset + buf_size > b->buf.i)
 		goto too_short;
 
 	/* init chunk as read only */
 	smp->type = SMP_T_CBIN;
-	chunk_initlen(&smp->data.str, b->p + buf_offset, 0, buf_size);
+	chunk_initlen(&smp->data.str, b->buf.p + buf_offset, 0, buf_size);
 	smp->flags = SMP_F_VOLATILE;
 	return 1;
 

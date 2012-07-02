@@ -253,8 +253,8 @@ int frontend_accept(struct session *s)
  */
 int frontend_decode_proxy_request(struct session *s, struct channel *req, int an_bit)
 {
-	char *line = req->data;
-	char *end = req->data + req->i;
+	char *line = req->buf.data;
+	char *end = req->buf.data + req->buf.i;
 	int len;
 
 	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
@@ -269,7 +269,7 @@ int frontend_decode_proxy_request(struct session *s, struct channel *req, int an
 	if (req->flags & (BF_READ_ERROR|BF_READ_TIMEOUT))
 		goto fail;
 
-	len = MIN(req->i, 6);
+	len = MIN(req->buf.i, 6);
 	if (!len)
 		goto missing;
 
@@ -278,7 +278,7 @@ int frontend_decode_proxy_request(struct session *s, struct channel *req, int an
 		goto fail;
 
 	line += 6;
-	if (req->i < 18) /* shortest possible line */
+	if (req->buf.i < 18) /* shortest possible line */
 		goto missing;
 
 	if (!memcmp(line, "TCP4 ", 5) != 0) {
@@ -388,8 +388,8 @@ int frontend_decode_proxy_request(struct session *s, struct channel *req, int an
 	}
 
 	/* remove the PROXY line from the request */
-	len = line - req->data;
-	buffer_replace2(req, req->data, line, NULL, 0);
+	len = line - req->buf.data;
+	buffer_replace2(req, req->buf.data, line, NULL, 0);
 	req->total -= len; /* don't count the header line */
 
 	req->analysers &= ~an_bit;

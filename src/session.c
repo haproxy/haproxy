@@ -225,7 +225,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		goto out_free_req; /* no memory */
 
 	/* initialize the request buffer */
-	s->req->size = global.tune.bufsize;
+	s->req->buf.size = global.tune.bufsize;
 	buffer_init(s->req);
 	s->req->prod = &s->si[0];
 	s->req->cons = &s->si[1];
@@ -242,7 +242,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->req->analyse_exp = TICK_ETERNITY;
 
 	/* initialize response buffer */
-	s->rep->size = global.tune.bufsize;
+	s->rep->buf.size = global.tune.bufsize;
 	buffer_init(s->rep);
 	s->rep->prod = &s->si[1];
 	s->rep->cons = &s->si[0];

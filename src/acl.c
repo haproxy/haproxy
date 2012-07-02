@@ -108,7 +108,7 @@ acl_fetch_req_len(struct proxy *px, struct session *l4, void *l7, unsigned int o
 		return 0;
 
 	smp->type = SMP_T_UINT;
-	smp->data.uint = l4->req->i;
+	smp->data.uint = l4->req->buf.i;
 	smp->flags = SMP_F_VOLATILE | SMP_F_MAY_CHANGE;
 	return 1;
 }
@@ -128,8 +128,8 @@ acl_fetch_ssl_hello_type(struct proxy *px, struct session *l4, void *l7, unsigne
 
 	b = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? l4->rep : l4->req;
 
-	bleft = b->i;
-	data = (const unsigned char *)b->p;
+	bleft = b->buf.i;
+	data = (const unsigned char *)b->buf.p;
 
 	if (!bleft)
 		goto too_short;
@@ -194,11 +194,11 @@ acl_fetch_req_ssl_ver(struct proxy *px, struct session *l4, void *l7, unsigned i
 		return 0;
 
 	msg_len = 0;
-	bleft = l4->req->i;
+	bleft = l4->req->buf.i;
 	if (!bleft)
 		goto too_short;
 
-	data = (const unsigned char *)l4->req->p;
+	data = (const unsigned char *)l4->req->buf.p;
 	if ((*data >= 0x14 && *data <= 0x17) || (*data == 0xFF)) {
 		/* SSLv3 header format */
 		if (bleft < 5)
@@ -266,8 +266,8 @@ acl_fetch_req_ssl_ver(struct proxy *px, struct session *l4, void *l7, unsigned i
 	 * all the part of the request which fits in a buffer is already
 	 * there.
 	 */
-	if (msg_len > buffer_max_len(l4->req) + l4->req->data - l4->req->p)
-		msg_len = buffer_max_len(l4->req) + l4->req->data - l4->req->p;
+	if (msg_len > buffer_max_len(l4->req) + l4->req->buf.data - l4->req->buf.p)
+		msg_len = buffer_max_len(l4->req) + l4->req->buf.data - l4->req->buf.p;
 
 	if (bleft < msg_len)
 		goto too_short;
@@ -332,8 +332,8 @@ acl_fetch_ssl_hello_sni(struct proxy *px, struct session *l4, void *l7, unsigned
 
 	b = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? l4->rep : l4->req;
 
-	bleft = b->i;
-	data = (unsigned char *)b->p;
+	bleft = b->buf.i;
+	data = (unsigned char *)b->buf.p;
 
 	/* Check for SSL/TLS Handshake */
 	if (!bleft)

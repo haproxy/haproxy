@@ -51,7 +51,7 @@ unsigned long long buffer_forward(struct channel *buf, unsigned long long bytes)
 	 * once anyway.
 	 */
 	if (bytes <= ~0U) {
-		if (bytes32 <= buf->i) {
+		if (bytes32 <= buf->buf.i) {
 			/* OK this amount of bytes might be forwarded at once */
 			if (!bytes32)
 				return 0;
@@ -60,8 +60,8 @@ unsigned long long buffer_forward(struct channel *buf, unsigned long long bytes)
 		}
 	}
 
-	forwarded = buf->i;
-	b_adv(buf, buf->i);
+	forwarded = buf->buf.i;
+	b_adv(buf, buf->buf.i);
 
 	/* Note: the case below is the only case where we may return
 	 * a byte count that does not fit into a 32-bit number.
@@ -103,7 +103,7 @@ int bo_inject(struct channel *buf, const char *msg, int len)
 	if (len == 0)
 		return -1;
 
-	if (len > buf->size) {
+	if (len > buf->buf.size) {
 		/* we can't write this chunk and will never be able to, because
 		 * it is larger than the buffer. This must be reported as an
 		 * error. Then we return -2 so that writers that don't care can
@@ -112,14 +112,14 @@ int bo_inject(struct channel *buf, const char *msg, int len)
 		return -2;
 	}
 
-	max = buffer_realign(buf);
+	max = buffer_realign(&buf->buf);
 
 	if (len > max)
 		return max;
 
-	memcpy(buf->p, msg, len);
-	buf->o += len;
-	buf->p = b_ptr(buf, len);
+	memcpy(buf->buf.p, msg, len);
+	buf->buf.o += len;
+	buf->buf.p = b_ptr(&buf->buf, len);
 	buf->total += len;
 
 	buf->flags &= ~(BF_OUT_EMPTY|BF_FULL);
@@ -144,9 +144,9 @@ int bi_putchr(struct channel *buf, char c)
 	if (buf->flags & BF_FULL)
 		return -1;
 
-	*bi_end(buf) = c;
+	*bi_end(&buf->buf) = c;
 
-	buf->i++;
+	buf->buf.i++;
 	if (bi_full(buf))
 		buf->flags |= BF_FULL;
 	buf->flags |= BF_READ_PARTIAL;
@@ -177,7 +177,7 @@ int bi_putblk(struct channel *buf, const char *blk, int len)
 		return -2;
 
 	max = buffer_max_len(buf);
-	if (unlikely(len > max - buffer_len(buf))) {
+	if (unlikely(len > max - buffer_len(&buf->buf))) {
 		/* we can't write this chunk right now because the buffer is
 		 * almost full or because the block is too large. Return the
 		 * available space or -2 if impossible.
@@ -192,12 +192,12 @@ int bi_putblk(struct channel *buf, const char *blk, int len)
 		return 0;
 
 	/* OK so the data fits in the buffer in one or two blocks */
-	max = buffer_contig_space_with_res(buf, buf->size - max);
-	memcpy(bi_end(buf), blk, MIN(len, max));
+	max = buffer_contig_space_with_res(&buf->buf, buf->buf.size - max);
+	memcpy(bi_end(&buf->buf), blk, MIN(len, max));
 	if (len > max)
-		memcpy(buf->data, blk + max, len - max);
+		memcpy(buf->buf.data, blk + max, len - max);
 
-	buf->i += len;
+	buf->buf.i += len;
 	buf->total += len;
 	if (buf->to_forward) {
 		unsigned long fwd = len;
@@ -243,10 +243,10 @@ int bo_getline(struct channel *buf, char *str, int len)
 		goto out;
 	}
 
-	p = bo_ptr(buf);
+	p = bo_ptr(&buf->buf);
 
-	if (max > buf->o) {
-		max = buf->o;
+	if (max > buf->buf.o) {
+		max = buf->buf.o;
 		str[max-1] = 0;
 	}
 	while (max) {
@@ -256,9 +256,9 @@ int bo_getline(struct channel *buf, char *str, int len)
 
 		if (*p == '\n')
 			break;
-		p = buffer_wrap_add(buf, p + 1);
+		p = buffer_wrap_add(&buf->buf, p + 1);
 	}
-	if (ret > 0 && ret < len && ret < buf->o &&
+	if (ret > 0 && ret < len && ret < buf->buf.o &&
 	    *(str-1) != '\n' &&
 	    !(buf->flags & (BF_SHUTW|BF_SHUTW_NOW)))
 		ret = 0;
@@ -283,25 +283,25 @@ int bo_getblk(struct channel *buf, char *blk, int len, int offset)
 	if (buf->flags & BF_SHUTW)
 		return -1;
 
-	if (len + offset > buf->o) {
+	if (len + offset > buf->buf.o) {
 		if (buf->flags & (BF_SHUTW|BF_SHUTW_NOW))
 			return -1;
 		return 0;
 	}
 
-	firstblock = buf->data + buf->size - bo_ptr(buf);
+	firstblock = buf->buf.data + buf->buf.size - bo_ptr(&buf->buf);
 	if (firstblock > offset) {
 		if (firstblock >= len + offset) {
-			memcpy(blk, bo_ptr(buf) + offset, len);
+			memcpy(blk, bo_ptr(&buf->buf) + offset, len);
 			return len;
 		}
 
-		memcpy(blk, bo_ptr(buf) + offset, firstblock - offset);
-		memcpy(blk + firstblock - offset, buf->data, len - firstblock + offset);
+		memcpy(blk, bo_ptr(&buf->buf) + offset, firstblock - offset);
+		memcpy(blk + firstblock - offset, buf->buf.data, len - firstblock + offset);
 		return len;
 	}
 
-	memcpy(blk, buf->data + offset - firstblock, len);
+	memcpy(blk, buf->buf.data + offset - firstblock, len);
 	return len;
 }
 
@@ -321,26 +321,26 @@ int buffer_replace2(struct channel *b, char *pos, char *end, const char *str, in
 
 	delta = len - (end - pos);
 
-	if (bi_end(b) + delta >= b->data + b->size)
+	if (bi_end(&b->buf) + delta >= b->buf.data + b->buf.size)
 		return 0;  /* no space left */
 
-	if (buffer_not_empty(b) &&
-	    bi_end(b) + delta > bo_ptr(b) &&
-	    bo_ptr(b) >= bi_end(b))
+	if (buffer_not_empty(&b->buf) &&
+	    bi_end(&b->buf) + delta > bo_ptr(&b->buf) &&
+	    bo_ptr(&b->buf) >= bi_end(&b->buf))
 		return 0;  /* no space left before wrapping data */
 
 	/* first, protect the end of the buffer */
-	memmove(end + delta, end, bi_end(b) - end);
+	memmove(end + delta, end, bi_end(&b->buf) - end);
 
 	/* now, copy str over pos */
 	if (len)
 		memcpy(pos, str, len);
 
-	b->i += delta;
+	b->buf.i += delta;
 
 	b->flags &= ~BF_FULL;
-	if (buffer_len(b) == 0)
-		b->p = b->data;
+	if (buffer_len(&b->buf) == 0)
+		b->buf.p = b->buf.data;
 	if (bi_full(b))
 		b->flags |= BF_FULL;
 
@@ -363,11 +363,11 @@ int buffer_insert_line2(struct channel *b, char *pos, const char *str, int len)
 
 	delta = len + 2;
 
-	if (bi_end(b) + delta >= b->data + b->size)
+	if (bi_end(&b->buf) + delta >= b->buf.data + b->buf.size)
 		return 0;  /* no space left */
 
 	/* first, protect the end of the buffer */
-	memmove(pos + delta, pos, bi_end(b) - pos);
+	memmove(pos + delta, pos, bi_end(&b->buf) - pos);
 
 	/* now, copy str over pos */
 	if (len && str) {
@@ -376,7 +376,7 @@ int buffer_insert_line2(struct channel *b, char *pos, const char *str, int len)
 		pos[len + 1] = '\n';
 	}
 
-	b->i += delta;
+	b->buf.i += delta;
 
 	b->flags &= ~BF_FULL;
 	if (bi_full(b))
@@ -390,7 +390,7 @@ int buffer_insert_line2(struct channel *b, char *pos, const char *str, int len)
  * becomes contiguous and starts at the beginning of the buffer area. The
  * function may only be used when the buffer's output is empty.
  */
-void buffer_slow_realign(struct channel *buf)
+void buffer_slow_realign(struct buffer *buf)
 {
 	/* two possible cases :
 	 *   - the buffer is in one contiguous block, we move it in-place
@@ -420,7 +420,7 @@ void buffer_slow_realign(struct channel *buf)
  * so it's desirable to use it only on non-contiguous buffers. No pointers are
  * changed, the caller is responsible for that.
  */
-void buffer_bounce_realign(struct channel *buf)
+void buffer_bounce_realign(struct buffer *buf)
 {
 	int advance, to_move;
 	char *from, *to;
@@ -584,7 +584,7 @@ int chunk_asciiencode(struct chunk *dst, struct chunk *src, char qc) {
 /*
  * Dumps part or all of a buffer.
  */
-void buffer_dump(FILE *o, struct channel *b, int from, int to)
+void buffer_dump(FILE *o, struct buffer *b, int from, int to)
 {
 	fprintf(o, "Dumping buffer %p\n", b);
 	fprintf(o, "  data=%p o=%d i=%d p=%p\n",

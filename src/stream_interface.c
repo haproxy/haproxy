@@ -614,7 +614,7 @@ void conn_notify_si(struct connection *conn)
 		 */
 		if (((si->ib->flags & (BF_READ_PARTIAL|BF_OUT_EMPTY)) == BF_READ_PARTIAL) &&
 		    (si->ib->pipe /* always try to send spliced data */ ||
-		     (si->ib->i == 0 && (si->ib->cons->flags & SI_FL_WAIT_DATA)))) {
+		     (si->ib->buf.i == 0 && (si->ib->cons->flags & SI_FL_WAIT_DATA)))) {
 			int last_len = si->ib->pipe ? si->ib->pipe->data : 0;
 
 			si_chk_snd(si->ib->cons);

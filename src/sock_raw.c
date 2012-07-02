@@ -88,7 +88,7 @@ static int sock_raw_splice_in(struct channel *b, struct stream_interface *si)
 	if (!(b->flags & BF_KERN_SPLICING))
 		return -1;
 
-	if (buffer_not_empty(b)) {
+	if (buffer_not_empty(&b->buf)) {
 		/* We're embarrassed, there are already data pending in
 		 * the buffer and we don't want to have them at two
 		 * locations at a time. Let's indicate we need some
@@ -273,25 +273,25 @@ static void sock_raw_read(struct connection *conn)
 		/*
 		 * 1. compute the maximum block size we can read at once.
 		 */
-		if (buffer_empty(b)) {
+		if (buffer_empty(&b->buf)) {
 			/* let's realign the buffer to optimize I/O */
-			b->p = b->data;
+			b->buf.p = b->buf.data;
 		}
-		else if (b->data + b->o < b->p &&
-			 b->p + b->i < b->data + b->size) {
+		else if (b->buf.data + b->buf.o < b->buf.p &&
+			 b->buf.p + b->buf.i < b->buf.data + b->buf.size) {
 			/* remaining space wraps at the end, with a moving limit */
-			if (max > b->data + b->size - (b->p + b->i))
-				max = b->data + b->size - (b->p + b->i);
+			if (max > b->buf.data + b->buf.size - (b->buf.p + b->buf.i))
+				max = b->buf.data + b->buf.size - (b->buf.p + b->buf.i);
 		}
 		/* else max is already OK */
 
 		/*
 		 * 2. read the largest possible block
 		 */
-		ret = recv(fd, bi_end(b), max, 0);
+		ret = recv(fd, bi_end(&b->buf), max, 0);
 
 		if (ret > 0) {
-			b->i += ret;
+			b->buf.i += ret;
 			cur_read += ret;
 
 			/* if we're allowed to directly forward data, we must update ->o */
@@ -317,7 +317,7 @@ static void sock_raw_read(struct connection *conn)
 				/* The buffer is now full, there's no point in going through
 				 * the loop again.
 				 */
-				if (!(b->flags & BF_STREAMER_FAST) && (cur_read == buffer_len(b))) {
+				if (!(b->flags & BF_STREAMER_FAST) && (cur_read == buffer_len(&b->buf))) {
 					b->xfer_small = 0;
 					b->xfer_large++;
 					if (b->xfer_large >= 3) {
@@ -329,7 +329,7 @@ static void sock_raw_read(struct connection *conn)
 					}
 				}
 				else if ((b->flags & (BF_STREAMER | BF_STREAMER_FAST)) &&
-					 (cur_read <= b->size / 2)) {
+					 (cur_read <= b->buf.size / 2)) {
 					b->xfer_large = 0;
 					b->xfer_small++;
 					if (b->xfer_small >= 2) {
@@ -359,7 +359,7 @@ static void sock_raw_read(struct connection *conn)
 			 */
 			if (ret < max) {
 				if ((b->flags & (BF_STREAMER | BF_STREAMER_FAST)) &&
-				    (cur_read <= b->size / 2)) {
+				    (cur_read <= b->buf.size / 2)) {
 					b->xfer_large = 0;
 					b->xfer_small++;
 					if (b->xfer_small >= 3) {
@@ -492,7 +492,7 @@ static int sock_raw_write_loop(struct connection *conn)
 	 * in the normal buffer.
 	 */
 #endif
-	if (!b->o) {
+	if (!b->buf.o) {
 		b->flags |= BF_OUT_EMPTY;
 		return 0;
 	}
@@ -501,11 +501,11 @@ static int sock_raw_write_loop(struct connection *conn)
 	 * data left, and that there are sendable buffered data.
 	 */
 	while (1) {
-		max = b->o;
+		max = b->buf.o;
 
 		/* outgoing data may wrap at the end */
-		if (b->data + max > b->p)
-			max = b->data + max - b->p;
+		if (b->buf.data + max > b->buf.p)
+			max = b->buf.data + max - b->buf.p;
 
 		/* check if we want to inform the kernel that we're interested in
 		 * sending more data after this call. We want this if :
@@ -524,8 +524,8 @@ static int sock_raw_write_loop(struct connection *conn)
 			if ((!(b->flags & BF_NEVER_WAIT) &&
 			    ((b->to_forward && b->to_forward != BUF_INFINITE_FORWARD) ||
 			     (b->flags & BF_EXPECT_MORE))) ||
-			    ((b->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK)) == BF_SHUTW_NOW && (max == b->o)) ||
-			    (max != b->o)) {
+			    ((b->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK)) == BF_SHUTW_NOW && (max == b->buf.o)) ||
+			    (max != b->buf.o)) {
 				send_flag |= MSG_MORE;
 			}
 
@@ -533,7 +533,7 @@ static int sock_raw_write_loop(struct connection *conn)
 			if (b->flags & BF_SEND_DONTWAIT)
 				send_flag &= ~MSG_MORE;
 
-			ret = send(si_fd(si), bo_ptr(b), max, send_flag);
+			ret = send(si_fd(si), bo_ptr(&b->buf), max, send_flag);
 		} else {
 			int skerr;
 			socklen_t lskerr = sizeof(skerr);
@@ -542,7 +542,7 @@ static int sock_raw_write_loop(struct connection *conn)
 			if (ret == -1 || skerr)
 				ret = -1;
 			else
-				ret = send(si_fd(si), bo_ptr(b), max, MSG_DONTWAIT);
+				ret = send(si_fd(si), bo_ptr(&b->buf), max, MSG_DONTWAIT);
 		}
 
 		if (ret > 0) {
@@ -553,15 +553,15 @@ static int sock_raw_write_loop(struct connection *conn)
 
 			b->flags |= BF_WRITE_PARTIAL;
 
-			b->o -= ret;
-			if (likely(!buffer_len(b)))
+			b->buf.o -= ret;
+			if (likely(!buffer_len(&b->buf)))
 				/* optimize data alignment in the buffer */
-				b->p = b->data;
+				b->buf.p = b->buf.data;
 
 			if (likely(!bi_full(b)))
 				b->flags &= ~BF_FULL;
 
-			if (!b->o) {
+			if (!b->buf.o) {
 				/* Always clear both flags once everything has been sent, they're one-shot */
 				b->flags &= ~(BF_EXPECT_MORE | BF_SEND_DONTWAIT);
 				if (likely(!b->pipe))

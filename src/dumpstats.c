@@ -1481,7 +1481,7 @@ static void cli_io_handler(struct stream_interface *si)
 			/* ensure we have some output room left in the event we
 			 * would want to return some info right after parsing.
 			 */
-			if (buffer_almost_full(si->ib))
+			if (buffer_almost_full(&si->ib->buf))
 				break;
 
 			reql = bo_getline(si->ob, trash, trashlen);
@@ -1595,7 +1595,7 @@ static void cli_io_handler(struct stream_interface *si)
 			 * buffer is empty. This still allows pipelined requests
 			 * to be sent in non-interactive mode.
 			 */
-			if ((res->flags & (BF_SHUTW|BF_SHUTW_NOW)) || (!si->applet.st1 && !req->o)) {
+			if ((res->flags & (BF_SHUTW|BF_SHUTW_NOW)) || (!si->applet.st1 && !req->buf.o)) {
 				si->applet.st0 = STAT_CLI_END;
 				continue;
 			}
@@ -2197,7 +2197,7 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 	case STAT_ST_LIST:
 		/* dump proxies */
 		while (si->applet.ctx.stats.px) {
-			if (buffer_almost_full(rep))
+			if (buffer_almost_full(&rep->buf))
 				return 0;
 			px = si->applet.ctx.stats.px;
 			/* skip the disabled proxies and non-networked ones */
@@ -2513,7 +2513,7 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 	case STAT_PX_ST_LI:
 		/* stats.l has been initialized above */
 		for (; si->applet.ctx.stats.l != NULL; si->applet.ctx.stats.l = l->next) {
-			if (buffer_almost_full(rep))
+			if (buffer_almost_full(&rep->buf))
 				return 0;
 
 			l = si->applet.ctx.stats.l;
@@ -2651,7 +2651,7 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 		for (; si->applet.ctx.stats.sv != NULL; si->applet.ctx.stats.sv = sv->next) {
 			int sv_state; /* 0=DOWN, 1=going up, 2=going down, 3=UP, 4,5=NOLB, 6=unchecked */
 
-			if (buffer_almost_full(rep))
+			if (buffer_almost_full(&rep->buf))
 				return 0;
 
 			sv = si->applet.ctx.stats.sv;
@@ -3472,7 +3472,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 			     "      an_exp=%s",
 			     sess->req,
 			     sess->req->flags, sess->req->analysers,
-			     sess->req->i, sess->req->o,
+			     sess->req->buf.i, sess->req->buf.o,
 			     sess->req->pipe ? sess->req->pipe->data : 0,
 			     sess->req->to_forward,
 			     sess->req->analyse_exp ?
@@ -3491,8 +3491,8 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 			     sess->req->wex ?
 			     human_time(TICKS_TO_MS(sess->req->wex - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>",
-			     sess->req->data,
-			     (int)(sess->req->p - sess->req->data),
+			     sess->req->buf.data,
+			     (int)(sess->req->buf.p - sess->req->buf.data),
 			     sess->txn.req.next,
 			     sess->req->total);
 
@@ -3501,7 +3501,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 			     "      an_exp=%s",
 			     sess->rep,
 			     sess->rep->flags, sess->rep->analysers,
-			     sess->rep->i, sess->rep->o,
+			     sess->rep->buf.i, sess->rep->buf.o,
 			     sess->rep->pipe ? sess->rep->pipe->data : 0,
 			     sess->rep->to_forward,
 			     sess->rep->analyse_exp ?
@@ -3520,8 +3520,8 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 			     sess->rep->wex ?
 			     human_time(TICKS_TO_MS(sess->rep->wex - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>",
-			     sess->rep->data,
-			     (int)(sess->rep->p - sess->rep->data),
+			     sess->rep->buf.data,
+			     (int)(sess->rep->buf.p - sess->rep->buf.data),
 			     sess->txn.rsp.next,
 			     sess->rep->total);
 
@@ -3642,7 +3642,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 			chunk_printf(&msg,
 				     " rq[f=%06xh,i=%d,an=%02xh,rx=%s",
 				     curr_sess->req->flags,
-				     curr_sess->req->i,
+				     curr_sess->req->buf.i,
 				     curr_sess->req->analysers,
 				     curr_sess->req->rex ?
 				     human_time(TICKS_TO_MS(curr_sess->req->rex - now_ms),
@@ -3663,7 +3663,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 			chunk_printf(&msg,
 				     " rp[f=%06xh,i=%d,an=%02xh,rx=%s",
 				     curr_sess->rep->flags,
-				     curr_sess->rep->i,
+				     curr_sess->rep->buf.i,
 				     curr_sess->rep->analysers,
 				     curr_sess->rep->rex ?
 				     human_time(TICKS_TO_MS(curr_sess->rep->rex - now_ms),

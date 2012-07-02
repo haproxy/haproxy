@@ -257,11 +257,11 @@ struct server *get_server_ph_post(struct session *s)
 	struct proxy    *px   = s->be;
 	unsigned int     plen = px->url_param_len;
 	unsigned long    len  = msg->body_len;
-	const char      *params = b_ptr(req, (int)(msg->sov - req->o));
+	const char      *params = b_ptr(&req->buf, (int)(msg->sov - req->buf.o));
 	const char      *p    = params;
 
-	if (len > buffer_len(req) - msg->sov)
-		len = buffer_len(req) - msg->sov;
+	if (len > buffer_len(&req->buf) - msg->sov)
+		len = buffer_len(&req->buf) - msg->sov;
 
 	if (len == 0)
 		return NULL;
@@ -342,7 +342,7 @@ struct server *get_server_hh(struct session *s)
 	ctx.idx = 0;
 
 	/* if the message is chunked, we skip the chunk size, but use the value as len */
-	http_find_header2(px->hh_name, plen, b_ptr(s->req, -s->req->o), &txn->hdr_idx, &ctx);
+	http_find_header2(px->hh_name, plen, b_ptr(&s->req->buf, s->req->buf.o), &txn->hdr_idx, &ctx);
 
 	/* if the header is not found or empty, let's fallback to round robin */
 	if (!ctx.idx || !ctx.vlen)
@@ -418,7 +418,7 @@ struct server *get_server_rch(struct session *s)
 	args[0].data.str.len = px->hh_len;
 	args[1].type = ARGT_STOP;
 
-	b_rew(s->req, rewind = s->req->o);
+	b_rew(s->req, rewind = s->req->buf.o);
 
 	ret = smp_fetch_rdp_cookie(px, s, NULL, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, args, &smp);
 	len = smp.data.str.len;
@@ -568,7 +568,7 @@ int assign_server(struct session *s)
 				if (s->txn.req.msg_state < HTTP_MSG_BODY)
 					break;
 				srv = get_server_uh(s->be,
-						    b_ptr(s->req, (int)(s->txn.req.sl.rq.u - s->req->o)),
+						    b_ptr(&s->req->buf, (int)(s->txn.req.sl.rq.u - s->req->buf.o)),
 						    s->txn.req.sl.rq.u_l);
 				break;
 
@@ -578,7 +578,7 @@ int assign_server(struct session *s)
 					break;
 
 				srv = get_server_ph(s->be,
-						    b_ptr(s->req, (int)(s->txn.req.sl.rq.u - s->req->o)),
+						    b_ptr(&s->req->buf, (int)(s->txn.req.sl.rq.u - s->req->buf.o)),
 						    s->txn.req.sl.rq.u_l);
 
 				if (!srv && s->txn.meth == HTTP_METH_POST)
@@ -904,7 +904,7 @@ static void assign_tproxy_address(struct session *s)
 				((struct sockaddr_in *)&s->req->cons->addr.from)->sin_port = 0;
 				((struct sockaddr_in *)&s->req->cons->addr.from)->sin_addr.s_addr = 0;
 
-				b_rew(s->req, rewind = s->req->o);
+				b_rew(s->req, rewind = s->req->buf.o);
 				if (http_get_hdr(&s->txn.req, srv->bind_hdr_name, srv->bind_hdr_len,
 						 &s->txn.hdr_idx, srv->bind_hdr_occ, NULL, &vptr, &vlen)) {
 					((struct sockaddr_in *)&s->req->cons->addr.from)->sin_addr.s_addr =
@@ -938,7 +938,7 @@ static void assign_tproxy_address(struct session *s)
 				((struct sockaddr_in *)&s->req->cons->addr.from)->sin_port = 0;
 				((struct sockaddr_in *)&s->req->cons->addr.from)->sin_addr.s_addr = 0;
 
-				b_rew(s->req, rewind = s->req->o);
+				b_rew(s->req, rewind = s->req->buf.o);
 				if (http_get_hdr(&s->txn.req, s->be->bind_hdr_name, s->be->bind_hdr_len,
 						 &s->txn.hdr_idx, s->be->bind_hdr_occ, NULL, &vptr, &vlen)) {
 					((struct sockaddr_in *)&s->req->cons->addr.from)->sin_addr.s_addr =
