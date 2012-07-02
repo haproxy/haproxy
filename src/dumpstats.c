@@ -1456,8 +1456,8 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
  */
 static void cli_io_handler(struct stream_interface *si)
 {
-	struct buffer *req = si->ob;
-	struct buffer *res = si->ib;
+	struct channel *req = si->ob;
+	struct channel *res = si->ib;
 	int reql;
 	int len;
 
@@ -1816,8 +1816,8 @@ static int stats_http_redir(struct stream_interface *si, struct uri_auth *uri)
 static void http_stats_io_handler(struct stream_interface *si)
 {
 	struct session *s = si->conn.data_ctx;
-	struct buffer *req = si->ob;
-	struct buffer *res = si->ib;
+	struct channel *req = si->ob;
+	struct channel *res = si->ib;
 
 	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO))
 		goto out;
@@ -1872,7 +1872,7 @@ static void http_stats_io_handler(struct stream_interface *si)
 static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 {
 	struct session *s = si->conn.data_ctx;
-	struct buffer *rep = si->ib;
+	struct channel *rep = si->ib;
 	struct proxy *px;
 	struct chunk msg;
 	unsigned int up;
@@ -2242,7 +2242,7 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_auth *uri)
 {
 	struct session *s = si->conn.data_ctx;
-	struct buffer *rep = si->ib;
+	struct channel *rep = si->ib;
 	struct server *sv, *svs;	/* server and server-state, server-state=server or server->track */
 	struct listener *l;
 	struct chunk msg;

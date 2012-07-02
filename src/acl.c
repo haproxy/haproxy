@@ -120,7 +120,7 @@ acl_fetch_ssl_hello_type(struct proxy *px, struct session *l4, void *l7, unsigne
 {
 	int hs_len;
 	int hs_type, bleft;
-	struct buffer *b;
+	struct channel *b;
 	const unsigned char *data;
 
 	if (!l4)
@@ -324,7 +324,7 @@ acl_fetch_ssl_hello_sni(struct proxy *px, struct session *l4, void *l7, unsigned
                         const struct arg *args, struct sample *smp)
 {
 	int hs_len, ext_len, bleft;
-	struct buffer *b;
+	struct channel *b;
 	unsigned char *data;
 
 	if (!l4)

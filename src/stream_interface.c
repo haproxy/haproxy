@@ -354,7 +354,7 @@ int stream_int_shutw(struct stream_interface *si)
 /* default chk_rcv function for scheduled tasks */
 static void stream_int_chk_rcv(struct stream_interface *si)
 {
-	struct buffer *ib = si->ib;
+	struct channel *ib = si->ib;
 
 	DPRINTF(stderr, "%s: si=%p, si->state=%d ib->flags=%08x ob->flags=%08x\n",
 		__FUNCTION__,
@@ -379,7 +379,7 @@ static void stream_int_chk_rcv(struct stream_interface *si)
 /* default chk_snd function for scheduled tasks */
 static void stream_int_chk_snd(struct stream_interface *si)
 {
-	struct buffer *ob = si->ob;
+	struct channel *ob = si->ob;
 
 	DPRINTF(stderr, "%s: si=%p, si->state=%d ib->flags=%08x ob->flags=%08x\n",
 		__FUNCTION__,
@@ -482,7 +482,7 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 {
 	int fd = conn->t.sock.fd;
 	struct stream_interface *si = container_of(conn, struct stream_interface, conn);
-	struct buffer *b = si->ob;
+	struct channel *b = si->ob;
 
 	/* we might have been called just after an asynchronous shutw */
 	if (b->flags & BF_SHUTW)
@@ -664,8 +664,8 @@ void conn_notify_si(struct connection *conn)
  */
 void stream_int_update_conn(struct stream_interface *si)
 {
-	struct buffer *ib = si->ib;
-	struct buffer *ob = si->ob;
+	struct channel *ib = si->ib;
+	struct channel *ob = si->ob;
 
 	if (si->conn.flags & CO_FL_HANDSHAKE) {
 		/* a handshake is in progress */
@@ -742,7 +742,7 @@ void stream_int_update_conn(struct stream_interface *si)
  */
 void stream_int_chk_rcv_conn(struct stream_interface *si)
 {
-	struct buffer *ib = si->ib;
+	struct channel *ib = si->ib;
 
 	if (unlikely(si->state != SI_ST_EST || (ib->flags & BF_SHUTR)))
 		return;
@@ -773,7 +773,7 @@ void stream_int_chk_rcv_conn(struct stream_interface *si)
  */
 void stream_int_chk_snd_conn(struct stream_interface *si)
 {
-	struct buffer *ob = si->ob;
+	struct channel *ob = si->ob;
 
 	if (unlikely(si->state != SI_ST_EST || (ob->flags & BF_SHUTW)))
 		return;
@@ -872,7 +872,7 @@ void stream_int_chk_snd_conn(struct stream_interface *si)
 void si_conn_send_cb(struct connection *conn)
 {
 	struct stream_interface *si = container_of(conn, struct stream_interface, conn);
-	struct buffer *b = si->ob;
+	struct channel *b = si->ob;
 
 	if (conn->flags & CO_FL_ERROR)
 		goto out_error;

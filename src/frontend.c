@@ -251,7 +251,7 @@ int frontend_accept(struct session *s)
  * are removed from the buffer. The function returns zero if it needs to wait
  * for more data (max: timeout_client), or 1 if it has finished and removed itself.
  */
-int frontend_decode_proxy_request(struct session *s, struct buffer *req, int an_bit)
+int frontend_decode_proxy_request(struct session *s, struct channel *req, int an_bit)
 {
 	char *line = req->data;
 	char *end = req->data + req->i;

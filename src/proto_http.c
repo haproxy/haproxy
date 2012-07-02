@@ -1290,7 +1290,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 {
 	unsigned int state;       /* updated only when leaving the FSM */
 	register char *ptr, *end; /* request pointers, to avoid dereferences */
-	struct buffer *buf = msg->buf;
+	struct channel *buf = msg->buf;
 
 	state = msg->msg_state;
 	ptr = buf->p + msg->next;
@@ -1747,7 +1747,7 @@ void http_change_connection_header(struct http_txn *txn, struct http_msg *msg, i
  */
 int http_parse_chunk_size(struct http_msg *msg)
 {
-	const struct buffer *buf = msg->buf;
+	const struct channel *buf = msg->buf;
 	const char *ptr = b_ptr(buf, msg->next);
 	const char *ptr_old = ptr;
 	const char *end = buf->data + buf->size;
@@ -1855,7 +1855,7 @@ int http_parse_chunk_size(struct http_msg *msg)
  */
 int http_forward_trailers(struct http_msg *msg)
 {
-	const struct buffer *buf = msg->buf;
+	const struct channel *buf = msg->buf;
 
 	/* we have msg->next which points to next line. Look for CRLF. */
 	while (1) {
@@ -1929,7 +1929,7 @@ int http_forward_trailers(struct http_msg *msg)
  */
 int http_skip_chunk_crlf(struct http_msg *msg)
 {
-	const struct buffer *buf = msg->buf;
+	const struct channel *buf = msg->buf;
 	const char *ptr;
 	int bytes;
 
@@ -1971,7 +1971,7 @@ int http_skip_chunk_crlf(struct http_msg *msg)
  * when it has nothing left to do, and may remove any analyser when it wants to
  * abort.
  */
-int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
+int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 {
 	/*
 	 * We will parse the partial (or complete) lines.
@@ -2519,7 +2519,7 @@ int http_wait_for_request(struct session *s, struct buffer *req, int an_bit)
  * Parse the posted data and enable/disable servers if necessary.
  * Returns 1 if request was parsed or zero if it needs more data.
  */
-int http_process_req_stat_post(struct stream_interface *si, struct http_txn *txn, struct buffer *req)
+int http_process_req_stat_post(struct stream_interface *si, struct http_txn *txn, struct channel *req)
 {
 	struct proxy *px = NULL;
 	struct server *sv = NULL;
@@ -2772,7 +2772,7 @@ http_check_access_rule(struct proxy *px, struct list *rules, struct session *s, 
  * either needs more data or wants to immediately abort the request (eg: deny,
  * error, ...).
  */
-int http_process_req_common(struct session *s, struct buffer *req, int an_bit, struct proxy *px)
+int http_process_req_common(struct session *s, struct channel *req, int an_bit, struct proxy *px)
 {
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->req;
@@ -3237,7 +3237,7 @@ int http_process_req_common(struct session *s, struct buffer *req, int an_bit, s
  * needs more data, encounters an error, or wants to immediately abort the
  * request. It relies on buffers flags, and updates s->req->analysers.
  */
-int http_process_request(struct session *s, struct buffer *req, int an_bit)
+int http_process_request(struct session *s, struct channel *req, int an_bit)
 {
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->req;
@@ -3517,7 +3517,7 @@ int http_process_request(struct session *s, struct buffer *req, int an_bit)
  * returns zero, at the beginning because it prevents any other processing
  * from occurring, and at the end because it terminates the request.
  */
-int http_process_tarpit(struct session *s, struct buffer *req, int an_bit)
+int http_process_tarpit(struct session *s, struct channel *req, int an_bit)
 {
 	struct http_txn *txn = &s->txn;
 
@@ -3563,7 +3563,7 @@ int http_process_tarpit(struct session *s, struct buffer *req, int an_bit)
  * because it expects the request to be parsed. It returns zero if it needs to
  * read more data, or 1 once it has completed its analysis.
  */
-int http_process_request_body(struct session *s, struct buffer *req, int an_bit)
+int http_process_request_body(struct session *s, struct channel *req, int an_bit)
 {
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &s->txn.req;
@@ -3702,7 +3702,7 @@ int http_send_name_header(struct http_txn *txn, struct proxy* be, const char* sr
 
 	char *hdr_name = be->server_id_hdr_name;
 	int hdr_name_len = be->server_id_hdr_len;
-	struct buffer *req = txn->req.buf;
+	struct channel *req = txn->req.buf;
 	char *hdr_val;
 	unsigned int old_o, old_i;
 
@@ -3881,7 +3881,7 @@ void http_end_txn_clean_session(struct session *s)
  */
 int http_sync_req_state(struct session *s)
 {
-	struct buffer *buf = s->req;
+	struct channel *buf = s->req;
 	struct http_txn *txn = &s->txn;
 	unsigned int old_flags = buf->flags;
 	unsigned int old_state = txn->req.msg_state;
@@ -4002,7 +4002,7 @@ int http_sync_req_state(struct session *s)
  */
 int http_sync_res_state(struct session *s)
 {
-	struct buffer *buf = s->rep;
+	struct channel *buf = s->rep;
 	struct http_txn *txn = &s->txn;
 	unsigned int old_flags = buf->flags;
 	unsigned int old_state = txn->rsp.msg_state;
@@ -4202,7 +4202,7 @@ int http_resync_states(struct session *s)
  * bytes of pending data + the headers if not already done (between sol and sov).
  * It eventually adjusts sol to match sov after the data in between have been sent.
  */
-int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
+int http_request_forward_body(struct session *s, struct channel *req, int an_bit)
 {
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &s->txn.req;
@@ -4468,7 +4468,7 @@ int http_request_forward_body(struct session *s, struct buffer *req, int an_bit)
  * when it has nothing left to do, and may remove any analyser when it wants to
  * abort.
  */
-int http_wait_for_response(struct session *s, struct buffer *rep, int an_bit)
+int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 {
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->rsp;
@@ -4897,7 +4897,7 @@ skip_content_length:
  * and updates t->rep->analysers. It might make sense to explode it into several
  * other functions. It works like process_request (see indications above).
  */
-int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, struct proxy *px)
+int http_process_res_common(struct session *t, struct channel *rep, int an_bit, struct proxy *px)
 {
 	struct http_txn *txn = &t->txn;
 	struct http_msg *msg = &txn->rsp;
@@ -5269,7 +5269,7 @@ int http_process_res_common(struct session *t, struct buffer *rep, int an_bit, s
  * bytes of pending data + the headers if not already done (between sol and sov).
  * It eventually adjusts sol to match sov after the data in between have been sent.
  */
-int http_response_forward_body(struct session *s, struct buffer *res, int an_bit)
+int http_response_forward_body(struct session *s, struct channel *res, int an_bit)
 {
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &s->txn.rsp;
@@ -5498,7 +5498,7 @@ int http_response_forward_body(struct session *s, struct buffer *res, int an_bit
  * Since it can manage the switch to another backend, it updates the per-proxy
  * DENY stats.
  */
-int apply_filter_to_req_headers(struct session *t, struct buffer *req, struct hdr_exp *exp)
+int apply_filter_to_req_headers(struct session *t, struct channel *req, struct hdr_exp *exp)
 {
 	char term;
 	char *cur_ptr, *cur_end, *cur_next;
@@ -5632,7 +5632,7 @@ int apply_filter_to_req_headers(struct session *t, struct buffer *req, struct hd
  * Since it can manage the switch to another backend, it updates the per-proxy
  * DENY stats.
  */
-int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_exp *exp)
+int apply_filter_to_req_line(struct session *t, struct channel *req, struct hdr_exp *exp)
 {
 	char term;
 	char *cur_ptr, *cur_end;
@@ -5749,7 +5749,7 @@ int apply_filter_to_req_line(struct session *t, struct buffer *req, struct hdr_e
  * unparsable request. Since it can manage the switch to another backend, it
  * updates the per-proxy DENY stats.
  */
-int apply_filters_to_request(struct session *s, struct buffer *req, struct proxy *px)
+int apply_filters_to_request(struct session *s, struct channel *req, struct proxy *px)
 {
 	struct http_txn *txn = &s->txn;
 	struct hdr_exp *exp;
@@ -5914,7 +5914,7 @@ char *find_cookie_value_end(char *s, const char *e)
  *   - there are non-space chars before <from> ;
  *   - there is a CR/LF at or after <next>.
  */
-int del_hdr_value(struct buffer *buf, char **from, char *next)
+int del_hdr_value(struct channel *buf, char **from, char *next)
 {
 	char *prev = *from;
 
@@ -5956,7 +5956,7 @@ int del_hdr_value(struct buffer *buf, char **from, char *next)
  * of the multiple very crappy and ambiguous syntaxes we have to support. it
  * highly recommended not to touch this part without a good reason !
  */
-void manage_client_side_cookies(struct session *t, struct buffer *req)
+void manage_client_side_cookies(struct session *t, struct channel *req)
 {
 	struct http_txn *txn = &t->txn;
 	int preserve_hdr;
@@ -6405,7 +6405,7 @@ void manage_client_side_cookies(struct session *t, struct buffer *req)
 /* Iterate the same filter through all response headers contained in <rtr>.
  * Returns 1 if this filter can be stopped upon return, otherwise 0.
  */
-int apply_filter_to_resp_headers(struct session *t, struct buffer *rtr, struct hdr_exp *exp)
+int apply_filter_to_resp_headers(struct session *t, struct channel *rtr, struct hdr_exp *exp)
 {
 	char term;
 	char *cur_ptr, *cur_end, *cur_next;
@@ -6504,7 +6504,7 @@ int apply_filter_to_resp_headers(struct session *t, struct buffer *rtr, struct h
  * Returns 0 if nothing has been done, 1 if the filter has been applied,
  * or -1 if a replacement resulted in an invalid status line.
  */
-int apply_filter_to_sts_line(struct session *t, struct buffer *rtr, struct hdr_exp *exp)
+int apply_filter_to_sts_line(struct session *t, struct channel *rtr, struct hdr_exp *exp)
 {
 	char term;
 	char *cur_ptr, *cur_end;
@@ -6587,7 +6587,7 @@ int apply_filter_to_sts_line(struct session *t, struct buffer *rtr, struct hdr_e
  * Returns 0 if everything is alright, or -1 in case a replacement lead to an
  * unparsable response.
  */
-int apply_filters_to_response(struct session *s, struct buffer *rtr, struct proxy *px)
+int apply_filters_to_response(struct session *s, struct channel *rtr, struct proxy *px)
 {
 	struct http_txn *txn = &s->txn;
 	struct hdr_exp *exp;
@@ -6644,7 +6644,7 @@ int apply_filters_to_response(struct session *s, struct buffer *rtr, struct prox
  * desirable to call it only when needed. This function is also used when we
  * just need to know if there is a cookie (eg: for check-cache).
  */
-void manage_server_side_cookies(struct session *t, struct buffer *res)
+void manage_server_side_cookies(struct session *t, struct channel *res)
 {
 	struct http_txn *txn = &t->txn;
 	struct server *srv;
@@ -7007,7 +7007,7 @@ void manage_server_side_cookies(struct session *t, struct buffer *res)
 /*
  * Check if response is cacheable or not. Updates t->flags.
  */
-void check_response_for_cacheability(struct session *t, struct buffer *rtr)
+void check_response_for_cacheability(struct session *t, struct channel *rtr)
 {
 	struct http_txn *txn = &t->txn;
 	char *p1, *p2;
@@ -7258,7 +7258,7 @@ void http_capture_bad_message(struct error_snapshot *es, struct session *s,
                               struct http_msg *msg,
 			      int state, struct proxy *other_end)
 {
-	struct buffer *buf = msg->buf;
+	struct channel *buf = msg->buf;
 	int len1, len2;
 
 	es->len = MIN(buf->i, sizeof(es->buf));

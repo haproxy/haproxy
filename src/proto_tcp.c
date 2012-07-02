@@ -785,7 +785,7 @@ void tcpv6_add_listener(struct listener *listener)
  * function may be called for frontend rules and backend rules. It only relies
  * on the backend pointer so this works for both cases.
  */
-int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit)
+int tcp_inspect_request(struct session *s, struct channel *req, int an_bit)
 {
 	struct tcp_rule *rule;
 	struct stksess *ts;
@@ -905,7 +905,7 @@ int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit)
  * response. It relies on buffers flags, and updates s->rep->analysers. The
  * function may be called for backend rules.
  */
-int tcp_inspect_response(struct session *s, struct buffer *rep, int an_bit)
+int tcp_inspect_response(struct session *s, struct channel *rep, int an_bit)
 {
 	struct tcp_rule *rule;
 	int partial;
@@ -1583,7 +1583,7 @@ smp_fetch_payload_lv(struct proxy *px, struct session *l4, void *l7, unsigned in
 	unsigned int len_size = arg_p[1].data.uint;
 	unsigned int buf_offset;
 	unsigned int buf_size = 0;
-	struct buffer *b;
+	struct channel *b;
 	int i;
 
 	/* Format is (len offset, len size, buf offset) or (len offset, len size) */
@@ -1638,7 +1638,7 @@ smp_fetch_payload(struct proxy *px, struct session *l4, void *l7, unsigned int o
 {
 	unsigned int buf_offset = arg_p[0].data.uint;
 	unsigned int buf_size = arg_p[1].data.uint;
-	struct buffer *b;
+	struct channel *b;
 
 	if (!l4)
 		return 0;

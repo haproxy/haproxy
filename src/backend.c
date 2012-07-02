@@ -252,7 +252,7 @@ struct server *get_server_ph_post(struct session *s)
 {
 	unsigned long    hash = 0;
 	struct http_txn *txn  = &s->txn;
-	struct buffer   *req  = s->req;
+	struct channel   *req = s->req;
 	struct http_msg *msg  = &txn->req;
 	struct proxy    *px   = s->be;
 	unsigned int     plen = px->url_param_len;
@@ -1122,7 +1122,7 @@ int srv_redispatch_connect(struct session *t)
  * session. This always returns 1, and the analyser removes itself from the
  * list. Nothing is performed if a server was already assigned.
  */
-int tcp_persist_rdp_cookie(struct session *s, struct buffer *req, int an_bit)
+int tcp_persist_rdp_cookie(struct session *s, struct channel *req, int an_bit)
 {
 	struct proxy    *px   = s->be;
 	int              ret;

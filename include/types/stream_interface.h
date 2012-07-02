@@ -136,7 +136,7 @@ struct stream_interface {
 	unsigned int state;     /* SI_ST* */
 	unsigned int prev_state;/* SI_ST*, copy of previous state */
 	unsigned int flags;     /* SI_FL_* */
-	struct buffer *ib, *ob; /* input and output buffers */
+	struct channel *ib, *ob; /* input and output buffers */
 	unsigned int exp;       /* wake up time for connect, queue, turn-around, ... */
 	void *owner;            /* generally a (struct task*) */
 	unsigned int err_type;  /* first error detected, one of SI_ET_* */

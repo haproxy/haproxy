@@ -169,8 +169,8 @@ struct session {
 	struct proxy *be;			/* the proxy this session depends on for the server side */
 	int flags;				/* some flags describing the session */
 	unsigned term_trace;			/* term trace: 4*8 bits indicating which part of the code closed */
-	struct buffer *req;			/* request buffer */
-	struct buffer *rep;			/* response buffer */
+	struct channel *req;			/* request buffer */
+	struct channel *rep;			/* response buffer */
 	struct stream_interface si[2];          /* client and server stream interfaces */
 	struct server *srv_conn;		/* session already has a slot on a server and is not in queue */
 	struct target target;			/* target to use for this session */

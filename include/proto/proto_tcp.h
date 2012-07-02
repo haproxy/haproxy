@@ -34,8 +34,8 @@ int tcp_connect_server(struct stream_interface *si);
 int tcp_connect_probe(struct connection *conn);
 int tcp_get_src(int fd, struct sockaddr *sa, socklen_t salen, int dir);
 int tcp_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir);
-int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit);
-int tcp_inspect_response(struct session *s, struct buffer *rep, int an_bit);
+int tcp_inspect_request(struct session *s, struct channel *req, int an_bit);
+int tcp_inspect_response(struct session *s, struct channel *rep, int an_bit);
 int tcp_exec_req_rules(struct session *s);
 int smp_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, unsigned int opt, const struct arg *args, struct sample *smp);
 

@@ -27,7 +27,7 @@
 #include <types/stream_interface.h>
 
 /* The BF_* macros designate Buffer Flags, which may be ORed in the bit field
- * member 'flags' in struct buffer. Here we have several types of flags :
+ * member 'flags' in struct channel. Here we have several types of flags :
  *
  *   - pure status flags, reported by the lower layer, which must be cleared
  *     before doing further I/O :
@@ -174,7 +174,7 @@ struct chunk {
 /* needed for a declaration below */
 struct session;
 
-struct buffer {
+struct channel {
 	unsigned int flags;             /* BF_* */
 	int rex;                        /* expiration date for a read, in ticks */
 	int wex;                        /* expiration date for a write or connect, in ticks */
@@ -187,7 +187,7 @@ struct buffer {
 	unsigned int to_forward;        /* number of bytes to forward after out without a wake-up */
 	unsigned int analysers;         /* bit field indicating what to do on the buffer */
 	int analyse_exp;                /* expiration date for current analysers (if set) */
-	void (*hijacker)(struct session *, struct buffer *); /* alternative content producer */
+	void (*hijacker)(struct session *, struct channel *); /* alternative content producer */
 	unsigned char xfer_large;       /* number of consecutive large xfers */
 	unsigned char xfer_small;       /* number of consecutive small xfers */
 	unsigned long long total;       /* total data read */

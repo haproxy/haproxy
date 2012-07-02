@@ -533,8 +533,8 @@ void session_process_counters(struct session *s)
  */
 static int sess_update_st_con_tcp(struct session *s, struct stream_interface *si)
 {
-	struct buffer *req = si->ob;
-	struct buffer *rep = si->ib;
+	struct channel *req = si->ob;
+	struct channel *rep = si->ib;
 
 	/* If we got an error, or if nothing happened and the connection timed
 	 * out, we must give up. The CER state handler will take care of retry
@@ -683,8 +683,8 @@ static int sess_update_st_cer(struct session *s, struct stream_interface *si)
  */
 static void sess_establish(struct session *s, struct stream_interface *si)
 {
-	struct buffer *req = si->ob;
-	struct buffer *rep = si->ib;
+	struct channel *req = si->ob;
+	struct channel *rep = si->ib;
 
 	if (target_srv(&s->target))
 		health_adjust(target_srv(&s->target), HANA_STATUS_L4_OK);
@@ -954,7 +954,7 @@ static void sess_prepare_conn_req(struct session *s, struct stream_interface *si
  * It returns 1 if the processing can continue on next analysers, or zero if it
  * either needs more data or wants to immediately abort the request.
  */
-static int process_switching_rules(struct session *s, struct buffer *req, int an_bit)
+static int process_switching_rules(struct session *s, struct channel *req, int an_bit)
 {
 	struct persist_rule *prst_rule;
 
@@ -1051,7 +1051,7 @@ static int process_switching_rules(struct session *s, struct buffer *req, int an
  * it then returns 1. The data must already be present in the buffer otherwise
  * they won't match. It always returns 1.
  */
-static int process_server_rules(struct session *s, struct buffer *req, int an_bit)
+static int process_server_rules(struct session *s, struct channel *req, int an_bit)
 {
 	struct proxy *px = s->be;
 	struct server_rule *rule;
@@ -1100,7 +1100,7 @@ static int process_server_rules(struct session *s, struct buffer *req, int an_bi
  * it then returns 1. The data must already be present in the buffer otherwise
  * they won't match. It always returns 1.
  */
-static int process_sticking_rules(struct session *s, struct buffer *req, int an_bit)
+static int process_sticking_rules(struct session *s, struct channel *req, int an_bit)
 {
 	struct proxy    *px   = s->be;
 	struct sticking_rule  *rule;
@@ -1189,7 +1189,7 @@ static int process_sticking_rules(struct session *s, struct buffer *req, int an_
  * then returns 1. The data must already be present in the buffer otherwise
  * they won't match. It always returns 1.
  */
-static int process_store_rules(struct session *s, struct buffer *rep, int an_bit)
+static int process_store_rules(struct session *s, struct channel *rep, int an_bit)
 {
 	struct proxy    *px   = s->be;
 	struct sticking_rule  *rule;

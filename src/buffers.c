@@ -26,7 +26,7 @@ struct pool_head *pool2_buffer;
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_buffer()
 {
-	pool2_buffer = create_pool("buffer", sizeof(struct buffer) + global.tune.bufsize, MEM_F_SHARED);
+	pool2_buffer = create_pool("buffer", sizeof(struct channel) + global.tune.bufsize, MEM_F_SHARED);
 	return pool2_buffer != NULL;
 }
 
@@ -38,7 +38,7 @@ int init_buffer()
  * Directly touching ->to_forward will cause lockups when ->o goes down to
  * zero if nobody is ready to push the remaining data.
  */
-unsigned long long buffer_forward(struct buffer *buf, unsigned long long bytes)
+unsigned long long buffer_forward(struct channel *buf, unsigned long long bytes)
 {
 	unsigned int new_forward;
 	unsigned int forwarded;
@@ -96,7 +96,7 @@ unsigned long long buffer_forward(struct buffer *buf, unsigned long long bytes)
  * Note: this function appends data to the buffer's output and possibly overwrites
  * any pending input data which are assumed not to exist.
  */
-int bo_inject(struct buffer *buf, const char *msg, int len)
+int bo_inject(struct channel *buf, const char *msg, int len)
 {
 	int max;
 
@@ -136,7 +136,7 @@ int bo_inject(struct buffer *buf, const char *msg, int len)
  * flags FULL, EMPTY and READ_PARTIAL are updated if some data can be
  * transferred.
  */
-int bi_putchr(struct buffer *buf, char c)
+int bi_putchr(struct channel *buf, char c)
 {
 	if (unlikely(buffer_input_closed(buf)))
 		return -2;
@@ -169,7 +169,7 @@ int bi_putchr(struct buffer *buf, char c)
  * Buffer flags FULL, EMPTY and READ_PARTIAL are updated if some data can be
  * transferred.
  */
-int bi_putblk(struct buffer *buf, const char *blk, int len)
+int bi_putblk(struct channel *buf, const char *blk, int len)
 {
 	int max;
 
@@ -228,7 +228,7 @@ int bi_putblk(struct buffer *buf, const char *blk, int len)
  * output are full. If either of them is full, the string may be returned
  * as is, without the '\n'.
  */
-int bo_getline(struct buffer *buf, char *str, int len)
+int bo_getline(struct channel *buf, char *str, int len)
 {
 	int ret, max;
 	char *p;
@@ -276,7 +276,7 @@ int bo_getline(struct buffer *buf, char *str, int len)
  * The buffer status is not changed. The caller must call bo_skip() to
  * update it.
  */
-int bo_getblk(struct buffer *buf, char *blk, int len, int offset)
+int bo_getblk(struct channel *buf, char *blk, int len, int offset)
 {
 	int firstblock;
 
@@ -315,7 +315,7 @@ int bo_getblk(struct buffer *buf, char *blk, int len, int offset)
  * <orig> is not updated. The string length is taken from parameter <len>. If
  * <len> is null, the <str> pointer is allowed to be null.
  */
-int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int len)
+int buffer_replace2(struct channel *b, char *pos, char *end, const char *str, int len)
 {
 	int delta;
 
@@ -357,7 +357,7 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int
  *
  * The number of bytes added is returned on success. 0 is returned on failure.
  */
-int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len)
+int buffer_insert_line2(struct channel *b, char *pos, const char *str, int len)
 {
 	int delta;
 
@@ -390,7 +390,7 @@ int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len)
  * becomes contiguous and starts at the beginning of the buffer area. The
  * function may only be used when the buffer's output is empty.
  */
-void buffer_slow_realign(struct buffer *buf)
+void buffer_slow_realign(struct channel *buf)
 {
 	/* two possible cases :
 	 *   - the buffer is in one contiguous block, we move it in-place
@@ -420,7 +420,7 @@ void buffer_slow_realign(struct buffer *buf)
  * so it's desirable to use it only on non-contiguous buffers. No pointers are
  * changed, the caller is responsible for that.
  */
-void buffer_bounce_realign(struct buffer *buf)
+void buffer_bounce_realign(struct channel *buf)
 {
 	int advance, to_move;
 	char *from, *to;
@@ -584,7 +584,7 @@ int chunk_asciiencode(struct chunk *dst, struct chunk *src, char qc) {
 /*
  * Dumps part or all of a buffer.
  */
-void buffer_dump(FILE *o, struct buffer *b, int from, int to)
+void buffer_dump(FILE *o, struct channel *b, int from, int to)
 {
 	fprintf(o, "Dumping buffer %p\n", b);
 	fprintf(o, "  data=%p o=%d i=%d p=%p\n",

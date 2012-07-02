@@ -305,7 +305,7 @@ enum {
 struct http_msg {
 	unsigned int msg_state;                /* where we are in the current message parsing */
 	unsigned int flags;                    /* flags describing the message (HTTP version, ...) */
-	struct buffer *buf;                    /* pointer to the buffer which holds the message */
+	struct channel *buf;                   /* pointer to the buffer which holds the message */
 	unsigned int next;                     /* pointer to next byte to parse, relative to buf->p */
 	unsigned int sov;                      /* current header: start of value */
 	unsigned int eoh;                      /* End Of Headers, relative to buffer */

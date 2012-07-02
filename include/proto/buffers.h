@@ -40,20 +40,20 @@ extern struct pool_head *pool2_buffer;
 int init_buffer();
 
 /* SI-to-buffer functions : buffer_{get,put}_{char,block,string,chunk} */
-int bo_inject(struct buffer *buf, const char *msg, int len);
-int bi_putblk(struct buffer *buf, const char *str, int len);
-int bi_putchr(struct buffer *buf, char c);
-int bo_getline(struct buffer *buf, char *str, int len);
-int bo_getblk(struct buffer *buf, char *blk, int len, int offset);
-int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int len);
-int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len);
-void buffer_dump(FILE *o, struct buffer *b, int from, int to);
-void buffer_slow_realign(struct buffer *buf);
-void buffer_bounce_realign(struct buffer *buf);
-unsigned long long buffer_forward(struct buffer *buf, unsigned long long bytes);
+int bo_inject(struct channel *buf, const char *msg, int len);
+int bi_putblk(struct channel *buf, const char *str, int len);
+int bi_putchr(struct channel *buf, char c);
+int bo_getline(struct channel *buf, char *str, int len);
+int bo_getblk(struct channel *buf, char *blk, int len, int offset);
+int buffer_replace2(struct channel *b, char *pos, char *end, const char *str, int len);
+int buffer_insert_line2(struct channel *b, char *pos, const char *str, int len);
+void buffer_dump(FILE *o, struct channel *b, int from, int to);
+void buffer_slow_realign(struct channel *buf);
+void buffer_bounce_realign(struct channel *buf);
+unsigned long long buffer_forward(struct channel *buf, unsigned long long bytes);
 
 /* Initialize all fields in the buffer. The BF_OUT_EMPTY flags is set. */
-static inline void buffer_init(struct buffer *buf)
+static inline void buffer_init(struct channel *buf)
 {
 	buf->o = 0;
 	buf->i = 0;
@@ -86,7 +86,7 @@ static inline void buffer_init(struct buffer *buf)
 	})
 
 /* Returns the start of the input data in a buffer */
-static inline char *bi_ptr(const struct buffer *b)
+static inline char *bi_ptr(const struct channel *b)
 {
 	return b->p;
 }
@@ -94,7 +94,7 @@ static inline char *bi_ptr(const struct buffer *b)
 /* Returns the end of the input data in a buffer (pointer to next
  * insertion point).
  */
-static inline char *bi_end(const struct buffer *b)
+static inline char *bi_end(const struct channel *b)
 {
 	char *ret = b->p + b->i;
 
@@ -104,7 +104,7 @@ static inline char *bi_end(const struct buffer *b)
 }
 
 /* Returns the amount of input data that can contiguously be read at once */
-static inline int bi_contig_data(const struct buffer *b)
+static inline int bi_contig_data(const struct channel *b)
 {
 	int data = b->data + b->size - b->p;
 
@@ -114,7 +114,7 @@ static inline int bi_contig_data(const struct buffer *b)
 }
 
 /* Returns the start of the output data in a buffer */
-static inline char *bo_ptr(const struct buffer *b)
+static inline char *bo_ptr(const struct channel *b)
 {
 	char *ret = b->p - b->o;
 
@@ -124,13 +124,13 @@ static inline char *bo_ptr(const struct buffer *b)
 }
 
 /* Returns the end of the output data in a buffer */
-static inline char *bo_end(const struct buffer *b)
+static inline char *bo_end(const struct channel *b)
 {
 	return b->p;
 }
 
 /* Returns the amount of output data that can contiguously be read at once */
-static inline int bo_contig_data(const struct buffer *b)
+static inline int bo_contig_data(const struct channel *b)
 {
 	char *beg = b->p - b->o;
 
@@ -140,25 +140,25 @@ static inline int bo_contig_data(const struct buffer *b)
 }
 
 /* Return the buffer's length in bytes by summing the input and the output */
-static inline int buffer_len(const struct buffer *buf)
+static inline int buffer_len(const struct channel *buf)
 {
 	return buf->i + buf->o;
 }
 
 /* Return non-zero only if the buffer is not empty */
-static inline int buffer_not_empty(const struct buffer *buf)
+static inline int buffer_not_empty(const struct channel *buf)
 {
 	return buf->i | buf->o;
 }
 
 /* Return non-zero only if the buffer is empty */
-static inline int buffer_empty(const struct buffer *buf)
+static inline int buffer_empty(const struct channel *buf)
 {
 	return !buffer_not_empty(buf);
 }
 
 /* Normalizes a pointer after a subtract */
-static inline char *buffer_wrap_sub(const struct buffer *buf, char *ptr)
+static inline char *buffer_wrap_sub(const struct channel *buf, char *ptr)
 {
 	if (ptr < buf->data)
 		ptr += buf->size;
@@ -166,7 +166,7 @@ static inline char *buffer_wrap_sub(const struct buffer *buf, char *ptr)
 }
 
 /* Normalizes a pointer after an addition */
-static inline char *buffer_wrap_add(const struct buffer *buf, char *ptr)
+static inline char *buffer_wrap_add(const struct channel *buf, char *ptr)
 {
 	if (ptr - buf->size >= buf->data)
 		ptr -= buf->size;
@@ -178,7 +178,7 @@ static inline char *buffer_wrap_add(const struct buffer *buf, char *ptr)
  * bytes free. The result is between 0 and global.maxrewrite, which is itself
  * smaller than any buf->size.
  */
-static inline int buffer_reserved(const struct buffer *buf)
+static inline int buffer_reserved(const struct channel *buf)
 {
 	int ret = global.tune.maxrewrite - buf->to_forward - buf->o;
 
@@ -193,7 +193,7 @@ static inline int buffer_reserved(const struct buffer *buf)
  * pending bytes are forwarded, the buffer still has global.tune.maxrewrite
  * bytes free. The result sits between buf->size - maxrewrite and buf->size.
  */
-static inline int buffer_max_len(const struct buffer *buf)
+static inline int buffer_max_len(const struct channel *buf)
 {
 	return buf->size - buffer_reserved(buf);
 }
@@ -203,7 +203,7 @@ static inline int buffer_max_len(const struct buffer *buf)
  * close to happen. The test is optimized to avoid as many operations as
  * possible for the fast case and to be used as an "if" condition.
  */
-static inline int bi_full(const struct buffer *b)
+static inline int bi_full(const struct channel *b)
 {
 	int rem = b->size;
 
@@ -228,7 +228,7 @@ static inline int bi_full(const struct buffer *b)
  * is close to happen. The test is optimized to avoid as many operations as
  * possible for the fast case.
  */
-static inline int bi_avail(const struct buffer *b)
+static inline int bi_avail(const struct channel *b)
 {
 	int rem = b->size;
 	int rem2;
@@ -257,7 +257,7 @@ static inline int bi_avail(const struct buffer *b)
 /* Return the maximum amount of bytes that can be written into the buffer,
  * including reserved space which may be overwritten.
  */
-static inline int buffer_total_space(const struct buffer *buf)
+static inline int buffer_total_space(const struct channel *buf)
 {
 	return buf->size - buffer_len(buf);
 }
@@ -266,7 +266,7 @@ static inline int buffer_total_space(const struct buffer *buf)
  * and enforces a limit on buf->data + buf->size. <start> must be within the
  * buffer.
  */
-static inline int buffer_contig_area(const struct buffer *buf, const char *start, int count)
+static inline int buffer_contig_area(const struct channel *buf, const char *start, int count)
 {
 	if (count > buf->data - start + buf->size)
 		count = buf->data - start + buf->size;
@@ -276,7 +276,7 @@ static inline int buffer_contig_area(const struct buffer *buf, const char *start
 /* Return the amount of bytes that can be written into the buffer at once,
  * including reserved space which may be overwritten.
  */
-static inline int buffer_contig_space(const struct buffer *buf)
+static inline int buffer_contig_space(const struct channel *buf)
 {
 	const char *left, *right;
 
@@ -294,7 +294,7 @@ static inline int buffer_contig_space(const struct buffer *buf)
  * to out. The caller is responsible for ensuring that adv is always
  * smaller than or equal to b->i. The BF_OUT_EMPTY flag is updated.
  */
-static inline void b_adv(struct buffer *b, unsigned int adv)
+static inline void b_adv(struct channel *b, unsigned int adv)
 {
 	b->i -= adv;
 	b->o += adv;
@@ -307,7 +307,7 @@ static inline void b_adv(struct buffer *b, unsigned int adv)
  * backwards, and that as many bytes from out are moved to in. The caller is
  * responsible for ensuring that adv is always smaller than or equal to b->o.
  */
-static inline void b_rew(struct buffer *b, unsigned int adv)
+static inline void b_rew(struct channel *b, unsigned int adv)
 {
 	b->i += adv;
 	b->o -= adv;
@@ -320,7 +320,7 @@ static inline void b_rew(struct buffer *b, unsigned int adv)
  * excluding the amount of reserved space passed in <res>, which is
  * preserved.
  */
-static inline int buffer_contig_space_with_res(const struct buffer *buf, int res)
+static inline int buffer_contig_space_with_res(const struct channel *buf, int res)
 {
 	/* Proceed differently if the buffer is full, partially used or empty.
 	 * The hard situation is when it's partially used and either data or
@@ -342,7 +342,7 @@ static inline int buffer_contig_space_with_res(const struct buffer *buf, int res
 /* Return the amount of bytes that can be written into the buffer at once,
  * excluding reserved space, which is preserved.
  */
-static inline int buffer_contig_space_res(const struct buffer *buf)
+static inline int buffer_contig_space_res(const struct channel *buf)
 {
 	return buffer_contig_space_with_res(buf, buffer_reserved(buf));
 }
@@ -353,7 +353,7 @@ static inline int buffer_contig_space_res(const struct buffer *buf)
  * once, so the original pointer must be between ->data-size and ->data+2*size-1,
  * otherwise an invalid pointer might be returned.
  */
-static inline const char *buffer_pointer(const struct buffer *buf, const char *ptr)
+static inline const char *buffer_pointer(const struct channel *buf, const char *ptr)
 {
 	if (ptr < buf->data)
 		ptr += buf->size;
@@ -365,7 +365,7 @@ static inline const char *buffer_pointer(const struct buffer *buf, const char *p
 /* Returns the distance between two pointers, taking into account the ability
  * to wrap around the buffer's end.
  */
-static inline int buffer_count(const struct buffer *buf, const char *from, const char *to)
+static inline int buffer_count(const struct channel *buf, const char *from, const char *to)
 {
 	int count = to - from;
 	if (count < 0)
@@ -376,7 +376,7 @@ static inline int buffer_count(const struct buffer *buf, const char *from, const
 /* returns the amount of pending bytes in the buffer. It is the amount of bytes
  * that is not scheduled to be sent.
  */
-static inline int buffer_pending(const struct buffer *buf)
+static inline int buffer_pending(const struct channel *buf)
 {
 	return buf->i;
 }
@@ -387,7 +387,7 @@ static inline int buffer_pending(const struct buffer *buf)
  * <end>. It always starts at buf->p. The work area includes the
  * reserved area.
  */
-static inline int buffer_work_area(const struct buffer *buf, const char *end)
+static inline int buffer_work_area(const struct channel *buf, const char *end)
 {
 	end = buffer_pointer(buf, end);
 	if (end == buffer_wrap_add(buf, buf->p + buf->i))
@@ -397,7 +397,7 @@ static inline int buffer_work_area(const struct buffer *buf, const char *end)
 }
 
 /* Return 1 if the buffer has less than 1/4 of its capacity free, otherwise 0 */
-static inline int buffer_almost_full(const struct buffer *buf)
+static inline int buffer_almost_full(const struct channel *buf)
 {
 	if (buffer_total_space(buf) < buf->size / 4)
 		return 1;
@@ -405,13 +405,13 @@ static inline int buffer_almost_full(const struct buffer *buf)
 }
 
 /* Returns true if the buffer's input is already closed */
-static inline int buffer_input_closed(struct buffer *buf)
+static inline int buffer_input_closed(struct channel *buf)
 {
 	return ((buf->flags & BF_SHUTR) != 0);
 }
 
 /* Returns true if the buffer's output is already closed */
-static inline int buffer_output_closed(struct buffer *buf)
+static inline int buffer_output_closed(struct channel *buf)
 {
 	return ((buf->flags & BF_SHUTW) != 0);
 }
@@ -422,7 +422,7 @@ static inline int buffer_output_closed(struct buffer *buf)
  * That way, we don't have to update the timeout on every I/O. Note that the
  * analyser timeout is always checked.
  */
-static inline void buffer_check_timeouts(struct buffer *b)
+static inline void buffer_check_timeouts(struct channel *b)
 {
 	if (likely(!(b->flags & (BF_SHUTR|BF_READ_TIMEOUT|BF_READ_ACTIVITY|BF_READ_NOEXP))) &&
 	    unlikely(tick_is_expired(b->rex, now_ms)))
@@ -441,7 +441,7 @@ static inline void buffer_check_timeouts(struct buffer *b)
  * already covers those data. That permits doing a flush even after a forward,
  * although not recommended.
  */
-static inline void buffer_flush(struct buffer *buf)
+static inline void buffer_flush(struct channel *buf)
 {
 	buf->p = buffer_wrap_add(buf, buf->p + buf->i);
 	buf->o += buf->i;
@@ -454,7 +454,7 @@ static inline void buffer_flush(struct buffer *buf)
  * that any spliced data is not affected since we may not have any access to
  * it.
  */
-static inline void buffer_erase(struct buffer *buf)
+static inline void buffer_erase(struct channel *buf)
 {
 	buf->o = 0;
 	buf->i = 0;
@@ -470,7 +470,7 @@ static inline void buffer_erase(struct buffer *buf)
  * stopped. This is mainly to be used to send error messages after existing
  * data.
  */
-static inline void bi_erase(struct buffer *buf)
+static inline void bi_erase(struct channel *buf)
 {
 	if (!buf->o)
 		return buffer_erase(buf);
@@ -491,26 +491,26 @@ static inline void bi_erase(struct buffer *buf)
  * This is mainly used to remove empty lines at the beginning of a request
  * or a response.
  */
-static inline void bi_fast_delete(struct buffer *buf, int n)
+static inline void bi_fast_delete(struct channel *buf, int n)
 {
 	buf->i -= n;
 	buf->p += n;
 }
 
 /* marks the buffer as "shutdown" ASAP for reads */
-static inline void buffer_shutr_now(struct buffer *buf)
+static inline void buffer_shutr_now(struct channel *buf)
 {
 	buf->flags |= BF_SHUTR_NOW;
 }
 
 /* marks the buffer as "shutdown" ASAP for writes */
-static inline void buffer_shutw_now(struct buffer *buf)
+static inline void buffer_shutw_now(struct channel *buf)
 {
 	buf->flags |= BF_SHUTW_NOW;
 }
 
 /* marks the buffer as "shutdown" ASAP in both directions */
-static inline void buffer_abort(struct buffer *buf)
+static inline void buffer_abort(struct channel *buf)
 {
 	buf->flags |= BF_SHUTR_NOW | BF_SHUTW_NOW;
 	buf->flags &= ~BF_AUTO_CONNECT;
@@ -522,8 +522,8 @@ static inline void buffer_abort(struct buffer *buf)
  * during this first call.
  */
 static inline void buffer_install_hijacker(struct session *s,
-					   struct buffer *b,
-					   void (*func)(struct session *, struct buffer *))
+					   struct channel *b,
+					   void (*func)(struct session *, struct channel *))
 {
 	b->hijacker = func;
 	b->flags |= BF_HIJACK;
@@ -531,13 +531,13 @@ static inline void buffer_install_hijacker(struct session *s,
 }
 
 /* Releases the buffer from hijacking mode. Often used by the hijack function */
-static inline void buffer_stop_hijack(struct buffer *buf)
+static inline void buffer_stop_hijack(struct channel *buf)
 {
 	buf->flags &= ~BF_HIJACK;
 }
 
 /* allow the consumer to try to establish a new connection. */
-static inline void buffer_auto_connect(struct buffer *buf)
+static inline void buffer_auto_connect(struct channel *buf)
 {
 	buf->flags |= BF_AUTO_CONNECT;
 }
@@ -545,31 +545,31 @@ static inline void buffer_auto_connect(struct buffer *buf)
 /* prevent the consumer from trying to establish a new connection, and also
  * disable auto shutdown forwarding.
  */
-static inline void buffer_dont_connect(struct buffer *buf)
+static inline void buffer_dont_connect(struct channel *buf)
 {
 	buf->flags &= ~(BF_AUTO_CONNECT|BF_AUTO_CLOSE);
 }
 
 /* allow the producer to forward shutdown requests */
-static inline void buffer_auto_close(struct buffer *buf)
+static inline void buffer_auto_close(struct channel *buf)
 {
 	buf->flags |= BF_AUTO_CLOSE;
 }
 
 /* prevent the producer from forwarding shutdown requests */
-static inline void buffer_dont_close(struct buffer *buf)
+static inline void buffer_dont_close(struct channel *buf)
 {
 	buf->flags &= ~BF_AUTO_CLOSE;
 }
 
 /* allow the producer to read / poll the input */
-static inline void buffer_auto_read(struct buffer *buf)
+static inline void buffer_auto_read(struct channel *buf)
 {
 	buf->flags &= ~BF_DONT_READ;
 }
 
 /* prevent the producer from read / poll the input */
-static inline void buffer_dont_read(struct buffer *buf)
+static inline void buffer_dont_read(struct channel *buf)
 {
 	buf->flags |= BF_DONT_READ;
 }
@@ -578,7 +578,7 @@ static inline void buffer_dont_read(struct buffer *buf)
  * Tries to realign the given buffer, and returns how many bytes can be written
  * there at once without overwriting anything.
  */
-static inline int buffer_realign(struct buffer *buf)
+static inline int buffer_realign(struct channel *buf)
 {
 	if (!(buf->i | buf->o)) {
 		/* let's realign the buffer to optimize I/O */
@@ -593,7 +593,7 @@ static inline int buffer_realign(struct buffer *buf)
  * with <len> causing a wrapping at the end of the buffer. It's the caller's
  * responsibility to ensure that <len> is never larger than buf->o.
  */
-static inline void bo_skip(struct buffer *buf, int len)
+static inline void bo_skip(struct channel *buf, int len)
 {
 	buf->o -= len;
 	if (!buf->o && !buf->pipe)
@@ -617,7 +617,7 @@ static inline void bo_skip(struct buffer *buf, int len)
  * Buffer flags FULL, EMPTY and READ_PARTIAL are updated if some data can be
  * transferred. The chunk's length is updated with the number of bytes sent.
  */
-static inline int bi_putchk(struct buffer *buf, struct chunk *chunk)
+static inline int bi_putchk(struct channel *buf, struct chunk *chunk)
 {
 	int ret;
 
@@ -635,7 +635,7 @@ static inline int bi_putchk(struct buffer *buf, struct chunk *chunk)
  * Buffer flags FULL, EMPTY and READ_PARTIAL are updated if some data can be
  * transferred.
  */
-static inline int bi_putstr(struct buffer *buf, const char *str)
+static inline int bi_putstr(struct channel *buf, const char *str)
 {
 	return bi_putblk(buf, str, strlen(str));
 }
@@ -646,7 +646,7 @@ static inline int bi_putstr(struct buffer *buf, const char *str)
  * it's up to the caller to call bo_skip(buf, 1) when it has consumed the char.
  * Also note that this function respects the ->o limit.
  */
-static inline int bo_getchr(struct buffer *buf)
+static inline int bo_getchr(struct channel *buf)
 {
 	/* closed or empty + imminent close = -2; empty = -1 */
 	if (unlikely(buf->flags & (BF_OUT_EMPTY|BF_SHUTW))) {
@@ -664,7 +664,7 @@ static inline int bo_getchr(struct buffer *buf)
  * not done. The function does not adjust ->o nor BF_OUT_EMPTY because
  * it does not make sense to use it on data scheduled to be sent.
  */
-static inline int buffer_replace(struct buffer *b, char *pos, char *end, const char *str)
+static inline int buffer_replace(struct channel *b, char *pos, char *end, const char *str)
 {
 	return buffer_replace2(b, pos, end, str, strlen(str));
 }

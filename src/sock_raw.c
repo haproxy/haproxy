@@ -74,7 +74,7 @@ static void sock_raw_read(struct connection *conn);
  * This function automatically allocates a pipe from the pipe pool. It also
  * carefully ensures to clear b->pipe whenever it leaves the pipe empty.
  */
-static int sock_raw_splice_in(struct buffer *b, struct stream_interface *si)
+static int sock_raw_splice_in(struct channel *b, struct stream_interface *si)
 {
 	static int splice_detects_close;
 	int fd = si_fd(si);
@@ -216,7 +216,7 @@ static void sock_raw_read(struct connection *conn)
 {
 	int fd = conn->t.sock.fd;
 	struct stream_interface *si = container_of(conn, struct stream_interface, conn);
-	struct buffer *b = si->ib;
+	struct channel *b = si->ib;
 	int ret, max, cur_read;
 	int read_poll = MAX_READ_POLL_LOOPS;
 
@@ -452,7 +452,7 @@ static void sock_raw_read(struct connection *conn)
 static int sock_raw_write_loop(struct connection *conn)
 {
 	struct stream_interface *si = container_of(conn, struct stream_interface, conn);
-	struct buffer *b = si->ob;
+	struct channel *b = si->ob;
 	int write_poll = MAX_WRITE_POLL_LOOPS;
 	int ret, max;
 
