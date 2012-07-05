@@ -410,14 +410,14 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			((e & EPOLLHUP) ? FD_POLL_HUP : 0);
 
 		if ((fdtab[fd].spec.e & FD_EV_MASK_R) == FD_EV_WAIT_R) {
-			if (!fdtab[fd].owner || fdtab[fd].state == FD_STERROR)
+			if (!fdtab[fd].owner)
 				continue;
 			if (fdtab[fd].ev & (FD_POLL_IN|FD_POLL_HUP|FD_POLL_ERR))
 				fdtab[fd].cb[DIR_RD].f(fd);
 		}
 
 		if ((fdtab[fd].spec.e & FD_EV_MASK_W) == FD_EV_WAIT_W) {
-			if (!fdtab[fd].owner || fdtab[fd].state == FD_STERROR)
+			if (!fdtab[fd].owner)
 				continue;
 			if (fdtab[fd].ev & (FD_POLL_OUT|FD_POLL_ERR))
 				fdtab[fd].cb[DIR_WR].f(fd);
@@ -452,22 +452,18 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		fdtab[fd].ev &= FD_POLL_STICKY;
 		if ((eo & FD_EV_MASK_R) == FD_EV_SPEC_R) {
 			/* The owner is interested in reading from this FD */
-			if (fdtab[fd].state != FD_STERROR) {
-				/* Pretend there is something to read */
-				fdtab[fd].ev |= FD_POLL_IN;
-				if (!fdtab[fd].cb[DIR_RD].f(fd))
-					fdtab[fd].spec.e ^= (FD_EV_WAIT_R ^ FD_EV_SPEC_R);
-			}
+			/* Pretend there is something to read */
+			fdtab[fd].ev |= FD_POLL_IN;
+			if (!fdtab[fd].cb[DIR_RD].f(fd))
+				fdtab[fd].spec.e ^= (FD_EV_WAIT_R ^ FD_EV_SPEC_R);
 		}
 
 		if ((eo & FD_EV_MASK_W) == FD_EV_SPEC_W) {
 			/* The owner is interested in writing to this FD */
-			if (fdtab[fd].state != FD_STERROR) {
-				/* Pretend there is something to write */
-				fdtab[fd].ev |= FD_POLL_OUT;
-				if (!fdtab[fd].cb[DIR_WR].f(fd))
-					fdtab[fd].spec.e ^= (FD_EV_WAIT_W ^ FD_EV_SPEC_W);
-			}
+			/* Pretend there is something to write */
+			fdtab[fd].ev |= FD_POLL_OUT;
+			if (!fdtab[fd].cb[DIR_WR].f(fd))
+				fdtab[fd].spec.e ^= (FD_EV_WAIT_W ^ FD_EV_SPEC_W);
 		}
 
 		/* one callback might already have closed the fd by itself */
