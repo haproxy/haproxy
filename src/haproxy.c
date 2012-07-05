@@ -351,7 +351,6 @@ void dump(struct sig_handler *sh)
  */
 void init(int argc, char **argv)
 {
-	int i;
 	int arg_mode = 0;	/* MODE_DEBUG, ... */
 	char *tmp;
 	char *cfg_pidfile = NULL;
@@ -691,10 +690,6 @@ void init(int argc, char **argv)
 				       sizeof(struct fdinfo) * (global.maxsock));
 	fdtab = (struct fdtab *)calloc(1,
 				       sizeof(struct fdtab) * (global.maxsock));
-	for (i = 0; i < global.maxsock; i++) {
-		fdtab[i].state = FD_STCLOSE;
-	}
-
 	/*
 	 * Note: we could register external pollers here.
 	 * Built-in pollers have been registered before main().

@@ -140,14 +140,14 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		fd = kev[count].ident;
 		if (kev[count].filter ==  EVFILT_READ) {
 			if (FD_ISSET(fd, fd_evts[DIR_RD])) {
-				if (fdtab[fd].state == FD_STCLOSE)
+				if (!fdtab[fd].owner)
 					continue;
 				fdtab[fd].ev |= FD_POLL_IN;
 				fdtab[fd].cb[DIR_RD].f(fd);
 			}
 		} else if (kev[count].filter ==  EVFILT_WRITE) {
 			if (FD_ISSET(fd, fd_evts[DIR_WR])) {
-				if (fdtab[fd].state == FD_STCLOSE)
+				if (!fdtab[fd].owner)
 					continue;
 				fdtab[fd].ev |= FD_POLL_OUT;
 				fdtab[fd].cb[DIR_WR].f(fd);

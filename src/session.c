@@ -320,7 +320,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		send(cfd, err_msg->str, err_msg->len, MSG_DONTWAIT|MSG_NOSIGNAL);
 	}
 
-	if (fdtab[cfd].state != FD_STCLOSE)
+	if (fdtab[cfd].owner)
 		fd_delete(cfd);
 	else
 		close(cfd);

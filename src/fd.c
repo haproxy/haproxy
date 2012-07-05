@@ -41,9 +41,9 @@ void fd_delete(int fd)
 	port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
 	fdinfo[fd].port_range = NULL;
 	close(fd);
-	fdtab[fd].state = FD_STCLOSE;
+	fdtab[fd].owner = NULL;
 
-	while ((maxfd-1 >= 0) && (fdtab[maxfd-1].state == FD_STCLOSE))
+	while ((maxfd-1 >= 0) && !fdtab[maxfd-1].owner)
 		maxfd--;
 }
 

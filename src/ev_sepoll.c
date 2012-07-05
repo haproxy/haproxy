@@ -202,7 +202,7 @@ REGPRM2 static int __fd_is_set(const int fd, int dir)
 	int ret;
 
 #if DEBUG_DEV
-	if (fdtab[fd].state == FD_STCLOSE) {
+	if (!fdtab[fd].owner) {
 		fprintf(stderr, "sepoll.fd_isset called on closed fd #%d.\n", fd);
 		ABORT_NOW();
 	}
@@ -220,7 +220,7 @@ REGPRM2 static int __fd_set(const int fd, int dir)
 	unsigned int i;
 
 #if DEBUG_DEV
-	if (fdtab[fd].state == FD_STCLOSE) {
+	if (!fdtab[fd].owner) {
 		fprintf(stderr, "sepoll.fd_set called on closed fd #%d.\n", fd);
 		ABORT_NOW();
 	}
@@ -242,7 +242,7 @@ REGPRM2 static int __fd_clr(const int fd, int dir)
 	unsigned int i;
 
 #if DEBUG_DEV
-	if (fdtab[fd].state == FD_STCLOSE) {
+	if (!fdtab[fd].owner) {
 		fprintf(stderr, "sepoll.fd_clr called on closed fd #%d.\n", fd);
 		ABORT_NOW();
 	}
@@ -410,14 +410,14 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			((e & EPOLLHUP) ? FD_POLL_HUP : 0);
 
 		if ((fdtab[fd].spec.e & FD_EV_MASK_R) == FD_EV_WAIT_R) {
-			if (fdtab[fd].state == FD_STCLOSE || fdtab[fd].state == FD_STERROR)
+			if (!fdtab[fd].owner || fdtab[fd].state == FD_STERROR)
 				continue;
 			if (fdtab[fd].ev & (FD_POLL_IN|FD_POLL_HUP|FD_POLL_ERR))
 				fdtab[fd].cb[DIR_RD].f(fd);
 		}
 
 		if ((fdtab[fd].spec.e & FD_EV_MASK_W) == FD_EV_WAIT_W) {
-			if (fdtab[fd].state == FD_STCLOSE || fdtab[fd].state == FD_STERROR)
+			if (!fdtab[fd].owner || fdtab[fd].state == FD_STERROR)
 				continue;
 			if (fdtab[fd].ev & (FD_POLL_OUT|FD_POLL_ERR))
 				fdtab[fd].cb[DIR_WR].f(fd);
@@ -471,7 +471,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		}
 
 		/* one callback might already have closed the fd by itself */
-		if (fdtab[fd].state == FD_STCLOSE)
+		if (!fdtab[fd].owner)
 			continue;
 
 		if (!(fdtab[fd].spec.e & (FD_EV_RW_SL|FD_EV_RW_PL))) {

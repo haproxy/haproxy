@@ -257,14 +257,14 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			((e & EPOLLHUP) ? FD_POLL_HUP : 0);
 
 		if ((fd_evts[FD2OFS(fd)] >> FD2BIT(fd)) & DIR2MSK(DIR_RD)) {
-			if (fdtab[fd].state == FD_STCLOSE)
+			if (!fdtab[fd].owner)
 				continue;
 			if (fdtab[fd].ev & (FD_POLL_IN|FD_POLL_HUP|FD_POLL_ERR))
 				fdtab[fd].cb[DIR_RD].f(fd);
 		}
 
 		if ((fd_evts[FD2OFS(fd)] >> FD2BIT(fd)) & DIR2MSK(DIR_WR)) {
-			if (fdtab[fd].state == FD_STCLOSE)
+			if (!fdtab[fd].owner)
 				continue;
 			if (fdtab[fd].ev & (FD_POLL_OUT|FD_POLL_ERR|FD_POLL_HUP))
 				fdtab[fd].cb[DIR_WR].f(fd);
