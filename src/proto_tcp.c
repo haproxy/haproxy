@@ -818,7 +818,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	listener->state = LI_LISTEN;
 
 	fdtab[fd].owner = listener; /* reference the listener instead of a task */
-	fdtab[fd].state = FD_STLISTEN;
+	fdtab[fd].state = 0; /* anything will do, but avoid FD_STERROR */
 	fdtab[fd].flags = FD_FL_TCP | ((listener->options & LI_O_NOLINGER) ? FD_FL_TCP_NOLING : 0);
 	fdtab[fd].cb[DIR_RD].f = listener->proto->accept;
 	fdtab[fd].cb[DIR_WR].f = NULL; /* never called */

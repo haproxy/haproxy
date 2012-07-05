@@ -32,7 +32,6 @@
 #include <types/protocols.h>
 
 /* different possible states for the fd */
-#define FD_STLISTEN	1
 #define FD_STCONN	2
 #define FD_STREADY	3
 #define FD_STERROR	4
