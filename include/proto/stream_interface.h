@@ -25,6 +25,7 @@
 #include <stdlib.h>
 
 #include <common/config.h>
+#include <types/session.h>
 #include <types/stream_interface.h>
 
 
@@ -32,6 +33,7 @@
 int stream_int_check_timeouts(struct stream_interface *si);
 void stream_int_report_error(struct stream_interface *si);
 void stream_int_retnclose(struct stream_interface *si, const struct chunk *msg);
+int conn_si_send_proxy(struct connection *conn, unsigned int flag);
 
 extern struct sock_ops stream_int_embedded;
 extern struct sock_ops stream_int_task;

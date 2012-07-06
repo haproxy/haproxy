@@ -41,7 +41,7 @@
 #include <proto/arg.h>
 #include <proto/buffers.h>
 #include <proto/connection.h>
-#include <proto/frontend.h>
+//#include <proto/frontend.h>
 #include <proto/log.h>
 #include <proto/port_range.h>
 #include <proto/protocols.h>
@@ -470,17 +470,19 @@ int tcp_connect_server(struct stream_interface *si)
 	fdtab[fd].flags = FD_FL_TCP | FD_FL_TCP_NODELAY;
 	si->conn.flags  = CO_FL_WAIT_L4_CONN; /* connection in progress */
 
-	/* If we have nothing to send, we want to confirm that the TCP
+	/* Prepare to send a few handshakes related to the on-wire protocol.
+	 * If we have nothing to send, we want to confirm that the TCP
 	 * connection is established before doing so, so we use our own write
 	 * callback then switch to the sock layer.
 	 */
-	if ((si->ob->flags & BF_OUT_EMPTY) || si->send_proxy_ofs) {
+	fdtab[fd].cb[DIR_RD].f = NULL;
+	fdtab[fd].cb[DIR_WR].f = NULL;
+
+	if (si->send_proxy_ofs)
+		si->conn.flags |= CO_FL_SI_SEND_PROXY;
+	else if (si->ob->flags & BF_OUT_EMPTY) {
 		fdtab[fd].cb[DIR_RD].f = tcp_connect_read;
 		fdtab[fd].cb[DIR_WR].f = tcp_connect_write;
-	}
-	else {
-		fdtab[fd].cb[DIR_RD].f = NULL;
-		fdtab[fd].cb[DIR_WR].f = NULL;
 	}
 
 	fdtab[fd].iocb = conn_fd_handler;
@@ -551,64 +553,23 @@ static int tcp_connect_write(int fd)
 	if (b->flags & BF_SHUTW)
 		goto out_wakeup;
 
-	/* If we have a PROXY line to send, we'll use this to validate the
-	 * connection, in which case the connection is validated only once
-	 * we've sent the whole proxy line. Otherwise we use connect().
+	/* We have no data to send to check the connection, and
+	 * getsockopt() will not inform us whether the connection
+	 * is still pending. So we'll reuse connect() to check the
+	 * state of the socket. This has the advantage of giving us
+	 * the following info :
+	 *  - error
+	 *  - connecting (EALREADY, EINPROGRESS)
+	 *  - connected (EISCONN, 0)
 	 */
-	if (si->send_proxy_ofs) {
-		int ret;
-
-		/* The target server expects a PROXY line to be sent first.
-		 * If the send_proxy_ofs is negative, it corresponds to the
-		 * offset to start sending from then end of the proxy string
-		 * (which is recomputed every time since it's constant). If
-		 * it is positive, it means we have to send from the start.
-		 */
-		ret = make_proxy_line(trash, trashlen, &b->prod->addr.from, &b->prod->addr.to);
-		if (!ret)
-			goto out_error;
-
-		if (si->send_proxy_ofs > 0)
-			si->send_proxy_ofs = -ret; /* first call */
-
-		/* we have to send trash from (ret+sp for -sp bytes) */
-		ret = send(fd, trash + ret + si->send_proxy_ofs, -si->send_proxy_ofs,
-			   (b->flags & BF_OUT_EMPTY) ? 0 : MSG_MORE);
-
-		if (ret == 0)
+	if ((connect(fd, conn->peeraddr, conn->peerlen) < 0)) {
+		if (errno == EALREADY || errno == EINPROGRESS)
 			goto out_ignore;
 
-		if (ret < 0) {
-			if (errno == EAGAIN)
-				goto out_ignore;
+		if (errno && errno != EISCONN)
 			goto out_error;
-		}
 
-		si->send_proxy_ofs += ret; /* becomes zero once complete */
-		if (si->send_proxy_ofs != 0)
-			goto out_ignore;
-
-		/* OK we've sent the whole line, we're connected */
-	}
-	else {
-		/* We have no data to send to check the connection, and
-		 * getsockopt() will not inform us whether the connection
-		 * is still pending. So we'll reuse connect() to check the
-		 * state of the socket. This has the advantage of giving us
-		 * the following info :
-		 *  - error
-		 *  - connecting (EALREADY, EINPROGRESS)
-		 *  - connected (EISCONN, 0)
-		 */
-		if ((connect(fd, conn->peeraddr, conn->peerlen) < 0)) {
-			if (errno == EALREADY || errno == EINPROGRESS)
-				goto out_ignore;
-
-			if (errno && errno != EISCONN)
-				goto out_error;
-
-			/* otherwise we're connected */
-		}
+		/* otherwise we're connected */
 	}
 
 	/* OK we just need to indicate that we got a connection
@@ -629,7 +590,6 @@ static int tcp_connect_write(int fd)
 	task_wakeup(si->owner, TASK_WOKEN_IO);
 
  out_ignore:
-	fdtab[fd].ev &= ~FD_POLL_OUT;
 	return retval;
 
  out_error:

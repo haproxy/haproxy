@@ -28,6 +28,7 @@
 
 #include <proto/buffers.h>
 #include <proto/fd.h>
+#include <proto/frontend.h>
 #include <proto/sock_raw.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
@@ -400,6 +401,91 @@ void stream_int_unregister_handler(struct stream_interface *si)
 	si->owner = NULL;
 	clear_target(&si->target);
 }
+
+/* This callback is used to send a valid PROXY protocol line to a socket being
+ * established. It returns a combination of FD_WAIT_* if it wants some polling
+ * before being called again, otherwise it returns zero and removes itself from
+ * the connection's flags (the bit is provided in <flag> by the caller).
+ */
+int conn_si_send_proxy(struct connection *conn, unsigned int flag)
+{
+	int fd = conn->t.sock.fd;
+	struct stream_interface *si = container_of(conn, struct stream_interface, conn);
+	struct buffer *b = si->ob;
+
+	/* we might have been called just after an asynchronous shutw */
+	if (b->flags & BF_SHUTW)
+		goto out_error;
+
+	/* If we have a PROXY line to send, we'll use this to validate the
+	 * connection, in which case the connection is validated only once
+	 * we've sent the whole proxy line. Otherwise we use connect().
+	 */
+	if (si->send_proxy_ofs) {
+		int ret;
+
+		/* The target server expects a PROXY line to be sent first.
+		 * If the send_proxy_ofs is negative, it corresponds to the
+		 * offset to start sending from then end of the proxy string
+		 * (which is recomputed every time since it's constant). If
+		 * it is positive, it means we have to send from the start.
+		 */
+		ret = make_proxy_line(trash, trashlen, &b->prod->addr.from, &b->prod->addr.to);
+		if (!ret)
+			goto out_error;
+
+		if (si->send_proxy_ofs > 0)
+			si->send_proxy_ofs = -ret; /* first call */
+
+		/* we have to send trash from (ret+sp for -sp bytes) */
+		ret = send(fd, trash + ret + si->send_proxy_ofs, -si->send_proxy_ofs,
+			   (b->flags & BF_OUT_EMPTY) ? 0 : MSG_MORE);
+
+		if (ret == 0)
+			goto out_wait;
+
+		if (ret < 0) {
+			if (errno == EAGAIN)
+				goto out_wait;
+			goto out_error;
+		}
+
+		si->send_proxy_ofs += ret; /* becomes zero once complete */
+		if (si->send_proxy_ofs != 0)
+			goto out_wait;
+
+		/* OK we've sent the whole line, we're connected */
+	}
+
+	/* The FD is ready now, simply return and let the connection handler
+	 * notify upper layers if needed.
+	 */
+	if (conn->flags & CO_FL_WAIT_L4_CONN)
+		conn->flags &= ~CO_FL_WAIT_L4_CONN;
+	b->flags |= BF_WRITE_NULL;
+	si->exp = TICK_ETERNITY;
+
+ out_leave:
+	conn->flags &= ~flag;
+	return 0;
+
+ out_error:
+	/* Write error on the file descriptor. We mark the FD as STERROR so
+	 * that we don't use it anymore. The error is reported to the stream
+	 * interface which will take proper action. We must not perturbate the
+	 * buffer because the stream interface wants to ensure transparent
+	 * connection retries.
+	 */
+
+	conn->flags |= CO_FL_ERROR;
+	fdtab[fd].ev &= ~FD_POLL_STICKY;
+	EV_FD_REM(fd);
+	goto out_leave;
+
+ out_wait:
+	return FD_WAIT_WRITE;
+}
+
 
 /*
  * Local variables:

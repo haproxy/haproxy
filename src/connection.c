@@ -14,7 +14,8 @@
 #include <common/config.h>
 
 #include <types/connection.h>
-#include <types/stream_interface.h>
+
+#include <proto/stream_interface.h>
 
 /* I/O callback for fd-based connections. It calls the read/write handlers
  * provided by the connection's sock_ops, which must be valid. It returns
@@ -26,22 +27,26 @@ int conn_fd_handler(int fd)
 	int ret = 0;
 
 	if (!conn)
-		return ret;
+		goto leave;
 
 	if (conn->flags & CO_FL_ERROR)
-		return ret;
+		goto leave;
+
+	if (conn->flags & CO_FL_SI_SEND_PROXY)
+		if ((ret = conn_si_send_proxy(conn, CO_FL_SI_SEND_PROXY)))
+			goto leave;
 
 	if (fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
 		if (!conn->data->read(fd))
 			ret |= FD_WAIT_READ;
 
 	if (conn->flags & CO_FL_ERROR)
-		return ret;
+		goto leave;
 
 	if (fdtab[fd].ev & (FD_POLL_OUT | FD_POLL_ERR))
 		if (!conn->data->write(fd))
 			ret |= FD_WAIT_WRITE;
-
+ leave:
 	/* remove the events before leaving */
 	fdtab[fd].ev &= ~(FD_POLL_IN | FD_POLL_OUT | FD_POLL_HUP | FD_POLL_ERR);
 	return ret;
