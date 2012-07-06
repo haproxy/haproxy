@@ -31,6 +31,13 @@
 struct sock_ops;
 struct protocol;
 
+/* flags for use in connection->flags */
+enum {
+	CO_FL_NONE          = 0x00000000,
+	CO_FL_ERROR         = 0x00000001,  /* a fatal error was reported     */
+	CO_FL_WAIT_L4_CONN  = 0x00000002,  /* waiting for L4 to be connected */
+};
+
 /* This structure describes a connection with its methods and data.
  * A connection may be performed to proxy or server via a local or remote
  * socket, and can also be made to an internal applet. It can support
@@ -46,6 +53,7 @@ struct connection {
 			int fd;       /* file descriptor for a stream driver when known */
 		} sock;
 	} t;
+	unsigned int flags;           /* CO_F_* */
 	int data_st;                  /* data layer state, initialized to zero */
 	void *data_ctx;               /* general purpose pointer, initialized to NULL */
 	struct sockaddr *peeraddr;    /* pointer to peer's network address, or NULL if unset */
