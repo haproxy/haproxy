@@ -69,7 +69,7 @@ struct fdtab {
 	struct {
 		int (*f)(int fd);            /* read/write function */
 	} cb[DIR_SIZE];
-	void *owner;                         /* the session (or proxy) associated with this fd, NULL if closed */
+	void *owner;                         /* the connection or listener associated with this fd, NULL if closed */
 	struct {                             /* used by pollers which support speculative polling */
 		unsigned char e;             /* read and write events status. 4 bits, may be merged into flags' lower bits */
 		unsigned int s1;             /* Position in spec list+1. 0=not in list. */

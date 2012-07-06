@@ -22,24 +22,24 @@
  */
 int conn_fd_handler(int fd)
 {
-	struct stream_interface *si = fdtab[fd].owner;
+	struct connection *conn = fdtab[fd].owner;
 	int ret = 0;
 
-	if (!si)
+	if (!conn)
 		return ret;
 
-	if (si->conn.flags & CO_FL_ERROR)
+	if (conn->flags & CO_FL_ERROR)
 		return ret;
 
 	if (fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
-		if (!si->conn.data->read(fd))
+		if (!conn->data->read(fd))
 			ret |= FD_WAIT_READ;
 
-	if (si->conn.flags & CO_FL_ERROR)
+	if (conn->flags & CO_FL_ERROR)
 		return ret;
 
 	if (fdtab[fd].ev & (FD_POLL_OUT | FD_POLL_ERR))
-		if (!si->conn.data->write(fd))
+		if (!conn->data->write(fd))
 			ret |= FD_WAIT_WRITE;
 
 	return ret;

@@ -466,7 +466,7 @@ int tcp_connect_server(struct stream_interface *si)
 	if (si->flags & SI_FL_SRC_ADDR)
 		si_get_from_addr(si);
 
-	fdtab[fd].owner = si;
+	fdtab[fd].owner = &si->conn;
 	fdtab[fd].flags = FD_FL_TCP | FD_FL_TCP_NODELAY;
 	si->conn.flags  = CO_FL_WAIT_L4_CONN; /* connection in progress */
 
@@ -536,14 +536,15 @@ int tcp_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
  */
 static int tcp_connect_write(int fd)
 {
-	struct stream_interface *si = fdtab[fd].owner;
+	struct connection *conn = fdtab[fd].owner;
+	struct stream_interface *si = container_of(conn, struct stream_interface, conn);
 	struct buffer *b = si->ob;
 	int retval = 0;
 
-	if (si->conn.flags & CO_FL_ERROR)
+	if (conn->flags & CO_FL_ERROR)
 		goto out_error;
 
-	if (!(si->conn.flags & CO_FL_WAIT_L4_CONN))
+	if (!(conn->flags & CO_FL_WAIT_L4_CONN))
 		goto out_ignore; /* strange we were called while ready */
 
 	/* we might have been called just after an asynchronous shutw */
@@ -599,7 +600,7 @@ static int tcp_connect_write(int fd)
 		 *  - connecting (EALREADY, EINPROGRESS)
 		 *  - connected (EISCONN, 0)
 		 */
-		if ((connect(fd, si->conn.peeraddr, si->conn.peerlen) < 0)) {
+		if ((connect(fd, conn->peeraddr, conn->peerlen) < 0)) {
 			if (errno == EALREADY || errno == EINPROGRESS)
 				goto out_ignore;
 
@@ -620,7 +621,7 @@ static int tcp_connect_write(int fd)
 	 */
 	fdtab[fd].cb[DIR_RD].f = NULL;
 	fdtab[fd].cb[DIR_WR].f = NULL;
-	si->conn.flags &= ~CO_FL_WAIT_L4_CONN;
+	conn->flags &= ~CO_FL_WAIT_L4_CONN;
 	si->exp = TICK_ETERNITY;
 	return si_data(si)->write(fd);
 
@@ -639,7 +640,7 @@ static int tcp_connect_write(int fd)
 	 * connection retries.
 	 */
 
-	si->conn.flags |= CO_FL_ERROR;
+	conn->flags |= CO_FL_ERROR;
 	fdtab[fd].ev &= ~FD_POLL_STICKY;
 	EV_FD_REM(fd);
 	si->flags |= SI_FL_ERR;
@@ -651,15 +652,16 @@ static int tcp_connect_write(int fd)
 /* might be used on connect error */
 static int tcp_connect_read(int fd)
 {
-	struct stream_interface *si = fdtab[fd].owner;
+	struct connection *conn = fdtab[fd].owner;
+	struct stream_interface *si = container_of(conn, struct stream_interface, conn);
 	int retval;
 
 	retval = 1;
 
-	if (si->conn.flags & CO_FL_ERROR)
+	if (conn->flags & CO_FL_ERROR)
 		goto out_error;
 
-	if (!(si->conn.flags & CO_FL_WAIT_L4_CONN)) {
+	if (!(conn->flags & CO_FL_WAIT_L4_CONN)) {
 		retval = 0;
 		goto out_ignore; /* strange we were called while ready */
 	}
@@ -682,7 +684,7 @@ static int tcp_connect_read(int fd)
 	 * connection retries.
 	 */
 
-	si->conn.flags |= CO_FL_ERROR;
+	conn->flags |= CO_FL_ERROR;
 	fdtab[fd].ev &= ~FD_POLL_STICKY;
 	EV_FD_REM(fd);
 	si->flags |= SI_FL_ERR;

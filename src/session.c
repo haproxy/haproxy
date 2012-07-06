@@ -281,7 +281,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 
 	/* finish initialization of the accepted file descriptor */
 	fd_insert(cfd);
-	fdtab[cfd].owner = &s->si[0];
+	fdtab[cfd].owner = &s->si[0].conn;
 	fdtab[cfd].flags = 0;
 	fdtab[cfd].cb[DIR_RD].f = NULL;
 	fdtab[cfd].cb[DIR_WR].f = NULL;

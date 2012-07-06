@@ -228,7 +228,8 @@ static int sock_raw_splice_in(struct buffer *b, struct stream_interface *si)
  */
 static int sock_raw_read(int fd)
 {
-	struct stream_interface *si = fdtab[fd].owner;
+	struct connection *conn = fdtab[fd].owner;
+	struct stream_interface *si = container_of(conn, struct stream_interface, conn);
 	struct buffer *b = si->ib;
 	int ret, max, retval, cur_read;
 	int read_poll = MAX_READ_POLL_LOOPS;
@@ -245,7 +246,7 @@ static int sock_raw_read(int fd)
 	 * happens when we send too large a request to a backend server
 	 * which rejects it before reading it all.
 	 */
-	if (si->conn.flags & CO_FL_ERROR)
+	if (conn->flags & CO_FL_ERROR)
 		goto out_error;
 
 	/* stop here if we reached the end of data */
@@ -323,8 +324,8 @@ static int sock_raw_read(int fd)
 				b_adv(b, fwd);
 			}
 
-			if (si->conn.flags & CO_FL_WAIT_L4_CONN) {
-				si->conn.flags &= ~CO_FL_WAIT_L4_CONN;
+			if (conn->flags & CO_FL_WAIT_L4_CONN) {
+				conn->flags &= ~CO_FL_WAIT_L4_CONN;
 				si->exp = TICK_ETERNITY;
 			}
 
@@ -503,7 +504,7 @@ static int sock_raw_read(int fd)
 	 * connection retries.
 	 */
 
-	si->conn.flags |= CO_FL_ERROR;
+	conn->flags |= CO_FL_ERROR;
 	fdtab[fd].ev &= ~FD_POLL_STICKY;
 	EV_FD_REM(fd);
 	si->flags |= SI_FL_ERR;
@@ -667,7 +668,8 @@ static int sock_raw_write_loop(struct stream_interface *si, struct buffer *b)
  */
 static int sock_raw_write(int fd)
 {
-	struct stream_interface *si = fdtab[fd].owner;
+	struct connection *conn = fdtab[fd].owner;
+	struct stream_interface *si = container_of(conn, struct stream_interface, conn);
 	struct buffer *b = si->ob;
 	int retval = 1;
 
@@ -676,7 +678,7 @@ static int sock_raw_write(int fd)
 #endif
 
 	retval = 1;
-	if (si->conn.flags & CO_FL_ERROR)
+	if (conn->flags & CO_FL_ERROR)
 		goto out_error;
 
 	/* we might have been called just after an asynchronous shutw */
@@ -750,7 +752,7 @@ static int sock_raw_write(int fd)
 	 * connection retries.
 	 */
 
-	si->conn.flags |= CO_FL_ERROR;
+	conn->flags |= CO_FL_ERROR;
 	fdtab[fd].ev &= ~FD_POLL_STICKY;
 	EV_FD_REM(fd);
 	si->flags |= SI_FL_ERR;
