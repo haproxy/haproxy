@@ -26,6 +26,7 @@
 #include <proto/backend.h>
 #include <proto/buffers.h>
 #include <proto/checks.h>
+#include <proto/connection.h>
 #include <proto/dumpstats.h>
 #include <proto/freq_ctr.h>
 #include <proto/frontend.h>
@@ -282,9 +283,9 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	fd_insert(cfd);
 	fdtab[cfd].owner = &s->si[0];
 	fdtab[cfd].flags = 0;
-	fdtab[cfd].cb[DIR_RD].f = si_data(&s->si[0])->read;
-	fdtab[cfd].cb[DIR_WR].f = si_data(&s->si[0])->write;
-	fdtab[cfd].iocb = NULL;
+	fdtab[cfd].cb[DIR_RD].f = NULL;
+	fdtab[cfd].cb[DIR_WR].f = NULL;
+	fdtab[cfd].iocb = conn_fd_handler;
 	EV_FD_SET(cfd, DIR_RD);
 
 	if (p->accept && (ret = p->accept(s)) <= 0) {

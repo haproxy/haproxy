@@ -40,6 +40,7 @@
 #include <proto/acl.h>
 #include <proto/arg.h>
 #include <proto/buffers.h>
+#include <proto/connection.h>
 #include <proto/frontend.h>
 #include <proto/log.h>
 #include <proto/port_range.h>
@@ -476,14 +477,13 @@ int tcp_connect_server(struct stream_interface *si)
 	if ((si->ob->flags & BF_OUT_EMPTY) || si->send_proxy_ofs) {
 		fdtab[fd].cb[DIR_RD].f = tcp_connect_read;
 		fdtab[fd].cb[DIR_WR].f = tcp_connect_write;
-		fdtab[fd].iocb = NULL;
 	}
 	else {
-		fdtab[fd].cb[DIR_RD].f = si_data(si)->read;
-		fdtab[fd].cb[DIR_WR].f = si_data(si)->write;
-		fdtab[fd].iocb = NULL;
+		fdtab[fd].cb[DIR_RD].f = NULL;
+		fdtab[fd].cb[DIR_WR].f = NULL;
 	}
 
+	fdtab[fd].iocb = conn_fd_handler;
 	fd_insert(fd);
 	EV_FD_SET(fd, DIR_WR);  /* for connect status */
 
@@ -618,8 +618,8 @@ static int tcp_connect_write(int fd)
 	/* The FD is ready now, we can hand the handlers to the socket layer
 	 * and forward the event there to start working on the socket.
 	 */
-	fdtab[fd].cb[DIR_RD].f = si_data(si)->read;
-	fdtab[fd].cb[DIR_WR].f = si_data(si)->write;
+	fdtab[fd].cb[DIR_RD].f = NULL;
+	fdtab[fd].cb[DIR_WR].f = NULL;
 	si->conn.flags &= ~CO_FL_WAIT_L4_CONN;
 	si->exp = TICK_ETERNITY;
 	return si_data(si)->write(fd);
