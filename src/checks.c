@@ -772,8 +772,7 @@ static int event_srv_chk_w(int fd)
 	struct task *t = fdtab[fd].owner;
 	struct server *s = t->context;
 
-	//fprintf(stderr, "event_srv_chk_w, state=%ld\n", unlikely(fdtab[fd].state));
-	if (unlikely(fdtab[fd].state == FD_STERROR || (fdtab[fd].ev & FD_POLL_ERR))) {
+	if (unlikely((s->check_conn->flags & CO_FL_ERROR) || (fdtab[fd].ev & FD_POLL_ERR))) {
 		int skerr, err = errno;
 		socklen_t lskerr = sizeof(skerr);
 
@@ -888,7 +887,7 @@ static int event_srv_chk_w(int fd)
 	fdtab[fd].ev &= ~FD_POLL_OUT;
 	return 0;
  out_error:
-	fdtab[fd].state = FD_STERROR;
+	s->check_conn->flags |= CO_FL_ERROR;
 	goto out_wakeup;
 }
 
@@ -920,7 +919,7 @@ static int event_srv_chk_r(int fd)
 	int done;
 	unsigned short msglen;
 
-	if (unlikely((s->result & SRV_CHK_ERROR) || (fdtab[fd].state == FD_STERROR))) {
+	if (unlikely((s->result & SRV_CHK_ERROR) || (s->check_conn->flags & CO_FL_ERROR))) {
 		/* in case of TCP only, this tells us if the connection failed */
 		if (!(s->result & SRV_CHK_ERROR))
 			set_server_check_status(s, HCHK_STATUS_SOCKERR, NULL);
@@ -1232,7 +1231,7 @@ static int event_srv_chk_r(int fd)
 
  out_wakeup:
 	if (s->result & SRV_CHK_ERROR)
-		fdtab[fd].state = FD_STERROR;
+		s->check_conn->flags |= CO_FL_ERROR;
 
 	/* Reset the check buffer... */
 	*s->check_data = '\0';
@@ -1461,11 +1460,11 @@ static struct task *process_chk(struct task *t)
 						//fprintf(stderr, "process_chk: 4\n");
 			
 						s->curfd = fd; /* that's how we know a test is in progress ;-) */
+						s->check_conn->flags = CO_FL_WAIT_L4_CONN; /* TCP connection pending */
 						fd_insert(fd);
 						fdtab[fd].owner = t;
 						fdtab[fd].cb[DIR_RD].f = &event_srv_chk_r;
 						fdtab[fd].cb[DIR_WR].f = &event_srv_chk_w;
-						fdtab[fd].state = FD_STCONN; /* connection in progress */
 						fdtab[fd].flags = FD_FL_TCP | FD_FL_TCP_NODELAY;
 						EV_FD_SET(fd, DIR_WR);  /* for connect status */
 #ifdef DEBUG_FULL

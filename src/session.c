@@ -86,6 +86,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->term_trace = 0;
 	s->si[0].conn.t.sock.fd = cfd;
 	s->si[0].conn.ctrl = l->proto;
+	s->si[0].conn.flags = CO_FL_NONE;
 	s->si[0].addr.from = *addr;
 	s->si[0].conn.peeraddr = (struct sockaddr *)&s->si[0].addr.from;
 	s->si[0].conn.peerlen  = sizeof(s->si[0].addr.from);
@@ -188,6 +189,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	 * callbacks will be initialized before attempting to connect.
 	 */
 	s->si[1].conn.t.sock.fd = -1; /* just to help with debugging */
+	s->si[1].conn.flags = CO_FL_NONE;
 	s->si[1].owner     = t;
 	s->si[1].state     = s->si[1].prev_state = SI_ST_INI;
 	s->si[1].err_type  = SI_ET_NONE;
@@ -279,7 +281,6 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	/* finish initialization of the accepted file descriptor */
 	fd_insert(cfd);
 	fdtab[cfd].owner = &s->si[0];
-	fdtab[cfd].state = FD_STREADY;
 	fdtab[cfd].flags = 0;
 	fdtab[cfd].cb[DIR_RD].f = si_data(&s->si[0])->read;
 	fdtab[cfd].cb[DIR_WR].f = si_data(&s->si[0])->write;

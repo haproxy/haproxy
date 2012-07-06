@@ -1152,6 +1152,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->si[0].conn.peeraddr = NULL;
 	s->si[0].conn.peerlen  = 0;
 	s->si[0].conn.t.sock.fd = -1;
+	s->si[0].conn.flags = CO_FL_NONE;
 	s->si[0].owner = t;
 	s->si[0].state = s->si[0].prev_state = SI_ST_EST;
 	s->si[0].err_type = SI_ET_NONE;
@@ -1172,6 +1173,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->si[1].conn.peeraddr = NULL;
 	s->si[1].conn.peerlen  = 0;
 	s->si[1].conn.t.sock.fd = -1; /* just to help with debugging */
+	s->si[1].conn.flags = CO_FL_NONE;
 	s->si[1].owner = t;
 	s->si[1].state = s->si[1].prev_state = SI_ST_ASS;
 	s->si[1].conn_retries = p->conn_retries;

@@ -3823,6 +3823,7 @@ void http_end_txn_clean_session(struct session *s)
 
 	s->req->cons->state     = s->req->cons->prev_state = SI_ST_INI;
 	s->req->cons->conn.t.sock.fd = -1; /* just to help with debugging */
+	s->req->cons->conn.flags = CO_FL_NONE;
 	s->req->cons->err_type  = SI_ET_NONE;
 	s->req->cons->conn_retries = 0;  /* used for logging too */
 	s->req->cons->err_loc   = NULL;

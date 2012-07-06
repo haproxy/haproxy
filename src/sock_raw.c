@@ -245,7 +245,7 @@ static int sock_raw_read(int fd)
 	 * happens when we send too large a request to a backend server
 	 * which rejects it before reading it all.
 	 */
-	if (fdtab[fd].state == FD_STERROR)
+	if (si->conn.flags & CO_FL_ERROR)
 		goto out_error;
 
 	/* stop here if we reached the end of data */
@@ -323,8 +323,8 @@ static int sock_raw_read(int fd)
 				b_adv(b, fwd);
 			}
 
-			if (fdtab[fd].state == FD_STCONN) {
-				fdtab[fd].state = FD_STREADY;
+			if (si->conn.flags & CO_FL_WAIT_L4_CONN) {
+				si->conn.flags &= ~CO_FL_WAIT_L4_CONN;
 				si->exp = TICK_ETERNITY;
 			}
 
@@ -503,7 +503,7 @@ static int sock_raw_read(int fd)
 	 * connection retries.
 	 */
 
-	fdtab[fd].state = FD_STERROR;
+	si->conn.flags |= CO_FL_ERROR;
 	fdtab[fd].ev &= ~FD_POLL_STICKY;
 	EV_FD_REM(fd);
 	si->flags |= SI_FL_ERR;
@@ -614,8 +614,8 @@ static int sock_raw_write_loop(struct stream_interface *si, struct buffer *b)
 		}
 
 		if (ret > 0) {
-			if (fdtab[si_fd(si)].state == FD_STCONN) {
-				fdtab[si_fd(si)].state = FD_STREADY;
+			if (si->conn.flags & CO_FL_WAIT_L4_CONN) {
+				si->conn.flags &= ~CO_FL_WAIT_L4_CONN;
 				si->exp = TICK_ETERNITY;
 			}
 
@@ -676,7 +676,7 @@ static int sock_raw_write(int fd)
 #endif
 
 	retval = 1;
-	if (fdtab[fd].state == FD_STERROR)
+	if (si->conn.flags & CO_FL_ERROR)
 		goto out_error;
 
 	/* we might have been called just after an asynchronous shutw */
@@ -750,7 +750,7 @@ static int sock_raw_write(int fd)
 	 * connection retries.
 	 */
 
-	fdtab[fd].state = FD_STERROR;
+	si->conn.flags |= CO_FL_ERROR;
 	fdtab[fd].ev &= ~FD_POLL_STICKY;
 	EV_FD_REM(fd);
 	si->flags |= SI_FL_ERR;
@@ -1013,7 +1013,7 @@ static void sock_raw_chk_snd(struct stream_interface *si)
 		/* Write error on the file descriptor. We mark the FD as STERROR so
 		 * that we don't use it anymore and we notify the task.
 		 */
-		fdtab[si_fd(si)].state = FD_STERROR;
+		si->conn.flags |= CO_FL_ERROR;
 		fdtab[si_fd(si)].ev &= ~FD_POLL_STICKY;
 		EV_FD_REM(si_fd(si));
 		si->flags |= SI_FL_ERR;

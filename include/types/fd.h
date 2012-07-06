@@ -31,11 +31,6 @@
 #include <types/task.h>
 #include <types/protocols.h>
 
-/* different possible states for the fd */
-#define FD_STCONN	2
-#define FD_STREADY	3
-#define FD_STERROR	4
-
 enum {
 	DIR_RD=0,
 	DIR_WR=1,
@@ -74,7 +69,6 @@ struct fdtab {
 		unsigned int s1;             /* Position in spec list+1. 0=not in list. */
 	} spec;
 	unsigned short flags;                /* various flags precising the exact status of this fd */
-	unsigned char state;                 /* the state of this fd */
 	unsigned char ev;                    /* event seen in return of poll() : FD_POLL_* */
 };
 

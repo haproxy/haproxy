@@ -466,8 +466,8 @@ int tcp_connect_server(struct stream_interface *si)
 		si_get_from_addr(si);
 
 	fdtab[fd].owner = si;
-	fdtab[fd].state = FD_STCONN; /* connection in progress */
 	fdtab[fd].flags = FD_FL_TCP | FD_FL_TCP_NODELAY;
+	si->conn.flags  = CO_FL_WAIT_L4_CONN; /* connection in progress */
 
 	/* If we have nothing to send, we want to confirm that the TCP
 	 * connection is established before doing so, so we use our own write
@@ -538,10 +538,10 @@ static int tcp_connect_write(int fd)
 	struct buffer *b = si->ob;
 	int retval = 0;
 
-	if (fdtab[fd].state == FD_STERROR)
+	if (si->conn.flags & CO_FL_ERROR)
 		goto out_error;
 
-	if (fdtab[fd].state != FD_STCONN)
+	if (!(si->conn.flags & CO_FL_WAIT_L4_CONN))
 		goto out_ignore; /* strange we were called while ready */
 
 	/* we might have been called just after an asynchronous shutw */
@@ -618,7 +618,7 @@ static int tcp_connect_write(int fd)
 	 */
 	fdtab[fd].cb[DIR_RD].f = si_data(si)->read;
 	fdtab[fd].cb[DIR_WR].f = si_data(si)->write;
-	fdtab[fd].state = FD_STREADY;
+	si->conn.flags &= ~CO_FL_WAIT_L4_CONN;
 	si->exp = TICK_ETERNITY;
 	return si_data(si)->write(fd);
 
@@ -637,7 +637,7 @@ static int tcp_connect_write(int fd)
 	 * connection retries.
 	 */
 
-	fdtab[fd].state = FD_STERROR;
+	si->conn.flags |= CO_FL_ERROR;
 	fdtab[fd].ev &= ~FD_POLL_STICKY;
 	EV_FD_REM(fd);
 	si->flags |= SI_FL_ERR;
@@ -654,10 +654,10 @@ static int tcp_connect_read(int fd)
 
 	retval = 1;
 
-	if (fdtab[fd].state == FD_STERROR)
+	if (si->conn.flags & CO_FL_ERROR)
 		goto out_error;
 
-	if (fdtab[fd].state != FD_STCONN) {
+	if (!(si->conn.flags & CO_FL_WAIT_L4_CONN)) {
 		retval = 0;
 		goto out_ignore; /* strange we were called while ready */
 	}
@@ -680,7 +680,7 @@ static int tcp_connect_read(int fd)
 	 * connection retries.
 	 */
 
-	fdtab[fd].state = FD_STERROR;
+	si->conn.flags |= CO_FL_ERROR;
 	fdtab[fd].ev &= ~FD_POLL_STICKY;
 	EV_FD_REM(fd);
 	si->flags |= SI_FL_ERR;
@@ -818,7 +818,6 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	listener->state = LI_LISTEN;
 
 	fdtab[fd].owner = listener; /* reference the listener instead of a task */
-	fdtab[fd].state = 0; /* anything will do, but avoid FD_STERROR */
 	fdtab[fd].flags = FD_FL_TCP | ((listener->options & LI_O_NOLINGER) ? FD_FL_TCP_NOLING : 0);
 	fdtab[fd].cb[DIR_RD].f = listener->proto->accept;
 	fdtab[fd].cb[DIR_WR].f = NULL; /* never called */
