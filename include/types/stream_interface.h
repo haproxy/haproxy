@@ -26,6 +26,7 @@
 #include <sys/socket.h>
 
 #include <types/buffers.h>
+#include <types/connection.h>
 #include <common/config.h>
 
 /* A stream interface must have its own errors independently of the buffer's,
@@ -94,27 +95,6 @@ struct server;
 struct proxy;
 struct si_applet;
 struct stream_interface;
-
-/* This structure describes a connection with its methods and data.
- * A connection may be performed to proxy or server via a local or remote
- * socket, and can also be made to an internal applet. It can support
- * several data schemes (applet, raw, ssl, ...). It can support several
- * connection control schemes, generally a protocol for socket-oriented
- * connections, but other methods for applets.
- */
-struct connection {
-	const struct sock_ops *data;  /* operations at the data layer */
-	const struct protocol *ctrl;  /* operations at the control layer, generally a protocol */
-	union {                       /* definitions which depend on connection type */
-		struct {              /*** information used by socket-based connections ***/
-			int fd;       /* file descriptor for a stream driver when known */
-		} sock;
-	} t;
-	int data_st;                  /* data layer state, initialized to zero */
-	void *data_ctx;               /* general purpose pointer, initialized to NULL */
-	struct sockaddr *peeraddr;    /* pointer to peer's network address, or NULL if unset */
-	socklen_t peerlen;            /* peer's address length, or 0 if unset */
-};
 
 struct target {
 	int type;
