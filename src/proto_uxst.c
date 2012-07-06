@@ -264,6 +264,7 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	fd_insert(fd);
 	fdtab[fd].cb[DIR_RD].f = listener->proto->accept;
 	fdtab[fd].cb[DIR_WR].f = NULL; /* never called */
+	fdtab[fd].iocb = NULL;
 	fdtab[fd].owner = listener; /* reference the listener instead of a task */
 	return ERR_NONE;
  err_rename:

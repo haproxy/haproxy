@@ -51,6 +51,11 @@ enum {
 #define FD_POLL_DATA    (FD_POLL_IN  | FD_POLL_OUT)
 #define FD_POLL_STICKY  (FD_POLL_ERR | FD_POLL_HUP)
 
+/* flags that an I/O callback may return */
+#define FD_WAIT_READ    0x01
+#define FD_WAIT_WRITE   0x02
+#define FD_WAIT_BOTH    (FD_WAIT_READ|FD_WAIT_WRITE)
+
 /* bit values for fdtab[fd]->flags. Most of them are used to hold a value
  * consecutive to a behaviour change.
  */
@@ -60,6 +65,7 @@ enum {
 
 /* info about one given fd */
 struct fdtab {
+	int (*iocb)(int fd);                 /* I/O handler, returns FD_WAIT_* */
 	struct {
 		int (*f)(int fd);            /* read/write function */
 	} cb[DIR_SIZE];

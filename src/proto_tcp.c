@@ -476,10 +476,12 @@ int tcp_connect_server(struct stream_interface *si)
 	if ((si->ob->flags & BF_OUT_EMPTY) || si->send_proxy_ofs) {
 		fdtab[fd].cb[DIR_RD].f = tcp_connect_read;
 		fdtab[fd].cb[DIR_WR].f = tcp_connect_write;
+		fdtab[fd].iocb = NULL;
 	}
 	else {
 		fdtab[fd].cb[DIR_RD].f = si_data(si)->read;
 		fdtab[fd].cb[DIR_WR].f = si_data(si)->write;
+		fdtab[fd].iocb = NULL;
 	}
 
 	fd_insert(fd);
@@ -821,6 +823,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	fdtab[fd].flags = FD_FL_TCP | ((listener->options & LI_O_NOLINGER) ? FD_FL_TCP_NOLING : 0);
 	fdtab[fd].cb[DIR_RD].f = listener->proto->accept;
 	fdtab[fd].cb[DIR_WR].f = NULL; /* never called */
+	fdtab[fd].iocb = NULL;
 	fd_insert(fd);
 
  tcp_return:

@@ -284,6 +284,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	fdtab[cfd].flags = 0;
 	fdtab[cfd].cb[DIR_RD].f = si_data(&s->si[0])->read;
 	fdtab[cfd].cb[DIR_WR].f = si_data(&s->si[0])->write;
+	fdtab[cfd].iocb = NULL;
 	EV_FD_SET(cfd, DIR_RD);
 
 	if (p->accept && (ret = p->accept(s)) <= 0) {
