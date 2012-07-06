@@ -30,6 +30,7 @@
 #include <eb32tree.h>
 
 #include <types/buffers.h>
+#include <types/connection.h>
 #include <types/counters.h>
 #include <types/freq_ctr.h>
 #include <types/port_range.h>
@@ -162,6 +163,7 @@ struct server {
 	int puid;				/* proxy-unique server ID, used for SNMP, and "first" LB algo */
 
 	char *check_data;			/* storage of partial check results */
+	struct connection *check_conn;		/* connection state for health checks */
 	int check_data_len;			/* length of partial check results stored in check_data */
 
 	struct {

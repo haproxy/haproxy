@@ -4646,6 +4646,13 @@ stats_error_parsing:
 				goto out;
 			}
 
+			/* Allocate buffer for partial check results... */
+			if ((newsrv->check_conn = calloc(1, sizeof(struct connection))) == NULL) {
+				Alert("parsing [%s:%d] : out of memory while allocating check connection.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
+
 			newsrv->check_status = HCHK_STATUS_INI;
 			newsrv->state |= SRV_CHECKED;
 		}
