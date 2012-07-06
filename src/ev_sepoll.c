@@ -413,15 +413,20 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			if (!fdtab[fd].owner)
 				continue;
 			if (fdtab[fd].ev & (FD_POLL_IN|FD_POLL_HUP|FD_POLL_ERR))
-				fdtab[fd].cb[DIR_RD].f(fd);
+				if (fdtab[fd].cb[DIR_RD].f)
+					fdtab[fd].cb[DIR_RD].f(fd);
 		}
 
 		if ((fdtab[fd].spec.e & FD_EV_MASK_W) == FD_EV_WAIT_W) {
 			if (!fdtab[fd].owner)
 				continue;
 			if (fdtab[fd].ev & (FD_POLL_OUT|FD_POLL_ERR))
-				fdtab[fd].cb[DIR_WR].f(fd);
+				if (fdtab[fd].cb[DIR_WR].f)
+					fdtab[fd].cb[DIR_WR].f(fd);
 		}
+
+		if (fdtab[fd].iocb && fdtab[fd].owner && fdtab[fd].ev)
+			fdtab[fd].iocb(fd);
 	}
 
 	/* now process speculative events if any */
@@ -454,7 +459,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			/* The owner is interested in reading from this FD */
 			/* Pretend there is something to read */
 			fdtab[fd].ev |= FD_POLL_IN;
-			if (!fdtab[fd].cb[DIR_RD].f(fd))
+			if (fdtab[fd].cb[DIR_RD].f && !fdtab[fd].cb[DIR_RD].f(fd))
 				fdtab[fd].spec.e ^= (FD_EV_WAIT_R ^ FD_EV_SPEC_R);
 		}
 
@@ -462,7 +467,21 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			/* The owner is interested in writing to this FD */
 			/* Pretend there is something to write */
 			fdtab[fd].ev |= FD_POLL_OUT;
-			if (!fdtab[fd].cb[DIR_WR].f(fd))
+			if (fdtab[fd].cb[DIR_WR].f && !fdtab[fd].cb[DIR_WR].f(fd))
+				fdtab[fd].spec.e ^= (FD_EV_WAIT_W ^ FD_EV_SPEC_W);
+		}
+
+		if (fdtab[fd].iocb && fdtab[fd].owner && fdtab[fd].ev) {
+			int wait = fdtab[fd].iocb(fd);
+
+			/* FIXME: warning, this will not work if both old and new
+			 * callbacks are used at the same time ! This is only a
+			 * temporary measure during the migration.
+			 */
+			if (wait & FD_WAIT_READ)
+				fdtab[fd].spec.e ^= (FD_EV_WAIT_R ^ FD_EV_SPEC_R);
+
+			if (wait & FD_WAIT_WRITE)
 				fdtab[fd].spec.e ^= (FD_EV_WAIT_W ^ FD_EV_SPEC_W);
 		}
 
