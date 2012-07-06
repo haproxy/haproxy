@@ -1249,6 +1249,25 @@ static int event_srv_chk_r(int fd)
 	return 0;
 }
 
+/* I/O call back for the health checks. Returns FD_WAIT_*. */
+static int check_iocb(int fd)
+{
+	int ret = 0;
+	int e;
+
+	if (!fdtab[fd].owner)
+		return ret;
+
+	e = fdtab[fd].ev;
+	if (e & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
+		if (!event_srv_chk_r(fd))
+			ret |= FD_WAIT_READ;
+	if (e & (FD_POLL_OUT | FD_POLL_ERR))
+		if (!event_srv_chk_w(fd))
+			ret |= FD_WAIT_WRITE;
+	return ret;
+}
+
 /*
  * updates the server's weight during a warmup stage. Once the final weight is
  * reached, the task automatically stops. Note that any server status change
@@ -1463,9 +1482,9 @@ static struct task *process_chk(struct task *t)
 						s->check_conn->flags = CO_FL_WAIT_L4_CONN; /* TCP connection pending */
 						fd_insert(fd);
 						fdtab[fd].owner = t;
-						fdtab[fd].cb[DIR_RD].f = &event_srv_chk_r;
-						fdtab[fd].cb[DIR_WR].f = &event_srv_chk_w;
-						fdtab[fd].iocb = NULL;
+						fdtab[fd].cb[DIR_RD].f = NULL;
+						fdtab[fd].cb[DIR_WR].f = NULL;
+						fdtab[fd].iocb = &check_iocb;
 						fdtab[fd].flags = FD_FL_TCP | FD_FL_TCP_NODELAY;
 						EV_FD_SET(fd, DIR_WR);  /* for connect status */
 #ifdef DEBUG_FULL
