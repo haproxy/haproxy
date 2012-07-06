@@ -242,19 +242,31 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	measure_idle();
 
 	for (count = 0; count < status; count++) {
+		int e = epoll_events[count].events;
 		fd = epoll_events[count].data.fd;
+
+		/* it looks complicated but gcc can optimize it away when constants
+		 * have same values.
+		 */
+		fdtab[fd].ev &= FD_POLL_STICKY;
+		fdtab[fd].ev |=
+			((e & EPOLLIN ) ? FD_POLL_IN  : 0) |
+			((e & EPOLLPRI) ? FD_POLL_PRI : 0) |
+			((e & EPOLLOUT) ? FD_POLL_OUT : 0) |
+			((e & EPOLLERR) ? FD_POLL_ERR : 0) |
+			((e & EPOLLHUP) ? FD_POLL_HUP : 0);
 
 		if ((fd_evts[FD2OFS(fd)] >> FD2BIT(fd)) & DIR2MSK(DIR_RD)) {
 			if (fdtab[fd].state == FD_STCLOSE)
 				continue;
-			if (epoll_events[count].events & ( EPOLLIN | EPOLLERR | EPOLLHUP ))
+			if (fdtab[fd].ev & (FD_POLL_IN|FD_POLL_HUP|FD_POLL_ERR))
 				fdtab[fd].cb[DIR_RD].f(fd);
 		}
 
 		if ((fd_evts[FD2OFS(fd)] >> FD2BIT(fd)) & DIR2MSK(DIR_WR)) {
 			if (fdtab[fd].state == FD_STCLOSE)
 				continue;
-			if (epoll_events[count].events & ( EPOLLOUT | EPOLLERR | EPOLLHUP ))
+			if (fdtab[fd].ev & (FD_POLL_OUT|FD_POLL_ERR|FD_POLL_HUP))
 				fdtab[fd].cb[DIR_WR].f(fd);
 		}
 	}

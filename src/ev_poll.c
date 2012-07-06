@@ -143,10 +143,18 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	measure_idle();
 
 	for (count = 0; status > 0 && count < nbfd; count++) {
+		int e = poll_events[count].revents;
 		fd = poll_events[count].fd;
 	  
-		if (!(poll_events[count].revents & ( POLLOUT | POLLIN | POLLERR | POLLHUP )))
+		if (!(e & ( POLLOUT | POLLIN | POLLERR | POLLHUP )))
 			continue;
+
+		fdtab[fd].ev &= FD_POLL_STICKY;
+		fdtab[fd].ev |=
+			((e & POLLIN ) ? FD_POLL_IN  : 0) |
+			((e & POLLOUT) ? FD_POLL_OUT : 0) |
+			((e & POLLERR) ? FD_POLL_ERR : 0) |
+			((e & POLLHUP) ? FD_POLL_HUP : 0);
 
 		/* ok, we found one active fd */
 		status--;
@@ -154,14 +162,14 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		if (FD_ISSET(fd, fd_evts[DIR_RD])) {
 			if (fdtab[fd].state == FD_STCLOSE)
 				continue;
-			if (poll_events[count].revents & ( POLLIN | POLLERR | POLLHUP ))
+			if (fdtab[fd].ev & (FD_POLL_IN|FD_POLL_HUP|FD_POLL_ERR))
 				fdtab[fd].cb[DIR_RD].f(fd);
 		}
 	  
 		if (FD_ISSET(fd, fd_evts[DIR_WR])) {
 			if (fdtab[fd].state == FD_STCLOSE)
 				continue;
-			if (poll_events[count].revents & ( POLLOUT | POLLERR | POLLHUP ))
+			if (fdtab[fd].ev & (FD_POLL_OUT|FD_POLL_ERR|FD_POLL_HUP))
 				fdtab[fd].cb[DIR_WR].f(fd);
 		}
 	}

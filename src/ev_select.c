@@ -149,12 +149,14 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			if (FD_ISSET(fd, tmp_evts[DIR_RD])) {
 				if (fdtab[fd].state == FD_STCLOSE)
 					continue;
+				fdtab[fd].ev |= FD_POLL_IN;
 				fdtab[fd].cb[DIR_RD].f(fd);
 			}
 
 			if (FD_ISSET(fd, tmp_evts[DIR_WR])) {
 				if (fdtab[fd].state == FD_STCLOSE)
 					continue;
+				fdtab[fd].ev |= FD_POLL_OUT;
 				fdtab[fd].cb[DIR_WR].f(fd);
 			}
 		}

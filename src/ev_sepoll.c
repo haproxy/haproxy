@@ -402,13 +402,13 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		 * have same values.
 		 */
 		fdtab[fd].ev &= FD_POLL_STICKY;
-		fdtab[fd].ev |= 
+		fdtab[fd].ev |=
 			((e & EPOLLIN ) ? FD_POLL_IN  : 0) |
 			((e & EPOLLPRI) ? FD_POLL_PRI : 0) |
 			((e & EPOLLOUT) ? FD_POLL_OUT : 0) |
 			((e & EPOLLERR) ? FD_POLL_ERR : 0) |
 			((e & EPOLLHUP) ? FD_POLL_HUP : 0);
-		
+
 		if ((fdtab[fd].spec.e & FD_EV_MASK_R) == FD_EV_WAIT_R) {
 			if (fdtab[fd].state == FD_STCLOSE || fdtab[fd].state == FD_STERROR)
 				continue;
