@@ -283,8 +283,6 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	fd_insert(cfd);
 	fdtab[cfd].owner = &s->si[0].conn;
 	fdtab[cfd].flags = 0;
-	fdtab[cfd].cb[DIR_RD].f = NULL;
-	fdtab[cfd].cb[DIR_WR].f = NULL;
 	fdtab[cfd].iocb = conn_fd_handler;
 	EV_FD_SET(cfd, DIR_RD);
 

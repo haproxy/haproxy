@@ -468,14 +468,7 @@ int tcp_connect_server(struct stream_interface *si)
 	fdtab[fd].flags = FD_FL_TCP | FD_FL_TCP_NODELAY;
 	si->conn.flags  = CO_FL_WAIT_L4_CONN; /* connection in progress */
 
-	/* Prepare to send a few handshakes related to the on-wire protocol.
-	 * If we have nothing to send, we want to confirm that the TCP
-	 * connection is established before doing so, so we use our own write
-	 * callback then switch to the sock layer.
-	 */
-	fdtab[fd].cb[DIR_RD].f = NULL;
-	fdtab[fd].cb[DIR_WR].f = NULL;
-
+	/* Prepare to send a few handshakes related to the on-wire protocol. */
 	if (si->send_proxy_ofs)
 		si->conn.flags |= CO_FL_SI_SEND_PROXY;
 
@@ -575,11 +568,10 @@ int tcp_connect_probe(int fd)
 	 */
 	b->flags |= BF_WRITE_NULL;
 
-	/* The FD is ready now, we can hand the handlers to the socket layer
-	 * and forward the event there to start working on the socket.
+	/* The FD is ready now, we'll mark the connection as complete and
+	 * forward the event to the data layer which will update the stream
+	 * interface flags.
 	 */
-	fdtab[fd].cb[DIR_RD].f = NULL;
-	fdtab[fd].cb[DIR_WR].f = NULL;
 	conn->flags &= ~CO_FL_WAIT_L4_CONN;
 	si->exp = TICK_ETERNITY;
 	return si_data(si)->write(fd);
@@ -739,8 +731,6 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	fdtab[fd].owner = listener; /* reference the listener instead of a task */
 	fdtab[fd].flags = FD_FL_TCP | ((listener->options & LI_O_NOLINGER) ? FD_FL_TCP_NOLING : 0);
 	fdtab[fd].iocb = listener->proto->accept;
-	fdtab[fd].cb[DIR_RD].f = NULL; /* never called */
-	fdtab[fd].cb[DIR_WR].f = NULL; /* never called */
 	fd_insert(fd);
 
  tcp_return:

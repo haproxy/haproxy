@@ -1482,8 +1482,6 @@ static struct task *process_chk(struct task *t)
 						s->check_conn->flags = CO_FL_WAIT_L4_CONN; /* TCP connection pending */
 						fd_insert(fd);
 						fdtab[fd].owner = t;
-						fdtab[fd].cb[DIR_RD].f = NULL;
-						fdtab[fd].cb[DIR_WR].f = NULL;
 						fdtab[fd].iocb = &check_iocb;
 						fdtab[fd].flags = FD_FL_TCP | FD_FL_TCP_NODELAY;
 						EV_FD_SET(fd, DIR_WR);  /* for connect status */

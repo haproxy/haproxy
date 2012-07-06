@@ -149,31 +149,18 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		if (!(e & ( POLLOUT | POLLIN | POLLERR | POLLHUP )))
 			continue;
 
+		/* ok, we found one active fd */
+		status--;
+
+		if (!fdtab[fd].owner)
+			continue;
+
 		fdtab[fd].ev &= FD_POLL_STICKY;
 		fdtab[fd].ev |=
 			((e & POLLIN ) ? FD_POLL_IN  : 0) |
 			((e & POLLOUT) ? FD_POLL_OUT : 0) |
 			((e & POLLERR) ? FD_POLL_ERR : 0) |
 			((e & POLLHUP) ? FD_POLL_HUP : 0);
-
-		/* ok, we found one active fd */
-		status--;
-
-		if (FD_ISSET(fd, fd_evts[DIR_RD])) {
-			if (!fdtab[fd].owner)
-				continue;
-			if (fdtab[fd].ev & (FD_POLL_IN|FD_POLL_HUP|FD_POLL_ERR))
-				if (fdtab[fd].cb[DIR_RD].f)
-					fdtab[fd].cb[DIR_RD].f(fd);
-		}
-	  
-		if (FD_ISSET(fd, fd_evts[DIR_WR])) {
-			if (!fdtab[fd].owner)
-				continue;
-			if (fdtab[fd].ev & (FD_POLL_OUT|FD_POLL_ERR|FD_POLL_HUP))
-				if (fdtab[fd].cb[DIR_WR].f)
-					fdtab[fd].cb[DIR_WR].f(fd);
-		}
 
 		if (fdtab[fd].iocb && fdtab[fd].owner && fdtab[fd].ev)
 			fdtab[fd].iocb(fd);

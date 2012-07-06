@@ -398,6 +398,9 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		int e = epoll_events[count].events;
 		fd = epoll_events[count].data.fd;
 
+		if (!fdtab[fd].owner)
+			continue;
+
 		/* it looks complicated but gcc can optimize it away when constants
 		 * have same values.
 		 */
@@ -408,22 +411,6 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			((e & EPOLLOUT) ? FD_POLL_OUT : 0) |
 			((e & EPOLLERR) ? FD_POLL_ERR : 0) |
 			((e & EPOLLHUP) ? FD_POLL_HUP : 0);
-
-		if ((fdtab[fd].spec.e & FD_EV_MASK_R) == FD_EV_WAIT_R) {
-			if (!fdtab[fd].owner)
-				continue;
-			if (fdtab[fd].ev & (FD_POLL_IN|FD_POLL_HUP|FD_POLL_ERR))
-				if (fdtab[fd].cb[DIR_RD].f)
-					fdtab[fd].cb[DIR_RD].f(fd);
-		}
-
-		if ((fdtab[fd].spec.e & FD_EV_MASK_W) == FD_EV_WAIT_W) {
-			if (!fdtab[fd].owner)
-				continue;
-			if (fdtab[fd].ev & (FD_POLL_OUT|FD_POLL_ERR))
-				if (fdtab[fd].cb[DIR_WR].f)
-					fdtab[fd].cb[DIR_WR].f(fd);
-		}
 
 		if (fdtab[fd].iocb && fdtab[fd].owner && fdtab[fd].ev)
 			fdtab[fd].iocb(fd);
@@ -455,21 +442,11 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		 */
 
 		fdtab[fd].ev &= FD_POLL_STICKY;
-		if ((eo & FD_EV_MASK_R) == FD_EV_SPEC_R) {
-			/* The owner is interested in reading from this FD */
-			/* Pretend there is something to read */
+		if ((eo & FD_EV_MASK_R) == FD_EV_SPEC_R)
 			fdtab[fd].ev |= FD_POLL_IN;
-			if (fdtab[fd].cb[DIR_RD].f && !fdtab[fd].cb[DIR_RD].f(fd))
-				fdtab[fd].spec.e ^= (FD_EV_WAIT_R ^ FD_EV_SPEC_R);
-		}
 
-		if ((eo & FD_EV_MASK_W) == FD_EV_SPEC_W) {
-			/* The owner is interested in writing to this FD */
-			/* Pretend there is something to write */
+		if ((eo & FD_EV_MASK_W) == FD_EV_SPEC_W)
 			fdtab[fd].ev |= FD_POLL_OUT;
-			if (fdtab[fd].cb[DIR_WR].f && !fdtab[fd].cb[DIR_WR].f(fd))
-				fdtab[fd].spec.e ^= (FD_EV_WAIT_W ^ FD_EV_SPEC_W);
-		}
 
 		if (fdtab[fd].iocb && fdtab[fd].owner && fdtab[fd].ev) {
 			int wait = fdtab[fd].iocb(fd);

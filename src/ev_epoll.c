@@ -245,6 +245,9 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		int e = epoll_events[count].events;
 		fd = epoll_events[count].data.fd;
 
+		if (!fdtab[fd].owner)
+			continue;
+
 		/* it looks complicated but gcc can optimize it away when constants
 		 * have same values.
 		 */
@@ -255,22 +258,6 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			((e & EPOLLOUT) ? FD_POLL_OUT : 0) |
 			((e & EPOLLERR) ? FD_POLL_ERR : 0) |
 			((e & EPOLLHUP) ? FD_POLL_HUP : 0);
-
-		if ((fd_evts[FD2OFS(fd)] >> FD2BIT(fd)) & DIR2MSK(DIR_RD)) {
-			if (!fdtab[fd].owner)
-				continue;
-			if (fdtab[fd].ev & (FD_POLL_IN|FD_POLL_HUP|FD_POLL_ERR))
-				if (fdtab[fd].cb[DIR_RD].f)
-					fdtab[fd].cb[DIR_RD].f(fd);
-		}
-
-		if ((fd_evts[FD2OFS(fd)] >> FD2BIT(fd)) & DIR2MSK(DIR_WR)) {
-			if (!fdtab[fd].owner)
-				continue;
-			if (fdtab[fd].ev & (FD_POLL_OUT|FD_POLL_ERR|FD_POLL_HUP))
-				if (fdtab[fd].cb[DIR_WR].f)
-					fdtab[fd].cb[DIR_WR].f(fd);
-		}
 
 		if (fdtab[fd].iocb && fdtab[fd].owner && fdtab[fd].ev)
 			fdtab[fd].iocb(fd);

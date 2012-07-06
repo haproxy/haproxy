@@ -139,25 +139,20 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	for (count = 0; count < status; count++) {
 		fd = kev[count].ident;
 
+		if (!fdtab[fd].owner)
+			continue;
+
 		fdtab[fd].ev &= FD_POLL_STICKY;
 		if (kev[count].filter ==  EVFILT_READ) {
 			if (FD_ISSET(fd, fd_evts[DIR_RD])) {
-				if (!fdtab[fd].owner)
-					continue;
 				fdtab[fd].ev |= FD_POLL_IN;
-				if (fdtab[fd].cb[DIR_RD].f)
-					fdtab[fd].cb[DIR_RD].f(fd);
 			}
 		} else if (kev[count].filter ==  EVFILT_WRITE) {
 			if (FD_ISSET(fd, fd_evts[DIR_WR])) {
-				if (!fdtab[fd].owner)
-					continue;
 				fdtab[fd].ev |= FD_POLL_OUT;
-				if (fdtab[fd].cb[DIR_WR].f)
-					fdtab[fd].cb[DIR_WR].f(fd)
 			}
 		}
-		if (fdtab[fd].iocb && fdtab[fd].owner && fdtab[fd].ev)
+		if (fdtab[fd].iocb && fdtab[fd].ev)
 			fdtab[fd].iocb(fd);
 	}
 }
