@@ -240,6 +240,7 @@ void delete_listener(struct listener *listener)
 /* This function is called on a read event from a listening socket, corresponding
  * to an accept. It tries to accept as many connections as possible, and for each
  * calls the listener's accept handler (generally the frontend's accept handler).
+ * It returns FD_WAIT_READ or zero.
  */
 int listener_accept(int fd)
 {
@@ -251,7 +252,7 @@ int listener_accept(int fd)
 
 	if (unlikely(l->nbconn >= l->maxconn)) {
 		listener_full(l);
-		return 0;
+		return FD_WAIT_READ;
 	}
 
 	if (global.cps_lim && !(l->options & LI_O_UNLIMITED)) {
@@ -261,7 +262,7 @@ int listener_accept(int fd)
 			/* frontend accept rate limit was reached */
 			limit_listener(l, &global_listener_queue);
 			task_schedule(global_listener_queue_task, tick_add(now_ms, next_event_delay(&global.conn_per_sec, global.cps_lim, 0)));
-			return 0;
+			return FD_WAIT_READ;
 		}
 
 		if (max_accept > max)
@@ -275,7 +276,7 @@ int listener_accept(int fd)
 			/* frontend accept rate limit was reached */
 			limit_listener(l, &p->listener_queue);
 			task_schedule(p->task, tick_add(now_ms, next_event_delay(&p->fe_sess_per_sec, p->fe_sps_lim, 0)));
-			return 0;
+			return FD_WAIT_READ;
 		}
 
 		if (max_accept > max)
@@ -294,12 +295,12 @@ int listener_accept(int fd)
 		if (unlikely(actconn >= global.maxconn) && !(l->options & LI_O_UNLIMITED)) {
 			limit_listener(l, &global_listener_queue);
 			task_schedule(global_listener_queue_task, tick_add(now_ms, 1000)); /* try again in 1 second */
-			return 0;
+			return FD_WAIT_READ;
 		}
 
 		if (unlikely(p && p->feconn >= p->maxconn)) {
 			limit_listener(l, &p->listener_queue);
-			return 0;
+			return FD_WAIT_READ;
 		}
 
 		cfd = accept(fd, (struct sockaddr *)&addr, &laddr);
@@ -308,7 +309,7 @@ int listener_accept(int fd)
 			case EAGAIN:
 			case EINTR:
 			case ECONNABORTED:
-				return 0;	    /* nothing more to accept */
+				return FD_WAIT_READ;   /* nothing more to accept */
 			case ENFILE:
 				if (p)
 					send_log(p, LOG_EMERG,
@@ -316,7 +317,7 @@ int listener_accept(int fd)
 						 p->id, maxfd);
 				limit_listener(l, &global_listener_queue);
 				task_schedule(global_listener_queue_task, tick_add(now_ms, 100)); /* try again in 100 ms */
-				return 0;
+				return FD_WAIT_READ;
 			case EMFILE:
 				if (p)
 					send_log(p, LOG_EMERG,
@@ -324,7 +325,7 @@ int listener_accept(int fd)
 						 p->id, maxfd);
 				limit_listener(l, &global_listener_queue);
 				task_schedule(global_listener_queue_task, tick_add(now_ms, 100)); /* try again in 100 ms */
-				return 0;
+				return FD_WAIT_READ;
 			case ENOBUFS:
 			case ENOMEM:
 				if (p)
@@ -333,9 +334,9 @@ int listener_accept(int fd)
 						 p->id, maxfd);
 				limit_listener(l, &global_listener_queue);
 				task_schedule(global_listener_queue_task, tick_add(now_ms, 100)); /* try again in 100 ms */
-				return 0;
+				return FD_WAIT_READ;
 			default:
-				return 0;
+				return FD_WAIT_READ;
 			}
 		}
 
@@ -358,7 +359,7 @@ int listener_accept(int fd)
 			close(cfd);
 			limit_listener(l, &global_listener_queue);
 			task_schedule(global_listener_queue_task, tick_add(now_ms, 1000)); /* try again in 1 second */
-			return 0;
+			return FD_WAIT_READ;
 		}
 
 		/* increase the per-process number of cumulated connections */
@@ -394,16 +395,17 @@ int listener_accept(int fd)
 
 			limit_listener(l, &global_listener_queue);
 			task_schedule(global_listener_queue_task, tick_add(now_ms, 100)); /* try again in 100 ms */
-			return 0;
+			return FD_WAIT_READ;
 		}
 
 		if (l->nbconn >= l->maxconn) {
 			listener_full(l);
-			return 0;
+			return FD_WAIT_READ;
 		}
 
-	} /* end of while (p->feconn < p->maxconn) */
+	} /* end of while (max_accept--) */
 
+	/* we've exhausted max_accept, so there is no need to poll again */
 	return 0;
 }
 

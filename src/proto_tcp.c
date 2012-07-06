@@ -821,9 +821,9 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 
 	fdtab[fd].owner = listener; /* reference the listener instead of a task */
 	fdtab[fd].flags = FD_FL_TCP | ((listener->options & LI_O_NOLINGER) ? FD_FL_TCP_NOLING : 0);
-	fdtab[fd].cb[DIR_RD].f = listener->proto->accept;
+	fdtab[fd].iocb = listener->proto->accept;
+	fdtab[fd].cb[DIR_RD].f = NULL; /* never called */
 	fdtab[fd].cb[DIR_WR].f = NULL; /* never called */
-	fdtab[fd].iocb = NULL;
 	fd_insert(fd);
 
  tcp_return:
