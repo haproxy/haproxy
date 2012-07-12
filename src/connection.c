@@ -27,31 +27,48 @@ int conn_fd_handler(int fd)
 	struct connection *conn = fdtab[fd].owner;
 	int ret = 0;
 
-	if (!conn)
+	if (unlikely(!conn))
 		goto leave;
 
-	if (conn->flags & CO_FL_ERROR)
-		goto leave;
-
-	if (conn->flags & CO_FL_SI_SEND_PROXY)
-		if ((ret = conn_si_send_proxy(conn, CO_FL_SI_SEND_PROXY)))
+ process_handshake:
+	while (unlikely(conn->flags & CO_FL_HANDSHAKE)) {
+		if (unlikely(conn->flags & CO_FL_ERROR))
 			goto leave;
+
+		if (conn->flags & CO_FL_SI_SEND_PROXY)
+			if ((ret = conn_si_send_proxy(conn, CO_FL_SI_SEND_PROXY)))
+				goto leave;
+	}
+
+	/* OK now we're in the data phase now */
 
 	if (fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
 		if (!conn->data->read(conn))
 			ret |= FD_WAIT_READ;
 
-	if (conn->flags & CO_FL_ERROR)
+	if (unlikely(conn->flags & CO_FL_ERROR))
 		goto leave;
+
+	/* It may happen during the data phase that a handshake is
+	 * enabled again (eg: SSL)
+	 */
+	if (unlikely(conn->flags & CO_FL_HANDSHAKE))
+		goto process_handshake;
 
 	if (fdtab[fd].ev & (FD_POLL_OUT | FD_POLL_ERR))
 		if (!conn->data->write(conn))
 			ret |= FD_WAIT_WRITE;
 
-	if (conn->flags & CO_FL_ERROR)
+	if (unlikely(conn->flags & CO_FL_ERROR))
 		goto leave;
 
-	if (conn->flags & CO_FL_WAIT_L4_CONN) {
+	/* It may happen during the data phase that a handshake is
+	 * enabled again (eg: SSL)
+	 */
+	if (unlikely(conn->flags & CO_FL_HANDSHAKE))
+		goto process_handshake;
+
+	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN)) {
 		/* still waiting for a connection to establish and no data to
 		 * send in order to probe it ? Then let's retry the connect().
 		 */
@@ -64,7 +81,7 @@ int conn_fd_handler(int fd)
 		stream_sock_update_conn(conn);
 
 	/* Last check, verify if the connection just established */
-	if (!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_CONNECTED)))
+	if (unlikely(!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN | CO_FL_CONNECTED))))
 		conn->flags |= CO_FL_CONNECTED;
 
 	/* remove the events before leaving */

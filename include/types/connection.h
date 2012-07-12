@@ -35,11 +35,17 @@ struct protocol;
 enum {
 	CO_FL_NONE          = 0x00000000,
 	CO_FL_ERROR         = 0x00000001,  /* a fatal error was reported     */
-	CO_FL_WAIT_L4_CONN  = 0x00000002,  /* waiting for L4 to be connected */
+	CO_FL_CONNECTED     = 0x00000002,  /* the connection is now established */
+	CO_FL_WAIT_L4_CONN  = 0x00000004,  /* waiting for L4 to be connected */
+	CO_FL_WAIT_L6_CONN  = 0x00000008,  /* waiting for L6 to be connected (eg: SSL) */
+
+	CO_FL_NOTIFY_SI     = 0x00000010,  /* notify stream interface about changes */
+
 	/* flags below are used for connection handshakes */
-	CO_FL_SI_SEND_PROXY = 0x00000004,  /* send a valid PROXY protocol header */
-	CO_FL_NOTIFY_SI     = 0x00000008,  /* notify stream interface about changes */
-	CO_FL_CONNECTED     = 0x00000010,  /* the connection is now established */
+	CO_FL_SI_SEND_PROXY = 0x00000020,  /* send a valid PROXY protocol header */
+
+	/* below we have all handshake flags grouped into one */
+	CO_FL_HANDSHAKE     = CO_FL_SI_SEND_PROXY,
 };
 
 /* This structure describes a connection with its methods and data.

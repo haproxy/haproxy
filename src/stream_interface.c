@@ -502,7 +502,7 @@ void stream_sock_update_conn(struct connection *conn)
 		si->flags |= SI_FL_ERR;
 
 	/* check for recent connection establishment */
-	if (!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_CONNECTED))) {
+	if (unlikely(!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN | CO_FL_CONNECTED)))) {
 		si->exp = TICK_ETERNITY;
 		si->ob->flags |= BF_WRITE_NULL;
 	}
