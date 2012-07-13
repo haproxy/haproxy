@@ -128,12 +128,25 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
 
 #ifdef CONFIG_HAP_LINUX_TPROXY
 	static int ip_transp_working = 1;
-	if (flags && ip_transp_working) {
-		if (setsockopt(fd, SOL_IP, IP_TRANSPARENT, &one, sizeof(one)) == 0
-		    || setsockopt(fd, SOL_IP, IP_FREEBIND, &one, sizeof(one)) == 0)
-			foreign_ok = 1;
-		else
-			ip_transp_working = 0;
+	static int ip6_transp_working = 1;
+	switch (local->ss_family) {
+	case AF_INET:
+		if (flags && ip_transp_working) {
+			if (setsockopt(fd, SOL_IP, IP_TRANSPARENT, &one, sizeof(one)) == 0
+			    || setsockopt(fd, SOL_IP, IP_FREEBIND, &one, sizeof(one)) == 0)
+				foreign_ok = 1;
+			else
+				ip_transp_working = 0;
+		}
+		break;
+	case AF_INET6:
+		if (flags && ip6_transp_working) {
+			if (setsockopt(fd, SOL_IPV6, IPV6_TRANSPARENT, &one, sizeof(one)) == 0)
+				foreign_ok = 1;
+			else
+				ip6_transp_working = 0;
+		}
+		break;
 	}
 #endif
 	if (flags) {
@@ -736,11 +749,22 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one));
 #endif
 #ifdef CONFIG_HAP_LINUX_TPROXY
-	if ((listener->options & LI_O_FOREIGN)
-	    && (setsockopt(fd, SOL_IP, IP_TRANSPARENT, &one, sizeof(one)) == -1)
-	    && (setsockopt(fd, SOL_IP, IP_FREEBIND, &one, sizeof(one)) == -1)) {
-		msg = "cannot make listening socket transparent";
-		err |= ERR_ALERT;
+	if (listener->options & LI_O_FOREIGN) {
+		switch (listener->addr.ss_family) {
+		case AF_INET:
+			if ((setsockopt(fd, SOL_IP, IP_TRANSPARENT, &one, sizeof(one)) == -1)
+			    && (setsockopt(fd, SOL_IP, IP_FREEBIND, &one, sizeof(one)) == -1)) {
+				msg = "cannot make listening socket transparent";
+				err |= ERR_ALERT;
+			}
+		break;
+		case AF_INET6:
+			if (setsockopt(fd, SOL_IPV6, IPV6_TRANSPARENT, &one, sizeof(one)) == -1) {
+				msg = "cannot make listening socket transparent";
+				err |= ERR_ALERT;
+			}
+		break;
+		}
 	}
 #endif
 #ifdef SO_BINDTODEVICE

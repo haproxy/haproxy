@@ -88,6 +88,9 @@
 #if !defined(IP_TRANSPARENT)
 #define IP_TRANSPARENT 19
 #endif /* !IP_TRANSPARENT */
+#if !defined(IPV6_TRANSPARENT)
+#define IPV6_TRANSPARENT 75
+#endif /* !IPV6_TRANSPARENT */
 #endif /* CONFIG_HAP_LINUX_TPROXY */
 
 /* We'll try to enable SO_REUSEPORT on Linux 2.4 and 2.6 if not defined.
