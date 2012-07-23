@@ -527,8 +527,6 @@ int tcp_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
 int tcp_connect_probe(struct connection *conn)
 {
 	int fd = conn->t.sock.fd;
-	struct stream_interface *si = container_of(conn, struct stream_interface, conn);
-	struct buffer *b = si->ob;
 	int retval = 0;
 
 	if (conn->flags & CO_FL_ERROR)
@@ -540,10 +538,6 @@ int tcp_connect_probe(struct connection *conn)
 	/* stop here if we reached the end of data */
 	if ((fdtab[fd].ev & (FD_POLL_IN|FD_POLL_HUP)) == FD_POLL_HUP)
 		goto out_error;
-
-	/* we might have been called just after an asynchronous shutw */
-	if (b->flags & BF_SHUTW)
-		goto out_wakeup;
 
 	/* We have no data to send to check the connection, and
 	 * getsockopt() will not inform us whether the connection
@@ -564,17 +558,11 @@ int tcp_connect_probe(struct connection *conn)
 		/* otherwise we're connected */
 	}
 
-	/* OK we just need to indicate that we got a connection
-	 * and that we wrote nothing.
-	 */
-	b->flags |= BF_WRITE_NULL;
-
 	/* The FD is ready now, we'll mark the connection as complete and
 	 * forward the event to the data layer which will update the stream
 	 * interface flags.
 	 */
 	conn->flags &= ~CO_FL_WAIT_L4_CONN;
-	si->exp = TICK_ETERNITY;
 
  out_wakeup:
  out_ignore:

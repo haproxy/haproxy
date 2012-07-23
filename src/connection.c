@@ -63,6 +63,10 @@ int conn_fd_handler(int fd)
 	if (conn->flags & CO_FL_NOTIFY_SI)
 		stream_sock_update_conn(conn);
 
+	/* Last check, verify if the connection just established */
+	if (!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_CONNECTED)))
+		conn->flags |= CO_FL_CONNECTED;
+
 	/* remove the events before leaving */
 	fdtab[fd].ev &= ~(FD_POLL_IN | FD_POLL_OUT | FD_POLL_HUP | FD_POLL_ERR);
 	return ret;

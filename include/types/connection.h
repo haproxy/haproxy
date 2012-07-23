@@ -39,6 +39,7 @@ enum {
 	/* flags below are used for connection handshakes */
 	CO_FL_SI_SEND_PROXY = 0x00000004,  /* send a valid PROXY protocol header */
 	CO_FL_NOTIFY_SI     = 0x00000008,  /* notify stream interface about changes */
+	CO_FL_CONNECTED     = 0x00000010,  /* the connection is now established */
 };
 
 /* This structure describes a connection with its methods and data.
