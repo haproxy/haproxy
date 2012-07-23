@@ -527,13 +527,12 @@ int tcp_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
 int tcp_connect_probe(struct connection *conn)
 {
 	int fd = conn->t.sock.fd;
-	int retval = 0;
 
 	if (conn->flags & CO_FL_ERROR)
-		goto out_error;
+		return 1;
 
 	if (!(conn->flags & CO_FL_WAIT_L4_CONN))
-		goto out_ignore; /* strange we were called while ready */
+		return 1; /* strange we were called while ready */
 
 	/* stop here if we reached the end of data */
 	if ((fdtab[fd].ev & (FD_POLL_IN|FD_POLL_HUP)) == FD_POLL_HUP)
@@ -550,7 +549,7 @@ int tcp_connect_probe(struct connection *conn)
 	 */
 	if ((connect(fd, conn->peeraddr, conn->peerlen) < 0)) {
 		if (errno == EALREADY || errno == EINPROGRESS)
-			goto out_ignore;
+			return 0;
 
 		if (errno && errno != EISCONN)
 			goto out_error;
@@ -563,23 +562,16 @@ int tcp_connect_probe(struct connection *conn)
 	 * interface flags.
 	 */
 	conn->flags &= ~CO_FL_WAIT_L4_CONN;
-
- out_wakeup:
- out_ignore:
-	return retval;
+	return 1;
 
  out_error:
-	/* Write error on the file descriptor. We mark the FD as STERROR so
-	 * that we don't use it anymore. The error is reported to the stream
-	 * interface which will take proper action. We must not perturbate the
-	 * buffer because the stream interface wants to ensure transparent
-	 * connection retries.
+	/* Write error on the file descriptor. Report it to the connection
+	 * and disable polling on this FD.
 	 */
 
 	conn->flags |= CO_FL_ERROR;
 	EV_FD_REM(fd);
-	retval = 1;
-	goto out_wakeup;
+	return 1;
 }
 
 
