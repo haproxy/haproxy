@@ -15,6 +15,7 @@
 
 #include <types/connection.h>
 
+#include <proto/proto_tcp.h>
 #include <proto/stream_interface.h>
 
 /* I/O callback for fd-based connections. It calls the read/write handlers
@@ -46,6 +47,18 @@ int conn_fd_handler(int fd)
 	if (fdtab[fd].ev & (FD_POLL_OUT | FD_POLL_ERR))
 		if (!conn->data->write(fd))
 			ret |= FD_WAIT_WRITE;
+
+	if (conn->flags & CO_FL_ERROR)
+		goto leave;
+
+	if (conn->flags & CO_FL_WAIT_L4_CONN) {
+		/* still waiting for a connection to establish and no data to
+		 * send in order to probe it ? Then let's retry the connect().
+		 */
+		if (!tcp_connect_probe(fd))
+			ret |= FD_WAIT_WRITE;
+	}
+
  leave:
 	/* remove the events before leaving */
 	fdtab[fd].ev &= ~(FD_POLL_IN | FD_POLL_OUT | FD_POLL_HUP | FD_POLL_ERR);

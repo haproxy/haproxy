@@ -31,6 +31,7 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
 void tcpv4_add_listener(struct listener *listener);
 void tcpv6_add_listener(struct listener *listener);
 int tcp_connect_server(struct stream_interface *si);
+int tcp_connect_probe(int fd);
 int tcp_get_src(int fd, struct sockaddr *sa, socklen_t salen, int dir);
 int tcp_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir);
 int tcp_inspect_request(struct session *s, struct buffer *req, int an_bit);
