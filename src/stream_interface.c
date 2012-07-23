@@ -498,6 +498,9 @@ void stream_sock_update_conn(struct connection *conn)
 		__FUNCTION__,
 		si, si->state, si->ib->flags, si->ob->flags);
 
+	if (conn->flags & CO_FL_ERROR)
+		si->flags |= SI_FL_ERR;
+
 	/* process consumer side, only once if possible */
 	if (fdtab[fd].ev & (FD_POLL_OUT | FD_POLL_ERR)) {
 		if (si->ob->flags & BF_OUT_EMPTY) {

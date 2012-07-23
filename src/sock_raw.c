@@ -467,9 +467,7 @@ static int sock_raw_read(struct connection *conn)
 	 */
 
 	conn->flags |= CO_FL_ERROR;
-	fdtab[fd].ev &= ~FD_POLL_STICKY;
 	EV_FD_REM(fd);
-	si->flags |= SI_FL_ERR;
 	retval = 1;
 	goto out_wakeup;
 }
@@ -662,9 +660,7 @@ static int sock_raw_write(struct connection *conn)
 	 */
 
 	conn->flags |= CO_FL_ERROR;
-	fdtab[fd].ev &= ~FD_POLL_STICKY;
 	EV_FD_REM(fd);
-	si->flags |= SI_FL_ERR;
 	return 1;
 }
 
