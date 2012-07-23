@@ -467,6 +467,7 @@ int tcp_connect_server(struct stream_interface *si)
 	fdtab[fd].owner = &si->conn;
 	fdtab[fd].flags = FD_FL_TCP | FD_FL_TCP_NODELAY;
 	si->conn.flags  = CO_FL_WAIT_L4_CONN; /* connection in progress */
+	si->conn.flags |= CO_FL_NOTIFY_SI; /* we're on a stream_interface */
 
 	/* Prepare to send a few handshakes related to the on-wire protocol. */
 	if (si->send_proxy_ofs)
@@ -574,11 +575,8 @@ int tcp_connect_probe(int fd)
 	 */
 	conn->flags &= ~CO_FL_WAIT_L4_CONN;
 	si->exp = TICK_ETERNITY;
-	return si_data(si)->write(fd);
 
  out_wakeup:
-	task_wakeup(si->owner, TASK_WOKEN_IO);
-
  out_ignore:
 	return retval;
 

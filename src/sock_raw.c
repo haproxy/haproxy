@@ -240,6 +240,9 @@ static int sock_raw_read(int fd)
 
 	retval = 1;
 
+	if (!conn)
+		goto out_wakeup;
+
 	/* stop immediately on errors. Note that we DON'T want to stop on
 	 * POLL_ERR, as the poller might report a write error while there
 	 * are still data available in the recv buffer. This typically
@@ -447,43 +450,6 @@ static int sock_raw_read(int fd)
 	} /* while (1) */
 
  out_wakeup:
-	/* We might have some data the consumer is waiting for.
-	 * We can do fast-forwarding, but we avoid doing this for partial
-	 * buffers, because it is very likely that it will be done again
-	 * immediately afterwards once the following data is parsed (eg:
-	 * HTTP chunking).
-	 */
-	if (b->pipe || /* always try to send spliced data */
-	    (b->i == 0 && (b->cons->flags & SI_FL_WAIT_DATA))) {
-		int last_len = b->pipe ? b->pipe->data : 0;
-
-		si_chk_snd(b->cons);
-
-		/* check if the consumer has freed some space */
-		if (!(b->flags & BF_FULL) &&
-		    (!last_len || !b->pipe || b->pipe->data < last_len))
-			si->flags &= ~SI_FL_WAIT_ROOM;
-	}
-
-	if (si->flags & SI_FL_WAIT_ROOM) {
-		EV_FD_CLR(fd, DIR_RD);
-		b->rex = TICK_ETERNITY;
-	}
-	else if ((b->flags & (BF_SHUTR|BF_READ_PARTIAL|BF_FULL|BF_DONT_READ|BF_READ_NOEXP)) == BF_READ_PARTIAL)
-		b->rex = tick_add_ifset(now_ms, b->rto);
-
-	/* we have to wake up if there is a special event or if we don't have
-	 * any more data to forward.
-	 */
-	if ((b->flags & (BF_READ_NULL|BF_READ_ERROR)) ||
-	    si->state != SI_ST_EST ||
-	    (si->flags & SI_FL_ERR) ||
-	    ((b->flags & BF_READ_PARTIAL) && (!b->to_forward || b->cons->state != SI_ST_EST)))
-		task_wakeup(si->owner, TASK_WOKEN_IO);
-
-	if (b->flags & BF_READ_ACTIVITY)
-		b->flags &= ~BF_READ_DONTWAIT;
-
 	return retval;
 
  out_shutdown_r:
@@ -677,6 +643,9 @@ static int sock_raw_write(int fd)
 #endif
 
 	retval = 1;
+	if (!conn)
+		goto out_wakeup;
+
 	if (conn->flags & CO_FL_ERROR)
 		goto out_error;
 
@@ -688,58 +657,7 @@ static int sock_raw_write(int fd)
 	if (retval < 0)
 		goto out_error;
 
-	if (b->flags & BF_OUT_EMPTY) {
-		/* the connection is established but we can't write. Either the
-		 * buffer is empty, or we just refrain from sending because the
-		 * ->o limit was reached. Maybe we just wrote the last
-		 * chunk and need to close.
-		 */
-		if (((b->flags & (BF_SHUTW|BF_HIJACK|BF_SHUTW_NOW)) == BF_SHUTW_NOW) &&
-		    (si->state == SI_ST_EST)) {
-			sock_raw_shutw(si);
-			goto out_wakeup;
-		}
-		
-		if ((b->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_FULL|BF_HIJACK)) == 0)
-			si->flags |= SI_FL_WAIT_DATA;
-
-		EV_FD_CLR(fd, DIR_WR);
-		b->wex = TICK_ETERNITY;
-	}
-
-	if (b->flags & BF_WRITE_ACTIVITY) {
-		/* update timeout if we have written something */
-		if ((b->flags & (BF_OUT_EMPTY|BF_SHUTW|BF_WRITE_PARTIAL)) == BF_WRITE_PARTIAL)
-			b->wex = tick_add_ifset(now_ms, b->wto);
-
-	out_wakeup:
-		if (tick_isset(si->ib->rex) && !(si->flags & SI_FL_INDEP_STR)) {
-			/* Note: to prevent the client from expiring read timeouts
-			 * during writes, we refresh it. We only do this if the
-			 * interface is not configured for "independent streams",
-			 * because for some applications it's better not to do this,
-			 * for instance when continuously exchanging small amounts
-			 * of data which can full the socket buffers long before a
-			 * write timeout is detected.
-			 */
-			si->ib->rex = tick_add_ifset(now_ms, si->ib->rto);
-		}
-
-		/* the producer might be waiting for more room to store data */
-		if (likely((b->flags & (BF_SHUTW|BF_WRITE_PARTIAL|BF_FULL|BF_DONT_READ)) == BF_WRITE_PARTIAL &&
-			   (b->prod->flags & SI_FL_WAIT_ROOM)))
-			si_chk_rcv(b->prod);
-
-		/* we have to wake up if there is a special event or if we don't have
-		 * any more data to forward and it's not planned to send any more.
-		 */
-		if (likely((b->flags & (BF_WRITE_NULL|BF_WRITE_ERROR|BF_SHUTW)) ||
-			   ((b->flags & BF_OUT_EMPTY) && !b->to_forward) ||
-			   si->state != SI_ST_EST ||
-			   b->prod->state != SI_ST_EST))
-			task_wakeup(si->owner, TASK_WOKEN_IO);
-	}
-
+ out_wakeup:
 	return retval;
 
  out_error:
@@ -754,7 +672,6 @@ static int sock_raw_write(int fd)
 	fdtab[fd].ev &= ~FD_POLL_STICKY;
 	EV_FD_REM(fd);
 	si->flags |= SI_FL_ERR;
-	task_wakeup(si->owner, TASK_WOKEN_IO);
 	return 1;
 }
 

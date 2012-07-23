@@ -38,6 +38,7 @@ enum {
 	CO_FL_WAIT_L4_CONN  = 0x00000002,  /* waiting for L4 to be connected */
 	/* flags below are used for connection handshakes */
 	CO_FL_SI_SEND_PROXY = 0x00000004,  /* send a valid PROXY protocol header */
+	CO_FL_NOTIFY_SI     = 0x00000008,  /* notify stream interface about changes */
 };
 
 /* This structure describes a connection with its methods and data.

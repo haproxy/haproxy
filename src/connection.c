@@ -60,6 +60,9 @@ int conn_fd_handler(int fd)
 	}
 
  leave:
+	if (conn->flags & CO_FL_NOTIFY_SI)
+		stream_sock_update_conn(conn);
+
 	/* remove the events before leaving */
 	fdtab[fd].ev &= ~(FD_POLL_IN | FD_POLL_OUT | FD_POLL_HUP | FD_POLL_ERR);
 	return ret;
