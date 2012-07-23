@@ -524,9 +524,9 @@ int tcp_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
  * once the connection is established. It returns zero if it needs some polling
  * before being called again.
  */
-int tcp_connect_probe(int fd)
+int tcp_connect_probe(struct connection *conn)
 {
-	struct connection *conn = fdtab[fd].owner;
+	int fd = conn->t.sock.fd;
 	struct stream_interface *si = container_of(conn, struct stream_interface, conn);
 	struct buffer *b = si->ob;
 	int retval = 0;

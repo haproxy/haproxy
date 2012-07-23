@@ -114,8 +114,8 @@ struct sock_ops {
 	void (*shutw)(struct stream_interface *);   /* shutw function */
 	void (*chk_rcv)(struct stream_interface *); /* chk_rcv function */
 	void (*chk_snd)(struct stream_interface *); /* chk_snd function */
-	int (*read)(int fd);                        /* read callback after poll() */
-	int (*write)(int fd);                       /* write callback after poll() */
+	int (*read)(struct connection *conn);       /* read callback after poll() */
+	int (*write)(struct connection *conn);      /* write callback after poll() */
 	void (*close)(struct connection *);         /* close the data channel on the connection */
 
 };

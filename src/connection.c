@@ -38,14 +38,14 @@ int conn_fd_handler(int fd)
 			goto leave;
 
 	if (fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
-		if (!conn->data->read(fd))
+		if (!conn->data->read(conn))
 			ret |= FD_WAIT_READ;
 
 	if (conn->flags & CO_FL_ERROR)
 		goto leave;
 
 	if (fdtab[fd].ev & (FD_POLL_OUT | FD_POLL_ERR))
-		if (!conn->data->write(fd))
+		if (!conn->data->write(conn))
 			ret |= FD_WAIT_WRITE;
 
 	if (conn->flags & CO_FL_ERROR)
@@ -55,7 +55,7 @@ int conn_fd_handler(int fd)
 		/* still waiting for a connection to establish and no data to
 		 * send in order to probe it ? Then let's retry the connect().
 		 */
-		if (!tcp_connect_probe(fd))
+		if (!tcp_connect_probe(conn))
 			ret |= FD_WAIT_WRITE;
 	}
 

@@ -42,8 +42,8 @@
 #include <types/global.h>
 
 /* main event functions used to move data between sockets and buffers */
-static int sock_raw_read(int fd);
-static int sock_raw_write(int fd);
+static int sock_raw_read(struct connection *conn);
+static int sock_raw_write(struct connection *conn);
 static void sock_raw_data_finish(struct stream_interface *si);
 static void sock_raw_shutr(struct stream_interface *si);
 static void sock_raw_shutw(struct stream_interface *si);
@@ -226,9 +226,9 @@ static int sock_raw_splice_in(struct buffer *b, struct stream_interface *si)
  * able to read more data without polling first. Returns non-zero
  * otherwise.
  */
-static int sock_raw_read(int fd)
+static int sock_raw_read(struct connection *conn)
 {
-	struct connection *conn = fdtab[fd].owner;
+	int fd = conn->t.sock.fd;
 	struct stream_interface *si = container_of(conn, struct stream_interface, conn);
 	struct buffer *b = si->ib;
 	int ret, max, retval, cur_read;
@@ -239,9 +239,6 @@ static int sock_raw_read(int fd)
 #endif
 
 	retval = 1;
-
-	if (!conn)
-		goto out_wakeup;
 
 	/* stop immediately on errors. Note that we DON'T want to stop on
 	 * POLL_ERR, as the poller might report a write error while there
@@ -631,9 +628,9 @@ static int sock_raw_write_loop(struct stream_interface *si, struct buffer *b)
  * It returns 0 if the caller needs to poll before calling it again, otherwise
  * non-zero.
  */
-static int sock_raw_write(int fd)
+static int sock_raw_write(struct connection *conn)
 {
-	struct connection *conn = fdtab[fd].owner;
+	int fd = conn->t.sock.fd;
 	struct stream_interface *si = container_of(conn, struct stream_interface, conn);
 	struct buffer *b = si->ob;
 	int retval = 1;
@@ -641,10 +638,6 @@ static int sock_raw_write(int fd)
 #ifdef DEBUG_FULL
 	fprintf(stderr,"sock_raw_write : fd=%d, owner=%p\n", fd, fdtab[fd].owner);
 #endif
-
-	retval = 1;
-	if (!conn)
-		goto out_wakeup;
 
 	if (conn->flags & CO_FL_ERROR)
 		goto out_error;
