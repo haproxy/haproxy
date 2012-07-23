@@ -484,7 +484,6 @@ static int sock_raw_read(int fd)
 	if (b->flags & BF_READ_ACTIVITY)
 		b->flags &= ~BF_READ_DONTWAIT;
 
-	fdtab[fd].ev &= ~FD_POLL_IN;
 	return retval;
 
  out_shutdown_r:
@@ -741,7 +740,6 @@ static int sock_raw_write(int fd)
 			task_wakeup(si->owner, TASK_WOKEN_IO);
 	}
 
-	fdtab[fd].ev &= ~FD_POLL_OUT;
 	return retval;
 
  out_error:

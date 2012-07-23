@@ -42,5 +42,7 @@ int conn_fd_handler(int fd)
 		if (!conn->data->write(fd))
 			ret |= FD_WAIT_WRITE;
 
+	/* remove the events before leaving */
+	fdtab[fd].ev &= ~(FD_POLL_IN | FD_POLL_OUT | FD_POLL_HUP | FD_POLL_ERR);
 	return ret;
 }
