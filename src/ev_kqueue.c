@@ -60,24 +60,22 @@ REGPRM2 static int __fd_is_set(const int fd, int dir)
 	return FD_ISSET(fd, fd_evts[dir]);
 }
 
-REGPRM2 static int __fd_set(const int fd, int dir)
+REGPRM2 static void __fd_set(const int fd, int dir)
 {
 	/* if the value was set, do nothing */
 	if (FD_ISSET(fd, fd_evts[dir]))
-		return 0;
+		return;
 
 	FD_SET(fd, fd_evts[dir]);
 	EV_SET(kev, fd, dir2filt[dir], EV_ADD, 0, 0, NULL);
 	kevent(kqueue_fd, kev, 1, NULL, 0, NULL);
-	return 1;
 }
 
-REGPRM2 static int __fd_clr(const int fd, int dir)
+REGPRM2 static void __fd_clr(const int fd, int dir)
 {
 	if (!kqev_del(kev, fd, dir))
-		return 0;
+		return;
 	kevent(kqueue_fd, kev, 1, NULL, 0, NULL);
-	return 1;
 }
 
 REGPRM1 static void __fd_rem(int fd)
@@ -275,8 +273,8 @@ static void _do_register(void)
 	p->fork = _do_fork;
 
 	p->is_set  = __fd_is_set;
-	p->cond_s = p->set = __fd_set;
-	p->cond_c = p->clr = __fd_clr;
+	p->set = __fd_set;
+	p->clr = __fd_clr;
 	p->rem = __fd_rem;
 	p->clo = __fd_clo;
 }

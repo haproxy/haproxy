@@ -91,10 +91,6 @@ struct fdinfo {
  *    poller should set it to 100.
  *  - <private> is initialized by the poller's init() function, and cleaned by
  *    the term() function.
- *  - cond_s() checks if fd was not set then sets it and returns 1. Otherwise
- *    it returns 0. It may be the same as set().
- *  - cond_c() checks if fd was set then clears it and returns 1. Otherwise
- *    it returns 0. It may be the same as clr().
  *  - clo() should be used to do indicate the poller that fd will be closed. It
  *    may be the same as rem() on some pollers.
  *  - poll() calls the poller, expiring at <exp>
@@ -102,10 +98,8 @@ struct fdinfo {
 struct poller {
 	void   *private;                                     /* any private data for the poller */
 	int  REGPRM2 (*is_set)(const int fd, int dir);       /* check if <fd> is being polled for dir <dir> */
-	int  REGPRM2    (*set)(const int fd, int dir);       /* set   polling on <fd> for <dir> */
-	int  REGPRM2    (*clr)(const int fd, int dir);       /* clear polling on <fd> for <dir> */
-	int  REGPRM2 (*cond_s)(const int fd, int dir);       /* set   polling on <fd> for <dir> if unset */
-	int  REGPRM2 (*cond_c)(const int fd, int dir);       /* clear polling on <fd> for <dir> if set */
+	void REGPRM2    (*set)(const int fd, int dir);       /* set   polling on <fd> for <dir> */
+	void REGPRM2    (*clr)(const int fd, int dir);       /* clear polling on <fd> for <dir> */
 	void REGPRM1    (*rem)(const int fd);                /* remove any polling on <fd> */
 	void REGPRM1    (*clo)(const int fd);                /* mark <fd> as closed */
     	void REGPRM2   (*poll)(struct poller *p, int exp);   /* the poller itself */

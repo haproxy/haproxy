@@ -215,7 +215,7 @@ REGPRM2 static int __fd_is_set(const int fd, int dir)
  * Don't worry about the strange constructs in __fd_set/__fd_clr, they are
  * designed like this in order to reduce the number of jumps (verified).
  */
-REGPRM2 static int __fd_set(const int fd, int dir)
+REGPRM2 static void __fd_set(const int fd, int dir)
 {
 	unsigned int i;
 
@@ -229,15 +229,14 @@ REGPRM2 static int __fd_set(const int fd, int dir)
 
 	if (i != FD_EV_STOP) {
 		if (unlikely(i != FD_EV_IDLE))
-			return 0;
+			return;
 		// switch to SPEC state and allocate a SPEC entry.
 		alloc_spec_entry(fd);
 	}
 	fdtab[fd].spec.e ^= (unsigned int)(FD_EV_IN_SL << dir);
-	return 1;
 }
 
-REGPRM2 static int __fd_clr(const int fd, int dir)
+REGPRM2 static void __fd_clr(const int fd, int dir)
 {
 	unsigned int i;
 
@@ -251,7 +250,7 @@ REGPRM2 static int __fd_clr(const int fd, int dir)
 
 	if (i != FD_EV_SPEC) {
 		if (unlikely(i != FD_EV_WAIT))
-			return 0;
+			return;
 		// switch to STOP state
 		/* We will create a queue entry for this one because we want to
 		 * process it later in order to merge it with other events on
@@ -260,7 +259,6 @@ REGPRM2 static int __fd_clr(const int fd, int dir)
 		alloc_spec_entry(fd);
 	}
 	fdtab[fd].spec.e ^= (unsigned int)(FD_EV_IN_SL << dir);
-	return 1;
 }
 
 /* normally unused */
@@ -593,8 +591,8 @@ static void _do_register(void)
 	p->fork = _do_fork;
 
 	p->is_set  = __fd_is_set;
-	p->cond_s = p->set = __fd_set;
-	p->cond_c = p->clr = __fd_clr;
+	p->set = __fd_set;
+	p->clr = __fd_clr;
 	p->rem = __fd_rem;
 	p->clo = __fd_clo;
 }

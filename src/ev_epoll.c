@@ -147,7 +147,7 @@ REGPRM2 static void alloc_chg_list(const int fd, int old_evt)
 	ptr->prev = old_evt;
 }
 
-REGPRM2 static int __fd_set(const int fd, int dir)
+REGPRM2 static void __fd_set(const int fd, int dir)
 {
 	uint32_t ofs = FD2OFS(fd);
 	uint32_t dmsk = DIR2MSK(dir);
@@ -156,15 +156,14 @@ REGPRM2 static int __fd_set(const int fd, int dir)
 	old_evt = fd_evts[ofs] >> FD2BIT(fd);
 	old_evt &= 3;
 	if (unlikely(old_evt & dmsk))
-		return 0;
+		return;
 
 	alloc_chg_list(fd, old_evt);
 	dmsk <<= FD2BIT(fd);
 	fd_evts[ofs] |= dmsk;
-	return 1;
 }
 
-REGPRM2 static int __fd_clr(const int fd, int dir)
+REGPRM2 static void __fd_clr(const int fd, int dir)
 {
 	uint32_t ofs = FD2OFS(fd);
 	uint32_t dmsk = DIR2MSK(dir);
@@ -173,12 +172,11 @@ REGPRM2 static int __fd_clr(const int fd, int dir)
 	old_evt = fd_evts[ofs] >> FD2BIT(fd);
 	old_evt &= 3;
 	if (unlikely(!(old_evt & dmsk)))
-		return 0;
+		return;
 
 	alloc_chg_list(fd, old_evt);
 	dmsk <<= FD2BIT(fd);
 	fd_evts[ofs] &= ~dmsk;
-	return 1;
 }
 
 REGPRM1 static void __fd_rem(int fd)
@@ -190,7 +188,6 @@ REGPRM1 static void __fd_rem(int fd)
 
 	alloc_chg_list(fd, 0);
 	fd_evts[ofs] &= ~FD2MSK(fd);
-	return;
 }
 
 /*
@@ -206,7 +203,6 @@ REGPRM1 static void __fd_clo(int fd)
 		ptr->prev = 0;
 		chg_ptr[fd] = NULL;
 	}
-	return;
 }
 
 /*
@@ -399,8 +395,8 @@ static void _do_register(void)
 	p->fork = _do_fork;
 
 	p->is_set  = __fd_is_set;
-	p->cond_s = p->set = __fd_set;
-	p->cond_c = p->clr = __fd_clr;
+	p->set = __fd_set;
+	p->clr = __fd_clr;
 	p->rem = __fd_rem;
 	p->clo = __fd_clo;
 }

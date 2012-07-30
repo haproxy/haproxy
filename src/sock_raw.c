@@ -793,7 +793,7 @@ static void sock_raw_data_finish(struct stream_interface *si)
 			if (!(si->flags & SI_FL_WAIT_ROOM)) {
 				if ((ib->flags & (BF_FULL|BF_HIJACK|BF_DONT_READ)) == BF_FULL)
 					si->flags |= SI_FL_WAIT_ROOM;
-				EV_FD_COND_C(fd, DIR_RD);
+				EV_FD_CLR(fd, DIR_RD);
 				ib->rex = TICK_ETERNITY;
 			}
 		}
@@ -804,7 +804,7 @@ static void sock_raw_data_finish(struct stream_interface *si)
 			 * have updated it if there has been a completed I/O.
 			 */
 			si->flags &= ~SI_FL_WAIT_ROOM;
-			EV_FD_COND_S(fd, DIR_RD);
+			EV_FD_SET(fd, DIR_RD);
 			if (!(ib->flags & (BF_READ_NOEXP|BF_DONT_READ)) && !tick_isset(ib->rex))
 				ib->rex = tick_add_ifset(now_ms, ib->rto);
 		}
@@ -818,7 +818,7 @@ static void sock_raw_data_finish(struct stream_interface *si)
 			if (!(si->flags & SI_FL_WAIT_DATA)) {
 				if ((ob->flags & (BF_FULL|BF_HIJACK|BF_SHUTW_NOW)) == 0)
 					si->flags |= SI_FL_WAIT_DATA;
-				EV_FD_COND_C(fd, DIR_WR);
+				EV_FD_CLR(fd, DIR_WR);
 				ob->wex = TICK_ETERNITY;
 			}
 		}
@@ -829,7 +829,7 @@ static void sock_raw_data_finish(struct stream_interface *si)
 			 * have updated it if there has been a completed I/O.
 			 */
 			si->flags &= ~SI_FL_WAIT_DATA;
-			EV_FD_COND_S(fd, DIR_WR);
+			EV_FD_SET(fd, DIR_WR);
 			if (!tick_isset(ob->wex)) {
 				ob->wex = tick_add_ifset(now_ms, ob->wto);
 				if (tick_isset(ib->rex) && !(si->flags & SI_FL_INDEP_STR)) {
@@ -870,12 +870,12 @@ static void sock_raw_chk_rcv(struct stream_interface *si)
 		/* stop reading */
 		if ((ib->flags & (BF_FULL|BF_HIJACK|BF_DONT_READ)) == BF_FULL)
 			si->flags |= SI_FL_WAIT_ROOM;
-		EV_FD_COND_C(si_fd(si), DIR_RD);
+		EV_FD_CLR(si_fd(si), DIR_RD);
 	}
 	else {
 		/* (re)start reading */
 		si->flags &= ~SI_FL_WAIT_ROOM;
-		EV_FD_COND_S(si_fd(si), DIR_RD);
+		EV_FD_SET(si_fd(si), DIR_RD);
 	}
 }
 
@@ -951,7 +951,7 @@ static void sock_raw_chk_snd(struct stream_interface *si)
 		/* Otherwise there are remaining data to be sent in the buffer,
 		 * which means we have to poll before doing so.
 		 */
-		EV_FD_COND_S(si_fd(si), DIR_WR);
+		EV_FD_SET(si_fd(si), DIR_WR);
 		si->flags &= ~SI_FL_WAIT_DATA;
 		if (!tick_isset(ob->wex))
 			ob->wex = tick_add_ifset(now_ms, ob->wto);
