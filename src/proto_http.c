@@ -8548,6 +8548,23 @@ smp_fetch_url_param(struct proxy *px, struct session *l4, void *l7, unsigned int
 	return 1;
 }
 
+/* Return the signed integer value for the specified url parameter (see url_param
+ * above).
+ */
+static int
+smp_fetch_url_param_val(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                     const struct arg *args, struct sample *smp)
+{
+	int ret = smp_fetch_url_param(px, l4, l7, opt, args, smp);
+
+	if (ret > 0) {
+		smp->type = SMP_T_UINT;
+		smp->data.uint = strl2ic(smp->data.str.str, smp->data.str.len);
+	}
+
+	return ret;
+}
+
 /* This function is used to validate the arguments passed to any "hdr" fetch
  * keyword. These keywords support an optional positive or negative occurrence
  * number. We must ensure that the number is greater than -MAX_HDR_HISTORY. It
@@ -8670,6 +8687,7 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "urlp_len",        acl_parse_int,     smp_fetch_url_param,      acl_match_len,     ACL_USE_L7REQ_VOLATILE, ARG1(1,STR) },
 	{ "urlp_reg",        acl_parse_reg,     smp_fetch_url_param,      acl_match_reg,     ACL_USE_L7REQ_VOLATILE, ARG1(1,STR) },
 	{ "urlp_sub",        acl_parse_str,     smp_fetch_url_param,      acl_match_sub,     ACL_USE_L7REQ_VOLATILE, ARG1(1,STR) },
+	{ "urlp_val",        acl_parse_int,     smp_fetch_url_param_val,  acl_match_int,     ACL_USE_L7REQ_VOLATILE, ARG1(1,STR) },
 
 	{ NULL, NULL, NULL, NULL },
 }};

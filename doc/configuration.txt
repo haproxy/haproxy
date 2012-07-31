@@ -8342,6 +8342,12 @@ urlp_sub(<name>) <string>
   can be used to detect particular patterns in query strings for example. See
   also "path_sub" and other "urlp_" criteria.
 
+urlp_val(<name>) <integer>
+  Returns true when the URL parameter "<name>" starts with a number matching
+  the values or ranges specified. Note that the absence of the parameter does
+  not match anything. Integers are unsigned so it is not possible to match
+  negative data.
+
 
 7.6. Pre-defined ACLs
 ---------------------
