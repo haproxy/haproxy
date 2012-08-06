@@ -30,6 +30,14 @@
  */
 int conn_fd_handler(int fd);
 
+/* Calls the close() function of the data layer if any */
+static inline void conn_data_close(struct connection *conn)
+{
+	if (conn->data->close)
+		conn->data->close(conn);
+}
+
+
 #endif /* _PROTO_CONNECTION_H */
 
 /*

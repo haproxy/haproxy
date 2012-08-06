@@ -30,6 +30,7 @@
 #include <common/time.h>
 
 #include <proto/buffers.h>
+#include <proto/connection.h>
 #include <proto/fd.h>
 #include <proto/freq_ctr.h>
 #include <proto/log.h>
@@ -710,7 +711,7 @@ static void sock_raw_shutw(struct stream_interface *si)
 		/* we may have to close a pending connection, and mark the
 		 * response buffer as shutr
 		 */
-		si_data_close(si);
+		conn_data_close(&si->conn);
 		fd_delete(si_fd(si));
 		/* fall through */
 	case SI_ST_CER:
@@ -748,7 +749,7 @@ static void sock_raw_shutr(struct stream_interface *si)
 		return;
 
 	if (si->ob->flags & BF_SHUTW) {
-		si_data_close(si);
+		conn_data_close(&si->conn);
 		fd_delete(si_fd(si));
 		si->state = SI_ST_DIS;
 		si->exp = TICK_ETERNITY;

@@ -27,6 +27,7 @@
 #include <common/time.h>
 
 #include <proto/buffers.h>
+#include <proto/connection.h>
 #include <proto/fd.h>
 #include <proto/frontend.h>
 #include <proto/sock_raw.h>
@@ -230,7 +231,7 @@ static void stream_int_shutr(struct stream_interface *si)
 		si->state = SI_ST_DIS;
 		si->exp = TICK_ETERNITY;
 
-		si_data_close(si);
+		conn_data_close(&si->conn);
 		if (si->release)
 			si->release(si);
 	}
@@ -267,7 +268,7 @@ static void stream_int_shutw(struct stream_interface *si)
 		si->state = SI_ST_DIS;
 		/* fall through */
 
-		si_data_close(si);
+		conn_data_close(&si->conn);
 		if (si->release)
 			si->release(si);
 	default:
