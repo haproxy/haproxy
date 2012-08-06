@@ -710,6 +710,7 @@ static void sock_raw_shutw(struct stream_interface *si)
 		/* we may have to close a pending connection, and mark the
 		 * response buffer as shutr
 		 */
+		si_data_close(si);
 		fd_delete(si_fd(si));
 		/* fall through */
 	case SI_ST_CER:
@@ -717,7 +718,6 @@ static void sock_raw_shutw(struct stream_interface *si)
 	case SI_ST_TAR:
 		si->state = SI_ST_DIS;
 
-		si_data_close(si);
 		if (si->release)
 			si->release(si);
 	default:
@@ -748,11 +748,11 @@ static void sock_raw_shutr(struct stream_interface *si)
 		return;
 
 	if (si->ob->flags & BF_SHUTW) {
+		si_data_close(si);
 		fd_delete(si_fd(si));
 		si->state = SI_ST_DIS;
 		si->exp = TICK_ETERNITY;
 
-		si_data_close(si);
 		if (si->release)
 			si->release(si);
 		return;
