@@ -35,6 +35,8 @@ void stream_int_report_error(struct stream_interface *si);
 void stream_int_retnclose(struct stream_interface *si, const struct chunk *msg);
 int conn_si_send_proxy(struct connection *conn, unsigned int flag);
 void stream_sock_update_conn(struct connection *conn);
+int stream_int_shutr(struct stream_interface *si);
+int stream_int_shutw(struct stream_interface *si);
 
 extern struct sock_ops stream_int_embedded;
 extern struct sock_ops stream_int_task;
@@ -164,13 +166,15 @@ static inline void si_get_to_addr(struct stream_interface *si)
 /* Sends a shutr to the connection using the data layer */
 static inline void si_shutr(struct stream_interface *si)
 {
-	si_data(si)->shutr(si);
+	if (stream_int_shutr(si))
+		EV_FD_CLR(si_fd(si), DIR_RD);
 }
 
 /* Sends a shutw to the connection using the data layer */
 static inline void si_shutw(struct stream_interface *si)
 {
-	si_data(si)->shutw(si);
+	if (stream_int_shutw(si))
+		EV_FD_CLR(si_fd(si), DIR_WR);
 }
 
 /* Calls the data state update on the stream interfaace */

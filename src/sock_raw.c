@@ -46,8 +46,6 @@
 static int sock_raw_read(struct connection *conn);
 static int sock_raw_write(struct connection *conn);
 static void sock_raw_data_finish(struct stream_interface *si);
-static void sock_raw_shutr(struct stream_interface *si);
-static void sock_raw_shutw(struct stream_interface *si);
 static void sock_raw_read0(struct stream_interface *si);
 static void sock_raw_chk_rcv(struct stream_interface *si);
 static void sock_raw_chk_snd(struct stream_interface *si);
@@ -667,107 +665,6 @@ static int sock_raw_write(struct connection *conn)
 }
 
 /*
- * This function performs a shutdown-write on a stream interface in a connected or
- * init state (it does nothing for other states). It either shuts the write side
- * or closes the file descriptor and marks itself as closed. The buffer flags are
- * updated to reflect the new state. It does also close everything is the SI was
- * marked as being in error state.
- */
-static void sock_raw_shutw(struct stream_interface *si)
-{
-	si->ob->flags &= ~BF_SHUTW_NOW;
-	if (si->ob->flags & BF_SHUTW)
-		return;
-	si->ob->flags |= BF_SHUTW;
-	si->ob->wex = TICK_ETERNITY;
-	si->flags &= ~SI_FL_WAIT_DATA;
-
-	switch (si->state) {
-	case SI_ST_EST:
-		/* we have to shut before closing, otherwise some short messages
-		 * may never leave the system, especially when there are remaining
-		 * unread data in the socket input buffer, or when nolinger is set.
-		 * However, if SI_FL_NOLINGER is explicitly set, we know there is
-		 * no risk so we close both sides immediately.
-		 */
-		if (si->flags & SI_FL_ERR) {
-			/* quick close, the socket is already shut. Remove pending flags. */
-			si->flags &= ~SI_FL_NOLINGER;
-		}
-		else if (si->flags & SI_FL_NOLINGER) {
-			si->flags &= ~SI_FL_NOLINGER;
-			setsockopt(si_fd(si), SOL_SOCKET, SO_LINGER,
-				   (struct linger *) &nolinger, sizeof(struct linger));
-		}
-		else if (!(si->flags & SI_FL_NOHALF)) {
-			EV_FD_CLR(si_fd(si), DIR_WR);
-			shutdown(si_fd(si), SHUT_WR);
-
-			if (!(si->ib->flags & (BF_SHUTR|BF_DONT_READ)))
-				return;
-		}
-
-		/* fall through */
-	case SI_ST_CON:
-		/* we may have to close a pending connection, and mark the
-		 * response buffer as shutr
-		 */
-		conn_data_close(&si->conn);
-		fd_delete(si_fd(si));
-		/* fall through */
-	case SI_ST_CER:
-	case SI_ST_QUE:
-	case SI_ST_TAR:
-		si->state = SI_ST_DIS;
-
-		if (si->release)
-			si->release(si);
-	default:
-		si->flags &= ~SI_FL_WAIT_ROOM;
-		si->ib->flags |= BF_SHUTR;
-		si->ib->rex = TICK_ETERNITY;
-		si->exp = TICK_ETERNITY;
-	}
-}
-
-/*
- * This function performs a shutdown-read on a stream interface in a connected or
- * init state (it does nothing for other states). It either shuts the read side
- * or closes the file descriptor and marks itself as closed. The buffer flags are
- * updated to reflect the new state. If the stream interface has SI_FL_NOHALF,
- * we also forward the close to the write side.
- */
-static void sock_raw_shutr(struct stream_interface *si)
-{
-	si->ib->flags &= ~BF_SHUTR_NOW;
-	if (si->ib->flags & BF_SHUTR)
-		return;
-	si->ib->flags |= BF_SHUTR;
-	si->ib->rex = TICK_ETERNITY;
-	si->flags &= ~SI_FL_WAIT_ROOM;
-
-	if (si->state != SI_ST_EST && si->state != SI_ST_CON)
-		return;
-
-	if (si->ob->flags & BF_SHUTW) {
-		conn_data_close(&si->conn);
-		fd_delete(si_fd(si));
-		si->state = SI_ST_DIS;
-		si->exp = TICK_ETERNITY;
-
-		if (si->release)
-			si->release(si);
-		return;
-	}
-	else if (si->flags & SI_FL_NOHALF) {
-		/* we want to immediately forward this close to the write side */
-		return sock_raw_shutw(si);
-	}
-	EV_FD_CLR(si_fd(si), DIR_RD);
-	return;
-}
-
-/*
  * This function propagates a null read received on a connection. It updates
  * the stream interface. If the stream interface has SI_FL_NOHALF, we also
  * forward the close to the write side.
@@ -990,7 +887,7 @@ static void sock_raw_chk_snd(struct stream_interface *si)
 		if (((ob->flags & (BF_SHUTW|BF_HIJACK|BF_AUTO_CLOSE|BF_SHUTW_NOW)) ==
 		     (BF_AUTO_CLOSE|BF_SHUTW_NOW)) &&
 		    (si->state == SI_ST_EST)) {
-			sock_raw_shutw(si);
+			si_shutw(si);
 			goto out_wakeup;
 		}
 
@@ -1041,8 +938,8 @@ static void sock_raw_chk_snd(struct stream_interface *si)
 /* stream sock operations */
 struct sock_ops sock_raw = {
 	.update  = sock_raw_data_finish,
-	.shutr   = sock_raw_shutr,
-	.shutw   = sock_raw_shutw,
+	.shutr   = NULL,
+	.shutw   = NULL,
 	.chk_rcv = sock_raw_chk_rcv,
 	.chk_snd = sock_raw_chk_snd,
 	.read    = sock_raw_read,

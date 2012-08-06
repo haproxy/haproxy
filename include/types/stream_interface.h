@@ -110,8 +110,8 @@ struct target {
 
 struct sock_ops {
 	void (*update)(struct stream_interface *);  /* I/O update function */
-	void (*shutr)(struct stream_interface *);   /* shutr function */
-	void (*shutw)(struct stream_interface *);   /* shutw function */
+	void (*shutr)(struct connection *, int);    /* shutr function */
+	void (*shutw)(struct connection *, int);    /* shutw function */
 	void (*chk_rcv)(struct stream_interface *); /* chk_rcv function */
 	void (*chk_snd)(struct stream_interface *); /* chk_snd function */
 	int (*read)(struct connection *conn);       /* read callback after poll() */
