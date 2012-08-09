@@ -474,9 +474,9 @@ void stream_int_unregister_handler(struct stream_interface *si)
 }
 
 /* This callback is used to send a valid PROXY protocol line to a socket being
- * established. It returns a combination of FD_WAIT_* if it wants some polling
- * before being called again, otherwise it returns zero and removes itself from
- * the connection's flags (the bit is provided in <flag> by the caller).
+ * established. It returns 0 if it fails in a fatal way or needs to poll to go
+ * further, otherwise it returns non-zero and removes itself from the connection's
+ * flags (the bit is provided in <flag> by the caller).
  */
 int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 {
@@ -535,28 +535,21 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 		conn->flags &= ~CO_FL_WAIT_L4_CONN;
 	b->flags |= BF_WRITE_NULL;
 	si->exp = TICK_ETERNITY;
-
- out_leave:
 	conn->flags &= ~flag;
-	return 0;
+	return 1;
 
  out_error:
-	/* Write error on the file descriptor. We mark the FD as STERROR so
-	 * that we don't use it anymore. The error is reported to the stream
-	 * interface which will take proper action. We must not perturbate the
-	 * buffer because the stream interface wants to ensure transparent
-	 * connection retries.
-	 */
-
+	/* Write error on the file descriptor */
 	conn->flags |= CO_FL_ERROR;
+	conn->flags &= ~flag;
 	fdtab[fd].ev &= ~FD_POLL_STICKY;
 	conn_sock_stop_both(conn);
-	goto out_leave;
+	return 0;
 
  out_wait:
 	conn_sock_stop_recv(conn);
 	conn_sock_poll_send(conn);
-	return FD_WAIT_WRITE;
+	return 0;
 }
 
 /* function to be called on stream sockets after all I/O handlers */

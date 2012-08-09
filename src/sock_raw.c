@@ -43,8 +43,8 @@
 #include <types/global.h>
 
 /* main event functions used to move data between sockets and buffers */
-static int sock_raw_read(struct connection *conn);
-static int sock_raw_write(struct connection *conn);
+static void sock_raw_read(struct connection *conn);
+static void sock_raw_write(struct connection *conn);
 static void sock_raw_data_finish(struct stream_interface *si);
 static void sock_raw_read0(struct stream_interface *si);
 static void sock_raw_chk_rcv(struct stream_interface *si);
@@ -66,9 +66,7 @@ static void sock_raw_chk_snd(struct stream_interface *si);
 /* Returns :
  *   -1 if splice is not possible or not possible anymore and we must switch to
  *      user-land copy (eg: to_forward reached)
- *    0 when we know that polling is required to get more data (EAGAIN)
- *    1 for all other cases (we can safely try again, or if an activity has been
- *      detected (DATA/NULL/ERR))
+ *    0 otherwise, including errors and close.
  * Sets :
  *   BF_READ_NULL
  *   BF_READ_PARTIAL
@@ -87,7 +85,7 @@ static int sock_raw_splice_in(struct buffer *b, struct stream_interface *si)
 	int fd = si_fd(si);
 	int ret;
 	unsigned long max;
-	int retval = 1;
+	int retval = 0;
 
 	if (!b->to_forward)
 		return -1;
@@ -105,7 +103,7 @@ static int sock_raw_splice_in(struct buffer *b, struct stream_interface *si)
 		conn_data_stop_recv(&si->conn);
 		b->rex = TICK_ETERNITY;
 		si_chk_snd(b->cons);
-		return 1;
+		return 0;
 	}
 
 	if (unlikely(b->pipe == NULL)) {
@@ -144,7 +142,6 @@ static int sock_raw_splice_in(struct buffer *b, struct stream_interface *si)
 				 */
 				splice_detects_close = 1;
 				b->flags |= BF_READ_NULL;
-				retval = 1; /* no need for further polling */
 				break;
 			}
 
@@ -160,7 +157,6 @@ static int sock_raw_splice_in(struct buffer *b, struct stream_interface *si)
 
 				if (b->pipe->data) {
 					si->flags |= SI_FL_WAIT_ROOM;
-					retval = 1;
 					break;
 				}
 
@@ -173,7 +169,7 @@ static int sock_raw_splice_in(struct buffer *b, struct stream_interface *si)
 				 * which will be able to deal with the situation.
 				 */
 				if (splice_detects_close)
-					retval = 0; /* we know for sure that it's EAGAIN */
+					conn_data_poll_recv(&si->conn); /* we know for sure that it's EAGAIN */
 				else
 					retval = -1;
 				break;
@@ -190,7 +186,6 @@ static int sock_raw_splice_in(struct buffer *b, struct stream_interface *si)
 
 			/* here we have another error */
 			si->flags |= SI_FL_ERR;
-			retval = 1;
 			break;
 		} /* ret <= 0 */
 
@@ -204,7 +199,6 @@ static int sock_raw_splice_in(struct buffer *b, struct stream_interface *si)
 		if (b->pipe->data >= SPLICE_FULL_HINT ||
 		    ret >= global.tune.recv_enough) {
 			/* We've read enough of it for this time. */
-			retval = 1;
 			break;
 		}
 	} /* while */
@@ -222,24 +216,18 @@ static int sock_raw_splice_in(struct buffer *b, struct stream_interface *si)
 
 /*
  * this function is called on a read event from a stream socket.
- * It returns 0 if we have a high confidence that we will not be
- * able to read more data without polling first. Returns non-zero
- * otherwise.
  */
-static int sock_raw_read(struct connection *conn)
+static void sock_raw_read(struct connection *conn)
 {
 	int fd = conn->t.sock.fd;
 	struct stream_interface *si = container_of(conn, struct stream_interface, conn);
 	struct buffer *b = si->ib;
-	int ret, max, retval, cur_read;
+	int ret, max, cur_read;
 	int read_poll = MAX_READ_POLL_LOOPS;
 
 #ifdef DEBUG_FULL
 	fprintf(stderr,"sock_raw_read : fd=%d, ev=0x%02x, owner=%p\n", fd, fdtab[fd].ev, fdtab[fd].owner);
 #endif
-
-	retval = 1;
-
 	/* stop immediately on errors. Note that we DON'T want to stop on
 	 * POLL_ERR, as the poller might report a write error while there
 	 * are still data available in the recv buffer. This typically
@@ -255,7 +243,7 @@ static int sock_raw_read(struct connection *conn)
 
 	/* maybe we were called immediately after an asynchronous shutr */
 	if (b->flags & BF_SHUTR)
-		goto out_wakeup;
+		return;
 
 #if defined(CONFIG_HAP_LINUX_SPLICE)
 	if (b->to_forward >= MIN_SPLICE_FORWARD && b->flags & BF_KERN_SPLICING) {
@@ -267,14 +255,12 @@ static int sock_raw_read(struct connection *conn)
 		if (fdtab[fd].ev & FD_POLL_HUP)
 			goto out_shutdown_r;
 
-		retval = sock_raw_splice_in(b, si);
-
-		if (retval >= 0) {
+		if (sock_raw_splice_in(b, si) >= 0) {
 			if (si->flags & SI_FL_ERR)
 				goto out_error;
 			if (b->flags & BF_READ_NULL)
 				goto out_shutdown_r;
-			goto out_wakeup;
+			return;
 		}
 		/* splice not possible (anymore), let's go on on standard copy */
 	}
@@ -438,7 +424,7 @@ static int sock_raw_read(struct connection *conn)
 			 * the task.
 			 */
 			if (cur_read < MIN_RET_FOR_READ_LOOP)
-				retval = 0;
+				conn_data_poll_recv(conn);
 			break;
 		}
 		else {
@@ -446,8 +432,7 @@ static int sock_raw_read(struct connection *conn)
 		}
 	} /* while (1) */
 
- out_wakeup:
-	return retval;
+	return;
 
  out_shutdown_r:
 	/* we received a shutdown */
@@ -456,33 +441,22 @@ static int sock_raw_read(struct connection *conn)
 	if (b->flags & BF_AUTO_CLOSE)
 		buffer_shutw_now(b);
 	sock_raw_read0(si);
-	goto out_wakeup;
+	return;
 
  out_error:
-	/* Read error on the file descriptor. We mark the FD as STERROR so
-	 * that we don't use it anymore. The error is reported to the stream
-	 * interface which will take proper action. We must not perturbate the
-	 * buffer because the stream interface wants to ensure transparent
-	 * connection retries.
-	 */
-
+	/* Read error on the connection, report the error and stop I/O */
 	conn->flags |= CO_FL_ERROR;
 	conn_data_stop_both(conn);
-	retval = 1;
-	goto out_wakeup;
 }
 
 
 /*
  * This function is called to send buffer data to a stream socket.
- * It returns -1 in case of unrecoverable error, 0 if the caller needs to poll
- * before calling it again, otherwise 1. If a pipe was associated with the
- * buffer and it empties it, it releases it as well.
+ * It returns -1 in case of unrecoverable error, otherwise zero.
  */
 static int sock_raw_write_loop(struct stream_interface *si, struct buffer *b)
 {
 	int write_poll = MAX_WRITE_POLL_LOOPS;
-	int retval = 1;
 	int ret, max;
 
 #if defined(CONFIG_HAP_LINUX_SPLICE)
@@ -491,12 +465,11 @@ static int sock_raw_write_loop(struct stream_interface *si, struct buffer *b)
 			     SPLICE_F_MOVE|SPLICE_F_NONBLOCK);
 		if (ret <= 0) {
 			if (ret == 0 || errno == EAGAIN) {
-				retval = 0;
-				return retval;
+				conn_data_poll_send(&si->conn);
+				return 0;
 			}
 			/* here we have another error */
-			retval = -1;
-			return retval;
+			return -1;
 		}
 
 		b->flags |= BF_WRITE_PARTIAL;
@@ -509,11 +482,12 @@ static int sock_raw_write_loop(struct stream_interface *si, struct buffer *b)
 		}
 
 		if (--write_poll <= 0)
-			return retval;
+			return 0;
 
 		/* The only reason we did not empty the pipe is that the output
 		 * buffer is full.
 		 */
+		conn_data_poll_send(&si->conn);
 		return 0;
 	}
 
@@ -523,7 +497,7 @@ static int sock_raw_write_loop(struct stream_interface *si, struct buffer *b)
 #endif
 	if (!b->o) {
 		b->flags |= BF_OUT_EMPTY;
-		return retval;
+		return 0;
 	}
 
 	/* when we're in this loop, we already know that there is no spliced
@@ -607,30 +581,25 @@ static int sock_raw_write_loop(struct stream_interface *si, struct buffer *b)
 		}
 		else if (ret == 0 || errno == EAGAIN) {
 			/* nothing written, we need to poll for write first */
-			retval = 0;
-			break;
+			conn_data_poll_send(&si->conn);
+			return 0;
 		}
 		else {
 			/* bad, we got an error */
-			retval = -1;
-			break;
+			return -1;
 		}
 	} /* while (1) */
-
-	return retval;
+	return 0;
 }
 
 
 /*
  * This function is called on a write event from a stream socket.
- * It returns 0 if the caller needs to poll before calling it again, otherwise
- * non-zero.
  */
-static int sock_raw_write(struct connection *conn)
+static void sock_raw_write(struct connection *conn)
 {
 	struct stream_interface *si = container_of(conn, struct stream_interface, conn);
 	struct buffer *b = si->ob;
-	int retval = 1;
 
 #ifdef DEBUG_FULL
 	fprintf(stderr,"sock_raw_write : fd=%d, owner=%p\n", fd, fdtab[fd].owner);
@@ -641,26 +610,19 @@ static int sock_raw_write(struct connection *conn)
 
 	/* we might have been called just after an asynchronous shutw */
 	if (b->flags & BF_SHUTW)
-		goto out_wakeup;
+		return;
 
-	retval = sock_raw_write_loop(si, b);
-	if (retval < 0)
+	if (sock_raw_write_loop(si, b) < 0)
 		goto out_error;
 
- out_wakeup:
-	return retval;
+	/* OK all done */
+	return;
 
  out_error:
-	/* Write error on the file descriptor. We mark the FD as STERROR so
-	 * that we don't use it anymore. The error is reported to the stream
-	 * interface which will take proper action. We must not perturbate the
-	 * buffer because the stream interface wants to ensure transparent
-	 * connection retries.
-	 */
+	/* Write error on the connection, report the error and stop I/O */
 
 	conn->flags |= CO_FL_ERROR;
 	conn_data_stop_both(conn);
-	return 1;
 }
 
 /*
@@ -834,7 +796,6 @@ static void sock_raw_chk_rcv(struct stream_interface *si)
 static void sock_raw_chk_snd(struct stream_interface *si)
 {
 	struct buffer *ob = si->ob;
-	int retval;
 
 	DPRINTF(stderr,"[%u] %s: fd=%d owner=%p ib=%p, ob=%p, exp(r,w)=%u,%u ibf=%08x obf=%08x ibh=%d ibt=%d obh=%d obd=%d si=%d\n",
 		now_ms, __FUNCTION__,
@@ -855,13 +816,7 @@ static void sock_raw_chk_snd(struct stream_interface *si)
 	     (fdtab[si_fd(si)].ev & FD_POLL_OUT)))   /* we'll be called anyway */
 		return;
 
-	retval = sock_raw_write_loop(si, ob);
-	/* here, we have :
-	 *   retval < 0 if an error was encountered during write.
-	 *   retval = 0 if we can't write anymore without polling
-	 *   retval = 1 if we're invited to come back when desired
-	 */
-	if (retval < 0) {
+	if (sock_raw_write_loop(si, ob) < 0) {
 		/* Write error on the file descriptor. We mark the FD as STERROR so
 		 * that we don't use it anymore and we notify the task.
 		 */
@@ -872,9 +827,8 @@ static void sock_raw_chk_snd(struct stream_interface *si)
 		goto out_wakeup;
 	}
 
-	/* OK, so now we know that retval >= 0 means that some data might have
-	 * been sent, and that we may have to poll first. We have to do that
-	 * too if the buffer is not empty.
+	/* OK, so now we know that some data might have been sent, and that we may
+	 * have to poll first. We have to do that too if the buffer is not empty.
 	 */
 	if (ob->flags & BF_OUT_EMPTY) {
 		/* the connection is established but we can't write. Either the

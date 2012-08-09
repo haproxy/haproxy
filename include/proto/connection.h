@@ -26,7 +26,7 @@
 #include <types/connection.h>
 
 /* I/O callback for fd-based connections. It calls the read/write handlers
- * provided by the connection's sock_ops. Returns FD_WAIT_*.
+ * provided by the connection's sock_ops. Returns 0.
  */
 int conn_fd_handler(int fd);
 

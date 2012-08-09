@@ -19,13 +19,11 @@
 #include <proto/stream_interface.h>
 
 /* I/O callback for fd-based connections. It calls the read/write handlers
- * provided by the connection's sock_ops, which must be valid. It returns
- * FD_WAIT_*.
+ * provided by the connection's sock_ops, which must be valid. It returns 0.
  */
 int conn_fd_handler(int fd)
 {
 	struct connection *conn = fdtab[fd].owner;
-	int ret = 0;
 
 	if (unlikely(!conn))
 		goto leave;
@@ -42,7 +40,7 @@ int conn_fd_handler(int fd)
 			goto leave;
 
 		if (conn->flags & CO_FL_SI_SEND_PROXY)
-			if ((ret = conn_si_send_proxy(conn, CO_FL_SI_SEND_PROXY)))
+			if (!conn_si_send_proxy(conn, CO_FL_SI_SEND_PROXY))
 				goto leave;
 	}
 
@@ -51,8 +49,7 @@ int conn_fd_handler(int fd)
 		__conn_sock_stop_both(conn);
 
 	if (fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
-		if (!conn->data->read(conn))
-			ret |= FD_WAIT_READ;
+		conn->data->read(conn);
 
 	if (unlikely(conn->flags & CO_FL_ERROR))
 		goto leave;
@@ -64,8 +61,7 @@ int conn_fd_handler(int fd)
 		goto process_handshake;
 
 	if (fdtab[fd].ev & (FD_POLL_OUT | FD_POLL_ERR))
-		if (!conn->data->write(conn))
-			ret |= FD_WAIT_WRITE;
+		conn->data->write(conn);
 
 	if (unlikely(conn->flags & CO_FL_ERROR))
 		goto leave;
@@ -81,7 +77,7 @@ int conn_fd_handler(int fd)
 		 * send in order to probe it ? Then let's retry the connect().
 		 */
 		if (!tcp_connect_probe(conn))
-			ret |= FD_WAIT_WRITE;
+			goto leave;
 	}
 
  leave:
@@ -97,7 +93,7 @@ int conn_fd_handler(int fd)
 
 	/* commit polling changes */
 	conn_cond_update_polling(conn);
-	return ret;
+	return 0;
 }
 
 /* set polling depending on the change between the CURR part of the

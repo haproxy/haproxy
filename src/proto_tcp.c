@@ -523,15 +523,17 @@ int tcp_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
 
 /* This is the callback which is set when a connection establishment is pending
  * and we have nothing to send, or if we have an init function we want to call
- * once the connection is established. It returns zero if it needs some polling
- * before being called again.
+ * once the connection is established. It updates the FD polling status. It
+ * returns 0 if it fails in a fatal way or needs to poll to go further, otherwise
+ * it returns non-zero and removes itself from the connection's flags (the bit is
+ * provided in <flag> by the caller).
  */
 int tcp_connect_probe(struct connection *conn)
 {
 	int fd = conn->t.sock.fd;
 
 	if (conn->flags & CO_FL_ERROR)
-		return 1;
+		return 0;
 
 	if (!(conn->flags & CO_FL_WAIT_L4_CONN))
 		return 1; /* strange we were called while ready */
@@ -576,7 +578,7 @@ int tcp_connect_probe(struct connection *conn)
 
 	conn->flags |= CO_FL_ERROR;
 	conn_sock_stop_both(conn);
-	return 1;
+	return 0;
 }
 
 
