@@ -309,7 +309,7 @@ void parse_logformat_string(char *str, struct proxy *curproxy, struct list *list
 	struct logformat_node *tmplf, *back;
 	int options = 0;
 
-	curproxy->to_log = LW_INIT;
+	curproxy->to_log |= LW_INIT;
 
 	/* flush the list first. */
 	list_for_each_entry_safe(tmplf, back, list_format, list) {
