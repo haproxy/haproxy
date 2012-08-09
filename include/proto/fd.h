@@ -1,23 +1,23 @@
 /*
-  include/proto/fd.h
-  File descriptors states.
-
-  Copyright (C) 2000-2007 Willy Tarreau - w@1wt.eu
-  
-  This library is free software; you can redistribute it and/or
-  modify it under the terms of the GNU Lesser General Public
-  License as published by the Free Software Foundation, version 2.1
-  exclusively.
-
-  This library is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  Lesser General Public License for more details.
-
-  You should have received a copy of the GNU Lesser General Public
-  License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
-*/
+ * include/proto/fd.h
+ * File descriptors states.
+ *
+ * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation, version 2.1
+ * exclusively.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ */
 
 #ifndef _PROTO_FD_H
 #define _PROTO_FD_H
@@ -70,12 +70,33 @@ int list_pollers(FILE *out);
  */
 void run_poller();
 
-#define EV_FD_SET(fd, ev)    (cur_poller.set((fd), (ev)))
-#define EV_FD_CLR(fd, ev)    (cur_poller.clr((fd), (ev)))
 #define EV_FD_ISSET(fd, ev)  (cur_poller.is_set((fd), (ev)))
-#define EV_FD_REM(fd)        (cur_poller.rem(fd))
-#define EV_FD_CLO(fd)        (cur_poller.clo(fd))
 
+/* event manipulation primitives for use by I/O callbacks */
+static inline void fd_want_recv(int fd)
+{
+	cur_poller.set(fd, DIR_RD);
+}
+
+static inline void fd_stop_recv(int fd)
+{
+	cur_poller.clr(fd, DIR_RD);
+}
+
+static inline void fd_want_send(int fd)
+{
+	cur_poller.set(fd, DIR_WR);
+}
+
+static inline void fd_stop_send(int fd)
+{
+	cur_poller.clr(fd, DIR_WR);
+}
+
+static inline void fd_stop_both(int fd)
+{
+	cur_poller.rem(fd);
+}
 
 /* Prepares <fd> for being polled */
 static inline void fd_insert(int fd)

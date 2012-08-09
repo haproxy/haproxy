@@ -284,7 +284,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	fdtab[cfd].owner = &s->si[0].conn;
 	fdtab[cfd].flags = 0;
 	fdtab[cfd].iocb = conn_fd_handler;
-	EV_FD_SET(cfd, DIR_RD);
+	fd_want_recv(cfd);
 
 	if (p->accept && (ret = p->accept(s)) <= 0) {
 		/* Either we had an unrecoverable error (<0) or work is

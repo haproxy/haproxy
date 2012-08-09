@@ -39,7 +39,7 @@ void enable_listener(struct listener *listener)
 {
 	if (listener->state == LI_LISTEN) {
 		if (listener->nbconn < listener->maxconn) {
-			EV_FD_SET(listener->fd, DIR_RD);
+			fd_want_recv(listener->fd);
 			listener->state = LI_READY;
 		} else {
 			listener->state = LI_FULL;
@@ -56,7 +56,7 @@ void disable_listener(struct listener *listener)
 	if (listener->state < LI_READY)
 		return;
 	if (listener->state == LI_READY)
-		EV_FD_CLR(listener->fd, DIR_RD);
+		fd_stop_recv(listener->fd);
 	if (listener->state == LI_LIMITED)
 		LIST_DEL(&listener->wait_queue);
 	listener->state = LI_LISTEN;
@@ -86,7 +86,7 @@ int pause_listener(struct listener *l)
 	if (l->state == LI_LIMITED)
 		LIST_DEL(&l->wait_queue);
 
-	EV_FD_CLR(l->fd, DIR_RD);
+	fd_stop_recv(l->fd);
 	l->state = LI_PAUSED;
 	return 1;
 }
@@ -116,7 +116,7 @@ int resume_listener(struct listener *l)
 		return 1;
 	}
 
-	EV_FD_SET(l->fd, DIR_RD);
+	fd_want_recv(l->fd);
 	l->state = LI_READY;
 	return 1;
 }
@@ -130,7 +130,7 @@ void listener_full(struct listener *l)
 		if (l->state == LI_LIMITED)
 			LIST_DEL(&l->wait_queue);
 
-		EV_FD_CLR(l->fd, DIR_RD);
+		fd_stop_recv(l->fd);
 		l->state = LI_FULL;
 	}
 }
@@ -142,7 +142,7 @@ void limit_listener(struct listener *l, struct list *list)
 {
 	if (l->state == LI_READY) {
 		LIST_ADDQ(list, &l->wait_queue);
-		EV_FD_CLR(l->fd, DIR_RD);
+		fd_stop_recv(l->fd);
 		l->state = LI_LIMITED;
 	}
 }
@@ -198,7 +198,7 @@ void dequeue_all_listeners(struct list *list)
 int unbind_listener(struct listener *listener)
 {
 	if (listener->state == LI_READY)
-		EV_FD_CLR(listener->fd, DIR_RD);
+		fd_stop_recv(listener->fd);
 
 	if (listener->state == LI_LIMITED)
 		LIST_DEL(&listener->wait_queue);

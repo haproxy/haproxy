@@ -102,7 +102,7 @@ static int sock_raw_splice_in(struct buffer *b, struct stream_interface *si)
 		 * place and ask the consumer to hurry.
 		 */
 		si->flags |= SI_FL_WAIT_ROOM;
-		EV_FD_CLR(fd, DIR_RD);
+		fd_stop_recv(fd);
 		b->rex = TICK_ETERNITY;
 		si_chk_snd(b->cons);
 		return 1;
@@ -467,7 +467,7 @@ static int sock_raw_read(struct connection *conn)
 	 */
 
 	conn->flags |= CO_FL_ERROR;
-	EV_FD_REM(fd);
+	fd_stop_both(fd);
 	retval = 1;
 	goto out_wakeup;
 }
@@ -660,7 +660,7 @@ static int sock_raw_write(struct connection *conn)
 	 */
 
 	conn->flags |= CO_FL_ERROR;
-	EV_FD_REM(fd);
+	fd_stop_both(fd);
 	return 1;
 }
 
@@ -700,7 +700,7 @@ static void sock_raw_read0(struct stream_interface *si)
 	}
 
 	/* otherwise that's just a normal read shutdown */
-	EV_FD_CLR(si_fd(si), DIR_RD);
+	fd_stop_recv(si_fd(si));
 	return;
 
  do_close:
@@ -741,7 +741,7 @@ static void sock_raw_data_finish(struct stream_interface *si)
 			if (!(si->flags & SI_FL_WAIT_ROOM)) {
 				if ((ib->flags & (BF_FULL|BF_HIJACK|BF_DONT_READ)) == BF_FULL)
 					si->flags |= SI_FL_WAIT_ROOM;
-				EV_FD_CLR(fd, DIR_RD);
+				fd_stop_recv(fd);
 				ib->rex = TICK_ETERNITY;
 			}
 		}
@@ -752,7 +752,7 @@ static void sock_raw_data_finish(struct stream_interface *si)
 			 * have updated it if there has been a completed I/O.
 			 */
 			si->flags &= ~SI_FL_WAIT_ROOM;
-			EV_FD_SET(fd, DIR_RD);
+			fd_want_recv(fd);
 			if (!(ib->flags & (BF_READ_NOEXP|BF_DONT_READ)) && !tick_isset(ib->rex))
 				ib->rex = tick_add_ifset(now_ms, ib->rto);
 		}
@@ -766,7 +766,7 @@ static void sock_raw_data_finish(struct stream_interface *si)
 			if (!(si->flags & SI_FL_WAIT_DATA)) {
 				if ((ob->flags & (BF_FULL|BF_HIJACK|BF_SHUTW_NOW)) == 0)
 					si->flags |= SI_FL_WAIT_DATA;
-				EV_FD_CLR(fd, DIR_WR);
+				fd_stop_send(fd);
 				ob->wex = TICK_ETERNITY;
 			}
 		}
@@ -777,7 +777,7 @@ static void sock_raw_data_finish(struct stream_interface *si)
 			 * have updated it if there has been a completed I/O.
 			 */
 			si->flags &= ~SI_FL_WAIT_DATA;
-			EV_FD_SET(fd, DIR_WR);
+			fd_want_send(fd);
 			if (!tick_isset(ob->wex)) {
 				ob->wex = tick_add_ifset(now_ms, ob->wto);
 				if (tick_isset(ib->rex) && !(si->flags & SI_FL_INDEP_STR)) {
@@ -818,12 +818,12 @@ static void sock_raw_chk_rcv(struct stream_interface *si)
 		/* stop reading */
 		if ((ib->flags & (BF_FULL|BF_HIJACK|BF_DONT_READ)) == BF_FULL)
 			si->flags |= SI_FL_WAIT_ROOM;
-		EV_FD_CLR(si_fd(si), DIR_RD);
+		fd_stop_recv(si_fd(si));
 	}
 	else {
 		/* (re)start reading */
 		si->flags &= ~SI_FL_WAIT_ROOM;
-		EV_FD_SET(si_fd(si), DIR_RD);
+		fd_want_recv(si_fd(si));
 	}
 }
 
@@ -869,7 +869,7 @@ static void sock_raw_chk_snd(struct stream_interface *si)
 		 */
 		si->conn.flags |= CO_FL_ERROR;
 		fdtab[si_fd(si)].ev &= ~FD_POLL_STICKY;
-		EV_FD_REM(si_fd(si));
+		fd_stop_both(si_fd(si));
 		si->flags |= SI_FL_ERR;
 		goto out_wakeup;
 	}
@@ -899,7 +899,7 @@ static void sock_raw_chk_snd(struct stream_interface *si)
 		/* Otherwise there are remaining data to be sent in the buffer,
 		 * which means we have to poll before doing so.
 		 */
-		EV_FD_SET(si_fd(si), DIR_WR);
+		fd_want_send(si_fd(si));
 		si->flags &= ~SI_FL_WAIT_DATA;
 		if (!tick_isset(ob->wex))
 			ob->wex = tick_add_ifset(now_ms, ob->wto);

@@ -475,7 +475,7 @@ int tcp_connect_server(struct stream_interface *si)
 
 	fdtab[fd].iocb = conn_fd_handler;
 	fd_insert(fd);
-	EV_FD_SET(fd, DIR_WR);  /* for connect status */
+	fd_want_send(fd);  /* for connect status */
 
 	si->state = SI_ST_CON;
 	si->flags |= SI_FL_CAP_SPLTCP; /* TCP supports splicing */
@@ -570,7 +570,7 @@ int tcp_connect_probe(struct connection *conn)
 	 */
 
 	conn->flags |= CO_FL_ERROR;
-	EV_FD_REM(fd);
+	fd_stop_both(fd);
 	return 1;
 }
 

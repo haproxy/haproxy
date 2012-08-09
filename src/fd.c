@@ -37,7 +37,7 @@ int nbpollers = 0;
  */
 void fd_delete(int fd)
 {
-	EV_FD_CLO(fd);
+	cur_poller.clo(fd);
 	port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
 	fdinfo[fd].port_range = NULL;
 	close(fd);

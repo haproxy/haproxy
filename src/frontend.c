@@ -212,7 +212,7 @@ int frontend_accept(struct session *s)
 		stream_int_retnclose(&s->si[0], &msg); /* forge a 200 response */
 		s->req->analysers = 0;
 		s->task->expire = s->rep->wex;
-		EV_FD_CLR(cfd, DIR_RD);
+		fd_stop_recv(cfd);
 	}
 	else if (unlikely(s->fe->mode == PR_MODE_HEALTH)) {  /* health check mode, no client reading */
 		struct chunk msg;
@@ -220,7 +220,7 @@ int frontend_accept(struct session *s)
 		stream_int_retnclose(&s->si[0], &msg); /* forge an "OK" response */
 		s->req->analysers = 0;
 		s->task->expire = s->rep->wex;
-		EV_FD_CLR(cfd, DIR_RD);
+		fd_stop_recv(cfd);
 	}
 	/* everything's OK, let's go on */
 	return 1;

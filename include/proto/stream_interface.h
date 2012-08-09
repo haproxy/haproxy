@@ -167,14 +167,14 @@ static inline void si_get_to_addr(struct stream_interface *si)
 static inline void si_shutr(struct stream_interface *si)
 {
 	if (stream_int_shutr(si))
-		EV_FD_CLR(si_fd(si), DIR_RD);
+		fd_stop_recv(si_fd(si));
 }
 
 /* Sends a shutw to the connection using the data layer */
 static inline void si_shutw(struct stream_interface *si)
 {
 	if (stream_int_shutw(si))
-		EV_FD_CLR(si_fd(si), DIR_WR);
+		fd_stop_send(si_fd(si));
 }
 
 /* Calls the data state update on the stream interfaace */

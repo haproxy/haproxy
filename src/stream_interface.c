@@ -550,7 +550,7 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 
 	conn->flags |= CO_FL_ERROR;
 	fdtab[fd].ev &= ~FD_POLL_STICKY;
-	EV_FD_REM(fd);
+	fd_stop_both(fd);
 	goto out_leave;
 
  out_wait:
@@ -582,7 +582,7 @@ void stream_sock_update_conn(struct connection *conn)
 			if (((si->ob->flags & (BF_SHUTW|BF_HIJACK|BF_SHUTW_NOW)) == BF_SHUTW_NOW) &&
 			    (si->state == SI_ST_EST))
 				stream_int_shutw(si);
-			EV_FD_CLR(fd, DIR_WR);
+			fd_stop_send(fd);
 			si->ob->wex = TICK_ETERNITY;
 		}
 
@@ -627,7 +627,7 @@ void stream_sock_update_conn(struct connection *conn)
 		}
 
 		if (si->flags & SI_FL_WAIT_ROOM) {
-			EV_FD_CLR(fd, DIR_RD);
+			fd_stop_recv(fd);
 			si->ib->rex = TICK_ETERNITY;
 		}
 		else if ((si->ib->flags & (BF_SHUTR|BF_READ_PARTIAL|BF_FULL|BF_DONT_READ|BF_READ_NOEXP)) == BF_READ_PARTIAL) {

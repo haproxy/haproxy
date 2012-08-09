@@ -820,7 +820,7 @@ static int event_srv_chk_w(int fd)
 					t->expire = tick_add_ifset(now_ms, s->proxy->timeout.check);
 					task_queue(t);
 				}
-				EV_FD_SET(fd, DIR_RD);   /* prepare for reading reply */
+				fd_want_recv(fd);   /* prepare for reading reply */
 				goto out_nowake;
 			}
 			else if (ret == 0 || errno == EAGAIN)
@@ -878,7 +878,7 @@ static int event_srv_chk_w(int fd)
  out_wakeup:
 	task_wakeup(t, TASK_WOKEN_IO);
  out_nowake:
-	EV_FD_CLR(fd, DIR_WR);   /* nothing more to write */
+	fd_stop_send(fd);   /* nothing more to write */
 	fdtab[fd].ev &= ~FD_POLL_OUT;
 	return 1;
  out_poll:
@@ -1239,7 +1239,7 @@ static int event_srv_chk_r(int fd)
 
 	/* Close the connection... */
 	shutdown(fd, SHUT_RDWR);
-	EV_FD_CLR(fd, DIR_RD);
+	fd_stop_recv(fd);
 	task_wakeup(t, TASK_WOKEN_IO);
 	fdtab[fd].ev &= ~FD_POLL_IN;
 	return 1;
@@ -1484,7 +1484,7 @@ static struct task *process_chk(struct task *t)
 						fdtab[fd].owner = t;
 						fdtab[fd].iocb = &check_iocb;
 						fdtab[fd].flags = FD_FL_TCP | FD_FL_TCP_NODELAY;
-						EV_FD_SET(fd, DIR_WR);  /* for connect status */
+						fd_want_send(fd);  /* for connect status */
 #ifdef DEBUG_FULL
 						assert (!EV_FD_ISSET(fd, DIR_RD));
 #endif
