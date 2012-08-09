@@ -230,6 +230,7 @@ static void _do_register(void)
 	p->poll = _do_poll;
 	p->is_set = __fd_is_set;
 	p->set = __fd_set;
+	p->wai = __fd_set;
 	p->clr = __fd_clr;
 	p->clo = p->rem = __fd_rem;
 }

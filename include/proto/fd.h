@@ -83,6 +83,11 @@ static inline void fd_stop_recv(int fd)
 	cur_poller.clr(fd, DIR_RD);
 }
 
+static inline void fd_poll_recv(int fd)
+{
+	cur_poller.wai(fd, DIR_RD);
+}
+
 static inline void fd_want_send(int fd)
 {
 	cur_poller.set(fd, DIR_WR);
@@ -91,6 +96,11 @@ static inline void fd_want_send(int fd)
 static inline void fd_stop_send(int fd)
 {
 	cur_poller.clr(fd, DIR_WR);
+}
+
+static inline void fd_poll_send(int fd)
+{
+	cur_poller.wai(fd, DIR_WR);
 }
 
 static inline void fd_stop_both(int fd)

@@ -215,6 +215,26 @@ REGPRM2 static int __fd_is_set(const int fd, int dir)
  * Don't worry about the strange constructs in __fd_set/__fd_clr, they are
  * designed like this in order to reduce the number of jumps (verified).
  */
+REGPRM2 static void __fd_wai(const int fd, int dir)
+{
+	unsigned int i;
+
+#if DEBUG_DEV
+	if (!fdtab[fd].owner) {
+		fprintf(stderr, "sepoll.fd_wai called on closed fd #%d.\n", fd);
+		ABORT_NOW();
+	}
+#endif
+	i = ((unsigned)fdtab[fd].spec.e >> dir) & FD_EV_MASK_DIR;
+
+	if (!(i & FD_EV_IN_SL)) {
+		if (i == FD_EV_WAIT)
+			return; /* already in desired state */
+		alloc_spec_entry(fd); /* need a spec entry */
+	}
+	fdtab[fd].spec.e ^= (i ^ (unsigned int)FD_EV_IN_PL) << dir;
+}
+
 REGPRM2 static void __fd_set(const int fd, int dir)
 {
 	unsigned int i;
@@ -592,6 +612,7 @@ static void _do_register(void)
 
 	p->is_set  = __fd_is_set;
 	p->set = __fd_set;
+	p->wai = __fd_wai;
 	p->clr = __fd_clr;
 	p->rem = __fd_rem;
 	p->clo = __fd_clo;
