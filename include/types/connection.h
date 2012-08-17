@@ -31,6 +31,27 @@
 struct sock_ops;
 struct protocol;
 
+/* Polling flags that are manipulated by I/O callbacks and handshake callbacks
+ * indicate what they expect from a file descriptor at each layer. For each
+ * direction, we have 2 bits, one stating whether any suspected activity on the
+ * FD induce a call to the iocb, and another one indicating that the FD has
+ * already returned EAGAIN and that polling on it is essential before calling
+ * the iocb again :
+ *   POL ENA  state
+ *    0   0   STOPPED : any activity on this FD is ignored
+ *    0   1   ENABLED : any (suspected) activity may call the iocb
+ *    1   0   STOPPED : as above
+ *    1   1   POLLED  : the FD is being polled for activity
+ *
+ * - Enabling an I/O event consists in ORing with 1.
+ * - Stopping an I/O event consists in ANDing with ~1.
+ * - Polling for an I/O event consists in ORing with ~3.
+ *
+ * The last computed state is remembered in CO_FL_CURR_* so that differential
+ * changes can be applied. For pollers that do not support speculative I/O,
+ * POLLED is the same as ENABLED and the POL flag can safely be ignored.
+ */
+
 /* flags for use in connection->flags */
 enum {
 	CO_FL_NONE          = 0x00000000,
@@ -46,6 +67,38 @@ enum {
 
 	/* below we have all handshake flags grouped into one */
 	CO_FL_HANDSHAKE     = CO_FL_SI_SEND_PROXY,
+
+	/* when any of these flags is set, polling is defined by socket-layer
+	 * operations, as opposed to data-layer.
+	 */
+	CO_FL_POLL_SOCK     = CO_FL_HANDSHAKE | CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN,
+
+	/* flags used to remember what shutdown have been performed/reported */
+	CO_FL_DATA_RD_SH    = 0x00010000,  /* DATA layer was notified about shutr/read0 */
+	CO_FL_DATA_WR_SH    = 0x00020000,  /* DATA layer asked for shutw */
+	CO_FL_SOCK_RD_SH    = 0x00040000,  /* SOCK layer was notified about shutr/read0 */
+	CO_FL_SOCK_WR_SH    = 0x00080000,  /* SOCK layer asked for shutw */
+
+	/****** NOTE: do not change the values of the flags below ******/
+	CO_FL_RD_ENA = 1, CO_FL_RD_POL = 2, CO_FL_WR_ENA = 4, CO_FL_WR_POL = 8,
+
+	/* flags describing the DATA layer expectations regarding polling */
+	CO_FL_DATA_RD_ENA   = CO_FL_RD_ENA << 20,  /* receiving is allowed */
+	CO_FL_DATA_RD_POL   = CO_FL_RD_POL << 20,  /* receiving needs to poll first */
+	CO_FL_DATA_WR_ENA   = CO_FL_WR_ENA << 20,  /* sending is desired */
+	CO_FL_DATA_WR_POL   = CO_FL_WR_POL << 20,  /* sending needs to poll first */
+
+	/* flags describing the SOCK layer expectations regarding polling */
+	CO_FL_SOCK_RD_ENA   = CO_FL_RD_ENA << 24,  /* receiving is allowed */
+	CO_FL_SOCK_RD_POL   = CO_FL_RD_POL << 24,  /* receiving needs to poll first */
+	CO_FL_SOCK_WR_ENA   = CO_FL_WR_ENA << 24,  /* sending is desired */
+	CO_FL_SOCK_WR_POL   = CO_FL_WR_POL << 24,  /* sending needs to poll first */
+
+	/* flags storing the current polling state */
+	CO_FL_CURR_RD_ENA   = CO_FL_RD_ENA << 28,  /* receiving is allowed */
+	CO_FL_CURR_RD_POL   = CO_FL_RD_POL << 28,  /* receiving needs to poll first */
+	CO_FL_CURR_WR_ENA   = CO_FL_WR_ENA << 28,  /* sending is desired */
+	CO_FL_CURR_WR_POL   = CO_FL_WR_POL << 28,  /* sending needs to poll first */
 };
 
 /* This structure describes a connection with its methods and data.

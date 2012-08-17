@@ -88,3 +88,34 @@ int conn_fd_handler(int fd)
 	fdtab[fd].ev &= ~(FD_POLL_IN | FD_POLL_OUT | FD_POLL_HUP | FD_POLL_ERR);
 	return ret;
 }
+
+/* set polling depending on the change between the CURR part of the
+ * flags and the new flags in connection C. The connection flags are
+ * updated with the new flags at the end of the operation. Only the bits
+ * relevant to CO_FL_CURR_* from <flags> are considered.
+ */
+void conn_set_polling(struct connection *c, unsigned int new)
+{
+	unsigned int old = c->flags; /* for CO_FL_CURR_* */
+
+	/* update read status if needed */
+	if ((old & (CO_FL_CURR_RD_ENA|CO_FL_CURR_RD_POL)) != (CO_FL_CURR_RD_ENA|CO_FL_CURR_RD_POL) &&
+	    (new & (CO_FL_CURR_RD_ENA|CO_FL_CURR_RD_POL)) == (CO_FL_CURR_RD_ENA|CO_FL_CURR_RD_POL))
+		fd_poll_recv(c->t.sock.fd);
+	else if (!(old & CO_FL_CURR_RD_ENA) && (new & CO_FL_CURR_RD_ENA))
+		fd_want_recv(c->t.sock.fd);
+	else if ((old & CO_FL_CURR_RD_ENA) && !(new & CO_FL_CURR_RD_ENA))
+		fd_stop_recv(c->t.sock.fd);
+
+	/* update write status if needed */
+	if ((old & (CO_FL_CURR_WR_ENA|CO_FL_CURR_WR_POL)) != (CO_FL_CURR_WR_ENA|CO_FL_CURR_WR_POL) &&
+	    (new & (CO_FL_CURR_WR_ENA|CO_FL_CURR_WR_POL)) == (CO_FL_CURR_WR_ENA|CO_FL_CURR_WR_POL))
+		fd_poll_send(c->t.sock.fd);
+	else if (!(old & CO_FL_CURR_WR_ENA) && (new & CO_FL_CURR_WR_ENA))
+		fd_want_send(c->t.sock.fd);
+	else if ((old & CO_FL_CURR_WR_ENA) && !(new & CO_FL_CURR_WR_ENA))
+		fd_stop_send(c->t.sock.fd);
+
+	c->flags &= ~(CO_FL_CURR_WR_POL|CO_FL_CURR_WR_ENA|CO_FL_CURR_RD_POL|CO_FL_CURR_RD_ENA);
+	c->flags |= new & (CO_FL_CURR_WR_POL|CO_FL_CURR_WR_ENA|CO_FL_CURR_RD_POL|CO_FL_CURR_RD_ENA);
+}
