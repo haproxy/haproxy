@@ -27,6 +27,7 @@
 #include <common/config.h>
 #include <types/session.h>
 #include <types/stream_interface.h>
+#include <proto/connection.h>
 
 
 /* main event functions used to move data between sockets and buffers */
@@ -167,14 +168,14 @@ static inline void si_get_to_addr(struct stream_interface *si)
 static inline void si_shutr(struct stream_interface *si)
 {
 	if (stream_int_shutr(si))
-		fd_stop_recv(si_fd(si));
+		conn_data_stop_recv(&si->conn);
 }
 
 /* Sends a shutw to the connection using the data layer */
 static inline void si_shutw(struct stream_interface *si)
 {
 	if (stream_int_shutw(si))
-		fd_stop_send(si_fd(si));
+		conn_data_stop_send(&si->conn);
 }
 
 /* Calls the data state update on the stream interfaace */

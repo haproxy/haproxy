@@ -475,7 +475,9 @@ int tcp_connect_server(struct stream_interface *si)
 
 	fdtab[fd].iocb = conn_fd_handler;
 	fd_insert(fd);
-	fd_want_send(fd);  /* for connect status */
+	conn_sock_want_send(&si->conn);  /* for connect status */
+	if (!(si->ob->flags & BF_OUT_EMPTY))
+		conn_data_want_send(&si->conn);  /* prepare to send data if any */
 
 	si->state = SI_ST_CON;
 	si->flags |= SI_FL_CAP_SPLTCP; /* TCP supports splicing */
@@ -548,8 +550,11 @@ int tcp_connect_probe(struct connection *conn)
 	 *  - connected (EISCONN, 0)
 	 */
 	if ((connect(fd, conn->peeraddr, conn->peerlen) < 0)) {
-		if (errno == EALREADY || errno == EINPROGRESS)
+		if (errno == EALREADY || errno == EINPROGRESS) {
+			conn_sock_stop_recv(conn);
+			conn_sock_poll_send(conn);
 			return 0;
+		}
 
 		if (errno && errno != EISCONN)
 			goto out_error;
@@ -570,7 +575,7 @@ int tcp_connect_probe(struct connection *conn)
 	 */
 
 	conn->flags |= CO_FL_ERROR;
-	fd_stop_both(fd);
+	conn_sock_stop_both(conn);
 	return 1;
 }
 

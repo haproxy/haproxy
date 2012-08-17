@@ -102,7 +102,7 @@ static int sock_raw_splice_in(struct buffer *b, struct stream_interface *si)
 		 * place and ask the consumer to hurry.
 		 */
 		si->flags |= SI_FL_WAIT_ROOM;
-		fd_stop_recv(fd);
+		conn_data_stop_recv(&si->conn);
 		b->rex = TICK_ETERNITY;
 		si_chk_snd(b->cons);
 		return 1;
@@ -467,7 +467,7 @@ static int sock_raw_read(struct connection *conn)
 	 */
 
 	conn->flags |= CO_FL_ERROR;
-	fd_stop_both(fd);
+	conn_data_stop_both(conn);
 	retval = 1;
 	goto out_wakeup;
 }
@@ -628,7 +628,6 @@ static int sock_raw_write_loop(struct stream_interface *si, struct buffer *b)
  */
 static int sock_raw_write(struct connection *conn)
 {
-	int fd = conn->t.sock.fd;
 	struct stream_interface *si = container_of(conn, struct stream_interface, conn);
 	struct buffer *b = si->ob;
 	int retval = 1;
@@ -660,7 +659,7 @@ static int sock_raw_write(struct connection *conn)
 	 */
 
 	conn->flags |= CO_FL_ERROR;
-	fd_stop_both(fd);
+	conn_data_stop_both(conn);
 	return 1;
 }
 
@@ -700,7 +699,7 @@ static void sock_raw_read0(struct stream_interface *si)
 	}
 
 	/* otherwise that's just a normal read shutdown */
-	fd_stop_recv(si_fd(si));
+	conn_data_stop_recv(&si->conn);
 	return;
 
  do_close:
@@ -723,11 +722,10 @@ static void sock_raw_data_finish(struct stream_interface *si)
 {
 	struct buffer *ib = si->ib;
 	struct buffer *ob = si->ob;
-	int fd = si_fd(si);
 
 	DPRINTF(stderr,"[%u] %s: fd=%d owner=%p ib=%p, ob=%p, exp(r,w)=%u,%u ibf=%08x obf=%08x ibh=%d ibt=%d obh=%d obd=%d si=%d\n",
 		now_ms, __FUNCTION__,
-		fd, fdtab[fd].owner,
+		si_fd(si), fdtab[si_fd(fd)].owner,
 		ib, ob,
 		ib->rex, ob->wex,
 		ib->flags, ob->flags,
@@ -741,7 +739,7 @@ static void sock_raw_data_finish(struct stream_interface *si)
 			if (!(si->flags & SI_FL_WAIT_ROOM)) {
 				if ((ib->flags & (BF_FULL|BF_HIJACK|BF_DONT_READ)) == BF_FULL)
 					si->flags |= SI_FL_WAIT_ROOM;
-				fd_stop_recv(fd);
+				conn_data_stop_recv(&si->conn);
 				ib->rex = TICK_ETERNITY;
 			}
 		}
@@ -752,7 +750,7 @@ static void sock_raw_data_finish(struct stream_interface *si)
 			 * have updated it if there has been a completed I/O.
 			 */
 			si->flags &= ~SI_FL_WAIT_ROOM;
-			fd_want_recv(fd);
+			conn_data_want_recv(&si->conn);
 			if (!(ib->flags & (BF_READ_NOEXP|BF_DONT_READ)) && !tick_isset(ib->rex))
 				ib->rex = tick_add_ifset(now_ms, ib->rto);
 		}
@@ -766,7 +764,7 @@ static void sock_raw_data_finish(struct stream_interface *si)
 			if (!(si->flags & SI_FL_WAIT_DATA)) {
 				if ((ob->flags & (BF_FULL|BF_HIJACK|BF_SHUTW_NOW)) == 0)
 					si->flags |= SI_FL_WAIT_DATA;
-				fd_stop_send(fd);
+				conn_data_stop_send(&si->conn);
 				ob->wex = TICK_ETERNITY;
 			}
 		}
@@ -777,7 +775,7 @@ static void sock_raw_data_finish(struct stream_interface *si)
 			 * have updated it if there has been a completed I/O.
 			 */
 			si->flags &= ~SI_FL_WAIT_DATA;
-			fd_want_send(fd);
+			conn_data_want_send(&si->conn);
 			if (!tick_isset(ob->wex)) {
 				ob->wex = tick_add_ifset(now_ms, ob->wto);
 				if (tick_isset(ib->rex) && !(si->flags & SI_FL_INDEP_STR)) {
@@ -818,12 +816,12 @@ static void sock_raw_chk_rcv(struct stream_interface *si)
 		/* stop reading */
 		if ((ib->flags & (BF_FULL|BF_HIJACK|BF_DONT_READ)) == BF_FULL)
 			si->flags |= SI_FL_WAIT_ROOM;
-		fd_stop_recv(si_fd(si));
+		conn_data_stop_recv(&si->conn);
 	}
 	else {
 		/* (re)start reading */
 		si->flags &= ~SI_FL_WAIT_ROOM;
-		fd_want_recv(si_fd(si));
+		conn_data_want_recv(&si->conn);
 	}
 }
 
@@ -869,7 +867,7 @@ static void sock_raw_chk_snd(struct stream_interface *si)
 		 */
 		si->conn.flags |= CO_FL_ERROR;
 		fdtab[si_fd(si)].ev &= ~FD_POLL_STICKY;
-		fd_stop_both(si_fd(si));
+		conn_data_stop_both(&si->conn);
 		si->flags |= SI_FL_ERR;
 		goto out_wakeup;
 	}
@@ -899,7 +897,7 @@ static void sock_raw_chk_snd(struct stream_interface *si)
 		/* Otherwise there are remaining data to be sent in the buffer,
 		 * which means we have to poll before doing so.
 		 */
-		fd_want_send(si_fd(si));
+		conn_data_want_send(&si->conn);
 		si->flags &= ~SI_FL_WAIT_DATA;
 		if (!tick_isset(ob->wex))
 			ob->wex = tick_add_ifset(now_ms, ob->wto);

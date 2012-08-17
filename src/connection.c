@@ -31,6 +31,12 @@ int conn_fd_handler(int fd)
 		goto leave;
 
  process_handshake:
+	/* The handshake callbacks are called in sequence. If either of them is
+	 * missing something, it must enable the required polling at the socket
+	 * layer of the connection. Polling state is not guaranteed when entering
+	 * these handlers, so any handshake handler which does not complete its
+	 * work must explicitly disable events it's not interested in.
+	 */
 	while (unlikely(conn->flags & CO_FL_HANDSHAKE)) {
 		if (unlikely(conn->flags & CO_FL_ERROR))
 			goto leave;
@@ -40,7 +46,9 @@ int conn_fd_handler(int fd)
 				goto leave;
 	}
 
-	/* OK now we're in the data phase now */
+	/* Once we're purely in the data phase, we disable handshake polling */
+	if (!(conn->flags & CO_FL_POLL_SOCK))
+		__conn_sock_stop_both(conn);
 
 	if (fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
 		if (!conn->data->read(conn))
@@ -86,6 +94,9 @@ int conn_fd_handler(int fd)
 
 	/* remove the events before leaving */
 	fdtab[fd].ev &= ~(FD_POLL_IN | FD_POLL_OUT | FD_POLL_HUP | FD_POLL_ERR);
+
+	/* commit polling changes */
+	conn_cond_update_polling(conn);
 	return ret;
 }
 
