@@ -763,10 +763,8 @@ static int httpchk_build_status_header(struct server *s, char *buffer)
  * the connection acknowledgement. If the proxy requires L7 health-checks,
  * it sends the request. In other cases, it calls set_server_check_status()
  * to set s->check_status, s->check_duration and s->result.
- * The function itself returns 0 if it needs some polling before being called
- * again, otherwise 1.
  */
-static int event_srv_chk_w(int fd)
+static void event_srv_chk_w(int fd)
 {
 	__label__ out_wakeup, out_nowake, out_poll, out_error;
 	struct task *t = fdtab[fd].owner;
@@ -880,12 +878,13 @@ static int event_srv_chk_w(int fd)
  out_nowake:
 	fd_stop_send(fd);   /* nothing more to write */
 	fdtab[fd].ev &= ~FD_POLL_OUT;
-	return 1;
+	return;
  out_poll:
 	/* The connection is still pending. We'll have to poll it
 	 * before attempting to go further. */
 	fdtab[fd].ev &= ~FD_POLL_OUT;
-	return 0;
+	fd_poll_send(fd);
+	return;
  out_error:
 	s->check_conn->flags |= CO_FL_ERROR;
 	goto out_wakeup;
@@ -905,11 +904,8 @@ static int event_srv_chk_w(int fd)
  * distinguish between an SSL server and a pure TCP relay). All other cases will
  * call it with a proper error status like HCHK_STATUS_L7STS, HCHK_STATUS_L6RSP,
  * etc.
- *
- * The function returns 0 if it needs to be called again after some polling,
- * otherwise non-zero..
  */
-static int event_srv_chk_r(int fd)
+static void event_srv_chk_r(int fd)
 {
 	__label__ out_wakeup;
 	int len;
@@ -1242,30 +1238,27 @@ static int event_srv_chk_r(int fd)
 	fd_stop_recv(fd);
 	task_wakeup(t, TASK_WOKEN_IO);
 	fdtab[fd].ev &= ~FD_POLL_IN;
-	return 1;
+	return;
 
  wait_more_data:
 	fdtab[fd].ev &= ~FD_POLL_IN;
-	return 0;
+	fd_poll_recv(fd);
 }
 
-/* I/O call back for the health checks. Returns FD_WAIT_*. */
+/* I/O call back for the health checks. Returns 0. */
 static int check_iocb(int fd)
 {
-	int ret = 0;
 	int e;
 
 	if (!fdtab[fd].owner)
-		return ret;
+		return 0;
 
 	e = fdtab[fd].ev;
 	if (e & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
-		if (!event_srv_chk_r(fd))
-			ret |= FD_WAIT_READ;
+		event_srv_chk_r(fd);
 	if (e & (FD_POLL_OUT | FD_POLL_ERR))
-		if (!event_srv_chk_w(fd))
-			ret |= FD_WAIT_WRITE;
-	return ret;
+		event_srv_chk_w(fd);
+	return 0;
 }
 
 /*
