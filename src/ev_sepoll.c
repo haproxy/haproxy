@@ -466,19 +466,8 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		if ((eo & FD_EV_MASK_W) == FD_EV_SPEC_W)
 			fdtab[fd].ev |= FD_POLL_OUT;
 
-		if (fdtab[fd].iocb && fdtab[fd].owner && fdtab[fd].ev) {
-			int wait = fdtab[fd].iocb(fd);
-
-			/* FIXME: warning, this will not work if both old and new
-			 * callbacks are used at the same time ! This is only a
-			 * temporary measure during the migration.
-			 */
-			if (wait & FD_WAIT_READ)
-				fdtab[fd].spec.e ^= (FD_EV_WAIT_R ^ FD_EV_SPEC_R);
-
-			if (wait & FD_WAIT_WRITE)
-				fdtab[fd].spec.e ^= (FD_EV_WAIT_W ^ FD_EV_SPEC_W);
-		}
+		if (fdtab[fd].iocb && fdtab[fd].owner && fdtab[fd].ev)
+			fdtab[fd].iocb(fd);
 
 		/* one callback might already have closed the fd by itself */
 		if (!fdtab[fd].owner)
