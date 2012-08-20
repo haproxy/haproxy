@@ -46,7 +46,7 @@
 static void sock_raw_read(struct connection *conn);
 
 
-#if defined(CONFIG_HAP_LINUX_SPLICE)
+#if 0 && defined(CONFIG_HAP_LINUX_SPLICE)
 #include <common/splice.h>
 
 /* A pipe contains 16 segments max, and it's common to see segments of 1448 bytes
@@ -312,7 +312,7 @@ static void sock_raw_read(struct connection *conn)
 	if (b->flags & BF_SHUTR)
 		return;
 
-#if defined(CONFIG_HAP_LINUX_SPLICE)
+#if 0 && defined(CONFIG_HAP_LINUX_SPLICE)
 	if (b->to_forward >= MIN_SPLICE_FORWARD && b->flags & BF_KERN_SPLICING) {
 
 		/* Under Linux, if FD_POLL_HUP is set, we have reached the end.
@@ -490,7 +490,7 @@ static int sock_raw_write_loop(struct connection *conn)
 	int write_poll = MAX_WRITE_POLL_LOOPS;
 	int ret, max;
 
-#if defined(CONFIG_HAP_LINUX_SPLICE)
+#if 0 && defined(CONFIG_HAP_LINUX_SPLICE)
 	while (b->pipe) {
 		ret = splice(b->pipe->cons, NULL, si_fd(si), NULL, b->pipe->data,
 			     SPLICE_F_MOVE|SPLICE_F_NONBLOCK);
