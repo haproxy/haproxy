@@ -864,6 +864,40 @@ void stream_int_chk_snd_conn(struct stream_interface *si)
 	}
 }
 
+/*
+ * This is the callback which is called by the connection layer to send data
+ * from the buffer to the connection. It iterates over the data layer's snd_buf
+ * function.
+ */
+void si_conn_send_cb(struct connection *conn)
+{
+	struct stream_interface *si = container_of(conn, struct stream_interface, conn);
+	struct buffer *b = si->ob;
+
+	if (conn->flags & CO_FL_ERROR)
+		goto out_error;
+
+	if (si->conn.flags & CO_FL_HANDSHAKE)
+		/* a handshake was requested */
+		return;
+
+	/* we might have been called just after an asynchronous shutw */
+	if (b->flags & BF_SHUTW)
+		return;
+
+	/* OK there are data waiting to be sent */
+	if (conn_data_snd_buf(conn) < 0)
+		goto out_error;
+
+	/* OK all done */
+	return;
+
+ out_error:
+	/* Write error on the connection, report the error and stop I/O */
+	conn->flags |= CO_FL_ERROR;
+	conn_data_stop_both(conn);
+}
+
 
 /*
  * Local variables:

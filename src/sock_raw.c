@@ -44,7 +44,6 @@
 
 /* main event functions used to move data between sockets and buffers */
 static void sock_raw_read(struct connection *conn);
-static void sock_raw_write(struct connection *conn);
 static void sock_raw_read0(struct stream_interface *si);
 
 
@@ -593,38 +592,6 @@ static int sock_raw_write_loop(struct connection *conn)
 
 
 /*
- * This function is called on a write event from a stream socket.
- */
-static void sock_raw_write(struct connection *conn)
-{
-	struct stream_interface *si = container_of(conn, struct stream_interface, conn);
-	struct buffer *b = si->ob;
-
-#ifdef DEBUG_FULL
-	fprintf(stderr,"sock_raw_write : fd=%d, owner=%p\n", fd, fdtab[fd].owner);
-#endif
-
-	if (conn->flags & CO_FL_ERROR)
-		goto out_error;
-
-	/* we might have been called just after an asynchronous shutw */
-	if (b->flags & BF_SHUTW)
-		return;
-
-	if (conn_data_snd_buf(conn) < 0)
-		goto out_error;
-
-	/* OK all done */
-	return;
-
- out_error:
-	/* Write error on the connection, report the error and stop I/O */
-
-	conn->flags |= CO_FL_ERROR;
-	conn_data_stop_both(conn);
-}
-
-/*
  * This function propagates a null read received on a connection. It updates
  * the stream interface. If the stream interface has SI_FL_NOHALF, we also
  * forward the close to the write side.
@@ -681,7 +648,7 @@ struct sock_ops sock_raw = {
 	.chk_rcv = stream_int_chk_rcv_conn,
 	.chk_snd = stream_int_chk_snd_conn,
 	.read    = sock_raw_read,
-	.write   = sock_raw_write,
+	.write   = si_conn_send_cb,
 	.snd_buf = sock_raw_write_loop,
 	.close   = NULL,
 };
