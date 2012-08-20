@@ -44,7 +44,6 @@
 
 /* main event functions used to move data between sockets and buffers */
 static void sock_raw_read(struct connection *conn);
-static void sock_raw_read0(struct stream_interface *si);
 
 
 #if defined(CONFIG_HAP_LINUX_SPLICE)
@@ -436,7 +435,7 @@ static void sock_raw_read(struct connection *conn)
 	b->flags |= BF_READ_NULL;
 	if (b->flags & BF_AUTO_CLOSE)
 		buffer_shutw_now(b);
-	sock_raw_read0(si);
+	stream_sock_read0(si);
 	return;
 
  out_error:
@@ -590,55 +589,6 @@ static int sock_raw_write_loop(struct connection *conn)
 	return 0;
 }
 
-
-/*
- * This function propagates a null read received on a connection. It updates
- * the stream interface. If the stream interface has SI_FL_NOHALF, we also
- * forward the close to the write side.
- */
-static void sock_raw_read0(struct stream_interface *si)
-{
-	si->ib->flags &= ~BF_SHUTR_NOW;
-	if (si->ib->flags & BF_SHUTR)
-		return;
-	si->ib->flags |= BF_SHUTR;
-	si->ib->rex = TICK_ETERNITY;
-	si->flags &= ~SI_FL_WAIT_ROOM;
-
-	if (si->state != SI_ST_EST && si->state != SI_ST_CON)
-		return;
-
-	if (si->ob->flags & BF_SHUTW)
-		goto do_close;
-
-	if (si->flags & SI_FL_NOHALF) {
-		/* we have to shut before closing, otherwise some short messages
-		 * may never leave the system, especially when there are remaining
-		 * unread data in the socket input buffer, or when nolinger is set.
-		 * However, if SI_FL_NOLINGER is explicitly set, we know there is
-		 * no risk so we close both sides immediately.
-		 */
-		if (si->flags & SI_FL_NOLINGER) {
-			si->flags &= ~SI_FL_NOLINGER;
-			setsockopt(si_fd(si), SOL_SOCKET, SO_LINGER,
-				   (struct linger *) &nolinger, sizeof(struct linger));
-		}
-		goto do_close;
-	}
-
-	/* otherwise that's just a normal read shutdown */
-	conn_data_stop_recv(&si->conn);
-	return;
-
- do_close:
-	conn_data_close(&si->conn);
-	fd_delete(si_fd(si));
-	si->state = SI_ST_DIS;
-	si->exp = TICK_ETERNITY;
-	if (si->release)
-		si->release(si);
-	return;
-}
 
 /* stream sock operations */
 struct sock_ops sock_raw = {

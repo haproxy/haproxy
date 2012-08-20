@@ -898,6 +898,55 @@ void si_conn_send_cb(struct connection *conn)
 	conn_data_stop_both(conn);
 }
 
+/*
+ * This function propagates a null read received on a socket-based connection.
+ * It updates the stream interface. If the stream interface has SI_FL_NOHALF,
+ * the close is also forwarded to the write side as an abort. This function is
+ * still socket-specific as it handles a setsockopt() call to set the SO_LINGER
+ * state on the socket.
+ */
+void stream_sock_read0(struct stream_interface *si)
+{
+	si->ib->flags &= ~BF_SHUTR_NOW;
+	if (si->ib->flags & BF_SHUTR)
+		return;
+	si->ib->flags |= BF_SHUTR;
+	si->ib->rex = TICK_ETERNITY;
+	si->flags &= ~SI_FL_WAIT_ROOM;
+
+	if (si->state != SI_ST_EST && si->state != SI_ST_CON)
+		return;
+
+	if (si->ob->flags & BF_SHUTW)
+		goto do_close;
+
+	if (si->flags & SI_FL_NOHALF) {
+		/* we want to immediately forward this close to the write side */
+		if (si->flags & SI_FL_NOLINGER) {
+			si->flags &= ~SI_FL_NOLINGER;
+			setsockopt(si_fd(si), SOL_SOCKET, SO_LINGER,
+				   (struct linger *) &nolinger, sizeof(struct linger));
+		}
+		/* force flag on ssl to keep session in cache */
+		if (si->conn.data->shutw)
+			si->conn.data->shutw(&si->conn, 0);
+		goto do_close;
+	}
+
+	/* otherwise that's just a normal read shutdown */
+	conn_data_stop_recv(&si->conn);
+	return;
+
+ do_close:
+	conn_data_close(&si->conn);
+	fd_delete(si_fd(si));
+	si->state = SI_ST_DIS;
+	si->exp = TICK_ETERNITY;
+	if (si->release)
+		si->release(si);
+	return;
+}
+
 
 /*
  * Local variables:
