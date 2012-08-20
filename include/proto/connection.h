@@ -283,6 +283,43 @@ static inline void conn_sock_stop_both(struct connection *c)
 	conn_cond_update_sock_polling(c);
 }
 
+/* shutdown management */
+static inline void conn_sock_read0(struct connection *c)
+{
+	c->flags |= CO_FL_SOCK_RD_SH;
+	__conn_sock_stop_recv(c);
+}
+
+static inline void conn_data_read0(struct connection *c)
+{
+	c->flags |= CO_FL_DATA_RD_SH;
+	__conn_data_stop_recv(c);
+}
+
+static inline void conn_sock_shutw(struct connection *c)
+{
+	c->flags |= CO_FL_SOCK_WR_SH;
+	__conn_sock_stop_send(c);
+}
+
+static inline void conn_data_shutw(struct connection *c)
+{
+	c->flags |= CO_FL_DATA_WR_SH;
+	__conn_data_stop_send(c);
+}
+
+/* detect sock->data read0 transition */
+static inline int conn_data_read0_pending(struct connection *c)
+{
+	return (c->flags & (CO_FL_DATA_RD_SH | CO_FL_SOCK_RD_SH)) == CO_FL_SOCK_RD_SH;
+}
+
+/* detect data->sock shutw transition */
+static inline int conn_sock_shutw_pending(struct connection *c)
+{
+	return (c->flags & (CO_FL_DATA_WR_SH | CO_FL_SOCK_WR_SH)) == CO_FL_DATA_WR_SH;
+}
+
 #endif /* _PROTO_CONNECTION_H */
 
 /*
