@@ -734,6 +734,38 @@ void stream_int_update_conn(struct stream_interface *si)
 	}
 }
 
+/* This function is used for inter-stream-interface calls. It is called by the
+ * consumer to inform the producer side that it may be interested in checking
+ * for free space in the buffer. Note that it intentionally does not update
+ * timeouts, so that we can still check them later at wake-up. This function is
+ * dedicated to connection-based stream interfaces.
+ */
+void stream_int_chk_rcv_conn(struct stream_interface *si)
+{
+	struct buffer *ib = si->ib;
+
+	if (unlikely(si->state != SI_ST_EST || (ib->flags & BF_SHUTR)))
+		return;
+
+	if (si->conn.flags & CO_FL_HANDSHAKE) {
+		/* a handshake is in progress */
+		return;
+	}
+
+	if (ib->flags & (BF_FULL|BF_HIJACK|BF_DONT_READ)) {
+		/* stop reading */
+		if ((ib->flags & (BF_FULL|BF_HIJACK|BF_DONT_READ)) == BF_FULL)
+			si->flags |= SI_FL_WAIT_ROOM;
+		conn_data_stop_recv(&si->conn);
+	}
+	else {
+		/* (re)start reading */
+		si->flags &= ~SI_FL_WAIT_ROOM;
+		conn_data_want_recv(&si->conn);
+	}
+}
+
+
 /*
  * Local variables:
  *  c-indent-level: 8

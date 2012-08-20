@@ -46,7 +46,6 @@
 static void sock_raw_read(struct connection *conn);
 static void sock_raw_write(struct connection *conn);
 static void sock_raw_read0(struct stream_interface *si);
-static void sock_raw_chk_rcv(struct stream_interface *si);
 static void sock_raw_chk_snd(struct stream_interface *si);
 
 
@@ -674,40 +673,6 @@ static void sock_raw_read0(struct stream_interface *si)
 }
 
 /* This function is used for inter-stream-interface calls. It is called by the
- * consumer to inform the producer side that it may be interested in checking
- * for free space in the buffer. Note that it intentionally does not update
- * timeouts, so that we can still check them later at wake-up.
- */
-static void sock_raw_chk_rcv(struct stream_interface *si)
-{
-	struct buffer *ib = si->ib;
-
-	DPRINTF(stderr,"[%u] %s: fd=%d owner=%p ib=%p, ob=%p, exp(r,w)=%u,%u ibf=%08x obf=%08x ibh=%d ibt=%d obh=%d obd=%d si=%d\n",
-		now_ms, __FUNCTION__,
-		si_fd(si), fdtab[si_fd(si)].owner,
-		ib, si->ob,
-		ib->rex, si->ob->wex,
-		ib->flags, si->ob->flags,
-		ib->i, ib->o, si->ob->i, si->ob->o, si->state);
-
-	if (unlikely(si->state != SI_ST_EST || (ib->flags & BF_SHUTR)))
-		return;
-
-	if (ib->flags & (BF_FULL|BF_HIJACK|BF_DONT_READ)) {
-		/* stop reading */
-		if ((ib->flags & (BF_FULL|BF_HIJACK|BF_DONT_READ)) == BF_FULL)
-			si->flags |= SI_FL_WAIT_ROOM;
-		conn_data_stop_recv(&si->conn);
-	}
-	else {
-		/* (re)start reading */
-		si->flags &= ~SI_FL_WAIT_ROOM;
-		conn_data_want_recv(&si->conn);
-	}
-}
-
-
-/* This function is used for inter-stream-interface calls. It is called by the
  * producer to inform the consumer side that it may be interested in checking
  * for data in the buffer. Note that it intentionally does not update timeouts,
  * so that we can still check them later at wake-up.
@@ -811,7 +776,7 @@ struct sock_ops sock_raw = {
 	.update  = stream_int_update_conn,
 	.shutr   = NULL,
 	.shutw   = NULL,
-	.chk_rcv = sock_raw_chk_rcv,
+	.chk_rcv = stream_int_chk_rcv_conn,
 	.chk_snd = sock_raw_chk_snd,
 	.read    = sock_raw_read,
 	.write   = sock_raw_write,
