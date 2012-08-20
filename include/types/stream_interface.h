@@ -91,6 +91,7 @@ enum {
 
 #define SI_FL_CAP_SPLICE (SI_FL_CAP_SPLTCP)
 
+struct buffer;
 struct server;
 struct proxy;
 struct si_applet;
@@ -118,6 +119,7 @@ struct sock_ops {
 	void (*write)(struct connection *conn);     /* write callback after poll() */
 	void (*close)(struct connection *);         /* close the data channel on the connection */
 	int  (*snd_buf)(struct connection *conn);   /* callback used to send a buffer contents */
+	int  (*rcv_buf)(struct connection *conn, struct buffer *buf, int count); /* recv callback */
 };
 
 /* A stream interface has 3 parts :

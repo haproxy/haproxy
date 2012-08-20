@@ -343,7 +343,7 @@ static void sock_raw_read(struct connection *conn)
 			break;
 		}
 
-		ret = raw_sock_to_buf(conn, &b->buf, max);
+		ret = conn->data->rcv_buf(conn, &b->buf, max);
 		if (ret <= 0)
 			break;
 
@@ -634,6 +634,7 @@ struct sock_ops raw_sock = {
 	.read    = sock_raw_read,
 	.write   = si_conn_send_cb,
 	.snd_buf = sock_raw_write_loop,
+	.rcv_buf = raw_sock_to_buf,
 	.close   = NULL,
 };
 
