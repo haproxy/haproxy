@@ -37,6 +37,16 @@ static inline void conn_data_close(struct connection *conn)
 		conn->data->close(conn);
 }
 
+/* Calls the snd_buf() function of the data layer if any, otherwise
+ * returns 0.
+ */
+static inline int conn_data_snd_buf(struct connection *conn)
+{
+	if (!conn->data->snd_buf)
+		return 0;
+	return conn->data->snd_buf(conn);
+}
+
 /* set polling depending on the change between the CURR part of the
  * flags and the new flags in connection C. The connection flags are
  * updated with the new flags at the end of the operation. Only the bits

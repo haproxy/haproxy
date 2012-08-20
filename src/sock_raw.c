@@ -452,8 +452,10 @@ static void sock_raw_read(struct connection *conn)
  * This function is called to send buffer data to a stream socket.
  * It returns -1 in case of unrecoverable error, otherwise zero.
  */
-static int sock_raw_write_loop(struct stream_interface *si, struct buffer *b)
+static int sock_raw_write_loop(struct connection *conn)
 {
+	struct stream_interface *si = container_of(conn, struct stream_interface, conn);
+	struct buffer *b = si->ob;
 	int write_poll = MAX_WRITE_POLL_LOOPS;
 	int ret, max;
 
@@ -610,7 +612,7 @@ static void sock_raw_write(struct connection *conn)
 	if (b->flags & BF_SHUTW)
 		return;
 
-	if (sock_raw_write_loop(si, b) < 0)
+	if (conn_data_snd_buf(conn) < 0)
 		goto out_error;
 
 	/* OK all done */
@@ -700,7 +702,7 @@ static void sock_raw_chk_snd(struct stream_interface *si)
 	     (fdtab[si_fd(si)].ev & FD_POLL_OUT)))   /* we'll be called anyway */
 		return;
 
-	if (sock_raw_write_loop(si, ob) < 0) {
+	if (conn_data_snd_buf(&si->conn) < 0) {
 		/* Write error on the file descriptor. We mark the FD as STERROR so
 		 * that we don't use it anymore and we notify the task.
 		 */
@@ -780,6 +782,7 @@ struct sock_ops sock_raw = {
 	.chk_snd = sock_raw_chk_snd,
 	.read    = sock_raw_read,
 	.write   = sock_raw_write,
+	.snd_buf = sock_raw_write_loop,
 	.close   = NULL,
 };
 
