@@ -45,7 +45,6 @@
 /* main event functions used to move data between sockets and buffers */
 static void sock_raw_read(struct connection *conn);
 static void sock_raw_write(struct connection *conn);
-static void sock_raw_data_finish(struct stream_interface *si);
 static void sock_raw_read0(struct stream_interface *si);
 static void sock_raw_chk_rcv(struct stream_interface *si);
 static void sock_raw_chk_snd(struct stream_interface *si);
@@ -674,86 +673,6 @@ static void sock_raw_read0(struct stream_interface *si)
 	return;
 }
 
-/*
- * Updates a connected sock_raw file descriptor status and timeouts
- * according to the buffers' flags. It should only be called once after the
- * buffer flags have settled down, and before they are cleared. It doesn't
- * harm to call it as often as desired (it just slightly hurts performance).
- */
-static void sock_raw_data_finish(struct stream_interface *si)
-{
-	struct buffer *ib = si->ib;
-	struct buffer *ob = si->ob;
-
-	DPRINTF(stderr,"[%u] %s: fd=%d owner=%p ib=%p, ob=%p, exp(r,w)=%u,%u ibf=%08x obf=%08x ibh=%d ibt=%d obh=%d obd=%d si=%d\n",
-		now_ms, __FUNCTION__,
-		si_fd(si), fdtab[si_fd(fd)].owner,
-		ib, ob,
-		ib->rex, ob->wex,
-		ib->flags, ob->flags,
-		ib->i, ib->o, ob->i, ob->o, si->state);
-
-	/* Check if we need to close the read side */
-	if (!(ib->flags & BF_SHUTR)) {
-		/* Read not closed, update FD status and timeout for reads */
-		if (ib->flags & (BF_FULL|BF_HIJACK|BF_DONT_READ)) {
-			/* stop reading */
-			if (!(si->flags & SI_FL_WAIT_ROOM)) {
-				if ((ib->flags & (BF_FULL|BF_HIJACK|BF_DONT_READ)) == BF_FULL)
-					si->flags |= SI_FL_WAIT_ROOM;
-				conn_data_stop_recv(&si->conn);
-				ib->rex = TICK_ETERNITY;
-			}
-		}
-		else {
-			/* (re)start reading and update timeout. Note: we don't recompute the timeout
-			 * everytime we get here, otherwise it would risk never to expire. We only
-			 * update it if is was not yet set. The stream socket handler will already
-			 * have updated it if there has been a completed I/O.
-			 */
-			si->flags &= ~SI_FL_WAIT_ROOM;
-			conn_data_want_recv(&si->conn);
-			if (!(ib->flags & (BF_READ_NOEXP|BF_DONT_READ)) && !tick_isset(ib->rex))
-				ib->rex = tick_add_ifset(now_ms, ib->rto);
-		}
-	}
-
-	/* Check if we need to close the write side */
-	if (!(ob->flags & BF_SHUTW)) {
-		/* Write not closed, update FD status and timeout for writes */
-		if (ob->flags & BF_OUT_EMPTY) {
-			/* stop writing */
-			if (!(si->flags & SI_FL_WAIT_DATA)) {
-				if ((ob->flags & (BF_FULL|BF_HIJACK|BF_SHUTW_NOW)) == 0)
-					si->flags |= SI_FL_WAIT_DATA;
-				conn_data_stop_send(&si->conn);
-				ob->wex = TICK_ETERNITY;
-			}
-		}
-		else {
-			/* (re)start writing and update timeout. Note: we don't recompute the timeout
-			 * everytime we get here, otherwise it would risk never to expire. We only
-			 * update it if is was not yet set. The stream socket handler will already
-			 * have updated it if there has been a completed I/O.
-			 */
-			si->flags &= ~SI_FL_WAIT_DATA;
-			conn_data_want_send(&si->conn);
-			if (!tick_isset(ob->wex)) {
-				ob->wex = tick_add_ifset(now_ms, ob->wto);
-				if (tick_isset(ib->rex) && !(si->flags & SI_FL_INDEP_STR)) {
-					/* Note: depending on the protocol, we don't know if we're waiting
-					 * for incoming data or not. So in order to prevent the socket from
-					 * expiring read timeouts during writes, we refresh the read timeout,
-					 * except if it was already infinite or if we have explicitly setup
-					 * independent streams.
-					 */
-					ib->rex = tick_add_ifset(now_ms, ib->rto);
-				}
-			}
-		}
-	}
-}
-
 /* This function is used for inter-stream-interface calls. It is called by the
  * consumer to inform the producer side that it may be interested in checking
  * for free space in the buffer. Note that it intentionally does not update
@@ -889,7 +808,7 @@ static void sock_raw_chk_snd(struct stream_interface *si)
 
 /* stream sock operations */
 struct sock_ops sock_raw = {
-	.update  = sock_raw_data_finish,
+	.update  = stream_int_update_conn,
 	.shutr   = NULL,
 	.shutw   = NULL,
 	.chk_rcv = sock_raw_chk_rcv,

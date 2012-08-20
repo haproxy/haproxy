@@ -82,7 +82,7 @@ int conn_fd_handler(int fd)
 
  leave:
 	if (conn->flags & CO_FL_NOTIFY_SI)
-		stream_sock_update_conn(conn);
+		conn_notify_si(conn);
 
 	/* Last check, verify if the connection just established */
 	if (unlikely(!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN | CO_FL_CONNECTED))))

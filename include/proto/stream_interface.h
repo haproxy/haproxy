@@ -35,7 +35,8 @@ int stream_int_check_timeouts(struct stream_interface *si);
 void stream_int_report_error(struct stream_interface *si);
 void stream_int_retnclose(struct stream_interface *si, const struct chunk *msg);
 int conn_si_send_proxy(struct connection *conn, unsigned int flag);
-void stream_sock_update_conn(struct connection *conn);
+void conn_notify_si(struct connection *conn);
+void stream_int_update_conn(struct stream_interface *si);
 int stream_int_shutr(struct stream_interface *si);
 int stream_int_shutw(struct stream_interface *si);
 

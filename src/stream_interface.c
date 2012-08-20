@@ -552,8 +552,12 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 	return 0;
 }
 
-/* function to be called on stream sockets after all I/O handlers */
-void stream_sock_update_conn(struct connection *conn)
+/* Callback to be used by connection I/O handlers upon completion. It differs from
+ * the function below in that it is designed to be called by lower layers after I/O
+ * events have been completed. It will also try to wake the associated task up if
+ * an important event requires special handling.
+ */
+void conn_notify_si(struct connection *conn)
 {
 	int fd = conn->t.sock.fd;
 	struct stream_interface *si = container_of(conn, struct stream_interface, conn);
@@ -649,6 +653,85 @@ void stream_sock_update_conn(struct connection *conn)
 	}
 	if (si->ib->flags & BF_READ_ACTIVITY)
 		si->ib->flags &= ~BF_READ_DONTWAIT;
+}
+
+/* Updates the timers and flags of a stream interface attached to a connection,
+ * depending on the buffers' flags. It should only be called once after the
+ * buffer flags have settled down, and before they are cleared. It doesn't
+ * harm to call it as often as desired (it just slightly hurts performance).
+ * It is only meant to be called by upper layers after buffer flags have been
+ * manipulated by analysers.
+ */
+void stream_int_update_conn(struct stream_interface *si)
+{
+	struct buffer *ib = si->ib;
+	struct buffer *ob = si->ob;
+
+	if (si->conn.flags & CO_FL_HANDSHAKE) {
+		/* a handshake is in progress */
+		si->flags &= ~SI_FL_WAIT_DATA;
+		return;
+	}
+
+	/* Check if we need to close the read side */
+	if (!(ib->flags & BF_SHUTR)) {
+		/* Read not closed, update FD status and timeout for reads */
+		if (ib->flags & (BF_FULL|BF_HIJACK|BF_DONT_READ)) {
+			/* stop reading */
+			if (!(si->flags & SI_FL_WAIT_ROOM)) {
+				if ((ib->flags & (BF_FULL|BF_HIJACK|BF_DONT_READ)) == BF_FULL)
+					si->flags |= SI_FL_WAIT_ROOM;
+				conn_data_stop_recv(&si->conn);
+				ib->rex = TICK_ETERNITY;
+			}
+		}
+		else {
+			/* (re)start reading and update timeout. Note: we don't recompute the timeout
+			 * everytime we get here, otherwise it would risk never to expire. We only
+			 * update it if is was not yet set. The stream socket handler will already
+			 * have updated it if there has been a completed I/O.
+			 */
+			si->flags &= ~SI_FL_WAIT_ROOM;
+			conn_data_want_recv(&si->conn);
+			if (!(ib->flags & (BF_READ_NOEXP|BF_DONT_READ)) && !tick_isset(ib->rex))
+				ib->rex = tick_add_ifset(now_ms, ib->rto);
+		}
+	}
+
+	/* Check if we need to close the write side */
+	if (!(ob->flags & BF_SHUTW)) {
+		/* Write not closed, update FD status and timeout for writes */
+		if (ob->flags & BF_OUT_EMPTY) {
+			/* stop writing */
+			if (!(si->flags & SI_FL_WAIT_DATA)) {
+				if ((ob->flags & (BF_FULL|BF_HIJACK|BF_SHUTW_NOW)) == 0)
+					si->flags |= SI_FL_WAIT_DATA;
+				conn_data_stop_send(&si->conn);
+				ob->wex = TICK_ETERNITY;
+			}
+		}
+		else {
+			/* (re)start writing and update timeout. Note: we don't recompute the timeout
+			 * everytime we get here, otherwise it would risk never to expire. We only
+			 * update it if is was not yet set. The stream socket handler will already
+			 * have updated it if there has been a completed I/O.
+			 */
+			si->flags &= ~SI_FL_WAIT_DATA;
+			conn_data_want_send(&si->conn);
+			if (!tick_isset(ob->wex)) {
+				ob->wex = tick_add_ifset(now_ms, ob->wto);
+				if (tick_isset(ib->rex) && !(si->flags & SI_FL_INDEP_STR)) {
+					/* Note: depending on the protocol, we don't know if we're waiting
+					 * for incoming data or not. So in order to prevent the socket from
+					 * expiring read timeouts during writes, we refresh the read timeout,
+					 * except if it was already infinite or if we have explicitly setup
+					 * independent streams.
+					 */
+					ib->rex = tick_add_ifset(now_ms, ib->rto);
+				}
+			}
+		}
+	}
 }
 
 /*
