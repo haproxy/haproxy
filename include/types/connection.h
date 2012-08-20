@@ -73,6 +73,13 @@ enum {
 	 */
 	CO_FL_POLL_SOCK     = CO_FL_HANDSHAKE | CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN,
 
+	/* These flags are used by data layers to indicate to their iterators
+	 * whether they had to stop due to missing data or missing room. Their
+	 * callers must reset them before calling the data layer handlers.
+	 */
+	CO_FL_WAIT_DATA     = 0x00004000,  /* data source is empty */
+	CO_FL_WAIT_ROOM     = 0x00008000,  /* data sink is full */
+
 	/* flags used to remember what shutdown have been performed/reported */
 	CO_FL_DATA_RD_SH    = 0x00010000,  /* DATA layer was notified about shutr/read0 */
 	CO_FL_DATA_WR_SH    = 0x00020000,  /* DATA layer asked for shutw */
