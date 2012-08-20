@@ -52,7 +52,7 @@
 #include <proto/proxy.h>
 #include <proto/session.h>
 #include <proto/server.h>
-#include <proto/sock_raw.h>
+#include <proto/raw_sock.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 
@@ -277,7 +277,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 			}
 		}
 
-		global.stats_sock.sock = &sock_raw;
+		global.stats_sock.sock = &raw_sock;
 		uxst_add_listener(&global.stats_sock);
 		global.maxsock++;
 	}

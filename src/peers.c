@@ -37,7 +37,6 @@
 #include <proto/proto_http.h>
 #include <proto/proxy.h>
 #include <proto/session.h>
-#include <proto/sock_raw.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 #include <proto/stick_table.h>

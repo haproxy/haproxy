@@ -36,7 +36,7 @@
 #include <proto/log.h>
 #include <proto/pipe.h>
 #include <proto/protocols.h>
-#include <proto/sock_raw.h>
+#include <proto/raw_sock.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 
@@ -591,7 +591,7 @@ static int sock_raw_write_loop(struct connection *conn)
 
 
 /* stream sock operations */
-struct sock_ops sock_raw = {
+struct sock_ops raw_sock = {
 	.update  = stream_int_update_conn,
 	.shutr   = NULL,
 	.shutw   = NULL,

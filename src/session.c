@@ -41,7 +41,6 @@
 #include <proto/queue.h>
 #include <proto/server.h>
 #include <proto/sample.h>
-#include <proto/sock_raw.h>
 #include <proto/stick_table.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>

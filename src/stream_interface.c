@@ -30,7 +30,6 @@
 #include <proto/connection.h>
 #include <proto/fd.h>
 #include <proto/frontend.h>
-#include <proto/sock_raw.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 

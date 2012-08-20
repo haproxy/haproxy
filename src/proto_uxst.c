@@ -39,7 +39,6 @@
 #include <proto/log.h>
 #include <proto/protocols.h>
 #include <proto/proto_uxst.h>
-#include <proto/sock_raw.h>
 #include <proto/task.h>
 
 static int uxst_bind_listener(struct listener *listener, char *errmsg, int errlen);

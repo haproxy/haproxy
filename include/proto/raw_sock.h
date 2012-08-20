@@ -1,5 +1,5 @@
 /*
- * include/proto/sock_raw.h
+ * include/proto/raw_sock.h
  * This file contains definition for raw stream socket operations
  *
  * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
@@ -19,14 +19,14 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _PROTO_SOCK_RAW_H
-#define _PROTO_SOCK_RAW_H
+#ifndef _PROTO_RAW_SOCK_H
+#define _PROTO_RAW_SOCK_H
 
 #include <types/stream_interface.h>
 
-extern struct sock_ops sock_raw;
+extern struct sock_ops raw_sock;
 
-#endif /* _PROTO_SOCK_RAW_H */
+#endif /* _PROTO_RAW_SOCK_H */
 
 /*
  * Local variables:

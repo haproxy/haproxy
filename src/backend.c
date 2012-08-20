@@ -43,7 +43,7 @@
 #include <proto/queue.h>
 #include <proto/server.h>
 #include <proto/session.h>
-#include <proto/sock_raw.h>
+#include <proto/raw_sock.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 
@@ -988,9 +988,9 @@ int connect_server(struct session *s)
 		stream_interface_prepare(s->req->cons, target_srv(&s->target)->sock);
 	}
 	else if (s->target.type == TARG_TYPE_PROXY) {
-		/* proxies exclusively run on sock_raw right now */
+		/* proxies exclusively run on raw_sock right now */
 		s->req->cons->conn.ctrl = protocol_by_family(s->req->cons->addr.to.ss_family);
-		stream_interface_prepare(s->req->cons, &sock_raw);
+		stream_interface_prepare(s->req->cons, &raw_sock);
 		if (!si_ctrl(s->req->cons))
 			return SN_ERR_INTERNAL;
 	}

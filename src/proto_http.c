@@ -59,7 +59,6 @@
 #include <proto/sample.h>
 #include <proto/server.h>
 #include <proto/session.h>
-#include <proto/sock_raw.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 
