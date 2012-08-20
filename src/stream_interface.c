@@ -864,6 +864,199 @@ void stream_int_chk_snd_conn(struct stream_interface *si)
 }
 
 /*
+ * This is the callback which is called by the connection layer to receive data
+ * into the buffer from the connection. It iterates over the data layer's rcv_buf
+ * function.
+ */
+void si_conn_recv_cb(struct connection *conn)
+{
+	struct stream_interface *si = container_of(conn, struct stream_interface, conn);
+	struct channel *b = si->ib;
+	int ret, max, cur_read;
+	int read_poll = MAX_READ_POLL_LOOPS;
+
+	/* stop immediately on errors. Note that we DON'T want to stop on
+	 * POLL_ERR, as the poller might report a write error while there
+	 * are still data available in the recv buffer. This typically
+	 * happens when we send too large a request to a backend server
+	 * which rejects it before reading it all.
+	 */
+	if (conn->flags & CO_FL_ERROR)
+		goto out_error;
+
+	/* stop here if we reached the end of data */
+	if (conn_data_read0_pending(conn))
+		goto out_shutdown_r;
+
+	/* maybe we were called immediately after an asynchronous shutr */
+	if (b->flags & BF_SHUTR)
+		return;
+
+#if 0 && defined(CONFIG_HAP_LINUX_SPLICE)
+	if (b->to_forward >= MIN_SPLICE_FORWARD && b->flags & BF_KERN_SPLICING) {
+
+		/* Under Linux, if FD_POLL_HUP is set, we have reached the end.
+		 * Since older splice() implementations were buggy and returned
+		 * EAGAIN on end of read, let's bypass the call to splice() now.
+		 */
+		if (fdtab[conn->t.sock.fd].ev & FD_POLL_HUP)
+			goto out_shutdown_r;
+
+		if (sock_raw_splice_in(b, si) >= 0) {
+			if (si->flags & SI_FL_ERR)
+				goto out_error;
+			if (b->flags & BF_READ_NULL)
+				goto out_shutdown_r;
+			return;
+		}
+		/* splice not possible (anymore), let's go on on standard copy */
+	}
+#endif
+	cur_read = 0;
+	conn->flags &= ~(CO_FL_WAIT_DATA | CO_FL_WAIT_ROOM);
+	while (!(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_DATA_RD_SH | CO_FL_WAIT_DATA | CO_FL_WAIT_ROOM | CO_FL_HANDSHAKE))) {
+		max = bi_avail(b);
+
+		if (!max) {
+			b->flags |= BF_FULL;
+			si->flags |= SI_FL_WAIT_ROOM;
+			break;
+		}
+
+		ret = conn->data->rcv_buf(conn, &b->buf, max);
+		if (ret <= 0)
+			break;
+
+		cur_read += ret;
+
+		/* if we're allowed to directly forward data, we must update ->o */
+		if (b->to_forward && !(b->flags & (BF_SHUTW|BF_SHUTW_NOW))) {
+			unsigned long fwd = ret;
+			if (b->to_forward != BUF_INFINITE_FORWARD) {
+				if (fwd > b->to_forward)
+					fwd = b->to_forward;
+				b->to_forward -= fwd;
+			}
+			b_adv(b, fwd);
+		}
+
+		if (conn->flags & CO_FL_WAIT_L4_CONN)
+			conn->flags &= ~CO_FL_WAIT_L4_CONN;
+
+		b->flags |= BF_READ_PARTIAL;
+		b->total += ret;
+
+		if (bi_full(b)) {
+			/* The buffer is now full, there's no point in going through
+			 * the loop again.
+			 */
+			if (!(b->flags & BF_STREAMER_FAST) && (cur_read == buffer_len(&b->buf))) {
+				b->xfer_small = 0;
+				b->xfer_large++;
+				if (b->xfer_large >= 3) {
+					/* we call this buffer a fast streamer if it manages
+					 * to be filled in one call 3 consecutive times.
+					 */
+					b->flags |= (BF_STREAMER | BF_STREAMER_FAST);
+					//fputc('+', stderr);
+				}
+			}
+			else if ((b->flags & (BF_STREAMER | BF_STREAMER_FAST)) &&
+				 (cur_read <= b->buf.size / 2)) {
+				b->xfer_large = 0;
+				b->xfer_small++;
+				if (b->xfer_small >= 2) {
+					/* if the buffer has been at least half full twice,
+					 * we receive faster than we send, so at least it
+					 * is not a "fast streamer".
+					 */
+					b->flags &= ~BF_STREAMER_FAST;
+					//fputc('-', stderr);
+				}
+			}
+			else {
+				b->xfer_small = 0;
+				b->xfer_large = 0;
+			}
+
+			b->flags |= BF_FULL;
+			si->flags |= SI_FL_WAIT_ROOM;
+			break;
+		}
+
+		if ((b->flags & BF_READ_DONTWAIT) || --read_poll <= 0)
+			break;
+
+		/* if too many bytes were missing from last read, it means that
+		 * it's pointless trying to read again because the system does
+		 * not have them in buffers.
+		 */
+		if (ret < max) {
+			if ((b->flags & (BF_STREAMER | BF_STREAMER_FAST)) &&
+			    (cur_read <= b->buf.size / 2)) {
+				b->xfer_large = 0;
+				b->xfer_small++;
+				if (b->xfer_small >= 3) {
+					/* we have read less than half of the buffer in
+					 * one pass, and this happened at least 3 times.
+					 * This is definitely not a streamer.
+					 */
+					b->flags &= ~(BF_STREAMER | BF_STREAMER_FAST);
+					//fputc('!', stderr);
+				}
+			}
+
+			/* if a streamer has read few data, it may be because we
+			 * have exhausted system buffers. It's not worth trying
+			 * again.
+			 */
+			if (b->flags & BF_STREAMER)
+				break;
+
+			/* if we read a large block smaller than what we requested,
+			 * it's almost certain we'll never get anything more.
+			 */
+			if (ret >= global.tune.recv_enough)
+				break;
+		}
+	} /* while !flags */
+
+	if (conn->flags & CO_FL_WAIT_DATA) {
+		/* we don't automatically ask for polling if we have
+		 * read enough data, as it saves some syscalls with
+		 * speculative pollers.
+		 */
+		if (cur_read < MIN_RET_FOR_READ_LOOP)
+			__conn_data_poll_recv(conn);
+		else
+			__conn_data_want_recv(conn);
+	}
+
+	if (conn->flags & CO_FL_ERROR)
+		goto out_error;
+
+	if (conn_data_read0_pending(conn))
+		/* connection closed */
+		goto out_shutdown_r;
+
+	return;
+
+ out_shutdown_r:
+	/* we received a shutdown */
+	b->flags |= BF_READ_NULL;
+	if (b->flags & BF_AUTO_CLOSE)
+		buffer_shutw_now(b);
+	stream_sock_read0(si);
+	conn_data_read0(conn);
+	return;
+
+ out_error:
+	/* Read error on the connection, report the error and stop I/O */
+	conn->flags |= CO_FL_ERROR;
+	conn_data_stop_both(conn);
+}
+
+/*
  * This is the callback which is called by the connection layer to send data
  * from the buffer to the connection. It iterates over the data layer's snd_buf
  * function.

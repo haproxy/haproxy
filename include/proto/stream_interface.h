@@ -41,6 +41,7 @@ int stream_int_shutr(struct stream_interface *si);
 int stream_int_shutw(struct stream_interface *si);
 void stream_int_chk_rcv_conn(struct stream_interface *si);
 void stream_int_chk_snd_conn(struct stream_interface *si);
+void si_conn_recv_cb(struct connection *conn);
 void si_conn_send_cb(struct connection *conn);
 void stream_sock_read0(struct stream_interface *si);
 
