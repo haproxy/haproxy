@@ -46,7 +46,6 @@
 static void sock_raw_read(struct connection *conn);
 static void sock_raw_write(struct connection *conn);
 static void sock_raw_read0(struct stream_interface *si);
-static void sock_raw_chk_snd(struct stream_interface *si);
 
 
 #if defined(CONFIG_HAP_LINUX_SPLICE)
@@ -674,112 +673,13 @@ static void sock_raw_read0(struct stream_interface *si)
 	return;
 }
 
-/* This function is used for inter-stream-interface calls. It is called by the
- * producer to inform the consumer side that it may be interested in checking
- * for data in the buffer. Note that it intentionally does not update timeouts,
- * so that we can still check them later at wake-up.
- */
-static void sock_raw_chk_snd(struct stream_interface *si)
-{
-	struct buffer *ob = si->ob;
-
-	DPRINTF(stderr,"[%u] %s: fd=%d owner=%p ib=%p, ob=%p, exp(r,w)=%u,%u ibf=%08x obf=%08x ibh=%d ibt=%d obh=%d obd=%d si=%d\n",
-		now_ms, __FUNCTION__,
-		si_fd(si), fdtab[si_fd(si)].owner,
-		si->ib, ob,
-		si->ib->rex, ob->wex,
-		si->ib->flags, ob->flags,
-		si->ib->i, si->ib->o, ob->i, ob->o, si->state);
-
-	if (unlikely(si->state != SI_ST_EST || (ob->flags & BF_SHUTW)))
-		return;
-
-	if (unlikely(ob->flags & BF_OUT_EMPTY))  /* called with nothing to send ! */
-		return;
-
-	if (!ob->pipe &&                          /* spliced data wants to be forwarded ASAP */
-	    (!(si->flags & SI_FL_WAIT_DATA) ||    /* not waiting for data */
-	     (fdtab[si_fd(si)].ev & FD_POLL_OUT)))   /* we'll be called anyway */
-		return;
-
-	if (conn_data_snd_buf(&si->conn) < 0) {
-		/* Write error on the file descriptor. We mark the FD as STERROR so
-		 * that we don't use it anymore and we notify the task.
-		 */
-		si->conn.flags |= CO_FL_ERROR;
-		fdtab[si_fd(si)].ev &= ~FD_POLL_STICKY;
-		conn_data_stop_both(&si->conn);
-		si->flags |= SI_FL_ERR;
-		goto out_wakeup;
-	}
-
-	/* OK, so now we know that some data might have been sent, and that we may
-	 * have to poll first. We have to do that too if the buffer is not empty.
-	 */
-	if (ob->flags & BF_OUT_EMPTY) {
-		/* the connection is established but we can't write. Either the
-		 * buffer is empty, or we just refrain from sending because the
-		 * ->o limit was reached. Maybe we just wrote the last
-		 * chunk and need to close.
-		 */
-		if (((ob->flags & (BF_SHUTW|BF_HIJACK|BF_AUTO_CLOSE|BF_SHUTW_NOW)) ==
-		     (BF_AUTO_CLOSE|BF_SHUTW_NOW)) &&
-		    (si->state == SI_ST_EST)) {
-			si_shutw(si);
-			goto out_wakeup;
-		}
-
-		if ((ob->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_FULL|BF_HIJACK)) == 0)
-			si->flags |= SI_FL_WAIT_DATA;
-		ob->wex = TICK_ETERNITY;
-	}
-	else {
-		/* Otherwise there are remaining data to be sent in the buffer,
-		 * which means we have to poll before doing so.
-		 */
-		conn_data_want_send(&si->conn);
-		si->flags &= ~SI_FL_WAIT_DATA;
-		if (!tick_isset(ob->wex))
-			ob->wex = tick_add_ifset(now_ms, ob->wto);
-	}
-
-	if (likely(ob->flags & BF_WRITE_ACTIVITY)) {
-		/* update timeout if we have written something */
-		if ((ob->flags & (BF_OUT_EMPTY|BF_SHUTW|BF_WRITE_PARTIAL)) == BF_WRITE_PARTIAL)
-			ob->wex = tick_add_ifset(now_ms, ob->wto);
-
-		if (tick_isset(si->ib->rex) && !(si->flags & SI_FL_INDEP_STR)) {
-			/* Note: to prevent the client from expiring read timeouts
-			 * during writes, we refresh it. We only do this if the
-			 * interface is not configured for "independent streams",
-			 * because for some applications it's better not to do this,
-			 * for instance when continuously exchanging small amounts
-			 * of data which can full the socket buffers long before a
-			 * write timeout is detected.
-			 */
-			si->ib->rex = tick_add_ifset(now_ms, si->ib->rto);
-		}
-	}
-
-	/* in case of special condition (error, shutdown, end of write...), we
-	 * have to notify the task.
-	 */
-	if (likely((ob->flags & (BF_WRITE_NULL|BF_WRITE_ERROR|BF_SHUTW)) ||
-		   ((ob->flags & BF_OUT_EMPTY) && !ob->to_forward) ||
-		   si->state != SI_ST_EST)) {
-	out_wakeup:
-		if (!(si->flags & SI_FL_DONT_WAKE) && si->owner)
-			task_wakeup(si->owner, TASK_WOKEN_IO);
-	}
-}
-
 /* stream sock operations */
 struct sock_ops sock_raw = {
 	.update  = stream_int_update_conn,
 	.shutr   = NULL,
 	.shutw   = NULL,
 	.chk_rcv = stream_int_chk_rcv_conn,
-	.chk_snd = sock_raw_chk_snd,
+	.chk_snd = stream_int_chk_snd_conn,
 	.read    = sock_raw_read,
 	.write   = sock_raw_write,
 	.snd_buf = sock_raw_write_loop,

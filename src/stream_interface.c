@@ -766,6 +766,105 @@ void stream_int_chk_rcv_conn(struct stream_interface *si)
 }
 
 
+/* This function is used for inter-stream-interface calls. It is called by the
+ * producer to inform the consumer side that it may be interested in checking
+ * for data in the buffer. Note that it intentionally does not update timeouts,
+ * so that we can still check them later at wake-up.
+ */
+void stream_int_chk_snd_conn(struct stream_interface *si)
+{
+	struct buffer *ob = si->ob;
+
+	if (unlikely(si->state != SI_ST_EST || (ob->flags & BF_SHUTW)))
+		return;
+
+	/* handshake running on producer */
+	if (si->conn.flags & CO_FL_HANDSHAKE) {
+		/* a handshake is in progress */
+		si->flags &= ~SI_FL_WAIT_DATA;
+		return;
+	}
+
+	if (unlikely((ob->flags & BF_OUT_EMPTY)))  /* called with nothing to send ! */
+		return;
+
+	if (!ob->pipe &&                          /* spliced data wants to be forwarded ASAP */
+	    (!(si->flags & SI_FL_WAIT_DATA) ||    /* not waiting for data */
+	     (fdtab[si_fd(si)].ev & FD_POLL_OUT)))   /* we'll be called anyway */
+		return;
+
+	if (conn_data_snd_buf(&si->conn) < 0) {
+		/* Write error on the file descriptor. We mark the FD as STERROR so
+		 * that we don't use it anymore and we notify the task.
+		 */
+		fdtab[si_fd(si)].ev &= ~FD_POLL_STICKY;
+		conn_data_stop_both(&si->conn);
+		si->flags |= SI_FL_ERR;
+		si->conn.flags |= CO_FL_ERROR;
+		goto out_wakeup;
+	}
+
+	/* OK, so now we know that some data might have been sent, and that we may
+	 * have to poll first. We have to do that too if the buffer is not empty.
+	 */
+	if (ob->flags & BF_OUT_EMPTY) {
+		/* the connection is established but we can't write. Either the
+		 * buffer is empty, or we just refrain from sending because the
+		 * ->o limit was reached. Maybe we just wrote the last
+		 * chunk and need to close.
+		 */
+		if (((ob->flags & (BF_SHUTW|BF_HIJACK|BF_AUTO_CLOSE|BF_SHUTW_NOW)) ==
+		     (BF_AUTO_CLOSE|BF_SHUTW_NOW)) &&
+		    (si->state == SI_ST_EST)) {
+			si_shutw(si);
+			goto out_wakeup;
+		}
+
+		if ((ob->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_FULL|BF_HIJACK)) == 0)
+			si->flags |= SI_FL_WAIT_DATA;
+		ob->wex = TICK_ETERNITY;
+	}
+	else {
+		/* Otherwise there are remaining data to be sent in the buffer,
+		 * which means we have to poll before doing so.
+		 */
+		conn_data_want_send(&si->conn);
+		si->flags &= ~SI_FL_WAIT_DATA;
+		if (!tick_isset(ob->wex))
+			ob->wex = tick_add_ifset(now_ms, ob->wto);
+	}
+
+	if (likely(ob->flags & BF_WRITE_ACTIVITY)) {
+		/* update timeout if we have written something */
+		if ((ob->flags & (BF_OUT_EMPTY|BF_SHUTW|BF_WRITE_PARTIAL)) == BF_WRITE_PARTIAL)
+			ob->wex = tick_add_ifset(now_ms, ob->wto);
+
+		if (tick_isset(si->ib->rex) && !(si->flags & SI_FL_INDEP_STR)) {
+			/* Note: to prevent the client from expiring read timeouts
+			 * during writes, we refresh it. We only do this if the
+			 * interface is not configured for "independent streams",
+			 * because for some applications it's better not to do this,
+			 * for instance when continuously exchanging small amounts
+			 * of data which can full the socket buffers long before a
+			 * write timeout is detected.
+			 */
+			si->ib->rex = tick_add_ifset(now_ms, si->ib->rto);
+		}
+	}
+
+	/* in case of special condition (error, shutdown, end of write...), we
+	 * have to notify the task.
+	 */
+	if (likely((ob->flags & (BF_WRITE_NULL|BF_WRITE_ERROR|BF_SHUTW)) ||
+		   ((ob->flags & BF_OUT_EMPTY) && !ob->to_forward) ||
+		   si->state != SI_ST_EST)) {
+	out_wakeup:
+		if (!(si->flags & SI_FL_DONT_WAKE) && si->owner)
+			task_wakeup(si->owner, TASK_WOKEN_IO);
+	}
+}
+
+
 /*
  * Local variables:
  *  c-indent-level: 8

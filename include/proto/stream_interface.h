@@ -40,6 +40,7 @@ void stream_int_update_conn(struct stream_interface *si);
 int stream_int_shutr(struct stream_interface *si);
 int stream_int_shutw(struct stream_interface *si);
 void stream_int_chk_rcv_conn(struct stream_interface *si);
+void stream_int_chk_snd_conn(struct stream_interface *si);
 
 extern struct sock_ops stream_int_embedded;
 extern struct sock_ops stream_int_task;
