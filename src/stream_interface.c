@@ -654,6 +654,118 @@ void conn_notify_si(struct connection *conn)
 		si->ib->flags &= ~BF_READ_DONTWAIT;
 }
 
+/*
+ * This function is called to send buffer data to a stream socket.
+ * It returns -1 in case of unrecoverable error, otherwise zero.
+ * It iterates the data layer's snd_buf function.
+ */
+static int si_conn_send_loop(struct connection *conn)
+{
+	struct stream_interface *si = container_of(conn, struct stream_interface, conn);
+	struct channel *b = si->ob;
+	int write_poll = MAX_WRITE_POLL_LOOPS;
+	int ret;
+
+#if 0 && defined(CONFIG_HAP_LINUX_SPLICE)
+	while (b->pipe) {
+		ret = splice(b->pipe->cons, NULL, si_fd(si), NULL, b->pipe->data,
+			     SPLICE_F_MOVE|SPLICE_F_NONBLOCK);
+		if (ret <= 0) {
+			if (ret == 0 || errno == EAGAIN) {
+				conn_data_poll_send(&si->conn);
+				return 0;
+			}
+			/* here we have another error */
+			return -1;
+		}
+
+		b->flags |= BF_WRITE_PARTIAL;
+		b->pipe->data -= ret;
+
+		if (!b->pipe->data) {
+			put_pipe(b->pipe);
+			b->pipe = NULL;
+			break;
+		}
+
+		if (--write_poll <= 0)
+			return 0;
+
+		/* The only reason we did not empty the pipe is that the output
+		 * buffer is full.
+		 */
+		conn_data_poll_send(&si->conn);
+		return 0;
+	}
+
+	/* At this point, the pipe is empty, but we may still have data pending
+	 * in the normal buffer.
+	 */
+#endif
+	if (!b->buf.o) {
+		b->flags |= BF_OUT_EMPTY;
+		return 0;
+	}
+
+	/* when we're in this loop, we already know that there is no spliced
+	 * data left, and that there are sendable buffered data.
+	 */
+	conn->flags &= ~(CO_FL_WAIT_DATA | CO_FL_WAIT_ROOM);
+	while (!(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_WR_SH | CO_FL_DATA_WR_SH | CO_FL_WAIT_DATA | CO_FL_WAIT_ROOM | CO_FL_HANDSHAKE))) {
+		/* check if we want to inform the kernel that we're interested in
+		 * sending more data after this call. We want this if :
+		 *  - we're about to close after this last send and want to merge
+		 *    the ongoing FIN with the last segment.
+		 *  - we know we can't send everything at once and must get back
+		 *    here because of unaligned data
+		 *  - there is still a finite amount of data to forward
+		 * The test is arranged so that the most common case does only 2
+		 * tests.
+		 */
+		unsigned int send_flag = MSG_DONTWAIT | MSG_NOSIGNAL;
+
+		if ((!(b->flags & (BF_NEVER_WAIT|BF_SEND_DONTWAIT)) &&
+		     ((b->to_forward && b->to_forward != BUF_INFINITE_FORWARD) ||
+		      (b->flags & BF_EXPECT_MORE))) ||
+		    ((b->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK)) == BF_SHUTW_NOW))
+			send_flag |= MSG_MORE;
+
+		ret = conn->data->snd_buf(conn, &b->buf, send_flag);
+		if (ret <= 0)
+			break;
+
+		if (si->conn.flags & CO_FL_WAIT_L4_CONN)
+			si->conn.flags &= ~CO_FL_WAIT_L4_CONN;
+
+		b->flags |= BF_WRITE_PARTIAL;
+
+		if (likely(!bi_full(b)))
+			b->flags &= ~BF_FULL;
+
+		if (!b->buf.o) {
+			/* Always clear both flags once everything has been sent, they're one-shot */
+			b->flags &= ~(BF_EXPECT_MORE | BF_SEND_DONTWAIT);
+			if (likely(!b->pipe))
+				b->flags |= BF_OUT_EMPTY;
+			break;
+		}
+
+		if (--write_poll <= 0)
+			break;
+	} /* while */
+
+	if (conn->flags & CO_FL_ERROR)
+		return -1;
+
+	if (conn->flags & CO_FL_WAIT_ROOM) {
+		/* we need to poll before going on */
+		conn_data_poll_send(&si->conn);
+		return 0;
+	}
+	return 0;
+}
+
+
 /* Updates the timers and flags of a stream interface attached to a connection,
  * depending on the buffers' flags. It should only be called once after the
  * buffer flags have settled down, and before they are cleared. It doesn't
@@ -792,7 +904,7 @@ void stream_int_chk_snd_conn(struct stream_interface *si)
 	     (fdtab[si_fd(si)].ev & FD_POLL_OUT)))   /* we'll be called anyway */
 		return;
 
-	if (conn_data_snd_buf(&si->conn) < 0) {
+	if (si_conn_send_loop(&si->conn) < 0) {
 		/* Write error on the file descriptor. We mark the FD as STERROR so
 		 * that we don't use it anymore and we notify the task.
 		 */
@@ -1078,7 +1190,7 @@ void si_conn_send_cb(struct connection *conn)
 		return;
 
 	/* OK there are data waiting to be sent */
-	if (conn_data_snd_buf(conn) < 0)
+	if (si_conn_send_loop(conn) < 0)
 		goto out_error;
 
 	/* OK all done */

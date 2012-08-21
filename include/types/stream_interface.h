@@ -118,8 +118,8 @@ struct sock_ops {
 	void (*read)(struct connection *conn);      /* read callback after poll() */
 	void (*write)(struct connection *conn);     /* write callback after poll() */
 	void (*close)(struct connection *);         /* close the data channel on the connection */
-	int  (*snd_buf)(struct connection *conn);   /* callback used to send a buffer contents */
 	int  (*rcv_buf)(struct connection *conn, struct buffer *buf, int count); /* recv callback */
+	int  (*snd_buf)(struct connection *conn, struct buffer *buf, int flags); /* send callback */
 };
 
 /* A stream interface has 3 parts :
