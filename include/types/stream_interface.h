@@ -96,6 +96,7 @@ struct server;
 struct proxy;
 struct si_applet;
 struct stream_interface;
+struct pipe;
 
 struct target {
 	int type;
@@ -120,6 +121,8 @@ struct sock_ops {
 	void (*close)(struct connection *);         /* close the data channel on the connection */
 	int  (*rcv_buf)(struct connection *conn, struct buffer *buf, int count); /* recv callback */
 	int  (*snd_buf)(struct connection *conn, struct buffer *buf, int flags); /* send callback */
+	int  (*rcv_pipe)(struct connection *conn, struct pipe *pipe, unsigned int count); /* recv-to-pipe callback */
+	int  (*snd_pipe)(struct connection *conn, struct pipe *pipe); /* send-to-pipe callback */
 };
 
 /* A stream interface has 3 parts :

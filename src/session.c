@@ -179,11 +179,12 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	if (likely(s->fe->options2 & PR_O2_INDEPSTR))
 		s->si[0].flags |= SI_FL_INDEP_STR;
 
-	if (addr->ss_family == AF_INET || addr->ss_family == AF_INET6)
-		s->si[0].flags = SI_FL_CAP_SPLTCP; /* TCP/TCPv6 splicing possible */
-
 	/* add the various callbacks */
 	stream_interface_prepare(&s->si[0], l->sock);
+
+	if ((s->si[0].conn.data->rcv_pipe && s->si[0].conn.data->snd_pipe) &&
+	    (addr->ss_family == AF_INET || addr->ss_family == AF_INET6))
+		s->si[0].flags = SI_FL_CAP_SPLTCP; /* TCP/TCPv6 splicing possible */
 
 	/* pre-initialize the other side's stream interface to an INIT state. The
 	 * callbacks will be initialized before attempting to connect.

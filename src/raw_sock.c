@@ -43,7 +43,7 @@
 #include <types/global.h>
 
 
-#if 0 && defined(CONFIG_HAP_LINUX_SPLICE)
+#if defined(CONFIG_HAP_LINUX_SPLICE)
 #include <common/splice.h>
 
 /* A pipe contains 16 segments max, and it's common to see segments of 1448 bytes
@@ -56,74 +56,29 @@
 #define MAX_SPLICE_AT_ONCE	(1<<30)
 
 /* Returns :
- *   -1 if splice is not possible or not possible anymore and we must switch to
- *      user-land copy (eg: to_forward reached)
- *    0 otherwise, including errors and close.
- * Sets :
- *   BF_READ_NULL
- *   BF_READ_PARTIAL
- *   BF_WRITE_PARTIAL (during copy)
- *   BF_OUT_EMPTY (during copy)
- *   SI_FL_ERR
- *   SI_FL_WAIT_ROOM
- *   (SI_FL_WAIT_RECV)
- *
- * This function automatically allocates a pipe from the pipe pool. It also
- * carefully ensures to clear b->pipe whenever it leaves the pipe empty.
+ *   -1 if splice() is not supported
+ *   >= 0 to report the amount of spliced bytes.
+ *   connection flags are updated (error, read0, wait_room, wait_data).
+ *   The caller must have previously allocated the pipe.
  */
-static int sock_raw_splice_in(struct channel *b, struct stream_interface *si)
+int raw_sock_to_pipe(struct connection *conn, struct pipe *pipe, unsigned int count)
 {
 	static int splice_detects_close;
-	int fd = si_fd(si);
 	int ret;
-	unsigned long max;
 	int retval = 0;
 
-	if (!b->to_forward)
-		return -1;
+	/* Under Linux, if FD_POLL_HUP is set, we have reached the end.
+	 * Since older splice() implementations were buggy and returned
+	 * EAGAIN on end of read, let's bypass the call to splice() now.
+	 */
+	if ((fdtab[conn->t.sock.fd].ev & (FD_POLL_IN|FD_POLL_HUP)) == FD_POLL_HUP)
+		goto out_read0;
 
-	if (!(b->flags & BF_KERN_SPLICING))
-		return -1;
+	while (count) {
+		if (count > MAX_SPLICE_AT_ONCE)
+			count = MAX_SPLICE_AT_ONCE;
 
-	if (buffer_not_empty(&b->buf)) {
-		/* We're embarrassed, there are already data pending in
-		 * the buffer and we don't want to have them at two
-		 * locations at a time. Let's indicate we need some
-		 * place and ask the consumer to hurry.
-		 */
-		si->flags |= SI_FL_WAIT_ROOM;
-		conn_data_stop_recv(&si->conn);
-		b->rex = TICK_ETERNITY;
-		si_chk_snd(b->cons);
-		return 0;
-	}
-
-	if (unlikely(b->pipe == NULL)) {
-		if (pipes_used >= global.maxpipes || !(b->pipe = get_pipe())) {
-			b->flags &= ~BF_KERN_SPLICING;
-			return -1;
-		}
-	}
-
-	/* At this point, b->pipe is valid */
-
-	while (1) {
-		if (b->to_forward == BUF_INFINITE_FORWARD)
-			max = MAX_SPLICE_AT_ONCE;
-		else
-			max = b->to_forward;
-
-		if (!max) {
-			/* It looks like the buffer + the pipe already contain
-			 * the maximum amount of data to be transferred. Try to
-			 * send those data immediately on the other side if it
-			 * is currently waiting.
-			 */
-			retval = -1; /* end of forwarding */
-			break;
-		}
-
-		ret = splice(fd, NULL, b->pipe->prod, NULL, max,
+		ret = splice(conn->t.sock.fd, NULL, pipe->prod, NULL, count,
 			     SPLICE_F_MOVE|SPLICE_F_NONBLOCK);
 
 		if (ret <= 0) {
@@ -133,8 +88,7 @@ static int sock_raw_splice_in(struct channel *b, struct stream_interface *si)
 				 * it works, we store the info for later use.
 				 */
 				splice_detects_close = 1;
-				b->flags |= BF_READ_NULL;
-				break;
+				goto out_read0;
 			}
 
 			if (errno == EAGAIN) {
@@ -142,13 +96,16 @@ static int sock_raw_splice_in(struct channel *b, struct stream_interface *si)
 				 *   - nothing in the socket buffer (standard)
 				 *   - pipe is full
 				 *   - the connection is closed (kernel < 2.6.27.13)
-				 * Since we don't know if pipe is full, we'll
-				 * stop if the pipe is not empty. Anyway, we
-				 * will almost always fill/empty the pipe.
+				 * The last case is annoying but know if we can detect it
+				 * and if we can't then we rely on the call to recv() to
+				 * get a valid verdict. The difference between the first
+				 * two situations is problematic. Since we don't know if
+				 * the pipe is full, we'll stop if the pipe is not empty.
+				 * Anyway, we will almost always fill/empty the pipe.
 				 */
-
-				if (b->pipe->data) {
-					si->flags |= SI_FL_WAIT_ROOM;
+				if (pipe->data) {
+					/* alway stop reading until the pipe is flushed */
+					conn->flags |= CO_FL_WAIT_ROOM;
 					break;
 				}
 
@@ -161,46 +118,71 @@ static int sock_raw_splice_in(struct channel *b, struct stream_interface *si)
 				 * which will be able to deal with the situation.
 				 */
 				if (splice_detects_close)
-					conn_data_poll_recv(&si->conn); /* we know for sure that it's EAGAIN */
-				else
-					retval = -1;
+					conn->flags |= CO_FL_WAIT_DATA; /* we know for sure that it's EAGAIN */
 				break;
 			}
-
-			if (errno == ENOSYS || errno == EINVAL) {
-				/* splice not supported on this end, disable it */
-				b->flags &= ~BF_KERN_SPLICING;
-				si->flags &= ~SI_FL_CAP_SPLICE;
-				put_pipe(b->pipe);
-				b->pipe = NULL;
+			else if (errno == ENOSYS || errno == EINVAL) {
+				/* splice not supported on this end, disable it.
+				 * We can safely return -1 since there is no
+				 * chance that any data has been piped yet.
+				 */
 				return -1;
 			}
-
+			else if (errno == EINTR) {
+				/* try again */
+				continue;
+			}
 			/* here we have another error */
-			si->flags |= SI_FL_ERR;
+			conn->flags |= CO_FL_ERROR;
 			break;
 		} /* ret <= 0 */
 
-		if (b->to_forward != BUF_INFINITE_FORWARD)
-			b->to_forward -= ret;
-		b->total += ret;
-		b->pipe->data += ret;
-		b->flags |= BF_READ_PARTIAL;
-		b->flags &= ~BF_OUT_EMPTY;
+		retval += ret;
+		pipe->data += ret;
 
-		if (b->pipe->data >= SPLICE_FULL_HINT ||
-		    ret >= global.tune.recv_enough) {
-			/* We've read enough of it for this time. */
+		if (pipe->data >= SPLICE_FULL_HINT || ret >= global.tune.recv_enough) {
+			/* We've read enough of it for this time, let's stop before
+			 * being asked to poll.
+			 */
 			break;
 		}
 	} /* while */
 
-	if (unlikely(!b->pipe->data)) {
-		put_pipe(b->pipe);
-		b->pipe = NULL;
-	}
-
 	return retval;
+
+ out_read0:
+	conn_sock_read0(conn);
+	return retval;
+}
+
+/* Send as many bytes as possible from the pipe to the connection's socket.
+ */
+int raw_sock_from_pipe(struct connection *conn, struct pipe *pipe)
+{
+	int ret, done;
+
+	done = 0;
+	while (pipe->data) {
+		ret = splice(pipe->cons, NULL, conn->t.sock.fd, NULL, pipe->data,
+			     SPLICE_F_MOVE|SPLICE_F_NONBLOCK);
+
+		if (ret <= 0) {
+			if (ret == 0 || errno == EAGAIN) {
+				conn->flags |= CO_FL_WAIT_ROOM;
+				break;
+			}
+			else if (errno == EINTR)
+				continue;
+
+			/* here we have another error */
+			conn->flags |= CO_FL_ERROR;
+			break;
+		}
+
+		done += ret;
+		pipe->data -= ret;
+	}
+	return done;
 }
 
 #endif /* CONFIG_HAP_LINUX_SPLICE */
@@ -347,6 +329,10 @@ struct sock_ops raw_sock = {
 	.write   = si_conn_send_cb,
 	.snd_buf = raw_sock_from_buf,
 	.rcv_buf = raw_sock_to_buf,
+#if defined(CONFIG_HAP_LINUX_SPLICE)
+	.rcv_pipe = raw_sock_to_pipe,
+	.snd_pipe = raw_sock_from_pipe,
+#endif
 	.close   = NULL,
 };
 
