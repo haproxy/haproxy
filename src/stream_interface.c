@@ -553,7 +553,8 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 /* Callback to be used by connection I/O handlers upon completion. It differs from
  * the function below in that it is designed to be called by lower layers after I/O
  * events have been completed. It will also try to wake the associated task up if
- * an important event requires special handling.
+ * an important event requires special handling. It relies on the connection handler
+ * to commit any polling updates.
  */
 void conn_notify_si(struct connection *conn)
 {
@@ -577,8 +578,7 @@ void conn_notify_si(struct connection *conn)
 		if (((si->ob->flags & (BF_SHUTW|BF_HIJACK|BF_SHUTW_NOW)) == BF_SHUTW_NOW) &&
 		    (si->state == SI_ST_EST))
 			stream_int_shutw(si);
-		if (conn->flags & CO_FL_DATA_WR_ENA)
-			conn_data_stop_send(conn);
+		__conn_data_stop_send(conn);
 		si->ob->wex = TICK_ETERNITY;
 	}
 
@@ -623,7 +623,7 @@ void conn_notify_si(struct connection *conn)
 	}
 
 	if (si->flags & SI_FL_WAIT_ROOM) {
-		conn_data_stop_recv(conn);
+		__conn_data_stop_recv(conn);
 		si->ib->rex = TICK_ETERNITY;
 	}
 	else if ((si->ib->flags & (BF_SHUTR|BF_READ_PARTIAL|BF_FULL|BF_DONT_READ|BF_READ_NOEXP)) == BF_READ_PARTIAL) {
@@ -654,7 +654,8 @@ void conn_notify_si(struct connection *conn)
 /*
  * This function is called to send buffer data to a stream socket.
  * It returns -1 in case of unrecoverable error, otherwise zero.
- * It iterates the data layer's snd_buf function.
+ * It iterates the data layer's snd_buf function. It relies on the
+ * caller to commit polling changes.
  */
 static int si_conn_send_loop(struct connection *conn)
 {
@@ -679,7 +680,7 @@ static int si_conn_send_loop(struct connection *conn)
 			return -1;
 
 		if (conn->flags & CO_FL_WAIT_ROOM) {
-			conn_data_poll_send(conn);
+			__conn_data_poll_send(conn);
 			return 0;
 		}
 	}
@@ -743,7 +744,7 @@ static int si_conn_send_loop(struct connection *conn)
 
 	if (conn->flags & CO_FL_WAIT_ROOM) {
 		/* we need to poll before going on */
-		conn_data_poll_send(&si->conn);
+		__conn_data_poll_send(&si->conn);
 		return 0;
 	}
 	return 0;
@@ -893,7 +894,7 @@ void stream_int_chk_snd_conn(struct stream_interface *si)
 		 * that we don't use it anymore and we notify the task.
 		 */
 		fdtab[si_fd(si)].ev &= ~FD_POLL_STICKY;
-		conn_data_stop_both(&si->conn);
+		__conn_data_stop_both(&si->conn);
 		si->flags |= SI_FL_ERR;
 		si->conn.flags |= CO_FL_ERROR;
 		goto out_wakeup;
@@ -923,7 +924,7 @@ void stream_int_chk_snd_conn(struct stream_interface *si)
 		/* Otherwise there are remaining data to be sent in the buffer,
 		 * which means we have to poll before doing so.
 		 */
-		conn_data_want_send(&si->conn);
+		__conn_data_want_send(&si->conn);
 		si->flags &= ~SI_FL_WAIT_DATA;
 		if (!tick_isset(ob->wex))
 			ob->wex = tick_add_ifset(now_ms, ob->wto);
@@ -957,6 +958,9 @@ void stream_int_chk_snd_conn(struct stream_interface *si)
 		if (!(si->flags & SI_FL_DONT_WAKE) && si->owner)
 			task_wakeup(si->owner, TASK_WOKEN_IO);
 	}
+
+	/* commit possible polling changes */
+	conn_cond_update_polling(&si->conn);
 }
 
 /*
@@ -1213,7 +1217,7 @@ void si_conn_recv_cb(struct connection *conn)
  out_error:
 	/* Read error on the connection, report the error and stop I/O */
 	conn->flags |= CO_FL_ERROR;
-	conn_data_stop_both(conn);
+	__conn_data_stop_both(conn);
 }
 
 /*
@@ -1247,7 +1251,7 @@ void si_conn_send_cb(struct connection *conn)
  out_error:
 	/* Write error on the connection, report the error and stop I/O */
 	conn->flags |= CO_FL_ERROR;
-	conn_data_stop_both(conn);
+	__conn_data_stop_both(conn);
 }
 
 /*
@@ -1286,7 +1290,7 @@ void stream_sock_read0(struct stream_interface *si)
 	}
 
 	/* otherwise that's just a normal read shutdown */
-	conn_data_stop_recv(&si->conn);
+	__conn_data_stop_recv(&si->conn);
 	return;
 
  do_close:
