@@ -419,12 +419,12 @@ struct server *get_server_rch(struct session *s)
 	args[0].data.str.len = px->hh_len;
 	args[1].type = ARGT_STOP;
 
-	b_rew(s->req, rewind = s->req->buf.o);
+	b_rew(&s->req->buf, rewind = s->req->buf.o);
 
 	ret = smp_fetch_rdp_cookie(px, s, NULL, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, args, &smp);
 	len = smp.data.str.len;
 
-	b_adv(s->req, rewind);
+	b_adv(&s->req->buf, rewind);
 
 	if (ret == 0 || (smp.flags & SMP_F_MAY_CHANGE) || len == 0)
 		return NULL;
@@ -905,13 +905,13 @@ static void assign_tproxy_address(struct session *s)
 				((struct sockaddr_in *)&s->req->cons->addr.from)->sin_port = 0;
 				((struct sockaddr_in *)&s->req->cons->addr.from)->sin_addr.s_addr = 0;
 
-				b_rew(s->req, rewind = s->req->buf.o);
+				b_rew(&s->req->buf, rewind = s->req->buf.o);
 				if (http_get_hdr(&s->txn.req, srv->bind_hdr_name, srv->bind_hdr_len,
 						 &s->txn.hdr_idx, srv->bind_hdr_occ, NULL, &vptr, &vlen)) {
 					((struct sockaddr_in *)&s->req->cons->addr.from)->sin_addr.s_addr =
 						htonl(inetaddr_host_lim(vptr, vptr + vlen));
 				}
-				b_adv(s->req, rewind);
+				b_adv(&s->req->buf, rewind);
 			}
 			break;
 		default:
@@ -939,13 +939,13 @@ static void assign_tproxy_address(struct session *s)
 				((struct sockaddr_in *)&s->req->cons->addr.from)->sin_port = 0;
 				((struct sockaddr_in *)&s->req->cons->addr.from)->sin_addr.s_addr = 0;
 
-				b_rew(s->req, rewind = s->req->buf.o);
+				b_rew(&s->req->buf, rewind = s->req->buf.o);
 				if (http_get_hdr(&s->txn.req, s->be->bind_hdr_name, s->be->bind_hdr_len,
 						 &s->txn.hdr_idx, s->be->bind_hdr_occ, NULL, &vptr, &vlen)) {
 					((struct sockaddr_in *)&s->req->cons->addr.from)->sin_addr.s_addr =
 						htonl(inetaddr_host_lim(vptr, vptr + vlen));
 				}
-				b_adv(s->req, rewind);
+				b_adv(&s->req->buf, rewind);
 			}
 			break;
 		default:

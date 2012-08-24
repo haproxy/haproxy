@@ -61,6 +61,29 @@ void buffer_bounce_realign(struct buffer *buf);
 		__ret;                                          \
 	})
 
+/* Advances the buffer by <adv> bytes, which means that the buffer
+ * pointer advances, and that as many bytes from in are transferred
+ * to out. The caller is responsible for ensuring that adv is always
+ * smaller than or equal to b->i.
+ */
+static inline void b_adv(struct buffer *b, unsigned int adv)
+{
+	b->i -= adv;
+	b->o += adv;
+	b->p = b_ptr(b, adv);
+}
+
+/* Rewinds the buffer by <adv> bytes, which means that the buffer pointer goes
+ * backwards, and that as many bytes from out are moved to in. The caller is
+ * responsible for ensuring that adv is always smaller than or equal to b->o.
+ */
+static inline void b_rew(struct buffer *b, unsigned int adv)
+{
+	b->i += adv;
+	b->o -= adv;
+	b->p = b_ptr(b, (int)-adv);
+}
+
 /* Returns the start of the input data in a buffer */
 static inline char *bi_ptr(const struct buffer *b)
 {
@@ -289,6 +312,16 @@ static inline int buffer_realign(struct buffer *buf)
 	return buffer_contig_space(buf);
 }
 
+/* Schedule all remaining buffer data to be sent. ->o is not touched if it
+ * already covers those data. That permits doing a flush even after a forward,
+ * although not recommended.
+ */
+static inline void buffer_flush(struct buffer *buf)
+{
+	buf->p = buffer_wrap_add(buf, buf->p + buf->i);
+	buf->o += buf->i;
+	buf->i = 0;
+}
 
 #endif /* _COMMON_BUFFER_H */
 

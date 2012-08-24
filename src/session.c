@@ -1856,7 +1856,7 @@ struct task *process_session(struct task *t)
 		buffer_auto_read(s->req);
 		buffer_auto_connect(s->req);
 		buffer_auto_close(s->req);
-		buffer_flush(s->req);
+		buffer_flush(&s->req->buf);
 
 		/* We'll let data flow between the producer (if still connected)
 		 * to the consumer (which might possibly not be connected yet).
@@ -1991,7 +1991,7 @@ struct task *process_session(struct task *t)
 		 */
 		buffer_auto_read(s->rep);
 		buffer_auto_close(s->rep);
-		buffer_flush(s->rep);
+		buffer_flush(&s->rep->buf);
 
 		/* We'll let data flow between the producer (if still connected)
 		 * to the consumer.

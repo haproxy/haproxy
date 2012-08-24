@@ -60,13 +60,13 @@ unsigned long long buffer_forward(struct channel *buf, unsigned long long bytes)
 			/* OK this amount of bytes might be forwarded at once */
 			if (!bytes32)
 				return 0;
-			b_adv(buf, bytes32);
+			b_adv(&buf->buf, bytes32);
 			return bytes;
 		}
 	}
 
 	forwarded = buf->buf.i;
-	b_adv(buf, buf->buf.i);
+	b_adv(&buf->buf, buf->buf.i);
 
 	/* Note: the case below is the only case where we may return
 	 * a byte count that does not fit into a 32-bit number.
@@ -159,7 +159,7 @@ int bi_putchr(struct channel *buf, char c)
 	if (buf->to_forward >= 1) {
 		if (buf->to_forward != BUF_INFINITE_FORWARD)
 			buf->to_forward--;
-		b_adv(buf, 1);
+		b_adv(&buf->buf, 1);
 	}
 
 	buf->total++;
@@ -211,7 +211,7 @@ int bi_putblk(struct channel *buf, const char *blk, int len)
 				fwd = buf->to_forward;
 			buf->to_forward -= fwd;
 		}
-		b_adv(buf, fwd);
+		b_adv(&buf->buf, fwd);
 	}
 
 	buf->flags &= ~BF_FULL;

@@ -1071,7 +1071,7 @@ void si_conn_recv_cb(struct connection *conn)
 					fwd = b->to_forward;
 				b->to_forward -= fwd;
 			}
-			b_adv(b, fwd);
+			b_adv(&b->buf, fwd);
 		}
 
 		if (conn->flags & CO_FL_WAIT_L4_CONN)

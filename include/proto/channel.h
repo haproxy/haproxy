@@ -158,29 +158,6 @@ static inline int bi_avail(const struct channel *b)
 	return 0;
 }
 
-/* Advances the buffer by <adv> bytes, which means that the buffer
- * pointer advances, and that as many bytes from in are transferred
- * to out. The caller is responsible for ensuring that adv is always
- * smaller than or equal to b->i.
- */
-static inline void b_adv(struct channel *b, unsigned int adv)
-{
-	b->buf.i -= adv;
-	b->buf.o += adv;
-	b->buf.p = b_ptr(&b->buf, adv);
-}
-
-/* Rewinds the buffer by <adv> bytes, which means that the buffer pointer goes
- * backwards, and that as many bytes from out are moved to in. The caller is
- * responsible for ensuring that adv is always smaller than or equal to b->o.
- */
-static inline void b_rew(struct channel *b, unsigned int adv)
-{
-	b->buf.i += adv;
-	b->buf.o -= adv;
-	b->buf.p = b_ptr(&b->buf, (int)-adv);
-}
-
 /* Return the amount of bytes that can be written into the buffer at once,
  * excluding reserved space, which is preserved.
  */
@@ -220,17 +197,6 @@ static inline void buffer_check_timeouts(struct channel *b)
 	if (likely(!(b->flags & BF_ANA_TIMEOUT)) &&
 	    unlikely(tick_is_expired(b->analyse_exp, now_ms)))
 		b->flags |= BF_ANA_TIMEOUT;
-}
-
-/* Schedule all remaining buffer data to be sent. ->o is not touched if it
- * already covers those data. That permits doing a flush even after a forward,
- * although not recommended.
- */
-static inline void buffer_flush(struct channel *buf)
-{
-	buf->buf.p = buffer_wrap_add(&buf->buf, buf->buf.p + buf->buf.i);
-	buf->buf.o += buf->buf.i;
-	buf->buf.i = 0;
 }
 
 /* Erase any content from buffer <buf> and adjusts flags accordingly. Note
