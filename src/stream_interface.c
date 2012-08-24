@@ -1160,33 +1160,7 @@ void si_conn_recv_cb(struct connection *conn)
 		goto out_error;
 
 	if (conn->flags & CO_FL_WAIT_ROOM) {
-		/* We might have some data the consumer is waiting for.
-		 * We can do fast-forwarding, but we avoid doing this for partial
-		 * buffers, because it is very likely that it will be done again
-		 * immediately afterwards once the following data is parsed (eg:
-		 * HTTP chunking).
-		 */
-		if (((b->flags & (BF_READ_PARTIAL|BF_OUT_EMPTY)) == BF_READ_PARTIAL) &&
-		    (b->pipe /* always try to send spliced data */ ||
-		     (b->buf.i == 0 && (b->cons->flags & SI_FL_WAIT_DATA)))) {
-			int last_len = b->pipe ? b->pipe->data : 0;
-
-			si_chk_snd(b->cons);
-
-			/* check if the consumer has freed some space */
-			if (!(b->flags & BF_FULL) &&
-			    (!last_len || !b->pipe || b->pipe->data < last_len))
-				si->flags &= ~SI_FL_WAIT_ROOM;
-		}
-
-		if (si->flags & SI_FL_WAIT_ROOM) {
-			conn_data_stop_recv(conn);
-			b->rex = TICK_ETERNITY;
-		}
-		else if ((b->flags & (BF_SHUTR|BF_READ_PARTIAL|BF_FULL|BF_DONT_READ|BF_READ_NOEXP)) == BF_READ_PARTIAL) {
-			if (tick_isset(b->rex))
-				b->rex = tick_add_ifset(now_ms, b->rto);
-		}
+		si->flags |= SI_FL_WAIT_ROOM;
 	}
 	else if (conn->flags & CO_FL_WAIT_DATA) {
 		/* we don't automatically ask for polling if we have
