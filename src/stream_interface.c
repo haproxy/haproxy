@@ -765,7 +765,6 @@ void stream_int_update_conn(struct stream_interface *si)
 
 	if (si->conn.flags & CO_FL_HANDSHAKE) {
 		/* a handshake is in progress */
-		si->flags &= ~SI_FL_WAIT_DATA;
 		return;
 	}
 
@@ -877,7 +876,6 @@ void stream_int_chk_snd_conn(struct stream_interface *si)
 	/* handshake running on producer */
 	if (si->conn.flags & CO_FL_HANDSHAKE) {
 		/* a handshake is in progress */
-		si->flags &= ~SI_FL_WAIT_DATA;
 		return;
 	}
 
