@@ -473,7 +473,7 @@ int tcp_connect_server(struct stream_interface *si)
 	fdtab[fd].iocb = conn_fd_handler;
 	fd_insert(fd);
 	conn_sock_want_send(&si->conn);  /* for connect status */
-	if (!(si->ob->flags & BF_OUT_EMPTY))
+	if (!channel_is_empty(si->ob))
 		conn_data_want_send(&si->conn);  /* prepare to send data if any */
 
 	si->state = SI_ST_CON;

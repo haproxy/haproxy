@@ -146,7 +146,8 @@ static void stream_int_update_embedded(struct stream_interface *si)
 	if (si->state != SI_ST_EST)
 		return;
 
-	if ((si->ob->flags & (BF_OUT_EMPTY|BF_SHUTW|BF_HIJACK|BF_SHUTW_NOW)) == (BF_OUT_EMPTY|BF_SHUTW_NOW))
+	if ((si->ob->flags & (BF_SHUTW|BF_HIJACK|BF_SHUTW_NOW)) == BF_SHUTW_NOW &&
+	    channel_is_empty(si->ob))
 		si_shutw(si);
 
 	if ((si->ob->flags & (BF_FULL|BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK)) == 0)
@@ -155,7 +156,7 @@ static void stream_int_update_embedded(struct stream_interface *si)
 	/* we're almost sure that we need some space if the buffer is not
 	 * empty, even if it's not full, because the applets can't fill it.
 	 */
-	if ((si->ib->flags & (BF_SHUTR|BF_OUT_EMPTY|BF_DONT_READ)) == 0)
+	if ((si->ib->flags & (BF_SHUTR|BF_DONT_READ)) == 0 && !channel_is_empty(si->ib))
 		si->flags |= SI_FL_WAIT_ROOM;
 
 	if (si->ob->flags & BF_WRITE_ACTIVITY) {
@@ -175,7 +176,7 @@ static void stream_int_update_embedded(struct stream_interface *si)
 		   (si->ob->prod->flags & SI_FL_WAIT_ROOM)))
 		si_chk_rcv(si->ob->prod);
 
-	if (((si->ib->flags & (BF_READ_PARTIAL|BF_OUT_EMPTY)) == BF_READ_PARTIAL) &&
+	if (((si->ib->flags & BF_READ_PARTIAL) && !channel_is_empty(si->ib)) &&
 	    (si->ib->cons->flags & SI_FL_WAIT_DATA)) {
 		si_chk_snd(si->ib->cons);
 		/* check if the consumer has freed some space */
@@ -205,7 +206,7 @@ static void stream_int_update_embedded(struct stream_interface *si)
 	    ((si->ob->flags & BF_WRITE_ACTIVITY) &&
 	     ((si->ob->flags & BF_SHUTW) ||
 	      si->ob->prod->state != SI_ST_EST ||
-	      ((si->ob->flags & BF_OUT_EMPTY) && !si->ob->to_forward)))) {
+	      (channel_is_empty(si->ob) && !si->ob->to_forward)))) {
 		if (!(si->flags & SI_FL_DONT_WAKE) && si->owner)
 			task_wakeup(si->owner, TASK_WOKEN_IO);
 	}
@@ -394,7 +395,7 @@ static void stream_int_chk_snd(struct stream_interface *si)
 		return;
 
 	if (!(si->flags & SI_FL_WAIT_DATA) ||        /* not waiting for data */
-	    (ob->flags & BF_OUT_EMPTY))              /* called with nothing to send ! */
+	    channel_is_empty(ob))           /* called with nothing to send ! */
 		return;
 
 	/* Otherwise there are remaining data to be sent in the buffer,
@@ -577,7 +578,7 @@ void conn_notify_si(struct connection *conn)
 	}
 
 	/* process consumer side */
-	if (si->ob->flags & BF_OUT_EMPTY) {
+	if (channel_is_empty(si->ob)) {
 		if (((si->ob->flags & (BF_SHUTW|BF_HIJACK|BF_SHUTW_NOW)) == BF_SHUTW_NOW) &&
 		    (si->state == SI_ST_EST))
 			stream_int_shutw(si);
@@ -590,7 +591,8 @@ void conn_notify_si(struct connection *conn)
 
 	if (si->ob->flags & BF_WRITE_ACTIVITY) {
 		/* update timeouts if we have written something */
-		if ((si->ob->flags & (BF_OUT_EMPTY|BF_SHUTW|BF_WRITE_PARTIAL)) == BF_WRITE_PARTIAL)
+		if ((si->ob->flags & (BF_SHUTW|BF_WRITE_PARTIAL)) == BF_WRITE_PARTIAL &&
+		    !channel_is_empty(si->ob))
 			if (tick_isset(si->ob->wex))
 				si->ob->wex = tick_add_ifset(now_ms, si->ob->wto);
 
@@ -610,7 +612,7 @@ void conn_notify_si(struct connection *conn)
 	 * immediately afterwards once the following data is parsed (eg:
 	 * HTTP chunking).
 	 */
-	if (((si->ib->flags & (BF_READ_PARTIAL|BF_OUT_EMPTY)) == BF_READ_PARTIAL) &&
+	if (((si->ib->flags & BF_READ_PARTIAL) && !channel_is_empty(si->ib)) &&
 	    (si->ib->pipe /* always try to send spliced data */ ||
 	     (si->ib->buf.i == 0 && (si->ib->cons->flags & SI_FL_WAIT_DATA)))) {
 		int last_len = si->ib->pipe ? si->ib->pipe->data : 0;
@@ -647,7 +649,7 @@ void conn_notify_si(struct connection *conn)
 	    ((si->ob->flags & BF_WRITE_ACTIVITY) &&
 	     ((si->ob->flags & BF_SHUTW) ||
 	      si->ob->prod->state != SI_ST_EST ||
-	      ((si->ob->flags & BF_OUT_EMPTY) && !si->ob->to_forward)))) {
+	      (channel_is_empty(si->ob) && !si->ob->to_forward)))) {
 		task_wakeup(si->owner, TASK_WOKEN_IO);
 	}
 	if (si->ib->flags & BF_READ_ACTIVITY)
@@ -691,10 +693,8 @@ static int si_conn_send_loop(struct connection *conn)
 	/* At this point, the pipe is empty, but we may still have data pending
 	 * in the normal buffer.
 	 */
-	if (!b->buf.o) {
-		b->flags |= BF_OUT_EMPTY;
+	if (!b->buf.o)
 		return 0;
-	}
 
 	/* when we're in this loop, we already know that there is no spliced
 	 * data left, and that there are sendable buffered data.
@@ -733,8 +733,6 @@ static int si_conn_send_loop(struct connection *conn)
 		if (!b->buf.o) {
 			/* Always clear both flags once everything has been sent, they're one-shot */
 			b->flags &= ~(BF_EXPECT_MORE | BF_SEND_DONTWAIT);
-			if (likely(!b->pipe))
-				b->flags |= BF_OUT_EMPTY;
 			break;
 		}
 
@@ -799,7 +797,7 @@ void stream_int_update_conn(struct stream_interface *si)
 	/* Check if we need to close the write side */
 	if (!(ob->flags & BF_SHUTW)) {
 		/* Write not closed, update FD status and timeout for writes */
-		if (ob->flags & BF_OUT_EMPTY) {
+		if (channel_is_empty(ob)) {
 			/* stop writing */
 			if (!(si->flags & SI_FL_WAIT_DATA)) {
 				if ((ob->flags & (BF_FULL|BF_HIJACK|BF_SHUTW_NOW)) == 0)
@@ -882,7 +880,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 		return;
 	}
 
-	if (unlikely((ob->flags & BF_OUT_EMPTY)))  /* called with nothing to send ! */
+	if (unlikely(channel_is_empty(ob)))  /* called with nothing to send ! */
 		return;
 
 	if (!ob->pipe &&                          /* spliced data wants to be forwarded ASAP */
@@ -904,7 +902,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 	/* OK, so now we know that some data might have been sent, and that we may
 	 * have to poll first. We have to do that too if the buffer is not empty.
 	 */
-	if (ob->flags & BF_OUT_EMPTY) {
+	if (channel_is_empty(ob)) {
 		/* the connection is established but we can't write. Either the
 		 * buffer is empty, or we just refrain from sending because the
 		 * ->o limit was reached. Maybe we just wrote the last
@@ -933,7 +931,8 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 
 	if (likely(ob->flags & BF_WRITE_ACTIVITY)) {
 		/* update timeout if we have written something */
-		if ((ob->flags & (BF_OUT_EMPTY|BF_SHUTW|BF_WRITE_PARTIAL)) == BF_WRITE_PARTIAL)
+		if ((ob->flags & (BF_SHUTW|BF_WRITE_PARTIAL)) == BF_WRITE_PARTIAL &&
+		    !channel_is_empty(ob))
 			ob->wex = tick_add_ifset(now_ms, ob->wto);
 
 		if (tick_isset(si->ib->rex) && !(si->flags & SI_FL_INDEP_STR)) {
@@ -953,7 +952,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 	 * have to notify the task.
 	 */
 	if (likely((ob->flags & (BF_WRITE_NULL|BF_WRITE_ERROR|BF_SHUTW)) ||
-		   ((ob->flags & BF_OUT_EMPTY) && !ob->to_forward) ||
+		   (channel_is_empty(ob) && !ob->to_forward) ||
 		   si->state != SI_ST_EST)) {
 	out_wakeup:
 		if (!(si->flags & SI_FL_DONT_WAKE) && si->owner)
@@ -1031,7 +1030,6 @@ void si_conn_recv_cb(struct connection *conn)
 			b->total += ret;
 			cur_read += ret;
 			b->flags |= BF_READ_PARTIAL;
-			b->flags &= ~BF_OUT_EMPTY;
 		}
 
 		if (conn_data_read0_pending(conn))

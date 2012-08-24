@@ -563,7 +563,7 @@ static int sess_update_st_con_tcp(struct session *s, struct stream_interface *si
 	/* OK, maybe we want to abort */
 	if (unlikely((rep->flags & BF_SHUTW) ||
 		     ((req->flags & BF_SHUTW_NOW) && /* FIXME: this should not prevent a connection from establishing */
-		      (((req->flags & (BF_OUT_EMPTY|BF_WRITE_ACTIVITY)) == BF_OUT_EMPTY) ||
+		      ((!(req->flags & BF_WRITE_ACTIVITY) && channel_is_empty(req)) ||
 		       s->be->options & PR_O_ABRT_CLOSE)))) {
 		/* give up */
 		si_shutw(si);
@@ -829,7 +829,7 @@ static void sess_update_stream_int(struct session *s, struct stream_interface *s
 		/* Connection remains in queue, check if we have to abort it */
 		if ((si->ob->flags & (BF_READ_ERROR)) ||
 		    ((si->ob->flags & BF_SHUTW_NOW) &&   /* empty and client aborted */
-		     (si->ob->flags & BF_OUT_EMPTY || s->be->options & PR_O_ABRT_CLOSE))) {
+		     (channel_is_empty(si->ob) || s->be->options & PR_O_ABRT_CLOSE))) {
 			/* give up */
 			si->exp = TICK_ETERNITY;
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
@@ -849,7 +849,7 @@ static void sess_update_stream_int(struct session *s, struct stream_interface *s
 		/* Connection request might be aborted */
 		if ((si->ob->flags & (BF_READ_ERROR)) ||
 		    ((si->ob->flags & BF_SHUTW_NOW) &&  /* empty and client aborted */
-		     (si->ob->flags & BF_OUT_EMPTY || s->be->options & PR_O_ABRT_CLOSE))) {
+		     (channel_is_empty(si->ob) || s->be->options & PR_O_ABRT_CLOSE))) {
 			/* give up */
 			si->exp = TICK_ETERNITY;
 			si_shutr(si);
@@ -1893,7 +1893,8 @@ struct task *process_session(struct task *t)
 			buffer_shutw_now(s->req);
 
 	/* shutdown(write) pending */
-	if (unlikely((s->req->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_OUT_EMPTY)) == (BF_SHUTW_NOW|BF_OUT_EMPTY)))
+	if (unlikely((s->req->flags & (BF_SHUTW|BF_SHUTW_NOW)) == BF_SHUTW_NOW &&
+		     channel_is_empty(s->req)))
 		si_shutw(s->req->cons);
 
 	/* shutdown(write) done on server side, we must stop the client too */
@@ -1915,7 +1916,7 @@ struct task *process_session(struct task *t)
 	 */
 	if (s->req->cons->state == SI_ST_INI) {
 		if (!(s->req->flags & BF_SHUTW)) {
-			if ((s->req->flags & (BF_AUTO_CONNECT|BF_OUT_EMPTY)) != BF_OUT_EMPTY) {
+			if ((s->req->flags & BF_AUTO_CONNECT) || !channel_is_empty(s->req)) {
 				/* If we have an applet without a connect method, we immediately
 				 * switch to the connected state, otherwise we perform a connection
 				 * request.
@@ -2038,7 +2039,8 @@ struct task *process_session(struct task *t)
 		buffer_shutw_now(s->rep);
 
 	/* shutdown(write) pending */
-	if (unlikely((s->rep->flags & (BF_SHUTW|BF_OUT_EMPTY|BF_SHUTW_NOW)) == (BF_OUT_EMPTY|BF_SHUTW_NOW)))
+	if (unlikely((s->rep->flags & (BF_SHUTW|BF_SHUTW_NOW)) == BF_SHUTW_NOW &&
+		     channel_is_empty(s->rep)))
 		si_shutw(s->rep->cons);
 
 	/* shutdown(write) done on the client side, we must stop the server too */

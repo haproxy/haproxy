@@ -127,7 +127,7 @@ int bo_inject(struct channel *buf, const char *msg, int len)
 	buf->buf.p = b_ptr(&buf->buf, len);
 	buf->total += len;
 
-	buf->flags &= ~(BF_OUT_EMPTY|BF_FULL);
+	buf->flags &= ~BF_FULL;
 	if (bi_full(buf))
 		buf->flags |= BF_FULL;
 
@@ -242,7 +242,7 @@ int bo_getline(struct channel *buf, char *str, int len)
 	max = len;
 
 	/* closed or empty + imminent close = -1; empty = 0 */
-	if (unlikely(buf->flags & (BF_OUT_EMPTY|BF_SHUTW))) {
+	if (unlikely((buf->flags & BF_SHUTW) || channel_is_empty(buf))) {
 		if (buf->flags & (BF_SHUTW|BF_SHUTW_NOW))
 			ret = -1;
 		goto out;
@@ -314,11 +314,11 @@ int bo_getblk(struct channel *buf, char *blk, int len, int offset)
  * buffer <b>, and moves <end> just after the end of <str>. <b>'s parameters
  * <l> and <r> are updated to be valid after the shift. The shift value
  * (positive or negative) is returned. If there's no space left, the move is
- * not done. The function does not adjust ->o nor BF_OUT_EMPTY because it
- * does not make sense to use it on data scheduled to be sent. For the same
- * reason, it does not make sense to call this function on unparsed data, so
- * <orig> is not updated. The string length is taken from parameter <len>. If
- * <len> is null, the <str> pointer is allowed to be null.
+ * not done. The function does not adjust ->o because it does not make sense to
+ * use it on data scheduled to be sent. For the same reason, it does not make
+ * sense to call this function on unparsed data, so <orig> is not updated. The
+ * string length is taken from parameter <len>. If <len> is null, the <str>
+ * pointer is allowed to be null.
  */
 int buffer_replace2(struct channel *b, char *pos, char *end, const char *str, int len)
 {

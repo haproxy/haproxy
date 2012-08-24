@@ -70,7 +70,7 @@
 #define BF_WRITE_ERROR    0x000800  /* unrecoverable error on consumer side */
 #define BF_WRITE_ACTIVITY (BF_WRITE_NULL|BF_WRITE_PARTIAL|BF_WRITE_ERROR)
 
-#define BF_OUT_EMPTY      0x001000  /* out and pipe are empty. Set by last change. */
+/* unused: 0x001000 */
 #define BF_SHUTW          0x002000  /* consumer has already shut down */
 #define BF_SHUTW_NOW      0x004000  /* the consumer must shut down for writes ASAP */
 #define BF_AUTO_CLOSE     0x008000  /* producer can forward shutdown to other side */
@@ -129,7 +129,7 @@
 #define BF_MASK_ANALYSER        (BF_READ_ATTACHED|BF_READ_ACTIVITY|BF_READ_TIMEOUT|BF_ANA_TIMEOUT|BF_WRITE_ACTIVITY|BF_WAKE_ONCE)
 
 /* Mask for static flags which cause analysers to be woken up when they change */
-#define BF_MASK_STATIC          (BF_OUT_EMPTY|BF_FULL|BF_SHUTR|BF_SHUTW|BF_SHUTR_NOW|BF_SHUTW_NOW)
+#define BF_MASK_STATIC          (BF_FULL|BF_SHUTR|BF_SHUTW|BF_SHUTR_NOW|BF_SHUTW_NOW)
 
 
 /* Analysers (channel->analysers).

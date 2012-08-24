@@ -3955,7 +3955,7 @@ int http_sync_req_state(struct session *s)
 			/* if we've just closed an output, let's switch */
 			buf->cons->flags |= SI_FL_NOLINGER;  /* we want to close ASAP */
 
-			if (!(buf->flags & BF_OUT_EMPTY)) {
+			if (!channel_is_empty(buf)) {
 				txn->req.msg_state = HTTP_MSG_CLOSING;
 				goto http_msg_closing;
 			}
@@ -3972,7 +3972,7 @@ int http_sync_req_state(struct session *s)
 		/* nothing else to forward, just waiting for the output buffer
 		 * to be empty and for the shutw_now to take effect.
 		 */
-		if (buf->flags & BF_OUT_EMPTY) {
+		if (channel_is_empty(buf)) {
 			txn->req.msg_state = HTTP_MSG_CLOSED;
 			goto http_msg_closed;
 		}
@@ -4076,7 +4076,7 @@ int http_sync_res_state(struct session *s)
 
 		if (buf->flags & (BF_SHUTW|BF_SHUTW_NOW)) {
 			/* if we've just closed an output, let's switch */
-			if (!(buf->flags & BF_OUT_EMPTY)) {
+			if (!channel_is_empty(buf)) {
 				txn->rsp.msg_state = HTTP_MSG_CLOSING;
 				goto http_msg_closing;
 			}
@@ -4093,7 +4093,7 @@ int http_sync_res_state(struct session *s)
 		/* nothing else to forward, just waiting for the output buffer
 		 * to be empty and for the shutw_now to take effect.
 		 */
-		if (buf->flags & BF_OUT_EMPTY) {
+		if (channel_is_empty(buf)) {
 			txn->rsp.msg_state = HTTP_MSG_CLOSED;
 			goto http_msg_closed;
 		}

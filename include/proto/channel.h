@@ -49,7 +49,7 @@ int buffer_replace2(struct channel *b, char *pos, char *end, const char *str, in
 int buffer_insert_line2(struct channel *b, char *pos, const char *str, int len);
 unsigned long long buffer_forward(struct channel *buf, unsigned long long bytes);
 
-/* Initialize all fields in the buffer. The BF_OUT_EMPTY flags is set. */
+/* Initialize all fields in the buffer. */
 static inline void buffer_init(struct channel *buf)
 {
 	buf->buf.o = 0;
@@ -60,12 +60,22 @@ static inline void buffer_init(struct channel *buf)
 	buf->pipe = NULL;
 	buf->analysers = 0;
 	buf->cons = NULL;
-	buf->flags = BF_OUT_EMPTY;
+	buf->flags = 0;
 }
 
 /*****************************************************************/
 /* These functions are used to compute various buffer area sizes */
 /*****************************************************************/
+
+/* Reports non-zero if the channel is empty, which means both its
+ * buffer and pipe are empty. The construct looks strange but is
+ * jump-less and much more efficient on both 32 and 64-bit than
+ * the boolean test.
+ */
+static inline unsigned int channel_is_empty(struct channel *c)
+{
+	return !(c->buf.o | (long)c->pipe);
+}
 
 /* Return the number of reserved bytes in the buffer, which ensures that once
  * all pending data are forwarded, the buffer still has global.tune.maxrewrite
@@ -151,14 +161,12 @@ static inline int bi_avail(const struct channel *b)
 /* Advances the buffer by <adv> bytes, which means that the buffer
  * pointer advances, and that as many bytes from in are transferred
  * to out. The caller is responsible for ensuring that adv is always
- * smaller than or equal to b->i. The BF_OUT_EMPTY flag is updated.
+ * smaller than or equal to b->i.
  */
 static inline void b_adv(struct channel *b, unsigned int adv)
 {
 	b->buf.i -= adv;
 	b->buf.o += adv;
-	if (b->buf.o)
-		b->flags &= ~BF_OUT_EMPTY;
 	b->buf.p = b_ptr(&b->buf, adv);
 }
 
@@ -170,8 +178,6 @@ static inline void b_rew(struct channel *b, unsigned int adv)
 {
 	b->buf.i += adv;
 	b->buf.o -= adv;
-	if (!b->buf.o && !b->pipe)
-		b->flags |= BF_OUT_EMPTY;
 	b->buf.p = b_ptr(&b->buf, (int)-adv);
 }
 
@@ -225,8 +231,6 @@ static inline void buffer_flush(struct channel *buf)
 	buf->buf.p = buffer_wrap_add(&buf->buf, buf->buf.p + buf->buf.i);
 	buf->buf.o += buf->buf.i;
 	buf->buf.i = 0;
-	if (buf->buf.o)
-		buf->flags &= ~BF_OUT_EMPTY;
 }
 
 /* Erase any content from buffer <buf> and adjusts flags accordingly. Note
@@ -239,9 +243,7 @@ static inline void buffer_erase(struct channel *buf)
 	buf->buf.i = 0;
 	buf->to_forward = 0;
 	buf->buf.p = buf->buf.data;
-	buf->flags &= ~(BF_FULL | BF_OUT_EMPTY);
-	if (!buf->pipe)
-		buf->flags |= BF_OUT_EMPTY;
+	buf->flags &= ~BF_FULL;
 }
 
 /* Cut the "tail" of the buffer, which means strip it to the length of unsent
@@ -350,8 +352,6 @@ static inline void buffer_dont_read(struct channel *buf)
 static inline void bo_skip(struct channel *buf, int len)
 {
 	buf->buf.o -= len;
-	if (!buf->buf.o && !buf->pipe)
-		buf->flags |= BF_OUT_EMPTY;
 
 	if (buffer_len(&buf->buf) == 0)
 		buf->buf.p = buf->buf.data;
@@ -403,7 +403,7 @@ static inline int bi_putstr(struct channel *buf, const char *str)
 static inline int bo_getchr(struct channel *buf)
 {
 	/* closed or empty + imminent close = -2; empty = -1 */
-	if (unlikely(buf->flags & (BF_OUT_EMPTY|BF_SHUTW))) {
+	if (unlikely((buf->flags & BF_SHUTW) || channel_is_empty(buf))) {
 		if (buf->flags & (BF_SHUTW|BF_SHUTW_NOW))
 			return -2;
 		return -1;
@@ -415,8 +415,8 @@ static inline int bo_getchr(struct channel *buf)
  * buffer <b>, and moves <end> just after the end of <str>. <b>'s parameters
  * (l, r, lr) are updated to be valid after the shift. the shift value
  * (positive or negative) is returned. If there's no space left, the move is
- * not done. The function does not adjust ->o nor BF_OUT_EMPTY because
- * it does not make sense to use it on data scheduled to be sent.
+ * not done. The function does not adjust ->o because it does not make sense
+ * to use it on data scheduled to be sent.
  */
 static inline int buffer_replace(struct channel *b, char *pos, char *end, const char *str)
 {
