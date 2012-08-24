@@ -476,16 +476,15 @@ void stream_int_unregister_handler(struct stream_interface *si)
 /* This callback is used to send a valid PROXY protocol line to a socket being
  * established. It returns 0 if it fails in a fatal way or needs to poll to go
  * further, otherwise it returns non-zero and removes itself from the connection's
- * flags (the bit is provided in <flag> by the caller).
+ * flags (the bit is provided in <flag> by the caller). It is designed to be
+ * called by the connection handler and relies on it to commit polling changes.
  */
 int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 {
-	int fd = conn->t.sock.fd;
 	struct stream_interface *si = container_of(conn, struct stream_interface, conn);
-	struct channel *b = si->ob;
 
 	/* we might have been called just after an asynchronous shutw */
-	if (b->flags & BF_SHUTW)
+	if (conn->flags & CO_FL_SOCK_WR_SH)
 		goto out_error;
 
 	/* If we have a PROXY line to send, we'll use this to validate the
@@ -501,16 +500,18 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 		 * (which is recomputed every time since it's constant). If
 		 * it is positive, it means we have to send from the start.
 		 */
-		ret = make_proxy_line(trash, trashlen, &b->prod->addr.from, &b->prod->addr.to);
+		ret = make_proxy_line(trash, trashlen, &si->ob->prod->addr.from, &si->ob->prod->addr.to);
 		if (!ret)
 			goto out_error;
 
 		if (si->send_proxy_ofs > 0)
 			si->send_proxy_ofs = -ret; /* first call */
 
-		/* we have to send trash from (ret+sp for -sp bytes) */
-		ret = send(fd, trash + ret + si->send_proxy_ofs, -si->send_proxy_ofs,
-			   (b->flags & BF_OUT_EMPTY) ? 0 : MSG_MORE);
+		/* we have to send trash from (ret+sp for -sp bytes). If the
+		 * data layer has a pending write, we'll also set MSG_MORE.
+		 */
+		ret = send(conn->t.sock.fd, trash + ret + si->send_proxy_ofs, -si->send_proxy_ofs,
+			   (conn->flags & CO_FL_DATA_WR_ENA) ? MSG_MORE : 0);
 
 		if (ret == 0)
 			goto out_wait;
@@ -528,13 +529,11 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 		/* OK we've sent the whole line, we're connected */
 	}
 
-	/* The FD is ready now, simply return and let the connection handler
-	 * notify upper layers if needed.
+	/* The connection is ready now, simply return and let the connection
+	 * handler notify upper layers if needed.
 	 */
 	if (conn->flags & CO_FL_WAIT_L4_CONN)
 		conn->flags &= ~CO_FL_WAIT_L4_CONN;
-	b->flags |= BF_WRITE_NULL;
-	si->exp = TICK_ETERNITY;
 	conn->flags &= ~flag;
 	return 1;
 
@@ -542,13 +541,12 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 	/* Write error on the file descriptor */
 	conn->flags |= CO_FL_ERROR;
 	conn->flags &= ~flag;
-	fdtab[fd].ev &= ~FD_POLL_STICKY;
-	conn_sock_stop_both(conn);
+	__conn_sock_stop_both(conn);
 	return 0;
 
  out_wait:
-	conn_sock_stop_recv(conn);
-	conn_sock_poll_send(conn);
+	__conn_sock_stop_recv(conn);
+	__conn_sock_poll_send(conn);
 	return 0;
 }
 
