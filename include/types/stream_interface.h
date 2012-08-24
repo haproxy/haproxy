@@ -91,12 +91,10 @@ enum {
 
 #define SI_FL_CAP_SPLICE (SI_FL_CAP_SPLTCP)
 
-struct buffer;
 struct server;
 struct proxy;
 struct si_applet;
 struct stream_interface;
-struct pipe;
 
 struct target {
 	int type;
@@ -110,19 +108,11 @@ struct target {
 	} ptr;
 };
 
-struct sock_ops {
+/* operations available on a stream-interface */
+struct si_ops {
 	void (*update)(struct stream_interface *);  /* I/O update function */
-	void (*shutr)(struct connection *, int);    /* shutr function */
-	void (*shutw)(struct connection *, int);    /* shutw function */
 	void (*chk_rcv)(struct stream_interface *); /* chk_rcv function */
 	void (*chk_snd)(struct stream_interface *); /* chk_snd function */
-	void (*read)(struct connection *conn);      /* read callback after poll() */
-	void (*write)(struct connection *conn);     /* write callback after poll() */
-	void (*close)(struct connection *);         /* close the data channel on the connection */
-	int  (*rcv_buf)(struct connection *conn, struct buffer *buf, int count); /* recv callback */
-	int  (*snd_buf)(struct connection *conn, struct buffer *buf, int flags); /* send callback */
-	int  (*rcv_pipe)(struct connection *conn, struct pipe *pipe, unsigned int count); /* recv-to-pipe callback */
-	int  (*snd_pipe)(struct connection *conn, struct pipe *pipe); /* send-to-pipe callback */
 };
 
 /* A stream interface has 3 parts :
@@ -148,6 +138,7 @@ struct stream_interface {
 	void *err_loc;          /* commonly the server, NULL when SI_ET_NONE */
 
 	struct connection conn; /* descriptor for a connection */
+	struct si_ops *ops;     /* general operations at the stream interface layer */
 
 	void (*release)(struct stream_interface *); /* handler to call after the last close() */
 

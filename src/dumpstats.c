@@ -277,7 +277,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 			}
 		}
 
-		global.stats_sock.sock = &raw_sock;
+		global.stats_sock.data = &raw_sock;
 		uxst_add_listener(&global.stats_sock);
 		global.maxsock++;
 	}

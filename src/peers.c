@@ -1156,7 +1156,6 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->si[0].state = s->si[0].prev_state = SI_ST_EST;
 	s->si[0].err_type = SI_ET_NONE;
 	s->si[0].err_loc = NULL;
-	s->si[0].conn.ctrl = NULL;
 	s->si[0].release = NULL;
 	s->si[0].send_proxy_ofs = 0;
 	set_target_client(&s->si[0].target, l);
@@ -1178,11 +1177,10 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->si[1].conn_retries = p->conn_retries;
 	s->si[1].err_type = SI_ET_NONE;
 	s->si[1].err_loc = NULL;
-	s->si[1].conn.ctrl = peer->proto;
 	s->si[1].release = NULL;
 	s->si[1].send_proxy_ofs = 0;
 	set_target_proxy(&s->si[1].target, s->be);
-	stream_interface_prepare(&s->si[1], peer->sock);
+	si_prepare_conn(&s->si[1], peer->proto, peer->data);
 	s->si[1].exp = TICK_ETERNITY;
 	s->si[1].flags = SI_FL_NONE;
 	if (s->be->options2 & PR_O2_INDEPSTR)

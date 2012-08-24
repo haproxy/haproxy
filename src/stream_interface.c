@@ -41,29 +41,34 @@ static void stream_int_update(struct stream_interface *si);
 static void stream_int_update_embedded(struct stream_interface *si);
 static void stream_int_chk_rcv(struct stream_interface *si);
 static void stream_int_chk_snd(struct stream_interface *si);
+static void stream_int_update_conn(struct stream_interface *si);
+static void stream_int_chk_rcv_conn(struct stream_interface *si);
+static void stream_int_chk_snd_conn(struct stream_interface *si);
 
-/* socket operations for embedded tasks */
-struct sock_ops stream_int_embedded = {
+/* stream-interface operations for embedded tasks */
+struct si_ops si_embedded_ops = {
 	.update  = stream_int_update_embedded,
-	.shutr   = NULL,
-	.shutw   = NULL,
 	.chk_rcv = stream_int_chk_rcv,
 	.chk_snd = stream_int_chk_snd,
-	.read    = NULL,
-	.write   = NULL,
-	.close   = NULL,
 };
 
-/* socket operations for external tasks */
-struct sock_ops stream_int_task = {
+/* stream-interface operations for external tasks */
+struct si_ops si_task_ops = {
 	.update  = stream_int_update,
-	.shutr   = NULL,
-	.shutw   = NULL,
 	.chk_rcv = stream_int_chk_rcv,
 	.chk_snd = stream_int_chk_snd,
-	.read    = NULL,
-	.write   = NULL,
-	.close   = NULL,
+};
+
+/* stream-interface operations for connections */
+struct si_ops si_conn_ops = {
+	.update  = stream_int_update_conn,
+	.chk_rcv = stream_int_chk_rcv_conn,
+	.chk_snd = stream_int_chk_snd_conn,
+};
+
+struct app_cb si_conn_cb = {
+	.recv    = si_conn_recv_cb,
+	.send    = si_conn_send_cb,
 };
 
 /*
@@ -415,8 +420,7 @@ struct task *stream_int_register_handler(struct stream_interface *si, struct si_
 {
 	DPRINTF(stderr, "registering handler %p for si %p (was %p)\n", app, si, si->owner);
 
-	stream_interface_prepare(si, &stream_int_embedded);
-	si->conn.ctrl = NULL;
+	si_prepare_embedded(si);
 	set_target_applet(&si->target, app);
 	si->release   = app->release;
 	si->flags |= SI_FL_WAIT_DATA;
@@ -437,8 +441,7 @@ struct task *stream_int_register_handler_task(struct stream_interface *si,
 
 	DPRINTF(stderr, "registering handler %p for si %p (was %p)\n", fct, si, si->owner);
 
-	stream_interface_prepare(si, &stream_int_task);
-	si->conn.ctrl = NULL;
+	si_prepare_task(si);
 	clear_target(&si->target);
 	si->release   = NULL;
 	si->flags |= SI_FL_WAIT_DATA;
@@ -835,7 +838,7 @@ void stream_int_update_conn(struct stream_interface *si)
  * timeouts, so that we can still check them later at wake-up. This function is
  * dedicated to connection-based stream interfaces.
  */
-void stream_int_chk_rcv_conn(struct stream_interface *si)
+static void stream_int_chk_rcv_conn(struct stream_interface *si)
 {
 	struct channel *ib = si->ib;
 
@@ -866,7 +869,7 @@ void stream_int_chk_rcv_conn(struct stream_interface *si)
  * for data in the buffer. Note that it intentionally does not update timeouts,
  * so that we can still check them later at wake-up.
  */
-void stream_int_chk_snd_conn(struct stream_interface *si)
+static void stream_int_chk_snd_conn(struct stream_interface *si)
 {
 	struct channel *ob = si->ob;
 
@@ -1274,7 +1277,6 @@ void stream_sock_read0(struct stream_interface *si)
 		si->release(si);
 	return;
 }
-
 
 /*
  * Local variables:

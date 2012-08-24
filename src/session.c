@@ -180,7 +180,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		s->si[0].flags |= SI_FL_INDEP_STR;
 
 	/* add the various callbacks */
-	stream_interface_prepare(&s->si[0], l->sock);
+	si_prepare_conn(&s->si[0], l->proto, l->data);
 
 	if ((s->si[0].conn.data->rcv_pipe && s->si[0].conn.data->snd_pipe) &&
 	    (addr->ss_family == AF_INET || addr->ss_family == AF_INET6))
@@ -196,11 +196,10 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[1].err_type  = SI_ET_NONE;
 	s->si[1].conn_retries = 0;  /* used for logging too */
 	s->si[1].err_loc   = NULL;
-	s->si[1].conn.ctrl = NULL;
 	s->si[1].release   = NULL;
 	s->si[1].send_proxy_ofs = 0;
 	clear_target(&s->si[1].target);
-	stream_interface_prepare(&s->si[1], &stream_int_embedded);
+	si_prepare_embedded(&s->si[1]);
 	s->si[1].exp       = TICK_ETERNITY;
 	s->si[1].flags     = SI_FL_NONE;
 

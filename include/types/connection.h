@@ -28,8 +28,10 @@
 #include <common/config.h>
 
 /* referenced below */
-struct sock_ops;
 struct protocol;
+struct connection;
+struct buffer;
+struct pipe;
 
 /* Polling flags that are manipulated by I/O callbacks and handshake callbacks
  * indicate what they expect from a file descriptor at each layer. For each
@@ -108,6 +110,29 @@ enum {
 	CO_FL_CURR_WR_POL   = CO_FL_WR_POL << 28,  /* sending needs to poll first */
 };
 
+
+/* data_ops describes data-layer operations for a connection. They generally
+ * run over a socket-based control layer, but not always.
+ */
+struct data_ops {
+	int  (*rcv_buf)(struct connection *conn, struct buffer *buf, int count); /* recv callback */
+	int  (*snd_buf)(struct connection *conn, struct buffer *buf, int flags); /* send callback */
+	int  (*rcv_pipe)(struct connection *conn, struct pipe *pipe, unsigned int count); /* recv-to-pipe callback */
+	int  (*snd_pipe)(struct connection *conn, struct pipe *pipe); /* send-to-pipe callback */
+	void (*shutr)(struct connection *, int);    /* shutr function */
+	void (*shutw)(struct connection *, int);    /* shutw function */
+	void (*close)(struct connection *);         /* close the data channel on the connection */
+};
+
+/* app_cb describes read and write callbacks which are called upon detected I/O
+ * activity at the data layer. These callbacks are supposed to make use of the
+ * data_ops above to exchange data from/to buffers and pipes.
+ */
+struct app_cb {
+	void (*recv)(struct connection *conn);  /* application-layer recv callback */
+	void (*send)(struct connection *conn);  /* application-layer send callback */
+};
+
 /* This structure describes a connection with its methods and data.
  * A connection may be performed to proxy or server via a local or remote
  * socket, and can also be made to an internal applet. It can support
@@ -116,8 +141,9 @@ enum {
  * connections, but other methods for applets.
  */
 struct connection {
-	const struct sock_ops *data;  /* operations at the data layer */
-	const struct protocol *ctrl;  /* operations at the control layer, generally a protocol */
+	const struct data_ops *data;  /* operations at the data layer */
+	const struct protocol *ctrl;  /* operations at the socket layer */
+	const struct app_cb *app_cb;  /* application layer callbacks */
 	union {                       /* definitions which depend on connection type */
 		struct {              /*** information used by socket-based connections ***/
 			int fd;       /* file descriptor for a stream driver when known */

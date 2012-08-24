@@ -36,17 +36,16 @@ void stream_int_report_error(struct stream_interface *si);
 void stream_int_retnclose(struct stream_interface *si, const struct chunk *msg);
 int conn_si_send_proxy(struct connection *conn, unsigned int flag);
 void conn_notify_si(struct connection *conn);
-void stream_int_update_conn(struct stream_interface *si);
 int stream_int_shutr(struct stream_interface *si);
 int stream_int_shutw(struct stream_interface *si);
-void stream_int_chk_rcv_conn(struct stream_interface *si);
-void stream_int_chk_snd_conn(struct stream_interface *si);
 void si_conn_recv_cb(struct connection *conn);
 void si_conn_send_cb(struct connection *conn);
 void stream_sock_read0(struct stream_interface *si);
 
-extern struct sock_ops stream_int_embedded;
-extern struct sock_ops stream_int_task;
+extern struct si_ops si_embedded_ops;
+extern struct si_ops si_task_ops;
+extern struct si_ops si_conn_ops;
+extern struct app_cb si_conn_cb;
 
 struct task *stream_int_register_handler(struct stream_interface *si,
 					 struct si_applet *app);
@@ -57,11 +56,6 @@ void stream_int_unregister_handler(struct stream_interface *si);
 static inline const struct protocol *si_ctrl(struct stream_interface *si)
 {
 	return si->conn.ctrl;
-}
-
-static inline const struct sock_ops *si_data(struct stream_interface *si)
-{
-	return si->conn.data;
 }
 
 static inline int si_fd(struct stream_interface *si)
@@ -130,13 +124,35 @@ static inline struct listener *target_client(struct target *t)
 	return t->ptr.l;
 }
 
-static inline void stream_interface_prepare(struct stream_interface *si, const struct sock_ops *ops)
+static inline void si_prepare_conn(struct stream_interface *si, const struct protocol *ctrl, const struct data_ops *ops)
 {
+	si->ops = &si_conn_ops;
+	si->conn.app_cb = &si_conn_cb;
+	si->conn.ctrl = ctrl;
 	si->conn.data = ops;
 	si->conn.data_st = 0;
 	si->conn.data_ctx = NULL;
 }
 
+static inline void si_prepare_embedded(struct stream_interface *si)
+{
+	si->ops = &si_embedded_ops;
+	si->conn.app_cb = NULL;
+	si->conn.ctrl = NULL;
+	si->conn.data = NULL;
+	si->conn.data_st = 0;
+	si->conn.data_ctx = NULL;
+}
+
+static inline void si_prepare_task(struct stream_interface *si)
+{
+	si->ops = &si_task_ops;
+	si->conn.app_cb = NULL;
+	si->conn.ctrl = NULL;
+	si->conn.data = NULL;
+	si->conn.data_st = 0;
+	si->conn.data_ctx = NULL;
+}
 
 /* Retrieves the source address for the stream interface. */
 static inline void si_get_from_addr(struct stream_interface *si)
@@ -187,19 +203,19 @@ static inline void si_shutw(struct stream_interface *si)
 /* Calls the data state update on the stream interfaace */
 static inline void si_update(struct stream_interface *si)
 {
-	si_data(si)->update(si);
+	si->ops->update(si);
 }
 
 /* Calls chk_rcv on the connection using the data layer */
 static inline void si_chk_rcv(struct stream_interface *si)
 {
-	si_data(si)->chk_rcv(si);
+	si->ops->chk_rcv(si);
 }
 
 /* Calls chk_snd on the connection using the data layer */
 static inline void si_chk_snd(struct stream_interface *si)
 {
-	si_data(si)->chk_snd(si);
+	si->ops->chk_snd(si);
 }
 
 /* Calls chk_snd on the connection using the ctrl layer */

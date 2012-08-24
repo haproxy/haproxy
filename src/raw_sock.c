@@ -318,22 +318,17 @@ static int raw_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 }
 
 
-/* stream sock operations */
-struct sock_ops raw_sock = {
-	.update  = stream_int_update_conn,
-	.shutr   = NULL,
-	.shutw   = NULL,
-	.chk_rcv = stream_int_chk_rcv_conn,
-	.chk_snd = stream_int_chk_snd_conn,
-	.read    = si_conn_recv_cb,
-	.write   = si_conn_send_cb,
-	.snd_buf = raw_sock_from_buf,
-	.rcv_buf = raw_sock_to_buf,
+/* data-layer operations for RAW sockets */
+struct data_ops raw_sock = {
+	.snd_buf  = raw_sock_from_buf,
+	.rcv_buf  = raw_sock_to_buf,
 #if defined(CONFIG_HAP_LINUX_SPLICE)
 	.rcv_pipe = raw_sock_to_pipe,
 	.snd_pipe = raw_sock_from_pipe,
 #endif
-	.close   = NULL,
+	.shutr    = NULL,
+	.shutw    = NULL,
+	.close    = NULL,
 };
 
 /*

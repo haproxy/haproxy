@@ -266,7 +266,7 @@ static int str2listener(char *str, struct proxy *curproxy, const char *file, int
 
 			l->fd = -1;
 			l->addr = ss;
-			l->sock = &raw_sock;
+			l->data = &raw_sock;
 			l->state = LI_INIT;
 
 			if (ss.ss_family == AF_INET) {
@@ -1275,7 +1275,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		}
 		newpeer->addr = *sk;
 		newpeer->proto = protocol_by_family(newpeer->addr.ss_family);
-		newpeer->sock  = &raw_sock;
+		newpeer->data  = &raw_sock;
 		newpeer->sock_init_arg = NULL;
 
 		if (!sk) {
@@ -4093,8 +4093,7 @@ stats_error_parsing:
 			}
 			newsrv->addr = *sk;
 			newsrv->proto = protocol_by_family(newsrv->addr.ss_family);
-			newsrv->sock  = &raw_sock;
-			newsrv->sock_init_arg = NULL;
+			newsrv->data  = &raw_sock;
 
 			if (!sk) {
 				Alert("parsing [%s:%d] : Unknown protocol family %d '%s'\n",

@@ -984,13 +984,11 @@ int connect_server(struct session *s)
 
 	/* set the correct protocol on the output stream interface */
 	if (s->target.type == TARG_TYPE_SERVER) {
-		s->req->cons->conn.ctrl = target_srv(&s->target)->proto;
-		stream_interface_prepare(s->req->cons, target_srv(&s->target)->sock);
+		si_prepare_conn(s->req->cons, target_srv(&s->target)->proto, target_srv(&s->target)->data);
 	}
 	else if (s->target.type == TARG_TYPE_PROXY) {
 		/* proxies exclusively run on raw_sock right now */
-		s->req->cons->conn.ctrl = protocol_by_family(s->req->cons->addr.to.ss_family);
-		stream_interface_prepare(s->req->cons, &raw_sock);
+		si_prepare_conn(s->req->cons, protocol_by_family(s->req->cons->addr.to.ss_family), &raw_sock);
 		if (!si_ctrl(s->req->cons))
 			return SN_ERR_INTERNAL;
 	}

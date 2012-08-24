@@ -13,8 +13,7 @@
 #include <common/compat.h>
 #include <common/config.h>
 
-#include <types/connection.h>
-
+#include <proto/connection.h>
 #include <proto/proto_tcp.h>
 #include <proto/stream_interface.h>
 
@@ -49,7 +48,7 @@ int conn_fd_handler(int fd)
 		__conn_sock_stop_both(conn);
 
 	if (fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
-		conn->data->read(conn);
+		conn->app_cb->recv(conn);
 
 	if (unlikely(conn->flags & CO_FL_ERROR))
 		goto leave;
@@ -61,7 +60,7 @@ int conn_fd_handler(int fd)
 		goto process_handshake;
 
 	if (fdtab[fd].ev & (FD_POLL_OUT | FD_POLL_ERR))
-		conn->data->write(conn);
+		conn->app_cb->send(conn);
 
 	if (unlikely(conn->flags & CO_FL_ERROR))
 		goto leave;
