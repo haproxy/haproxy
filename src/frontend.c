@@ -22,6 +22,7 @@
 
 #include <netinet/tcp.h>
 
+#include <common/chunk.h>
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/debug.h>
@@ -32,7 +33,7 @@
 
 #include <proto/acl.h>
 #include <proto/arg.h>
-#include <proto/buffers.h>
+#include <proto/channel.h>
 #include <proto/fd.h>
 #include <proto/frontend.h>
 #include <proto/log.h>

@@ -26,7 +26,7 @@
 #include <common/ticks.h>
 #include <common/time.h>
 
-#include <proto/buffers.h>
+#include <proto/channel.h>
 #include <proto/connection.h>
 #include <proto/fd.h>
 #include <proto/frontend.h>

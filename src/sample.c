@@ -14,10 +14,10 @@
 #include <string.h>
 #include <arpa/inet.h>
 
+#include <common/chunk.h>
 #include <common/standard.h>
 
 #include <proto/arg.h>
-#include <proto/buffers.h>
 #include <proto/sample.h>
 
 /* static sample used in sample_process() when <p> is NULL */

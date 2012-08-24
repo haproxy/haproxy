@@ -25,7 +25,7 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 
-#include <types/buffers.h>
+#include <types/channel.h>
 #include <types/connection.h>
 #include <common/config.h>
 

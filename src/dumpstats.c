@@ -40,7 +40,7 @@
 #include <types/global.h>
 
 #include <proto/backend.h>
-#include <proto/buffers.h>
+#include <proto/channel.h>
 #include <proto/checks.h>
 #include <proto/dumpstats.h>
 #include <proto/fd.h>

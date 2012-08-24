@@ -25,6 +25,7 @@
 #include <netinet/in.h>
 
 #include <common/config.h>
+#include <types/freq_ctr.h>
 #include <types/log.h>
 #include <types/protocols.h>
 #include <types/proxy.h>

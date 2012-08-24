@@ -26,6 +26,7 @@
 #include <netinet/tcp.h>
 
 #include <common/cfgparse.h>
+#include <common/chunk.h>
 #include <common/config.h>
 #include <common/errors.h>
 #include <common/memory.h>
@@ -40,7 +41,7 @@
 #include <proto/acl.h>
 #include <proto/auth.h>
 #include <proto/backend.h>
-#include <proto/buffers.h>
+#include <proto/channel.h>
 #include <proto/checks.h>
 #include <proto/dumpstats.h>
 #include <proto/frontend.h>

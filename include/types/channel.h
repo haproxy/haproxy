@@ -1,8 +1,8 @@
 /*
- * include/types/buffers.h
- * Buffer management definitions, macros and inline functions.
+ * include/types/channel.h
+ * Channel management definitions, macros and inline functions.
  *
- * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -19,15 +19,17 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_BUFFERS_H
-#define _TYPES_BUFFERS_H
+#ifndef _TYPES_CHANNEL_H
+#define _TYPES_CHANNEL_H
 
 #include <common/config.h>
-#include <common/memory.h>
+#include <common/chunk.h>
+#include <common/buffer.h>
 #include <types/stream_interface.h>
 
-/* The BF_* macros designate Buffer Flags, which may be ORed in the bit field
- * member 'flags' in struct channel. Here we have several types of flags :
+/* The BF_* macros designate Channel Flags (originally "Buffer Flags"), which
+ * may be ORed in the bit field member 'flags' in struct channel. Here we have
+ * several types of flags :
  *
  *   - pure status flags, reported by the lower layer, which must be cleared
  *     before doing further I/O :
@@ -47,8 +49,8 @@
  *
  * The flags have been arranged for readability, so that the read and write
  * bits have the same position in a byte (read being the lower byte and write
- * the second one). All flag names are relative to the buffer. For instance,
- * 'write' indicates the direction from the buffer to the stream interface.
+ * the second one). All flag names are relative to the channel. For instance,
+ * 'write' indicates the direction from the channel to the stream interface.
  */
 
 #define BF_READ_NULL      0x000001  /* last read detected on producer side */
@@ -57,7 +59,7 @@
 #define BF_READ_ERROR     0x000008  /* unrecoverable error on producer side */
 #define BF_READ_ACTIVITY  (BF_READ_NULL|BF_READ_PARTIAL|BF_READ_ERROR)
 
-#define BF_FULL           0x000010  /* buffer cannot accept any more data (l >= max len) */
+#define BF_FULL           0x000010  /* channel cannot accept any more data (l >= max len) */
 #define BF_SHUTR          0x000020  /* producer has already shut down */
 #define BF_SHUTR_NOW      0x000040  /* the producer must shut down for reads ASAP */
 #define BF_READ_NOEXP     0x000080  /* producer should not expire */
@@ -107,7 +109,7 @@
 #define BF_HIJACK         0x040000  /* the producer is temporarily replaced by ->hijacker */
 #define BF_ANA_TIMEOUT    0x080000  /* the analyser timeout has expired */
 #define BF_READ_ATTACHED  0x100000  /* the read side is attached for the first time */
-#define BF_KERN_SPLICING  0x200000  /* kernel splicing desired for this buffer */
+#define BF_KERN_SPLICING  0x200000  /* kernel splicing desired for this channel */
 #define BF_READ_DONTWAIT  0x400000  /* wake the task up after every read (eg: HTTP request) */
 #define BF_AUTO_CONNECT   0x800000  /* consumer may attempt to establish a new connection */
 
@@ -116,7 +118,7 @@
 #define BF_SEND_DONTWAIT 0x4000000  /* don't wait for sending data (one-shoot) */
 #define BF_NEVER_WAIT    0x8000000  /* never wait for sending data (permanent) */
 
-#define BF_WAKE_ONCE    0x10000000  /* pretend there is activity on this buffer (one-shoot) */
+#define BF_WAKE_ONCE    0x10000000  /* pretend there is activity on this channel (one-shoot) */
 
 /* Use these masks to clear the flags before going back to lower layers */
 #define BF_CLEAR_READ     (~(BF_READ_NULL|BF_READ_PARTIAL|BF_READ_ERROR|BF_READ_ATTACHED))
@@ -130,7 +132,7 @@
 #define BF_MASK_STATIC          (BF_OUT_EMPTY|BF_FULL|BF_SHUTR|BF_SHUTW|BF_SHUTR_NOW|BF_SHUTW_NOW)
 
 
-/* Analysers (buffer->analysers).
+/* Analysers (channel->analysers).
  * Those bits indicate that there are some processing to do on the buffer
  * contents. It will probably evolve into a linked list later. Those
  * analysers could be compared to higher level processors.
@@ -164,23 +166,8 @@
 /* Magic value to forward infinite size (TCP, ...), used with ->to_forward */
 #define BUF_INFINITE_FORWARD    MAX_RANGE(int)
 
-/* describes a chunk of string */
-struct chunk {
-	char *str;	/* beginning of the string itself. Might not be 0-terminated */
-	int size;	/* total size of the buffer, 0 if the *str is read-only */
-	int len;	/* current size of the string from first to last char. <0 = uninit. */
-};
-
 /* needed for a declaration below */
 struct session;
-
-struct buffer {
-	char *p;                        /* buffer's start pointer, separates in and out data */
-	unsigned int size;              /* buffer size in bytes */
-	unsigned int i;                 /* number of input bytes pending for analysis in the buffer */
-	unsigned int o;                 /* number of out bytes the sender can consume from this buffer */
-	char data[0];                   /* <size> bytes */
-};
 
 struct channel {
 	unsigned int flags;             /* BF_* */
@@ -189,14 +176,14 @@ struct channel {
 	int rto;                        /* read timeout, in ticks */
 	int wto;                        /* write timeout, in ticks */
 	unsigned int to_forward;        /* number of bytes to forward after out without a wake-up */
-	unsigned int analysers;         /* bit field indicating what to do on the buffer */
+	unsigned int analysers;         /* bit field indicating what to do on the channel */
 	int analyse_exp;                /* expiration date for current analysers (if set) */
 	void (*hijacker)(struct session *, struct channel *); /* alternative content producer */
 	unsigned char xfer_large;       /* number of consecutive large xfers */
 	unsigned char xfer_small;       /* number of consecutive small xfers */
 	unsigned long long total;       /* total data read */
-	struct stream_interface *prod;  /* producer attached to this buffer */
-	struct stream_interface *cons;  /* consumer attached to this buffer */
+	struct stream_interface *prod;  /* producer attached to this channel */
+	struct stream_interface *cons;  /* consumer attached to this channel */
 	struct pipe *pipe;		/* non-NULL only when data present */
 	struct buffer buf;		/* embedded buffer for now, will move */
 };
@@ -291,7 +278,7 @@ struct channel {
        long.
  */
 
-#endif /* _TYPES_BUFFERS_H */
+#endif /* _TYPES_CHANNEL_H */
 
 /*
  * Local variables:

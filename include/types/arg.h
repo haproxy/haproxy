@@ -24,7 +24,8 @@
 
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <types/buffers.h>
+
+#include <common/chunk.h>
 
 enum {
 	ARGT_STOP = 0, /* end of the arg list */

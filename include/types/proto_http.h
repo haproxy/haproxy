@@ -22,9 +22,9 @@
 #ifndef _TYPES_PROTO_HTTP_H
 #define _TYPES_PROTO_HTTP_H
 
+#include <common/chunk.h>
 #include <common/config.h>
 
-#include <types/buffers.h>
 #include <types/hdr_idx.h>
 
 /* These are the flags that are found in txn->flags */

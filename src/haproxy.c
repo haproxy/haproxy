@@ -52,6 +52,7 @@
 #include <common/appsession.h>
 #include <common/base64.h>
 #include <common/cfgparse.h>
+#include <common/chunk.h>
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/defaults.h>
@@ -73,7 +74,7 @@
 #include <proto/auth.h>
 #include <proto/acl.h>
 #include <proto/backend.h>
-#include <proto/buffers.h>
+#include <proto/channel.h>
 #include <proto/checks.h>
 #include <proto/fd.h>
 #include <proto/hdr_idx.h>

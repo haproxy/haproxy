@@ -27,6 +27,7 @@
 
 #include <common/appsession.h>
 #include <common/base64.h>
+#include <common/chunk.h>
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/debug.h>
@@ -45,7 +46,7 @@
 #include <proto/arg.h>
 #include <proto/auth.h>
 #include <proto/backend.h>
-#include <proto/buffers.h>
+#include <proto/channel.h>
 #include <proto/checks.h>
 #include <proto/dumpstats.h>
 #include <proto/fd.h>

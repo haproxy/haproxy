@@ -26,6 +26,7 @@
 #include <sys/un.h>
 #include <netinet/in.h>
 #include <common/config.h>
+#include <common/mini-clist.h>
 
 #define MAX_SYSLOG_LEN          1024
 #define NB_LOG_FACILITIES       24

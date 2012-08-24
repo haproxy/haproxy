@@ -26,6 +26,7 @@
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 
+#include <common/chunk.h>
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/mini-clist.h>
@@ -36,7 +37,6 @@
 
 #include <proto/backend.h>
 #include <proto/checks.h>
-#include <proto/buffers.h>
 #include <proto/fd.h>
 #include <proto/log.h>
 #include <proto/queue.h>

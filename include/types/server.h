@@ -29,7 +29,6 @@
 #include <common/mini-clist.h>
 #include <eb32tree.h>
 
-#include <types/buffers.h>
 #include <types/connection.h>
 #include <types/counters.h>
 #include <types/freq_ctr.h>

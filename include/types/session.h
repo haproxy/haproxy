@@ -31,7 +31,7 @@
 #include <common/config.h>
 #include <common/mini-clist.h>
 
-#include <types/buffers.h>
+#include <types/channel.h>
 #include <types/proto_http.h>
 #include <types/proxy.h>
 #include <types/queue.h>

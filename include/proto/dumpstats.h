@@ -24,8 +24,7 @@
 #define _PROTO_DUMPSTATS_H
 
 #include <common/config.h>
-#include <types/buffers.h>
-#include <types/session.h>
+#include <types/stream_interface.h>
 
 /* Flags for applet.ctx.stats.flags */
 #define STAT_FMT_CSV    0x00000001	/* dump the stats in CSV format instead of HTML */

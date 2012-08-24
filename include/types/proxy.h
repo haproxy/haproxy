@@ -28,6 +28,7 @@
 #include <arpa/inet.h>
 
 #include <common/appsession.h>
+#include <common/chunk.h>
 #include <common/config.h>
 #include <common/mini-clist.h>
 #include <common/regex.h>
@@ -37,7 +38,6 @@
 
 #include <types/acl.h>
 #include <types/backend.h>
-#include <types/buffers.h>
 #include <types/counters.h>
 #include <types/freq_ctr.h>
 #include <types/log.h>

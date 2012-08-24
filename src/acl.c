@@ -24,7 +24,7 @@
 #include <proto/acl.h>
 #include <proto/arg.h>
 #include <proto/auth.h>
-#include <proto/buffers.h>
+#include <proto/channel.h>
 #include <proto/log.h>
 #include <proto/proxy.h>
 #include <proto/stick_table.h>

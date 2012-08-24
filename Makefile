@@ -540,7 +540,8 @@ all: haproxy
 endif
 
 OBJS = src/haproxy.o src/sessionhash.o src/base64.o src/protocols.o \
-       src/uri_auth.o src/standard.o src/buffers.o src/log.o src/task.o \
+       src/uri_auth.o src/standard.o src/buffer.o src/log.o src/task.o \
+       src/chunk.o src/channel.o \
        src/time.o src/fd.o src/pipe.o src/regex.o src/cfgparse.o src/server.o \
        src/checks.o src/queue.o src/frontend.o src/proxy.o src/peers.o \
        src/arg.o src/stick_table.o src/proto_uxst.o src/connection.o \
@@ -548,7 +549,7 @@ OBJS = src/haproxy.o src/sessionhash.o src/base64.o src/protocols.o \
        src/lb_chash.o src/lb_fwlc.o src/lb_fwrr.o src/lb_map.o src/lb_fas.o \
        src/stream_interface.o src/dumpstats.o src/proto_tcp.o \
        src/session.o src/hdr_idx.o src/ev_select.o src/signal.o \
-       src/acl.o src/sample.o src/memory.o src/freq_ctr.o src/auth.o
+       src/acl.o src/sample.o src/memory.o src/freq_ctr.o src/auth.o \
 
 EBTREE_OBJS = $(EBTREE_DIR)/ebtree.o \
               $(EBTREE_DIR)/eb32tree.o $(EBTREE_DIR)/eb64tree.o \

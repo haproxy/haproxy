@@ -19,6 +19,7 @@
 #include <ctype.h>
 #include <sys/types.h>
 
+#include <common/buffer.h>
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/debug.h>
@@ -30,7 +31,7 @@
 #include <proto/acl.h>
 #include <proto/arg.h>
 #include <proto/backend.h>
-#include <proto/buffers.h>
+#include <proto/channel.h>
 #include <proto/frontend.h>
 #include <proto/lb_chash.h>
 #include <proto/lb_fas.h>

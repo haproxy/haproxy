@@ -25,8 +25,9 @@
 
 #include <sys/socket.h>
 #include <netinet/in.h>
+
+#include <common/chunk.h>
 #include <types/arg.h>
-#include <types/buffers.h>
 
 /* input and output sample types */
 enum {
@@ -77,6 +78,9 @@ enum {
 	SMP_F_VOL_SESS   = 1 << 6, /* result sensitive to new session (eg: src IP) */
 	SMP_F_VOLATILE   = (1<<2)|(1<<3)|(1<<4)|(1<<5)|(1<<6), /* any volatility condition */
 };
+
+/* needed below */
+struct session;
 
 /* a sample context might be used by any sample fetch function in order to
  * store information needed across multiple calls (eg: restart point for a

@@ -22,6 +22,7 @@
 
 #include <netinet/tcp.h>
 
+#include <common/buffer.h>
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/debug.h>
@@ -29,7 +30,6 @@
 #include <common/ticks.h>
 #include <common/time.h>
 
-#include <proto/buffers.h>
 #include <proto/connection.h>
 #include <proto/fd.h>
 #include <proto/freq_ctr.h>

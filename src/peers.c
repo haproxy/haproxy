@@ -28,7 +28,7 @@
 #include <types/peers.h>
 
 #include <proto/acl.h>
-#include <proto/buffers.h>
+#include <proto/channel.h>
 #include <proto/fd.h>
 #include <proto/log.h>
 #include <proto/hdr_idx.h>

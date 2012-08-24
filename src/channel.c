@@ -1,7 +1,7 @@
 /*
- * Buffer management functions.
+ * Channel management functions.
  *
- * Copyright 2000-2010 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2012 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -17,9 +17,14 @@
 
 #include <common/config.h>
 #include <common/memory.h>
-#include <proto/buffers.h>
+#include <common/buffer.h>
+#include <proto/channel.h>
 #include <types/global.h>
 
+
+/* Note: this code has not yet been completely cleaned up and still refers to
+ * the word "buffer" when "channel" is meant instead.
+ */
 struct pool_head *pool2_buffer;
 
 
@@ -384,228 +389,6 @@ int buffer_insert_line2(struct channel *b, char *pos, const char *str, int len)
 
 	return delta;
 }
-
-
-/* This function realigns input data in a possibly wrapping buffer so that it
- * becomes contiguous and starts at the beginning of the buffer area. The
- * function may only be used when the buffer's output is empty.
- */
-void buffer_slow_realign(struct buffer *buf)
-{
-	/* two possible cases :
-	 *   - the buffer is in one contiguous block, we move it in-place
-	 *   - the buffer is in two blocks, we move it via the swap_buffer
-	 */
-	if (buf->i) {
-		int block1 = buf->i;
-		int block2 = 0;
-		if (buf->p + buf->i > buf->data + buf->size) {
-			/* non-contiguous block */
-			block1 = buf->data + buf->size - buf->p;
-			block2 = buf->p + buf->i - (buf->data + buf->size);
-		}
-		if (block2)
-			memcpy(swap_buffer, buf->data, block2);
-		memmove(buf->data, buf->p, block1);
-		if (block2)
-			memcpy(buf->data + block1, swap_buffer, block2);
-	}
-
-	buf->p = buf->data;
-}
-
-/* Realigns a possibly non-contiguous buffer by bouncing bytes from source to
- * destination. It does not use any intermediate buffer and does the move in
- * place, though it will be slower than a simple memmove() on contiguous data,
- * so it's desirable to use it only on non-contiguous buffers. No pointers are
- * changed, the caller is responsible for that.
- */
-void buffer_bounce_realign(struct buffer *buf)
-{
-	int advance, to_move;
-	char *from, *to;
-
-	from = bo_ptr(buf);
-	advance = buf->data + buf->size - from;
-	if (!advance)
-		return;
-
-	to_move = buffer_len(buf);
-	while (to_move) {
-		char last, save;
-
-		last = *from;
-		to = from + advance;
-		if (to >= buf->data + buf->size)
-			to -= buf->size;
-
-		while (1) {
-			save = *to;
-			*to  = last;
-			last = save;
-			to_move--;
-			if (!to_move)
-				break;
-
-			/* check if we went back home after rotating a number of bytes */
-			if (to == from)
-				break;
-
-			/* if we ended up in the empty area, let's walk to next place. The
-			 * empty area is either between buf->r and from or before from or
-			 * after buf->r.
-			 */
-			if (from > bi_end(buf)) {
-				if (to >= bi_end(buf) && to < from)
-					break;
-			} else if (from < bi_end(buf)) {
-				if (to < from || to >= bi_end(buf))
-					break;
-			}
-
-			/* we have overwritten a byte of the original set, let's move it */
-			to += advance;
-			if (to >= buf->data + buf->size)
-				to -= buf->size;
-		}
-
-		from++;
-		if (from >= buf->data + buf->size)
-			from -= buf->size;
-	}
-}
-
-
-/*
- * Does an snprintf() at the end of chunk <chk>, respecting the limit of
- * at most chk->size chars. If the chk->len is over, nothing is added. Returns
- * the new chunk size.
- */
-int chunk_printf(struct chunk *chk, const char *fmt, ...)
-{
-	va_list argp;
-	int ret;
-
-	if (!chk->str || !chk->size)
-		return 0;
-
-	va_start(argp, fmt);
-	ret = vsnprintf(chk->str + chk->len, chk->size - chk->len, fmt, argp);
-	if (ret >= chk->size - chk->len)
-		/* do not copy anything in case of truncation */
-		chk->str[chk->len] = 0;
-	else
-		chk->len += ret;
-	va_end(argp);
-	return chk->len;
-}
-
-/*
- * Encode chunk <src> into chunk <dst>, respecting the limit of at most
- * chk->size chars. Replace non-printable or special chracters with "&#%d;".
- * If the chk->len is over, nothing is added. Returns the new chunk size.
- */
-int chunk_htmlencode(struct chunk *dst, struct chunk *src) {
-
-	int i, l;
-	int olen, free;
-	char c;
-
-	olen = dst->len;
-
-	for (i = 0; i < src->len; i++) {
-		free = dst->size - dst->len;
-
-		if (!free) {
-			dst->len = olen;
-			return dst->len;
-		}
-
-		c = src->str[i];
-
-		if (!isascii(c) || !isprint((unsigned char)c) || c == '&' || c == '"' || c == '\'' || c == '<' || c == '>') {
-			l = snprintf(dst->str + dst->len, free, "&#%u;", (unsigned char)c);
-
-			if (free < l) {
-				dst->len = olen;
-				return dst->len;
-			}
-
-			dst->len += l;
-		} else {
-			dst->str[dst->len] = c;
-			dst->len++;
-		}
-	}
-
-	return dst->len;
-}
-
-/*
- * Encode chunk <src> into chunk <dst>, respecting the limit of at most
- * chk->size chars. Replace non-printable or char passed in qc with "<%02X>".
- * If the chk->len is over, nothing is added. Returns the new chunk size.
- */
-int chunk_asciiencode(struct chunk *dst, struct chunk *src, char qc) {
-	int i, l;
-	int olen, free;
-	char c;
-
-	olen = dst->len;
-
-	for (i = 0; i < src->len; i++) {
-		free = dst->size - dst->len;
-
-		if (!free) {
-			dst->len = olen;
-			return dst->len;
-		}
-
-		c = src->str[i];
-
-		if (!isascii(c) || !isprint((unsigned char)c) || c == '<' || c == '>' || c == qc) {
-			l = snprintf(dst->str + dst->len, free, "<%02X>", (unsigned char)c);
-
-			if (free < l) {
-				dst->len = olen;
-				return dst->len;
-			}
-
-			dst->len += l;
-		} else {
-			dst->str[dst->len] = c;
-			dst->len++;
-		}
-	}
-
-	return dst->len;
-}
-
-/*
- * Dumps part or all of a buffer.
- */
-void buffer_dump(FILE *o, struct buffer *b, int from, int to)
-{
-	fprintf(o, "Dumping buffer %p\n", b);
-	fprintf(o, "  data=%p o=%d i=%d p=%p\n",
-		b->data, b->o, b->i, b->p);
-
-	if (!to || to > buffer_len(b))
-		to = buffer_len(b);
-
-	fprintf(o, "Dumping contents from byte %d to byte %d\n", from, to);
-	for (; from < to; from++) {
-		if ((from & 15) == 0)
-			fprintf(o, "  %04x: ", from);
-		fprintf(o, "%02x ", b->data[from]);
-		if ((from & 15) == 7)
-			fprintf(o, "- ");
-		else if (((from & 15) == 15) && (from != to-1))
-			fprintf(o, "\n");
-	}
-	fprintf(o, "\n--\n");
-}
-
 
 /*
  * Local variables:

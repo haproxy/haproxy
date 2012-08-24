@@ -39,9 +39,8 @@
 
 #include <proto/acl.h>
 #include <proto/arg.h>
-#include <proto/buffers.h>
+#include <proto/channel.h>
 #include <proto/connection.h>
-//#include <proto/frontend.h>
 #include <proto/log.h>
 #include <proto/port_range.h>
 #include <proto/protocols.h>
@@ -52,7 +51,6 @@
 #include <proto/stick_table.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
-#include <proto/buffers.h>
 
 #ifdef CONFIG_HAP_CTTPROXY
 #include <import/ip_tproxy.h>
