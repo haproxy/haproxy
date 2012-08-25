@@ -874,7 +874,7 @@ during a reload, it typically takes a fraction of a second even for large
 tables.
 
 peers <peersect>
-  Creates a new peer list with name <peersect>. It is an independant section,
+  Creates a new peer list with name <peersect>. It is an independent section,
   which is referenced by one or more stick-tables.
 
 peer <peername> <ip>:<port>
@@ -1026,7 +1026,7 @@ option httpchk                            X          -         X         X
 option httpclose                     (*)  X          X         X         X
 option httplog                            X          X         X         X
 option http_proxy                    (*)  X          X         X         X
-option independant-streams           (*)  X          X         X         X
+option independent-streams           (*)  X          X         X         X
 option ldap-check                         X          -         X         X
 option log-health-checks             (*)  X          -         X         X
 option log-separate-errors           (*)  X          X         X         -
@@ -1507,7 +1507,7 @@ bind /<path> [, ...] [ group <user> | gid <gid> ]
                   <address:port> couple must be used only once among all
                   instances running on a same system. Please note that binding
                   to ports lower than 1024 generally require particular
-                  privileges to start the program, which are independant of
+                  privileges to start the program, which are independent of
                   the 'uid' parameter.
 
     <path>        is a UNIX socket path beginning with a slash ('/'). This is
@@ -3538,9 +3538,9 @@ no option http_proxy
   See also : "option httpclose"
 
 
-option independant-streams
-no option independant-streams
-  Enable or disable independant timeout processing for both directions
+option independent-streams
+no option independent-streams
+  Enable or disable independent timeout processing for both directions
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |  yes
   Arguments : none
@@ -3567,6 +3567,10 @@ no option independant-streams
   the option is set on the backend, it will disable read timeout updates on
   data sent to the server. Doing so will typically break large HTTP posts from
   slow lines, so use it with caution.
+
+  Note: older versions used to call this setting "option independant-streams"
+        with a spelling mistake. This spelling is still supported but
+        deprecated.
 
   See also : "timeout client", "timeout server" and "timeout tunnel"
 
@@ -7390,7 +7394,7 @@ following situations :
 
 A first set of criteria applies to information which does not require any
 analysis of the request or response contents. Those generally include TCP/IP
-addresses and ports, as well as internal values independant on the stream.
+addresses and ports, as well as internal values independent on the stream.
 
 always_false
   This one never matches. All values and flags are ignored. It may be used as
@@ -8423,7 +8427,7 @@ and to every request on the "img", "video", "download" and "ftp" hosts :
 It is also possible to form rules using "anonymous ACLs". Those are unnamed ACL
 expressions that are built on the fly without needing to be declared. They must
 be enclosed between braces, with a space before and after each brace (because
-the braces must be seen as independant words). Example :
+the braces must be seen as independent words). Example :
 
    The following rule :
 

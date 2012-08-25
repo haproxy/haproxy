@@ -408,7 +408,7 @@ Service sections start with the 'listen' keyword :
   descriptors with a simple range. The <addr:port> couple must be used only once
   among all instances running on a same system. Please note that attaching to
   ports lower than 1024 need particular priviledges to start the program, which
-  are independant of the 'uid' parameter.
+  are independent of the 'uid' parameter.
 
 - the <IP_address>:<port_range> couple may be repeated indefinitely to require
   the proxy to listen to other addresses and/or ports. To achieve this, simply
@@ -630,7 +630,7 @@ of this allows a configuration reload without service interruption :
 2.5) Connections expiration time
 --------------------------------
 It is possible (and recommended) to configure several time-outs on TCP
-connections. Three independant timers are adjustable with values specified
+connections. Three independent timers are adjustable with values specified
 in milliseconds. A session will be terminated if either one of these timers
 expire.
 

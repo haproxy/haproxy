@@ -1619,7 +1619,7 @@ int start_checks() {
 	 * We also determine the minimum interval among all of those which
 	 * have an interval larger than SRV_CHK_INTER_THRES. This interval
 	 * will be used to spread their start-up date. Those which have
-	 * a shorter interval will start independantly and will not dictate
+	 * a shorter interval will start independently and will not dictate
 	 * too short an interval for all others.
 	 */
 	for (px = proxy; px; px = px->next) {

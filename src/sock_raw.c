@@ -715,7 +715,7 @@ static int sock_raw_write(int fd)
 		if (tick_isset(si->ib->rex) && !(si->flags & SI_FL_INDEP_STR)) {
 			/* Note: to prevent the client from expiring read timeouts
 			 * during writes, we refresh it. We only do this if the
-			 * interface is not configured for "independant streams",
+			 * interface is not configured for "independent streams",
 			 * because for some applications it's better not to do this,
 			 * for instance when continuously exchanging small amounts
 			 * of data which can full the socket buffers long before a
@@ -931,7 +931,7 @@ static void sock_raw_data_finish(struct stream_interface *si)
 					 * for incoming data or not. So in order to prevent the socket from
 					 * expiring read timeouts during writes, we refresh the read timeout,
 					 * except if it was already infinite or if we have explicitly setup
-					 * independant streams.
+					 * independent streams.
 					 */
 					ib->rex = tick_add_ifset(now_ms, ib->rto);
 				}
@@ -1059,7 +1059,7 @@ static void sock_raw_chk_snd(struct stream_interface *si)
 		if (tick_isset(si->ib->rex) && !(si->flags & SI_FL_INDEP_STR)) {
 			/* Note: to prevent the client from expiring read timeouts
 			 * during writes, we refresh it. We only do this if the
-			 * interface is not configured for "independant streams",
+			 * interface is not configured for "independent streams",
 			 * because for some applications it's better not to do this,
 			 * for instance when continuously exchanging small amounts
 			 * of data which can full the socket buffers long before a

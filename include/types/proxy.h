@@ -119,7 +119,7 @@ enum {
 #define PR_O2_RDPC_PRST	0x00000200      /* Actvate rdp cookie analyser */
 #define PR_O2_CLFLOG	0x00000400      /* log into clf format */
 #define PR_O2_LOGHCHKS	0x00000800	/* log health checks */
-#define PR_O2_INDEPSTR	0x00001000	/* independant streams, don't update rex on write */
+#define PR_O2_INDEPSTR	0x00001000	/* independent streams, don't update rex on write */
 #define PR_O2_SOCKSTAT	0x00002000	/* collect & provide separate statistics for sockets */
 
 /* appsession */

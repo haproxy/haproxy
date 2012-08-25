@@ -28,7 +28,7 @@
 #include <types/buffers.h>
 #include <common/config.h>
 
-/* A stream interface must have its own errors independantly of the buffer's,
+/* A stream interface must have its own errors independently of the buffer's,
  * so that applications can rely on what the buffer reports while the stream
  * interface is performing some retries (eg: connection error). Some states are
  * transient and do not last beyond process_session().
@@ -70,7 +70,7 @@ enum {
 	SI_FL_WAIT_DATA  = 0x0008,  /* waiting for more data to send */
 	SI_FL_CAP_SPLTCP = 0x0010,  /* splicing possible from/to TCP */
 	SI_FL_DONT_WAKE  = 0x0020,  /* resync in progress, don't wake up */
-	SI_FL_INDEP_STR  = 0x0040,  /* independant streams = don't update rex on write */
+	SI_FL_INDEP_STR  = 0x0040,  /* independent streams = don't update rex on write */
 	SI_FL_NOLINGER   = 0x0080,  /* may close without lingering. One-shot. */
 	SI_FL_NOHALF     = 0x0100,  /* no half close, close both sides at once */
 	SI_FL_SRC_ADDR   = 0x1000,  /* get the source ip/port with getsockname */
