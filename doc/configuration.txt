@@ -14,7 +14,7 @@ The summary below is meant to help you search sections by name and navigate
 through the document.
 
 Note to documentation contributors :
-    This document is formated with 80 columns per line, with even number of
+    This document is formatted with 80 columns per line, with even number of
     spaces for indentation and without tabs. Please follow these rules strictly
     so that it remains easily printable everywhere. If a line needs to be
     printed verbatim and does not fit, please end each line with a backslash
@@ -1534,16 +1534,16 @@ bind /<path> [, ...] [ group <user> | gid <gid> ]
                   advertised on incoming connections. This can be used to force
                   a lower MSS for certain specific ports, for instance for
                   connections passing through a VPN. Note that this relies on a
-                  kernel feature which is theorically supported under Linux but
-                  was buggy in all versions prior to 2.6.28. It may or may not
-                  work on other operating systems. It may also not change the
-                  advertised value but change the effective size of outgoing
-                  segments. The commonly advertised value on Ethernet networks
-                  is 1460 = 1500(MTU) - 40(IP+TCP). If this value is positive,
-                  it will be used as the advertised MSS. If it is negative, it
-                  will indicate by how much to reduce the incoming connection's
-                  advertised MSS for outgoing segments. This parameter is only
-                  compatible with TCP sockets.
+                  kernel feature which is theoretically supported under Linux
+                  but was buggy in all versions prior to 2.6.28. It may or may
+                  not work on other operating systems. It may also not change
+                  the advertised value but change the effective size of
+                  outgoing segments. The commonly advertised value on Ethernet
+                  networks is 1460 = 1500(MTU) - 40(IP+TCP). If this value is
+                  positive, it will be used as the advertised MSS. If it is
+                  negative, it will indicate by how much to reduce the incoming
+                  connection's advertised MSS for outgoing segments. This
+                  parameter is only compatible with TCP sockets.
 
     <id>          is a persistent value for socket ID. Must be positive and
                   unique in the proxy. An unused value will automatically be
@@ -2402,13 +2402,13 @@ http-check disable-on-404
 
 
 http-check expect [!] <match> <pattern>
-  Make HTTP health checks consider reponse contents or specific status codes
+  Make HTTP health checks consider response contents or specific status codes
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
   Arguments :
     <match>   is a keyword indicating how to look for a specific pattern in the
               response. The keyword may be one of "status", "rstatus",
-              "string", or "rstring". The keyword may be preceeded by an
+              "string", or "rstring". The keyword may be preceded by an
               exclamation mark ("!") to negate the match. Spaces are allowed
               between the exclamation mark and the keyword. See below for more
               details on the supported keywords.
@@ -2424,20 +2424,20 @@ http-check expect [!] <match> <pattern>
   out, the check obviously fails. The available matches are :
 
     status <string> : test the exact string match for the HTTP status code.
-                      A health check respose will be considered valid if the
+                      A health check response will be considered valid if the
                       response's status code is exactly this string. If the
                       "status" keyword is prefixed with "!", then the response
                       will be considered invalid if the status code matches.
 
     rstatus <regex> : test a regular expression for the HTTP status code.
-                      A health check respose will be considered valid if the
+                      A health check response will be considered valid if the
                       response's status code matches the expression. If the
                       "rstatus" keyword is prefixed with "!", then the response
                       will be considered invalid if the status code matches.
                       This is mostly used to check for multiple codes.
 
     string <string> : test the exact string match in the HTTP response body.
-                      A health check respose will be considered valid if the
+                      A health check response will be considered valid if the
                       response's body contains this exact string. If the
                       "string" keyword is prefixed with "!", then the response
                       will be considered invalid if the body contains this
@@ -2447,7 +2447,7 @@ http-check expect [!] <match> <pattern>
                       trace).
 
     rstring <regex> : test a regular expression on the HTTP response body.
-                      A health check respose will be considered valid if the
+                      A health check response will be considered valid if the
                       response's body matches this expression. If the "rstring"
                       keyword is prefixed with "!", then the response will be
                       considered invalid if the body matches the expression.
@@ -3308,7 +3308,7 @@ no option http-pretend-keepalive
 
   This option may be set both in a frontend and in a backend. It is enabled if
   at least one of the frontend or backend holding a connection has it enabled.
-  This option may be compbined with "option httpclose", which will cause
+  This option may be combined with "option httpclose", which will cause
   keepalive to be announced to the server and close to be announced to the
   client. This practice is discouraged though.
 
@@ -3457,7 +3457,7 @@ no option httpclose
   different from "close" will also be removed.
 
   It seldom happens that some servers incorrectly ignore this header and do not
-  close the connection eventhough they reply "Connection: close". For this
+  close the connection even though they reply "Connection: close". For this
   reason, they are not compatible with older HTTP 1.0 browsers. If this happens
   it is possible to use the "option forceclose" which actively closes the
   request connection once the server responds. Option "forceclose" also
@@ -3982,7 +3982,7 @@ no option splice-request
   Arguments : none
 
   When this option is enabled either on a frontend or on a backend, haproxy
-  will user kernel tcp splicing whenever possible to forward data going from
+  will use kernel tcp splicing whenever possible to forward data going from
   the client to the server. It might still use the recv/send scheme if there
   are no spare pipes left. This option requires splicing to be enabled at
   compile time, and may be globally disabled with the global option "nosplice".
@@ -4008,7 +4008,7 @@ no option splice-response
   Arguments : none
 
   When this option is enabled either on a frontend or on a backend, haproxy
-  will user kernel tcp splicing whenever possible to forward data going from
+  will use kernel tcp splicing whenever possible to forward data going from
   the server to the client. It might still use the recv/send scheme if there
   are no spare pipes left. This option requires splicing to be enabled at
   compile time, and may be globally disabled with the global option "nosplice".
@@ -4902,7 +4902,7 @@ source <addr>[:<port>] [interface <name>]
 
     <occ>     is the occurrence number of a value to be used in a multi-value
               header. This is to be used in conjunction with "hdr_ip(<hdr>)",
-              in order to specificy which occurrence to use for the source IP
+              in order to specify which occurrence to use for the source IP
               address. Positive values indicate a position from the first
               occurrence, 1 being the first one. Negative values indicate
               positions relative to the last one, -1 being the last one. This
@@ -6269,16 +6269,16 @@ tcp-response content <action> [{if | unless} <condition>]
     - reject :
         rejects the response if the condition is true (when used with "if")
         or false (when used with "unless"). The first such rule executed ends
-        the rules evaluation. Rejected session are immediatly closed.
+        the rules evaluation. Rejected session are immediately closed.
 
   Note that the "if/unless" condition is optional. If no condition is set on
   the action, it is simply performed unconditionally. That can be useful for
   for changing the default action to a reject.
 
-  It is perfectly possible to match layer 7 contents with "tcp-reponse content"
-  rules, but then it is important to ensure that a full response has been
-  buffered, otherwise no contents will match. In order to achieve this, the
-  best solution involves detecting the HTTP protocol during the inspection
+  It is perfectly possible to match layer 7 contents with "tcp-response
+  content" rules, but then it is important to ensure that a full response has
+  been buffered, otherwise no contents will match. In order to achieve this,
+  the best solution involves detecting the HTTP protocol during the inspection
   period.
 
   See section 7 about ACL usage.
@@ -6578,7 +6578,7 @@ timeout tunnel <timeout>
               can be in any other unit if the number is suffixed by the unit,
               as explained at the top of this document.
 
-  The tunnel timeout applies when a bidirectionnal connection is established
+  The tunnel timeout applies when a bidirectional connection is established
   between a client and a server, and the connection remains inactive in both
   directions. This timeout supersedes both the client and server timeouts once
   the connection becomes a tunnel. In TCP, this timeout is used as soon as no
@@ -7267,7 +7267,7 @@ space so that it is not taken for a comment. Depending on the data type and
 match method, haproxy may load the lines into a binary tree, allowing very fast
 lookups. This is true for IPv4 and exact string matching. In this case,
 duplicates will automatically be removed. Also, note that the "-i" flag applies
-to subsequent entries and not to entries loaded from files preceeding it. For
+to subsequent entries and not to entries loaded from files preceding it. For
 instance :
 
     acl valid-ua hdr(user-agent) -f exact-ua.lst -i -f generic-ua.lst  test
@@ -7644,7 +7644,7 @@ sc2_sess_cnt
   into sessions, which means that they were accepted by a "tcp-request
   connection" rule, from the currently tracked counters. A backend may count
   more sessions than connections because each connection could result in many
-  backend sessions if some HTTP keep-alive is performend over the connection
+  backend sessions if some HTTP keep-alive is performed over the connection
   with the client. See also src_sess_cnt.
 
 sc1_sess_rate
@@ -7654,7 +7654,7 @@ sc2_sess_rate
   session is a connection that got past the early "tcp-request connection"
   rules. A backend may count more sessions than connections because each
   connection could result in many backend sessions if some HTTP keep-alive is
-  performend over the connection with the client. See also src_sess_rate.
+  performed over the connection with the client. See also src_sess_rate.
 
 so_id <integer>
   Applies to the socket's id. Useful in frontends with many bind keywords.
@@ -8862,7 +8862,7 @@ Detailed fields description :
     for more details.
 
   - "actconn" is the total number of concurrent connections on the process when
-    the session was logged. It it useful to detect when some per-process system
+    the session was logged. It is useful to detect when some per-process system
     limits have been reached. For instance, if actconn is close to 512 when
     multiple connection errors occur, chances are high that the system limits
     the process to use a maximum of 1024 file descriptors and that all of them
@@ -9082,7 +9082,7 @@ Detailed fields description :
     below "Session state at disconnection" for more details.
 
   - "actconn" is the total number of concurrent connections on the process when
-    the session was logged. It it useful to detect when some per-process system
+    the session was logged. It is useful to detect when some per-process system
     limits have been reached. For instance, if actconn is close to 512 or 1024
     when multiple connection errors occur, chances are high that the system
     limits the process to use a maximum of 1024 file descriptors and that all
@@ -9196,7 +9196,7 @@ HAproxy will automatically merge consecutive separators.
 
 Flags are :
   * Q: quote a string
-  * X: hexadecimal represenation (IPs, Ports, %Ts, %rt, %pid)
+  * X: hexadecimal representation (IPs, Ports, %Ts, %rt, %pid)
 
   Example:
 
@@ -9772,7 +9772,7 @@ re-authenticate. The commonly encountered flags are :
 
      II   A cookie designating an invalid server was provided by the client,
           a valid one was inserted in the response. This typically happens when
-          a "server" entry is removed from the configuraton, since its cookie
+          a "server" entry is removed from the configuration, since its cookie
           value can be presented by a client when no other server knows it.
 
      NI   No cookie was provided by the client, one was inserted in the
