@@ -156,6 +156,20 @@ static inline int buffer_empty(const struct buffer *buf)
 	return !buffer_not_empty(buf);
 }
 
+/* Returns non-zero if the buffer's INPUT is considered full, which means that
+ * it holds at least as much INPUT data as (size - reserve). This also means
+ * that data that are scheduled for output are considered as potential free
+ * space, and that the reserved space is always considered as not usable. This
+ * information alone cannot be used as a general purpose free space indicator.
+ * However it accurately indicates that too many data were fed in the buffer
+ * for an analyzer for instance. See the channel_full() function for a more
+ * generic function taking everything into account.
+ */
+static inline int buffer_full(const struct buffer *b, unsigned int reserve)
+{
+	return (b->i + reserve >= b->size);
+}
+
 /* Normalizes a pointer after a subtract */
 static inline char *buffer_wrap_sub(const struct buffer *buf, char *ptr)
 {
