@@ -139,7 +139,7 @@ static int stats_accept(struct session *s)
 	s->logs.prx_queue_size = 0;  /* we get the number of pending conns before us */
 	s->logs.srv_queue_size = 0; /* we will get this number soon */
 
-	s->req->flags |= BF_READ_DONTWAIT; /* we plan to read small requests */
+	s->req->flags |= CF_READ_DONTWAIT; /* we plan to read small requests */
 
 	if (s->listener->timeout) {
 		s->req->rto = *s->listener->timeout;
@@ -1545,10 +1545,10 @@ static void cli_io_handler(struct stream_interface *si)
 
 			/* re-adjust req buffer */
 			bo_skip(si->ob, reql);
-			req->flags |= BF_READ_DONTWAIT; /* we plan to read small requests */
+			req->flags |= CF_READ_DONTWAIT; /* we plan to read small requests */
 		}
 		else {	/* output functions: first check if the output buffer is closed then abort */
-			if (res->flags & (BF_SHUTR_NOW|BF_SHUTR)) {
+			if (res->flags & (CF_SHUTR_NOW|CF_SHUTR)) {
 				si->applet.st0 = STAT_CLI_END;
 				continue;
 			}
@@ -1595,7 +1595,7 @@ static void cli_io_handler(struct stream_interface *si)
 			 * buffer is empty. This still allows pipelined requests
 			 * to be sent in non-interactive mode.
 			 */
-			if ((res->flags & (BF_SHUTW|BF_SHUTW_NOW)) || (!si->applet.st1 && !req->buf.o)) {
+			if ((res->flags & (CF_SHUTW|CF_SHUTW_NOW)) || (!si->applet.st1 && !req->buf.o)) {
 				si->applet.st0 = STAT_CLI_END;
 				continue;
 			}
@@ -1605,7 +1605,7 @@ static void cli_io_handler(struct stream_interface *si)
 		}
 	}
 
-	if ((res->flags & BF_SHUTR) && (si->state == SI_ST_EST) && (si->applet.st0 != STAT_CLI_GETREQ)) {
+	if ((res->flags & CF_SHUTR) && (si->state == SI_ST_EST) && (si->applet.st0 != STAT_CLI_GETREQ)) {
 		DPRINTF(stderr, "%s@%d: si to buf closed. req=%08x, res=%08x, st=%d\n",
 			__FUNCTION__, __LINE__, req->flags, res->flags, si->state);
 		/* Other side has closed, let's abort if we have no more processing to do
@@ -1616,7 +1616,7 @@ static void cli_io_handler(struct stream_interface *si)
 		si_shutw(si);
 	}
 
-	if ((req->flags & BF_SHUTW) && (si->state == SI_ST_EST) && (si->applet.st0 < STAT_CLI_OUTPUT)) {
+	if ((req->flags & CF_SHUTW) && (si->state == SI_ST_EST) && (si->applet.st0 < STAT_CLI_OUTPUT)) {
 		DPRINTF(stderr, "%s@%d: buf to si closed. req=%08x, res=%08x, st=%d\n",
 			__FUNCTION__, __LINE__, req->flags, res->flags, si->state);
 		/* We have no more processing to do, and nothing more to send, and
@@ -1624,7 +1624,7 @@ static void cli_io_handler(struct stream_interface *si)
 		 * on the response buffer.
 		 */
 		si_shutr(si);
-		res->flags |= BF_READ_NULL;
+		res->flags |= CF_READ_NULL;
 	}
 
 	/* update all other flags and resync with the other side */
@@ -1823,7 +1823,7 @@ static void http_stats_io_handler(struct stream_interface *si)
 		goto out;
 
 	/* check that the output is not closed */
-	if (res->flags & (BF_SHUTW|BF_SHUTW_NOW))
+	if (res->flags & (CF_SHUTW|CF_SHUTW_NOW))
 		si->applet.st0 = 1;
 
 	if (!si->applet.st0) {
@@ -1840,12 +1840,12 @@ static void http_stats_io_handler(struct stream_interface *si)
 		}
 	}
 
-	if ((res->flags & BF_SHUTR) && (si->state == SI_ST_EST))
+	if ((res->flags & CF_SHUTR) && (si->state == SI_ST_EST))
 		si_shutw(si);
 
-	if ((req->flags & BF_SHUTW) && (si->state == SI_ST_EST) && si->applet.st0) {
+	if ((req->flags & CF_SHUTW) && (si->state == SI_ST_EST) && si->applet.st0) {
 		si_shutr(si);
-		res->flags |= BF_READ_NULL;
+		res->flags |= CF_READ_NULL;
 	}
 
 	/* update all other flags and resync with the other side */
@@ -3545,7 +3545,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 {
 	struct chunk msg;
 
-	if (unlikely(si->ib->flags & (BF_WRITE_ERROR|BF_SHUTW))) {
+	if (unlikely(si->ib->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
 		/* If we're forced to shut down, we might have to remove our
 		 * reference to the last session being dumped.
 		 */
@@ -3770,7 +3770,7 @@ static int stats_table_request(struct stream_interface *si, bool show)
 	 *     data though.
 	 */
 
-	if (unlikely(si->ib->flags & (BF_WRITE_ERROR|BF_SHUTW))) {
+	if (unlikely(si->ib->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
 		/* in case of abort, remove any refcount we might have set on an entry */
 		if (si->conn.data_st == STAT_ST_LIST) {
 			si->applet.ctx.table.entry->ref_cnt--;
@@ -3971,7 +3971,7 @@ static int stats_dump_errors_to_buffer(struct stream_interface *si)
 	extern const char *monthname[12];
 	struct chunk msg;
 
-	if (unlikely(si->ib->flags & (BF_WRITE_ERROR|BF_SHUTW)))
+	if (unlikely(si->ib->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
 
 	chunk_init(&msg, trash, trashlen);

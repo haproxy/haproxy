@@ -71,10 +71,10 @@ unsigned long long buffer_forward(struct channel *buf, unsigned long long bytes)
 	/* Note: the case below is the only case where we may return
 	 * a byte count that does not fit into a 32-bit number.
 	 */
-	if (likely(buf->to_forward == BUF_INFINITE_FORWARD))
+	if (likely(buf->to_forward == CHN_INFINITE_FORWARD))
 		return bytes;
 
-	if (likely(bytes == BUF_INFINITE_FORWARD)) {
+	if (likely(bytes == CHN_INFINITE_FORWARD)) {
 		buf->to_forward = bytes;
 		return bytes;
 	}
@@ -146,10 +146,10 @@ int bi_putchr(struct channel *buf, char c)
 	*bi_end(&buf->buf) = c;
 
 	buf->buf.i++;
-	buf->flags |= BF_READ_PARTIAL;
+	buf->flags |= CF_READ_PARTIAL;
 
 	if (buf->to_forward >= 1) {
-		if (buf->to_forward != BUF_INFINITE_FORWARD)
+		if (buf->to_forward != CHN_INFINITE_FORWARD)
 			buf->to_forward--;
 		b_adv(&buf->buf, 1);
 	}
@@ -197,7 +197,7 @@ int bi_putblk(struct channel *buf, const char *blk, int len)
 	buf->total += len;
 	if (buf->to_forward) {
 		unsigned long fwd = len;
-		if (buf->to_forward != BUF_INFINITE_FORWARD) {
+		if (buf->to_forward != CHN_INFINITE_FORWARD) {
 			if (fwd > buf->to_forward)
 				fwd = buf->to_forward;
 			buf->to_forward -= fwd;
@@ -206,7 +206,7 @@ int bi_putblk(struct channel *buf, const char *blk, int len)
 	}
 
 	/* notify that some data was read from the SI into the buffer */
-	buf->flags |= BF_READ_PARTIAL;
+	buf->flags |= CF_READ_PARTIAL;
 	return len;
 }
 
@@ -229,8 +229,8 @@ int bo_getline(struct channel *buf, char *str, int len)
 	max = len;
 
 	/* closed or empty + imminent close = -1; empty = 0 */
-	if (unlikely((buf->flags & BF_SHUTW) || channel_is_empty(buf))) {
-		if (buf->flags & (BF_SHUTW|BF_SHUTW_NOW))
+	if (unlikely((buf->flags & CF_SHUTW) || channel_is_empty(buf))) {
+		if (buf->flags & (CF_SHUTW|CF_SHUTW_NOW))
 			ret = -1;
 		goto out;
 	}
@@ -252,7 +252,7 @@ int bo_getline(struct channel *buf, char *str, int len)
 	}
 	if (ret > 0 && ret < len && ret < buf->buf.o &&
 	    *(str-1) != '\n' &&
-	    !(buf->flags & (BF_SHUTW|BF_SHUTW_NOW)))
+	    !(buf->flags & (CF_SHUTW|CF_SHUTW_NOW)))
 		ret = 0;
  out:
 	if (max)
@@ -272,11 +272,11 @@ int bo_getblk(struct channel *buf, char *blk, int len, int offset)
 {
 	int firstblock;
 
-	if (buf->flags & BF_SHUTW)
+	if (buf->flags & CF_SHUTW)
 		return -1;
 
 	if (len + offset > buf->buf.o) {
-		if (buf->flags & (BF_SHUTW|BF_SHUTW_NOW))
+		if (buf->flags & (CF_SHUTW|CF_SHUTW_NOW))
 			return -1;
 		return 0;
 	}

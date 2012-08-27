@@ -830,8 +830,8 @@ int session_set_backend(struct session *s, struct proxy *be)
 	}
 
 	if (be->options2 & PR_O2_NODELAY) {
-		s->req->flags |= BF_NEVER_WAIT;
-		s->rep->flags |= BF_NEVER_WAIT;
+		s->req->flags |= CF_NEVER_WAIT;
+		s->rep->flags |= CF_NEVER_WAIT;
 	}
 
 	/* We want to enable the backend-specific analysers except those which

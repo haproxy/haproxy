@@ -525,7 +525,7 @@ switchstate:
 			case PEER_SESSION_GETSTATUS: {
 				struct peer_session *ps = (struct peer_session *)si->conn.data_ctx;
 
-				if (si->ib->flags & BF_WRITE_PARTIAL)
+				if (si->ib->flags & CF_WRITE_PARTIAL)
 					ps->statuscode = PEER_SESSION_CONNECTEDCODE;
 
 				reql = bo_getline(si->ob, trash, trashlen);
@@ -1024,14 +1024,14 @@ incomplete:
 			case PEER_SESSION_END: {
 				si_shutw(si);
 				si_shutr(si);
-				si->ib->flags |= BF_READ_NULL;
+				si->ib->flags |= CF_READ_NULL;
 				goto quit;
 			}
 		}
 	}
 out:
 	si_update(si);
-	si->ob->flags |= BF_READ_DONTWAIT;
+	si->ob->flags |= CF_READ_DONTWAIT;
 	/* we don't want to expire timeouts while we're processing requests */
 	si->ib->rex = TICK_ETERNITY;
 	si->ob->wex = TICK_ETERNITY;
@@ -1090,7 +1090,7 @@ int peer_accept(struct session *s)
 	s->logs.prx_queue_size = 0;/* we get the number of pending conns before us */
 	s->logs.srv_queue_size = 0; /* we will get this number soon */
 
-	s->req->flags |= BF_READ_DONTWAIT; /* we plan to read small requests */
+	s->req->flags |= CF_READ_DONTWAIT; /* we plan to read small requests */
 
 	if (s->listener->timeout) {
 		s->req->rto = *s->listener->timeout;
@@ -1231,7 +1231,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->req->cons = &s->si[1];
 	s->si[0].ib = s->si[1].ob = s->req;
 
-	s->req->flags |= BF_READ_ATTACHED; /* the producer is already connected */
+	s->req->flags |= CF_READ_ATTACHED; /* the producer is already connected */
 
 	/* activate default analysers enabled for this listener */
 	s->req->analysers = l->analysers;
@@ -1265,7 +1265,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->rep->analyse_exp = TICK_ETERNITY;
 	t->expire = TICK_ETERNITY;
 
-	s->rep->flags |= BF_READ_DONTWAIT;
+	s->rep->flags |= CF_READ_DONTWAIT;
 	/* it is important not to call the wakeup function directly but to
 	 * pass through task_wakeup(), because this one knows how to apply
 	 * priorities to tasks.

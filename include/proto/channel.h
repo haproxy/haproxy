@@ -84,7 +84,7 @@ static inline int buffer_reserved(const struct channel *buf)
 {
 	int ret = global.tune.maxrewrite - buf->to_forward - buf->buf.o;
 
-	if (buf->to_forward == BUF_INFINITE_FORWARD)
+	if (buf->to_forward == CHN_INFINITE_FORWARD)
 		return 0;
 	if (ret <= 0)
 		return 0;
@@ -115,8 +115,8 @@ static inline int channel_full(const struct channel *b)
 		return 1; /* buffer already full */
 
 	if (b->to_forward >= b->buf.size ||
-	    (BUF_INFINITE_FORWARD < MAX_RANGE(typeof(b->buf.size)) && // just there to ensure gcc
-	     b->to_forward == BUF_INFINITE_FORWARD))              // avoids the useless second
+	    (CHN_INFINITE_FORWARD < MAX_RANGE(typeof(b->buf.size)) && // just there to ensure gcc
+	     b->to_forward == CHN_INFINITE_FORWARD))              // avoids the useless second
 		return 0;                                         // test whenever possible
 
 	rem -= global.tune.maxrewrite;
@@ -141,8 +141,8 @@ static inline int bi_avail(const struct channel *b)
 		return rem; /* buffer already full */
 
 	if (b->to_forward >= b->buf.size ||
-	    (BUF_INFINITE_FORWARD < MAX_RANGE(typeof(b->buf.size)) && // just there to ensure gcc
-	     b->to_forward == BUF_INFINITE_FORWARD))              // avoids the useless second
+	    (CHN_INFINITE_FORWARD < MAX_RANGE(typeof(b->buf.size)) && // just there to ensure gcc
+	     b->to_forward == CHN_INFINITE_FORWARD))              // avoids the useless second
 		return rem;                                         // test whenever possible
 
 	rem2 = rem - global.tune.maxrewrite;
@@ -167,13 +167,13 @@ static inline int buffer_contig_space_res(const struct channel *chn)
 /* Returns true if the buffer's input is already closed */
 static inline int buffer_input_closed(struct channel *buf)
 {
-	return ((buf->flags & BF_SHUTR) != 0);
+	return ((buf->flags & CF_SHUTR) != 0);
 }
 
 /* Returns true if the buffer's output is already closed */
 static inline int buffer_output_closed(struct channel *buf)
 {
-	return ((buf->flags & BF_SHUTW) != 0);
+	return ((buf->flags & CF_SHUTW) != 0);
 }
 
 /* Check buffer timeouts, and set the corresponding flags. The
@@ -184,17 +184,17 @@ static inline int buffer_output_closed(struct channel *buf)
  */
 static inline void buffer_check_timeouts(struct channel *b)
 {
-	if (likely(!(b->flags & (BF_SHUTR|BF_READ_TIMEOUT|BF_READ_ACTIVITY|BF_READ_NOEXP))) &&
+	if (likely(!(b->flags & (CF_SHUTR|CF_READ_TIMEOUT|CF_READ_ACTIVITY|CF_READ_NOEXP))) &&
 	    unlikely(tick_is_expired(b->rex, now_ms)))
-		b->flags |= BF_READ_TIMEOUT;
+		b->flags |= CF_READ_TIMEOUT;
 
-	if (likely(!(b->flags & (BF_SHUTW|BF_WRITE_TIMEOUT|BF_WRITE_ACTIVITY))) &&
+	if (likely(!(b->flags & (CF_SHUTW|CF_WRITE_TIMEOUT|CF_WRITE_ACTIVITY))) &&
 	    unlikely(tick_is_expired(b->wex, now_ms)))
-		b->flags |= BF_WRITE_TIMEOUT;
+		b->flags |= CF_WRITE_TIMEOUT;
 
-	if (likely(!(b->flags & BF_ANA_TIMEOUT)) &&
+	if (likely(!(b->flags & CF_ANA_TIMEOUT)) &&
 	    unlikely(tick_is_expired(b->analyse_exp, now_ms)))
-		b->flags |= BF_ANA_TIMEOUT;
+		b->flags |= CF_ANA_TIMEOUT;
 }
 
 /* Erase any content from buffer <buf> and adjusts flags accordingly. Note
@@ -229,20 +229,20 @@ static inline void bi_erase(struct channel *buf)
 /* marks the buffer as "shutdown" ASAP for reads */
 static inline void buffer_shutr_now(struct channel *buf)
 {
-	buf->flags |= BF_SHUTR_NOW;
+	buf->flags |= CF_SHUTR_NOW;
 }
 
 /* marks the buffer as "shutdown" ASAP for writes */
 static inline void buffer_shutw_now(struct channel *buf)
 {
-	buf->flags |= BF_SHUTW_NOW;
+	buf->flags |= CF_SHUTW_NOW;
 }
 
 /* marks the buffer as "shutdown" ASAP in both directions */
 static inline void buffer_abort(struct channel *buf)
 {
-	buf->flags |= BF_SHUTR_NOW | BF_SHUTW_NOW;
-	buf->flags &= ~BF_AUTO_CONNECT;
+	buf->flags |= CF_SHUTR_NOW | CF_SHUTW_NOW;
+	buf->flags &= ~CF_AUTO_CONNECT;
 }
 
 /* Installs <func> as a hijacker on the buffer <b> for session <s>. The hijack
@@ -255,20 +255,20 @@ static inline void buffer_install_hijacker(struct session *s,
 					   void (*func)(struct session *, struct channel *))
 {
 	b->hijacker = func;
-	b->flags |= BF_HIJACK;
+	b->flags |= CF_HIJACK;
 	func(s, b);
 }
 
 /* Releases the buffer from hijacking mode. Often used by the hijack function */
 static inline void buffer_stop_hijack(struct channel *buf)
 {
-	buf->flags &= ~BF_HIJACK;
+	buf->flags &= ~CF_HIJACK;
 }
 
 /* allow the consumer to try to establish a new connection. */
 static inline void buffer_auto_connect(struct channel *buf)
 {
-	buf->flags |= BF_AUTO_CONNECT;
+	buf->flags |= CF_AUTO_CONNECT;
 }
 
 /* prevent the consumer from trying to establish a new connection, and also
@@ -276,31 +276,31 @@ static inline void buffer_auto_connect(struct channel *buf)
  */
 static inline void buffer_dont_connect(struct channel *buf)
 {
-	buf->flags &= ~(BF_AUTO_CONNECT|BF_AUTO_CLOSE);
+	buf->flags &= ~(CF_AUTO_CONNECT|CF_AUTO_CLOSE);
 }
 
 /* allow the producer to forward shutdown requests */
 static inline void buffer_auto_close(struct channel *buf)
 {
-	buf->flags |= BF_AUTO_CLOSE;
+	buf->flags |= CF_AUTO_CLOSE;
 }
 
 /* prevent the producer from forwarding shutdown requests */
 static inline void buffer_dont_close(struct channel *buf)
 {
-	buf->flags &= ~BF_AUTO_CLOSE;
+	buf->flags &= ~CF_AUTO_CLOSE;
 }
 
 /* allow the producer to read / poll the input */
 static inline void buffer_auto_read(struct channel *buf)
 {
-	buf->flags &= ~BF_DONT_READ;
+	buf->flags &= ~CF_DONT_READ;
 }
 
 /* prevent the producer from read / poll the input */
 static inline void buffer_dont_read(struct channel *buf)
 {
-	buf->flags |= BF_DONT_READ;
+	buf->flags |= CF_DONT_READ;
 }
 
 /*
@@ -317,7 +317,7 @@ static inline void bo_skip(struct channel *buf, int len)
 		buf->buf.p = buf->buf.data;
 
 	/* notify that some data was written to the SI from the buffer */
-	buf->flags |= BF_WRITE_PARTIAL;
+	buf->flags |= CF_WRITE_PARTIAL;
 }
 
 /* Tries to copy chunk <chunk> into buffer <buf> after length controls.
@@ -359,8 +359,8 @@ static inline int bi_putstr(struct channel *buf, const char *str)
 static inline int bo_getchr(struct channel *buf)
 {
 	/* closed or empty + imminent close = -2; empty = -1 */
-	if (unlikely((buf->flags & BF_SHUTW) || channel_is_empty(buf))) {
-		if (buf->flags & (BF_SHUTW|BF_SHUTW_NOW))
+	if (unlikely((buf->flags & CF_SHUTW) || channel_is_empty(buf))) {
+		if (buf->flags & (CF_SHUTW|CF_SHUTW_NOW))
 			return -2;
 		return -1;
 	}

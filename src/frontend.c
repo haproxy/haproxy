@@ -186,7 +186,7 @@ int frontend_accept(struct session *s)
 	}
 
 	if (s->fe->mode == PR_MODE_HTTP)
-		s->req->flags |= BF_READ_DONTWAIT; /* one read is usually enough */
+		s->req->flags |= CF_READ_DONTWAIT; /* one read is usually enough */
 
 	/* note: this should not happen anymore since there's always at least the switching rules */
 	if (!s->req->analysers) {
@@ -266,7 +266,7 @@ int frontend_decode_proxy_request(struct session *s, struct channel *req, int an
 		req->i,
 		req->analysers);
 
-	if (req->flags & (BF_READ_ERROR|BF_READ_TIMEOUT))
+	if (req->flags & (CF_READ_ERROR|CF_READ_TIMEOUT))
 		goto fail;
 
 	len = MIN(req->buf.i, 6);
@@ -397,7 +397,7 @@ int frontend_decode_proxy_request(struct session *s, struct channel *req, int an
 
  missing:
 	/* missing data and buffer is either full or shutdown => fail */
-	if ((req->flags & BF_SHUTR) || buffer_full(&req->buf, global.tune.maxrewrite))
+	if ((req->flags & CF_SHUTR) || buffer_full(&req->buf, global.tune.maxrewrite))
 		goto fail;
 
 	buffer_dont_connect(s->req);

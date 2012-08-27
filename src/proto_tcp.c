@@ -809,7 +809,7 @@ int tcp_inspect_request(struct session *s, struct channel *req, int an_bit)
 	 * - if one rule returns KO, then return KO
 	 */
 
-	if ((req->flags & BF_SHUTR) || buffer_full(&req->buf, global.tune.maxrewrite) ||
+	if ((req->flags & CF_SHUTR) || buffer_full(&req->buf, global.tune.maxrewrite) ||
 	    !s->be->tcp_req.inspect_delay || tick_is_expired(req->analyse_exp, now_ms))
 		partial = SMP_OPT_FINAL;
 	else
@@ -928,7 +928,7 @@ int tcp_inspect_response(struct session *s, struct channel *rep, int an_bit)
 	 * - if one rule returns KO, then return KO
 	 */
 
-	if (rep->flags & BF_SHUTR || tick_is_expired(rep->analyse_exp, now_ms))
+	if (rep->flags & CF_SHUTR || tick_is_expired(rep->analyse_exp, now_ms))
 		partial = SMP_OPT_FINAL;
 	else
 		partial = 0;

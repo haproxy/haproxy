@@ -2023,11 +2023,11 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 			     bi_end(&req->buf) < b_ptr(&req->buf, msg->next) ||
 			     bi_end(&req->buf) > req->buf.data + req->buf.size - global.tune.maxrewrite)) {
 			if (req->buf.o) {
-				if (req->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_WRITE_ERROR|BF_WRITE_TIMEOUT))
+				if (req->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_WRITE_ERROR|CF_WRITE_TIMEOUT))
 					goto failed_keep_alive;
 				/* some data has still not left the buffer, wake us once that's done */
 				buffer_dont_connect(req);
-				req->flags |= BF_READ_DONTWAIT; /* try to get back here ASAP */
+				req->flags |= CF_READ_DONTWAIT; /* try to get back here ASAP */
 				return 0;
 			}
 			if (bi_end(&req->buf) < b_ptr(&req->buf, msg->next) ||
@@ -2047,11 +2047,11 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 			     bi_end(&s->rep->buf) < b_ptr(&s->rep->buf, txn->rsp.next) ||
 			     bi_end(&s->rep->buf) > s->rep->buf.data + s->rep->buf.size - global.tune.maxrewrite)) {
 			if (s->rep->buf.o) {
-				if (s->rep->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_WRITE_ERROR|BF_WRITE_TIMEOUT))
+				if (s->rep->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_WRITE_ERROR|CF_WRITE_TIMEOUT))
 					goto failed_keep_alive;
 				/* don't let a connection request be initiated */
 				buffer_dont_connect(req);
-				s->rep->flags &= ~BF_EXPECT_MORE; /* speed up sending a previous response */
+				s->rep->flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
 				s->rep->analysers |= an_bit; /* wake us up once it changes */
 				return 0;
 			}
@@ -2128,7 +2128,7 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 		}
 
 		/* 2: have we encountered a read error ? */
-		else if (req->flags & BF_READ_ERROR) {
+		else if (req->flags & CF_READ_ERROR) {
 			if (!(s->flags & SN_ERR_MASK))
 				s->flags |= SN_ERR_CLICL;
 
@@ -2156,7 +2156,7 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 		}
 
 		/* 3: has the read timeout expired ? */
-		else if (req->flags & BF_READ_TIMEOUT || tick_is_expired(req->analyse_exp, now_ms)) {
+		else if (req->flags & CF_READ_TIMEOUT || tick_is_expired(req->analyse_exp, now_ms)) {
 			if (!(s->flags & SN_ERR_MASK))
 				s->flags |= SN_ERR_CLITO;
 
@@ -2185,7 +2185,7 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 		}
 
 		/* 4: have we encountered a close ? */
-		else if (req->flags & BF_SHUTR) {
+		else if (req->flags & CF_SHUTR) {
 			if (!(s->flags & SN_ERR_MASK))
 				s->flags |= SN_ERR_CLICL;
 
@@ -2212,8 +2212,8 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 		}
 
 		buffer_dont_connect(req);
-		req->flags |= BF_READ_DONTWAIT; /* try to get back here ASAP */
-		s->rep->flags &= ~BF_EXPECT_MORE; /* speed up sending a previous response */
+		req->flags |= CF_READ_DONTWAIT; /* try to get back here ASAP */
+		s->rep->flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
 #ifdef TCP_QUICKACK
 		if (s->listener->options & LI_O_NOQUICKACK && req->buf.i) {
 			/* We need more data, we have to re-enable quick-ack in case we
@@ -2255,7 +2255,7 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 		msg->msg_state = HTTP_MSG_RQBEFORE;
 		req->analysers = 0;
 		s->logs.logwait = 0;
-		s->rep->flags &= ~BF_EXPECT_MORE; /* speed up sending a previous response */
+		s->rep->flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
 		stream_int_retnclose(req->prod, NULL);
 		return 0;
 	}
@@ -3196,10 +3196,10 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 	 * If this happens, then the data will not come immediately, so we must
 	 * send all what we have without waiting. Note that due to the small gain
 	 * in waiting for the body of the request, it's easier to simply put the
-	 * BF_SEND_DONTWAIT flag any time. It's a one-shot flag so it will remove
+	 * CF_SEND_DONTWAIT flag any time. It's a one-shot flag so it will remove
 	 * itself once used.
 	 */
-	req->flags |= BF_SEND_DONTWAIT;
+	req->flags |= CF_SEND_DONTWAIT;
 
 	/* that's OK for us now, let's move on to next analysers */
 	return 1;
@@ -3527,7 +3527,7 @@ int http_process_tarpit(struct session *s, struct channel *req, int an_bit)
 	 * there and that the timeout has not expired.
 	 */
 	buffer_dont_connect(req);
-	if ((req->flags & (BF_SHUTR|BF_READ_ERROR)) == 0 &&
+	if ((req->flags & (CF_SHUTR|CF_READ_ERROR)) == 0 &&
 	    !tick_is_expired(req->analyse_exp, now_ms))
 		return 0;
 
@@ -3540,7 +3540,7 @@ int http_process_tarpit(struct session *s, struct channel *req, int an_bit)
 	s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
 
 	txn->status = 500;
-	if (!(req->flags & BF_READ_ERROR))
+	if (!(req->flags & CF_READ_ERROR))
 		stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_500));
 
 	req->analysers = 0;
@@ -3641,7 +3641,7 @@ int http_process_request_body(struct session *s, struct channel *req, int an_bit
 		goto return_bad_req;
 	}
 
-	if ((req->flags & BF_READ_TIMEOUT) || tick_is_expired(req->analyse_exp, now_ms)) {
+	if ((req->flags & CF_READ_TIMEOUT) || tick_is_expired(req->analyse_exp, now_ms)) {
 		txn->status = 408;
 		stream_int_retnclose(req->prod, error_message(s, HTTP_ERR_408));
 
@@ -3653,7 +3653,7 @@ int http_process_request_body(struct session *s, struct channel *req, int an_bit
 	}
 
 	/* we get here if we need to wait for more data */
-	if (!(req->flags & (BF_SHUTR | BF_READ_ERROR)) && !buffer_full(&req->buf, global.tune.maxrewrite)) {
+	if (!(req->flags & (CF_SHUTR | CF_READ_ERROR)) && !buffer_full(&req->buf, global.tune.maxrewrite)) {
 		/* Not enough data. We'll re-use the http-request
 		 * timeout here. Ideally, we should set the timeout
 		 * relative to the accept() date. We just set the
@@ -3829,8 +3829,8 @@ void http_end_txn_clean_session(struct session *s)
 	s->req->cons->err_loc   = NULL;
 	s->req->cons->exp       = TICK_ETERNITY;
 	s->req->cons->flags     = SI_FL_NONE;
-	s->req->flags &= ~(BF_SHUTW|BF_SHUTW_NOW|BF_AUTO_CONNECT|BF_WRITE_ERROR|BF_STREAMER|BF_STREAMER_FAST|BF_NEVER_WAIT);
-	s->rep->flags &= ~(BF_SHUTR|BF_SHUTR_NOW|BF_READ_ATTACHED|BF_READ_ERROR|BF_READ_NOEXP|BF_STREAMER|BF_STREAMER_FAST|BF_WRITE_PARTIAL|BF_NEVER_WAIT);
+	s->req->flags &= ~(CF_SHUTW|CF_SHUTW_NOW|CF_AUTO_CONNECT|CF_WRITE_ERROR|CF_STREAMER|CF_STREAMER_FAST|CF_NEVER_WAIT);
+	s->rep->flags &= ~(CF_SHUTR|CF_SHUTR_NOW|CF_READ_ATTACHED|CF_READ_ERROR|CF_READ_NOEXP|CF_STREAMER|CF_STREAMER_FAST|CF_WRITE_PARTIAL|CF_NEVER_WAIT);
 	s->flags &= ~(SN_DIRECT|SN_ASSIGNED|SN_ADDR_SET|SN_BE_ASSIGNED|SN_FORCE_PRST|SN_IGNORE_PRST);
 	s->flags &= ~(SN_CURR_SESS|SN_REDIRECTABLE);
 	s->txn.meth = 0;
@@ -3840,8 +3840,8 @@ void http_end_txn_clean_session(struct session *s)
 		s->req->cons->flags |= SI_FL_INDEP_STR;
 
 	if (s->fe->options2 & PR_O2_NODELAY) {
-		s->req->flags |= BF_NEVER_WAIT;
-		s->rep->flags |= BF_NEVER_WAIT;
+		s->req->flags |= CF_NEVER_WAIT;
+		s->rep->flags |= CF_NEVER_WAIT;
 	}
 
 	/* if the request buffer is not empty, it means we're
@@ -3855,7 +3855,7 @@ void http_end_txn_clean_session(struct session *s)
 		if (s->rep->buf.o &&
 		    !buffer_full(&s->rep->buf, global.tune.maxrewrite) &&
 		    bi_end(&s->rep->buf) <= s->rep->buf.data + s->rep->buf.size - global.tune.maxrewrite)
-			s->rep->flags |= BF_EXPECT_MORE;
+			s->rep->flags |= CF_EXPECT_MORE;
 	}
 
 	/* we're removing the analysers, we MUST re-enable events detection */
@@ -3927,7 +3927,7 @@ int http_sync_req_state(struct session *s)
 
 		if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL) {
 			/* Server-close mode : queue a connection close to the server */
-			if (!(buf->flags & (BF_SHUTW|BF_SHUTW_NOW)))
+			if (!(buf->flags & (CF_SHUTW|CF_SHUTW_NOW)))
 				buffer_shutw_now(buf);
 		}
 		else if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_CLO) {
@@ -3936,7 +3936,7 @@ int http_sync_req_state(struct session *s)
 			 * data to come. The caller knows the session is complete
 			 * once both states are CLOSED.
 			 */
-			if (!(buf->flags & (BF_SHUTW|BF_SHUTW_NOW))) {
+			if (!(buf->flags & (CF_SHUTW|CF_SHUTW_NOW))) {
 				buffer_shutr_now(buf);
 				buffer_shutw_now(buf);
 			}
@@ -3951,7 +3951,7 @@ int http_sync_req_state(struct session *s)
 			txn->req.msg_state = HTTP_MSG_TUNNEL;
 		}
 
-		if (buf->flags & (BF_SHUTW|BF_SHUTW_NOW)) {
+		if (buf->flags & (CF_SHUTW|CF_SHUTW_NOW)) {
 			/* if we've just closed an output, let's switch */
 			buf->cons->flags |= SI_FL_NOLINGER;  /* we want to close ASAP */
 
@@ -3976,7 +3976,7 @@ int http_sync_req_state(struct session *s)
 			txn->req.msg_state = HTTP_MSG_CLOSED;
 			goto http_msg_closed;
 		}
-		else if (buf->flags & BF_SHUTW) {
+		else if (buf->flags & CF_SHUTW) {
 			txn->req.msg_state = HTTP_MSG_ERROR;
 			goto wait_other_side;
 		}
@@ -4050,7 +4050,7 @@ int http_sync_res_state(struct session *s)
 			 * when we're in DONE and the other is in CLOSED and will
 			 * catch that for the final cleanup.
 			 */
-			if (!(buf->flags & (BF_SHUTR|BF_SHUTR_NOW)))
+			if (!(buf->flags & (CF_SHUTR|CF_SHUTR_NOW)))
 				buffer_shutr_now(buf);
 		}
 		else if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_CLO) {
@@ -4059,7 +4059,7 @@ int http_sync_res_state(struct session *s)
 			 * data to come. The caller knows the session is complete
 			 * once both states are CLOSED.
 			 */
-			if (!(buf->flags & (BF_SHUTW|BF_SHUTW_NOW))) {
+			if (!(buf->flags & (CF_SHUTW|CF_SHUTW_NOW))) {
 				buffer_shutr_now(buf);
 				buffer_shutw_now(buf);
 			}
@@ -4074,7 +4074,7 @@ int http_sync_res_state(struct session *s)
 			txn->rsp.msg_state = HTTP_MSG_TUNNEL;
 		}
 
-		if (buf->flags & (BF_SHUTW|BF_SHUTW_NOW)) {
+		if (buf->flags & (CF_SHUTW|CF_SHUTW_NOW)) {
 			/* if we've just closed an output, let's switch */
 			if (!channel_is_empty(buf)) {
 				txn->rsp.msg_state = HTTP_MSG_CLOSING;
@@ -4097,7 +4097,7 @@ int http_sync_res_state(struct session *s)
 			txn->rsp.msg_state = HTTP_MSG_CLOSED;
 			goto http_msg_closed;
 		}
-		else if (buf->flags & BF_SHUTW) {
+		else if (buf->flags & CF_SHUTW) {
 			txn->rsp.msg_state = HTTP_MSG_ERROR;
 			s->be->be_counters.cli_aborts++;
 			if (target_srv(&s->target))
@@ -4167,7 +4167,7 @@ int http_resync_states(struct session *s)
 	else if (txn->rsp.msg_state == HTTP_MSG_CLOSED ||
 		 txn->rsp.msg_state == HTTP_MSG_ERROR ||
 		 txn->req.msg_state == HTTP_MSG_ERROR ||
-		 (s->rep->flags & BF_SHUTW)) {
+		 (s->rep->flags & CF_SHUTW)) {
 		s->rep->analysers = 0;
 		buffer_auto_close(s->rep);
 		buffer_auto_read(s->rep);
@@ -4210,8 +4210,8 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
 		return 0;
 
-	if ((req->flags & (BF_READ_ERROR|BF_READ_TIMEOUT|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) ||
-	    ((req->flags & BF_SHUTW) && (req->to_forward || req->buf.o))) {
+	if ((req->flags & (CF_READ_ERROR|CF_READ_TIMEOUT|CF_WRITE_ERROR|CF_WRITE_TIMEOUT)) ||
+	    ((req->flags & CF_SHUTW) && (req->to_forward || req->buf.o))) {
 		/* Output closed while we were sending data. We must abort and
 		 * wake the other side up.
 		 */
@@ -4327,7 +4327,7 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 				 * was disabled too.
 				 */
 				if (unlikely(msg->msg_state == HTTP_MSG_ERROR)) {
-					if (req->flags & BF_SHUTW) {
+					if (req->flags & CF_SHUTW) {
 						/* request errors are most likely due to
 						 * the server aborting the transfer.
 						 */
@@ -4365,7 +4365,7 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 
  missing_data:
 	/* stop waiting for data if the input is closed before the end */
-	if (req->flags & BF_SHUTR) {
+	if (req->flags & CF_SHUTR) {
 		if (!(s->flags & SN_ERR_MASK))
 			s->flags |= SN_ERR_CLICL;
 		if (!(s->flags & SN_FINST_MASK)) {
@@ -4384,17 +4384,17 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 	}
 
 	/* waiting for the last bits to leave the buffer */
-	if (req->flags & BF_SHUTW)
+	if (req->flags & CF_SHUTW)
 		goto aborted_xfer;
 
 	/* When TE: chunked is used, we need to get there again to parse remaining
-	 * chunks even if the client has closed, so we don't want to set BF_DONTCLOSE.
+	 * chunks even if the client has closed, so we don't want to set CF_DONTCLOSE.
 	 */
 	if (msg->flags & HTTP_MSGF_TE_CHNK)
 		buffer_dont_close(req);
 
 	/* We know that more data are expected, but we couldn't send more that
-	 * what we did. So we always set the BF_EXPECT_MORE flag so that the
+	 * what we did. So we always set the CF_EXPECT_MORE flag so that the
 	 * system knows it must not set a PUSH on this first part. Interactive
 	 * modes are already handled by the stream sock layer. We must not do
 	 * this in content-length mode because it could present the MSG_MORE
@@ -4402,7 +4402,7 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 	 * additional delay to be observed by the receiver.
 	 */
 	if (msg->flags & HTTP_MSGF_TE_CHNK)
-		req->flags |= BF_EXPECT_MORE;
+		req->flags |= CF_EXPECT_MORE;
 
 	http_silent_debug(__LINE__, s);
 	return 0;
@@ -4513,10 +4513,10 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 			     bi_end(&rep->buf) > rep->buf.data + rep->buf.size - global.tune.maxrewrite)) {
 			if (rep->buf.o) {
 				/* some data has still not left the buffer, wake us once that's done */
-				if (rep->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_WRITE_ERROR|BF_WRITE_TIMEOUT))
+				if (rep->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_WRITE_ERROR|CF_WRITE_TIMEOUT))
 					goto abort_response;
 				buffer_dont_close(rep);
-				rep->flags |= BF_READ_DONTWAIT; /* try to get back here ASAP */
+				rep->flags |= CF_READ_DONTWAIT; /* try to get back here ASAP */
 				return 0;
 			}
 			if (rep->buf.i <= rep->buf.size - global.tune.maxrewrite)
@@ -4600,7 +4600,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 		}
 
 		/* read error */
-		else if (rep->flags & BF_READ_ERROR) {
+		else if (rep->flags & CF_READ_ERROR) {
 			if (msg->err_pos >= 0)
 				http_capture_bad_message(&s->be->invalid_rep, s, msg, msg->msg_state, s->fe);
 
@@ -4625,7 +4625,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 		}
 
 		/* read timeout : return a 504 to the client. */
-		else if (rep->flags & BF_READ_TIMEOUT) {
+		else if (rep->flags & CF_READ_TIMEOUT) {
 			if (msg->err_pos >= 0)
 				http_capture_bad_message(&s->be->invalid_rep, s, msg, msg->msg_state, s->fe);
 
@@ -4650,7 +4650,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 		}
 
 		/* close from server, capture the response if the server has started to respond */
-		else if (rep->flags & BF_SHUTR) {
+		else if (rep->flags & CF_SHUTR) {
 			if (msg->msg_state >= HTTP_MSG_RPVER || msg->err_pos >= 0)
 				http_capture_bad_message(&s->be->invalid_rep, s, msg, msg->msg_state, s->fe);
 
@@ -4675,7 +4675,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 		}
 
 		/* write error to client (we don't send any message then) */
-		else if (rep->flags & BF_WRITE_ERROR) {
+		else if (rep->flags & CF_WRITE_ERROR) {
 			if (msg->err_pos >= 0)
 				http_capture_bad_message(&s->be->invalid_rep, s, msg, msg->msg_state, s->fe);
 
@@ -5278,8 +5278,8 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
 		return 0;
 
-	if ((res->flags & (BF_READ_ERROR|BF_READ_TIMEOUT|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) ||
-	    ((res->flags & BF_SHUTW) && (res->to_forward || res->buf.o)) ||
+	if ((res->flags & (CF_READ_ERROR|CF_READ_TIMEOUT|CF_WRITE_ERROR|CF_WRITE_TIMEOUT)) ||
+	    ((res->flags & CF_SHUTW) && (res->to_forward || res->buf.o)) ||
 	    !s->req->analysers) {
 		/* Output closed while we were sending data. We must abort and
 		 * wake the other side up.
@@ -5386,7 +5386,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 				 * was disabled too.
 				 */
 				if (unlikely(msg->msg_state == HTTP_MSG_ERROR)) {
-					if (res->flags & BF_SHUTW) {
+					if (res->flags & CF_SHUTW) {
 						/* response errors are most likely due to
 						 * the client aborting the transfer.
 						 */
@@ -5404,7 +5404,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 
  missing_data:
 	/* stop waiting for data if the input is closed before the end */
-	if (res->flags & BF_SHUTR) {
+	if (res->flags & CF_SHUTR) {
 		if (!(s->flags & SN_ERR_MASK))
 			s->flags |= SN_ERR_SRVCL;
 		s->be->be_counters.srv_aborts++;
@@ -5413,7 +5413,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 		goto return_bad_res_stats_ok;
 	}
 
-	if (res->flags & BF_SHUTW)
+	if (res->flags & CF_SHUTW)
 		goto aborted_xfer;
 
 	/* we need to obey the req analyser, so if it leaves, we must too */
@@ -5430,7 +5430,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	}
 
 	/* When TE: chunked is used, we need to get there again to parse remaining
-	 * chunks even if the server has closed, so we don't want to set BF_DONTCLOSE.
+	 * chunks even if the server has closed, so we don't want to set CF_DONTCLOSE.
 	 * Similarly, with keep-alive on the client side, we don't want to forward a
 	 * close.
 	 */
@@ -5440,7 +5440,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 		buffer_dont_close(res);
 
 	/* We know that more data are expected, but we couldn't send more that
-	 * what we did. So we always set the BF_EXPECT_MORE flag so that the
+	 * what we did. So we always set the CF_EXPECT_MORE flag so that the
 	 * system knows it must not set a PUSH on this first part. Interactive
 	 * modes are already handled by the stream sock layer. We must not do
 	 * this in content-length mode because it could present the MSG_MORE
@@ -5448,7 +5448,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	 * additional delay to be observed by the receiver.
 	 */
 	if (msg->flags & HTTP_MSGF_TE_CHNK)
-		res->flags |= BF_EXPECT_MORE;
+		res->flags |= CF_EXPECT_MORE;
 
 	/* the session handler will take care of timeouts and errors */
 	http_silent_debug(__LINE__, s);
@@ -7469,7 +7469,7 @@ void http_reset_txn(struct session *s)
 
 	s->pend_pos = NULL;
 
-	s->req->flags |= BF_READ_DONTWAIT; /* one read is usually enough */
+	s->req->flags |= CF_READ_DONTWAIT; /* one read is usually enough */
 
 	/* We must trim any excess data from the response buffer, because we
 	 * may have blocked an invalid response from a server that we don't

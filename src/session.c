@@ -229,7 +229,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->req->prod = &s->si[0];
 	s->req->cons = &s->si[1];
 	s->si[0].ib = s->si[1].ob = s->req;
-	s->req->flags |= BF_READ_ATTACHED; /* the producer is already connected */
+	s->req->flags |= CF_READ_ATTACHED; /* the producer is already connected */
 
 	/* activate default analysers enabled for this listener */
 	s->req->analysers = l->analysers;
@@ -249,8 +249,8 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->rep->analysers = 0;
 
 	if (s->fe->options2 & PR_O2_NODELAY) {
-		s->req->flags |= BF_NEVER_WAIT;
-		s->rep->flags |= BF_NEVER_WAIT;
+		s->req->flags |= CF_NEVER_WAIT;
+		s->rep->flags |= CF_NEVER_WAIT;
 	}
 
 	s->rep->rto = TICK_ETERNITY;
@@ -561,9 +561,9 @@ static int sess_update_st_con_tcp(struct session *s, struct stream_interface *si
 	}
 
 	/* OK, maybe we want to abort */
-	if (unlikely((rep->flags & BF_SHUTW) ||
-		     ((req->flags & BF_SHUTW_NOW) && /* FIXME: this should not prevent a connection from establishing */
-		      ((!(req->flags & BF_WRITE_ACTIVITY) && channel_is_empty(req)) ||
+	if (unlikely((rep->flags & CF_SHUTW) ||
+		     ((req->flags & CF_SHUTW_NOW) && /* FIXME: this should not prevent a connection from establishing */
+		      ((!(req->flags & CF_WRITE_ACTIVITY) && channel_is_empty(req)) ||
 		       s->be->options & PR_O_ABRT_CLOSE)))) {
 		/* give up */
 		si_shutw(si);
@@ -576,7 +576,7 @@ static int sess_update_st_con_tcp(struct session *s, struct stream_interface *si
 	}
 
 	/* we need to wait a bit more if there was no activity either */
-	if (!(req->flags & BF_WRITE_ACTIVITY))
+	if (!(req->flags & CF_WRITE_ACTIVITY))
 		return 1;
 
 	/* OK, this means that a connection succeeded. The caller will be
@@ -628,8 +628,8 @@ static int sess_update_st_cer(struct session *s, struct stream_interface *si)
 
 		/* shutw is enough so stop a connecting socket */
 		si_shutw(si);
-		si->ob->flags |= BF_WRITE_ERROR;
-		si->ib->flags |= BF_READ_ERROR;
+		si->ob->flags |= CF_WRITE_ERROR;
+		si->ib->flags |= CF_READ_ERROR;
 
 		si->state = SI_ST_CLO;
 		if (s->srv_error)
@@ -705,7 +705,7 @@ static void sess_establish(struct session *s, struct stream_interface *si)
 	}
 
 	rep->analysers |= s->fe->fe_rsp_ana | s->be->be_rsp_ana;
-	rep->flags |= BF_READ_ATTACHED; /* producer is now attached */
+	rep->flags |= CF_READ_ATTACHED; /* producer is now attached */
 	if (si_ctrl(si)) {
 		/* real connections have timeouts */
 		req->wto = s->be->timeout.server;
@@ -768,7 +768,7 @@ static void sess_update_stream_int(struct session *s, struct stream_interface *s
 			/* Failed and not retryable. */
 			si_shutr(si);
 			si_shutw(si);
-			si->ob->flags |= BF_WRITE_ERROR;
+			si->ob->flags |= CF_WRITE_ERROR;
 
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
 
@@ -817,7 +817,7 @@ static void sess_update_stream_int(struct session *s, struct stream_interface *s
 			s->be->be_counters.failed_conns++;
 			si_shutr(si);
 			si_shutw(si);
-			si->ob->flags |= BF_WRITE_TIMEOUT;
+			si->ob->flags |= CF_WRITE_TIMEOUT;
 			if (!si->err_type)
 				si->err_type = SI_ET_QUEUE_TO;
 			si->state = SI_ST_CLO;
@@ -827,8 +827,8 @@ static void sess_update_stream_int(struct session *s, struct stream_interface *s
 		}
 
 		/* Connection remains in queue, check if we have to abort it */
-		if ((si->ob->flags & (BF_READ_ERROR)) ||
-		    ((si->ob->flags & BF_SHUTW_NOW) &&   /* empty and client aborted */
+		if ((si->ob->flags & (CF_READ_ERROR)) ||
+		    ((si->ob->flags & CF_SHUTW_NOW) &&   /* empty and client aborted */
 		     (channel_is_empty(si->ob) || s->be->options & PR_O_ABRT_CLOSE))) {
 			/* give up */
 			si->exp = TICK_ETERNITY;
@@ -847,8 +847,8 @@ static void sess_update_stream_int(struct session *s, struct stream_interface *s
 	}
 	else if (si->state == SI_ST_TAR) {
 		/* Connection request might be aborted */
-		if ((si->ob->flags & (BF_READ_ERROR)) ||
-		    ((si->ob->flags & BF_SHUTW_NOW) &&  /* empty and client aborted */
+		if ((si->ob->flags & (CF_READ_ERROR)) ||
+		    ((si->ob->flags & CF_SHUTW_NOW) &&  /* empty and client aborted */
 		     (channel_is_empty(si->ob) || s->be->options & PR_O_ABRT_CLOSE))) {
 			/* give up */
 			si->exp = TICK_ETERNITY;
@@ -933,7 +933,7 @@ static void sess_prepare_conn_req(struct session *s, struct stream_interface *si
 		/* we did not get any server, let's check the cause */
 		si_shutr(si);
 		si_shutw(si);
-		si->ob->flags |= BF_WRITE_ERROR;
+		si->ob->flags |= CF_WRITE_ERROR;
 		if (!si->err_type)
 			si->err_type = SI_ET_CONN_OTHER;
 		si->state = SI_ST_CLO;
@@ -1316,11 +1316,11 @@ struct task *process_session(struct task *t)
 	memset(&s->txn.auth, 0, sizeof(s->txn.auth));
 
 	/* This flag must explicitly be set every time */
-	s->req->flags &= ~BF_READ_NOEXP;
+	s->req->flags &= ~CF_READ_NOEXP;
 
 	/* Keep a copy of req/rep flags so that we can detect shutdowns */
-	rqf_last = s->req->flags & ~BF_MASK_ANALYSER;
-	rpf_last = s->rep->flags & ~BF_MASK_ANALYSER;
+	rqf_last = s->req->flags & ~CF_MASK_ANALYSER;
+	rpf_last = s->rep->flags & ~CF_MASK_ANALYSER;
 
 	/* we don't want the stream interface functions to recursively wake us up */
 	if (s->req->prod->owner == t)
@@ -1343,12 +1343,12 @@ struct task *process_session(struct task *t)
 
 		buffer_check_timeouts(s->req);
 
-		if (unlikely((s->req->flags & (BF_SHUTW|BF_WRITE_TIMEOUT)) == BF_WRITE_TIMEOUT)) {
+		if (unlikely((s->req->flags & (CF_SHUTW|CF_WRITE_TIMEOUT)) == CF_WRITE_TIMEOUT)) {
 			s->req->cons->flags |= SI_FL_NOLINGER;
 			si_shutw(s->req->cons);
 		}
 
-		if (unlikely((s->req->flags & (BF_SHUTR|BF_READ_TIMEOUT)) == BF_READ_TIMEOUT)) {
+		if (unlikely((s->req->flags & (CF_SHUTR|CF_READ_TIMEOUT)) == CF_READ_TIMEOUT)) {
 			if (s->req->prod->flags & SI_FL_NOHALF)
 				s->req->prod->flags |= SI_FL_NOLINGER;
 			si_shutr(s->req->prod);
@@ -1356,12 +1356,12 @@ struct task *process_session(struct task *t)
 
 		buffer_check_timeouts(s->rep);
 
-		if (unlikely((s->rep->flags & (BF_SHUTW|BF_WRITE_TIMEOUT)) == BF_WRITE_TIMEOUT)) {
+		if (unlikely((s->rep->flags & (CF_SHUTW|CF_WRITE_TIMEOUT)) == CF_WRITE_TIMEOUT)) {
 			s->rep->cons->flags |= SI_FL_NOLINGER;
 			si_shutw(s->rep->cons);
 		}
 
-		if (unlikely((s->rep->flags & (BF_SHUTR|BF_READ_TIMEOUT)) == BF_READ_TIMEOUT)) {
+		if (unlikely((s->rep->flags & (CF_SHUTR|CF_READ_TIMEOUT)) == CF_READ_TIMEOUT)) {
 			if (s->rep->prod->flags & SI_FL_NOHALF)
 				s->rep->prod->flags |= SI_FL_NOLINGER;
 			si_shutr(s->rep->prod);
@@ -1479,8 +1479,8 @@ struct task *process_session(struct task *t)
 
  resync_request:
 	/* Analyse request */
-	if (((s->req->flags & ~rqf_last) & BF_MASK_ANALYSER) ||
-	    ((s->req->flags ^ rqf_last) & BF_MASK_STATIC) ||
+	if (((s->req->flags & ~rqf_last) & CF_MASK_ANALYSER) ||
+	    ((s->req->flags ^ rqf_last) & CF_MASK_STATIC) ||
 	    s->si[0].state != rq_prod_last ||
 	    s->si[1].state != rq_cons_last) {
 		unsigned int flags = s->req->flags;
@@ -1627,10 +1627,10 @@ struct task *process_session(struct task *t)
 
 		rq_prod_last = s->si[0].state;
 		rq_cons_last = s->si[1].state;
-		s->req->flags &= ~BF_WAKE_ONCE;
+		s->req->flags &= ~CF_WAKE_ONCE;
 		rqf_last = s->req->flags;
 
-		if ((s->req->flags ^ flags) & BF_MASK_STATIC)
+		if ((s->req->flags ^ flags) & CF_MASK_STATIC)
 			goto resync_request;
 	}
 
@@ -1643,29 +1643,29 @@ struct task *process_session(struct task *t)
  resync_response:
 	/* Analyse response */
 
-	if (unlikely(s->rep->flags & BF_HIJACK)) {
+	if (unlikely(s->rep->flags & CF_HIJACK)) {
 		/* In inject mode, we wake up everytime something has
 		 * happened on the write side of the buffer.
 		 */
 		unsigned int flags = s->rep->flags;
 
-		if ((s->rep->flags & (BF_WRITE_PARTIAL|BF_WRITE_ERROR|BF_SHUTW)) &&
+		if ((s->rep->flags & (CF_WRITE_PARTIAL|CF_WRITE_ERROR|CF_SHUTW)) &&
 		    !channel_full(s->rep)) {
 			s->rep->hijacker(s, s->rep);
 		}
 
-		if ((s->rep->flags ^ flags) & BF_MASK_STATIC) {
+		if ((s->rep->flags ^ flags) & CF_MASK_STATIC) {
 			rpf_last = s->rep->flags;
 			goto resync_response;
 		}
 	}
-	else if (((s->rep->flags & ~rpf_last) & BF_MASK_ANALYSER) ||
-		 (s->rep->flags ^ rpf_last) & BF_MASK_STATIC ||
+	else if (((s->rep->flags & ~rpf_last) & CF_MASK_ANALYSER) ||
+		 (s->rep->flags ^ rpf_last) & CF_MASK_STATIC ||
 		 s->si[0].state != rp_cons_last ||
 		 s->si[1].state != rp_prod_last) {
 		unsigned int flags = s->rep->flags;
 
-		if ((s->rep->flags & BF_MASK_ANALYSER) &&
+		if ((s->rep->flags & CF_MASK_ANALYSER) &&
 		    (s->rep->analysers & AN_REQ_WAIT_HTTP)) {
 			/* Due to HTTP pipelining, the HTTP request analyser might be waiting
 			 * for some free space in the response buffer, so we might need to call
@@ -1674,7 +1674,7 @@ struct task *process_session(struct task *t)
 			 * be zero due to us returning a flow of redirects!
 			 */
 			s->rep->analysers &= ~AN_REQ_WAIT_HTTP;
-			s->req->flags |= BF_WAKE_ONCE;
+			s->req->flags |= CF_WAKE_ONCE;
 		}
 
 		if (s->rep->prod->state >= SI_ST_EST) {
@@ -1743,7 +1743,7 @@ struct task *process_session(struct task *t)
 		rp_prod_last = s->si[1].state;
 		rpf_last = s->rep->flags;
 
-		if ((s->rep->flags ^ flags) & BF_MASK_STATIC)
+		if ((s->rep->flags ^ flags) & CF_MASK_STATIC)
 			goto resync_response;
 	}
 
@@ -1751,7 +1751,7 @@ struct task *process_session(struct task *t)
 	if (s->req->analysers & ~req_ana_back)
 		goto resync_request;
 
-	if ((s->req->flags & ~rqf_last) & BF_MASK_ANALYSER)
+	if ((s->req->flags & ~rqf_last) & CF_MASK_ANALYSER)
 		goto resync_request;
 
 	/* FIXME: here we should call protocol handlers which rely on
@@ -1766,24 +1766,24 @@ struct task *process_session(struct task *t)
 	 */
 	srv = target_srv(&s->target);
 	if (unlikely(!(s->flags & SN_ERR_MASK))) {
-		if (s->req->flags & (BF_READ_ERROR|BF_READ_TIMEOUT|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) {
+		if (s->req->flags & (CF_READ_ERROR|CF_READ_TIMEOUT|CF_WRITE_ERROR|CF_WRITE_TIMEOUT)) {
 			/* Report it if the client got an error or a read timeout expired */
 			s->req->analysers = 0;
-			if (s->req->flags & BF_READ_ERROR) {
+			if (s->req->flags & CF_READ_ERROR) {
 				s->be->be_counters.cli_aborts++;
 				s->fe->fe_counters.cli_aborts++;
 				if (srv)
 					srv->counters.cli_aborts++;
 				s->flags |= SN_ERR_CLICL;
 			}
-			else if (s->req->flags & BF_READ_TIMEOUT) {
+			else if (s->req->flags & CF_READ_TIMEOUT) {
 				s->be->be_counters.cli_aborts++;
 				s->fe->fe_counters.cli_aborts++;
 				if (srv)
 					srv->counters.cli_aborts++;
 				s->flags |= SN_ERR_CLITO;
 			}
-			else if (s->req->flags & BF_WRITE_ERROR) {
+			else if (s->req->flags & CF_WRITE_ERROR) {
 				s->be->be_counters.srv_aborts++;
 				s->fe->fe_counters.srv_aborts++;
 				if (srv)
@@ -1799,24 +1799,24 @@ struct task *process_session(struct task *t)
 			}
 			sess_set_term_flags(s);
 		}
-		else if (s->rep->flags & (BF_READ_ERROR|BF_READ_TIMEOUT|BF_WRITE_ERROR|BF_WRITE_TIMEOUT)) {
+		else if (s->rep->flags & (CF_READ_ERROR|CF_READ_TIMEOUT|CF_WRITE_ERROR|CF_WRITE_TIMEOUT)) {
 			/* Report it if the server got an error or a read timeout expired */
 			s->rep->analysers = 0;
-			if (s->rep->flags & BF_READ_ERROR) {
+			if (s->rep->flags & CF_READ_ERROR) {
 				s->be->be_counters.srv_aborts++;
 				s->fe->fe_counters.srv_aborts++;
 				if (srv)
 					srv->counters.srv_aborts++;
 				s->flags |= SN_ERR_SRVCL;
 			}
-			else if (s->rep->flags & BF_READ_TIMEOUT) {
+			else if (s->rep->flags & CF_READ_TIMEOUT) {
 				s->be->be_counters.srv_aborts++;
 				s->fe->fe_counters.srv_aborts++;
 				if (srv)
 					srv->counters.srv_aborts++;
 				s->flags |= SN_ERR_SRVTO;
 			}
-			else if (s->rep->flags & BF_WRITE_ERROR) {
+			else if (s->rep->flags & CF_WRITE_ERROR) {
 				s->be->be_counters.cli_aborts++;
 				s->fe->fe_counters.cli_aborts++;
 				if (srv)
@@ -1842,13 +1842,13 @@ struct task *process_session(struct task *t)
 
 	/* If noone is interested in analysing data, it's time to forward
 	 * everything. We configure the buffer to forward indefinitely.
-	 * Note that we're checking BF_SHUTR_NOW as an indication of a possible
+	 * Note that we're checking CF_SHUTR_NOW as an indication of a possible
 	 * recent call to buffer_abort().
 	 */
 	if (!s->req->analysers &&
-	    !(s->req->flags & (BF_HIJACK|BF_SHUTW|BF_SHUTR_NOW)) &&
+	    !(s->req->flags & (CF_HIJACK|CF_SHUTW|CF_SHUTR_NOW)) &&
 	    (s->req->prod->state >= SI_ST_EST) &&
-	    (s->req->to_forward != BUF_INFINITE_FORWARD)) {
+	    (s->req->to_forward != CHN_INFINITE_FORWARD)) {
 		/* This buffer is freewheeling, there's no analyser nor hijacker
 		 * attached to it. If any data are left in, we'll permit them to
 		 * move.
@@ -1861,20 +1861,20 @@ struct task *process_session(struct task *t)
 		/* We'll let data flow between the producer (if still connected)
 		 * to the consumer (which might possibly not be connected yet).
 		 */
-		if (!(s->req->flags & (BF_SHUTR|BF_SHUTW_NOW)))
-			buffer_forward(s->req, BUF_INFINITE_FORWARD);
+		if (!(s->req->flags & (CF_SHUTR|CF_SHUTW_NOW)))
+			buffer_forward(s->req, CHN_INFINITE_FORWARD);
 	}
 
 	/* check if it is wise to enable kernel splicing to forward request data */
-	if (!(s->req->flags & (BF_KERN_SPLICING|BF_SHUTR)) &&
+	if (!(s->req->flags & (CF_KERN_SPLICING|CF_SHUTR)) &&
 	    s->req->to_forward &&
 	    (global.tune.options & GTUNE_USE_SPLICE) &&
 	    (s->si[0].flags & s->si[1].flags & SI_FL_CAP_SPLICE) &&
 	    (pipes_used < global.maxpipes) &&
 	    (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_REQ) ||
 	     (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
-	      (s->req->flags & BF_STREAMER_FAST)))) {
-		s->req->flags |= BF_KERN_SPLICING;
+	      (s->req->flags & CF_STREAMER_FAST)))) {
+		s->req->flags |= CF_KERN_SPLICING;
 	}
 
 	/* reflect what the L7 analysers have seen last */
@@ -1888,22 +1888,22 @@ struct task *process_session(struct task *t)
 	 * happen either because the input is closed or because we want to force a close
 	 * once the server has begun to respond.
 	 */
-	if (unlikely((s->req->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK|BF_AUTO_CLOSE|BF_SHUTR)) ==
-		     (BF_AUTO_CLOSE|BF_SHUTR)))
+	if (unlikely((s->req->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_HIJACK|CF_AUTO_CLOSE|CF_SHUTR)) ==
+		     (CF_AUTO_CLOSE|CF_SHUTR)))
 			buffer_shutw_now(s->req);
 
 	/* shutdown(write) pending */
-	if (unlikely((s->req->flags & (BF_SHUTW|BF_SHUTW_NOW)) == BF_SHUTW_NOW &&
+	if (unlikely((s->req->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW &&
 		     channel_is_empty(s->req)))
 		si_shutw(s->req->cons);
 
 	/* shutdown(write) done on server side, we must stop the client too */
-	if (unlikely((s->req->flags & (BF_SHUTW|BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTW &&
+	if (unlikely((s->req->flags & (CF_SHUTW|CF_SHUTR|CF_SHUTR_NOW)) == CF_SHUTW &&
 		     !s->req->analysers))
 		buffer_shutr_now(s->req);
 
 	/* shutdown(read) pending */
-	if (unlikely((s->req->flags & (BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTR_NOW)) {
+	if (unlikely((s->req->flags & (CF_SHUTR|CF_SHUTR_NOW)) == CF_SHUTR_NOW)) {
 		if (s->req->prod->flags & SI_FL_NOHALF)
 			s->req->prod->flags |= SI_FL_NOLINGER;
 		si_shutr(s->req->prod);
@@ -1912,11 +1912,11 @@ struct task *process_session(struct task *t)
 	/* it's possible that an upper layer has requested a connection setup or abort.
 	 * There are 2 situations where we decide to establish a new connection :
 	 *  - there are data scheduled for emission in the buffer
-	 *  - the BF_AUTO_CONNECT flag is set (active connection)
+	 *  - the CF_AUTO_CONNECT flag is set (active connection)
 	 */
 	if (s->req->cons->state == SI_ST_INI) {
-		if (!(s->req->flags & BF_SHUTW)) {
-			if ((s->req->flags & BF_AUTO_CONNECT) || !channel_is_empty(s->req)) {
+		if (!(s->req->flags & CF_SHUTW)) {
+			if ((s->req->flags & CF_AUTO_CONNECT) || !channel_is_empty(s->req)) {
 				/* If we have an applet without a connect method, we immediately
 				 * switch to the connected state, otherwise we perform a connection
 				 * request.
@@ -1926,7 +1926,7 @@ struct task *process_session(struct task *t)
 				if (unlikely(s->req->cons->target.type == TARG_TYPE_APPLET &&
 					     !(si_ctrl(s->req->cons) && si_ctrl(s->req->cons)->connect))) {
 					s->req->cons->state = SI_ST_EST; /* connection established */
-					s->rep->flags |= BF_READ_ATTACHED; /* producer is now attached */
+					s->rep->flags |= CF_READ_ATTACHED; /* producer is now attached */
 					s->req->wex = TICK_ETERNITY;
 				}
 			}
@@ -1971,20 +1971,20 @@ struct task *process_session(struct task *t)
 		goto resync_stream_interface;
 
 	/* otherwise we want to check if we need to resync the req buffer or not */
-	if ((s->req->flags ^ rqf_last) & BF_MASK_STATIC)
+	if ((s->req->flags ^ rqf_last) & CF_MASK_STATIC)
 		goto resync_request;
 
 	/* perform output updates to the response buffer */
 
 	/* If noone is interested in analysing data, it's time to forward
 	 * everything. We configure the buffer to forward indefinitely.
-	 * Note that we're checking BF_SHUTR_NOW as an indication of a possible
+	 * Note that we're checking CF_SHUTR_NOW as an indication of a possible
 	 * recent call to buffer_abort().
 	 */
 	if (!s->rep->analysers &&
-	    !(s->rep->flags & (BF_HIJACK|BF_SHUTW|BF_SHUTR_NOW)) &&
+	    !(s->rep->flags & (CF_HIJACK|CF_SHUTW|CF_SHUTR_NOW)) &&
 	    (s->rep->prod->state >= SI_ST_EST) &&
-	    (s->rep->to_forward != BUF_INFINITE_FORWARD)) {
+	    (s->rep->to_forward != CHN_INFINITE_FORWARD)) {
 		/* This buffer is freewheeling, there's no analyser nor hijacker
 		 * attached to it. If any data are left in, we'll permit them to
 		 * move.
@@ -1996,8 +1996,8 @@ struct task *process_session(struct task *t)
 		/* We'll let data flow between the producer (if still connected)
 		 * to the consumer.
 		 */
-		if (!(s->rep->flags & (BF_SHUTR|BF_SHUTW_NOW)))
-			buffer_forward(s->rep, BUF_INFINITE_FORWARD);
+		if (!(s->rep->flags & (CF_SHUTR|CF_SHUTW_NOW)))
+			buffer_forward(s->rep, CHN_INFINITE_FORWARD);
 
 		/* if we have no analyser anymore in any direction and have a
 		 * tunnel timeout set, use it now.
@@ -2011,15 +2011,15 @@ struct task *process_session(struct task *t)
 	}
 
 	/* check if it is wise to enable kernel splicing to forward response data */
-	if (!(s->rep->flags & (BF_KERN_SPLICING|BF_SHUTR)) &&
+	if (!(s->rep->flags & (CF_KERN_SPLICING|CF_SHUTR)) &&
 	    s->rep->to_forward &&
 	    (global.tune.options & GTUNE_USE_SPLICE) &&
 	    (s->si[0].flags & s->si[1].flags & SI_FL_CAP_SPLICE) &&
 	    (pipes_used < global.maxpipes) &&
 	    (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_RTR) ||
 	     (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
-	      (s->rep->flags & BF_STREAMER_FAST)))) {
-		s->rep->flags |= BF_KERN_SPLICING;
+	      (s->rep->flags & CF_STREAMER_FAST)))) {
+		s->rep->flags |= CF_KERN_SPLICING;
 	}
 
 	/* reflect what the L7 analysers have seen last */
@@ -2034,22 +2034,22 @@ struct task *process_session(struct task *t)
 	 */
 
 	/* first, let's check if the response buffer needs to shutdown(write) */
-	if (unlikely((s->rep->flags & (BF_SHUTW|BF_SHUTW_NOW|BF_HIJACK|BF_AUTO_CLOSE|BF_SHUTR)) ==
-		     (BF_AUTO_CLOSE|BF_SHUTR)))
+	if (unlikely((s->rep->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_HIJACK|CF_AUTO_CLOSE|CF_SHUTR)) ==
+		     (CF_AUTO_CLOSE|CF_SHUTR)))
 		buffer_shutw_now(s->rep);
 
 	/* shutdown(write) pending */
-	if (unlikely((s->rep->flags & (BF_SHUTW|BF_SHUTW_NOW)) == BF_SHUTW_NOW &&
+	if (unlikely((s->rep->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW &&
 		     channel_is_empty(s->rep)))
 		si_shutw(s->rep->cons);
 
 	/* shutdown(write) done on the client side, we must stop the server too */
-	if (unlikely((s->rep->flags & (BF_SHUTW|BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTW) &&
+	if (unlikely((s->rep->flags & (CF_SHUTW|CF_SHUTR|CF_SHUTR_NOW)) == CF_SHUTW) &&
 	    !s->rep->analysers)
 		buffer_shutr_now(s->rep);
 
 	/* shutdown(read) pending */
-	if (unlikely((s->rep->flags & (BF_SHUTR|BF_SHUTR_NOW)) == BF_SHUTR_NOW)) {
+	if (unlikely((s->rep->flags & (CF_SHUTR|CF_SHUTR_NOW)) == CF_SHUTR_NOW)) {
 		if (s->rep->prod->flags & SI_FL_NOHALF)
 			s->rep->prod->flags |= SI_FL_NOLINGER;
 		si_shutr(s->rep->prod);
@@ -2061,7 +2061,7 @@ struct task *process_session(struct task *t)
 	if (s->req->flags != rqf_last)
 		goto resync_request;
 
-	if ((s->rep->flags ^ rpf_last) & BF_MASK_STATIC)
+	if ((s->rep->flags ^ rpf_last) & CF_MASK_STATIC)
 		goto resync_response;
 
 	/* we're interested in getting wakeups again */
@@ -2109,8 +2109,8 @@ struct task *process_session(struct task *t)
 		if (s->req->cons->state == SI_ST_EST && s->req->cons->target.type != TARG_TYPE_APPLET)
 			si_update(s->req->cons);
 
-		s->req->flags &= ~(BF_READ_NULL|BF_READ_PARTIAL|BF_WRITE_NULL|BF_WRITE_PARTIAL|BF_READ_ATTACHED);
-		s->rep->flags &= ~(BF_READ_NULL|BF_READ_PARTIAL|BF_WRITE_NULL|BF_WRITE_PARTIAL|BF_READ_ATTACHED);
+		s->req->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_WRITE_NULL|CF_WRITE_PARTIAL|CF_READ_ATTACHED);
+		s->rep->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_WRITE_NULL|CF_WRITE_PARTIAL|CF_READ_ATTACHED);
 		s->si[0].prev_state = s->si[0].state;
 		s->si[1].prev_state = s->si[1].state;
 		s->si[0].flags &= ~(SI_FL_ERR|SI_FL_EXP);
@@ -2124,9 +2124,9 @@ struct task *process_session(struct task *t)
 		 * request timeout is set and the server has not yet sent a response.
 		 */
 
-		if ((s->rep->flags & (BF_AUTO_CLOSE|BF_SHUTR)) == 0 &&
+		if ((s->rep->flags & (CF_AUTO_CLOSE|CF_SHUTR)) == 0 &&
 		    (tick_isset(s->req->wex) || tick_isset(s->rep->rex))) {
-			s->req->flags |= BF_READ_NOEXP;
+			s->req->flags |= CF_READ_NOEXP;
 			s->req->rex = TICK_ETERNITY;
 		}
 
@@ -2310,7 +2310,7 @@ void default_srv_error(struct session *s, struct stream_interface *si)
 /* kill a session and set the termination flags to <why> (one of SN_ERR_*) */
 void session_shutdown(struct session *session, int why)
 {
-	if (session->req->flags & (BF_SHUTW|BF_SHUTW_NOW))
+	if (session->req->flags & (CF_SHUTW|CF_SHUTW_NOW))
 		return;
 
 	buffer_shutw_now(session->req);
