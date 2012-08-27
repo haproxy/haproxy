@@ -107,7 +107,7 @@ static inline int buffer_max_len(const struct channel *buf)
  * close to happen. The test is optimized to avoid as many operations as
  * possible for the fast case and to be used as an "if" condition.
  */
-static inline int bi_full(const struct channel *b)
+static inline int channel_full(const struct channel *b)
 {
 	int rem = b->buf.size;
 
@@ -228,8 +228,6 @@ static inline void bi_erase(struct channel *buf)
 
 	buf->buf.i = 0;
 	buf->flags &= ~BF_FULL;
-	if (bi_full(buf))
-		buf->flags |= BF_FULL;
 }
 
 /* marks the buffer as "shutdown" ASAP for reads */
@@ -322,7 +320,7 @@ static inline void bo_skip(struct channel *buf, int len)
 	if (buffer_len(&buf->buf) == 0)
 		buf->buf.p = buf->buf.data;
 
-	if (!bi_full(buf))
+	if (!channel_full(buf))
 		buf->flags &= ~BF_FULL;
 
 	/* notify that some data was written to the SI from the buffer */

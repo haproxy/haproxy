@@ -128,7 +128,7 @@ int bo_inject(struct channel *buf, const char *msg, int len)
 	buf->total += len;
 
 	buf->flags &= ~BF_FULL;
-	if (bi_full(buf))
+	if (channel_full(buf))
 		buf->flags |= BF_FULL;
 
 	return -1;
@@ -152,7 +152,7 @@ int bi_putchr(struct channel *buf, char c)
 	*bi_end(&buf->buf) = c;
 
 	buf->buf.i++;
-	if (bi_full(buf))
+	if (channel_full(buf))
 		buf->flags |= BF_FULL;
 	buf->flags |= BF_READ_PARTIAL;
 
@@ -215,7 +215,7 @@ int bi_putblk(struct channel *buf, const char *blk, int len)
 	}
 
 	buf->flags &= ~BF_FULL;
-	if (bi_full(buf))
+	if (channel_full(buf))
 		buf->flags |= BF_FULL;
 
 	/* notify that some data was read from the SI into the buffer */
@@ -346,7 +346,7 @@ int buffer_replace2(struct channel *b, char *pos, char *end, const char *str, in
 	b->flags &= ~BF_FULL;
 	if (buffer_len(&b->buf) == 0)
 		b->buf.p = b->buf.data;
-	if (bi_full(b))
+	if (channel_full(b))
 		b->flags |= BF_FULL;
 
 	return delta;
@@ -384,7 +384,7 @@ int buffer_insert_line2(struct channel *b, char *pos, const char *str, int len)
 	b->buf.i += delta;
 
 	b->flags &= ~BF_FULL;
-	if (bi_full(b))
+	if (channel_full(b))
 		b->flags |= BF_FULL;
 
 	return delta;

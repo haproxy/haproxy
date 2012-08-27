@@ -727,7 +727,7 @@ static int si_conn_send_loop(struct connection *conn)
 
 		b->flags |= BF_WRITE_PARTIAL;
 
-		if (likely(!bi_full(b)))
+		if (likely(!channel_full(b)))
 			b->flags &= ~BF_FULL;
 
 		if (!b->buf.o) {
@@ -1080,7 +1080,7 @@ void si_conn_recv_cb(struct connection *conn)
 		b->flags |= BF_READ_PARTIAL;
 		b->total += ret;
 
-		if (bi_full(b)) {
+		if (channel_full(b)) {
 			/* The buffer is now full, there's no point in going through
 			 * the loop again.
 			 */
