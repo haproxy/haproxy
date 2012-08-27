@@ -1650,7 +1650,7 @@ struct task *process_session(struct task *t)
 		unsigned int flags = s->rep->flags;
 
 		if ((s->rep->flags & (BF_WRITE_PARTIAL|BF_WRITE_ERROR|BF_SHUTW)) &&
-		    !(s->rep->flags & BF_FULL)) {
+		    !channel_full(s->rep)) {
 			s->rep->hijacker(s, s->rep);
 		}
 

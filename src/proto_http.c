@@ -2019,7 +2019,7 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 	 */
 	if (buffer_not_empty(&req->buf) && msg->msg_state < HTTP_MSG_ERROR) {
 		if ((txn->flags & TX_NOT_FIRST) &&
-		    unlikely((req->flags & BF_FULL) ||
+		    unlikely(channel_full(req) ||
 			     bi_end(&req->buf) < b_ptr(&req->buf, msg->next) ||
 			     bi_end(&req->buf) > req->buf.data + req->buf.size - global.tune.maxrewrite)) {
 			if (req->buf.o) {
@@ -2043,7 +2043,7 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 		 * keep-alive requests.
 		 */
 		if ((txn->flags & TX_NOT_FIRST) &&
-		    unlikely((s->rep->flags & BF_FULL) ||
+		    unlikely(channel_full(s->rep) ||
 			     bi_end(&s->rep->buf) < b_ptr(&s->rep->buf, txn->rsp.next) ||
 			     bi_end(&s->rep->buf) > s->rep->buf.data + s->rep->buf.size - global.tune.maxrewrite)) {
 			if (s->rep->buf.o) {
@@ -2115,7 +2115,7 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 		 *    later, so the session will never terminate. We
 		 *    must terminate it now.
 		 */
-		if (unlikely(req->flags & BF_FULL)) {
+		if (unlikely(buffer_full(&req->buf, global.tune.maxrewrite))) {
 			/* FIXME: check if URI is set and return Status
 			 * 414 Request URI too long instead.
 			 */
@@ -3636,7 +3636,7 @@ int http_process_request_body(struct session *s, struct channel *req, int an_bit
 
  missing_data:
 	/* we get here if we need to wait for more data */
-	if (req->flags & BF_FULL) {
+	if (buffer_full(&req->buf, global.tune.maxrewrite)) {
 		session_inc_http_err_ctr(s);
 		goto return_bad_req;
 	}
@@ -3653,7 +3653,7 @@ int http_process_request_body(struct session *s, struct channel *req, int an_bit
 	}
 
 	/* we get here if we need to wait for more data */
-	if (!(req->flags & (BF_FULL | BF_READ_ERROR | BF_SHUTR))) {
+	if (!(req->flags & (BF_SHUTR | BF_READ_ERROR)) && !buffer_full(&req->buf, global.tune.maxrewrite)) {
 		/* Not enough data. We'll re-use the http-request
 		 * timeout here. Ideally, we should set the timeout
 		 * relative to the accept() date. We just set the
@@ -3853,7 +3853,7 @@ void http_end_txn_clean_session(struct session *s)
 	 */
 	if (s->req->buf.i) {
 		if (s->rep->buf.o &&
-		    !(s->rep->flags & BF_FULL) &&
+		    !buffer_full(&s->rep->buf, global.tune.maxrewrite) &&
 		    bi_end(&s->rep->buf) <= s->rep->buf.data + s->rep->buf.size - global.tune.maxrewrite)
 			s->rep->flags |= BF_EXPECT_MORE;
 	}
@@ -4508,7 +4508,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 	 * data later, which is much more complicated.
 	 */
 	if (buffer_not_empty(&rep->buf) && msg->msg_state < HTTP_MSG_ERROR) {
-		if (unlikely((rep->flags & BF_FULL) ||
+		if (unlikely(channel_full(rep) ||
 			     bi_end(&rep->buf) < b_ptr(&rep->buf, msg->next) ||
 			     bi_end(&rep->buf) > rep->buf.data + rep->buf.size - global.tune.maxrewrite)) {
 			if (rep->buf.o) {
@@ -4593,7 +4593,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 		}
 
 		/* too large response does not fit in buffer. */
-		else if (rep->flags & BF_FULL) {
+		else if (buffer_full(&rep->buf, global.tune.maxrewrite)) {
 			if (msg->err_pos < 0)
 				msg->err_pos = rep->buf.i;
 			goto hdr_response_bad;
@@ -7606,7 +7606,8 @@ acl_prefetch_http(struct proxy *px, struct session *s, void *l7, unsigned int op
 			return 0;
 
 		if (unlikely(txn->req.msg_state < HTTP_MSG_BODY)) {
-			if ((msg->msg_state == HTTP_MSG_ERROR) || (s->req->flags & BF_FULL)) {
+			if ((msg->msg_state == HTTP_MSG_ERROR) ||
+			    buffer_full(&s->req->buf, global.tune.maxrewrite)) {
 				smp->data.uint = 0;
 				return -1;
 			}
@@ -7617,7 +7618,8 @@ acl_prefetch_http(struct proxy *px, struct session *s, void *l7, unsigned int op
 
 			/* Still no valid request ? */
 			if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
-				if ((msg->msg_state == HTTP_MSG_ERROR) || (s->req->flags & BF_FULL)) {
+				if ((msg->msg_state == HTTP_MSG_ERROR) ||
+				    buffer_full(&s->req->buf, global.tune.maxrewrite)) {
 					smp->data.uint = 0;
 					return -1;
 				}

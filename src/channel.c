@@ -146,7 +146,7 @@ int bi_putchr(struct channel *buf, char c)
 	if (unlikely(buffer_input_closed(buf)))
 		return -2;
 
-	if (buf->flags & BF_FULL)
+	if (channel_full(buf))
 		return -1;
 
 	*bi_end(&buf->buf) = c;

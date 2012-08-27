@@ -396,11 +396,12 @@ int frontend_decode_proxy_request(struct session *s, struct channel *req, int an
 	return 1;
 
  missing:
-	if (!(req->flags & (BF_SHUTR|BF_FULL))) {
-		buffer_dont_connect(s->req);
-		return 0;
-	}
 	/* missing data and buffer is either full or shutdown => fail */
+	if ((req->flags & BF_SHUTR) || buffer_full(&req->buf, global.tune.maxrewrite))
+		goto fail;
+
+	buffer_dont_connect(s->req);
+	return 0;
 
  fail:
 	buffer_abort(req);
