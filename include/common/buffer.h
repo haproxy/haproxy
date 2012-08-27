@@ -38,6 +38,8 @@ struct buffer {
 };
 
 
+int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int len);
+int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len);
 void buffer_dump(FILE *o, struct buffer *b, int from, int to);
 void buffer_slow_realign(struct buffer *buf);
 void buffer_bounce_realign(struct buffer *buf);
@@ -335,6 +337,18 @@ static inline void buffer_flush(struct buffer *buf)
 	buf->p = buffer_wrap_add(buf, buf->p + buf->i);
 	buf->o += buf->i;
 	buf->i = 0;
+}
+
+/* This function writes the string <str> at position <pos> which must be in
+ * buffer <b>, and moves <end> just after the end of <str>. <b>'s parameters
+ * (l, r, lr) are updated to be valid after the shift. the shift value
+ * (positive or negative) is returned. If there's no space left, the move is
+ * not done. The function does not adjust ->o because it does not make sense
+ * to use it on data scheduled to be sent.
+ */
+static inline int buffer_replace(struct buffer *b, char *pos, char *end, const char *str)
+{
+	return buffer_replace2(b, pos, end, str, strlen(str));
 }
 
 #endif /* _COMMON_BUFFER_H */

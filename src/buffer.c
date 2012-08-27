@@ -18,6 +18,78 @@
 
 #include <types/global.h>
 
+/* This function writes the string <str> at position <pos> which must be in
+ * buffer <b>, and moves <end> just after the end of <str>. <b>'s parameters
+ * <l> and <r> are updated to be valid after the shift. The shift value
+ * (positive or negative) is returned. If there's no space left, the move is
+ * not done. The function does not adjust ->o because it does not make sense to
+ * use it on data scheduled to be sent. For the same reason, it does not make
+ * sense to call this function on unparsed data, so <orig> is not updated. The
+ * string length is taken from parameter <len>. If <len> is null, the <str>
+ * pointer is allowed to be null.
+ */
+int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int len)
+{
+	int delta;
+
+	delta = len - (end - pos);
+
+	if (bi_end(b) + delta >= b->data + b->size)
+		return 0;  /* no space left */
+
+	if (buffer_not_empty(b) &&
+	    bi_end(b) + delta > bo_ptr(b) &&
+	    bo_ptr(b) >= bi_end(b))
+		return 0;  /* no space left before wrapping data */
+
+	/* first, protect the end of the buffer */
+	memmove(end + delta, end, bi_end(b) - end);
+
+	/* now, copy str over pos */
+	if (len)
+		memcpy(pos, str, len);
+
+	b->i += delta;
+
+	if (buffer_len(b) == 0)
+		b->p = b->data;
+
+	return delta;
+}
+
+/*
+ * Inserts <str> followed by "\r\n" at position <pos> in buffer <b>. The <len>
+ * argument informs about the length of string <str> so that we don't have to
+ * measure it. It does not include the "\r\n". If <str> is NULL, then the buffer
+ * is only opened for len+2 bytes but nothing is copied in. It may be useful in
+ * some circumstances. The send limit is *not* adjusted. Same comments as above
+ * for the valid use cases.
+ *
+ * The number of bytes added is returned on success. 0 is returned on failure.
+ */
+int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len)
+{
+	int delta;
+
+	delta = len + 2;
+
+	if (bi_end(b) + delta >= b->data + b->size)
+		return 0;  /* no space left */
+
+	/* first, protect the end of the buffer */
+	memmove(pos + delta, pos, bi_end(b) - pos);
+
+	/* now, copy str over pos */
+	if (len && str) {
+		memcpy(pos, str, len);
+		pos[len] = '\r';
+		pos[len + 1] = '\n';
+	}
+
+	b->i += delta;
+	return delta;
+}
+
 /* This function realigns input data in a possibly wrapping buffer so that it
  * becomes contiguous and starts at the beginning of the buffer area. The
  * function may only be used when the buffer's output is empty.

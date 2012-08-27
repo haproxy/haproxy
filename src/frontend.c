@@ -389,7 +389,7 @@ int frontend_decode_proxy_request(struct session *s, struct channel *req, int an
 
 	/* remove the PROXY line from the request */
 	len = line - req->buf.data;
-	buffer_replace2(req, req->buf.data, line, NULL, 0);
+	buffer_replace2(&req->buf, req->buf.data, line, NULL, 0);
 	req->total -= len; /* don't count the header line */
 
 	req->analysers &= ~an_bit;

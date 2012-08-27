@@ -45,8 +45,6 @@ int bi_putblk(struct channel *buf, const char *str, int len);
 int bi_putchr(struct channel *buf, char c);
 int bo_getline(struct channel *buf, char *str, int len);
 int bo_getblk(struct channel *buf, char *blk, int len, int offset);
-int buffer_replace2(struct channel *b, char *pos, char *end, const char *str, int len);
-int buffer_insert_line2(struct channel *b, char *pos, const char *str, int len);
 unsigned long long buffer_forward(struct channel *buf, unsigned long long bytes);
 
 /* Initialize all fields in the buffer. */
@@ -367,18 +365,6 @@ static inline int bo_getchr(struct channel *buf)
 		return -1;
 	}
 	return *buffer_wrap_sub(&buf->buf, buf->buf.p - buf->buf.o);
-}
-
-/* This function writes the string <str> at position <pos> which must be in
- * buffer <b>, and moves <end> just after the end of <str>. <b>'s parameters
- * (l, r, lr) are updated to be valid after the shift. the shift value
- * (positive or negative) is returned. If there's no space left, the move is
- * not done. The function does not adjust ->o because it does not make sense
- * to use it on data scheduled to be sent.
- */
-static inline int buffer_replace(struct channel *b, char *pos, char *end, const char *str)
-{
-	return buffer_replace2(b, pos, end, str, strlen(str));
 }
 
 
