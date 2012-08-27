@@ -217,15 +217,15 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	if (unlikely(fcntl(cfd, F_SETFL, O_NONBLOCK) == -1))
 		goto out_free_task;
 
-	if (unlikely((s->req = pool_alloc2(pool2_buffer)) == NULL))
+	if (unlikely((s->req = pool_alloc2(pool2_channel)) == NULL))
 		goto out_free_task; /* no memory */
 
-	if (unlikely((s->rep = pool_alloc2(pool2_buffer)) == NULL))
+	if (unlikely((s->rep = pool_alloc2(pool2_channel)) == NULL))
 		goto out_free_req; /* no memory */
 
 	/* initialize the request buffer */
 	s->req->buf.size = global.tune.bufsize;
-	buffer_init(s->req);
+	channel_init(s->req);
 	s->req->prod = &s->si[0];
 	s->req->cons = &s->si[1];
 	s->si[0].ib = s->si[1].ob = s->req;
@@ -242,7 +242,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 
 	/* initialize response buffer */
 	s->rep->buf.size = global.tune.bufsize;
-	buffer_init(s->rep);
+	channel_init(s->rep);
 	s->rep->prod = &s->si[1];
 	s->rep->cons = &s->si[0];
 	s->si[0].ob = s->si[1].ib = s->rep;
@@ -302,9 +302,9 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 
 	/* Error unrolling */
  out_free_rep:
-	pool_free2(pool2_buffer, s->rep);
+	pool_free2(pool2_channel, s->rep);
  out_free_req:
-	pool_free2(pool2_buffer, s->req);
+	pool_free2(pool2_channel, s->req);
  out_free_task:
 	p->feconn--;
 	if (s->stkctr1_entry || s->stkctr2_entry)
@@ -363,8 +363,8 @@ static void session_free(struct session *s)
 	if (s->rep->pipe)
 		put_pipe(s->rep->pipe);
 
-	pool_free2(pool2_buffer, s->req);
-	pool_free2(pool2_buffer, s->rep);
+	pool_free2(pool2_channel, s->req);
+	pool_free2(pool2_channel, s->rep);
 
 	http_end_txn(s);
 
@@ -399,7 +399,7 @@ static void session_free(struct session *s)
 
 	/* We may want to free the maximum amount of pools if the proxy is stopping */
 	if (fe && unlikely(fe->state == PR_STSTOPPED)) {
-		pool_flush2(pool2_buffer);
+		pool_flush2(pool2_channel);
 		pool_flush2(pool2_hdr_idx);
 		pool_flush2(pool2_requri);
 		pool_flush2(pool2_capture);
@@ -1032,8 +1032,8 @@ static int process_switching_rules(struct session *s, struct channel *req, int a
 
  sw_failed:
 	/* immediately abort this request in case of allocation failure */
-	buffer_abort(s->req);
-	buffer_abort(s->rep);
+	channel_abort(s->req);
+	channel_abort(s->rep);
 
 	if (!(s->flags & SN_ERR_MASK))
 		s->flags |= SN_ERR_RESOURCE;
@@ -1335,13 +1335,13 @@ struct task *process_session(struct task *t)
 		stream_int_check_timeouts(&s->si[0]);
 		stream_int_check_timeouts(&s->si[1]);
 
-		/* check buffer timeouts, and close the corresponding stream interfaces
+		/* check channel timeouts, and close the corresponding stream interfaces
 		 * for future reads or writes. Note: this will also concern upper layers
 		 * but we do not touch any other flag. We must be careful and correctly
 		 * detect state changes when calling them.
 		 */
 
-		buffer_check_timeouts(s->req);
+		channel_check_timeouts(s->req);
 
 		if (unlikely((s->req->flags & (CF_SHUTW|CF_WRITE_TIMEOUT)) == CF_WRITE_TIMEOUT)) {
 			s->req->cons->flags |= SI_FL_NOLINGER;
@@ -1354,7 +1354,7 @@ struct task *process_session(struct task *t)
 			si_shutr(s->req->prod);
 		}
 
-		buffer_check_timeouts(s->rep);
+		channel_check_timeouts(s->rep);
 
 		if (unlikely((s->rep->flags & (CF_SHUTW|CF_WRITE_TIMEOUT)) == CF_WRITE_TIMEOUT)) {
 			s->rep->cons->flags |= SI_FL_NOLINGER;
@@ -1496,9 +1496,9 @@ struct task *process_session(struct task *t)
 			 * enabling them again when it disables itself, so
 			 * that other analysers are called in similar conditions.
 			 */
-			buffer_auto_read(s->req);
-			buffer_auto_connect(s->req);
-			buffer_auto_close(s->req);
+			channel_auto_read(s->req);
+			channel_auto_connect(s->req);
+			channel_auto_close(s->req);
 
 			/* We will call all analysers for which a bit is set in
 			 * s->req->analysers, following the bit order from LSB
@@ -1688,8 +1688,8 @@ struct task *process_session(struct task *t)
 			 * it disables itself, so that other analysers are called
 			 * in similar conditions.
 			 */
-			buffer_auto_read(s->rep);
-			buffer_auto_close(s->rep);
+			channel_auto_read(s->rep);
+			channel_auto_close(s->rep);
 
 			/* We will call all analysers for which a bit is set in
 			 * s->rep->analysers, following the bit order from LSB
@@ -1843,7 +1843,7 @@ struct task *process_session(struct task *t)
 	/* If noone is interested in analysing data, it's time to forward
 	 * everything. We configure the buffer to forward indefinitely.
 	 * Note that we're checking CF_SHUTR_NOW as an indication of a possible
-	 * recent call to buffer_abort().
+	 * recent call to channel_abort().
 	 */
 	if (!s->req->analysers &&
 	    !(s->req->flags & (CF_HIJACK|CF_SHUTW|CF_SHUTR_NOW)) &&
@@ -1853,16 +1853,16 @@ struct task *process_session(struct task *t)
 		 * attached to it. If any data are left in, we'll permit them to
 		 * move.
 		 */
-		buffer_auto_read(s->req);
-		buffer_auto_connect(s->req);
-		buffer_auto_close(s->req);
+		channel_auto_read(s->req);
+		channel_auto_connect(s->req);
+		channel_auto_close(s->req);
 		buffer_flush(&s->req->buf);
 
 		/* We'll let data flow between the producer (if still connected)
 		 * to the consumer (which might possibly not be connected yet).
 		 */
 		if (!(s->req->flags & (CF_SHUTR|CF_SHUTW_NOW)))
-			buffer_forward(s->req, CHN_INFINITE_FORWARD);
+			channel_forward(s->req, CHN_INFINITE_FORWARD);
 	}
 
 	/* check if it is wise to enable kernel splicing to forward request data */
@@ -1890,7 +1890,7 @@ struct task *process_session(struct task *t)
 	 */
 	if (unlikely((s->req->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_HIJACK|CF_AUTO_CLOSE|CF_SHUTR)) ==
 		     (CF_AUTO_CLOSE|CF_SHUTR)))
-			buffer_shutw_now(s->req);
+			channel_shutw_now(s->req);
 
 	/* shutdown(write) pending */
 	if (unlikely((s->req->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW &&
@@ -1900,7 +1900,7 @@ struct task *process_session(struct task *t)
 	/* shutdown(write) done on server side, we must stop the client too */
 	if (unlikely((s->req->flags & (CF_SHUTW|CF_SHUTR|CF_SHUTR_NOW)) == CF_SHUTW &&
 		     !s->req->analysers))
-		buffer_shutr_now(s->req);
+		channel_shutr_now(s->req);
 
 	/* shutdown(read) pending */
 	if (unlikely((s->req->flags & (CF_SHUTR|CF_SHUTR_NOW)) == CF_SHUTR_NOW)) {
@@ -1933,8 +1933,8 @@ struct task *process_session(struct task *t)
 		}
 		else {
 			s->req->cons->state = SI_ST_CLO; /* shutw+ini = abort */
-			buffer_shutw_now(s->req);        /* fix buffer flags upon abort */
-			buffer_shutr_now(s->rep);
+			channel_shutw_now(s->req);        /* fix buffer flags upon abort */
+			channel_shutr_now(s->rep);
 		}
 	}
 
@@ -1979,7 +1979,7 @@ struct task *process_session(struct task *t)
 	/* If noone is interested in analysing data, it's time to forward
 	 * everything. We configure the buffer to forward indefinitely.
 	 * Note that we're checking CF_SHUTR_NOW as an indication of a possible
-	 * recent call to buffer_abort().
+	 * recent call to channel_abort().
 	 */
 	if (!s->rep->analysers &&
 	    !(s->rep->flags & (CF_HIJACK|CF_SHUTW|CF_SHUTR_NOW)) &&
@@ -1989,15 +1989,15 @@ struct task *process_session(struct task *t)
 		 * attached to it. If any data are left in, we'll permit them to
 		 * move.
 		 */
-		buffer_auto_read(s->rep);
-		buffer_auto_close(s->rep);
+		channel_auto_read(s->rep);
+		channel_auto_close(s->rep);
 		buffer_flush(&s->rep->buf);
 
 		/* We'll let data flow between the producer (if still connected)
 		 * to the consumer.
 		 */
 		if (!(s->rep->flags & (CF_SHUTR|CF_SHUTW_NOW)))
-			buffer_forward(s->rep, CHN_INFINITE_FORWARD);
+			channel_forward(s->rep, CHN_INFINITE_FORWARD);
 
 		/* if we have no analyser anymore in any direction and have a
 		 * tunnel timeout set, use it now.
@@ -2036,7 +2036,7 @@ struct task *process_session(struct task *t)
 	/* first, let's check if the response buffer needs to shutdown(write) */
 	if (unlikely((s->rep->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_HIJACK|CF_AUTO_CLOSE|CF_SHUTR)) ==
 		     (CF_AUTO_CLOSE|CF_SHUTR)))
-		buffer_shutw_now(s->rep);
+		channel_shutw_now(s->rep);
 
 	/* shutdown(write) pending */
 	if (unlikely((s->rep->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW &&
@@ -2046,7 +2046,7 @@ struct task *process_session(struct task *t)
 	/* shutdown(write) done on the client side, we must stop the server too */
 	if (unlikely((s->rep->flags & (CF_SHUTW|CF_SHUTR|CF_SHUTR_NOW)) == CF_SHUTW) &&
 	    !s->rep->analysers)
-		buffer_shutr_now(s->rep);
+		channel_shutr_now(s->rep);
 
 	/* shutdown(read) pending */
 	if (unlikely((s->rep->flags & (CF_SHUTR|CF_SHUTR_NOW)) == CF_SHUTR_NOW)) {
@@ -2313,8 +2313,8 @@ void session_shutdown(struct session *session, int why)
 	if (session->req->flags & (CF_SHUTW|CF_SHUTW_NOW))
 		return;
 
-	buffer_shutw_now(session->req);
-	buffer_shutr_now(session->rep);
+	channel_shutw_now(session->req);
+	channel_shutr_now(session->rep);
 	session->task->nice = 1024;
 	if (!(session->flags & SN_ERR_MASK))
 		session->flags |= why;

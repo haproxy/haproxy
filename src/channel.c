@@ -22,28 +22,25 @@
 #include <types/global.h>
 
 
-/* Note: this code has not yet been completely cleaned up and still refers to
- * the word "buffer" when "channel" is meant instead.
- */
-struct pool_head *pool2_buffer;
+struct pool_head *pool2_channel;
 
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
-int init_buffer()
+int init_channel()
 {
-	pool2_buffer = create_pool("buffer", sizeof(struct channel) + global.tune.bufsize, MEM_F_SHARED);
-	return pool2_buffer != NULL;
+	pool2_channel = create_pool("channel", sizeof(struct channel) + global.tune.bufsize, MEM_F_SHARED);
+	return pool2_channel != NULL;
 }
 
-/* Schedule up to <bytes> more bytes to be forwarded by the buffer without notifying
- * the task. Any pending data in the buffer is scheduled to be sent as well,
- * in the limit of the number of bytes to forward. This must be the only method
- * to use to schedule bytes to be sent. If the requested number is too large, it
- * is automatically adjusted. The number of bytes taken into account is returned.
- * Directly touching ->to_forward will cause lockups when ->o goes down to
- * zero if nobody is ready to push the remaining data.
+/* Schedule up to <bytes> more bytes to be forwarded via the channel without
+ * notifying the owner task. Any data pending in the buffer are scheduled to be
+ * sent as well, in the limit of the number of bytes to forward. This must be
+ * the only method to use to schedule bytes to be forwarded. If the requested
+ * number is too large, it is automatically adjusted. The number of bytes taken
+ * into account is returned. Directly touching ->to_forward will cause lockups
+ * when buf->o goes down to zero if nobody is ready to push the remaining data.
  */
-unsigned long long buffer_forward(struct channel *buf, unsigned long long bytes)
+unsigned long long channel_forward(struct channel *buf, unsigned long long bytes)
 {
 	unsigned int new_forward;
 	unsigned int forwarded;
@@ -94,12 +91,12 @@ unsigned long long buffer_forward(struct channel *buf, unsigned long long bytes)
 	return bytes;
 }
 
-/* writes <len> bytes from message <msg> to buffer <buf>. Returns -1 in case of
- * success, -2 if the message is larger than the buffer size, or the number of
- * bytes available otherwise. The send limit is automatically adjusted with the
- * amount of data written. FIXME-20060521: handle unaligned data.
- * Note: this function appends data to the buffer's output and possibly overwrites
- * any pending input data which are assumed not to exist.
+/* writes <len> bytes from message <msg> to the channel's buffer. Returns -1 in
+ * case of success, -2 if the message is larger than the buffer size, or the
+ * number of bytes available otherwise. The send limit is automatically
+ * adjusted to the amount of data written. FIXME-20060521: handle unaligned
+ * data. Note: this function appends data to the buffer's output and possibly
+ * overwrites any pending input data which are assumed not to exist.
  */
 int bo_inject(struct channel *buf, const char *msg, int len)
 {
@@ -129,15 +126,15 @@ int bo_inject(struct channel *buf, const char *msg, int len)
 	return -1;
 }
 
-/* Tries to copy character <c> into buffer <buf> after length controls. The
- * ->o and to_forward pointers are updated. If the buffer's input is
- * closed, -2 is returned. If there is not enough room left in the buffer, -1
- * is returned. Otherwise the number of bytes copied is returned (1). Buffer
- * flag READ_PARTIAL is updated if some data can be transferred.
+/* Tries to copy character <c> into the channel's buffer after some length
+ * controls. The buf->o and to_forward pointers are updated. If the channel
+ * input is closed, -2 is returned. If there is not enough room left in the
+ * buffer, -1 is returned. Otherwise the number of bytes copied is returned
+ * (1). Channel flag READ_PARTIAL is updated if some data can be transferred.
  */
 int bi_putchr(struct channel *buf, char c)
 {
-	if (unlikely(buffer_input_closed(buf)))
+	if (unlikely(channel_input_closed(buf)))
 		return -2;
 
 	if (channel_full(buf))
@@ -158,18 +155,19 @@ int bi_putchr(struct channel *buf, char c)
 	return 1;
 }
 
-/* Tries to copy block <blk> at once into buffer <buf> after length controls.
- * The ->o and to_forward pointers are updated. If the buffer's input is
- * closed, -2 is returned. If the block is too large for this buffer, -3 is
- * returned. If there is not enough room left in the buffer, -1 is returned.
- * Otherwise the number of bytes copied is returned (0 being a valid number).
- * Buffer flag READ_PARTIAL is updated if some data can be transferred.
+/* Tries to copy block <blk> at once into the channel's buffer after length
+ * controls. The buf->o and to_forward pointers are updated. If the channel
+ * input is closed, -2 is returned. If the block is too large for this buffer,
+ * -3 is returned. If there is not enough room left in the buffer, -1 is
+ * returned. Otherwise the number of bytes copied is returned (0 being a valid
+ * number). Channel flag READ_PARTIAL is updated if some data can be
+ * transferred.
  */
 int bi_putblk(struct channel *buf, const char *blk, int len)
 {
 	int max;
 
-	if (unlikely(buffer_input_closed(buf)))
+	if (unlikely(channel_input_closed(buf)))
 		return -2;
 
 	max = buffer_max_len(buf);
@@ -210,12 +208,12 @@ int bi_putblk(struct channel *buf, const char *blk, int len)
 	return len;
 }
 
-/* Gets one text line out of a buffer from a stream interface.
+/* Gets one text line out of a channel's buffer from a stream interface.
  * Return values :
  *   >0 : number of bytes read. Includes the \n if present before len or end.
  *   =0 : no '\n' before end found. <str> is left undefined.
  *   <0 : no more bytes readable because output is shut.
- * The buffer status is not changed. The caller must call bo_skip() to
+ * The channel status is not changed. The caller must call bo_skip() to
  * update it. The '\n' is waited for as long as neither the buffer nor the
  * output are full. If either of them is full, the string may be returned
  * as is, without the '\n'.
@@ -260,12 +258,12 @@ int bo_getline(struct channel *buf, char *str, int len)
 	return ret;
 }
 
-/* Gets one full block of data at once from a buffer, optionally from a
- * specific offset. Return values :
+/* Gets one full block of data at once from a channel's buffer, optionally from
+ * a specific offset. Return values :
  *   >0 : number of bytes read, equal to requested size.
  *   =0 : not enough data available. <blk> is left undefined.
  *   <0 : no more bytes readable because output is shut.
- * The buffer status is not changed. The caller must call bo_skip() to
+ * The channel status is not changed. The caller must call bo_skip() to
  * update it.
  */
 int bo_getblk(struct channel *buf, char *blk, int len, int offset)

@@ -1222,11 +1222,11 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	txn->hdr_idx.v = NULL;
 	txn->hdr_idx.size = txn->hdr_idx.used = 0;
 
-	if ((s->req = pool_alloc2(pool2_buffer)) == NULL)
+	if ((s->req = pool_alloc2(pool2_channel)) == NULL)
 		goto out_fail_req; /* no memory */
 
 	s->req->buf.size = global.tune.bufsize;
-	buffer_init(s->req);
+	channel_init(s->req);
 	s->req->prod = &s->si[0];
 	s->req->cons = &s->si[1];
 	s->si[0].ib = s->si[1].ob = s->req;
@@ -1238,18 +1238,18 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 
 	/* note: this should not happen anymore since there's always at least the switching rules */
 	if (!s->req->analysers) {
-		buffer_auto_connect(s->req);/* don't wait to establish connection */
-		buffer_auto_close(s->req);/* let the producer forward close requests */
+		channel_auto_connect(s->req);/* don't wait to establish connection */
+		channel_auto_close(s->req);/* let the producer forward close requests */
 	}
 
 	s->req->rto = s->fe->timeout.client;
 	s->req->wto = s->be->timeout.server;
 
-	if ((s->rep = pool_alloc2(pool2_buffer)) == NULL)
+	if ((s->rep = pool_alloc2(pool2_channel)) == NULL)
 		goto out_fail_rep; /* no memory */
 
 	s->rep->buf.size = global.tune.bufsize;
-	buffer_init(s->rep);
+	channel_init(s->rep);
 	s->rep->prod = &s->si[1];
 	s->rep->cons = &s->si[0];
 	s->si[0].ob = s->si[1].ib = s->rep;
@@ -1283,7 +1283,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 
 	/* Error unrolling */
  out_fail_rep:
-	pool_free2(pool2_buffer, s->req);
+	pool_free2(pool2_channel, s->req);
  out_fail_req:
 	task_free(t);
  out_free_session:

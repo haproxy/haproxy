@@ -821,7 +821,7 @@ int tcp_inspect_request(struct session *s, struct channel *req, int an_bit)
 		if (rule->cond) {
 			ret = acl_exec_cond(rule->cond, s->be, s, &s->txn, SMP_OPT_DIR_REQ | partial);
 			if (ret == ACL_PAT_MISS) {
-				buffer_dont_connect(req);
+				channel_dont_connect(req);
 				/* just set the request timeout once at the beginning of the request */
 				if (!tick_isset(req->analyse_exp) && s->be->tcp_req.inspect_delay)
 					req->analyse_exp = tick_add_ifset(now_ms, s->be->tcp_req.inspect_delay);
@@ -836,8 +836,8 @@ int tcp_inspect_request(struct session *s, struct channel *req, int an_bit)
 		if (ret) {
 			/* we have a matching rule. */
 			if (rule->action == TCP_ACT_REJECT) {
-				buffer_abort(req);
-				buffer_abort(s->rep);
+				channel_abort(req);
+				channel_abort(s->rep);
 				req->analysers = 0;
 
 				s->be->be_counters.denied_req++;
@@ -953,8 +953,8 @@ int tcp_inspect_response(struct session *s, struct channel *rep, int an_bit)
 		if (ret) {
 			/* we have a matching rule. */
 			if (rule->action == TCP_ACT_REJECT) {
-				buffer_abort(rep);
-				buffer_abort(s->req);
+				channel_abort(rep);
+				channel_abort(s->req);
 				rep->analysers = 0;
 
 				s->be->be_counters.denied_resp++;

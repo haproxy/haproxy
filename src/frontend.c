@@ -190,8 +190,8 @@ int frontend_accept(struct session *s)
 
 	/* note: this should not happen anymore since there's always at least the switching rules */
 	if (!s->req->analysers) {
-		buffer_auto_connect(s->req);  /* don't wait to establish connection */
-		buffer_auto_close(s->req);    /* let the producer forward close requests */
+		channel_auto_connect(s->req);  /* don't wait to establish connection */
+		channel_auto_close(s->req);    /* let the producer forward close requests */
 	}
 
 	s->req->rto = s->fe->timeout.client;
@@ -400,12 +400,12 @@ int frontend_decode_proxy_request(struct session *s, struct channel *req, int an
 	if ((req->flags & CF_SHUTR) || buffer_full(&req->buf, global.tune.maxrewrite))
 		goto fail;
 
-	buffer_dont_connect(s->req);
+	channel_dont_connect(s->req);
 	return 0;
 
  fail:
-	buffer_abort(req);
-	buffer_abort(s->rep);
+	channel_abort(req);
+	channel_abort(s->rep);
 	req->analysers = 0;
 
 	s->fe->fe_counters.failed_req++;

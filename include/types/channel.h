@@ -137,7 +137,7 @@
  * Those bits indicate that there are some processing to do on the buffer
  * contents. It will probably evolve into a linked list later. Those
  * analysers could be compared to higher level processors.
- * The field is blanked by buffer_init() and only by analysers themselves
+ * The field is blanked by channel_init() and only by analysers themselves
  * afterwards.
  */
 #define AN_REQ_DECODE_PROXY     0x00000001  /* take the proxied address from a 'PROXY' line */

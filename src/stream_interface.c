@@ -108,19 +108,19 @@ void stream_int_report_error(struct stream_interface *si)
  */
 void stream_int_retnclose(struct stream_interface *si, const struct chunk *msg)
 {
-	buffer_auto_read(si->ib);
-	buffer_abort(si->ib);
-	buffer_auto_close(si->ib);
-	buffer_erase(si->ib);
+	channel_auto_read(si->ib);
+	channel_abort(si->ib);
+	channel_auto_close(si->ib);
+	channel_erase(si->ib);
 
 	bi_erase(si->ob);
 	if (likely(msg && msg->len))
 		bo_inject(si->ob, msg->str, msg->len);
 
 	si->ob->wex = tick_add_ifset(now_ms, si->ob->wto);
-	buffer_auto_read(si->ob);
-	buffer_auto_close(si->ob);
-	buffer_shutr_now(si->ob);
+	channel_auto_read(si->ob);
+	channel_auto_close(si->ob);
+	channel_shutr_now(si->ob);
 }
 
 /* default update function for scheduled tasks, not used for embedded tasks */
@@ -1179,7 +1179,7 @@ void si_conn_recv_cb(struct connection *conn)
 	/* we received a shutdown */
 	b->flags |= CF_READ_NULL;
 	if (b->flags & CF_AUTO_CLOSE)
-		buffer_shutw_now(b);
+		channel_shutw_now(b);
 	stream_sock_read0(si);
 	conn_data_read0(conn);
 	return;

@@ -584,8 +584,8 @@ void init(int argc, char **argv)
 	global_listener_queue_task->process = manage_global_listener_queue;
 	global_listener_queue_task->expire = TICK_ETERNITY;
 
-	/* now we know the buffer size, we can initialize the buffers */
-	init_buffer();
+	/* now we know the buffer size, we can initialize the channels and buffers */
+	init_channel();
 
 	if (have_appsession)
 		appsession_init();
@@ -1053,7 +1053,7 @@ void deinit(void)
 	}
 
 	pool_destroy2(pool2_session);
-	pool_destroy2(pool2_buffer);
+	pool_destroy2(pool2_channel);
 	pool_destroy2(pool2_requri);
 	pool_destroy2(pool2_task);
 	pool_destroy2(pool2_capture);

@@ -649,12 +649,12 @@ int http_remove_header2(struct http_msg *msg, struct hdr_idx *idx, struct hdr_ct
 static void http_server_error(struct session *t, struct stream_interface *si,
 			      int err, int finst, int status, const struct chunk *msg)
 {
-	buffer_auto_read(si->ob);
-	buffer_abort(si->ob);
-	buffer_auto_close(si->ob);
-	buffer_erase(si->ob);
-	buffer_auto_close(si->ib);
-	buffer_auto_read(si->ib);
+	channel_auto_read(si->ob);
+	channel_abort(si->ob);
+	channel_auto_close(si->ob);
+	channel_erase(si->ob);
+	channel_auto_close(si->ib);
+	channel_auto_read(si->ib);
 	if (status > 0 && msg) {
 		t->txn.status = status;
 		bo_inject(si->ib, msg->str, msg->len);
@@ -2026,7 +2026,7 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 				if (req->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_WRITE_ERROR|CF_WRITE_TIMEOUT))
 					goto failed_keep_alive;
 				/* some data has still not left the buffer, wake us once that's done */
-				buffer_dont_connect(req);
+				channel_dont_connect(req);
 				req->flags |= CF_READ_DONTWAIT; /* try to get back here ASAP */
 				return 0;
 			}
@@ -2050,7 +2050,7 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 				if (s->rep->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_WRITE_ERROR|CF_WRITE_TIMEOUT))
 					goto failed_keep_alive;
 				/* don't let a connection request be initiated */
-				buffer_dont_connect(req);
+				channel_dont_connect(req);
 				s->rep->flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
 				s->rep->analysers |= an_bit; /* wake us up once it changes */
 				return 0;
@@ -2211,7 +2211,7 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 			return 0;
 		}
 
-		buffer_dont_connect(req);
+		channel_dont_connect(req);
 		req->flags |= CF_READ_DONTWAIT; /* try to get back here ASAP */
 		s->rep->flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
 #ifdef TCP_QUICKACK
@@ -2784,7 +2784,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 		/* we need more data */
-		buffer_dont_connect(req);
+		channel_dont_connect(req);
 		return 0;
 	}
 
@@ -2866,11 +2866,11 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 		 * eventually expire. We build the tarpit as an analyser.
 		 */
 		if (txn->flags & TX_CLTARPIT) {
-			buffer_erase(s->req);
+			channel_erase(s->req);
 			/* wipe the request out so that we can drop the connection early
 			 * if the client closes first.
 			 */
-			buffer_dont_connect(req);
+			channel_dont_connect(req);
 			req->analysers = 0; /* remove switching rules etc... */
 			req->analysers |= AN_REQ_HTTP_TARPIT;
 			req->analyse_exp = tick_add_ifset(now_ms,  s->be->timeout.tarpit);
@@ -3017,7 +3017,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 				if (!http_process_req_stat_post(s->rep->prod, txn, req)) {
 					/* we need more data */
 					req->analysers |= an_bit;
-					buffer_dont_connect(req);
+					channel_dont_connect(req);
 					return 0;
 				}
 			} else {
@@ -3244,7 +3244,7 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 		/* we need more data */
-		buffer_dont_connect(req);
+		channel_dont_connect(req);
 		return 0;
 	}
 
@@ -3454,7 +3454,7 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 	    s->txn.meth == HTTP_METH_POST && s->be->url_param_name != NULL &&
 	    s->be->url_param_post_limit != 0 &&
 	    (msg->flags & (HTTP_MSGF_CNT_LEN|HTTP_MSGF_TE_CHNK))) {
-		buffer_dont_connect(req);
+		channel_dont_connect(req);
 		req->analysers |= AN_REQ_HTTP_BODY;
 	}
 
@@ -3526,7 +3526,7 @@ int http_process_tarpit(struct session *s, struct channel *req, int an_bit)
 	 * timeout. We just have to check that the client is still
 	 * there and that the timeout has not expired.
 	 */
-	buffer_dont_connect(req);
+	channel_dont_connect(req);
 	if ((req->flags & (CF_SHUTR|CF_READ_ERROR)) == 0 &&
 	    !tick_is_expired(req->analyse_exp, now_ms))
 		return 0;
@@ -3660,7 +3660,7 @@ int http_process_request_body(struct session *s, struct channel *req, int an_bit
 		 * request timeout once at the beginning of the
 		 * request.
 		 */
-		buffer_dont_connect(req);
+		channel_dont_connect(req);
 		if (!tick_isset(req->analyse_exp))
 			req->analyse_exp = tick_add_ifset(now_ms, s->be->timeout.httpreq);
 		return 0;
@@ -3859,10 +3859,10 @@ void http_end_txn_clean_session(struct session *s)
 	}
 
 	/* we're removing the analysers, we MUST re-enable events detection */
-	buffer_auto_read(s->req);
-	buffer_auto_close(s->req);
-	buffer_auto_read(s->rep);
-	buffer_auto_close(s->rep);
+	channel_auto_read(s->req);
+	channel_auto_close(s->req);
+	channel_auto_read(s->rep);
+	channel_auto_close(s->rep);
 
 	s->req->analysers = s->listener->analysers;
 	s->req->analysers &= ~AN_REQ_DECODE_PROXY;
@@ -3900,7 +3900,7 @@ int http_sync_req_state(struct session *s)
 		 * (eg: Linux).
 		 */
 		if (!(s->be->options & PR_O_ABRT_CLOSE) && txn->meth != HTTP_METH_POST)
-			buffer_dont_read(buf);
+			channel_dont_read(buf);
 
 		if (txn->rsp.msg_state == HTTP_MSG_ERROR)
 			goto wait_other_side;
@@ -3914,7 +3914,7 @@ int http_sync_req_state(struct session *s)
 
 		if (txn->rsp.msg_state == HTTP_MSG_TUNNEL) {
 			/* if any side switches to tunnel mode, the other one does too */
-			buffer_auto_read(buf);
+			channel_auto_read(buf);
 			txn->req.msg_state = HTTP_MSG_TUNNEL;
 			goto wait_other_side;
 		}
@@ -3928,7 +3928,7 @@ int http_sync_req_state(struct session *s)
 		if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL) {
 			/* Server-close mode : queue a connection close to the server */
 			if (!(buf->flags & (CF_SHUTW|CF_SHUTW_NOW)))
-				buffer_shutw_now(buf);
+				channel_shutw_now(buf);
 		}
 		else if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_CLO) {
 			/* Option forceclose is set, or either side wants to close,
@@ -3937,8 +3937,8 @@ int http_sync_req_state(struct session *s)
 			 * once both states are CLOSED.
 			 */
 			if (!(buf->flags & (CF_SHUTW|CF_SHUTW_NOW))) {
-				buffer_shutr_now(buf);
-				buffer_shutw_now(buf);
+				channel_shutr_now(buf);
+				channel_shutw_now(buf);
 			}
 		}
 		else {
@@ -3947,7 +3947,7 @@ int http_sync_req_state(struct session *s)
 			 * in tunnel mode, so we're left with keep-alive only.
 			 * This mode is currently not implemented, we switch to tunnel mode.
 			 */
-			buffer_auto_read(buf);
+			channel_auto_read(buf);
 			txn->req.msg_state = HTTP_MSG_TUNNEL;
 		}
 
@@ -4017,7 +4017,7 @@ int http_sync_res_state(struct session *s)
 		 * while the request is being uploaded, so we don't disable
 		 * reading.
 		 */
-		/* buffer_dont_read(buf); */
+		/* channel_dont_read(buf); */
 
 		if (txn->req.msg_state == HTTP_MSG_ERROR)
 			goto wait_other_side;
@@ -4033,7 +4033,7 @@ int http_sync_res_state(struct session *s)
 
 		if (txn->req.msg_state == HTTP_MSG_TUNNEL) {
 			/* if any side switches to tunnel mode, the other one does too */
-			buffer_auto_read(buf);
+			channel_auto_read(buf);
 			txn->rsp.msg_state = HTTP_MSG_TUNNEL;
 			goto wait_other_side;
 		}
@@ -4051,7 +4051,7 @@ int http_sync_res_state(struct session *s)
 			 * catch that for the final cleanup.
 			 */
 			if (!(buf->flags & (CF_SHUTR|CF_SHUTR_NOW)))
-				buffer_shutr_now(buf);
+				channel_shutr_now(buf);
 		}
 		else if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_CLO) {
 			/* Option forceclose is set, or either side wants to close,
@@ -4060,8 +4060,8 @@ int http_sync_res_state(struct session *s)
 			 * once both states are CLOSED.
 			 */
 			if (!(buf->flags & (CF_SHUTW|CF_SHUTW_NOW))) {
-				buffer_shutr_now(buf);
-				buffer_shutw_now(buf);
+				channel_shutr_now(buf);
+				channel_shutw_now(buf);
 			}
 		}
 		else {
@@ -4070,7 +4070,7 @@ int http_sync_res_state(struct session *s)
 			 * in tunnel mode, so we're left with keep-alive only.
 			 * This mode is currently not implemented, we switch to tunnel mode.
 			 */
-			buffer_auto_read(buf);
+			channel_auto_read(buf);
 			txn->rsp.msg_state = HTTP_MSG_TUNNEL;
 		}
 
@@ -4110,8 +4110,8 @@ int http_sync_res_state(struct session *s)
 	http_msg_closed:
 		/* drop any pending data */
 		bi_erase(buf);
-		buffer_auto_close(buf);
-		buffer_auto_read(buf);
+		channel_auto_close(buf);
+		channel_auto_read(buf);
 		goto wait_other_side;
 	}
 
@@ -4158,23 +4158,23 @@ int http_resync_states(struct session *s)
 	    (txn->req.msg_state == HTTP_MSG_CLOSED &&
 	     txn->rsp.msg_state == HTTP_MSG_CLOSED)) {
 		s->req->analysers = 0;
-		buffer_auto_close(s->req);
-		buffer_auto_read(s->req);
+		channel_auto_close(s->req);
+		channel_auto_read(s->req);
 		s->rep->analysers = 0;
-		buffer_auto_close(s->rep);
-		buffer_auto_read(s->rep);
+		channel_auto_close(s->rep);
+		channel_auto_read(s->rep);
 	}
 	else if (txn->rsp.msg_state == HTTP_MSG_CLOSED ||
 		 txn->rsp.msg_state == HTTP_MSG_ERROR ||
 		 txn->req.msg_state == HTTP_MSG_ERROR ||
 		 (s->rep->flags & CF_SHUTW)) {
 		s->rep->analysers = 0;
-		buffer_auto_close(s->rep);
-		buffer_auto_read(s->rep);
+		channel_auto_close(s->rep);
+		channel_auto_read(s->rep);
 		s->req->analysers = 0;
-		buffer_abort(s->req);
-		buffer_auto_close(s->req);
-		buffer_auto_read(s->req);
+		channel_abort(s->req);
+		channel_auto_close(s->req);
+		channel_auto_read(s->req);
 		bi_erase(s->req);
 	}
 	else if (txn->req.msg_state == HTTP_MSG_CLOSED &&
@@ -4221,7 +4221,7 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 	}
 
 	/* in most states, we should abort in case of early close */
-	buffer_auto_close(req);
+	channel_auto_close(req);
 
 	/* Note that we don't have to send 100-continue back because we don't
 	 * need the data to complete our job, and it's up to the server to
@@ -4254,7 +4254,7 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 			msg->sol = msg->sov;
 			msg->next -= bytes; /* will be forwarded */
 			msg->chunk_len += bytes;
-			msg->chunk_len -= buffer_forward(req, msg->chunk_len);
+			msg->chunk_len -= channel_forward(req, msg->chunk_len);
 		}
 
 		if (msg->msg_state == HTTP_MSG_DATA) {
@@ -4321,7 +4321,7 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 			/* for keep-alive we don't want to forward closes on DONE */
 			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
 			    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL)
-				buffer_dont_close(req);
+				channel_dont_close(req);
 			if (http_resync_states(s)) {
 				/* some state changes occurred, maybe the analyser
 				 * was disabled too.
@@ -4347,8 +4347,8 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 			 * request.
 			 */
 			if (s->be->options & PR_O_ABRT_CLOSE) {
-				buffer_auto_read(req);
-				buffer_auto_close(req);
+				channel_auto_read(req);
+				channel_auto_close(req);
 			}
 			else if (s->txn.meth == HTTP_METH_POST) {
 				/* POST requests may require to read extra CRLF
@@ -4356,7 +4356,7 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 				 * an RST to be sent upon close on some systems
 				 * (eg: Linux).
 				 */
-				buffer_auto_read(req);
+				channel_auto_read(req);
 			}
 
 			return 0;
@@ -4391,7 +4391,7 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 	 * chunks even if the client has closed, so we don't want to set CF_DONTCLOSE.
 	 */
 	if (msg->flags & HTTP_MSGF_TE_CHNK)
-		buffer_dont_close(req);
+		channel_dont_close(req);
 
 	/* We know that more data are expected, but we couldn't send more that
 	 * what we did. So we always set the CF_EXPECT_MORE flag so that the
@@ -4515,7 +4515,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 				/* some data has still not left the buffer, wake us once that's done */
 				if (rep->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_WRITE_ERROR|CF_WRITE_TIMEOUT))
 					goto abort_response;
-				buffer_dont_close(rep);
+				channel_dont_close(rep);
 				rep->flags |= CF_READ_DONTWAIT; /* try to get back here ASAP */
 				return 0;
 			}
@@ -4577,7 +4577,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 				health_adjust(target_srv(&s->target), HANA_STATUS_HTTP_HDRRSP);
 			}
 		abort_response:
-			buffer_auto_close(rep);
+			channel_auto_close(rep);
 			rep->analysers = 0;
 			txn->status = 502;
 			rep->prod->flags |= SI_FL_NOLINGER;
@@ -4610,7 +4610,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 				health_adjust(target_srv(&s->target), HANA_STATUS_HTTP_READ_ERROR);
 			}
 
-			buffer_auto_close(rep);
+			channel_auto_close(rep);
 			rep->analysers = 0;
 			txn->status = 502;
 			rep->prod->flags |= SI_FL_NOLINGER;
@@ -4635,7 +4635,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 				health_adjust(target_srv(&s->target), HANA_STATUS_HTTP_READ_TIMEOUT);
 			}
 
-			buffer_auto_close(rep);
+			channel_auto_close(rep);
 			rep->analysers = 0;
 			txn->status = 504;
 			rep->prod->flags |= SI_FL_NOLINGER;
@@ -4660,7 +4660,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 				health_adjust(target_srv(&s->target), HANA_STATUS_HTTP_BROKEN_PIPE);
 			}
 
-			buffer_auto_close(rep);
+			channel_auto_close(rep);
 			rep->analysers = 0;
 			txn->status = 502;
 			rep->prod->flags |= SI_FL_NOLINGER;
@@ -4681,7 +4681,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 
 			s->be->be_counters.failed_resp++;
 			rep->analysers = 0;
-			buffer_auto_close(rep);
+			channel_auto_close(rep);
 
 			if (!(s->flags & SN_ERR_MASK))
 				s->flags |= SN_ERR_CLICL;
@@ -4692,7 +4692,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 			return 0;
 		}
 
-		buffer_dont_close(rep);
+		channel_dont_close(rep);
 		return 0;
 	}
 
@@ -4888,7 +4888,7 @@ skip_content_length:
 	/* end of job, return OK */
 	rep->analysers &= ~an_bit;
 	rep->analyse_exp = TICK_ETERNITY;
-	buffer_auto_close(rep);
+	channel_auto_close(rep);
 	return 1;
 }
 
@@ -5066,7 +5066,7 @@ int http_process_res_common(struct session *t, struct channel *rep, int an_bit, 
 		 */
 		if (unlikely(txn->status == 100)) {
 			hdr_idx_init(&txn->hdr_idx);
-			msg->next -= buffer_forward(rep, msg->next);
+			msg->next -= channel_forward(rep, msg->next);
 			msg->msg_state = HTTP_MSG_RPBEFORE;
 			txn->status = 0;
 			rep->analysers |= AN_RES_WAIT_HTTP | an_bit;
@@ -5290,7 +5290,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	}
 
 	/* in most states, we should abort in case of early close */
-	buffer_auto_close(res);
+	channel_auto_close(res);
 
 	if (msg->msg_state < HTTP_MSG_CHUNK_SIZE) {
 		/* we have msg->sov which points to the first byte of message body.
@@ -5315,7 +5315,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 			msg->sol = msg->sov;
 			msg->next -= bytes; /* will be forwarded */
 			msg->chunk_len += bytes;
-			msg->chunk_len -= buffer_forward(res, msg->chunk_len);
+			msg->chunk_len -= channel_forward(res, msg->chunk_len);
 		}
 
 		if (msg->msg_state == HTTP_MSG_DATA) {
@@ -5379,7 +5379,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 			/* for keep-alive we don't want to forward closes on DONE */
 			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
 			    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL)
-				buffer_dont_close(res);
+				channel_dont_close(res);
 			if (http_resync_states(s)) {
 				http_silent_debug(__LINE__, s);
 				/* some state changes occurred, maybe the analyser
@@ -5426,7 +5426,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 		msg->sol = msg->sov;
 		msg->next -= bytes; /* will be forwarded */
 		msg->chunk_len += bytes;
-		msg->chunk_len -= buffer_forward(res, msg->chunk_len);
+		msg->chunk_len -= channel_forward(res, msg->chunk_len);
 	}
 
 	/* When TE: chunked is used, we need to get there again to parse remaining
@@ -5437,7 +5437,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	if ((msg->flags & HTTP_MSGF_TE_CHNK) ||
 	    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
 	    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL)
-		buffer_dont_close(res);
+		channel_dont_close(res);
 
 	/* We know that more data are expected, but we couldn't send more that
 	 * what we did. So we always set the CF_EXPECT_MORE flag so that the
