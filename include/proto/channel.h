@@ -209,7 +209,6 @@ static inline void buffer_erase(struct channel *buf)
 	buf->buf.i = 0;
 	buf->to_forward = 0;
 	buf->buf.p = buf->buf.data;
-	buf->flags &= ~BF_FULL;
 }
 
 /* Cut the "tail" of the buffer, which means strip it to the length of unsent
@@ -227,7 +226,6 @@ static inline void bi_erase(struct channel *buf)
 		return;
 
 	buf->buf.i = 0;
-	buf->flags &= ~BF_FULL;
 }
 
 /* marks the buffer as "shutdown" ASAP for reads */
@@ -320,9 +318,6 @@ static inline void bo_skip(struct channel *buf, int len)
 	if (buffer_len(&buf->buf) == 0)
 		buf->buf.p = buf->buf.data;
 
-	if (!channel_full(buf))
-		buf->flags &= ~BF_FULL;
-
 	/* notify that some data was written to the SI from the buffer */
 	buf->flags |= BF_WRITE_PARTIAL;
 }
@@ -332,8 +327,8 @@ static inline void bo_skip(struct channel *buf, int len)
  * closed, -2 is returned. If the block is too large for this buffer, -3 is
  * returned. If there is not enough room left in the buffer, -1 is returned.
  * Otherwise the number of bytes copied is returned (0 being a valid number).
- * Buffer flags FULL, EMPTY and READ_PARTIAL are updated if some data can be
- * transferred. The chunk's length is updated with the number of bytes sent.
+ * Buffer flag READ_PARTIAL is updated if some data can be transferred. The
+ * chunk's length is updated with the number of bytes sent.
  */
 static inline int bi_putchk(struct channel *buf, struct chunk *chunk)
 {
@@ -350,8 +345,7 @@ static inline int bi_putchk(struct channel *buf, struct chunk *chunk)
  * closed, -2 is returned. If the block is too large for this buffer, -3 is
  * returned. If there is not enough room left in the buffer, -1 is returned.
  * Otherwise the number of bytes copied is returned (0 being a valid number).
- * Buffer flags FULL, EMPTY and READ_PARTIAL are updated if some data can be
- * transferred.
+ * Buffer flag READ_PARTIAL is updated if some data can be transferred.
  */
 static inline int bi_putstr(struct channel *buf, const char *str)
 {

@@ -59,7 +59,7 @@
 #define BF_READ_ERROR     0x000008  /* unrecoverable error on producer side */
 #define BF_READ_ACTIVITY  (BF_READ_NULL|BF_READ_PARTIAL|BF_READ_ERROR)
 
-#define BF_FULL           0x000010  /* channel cannot accept any more data (l >= max len) */
+/* unused: 0x000010 */
 #define BF_SHUTR          0x000020  /* producer has already shut down */
 #define BF_SHUTR_NOW      0x000040  /* the producer must shut down for reads ASAP */
 #define BF_READ_NOEXP     0x000080  /* producer should not expire */
@@ -129,7 +129,7 @@
 #define BF_MASK_ANALYSER        (BF_READ_ATTACHED|BF_READ_ACTIVITY|BF_READ_TIMEOUT|BF_ANA_TIMEOUT|BF_WRITE_ACTIVITY|BF_WAKE_ONCE)
 
 /* Mask for static flags which cause analysers to be woken up when they change */
-#define BF_MASK_STATIC          (BF_FULL|BF_SHUTR|BF_SHUTW|BF_SHUTR_NOW|BF_SHUTW_NOW)
+#define BF_MASK_STATIC          (BF_SHUTR|BF_SHUTW|BF_SHUTR_NOW|BF_SHUTW_NOW)
 
 
 /* Analysers (channel->analysers).
@@ -256,10 +256,6 @@ struct channel {
    global.maxrewrite, we can fill the buffer. If ->to_forward is smaller than
    global.maxrewrite, then we don't want to fill the buffer with more than
    ->size - global.maxrewrite + ->to_forward.
-
-   Note that this also means that anyone touching ->to_forward must also take
-   care of updating the BF_FULL flag. For this reason, it's really advised to
-   use buffer_forward() only.
 
    A buffer may contain up to 5 areas :
      - the data waiting to be sent. These data are located between ->w and

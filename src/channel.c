@@ -126,11 +126,6 @@ int bo_inject(struct channel *buf, const char *msg, int len)
 	buf->buf.o += len;
 	buf->buf.p = b_ptr(&buf->buf, len);
 	buf->total += len;
-
-	buf->flags &= ~BF_FULL;
-	if (channel_full(buf))
-		buf->flags |= BF_FULL;
-
 	return -1;
 }
 
@@ -138,8 +133,7 @@ int bo_inject(struct channel *buf, const char *msg, int len)
  * ->o and to_forward pointers are updated. If the buffer's input is
  * closed, -2 is returned. If there is not enough room left in the buffer, -1
  * is returned. Otherwise the number of bytes copied is returned (1). Buffer
- * flags FULL, EMPTY and READ_PARTIAL are updated if some data can be
- * transferred.
+ * flag READ_PARTIAL is updated if some data can be transferred.
  */
 int bi_putchr(struct channel *buf, char c)
 {
@@ -152,8 +146,6 @@ int bi_putchr(struct channel *buf, char c)
 	*bi_end(&buf->buf) = c;
 
 	buf->buf.i++;
-	if (channel_full(buf))
-		buf->flags |= BF_FULL;
 	buf->flags |= BF_READ_PARTIAL;
 
 	if (buf->to_forward >= 1) {
@@ -171,8 +163,7 @@ int bi_putchr(struct channel *buf, char c)
  * closed, -2 is returned. If the block is too large for this buffer, -3 is
  * returned. If there is not enough room left in the buffer, -1 is returned.
  * Otherwise the number of bytes copied is returned (0 being a valid number).
- * Buffer flags FULL, EMPTY and READ_PARTIAL are updated if some data can be
- * transferred.
+ * Buffer flag READ_PARTIAL is updated if some data can be transferred.
  */
 int bi_putblk(struct channel *buf, const char *blk, int len)
 {
@@ -213,10 +204,6 @@ int bi_putblk(struct channel *buf, const char *blk, int len)
 		}
 		b_adv(&buf->buf, fwd);
 	}
-
-	buf->flags &= ~BF_FULL;
-	if (channel_full(buf))
-		buf->flags |= BF_FULL;
 
 	/* notify that some data was read from the SI into the buffer */
 	buf->flags |= BF_READ_PARTIAL;
@@ -343,11 +330,8 @@ int buffer_replace2(struct channel *b, char *pos, char *end, const char *str, in
 
 	b->buf.i += delta;
 
-	b->flags &= ~BF_FULL;
 	if (buffer_len(&b->buf) == 0)
 		b->buf.p = b->buf.data;
-	if (channel_full(b))
-		b->flags |= BF_FULL;
 
 	return delta;
 }
@@ -382,11 +366,6 @@ int buffer_insert_line2(struct channel *b, char *pos, const char *str, int len)
 	}
 
 	b->buf.i += delta;
-
-	b->flags &= ~BF_FULL;
-	if (channel_full(b))
-		b->flags |= BF_FULL;
-
 	return delta;
 }
 

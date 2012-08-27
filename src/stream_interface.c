@@ -729,9 +729,6 @@ static int si_conn_send_loop(struct connection *conn)
 
 		b->flags |= BF_WRITE_PARTIAL;
 
-		if (likely(!channel_full(b)))
-			b->flags &= ~BF_FULL;
-
 		if (!b->buf.o) {
 			/* Always clear both flags once everything has been sent, they're one-shot */
 			b->flags &= ~(BF_EXPECT_MORE | BF_SEND_DONTWAIT);
@@ -1054,7 +1051,6 @@ void si_conn_recv_cb(struct connection *conn)
 		max = bi_avail(b);
 
 		if (!max) {
-			b->flags |= BF_FULL;
 			conn->flags |= CO_FL_WAIT_ROOM;
 			break;
 		}
@@ -1115,7 +1111,6 @@ void si_conn_recv_cb(struct connection *conn)
 				b->xfer_large = 0;
 			}
 
-			b->flags |= BF_FULL;
 			si->flags |= SI_FL_WAIT_ROOM;
 			break;
 		}
