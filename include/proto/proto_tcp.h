@@ -52,6 +52,8 @@ static inline struct stktable_key *tcp_src_to_stktable_key(struct session *s)
 	case AF_INET6:
 		static_table_key.key = (void *)&((struct sockaddr_in6 *)&s->si[0].addr.from)->sin6_addr;
 		break;
+	default:
+		return NULL;
 	}
 	return &static_table_key;
 }
