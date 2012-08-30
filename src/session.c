@@ -87,9 +87,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[0].conn.t.sock.fd = cfd;
 	s->si[0].conn.ctrl = l->proto;
 	s->si[0].conn.flags = CO_FL_NONE | CO_FL_NOTIFY_SI; /* we're on a stream_interface */
-	s->si[0].addr.from = *addr;
-	s->si[0].conn.peeraddr = (struct sockaddr *)&s->si[0].addr.from;
-	s->si[0].conn.peerlen  = sizeof(s->si[0].addr.from);
+	s->si[0].conn.addr.from = *addr;
 	s->logs.accept_date = date; /* user-visible date for logging */
 	s->logs.tv_accept = now;  /* corrected date for internal use */
 	s->uniq_id = totalconn;

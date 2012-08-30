@@ -1136,7 +1136,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	t->context = s;
 	t->nice = l->nice;
 
-	memcpy(&s->si[1].addr.to, &peer->addr, sizeof(s->si[1].addr.to));
+	memcpy(&s->si[1].conn.addr.to, &peer->addr, sizeof(s->si[1].conn.addr.to));
 	s->task = t;
 	s->listener = l;
 
@@ -1148,8 +1148,6 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 
 	s->req = s->rep = NULL; /* will be allocated later */
 
-	s->si[0].conn.peeraddr = NULL;
-	s->si[0].conn.peerlen  = 0;
 	s->si[0].conn.t.sock.fd = -1;
 	s->si[0].conn.flags = CO_FL_NONE;
 	s->si[0].owner = t;
@@ -1168,8 +1166,6 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->si[0].applet.st0 = PEER_SESSION_CONNECT;
 	s->si[0].conn.data_ctx = (void *)ps;
 
-	s->si[1].conn.peeraddr = NULL;
-	s->si[1].conn.peerlen  = 0;
 	s->si[1].conn.t.sock.fd = -1; /* just to help with debugging */
 	s->si[1].conn.flags = CO_FL_NONE;
 	s->si[1].owner = t;

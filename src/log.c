@@ -836,7 +836,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_CLIENTIP:  // %Ci
-				ret = lf_ip(tmplog, (struct sockaddr *)&s->req->prod->addr.from,
+				ret = lf_ip(tmplog, (struct sockaddr *)&s->req->prod->conn.addr.from,
 					    dst + maxsize - tmplog, tmp);
 				if (ret == NULL)
 					goto out;
@@ -845,10 +845,10 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_CLIENTPORT:  // %Cp
-				if (s->req->prod->addr.from.ss_family == AF_UNIX) {
+				if (s->req->prod->conn.addr.from.ss_family == AF_UNIX) {
 					ret = ltoa_o(s->listener->luid, tmplog, dst + maxsize - tmplog);
 				} else {
-					ret = lf_port(tmplog, (struct sockaddr *)&s->req->prod->addr.from,
+					ret = lf_port(tmplog, (struct sockaddr *)&s->req->prod->conn.addr.from,
 						      dst + maxsize - tmplog, tmp);
 				}
 				if (ret == NULL)
@@ -858,8 +858,8 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_FRONTENDIP: // %Fi
-				si_get_to_addr(s->req->prod);
-				ret = lf_ip(tmplog, (struct sockaddr *)&s->req->prod->addr.to,
+				conn_get_to_addr(&s->req->prod->conn);
+				ret = lf_ip(tmplog, (struct sockaddr *)&s->req->prod->conn.addr.to,
 					    dst + maxsize - tmplog, tmp);
 				if (ret == NULL)
 					goto out;
@@ -868,12 +868,12 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case  LOG_FMT_FRONTENDPORT: // %Fp
-				si_get_to_addr(s->req->prod);
-				if (s->req->prod->addr.to.ss_family == AF_UNIX) {
+				conn_get_to_addr(&s->req->prod->conn);
+				if (s->req->prod->conn.addr.to.ss_family == AF_UNIX) {
 					ret = ltoa_o(s->listener->luid,
 						     tmplog, dst + maxsize - tmplog);
 				} else {
-					ret = lf_port(tmplog, (struct sockaddr *)&s->req->prod->addr.to,
+					ret = lf_port(tmplog, (struct sockaddr *)&s->req->prod->conn.addr.to,
 						      dst + maxsize - tmplog, tmp);
 				}
 				if (ret == NULL)
@@ -883,7 +883,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_BACKENDIP:  // %Bi
-				ret = lf_ip(tmplog, (struct sockaddr *)&s->req->cons->addr.from,
+				ret = lf_ip(tmplog, (struct sockaddr *)&s->req->cons->conn.addr.from,
 					    dst + maxsize - tmplog, tmp);
 				if (ret == NULL)
 					goto out;
@@ -892,7 +892,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_BACKENDPORT:  // %Bp
-				ret = lf_port(tmplog, (struct sockaddr *)&s->req->cons->addr.from,
+				ret = lf_port(tmplog, (struct sockaddr *)&s->req->cons->conn.addr.from,
 					      dst + maxsize - tmplog, tmp);
 				if (ret == NULL)
 					goto out;
@@ -901,7 +901,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_SERVERIP: // %Si
-				ret = lf_ip(tmplog, (struct sockaddr *)&s->req->cons->addr.to,
+				ret = lf_ip(tmplog, (struct sockaddr *)&s->req->cons->conn.addr.to,
 					    dst + maxsize - tmplog, tmp);
 				if (ret == NULL)
 					goto out;
@@ -910,7 +910,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_SERVERPORT: // %Sp
-				ret = lf_port(tmplog, (struct sockaddr *)&s->req->cons->addr.to,
+				ret = lf_port(tmplog, (struct sockaddr *)&s->req->cons->conn.addr.to,
 					      dst + maxsize - tmplog, tmp);
 				if (ret == NULL)
 					goto out;

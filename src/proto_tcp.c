@@ -232,21 +232,22 @@ int tcp_connect_server(struct stream_interface *si)
 	int fd;
 	struct server *srv;
 	struct proxy *be;
+	struct connection *conn = &si->conn;
 
-	switch (si->conn.target.type) {
+	switch (conn->target.type) {
 	case TARG_TYPE_PROXY:
-		be = si->conn.target.ptr.p;
+		be = conn->target.ptr.p;
 		srv = NULL;
 		break;
 	case TARG_TYPE_SERVER:
-		srv = si->conn.target.ptr.s;
+		srv = conn->target.ptr.s;
 		be = srv->proxy;
 		break;
 	default:
 		return SN_ERR_INTERNAL;
 	}
 
-	if ((fd = si->conn.t.sock.fd = socket(si->addr.to.ss_family, SOCK_STREAM, IPPROTO_TCP)) == -1) {
+	if ((fd = conn->t.sock.fd = socket(conn->addr.to.ss_family, SOCK_STREAM, IPPROTO_TCP)) == -1) {
 		qfprintf(stderr, "Cannot get a server socket.\n");
 
 		if (errno == ENFILE)
@@ -336,11 +337,11 @@ int tcp_connect_server(struct stream_interface *si)
 				fdinfo[fd].port_range = srv->sport_range;
 				set_host_port(&src, fdinfo[fd].local_port);
 
-				ret = tcp_bind_socket(fd, flags, &src, &si->addr.from);
+				ret = tcp_bind_socket(fd, flags, &src, &conn->addr.from);
 			} while (ret != 0); /* binding NOK */
 		}
 		else {
-			ret = tcp_bind_socket(fd, flags, &srv->source_addr, &si->addr.from);
+			ret = tcp_bind_socket(fd, flags, &srv->source_addr, &conn->addr.from);
 		}
 
 		if (ret) {
@@ -383,7 +384,7 @@ int tcp_connect_server(struct stream_interface *si)
 		if (be->iface_name)
 			setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, be->iface_name, be->iface_len + 1);
 #endif
-		ret = tcp_bind_socket(fd, flags, &be->source_addr, &si->addr.from);
+		ret = tcp_bind_socket(fd, flags, &be->source_addr, &conn->addr.from);
 		if (ret) {
 			close(fd);
 			if (ret == 1) {
@@ -418,12 +419,7 @@ int tcp_connect_server(struct stream_interface *si)
 	if (global.tune.server_rcvbuf)
                 setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &global.tune.server_rcvbuf, sizeof(global.tune.server_rcvbuf));
 
-	si->flags &= ~SI_FL_FROM_SET;
-
-	si->conn.peeraddr = (struct sockaddr *)&si->addr.to;
-	si->conn.peerlen  = get_addr_len(&si->addr.to);
-
-	if ((connect(fd, si->conn.peeraddr, si->conn.peerlen) == -1) &&
+	if ((connect(fd, (struct sockaddr *)&conn->addr.to, get_addr_len(&conn->addr.to)) == -1) &&
 	    (errno != EINPROGRESS) && (errno != EALREADY) && (errno != EISCONN)) {
 
 		if (errno == EAGAIN || errno == EADDRINUSE) {
@@ -459,25 +455,25 @@ int tcp_connect_server(struct stream_interface *si)
 
 	/* needs src ip/port for logging */
 	if (si->flags & SI_FL_SRC_ADDR)
-		si_get_from_addr(si);
+		conn_get_from_addr(conn);
 
-	fdtab[fd].owner = &si->conn;
+	fdtab[fd].owner = conn;
 	fdtab[fd].flags = FD_FL_TCP | FD_FL_TCP_NODELAY;
-	si->conn.flags  = CO_FL_WAIT_L4_CONN; /* connection in progress */
-	si->conn.flags |= CO_FL_NOTIFY_SI; /* we're on a stream_interface */
+	conn->flags  = CO_FL_WAIT_L4_CONN; /* connection in progress */
+	conn->flags |= CO_FL_NOTIFY_SI; /* we're on a stream_interface */
 
 	/* Prepare to send a few handshakes related to the on-wire protocol. */
 	if (si->send_proxy_ofs)
-		si->conn.flags |= CO_FL_SI_SEND_PROXY;
+		conn->flags |= CO_FL_SI_SEND_PROXY;
 
 	fdtab[fd].iocb = conn_fd_handler;
 	fd_insert(fd);
-	conn_sock_want_send(&si->conn);  /* for connect status */
+	conn_sock_want_send(conn);  /* for connect status */
 	if (!channel_is_empty(si->ob))
-		conn_data_want_send(&si->conn);  /* prepare to send data if any */
+		conn_data_want_send(conn);  /* prepare to send data if any */
 
 	si->state = SI_ST_CON;
-	if (si->conn.data->rcv_pipe && si->conn.data->snd_pipe)
+	if (conn->data->rcv_pipe && conn->data->snd_pipe)
 		si->flags |= SI_FL_CAP_SPLTCP; /* TCP supports splicing */
 	si->exp = tick_add_ifset(now_ms, be->timeout.connect);
 
@@ -549,7 +545,7 @@ int tcp_connect_probe(struct connection *conn)
 	 *  - connecting (EALREADY, EINPROGRESS)
 	 *  - connected (EISCONN, 0)
 	 */
-	if ((connect(fd, conn->peeraddr, conn->peerlen) < 0)) {
+	if (connect(fd, (struct sockaddr *)&conn->addr.to, get_addr_len(&conn->addr.to)) < 0) {
 		if (errno == EALREADY || errno == EINPROGRESS) {
 			conn_sock_stop_recv(conn);
 			conn_sock_poll_send(conn);
@@ -1505,13 +1501,13 @@ static int
 smp_fetch_src(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
               const struct arg *args, struct sample *smp)
 {
-	switch (l4->si[0].addr.from.ss_family) {
+	switch (l4->si[0].conn.addr.from.ss_family) {
 	case AF_INET:
-		smp->data.ipv4 = ((struct sockaddr_in *)&l4->si[0].addr.from)->sin_addr;
+		smp->data.ipv4 = ((struct sockaddr_in *)&l4->si[0].conn.addr.from)->sin_addr;
 		smp->type = SMP_T_IPV4;
 		break;
 	case AF_INET6:
-		smp->data.ipv6 = ((struct sockaddr_in6 *)(&l4->si[0].addr.from))->sin6_addr;
+		smp->data.ipv6 = ((struct sockaddr_in6 *)(&l4->si[0].conn.addr.from))->sin6_addr;
 		smp->type = SMP_T_IPV6;
 		break;
 	default:
@@ -1528,7 +1524,7 @@ smp_fetch_sport(struct proxy *px, struct session *l4, void *l7, unsigned int opt
                 const struct arg *args, struct sample *smp)
 {
 	smp->type = SMP_T_UINT;
-	if (!(smp->data.uint = get_host_port(&l4->si[0].addr.from)))
+	if (!(smp->data.uint = get_host_port(&l4->si[0].conn.addr.from)))
 		return 0;
 
 	smp->flags = 0;
@@ -1540,15 +1536,15 @@ static int
 smp_fetch_dst(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
               const struct arg *args, struct sample *smp)
 {
-	si_get_to_addr(&l4->si[0]);
+	conn_get_to_addr(&l4->si[0].conn);
 
-	switch (l4->si[0].addr.to.ss_family) {
+	switch (l4->si[0].conn.addr.to.ss_family) {
 	case AF_INET:
-		smp->data.ipv4 = ((struct sockaddr_in *)&l4->si[0].addr.to)->sin_addr;
+		smp->data.ipv4 = ((struct sockaddr_in *)&l4->si[0].conn.addr.to)->sin_addr;
 		smp->type = SMP_T_IPV4;
 		break;
 	case AF_INET6:
-		smp->data.ipv6 = ((struct sockaddr_in6 *)(&l4->si[0].addr.to))->sin6_addr;
+		smp->data.ipv6 = ((struct sockaddr_in6 *)(&l4->si[0].conn.addr.to))->sin6_addr;
 		smp->type = SMP_T_IPV6;
 		break;
 	default:
@@ -1564,10 +1560,10 @@ static int
 smp_fetch_dport(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp)
 {
-	si_get_to_addr(&l4->si[0]);
+	conn_get_to_addr(&l4->si[0].conn);
 
 	smp->type = SMP_T_UINT;
-	if (!(smp->data.uint = get_host_port(&l4->si[0].addr.to)))
+	if (!(smp->data.uint = get_host_port(&l4->si[0].conn.addr.to)))
 		return 0;
 
 	smp->flags = 0;

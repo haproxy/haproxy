@@ -371,6 +371,39 @@ static inline struct listener *target_client(struct target *t)
 	return t->ptr.l;
 }
 
+/* Retrieves the connection's source address */
+static inline void conn_get_from_addr(struct connection *conn)
+{
+	if (conn->flags & CO_FL_ADDR_FROM_SET)
+		return;
+
+	if (!conn->ctrl || !conn->ctrl->get_src)
+		return;
+
+	if (conn->ctrl->get_src(conn->t.sock.fd, (struct sockaddr *)&conn->addr.from,
+	                         sizeof(conn->addr.from),
+	                         conn->target.type != TARG_TYPE_CLIENT) == -1)
+		return;
+	conn->flags |= CO_FL_ADDR_FROM_SET;
+}
+
+/* Retrieves the connection's original destination address */
+static inline void conn_get_to_addr(struct connection *conn)
+{
+	if (conn->flags & CO_FL_ADDR_TO_SET)
+		return;
+
+	if (!conn->ctrl || !conn->ctrl->get_dst)
+		return;
+
+	if (conn->ctrl->get_dst(conn->t.sock.fd, (struct sockaddr *)&conn->addr.to,
+	                         sizeof(conn->addr.to),
+	                         conn->target.type != TARG_TYPE_CLIENT) == -1)
+		return;
+	conn->flags |= CO_FL_ADDR_TO_SET;
+}
+
+
 #endif /* _PROTO_CONNECTION_H */
 
 /*

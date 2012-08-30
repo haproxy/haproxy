@@ -139,16 +139,16 @@ int frontend_accept(struct session *s)
 		else {
 			char pn[INET6_ADDRSTRLEN], sn[INET6_ADDRSTRLEN];
 
-			si_get_from_addr(s->req->prod);
-			si_get_to_addr(s->req->prod);
+			conn_get_from_addr(&s->req->prod->conn);
+			conn_get_to_addr(&s->req->prod->conn);
 
-			switch (addr_to_str(&s->req->prod->addr.from, pn, sizeof(pn))) {
+			switch (addr_to_str(&s->req->prod->conn.addr.from, pn, sizeof(pn))) {
 			case AF_INET:
 			case AF_INET6:
-				addr_to_str(&s->req->prod->addr.to, sn, sizeof(sn));
+				addr_to_str(&s->req->prod->conn.addr.to, sn, sizeof(sn));
 				send_log(s->fe, LOG_INFO, "Connect from %s:%d to %s:%d (%s/%s)\n",
-					 pn, get_host_port(&s->req->prod->addr.from),
-					 sn, get_host_port(&s->req->prod->addr.to),
+					 pn, get_host_port(&s->req->prod->conn.addr.from),
+					 sn, get_host_port(&s->req->prod->conn.addr.to),
 					 s->fe->id, (s->fe->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
 				break;
 			case AF_UNIX:
@@ -165,14 +165,14 @@ int frontend_accept(struct session *s)
 		char pn[INET6_ADDRSTRLEN];
 		int len = 0;
 
-		si_get_from_addr(s->req->prod);
+		conn_get_from_addr(&s->req->prod->conn);
 
-		switch (addr_to_str(&s->req->prod->addr.from, pn, sizeof(pn))) {
+		switch (addr_to_str(&s->req->prod->conn.addr.from, pn, sizeof(pn))) {
 		case AF_INET:
 		case AF_INET6:
 			len = sprintf(trash, "%08x:%s.accept(%04x)=%04x from [%s:%d]\n",
 				      s->uniq_id, s->fe->id, (unsigned short)s->listener->fd, (unsigned short)cfd,
-				      pn, get_host_port(&s->req->prod->addr.from));
+				      pn, get_host_port(&s->req->prod->conn.addr.from));
 			break;
 		case AF_UNIX:
 			/* UNIX socket, only the destination is known */
@@ -313,14 +313,14 @@ int frontend_decode_proxy_request(struct session *s, struct channel *req, int an
 			goto fail;
 
 		/* update the session's addresses and mark them set */
-		((struct sockaddr_in *)&s->si[0].addr.from)->sin_family      = AF_INET;
-		((struct sockaddr_in *)&s->si[0].addr.from)->sin_addr.s_addr = htonl(src3);
-		((struct sockaddr_in *)&s->si[0].addr.from)->sin_port        = htons(sport);
+		((struct sockaddr_in *)&s->si[0].conn.addr.from)->sin_family      = AF_INET;
+		((struct sockaddr_in *)&s->si[0].conn.addr.from)->sin_addr.s_addr = htonl(src3);
+		((struct sockaddr_in *)&s->si[0].conn.addr.from)->sin_port        = htons(sport);
 
-		((struct sockaddr_in *)&s->si[0].addr.to)->sin_family      = AF_INET;
-		((struct sockaddr_in *)&s->si[0].addr.to)->sin_addr.s_addr = htonl(dst3);
-		((struct sockaddr_in *)&s->si[0].addr.to)->sin_port        = htons(dport);
-		s->si[0].flags |= SI_FL_FROM_SET | SI_FL_TO_SET;
+		((struct sockaddr_in *)&s->si[0].conn.addr.to)->sin_family      = AF_INET;
+		((struct sockaddr_in *)&s->si[0].conn.addr.to)->sin_addr.s_addr = htonl(dst3);
+		((struct sockaddr_in *)&s->si[0].conn.addr.to)->sin_port        = htons(dport);
+		s->si[0].conn.flags |= CO_FL_ADDR_FROM_SET | CO_FL_ADDR_TO_SET;
 	}
 	else if (!memcmp(line, "TCP6 ", 5) != 0) {
 		u32 sport, dport;
@@ -374,14 +374,14 @@ int frontend_decode_proxy_request(struct session *s, struct channel *req, int an
 			goto fail;
 
 		/* update the session's addresses and mark them set */
-		((struct sockaddr_in6 *)&s->si[0].addr.from)->sin6_family      = AF_INET6;
-		memcpy(&((struct sockaddr_in6 *)&s->si[0].addr.from)->sin6_addr, &src3, sizeof(struct in6_addr));
-		((struct sockaddr_in6 *)&s->si[0].addr.from)->sin6_port        = htons(sport);
+		((struct sockaddr_in6 *)&s->si[0].conn.addr.from)->sin6_family      = AF_INET6;
+		memcpy(&((struct sockaddr_in6 *)&s->si[0].conn.addr.from)->sin6_addr, &src3, sizeof(struct in6_addr));
+		((struct sockaddr_in6 *)&s->si[0].conn.addr.from)->sin6_port        = htons(sport);
 
-		((struct sockaddr_in6 *)&s->si[0].addr.to)->sin6_family      = AF_INET6;
-		memcpy(&((struct sockaddr_in6 *)&s->si[0].addr.to)->sin6_addr, &dst3, sizeof(struct in6_addr));
-		((struct sockaddr_in6 *)&s->si[0].addr.to)->sin6_port        = htons(dport);
-		s->si[0].flags |= SI_FL_FROM_SET | SI_FL_TO_SET;
+		((struct sockaddr_in6 *)&s->si[0].conn.addr.to)->sin6_family      = AF_INET6;
+		memcpy(&((struct sockaddr_in6 *)&s->si[0].conn.addr.to)->sin6_addr, &dst3, sizeof(struct in6_addr));
+		((struct sockaddr_in6 *)&s->si[0].conn.addr.to)->sin6_port        = htons(dport);
+		s->si[0].conn.flags |= CO_FL_ADDR_FROM_SET | CO_FL_ADDR_TO_SET;
 	}
 	else {
 		goto fail;

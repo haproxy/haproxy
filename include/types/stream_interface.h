@@ -75,8 +75,6 @@ enum {
 	SI_FL_NOLINGER   = 0x0080,  /* may close without lingering. One-shot. */
 	SI_FL_NOHALF     = 0x0100,  /* no half close, close both sides at once */
 	SI_FL_SRC_ADDR   = 0x1000,  /* get the source ip/port with getsockname */
-	SI_FL_TO_SET     = 0x2000,  /* addr.to is set */
-	SI_FL_FROM_SET   = 0x4000,  /* addr.from is set */
 };
 
 #define SI_FL_CAP_SPLICE (SI_FL_CAP_SPLTCP)
@@ -160,10 +158,6 @@ struct stream_interface {
 			} cli;
 		} ctx;					/* used by stats I/O handlers to dump the stats */
 	} applet;
-	struct {
-		struct sockaddr_storage from;	/* client address, or address to spoof when connecting to the server */
-		struct sockaddr_storage to;	/* address reached by the client if SN_FRT_ADDR_SET is set, or address to connect to */
-	} addr; /* addresses of the remote side, client for producer and server for consumer */
 };
 
 /* An applet designed to run in a stream interface */

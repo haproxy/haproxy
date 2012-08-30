@@ -3269,7 +3269,7 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 	 * parsing incoming request.
 	 */
 	if ((s->be->options & PR_O_HTTP_PROXY) && !(s->flags & SN_ADDR_SET)) {
-		url2sa(req->buf.p + msg->sl.rq.u, msg->sl.rq.u_l, &s->req->cons->addr.to);
+		url2sa(req->buf.p + msg->sl.rq.u, msg->sl.rq.u_l, &s->req->cons->conn.addr.to);
 	}
 
 	/*
@@ -3319,19 +3319,19 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 			 * and we found it, so don't do anything.
 			 */
 		}
-		else if (s->req->prod->addr.from.ss_family == AF_INET) {
+		else if (s->req->prod->conn.addr.from.ss_family == AF_INET) {
 			/* Add an X-Forwarded-For header unless the source IP is
 			 * in the 'except' network range.
 			 */
 			if ((!s->fe->except_mask.s_addr ||
-			     (((struct sockaddr_in *)&s->req->prod->addr.from)->sin_addr.s_addr & s->fe->except_mask.s_addr)
+			     (((struct sockaddr_in *)&s->req->prod->conn.addr.from)->sin_addr.s_addr & s->fe->except_mask.s_addr)
 			     != s->fe->except_net.s_addr) &&
 			    (!s->be->except_mask.s_addr ||
-			     (((struct sockaddr_in *)&s->req->prod->addr.from)->sin_addr.s_addr & s->be->except_mask.s_addr)
+			     (((struct sockaddr_in *)&s->req->prod->conn.addr.from)->sin_addr.s_addr & s->be->except_mask.s_addr)
 			     != s->be->except_net.s_addr)) {
 				int len;
 				unsigned char *pn;
-				pn = (unsigned char *)&((struct sockaddr_in *)&s->req->prod->addr.from)->sin_addr;
+				pn = (unsigned char *)&((struct sockaddr_in *)&s->req->prod->conn.addr.from)->sin_addr;
 
 				/* Note: we rely on the backend to get the header name to be used for
 				 * x-forwarded-for, because the header is really meant for the backends.
@@ -3351,14 +3351,14 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 					goto return_bad_req;
 			}
 		}
-		else if (s->req->prod->addr.from.ss_family == AF_INET6) {
+		else if (s->req->prod->conn.addr.from.ss_family == AF_INET6) {
 			/* FIXME: for the sake of completeness, we should also support
 			 * 'except' here, although it is mostly useless in this case.
 			 */
 			int len;
 			char pn[INET6_ADDRSTRLEN];
 			inet_ntop(AF_INET6,
-				  (const void *)&((struct sockaddr_in6 *)(&s->req->prod->addr.from))->sin6_addr,
+				  (const void *)&((struct sockaddr_in6 *)(&s->req->prod->conn.addr.from))->sin6_addr,
 				  pn, sizeof(pn));
 
 			/* Note: we rely on the backend to get the header name to be used for
@@ -3387,22 +3387,22 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 	if ((s->fe->options | s->be->options) & PR_O_ORGTO) {
 
 		/* FIXME: don't know if IPv6 can handle that case too. */
-		if (s->req->prod->addr.from.ss_family == AF_INET) {
+		if (s->req->prod->conn.addr.from.ss_family == AF_INET) {
 			/* Add an X-Original-To header unless the destination IP is
 			 * in the 'except' network range.
 			 */
-			si_get_to_addr(s->req->prod);
+			conn_get_to_addr(&s->req->prod->conn);
 
-			if (s->req->prod->addr.to.ss_family == AF_INET &&
+			if (s->req->prod->conn.addr.to.ss_family == AF_INET &&
 			    ((!s->fe->except_mask_to.s_addr ||
-			      (((struct sockaddr_in *)&s->req->prod->addr.to)->sin_addr.s_addr & s->fe->except_mask_to.s_addr)
+			      (((struct sockaddr_in *)&s->req->prod->conn.addr.to)->sin_addr.s_addr & s->fe->except_mask_to.s_addr)
 			      != s->fe->except_to.s_addr) &&
 			     (!s->be->except_mask_to.s_addr ||
-			      (((struct sockaddr_in *)&s->req->prod->addr.to)->sin_addr.s_addr & s->be->except_mask_to.s_addr)
+			      (((struct sockaddr_in *)&s->req->prod->conn.addr.to)->sin_addr.s_addr & s->be->except_mask_to.s_addr)
 			      != s->be->except_to.s_addr))) {
 				int len;
 				unsigned char *pn;
-				pn = (unsigned char *)&((struct sockaddr_in *)&s->req->prod->addr.to)->sin_addr;
+				pn = (unsigned char *)&((struct sockaddr_in *)&s->req->prod->conn.addr.to)->sin_addr;
 
 				/* Note: we rely on the backend to get the header name to be used for
 				 * x-original-to, because the header is really meant for the backends.
@@ -7279,7 +7279,7 @@ void http_capture_bad_message(struct error_snapshot *es, struct session *s,
 	es->sid  = s->uniq_id;
 	es->srv  = target_srv(&s->target);
 	es->oe   = other_end;
-	es->src  = s->req->prod->addr.from;
+	es->src  = s->req->prod->conn.addr.from;
 	es->state = state;
 	es->ev_id = error_snapshot_id++;
 	es->b_flags = buf->flags;
@@ -7858,11 +7858,11 @@ smp_fetch_url_ip(struct proxy *px, struct session *l4, void *l7, unsigned int op
 	CHECK_HTTP_MESSAGE_FIRST();
 
 	/* Parse HTTP request */
-	url2sa(txn->req.buf->buf.p + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &l4->req->cons->addr.to);
-	if (((struct sockaddr_in *)&l4->req->cons->addr.to)->sin_family != AF_INET)
+	url2sa(txn->req.buf->buf.p + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &l4->req->cons->conn.addr.to);
+	if (((struct sockaddr_in *)&l4->req->cons->conn.addr.to)->sin_family != AF_INET)
 		return 0;
 	smp->type = SMP_T_IPV4;
-	smp->data.ipv4 = ((struct sockaddr_in *)&l4->req->cons->addr.to)->sin_addr;
+	smp->data.ipv4 = ((struct sockaddr_in *)&l4->req->cons->conn.addr.to)->sin_addr;
 
 	/*
 	 * If we are parsing url in frontend space, we prepare backend stage
@@ -7884,9 +7884,9 @@ smp_fetch_url_port(struct proxy *px, struct session *l4, void *l7, unsigned int 
 	CHECK_HTTP_MESSAGE_FIRST();
 
 	/* Same optimization as url_ip */
-	url2sa(txn->req.buf->buf.p + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &l4->req->cons->addr.to);
+	url2sa(txn->req.buf->buf.p + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &l4->req->cons->conn.addr.to);
 	smp->type = SMP_T_UINT;
-	smp->data.uint = ntohs(((struct sockaddr_in *)&l4->req->cons->addr.to)->sin_port);
+	smp->data.uint = ntohs(((struct sockaddr_in *)&l4->req->cons->conn.addr.to)->sin_port);
 
 	if (px->options & PR_O_HTTP_PROXY)
 		l4->flags |= SN_ADDR_SET;

@@ -46,12 +46,12 @@ int smp_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, unsigne
  */
 static inline struct stktable_key *tcp_src_to_stktable_key(struct session *s)
 {
-	switch (s->si[0].addr.from.ss_family) {
+	switch (s->si[0].conn.addr.from.ss_family) {
 	case AF_INET:
-		static_table_key.key = (void *)&((struct sockaddr_in *)&s->si[0].addr.from)->sin_addr;
+		static_table_key.key = (void *)&((struct sockaddr_in *)&s->si[0].conn.addr.from)->sin_addr;
 		break;
 	case AF_INET6:
-		static_table_key.key = (void *)&((struct sockaddr_in6 *)&s->si[0].addr.from)->sin6_addr;
+		static_table_key.key = (void *)&((struct sockaddr_in6 *)&s->si[0].conn.addr.from)->sin6_addr;
 		break;
 	default:
 		return NULL;

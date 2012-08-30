@@ -80,6 +80,10 @@ enum {
 	 */
 	CO_FL_POLL_SOCK     = CO_FL_HANDSHAKE | CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN,
 
+	/* These flags are used to report whether the from/to addresses are set or not */
+	CO_FL_ADDR_FROM_SET = 0x00001000,  /* addr.from is set */
+	CO_FL_ADDR_TO_SET   = 0x00002000,  /* addr.to is set */
+
 	/* These flags are used by data layers to indicate to their iterators
 	 * whether they had to stop due to missing data or missing room. Their
 	 * callers must reset them before calling the data layer handlers.
@@ -181,8 +185,10 @@ struct connection {
 	int data_st;                  /* data layer state, initialized to zero */
 	void *data_ctx;               /* general purpose pointer, initialized to NULL */
 	struct target target;         /* the target to connect to (server, proxy, applet, ...) */
-	struct sockaddr *peeraddr;    /* pointer to peer's network address, or NULL if unset */
-	socklen_t peerlen;            /* peer's address length, or 0 if unset */
+	struct {
+		struct sockaddr_storage from;	/* client address, or address to spoof when connecting to the server */
+		struct sockaddr_storage to;	/* address reached by the client if SN_FRT_ADDR_SET is set, or address to connect to */
+	} addr; /* addresses of the remote side, client for producer and server for consumer */
 };
 
 #endif /* _TYPES_CONNECTION_H */

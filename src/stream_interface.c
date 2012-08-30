@@ -504,7 +504,7 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 		 * (which is recomputed every time since it's constant). If
 		 * it is positive, it means we have to send from the start.
 		 */
-		ret = make_proxy_line(trash, trashlen, &si->ob->prod->addr.from, &si->ob->prod->addr.to);
+		ret = make_proxy_line(trash, trashlen, &si->ob->prod->conn.addr.from, &si->ob->prod->conn.addr.to);
 		if (!ret)
 			goto out_error;
 
