@@ -49,7 +49,6 @@
 #include <proto/sample.h>
 #include <proto/session.h>
 #include <proto/stick_table.h>
-#include <proto/stream_interface.h>
 #include <proto/task.h>
 
 #ifdef CONFIG_HAP_CTTPROXY
@@ -210,12 +209,15 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
 
 
 /*
- * This function initiates a connection to the target assigned to this session
- * (si->{target,addr.to}). A source address may be pointed to by si->addr.from
- * in case of transparent proxying. Normal source bind addresses are still
- * determined locally (due to the possible need of a source port).
- * si->target may point either to a valid server or to a backend, depending
- * on si->target.type. Only TARG_TYPE_PROXY and TARG_TYPE_SERVER are supported.
+ * This function initiates a TCP connection establishment to the target assigned
+ * to connection <conn> using (si->{target,addr.to}). A source address may be
+ * pointed to by conn->addr.from in case of transparent proxying. Normal source
+ * bind addresses are still determined locally (due to the possible need of a
+ * source port). conn->target may point either to a valid server or to a backend,
+ * depending on conn->target.type. Only TARG_TYPE_PROXY and TARG_TYPE_SERVER are
+ * supported. The <data> parameter is a boolean indicating whether there are data
+ * waiting for being sent or not, in order to adjust data write polling and on
+ * some platforms, the ability to avoid an empty initial ACK.
  *
  * It can return one of :
  *  - SN_ERR_NONE if everything's OK
@@ -227,12 +229,11 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
  * Additionnally, in the case of SN_ERR_RESOURCE, an emergency log will be emitted.
  */
 
-int tcp_connect_server(struct stream_interface *si)
+int tcp_connect_server(struct connection *conn, int data)
 {
 	int fd;
 	struct server *srv;
 	struct proxy *be;
-	struct connection *conn = &si->conn;
 
 	switch (conn->target.type) {
 	case TARG_TYPE_PROXY:
@@ -284,9 +285,6 @@ int tcp_connect_server(struct stream_interface *si)
 
 	if (be->options & PR_O_TCP_SRV_KA)
 		setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &one, sizeof(one));
-
-	if (be->options & PR_O_TCP_NOLING)
-		si->flags |= SI_FL_NOLINGER;
 
 	/* allow specific binding :
 	 * - server-specific at first
@@ -409,7 +407,7 @@ int tcp_connect_server(struct stream_interface *si)
 	 * machine with the first ACK. We only do this if there are pending
 	 * data in the buffer.
 	 */
-	if ((be->options2 & PR_O2_SMARTCON) && si->ob->buf.o)
+	if ((be->options2 & PR_O2_SMARTCON) && data)
                 setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, &zero, sizeof(zero));
 #endif
 
@@ -453,27 +451,15 @@ int tcp_connect_server(struct stream_interface *si)
 		}
 	}
 
-	/* needs src ip/port for logging */
-	if (si->flags & SI_FL_SRC_ADDR)
-		conn_get_from_addr(conn);
-
 	fdtab[fd].owner = conn;
 	fdtab[fd].flags = FD_FL_TCP | FD_FL_TCP_NODELAY;
 	conn->flags  = CO_FL_WAIT_L4_CONN; /* connection in progress */
-	conn->flags |= CO_FL_NOTIFY_SI; /* we're on a stream_interface */
-
-	/* Prepare to send a few handshakes related to the on-wire protocol. */
-	if (si->send_proxy_ofs)
-		conn->flags |= CO_FL_SI_SEND_PROXY;
 
 	fdtab[fd].iocb = conn_fd_handler;
 	fd_insert(fd);
 	conn_sock_want_send(conn);  /* for connect status */
-	if (!channel_is_empty(si->ob))
+	if (data)
 		conn_data_want_send(conn);  /* prepare to send data if any */
-
-	si->state = SI_ST_CON;
-	si->exp = tick_add_ifset(now_ms, be->timeout.connect);
 
 	return SN_ERR_NONE;  /* connection is OK */
 }

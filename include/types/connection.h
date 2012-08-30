@@ -80,6 +80,8 @@ enum {
 	 */
 	CO_FL_POLL_SOCK     = CO_FL_HANDSHAKE | CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN,
 
+	/* This flag is set if lingering has already been disabled on the connection */
+
 	/* These flags are used to report whether the from/to addresses are set or not */
 	CO_FL_ADDR_FROM_SET = 0x00001000,  /* addr.from is set */
 	CO_FL_ADDR_TO_SET   = 0x00002000,  /* addr.to is set */

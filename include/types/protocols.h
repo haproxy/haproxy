@@ -135,7 +135,7 @@ struct listener {
 	} conf;				/* config information */
 };
 
-struct stream_interface;
+struct connection;
 
 /* This structure contains all information needed to easily handle a protocol.
  * Its primary goal is to ease listeners maintenance. Specifically, the
@@ -157,7 +157,7 @@ struct protocol {
 	int (*unbind_all)(struct protocol *proto);	/* unbind all bound listeners */
 	int (*enable_all)(struct protocol *proto);	/* enable all bound listeners */
 	int (*disable_all)(struct protocol *proto);	/* disable all bound listeners */
-	int (*connect)(struct stream_interface *);      /* connect function if any */
+	int (*connect)(struct connection *, int data);  /* connect function if any */
 	int (*get_src)(int fd, struct sockaddr *, socklen_t, int dir); /* syscall used to retrieve src addr */
 	int (*get_dst)(int fd, struct sockaddr *, socklen_t, int dir); /* syscall used to retrieve dst addr */
 

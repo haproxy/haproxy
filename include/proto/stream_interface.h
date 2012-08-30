@@ -27,6 +27,7 @@
 #include <common/config.h>
 #include <types/session.h>
 #include <types/stream_interface.h>
+#include <proto/channel.h>
 #include <proto/connection.h>
 
 
@@ -128,9 +129,30 @@ static inline void si_chk_snd(struct stream_interface *si)
 /* Calls chk_snd on the connection using the ctrl layer */
 static inline int si_connect(struct stream_interface *si)
 {
+	int ret;
+
 	if (unlikely(!si_ctrl(si) || !si_ctrl(si)->connect))
 		return SN_ERR_INTERNAL;
-	return si_ctrl(si)->connect(si);
+
+	ret = si_ctrl(si)->connect(&si->conn, !channel_is_empty(si->ob));
+	if (ret != SN_ERR_NONE)
+		return ret;
+
+	/* needs src ip/port for logging */
+	if (si->flags & SI_FL_SRC_ADDR)
+		conn_get_from_addr(&si->conn);
+
+	/* Prepare to send a few handshakes related to the on-wire protocol. */
+	if (si->send_proxy_ofs)
+		si->conn.flags |= CO_FL_SI_SEND_PROXY;
+
+	/* we need to be notified about connection establishment */
+	si->conn.flags |= CO_FL_NOTIFY_SI;
+
+	/* we're in the process of establishing a connection */
+	si->state = SI_ST_CON;
+
+	return ret;
 }
 
 #endif /* _PROTO_STREAM_INTERFACE_H */

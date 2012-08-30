@@ -1009,10 +1009,17 @@ int connect_server(struct session *s)
 	if (s->fe->options2 & PR_O2_SRC_ADDR)
 		s->req->cons->flags |= SI_FL_SRC_ADDR;
 
+	/* disable lingering */
+	if (s->be->options & PR_O_TCP_NOLING)
+		s->req->cons->flags |= SI_FL_NOLINGER;
+
 	err = si_connect(s->req->cons);
 
 	if (err != SN_ERR_NONE)
 		return err;
+
+	/* set connect timeout */
+	s->req->cons->exp = tick_add_ifset(now_ms, s->be->timeout.connect);
 
 	srv = target_srv(&s->target);
 	if (srv) {
