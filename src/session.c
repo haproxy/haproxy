@@ -2369,7 +2369,7 @@ acl_fetch_src_get_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned 
 {
 	struct stktable_key *key;
 
-	key = tcp_src_to_stktable_key(l4);
+	key = addr_to_stktable_key(&l4->si[0].conn.addr.from);
 	if (!key)
 		return 0;
 
@@ -2429,7 +2429,7 @@ acl_fetch_src_inc_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned 
 {
 	struct stktable_key *key;
 
-	key = tcp_src_to_stktable_key(l4);
+	key = addr_to_stktable_key(&l4->si[0].conn.addr.from);
 	if (!key)
 		return 0;
 
@@ -2490,7 +2490,7 @@ acl_fetch_src_clr_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned 
 {
 	struct stktable_key *key;
 
-	key = tcp_src_to_stktable_key(l4);
+	key = addr_to_stktable_key(&l4->si[0].conn.addr.from);
 	if (!key)
 		return 0;
 
@@ -2546,7 +2546,7 @@ acl_fetch_src_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsigned 
 {
 	struct stktable_key *key;
 
-	key = tcp_src_to_stktable_key(l4);
+	key = addr_to_stktable_key(&l4->si[0].conn.addr.from);
 	if (!key)
 		return 0;
 
@@ -2607,7 +2607,7 @@ acl_fetch_src_conn_rate(struct proxy *px, struct session *l4, void *l7, unsigned
 {
 	struct stktable_key *key;
 
-	key = tcp_src_to_stktable_key(l4);
+	key = addr_to_stktable_key(&l4->si[0].conn.addr.from);
 	if (!key)
 		return 0;
 
@@ -2627,7 +2627,7 @@ acl_fetch_src_updt_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsi
 	struct stktable_key *key;
 	void *ptr;
 
-	key = tcp_src_to_stktable_key(l4);
+	key = addr_to_stktable_key(&l4->si[0].conn.addr.from);
 	if (!key)
 		return 0;
 
@@ -2696,7 +2696,7 @@ acl_fetch_src_conn_cur(struct proxy *px, struct session *l4, void *l7, unsigned 
 {
 	struct stktable_key *key;
 
-	key = tcp_src_to_stktable_key(l4);
+	key = addr_to_stktable_key(&l4->si[0].conn.addr.from);
 	if (!key)
 		return 0;
 
@@ -2752,7 +2752,7 @@ acl_fetch_src_sess_cnt(struct proxy *px, struct session *l4, void *l7, unsigned 
 {
 	struct stktable_key *key;
 
-	key = tcp_src_to_stktable_key(l4);
+	key = addr_to_stktable_key(&l4->si[0].conn.addr.from);
 	if (!key)
 		return 0;
 
@@ -2813,7 +2813,7 @@ acl_fetch_src_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned
 {
 	struct stktable_key *key;
 
-	key = tcp_src_to_stktable_key(l4);
+	key = addr_to_stktable_key(&l4->si[0].conn.addr.from);
 	if (!key)
 		return 0;
 
@@ -2869,7 +2869,7 @@ acl_fetch_src_http_req_cnt(struct proxy *px, struct session *l4, void *l7, unsig
 {
 	struct stktable_key *key;
 
-	key = tcp_src_to_stktable_key(l4);
+	key = addr_to_stktable_key(&l4->si[0].conn.addr.from);
 	if (!key)
 		return 0;
 
@@ -2930,7 +2930,7 @@ acl_fetch_src_http_req_rate(struct proxy *px, struct session *l4, void *l7, unsi
 {
 	struct stktable_key *key;
 
-	key = tcp_src_to_stktable_key(l4);
+	key = addr_to_stktable_key(&l4->si[0].conn.addr.from);
 	if (!key)
 		return 0;
 
@@ -2986,7 +2986,7 @@ acl_fetch_src_http_err_cnt(struct proxy *px, struct session *l4, void *l7, unsig
 {
 	struct stktable_key *key;
 
-	key = tcp_src_to_stktable_key(l4);
+	key = addr_to_stktable_key(&l4->si[0].conn.addr.from);
 	if (!key)
 		return 0;
 
@@ -3047,7 +3047,7 @@ acl_fetch_src_http_err_rate(struct proxy *px, struct session *l4, void *l7, unsi
 {
 	struct stktable_key *key;
 
-	key = tcp_src_to_stktable_key(l4);
+	key = addr_to_stktable_key(&l4->si[0].conn.addr.from);
 	if (!key)
 		return 0;
 
@@ -3108,7 +3108,7 @@ acl_fetch_src_kbytes_in(struct proxy *px, struct session *l4, void *l7, unsigned
 {
 	struct stktable_key *key;
 
-	key = tcp_src_to_stktable_key(l4);
+	key = addr_to_stktable_key(&l4->si[0].conn.addr.from);
 	if (!key)
 		return 0;
 
@@ -3171,7 +3171,7 @@ acl_fetch_src_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, unsi
 {
 	struct stktable_key *key;
 
-	key = tcp_src_to_stktable_key(l4);
+	key = addr_to_stktable_key(&l4->si[0].conn.addr.from);
 	if (!key)
 		return 0;
 
@@ -3232,7 +3232,7 @@ acl_fetch_src_kbytes_out(struct proxy *px, struct session *l4, void *l7, unsigne
 {
 	struct stktable_key *key;
 
-	key = tcp_src_to_stktable_key(l4);
+	key = addr_to_stktable_key(&l4->si[0].conn.addr.from);
 	if (!key)
 		return 0;
 
@@ -3295,7 +3295,7 @@ acl_fetch_src_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, uns
 {
 	struct stktable_key *key;
 
-	key = tcp_src_to_stktable_key(l4);
+	key = addr_to_stktable_key(&l4->si[0].conn.addr.from);
 	if (!key)
 		return 0;
 

@@ -39,19 +39,19 @@ int tcp_inspect_response(struct session *s, struct channel *rep, int an_bit);
 int tcp_exec_req_rules(struct session *s);
 int smp_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, unsigned int opt, const struct arg *args, struct sample *smp);
 
-/* Converts the TCP source address to a stick_table key usable for table
+/* Converts the INET/INET6 source address to a stick_table key usable for table
  * lookups. Returns either NULL if the source cannot be converted (eg: not
  * IPv4) or a pointer to the converted result in static_table_key in the
  * appropriate format (IP).
  */
-static inline struct stktable_key *tcp_src_to_stktable_key(struct session *s)
+static inline struct stktable_key *addr_to_stktable_key(struct sockaddr_storage *addr)
 {
-	switch (s->si[0].conn.addr.from.ss_family) {
+	switch (addr->ss_family) {
 	case AF_INET:
-		static_table_key.key = (void *)&((struct sockaddr_in *)&s->si[0].conn.addr.from)->sin_addr;
+		static_table_key.key = (void *)&((struct sockaddr_in *)addr)->sin_addr;
 		break;
 	case AF_INET6:
-		static_table_key.key = (void *)&((struct sockaddr_in6 *)&s->si[0].conn.addr.from)->sin6_addr;
+		static_table_key.key = (void *)&((struct sockaddr_in6 *)addr)->sin6_addr;
 		break;
 	default:
 		return NULL;
