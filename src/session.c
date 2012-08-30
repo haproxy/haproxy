@@ -172,7 +172,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[0].err_loc   = NULL;
 	s->si[0].release   = NULL;
 	s->si[0].send_proxy_ofs = 0;
-	set_target_client(&s->si[0].target, l);
+	set_target_client(&s->si[0].conn.target, l);
 	s->si[0].exp       = TICK_ETERNITY;
 	s->si[0].flags     = SI_FL_NONE;
 
@@ -198,7 +198,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[1].err_loc   = NULL;
 	s->si[1].release   = NULL;
 	s->si[1].send_proxy_ofs = 0;
-	clear_target(&s->si[1].target);
+	clear_target(&s->si[1].conn.target);
 	si_prepare_embedded(&s->si[1]);
 	s->si[1].exp       = TICK_ETERNITY;
 	s->si[1].flags     = SI_FL_NONE;
@@ -1923,7 +1923,7 @@ struct task *process_session(struct task *t)
 				 */
 				s->req->cons->state = SI_ST_REQ; /* new connection requested */
 				s->req->cons->conn_retries = s->be->conn_retries;
-				if (unlikely(s->req->cons->target.type == TARG_TYPE_APPLET &&
+				if (unlikely(s->req->cons->conn.target.type == TARG_TYPE_APPLET &&
 					     !(si_ctrl(s->req->cons) && si_ctrl(s->req->cons)->connect))) {
 					s->req->cons->state = SI_ST_EST; /* connection established */
 					s->rep->flags |= CF_READ_ATTACHED; /* producer is now attached */
@@ -2103,10 +2103,10 @@ struct task *process_session(struct task *t)
 		if ((s->fe->options & PR_O_CONTSTATS) && (s->flags & SN_BE_ASSIGNED))
 			session_process_counters(s);
 
-		if (s->rep->cons->state == SI_ST_EST && s->rep->cons->target.type != TARG_TYPE_APPLET)
+		if (s->rep->cons->state == SI_ST_EST && s->rep->cons->conn.target.type != TARG_TYPE_APPLET)
 			si_update(s->rep->cons);
 
-		if (s->req->cons->state == SI_ST_EST && s->req->cons->target.type != TARG_TYPE_APPLET)
+		if (s->req->cons->state == SI_ST_EST && s->req->cons->conn.target.type != TARG_TYPE_APPLET)
 			si_update(s->req->cons);
 
 		s->req->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_WRITE_NULL|CF_WRITE_PARTIAL|CF_READ_ATTACHED);
@@ -2133,12 +2133,12 @@ struct task *process_session(struct task *t)
 		/* Call the stream interfaces' I/O handlers when embedded.
 		 * Note that this one may wake the task up again.
 		 */
-		if (s->req->cons->target.type == TARG_TYPE_APPLET ||
-		    s->rep->cons->target.type == TARG_TYPE_APPLET) {
-			if (s->req->cons->target.type == TARG_TYPE_APPLET)
-				s->req->cons->target.ptr.a->fct(s->req->cons);
-			if (s->rep->cons->target.type == TARG_TYPE_APPLET)
-				s->rep->cons->target.ptr.a->fct(s->rep->cons);
+		if (s->req->cons->conn.target.type == TARG_TYPE_APPLET ||
+		    s->rep->cons->conn.target.type == TARG_TYPE_APPLET) {
+			if (s->req->cons->conn.target.type == TARG_TYPE_APPLET)
+				s->req->cons->conn.target.ptr.a->fct(s->req->cons);
+			if (s->rep->cons->conn.target.type == TARG_TYPE_APPLET)
+				s->rep->cons->conn.target.ptr.a->fct(s->rep->cons);
 			if (task_in_rq(t)) {
 				/* If we woke up, we don't want to requeue the
 				 * task to the wait queue, but rather requeue

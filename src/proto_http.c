@@ -3028,7 +3028,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 		s->logs.tv_request = now;
 		s->task->nice = -32; /* small boost for HTTP statistics */
 		stream_int_register_handler(s->rep->prod, &http_stats_applet);
-		copy_target(&s->target, &s->rep->prod->target); // for logging only
+		copy_target(&s->target, &s->rep->prod->conn.target); // for logging only
 		s->rep->prod->conn.data_ctx = s;
 		s->rep->prod->applet.st0 = s->rep->prod->applet.st1 = 0;
 		req->analysers = 0;

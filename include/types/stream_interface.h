@@ -79,34 +79,9 @@ enum {
 	SI_FL_FROM_SET   = 0x4000,  /* addr.from is set */
 };
 
-/* target types */
-enum {
-	TARG_TYPE_NONE = 0,         /* no target set, pointer is NULL by definition */
-	TARG_TYPE_CLIENT,           /* target is a client, pointer is NULL by definition */
-	TARG_TYPE_PROXY,            /* target is a proxy   ; use address with the proxy's settings */
-	TARG_TYPE_SERVER,           /* target is a server  ; use address with server's and its proxy's settings */
-	TARG_TYPE_APPLET,           /* target is an applet ; use only the applet */
-	TARG_TYPE_TASK,             /* target is a task running an external applet */
-};
-
 #define SI_FL_CAP_SPLICE (SI_FL_CAP_SPLTCP)
 
-struct server;
-struct proxy;
-struct si_applet;
 struct stream_interface;
-
-struct target {
-	int type;
-	union {
-		void *v;              /* pointer value, for any type */
-		struct proxy *p;      /* when type is TARG_TYPE_PROXY  */
-		struct server *s;     /* when type is TARG_TYPE_SERVER */
-		struct si_applet *a;  /* when type is TARG_TYPE_APPLET */
-		struct task *t;       /* when type is TARG_TYPE_TASK */
-		struct listener *l;   /* when type is TARG_TYPE_CLIENT */
-	} ptr;
-};
 
 /* operations available on a stream-interface */
 struct si_ops {
@@ -143,7 +118,6 @@ struct stream_interface {
 	void (*release)(struct stream_interface *); /* handler to call after the last close() */
 
 	/* struct members below are the "remote" part, as seen from the buffer side */
-	struct target target;	/* the target to connect to (server, proxy, applet, ...) */
 	int conn_retries;	/* number of connect retries left */
 	int send_proxy_ofs;	/* <0 = offset to (re)send from the end, >0 = send all */
 	struct {

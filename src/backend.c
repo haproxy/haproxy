@@ -981,7 +981,7 @@ int connect_server(struct session *s)
 	}
 
 	/* the target was only on the session, assign it to the SI now */
-	copy_target(&s->req->cons->target, &s->target);
+	copy_target(&s->req->cons->conn.target, &s->target);
 
 	/* set the correct protocol on the output stream interface */
 	if (s->target.type == TARG_TYPE_SERVER) {

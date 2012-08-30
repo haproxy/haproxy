@@ -32,6 +32,11 @@ struct protocol;
 struct connection;
 struct buffer;
 struct pipe;
+struct server;
+struct proxy;
+struct si_applet;
+struct task;
+struct listener;
 
 /* Polling flags that are manipulated by I/O callbacks and handshake callbacks
  * indicate what they expect from a file descriptor at each layer. For each
@@ -110,6 +115,16 @@ enum {
 	CO_FL_CURR_WR_POL   = CO_FL_WR_POL << 28,  /* sending needs to poll first */
 };
 
+/* target types */
+enum {
+	TARG_TYPE_NONE = 0,         /* no target set, pointer is NULL by definition */
+	TARG_TYPE_CLIENT,           /* target is a client, pointer is NULL by definition */
+	TARG_TYPE_PROXY,            /* target is a proxy   ; use address with the proxy's settings */
+	TARG_TYPE_SERVER,           /* target is a server  ; use address with server's and its proxy's settings */
+	TARG_TYPE_APPLET,           /* target is an applet ; use only the applet */
+	TARG_TYPE_TASK,             /* target is a task running an external applet */
+};
+
 
 /* data_ops describes data-layer operations for a connection. They generally
  * run over a socket-based control layer, but not always.
@@ -133,6 +148,19 @@ struct app_cb {
 	void (*send)(struct connection *conn);  /* application-layer send callback */
 };
 
+/* a target describes what is on the remote side of the connection. */
+struct target {
+	int type;
+	union {
+		void *v;              /* pointer value, for any type */
+		struct proxy *p;      /* when type is TARG_TYPE_PROXY  */
+		struct server *s;     /* when type is TARG_TYPE_SERVER */
+		struct si_applet *a;  /* when type is TARG_TYPE_APPLET */
+		struct task *t;       /* when type is TARG_TYPE_TASK */
+		struct listener *l;   /* when type is TARG_TYPE_CLIENT */
+	} ptr;
+};
+
 /* This structure describes a connection with its methods and data.
  * A connection may be performed to proxy or server via a local or remote
  * socket, and can also be made to an internal applet. It can support
@@ -152,6 +180,7 @@ struct connection {
 	unsigned int flags;           /* CO_F_* */
 	int data_st;                  /* data layer state, initialized to zero */
 	void *data_ctx;               /* general purpose pointer, initialized to NULL */
+	struct target target;         /* the target to connect to (server, proxy, applet, ...) */
 	struct sockaddr *peeraddr;    /* pointer to peer's network address, or NULL if unset */
 	socklen_t peerlen;            /* peer's address length, or 0 if unset */
 };

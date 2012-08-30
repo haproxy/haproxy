@@ -233,13 +233,13 @@ int tcp_connect_server(struct stream_interface *si)
 	struct server *srv;
 	struct proxy *be;
 
-	switch (si->target.type) {
+	switch (si->conn.target.type) {
 	case TARG_TYPE_PROXY:
-		be = si->target.ptr.p;
+		be = si->conn.target.ptr.p;
 		srv = NULL;
 		break;
 	case TARG_TYPE_SERVER:
-		srv = si->target.ptr.s;
+		srv = si->conn.target.ptr.s;
 		be = srv->proxy;
 		break;
 	default:

@@ -422,7 +422,7 @@ struct task *stream_int_register_handler(struct stream_interface *si, struct si_
 	DPRINTF(stderr, "registering handler %p for si %p (was %p)\n", app, si, si->owner);
 
 	si_prepare_embedded(si);
-	set_target_applet(&si->target, app);
+	set_target_applet(&si->conn.target, app);
 	si->release   = app->release;
 	si->flags |= SI_FL_WAIT_DATA;
 	return si->owner;
@@ -443,7 +443,7 @@ struct task *stream_int_register_handler_task(struct stream_interface *si,
 	DPRINTF(stderr, "registering handler %p for si %p (was %p)\n", fct, si, si->owner);
 
 	si_prepare_task(si);
-	clear_target(&si->target);
+	clear_target(&si->conn.target);
 	si->release   = NULL;
 	si->flags |= SI_FL_WAIT_DATA;
 
@@ -452,7 +452,7 @@ struct task *stream_int_register_handler_task(struct stream_interface *si,
 	if (!t)
 		return t;
 
-	set_target_task(&si->target, t);
+	set_target_task(&si->conn.target, t);
 
 	t->process = fct;
 	t->context = si;
@@ -467,14 +467,14 @@ struct task *stream_int_register_handler_task(struct stream_interface *si,
  */
 void stream_int_unregister_handler(struct stream_interface *si)
 {
-	if (si->target.type == TARG_TYPE_TASK) {
+	if (si->conn.target.type == TARG_TYPE_TASK) {
 		/* external handler : kill the task */
-		task_delete(si->target.ptr.t);
-		task_free(si->target.ptr.t);
+		task_delete(si->conn.target.ptr.t);
+		task_free(si->conn.target.ptr.t);
 	}
 	si->release   = NULL;
 	si->owner = NULL;
-	clear_target(&si->target);
+	clear_target(&si->conn.target);
 }
 
 /* This callback is used to send a valid PROXY protocol line to a socket being
