@@ -1019,7 +1019,6 @@ void si_conn_recv_cb(struct connection *conn)
 		if (ret < 0) {
 			/* splice not supported on this end, let's disable it */
 			b->flags &= ~CF_KERN_SPLICING;
-			si->flags &= ~SI_FL_CAP_SPLICE;
 			goto abort_splice;
 		}
 

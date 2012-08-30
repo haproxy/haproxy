@@ -473,8 +473,6 @@ int tcp_connect_server(struct stream_interface *si)
 		conn_data_want_send(conn);  /* prepare to send data if any */
 
 	si->state = SI_ST_CON;
-	if (conn->data->rcv_pipe && conn->data->snd_pipe)
-		si->flags |= SI_FL_CAP_SPLTCP; /* TCP supports splicing */
 	si->exp = tick_add_ifset(now_ms, be->timeout.connect);
 
 	return SN_ERR_NONE;  /* connection is OK */

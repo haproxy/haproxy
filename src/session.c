@@ -180,10 +180,6 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	/* add the various callbacks */
 	si_prepare_conn(&s->si[0], l->proto, l->data);
 
-	if ((s->si[0].conn.data->rcv_pipe && s->si[0].conn.data->snd_pipe) &&
-	    (addr->ss_family == AF_INET || addr->ss_family == AF_INET6))
-		s->si[0].flags = SI_FL_CAP_SPLTCP; /* TCP/TCPv6 splicing possible */
-
 	/* pre-initialize the other side's stream interface to an INIT state. The
 	 * callbacks will be initialized before attempting to connect.
 	 */
@@ -540,7 +536,6 @@ static int sess_update_st_con_tcp(struct session *s, struct stream_interface *si
 	if (unlikely(si->flags & (SI_FL_EXP|SI_FL_ERR))) {
 		si->exp   = TICK_ETERNITY;
 		si->state = SI_ST_CER;
-		si->flags &= ~SI_FL_CAP_SPLICE;
 		fd_delete(si_fd(si));
 
 		conn_data_close(&si->conn);
@@ -567,7 +562,6 @@ static int sess_update_st_con_tcp(struct session *s, struct stream_interface *si
 		si_shutw(si);
 		si->err_type |= SI_ET_CONN_ABRT;
 		si->err_loc  = target_srv(&s->target);
-		si->flags &= ~SI_FL_CAP_SPLICE;
 		if (s->srv_error)
 			s->srv_error(s, si);
 		return 1;
@@ -1867,7 +1861,8 @@ struct task *process_session(struct task *t)
 	if (!(s->req->flags & (CF_KERN_SPLICING|CF_SHUTR)) &&
 	    s->req->to_forward &&
 	    (global.tune.options & GTUNE_USE_SPLICE) &&
-	    (s->si[0].flags & s->si[1].flags & SI_FL_CAP_SPLICE) &&
+	    (s->si[0].conn.data && s->si[0].conn.data->rcv_pipe && s->si[0].conn.data->snd_pipe) &&
+	    (s->si[1].conn.data && s->si[1].conn.data->rcv_pipe && s->si[1].conn.data->snd_pipe) &&
 	    (pipes_used < global.maxpipes) &&
 	    (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_REQ) ||
 	     (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
@@ -2012,7 +2007,8 @@ struct task *process_session(struct task *t)
 	if (!(s->rep->flags & (CF_KERN_SPLICING|CF_SHUTR)) &&
 	    s->rep->to_forward &&
 	    (global.tune.options & GTUNE_USE_SPLICE) &&
-	    (s->si[0].flags & s->si[1].flags & SI_FL_CAP_SPLICE) &&
+	    (s->si[0].conn.data && s->si[0].conn.data->rcv_pipe && s->si[0].conn.data->snd_pipe) &&
+	    (s->si[1].conn.data && s->si[1].conn.data->rcv_pipe && s->si[1].conn.data->snd_pipe) &&
 	    (pipes_used < global.maxpipes) &&
 	    (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_RTR) ||
 	     (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
