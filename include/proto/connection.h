@@ -30,6 +30,16 @@
  */
 int conn_fd_handler(int fd);
 
+/* calls the init() function of the data layer if any. Returns <0 in case of
+ * error.
+ */
+static inline int conn_data_init(struct connection *conn)
+{
+	if (conn->data && conn->data->init)
+		return conn->data->init(conn);
+	return 0;
+}
+
 /* Calls the close() function of the data layer if any */
 static inline void conn_data_close(struct connection *conn)
 {

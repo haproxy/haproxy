@@ -143,6 +143,7 @@ struct data_ops {
 	void (*shutr)(struct connection *, int);    /* shutr function */
 	void (*shutw)(struct connection *, int);    /* shutw function */
 	void (*close)(struct connection *);         /* close the data channel on the connection */
+	int  (*init)(struct connection *conn);      /* initialize the data layer */
 };
 
 /* app_cb describes read and write callbacks which are called upon detected I/O

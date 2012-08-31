@@ -458,6 +458,10 @@ int tcp_connect_server(struct connection *conn, int data)
 	fdtab[fd].iocb = conn_fd_handler;
 	fd_insert(fd);
 	conn_sock_want_send(conn);  /* for connect status */
+
+	if (conn_data_init(conn) < 0)
+		return SN_ERR_RESOURCE;
+
 	if (data)
 		conn_data_want_send(conn);  /* prepare to send data if any */
 
