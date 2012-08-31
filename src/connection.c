@@ -39,6 +39,10 @@ int conn_fd_handler(int fd)
 		if (unlikely(conn->flags & CO_FL_ERROR))
 			goto leave;
 
+		if (conn->flags & CO_FL_ACCEPT_PROXY)
+			if (!conn_recv_proxy(conn, CO_FL_ACCEPT_PROXY))
+				goto leave;
+
 		if (conn->flags & CO_FL_SI_SEND_PROXY)
 			if (!conn_si_send_proxy(conn, CO_FL_SI_SEND_PROXY))
 				goto leave;
@@ -53,7 +57,7 @@ int conn_fd_handler(int fd)
 	 * we must not use it anymore and should immediately leave instead.
 	 */
 	if ((conn->flags & CO_FL_INIT_SESS) &&
-	    conn_session_initialize(conn, CO_FL_INIT_SESS) < 0)
+	    conn_session_complete(conn, CO_FL_INIT_SESS) < 0)
 		return 0;
 
 	if (fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))

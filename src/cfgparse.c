@@ -6600,9 +6600,6 @@ out_uri_auth_compat:
 			listener->handler = process_session;
 			listener->analysers |= curproxy->fe_req_ana;
 
-			if (listener->options & LI_O_ACC_PROXY)
-				listener->analysers |= AN_REQ_DECODE_PROXY;
-
 			if (!LIST_ISEMPTY(&curproxy->tcp_req.l4_rules))
 				listener->options |= LI_O_TCP_RULES;
 

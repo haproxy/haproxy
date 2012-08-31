@@ -419,6 +419,199 @@ int frontend_decode_proxy_request(struct session *s, struct channel *req, int an
 	return 0;
 }
 
+/* This handshake handler waits a PROXY protocol header at the beginning of the
+ * raw data stream. The header looks like this :
+ *
+ *   "PROXY" <SP> PROTO <SP> SRC3 <SP> DST3 <SP> SRC4 <SP> <DST4> "\r\n"
+ *
+ * There must be exactly one space between each field. Fields are :
+ *  - PROTO : layer 4 protocol, which must be "TCP4" or "TCP6".
+ *  - SRC3  : layer 3 (eg: IP) source address in standard text form
+ *  - DST3  : layer 3 (eg: IP) destination address in standard text form
+ *  - SRC4  : layer 4 (eg: TCP port) source address in standard text form
+ *  - DST4  : layer 4 (eg: TCP port) destination address in standard text form
+ *
+ * This line MUST be at the beginning of the buffer and MUST NOT wrap.
+ *
+ * The header line is small and in all cases smaller than the smallest normal
+ * TCP MSS. So it MUST always be delivered as one segment, which ensures we
+ * can safely use MSG_PEEK and avoid buffering.
+ *
+ * Once the data is fetched, the values are set in the connection's address
+ * fields, and data are removed from the socket's buffer. The function returns
+ * zero if it needs to wait for more data or if it fails, or 1 if it completed
+ * and removed itself.
+ */
+int conn_recv_proxy(struct connection *conn, int flag)
+{
+	char *line, *end;
+	int len;
+
+	/* we might have been called just after an asynchronous shutr */
+	if (conn->flags & CO_FL_SOCK_RD_SH)
+		goto fail;
+
+	do {
+		len = recv(conn->t.sock.fd, trash, trashlen, MSG_PEEK);
+		if (len < 0) {
+			if (errno == EINTR)
+				continue;
+			if (errno == EAGAIN) {
+				conn_sock_poll_recv(conn);
+				return 0;
+			}
+			goto fail;
+		}
+	} while (0);
+
+	if (len < 6)
+		goto missing;
+
+	line = trash;
+	end = trash + len;
+
+	/* Decode a possible proxy request, fail early if it does not match */
+	if (strncmp(line, "PROXY ", 6) != 0)
+		goto fail;
+
+	line += 6;
+	if (len < 18) /* shortest possible line */
+		goto missing;
+
+	if (!memcmp(line, "TCP4 ", 5) != 0) {
+		u32 src3, dst3, sport, dport;
+
+		line += 5;
+
+		src3 = inetaddr_host_lim_ret(line, end, &line);
+		if (line == end)
+			goto missing;
+		if (*line++ != ' ')
+			goto fail;
+
+		dst3 = inetaddr_host_lim_ret(line, end, &line);
+		if (line == end)
+			goto missing;
+		if (*line++ != ' ')
+			goto fail;
+
+		sport = read_uint((const char **)&line, end);
+		if (line == end)
+			goto missing;
+		if (*line++ != ' ')
+			goto fail;
+
+		dport = read_uint((const char **)&line, end);
+		if (line > end - 2)
+			goto missing;
+		if (*line++ != '\r')
+			goto fail;
+		if (*line++ != '\n')
+			goto fail;
+
+		/* update the session's addresses and mark them set */
+		((struct sockaddr_in *)&conn->addr.from)->sin_family      = AF_INET;
+		((struct sockaddr_in *)&conn->addr.from)->sin_addr.s_addr = htonl(src3);
+		((struct sockaddr_in *)&conn->addr.from)->sin_port        = htons(sport);
+
+		((struct sockaddr_in *)&conn->addr.to)->sin_family        = AF_INET;
+		((struct sockaddr_in *)&conn->addr.to)->sin_addr.s_addr   = htonl(dst3);
+		((struct sockaddr_in *)&conn->addr.to)->sin_port          = htons(dport);
+		conn->flags |= CO_FL_ADDR_FROM_SET | CO_FL_ADDR_TO_SET;
+	}
+	else if (!memcmp(line, "TCP6 ", 5) != 0) {
+		u32 sport, dport;
+		char *src_s;
+		char *dst_s, *sport_s, *dport_s;
+		struct in6_addr src3, dst3;
+
+		line += 5;
+
+		src_s = line;
+		dst_s = sport_s = dport_s = NULL;
+		while (1) {
+			if (line > end - 2) {
+				goto missing;
+			}
+			else if (*line == '\r') {
+				*line = 0;
+				line++;
+				if (*line++ != '\n')
+					goto fail;
+				break;
+			}
+
+			if (*line == ' ') {
+				*line = 0;
+				if (!dst_s)
+					dst_s = line + 1;
+				else if (!sport_s)
+					sport_s = line + 1;
+				else if (!dport_s)
+					dport_s = line + 1;
+			}
+			line++;
+		}
+
+		if (!dst_s || !sport_s || !dport_s)
+			goto fail;
+
+		sport = read_uint((const char **)&sport_s,dport_s - 1);
+		if (*sport_s != 0)
+			goto fail;
+
+		dport = read_uint((const char **)&dport_s,line - 2);
+		if (*dport_s != 0)
+			goto fail;
+
+		if (inet_pton(AF_INET6, src_s, (void *)&src3) != 1)
+			goto fail;
+
+		if (inet_pton(AF_INET6, dst_s, (void *)&dst3) != 1)
+			goto fail;
+
+		/* update the session's addresses and mark them set */
+		((struct sockaddr_in6 *)&conn->addr.from)->sin6_family      = AF_INET6;
+		memcpy(&((struct sockaddr_in6 *)&conn->addr.from)->sin6_addr, &src3, sizeof(struct in6_addr));
+		((struct sockaddr_in6 *)&conn->addr.from)->sin6_port        = htons(sport);
+
+		((struct sockaddr_in6 *)&conn->addr.to)->sin6_family        = AF_INET6;
+		memcpy(&((struct sockaddr_in6 *)&conn->addr.to)->sin6_addr, &dst3, sizeof(struct in6_addr));
+		((struct sockaddr_in6 *)&conn->addr.to)->sin6_port          = htons(dport);
+		conn->flags |= CO_FL_ADDR_FROM_SET | CO_FL_ADDR_TO_SET;
+	}
+	else {
+		goto fail;
+	}
+
+	/* remove the PROXY line from the request. For this we re-read the
+	 * exact line at once. If we don't get the exact same result, we
+	 * fail.
+	 */
+	len = line - trash;
+	do {
+		int len2 = recv(conn->t.sock.fd, trash, len, 0);
+		if (len2 < 0 && errno == EINTR)
+			continue;
+		if (len2 != len)
+			goto fail;
+	} while (0);
+
+	conn->flags &= ~flag;
+	return 1;
+
+ missing:
+	/* Missing data. Since we're using MSG_PEEK, we can only poll again if
+	 * we have not read anything. Otherwise we need to fail because we won't
+	 * be able to poll anymore.
+	 */
+ fail:
+	conn_sock_stop_both(conn);
+	conn->flags |= CO_FL_ERROR;
+	conn->flags &= ~flag;
+	return 0;
+}
+
 /* Makes a PROXY protocol line from the two addresses. The output is sent to
  * buffer <buf> for a maximum size of <buf_len> (including the trailing zero).
  * It returns the number of bytes composing this line (including the trailing

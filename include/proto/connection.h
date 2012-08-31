@@ -30,6 +30,9 @@
  */
 int conn_fd_handler(int fd);
 
+/* receive a PROXY protocol header over a connection */
+int conn_recv_proxy(struct connection *conn, int flag);
+
 /* calls the init() function of the data layer if any. Returns <0 in case of
  * error.
  */

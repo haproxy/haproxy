@@ -125,6 +125,12 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		goto out_free_session;
 	}
 
+	/* wait for a PROXY protocol header */
+	if (l->options & LI_O_ACC_PROXY) {
+		s->si[0].conn.flags |= CO_FL_ACCEPT_PROXY;
+		conn_sock_want_recv(&s->si[0].conn);
+	}
+
 	/* Adjust some socket options */
 	if (unlikely(fcntl(cfd, F_SETFL, O_NONBLOCK) == -1))
 		goto out_free_session;
@@ -231,14 +237,14 @@ static void kill_mini_session(struct session *s)
 	pool_free2(pool2_session, s);
 }
 
-/* Finish initializing a session from a connection. Returns <0 if the
- * connection was killed.
+/* Finish initializing a session from a connection, or kills it if the
+ * connection shows and error. Returns <0 if the connection was killed.
  */
-int conn_session_initialize(struct connection *conn, int flag)
+int conn_session_complete(struct connection *conn, int flag)
 {
 	struct session *s = container_of(conn, struct session, si[0].conn);
 
-	if (session_complete(s) > 0) {
+	if (!(conn->flags & CO_FL_ERROR) && (session_complete(s) > 0)) {
 		conn->flags &= ~flag;
 		return 0;
 	}
