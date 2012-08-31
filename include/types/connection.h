@@ -75,6 +75,8 @@ enum {
 	/* below we have all handshake flags grouped into one */
 	CO_FL_HANDSHAKE     = CO_FL_SI_SEND_PROXY,
 
+	CO_FL_INIT_SESS     = 0x00000800,  /* initialize a session before using data */
+
 	/* when any of these flags is set, polling is defined by socket-layer
 	 * operations, as opposed to data-layer.
 	 */

@@ -15,6 +15,7 @@
 
 #include <proto/connection.h>
 #include <proto/proto_tcp.h>
+#include <proto/session.h>
 #include <proto/stream_interface.h>
 
 /* I/O callback for fd-based connections. It calls the read/write handlers
@@ -25,7 +26,7 @@ int conn_fd_handler(int fd)
 	struct connection *conn = fdtab[fd].owner;
 
 	if (unlikely(!conn))
-		goto leave;
+		return 0;
 
  process_handshake:
 	/* The handshake callbacks are called in sequence. If either of them is
@@ -46,6 +47,14 @@ int conn_fd_handler(int fd)
 	/* Once we're purely in the data phase, we disable handshake polling */
 	if (!(conn->flags & CO_FL_POLL_SOCK))
 		__conn_sock_stop_both(conn);
+
+	/* Maybe we need to finish initializing an incoming session. The
+	 * function may fail and cause the connection to be destroyed, thus
+	 * we must not use it anymore and should immediately leave instead.
+	 */
+	if ((conn->flags & CO_FL_INIT_SESS) &&
+	    conn_session_initialize(conn, CO_FL_INIT_SESS) < 0)
+		return 0;
 
 	if (fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
 		conn->app_cb->recv(conn);
@@ -80,6 +89,13 @@ int conn_fd_handler(int fd)
 	}
 
  leave:
+	/* we may need to release the connection which is an embryonic session */
+	if ((conn->flags & (CO_FL_ERROR|CO_FL_INIT_SESS)) == (CO_FL_ERROR|CO_FL_INIT_SESS)) {
+		conn->flags |= CO_FL_ERROR;
+		conn_session_complete(conn, CO_FL_INIT_SESS);
+		return 0;
+	}
+
 	if (conn->flags & CO_FL_NOTIFY_SI)
 		conn_notify_si(conn);
 

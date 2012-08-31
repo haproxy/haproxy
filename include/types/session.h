@@ -50,7 +50,7 @@
 #define SN_FORCE_PRST	0x00000010	/* force persistence here, even if server is down */
 #define SN_MONITOR	0x00000020	/* this session comes from a monitoring system */
 #define SN_CURR_SESS	0x00000040	/* a connection is currently being counted on the server */
-/* unused: 0x00000080 */
+#define SN_INITIALIZED	0x00000080	/* the session was fully initialized */
 #define SN_REDISP	0x00000100	/* set if this session was redispatched from one server to another */
 #define SN_CONN_TAR	0x00000200	/* set if this session is turning around before reconnecting */
 #define SN_REDIRECTABLE	0x00000400	/* set if this session is redirectable (GET or HEAD) */
