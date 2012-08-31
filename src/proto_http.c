@@ -3865,7 +3865,6 @@ void http_end_txn_clean_session(struct session *s)
 	channel_auto_close(s->rep);
 
 	s->req->analysers = s->listener->analysers;
-	s->req->analysers &= ~AN_REQ_DECODE_PROXY;
 	s->rep->analysers = 0;
 
 	http_silent_debug(__LINE__, s);

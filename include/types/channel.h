@@ -140,7 +140,7 @@
  * The field is blanked by channel_init() and only by analysers themselves
  * afterwards.
  */
-#define AN_REQ_DECODE_PROXY     0x00000001  /* take the proxied address from a 'PROXY' line */
+/* unused: 0x00000001 */
 #define AN_REQ_INSPECT_FE       0x00000002  /* inspect request contents in the frontend */
 #define AN_REQ_WAIT_HTTP        0x00000004  /* wait for an HTTP request */
 #define AN_REQ_HTTP_PROCESS_FE  0x00000008  /* process the frontend's HTTP part */
