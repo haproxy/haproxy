@@ -89,9 +89,10 @@ int conn_fd_handler(int fd)
 	if (unlikely(conn->flags & CO_FL_HANDSHAKE))
 		goto process_handshake;
 
-	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN)) {
-		/* still waiting for a connection to establish and no data to
-		 * send in order to probe it ? Then let's retry the connect().
+	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN) && !(conn->flags & CO_FL_WAIT_WR)) {
+		/* still waiting for a connection to establish and nothing was
+		 * attempted yet to probe the connection. Then let's retry the
+		 * connect().
 		 */
 		if (!tcp_connect_probe(conn))
 			goto leave;
