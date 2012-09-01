@@ -28,6 +28,11 @@ int conn_fd_handler(int fd)
 	if (unlikely(!conn))
 		return 0;
 
+	/* before engaging there, we clear the new WAIT_* flags so that we can
+	 * more easily detect an EAGAIN condition from anywhere.
+	 */
+	conn->flags &= ~(CO_FL_WAIT_DATA|CO_FL_WAIT_ROOM|CO_FL_WAIT_RD|CO_FL_WAIT_WR);
+
  process_handshake:
 	/* The handshake callbacks are called in sequence. If either of them is
 	 * missing something, it must enable the required polling at the socket
@@ -115,33 +120,86 @@ int conn_fd_handler(int fd)
 	return 0;
 }
 
-/* set polling depending on the change between the CURR part of the
- * flags and the new flags in connection C. The connection flags are
- * updated with the new flags at the end of the operation. Only the bits
- * relevant to CO_FL_CURR_* from <flags> are considered.
+/* Update polling on connection <c>'s file descriptor depending on its current
+ * state as reported in the connection's CO_FL_CURR_* flags, reports of EAGAIN
+ * in CO_FL_WAIT_*, and the data layer expectations indicated by CO_FL_DATA_*.
+ * The connection flags are updated with the new flags at the end of the
+ * operation.
  */
-void conn_set_polling(struct connection *c, unsigned int new)
+void conn_update_data_polling(struct connection *c)
 {
-	unsigned int old = c->flags; /* for CO_FL_CURR_* */
+	unsigned int f = c->flags;
 
 	/* update read status if needed */
-	if ((old & (CO_FL_CURR_RD_ENA|CO_FL_CURR_RD_POL)) != (CO_FL_CURR_RD_ENA|CO_FL_CURR_RD_POL) &&
-	    (new & (CO_FL_CURR_RD_ENA|CO_FL_CURR_RD_POL)) == (CO_FL_CURR_RD_ENA|CO_FL_CURR_RD_POL))
-		fd_poll_recv(c->t.sock.fd);
-	else if (!(old & CO_FL_CURR_RD_ENA) && (new & CO_FL_CURR_RD_ENA))
-		fd_want_recv(c->t.sock.fd);
-	else if ((old & CO_FL_CURR_RD_ENA) && !(new & CO_FL_CURR_RD_ENA))
+	if (unlikely((f & (CO_FL_CURR_RD_ENA|CO_FL_DATA_RD_ENA)) == CO_FL_CURR_RD_ENA)) {
+		f &= ~(CO_FL_CURR_RD_ENA|CO_FL_CURR_RD_POL);
 		fd_stop_recv(c->t.sock.fd);
+	}
+	else if (unlikely((f & (CO_FL_CURR_RD_ENA|CO_FL_CURR_RD_POL)) != (CO_FL_CURR_RD_ENA|CO_FL_CURR_RD_POL) &&
+	                  (f & (CO_FL_DATA_RD_ENA|CO_FL_WAIT_RD)) == (CO_FL_DATA_RD_ENA|CO_FL_WAIT_RD))) {
+		f |= (CO_FL_CURR_RD_ENA|CO_FL_CURR_RD_POL);
+		fd_poll_recv(c->t.sock.fd);
+	}
+	else if (unlikely((f & (CO_FL_CURR_RD_ENA|CO_FL_DATA_RD_ENA)) == CO_FL_DATA_RD_ENA)) {
+		f |= CO_FL_CURR_RD_ENA;
+		fd_want_recv(c->t.sock.fd);
+	}
 
 	/* update write status if needed */
-	if ((old & (CO_FL_CURR_WR_ENA|CO_FL_CURR_WR_POL)) != (CO_FL_CURR_WR_ENA|CO_FL_CURR_WR_POL) &&
-	    (new & (CO_FL_CURR_WR_ENA|CO_FL_CURR_WR_POL)) == (CO_FL_CURR_WR_ENA|CO_FL_CURR_WR_POL))
-		fd_poll_send(c->t.sock.fd);
-	else if (!(old & CO_FL_CURR_WR_ENA) && (new & CO_FL_CURR_WR_ENA))
-		fd_want_send(c->t.sock.fd);
-	else if ((old & CO_FL_CURR_WR_ENA) && !(new & CO_FL_CURR_WR_ENA))
+	if (unlikely((f & (CO_FL_CURR_WR_ENA|CO_FL_DATA_WR_ENA)) == CO_FL_CURR_WR_ENA)) {
+		f &= ~(CO_FL_CURR_WR_ENA|CO_FL_CURR_WR_POL);
 		fd_stop_send(c->t.sock.fd);
+	}
+	else if (unlikely((f & (CO_FL_CURR_WR_ENA|CO_FL_CURR_WR_POL)) != (CO_FL_CURR_WR_ENA|CO_FL_CURR_WR_POL) &&
+	                  (f & (CO_FL_DATA_WR_ENA|CO_FL_WAIT_WR)) == (CO_FL_DATA_WR_ENA|CO_FL_WAIT_WR))) {
+		f |= (CO_FL_CURR_WR_ENA|CO_FL_CURR_WR_POL);
+		fd_poll_send(c->t.sock.fd);
+	}
+	else if (unlikely((f & (CO_FL_CURR_WR_ENA|CO_FL_DATA_WR_ENA)) == CO_FL_DATA_WR_ENA)) {
+		f |= CO_FL_CURR_WR_ENA;
+		fd_want_send(c->t.sock.fd);
+	}
+	c->flags = f;
+}
 
-	c->flags &= ~(CO_FL_CURR_WR_POL|CO_FL_CURR_WR_ENA|CO_FL_CURR_RD_POL|CO_FL_CURR_RD_ENA);
-	c->flags |= new & (CO_FL_CURR_WR_POL|CO_FL_CURR_WR_ENA|CO_FL_CURR_RD_POL|CO_FL_CURR_RD_ENA);
+/* Update polling on connection <c>'s file descriptor depending on its current
+ * state as reported in the connection's CO_FL_CURR_* flags, reports of EAGAIN
+ * in CO_FL_WAIT_*, and the sock layer expectations indicated by CO_FL_SOCK_*.
+ * The connection flags are updated with the new flags at the end of the
+ * operation.
+ */
+void conn_update_sock_polling(struct connection *c)
+{
+	unsigned int f = c->flags;
+
+	/* update read status if needed */
+	if (unlikely((f & (CO_FL_CURR_RD_ENA|CO_FL_SOCK_RD_ENA)) == CO_FL_CURR_RD_ENA)) {
+		f &= ~(CO_FL_CURR_RD_ENA|CO_FL_CURR_RD_POL);
+		fd_stop_recv(c->t.sock.fd);
+	}
+	else if (unlikely((f & (CO_FL_CURR_RD_ENA|CO_FL_CURR_RD_POL)) != (CO_FL_CURR_RD_ENA|CO_FL_CURR_RD_POL) &&
+	                  (f & (CO_FL_SOCK_RD_ENA|CO_FL_WAIT_RD)) == (CO_FL_SOCK_RD_ENA|CO_FL_WAIT_RD))) {
+		f |= (CO_FL_CURR_RD_ENA|CO_FL_CURR_RD_POL);
+		fd_poll_recv(c->t.sock.fd);
+	}
+	else if (unlikely((f & (CO_FL_CURR_RD_ENA|CO_FL_SOCK_RD_ENA)) == CO_FL_SOCK_RD_ENA)) {
+		f |= CO_FL_CURR_RD_ENA;
+		fd_want_recv(c->t.sock.fd);
+	}
+
+	/* update write status if needed */
+	if (unlikely((f & (CO_FL_CURR_WR_ENA|CO_FL_SOCK_WR_ENA)) == CO_FL_CURR_WR_ENA)) {
+		f &= ~(CO_FL_CURR_WR_ENA|CO_FL_CURR_WR_POL);
+		fd_stop_send(c->t.sock.fd);
+	}
+	else if (unlikely((f & (CO_FL_CURR_WR_ENA|CO_FL_CURR_WR_POL)) != (CO_FL_CURR_WR_ENA|CO_FL_CURR_WR_POL) &&
+	                  (f & (CO_FL_SOCK_WR_ENA|CO_FL_WAIT_WR)) == (CO_FL_SOCK_WR_ENA|CO_FL_WAIT_WR))) {
+		f |= (CO_FL_CURR_WR_ENA|CO_FL_CURR_WR_POL);
+		fd_poll_send(c->t.sock.fd);
+	}
+	else if (unlikely((f & (CO_FL_CURR_WR_ENA|CO_FL_SOCK_WR_ENA)) == CO_FL_SOCK_WR_ENA)) {
+		f |= CO_FL_CURR_WR_ENA;
+		fd_want_send(c->t.sock.fd);
+	}
+	c->flags = f;
 }

@@ -55,8 +55,16 @@ struct listener;
  * - Polling for an I/O event consists in ORing with ~3.
  *
  * The last computed state is remembered in CO_FL_CURR_* so that differential
- * changes can be applied. For pollers that do not support speculative I/O,
- * POLLED is the same as ENABLED and the POL flag can safely be ignored.
+ * changes can be applied. After bits are applied, the POLL status bits are
+ * cleared so that it is possible to detect when an EAGAIN was encountered. For
+ * pollers that do not support speculative I/O, POLLED is the same as ENABLED
+ * and the POL flag can safely be ignored. However it makes a difference for
+ * the connection handler.
+ *
+ * The ENA flags are per-layer (one pair for SOCK, another one for DATA).
+ * The POL flags are only for the socket layer since they indicate that EAGAIN
+ * was encountered. Thus, the DATA layer uses its own ENA flag and the socket
+ * layer's POL flag.
  */
 
 /* flags for use in connection->flags */
@@ -83,18 +91,9 @@ enum {
 	 */
 	CO_FL_POLL_SOCK     = CO_FL_HANDSHAKE | CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN,
 
-	/* This flag is set if lingering has already been disabled on the connection */
-
 	/* These flags are used to report whether the from/to addresses are set or not */
-	CO_FL_ADDR_FROM_SET = 0x00001000,  /* addr.from is set */
-	CO_FL_ADDR_TO_SET   = 0x00002000,  /* addr.to is set */
-
-	/* These flags are used by data layers to indicate to their iterators
-	 * whether they had to stop due to missing data or missing room. Their
-	 * callers must reset them before calling the data layer handlers.
-	 */
-	CO_FL_WAIT_DATA     = 0x00004000,  /* data source is empty */
-	CO_FL_WAIT_ROOM     = 0x00008000,  /* data sink is full */
+	CO_FL_ADDR_FROM_SET = 0x00004000,  /* addr.from is set */
+	CO_FL_ADDR_TO_SET   = 0x00008000,  /* addr.to is set */
 
 	/* flags used to remember what shutdown have been performed/reported */
 	CO_FL_DATA_RD_SH    = 0x00010000,  /* DATA layer was notified about shutr/read0 */
@@ -102,26 +101,41 @@ enum {
 	CO_FL_SOCK_RD_SH    = 0x00040000,  /* SOCK layer was notified about shutr/read0 */
 	CO_FL_SOCK_WR_SH    = 0x00080000,  /* SOCK layer asked for shutw */
 
-	/****** NOTE: do not change the values of the flags below ******/
-	CO_FL_RD_ENA = 1, CO_FL_RD_POL = 2, CO_FL_WR_ENA = 4, CO_FL_WR_POL = 8,
+	/* NOTE: do not change the values of any of the flags below, they're
+	 * used with masks and bit shifts to quickly detect multiple changes.
+	 */
+
+	/* These flags are used by data layers to indicate to indicate they had
+	 * to stop sending data because a buffer was empty (WAIT_DATA) or stop
+	 * receiving data because a buffer was full (WAIT_ROOM). The connection
+	 * handler clears them before first calling the I/O and data callbacks.
+	 */
+	CO_FL_WAIT_DATA     = 0x00100000,  /* data source is empty */
+	CO_FL_WAIT_ROOM     = 0x00200000,  /* data sink is full */
+
+	/* These flags are used by both socket-level and data-level callbacks
+	 * to indicate that they had to stop receiving or sending because a
+	 * socket-level operation returned EAGAIN. While setting these flags
+	 * is not always absolutely mandatory (eg: when a reader estimates that
+	 * trying again soon without polling is OK), it is however forbidden to
+	 * set them without really attempting the I/O operation.
+	 */
+	CO_FL_WAIT_RD       = 0x00400000,  /* receiving needs to poll first */
+	CO_FL_WAIT_WR       = 0x00800000,  /* sending needs to poll first */
 
 	/* flags describing the DATA layer expectations regarding polling */
-	CO_FL_DATA_RD_ENA   = CO_FL_RD_ENA << 20,  /* receiving is allowed */
-	CO_FL_DATA_RD_POL   = CO_FL_RD_POL << 20,  /* receiving needs to poll first */
-	CO_FL_DATA_WR_ENA   = CO_FL_WR_ENA << 20,  /* sending is desired */
-	CO_FL_DATA_WR_POL   = CO_FL_WR_POL << 20,  /* sending needs to poll first */
+	CO_FL_DATA_RD_ENA   = 0x01000000,  /* receiving is allowed */
+	CO_FL_DATA_WR_ENA   = 0x02000000,  /* sending is desired */
 
 	/* flags describing the SOCK layer expectations regarding polling */
-	CO_FL_SOCK_RD_ENA   = CO_FL_RD_ENA << 24,  /* receiving is allowed */
-	CO_FL_SOCK_RD_POL   = CO_FL_RD_POL << 24,  /* receiving needs to poll first */
-	CO_FL_SOCK_WR_ENA   = CO_FL_WR_ENA << 24,  /* sending is desired */
-	CO_FL_SOCK_WR_POL   = CO_FL_WR_POL << 24,  /* sending needs to poll first */
+	CO_FL_SOCK_RD_ENA   = 0x04000000,  /* receiving is allowed */
+	CO_FL_SOCK_WR_ENA   = 0x08000000,  /* sending is desired */
 
 	/* flags storing the current polling state */
-	CO_FL_CURR_RD_ENA   = CO_FL_RD_ENA << 28,  /* receiving is allowed */
-	CO_FL_CURR_RD_POL   = CO_FL_RD_POL << 28,  /* receiving needs to poll first */
-	CO_FL_CURR_WR_ENA   = CO_FL_WR_ENA << 28,  /* sending is desired */
-	CO_FL_CURR_WR_POL   = CO_FL_WR_POL << 28,  /* sending needs to poll first */
+	CO_FL_CURR_RD_ENA   = 0x10000000,  /* receiving is allowed */
+	CO_FL_CURR_WR_ENA   = 0x20000000,  /* sending is desired */
+	CO_FL_CURR_RD_POL   = 0x40000000,  /* receiving needs to poll first */
+	CO_FL_CURR_WR_POL   = 0x80000000,  /* sending needs to poll first */
 };
 
 /* target types */

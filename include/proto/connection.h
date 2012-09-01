@@ -50,45 +50,40 @@ static inline void conn_data_close(struct connection *conn)
 		conn->data->close(conn);
 }
 
-/* set polling depending on the change between the CURR part of the
- * flags and the new flags in connection C. The connection flags are
- * updated with the new flags at the end of the operation. Only the bits
- * relevant to CO_FL_CURR_* from <flags> are considered.
+/* Update polling on connection <c>'s file descriptor depending on its current
+ * state as reported in the connection's CO_FL_CURR_* flags, reports of EAGAIN
+ * in CO_FL_WAIT_*, and the sock layer expectations indicated by CO_FL_SOCK_*.
+ * The connection flags are updated with the new flags at the end of the
+ * operation.
  */
-void conn_set_polling(struct connection *c, unsigned int new);
+void conn_update_sock_polling(struct connection *c);
 
-/* update polling depending on the change between the CURR part of the
- * flags and the DATA part of the flags in connection C. The connection
- * is assumed to already be in the data phase.
+/* Update polling on connection <c>'s file descriptor depending on its current
+ * state as reported in the connection's CO_FL_CURR_* flags, reports of EAGAIN
+ * in CO_FL_WAIT_*, and the data layer expectations indicated by CO_FL_DATA_*.
+ * The connection flags are updated with the new flags at the end of the
+ * operation.
  */
-static inline void conn_update_data_polling(struct connection *c)
-{
-	conn_set_polling(c, c->flags << 8);
-}
+void conn_update_data_polling(struct connection *c);
 
-/* update polling depending on the change between the CURR part of the
- * flags and the SOCK part of the flags in connection C. The connection
- * is assumed to already be in the handshake phase.
- */
-static inline void conn_update_sock_polling(struct connection *c)
-{
-	conn_set_polling(c, c->flags << 4);
-}
-
-/* returns non-zero if data flags from c->flags changes from what is in the
- * current section of c->flags.
+/* inspects c->flags and returns non-zero if DATA ENA changes from the CURR ENA
+ * or if the WAIT flags set new flags that were not in CURR POL.
  */
 static inline unsigned int conn_data_polling_changes(const struct connection *c)
 {
-	return ((c->flags << 8) ^ c->flags) & 0xF0000000;
+	return (((c->flags << 6) ^ (c->flags << 2)) |     /* changes in ENA go to bits 30&31 */
+		(((c->flags << 8) & ~c->flags))) &        /* new bits in POL go to bits 30&31 */
+		0xC0000000;
 }
 
-/* returns non-zero if sock flags from c->flags changes from what is in the
- * current section of c->flags.
+/* inspects c->flags and returns non-zero if SOCK ENA changes from the CURR ENA
+ * or if the WAIT flags set new flags that were not in CURR POL.
  */
 static inline unsigned int conn_sock_polling_changes(const struct connection *c)
 {
-	return ((c->flags << 4) ^ c->flags) & 0xF0000000;
+	return (((c->flags << 4) ^ (c->flags << 2)) |     /* changes in ENA go to bits 30&31 */
+		(((c->flags << 8) & ~c->flags))) &        /* new bits in POL go to bits 30&31 */
+		0xC0000000;
 }
 
 /* Automatically updates polling on connection <c> depending on the DATA flags
@@ -139,7 +134,7 @@ static inline void __conn_data_stop_recv(struct connection *c)
 
 static inline void __conn_data_poll_recv(struct connection *c)
 {
-	c->flags |= CO_FL_DATA_RD_POL | CO_FL_DATA_RD_ENA;
+	c->flags |= CO_FL_WAIT_RD | CO_FL_DATA_RD_ENA;
 }
 
 static inline void __conn_data_want_send(struct connection *c)
@@ -154,7 +149,7 @@ static inline void __conn_data_stop_send(struct connection *c)
 
 static inline void __conn_data_poll_send(struct connection *c)
 {
-	c->flags |= CO_FL_DATA_WR_POL | CO_FL_DATA_WR_ENA;
+	c->flags |= CO_FL_WAIT_WR | CO_FL_DATA_WR_ENA;
 }
 
 static inline void __conn_data_stop_both(struct connection *c)
@@ -221,7 +216,7 @@ static inline void __conn_sock_stop_recv(struct connection *c)
 
 static inline void __conn_sock_poll_recv(struct connection *c)
 {
-	c->flags |= CO_FL_SOCK_RD_POL | CO_FL_SOCK_RD_ENA;
+	c->flags |= CO_FL_WAIT_RD | CO_FL_SOCK_RD_ENA;
 }
 
 static inline void __conn_sock_want_send(struct connection *c)
@@ -236,7 +231,7 @@ static inline void __conn_sock_stop_send(struct connection *c)
 
 static inline void __conn_sock_poll_send(struct connection *c)
 {
-	c->flags |= CO_FL_SOCK_WR_POL | CO_FL_SOCK_WR_ENA;
+	c->flags |= CO_FL_WAIT_WR | CO_FL_SOCK_WR_ENA;
 }
 
 static inline void __conn_sock_stop_both(struct connection *c)
