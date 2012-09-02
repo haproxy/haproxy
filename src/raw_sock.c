@@ -118,7 +118,7 @@ int raw_sock_to_pipe(struct connection *conn, struct pipe *pipe, unsigned int co
 				 * which will be able to deal with the situation.
 				 */
 				if (splice_detects_close)
-					conn->flags |= CO_FL_WAIT_DATA; /* we know for sure that it's EAGAIN */
+					__conn_data_poll_recv(conn); /* we know for sure that it's EAGAIN */
 				break;
 			}
 			else if (errno == ENOSYS || errno == EINVAL) {
@@ -168,7 +168,7 @@ int raw_sock_from_pipe(struct connection *conn, struct pipe *pipe)
 
 		if (ret <= 0) {
 			if (ret == 0 || errno == EAGAIN) {
-				conn->flags |= CO_FL_WAIT_ROOM;
+				__conn_data_poll_send(conn);
 				break;
 			}
 			else if (errno == EINTR)
@@ -245,7 +245,7 @@ static int raw_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 			goto read0;
 		}
 		else if (errno == EAGAIN) {
-			conn->flags |= CO_FL_WAIT_DATA;
+			__conn_data_poll_recv(conn);
 			break;
 		}
 		else if (errno != EINTR) {
@@ -306,7 +306,7 @@ static int raw_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 		}
 		else if (ret == 0 || errno == EAGAIN) {
 			/* nothing written, we need to poll for write first */
-			conn->flags |= CO_FL_WAIT_ROOM;
+			__conn_data_poll_send(conn);
 			break;
 		}
 		else if (errno != EINTR) {

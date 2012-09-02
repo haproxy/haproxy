@@ -545,7 +545,6 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 	/* Write error on the file descriptor */
 	conn->flags |= CO_FL_ERROR;
 	conn->flags &= ~flag;
-	__conn_sock_stop_both(conn);
 	return 0;
 
  out_wait:
@@ -671,8 +670,6 @@ static int si_conn_send_loop(struct connection *conn)
 	int write_poll = MAX_WRITE_POLL_LOOPS;
 	int ret;
 
-	conn->flags &= ~(CO_FL_WAIT_DATA | CO_FL_WAIT_ROOM);
-
 	if (b->pipe && conn->data->snd_pipe) {
 		ret = conn->data->snd_pipe(conn, b->pipe);
 		if (ret > 0)
@@ -685,11 +682,6 @@ static int si_conn_send_loop(struct connection *conn)
 
 		if (conn->flags & CO_FL_ERROR)
 			return -1;
-
-		if (conn->flags & CO_FL_WAIT_ROOM) {
-			__conn_data_poll_send(conn);
-			return 0;
-		}
 	}
 
 	/* At this point, the pipe is empty, but we may still have data pending
@@ -701,7 +693,7 @@ static int si_conn_send_loop(struct connection *conn)
 	/* when we're in this loop, we already know that there is no spliced
 	 * data left, and that there are sendable buffered data.
 	 */
-	while (!(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_WR_SH | CO_FL_DATA_WR_SH | CO_FL_WAIT_DATA | CO_FL_WAIT_ROOM | CO_FL_HANDSHAKE))) {
+	while (!(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_WR_SH | CO_FL_DATA_WR_SH | CO_FL_WAIT_DATA | CO_FL_WAIT_WR | CO_FL_HANDSHAKE))) {
 		/* check if we want to inform the kernel that we're interested in
 		 * sending more data after this call. We want this if :
 		 *  - we're about to close after this last send and want to merge
@@ -742,11 +734,6 @@ static int si_conn_send_loop(struct connection *conn)
 	if (conn->flags & CO_FL_ERROR)
 		return -1;
 
-	if (conn->flags & CO_FL_WAIT_ROOM) {
-		/* we need to poll before going on */
-		__conn_data_poll_send(&si->conn);
-		return 0;
-	}
 	return 0;
 }
 
@@ -992,7 +979,6 @@ void si_conn_recv_cb(struct connection *conn)
 		return;
 
 	cur_read = 0;
-	conn->flags &= ~(CO_FL_WAIT_DATA | CO_FL_WAIT_ROOM);
 
 	/* First, let's see if we may splice data across the channel without
 	 * using a buffer.
@@ -1036,6 +1022,9 @@ void si_conn_recv_cb(struct connection *conn)
 		if (conn->flags & CO_FL_ERROR)
 			goto out_error;
 
+		if (conn->flags & CO_FL_WAIT_ROOM) /* most likely the pipe is full */
+			si->flags |= SI_FL_WAIT_ROOM;
+
 		/* splice not possible (anymore), let's go on on standard copy */
 	}
 
@@ -1046,11 +1035,11 @@ void si_conn_recv_cb(struct connection *conn)
 		b->pipe = NULL;
 	}
 
-	while (!b->pipe && !(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_DATA_RD_SH | CO_FL_WAIT_DATA | CO_FL_WAIT_ROOM | CO_FL_HANDSHAKE))) {
+	while (!b->pipe && !(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_DATA_RD_SH | CO_FL_WAIT_RD | CO_FL_WAIT_ROOM | CO_FL_HANDSHAKE))) {
 		max = bi_avail(b);
 
 		if (!max) {
-			conn->flags |= CO_FL_WAIT_ROOM;
+			si->flags |= SI_FL_WAIT_ROOM;
 			break;
 		}
 
@@ -1154,20 +1143,6 @@ void si_conn_recv_cb(struct connection *conn)
 	if (conn->flags & CO_FL_ERROR)
 		goto out_error;
 
-	if (conn->flags & CO_FL_WAIT_ROOM) {
-		si->flags |= SI_FL_WAIT_ROOM;
-	}
-	else if (conn->flags & CO_FL_WAIT_DATA) {
-		/* we don't automatically ask for polling if we have
-		 * read enough data, as it saves some syscalls with
-		 * speculative pollers.
-		 */
-		if (cur_read < MIN_RET_FOR_READ_LOOP)
-			__conn_data_poll_recv(conn);
-		else
-			__conn_data_want_recv(conn);
-	}
-
 	if (conn_data_read0_pending(conn))
 		/* connection closed */
 		goto out_shutdown_r;
@@ -1186,7 +1161,6 @@ void si_conn_recv_cb(struct connection *conn)
  out_error:
 	/* Read error on the connection, report the error and stop I/O */
 	conn->flags |= CO_FL_ERROR;
-	__conn_data_stop_both(conn);
 }
 
 /*
@@ -1220,7 +1194,6 @@ void si_conn_send_cb(struct connection *conn)
  out_error:
 	/* Write error on the connection, report the error and stop I/O */
 	conn->flags |= CO_FL_ERROR;
-	__conn_data_stop_both(conn);
 }
 
 /*

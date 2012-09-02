@@ -90,13 +90,6 @@
 #define MAX_WRITE_POLL_LOOPS 2
 #endif
 
-// the number of bytes returned by a read below which we will not try to
-// poll the socket again. Generally, return values below the MSS are worthless
-// to try again.
-#ifndef MIN_RET_FOR_READ_LOOP
-#define MIN_RET_FOR_READ_LOOP 1460
-#endif
-
 // The minimum number of bytes to be forwarded that is worth trying to splice.
 // Below 4kB, it's not worth allocating pipes nor pretending to zero-copy.
 #ifndef MIN_SPLICE_FORWARD
