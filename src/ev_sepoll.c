@@ -105,7 +105,7 @@
  * The FD array has to hold a back reference to the speculative list. This
  * reference is only valid if at least one of the directions is marked SPEC.
  *
- * We store the FD state in the 4 lower bits of fdtab[fd].spec.e, and save the
+ * We store the FD state in the 4 lower bits of fdtab[fd].spec_e, and save the
  * previous state upon changes in the 4 higher bits, so that changes are easy
  * to spot.
  */
@@ -160,10 +160,10 @@ static struct epoll_event ev;
 
 REGPRM1 static inline void alloc_spec_entry(const int fd)
 {
-	if (fdtab[fd].spec.s1)
+	if (fdtab[fd].spec_p)
 		/* sometimes the entry already exists for the other direction */
 		return;
-	fdtab[fd].spec.s1 = nbspec + 1;
+	fdtab[fd].spec_p = nbspec + 1;
 	spec_list[nbspec] = fd;
 	nbspec++;
 }
@@ -176,11 +176,11 @@ REGPRM1 static void release_spec_entry(int fd)
 {
 	unsigned int pos;
 
-	pos = fdtab[fd].spec.s1;
+	pos = fdtab[fd].spec_p;
 	if (!pos)
 		return;
 
-	fdtab[fd].spec.s1 = 0;
+	fdtab[fd].spec_p = 0;
 	pos--;
 	/* we have spec_list[pos]==fd */
 
@@ -191,7 +191,7 @@ REGPRM1 static void release_spec_entry(int fd)
 	/* we replace current FD by the highest one, which may sometimes be the same */
 	fd = spec_list[nbspec];
 	spec_list[pos] = fd;
-	fdtab[fd].spec.s1 = pos + 1;
+	fdtab[fd].spec_p = pos + 1;
 }
 
 /*
@@ -207,7 +207,7 @@ REGPRM2 static int __fd_is_set(const int fd, int dir)
 		ABORT_NOW();
 	}
 #endif
-	ret = ((unsigned)fdtab[fd].spec.e >> dir) & FD_EV_MASK_DIR;
+	ret = ((unsigned)fdtab[fd].spec_e >> dir) & FD_EV_MASK_DIR;
 	return (ret == FD_EV_SPEC || ret == FD_EV_WAIT);
 }
 
@@ -225,14 +225,14 @@ REGPRM2 static void __fd_wai(const int fd, int dir)
 		ABORT_NOW();
 	}
 #endif
-	i = ((unsigned)fdtab[fd].spec.e >> dir) & FD_EV_MASK_DIR;
+	i = ((unsigned)fdtab[fd].spec_e >> dir) & FD_EV_MASK_DIR;
 
 	if (!(i & FD_EV_IN_SL)) {
 		if (i == FD_EV_WAIT)
 			return; /* already in desired state */
 		alloc_spec_entry(fd); /* need a spec entry */
 	}
-	fdtab[fd].spec.e ^= (i ^ (unsigned int)FD_EV_IN_PL) << dir;
+	fdtab[fd].spec_e ^= (i ^ (unsigned int)FD_EV_IN_PL) << dir;
 }
 
 REGPRM2 static void __fd_set(const int fd, int dir)
@@ -245,7 +245,7 @@ REGPRM2 static void __fd_set(const int fd, int dir)
 		ABORT_NOW();
 	}
 #endif
-	i = ((unsigned)fdtab[fd].spec.e >> dir) & FD_EV_MASK_DIR;
+	i = ((unsigned)fdtab[fd].spec_e >> dir) & FD_EV_MASK_DIR;
 
 	if (i != FD_EV_STOP) {
 		if (unlikely(i != FD_EV_IDLE))
@@ -253,7 +253,7 @@ REGPRM2 static void __fd_set(const int fd, int dir)
 		// switch to SPEC state and allocate a SPEC entry.
 		alloc_spec_entry(fd);
 	}
-	fdtab[fd].spec.e ^= (unsigned int)(FD_EV_IN_SL << dir);
+	fdtab[fd].spec_e ^= (unsigned int)(FD_EV_IN_SL << dir);
 }
 
 REGPRM2 static void __fd_clr(const int fd, int dir)
@@ -266,7 +266,7 @@ REGPRM2 static void __fd_clr(const int fd, int dir)
 		ABORT_NOW();
 	}
 #endif
-	i = ((unsigned)fdtab[fd].spec.e >> dir) & FD_EV_MASK_DIR;
+	i = ((unsigned)fdtab[fd].spec_e >> dir) & FD_EV_MASK_DIR;
 
 	if (i != FD_EV_SPEC) {
 		if (unlikely(i != FD_EV_WAIT))
@@ -278,7 +278,7 @@ REGPRM2 static void __fd_clr(const int fd, int dir)
 		 */
 		alloc_spec_entry(fd);
 	}
-	fdtab[fd].spec.e ^= (unsigned int)(FD_EV_IN_SL << dir);
+	fdtab[fd].spec_e ^= (unsigned int)(FD_EV_IN_SL << dir);
 }
 
 /* normally unused */
@@ -295,7 +295,7 @@ REGPRM1 static void __fd_rem(int fd)
 REGPRM1 static void __fd_clo(int fd)
 {
 	release_spec_entry(fd);
-	fdtab[fd].spec.e &= ~(FD_EV_MASK | FD_EV_MASK_OLD);
+	fdtab[fd].spec_e &= ~(FD_EV_MASK | FD_EV_MASK_OLD);
 }
 
 /*
@@ -314,8 +314,8 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	while (likely(spec_idx > 0)) {
 		spec_idx--;
 		fd = spec_list[spec_idx];
-		en = fdtab[fd].spec.e & 15;  /* new events */
-		eo = fdtab[fd].spec.e >> 4;  /* previous events */
+		en = fdtab[fd].spec_e & 15;  /* new events */
+		eo = fdtab[fd].spec_e >> 4;  /* previous events */
 
 		/* If an fd with a poll bit is present here, it means that it
 		 * has last requested a poll, or is leaving from a poll. Given
@@ -372,9 +372,9 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			epoll_ctl(epoll_fd, opcode, fd, &ev);
 		}
 
-		fdtab[fd].spec.e = (en << 4) + en;  /* save new events */
+		fdtab[fd].spec_e = (en << 4) + en;  /* save new events */
 
-		if (!(fdtab[fd].spec.e & FD_EV_RW_SL)) {
+		if (!(fdtab[fd].spec_e & FD_EV_RW_SL)) {
 			/* This fd switched to combinations of either WAIT or
 			 * IDLE. It must be removed from the spec list.
 			 */
@@ -447,7 +447,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	while (likely(spec_idx > 0)) {
 		spec_idx--;
 		fd = spec_list[spec_idx];
-		eo = fdtab[fd].spec.e;  /* save old events */
+		eo = fdtab[fd].spec_e;  /* save old events */
 
 		/*
 		 * Process the speculative events.
@@ -473,7 +473,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		if (!fdtab[fd].owner)
 			continue;
 
-		if (!(fdtab[fd].spec.e & (FD_EV_RW_SL|FD_EV_RW_PL))) {
+		if (!(fdtab[fd].spec_e & (FD_EV_RW_SL|FD_EV_RW_PL))) {
 			/* This fd switched to IDLE, it can be removed from the spec list. */
 			release_spec_entry(fd);
 			continue;

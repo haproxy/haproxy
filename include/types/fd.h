@@ -55,10 +55,8 @@ enum {
 struct fdtab {
 	int (*iocb)(int fd);                 /* I/O handler, returns FD_WAIT_* */
 	void *owner;                         /* the connection or listener associated with this fd, NULL if closed */
-	struct {                             /* used by pollers which support speculative polling */
-		unsigned char e;             /* read and write events status. 4 bits, may be merged into flags' lower bits */
-		unsigned int s1;             /* Position in spec list+1. 0=not in list. */
-	} spec;
+	unsigned int  spec_p;                /* speculative polling: position in spec list+1. 0=not in list. */
+	unsigned char spec_e;                /* speculative polling: read and write events status. 4 bits */
 	unsigned char ev;                    /* event seen in return of poll() : FD_POLL_* */
 };
 
