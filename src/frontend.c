@@ -197,10 +197,6 @@ int frontend_accept(struct session *s)
 	s->req->rto = s->fe->timeout.client;
 	s->rep->wto = s->fe->timeout.client;
 
-	fdtab[cfd].flags = FD_FL_TCP | FD_FL_TCP_NODELAY;
-	if (s->fe->options & PR_O_TCP_NOLING)
-		fdtab[cfd].flags |= FD_FL_TCP_NOLING;
-
 	if (unlikely((s->fe->mode == PR_MODE_HTTP && (s->flags & SN_MONITOR)) ||
 		     (s->fe->mode == PR_MODE_HEALTH && ((s->fe->options2 & PR_O2_CHK_ANY) == PR_O2_HTTP_CHK)))) {
 		/* Either we got a request from a monitoring system on an HTTP instance,

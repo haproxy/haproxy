@@ -51,13 +51,6 @@ enum {
 #define FD_POLL_DATA    (FD_POLL_IN  | FD_POLL_OUT)
 #define FD_POLL_STICKY  (FD_POLL_ERR | FD_POLL_HUP)
 
-/* bit values for fdtab[fd]->flags. Most of them are used to hold a value
- * consecutive to a behaviour change.
- */
-#define FD_FL_TCP               0x0001       /* socket is TCP */
-#define FD_FL_TCP_NODELAY       0x0002
-#define FD_FL_TCP_NOLING        0x0004       /* lingering disabled */
-
 /* info about one given fd */
 struct fdtab {
 	int (*iocb)(int fd);                 /* I/O handler, returns FD_WAIT_* */
@@ -66,7 +59,6 @@ struct fdtab {
 		unsigned char e;             /* read and write events status. 4 bits, may be merged into flags' lower bits */
 		unsigned int s1;             /* Position in spec list+1. 0=not in list. */
 	} spec;
-	unsigned short flags;                /* various flags precising the exact status of this fd */
 	unsigned char ev;                    /* event seen in return of poll() : FD_POLL_* */
 };
 

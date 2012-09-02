@@ -1476,7 +1476,6 @@ static struct task *process_chk(struct task *t)
 						fd_insert(fd);
 						fdtab[fd].owner = t;
 						fdtab[fd].iocb = &check_iocb;
-						fdtab[fd].flags = FD_FL_TCP | FD_FL_TCP_NODELAY;
 						fd_want_send(fd);  /* for connect status */
 #ifdef DEBUG_FULL
 						assert (!EV_FD_ISSET(fd, DIR_RD));

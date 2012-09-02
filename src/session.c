@@ -151,7 +151,6 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	/* finish initialization of the accepted file descriptor */
 	fd_insert(cfd);
 	fdtab[cfd].owner = &s->si[0].conn;
-	fdtab[cfd].flags = 0;
 	fdtab[cfd].iocb = conn_fd_handler;
 	conn_data_want_recv(&s->si[0].conn);
 	if (conn_data_init(&s->si[0].conn) < 0)

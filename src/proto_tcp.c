@@ -452,7 +452,6 @@ int tcp_connect_server(struct connection *conn, int data)
 	}
 
 	fdtab[fd].owner = conn;
-	fdtab[fd].flags = FD_FL_TCP | FD_FL_TCP_NODELAY;
 	conn->flags  = CO_FL_WAIT_L4_CONN; /* connection in progress */
 
 	fdtab[fd].iocb = conn_fd_handler;
@@ -694,7 +693,6 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	listener->state = LI_LISTEN;
 
 	fdtab[fd].owner = listener; /* reference the listener instead of a task */
-	fdtab[fd].flags = FD_FL_TCP | ((listener->options & LI_O_NOLINGER) ? FD_FL_TCP_NOLING : 0);
 	fdtab[fd].iocb = listener->proto->accept;
 	fd_insert(fd);
 
