@@ -14,6 +14,7 @@
 #include <signal.h>
 #include <common/standard.h>
 #include <types/signal.h>
+#include <types/task.h>
 
 extern int signal_queue_len;
 extern struct signal_descriptor signal_state[];

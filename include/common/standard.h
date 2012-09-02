@@ -26,10 +26,10 @@
 #include <string.h>
 #include <time.h>
 #include <sys/types.h>
+#include <sys/un.h>
 #include <netinet/in.h>
 #include <common/config.h>
 #include <eb32tree.h>
-#include <proto/fd.h>
 
 #ifndef LLONG_MAX
 # define LLONG_MAX 9223372036854775807LL

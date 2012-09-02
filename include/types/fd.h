@@ -22,14 +22,8 @@
 #ifndef _TYPES_FD_H
 #define _TYPES_FD_H
 
-#include <sys/socket.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <unistd.h>
-
 #include <common/config.h>
-#include <types/task.h>
-#include <types/protocols.h>
+#include <types/port_range.h>
 
 enum {
 	DIR_RD=0,

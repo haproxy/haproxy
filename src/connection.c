@@ -14,6 +14,7 @@
 #include <common/config.h>
 
 #include <proto/connection.h>
+#include <proto/fd.h>
 #include <proto/proto_tcp.h>
 #include <proto/session.h>
 #include <proto/stream_interface.h>

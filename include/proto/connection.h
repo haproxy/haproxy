@@ -24,6 +24,7 @@
 
 #include <common/config.h>
 #include <types/connection.h>
+#include <types/protocols.h>
 
 /* I/O callback for fd-based connections. It calls the read/write handlers
  * provided by the connection's sock_ops. Returns 0.

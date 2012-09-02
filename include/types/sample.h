@@ -27,6 +27,7 @@
 #include <netinet/in.h>
 
 #include <common/chunk.h>
+#include <common/mini-clist.h>
 #include <types/arg.h>
 
 /* input and output sample types */

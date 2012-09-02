@@ -28,6 +28,7 @@
 #include <proto/checks.h>
 #include <proto/connection.h>
 #include <proto/dumpstats.h>
+#include <proto/fd.h>
 #include <proto/freq_ctr.h>
 #include <proto/frontend.h>
 #include <proto/hdr_idx.h>
