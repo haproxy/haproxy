@@ -41,7 +41,7 @@ int conn_fd_handler(int fd)
 	 * work must explicitly disable events it's not interested in.
 	 */
 	while (unlikely(conn->flags & CO_FL_HANDSHAKE)) {
-		if (unlikely(conn->flags & CO_FL_ERROR))
+		if (unlikely(conn->flags & (CO_FL_ERROR|CO_FL_WAIT_RD|CO_FL_WAIT_WR)))
 			goto leave;
 
 		if (conn->flags & CO_FL_ACCEPT_PROXY)
@@ -65,7 +65,8 @@ int conn_fd_handler(int fd)
 	    conn_session_complete(conn, CO_FL_INIT_SESS) < 0)
 		return 0;
 
-	if (fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
+	if ((fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR)) &&
+	    !(conn->flags & (CO_FL_WAIT_RD|CO_FL_WAIT_ROOM)))
 		conn->app_cb->recv(conn);
 
 	if (unlikely(conn->flags & CO_FL_ERROR))
@@ -77,7 +78,8 @@ int conn_fd_handler(int fd)
 	if (unlikely(conn->flags & CO_FL_HANDSHAKE))
 		goto process_handshake;
 
-	if (fdtab[fd].ev & (FD_POLL_OUT | FD_POLL_ERR))
+	if ((fdtab[fd].ev & (FD_POLL_OUT | FD_POLL_ERR)) &&
+	    !(conn->flags & (CO_FL_WAIT_WR|CO_FL_WAIT_DATA)))
 		conn->app_cb->send(conn);
 
 	if (unlikely(conn->flags & CO_FL_ERROR))
