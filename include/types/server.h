@@ -173,6 +173,7 @@ struct server {
 	struct {
 		SSL_CTX *ctx;
 		SSL_SESSION *reused_sess;
+		char *ciphers;			/* cipher suite to use if non-null */
 	} ssl_ctx;
 #endif
 	struct {

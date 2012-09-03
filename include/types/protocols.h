@@ -134,6 +134,7 @@ struct listener {
 	char *ssl_cert;			/* ssl certificate */
 	struct {
 		SSL_CTX *ctx;
+		char *ciphers;		/* cipher suite to use if non-null */
 	} ssl_ctx;
 #endif
 	/* warning: this struct is huge, keep it at the bottom */

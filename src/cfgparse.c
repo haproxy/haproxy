@@ -1831,6 +1831,30 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 #endif
 			}
 
+			if (!strcmp(args[cur_arg], "ciphers")) { /* set cipher suite */
+#ifdef USE_OPENSSL
+				struct listener *l;
+
+				if (!*args[cur_arg + 1]) {
+					Alert("parsing [%s:%d] : '%s' : missing cipher suite.\n",
+					      file, linenum, args[0]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				for (l = curproxy->listen; l != last_listen; l = l->next)
+					l->ssl_ctx.ciphers = strdup(args[cur_arg + 1]);
+
+				cur_arg += 2;
+				continue;
+#else
+				Alert("parsing [%s:%d] : '%s' : '%s' option not implemented.\n",
+				      file, linenum, args[0], args[cur_arg]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+#endif
+			}
+
 			if (!strcmp(args[cur_arg], "accept-proxy")) { /* expect a 'PROXY' line first */
 				struct listener *l;
 
@@ -4405,6 +4429,27 @@ stats_error_parsing:
 				goto out;
 #endif /* USE_OPENSSL */
 			}
+			else if (!strcmp(args[cur_arg], "ciphers")) { /* use this SSL cipher suite */
+#ifdef USE_OPENSSL
+				if (!*args[cur_arg + 1]) {
+					Alert("parsing [%s:%d] : '%s' : '%s' : missing cipher suite.\n",
+					      file, linenum, args[0], args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				newsrv->ssl_ctx.ciphers = strdup(args[cur_arg + 1]);
+
+				cur_arg += 2;
+				continue;
+#else
+				Alert("parsing [%s:%d] : '%s' : '%s' option not implemented.\n",
+				      file, linenum, args[0], args[cur_arg]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+#endif
+			}
+
 			else if (!defsrv && !strcmp(args[cur_arg], "observe")) {
 				if (!strcmp(args[cur_arg + 1], "none"))
 					newsrv->observe = HANA_OBS_NONE;
@@ -6402,6 +6447,14 @@ out_uri_auth_compat:
 				SSL_CTX_set_mode(newsrv->ssl_ctx.ctx, sslmode);
 				SSL_CTX_set_verify(newsrv->ssl_ctx.ctx, SSL_VERIFY_NONE, NULL);
 				SSL_CTX_set_session_cache_mode(newsrv->ssl_ctx.ctx, SSL_SESS_CACHE_OFF);
+				if (newsrv->ssl_ctx.ciphers &&
+				    !SSL_CTX_set_cipher_list(newsrv->ssl_ctx.ctx, newsrv->ssl_ctx.ciphers)) {
+					Alert("Proxy '%s', server '%s' [%s:%d] : unable to set SSL cipher list to '%s'.\n",
+					      curproxy->id, newsrv->id,
+					      newsrv->conf.file, newsrv->conf.line, newsrv->ssl_ctx.ciphers);
+					cfgerr++;
+					goto next_srv;
+				}
 			}
 #endif /* USE_OPENSSL */
 			if (newsrv->trackit) {
@@ -6720,6 +6773,14 @@ out_uri_auth_compat:
 					goto skip_ssl;
 				}
 				shared_context_set_cache(listener->ssl_ctx.ctx);
+				if (listener->ssl_ctx.ciphers &&
+				    !SSL_CTX_set_cipher_list(listener->ssl_ctx.ctx, listener->ssl_ctx.ciphers)) {
+					Alert("Proxy '%s': unable to set SSL cipher list to '%s' for listener %d (%s:%d) using cert '%s'.\n",
+					      curproxy->id, listener->ssl_ctx.ciphers, listener->luid,
+					      listener->conf.file, listener->conf.line, listener->ssl_cert);
+					cfgerr++;
+					goto skip_ssl;
+				}
 
 				SSL_CTX_set_info_callback(listener->ssl_ctx.ctx, ssl_sock_infocbk);
 
