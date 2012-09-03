@@ -1855,6 +1855,40 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 #endif
 			}
 
+			if (!strcmp(args[cur_arg], "nosslv3")) { /* disable SSLv3 */
+#ifdef USE_OPENSSL
+				struct listener *l;
+
+				for (l = curproxy->listen; l != last_listen; l = l->next)
+					l->ssl_ctx.nosslv3 = 1;
+
+				cur_arg += 1;
+				continue;
+#else
+				Alert("parsing [%s:%d] : '%s' : '%s' option not implemented.\n",
+				      file, linenum, args[0], args[cur_arg]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+#endif
+			}
+
+			if (!strcmp(args[cur_arg], "notlsv1")) { /* disable TLSv1 */
+#ifdef USE_OPENSSL
+				struct listener *l;
+
+				for (l = curproxy->listen; l != last_listen; l = l->next)
+					l->ssl_ctx.notlsv1 = 1;
+
+				cur_arg += 1;
+				continue;
+#else
+				Alert("parsing [%s:%d] : '%s' : '%s' option not implemented.\n",
+				      file, linenum, args[0], args[cur_arg]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+#endif
+			}
+
 			if (!strcmp(args[cur_arg], "accept-proxy")) { /* expect a 'PROXY' line first */
 				struct listener *l;
 
@@ -4449,7 +4483,28 @@ stats_error_parsing:
 				goto out;
 #endif
 			}
-
+			else if (!strcmp(args[cur_arg], "nosslv3")) {
+#ifdef USE_OPENSSL
+				newsrv->ssl_ctx.nosslv3 = 1;
+				cur_arg += 1;
+#else /* USE_OPENSSL */
+				Alert("parsing [%s:%d]: '%s' option not implemented.\n",
+				      file, linenum, args[cur_arg]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+#endif /* USE_OPENSSL */
+			}
+			else if (!strcmp(args[cur_arg], "notlsv1")) {
+#ifdef USE_OPENSSL
+				newsrv->ssl_ctx.notlsv1 = 1;
+				cur_arg += 1;
+#else /* USE_OPENSSL */
+				Alert("parsing [%s:%d]: '%s' option not implemented.\n",
+				      file, linenum, args[cur_arg]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+#endif /* USE_OPENSSL */
+			}
 			else if (!defsrv && !strcmp(args[cur_arg], "observe")) {
 				if (!strcmp(args[cur_arg + 1], "none"))
 					newsrv->observe = HANA_OBS_NONE;
@@ -6443,6 +6498,10 @@ out_uri_auth_compat:
 						goto next_srv;
 				}
 
+				if (newsrv->ssl_ctx.nosslv3)
+					ssloptions |= SSL_OP_NO_SSLv3;
+				if (newsrv->ssl_ctx.notlsv1)
+					ssloptions |= SSL_OP_NO_TLSv1;
 				SSL_CTX_set_options(newsrv->ssl_ctx.ctx, ssloptions);
 				SSL_CTX_set_mode(newsrv->ssl_ctx.ctx, sslmode);
 				SSL_CTX_set_verify(newsrv->ssl_ctx.ctx, SSL_VERIFY_NONE, NULL);
@@ -6764,6 +6823,10 @@ out_uri_auth_compat:
 					cfgerr++;
 					goto skip_ssl;
 				}
+				if (listener->ssl_ctx.nosslv3)
+					ssloptions |= SSL_OP_NO_SSLv3;
+				if (listener->ssl_ctx.notlsv1)
+					ssloptions |= SSL_OP_NO_TLSv1;
 				SSL_CTX_set_options(listener->ssl_ctx.ctx, ssloptions);
 				SSL_CTX_set_mode(listener->ssl_ctx.ctx, sslmode);
 				SSL_CTX_set_verify(listener->ssl_ctx.ctx, SSL_VERIFY_NONE, NULL);

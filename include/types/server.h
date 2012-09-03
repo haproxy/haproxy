@@ -174,6 +174,8 @@ struct server {
 		SSL_CTX *ctx;
 		SSL_SESSION *reused_sess;
 		char *ciphers;			/* cipher suite to use if non-null */
+		int nosslv3;			/* disable SSLv3 */
+		int notlsv1;			/* disable TLSv1 */
 	} ssl_ctx;
 #endif
 	struct {
