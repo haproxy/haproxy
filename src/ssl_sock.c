@@ -44,6 +44,19 @@
 #include <types/global.h>
 
 
+
+void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
+{
+	struct connection *conn = (struct connection *)SSL_get_app_data(ssl);
+	(void)ret; /* shut gcc stupid warning */
+
+	if (where & SSL_CB_HANDSHAKE_START) {
+		/* Disable renegotiation (CVE-2009-3555) */
+		if (conn->flags & CO_FL_CONNECTED)
+			conn->flags |= CO_FL_ERROR;
+	}
+}
+
 /*
  * This function is called if SSL * context is not yet allocated. The function
  * is designed to be called before any other data-layer operation and sets the
@@ -87,6 +100,9 @@ static int ssl_sock_init(struct connection *conn)
 
 		/* set fd on SSL session context */
 		SSL_set_fd(conn->data_ctx, conn->t.sock.fd);
+
+		/* set connection pointer */
+		SSL_set_app_data(conn->data_ctx, conn);
 
 		/* leave init state and start handshake */
 		conn->flags |= CO_FL_SSL_WAIT_HS;
@@ -197,7 +213,10 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 	 */
 	while (try) {
 		ret = SSL_read(conn->data_ctx, bi_end(buf), try);
-
+		if (conn->flags & CO_FL_ERROR) {
+			/* CO_FL_ERROR may be set by ssl_sock_infocbk */
+			break;
+		}
 		if (ret > 0) {
 			buf->i += ret;
 			done += ret;
@@ -271,6 +290,10 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 			try = buf->data + try - buf->p;
 
 		ret = SSL_write(conn->data_ctx, bo_ptr(buf), try);
+		if (conn->flags & CO_FL_ERROR) {
+			/* CO_FL_ERROR may be set by ssl_sock_infocbk */
+			break;
+		}
 		if (ret > 0) {
 			buf->o -= ret;
 			done += ret;

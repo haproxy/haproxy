@@ -26,6 +26,7 @@
 
 extern struct data_ops ssl_sock;
 int ssl_sock_handshake(struct connection *conn, unsigned int flag);
+void ssl_sock_infocbk(const SSL *ssl, int where, int ret);
 
 #endif /* _PROTO_SSL_SOCK_H */
 

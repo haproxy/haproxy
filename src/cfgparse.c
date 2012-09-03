@@ -6704,6 +6704,7 @@ out_uri_auth_compat:
 				SSL_CTX_set_mode(listener->ssl_ctx.ctx, sslmode);
 				SSL_CTX_set_verify(listener->ssl_ctx.ctx, SSL_VERIFY_NONE, NULL);
 				SSL_CTX_set_session_cache_mode(listener->ssl_ctx.ctx, SSL_SESS_CACHE_SERVER);
+				SSL_CTX_set_info_callback(listener->ssl_ctx.ctx, ssl_sock_infocbk);
 
 				if (SSL_CTX_use_PrivateKey_file(listener->ssl_ctx.ctx, listener->ssl_cert, SSL_FILETYPE_PEM) <= 0) {
 					Alert("Proxy '%s': unable to load SSL private key from file '%s' in listener %d (%s:%d).\n",
