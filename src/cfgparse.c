@@ -62,6 +62,7 @@
 #include <proto/sample.h>
 #include <proto/server.h>
 #include <proto/session.h>
+#include <proto/shctx.h>
 #include <proto/raw_sock.h>
 #ifdef USE_OPENSSL
 #include <proto/ssl_sock.h>
@@ -6703,7 +6704,13 @@ out_uri_auth_compat:
 				SSL_CTX_set_options(listener->ssl_ctx.ctx, ssloptions);
 				SSL_CTX_set_mode(listener->ssl_ctx.ctx, sslmode);
 				SSL_CTX_set_verify(listener->ssl_ctx.ctx, SSL_VERIFY_NONE, NULL);
-				SSL_CTX_set_session_cache_mode(listener->ssl_ctx.ctx, SSL_SESS_CACHE_SERVER);
+				if (shared_context_init(0) < 0) {
+					Alert("Unable to allocate SSL session cache.\n");
+					cfgerr++;
+					goto skip_ssl;
+				}
+				shared_context_set_cache(listener->ssl_ctx.ctx);
+
 				SSL_CTX_set_info_callback(listener->ssl_ctx.ctx, ssl_sock_infocbk);
 
 				if (SSL_CTX_use_PrivateKey_file(listener->ssl_ctx.ctx, listener->ssl_cert, SSL_FILETYPE_PEM) <= 0) {
