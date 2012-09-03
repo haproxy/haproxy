@@ -26,6 +26,7 @@
 #   USE_VSYSCALL         : enable vsyscall on Linux x86, bypassing libc
 #   USE_GETADDRINFO      : use getaddrinfo() to resolve IPv6 host names.
 #   USE_OPENSSL          : enable use of OpenSSL. Recommended, but see below.
+#   USE_FUTEX            : enable use of futex on kernel 2.6. Automatic.
 #
 # Options can be forced by specifying "USE_xxx=1" or can be disabled by using
 # "USE_xxx=" (empty string).
@@ -220,6 +221,7 @@ ifeq ($(TARGET),linux26)
   USE_SEPOLL      = implicit
   USE_TPROXY      = implicit
   USE_LIBCRYPT    = implicit
+  USE_FUTEX       = implicit
 else
 ifeq ($(TARGET),linux2628)
   # This is for standard Linux >= 2.6.28 with netfilter, epoll, tproxy and splice
@@ -232,6 +234,7 @@ ifeq ($(TARGET),linux2628)
   USE_LIBCRYPT    = implicit
   USE_LINUX_SPLICE= implicit
   USE_LINUX_TPROXY= implicit
+  USE_FUTEX       = implicit
 else
 ifeq ($(TARGET),solaris)
   # This is for Solaris 8
@@ -471,7 +474,12 @@ ifneq ($(USE_OPENSSL),)
 # in the standard path.
 OPTIONS_CFLAGS  += -DUSE_OPENSSL
 OPTIONS_LDFLAGS += -lssl
-OPTIONS_OBJS  += src/ssl_sock.o
+OPTIONS_OBJS  += src/ssl_sock.o src/shctx.o
+ifneq ($(USE_FUTEX),)
+OPTIONS_CFLAGS  += -DUSE_SYSCALL_FUTEX
+else
+OPTIONS_LDFLAGS += -lpthread
+endif
 endif
 
 ifneq ($(USE_PCRE),)
