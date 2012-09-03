@@ -750,11 +750,6 @@ void stream_int_update_conn(struct stream_interface *si)
 	struct channel *ib = si->ib;
 	struct channel *ob = si->ob;
 
-	if (si->conn.flags & CO_FL_HANDSHAKE) {
-		/* a handshake is in progress */
-		return;
-	}
-
 	/* Check if we need to close the read side */
 	if (!(ib->flags & CF_SHUTR)) {
 		/* Read not closed, update FD status and timeout for reads */
@@ -826,13 +821,8 @@ static void stream_int_chk_rcv_conn(struct stream_interface *si)
 {
 	struct channel *ib = si->ib;
 
-	if (unlikely(si->state != SI_ST_EST || (ib->flags & CF_SHUTR)))
+	if (unlikely(si->state > SI_ST_EST || (ib->flags & CF_SHUTR)))
 		return;
-
-	if (si->conn.flags & CO_FL_HANDSHAKE) {
-		/* a handshake is in progress */
-		return;
-	}
 
 	if ((ib->flags & (CF_HIJACK|CF_DONT_READ)) || channel_full(ib)) {
 		/* stop reading */
@@ -857,14 +847,8 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 {
 	struct channel *ob = si->ob;
 
-	if (unlikely(si->state != SI_ST_EST || (ob->flags & CF_SHUTW)))
+	if (unlikely(si->state > SI_ST_EST || (ob->flags & CF_SHUTW)))
 		return;
-
-	/* handshake running on producer */
-	if (si->conn.flags & CO_FL_HANDSHAKE) {
-		/* a handshake is in progress */
-		return;
-	}
 
 	if (unlikely(channel_is_empty(ob)))  /* called with nothing to send ! */
 		return;
@@ -874,7 +858,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 	     (fdtab[si_fd(si)].ev & FD_POLL_OUT)))   /* we'll be called anyway */
 		return;
 
-	if (si_conn_send_loop(&si->conn) < 0) {
+	if (!(si->conn.flags & CO_FL_HANDSHAKE) && si_conn_send_loop(&si->conn) < 0) {
 		/* Write error on the file descriptor. We mark the FD as STERROR so
 		 * that we don't use it anymore and we notify the task.
 		 */
