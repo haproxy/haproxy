@@ -6740,7 +6740,7 @@ out_uri_auth_compat:
 
 			/* smart accept mode is automatic in HTTP mode */
 			if ((curproxy->options2 & PR_O2_SMARTACC) ||
-			    (curproxy->mode == PR_MODE_HTTP &&
+			    ((curproxy->mode == PR_MODE_HTTP || listener->ssl_cert) &&
 			     !(curproxy->no_options2 & PR_O2_SMARTACC)))
 				listener->options |= LI_O_NOQUICKACK;
 
