@@ -125,6 +125,9 @@ struct global global = {
 		.bufsize = BUFSIZE,
 		.maxrewrite = MAXREWRITE,
 		.chksize = BUFSIZE,
+#ifdef USE_OPENSSL
+		.sslcachesize = 20000,
+#endif
 	},
 	/* others NULL OK */
 };

@@ -526,6 +526,16 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.tune.chksize = atol(args[1]);
 	}
+#ifdef USE_OPENSSL
+	else if (!strcmp(args[0], "tune.sslcachesize")) {
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		global.tune.sslcachesize = atol(args[1]);
+	}
+#endif
 	else if (!strcmp(args[0], "tune.bufsize")) {
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
@@ -6704,7 +6714,7 @@ out_uri_auth_compat:
 				SSL_CTX_set_options(listener->ssl_ctx.ctx, ssloptions);
 				SSL_CTX_set_mode(listener->ssl_ctx.ctx, sslmode);
 				SSL_CTX_set_verify(listener->ssl_ctx.ctx, SSL_VERIFY_NONE, NULL);
-				if (shared_context_init(0) < 0) {
+				if (shared_context_init(global.tune.sslcachesize) < 0) {
 					Alert("Unable to allocate SSL session cache.\n");
 					cfgerr++;
 					goto skip_ssl;
