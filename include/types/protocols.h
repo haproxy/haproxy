@@ -130,8 +130,8 @@ struct listener {
 	char *interface;		/* interface name or NULL */
 	int maxseg;			/* for TCP, advertised MSS */
 
-#ifdef USE_OPENSSL
 	char *ssl_cert;			/* ssl certificate */
+#ifdef USE_OPENSSL
 	struct {
 		SSL_CTX *ctx;
 		char *ciphers;		/* cipher suite to use if non-null */

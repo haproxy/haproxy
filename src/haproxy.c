@@ -996,9 +996,7 @@ void deinit(void)
 			l_next = l->next;
 			unbind_listener(l);
 			delete_listener(l);
-#ifdef USE_OPENSSL
 			free(l->ssl_cert);
-#endif
 			free(l->name);
 			free(l->counters);
 			free(l);
