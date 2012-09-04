@@ -86,7 +86,7 @@ static int ssl_sock_init(struct connection *conn)
 		SSL_set_fd(conn->data_ctx, conn->t.sock.fd);
 
 		/* leave init state and start handshake */
-		conn->flags |= CO_FL_SSL_WAIT_HS;
+		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
 		return 0;
 	}
 	else if (target_client(&conn->target)) {
@@ -105,7 +105,7 @@ static int ssl_sock_init(struct connection *conn)
 		SSL_set_app_data(conn->data_ctx, conn);
 
 		/* leave init state and start handshake */
-		conn->flags |= CO_FL_SSL_WAIT_HS;
+		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
 		return 0;
 	}
 	/* don't know how to handle such a target */
