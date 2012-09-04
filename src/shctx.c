@@ -14,6 +14,9 @@
 #include <sys/mman.h>
 #ifdef USE_SYSCALL_FUTEX
 #include <unistd.h>
+#ifndef u32
+#define u32 unsigned int
+#endif
 #include <linux/futex.h>
 #include <sys/syscall.h>
 #else /* USE_SYSCALL_FUTEX */
