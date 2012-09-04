@@ -372,7 +372,7 @@ int shared_context_init(int size)
 		size = SHCTX_DEFAULT_SIZE;
 
 	shctx = (struct shared_context *)mmap(NULL, sizeof(struct shared_context)+(size*sizeof(struct shared_session)),
-	                                      PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+	                                      PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANON, -1, 0);
 	if (!shctx || shctx == MAP_FAILED) {
 		shctx = NULL;
 		return -1;
