@@ -108,7 +108,7 @@ void http_reset_txn(struct session *s);
 
 struct http_req_rule *parse_http_req_cond(const char **args, const char *file, int linenum, struct proxy *proxy);
 void free_http_req_rules(struct list *r);
-struct chunk *error_message(struct session *s, int msgnum);
+struct chunk *http_error_message(struct session *s, int msgnum);
 
 /* to be used when contents change in an HTTP message */
 #define http_msg_move_end(msg, bytes) do { \

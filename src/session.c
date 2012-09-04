@@ -187,7 +187,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
  out_close:
 	if (ret < 0 && p->mode == PR_MODE_HTTP) {
 		/* critical error, no more memory, try to emit a 500 response */
-		struct chunk *err_msg = error_message(s, HTTP_ERR_500);
+		struct chunk *err_msg = http_error_message(s, HTTP_ERR_500);
 		send(cfd, err_msg->str, err_msg->len, MSG_DONTWAIT|MSG_NOSIGNAL);
 	}
 
