@@ -1889,6 +1889,23 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 #endif
 			}
 
+			if (!strcmp(args[cur_arg], "prefer-server-ciphers")) { /* Prefert server ciphers */
+#if defined (USE_OPENSSL) && defined(SSL_OP_CIPHER_SERVER_PREFERENCE)
+				struct listener *l;
+
+				for (l = curproxy->listen; l != last_listen; l = l->next)
+					l->ssl_ctx.prefer_server_ciphers = 1;
+
+				cur_arg += 1;
+				continue;
+#else
+				Alert("parsing [%s:%d] : '%s' : '%s' option not implemented.\n",
+				      file, linenum, args[0], args[cur_arg]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+#endif
+			}
+
 			if (!strcmp(args[cur_arg], "accept-proxy")) { /* expect a 'PROXY' line first */
 				struct listener *l;
 
@@ -6794,6 +6811,10 @@ out_uri_auth_compat:
 			}
 
 #ifdef USE_OPENSSL
+#ifndef SSL_OP_CIPHER_SERVER_PREFERENCE                 /* needs OpenSSL >= 0.9.7 */
+#define SSL_OP_CIPHER_SERVER_PREFERENCE 0
+#endif
+
 #ifndef SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION	/* needs OpenSSL >= 0.9.7 */
 #define SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION 0
 #endif
@@ -6827,6 +6848,8 @@ out_uri_auth_compat:
 					ssloptions |= SSL_OP_NO_SSLv3;
 				if (listener->ssl_ctx.notlsv1)
 					ssloptions |= SSL_OP_NO_TLSv1;
+				if (listener->ssl_ctx.prefer_server_ciphers)
+					ssloptions |= SSL_OP_CIPHER_SERVER_PREFERENCE;
 				SSL_CTX_set_options(listener->ssl_ctx.ctx, ssloptions);
 				SSL_CTX_set_mode(listener->ssl_ctx.ctx, sslmode);
 				SSL_CTX_set_verify(listener->ssl_ctx.ctx, SSL_VERIFY_NONE, NULL);

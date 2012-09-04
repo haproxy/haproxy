@@ -137,6 +137,7 @@ struct listener {
 		char *ciphers;		/* cipher suite to use if non-null */
 		int nosslv3;		/* disable SSLv3 */
 		int notlsv1;		/* disable TLSv1 */
+		int prefer_server_ciphers; /* Prefer server ciphers */
 	} ssl_ctx;
 #endif
 	/* warning: this struct is huge, keep it at the bottom */
