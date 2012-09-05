@@ -1148,8 +1148,8 @@ int main(int argc, char **argv)
 {
 	int err, retry;
 	struct rlimit limit;
-	FILE *pidfile = NULL;
 	char errmsg[100];
+	int pidfd = -1;
 
 	init(argc, argv);
 	signal_register_fct(SIGQUIT, dump, SIGQUIT);
@@ -1264,7 +1264,6 @@ int main(int argc, char **argv)
 
 	/* open log & pid files before the chroot */
 	if (global.mode & MODE_DAEMON && global.pidfile != NULL) {
-		int pidfd;
 		unlink(global.pidfile);
 		pidfd = open(global.pidfile, O_CREAT | O_WRONLY | O_TRUNC, 0644);
 		if (pidfd < 0) {
@@ -1274,7 +1273,6 @@ int main(int argc, char **argv)
 			protocol_unbind_all();
 			exit(1);
 		}
-		pidfile = fdopen(pidfd, "w");
 	}
 
 #ifdef CONFIG_HAP_CTTPROXY
@@ -1362,15 +1360,18 @@ int main(int argc, char **argv)
 			}
 			else if (ret == 0) /* child breaks here */
 				break;
-			if (pidfile != NULL) {
-				fprintf(pidfile, "%d\n", ret);
-				fflush(pidfile);
+			if (pidfd >= 0) {
+				char pidstr[100];
+				snprintf(pidstr, sizeof(pidstr), "%d\n", ret);
+				write(pidfd, pidstr, strlen(pidstr));
 			}
 			relative_pid++; /* each child will get a different one */
 		}
 		/* close the pidfile both in children and father */
-		if (pidfile != NULL)
-			fclose(pidfile);
+		if (pidfd >= 0) {
+			//lseek(pidfd, 0, SEEK_SET);  /* debug: emulate eglibc bug */
+			close(pidfd);
+		}
 
 		/* We won't ever use this anymore */
 		free(oldpids);        oldpids = NULL;
