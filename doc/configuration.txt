@@ -1471,11 +1471,12 @@ balance url_param <param> [check_post [<max_wait>]]
 bind [<address>]:<port_range> [, ...]
 bind [<address>]:<port_range> [, ...] interface <interface>
 bind [<address>]:<port_range> [, ...] mss <maxseg>
+bind [<address>]:<port_range> [, ...] backlog <backlog>
+bind [<address>]:<port_range> [, ...] maxconn <maxconn>
 bind [<address>]:<port_range> [, ...] transparent
 bind [<address>]:<port_range> [, ...] id <id>
 bind [<address>]:<port_range> [, ...] name <name>
 bind [<address>]:<port_range> [, ...] defer-accept
-bind [<address>]:<port_range> [, ...] accept-proxy
 bind /<path> [, ...]
 bind /<path> [, ...] mode <mode>
 bind /<path> [, ...] [ user <user> | uid <uid> ]
@@ -1544,6 +1545,17 @@ bind /<path> [, ...] [ group <user> | gid <gid> ]
                   negative, it will indicate by how much to reduce the incoming
                   connection's advertised MSS for outgoing segments. This
                   parameter is only compatible with TCP sockets.
+
+    <backlog>     sets the socket's backlog to this value. If unspecified, the
+                  frontend's backlog is used instead.
+
+    <maxconn>     limits the socket to this number of concurrent connections.
+                  Extra connections will remain in the system's backlog until a
+                  connection is released. If unspecified, the limit will be the
+                  same as the frontend's maxconn. Note that in case of port
+                  ranges, the same value will be applied to each socket. This
+                  setting enables different limitations on expensive sockets,
+                  for instance SSL entries which may easily eat all memory.
 
     <id>          is a persistent value for socket ID. Must be positive and
                   unique in the proxy. An unused value will automatically be

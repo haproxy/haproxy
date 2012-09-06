@@ -1807,6 +1807,58 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 #endif
 			}
 
+			if (!strcmp(args[cur_arg], "maxconn")) {
+				struct listener *l;
+				int val;
+
+				if (!*args[cur_arg + 1]) {
+					Alert("parsing [%s:%d] : '%s' : missing maxconn value.\n",
+					      file, linenum, args[0]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				val = atol(args[cur_arg + 1]);
+				if (val <= 0) {
+					Alert("parsing [%s:%d] : '%s' : invalid maxconn value %d, must be > 0.\n",
+					      file, linenum, args[0], val);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				for (l = curproxy->listen; l != last_listen; l = l->next)
+					l->maxconn = val;
+
+				cur_arg += 2;
+				continue;
+			}
+
+			if (!strcmp(args[cur_arg], "backlog")) {
+				struct listener *l;
+				int val;
+
+				if (!*args[cur_arg + 1]) {
+					Alert("parsing [%s:%d] : '%s' : missing backlog value.\n",
+					      file, linenum, args[0]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				val = atol(args[cur_arg + 1]);
+				if (val <= 0) {
+					Alert("parsing [%s:%d] : '%s' : invalid backlog value %d, must be > 0.\n",
+					      file, linenum, args[0], val);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				for (l = curproxy->listen; l != last_listen; l = l->next)
+					l->backlog = val;
+
+				cur_arg += 2;
+				continue;
+			}
+
 			if (!strcmp(args[cur_arg], "ssl")) { /* use ssl certificate */
 #ifdef USE_OPENSSL
 				struct listener *l;
@@ -6888,8 +6940,10 @@ out_uri_auth_compat:
 #endif /* USE_OPENSSL */
 			if (curproxy->options & PR_O_TCP_NOLING)
 				listener->options |= LI_O_NOLINGER;
-			listener->maxconn = curproxy->maxconn;
-			listener->backlog = curproxy->backlog;
+			if (!listener->maxconn)
+				listener->maxconn = curproxy->maxconn;
+			if (!listener->backlog)
+				listener->backlog = curproxy->backlog;
 			listener->timeout = &curproxy->timeout.client;
 			listener->accept = session_accept;
 			listener->frontend = curproxy;
