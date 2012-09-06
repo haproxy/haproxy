@@ -129,6 +129,9 @@ struct global global = {
 		.sslcachesize = 20000,
 #endif
 	},
+#if defined (USE_OPENSSL) && defined(DEFAULT_MAXSSLCONN)
+	.maxsslconn = DEFAULT_MAXSSLCONN,
+#endif
 	/* others NULL OK */
 };
 

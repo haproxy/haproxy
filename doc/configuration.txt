@@ -452,6 +452,7 @@ The following keywords are supported in the "global" section :
    - maxconn
    - maxconnrate
    - maxpipes
+   - maxsslconn
    - noepoll
    - nokqueue
    - nopoll
@@ -671,6 +672,15 @@ maxpipes <number>
   value is maxconn/4, which seems to be more than enough for most heavy usages.
   The splice code dynamically allocates and releases pipes, and can fall back
   to standard copy, so setting this value too low may only impact performance.
+
+maxsslconn <number>
+  Sets the maximum per-process number of concurrent SSL connections to
+  <number>. By default there is no SSL-specific limit, which means that the
+  global maxconn setting will apply to all connections. Setting this limit
+  avoids having openssl use too much memory and crash when malloc returns NULL
+  (since it unfortunately does not reliably check for such conditions). Note
+  that the limit applies both to incoming and outgoing connections, so one
+  connection which is deciphered then ciphered accounts for 2 SSL connections.
 
 noepoll
   Disables the use of the "epoll" event polling system on Linux. It is

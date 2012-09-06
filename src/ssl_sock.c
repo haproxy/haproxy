@@ -44,6 +44,7 @@
 #include <types/global.h>
 
 
+static int sslconns = 0;
 
 void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
 {
@@ -69,10 +70,12 @@ static int ssl_sock_init(struct connection *conn)
 	if (conn->data_ctx)
 		return 0;
 
+	if (global.maxsslconn && sslconns >= global.maxsslconn)
+		return -1;
+
 	/* If it is in client mode initiate SSL session
 	   in connect state otherwise accept state */
 	if (target_srv(&conn->target)) {
-
 		/* Alloc a new SSL session ctx */
 		conn->data_ctx = SSL_new(target_srv(&conn->target)->ssl_ctx.ctx);
 		if (!conn->data_ctx)
@@ -87,10 +90,11 @@ static int ssl_sock_init(struct connection *conn)
 
 		/* leave init state and start handshake */
 		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
+
+		sslconns++;
 		return 0;
 	}
 	else if (target_client(&conn->target)) {
-
 		/* Alloc a new SSL session ctx */
 		conn->data_ctx = SSL_new(target_client(&conn->target)->ssl_ctx.ctx);
 		if (!conn->data_ctx)
@@ -106,6 +110,8 @@ static int ssl_sock_init(struct connection *conn)
 
 		/* leave init state and start handshake */
 		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
+
+		sslconns++;
 		return 0;
 	}
 	/* don't know how to handle such a target */
@@ -339,8 +345,8 @@ static void ssl_sock_close(struct connection *conn) {
 	if (conn->data_ctx) {
 		SSL_free(conn->data_ctx);
 		conn->data_ctx = NULL;
+		sslconns--;
 	}
-
 }
 
 /* This function tries to perform a clean shutdown on an SSL connection, and in

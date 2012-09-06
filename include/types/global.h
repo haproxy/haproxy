@@ -67,6 +67,9 @@ struct global {
 	int gid;
 	int nbproc;
 	int maxconn, hardmaxconn;
+#ifdef USE_OPENSSL
+	int maxsslconn;
+#endif
 	struct freq_ctr conn_per_sec;
 	int cps_lim, cps_max;
 	int maxpipes;		/* max # of pipes */
