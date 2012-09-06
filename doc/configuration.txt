@@ -1483,6 +1483,7 @@ bind [<address>]:<port_range> [, ...] interface <interface>
 bind [<address>]:<port_range> [, ...] mss <maxseg>
 bind [<address>]:<port_range> [, ...] backlog <backlog>
 bind [<address>]:<port_range> [, ...] maxconn <maxconn>
+bind [<address>]:<port_range> [, ...] nice <nice>
 bind [<address>]:<port_range> [, ...] transparent
 bind [<address>]:<port_range> [, ...] id <id>
 bind [<address>]:<port_range> [, ...] name <name>
@@ -1571,6 +1572,17 @@ bind /<path> [, ...] [ group <user> | gid <gid> ]
                   unique in the proxy. An unused value will automatically be
                   assigned if unset. Can only be used when defining only a
                   single socket.
+
+    <nice>        sets the 'niceness' of connections initiated from the socket.
+                  Value must be in the range -1024..1024, and default is zero.
+                  Positive values means that such connections are more friendly
+                  to others and easily offer their place in the scheduler. On
+                  the opposite, negative values mean that connections want to
+                  run with a higher priority. The difference only happens under
+                  high loads when the system is close to saturation. Negative
+                  values are appropriate for low-latency or admin services, and
+                  high values are generally recommended for CPU intensive tasks
+                  such as SSL processing which are less sensible to latency.
 
     <name>        is an optional name provided for stats
 

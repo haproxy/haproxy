@@ -1875,6 +1875,32 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				continue;
 			}
 
+			if (!strcmp(args[cur_arg], "nice")) {
+				struct listener *l;
+				int val;
+
+				if (!*args[cur_arg + 1]) {
+					Alert("parsing [%s:%d] : '%s' : missing nice value.\n",
+					      file, linenum, args[0]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				val = atol(args[cur_arg + 1]);
+				if (val < -1024 || val > 1024) {
+					Alert("parsing [%s:%d] : '%s' : invalid nice value %d, allowed range is -1024..1024.\n",
+					      file, linenum, args[0], val);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				for (l = curproxy->listen; l != last_listen; l = l->next)
+					l->nice = val;
+
+				cur_arg += 2;
+				continue;
+			}
+
 			if (!strcmp(args[cur_arg], "ssl")) { /* use ssl certificate */
 #ifdef USE_OPENSSL
 				struct listener *l;
