@@ -75,21 +75,13 @@ int conn_fd_handler(int fd)
 	    conn_session_complete(conn, CO_FL_INIT_SESS) < 0)
 		return 0;
 
+	/* The data transfer starts here and stops on error and handshakes */
 	if ((fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR)) &&
-	    !(conn->flags & (CO_FL_WAIT_RD|CO_FL_WAIT_ROOM)))
+	    !(conn->flags & (CO_FL_WAIT_RD|CO_FL_WAIT_ROOM|CO_FL_ERROR|CO_FL_HANDSHAKE)))
 		conn->app_cb->recv(conn);
 
-	if (unlikely(conn->flags & CO_FL_ERROR))
-		goto leave;
-
-	/* It may happen during the data phase that a handshake is
-	 * enabled again (eg: SSL)
-	 */
-	if (unlikely(conn->flags & CO_FL_HANDSHAKE))
-		goto process_handshake;
-
 	if ((fdtab[fd].ev & (FD_POLL_OUT | FD_POLL_ERR)) &&
-	    !(conn->flags & (CO_FL_WAIT_WR|CO_FL_WAIT_DATA)))
+	    !(conn->flags & (CO_FL_WAIT_WR|CO_FL_WAIT_DATA|CO_FL_ERROR|CO_FL_HANDSHAKE)))
 		conn->app_cb->send(conn);
 
 	if (unlikely(conn->flags & CO_FL_ERROR))
