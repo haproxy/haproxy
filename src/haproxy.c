@@ -1366,7 +1366,7 @@ int main(int argc, char **argv)
 			if (pidfd >= 0) {
 				char pidstr[100];
 				snprintf(pidstr, sizeof(pidstr), "%d\n", ret);
-				write(pidfd, pidstr, strlen(pidstr));
+				if (write(pidfd, pidstr, strlen(pidstr)) < 0) /* shut gcc warning */;
 			}
 			relative_pid++; /* each child will get a different one */
 		}
