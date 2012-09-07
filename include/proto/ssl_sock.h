@@ -21,12 +21,18 @@
 
 #ifndef _PROTO_SSL_SOCK_H
 #define _PROTO_SSL_SOCK_H
+#include <openssl/ssl.h>
 
+#include <types/protocols.h>
 #include <types/stream_interface.h>
 
 extern struct data_ops ssl_sock;
 int ssl_sock_handshake(struct connection *conn, unsigned int flag);
-void ssl_sock_infocbk(const SSL *ssl, int where, int ret);
+int ssl_sock_load_cert(char *path, struct ssl_conf *ssl_conf, struct proxy *proxy);
+int ssl_sock_prepare_ctx(struct ssl_conf *ssl_conf, SSL_CTX *ctx, struct proxy *proxy);
+void ssl_sock_free_certs(struct ssl_conf *ssl_conf);
+int ssl_sock_prepare_all_ctx(struct ssl_conf *ssl_conf, struct proxy *px);
+void ssl_sock_free_all_ctx(struct ssl_conf *ssl_conf);
 
 #endif /* _PROTO_SSL_SOCK_H */
 

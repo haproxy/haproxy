@@ -92,6 +92,10 @@
 #include <proto/cttproxy.h>
 #endif
 
+#ifdef USE_OPENSSL
+#include <proto/ssl_sock.h>
+#endif
+
 /*********************************************************************/
 
 /*********************************************************************/
@@ -1015,10 +1019,8 @@ void deinit(void)
 		/* Release unused SSL configs.
 		 */
 		list_for_each_entry_safe(ssl_conf, ssl_back, &p->conf.ssl_bind, by_fe) {
-			if (ssl_conf->ctx)
-				SSL_CTX_free(ssl_conf->ctx);
+			ssl_sock_free_all_ctx(ssl_conf);
 			free(ssl_conf->ciphers);
-			free(ssl_conf->cert);
 			free(ssl_conf->file);
 			free(ssl_conf->arg);
 			LIST_DEL(&ssl_conf->by_fe);

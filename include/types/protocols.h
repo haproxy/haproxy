@@ -98,11 +98,12 @@ enum {
 struct ssl_conf {
 #ifdef USE_OPENSSL
 	char *ciphers;             /* cipher suite to use if non-null */
-	char *cert;                /* ssl main certificate */
 	int nosslv3;               /* disable SSLv3 */
 	int notlsv1;               /* disable TLSv1 */
 	int prefer_server_ciphers; /* Prefer server ciphers */
-	SSL_CTX *ctx;              /* SSL configuration */
+	SSL_CTX *default_ctx;      /* SSL context of first/default certificate */
+	struct eb_root sni_ctx;    /* sni_ctx tree of all known certs full-names sorted by name */
+	struct eb_root sni_w_ctx;  /* sni_ctx tree of all known certs wildcards sorted by name */
 #endif
 	int ref_cnt;               /* number of users of this config, maybe 0 on error */
 	struct list by_fe;         /* next binding for the same frontend, or NULL */

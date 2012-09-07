@@ -62,14 +62,15 @@
 #include <proto/sample.h>
 #include <proto/server.h>
 #include <proto/session.h>
-#include <proto/shctx.h>
 #include <proto/raw_sock.h>
-#ifdef USE_OPENSSL
-#include <proto/ssl_sock.h>
-#endif /*USE_OPENSSL */
 #include <proto/task.h>
 #include <proto/stick_table.h>
 
+#ifdef USE_OPENSSL
+#include <types/ssl_sock.h>
+#include <proto/ssl_sock.h>
+#include <proto/shctx.h>
+#endif /*USE_OPENSSL */
 
 /* This is the SSLv3 CLIENT HELLO packet used in conjunction with the
  * ssl-hello-chk option to ensure that the remote server speaks SSL.
@@ -1909,13 +1910,39 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 				if (!ssl_conf)
 					ssl_conf = ssl_conf_alloc(&curproxy->conf.ssl_bind, file, linenum, args[1]);
-				ssl_conf->cert = strdup(args[cur_arg + 1]);
 
 				for (l = curproxy->listen; l != last_listen; l = l->next) {
 					if (!l->ssl_conf) {
 						l->ssl_conf = ssl_conf;
 						ssl_conf->ref_cnt++;
 					}
+				}
+
+				cur_arg += 1;
+				continue;
+#else
+				Alert("parsing [%s:%d] : '%s' : '%s' option not implemented.\n",
+				      file, linenum, args[0], args[cur_arg]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+#endif
+			}
+
+			if (!strcmp(args[cur_arg], "crt")) { /* use ssl certificate */
+#ifdef USE_OPENSSL
+				if (!*args[cur_arg + 1]) {
+					Alert("parsing [%s:%d] : '%s' : missing certificate.\n",
+					      file, linenum, args[0]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				if (!ssl_conf)
+					ssl_conf = ssl_conf_alloc(&curproxy->conf.ssl_bind, file, linenum, args[1]);
+
+				if (ssl_sock_load_cert(args[cur_arg + 1], ssl_conf, curproxy) > 0) {
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
 				}
 
 				cur_arg += 2;
@@ -6883,94 +6910,26 @@ out_uri_auth_compat:
 		}
 
 #ifdef USE_OPENSSL
-#ifndef SSL_OP_CIPHER_SERVER_PREFERENCE                 /* needs OpenSSL >= 0.9.7 */
-#define SSL_OP_CIPHER_SERVER_PREFERENCE 0
-#endif
-
-#ifndef SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION	/* needs OpenSSL >= 0.9.7 */
-#define SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION 0
-#endif
-#ifndef SSL_OP_NO_COMPRESSION                           /* needs OpenSSL >= 0.9.9 */
-#define SSL_OP_NO_COMPRESSION 0
-#endif
-#ifndef SSL_MODE_RELEASE_BUFFERS                        /* needs OpenSSL >= 1.0.0 */
-#define SSL_MODE_RELEASE_BUFFERS 0
-#endif
 		/* Configure SSL for each bind line.
 		 * Note: if configuration fails at some point, the ->ctx member
 		 * remains NULL so that listeners can later detach.
 		 */
 		list_for_each_entry(ssl_conf, &curproxy->conf.ssl_bind, by_fe) {
-			int ssloptions =
-				SSL_OP_ALL | /* all known workarounds for bugs */
-				SSL_OP_NO_SSLv2 |
-				SSL_OP_NO_COMPRESSION |
-				SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION;
-			int sslmode =
-				SSL_MODE_ENABLE_PARTIAL_WRITE |
-				SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
-				SSL_MODE_RELEASE_BUFFERS;
-			SSL_CTX *ctx;
-
-			if (!ssl_conf->cert) {
-				Alert("Proxy '%s': no SSL certificate specified for bind '%s' at [%s:%d] (use 'ssl').\n",
+			if (!ssl_conf->default_ctx) {
+				Alert("Proxy '%s': no SSL certificate specified for bind '%s' at [%s:%d] (use 'crt').\n",
 				      curproxy->id, ssl_conf->arg, ssl_conf->file, ssl_conf->line);
 				cfgerr++;
 				continue;
 			}
 
-			ctx = SSL_CTX_new(SSLv23_server_method());
-			if (!ctx) {
-				Alert("Proxy '%s': unable to allocate SSL context for bind '%s' at [%s:%d] using cert '%s'.\n",
-				      curproxy->id, ssl_conf->arg, ssl_conf->file, ssl_conf->line, ssl_conf->cert);
-				cfgerr++;
-				continue;
-			}
-			if (ssl_conf->nosslv3)
-				ssloptions |= SSL_OP_NO_SSLv3;
-			if (ssl_conf->notlsv1)
-				ssloptions |= SSL_OP_NO_TLSv1;
-			if (ssl_conf->prefer_server_ciphers)
-				ssloptions |= SSL_OP_CIPHER_SERVER_PREFERENCE;
-			SSL_CTX_set_options(ctx, ssloptions);
-			SSL_CTX_set_mode(ctx, sslmode);
-			SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
 			if (shared_context_init(global.tune.sslcachesize) < 0) {
 				Alert("Unable to allocate SSL session cache.\n");
 				cfgerr++;
-				SSL_CTX_free(ctx);
-				continue;
-			}
-			shared_context_set_cache(ctx);
-			if (ssl_conf->ciphers &&
-			    !SSL_CTX_set_cipher_list(ctx, ssl_conf->ciphers)) {
-				Alert("Proxy '%s': unable to set SSL cipher list to '%s' for bind '%s' at [%s:%d] using cert '%s'.\n",
-				      curproxy->id, ssl_conf->ciphers, ssl_conf->arg,
-				      ssl_conf->file, ssl_conf->line, ssl_conf->cert);
-				cfgerr++;
-				SSL_CTX_free(ctx);
 				continue;
 			}
 
-			SSL_CTX_set_info_callback(ctx, ssl_sock_infocbk);
-
-			if (SSL_CTX_use_PrivateKey_file(ctx, ssl_conf->cert, SSL_FILETYPE_PEM) <= 0) {
-				Alert("Proxy '%s': unable to load SSL private key from file '%s' in bind '%s' at [%s:%d].\n",
-				      curproxy->id, ssl_conf->cert, ssl_conf->arg, ssl_conf->file, ssl_conf->line);
-				cfgerr++;
-				SSL_CTX_free(ctx);
-				continue;
-			}
-
-			if (SSL_CTX_use_certificate_chain_file(ctx, ssl_conf->cert) <= 0) {
-				Alert("Proxy '%s': unable to load SSL certificate from file '%s' in bind '%s' at [%s:%d].\n",
-				      curproxy->id, ssl_conf->cert, ssl_conf->arg, ssl_conf->file, ssl_conf->line);
-				cfgerr++;
-				SSL_CTX_free(ctx);
-				continue;
-			}
-
-			ssl_conf->ctx = ctx;
+			/* initialize all certificate contexts */
+			cfgerr += ssl_sock_prepare_all_ctx(ssl_conf, curproxy);
 		}
 #endif /* USE_OPENSSL */
 
@@ -6998,7 +6957,7 @@ out_uri_auth_compat:
 			}
 #ifdef USE_OPENSSL
 			if (listener->ssl_conf) {
-				if (listener->ssl_conf->ctx) {
+				if (listener->ssl_conf->default_ctx) {
 					listener->data = &ssl_sock; /* SSL data layer */
 				}
 				else {
@@ -7042,10 +7001,8 @@ out_uri_auth_compat:
 			if (ssl_conf->ref_cnt)
 				continue;
 
-			if (ssl_conf->ctx)
-				SSL_CTX_free(ssl_conf->ctx);
+			ssl_sock_free_all_ctx(ssl_conf);
 			free(ssl_conf->ciphers);
-			free(ssl_conf->cert);
 			free(ssl_conf->file);
 			free(ssl_conf->arg);
 			LIST_DEL(&ssl_conf->by_fe);
