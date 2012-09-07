@@ -24,6 +24,11 @@ Of course, users are strongly encouraged to continue the work under GPL as long
 as possible, since this license has allowed useful enhancements, contributions
 and fixes from talented people around the world.
 
+Due to the incompatibility between the GPL and the OpenSSL licence, you must
+apply the GPL/LGPL licence with the following exception:
+This program is released under the GPL with the additional exemption that
+compiling, linking, and/or using OpenSSL is allowed.
+
 The text of the licenses lies in the "doc" directory. All the files provided in
 this package are covered by the GPL unless expressly stated otherwise in them.
 Every patch or contribution provided by external people will by default comply
