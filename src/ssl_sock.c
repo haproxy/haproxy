@@ -96,7 +96,7 @@ static int ssl_sock_init(struct connection *conn)
 	}
 	else if (target_client(&conn->target)) {
 		/* Alloc a new SSL session ctx */
-		conn->data_ctx = SSL_new(target_client(&conn->target)->ssl_ctx.ctx);
+		conn->data_ctx = SSL_new(target_client(&conn->target)->ssl_conf->ctx);
 		if (!conn->data_ctx)
 			return -1;
 

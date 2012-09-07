@@ -94,6 +94,23 @@ enum {
  * maxconn setting to the global.maxsock value so that its resources are reserved.
  */
 
+/* "bind" line SSL settings */
+struct ssl_conf {
+#ifdef USE_OPENSSL
+	char *ciphers;             /* cipher suite to use if non-null */
+	char *cert;                /* ssl main certificate */
+	int nosslv3;               /* disable SSLv3 */
+	int notlsv1;               /* disable TLSv1 */
+	int prefer_server_ciphers; /* Prefer server ciphers */
+	SSL_CTX *ctx;              /* SSL configuration */
+#endif
+	int ref_cnt;               /* number of users of this config, maybe 0 on error */
+	struct list by_fe;         /* next binding for the same frontend, or NULL */
+	char *arg;                 /* argument passed to "bind" for better error reporting */
+	char *file;                /* file where the section appears */
+	int line;                  /* line where the section appears */
+};
+
 /* The listener will be directly referenced by the fdtab[] which holds its
  * socket. The listener provides the protocol-specific accept() function to
  * the fdtab.
@@ -130,16 +147,8 @@ struct listener {
 	char *interface;		/* interface name or NULL */
 	int maxseg;			/* for TCP, advertised MSS */
 
-	char *ssl_cert;			/* ssl certificate */
-#ifdef USE_OPENSSL
-	struct {
-		SSL_CTX *ctx;
-		char *ciphers;		/* cipher suite to use if non-null */
-		int nosslv3;		/* disable SSLv3 */
-		int notlsv1;		/* disable TLSv1 */
-		int prefer_server_ciphers; /* Prefer server ciphers */
-	} ssl_ctx;
-#endif
+	struct ssl_conf *ssl_conf;	/* SSL settings, otherwise NULL */
+
 	/* warning: this struct is huge, keep it at the bottom */
 	struct sockaddr_storage addr;	/* the address we listen to */
 	struct {

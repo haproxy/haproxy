@@ -1378,6 +1378,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	struct acl_cond *cond = NULL;
 	struct logsrv *tmplogsrv;
 	char *errmsg = NULL;
+	struct ssl_conf *ssl_conf;
 
 	if (!strcmp(args[0], "listen"))
 		rc = PR_CAP_LISTEN;
@@ -1686,6 +1687,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		last_listen = curproxy->listen;
+		ssl_conf = NULL;
 
 		/* NOTE: the following line might create several listeners if there
 		 * are comma-separated IPs or port ranges. So all further processing
@@ -1901,19 +1903,20 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				continue;
 			}
 
-			if (!strcmp(args[cur_arg], "ssl")) { /* use ssl certificate */
+			if (!strcmp(args[cur_arg], "ssl")) { /* use ssl */
 #ifdef USE_OPENSSL
 				struct listener *l;
 
-				if (!*args[cur_arg + 1]) {
-					Alert("parsing [%s:%d] : '%s' : missing certificate.\n",
-					      file, linenum, args[0]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
+				if (!ssl_conf)
+					ssl_conf = ssl_conf_alloc(&curproxy->conf.ssl_bind, file, linenum, args[1]);
+				ssl_conf->cert = strdup(args[cur_arg + 1]);
 
-				for (l = curproxy->listen; l != last_listen; l = l->next)
-					l->ssl_cert = strdup(args[cur_arg + 1]);
+				for (l = curproxy->listen; l != last_listen; l = l->next) {
+					if (!l->ssl_conf) {
+						l->ssl_conf = ssl_conf;
+						ssl_conf->ref_cnt++;
+					}
+				}
 
 				cur_arg += 2;
 				continue;
@@ -1927,8 +1930,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 			if (!strcmp(args[cur_arg], "ciphers")) { /* set cipher suite */
 #ifdef USE_OPENSSL
-				struct listener *l;
-
 				if (!*args[cur_arg + 1]) {
 					Alert("parsing [%s:%d] : '%s' : missing cipher suite.\n",
 					      file, linenum, args[0]);
@@ -1936,8 +1937,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 					goto out;
 				}
 
-				for (l = curproxy->listen; l != last_listen; l = l->next)
-					l->ssl_ctx.ciphers = strdup(args[cur_arg + 1]);
+				if (!ssl_conf)
+					ssl_conf = ssl_conf_alloc(&curproxy->conf.ssl_bind, file, linenum, args[1]);
+				ssl_conf->ciphers = strdup(args[cur_arg + 1]);
 
 				cur_arg += 2;
 				continue;
@@ -1951,10 +1953,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 			if (!strcmp(args[cur_arg], "nosslv3")) { /* disable SSLv3 */
 #ifdef USE_OPENSSL
-				struct listener *l;
-
-				for (l = curproxy->listen; l != last_listen; l = l->next)
-					l->ssl_ctx.nosslv3 = 1;
+				if (!ssl_conf)
+					ssl_conf = ssl_conf_alloc(&curproxy->conf.ssl_bind, file, linenum, args[1]);
+				ssl_conf->nosslv3 = 1;
 
 				cur_arg += 1;
 				continue;
@@ -1968,10 +1969,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 			if (!strcmp(args[cur_arg], "notlsv1")) { /* disable TLSv1 */
 #ifdef USE_OPENSSL
-				struct listener *l;
-
-				for (l = curproxy->listen; l != last_listen; l = l->next)
-					l->ssl_ctx.notlsv1 = 1;
+				if (!ssl_conf)
+					ssl_conf = ssl_conf_alloc(&curproxy->conf.ssl_bind, file, linenum, args[1]);
+				ssl_conf->notlsv1 = 1;
 
 				cur_arg += 1;
 				continue;
@@ -1985,10 +1985,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 			if (!strcmp(args[cur_arg], "prefer-server-ciphers")) { /* Prefert server ciphers */
 #if defined (USE_OPENSSL) && defined(SSL_OP_CIPHER_SERVER_PREFERENCE)
-				struct listener *l;
-
-				for (l = curproxy->listen; l != last_listen; l = l->next)
-					l->ssl_ctx.prefer_server_ciphers = 1;
+				if (!ssl_conf)
+					ssl_conf = ssl_conf_alloc(&curproxy->conf.ssl_bind, file, linenum, args[1]);
+				ssl_conf->prefer_server_ciphers = 1;
 
 				cur_arg += 1;
 				continue;
@@ -5985,7 +5984,9 @@ int check_config_validity()
 	struct userlist *curuserlist = NULL;
 	int err_code = 0;
 	unsigned int next_pxid = 1;
+	struct ssl_conf *ssl_conf, *ssl_back;
 
+	ssl_back = ssl_conf = NULL;
 	/*
 	 * Now, check for the integrity of all that we have collected.
 	 */
@@ -6881,6 +6882,98 @@ out_uri_auth_compat:
 			curproxy->listen = next;
 		}
 
+#ifdef USE_OPENSSL
+#ifndef SSL_OP_CIPHER_SERVER_PREFERENCE                 /* needs OpenSSL >= 0.9.7 */
+#define SSL_OP_CIPHER_SERVER_PREFERENCE 0
+#endif
+
+#ifndef SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION	/* needs OpenSSL >= 0.9.7 */
+#define SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION 0
+#endif
+#ifndef SSL_OP_NO_COMPRESSION                           /* needs OpenSSL >= 0.9.9 */
+#define SSL_OP_NO_COMPRESSION 0
+#endif
+#ifndef SSL_MODE_RELEASE_BUFFERS                        /* needs OpenSSL >= 1.0.0 */
+#define SSL_MODE_RELEASE_BUFFERS 0
+#endif
+		/* Configure SSL for each bind line.
+		 * Note: if configuration fails at some point, the ->ctx member
+		 * remains NULL so that listeners can later detach.
+		 */
+		list_for_each_entry(ssl_conf, &curproxy->conf.ssl_bind, by_fe) {
+			int ssloptions =
+				SSL_OP_ALL | /* all known workarounds for bugs */
+				SSL_OP_NO_SSLv2 |
+				SSL_OP_NO_COMPRESSION |
+				SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION;
+			int sslmode =
+				SSL_MODE_ENABLE_PARTIAL_WRITE |
+				SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
+				SSL_MODE_RELEASE_BUFFERS;
+			SSL_CTX *ctx;
+
+			if (!ssl_conf->cert) {
+				Alert("Proxy '%s': no SSL certificate specified for bind '%s' at [%s:%d] (use 'ssl').\n",
+				      curproxy->id, ssl_conf->arg, ssl_conf->file, ssl_conf->line);
+				cfgerr++;
+				continue;
+			}
+
+			ctx = SSL_CTX_new(SSLv23_server_method());
+			if (!ctx) {
+				Alert("Proxy '%s': unable to allocate SSL context for bind '%s' at [%s:%d] using cert '%s'.\n",
+				      curproxy->id, ssl_conf->arg, ssl_conf->file, ssl_conf->line, ssl_conf->cert);
+				cfgerr++;
+				continue;
+			}
+			if (ssl_conf->nosslv3)
+				ssloptions |= SSL_OP_NO_SSLv3;
+			if (ssl_conf->notlsv1)
+				ssloptions |= SSL_OP_NO_TLSv1;
+			if (ssl_conf->prefer_server_ciphers)
+				ssloptions |= SSL_OP_CIPHER_SERVER_PREFERENCE;
+			SSL_CTX_set_options(ctx, ssloptions);
+			SSL_CTX_set_mode(ctx, sslmode);
+			SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
+			if (shared_context_init(global.tune.sslcachesize) < 0) {
+				Alert("Unable to allocate SSL session cache.\n");
+				cfgerr++;
+				SSL_CTX_free(ctx);
+				continue;
+			}
+			shared_context_set_cache(ctx);
+			if (ssl_conf->ciphers &&
+			    !SSL_CTX_set_cipher_list(ctx, ssl_conf->ciphers)) {
+				Alert("Proxy '%s': unable to set SSL cipher list to '%s' for bind '%s' at [%s:%d] using cert '%s'.\n",
+				      curproxy->id, ssl_conf->ciphers, ssl_conf->arg,
+				      ssl_conf->file, ssl_conf->line, ssl_conf->cert);
+				cfgerr++;
+				SSL_CTX_free(ctx);
+				continue;
+			}
+
+			SSL_CTX_set_info_callback(ctx, ssl_sock_infocbk);
+
+			if (SSL_CTX_use_PrivateKey_file(ctx, ssl_conf->cert, SSL_FILETYPE_PEM) <= 0) {
+				Alert("Proxy '%s': unable to load SSL private key from file '%s' in bind '%s' at [%s:%d].\n",
+				      curproxy->id, ssl_conf->cert, ssl_conf->arg, ssl_conf->file, ssl_conf->line);
+				cfgerr++;
+				SSL_CTX_free(ctx);
+				continue;
+			}
+
+			if (SSL_CTX_use_certificate_chain_file(ctx, ssl_conf->cert) <= 0) {
+				Alert("Proxy '%s': unable to load SSL certificate from file '%s' in bind '%s' at [%s:%d].\n",
+				      curproxy->id, ssl_conf->cert, ssl_conf->arg, ssl_conf->file, ssl_conf->line);
+				cfgerr++;
+				SSL_CTX_free(ctx);
+				continue;
+			}
+
+			ssl_conf->ctx = ctx;
+		}
+#endif /* USE_OPENSSL */
+
 		/* adjust this proxy's listeners */
 		next_id = 1;
 		listener = curproxy->listen;
@@ -6903,83 +6996,17 @@ out_uri_auth_compat:
 					listener->name = strdup(trash);
 				}
 			}
-
 #ifdef USE_OPENSSL
-#ifndef SSL_OP_CIPHER_SERVER_PREFERENCE                 /* needs OpenSSL >= 0.9.7 */
-#define SSL_OP_CIPHER_SERVER_PREFERENCE 0
-#endif
-
-#ifndef SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION	/* needs OpenSSL >= 0.9.7 */
-#define SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION 0
-#endif
-#ifndef SSL_OP_NO_COMPRESSION                           /* needs OpenSSL >= 0.9.9 */
-#define SSL_OP_NO_COMPRESSION 0
-#endif
-#ifndef SSL_MODE_RELEASE_BUFFERS                        /* needs OpenSSL >= 1.0.0 */
-#define SSL_MODE_RELEASE_BUFFERS 0
-#endif
-			/* Initialize SSL */
-			if (listener->ssl_cert) {
-				int ssloptions =
-					SSL_OP_ALL | /* all known workarounds for bugs */
-					SSL_OP_NO_SSLv2 |
-					SSL_OP_NO_COMPRESSION |
-					SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION;
-				int sslmode =
-					SSL_MODE_ENABLE_PARTIAL_WRITE |
-					SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
-					SSL_MODE_RELEASE_BUFFERS;
-
-				listener->data = &ssl_sock; /* data layer */
-				listener->ssl_ctx.ctx = SSL_CTX_new(SSLv23_server_method());
-				if (!listener->ssl_ctx.ctx) {
-					Alert("Proxy '%s': unable to allocate SSL context to bind listener %d (%s:%d) using cert '%s'.\n",
-					      curproxy->id, listener->luid, listener->conf.file, listener->conf.line, listener->ssl_cert);
-					cfgerr++;
-					goto skip_ssl;
+			if (listener->ssl_conf) {
+				if (listener->ssl_conf->ctx) {
+					listener->data = &ssl_sock; /* SSL data layer */
 				}
-				if (listener->ssl_ctx.nosslv3)
-					ssloptions |= SSL_OP_NO_SSLv3;
-				if (listener->ssl_ctx.notlsv1)
-					ssloptions |= SSL_OP_NO_TLSv1;
-				if (listener->ssl_ctx.prefer_server_ciphers)
-					ssloptions |= SSL_OP_CIPHER_SERVER_PREFERENCE;
-				SSL_CTX_set_options(listener->ssl_ctx.ctx, ssloptions);
-				SSL_CTX_set_mode(listener->ssl_ctx.ctx, sslmode);
-				SSL_CTX_set_verify(listener->ssl_ctx.ctx, SSL_VERIFY_NONE, NULL);
-				if (shared_context_init(global.tune.sslcachesize) < 0) {
-					Alert("Unable to allocate SSL session cache.\n");
-					cfgerr++;
-					goto skip_ssl;
-				}
-				shared_context_set_cache(listener->ssl_ctx.ctx);
-				if (listener->ssl_ctx.ciphers &&
-				    !SSL_CTX_set_cipher_list(listener->ssl_ctx.ctx, listener->ssl_ctx.ciphers)) {
-					Alert("Proxy '%s': unable to set SSL cipher list to '%s' for listener %d (%s:%d) using cert '%s'.\n",
-					      curproxy->id, listener->ssl_ctx.ciphers, listener->luid,
-					      listener->conf.file, listener->conf.line, listener->ssl_cert);
-					cfgerr++;
-					goto skip_ssl;
-				}
-
-				SSL_CTX_set_info_callback(listener->ssl_ctx.ctx, ssl_sock_infocbk);
-
-				if (SSL_CTX_use_PrivateKey_file(listener->ssl_ctx.ctx, listener->ssl_cert, SSL_FILETYPE_PEM) <= 0) {
-					Alert("Proxy '%s': unable to load SSL private key from file '%s' in listener %d (%s:%d).\n",
-					      curproxy->id, listener->ssl_cert, listener->luid, listener->conf.file, listener->conf.line);
-					cfgerr++;
-					goto skip_ssl;
-				}
-
-				if (SSL_CTX_use_certificate_chain_file(listener->ssl_ctx.ctx, listener->ssl_cert) <= 0) {
-					Alert("Proxy '%s': unable to load SSL certificate from file '%s' in listener %d (%s:%d).\n",
-					      curproxy->id, listener->ssl_cert, listener->luid, listener->conf.file, listener->conf.line);
-					cfgerr++;
-					goto skip_ssl;
+				else {
+					listener->ssl_conf->ref_cnt--;
+					listener->ssl_conf = NULL;
 				}
 			}
-		skip_ssl:
-#endif /* USE_OPENSSL */
+#endif
 			if (curproxy->options & PR_O_TCP_NOLING)
 				listener->options |= LI_O_NOLINGER;
 			if (!listener->maxconn)
@@ -7000,13 +7027,31 @@ out_uri_auth_compat:
 
 			/* smart accept mode is automatic in HTTP mode */
 			if ((curproxy->options2 & PR_O2_SMARTACC) ||
-			    ((curproxy->mode == PR_MODE_HTTP || listener->ssl_cert) &&
+			    ((curproxy->mode == PR_MODE_HTTP || listener->ssl_conf) &&
 			     !(curproxy->no_options2 & PR_O2_SMARTACC)))
 				listener->options |= LI_O_NOQUICKACK;
 
 			/* We want the use_backend and default_backend rules to apply */
 			listener = listener->next;
 		}
+
+#ifdef USE_OPENSSL
+		/* Release unused SSL configs.
+		 */
+		list_for_each_entry_safe(ssl_conf, ssl_back, &curproxy->conf.ssl_bind, by_fe) {
+			if (ssl_conf->ref_cnt)
+				continue;
+
+			if (ssl_conf->ctx)
+				SSL_CTX_free(ssl_conf->ctx);
+			free(ssl_conf->ciphers);
+			free(ssl_conf->cert);
+			free(ssl_conf->file);
+			free(ssl_conf->arg);
+			LIST_DEL(&ssl_conf->by_fe);
+			free(ssl_conf);
+		}
+#endif /* USE_OPENSSL */
 
 		/* Check multi-process mode compatibility for the current proxy */
 		if (global.nbproc > 1) {

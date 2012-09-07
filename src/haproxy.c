@@ -819,6 +819,7 @@ void deinit(void)
 	struct uri_auth *uap, *ua = NULL;
 	struct logsrv *log, *logb;
 	struct logformat_node *lf, *lfb;
+	struct ssl_conf *ssl_conf, *ssl_back;
 	int i;
 
 	deinit_signals();
@@ -999,12 +1000,31 @@ void deinit(void)
 			l_next = l->next;
 			unbind_listener(l);
 			delete_listener(l);
-			free(l->ssl_cert);
+			if (l->ssl_conf) {
+				l->ssl_conf->ref_cnt--;
+				l->ssl_conf = NULL;
+			}
 			free(l->name);
 			free(l->counters);
 			free(l);
 			l = l_next;
 		}/* end while(l) */
+
+		ssl_back = ssl_conf = NULL;
+#ifdef USE_OPENSSL
+		/* Release unused SSL configs.
+		 */
+		list_for_each_entry_safe(ssl_conf, ssl_back, &p->conf.ssl_bind, by_fe) {
+			if (ssl_conf->ctx)
+				SSL_CTX_free(ssl_conf->ctx);
+			free(ssl_conf->ciphers);
+			free(ssl_conf->cert);
+			free(ssl_conf->file);
+			free(ssl_conf->arg);
+			LIST_DEL(&ssl_conf->by_fe);
+			free(ssl_conf);
+		}
+#endif /* USE_OPENSSL */
 
 		free(p->desc);
 		free(p->fwdfor_hdr_name);
