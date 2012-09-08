@@ -29,6 +29,7 @@
 #define SERVER_FIELD 8
 #define TIME_FIELD 9
 #define STATUS_FIELD 10
+#define BYTES_SENT_FIELD 11
 #define TERM_CODES_FIELD 14
 #define CONN_FIELD 15
 #define QUEUE_LEN_FIELD 16
@@ -67,6 +68,7 @@ struct url_stat {
 	char *url;
 	unsigned long long total_time;    /* sum(all reqs' times) */
 	unsigned long long total_time_ok; /* sum(all OK reqs' times) */
+	unsigned long long total_bytes_sent; /* sum(all bytes sent) */
 	unsigned int nb_err, nb_req;
 };
 
@@ -94,8 +96,6 @@ struct url_stat {
 #define FILT_COUNT_URL_TAVG  0x040000
 #define FILT_COUNT_URL_TTOTO 0x080000
 #define FILT_COUNT_URL_TAVGO 0x100000
-#define FILT_COUNT_URL_ANY   (FILT_COUNT_URL_ONLY|FILT_COUNT_URL_COUNT|FILT_COUNT_URL_ERR| \
-			      FILT_COUNT_URL_TTOT|FILT_COUNT_URL_TAVG|FILT_COUNT_URL_TTOTO|FILT_COUNT_URL_TAVGO)
 
 #define FILT_HTTP_ONLY       0x200000
 #define FILT_TERM_CODE_NAME  0x400000
@@ -105,6 +105,13 @@ struct url_stat {
 #define FILT_INVERT_HTTP_STATUS    0x2000000
 #define FILT_QUEUE_ONLY            0x4000000
 #define FILT_QUEUE_SRV_ONLY        0x8000000
+
+#define FILT_COUNT_URL_BAVG       0x10000000
+#define FILT_COUNT_URL_BTOT       0x20000000
+
+#define FILT_COUNT_URL_ANY   (FILT_COUNT_URL_ONLY|FILT_COUNT_URL_COUNT|FILT_COUNT_URL_ERR| \
+			      FILT_COUNT_URL_TTOT|FILT_COUNT_URL_TAVG|FILT_COUNT_URL_TTOTO|FILT_COUNT_URL_TAVGO| \
+			      FILT_COUNT_URL_BAVG|FILT_COUNT_URL_BTOT)
 
 unsigned int filter = 0;
 unsigned int filter_invert = 0;
@@ -128,9 +135,10 @@ void usage(FILE *output, const char *msg)
 	fprintf(output,
 		"%s"
 		"Usage: halog [-h|--help] for long help\n"
-		"       halog [-q] [-c] [-v] {-gt|-pct|-st|-tc|-srv|-u|-uc|-ue|-ua|-ut|-uao|-uto}\n"
+		"       halog [-q] [-c]\n"
+		"       {-gt|-pct|-st|-tc|-srv|-u|-uc|-ue|-ua|-ut|-uao|-uto|-uba|-ubt}\n"
 		"       [-s <skip>] [-e|-E] [-H] [-rt|-RT <time>] [-ad <delay>] [-ac <count>]\n"
-		"       [-Q|-QS] [-tcn|-TCN <termcode>] [ -hs|-HS [min][:[max]] ] < log\n"
+		"       [-v] [-Q|-QS] [-tcn|-TCN <termcode>] [ -hs|-HS [min][:[max]] ] < log\n"
 		"\n",
 		msg ? msg : ""
 		);
@@ -171,6 +179,7 @@ void help()
 	       "       -u : by URL, -uc : request count, -ue : error count\n"
 	       "       -ua : average response time, -uto : average total time\n"
 	       "       -uao, -uto: average times computed on valid ('OK') requests\n"
+	       "       -uba, -ubt: average bytes returned, total bytes returned\n"
 	       );
 	exit(0);
 }
@@ -632,6 +641,10 @@ int main(int argc, char **argv)
 			filter |= FILT_COUNT_URL_TAVGO;
 		else if (strcmp(argv[0], "-uto") == 0)
 			filter |= FILT_COUNT_URL_TTOTO;
+		else if (strcmp(argv[0], "-uba") == 0)
+			filter |= FILT_COUNT_URL_BAVG;
+		else if (strcmp(argv[0], "-ubt") == 0)
+			filter |= FILT_COUNT_URL_BTOT;
 		else if (strcmp(argv[0], "-o") == 0) {
 			if (output_file)
 				die("Fatal: output file name already specified.\n");
@@ -1039,6 +1052,10 @@ int main(int argc, char **argv)
 					ustat->node.val.key = ustat->total_time_ok;
 				else if (filter & FILT_COUNT_URL_TAVGO)
 					ustat->node.val.key = (ustat->nb_req - ustat->nb_err) ? ustat->total_time_ok / (ustat->nb_req - ustat->nb_err) : 0;
+				else if (filter & FILT_COUNT_URL_BAVG)
+					ustat->node.val.key = ustat->nb_req ? ustat->total_bytes_sent / ustat->nb_req : 0;
+				else if (filter & FILT_COUNT_URL_BTOT)
+					ustat->node.val.key = ustat->total_bytes_sent;
 				else
 					ustat->node.val.key = 0;
 
@@ -1048,19 +1065,21 @@ int main(int argc, char **argv)
 			timers[0] = timers[1];
 		}
 
-		printf("#req err ttot tavg oktot okavg url\n");
+		printf("#req err ttot tavg oktot okavg bavg btot url\n");
 
 		/* scan the tree in its reverse sorting order */
 		node = eb_last(&timers[0]);
 		while (node) {
 			ustat = container_of(node, struct url_stat, node.url.node);
-			printf("%d %d %Ld %Ld %Ld %Ld %s\n",
+			printf("%d %d %Ld %Ld %Ld %Ld %Ld %Ld %s\n",
 			       ustat->nb_req,
 			       ustat->nb_err,
 			       ustat->total_time,
 			       ustat->nb_req ? ustat->total_time / ustat->nb_req : 0,
 			       ustat->total_time_ok,
 			       (ustat->nb_req - ustat->nb_err) ? ustat->total_time_ok / (ustat->nb_req - ustat->nb_err) : 0,
+			       ustat->nb_req ? ustat->total_bytes_sent / ustat->nb_req : 0,
+			       ustat->total_bytes_sent,
 			       ustat->url);
 
 			node = eb_prev(node);
@@ -1243,6 +1262,7 @@ void filter_count_url(const char *accept_field, const char *time_field, struct t
 	struct ebpt_node *ebpt_old;
 	const char *b, *e;
 	int f, err, array[5];
+	int val;
 
 	/* let's collect the response time */
 	if (!time_field) {
@@ -1286,12 +1306,16 @@ void filter_count_url(const char *accept_field, const char *time_field, struct t
 	ustat->total_time = (array[3] >= 0) ? array[3] : array[4];
 	ustat->total_time_ok = (array[3] >= 0) ? array[3] : 0;
 
+	e = field_start(e, BYTES_SENT_FIELD - TIME_FIELD + 1);
+	val = str2ic(e);
+	ustat->total_bytes_sent = val;
+
 	/* the line may be truncated because of a bad request or anything like this,
 	 * without a method. Also, if it does not begin with an quote, let's skip to
 	 * the next field because it's a capture. Let's fall back to the "method" itself
 	 * if there's nothing else.
 	 */
-	e = field_start(e, METH_FIELD - TIME_FIELD + 1); // avg 100 ns per line
+	e = field_start(e, METH_FIELD - BYTES_SENT_FIELD + 1);
 	while (*e != '"' && *e) {
 		/* Note: some syslog servers escape quotes ! */
 		if (*e == '\\' && e[1] == '"')
@@ -1334,6 +1358,7 @@ void filter_count_url(const char *accept_field, const char *time_field, struct t
 		ustat_old->nb_err += ustat->nb_err;
 		ustat_old->total_time += ustat->total_time;
 		ustat_old->total_time_ok += ustat->total_time_ok;
+		ustat_old->total_bytes_sent += ustat->total_bytes_sent;
 	} else {
 		ustat->url = ustat->node.url.key = strdup(ustat->node.url.key);
 		ustat = NULL; /* node was used */
