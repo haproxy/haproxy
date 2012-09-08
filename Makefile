@@ -472,6 +472,7 @@ ifneq ($(USE_OPENSSL),)
 # as well as -lz. Pass them in the "ADDLIB" variable if needed. Similarly,
 # use ADDINC and ADDLIB to specify -I and -L if your OpenSSL library is not
 # in the standard path.
+BUILD_OPTIONS   += $(call ignore_implicit,USE_OPENSSL)
 OPTIONS_CFLAGS  += -DUSE_OPENSSL
 OPTIONS_LDFLAGS += -lssl
 OPTIONS_OBJS  += src/ssl_sock.o src/shctx.o
