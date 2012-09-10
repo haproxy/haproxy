@@ -83,6 +83,12 @@ it. This is the recommended option for most Linux distro packagers since it's
 working fine on all recent mainstream distros. It is automatically enabled on
 Solaris 8 and above, as it's known to work.
 
+It is possible to add native support for SSL using the GNU makefile only, and
+by passing "USE_OPENSSL=1" on the make commande line. The libssl and libcrypto
+will automatically be linked with haproxy. Some systems also require libz, so
+if the build fails due to missing symbols such as deflateInit(), then try again
+with "ADDLIB=-lz".
+
 By default, the DEBUG variable is set to '-g' to enable debug symbols. It is
 not wise to disable it on uncommon systems, because it's often the only way to
 get a complete core when you need one. Otherwise, you can set DEBUG to '-s' to
@@ -96,9 +102,13 @@ And I build it this way on OpenBSD or FreeBSD :
 
     $ make -f Makefile.bsd REGEX=pcre DEBUG= COPTS.generic="-Os -fomit-frame-pointer -mgnu"
 
-In order to build a 32-bit binary on an x86_64 Linux system :
+And on a recent Linux with SSL support :
 
-    $ make TARGET=linux26 ARCH=i386
+    $ make TARGET=linux2628 CPU=native USE_PCRE=1 USE_OPENSSL=1
+
+In order to build a 32-bit binary on an x86_64 Linux system with SSL support :
+
+    $ make TARGET=linux26 ARCH=i386 USE_OPENSSL=1 ADDLIB=-lz
 
 If you need to pass other defines, includes, libraries, etc... then please
 check the Makefile to see which ones will be available in your case, and
