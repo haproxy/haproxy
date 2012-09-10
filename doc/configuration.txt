@@ -7901,11 +7901,18 @@ during analysis. This requires that some data has been buffered, for instance
 through TCP request content inspection. Please see the "tcp-request content"
 keyword for more detailed information on the subject.
 
+is_ssl
+  Returns true when the incoming connection was made via an SSL/TLS data layer
+  and is locally deciphered. This means it has matched a socket declared with
+  a "bind" line having the "ssl" option.
+
 rep_ssl_hello_type <integer>
   Returns true when data in the response buffer looks like a complete SSL (v3
   or superior) hello message and handshake type is equal to <integer>.
   This test was designed to be used with TCP response content inspection: a
-  SSL session ID may be fetched.
+  SSL session ID may be fetched. Note that this only applies to raw contents
+  found in the request buffer and not to contents deciphered via an SSL data
+  layer, so this will not work with "bind" lines having the "ssl" option.
 
 req_len <integer>
   Returns true when the length of the data in the request buffer matches the
@@ -7946,7 +7953,9 @@ req_ssl_hello_type <integer>
   Returns true when data in the request buffer looks like a complete SSL (v3
   or superior) hello message and handshake type is equal to <integer>.
   This test was designed to be used with TCP request content inspection: an
-  SSL session ID may be fetched.
+  SSL session ID may be fetched. Note that this only applies to raw contents
+  found in the request buffer and not to contents deciphered via an SSL data
+  layer, so this will not work with "bind" lines having the "ssl" option.
 
 req_ssl_sni <string>
   Returns true when data in the request buffer looks like a complete SSL (v3
@@ -7956,7 +7965,10 @@ req_ssl_sni <string>
   or denying access to certain hosts when SSL/TLS is used by the client. This
   test was designed to be used with TCP request content inspection. If content
   switching is needed, it is recommended to first wait for a complete client
-  hello (type 1), like in the example below.
+  hello (type 1), like in the example below. Note that this only applies to raw
+  contents found in the request buffer and not to contents deciphered via an
+  SSL data layer, so this will not work with "bind" lines having the "ssl"
+  option. See also "ssl_sni" below.
 
   Examples :
      # Wait for a client hello for at most 5 seconds
@@ -7972,7 +7984,53 @@ req_ssl_ver <decimal>
   easily fooled. In particular, it waits for as many bytes as announced in the
   message header if this header looks valid (bound to the buffer size). Note
   that TLSv1 is announced as SSL version 3.1. This test was designed to be used
-  with TCP request content inspection.
+  with TCP request content inspection. Note that this only applies to raw
+  contents found in the request buffer and not to contents deciphered via an
+  SSL data layer, so this will not work with "bind" lines having the "ssl"
+  option.
+
+ssl_sni <string>
+  Returns true when the incoming connection was made over an SSL/TLS data layer
+  which deciphered it and found a Server Name Indication TLS extension sent by
+  the client, matching the specified string. In HTTPS, the SNI field (when
+  present) is equal to the requested host name. This match is different from
+  req_ssl_sni above in that it applies to the connection being deciphered by
+  haproxy and not to SSL contents being blindly forwarded. This requires that
+  the SSL library is build with support for TLS extensions (check haproxy -vv).
+
+ssl_has_sni
+  This is used to check for presence of a Server Name Indication TLS extension
+  in an incoming connection was made over an SSL/TLS data layer. Returns true
+  when the incoming connection presents a TLS SNI field. This requires that
+  the SSL library is build with support for TLS extensions (check haproxy -vv).
+
+ssl_sni <string>
+  Returns true when the incoming connection was made over an SSL/TLS data layer
+  which deciphered it and found a Server Name Indication TLS extension sent by
+  the client, matching the specified string. In HTTPS, the SNI field (when
+  present) is equal to the requested host name. This match is different from
+  req_ssl_sni above in that it applies to the connection being deciphered by
+  haproxy and not to SSL contents being blindly forwarded. See also ssl_sni_end
+  and ssl_sni_req below. This requires that the SSL library is build with
+  support for TLS extensions (check haproxy -vv).
+
+ssl_sni_end <string>
+  Returns true when the incoming connection was made over an SSL/TLS data layer
+  which deciphered it and found a Server Name Indication TLS extension sent by
+  the client, ending like the specified string. In HTTPS, the SNI field (when
+  present) is equal to the requested host name. This match is different from
+  req_ssl_sni above in that it applies to the connection being deciphered by
+  haproxy and not to SSL contents being blindly forwarded. This requires that
+  the SSL library is build with support for TLS extensions (check haproxy -vv).
+
+ssl_sni_req <regex>
+  Returns true when the incoming connection was made over an SSL/TLS data layer
+  which deciphered it and found a Server Name Indication TLS extension sent by
+  the client, matching the specified regex. In HTTPS, the SNI field (when
+  present) is equal to the requested host name. This match is different from
+  req_ssl_sni above in that it applies to the connection being deciphered by
+  haproxy and not to SSL contents being blindly forwarded. This requires that
+  the SSL library is build with support for TLS extensions (check haproxy -vv).
 
 wait_end
   Waits for the end of the analysis period to return true. This may be used in
@@ -8542,6 +8600,10 @@ The list of currently supported pattern fetch functions is the following :
                last one. A typical use is with the X-Forwarded-For header once
                converted to IP, associated with an IP stick-table.
 
+  is_ssl       This checks the data layer used by incoming connection, and
+               returns 1 if the connection was made via an SSL/TLS data layer,
+               otherwise zero.
+
   path         This extracts the request's URL path (without the host part). A
                typical use is with prefetch-capable caches, and with portals
                which need to aggregate multiple information from databases and
@@ -8568,6 +8630,18 @@ The list of currently supported pattern fetch functions is the following :
                which is the port the client connected from. It is very unlikely
                that this function will be useful but it's available at no cost.
                It is of type integer and only works with such tables.
+
+  ssl_has_sni  This checks the data layer used by incoming connection, and
+               returns 1 if the connection was made via an SSL/TLS data layer
+               and the client sent a Server Name Indication TLS extension,
+               otherwise zero. This requires that the SSL library is build with
+               support for TLS extensions (check haproxy -vv).
+
+  ssl_sni      This extracts the Server Name Indication field from an incoming
+               connection made via an SSL/TLS data layer and locally deciphered
+               by haproxy. The result typically is a string matching the HTTPS
+               host name (253 chars or less). The SSL library must have been
+               built with support for TLS extensions (check haproxy -vv).
 
   url          This extracts the request's URL as presented in the request. A
                typical use is with prefetch-capable caches, and with portals

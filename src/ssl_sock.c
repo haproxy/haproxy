@@ -45,6 +45,8 @@
 #include <types/global.h>
 #include <types/ssl_sock.h>
 
+#include <proto/acl.h>
+#include <proto/arg.h>
 #include <proto/connection.h>
 #include <proto/fd.h>
 #include <proto/freq_ctr.h>
@@ -748,6 +750,75 @@ static void ssl_sock_shutw(struct connection *conn, int clean)
 	SSL_set_shutdown(conn->data_ctx, SSL_SENT_SHUTDOWN);
 }
 
+/***** Below are some sample fetching functions for ACL/patterns *****/
+
+/* boolean, returns true if data layer is SSL */
+static int
+smp_fetch_is_ssl(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                 const struct arg *args, struct sample *smp)
+{
+	smp->type = SMP_T_BOOL;
+	smp->data.uint = (l4->si[0].conn.data == &ssl_sock);
+	return 1;
+}
+
+/* boolean, returns true if data layer is SSL */
+static int
+smp_fetch_has_sni(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                  const struct arg *args, struct sample *smp)
+{
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+	smp->type = SMP_T_BOOL;
+	smp->data.uint = (l4->si[0].conn.data == &ssl_sock) &&
+		SSL_get_servername(l4->si[0].conn.data_ctx, TLSEXT_NAMETYPE_host_name) != NULL;
+	return 1;
+#else
+	return 0;
+#endif
+}
+
+static int
+smp_fetch_ssl_sni(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                  const struct arg *args, struct sample *smp)
+{
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+	smp->flags = 0;
+	smp->type = SMP_T_CSTR;
+
+	if (!l4 || l4->si[0].conn.data != &ssl_sock)
+		return 0;
+
+	/* data points to cookie value */
+	smp->data.str.str = (char *)SSL_get_servername(l4->si[0].conn.data_ctx, TLSEXT_NAMETYPE_host_name);
+	smp->data.str.len = strlen(smp->data.str.str);
+	return 1;
+#else
+	return 0;
+#endif
+}
+
+/* Note: must not be declared <const> as its list will be overwritten.
+ * Please take care of keeping this list alphabetically sorted.
+ */
+static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
+	{ "is_ssl",       smp_fetch_is_ssl,   0,    NULL,    SMP_T_BOOL, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "ssl_has_sni",  smp_fetch_has_sni,  0,    NULL,    SMP_T_BOOL, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "ssl_sni",      smp_fetch_ssl_sni,  0,    NULL,    SMP_T_CSTR, SMP_CAP_REQ|SMP_CAP_RES },
+	{ NULL, NULL, 0, 0, 0 },
+}};
+
+/* Note: must not be declared <const> as its list will be overwritten.
+ * Please take care of keeping this list alphabetically sorted.
+ */
+static struct acl_kw_list acl_kws = {{ },{
+	{ "is_ssl",      acl_parse_int,   smp_fetch_is_ssl,   acl_match_nothing,  ACL_USE_L6REQ_PERMANENT, 0 },
+	{ "ssl_has_sni", acl_parse_int,   smp_fetch_has_sni,  acl_match_nothing,  ACL_USE_L6REQ_PERMANENT, 0 },
+	{ "ssl_sni",     acl_parse_str,   smp_fetch_ssl_sni,  acl_match_str,      ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
+	{ "ssl_sni_end", acl_parse_str,   smp_fetch_ssl_sni,  acl_match_end,      ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
+	{ "ssl_sni_reg", acl_parse_str,   smp_fetch_ssl_sni,  acl_match_reg,      ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
+	{ NULL, NULL, NULL, NULL },
+}};
+
 
 /* data-layer operations for SSL sockets */
 struct data_ops ssl_sock = {
@@ -768,6 +839,8 @@ static void __ssl_sock_init(void) {
 	SSL_library_init();
 	cm = SSL_COMP_get_compression_methods();
 	sk_SSL_COMP_zero(cm);
+	sample_register_fetches(&sample_fetch_keywords);
+	acl_register_keywords(&acl_kws);
 }
 
 /*
