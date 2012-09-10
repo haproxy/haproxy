@@ -469,12 +469,12 @@ endif
 ifneq ($(USE_OPENSSL),)
 # OpenSSL is packaged in various forms and with various dependences.
 # In general -lssl is enough, but on some platforms, -lcrypto may be needed,
-# as well as -lz. Pass them in the "ADDLIB" variable if needed. Similarly,
-# use ADDINC and ADDLIB to specify -I and -L if your OpenSSL library is not
-# in the standard path.
+# reason why it's added by default. Some even need -lz, then you'll need to
+# pass it in the "ADDLIB" variable if needed. Similarly, use ADDINC and ADDLIB
+# to specify -I and -L if your OpenSSL library is not in the standard path.
 BUILD_OPTIONS   += $(call ignore_implicit,USE_OPENSSL)
 OPTIONS_CFLAGS  += -DUSE_OPENSSL
-OPTIONS_LDFLAGS += -lssl
+OPTIONS_LDFLAGS += -lssl -lcrypto
 OPTIONS_OBJS  += src/ssl_sock.o src/shctx.o
 ifneq ($(USE_FUTEX),)
 OPTIONS_CFLAGS  += -DUSE_SYSCALL_FUTEX
