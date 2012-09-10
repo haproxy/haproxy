@@ -215,6 +215,38 @@ void display_build_opts()
 #endif
 		"\n");
 
+#ifdef USE_OPENSSL
+	printf("Built with OpenSSL version : " OPENSSL_VERSION_TEXT "\n");
+	printf("OpenSSL library supports TLS extensions : "
+#if OPENSSL_VERSION_NUMBER < 0x00907000L
+	       "no (library version too old)"
+#elif defined(OPENSSL_NO_TLSEXT)
+	       "no (disabled via OPENSSL_NO_TLSEXT)"
+#else
+	       "yes"
+#endif
+	       "\n");
+	printf("OpenSSL library supports SNI : "
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+	       "yes"
+#else
+#ifdef OPENSSL_NO_TLSEXT
+	       "no (because of OPENSSL_NO_TLSEXT)"
+#else
+	       "no (version might be too old, 0.9.8f min needed)"
+#endif
+#endif
+	       "\n");
+	printf("OpenSSL library supports prefer-server-ciphers : "
+#ifdef SSL_OP_CIPHER_SERVER_PREFERENCE
+	       "yes"
+#else
+	       "no (0.9.7 or later needed)"
+#endif
+	       "\n");
+#else /* USE_OPENSSL */
+	printf("Built without OpenSSL support (USE_OPENSSL not set)\n");
+#endif
 	putchar('\n');
 
 	list_pollers(stdout);
