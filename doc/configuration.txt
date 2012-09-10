@@ -1488,6 +1488,12 @@ bind [<address>]:<port_range> [, ...] transparent
 bind [<address>]:<port_range> [, ...] id <id>
 bind [<address>]:<port_range> [, ...] name <name>
 bind [<address>]:<port_range> [, ...] defer-accept
+bind [<address>]:<port_range> [, ...] ssl
+bind [<address>]:<port_range> [, ...] crt <cert>
+bind [<address>]:<port_range> [, ...] ciphers <ciphers>
+bind [<address>]:<port_range> [, ...] nosslv3
+bind [<address>]:<port_range> [, ...] notlsv1
+bind [<address>]:<port_range> [, ...] prefer-server-ciphers
 bind /<path> [, ...]
 bind /<path> [, ...] mode <mode>
 bind /<path> [, ...] [ user <user> | uid <uid> ]
@@ -1611,6 +1617,31 @@ bind /<path> [, ...] [ group <user> | gid <gid> ]
                   "unix-bind" statement. Note that some platforms simply ignore
                   this.
 
+    <cert>        designates a PEM file from which to load both a certificate
+                  and the assocaited private key. This file can be build by
+                  concatenating both PEM files into one. If a directory name is
+                  used instead of a PEM file, then all files found in that
+                  directory will be loaded. This directive may be specified
+                  multiple times in order to load certificates from multiple
+                  files or directories. The certificates will be presented to
+                  clients who provide a valid TLS Server Name Indication field
+                  matching one of their CN or alt subjects. Wildcards are
+                  supported, where a wildcard character '*' is used instead of
+                  the first hostname component (eg: *.example.org matches
+                  www.example.org but not www.sub.example.org). If no SNI is
+                  provided by the client or if the SSL library does not support
+                  TLS extensions, or if the client provides and SNI which does
+                  not match any certificate, then the first loaded certificate
+                  will be presented. This means that when loading certificates
+                  from a directory, it is highly recommended to load the
+                  default one first as a file. Note that the same cert may be
+                  loaded multiple times without side effects.
+
+    <ciphers>     is the string describing the list of cipher algorithms that
+                  is negociated during the SSL/TLS handshake. The format of the
+                  string is defined in "man 1 ciphers", and can be for instance
+                  "AES:ALL:!aNULL:!eNULL:+RC4:@STRENGTH".
+
     transparent   is an optional keyword which is supported only on certain
                   Linux kernels. It indicates that the addresses will be bound
                   even if they do not belong to the local machine. Any packet
@@ -1649,6 +1680,24 @@ bind /<path> [, ...] [ group <user> | gid <gid> ]
                   X-Forwarded-For mechanism which is not always reliable and
                   not even always usable.
 
+    ssl           enables SSL deciphering on connections instanciated from this
+                  listener. A certificate is necessary (see "crt" above). All
+                  contents in the buffers will be in clear text, so that ACLs
+                  and HTTP processing will only have access to deciphered
+                  contents.
+
+    nosslv3       disables support for SSLv3 when SSL is supported. Note that
+                  SSLv2 is disabled in the code and cannot be enabled using any
+                  configuration option.
+
+    notlsv1       disables support for TLSv1 when SSL is supported. Note that
+                  SSLv2 is disabled in the code and cannot be enabled using any
+                  configuration option.
+
+    prefer-server-ciphers
+                  tells the SSL/TLS layer that our set of cipher algorithms is
+                  preferred over the client's ones.
+
   It is possible to specify a list of address:port combinations delimited by
   commas. The frontend will then listen on all of these addresses. There is no
   fixed limit to the number of addresses and ports which can be listened on in
@@ -1660,6 +1709,10 @@ bind /<path> [, ...] [ group <user> | gid <gid> ]
             bind :80,:443
             bind 10.0.0.1:10080,10.0.0.1:10443
             bind /var/run/ssl-frontend.sock user root mode 600 accept-proxy
+
+        listen http_https_proxy
+            bind :80
+            bind :443 ssl crt /etc/haproxy/site.pem prefer-server-ciphers
 
   See also : "source", "option forwardfor", "unix-bind" and the PROXY protocol
              documentation.
@@ -6867,6 +6920,16 @@ check
 
   Supported in default-server: No
 
+ciphers <ciphers>
+  This option sets the string describing the list of cipher algorithms that is
+  is negociated during the SSL/TLS handshake with the server. The format of the
+  string is defined in "man 1 ciphers". When SSL is used to communicate with
+  servers on the local network, it is common to see a weaker set of algorithms
+  than what is used over the internet. Doing so reduces CPU usage on both the
+  server and haproxy while still keeping it compatible with deployed software.
+  Some algorithms such as RC4-SHA1 are reasonably cheap. If no security at all
+  is needed and just connectivity, using DES can be appropriate.
+
 cookie <value>
   The "cookie" parameter sets the cookie value assigned to the server to
   <value>. This value will be checked in incoming requests, and the first
@@ -6975,6 +7038,17 @@ minconn <minconn>
   and "maxqueue" parameters, as well as the "fullconn" backend keyword.
 
   Supported in default-server: Yes
+
+nosslv3
+  This option disables support for SSLv3 when SSL is used to communicate with
+  the server. Note that SSLv2 is disabled in the code and cannot be enabled
+  using any configuration option.
+
+notlsv1
+  This option disables support for TLSv1 when SSL is used to communicate with
+  the server. Note that SSLv2 is disabled in the code and cannot be enabled
+  using any configuration option. TLSv1 is more expensive than SSLv3 so it
+  often makes sense to disable it when communicating with local servers.
 
 non-stick
   Never add connections allocated to this sever to a stick-table.
@@ -7130,6 +7204,13 @@ source <addr>[:<pl>[-<ph>]] [interface <name>] ...
   server.
 
   Supported in default-server: No
+
+ssl
+   This option enables SSL ciphering on outgoing connections to the server. At
+   the moment, server certificates are not checked, so this is prone to man in
+   the middle attacks. The real intended use is to permit SSL communication
+   with software which cannot work in other modes over networks that would
+   otherwise be considered safe enough for clear text communications.
 
 track [<proxy>/]<server>
   This option enables ability to set the current state of the server by
