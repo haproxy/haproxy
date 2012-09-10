@@ -1,6 +1,156 @@
 ChangeLog :
 ===========
 
+2012/09/10 : 1.5-dev12
+    - CONTRIB: halog: sort URLs by avg bytes_read or total bytes_read
+    - MEDIUM: ssl: add support for prefer-server-ciphers option
+    - MINOR: IPv6 support for transparent proxy
+    - MINOR: protocol: add SSL context to listeners if USE_OPENSSL is defined
+    - MINOR: server: add SSL context to servers if USE_OPENSSL is defined
+    - MEDIUM: connection: add a new handshake flag for SSL (CO_FL_SSL_WAIT_HS).
+    - MEDIUM: ssl: add new files ssl_sock.[ch] to provide the SSL data layer
+    - MEDIUM: config: add the 'ssl' keyword on 'bind' lines
+    - MEDIUM: config: add support for the 'ssl' option on 'server' lines
+    - MEDIUM: ssl: protect against client-initiated renegociation
+    - BUILD: add optional support for SSL via the USE_OPENSSL flag
+    - MEDIUM: ssl: add shared memory session cache implementation.
+    - MEDIUM: ssl: replace OpenSSL's session cache with the shared cache
+    - MINOR: ssl add global setting tune.sslcachesize to set SSL session cache size.
+    - MEDIUM: ssl: add support for SNI and wildcard certificates
+    - DOC: Typos cleanup
+    - DOC: fix name for "option independant-streams"
+    - DOC: specify the default value for maxconn in the context of a proxy
+    - BUG/MINOR: to_log erased with unique-id-format
+    - LICENSE: add licence exception for OpenSSL
+    - BUG/MAJOR: cookie prefix doesn't support cookie-less servers
+    - BUILD: add an AIX 5.2 (and later) target.
+    - MEDIUM: fd/si: move peeraddr from struct fdinfo to struct connection
+    - MINOR: halog: use the more recent dual-mode fgets2 implementation
+    - BUG/MEDIUM: ebtree: ebmb_insert() must not call cmp_bits on full-length matches
+    - CLEANUP: halog: make clean should also remove .o files
+    - OPTIM: halog: make use of memchr() on platforms which provide a fast one
+    - OPTIM: halog: improve cold-cache behaviour when loading a file
+    - BUG/MINOR: ACL implicit arguments must be created with unresolved flag
+    - MINOR: replace acl_fetch_{path,url}* with smp_fetch_*
+    - MEDIUM: pattern: add the "base" sample fetch method
+    - OPTIM: i386: make use of kernel-mode-linux when available
+    - BUG/MINOR: tarpit: fix condition to return the HTTP 500 message
+    - BUG/MINOR: polling: some events were not set in various pollers
+    - MINOR: http: add the urlp_val ACL match
+    - BUG: stktable: tcp_src_to_stktable_key() must return NULL on invalid families
+    - MINOR: stats/cli: add plans to support more stick-table actions
+    - MEDIUM: stats/cli: add support for "set table key" to enter values
+    - REORG/MEDIUM: fd: remove FD_STCLOSE from struct fdtab
+    - REORG/MEDIUM: fd: remove checks for FD_STERROR in ev_sepoll
+    - REORG/MEDIUM: fd: get rid of FD_STLISTEN
+    - REORG/MINOR: connection: move declaration to its own include file
+    - REORG/MINOR: checks: put a struct connection into the server
+    - MINOR: connection: add flags to the connection struct
+    - MAJOR: get rid of fdtab[].state and use connection->flags instead
+    - MINOR: fd: add a new I/O handler to fdtab
+    - MEDIUM: polling: prepare to call the iocb() function when defined.
+    - MEDIUM: checks: make use of fdtab->iocb instead of cb[]
+    - MEDIUM: protocols: use the generic I/O callback for accept callbacks
+    - MINOR: connection: add a handler for fd-based connections
+    - MAJOR: connection: replace direct I/O callbacks with the connection callback
+    - MINOR: fd: make fdtab->owner a connection and not a stream_interface anymore
+    - MEDIUM: connection: remove the FD_POLL_* flags only once
+    - MEDIUM: connection: extract the send_proxy callback from proto_tcp
+    - MAJOR: tcp: remove the specific I/O callbacks for TCP connection probes
+    - CLEANUP: remove the now unused fdtab direct I/O callbacks
+    - MAJOR: remove the stream interface and task management code from sock_*
+    - MEDIUM: stream_interface: pass connection instead of fd in sock_ops
+    - MEDIUM: stream_interface: centralize the SI_FL_ERR management
+    - MAJOR: connection: add a new CO_FL_CONNECTED flag
+    - MINOR: rearrange tcp_connect_probe() and fix wrong return codes
+    - MAJOR: connection: call data layer handshakes from the handler
+    - MEDIUM: fd: remove the EV_FD_COND_* primitives
+    - MINOR: sock_raw: move calls to si_data_close upper
+    - REORG: connection: replace si_data_close() with conn_data_close()
+    - MEDIUM: sock_raw: introduce a read0 callback that is different from shutr
+    - MAJOR: stream_int: use a common stream_int_shut*() functions regardless of the data layer
+    - MAJOR: fd: replace all EV_FD_* macros with new fd_*_* inline calls
+    - MEDIUM: fd: add fd_poll_{recv,send} for use when explicit polling is required
+    - MEDIUM: connection: add definitions for dual polling mechanisms
+    - MEDIUM: connection: make use of the new polling functions
+    - MAJOR: make use of conn_{data|sock}_{poll|stop|want}* in connection handlers
+    - MEDIUM: checks: don't use FD_WAIT_* anymore
+    - MINOR: fd: get rid of FD_WAIT_*
+    - MEDIUM: stream_interface: offer a generic function for connection updates
+    - MEDIUM: stream-interface: offer a generic chk_rcv function for connections
+    - MEDIUM: stream-interface: add a snd_buf() callback to sock_ops
+    - MEDIUM: stream-interface: provide a generic stream_int_chk_snd_conn() function
+    - MEDIUM: stream-interface: provide a generic si_conn_send_cb callback
+    - MEDIUM: stream-interface: provide a generic stream_sock_read0() function
+    - REORG/MAJOR: use "struct channel" instead of "struct buffer"
+    - REORG/MAJOR: extract "struct buffer" from "struct channel"
+    - MINOR: connection: provide conn_{data|sock}_{read0|shutw} functions
+    - REORG: sock_raw: rename the files raw_sock*
+    - MAJOR: raw_sock: extract raw_sock_to_buf() from raw_sock_read()
+    - MAJOR: raw_sock: temporarily disable splicing
+    - MINOR: stream-interface: add an rcv_buf callback to sock_ops
+    - REORG: stream-interface: move sock_raw_read() to si_conn_recv_cb()
+    - MAJOR: connection: split the send call into connection and stream interface
+    - MAJOR: stream-interface: restore splicing mechanism
+    - MAJOR: stream-interface: make conn_notify_si() more robust
+    - MEDIUM: proxy-proto: don't use buffer flags in conn_si_send_proxy()
+    - MAJOR: stream-interface: don't commit polling changes in every callback
+    - MAJOR: stream-interface: fix splice not to call chk_snd by itself
+    - MEDIUM: stream-interface: don't remove WAIT_DATA when a handshake is in progress
+    - CLEANUP: connection: split sock_ops into data_ops, app_cp and si_ops
+    - REORG: buffers: split buffers into chunk,buffer,channel
+    - MAJOR: channel: remove the BF_OUT_EMPTY flag
+    - REORG: buffer: move buffer_flush, b_adv and b_rew to buffer.h
+    - MINOR: channel: rename bi_full to channel_full as it checks the whole channel
+    - MINOR: buffer: provide a new buffer_full() function
+    - MAJOR: channel: stop relying on BF_FULL to take action
+    - MAJOR: channel: remove the BF_FULL flag
+    - REORG: channel: move buffer_{replace,insert_line}* to buffer.{c,h}
+    - CLEANUP: channel: usr CF_/CHN_ prefixes instead of BF_/BUF_
+    - CLEANUP: channel: use "channel" instead of "buffer" in function names
+    - REORG: connection: move the target pointer from si to connection
+    - MAJOR: connection: move the addr field from the stream_interface
+    - MEDIUM: stream_interface: remove CAP_SPLTCP/CAP_SPLICE flags
+    - MEDIUM: proto_tcp: remove any dependence on stream_interface
+    - MINOR: tcp: replace tcp_src_to_stktable_key with addr_to_stktable_key
+    - MEDIUM: connection: add an ->init function to data layer
+    - MAJOR: session: introduce embryonic sessions
+    - MAJOR: connection: make the PROXY decoder a handshake handler
+    - CLEANUP: frontend: remove the old proxy protocol decoder
+    - MAJOR: connection: rearrange the polling flags.
+    - MEDIUM: connection: only call tcp_connect_probe when nothing was attempted yet
+    - MEDIUM: connection: complete the polling cleanups
+    - MEDIUM: connection: avoid calling handshakes when polling is required
+    - MAJOR: stream_interface: continue to update data polling flags during handshakes
+    - CLEANUP: fd: remove fdtab->flags
+    - CLEANUP: fdtab: flatten the struct and merge the spec struct with the rest
+    - CLEANUP: includes: fix includes for a number of users of fd.h
+    - MINOR: ssl: disable TCP quick-ack by default on SSL listeners
+    - MEDIUM: config: add a "ciphers" keyword to set SSL cipher suites
+    - MEDIUM: config: add "nosslv3" and "notlsv1" on bind and server lines
+    - BUG: ssl: mark the connection as waiting for an SSL connection during the handshake
+    - BUILD: http: rename error_message http_error_message to fix conflicts on RHEL
+    - BUILD: ssl: fix shctx build on RHEL with futex
+    - BUILD: include sys/socket.h to fix build failure on FreeBSD
+    - BUILD: fix build error without SSL (ssl_cert)
+    - BUILD: ssl: use MAP_ANON instead of MAP_ANONYMOUS
+    - BUG/MEDIUM: workaround an eglibc bug which truncates the pidfiles when nbproc > 1
+    - MEDIUM: config: support per-listener backlog and maxconn
+    - MINOR: session: do not send an HTTP/500 error on SSL sockets
+    - MEDIUM: config: implement maxsslconn in the global section
+    - BUG: tcp: close socket fd upon connect error
+    - MEDIUM: connection: improve error handling around the data layer
+    - MINOR: config: make the tasks "nice" value configurable on "bind" lines.
+    - BUILD: shut a gcc warning introduced by commit 269ab31
+    - MEDIUM: config: centralize handling of SSL config per bind line
+    - BUILD: makefile: report USE_OPENSSL status in build options
+    - BUILD: report openssl build settings in haproxy -vv
+    - MEDIUM: ssl: add sample fetches for is_ssl, ssl_has_sni, ssl_sni_*
+    - DOC: add a special acknowledgement for the stud project
+    - DOC: add missing SSL options for servers and listeners
+    - BUILD: automatically add -lcrypto for SSL
+    - DOC: add some info about openssl build in the README
+
 2012/06/04 : 1.5-dev11
     - BUG/MEDIUM: option forwardfor if-none doesn't work with some configurations
     - BUG/MAJOR: trash must always be the size of a buffer
