@@ -8,6 +8,18 @@
  * as published by the Free Software Foundation; either version
  * 2 of the License, or (at your option) any later version.
  *
+ * Acknowledgement:
+ *   We'd like to specially thank the Stud project authors for a very clean
+ *   and well documented code which helped us understand how the OpenSSL API
+ *   ought to be used in non-blocking mode. This is one difficult part which
+ *   is not easy to get from the OpenSSL doc, and reading the Stud code made
+ *   it much more obvious than the examples in the OpenSSL package. Keep up
+ *   the good works, guys !
+ *
+ *   Stud is an extremely efficient and scalable SSL/TLS proxy which combines
+ *   particularly well with haproxy. For more info about this project, visit :
+ *       https://github.com/bumptech/stud
+ *
  */
 
 #define _GNU_SOURCE
