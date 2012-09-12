@@ -4393,8 +4393,9 @@ rate-limit sessions <rate>
   See also : the "backlog" keyword and the "fe_sess_rate" ACL criterion.
 
 
-redirect location <to> [code <code>] <option> [{if | unless} <condition>]
-redirect prefix   <to> [code <code>] <option> [{if | unless} <condition>]
+redirect location <loc> [code <code>] <option> [{if | unless} <condition>]
+redirect prefix   <pfx> [code <code>] <option> [{if | unless} <condition>]
+redirect scheme   <sch> [code <code>] <option> [{if | unless} <condition>]
   Return an HTTP redirection if/unless a condition is matched
   May be used in sections :   defaults | frontend | listen | backend
                                  no    |    yes   |   yes  |   yes
@@ -4403,14 +4404,25 @@ redirect prefix   <to> [code <code>] <option> [{if | unless} <condition>]
   response. If no condition is specified, the redirect applies unconditionally.
 
   Arguments :
-    <to>      With "redirect location", the exact value in <to> is placed into
-              the HTTP "Location" header. In case of "redirect prefix", the
-              "Location" header is built from the concatenation of <to> and the
-              complete URI, including the query string, unless the "drop-query"
-              option is specified (see below). As a special case, if <to>
-              equals exactly "/" in prefix mode, then nothing is inserted
-              before the original URI. It allows one to redirect to the same
-              URL.
+    <loc>     With "redirect location", the exact value in <loc> is placed into
+              the HTTP "Location" header.
+
+    <pfx>     With "redirect prefix", the "Location" header is built from the
+              concatenation of <pfx> and the complete URI path, including the
+              query string, unless the "drop-query" option is specified (see
+              below). As a special case, if <pfx> equals exactly "/", then
+              nothing is inserted before the original URI. It allows one to
+              redirect to the same URL (for instance, to insert a cookie).
+
+    <sch>     With "redirect scheme", then the "Location" header is built by
+              concatenating <sch> with "://" then the first occurrence of the
+              "Host" header, and then the URI path, including the query string
+              unless the "drop-query" option is specified (see below). If no
+              path is found or if the path is "*", then "/" is used instead. If
+              no "Host" header is found, then an empty host component will be
+              returned, which most recent browsers interprete as redirecting to
+              the same host. This directive is mostly used to redirect HTTP to
+              HTTPS.
 
     <code>    The code is optional. It indicates which type of HTTP redirection
               is desired. Only codes 301, 302 and 303 are supported, and 302 is
@@ -4468,6 +4480,9 @@ redirect prefix   <to> [code <code>] <option> [{if | unless} <condition>]
   Example: send redirects for request for articles without a '/'.
         acl missing_slash path_reg ^/article/[^/]*$
         redirect code 301 prefix / drop-query append-slash if missing_slash
+
+  Example: redirect all HTTP traffic to HTTPS when SSL is handled by haproxy.
+        redirect scheme https if !{ is_ssl }
 
   See section 7 about ACL usage.
 

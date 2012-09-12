@@ -2837,6 +2837,18 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				cur_arg++;
 				destination = args[cur_arg];
 			}
+			else if (!strcmp(args[cur_arg], "scheme")) {
+				if (!*args[cur_arg + 1]) {
+					Alert("parsing [%s:%d] : '%s': missing argument for '%s'.\n",
+					      file, linenum, args[0], args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				type = REDIRECT_TYPE_SCHEME;
+				cur_arg++;
+				destination = args[cur_arg];
+			}
 			else if (!strcmp(args[cur_arg], "set-cookie")) {
 				if (!*args[cur_arg + 1]) {
 					Alert("parsing [%s:%d] : '%s': missing argument for '%s'.\n",
@@ -2895,7 +2907,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				break;
 			}
 			else {
-				Alert("parsing [%s:%d] : '%s' expects 'code', 'prefix', 'location', 'set-cookie', 'clear-cookie', 'drop-query' or 'append-slash' (was '%s').\n",
+				Alert("parsing [%s:%d] : '%s' expects 'code', 'prefix', 'location', 'scheme', 'set-cookie', 'clear-cookie', 'drop-query' or 'append-slash' (was '%s').\n",
 				      file, linenum, args[0], args[cur_arg]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;

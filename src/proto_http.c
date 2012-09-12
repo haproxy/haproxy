@@ -3072,6 +3072,71 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 				goto return_bad_req;
 
 			switch(rule->type) {
+			case REDIRECT_TYPE_SCHEME: {
+				const char *path;
+				const char *host;
+				struct hdr_ctx ctx;
+				int pathlen;
+				int hostlen;
+
+				host = "";
+				hostlen = 0;
+				ctx.idx = 0;
+				if (http_find_header2("Host", 4, txn->req.buf->buf.p + txn->req.sol, &txn->hdr_idx, &ctx)) {
+					host = ctx.line + ctx.val;
+					hostlen = ctx.vlen;
+				}
+
+				path = http_get_path(txn);
+				/* build message using path */
+				if (path) {
+					pathlen = txn->req.sl.rq.u_l + (req->buf.p + txn->req.sl.rq.u) - path;
+					if (rule->flags & REDIRECT_FLAG_DROP_QS) {
+						int qs = 0;
+						while (qs < pathlen) {
+							if (path[qs] == '?') {
+								pathlen = qs;
+								break;
+							}
+							qs++;
+						}
+					}
+				} else {
+					path = "/";
+					pathlen = 1;
+				}
+
+				/* check if we can add scheme + "://" + host + path */
+				if (rdr.len + rule->rdr_len + 3 + hostlen + pathlen > rdr.size - 4)
+					goto return_bad_req;
+
+				/* add scheme */
+				memcpy(rdr.str + rdr.len, rule->rdr_str, rule->rdr_len);
+				rdr.len += rule->rdr_len;
+
+				/* add "://" */
+				memcpy(rdr.str + rdr.len, "://", 3);
+				rdr.len += 3;
+
+				/* add host */
+				memcpy(rdr.str + rdr.len, host, hostlen);
+				rdr.len += hostlen;
+
+				/* add path */
+				memcpy(rdr.str + rdr.len, path, pathlen);
+				rdr.len += pathlen;
+
+				/* append a slash at the end of the location is needed and missing */
+				if (rdr.len && rdr.str[rdr.len - 1] != '/' &&
+				    (rule->flags & REDIRECT_FLAG_APPEND_SLASH)) {
+					if (rdr.len > rdr.size - 5)
+						goto return_bad_req;
+					rdr.str[rdr.len] = '/';
+					rdr.len++;
+				}
+
+				break;
+			}
 			case REDIRECT_TYPE_PREFIX: {
 				const char *path;
 				int pathlen;

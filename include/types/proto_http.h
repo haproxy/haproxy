@@ -204,6 +204,7 @@ enum {
 	REDIRECT_TYPE_NONE = 0,         /* no redirection */
 	REDIRECT_TYPE_LOCATION,         /* location redirect */
 	REDIRECT_TYPE_PREFIX,           /* prefix redirect */
+	REDIRECT_TYPE_SCHEME,           /* scheme redirect (eg: switch from http to https) */
 };
 
 /* Perist types (force-persist, ignore-persist) */
