@@ -105,6 +105,15 @@ void delete_listener(struct listener *listener);
  */
 int listener_accept(int fd);
 
+/*
+ * Registers the bind keyword list <kwl> as a list of valid keywords for next
+ * parsing sessions.
+ */
+void bind_register_keywords(struct bind_kw_list *kwl);
+
+/* Return a pointer to the bind keyword <kw>, or NULL if not found. */
+struct bind_kw *bind_find_kw(const char *kw);
+
 /* allocate an bind_conf struct for a bind line, and chain it to list head <lh>.
  * If <arg> is not NULL, it is duplicated into ->arg to store useful config
  * information for error reporting.

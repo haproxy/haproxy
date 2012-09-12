@@ -29,6 +29,11 @@
 #include <proto/log.h>
 #include <proto/task.h>
 
+/* List head of all known bind keywords */
+static struct bind_kw_list bind_keywords = {
+	.list = LIST_HEAD_INIT(bind_keywords.list)
+};
+
 /* This function adds the specified listener's file descriptor to the polling
  * lists if it is in the LI_LISTEN state. The listener enters LI_READY or
  * LI_FULL state depending on its number of connections.
@@ -407,6 +412,47 @@ void listener_accept(int fd)
 
 	/* we've exhausted max_accept, so there is no need to poll again */
 	return;
+}
+
+/*
+ * Registers the bind keyword list <kwl> as a list of valid keywords for next
+ * parsing sessions.
+ */
+void bind_register_keywords(struct bind_kw_list *kwl)
+{
+	LIST_ADDQ(&bind_keywords.list, &kwl->list);
+}
+
+/* Return a pointer to the bind keyword <kw>, or NULL if not found. If the
+ * keyword is found with a NULL ->parse() function, then an attempt is made to
+ * find one with a valid ->parse() function. This way it is possible to declare
+ * platform-dependant, known keywords as NULL, then only declare them as valid
+ * if some options are met. Note that if the requested keyword contains an
+ * opening parenthesis, everything from this point is ignored.
+ */
+struct bind_kw *bind_find_kw(const char *kw)
+{
+	int index;
+	const char *kwend;
+	struct bind_kw_list *kwl;
+	struct bind_kw *ret = NULL;
+
+	kwend = strchr(kw, '(');
+	if (!kwend)
+		kwend = kw + strlen(kw);
+
+	list_for_each_entry(kwl, &bind_keywords.list, list) {
+		for (index = 0; kwl->kw[index].kw != NULL; index++) {
+			if ((strncmp(kwl->kw[index].kw, kw, kwend - kw) == 0) &&
+			    kwl->kw[index].kw[kwend-kw] == 0) {
+				if (kwl->kw[index].parse)
+					return &kwl->kw[index]; /* found it !*/
+				else
+					ret = &kwl->kw[index];  /* may be OK */
+			}
+		}
+	}
+	return ret;
 }
 
 /************************************************************************/

@@ -1711,6 +1711,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 		cur_arg = 2;
 		while (*(args[cur_arg])) {
+			struct bind_kw *kw;
+
 			if (!strcmp(args[cur_arg], "interface")) { /* specifically bind to this interface */
 #ifdef SO_BINDTODEVICE
 				struct listener *l;
@@ -2146,6 +2148,41 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				cur_arg += 2;
 				continue;
                         }
+
+			kw = bind_find_kw(args[cur_arg]);
+			if (kw) {
+				char *err = NULL;
+				int code;
+
+				if (!kw->parse) {
+					Alert("parsing [%s:%d] : '%s' : '%s' option is not implemented in this version (check build options).\n",
+					      file, linenum, args[0], args[cur_arg]);
+					cur_arg += 1 + kw->skip ;
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				code = kw->parse(args, cur_arg, curproxy, last_listen, &err);
+				err_code |= code;
+
+				if (code) {
+					if (err && *err) {
+						indent_msg(&err, 2);
+						Alert("parsing [%s:%d] : '%s' : %s\n", file, linenum, args[0], err);
+					}
+					else
+						Alert("parsing [%s:%d] : '%s' : error encountered while processing '%s'.\n",
+						      file, linenum, args[0], args[cur_arg]);
+					if (code & ERR_FATAL) {
+						free(err);
+						cur_arg += 1 + kw->skip;
+						goto out;
+					}
+				}
+				free(err);
+				cur_arg += 1 + kw->skip;
+				continue;
+			}
 
 			Alert("parsing [%s:%d] : '%s' only supports the 'transparent', 'accept-proxy', 'defer-accept', 'name', 'id', 'mss', 'mode', 'uid', 'gid', 'user', 'group' and 'interface' options.\n",
 			      file, linenum, args[0]);
