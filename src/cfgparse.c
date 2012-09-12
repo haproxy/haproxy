@@ -23,8 +23,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <netinet/tcp.h>
-
 #include <common/cfgparse.h>
 #include <common/chunk.h>
 #include <common/config.h>
@@ -1712,119 +1710,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		cur_arg = 2;
 		while (*(args[cur_arg])) {
 			struct bind_kw *kw;
-
-			if (!strcmp(args[cur_arg], "interface")) { /* specifically bind to this interface */
-#ifdef SO_BINDTODEVICE
-				struct listener *l;
-
-				if (curproxy->listen->addr.ss_family == AF_UNIX) {
-					Alert("parsing [%s:%d] : '%s' : '%s' option not supported on unix sockets.\n",
-					      file, linenum, args[0], args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				if (!*args[cur_arg + 1]) {
-					Alert("parsing [%s:%d] : '%s' : missing interface name.\n",
-					      file, linenum, args[0]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				
-				for (l = curproxy->listen; l != last_listen; l = l->next)
-					l->interface = strdup(args[cur_arg + 1]);
-
-				global.last_checks |= LSTCHK_NETADM;
-
-				cur_arg += 2;
-				continue;
-#else
-				Alert("parsing [%s:%d] : '%s' : '%s' option not implemented.\n",
-				      file, linenum, args[0], args[cur_arg]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-#endif
-			}
-			if (!strcmp(args[cur_arg], "mss")) { /* set MSS of listening socket */
-#ifdef TCP_MAXSEG
-				struct listener *l;
-				int mss;
-
-				if (curproxy->listen->addr.ss_family == AF_UNIX) {
-					Alert("parsing [%s:%d] : '%s' : '%s' option not supported on unix sockets.\n",
-					      file, linenum, args[0], args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				if (!*args[cur_arg + 1]) {
-					Alert("parsing [%s:%d] : '%s' : missing MSS value.\n",
-					      file, linenum, args[0]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				mss = atoi(args[cur_arg + 1]);
-				if (!mss || abs(mss) > 65535) {
-					Alert("parsing [%s:%d]: %s expects an MSS with and absolute value between 1 and 65535.\n",
-					      file, linenum, args[0]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				for (l = curproxy->listen; l != last_listen; l = l->next)
-					l->maxseg = mss;
-
-				cur_arg += 2;
-				continue;
-#else
-				Alert("parsing [%s:%d] : '%s' : '%s' option not implemented.\n",
-				      file, linenum, args[0], args[cur_arg]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-#endif
-			}
-
-			if (!strcmp(args[cur_arg], "defer-accept")) { /* wait for some data for 1 second max before doing accept */
-#ifdef TCP_DEFER_ACCEPT
-				struct listener *l;
-
-				for (l = curproxy->listen; l != last_listen; l = l->next)
-					l->options |= LI_O_DEF_ACCEPT;
-
-				cur_arg ++;
-				continue;
-#else
-				Alert("parsing [%s:%d] : '%s' : '%s' option not implemented.\n",
-				      file, linenum, args[0], args[cur_arg]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-#endif
-			}
-
-			if (!strcmp(args[cur_arg], "transparent")) { /* transparently bind to these addresses */
-#ifdef CONFIG_HAP_LINUX_TPROXY
-				struct listener *l;
-
-				if (curproxy->listen->addr.ss_family == AF_UNIX) {
-					Alert("parsing [%s:%d] : '%s' : '%s' option not supported on unix sockets.\n",
-					      file, linenum, args[0], args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				for (l = curproxy->listen; l != last_listen; l = l->next)
-					l->options |= LI_O_FOREIGN;
-
-				cur_arg ++;
-				continue;
-#else
-				Alert("parsing [%s:%d] : '%s' : '%s' option not implemented.\n",
-				      file, linenum, args[0], args[cur_arg]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-#endif
-			}
 
 			if (!strcmp(args[cur_arg], "maxconn")) {
 				struct listener *l;

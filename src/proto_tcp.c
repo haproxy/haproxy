@@ -1697,6 +1697,103 @@ static int val_payload_lv(struct arg *arg, char **err_msg)
 	return 1;
 }
 
+#ifdef CONFIG_HAP_LINUX_TPROXY
+/* parse the "transparent" bind keyword */
+static int bind_parse_transparent(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+{
+	struct listener *l;
+
+	if (px->listen->addr.ss_family != AF_INET && px->listen->addr.ss_family != AF_INET6) {
+		if (err)
+			memprintf(err, "'%s' option is only supported on IPv4 and IPv6 sockets", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	for (l = px->listen; l != last; l = l->next)
+		l->options |= LI_O_FOREIGN;
+
+	return 0;
+}
+#endif
+
+#ifdef TCP_DEFER_ACCEPT
+/* parse the "defer-accept" bind keyword */
+static int bind_parse_defer_accept(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+{
+	struct listener *l;
+
+	if (px->listen->addr.ss_family != AF_INET && px->listen->addr.ss_family != AF_INET6) {
+		if (err)
+			memprintf(err, "'%s' option is only supported on IPv4 and IPv6 sockets", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	for (l = px->listen; l != last; l = l->next)
+		l->options |= LI_O_DEF_ACCEPT;
+
+	return 0;
+}
+#endif
+
+#ifdef TCP_MAXSEG
+/* parse the "mss" bind keyword */
+static int bind_parse_mss(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+{
+	struct listener *l;
+	int mss;
+
+	if (px->listen->addr.ss_family != AF_INET && px->listen->addr.ss_family != AF_INET6) {
+		if (err)
+			memprintf(err, "'%s' option is only supported on IPv4 and IPv6 sockets", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (!*args[cur_arg + 1]) {
+		if (err)
+			memprintf(err, "'%s' : missing MSS value", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	mss = atoi(args[cur_arg + 1]);
+	if (!mss || abs(mss) > 65535) {
+		if (err)
+			memprintf(err, "'%s' : expects an MSS with and absolute value between 1 and 65535", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	for (l = px->listen; l != last; l = l->next)
+		l->maxseg = mss;
+
+	return 0;
+}
+#endif
+
+#ifdef SO_BINDTODEVICE
+/* parse the "mss" bind keyword */
+static int bind_parse_interface(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+{
+	struct listener *l;
+
+	if (px->listen->addr.ss_family != AF_INET && px->listen->addr.ss_family != AF_INET6) {
+		if (err)
+			memprintf(err, "'%s' option is only supported on IPv4 and IPv6 sockets", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (!*args[cur_arg + 1]) {
+		if (err)
+			memprintf(err, "'%s' : missing interface name", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	for (l = px->listen; l != last; l = l->next)
+		l->interface = strdup(args[cur_arg + 1]);
+
+	global.last_checks |= LSTCHK_NETADM;
+	return 0;
+}
+#endif
+
 static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_LISTEN, "tcp-request", tcp_parse_tcp_req },
 	{ CFG_LISTEN, "tcp-response", tcp_parse_tcp_rep },
@@ -1734,6 +1831,38 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
 	{ NULL, NULL, 0, 0, 0 },
 }};
 
+/************************************************************************/
+/*           All supported bind keywords must be declared here.         */
+/************************************************************************/
+
+/* Note: must not be declared <const> as its list will be overwritten.
+ * Please take care of keeping this list alphabetically sorted, doing so helps
+ * all code contributors.
+ * Optional keywords are also declared with a NULL ->parse() function so that
+ * the config parser can report an appropriate error when a known keyword was
+ * not enabled.
+ */
+static struct bind_kw_list bind_kws = {{ },{
+#ifdef TCP_DEFER_ACCEPT
+	{ "defer-accept",  bind_parse_defer_accept, 0 }, /* wait for some data for 1 second max before doing accept */
+#endif
+#ifdef SO_BINDTODEVICE
+	{ "interface",     bind_parse_interface,    1 }, /* specifically bind to this interface */
+#endif
+#ifdef TCP_MAXSEG
+	{ "mss",           bind_parse_mss,          1 }, /* set MSS of listening socket */
+#endif
+#ifdef CONFIG_HAP_LINUX_TPROXY
+	{ "transparent",   bind_parse_transparent,  0 }, /* transparently bind to the specified addresses */
+#endif
+	/* the versions with the NULL parse function*/
+	{ "defer-accept",  NULL,  0 },
+	{ "interface",     NULL,  1 },
+	{ "mss",           NULL,  1 },
+	{ "transparent",   NULL,  0 },
+	{ NULL, NULL, 0 },
+}};
+
 __attribute__((constructor))
 static void __tcp_protocol_init(void)
 {
@@ -1742,6 +1871,7 @@ static void __tcp_protocol_init(void)
 	sample_register_fetches(&sample_fetch_keywords);
 	cfg_register_keywords(&cfg_kws);
 	acl_register_keywords(&acl_kws);
+	bind_register_keywords(&bind_kws);
 }
 
 
