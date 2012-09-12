@@ -47,7 +47,7 @@
 #include <proto/freq_ctr.h>
 #include <proto/log.h>
 #include <proto/pipe.h>
-#include <proto/protocols.h>
+#include <proto/listener.h>
 #include <proto/proto_uxst.h>
 #include <proto/proxy.h>
 #include <proto/session.h>

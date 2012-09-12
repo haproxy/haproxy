@@ -25,6 +25,7 @@
 #include <common/time.h>
 
 #include <types/global.h>
+#include <proto/listener.h>
 #include <types/peers.h>
 
 #include <proto/acl.h>
@@ -32,7 +33,6 @@
 #include <proto/fd.h>
 #include <proto/log.h>
 #include <proto/hdr_idx.h>
-#include <proto/protocols.h>
 #include <proto/proto_tcp.h>
 #include <proto/proto_http.h>
 #include <proto/proxy.h>

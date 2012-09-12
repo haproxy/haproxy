@@ -42,9 +42,10 @@
 #include <proto/channel.h>
 #include <proto/connection.h>
 #include <proto/fd.h>
+#include <proto/listener.h>
 #include <proto/log.h>
 #include <proto/port_range.h>
-#include <proto/protocols.h>
+#include <proto/protocol.h>
 #include <proto/proto_tcp.h>
 #include <proto/proxy.h>
 #include <proto/sample.h>

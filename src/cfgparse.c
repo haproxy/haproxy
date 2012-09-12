@@ -51,9 +51,10 @@
 #include <proto/lb_fwlc.h>
 #include <proto/lb_fwrr.h>
 #include <proto/lb_map.h>
+#include <proto/listener.h>
 #include <proto/log.h>
 #include <proto/port_range.h>
-#include <proto/protocols.h>
+#include <proto/protocol.h>
 #include <proto/proto_tcp.h>
 #include <proto/proto_uxst.h>
 #include <proto/proto_http.h>

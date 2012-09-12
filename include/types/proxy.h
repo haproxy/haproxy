@@ -40,8 +40,8 @@
 #include <types/backend.h>
 #include <types/counters.h>
 #include <types/freq_ctr.h>
+#include <types/listener.h>
 #include <types/log.h>
-#include <types/protocols.h>
 #include <types/proto_http.h>
 #include <types/sample.h>
 #include <types/session.h>

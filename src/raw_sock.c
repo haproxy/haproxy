@@ -35,7 +35,6 @@
 #include <proto/freq_ctr.h>
 #include <proto/log.h>
 #include <proto/pipe.h>
-#include <proto/protocols.h>
 #include <proto/raw_sock.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>

@@ -32,11 +32,11 @@
 #include <proto/freq_ctr.h>
 #include <proto/frontend.h>
 #include <proto/hdr_idx.h>
+#include <proto/listener.h>
 #include <proto/log.h>
 #include <proto/raw_sock.h>
 #include <proto/session.h>
 #include <proto/pipe.h>
-#include <proto/protocols.h>
 #include <proto/proto_http.h>
 #include <proto/proto_tcp.h>
 #include <proto/proxy.h>

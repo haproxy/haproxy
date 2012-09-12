@@ -78,8 +78,9 @@
 #include <proto/checks.h>
 #include <proto/fd.h>
 #include <proto/hdr_idx.h>
+#include <proto/listener.h>
 #include <proto/log.h>
-#include <proto/protocols.h>
+#include <proto/protocol.h>
 #include <proto/proto_http.h>
 #include <proto/proxy.h>
 #include <proto/queue.h>

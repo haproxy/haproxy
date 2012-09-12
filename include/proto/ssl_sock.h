@@ -23,7 +23,9 @@
 #define _PROTO_SSL_SOCK_H
 #include <openssl/ssl.h>
 
-#include <types/protocols.h>
+#include <types/connection.h>
+#include <types/listener.h>
+#include <types/proxy.h>
 #include <types/stream_interface.h>
 
 extern struct data_ops ssl_sock;

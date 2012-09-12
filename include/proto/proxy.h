@@ -27,6 +27,7 @@
 #include <common/time.h>
 #include <types/global.h>
 #include <types/proxy.h>
+#include <types/listener.h>
 #include <proto/freq_ctr.h>
 
 int start_proxies(int verbose);

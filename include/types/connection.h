@@ -27,8 +27,10 @@
 
 #include <common/config.h>
 
+#include <types/listener.h>
+#include <types/protocol.h>
+
 /* referenced below */
-struct protocol;
 struct connection;
 struct buffer;
 struct pipe;
@@ -36,7 +38,6 @@ struct server;
 struct proxy;
 struct si_applet;
 struct task;
-struct listener;
 
 /* Polling flags that are manipulated by I/O callbacks and handshake callbacks
  * indicate what they expect from a file descriptor at each layer. For each

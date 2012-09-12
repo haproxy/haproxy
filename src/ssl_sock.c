@@ -64,7 +64,6 @@
 #include <proto/freq_ctr.h>
 #include <proto/frontend.h>
 #include <proto/log.h>
-#include <proto/protocols.h>
 #include <proto/shctx.h>
 #include <proto/ssl_sock.h>
 #include <proto/task.h>
