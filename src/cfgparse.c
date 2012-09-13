@@ -1455,8 +1455,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			}
 			new = curproxy->listen;
 			while (new != last) {
-				new->conf.file = file;
-				new->conf.line = linenum;
 				new = new->next;
 				global.maxsock++;
 			}
@@ -1702,8 +1700,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		new_listen = curproxy->listen;
 		while (new_listen != last_listen) {
-			new_listen->conf.file = file;
-			new_listen->conf.line = linenum;
 			new_listen->bind_conf = bind_conf;
 			new_listen = new_listen->next;
 			global.maxsock++;
@@ -2054,7 +2050,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				if (node) {
 					l = container_of(node, struct listener, conf.id);
 					Alert("parsing [%s:%d]: custom id %d for socket '%s' already used at %s:%d.\n",
-					      file, linenum, l->luid, args[1], l->conf.file, l->conf.line);
+					      file, linenum, l->luid, args[1], l->bind_conf->file, l->bind_conf->line);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}

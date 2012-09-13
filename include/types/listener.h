@@ -152,8 +152,6 @@ struct listener {
 	/* warning: this struct is huge, keep it at the bottom */
 	struct sockaddr_storage addr;	/* the address we listen to */
 	struct {
-		const char *file;	/* file where the section appears */
-		int line;		/* line where the section appears */
 		struct eb32_node id;	/* place in the tree of used IDs */
 	} conf;				/* config information */
 };
