@@ -8085,15 +8085,6 @@ req_ssl_ver <decimal>
   SSL data layer, so this will not work with "bind" lines having the "ssl"
   option.
 
-ssl_sni <string>
-  Returns true when the incoming connection was made over an SSL/TLS data layer
-  which deciphered it and found a Server Name Indication TLS extension sent by
-  the client, matching the specified string. In HTTPS, the SNI field (when
-  present) is equal to the requested host name. This match is different from
-  req_ssl_sni above in that it applies to the connection being deciphered by
-  haproxy and not to SSL contents being blindly forwarded. This requires that
-  the SSL library is build with support for TLS extensions (check haproxy -vv).
-
 ssl_has_sni
   This is used to check for presence of a Server Name Indication TLS extension
   in an incoming connection was made over an SSL/TLS data layer. Returns true
