@@ -1380,7 +1380,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	struct acl_cond *cond = NULL;
 	struct logsrv *tmplogsrv;
 	char *errmsg = NULL;
-	struct ssl_conf *ssl_conf;
+	struct bind_conf *bind_conf;
 
 	if (!strcmp(args[0], "listen"))
 		rc = PR_CAP_LISTEN;
@@ -1689,7 +1689,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		last_listen = curproxy->listen;
-		ssl_conf = NULL;
+		bind_conf = bind_conf_alloc(&curproxy->conf.bind, file, linenum, args[1]);
 
 		/* NOTE: the following line might create several listeners if there
 		 * are comma-separated IPs or port ranges. So all further processing
@@ -1704,6 +1704,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		while (new_listen != last_listen) {
 			new_listen->conf.file = file;
 			new_listen->conf.line = linenum;
+			new_listen->bind_conf = bind_conf;
 			new_listen = new_listen->next;
 			global.maxsock++;
 		}
@@ -1907,18 +1908,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 			if (!strcmp(args[cur_arg], "ssl")) { /* use ssl */
 #ifdef USE_OPENSSL
-				struct listener *l;
-
-				if (!ssl_conf)
-					ssl_conf = ssl_conf_alloc(&curproxy->conf.ssl_bind, file, linenum, args[1]);
-
-				for (l = curproxy->listen; l != last_listen; l = l->next) {
-					if (!l->ssl_conf) {
-						l->ssl_conf = ssl_conf;
-						ssl_conf->ref_cnt++;
-					}
-				}
-
+				bind_conf->is_ssl = 1;
 				cur_arg += 1;
 				continue;
 #else
@@ -1938,10 +1928,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 					goto out;
 				}
 
-				if (!ssl_conf)
-					ssl_conf = ssl_conf_alloc(&curproxy->conf.ssl_bind, file, linenum, args[1]);
-
-				if (ssl_sock_load_cert(args[cur_arg + 1], ssl_conf, curproxy) > 0) {
+				if (ssl_sock_load_cert(args[cur_arg + 1], bind_conf, curproxy) > 0) {
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
@@ -1965,10 +1952,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 					goto out;
 				}
 
-				if (!ssl_conf)
-					ssl_conf = ssl_conf_alloc(&curproxy->conf.ssl_bind, file, linenum, args[1]);
-				ssl_conf->ciphers = strdup(args[cur_arg + 1]);
-
+				bind_conf->ciphers = strdup(args[cur_arg + 1]);
 				cur_arg += 2;
 				continue;
 #else
@@ -1981,10 +1965,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 			if (!strcmp(args[cur_arg], "nosslv3")) { /* disable SSLv3 */
 #ifdef USE_OPENSSL
-				if (!ssl_conf)
-					ssl_conf = ssl_conf_alloc(&curproxy->conf.ssl_bind, file, linenum, args[1]);
-				ssl_conf->nosslv3 = 1;
-
+				bind_conf->nosslv3 = 1;
 				cur_arg += 1;
 				continue;
 #else
@@ -1997,10 +1978,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 			if (!strcmp(args[cur_arg], "notlsv1")) { /* disable TLSv1 */
 #ifdef USE_OPENSSL
-				if (!ssl_conf)
-					ssl_conf = ssl_conf_alloc(&curproxy->conf.ssl_bind, file, linenum, args[1]);
-				ssl_conf->notlsv1 = 1;
-
+				bind_conf->notlsv1 = 1;
 				cur_arg += 1;
 				continue;
 #else
@@ -2013,10 +1991,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 			if (!strcmp(args[cur_arg], "prefer-server-ciphers")) { /* Prefert server ciphers */
 #if defined (USE_OPENSSL) && defined(SSL_OP_CIPHER_SERVER_PREFERENCE)
-				if (!ssl_conf)
-					ssl_conf = ssl_conf_alloc(&curproxy->conf.ssl_bind, file, linenum, args[1]);
-				ssl_conf->prefer_server_ciphers = 1;
-
+				bind_conf->prefer_server_ciphers = 1;
 				cur_arg += 1;
 				continue;
 #else
@@ -6024,9 +5999,9 @@ int check_config_validity()
 	struct userlist *curuserlist = NULL;
 	int err_code = 0;
 	unsigned int next_pxid = 1;
-	struct ssl_conf *ssl_conf, *ssl_back;
+	struct bind_conf *bind_conf;
 
-	ssl_back = ssl_conf = NULL;
+	bind_conf = NULL;
 	/*
 	 * Now, check for the integrity of all that we have collected.
 	 */
@@ -6922,15 +6897,17 @@ out_uri_auth_compat:
 			curproxy->listen = next;
 		}
 
-#ifdef USE_OPENSSL
 		/* Configure SSL for each bind line.
 		 * Note: if configuration fails at some point, the ->ctx member
 		 * remains NULL so that listeners can later detach.
 		 */
-		list_for_each_entry(ssl_conf, &curproxy->conf.ssl_bind, by_fe) {
-			if (!ssl_conf->default_ctx) {
+		list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
+			if (!bind_conf->is_ssl)
+				continue;
+#ifdef USE_OPENSSL
+			if (!bind_conf->default_ctx) {
 				Alert("Proxy '%s': no SSL certificate specified for bind '%s' at [%s:%d] (use 'crt').\n",
-				      curproxy->id, ssl_conf->arg, ssl_conf->file, ssl_conf->line);
+				      curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
 				cfgerr++;
 				continue;
 			}
@@ -6942,9 +6919,9 @@ out_uri_auth_compat:
 			}
 
 			/* initialize all certificate contexts */
-			cfgerr += ssl_sock_prepare_all_ctx(ssl_conf, curproxy);
-		}
+			cfgerr += ssl_sock_prepare_all_ctx(bind_conf, curproxy);
 #endif /* USE_OPENSSL */
+		}
 
 		/* adjust this proxy's listeners */
 		next_id = 1;
@@ -6969,15 +6946,8 @@ out_uri_auth_compat:
 				}
 			}
 #ifdef USE_OPENSSL
-			if (listener->ssl_conf) {
-				if (listener->ssl_conf->default_ctx) {
-					listener->data = &ssl_sock; /* SSL data layer */
-				}
-				else {
-					listener->ssl_conf->ref_cnt--;
-					listener->ssl_conf = NULL;
-				}
-			}
+			if (listener->bind_conf->is_ssl && listener->bind_conf->default_ctx)
+				listener->data = &ssl_sock; /* SSL data layer */
 #endif
 			if (curproxy->options & PR_O_TCP_NOLING)
 				listener->options |= LI_O_NOLINGER;
@@ -6999,7 +6969,7 @@ out_uri_auth_compat:
 
 			/* smart accept mode is automatic in HTTP mode */
 			if ((curproxy->options2 & PR_O2_SMARTACC) ||
-			    ((curproxy->mode == PR_MODE_HTTP || listener->ssl_conf) &&
+			    ((curproxy->mode == PR_MODE_HTTP || listener->bind_conf->is_ssl) &&
 			     !(curproxy->no_options2 & PR_O2_SMARTACC)))
 				listener->options |= LI_O_NOQUICKACK;
 
@@ -7007,21 +6977,15 @@ out_uri_auth_compat:
 			listener = listener->next;
 		}
 
-#ifdef USE_OPENSSL
-		/* Release unused SSL configs.
-		 */
-		list_for_each_entry_safe(ssl_conf, ssl_back, &curproxy->conf.ssl_bind, by_fe) {
-			if (ssl_conf->ref_cnt)
+		/* Release unused SSL configs */
+		list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
+			if (bind_conf->is_ssl)
 				continue;
-
-			ssl_sock_free_all_ctx(ssl_conf);
-			free(ssl_conf->ciphers);
-			free(ssl_conf->file);
-			free(ssl_conf->arg);
-			LIST_DEL(&ssl_conf->by_fe);
-			free(ssl_conf);
-		}
+#ifdef USE_OPENSSL
+			ssl_sock_free_all_ctx(bind_conf);
+			free(bind_conf->ciphers);
 #endif /* USE_OPENSSL */
+		}
 
 		/* Check multi-process mode compatibility for the current proxy */
 		if (global.nbproc > 1) {

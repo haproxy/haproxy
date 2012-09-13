@@ -105,21 +105,21 @@ void delete_listener(struct listener *listener);
  */
 int listener_accept(int fd);
 
-/* allocate an ssl_conf struct for a bind line, and chain it to list head <lh>.
+/* allocate an bind_conf struct for a bind line, and chain it to list head <lh>.
  * If <arg> is not NULL, it is duplicated into ->arg to store useful config
  * information for error reporting.
  */
-static inline struct ssl_conf *ssl_conf_alloc(struct list *lh, const char *file, int line, const char *arg)
+static inline struct bind_conf *bind_conf_alloc(struct list *lh, const char *file, int line, const char *arg)
 {
-	struct ssl_conf *ssl_conf = (void *)calloc(1, sizeof(struct ssl_conf));
+	struct bind_conf *bind_conf = (void *)calloc(1, sizeof(struct bind_conf));
 
-	ssl_conf->file = strdup(file);
-	ssl_conf->line = line;
+	bind_conf->file = strdup(file);
+	bind_conf->line = line;
 	if (lh)
-		LIST_ADDQ(lh, &ssl_conf->by_fe);
+		LIST_ADDQ(lh, &bind_conf->by_fe);
 	if (arg)
-		ssl_conf->arg = strdup(arg);
-	return ssl_conf;
+		bind_conf->arg = strdup(arg);
+	return bind_conf;
 }
 
 #endif /* _PROTO_LISTENER_H */

@@ -30,11 +30,11 @@
 
 extern struct data_ops ssl_sock;
 int ssl_sock_handshake(struct connection *conn, unsigned int flag);
-int ssl_sock_load_cert(char *path, struct ssl_conf *ssl_conf, struct proxy *proxy);
-int ssl_sock_prepare_ctx(struct ssl_conf *ssl_conf, SSL_CTX *ctx, struct proxy *proxy);
-void ssl_sock_free_certs(struct ssl_conf *ssl_conf);
-int ssl_sock_prepare_all_ctx(struct ssl_conf *ssl_conf, struct proxy *px);
-void ssl_sock_free_all_ctx(struct ssl_conf *ssl_conf);
+int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, struct proxy *proxy);
+int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy *proxy);
+void ssl_sock_free_certs(struct bind_conf *bind_conf);
+int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf, struct proxy *px);
+void ssl_sock_free_all_ctx(struct bind_conf *bind_conf);
 
 #endif /* _PROTO_SSL_SOCK_H */
 

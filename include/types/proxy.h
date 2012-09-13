@@ -360,7 +360,7 @@ struct proxy {
 		struct eb32_node id;		/* place in the tree of used IDs */
 		struct eb_root used_listener_id;/* list of listener IDs in use */
 		struct eb_root used_server_id;	/* list of server IDs in use */
-		struct list ssl_bind;		/* list of SSL bind settings */
+		struct list bind;		/* list of bind settings */
 	} conf;					/* config information */
 	void *parent;				/* parent of the proxy when applicable */
 };

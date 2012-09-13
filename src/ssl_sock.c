@@ -87,7 +87,7 @@ void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
  * warning when no match is found, which implies the default (first) cert
  * will keep being used.
  */
-static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, struct ssl_conf *s)
+static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, struct bind_conf *s)
 {
 	const char *servername;
 	const char *wildp = NULL;
@@ -129,7 +129,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, struct ssl_conf *s)
 /* Loads a certificate key and CA chain from a file. Returns 0 on error, -1 if
  * an early error happens and the caller must call SSL_CTX_free() by itelf.
  */
-int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct ssl_conf *s)
+int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct bind_conf *s)
 {
 	BIO *in;
 	X509 *x = NULL, *ca;
@@ -255,7 +255,7 @@ end:
 	return ret;
 }
 
-int ssl_sock_load_cert_file(const char *path, struct ssl_conf *ssl_conf, struct proxy *curproxy)
+int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf, struct proxy *curproxy)
 {
 	int ret;
 	SSL_CTX *ctx;
@@ -263,21 +263,21 @@ int ssl_sock_load_cert_file(const char *path, struct ssl_conf *ssl_conf, struct 
 	ctx = SSL_CTX_new(SSLv23_server_method());
 	if (!ctx) {
 		Alert("Proxy '%s': unable to allocate SSL context for bind '%s' at [%s:%d] using cert '%s'.\n",
-		      curproxy->id, ssl_conf->arg, ssl_conf->file, ssl_conf->line, path);
+		      curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line, path);
 		return 1;
 	}
 
 	if (SSL_CTX_use_PrivateKey_file(ctx, path, SSL_FILETYPE_PEM) <= 0) {
 		Alert("Proxy '%s': unable to load SSL private key from file '%s' in bind '%s' at [%s:%d].\n",
-			      curproxy->id, path, ssl_conf->arg, ssl_conf->file, ssl_conf->line);
+			      curproxy->id, path, bind_conf->arg, bind_conf->file, bind_conf->line);
 		SSL_CTX_free(ctx);
 		return 1;
 	}
 
-	ret = ssl_sock_load_cert_chain_file(ctx, path, ssl_conf);
+	ret = ssl_sock_load_cert_chain_file(ctx, path, bind_conf);
 	if (ret <= 0) {
 		Alert("Proxy '%s': unable to load SSL certificate from file '%s' in bind '%s' at [%s:%d].\n",
-		      curproxy->id, path, ssl_conf->arg, ssl_conf->file, ssl_conf->line);
+		      curproxy->id, path, bind_conf->arg, bind_conf->file, bind_conf->line);
 		if (ret < 0) /* serious error, must do that ourselves */
 			SSL_CTX_free(ctx);
 		return 1;
@@ -286,19 +286,19 @@ int ssl_sock_load_cert_file(const char *path, struct ssl_conf *ssl_conf, struct 
 	 * the tree, so it will be discovered and cleaned in time.
 	 */
 #ifndef SSL_CTRL_SET_TLSEXT_HOSTNAME
-	if (ssl_conf->default_ctx) {
+	if (bind_conf->default_ctx) {
 		Alert("Proxy '%s': file '%s' : this version of openssl cannot load multiple SSL certificates in bind '%s' at [%s:%d].\n",
-		      curproxy->id, path, ssl_conf->arg, ssl_conf->file, ssl_conf->line);
+		      curproxy->id, path, bind_conf->arg, bind_conf->file, bind_conf->line);
 		return 1;
 	}
 #endif
-	if (!ssl_conf->default_ctx)
-		ssl_conf->default_ctx = ctx;
+	if (!bind_conf->default_ctx)
+		bind_conf->default_ctx = ctx;
 
 	return 0;
 }
 
-int ssl_sock_load_cert(char *path, struct ssl_conf *ssl_conf, struct proxy *curproxy)
+int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, struct proxy *curproxy)
 {
 	struct dirent *de;
 	DIR *dir;
@@ -308,7 +308,7 @@ int ssl_sock_load_cert(char *path, struct ssl_conf *ssl_conf, struct proxy *curp
 	int cfgerr = 0;
 
 	if (!(dir = opendir(path)))
-		return ssl_sock_load_cert_file(path, ssl_conf, curproxy);
+		return ssl_sock_load_cert_file(path, bind_conf, curproxy);
 
 	/* strip trailing slashes, including first one */
 	for (end = path + strlen(path) - 1; end >= path && *end == '/'; end--)
@@ -322,13 +322,13 @@ int ssl_sock_load_cert(char *path, struct ssl_conf *ssl_conf, struct proxy *curp
 		snprintf(fp, pathlen + 1 + NAME_MAX + 1, "%s/%s", path, de->d_name);
 		if (stat(fp, &buf) != 0) {
 			Alert("Proxy '%s': unable to stat SSL certificate from file '%s' in bind '%s' at [%s:%d] : %s.\n",
-			      curproxy->id, fp, ssl_conf->arg, ssl_conf->file, ssl_conf->line, strerror(errno));
+			      curproxy->id, fp, bind_conf->arg, bind_conf->file, bind_conf->line, strerror(errno));
 			cfgerr++;
 			continue;
 		}
 		if (!S_ISREG(buf.st_mode))
 			continue;
-		cfgerr += ssl_sock_load_cert_file(fp, ssl_conf, curproxy);
+		cfgerr += ssl_sock_load_cert_file(fp, bind_conf, curproxy);
 	}
 	free(fp);
 	closedir(dir);
@@ -348,7 +348,7 @@ int ssl_sock_load_cert(char *path, struct ssl_conf *ssl_conf, struct proxy *curp
 #ifndef SSL_MODE_RELEASE_BUFFERS                        /* needs OpenSSL >= 1.0.0 */
 #define SSL_MODE_RELEASE_BUFFERS 0
 #endif
-int ssl_sock_prepare_ctx(struct ssl_conf *ssl_conf, SSL_CTX *ctx, struct proxy *curproxy)
+int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy *curproxy)
 {
 	int cfgerr = 0;
 	int ssloptions =
@@ -361,11 +361,11 @@ int ssl_sock_prepare_ctx(struct ssl_conf *ssl_conf, SSL_CTX *ctx, struct proxy *
 		SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
 		SSL_MODE_RELEASE_BUFFERS;
 
-	if (ssl_conf->nosslv3)
+	if (bind_conf->nosslv3)
 		ssloptions |= SSL_OP_NO_SSLv3;
-	if (ssl_conf->notlsv1)
+	if (bind_conf->notlsv1)
 		ssloptions |= SSL_OP_NO_TLSv1;
-	if (ssl_conf->prefer_server_ciphers)
+	if (bind_conf->prefer_server_ciphers)
 		ssloptions |= SSL_OP_CIPHER_SERVER_PREFERENCE;
 
 	SSL_CTX_set_options(ctx, ssloptions);
@@ -373,64 +373,64 @@ int ssl_sock_prepare_ctx(struct ssl_conf *ssl_conf, SSL_CTX *ctx, struct proxy *
 	SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
 
 	shared_context_set_cache(ctx);
-	if (ssl_conf->ciphers &&
-	    !SSL_CTX_set_cipher_list(ctx, ssl_conf->ciphers)) {
+	if (bind_conf->ciphers &&
+	    !SSL_CTX_set_cipher_list(ctx, bind_conf->ciphers)) {
 		Alert("Proxy '%s': unable to set SSL cipher list to '%s' for bind '%s' at [%s:%d].\n",
-		curproxy->id, ssl_conf->ciphers, ssl_conf->arg, ssl_conf->file, ssl_conf->line);
+		curproxy->id, bind_conf->ciphers, bind_conf->arg, bind_conf->file, bind_conf->line);
 		cfgerr++;
 	}
 
 	SSL_CTX_set_info_callback(ctx, ssl_sock_infocbk);
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_cbk);
-	SSL_CTX_set_tlsext_servername_arg(ctx, ssl_conf);
+	SSL_CTX_set_tlsext_servername_arg(ctx, bind_conf);
 #endif
 	return cfgerr;
 }
 
-/* Walks down the two trees in ssl_conf and prepares all certs. The pointer may
+/* Walks down the two trees in bind_conf and prepares all certs. The pointer may
  * be NULL, in which case nothing is done. Returns the number of errors
  * encountered.
  */
-int ssl_sock_prepare_all_ctx(struct ssl_conf *ssl_conf, struct proxy *px)
+int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf, struct proxy *px)
 {
 	struct ebmb_node *node;
 	struct sni_ctx *sni;
 	int err = 0;
 
-	if (!ssl_conf)
+	if (!bind_conf || !bind_conf->is_ssl)
 		return 0;
 
-	node = ebmb_first(&ssl_conf->sni_ctx);
+	node = ebmb_first(&bind_conf->sni_ctx);
 	while (node) {
 		sni = ebmb_entry(node, struct sni_ctx, name);
 		if (!sni->order) /* only initialize the CTX on its first occurrence */
-			err += ssl_sock_prepare_ctx(ssl_conf, sni->ctx, px);
+			err += ssl_sock_prepare_ctx(bind_conf, sni->ctx, px);
 		node = ebmb_next(node);
 	}
 
-	node = ebmb_first(&ssl_conf->sni_w_ctx);
+	node = ebmb_first(&bind_conf->sni_w_ctx);
 	while (node) {
 		sni = ebmb_entry(node, struct sni_ctx, name);
 		if (!sni->order) /* only initialize the CTX on its first occurrence */
-			err += ssl_sock_prepare_ctx(ssl_conf, sni->ctx, px);
+			err += ssl_sock_prepare_ctx(bind_conf, sni->ctx, px);
 		node = ebmb_next(node);
 	}
 	return err;
 }
 
-/* Walks down the two trees in ssl_conf and frees all the certs. The pointer may
+/* Walks down the two trees in bind_conf and frees all the certs. The pointer may
  * be NULL, in which case nothing is done. The default_ctx is nullified too.
  */
-void ssl_sock_free_all_ctx(struct ssl_conf *ssl_conf)
+void ssl_sock_free_all_ctx(struct bind_conf *bind_conf)
 {
 	struct ebmb_node *node, *back;
 	struct sni_ctx *sni;
 
-	if (!ssl_conf)
+	if (!bind_conf || !bind_conf->is_ssl)
 		return;
 
-	node = ebmb_first(&ssl_conf->sni_ctx);
+	node = ebmb_first(&bind_conf->sni_ctx);
 	while (node) {
 		sni = ebmb_entry(node, struct sni_ctx, name);
 		back = ebmb_next(node);
@@ -441,7 +441,7 @@ void ssl_sock_free_all_ctx(struct ssl_conf *ssl_conf)
 		node = back;
 	}
 
-	node = ebmb_first(&ssl_conf->sni_w_ctx);
+	node = ebmb_first(&bind_conf->sni_w_ctx);
 	while (node) {
 		sni = ebmb_entry(node, struct sni_ctx, name);
 		back = ebmb_next(node);
@@ -452,7 +452,7 @@ void ssl_sock_free_all_ctx(struct ssl_conf *ssl_conf)
 		node = back;
 	}
 
-	ssl_conf->default_ctx = NULL;
+	bind_conf->default_ctx = NULL;
 }
 
 /*
@@ -493,7 +493,7 @@ static int ssl_sock_init(struct connection *conn)
 	}
 	else if (target_client(&conn->target)) {
 		/* Alloc a new SSL session ctx */
-		conn->data_ctx = SSL_new(target_client(&conn->target)->ssl_conf->default_ctx);
+		conn->data_ctx = SSL_new(target_client(&conn->target)->bind_conf->default_ctx);
 		if (!conn->data_ctx)
 			return -1;
 

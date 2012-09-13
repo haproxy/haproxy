@@ -93,8 +93,8 @@ enum {
  * maxconn setting to the global.maxsock value so that its resources are reserved.
  */
 
-/* "bind" line SSL settings */
-struct ssl_conf {
+/* "bind" line settings */
+struct bind_conf {
 #ifdef USE_OPENSSL
 	char *ciphers;             /* cipher suite to use if non-null */
 	int nosslv3;               /* disable SSLv3 */
@@ -104,7 +104,7 @@ struct ssl_conf {
 	struct eb_root sni_ctx;    /* sni_ctx tree of all known certs full-names sorted by name */
 	struct eb_root sni_w_ctx;  /* sni_ctx tree of all known certs wildcards sorted by name */
 #endif
-	int ref_cnt;               /* number of users of this config, maybe 0 on error */
+	int is_ssl;                /* SSL is required for these listeners */
 	struct list by_fe;         /* next binding for the same frontend, or NULL */
 	char *arg;                 /* argument passed to "bind" for better error reporting */
 	char *file;                /* file where the section appears */
@@ -147,7 +147,7 @@ struct listener {
 	char *interface;		/* interface name or NULL */
 	int maxseg;			/* for TCP, advertised MSS */
 
-	struct ssl_conf *ssl_conf;	/* SSL settings, otherwise NULL */
+	struct bind_conf *bind_conf;	/* "bind" line settings, include SSL settings among other things */
 
 	/* warning: this struct is huge, keep it at the bottom */
 	struct sockaddr_storage addr;	/* the address we listen to */
