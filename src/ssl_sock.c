@@ -782,6 +782,7 @@ smp_fetch_has_sni(struct proxy *px, struct session *l4, void *l7, unsigned int o
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	smp->type = SMP_T_BOOL;
 	smp->data.uint = (l4->si[0].conn.data == &ssl_sock) &&
+		l4->si[0].conn.data_ctx &&
 		SSL_get_servername(l4->si[0].conn.data_ctx, TLSEXT_NAMETYPE_host_name) != NULL;
 	return 1;
 #else
@@ -797,11 +798,13 @@ smp_fetch_ssl_sni(struct proxy *px, struct session *l4, void *l7, unsigned int o
 	smp->flags = 0;
 	smp->type = SMP_T_CSTR;
 
-	if (!l4 || l4->si[0].conn.data != &ssl_sock)
+	if (!l4 || !l4->si[0].conn.data_ctx || l4->si[0].conn.data != &ssl_sock)
 		return 0;
 
-	/* data points to cookie value */
 	smp->data.str.str = (char *)SSL_get_servername(l4->si[0].conn.data_ctx, TLSEXT_NAMETYPE_host_name);
+	if (!smp->data.str.str)
+		return 0;
+
 	smp->data.str.len = strlen(smp->data.str.str);
 	return 1;
 #else
