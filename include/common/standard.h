@@ -706,6 +706,15 @@ char *gmt2str_log(char *dst, struct tm *tm, size_t size);
 char *memprintf(char **out, const char *format, ...)
 	__attribute__ ((format(printf, 2, 3)));
 
+/* Used to add <level> spaces before each line of <out>, unless there is only one line.
+ * The input argument is automatically freed and reassigned. The result will have to be
+ * freed by the caller.
+ * Example of use :
+ *   parse(cmd, &err); (callee: memprintf(&err, ...))
+ *   fprintf(stderr, "Parser said: %s\n", indent_error(&err));
+ *   free(err);
+ */
+char *indent_msg(char **out, int level);
 
 /* debugging macro to emit messages using write() on fd #-1 so that strace sees
  * them.

@@ -1834,6 +1834,74 @@ char *memprintf(char **out, const char *format, ...)
 	return ret;
 }
 
+/* Used to add <level> spaces before each line of <out>, unless there is only one line.
+ * The input argument is automatically freed and reassigned. The result will have to be
+ * freed by the caller.
+ * Example of use :
+ *   parse(cmd, &err); (callee: memprintf(&err, ...))
+ *   fprintf(stderr, "Parser said: %s\n", indent_error(&err));
+ *   free(err);
+ */
+char *indent_msg(char **out, int level)
+{
+	char *ret, *in, *p;
+	int needed = 0;
+	int lf = 0;
+	int lastlf = 0;
+	int len;
+
+	in = *out - 1;
+	while ((in = strchr(in + 1, '\n')) != NULL) {
+		lastlf = in - *out;
+		lf++;
+	}
+
+	if (!lf) /* single line, no LF, return it as-is */
+		return *out;
+
+	len = strlen(*out);
+
+	if (lf == 1 && lastlf == len - 1) {
+		/* single line, LF at end, strip it and return as-is */
+		(*out)[lastlf] = 0;
+		return *out;
+	}
+
+	/* OK now we have at least one LF, we need to process the whole string
+	 * as a multi-line string. What we'll do :
+	 *   - prefix with an LF if there is none
+	 *   - add <level> spaces before each line
+	 * This means at most ( 1 + level + (len-lf) + lf*<1+level) ) =
+	 *   1 + level + len + lf * level = 1 + level * (lf + 1) + len.
+	 */
+
+	needed = 1 + level * (lf + 1) + len + 1;
+	p = ret = malloc(needed);
+	in = *out;
+
+	/* skip initial LFs */
+	while (*in == '\n')
+		in++;
+
+	/* copy each line, prefixed with LF and <level> spaces, and without the trailing LF */
+	while (*in) {
+		*p++ = '\n';
+		memset(p, ' ', level);
+		p += level;
+		do {
+			*p++ = *in++;
+		} while (*in && *in != '\n');
+		if (*in)
+			in++;
+	}
+	*p = 0;
+
+	free(*out);
+	*out = ret;
+
+	return ret;
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8
