@@ -30,7 +30,6 @@
 
 extern struct data_ops ssl_sock;
 int ssl_sock_handshake(struct connection *conn, unsigned int flag);
-int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, struct proxy *proxy);
 int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy *proxy);
 void ssl_sock_free_certs(struct bind_conf *bind_conf);
 int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf, struct proxy *px);

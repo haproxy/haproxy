@@ -48,6 +48,7 @@
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/debug.h>
+#include <common/errors.h>
 #include <common/standard.h>
 #include <common/ticks.h>
 #include <common/time.h>
@@ -63,6 +64,7 @@
 #include <proto/fd.h>
 #include <proto/freq_ctr.h>
 #include <proto/frontend.h>
+#include <proto/listener.h>
 #include <proto/log.h>
 #include <proto/shctx.h>
 #include <proto/ssl_sock.h>
@@ -255,29 +257,32 @@ end:
 	return ret;
 }
 
-int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf, struct proxy *curproxy)
+static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf, struct proxy *curproxy, char **err)
 {
 	int ret;
 	SSL_CTX *ctx;
 
 	ctx = SSL_CTX_new(SSLv23_server_method());
 	if (!ctx) {
-		Alert("Proxy '%s': unable to allocate SSL context for bind '%s' at [%s:%d] using cert '%s'.\n",
-		      curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line, path);
+		if (err)
+			memprintf(err, "%sunable to allocate SSL context for cert '%s'.\n",
+				  *err ? *err : "", path);
 		return 1;
 	}
 
 	if (SSL_CTX_use_PrivateKey_file(ctx, path, SSL_FILETYPE_PEM) <= 0) {
-		Alert("Proxy '%s': unable to load SSL private key from file '%s' in bind '%s' at [%s:%d].\n",
-			      curproxy->id, path, bind_conf->arg, bind_conf->file, bind_conf->line);
+		if (err)
+			memprintf(err, "%sunable to load SSL private key from PEM file '%s'.\n",
+				  *err ? *err : "", path);
 		SSL_CTX_free(ctx);
 		return 1;
 	}
 
 	ret = ssl_sock_load_cert_chain_file(ctx, path, bind_conf);
 	if (ret <= 0) {
-		Alert("Proxy '%s': unable to load SSL certificate from file '%s' in bind '%s' at [%s:%d].\n",
-		      curproxy->id, path, bind_conf->arg, bind_conf->file, bind_conf->line);
+		if (err)
+			memprintf(err, "%sunable to load SSL certificate from PEM file '%s'.\n",
+				  *err ? *err : "", path);
 		if (ret < 0) /* serious error, must do that ourselves */
 			SSL_CTX_free(ctx);
 		return 1;
@@ -287,8 +292,9 @@ int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf, struc
 	 */
 #ifndef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	if (bind_conf->default_ctx) {
-		Alert("Proxy '%s': file '%s' : this version of openssl cannot load multiple SSL certificates in bind '%s' at [%s:%d].\n",
-		      curproxy->id, path, bind_conf->arg, bind_conf->file, bind_conf->line);
+		if (err)
+			memprintf(err, "%sthis version of openssl cannot load multiple SSL certificates.\n",
+				  *err ? *err : "");
 		return 1;
 	}
 #endif
@@ -298,7 +304,7 @@ int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf, struc
 	return 0;
 }
 
-int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, struct proxy *curproxy)
+int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, struct proxy *curproxy, char **err)
 {
 	struct dirent *de;
 	DIR *dir;
@@ -308,7 +314,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, struct proxy *cu
 	int cfgerr = 0;
 
 	if (!(dir = opendir(path)))
-		return ssl_sock_load_cert_file(path, bind_conf, curproxy);
+		return ssl_sock_load_cert_file(path, bind_conf, curproxy, err);
 
 	/* strip trailing slashes, including first one */
 	for (end = path + strlen(path) - 1; end >= path && *end == '/'; end--)
@@ -321,14 +327,15 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, struct proxy *cu
 	while ((de = readdir(dir))) {
 		snprintf(fp, pathlen + 1 + NAME_MAX + 1, "%s/%s", path, de->d_name);
 		if (stat(fp, &buf) != 0) {
-			Alert("Proxy '%s': unable to stat SSL certificate from file '%s' in bind '%s' at [%s:%d] : %s.\n",
-			      curproxy->id, fp, bind_conf->arg, bind_conf->file, bind_conf->line, strerror(errno));
+			if (err)
+				memprintf(err, "%sunable to stat SSL certificate from file '%s' : %s.\n",
+					  *err ? *err : "", fp, strerror(errno));
 			cfgerr++;
 			continue;
 		}
 		if (!S_ISREG(buf.st_mode))
 			continue;
-		cfgerr += ssl_sock_load_cert_file(fp, bind_conf, curproxy);
+		cfgerr += ssl_sock_load_cert_file(fp, bind_conf, curproxy, err);
 	}
 	free(fp);
 	closedir(dir);
@@ -811,6 +818,62 @@ smp_fetch_ssl_sni(struct proxy *px, struct session *l4, void *l7, unsigned int o
 #endif
 }
 
+/* parse the "ciphers" bind keyword */
+static int bind_parse_ciphers(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+{
+	if (!*args[cur_arg + 1]) {
+		if (err)
+			memprintf(err, "'%s' : missing cipher suite", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	px->listen->bind_conf->ciphers = strdup(args[cur_arg + 1]);
+	return 0;
+}
+
+/* parse the "crt" bind keyword */
+static int bind_parse_crt(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+{
+	if (!*args[cur_arg + 1]) {
+		if (err)
+			memprintf(err, "'%s' : missing certificate location", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (ssl_sock_load_cert(args[cur_arg + 1], px->listen->bind_conf, px, err) > 0)
+		return ERR_ALERT | ERR_FATAL;
+
+	return 0;
+}
+
+/* parse the "nosslv3" bind keyword */
+static int bind_parse_nosslv3(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+{
+	px->listen->bind_conf->nosslv3 = 1;
+	return 0;
+}
+
+/* parse the "notlsv1" bind keyword */
+static int bind_parse_notlsv1(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+{
+	px->listen->bind_conf->notlsv1 = 1;
+	return 0;
+}
+
+/* parse the "prefer-server-ciphers" bind keyword */
+static int bind_parse_psc(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+{
+	px->listen->bind_conf->prefer_server_ciphers = 1;
+	return 0;
+}
+
+/* parse the "ssl" bind keyword */
+static int bind_parse_ssl(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+{
+	px->listen->bind_conf->is_ssl = 1;
+	return 0;
+}
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
@@ -833,6 +896,22 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ NULL, NULL, NULL, NULL },
 }};
 
+/* Note: must not be declared <const> as its list will be overwritten.
+ * Please take care of keeping this list alphabetically sorted, doing so helps
+ * all code contributors.
+ * Optional keywords are also declared with a NULL ->parse() function so that
+ * the config parser can report an appropriate error when a known keyword was
+ * not enabled.
+ */
+static struct bind_kw_list bind_kws = {{ },{
+	{ "ciphers",               bind_parse_ciphers, 1 }, /* set SSL cipher suite */
+	{ "crt",                   bind_parse_crt,     1 }, /* load SSL certificates from this location */
+	{ "nosslv3",               bind_parse_nosslv3, 0 }, /* disable SSLv3 */
+	{ "notlsv1",               bind_parse_notlsv1, 0 }, /* disable TLSv1 */
+	{ "prefer-server-ciphers", bind_parse_psc,     0 }, /* prefer server ciphers */
+	{ "ssl",                   bind_parse_ssl,     0 }, /* enable SSL processing */
+	{ NULL, NULL, 0 },
+}};
 
 /* data-layer operations for SSL sockets */
 struct data_ops ssl_sock = {
@@ -855,6 +934,7 @@ static void __ssl_sock_init(void) {
 	sk_SSL_COMP_zero(cm);
 	sample_register_fetches(&sample_fetch_keywords);
 	acl_register_keywords(&acl_kws);
+	bind_register_keywords(&bind_kws);
 }
 
 /*
