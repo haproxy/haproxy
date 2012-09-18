@@ -43,6 +43,8 @@ struct cfg_keyword {
 		     int section_type,          /* current section CFG_{GLOBAL|LISTEN} */
 		     struct proxy *curpx,       /* current proxy (NULL in GLOBAL) */
 		     struct proxy *defpx,       /* default proxy (NULL in GLOBAL) */
+		     const char *file,          /* config file name */
+		     int line,                  /* config file line number */
 		     char **err);               /* error or warning message output pointer */
 };
 

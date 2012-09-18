@@ -1069,7 +1069,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 					/* prepare error message just in case */
 					snprintf(trash, trashlen,
 						 "error near '%s' in '%s' section", args[0], "global");
-					rc = kwl->kw[index].parse(args, CFG_GLOBAL, NULL, NULL, &errmsg);
+					rc = kwl->kw[index].parse(args, CFG_GLOBAL, NULL, NULL, file, linenum, &errmsg);
 					if (rc < 0) {
 						Alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
 						err_code |= ERR_ALERT | ERR_FATAL;
@@ -5184,7 +5184,7 @@ stats_error_parsing:
 					/* prepare error message just in case */
 					snprintf(trash, trashlen,
 						 "error near '%s' in %s section", args[0], cursection);
-					rc = kwl->kw[index].parse(args, CFG_LISTEN, curproxy, &defproxy, &errmsg);
+					rc = kwl->kw[index].parse(args, CFG_LISTEN, curproxy, &defproxy, file, linenum, &errmsg);
 					if (rc < 0) {
 						Alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
 						err_code |= ERR_ALERT | ERR_FATAL;

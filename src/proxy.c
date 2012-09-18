@@ -133,7 +133,8 @@ int get_backend_server(const char *bk_name, const char *sv_name,
  * "{cli|srv|con}timeout" in args[0].
  */
 static int proxy_parse_timeout(char **args, int section, struct proxy *proxy,
-                               struct proxy *defpx, char **err)
+                               struct proxy *defpx, const char *file, int line,
+                               char **err)
 {
 	unsigned timeout;
 	int retval, cap;
@@ -229,7 +230,8 @@ static int proxy_parse_timeout(char **args, int section, struct proxy *proxy,
  * parsed, and <defpx> to the default proxy or NULL.
  */
 static int proxy_parse_rate_limit(char **args, int section, struct proxy *proxy,
-                                  struct proxy *defpx, char **err)
+                                  struct proxy *defpx, const char *file, int line,
+                                  char **err)
 {
 	int retval, cap;
 	char *res;

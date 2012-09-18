@@ -177,7 +177,8 @@ static struct proxy *alloc_stats_fe(const char *name)
  * the first word after "stats".
  */
 static int stats_parse_global(char **args, int section_type, struct proxy *curpx,
-			      struct proxy *defpx, char **err)
+                              struct proxy *defpx, const char *file, int line,
+                              char **err)
 {
 	if (!strcmp(args[1], "socket")) {
 		struct sockaddr_un *su;
