@@ -1716,16 +1716,16 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				int val;
 
 				if (!*args[cur_arg + 1]) {
-					Alert("parsing [%s:%d] : '%s' : missing maxconn value.\n",
-					      file, linenum, args[0]);
+					Alert("parsing [%s:%d] : '%s %s' : missing maxconn value.\n",
+					      file, linenum, args[0], args[1]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
 
 				val = atol(args[cur_arg + 1]);
 				if (val <= 0) {
-					Alert("parsing [%s:%d] : '%s' : invalid maxconn value %d, must be > 0.\n",
-					      file, linenum, args[0], val);
+					Alert("parsing [%s:%d] : '%s %s' : invalid maxconn value %d, must be > 0.\n",
+					      file, linenum, args[0], args[1], val);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
@@ -1742,16 +1742,16 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				int val;
 
 				if (!*args[cur_arg + 1]) {
-					Alert("parsing [%s:%d] : '%s' : missing backlog value.\n",
-					      file, linenum, args[0]);
+					Alert("parsing [%s:%d] : '%s %s' : missing backlog value.\n",
+					      file, linenum, args[0], args[1]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
 
 				val = atol(args[cur_arg + 1]);
 				if (val <= 0) {
-					Alert("parsing [%s:%d] : '%s' : invalid backlog value %d, must be > 0.\n",
-					      file, linenum, args[0], val);
+					Alert("parsing [%s:%d] : '%s %s' : invalid backlog value %d, must be > 0.\n",
+					      file, linenum, args[0], args[1], val);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
@@ -1768,16 +1768,16 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				int val;
 
 				if (!*args[cur_arg + 1]) {
-					Alert("parsing [%s:%d] : '%s' : missing nice value.\n",
-					      file, linenum, args[0]);
+					Alert("parsing [%s:%d] : '%s %s' : missing nice value.\n",
+					      file, linenum, args[0], args[1]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
 
 				val = atol(args[cur_arg + 1]);
 				if (val < -1024 || val > 1024) {
-					Alert("parsing [%s:%d] : '%s' : invalid nice value %d, allowed range is -1024..1024.\n",
-					      file, linenum, args[0], val);
+					Alert("parsing [%s:%d] : '%s %s' : invalid nice value %d, allowed range is -1024..1024.\n",
+					      file, linenum, args[0], args[1], val);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
@@ -1814,15 +1814,15 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				struct listener *l;
 
 				if (curproxy->listen->next != last_listen) {
-					Alert("parsing [%s:%d]: '%s' can be only used with a single socket.\n",
-						file, linenum, args[cur_arg]);
+					Alert("parsing [%s:%d]: '%s %s' : '%s' can be only used with a single socket.\n",
+					      file, linenum, args[0], args[1], args[cur_arg]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
 
 				if (!*args[cur_arg + 1]) {
-					Alert("parsing [%s:%d]: '%s' expects an integer argument.\n",
-						file, linenum, args[cur_arg]);
+					Alert("parsing [%s:%d]: '%s %s' : '%s' expects an integer argument.\n",
+					      file, linenum, args[0], args[1], args[cur_arg]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
@@ -1831,8 +1831,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				curproxy->listen->conf.id.key = curproxy->listen->luid;
 
 				if (curproxy->listen->luid <= 0) {
-					Alert("parsing [%s:%d]: custom id has to be > 0\n",
-						file, linenum);
+					Alert("parsing [%s:%d]: '%s %s' : custom id has to be > 0\n",
+					      file, linenum, args[0], args[1]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
@@ -1840,8 +1840,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				node = eb32_lookup(&curproxy->conf.used_listener_id, curproxy->listen->luid);
 				if (node) {
 					l = container_of(node, struct listener, conf.id);
-					Alert("parsing [%s:%d]: custom id %d for socket '%s' already used at %s:%d.\n",
-					      file, linenum, l->luid, args[1], l->bind_conf->file, l->bind_conf->line);
+					Alert("parsing [%s:%d]: '%s %s' : custom id %d already used at %s:%d ('bind %s').\n",
+					      file, linenum, args[0], args[1], l->luid, l->bind_conf->file, l->bind_conf->line,
+					      l->bind_conf->arg);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
@@ -1854,8 +1855,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			if (!strcmp(args[cur_arg], "mode")) {
 
 				if (curproxy->listen->addr.ss_family != AF_UNIX) {
-					Alert("parsing [%s:%d] : '%s' : '%s' option only supported on unix sockets.\n",
-					      file, linenum, args[0], args[cur_arg]);
+					Alert("parsing [%s:%d] : '%s %s' : '%s' option only supported on unix sockets.\n",
+					      file, linenum, args[0], args[1], args[cur_arg]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
@@ -1869,8 +1870,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			if (!strcmp(args[cur_arg], "uid")) {
 
                                 if (curproxy->listen->addr.ss_family != AF_UNIX) {
-                                        Alert("parsing [%s:%d] : '%s' : '%s' option only supported on unix sockets.\n",
-                                                file, linenum, args[0], args[cur_arg]);
+                                        Alert("parsing [%s:%d] : '%s %s' : '%s' option only supported on unix sockets.\n",
+					      file, linenum, args[0], args[1], args[cur_arg]);
                                         err_code |= ERR_ALERT | ERR_FATAL;
                                         goto out;
                                 }
@@ -1883,8 +1884,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			if (!strcmp(args[cur_arg], "gid")) {
 
                                 if (curproxy->listen->addr.ss_family != AF_UNIX) {
-                                        Alert("parsing [%s:%d] : '%s' : '%s' option only supported on unix sockets.\n",
-                                                file, linenum, args[0], args[cur_arg]);
+                                        Alert("parsing [%s:%d] : '%s %s' : '%s' option only supported on unix sockets.\n",
+					      file, linenum, args[0], args[1], args[cur_arg]);
                                         err_code |= ERR_ALERT | ERR_FATAL;
                                         goto out;
                                 }
@@ -1898,15 +1899,15 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				struct passwd *user;
 
 				if (curproxy->listen->addr.ss_family != AF_UNIX) {
-					Alert("parsing [%s:%d] : '%s' : '%s' option only supported on unix sockets.\n",
-						file, linenum, args[0], args[cur_arg]);
+					Alert("parsing [%s:%d] : '%s %s' : '%s' option only supported on unix sockets.\n",
+					      file, linenum, args[0], args[1], args[cur_arg]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
 				user = getpwnam(args[cur_arg + 1]);
 				if (!user) {
-					Alert("parsing [%s:%d] : '%s' : '%s' unknown user.\n",
-						file, linenum, args[0], args[cur_arg + 1 ]);
+					Alert("parsing [%s:%d] : '%s %s' : '%s' unknown user.\n",
+					      file, linenum, args[0], args[1], args[cur_arg + 1 ]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
@@ -1920,15 +1921,15 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				struct group *group;
 
 				if (curproxy->listen->addr.ss_family != AF_UNIX) {
-					Alert("parsing [%s:%d] : '%s' : '%s' option only supported on unix sockets.\n",
-						file, linenum, args[0], args[cur_arg]);
+					Alert("parsing [%s:%d] : '%s %s' : '%s' option only supported on unix sockets.\n",
+					      file, linenum, args[0], args[1], args[cur_arg]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
 				group = getgrnam(args[cur_arg + 1]);
 				if (!group) {
-					Alert("parsing [%s:%d] : '%s' : '%s' unknown group.\n",
-						file, linenum, args[0], args[cur_arg + 1 ]);
+					Alert("parsing [%s:%d] : '%s %s' : '%s' unknown group.\n",
+					      file, linenum, args[0], args[1], args[cur_arg + 1 ]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
@@ -1944,8 +1945,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				int code;
 
 				if (!kw->parse) {
-					Alert("parsing [%s:%d] : '%s' : '%s' option is not implemented in this version (check build options).\n",
-					      file, linenum, args[0], args[cur_arg]);
+					Alert("parsing [%s:%d] : '%s %s' : '%s' option is not implemented in this version (check build options).\n",
+					      file, linenum, args[0], args[1], args[cur_arg]);
 					cur_arg += 1 + kw->skip ;
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
@@ -1957,11 +1958,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				if (code) {
 					if (err && *err) {
 						indent_msg(&err, 2);
-						Alert("parsing [%s:%d] : '%s' : %s\n", file, linenum, args[0], err);
+						Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], err);
 					}
 					else
-						Alert("parsing [%s:%d] : '%s' : error encountered while processing '%s'.\n",
-						      file, linenum, args[0], args[cur_arg]);
+						Alert("parsing [%s:%d] : '%s %s' : error encountered while processing '%s'.\n",
+						      file, linenum, args[0], args[1], args[cur_arg]);
 					if (code & ERR_FATAL) {
 						free(err);
 						cur_arg += 1 + kw->skip;
@@ -1973,8 +1974,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				continue;
 			}
 
-			Alert("parsing [%s:%d] : '%s' only supports the 'transparent', 'accept-proxy', 'defer-accept', 'name', 'id', 'mss', 'mode', 'uid', 'gid', 'user', 'group' and 'interface' options.\n",
-			      file, linenum, args[0]);
+			Alert("parsing [%s:%d] : '%s %s' only supports the 'transparent', 'accept-proxy', 'defer-accept', 'name', 'id', 'mss', 'mode', 'uid', 'gid', 'user', 'group' and 'interface' options.\n",
+			      file, linenum, args[0], args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
