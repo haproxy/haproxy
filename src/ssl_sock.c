@@ -903,7 +903,7 @@ static struct acl_kw_list acl_kws = {{ },{
  * the config parser can report an appropriate error when a known keyword was
  * not enabled.
  */
-static struct bind_kw_list bind_kws = {{ },{
+static struct bind_kw_list bind_kws = { "SSL", { }, {
 	{ "ciphers",               bind_parse_ciphers, 1 }, /* set SSL cipher suite */
 	{ "crt",                   bind_parse_crt,     1 }, /* load SSL certificates from this location */
 	{ "nosslv3",               bind_parse_nosslv3, 0 }, /* disable SSLv3 */

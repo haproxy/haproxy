@@ -469,9 +469,11 @@ void bind_dump_kws(char **out)
 		for (index = 0; kwl->kw[index].kw != NULL; index++) {
 			if (kwl->kw[index].parse ||
 			    bind_find_kw(kwl->kw[index].kw) == &kwl->kw[index]) {
-				memprintf(out, "%s%s %s\n", *out ? *out : "",
+				memprintf(out, "%s[%4s] %s%s%s\n", *out ? *out : "",
+				          kwl->scope,
 				          kwl->kw[index].kw,
-				          kwl->kw[index].parse ? "" : "(not supported)");
+				          kwl->kw[index].skip ? " <arg>" : "",
+				          kwl->kw[index].parse ? "" : " (not supported)");
 			}
 		}
 	}
@@ -662,7 +664,7 @@ static struct acl_kw_list acl_kws = {{ },{
  * the config parser can report an appropriate error when a known keyword was
  * not enabled.
  */
-static struct bind_kw_list bind_kws = {{ },{
+static struct bind_kw_list bind_kws = { "ALL", { }, {
 	{ "accept-proxy", bind_parse_accept_proxy, 0 }, /* enable PROXY protocol */
 	{ "backlog",      bind_parse_backlog,      1 }, /* set backlog of listening socket */
 	{ "id",           bind_parse_id,           1 }, /* set id of listening socket */

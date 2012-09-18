@@ -1842,7 +1842,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
  * the config parser can report an appropriate error when a known keyword was
  * not enabled.
  */
-static struct bind_kw_list bind_kws = {{ },{
+static struct bind_kw_list bind_kws = { "TCP", { }, {
 #ifdef TCP_DEFER_ACCEPT
 	{ "defer-accept",  bind_parse_defer_accept, 0 }, /* wait for some data for 1 second max before doing accept */
 #endif

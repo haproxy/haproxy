@@ -493,7 +493,7 @@ static int bind_parse_user(char **args, int cur_arg, struct proxy *px, struct li
  * the config parser can report an appropriate error when a known keyword was
  * not enabled.
  */
-static struct bind_kw_list bind_kws = {{ },{
+static struct bind_kw_list bind_kws = { "UNIX", { }, {
 	{ "gid",   bind_parse_gid,   1 },      /* set the socket's gid */
 	{ "group", bind_parse_group, 1 },      /* set the socket's gid from the group name */
 	{ "mode",  bind_parse_mode,  1 },      /* set the socket's mode (eg: 0644)*/

@@ -173,9 +173,10 @@ struct bind_kw {
  * A keyword list. It is a NULL-terminated array of keywords. It embeds a
  * struct list in order to be linked to other lists, allowing it to easily
  * be declared where it is needed, and linked without duplicating data nor
- * allocating memory.
+ * allocating memory. It is also possible to indicate a scope for the keywords.
  */
 struct bind_kw_list {
+	const char *scope;
 	struct list list;
 	struct bind_kw kw[VAR_ARRAY];
 };
