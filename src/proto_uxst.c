@@ -13,6 +13,8 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <pwd.h>
+#include <grp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -346,6 +348,159 @@ static int uxst_unbind_listeners(struct protocol *proto)
 	return ERR_NONE;
 }
 
+/* parse the "mode" bind keyword */
+static int bind_parse_mode(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+{
+	struct listener *l;
+	int val;
+
+	if (px->listen->addr.ss_family != AF_UNIX) {
+		if (err)
+			memprintf(err, "'%s' option is only supported on unix sockets", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (!*args[cur_arg + 1]) {
+		if (err)
+			memprintf(err, "'%s' : missing mode (octal integer expected)", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	val = strtol(args[cur_arg + 1], NULL, 8);
+
+	for (l = px->listen; l != last; l = l->next)
+		l->perm.ux.mode = val;
+
+	return 0;
+}
+
+/* parse the "gid" bind keyword */
+static int bind_parse_gid(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+{
+	struct listener *l;
+	int val;
+
+	if (px->listen->addr.ss_family != AF_UNIX) {
+		if (err)
+			memprintf(err, "'%s' option is only supported on unix sockets", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (!*args[cur_arg + 1]) {
+		if (err)
+			memprintf(err, "'%s' : missing value", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	val = atol(args[cur_arg + 1]);
+	for (l = px->listen; l != last; l = l->next)
+		l->perm.ux.gid = val;
+
+	return 0;
+}
+
+/* parse the "group" bind keyword */
+static int bind_parse_group(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+{
+	struct listener *l;
+	struct group *group;
+
+	if (px->listen->addr.ss_family != AF_UNIX) {
+		if (err)
+			memprintf(err, "'%s' option is only supported on unix sockets", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (!*args[cur_arg + 1]) {
+		if (err)
+			memprintf(err, "'%s' : missing group name", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	group = getgrnam(args[cur_arg + 1]);
+	if (!group) {
+		if (err)
+			memprintf(err, "'%s' : unknown group name '%s'", args[cur_arg], args[cur_arg + 1]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	for (l = px->listen; l != last; l = l->next)
+		l->perm.ux.gid = group->gr_gid;
+
+	return 0;
+}
+
+/* parse the "uid" bind keyword */
+static int bind_parse_uid(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+{
+	struct listener *l;
+	int val;
+
+	if (px->listen->addr.ss_family != AF_UNIX) {
+		if (err)
+			memprintf(err, "'%s' option is only supported on unix sockets", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (!*args[cur_arg + 1]) {
+		if (err)
+			memprintf(err, "'%s' : missing value", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	val = atol(args[cur_arg + 1]);
+	for (l = px->listen; l != last; l = l->next)
+		l->perm.ux.uid = val;
+
+	return 0;
+}
+
+/* parse the "user" bind keyword */
+static int bind_parse_user(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+{
+	struct listener *l;
+	struct passwd *user;
+
+	if (px->listen->addr.ss_family != AF_UNIX) {
+		if (err)
+			memprintf(err, "'%s' option is only supported on unix sockets", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (!*args[cur_arg + 1]) {
+		if (err)
+			memprintf(err, "'%s' : missing user name", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	user = getpwnam(args[cur_arg + 1]);
+	if (!user) {
+		if (err)
+			memprintf(err, "'%s' : unknown user name '%s'", args[cur_arg], args[cur_arg + 1]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	for (l = px->listen; l != last; l = l->next)
+		l->perm.ux.uid = user->pw_uid;
+
+	return 0;
+}
+
+/* Note: must not be declared <const> as its list will be overwritten.
+ * Please take care of keeping this list alphabetically sorted, doing so helps
+ * all code contributors.
+ * Optional keywords are also declared with a NULL ->parse() function so that
+ * the config parser can report an appropriate error when a known keyword was
+ * not enabled.
+ */
+static struct bind_kw_list bind_kws = {{ },{
+	{ "gid",   bind_parse_gid,   1 },      /* set the socket's gid */
+	{ "group", bind_parse_group, 1 },      /* set the socket's gid from the group name */
+	{ "mode",  bind_parse_mode,  1 },      /* set the socket's mode (eg: 0644)*/
+	{ "uid",   bind_parse_uid,   1 },      /* set the socket's uid */
+	{ "user",  bind_parse_user,  1 },      /* set the socket's uid from the user name */
+	{ NULL, NULL, 0 },
+}};
 
 /********************************
  * 4) high-level functions
@@ -355,6 +510,7 @@ __attribute__((constructor))
 static void __uxst_protocol_init(void)
 {
 	protocol_register(&proto_unix);
+	bind_register_keywords(&bind_kws);
 }
 
 
