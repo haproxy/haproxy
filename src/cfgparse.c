@@ -1709,7 +1709,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 		cur_arg = 2;
 		while (*(args[cur_arg])) {
+			static int bind_dumped;
 			struct bind_kw *kw;
+			char *err;
+
 			kw = bind_find_kw(args[cur_arg]);
 			if (kw) {
 				char *err = NULL;
@@ -1745,8 +1748,18 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				continue;
 			}
 
-			Alert("parsing [%s:%d] : '%s %s' only supports the 'transparent', 'accept-proxy', 'defer-accept', 'name', 'id', 'mss', 'mode', 'uid', 'gid', 'user', 'group' and 'interface' options.\n",
-			      file, linenum, args[0], args[1]);
+			err = NULL;
+			if (!bind_dumped) {
+				bind_dump_kws(&err);
+				indent_msg(&err, 4);
+				bind_dumped = 1;
+			}
+
+			Alert("parsing [%s:%d] : '%s %s' unknown keyword '%s'.%s%s\n",
+			      file, linenum, args[0], args[1], args[cur_arg],
+			      err ? " Registered keywords :" : "", err ? err : "");
+			free(err);
+
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}

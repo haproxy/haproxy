@@ -455,6 +455,28 @@ struct bind_kw *bind_find_kw(const char *kw)
 	return ret;
 }
 
+/* Dumps all registered "bind" keywords to the <out> string pointer. The
+ * unsupported keywords are only dumped if their supported form was not
+ * found.
+ */
+void bind_dump_kws(char **out)
+{
+	struct bind_kw_list *kwl;
+	int index;
+
+	*out = NULL;
+	list_for_each_entry(kwl, &bind_keywords.list, list) {
+		for (index = 0; kwl->kw[index].kw != NULL; index++) {
+			if (kwl->kw[index].parse ||
+			    bind_find_kw(kwl->kw[index].kw) == &kwl->kw[index]) {
+				memprintf(out, "%s%s %s\n", *out ? *out : "",
+				          kwl->kw[index].kw,
+				          kwl->kw[index].parse ? "" : "(not supported)");
+			}
+		}
+	}
+}
+
 /************************************************************************/
 /*           All supported ACL keywords must be declared here.          */
 /************************************************************************/

@@ -114,6 +114,9 @@ void bind_register_keywords(struct bind_kw_list *kwl);
 /* Return a pointer to the bind keyword <kw>, or NULL if not found. */
 struct bind_kw *bind_find_kw(const char *kw);
 
+/* Dumps all registered "bind" keywords to the <out> string pointer. */
+void bind_dump_kws(char **out);
+
 /* allocate an bind_conf struct for a bind line, and chain it to list head <lh>.
  * If <arg> is not NULL, it is duplicated into ->arg to store useful config
  * information for error reporting.
