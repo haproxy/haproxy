@@ -479,6 +479,151 @@ acl_fetch_so_id(struct proxy *px, struct session *l4, void *l7, unsigned int opt
 	return 1;
 }
 
+/* parse the "accept-proxy" bind keyword */
+static int bind_parse_accept_proxy(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+{
+	struct listener *l;
+
+	for (l = px->listen; l != last; l = l->next)
+		l->options |= LI_O_ACC_PROXY;
+
+	return 0;
+}
+
+/* parse the "backlog" bind keyword */
+static int bind_parse_backlog(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+{
+	struct listener *l;
+	int val;
+
+	if (!*args[cur_arg + 1]) {
+		if (err)
+			memprintf(err, "'%s' : missing value", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	val = atol(args[cur_arg + 1]);
+	if (val <= 0) {
+		if (err)
+			memprintf(err, "'%s' : invalid value %d, must be > 0", args[cur_arg], val);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	for (l = px->listen; l != last; l = l->next)
+		l->backlog = val;
+
+	return 0;
+}
+
+/* parse the "id" bind keyword */
+static int bind_parse_id(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+{
+	struct eb32_node *node;
+	struct listener *l;
+
+	if (px->listen->next != last) {
+		if (err)
+			memprintf(err, "'%s' can only be used with a single socket", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (!*args[cur_arg + 1]) {
+		if (err)
+			memprintf(err, "'%s' : expects an integer argument", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	px->listen->luid = atol(args[cur_arg + 1]);
+	px->listen->conf.id.key = px->listen->luid;
+
+	if (px->listen->luid <= 0) {
+		if (err)
+			memprintf(err, "'%s' : custom id has to be > 0", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	node = eb32_lookup(&px->conf.used_listener_id, px->listen->luid);
+	if (node) {
+		l = container_of(node, struct listener, conf.id);
+		if (err)
+			memprintf(err, "'%s' : custom id %d already used at %s:%d ('bind %s')",
+			          args[cur_arg], l->luid, l->bind_conf->file, l->bind_conf->line,
+			          l->bind_conf->arg);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	eb32_insert(&px->conf.used_listener_id, &px->listen->conf.id);
+	return 0;
+}
+
+/* parse the "maxconn" bind keyword */
+static int bind_parse_maxconn(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+{
+	struct listener *l;
+	int val;
+
+	if (!*args[cur_arg + 1]) {
+		if (err)
+			memprintf(err, "'%s' : missing value", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	val = atol(args[cur_arg + 1]);
+	if (val <= 0) {
+		if (err)
+			memprintf(err, "'%s' : invalid value %d, must be > 0", args[cur_arg], val);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	for (l = px->listen; l != last; l = l->next)
+		l->maxconn = val;
+
+	return 0;
+}
+
+/* parse the "name" bind keyword */
+static int bind_parse_name(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+{
+	struct listener *l;
+
+	if (!*args[cur_arg + 1]) {
+		if (err)
+			memprintf(err, "'%s' : missing name", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	for (l = px->listen; l != last; l = l->next)
+		l->name = strdup(args[cur_arg + 1]);
+
+	return 0;
+}
+
+/* parse the "nice" bind keyword */
+static int bind_parse_nice(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+{
+	struct listener *l;
+	int val;
+
+	if (!*args[cur_arg + 1]) {
+		if (err)
+			memprintf(err, "'%s' : missing value", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	val = atol(args[cur_arg + 1]);
+	if (val < -1024 || val > 1024) {
+		if (err)
+			memprintf(err, "'%s' : invalid value %d, allowed range is -1024..1024", args[cur_arg], val);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	for (l = px->listen; l != last; l = l->next)
+		l->nice = val;
+
+	return 0;
+}
+
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
@@ -488,10 +633,28 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ NULL, NULL, NULL, NULL },
 }};
 
+/* Note: must not be declared <const> as its list will be overwritten.
+ * Please take care of keeping this list alphabetically sorted, doing so helps
+ * all code contributors.
+ * Optional keywords are also declared with a NULL ->parse() function so that
+ * the config parser can report an appropriate error when a known keyword was
+ * not enabled.
+ */
+static struct bind_kw_list bind_kws = {{ },{
+	{ "accept-proxy", bind_parse_accept_proxy, 0 }, /* enable PROXY protocol */
+	{ "backlog",      bind_parse_backlog,      1 }, /* set backlog of listening socket */
+	{ "id",           bind_parse_id,           1 }, /* set id of listening socket */
+	{ "maxconn",      bind_parse_maxconn,      1 }, /* set maxconn of listening socket */
+	{ "name",         bind_parse_name,         1 }, /* set name of listening socket */
+	{ "nice",         bind_parse_nice,         1 }, /* set nice of listening socket */
+	{ NULL, NULL, 0 },
+}};
+
 __attribute__((constructor))
 static void __listener_init(void)
 {
 	acl_register_keywords(&acl_kws);
+	bind_register_keywords(&bind_kws);
 }
 
 /*
