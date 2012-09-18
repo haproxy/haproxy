@@ -1447,12 +1447,17 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		/* parse the listener address if any */
 		if ((curproxy->cap & PR_CAP_FE) && *args[2]) {
 			struct listener *new, *last = curproxy->listen;
+
 			if (!str2listener(args[2], curproxy, file, linenum)) {
 				err_code |= ERR_FATAL;
 				goto out;
 			}
+
+			bind_conf = bind_conf_alloc(&curproxy->conf.bind, file, linenum, args[2]);
+
 			new = curproxy->listen;
 			while (new != last) {
+				new->bind_conf = bind_conf;
 				new = new->next;
 				global.maxsock++;
 			}
