@@ -151,7 +151,7 @@ static int stats_accept(struct session *s)
 /* allocate a new stats frontend named <name>, and return it
  * (or NULL in case of lack of memory).
  */
-static struct proxy *alloc_stats_fe(const char *name)
+static struct proxy *alloc_stats_fe(const char *name, const char *file, int line)
 {
 	struct proxy *fe;
 
@@ -166,7 +166,8 @@ static struct proxy *alloc_stats_fe(const char *name)
 	fe->cap = PR_CAP_FE;
 	fe->maxconn = 10;                 /* default to 10 concurrent connections */
 	fe->timeout.client = MS_TO_TICKS(10000); /* default timeout of 10 seconds */
-
+	fe->conf.file = strdup(file);
+	fe->conf.line = line;
 	return fe;
 }
 
@@ -202,7 +203,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		memcpy(&global.stats_sock.addr, su, sizeof(struct sockaddr_un)); // guaranteed to fit
 
 		if (!global.stats_fe) {
-			if ((global.stats_fe = alloc_stats_fe("GLOBAL")) == NULL) {
+			if ((global.stats_fe = alloc_stats_fe("GLOBAL", file, line)) == NULL) {
 				memprintf(err, "'%s %s' : out of memory trying to allocate a frontend", args[0], args[1]);
 				return -1;
 			}
@@ -296,7 +297,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 			return -1;
 		}
 		if (!global.stats_fe) {
-			if ((global.stats_fe = alloc_stats_fe("GLOBAL")) == NULL) {
+			if ((global.stats_fe = alloc_stats_fe("GLOBAL", file, line)) == NULL) {
 				memprintf(err, "'%s %s' : out of memory trying to allocate a frontend", args[0], args[1]);
 				return -1;
 			}
@@ -312,7 +313,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		}
 
 		if (!global.stats_fe) {
-			if ((global.stats_fe = alloc_stats_fe("GLOBAL")) == NULL) {
+			if ((global.stats_fe = alloc_stats_fe("GLOBAL", file, line)) == NULL) {
 				memprintf(err, "'%s %s' : out of memory trying to allocate a frontend", args[0], args[1]);
 				return -1;
 			}
