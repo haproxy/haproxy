@@ -605,7 +605,7 @@ void init(int argc, char **argv)
 				break;
 
 		for (px = proxy; px; px = px->next)
-			if (px->state == PR_STNEW && px->listen)
+			if (px->state == PR_STNEW && !LIST_ISEMPTY(&px->conf.listeners))
 				break;
 
 		if (pr || px) {
@@ -1032,21 +1032,17 @@ void deinit(void)
 			s = s_next;
 		}/* end while(s) */
 
-		l = p->listen;
-		while (l) {
-			l_next = l->next;
+		list_for_each_entry_safe(l, l_next, &p->conf.listeners, by_fe) {
 			unbind_listener(l);
 			delete_listener(l);
-			l->bind_conf = NULL;
+			LIST_DEL(&l->by_fe);
+			LIST_DEL(&l->by_bind);
 			free(l->name);
 			free(l->counters);
 			free(l);
-			l = l_next;
-		}/* end while(l) */
+		}
 
-		bind_back = bind_conf = NULL;
-		/* Release unused SSL configs.
-		 */
+		/* Release unused SSL configs. */
 		list_for_each_entry_safe(bind_conf, bind_back, &p->conf.bind, by_fe) {
 #ifdef USE_OPENSSL
 			ssl_sock_free_all_ctx(bind_conf);

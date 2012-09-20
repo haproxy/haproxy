@@ -131,6 +131,7 @@ static inline struct bind_conf *bind_conf_alloc(struct list *lh, const char *fil
 		LIST_ADDQ(lh, &bind_conf->by_fe);
 	if (arg)
 		bind_conf->arg = strdup(arg);
+	LIST_INIT(&bind_conf->listeners);
 	return bind_conf;
 }
 

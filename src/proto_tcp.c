@@ -1701,18 +1701,14 @@ static int val_payload_lv(struct arg *arg, char **err_msg)
 
 #ifdef CONFIG_HAP_LINUX_TPROXY
 /* parse the "transparent" bind keyword */
-static int bind_parse_transparent(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+static int bind_parse_transparent(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	struct listener *l;
 
-	if (px->listen->addr.ss_family != AF_INET && px->listen->addr.ss_family != AF_INET6) {
-		if (err)
-			memprintf(err, "'%s' option is only supported on IPv4 and IPv6 sockets", args[cur_arg]);
-		return ERR_ALERT | ERR_FATAL;
+	list_for_each_entry(l, &conf->listeners, by_bind) {
+		if (l->addr.ss_family == AF_INET || l->addr.ss_family == AF_INET6)
+			l->options |= LI_O_FOREIGN;
 	}
-
-	for (l = px->listen; l != last; l = l->next)
-		l->options |= LI_O_FOREIGN;
 
 	return 0;
 }
@@ -1720,18 +1716,14 @@ static int bind_parse_transparent(char **args, int cur_arg, struct proxy *px, st
 
 #ifdef TCP_DEFER_ACCEPT
 /* parse the "defer-accept" bind keyword */
-static int bind_parse_defer_accept(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+static int bind_parse_defer_accept(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	struct listener *l;
 
-	if (px->listen->addr.ss_family != AF_INET && px->listen->addr.ss_family != AF_INET6) {
-		if (err)
-			memprintf(err, "'%s' option is only supported on IPv4 and IPv6 sockets", args[cur_arg]);
-		return ERR_ALERT | ERR_FATAL;
+	list_for_each_entry(l, &conf->listeners, by_bind) {
+		if (l->addr.ss_family == AF_INET || l->addr.ss_family == AF_INET6)
+			l->options |= LI_O_DEF_ACCEPT;
 	}
-
-	for (l = px->listen; l != last; l = l->next)
-		l->options |= LI_O_DEF_ACCEPT;
 
 	return 0;
 }
@@ -1739,16 +1731,10 @@ static int bind_parse_defer_accept(char **args, int cur_arg, struct proxy *px, s
 
 #ifdef TCP_MAXSEG
 /* parse the "mss" bind keyword */
-static int bind_parse_mss(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+static int bind_parse_mss(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	struct listener *l;
 	int mss;
-
-	if (px->listen->addr.ss_family != AF_INET && px->listen->addr.ss_family != AF_INET6) {
-		if (err)
-			memprintf(err, "'%s' option is only supported on IPv4 and IPv6 sockets", args[cur_arg]);
-		return ERR_ALERT | ERR_FATAL;
-	}
 
 	if (!*args[cur_arg + 1]) {
 		if (err)
@@ -1763,8 +1749,10 @@ static int bind_parse_mss(char **args, int cur_arg, struct proxy *px, struct lis
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	for (l = px->listen; l != last; l = l->next)
-		l->maxseg = mss;
+	list_for_each_entry(l, &conf->listeners, by_bind) {
+		if (l->addr.ss_family == AF_INET || l->addr.ss_family == AF_INET6)
+			l->maxseg = mss;
+	}
 
 	return 0;
 }
@@ -1772,15 +1760,9 @@ static int bind_parse_mss(char **args, int cur_arg, struct proxy *px, struct lis
 
 #ifdef SO_BINDTODEVICE
 /* parse the "mss" bind keyword */
-static int bind_parse_interface(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+static int bind_parse_interface(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	struct listener *l;
-
-	if (px->listen->addr.ss_family != AF_INET && px->listen->addr.ss_family != AF_INET6) {
-		if (err)
-			memprintf(err, "'%s' option is only supported on IPv4 and IPv6 sockets", args[cur_arg]);
-		return ERR_ALERT | ERR_FATAL;
-	}
 
 	if (!*args[cur_arg + 1]) {
 		if (err)
@@ -1788,8 +1770,10 @@ static int bind_parse_interface(char **args, int cur_arg, struct proxy *px, stru
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	for (l = px->listen; l != last; l = l->next)
-		l->interface = strdup(args[cur_arg + 1]);
+	list_for_each_entry(l, &conf->listeners, by_bind) {
+		if (l->addr.ss_family == AF_INET || l->addr.ss_family == AF_INET6)
+			l->interface = strdup(args[cur_arg + 1]);
+	}
 
 	global.last_checks |= LSTCHK_NETADM;
 	return 0;

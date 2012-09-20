@@ -349,16 +349,10 @@ static int uxst_unbind_listeners(struct protocol *proto)
 }
 
 /* parse the "mode" bind keyword */
-static int bind_parse_mode(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+static int bind_parse_mode(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	struct listener *l;
 	int val;
-
-	if (px->listen->addr.ss_family != AF_UNIX) {
-		if (err)
-			memprintf(err, "'%s' option is only supported on unix sockets", args[cur_arg]);
-		return ERR_ALERT | ERR_FATAL;
-	}
 
 	if (!*args[cur_arg + 1]) {
 		if (err)
@@ -368,23 +362,19 @@ static int bind_parse_mode(char **args, int cur_arg, struct proxy *px, struct li
 
 	val = strtol(args[cur_arg + 1], NULL, 8);
 
-	for (l = px->listen; l != last; l = l->next)
-		l->perm.ux.mode = val;
+	list_for_each_entry(l, &conf->listeners, by_bind) {
+		if (l->addr.ss_family == AF_UNIX)
+			l->perm.ux.mode = val;
+	}
 
 	return 0;
 }
 
 /* parse the "gid" bind keyword */
-static int bind_parse_gid(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+static int bind_parse_gid(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	struct listener *l;
 	int val;
-
-	if (px->listen->addr.ss_family != AF_UNIX) {
-		if (err)
-			memprintf(err, "'%s' option is only supported on unix sockets", args[cur_arg]);
-		return ERR_ALERT | ERR_FATAL;
-	}
 
 	if (!*args[cur_arg + 1]) {
 		if (err)
@@ -393,23 +383,19 @@ static int bind_parse_gid(char **args, int cur_arg, struct proxy *px, struct lis
 	}
 
 	val = atol(args[cur_arg + 1]);
-	for (l = px->listen; l != last; l = l->next)
-		l->perm.ux.gid = val;
+	list_for_each_entry(l, &conf->listeners, by_bind) {
+		if (l->addr.ss_family == AF_UNIX)
+			l->perm.ux.gid = val;
+	}
 
 	return 0;
 }
 
 /* parse the "group" bind keyword */
-static int bind_parse_group(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+static int bind_parse_group(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	struct listener *l;
 	struct group *group;
-
-	if (px->listen->addr.ss_family != AF_UNIX) {
-		if (err)
-			memprintf(err, "'%s' option is only supported on unix sockets", args[cur_arg]);
-		return ERR_ALERT | ERR_FATAL;
-	}
 
 	if (!*args[cur_arg + 1]) {
 		if (err)
@@ -424,23 +410,19 @@ static int bind_parse_group(char **args, int cur_arg, struct proxy *px, struct l
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	for (l = px->listen; l != last; l = l->next)
-		l->perm.ux.gid = group->gr_gid;
+	list_for_each_entry(l, &conf->listeners, by_bind) {
+		if (l->addr.ss_family == AF_UNIX)
+			l->perm.ux.gid = group->gr_gid;
+	}
 
 	return 0;
 }
 
 /* parse the "uid" bind keyword */
-static int bind_parse_uid(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+static int bind_parse_uid(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	struct listener *l;
 	int val;
-
-	if (px->listen->addr.ss_family != AF_UNIX) {
-		if (err)
-			memprintf(err, "'%s' option is only supported on unix sockets", args[cur_arg]);
-		return ERR_ALERT | ERR_FATAL;
-	}
 
 	if (!*args[cur_arg + 1]) {
 		if (err)
@@ -449,23 +431,19 @@ static int bind_parse_uid(char **args, int cur_arg, struct proxy *px, struct lis
 	}
 
 	val = atol(args[cur_arg + 1]);
-	for (l = px->listen; l != last; l = l->next)
-		l->perm.ux.uid = val;
+	list_for_each_entry(l, &conf->listeners, by_bind) {
+		if (l->addr.ss_family == AF_UNIX)
+			l->perm.ux.uid = val;
+	}
 
 	return 0;
 }
 
 /* parse the "user" bind keyword */
-static int bind_parse_user(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+static int bind_parse_user(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	struct listener *l;
 	struct passwd *user;
-
-	if (px->listen->addr.ss_family != AF_UNIX) {
-		if (err)
-			memprintf(err, "'%s' option is only supported on unix sockets", args[cur_arg]);
-		return ERR_ALERT | ERR_FATAL;
-	}
 
 	if (!*args[cur_arg + 1]) {
 		if (err)
@@ -480,8 +458,10 @@ static int bind_parse_user(char **args, int cur_arg, struct proxy *px, struct li
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	for (l = px->listen; l != last; l = l->next)
-		l->perm.ux.uid = user->pw_uid;
+	list_for_each_entry(l, &conf->listeners, by_bind) {
+		if (l->addr.ss_family == AF_UNIX)
+			l->perm.ux.uid = user->pw_uid;
+	}
 
 	return 0;
 }

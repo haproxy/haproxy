@@ -192,7 +192,7 @@ static struct cfg_kw_list cfg_keywords = {
  * This can be repeated as many times as necessary, separated by a coma.
  * Function returns 1 for success or 0 if error.
  */
-static int str2listener(char *str, struct proxy *curproxy, const char *file, int line)
+static int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf, const char *file, int line)
 {
 	struct listener *l;
 	char *next, *dupstr;
@@ -266,8 +266,10 @@ static int str2listener(char *str, struct proxy *curproxy, const char *file, int
 
 		for (; port <= end; port++) {
 			l = (struct listener *)calloc(1, sizeof(struct listener));
-			l->next = curproxy->listen;
-			curproxy->listen = l;
+			LIST_ADDQ(&curproxy->conf.listeners, &l->by_fe);
+			LIST_ADDQ(&bind_conf->listeners, &l->by_bind);
+			l->frontend = curproxy;
+			l->bind_conf = bind_conf;
 
 			l->fd = -1;
 			l->addr = ss;
@@ -1212,6 +1214,8 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 	static struct peers *curpeers = NULL;
 	struct peer *newpeer = NULL;
 	const char *err;
+	struct bind_conf *bind_conf;
+	struct listener *l;
 	int err_code = 0;
 
 	if (strcmp(args[0], "peers") == 0) { /* new peers section */
@@ -1340,19 +1344,24 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 				curpeers->peers_fe->timeout.connect = 5000;
 				curpeers->peers_fe->accept = peer_accept;
 				curpeers->peers_fe->options2 |= PR_O2_INDEPSTR | PR_O2_SMARTCON | PR_O2_SMARTACC;
-				if (!str2listener(args[2], curpeers->peers_fe, file, linenum)) {
+
+				bind_conf = bind_conf_alloc(&curpeers->peers_fe->conf.bind, file, linenum, args[2]);
+
+				if (!str2listener(args[2], curpeers->peers_fe, bind_conf, file, linenum)) {
 					err_code |= ERR_FATAL;
 					goto out;
 				}
-				curpeers->peers_fe->listen->maxconn = ((struct proxy *)curpeers->peers_fe)->maxconn;
-				curpeers->peers_fe->listen->backlog = ((struct proxy *)curpeers->peers_fe)->backlog;
-				curpeers->peers_fe->listen->timeout = &((struct proxy *)curpeers->peers_fe)->timeout.client;
-				curpeers->peers_fe->listen->accept = session_accept;
-				curpeers->peers_fe->listen->frontend =  ((struct proxy *)curpeers->peers_fe);
-				curpeers->peers_fe->listen->handler = process_session;
-				curpeers->peers_fe->listen->analysers |=  ((struct proxy *)curpeers->peers_fe)->fe_req_ana;
-				curpeers->peers_fe->listen->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
-				global.maxsock += curpeers->peers_fe->listen->maxconn;
+
+				list_for_each_entry(l, &bind_conf->listeners, by_bind) {
+					l->maxconn = ((struct proxy *)curpeers->peers_fe)->maxconn;
+					l->backlog = ((struct proxy *)curpeers->peers_fe)->backlog;
+					l->timeout = &((struct proxy *)curpeers->peers_fe)->timeout.client;
+					l->accept = session_accept;
+					l->handler = process_session;
+					l->analysers |=  ((struct proxy *)curpeers->peers_fe)->fe_req_ana;
+					l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
+					global.maxsock += l->maxconn;
+				}
 			}
 		}
 	} /* neither "peer" nor "peers" */
@@ -1446,19 +1455,16 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		/* parse the listener address if any */
 		if ((curproxy->cap & PR_CAP_FE) && *args[2]) {
-			struct listener *new, *last = curproxy->listen;
+			struct listener *l;
 
-			if (!str2listener(args[2], curproxy, file, linenum)) {
+			bind_conf = bind_conf_alloc(&curproxy->conf.bind, file, linenum, args[2]);
+
+			if (!str2listener(args[2], curproxy, bind_conf, file, linenum)) {
 				err_code |= ERR_FATAL;
 				goto out;
 			}
 
-			bind_conf = bind_conf_alloc(&curproxy->conf.bind, file, linenum, args[2]);
-
-			new = curproxy->listen;
-			while (new != last) {
-				new->bind_conf = bind_conf;
-				new = new->next;
+			list_for_each_entry(l, &bind_conf->listeners, by_bind) {
 				global.maxsock++;
 			}
 		}
@@ -1671,7 +1677,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 	/* Now let's parse the proxy-specific keywords */
 	if (!strcmp(args[0], "bind")) {  /* new listen addresses */
-		struct listener *new_listen, *last_listen;
+		struct listener *l;
 		int cur_arg;
 
 		if (curproxy == &defproxy) {
@@ -1689,29 +1695,24 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		last_listen = curproxy->listen;
 		bind_conf = bind_conf_alloc(&curproxy->conf.bind, file, linenum, args[1]);
 
 		/* NOTE: the following line might create several listeners if there
 		 * are comma-separated IPs or port ranges. So all further processing
 		 * will have to be applied to all listeners created after last_listen.
 		 */
-		if (!str2listener(args[1], curproxy, file, linenum)) {
+		if (!str2listener(args[1], curproxy, bind_conf, file, linenum)) {
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
-		new_listen = curproxy->listen;
-		while (new_listen != last_listen) {
-			new_listen->bind_conf = bind_conf;
-			new_listen = new_listen->next;
+		list_for_each_entry(l, &bind_conf->listeners, by_bind) {
+			/* Set default global rights and owner for unix bind  */
+			if (l->addr.ss_family == AF_UNIX)
+				memcpy(&(l->perm.ux), &(global.unix_bind.ux), sizeof(global.unix_bind.ux));
 			global.maxsock++;
 		}
 
-		/* Set default global rights and owner for unix bind  */
-		if (curproxy->listen->addr.ss_family == AF_UNIX) {
-			memcpy(&(curproxy->listen->perm.ux), &(global.unix_bind.ux), sizeof(global.unix_bind.ux));
-		}
 		cur_arg = 2;
 		while (*(args[cur_arg])) {
 			static int bind_dumped;
@@ -1731,7 +1732,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 					goto out;
 				}
 
-				code = kw->parse(args, cur_arg, curproxy, last_listen, &err);
+				code = kw->parse(args, cur_arg, curproxy, bind_conf, &err);
 				err_code |= code;
 
 				if (code) {
@@ -4517,9 +4518,13 @@ stats_error_parsing:
 				 * the server either. We'll check if we have
 				 * a known port on the first listener.
 				 */
-				struct listener *l = curproxy->listen;
-				while (l && !(newsrv->check_port = get_host_port(&l->addr)))
-					l = l->next;
+				struct listener *l;
+
+				list_for_each_entry(l, &curproxy->conf.listeners, by_fe) {
+					newsrv->check_port = get_host_port(&l->addr);
+					if (newsrv->check_port)
+						break;
+				}
 			}
 			if (!newsrv->check_port) {
 				Alert("parsing [%s:%d] : server %s has neither service port nor check port. Check has been disabled.\n",
@@ -5683,7 +5688,7 @@ int check_config_validity()
 			break;
 		}
 
-		if ((curproxy->cap & PR_CAP_FE) && (curproxy->listen == NULL))  {
+		if ((curproxy->cap & PR_CAP_FE) && LIST_ISEMPTY(&curproxy->conf.listeners))  {
 			Alert("config : %s '%s' has no listen address. Please either specify a valid address on the <listen> line, or use the <bind> keyword.\n",
 			      proxy_type_str(curproxy), curproxy->id);
 			cfgerr++;
@@ -6495,20 +6500,6 @@ out_uri_auth_compat:
 				curproxy->be_req_ana |= AN_REQ_PRST_RDP_COOKIE;
 		}
 
-		listener = NULL;
-		while (curproxy->listen) {
-			struct listener *next;
-
-			next = curproxy->listen->next;
-			curproxy->listen->next = listener;
-			listener = curproxy->listen;
-
-			if (!next)
-				break;
-
-			curproxy->listen = next;
-		}
-
 		/* Configure SSL for each bind line.
 		 * Note: if configuration fails at some point, the ->ctx member
 		 * remains NULL so that listeners can later detach.
@@ -6537,8 +6528,7 @@ out_uri_auth_compat:
 
 		/* adjust this proxy's listeners */
 		next_id = 1;
-		listener = curproxy->listen;
-		while (listener) {
+		list_for_each_entry(listener, &curproxy->conf.listeners, by_fe) {
 			if (!listener->luid) {
 				/* listener ID not set, use automatic numbering with first
 				 * spare entry starting with next_luid.
@@ -6569,7 +6559,6 @@ out_uri_auth_compat:
 				listener->backlog = curproxy->backlog;
 			listener->timeout = &curproxy->timeout.client;
 			listener->accept = session_accept;
-			listener->frontend = curproxy;
 			listener->handler = process_session;
 			listener->analysers |= curproxy->fe_req_ana;
 
@@ -6584,9 +6573,6 @@ out_uri_auth_compat:
 			    ((curproxy->mode == PR_MODE_HTTP || listener->bind_conf->is_ssl) &&
 			     !(curproxy->no_options2 & PR_O2_SMARTACC)))
 				listener->options |= LI_O_NOQUICKACK;
-
-			/* We want the use_backend and default_backend rules to apply */
-			listener = listener->next;
 		}
 
 		/* Release unused SSL configs */

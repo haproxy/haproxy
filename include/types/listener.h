@@ -106,6 +106,7 @@ struct bind_conf {
 #endif
 	int is_ssl;                /* SSL is required for these listeners */
 	struct list by_fe;         /* next binding for the same frontend, or NULL */
+	struct list listeners;     /* list of listeners using this bind config */
 	char *arg;                 /* argument passed to "bind" for better error reporting */
 	char *file;                /* file where the section appears */
 	int line;                  /* line where the section appears */
@@ -127,7 +128,6 @@ struct listener {
 	int nbconn;			/* current number of connections on this listener */
 	int maxconn;			/* maximum connections allowed on this listener */
 	unsigned int backlog;		/* if set, listen backlog */
-	struct listener *next;		/* next address for the same proxy, or NULL */
 	struct list proto_list;         /* list in the protocol header */
 	int (*accept)(struct listener *l, int fd, struct sockaddr_storage *addr); /* upper layer's accept() */
 	struct task * (*handler)(struct task *t); /* protocol handler. It is a task */
@@ -147,6 +147,8 @@ struct listener {
 	char *interface;		/* interface name or NULL */
 	int maxseg;			/* for TCP, advertised MSS */
 
+	struct list by_fe;              /* chaining in frontend's list of listeners */
+	struct list by_bind;            /* chaining in bind_conf's list of listeners */
 	struct bind_conf *bind_conf;	/* "bind" line settings, include SSL settings among other things */
 
 	/* warning: this struct is huge, keep it at the bottom */
@@ -159,13 +161,12 @@ struct listener {
 /* Descriptor for a "bind" keyword. The ->parse() function returns 0 in case of
  * success, or a combination of ERR_* flags if an error is encountered. The
  * function pointer can be NULL if not implemented. The function also has an
- * access to the current "bind" conf, which is the conf of the last listener,
- * reachable via px->listen->bind_conf. The ->skip value tells the parser how
- * many words have to be skipped after the keyword.
+ * access to the current "bind" config line. The ->skip value tells the parser
+ * how many words have to be skipped after the keyword.
  */
 struct bind_kw {
 	const char *kw;
-	int (*parse)(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err);
+	int (*parse)(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err);
 	int skip; /* nb of args to skip */
 };
 

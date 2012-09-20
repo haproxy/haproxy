@@ -181,6 +181,8 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
                               struct proxy *defpx, const char *file, int line,
                               char **err)
 {
+	struct bind_conf *bind_conf;
+
 	if (!strcmp(args[1], "socket")) {
 		struct sockaddr_un *su;
 		int cur_arg;
@@ -209,6 +211,8 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 			}
 		}
 
+		bind_conf = bind_conf_alloc(&global.stats_fe->conf.bind, file, line, args[2]);
+
 		global.stats_sock.state = LI_INIT;
 		global.stats_sock.options = LI_O_UNLIMITED;
 		global.stats_sock.accept = session_accept;
@@ -220,9 +224,9 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		global.stats_sock.perm.ux.level = ACCESS_LVL_OPER; /* default access level */
 		global.stats_sock.maxconn = global.stats_fe->maxconn;
 		global.stats_sock.timeout = &global.stats_fe->timeout.client;
-
-		global.stats_sock.next  = global.stats_fe->listen;
-		global.stats_fe->listen = &global.stats_sock;
+		global.stats_sock.bind_conf = bind_conf;
+		LIST_ADDQ(&global.stats_fe->conf.listeners, &global.stats_sock.by_fe);
+		LIST_ADDQ(&bind_conf->listeners, &global.stats_sock.by_bind);
 
 		cur_arg = 3;
 		while (*args[cur_arg]) {
@@ -969,7 +973,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 						sv->counters.sps_max = 0;
 					}
 
-				for (li = px->listen; li; li = li->next)
+				list_for_each_entry(li, &px->conf.listeners, by_bind)
 					if (li->counters) {
 						if (clrall)
 							memset(li->counters, 0, sizeof(*li->counters));
@@ -1149,7 +1153,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				 * its listeners. The blocked ones will be dequeued.
 				 */
 				px->maxconn = v;
-				for (l = px->listen; l != NULL; l = l->next) {
+				list_for_each_entry(l, &px->conf.listeners, by_bind) {
 					l->maxconn = v;
 					if (l->state == LI_FULL)
 						resume_listener(l);
@@ -2508,17 +2512,17 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 				return 0;
 		}
 
-		si->applet.ctx.stats.l = px->listen; /* may be NULL */
+		si->applet.ctx.stats.l = px->conf.listeners.n;
 		si->applet.ctx.stats.px_st = STAT_PX_ST_LI;
 		/* fall through */
 
 	case STAT_PX_ST_LI:
 		/* stats.l has been initialized above */
-		for (; si->applet.ctx.stats.l != NULL; si->applet.ctx.stats.l = l->next) {
+		for (; si->applet.ctx.stats.l != &px->conf.listeners; si->applet.ctx.stats.l = l->by_fe.n) {
 			if (buffer_almost_full(&rep->buf))
 				return 0;
 
-			l = si->applet.ctx.stats.l;
+			l = LIST_ELEM(si->applet.ctx.stats.l, struct listener *, by_fe);
 			if (!l->counters)
 				continue;
 

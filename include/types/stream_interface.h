@@ -122,7 +122,7 @@ struct stream_interface {
 			struct {
 				struct proxy *px;
 				struct server *sv;
-				struct listener *l;
+				void *l;
 				int px_st;		/* STAT_PX_ST* */
 				unsigned int flags;	/* STAT_* */
 				int iid, type, sid;	/* proxy id, type and service id if bounding of stats is enabled */

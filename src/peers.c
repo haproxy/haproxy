@@ -1104,7 +1104,7 @@ int peer_accept(struct session *s)
  */
 static struct session *peer_session_create(struct peer *peer, struct peer_session *ps)
 {
-	struct listener *l = ((struct proxy *)peer->peers->peers_fe)->listen;
+	struct listener *l = LIST_NEXT(&peer->peers->peers_fe->conf.listeners, struct listener *, by_fe);
 	struct proxy *p = (struct proxy *)l->frontend; /* attached frontend */
 	struct session *s;
 	struct http_txn *txn;
@@ -1459,6 +1459,7 @@ void peers_register_table(struct peers *peers, struct stktable *table)
 	struct shared_table *st;
 	struct peer * curpeer;
 	struct peer_session *ps;
+	struct listener *listener;
 
 	st = (struct shared_table *)calloc(1,sizeof(struct shared_table));
 	st->table = table;
@@ -1478,7 +1479,8 @@ void peers_register_table(struct peers *peers, struct stktable *table)
 		peers->peers_fe->maxconn += 3;
 	}
 
-	peers->peers_fe->listen->maxconn = peers->peers_fe->maxconn;
+	list_for_each_entry(listener, &peers->peers_fe->conf.listeners, by_fe)
+		listener->maxconn = peers->peers_fe->maxconn;
 	st->sync_task = task_new();
 	st->sync_task->process = process_peer_sync;
 	st->sync_task->expire = TICK_ETERNITY;

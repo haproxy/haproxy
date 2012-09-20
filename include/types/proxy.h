@@ -200,7 +200,6 @@ struct error_snapshot {
 };
 
 struct proxy {
-	struct listener *listen;		/* the listen addresses and sockets */
 	struct in_addr mon_net, mon_mask;	/* don't forward connections from this net (network order) FIXME: should support IPv6 */
 	int state;				/* proxy state */
 	int options;				/* PR_O_REDISP, PR_O_TRANSP, ... */
@@ -361,6 +360,7 @@ struct proxy {
 		struct eb_root used_listener_id;/* list of listener IDs in use */
 		struct eb_root used_server_id;	/* list of server IDs in use */
 		struct list bind;		/* list of bind settings */
+		struct list listeners;		/* list of listeners belonging to this frontend */
 	} conf;					/* config information */
 	void *parent;				/* parent of the proxy when applicable */
 };

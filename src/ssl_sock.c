@@ -819,7 +819,7 @@ smp_fetch_ssl_sni(struct proxy *px, struct session *l4, void *l7, unsigned int o
 }
 
 /* parse the "ciphers" bind keyword */
-static int bind_parse_ciphers(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+static int bind_parse_ciphers(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	if (!*args[cur_arg + 1]) {
 		if (err)
@@ -827,12 +827,12 @@ static int bind_parse_ciphers(char **args, int cur_arg, struct proxy *px, struct
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	px->listen->bind_conf->ciphers = strdup(args[cur_arg + 1]);
+	conf->ciphers = strdup(args[cur_arg + 1]);
 	return 0;
 }
 
 /* parse the "crt" bind keyword */
-static int bind_parse_crt(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+static int bind_parse_crt(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	if (!*args[cur_arg + 1]) {
 		if (err)
@@ -840,37 +840,37 @@ static int bind_parse_crt(char **args, int cur_arg, struct proxy *px, struct lis
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	if (ssl_sock_load_cert(args[cur_arg + 1], px->listen->bind_conf, px, err) > 0)
+	if (ssl_sock_load_cert(args[cur_arg + 1], conf, px, err) > 0)
 		return ERR_ALERT | ERR_FATAL;
 
 	return 0;
 }
 
 /* parse the "nosslv3" bind keyword */
-static int bind_parse_nosslv3(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+static int bind_parse_nosslv3(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	px->listen->bind_conf->nosslv3 = 1;
+	conf->nosslv3 = 1;
 	return 0;
 }
 
 /* parse the "notlsv1" bind keyword */
-static int bind_parse_notlsv1(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+static int bind_parse_notlsv1(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	px->listen->bind_conf->notlsv1 = 1;
+	conf->notlsv1 = 1;
 	return 0;
 }
 
 /* parse the "prefer-server-ciphers" bind keyword */
-static int bind_parse_psc(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+static int bind_parse_psc(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	px->listen->bind_conf->prefer_server_ciphers = 1;
+	conf->prefer_server_ciphers = 1;
 	return 0;
 }
 
 /* parse the "ssl" bind keyword */
-static int bind_parse_ssl(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+static int bind_parse_ssl(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	px->listen->bind_conf->is_ssl = 1;
+	conf->is_ssl = 1;
 	return 0;
 }
 

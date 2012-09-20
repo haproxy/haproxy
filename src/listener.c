@@ -504,18 +504,18 @@ acl_fetch_so_id(struct proxy *px, struct session *l4, void *l7, unsigned int opt
 }
 
 /* parse the "accept-proxy" bind keyword */
-static int bind_parse_accept_proxy(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+static int bind_parse_accept_proxy(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	struct listener *l;
 
-	for (l = px->listen; l != last; l = l->next)
+	list_for_each_entry(l, &conf->listeners, by_bind)
 		l->options |= LI_O_ACC_PROXY;
 
 	return 0;
 }
 
 /* parse the "backlog" bind keyword */
-static int bind_parse_backlog(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+static int bind_parse_backlog(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	struct listener *l;
 	int val;
@@ -533,19 +533,19 @@ static int bind_parse_backlog(char **args, int cur_arg, struct proxy *px, struct
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	for (l = px->listen; l != last; l = l->next)
+	list_for_each_entry(l, &conf->listeners, by_bind)
 		l->backlog = val;
 
 	return 0;
 }
 
 /* parse the "id" bind keyword */
-static int bind_parse_id(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+static int bind_parse_id(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	struct eb32_node *node;
-	struct listener *l;
+	struct listener *l, *new;
 
-	if (px->listen->next != last) {
+	if (conf->listeners.n != conf->listeners.p) {
 		if (err)
 			memprintf(err, "'%s' can only be used with a single socket", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
@@ -557,16 +557,17 @@ static int bind_parse_id(char **args, int cur_arg, struct proxy *px, struct list
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	px->listen->luid = atol(args[cur_arg + 1]);
-	px->listen->conf.id.key = px->listen->luid;
+	new = LIST_NEXT(&conf->listeners, struct listener *, by_bind);
+	new->luid = atol(args[cur_arg + 1]);
+	new->conf.id.key = new->luid;
 
-	if (px->listen->luid <= 0) {
+	if (new->luid <= 0) {
 		if (err)
 			memprintf(err, "'%s' : custom id has to be > 0", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	node = eb32_lookup(&px->conf.used_listener_id, px->listen->luid);
+	node = eb32_lookup(&px->conf.used_listener_id, new->luid);
 	if (node) {
 		l = container_of(node, struct listener, conf.id);
 		if (err)
@@ -576,12 +577,12 @@ static int bind_parse_id(char **args, int cur_arg, struct proxy *px, struct list
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	eb32_insert(&px->conf.used_listener_id, &px->listen->conf.id);
+	eb32_insert(&px->conf.used_listener_id, &new->conf.id);
 	return 0;
 }
 
 /* parse the "maxconn" bind keyword */
-static int bind_parse_maxconn(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+static int bind_parse_maxconn(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	struct listener *l;
 	int val;
@@ -599,14 +600,14 @@ static int bind_parse_maxconn(char **args, int cur_arg, struct proxy *px, struct
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	for (l = px->listen; l != last; l = l->next)
+	list_for_each_entry(l, &conf->listeners, by_bind)
 		l->maxconn = val;
 
 	return 0;
 }
 
 /* parse the "name" bind keyword */
-static int bind_parse_name(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+static int bind_parse_name(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	struct listener *l;
 
@@ -616,14 +617,14 @@ static int bind_parse_name(char **args, int cur_arg, struct proxy *px, struct li
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	for (l = px->listen; l != last; l = l->next)
+	list_for_each_entry(l, &conf->listeners, by_bind)
 		l->name = strdup(args[cur_arg + 1]);
 
 	return 0;
 }
 
 /* parse the "nice" bind keyword */
-static int bind_parse_nice(char **args, int cur_arg, struct proxy *px, struct listener *last, char **err)
+static int bind_parse_nice(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	struct listener *l;
 	int val;
@@ -641,7 +642,7 @@ static int bind_parse_nice(char **args, int cur_arg, struct proxy *px, struct li
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	for (l = px->listen; l != last; l = l->next)
+	list_for_each_entry(l, &conf->listeners, by_bind)
 		l->nice = val;
 
 	return 0;
