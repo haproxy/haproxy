@@ -128,6 +128,41 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, struct bind_conf *s)
 }
 #endif /* SSL_CTRL_SET_TLSEXT_HOSTNAME */
 
+#ifndef OPENSSL_NO_DH
+/* Loads Diffie-Hellman parameter from a file. Returns 1 if loaded, else -1
+   if an error occured, and 0 if parameter not found. */
+int ssl_sock_load_dh_params(SSL_CTX *ctx, const char *file)
+{
+	int ret = -1;
+	BIO *in;
+	DH *dh = NULL;
+
+	in = BIO_new(BIO_s_file());
+	if (in == NULL)
+		goto end;
+
+	if (BIO_read_filename(in, file) <= 0)
+		goto end;
+
+	dh = PEM_read_bio_DHparams(in, NULL, ctx->default_passwd_callback, ctx->default_passwd_callback_userdata);
+	if (dh) {
+		SSL_CTX_set_tmp_dh(ctx, dh);
+		ret = 1;
+		goto end;
+	}
+
+	ret = 0; /* DH params not found */
+end:
+	if (dh)
+		DH_free(dh);
+
+	if (in)
+	BIO_free(in);
+
+	return ret;
+}
+#endif
+
 /* Loads a certificate key and CA chain from a file. Returns 0 on error, -1 if
  * an early error happens and the caller must call SSL_CTX_free() by itelf.
  */
@@ -287,6 +322,16 @@ static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf
 	/* we must not free the SSL_CTX anymore below, since it's already in
 	 * the tree, so it will be discovered and cleaned in time.
 	 */
+#ifndef OPENSSL_NO_DH
+	ret = ssl_sock_load_dh_params(ctx, path);
+	if (ret < 0) {
+		if (err)
+			memprintf(err, "%sunable to load DH parameters from file '%s'.\n",
+				  *err ? *err : "", path);
+		return 1;
+	}
+#endif
+
 #ifndef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	if (bind_conf->default_ctx) {
 		memprintf(err, "%sthis version of openssl cannot load multiple SSL certificates.\n",
@@ -347,6 +392,9 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, struct proxy *cu
 #ifndef SSL_OP_NO_COMPRESSION                           /* needs OpenSSL >= 0.9.9 */
 #define SSL_OP_NO_COMPRESSION 0
 #endif
+#ifndef SSL_OP_SINGLE_DH_USE                            /* needs OpenSSL >= 0.9.6 */
+#define SSL_OP_SINGLE_DH_USE 0
+#endif
 #ifndef SSL_MODE_RELEASE_BUFFERS                        /* needs OpenSSL >= 1.0.0 */
 #define SSL_MODE_RELEASE_BUFFERS 0
 #endif
@@ -357,6 +405,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 		SSL_OP_ALL | /* all known workarounds for bugs */
 		SSL_OP_NO_SSLv2 |
 		SSL_OP_NO_COMPRESSION |
+		SSL_OP_SINGLE_DH_USE |
 		SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION;
 	int sslmode =
 		SSL_MODE_ENABLE_PARTIAL_WRITE |
