@@ -190,9 +190,11 @@ static struct cfg_kw_list cfg_keywords = {
  *  - <port> is a numerical port from 1 to 65535 ;
  *  - <end> indicates to use the range from <port> to <end> instead (inclusive).
  * This can be repeated as many times as necessary, separated by a coma.
- * Function returns 1 for success or 0 if error.
+ * Function returns 1 for success or 0 if error. In case of errors, if <err> is
+ * not NULL, it must be a valid pointer to either NULL or a freeable area that
+ * will be replaced with an error message.
  */
-static int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf, const char *file, int line)
+int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf, const char *file, int line, char **err)
 {
 	struct listener *l;
 	char *next, *dupstr;
@@ -216,8 +218,7 @@ static int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bin
 			int max_path_len = (sizeof(((struct sockaddr_un *)&ss)->sun_path) - 1) - (prefix_path_len + 1 + 5 + 1 + 3);
 
 			if (strlen(str) > max_path_len) {
-                                Alert("parsing [%s:%d] : socket path '%s' too long (max %d)\n",
-				      file, line, str, max_path_len);
+				memprintf(err, "socket path '%s' too long (max %d)\n", str, max_path_len);
 				goto fail;
 			}
 
@@ -237,14 +238,12 @@ static int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bin
 
 			ss2 = str2sa_range(str, &port, &end);
 			if (!ss2) {
-				Alert("parsing [%s:%d] : invalid listening address: '%s'\n",
-				      file, line, str);
+				memprintf(err, "invalid listening address: '%s'\n", str);
 				goto fail;
 			}
 
 			if (!port) {
-				Alert("parsing [%s:%d] : missing port number: '%s'\n",
-				      file, line, str);
+				memprintf(err, "missing port number: '%s'\n", str);
 				goto fail;
 			}
 
@@ -252,14 +251,12 @@ static int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bin
 			ss = *ss2;
 
 			if (port < 1 || port > 65535) {
-				Alert("parsing [%s:%d] : invalid port '%d' specified for address '%s'.\n",
-				      file, line, port, str);
+				memprintf(err, "invalid port '%d' specified for address '%s'.\n", port, str);
 				goto fail;
 			}
 
 			if (end < 1 || end > 65535) {
-				Alert("parsing [%s:%d] : invalid port '%d' specified for address '%s'.\n",
-				      file, line, end, str);
+				memprintf(err, "invalid port '%d' specified for address '%s'.\n", end, str);
 				goto fail;
 			}
 		}
@@ -1254,6 +1251,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		char *rport, *raddr;
 		short realport = 0;
 		struct sockaddr_storage *sk;
+		char *err_msg = NULL;
 
 		if (!*args[2]) {
 			Alert("parsing [%s:%d] : '%s' expects <name> and <addr>[:<port>] as arguments.\n",
@@ -1345,7 +1343,15 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 
 				bind_conf = bind_conf_alloc(&curpeers->peers_fe->conf.bind, file, linenum, args[2]);
 
-				if (!str2listener(args[2], curpeers->peers_fe, bind_conf, file, linenum)) {
+				if (!str2listener(args[2], curpeers->peers_fe, bind_conf, file, linenum, &err_msg)) {
+					if (err_msg && *err_msg) {
+						indent_msg(&err_msg, 2);
+						Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], err_msg);
+					}
+					else
+						Alert("parsing [%s:%d] : '%s %s' : error encountered while parsing listening address %s.\n",
+						      file, linenum, args[0], args[1], args[2]);
+					free(err_msg);
 					err_code |= ERR_FATAL;
 					goto out;
 				}
@@ -1454,10 +1460,19 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		/* parse the listener address if any */
 		if ((curproxy->cap & PR_CAP_FE) && *args[2]) {
 			struct listener *l;
+			char *err_msg = NULL;
 
 			bind_conf = bind_conf_alloc(&curproxy->conf.bind, file, linenum, args[2]);
 
-			if (!str2listener(args[2], curproxy, bind_conf, file, linenum)) {
+			if (!str2listener(args[2], curproxy, bind_conf, file, linenum, &err_msg)) {
+				if (err_msg && *err_msg) {
+					indent_msg(&err_msg, 2);
+					Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], err_msg);
+				}
+				else
+					Alert("parsing [%s:%d] : '%s %s' : error encountered while parsing listening address '%s'.\n",
+					      file, linenum, args[0], args[1], args[2]);
+				free(err_msg);
 				err_code |= ERR_FATAL;
 				goto out;
 			}
@@ -1677,6 +1692,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	if (!strcmp(args[0], "bind")) {  /* new listen addresses */
 		struct listener *l;
 		int cur_arg;
+		char *err_msg = NULL;
 
 		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
@@ -1700,7 +1716,15 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		 * are comma-separated IPs or port ranges. So all further processing
 		 * will have to be applied to all listeners created after last_listen.
 		 */
-		if (!str2listener(args[1], curproxy, bind_conf, file, linenum)) {
+		if (!str2listener(args[1], curproxy, bind_conf, file, linenum, &err_msg)) {
+			if (err_msg && *err_msg) {
+				indent_msg(&err_msg, 2);
+				Alert("parsing [%s:%d] : '%s' : %s\n", file, linenum, args[0], err_msg);
+			}
+			else
+				Alert("parsing [%s:%d] : '%s' : error encountered while parsing listening address '%s'.\n",
+				      file, linenum, args[0], args[1]);
+			free(err_msg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}

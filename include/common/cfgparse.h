@@ -69,6 +69,7 @@ void cfg_register_keywords(struct cfg_kw_list *kwl);
 void cfg_unregister_keywords(struct cfg_kw_list *kwl);
 void init_default_instance();
 int check_config_validity();
+int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf, const char *file, int line, char **err);
 
 #endif /* _COMMON_CFGPARSE_H */
 
