@@ -285,8 +285,6 @@ static int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bin
 				tcpv6_add_listener(l);
 			}
 			else {
-				l->perm.ux.gid = l->perm.ux.uid = -1;
-				l->perm.ux.mode = 0;
 				uxst_add_listener(l);
 			}
 
@@ -1696,6 +1694,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		bind_conf = bind_conf_alloc(&curproxy->conf.bind, file, linenum, args[1]);
+		memcpy(&bind_conf->ux, &global.unix_bind.ux, sizeof(global.unix_bind.ux));
 
 		/* NOTE: the following line might create several listeners if there
 		 * are comma-separated IPs or port ranges. So all further processing
@@ -1708,8 +1707,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		list_for_each_entry(l, &bind_conf->listeners, by_bind) {
 			/* Set default global rights and owner for unix bind  */
-			if (l->addr.ss_family == AF_UNIX)
-				memcpy(&(l->perm.ux), &(global.unix_bind.ux), sizeof(global.unix_bind.ux));
 			global.maxsock++;
 		}
 

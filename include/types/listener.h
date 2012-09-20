@@ -105,6 +105,12 @@ struct bind_conf {
 	struct eb_root sni_w_ctx;  /* sni_ctx tree of all known certs wildcards sorted by name */
 #endif
 	int is_ssl;                /* SSL is required for these listeners */
+	struct {                   /* UNIX socket permissions */
+		uid_t uid;         /* -1 to leave unchanged */
+		gid_t gid;         /* -1 to leave unchanged */
+		mode_t mode;       /* 0 to leave unchanged */
+	} ux;
+	int level;                 /* stats access level (ACCESS_LVL_*) */
 	struct list by_fe;         /* next binding for the same frontend, or NULL */
 	struct list listeners;     /* list of listeners using this bind config */
 	char *arg;                 /* argument passed to "bind" for better error reporting */
@@ -136,14 +142,6 @@ struct listener {
 	struct list wait_queue;		/* link element to make the listener wait for something (LI_LIMITED)  */
 	unsigned int analysers;		/* bitmap of required protocol analysers */
 	int nice;			/* nice value to assign to the instanciated tasks */
-	union {				/* protocol-dependant access restrictions */
-		struct {		/* UNIX socket permissions */
-			uid_t uid;	/* -1 to leave unchanged */
-			gid_t gid;	/* -1 to leave unchanged */
-			mode_t mode;	/* 0 to leave unchanged */
-			int level;	/* access level (ACCESS_LVL_*) */
-		} ux;
-	} perm;
 	char *interface;		/* interface name or NULL */
 	int maxseg;			/* for TCP, advertised MSS */
 

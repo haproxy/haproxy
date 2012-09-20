@@ -212,6 +212,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		}
 
 		bind_conf = bind_conf_alloc(&global.stats_fe->conf.bind, file, line, args[2]);
+		bind_conf->level = ACCESS_LVL_OPER; /* default access level */
 
 		global.stats_sock.state = LI_INIT;
 		global.stats_sock.options = LI_O_UNLIMITED;
@@ -221,7 +222,6 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		global.stats_sock.analysers = 0;
 		global.stats_sock.nice = -64;  /* we want to boost priority for local stats */
 		global.stats_sock.frontend = global.stats_fe;
-		global.stats_sock.perm.ux.level = ACCESS_LVL_OPER; /* default access level */
 		global.stats_sock.maxconn = global.stats_fe->maxconn;
 		global.stats_sock.timeout = &global.stats_fe->timeout.client;
 		global.stats_sock.bind_conf = bind_conf;
@@ -231,15 +231,15 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		cur_arg = 3;
 		while (*args[cur_arg]) {
 			if (!strcmp(args[cur_arg], "uid")) {
-				global.stats_sock.perm.ux.uid = atol(args[cur_arg + 1]);
+				bind_conf->ux.uid = atol(args[cur_arg + 1]);
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "gid")) {
-				global.stats_sock.perm.ux.gid = atol(args[cur_arg + 1]);
+				bind_conf->ux.gid = atol(args[cur_arg + 1]);
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "mode")) {
-				global.stats_sock.perm.ux.mode = strtol(args[cur_arg + 1], NULL, 8);
+				bind_conf->ux.mode = strtol(args[cur_arg + 1], NULL, 8);
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "user")) {
@@ -249,7 +249,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 					memprintf(err, "'%s %s' : unknown user '%s'", args[0], args[1], args[cur_arg + 1]);
 					return -1;
 				}
-				global.stats_sock.perm.ux.uid = user->pw_uid;
+				bind_conf->ux.uid = user->pw_uid;
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "group")) {
@@ -259,16 +259,16 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 					memprintf(err, "'%s %s' : unknown group '%s'", args[0], args[1], args[cur_arg + 1]);
 					return -1;
 				}
-				global.stats_sock.perm.ux.gid = group->gr_gid;
+				bind_conf->ux.gid = group->gr_gid;
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "level")) {
 				if (!strcmp(args[cur_arg+1], "user"))
-					global.stats_sock.perm.ux.level = ACCESS_LVL_USER;
+					bind_conf->level = ACCESS_LVL_USER;
 				else if (!strcmp(args[cur_arg+1], "operator"))
-					global.stats_sock.perm.ux.level = ACCESS_LVL_OPER;
+					bind_conf->level = ACCESS_LVL_OPER;
 				else if (!strcmp(args[cur_arg+1], "admin"))
-					global.stats_sock.perm.ux.level = ACCESS_LVL_ADMIN;
+					bind_conf->level = ACCESS_LVL_ADMIN;
 				else {
 					memprintf(err, "'%s %s' : '%s' only supports 'user', 'operator', and 'admin' (got '%s')",
 						  args[0], args[1], args[cur_arg], args[cur_arg+1]);
@@ -432,7 +432,7 @@ static int stats_dump_table_head_to_buffer(struct chunk *msg, struct stream_inte
 
 	/* any other information should be dumped here */
 
-	if (target && s->listener->perm.ux.level < ACCESS_LVL_OPER)
+	if (target && s->listener->bind_conf->level < ACCESS_LVL_OPER)
 		chunk_printf(msg, "# contents not dumped due to insufficient privileges\n");
 
 	if (bi_putchk(si->ib, msg) == -1)
@@ -581,7 +581,7 @@ static void stats_sock_table_key_request(struct stream_interface *si, char **arg
 	}
 
 	/* check permissions */
-	if (s->listener->perm.ux.level < ACCESS_LVL_OPER) {
+	if (s->listener->bind_conf->level < ACCESS_LVL_OPER) {
 		si->applet.ctx.cli.msg = stats_permission_denied_msg;
 		si->applet.st0 = STAT_CLI_PRINT;
 		return;
@@ -769,7 +769,7 @@ static struct proxy *expect_frontend_admin(struct session *s, struct stream_inte
 {
 	struct proxy *px;
 
-	if (s->listener->perm.ux.level < ACCESS_LVL_ADMIN) {
+	if (s->listener->bind_conf->level < ACCESS_LVL_ADMIN) {
 		si->applet.ctx.cli.msg = stats_permission_denied_msg;
 		si->applet.st0 = STAT_CLI_PRINT;
 		return NULL;
@@ -801,7 +801,7 @@ static struct server *expect_server_admin(struct session *s, struct stream_inter
 	struct server *sv;
 	char *line;
 
-	if (s->listener->perm.ux.level < ACCESS_LVL_ADMIN) {
+	if (s->listener->bind_conf->level < ACCESS_LVL_ADMIN) {
 		si->applet.ctx.cli.msg = stats_permission_denied_msg;
 		si->applet.st0 = STAT_CLI_PRINT;
 		return NULL;
@@ -893,7 +893,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 		}
 		else if (strcmp(args[1], "sess") == 0) {
 			si->conn.data_st = STAT_ST_INIT;
-			if (s->listener->perm.ux.level < ACCESS_LVL_OPER) {
+			if (s->listener->bind_conf->level < ACCESS_LVL_OPER) {
 				si->applet.ctx.cli.msg = stats_permission_denied_msg;
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
@@ -907,7 +907,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			si->applet.st0 = STAT_CLI_O_SESS; // stats_dump_sess_to_buffer
 		}
 		else if (strcmp(args[1], "errors") == 0) {
-			if (s->listener->perm.ux.level < ACCESS_LVL_OPER) {
+			if (s->listener->bind_conf->level < ACCESS_LVL_OPER) {
 				si->applet.ctx.cli.msg = stats_permission_denied_msg;
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
@@ -938,8 +938,8 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				clrall = 1;
 
 			/* check permissions */
-			if (s->listener->perm.ux.level < ACCESS_LVL_OPER ||
-			    (clrall && s->listener->perm.ux.level < ACCESS_LVL_ADMIN)) {
+			if (s->listener->bind_conf->level < ACCESS_LVL_OPER ||
+			    (clrall && s->listener->bind_conf->level < ACCESS_LVL_ADMIN)) {
 				si->applet.ctx.cli.msg = stats_permission_denied_msg;
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
@@ -1167,7 +1167,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			else if (strcmp(args[2], "global") == 0) {
 				int v;
 
-				if (s->listener->perm.ux.level < ACCESS_LVL_ADMIN) {
+				if (s->listener->bind_conf->level < ACCESS_LVL_ADMIN) {
 					si->applet.ctx.cli.msg = stats_permission_denied_msg;
 					si->applet.st0 = STAT_CLI_PRINT;
 					return 1;
@@ -1209,7 +1209,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				if (strcmp(args[3], "global") == 0) {
 					int v;
 
-					if (s->listener->perm.ux.level < ACCESS_LVL_ADMIN) {
+					if (s->listener->bind_conf->level < ACCESS_LVL_ADMIN) {
 						si->applet.ctx.cli.msg = stats_permission_denied_msg;
 						si->applet.st0 = STAT_CLI_PRINT;
 						return 1;
@@ -1388,7 +1388,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 		else if (strcmp(args[1], "session") == 0) {
 			struct session *sess, *ptr;
 
-			if (s->listener->perm.ux.level < ACCESS_LVL_ADMIN) {
+			if (s->listener->bind_conf->level < ACCESS_LVL_ADMIN) {
 				si->applet.ctx.cli.msg = stats_permission_denied_msg;
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
@@ -3812,7 +3812,7 @@ static int stats_table_request(struct stream_interface *si, bool show)
 					return 0;
 
 				if (si->applet.ctx.table.target &&
-				    s->listener->perm.ux.level >= ACCESS_LVL_OPER) {
+				    s->listener->bind_conf->level >= ACCESS_LVL_OPER) {
 					/* dump entries only if table explicitly requested */
 					eb = ebmb_first(&si->applet.ctx.table.proxy->table.keys);
 					if (eb) {

@@ -233,9 +233,9 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	 * While it is known not to be portable on every OS, it's still useful
 	 * where it works.
 	 */
-	if (((listener->perm.ux.uid != -1 || listener->perm.ux.gid != -1) &&
-	     (chown(tempname, listener->perm.ux.uid, listener->perm.ux.gid) == -1)) ||
-	    (listener->perm.ux.mode != 0 && chmod(tempname, listener->perm.ux.mode) == -1)) {
+	if (((listener->bind_conf->ux.uid != -1 || listener->bind_conf->ux.gid != -1) &&
+	     (chown(tempname, listener->bind_conf->ux.uid, listener->bind_conf->ux.gid) == -1)) ||
+	    (listener->bind_conf->ux.mode != 0 && chmod(tempname, listener->bind_conf->ux.mode) == -1)) {
 		msg = "cannot change UNIX socket ownership";
 		goto err_unlink_temp;
 	}
@@ -351,50 +351,32 @@ static int uxst_unbind_listeners(struct protocol *proto)
 /* parse the "mode" bind keyword */
 static int bind_parse_mode(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	struct listener *l;
-	int val;
-
 	if (!*args[cur_arg + 1]) {
 		if (err)
 			memprintf(err, "'%s' : missing mode (octal integer expected)", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	val = strtol(args[cur_arg + 1], NULL, 8);
-
-	list_for_each_entry(l, &conf->listeners, by_bind) {
-		if (l->addr.ss_family == AF_UNIX)
-			l->perm.ux.mode = val;
-	}
-
+	conf->ux.mode = strtol(args[cur_arg + 1], NULL, 8);
 	return 0;
 }
 
 /* parse the "gid" bind keyword */
 static int bind_parse_gid(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	struct listener *l;
-	int val;
-
 	if (!*args[cur_arg + 1]) {
 		if (err)
 			memprintf(err, "'%s' : missing value", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	val = atol(args[cur_arg + 1]);
-	list_for_each_entry(l, &conf->listeners, by_bind) {
-		if (l->addr.ss_family == AF_UNIX)
-			l->perm.ux.gid = val;
-	}
-
+	conf->ux.gid = atol(args[cur_arg + 1]);
 	return 0;
 }
 
 /* parse the "group" bind keyword */
 static int bind_parse_group(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	struct listener *l;
 	struct group *group;
 
 	if (!*args[cur_arg + 1]) {
@@ -410,39 +392,26 @@ static int bind_parse_group(char **args, int cur_arg, struct proxy *px, struct b
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	list_for_each_entry(l, &conf->listeners, by_bind) {
-		if (l->addr.ss_family == AF_UNIX)
-			l->perm.ux.gid = group->gr_gid;
-	}
-
+	conf->ux.gid = group->gr_gid;
 	return 0;
 }
 
 /* parse the "uid" bind keyword */
 static int bind_parse_uid(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	struct listener *l;
-	int val;
-
 	if (!*args[cur_arg + 1]) {
 		if (err)
 			memprintf(err, "'%s' : missing value", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	val = atol(args[cur_arg + 1]);
-	list_for_each_entry(l, &conf->listeners, by_bind) {
-		if (l->addr.ss_family == AF_UNIX)
-			l->perm.ux.uid = val;
-	}
-
+	conf->ux.uid = atol(args[cur_arg + 1]);
 	return 0;
 }
 
 /* parse the "user" bind keyword */
 static int bind_parse_user(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	struct listener *l;
 	struct passwd *user;
 
 	if (!*args[cur_arg + 1]) {
@@ -458,11 +427,7 @@ static int bind_parse_user(char **args, int cur_arg, struct proxy *px, struct bi
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	list_for_each_entry(l, &conf->listeners, by_bind) {
-		if (l->addr.ss_family == AF_UNIX)
-			l->perm.ux.uid = user->pw_uid;
-	}
-
+	conf->ux.uid = user->pw_uid;
 	return 0;
 }
 
