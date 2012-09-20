@@ -112,7 +112,6 @@ struct global {
 			int level;      /* access level (ACCESS_LVL_*) */
 		} ux;
 	} unix_bind;
-	struct listener stats_sock; /* unix socket listener for statistics */
 	struct proxy *stats_fe;     /* the frontend holding the stats settings */
 };
 

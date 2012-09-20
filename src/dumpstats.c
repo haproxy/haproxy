@@ -168,6 +168,7 @@ static struct proxy *alloc_stats_fe(const char *name, const char *file, int line
 	fe->timeout.client = MS_TO_TICKS(10000); /* default timeout of 10 seconds */
 	fe->conf.file = strdup(file);
 	fe->conf.line = line;
+	fe->accept = stats_accept;
 	return fe;
 }
 
@@ -182,27 +183,15 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
                               char **err)
 {
 	struct bind_conf *bind_conf;
+	struct listener *l;
 
 	if (!strcmp(args[1], "socket")) {
-		struct sockaddr_un *su;
 		int cur_arg;
 
 		if (*args[2] == 0) {
-			memprintf(err, "'%s %s' in global section expects a path to a UNIX socket", args[0], args[1]);
+			memprintf(err, "'%s %s' in global section expects an address or a path to a UNIX socket", args[0], args[1]);
 			return -1;
 		}
-
-		if (global.stats_sock.state != LI_NEW) {
-			memprintf(err, "'%s %s' already specified in global section", args[0], args[1]);
-			return -1;
-		}
-
-		su = str2sun(args[2]);
-		if (!su) {
-			memprintf(err, "'%s %s' : path would require truncation", args[0], args[1]);
-			return -1;
-		}
-		memcpy(&global.stats_sock.addr, su, sizeof(struct sockaddr_un)); // guaranteed to fit
 
 		if (!global.stats_fe) {
 			if ((global.stats_fe = alloc_stats_fe("GLOBAL", file, line)) == NULL) {
@@ -214,19 +203,11 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		bind_conf = bind_conf_alloc(&global.stats_fe->conf.bind, file, line, args[2]);
 		bind_conf->level = ACCESS_LVL_OPER; /* default access level */
 
-		global.stats_sock.state = LI_INIT;
-		global.stats_sock.options = LI_O_UNLIMITED;
-		global.stats_sock.accept = session_accept;
-		global.stats_fe->accept = stats_accept;
-		global.stats_sock.handler = process_session;
-		global.stats_sock.analysers = 0;
-		global.stats_sock.nice = -64;  /* we want to boost priority for local stats */
-		global.stats_sock.frontend = global.stats_fe;
-		global.stats_sock.maxconn = global.stats_fe->maxconn;
-		global.stats_sock.timeout = &global.stats_fe->timeout.client;
-		global.stats_sock.bind_conf = bind_conf;
-		LIST_ADDQ(&global.stats_fe->conf.listeners, &global.stats_sock.by_fe);
-		LIST_ADDQ(&bind_conf->listeners, &global.stats_sock.by_bind);
+		if (!str2listener(args[2], global.stats_fe, bind_conf, file, line, err)) {
+			memprintf(err, "parsing [%s:%d] : '%s %s' : %s\n",
+			          file, line, args[0], args[1], err && *err ? *err : "error");
+			return -1;
+		}
 
 		cur_arg = 3;
 		while (*args[cur_arg]) {
@@ -283,9 +264,16 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 			}
 		}
 
-		global.stats_sock.data = &raw_sock;
-		uxst_add_listener(&global.stats_sock);
-		global.maxsock++;
+		list_for_each_entry(l, &bind_conf->listeners, by_bind) {
+			l->maxconn = global.stats_fe->maxconn;
+			l->backlog = global.stats_fe->backlog;
+			l->timeout = &global.stats_fe->timeout.client;
+			l->accept = session_accept;
+			l->handler = process_session;
+			l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
+			l->nice = -64;  /* we want to boost priority for local stats */
+			global.maxsock += l->maxconn;
+		}
 	}
 	else if (!strcmp(args[1], "timeout")) {
 		unsigned timeout;
