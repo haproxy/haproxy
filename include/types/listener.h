@@ -97,6 +97,7 @@ enum {
 struct bind_conf {
 #ifdef USE_OPENSSL
 	char *ciphers;             /* cipher suite to use if non-null */
+	char *ecdhe;               /* named curve to use for ECDHE */
 	int nosslv3;               /* disable SSLv3 */
 	int notlsv1;               /* disable TLSv1 */
 	int prefer_server_ciphers; /* Prefer server ciphers */

@@ -1038,6 +1038,7 @@ void deinit(void)
 #ifdef USE_OPENSSL
 			ssl_sock_free_all_ctx(bind_conf);
 			free(bind_conf->ciphers);
+			free(bind_conf->ecdhe);
 #endif /* USE_OPENSSL */
 			free(bind_conf->file);
 			free(bind_conf->arg);

@@ -389,11 +389,17 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, struct proxy *cu
 #ifndef SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION   /* needs OpenSSL >= 0.9.7 */
 #define SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION 0
 #endif
+#ifndef SSL_OP_SINGLE_ECDH_USE                          /* needs OpenSSL >= 0.9.8 */
+#define SSL_OP_SINGLE_ECDH_USE 0
+#endif
 #ifndef SSL_OP_NO_COMPRESSION                           /* needs OpenSSL >= 0.9.9 */
 #define SSL_OP_NO_COMPRESSION 0
 #endif
 #ifndef SSL_OP_SINGLE_DH_USE                            /* needs OpenSSL >= 0.9.6 */
 #define SSL_OP_SINGLE_DH_USE 0
+#endif
+#ifndef SSL_OP_SINGLE_ECDH_USE                            /* needs OpenSSL >= 1.0.0 */
+#define SSL_OP_SINGLE_ECDH_USE 0
 #endif
 #ifndef SSL_MODE_RELEASE_BUFFERS                        /* needs OpenSSL >= 1.0.0 */
 #define SSL_MODE_RELEASE_BUFFERS 0
@@ -406,6 +412,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 		SSL_OP_NO_SSLv2 |
 		SSL_OP_NO_COMPRESSION |
 		SSL_OP_SINGLE_DH_USE |
+		SSL_OP_SINGLE_ECDH_USE |
 		SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION;
 	int sslmode =
 		SSL_MODE_ENABLE_PARTIAL_WRITE |
@@ -436,6 +443,24 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 	SSL_CTX_set_tlsext_servername_callback(ctx, ssl_sock_switchctx_cbk);
 	SSL_CTX_set_tlsext_servername_arg(ctx, bind_conf);
 #endif
+#if defined(SSL_CTX_set_tmp_ecdh) && !defined(OPENSSL_NO_ECDH)
+	if (bind_conf->ecdhe) {
+		int i;
+		EC_KEY  *ecdh;
+
+		i = OBJ_sn2nid(bind_conf->ecdhe);
+		if (!i || ((ecdh = EC_KEY_new_by_curve_name(i)) == NULL)) {
+			Alert("Proxy '%s': unable to set elliptic named curve to '%s' for bind '%s' at [%s:%d].\n",
+			      curproxy->id, bind_conf->ecdhe, bind_conf->arg, bind_conf->file, bind_conf->line);
+			cfgerr++;
+		}
+		else {
+			SSL_CTX_set_tmp_ecdh(ctx, ecdh);
+			EC_KEY_free(ecdh);
+		}
+	}
+#endif
+
 	return cfgerr;
 }
 
@@ -888,6 +913,30 @@ static int bind_parse_crt(char **args, int cur_arg, struct proxy *px, struct bin
 	return 0;
 }
 
+/* parse the "ecdhe" bind keyword keywords */
+static int bind_parse_ecdhe(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+#if OPENSSL_VERSION_NUMBER < 0x0090800fL
+	if (err)
+		memprintf(err, "'%s' : library does not support elliptic curve Diffie-Hellman (too old)", args[cur_arg]);
+	return ERR_ALERT | ERR_FATAL;
+#elif defined(OPENSSL_NO_ECDH)
+	if (err)
+		memprintf(err, "'%s' : library does not support elliptic curve Diffie-Hellman (disabled via OPENSSL_NO_ECDH)", args[cur_arg]);
+	return ERR_ALERT | ERR_FATAL;
+#else
+	if (!*args[cur_arg + 1]) {
+		if (err)
+			memprintf(err, "'%s' : missing named curve", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	conf->ecdhe = strdup(args[cur_arg + 1]);
+
+	return 0;
+#endif
+}
+
 /* parse the "nosslv3" bind keyword */
 static int bind_parse_nosslv3(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -951,12 +1000,13 @@ static struct acl_kw_list acl_kws = {{ },{
  * not enabled.
  */
 static struct bind_kw_list bind_kws = { "SSL", { }, {
-	{ "ciphers",               bind_parse_ciphers, 1 }, /* set SSL cipher suite */
-	{ "crt",                   bind_parse_crt,     1 }, /* load SSL certificates from this location */
-	{ "nosslv3",               bind_parse_nosslv3, 0 }, /* disable SSLv3 */
-	{ "notlsv1",               bind_parse_notlsv1, 0 }, /* disable TLSv1 */
-	{ "prefer-server-ciphers", bind_parse_psc,     0 }, /* prefer server ciphers */
-	{ "ssl",                   bind_parse_ssl,     0 }, /* enable SSL processing */
+	{ "ciphers",               bind_parse_ciphers,       1 }, /* set SSL cipher suite */
+	{ "crt",                   bind_parse_crt,           1 }, /* load SSL certificates from this location */
+	{ "ecdhe",                 bind_parse_ecdhe,         1 }, /* defines named curve for elliptic curve Diffie-Hellman */
+	{ "nosslv3",               bind_parse_nosslv3,       0 }, /* disable SSLv3 */
+	{ "notlsv1",               bind_parse_notlsv1,       0 }, /* disable TLSv1 */
+	{ "prefer-server-ciphers", bind_parse_psc,           0 }, /* prefer server ciphers */
+	{ "ssl",                   bind_parse_ssl,           0 }, /* enable SSL processing */
 	{ NULL, NULL, 0 },
 }};
 
