@@ -96,11 +96,14 @@ enum {
 /* "bind" line settings */
 struct bind_conf {
 #ifdef USE_OPENSSL
+	char *cafile;              /* CAfile to use on verify */
 	char *ciphers;             /* cipher suite to use if non-null */
+	char *crlfile;             /* CRLfile to use on verify */
 	char *ecdhe;               /* named curve to use for ECDHE */
 	int nosslv3;               /* disable SSLv3 */
 	int notlsv1;               /* disable TLSv1 */
 	int prefer_server_ciphers; /* Prefer server ciphers */
+	int verify;                /* verify method (set of SSL_VERIFY_* flags) */
 	SSL_CTX *default_ctx;      /* SSL context of first/default certificate */
 	struct eb_root sni_ctx;    /* sni_ctx tree of all known certs full-names sorted by name */
 	struct eb_root sni_w_ctx;  /* sni_ctx tree of all known certs wildcards sorted by name */

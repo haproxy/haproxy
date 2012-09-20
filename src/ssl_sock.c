@@ -428,7 +428,29 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 
 	SSL_CTX_set_options(ctx, ssloptions);
 	SSL_CTX_set_mode(ctx, sslmode);
-	SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
+	SSL_CTX_set_verify(ctx, bind_conf->verify ? bind_conf->verify : SSL_VERIFY_NONE, NULL);
+	if (bind_conf->verify & SSL_VERIFY_PEER) {
+		if (bind_conf->cafile) {
+			/* load CAfile to verify */
+			if (!SSL_CTX_load_verify_locations(ctx, bind_conf->cafile, NULL)) {
+				Alert("Proxy '%s': unable to load CA file '%s' for bind '%s' at [%s:%d].\n",
+				      curproxy->id, bind_conf->cafile, bind_conf->arg, bind_conf->file, bind_conf->line);
+				cfgerr++;
+			}
+			/* set CA names fo client cert request, function returns void */
+			SSL_CTX_set_client_CA_list(ctx, SSL_load_client_CA_file(bind_conf->cafile));
+		}
+
+		if (bind_conf->crlfile) {
+			X509_STORE *store = SSL_CTX_get_cert_store(ctx);
+
+			if (!store || !X509_STORE_load_locations(store, bind_conf->crlfile, NULL)) {
+				Alert("Proxy '%s': unable to configure CRL file '%s' for bind '%s' at [%s:%d].\n",
+				      curproxy->id, bind_conf->cafile, bind_conf->arg, bind_conf->file, bind_conf->line);
+				cfgerr++;
+			}
+		}
+	}
 
 	shared_context_set_cache(ctx);
 	if (bind_conf->ciphers &&
@@ -887,6 +909,19 @@ smp_fetch_ssl_sni(struct proxy *px, struct session *l4, void *l7, unsigned int o
 #endif
 }
 
+/* parse the "cafile" bind keyword */
+static int bind_parse_cafile(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	if (!*args[cur_arg + 1]) {
+		if (err)
+			memprintf(err, "'%s' : missing CAfile path", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	conf->cafile = strdup(args[cur_arg + 1]);
+	return 0;
+}
+
 /* parse the "ciphers" bind keyword */
 static int bind_parse_ciphers(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -910,6 +945,19 @@ static int bind_parse_crt(char **args, int cur_arg, struct proxy *px, struct bin
 	if (ssl_sock_load_cert(args[cur_arg + 1], conf, px, err) > 0)
 		return ERR_ALERT | ERR_FATAL;
 
+	return 0;
+}
+
+/* parse the "crlfile" bind keyword */
+static int bind_parse_crlfile(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	if (!*args[cur_arg + 1]) {
+		if (err)
+			memprintf(err, "'%s' : missing CRLfile path", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	conf->crlfile = strdup(args[cur_arg + 1]);
 	return 0;
 }
 
@@ -970,6 +1018,31 @@ static int bind_parse_ssl(char **args, int cur_arg, struct proxy *px, struct bin
 	return 0;
 }
 
+/* parse the "verify" bind keyword */
+static int bind_parse_verify(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	if (!*args[cur_arg + 1]) {
+		if (err)
+			memprintf(err, "'%s' : missing verify method", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (strcmp(args[cur_arg + 1], "none") == 0)
+		conf->verify = SSL_VERIFY_NONE;
+	else if (strcmp(args[cur_arg + 1], "optional") == 0)
+		conf->verify = SSL_VERIFY_PEER;
+	else if (strcmp(args[cur_arg + 1], "required") == 0)
+		conf->verify = SSL_VERIFY_PEER|SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
+	else {
+		if (err)
+			memprintf(err, "'%s' : unknown verify method '%s', only 'none', 'optional', and 'required' are supported\n",
+			          args[cur_arg], args[cur_arg + 1]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	return 0;
+}
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
@@ -1000,13 +1073,16 @@ static struct acl_kw_list acl_kws = {{ },{
  * not enabled.
  */
 static struct bind_kw_list bind_kws = { "SSL", { }, {
+	{ "cafile",                bind_parse_cafile,        1 }, /* set CAfile to process verify on client cert */
 	{ "ciphers",               bind_parse_ciphers,       1 }, /* set SSL cipher suite */
+	{ "crlfile",               bind_parse_crlfile,       1 }, /* set certificat revocation list file use on client cert verify */
 	{ "crt",                   bind_parse_crt,           1 }, /* load SSL certificates from this location */
 	{ "ecdhe",                 bind_parse_ecdhe,         1 }, /* defines named curve for elliptic curve Diffie-Hellman */
 	{ "nosslv3",               bind_parse_nosslv3,       0 }, /* disable SSLv3 */
 	{ "notlsv1",               bind_parse_notlsv1,       0 }, /* disable TLSv1 */
 	{ "prefer-server-ciphers", bind_parse_psc,           0 }, /* prefer server ciphers */
 	{ "ssl",                   bind_parse_ssl,           0 }, /* enable SSL processing */
+	{ "verify",                bind_parse_verify,        1 }, /* set SSL verify method */
 	{ NULL, NULL, 0 },
 }};
 
