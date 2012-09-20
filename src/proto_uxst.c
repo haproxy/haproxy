@@ -352,8 +352,7 @@ static int uxst_unbind_listeners(struct protocol *proto)
 static int bind_parse_mode(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	if (!*args[cur_arg + 1]) {
-		if (err)
-			memprintf(err, "'%s' : missing mode (octal integer expected)", args[cur_arg]);
+		memprintf(err, "'%s' : missing mode (octal integer expected)", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -365,8 +364,7 @@ static int bind_parse_mode(char **args, int cur_arg, struct proxy *px, struct bi
 static int bind_parse_gid(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	if (!*args[cur_arg + 1]) {
-		if (err)
-			memprintf(err, "'%s' : missing value", args[cur_arg]);
+		memprintf(err, "'%s' : missing value", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -380,15 +378,13 @@ static int bind_parse_group(char **args, int cur_arg, struct proxy *px, struct b
 	struct group *group;
 
 	if (!*args[cur_arg + 1]) {
-		if (err)
-			memprintf(err, "'%s' : missing group name", args[cur_arg]);
+		memprintf(err, "'%s' : missing group name", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
 	group = getgrnam(args[cur_arg + 1]);
 	if (!group) {
-		if (err)
-			memprintf(err, "'%s' : unknown group name '%s'", args[cur_arg], args[cur_arg + 1]);
+		memprintf(err, "'%s' : unknown group name '%s'", args[cur_arg], args[cur_arg + 1]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -400,8 +396,7 @@ static int bind_parse_group(char **args, int cur_arg, struct proxy *px, struct b
 static int bind_parse_uid(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	if (!*args[cur_arg + 1]) {
-		if (err)
-			memprintf(err, "'%s' : missing value", args[cur_arg]);
+		memprintf(err, "'%s' : missing value", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -415,15 +410,13 @@ static int bind_parse_user(char **args, int cur_arg, struct proxy *px, struct bi
 	struct passwd *user;
 
 	if (!*args[cur_arg + 1]) {
-		if (err)
-			memprintf(err, "'%s' : missing user name", args[cur_arg]);
+		memprintf(err, "'%s' : missing user name", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
 	user = getpwnam(args[cur_arg + 1]);
 	if (!user) {
-		if (err)
-			memprintf(err, "'%s' : unknown user name '%s'", args[cur_arg], args[cur_arg + 1]);
+		memprintf(err, "'%s' : unknown user name '%s'", args[cur_arg], args[cur_arg + 1]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 

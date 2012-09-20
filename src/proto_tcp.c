@@ -1666,8 +1666,7 @@ smp_fetch_payload(struct proxy *px, struct session *l4, void *l7, unsigned int o
 static int val_payload(struct arg *arg, char **err_msg)
 {
 	if (!arg[1].data.uint) {
-		if (err_msg)
-			memprintf(err_msg, "payload length must be > 0");
+		memprintf(err_msg, "payload length must be > 0");
 		return 0;
 	}
 	return 1;
@@ -1685,15 +1684,13 @@ static int val_payload(struct arg *arg, char **err_msg)
 static int val_payload_lv(struct arg *arg, char **err_msg)
 {
 	if (!arg[1].data.uint) {
-		if (err_msg)
-			memprintf(err_msg, "payload length must be > 0");
+		memprintf(err_msg, "payload length must be > 0");
 		return 0;
 	}
 
 	if (arg[2].type == ARGT_SINT &&
 	    (int)(arg[0].data.uint + arg[1].data.uint + arg[2].data.sint) < 0) {
-		if (err_msg)
-			memprintf(err_msg, "payload offset too negative");
+		memprintf(err_msg, "payload offset too negative");
 		return 0;
 	}
 	return 1;
@@ -1737,15 +1734,13 @@ static int bind_parse_mss(char **args, int cur_arg, struct proxy *px, struct bin
 	int mss;
 
 	if (!*args[cur_arg + 1]) {
-		if (err)
-			memprintf(err, "'%s' : missing MSS value", args[cur_arg]);
+		memprintf(err, "'%s' : missing MSS value", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
 	mss = atoi(args[cur_arg + 1]);
 	if (!mss || abs(mss) > 65535) {
-		if (err)
-			memprintf(err, "'%s' : expects an MSS with and absolute value between 1 and 65535", args[cur_arg]);
+		memprintf(err, "'%s' : expects an MSS with and absolute value between 1 and 65535", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -1765,8 +1760,7 @@ static int bind_parse_interface(char **args, int cur_arg, struct proxy *px, stru
 	struct listener *l;
 
 	if (!*args[cur_arg + 1]) {
-		if (err)
-			memprintf(err, "'%s' : missing interface name", args[cur_arg]);
+		memprintf(err, "'%s' : missing interface name", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 

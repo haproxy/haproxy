@@ -804,8 +804,7 @@ int acl_parse_str(const char **text, struct acl_pattern *pattern, int *opaque, c
 
 		node = calloc(1, sizeof(*node) + len + 1);
 		if (!node) {
-			if (err)
-				memprintf(err, "out of memory while loading string pattern");
+			memprintf(err, "out of memory while loading string pattern");
 			return 0;
 		}
 		memcpy(node->key, *text, len + 1);
@@ -817,8 +816,7 @@ int acl_parse_str(const char **text, struct acl_pattern *pattern, int *opaque, c
 
 	pattern->ptr.str = strdup(*text);
 	if (!pattern->ptr.str) {
-		if (err)
-			memprintf(err, "out of memory while loading string pattern");
+		memprintf(err, "out of memory while loading string pattern");
 		return 0;
 	}
 	pattern->len = len;
@@ -839,8 +837,7 @@ acl_parse_strcat(const char **text, struct acl_pattern *pattern, int *opaque, ch
 	pattern->type = SMP_T_CSTR;
 	pattern->ptr.str = s = calloc(1, len);
 	if (!pattern->ptr.str) {
-		if (err)
-			memprintf(err, "out of memory while loading pattern");
+		memprintf(err, "out of memory while loading pattern");
 		return 0;
 	}
 
@@ -867,16 +864,14 @@ int acl_parse_reg(const char **text, struct acl_pattern *pattern, int *opaque, c
 	preg = calloc(1, sizeof(regex_t));
 
 	if (!preg) {
-		if (err)
-			memprintf(err, "out of memory while loading pattern");
+		memprintf(err, "out of memory while loading pattern");
 		return 0;
 	}
 
 	icase = (pattern->flags & ACL_PAT_F_IGNORE_CASE) ? REG_ICASE : 0;
 	if (regcomp(preg, *text, REG_EXTENDED | REG_NOSUB | icase) != 0) {
 		free(preg);
-		if (err)
-			memprintf(err, "regex '%s' is invalid", *text);
+		memprintf(err, "regex '%s' is invalid", *text);
 		return 0;
 	}
 
@@ -914,8 +909,7 @@ int acl_parse_int(const char **text, struct acl_pattern *pattern, int *opaque, c
 		case STD_OP_LT: *opaque = 3; break;
 		case STD_OP_LE: *opaque = 4; break;
 		default:
-			if (err)
-				memprintf(err, "'%s' is neither a number nor a supported operator", ptr);
+			memprintf(err, "'%s' is neither a number nor a supported operator", ptr);
 			return 0;
 		}
 
@@ -942,8 +936,7 @@ int acl_parse_int(const char **text, struct acl_pattern *pattern, int *opaque, c
 
 	if (last && *opaque >= 1 && *opaque <= 4) {
 		/* having a range with a min or a max is absurd */
-		if (err)
-			memprintf(err, "integer range '%s' specified with a comparison operator", text[skip]);
+		memprintf(err, "integer range '%s' specified with a comparison operator", text[skip]);
 		return 0;
 	}
 
@@ -1007,8 +1000,7 @@ int acl_parse_dotted_ver(const char **text, struct acl_pattern *pattern, int *op
 		case STD_OP_LT: *opaque = 3; break;
 		case STD_OP_LE: *opaque = 4; break;
 		default:
-			if (err)
-				memprintf(err, "'%s' is neither a number nor a supported operator", ptr);
+			memprintf(err, "'%s' is neither a number nor a supported operator", ptr);
 			return 0;
 		}
 
@@ -1048,8 +1040,7 @@ int acl_parse_dotted_ver(const char **text, struct acl_pattern *pattern, int *op
 
 	if (last && *opaque >= 1 && *opaque <= 4) {
 		/* having a range with a min or a max is absurd */
-		if (err)
-			memprintf(err, "version range '%s' specified with a comparison operator", text[skip]);
+		memprintf(err, "version range '%s' specified with a comparison operator", text[skip]);
 		return 0;
 	}
 
@@ -1103,8 +1094,7 @@ int acl_parse_ip(const char **text, struct acl_pattern *pattern, int *opaque, ch
 			/* FIXME: insert <addr>/<mask> into the tree here */
 			node = calloc(1, sizeof(*node) + 4); /* reserve 4 bytes for IPv4 address */
 			if (!node) {
-				if (err)
-					memprintf(err, "out of memory while loading IPv4 pattern");
+				memprintf(err, "out of memory while loading IPv4 pattern");
 				return 0;
 			}
 			memcpy(node->key, &pattern->val.ipv4.addr, 4); /* network byte order */
@@ -1122,8 +1112,7 @@ int acl_parse_ip(const char **text, struct acl_pattern *pattern, int *opaque, ch
 		return 1;
 	}
 	else {
-		if (err)
-			memprintf(err, "'%s' is not a valid IPv4 or IPv6 address", *text);
+		memprintf(err, "'%s' is not a valid IPv4 or IPv6 address", *text);
 		return 0;
 	}
 }
@@ -1349,15 +1338,13 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 
 	aclkw = find_acl_kw(args[0]);
 	if (!aclkw || !aclkw->parse) {
-		if (err)
-			memprintf(err, "unknown ACL keyword '%s'", *args);
+		memprintf(err, "unknown ACL keyword '%s'", *args);
 		goto out_return;
 	}
 
 	expr = (struct acl_expr *)calloc(1, sizeof(*expr));
 	if (!expr) {
-		if (err)
-			memprintf(err, "out of memory when parsing ACL expression");
+		memprintf(err, "out of memory when parsing ACL expression");
 		goto out_return;
 	}
 
@@ -1376,8 +1363,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 			arg++;
 			end = strchr(arg, ')');
 			if (!end) {
-				if (err)
-					memprintf(err, "missing closing ')' after arguments to ACL keyword '%s'", aclkw->kw);
+				memprintf(err, "missing closing ')' after arguments to ACL keyword '%s'", aclkw->kw);
 				goto out_free_expr;
 			}
 
@@ -1390,8 +1376,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 					       err, NULL, NULL);
 			if (nbargs < 0) {
 				/* note that make_arg_list will have set <err> here */
-				if (err)
-					memprintf(err, "in argument to '%s', %s", aclkw->kw, *err);
+				memprintf(err, "in argument to '%s', %s", aclkw->kw, *err);
 				goto out_free_expr;
 			}
 
@@ -1399,8 +1384,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 				/* invalid keyword argument, error must have been
 				 * set by val_args().
 				 */
-				if (err)
-					memprintf(err, "in argument to '%s', %s", aclkw->kw, *err);
+				memprintf(err, "in argument to '%s', %s", aclkw->kw, *err);
 				goto out_free_expr;
 			}
 		}
@@ -1412,8 +1396,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 			 * the current one later.
 			 */
 			if (type != ARGT_FE && type != ARGT_BE && type != ARGT_TAB) {
-				if (err)
-					memprintf(err, "ACL keyword '%s' expects %d arguments", aclkw->kw, ARGM(aclkw->arg_mask));
+				memprintf(err, "ACL keyword '%s' expects %d arguments", aclkw->kw, ARGM(aclkw->arg_mask));
 				goto out_free_expr;
 			}
 
@@ -1430,16 +1413,14 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 		}
 		else if (ARGM(aclkw->arg_mask)) {
 			/* there were some mandatory arguments */
-			if (err)
-				memprintf(err, "ACL keyword '%s' expects %d arguments", aclkw->kw, ARGM(aclkw->arg_mask));
+			memprintf(err, "ACL keyword '%s' expects %d arguments", aclkw->kw, ARGM(aclkw->arg_mask));
 			goto out_free_expr;
 		}
 	}
 	else {
 		if (arg) {
 			/* no argument expected */
-			if (err)
-				memprintf(err, "ACL keyword '%s' takes no argument", aclkw->kw);
+			memprintf(err, "ACL keyword '%s' takes no argument", aclkw->kw);
 			goto out_free_expr;
 		}
 	}
@@ -1475,8 +1456,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 		int ret;
 		pattern = (struct acl_pattern *)calloc(1, sizeof(*pattern));
 		if (!pattern) {
-			if (err)
-				memprintf(err, "out of memory when parsing ACL pattern");
+			memprintf(err, "out of memory when parsing ACL pattern");
 			goto out_free_expr;
 		}
 		pattern->flags = patflags;
@@ -1535,8 +1515,7 @@ struct acl *parse_acl(const char **args, struct list *known_acl, char **err)
 	const char *pos;
 
 	if (**args && (pos = invalid_char(*args))) {
-		if (err)
-			memprintf(err, "invalid character in ACL name : '%c'", *pos);
+		memprintf(err, "invalid character in ACL name : '%c'", *pos);
 		goto out_return;
 	}
 
@@ -1566,14 +1545,12 @@ struct acl *parse_acl(const char **args, struct list *known_acl, char **err)
 	if (!cur_acl) {
 		name = strdup(args[0]);
 		if (!name) {
-			if (err)
-				memprintf(err, "out of memory when parsing ACL");
+			memprintf(err, "out of memory when parsing ACL");
 			goto out_free_acl_expr;
 		}
 		cur_acl = (struct acl *)calloc(1, sizeof(*cur_acl));
 		if (cur_acl == NULL) {
-			if (err)
-				memprintf(err, "out of memory when parsing ACL");
+			memprintf(err, "out of memory when parsing ACL");
 			goto out_free_name;
 		}
 
@@ -1644,8 +1621,7 @@ struct acl *find_acl_default(const char *acl_name, struct list *known_acl, char 
 	}
 
 	if (default_acl_list[index].name == NULL) {
-		if (err)
-			memprintf(err, "no such ACL : '%s'", acl_name);
+		memprintf(err, "no such ACL : '%s'", acl_name);
 		return NULL;
 	}
 
@@ -1657,15 +1633,13 @@ struct acl *find_acl_default(const char *acl_name, struct list *known_acl, char 
 
 	name = strdup(acl_name);
 	if (!name) {
-		if (err)
-			memprintf(err, "out of memory when building default ACL '%s'", acl_name);
+		memprintf(err, "out of memory when building default ACL '%s'", acl_name);
 		goto out_free_acl_expr;
 	}
 
 	cur_acl = (struct acl *)calloc(1, sizeof(*cur_acl));
 	if (cur_acl == NULL) {
-		if (err)
-			memprintf(err, "out of memory when building default ACL '%s'", acl_name);
+		memprintf(err, "out of memory when building default ACL '%s'", acl_name);
 		goto out_free_name;
 	}
 
@@ -1721,8 +1695,7 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
 
 	cond = (struct acl_cond *)calloc(1, sizeof(*cond));
 	if (cond == NULL) {
-		if (err)
-			memprintf(err, "out of memory when parsing condition");
+		memprintf(err, "out of memory when parsing condition");
 		goto out_return;
 	}
 
@@ -1765,15 +1738,13 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
 				arg_end++;
 
 			if (!*args[arg_end]) {
-				if (err)
-					memprintf(err, "missing closing '}' in condition");
+				memprintf(err, "missing closing '}' in condition");
 				goto out_free_suite;
 			}
 
 			args_new = calloc(1, (arg_end - arg + 1) * sizeof(*args_new));
 			if (!args_new) {
-				if (err)
-					memprintf(err, "out of memory when parsing condition");
+				memprintf(err, "out of memory when parsing condition");
 				goto out_free_suite;
 			}
 
@@ -1807,8 +1778,7 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
 
 		cur_term = (struct acl_term *)calloc(1, sizeof(*cur_term));
 		if (cur_term == NULL) {
-			if (err)
-				memprintf(err, "out of memory when parsing condition");
+			memprintf(err, "out of memory when parsing condition");
 			goto out_free_suite;
 		}
 
@@ -1819,8 +1789,7 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
 		if (!cur_suite) {
 			cur_suite = (struct acl_term_suite *)calloc(1, sizeof(*cur_suite));
 			if (cur_term == NULL) {
-				if (err)
-					memprintf(err, "out of memory when parsing condition");
+				memprintf(err, "out of memory when parsing condition");
 				goto out_free_term;
 			}
 			LIST_INIT(&cur_suite->terms);
@@ -1867,8 +1836,7 @@ struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, co
 		args++;
 	}
 	else {
-		if (err)
-			memprintf(err, "conditions must start with either 'if' or 'unless'");
+		memprintf(err, "conditions must start with either 'if' or 'unless'");
 		return NULL;
 	}
 

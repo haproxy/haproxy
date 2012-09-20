@@ -215,22 +215,19 @@ int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
 
 	if (pos < min_arg) {
 		/* not enough arguments */
-		if (err_msg)
-			memprintf(err_msg,
-				  "Missing arguments (got %d/%d), type '%s' expected",
-				  pos, min_arg, arg_type_names[(mask >> (pos * 4)) & 15]);
+		memprintf(err_msg,
+		          "Missing arguments (got %d/%d), type '%s' expected",
+		          pos, min_arg, arg_type_names[(mask >> (pos * 4)) & 15]);
 		goto err;
 	}
 
 	if (len) {
 		/* too many arguments, starting at <in> */
-		if (err_msg) {
-			/* the caller is responsible for freeing this message */
-			word = my_strndup(in, len);
-			memprintf(err_msg, "end of arguments expected at position %d, but got '%s'",
-				  pos + 1, word);
-			free(word); word = NULL;
-		}
+		/* the caller is responsible for freeing this message */
+		word = my_strndup(in, len);
+		memprintf(err_msg, "end of arguments expected at position %d, but got '%s'",
+		          pos + 1, word);
+		free(word); word = NULL;
 		goto err;
 	}
 
@@ -255,23 +252,17 @@ int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
 	return -1;
 
  empty_err:
-	if (err_msg) {
-		memprintf(err_msg, "expected type '%s' at position %d, but got nothing",
-			  arg_type_names[(mask >> (pos * 4)) & 15], pos + 1);
-	}
+	memprintf(err_msg, "expected type '%s' at position %d, but got nothing",
+	          arg_type_names[(mask >> (pos * 4)) & 15], pos + 1);
 	goto err;
 
  parse_err:
-	if (err_msg) {
-		memprintf(err_msg, "failed to parse '%s' as type '%s' at position %d",
-			  word, arg_type_names[(mask >> (pos * 4)) & 15], pos + 1);
-	}
+	memprintf(err_msg, "failed to parse '%s' as type '%s' at position %d",
+	          word, arg_type_names[(mask >> (pos * 4)) & 15], pos + 1);
 	goto err;
 
  not_impl:
-	if (err_msg) {
-		memprintf(err_msg, "parsing for type '%s' was not implemented, please report this bug",
-			  arg_type_names[(mask >> (pos * 4)) & 15]);
-	}
+	memprintf(err_msg, "parsing for type '%s' was not implemented, please report this bug",
+	          arg_type_names[(mask >> (pos * 4)) & 15]);
 	goto err;
 }

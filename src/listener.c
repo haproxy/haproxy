@@ -521,15 +521,13 @@ static int bind_parse_backlog(char **args, int cur_arg, struct proxy *px, struct
 	int val;
 
 	if (!*args[cur_arg + 1]) {
-		if (err)
-			memprintf(err, "'%s' : missing value", args[cur_arg]);
+		memprintf(err, "'%s' : missing value", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
 	val = atol(args[cur_arg + 1]);
 	if (val <= 0) {
-		if (err)
-			memprintf(err, "'%s' : invalid value %d, must be > 0", args[cur_arg], val);
+		memprintf(err, "'%s' : invalid value %d, must be > 0", args[cur_arg], val);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -546,14 +544,12 @@ static int bind_parse_id(char **args, int cur_arg, struct proxy *px, struct bind
 	struct listener *l, *new;
 
 	if (conf->listeners.n != conf->listeners.p) {
-		if (err)
-			memprintf(err, "'%s' can only be used with a single socket", args[cur_arg]);
+		memprintf(err, "'%s' can only be used with a single socket", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
 	if (!*args[cur_arg + 1]) {
-		if (err)
-			memprintf(err, "'%s' : expects an integer argument", args[cur_arg]);
+		memprintf(err, "'%s' : expects an integer argument", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -562,18 +558,16 @@ static int bind_parse_id(char **args, int cur_arg, struct proxy *px, struct bind
 	new->conf.id.key = new->luid;
 
 	if (new->luid <= 0) {
-		if (err)
-			memprintf(err, "'%s' : custom id has to be > 0", args[cur_arg]);
+		memprintf(err, "'%s' : custom id has to be > 0", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
 	node = eb32_lookup(&px->conf.used_listener_id, new->luid);
 	if (node) {
 		l = container_of(node, struct listener, conf.id);
-		if (err)
-			memprintf(err, "'%s' : custom id %d already used at %s:%d ('bind %s')",
-			          args[cur_arg], l->luid, l->bind_conf->file, l->bind_conf->line,
-			          l->bind_conf->arg);
+		memprintf(err, "'%s' : custom id %d already used at %s:%d ('bind %s')",
+		          args[cur_arg], l->luid, l->bind_conf->file, l->bind_conf->line,
+		          l->bind_conf->arg);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -588,15 +582,13 @@ static int bind_parse_maxconn(char **args, int cur_arg, struct proxy *px, struct
 	int val;
 
 	if (!*args[cur_arg + 1]) {
-		if (err)
-			memprintf(err, "'%s' : missing value", args[cur_arg]);
+		memprintf(err, "'%s' : missing value", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
 	val = atol(args[cur_arg + 1]);
 	if (val <= 0) {
-		if (err)
-			memprintf(err, "'%s' : invalid value %d, must be > 0", args[cur_arg], val);
+		memprintf(err, "'%s' : invalid value %d, must be > 0", args[cur_arg], val);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -612,8 +604,7 @@ static int bind_parse_name(char **args, int cur_arg, struct proxy *px, struct bi
 	struct listener *l;
 
 	if (!*args[cur_arg + 1]) {
-		if (err)
-			memprintf(err, "'%s' : missing name", args[cur_arg]);
+		memprintf(err, "'%s' : missing name", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
@@ -630,15 +621,13 @@ static int bind_parse_nice(char **args, int cur_arg, struct proxy *px, struct bi
 	int val;
 
 	if (!*args[cur_arg + 1]) {
-		if (err)
-			memprintf(err, "'%s' : missing value", args[cur_arg]);
+		memprintf(err, "'%s' : missing value", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
 	}
 
 	val = atol(args[cur_arg + 1]);
 	if (val < -1024 || val > 1024) {
-		if (err)
-			memprintf(err, "'%s' : invalid value %d, allowed range is -1024..1024", args[cur_arg], val);
+		memprintf(err, "'%s' : invalid value %d, allowed range is -1024..1024", args[cur_arg], val);
 		return ERR_ALERT | ERR_FATAL;
 	}
 

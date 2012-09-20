@@ -1788,7 +1788,8 @@ char *gmt2str_log(char *dst, struct tm *tm, size_t size)
  * This means that <err> must be initialized to NULL before first invocation.
  * The return value also holds the allocated string, which eases error checking
  * and immediate consumption. If the output pointer is not used, NULL must be
- * passed instead and it will be ignored.
+ * passed instead and it will be ignored. The returned message will then also
+ * be NULL so that the caller does not have to bother with freeing anything.
  *
  * It is also convenient to use it without any free except the last one :
  *    err = NULL;
@@ -1803,6 +1804,9 @@ char *memprintf(char **out, const char *format, ...)
 	char *ret = NULL;
 	int allocated = 0;
 	int needed = 0;
+
+	if (!out)
+		return NULL;
 
 	do {
 		/* vsnprintf() will return the required length even when the

@@ -7743,8 +7743,7 @@ static int acl_parse_meth(const char **text, struct acl_pattern *pattern, int *o
 	if (meth == HTTP_METH_OTHER) {
 		pattern->ptr.str = strdup(*text);
 		if (!pattern->ptr.str) {
-			if (err)
-				memprintf(err, "out of memory while loading pattern");
+			memprintf(err, "out of memory while loading pattern");
 			return 0;
 		}
 		pattern->len = len;
@@ -7819,8 +7818,7 @@ static int acl_parse_ver(const char **text, struct acl_pattern *pattern, int *op
 {
 	pattern->ptr.str = strdup(*text);
 	if (!pattern->ptr.str) {
-		if (err)
-			memprintf(err, "out of memory while loading pattern");
+		memprintf(err, "out of memory while loading pattern");
 		return 0;
 	}
 	pattern->len = strlen(*text);
@@ -8643,8 +8641,7 @@ smp_fetch_url_param_val(struct proxy *px, struct session *l4, void *l7, unsigned
 static int val_hdr(struct arg *arg, char **err_msg)
 {
 	if (arg && arg[1].type == ARGT_SINT && arg[1].data.sint < -MAX_HDR_HISTORY) {
-		if (err_msg)
-			memprintf(err_msg, "header occurrence must be >= %d", -MAX_HDR_HISTORY);
+		memprintf(err_msg, "header occurrence must be >= %d", -MAX_HDR_HISTORY);
 		return 0;
 	}
 	return 1;
