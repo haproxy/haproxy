@@ -967,6 +967,29 @@ smp_fetch_ssl_sni(struct proxy *px, struct session *l4, void *l7, unsigned int o
 #endif
 }
 
+/* integer, returns the verify result */
+static int
+smp_fetch_verify_result(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                      const struct arg *args, struct sample *smp)
+{
+	if (!l4 || l4->si[0].conn.data != &ssl_sock)
+		return 0;
+
+	if (!(l4->si[0].conn.flags & CO_FL_CONNECTED)) {
+		smp->flags = SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	if (!l4->si[0].conn.data_ctx)
+		return 0;
+
+	smp->type = SMP_T_UINT;
+	smp->data.uint = (unsigned int)SSL_get_verify_result(l4->si[0].conn.data_ctx);
+	smp->flags = 0;
+
+	return 1;
+}
+
 /* parse the "cafile" bind keyword */
 static int bind_parse_cafile(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -1143,10 +1166,11 @@ static int bind_parse_verify(char **args, int cur_arg, struct proxy *px, struct 
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
-	{ "client_crt",      smp_fetch_client_crt,  0,    NULL,    SMP_T_BOOL, SMP_CAP_REQ|SMP_CAP_RES },
-	{ "is_ssl",          smp_fetch_is_ssl,      0,    NULL,    SMP_T_BOOL, SMP_CAP_REQ|SMP_CAP_RES },
-	{ "ssl_has_sni",     smp_fetch_has_sni,     0,    NULL,    SMP_T_BOOL, SMP_CAP_REQ|SMP_CAP_RES },
-	{ "ssl_sni",         smp_fetch_ssl_sni,     0,    NULL,    SMP_T_CSTR, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "client_crt",        smp_fetch_client_crt,    0,    NULL,    SMP_T_BOOL, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "is_ssl",            smp_fetch_is_ssl,        0,    NULL,    SMP_T_BOOL, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "ssl_has_sni",       smp_fetch_has_sni,       0,    NULL,    SMP_T_BOOL, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "ssl_sni",           smp_fetch_ssl_sni,       0,    NULL,    SMP_T_CSTR, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "ssl_verify_result", smp_fetch_verify_result, 0,    NULL,    SMP_T_UINT, SMP_CAP_REQ|SMP_CAP_RES },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 
@@ -1154,12 +1178,13 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct acl_kw_list acl_kws = {{ },{
-	{ "client_crt",      acl_parse_int,   smp_fetch_client_crt,  acl_match_nothing,  ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
-	{ "is_ssl",          acl_parse_int,   smp_fetch_is_ssl,      acl_match_nothing,  ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
-	{ "ssl_has_sni",     acl_parse_int,   smp_fetch_has_sni,     acl_match_nothing,  ACL_USE_L6REQ_PERMANENT, 0 },
-	{ "ssl_sni",         acl_parse_str,   smp_fetch_ssl_sni,     acl_match_str,      ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
-	{ "ssl_sni_end",     acl_parse_str,   smp_fetch_ssl_sni,     acl_match_end,      ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
-	{ "ssl_sni_reg",     acl_parse_str,   smp_fetch_ssl_sni,     acl_match_reg,      ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
+	{ "client_crt",        acl_parse_int, smp_fetch_client_crt,    acl_match_nothing,  ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
+	{ "is_ssl",            acl_parse_int, smp_fetch_is_ssl,        acl_match_nothing,  ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
+	{ "ssl_has_sni",       acl_parse_int, smp_fetch_has_sni,       acl_match_nothing,  ACL_USE_L6REQ_PERMANENT, 0 },
+	{ "ssl_sni",           acl_parse_str, smp_fetch_ssl_sni,       acl_match_str,      ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
+	{ "ssl_sni_end",       acl_parse_str, smp_fetch_ssl_sni,       acl_match_end,      ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
+	{ "ssl_sni_reg",       acl_parse_str, smp_fetch_ssl_sni,       acl_match_reg,      ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
+	{ "ssl_verify_result", acl_parse_int, smp_fetch_verify_result, acl_match_int,      ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ NULL, NULL, NULL, NULL },
 }};
 
