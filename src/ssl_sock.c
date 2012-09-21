@@ -93,13 +93,32 @@ int ssl_sock_verifycbk(int ok, X509_STORE_CTX *x_store)
 {
 	SSL *ssl;
 	struct connection *conn;
+	int err, depth;
 
 	ssl = X509_STORE_CTX_get_ex_data(x_store, SSL_get_ex_data_X509_STORE_CTX_idx());
 	conn = (struct connection *)SSL_get_app_data(ssl);
 
 	conn->data_st |= SSL_SOCK_ST_FL_VERIFY_DONE;
 
-	return ok;
+	if (ok) /* no errors */
+		return ok;
+
+	depth = X509_STORE_CTX_get_error_depth(x_store);
+	err = X509_STORE_CTX_get_error(x_store);
+
+	/* check if CA error needs to be ignored */
+	if (depth > 0) {
+		if (target_client(&conn->target)->bind_conf->ca_ignerr & (1ULL << err))
+			return 1;
+
+		return 0;
+	}
+
+	/* check if certificate error needs to be ignored */
+	if (target_client(&conn->target)->bind_conf->crt_ignerr & (1ULL << err))
+		return 1;
+
+	return 0;
 }
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
@@ -1024,6 +1043,44 @@ static int bind_parse_ecdhe(char **args, int cur_arg, struct proxy *px, struct b
 #endif
 }
 
+/* parse the "crt_ignerr" and "ca_ignerr" bind keywords */
+static int bind_parse_ignore_err(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	int code;
+	char *p = args[cur_arg + 1];
+	unsigned long long *ignerr = &conf->crt_ignerr;
+
+	if (!*p) {
+		if (err)
+			memprintf(err, "'%s' : missing error IDs list", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (strcmp(args[cur_arg], "ca-ignore-err") == 0)
+		ignerr = &conf->ca_ignerr;
+
+	if (strcmp(p, "all") == 0) {
+		*ignerr = ~0ULL;
+		return 0;
+	}
+
+	while (p) {
+		code = atoi(p);
+		if ((code <= 0) || (code > 63)) {
+			if (err)
+				memprintf(err, "'%s' : ID '%d' out of range (1..63) in error IDs list '%s'",
+				          args[cur_arg], code, args[cur_arg + 1]);
+			return ERR_ALERT | ERR_FATAL;
+		}
+		*ignerr |= 1ULL << code;
+		p = strchr(p, ',');
+		if (p)
+			p++;
+	}
+
+	return 0;
+}
+
 /* parse the "nosslv3" bind keyword */
 static int bind_parse_nosslv3(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -1115,9 +1172,11 @@ static struct acl_kw_list acl_kws = {{ },{
  */
 static struct bind_kw_list bind_kws = { "SSL", { }, {
 	{ "cafile",                bind_parse_cafile,        1 }, /* set CAfile to process verify on client cert */
+	{ "ca-ignore-err",         bind_parse_ignore_err,    1 }, /* set error IDs to ignore on verify depth > 0 */
 	{ "ciphers",               bind_parse_ciphers,       1 }, /* set SSL cipher suite */
 	{ "crlfile",               bind_parse_crlfile,       1 }, /* set certificat revocation list file use on client cert verify */
 	{ "crt",                   bind_parse_crt,           1 }, /* load SSL certificates from this location */
+	{ "crt-ignore-err",        bind_parse_ignore_err,    1 }, /* set error IDs to ingore on verify depth == 0 */
 	{ "ecdhe",                 bind_parse_ecdhe,         1 }, /* defines named curve for elliptic curve Diffie-Hellman */
 	{ "nosslv3",               bind_parse_nosslv3,       0 }, /* disable SSLv3 */
 	{ "notlsv1",               bind_parse_notlsv1,       0 }, /* disable TLSv1 */
