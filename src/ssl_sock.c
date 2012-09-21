@@ -70,6 +70,8 @@
 #include <proto/ssl_sock.h>
 #include <proto/task.h>
 
+#define SSL_SOCK_ST_FL_VERIFY_DONE  0x00000001
+
 static int sslconns = 0;
 
 void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
@@ -82,6 +84,22 @@ void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
 		if (conn->flags & CO_FL_CONNECTED)
 			conn->flags |= CO_FL_ERROR;
 	}
+}
+
+/* Callback is called for each certificate of the chain during a verify
+   ok is set to 1 if preverify detect no error on current certificate.
+   Returns 0 to break the handshake, 1 otherwise. */
+int ssl_sock_verifycbk(int ok, X509_STORE_CTX *x_store)
+{
+	SSL *ssl;
+	struct connection *conn;
+
+	ssl = X509_STORE_CTX_get_ex_data(x_store, SSL_get_ex_data_X509_STORE_CTX_idx());
+	conn = (struct connection *)SSL_get_app_data(ssl);
+
+	conn->data_st |= SSL_SOCK_ST_FL_VERIFY_DONE;
+
+	return ok;
 }
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
@@ -428,7 +446,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 
 	SSL_CTX_set_options(ctx, ssloptions);
 	SSL_CTX_set_mode(ctx, sslmode);
-	SSL_CTX_set_verify(ctx, bind_conf->verify ? bind_conf->verify : SSL_VERIFY_NONE, NULL);
+	SSL_CTX_set_verify(ctx, bind_conf->verify ? bind_conf->verify : SSL_VERIFY_NONE, ssl_sock_verifycbk);
 	if (bind_conf->verify & SSL_VERIFY_PEER) {
 		if (bind_conf->cafile) {
 			/* load CAfile to verify */
@@ -861,6 +879,27 @@ static void ssl_sock_shutw(struct connection *conn, int clean)
 
 /***** Below are some sample fetching functions for ACL/patterns *****/
 
+/* boolean, returns true if client cert was present */
+static int
+smp_fetch_client_crt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                     const struct arg *args, struct sample *smp)
+{
+	if (!l4 || l4->si[0].conn.data != &ssl_sock)
+		return 0;
+
+	if (!(l4->si[0].conn.flags & CO_FL_CONNECTED)) {
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	smp->flags = 0;
+	smp->type = SMP_T_BOOL;
+	smp->data.uint = SSL_SOCK_ST_FL_VERIFY_DONE & l4->si[0].conn.data_st ? 1 : 0;
+
+	return 1;
+}
+
+
 /* boolean, returns true if data layer is SSL */
 static int
 smp_fetch_is_ssl(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
@@ -1047,9 +1086,10 @@ static int bind_parse_verify(char **args, int cur_arg, struct proxy *px, struct 
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
-	{ "is_ssl",       smp_fetch_is_ssl,   0,    NULL,    SMP_T_BOOL, SMP_CAP_REQ|SMP_CAP_RES },
-	{ "ssl_has_sni",  smp_fetch_has_sni,  0,    NULL,    SMP_T_BOOL, SMP_CAP_REQ|SMP_CAP_RES },
-	{ "ssl_sni",      smp_fetch_ssl_sni,  0,    NULL,    SMP_T_CSTR, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "client_crt",      smp_fetch_client_crt,  0,    NULL,    SMP_T_BOOL, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "is_ssl",          smp_fetch_is_ssl,      0,    NULL,    SMP_T_BOOL, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "ssl_has_sni",     smp_fetch_has_sni,     0,    NULL,    SMP_T_BOOL, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "ssl_sni",         smp_fetch_ssl_sni,     0,    NULL,    SMP_T_CSTR, SMP_CAP_REQ|SMP_CAP_RES },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 
@@ -1057,11 +1097,12 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct acl_kw_list acl_kws = {{ },{
-	{ "is_ssl",      acl_parse_int,   smp_fetch_is_ssl,   acl_match_nothing,  ACL_USE_L6REQ_PERMANENT, 0 },
-	{ "ssl_has_sni", acl_parse_int,   smp_fetch_has_sni,  acl_match_nothing,  ACL_USE_L6REQ_PERMANENT, 0 },
-	{ "ssl_sni",     acl_parse_str,   smp_fetch_ssl_sni,  acl_match_str,      ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
-	{ "ssl_sni_end", acl_parse_str,   smp_fetch_ssl_sni,  acl_match_end,      ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
-	{ "ssl_sni_reg", acl_parse_str,   smp_fetch_ssl_sni,  acl_match_reg,      ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
+	{ "client_crt",      acl_parse_int,   smp_fetch_client_crt,  acl_match_nothing,  ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
+	{ "is_ssl",          acl_parse_int,   smp_fetch_is_ssl,      acl_match_nothing,  ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
+	{ "ssl_has_sni",     acl_parse_int,   smp_fetch_has_sni,     acl_match_nothing,  ACL_USE_L6REQ_PERMANENT, 0 },
+	{ "ssl_sni",         acl_parse_str,   smp_fetch_ssl_sni,     acl_match_str,      ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
+	{ "ssl_sni_end",     acl_parse_str,   smp_fetch_ssl_sni,     acl_match_end,      ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
+	{ "ssl_sni_reg",     acl_parse_str,   smp_fetch_ssl_sni,     acl_match_reg,      ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ NULL, NULL, NULL, NULL },
 }};
 
