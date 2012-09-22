@@ -863,7 +863,12 @@ static int bind_parse_psc(char **args, int cur_arg, struct proxy *px, struct bin
 /* parse the "ssl" bind keyword */
 static int bind_parse_ssl(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
+	struct listener *l;
+
 	conf->is_ssl = 1;
+	list_for_each_entry(l, &conf->listeners, by_bind)
+		l->data = &ssl_sock;
+
 	return 0;
 }
 

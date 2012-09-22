@@ -6568,10 +6568,7 @@ out_uri_auth_compat:
 					listener->name = strdup(trash);
 				}
 			}
-#ifdef USE_OPENSSL
-			if (listener->bind_conf->is_ssl && listener->bind_conf->default_ctx)
-				listener->data = &ssl_sock; /* SSL data layer */
-#endif
+
 			if (curproxy->options & PR_O_TCP_NOLING)
 				listener->options |= LI_O_NOLINGER;
 			if (!listener->maxconn)
