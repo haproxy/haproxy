@@ -211,57 +211,40 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 
 		cur_arg = 3;
 		while (*args[cur_arg]) {
-			if (!strcmp(args[cur_arg], "uid")) {
-				bind_conf->ux.uid = atol(args[cur_arg + 1]);
-				cur_arg += 2;
-			}
-			else if (!strcmp(args[cur_arg], "gid")) {
-				bind_conf->ux.gid = atol(args[cur_arg + 1]);
-				cur_arg += 2;
-			}
-			else if (!strcmp(args[cur_arg], "mode")) {
-				bind_conf->ux.mode = strtol(args[cur_arg + 1], NULL, 8);
-				cur_arg += 2;
-			}
-			else if (!strcmp(args[cur_arg], "user")) {
-				struct passwd *user;
-				user = getpwnam(args[cur_arg + 1]);
-				if (!user) {
-					memprintf(err, "'%s %s' : unknown user '%s'", args[0], args[1], args[cur_arg + 1]);
+			static int bind_dumped;
+			struct bind_kw *kw;
+
+			kw = bind_find_kw(args[cur_arg]);
+			if (kw) {
+				if (!kw->parse) {
+					memprintf(err, "'%s %s' : '%s' option is not implemented in this version (check build options).",
+						  args[0], args[1], args[cur_arg]);
 					return -1;
 				}
-				bind_conf->ux.uid = user->pw_uid;
-				cur_arg += 2;
-			}
-			else if (!strcmp(args[cur_arg], "group")) {
-				struct group *group;
-				group = getgrnam(args[cur_arg + 1]);
-				if (!group) {
-					memprintf(err, "'%s %s' : unknown group '%s'", args[0], args[1], args[cur_arg + 1]);
+
+				if (kw->parse(args, cur_arg, curpx, bind_conf, err) != 0) {
+					if (err && *err)
+						memprintf(err, "'%s %s' : '%s'", args[0], args[1], *err);
+					else
+						memprintf(err, "'%s %s' : error encountered while processing '%s'",
+						          args[0], args[1], args[cur_arg]);
 					return -1;
 				}
-				bind_conf->ux.gid = group->gr_gid;
-				cur_arg += 2;
+
+				cur_arg += 1 + kw->skip;
+				continue;
 			}
-			else if (!strcmp(args[cur_arg], "level")) {
-				if (!strcmp(args[cur_arg+1], "user"))
-					bind_conf->level = ACCESS_LVL_USER;
-				else if (!strcmp(args[cur_arg+1], "operator"))
-					bind_conf->level = ACCESS_LVL_OPER;
-				else if (!strcmp(args[cur_arg+1], "admin"))
-					bind_conf->level = ACCESS_LVL_ADMIN;
-				else {
-					memprintf(err, "'%s %s' : '%s' only supports 'user', 'operator', and 'admin' (got '%s')",
-						  args[0], args[1], args[cur_arg], args[cur_arg+1]);
-					return -1;
-				}
-				cur_arg += 2;
+
+			if (!bind_dumped) {
+				bind_dump_kws(err);
+				indent_msg(err, 4);
+				bind_dumped = 1;
 			}
-			else {
-				memprintf(err, "'%s %s' only supports 'user', 'uid', 'group', 'gid', 'level', and 'mode' (got '%s')",
-					  args[0], args[1], args[cur_arg]);
-				return -1;
-			}
+
+			memprintf(err, "'%s %s' : unknown keyword '%s'.%s%s",
+			          args[0], args[1], args[cur_arg],
+			          err && *err ? " Registered keywords :" : "", err && *err ? *err : "");
+			return -1;
 		}
 
 		list_for_each_entry(l, &bind_conf->listeners, by_bind) {
@@ -4114,6 +4097,29 @@ static int stats_dump_errors_to_buffer(struct stream_interface *si)
 	return 1;
 }
 
+/* parse the "level" argument on the bind lines */
+static int bind_parse_level(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	if (!*args[cur_arg + 1]) {
+		memprintf(err, "'%s' : missing level", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (!strcmp(args[cur_arg+1], "user"))
+		conf->level = ACCESS_LVL_USER;
+	else if (!strcmp(args[cur_arg+1], "operator"))
+		conf->level = ACCESS_LVL_OPER;
+	else if (!strcmp(args[cur_arg+1], "admin"))
+		conf->level = ACCESS_LVL_ADMIN;
+	else {
+		memprintf(err, "'%s' only supports 'user', 'operator', and 'admin' (got '%s')",
+			  args[cur_arg], args[cur_arg+1]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	return 0;
+}
+
 struct si_applet http_stats_applet = {
 	.name = "<STATS>", /* used for logging */
 	.fct = http_stats_io_handler,
@@ -4131,10 +4137,16 @@ static struct cfg_kw_list cfg_kws = {{ },{
 	{ 0, NULL, NULL },
 }};
 
+static struct bind_kw_list bind_kws = { "STAT", { }, {
+	{ "level",    bind_parse_level,    1 }, /* set the unix socket admin level */
+	{ NULL, NULL, 0 },
+}};
+
 __attribute__((constructor))
 static void __dumpstats_module_init(void)
 {
 	cfg_register_keywords(&cfg_kws);
+	bind_register_keywords(&bind_kws);
 }
 
 /*
