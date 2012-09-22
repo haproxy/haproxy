@@ -52,6 +52,7 @@ void buffer_bounce_realign(struct buffer *buf);
  * pointer. It is written so that it is optimal when <ofs> is a const. It is
  * written as a macro instead of an inline function so that the compiler knows
  * when it can optimize out the sign test on <ofs> when passed an unsigned int.
+ * Note that callers MUST cast <ofs> to int if they expect negative values.
  */
 #define b_ptr(b, ofs) \
 	({            \
