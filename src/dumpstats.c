@@ -1614,7 +1614,7 @@ static void cli_io_handler(struct stream_interface *si)
  out:
 	DPRINTF(stderr, "%s@%d: st=%d, rqf=%x, rpf=%x, rqh=%d, rqs=%d, rh=%d, rs=%d\n",
 		__FUNCTION__, __LINE__,
-		si->state, req->flags, res->flags, req->i, req->o, res->i, res->o);
+		si->state, req->flags, res->flags, req->buf.i, req->buf.o, res->buf.i, res->buf.o);
 
 	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO)) {
 		/* check that we have released everything then unregister */

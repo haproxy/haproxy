@@ -1144,7 +1144,7 @@ int tcp_persist_rdp_cookie(struct session *s, struct channel *req, int an_bit)
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->i,
+		req->buf.i,
 		req->analysers);
 
 	if (s->flags & SN_ASSIGNED)

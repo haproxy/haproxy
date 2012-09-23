@@ -782,7 +782,7 @@ int tcp_inspect_request(struct session *s, struct channel *req, int an_bit)
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->i,
+		req->buf.i,
 		req->analysers);
 
 	/* We don't know whether we have enough data, so must proceed
@@ -901,7 +901,7 @@ int tcp_inspect_response(struct session *s, struct channel *rep, int an_bit)
 		rep,
 		rep->rex, rep->wex,
 		rep->flags,
-		rep->i,
+		rep->buf.i,
 		rep->analysers);
 
 	/* We don't know whether we have enough data, so must proceed

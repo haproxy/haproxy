@@ -863,7 +863,7 @@ static void sess_update_stream_int(struct session *s, struct stream_interface *s
 		s->req, s->rep,
 		s->req->rex, s->rep->wex,
 		s->req->flags, s->rep->flags,
-		s->req->i, s->req->o, s->rep->i, s->rep->o, s->rep->cons->state, s->req->cons->state);
+		s->req->buf.i, s->req->buf.o, s->rep->buf.i, s->rep->buf.o, s->rep->cons->state, s->req->cons->state);
 
 	if (si->state == SI_ST_ASS) {
 		/* Server assigned to connection request, we have to try to connect now */
@@ -1051,7 +1051,7 @@ static void sess_prepare_conn_req(struct session *s, struct stream_interface *si
 		s->req, s->rep,
 		s->req->rex, s->rep->wex,
 		s->req->flags, s->rep->flags,
-		s->req->i, s->req->o, s->rep->i, s->rep->o, s->rep->cons->state, s->req->cons->state);
+		s->req->buf.i, s->req->buf.o, s->rep->buf.i, s->rep->buf.o, s->rep->cons->state, s->req->cons->state);
 
 	if (si->state != SI_ST_REQ)
 		return;
@@ -1100,7 +1100,7 @@ static int process_switching_rules(struct session *s, struct channel *req, int a
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->i,
+		req->buf.i,
 		req->analysers);
 
 	/* now check whether we have some switching rules for this request */
@@ -1195,7 +1195,7 @@ static int process_server_rules(struct session *s, struct channel *req, int an_b
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->i + req->o,
+		req->buf.i + req->buf.o,
 		req->analysers);
 
 	if (!(s->flags & SN_ASSIGNED)) {
@@ -1244,7 +1244,7 @@ static int process_sticking_rules(struct session *s, struct channel *req, int an
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->i,
+		req->buf.i,
 		req->analysers);
 
 	list_for_each_entry(rule, &px->sticking_rules, list) {
@@ -1334,7 +1334,7 @@ static int process_store_rules(struct session *s, struct channel *rep, int an_bi
 		rep,
 		rep->rex, rep->wex,
 		rep->flags,
-		rep->i,
+		rep->buf.i,
 		rep->analysers);
 
 	list_for_each_entry(rule, &px->storersp_rules, list) {
@@ -1581,7 +1581,7 @@ struct task *process_session(struct task *t)
 		s->req, s->rep,
 		s->req->rex, s->rep->wex,
 		s->req->flags, s->rep->flags,
-		s->req->i, s->req->o, s->rep->i, s->rep->o, s->rep->cons->state, s->req->cons->state,
+		s->req->buf.i, s->req->buf.o, s->rep->buf.i, s->rep->buf.o, s->rep->cons->state, s->req->cons->state,
 		s->rep->cons->err_type, s->req->cons->err_type,
 		s->req->cons->conn_retries);
 
