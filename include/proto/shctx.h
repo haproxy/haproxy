@@ -56,9 +56,10 @@ void shctx_sess_add(const unsigned char *session, unsigned int session_len, long
 /* Allocate shared memory context.
  * size is maximum cached sessions.
  *      if set less or equal to 0, SHCTX_DEFAULT_SIZE is used.
+ * use_shared_memory is set to 1 to use a mapped share memory
  * Returns: -1 on alloc failure, size if it performs context alloc,
  * and 0 if cache is already allocated */
-int shared_context_init(int size);
+int shared_context_init(int size, int use_shared_memory);
 
 /* Set shared cache callbacks on an ssl context.
  * Set session cache mode to server and disable openssl internal cache.

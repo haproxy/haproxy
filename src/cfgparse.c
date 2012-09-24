@@ -6536,7 +6536,7 @@ out_uri_auth_compat:
 				continue;
 			}
 
-			if (shared_context_init(global.tune.sslcachesize) < 0) {
+			if (shared_context_init(global.tune.sslcachesize, (global.nbproc > 1) ? 1 : 0) < 0) {
 				Alert("Unable to allocate SSL session cache.\n");
 				cfgerr++;
 				continue;
