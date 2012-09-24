@@ -563,34 +563,15 @@ pidfile <pidfile>
   the "-p" command line argument. The file must be accessible to the user
   starting the process. See also "daemon".
 
-stats socket <path> [{uid | user} <uid>] [{gid | group} <gid>] [mode <mode>]
-             [level <level>]
+stats socket [<address:port>|<path>] [param*]
+  Binds a UNIX socket to <path> or a TCPv4/v6 address to <address:port>.
+  Connections to this socket will return various statistics outputs and even
+  allow some commands to be issued to change some runtime settings. Please
+  consult section 9.2 "Unix Socket commands" for more details.
 
-  Creates a UNIX socket in stream mode at location <path>. Any previously
-  existing socket will be backed up then replaced. Connections to this socket
-  will return various statistics outputs and even allow some commands to be
-  issued. Please consult section 9.2 "Unix Socket commands" for more details.
-
-  An optional "level" parameter can be specified to restrict the nature of
-  the commands that can be issued on the socket :
-    - "user" is the least privileged level ; only non-sensitive stats can be
-      read, and no change is allowed. It would make sense on systems where it
-      is not easy to restrict access to the socket.
-
-    - "operator" is the default level and fits most common uses. All data can
-      be read, and only non-sensitive changes are permitted (eg: clear max
-      counters).
-
-    - "admin" should be used with care, as everything is permitted (eg: clear
-      all counters).
-
-  On platforms which support it, it is possible to restrict access to this
-  socket by specifying numerical IDs after "uid" and "gid", or valid user and
-  group names after the "user" and "group" keywords. It is also possible to
-  restrict permissions on the socket by passing an octal value after the "mode"
-  keyword (same syntax as chmod). Depending on the platform, the permissions on
-  the socket will be inherited from the directory which hosts it, or from the
-  user the process is started with.
+  All parameters supported by "bind" lines are supported, for instance to
+  restrict access to some users or their access rights. Please consult
+  section 5.1 for more information.
 
 stats timeout <timeout, in milliseconds>
   The default timeout on the stats socket is set to 10 seconds. It is possible
@@ -6817,6 +6798,19 @@ interface <interface>
   if they are bound to different interfaces.  Note that binding to a network
   interface requires root privileges. This parameter is only compatible with
   TCPv4/TCPv6 sockets.
+
+level <level>
+  This setting is used with the stats sockets only to restrict the nature of
+  the commands that can be issued on the socket. It is ignored by other
+  sockets. <level> can be one of :
+  - "user" is the least privileged level ; only non-sensitive stats can be
+    read, and no change is allowed. It would make sense on systems where it
+    is not easy to restrict access to the socket.
+  - "operator" is the default level and fits most common uses. All data can
+    be read, and only non-sensitive changes are permitted (eg: clear max
+    counters).
+  - "admin" should be used with care, as everything is permitted (eg: clear
+    all counters).
 
 maxconn <maxconn>
   Limits the sockets to this number of concurrent connections. Extraneous
