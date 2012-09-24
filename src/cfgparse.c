@@ -1309,7 +1309,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		newpeer->data  = &raw_sock;
 		newpeer->sock_init_arg = NULL;
 
-		if (!sk) {
+		if (!newpeer->proto) {
 			Alert("parsing [%s:%d] : Unknown protocol family %d '%s'\n",
 			      file, linenum, newpeer->addr.ss_family, args[2]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -3951,7 +3951,7 @@ stats_error_parsing:
 			newsrv->proto = protocol_by_family(newsrv->addr.ss_family);
 			newsrv->data  = &raw_sock;
 
-			if (!sk) {
+			if (!newsrv->proto) {
 				Alert("parsing [%s:%d] : Unknown protocol family %d '%s'\n",
 				      file, linenum, newsrv->addr.ss_family, args[2]);
 				err_code |= ERR_ALERT | ERR_FATAL;
