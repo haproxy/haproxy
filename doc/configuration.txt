@@ -53,7 +53,9 @@ Summary
 4.1.      Proxy keywords matrix
 4.2.      Alphabetically sorted keywords reference
 
-5.    Server and default-server options
+5.    Bind and Server options
+5.1.      Bind options
+5.2.      Server and default-server options
 
 6.    HTTP header manipulation
 
