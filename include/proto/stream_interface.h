@@ -67,31 +67,19 @@ static inline int si_fd(struct stream_interface *si)
 static inline void si_prepare_conn(struct stream_interface *si, const struct protocol *ctrl, const struct data_ops *ops)
 {
 	si->ops = &si_conn_ops;
-	si->conn.app_cb = &si_conn_cb;
-	si->conn.ctrl = ctrl;
-	si->conn.data = ops;
-	si->conn.data_st = 0;
-	si->conn.data_ctx = NULL;
+	conn_prepare(&si->conn, &si_conn_cb, ctrl, ops);
 }
 
 static inline void si_prepare_embedded(struct stream_interface *si)
 {
 	si->ops = &si_embedded_ops;
-	si->conn.app_cb = NULL;
-	si->conn.ctrl = NULL;
-	si->conn.data = NULL;
-	si->conn.data_st = 0;
-	si->conn.data_ctx = NULL;
+	conn_prepare(&si->conn, NULL, NULL, NULL);
 }
 
 static inline void si_prepare_task(struct stream_interface *si)
 {
 	si->ops = &si_task_ops;
-	si->conn.app_cb = NULL;
-	si->conn.ctrl = NULL;
-	si->conn.data = NULL;
-	si->conn.data_st = 0;
-	si->conn.data_ctx = NULL;
+	conn_prepare(&si->conn, NULL, NULL, NULL);
 }
 
 /* Sends a shutr to the connection using the data layer */

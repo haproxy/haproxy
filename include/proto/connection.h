@@ -412,6 +412,18 @@ static inline void conn_get_to_addr(struct connection *conn)
 	conn->flags |= CO_FL_ADDR_TO_SET;
 }
 
+/* prepares a connection with the appropriate app_cb, ctrl and data layers. The
+ * data state and context are set to 0.
+ */
+static inline void conn_prepare(struct connection *conn, const struct app_cb *app,
+                                const struct protocol *ctrl, const struct data_ops *data)
+{
+	conn->app_cb = app;
+	conn->ctrl = ctrl;
+	conn->data = data;
+	conn->data_st = 0;
+	conn->data_ctx = NULL;
+}
 
 #endif /* _PROTO_CONNECTION_H */
 
