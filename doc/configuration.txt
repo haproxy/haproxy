@@ -1478,26 +1478,8 @@ balance url_param <param> [check_post [<max_wait>]]
              "http_proxy".
 
 
-bind [<address>]:<port_range> [, ...]
-bind [<address>]:<port_range> [, ...] interface <interface>
-bind [<address>]:<port_range> [, ...] mss <maxseg>
-bind [<address>]:<port_range> [, ...] backlog <backlog>
-bind [<address>]:<port_range> [, ...] maxconn <maxconn>
-bind [<address>]:<port_range> [, ...] nice <nice>
-bind [<address>]:<port_range> [, ...] transparent
-bind [<address>]:<port_range> [, ...] id <id>
-bind [<address>]:<port_range> [, ...] name <name>
-bind [<address>]:<port_range> [, ...] defer-accept
-bind [<address>]:<port_range> [, ...] ssl
-bind [<address>]:<port_range> [, ...] crt <cert>
-bind [<address>]:<port_range> [, ...] ciphers <ciphers>
-bind [<address>]:<port_range> [, ...] nosslv3
-bind [<address>]:<port_range> [, ...] notlsv1
-bind [<address>]:<port_range> [, ...] prefer-server-ciphers
-bind /<path> [, ...]
-bind /<path> [, ...] mode <mode>
-bind /<path> [, ...] [ user <user> | uid <uid> ]
-bind /<path> [, ...] [ group <user> | gid <gid> ]
+bind [<address>]:<port_range> [, ...] [param*]
+bind /<path> [, ...] [param*]
   Define one or several listening addresses and/or ports in a frontend.
   May be used in sections :   defaults | frontend | listen | backend
                                   no   |    yes   |   yes  |   no
@@ -1537,166 +1519,10 @@ bind /<path> [, ...] [ group <user> | gid <gid> ]
                   followed by the socket path cannot exceed some system limits
                   for UNIX sockets, which commonly are set to 107 characters.
 
-    <interface>   is an optional physical interface name. This is currently
-                  only supported on Linux. The interface must be a physical
-                  interface, not an aliased interface. When specified, all
-                  addresses on the same line will only be accepted if the
-                  incoming packet physically come through the designated
-                  interface. It is also possible to bind multiple frontends to
-                  the same address if they are bound to different interfaces.
-                  Note that binding to a physical interface requires root
-                  privileges. This parameter is only compatible with TCP
-                  sockets.
-
-    <maxseg>      is an optional TCP Maximum Segment Size (MSS) value to be
-                  advertised on incoming connections. This can be used to force
-                  a lower MSS for certain specific ports, for instance for
-                  connections passing through a VPN. Note that this relies on a
-                  kernel feature which is theoretically supported under Linux
-                  but was buggy in all versions prior to 2.6.28. It may or may
-                  not work on other operating systems. It may also not change
-                  the advertised value but change the effective size of
-                  outgoing segments. The commonly advertised value on Ethernet
-                  networks is 1460 = 1500(MTU) - 40(IP+TCP). If this value is
-                  positive, it will be used as the advertised MSS. If it is
-                  negative, it will indicate by how much to reduce the incoming
-                  connection's advertised MSS for outgoing segments. This
-                  parameter is only compatible with TCP sockets.
-
-    <backlog>     sets the socket's backlog to this value. If unspecified, the
-                  frontend's backlog is used instead.
-
-    <maxconn>     limits the socket to this number of concurrent connections.
-                  Extra connections will remain in the system's backlog until a
-                  connection is released. If unspecified, the limit will be the
-                  same as the frontend's maxconn. Note that in case of port
-                  ranges, the same value will be applied to each socket. This
-                  setting enables different limitations on expensive sockets,
-                  for instance SSL entries which may easily eat all memory.
-
-    <id>          is a persistent value for socket ID. Must be positive and
-                  unique in the proxy. An unused value will automatically be
-                  assigned if unset. Can only be used when defining only a
-                  single socket.
-
-    <nice>        sets the 'niceness' of connections initiated from the socket.
-                  Value must be in the range -1024..1024, and default is zero.
-                  Positive values means that such connections are more friendly
-                  to others and easily offer their place in the scheduler. On
-                  the opposite, negative values mean that connections want to
-                  run with a higher priority. The difference only happens under
-                  high loads when the system is close to saturation. Negative
-                  values are appropriate for low-latency or admin services, and
-                  high values are generally recommended for CPU intensive tasks
-                  such as SSL processing which are less sensible to latency.
-
-    <name>        is an optional name provided for stats
-
-    <mode>        is the octal mode used to define access permissions on the
-                  UNIX socket. It can also be set by default in the global
-                  section's "unix-bind" statement. Note that some platforms
-                  simply ignore this.
-
-    <user>        is the name of user that will be marked owner of the UNIX
-                  socket.  It can also be set by default in the global
-                  section's "unix-bind" statement. Note that some platforms
-                  simply ignore this.
-
-    <group>       is the name of a group that will be used to create the UNIX
-                  socket. It can also be set by default in the global section's
-                  "unix-bind" statement. Note that some platforms simply ignore
-                  this.
-
-    <uid>         is the uid of user that will be marked owner of the UNIX
-                  socket. It can also be set by default in the global section's
-                  "unix-bind" statement. Note that some platforms simply ignore
-                  this.
-
-    <gid>         is the gid of a group that will be used to create the UNIX
-                  socket. It can also be set by default in the global section's
-                  "unix-bind" statement. Note that some platforms simply ignore
-                  this.
-
-    <cert>        designates a PEM file from which to load both a certificate
-                  and the assocaited private key. This file can be build by
-                  concatenating both PEM files into one. If a directory name is
-                  used instead of a PEM file, then all files found in that
-                  directory will be loaded. This directive may be specified
-                  multiple times in order to load certificates from multiple
-                  files or directories. The certificates will be presented to
-                  clients who provide a valid TLS Server Name Indication field
-                  matching one of their CN or alt subjects. Wildcards are
-                  supported, where a wildcard character '*' is used instead of
-                  the first hostname component (eg: *.example.org matches
-                  www.example.org but not www.sub.example.org). If no SNI is
-                  provided by the client or if the SSL library does not support
-                  TLS extensions, or if the client provides and SNI which does
-                  not match any certificate, then the first loaded certificate
-                  will be presented. This means that when loading certificates
-                  from a directory, it is highly recommended to load the
-                  default one first as a file. Note that the same cert may be
-                  loaded multiple times without side effects.
-
-    <ciphers>     is the string describing the list of cipher algorithms that
-                  is negociated during the SSL/TLS handshake. The format of the
-                  string is defined in "man 1 ciphers", and can be for instance
-                  "AES:ALL:!aNULL:!eNULL:+RC4:@STRENGTH".
-
-    transparent   is an optional keyword which is supported only on certain
-                  Linux kernels. It indicates that the addresses will be bound
-                  even if they do not belong to the local machine. Any packet
-                  targeting any of these addresses will be caught just as if
-                  the address was locally configured. This normally requires
-                  that IP forwarding is enabled. Caution! do not use this with
-                  the default address '*', as it would redirect any traffic for
-                  the specified port. This keyword is available only when
-                  HAProxy is built with USE_LINUX_TPROXY=1. This parameter is
-                  only compatible with TCP sockets.
-
-    defer-accept  is an optional keyword which is supported only on certain
-                  Linux kernels. It states that a connection will only be
-                  accepted once some data arrive on it, or at worst after the
-                  first retransmit. This should be used only on protocols for
-                  which the client talks first (eg: HTTP). It can slightly
-                  improve performance by ensuring that most of the request is
-                  already available when the connection is accepted. On the
-                  other hand, it will not be able to detect connections which
-                  don't talk. It is important to note that this option is
-                  broken in all kernels up to 2.6.31, as the connection is
-                  never accepted until the client talks. This can cause issues
-                  with front firewalls which would see an established
-                  connection while the proxy will only see it in SYN_RECV.
-
-    accept-proxy  is an optional keyword which enforces use of the PROXY
-                  protocol over any connection accepted by this listener. The
-                  PROXY protocol dictates the layer 3/4 addresses of the
-                  incoming connection to be used everywhere an address is used,
-                  with the only exception of "tcp-request connection" rules
-                  which will only see the real connection address. Logs will
-                  reflect the addresses indicated in the protocol, unless it is
-                  violated, in which case the real address will still be used.
-                  This keyword combined with support from external components
-                  can be used as an efficient and reliable alternative to the
-                  X-Forwarded-For mechanism which is not always reliable and
-                  not even always usable.
-
-    ssl           enables SSL deciphering on connections instanciated from this
-                  listener. A certificate is necessary (see "crt" above). All
-                  contents in the buffers will be in clear text, so that ACLs
-                  and HTTP processing will only have access to deciphered
-                  contents.
-
-    nosslv3       disables support for SSLv3 when SSL is supported. Note that
-                  SSLv2 is disabled in the code and cannot be enabled using any
-                  configuration option.
-
-    notlsv1       disables support for TLSv1 when SSL is supported. Note that
-                  SSLv2 is disabled in the code and cannot be enabled using any
-                  configuration option.
-
-    prefer-server-ciphers
-                  tells the SSL/TLS layer that our set of cipher algorithms is
-                  preferred over the client's ones.
+    <param*>      is a list of parameters common to all sockets declared on the
+                  same line. These numerous parameters depend on OS and build
+                  options and have a complete section dedicated to them. Please
+                  refer to section 5 to for more details.
 
   It is possible to specify a list of address:port combinations delimited by
   commas. The frontend will then listen on all of these addresses. There is no
@@ -1715,7 +1541,7 @@ bind /<path> [, ...] [ group <user> | gid <gid> ]
             bind :443 ssl crt /etc/haproxy/site.pem prefer-server-ciphers
 
   See also : "source", "option forwardfor", "unix-bind" and the PROXY protocol
-             documentation.
+             documentation, and section 5 about bind options.
 
 
 bind-process [ all | odd | even | <number 1-32> ] ...
@@ -4946,7 +4772,7 @@ server <name> <address>[:[port]] [param*]
               except that with a server it's possible to limit concurrency and
               to report statistics.
 
-    <ports>   is an optional port specification. If set, all connections will
+    <port>    is an optional port specification. If set, all connections will
               be sent to this port. If unset, the same port the client
               connected to will be used. The port may also be prefixed by a "+"
               or a "-". In this case, the server's port will be determined by
@@ -6885,7 +6711,210 @@ use-server <server> unless <condition>
   See also: "use_backend", serction 5 about server and section 7 about ACLs.
 
 
-5. Server and default-server options
+5. Bind and Server options
+--------------------------
+
+The "bind", "server" and "default-server" keywords support a number of settings
+depending on some build options and on the system HAProxy was built on. These
+settings generally each consist in one word sometimes followed by a value,
+written on the same line as the "bind" or "server" line. All these options are
+described in this section.
+
+
+5.1. Bind options
+-----------------
+
+The "bind" keyword supports a certain number of settings which are all passed
+as arguments on the same line. The order in which those arguments appear makes
+no importance, provided that they appear after the bind address. All of these
+parameters are optional. Some of them consist in a single words (booleans),
+while other ones expect a value after them. In this case, the value must be
+provided immediately after the setting name.
+
+The currently supported settings are the following ones.
+
+accept-proxy
+  Enforces the use of the PROXY protocol over any connection accepted by any of
+  the sockets declared on the same line. The PROXY protocol dictates the layer
+  3/4 addresses of the incoming connection to be used everywhere an address is
+  used, with the only exception of "tcp-request connection" rules which will
+  only see the real connection address. Logs will reflect the addresses
+  indicated in the protocol, unless it is violated, in which case the real
+  address will still be used.  This keyword combined with support from external
+  components can be used as an efficient and reliable alternative to the
+  X-Forwarded-For mechanism which is not always reliable and not even always
+  usable.
+
+backlog <backlog>
+  Sets the socket's backlog to this value. If unspecified, the frontend's
+  backlog is used instead, which generally defaults to the maxconn value.
+
+ciphers <ciphers>
+  This setting is only available when support for OpenSSL was built in. It sets
+  the string describing the list of cipher algorithms ("cipher suite") that are
+  negociated during the SSL/TLS handshake. The format of the string is defined
+  in "man 1 ciphers" from OpenSSL man pages, and can be for instance a string
+  such as "AES:ALL:!aNULL:!eNULL:+RC4:@STRENGTH" (without quotes).
+
+crt <cert>
+  This setting is only available when support for OpenSSL was built in.
+  It designates a PEM file from which to load both a certificate and the
+  associated private key. This file can be built by concatenating both PEM
+  files into one. If a directory name is used instead of a PEM file, then all
+  files found in that directory will be loaded. This directive may be specified
+  multiple times in order to load certificates from multiple files or
+  directories. The certificates will be presented to clients who provide a
+  valid TLS Server Name Indication field matching one of their CN or alt
+  subjects. Wildcards are supported, where a wildcard character '*' is used
+  instead of the first hostname component (eg: *.example.org matches
+  www.example.org but not www.sub.example.org). If no SNI is provided by the
+  client or if the SSL library does not support TLS extensions, or if the
+  client provides and SNI which does not match any certificate, then the first
+  loaded certificate will be presented. This means that when loading
+  certificates from a directory, it is highly recommended to load the default
+  one first as a file. Note that the same cert may be loaded multiple times
+  without side effects.
+
+defer-accept
+  Is an optional keyword which is supported only on certain Linux kernels. It
+  states that a connection will only be accepted once some data arrive on it,
+  or at worst after the first retransmit. This should be used only on protocols
+  for which the client talks first (eg: HTTP). It can slightly improve
+  performance by ensuring that most of the request is already available when
+  the connection is accepted. On the other hand, it will not be able to detect
+  connections which don't talk. It is important to note that this option is
+  broken in all kernels up to 2.6.31, as the connection is never accepted until
+  the client talks. This can cause issues with front firewalls which would see
+  an established connection while the proxy will only see it in SYN_RECV. This
+  option is only supported on TCPv4/TCPv6 sockets and ignored by other ones.
+
+gid <gid>
+  Sets the group of the UNIX sockets to the designated system gid. It can also
+  be set by default in the global section's "unix-bind" statement. Note that
+  some platforms simply ignore this. This setting is equivalent to the "group"
+  setting except that the group ID is used instead of its name. This setting is
+  ignored by non UNIX sockets.
+
+group <group>
+  Sets the group of the UNIX sockets to the designated system group. It can
+  also be set by default in the global section's "unix-bind" statement. Note
+  that some platforms simply ignore this. This setting is equivalent to the
+  "gid" setting except that the group name is used instead of its gid. This
+  setting is ignored by non UNIX sockets.
+
+id <id>
+  Fixes the socket ID. By default, socket IDs are automatically assigned, but
+  sometimes it is more convenient to fix them to ease monitoring. This value
+  must be strictly positive and unique within the listener/frontend. This
+  option can only be used when defining only a single socket.
+
+interface <interface>
+  Sets the name of the network interface to listen. This is currently only
+  supported on Linux. The interface must be a primary system interface, not an
+  aliased interface. When specified, all addresses on the same line will only
+  be accepted if the incoming packets physically come through the designated
+  interface. It is also possible to bind multiple frontends to the same address
+  if they are bound to different interfaces.  Note that binding to a network
+  interface requires root privileges. This parameter is only compatible with
+  TCPv4/TCPv6 sockets.
+
+maxconn <maxconn>
+  Limits the sockets to this number of concurrent connections. Extraneous
+  connections will remain in the system's backlog until a connection is
+  released. If unspecified, the limit will be the same as the frontend's
+  maxconn. Note that in case of port ranges or multiple addresses, the same
+  value will be applied to each socket. This setting enables different
+  limitations on expensive sockets, for instance SSL entries which may easily
+  eat all memory.
+
+mode <mode>
+  Sets the octal mode used to define access permissions on the UNIX socket. It
+  can also be set by default in the global section's "unix-bind" statement.
+  Note that some platforms simply ignore this. This setting is ignored by non
+  UNIX sockets.
+
+mss <maxseg>
+  Sets the TCP Maximum Segment Size (MSS) value to be advertised on incoming
+  connections. This can be used to force a lower MSS for certain specific
+  ports, for instance for connections passing through a VPN. Note that this
+  relies on a kernel feature which is theoretically supported under Linux but
+  was buggy in all versions prior to 2.6.28. It may or may not work on other
+  operating systems. It may also not change the advertised value but change the
+  effective size of outgoing segments. The commonly advertised value for TCPv4
+  over Ethernet networks is 1460 = 1500(MTU) - 40(IP+TCP). If this value is
+  positive, it will be used as the advertised MSS. If it is negative, it will
+  indicate by how much to reduce the incoming connection's advertised MSS for
+  outgoing segments. This parameter is only compatible with TCP v4/v6 sockets.
+
+name <name>
+  Sets an optional name for these sockets, which will be reported on the stats
+  page.
+
+nice <nice>
+  Sets the 'niceness' of connections initiated from the socket. Value must be
+  in the range -1024..1024 inclusive, and defaults to zero. Positive values
+  means that such connections are more friendly to others and easily offer
+  their place in the scheduler. On the opposite, negative values mean that
+  connections want to run with a higher priority than others. The difference
+  only happens under high loads when the system is close to saturation.
+  Negative values are appropriate for low-latency or administration services,
+  and high values are generally recommended for CPU intensive tasks such as SSL
+  processing or bulk transfers which are less sensible to latency. For example,
+  it may make sense to use a positive value for an SMTP socket and a negative
+  one for an RDP socket.
+
+nosslv3
+  This setting is only available when support for OpenSSL was built in. It
+  disables support for SSLv3 on any sockets instanciated from the listener when
+  SSL is supported. Note that SSLv2 is forced disabled in the code and cannot
+  be enabled using any configuration option.
+
+notlsv1
+  This setting is only available when support for OpenSSL was built in. It
+  disables support for TLSv1 on any sockets instanciated from the listener when
+  SSL is supported. Note that SSLv2 is forced disabled in the code and cannot
+  be enabled using any configuration option.
+
+prefer-server-ciphers
+  This setting is only available when support for OpenSSL was built in. It
+  tells the SSL/TLS layer that our set of cipher algorithms is preferred over
+  the client's ones.
+
+ssl
+  This setting is only available when support for OpenSSL was built in. It
+  enables SSL deciphering on connections instanciated from this listener. A
+  certificate is necessary (see "crt" above). All contents in the buffers will
+  appear in clear text, so that ACLs and HTTP processing will only have access
+  to deciphered contents.
+
+transparent
+  Is an optional keyword which is supported only on certain Linux kernels. It
+  indicates that the addresses will be bound even if they do not belong to the
+  local machine, and that packets targeting any of these addresses will be
+  intercepted just as if the addresses were locally configured. This normally
+  requires that IP forwarding is enabled. Caution! do not use this with the
+  default address '*', as it would redirect any traffic for the specified port.
+  This keyword is available only when HAProxy is built with USE_LINUX_TPROXY=1.
+  This parameter is only compatible with TCPv4 and TCPv6 sockets, depending on
+  kernel version. Some distribution kernels include backports of the feature,
+  so check for support with your vendor.
+
+uid <uid>
+  Sets the owner of the UNIX sockets to the designated system uid. It can also
+  be set by default in the global section's "unix-bind" statement. Note that
+  some platforms simply ignore this. This setting is equivalent to the "user"
+  setting except that the user numeric ID is used instead of its name. This
+  setting is ignored by non UNIX sockets.
+
+user <user>
+  Sets the owner of the UNIX sockets to the designated system user. It can also
+  be set by default in the global section's "unix-bind" statement. Note that
+  some platforms simply ignore this. This setting is equivalent to the "uid"
+  setting except that the user name is used instead of its uid. This setting is
+  ignored by non UNIX sockets.
+
+
+5.2. Server and default-server options
 ------------------------------------
 
 The "server" and "default-server" keywords support a certain number of settings
