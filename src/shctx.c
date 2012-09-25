@@ -12,6 +12,7 @@
  */
 
 #include <sys/mman.h>
+#ifndef USE_PRIVATE_CACHE
 #ifdef USE_SYSCALL_FUTEX
 #include <unistd.h>
 #ifndef u32
@@ -22,6 +23,7 @@
 #else /* USE_SYSCALL_FUTEX */
 #include <pthread.h>
 #endif /* USE_SYSCALL_FUTEX */
+#endif
 
 #include "ebmbtree.h"
 #include "proto/shctx.h"
@@ -38,10 +40,12 @@ struct shared_session {
 
 
 struct shared_context {
+#ifndef USE_PRIVATE_CACHE
 #ifdef USE_SYSCALL_FUTEX
 	unsigned int waiters;
 #else /* USE_SYSCALL_FUTEX */
 	pthread_mutex_t mutex;
+#endif
 #endif
 	struct shared_session active;
 	struct shared_session free;
@@ -49,12 +53,19 @@ struct shared_context {
 
 /* Static shared context */
 static struct shared_context *shctx = NULL;
+#ifndef USE_PRIVATE_CACHE
 static int use_shared_mem = 0;
+#endif
 
 /* Callbacks */
 static void (*shared_session_new_cbk)(unsigned char *session, unsigned int session_len, long cdate);
 
 /* Lock functions */
+#ifdef USE_PRIVATE_CACHE
+#define shared_context_lock(v)
+#define shared_context_unlock(v)
+
+#else
 #ifdef USE_SYSCALL_FUTEX
 #if defined (__i586__) || defined (__x86_64__)
 static inline unsigned int xchg(unsigned int *ptr, unsigned int x)
@@ -140,6 +151,7 @@ static inline void _shared_context_unlock(void)
 
 #define shared_context_unlock(v) if (use_shared_mem) pthread_mutex_unlock(&shctx->mutex)
 
+#endif
 #endif
 
 /* List Macros */
@@ -365,9 +377,11 @@ void shsess_set_new_cbk(void (*func)(unsigned char *, unsigned int, long))
 int shared_context_init(int size, int shared)
 {
 	int i;
+#ifndef USE_PRIVATE_CACHE
 #ifndef USE_SYSCALL_FUTEX
 	pthread_mutexattr_t attr;
 #endif /* USE_SYSCALL_FUTEX */
+#endif
 	struct shared_session *prev,*cur;
 	int maptype = MAP_PRIVATE;
 
@@ -377,8 +391,10 @@ int shared_context_init(int size, int shared)
 	if (size<=0)
 		size = SHCTX_DEFAULT_SIZE;
 
+#ifndef USE_PRIVATE_CACHE
 	if (shared)
 		maptype = MAP_SHARED;
+#endif
 
 	shctx = (struct shared_context *)mmap(NULL, sizeof(struct shared_context)+(size*sizeof(struct shared_session)),
 	                                      PROT_READ | PROT_WRITE, maptype | MAP_ANON, -1, 0);
@@ -387,6 +403,7 @@ int shared_context_init(int size, int shared)
 		return -1;
 	}
 
+#ifndef USE_PRIVATE_CACHE
 #ifdef USE_SYSCALL_FUTEX
 	shctx->waiters = 0;
 #else
@@ -396,6 +413,7 @@ int shared_context_init(int size, int shared)
 #endif
 	if (maptype == MAP_SHARED)
 		use_shared_mem = 1;
+#endif
 
 	memset(&shctx->active.key, 0, sizeof(struct ebmb_node));
 	memset(&shctx->free.key, 0, sizeof(struct ebmb_node));

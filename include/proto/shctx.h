@@ -56,7 +56,8 @@ void shctx_sess_add(const unsigned char *session, unsigned int session_len, long
 /* Allocate shared memory context.
  * size is maximum cached sessions.
  *      if set less or equal to 0, SHCTX_DEFAULT_SIZE is used.
- * use_shared_memory is set to 1 to use a mapped share memory
+ * set use_shared_memory to 1 to use a mapped shared memory insteed
+ * of private. (ignored if compiled whith USE_PRIVATE_CACHE=1)
  * Returns: -1 on alloc failure, size if it performs context alloc,
  * and 0 if cache is already allocated */
 int shared_context_init(int size, int use_shared_memory);

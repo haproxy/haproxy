@@ -15,6 +15,7 @@
 #   USE_NETFILTER        : enable netfilter on Linux. Automatic.
 #   USE_PCRE             : enable use of libpcre for regex. Recommended.
 #   USE_POLL             : enable poll(). Automatic.
+#   USE_PRIVATE_CACHE    : disable shared memory cache of ssl sessions.
 #   USE_REGPARM          : enable regparm optimization. Recommended on x86.
 #   USE_SEPOLL           : enable speculative epoll(). Automatic.
 #   USE_STATIC_PCRE      : enable static libpcre. Recommended.
@@ -476,10 +477,14 @@ BUILD_OPTIONS   += $(call ignore_implicit,USE_OPENSSL)
 OPTIONS_CFLAGS  += -DUSE_OPENSSL
 OPTIONS_LDFLAGS += -lssl -lcrypto
 OPTIONS_OBJS  += src/ssl_sock.o src/shctx.o
+ifneq ($(USE_PRIVATE_CACHE),)
+OPTIONS_CFLAGS  += -DUSE_PRIVATE_CACHE
+else
 ifneq ($(USE_FUTEX),)
 OPTIONS_CFLAGS  += -DUSE_SYSCALL_FUTEX
 else
 OPTIONS_LDFLAGS += -lpthread
+endif
 endif
 endif
 
