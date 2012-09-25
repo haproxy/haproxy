@@ -4848,7 +4848,7 @@ stats_error_parsing:
 				continue;
 			}
 			Alert("parsing [%s:%d] : '%s' only supports optional keywords '%s' and '%s'.\n",
-			      file, linenum, args[0], "inteface", "usesrc");
+			      file, linenum, args[0], "interface", "usesrc");
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
