@@ -1113,8 +1113,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				}
 
 				v = atoi(args[4]);
-				/* check for unlimited values, we restore default setting (cfg_maxpconn) */
-				if (v < 1) {
+				if (v < 0) {
 					si->applet.ctx.cli.msg = "Value out of range.\n";
 					si->applet.st0 = STAT_CLI_PRINT;
 					return 1;
