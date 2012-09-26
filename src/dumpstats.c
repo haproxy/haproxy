@@ -944,7 +944,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 						sv->counters.sps_max = 0;
 					}
 
-				list_for_each_entry(li, &px->conf.listeners, by_bind)
+				list_for_each_entry(li, &px->conf.listeners, by_fe)
 					if (li->counters) {
 						if (clrall)
 							memset(li->counters, 0, sizeof(*li->counters));
@@ -1124,7 +1124,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				 * its listeners. The blocked ones will be dequeued.
 				 */
 				px->maxconn = v;
-				list_for_each_entry(l, &px->conf.listeners, by_bind) {
+				list_for_each_entry(l, &px->conf.listeners, by_fe) {
 					l->maxconn = v;
 					if (l->state == LI_FULL)
 						resume_listener(l);
