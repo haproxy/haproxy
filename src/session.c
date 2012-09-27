@@ -105,17 +105,6 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 
 	proxy_inc_fe_conn_ctr(l, p);
 
-	/* if this session comes from a known monitoring system, we want to ignore
-	 * it as soon as possible, which means closing it immediately for TCP, but
-	 * cleanly.
-	 */
-	if (unlikely((l->options & LI_O_CHK_MONNET) &&
-		     addr->ss_family == AF_INET &&
-		     (((struct sockaddr_in *)addr)->sin_addr.s_addr & p->mon_mask.s_addr) == p->mon_net.s_addr)) {
-		s->flags |= SN_MONITOR;
-		s->logs.logwait = 0;
-	}
-
 	/* now evaluate the tcp-request layer4 rules. Since we expect to be able
 	 * to abort right here as soon as possible, we check the rules before
 	 * even initializing the stream interfaces.
@@ -127,15 +116,43 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		goto out_free_session;
 	}
 
+	/* Adjust some socket options */
+	if (unlikely(fcntl(cfd, F_SETFL, O_NONBLOCK) == -1))
+		goto out_free_session;
+
+	/* monitor-net and health mode are processed immediately after TCP
+	 * connection rules. This way it's possible to block them, but they
+	 * never use the lower data layers, they send directly over the socket,
+	 * as they were designed for. We first flush the socket receive buffer
+	 * in order to avoid emission of an RST by the system. We ignore any
+	 * error.
+	 */
+	if (unlikely((p->mode == PR_MODE_HEALTH) ||
+		     ((l->options & LI_O_CHK_MONNET) &&
+		      addr->ss_family == AF_INET &&
+		      (((struct sockaddr_in *)addr)->sin_addr.s_addr & p->mon_mask.s_addr) == p->mon_net.s_addr))) {
+		/* we have 4 possibilities here :
+		 *  - HTTP mode, from monitoring address => send "HTTP/1.0 200 OK"
+		 *  - HEALTH mode with HTTP check => send "HTTP/1.0 200 OK"
+		 *  - HEALTH mode without HTTP check => just send "OK"
+		 *  - TCP mode from monitoring address => just close
+		 */
+		recv(cfd, trash, trashlen, 0&MSG_DONTWAIT);
+		if (p->mode == PR_MODE_HTTP ||
+		    (p->mode == PR_MODE_HEALTH && (p->options2 & PR_O2_CHK_ANY) == PR_O2_HTTP_CHK))
+			send(cfd, "HTTP/1.0 200 OK\r\n\r\n", 19, MSG_DONTWAIT|MSG_NOSIGNAL|MSG_MORE);
+		else if (p->mode == PR_MODE_HEALTH)
+			send(cfd, "OK\n", 3, MSG_DONTWAIT|MSG_NOSIGNAL|MSG_MORE);
+		ret = 0;
+		goto out_free_session;
+	}
+
+
 	/* wait for a PROXY protocol header */
 	if (l->options & LI_O_ACC_PROXY) {
 		s->si[0].conn.flags |= CO_FL_ACCEPT_PROXY;
 		conn_sock_want_recv(&s->si[0].conn);
 	}
-
-	/* Adjust some socket options */
-	if (unlikely(fcntl(cfd, F_SETFL, O_NONBLOCK) == -1))
-		goto out_free_session;
 
 	if (unlikely((t = task_new()) == NULL))
 		goto out_free_session;

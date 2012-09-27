@@ -197,27 +197,6 @@ int frontend_accept(struct session *s)
 	s->req->rto = s->fe->timeout.client;
 	s->rep->wto = s->fe->timeout.client;
 
-	if (unlikely((s->fe->mode == PR_MODE_HTTP && (s->flags & SN_MONITOR)) ||
-		     (s->fe->mode == PR_MODE_HEALTH && ((s->fe->options2 & PR_O2_CHK_ANY) == PR_O2_HTTP_CHK)))) {
-		/* Either we got a request from a monitoring system on an HTTP instance,
-		 * or we're in health check mode with the 'httpchk' option enabled. In
-		 * both cases, we return a fake "HTTP/1.0 200 OK" response and we exit.
-		 */
-		struct chunk msg;
-		chunk_initstr(&msg, "HTTP/1.0 200 OK\r\n\r\n");
-		stream_int_retnclose(&s->si[0], &msg); /* forge a 200 response */
-		s->req->analysers = 0;
-		s->task->expire = s->rep->wex;
-		fd_stop_recv(cfd);
-	}
-	else if (unlikely(s->fe->mode == PR_MODE_HEALTH)) {  /* health check mode, no client reading */
-		struct chunk msg;
-		chunk_initstr(&msg, "OK\n");
-		stream_int_retnclose(&s->si[0], &msg); /* forge an "OK" response */
-		s->req->analysers = 0;
-		s->task->expire = s->rep->wex;
-		fd_stop_recv(cfd);
-	}
 	/* everything's OK, let's go on */
 	return 1;
 
