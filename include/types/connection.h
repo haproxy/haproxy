@@ -198,6 +198,7 @@ struct connection {
 	const struct data_ops *data;  /* operations at the data layer */
 	const struct protocol *ctrl;  /* operations at the socket layer */
 	const struct app_cb *app_cb;  /* application layer callbacks */
+	void *owner;                  /* pointer to upper layer's entity (eg: stream interface) */
 	union {                       /* definitions which depend on connection type */
 		struct {              /*** information used by socket-based connections ***/
 			int fd;       /* file descriptor for a stream driver when known */
@@ -209,7 +210,7 @@ struct connection {
 	struct target target;         /* the target to connect to (server, proxy, applet, ...) */
 	struct {
 		struct sockaddr_storage from;	/* client address, or address to spoof when connecting to the server */
-		struct sockaddr_storage to;	/* address reached by the client if SN_FRT_ADDR_SET is set, or address to connect to */
+		struct sockaddr_storage to;	/* address reached by the client, or address to connect to */
 	} addr; /* addresses of the remote side, client for producer and server for consumer */
 };
 

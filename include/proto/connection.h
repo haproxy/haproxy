@@ -413,14 +413,16 @@ static inline void conn_get_to_addr(struct connection *conn)
 }
 
 /* prepares a connection with the appropriate app_cb, ctrl and data layers. The
- * data state and context are set to 0.
+ * data state and context are set to 0, and the connection's owner is set.
  */
 static inline void conn_prepare(struct connection *conn, const struct app_cb *app,
-                                const struct protocol *ctrl, const struct data_ops *data)
+                                const struct protocol *ctrl, const struct data_ops *data,
+                                void *owner)
 {
 	conn->app_cb = app;
 	conn->ctrl = ctrl;
 	conn->data = data;
+	conn->owner = owner;
 	conn->data_st = 0;
 	conn->data_ctx = NULL;
 }
