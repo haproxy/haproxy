@@ -1826,6 +1826,8 @@ int http_parse_chunk_size(struct http_msg *msg)
 	 * which may or may not be present. We save that into ->next and
 	 * ->sov.
 	 */
+	if (ptr < ptr_old)
+		msg->sov += buf->buf.size;
 	msg->sov += ptr - ptr_old;
 	msg->next = buffer_count(&buf->buf, buf->buf.p, ptr);
 	msg->chunk_len = chunk;
