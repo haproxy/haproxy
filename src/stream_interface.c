@@ -485,7 +485,7 @@ void stream_int_unregister_handler(struct stream_interface *si)
  */
 int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 {
-	struct stream_interface *si = container_of(conn, struct stream_interface, conn);
+	struct stream_interface *si = conn->owner;
 
 	/* we might have been called just after an asynchronous shutw */
 	if (conn->flags & CO_FL_SOCK_WR_SH)
@@ -561,7 +561,7 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
  */
 void conn_notify_si(struct connection *conn)
 {
-	struct stream_interface *si = container_of(conn, struct stream_interface, conn);
+	struct stream_interface *si = conn->owner;
 
 	DPRINTF(stderr, "%s: si=%p, si->state=%d ib->flags=%08x ob->flags=%08x\n",
 		__FUNCTION__,
@@ -665,7 +665,7 @@ void conn_notify_si(struct connection *conn)
  */
 static int si_conn_send_loop(struct connection *conn)
 {
-	struct stream_interface *si = container_of(conn, struct stream_interface, conn);
+	struct stream_interface *si = conn->owner;
 	struct channel *b = si->ob;
 	int write_poll = MAX_WRITE_POLL_LOOPS;
 	int ret;
@@ -940,7 +940,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
  */
 void si_conn_recv_cb(struct connection *conn)
 {
-	struct stream_interface *si = container_of(conn, struct stream_interface, conn);
+	struct stream_interface *si = conn->owner;
 	struct channel *b = si->ib;
 	int ret, max, cur_read;
 	int read_poll = MAX_READ_POLL_LOOPS;
@@ -1154,7 +1154,7 @@ void si_conn_recv_cb(struct connection *conn)
  */
 void si_conn_send_cb(struct connection *conn)
 {
-	struct stream_interface *si = container_of(conn, struct stream_interface, conn);
+	struct stream_interface *si = conn->owner;
 	struct channel *b = si->ob;
 
 	if (conn->flags & CO_FL_ERROR)

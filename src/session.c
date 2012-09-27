@@ -260,7 +260,7 @@ static void kill_mini_session(struct session *s)
  */
 int conn_session_complete(struct connection *conn, int flag)
 {
-	struct session *s = container_of(conn, struct session, si[0].conn);
+	struct session *s = container_of(conn->owner, struct session, si[0]);
 
 	if (!(conn->flags & CO_FL_ERROR) && (session_complete(s) > 0)) {
 		conn->flags &= ~flag;
