@@ -6748,20 +6748,20 @@ crt <cert>
   This setting is only available when support for OpenSSL was built in.
   It designates a PEM file from which to load both a certificate and the
   associated private key. This file can be built by concatenating both PEM
-  files into one. If a directory name is used instead of a PEM file, then all
-  files found in that directory will be loaded. This directive may be specified
-  multiple times in order to load certificates from multiple files or
-  directories. The certificates will be presented to clients who provide a
-  valid TLS Server Name Indication field matching one of their CN or alt
-  subjects. Wildcards are supported, where a wildcard character '*' is used
-  instead of the first hostname component (eg: *.example.org matches
+  files into one. If the OpenSSL used supports Diffie-Hellman, parameters
+  present in this file are also loaded. If a directory name is used instead of a
+  PEM file, then all files found in that directory will be loaded. This
+  directive may be specified multiple times in order to load certificates from
+  multiple files or directories. The certificates will be presented to clients
+  who provide a valid TLS Server Name Indication field matching one of their CN
+  or alt subjects. Wildcards are supported, where a wildcard character '*' is
+  used instead of the first hostname component (eg: *.example.org matches
   www.example.org but not www.sub.example.org). If no SNI is provided by the
-  client or if the SSL library does not support TLS extensions, or if the
-  client provides and SNI which does not match any certificate, then the first
-  loaded certificate will be presented. This means that when loading
-  certificates from a directory, it is highly recommended to load the default
-  one first as a file. Note that the same cert may be loaded multiple times
-  without side effects.
+  client or if the SSL library does not support TLS extensions, or if the client
+  provides and SNI which does not match any certificate, then the first loaded
+  certificate will be presented. This means that when loading certificates from
+  a directory, it is highly recommended to load the default one first as a file.
+  Note that the same cert may be loaded multiple times without side effects.
 
 defer-accept
   Is an optional keyword which is supported only on certain Linux kernels. It
