@@ -103,7 +103,9 @@ struct bind_conf {
 	char *crlfile;             /* CRLfile to use on verify */
 	char *ecdhe;               /* named curve to use for ECDHE */
 	int nosslv3;               /* disable SSLv3 */
-	int notlsv1;               /* disable TLSv1 */
+	int notlsv10;              /* disable TLSv1.0 */
+	int notlsv11;              /* disable TLSv1.1 */
+	int notlsv12;              /* disable TLSv1.2 */
 	int prefer_server_ciphers; /* Prefer server ciphers */
 	int verify;                /* verify method (set of SSL_VERIFY_* flags) */
 	SSL_CTX *default_ctx;      /* SSL context of first/default certificate */

@@ -4253,9 +4253,31 @@ stats_error_parsing:
 				goto out;
 #endif /* USE_OPENSSL */
 			}
-			else if (!strcmp(args[cur_arg], "notlsv1")) {
+			else if (!strcmp(args[cur_arg], "notlsv10")) {
 #ifdef USE_OPENSSL
-				newsrv->ssl_ctx.notlsv1 = 1;
+				newsrv->ssl_ctx.notlsv10 = 1;
+				cur_arg += 1;
+#else /* USE_OPENSSL */
+				Alert("parsing [%s:%d]: '%s' option not implemented.\n",
+				      file, linenum, args[cur_arg]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+#endif /* USE_OPENSSL */
+			}
+			else if (!strcmp(args[cur_arg], "notlsv11")) {
+#ifdef USE_OPENSSL
+				newsrv->ssl_ctx.notlsv11 = 1;
+				cur_arg += 1;
+#else /* USE_OPENSSL */
+				Alert("parsing [%s:%d]: '%s' option not implemented.\n",
+				      file, linenum, args[cur_arg]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+#endif /* USE_OPENSSL */
+			}
+			else if (!strcmp(args[cur_arg], "notlsv12")) {
+#ifdef USE_OPENSSL
+				newsrv->ssl_ctx.notlsv12 = 1;
 				cur_arg += 1;
 #else /* USE_OPENSSL */
 				Alert("parsing [%s:%d]: '%s' option not implemented.\n",
@@ -6240,6 +6262,12 @@ out_uri_auth_compat:
 #ifndef SSL_OP_NO_COMPRESSION     /* needs OpenSSL >= 0.9.9 */
 #define SSL_OP_NO_COMPRESSION 0
 #endif
+#ifndef SSL_OP_NO_TLSv1_1         /* needs OpenSSL >= 1.0.1 */
+#define SSL_OP_NO_TLSv1_1 0
+#endif
+#ifndef SSL_OP_NO_TLSv1_2         /* needs OpenSSL >= 1.0.1 */
+#define SSL_OP_NO_TLSv1_2 0
+#endif
 			if (newsrv->use_ssl) {
 				int ssloptions =
 					SSL_OP_ALL | /* all known workarounds for bugs */
@@ -6265,8 +6293,12 @@ out_uri_auth_compat:
 
 				if (newsrv->ssl_ctx.nosslv3)
 					ssloptions |= SSL_OP_NO_SSLv3;
-				if (newsrv->ssl_ctx.notlsv1)
+				if (newsrv->ssl_ctx.notlsv10)
 					ssloptions |= SSL_OP_NO_TLSv1;
+				if (newsrv->ssl_ctx.notlsv11)
+					ssloptions |= SSL_OP_NO_TLSv1_1;
+				if (newsrv->ssl_ctx.notlsv12)
+					ssloptions |= SSL_OP_NO_TLSv1_2;
 				SSL_CTX_set_options(newsrv->ssl_ctx.ctx, ssloptions);
 				SSL_CTX_set_mode(newsrv->ssl_ctx.ctx, sslmode);
 				SSL_CTX_set_verify(newsrv->ssl_ctx.ctx, SSL_VERIFY_NONE, NULL);

@@ -450,6 +450,12 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, struct proxy *cu
 #ifndef SSL_OP_NO_COMPRESSION                           /* needs OpenSSL >= 0.9.9 */
 #define SSL_OP_NO_COMPRESSION 0
 #endif
+#ifndef SSL_OP_NO_TLSv1_1                               /* needs OpenSSL >= 1.0.1 */
+#define SSL_OP_NO_TLSv1_1 0
+#endif
+#ifndef SSL_OP_NO_TLSv1_2                               /* needs OpenSSL >= 1.0.1 */
+#define SSL_OP_NO_TLSv1_2 0
+#endif
 #ifndef SSL_OP_SINGLE_DH_USE                            /* needs OpenSSL >= 0.9.6 */
 #define SSL_OP_SINGLE_DH_USE 0
 #endif
@@ -476,8 +482,12 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 
 	if (bind_conf->nosslv3)
 		ssloptions |= SSL_OP_NO_SSLv3;
-	if (bind_conf->notlsv1)
+	if (bind_conf->notlsv10)
 		ssloptions |= SSL_OP_NO_TLSv1;
+	if (bind_conf->notlsv11)
+		ssloptions |= SSL_OP_NO_TLSv1_1;
+	if (bind_conf->notlsv12)
+		ssloptions |= SSL_OP_NO_TLSv1_2;
 	if (bind_conf->prefer_server_ciphers)
 		ssloptions |= SSL_OP_CIPHER_SERVER_PREFERENCE;
 
@@ -1190,9 +1200,23 @@ static int bind_parse_nosslv3(char **args, int cur_arg, struct proxy *px, struct
 }
 
 /* parse the "notlsv1" bind keyword */
-static int bind_parse_notlsv1(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+static int bind_parse_notlsv10(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	conf->notlsv1 = 1;
+	conf->notlsv10 = 1;
+	return 0;
+}
+
+/* parse the "notlsv11" bind keyword */
+static int bind_parse_notlsv11(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	conf->notlsv11 = 1;
+	return 0;
+}
+
+/* parse the "notlsv12" bind keyword */
+static int bind_parse_notlsv12(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	conf->notlsv12 = 1;
 	return 0;
 }
 
@@ -1288,7 +1312,9 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
 	{ "crt-ignore-err",        bind_parse_ignore_err,    1 }, /* set error IDs to ingore on verify depth == 0 */
 	{ "ecdhe",                 bind_parse_ecdhe,         1 }, /* defines named curve for elliptic curve Diffie-Hellman */
 	{ "nosslv3",               bind_parse_nosslv3,       0 }, /* disable SSLv3 */
-	{ "notlsv1",               bind_parse_notlsv1,       0 }, /* disable TLSv1 */
+	{ "notlsv10",              bind_parse_notlsv10,      0 }, /* disable TLSv10 */
+	{ "notlsv11",              bind_parse_notlsv11,      0 }, /* disable TLSv11 */
+	{ "notlsv12",              bind_parse_notlsv12,      0 }, /* disable TLSv12 */
 	{ "prefer-server-ciphers", bind_parse_psc,           0 }, /* prefer server ciphers */
 	{ "ssl",                   bind_parse_ssl,           0 }, /* enable SSL processing */
 	{ "verify",                bind_parse_verify,        1 }, /* set SSL verify method */
