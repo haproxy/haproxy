@@ -1103,7 +1103,7 @@ void init_default_instance()
 	defproxy.defsrv.downinter = 0;
 	defproxy.defsrv.rise = DEF_RISETIME;
 	defproxy.defsrv.fall = DEF_FALLTIME;
-	defproxy.defsrv.check_port = 0;
+	defproxy.defsrv.check.port = 0;
 	defproxy.defsrv.maxqueue = 0;
 	defproxy.defsrv.minconn = 0;
 	defproxy.defsrv.maxconn = 0;
@@ -3959,7 +3959,7 @@ stats_error_parsing:
 			}
 			set_host_port(&newsrv->addr, realport);
 
-			newsrv->check_port	= curproxy->defsrv.check_port;
+			newsrv->check.port	= curproxy->defsrv.check.port;
 			newsrv->inter		= curproxy->defsrv.inter;
 			newsrv->fastinter	= curproxy->defsrv.fastinter;
 			newsrv->downinter	= curproxy->defsrv.downinter;
@@ -4125,11 +4125,11 @@ stats_error_parsing:
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
-				newsrv->check_addr = *sk;
+				newsrv->check.addr = *sk;
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "port")) {
-				newsrv->check_port = atol(args[cur_arg + 1]);
+				newsrv->check.port = atol(args[cur_arg + 1]);
 				cur_arg += 2;
 			}
 			else if (!defsrv && !strcmp(args[cur_arg], "backup")) {
@@ -4549,13 +4549,13 @@ stats_error_parsing:
 				goto out;
 			}
 
-			/* try to get the port from check_addr if check_port not set */
-			if (!newsrv->check_port)
-				newsrv->check_port = get_host_port(&newsrv->check_addr);
+			/* try to get the port from check.addr if check.port not set */
+			if (!newsrv->check.port)
+				newsrv->check.port = get_host_port(&newsrv->check.addr);
 
-			if (!newsrv->check_port && !(newsrv->state & SRV_MAPPORTS))
-				newsrv->check_port = realport; /* by default */
-			if (!newsrv->check_port) {
+			if (!newsrv->check.port && !(newsrv->state & SRV_MAPPORTS))
+				newsrv->check.port = realport; /* by default */
+			if (!newsrv->check.port) {
 				/* not yet valid, because no port was set on
 				 * the server either. We'll check if we have
 				 * a known port on the first listener.
@@ -4563,12 +4563,12 @@ stats_error_parsing:
 				struct listener *l;
 
 				list_for_each_entry(l, &curproxy->conf.listeners, by_fe) {
-					newsrv->check_port = get_host_port(&l->addr);
-					if (newsrv->check_port)
+					newsrv->check.port = get_host_port(&l->addr);
+					if (newsrv->check.port)
 						break;
 				}
 			}
-			if (!newsrv->check_port) {
+			if (!newsrv->check.port) {
 				Alert("parsing [%s:%d] : server %s has neither service port nor check port. Check has been disabled.\n",
 				      file, linenum, newsrv->id);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -4576,21 +4576,21 @@ stats_error_parsing:
 			}
 
 			/* Allocate buffer for partial check results... */
-			if ((newsrv->check_data = calloc(global.tune.chksize, sizeof(char))) == NULL) {
+			if ((newsrv->check.buffer = calloc(global.tune.chksize, sizeof(char))) == NULL) {
 				Alert("parsing [%s:%d] : out of memory while allocating check buffer.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
 
 			/* Allocate buffer for partial check results... */
-			if ((newsrv->check_conn = calloc(1, sizeof(struct connection))) == NULL) {
+			if ((newsrv->check.conn = calloc(1, sizeof(struct connection))) == NULL) {
 				Alert("parsing [%s:%d] : out of memory while allocating check connection.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
 
-			newsrv->check_conn->t.sock.fd = -1; /* no check in progress yet */
-			newsrv->check_status = HCHK_STATUS_INI;
+			newsrv->check.conn->t.sock.fd = -1; /* no check in progress yet */
+			newsrv->check.status = HCHK_STATUS_INI;
 			newsrv->state |= SRV_CHECKED;
 		}
 

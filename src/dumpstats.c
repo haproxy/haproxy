@@ -2823,26 +2823,26 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 
 				if (sv->state & SRV_CHECKED) {
 					chunk_printf(&msg, "</td><td class=ac title=\"%s",
-						get_check_status_description(sv->check_status));
+						get_check_status_description(sv->check.status));
 
-					if (*sv->check_desc) {
+					if (*sv->check.desc) {
 						struct chunk src;
 
 						chunk_printf(&msg, ": ");
 
-						chunk_initlen(&src, sv->check_desc, 0, strlen(sv->check_desc));
+						chunk_initlen(&src, sv->check.desc, 0, strlen(sv->check.desc));
 						chunk_htmlencode(&msg, &src);
 					}
 
 					chunk_printf(&msg, "\"><u> %s%s",
-						tv_iszero(&sv->check_start)?"":"* ",
-						get_check_status_info(sv->check_status));
+						tv_iszero(&sv->check.start)?"":"* ",
+						get_check_status_info(sv->check.status));
 
-					if (sv->check_status >= HCHK_STATUS_L57DATA)
-						chunk_printf(&msg, "/%d", sv->check_code);
+					if (sv->check.status >= HCHK_STATUS_L57DATA)
+						chunk_printf(&msg, "/%d", sv->check.code);
 
-					if (sv->check_status >= HCHK_STATUS_CHECKED && sv->check_duration >= 0)
-					chunk_printf(&msg, " in %lums</u>", sv->check_duration);
+					if (sv->check.status >= HCHK_STATUS_CHECKED && sv->check.duration >= 0)
+					chunk_printf(&msg, " in %lums</u>", sv->check.duration);
 				} else
 					chunk_printf(&msg, "</td><td>");
 
@@ -2986,17 +2986,17 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 
 				if (sv->state & SRV_CHECKED) {
 					/* check_status */
-					chunk_printf(&msg, "%s,", get_check_status_info(sv->check_status));
+					chunk_printf(&msg, "%s,", get_check_status_info(sv->check.status));
 
 					/* check_code */
-					if (sv->check_status >= HCHK_STATUS_L57DATA)
-						chunk_printf(&msg, "%u,", sv->check_code);
+					if (sv->check.status >= HCHK_STATUS_L57DATA)
+						chunk_printf(&msg, "%u,", sv->check.code);
 					else
 						chunk_printf(&msg, ",");
 
 					/* check_duration */
-					if (sv->check_status >= HCHK_STATUS_CHECKED)
-						chunk_printf(&msg, "%lu,", sv->check_duration);
+					if (sv->check.status >= HCHK_STATUS_CHECKED)
+						chunk_printf(&msg, "%lu,", sv->check.duration);
 					else
 						chunk_printf(&msg, ",");
 

@@ -1007,9 +1007,9 @@ void deinit(void)
 		while (s) {
 			s_next = s->next;
 
-			if (s->check) {
-				task_delete(s->check);
-				task_free(s->check);
+			if (s->check.task) {
+				task_delete(s->check.task);
+				task_free(s->check.task);
 			}
 
 			if (s->warmup) {
@@ -1019,7 +1019,7 @@ void deinit(void)
 
 			free(s->id);
 			free(s->cookie);
-			free(s->check_data);
+			free(s->check.buffer);
 			free(s);
 			s = s_next;
 		}/* end while(s) */
