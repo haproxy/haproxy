@@ -8190,6 +8190,20 @@ ssl_sni_req <regex>
   haproxy and not to SSL contents being blindly forwarded. This requires that
   the SSL library is build with support for TLS extensions (check haproxy -vv).
 
+ssl_verify_caerr <errorID>
+  Returns true when the incoming connection was made over an SSL/TLS data layer
+  and the ID of the first error detected during verify at depth > 0 match the
+  errorID.
+
+ssl_verify_caerr_depth <depth>
+  Returns true when the incoming connection was made over an SSL/TLS data layer
+  and the depth of the first error detected during verify match the depth.
+
+ssl_verify_crterr <errorID>
+  Returns true when the incoming connection was made over an SSL/TLS data layer
+  and the ID of the first error detected during verify at depth == 0 match the
+  errorID.
+
 ssl_verify_result <errorID>
   Returns true when the incoming connection was made over an SSL/TLS data layer
   and the verify result match the errorID.
@@ -8807,6 +8821,17 @@ The list of currently supported pattern fetch functions is the following :
                by haproxy. The result typically is a string matching the HTTPS
                host name (253 chars or less). The SSL library must have been
                built with support for TLS extensions (check haproxy -vv).
+
+  ssl_verify_caerr
+               Returns the ID of the first error detected during verify at
+               depth > 0 or 0 if no errors.
+
+  ssl_verify_caerr_depth
+               Returns the depth of the first error detected during verify.
+
+  ssl_verify_crterr
+               Returns the ID of the first error detected during verify at
+               depth == 0 or 0 if no errors.
 
   ssl_verify_result
                Returns the verify result errorID when the incoming connection
