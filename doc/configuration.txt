@@ -6742,12 +6742,22 @@ ecdhe <named curve>
   the named curve (RFC 4492) used to generate ECDH ephemeral keys and makes
   ECDHE cipher suites usable.
 
+cafile <cafile>
+  This setting is only available when support for OpenSSL was built in. It
+  designates a PEM file from which to load CA certificates used to verify
+  client's certificate.
+
 ciphers <ciphers>
   This setting is only available when support for OpenSSL was built in. It sets
   the string describing the list of cipher algorithms ("cipher suite") that are
   negociated during the SSL/TLS handshake. The format of the string is defined
   in "man 1 ciphers" from OpenSSL man pages, and can be for instance a string
   such as "AES:ALL:!aNULL:!eNULL:+RC4:@STRENGTH" (without quotes).
+
+crlfile <cafile>
+  This setting is only available when support for OpenSSL was built in. It
+  designates a PEM file from which to load certificate revocation list used
+  to verify client's certificate.
 
 crt <cert>
   This setting is only available when support for OpenSSL was built in.
@@ -6919,6 +6929,15 @@ user <user>
   setting except that the user name is used instead of its uid. This setting is
   ignored by non UNIX sockets.
 
+verify [none|optional|required]
+  This setting is only available when support for OpenSSL was built in. If set
+  to 'none', client certificate is not requested. This is the default. In other
+  cases, a client certificate is requested. If the client does not provide a
+  certificate after the request and if 'verify' is set to 'required', then the
+  handshake is aborted, while it would have succeeded if set to 'optional'. The
+  certificate provided by the client is always verified using CAs from 'cafile'
+  and optional CRLs from 'crlfile'. On verify failure the handshake is aborted,
+  regardless of the 'verify' option.
 
 5.2. Server and default-server options
 ------------------------------------
