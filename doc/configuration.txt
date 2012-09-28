@@ -6747,6 +6747,12 @@ cafile <cafile>
   designates a PEM file from which to load CA certificates used to verify
   client's certificate.
 
+ca-ignore-err [all|<errorID>,...]
+  This setting is only available when support for OpenSSL was built in.
+  Sets a comma separated list of errorIDs to ignore during verify at depth > 0.
+  If set to 'all', all errors are ignored. SSL handshake is not aborted if an
+  error is ignored.
+
 ciphers <ciphers>
   This setting is only available when support for OpenSSL was built in. It sets
   the string describing the list of cipher algorithms ("cipher suite") that are
@@ -6777,6 +6783,12 @@ crt <cert>
   certificate will be presented. This means that when loading certificates from
   a directory, it is highly recommended to load the default one first as a file.
   Note that the same cert may be loaded multiple times without side effects.
+
+crt-ignore-err <errors>
+  This setting is only available when support for OpenSSL was built in.
+  Sets a comma separated list of errorIDs to ignore during verify at depth == 0.
+  If set to 'all', all errors are ignored. SSL handshake is not abored if an
+  error is ignored.
 
 defer-accept
   Is an optional keyword which is supported only on certain Linux kernels. It
@@ -6937,7 +6949,8 @@ verify [none|optional|required]
   handshake is aborted, while it would have succeeded if set to 'optional'. The
   certificate provided by the client is always verified using CAs from 'cafile'
   and optional CRLs from 'crlfile'. On verify failure the handshake is aborted,
-  regardless of the 'verify' option.
+  regardless of the 'verify' option, unless the error code exactly matches one
+  of those listed with 'ca-ignore-err' or 'crt-ignore-err'.
 
 5.2. Server and default-server options
 ------------------------------------
