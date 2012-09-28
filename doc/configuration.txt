@@ -8190,6 +8190,10 @@ ssl_sni_req <regex>
   haproxy and not to SSL contents being blindly forwarded. This requires that
   the SSL library is build with support for TLS extensions (check haproxy -vv).
 
+ssl_verify_result <errorID>
+  Returns true when the incoming connection was made over an SSL/TLS data layer
+  and the verify result match the errorID.
+
 wait_end
   Waits for the end of the analysis period to return true. This may be used in
   conjunction with content analysis to avoid returning a wrong verdict early.
@@ -8803,6 +8807,10 @@ The list of currently supported pattern fetch functions is the following :
                by haproxy. The result typically is a string matching the HTTPS
                host name (253 chars or less). The SSL library must have been
                built with support for TLS extensions (check haproxy -vv).
+
+  ssl_verify_result
+               Returns the verify result errorID when the incoming connection
+               was made over an SSL/TLS data layer.
 
   url          This extracts the request's URL as presented in the request. A
                typical use is with prefetch-capable caches, and with portals
