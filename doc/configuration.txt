@@ -6897,9 +6897,21 @@ nosslv3
   SSL is supported. Note that SSLv2 is forced disabled in the code and cannot
   be enabled using any configuration option.
 
-notlsv1
+notlsv10
   This setting is only available when support for OpenSSL was built in. It
-  disables support for TLSv1 on any sockets instanciated from the listener when
+  disables support for TLSv10 on any sockets instanciated from the listener when
+  SSL is supported. Note that SSLv2 is forced disabled in the code and cannot
+  be enabled using any configuration option.
+
+notlsv11
+  This setting is only available when support for OpenSSL was built in. It
+  disables support for TLSv11 on any sockets instanciated from the listener when
+  SSL is supported. Note that SSLv2 is forced disabled in the code and cannot
+  be enabled using any configuration option.
+
+notlsv12
+  This setting is only available when support for OpenSSL was built in. It
+  disables support for TLSv12 on any sockets instanciated from the listener when
   SSL is supported. Note that SSLv2 is forced disabled in the code and cannot
   be enabled using any configuration option.
 
@@ -7126,8 +7138,20 @@ nosslv3
   the server. Note that SSLv2 is disabled in the code and cannot be enabled
   using any configuration option.
 
-notlsv1
-  This option disables support for TLSv1 when SSL is used to communicate with
+notlsv10
+  This option disables support for TLSv10 when SSL is used to communicate with
+  the server. Note that SSLv2 is disabled in the code and cannot be enabled
+  using any configuration option. TLSv1 is more expensive than SSLv3 so it
+  often makes sense to disable it when communicating with local servers.
+
+notlsv11
+  This option disables support for TLSv11 when SSL is used to communicate with
+  the server. Note that SSLv2 is disabled in the code and cannot be enabled
+  using any configuration option. TLSv1 is more expensive than SSLv3 so it
+  often makes sense to disable it when communicating with local servers.
+
+notlsv12
+  This option disables support for TLSv12 when SSL is used to communicate with
   the server. Note that SSLv2 is disabled in the code and cannot be enabled
   using any configuration option. TLSv1 is more expensive than SSLv3 so it
   often makes sense to disable it when communicating with local servers.
