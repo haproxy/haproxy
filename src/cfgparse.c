@@ -3948,8 +3948,8 @@ stats_error_parsing:
 				goto out;
 			}
 			newsrv->addr = *sk;
-			newsrv->proto = protocol_by_family(newsrv->addr.ss_family);
-			newsrv->xprt  = &raw_sock;
+			newsrv->proto = newsrv->check.proto = protocol_by_family(newsrv->addr.ss_family);
+			newsrv->xprt  = newsrv->check.xprt  = &raw_sock;
 
 			if (!newsrv->proto) {
 				Alert("parsing [%s:%d] : Unknown protocol family %d '%s'\n",
@@ -3959,6 +3959,7 @@ stats_error_parsing:
 			}
 			set_host_port(&newsrv->addr, realport);
 
+			newsrv->check.use_ssl	= curproxy->defsrv.check.use_ssl;
 			newsrv->check.port	= curproxy->defsrv.check.port;
 			newsrv->inter		= curproxy->defsrv.inter;
 			newsrv->fastinter	= curproxy->defsrv.fastinter;
@@ -4548,6 +4549,14 @@ stats_error_parsing:
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
+
+			/* If neither a port nor an addr was specified and no check transport
+			 * layer is forced, then the transport layer used by the checks is the
+			 * same as for the production traffic. Otherwise we use raw_sock by
+			 * default, unless one is specified.
+			 */
+			if (!newsrv->check.port && !is_addr(&newsrv->check.addr))
+				newsrv->check.use_ssl |= newsrv->use_ssl;
 
 			/* try to get the port from check.addr if check.port not set */
 			if (!newsrv->check.port)
@@ -6271,7 +6280,7 @@ out_uri_auth_compat:
 #ifndef SSL_OP_NO_TLSv1_2         /* needs OpenSSL >= 1.0.1 */
 #define SSL_OP_NO_TLSv1_2 0
 #endif
-			if (newsrv->use_ssl) {
+			if (newsrv->use_ssl || newsrv->check.use_ssl) {
 				int ssloptions =
 					SSL_OP_ALL | /* all known workarounds for bugs */
 					SSL_OP_NO_SSLv2 |
@@ -6283,7 +6292,8 @@ out_uri_auth_compat:
 
 				/* Initiate SSL context for current server */
 				newsrv->ssl_ctx.reused_sess = NULL;
-				newsrv->xprt = &ssl_sock;
+				if (newsrv->use_ssl)
+					newsrv->xprt = &ssl_sock;
 				newsrv->ssl_ctx.ctx = SSL_CTX_new(SSLv23_client_method());
 				if(!newsrv->ssl_ctx.ctx) {
 

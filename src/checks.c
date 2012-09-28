@@ -1375,7 +1375,7 @@ static struct task *process_chk(struct task *t)
 
 		/* prepare a new connection */
 		set_target_server(&conn->target, s);
-		conn_prepare(conn, &check_conn_cb, s->proto, &raw_sock, s);
+		conn_prepare(conn, &check_conn_cb, s->check.proto, s->check.xprt, s);
 
 		if (is_addr(&s->check.addr))
 			/* we'll connect to the check addr specified on the server */
@@ -1395,7 +1395,7 @@ static struct task *process_chk(struct task *t)
 		 *  - SN_ERR_INTERNAL for any other purely internal errors
 		 * Additionnally, in the case of SN_ERR_RESOURCE, an emergency log will be emitted.
 		 */
-		ret = tcp_connect_server(conn, 1);
+		ret = s->check.proto->connect(conn, 1);
 		conn->flags |= CO_FL_WAKE_DATA;
 
 		switch (ret) {

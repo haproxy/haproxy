@@ -158,6 +158,8 @@ struct server {
 
 	struct {                                /* health-check specific configuration */
 		struct connection *conn;        /* connection state for health checks */
+		struct protocol *proto;	        /* server address protocol for health checks */
+		struct xprt_ops *xprt;          /* transport layer operations for health checks */
 		struct sockaddr_storage addr;   /* the address to check, if different from <addr> */
 		short port;                     /* the port to use for the health checks */
 		struct buffer *bi, *bo;         /* input and output buffers to send/recv check */
@@ -166,6 +168,7 @@ struct server {
 		long duration;                  /* time in ms took to finish last health check */
 		short status, code;             /* check result, check code */
 		char desc[HCHK_DESC_LEN];       /* health check descritpion */
+		int use_ssl;                    /* use SSL for health checks */
 	} check;
 
 #ifdef USE_OPENSSL
