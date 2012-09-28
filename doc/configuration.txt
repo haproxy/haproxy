@@ -6737,6 +6737,11 @@ backlog <backlog>
   Sets the socket's backlog to this value. If unspecified, the frontend's
   backlog is used instead, which generally defaults to the maxconn value.
 
+ecdhe <named curve>
+  This setting is only available when support for OpenSSL was built in. It sets
+  the named curve (RFC 4492) used to generate ECDH ephemeral keys and makes
+  ECDHE cipher suites usable.
+
 ciphers <ciphers>
   This setting is only available when support for OpenSSL was built in. It sets
   the string describing the list of cipher algorithms ("cipher suite") that are
