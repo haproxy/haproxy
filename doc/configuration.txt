@@ -8051,6 +8051,10 @@ during analysis. This requires that some data has been buffered, for instance
 through TCP request content inspection. Please see the "tcp-request content"
 keyword for more detailed information on the subject.
 
+client_crt
+  Returns true if a client certificate is present in an incoming connection over
+  SSL/TLS data layer. Useful if 'verify' statement is set to 'optional'.
+
 is_ssl
   Returns true when the incoming connection was made via an SSL/TLS data layer
   and is locally deciphered. This means it has matched a socket declared with
@@ -8713,6 +8717,9 @@ The list of currently supported pattern fetch functions is the following :
                shared caches efficiency. Using this with a limited size stick
                table also allows one to collect statistics about most commonly
                requested objects by host/path.
+  client_crt
+               Returns 1 if a client certificate is present in an incoming
+               connection over SSL/TLS data layer, otherwise 0.
 
   src          This is the source IPv4 address of the client of the session.
                It is of type IPv4 and works on both IPv4 and IPv6 tables.
