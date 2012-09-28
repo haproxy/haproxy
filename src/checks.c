@@ -771,10 +771,8 @@ static void event_srv_chk_w(struct connection *conn)
 	int fd = conn->t.sock.fd;
 	struct task *t = s->check.task;
 
-	if (conn->flags & (CO_FL_SOCK_WR_SH | CO_FL_DATA_WR_SH | CO_FL_WAIT_DATA | CO_FL_WAIT_WR)) {
+	if (conn->flags & (CO_FL_SOCK_WR_SH | CO_FL_DATA_WR_SH | CO_FL_WAIT_DATA | CO_FL_WAIT_WR))
 		conn->flags |= CO_FL_ERROR;
-		return;
-	}
 
 	if (unlikely(conn->flags & CO_FL_ERROR)) {
 		int skerr, err = errno;
@@ -796,78 +794,23 @@ static void event_srv_chk_w(struct connection *conn)
 		if (s->check.bo->o) {
 			int ret;
 
-			ret = send(fd, bo_ptr(s->check.bo), s->check.bo->o, MSG_DONTWAIT | MSG_NOSIGNAL);
-			if (ret > 0) {
-				if (conn->flags & CO_FL_WAIT_L4_CONN)
-					conn->flags &= ~CO_FL_WAIT_L4_CONN;
-
-				s->check.bo->o -= ret;
-				if (!s->check.bo->o) {
-					/* full request sent, we allow up to <timeout.check> if nonzero for a response */
-					if (s->proxy->timeout.check) {
-						t->expire = tick_add_ifset(now_ms, s->proxy->timeout.check);
-						task_queue(t);
-					}
-					__conn_data_want_recv(conn);   /* prepare for reading reply */
-					goto out_nowake;
-				}
-				/* some data remains */
-				goto out_poll;
-			}
-			else if (ret == 0 || errno == EAGAIN)
-				goto out_poll;
-			else {
-				switch (errno) {
-					case ECONNREFUSED:
-					case ENETUNREACH:
-						set_server_check_status(s, HCHK_STATUS_L4CON, strerror(errno));
-						break;
-
-					default:
-						set_server_check_status(s, HCHK_STATUS_SOCKERR, strerror(errno));
-				}
-
-				goto out_error;
-			}
-		}
-		else {
-			/* We have no data to send to check the connection, and
-			 * getsockopt() will not inform us whether the connection
-			 * is still pending. So we'll reuse connect() to check the
-			 * state of the socket. This has the advantage of givig us
-			 * the following info :
-			 *  - error
-			 *  - connecting (EALREADY, EINPROGRESS)
-			 *  - connected (EISCONN, 0)
-			 */
-
-			struct sockaddr_storage sa;
-
-			if (is_addr(&s->check.addr))
-				sa = s->check.addr;
-			else
-				sa = s->addr;
-
-			set_host_port(&sa, s->check.port);
-
-			if (connect(fd, (struct sockaddr *)&sa, get_addr_len(&sa)) == 0)
-				errno = 0;
-
-			if (errno == EALREADY || errno == EINPROGRESS)
-				goto out_poll;
-
-			if (errno && errno != EISCONN) {
+			ret = conn->xprt->snd_buf(conn, s->check.bo, MSG_DONTWAIT | MSG_NOSIGNAL);
+			if (conn->flags & CO_FL_ERROR) {
 				set_server_check_status(s, HCHK_STATUS_L4CON, strerror(errno));
-				goto out_error;
+				goto out_wakeup;
 			}
-
-			if (conn->flags & CO_FL_WAIT_L4_CONN)
-				conn->flags &= ~CO_FL_WAIT_L4_CONN;
-
-			/* good TCP connection is enough */
-			set_server_check_status(s, HCHK_STATUS_L4OK, NULL);
-			goto out_wakeup;
 		}
+
+		if (!s->check.bo->o) {
+			/* full request sent, we allow up to <timeout.check> if nonzero for a response */
+			if (s->proxy->timeout.check) {
+				t->expire = tick_add_ifset(now_ms, s->proxy->timeout.check);
+				task_queue(t);
+			}
+			__conn_data_want_recv(conn);   /* prepare for reading reply */
+			goto out_nowake;
+		}
+		goto out_poll;
 	}
  out_wakeup:
 	task_wakeup(t, TASK_WOKEN_IO);
@@ -901,16 +844,13 @@ static void event_srv_chk_r(struct connection *conn)
 {
 	int len;
 	struct server *s = conn->owner;
-	int fd = conn->t.sock.fd;
 	struct task *t = s->check.task;
 	char *desc;
 	int done;
 	unsigned short msglen;
 
-	if (conn->flags & (CO_FL_SOCK_WR_SH | CO_FL_DATA_WR_SH | CO_FL_WAIT_DATA | CO_FL_WAIT_WR)) {
+	if (conn->flags & (CO_FL_SOCK_WR_SH | CO_FL_DATA_WR_SH | CO_FL_WAIT_DATA | CO_FL_WAIT_WR))
 		conn->flags |= CO_FL_ERROR;
-		return;
-	}
 
 	if (unlikely((s->result & SRV_CHK_ERROR) || (conn->flags & CO_FL_ERROR))) {
 		/* in case of TCP only, this tells us if the connection failed */
@@ -934,30 +874,21 @@ static void event_srv_chk_r(struct connection *conn)
 	 */
 
 	done = 0;
-	for (len = 0; s->check.bi->i < s->check.bi->size; s->check.bi->i += len) {
-		len = recv(fd, s->check.bi->data + s->check.bi->i, s->check.bi->size - s->check.bi->i, 0);
-		if (len <= 0)
-			break;
-	}
 
-	if (len == 0)
-		done = 1; /* connection hangup received */
-	else if (len < 0 && errno != EAGAIN) {
-		/* Report network errors only if we got no other data. Otherwise
-		 * we'll let the upper layers decide whether the response is OK
-		 * or not. It is very common that an RST sent by the server is
-		 * reported as an error just after the last data chunk.
-		 */
+	len = conn->xprt->rcv_buf(conn, s->check.bi, s->check.bi->size);
+	if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_DATA_RD_SH)) {
 		done = 1;
-		if (!s->check.bi->i) {
+		if ((conn->flags & CO_FL_ERROR) && !s->check.bi->i) {
+			/* Report network errors only if we got no other data. Otherwise
+			 * we'll let the upper layers decide whether the response is OK
+			 * or not. It is very common that an RST sent by the server is
+			 * reported as an error just after the last data chunk.
+			 */
 			if (!(s->result & SRV_CHK_ERROR))
 				set_server_check_status(s, HCHK_STATUS_SOCKERR, NULL);
 			goto out_wakeup;
 		}
 	}
-
-	if (len >= 0 && (conn->flags & CO_FL_WAIT_L4_CONN))
-		conn->flags &= ~CO_FL_WAIT_L4_CONN;
 
 	/* Intermediate or complete response received.
 	 * Terminate string in check.bi->data buffer.
@@ -1237,7 +1168,10 @@ static void event_srv_chk_r(struct connection *conn)
 	s->check.bi->i = 0;
 
 	/* Close the connection... */
-	shutdown(fd, SHUT_RDWR);
+	if (conn->xprt && conn->xprt->shutw)
+		conn->xprt->shutw(conn, 0);
+	if (!(conn->flags & (CO_FL_WAIT_L4_CONN|CO_FL_SOCK_WR_SH)))
+		shutdown(conn->t.sock.fd, SHUT_RDWR);
 	__conn_data_stop_recv(conn);
 	task_wakeup(t, TASK_WOKEN_IO);
 	return;
@@ -1453,7 +1387,34 @@ static struct task *process_chk(struct task *t)
 		goto new_chk;
 	}
 	else {
-		/* there was a test running */
+		/* there was a test running.
+		 * First, let's check whether there was an uncaught error,
+		 * which can happen on connect timeout or error.
+		 */
+		if (s->result == SRV_CHK_UNKNOWN) {
+			if (conn->flags & CO_FL_CONNECTED) {
+				/* good TCP connection is enough */
+				if (s->check.use_ssl)
+					set_server_check_status(s, HCHK_STATUS_L6OK, NULL);
+				else
+					set_server_check_status(s, HCHK_STATUS_L4OK, NULL);
+			}
+			else if (conn->flags & CO_FL_WAIT_L4_CONN) {
+				/* L4 failed */
+				if (conn->flags & CO_FL_ERROR)
+					set_server_check_status(s, HCHK_STATUS_L4CON, NULL);
+				else
+					set_server_check_status(s, HCHK_STATUS_L4TOUT, NULL);
+			}
+			else if (conn->flags & CO_FL_WAIT_L6_CONN) {
+				/* L6 failed */
+				if (conn->flags & CO_FL_ERROR)
+					set_server_check_status(s, HCHK_STATUS_L6RSP, NULL);
+				else
+					set_server_check_status(s, HCHK_STATUS_L6TOUT, NULL);
+			}
+		}
+
 		if ((s->result & (SRV_CHK_ERROR|SRV_CHK_RUNNING)) == SRV_CHK_RUNNING) { /* good server detected */
 			/* we may have to add/remove this server from the LB group */
 			if ((s->state & SRV_RUNNING) && (s->proxy->options & PR_O_DISABLE404)) {

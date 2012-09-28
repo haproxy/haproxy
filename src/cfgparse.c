@@ -6294,6 +6294,8 @@ out_uri_auth_compat:
 				newsrv->ssl_ctx.reused_sess = NULL;
 				if (newsrv->use_ssl)
 					newsrv->xprt = &ssl_sock;
+				if (newsrv->check.use_ssl)
+					newsrv->check.xprt = &ssl_sock;
 				newsrv->ssl_ctx.ctx = SSL_CTX_new(SSLv23_client_method());
 				if(!newsrv->ssl_ctx.ctx) {
 
