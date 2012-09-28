@@ -720,6 +720,12 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 			__conn_sock_poll_recv(conn);
 			return 0;
 		}
+		else if (ret == SSL_ERROR_SYSCALL) {
+			/* if errno is null, then connection was successfully established */
+			if (!errno && conn->flags & CO_FL_WAIT_L4_CONN)
+				conn->flags &= ~CO_FL_WAIT_L4_CONN;
+			goto out_error;
+		}
 		else {
 			/* Fail on all other handshake errors */
 			goto out_error;
