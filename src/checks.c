@@ -44,6 +44,7 @@
 #include <proto/proto_http.h>
 #include <proto/proto_tcp.h>
 #include <proto/proxy.h>
+#include <proto/raw_sock.h>
 #include <proto/server.h>
 #include <proto/session.h>
 #include <proto/stream_interface.h>
@@ -764,13 +765,18 @@ static int httpchk_build_status_header(struct server *s, char *buffer)
  * it sends the request. In other cases, it calls set_server_check_status()
  * to set s->check_status, s->check_duration and s->result.
  */
-static void event_srv_chk_w(int fd)
+static void event_srv_chk_w(struct connection *conn)
 {
-	__label__ out_wakeup, out_nowake, out_poll, out_error;
-	struct task *t = fdtab[fd].owner;
-	struct server *s = t->context;
+	struct server *s = conn->owner;
+	int fd = conn->t.sock.fd;
+	struct task *t = s->check;
 
-	if (unlikely((s->check_conn->flags & CO_FL_ERROR) || (fdtab[fd].ev & FD_POLL_ERR))) {
+	if (conn->flags & (CO_FL_SOCK_WR_SH | CO_FL_DATA_WR_SH | CO_FL_WAIT_DATA | CO_FL_WAIT_WR)) {
+		conn->flags |= CO_FL_ERROR;
+		return;
+	}
+
+	if (unlikely(conn->flags & CO_FL_ERROR)) {
 		int skerr, err = errno;
 		socklen_t lskerr = sizeof(skerr);
 
@@ -781,8 +787,10 @@ static void event_srv_chk_w(int fd)
 		goto out_error;
 	}
 
-	/* here, we know that the connection is established */
+	if (conn->flags & CO_FL_HANDSHAKE)
+		return;
 
+	/* here, we know that the connection is established */
 	if (!(s->result & SRV_CHK_ERROR)) {
 		/* we don't want to mark 'UP' a server on which we detected an error earlier */
 		if (s->proxy->options2 & PR_O2_CHK_ANY) {
@@ -813,12 +821,15 @@ static void event_srv_chk_w(int fd)
 
 			ret = send(fd, check_req, check_len, MSG_DONTWAIT | MSG_NOSIGNAL);
 			if (ret == check_len) {
+				if (conn->flags & CO_FL_WAIT_L4_CONN)
+					conn->flags &= ~CO_FL_WAIT_L4_CONN;
+
 				/* we allow up to <timeout.check> if nonzero for a responce */
 				if (s->proxy->timeout.check) {
 					t->expire = tick_add_ifset(now_ms, s->proxy->timeout.check);
 					task_queue(t);
 				}
-				fd_want_recv(fd);   /* prepare for reading reply */
+				__conn_data_want_recv(conn);   /* prepare for reading reply */
 				goto out_nowake;
 			}
 			else if (ret == 0 || errno == EAGAIN)
@@ -868,6 +879,9 @@ static void event_srv_chk_w(int fd)
 				goto out_error;
 			}
 
+			if (conn->flags & CO_FL_WAIT_L4_CONN)
+				conn->flags &= ~CO_FL_WAIT_L4_CONN;
+
 			/* good TCP connection is enough */
 			set_server_check_status(s, HCHK_STATUS_L4OK, NULL);
 			goto out_wakeup;
@@ -876,17 +890,13 @@ static void event_srv_chk_w(int fd)
  out_wakeup:
 	task_wakeup(t, TASK_WOKEN_IO);
  out_nowake:
-	fd_stop_send(fd);   /* nothing more to write */
-	fdtab[fd].ev &= ~FD_POLL_OUT;
+	__conn_data_stop_send(conn);   /* nothing more to write */
 	return;
  out_poll:
-	/* The connection is still pending. We'll have to poll it
-	 * before attempting to go further. */
-	fdtab[fd].ev &= ~FD_POLL_OUT;
-	fd_poll_send(fd);
+	__conn_data_poll_send(conn);
 	return;
  out_error:
-	s->check_conn->flags |= CO_FL_ERROR;
+	conn->flags |= CO_FL_ERROR;
 	goto out_wakeup;
 }
 
@@ -905,23 +915,31 @@ static void event_srv_chk_w(int fd)
  * call it with a proper error status like HCHK_STATUS_L7STS, HCHK_STATUS_L6RSP,
  * etc.
  */
-static void event_srv_chk_r(int fd)
+static void event_srv_chk_r(struct connection *conn)
 {
-	__label__ out_wakeup;
 	int len;
-	struct task *t = fdtab[fd].owner;
-	struct server *s = t->context;
+	struct server *s = conn->owner;
+	int fd = conn->t.sock.fd;
+	struct task *t = s->check;
 	char *desc;
 	int done;
 	unsigned short msglen;
 
-	if (unlikely((s->result & SRV_CHK_ERROR) || (s->check_conn->flags & CO_FL_ERROR))) {
+	if (conn->flags & (CO_FL_SOCK_WR_SH | CO_FL_DATA_WR_SH | CO_FL_WAIT_DATA | CO_FL_WAIT_WR)) {
+		conn->flags |= CO_FL_ERROR;
+		return;
+	}
+
+	if (unlikely((s->result & SRV_CHK_ERROR) || (conn->flags & CO_FL_ERROR))) {
 		/* in case of TCP only, this tells us if the connection failed */
 		if (!(s->result & SRV_CHK_ERROR))
 			set_server_check_status(s, HCHK_STATUS_SOCKERR, NULL);
 
 		goto out_wakeup;
 	}
+
+	if (conn->flags & CO_FL_HANDSHAKE)
+		return;
 
 	/* Warning! Linux returns EAGAIN on SO_ERROR if data are still available
 	 * but the connection was closed on the remote end. Fortunately, recv still
@@ -955,6 +973,9 @@ static void event_srv_chk_r(int fd)
 			goto out_wakeup;
 		}
 	}
+
+	if (len >= 0 && (conn->flags & CO_FL_WAIT_L4_CONN))
+		conn->flags &= ~CO_FL_WAIT_L4_CONN;
 
 	/* Intermediate or complete response received.
 	 * Terminate string in check_data buffer.
@@ -1227,7 +1248,7 @@ static void event_srv_chk_r(int fd)
 
  out_wakeup:
 	if (s->result & SRV_CHK_ERROR)
-		s->check_conn->flags |= CO_FL_ERROR;
+		conn->flags |= CO_FL_ERROR;
 
 	/* Reset the check buffer... */
 	*s->check_data = '\0';
@@ -1235,31 +1256,34 @@ static void event_srv_chk_r(int fd)
 
 	/* Close the connection... */
 	shutdown(fd, SHUT_RDWR);
-	fd_stop_recv(fd);
+	__conn_data_stop_recv(conn);
 	task_wakeup(t, TASK_WOKEN_IO);
-	fdtab[fd].ev &= ~FD_POLL_IN;
 	return;
 
  wait_more_data:
-	fdtab[fd].ev &= ~FD_POLL_IN;
-	fd_poll_recv(fd);
+	__conn_data_poll_recv(conn);
 }
 
-/* I/O call back for the health checks. Returns 0. */
-static int check_iocb(int fd)
+/*
+ * This function is used only for server health-checks. It handles connection
+ * status updates including errors. If necessary, it wakes the check task up.
+ * It always returns 0.
+ */
+static int wake_srv_chk(struct connection *conn)
 {
-	int e;
+	struct server *s = conn->owner;
 
-	if (!fdtab[fd].owner)
-		return 0;
+	if (unlikely(conn->flags & CO_FL_ERROR))
+		task_wakeup(s->check, TASK_WOKEN_IO);
 
-	e = fdtab[fd].ev;
-	if (e & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
-		event_srv_chk_r(fd);
-	if (e & (FD_POLL_OUT | FD_POLL_ERR))
-		event_srv_chk_w(fd);
 	return 0;
 }
+
+struct data_cb check_conn_cb = {
+	.recv = event_srv_chk_r,
+	.send = event_srv_chk_w,
+	.wake = wake_srv_chk,
+};
 
 /*
  * updates the server's weight during a warmup stage. Once the final weight is
@@ -1312,9 +1336,10 @@ static struct task *process_chk(struct task *t)
 {
 	int attempts = 0;
 	struct server *s = t->context;
-	struct sockaddr_storage sa;
+	struct connection *conn = s->check_conn;
 	int fd;
 	int rv;
+	int ret;
 
  new_chk:
 	if (attempts++ > 0) {
@@ -1323,7 +1348,8 @@ static struct task *process_chk(struct task *t)
 			t->expire = tick_add(t->expire, MS_TO_TICKS(s->inter));
 		return t;
 	}
-	fd = s->curfd;
+
+	fd = conn->t.sock.fd;
 	if (fd < 0) {   /* no check currently running */
 		if (!tick_is_expired(t->expire, now_ms)) /* woke up too early */
 			return t;
@@ -1339,188 +1365,58 @@ static struct task *process_chk(struct task *t)
 
 		/* we'll initiate a new check */
 		set_server_check_status(s, HCHK_STATUS_START, NULL);
-		if ((fd = socket(s->addr.ss_family, SOCK_STREAM, IPPROTO_TCP)) != -1) {
-			if ((fd < global.maxsock) &&
-			    (fcntl(fd, F_SETFL, O_NONBLOCK) != -1) &&
-			    (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one)) != -1)) {
-				//fprintf(stderr, "process_chk: 3\n");
+		set_target_server(&conn->target, s);
+		conn_prepare(conn, &check_conn_cb, s->proto, &raw_sock, s);
 
-				if (s->proxy->options & PR_O_TCP_NOLING) {
-					/* We don't want to useless data */
-					setsockopt(fd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
-				}
-
-				if (is_addr(&s->check_addr))
-					/* we'll connect to the check addr specified on the server */
-					sa = s->check_addr;
-				else
-					/* we'll connect to the addr on the server */
-					sa = s->addr;
-
-				set_host_port(&sa, s->check_port);
-
-				/* allow specific binding :
-				 * - server-specific at first
-				 * - proxy-specific next
-				 */
-				if (s->state & SRV_BIND_SRC) {
-					struct sockaddr_storage *remote = NULL;
-					int ret, flags = 0;
-
-#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
-					if ((s->state & SRV_TPROXY_MASK) == SRV_TPROXY_ADDR) {
-						remote = &s->tproxy_addr;
-						flags  = 3;
-					}
-#endif
-#ifdef SO_BINDTODEVICE
-					/* Note: this might fail if not CAP_NET_RAW */
-					if (s->iface_name)
-						setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE,
-							   s->iface_name, s->iface_len + 1);
-#endif
-					if (s->sport_range) {
-						int bind_attempts = 10; /* should be more than enough to find a spare port */
-						struct sockaddr_storage src;
-
-						ret = 1;
-						src = s->source_addr;
-
-						do {
-							/* note: in case of retry, we may have to release a previously
-							 * allocated port, hence this loop's construct.
-							 */
-							port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
-							fdinfo[fd].port_range = NULL;
-
-							if (!bind_attempts)
-								break;
-							bind_attempts--;
-
-							fdinfo[fd].local_port = port_range_alloc_port(s->sport_range);
-							if (!fdinfo[fd].local_port)
-								break;
-
-							fdinfo[fd].port_range = s->sport_range;
-							set_host_port(&src, fdinfo[fd].local_port);
-
-							ret = tcp_bind_socket(fd, flags, &src, remote);
-						} while (ret != 0); /* binding NOK */
-					}
-					else {
-						ret = tcp_bind_socket(fd, flags, &s->source_addr, remote);
-					}
-
-					if (ret) {
-						set_server_check_status(s, HCHK_STATUS_SOCKERR, NULL);
-						switch (ret) {
-						case 1:
-							Alert("Cannot bind to source address before connect() for server %s/%s. Aborting.\n",
-							      s->proxy->id, s->id);
-							break;
-						case 2:
-							Alert("Cannot bind to tproxy source address before connect() for server %s/%s. Aborting.\n",
-							      s->proxy->id, s->id);
-							break;
-						}
-					}
-				}
-				else if (s->proxy->options & PR_O_BIND_SRC) {
-					struct sockaddr_storage *remote = NULL;
-					int ret, flags = 0;
-
-#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
-					if ((s->proxy->options & PR_O_TPXY_MASK) == PR_O_TPXY_ADDR) {
-						remote = &s->proxy->tproxy_addr;
-						flags  = 3;
-					}
-#endif
-#ifdef SO_BINDTODEVICE
-					/* Note: this might fail if not CAP_NET_RAW */
-					if (s->proxy->iface_name)
-						setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE,
-							   s->proxy->iface_name, s->proxy->iface_len + 1);
-#endif
-					ret = tcp_bind_socket(fd, flags, &s->proxy->source_addr, remote);
-					if (ret) {
-						set_server_check_status(s, HCHK_STATUS_SOCKERR, NULL);
-						switch (ret) {
-						case 1:
-							Alert("Cannot bind to source address before connect() for %s '%s'. Aborting.\n",
-							      proxy_type_str(s->proxy), s->proxy->id);
-							break;
-						case 2:
-							Alert("Cannot bind to tproxy source address before connect() for %s '%s'. Aborting.\n",
-							      proxy_type_str(s->proxy), s->proxy->id);
-							break;
-						}
-					}
-				}
-
-				if (s->result == SRV_CHK_UNKNOWN) {
-#if defined(TCP_QUICKACK)
-					/* disabling tcp quick ack now allows
-					 * the request to leave the machine with
-					 * the first ACK.
-					 */
-					if (s->proxy->options2 & PR_O2_SMARTCON)
-						setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, (char *) &zero, sizeof(zero));
-#endif
-					if ((connect(fd, (struct sockaddr *)&sa, get_addr_len(&sa)) != -1) || (errno == EINPROGRESS)) {
-						/* OK, connection in progress or established */
-			
-						//fprintf(stderr, "process_chk: 4\n");
-			
-						s->curfd = fd; /* that's how we know a test is in progress ;-) */
-						s->check_conn->flags = CO_FL_WAIT_L4_CONN; /* TCP connection pending */
-						fd_insert(fd);
-						fdtab[fd].owner = t;
-						fdtab[fd].iocb = &check_iocb;
-						fd_want_send(fd);  /* for connect status */
-#ifdef DEBUG_FULL
-						assert (!EV_FD_ISSET(fd, DIR_RD));
-#endif
-						//fprintf(stderr, "process_chk: 4+, %lu\n", __tv_to_ms(&s->proxy->timeout.connect));
-						/* we allow up to min(inter, timeout.connect) for a connection
-						 * to establish but only when timeout.check is set
-						 * as it may be to short for a full check otherwise
-						 */
-						t->expire = tick_add(now_ms, MS_TO_TICKS(s->inter));
-
-						if (s->proxy->timeout.check && s->proxy->timeout.connect) {
-							int t_con = tick_add(now_ms, s->proxy->timeout.connect);
-							t->expire = tick_first(t->expire, t_con);
-						}
-						return t;
-					}
-					else if (errno != EALREADY && errno != EISCONN && errno != EAGAIN) {
-						/* a real error */
-
-						switch (errno) {
-							/* FIXME: is it possible to get ECONNREFUSED/ENETUNREACH with O_NONBLOCK? */
-							case ECONNREFUSED:
-							case ENETUNREACH:
-								set_server_check_status(s, HCHK_STATUS_L4CON, strerror(errno));
-								break;
-
-							default:
-								set_server_check_status(s, HCHK_STATUS_SOCKERR, strerror(errno));
-						}
-					}
-				}
-			}
-			port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
-			fdinfo[fd].port_range = NULL;
-			close(fd); /* socket creation error */
-		}
+		if (is_addr(&s->check_addr))
+			/* we'll connect to the check addr specified on the server */
+			conn->addr.to = s->check_addr;
 		else
-			set_server_check_status(s, HCHK_STATUS_SOCKERR, strerror(errno));
+			/* we'll connect to the addr on the server */
+			conn->addr.to = s->addr;
 
-		if (s->result == SRV_CHK_UNKNOWN) { /* nothing done */
-			//fprintf(stderr, "process_chk: 6\n");
-			while (tick_is_expired(t->expire, now_ms))
-				t->expire = tick_add(t->expire, MS_TO_TICKS(s->inter));
-			goto new_chk; /* may be we should initialize a new check */
+		set_host_port(&conn->addr.to, s->check_port);
+
+		/* It can return one of :
+		 *  - SN_ERR_NONE if everything's OK
+		 *  - SN_ERR_SRVTO if there are no more servers
+		 *  - SN_ERR_SRVCL if the connection was refused by the server
+		 *  - SN_ERR_PRXCOND if the connection has been limited by the proxy (maxconn)
+		 *  - SN_ERR_RESOURCE if a system resource is lacking (eg: fd limits, ports, ...)
+		 *  - SN_ERR_INTERNAL for any other purely internal errors
+		 * Additionnally, in the case of SN_ERR_RESOURCE, an emergency log will be emitted.
+		 */
+		ret = tcp_connect_server(conn, 1);
+		conn->flags |= CO_FL_WAKE_DATA;
+
+		switch (ret) {
+		case SN_ERR_NONE:
+			break;
+		case SN_ERR_SRVTO: /* ETIMEDOUT */
+		case SN_ERR_SRVCL: /* ECONNREFUSED, ENETUNREACH, ... */
+			set_server_check_status(s, HCHK_STATUS_L4CON, strerror(errno));
+			break;
+		case SN_ERR_PRXCOND:
+		case SN_ERR_RESOURCE:
+		case SN_ERR_INTERNAL:
+			set_server_check_status(s, HCHK_STATUS_SOCKERR, NULL);
+			break;
+		}
+
+		if (s->result == SRV_CHK_UNKNOWN) {
+			/* connection attempt was started */
+
+			/* we allow up to min(inter, timeout.connect) for a connection
+			 * to establish but only when timeout.check is set
+			 * as it may be to short for a full check otherwise
+			 */
+			t->expire = tick_add(now_ms, MS_TO_TICKS(s->inter));
+
+			if (s->proxy->timeout.check && s->proxy->timeout.connect) {
+				int t_con = tick_add(now_ms, s->proxy->timeout.connect);
+				t->expire = tick_first(t->expire, t_con);
+			}
+			return t;
 		}
 
 		/* here, we have seen a failure */
@@ -1566,8 +1462,10 @@ static struct task *process_chk(struct task *t)
 
 				set_server_up(s);
 			}
-			s->curfd = -1; /* no check running anymore */
-			fd_delete(fd);
+			conn->t.sock.fd = -1; /* no check running anymore */
+			conn_xprt_close(conn);
+			if (conn->ctrl)
+				fd_delete(fd);
 
 			rv = 0;
 			if (global.spread_checks > 0) {
@@ -1579,7 +1477,7 @@ static struct task *process_chk(struct task *t)
 		}
 		else if ((s->result & SRV_CHK_ERROR) || tick_is_expired(t->expire, now_ms)) {
 			if (!(s->result & SRV_CHK_ERROR)) {
-				if (!EV_FD_ISSET(fd, DIR_RD)) {
+				if (conn->flags & CO_FL_WAIT_L4_CONN) {
 					set_server_check_status(s, HCHK_STATUS_L4TOUT, NULL);
 				} else {
 					if ((s->proxy->options2 & PR_O2_CHK_ANY) == PR_O2_SSL3_CHK)
@@ -1596,8 +1494,10 @@ static struct task *process_chk(struct task *t)
 			}
 			else
 				set_server_down(s);
-			s->curfd = -1;
-			fd_delete(fd);
+			conn->t.sock.fd = -1;
+			conn_xprt_close(conn);
+			if (conn->ctrl)
+				fd_delete(fd);
 
 			rv = 0;
 			if (global.spread_checks > 0) {

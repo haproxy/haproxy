@@ -3978,7 +3978,6 @@ stats_error_parsing:
 			newsrv->uweight = newsrv->iweight
 						= curproxy->defsrv.iweight;
 
-			newsrv->curfd = -1;		/* no health-check in progress */
 			newsrv->health = newsrv->rise;	/* up, but will fall down at first failure */
 
 			cur_arg = 3;
@@ -4590,6 +4589,7 @@ stats_error_parsing:
 				goto out;
 			}
 
+			newsrv->check_conn->t.sock.fd = -1; /* no check in progress yet */
 			newsrv->check_status = HCHK_STATUS_INI;
 			newsrv->state |= SRV_CHECKED;
 		}
