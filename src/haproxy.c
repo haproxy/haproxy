@@ -1019,7 +1019,8 @@ void deinit(void)
 
 			free(s->id);
 			free(s->cookie);
-			free(s->check.buffer);
+			free(s->check.bi);
+			free(s->check.bo);
 			free(s);
 			s = s_next;
 		}/* end while(s) */

@@ -160,8 +160,7 @@ struct server {
 		struct connection *conn;        /* connection state for health checks */
 		struct sockaddr_storage addr;   /* the address to check, if different from <addr> */
 		short port;                     /* the port to use for the health checks */
-		char *buffer;                   /* storage of partial check results */
-		int data_len;                   /* length of partial check results stored in check_data */
+		struct buffer *bi, *bo;         /* input and output buffers to send/recv check */
 		struct task *task;              /* the task associated to the health check processing, NULL if disabled */
 		struct timeval start;           /* last health check start time */
 		long duration;                  /* time in ms took to finish last health check */

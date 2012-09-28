@@ -4575,12 +4575,21 @@ stats_error_parsing:
 				goto out;
 			}
 
-			/* Allocate buffer for partial check results... */
-			if ((newsrv->check.buffer = calloc(global.tune.chksize, sizeof(char))) == NULL) {
+			/* Allocate buffer for check requests... */
+			if ((newsrv->check.bi = calloc(sizeof(struct buffer) + global.tune.chksize, sizeof(char))) == NULL) {
 				Alert("parsing [%s:%d] : out of memory while allocating check buffer.\n", file, linenum);
 				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
+			newsrv->check.bi->size = global.tune.chksize;
+
+			/* Allocate buffer for check responses... */
+			if ((newsrv->check.bo = calloc(sizeof(struct buffer) + global.tune.chksize, sizeof(char))) == NULL) {
+				Alert("parsing [%s:%d] : out of memory while allocating check buffer.\n", file, linenum);
+				err_code |= ERR_ALERT | ERR_ABORT;
+				goto out;
+			}
+			newsrv->check.bo->size = global.tune.chksize;
 
 			/* Allocate buffer for partial check results... */
 			if ((newsrv->check.conn = calloc(1, sizeof(struct connection))) == NULL) {
