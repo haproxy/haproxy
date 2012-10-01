@@ -5731,12 +5731,6 @@ int check_config_validity()
 			break;
 		}
 
-		if ((curproxy->cap & PR_CAP_FE) && LIST_ISEMPTY(&curproxy->conf.listeners))  {
-			Alert("config : %s '%s' has no listen address. Please either specify a valid address on the <listen> line, or use the <bind> keyword.\n",
-			      proxy_type_str(curproxy), curproxy->id);
-			cfgerr++;
-		}
-
 		if ((curproxy->cap & PR_CAP_BE) && (curproxy->mode != PR_MODE_HEALTH)) {
 			if (curproxy->lbprm.algo & BE_LB_KIND) {
 				if (curproxy->options & PR_O_TRANSP) {
