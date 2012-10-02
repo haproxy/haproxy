@@ -727,11 +727,9 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.maxsslconn = atol(args[1]);
 #else
-		if (*(args[1]) == 0) {
-			Alert("parsing [%s:%d] : '%s' is not implemented.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
+		Alert("parsing [%s:%d] : '%s' is not implemented.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
 #endif
 	}
 	else if (!strcmp(args[0], "maxconnrate")) {
