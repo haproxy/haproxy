@@ -78,11 +78,11 @@ int conn_fd_handler(int fd)
 	/* The data transfer starts here and stops on error and handshakes */
 	if ((fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR)) &&
 	    !(conn->flags & (CO_FL_WAIT_RD|CO_FL_WAIT_ROOM|CO_FL_ERROR|CO_FL_HANDSHAKE)))
-		conn->app_cb->recv(conn);
+		conn->data->recv(conn);
 
 	if ((fdtab[fd].ev & (FD_POLL_OUT | FD_POLL_ERR)) &&
 	    !(conn->flags & (CO_FL_WAIT_WR|CO_FL_WAIT_DATA|CO_FL_ERROR|CO_FL_HANDSHAKE)))
-		conn->app_cb->send(conn);
+		conn->data->send(conn);
 
 	if (unlikely(conn->flags & CO_FL_ERROR))
 		goto leave;

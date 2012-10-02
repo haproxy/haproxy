@@ -46,7 +46,7 @@ void stream_sock_read0(struct stream_interface *si);
 extern struct si_ops si_embedded_ops;
 extern struct si_ops si_task_ops;
 extern struct si_ops si_conn_ops;
-extern struct app_cb si_conn_cb;
+extern struct data_cb si_conn_cb;
 
 struct task *stream_int_register_handler(struct stream_interface *si,
 					 struct si_applet *app);

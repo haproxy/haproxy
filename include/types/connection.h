@@ -169,14 +169,14 @@ struct xprt_ops {
 	int  (*init)(struct connection *conn);      /* initialize the transport layer */
 };
 
-/* app_cb describes the data layer's recv and send callbacks which are called
+/* data_cb describes the data layer's recv and send callbacks which are called
  * when I/O activity was detected after the transport layer is ready. These
  * callbacks are supposed to make use of the xprt_ops above to exchange data
  * from/to buffers and pipes.
  */
-struct app_cb {
-	void (*recv)(struct connection *conn);  /* application-layer recv callback */
-	void (*send)(struct connection *conn);  /* application-layer send callback */
+struct data_cb {
+	void (*recv)(struct connection *conn);  /* data-layer recv callback */
+	void (*send)(struct connection *conn);  /* data-layer send callback */
 };
 
 /* a target describes what is on the remote side of the connection. */
@@ -202,7 +202,7 @@ struct target {
 struct connection {
 	const struct xprt_ops *xprt;  /* operations at the transport layer */
 	const struct protocol *ctrl;  /* operations at the socket layer */
-	const struct app_cb *app_cb;  /* application layer callbacks */
+	const struct data_cb  *data;  /* data layer callbacks */
 	void *owner;                  /* pointer to upper layer's entity (eg: stream interface) */
 	union {                       /* definitions which depend on connection type */
 		struct {              /*** information used by socket-based connections ***/

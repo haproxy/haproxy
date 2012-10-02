@@ -66,7 +66,7 @@ struct si_ops si_conn_ops = {
 	.chk_snd = stream_int_chk_snd_conn,
 };
 
-struct app_cb si_conn_cb = {
+struct data_cb si_conn_cb = {
 	.recv    = si_conn_recv_cb,
 	.send    = si_conn_send_cb,
 };
