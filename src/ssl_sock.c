@@ -519,6 +519,9 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 				      curproxy->id, bind_conf->cafile, bind_conf->arg, bind_conf->file, bind_conf->line);
 				cfgerr++;
 			}
+			else {
+				X509_STORE_set_flags(store, X509_V_FLAG_CRL_CHECK|X509_V_FLAG_CRL_CHECK_ALL);
+			}
 		}
 	}
 
