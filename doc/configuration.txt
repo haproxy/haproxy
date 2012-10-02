@@ -434,7 +434,9 @@ of them have command-line equivalents.
 The following keywords are supported in the "global" section :
 
  * Process management and security
+   - ca-base
    - chroot
+   - crt-base
    - daemon
    - gid
    - group
@@ -481,6 +483,11 @@ The following keywords are supported in the "global" section :
 3.1. Process management and security
 ------------------------------------
 
+ca-base <dir>
+  Assigns a default directory to fetch SSL CA certificates and CRLs from when a
+  relative path is used with "cafile" or "crlfile" directives. Absolute
+  locations specified in "cafile" and "crlfile" prevail and ignore "ca-base".
+
 chroot <jail dir>
   Changes current directory to <jail dir> and performs a chroot() there before
   dropping privileges. This increases the security level in case an unknown
@@ -488,6 +495,11 @@ chroot <jail dir>
   attacker to exploit the system. This only works when the process is started
   with superuser privileges. It is important to ensure that <jail_dir> is both
   empty and unwritable to anyone.
+
+crt-base <dir>
+  Assigns a default directory to fetch SSL certificates from when a relative
+  path is used with "crtfile" directives. Absolute locations specified after
+  "crtfile" prevail and ignore "crt-base".
 
 daemon
   Makes the process fork into background. This is the recommended mode of

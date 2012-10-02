@@ -1107,6 +1107,13 @@ static int bind_parse_cafile(char **args, int cur_arg, struct proxy *px, struct 
 		return ERR_ALERT | ERR_FATAL;
 	}
 
+	if ((*args[cur_arg + 1] != '/') && global.ca_base) {
+		conf->cafile = malloc(strlen(global.ca_base) + 1 + strlen(args[cur_arg + 1]) + 1);
+		if (conf->cafile)
+			sprintf(conf->cafile, "%s/%s", global.ca_base, args[cur_arg + 1]);
+		return 0;
+	}
+
 	conf->cafile = strdup(args[cur_arg + 1]);
 	return 0;
 }
@@ -1126,9 +1133,22 @@ static int bind_parse_ciphers(char **args, int cur_arg, struct proxy *px, struct
 /* parse the "crt" bind keyword */
 static int bind_parse_crt(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
+	char path[PATH_MAX];
 	if (!*args[cur_arg + 1]) {
 		memprintf(err, "'%s' : missing certificate location", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if ((*args[cur_arg + 1] != '/' ) && global.crt_base) {
+		if ((strlen(global.crt_base) + 1 + strlen(args[cur_arg + 1]) + 1) > PATH_MAX) {
+			memprintf(err, "'%s' : path too long", args[cur_arg]);
+			return ERR_ALERT | ERR_FATAL;
+		}
+		sprintf(path, "%s/%s",  global.crt_base, args[cur_arg + 1]);
+		if (ssl_sock_load_cert(path, conf, px, err) > 0)
+			return ERR_ALERT | ERR_FATAL;
+
+		return 0;
 	}
 
 	if (ssl_sock_load_cert(args[cur_arg + 1], conf, px, err) > 0)
@@ -1149,6 +1169,13 @@ static int bind_parse_crlfile(char **args, int cur_arg, struct proxy *px, struct
 		if (err)
 			memprintf(err, "'%s' : missing CRLfile path", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if ((*args[cur_arg + 1] != '/') && global.ca_base) {
+		conf->crlfile = malloc(strlen(global.ca_base) + 1 + strlen(args[cur_arg + 1]) + 1);
+		if (conf->crlfile)
+			sprintf(conf->crlfile, "%s/%s", global.ca_base, args[cur_arg + 1]);
+		return 0;
 	}
 
 	conf->crlfile = strdup(args[cur_arg + 1]);

@@ -30,6 +30,10 @@
 #include <types/proxy.h>
 #include <types/task.h>
 
+#ifndef UNIX_MAX_PATH
+#define UNIX_MAX_PATH 108
+#endif
+
 /* modes of operation (global.mode) */
 #define	MODE_DEBUG	0x01
 #define	MODE_DAEMON	0x02
@@ -62,6 +66,10 @@
 
 /* FIXME : this will have to be redefined correctly */
 struct global {
+#ifdef USE_OPENSSL
+	char *crt_base;             /* base directory path for certificates */
+	char *ca_base;              /* base directory path for CAs and CRLs */
+#endif
 	int uid;
 	int gid;
 	int nbproc;

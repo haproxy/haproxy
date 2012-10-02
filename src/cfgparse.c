@@ -465,6 +465,44 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		/* no option, nothing special to do */
 		goto out;
 	}
+	else if (!strcmp(args[0], "ca-base")) {
+#ifdef USE_OPENSSL
+		if (global.ca_base != NULL) {
+			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT;
+			goto out;
+		}
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects a directory path as an argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		global.ca_base = strdup(args[1]);
+#else
+		Alert("parsing [%s:%d] : '%s' is not implemented.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+#endif
+	}
+	else if (!strcmp(args[0], "crt-base")) {
+#ifdef USE_OPENSSL
+		if (global.crt_base != NULL) {
+			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT;
+			goto out;
+		}
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects a directory path as an argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		global.crt_base = strdup(args[1]);
+#else
+		Alert("parsing [%s:%d] : '%s' is not implemented.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+#endif
+	}
 	else if (!strcmp(args[0], "daemon")) {
 		global.mode |= MODE_DAEMON;
 	}
