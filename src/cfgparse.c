@@ -270,7 +270,7 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 
 			l->fd = -1;
 			l->addr = ss;
-			l->data = &raw_sock;
+			l->xprt = &raw_sock;
 			l->state = LI_INIT;
 
 			if (ss.ss_family == AF_INET) {
@@ -1306,7 +1306,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		}
 		newpeer->addr = *sk;
 		newpeer->proto = protocol_by_family(newpeer->addr.ss_family);
-		newpeer->data  = &raw_sock;
+		newpeer->xprt  = &raw_sock;
 		newpeer->sock_init_arg = NULL;
 
 		if (!newpeer->proto) {
@@ -3949,7 +3949,7 @@ stats_error_parsing:
 			}
 			newsrv->addr = *sk;
 			newsrv->proto = protocol_by_family(newsrv->addr.ss_family);
-			newsrv->data  = &raw_sock;
+			newsrv->xprt  = &raw_sock;
 
 			if (!newsrv->proto) {
 				Alert("parsing [%s:%d] : Unknown protocol family %d '%s'\n",
@@ -6274,7 +6274,7 @@ out_uri_auth_compat:
 
 				/* Initiate SSL context for current server */
 				newsrv->ssl_ctx.reused_sess = NULL;
-				newsrv->data = &ssl_sock;
+				newsrv->xprt = &ssl_sock;
 				newsrv->ssl_ctx.ctx = SSL_CTX_new(SSLv23_client_method());
 				if(!newsrv->ssl_ctx.ctx) {
 

@@ -460,7 +460,7 @@ int tcp_connect_server(struct connection *conn, int data)
 	fd_insert(fd);
 	conn_sock_want_send(conn);  /* for connect status */
 
-	if (conn_data_init(conn) < 0) {
+	if (conn_xprt_init(conn) < 0) {
 		fd_delete(fd);
 		return SN_ERR_RESOURCE;
 	}
@@ -550,8 +550,8 @@ int tcp_connect_probe(struct connection *conn)
 	}
 
 	/* The FD is ready now, we'll mark the connection as complete and
-	 * forward the event to the data layer which will update the stream
-	 * interface flags.
+	 * forward the event to the transport layer which will notify the
+	 * data layer.
 	 */
 	conn->flags &= ~CO_FL_WAIT_L4_CONN;
 	return 1;

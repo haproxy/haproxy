@@ -64,10 +64,10 @@ static inline int si_fd(struct stream_interface *si)
 	return si->conn.t.sock.fd;
 }
 
-static inline void si_prepare_conn(struct stream_interface *si, const struct protocol *ctrl, const struct data_ops *ops)
+static inline void si_prepare_conn(struct stream_interface *si, const struct protocol *ctrl, const struct xprt_ops *xprt)
 {
 	si->ops = &si_conn_ops;
-	conn_prepare(&si->conn, &si_conn_cb, ctrl, ops, si);
+	conn_prepare(&si->conn, &si_conn_cb, ctrl, xprt, si);
 }
 
 static inline void si_prepare_embedded(struct stream_interface *si)

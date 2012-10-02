@@ -34,21 +34,21 @@ int conn_fd_handler(int fd);
 /* receive a PROXY protocol header over a connection */
 int conn_recv_proxy(struct connection *conn, int flag);
 
-/* calls the init() function of the data layer if any. Returns <0 in case of
- * error.
+/* calls the init() function of the transport layer if any.
+ * Returns <0 in case of error.
  */
-static inline int conn_data_init(struct connection *conn)
+static inline int conn_xprt_init(struct connection *conn)
 {
-	if (conn->data && conn->data->init)
-		return conn->data->init(conn);
+	if (conn->xprt && conn->xprt->init)
+		return conn->xprt->init(conn);
 	return 0;
 }
 
-/* Calls the close() function of the data layer if any */
-static inline void conn_data_close(struct connection *conn)
+/* Calls the close() function of the transport layer if any */
+static inline void conn_xprt_close(struct connection *conn)
 {
-	if (conn->data && conn->data->close)
-		conn->data->close(conn);
+	if (conn->xprt && conn->xprt->close)
+		conn->xprt->close(conn);
 }
 
 /* Update polling on connection <c>'s file descriptor depending on its current
@@ -412,19 +412,19 @@ static inline void conn_get_to_addr(struct connection *conn)
 	conn->flags |= CO_FL_ADDR_TO_SET;
 }
 
-/* prepares a connection with the appropriate app_cb, ctrl and data layers. The
- * data state and context are set to 0, and the connection's owner is set.
+/* prepares a connection with the appropriate app_cb, ctrl and transport layers.
+ * The data state and context are set to 0, and the connection's owner is set.
  */
 static inline void conn_prepare(struct connection *conn, const struct app_cb *app,
-                                const struct protocol *ctrl, const struct data_ops *data,
+                                const struct protocol *ctrl, const struct xprt_ops *xprt,
                                 void *owner)
 {
 	conn->app_cb = app;
 	conn->ctrl = ctrl;
-	conn->data = data;
+	conn->xprt = xprt;
 	conn->owner = owner;
-	conn->data_st = 0;
-	conn->data_ctx = NULL;
+	conn->xprt_st = 0;
+	conn->xprt_ctx = NULL;
 }
 
 #endif /* _PROTO_CONNECTION_H */

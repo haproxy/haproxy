@@ -36,7 +36,7 @@
 /* Some pointer types reference below */
 struct task;
 struct protocol;
-struct data_ops;
+struct xprt_ops;
 struct proxy;
 struct licounters;
 
@@ -139,7 +139,7 @@ struct listener {
 	int options;			/* socket options : LI_O_* */
 	struct licounters *counters;	/* statistics counters */
 	struct protocol *proto;		/* protocol this listener belongs to */
-	struct data_ops *data;          /* data-layer operations operations for this socket */
+	struct xprt_ops *xprt;          /* transport-layer operations for this socket */
 	int nbconn;			/* current number of connections on this listener */
 	int maxconn;			/* maximum connections allowed on this listener */
 	unsigned int backlog;		/* if set, listen backlog */

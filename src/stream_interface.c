@@ -243,7 +243,7 @@ int stream_int_shutr(struct stream_interface *si)
 		return 0;
 
 	if (si->ob->flags & CF_SHUTW) {
-		conn_data_close(&si->conn);
+		conn_xprt_close(&si->conn);
 		if (conn->ctrl)
 			fd_delete(si_fd(si));
 		si->state = SI_ST_DIS;
@@ -308,12 +308,12 @@ int stream_int_shutw(struct stream_interface *si)
 					   (struct linger *) &nolinger, sizeof(struct linger));
 			}
 			/* unclean data-layer shutdown */
-			if (conn->data && conn->data->shutw)
-				conn->data->shutw(conn, 0);
+			if (conn->xprt && conn->xprt->shutw)
+				conn->xprt->shutw(conn, 0);
 		} else {
 			/* clean data-layer shutdown */
-			if (conn->data && conn->data->shutw)
-				conn->data->shutw(conn, 1);
+			if (conn->xprt && conn->xprt->shutw)
+				conn->xprt->shutw(conn, 1);
 
 			if (!(si->flags & SI_FL_NOHALF)) {
 				/* We shutdown transport layer */
@@ -334,7 +334,7 @@ int stream_int_shutw(struct stream_interface *si)
 		/* we may have to close a pending connection, and mark the
 		 * response buffer as shutr
 		 */
-		conn_data_close(&si->conn);
+		conn_xprt_close(&si->conn);
 		if (conn->ctrl)
 			fd_delete(si_fd(si));
 		/* fall through */
@@ -660,7 +660,7 @@ void conn_notify_si(struct connection *conn)
 /*
  * This function is called to send buffer data to a stream socket.
  * It returns -1 in case of unrecoverable error, otherwise zero.
- * It iterates the data layer's snd_buf function. It relies on the
+ * It iterates the transport layer's snd_buf function. It relies on the
  * caller to commit polling changes.
  */
 static int si_conn_send_loop(struct connection *conn)
@@ -670,8 +670,8 @@ static int si_conn_send_loop(struct connection *conn)
 	int write_poll = MAX_WRITE_POLL_LOOPS;
 	int ret;
 
-	if (b->pipe && conn->data->snd_pipe) {
-		ret = conn->data->snd_pipe(conn, b->pipe);
+	if (b->pipe && conn->xprt->snd_pipe) {
+		ret = conn->xprt->snd_pipe(conn, b->pipe);
 		if (ret > 0)
 			b->flags |= CF_WRITE_PARTIAL;
 
@@ -712,7 +712,7 @@ static int si_conn_send_loop(struct connection *conn)
 		    ((b->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_HIJACK)) == CF_SHUTW_NOW))
 			send_flag |= MSG_MORE;
 
-		ret = conn->data->snd_buf(conn, &b->buf, send_flag);
+		ret = conn->xprt->snd_buf(conn, &b->buf, send_flag);
 		if (ret <= 0)
 			break;
 
@@ -935,8 +935,8 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 
 /*
  * This is the callback which is called by the connection layer to receive data
- * into the buffer from the connection. It iterates over the data layer's rcv_buf
- * function.
+ * into the buffer from the connection. It iterates over the transport layer's
+ * rcv_buf function.
  */
 void si_conn_recv_cb(struct connection *conn)
 {
@@ -967,7 +967,7 @@ void si_conn_recv_cb(struct connection *conn)
 	/* First, let's see if we may splice data across the channel without
 	 * using a buffer.
 	 */
-	if (conn->data->rcv_pipe &&
+	if (conn->xprt->rcv_pipe &&
 	    b->to_forward >= MIN_SPLICE_FORWARD && b->flags & CF_KERN_SPLICING) {
 		if (buffer_not_empty(&b->buf)) {
 			/* We're embarrassed, there are already data pending in
@@ -985,7 +985,7 @@ void si_conn_recv_cb(struct connection *conn)
 			}
 		}
 
-		ret = conn->data->rcv_pipe(conn, b->pipe, b->to_forward);
+		ret = conn->xprt->rcv_pipe(conn, b->pipe, b->to_forward);
 		if (ret < 0) {
 			/* splice not supported on this end, let's disable it */
 			b->flags &= ~CF_KERN_SPLICING;
@@ -1027,7 +1027,7 @@ void si_conn_recv_cb(struct connection *conn)
 			break;
 		}
 
-		ret = conn->data->rcv_buf(conn, &b->buf, max);
+		ret = conn->xprt->rcv_buf(conn, &b->buf, max);
 		if (ret <= 0)
 			break;
 
@@ -1149,8 +1149,8 @@ void si_conn_recv_cb(struct connection *conn)
 
 /*
  * This is the callback which is called by the connection layer to send data
- * from the buffer to the connection. It iterates over the data layer's snd_buf
- * function.
+ * from the buffer to the connection. It iterates over the transport layer's
+ * snd_buf function.
  */
 void si_conn_send_cb(struct connection *conn)
 {
@@ -1210,8 +1210,8 @@ void stream_sock_read0(struct stream_interface *si)
 				   (struct linger *) &nolinger, sizeof(struct linger));
 		}
 		/* force flag on ssl to keep session in cache */
-		if (si->conn.data->shutw)
-			si->conn.data->shutw(&si->conn, 0);
+		if (si->conn.xprt->shutw)
+			si->conn.xprt->shutw(&si->conn, 0);
 		goto do_close;
 	}
 
@@ -1220,7 +1220,7 @@ void stream_sock_read0(struct stream_interface *si)
 	return;
 
  do_close:
-	conn_data_close(&si->conn);
+	conn_xprt_close(&si->conn);
 	fd_delete(si_fd(si));
 	si->state = SI_ST_DIS;
 	si->exp = TICK_ETERNITY;

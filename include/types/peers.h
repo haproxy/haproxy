@@ -74,7 +74,7 @@ struct peer {
 	time_t last_change;
 	struct sockaddr_storage addr;  /* peer address */
 	struct protocol *proto;	       /* peer address protocol */
-	struct data_ops *data;         /* peer socket operations at data layer */
+	struct xprt_ops *xprt;         /* peer socket operations at transport layer */
 	void *sock_init_arg;           /* socket operations's opaque init argument if needed */
 	struct peer *next;	  /* next peer in the list */
 };

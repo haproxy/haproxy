@@ -985,7 +985,7 @@ int connect_server(struct session *s)
 
 	/* set the correct protocol on the output stream interface */
 	if (s->target.type == TARG_TYPE_SERVER) {
-		si_prepare_conn(s->req->cons, target_srv(&s->target)->proto, target_srv(&s->target)->data);
+		si_prepare_conn(s->req->cons, target_srv(&s->target)->proto, target_srv(&s->target)->xprt);
 	}
 	else if (s->target.type == TARG_TYPE_PROXY) {
 		/* proxies exclusively run on raw_sock right now */

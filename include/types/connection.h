@@ -89,7 +89,9 @@ enum {
 	CO_FL_INIT_SESS     = 0x00000800,  /* initialize a session before using data */
 
 	/* when any of these flags is set, polling is defined by socket-layer
-	 * operations, as opposed to data-layer.
+	 * operations, as opposed to data-layer. Transport is explicitly not
+	 * mentionned here to avoid any confusion, since it can be the same
+	 * as DATA or SOCK on some implementations.
 	 */
 	CO_FL_POLL_SOCK     = CO_FL_HANDSHAKE | CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN,
 
@@ -151,23 +153,26 @@ enum {
 };
 
 
-/* data_ops describes data-layer operations for a connection. They generally
- * run over a socket-based control layer, but not always.
+/* xprt_ops describes transport-layer operations for a connection. They
+ * generally run over a socket-based control layer, but not always. Some
+ * of them are used for data transfer with the upper layer (rcv_*, snd_*)
+ * and the other ones are used to setup and release the transport layer.
  */
-struct data_ops {
+struct xprt_ops {
 	int  (*rcv_buf)(struct connection *conn, struct buffer *buf, int count); /* recv callback */
 	int  (*snd_buf)(struct connection *conn, struct buffer *buf, int flags); /* send callback */
 	int  (*rcv_pipe)(struct connection *conn, struct pipe *pipe, unsigned int count); /* recv-to-pipe callback */
 	int  (*snd_pipe)(struct connection *conn, struct pipe *pipe); /* send-to-pipe callback */
 	void (*shutr)(struct connection *, int);    /* shutr function */
 	void (*shutw)(struct connection *, int);    /* shutw function */
-	void (*close)(struct connection *);         /* close the data channel on the connection */
-	int  (*init)(struct connection *conn);      /* initialize the data layer */
+	void (*close)(struct connection *);         /* close the transport layer */
+	int  (*init)(struct connection *conn);      /* initialize the transport layer */
 };
 
-/* app_cb describes read and write callbacks which are called upon detected I/O
- * activity at the data layer. These callbacks are supposed to make use of the
- * data_ops above to exchange data from/to buffers and pipes.
+/* app_cb describes the data layer's recv and send callbacks which are called
+ * when I/O activity was detected after the transport layer is ready. These
+ * callbacks are supposed to make use of the xprt_ops above to exchange data
+ * from/to buffers and pipes.
  */
 struct app_cb {
 	void (*recv)(struct connection *conn);  /* application-layer recv callback */
@@ -190,12 +195,12 @@ struct target {
 /* This structure describes a connection with its methods and data.
  * A connection may be performed to proxy or server via a local or remote
  * socket, and can also be made to an internal applet. It can support
- * several data schemes (applet, raw, ssl, ...). It can support several
+ * several transport schemes (applet, raw, ssl, ...). It can support several
  * connection control schemes, generally a protocol for socket-oriented
  * connections, but other methods for applets.
  */
 struct connection {
-	const struct data_ops *data;  /* operations at the data layer */
+	const struct xprt_ops *xprt;  /* operations at the transport layer */
 	const struct protocol *ctrl;  /* operations at the socket layer */
 	const struct app_cb *app_cb;  /* application layer callbacks */
 	void *owner;                  /* pointer to upper layer's entity (eg: stream interface) */
@@ -205,8 +210,8 @@ struct connection {
 		} sock;
 	} t;
 	unsigned int flags;           /* CO_F_* */
-	int data_st;                  /* data layer state, initialized to zero */
-	void *data_ctx;               /* general purpose pointer, initialized to NULL */
+	int xprt_st;                  /* transport layer state, initialized to zero */
+	void *xprt_ctx;               /* general purpose pointer, initialized to NULL */
 	struct target target;         /* the target to connect to (server, proxy, applet, ...) */
 	struct {
 		struct sockaddr_storage from;	/* client address, or address to spoof when connecting to the server */

@@ -1,5 +1,5 @@
 /*
- * SSL data transfer functions between buffers and SOCK_STREAM sockets
+ * SSL/TLS transport layer over SOCK_STREAM sockets
  *
  * Copyright (C) 2012 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
  *
@@ -108,7 +108,7 @@ int ssl_sock_verifycbk(int ok, X509_STORE_CTX *x_store)
 	ssl = X509_STORE_CTX_get_ex_data(x_store, SSL_get_ex_data_X509_STORE_CTX_idx());
 	conn = (struct connection *)SSL_get_app_data(ssl);
 
-	conn->data_st |= SSL_SOCK_ST_FL_VERIFY_DONE;
+	conn->xprt_st |= SSL_SOCK_ST_FL_VERIFY_DONE;
 
 	if (ok) /* no errors */
 		return ok;
@@ -118,9 +118,9 @@ int ssl_sock_verifycbk(int ok, X509_STORE_CTX *x_store)
 
 	/* check if CA error needs to be ignored */
 	if (depth > 0) {
-		if (!SSL_SOCK_ST_TO_CA_ERROR(conn->data_st)) {
-			conn->data_st |= SSL_SOCK_CA_ERROR_TO_ST(err);
-			conn->data_st |= SSL_SOCK_CAEDEPTH_TO_ST(depth);
+		if (!SSL_SOCK_ST_TO_CA_ERROR(conn->xprt_st)) {
+			conn->xprt_st |= SSL_SOCK_CA_ERROR_TO_ST(err);
+			conn->xprt_st |= SSL_SOCK_CAEDEPTH_TO_ST(depth);
 		}
 
 		if (target_client(&conn->target)->bind_conf->ca_ignerr & (1ULL << err))
@@ -129,8 +129,8 @@ int ssl_sock_verifycbk(int ok, X509_STORE_CTX *x_store)
 		return 0;
 	}
 
-	if (!SSL_SOCK_ST_TO_CRTERROR(conn->data_st))
-		conn->data_st |= SSL_SOCK_CRTERROR_TO_ST(err);
+	if (!SSL_SOCK_ST_TO_CRTERROR(conn->xprt_st))
+		conn->xprt_st |= SSL_SOCK_CRTERROR_TO_ST(err);
 
 	/* check if certificate error needs to be ignored */
 	if (target_client(&conn->target)->bind_conf->crt_ignerr & (1ULL << err))
@@ -636,7 +636,7 @@ void ssl_sock_free_all_ctx(struct bind_conf *bind_conf)
 static int ssl_sock_init(struct connection *conn)
 {
 	/* already initialized */
-	if (conn->data_ctx)
+	if (conn->xprt_ctx)
 		return 0;
 
 	if (global.maxsslconn && sslconns >= global.maxsslconn)
@@ -646,16 +646,16 @@ static int ssl_sock_init(struct connection *conn)
 	   in connect state otherwise accept state */
 	if (target_srv(&conn->target)) {
 		/* Alloc a new SSL session ctx */
-		conn->data_ctx = SSL_new(target_srv(&conn->target)->ssl_ctx.ctx);
-		if (!conn->data_ctx)
+		conn->xprt_ctx = SSL_new(target_srv(&conn->target)->ssl_ctx.ctx);
+		if (!conn->xprt_ctx)
 			return -1;
 
-		SSL_set_connect_state(conn->data_ctx);
+		SSL_set_connect_state(conn->xprt_ctx);
 		if (target_srv(&conn->target)->ssl_ctx.reused_sess)
-			SSL_set_session(conn->data_ctx, target_srv(&conn->target)->ssl_ctx.reused_sess);
+			SSL_set_session(conn->xprt_ctx, target_srv(&conn->target)->ssl_ctx.reused_sess);
 
 		/* set fd on SSL session context */
-		SSL_set_fd(conn->data_ctx, conn->t.sock.fd);
+		SSL_set_fd(conn->xprt_ctx, conn->t.sock.fd);
 
 		/* leave init state and start handshake */
 		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
@@ -665,17 +665,17 @@ static int ssl_sock_init(struct connection *conn)
 	}
 	else if (target_client(&conn->target)) {
 		/* Alloc a new SSL session ctx */
-		conn->data_ctx = SSL_new(target_client(&conn->target)->bind_conf->default_ctx);
-		if (!conn->data_ctx)
+		conn->xprt_ctx = SSL_new(target_client(&conn->target)->bind_conf->default_ctx);
+		if (!conn->xprt_ctx)
 			return -1;
 
-		SSL_set_accept_state(conn->data_ctx);
+		SSL_set_accept_state(conn->xprt_ctx);
 
 		/* set fd on SSL session context */
-		SSL_set_fd(conn->data_ctx, conn->t.sock.fd);
+		SSL_set_fd(conn->xprt_ctx, conn->t.sock.fd);
 
 		/* set connection pointer */
-		SSL_set_app_data(conn->data_ctx, conn);
+		SSL_set_app_data(conn->xprt_ctx, conn);
 
 		/* leave init state and start handshake */
 		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
@@ -698,13 +698,13 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 {
 	int ret;
 
-	if (!conn->data_ctx)
+	if (!conn->xprt_ctx)
 		goto out_error;
 
-	ret = SSL_do_handshake(conn->data_ctx);
+	ret = SSL_do_handshake(conn->xprt_ctx);
 	if (ret != 1) {
 		/* handshake did not complete, let's find why */
-		ret = SSL_get_error(conn->data_ctx, ret);
+		ret = SSL_get_error(conn->xprt_ctx, ret);
 
 		if (ret == SSL_ERROR_WANT_WRITE) {
 			/* SSL handshake needs to write, L4 connection may not be ready */
@@ -734,12 +734,12 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 
 	/* Handshake succeeded */
 	if (target_srv(&conn->target)) {
-		if (!SSL_session_reused(conn->data_ctx)) {
+		if (!SSL_session_reused(conn->xprt_ctx)) {
 			/* check if session was reused, if not store current session on server for reuse */
 			if (target_srv(&conn->target)->ssl_ctx.reused_sess)
 				SSL_SESSION_free(target_srv(&conn->target)->ssl_ctx.reused_sess);
 
-			target_srv(&conn->target)->ssl_ctx.reused_sess = SSL_get1_session(conn->data_ctx);
+			target_srv(&conn->target)->ssl_ctx.reused_sess = SSL_get1_session(conn->xprt_ctx);
 		}
 	}
 
@@ -768,7 +768,7 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 	int ret, done = 0;
 	int try = count;
 
-	if (!conn->data_ctx)
+	if (!conn->xprt_ctx)
 		goto out_error;
 
 	if (conn->flags & CO_FL_HANDSHAKE)
@@ -793,7 +793,7 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 	 * EINTR too.
 	 */
 	while (try) {
-		ret = SSL_read(conn->data_ctx, bi_end(buf), try);
+		ret = SSL_read(conn->xprt_ctx, bi_end(buf), try);
 		if (conn->flags & CO_FL_ERROR) {
 			/* CO_FL_ERROR may be set by ssl_sock_infocbk */
 			break;
@@ -810,7 +810,7 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 			goto read0;
 		}
 		else {
-			ret =  SSL_get_error(conn->data_ctx, ret);
+			ret =  SSL_get_error(conn->xprt_ctx, ret);
 			if (ret == SSL_ERROR_WANT_WRITE) {
 				/* handshake is running, and it needs to poll for a write event */
 				conn->flags |= CO_FL_SSL_WAIT_HS;
@@ -853,7 +853,7 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 
 	done = 0;
 
-	if (!conn->data_ctx)
+	if (!conn->xprt_ctx)
 		goto out_error;
 
 	if (conn->flags & CO_FL_HANDSHAKE)
@@ -870,7 +870,7 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 		if (buf->data + try > buf->p)
 			try = buf->data + try - buf->p;
 
-		ret = SSL_write(conn->data_ctx, bo_ptr(buf), try);
+		ret = SSL_write(conn->xprt_ctx, bo_ptr(buf), try);
 		if (conn->flags & CO_FL_ERROR) {
 			/* CO_FL_ERROR may be set by ssl_sock_infocbk */
 			break;
@@ -888,7 +888,7 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 				break;
 		}
 		else {
-			ret = SSL_get_error(conn->data_ctx, ret);
+			ret = SSL_get_error(conn->xprt_ctx, ret);
 			if (ret == SSL_ERROR_WANT_WRITE) {
 				/* we need to poll to retry a write later */
 				__conn_data_poll_send(conn);
@@ -917,9 +917,9 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 
 static void ssl_sock_close(struct connection *conn) {
 
-	if (conn->data_ctx) {
-		SSL_free(conn->data_ctx);
-		conn->data_ctx = NULL;
+	if (conn->xprt_ctx) {
+		SSL_free(conn->xprt_ctx);
+		conn->xprt_ctx = NULL;
 		sslconns--;
 	}
 }
@@ -933,10 +933,10 @@ static void ssl_sock_shutw(struct connection *conn, int clean)
 		return;
 	/* no handshake was in progress, try a clean ssl shutdown */
 	if (clean)
-		SSL_shutdown(conn->data_ctx);
+		SSL_shutdown(conn->xprt_ctx);
 
 	/* force flag on ssl to keep session in cache regardless shutdown result */
-	SSL_set_shutdown(conn->data_ctx, SSL_SENT_SHUTDOWN);
+	SSL_set_shutdown(conn->xprt_ctx, SSL_SENT_SHUTDOWN);
 }
 
 /***** Below are some sample fetching functions for ACL/patterns *****/
@@ -946,7 +946,7 @@ static int
 smp_fetch_client_crt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                      const struct arg *args, struct sample *smp)
 {
-	if (!l4 || l4->si[0].conn.data != &ssl_sock)
+	if (!l4 || l4->si[0].conn.xprt != &ssl_sock)
 		return 0;
 
 	if (!(l4->si[0].conn.flags & CO_FL_CONNECTED)) {
@@ -956,32 +956,32 @@ smp_fetch_client_crt(struct proxy *px, struct session *l4, void *l7, unsigned in
 
 	smp->flags = 0;
 	smp->type = SMP_T_BOOL;
-	smp->data.uint = SSL_SOCK_ST_FL_VERIFY_DONE & l4->si[0].conn.data_st ? 1 : 0;
+	smp->data.uint = SSL_SOCK_ST_FL_VERIFY_DONE & l4->si[0].conn.xprt_st ? 1 : 0;
 
 	return 1;
 }
 
 
-/* boolean, returns true if data layer is SSL */
+/* boolean, returns true if transport layer is SSL */
 static int
 smp_fetch_is_ssl(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                  const struct arg *args, struct sample *smp)
 {
 	smp->type = SMP_T_BOOL;
-	smp->data.uint = (l4->si[0].conn.data == &ssl_sock);
+	smp->data.uint = (l4->si[0].conn.xprt == &ssl_sock);
 	return 1;
 }
 
-/* boolean, returns true if data layer is SSL */
+/* boolean, returns true if transport layer is SSL */
 static int
 smp_fetch_has_sni(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                   const struct arg *args, struct sample *smp)
 {
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	smp->type = SMP_T_BOOL;
-	smp->data.uint = (l4->si[0].conn.data == &ssl_sock) &&
-		l4->si[0].conn.data_ctx &&
-		SSL_get_servername(l4->si[0].conn.data_ctx, TLSEXT_NAMETYPE_host_name) != NULL;
+	smp->data.uint = (l4->si[0].conn.xprt == &ssl_sock) &&
+		l4->si[0].conn.xprt_ctx &&
+		SSL_get_servername(l4->si[0].conn.xprt_ctx, TLSEXT_NAMETYPE_host_name) != NULL;
 	return 1;
 #else
 	return 0;
@@ -996,10 +996,10 @@ smp_fetch_ssl_sni(struct proxy *px, struct session *l4, void *l7, unsigned int o
 	smp->flags = 0;
 	smp->type = SMP_T_CSTR;
 
-	if (!l4 || !l4->si[0].conn.data_ctx || l4->si[0].conn.data != &ssl_sock)
+	if (!l4 || !l4->si[0].conn.xprt_ctx || l4->si[0].conn.xprt != &ssl_sock)
 		return 0;
 
-	smp->data.str.str = (char *)SSL_get_servername(l4->si[0].conn.data_ctx, TLSEXT_NAMETYPE_host_name);
+	smp->data.str.str = (char *)SSL_get_servername(l4->si[0].conn.xprt_ctx, TLSEXT_NAMETYPE_host_name);
 	if (!smp->data.str.str)
 		return 0;
 
@@ -1015,7 +1015,7 @@ static int
 smp_fetch_verify_caerr(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp)
 {
-	if (!l4 || l4->si[0].conn.data != &ssl_sock)
+	if (!l4 || l4->si[0].conn.xprt != &ssl_sock)
 		return 0;
 
 	if (!(l4->si[0].conn.flags & CO_FL_CONNECTED)) {
@@ -1024,7 +1024,7 @@ smp_fetch_verify_caerr(struct proxy *px, struct session *l4, void *l7, unsigned 
 	}
 
 	smp->type = SMP_T_UINT;
-	smp->data.uint = (unsigned int)SSL_SOCK_ST_TO_CA_ERROR(l4->si[0].conn.data_st);
+	smp->data.uint = (unsigned int)SSL_SOCK_ST_TO_CA_ERROR(l4->si[0].conn.xprt_st);
 	smp->flags = 0;
 
 	return 1;
@@ -1035,7 +1035,7 @@ static int
 smp_fetch_verify_caerr_depth(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                              const struct arg *args, struct sample *smp)
 {
-	if (!l4 || l4->si[0].conn.data != &ssl_sock)
+	if (!l4 || l4->si[0].conn.xprt != &ssl_sock)
 		return 0;
 
 	if (!(l4->si[0].conn.flags & CO_FL_CONNECTED)) {
@@ -1044,7 +1044,7 @@ smp_fetch_verify_caerr_depth(struct proxy *px, struct session *l4, void *l7, uns
 	}
 
 	smp->type = SMP_T_UINT;
-	smp->data.uint = (unsigned int)SSL_SOCK_ST_TO_CAEDEPTH(l4->si[0].conn.data_st);
+	smp->data.uint = (unsigned int)SSL_SOCK_ST_TO_CAEDEPTH(l4->si[0].conn.xprt_st);
 	smp->flags = 0;
 
 	return 1;
@@ -1055,7 +1055,7 @@ static int
 smp_fetch_verify_crterr(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                         const struct arg *args, struct sample *smp)
 {
-	if (!l4 || l4->si[0].conn.data != &ssl_sock)
+	if (!l4 || l4->si[0].conn.xprt != &ssl_sock)
 		return 0;
 
 	if (!(l4->si[0].conn.flags & CO_FL_CONNECTED)) {
@@ -1064,7 +1064,7 @@ smp_fetch_verify_crterr(struct proxy *px, struct session *l4, void *l7, unsigned
 	}
 
 	smp->type = SMP_T_UINT;
-	smp->data.uint = (unsigned int)SSL_SOCK_ST_TO_CRTERROR(l4->si[0].conn.data_st);
+	smp->data.uint = (unsigned int)SSL_SOCK_ST_TO_CRTERROR(l4->si[0].conn.xprt_st);
 	smp->flags = 0;
 
 	return 1;
@@ -1075,7 +1075,7 @@ static int
 smp_fetch_verify_result(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                       const struct arg *args, struct sample *smp)
 {
-	if (!l4 || l4->si[0].conn.data != &ssl_sock)
+	if (!l4 || l4->si[0].conn.xprt != &ssl_sock)
 		return 0;
 
 	if (!(l4->si[0].conn.flags & CO_FL_CONNECTED)) {
@@ -1083,11 +1083,11 @@ smp_fetch_verify_result(struct proxy *px, struct session *l4, void *l7, unsigned
 		return 0;
 	}
 
-	if (!l4->si[0].conn.data_ctx)
+	if (!l4->si[0].conn.xprt_ctx)
 		return 0;
 
 	smp->type = SMP_T_UINT;
-	smp->data.uint = (unsigned int)SSL_get_verify_result(l4->si[0].conn.data_ctx);
+	smp->data.uint = (unsigned int)SSL_get_verify_result(l4->si[0].conn.xprt_ctx);
 	smp->flags = 0;
 
 	return 1;
@@ -1263,7 +1263,7 @@ static int bind_parse_ssl(char **args, int cur_arg, struct proxy *px, struct bin
 
 	conf->is_ssl = 1;
 	list_for_each_entry(l, &conf->listeners, by_bind)
-		l->data = &ssl_sock;
+		l->xprt = &ssl_sock;
 
 	return 0;
 }
@@ -1351,8 +1351,8 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
 	{ NULL, NULL, 0 },
 }};
 
-/* data-layer operations for SSL sockets */
-struct data_ops ssl_sock = {
+/* transport-layer operations for SSL sockets */
+struct xprt_ops ssl_sock = {
 	.snd_buf  = ssl_sock_from_buf,
 	.rcv_buf  = ssl_sock_to_buf,
 	.rcv_pipe = NULL,

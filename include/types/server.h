@@ -154,7 +154,7 @@ struct server {
 	int bind_hdr_occ;			/* occurrence number of header above: >0 = from first, <0 = from end, 0=disabled */
 #endif
 	struct protocol *proto;	                /* server address protocol */
-	struct data_ops *data;                  /* data-layer operations */
+	struct xprt_ops *xprt;                  /* transport-layer operations */
 	unsigned down_time;			/* total time the server was down */
 	time_t last_change;			/* last time, when the state was changed */
 	struct timeval check_start;		/* last health check start time */

@@ -28,7 +28,7 @@
 #include <types/proxy.h>
 #include <types/stream_interface.h>
 
-extern struct data_ops ssl_sock;
+extern struct xprt_ops ssl_sock;
 int ssl_sock_handshake(struct connection *conn, unsigned int flag);
 int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy *proxy);
 void ssl_sock_free_certs(struct bind_conf *bind_conf);

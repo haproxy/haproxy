@@ -126,7 +126,7 @@ static int stats_accept(struct session *s)
 	/* we have a dedicated I/O handler for the stats */
 	stream_int_register_handler(&s->si[1], &cli_applet);
 	copy_target(&s->target, &s->si[1].conn.target); // for logging only
-	s->si[1].conn.data_ctx = s;
+	s->si[1].conn.xprt_ctx = s;
 	s->si[1].applet.st1 = 0;
 	s->si[1].applet.st0 = STAT_CLI_INIT;
 
@@ -401,7 +401,7 @@ static int dump_binary(struct chunk *out, const char *buf, int bsize)
 static int stats_dump_table_head_to_buffer(struct chunk *msg, struct stream_interface *si,
 					   struct proxy *proxy, struct proxy *target)
 {
-	struct session *s = si->conn.data_ctx;
+	struct session *s = si->conn.xprt_ctx;
 
 	chunk_printf(msg, "# table: %s, type: %s, size:%d, used:%d\n",
 		     proxy->id, stktable_types[proxy->table.type].kw, proxy->table.size, proxy->table.current);
@@ -490,7 +490,7 @@ static int stats_dump_table_entry_to_buffer(struct chunk *msg, struct stream_int
 
 static void stats_sock_table_key_request(struct stream_interface *si, char **args, int action)
 {
-	struct session *s = si->conn.data_ctx;
+	struct session *s = si->conn.xprt_ctx;
 	struct proxy *px = si->applet.ctx.table.target;
 	struct stksess *ts;
 	uint32_t uint32_key;
@@ -693,7 +693,7 @@ static void stats_sock_table_data_request(struct stream_interface *si, char **ar
 static void stats_sock_table_request(struct stream_interface *si, char **args, int action)
 {
 	si->applet.ctx.table.data_type = -1;
-	si->conn.data_st = STAT_ST_INIT;
+	si->conn.xprt_st = STAT_ST_INIT;
 	si->applet.ctx.table.target = NULL;
 	si->applet.ctx.table.proxy = NULL;
 	si->applet.ctx.table.entry = NULL;
@@ -819,7 +819,7 @@ static struct server *expect_server_admin(struct session *s, struct stream_inter
  */
 static int stats_sock_parse_request(struct stream_interface *si, char *line)
 {
-	struct session *s = si->conn.data_ctx;
+	struct session *s = si->conn.xprt_ctx;
 	char *args[MAX_STATS_ARGS + 1];
 	int arg;
 
@@ -858,17 +858,17 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 
 			si->applet.ctx.stats.flags |= STAT_SHOW_STAT;
 			si->applet.ctx.stats.flags |= STAT_FMT_CSV;
-			si->conn.data_st = STAT_ST_INIT;
+			si->conn.xprt_st = STAT_ST_INIT;
 			si->applet.st0 = STAT_CLI_O_INFO; // stats_dump_raw_to_buffer
 		}
 		else if (strcmp(args[1], "info") == 0) {
 			si->applet.ctx.stats.flags |= STAT_SHOW_INFO;
 			si->applet.ctx.stats.flags |= STAT_FMT_CSV;
-			si->conn.data_st = STAT_ST_INIT;
+			si->conn.xprt_st = STAT_ST_INIT;
 			si->applet.st0 = STAT_CLI_O_INFO; // stats_dump_raw_to_buffer
 		}
 		else if (strcmp(args[1], "sess") == 0) {
-			si->conn.data_st = STAT_ST_INIT;
+			si->conn.xprt_st = STAT_ST_INIT;
 			if (s->listener->bind_conf->level < ACCESS_LVL_OPER) {
 				si->applet.ctx.cli.msg = stats_permission_denied_msg;
 				si->applet.st0 = STAT_CLI_PRINT;
@@ -893,7 +893,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			else
 				si->applet.ctx.errors.iid	= -1;
 			si->applet.ctx.errors.px = NULL;
-			si->conn.data_st = STAT_ST_INIT;
+			si->conn.xprt_st = STAT_ST_INIT;
 			si->applet.st0 = STAT_CLI_O_ERR; // stats_dump_errors_to_buffer
 		}
 		else if (strcmp(args[1], "table") == 0) {
@@ -1627,7 +1627,7 @@ static void cli_io_handler(struct stream_interface *si)
 }
 
 /* This function dumps statistics onto the stream interface's read buffer.
- * The data_ctx must have been zeroed first, and the flags properly set.
+ * The xprt_ctx must have been zeroed first, and the flags properly set.
  * It returns 0 as long as it does not complete, non-zero upon completion.
  * Some states are not used but it makes the code more similar to other
  * functions which handle stats too.
@@ -1640,10 +1640,10 @@ static int stats_dump_raw_to_buffer(struct stream_interface *si)
 
 	chunk_init(&msg, trash, trashlen);
 
-	switch (si->conn.data_st) {
+	switch (si->conn.xprt_st) {
 	case STAT_ST_INIT:
 		/* the function had not been called yet */
-		si->conn.data_st = STAT_ST_HEAD;
+		si->conn.xprt_st = STAT_ST_HEAD;
 		/* fall through */
 
 	case STAT_ST_HEAD:
@@ -1653,7 +1653,7 @@ static int stats_dump_raw_to_buffer(struct stream_interface *si)
 				return 0;
 		}
 
-		si->conn.data_st = STAT_ST_INFO;
+		si->conn.xprt_st = STAT_ST_INFO;
 		/* fall through */
 
 	case STAT_ST_INFO:
@@ -1706,7 +1706,7 @@ static int stats_dump_raw_to_buffer(struct stream_interface *si)
 		si->applet.ctx.stats.px = proxy;
 		si->applet.ctx.stats.px_st = STAT_PX_ST_INIT;
 		si->applet.ctx.stats.sv = NULL;
-		si->conn.data_st = STAT_ST_LIST;
+		si->conn.xprt_st = STAT_ST_LIST;
 		/* fall through */
 
 	case STAT_ST_LIST:
@@ -1727,11 +1727,11 @@ static int stats_dump_raw_to_buffer(struct stream_interface *si)
 			/* here, we just have reached the last proxy */
 		}
 
-		si->conn.data_st = STAT_ST_END;
+		si->conn.xprt_st = STAT_ST_END;
 		/* fall through */
 
 	case STAT_ST_END:
-		si->conn.data_st = STAT_ST_FIN;
+		si->conn.xprt_st = STAT_ST_FIN;
 		/* fall through */
 
 	case STAT_ST_FIN:
@@ -1739,7 +1739,7 @@ static int stats_dump_raw_to_buffer(struct stream_interface *si)
 
 	default:
 		/* unknown state ! */
-		si->conn.data_st = STAT_ST_FIN;
+		si->conn.xprt_st = STAT_ST_FIN;
 		return 1;
 	}
 }
@@ -1751,12 +1751,12 @@ static int stats_dump_raw_to_buffer(struct stream_interface *si)
  */
 static int stats_http_redir(struct stream_interface *si, struct uri_auth *uri)
 {
-	struct session *s = si->conn.data_ctx;
+	struct session *s = si->conn.xprt_ctx;
 	struct chunk msg;
 
 	chunk_init(&msg, trash, trashlen);
 
-	switch (si->conn.data_st) {
+	switch (si->conn.xprt_st) {
 	case STAT_ST_INIT:
 		chunk_printf(&msg,
 			"HTTP/1.0 303 See Other\r\n"
@@ -1782,7 +1782,7 @@ static int stats_http_redir(struct stream_interface *si, struct uri_auth *uri)
 		if (!(s->flags & SN_FINST_MASK))
 			s->flags |= SN_FINST_R;
 
-		si->conn.data_st = STAT_ST_FIN;
+		si->conn.xprt_st = STAT_ST_FIN;
 		return 1;
 	}
 	return 1;
@@ -1796,7 +1796,7 @@ static int stats_http_redir(struct stream_interface *si, struct uri_auth *uri)
  */
 static void http_stats_io_handler(struct stream_interface *si)
 {
-	struct session *s = si->conn.data_ctx;
+	struct session *s = si->conn.xprt_ctx;
 	struct channel *req = si->ob;
 	struct channel *res = si->ib;
 
@@ -1845,14 +1845,14 @@ static void http_stats_io_handler(struct stream_interface *si)
 
 
 /* This function dumps statistics in HTTP format onto the stream interface's
- * read buffer. The data_ctx must have been zeroed first, and the flags
+ * read buffer. The xprt_ctx must have been zeroed first, and the flags
  * properly set. It returns 0 if it had to stop writing data and an I/O is
  * needed, 1 if the dump is finished and the session must be closed, or -1
  * in case of any error.
  */
 static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 {
-	struct session *s = si->conn.data_ctx;
+	struct session *s = si->conn.xprt_ctx;
 	struct channel *rep = si->ib;
 	struct proxy *px;
 	struct chunk msg;
@@ -1860,7 +1860,7 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 
 	chunk_init(&msg, trash, trashlen);
 
-	switch (si->conn.data_st) {
+	switch (si->conn.xprt_st) {
 	case STAT_ST_INIT:
 		chunk_printf(&msg,
 			     "HTTP/1.0 200 OK\r\n"
@@ -1886,11 +1886,11 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 
 		if (s->txn.meth == HTTP_METH_HEAD) {
 			/* that's all we return in case of HEAD request */
-			si->conn.data_st = STAT_ST_FIN;
+			si->conn.xprt_st = STAT_ST_FIN;
 			return 1;
 		}
 
-		si->conn.data_st = STAT_ST_HEAD; /* let's start producing data */
+		si->conn.xprt_st = STAT_ST_HEAD; /* let's start producing data */
 		/* fall through */
 
 	case STAT_ST_HEAD:
@@ -1994,7 +1994,7 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 		if (bi_putchk(rep, &msg) == -1)
 			return 0;
 
-		si->conn.data_st = STAT_ST_INFO;
+		si->conn.xprt_st = STAT_ST_INFO;
 		/* fall through */
 
 	case STAT_ST_INFO:
@@ -2172,7 +2172,7 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 
 		si->applet.ctx.stats.px = proxy;
 		si->applet.ctx.stats.px_st = STAT_PX_ST_INIT;
-		si->conn.data_st = STAT_ST_LIST;
+		si->conn.xprt_st = STAT_ST_LIST;
 		/* fall through */
 
 	case STAT_ST_LIST:
@@ -2191,7 +2191,7 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 		}
 		/* here, we just have reached the last proxy */
 
-		si->conn.data_st = STAT_ST_END;
+		si->conn.xprt_st = STAT_ST_END;
 		/* fall through */
 
 	case STAT_ST_END:
@@ -2201,7 +2201,7 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 				return 0;
 		}
 
-		si->conn.data_st = STAT_ST_FIN;
+		si->conn.xprt_st = STAT_ST_FIN;
 		/* fall through */
 
 	case STAT_ST_FIN:
@@ -2209,7 +2209,7 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 
 	default:
 		/* unknown state ! */
-		si->conn.data_st = STAT_ST_FIN;
+		si->conn.xprt_st = STAT_ST_FIN;
 		return -1;
 	}
 }
@@ -2222,7 +2222,7 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
  */
 static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_auth *uri)
 {
-	struct session *s = si->conn.data_ctx;
+	struct session *s = si->conn.xprt_ctx;
 	struct channel *rep = si->ib;
 	struct server *sv, *svs;	/* server and server-state, server-state=server or server->track */
 	struct listener *l;
@@ -3271,9 +3271,9 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 	}
 }
 
-/* This function dumps a complete session state onto the stream intreface's
- * read buffer. The data_ctx must have been zeroed first, and the flags
- * properly set. The session has to be set in data_ctx.sess.target. It returns
+/* This function dumps a complete session state onto the stream interface's
+ * read buffer. The xprt_ctx must have been zeroed first, and the flags
+ * properly set. The session has to be set in xprt_ctx.sess.target. It returns
  * 0 if the output buffer is full and it needs to be called again, otherwise
  * non-zero. It is designed to be called from stats_dump_sess_to_buffer() below.
  */
@@ -3516,8 +3516,8 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 	return 1;
 }
 
-/* This function dumps all sessions' states onto the stream intreface's
- * read buffer. The data_ctx must have been zeroed first, and the flags
+/* This function dumps all sessions' states onto the stream interface's
+ * read buffer. The xprt_ctx must have been zeroed first, and the flags
  * properly set. It returns 0 if the output buffer is full and it needs
  * to be called again, otherwise non-zero. It is designed to be called
  * from stats_dump_sess_to_buffer() below.
@@ -3530,7 +3530,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 		/* If we're forced to shut down, we might have to remove our
 		 * reference to the last session being dumped.
 		 */
-		if (si->conn.data_st == STAT_ST_LIST) {
+		if (si->conn.xprt_st == STAT_ST_LIST) {
 			if (!LIST_ISEMPTY(&si->applet.ctx.sess.bref.users)) {
 				LIST_DEL(&si->applet.ctx.sess.bref.users);
 				LIST_INIT(&si->applet.ctx.sess.bref.users);
@@ -3541,7 +3541,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 
 	chunk_init(&msg, trash, trashlen);
 
-	switch (si->conn.data_st) {
+	switch (si->conn.xprt_st) {
 	case STAT_ST_INIT:
 		/* the function had not been called yet, let's prepare the
 		 * buffer for a response. We initialize the current session
@@ -3552,7 +3552,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 		 */
 		LIST_INIT(&si->applet.ctx.sess.bref.users);
 		si->applet.ctx.sess.bref.ref = sessions.n;
-		si->conn.data_st = STAT_ST_LIST;
+		si->conn.xprt_st = STAT_ST_LIST;
 		/* fall through */
 
 	case STAT_ST_LIST:
@@ -3717,30 +3717,30 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 			return 1;
 		}
 
-		si->conn.data_st = STAT_ST_FIN;
+		si->conn.xprt_st = STAT_ST_FIN;
 		/* fall through */
 
 	default:
-		si->conn.data_st = STAT_ST_FIN;
+		si->conn.xprt_st = STAT_ST_FIN;
 		return 1;
 	}
 }
 
-/* This function dumps all tables' states onto the stream intreface's
- * read buffer. The data_ctx must have been zeroed first, and the flags
+/* This function dumps all tables' states onto the stream interface's
+ * read buffer. The xprt_ctx must have been zeroed first, and the flags
  * properly set. It returns 0 if the output buffer is full and it needs
  * to be called again, otherwise non-zero.
  */
 static int stats_table_request(struct stream_interface *si, bool show)
 {
-	struct session *s = si->conn.data_ctx;
+	struct session *s = si->conn.xprt_ctx;
 	struct chunk msg;
 	struct ebmb_node *eb;
 	int dt;
 	bool skip_entry;
 
 	/*
-	 * We have 3 possible states in si->conn.data_st :
+	 * We have 3 possible states in si->conn.xprt_st :
 	 *   - STAT_ST_INIT : the first call
 	 *   - STAT_ST_INFO : the proxy pointer points to the next table to
 	 *     dump, the entry pointer is NULL ;
@@ -3753,7 +3753,7 @@ static int stats_table_request(struct stream_interface *si, bool show)
 
 	if (unlikely(si->ib->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
 		/* in case of abort, remove any refcount we might have set on an entry */
-		if (si->conn.data_st == STAT_ST_LIST) {
+		if (si->conn.xprt_st == STAT_ST_LIST) {
 			si->applet.ctx.table.entry->ref_cnt--;
 			stksess_kill_if_expired(&si->applet.ctx.table.proxy->table, si->applet.ctx.table.entry);
 		}
@@ -3762,22 +3762,22 @@ static int stats_table_request(struct stream_interface *si, bool show)
 
 	chunk_init(&msg, trash, trashlen);
 
-	while (si->conn.data_st != STAT_ST_FIN) {
-		switch (si->conn.data_st) {
+	while (si->conn.xprt_st != STAT_ST_FIN) {
+		switch (si->conn.xprt_st) {
 		case STAT_ST_INIT:
 			si->applet.ctx.table.proxy = si->applet.ctx.table.target;
 			if (!si->applet.ctx.table.proxy)
 				si->applet.ctx.table.proxy = proxy;
 
 			si->applet.ctx.table.entry = NULL;
-			si->conn.data_st = STAT_ST_INFO;
+			si->conn.xprt_st = STAT_ST_INFO;
 			break;
 
 		case STAT_ST_INFO:
 			if (!si->applet.ctx.table.proxy ||
 			    (si->applet.ctx.table.target &&
 			     si->applet.ctx.table.proxy != si->applet.ctx.table.target)) {
-				si->conn.data_st = STAT_ST_END;
+				si->conn.xprt_st = STAT_ST_END;
 				break;
 			}
 
@@ -3793,7 +3793,7 @@ static int stats_table_request(struct stream_interface *si, bool show)
 					if (eb) {
 						si->applet.ctx.table.entry = ebmb_entry(eb, struct stksess, key);
 						si->applet.ctx.table.entry->ref_cnt++;
-						si->conn.data_st = STAT_ST_LIST;
+						si->conn.xprt_st = STAT_ST_LIST;
 						break;
 					}
 				}
@@ -3873,11 +3873,11 @@ static int stats_table_request(struct stream_interface *si, bool show)
 				stksess_kill(&si->applet.ctx.table.proxy->table, si->applet.ctx.table.entry);
 
 			si->applet.ctx.table.proxy = si->applet.ctx.table.proxy->next;
-			si->conn.data_st = STAT_ST_INFO;
+			si->conn.xprt_st = STAT_ST_INFO;
 			break;
 
 		case STAT_ST_END:
-			si->conn.data_st = STAT_ST_FIN;
+			si->conn.xprt_st = STAT_ST_FIN;
 			break;
 		}
 	}
@@ -3942,8 +3942,8 @@ static int dump_text_line(struct chunk *out, const char *buf, int bsize, int len
 	return ptr;
 }
 
-/* This function dumps all captured errors onto the stream intreface's
- * read buffer. The data_ctx must have been zeroed first, and the flags
+/* This function dumps all captured errors onto the stream interface's
+ * read buffer. The xprt_ctx must have been zeroed first, and the flags
  * properly set. It returns 0 if the output buffer is full and it needs
  * to be called again, otherwise non-zero.
  */
