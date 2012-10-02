@@ -67,12 +67,12 @@ int conn_fd_handler(int fd)
 	if (!(conn->flags & CO_FL_POLL_SOCK))
 		__conn_sock_stop_both(conn);
 
-	/* Maybe we need to finish initializing an incoming session. The
-	 * function may fail and cause the connection to be destroyed, thus
+	/* The data layer might not be ready yet (eg: when using embryonic
+	 * sessions). If we're about to move data, we must initialize it first.
+	 * The function may fail and cause the connection to be destroyed, thus
 	 * we must not use it anymore and should immediately leave instead.
 	 */
-	if ((conn->flags & CO_FL_INIT_SESS) &&
-	    conn_session_complete(conn, CO_FL_INIT_SESS) < 0)
+	if ((conn->flags & CO_FL_INIT_DATA) && conn->data->init(conn) < 0)
 		return 0;
 
 	/* The data transfer starts here and stops on error and handshakes */
@@ -103,10 +103,12 @@ int conn_fd_handler(int fd)
 	}
 
  leave:
-	/* we may need to release the connection which is an embryonic session */
-	if ((conn->flags & (CO_FL_ERROR|CO_FL_INIT_SESS)) == (CO_FL_ERROR|CO_FL_INIT_SESS)) {
-		conn->flags |= CO_FL_ERROR;
-		conn_session_complete(conn, CO_FL_INIT_SESS);
+	/* we may need to release the connection which is an embryonic session
+	 * in case of failure. For this we use the init callback which will
+	 * detect the error and clean everything up.
+	 */
+	if ((conn->flags & (CO_FL_ERROR|CO_FL_INIT_DATA)) == (CO_FL_ERROR|CO_FL_INIT_DATA)) {
+		conn->data->init(conn);
 		return 0;
 	}
 

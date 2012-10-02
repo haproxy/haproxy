@@ -50,6 +50,7 @@
 struct pool_head *pool2_session;
 struct list sessions;
 
+static int conn_session_complete(struct connection *conn);
 static struct task *expire_mini_session(struct task *t);
 int session_complete(struct session *s);
 
@@ -58,7 +59,7 @@ struct data_cb sess_conn_cb = {
 	.recv = NULL,
 	.send = NULL,
 	.wake = NULL,
-	.init = NULL,
+	.init = conn_session_complete,
 };
 
 /* This function is called from the protocol layer accept() in order to
@@ -193,7 +194,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		t->process = expire_mini_session;
 		t->expire = tick_add_ifset(now_ms, p->timeout.client);
 		task_queue(t);
-		s->si[0].conn.flags |= CO_FL_INIT_SESS;
+		s->si[0].conn.flags |= CO_FL_INIT_DATA;
 		return 1;
 	}
 
@@ -266,12 +267,12 @@ static void kill_mini_session(struct session *s)
 /* Finish initializing a session from a connection, or kills it if the
  * connection shows and error. Returns <0 if the connection was killed.
  */
-int conn_session_complete(struct connection *conn, int flag)
+static int conn_session_complete(struct connection *conn)
 {
 	struct session *s = conn->owner;
 
 	if (!(conn->flags & CO_FL_ERROR) && (session_complete(s) > 0)) {
-		conn->flags &= ~flag;
+		conn->flags &= ~CO_FL_INIT_DATA;
 		return 0;
 	}
 
