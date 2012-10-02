@@ -102,6 +102,7 @@ struct bind_conf {
 	char *ciphers;             /* cipher suite to use if non-null */
 	char *crlfile;             /* CRLfile to use on verify */
 	char *ecdhe;               /* named curve to use for ECDHE */
+	int no_tls_tickets;        /* disable session resumption tickets */
 	int nosslv3;               /* disable SSLv3 */
 	int notlsv10;              /* disable TLSv1.0 */
 	int notlsv11;              /* disable TLSv1.1 */

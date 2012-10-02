@@ -447,6 +447,9 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, struct proxy *cu
 #ifndef SSL_OP_SINGLE_ECDH_USE                          /* needs OpenSSL >= 0.9.8 */
 #define SSL_OP_SINGLE_ECDH_USE 0
 #endif
+#ifndef SSL_OP_NO_TICKET                                /* needs OpenSSL >= 0.9.8 */
+#define SSL_OP_NO_TICKET 0
+#endif
 #ifndef SSL_OP_NO_COMPRESSION                           /* needs OpenSSL >= 0.9.9 */
 #define SSL_OP_NO_COMPRESSION 0
 #endif
@@ -488,6 +491,8 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 		ssloptions |= SSL_OP_NO_TLSv1_1;
 	if (bind_conf->notlsv12)
 		ssloptions |= SSL_OP_NO_TLSv1_2;
+	if (bind_conf->no_tls_tickets)
+		ssloptions |= SSL_OP_NO_TICKET;
 	if (bind_conf->prefer_server_ciphers)
 		ssloptions |= SSL_OP_CIPHER_SERVER_PREFERENCE;
 
@@ -1192,6 +1197,14 @@ static int bind_parse_ignore_err(char **args, int cur_arg, struct proxy *px, str
 	return 0;
 }
 
+/* parse the "no-tls-tickets" bind keyword */
+static int bind_parse_no_tls_tickets(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	conf->no_tls_tickets = 1;
+	return 0;
+}
+
+
 /* parse the "nosslv3" bind keyword */
 static int bind_parse_nosslv3(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -1304,20 +1317,21 @@ static struct acl_kw_list acl_kws = {{ },{
  * not enabled.
  */
 static struct bind_kw_list bind_kws = { "SSL", { }, {
-	{ "cafile",                bind_parse_cafile,        1 }, /* set CAfile to process verify on client cert */
-	{ "ca-ignore-err",         bind_parse_ignore_err,    1 }, /* set error IDs to ignore on verify depth > 0 */
-	{ "ciphers",               bind_parse_ciphers,       1 }, /* set SSL cipher suite */
-	{ "crlfile",               bind_parse_crlfile,       1 }, /* set certificat revocation list file use on client cert verify */
-	{ "crt",                   bind_parse_crt,           1 }, /* load SSL certificates from this location */
-	{ "crt-ignore-err",        bind_parse_ignore_err,    1 }, /* set error IDs to ingore on verify depth == 0 */
-	{ "ecdhe",                 bind_parse_ecdhe,         1 }, /* defines named curve for elliptic curve Diffie-Hellman */
-	{ "nosslv3",               bind_parse_nosslv3,       0 }, /* disable SSLv3 */
-	{ "notlsv10",              bind_parse_notlsv10,      0 }, /* disable TLSv10 */
-	{ "notlsv11",              bind_parse_notlsv11,      0 }, /* disable TLSv11 */
-	{ "notlsv12",              bind_parse_notlsv12,      0 }, /* disable TLSv12 */
-	{ "prefer-server-ciphers", bind_parse_psc,           0 }, /* prefer server ciphers */
-	{ "ssl",                   bind_parse_ssl,           0 }, /* enable SSL processing */
-	{ "verify",                bind_parse_verify,        1 }, /* set SSL verify method */
+	{ "cafile",                bind_parse_cafile,         1 }, /* set CAfile to process verify on client cert */
+	{ "ca-ignore-err",         bind_parse_ignore_err,     1 }, /* set error IDs to ignore on verify depth > 0 */
+	{ "ciphers",               bind_parse_ciphers,        1 }, /* set SSL cipher suite */
+	{ "crlfile",               bind_parse_crlfile,        1 }, /* set certificat revocation list file use on client cert verify */
+	{ "crt",                   bind_parse_crt,            1 }, /* load SSL certificates from this location */
+	{ "crt-ignore-err",        bind_parse_ignore_err,     1 }, /* set error IDs to ingore on verify depth == 0 */
+	{ "ecdhe",                 bind_parse_ecdhe,          1 }, /* defines named curve for elliptic curve Diffie-Hellman */
+	{ "no-tls-tickets",        bind_parse_no_tls_tickets, 0 }, /* disable session resumption tickets */
+	{ "nosslv3",               bind_parse_nosslv3,        0 }, /* disable SSLv3 */
+	{ "notlsv10",              bind_parse_notlsv10,       0 }, /* disable TLSv10 */
+	{ "notlsv11",              bind_parse_notlsv11,       0 }, /* disable TLSv11 */
+	{ "notlsv12",              bind_parse_notlsv12,       0 }, /* disable TLSv12 */
+	{ "prefer-server-ciphers", bind_parse_psc,            0 }, /* prefer server ciphers */
+	{ "ssl",                   bind_parse_ssl,            0 }, /* enable SSL processing */
+	{ "verify",                bind_parse_verify,         1 }, /* set SSL verify method */
 	{ NULL, NULL, 0 },
 }};
 
