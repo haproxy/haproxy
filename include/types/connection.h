@@ -174,12 +174,15 @@ struct xprt_ops {
  * callbacks are supposed to make use of the xprt_ops above to exchange data
  * from/to buffers and pipes. The <wake> callback is used to report activity
  * at the transport layer, which can be a connection opening/close, or any
- * data movement.
+ * data movement. The <init> callback may be called by the connection handler
+ * at the end of a transport handshake, when it is about to transfer data and
+ * the data layer is not ready yet.
  */
 struct data_cb {
 	void (*recv)(struct connection *conn);  /* data-layer recv callback */
 	void (*send)(struct connection *conn);  /* data-layer send callback */
 	void (*wake)(struct connection *conn);  /* data-layer callback to report activity */
+	int  (*init)(struct connection *conn);  /* data-layer initialization */
 };
 
 /* a target describes what is on the remote side of the connection. */
