@@ -6897,6 +6897,12 @@ nosslv3
   SSL is supported. Note that SSLv2 is forced disabled in the code and cannot
   be enabled using any configuration option.
 
+no-tls-tickets
+  This setting is only available when support for OpenSSL was built in. It
+  disables the stateless session resumption (RFC 5077 TLS Ticket
+  extension) and force to use stateful session resumption. Stateless
+  session resumption is more expensive in CPU usage.
+
 notlsv10
   This setting is only available when support for OpenSSL was built in. It
   disables support for TLSv10 on any sockets instanciated from the listener when
