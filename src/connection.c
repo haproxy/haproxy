@@ -110,8 +110,8 @@ int conn_fd_handler(int fd)
 		return 0;
 	}
 
-	if (conn->flags & CO_FL_NOTIFY_SI)
-		conn_notify_si(conn);
+	if (conn->flags & CO_FL_WAKE_DATA)
+		conn->data->wake(conn);
 
 	/* Last check, verify if the connection just established */
 	if (unlikely(!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN | CO_FL_CONNECTED))))

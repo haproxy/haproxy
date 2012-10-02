@@ -36,11 +36,8 @@ int stream_int_check_timeouts(struct stream_interface *si);
 void stream_int_report_error(struct stream_interface *si);
 void stream_int_retnclose(struct stream_interface *si, const struct chunk *msg);
 int conn_si_send_proxy(struct connection *conn, unsigned int flag);
-void conn_notify_si(struct connection *conn);
 int stream_int_shutr(struct stream_interface *si);
 int stream_int_shutw(struct stream_interface *si);
-void si_conn_recv_cb(struct connection *conn);
-void si_conn_send_cb(struct connection *conn);
 void stream_sock_read0(struct stream_interface *si);
 
 extern struct si_ops si_embedded_ops;
@@ -135,7 +132,7 @@ static inline int si_connect(struct stream_interface *si)
 		si->conn.flags |= CO_FL_SI_SEND_PROXY;
 
 	/* we need to be notified about connection establishment */
-	si->conn.flags |= CO_FL_NOTIFY_SI;
+	si->conn.flags |= CO_FL_WAKE_DATA;
 
 	/* we're in the process of establishing a connection */
 	si->state = SI_ST_CON;

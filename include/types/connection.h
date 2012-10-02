@@ -76,7 +76,7 @@ enum {
 	CO_FL_WAIT_L4_CONN  = 0x00000004,  /* waiting for L4 to be connected */
 	CO_FL_WAIT_L6_CONN  = 0x00000008,  /* waiting for L6 to be connected (eg: SSL) */
 
-	CO_FL_NOTIFY_SI     = 0x00000010,  /* notify stream interface about changes */
+	CO_FL_WAKE_DATA     = 0x00000010,  /* wake-up data layer upon activity at the transport layer */
 
 	/* flags below are used for connection handshakes */
 	CO_FL_SI_SEND_PROXY = 0x00000020,  /* send a valid PROXY protocol header */
@@ -172,11 +172,14 @@ struct xprt_ops {
 /* data_cb describes the data layer's recv and send callbacks which are called
  * when I/O activity was detected after the transport layer is ready. These
  * callbacks are supposed to make use of the xprt_ops above to exchange data
- * from/to buffers and pipes.
+ * from/to buffers and pipes. The <wake> callback is used to report activity
+ * at the transport layer, which can be a connection opening/close, or any
+ * data movement.
  */
 struct data_cb {
 	void (*recv)(struct connection *conn);  /* data-layer recv callback */
 	void (*send)(struct connection *conn);  /* data-layer send callback */
+	void (*wake)(struct connection *conn);  /* data-layer callback to report activity */
 };
 
 /* a target describes what is on the remote side of the connection. */

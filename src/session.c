@@ -462,7 +462,7 @@ int session_complete(struct session *s)
 	}
 
 	/* we want the connection handler to notify the stream interface about updates. */
-	s->si[0].conn.flags |= CO_FL_NOTIFY_SI;
+	s->si[0].conn.flags |= CO_FL_WAKE_DATA;
 
 	/* it is important not to call the wakeup function directly but to
 	 * pass through task_wakeup(), because this one knows how to apply

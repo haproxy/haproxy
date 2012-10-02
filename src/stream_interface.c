@@ -44,6 +44,9 @@ static void stream_int_chk_snd(struct stream_interface *si);
 static void stream_int_update_conn(struct stream_interface *si);
 static void stream_int_chk_rcv_conn(struct stream_interface *si);
 static void stream_int_chk_snd_conn(struct stream_interface *si);
+static void si_conn_recv_cb(struct connection *conn);
+static void si_conn_send_cb(struct connection *conn);
+static void si_conn_wake_cb(struct connection *conn);
 
 /* stream-interface operations for embedded tasks */
 struct si_ops si_embedded_ops = {
@@ -69,6 +72,7 @@ struct si_ops si_conn_ops = {
 struct data_cb si_conn_cb = {
 	.recv    = si_conn_recv_cb,
 	.send    = si_conn_send_cb,
+	.wake    = si_conn_wake_cb,
 };
 
 /*
@@ -554,12 +558,12 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 }
 
 /* Callback to be used by connection I/O handlers upon completion. It differs from
- * the function below in that it is designed to be called by lower layers after I/O
+ * the update function in that it is designed to be called by lower layers after I/O
  * events have been completed. It will also try to wake the associated task up if
  * an important event requires special handling. It relies on the connection handler
  * to commit any polling updates.
  */
-void conn_notify_si(struct connection *conn)
+static void si_conn_wake_cb(struct connection *conn)
 {
 	struct stream_interface *si = conn->owner;
 
@@ -938,7 +942,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
  * into the buffer from the connection. It iterates over the transport layer's
  * rcv_buf function.
  */
-void si_conn_recv_cb(struct connection *conn)
+static void si_conn_recv_cb(struct connection *conn)
 {
 	struct stream_interface *si = conn->owner;
 	struct channel *b = si->ib;
@@ -1152,7 +1156,7 @@ void si_conn_recv_cb(struct connection *conn)
  * from the buffer to the connection. It iterates over the transport layer's
  * snd_buf function.
  */
-void si_conn_send_cb(struct connection *conn)
+static void si_conn_send_cb(struct connection *conn)
 {
 	struct stream_interface *si = conn->owner;
 	struct channel *b = si->ob;
