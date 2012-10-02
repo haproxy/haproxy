@@ -53,6 +53,14 @@ struct list sessions;
 static struct task *expire_mini_session(struct task *t);
 int session_complete(struct session *s);
 
+/* data layer callbacks for an embryonic session */
+struct data_cb sess_conn_cb = {
+	.recv = NULL,
+	.send = NULL,
+	.wake = NULL,
+	.init = NULL,
+};
+
 /* This function is called from the protocol layer accept() in order to
  * instanciate a new embryonic session on behalf of a given listener and
  * frontend. It returns a positive value upon success, 0 if the connection
@@ -165,7 +173,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	 * but not initialized. Also note we need to be careful as the stream
 	 * int is not initialized yet.
 	 */
-	si_prepare_conn(&s->si[0], l->proto, l->xprt);
+	conn_prepare(&s->si[0].conn, &sess_conn_cb, l->proto, l->xprt, s);
 
 	/* finish initialization of the accepted file descriptor */
 	fd_insert(cfd);
@@ -260,7 +268,7 @@ static void kill_mini_session(struct session *s)
  */
 int conn_session_complete(struct connection *conn, int flag)
 {
-	struct session *s = container_of(conn->owner, struct session, si[0]);
+	struct session *s = conn->owner;
 
 	if (!(conn->flags & CO_FL_ERROR) && (session_complete(s) > 0)) {
 		conn->flags &= ~flag;
@@ -305,6 +313,7 @@ int session_complete(struct session *s)
 	/* OK, we're keeping the session, so let's properly initialize the session */
 	LIST_ADDQ(&sessions, &s->list);
 	LIST_INIT(&s->back_refs);
+	si_takeover_conn(&s->si[0], l->proto, l->xprt);
 	s->flags |= SN_INITIALIZED;
 
 	s->unique_id = NULL;
