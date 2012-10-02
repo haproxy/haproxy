@@ -510,7 +510,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 			/* set CA names fo client cert request, function returns void */
 			SSL_CTX_set_client_CA_list(ctx, SSL_load_client_CA_file(bind_conf->cafile));
 		}
-
+#ifdef X509_V_FLAG_CRL_CHECK
 		if (bind_conf->crlfile) {
 			X509_STORE *store = SSL_CTX_get_cert_store(ctx);
 
@@ -523,6 +523,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 				X509_STORE_set_flags(store, X509_V_FLAG_CRL_CHECK|X509_V_FLAG_CRL_CHECK_ALL);
 			}
 		}
+#endif
 	}
 
 	shared_context_set_cache(ctx);
@@ -1128,6 +1129,11 @@ static int bind_parse_crt(char **args, int cur_arg, struct proxy *px, struct bin
 /* parse the "crlfile" bind keyword */
 static int bind_parse_crlfile(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
+#ifndef X509_V_FLAG_CRL_CHECK
+	if (err)
+		memprintf(err, "'%s' : library does not support CRL verify", args[cur_arg]);
+	return ERR_ALERT | ERR_FATAL;
+#else
 	if (!*args[cur_arg + 1]) {
 		if (err)
 			memprintf(err, "'%s' : missing CRLfile path", args[cur_arg]);
@@ -1136,6 +1142,7 @@ static int bind_parse_crlfile(char **args, int cur_arg, struct proxy *px, struct
 
 	conf->crlfile = strdup(args[cur_arg + 1]);
 	return 0;
+#endif
 }
 
 /* parse the "ecdhe" bind keyword keywords */
