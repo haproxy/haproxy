@@ -114,15 +114,6 @@ int conn_fd_handler(int fd)
 	}
 
  leave:
-	/* we may need to release the connection which is an embryonic session
-	 * in case of failure. For this we use the init callback which will
-	 * detect the error and clean everything up.
-	 */
-	if ((conn->flags & (CO_FL_ERROR|CO_FL_INIT_DATA)) == (CO_FL_ERROR|CO_FL_INIT_DATA)) {
-		conn->data->init(conn);
-		return 0;
-	}
-
 	/* The wake callback may be used to process a critical error and abort the
 	 * connection. If so, we don't want to go further as the connection will
 	 * have been released and the FD destroyed.
