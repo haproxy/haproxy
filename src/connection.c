@@ -29,6 +29,7 @@
 int conn_fd_handler(int fd)
 {
 	struct connection *conn = fdtab[fd].owner;
+	unsigned int flags;
 
 	if (unlikely(!conn))
 		return 0;
@@ -36,7 +37,7 @@ int conn_fd_handler(int fd)
 	/* before engaging there, we clear the new WAIT_* flags so that we can
 	 * more easily detect an EAGAIN condition from anywhere.
 	 */
-	conn->flags &= ~(CO_FL_WAIT_DATA|CO_FL_WAIT_ROOM|CO_FL_WAIT_RD|CO_FL_WAIT_WR);
+	flags = conn->flags &= ~(CO_FL_WAIT_DATA|CO_FL_WAIT_ROOM|CO_FL_WAIT_RD|CO_FL_WAIT_WR);
 
  process_handshake:
 	/* The handshake callbacks are called in sequence. If either of them is
@@ -77,12 +78,22 @@ int conn_fd_handler(int fd)
 
 	/* The data transfer starts here and stops on error and handshakes */
 	if ((fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR)) &&
-	    !(conn->flags & (CO_FL_WAIT_RD|CO_FL_WAIT_ROOM|CO_FL_ERROR|CO_FL_HANDSHAKE)))
+	    !(conn->flags & (CO_FL_WAIT_RD|CO_FL_WAIT_ROOM|CO_FL_ERROR|CO_FL_HANDSHAKE))) {
+		/* force detection of a flag change : if any I/O succeeds, we're
+		 * forced to have at least one of the CONN_* flags in conn->flags.
+		 */
+		flags = 0;
 		conn->data->recv(conn);
+	}
 
 	if ((fdtab[fd].ev & (FD_POLL_OUT | FD_POLL_ERR)) &&
-	    !(conn->flags & (CO_FL_WAIT_WR|CO_FL_WAIT_DATA|CO_FL_ERROR|CO_FL_HANDSHAKE)))
+	    !(conn->flags & (CO_FL_WAIT_WR|CO_FL_WAIT_DATA|CO_FL_ERROR|CO_FL_HANDSHAKE))) {
+		/* force detection of a flag change : if any I/O succeeds, we're
+		 * forced to have at least one of the CONN_* flags in conn->flags.
+		 */
+		flags = 0;
 		conn->data->send(conn);
+	}
 
 	if (unlikely(conn->flags & CO_FL_ERROR))
 		goto leave;
@@ -112,7 +123,7 @@ int conn_fd_handler(int fd)
 		return 0;
 	}
 
-	if (conn->flags & CO_FL_WAKE_DATA)
+	if ((conn->flags & CO_FL_WAKE_DATA) && ((conn->flags ^ flags) & CO_FL_CONN_STATE))
 		conn->data->wake(conn);
 
 	/* Last check, verify if the connection just established */

@@ -124,6 +124,9 @@ enum {
 	CO_FL_WAIT_L4_CONN  = 0x00400000,  /* waiting for L4 to be connected */
 	CO_FL_WAIT_L6_CONN  = 0x00800000,  /* waiting for L6 to be connected (eg: SSL) */
 
+	/* synthesis of the flags above */
+	CO_FL_CONN_STATE    = 0x00FF0000,  /* all shut/connected flags */
+
 	/*** All the flags below are used for connection handshakes. Any new
 	 * handshake should be added after this point, and CO_FL_HANDSHAKE
 	 * should be updated.
