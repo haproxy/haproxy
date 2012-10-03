@@ -123,8 +123,14 @@ int conn_fd_handler(int fd)
 		return 0;
 	}
 
-	if ((conn->flags & CO_FL_WAKE_DATA) && ((conn->flags ^ flags) & CO_FL_CONN_STATE))
-		conn->data->wake(conn);
+	/* The wake callback may be used to process a critical error and abort the
+	 * connection. If so, we don't want to go further as the connection will
+	 * have been released and the FD destroyed.
+	 */
+	if ((conn->flags & CO_FL_WAKE_DATA) &&
+	    ((conn->flags ^ flags) & CO_FL_CONN_STATE) &&
+	    conn->data->wake(conn) < 0)
+		return 0;
 
 	/* Last check, verify if the connection just established */
 	if (unlikely(!(conn->flags & (CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN | CO_FL_CONNECTED))))

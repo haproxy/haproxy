@@ -46,7 +46,7 @@ static void stream_int_chk_rcv_conn(struct stream_interface *si);
 static void stream_int_chk_snd_conn(struct stream_interface *si);
 static void si_conn_recv_cb(struct connection *conn);
 static void si_conn_send_cb(struct connection *conn);
-static void si_conn_wake_cb(struct connection *conn);
+static int si_conn_wake_cb(struct connection *conn);
 
 /* stream-interface operations for embedded tasks */
 struct si_ops si_embedded_ops = {
@@ -561,9 +561,9 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
  * the update function in that it is designed to be called by lower layers after I/O
  * events have been completed. It will also try to wake the associated task up if
  * an important event requires special handling. It relies on the connection handler
- * to commit any polling updates.
+ * to commit any polling updates. The function always returns 0.
  */
-static void si_conn_wake_cb(struct connection *conn)
+static int si_conn_wake_cb(struct connection *conn)
 {
 	struct stream_interface *si = conn->owner;
 
@@ -659,6 +659,7 @@ static void si_conn_wake_cb(struct connection *conn)
 	}
 	if (si->ib->flags & CF_READ_ACTIVITY)
 		si->ib->flags &= ~CF_READ_DONTWAIT;
+	return 0;
 }
 
 /*
