@@ -609,7 +609,8 @@ void soft_stop(void)
 			 task_wakeup(p->table.sync_task, TASK_WOKEN_MSG);
 
 		/* wake every proxy task up so that they can handle the stopping */
-		task_wakeup(p->task, TASK_WOKEN_MSG);
+		if (p->task)
+			task_wakeup(p->task, TASK_WOKEN_MSG);
 		p = p->next;
 	}
 

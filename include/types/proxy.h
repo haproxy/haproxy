@@ -325,7 +325,7 @@ struct proxy {
 	struct list listener_queue;		/* list of the temporarily limited listeners because of lack of a proxy resource */
 	struct stktable table;			/* table for storing sticking sessions */
 
-	struct task *task;			/* the associated task, mandatory to manage rate limiting, stopping and resource shortage */
+	struct task *task;			/* the associated task, mandatory to manage rate limiting, stopping and resource shortage, NULL if disabled */
 	int grace;				/* grace time after stop request */
 	char *check_req;			/* HTTP or SSL request to use for PR_O_HTTP_CHK|PR_O_SSL3_CHK */
 	int check_len;				/* Length of the HTTP or SSL3 request */
