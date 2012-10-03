@@ -51,6 +51,7 @@ struct pool_head *pool2_session;
 struct list sessions;
 
 static int conn_session_complete(struct connection *conn);
+static int conn_session_update(struct connection *conn);
 static struct task *expire_mini_session(struct task *t);
 int session_complete(struct session *s);
 
@@ -58,7 +59,7 @@ int session_complete(struct session *s);
 struct data_cb sess_conn_cb = {
 	.recv = NULL,
 	.send = NULL,
-	.wake = NULL,
+	.wake = conn_session_update,
 	.init = conn_session_complete,
 };
 
@@ -279,6 +280,18 @@ static int conn_session_complete(struct connection *conn)
 	/* kill the connection now */
 	kill_mini_session(s);
 	return -1;
+}
+
+/* Update an embryonic session status. The connection is killed in case of
+ * error, and <0 will be returned. Otherwise it does nothing.
+ */
+static int conn_session_update(struct connection *conn)
+{
+	if (conn->flags & CO_FL_ERROR) {
+		kill_mini_session(conn->owner);
+		return -1;
+	}
+	return 0;
 }
 
 /* Manages embryonic sessions timeout. It is only called when the timeout
