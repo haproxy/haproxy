@@ -66,38 +66,51 @@ struct task;
  * The POL flags are only for the socket layer since they indicate that EAGAIN
  * was encountered. Thus, the DATA layer uses its own ENA flag and the socket
  * layer's POL flag.
+ *
+ * The bits are arranged so that it is possible to detect a change by performing
+ * only a left shift followed by a xor and applying a mask to the result. The
+ * principle is that depending on what we want to check (data polling changes or
+ * sock polling changes), we mask different bits. The bits are arranged this way :
+ *
+ *    S(ock) - W(ait) - C(urr) - P(oll) - D(ata)
+ *
+ * SOCK changes are reported when (S != C) || (W != P) => (S:W) != (C:P)
+ * DATA changes are reported when (D != C) || (W != P) => (W:C) != (P:D)
+ * The R and W bits are split apart so that we never shift more than 2 bits at
+ * a time, allowing move+shift to be done as a single operation on x86.
  */
 
 /* flags for use in connection->flags */
 enum {
-	CO_FL_NONE          = 0x00000000,
-	CO_FL_ERROR         = 0x00000001,  /* a fatal error was reported     */
-	CO_FL_CONNECTED     = 0x00000002,  /* the connection is now established */
-	CO_FL_WAIT_L4_CONN  = 0x00000004,  /* waiting for L4 to be connected */
-	CO_FL_WAIT_L6_CONN  = 0x00000008,  /* waiting for L6 to be connected (eg: SSL) */
+	CO_FL_NONE          = 0x00000000,  /* Just for initialization purposes */
 
-	CO_FL_WAKE_DATA     = 0x00000010,  /* wake-up data layer upon activity at the transport layer */
+	/* Do not change these values without updating conn_*_poll_changes() ! */
+	CO_FL_DATA_RD_ENA   = 0x00000001,  /* receiving data is allowed */
+	CO_FL_CURR_RD_POL   = 0x00000002,  /* receiving needs to poll first */
+	CO_FL_CURR_RD_ENA   = 0x00000004,  /* receiving is currently allowed */
+	CO_FL_WAIT_RD       = 0x00000008,  /* receiving needs to poll first */
+	CO_FL_SOCK_RD_ENA   = 0x00000010,  /* receiving handshakes is allowed */
+	CO_FL_DATA_WR_ENA   = 0x00000020,  /* sending data is desired */
+	CO_FL_CURR_WR_POL   = 0x00000040,  /* sending needs to poll first */
+	CO_FL_CURR_WR_ENA   = 0x00000080,  /* sending is currently desired */
+	CO_FL_WAIT_WR       = 0x00000100,  /* sending needs to poll first */
+	CO_FL_SOCK_WR_ENA   = 0x00000200,  /* sending handshakes is desired */
 
-	/* flags below are used for connection handshakes */
-	CO_FL_SI_SEND_PROXY = 0x00000020,  /* send a valid PROXY protocol header */
-	CO_FL_SSL_WAIT_HS   = 0x00000040,  /* wait for an SSL handshake to complete */
-	CO_FL_ACCEPT_PROXY  = 0x00000080,  /* send a valid PROXY protocol header */
-
-	/* below we have all handshake flags grouped into one */
-	CO_FL_HANDSHAKE     = CO_FL_SI_SEND_PROXY | CO_FL_SSL_WAIT_HS | CO_FL_ACCEPT_PROXY,
-
-	CO_FL_INIT_DATA     = 0x00000800,  /* initialize the data layer before using it */
-
-	/* when any of these flags is set, polling is defined by socket-layer
-	 * operations, as opposed to data-layer. Transport is explicitly not
-	 * mentionned here to avoid any confusion, since it can be the same
-	 * as DATA or SOCK on some implementations.
+	/* These flags are used by data layers to indicate they had to stop
+	 * sending data because a buffer was empty (WAIT_DATA) or stop receiving
+	 * data because a buffer was full (WAIT_ROOM). The connection handler
+	 * clears them before first calling the I/O and data callbacks.
 	 */
-	CO_FL_POLL_SOCK     = CO_FL_HANDSHAKE | CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN,
+	CO_FL_WAIT_DATA     = 0x00000400,  /* data source is empty */
+	CO_FL_WAIT_ROOM     = 0x00000800,  /* data sink is full */
 
 	/* These flags are used to report whether the from/to addresses are set or not */
-	CO_FL_ADDR_FROM_SET = 0x00004000,  /* addr.from is set */
-	CO_FL_ADDR_TO_SET   = 0x00008000,  /* addr.to is set */
+	CO_FL_ADDR_FROM_SET = 0x00001000,  /* addr.from is set */
+	CO_FL_ADDR_TO_SET   = 0x00002000,  /* addr.to is set */
+
+	/* flags indicating what event type the data layer is interested in */
+	CO_FL_INIT_DATA     = 0x00004000,  /* initialize the data layer before using it */
+	CO_FL_WAKE_DATA     = 0x00008000,  /* wake-up data layer upon activity at the transport layer */
 
 	/* flags used to remember what shutdown have been performed/reported */
 	CO_FL_DATA_RD_SH    = 0x00010000,  /* DATA layer was notified about shutr/read0 */
@@ -105,41 +118,29 @@ enum {
 	CO_FL_SOCK_RD_SH    = 0x00040000,  /* SOCK layer was notified about shutr/read0 */
 	CO_FL_SOCK_WR_SH    = 0x00080000,  /* SOCK layer asked for shutw */
 
-	/* NOTE: do not change the values of any of the flags below, they're
-	 * used with masks and bit shifts to quickly detect multiple changes.
+	/* flags used to report connection status and errors */
+	CO_FL_ERROR         = 0x00100000,  /* a fatal error was reported     */
+	CO_FL_CONNECTED     = 0x00200000,  /* the connection is now established */
+	CO_FL_WAIT_L4_CONN  = 0x00400000,  /* waiting for L4 to be connected */
+	CO_FL_WAIT_L6_CONN  = 0x00800000,  /* waiting for L6 to be connected (eg: SSL) */
+
+	/*** All the flags below are used for connection handshakes. Any new
+	 * handshake should be added after this point, and CO_FL_HANDSHAKE
+	 * should be updated.
 	 */
+	CO_FL_SI_SEND_PROXY = 0x01000000,  /* send a valid PROXY protocol header */
+	CO_FL_SSL_WAIT_HS   = 0x02000000,  /* wait for an SSL handshake to complete */
+	CO_FL_ACCEPT_PROXY  = 0x04000000,  /* send a valid PROXY protocol header */
 
-	/* These flags are used by data layers to indicate to indicate they had
-	 * to stop sending data because a buffer was empty (WAIT_DATA) or stop
-	 * receiving data because a buffer was full (WAIT_ROOM). The connection
-	 * handler clears them before first calling the I/O and data callbacks.
+	/* below we have all handshake flags grouped into one */
+	CO_FL_HANDSHAKE     = CO_FL_SI_SEND_PROXY | CO_FL_SSL_WAIT_HS | CO_FL_ACCEPT_PROXY,
+
+	/* when any of these flags is set, polling is defined by socket-layer
+	 * operations, as opposed to data-layer. Transport is explicitly not
+	 * mentionned here to avoid any confusion, since it can be the same
+	 * as DATA or SOCK on some implementations.
 	 */
-	CO_FL_WAIT_DATA     = 0x00100000,  /* data source is empty */
-	CO_FL_WAIT_ROOM     = 0x00200000,  /* data sink is full */
-
-	/* These flags are used by both socket-level and data-level callbacks
-	 * to indicate that they had to stop receiving or sending because a
-	 * socket-level operation returned EAGAIN. While setting these flags
-	 * is not always absolutely mandatory (eg: when a reader estimates that
-	 * trying again soon without polling is OK), it is however forbidden to
-	 * set them without really attempting the I/O operation.
-	 */
-	CO_FL_WAIT_RD       = 0x00400000,  /* receiving needs to poll first */
-	CO_FL_WAIT_WR       = 0x00800000,  /* sending needs to poll first */
-
-	/* flags describing the DATA layer expectations regarding polling */
-	CO_FL_DATA_RD_ENA   = 0x01000000,  /* receiving is allowed */
-	CO_FL_DATA_WR_ENA   = 0x02000000,  /* sending is desired */
-
-	/* flags describing the SOCK layer expectations regarding polling */
-	CO_FL_SOCK_RD_ENA   = 0x04000000,  /* receiving is allowed */
-	CO_FL_SOCK_WR_ENA   = 0x08000000,  /* sending is desired */
-
-	/* flags storing the current polling state */
-	CO_FL_CURR_RD_ENA   = 0x10000000,  /* receiving is allowed */
-	CO_FL_CURR_WR_ENA   = 0x20000000,  /* sending is desired */
-	CO_FL_CURR_RD_POL   = 0x40000000,  /* receiving needs to poll first */
-	CO_FL_CURR_WR_POL   = 0x80000000,  /* sending needs to poll first */
+	CO_FL_POLL_SOCK     = CO_FL_HANDSHAKE | CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN,
 };
 
 /* target types */

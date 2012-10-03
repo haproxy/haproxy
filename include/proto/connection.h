@@ -72,9 +72,15 @@ void conn_update_data_polling(struct connection *c);
  */
 static inline unsigned int conn_data_polling_changes(const struct connection *c)
 {
-	return (((c->flags << 6) ^ (c->flags << 2)) |     /* changes in ENA go to bits 30&31 */
-		(((c->flags << 8) & ~c->flags))) &        /* new bits in POL go to bits 30&31 */
-		0xC0000000;
+	/* bits are equally aligned between CURR and DATA, so it's a simple shift
+	 * operation to get the changes from bits P:D into bits W:C. We want to
+	 * detect any change on the ENA flag and to POL flags only when they were
+	 * not set. It's the fastest way to check for such a change.
+	 */
+	unsigned int f = c->flags << 2;
+	return (c->flags ^ f) &
+		(CO_FL_WAIT_WR|CO_FL_CURR_WR_ENA|CO_FL_WAIT_RD|CO_FL_CURR_RD_ENA) &
+		~(f & (CO_FL_WAIT_WR|CO_FL_WAIT_RD));
 }
 
 /* inspects c->flags and returns non-zero if SOCK ENA changes from the CURR ENA
@@ -82,9 +88,15 @@ static inline unsigned int conn_data_polling_changes(const struct connection *c)
  */
 static inline unsigned int conn_sock_polling_changes(const struct connection *c)
 {
-	return (((c->flags << 4) ^ (c->flags << 2)) |     /* changes in ENA go to bits 30&31 */
-		(((c->flags << 8) & ~c->flags))) &        /* new bits in POL go to bits 30&31 */
-		0xC0000000;
+	/* bits are equally aligned between CURR and SOCK, so it's a simple shift
+	 * operation to get the changes from bits C:P into bits S:W. We want to
+	 * detect any change on the ENA flag and to POL flags only when they were
+	 * not set. It's the fastest way to check for such a change.
+	 */
+	unsigned int f = c->flags << 2;
+	return (c->flags ^ f) &
+		(CO_FL_WAIT_WR|CO_FL_SOCK_WR_ENA|CO_FL_WAIT_RD|CO_FL_SOCK_RD_ENA) &
+		~(f & (CO_FL_WAIT_WR|CO_FL_WAIT_RD));
 }
 
 /* Automatically updates polling on connection <c> depending on the DATA flags
