@@ -156,10 +156,13 @@ int raw_sock_to_pipe(struct connection *conn, struct pipe *pipe, unsigned int co
 		}
 	} /* while */
 
+	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN) && retval)
+		conn->flags &= ~CO_FL_WAIT_L4_CONN;
 	return retval;
 
  out_read0:
 	conn_sock_read0(conn);
+	conn->flags &= ~CO_FL_WAIT_L4_CONN;
 	return retval;
 }
 
@@ -190,6 +193,8 @@ int raw_sock_from_pipe(struct connection *conn, struct pipe *pipe)
 		done += ret;
 		pipe->data -= ret;
 	}
+	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN) && done)
+		conn->flags &= ~CO_FL_WAIT_L4_CONN;
 	return done;
 }
 
@@ -269,10 +274,14 @@ static int raw_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 			break;
 		}
 	}
+
+	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN) && done)
+		conn->flags &= ~CO_FL_WAIT_L4_CONN;
 	return done;
 
  read0:
 	conn_sock_read0(conn);
+	conn->flags &= ~CO_FL_WAIT_L4_CONN;
 	return done;
 }
 
@@ -330,6 +339,8 @@ static int raw_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 			break;
 		}
 	}
+	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN) && done)
+		conn->flags &= ~CO_FL_WAIT_L4_CONN;
 	return done;
 }
 

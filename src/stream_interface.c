@@ -721,9 +721,6 @@ static int si_conn_send_loop(struct connection *conn)
 		if (ret <= 0)
 			break;
 
-		if (si->conn.flags & CO_FL_WAIT_L4_CONN)
-			si->conn.flags &= ~CO_FL_WAIT_L4_CONN;
-
 		b->flags |= CF_WRITE_PARTIAL;
 
 		if (!b->buf.o) {
@@ -1048,9 +1045,6 @@ static void si_conn_recv_cb(struct connection *conn)
 			}
 			b_adv(&b->buf, fwd);
 		}
-
-		if (conn->flags & CO_FL_WAIT_L4_CONN)
-			conn->flags &= ~CO_FL_WAIT_L4_CONN;
 
 		b->flags |= CF_READ_PARTIAL;
 		b->total += ret;
