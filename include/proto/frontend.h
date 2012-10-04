@@ -26,7 +26,6 @@
 #include <types/session.h>
 
 int frontend_accept(struct session *s);
-int make_proxy_line(char *buf, int buf_len, struct sockaddr_storage *src, struct sockaddr_storage *dst);
 
 
 #endif /* _PROTO_FRONTEND_H */
