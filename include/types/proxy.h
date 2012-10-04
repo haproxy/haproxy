@@ -354,7 +354,7 @@ struct proxy {
 	char *logformat_string;			/* log format string */
 	char *uniqueid_format_string;		/* unique-id format string */
 	struct {
-		const char *file;		/* file where the section appears */
+		char *file;			/* file where the section appears */
 		int line;			/* line where the section appears */
 		struct eb32_node id;		/* place in the tree of used IDs */
 		struct eb_root used_listener_id;/* list of listener IDs in use */

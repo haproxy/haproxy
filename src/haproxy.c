@@ -852,6 +852,7 @@ void deinit(void)
 
 	deinit_signals();
 	while (p) {
+		free(p->conf.file);
 		free(p->id);
 		free(p->check_req);
 		free(p->cookie_name);

@@ -1242,7 +1242,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 
 		curpeers->next = peers;
 		peers = curpeers;
-		curpeers->conf.file = file;
+		curpeers->conf.file = strdup(file);
 		curpeers->conf.line = linenum;
 		curpeers->last_change = now.tv_sec;
 		curpeers->id = strdup(args[1]);
@@ -1279,7 +1279,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		newpeer->next = curpeers->remote;
 		curpeers->remote = newpeer;
 		newpeer->peers = curpeers;
-		newpeer->conf.file = file;
+		newpeer->conf.file = strdup(file);
 		newpeer->conf.line = linenum;
 
 		newpeer->last_change = now.tv_sec;
@@ -1451,7 +1451,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		init_new_proxy(curproxy);
 		curproxy->next = proxy;
 		proxy = curproxy;
-		curproxy->conf.file = file;
+		curproxy->conf.file = strdup(file);
 		curproxy->conf.line = linenum;
 		curproxy->last_change = now.tv_sec;
 		curproxy->id = strdup(args[1]);
@@ -3913,7 +3913,7 @@ stats_error_parsing:
 			newsrv->next = curproxy->srv;
 			curproxy->srv = newsrv;
 			newsrv->proxy = curproxy;
-			newsrv->conf.file = file;
+			newsrv->conf.file = strdup(file);
 			newsrv->conf.line = linenum;
 
 			LIST_INIT(&newsrv->actconns);
