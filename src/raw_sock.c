@@ -70,7 +70,7 @@ int raw_sock_to_pipe(struct connection *conn, struct pipe *pipe, unsigned int co
 	 * Since older splice() implementations were buggy and returned
 	 * EAGAIN on end of read, let's bypass the call to splice() now.
 	 */
-	if ((fdtab[conn->t.sock.fd].ev & (FD_POLL_IN|FD_POLL_HUP)) == FD_POLL_HUP)
+	if ((fdtab[conn->t.sock.fd].ev & (FD_POLL_IN|FD_POLL_ERR|FD_POLL_HUP)) == FD_POLL_HUP)
 		goto out_read0;
 
 	while (count) {
@@ -202,7 +202,7 @@ static int raw_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 	int try = count;
 
 	/* stop here if we reached the end of data */
-	if ((fdtab[conn->t.sock.fd].ev & (FD_POLL_IN|FD_POLL_HUP)) == FD_POLL_HUP)
+	if ((fdtab[conn->t.sock.fd].ev & (FD_POLL_IN|FD_POLL_ERR|FD_POLL_HUP)) == FD_POLL_HUP)
 		goto read0;
 
 	/* compute the maximum block size we can read at once. */
