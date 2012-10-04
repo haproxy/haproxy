@@ -70,8 +70,17 @@ int raw_sock_to_pipe(struct connection *conn, struct pipe *pipe, unsigned int co
 	 * Since older splice() implementations were buggy and returned
 	 * EAGAIN on end of read, let's bypass the call to splice() now.
 	 */
-	if ((fdtab[conn->t.sock.fd].ev & (FD_POLL_IN|FD_POLL_ERR|FD_POLL_HUP)) == FD_POLL_HUP)
-		goto out_read0;
+	if (unlikely(!(fdtab[conn->t.sock.fd].ev & FD_POLL_IN))) {
+		/* stop here if we reached the end of data */
+		if ((fdtab[conn->t.sock.fd].ev & (FD_POLL_ERR|FD_POLL_HUP)) == FD_POLL_HUP)
+			goto out_read0;
+
+		/* report error on POLL_ERR before connection establishment */
+		if ((fdtab[conn->t.sock.fd].ev & FD_POLL_ERR) && (conn->flags & CO_FL_WAIT_L4_CONN)) {
+			conn->flags |= CO_FL_ERROR;
+			return retval;
+		}
+	}
 
 	while (count) {
 		if (count > MAX_SPLICE_AT_ONCE)
@@ -201,9 +210,17 @@ static int raw_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 	int ret, done = 0;
 	int try = count;
 
-	/* stop here if we reached the end of data */
-	if ((fdtab[conn->t.sock.fd].ev & (FD_POLL_IN|FD_POLL_ERR|FD_POLL_HUP)) == FD_POLL_HUP)
-		goto read0;
+	if (unlikely(!(fdtab[conn->t.sock.fd].ev & FD_POLL_IN))) {
+		/* stop here if we reached the end of data */
+		if ((fdtab[conn->t.sock.fd].ev & (FD_POLL_ERR|FD_POLL_HUP)) == FD_POLL_HUP)
+			goto read0;
+
+		/* report error on POLL_ERR before connection establishment */
+		if ((fdtab[conn->t.sock.fd].ev & FD_POLL_ERR) && (conn->flags & CO_FL_WAIT_L4_CONN)) {
+			conn->flags |= CO_FL_ERROR;
+			return done;
+		}
+	}
 
 	/* compute the maximum block size we can read at once. */
 	if (buffer_empty(buf)) {
