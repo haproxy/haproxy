@@ -477,7 +477,8 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 		SSL_OP_NO_COMPRESSION |
 		SSL_OP_SINGLE_DH_USE |
 		SSL_OP_SINGLE_ECDH_USE |
-		SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION;
+		SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION |
+		SSL_OP_CIPHER_SERVER_PREFERENCE;
 	int sslmode =
 		SSL_MODE_ENABLE_PARTIAL_WRITE |
 		SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
@@ -493,8 +494,6 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 		ssloptions |= SSL_OP_NO_TLSv1_2;
 	if (bind_conf->no_tls_tickets)
 		ssloptions |= SSL_OP_NO_TICKET;
-	if (bind_conf->prefer_server_ciphers)
-		ssloptions |= SSL_OP_CIPHER_SERVER_PREFERENCE;
 
 	SSL_CTX_set_options(ctx, ssloptions);
 	SSL_CTX_set_mode(ctx, sslmode);
@@ -1249,13 +1248,6 @@ static int bind_parse_notlsv12(char **args, int cur_arg, struct proxy *px, struc
 	return 0;
 }
 
-/* parse the "prefer-server-ciphers" bind keyword */
-static int bind_parse_psc(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
-{
-	conf->prefer_server_ciphers = 1;
-	return 0;
-}
-
 /* parse the "ssl" bind keyword */
 static int bind_parse_ssl(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -1345,7 +1337,6 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
 	{ "notlsv10",              bind_parse_notlsv10,       0 }, /* disable TLSv10 */
 	{ "notlsv11",              bind_parse_notlsv11,       0 }, /* disable TLSv11 */
 	{ "notlsv12",              bind_parse_notlsv12,       0 }, /* disable TLSv12 */
-	{ "prefer-server-ciphers", bind_parse_psc,            0 }, /* prefer server ciphers */
 	{ "ssl",                   bind_parse_ssl,            0 }, /* enable SSL processing */
 	{ "verify",                bind_parse_verify,         1 }, /* set SSL verify method */
 	{ NULL, NULL, 0 },

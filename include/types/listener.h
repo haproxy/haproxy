@@ -108,7 +108,6 @@ struct bind_conf {
 	int notlsv10;              /* disable TLSv1.0 */
 	int notlsv11;              /* disable TLSv1.1 */
 	int notlsv12;              /* disable TLSv1.2 */
-	int prefer_server_ciphers; /* Prefer server ciphers */
 	int verify;                /* verify method (set of SSL_VERIFY_* flags) */
 	SSL_CTX *default_ctx;      /* SSL context of first/default certificate */
 	struct eb_root sni_ctx;    /* sni_ctx tree of all known certs full-names sorted by name */
