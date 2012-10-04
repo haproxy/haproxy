@@ -5690,7 +5690,7 @@ int check_config_validity()
 		struct listener *listener;
 		unsigned int next_id;
 
-		if (!curproxy->uuid) {
+		if (curproxy->uuid < 0) {
 			/* proxy ID not set, use automatic numbering with first
 			 * spare entry starting with next_pxid.
 			 */
@@ -6512,7 +6512,8 @@ out_uri_auth_compat:
 		}
 
 		if (curproxy->cap & PR_CAP_FE) {
-			curproxy->accept = frontend_accept;
+			if (!curproxy->accept)
+				curproxy->accept = frontend_accept;
 
 			if (curproxy->tcp_req.inspect_delay ||
 			    !LIST_ISEMPTY(&curproxy->tcp_req.inspect_rules))

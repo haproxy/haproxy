@@ -160,7 +160,8 @@ static struct proxy *alloc_stats_fe(const char *name, const char *file, int line
 		return NULL;
 
 	init_new_proxy(fe);
-
+	fe->next = proxy;
+	proxy = fe;
 	fe->last_change = now.tv_sec;
 	fe->id = strdup("GLOBAL");
 	fe->cap = PR_CAP_FE;
@@ -169,6 +170,10 @@ static struct proxy *alloc_stats_fe(const char *name, const char *file, int line
 	fe->conf.file = strdup(file);
 	fe->conf.line = line;
 	fe->accept = stats_accept;
+
+	/* the stats frontend is the only one able to assign ID #0 */
+	fe->conf.id.key = fe->uuid = 0;
+	eb32_insert(&used_proxy_id, &fe->conf.id);
 	return fe;
 }
 
@@ -1709,8 +1714,8 @@ static int stats_dump_raw_to_buffer(struct stream_interface *si)
 		if (si->applet.ctx.stats.flags & STAT_SHOW_STAT) {
 			while (si->applet.ctx.stats.px) {
 				px = si->applet.ctx.stats.px;
-				/* skip the disabled proxies and non-networked ones */
-				if (px->state != PR_STSTOPPED &&
+				/* skip the disabled proxies, global frontend and non-networked ones */
+				if (px->state != PR_STSTOPPED && px->uuid > 0 &&
 				    (px->cap & (PR_CAP_FE | PR_CAP_BE))) {
 					if (stats_dump_proxy(si, px, NULL) == 0)
 						return 0;
@@ -2176,8 +2181,8 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 			if (buffer_almost_full(&rep->buf))
 				return 0;
 			px = si->applet.ctx.stats.px;
-			/* skip the disabled proxies and non-networked ones */
-			if (px->state != PR_STSTOPPED && (px->cap & (PR_CAP_FE | PR_CAP_BE)))
+			/* skip the disabled proxies, global frontend and non-networked ones */
+			if (px->state != PR_STSTOPPED && px->uuid > 0 && (px->cap & (PR_CAP_FE | PR_CAP_BE)))
 				if (stats_dump_proxy(si, px, uri) == 0)
 					return 0;
 

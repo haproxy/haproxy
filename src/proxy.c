@@ -96,17 +96,17 @@ int get_backend_server(const char *bk_name, const char *sv_name,
 
 	*sv = NULL;
 
-	pid = 0;
+	pid = -1;
 	if (*bk_name == '#')
 		pid = atoi(bk_name + 1);
-	sid = 0;
+	sid = -1;
 	if (*sv_name == '#')
 		sid = atoi(sv_name + 1);
 
 	for (p = proxy; p; p = p->next)
 		if ((p->cap & PR_CAP_BE) &&
-		    ((pid && p->uuid == pid) ||
-		     (!pid && strcmp(p->id, bk_name) == 0)))
+		    ((pid >= 0 && p->uuid == pid) ||
+		     (pid < 0 && strcmp(p->id, bk_name) == 0)))
 			break;
 	if (bk)
 		*bk = p;
@@ -320,15 +320,15 @@ struct proxy *findproxy_mode(const char *name, int mode, int cap) {
 struct proxy *findproxy(const char *name, int cap) {
 
 	struct proxy *curproxy, *target = NULL;
-	int pid = 0;
+	int pid = -1;
 
 	if (*name == '#')
 		pid = atoi(name + 1);
 
 	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
 		if ((curproxy->cap & cap) != cap ||
-		    (pid && curproxy->uuid != pid) ||
-		    (!pid && strcmp(curproxy->id, name)))
+		    (pid >= 0 && curproxy->uuid != pid) ||
+		    (pid < 0 && strcmp(curproxy->id, name)))
 			continue;
 
 		if (!target) {
@@ -451,6 +451,9 @@ void init_new_proxy(struct proxy *p)
 	/* Timeouts are defined as -1 */
 	proxy_reset_timeouts(p);
 	p->tcp_rep.inspect_delay = TICK_ETERNITY;
+
+	/* initial uuid is unassigned (-1) */
+	p->uuid = -1;
 }
 
 /*
