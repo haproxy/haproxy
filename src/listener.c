@@ -77,14 +77,16 @@ int pause_listener(struct listener *l)
 	if (l->state <= LI_PAUSED)
 		return 1;
 
-	if (shutdown(l->fd, SHUT_WR) != 0)
-		return 0; /* Solaris dies here */
+	if (l->proto->sock_prot == IPPROTO_TCP) {
+		if (shutdown(l->fd, SHUT_WR) != 0)
+			return 0; /* Solaris dies here */
 
-	if (listen(l->fd, l->backlog ? l->backlog : l->maxconn) != 0)
-		return 0; /* OpenBSD dies here */
+		if (listen(l->fd, l->backlog ? l->backlog : l->maxconn) != 0)
+			return 0; /* OpenBSD dies here */
 
-	if (shutdown(l->fd, SHUT_RD) != 0)
-		return 0; /* should always be OK */
+		if (shutdown(l->fd, SHUT_RD) != 0)
+			return 0; /* should always be OK */
+	}
 
 	if (l->state == LI_LIMITED)
 		LIST_DEL(&l->wait_queue);
@@ -104,7 +106,8 @@ int resume_listener(struct listener *l)
 	if (l->state < LI_PAUSED)
 		return 0;
 
-	if (l->state == LI_PAUSED &&
+	if (l->proto->sock_prot == IPPROTO_TCP &&
+	    l->state == LI_PAUSED &&
 	    listen(l->fd, l->backlog ? l->backlog : l->maxconn) != 0)
 		return 0;
 
