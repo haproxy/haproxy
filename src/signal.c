@@ -144,7 +144,7 @@ struct sig_handler *signal_register_fct(int sig, void (*fct)(struct sig_handler 
 		return NULL;
 
 	if (sig)
-		signal(sig, signal_handler);
+		signal(sig, fct ? signal_handler : SIG_IGN);
 
 	if (!fct)
 		return NULL;
