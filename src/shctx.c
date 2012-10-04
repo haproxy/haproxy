@@ -67,7 +67,7 @@ static void (*shared_session_new_cbk)(unsigned char *session, unsigned int sessi
 
 #else
 #ifdef USE_SYSCALL_FUTEX
-#if defined (__i586__) || defined (__x86_64__)
+#if defined (__i486__) || defined (__i586__) || defined (__i686__) || defined (__x86_64__)
 static inline unsigned int xchg(unsigned int *ptr, unsigned int x)
 {
 	__asm volatile("lock xchgl %0,%1"
