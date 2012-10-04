@@ -68,6 +68,20 @@ void conn_update_sock_polling(struct connection *c);
  */
 void conn_update_data_polling(struct connection *c);
 
+/* This callback is used to send a valid PROXY protocol line to a socket being
+ * established from the local machine. It sets the protocol addresses to the
+ * local and remote address. This is typically used with health checks or when
+ * it is not possible to determine the other end's address. It returns 0 if it
+ * fails in a fatal way or needs to poll to go further, otherwise it returns
+ * non-zero and removes itself from the connection's flags (the bit is provided
+ * in <flag> by the caller). It is designed to be called by the connection
+ * handler and relies on it to commit polling changes. Note that this function
+ * expects to be able to send the whole line at once, which should always be
+ * possible since it is supposed to start at the first byte of the outgoing
+ * data segment.
+ */
+int conn_local_send_proxy(struct connection *conn, unsigned int flag);
+
 /* inspects c->flags and returns non-zero if DATA ENA changes from the CURR ENA
  * or if the WAIT flags set new flags that were not in CURR POL. Additionally,
  * non-zero is also returned if an error was reported on the connection. This
