@@ -3984,7 +3984,11 @@ option ssl-hello-chk
   and most servers tested do not even log the requests containing only hello
   messages, which is appreciable.
 
-  See also: "option httpchk"
+  Note that this check works even when SSL support was not built into haproxy
+  because it forges the SSL message. When SSL support is available, it is best
+  to use native SSL health checks instead of this one.
+
+  See also: "option httpchk", "check-ssl"
 
 
 option tcp-smart-accept
@@ -7020,6 +7024,19 @@ check
 
   Supported in default-server: No
 
+check-ssl
+  This option forces encryption of all health checks over SSL, regardless of
+  whether the server uses SSL or not for the normal traffic. This is generally
+  used when an explicit "port" or "addr" directive is specified and SSL health
+  checks are not inherited. It is important to understand that this option
+  inserts an SSL transport layer below the ckecks, so that a simple TCP connect
+  check becomes an SSL connect, which replaces the old ssl-hello-chk. The most
+  common use is to send HTTPS checks by combining "httpchk" with SSL checks.
+  All SSL settings are common to health checks and traffic (eg: ciphers).
+  See the "ssl" option for more information.
+
+  Supported in default-server: No
+
 ciphers <ciphers>
   This option sets the string describing the list of cipher algorithms that is
   is negociated during the SSL/TLS handshake with the server. The format of the
@@ -7029,6 +7046,8 @@ ciphers <ciphers>
   server and haproxy while still keeping it compatible with deployed software.
   Some algorithms such as RC4-SHA1 are reasonably cheap. If no security at all
   is needed and just connectivity, using DES can be appropriate.
+
+  Supported in default-server: No
 
 cookie <value>
   The "cookie" parameter sets the cookie value assigned to the server to
@@ -7144,11 +7163,15 @@ nosslv3
   the server. Note that SSLv2 is disabled in the code and cannot be enabled
   using any configuration option.
 
+  Supported in default-server: No
+
 notlsv10
   This option disables support for TLSv10 when SSL is used to communicate with
   the server. Note that SSLv2 is disabled in the code and cannot be enabled
   using any configuration option. TLSv1 is more expensive than SSLv3 so it
   often makes sense to disable it when communicating with local servers.
+
+  Supported in default-server: No
 
 notlsv11
   This option disables support for TLSv11 when SSL is used to communicate with
@@ -7156,16 +7179,22 @@ notlsv11
   using any configuration option. TLSv1 is more expensive than SSLv3 so it
   often makes sense to disable it when communicating with local servers.
 
+  Supported in default-server: No
+
 notlsv12
   This option disables support for TLSv12 when SSL is used to communicate with
   the server. Note that SSLv2 is disabled in the code and cannot be enabled
   using any configuration option. TLSv1 is more expensive than SSLv3 so it
   often makes sense to disable it when communicating with local servers.
 
+  Supported in default-server: No
+
 non-stick
   Never add connections allocated to this sever to a stick-table.
   This may be used in conjunction with backup to ensure that
   stick-table persistence is disabled for backup servers.
+
+  Supported in default-server: No
 
 observe <mode>
   This option enables health adjusting based on observing communication with
@@ -7318,11 +7347,16 @@ source <addr>[:<pl>[-<ph>]] [interface <name>] ...
   Supported in default-server: No
 
 ssl
-   This option enables SSL ciphering on outgoing connections to the server. At
-   the moment, server certificates are not checked, so this is prone to man in
-   the middle attacks. The real intended use is to permit SSL communication
-   with software which cannot work in other modes over networks that would
-   otherwise be considered safe enough for clear text communications.
+  This option enables SSL ciphering on outgoing connections to the server. At
+  the moment, server certificates are not checked, so this is prone to man in
+  the middle attacks. The real intended use is to permit SSL communication
+  with software which cannot work in other modes over networks that would
+  otherwise be considered safe enough for clear text communications. When this
+  option is used, health checks are automatically sent in SSL too unless there
+  is a "port" or an "addr" directive indicating the check should be sent to a
+  different location. See the "check-ssl" optino to force SSL health checks.
+
+  Supported in default-server: No
 
 track [<proxy>/]<server>
   This option enables ability to set the current state of the server by

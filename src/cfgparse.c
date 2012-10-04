@@ -4222,6 +4222,17 @@ stats_error_parsing:
 				goto out;
 #endif /* USE_OPENSSL */
 			}
+			else if (!strcmp(args[cur_arg], "check-ssl")) {
+#ifdef USE_OPENSSL
+				newsrv->check.use_ssl = 1;
+				cur_arg += 1;
+#else /* USE_OPENSSL */
+				Alert("parsing [%s:%d]: '%s' option not implemented.\n",
+				      file, linenum, args[cur_arg]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+#endif /* USE_OPENSSL */
+			}
 			else if (!strcmp(args[cur_arg], "ciphers")) { /* use this SSL cipher suite */
 #ifdef USE_OPENSSL
 				if (!*args[cur_arg + 1]) {
