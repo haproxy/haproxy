@@ -139,11 +139,19 @@ int conn_fd_handler(int fd)
  * state as reported in the connection's CO_FL_CURR_* flags, reports of EAGAIN
  * in CO_FL_WAIT_*, and the data layer expectations indicated by CO_FL_DATA_*.
  * The connection flags are updated with the new flags at the end of the
- * operation.
+ * operation. Polling is totally disabled if an error was reported.
  */
 void conn_update_data_polling(struct connection *c)
 {
 	unsigned int f = c->flags;
+
+	if (unlikely(f & CO_FL_ERROR)) {
+		c->flags &= ~(CO_FL_CURR_RD_ENA | CO_FL_CURR_WR_ENA |
+		              CO_FL_SOCK_RD_ENA | CO_FL_SOCK_WR_ENA |
+		              CO_FL_DATA_RD_ENA | CO_FL_DATA_WR_ENA);
+		fd_stop_both(c->t.sock.fd);
+		return;
+	}
 
 	/* update read status if needed */
 	if (unlikely((f & (CO_FL_CURR_RD_ENA|CO_FL_DATA_RD_ENA)) == CO_FL_CURR_RD_ENA)) {
@@ -181,11 +189,19 @@ void conn_update_data_polling(struct connection *c)
  * state as reported in the connection's CO_FL_CURR_* flags, reports of EAGAIN
  * in CO_FL_WAIT_*, and the sock layer expectations indicated by CO_FL_SOCK_*.
  * The connection flags are updated with the new flags at the end of the
- * operation.
+ * operation. Polling is totally disabled if an error was reported.
  */
 void conn_update_sock_polling(struct connection *c)
 {
 	unsigned int f = c->flags;
+
+	if (unlikely(f & CO_FL_ERROR)) {
+		c->flags &= ~(CO_FL_CURR_RD_ENA | CO_FL_CURR_WR_ENA |
+		              CO_FL_SOCK_RD_ENA | CO_FL_SOCK_WR_ENA |
+		              CO_FL_DATA_RD_ENA | CO_FL_DATA_WR_ENA);
+		fd_stop_both(c->t.sock.fd);
+		return;
+	}
 
 	/* update read status if needed */
 	if (unlikely((f & (CO_FL_CURR_RD_ENA|CO_FL_SOCK_RD_ENA)) == CO_FL_CURR_RD_ENA)) {
