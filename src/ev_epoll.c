@@ -182,11 +182,15 @@ REGPRM2 static void __fd_clr(const int fd, int dir)
 REGPRM1 static void __fd_rem(int fd)
 {
 	uint32_t ofs = FD2OFS(fd);
+	uint32_t old_evt;
 
-	if (unlikely(!((fd_evts[ofs] >> FD2BIT(fd)) & 3)))
+	old_evt = fd_evts[ofs] >> FD2BIT(fd);
+	old_evt &= 3;
+
+	if (unlikely(!old_evt))
 		return;
 
-	alloc_chg_list(fd, 0);
+	alloc_chg_list(fd, old_evt);
 	fd_evts[ofs] &= ~FD2MSK(fd);
 }
 
