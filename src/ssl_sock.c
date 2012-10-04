@@ -747,6 +747,12 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 	return 1;
 
  out_error:
+	/* free resumed session if exists */
+	if (target_srv(&conn->target) && target_srv(&conn->target)->ssl_ctx.reused_sess) {
+		SSL_SESSION_free(target_srv(&conn->target)->ssl_ctx.reused_sess);
+		target_srv(&conn->target)->ssl_ctx.reused_sess = NULL;
+	}
+
 	/* Fail on all other handshake errors */
 	conn->flags |= CO_FL_ERROR;
 	conn->flags &= ~flag;
