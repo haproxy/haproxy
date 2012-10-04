@@ -4145,6 +4145,10 @@ stats_error_parsing:
 				newsrv->state |= SRV_SEND_PROXY;
 				cur_arg ++;
 			}
+			else if (!defsrv && !strcmp(args[cur_arg], "check-send-proxy")) {
+				newsrv->check.send_proxy = 1;
+				cur_arg ++;
+			}
 			else if (!strcmp(args[cur_arg], "weight")) {
 				int w;
 				w = atol(args[cur_arg + 1]);
@@ -4566,8 +4570,10 @@ stats_error_parsing:
 			 * same as for the production traffic. Otherwise we use raw_sock by
 			 * default, unless one is specified.
 			 */
-			if (!newsrv->check.port && !is_addr(&newsrv->check.addr))
+			if (!newsrv->check.port && !is_addr(&newsrv->check.addr)) {
 				newsrv->check.use_ssl |= newsrv->use_ssl;
+				newsrv->check.send_proxy |= (newsrv->state & SRV_SEND_PROXY);
+			}
 
 			/* try to get the port from check.addr if check.port not set */
 			if (!newsrv->check.port)

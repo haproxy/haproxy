@@ -1331,6 +1331,8 @@ static struct task *process_chk(struct task *t)
 		 */
 		ret = s->check.proto->connect(conn, 1);
 		conn->flags |= CO_FL_WAKE_DATA;
+		if (s->check.send_proxy)
+			conn->flags |= CO_FL_LOCAL_SPROXY;
 
 		switch (ret) {
 		case SN_ERR_NONE:

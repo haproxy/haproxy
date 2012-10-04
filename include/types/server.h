@@ -169,6 +169,7 @@ struct server {
 		short status, code;             /* check result, check code */
 		char desc[HCHK_DESC_LEN];       /* health check descritpion */
 		int use_ssl;                    /* use SSL for health checks */
+		int send_proxy;                 /* send a PROXY protocol header with checks */
 	} check;
 
 #ifdef USE_OPENSSL
