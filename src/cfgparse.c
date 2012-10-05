@@ -4138,6 +4138,64 @@ stats_error_parsing:
 				newsrv->fastinter = val;
 				cur_arg += 2;
 			}
+			else if (!strcmp(args[cur_arg], "force-sslv3")) {
+#ifdef USE_OPENSSL
+				newsrv->ssl_ctx.options |= SRV_SSL_O_USE_SSLV3;
+				cur_arg += 1;
+#else /* USE_OPENSSL */
+				Alert("parsing [%s:%d]: '%s' option not implemented.\n",
+				      file, linenum, args[cur_arg]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+#endif /* USE_OPENSSL */
+			}
+			else if (!strcmp(args[cur_arg], "force-tlsv10")) {
+#ifdef USE_OPENSSL
+				newsrv->ssl_ctx.options |= SRV_SSL_O_USE_TLSV10;
+				cur_arg += 1;
+#else /* USE_OPENSSL */
+				Alert("parsing [%s:%d]: '%s' option not implemented.\n",
+				      file, linenum, args[cur_arg]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+#endif /* USE_OPENSSL */
+			}
+			else if (!strcmp(args[cur_arg], "force-tlsv11")) {
+#ifdef USE_OPENSSL
+#if SSL_OP_NO_TLSv1_1
+				newsrv->ssl_ctx.options |= SRV_SSL_O_USE_TLSV11;
+				cur_arg += 1;
+#else
+				Alert("parsing [%s:%d]: '%s' library does not support protocol TLSv1.1.\n",
+                                      file, linenum, args[cur_arg]);
+                                err_code |= ERR_ALERT | ERR_FATAL;
+                                goto out;
+#endif
+#else /* USE_OPENSSL */
+				Alert("parsing [%s:%d]: '%s' option not implemented.\n",
+				      file, linenum, args[cur_arg]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+#endif /* USE_OPENSSL */
+			}
+			else if (!strcmp(args[cur_arg], "force-tlsv12")) {
+#ifdef USE_OPENSSL
+#if SSL_OP_NO_TLSv1_2
+				newsrv->ssl_ctx.options |= SRV_SSL_O_USE_TLSV12;
+				cur_arg += 1;
+#else
+				Alert("parsing [%s:%d]: '%s' library does not support protocol TLSv1.2.\n",
+                                      file, linenum, args[cur_arg]);
+                                err_code |= ERR_ALERT | ERR_FATAL;
+                                goto out;
+#endif
+#else /* USE_OPENSSL */
+				Alert("parsing [%s:%d]: '%s' option not implemented.\n",
+				      file, linenum, args[cur_arg]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+#endif /* USE_OPENSSL */
+			}
 			else if (!strcmp(args[cur_arg], "downinter")) {
 				const char *err = parse_time_err(args[cur_arg + 1], &val, TIME_UNIT_MS);
 				if (err) {
@@ -6368,6 +6426,19 @@ out_uri_auth_compat:
 					ssloptions |= SSL_OP_NO_TLSv1_1;
 				if (newsrv->ssl_ctx.options & SRV_SSL_O_NO_TLSV12)
 					ssloptions |= SSL_OP_NO_TLSv1_2;
+				if (newsrv->ssl_ctx.options & SRV_SSL_O_USE_SSLV3)
+					SSL_CTX_set_ssl_version(newsrv->ssl_ctx.ctx, SSLv3_client_method());
+				if (newsrv->ssl_ctx.options & SRV_SSL_O_USE_TLSV10)
+					SSL_CTX_set_ssl_version(newsrv->ssl_ctx.ctx, TLSv1_client_method());
+#if SSL_OP_NO_TLSv1_1
+				if (newsrv->ssl_ctx.options & SRV_SSL_O_USE_TLSV11)
+					SSL_CTX_set_ssl_version(newsrv->ssl_ctx.ctx, TLSv1_1_client_method());
+#endif
+#if SSL_OP_NO_TLSv1_2
+				if (newsrv->ssl_ctx.options & SRV_SSL_O_USE_TLSV12)
+					SSL_CTX_set_ssl_version(newsrv->ssl_ctx.ctx, TLSv1_2_client_method());
+#endif
+
 				SSL_CTX_set_options(newsrv->ssl_ctx.ctx, ssloptions);
 				SSL_CTX_set_mode(newsrv->ssl_ctx.ctx, sslmode);
 				SSL_CTX_set_verify(newsrv->ssl_ctx.ctx, SSL_VERIFY_NONE, NULL);

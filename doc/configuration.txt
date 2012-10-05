@@ -7140,6 +7140,31 @@ fall <count>
 
   Supported in default-server: Yes
 
+force-sslv3
+  This option enforces use of SSLv3 only when SSL is used to communicate with
+  the server. SSLv3 is generally less expensive than the TLS counterparts for
+  high connection rates. See also "no-tlsv*", "no-sslv3".
+
+  Supported in default-server: No
+
+force-tlsv10
+  This option enforces use of TLSv1.0 only when SSL is used to communicate with
+  the server. See also "no-tlsv*", "no-sslv3".
+
+  Supported in default-server: No
+
+force-tlsv11
+  This option enforces use of TLSv1.1 only when SSL is used to communicate with
+  the server. See also "no-tlsv*", "no-sslv3".
+
+  Supported in default-server: No
+
+force-tlsv12
+  This option enforces use of TLSv1.2 only when SSL is used to communicate with
+  the server. See also "no-tlsv*", "no-sslv3".
+
+  Supported in default-server: No
+
 id <value>
   Set a persistent ID for the server. This ID must be positive and unique for
   the proxy. An unused ID will automatically be assigned if unset. The first
@@ -7216,31 +7241,34 @@ minconn <minconn>
 no-sslv3
   This option disables support for SSLv3 when SSL is used to communicate with
   the server. Note that SSLv2 is disabled in the code and cannot be enabled
-  using any configuration option.
+  using any configuration option. See also "force-sslv3", "force-tlsv*".
 
   Supported in default-server: No
 
 no-tlsv10
-  This option disables support for TLSv10 when SSL is used to communicate with
+  This option disables support for TLSv1.0 when SSL is used to communicate with
   the server. Note that SSLv2 is disabled in the code and cannot be enabled
   using any configuration option. TLSv1 is more expensive than SSLv3 so it
-  often makes sense to disable it when communicating with local servers.
+  often makes sense to disable it when communicating with local servers. See
+  also "force-sslv3", "force-tlsv*".
 
   Supported in default-server: No
 
 no-tlsv11
-  This option disables support for TLSv11 when SSL is used to communicate with
+  This option disables support for TLSv1.1 when SSL is used to communicate with
   the server. Note that SSLv2 is disabled in the code and cannot be enabled
   using any configuration option. TLSv1 is more expensive than SSLv3 so it
-  often makes sense to disable it when communicating with local servers.
+  often makes sense to disable it when communicating with local servers. See
+  also "force-sslv3", "force-tlsv*".
 
   Supported in default-server: No
 
 no-tlsv12
-  This option disables support for TLSv12 when SSL is used to communicate with
+  This option disables support for TLSv1.2 when SSL is used to communicate with
   the server. Note that SSLv2 is disabled in the code and cannot be enabled
   using any configuration option. TLSv1 is more expensive than SSLv3 so it
-  often makes sense to disable it when communicating with local servers.
+  often makes sense to disable it when communicating with local servers. See
+  also "force-sslv3", "force-tlsv*".
 
   Supported in default-server: No
 

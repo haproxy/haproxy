@@ -87,6 +87,11 @@
 #define SRV_SSL_O_NO_TLSV11    0x0004 /* disable TLSv1.1 */
 #define SRV_SSL_O_NO_TLSV12    0x0008 /* disable TLSv1.2 */
 /* 0x000F reserved for 'no' protocol version options */
+#define SRV_SSL_O_USE_SSLV3    0x0001 /* force SSLv3 */
+#define SRV_SSL_O_USE_TLSV10   0x0002 /* force TLSv1.0 */
+#define SRV_SSL_O_USE_TLSV11   0x0004 /* force TLSv1.1 */
+#define SRV_SSL_O_USE_TLSV12   0x0008 /* force TLSv1.2 */
+/* 0x00F0 reserved for 'force' protocol version options */
 #endif
 
 /* A tree occurrence is a descriptor of a place in a tree, with a pointer back
