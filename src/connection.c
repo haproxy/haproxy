@@ -86,19 +86,19 @@ int conn_fd_handler(int fd)
 	/* The data transfer starts here and stops on error and handshakes */
 	if ((fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR)) &&
 	    !(conn->flags & (CO_FL_WAIT_RD|CO_FL_WAIT_ROOM|CO_FL_ERROR|CO_FL_HANDSHAKE))) {
-		/* force detection of a flag change : if any I/O succeeds, we're
-		 * forced to have at least one of the CONN_* flags in conn->flags.
+		/* force detection of a flag change : it's impossible to have both
+		 * CONNECTED and WAIT_CONN so we're certain to trigger a change.
 		 */
-		flags = 0;
+		flags = CO_FL_WAIT_L4_CONN | CO_FL_CONNECTED;
 		conn->data->recv(conn);
 	}
 
 	if ((fdtab[fd].ev & (FD_POLL_OUT | FD_POLL_ERR)) &&
 	    !(conn->flags & (CO_FL_WAIT_WR|CO_FL_WAIT_DATA|CO_FL_ERROR|CO_FL_HANDSHAKE))) {
-		/* force detection of a flag change : if any I/O succeeds, we're
-		 * forced to have at least one of the CONN_* flags in conn->flags.
+		/* force detection of a flag change : it's impossible to have both
+		 * CONNECTED and WAIT_CONN so we're certain to trigger a change.
 		 */
-		flags = 0;
+		flags = CO_FL_WAIT_L4_CONN | CO_FL_CONNECTED;
 		conn->data->send(conn);
 	}
 
