@@ -792,9 +792,7 @@ static void event_srv_chk_w(struct connection *conn)
 	if (!(s->result & SRV_CHK_ERROR)) {
 		/* we don't want to mark 'UP' a server on which we detected an error earlier */
 		if (s->check.bo->o) {
-			int ret;
-
-			ret = conn->xprt->snd_buf(conn, s->check.bo, MSG_DONTWAIT | MSG_NOSIGNAL);
+			conn->xprt->snd_buf(conn, s->check.bo, MSG_DONTWAIT | MSG_NOSIGNAL);
 			if (conn->flags & CO_FL_ERROR) {
 				set_server_check_status(s, HCHK_STATUS_L4CON, strerror(errno));
 				goto out_wakeup;
@@ -842,7 +840,6 @@ static void event_srv_chk_w(struct connection *conn)
  */
 static void event_srv_chk_r(struct connection *conn)
 {
-	int len;
 	struct server *s = conn->owner;
 	struct task *t = s->check.task;
 	char *desc;
@@ -875,7 +872,7 @@ static void event_srv_chk_r(struct connection *conn)
 
 	done = 0;
 
-	len = conn->xprt->rcv_buf(conn, s->check.bi, s->check.bi->size);
+	conn->xprt->rcv_buf(conn, s->check.bi, s->check.bi->size);
 	if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_DATA_RD_SH)) {
 		done = 1;
 		if ((conn->flags & CO_FL_ERROR) && !s->check.bi->i) {
