@@ -4313,6 +4313,9 @@ stats_error_parsing:
 #ifdef USE_OPENSSL
 				newsrv->use_ssl = 1;
 				cur_arg += 1;
+
+				if (global.connect_default_ciphers && !newsrv->ssl_ctx.ciphers)
+					newsrv->ssl_ctx.ciphers = strdup(global.connect_default_ciphers);
 #else /* USE_OPENSSL */
 				Alert("parsing [%s:%d]: '%s' option not implemented.\n",
 				      file, linenum, args[cur_arg]);
@@ -4324,6 +4327,9 @@ stats_error_parsing:
 #ifdef USE_OPENSSL
 				newsrv->check.use_ssl = 1;
 				cur_arg += 1;
+
+				if (global.connect_default_ciphers && !newsrv->ssl_ctx.ciphers)
+					newsrv->ssl_ctx.ciphers = strdup(global.connect_default_ciphers);
 #else /* USE_OPENSSL */
 				Alert("parsing [%s:%d]: '%s' option not implemented.\n",
 				      file, linenum, args[cur_arg]);
@@ -4340,6 +4346,7 @@ stats_error_parsing:
 					goto out;
 				}
 
+				free(newsrv->ssl_ctx.ciphers);
 				newsrv->ssl_ctx.ciphers = strdup(args[cur_arg + 1]);
 
 				cur_arg += 2;

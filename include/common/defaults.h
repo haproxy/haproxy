@@ -188,4 +188,14 @@
 #define HCHK_DESC_LEN	128
 #endif
 
+/* ciphers used as defaults on connect */
+#ifndef CONNECT_DEFAULT_CIPHERS
+#define CONNECT_DEFAULT_CIPHERS NULL
+#endif
+
+/* ciphers used as defaults on listeners */
+#ifndef LISTEN_DEFAULT_CIPHERS
+#define LISTEN_DEFAULT_CIPHERS NULL
+#endif
+
 #endif /* _COMMON_DEFAULTS_H */

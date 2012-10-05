@@ -1138,6 +1138,7 @@ static int bind_parse_ciphers(char **args, int cur_arg, struct proxy *px, struct
 		return ERR_ALERT | ERR_FATAL;
 	}
 
+	free(conf->ciphers);
 	conf->ciphers = strdup(args[cur_arg + 1]);
 	return 0;
 }
@@ -1340,6 +1341,10 @@ static int bind_parse_ssl(char **args, int cur_arg, struct proxy *px, struct bin
 	struct listener *l;
 
 	conf->is_ssl = 1;
+
+	if (global.listen_default_ciphers && !conf->ciphers)
+		conf->ciphers = strdup(global.listen_default_ciphers);
+
 	list_for_each_entry(l, &conf->listeners, by_bind)
 		l->xprt = &ssl_sock;
 

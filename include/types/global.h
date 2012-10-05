@@ -76,6 +76,8 @@ struct global {
 	int maxconn, hardmaxconn;
 #ifdef USE_OPENSSL
 	int maxsslconn;
+	char *listen_default_ciphers;
+	char *connect_default_ciphers;
 #endif
 	struct freq_ctr conn_per_sec;
 	int cps_lim, cps_max;

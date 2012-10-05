@@ -139,6 +139,11 @@ ADDLIB =
 # Use DEFINE=-Dxxx to set any tunable macro. Anything declared here will appear
 # in the build options reported by "haproxy -vv". Use SILENT_DEFINE if you do
 # not want to pollute the report with complex defines.
+# The following settings might be of interest when SSL is enabled :
+#   LISTEN_DEFAULT_CIPHERS is a cipher suite string used to set the default SSL
+#           ciphers on "bind" lines instead of using OpenSSL's defaults.
+#   CONNECT_DEFAULT_CIPHERS is a cipher suite string used to set the default
+#           SSL ciphers on "server" lines instead of using OpenSSL's defaults.
 DEFINE =
 SILENT_DEFINE =
 
