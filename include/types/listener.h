@@ -97,11 +97,11 @@ enum {
 /* "bind" line settings */
 struct bind_conf {
 #ifdef USE_OPENSSL
-	char *cafile;              /* CAfile to use on verify */
+	char *ca_file;             /* CAfile to use on verify */
 	unsigned long long ca_ignerr;  /* ignored verify errors in handshake if depth > 0 */
 	unsigned long long crt_ignerr; /* ignored verify errors in handshake if depth == 0 */
 	char *ciphers;             /* cipher suite to use if non-null */
-	char *crlfile;             /* CRLfile to use on verify */
+	char *crl_file;            /* CRLfile to use on verify */
 	char *ecdhe;               /* named curve to use for ECDHE */
 	int no_tls_tickets;        /* disable session resumption tickets */
 	int no_sslv3;              /* disable SSLv3 */

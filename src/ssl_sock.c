@@ -499,23 +499,23 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 	SSL_CTX_set_mode(ctx, sslmode);
 	SSL_CTX_set_verify(ctx, bind_conf->verify ? bind_conf->verify : SSL_VERIFY_NONE, ssl_sock_verifycbk);
 	if (bind_conf->verify & SSL_VERIFY_PEER) {
-		if (bind_conf->cafile) {
+		if (bind_conf->ca_file) {
 			/* load CAfile to verify */
-			if (!SSL_CTX_load_verify_locations(ctx, bind_conf->cafile, NULL)) {
+			if (!SSL_CTX_load_verify_locations(ctx, bind_conf->ca_file, NULL)) {
 				Alert("Proxy '%s': unable to load CA file '%s' for bind '%s' at [%s:%d].\n",
-				      curproxy->id, bind_conf->cafile, bind_conf->arg, bind_conf->file, bind_conf->line);
+				      curproxy->id, bind_conf->ca_file, bind_conf->arg, bind_conf->file, bind_conf->line);
 				cfgerr++;
 			}
 			/* set CA names fo client cert request, function returns void */
-			SSL_CTX_set_client_CA_list(ctx, SSL_load_client_CA_file(bind_conf->cafile));
+			SSL_CTX_set_client_CA_list(ctx, SSL_load_client_CA_file(bind_conf->ca_file));
 		}
 #ifdef X509_V_FLAG_CRL_CHECK
-		if (bind_conf->crlfile) {
+		if (bind_conf->crl_file) {
 			X509_STORE *store = SSL_CTX_get_cert_store(ctx);
 
-			if (!store || !X509_STORE_load_locations(store, bind_conf->crlfile, NULL)) {
+			if (!store || !X509_STORE_load_locations(store, bind_conf->crl_file, NULL)) {
 				Alert("Proxy '%s': unable to configure CRL file '%s' for bind '%s' at [%s:%d].\n",
-				      curproxy->id, bind_conf->cafile, bind_conf->arg, bind_conf->file, bind_conf->line);
+				      curproxy->id, bind_conf->ca_file, bind_conf->arg, bind_conf->file, bind_conf->line);
 				cfgerr++;
 			}
 			else {
@@ -1098,8 +1098,8 @@ smp_fetch_verify_result(struct proxy *px, struct session *l4, void *l7, unsigned
 	return 1;
 }
 
-/* parse the "cafile" bind keyword */
-static int bind_parse_cafile(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+/* parse the "ca-file" bind keyword */
+static int bind_parse_ca_file(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	if (!*args[cur_arg + 1]) {
 		if (err)
@@ -1108,13 +1108,13 @@ static int bind_parse_cafile(char **args, int cur_arg, struct proxy *px, struct 
 	}
 
 	if ((*args[cur_arg + 1] != '/') && global.ca_base) {
-		conf->cafile = malloc(strlen(global.ca_base) + 1 + strlen(args[cur_arg + 1]) + 1);
-		if (conf->cafile)
-			sprintf(conf->cafile, "%s/%s", global.ca_base, args[cur_arg + 1]);
+		conf->ca_file = malloc(strlen(global.ca_base) + 1 + strlen(args[cur_arg + 1]) + 1);
+		if (conf->ca_file)
+			sprintf(conf->ca_file, "%s/%s", global.ca_base, args[cur_arg + 1]);
 		return 0;
 	}
 
-	conf->cafile = strdup(args[cur_arg + 1]);
+	conf->ca_file = strdup(args[cur_arg + 1]);
 	return 0;
 }
 
@@ -1157,8 +1157,8 @@ static int bind_parse_crt(char **args, int cur_arg, struct proxy *px, struct bin
 	return 0;
 }
 
-/* parse the "crlfile" bind keyword */
-static int bind_parse_crlfile(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+/* parse the "crl-file" bind keyword */
+static int bind_parse_crl_file(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 #ifndef X509_V_FLAG_CRL_CHECK
 	if (err)
@@ -1172,13 +1172,13 @@ static int bind_parse_crlfile(char **args, int cur_arg, struct proxy *px, struct
 	}
 
 	if ((*args[cur_arg + 1] != '/') && global.ca_base) {
-		conf->crlfile = malloc(strlen(global.ca_base) + 1 + strlen(args[cur_arg + 1]) + 1);
-		if (conf->crlfile)
-			sprintf(conf->crlfile, "%s/%s", global.ca_base, args[cur_arg + 1]);
+		conf->crl_file = malloc(strlen(global.ca_base) + 1 + strlen(args[cur_arg + 1]) + 1);
+		if (conf->crl_file)
+			sprintf(conf->crl_file, "%s/%s", global.ca_base, args[cur_arg + 1]);
 		return 0;
 	}
 
-	conf->crlfile = strdup(args[cur_arg + 1]);
+	conf->crl_file = strdup(args[cur_arg + 1]);
 	return 0;
 #endif
 }
@@ -1358,10 +1358,10 @@ static struct acl_kw_list acl_kws = {{ },{
  * not enabled.
  */
 static struct bind_kw_list bind_kws = { "SSL", { }, {
-	{ "cafile",                bind_parse_cafile,         1 }, /* set CAfile to process verify on client cert */
+	{ "ca-file",               bind_parse_ca_file,        1 }, /* set CAfile to process verify on client cert */
 	{ "ca-ignore-err",         bind_parse_ignore_err,     1 }, /* set error IDs to ignore on verify depth > 0 */
 	{ "ciphers",               bind_parse_ciphers,        1 }, /* set SSL cipher suite */
-	{ "crlfile",               bind_parse_crlfile,        1 }, /* set certificat revocation list file use on client cert verify */
+	{ "crl-file",              bind_parse_crl_file,       1 }, /* set certificat revocation list file use on client cert verify */
 	{ "crt",                   bind_parse_crt,            1 }, /* load SSL certificates from this location */
 	{ "crt-ignore-err",        bind_parse_ignore_err,     1 }, /* set error IDs to ingore on verify depth == 0 */
 	{ "ecdhe",                 bind_parse_ecdhe,          1 }, /* defines named curve for elliptic curve Diffie-Hellman */

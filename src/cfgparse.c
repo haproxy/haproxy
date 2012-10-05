@@ -6701,10 +6701,10 @@ out_uri_auth_compat:
 				continue;
 #ifdef USE_OPENSSL
 			ssl_sock_free_all_ctx(bind_conf);
-			free(bind_conf->cafile);
+			free(bind_conf->ca_file);
 			free(bind_conf->ciphers);
 			free(bind_conf->ecdhe);
-			free(bind_conf->crlfile);
+			free(bind_conf->crl_file);
 #endif /* USE_OPENSSL */
 		}
 
