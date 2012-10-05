@@ -8525,17 +8525,17 @@ smp_fetch_cookie_val(struct proxy *px, struct session *l4, void *l7, unsigned in
  *
  * find_query_string(path, n) points to "yo=mama;ye=daddy" string.
  */
-static inline char *find_query_string(char *path, size_t path_l)
+static inline char *find_param_list(char *path, size_t path_l, char delim)
 {
 	char *p;
 
-	p = memchr(path, '?', path_l);
+	p = memchr(path, delim, path_l);
 	return p ? p + 1 : NULL;
 }
 
-static inline int is_param_delimiter(char c)
+static inline int is_param_delimiter(char c, char delim)
 {
-	return c == '&' || c == ';';
+	return c == '&' || c == ';' || c == delim;
 }
 
 /*
@@ -8547,7 +8547,8 @@ static inline int is_param_delimiter(char c)
  */
 static char*
 find_url_param_pos(char* query_string, size_t query_string_l,
-                   char* url_param_name, size_t url_param_name_l)
+                   char* url_param_name, size_t url_param_name_l,
+                   char delim)
 {
 	char *pos, *last;
 
@@ -8560,7 +8561,7 @@ find_url_param_pos(char* query_string, size_t query_string_l,
 				return pos;
 			pos += url_param_name_l + 1;
 		}
-		while (pos <= last && !is_param_delimiter(*pos))
+		while (pos <= last && !is_param_delimiter(*pos, delim))
 			pos++;
 		pos++;
 	}
@@ -8575,26 +8576,27 @@ find_url_param_pos(char* query_string, size_t query_string_l,
 static int
 find_url_param_value(char* path, size_t path_l,
                      char* url_param_name, size_t url_param_name_l,
-                     char** value, int* value_l)
+                     char** value, int* value_l, char delim)
 {
 	char *query_string, *qs_end;
 	char *arg_start;
 	char *value_start, *value_end;
 
-	query_string = find_query_string(path, path_l);
+	query_string = find_param_list(path, path_l, delim);
 	if (!query_string)
 		return 0;
 
 	qs_end = path + path_l;
 	arg_start = find_url_param_pos(query_string, qs_end - query_string,
-				       url_param_name, url_param_name_l);
+                                      url_param_name, url_param_name_l,
+                                      delim);
 	if (!arg_start)
 		return 0;
 
 	value_start = arg_start + url_param_name_l + 1;
 	value_end = value_start;
 
-	while ((value_end < qs_end) && !is_param_delimiter(*value_end))
+	while ((value_end < qs_end) && !is_param_delimiter(*value_end, delim))
 		value_end++;
 
 	*value = value_start;
@@ -8606,17 +8608,23 @@ static int
 smp_fetch_url_param(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                     const struct arg *args, struct sample *smp)
 {
+	char delim = '?';
 	struct http_txn *txn = l7;
 	struct http_msg *msg = &txn->req;
 
-	if (!args || args->type != ARGT_STR)
+	if (!args || args[0].type != ARGT_STR ||
+	    (args[1].type && args[1].type != ARGT_STR))
 		return 0;
 
 	CHECK_HTTP_MESSAGE_FIRST();
 
+	if (args[1].type)
+		delim = *args[1].data.str.str;
+
 	if (!find_url_param_value(msg->buf->buf.p + msg->sl.rq.u, msg->sl.rq.u_l,
-				  args->data.str.str, args->data.str.len,
-				  &smp->data.str.str, &smp->data.str.len))
+                                 args->data.str.str, args->data.str.len,
+                                 &smp->data.str.str, &smp->data.str.len,
+                                 delim))
 		return 0;
 
 	smp->type = SMP_T_CSTR;
@@ -8778,7 +8786,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
 	{ "url",        smp_fetch_url,            0,           NULL, SMP_T_CSTR, SMP_CAP_REQ },
 	{ "url_ip",     smp_fetch_url_ip,         0,           NULL, SMP_T_IPV4, SMP_CAP_REQ },
 	{ "url_port",   smp_fetch_url_port,       0,           NULL, SMP_T_UINT, SMP_CAP_REQ },
-	{ "url_param",  smp_fetch_url_param,      ARG1(1,STR), NULL, SMP_T_CSTR, SMP_CAP_REQ },
+	{ "url_param",  smp_fetch_url_param,      ARG2(1,STR,STR), NULL, SMP_T_CSTR, SMP_CAP_REQ },
 	{ "cookie",     smp_fetch_cookie,         ARG1(1,STR), NULL, SMP_T_CSTR, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "set-cookie", smp_fetch_cookie,         ARG1(1,STR), NULL, SMP_T_CSTR, SMP_CAP_RES }, /* deprecated */
 	{ NULL, NULL, 0, 0, 0 },

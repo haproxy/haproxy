@@ -8935,12 +8935,19 @@ The list of currently supported pattern fetch functions is the following :
   url_port     This extracts the port part from the request's URL. It probably
                is totally useless but it was available at no cost.
 
-  url_param(<name>)
+  url_param(<name>[,<delim>])
                This extracts the first occurrence of the parameter <name> in
-               the query string of the request and uses the corresponding value
-               to match. A typical use is to get sticky session through url
-               (e.g. http://example.com/foo?JESSIONID=some_id with
-               url_param(JSESSIONID)), for cases where cookies cannot be used.
+               the parameter string of the request and uses the corresponding
+               value to match. Optionally, a delimiter can be provided. If not
+               then the question mark '?' is used by default.
+               A typical use is to get sticky session through url for cases
+               where cookies cannot be used.
+
+               Example :
+                 # match http://example.com/foo?PHPSESSIONID=some_id
+                 stick on url_param(PHPSESSIONID)
+                 # match http://example.com/foo;JSESSIONID=some_id
+                 stick on url_param(JSESSIONID,;)
 
   rdp_cookie(<name>)
                This extracts the value of the rdp cookie <name> as a string
