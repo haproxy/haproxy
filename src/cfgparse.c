@@ -2945,6 +2945,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 
+		/* check if we need to allocate an hdr_idx struct for HTTP parsing */
+		if (expr->fetch->cap & SMP_CAP_L7)
+			curproxy->acl_requires |= ACL_USE_L7_ANY;
+
 		if (strcmp(args[myidx], "table") == 0) {
 			myidx++;
 			name = args[myidx++];

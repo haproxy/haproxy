@@ -50,6 +50,7 @@ enum {
 enum {
 	SMP_CAP_REQ = 1 << 0, /* fetch supported on request */
 	SMP_CAP_RES = 1 << 1, /* fetch supported on response */
+	SMP_CAP_L7  = 1 << 2, /* fetch may require access to L7 */
 };
 
 /* Sample fetch options are passed to sample fetch functions to add precision

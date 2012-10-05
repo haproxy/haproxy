@@ -8780,15 +8780,15 @@ static struct acl_kw_list acl_kws = {{ },{
 /************************************************************************/
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
-	{ "hdr",        smp_fetch_hdr,            ARG2(1,STR,SINT), val_hdr, SMP_T_CSTR, SMP_CAP_REQ },
-	{ "base",       smp_fetch_base,           0,           NULL, SMP_T_CSTR, SMP_CAP_REQ },
-	{ "path",       smp_fetch_path,           0,           NULL, SMP_T_CSTR, SMP_CAP_REQ },
-	{ "url",        smp_fetch_url,            0,           NULL, SMP_T_CSTR, SMP_CAP_REQ },
-	{ "url_ip",     smp_fetch_url_ip,         0,           NULL, SMP_T_IPV4, SMP_CAP_REQ },
-	{ "url_port",   smp_fetch_url_port,       0,           NULL, SMP_T_UINT, SMP_CAP_REQ },
-	{ "url_param",  smp_fetch_url_param,      ARG2(1,STR,STR), NULL, SMP_T_CSTR, SMP_CAP_REQ },
-	{ "cookie",     smp_fetch_cookie,         ARG1(1,STR), NULL, SMP_T_CSTR, SMP_CAP_REQ|SMP_CAP_RES },
-	{ "set-cookie", smp_fetch_cookie,         ARG1(1,STR), NULL, SMP_T_CSTR, SMP_CAP_RES }, /* deprecated */
+	{ "hdr",        smp_fetch_hdr,            ARG2(1,STR,SINT), val_hdr, SMP_T_CSTR, SMP_CAP_L7|SMP_CAP_REQ },
+	{ "base",       smp_fetch_base,           0,                NULL,    SMP_T_CSTR, SMP_CAP_L7|SMP_CAP_REQ },
+	{ "path",       smp_fetch_path,           0,                NULL,    SMP_T_CSTR, SMP_CAP_L7|SMP_CAP_REQ },
+	{ "url",        smp_fetch_url,            0,                NULL,    SMP_T_CSTR, SMP_CAP_L7|SMP_CAP_REQ },
+	{ "url_ip",     smp_fetch_url_ip,         0,                NULL,    SMP_T_IPV4, SMP_CAP_L7|SMP_CAP_REQ },
+	{ "url_port",   smp_fetch_url_port,       0,                NULL,    SMP_T_UINT, SMP_CAP_L7|SMP_CAP_REQ },
+	{ "url_param",  smp_fetch_url_param,      ARG2(1,STR,STR),  NULL,    SMP_T_CSTR, SMP_CAP_L7|SMP_CAP_REQ },
+	{ "cookie",     smp_fetch_cookie,         ARG1(1,STR),      NULL,    SMP_T_CSTR, SMP_CAP_L7|SMP_CAP_REQ|SMP_CAP_RES },
+	{ "set-cookie", smp_fetch_cookie,         ARG1(1,STR),      NULL,    SMP_T_CSTR, SMP_CAP_L7|SMP_CAP_RES }, /* deprecated */
 	{ NULL, NULL, 0, 0, 0 },
 }};
 
