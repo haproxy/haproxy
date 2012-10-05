@@ -178,10 +178,10 @@ struct server {
 		SSL_CTX *ctx;
 		SSL_SESSION *reused_sess;
 		char *ciphers;			/* cipher suite to use if non-null */
-		int nosslv3;			/* disable SSLv3 */
-		int notlsv10;			/* disable TLSv1.0 */
-		int notlsv11;			/* disable TLSv1.1 */
-		int notlsv12;			/* disable TLSv1.2 */
+		int no_sslv3;			/* disable SSLv3 */
+		int no_tlsv10;			/* disable TLSv1.0 */
+		int no_tlsv11;			/* disable TLSv1.1 */
+		int no_tlsv12;			/* disable TLSv1.2 */
 	} ssl_ctx;
 #endif
 	struct {

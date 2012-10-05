@@ -484,13 +484,13 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 		SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
 		SSL_MODE_RELEASE_BUFFERS;
 
-	if (bind_conf->nosslv3)
+	if (bind_conf->no_sslv3)
 		ssloptions |= SSL_OP_NO_SSLv3;
-	if (bind_conf->notlsv10)
+	if (bind_conf->no_tlsv10)
 		ssloptions |= SSL_OP_NO_TLSv1;
-	if (bind_conf->notlsv11)
+	if (bind_conf->no_tlsv11)
 		ssloptions |= SSL_OP_NO_TLSv1_1;
-	if (bind_conf->notlsv12)
+	if (bind_conf->no_tlsv12)
 		ssloptions |= SSL_OP_NO_TLSv1_2;
 	if (bind_conf->no_tls_tickets)
 		ssloptions |= SSL_OP_NO_TICKET;
@@ -1253,31 +1253,31 @@ static int bind_parse_no_tls_tickets(char **args, int cur_arg, struct proxy *px,
 }
 
 
-/* parse the "nosslv3" bind keyword */
-static int bind_parse_nosslv3(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+/* parse the "no-sslv3" bind keyword */
+static int bind_parse_no_sslv3(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	conf->nosslv3 = 1;
+	conf->no_sslv3 = 1;
 	return 0;
 }
 
-/* parse the "notlsv1" bind keyword */
-static int bind_parse_notlsv10(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+/* parse the "no-tlsv10" bind keyword */
+static int bind_parse_no_tlsv10(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	conf->notlsv10 = 1;
+	conf->no_tlsv10 = 1;
 	return 0;
 }
 
-/* parse the "notlsv11" bind keyword */
-static int bind_parse_notlsv11(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+/* parse the "no-tlsv11" bind keyword */
+static int bind_parse_no_tlsv11(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	conf->notlsv11 = 1;
+	conf->no_tlsv11 = 1;
 	return 0;
 }
 
-/* parse the "notlsv12" bind keyword */
-static int bind_parse_notlsv12(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+/* parse the "no-tlsv12" bind keyword */
+static int bind_parse_no_tlsv12(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	conf->notlsv12 = 1;
+	conf->no_tlsv12 = 1;
 	return 0;
 }
 
@@ -1365,11 +1365,11 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
 	{ "crt",                   bind_parse_crt,            1 }, /* load SSL certificates from this location */
 	{ "crt-ignore-err",        bind_parse_ignore_err,     1 }, /* set error IDs to ingore on verify depth == 0 */
 	{ "ecdhe",                 bind_parse_ecdhe,          1 }, /* defines named curve for elliptic curve Diffie-Hellman */
+	{ "no-sslv3",              bind_parse_no_sslv3,       0 }, /* disable SSLv3 */
+	{ "no-tlsv10",             bind_parse_no_tlsv10,      0 }, /* disable TLSv10 */
+	{ "no-tlsv11",             bind_parse_no_tlsv11,      0 }, /* disable TLSv11 */
+	{ "no-tlsv12",             bind_parse_no_tlsv12,      0 }, /* disable TLSv12 */
 	{ "no-tls-tickets",        bind_parse_no_tls_tickets, 0 }, /* disable session resumption tickets */
-	{ "nosslv3",               bind_parse_nosslv3,        0 }, /* disable SSLv3 */
-	{ "notlsv10",              bind_parse_notlsv10,       0 }, /* disable TLSv10 */
-	{ "notlsv11",              bind_parse_notlsv11,       0 }, /* disable TLSv11 */
-	{ "notlsv12",              bind_parse_notlsv12,       0 }, /* disable TLSv12 */
 	{ "ssl",                   bind_parse_ssl,            0 }, /* enable SSL processing */
 	{ "verify",                bind_parse_verify,         1 }, /* set SSL verify method */
 	{ NULL, NULL, 0 },

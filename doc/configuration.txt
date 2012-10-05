@@ -6907,7 +6907,7 @@ nice <nice>
   it may make sense to use a positive value for an SMTP socket and a negative
   one for an RDP socket.
 
-nosslv3
+no-sslv3
   This setting is only available when support for OpenSSL was built in. It
   disables support for SSLv3 on any sockets instanciated from the listener when
   SSL is supported. Note that SSLv2 is forced disabled in the code and cannot
@@ -6919,19 +6919,19 @@ no-tls-tickets
   extension) and force to use stateful session resumption. Stateless
   session resumption is more expensive in CPU usage.
 
-notlsv10
+no-tlsv10
   This setting is only available when support for OpenSSL was built in. It
   disables support for TLSv10 on any sockets instanciated from the listener when
   SSL is supported. Note that SSLv2 is forced disabled in the code and cannot
   be enabled using any configuration option.
 
-notlsv11
+no-tlsv11
   This setting is only available when support for OpenSSL was built in. It
   disables support for TLSv11 on any sockets instanciated from the listener when
   SSL is supported. Note that SSLv2 is forced disabled in the code and cannot
   be enabled using any configuration option.
 
-notlsv12
+no-tlsv12
   This setting is only available when support for OpenSSL was built in. It
   disables support for TLSv12 on any sockets instanciated from the listener when
   SSL is supported. Note that SSLv2 is forced disabled in the code and cannot
@@ -7192,14 +7192,14 @@ minconn <minconn>
 
   Supported in default-server: Yes
 
-nosslv3
+no-sslv3
   This option disables support for SSLv3 when SSL is used to communicate with
   the server. Note that SSLv2 is disabled in the code and cannot be enabled
   using any configuration option.
 
   Supported in default-server: No
 
-notlsv10
+no-tlsv10
   This option disables support for TLSv10 when SSL is used to communicate with
   the server. Note that SSLv2 is disabled in the code and cannot be enabled
   using any configuration option. TLSv1 is more expensive than SSLv3 so it
@@ -7207,7 +7207,7 @@ notlsv10
 
   Supported in default-server: No
 
-notlsv11
+no-tlsv11
   This option disables support for TLSv11 when SSL is used to communicate with
   the server. Note that SSLv2 is disabled in the code and cannot be enabled
   using any configuration option. TLSv1 is more expensive than SSLv3 so it
@@ -7215,7 +7215,7 @@ notlsv11
 
   Supported in default-server: No
 
-notlsv12
+no-tlsv12
   This option disables support for TLSv12 when SSL is used to communicate with
   the server. Note that SSLv2 is disabled in the code and cannot be enabled
   using any configuration option. TLSv1 is more expensive than SSLv3 so it
