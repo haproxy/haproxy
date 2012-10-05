@@ -4295,7 +4295,7 @@ stats_error_parsing:
 			}
 			else if (!strcmp(args[cur_arg], "no-sslv3")) {
 #ifdef USE_OPENSSL
-				newsrv->ssl_ctx.no_sslv3 = 1;
+				newsrv->ssl_ctx.options |= SRV_SSL_O_NO_SSLV3;
 				cur_arg += 1;
 #else /* USE_OPENSSL */
 				Alert("parsing [%s:%d]: '%s' option not implemented.\n",
@@ -4306,7 +4306,7 @@ stats_error_parsing:
 			}
 			else if (!strcmp(args[cur_arg], "no-tlsv10")) {
 #ifdef USE_OPENSSL
-				newsrv->ssl_ctx.no_tlsv10 = 1;
+				newsrv->ssl_ctx.options |= SRV_SSL_O_NO_TLSV10;
 				cur_arg += 1;
 #else /* USE_OPENSSL */
 				Alert("parsing [%s:%d]: '%s' option not implemented.\n",
@@ -4317,7 +4317,7 @@ stats_error_parsing:
 			}
 			else if (!strcmp(args[cur_arg], "no-tlsv11")) {
 #ifdef USE_OPENSSL
-				newsrv->ssl_ctx.no_tlsv11 = 1;
+				newsrv->ssl_ctx.options |= SRV_SSL_O_NO_TLSV11;
 				cur_arg += 1;
 #else /* USE_OPENSSL */
 				Alert("parsing [%s:%d]: '%s' option not implemented.\n",
@@ -4328,7 +4328,7 @@ stats_error_parsing:
 			}
 			else if (!strcmp(args[cur_arg], "no-tlsv12")) {
 #ifdef USE_OPENSSL
-				newsrv->ssl_ctx.no_tlsv12 = 1;
+				newsrv->ssl_ctx.options |= SRV_SSL_O_NO_TLSV12;
 				cur_arg += 1;
 #else /* USE_OPENSSL */
 				Alert("parsing [%s:%d]: '%s' option not implemented.\n",
@@ -6360,13 +6360,13 @@ out_uri_auth_compat:
 						goto next_srv;
 				}
 
-				if (newsrv->ssl_ctx.no_sslv3)
+				if (newsrv->ssl_ctx.options & SRV_SSL_O_NO_SSLV3)
 					ssloptions |= SSL_OP_NO_SSLv3;
-				if (newsrv->ssl_ctx.no_tlsv10)
+				if (newsrv->ssl_ctx.options & SRV_SSL_O_NO_TLSV10)
 					ssloptions |= SSL_OP_NO_TLSv1;
-				if (newsrv->ssl_ctx.no_tlsv11)
+				if (newsrv->ssl_ctx.options & SRV_SSL_O_NO_TLSV11)
 					ssloptions |= SSL_OP_NO_TLSv1_1;
-				if (newsrv->ssl_ctx.no_tlsv12)
+				if (newsrv->ssl_ctx.options & SRV_SSL_O_NO_TLSV12)
 					ssloptions |= SSL_OP_NO_TLSv1_2;
 				SSL_CTX_set_options(newsrv->ssl_ctx.ctx, ssloptions);
 				SSL_CTX_set_mode(newsrv->ssl_ctx.ctx, sslmode);

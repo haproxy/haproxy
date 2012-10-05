@@ -484,15 +484,15 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 		SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
 		SSL_MODE_RELEASE_BUFFERS;
 
-	if (bind_conf->no_sslv3)
+	if (bind_conf->ssl_options & BC_SSL_O_NO_SSLV3)
 		ssloptions |= SSL_OP_NO_SSLv3;
-	if (bind_conf->no_tlsv10)
+	if (bind_conf->ssl_options & BC_SSL_O_NO_TLSV10)
 		ssloptions |= SSL_OP_NO_TLSv1;
-	if (bind_conf->no_tlsv11)
+	if (bind_conf->ssl_options & BC_SSL_O_NO_TLSV11)
 		ssloptions |= SSL_OP_NO_TLSv1_1;
-	if (bind_conf->no_tlsv12)
+	if (bind_conf->ssl_options & BC_SSL_O_NO_TLSV12)
 		ssloptions |= SSL_OP_NO_TLSv1_2;
-	if (bind_conf->no_tls_tickets)
+	if (bind_conf->ssl_options & BC_SSL_O_NO_TLS_TICKETS)
 		ssloptions |= SSL_OP_NO_TICKET;
 
 	SSL_CTX_set_options(ctx, ssloptions);
@@ -1248,7 +1248,7 @@ static int bind_parse_ignore_err(char **args, int cur_arg, struct proxy *px, str
 /* parse the "no-tls-tickets" bind keyword */
 static int bind_parse_no_tls_tickets(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	conf->no_tls_tickets = 1;
+	conf->ssl_options |= BC_SSL_O_NO_TLS_TICKETS;
 	return 0;
 }
 
@@ -1256,28 +1256,28 @@ static int bind_parse_no_tls_tickets(char **args, int cur_arg, struct proxy *px,
 /* parse the "no-sslv3" bind keyword */
 static int bind_parse_no_sslv3(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	conf->no_sslv3 = 1;
+	conf->ssl_options |= BC_SSL_O_NO_SSLV3;
 	return 0;
 }
 
 /* parse the "no-tlsv10" bind keyword */
 static int bind_parse_no_tlsv10(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	conf->no_tlsv10 = 1;
+	conf->ssl_options |= BC_SSL_O_NO_TLSV10;
 	return 0;
 }
 
 /* parse the "no-tlsv11" bind keyword */
 static int bind_parse_no_tlsv11(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	conf->no_tlsv11 = 1;
+	conf->ssl_options |= BC_SSL_O_NO_TLSV11;
 	return 0;
 }
 
 /* parse the "no-tlsv12" bind keyword */
 static int bind_parse_no_tlsv12(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-	conf->no_tlsv12 = 1;
+	conf->ssl_options |= BC_SSL_O_NO_TLSV12;
 	return 0;
 }
 

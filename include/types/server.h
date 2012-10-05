@@ -79,6 +79,16 @@
 #define SRV_EWGHT_RANGE (SRV_UWGHT_RANGE * BE_WEIGHT_SCALE)
 #define SRV_EWGHT_MAX   (SRV_UWGHT_MAX   * BE_WEIGHT_SCALE)
 
+#ifdef USE_OPENSSL
+/* server ssl options */
+#define SRV_SSL_O_NONE         0x0000
+#define SRV_SSL_O_NO_SSLV3     0x0001 /* disable SSLv3 */
+#define SRV_SSL_O_NO_TLSV10    0x0002 /* disable TLSv1.0 */
+#define SRV_SSL_O_NO_TLSV11    0x0004 /* disable TLSv1.1 */
+#define SRV_SSL_O_NO_TLSV12    0x0008 /* disable TLSv1.2 */
+/* 0x000F reserved for 'no' protocol version options */
+#endif
+
 /* A tree occurrence is a descriptor of a place in a tree, with a pointer back
  * to the server itself.
  */
@@ -178,10 +188,7 @@ struct server {
 		SSL_CTX *ctx;
 		SSL_SESSION *reused_sess;
 		char *ciphers;			/* cipher suite to use if non-null */
-		int no_sslv3;			/* disable SSLv3 */
-		int no_tlsv10;			/* disable TLSv1.0 */
-		int no_tlsv11;			/* disable TLSv1.1 */
-		int no_tlsv12;			/* disable TLSv1.2 */
+		int options;			/* ssl options */
 	} ssl_ctx;
 #endif
 	struct {
