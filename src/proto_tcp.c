@@ -675,6 +675,16 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		}
 	}
 #endif
+#if defined(TCP_FASTOPEN)
+	if (listener->options & LI_O_TCP_FO) {
+		/* TFO needs a queue length, let's use the configured backlog */
+		int qlen = listener->backlog ? listener->backlog : listener->maxconn;
+		if (setsockopt(fd, IPPROTO_TCP, TCP_FASTOPEN, &qlen, sizeof(qlen)) == -1) {
+			msg = "cannot enable TCP_FASTOPEN";
+			err |= ERR_WARN;
+		}
+	}
+#endif
 	if (bind(fd, (struct sockaddr *)&listener->addr, listener->proto->sock_addrlen) == -1) {
 		err |= ERR_RETRYABLE | ERR_ALERT;
 		msg = "cannot bind socket";
@@ -1726,6 +1736,21 @@ static int bind_parse_defer_accept(char **args, int cur_arg, struct proxy *px, s
 }
 #endif
 
+#ifdef TCP_FASTOPEN
+/* parse the "defer-accept" bind keyword */
+static int bind_parse_tfo(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	struct listener *l;
+
+	list_for_each_entry(l, &conf->listeners, by_bind) {
+		if (l->addr.ss_family == AF_INET || l->addr.ss_family == AF_INET6)
+			l->options |= LI_O_TCP_FO;
+	}
+
+	return 0;
+}
+#endif
+
 #ifdef TCP_MAXSEG
 /* parse the "mss" bind keyword */
 static int bind_parse_mss(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
@@ -1831,6 +1856,9 @@ static struct bind_kw_list bind_kws = { "TCP", { }, {
 #endif
 #ifdef TCP_MAXSEG
 	{ "mss",           bind_parse_mss,          1 }, /* set MSS of listening socket */
+#endif
+#ifdef TCP_FASTOPEN
+	{ "tfo",           bind_parse_tfo,          0 }, /* enable TCP_FASTOPEN of listening socket */
 #endif
 #ifdef CONFIG_HAP_LINUX_TPROXY
 	{ "transparent",   bind_parse_transparent,  0 }, /* transparently bind to the specified addresses */

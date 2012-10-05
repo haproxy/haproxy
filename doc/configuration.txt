@@ -6937,6 +6937,17 @@ ssl
   appear in clear text, so that ACLs and HTTP processing will only have access
   to deciphered contents.
 
+tfo
+  Is an optional keyword which is supported only on Linux kernels >= 3.6. It
+  enables TCP Fast Open on the listening socket, which means that clients which
+  support this feature will be able to send a request and receive a response
+  during the 3-way handshake starting from second connection, thus saving one
+  round-trip after the first connection. This only makes sense with protocols
+  that use high connection rates and where each round trip matters. This can
+  possibly cause issues with many firewalls which do not accept data on SYN
+  packets, so this option should only be enabled once well tested. This option
+  is only supported on TCPv4/TCPv6 sockets and ignored by other ones.
+
 transparent
   Is an optional keyword which is supported only on certain Linux kernels. It
   indicates that the addresses will be bound even if they do not belong to the
