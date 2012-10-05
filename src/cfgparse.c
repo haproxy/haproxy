@@ -4570,11 +4570,12 @@ stats_error_parsing:
 			 * same as for the production traffic. Otherwise we use raw_sock by
 			 * default, unless one is specified.
 			 */
+#ifdef USE_OPENSSL
 			if (!newsrv->check.port && !is_addr(&newsrv->check.addr)) {
 				newsrv->check.use_ssl |= newsrv->use_ssl;
 				newsrv->check.send_proxy |= (newsrv->state & SRV_SEND_PROXY);
 			}
-
+#endif
 			/* try to get the port from check.addr if check.port not set */
 			if (!newsrv->check.port)
 				newsrv->check.port = get_host_port(&newsrv->check.addr);
