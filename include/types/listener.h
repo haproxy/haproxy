@@ -102,6 +102,11 @@ enum {
 #define BC_SSL_O_NO_TLSV11      0x0004	/* disable TLSv11 */
 #define BC_SSL_O_NO_TLSV12      0x0008	/* disable TLSv12 */
 /* 0x000F reserved for 'no' protocol version options */
+#define BC_SSL_O_USE_SSLV3      0x0010	/* force SSLv3 */
+#define BC_SSL_O_USE_TLSV10     0x0020	/* force TLSv10 */
+#define BC_SSL_O_USE_TLSV11     0x0040	/* force TLSv11 */
+#define BC_SSL_O_USE_TLSV12     0x0080	/* force TLSv12 */
+/* 0x00F0 reserved for 'force' protocol version options */
 #define BC_SSL_O_NO_TLS_TICKETS 0x0100	/* disable session resumption tickets */
 #endif
 

@@ -494,6 +494,18 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 		ssloptions |= SSL_OP_NO_TLSv1_2;
 	if (bind_conf->ssl_options & BC_SSL_O_NO_TLS_TICKETS)
 		ssloptions |= SSL_OP_NO_TICKET;
+	if (bind_conf->ssl_options & BC_SSL_O_USE_SSLV3)
+		SSL_CTX_set_ssl_version(ctx, SSLv3_server_method());
+	if (bind_conf->ssl_options & BC_SSL_O_USE_TLSV10)
+		SSL_CTX_set_ssl_version(ctx, TLSv1_server_method());
+#if SSL_OP_NO_TLSv1_1
+	if (bind_conf->ssl_options & BC_SSL_O_USE_TLSV11)
+		SSL_CTX_set_ssl_version(ctx, TLSv1_1_server_method());
+#endif
+#if SSL_OP_NO_TLSv1_2
+	if (bind_conf->ssl_options & BC_SSL_O_USE_TLSV12)
+		SSL_CTX_set_ssl_version(ctx, TLSv1_2_server_method());
+#endif
 
 	SSL_CTX_set_options(ctx, ssloptions);
 	SSL_CTX_set_mode(ctx, sslmode);
@@ -1245,6 +1257,47 @@ static int bind_parse_ignore_err(char **args, int cur_arg, struct proxy *px, str
 	return 0;
 }
 
+/* parse the "force-sslv3" bind keyword */
+static int bind_parse_force_sslv3(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	conf->ssl_options |= BC_SSL_O_USE_SSLV3;
+	return 0;
+}
+
+/* parse the "force-tlsv10" bind keyword */
+static int bind_parse_force_tlsv10(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	conf->ssl_options |= BC_SSL_O_USE_TLSV10;
+	return 0;
+}
+
+/* parse the "force-tlsv11" bind keyword */
+static int bind_parse_force_tlsv11(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+#if SSL_OP_NO_TLSv1_1
+	conf->ssl_options |= BC_SSL_O_USE_TLSV11;
+	return 0;
+#else
+	if (err)
+		memprintf(err, "'%s' : library does not support protocol TLSv1.1", args[cur_arg]);
+	return ERR_ALERT | ERR_FATAL;
+#endif
+}
+
+/* parse the "force-tlsv12" bind keyword */
+static int bind_parse_force_tlsv12(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+#if SSL_OP_NO_TLSv1_2
+	conf->ssl_options |= BC_SSL_O_USE_TLSV12;
+	return 0;
+#else
+	if (err)
+		memprintf(err, "'%s' : library does not support protocol TLSv1.2", args[cur_arg]);
+	return ERR_ALERT | ERR_FATAL;
+#endif
+}
+
+
 /* parse the "no-tls-tickets" bind keyword */
 static int bind_parse_no_tls_tickets(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -1365,6 +1418,10 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
 	{ "crt",                   bind_parse_crt,            1 }, /* load SSL certificates from this location */
 	{ "crt-ignore-err",        bind_parse_ignore_err,     1 }, /* set error IDs to ingore on verify depth == 0 */
 	{ "ecdhe",                 bind_parse_ecdhe,          1 }, /* defines named curve for elliptic curve Diffie-Hellman */
+	{ "force-sslv3",           bind_parse_force_sslv3,    0 }, /* force SSLv3 */
+	{ "force-tlsv10",          bind_parse_force_tlsv10,   0 }, /* force TLSv10 */
+	{ "force-tlsv11",          bind_parse_force_tlsv11,   0 }, /* force TLSv11 */
+	{ "force-tlsv12",          bind_parse_force_tlsv12,   0 }, /* force TLSv12 */
 	{ "no-sslv3",              bind_parse_no_sslv3,       0 }, /* disable SSLv3 */
 	{ "no-tlsv10",             bind_parse_no_tlsv10,      0 }, /* disable TLSv10 */
 	{ "no-tlsv11",             bind_parse_no_tlsv11,      0 }, /* disable TLSv11 */

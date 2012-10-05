@@ -6819,6 +6819,23 @@ defer-accept
   an established connection while the proxy will only see it in SYN_RECV. This
   option is only supported on TCPv4/TCPv6 sockets and ignored by other ones.
 
+force-sslv3
+  This option enforces use of SSLv3 only on SSL connections instanciated from
+  this listener. SSLv3 is generally less expensive than the TLS counterparts
+  for high connection rates. See also "force-tls*", "no-sslv3", and "no-tls*".
+
+force-tlsv10
+  This option enforces use of TLSv1.0 only on SSL connections instanciated from
+  this listener. See also "force-tls*", "no-sslv3", and "no-tls*".
+
+force-tlsv11
+  This option enforces use of TLSv1.1 only on SSL connections instanciated from
+  this listener. See also "force-tls*", "no-sslv3", and "no-tls*".
+
+force-tlsv12
+  This option enforces use of TLSv1.2 only on SSL connections instanciated from
+  this listener. See also "force-tls*", "no-sslv3", and "no-tls*".
+
 gid <gid>
   Sets the group of the UNIX sockets to the designated system gid. It can also
   be set by default in the global section's "unix-bind" statement. Note that
@@ -6911,7 +6928,8 @@ no-sslv3
   This setting is only available when support for OpenSSL was built in. It
   disables support for SSLv3 on any sockets instanciated from the listener when
   SSL is supported. Note that SSLv2 is forced disabled in the code and cannot
-  be enabled using any configuration option.
+  be enabled using any configuration option. See also "force-tls*",
+  and "force-sslv3".
 
 no-tls-tickets
   This setting is only available when support for OpenSSL was built in. It
@@ -6921,21 +6939,24 @@ no-tls-tickets
 
 no-tlsv10
   This setting is only available when support for OpenSSL was built in. It
-  disables support for TLSv10 on any sockets instanciated from the listener when
-  SSL is supported. Note that SSLv2 is forced disabled in the code and cannot
-  be enabled using any configuration option.
+  disables support for TLSv1.0 on any sockets instanciated from the listener
+  when SSL is supported. Note that SSLv2 is forced disabled in the code and
+  cannot be enabled using any configuration option. See also "force-tls*",
+  and "force-sslv3".
 
 no-tlsv11
   This setting is only available when support for OpenSSL was built in. It
-  disables support for TLSv11 on any sockets instanciated from the listener when
-  SSL is supported. Note that SSLv2 is forced disabled in the code and cannot
-  be enabled using any configuration option.
+  disables support for TLSv1.1 on any sockets instanciated from the listener
+  when SSL is supported. Note that SSLv2 is forced disabled in the code and
+  cannot be enabled using any configuration option. See also "force-tls*",
+  and "force-sslv3".
 
 no-tlsv12
   This setting is only available when support for OpenSSL was built in. It
-  disables support for TLSv12 on any sockets instanciated from the listener when
-  SSL is supported. Note that SSLv2 is forced disabled in the code and cannot
-  be enabled using any configuration option.
+  disables support for TLSv1.2 on any sockets instanciated from the listener
+  when SSL is supported. Note that SSLv2 is forced disabled in the code and
+  cannot be enabled using any configuration option. See also "force-tls*",
+  and "force-sslv3".
 
 prefer-server-ciphers
   This setting is only available when support for OpenSSL was built in. It
