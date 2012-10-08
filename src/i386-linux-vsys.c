@@ -120,6 +120,10 @@ asm
     "   mov $0x05, %eax\n"
     "   jmp socketcall\n"
 
+    "accept4: .GLOBL accept4\n"
+    "   mov $0x12, %eax\n"
+    "   jmp socketcall\n"
+
     "getsockname: .GLOBL getsockname\n"
     "   mov $0x06, %eax\n"
     "   jmp socketcall\n"

@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <common/accept4.h>
 #include <common/config.h>
 #include <common/errors.h>
 #include <common/mini-clist.h>
@@ -308,7 +309,11 @@ void listener_accept(int fd)
 			return;
 		}
 
+#ifdef USE_ACCEPT4
+		cfd = accept4(fd, (struct sockaddr *)&addr, &laddr, SOCK_NONBLOCK);
+#else
 		cfd = accept(fd, (struct sockaddr *)&addr, &laddr);
+#endif
 		if (unlikely(cfd == -1)) {
 			switch (errno) {
 			case EAGAIN:
