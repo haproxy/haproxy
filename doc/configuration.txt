@@ -8313,30 +8313,30 @@ ssl_sni <string>
   layer which deciphered it and found a Server Name Indication TLS extension
   sent by the client, matching the specified string. In HTTPS, the SNI field
   (when present) is equal to the requested host name. This match is different
-  from req_ssl_sni above in that it applies to the connection being deciphered
-  by haproxy and not to SSL contents being blindly forwarded. See also
-  ssl_sni_end and ssl_sni_req below. This requires that the SSL library is
-  build with support for TLS extensions enabled (check haproxy -vv).
+  from "req_ssl_sni" above in that it applies to the connection being
+  deciphered by haproxy and not to SSL contents being blindly forwarded.
+  See also "ssl_sni_end" and "ssl_sni_req" below. This requires that the SSL
+  library is build with support for TLS extensions enabled (check haproxy -vv).
 
 ssl_sni_end <string>
   Returns true when the incoming connection was made over an SSL/TLS transport
   layer which deciphered it and found a Server Name Indication TLS extension
   sent by the client, ending like the specified string. In HTTPS, the SNI field
   (when present) is equal to the requested host name. This match is different
-  from req_ssl_sni above in that it applies to the connection being deciphered
-  by haproxy and not to SSL contents being blindly forwarded. This requires
-  that the SSL library is build with support for TLS extensions enabled (check
-  haproxy -vv).
+  from "req_ssl_sni" above in that it applies to the connection being
+  deciphered by haproxy and not to SSL contents being blindly forwarded. This
+  requires that the SSL library is build with support for TLS extensions
+  enabled (check haproxy -vv).
 
 ssl_sni_req <regex>
   Returns true when the incoming connection was made over an SSL/TLS transport
   layer which deciphered it and found a Server Name Indication TLS extension
   sent by the client, matching the specified regex. In HTTPS, the SNI field
   (when present) is equal to the requested host name. This match is different
-  from req_ssl_sni above in that it applies to the connection being deciphered
-  by haproxy and not to SSL contents being blindly forwarded. This requires
-  that the SSL library is build with support for TLS extensions enabled (check
-  haproxy -vv).
+  from "req_ssl_sni" above in that it applies to the connection being
+  deciphered by haproxy and not to SSL contents being blindly forwarded. This
+  requires that the SSL library is build with support for TLS extensions
+  enabled (check haproxy -vv).
 
 ssl_verify_caerr <errorID>
   Returns true when the incoming connection was made over an SSL/TLS transport
