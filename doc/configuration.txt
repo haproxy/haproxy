@@ -1533,7 +1533,7 @@ bind /<path> [, ...] [param*]
 
         listen http_https_proxy
             bind :80
-            bind :443 ssl crt /etc/haproxy/site.pem prefer-server-ciphers
+            bind :443 ssl crt /etc/haproxy/site.pem
 
   See also : "source", "option forwardfor", "unix-bind" and the PROXY protocol
              documentation, and section 5 about bind options.
@@ -6957,11 +6957,6 @@ no-tlsv12
   when SSL is supported. Note that SSLv2 is forced disabled in the code and
   cannot be enabled using any configuration option. See also "force-tls*",
   and "force-sslv3".
-
-prefer-server-ciphers
-  This setting is only available when support for OpenSSL was built in. It
-  tells the SSL/TLS layer that our set of cipher algorithms is preferred over
-  the client's ones.
 
 ssl
   This setting is only available when support for OpenSSL was built in. It
