@@ -65,6 +65,7 @@
 #include <proto/freq_ctr.h>
 #include <proto/frontend.h>
 #include <proto/listener.h>
+#include <proto/server.h>
 #include <proto/log.h>
 #include <proto/shctx.h>
 #include <proto/ssl_sock.h>
@@ -1376,6 +1377,107 @@ static int bind_parse_verify(char **args, int cur_arg, struct proxy *px, struct 
 	return 0;
 }
 
+/************** "server" keywords ****************/
+
+/* parse the "check-ssl" server keyword */
+static int srv_parse_check_ssl(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	newsrv->check.use_ssl = 1;
+	if (global.connect_default_ciphers && !newsrv->ssl_ctx.ciphers)
+		newsrv->ssl_ctx.ciphers = strdup(global.connect_default_ciphers);
+	return 0;
+}
+
+/* parse the "ciphers" server keyword */
+static int srv_parse_ciphers(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	if (!*args[*cur_arg + 1]) {
+		memprintf(err, "'%s' : missing cipher suite", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	free(newsrv->ssl_ctx.ciphers);
+	newsrv->ssl_ctx.ciphers = strdup(args[*cur_arg + 1]);
+	return 0;
+}
+
+/* parse the "force-sslv3" server keyword */
+static int srv_parse_force_sslv3(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	newsrv->ssl_ctx.options |= SRV_SSL_O_USE_SSLV3;
+	return 0;
+}
+
+/* parse the "force-tlsv10" server keyword */
+static int srv_parse_force_tlsv10(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	newsrv->ssl_ctx.options |= SRV_SSL_O_USE_TLSV10;
+	return 0;
+}
+
+/* parse the "force-tlsv11" server keyword */
+static int srv_parse_force_tlsv11(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+#if SSL_OP_NO_TLSv1_1
+	newsrv->ssl_ctx.options |= SRV_SSL_O_USE_TLSV11;
+	return 0;
+#else
+	if (err)
+		memprintf(err, "'%s' : library does not support protocol TLSv1.1", args[*cur_arg]);
+	return ERR_ALERT | ERR_FATAL;
+#endif
+}
+
+/* parse the "force-tlsv12" server keyword */
+static int srv_parse_force_tlsv12(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+#if SSL_OP_NO_TLSv1_2
+	newsrv->ssl_ctx.options |= SRV_SSL_O_USE_TLSV12;
+	return 0;
+#else
+	if (err)
+		memprintf(err, "'%s' : library does not support protocol TLSv1.2", args[*cur_arg]);
+	return ERR_ALERT | ERR_FATAL;
+#endif
+}
+
+/* parse the "no-sslv3" server keyword */
+static int srv_parse_no_sslv3(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	newsrv->ssl_ctx.options |= SRV_SSL_O_NO_SSLV3;
+	return 0;
+}
+
+/* parse the "no-tlsv10" server keyword */
+static int srv_parse_no_tlsv10(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	newsrv->ssl_ctx.options |= SRV_SSL_O_NO_TLSV10;
+	return 0;
+}
+
+/* parse the "no-tlsv11" server keyword */
+static int srv_parse_no_tlsv11(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	newsrv->ssl_ctx.options |= SRV_SSL_O_NO_TLSV11;
+	return 0;
+}
+
+/* parse the "no-tlsv12" server keyword */
+static int srv_parse_no_tlsv12(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	newsrv->ssl_ctx.options |= SRV_SSL_O_NO_TLSV12;
+	return 0;
+}
+
+/* parse the "ssl" server keyword */
+static int srv_parse_ssl(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	newsrv->use_ssl = 1;
+	if (global.connect_default_ciphers && !newsrv->ssl_ctx.ciphers)
+		newsrv->ssl_ctx.ciphers = strdup(global.connect_default_ciphers);
+	return 0;
+}
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
@@ -1437,6 +1539,28 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
 	{ NULL, NULL, 0 },
 }};
 
+/* Note: must not be declared <const> as its list will be overwritten.
+ * Please take care of keeping this list alphabetically sorted, doing so helps
+ * all code contributors.
+ * Optional keywords are also declared with a NULL ->parse() function so that
+ * the config parser can report an appropriate error when a known keyword was
+ * not enabled.
+ */
+static struct srv_kw_list srv_kws = { "SSL", { }, {
+	{ "check-ssl",             srv_parse_check_ssl,      0, 1 }, /* enable SSL for health checks */
+	{ "ciphers",               srv_parse_ciphers,        1, 1 }, /* select the cipher suite */
+	{ "force-sslv3",           srv_parse_force_sslv3,    0, 1 }, /* force SSLv3 */
+	{ "force-tlsv10",          srv_parse_force_tlsv10,   0, 1 }, /* force TLSv10 */
+	{ "force-tlsv11",          srv_parse_force_tlsv11,   0, 1 }, /* force TLSv11 */
+	{ "force-tlsv12",          srv_parse_force_tlsv12,   0, 1 }, /* force TLSv12 */
+	{ "no-sslv3",              srv_parse_no_sslv3,       0, 1 }, /* disable SSLv3 */
+	{ "no-tlsv10",             srv_parse_no_tlsv10,      0, 1 }, /* disable TLSv10 */
+	{ "no-tlsv11",             srv_parse_no_tlsv11,      0, 1 }, /* disable TLSv11 */
+	{ "no-tlsv12",             srv_parse_no_tlsv12,      0, 1 }, /* disable TLSv12 */
+	{ "ssl",                   srv_parse_ssl,            0, 1 }, /* enable SSL processing */
+	{ NULL, NULL, 0, 0 },
+}};
+
 /* transport-layer operations for SSL sockets */
 struct xprt_ops ssl_sock = {
 	.snd_buf  = ssl_sock_from_buf,
@@ -1450,7 +1574,8 @@ struct xprt_ops ssl_sock = {
 };
 
 __attribute__((constructor))
-static void __ssl_sock_init(void) {
+static void __ssl_sock_init(void)
+{
 	STACK_OF(SSL_COMP)* cm;
 
 	SSL_library_init();
@@ -1459,6 +1584,7 @@ static void __ssl_sock_init(void) {
 	sample_register_fetches(&sample_fetch_keywords);
 	acl_register_keywords(&acl_kws);
 	bind_register_keywords(&bind_kws);
+	srv_register_keywords(&srv_kws);
 }
 
 /*
