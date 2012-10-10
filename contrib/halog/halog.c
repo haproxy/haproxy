@@ -121,6 +121,7 @@ const char *line;
 int linenum = 0;
 int parse_err = 0;
 int lines_out = 0;
+int lines_max = -1;
 
 const char *fgets2(FILE *stream);
 
@@ -138,7 +139,7 @@ void usage(FILE *output, const char *msg)
 	fprintf(output,
 		"%s"
 		"Usage: halog [-h|--help] for long help\n"
-		"       halog [-q] [-c]\n"
+		"       halog [-q] [-c] [-m <lines>]\n"
 		"       {-cc|-gt|-pct|-st|-tc|-srv|-u|-uc|-ue|-ua|-ut|-uao|-uto|-uba|-ubt}\n"
 		"       [-s <skip>] [-e|-E] [-H] [-rt|-RT <time>] [-ad <delay>] [-ac <count>]\n"
 		"       [-v] [-Q|-QS] [-tcn|-TCN <termcode>] [ -hs|-HS [min][:[max]] ] < log\n"
@@ -170,7 +171,7 @@ void help()
 	       "Modifiers\n"
 	       " -v                      invert the input filtering condition\n"
 	       " -q                      don't report errors/warnings\n"
-	       "\n"
+	       " -m <lines>              limit output to the first <lines> lines\n"
 	       "Output filters - only one may be used at a time\n"
 	       " -c    only report the number of lines that would have been printed\n"
 	       " -pct  output connect and response times percentiles\n"
@@ -575,6 +576,11 @@ int main(int argc, char **argv)
 			argc--; argv++;
 			skip_fields = atol(*argv);
 		}
+		else if (strcmp(argv[0], "-m") == 0) {
+			if (argc < 2) die("missing option for -m");
+			argc--; argv++;
+			lines_max = atol(*argv);
+		}
 		else if (strcmp(argv[0], "-e") == 0)
 			filter |= FILT_ERRORS_ONLY;
 		else if (strcmp(argv[0], "-E") == 0)
@@ -702,7 +708,7 @@ int main(int argc, char **argv)
 	posix_fadvise(0, 0, 0, POSIX_FADV_SEQUENTIAL);
 #endif
 
-	if (!line_filter &&
+	if (!line_filter && lines_max >= 0 &&
 	    !(filter & (FILT_HTTP_ONLY|FILT_TIME_RESP|FILT_ERRORS_ONLY|FILT_HTTP_STATUS|FILT_QUEUE_ONLY|FILT_QUEUE_SRV_ONLY|FILT_TERM_CODE_NAME))) {
 		/* read the whole file at once first */
 		if (!filter_invert)
@@ -867,6 +873,8 @@ int main(int argc, char **argv)
 			line_filter(accept_field, time_field, &t);
 		else
 			lines_out++; /* we're just counting lines */
+		if (lines_out >= lines_max)
+			break;
 	}
 
  skip_filters:
@@ -904,8 +912,10 @@ int main(int argc, char **argv)
 				ms = h % 1000; h = h / 1000;
 				s = h % 60; h = h / 60;
 				m = h % 60; h = h / 60;
-				lines_out++;
 				printf("%02d:%02d:%02d.%03d %d %d %d\n", h, m, s, ms, last, d, t->count);
+				lines_out++;
+				if (lines_out >= lines_max)
+					break;
 			}
 			n = eb32_next(n);
 		}
@@ -937,6 +947,8 @@ int main(int argc, char **argv)
 				if (d > 0.0) {
 					printf("%d %d %f\n", f, last, d+1.0);
 					lines_out++;
+					if (lines_out >= lines_max)
+						break;
 				}
 
 				n = eb32_next(n);
@@ -994,6 +1006,8 @@ int main(int argc, char **argv)
 			t = container_of(n, struct timer, node);
 			printf("%d %d\n", n->key, t->count);
 			lines_out++;
+			if (lines_out >= lines_max)
+				break;
 			n = eb32_next(n);
 		}
 	}
@@ -1021,6 +1035,8 @@ int main(int argc, char **argv)
 			       (int)(srv->cum_ct / (srv->nb_ct?srv->nb_ct:1)), (int)(srv->cum_rt / (srv->nb_rt?srv->nb_rt:1)));
 			srv_node = ebmb_next(srv_node);
 			lines_out++;
+			if (lines_out >= lines_max)
+				break;
 		}
 	}
 	else if (filter & (FILT_COUNT_TERM_CODES|FILT_COUNT_COOK_CODES)) {
@@ -1030,6 +1046,8 @@ int main(int argc, char **argv)
 			t = container_of(n, struct timer, node);
 			printf("%c%c %d\n", (n->key >> 8), (n->key) & 255, t->count);
 			lines_out++;
+			if (lines_out >= lines_max)
+				break;
 			n = eb32_next(n);
 		}
 	}
@@ -1092,6 +1110,8 @@ int main(int argc, char **argv)
 
 			node = eb_prev(node);
 			lines_out++;
+			if (lines_out >= lines_max)
+				break;
 		}
 	}
 
