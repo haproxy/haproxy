@@ -1,7 +1,7 @@
 /*
  * haproxy log statistics reporter
  *
- * Copyright 2000-2010 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2012 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -113,6 +113,8 @@ struct url_stat {
 			      FILT_COUNT_URL_TTOT|FILT_COUNT_URL_TAVG|FILT_COUNT_URL_TTOTO|FILT_COUNT_URL_TAVGO| \
 			      FILT_COUNT_URL_BAVG|FILT_COUNT_URL_BTOT)
 
+#define FILT_COUNT_COOK_CODES 0x40000000
+
 unsigned int filter = 0;
 unsigned int filter_invert = 0;
 const char *line;
@@ -124,6 +126,7 @@ const char *fgets2(FILE *stream);
 
 void filter_count_url(const char *accept_field, const char *time_field, struct timer **tptr);
 void filter_count_srv_status(const char *accept_field, const char *time_field, struct timer **tptr);
+void filter_count_cook_codes(const char *accept_field, const char *time_field, struct timer **tptr);
 void filter_count_term_codes(const char *accept_field, const char *time_field, struct timer **tptr);
 void filter_count_status(const char *accept_field, const char *time_field, struct timer **tptr);
 void filter_graphs(const char *accept_field, const char *time_field, struct timer **tptr);
@@ -136,7 +139,7 @@ void usage(FILE *output, const char *msg)
 		"%s"
 		"Usage: halog [-h|--help] for long help\n"
 		"       halog [-q] [-c]\n"
-		"       {-gt|-pct|-st|-tc|-srv|-u|-uc|-ue|-ua|-ut|-uao|-uto|-uba|-ubt}\n"
+		"       {-cc|-gt|-pct|-st|-tc|-srv|-u|-uc|-ue|-ua|-ut|-uao|-uto|-uba|-ubt}\n"
 		"       [-s <skip>] [-e|-E] [-H] [-rt|-RT <time>] [-ad <delay>] [-ac <count>]\n"
 		"       [-v] [-Q|-QS] [-tcn|-TCN <termcode>] [ -hs|-HS [min][:[max]] ] < log\n"
 		"\n",
@@ -172,6 +175,7 @@ void help()
 	       " -c    only report the number of lines that would have been printed\n"
 	       " -pct  output connect and response times percentiles\n"
 	       " -st   output number of requests per HTTP status code\n"
+	       " -cc   output number of requests per cookie code (2 chars)\n"
 	       " -tc   output number of requests per termination code (2 chars)\n"
 	       " -srv  output statistics per server (time, requests, errors)\n"
 	       " -u*   output statistics per URL (time, requests, errors)\n"
@@ -595,6 +599,8 @@ int main(int argc, char **argv)
 			filter |= FILT_COUNT_STATUS;
 		else if (strcmp(argv[0], "-srv") == 0)
 			filter |= FILT_COUNT_SRV_STATUS;
+		else if (strcmp(argv[0], "-cc") == 0)
+			filter |= FILT_COUNT_COOK_CODES;
 		else if (strcmp(argv[0], "-tc") == 0)
 			filter |= FILT_COUNT_TERM_CODES;
 		else if (strcmp(argv[0], "-tcn") == 0) {
@@ -676,6 +682,8 @@ int main(int argc, char **argv)
 		line_filter = filter_graphs;
 	else if (filter & FILT_COUNT_STATUS)
 		line_filter = filter_count_status;
+	else if (filter & FILT_COUNT_COOK_CODES)
+		line_filter = filter_count_cook_codes;
 	else if (filter & FILT_COUNT_TERM_CODES)
 		line_filter = filter_count_term_codes;
 	else if (filter & FILT_COUNT_SRV_STATUS)
@@ -1015,7 +1023,7 @@ int main(int argc, char **argv)
 			lines_out++;
 		}
 	}
-	else if (filter & FILT_COUNT_TERM_CODES) {
+	else if (filter & (FILT_COUNT_TERM_CODES|FILT_COUNT_COOK_CODES)) {
 		/* output all statuses in the form of <code> <occurrences> */
 		n = eb32_first(&timers[0]);
 		while (n) {
@@ -1134,6 +1142,28 @@ void filter_count_status(const char *accept_field, const char *time_field, struc
 	}
 
 	val = str2ic(b);
+
+	t2 = insert_value(&timers[0], tptr, val);
+	t2->count++;
+}
+
+void filter_count_cook_codes(const char *accept_field, const char *time_field, struct timer **tptr)
+{
+	struct timer *t2;
+	const char *b;
+	int val;
+
+	if (time_field)
+		b = field_start(time_field, TERM_CODES_FIELD - TIME_FIELD + 1);
+	else
+		b = field_start(accept_field, TERM_CODES_FIELD - ACCEPT_FIELD + 1);
+
+	if (unlikely(!*b)) {
+		truncated_line(linenum, line);
+		return;
+	}
+
+	val = 256 * b[2] + b[3];
 
 	t2 = insert_value(&timers[0], tptr, val);
 	t2->count++;
