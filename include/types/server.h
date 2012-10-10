@@ -203,6 +203,31 @@ struct server {
 	} conf;					/* config information */
 };
 
+/* Descriptor for a "server" keyword. The ->parse() function returns 0 in case of
+ * success, or a combination of ERR_* flags if an error is encountered. The
+ * function pointer can be NULL if not implemented. The function also has an
+ * access to the current "server" config line. The ->skip value tells the parser
+ * how many words have to be skipped after the keyword. If the function needs to
+ * parse more keywords, it needs to update cur_arg.
+ */
+struct srv_kw {
+	const char *kw;
+	int (*parse)(char **args, int *cur_arg, struct proxy *px, struct server *srv, char **err);
+	int skip; /* nb min of args to skip, for use when kw is not handled */
+	int default_ok; /* non-zero if kw is supported in default-server section */
+};
+
+/*
+ * A keyword list. It is a NULL-terminated array of keywords. It embeds a
+ * struct list in order to be linked to other lists, allowing it to easily
+ * be declared where it is needed, and linked without duplicating data nor
+ * allocating memory. It is also possible to indicate a scope for the keywords.
+ */
+struct srv_kw_list {
+	const char *scope;
+	struct list list;
+	struct srv_kw kw[VAR_ARRAY];
+};
 
 #endif /* _TYPES_SERVER_H */
 

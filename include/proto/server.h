@@ -47,6 +47,18 @@ static void inline srv_inc_sess_ctr(struct server *s)
 #endif /* _PROTO_SERVER_H */
 
 /*
+ * Registers the server keyword list <kwl> as a list of valid keywords for next
+ * parsing sessions.
+ */
+void srv_register_keywords(struct srv_kw_list *kwl);
+
+/* Return a pointer to the server keyword <kw>, or NULL if not found. */
+struct srv_kw *srv_find_kw(const char *kw);
+
+/* Dumps all registered "server" keywords to the <out> string pointer. */
+void srv_dump_kws(char **out);
+
+/*
  * Local variables:
  *  c-indent-level: 8
  *  c-basic-offset: 8
