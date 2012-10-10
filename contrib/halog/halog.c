@@ -181,7 +181,7 @@ void help()
 	       " -u*   output statistics per URL (time, requests, errors)\n"
 	       "       Additional characters indicate the output sorting key :\n"
 	       "       -u : by URL, -uc : request count, -ue : error count\n"
-	       "       -ua : average response time, -uto : average total time\n"
+	       "       -ua : average response time, -ut : average total time\n"
 	       "       -uao, -uto: average times computed on valid ('OK') requests\n"
 	       "       -uba, -ubt: average bytes returned, total bytes returned\n"
 	       );
