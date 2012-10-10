@@ -12,6 +12,7 @@
  */
 
 #include <common/config.h>
+#include <common/errors.h>
 #include <common/time.h>
 
 #include <proto/server.h>
@@ -104,6 +105,55 @@ void srv_dump_kws(char **out)
 			}
 		}
 	}
+}
+
+/* parse the "id" server keyword */
+static int srv_parse_id(char **args, int *cur_arg, struct proxy *curproxy, struct server *newsrv, char **err)
+{
+	struct eb32_node *node;
+
+	if (!*args[*cur_arg + 1]) {
+		memprintf(err, "'%s' : expects an integer argument", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	newsrv->puid = atol(args[*cur_arg + 1]);
+	newsrv->conf.id.key = newsrv->puid;
+
+	if (newsrv->puid <= 0) {
+		memprintf(err, "'%s' : custom id has to be > 0", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	node = eb32_lookup(&curproxy->conf.used_server_id, newsrv->puid);
+	if (node) {
+		struct server *target = container_of(node, struct server, conf.id);
+		memprintf(err, "'%s' : custom id %d already used at %s:%d ('server %s')",
+		          args[*cur_arg], newsrv->puid, target->conf.file, target->conf.line,
+		          target->id);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	eb32_insert(&curproxy->conf.used_server_id, &newsrv->conf.id);
+	return 0;
+}
+
+/* Note: must not be declared <const> as its list will be overwritten.
+ * Please take care of keeping this list alphabetically sorted, doing so helps
+ * all code contributors.
+ * Optional keywords are also declared with a NULL ->parse() function so that
+ * the config parser can report an appropriate error when a known keyword was
+ * not enabled.
+ */
+static struct srv_kw_list srv_kws = { "ALL", { }, {
+	{ "id",           srv_parse_id,           1,  0 }, /* set id# of server */
+	{ NULL, NULL, 0 },
+}};
+
+__attribute__((constructor))
+static void __listener_init(void)
+{
+	srv_register_keywords(&srv_kws);
 }
 
 /*

@@ -4028,38 +4028,7 @@ stats_error_parsing:
 		}
 
 		while (*args[cur_arg]) {
-			if (!defsrv && !strcmp(args[cur_arg], "id")) {
-				struct eb32_node *node;
-
-				if (!*args[cur_arg + 1]) {
-					Alert("parsing [%s:%d]: '%s' expects an integer argument.\n",
-						file, linenum, args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				newsrv->puid = atol(args[cur_arg + 1]);
-				newsrv->conf.id.key = newsrv->puid;
-
-				if (newsrv->puid <= 0) {
-					Alert("parsing [%s:%d]: custom id has to be > 0.\n",
-						file, linenum);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				node = eb32_lookup(&curproxy->conf.used_server_id, newsrv->puid);
-				if (node) {
-					struct server *target = container_of(node, struct server, conf.id);
-					Alert("parsing [%s:%d]: server %s reuses same custom id as server %s (declared at %s:%d).\n",
-					      file, linenum, newsrv->id, target->id, target->conf.file, target->conf.line);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				eb32_insert(&curproxy->conf.used_server_id, &newsrv->conf.id);
-				cur_arg += 2;
-			}
-			else if (!defsrv && !strcmp(args[cur_arg], "cookie")) {
+			if (!defsrv && !strcmp(args[cur_arg], "cookie")) {
 				newsrv->cookie = strdup(args[cur_arg + 1]);
 				newsrv->cklen = strlen(args[cur_arg + 1]);
 				cur_arg += 2;
