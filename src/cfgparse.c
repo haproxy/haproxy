@@ -4650,12 +4650,64 @@ stats_error_parsing:
 				goto out;
 			}
 			else {
-				if (!defsrv)
-					Alert("parsing [%s:%d] : server %s only supports options 'backup', 'cookie', 'redir', 'observer', 'on-error', 'on-marked-down', 'error-limit', 'check', 'disabled', 'track', 'id', 'inter', 'fastinter', 'downinter', 'rise', 'fall', 'addr', 'port', 'source', 'send-proxy', 'minconn', 'maxconn', 'maxqueue', 'slowstart' and 'weight'.\n",
-					      file, linenum, newsrv->id);
-				else
-					Alert("parsing [%s:%d]: default-server only supports options 'on-error', 'error-limit', 'inter', 'fastinter', 'downinter', 'rise', 'fall', 'port', 'minconn', 'maxconn', 'maxqueue', 'slowstart' and 'weight'.\n",
-					      file, linenum);
+				static int srv_dumped;
+				struct srv_kw *kw;
+				char *err;
+
+				kw = srv_find_kw(args[cur_arg]);
+				if (kw) {
+					char *err = NULL;
+					int code;
+
+					if (!kw->parse) {
+						Alert("parsing [%s:%d] : '%s %s' : '%s' option is not implemented in this version (check build options).\n",
+						      file, linenum, args[0], args[1], args[cur_arg]);
+						cur_arg += 1 + kw->skip ;
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+
+					if (defsrv && !kw->default_ok) {
+						Alert("parsing [%s:%d] : '%s %s' : '%s' option is not accepted in default-server sections.\n",
+						      file, linenum, args[0], args[1], args[cur_arg]);
+						cur_arg += 1 + kw->skip ;
+						err_code |= ERR_ALERT;
+						continue;
+					}
+
+					code = kw->parse(args, &cur_arg, curproxy, newsrv, &err);
+					err_code |= code;
+
+					if (code) {
+						if (err && *err) {
+							indent_msg(&err, 2);
+							Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], err);
+						}
+						else
+							Alert("parsing [%s:%d] : '%s %s' : error encountered while processing '%s'.\n",
+							      file, linenum, args[0], args[1], args[cur_arg]);
+						if (code & ERR_FATAL) {
+							free(err);
+							cur_arg += 1 + kw->skip;
+							goto out;
+						}
+					}
+					free(err);
+					cur_arg += 1 + kw->skip;
+					continue;
+				}
+
+				err = NULL;
+				if (!srv_dumped) {
+					srv_dump_kws(&err);
+					indent_msg(&err, 4);
+					srv_dumped = 1;
+				}
+
+				Alert("parsing [%s:%d] : '%s %s' unknown keyword '%s'.%s%s\n",
+				      file, linenum, args[0], args[1], args[cur_arg],
+				      err ? " Registered keywords :" : "", err ? err : "");
+				free(err);
 
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
