@@ -1840,7 +1840,8 @@ char *memprintf(char **out, const char *format, ...)
 
 /* Used to add <level> spaces before each line of <out>, unless there is only one line.
  * The input argument is automatically freed and reassigned. The result will have to be
- * freed by the caller.
+ * freed by the caller. It also supports being passed a NULL which results in the same
+ * output.
  * Example of use :
  *   parse(cmd, &err); (callee: memprintf(&err, ...))
  *   fprintf(stderr, "Parser said: %s\n", indent_error(&err));
@@ -1853,6 +1854,9 @@ char *indent_msg(char **out, int level)
 	int lf = 0;
 	int lastlf = 0;
 	int len;
+
+	if (!out || !*out)
+		return NULL;
 
 	in = *out - 1;
 	while ((in = strchr(in + 1, '\n')) != NULL) {
