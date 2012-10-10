@@ -46,10 +46,10 @@
 /* The syscall is redefined somewhere else */
 extern int accept4(int sockfd, struct sockaddr *addr, socklen_t *addrlen, int flags);
 #elif ACCEPT4_USE_SOCKETCALL
+static inline _syscall2(int, socketcall, int, call, unsigned long *, args);
 static int accept4(int sockfd, struct sockaddr *addr, socklen_t *addrlen, int flags)
 {
 	unsigned long args[4];
-	static _syscall2(int, socketcall, int, call, unsigned long *, args);
 
 	args[0] = (unsigned long)sockfd;
 	args[1] = (unsigned long)addr;
