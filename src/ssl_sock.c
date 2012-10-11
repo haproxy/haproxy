@@ -1614,17 +1614,17 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
  * not enabled.
  */
 static struct srv_kw_list srv_kws = { "SSL", { }, {
-	{ "check-ssl",             srv_parse_check_ssl,      0, 1 }, /* enable SSL for health checks */
-	{ "ciphers",               srv_parse_ciphers,        1, 1 }, /* select the cipher suite */
-	{ "force-sslv3",           srv_parse_force_sslv3,    0, 1 }, /* force SSLv3 */
-	{ "force-tlsv10",          srv_parse_force_tlsv10,   0, 1 }, /* force TLSv10 */
-	{ "force-tlsv11",          srv_parse_force_tlsv11,   0, 1 }, /* force TLSv11 */
-	{ "force-tlsv12",          srv_parse_force_tlsv12,   0, 1 }, /* force TLSv12 */
-	{ "no-sslv3",              srv_parse_no_sslv3,       0, 1 }, /* disable SSLv3 */
-	{ "no-tlsv10",             srv_parse_no_tlsv10,      0, 1 }, /* disable TLSv10 */
-	{ "no-tlsv11",             srv_parse_no_tlsv11,      0, 1 }, /* disable TLSv11 */
-	{ "no-tlsv12",             srv_parse_no_tlsv12,      0, 1 }, /* disable TLSv12 */
-	{ "ssl",                   srv_parse_ssl,            0, 1 }, /* enable SSL processing */
+	{ "check-ssl",             srv_parse_check_ssl,      0, 0 }, /* enable SSL for health checks */
+	{ "ciphers",               srv_parse_ciphers,        1, 0 }, /* select the cipher suite */
+	{ "force-sslv3",           srv_parse_force_sslv3,    0, 0 }, /* force SSLv3 */
+	{ "force-tlsv10",          srv_parse_force_tlsv10,   0, 0 }, /* force TLSv10 */
+	{ "force-tlsv11",          srv_parse_force_tlsv11,   0, 0 }, /* force TLSv11 */
+	{ "force-tlsv12",          srv_parse_force_tlsv12,   0, 0 }, /* force TLSv12 */
+	{ "no-sslv3",              srv_parse_no_sslv3,       0, 0 }, /* disable SSLv3 */
+	{ "no-tlsv10",             srv_parse_no_tlsv10,      0, 0 }, /* disable TLSv10 */
+	{ "no-tlsv11",             srv_parse_no_tlsv11,      0, 0 }, /* disable TLSv11 */
+	{ "no-tlsv12",             srv_parse_no_tlsv12,      0, 0 }, /* disable TLSv12 */
+	{ "ssl",                   srv_parse_ssl,            0, 0 }, /* enable SSL processing */
 	{ NULL, NULL, 0, 0 },
 }};
 
