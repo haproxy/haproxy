@@ -67,6 +67,7 @@
 #include <proto/listener.h>
 #include <proto/server.h>
 #include <proto/log.h>
+#include <proto/proxy.h>
 #include <proto/shctx.h>
 #include <proto/ssl_sock.h>
 #include <proto/task.h>
@@ -568,6 +569,72 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 		}
 	}
 #endif
+
+	return cfgerr;
+}
+
+/* prepare ssl context from servers options. Returns an error count */
+int ssl_sock_prepare_srv_ctx(struct server *srv, struct proxy *curproxy)
+{
+	int cfgerr = 0;
+	int options =
+		SSL_OP_ALL | /* all known workarounds for bugs */
+		SSL_OP_NO_SSLv2 |
+		SSL_OP_NO_COMPRESSION;
+	int mode =
+		SSL_MODE_ENABLE_PARTIAL_WRITE |
+		SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
+		SSL_MODE_RELEASE_BUFFERS;
+
+	 /* Initiate SSL context for current server */
+	srv->ssl_ctx.reused_sess = NULL;
+	if (srv->use_ssl)
+		srv->xprt = &ssl_sock;
+	if (srv->check.use_ssl)
+		srv->check.xprt = &ssl_sock;
+
+	srv->ssl_ctx.ctx = SSL_CTX_new(SSLv23_client_method());
+	if (!srv->ssl_ctx.ctx) {
+		Alert("config : %s '%s', server '%s': unable to allocate ssl context.\n",
+		      proxy_type_str(curproxy), curproxy->id,
+		      srv->id);
+		cfgerr++;
+		return cfgerr;
+	}
+
+
+	if (srv->ssl_ctx.options & SRV_SSL_O_NO_SSLV3)
+		options |= SSL_OP_NO_SSLv3;
+	if (srv->ssl_ctx.options & SRV_SSL_O_NO_TLSV10)
+		options |= SSL_OP_NO_TLSv1;
+	if (srv->ssl_ctx.options & SRV_SSL_O_NO_TLSV11)
+		options |= SSL_OP_NO_TLSv1_1;
+	if (srv->ssl_ctx.options & SRV_SSL_O_NO_TLSV12)
+		options |= SSL_OP_NO_TLSv1_2;
+	if (srv->ssl_ctx.options & SRV_SSL_O_USE_SSLV3)
+		SSL_CTX_set_ssl_version(srv->ssl_ctx.ctx, SSLv3_client_method());
+	if (srv->ssl_ctx.options & SRV_SSL_O_USE_TLSV10)
+		SSL_CTX_set_ssl_version(srv->ssl_ctx.ctx, TLSv1_client_method());
+#if SSL_OP_NO_TLSv1_1
+	if (srv->ssl_ctx.options & SRV_SSL_O_USE_TLSV11)
+		SSL_CTX_set_ssl_version(srv->ssl_ctx.ctx, TLSv1_1_client_method());
+#endif
+#if SSL_OP_NO_TLSv1_2
+	if (srv->ssl_ctx.options & SRV_SSL_O_USE_TLSV12)
+		SSL_CTX_set_ssl_version(srv->ssl_ctx.ctx, TLSv1_2_client_method());
+#endif
+
+	SSL_CTX_set_options(srv->ssl_ctx.ctx, options);
+	SSL_CTX_set_mode(srv->ssl_ctx.ctx, mode);
+	SSL_CTX_set_verify(srv->ssl_ctx.ctx, SSL_VERIFY_NONE, NULL);
+	SSL_CTX_set_session_cache_mode(srv->ssl_ctx.ctx, SSL_SESS_CACHE_OFF);
+	if (srv->ssl_ctx.ciphers &&
+		!SSL_CTX_set_cipher_list(srv->ssl_ctx.ctx, srv->ssl_ctx.ciphers)) {
+		Alert("Proxy '%s', server '%s' [%s:%d] : unable to set SSL cipher list to '%s'.\n",
+		      curproxy->id, srv->id,
+		      srv->conf.file, srv->conf.line, srv->ssl_ctx.ciphers);
+		cfgerr++;
+	}
 
 	return cfgerr;
 }

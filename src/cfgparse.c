@@ -6258,82 +6258,10 @@ out_uri_auth_compat:
 			}
 
 #ifdef USE_OPENSSL
-#ifndef SSL_OP_NO_COMPRESSION     /* needs OpenSSL >= 0.9.9 */
-#define SSL_OP_NO_COMPRESSION 0
-#endif
-#ifndef SSL_MODE_RELEASE_BUFFERS  /* needs OpenSSL >= 1.0.0 */
-#define SSL_MODE_RELEASE_BUFFERS 0
-#endif
-#ifndef SSL_OP_NO_COMPRESSION     /* needs OpenSSL >= 0.9.9 */
-#define SSL_OP_NO_COMPRESSION 0
-#endif
-#ifndef SSL_OP_NO_TLSv1_1         /* needs OpenSSL >= 1.0.1 */
-#define SSL_OP_NO_TLSv1_1 0
-#endif
-#ifndef SSL_OP_NO_TLSv1_2         /* needs OpenSSL >= 1.0.1 */
-#define SSL_OP_NO_TLSv1_2 0
-#endif
-			if (newsrv->use_ssl || newsrv->check.use_ssl) {
-				int ssloptions =
-					SSL_OP_ALL | /* all known workarounds for bugs */
-					SSL_OP_NO_SSLv2 |
-					SSL_OP_NO_COMPRESSION;
-				int sslmode =
-					SSL_MODE_ENABLE_PARTIAL_WRITE |
-					SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
-					SSL_MODE_RELEASE_BUFFERS;
-
-				/* Initiate SSL context for current server */
-				newsrv->ssl_ctx.reused_sess = NULL;
-				if (newsrv->use_ssl)
-					newsrv->xprt = &ssl_sock;
-				if (newsrv->check.use_ssl)
-					newsrv->check.xprt = &ssl_sock;
-				newsrv->ssl_ctx.ctx = SSL_CTX_new(SSLv23_client_method());
-				if(!newsrv->ssl_ctx.ctx) {
-
-					Alert("config : %s '%s', server '%s': unable to allocate ssl context.\n",
-						proxy_type_str(curproxy), curproxy->id,
-						newsrv->id);
-						cfgerr++;
-						goto next_srv;
-				}
-
-				if (newsrv->ssl_ctx.options & SRV_SSL_O_NO_SSLV3)
-					ssloptions |= SSL_OP_NO_SSLv3;
-				if (newsrv->ssl_ctx.options & SRV_SSL_O_NO_TLSV10)
-					ssloptions |= SSL_OP_NO_TLSv1;
-				if (newsrv->ssl_ctx.options & SRV_SSL_O_NO_TLSV11)
-					ssloptions |= SSL_OP_NO_TLSv1_1;
-				if (newsrv->ssl_ctx.options & SRV_SSL_O_NO_TLSV12)
-					ssloptions |= SSL_OP_NO_TLSv1_2;
-				if (newsrv->ssl_ctx.options & SRV_SSL_O_USE_SSLV3)
-					SSL_CTX_set_ssl_version(newsrv->ssl_ctx.ctx, SSLv3_client_method());
-				if (newsrv->ssl_ctx.options & SRV_SSL_O_USE_TLSV10)
-					SSL_CTX_set_ssl_version(newsrv->ssl_ctx.ctx, TLSv1_client_method());
-#if SSL_OP_NO_TLSv1_1
-				if (newsrv->ssl_ctx.options & SRV_SSL_O_USE_TLSV11)
-					SSL_CTX_set_ssl_version(newsrv->ssl_ctx.ctx, TLSv1_1_client_method());
-#endif
-#if SSL_OP_NO_TLSv1_2
-				if (newsrv->ssl_ctx.options & SRV_SSL_O_USE_TLSV12)
-					SSL_CTX_set_ssl_version(newsrv->ssl_ctx.ctx, TLSv1_2_client_method());
-#endif
-
-				SSL_CTX_set_options(newsrv->ssl_ctx.ctx, ssloptions);
-				SSL_CTX_set_mode(newsrv->ssl_ctx.ctx, sslmode);
-				SSL_CTX_set_verify(newsrv->ssl_ctx.ctx, SSL_VERIFY_NONE, NULL);
-				SSL_CTX_set_session_cache_mode(newsrv->ssl_ctx.ctx, SSL_SESS_CACHE_OFF);
-				if (newsrv->ssl_ctx.ciphers &&
-				    !SSL_CTX_set_cipher_list(newsrv->ssl_ctx.ctx, newsrv->ssl_ctx.ciphers)) {
-					Alert("Proxy '%s', server '%s' [%s:%d] : unable to set SSL cipher list to '%s'.\n",
-					      curproxy->id, newsrv->id,
-					      newsrv->conf.file, newsrv->conf.line, newsrv->ssl_ctx.ciphers);
-					cfgerr++;
-					goto next_srv;
-				}
-			}
+			if (newsrv->use_ssl || newsrv->check.use_ssl)
+				cfgerr += ssl_sock_prepare_srv_ctx(newsrv, curproxy);
 #endif /* USE_OPENSSL */
+
 			if (newsrv->trackit) {
 				struct proxy *px;
 				struct server *srv;
