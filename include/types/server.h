@@ -197,6 +197,9 @@ struct server {
 		SSL_SESSION *reused_sess;
 		char *ciphers;			/* cipher suite to use if non-null */
 		int options;			/* ssl options */
+		int verify;			/* verify method (set of SSL_VERIFY_* flags) */
+		char *ca_file;			/* CAfile to use on verify */
+		char *crl_file;			/* CRLfile to use on verify */
 	} ssl_ctx;
 #endif
 	struct {

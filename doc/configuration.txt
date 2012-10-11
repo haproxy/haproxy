@@ -7048,6 +7048,13 @@ backup
 
   Supported in default-server: No
 
+ca-file <cafile>
+  This setting is only available when support for OpenSSL was built in. It
+  designates a PEM file from which to load CA certificates used to verify
+  server's certificate.
+
+  Supported in default-server: No
+
 check
   This option enables health checks on the server. By default, a server is
   always considered available. If "check" is set, the server is available when
@@ -7107,6 +7114,13 @@ cookie <value>
   sent to the client. There is nothing wrong in having several servers sharing
   the same cookie value, and it is in fact somewhat common between normal and
   backup servers. See also the "cookie" keyword in backend section.
+
+  Supported in default-server: No
+
+crl-file <crlfile>
+  This setting is only available when support for OpenSSL was built in. It
+  designates a PEM file from which to load certificate revocation list used
+  to verify server's certificate.
 
   Supported in default-server: No
 
@@ -7453,6 +7467,15 @@ track [<proxy>/]<server>
   so it is not possible for example to track a server that tracks another
   one. If <proxy> is omitted the current one is used. If disable-on-404 is
   used, it has to be enabled on both proxies.
+
+  Supported in default-server: No
+
+verify [none|required]
+  This setting is only available when support for OpenSSL was built in. If set
+  to 'none', server certificate is not verified. This is the default. In the
+  other case, The certificate provided by the server is verified using CAs from
+  'ca-file' and optional CRLs from 'crl-file'. On verify failure the handshake
+  is aborted.
 
   Supported in default-server: No
 
