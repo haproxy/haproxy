@@ -7240,6 +7240,14 @@ no-sslv3
 
   Supported in default-server: No
 
+no-tls-tickets
+  This setting is only available when support for OpenSSL was built in. It
+  disables the stateless session resumption (RFC 5077 TLS Ticket
+  extension) and force to use stateful session resumption. Stateless
+  session resumption is more expensive in CPU usage for servers.
+
+  Supported in default-server: No
+
 no-tlsv10
   This option disables support for TLSv1.0 when SSL is used to communicate with
   the server. Note that SSLv2 is disabled in the code and cannot be enabled

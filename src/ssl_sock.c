@@ -611,6 +611,8 @@ int ssl_sock_prepare_srv_ctx(struct server *srv, struct proxy *curproxy)
 		options |= SSL_OP_NO_TLSv1_1;
 	if (srv->ssl_ctx.options & SRV_SSL_O_NO_TLSV12)
 		options |= SSL_OP_NO_TLSv1_2;
+	if (srv->ssl_ctx.options & SRV_SSL_O_NO_TLS_TICKETS)
+		options |= SSL_OP_NO_TICKET;
 	if (srv->ssl_ctx.options & SRV_SSL_O_USE_SSLV3)
 		SSL_CTX_set_ssl_version(srv->ssl_ctx.ctx, SSLv3_client_method());
 	if (srv->ssl_ctx.options & SRV_SSL_O_USE_TLSV10)
@@ -1536,6 +1538,13 @@ static int srv_parse_no_tlsv12(char **args, int *cur_arg, struct proxy *px, stru
 	return 0;
 }
 
+/* parse the "no-tls-tickets" server keyword */
+static int srv_parse_no_tls_tickets(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	newsrv->ssl_ctx.options |= SRV_SSL_O_NO_TLS_TICKETS;
+	return 0;
+}
+
 /* parse the "ssl" server keyword */
 static int srv_parse_ssl(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
@@ -1624,6 +1633,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "no-tlsv10",             srv_parse_no_tlsv10,      0, 0 }, /* disable TLSv10 */
 	{ "no-tlsv11",             srv_parse_no_tlsv11,      0, 0 }, /* disable TLSv11 */
 	{ "no-tlsv12",             srv_parse_no_tlsv12,      0, 0 }, /* disable TLSv12 */
+	{ "no-tls-tickets",        srv_parse_no_tls_tickets, 0, 0 }, /* disable session resumption tickets */
 	{ "ssl",                   srv_parse_ssl,            0, 0 }, /* enable SSL processing */
 	{ NULL, NULL, 0, 0 },
 }};
