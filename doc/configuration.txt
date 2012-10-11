@@ -485,8 +485,8 @@ The following keywords are supported in the "global" section :
 
 ca-base <dir>
   Assigns a default directory to fetch SSL CA certificates and CRLs from when a
-  relative path is used with "cafile" or "crlfile" directives. Absolute
-  locations specified in "cafile" and "crlfile" prevail and ignore "ca-base".
+  relative path is used with "ca-file" or "crl-file" directives. Absolute
+  locations specified in "ca-file" and "crl-file" prevail and ignore "ca-base".
 
 chroot <jail dir>
   Changes current directory to <jail dir> and performs a chroot() there before
@@ -6758,7 +6758,7 @@ ecdhe <named curve>
   the named curve (RFC 4492) used to generate ECDH ephemeral keys and makes
   ECDHE cipher suites usable.
 
-cafile <cafile>
+ca-file <cafile>
   This setting is only available when support for OpenSSL was built in. It
   designates a PEM file from which to load CA certificates used to verify
   client's certificate.
@@ -6776,7 +6776,7 @@ ciphers <ciphers>
   in "man 1 ciphers" from OpenSSL man pages, and can be for instance a string
   such as "AES:ALL:!aNULL:!eNULL:+RC4:@STRENGTH" (without quotes).
 
-crlfile <cafile>
+crl-file <crlfile>
   This setting is only available when support for OpenSSL was built in. It
   designates a PEM file from which to load certificate revocation list used
   to verify client's certificate.
@@ -7008,10 +7008,10 @@ verify [none|optional|required]
   cases, a client certificate is requested. If the client does not provide a
   certificate after the request and if 'verify' is set to 'required', then the
   handshake is aborted, while it would have succeeded if set to 'optional'. The
-  certificate provided by the client is always verified using CAs from 'cafile'
-  and optional CRLs from 'crlfile'. On verify failure the handshake is aborted,
-  regardless of the 'verify' option, unless the error code exactly matches one
-  of those listed with 'ca-ignore-err' or 'crt-ignore-err'.
+  certificate provided by the client is always verified using CAs from
+  'ca-file' and optional CRLs from 'crl-file'. On verify failure the handshake
+  is aborted, regardless of the 'verify' option, unless the error code exactly
+  matches one of those listed with 'ca-ignore-err' or 'crt-ignore-err'.
 
 5.2. Server and default-server options
 ------------------------------------
