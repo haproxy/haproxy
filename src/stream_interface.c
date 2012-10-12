@@ -670,18 +670,18 @@ static int si_conn_wake_cb(struct connection *conn)
 static int si_conn_send_loop(struct connection *conn)
 {
 	struct stream_interface *si = conn->owner;
-	struct channel *b = si->ob;
+	struct channel *chn = si->ob;
 	int write_poll = MAX_WRITE_POLL_LOOPS;
 	int ret;
 
-	if (b->pipe && conn->xprt->snd_pipe) {
-		ret = conn->xprt->snd_pipe(conn, b->pipe);
+	if (chn->pipe && conn->xprt->snd_pipe) {
+		ret = conn->xprt->snd_pipe(conn, chn->pipe);
 		if (ret > 0)
-			b->flags |= CF_WRITE_PARTIAL;
+			chn->flags |= CF_WRITE_PARTIAL;
 
-		if (!b->pipe->data) {
-			put_pipe(b->pipe);
-			b->pipe = NULL;
+		if (!chn->pipe->data) {
+			put_pipe(chn->pipe);
+			chn->pipe = NULL;
 		}
 
 		if (conn->flags & CO_FL_ERROR)
@@ -691,7 +691,7 @@ static int si_conn_send_loop(struct connection *conn)
 	/* At this point, the pipe is empty, but we may still have data pending
 	 * in the normal buffer.
 	 */
-	if (!b->buf.o)
+	if (!chn->buf.o)
 		return 0;
 
 	/* when we're in this loop, we already know that there is no spliced
@@ -710,21 +710,21 @@ static int si_conn_send_loop(struct connection *conn)
 		 */
 		unsigned int send_flag = MSG_DONTWAIT | MSG_NOSIGNAL;
 
-		if ((!(b->flags & (CF_NEVER_WAIT|CF_SEND_DONTWAIT)) &&
-		     ((b->to_forward && b->to_forward != CHN_INFINITE_FORWARD) ||
-		      (b->flags & CF_EXPECT_MORE))) ||
-		    ((b->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_HIJACK)) == CF_SHUTW_NOW))
+		if ((!(chn->flags & (CF_NEVER_WAIT|CF_SEND_DONTWAIT)) &&
+		     ((chn->to_forward && chn->to_forward != CHN_INFINITE_FORWARD) ||
+		      (chn->flags & CF_EXPECT_MORE))) ||
+		    ((chn->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_HIJACK)) == CF_SHUTW_NOW))
 			send_flag |= MSG_MORE;
 
-		ret = conn->xprt->snd_buf(conn, &b->buf, send_flag);
+		ret = conn->xprt->snd_buf(conn, &chn->buf, send_flag);
 		if (ret <= 0)
 			break;
 
-		b->flags |= CF_WRITE_PARTIAL;
+		chn->flags |= CF_WRITE_PARTIAL;
 
-		if (!b->buf.o) {
+		if (!chn->buf.o) {
 			/* Always clear both flags once everything has been sent, they're one-shot */
-			b->flags &= ~(CF_EXPECT_MORE | CF_SEND_DONTWAIT);
+			chn->flags &= ~(CF_EXPECT_MORE | CF_SEND_DONTWAIT);
 			break;
 		}
 
@@ -942,7 +942,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 static void si_conn_recv_cb(struct connection *conn)
 {
 	struct stream_interface *si = conn->owner;
-	struct channel *b = si->ib;
+	struct channel *chn = si->ib;
 	int ret, max, cur_read;
 	int read_poll = MAX_READ_POLL_LOOPS;
 
@@ -960,7 +960,7 @@ static void si_conn_recv_cb(struct connection *conn)
 		goto out_shutdown_r;
 
 	/* maybe we were called immediately after an asynchronous shutr */
-	if (b->flags & CF_SHUTR)
+	if (chn->flags & CF_SHUTR)
 		return;
 
 	cur_read = 0;
@@ -969,8 +969,8 @@ static void si_conn_recv_cb(struct connection *conn)
 	 * using a buffer.
 	 */
 	if (conn->xprt->rcv_pipe &&
-	    b->to_forward >= MIN_SPLICE_FORWARD && b->flags & CF_KERN_SPLICING) {
-		if (buffer_not_empty(&b->buf)) {
+	    chn->to_forward >= MIN_SPLICE_FORWARD && chn->flags & CF_KERN_SPLICING) {
+		if (buffer_not_empty(&chn->buf)) {
 			/* We're embarrassed, there are already data pending in
 			 * the buffer and we don't want to have them at two
 			 * locations at a time. Let's indicate we need some
@@ -979,26 +979,26 @@ static void si_conn_recv_cb(struct connection *conn)
 			goto abort_splice;
 		}
 
-		if (unlikely(b->pipe == NULL)) {
-			if (pipes_used >= global.maxpipes || !(b->pipe = get_pipe())) {
-				b->flags &= ~CF_KERN_SPLICING;
+		if (unlikely(chn->pipe == NULL)) {
+			if (pipes_used >= global.maxpipes || !(chn->pipe = get_pipe())) {
+				chn->flags &= ~CF_KERN_SPLICING;
 				goto abort_splice;
 			}
 		}
 
-		ret = conn->xprt->rcv_pipe(conn, b->pipe, b->to_forward);
+		ret = conn->xprt->rcv_pipe(conn, chn->pipe, chn->to_forward);
 		if (ret < 0) {
 			/* splice not supported on this end, let's disable it */
-			b->flags &= ~CF_KERN_SPLICING;
+			chn->flags &= ~CF_KERN_SPLICING;
 			goto abort_splice;
 		}
 
 		if (ret > 0) {
-			if (b->to_forward != CHN_INFINITE_FORWARD)
-				b->to_forward -= ret;
-			b->total += ret;
+			if (chn->to_forward != CHN_INFINITE_FORWARD)
+				chn->to_forward -= ret;
+			chn->total += ret;
 			cur_read += ret;
-			b->flags |= CF_READ_PARTIAL;
+			chn->flags |= CF_READ_PARTIAL;
 		}
 
 		if (conn_data_read0_pending(conn))
@@ -1015,77 +1015,77 @@ static void si_conn_recv_cb(struct connection *conn)
 
  abort_splice:
 	/* release the pipe if we can, which is almost always the case */
-	if (b->pipe && !b->pipe->data) {
-		put_pipe(b->pipe);
-		b->pipe = NULL;
+	if (chn->pipe && !chn->pipe->data) {
+		put_pipe(chn->pipe);
+		chn->pipe = NULL;
 	}
 
-	while (!b->pipe && !(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_DATA_RD_SH | CO_FL_WAIT_RD | CO_FL_WAIT_ROOM | CO_FL_HANDSHAKE))) {
-		max = bi_avail(b);
+	while (!chn->pipe && !(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_DATA_RD_SH | CO_FL_WAIT_RD | CO_FL_WAIT_ROOM | CO_FL_HANDSHAKE))) {
+		max = bi_avail(chn);
 
 		if (!max) {
 			si->flags |= SI_FL_WAIT_ROOM;
 			break;
 		}
 
-		ret = conn->xprt->rcv_buf(conn, &b->buf, max);
+		ret = conn->xprt->rcv_buf(conn, &chn->buf, max);
 		if (ret <= 0)
 			break;
 
 		cur_read += ret;
 
 		/* if we're allowed to directly forward data, we must update ->o */
-		if (b->to_forward && !(b->flags & (CF_SHUTW|CF_SHUTW_NOW))) {
+		if (chn->to_forward && !(chn->flags & (CF_SHUTW|CF_SHUTW_NOW))) {
 			unsigned long fwd = ret;
-			if (b->to_forward != CHN_INFINITE_FORWARD) {
-				if (fwd > b->to_forward)
-					fwd = b->to_forward;
-				b->to_forward -= fwd;
+			if (chn->to_forward != CHN_INFINITE_FORWARD) {
+				if (fwd > chn->to_forward)
+					fwd = chn->to_forward;
+				chn->to_forward -= fwd;
 			}
-			b_adv(&b->buf, fwd);
+			b_adv(&chn->buf, fwd);
 		}
 
-		b->flags |= CF_READ_PARTIAL;
-		b->total += ret;
+		chn->flags |= CF_READ_PARTIAL;
+		chn->total += ret;
 
-		if (channel_full(b)) {
+		if (channel_full(chn)) {
 			/* The buffer is now full, there's no point in going through
 			 * the loop again.
 			 */
-			if (!(b->flags & CF_STREAMER_FAST) && (cur_read == buffer_len(&b->buf))) {
-				b->xfer_small = 0;
-				b->xfer_large++;
-				if (b->xfer_large >= 3) {
+			if (!(chn->flags & CF_STREAMER_FAST) && (cur_read == buffer_len(&chn->buf))) {
+				chn->xfer_small = 0;
+				chn->xfer_large++;
+				if (chn->xfer_large >= 3) {
 					/* we call this buffer a fast streamer if it manages
 					 * to be filled in one call 3 consecutive times.
 					 */
-					b->flags |= (CF_STREAMER | CF_STREAMER_FAST);
+					chn->flags |= (CF_STREAMER | CF_STREAMER_FAST);
 					//fputc('+', stderr);
 				}
 			}
-			else if ((b->flags & (CF_STREAMER | CF_STREAMER_FAST)) &&
-				 (cur_read <= b->buf.size / 2)) {
-				b->xfer_large = 0;
-				b->xfer_small++;
-				if (b->xfer_small >= 2) {
+			else if ((chn->flags & (CF_STREAMER | CF_STREAMER_FAST)) &&
+				 (cur_read <= chn->buf.size / 2)) {
+				chn->xfer_large = 0;
+				chn->xfer_small++;
+				if (chn->xfer_small >= 2) {
 					/* if the buffer has been at least half full twice,
 					 * we receive faster than we send, so at least it
 					 * is not a "fast streamer".
 					 */
-					b->flags &= ~CF_STREAMER_FAST;
+					chn->flags &= ~CF_STREAMER_FAST;
 					//fputc('-', stderr);
 				}
 			}
 			else {
-				b->xfer_small = 0;
-				b->xfer_large = 0;
+				chn->xfer_small = 0;
+				chn->xfer_large = 0;
 			}
 
 			si->flags |= SI_FL_WAIT_ROOM;
 			break;
 		}
 
-		if ((b->flags & CF_READ_DONTWAIT) || --read_poll <= 0)
+		if ((chn->flags & CF_READ_DONTWAIT) || --read_poll <= 0)
 			break;
 
 		/* if too many bytes were missing from last read, it means that
@@ -1093,16 +1093,16 @@ static void si_conn_recv_cb(struct connection *conn)
 		 * not have them in buffers.
 		 */
 		if (ret < max) {
-			if ((b->flags & (CF_STREAMER | CF_STREAMER_FAST)) &&
-			    (cur_read <= b->buf.size / 2)) {
-				b->xfer_large = 0;
-				b->xfer_small++;
-				if (b->xfer_small >= 3) {
+			if ((chn->flags & (CF_STREAMER | CF_STREAMER_FAST)) &&
+			    (cur_read <= chn->buf.size / 2)) {
+				chn->xfer_large = 0;
+				chn->xfer_small++;
+				if (chn->xfer_small >= 3) {
 					/* we have read less than half of the buffer in
 					 * one pass, and this happened at least 3 times.
 					 * This is definitely not a streamer.
 					 */
-					b->flags &= ~(CF_STREAMER | CF_STREAMER_FAST);
+					chn->flags &= ~(CF_STREAMER | CF_STREAMER_FAST);
 					//fputc('!', stderr);
 				}
 			}
@@ -1111,7 +1111,7 @@ static void si_conn_recv_cb(struct connection *conn)
 			 * have exhausted system buffers. It's not worth trying
 			 * again.
 			 */
-			if (b->flags & CF_STREAMER)
+			if (chn->flags & CF_STREAMER)
 				break;
 
 			/* if we read a large block smaller than what we requested,
@@ -1133,9 +1133,9 @@ static void si_conn_recv_cb(struct connection *conn)
 
  out_shutdown_r:
 	/* we received a shutdown */
-	b->flags |= CF_READ_NULL;
-	if (b->flags & CF_AUTO_CLOSE)
-		channel_shutw_now(b);
+	chn->flags |= CF_READ_NULL;
+	if (chn->flags & CF_AUTO_CLOSE)
+		channel_shutw_now(chn);
 	stream_sock_read0(si);
 	conn_data_read0(conn);
 	return;
@@ -1153,7 +1153,7 @@ static void si_conn_recv_cb(struct connection *conn)
 static void si_conn_send_cb(struct connection *conn)
 {
 	struct stream_interface *si = conn->owner;
-	struct channel *b = si->ob;
+	struct channel *chn = si->ob;
 
 	if (conn->flags & CO_FL_ERROR)
 		goto out_error;
@@ -1163,7 +1163,7 @@ static void si_conn_send_cb(struct connection *conn)
 		return;
 
 	/* we might have been called just after an asynchronous shutw */
-	if (b->flags & CF_SHUTW)
+	if (chn->flags & CF_SHUTW)
 		return;
 
 	/* OK there are data waiting to be sent */
