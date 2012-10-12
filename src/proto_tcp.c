@@ -1580,7 +1580,7 @@ smp_fetch_payload_lv(struct proxy *px, struct session *l4, void *l7, unsigned in
 	unsigned int len_size = arg_p[1].data.uint;
 	unsigned int buf_offset;
 	unsigned int buf_size = 0;
-	struct channel *b;
+	struct channel *chn;
 	int i;
 
 	/* Format is (len offset, len size, buf offset) or (len offset, len size) */
@@ -1590,16 +1590,16 @@ smp_fetch_payload_lv(struct proxy *px, struct session *l4, void *l7, unsigned in
 	if (!l4)
 		return 0;
 
-	b = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? l4->rep : l4->req;
+	chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? l4->rep : l4->req;
 
-	if (!b)
+	if (!chn)
 		return 0;
 
-	if (len_offset + len_size > b->buf.i)
+	if (len_offset + len_size > chn->buf.i)
 		goto too_short;
 
 	for (i = 0; i < len_size; i++) {
-		buf_size = (buf_size << 8) + ((unsigned char *)b->buf.p)[i + len_offset];
+		buf_size = (buf_size << 8) + ((unsigned char *)chn->buf.p)[i + len_offset];
 	}
 
 	/* buf offset may be implicit, absolute or relative */
@@ -1609,18 +1609,18 @@ smp_fetch_payload_lv(struct proxy *px, struct session *l4, void *l7, unsigned in
 	else if (arg_p[2].type == ARGT_SINT)
 		buf_offset += arg_p[2].data.sint;
 
-	if (!buf_size || buf_size > b->buf.size || buf_offset + buf_size > b->buf.size) {
+	if (!buf_size || buf_size > chn->buf.size || buf_offset + buf_size > chn->buf.size) {
 		/* will never match */
 		smp->flags = 0;
 		return 0;
 	}
 
-	if (buf_offset + buf_size > b->buf.i)
+	if (buf_offset + buf_size > chn->buf.i)
 		goto too_short;
 
 	/* init chunk as read only */
 	smp->type = SMP_T_CBIN;
-	chunk_initlen(&smp->data.str, b->buf.p + buf_offset, 0, buf_size);
+	chunk_initlen(&smp->data.str, chn->buf.p + buf_offset, 0, buf_size);
 	smp->flags = SMP_F_VOLATILE;
 	return 1;
 
@@ -1635,28 +1635,28 @@ smp_fetch_payload(struct proxy *px, struct session *l4, void *l7, unsigned int o
 {
 	unsigned int buf_offset = arg_p[0].data.uint;
 	unsigned int buf_size = arg_p[1].data.uint;
-	struct channel *b;
+	struct channel *chn;
 
 	if (!l4)
 		return 0;
 
-	b = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? l4->rep : l4->req;
+	chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? l4->rep : l4->req;
 
-	if (!b)
+	if (!chn)
 		return 0;
 
-	if (!buf_size || buf_size > b->buf.size || buf_offset + buf_size > b->buf.size) {
+	if (!buf_size || buf_size > chn->buf.size || buf_offset + buf_size > chn->buf.size) {
 		/* will never match */
 		smp->flags = 0;
 		return 0;
 	}
 
-	if (buf_offset + buf_size > b->buf.i)
+	if (buf_offset + buf_size > chn->buf.i)
 		goto too_short;
 
 	/* init chunk as read only */
 	smp->type = SMP_T_CBIN;
-	chunk_initlen(&smp->data.str, b->buf.p + buf_offset, 0, buf_size);
+	chunk_initlen(&smp->data.str, chn->buf.p + buf_offset, 0, buf_size);
 	smp->flags = SMP_F_VOLATILE;
 	return 1;
 
