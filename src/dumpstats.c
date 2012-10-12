@@ -1462,7 +1462,7 @@ static void cli_io_handler(struct stream_interface *si)
 			/* ensure we have some output room left in the event we
 			 * would want to return some info right after parsing.
 			 */
-			if (buffer_almost_full(&si->ib->buf))
+			if (buffer_almost_full(si->ib->buf))
 				break;
 
 			reql = bo_getline(si->ob, trash, trashlen);
@@ -1576,7 +1576,7 @@ static void cli_io_handler(struct stream_interface *si)
 			 * buffer is empty. This still allows pipelined requests
 			 * to be sent in non-interactive mode.
 			 */
-			if ((res->flags & (CF_SHUTW|CF_SHUTW_NOW)) || (!si->applet.st1 && !req->buf.o)) {
+			if ((res->flags & (CF_SHUTW|CF_SHUTW_NOW)) || (!si->applet.st1 && !req->buf->o)) {
 				si->applet.st0 = STAT_CLI_END;
 				continue;
 			}
@@ -1618,7 +1618,7 @@ static void cli_io_handler(struct stream_interface *si)
  out:
 	DPRINTF(stderr, "%s@%d: st=%d, rqf=%x, rpf=%x, rqh=%d, rqs=%d, rh=%d, rs=%d\n",
 		__FUNCTION__, __LINE__,
-		si->state, req->flags, res->flags, req->buf.i, req->buf.o, res->buf.i, res->buf.o);
+		si->state, req->flags, res->flags, req->buf->i, req->buf->o, res->buf->i, res->buf->o);
 
 	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO)) {
 		/* check that we have released everything then unregister */
@@ -2178,7 +2178,7 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 	case STAT_ST_LIST:
 		/* dump proxies */
 		while (si->applet.ctx.stats.px) {
-			if (buffer_almost_full(&rep->buf))
+			if (buffer_almost_full(rep->buf))
 				return 0;
 			px = si->applet.ctx.stats.px;
 			/* skip the disabled proxies, global frontend and non-networked ones */
@@ -2494,7 +2494,7 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 	case STAT_PX_ST_LI:
 		/* stats.l has been initialized above */
 		for (; si->applet.ctx.stats.l != &px->conf.listeners; si->applet.ctx.stats.l = l->by_fe.n) {
-			if (buffer_almost_full(&rep->buf))
+			if (buffer_almost_full(rep->buf))
 				return 0;
 
 			l = LIST_ELEM(si->applet.ctx.stats.l, struct listener *, by_fe);
@@ -2632,7 +2632,7 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 		for (; si->applet.ctx.stats.sv != NULL; si->applet.ctx.stats.sv = sv->next) {
 			int sv_state; /* 0=DOWN, 1=going up, 2=going down, 3=UP, 4,5=NOLB, 6=unchecked */
 
-			if (buffer_almost_full(&rep->buf))
+			if (buffer_almost_full(rep->buf))
 				return 0;
 
 			sv = si->applet.ctx.stats.sv;
@@ -3453,7 +3453,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 			     "      an_exp=%s",
 			     sess->req,
 			     sess->req->flags, sess->req->analysers,
-			     sess->req->buf.i, sess->req->buf.o,
+			     sess->req->buf->i, sess->req->buf->o,
 			     sess->req->pipe ? sess->req->pipe->data : 0,
 			     sess->req->to_forward,
 			     sess->req->analyse_exp ?
@@ -3472,8 +3472,8 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 			     sess->req->wex ?
 			     human_time(TICKS_TO_MS(sess->req->wex - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>",
-			     sess->req->buf.data,
-			     (int)(sess->req->buf.p - sess->req->buf.data),
+			     sess->req->buf->data,
+			     (int)(sess->req->buf->p - sess->req->buf->data),
 			     sess->txn.req.next,
 			     sess->req->total);
 
@@ -3482,7 +3482,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 			     "      an_exp=%s",
 			     sess->rep,
 			     sess->rep->flags, sess->rep->analysers,
-			     sess->rep->buf.i, sess->rep->buf.o,
+			     sess->rep->buf->i, sess->rep->buf->o,
 			     sess->rep->pipe ? sess->rep->pipe->data : 0,
 			     sess->rep->to_forward,
 			     sess->rep->analyse_exp ?
@@ -3501,8 +3501,8 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 			     sess->rep->wex ?
 			     human_time(TICKS_TO_MS(sess->rep->wex - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>",
-			     sess->rep->buf.data,
-			     (int)(sess->rep->buf.p - sess->rep->buf.data),
+			     sess->rep->buf->data,
+			     (int)(sess->rep->buf->p - sess->rep->buf->data),
 			     sess->txn.rsp.next,
 			     sess->rep->total);
 
@@ -3623,7 +3623,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 			chunk_printf(&msg,
 				     " rq[f=%06xh,i=%d,an=%02xh,rx=%s",
 				     curr_sess->req->flags,
-				     curr_sess->req->buf.i,
+				     curr_sess->req->buf->i,
 				     curr_sess->req->analysers,
 				     curr_sess->req->rex ?
 				     human_time(TICKS_TO_MS(curr_sess->req->rex - now_ms),
@@ -3644,7 +3644,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 			chunk_printf(&msg,
 				     " rp[f=%06xh,i=%d,an=%02xh,rx=%s",
 				     curr_sess->rep->flags,
-				     curr_sess->rep->buf.i,
+				     curr_sess->rep->buf->i,
 				     curr_sess->rep->analysers,
 				     curr_sess->rep->rex ?
 				     human_time(TICKS_TO_MS(curr_sess->rep->rex - now_ms),

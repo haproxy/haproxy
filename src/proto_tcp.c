@@ -792,7 +792,7 @@ int tcp_inspect_request(struct session *s, struct channel *req, int an_bit)
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->buf.i,
+		req->buf->i,
 		req->analysers);
 
 	/* We don't know whether we have enough data, so must proceed
@@ -805,7 +805,7 @@ int tcp_inspect_request(struct session *s, struct channel *req, int an_bit)
 	 * - if one rule returns KO, then return KO
 	 */
 
-	if ((req->flags & CF_SHUTR) || buffer_full(&req->buf, global.tune.maxrewrite) ||
+	if ((req->flags & CF_SHUTR) || buffer_full(req->buf, global.tune.maxrewrite) ||
 	    !s->be->tcp_req.inspect_delay || tick_is_expired(req->analyse_exp, now_ms))
 		partial = SMP_OPT_FINAL;
 	else
@@ -911,7 +911,7 @@ int tcp_inspect_response(struct session *s, struct channel *rep, int an_bit)
 		rep,
 		rep->rex, rep->wex,
 		rep->flags,
-		rep->buf.i,
+		rep->buf->i,
 		rep->analysers);
 
 	/* We don't know whether we have enough data, so must proceed
@@ -1400,11 +1400,11 @@ smp_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, unsigned in
 	smp->flags = 0;
 	smp->type = SMP_T_CSTR;
 
-	bleft = l4->req->buf.i;
+	bleft = l4->req->buf->i;
 	if (bleft <= 11)
 		goto too_short;
 
-	data = (const unsigned char *)l4->req->buf.p + 11;
+	data = (const unsigned char *)l4->req->buf->p + 11;
 	bleft -= 11;
 
 	if (bleft <= 7)
@@ -1595,11 +1595,11 @@ smp_fetch_payload_lv(struct proxy *px, struct session *l4, void *l7, unsigned in
 	if (!chn)
 		return 0;
 
-	if (len_offset + len_size > chn->buf.i)
+	if (len_offset + len_size > chn->buf->i)
 		goto too_short;
 
 	for (i = 0; i < len_size; i++) {
-		buf_size = (buf_size << 8) + ((unsigned char *)chn->buf.p)[i + len_offset];
+		buf_size = (buf_size << 8) + ((unsigned char *)chn->buf->p)[i + len_offset];
 	}
 
 	/* buf offset may be implicit, absolute or relative */
@@ -1609,18 +1609,18 @@ smp_fetch_payload_lv(struct proxy *px, struct session *l4, void *l7, unsigned in
 	else if (arg_p[2].type == ARGT_SINT)
 		buf_offset += arg_p[2].data.sint;
 
-	if (!buf_size || buf_size > chn->buf.size || buf_offset + buf_size > chn->buf.size) {
+	if (!buf_size || buf_size > chn->buf->size || buf_offset + buf_size > chn->buf->size) {
 		/* will never match */
 		smp->flags = 0;
 		return 0;
 	}
 
-	if (buf_offset + buf_size > chn->buf.i)
+	if (buf_offset + buf_size > chn->buf->i)
 		goto too_short;
 
 	/* init chunk as read only */
 	smp->type = SMP_T_CBIN;
-	chunk_initlen(&smp->data.str, chn->buf.p + buf_offset, 0, buf_size);
+	chunk_initlen(&smp->data.str, chn->buf->p + buf_offset, 0, buf_size);
 	smp->flags = SMP_F_VOLATILE;
 	return 1;
 
@@ -1645,18 +1645,18 @@ smp_fetch_payload(struct proxy *px, struct session *l4, void *l7, unsigned int o
 	if (!chn)
 		return 0;
 
-	if (!buf_size || buf_size > chn->buf.size || buf_offset + buf_size > chn->buf.size) {
+	if (!buf_size || buf_size > chn->buf->size || buf_offset + buf_size > chn->buf->size) {
 		/* will never match */
 		smp->flags = 0;
 		return 0;
 	}
 
-	if (buf_offset + buf_size > chn->buf.i)
+	if (buf_offset + buf_size > chn->buf->i)
 		goto too_short;
 
 	/* init chunk as read only */
 	smp->type = SMP_T_CBIN;
-	chunk_initlen(&smp->data.str, chn->buf.p + buf_offset, 0, buf_size);
+	chunk_initlen(&smp->data.str, chn->buf->p + buf_offset, 0, buf_size);
 	smp->flags = SMP_F_VOLATILE;
 	return 1;
 

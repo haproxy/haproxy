@@ -51,9 +51,9 @@ int bo_getblk(struct channel *chn, char *blk, int len, int offset);
 /* Initialize all fields in the channel. */
 static inline void channel_init(struct channel *chn)
 {
-	chn->buf.o = 0;
-	chn->buf.i = 0;
-	chn->buf.p = chn->buf.data;
+	chn->buf->o = 0;
+	chn->buf->i = 0;
+	chn->buf->p = chn->buf->data;
 	chn->to_forward = 0;
 	chn->total = 0;
 	chn->pipe = NULL;
@@ -73,7 +73,7 @@ static inline void channel_init(struct channel *chn)
  */
 static inline unsigned int channel_is_empty(struct channel *c)
 {
-	return !(c->buf.o | (long)c->pipe);
+	return !(c->buf->o | (long)c->pipe);
 }
 
 /* Returns non-zero if the buffer input is considered full. The reserved space
@@ -83,20 +83,20 @@ static inline unsigned int channel_is_empty(struct channel *c)
  */
 static inline int channel_full(const struct channel *chn)
 {
-	int rem = chn->buf.size;
+	int rem = chn->buf->size;
 
-	rem -= chn->buf.o;
-	rem -= chn->buf.i;
+	rem -= chn->buf->o;
+	rem -= chn->buf->i;
 	if (!rem)
 		return 1; /* buffer already full */
 
-	if (chn->to_forward >= chn->buf.size ||
-	    (CHN_INFINITE_FORWARD < MAX_RANGE(typeof(chn->buf.size)) && // just there to ensure gcc
+	if (chn->to_forward >= chn->buf->size ||
+	    (CHN_INFINITE_FORWARD < MAX_RANGE(typeof(chn->buf->size)) && // just there to ensure gcc
 	     chn->to_forward == CHN_INFINITE_FORWARD))                  // avoids the useless second
 		return 0;                                               // test whenever possible
 
 	rem -= global.tune.maxrewrite;
-	rem += chn->buf.o;
+	rem += chn->buf->o;
 	rem += chn->to_forward;
 	return rem <= 0;
 }
@@ -139,10 +139,10 @@ static inline void channel_check_timeouts(struct channel *chn)
  */
 static inline void channel_erase(struct channel *chn)
 {
-	chn->buf.o = 0;
-	chn->buf.i = 0;
+	chn->buf->o = 0;
+	chn->buf->i = 0;
 	chn->to_forward = 0;
-	chn->buf.p = chn->buf.data;
+	chn->buf->p = chn->buf->data;
 }
 
 /* marks the channel as "shutdown" ASAP for reads */
@@ -236,7 +236,7 @@ static inline void channel_dont_read(struct channel *chn)
  */
 static inline int buffer_reserved(const struct channel *chn)
 {
-	int ret = global.tune.maxrewrite - chn->to_forward - chn->buf.o;
+	int ret = global.tune.maxrewrite - chn->to_forward - chn->buf->o;
 
 	if (chn->to_forward == CHN_INFINITE_FORWARD)
 		return 0;
@@ -251,7 +251,7 @@ static inline int buffer_reserved(const struct channel *chn)
  */
 static inline int buffer_max_len(const struct channel *chn)
 {
-	return chn->buf.size - buffer_reserved(chn);
+	return chn->buf->size - buffer_reserved(chn);
 }
 
 /* Return the amount of bytes that can be written into the buffer at once,
@@ -259,7 +259,7 @@ static inline int buffer_max_len(const struct channel *chn)
  */
 static inline int buffer_contig_space_res(const struct channel *chn)
 {
-	return buffer_contig_space_with_res(&chn->buf, buffer_reserved(chn));
+	return buffer_contig_space_with_res(chn->buf, buffer_reserved(chn));
 }
 
 /* Returns the amount of space available at the input of the buffer, taking the
@@ -269,21 +269,21 @@ static inline int buffer_contig_space_res(const struct channel *chn)
  */
 static inline int bi_avail(const struct channel *chn)
 {
-	int rem = chn->buf.size;
+	int rem = chn->buf->size;
 	int rem2;
 
-	rem -= chn->buf.o;
-	rem -= chn->buf.i;
+	rem -= chn->buf->o;
+	rem -= chn->buf->i;
 	if (!rem)
 		return rem; /* buffer already full */
 
-	if (chn->to_forward >= chn->buf.size ||
-	    (CHN_INFINITE_FORWARD < MAX_RANGE(typeof(chn->buf.size)) && // just there to ensure gcc
+	if (chn->to_forward >= chn->buf->size ||
+	    (CHN_INFINITE_FORWARD < MAX_RANGE(typeof(chn->buf->size)) && // just there to ensure gcc
 	     chn->to_forward == CHN_INFINITE_FORWARD))                  // avoids the useless second
 		return rem;                                             // test whenever possible
 
 	rem2 = rem - global.tune.maxrewrite;
-	rem2 += chn->buf.o;
+	rem2 += chn->buf->o;
 	rem2 += chn->to_forward;
 
 	if (rem > rem2)
@@ -300,14 +300,14 @@ static inline int bi_avail(const struct channel *chn)
  */
 static inline void bi_erase(struct channel *chn)
 {
-	if (!chn->buf.o)
+	if (!chn->buf->o)
 		return channel_erase(chn);
 
 	chn->to_forward = 0;
-	if (!chn->buf.i)
+	if (!chn->buf->i)
 		return;
 
-	chn->buf.i = 0;
+	chn->buf->i = 0;
 }
 
 /*
@@ -319,10 +319,10 @@ static inline void bi_erase(struct channel *chn)
  */
 static inline void bo_skip(struct channel *chn, int len)
 {
-	chn->buf.o -= len;
+	chn->buf->o -= len;
 
-	if (buffer_len(&chn->buf) == 0)
-		chn->buf.p = chn->buf.data;
+	if (buffer_len(chn->buf) == 0)
+		chn->buf->p = chn->buf->data;
 
 	/* notify that some data was written to the SI from the buffer */
 	chn->flags |= CF_WRITE_PARTIAL;
@@ -374,7 +374,7 @@ static inline int bo_getchr(struct channel *chn)
 			return -2;
 		return -1;
 	}
-	return *buffer_wrap_sub(&chn->buf, chn->buf.p - chn->buf.o);
+	return *buffer_wrap_sub(chn->buf, chn->buf->p - chn->buf->o);
 }
 
 

@@ -186,7 +186,7 @@ struct channel {
 	struct stream_interface *prod;  /* producer attached to this channel */
 	struct stream_interface *cons;  /* consumer attached to this channel */
 	struct pipe *pipe;		/* non-NULL only when data present */
-	struct buffer buf;		/* embedded buffer for now, will move */
+	struct buffer *buf;		/* buffer attached to the channel, always present but may move */
 };
 
 

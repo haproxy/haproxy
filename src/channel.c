@@ -18,9 +18,8 @@
 #include <common/config.h>
 #include <common/memory.h>
 #include <common/buffer.h>
-#include <proto/channel.h>
-#include <types/global.h>
 
+#include <proto/channel.h>
 
 struct pool_head *pool2_channel;
 
@@ -28,7 +27,7 @@ struct pool_head *pool2_channel;
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_channel()
 {
-	pool2_channel = create_pool("channel", sizeof(struct channel) + global.tune.bufsize, MEM_F_SHARED);
+	pool2_channel = create_pool("channel", sizeof(struct channel), MEM_F_SHARED);
 	return pool2_channel != NULL;
 }
 
@@ -53,17 +52,17 @@ unsigned long long channel_forward(struct channel *chn, unsigned long long bytes
 	 * once anyway.
 	 */
 	if (bytes <= ~0U) {
-		if (bytes32 <= chn->buf.i) {
+		if (bytes32 <= chn->buf->i) {
 			/* OK this amount of bytes might be forwarded at once */
 			if (!bytes32)
 				return 0;
-			b_adv(&chn->buf, bytes32);
+			b_adv(chn->buf, bytes32);
 			return bytes;
 		}
 	}
 
-	forwarded = chn->buf.i;
-	b_adv(&chn->buf, chn->buf.i);
+	forwarded = chn->buf->i;
+	b_adv(chn->buf, chn->buf->i);
 
 	/* Note: the case below is the only case where we may return
 	 * a byte count that does not fit into a 32-bit number.
@@ -105,7 +104,7 @@ int bo_inject(struct channel *chn, const char *msg, int len)
 	if (len == 0)
 		return -1;
 
-	if (len > chn->buf.size) {
+	if (len > chn->buf->size) {
 		/* we can't write this chunk and will never be able to, because
 		 * it is larger than the buffer. This must be reported as an
 		 * error. Then we return -2 so that writers that don't care can
@@ -114,14 +113,14 @@ int bo_inject(struct channel *chn, const char *msg, int len)
 		return -2;
 	}
 
-	max = buffer_realign(&chn->buf);
+	max = buffer_realign(chn->buf);
 
 	if (len > max)
 		return max;
 
-	memcpy(chn->buf.p, msg, len);
-	chn->buf.o += len;
-	chn->buf.p = b_ptr(&chn->buf, len);
+	memcpy(chn->buf->p, msg, len);
+	chn->buf->o += len;
+	chn->buf->p = b_ptr(chn->buf, len);
 	chn->total += len;
 	return -1;
 }
@@ -140,15 +139,15 @@ int bi_putchr(struct channel *chn, char c)
 	if (channel_full(chn))
 		return -1;
 
-	*bi_end(&chn->buf) = c;
+	*bi_end(chn->buf) = c;
 
-	chn->buf.i++;
+	chn->buf->i++;
 	chn->flags |= CF_READ_PARTIAL;
 
 	if (chn->to_forward >= 1) {
 		if (chn->to_forward != CHN_INFINITE_FORWARD)
 			chn->to_forward--;
-		b_adv(&chn->buf, 1);
+		b_adv(chn->buf, 1);
 	}
 
 	chn->total++;
@@ -171,7 +170,7 @@ int bi_putblk(struct channel *chn, const char *blk, int len)
 		return -2;
 
 	max = buffer_max_len(chn);
-	if (unlikely(len > max - buffer_len(&chn->buf))) {
+	if (unlikely(len > max - buffer_len(chn->buf))) {
 		/* we can't write this chunk right now because the buffer is
 		 * almost full or because the block is too large. Return the
 		 * available space or -2 if impossible.
@@ -186,12 +185,12 @@ int bi_putblk(struct channel *chn, const char *blk, int len)
 		return 0;
 
 	/* OK so the data fits in the buffer in one or two blocks */
-	max = buffer_contig_space_with_res(&chn->buf, chn->buf.size - max);
-	memcpy(bi_end(&chn->buf), blk, MIN(len, max));
+	max = buffer_contig_space_with_res(chn->buf, chn->buf->size - max);
+	memcpy(bi_end(chn->buf), blk, MIN(len, max));
 	if (len > max)
-		memcpy(chn->buf.data, blk + max, len - max);
+		memcpy(chn->buf->data, blk + max, len - max);
 
-	chn->buf.i += len;
+	chn->buf->i += len;
 	chn->total += len;
 	if (chn->to_forward) {
 		unsigned long fwd = len;
@@ -200,7 +199,7 @@ int bi_putblk(struct channel *chn, const char *blk, int len)
 				fwd = chn->to_forward;
 			chn->to_forward -= fwd;
 		}
-		b_adv(&chn->buf, fwd);
+		b_adv(chn->buf, fwd);
 	}
 
 	/* notify that some data was read from the SI into the buffer */
@@ -233,10 +232,10 @@ int bo_getline(struct channel *chn, char *str, int len)
 		goto out;
 	}
 
-	p = bo_ptr(&chn->buf);
+	p = bo_ptr(chn->buf);
 
-	if (max > chn->buf.o) {
-		max = chn->buf.o;
+	if (max > chn->buf->o) {
+		max = chn->buf->o;
 		str[max-1] = 0;
 	}
 	while (max) {
@@ -246,9 +245,9 @@ int bo_getline(struct channel *chn, char *str, int len)
 
 		if (*p == '\n')
 			break;
-		p = buffer_wrap_add(&chn->buf, p + 1);
+		p = buffer_wrap_add(chn->buf, p + 1);
 	}
-	if (ret > 0 && ret < len && ret < chn->buf.o &&
+	if (ret > 0 && ret < len && ret < chn->buf->o &&
 	    *(str-1) != '\n' &&
 	    !(chn->flags & (CF_SHUTW|CF_SHUTW_NOW)))
 		ret = 0;
@@ -273,25 +272,25 @@ int bo_getblk(struct channel *chn, char *blk, int len, int offset)
 	if (chn->flags & CF_SHUTW)
 		return -1;
 
-	if (len + offset > chn->buf.o) {
+	if (len + offset > chn->buf->o) {
 		if (chn->flags & (CF_SHUTW|CF_SHUTW_NOW))
 			return -1;
 		return 0;
 	}
 
-	firstblock = chn->buf.data + chn->buf.size - bo_ptr(&chn->buf);
+	firstblock = chn->buf->data + chn->buf->size - bo_ptr(chn->buf);
 	if (firstblock > offset) {
 		if (firstblock >= len + offset) {
-			memcpy(blk, bo_ptr(&chn->buf) + offset, len);
+			memcpy(blk, bo_ptr(chn->buf) + offset, len);
 			return len;
 		}
 
-		memcpy(blk, bo_ptr(&chn->buf) + offset, firstblock - offset);
-		memcpy(blk + firstblock - offset, chn->buf.data, len - firstblock + offset);
+		memcpy(blk, bo_ptr(chn->buf) + offset, firstblock - offset);
+		memcpy(blk + firstblock - offset, chn->buf->data, len - firstblock + offset);
 		return len;
 	}
 
-	memcpy(blk, chn->buf.data + offset - firstblock, len);
+	memcpy(blk, chn->buf->data + offset - firstblock, len);
 	return len;
 }
 

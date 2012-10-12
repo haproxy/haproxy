@@ -15,6 +15,7 @@
 #include <fcntl.h>
 
 #include <common/config.h>
+#include <common/buffer.h>
 #include <common/debug.h>
 #include <common/memory.h>
 
@@ -419,11 +420,17 @@ int session_complete(struct session *s)
 	if (unlikely((s->req = pool_alloc2(pool2_channel)) == NULL))
 		goto out_free_task; /* no memory */
 
-	if (unlikely((s->rep = pool_alloc2(pool2_channel)) == NULL))
+	if (unlikely((s->req->buf = pool_alloc2(pool2_buffer)) == NULL))
 		goto out_free_req; /* no memory */
 
+	if (unlikely((s->rep = pool_alloc2(pool2_channel)) == NULL))
+		goto out_free_req_buf; /* no memory */
+
+	if (unlikely((s->rep->buf = pool_alloc2(pool2_buffer)) == NULL))
+		goto out_free_rep; /* no memory */
+
 	/* initialize the request buffer */
-	s->req->buf.size = global.tune.bufsize;
+	s->req->buf->size = global.tune.bufsize;
 	channel_init(s->req);
 	s->req->prod = &s->si[0];
 	s->req->cons = &s->si[1];
@@ -440,7 +447,7 @@ int session_complete(struct session *s)
 	s->req->analyse_exp = TICK_ETERNITY;
 
 	/* initialize response buffer */
-	s->rep->buf.size = global.tune.bufsize;
+	s->rep->buf->size = global.tune.bufsize;
 	channel_init(s->rep);
 	s->rep->prod = &s->si[1];
 	s->rep->cons = &s->si[0];
@@ -485,7 +492,7 @@ int session_complete(struct session *s)
 		 * finished (=0, eg: monitoring), in both situations,
 		 * we can release everything and close.
 		 */
-		goto out_free_rep;
+		goto out_free_rep_buf;
 	}
 
 	/* if logs require transport layer information, note it on the connection */
@@ -503,8 +510,12 @@ int session_complete(struct session *s)
 	return 1;
 
 	/* Error unrolling */
+ out_free_rep_buf:
+	pool_free2(pool2_buffer, s->rep->buf);
  out_free_rep:
 	pool_free2(pool2_channel, s->rep);
+ out_free_req_buf:
+	pool_free2(pool2_buffer, s->req->buf);
  out_free_req:
 	pool_free2(pool2_channel, s->req);
  out_free_task:
@@ -547,6 +558,9 @@ static void session_free(struct session *s)
 	if (s->rep->pipe)
 		put_pipe(s->rep->pipe);
 
+	pool_free2(pool2_buffer, s->req->buf);
+	pool_free2(pool2_buffer, s->rep->buf);
+
 	pool_free2(pool2_channel, s->req);
 	pool_free2(pool2_channel, s->rep);
 
@@ -587,6 +601,7 @@ static void session_free(struct session *s)
 
 	/* We may want to free the maximum amount of pools if the proxy is stopping */
 	if (fe && unlikely(fe->state == PR_STSTOPPED)) {
+		pool_flush2(pool2_buffer);
 		pool_flush2(pool2_channel);
 		pool_flush2(pool2_hdr_idx);
 		pool_flush2(pool2_requri);
@@ -915,7 +930,7 @@ static void sess_update_stream_int(struct session *s, struct stream_interface *s
 		s->req, s->rep,
 		s->req->rex, s->rep->wex,
 		s->req->flags, s->rep->flags,
-		s->req->buf.i, s->req->buf.o, s->rep->buf.i, s->rep->buf.o, s->rep->cons->state, s->req->cons->state);
+		s->req->buf->i, s->req->buf->o, s->rep->buf->i, s->rep->buf->o, s->rep->cons->state, s->req->cons->state);
 
 	if (si->state == SI_ST_ASS) {
 		/* Server assigned to connection request, we have to try to connect now */
@@ -1103,7 +1118,7 @@ static void sess_prepare_conn_req(struct session *s, struct stream_interface *si
 		s->req, s->rep,
 		s->req->rex, s->rep->wex,
 		s->req->flags, s->rep->flags,
-		s->req->buf.i, s->req->buf.o, s->rep->buf.i, s->rep->buf.o, s->rep->cons->state, s->req->cons->state);
+		s->req->buf->i, s->req->buf->o, s->rep->buf->i, s->rep->buf->o, s->rep->cons->state, s->req->cons->state);
 
 	if (si->state != SI_ST_REQ)
 		return;
@@ -1152,7 +1167,7 @@ static int process_switching_rules(struct session *s, struct channel *req, int a
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->buf.i,
+		req->buf->i,
 		req->analysers);
 
 	/* now check whether we have some switching rules for this request */
@@ -1247,7 +1262,7 @@ static int process_server_rules(struct session *s, struct channel *req, int an_b
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->buf.i + req->buf.o,
+		req->buf->i + req->buf->o,
 		req->analysers);
 
 	if (!(s->flags & SN_ASSIGNED)) {
@@ -1296,7 +1311,7 @@ static int process_sticking_rules(struct session *s, struct channel *req, int an
 		req,
 		req->rex, req->wex,
 		req->flags,
-		req->buf.i,
+		req->buf->i,
 		req->analysers);
 
 	list_for_each_entry(rule, &px->sticking_rules, list) {
@@ -1386,7 +1401,7 @@ static int process_store_rules(struct session *s, struct channel *rep, int an_bi
 		rep,
 		rep->rex, rep->wex,
 		rep->flags,
-		rep->buf.i,
+		rep->buf->i,
 		rep->analysers);
 
 	list_for_each_entry(rule, &px->storersp_rules, list) {
@@ -1633,7 +1648,7 @@ struct task *process_session(struct task *t)
 		s->req, s->rep,
 		s->req->rex, s->rep->wex,
 		s->req->flags, s->rep->flags,
-		s->req->buf.i, s->req->buf.o, s->rep->buf.i, s->rep->buf.o, s->rep->cons->state, s->req->cons->state,
+		s->req->buf->i, s->req->buf->o, s->rep->buf->i, s->rep->buf->o, s->rep->cons->state, s->req->cons->state,
 		s->rep->cons->err_type, s->req->cons->err_type,
 		s->req->cons->conn_retries);
 
@@ -2036,7 +2051,7 @@ struct task *process_session(struct task *t)
 		channel_auto_read(s->req);
 		channel_auto_connect(s->req);
 		channel_auto_close(s->req);
-		buffer_flush(&s->req->buf);
+		buffer_flush(s->req->buf);
 
 		/* We'll let data flow between the producer (if still connected)
 		 * to the consumer (which might possibly not be connected yet).
@@ -2172,7 +2187,7 @@ struct task *process_session(struct task *t)
 		 */
 		channel_auto_read(s->rep);
 		channel_auto_close(s->rep);
-		buffer_flush(&s->rep->buf);
+		buffer_flush(s->rep->buf);
 
 		/* We'll let data flow between the producer (if still connected)
 		 * to the consumer.

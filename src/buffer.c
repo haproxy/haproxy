@@ -15,8 +15,19 @@
 
 #include <common/config.h>
 #include <common/buffer.h>
+#include <common/memory.h>
 
 #include <types/global.h>
+
+struct pool_head *pool2_buffer;
+
+
+/* perform minimal intializations, report 0 in case of error, 1 if OK. */
+int init_buffer()
+{
+	pool2_buffer = create_pool("buffer", sizeof (struct buffer) + global.tune.bufsize, MEM_F_SHARED);
+	return pool2_buffer != NULL;
+}
 
 /* This function writes the string <str> at position <pos> which must be in
  * buffer <b>, and moves <end> just after the end of <str>. <b>'s parameters

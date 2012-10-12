@@ -628,6 +628,7 @@ void init(int argc, char **argv)
 
 	/* now we know the buffer size, we can initialize the channels and buffers */
 	init_channel();
+	init_buffer();
 
 	if (have_appsession)
 		appsession_init();
@@ -1112,6 +1113,7 @@ void deinit(void)
 	}
 
 	pool_destroy2(pool2_session);
+	pool_destroy2(pool2_buffer);
 	pool_destroy2(pool2_channel);
 	pool_destroy2(pool2_requri);
 	pool_destroy2(pool2_task);

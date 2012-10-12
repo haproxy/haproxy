@@ -617,7 +617,7 @@ static int si_conn_wake_cb(struct connection *conn)
 	 */
 	if (((si->ib->flags & CF_READ_PARTIAL) && !channel_is_empty(si->ib)) &&
 	    (si->ib->pipe /* always try to send spliced data */ ||
-	     (si->ib->buf.i == 0 && (si->ib->cons->flags & SI_FL_WAIT_DATA)))) {
+	     (si->ib->buf->i == 0 && (si->ib->cons->flags & SI_FL_WAIT_DATA)))) {
 		int last_len = si->ib->pipe ? si->ib->pipe->data : 0;
 
 		si_chk_snd(si->ib->cons);
@@ -691,7 +691,7 @@ static int si_conn_send_loop(struct connection *conn)
 	/* At this point, the pipe is empty, but we may still have data pending
 	 * in the normal buffer.
 	 */
-	if (!chn->buf.o)
+	if (!chn->buf->o)
 		return 0;
 
 	/* when we're in this loop, we already know that there is no spliced
@@ -716,13 +716,13 @@ static int si_conn_send_loop(struct connection *conn)
 		    ((chn->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_HIJACK)) == CF_SHUTW_NOW))
 			send_flag |= MSG_MORE;
 
-		ret = conn->xprt->snd_buf(conn, &chn->buf, send_flag);
+		ret = conn->xprt->snd_buf(conn, chn->buf, send_flag);
 		if (ret <= 0)
 			break;
 
 		chn->flags |= CF_WRITE_PARTIAL;
 
-		if (!chn->buf.o) {
+		if (!chn->buf->o) {
 			/* Always clear both flags once everything has been sent, they're one-shot */
 			chn->flags &= ~(CF_EXPECT_MORE | CF_SEND_DONTWAIT);
 			break;
@@ -970,7 +970,7 @@ static void si_conn_recv_cb(struct connection *conn)
 	 */
 	if (conn->xprt->rcv_pipe &&
 	    chn->to_forward >= MIN_SPLICE_FORWARD && chn->flags & CF_KERN_SPLICING) {
-		if (buffer_not_empty(&chn->buf)) {
+		if (buffer_not_empty(chn->buf)) {
 			/* We're embarrassed, there are already data pending in
 			 * the buffer and we don't want to have them at two
 			 * locations at a time. Let's indicate we need some
@@ -1028,7 +1028,7 @@ static void si_conn_recv_cb(struct connection *conn)
 			break;
 		}
 
-		ret = conn->xprt->rcv_buf(conn, &chn->buf, max);
+		ret = conn->xprt->rcv_buf(conn, chn->buf, max);
 		if (ret <= 0)
 			break;
 
@@ -1042,7 +1042,7 @@ static void si_conn_recv_cb(struct connection *conn)
 					fwd = chn->to_forward;
 				chn->to_forward -= fwd;
 			}
-			b_adv(&chn->buf, fwd);
+			b_adv(chn->buf, fwd);
 		}
 
 		chn->flags |= CF_READ_PARTIAL;
@@ -1052,7 +1052,7 @@ static void si_conn_recv_cb(struct connection *conn)
 			/* The buffer is now full, there's no point in going through
 			 * the loop again.
 			 */
-			if (!(chn->flags & CF_STREAMER_FAST) && (cur_read == buffer_len(&chn->buf))) {
+			if (!(chn->flags & CF_STREAMER_FAST) && (cur_read == buffer_len(chn->buf))) {
 				chn->xfer_small = 0;
 				chn->xfer_large++;
 				if (chn->xfer_large >= 3) {
@@ -1064,7 +1064,7 @@ static void si_conn_recv_cb(struct connection *conn)
 				}
 			}
 			else if ((chn->flags & (CF_STREAMER | CF_STREAMER_FAST)) &&
-				 (cur_read <= chn->buf.size / 2)) {
+				 (cur_read <= chn->buf->size / 2)) {
 				chn->xfer_large = 0;
 				chn->xfer_small++;
 				if (chn->xfer_small >= 2) {
@@ -1094,7 +1094,7 @@ static void si_conn_recv_cb(struct connection *conn)
 		 */
 		if (ret < max) {
 			if ((chn->flags & (CF_STREAMER | CF_STREAMER_FAST)) &&
-			    (cur_read <= chn->buf.size / 2)) {
+			    (cur_read <= chn->buf->size / 2)) {
 				chn->xfer_large = 0;
 				chn->xfer_small++;
 				if (chn->xfer_small >= 3) {

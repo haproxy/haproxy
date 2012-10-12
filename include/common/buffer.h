@@ -28,6 +28,7 @@
 
 #include <common/chunk.h>
 #include <common/config.h>
+#include <common/memory.h>
 
 
 struct buffer {
@@ -38,7 +39,9 @@ struct buffer {
 	char data[0];                   /* <size> bytes */
 };
 
+extern struct pool_head *pool2_buffer;
 
+int init_buffer();
 int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int len);
 int buffer_insert_line2(struct buffer *b, char *pos, const char *str, int len);
 void buffer_dump(FILE *o, struct buffer *b, int from, int to);
