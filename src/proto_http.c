@@ -421,7 +421,7 @@ int http_header_add_tail(struct http_msg *msg, struct hdr_idx *hdr_idx, const ch
 	int bytes, len;
 
 	len = strlen(text);
-	bytes = buffer_insert_line2(&msg->buf->buf, msg->buf->buf.p + msg->eoh, text, len);
+	bytes = buffer_insert_line2(&msg->chn->buf, msg->chn->buf.p + msg->eoh, text, len);
 	if (!bytes)
 		return -1;
 	http_msg_move_end(msg, bytes);
@@ -441,7 +441,7 @@ int http_header_add_tail2(struct http_msg *msg,
 {
 	int bytes;
 
-	bytes = buffer_insert_line2(&msg->buf->buf, msg->buf->buf.p + msg->eoh, text, len);
+	bytes = buffer_insert_line2(&msg->chn->buf, msg->chn->buf.p + msg->eoh, text, len);
 	if (!bytes)
 		return -1;
 	http_msg_move_end(msg, bytes);
@@ -610,7 +610,7 @@ int http_remove_header2(struct http_msg *msg, struct hdr_idx *idx, struct hdr_ct
 	hdr = &idx->v[cur_idx];
 	if (sol[ctx->del] == ':' && ctx->val + ctx->vlen + ctx->tws == hdr->len) {
 		/* This was the only value of the header, we must now remove it entirely. */
-		delta = buffer_replace2(&msg->buf->buf, sol, sol + hdr->len + hdr->cr + 1, NULL, 0);
+		delta = buffer_replace2(&msg->chn->buf, sol, sol + hdr->len + hdr->cr + 1, NULL, 0);
 		http_msg_move_end(msg, delta);
 		idx->used--;
 		hdr->len = 0;   /* unused entry */
@@ -630,7 +630,7 @@ int http_remove_header2(struct http_msg *msg, struct hdr_idx *idx, struct hdr_ct
 	 */
 
 	skip_comma = (ctx->val + ctx->vlen + ctx->tws == hdr->len) ? 0 : 1;
-	delta = buffer_replace2(&msg->buf->buf, sol + ctx->del + skip_comma,
+	delta = buffer_replace2(&msg->chn->buf, sol + ctx->del + skip_comma,
 				sol + ctx->val + ctx->vlen + ctx->tws + skip_comma,
 				NULL, 0);
 	hdr->len += delta;
@@ -712,7 +712,7 @@ http_get_path(struct http_txn *txn)
 {
 	char *ptr, *end;
 
-	ptr = txn->req.buf->buf.p + txn->req.sl.rq.u;
+	ptr = txn->req.chn->buf.p + txn->req.sl.rq.u;
 	end = ptr + txn->req.sl.rq.u_l;
 
 	if (ptr >= end)
@@ -962,7 +962,7 @@ const char *http_parse_stsline(struct http_msg *msg,
 			       unsigned int state, const char *ptr, const char *end,
 			       unsigned int *ret_ptr, unsigned int *ret_state)
 {
-	const char *msg_start = msg->buf->buf.p;
+	const char *msg_start = msg->chn->buf.p;
 
 	switch (state)	{
 	case HTTP_MSG_RPVER:
@@ -1072,7 +1072,7 @@ const char *http_parse_reqline(struct http_msg *msg,
 			       unsigned int state, const char *ptr, const char *end,
 			       unsigned int *ret_ptr, unsigned int *ret_state)
 {
-	const char *msg_start = msg->buf->buf.p;
+	const char *msg_start = msg->chn->buf.p;
 
 	switch (state)	{
 	case HTTP_MSG_RQMETH:
@@ -1290,7 +1290,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 {
 	unsigned int state;       /* updated only when leaving the FSM */
 	register char *ptr, *end; /* request pointers, to avoid dereferences */
-	struct channel *buf = msg->buf;
+	struct channel *buf = msg->chn;
 
 	state = msg->msg_state;
 	ptr = buf->buf.p + msg->next;
@@ -1602,22 +1602,22 @@ static int http_upgrade_v09_to_v10(struct http_txn *txn)
 	if (msg->sl.rq.v_l != 0)
 		return 1;
 
-	cur_end = msg->buf->buf.p + msg->sl.rq.l;
+	cur_end = msg->chn->buf.p + msg->sl.rq.l;
 	delta = 0;
 
 	if (msg->sl.rq.u_l == 0) {
 		/* if no URI was set, add "/" */
-		delta = buffer_replace2(&msg->buf->buf, cur_end, cur_end, " /", 2);
+		delta = buffer_replace2(&msg->chn->buf, cur_end, cur_end, " /", 2);
 		cur_end += delta;
 		http_msg_move_end(msg, delta);
 	}
 	/* add HTTP version */
-	delta = buffer_replace2(&msg->buf->buf, cur_end, cur_end, " HTTP/1.0\r\n", 11);
+	delta = buffer_replace2(&msg->chn->buf, cur_end, cur_end, " HTTP/1.0\r\n", 11);
 	http_msg_move_end(msg, delta);
 	cur_end += delta;
 	cur_end = (char *)http_parse_reqline(msg,
 					     HTTP_MSG_RQMETH,
-					     msg->buf->buf.p, cur_end + 1,
+					     msg->chn->buf.p, cur_end + 1,
 					     NULL, NULL);
 	if (unlikely(!cur_end))
 		return 0;
@@ -1655,7 +1655,7 @@ void http_parse_connection_header(struct http_txn *txn, struct http_msg *msg, in
 
 	ctx.idx = 0;
 	txn->flags &= ~(TX_CON_KAL_SET|TX_CON_CLO_SET);
-	while (http_find_header2(hdr_val, hdr_len, msg->buf->buf.p, &txn->hdr_idx, &ctx)) {
+	while (http_find_header2(hdr_val, hdr_len, msg->chn->buf.p, &txn->hdr_idx, &ctx)) {
 		if (ctx.vlen >= 10 && word_match(ctx.line + ctx.val, ctx.vlen, "keep-alive", 10)) {
 			txn->flags |= TX_HDR_CONN_KAL;
 			if (to_del & 2)
@@ -1696,7 +1696,7 @@ void http_change_connection_header(struct http_txn *txn, struct http_msg *msg, i
 	}
 
 	txn->flags &= ~(TX_CON_CLO_SET | TX_CON_KAL_SET);
-	while (http_find_header2(hdr_val, hdr_len, msg->buf->buf.p, &txn->hdr_idx, &ctx)) {
+	while (http_find_header2(hdr_val, hdr_len, msg->chn->buf.p, &txn->hdr_idx, &ctx)) {
 		if (ctx.vlen >= 10 && word_match(ctx.line + ctx.val, ctx.vlen, "keep-alive", 10)) {
 			if (wanted & TX_CON_KAL_SET)
 				txn->flags |= TX_CON_KAL_SET;
@@ -1746,7 +1746,7 @@ void http_change_connection_header(struct http_txn *txn, struct http_msg *msg, i
  */
 int http_parse_chunk_size(struct http_msg *msg)
 {
-	const struct channel *buf = msg->buf;
+	const struct channel *buf = msg->chn;
 	const char *ptr = b_ptr(&buf->buf, msg->next);
 	const char *ptr_old = ptr;
 	const char *end = buf->buf.data + buf->buf.size;
@@ -1856,7 +1856,7 @@ int http_parse_chunk_size(struct http_msg *msg)
  */
 int http_forward_trailers(struct http_msg *msg)
 {
-	const struct channel *buf = msg->buf;
+	const struct channel *buf = msg->chn;
 
 	/* we have msg->next which points to next line. Look for CRLF. */
 	while (1) {
@@ -1930,7 +1930,7 @@ int http_forward_trailers(struct http_msg *msg)
  */
 int http_skip_chunk_crlf(struct http_msg *msg)
 {
-	const struct channel *buf = msg->buf;
+	const struct channel *buf = msg->chn;
 	const char *ptr;
 	int bytes;
 
@@ -2033,7 +2033,7 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 			}
 			if (bi_end(&req->buf) < b_ptr(&req->buf, msg->next) ||
 			    bi_end(&req->buf) > req->buf.data + req->buf.size - global.tune.maxrewrite)
-				buffer_slow_realign(&msg->buf->buf);
+				buffer_slow_realign(&msg->chn->buf);
 		}
 
 		/* Note that we have the same problem with the response ; we
@@ -3087,7 +3087,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 				host = "";
 				hostlen = 0;
 				ctx.idx = 0;
-				if (http_find_header2("Host", 4, txn->req.buf->buf.p + txn->req.sol, &txn->hdr_idx, &ctx)) {
+				if (http_find_header2("Host", 4, txn->req.chn->buf.p + txn->req.sol, &txn->hdr_idx, &ctx)) {
 					host = ctx.line + ctx.val;
 					hostlen = ctx.vlen;
 				}
@@ -3772,20 +3772,20 @@ int http_send_name_header(struct http_txn *txn, struct proxy* be, const char* sr
 
 	char *hdr_name = be->server_id_hdr_name;
 	int hdr_name_len = be->server_id_hdr_len;
-	struct channel *req = txn->req.buf;
+	struct channel *chn = txn->req.chn;
 	char *hdr_val;
 	unsigned int old_o, old_i;
 
 	ctx.idx = 0;
 
-	old_o = req->buf.o;
+	old_o = chn->buf.o;
 	if (old_o) {
 		/* The request was already skipped, let's restore it */
-		b_rew(&req->buf, old_o);
+		b_rew(&chn->buf, old_o);
 	}
 
-	old_i = req->buf.i;
-	while (http_find_header2(hdr_name, hdr_name_len, txn->req.buf->buf.p, &txn->hdr_idx, &ctx)) {
+	old_i = chn->buf.i;
+	while (http_find_header2(hdr_name, hdr_name_len, txn->req.chn->buf.p, &txn->hdr_idx, &ctx)) {
 		/* remove any existing values from the header */
 	        http_remove_header2(&txn->req, &txn->hdr_idx, &ctx);
 	}
@@ -3804,7 +3804,7 @@ int http_send_name_header(struct http_txn *txn, struct proxy* be, const char* sr
 		 * data to be forwarded in order to take into account the size
 		 * variations.
 		 */
-		b_adv(&req->buf, old_o + req->buf.i - old_i);
+		b_adv(&chn->buf, old_o + chn->buf.i - old_i);
 	}
 
 	return 0;
@@ -4589,7 +4589,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 				return 0;
 			}
 			if (rep->buf.i <= rep->buf.size - global.tune.maxrewrite)
-				buffer_slow_realign(&msg->buf->buf);
+				buffer_slow_realign(&msg->chn->buf);
 		}
 
 		if (likely(msg->next < rep->buf.i))
@@ -7245,7 +7245,7 @@ int stats_check_uri(struct stream_interface *si, struct http_txn *txn, struct pr
 {
 	struct uri_auth *uri_auth = backend->uri_auth;
 	struct http_msg *msg = &txn->req;
-	const char *uri = msg->buf->buf.p+ msg->sl.rq.u;
+	const char *uri = msg->chn->buf.p+ msg->sl.rq.u;
 	const char *h;
 
 	if (!uri_auth)
@@ -7327,7 +7327,7 @@ void http_capture_bad_message(struct error_snapshot *es, struct session *s,
                               struct http_msg *msg,
 			      int state, struct proxy *other_end)
 {
-	struct channel *buf = msg->buf;
+	struct channel *buf = msg->chn;
 	int len1, len2;
 
 	es->len = MIN(buf->buf.i, sizeof(es->buf));
@@ -7389,7 +7389,7 @@ unsigned int http_get_hdr(const struct http_msg *msg, const char *hname, int hle
 
 	if (occ >= 0) {
 		/* search from the beginning */
-		while (http_find_header2(hname, hlen, msg->buf->buf.p, idx, ctx)) {
+		while (http_find_header2(hname, hlen, msg->chn->buf.p, idx, ctx)) {
 			occ--;
 			if (occ <= 0) {
 				*vptr = ctx->line + ctx->val;
@@ -7405,7 +7405,7 @@ unsigned int http_get_hdr(const struct http_msg *msg, const char *hname, int hle
 		return 0;
 
 	found = hist_ptr = 0;
-	while (http_find_header2(hname, hlen, msg->buf->buf.p, idx, ctx)) {
+	while (http_find_header2(hname, hlen, msg->chn->buf.p, idx, ctx)) {
 		ptr_hist[hist_ptr] = ctx->line + ctx->val;
 		len_hist[hist_ptr] = ctx->vlen;
 		if (++hist_ptr >= MAX_HDR_HISTORY)
@@ -7476,8 +7476,8 @@ void http_init_txn(struct session *s)
 	txn->rsp.body_len = 0LL;
 	txn->req.msg_state = HTTP_MSG_RQBEFORE; /* at the very beginning of the request */
 	txn->rsp.msg_state = HTTP_MSG_RPBEFORE; /* at the very beginning of the response */
-	txn->req.buf = s->req;
-	txn->rsp.buf = s->rep;
+	txn->req.chn = s->req;
+	txn->rsp.chn = s->rep;
 
 	txn->auth.method = HTTP_AUTH_UNKNOWN;
 
@@ -7707,7 +7707,7 @@ acl_prefetch_http(struct proxy *px, struct session *s, void *l7, unsigned int op
 			 * preparation to perform so that further checks can rely
 			 * on HTTP tests.
 			 */
-			txn->meth = find_http_meth(msg->buf->buf.p, msg->sl.rq.m_l);
+			txn->meth = find_http_meth(msg->chn->buf.p, msg->sl.rq.m_l);
 			if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
 				s->flags |= SN_REDIRECTABLE;
 
@@ -7788,7 +7788,7 @@ acl_fetch_meth(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 			return 0;
 		smp->type = SMP_T_CSTR;
 		smp->data.str.len = txn->req.sl.rq.m_l;
-		smp->data.str.str = txn->req.buf->buf.p;
+		smp->data.str.str = txn->req.chn->buf.p;
 	}
 	smp->flags = SMP_F_VOL_1ST;
 	return 1;
@@ -7847,7 +7847,7 @@ acl_fetch_rqver(struct proxy *px, struct session *l4, void *l7, unsigned int opt
 	CHECK_HTTP_MESSAGE_FIRST();
 
 	len = txn->req.sl.rq.v_l;
-	ptr = txn->req.buf->buf.p + txn->req.sl.rq.v;
+	ptr = txn->req.chn->buf.p + txn->req.sl.rq.v;
 
 	while ((len-- > 0) && (*ptr++ != '/'));
 	if (len <= 0)
@@ -7872,7 +7872,7 @@ acl_fetch_stver(struct proxy *px, struct session *l4, void *l7, unsigned int opt
 	CHECK_HTTP_MESSAGE_FIRST();
 
 	len = txn->rsp.sl.st.v_l;
-	ptr = txn->rsp.buf->buf.p;
+	ptr = txn->rsp.chn->buf.p;
 
 	while ((len-- > 0) && (*ptr++ != '/'));
 	if (len <= 0)
@@ -7898,7 +7898,7 @@ acl_fetch_stcode(struct proxy *px, struct session *l4, void *l7, unsigned int op
 	CHECK_HTTP_MESSAGE_FIRST();
 
 	len = txn->rsp.sl.st.c_l;
-	ptr = txn->rsp.buf->buf.p + txn->rsp.sl.st.c;
+	ptr = txn->rsp.chn->buf.p + txn->rsp.sl.st.c;
 
 	smp->type = SMP_T_UINT;
 	smp->data.uint = __strl2ui(ptr, len);
@@ -7917,7 +7917,7 @@ smp_fetch_url(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 
 	smp->type = SMP_T_CSTR;
 	smp->data.str.len = txn->req.sl.rq.u_l;
-	smp->data.str.str = txn->req.buf->buf.p + txn->req.sl.rq.u;
+	smp->data.str.str = txn->req.chn->buf.p + txn->req.sl.rq.u;
 	smp->flags = SMP_F_VOL_1ST;
 	return 1;
 }
@@ -7931,7 +7931,7 @@ smp_fetch_url_ip(struct proxy *px, struct session *l4, void *l7, unsigned int op
 	CHECK_HTTP_MESSAGE_FIRST();
 
 	/* Parse HTTP request */
-	url2sa(txn->req.buf->buf.p + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &l4->req->cons->conn.addr.to);
+	url2sa(txn->req.chn->buf.p + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &l4->req->cons->conn.addr.to);
 	if (((struct sockaddr_in *)&l4->req->cons->conn.addr.to)->sin_family != AF_INET)
 		return 0;
 	smp->type = SMP_T_IPV4;
@@ -7957,7 +7957,7 @@ smp_fetch_url_port(struct proxy *px, struct session *l4, void *l7, unsigned int 
 	CHECK_HTTP_MESSAGE_FIRST();
 
 	/* Same optimization as url_ip */
-	url2sa(txn->req.buf->buf.p + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &l4->req->cons->conn.addr.to);
+	url2sa(txn->req.chn->buf.p + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &l4->req->cons->conn.addr.to);
 	smp->type = SMP_T_UINT;
 	smp->data.uint = ntohs(((struct sockaddr_in *)&l4->req->cons->conn.addr.to)->sin_port);
 
@@ -8039,7 +8039,7 @@ smp_fetch_hdr_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int o
 
 	ctx.idx = 0;
 	cnt = 0;
-	while (http_find_header2(args->data.str.str, args->data.str.len, msg->buf->buf.p, idx, &ctx))
+	while (http_find_header2(args->data.str.str, args->data.str.len, msg->chn->buf.p, idx, &ctx))
 		cnt++;
 
 	smp->type = SMP_T_UINT;
@@ -8100,7 +8100,7 @@ smp_fetch_path(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 
 	CHECK_HTTP_MESSAGE_FIRST();
 
-	end = txn->req.buf->buf.p + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
+	end = txn->req.chn->buf.p + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
 	ptr = http_get_path(txn);
 	if (!ptr)
 		return 0;
@@ -8134,7 +8134,7 @@ smp_fetch_base(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 	CHECK_HTTP_MESSAGE_FIRST();
 
 	ctx.idx = 0;
-	if (!http_find_header2("Host", 4, txn->req.buf->buf.p + txn->req.sol, &txn->hdr_idx, &ctx) ||
+	if (!http_find_header2("Host", 4, txn->req.chn->buf.p + txn->req.sol, &txn->hdr_idx, &ctx) ||
 	    !ctx.vlen)
 		return smp_fetch_path(px, l4, l7, opt, args, smp);
 
@@ -8145,7 +8145,7 @@ smp_fetch_base(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 	smp->data.str.len = ctx.vlen;
 
 	/* now retrieve the path */
-	end = txn->req.buf->buf.p + txn->req.sol + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
+	end = txn->req.chn->buf.p + txn->req.sol + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
 	beg = http_get_path(txn);
 	if (!beg)
 		beg = end;
@@ -8381,7 +8381,7 @@ smp_fetch_cookie(struct proxy *px, struct session *l4, void *l7, unsigned int op
 	 * next one.
 	 */
 
-	sol = msg->buf->buf.p;
+	sol = msg->chn->buf.p;
 	if (!(smp->flags & SMP_F_NOT_LAST)) {
 		/* search for the header from the beginning, we must first initialize
 		 * the search parameters.
@@ -8463,7 +8463,7 @@ acl_fetch_cookie_cnt(struct proxy *px, struct session *l4, void *l7, unsigned in
 		hdr_name_len = 10;
 	}
 
-	sol = msg->buf->buf.p;
+	sol = msg->chn->buf.p;
 	val_end = val_beg = NULL;
 	ctx.idx = 0;
 	cnt = 0;
@@ -8621,7 +8621,7 @@ smp_fetch_url_param(struct proxy *px, struct session *l4, void *l7, unsigned int
 	if (args[1].type)
 		delim = *args[1].data.str.str;
 
-	if (!find_url_param_value(msg->buf->buf.p + msg->sl.rq.u, msg->sl.rq.u_l,
+	if (!find_url_param_value(msg->chn->buf.p + msg->sl.rq.u, msg->sl.rq.u_l,
                                  args->data.str.str, args->data.str.len,
                                  &smp->data.str.str, &smp->data.str.len,
                                  delim))

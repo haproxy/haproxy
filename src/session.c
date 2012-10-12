@@ -474,8 +474,8 @@ int session_complete(struct session *s)
 	txn->req.flags = 0;
 	txn->rsp.flags = 0;
 	/* the HTTP messages need to know what buffer they're associated with */
-	txn->req.buf = s->req;
-	txn->rsp.buf = s->rep;
+	txn->req.chn = s->req;
+	txn->rsp.chn = s->rep;
 
 	/* finish initialization of the accepted file descriptor */
 	conn_data_want_recv(&s->si[0].conn);
