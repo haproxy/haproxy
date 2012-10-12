@@ -120,16 +120,16 @@ acl_fetch_ssl_hello_type(struct proxy *px, struct session *l4, void *l7, unsigne
 {
 	int hs_len;
 	int hs_type, bleft;
-	struct channel *b;
+	struct channel *chn;
 	const unsigned char *data;
 
 	if (!l4)
 		goto not_ssl_hello;
 
-	b = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? l4->rep : l4->req;
+	chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? l4->rep : l4->req;
 
-	bleft = b->buf.i;
-	data = (const unsigned char *)b->buf.p;
+	bleft = chn->buf.i;
+	data = (const unsigned char *)chn->buf.p;
 
 	if (!bleft)
 		goto too_short;
@@ -324,16 +324,16 @@ acl_fetch_ssl_hello_sni(struct proxy *px, struct session *l4, void *l7, unsigned
                         const struct arg *args, struct sample *smp)
 {
 	int hs_len, ext_len, bleft;
-	struct channel *b;
+	struct channel *chn;
 	unsigned char *data;
 
 	if (!l4)
 		goto not_ssl_hello;
 
-	b = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? l4->rep : l4->req;
+	chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? l4->rep : l4->req;
 
-	bleft = b->buf.i;
-	data = (unsigned char *)b->buf.p;
+	bleft = chn->buf.i;
+	data = (unsigned char *)chn->buf.p;
 
 	/* Check for SSL/TLS Handshake */
 	if (!bleft)
