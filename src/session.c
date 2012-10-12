@@ -199,7 +199,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		t->process = expire_mini_session;
 		t->expire = tick_add_ifset(now_ms, p->timeout.client);
 		task_queue(t);
-		s->si[0].conn.flags |= CO_FL_INIT_DATA;
+		s->si[0].conn.flags |= CO_FL_INIT_DATA | CO_FL_WAKE_DATA;
 		return 1;
 	}
 
