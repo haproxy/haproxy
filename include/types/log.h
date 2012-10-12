@@ -131,6 +131,7 @@ struct logformat_node {
 #define LW_RSPHDR	2048	/* response header(s) */
 #define LW_BCKIP	4096	/* backend IP */
 #define LW_FRTIP 	8192	/* frontend IP */
+#define LW_XPRT		16384	/* transport layer information (eg: SSL) */
 
 struct logsrv {
 	struct list list;

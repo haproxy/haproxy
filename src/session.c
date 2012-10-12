@@ -488,6 +488,10 @@ int session_complete(struct session *s)
 		goto out_free_rep;
 	}
 
+	/* if logs require transport layer information, note it on the connection */
+	if (s->logs.logwait & LW_XPRT)
+		s->si[0].conn.flags |= CO_FL_XPRT_TRACKED;
+
 	/* we want the connection handler to notify the stream interface about updates. */
 	s->si[0].conn.flags |= CO_FL_WAKE_DATA;
 
