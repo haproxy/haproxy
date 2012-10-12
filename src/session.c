@@ -548,6 +548,10 @@ static void session_free(struct session *s)
 
 	http_end_txn(s);
 
+	/* ensure the client-side transport layer is destroyed */
+	s->si[0].conn.flags &= ~CO_FL_XPRT_TRACKED;
+	conn_xprt_close(&s->si[0].conn);
+
 	for (i = 0; i < s->store_count; i++) {
 		if (!s->store[i].ts)
 			continue;

@@ -46,11 +46,13 @@ static inline int conn_xprt_init(struct connection *conn)
 }
 
 /* Calls the close() function of the transport layer if any, and always unsets
- * the transport layer.
+ * the transport layer. However this is not done if the CO_FL_XPRT_TRACKED flag
+ * is set, which allows logs to take data from the transport layer very late if
+ * needed.
  */
 static inline void conn_xprt_close(struct connection *conn)
 {
-	if (conn->xprt) {
+	if (conn->xprt && !(conn->flags & CO_FL_XPRT_TRACKED)) {
 		if (conn->xprt->close)
 			conn->xprt->close(conn);
 		conn->xprt = NULL;
