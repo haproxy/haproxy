@@ -40,7 +40,7 @@ int init_channel()
  * into account is returned. Directly touching ->to_forward will cause lockups
  * when buf->o goes down to zero if nobody is ready to push the remaining data.
  */
-unsigned long long channel_forward(struct channel *buf, unsigned long long bytes)
+unsigned long long channel_forward(struct channel *chn, unsigned long long bytes)
 {
 	unsigned int new_forward;
 	unsigned int forwarded;
@@ -53,40 +53,40 @@ unsigned long long channel_forward(struct channel *buf, unsigned long long bytes
 	 * once anyway.
 	 */
 	if (bytes <= ~0U) {
-		if (bytes32 <= buf->buf.i) {
+		if (bytes32 <= chn->buf.i) {
 			/* OK this amount of bytes might be forwarded at once */
 			if (!bytes32)
 				return 0;
-			b_adv(&buf->buf, bytes32);
+			b_adv(&chn->buf, bytes32);
 			return bytes;
 		}
 	}
 
-	forwarded = buf->buf.i;
-	b_adv(&buf->buf, buf->buf.i);
+	forwarded = chn->buf.i;
+	b_adv(&chn->buf, chn->buf.i);
 
 	/* Note: the case below is the only case where we may return
 	 * a byte count that does not fit into a 32-bit number.
 	 */
-	if (likely(buf->to_forward == CHN_INFINITE_FORWARD))
+	if (likely(chn->to_forward == CHN_INFINITE_FORWARD))
 		return bytes;
 
 	if (likely(bytes == CHN_INFINITE_FORWARD)) {
-		buf->to_forward = bytes;
+		chn->to_forward = bytes;
 		return bytes;
 	}
 
-	new_forward = buf->to_forward + bytes - forwarded;
+	new_forward = chn->to_forward + bytes - forwarded;
 	bytes = forwarded; /* at least those bytes were scheduled */
 
-	if (new_forward <= buf->to_forward) {
+	if (new_forward <= chn->to_forward) {
 		/* integer overflow detected, let's assume no more than 2G at once */
 		new_forward = MID_RANGE(new_forward);
 	}
 
-	if (new_forward > buf->to_forward) {
-		bytes += new_forward - buf->to_forward;
-		buf->to_forward = new_forward;
+	if (new_forward > chn->to_forward) {
+		bytes += new_forward - chn->to_forward;
+		chn->to_forward = new_forward;
 	}
 	return bytes;
 }
@@ -98,14 +98,14 @@ unsigned long long channel_forward(struct channel *buf, unsigned long long bytes
  * data. Note: this function appends data to the buffer's output and possibly
  * overwrites any pending input data which are assumed not to exist.
  */
-int bo_inject(struct channel *buf, const char *msg, int len)
+int bo_inject(struct channel *chn, const char *msg, int len)
 {
 	int max;
 
 	if (len == 0)
 		return -1;
 
-	if (len > buf->buf.size) {
+	if (len > chn->buf.size) {
 		/* we can't write this chunk and will never be able to, because
 		 * it is larger than the buffer. This must be reported as an
 		 * error. Then we return -2 so that writers that don't care can
@@ -114,64 +114,64 @@ int bo_inject(struct channel *buf, const char *msg, int len)
 		return -2;
 	}
 
-	max = buffer_realign(&buf->buf);
+	max = buffer_realign(&chn->buf);
 
 	if (len > max)
 		return max;
 
-	memcpy(buf->buf.p, msg, len);
-	buf->buf.o += len;
-	buf->buf.p = b_ptr(&buf->buf, len);
-	buf->total += len;
+	memcpy(chn->buf.p, msg, len);
+	chn->buf.o += len;
+	chn->buf.p = b_ptr(&chn->buf, len);
+	chn->total += len;
 	return -1;
 }
 
 /* Tries to copy character <c> into the channel's buffer after some length
- * controls. The buf->o and to_forward pointers are updated. If the channel
+ * controls. The chn->o and to_forward pointers are updated. If the channel
  * input is closed, -2 is returned. If there is not enough room left in the
  * buffer, -1 is returned. Otherwise the number of bytes copied is returned
  * (1). Channel flag READ_PARTIAL is updated if some data can be transferred.
  */
-int bi_putchr(struct channel *buf, char c)
+int bi_putchr(struct channel *chn, char c)
 {
-	if (unlikely(channel_input_closed(buf)))
+	if (unlikely(channel_input_closed(chn)))
 		return -2;
 
-	if (channel_full(buf))
+	if (channel_full(chn))
 		return -1;
 
-	*bi_end(&buf->buf) = c;
+	*bi_end(&chn->buf) = c;
 
-	buf->buf.i++;
-	buf->flags |= CF_READ_PARTIAL;
+	chn->buf.i++;
+	chn->flags |= CF_READ_PARTIAL;
 
-	if (buf->to_forward >= 1) {
-		if (buf->to_forward != CHN_INFINITE_FORWARD)
-			buf->to_forward--;
-		b_adv(&buf->buf, 1);
+	if (chn->to_forward >= 1) {
+		if (chn->to_forward != CHN_INFINITE_FORWARD)
+			chn->to_forward--;
+		b_adv(&chn->buf, 1);
 	}
 
-	buf->total++;
+	chn->total++;
 	return 1;
 }
 
 /* Tries to copy block <blk> at once into the channel's buffer after length
- * controls. The buf->o and to_forward pointers are updated. If the channel
+ * controls. The chn->o and to_forward pointers are updated. If the channel
  * input is closed, -2 is returned. If the block is too large for this buffer,
  * -3 is returned. If there is not enough room left in the buffer, -1 is
  * returned. Otherwise the number of bytes copied is returned (0 being a valid
  * number). Channel flag READ_PARTIAL is updated if some data can be
  * transferred.
  */
-int bi_putblk(struct channel *buf, const char *blk, int len)
+int bi_putblk(struct channel *chn, const char *blk, int len)
 {
 	int max;
 
-	if (unlikely(channel_input_closed(buf)))
+	if (unlikely(channel_input_closed(chn)))
 		return -2;
 
-	max = buffer_max_len(buf);
-	if (unlikely(len > max - buffer_len(&buf->buf))) {
+	max = buffer_max_len(chn);
+	if (unlikely(len > max - buffer_len(&chn->buf))) {
 		/* we can't write this chunk right now because the buffer is
 		 * almost full or because the block is too large. Return the
 		 * available space or -2 if impossible.
@@ -186,25 +186,25 @@ int bi_putblk(struct channel *buf, const char *blk, int len)
 		return 0;
 
 	/* OK so the data fits in the buffer in one or two blocks */
-	max = buffer_contig_space_with_res(&buf->buf, buf->buf.size - max);
-	memcpy(bi_end(&buf->buf), blk, MIN(len, max));
+	max = buffer_contig_space_with_res(&chn->buf, chn->buf.size - max);
+	memcpy(bi_end(&chn->buf), blk, MIN(len, max));
 	if (len > max)
-		memcpy(buf->buf.data, blk + max, len - max);
+		memcpy(chn->buf.data, blk + max, len - max);
 
-	buf->buf.i += len;
-	buf->total += len;
-	if (buf->to_forward) {
+	chn->buf.i += len;
+	chn->total += len;
+	if (chn->to_forward) {
 		unsigned long fwd = len;
-		if (buf->to_forward != CHN_INFINITE_FORWARD) {
-			if (fwd > buf->to_forward)
-				fwd = buf->to_forward;
-			buf->to_forward -= fwd;
+		if (chn->to_forward != CHN_INFINITE_FORWARD) {
+			if (fwd > chn->to_forward)
+				fwd = chn->to_forward;
+			chn->to_forward -= fwd;
 		}
-		b_adv(&buf->buf, fwd);
+		b_adv(&chn->buf, fwd);
 	}
 
 	/* notify that some data was read from the SI into the buffer */
-	buf->flags |= CF_READ_PARTIAL;
+	chn->flags |= CF_READ_PARTIAL;
 	return len;
 }
 
@@ -218,7 +218,7 @@ int bi_putblk(struct channel *buf, const char *blk, int len)
  * output are full. If either of them is full, the string may be returned
  * as is, without the '\n'.
  */
-int bo_getline(struct channel *buf, char *str, int len)
+int bo_getline(struct channel *chn, char *str, int len)
 {
 	int ret, max;
 	char *p;
@@ -227,16 +227,16 @@ int bo_getline(struct channel *buf, char *str, int len)
 	max = len;
 
 	/* closed or empty + imminent close = -1; empty = 0 */
-	if (unlikely((buf->flags & CF_SHUTW) || channel_is_empty(buf))) {
-		if (buf->flags & (CF_SHUTW|CF_SHUTW_NOW))
+	if (unlikely((chn->flags & CF_SHUTW) || channel_is_empty(chn))) {
+		if (chn->flags & (CF_SHUTW|CF_SHUTW_NOW))
 			ret = -1;
 		goto out;
 	}
 
-	p = bo_ptr(&buf->buf);
+	p = bo_ptr(&chn->buf);
 
-	if (max > buf->buf.o) {
-		max = buf->buf.o;
+	if (max > chn->buf.o) {
+		max = chn->buf.o;
 		str[max-1] = 0;
 	}
 	while (max) {
@@ -246,11 +246,11 @@ int bo_getline(struct channel *buf, char *str, int len)
 
 		if (*p == '\n')
 			break;
-		p = buffer_wrap_add(&buf->buf, p + 1);
+		p = buffer_wrap_add(&chn->buf, p + 1);
 	}
-	if (ret > 0 && ret < len && ret < buf->buf.o &&
+	if (ret > 0 && ret < len && ret < chn->buf.o &&
 	    *(str-1) != '\n' &&
-	    !(buf->flags & (CF_SHUTW|CF_SHUTW_NOW)))
+	    !(chn->flags & (CF_SHUTW|CF_SHUTW_NOW)))
 		ret = 0;
  out:
 	if (max)
@@ -266,32 +266,32 @@ int bo_getline(struct channel *buf, char *str, int len)
  * The channel status is not changed. The caller must call bo_skip() to
  * update it.
  */
-int bo_getblk(struct channel *buf, char *blk, int len, int offset)
+int bo_getblk(struct channel *chn, char *blk, int len, int offset)
 {
 	int firstblock;
 
-	if (buf->flags & CF_SHUTW)
+	if (chn->flags & CF_SHUTW)
 		return -1;
 
-	if (len + offset > buf->buf.o) {
-		if (buf->flags & (CF_SHUTW|CF_SHUTW_NOW))
+	if (len + offset > chn->buf.o) {
+		if (chn->flags & (CF_SHUTW|CF_SHUTW_NOW))
 			return -1;
 		return 0;
 	}
 
-	firstblock = buf->buf.data + buf->buf.size - bo_ptr(&buf->buf);
+	firstblock = chn->buf.data + chn->buf.size - bo_ptr(&chn->buf);
 	if (firstblock > offset) {
 		if (firstblock >= len + offset) {
-			memcpy(blk, bo_ptr(&buf->buf) + offset, len);
+			memcpy(blk, bo_ptr(&chn->buf) + offset, len);
 			return len;
 		}
 
-		memcpy(blk, bo_ptr(&buf->buf) + offset, firstblock - offset);
-		memcpy(blk + firstblock - offset, buf->buf.data, len - firstblock + offset);
+		memcpy(blk, bo_ptr(&chn->buf) + offset, firstblock - offset);
+		memcpy(blk + firstblock - offset, chn->buf.data, len - firstblock + offset);
 		return len;
 	}
 
-	memcpy(blk, buf->buf.data + offset - firstblock, len);
+	memcpy(blk, chn->buf.data + offset - firstblock, len);
 	return len;
 }
 
