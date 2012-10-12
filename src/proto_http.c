@@ -1290,11 +1290,12 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 {
 	unsigned int state;       /* updated only when leaving the FSM */
 	register char *ptr, *end; /* request pointers, to avoid dereferences */
-	struct channel *buf = msg->chn;
+	struct buffer *buf;
 
 	state = msg->msg_state;
-	ptr = buf->buf.p + msg->next;
-	end = buf->buf.p + buf->buf.i;
+	buf = &msg->chn->buf;
+	ptr = buf->p + msg->next;
+	end = buf->p + buf->i;
 
 	if (unlikely(ptr >= end))
 		goto http_msg_ood;
@@ -1312,11 +1313,11 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 			 * first if we need to remove some CRLF. We can only
 			 * do this when o=0.
 			 */
-			if (unlikely(ptr != buf->buf.p)) {
-				if (buf->buf.o)
+			if (unlikely(ptr != buf->p)) {
+				if (buf->o)
 					goto http_msg_ood;
 				/* Remove empty leading lines, as recommended by RFC2616. */
-				bi_fast_delete(&buf->buf, ptr - buf->buf.p);
+				bi_fast_delete(buf, ptr - buf->p);
 			}
 			msg->sol = 0;
 			msg->sl.st.l = 0; /* used in debug mode */
@@ -1356,7 +1357,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 		 */
 		hdr_idx_set_start(idx, msg->sl.st.l, *ptr == '\r');
 
-		msg->sol = ptr - buf->buf.p;
+		msg->sol = ptr - buf->p;
 		if (likely(*ptr == '\r'))
 			EAT_AND_JUMP_OR_RETURN(http_msg_rpline_end, HTTP_MSG_RPLINE_END);
 		goto http_msg_rpline_end;
@@ -1378,11 +1379,11 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 			 * first if we need to remove some CRLF. We can only
 			 * do this when o=0.
 			 */
-			if (likely(ptr != buf->buf.p)) {
-				if (buf->buf.o)
+			if (likely(ptr != buf->p)) {
+				if (buf->o)
 					goto http_msg_ood;
 				/* Remove empty leading lines, as recommended by RFC2616. */
-				bi_fast_delete(&buf->buf, ptr - buf->buf.p);
+				bi_fast_delete(buf, ptr - buf->p);
 			}
 			msg->sol = 0;
 			msg->sl.rq.l = 0; /* used in debug mode */
@@ -1421,7 +1422,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 		 */
 		hdr_idx_set_start(idx, msg->sl.rq.l, *ptr == '\r');
 
-		msg->sol = ptr - buf->buf.p;
+		msg->sol = ptr - buf->p;
 		if (likely(*ptr == '\r'))
 			EAT_AND_JUMP_OR_RETURN(http_msg_rqline_end, HTTP_MSG_RQLINE_END);
 		goto http_msg_rqline_end;
@@ -1443,7 +1444,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 	 */
 	case HTTP_MSG_HDR_FIRST:
 	http_msg_hdr_first:
-		msg->sol = ptr - buf->buf.p;
+		msg->sol = ptr - buf->p;
 		if (likely(!HTTP_IS_CRLF(*ptr))) {
 			goto http_msg_hdr_name;
 		}
@@ -1465,7 +1466,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 			goto http_msg_invalid;
 
 		if (msg->err_pos == -1) /* capture error pointer */
-			msg->err_pos = ptr - buf->buf.p; /* >= 0 now */
+			msg->err_pos = ptr - buf->p; /* >= 0 now */
 
 		/* and we still accept this non-token character */
 		EAT_AND_JUMP_OR_RETURN(http_msg_hdr_name, HTTP_MSG_HDR_NAME);
@@ -1477,7 +1478,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 			EAT_AND_JUMP_OR_RETURN(http_msg_hdr_l1_sp, HTTP_MSG_HDR_L1_SP);
 
 		/* header value can be basically anything except CR/LF */
-		msg->sov = ptr - buf->buf.p;
+		msg->sov = ptr - buf->p;
 
 		if (likely(!HTTP_IS_CRLF(*ptr))) {
 			goto http_msg_hdr_val;
@@ -1496,8 +1497,8 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 	http_msg_hdr_l1_lws:
 		if (likely(HTTP_IS_SPHT(*ptr))) {
 			/* replace HT,CR,LF with spaces */
-			for (; buf->buf.p + msg->sov < ptr; msg->sov++)
-				buf->buf.p[msg->sov] = ' ';
+			for (; buf->p + msg->sov < ptr; msg->sov++)
+				buf->p[msg->sov] = ' ';
 			goto http_msg_hdr_l1_sp;
 		}
 		/* we had a header consisting only in spaces ! */
@@ -1512,7 +1513,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 		if (likely(!HTTP_IS_CRLF(*ptr)))
 			EAT_AND_JUMP_OR_RETURN(http_msg_hdr_val, HTTP_MSG_HDR_VAL);
 
-		msg->eol = ptr - buf->buf.p;
+		msg->eol = ptr - buf->p;
 		/* Note: we could also copy eol into ->eoh so that we have the
 		 * real header end in case it ends with lots of LWS, but is this
 		 * really needed ?
@@ -1530,8 +1531,8 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 	http_msg_hdr_l2_lws:
 		if (unlikely(HTTP_IS_SPHT(*ptr))) {
 			/* LWS: replace HT,CR,LF with spaces */
-			for (; buf->buf.p + msg->eol < ptr; msg->eol++)
-				buf->buf.p[msg->eol] = ' ';
+			for (; buf->p + msg->eol < ptr; msg->eol++)
+				buf->p[msg->eol] = ' ';
 			goto http_msg_hdr_val;
 		}
 	http_msg_complete_header:
@@ -1542,11 +1543,11 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 		 * first CR or LF so we know how the line ends. We insert last
 		 * header into the index.
 		 */
-		if (unlikely(hdr_idx_add(msg->eol - msg->sol, buf->buf.p[msg->eol] == '\r',
+		if (unlikely(hdr_idx_add(msg->eol - msg->sol, buf->p[msg->eol] == '\r',
 					 idx, idx->tail) < 0))
 			goto http_msg_invalid;
 
-		msg->sol = ptr - buf->buf.p;
+		msg->sol = ptr - buf->p;
 		if (likely(!HTTP_IS_CRLF(*ptr))) {
 			goto http_msg_hdr_name;
 		}
@@ -1560,7 +1561,7 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 		/* Assumes msg->sol points to the first of either CR or LF */
 		EXPECT_LF_HERE(ptr, http_msg_invalid);
 		ptr++;
-		msg->sov = msg->next = ptr - buf->buf.p;
+		msg->sov = msg->next = ptr - buf->p;
 		msg->eoh = msg->sol;
 		msg->sol = 0;
 		msg->msg_state = HTTP_MSG_BODY;
@@ -1579,13 +1580,13 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
  http_msg_ood:
 	/* out of data */
 	msg->msg_state = state;
-	msg->next = ptr - buf->buf.p;
+	msg->next = ptr - buf->p;
 	return;
 
  http_msg_invalid:
 	/* invalid message */
 	msg->msg_state = HTTP_MSG_ERROR;
-	msg->next = ptr - buf->buf.p;
+	msg->next = ptr - buf->p;
 	return;
 }
 
@@ -1746,11 +1747,11 @@ void http_change_connection_header(struct http_txn *txn, struct http_msg *msg, i
  */
 int http_parse_chunk_size(struct http_msg *msg)
 {
-	const struct channel *buf = msg->chn;
-	const char *ptr = b_ptr(&buf->buf, msg->next);
+	const struct buffer *buf = &msg->chn->buf;
+	const char *ptr = b_ptr(buf, msg->next);
 	const char *ptr_old = ptr;
-	const char *end = buf->buf.data + buf->buf.size;
-	const char *stop = bi_end(&buf->buf);
+	const char *end = buf->data + buf->size;
+	const char *stop = bi_end(buf);
 	unsigned int chunk = 0;
 
 	/* The chunk size is in the following form, though we are only
@@ -1765,7 +1766,7 @@ int http_parse_chunk_size(struct http_msg *msg)
 		if (c < 0) /* not a hex digit anymore */
 			break;
 		if (++ptr >= end)
-			ptr = buf->buf.data;
+			ptr = buf->data;
 		if (chunk & 0xF8000000) /* integer overflow will occur if result >= 2GB */
 			goto error;
 		chunk = (chunk << 4) + c;
@@ -1777,7 +1778,7 @@ int http_parse_chunk_size(struct http_msg *msg)
 
 	while (http_is_spht[(unsigned char)*ptr]) {
 		if (++ptr >= end)
-			ptr = buf->buf.data;
+			ptr = buf->data;
 		if (ptr == stop)
 			return 0;
 	}
@@ -1790,7 +1791,7 @@ int http_parse_chunk_size(struct http_msg *msg)
 			/* we now have a CR or an LF at ptr */
 			if (likely(*ptr == '\r')) {
 				if (++ptr >= end)
-					ptr = buf->buf.data;
+					ptr = buf->data;
 				if (ptr == stop)
 					return 0;
 			}
@@ -1798,20 +1799,20 @@ int http_parse_chunk_size(struct http_msg *msg)
 			if (*ptr != '\n')
 				goto error;
 			if (++ptr >= end)
-				ptr = buf->buf.data;
+				ptr = buf->data;
 			/* done */
 			break;
 		}
 		else if (*ptr == ';') {
 			/* chunk extension, ends at next CRLF */
 			if (++ptr >= end)
-				ptr = buf->buf.data;
+				ptr = buf->data;
 			if (ptr == stop)
 				return 0;
 
 			while (!HTTP_IS_CRLF(*ptr)) {
 				if (++ptr >= end)
-					ptr = buf->buf.data;
+					ptr = buf->data;
 				if (ptr == stop)
 					return 0;
 			}
@@ -1827,15 +1828,15 @@ int http_parse_chunk_size(struct http_msg *msg)
 	 * ->sov.
 	 */
 	if (ptr < ptr_old)
-		msg->sov += buf->buf.size;
+		msg->sov += buf->size;
 	msg->sov += ptr - ptr_old;
-	msg->next = buffer_count(&buf->buf, buf->buf.p, ptr);
+	msg->next = buffer_count(buf, buf->p, ptr);
 	msg->chunk_len = chunk;
 	msg->body_len += chunk;
 	msg->msg_state = chunk ? HTTP_MSG_DATA : HTTP_MSG_TRAILERS;
 	return 1;
  error:
-	msg->err_pos = buffer_count(&buf->buf, buf->buf.p, ptr);
+	msg->err_pos = buffer_count(buf, buf->p, ptr);
 	return -1;
 }
 
@@ -1856,13 +1857,13 @@ int http_parse_chunk_size(struct http_msg *msg)
  */
 int http_forward_trailers(struct http_msg *msg)
 {
-	const struct channel *buf = msg->chn;
+	const struct buffer *buf = &msg->chn->buf;
 
 	/* we have msg->next which points to next line. Look for CRLF. */
 	while (1) {
 		const char *p1 = NULL, *p2 = NULL;
-		const char *ptr = b_ptr(&buf->buf, msg->next);
-		const char *stop = bi_end(&buf->buf);
+		const char *ptr = b_ptr(buf, msg->next);
+		const char *stop = bi_end(buf);
 		int bytes;
 
 		/* scan current line and stop at LF or CRLF */
@@ -1879,42 +1880,42 @@ int http_forward_trailers(struct http_msg *msg)
 
 			if (*ptr == '\r') {
 				if (p1) {
-					msg->err_pos = buffer_count(&buf->buf, buf->buf.p, ptr);
+					msg->err_pos = buffer_count(buf, buf->p, ptr);
 					return -1;
 				}
 				p1 = ptr;
 			}
 
 			ptr++;
-			if (ptr >= buf->buf.data + buf->buf.size)
-				ptr = buf->buf.data;
+			if (ptr >= buf->data + buf->size)
+				ptr = buf->data;
 		}
 
 		/* after LF; point to beginning of next line */
 		p2++;
-		if (p2 >= buf->buf.data + buf->buf.size)
-			p2 = buf->buf.data;
+		if (p2 >= buf->data + buf->size)
+			p2 = buf->data;
 
-		bytes = p2 - b_ptr(&buf->buf, msg->next);
+		bytes = p2 - b_ptr(buf, msg->next);
 		if (bytes < 0)
-			bytes += buf->buf.size;
+			bytes += buf->size;
 
 		/* schedule this line for forwarding */
 		msg->sov += bytes;
-		if (msg->sov >= buf->buf.size)
-			msg->sov -= buf->buf.size;
+		if (msg->sov >= buf->size)
+			msg->sov -= buf->size;
 
-		if (p1 == b_ptr(&buf->buf, msg->next)) {
+		if (p1 == b_ptr(buf, msg->next)) {
 			/* LF/CRLF at beginning of line => end of trailers at p2.
 			 * Everything was scheduled for forwarding, there's nothing
 			 * left from this message.
 			 */
-			msg->next = buffer_count(&buf->buf, buf->buf.p, p2);
+			msg->next = buffer_count(buf, buf->p, p2);
 			msg->msg_state = HTTP_MSG_DONE;
 			return 1;
 		}
 		/* OK, next line then */
-		msg->next = buffer_count(&buf->buf, buf->buf.p, p2);
+		msg->next = buffer_count(buf, buf->p, p2);
 	}
 }
 
@@ -1930,7 +1931,7 @@ int http_forward_trailers(struct http_msg *msg)
  */
 int http_skip_chunk_crlf(struct http_msg *msg)
 {
-	const struct channel *buf = msg->chn;
+	const struct buffer *buf = &msg->chn->buf;
 	const char *ptr;
 	int bytes;
 
@@ -1939,25 +1940,25 @@ int http_skip_chunk_crlf(struct http_msg *msg)
 	 * against the correct length.
 	 */
 	bytes = 1;
-	ptr = buf->buf.p;
+	ptr = buf->p;
 	if (*ptr == '\r') {
 		bytes++;
 		ptr++;
-		if (ptr >= buf->buf.data + buf->buf.size)
-			ptr = buf->buf.data;
+		if (ptr >= buf->data + buf->size)
+			ptr = buf->data;
 	}
 
-	if (bytes > buf->buf.i)
+	if (bytes > buf->i)
 		return 0;
 
 	if (*ptr != '\n') {
-		msg->err_pos = buffer_count(&buf->buf, buf->buf.p, ptr);
+		msg->err_pos = buffer_count(buf, buf->p, ptr);
 		return -1;
 	}
 
 	ptr++;
-	if (ptr >= buf->buf.data + buf->buf.size)
-		ptr = buf->buf.data;
+	if (ptr >= buf->data + buf->size)
+		ptr = buf->data;
 	/* prepare the CRLF to be forwarded (between ->sol and ->sov) */
 	msg->sol = 0;
 	msg->sov = msg->next = bytes;
@@ -3950,9 +3951,9 @@ void http_end_txn_clean_session(struct session *s)
  */
 int http_sync_req_state(struct session *s)
 {
-	struct channel *buf = s->req;
+	struct channel *chn = s->req;
 	struct http_txn *txn = &s->txn;
-	unsigned int old_flags = buf->flags;
+	unsigned int old_flags = chn->flags;
 	unsigned int old_state = txn->req.msg_state;
 
 	http_silent_debug(__LINE__, s);
@@ -3969,7 +3970,7 @@ int http_sync_req_state(struct session *s)
 		 * (eg: Linux).
 		 */
 		if (!(s->be->options & PR_O_ABRT_CLOSE) && txn->meth != HTTP_METH_POST)
-			channel_dont_read(buf);
+			channel_dont_read(chn);
 
 		if (txn->rsp.msg_state == HTTP_MSG_ERROR)
 			goto wait_other_side;
@@ -3983,7 +3984,7 @@ int http_sync_req_state(struct session *s)
 
 		if (txn->rsp.msg_state == HTTP_MSG_TUNNEL) {
 			/* if any side switches to tunnel mode, the other one does too */
-			channel_auto_read(buf);
+			channel_auto_read(chn);
 			txn->req.msg_state = HTTP_MSG_TUNNEL;
 			goto wait_other_side;
 		}
@@ -3996,8 +3997,8 @@ int http_sync_req_state(struct session *s)
 
 		if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL) {
 			/* Server-close mode : queue a connection close to the server */
-			if (!(buf->flags & (CF_SHUTW|CF_SHUTW_NOW)))
-				channel_shutw_now(buf);
+			if (!(chn->flags & (CF_SHUTW|CF_SHUTW_NOW)))
+				channel_shutw_now(chn);
 		}
 		else if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_CLO) {
 			/* Option forceclose is set, or either side wants to close,
@@ -4005,9 +4006,9 @@ int http_sync_req_state(struct session *s)
 			 * data to come. The caller knows the session is complete
 			 * once both states are CLOSED.
 			 */
-			if (!(buf->flags & (CF_SHUTW|CF_SHUTW_NOW))) {
-				channel_shutr_now(buf);
-				channel_shutw_now(buf);
+			if (!(chn->flags & (CF_SHUTW|CF_SHUTW_NOW))) {
+				channel_shutr_now(chn);
+				channel_shutw_now(chn);
 			}
 		}
 		else {
@@ -4016,15 +4017,15 @@ int http_sync_req_state(struct session *s)
 			 * in tunnel mode, so we're left with keep-alive only.
 			 * This mode is currently not implemented, we switch to tunnel mode.
 			 */
-			channel_auto_read(buf);
+			channel_auto_read(chn);
 			txn->req.msg_state = HTTP_MSG_TUNNEL;
 		}
 
-		if (buf->flags & (CF_SHUTW|CF_SHUTW_NOW)) {
+		if (chn->flags & (CF_SHUTW|CF_SHUTW_NOW)) {
 			/* if we've just closed an output, let's switch */
-			buf->cons->flags |= SI_FL_NOLINGER;  /* we want to close ASAP */
+			chn->cons->flags |= SI_FL_NOLINGER;  /* we want to close ASAP */
 
-			if (!channel_is_empty(buf)) {
+			if (!channel_is_empty(chn)) {
 				txn->req.msg_state = HTTP_MSG_CLOSING;
 				goto http_msg_closing;
 			}
@@ -4041,11 +4042,11 @@ int http_sync_req_state(struct session *s)
 		/* nothing else to forward, just waiting for the output buffer
 		 * to be empty and for the shutw_now to take effect.
 		 */
-		if (channel_is_empty(buf)) {
+		if (channel_is_empty(chn)) {
 			txn->req.msg_state = HTTP_MSG_CLOSED;
 			goto http_msg_closed;
 		}
-		else if (buf->flags & CF_SHUTW) {
+		else if (chn->flags & CF_SHUTW) {
 			txn->req.msg_state = HTTP_MSG_ERROR;
 			goto wait_other_side;
 		}
@@ -4058,7 +4059,7 @@ int http_sync_req_state(struct session *s)
 
  wait_other_side:
 	http_silent_debug(__LINE__, s);
-	return txn->req.msg_state != old_state || buf->flags != old_flags;
+	return txn->req.msg_state != old_state || chn->flags != old_flags;
 }
 
 
@@ -4071,9 +4072,9 @@ int http_sync_req_state(struct session *s)
  */
 int http_sync_res_state(struct session *s)
 {
-	struct channel *buf = s->rep;
+	struct channel *chn = s->rep;
 	struct http_txn *txn = &s->txn;
-	unsigned int old_flags = buf->flags;
+	unsigned int old_flags = chn->flags;
 	unsigned int old_state = txn->rsp.msg_state;
 
 	http_silent_debug(__LINE__, s);
@@ -4086,7 +4087,7 @@ int http_sync_res_state(struct session *s)
 		 * while the request is being uploaded, so we don't disable
 		 * reading.
 		 */
-		/* channel_dont_read(buf); */
+		/* channel_dont_read(chn); */
 
 		if (txn->req.msg_state == HTTP_MSG_ERROR)
 			goto wait_other_side;
@@ -4102,7 +4103,7 @@ int http_sync_res_state(struct session *s)
 
 		if (txn->req.msg_state == HTTP_MSG_TUNNEL) {
 			/* if any side switches to tunnel mode, the other one does too */
-			channel_auto_read(buf);
+			channel_auto_read(chn);
 			txn->rsp.msg_state = HTTP_MSG_TUNNEL;
 			goto wait_other_side;
 		}
@@ -4119,8 +4120,8 @@ int http_sync_res_state(struct session *s)
 			 * when we're in DONE and the other is in CLOSED and will
 			 * catch that for the final cleanup.
 			 */
-			if (!(buf->flags & (CF_SHUTR|CF_SHUTR_NOW)))
-				channel_shutr_now(buf);
+			if (!(chn->flags & (CF_SHUTR|CF_SHUTR_NOW)))
+				channel_shutr_now(chn);
 		}
 		else if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_CLO) {
 			/* Option forceclose is set, or either side wants to close,
@@ -4128,9 +4129,9 @@ int http_sync_res_state(struct session *s)
 			 * data to come. The caller knows the session is complete
 			 * once both states are CLOSED.
 			 */
-			if (!(buf->flags & (CF_SHUTW|CF_SHUTW_NOW))) {
-				channel_shutr_now(buf);
-				channel_shutw_now(buf);
+			if (!(chn->flags & (CF_SHUTW|CF_SHUTW_NOW))) {
+				channel_shutr_now(chn);
+				channel_shutw_now(chn);
 			}
 		}
 		else {
@@ -4139,13 +4140,13 @@ int http_sync_res_state(struct session *s)
 			 * in tunnel mode, so we're left with keep-alive only.
 			 * This mode is currently not implemented, we switch to tunnel mode.
 			 */
-			channel_auto_read(buf);
+			channel_auto_read(chn);
 			txn->rsp.msg_state = HTTP_MSG_TUNNEL;
 		}
 
-		if (buf->flags & (CF_SHUTW|CF_SHUTW_NOW)) {
+		if (chn->flags & (CF_SHUTW|CF_SHUTW_NOW)) {
 			/* if we've just closed an output, let's switch */
-			if (!channel_is_empty(buf)) {
+			if (!channel_is_empty(chn)) {
 				txn->rsp.msg_state = HTTP_MSG_CLOSING;
 				goto http_msg_closing;
 			}
@@ -4162,11 +4163,11 @@ int http_sync_res_state(struct session *s)
 		/* nothing else to forward, just waiting for the output buffer
 		 * to be empty and for the shutw_now to take effect.
 		 */
-		if (channel_is_empty(buf)) {
+		if (channel_is_empty(chn)) {
 			txn->rsp.msg_state = HTTP_MSG_CLOSED;
 			goto http_msg_closed;
 		}
-		else if (buf->flags & CF_SHUTW) {
+		else if (chn->flags & CF_SHUTW) {
 			txn->rsp.msg_state = HTTP_MSG_ERROR;
 			s->be->be_counters.cli_aborts++;
 			if (target_srv(&s->target))
@@ -4178,15 +4179,15 @@ int http_sync_res_state(struct session *s)
 	if (txn->rsp.msg_state == HTTP_MSG_CLOSED) {
 	http_msg_closed:
 		/* drop any pending data */
-		bi_erase(buf);
-		channel_auto_close(buf);
-		channel_auto_read(buf);
+		bi_erase(chn);
+		channel_auto_close(chn);
+		channel_auto_read(chn);
 		goto wait_other_side;
 	}
 
  wait_other_side:
 	http_silent_debug(__LINE__, s);
-	return txn->rsp.msg_state != old_state || buf->flags != old_flags;
+	return txn->rsp.msg_state != old_state || chn->flags != old_flags;
 }
 
 
@@ -7321,23 +7322,23 @@ int stats_check_uri(struct stream_interface *si, struct http_txn *txn, struct pr
  * By default it tries to report the error position as msg->err_pos. However if
  * this one is not set, it will then report msg->next, which is the last known
  * parsing point. The function is able to deal with wrapping buffers. It always
- * displays buffers as a contiguous area starting at buf->buf.p.
+ * displays buffers as a contiguous area starting at buf->p.
  */
 void http_capture_bad_message(struct error_snapshot *es, struct session *s,
                               struct http_msg *msg,
 			      int state, struct proxy *other_end)
 {
-	struct channel *buf = msg->chn;
+	struct channel *chn = msg->chn;
 	int len1, len2;
 
-	es->len = MIN(buf->buf.i, sizeof(es->buf));
-	len1 = buf->buf.data + buf->buf.size - buf->buf.p;
+	es->len = MIN(chn->buf.i, sizeof(es->buf));
+	len1 = chn->buf.data + chn->buf.size - chn->buf.p;
 	len1 = MIN(len1, es->len);
 	len2 = es->len - len1; /* remaining data if buffer wraps */
 
-	memcpy(es->buf, buf->buf.p, len1);
+	memcpy(es->buf, chn->buf.p, len1);
 	if (len2)
-		memcpy(es->buf + len1, buf->buf.data, len2);
+		memcpy(es->buf + len1, chn->buf.data, len2);
 
 	if (msg->err_pos >= 0)
 		es->pos = msg->err_pos;
@@ -7351,13 +7352,13 @@ void http_capture_bad_message(struct error_snapshot *es, struct session *s,
 	es->src  = s->req->prod->conn.addr.from;
 	es->state = state;
 	es->ev_id = error_snapshot_id++;
-	es->b_flags = buf->flags;
+	es->b_flags = chn->flags;
 	es->s_flags = s->flags;
 	es->t_flags = s->txn.flags;
 	es->m_flags = msg->flags;
-	es->b_out = buf->buf.o;
-	es->b_wrap = buf->buf.data + buf->buf.size - buf->buf.p;
-	es->b_tot = buf->total;
+	es->b_out = chn->buf.o;
+	es->b_wrap = chn->buf.data + chn->buf.size - chn->buf.p;
+	es->b_tot = chn->total;
 	es->m_clen = msg->chunk_len;
 	es->m_blen = msg->body_len;
 }
