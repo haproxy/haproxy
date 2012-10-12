@@ -151,7 +151,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		 *  - HEALTH mode without HTTP check => just send "OK"
 		 *  - TCP mode from monitoring address => just close
 		 */
-		recv(cfd, trash, trashlen, 0&MSG_DONTWAIT);
+		recv(cfd, trash, trashlen, MSG_DONTWAIT);
 		if (p->mode == PR_MODE_HTTP ||
 		    (p->mode == PR_MODE_HEALTH && (p->options2 & PR_O2_CHK_ANY) == PR_O2_HTTP_CHK))
 			send(cfd, "HTTP/1.0 200 OK\r\n\r\n", 19, MSG_DONTWAIT|MSG_NOSIGNAL|MSG_MORE);
