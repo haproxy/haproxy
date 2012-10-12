@@ -91,6 +91,8 @@ enum {
 	LOG_FMT_REQ,
 	LOG_FMT_HOSTNAME,
 	LOG_FMT_UNIQUEID,
+	LOG_FMT_SSL_CIPHER,
+	LOG_FMT_SSL_VERSION,
 };
 
 /* enum for parse_logformat */

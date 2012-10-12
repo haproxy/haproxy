@@ -9716,7 +9716,7 @@ and the default TCP format is defined this way :
 Please refer to the table below for currently defined variables :
 
   +---+------+-----------------------------------------------+-------------+
-  | H | var  | field name (8.2.2 and 8.2.3 for description)  | type        |
+  | R | var  | field name (8.2.2 and 8.2.3 for description)  | type        |
   +---+------+-----------------------------------------------+-------------+
   |   | %o   | special variable, apply flags on all next var |             |
   +---+------+-----------------------------------------------+-------------+
@@ -9733,8 +9733,8 @@ Please refer to the table below for currently defined variables :
   |   | %Sp  | server_port                                   | numeric     |
   |   | %T   | gmt_date_time                                 | date        |
   |   | %Tc  | Tc                                            | numeric     |
-  | * | %Tq  | Tq                                            | numeric     |
-  | * | %Tr  | Tr                                            | numeric     |
+  | H | %Tq  | Tq                                            | numeric     |
+  | H | %Tr  | Tr                                            | numeric     |
   |   | %Ts  | timestamp                                     | numeric     |
   |   | %Tt  | Tt                                            | numeric     |
   |   | %Tw  | Tw                                            | numeric     |
@@ -9742,30 +9742,32 @@ Please refer to the table below for currently defined variables :
   |   | %b   | backend_name                                  | string      |
   |   | %bc  | beconn                                        | numeric     |
   |   | %bq  | backend_queue                                 | numeric     |
-  | * | %cc  | captured_request_cookie                       | string      |
-  | * | %rt  | http_request_counter                          | numeric     |
-  | * | %cs  | captured_response_cookie                      | string      |
+  | H | %cc  | captured_request_cookie                       | string      |
+  | H | %rt  | http_request_counter                          | numeric     |
+  | H | %cs  | captured_response_cookie                      | string      |
   |   | %f   | frontend_name                                 | string      |
   |   | %ft  | frontend_name_transport ('~' suffix for SSL)  | string      |
   |   | %fc  | feconn                                        | numeric     |
-  | * | %hr  | captured_request_headers default style        | string      |
-  | * | %hrl | captured_request_headers CLF style            | string list |
-  | * | %hs  | captured_response_headers default style       | string      |
-  | * | %hsl | captured_response_headers CLF style           | string list |
+  | H | %hr  | captured_request_headers default style        | string      |
+  | H | %hrl | captured_request_headers CLF style            | string list |
+  | H | %hs  | captured_response_headers default style       | string      |
+  | H | %hsl | captured_response_headers CLF style           | string list |
   |   | %ms  | accept date milliseconds                      | numeric     |
   |   | %pid | PID                                           | numeric     |
-  | * | %r   | http_request                                  | string      |
+  | H | %r   | http_request                                  | string      |
   |   | %rc  | retries                                       | numeric     |
   |   | %s   | server_name                                   | string      |
   |   | %sc  | srv_conn                                      | numeric     |
   |   | %sq  | srv_queue                                     | numeric     |
-  | * | %st  | status_code                                   | numeric     |
+  | S | %sslc| ssl_ciphers (ex: AES-SHA)                     | string      |
+  | S | %sslv| ssl_version (ex: TLSv1)                       | string      |
+  | H | %st  | status_code                                   | numeric     |
   |   | %t   | date_time                                     | date        |
   |   | %ts  | termination_state                             | string      |
-  | * | %tsc | termination_state with cookie status          | string      |
+  | H | %tsc | termination_state with cookie status          | string      |
   +---+------+-----------------------------------------------+-------------+
 
-*: mode http only
+    R = Restrictions : H = mode http only ; S = SSL only
 
 8.3. Advanced logging options
 -----------------------------

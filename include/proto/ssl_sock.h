@@ -35,6 +35,8 @@ void ssl_sock_free_certs(struct bind_conf *bind_conf);
 int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf, struct proxy *px);
 int ssl_sock_prepare_srv_ctx(struct server *srv, struct proxy *px);
 void ssl_sock_free_all_ctx(struct bind_conf *bind_conf);
+const char *ssl_sock_get_cipher_name(struct connection *conn);
+const char *ssl_sock_get_proto_version(struct connection *conn);
 
 #endif /* _PROTO_SSL_SOCK_H */
 

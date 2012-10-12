@@ -1053,6 +1053,22 @@ static void ssl_sock_shutw(struct connection *conn, int clean)
 	SSL_set_shutdown(conn->xprt_ctx, SSL_SENT_SHUTDOWN);
 }
 
+/* used for logging, may be changed for a sample fetch later */
+const char *ssl_sock_get_cipher_name(struct connection *conn)
+{
+	if (!conn->xprt && !conn->xprt_ctx)
+		return NULL;
+	return SSL_get_cipher_name(conn->xprt_ctx);
+}
+
+/* used for logging, may be changed for a sample fetch later */
+const char *ssl_sock_get_proto_version(struct connection *conn)
+{
+	if (!conn->xprt && !conn->xprt_ctx)
+		return NULL;
+	return SSL_get_version(conn->xprt_ctx);
+}
+
 /***** Below are some sample fetching functions for ACL/patterns *****/
 
 /* boolean, returns true if client cert was present */

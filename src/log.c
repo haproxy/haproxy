@@ -113,6 +113,8 @@ static const struct logformat_type logformat_keywords[] = {
 	{ "rt", LOG_FMT_COUNTER, PR_MODE_HTTP, LW_REQ, NULL }, /* HTTP request counter */
 	{ "H", LOG_FMT_HOSTNAME, PR_MODE_TCP, LW_INIT, NULL }, /* Hostname */
 	{ "ID", LOG_FMT_UNIQUEID, PR_MODE_HTTP, LW_BYTES, NULL }, /* Unique ID */
+	{ "sslc", LOG_FMT_SSL_CIPHER, PR_MODE_TCP, LW_XPRT, NULL }, /* client-side SSL ciphers */
+	{ "sslv", LOG_FMT_SSL_VERSION, PR_MODE_TCP, LW_XPRT, NULL }, /* client-side SSL protocol version */
 	{ 0, 0, 0, 0, NULL }
 };
 
@@ -1001,7 +1003,29 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 					LOGCHAR('"');
 				last_isspace = 0;
 				break;
+#ifdef USE_OPENSSL
+			case LOG_FMT_SSL_CIPHER: // %sslc
+				src = NULL;
+				if (s->listener->xprt == &ssl_sock)
+					src = ssl_sock_get_cipher_name(&s->si[0].conn);
+				ret = lf_text(tmplog, src, dst + maxsize - tmplog, tmp);
+				if (ret == NULL)
+					goto out;
+				tmplog = ret;
+				last_isspace = 0;
+				break;
 
+			case LOG_FMT_SSL_VERSION: // %sslv
+				src = NULL;
+				if (s->listener->xprt == &ssl_sock)
+					src = ssl_sock_get_proto_version(&s->si[0].conn);
+				ret = lf_text(tmplog, src, dst + maxsize - tmplog, tmp);
+				if (ret == NULL)
+					goto out;
+				tmplog = ret;
+				last_isspace = 0;
+				break;
+#endif
 			case LOG_FMT_BACKEND: // %b
 				src = be->id;
 				ret = lf_text(tmplog, src, dst + maxsize - tmplog, tmp);
