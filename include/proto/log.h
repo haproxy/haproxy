@@ -122,7 +122,7 @@ int get_log_facility(const char *fac);
  *
  * Return the adress of the \0 character, or NULL on error
  */
-char *lf_text(char *dst, char *src, size_t size, struct logformat_node *node);
+char *lf_text(char *dst, const char *src, size_t size, struct logformat_node *node);
 
 /*
  * Write a IP adress to the log string

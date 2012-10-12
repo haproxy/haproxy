@@ -495,7 +495,7 @@ int get_log_facility(const char *fac)
  *
  * Return the adress of the \0 character, or NULL on error
  */
-char *lf_text(char *dst, char *src, size_t size, struct logformat_node *node)
+char *lf_text(char *dst, const char *src, size_t size, struct logformat_node *node)
 {
 	int n;
 
@@ -820,7 +820,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 		return 0;
 
 	list_for_each_entry(tmp, list_format, list) {
-		char *src = NULL;
+		const char *src = NULL;
 		switch (tmp->type) {
 
 			case LOG_FMT_SEPARATOR:
