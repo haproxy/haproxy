@@ -45,11 +45,16 @@ static inline int conn_xprt_init(struct connection *conn)
 	return 0;
 }
 
-/* Calls the close() function of the transport layer if any */
+/* Calls the close() function of the transport layer if any, and always unsets
+ * the transport layer.
+ */
 static inline void conn_xprt_close(struct connection *conn)
 {
-	if (conn->xprt && conn->xprt->close)
-		conn->xprt->close(conn);
+	if (conn->xprt) {
+		if (conn->xprt->close)
+			conn->xprt->close(conn);
+		conn->xprt = NULL;
+	}
 }
 
 /* Update polling on connection <c>'s file descriptor depending on its current
