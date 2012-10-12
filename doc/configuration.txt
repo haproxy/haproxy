@@ -9699,18 +9699,18 @@ Flags are :
 
 At the moment, the default HTTP format is defined this way :
 
-    log-format %Ci:%Cp\ [%t]\ %f\ %b/%s\ %Tq/%Tw/%Tc/%Tr/%Tt\ %st\ %B\ %cc\ \
+    log-format %Ci:%Cp\ [%t]\ %ft\ %b/%s\ %Tq/%Tw/%Tc/%Tr/%Tt\ %st\ %B\ %cc\ \
                %cs\ %tsc\ %ac/%fc/%bc/%sc/%rc\ %sq/%bq\ %hr\ %hs\ %{+Q}r
 
 the default CLF format is defined this way :
 
     log-format %{+Q}o\ %{-Q}Ci\ -\ -\ [%T]\ %r\ %st\ %B\ \"\"\ \"\"\ %Cp\ \
-               %ms\ %f\ %b\ %s\ \%Tq\ %Tw\ %Tc\ %Tr\ %Tt\ %tsc\ %ac\ %fc\ \
+               %ms\ %ft\ %b\ %s\ \%Tq\ %Tw\ %Tc\ %Tr\ %Tt\ %tsc\ %ac\ %fc\ \
                %bc\ %sc\ %rc\ %sq\ %bq\ %cc\ %cs\ \%hrl\ %hsl
 
 and the default TCP format is defined this way :
 
-    log-format %Ci:%Cp\ [%t]\ %f\ %b/%s\ %Tw/%Tc/%Tt\ %B\ %ts\ \
+    log-format %Ci:%Cp\ [%t]\ %ft\ %b/%s\ %Tw/%Tc/%Tt\ %B\ %ts\ \
                %ac/%fc/%bc/%sc/%rc\ %sq/%bq
 
 Please refer to the table below for currently defined variables :
@@ -9746,6 +9746,7 @@ Please refer to the table below for currently defined variables :
   | * | %rt  | http_request_counter                          | numeric     |
   | * | %cs  | captured_response_cookie                      | string      |
   |   | %f   | frontend_name                                 | string      |
+  |   | %ft  | frontend_name_transport ('~' suffix for SSL)  | string      |
   |   | %fc  | feconn                                        | numeric     |
   | * | %hr  | captured_request_headers default style        | string      |
   | * | %hrl | captured_request_headers CLF style            | string list |
