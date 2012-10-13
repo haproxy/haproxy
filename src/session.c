@@ -336,7 +336,6 @@ int session_complete(struct session *s)
 	s->flags |= SN_INITIALIZED;
 
 	s->unique_id = NULL;
-	s->term_trace = 0;
 
 	t->process = l->handler;
 	t->context = s;

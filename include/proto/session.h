@@ -160,12 +160,6 @@ static inline void session_track_stkctr2(struct session *s, struct stktable *t, 
 	session_start_counters(t, ts);
 }
 
-static void inline trace_term(struct session *s, unsigned int code)
-{
-	s->term_trace <<= TT_BIT_SHIFT;
-	s->term_trace |= code;
-}
-
 /* Increase the number of cumulated HTTP requests in the tracked counters */
 static void inline session_inc_http_req_ctr(struct session *s)
 {

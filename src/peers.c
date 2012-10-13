@@ -1119,7 +1119,6 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	LIST_INIT(&s->back_refs);
 
 	s->flags = SN_ASSIGNED|SN_ADDR_SET;
-	s->term_trace = 0;
 
 	/* if this session comes from a known monitoring system, we want to ignore
 	 * it as soon as possible, which means closing it immediately for TCP.
