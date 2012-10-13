@@ -208,7 +208,7 @@ struct target {
 		struct task *t;       /* when type is TARG_TYPE_TASK */
 		struct listener *l;   /* when type is TARG_TYPE_CLIENT */
 	} ptr;
-};
+} __attribute__((packed));
 
 /* This structure describes a connection with its methods and data.
  * A connection may be performed to proxy or server via a local or remote
@@ -218,18 +218,18 @@ struct target {
  * connections, but other methods for applets.
  */
 struct connection {
-	const struct xprt_ops *xprt;  /* operations at the transport layer */
 	const struct protocol *ctrl;  /* operations at the socket layer */
+	const struct xprt_ops *xprt;  /* operations at the transport layer */
 	const struct data_cb  *data;  /* data layer callbacks */
+	unsigned int flags;           /* CO_F_* */
+	int xprt_st;                  /* transport layer state, initialized to zero */
+	void *xprt_ctx;               /* general purpose pointer, initialized to NULL */
 	void *owner;                  /* pointer to upper layer's entity (eg: stream interface) */
 	union {                       /* definitions which depend on connection type */
 		struct {              /*** information used by socket-based connections ***/
 			int fd;       /* file descriptor for a stream driver when known */
 		} sock;
 	} t;
-	unsigned int flags;           /* CO_F_* */
-	int xprt_st;                  /* transport layer state, initialized to zero */
-	void *xprt_ctx;               /* general purpose pointer, initialized to NULL */
 	struct target target;         /* the target to connect to (server, proxy, applet, ...) */
 	struct {
 		struct sockaddr_storage from;	/* client address, or address to spoof when connecting to the server */
