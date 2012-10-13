@@ -172,21 +172,21 @@ struct session;
 
 struct channel {
 	unsigned int flags;             /* CF_* */
+	unsigned int analysers;         /* bit field indicating what to do on the channel */
+	struct buffer *buf;		/* buffer attached to the channel, always present but may move */
+	struct stream_interface *cons;  /* consumer attached to this channel */
+	struct stream_interface *prod;  /* producer attached to this channel */
+	struct pipe *pipe;		/* non-NULL only when data present */
+	unsigned int to_forward;        /* number of bytes to forward after out without a wake-up */
+	unsigned char xfer_large;       /* number of consecutive large xfers */
+	unsigned char xfer_small;       /* number of consecutive small xfers */
+	unsigned long long total;       /* total data read */
 	int rex;                        /* expiration date for a read, in ticks */
 	int wex;                        /* expiration date for a write or connect, in ticks */
 	int rto;                        /* read timeout, in ticks */
 	int wto;                        /* write timeout, in ticks */
-	unsigned int to_forward;        /* number of bytes to forward after out without a wake-up */
-	unsigned int analysers;         /* bit field indicating what to do on the channel */
-	int analyse_exp;                /* expiration date for current analysers (if set) */
 	void (*hijacker)(struct session *, struct channel *); /* alternative content producer */
-	unsigned char xfer_large;       /* number of consecutive large xfers */
-	unsigned char xfer_small;       /* number of consecutive small xfers */
-	unsigned long long total;       /* total data read */
-	struct stream_interface *prod;  /* producer attached to this channel */
-	struct stream_interface *cons;  /* consumer attached to this channel */
-	struct pipe *pipe;		/* non-NULL only when data present */
-	struct buffer *buf;		/* buffer attached to the channel, always present but may move */
+	int analyse_exp;                /* expiration date for current analysers (if set) */
 };
 
 
