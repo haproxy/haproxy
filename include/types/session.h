@@ -104,22 +104,25 @@
  *    server should eventually be released.
  */
 struct session {
+	int flags;				/* some flags describing the session */
+	struct target target;			/* target to use for this session */
+
+	struct channel *req;			/* request buffer */
+	struct channel *rep;			/* response buffer */
+
+	struct proxy *fe;			/* the proxy this session depends on for the client side */
+	struct proxy *be;			/* the proxy this session depends on for the server side */
+
+	struct listener *listener;		/* the listener by which the request arrived */
+	struct server *srv_conn;		/* session already has a slot on a server and is not in queue */
+	struct pendconn *pend_pos;		/* if not NULL, points to the position in the pending queue */
+
+	struct http_txn txn;			/* current HTTP transaction being processed. Should become a list. */
+
+	struct task *task;			/* the task associated with this session */
 	struct list list;			/* position in global sessions list */
 	struct list by_srv;			/* position in server session list */
 	struct list back_refs;			/* list of users tracking this session */
-	struct task *task;			/* the task associated with this session */
-	/* application specific below */
-	struct listener *listener;		/* the listener by which the request arrived */
-	struct proxy *fe;			/* the proxy this session depends on for the client side */
-	struct proxy *be;			/* the proxy this session depends on for the server side */
-	int flags;				/* some flags describing the session */
-	struct channel *req;			/* request buffer */
-	struct channel *rep;			/* response buffer */
-	struct stream_interface si[2];          /* client and server stream interfaces */
-	struct server *srv_conn;		/* session already has a slot on a server and is not in queue */
-	struct target target;			/* target to use for this session */
-	struct pendconn *pend_pos;		/* if not NULL, points to the position in the pending queue */
-	struct http_txn txn;			/* current HTTP transaction being processed. Should become a list. */
 
 	struct {
 		struct stksess *ts;
@@ -133,6 +136,7 @@ struct session {
 	struct stksess *stkctr2_entry;          /* entry containing counters currently being tracked as set 2 by this session */
 	struct stktable *stkctr2_table;         /* table the counters above belong to (undefined if counters are null) */
 
+	struct stream_interface si[2];          /* client and server stream interfaces */
 	struct {
 		int logwait;			/* log fields waiting to be collected : LW_* */
 		struct timeval accept_date;	/* date of the accept() in user date */
