@@ -4762,7 +4762,7 @@ server <name> <address>[:[port]] [param*]
                                  no    |    no    |   yes  |   yes
   Arguments :
     <name>    is the internal name assigned to this server. This name will
-              appear in logs and alerts.  If "http-send-server-name" is
+              appear in logs and alerts.  If "http-send-name-header" is
               set, it will be added to the request header sent to the server.
 
     <address> is the IPv4 or IPv6 address of the server. Alternatively, a
