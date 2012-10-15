@@ -1119,6 +1119,30 @@ smp_fetch_has_sni(struct proxy *px, struct session *l4, void *l7, unsigned int o
 }
 
 static int
+smp_fetch_ssl_npn(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                  const struct arg *args, struct sample *smp)
+{
+#ifdef OPENSSL_NPN_NEGOTIATED
+	smp->flags = 0;
+	smp->type = SMP_T_CSTR;
+
+	if (!l4 || !l4->si[0].conn.xprt_ctx || l4->si[0].conn.xprt != &ssl_sock)
+		return 0;
+
+	smp->data.str.str = NULL;
+	SSL_get0_next_proto_negotiated(l4->si[0].conn.xprt_ctx,
+	                                (const unsigned char **)&smp->data.str.str, (unsigned *)&smp->data.str.len);
+
+	if (!smp->data.str.str)
+		return 0;
+
+	return 1;
+#else
+	return 0;
+#endif
+}
+
+static int
 smp_fetch_ssl_sni(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                   const struct arg *args, struct sample *smp)
 {
@@ -1662,6 +1686,9 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
 	{ "client_crt",             smp_fetch_client_crt,         0,    NULL,    SMP_T_BOOL, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "is_ssl",                 smp_fetch_is_ssl,             0,    NULL,    SMP_T_BOOL, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_has_sni",            smp_fetch_has_sni,            0,    NULL,    SMP_T_BOOL, SMP_CAP_REQ|SMP_CAP_RES },
+#ifdef OPENSSL_NPN_NEGOTIATED
+	{ "ssl_npn",                smp_fetch_ssl_npn,            0,    NULL,    SMP_T_CSTR, SMP_CAP_REQ|SMP_CAP_RES },
+#endif
 	{ "ssl_sni",                smp_fetch_ssl_sni,            0,    NULL,    SMP_T_CSTR, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_verify_caerr",       smp_fetch_verify_caerr,       0,    NULL,    SMP_T_UINT, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_verify_caerr_depth", smp_fetch_verify_caerr_depth, 0,    NULL,    SMP_T_UINT, SMP_CAP_REQ|SMP_CAP_RES },
@@ -1677,6 +1704,9 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "client_crt",             acl_parse_int, smp_fetch_client_crt,         acl_match_nothing, ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "is_ssl",                 acl_parse_int, smp_fetch_is_ssl,             acl_match_nothing, ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "ssl_has_sni",            acl_parse_int, smp_fetch_has_sni,            acl_match_nothing, ACL_USE_L6REQ_PERMANENT, 0 },
+#ifdef OPENSSL_NPN_NEGOTIATED
+	{ "ssl_npn",                acl_parse_str, smp_fetch_ssl_npn,            acl_match_str,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
+#endif
 	{ "ssl_sni",                acl_parse_str, smp_fetch_ssl_sni,            acl_match_str,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "ssl_sni_end",            acl_parse_str, smp_fetch_ssl_sni,            acl_match_end,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "ssl_sni_reg",            acl_parse_str, smp_fetch_ssl_sni,            acl_match_reg,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },

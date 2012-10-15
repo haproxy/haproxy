@@ -8339,6 +8339,12 @@ ssl_has_sni
   that the SSL library is build with support for TLS extensions enabled (check
   haproxy -vv).
 
+ssl_npn <string>
+  Returns true when the incoming connection was made over an SSL/TLS transport
+  layer which deciphered it and found a Next Protocol Negociation TLS extension
+  sent by the client, matching the specified string. This requires that the SSL
+  library is build with support for TLS extensions enabled (check haproxy -vv).
+
 ssl_sni <string>
   Returns true when the incoming connection was made over an SSL/TLS transport
   layer which deciphered it and found a Server Name Indication TLS extension
@@ -8995,6 +9001,13 @@ The list of currently supported pattern fetch functions is the following :
                layer and the client sent a Server Name Indication TLS extension,
                otherwise zero. This requires that the SSL library is build with
                support for TLS extensions enabled (check haproxy -vv).
+
+  ssl_npn      This extracts the Next Protocol Negociation field from an
+               incoming connection made via an SSL/TLS transport layer and
+               locally deciphered by haproxy. The result is a string containing
+               the protocol name advertised by the client. The SSL library must
+               have been built with support for TLS extensions enabled (check
+               haproxy -vv).
 
   ssl_sni      This extracts the Server Name Indication field from an incoming
                connection made via an SSL/TLS transport layer and locally
