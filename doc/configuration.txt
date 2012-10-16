@@ -8384,6 +8384,14 @@ ssl_fc
   layer and is locally deciphered. This means it has matched a socket declared
   with a "bind" line having the "ssl" option.
 
+ssl_fc_alg_keysize <integer>
+  Returns true when the incoming connection was made over an SSL/TLS transport
+  layer and the symmetric cipher key size supported in bits matches the value.
+
+ssl_fc_cipher <string>
+  returns true when the incoming connection was made over an ssl/tls transport
+  layer and the name of the used cipher matches the string.
+
 ssl_fc_has_crt
   Returns true if a client certificate is present in an incoming connection over
   SSL/TLS transport layer. Useful if 'verify' statement is set to 'optional'.
@@ -8403,6 +8411,10 @@ ssl_fc_npn <string>
   Note that the TLS NPN extension is not advertised unless the "npn" keyword on
   the "bind" line specifies a protocol list. Also, nothing forces the client to
   pick a protocol from this list, any other one may be requested.
+
+ssl_fc_protocol <string>
+  Returns true when the incoming connection was made over an SSL/TLS transport
+  layer and the name of the used protocol matches the string.
 
 ssl_fc_sni <string>
   Returns true when the incoming connection was made over an SSL/TLS transport
@@ -8434,6 +8446,10 @@ ssl_fc_sni_reg <regex>
   deciphered by haproxy and not to SSL contents being blindly forwarded. This
   requires that the SSL library is build with support for TLS extensions
   enabled (check haproxy -vv).
+
+ssl_fc_use_keysize <integer>
+  Returns true when the incoming connection was made over an SSL/TLS transport
+  layer and the symmetric cipher key size used in bits matches the value.
 
 wait_end
   Waits for the end of the analysis period to return true. This may be used in
@@ -9048,6 +9064,14 @@ The list of currently supported pattern fetch functions is the following :
                and returns 1 if it was made via an SSL/TLS transport layer,
                otherwise zero.
 
+  ssl_fc_alg_keysize
+               Returns the symmetric cipher key size support d in bits when the
+               incoming connection was made over an SSL/TLS transport layer.
+
+  ssl_fc_cipher
+               Returns the name of the used cipher when the incoming connection
+               was made over an SSL/TLS transport layer.
+
   ssl_fc_has_crt
                Returns 1 if a client certificate is present in the front
                connection over SSL/TLS transport layer, otherwise 0.
@@ -9066,12 +9090,20 @@ The list of currently supported pattern fetch functions is the following :
                have been built with support for TLS extensions enabled (check
                haproxy -vv). See also the "npn" bind keyword.
 
+  ssl_fc_protocol
+               Returns the name of the used protocol when the incoming connection
+               was made over an SSL/TLS transport layer.
+
   ssl_fc_sni   This extracts the Server Name Indication field from an incoming
                connection made via an SSL/TLS transport layer and locally
                deciphered by haproxy. The result typically is a string matching
                the HTTPS host name (253 chars or less). The SSL library must
                have been built with support for TLS extensions enabled (check
                haproxy -vv).
+
+  ssl_fc_use_keysize
+               Returns the symmetric cipher key size used in bits when the
+               incoming connection was made over an SSL/TLS transport layer.
 
   url          This extracts the request's URL as presented in the request. A
                typical use is with prefetch-capable caches, and with portals

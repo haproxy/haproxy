@@ -1144,6 +1144,60 @@ smp_fetch_ssl_fc_has_sni(struct proxy *px, struct session *l4, void *l7, unsigne
 #endif
 }
 
+static int
+smp_fetch_ssl_fc_cipher(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                        const struct arg *args, struct sample *smp)
+{
+	smp->flags = 0;
+
+	if (!l4 || !l4->si[0].conn.xprt_ctx || l4->si[0].conn.xprt != &ssl_sock)
+		return 0;
+
+	smp->data.str.str = (char *)SSL_get_cipher_name(l4->si[0].conn.xprt_ctx);
+	if (!smp->data.str.str)
+		return 0;
+
+	smp->type = SMP_T_CSTR;
+	smp->data.str.len = strlen(smp->data.str.str);
+
+	return 1;
+}
+
+static int
+smp_fetch_ssl_fc_alg_keysize(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                             const struct arg *args, struct sample *smp)
+{
+	smp->flags = 0;
+
+	if (!l4 || !l4->si[0].conn.xprt_ctx || l4->si[0].conn.xprt != &ssl_sock)
+		return 0;
+
+	if (!SSL_get_cipher_bits(l4->si[0].conn.xprt_ctx, (int *)&smp->data.uint))
+		return 0;
+
+	smp->type = SMP_T_UINT;
+
+	return 1;
+}
+
+static int
+smp_fetch_ssl_fc_use_keysize(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                             const struct arg *args, struct sample *smp)
+{
+	smp->flags = 0;
+
+	if (!l4 || !l4->si[0].conn.xprt_ctx || l4->si[0].conn.xprt != &ssl_sock)
+		return 0;
+
+	smp->data.uint = (unsigned int)SSL_get_cipher_bits(l4->si[0].conn.xprt_ctx, NULL);
+	if (!smp->data.uint)
+		return 0;
+
+	smp->type = SMP_T_UINT;
+
+	return 1;
+}
+
 #ifdef OPENSSL_NPN_NEGOTIATED
 static int
 smp_fetch_ssl_fc_npn(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
@@ -1165,6 +1219,25 @@ smp_fetch_ssl_fc_npn(struct proxy *px, struct session *l4, void *l7, unsigned in
 	return 1;
 }
 #endif
+
+static int
+smp_fetch_ssl_fc_protocol(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                          const struct arg *args, struct sample *smp)
+{
+	smp->flags = 0;
+
+	if (!l4 || !l4->si[0].conn.xprt_ctx || l4->si[0].conn.xprt != &ssl_sock)
+		return 0;
+
+	smp->data.str.str = (char *)SSL_get_version(l4->si[0].conn.xprt_ctx);
+	if (!smp->data.str.str)
+		return 0;
+
+	smp->type = SMP_T_CSTR;
+	smp->data.str.len = strlen(smp->data.str.str);
+
+	return 1;
+}
 
 static int
 smp_fetch_ssl_fc_sni(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
@@ -1760,11 +1833,15 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
 	{ "ssl_c_err",              smp_fetch_ssl_c_err,          0,    NULL,    SMP_T_UINT, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_c_verify",           smp_fetch_ssl_c_verify,       0,    NULL,    SMP_T_UINT, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_fc",                 smp_fetch_ssl_fc,             0,    NULL,    SMP_T_BOOL, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "ssl_fc_alg_keysize",     smp_fetch_ssl_fc_alg_keysize, 0,    NULL,    SMP_T_UINT, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "ssl_fc_cipher",          smp_fetch_ssl_fc_cipher,      0,    NULL,    SMP_T_CSTR, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_fc_has_crt",         smp_fetch_ssl_fc_has_crt,     0,    NULL,    SMP_T_BOOL, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_fc_has_sni",         smp_fetch_ssl_fc_has_sni,     0,    NULL,    SMP_T_BOOL, SMP_CAP_REQ|SMP_CAP_RES },
 #ifdef OPENSSL_NPN_NEGOTIATED
 	{ "ssl_fc_npn",             smp_fetch_ssl_fc_npn,         0,    NULL,    SMP_T_CSTR, SMP_CAP_REQ|SMP_CAP_RES },
 #endif
+	{ "ssl_fc_protocol",        smp_fetch_ssl_fc_protocol,    0,    NULL,    SMP_T_CSTR, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "ssl_fc_use_keysize",     smp_fetch_ssl_fc_use_keysize, 0,    NULL,    SMP_T_UINT, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_fc_sni",             smp_fetch_ssl_fc_sni,         0,    NULL,    SMP_T_CSTR, SMP_CAP_REQ|SMP_CAP_RES },
 	{ NULL, NULL, 0, 0, 0 },
 }};
@@ -1778,11 +1855,15 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "ssl_c_err",              acl_parse_int, smp_fetch_ssl_c_err,          acl_match_int,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "ssl_c_verify",           acl_parse_int, smp_fetch_ssl_c_verify,       acl_match_int,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "ssl_fc",                 acl_parse_int, smp_fetch_ssl_fc,             acl_match_nothing, ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
+	{ "ssl_fc_alg_keysize",     acl_parse_str, smp_fetch_ssl_fc_alg_keysize, acl_match_int,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
+	{ "ssl_fc_cipher",          acl_parse_str, smp_fetch_ssl_fc_cipher,      acl_match_str,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "ssl_fc_has_crt",         acl_parse_int, smp_fetch_ssl_fc_has_crt,     acl_match_nothing, ACL_USE_L6REQ_PERMANENT, 0 },
 	{ "ssl_fc_has_sni",         acl_parse_int, smp_fetch_ssl_fc_has_sni,     acl_match_nothing, ACL_USE_L6REQ_PERMANENT, 0 },
 #ifdef OPENSSL_NPN_NEGOTIATED
 	{ "ssl_fc_npn",             acl_parse_str, smp_fetch_ssl_fc_npn,         acl_match_str,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 #endif
+	{ "ssl_fc_protocol",        acl_parse_str, smp_fetch_ssl_fc_protocol,    acl_match_str,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
+	{ "ssl_fc_use_keysize",     acl_parse_str, smp_fetch_ssl_fc_use_keysize, acl_match_int,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "ssl_fc_sni",             acl_parse_str, smp_fetch_ssl_fc_sni,         acl_match_str,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "ssl_fc_sni_end",         acl_parse_str, smp_fetch_ssl_fc_sni,         acl_match_end,     ACL_USE_L6REQ_PERMANENT, 0 },
 	{ "ssl_fc_sni_reg",         acl_parse_reg, smp_fetch_ssl_fc_sni,         acl_match_reg,     ACL_USE_L6REQ_PERMANENT, 0 },
