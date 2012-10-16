@@ -1240,6 +1240,33 @@ smp_fetch_ssl_fc_protocol(struct proxy *px, struct session *l4, void *l7, unsign
 }
 
 static int
+smp_fetch_ssl_fc_session_id(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                            const struct arg *args, struct sample *smp)
+{
+#if OPENSSL_VERSION_NUMBER > 0x0090800fL
+	SSL_SESSION *sess;
+
+	smp->flags = 0;
+	smp->type = SMP_T_CBIN;
+
+	if (!l4 || !l4->si[0].conn.xprt_ctx || l4->si[0].conn.xprt != &ssl_sock)
+		return 0;
+
+	sess = SSL_get_session(l4->si[0].conn.xprt_ctx);
+	if (!sess)
+		return 0;
+
+	smp->data.str.str = (char *)SSL_SESSION_get_id(sess, (unsigned int *)&smp->data.str.len);
+	if (!smp->data.str.str || !&smp->data.str.len)
+		return 0;
+
+	return 1;
+#else
+	return 0;
+#endif
+}
+
+static int
 smp_fetch_ssl_fc_sni(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                      const struct arg *args, struct sample *smp)
 {
@@ -1842,6 +1869,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
 #endif
 	{ "ssl_fc_protocol",        smp_fetch_ssl_fc_protocol,    0,    NULL,    SMP_T_CSTR, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_fc_use_keysize",     smp_fetch_ssl_fc_use_keysize, 0,    NULL,    SMP_T_UINT, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "ssl_fc_session_id",      smp_fetch_ssl_fc_session_id,  0,    NULL,    SMP_T_CBIN, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_fc_sni",             smp_fetch_ssl_fc_sni,         0,    NULL,    SMP_T_CSTR, SMP_CAP_REQ|SMP_CAP_RES },
 	{ NULL, NULL, 0, 0, 0 },
 }};

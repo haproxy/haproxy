@@ -9094,6 +9094,11 @@ The list of currently supported pattern fetch functions is the following :
                Returns the name of the used protocol when the incoming connection
                was made over an SSL/TLS transport layer.
 
+  ssl_fc_session_id
+               Returns the SSL ID of the front connection when the incoming
+               connection was made over an SSL/TLS transport layer. Useful to
+               stick on a given client.
+
   ssl_fc_sni   This extracts the Server Name Indication field from an incoming
                connection made via an SSL/TLS transport layer and locally
                deciphered by haproxy. The result typically is a string matching
