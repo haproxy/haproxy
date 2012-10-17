@@ -504,6 +504,21 @@ static void *k_ip2str(struct sample *smp, union stktable_key_data *kdata, size_t
 	return (void *)kdata->buf;
 }
 
+static void *k_bin2str(struct sample *smp, union stktable_key_data *kdata, size_t *len)
+{
+	unsigned char c;
+	int ptr = 0;
+
+	*len = 0;
+	while (ptr < smp->data.str.len && *len <= sizeof(kdata->buf) - 2) {
+		c = smp->data.str.str[ptr++];
+		kdata->buf[(*len)++] = hextab[(c >> 4) & 0xF];
+		kdata->buf[(*len)++] = hextab[c & 0xF];
+	}
+
+	return (void *)kdata->buf;
+}
+
 static void *k_ipv62str(struct sample *smp, union stktable_key_data *kdata, size_t *len)
 {
 	if (!inet_ntop(AF_INET6, &smp->data.ipv6, kdata->buf, sizeof(kdata->buf)))
@@ -578,9 +593,9 @@ static sample_to_key_fct sample_to_key[SMP_TYPES][STKTABLE_TYPES] = {
 /*             IPV4 */ { k_ip2ip,  k_ip2ipv6,   k_ip2int,  k_ip2str,   NULL      },
 /*             IPV6 */ { NULL,     k_ipv62ipv6, NULL,      k_ipv62str, NULL      },
 /*              STR */ { k_str2ip, k_str2ipv6,  k_str2int, k_str2str,  k_str2str },
-/*              BIN */ { NULL,     NULL,        NULL,      NULL,       k_str2str },
+/*              BIN */ { NULL,     NULL,        NULL,      k_bin2str,  k_str2str },
 /*             CSTR */ { k_str2ip, k_str2ipv6,  k_str2int, k_str2str,  k_str2str },
-/*             CBIN */ { NULL,     NULL,        NULL,      NULL     ,  k_str2str },
+/*             CBIN */ { NULL,     NULL,        NULL,      k_bin2str,  k_str2str },
 };
 
 
