@@ -8384,10 +8384,20 @@ ssl_c_verify <integer>
   layer, and the verify result matches the specified value (check man verify
   for possible values). Zero indicates no error was detected.
 
+ssl_c_version <integer>
+  Returns true when the incoming connection was made over an SSL/TLS transport
+  layer, and the version of the certificate presented by the client matches
+  the value.
+
 ssl_f_serial <hexa>
   Returns true when the incoming connection was made over an SSL/TLS transport
   layer, and the serial of the certificate presented by the frontend matches
   the value written in hexa.
+
+ssl_f_version <integer>
+  Returns true when the incoming connection was made over an SSL/TLS transport
+  layer, and the version of the certificate presented by the frontend matches
+  the value.
 
 ssl_fc
   Returns true when the front connection was made via an SSL/TLS transport
@@ -9074,7 +9084,17 @@ The list of currently supported pattern fetch functions is the following :
                was made over an SSL/TLS transport layer, otherwise zero if no
                error is encountered.
 
+  ssl_c_version
+               Returns the version of the certificate presented by the client
+               when the incoming connection was made over an SSL/TLS transport
+               layer.
+
   ssl_f_serial Returns the serial of the certificate presented by the frontend
+               when the incoming connection was made over an SSL/TLS transport
+               layer.
+
+  ssl_f_version
+               Returns the version of the certificate presented by the frontend
                when the incoming connection was made over an SSL/TLS transport
                layer.
 
