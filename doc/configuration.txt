@@ -8374,6 +8374,28 @@ ssl_c_err <integer>
   matches the specified value (check man verify for possible values). Note that
   error zero means no error was encountered during this verification process.
 
+ssl_c_i_dn <string>
+ssl_c_i_dn(entry[,occ]) <string>
+  If no entry specified, returns true when the incoming connection was made
+  over an SSL/TLS transport layer, and the full distinguished name of the
+  issuer of the certificate presented by the client matches the specified
+  string. Otherwise returns true if the value of the first given entry from
+  the beginning of the DN matches the specified string. If a positive/negative
+  occurrence number is specified as the optional second argument, it returns
+  true if the value of the nth given entry value from the beginning/end of the
+  DN matches the specified string.
+
+ssl_c_s_dn <string>
+ssl_c_s_dn(entry[,occ]) <string>
+  If no entry specified, returns true when the incoming connection was made
+  over an SSL/TLS transport layer, and the full distinguished name of the
+  subject of the certificate presented by the client matches the specified
+  string. Otherwise returns true if the value of the first given entry from
+  the beginning of the DN matches the specified string. If a positive/negative
+  occurrence number is specified as the optional second argument, it returns
+  true if the value of the nth given entry value from the beginning/end of the
+  DN matches the specified string.
+
 ssl_c_serial <hexa>
   Returns true when the incoming connection was made over an SSL/TLS transport
   layer, and the serial of the certificate presented by the client matches
@@ -8388,6 +8410,28 @@ ssl_c_version <integer>
   Returns true when the incoming connection was made over an SSL/TLS transport
   layer, and the version of the certificate presented by the client matches
   the value.
+
+ssl_f_i_dn <string>
+ssl_f_i_dn(entry[,occ]) <string>
+  If no entry specified, returns true when the incoming connection was made
+  over an SSL/TLS transport layer, and the full distinguished name of the
+  issuer of the certificate presented by the frontend matches the specified
+  string. Otherwise returns true if the value of the first given entry from
+  the beginning of the DN matches the specified string. If a positive/negative
+  occurrence number is specified as the optional second argument, it returns
+  true if the value of the nth given entry value from the beginning/end of the
+  DN matches the specified string.
+
+ssl_f_s_dn <string>
+ssl_f_s_dn(entry[,occ]) <string>
+  If no entry specified, returns true when the incoming connection was made
+  over an SSL/TLS transport layer, and the full distinguished name of the
+  subject of the certificate presented by the frontend matches the specified
+  string. Otherwise returns true if the value of the first given entry from
+  the beginning of the DN matches the specified string. If a positive/negative
+  occurrence number is specified as the optional second argument, it returns
+  true if the value of the nth given entry value from the beginning/end of the
+  DN matches the specified string.
 
 ssl_f_serial <hexa>
   Returns true when the incoming connection was made over an SSL/TLS transport
@@ -9076,6 +9120,30 @@ The list of currently supported pattern fetch functions is the following :
   ssl_c_err    Returns the ID of the first error detected during verify of the
                client certificate at depth == 0, or 0 if no errors.
 
+  ssl_c_i_dn[(entry[,occ])]
+               If no entry specified, returns the full distinguished name of
+               the issuer of the certificate presented by the client when
+               the incoming connection was made over an SSL/TLS transport
+               layer. Otherwise returns the the value of the first given entry
+               found from the the beginning of the DN. If a positive/negative
+               occurrence number is specified as the optional second argument,
+               it returns the value of the nth given entry found from the
+               beginning/end of the DN. For instance to retrieve the common
+               name ssl_c_i_dn(CN) and the second organization unit
+               ssl_c_i_dn(OU,2).
+
+  ssl_c_s_dn[(entry[,occ])]
+               If no entry specified, returns the full distinguished name of
+               the subject of the certificate presented by the client when
+               the incoming connection was made over an SSL/TLS transport
+               layer. Otherwise returns the the value of the first given entry
+               found from the the beginning of the DN. If a positive/negative
+               occurrence number is specified as the optional second argument,
+               it returns the value of the nth given entry found from the
+               beginning/end of the DN. For instance to retrieve the common
+               name ssl_c_s_dn(CN) and the second organization unit
+               ssl_c_s_dn(OU,2).
+
   ssl_c_serial Returns the serial of the certificate presented by the client
                when the incoming connection was made over an SSL/TLS transport
                layer.
@@ -9088,6 +9156,30 @@ The list of currently supported pattern fetch functions is the following :
                Returns the version of the certificate presented by the client
                when the incoming connection was made over an SSL/TLS transport
                layer.
+
+  ssl_f_i_dn[(entry[,occ])]
+               If no entry specified, returns the full distinguished name of
+               the issuer of the certificate presented by the frontend when
+               the incoming connection was made over an SSL/TLS transport
+               layer. Otherwise returns the the value of the first given entry
+               found from the the beginning of the DN. If a positive/negative
+               occurrence number is specified as the optional second argument,
+               it returns the value of the nth given entry found from the
+               beginning/end of the DN. For instance to retrieve the common
+               name ssl_f_i_dn(CN) and the second organization unit
+               ssl_f_i_dn(OU,2).
+
+  ssl_f_s_dn[(entry[,occ])]
+               If no entry specified, returns the full distinguished name of
+               the subject of the certificate presented by the frontend when
+               the incoming connection was made over an SSL/TLS transport
+               layer. Otherwise returns the the value of the first given entry
+               found from the the beginning of the DN. If a positive/negative
+               occurrence number is specified as the optional second argument,
+               it returns the value of the nth given entry found from the
+               beginning/end of the DN. For instance to retrieve the common
+               name ssl_f_s_dn(CN) and the second organization unit
+               ssl_f_s_dn(OU,2).
 
   ssl_f_serial Returns the serial of the certificate presented by the frontend
                when the incoming connection was made over an SSL/TLS transport
