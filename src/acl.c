@@ -492,6 +492,17 @@ int acl_match_str(struct sample *smp, struct acl_pattern *pattern)
 	return ACL_PAT_FAIL;
 }
 
+/* NB: For two binaries buf to be identical, it is required that their lengths match */
+int acl_match_bin(struct sample *smp, struct acl_pattern *pattern)
+{
+	if (pattern->len != smp->data.str.len)
+		return ACL_PAT_FAIL;
+
+	if (memcmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) == 0)
+		return ACL_PAT_PASS;
+	return ACL_PAT_FAIL;
+}
+
 /* Lookup a string in the expression's pattern tree. The node is returned if it
  * exists, otherwise NULL.
  */
@@ -821,6 +832,43 @@ int acl_parse_str(const char **text, struct acl_pattern *pattern, int *opaque, c
 	}
 	pattern->len = len;
 	return 1;
+}
+
+/* Parse a binary written in hexa. It is allocated. */
+int acl_parse_bin(const char **text, struct acl_pattern *pattern, int *opaque, char **err)
+{
+	int len;
+	const char *p = *text;
+	int i,j;
+
+	len  = strlen(p);
+	if (len%2) {
+		memprintf(err, "an even number of hex digit is expected");
+		return 0;
+	}
+
+	pattern->type = SMP_T_CBIN;
+	pattern->len = len >> 1;
+	pattern->ptr.str = malloc(pattern->len);
+	if (!pattern->ptr.str) {
+		memprintf(err, "out of memory while loading string pattern");
+		return 0;
+	}
+
+	i = j = 0;
+	while (j < pattern->len) {
+		if (!ishex(p[i++]))
+			goto bad_input;
+		if (!ishex(p[i++]))
+			goto bad_input;
+		pattern->ptr.str[j++] =  (hex2i(p[i-2]) << 4) + hex2i(p[i-1]);
+	}
+	return 1;
+
+bad_input:
+	memprintf(err, "an hex digit is expected (found '%c')", p[i-1]);
+	free(pattern->ptr.str);
+	return 0;
 }
 
 /* Parse and concatenate all further strings into one. */

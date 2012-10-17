@@ -138,6 +138,9 @@ int acl_parse_nothing(const char **text, struct acl_pattern *pattern, int *opaqu
 /* NB: For two strings to be identical, it is required that their lengths match */
 int acl_match_str(struct sample *smp, struct acl_pattern *pattern);
 
+/* NB: For two binary buffers to be identical, it is required that their lengths match */
+int acl_match_bin(struct sample *smp, struct acl_pattern *pattern);
+
 /* Checks that the length of the pattern in <test> is included between min and max */
 int acl_match_len(struct sample *smp, struct acl_pattern *pattern);
 
@@ -157,6 +160,9 @@ int acl_parse_range(const char **text, struct acl_pattern *pattern, int *opaque,
 
 /* Parse a string. It is allocated and duplicated. */
 int acl_parse_str(const char **text, struct acl_pattern *pattern, int *opaque, char **err);
+
+/* Parse a hexa binary definition. It is allocated and duplicated. */
+int acl_parse_bin(const char **text, struct acl_pattern *pattern, int *opaque, char **err);
 
 /* Parse and concatenate strings into one. It is allocated and duplicated. */
 int acl_parse_strcat(const char **text, struct acl_pattern *pattern, int *opaque, char **err);
