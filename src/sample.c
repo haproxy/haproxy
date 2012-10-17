@@ -107,7 +107,7 @@ struct sample_conv *find_sample_conv(const char *kw, int len)
 * Returns a static trash struct chunk to use in sample casts or format conversions
 * Swiths the 2 available trash buffers to protect data during convert
 */
-static struct chunk *get_trash_chunk(void)
+struct chunk *sample_get_trash_chunk(void)
 {
 	if (sample_trash_buf == sample_trash_buf1)
 		sample_trash_buf = sample_trash_buf2;
@@ -133,7 +133,7 @@ static int c_ip2int(struct sample *smp)
 
 static int c_ip2str(struct sample *smp)
 {
-	struct chunk *trash = get_trash_chunk();
+	struct chunk *trash = sample_get_trash_chunk();
 
 	if (!inet_ntop(AF_INET, (void *)&smp->data.ipv4, trash->str, trash->size))
 		return 0;
@@ -152,7 +152,7 @@ static int c_ip2ipv6(struct sample *smp)
 
 static int c_ipv62str(struct sample *smp)
 {
-	struct chunk *trash = get_trash_chunk();
+	struct chunk *trash = sample_get_trash_chunk();
 
 	if (!inet_ntop(AF_INET6, (void *)&smp->data.ipv6, trash->str, trash->size))
 		return 0;
@@ -189,7 +189,7 @@ static int c_str2ipv6(struct sample *smp)
 
 static int c_bin2str(struct sample *smp)
 {
-	struct chunk *trash = get_trash_chunk();
+	struct chunk *trash = sample_get_trash_chunk();
 	unsigned char c;
 	int ptr = 0;
 
@@ -205,7 +205,7 @@ static int c_bin2str(struct sample *smp)
 
 static int c_int2str(struct sample *smp)
 {
-	struct chunk *trash = get_trash_chunk();
+	struct chunk *trash = sample_get_trash_chunk();
 	char *pos;
 
 	pos = ultoa_r(smp->data.uint, trash->str, trash->size);
@@ -222,7 +222,7 @@ static int c_int2str(struct sample *smp)
 
 static int c_datadup(struct sample *smp)
 {
-	struct chunk *trash = get_trash_chunk();
+	struct chunk *trash = sample_get_trash_chunk();
 
 	trash->len = smp->data.str.len < trash->size ? smp->data.str.len : trash->size;
 	memcpy(trash->str, smp->data.str.str, trash->len);

@@ -32,5 +32,6 @@ struct sample *sample_process(struct proxy *px, struct session *l4,
                                struct sample *p);
 void sample_register_fetches(struct sample_fetch_kw_list *psl);
 void sample_register_convs(struct sample_conv_kw_list *psl);
+struct chunk *sample_get_trash_chunk(void);
 
 #endif /* _PROTO_SAMPLE_H */
