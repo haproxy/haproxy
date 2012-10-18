@@ -62,8 +62,8 @@ static void (*shared_session_new_cbk)(unsigned char *session, unsigned int sessi
 
 /* Lock functions */
 #ifdef USE_PRIVATE_CACHE
-#define shared_context_lock(v)
-#define shared_context_unlock(v)
+#define shared_context_lock()
+#define shared_context_unlock()
 
 #else
 #ifdef USE_SYSCALL_FUTEX
@@ -141,15 +141,15 @@ static inline void _shared_context_unlock(void)
 	}
 }
 
-#define shared_context_lock(v)   if (use_shared_mem) _shared_context_lock()
+#define shared_context_lock()   if (use_shared_mem) _shared_context_lock()
 
-#define shared_context_unlock(v) if (use_shared_mem) _shared_context_unlock()
+#define shared_context_unlock() if (use_shared_mem) _shared_context_unlock()
 
 #else /* USE_SYSCALL_FUTEX */
 
-#define shared_context_lock(v)   if (use_shared_mem) pthread_mutex_lock(&shctx->mutex)
+#define shared_context_lock()   if (use_shared_mem) pthread_mutex_lock(&shctx->mutex)
 
-#define shared_context_unlock(v) if (use_shared_mem) pthread_mutex_unlock(&shctx->mutex)
+#define shared_context_unlock() if (use_shared_mem) pthread_mutex_unlock(&shctx->mutex)
 
 #endif
 #endif
