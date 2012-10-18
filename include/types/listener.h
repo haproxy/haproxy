@@ -122,6 +122,8 @@ struct bind_conf {
 	int ssl_options;           /* ssl options */
 	int verify;                /* verify method (set of SSL_VERIFY_* flags) */
 	SSL_CTX *default_ctx;      /* SSL context of first/default certificate */
+	char *npn_str;             /* NPN protocol string */
+	int npn_len;               /* NPN protocol string length */
 	struct eb_root sni_ctx;    /* sni_ctx tree of all known certs full-names sorted by name */
 	struct eb_root sni_w_ctx;  /* sni_ctx tree of all known certs wildcards sorted by name */
 #endif

@@ -6958,6 +6958,13 @@ no-tlsv12
   cannot be enabled using any configuration option. See also "force-tls*",
   and "force-sslv3".
 
+npn <protocols>
+  This enables the NPN TLS extension and advertises the specified protocol list
+  as supported on top of NPN. The protocol list consists in a comma-delimited
+  list of protocol names, for instance: "http/1.1,http/1.0" (without quotes).
+  This requires that the SSL library is build with support for TLS extensions
+  enabled (check with haproxy -vv).
+
 ssl
   This setting is only available when support for OpenSSL was built in. It
   enables SSL deciphering on connections instanciated from this listener. A
@@ -8344,6 +8351,9 @@ ssl_npn <string>
   layer which deciphered it and found a Next Protocol Negociation TLS extension
   sent by the client, matching the specified string. This requires that the SSL
   library is build with support for TLS extensions enabled (check haproxy -vv).
+  Note that the TLS NPN extension is not advertised unless the "npn" keyword on
+  the "bind" line specifies a protocol list. Also, nothing forces the client to
+  pick a protocol from this list, any other one may be requested.
 
 ssl_sni <string>
   Returns true when the incoming connection was made over an SSL/TLS transport
