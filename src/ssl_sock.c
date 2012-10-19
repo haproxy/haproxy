@@ -1774,8 +1774,8 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "ssl_npn",                acl_parse_str, smp_fetch_ssl_npn,            acl_match_str,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 #endif
 	{ "ssl_sni",                acl_parse_str, smp_fetch_ssl_sni,            acl_match_str,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
-	{ "ssl_sni_end",            acl_parse_str, smp_fetch_ssl_sni,            acl_match_end,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
-	{ "ssl_sni_reg",            acl_parse_str, smp_fetch_ssl_sni,            acl_match_reg,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
+	{ "ssl_sni_end",            acl_parse_str, smp_fetch_ssl_sni,            acl_match_end,     ACL_USE_L6REQ_PERMANENT, 0 },
+	{ "ssl_sni_reg",            acl_parse_reg, smp_fetch_ssl_sni,            acl_match_reg,     ACL_USE_L6REQ_PERMANENT, 0 },
 	{ "ssl_verify_caerr",       acl_parse_int, smp_fetch_verify_caerr,       acl_match_int,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "ssl_verify_caerr_depth", acl_parse_int, smp_fetch_verify_caerr_depth, acl_match_int,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "ssl_verify_crterr",      acl_parse_int, smp_fetch_verify_crterr,      acl_match_int,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
