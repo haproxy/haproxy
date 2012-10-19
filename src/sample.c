@@ -354,7 +354,7 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, char *err, int err_s
 			goto out_error;
 		}
 	}
-	else if (fetch->arg_mask) {
+	else if (ARGM(fetch->arg_mask)) {
 		p = my_strndup(str[*idx], endw - str[*idx]);
 		if (p) {
 			snprintf(err, err_size, "missing args for fetch method '%s'.", p);
