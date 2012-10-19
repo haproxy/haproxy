@@ -856,6 +856,12 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 		}
 		else {
 			/* Fail on all other handshake errors */
+			/* Note: OpenSSL may leave unread bytes in the socket's
+			 * buffer, causing an RST to be emitted upon close() on
+			 * TCP sockets. We first try to drain possibly pending
+			 * data to avoid this as much as possible.
+			 */
+			ret = recv(conn->t.sock.fd, trash, trashlen, MSG_NOSIGNAL|MSG_DONTWAIT);
 			goto out_error;
 		}
 	}
