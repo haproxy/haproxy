@@ -320,6 +320,7 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, char *err, int err_s
 
 	LIST_INIT(&(expr->conv_exprs));
 	expr->fetch = fetch;
+	expr->arg_p = empty_arg_list;
 
 	if (end != endw) {
 		char *err_msg = NULL;
@@ -343,6 +344,9 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, char *err, int err_s
 			free(err_msg);
 			goto out_error;
 		}
+
+		if (!expr->arg_p)
+			expr->arg_p = empty_arg_list;
 
 		if (fetch->val_args && !fetch->val_args(expr->arg_p, &err_msg)) {
 			p = my_strndup(str[*idx], endw - str[*idx]);
@@ -435,6 +439,9 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, char *err, int err_s
 				free(err_msg);
 				goto out_error;
 			}
+
+			if (!conv_expr->arg_p)
+				conv_expr->arg_p = empty_arg_list;
 
 			if (conv->val_args && !conv->val_args(conv_expr->arg_p, &err_msg)) {
 				p = my_strndup(str[*idx], endw - str[*idx]);

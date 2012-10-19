@@ -1224,7 +1224,8 @@ static struct acl_expr *prune_acl_expr(struct acl_expr *expr)
 		arg++;
 	}
 
-	free(expr->args);
+	if (expr->args != empty_arg_list)
+		free(expr->args);
 	expr->kw->use_cnt--;
 	return expr;
 }
@@ -1352,6 +1353,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 	aclkw->use_cnt++;
 	LIST_INIT(&expr->patterns);
 	expr->pattern_tree = EB_ROOT_UNIQUE;
+	expr->args = empty_arg_list;
 
 	arg = strchr(args[0], '(');
 	if (aclkw->arg_mask) {
@@ -1379,6 +1381,9 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 				memprintf(err, "in argument to '%s', %s", aclkw->kw, *err);
 				goto out_free_expr;
 			}
+
+			if (!expr->args)
+				expr->args = empty_arg_list;
 
 			if (aclkw->val_args && !aclkw->val_args(expr->args, err)) {
 				/* invalid keyword argument, error must have been
@@ -2030,10 +2035,8 @@ acl_find_targets(struct proxy *p)
 
 	list_for_each_entry(acl, &p->acl, list) {
 		list_for_each_entry(expr, &acl->expr, list) {
-			for (arg = expr->args; arg; arg++) {
-				if (arg->type == ARGT_STOP)
-					break;
-				else if (!arg->unresolved)
+			for (arg = expr->args; arg && arg->type != ARGT_STOP; arg++) {
+				if (!arg->unresolved)
 					continue;
 				else if (arg->type == ARGT_SRV) {
 					struct proxy *px;

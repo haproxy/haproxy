@@ -54,6 +54,11 @@
 #define ARG7(m, t1, t2, t3, t4, t5, t6, t7) \
 	(ARG6(m, t1, t2, t3, t4, t5, t6) + (ARGT_##t7 << 28))
 
+/* This dummy arg list may be used by default when no arg is found, it helps
+ * parsers by removing pointer checks.
+ */
+extern struct arg empty_arg_list[8];
+
 int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
 		  char **err_msg, const char **err_ptr, int *err_arg);
 

@@ -73,6 +73,7 @@
 
 #include <proto/auth.h>
 #include <proto/acl.h>
+#include <proto/arg.h>
 #include <proto/backend.h>
 #include <proto/channel.h>
 #include <proto/checks.h>
@@ -818,7 +819,8 @@ static void deinit_sample_arg(struct arg *p)
 		p++;
 	}
 
-	free(p_back);
+	if (p_back != empty_arg_list)
+		free(p_back);
 }
 
 static void deinit_stick_rules(struct list *rules)

@@ -36,6 +36,11 @@ static const char *arg_type_names[ARGT_NBTYPES] = {
 	/* Unassigned types must never happen. Better crash during parsing if they do. */
 };
 
+/* This dummy arg list may be used by default when no arg is found, it helps
+ * parsers by removing pointer checks.
+ */
+struct arg empty_arg_list[8] = { };
+
 /* This function builds an argument list from a config line. It returns the
  * number of arguments found, or <0 in case of any error. Everything needed
  * it automatically allocated. A pointer to an error message might be returned
