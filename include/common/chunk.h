@@ -42,6 +42,8 @@ int chunk_printf(struct chunk *chk, const char *fmt, ...)
 
 int chunk_htmlencode(struct chunk *dst, struct chunk *src);
 int chunk_asciiencode(struct chunk *dst, struct chunk *src, char qc);
+int chunk_strcmp(const struct chunk *chk, const char *str);
+int chunk_strcasecmp(const struct chunk *chk, const char *str);
 
 static inline void chunk_init(struct chunk *chk, char *str, size_t size)
 {

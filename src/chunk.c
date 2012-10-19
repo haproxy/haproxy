@@ -124,6 +124,55 @@ int chunk_asciiencode(struct chunk *dst, struct chunk *src, char qc)
 	return dst->len;
 }
 
+/* Compares the string in chunk <chk> with the string in <str> which must be
+ * zero-terminated. Return is the same as with strcmp(). Neither is allowed
+ * to be null.
+ */
+int chunk_strcmp(const struct chunk *chk, const char *str)
+{
+	const char *s1 = chk->str;
+	int len = chk->len;
+	int diff = 0;
+
+	do {
+		if (--len < 0)
+			break;
+		diff = (unsigned char)*(s1++) - (unsigned char)*(str++);
+	} while (!diff);
+	return diff;
+}
+
+/* Case-insensitively compares the string in chunk <chk> with the string in
+ * <str> which must be zero-terminated. Return is the same as with strcmp().
+ * Neither is allowed to be null.
+ */
+int chunk_strcasecmp(const struct chunk *chk, const char *str)
+{
+	const char *s1 = chk->str;
+	int len = chk->len;
+	int diff = 0;
+
+	do {
+		if (--len < 0)
+			break;
+		diff = (unsigned char)*s1 - (unsigned char)*str;
+		if (unlikely(diff)) {
+			unsigned int l = (unsigned char)*s1;
+			unsigned int r = (unsigned char)*str;
+
+			l -= 'a';
+			r -= 'a';
+
+			if (likely(l <= (unsigned char)'z' - 'a'))
+				l -= 'a' - 'A';
+			if (likely(r <= (unsigned char)'z' - 'a'))
+				r -= 'a' - 'A';
+			diff = l - r;
+		}
+		s1++; str++;
+	} while (!diff);
+	return diff;
+}
 
 /*
  * Local variables:
