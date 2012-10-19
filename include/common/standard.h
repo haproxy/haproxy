@@ -676,6 +676,9 @@ char *human_time(int t, short hz_div);
 
 extern const char *monthname[];
 
+/* numeric timezone (that is, the hour and minute offset from UTC) */
+char localtimezone[6];
+
 /* date2str_log: write a date in the format :
  * 	sprintf(str, "%02d/%s/%04d:%02d:%02d:%02d.%03d",
  *		tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
@@ -692,6 +695,13 @@ char *date2str_log(char *dest, struct tm *tm, struct timeval *date, size_t size)
  * NULL if there isn't enough space.
  */
 char *gmt2str_log(char *dst, struct tm *tm, size_t size);
+
+/* localdate2str_log: write a date in the format :
+ * "%02d/%s/%04d:%02d:%02d:%02d +0000(local timezone)" without using snprintf
+ * return a pointer to the last char written (\0) or
+ * NULL if there isn't enough space.
+ */
+char *localdate2str_log(char *dst, struct tm *tm, size_t size);
 
 /* Dynamically allocates a string of the proper length to hold the formatted
  * output. NULL is returned on error. The caller is responsible for freeing the

@@ -1730,7 +1730,7 @@ char *date2str_log(char *dst, struct tm *tm, struct timeval *date, size_t size)
  */
 char *gmt2str_log(char *dst, struct tm *tm, size_t size)
 {
-	if (size < 27) /* the size is fixed: 24 chars + \0 */
+	if (size < 27) /* the size is fixed: 26 chars + \0 */
 		return NULL;
 
 	dst = utoa_pad((unsigned int)tm->tm_mday, dst, 3); // day
@@ -1751,6 +1751,36 @@ char *gmt2str_log(char *dst, struct tm *tm, size_t size)
 	*dst++ = '0';
 	*dst++ = '0';
 	*dst++ = '0';
+	*dst = '\0';
+
+	return dst;
+}
+
+/* localdate2str_log: write a date in the format :
+ * "%02d/%s/%04d:%02d:%02d:%02d +0000(local timezone)" without using snprintf
+ * * return a pointer to the last char written (\0) or
+ * * NULL if there isn't enough space.
+ */
+char *localdate2str_log(char *dst, struct tm *tm, size_t size)
+{
+	if (size < 27) /* the size is fixed: 26 chars + \0 */
+		return NULL;
+
+	dst = utoa_pad((unsigned int)tm->tm_mday, dst, 3); // day
+	*dst++ = '/';
+	memcpy(dst, monthname[tm->tm_mon], 3); // month
+	dst += 3;
+	*dst++ = '/';
+	dst = utoa_pad((unsigned int)tm->tm_year+1900, dst, 5); // year
+	*dst++ = ':';
+	dst = utoa_pad((unsigned int)tm->tm_hour, dst, 3); // hour
+	*dst++ = ':';
+	dst = utoa_pad((unsigned int)tm->tm_min, dst, 3); // minutes
+	*dst++ = ':';
+	dst = utoa_pad((unsigned int)tm->tm_sec, dst, 3); // secondes
+	*dst++ = ' ';
+	memcpy(dst, localtimezone, 5); // timezone
+	dst += 5;
 	*dst = '\0';
 
 	return dst;

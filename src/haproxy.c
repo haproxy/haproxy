@@ -402,6 +402,7 @@ void init(int argc, char **argv)
 	struct wordlist *wl;
 	char *progname;
 	char *change_dir = NULL;
+	struct tm curtime;
 
 	trash = malloc(global.tune.bufsize);
 
@@ -427,6 +428,10 @@ void init(int argc, char **argv)
 
 	tv_update_date(-1,-1);
 	start_date = now;
+
+	/* Get the numeric timezone. */
+	get_localtime(start_date.tv_sec, &curtime);
+	strftime(localtimezone, 6, "%z", &curtime);
 
 	signal_init();
 	init_task();
