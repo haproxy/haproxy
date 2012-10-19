@@ -1393,6 +1393,40 @@ smp_fetch_ssl_c_version(struct proxy *px, struct session *l4, void *l7, unsigned
 	return 1;
 }
 
+/* str, returns the client certificate sig alg */
+static int
+smp_fetch_ssl_c_sig_alg(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                        const struct arg *args, struct sample *smp)
+{
+	X509 *crt;
+	int nid;
+
+	if (!l4 || l4->si[0].conn.xprt != &ssl_sock)
+		return 0;
+
+	if (!(l4->si[0].conn.flags & CO_FL_CONNECTED)) {
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	/* SSL_get_peer_certificate increase X509 * ref count  */
+	crt = SSL_get_peer_certificate(l4->si[0].conn.xprt_ctx);
+	if (!crt)
+		return 0;
+
+	nid = OBJ_obj2nid((ASN1_OBJECT *)(crt->cert_info->signature->algorithm));
+
+	smp->data.str.str = (char *)OBJ_nid2sn(nid);
+	if (!smp->data.str.str)
+		return 0;
+
+	smp->type = SMP_T_CSTR;
+	smp->data.str.len = strlen(smp->data.str.str);
+	X509_free(crt);
+
+	return 1;
+}
+
 /* boolean, returns true if front conn. transport layer is SSL */
 static int
 smp_fetch_ssl_fc(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
@@ -1473,6 +1507,38 @@ smp_fetch_ssl_f_version(struct proxy *px, struct session *l4, void *l7, unsigned
 
 	smp->data.uint = (unsigned int)(1 + X509_get_version(crt));
 	smp->type = SMP_T_UINT;
+
+	return 1;
+}
+
+/* str, returns the client certificate sig alg */
+static int
+smp_fetch_ssl_f_sig_alg(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                        const struct arg *args, struct sample *smp)
+{
+	X509 *crt;
+	int nid;
+
+	if (!l4 || l4->si[0].conn.xprt != &ssl_sock)
+		return 0;
+
+	if (!(l4->si[0].conn.flags & CO_FL_CONNECTED)) {
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	crt = SSL_get_certificate(l4->si[0].conn.xprt_ctx);
+	if (!crt)
+		return 0;
+
+	nid = OBJ_obj2nid((ASN1_OBJECT *)(crt->cert_info->signature->algorithm));
+
+	smp->data.str.str = (char *)OBJ_nid2sn(nid);
+	if (!smp->data.str.str)
+		return 0;
+
+	smp->type = SMP_T_CSTR;
+	smp->data.str.len = strlen(smp->data.str.str);
 
 	return 1;
 }
@@ -2288,11 +2354,13 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
 	{ "ssl_c_ca_err_depth",     smp_fetch_ssl_c_ca_err_depth, 0,    NULL,    SMP_T_UINT, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_c_err",              smp_fetch_ssl_c_err,          0,    NULL,    SMP_T_UINT, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_c_i_dn",             smp_fetch_ssl_c_i_dn,         ARG2(0,STR,SINT),    NULL,    SMP_T_STR,  SMP_CAP_REQ|SMP_CAP_RES },
+	{ "ssl_c_sig_alg",          smp_fetch_ssl_c_sig_alg,      0,    NULL,    SMP_T_STR,  SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_c_s_dn",             smp_fetch_ssl_c_s_dn,         ARG2(0,STR,SINT),    NULL,    SMP_T_STR,  SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_c_serial",           smp_fetch_ssl_c_serial,       0,    NULL,    SMP_T_BIN,  SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_c_verify",           smp_fetch_ssl_c_verify,       0,    NULL,    SMP_T_UINT, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_c_version",          smp_fetch_ssl_c_version,      0,    NULL,    SMP_T_UINT, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_f_i_dn",             smp_fetch_ssl_f_i_dn,         ARG2(0,STR,SINT),    NULL,    SMP_T_STR,  SMP_CAP_REQ|SMP_CAP_RES },
+	{ "ssl_f_sig_alg",          smp_fetch_ssl_f_sig_alg,      0,    NULL,    SMP_T_STR,  SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_f_s_dn",             smp_fetch_ssl_f_s_dn,         ARG2(0,STR,SINT),    NULL,    SMP_T_STR,  SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_f_serial",           smp_fetch_ssl_f_serial,       0,    NULL,    SMP_T_BIN, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_f_version",          smp_fetch_ssl_f_version,      0,    NULL,    SMP_T_UINT, SMP_CAP_REQ|SMP_CAP_RES },
@@ -2319,11 +2387,13 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "ssl_c_ca_err_depth",     acl_parse_int, smp_fetch_ssl_c_ca_err_depth, acl_match_int,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "ssl_c_err",              acl_parse_int, smp_fetch_ssl_c_err,          acl_match_int,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "ssl_c_i_dn",             acl_parse_str, smp_fetch_ssl_c_i_dn,         acl_match_str,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, ARG2(0,STR,SINT) },
+	{ "ssl_c_sig_alg",          acl_parse_str, smp_fetch_ssl_c_sig_alg,      acl_match_str,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "ssl_c_s_dn",             acl_parse_str, smp_fetch_ssl_c_s_dn,         acl_match_str,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, ARG2(0,STR,SINT) },
 	{ "ssl_c_serial",           acl_parse_bin, smp_fetch_ssl_c_serial,       acl_match_bin,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "ssl_c_verify",           acl_parse_int, smp_fetch_ssl_c_verify,       acl_match_int,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "ssl_c_version",          acl_parse_int, smp_fetch_ssl_c_version,      acl_match_int,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "ssl_f_i_dn",             acl_parse_str, smp_fetch_ssl_f_i_dn,         acl_match_str,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, ARG2(0,STR,SINT) },
+	{ "ssl_f_sig_alg",          acl_parse_str, smp_fetch_ssl_f_sig_alg,      acl_match_str,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "ssl_f_s_dn",             acl_parse_str, smp_fetch_ssl_f_s_dn,         acl_match_str,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, ARG2(0,STR,SINT) },
 	{ "ssl_f_serial",           acl_parse_bin, smp_fetch_ssl_f_serial,       acl_match_bin,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "ssl_f_version",          acl_parse_int, smp_fetch_ssl_f_version,      acl_match_int,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
