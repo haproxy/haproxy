@@ -3986,6 +3986,7 @@ int http_sync_req_state(struct session *s)
 			/* if any side switches to tunnel mode, the other one does too */
 			channel_auto_read(chn);
 			txn->req.msg_state = HTTP_MSG_TUNNEL;
+			chn->flags |= CF_NEVER_WAIT;
 			goto wait_other_side;
 		}
 
@@ -4019,6 +4020,7 @@ int http_sync_req_state(struct session *s)
 			 */
 			channel_auto_read(chn);
 			txn->req.msg_state = HTTP_MSG_TUNNEL;
+			chn->flags |= CF_NEVER_WAIT;
 		}
 
 		if (chn->flags & (CF_SHUTW|CF_SHUTW_NOW)) {
@@ -4105,6 +4107,7 @@ int http_sync_res_state(struct session *s)
 			/* if any side switches to tunnel mode, the other one does too */
 			channel_auto_read(chn);
 			txn->rsp.msg_state = HTTP_MSG_TUNNEL;
+			chn->flags |= CF_NEVER_WAIT;
 			goto wait_other_side;
 		}
 
@@ -4142,6 +4145,7 @@ int http_sync_res_state(struct session *s)
 			 */
 			channel_auto_read(chn);
 			txn->rsp.msg_state = HTTP_MSG_TUNNEL;
+			chn->flags |= CF_NEVER_WAIT;
 		}
 
 		if (chn->flags & (CF_SHUTW|CF_SHUTW_NOW)) {
@@ -4187,6 +4191,11 @@ int http_sync_res_state(struct session *s)
 
  wait_other_side:
 	http_silent_debug(__LINE__, s);
+	/* We force the response to leave immediately if we're waiting for the
+	 * other side, since there is no pending shutdown to push it out.
+	 */
+	if (!channel_is_empty(chn))
+		chn->flags |= CF_SEND_DONTWAIT;
 	return txn->rsp.msg_state != old_state || chn->flags != old_flags;
 }
 
