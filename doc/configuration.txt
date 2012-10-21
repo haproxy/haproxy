@@ -725,6 +725,9 @@ tune.bufsize <number>
   statistics, and values larger than default size will increase memory usage,
   possibly causing the system to run out of memory. At least the global maxconn
   parameter should be decreased by the same factor as this one is increased.
+  If HTTP request is larger than (tune.bufsize - tune.maxrewrite), haproxy will
+  return HTTP 400 (Bad Request) error. Similarly if an HTTP response is larger
+  than this size, haproxy will return HTTP 502 (Bad Gateway).
 
 tune.chksize <number>
   Sets the check buffer size to this size (in bytes). Higher values may help
@@ -4549,8 +4552,8 @@ reqirep <search> <string> [{if | unless} <cond>]   (ignore case)
      # replace "www.mydomain.com" with "www" in the host name.
      reqirep ^Host:\ www.mydomain.com   Host:\ www
 
-  See also: "reqadd", "reqdel", "rsprep", section 6 about HTTP header
-            manipulation, and section 7 about ACLs.
+  See also: "reqadd", "reqdel", "rsprep", "tune.bufsize", section 6 about
+            HTTP header manipulation, and section 7 about ACLs.
 
 
 reqtarpit  <search> [{if | unless} <cond>]
