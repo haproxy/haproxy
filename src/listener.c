@@ -311,6 +311,11 @@ void listener_accept(int fd)
 
 #ifdef USE_ACCEPT4
 		cfd = accept4(fd, (struct sockaddr *)&addr, &laddr, SOCK_NONBLOCK);
+		if (unlikely(cfd == -1 && errno == EINVAL)) {
+			/* unsupported syscall, fallback to normal accept()+fcntl() */
+			if ((cfd = accept(fd, (struct sockaddr *)&addr, &laddr)) != -1)
+				fcntl(cfd, F_SETFL, O_NONBLOCK);
+		}
 #else
 		cfd = accept(fd, (struct sockaddr *)&addr, &laddr);
 #endif
