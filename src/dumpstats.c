@@ -300,8 +300,38 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		}
 		global.stats_fe->maxconn = maxconn;
 	}
+	else if (!strcmp(args[1], "bind-process")) {  /* enable the socket only on some processes */
+		int cur_arg = 2;
+		unsigned int set = 0;
+
+		while (*args[cur_arg]) {
+			int u;
+			if (strcmp(args[cur_arg], "all") == 0) {
+				set = 0;
+				break;
+			}
+			else if (strcmp(args[cur_arg], "odd") == 0) {
+				set |= 0x55555555;
+			}
+			else if (strcmp(args[cur_arg], "even") == 0) {
+				set |= 0xAAAAAAAA;
+			}
+			else {
+				u = str2uic(args[cur_arg]);
+				if (u < 1 || u > 32) {
+					memprintf(err,
+						  "'%s %s' expects 'all', 'odd', 'even', or process numbers from 1 to 32.\n",
+						  args[0], args[1]);
+					return -1;
+				}
+				set |= 1 << (u - 1);
+			}
+			cur_arg++;
+		}
+		global.stats_fe->bind_proc = set;
+	}
 	else {
-		memprintf(err, "'%s' only supports 'socket', 'maxconn' and 'timeout' (got '%s')", args[0], args[1]);
+		memprintf(err, "'%s' only supports 'socket', 'maxconn', 'bind-process' and 'timeout' (got '%s')", args[0], args[1]);
 		return -1;
 	}
 	return 0;

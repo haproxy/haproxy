@@ -6646,8 +6646,8 @@ out_uri_auth_compat:
 
 	/* Check multi-process mode compatibility */
 	if (global.nbproc > 1) {
-		if (global.stats_fe) {
-			Warning("stats socket will not work correctly in multi-process mode (nbproc > 1).\n");
+		if (global.stats_fe && !global.stats_fe->bind_proc) {
+			Warning("stats socket will not work as expected in multi-process mode (nbproc > 1), you should force process binding using 'stats bind-process'.\n");
 		}
 	}
 

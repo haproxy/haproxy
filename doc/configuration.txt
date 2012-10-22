@@ -577,6 +577,15 @@ pidfile <pidfile>
   the "-p" command line argument. The file must be accessible to the user
   starting the process. See also "daemon".
 
+stats bind-process [ all | odd | even | <number 1-32> ] ...
+  Limits the stats socket to a certain set of processes numbers. By default the
+  stats socket is bound to all processes, causing a warning to be emitted when
+  nbproc is greater than 1 because there is no way to select the target process
+  when connecting. However, by using this setting, it becomes possible to pin
+  the stats socket to a specific set of processes, typically the first one. The
+  warning will automatically be disabled when this setting is used, whatever
+  the number of processes used.
+
 stats socket [<address:port>|<path>] [param*]
   Binds a UNIX socket to <path> or a TCPv4/v6 address to <address:port>.
   Connections to this socket will return various statistics outputs and even
