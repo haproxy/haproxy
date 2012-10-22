@@ -1116,6 +1116,46 @@ ssl_sock_get_serial(X509 *crt, struct chunk *out)
 	return 1;
 }
 
+
+/* Copy Date in ASN1_UTCTIME format in struct chunk out.
+ * Returns 1 if serial is found and copied, 0 if no valid time found
+ * and -1 if output is not large enough.
+ */
+static int
+ssl_sock_get_time(ASN1_TIME *tm, struct chunk *out)
+{
+	if (tm->type == V_ASN1_GENERALIZEDTIME) {
+		ASN1_GENERALIZEDTIME *gentm = (ASN1_GENERALIZEDTIME *)tm;
+
+		if (gentm->length < 12)
+			return 0;
+		if (gentm->data[0] != 0x32 || gentm->data[1] != 0x30)
+			return 0;
+		if (out->size < gentm->length-2)
+			return -1;
+
+		memcpy(out->str, gentm->data+2, gentm->length-2);
+		out->len = gentm->length-2;
+		return 1;
+	}
+	else if (tm->type == V_ASN1_UTCTIME) {
+		ASN1_UTCTIME *utctm = (ASN1_UTCTIME *)tm;
+
+		if (utctm->length < 10)
+			return 0;
+		if (utctm->data[0] >= 0x35)
+			return 0;
+		if (out->size < utctm->length)
+			return -1;
+
+		memcpy(out->str, utctm->data, utctm->length);
+		out->len = utctm->length;
+		return 1;
+	}
+
+	return 0;
+}
+
 /* Extract an entry from a X509_NAME and copy its value to an output chunk.
  * Returns 1 if entry found, 0 if entry not found, or -1 if output not large enough.
  */
@@ -1265,6 +1305,41 @@ out:
 	return ret;
 }
 
+/*str, returns notafter date in ASN1_UTCTIME format */
+static int
+smp_fetch_ssl_c_notafter(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                       const struct arg *args, struct sample *smp)
+{
+	X509 *crt = NULL;
+	int ret = 0;
+	struct chunk *smp_trash;
+
+	if (!l4 || l4->si[0].conn.xprt != &ssl_sock)
+		return 0;
+
+	if (!(l4->si[0].conn.flags & CO_FL_CONNECTED)) {
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	/* SSL_get_peer_certificate, it increase X509 * ref count */
+	crt = SSL_get_peer_certificate(l4->si[0].conn.xprt_ctx);
+	if (!crt)
+		goto out;
+
+	smp_trash = sample_get_trash_chunk();
+	if (ssl_sock_get_time(X509_get_notAfter(crt), smp_trash) <= 0)
+		goto out;
+
+	smp->data.str = *smp_trash;
+	smp->type = SMP_T_STR;
+	ret = 1;
+out:
+	if (crt)
+		X509_free(crt);
+	return ret;
+}
+
 /* str, returns a string of a formatted full dn \C=..\O=..\OU=.. \CN=.. */
 static int
 smp_fetch_ssl_c_i_dn(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
@@ -1309,6 +1384,41 @@ smp_fetch_ssl_c_i_dn(struct proxy *px, struct session *l4, void *l7, unsigned in
 
 	smp->type = SMP_T_STR;
 	smp->data.str = *smp_trash;
+	ret = 1;
+out:
+	if (crt)
+		X509_free(crt);
+	return ret;
+}
+
+/*str, returns notbefore date in ASN1_UTCTIME format */
+static int
+smp_fetch_ssl_c_notbefore(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                       const struct arg *args, struct sample *smp)
+{
+	X509 *crt = NULL;
+	int ret = 0;
+	struct chunk *smp_trash;
+
+	if (!l4 || l4->si[0].conn.xprt != &ssl_sock)
+		return 0;
+
+	if (!(l4->si[0].conn.flags & CO_FL_CONNECTED)) {
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	/* SSL_get_peer_certificate, it increase X509 * ref count */
+	crt = SSL_get_peer_certificate(l4->si[0].conn.xprt_ctx);
+	if (!crt)
+		goto out;
+
+	smp_trash = sample_get_trash_chunk();
+	if (ssl_sock_get_time(X509_get_notBefore(crt), smp_trash) <= 0)
+		goto out;
+
+	smp->data.str = *smp_trash;
+	smp->type = SMP_T_STR;
 	ret = 1;
 out:
 	if (crt)
@@ -1514,6 +1624,69 @@ smp_fetch_ssl_f_serial(struct proxy *px, struct session *l4, void *l7, unsigned 
 
 	smp->data.str = *smp_trash;
 	smp->type = SMP_T_BIN;
+	ret = 1;
+out:
+	return ret;
+}
+/*str, returns notafter date in ASN1_UTCTIME format */
+static int
+smp_fetch_ssl_f_notafter(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                       const struct arg *args, struct sample *smp)
+{
+	X509 *crt = NULL;
+	int ret = 0;
+	struct chunk *smp_trash;
+
+	if (!l4 || l4->si[0].conn.xprt != &ssl_sock)
+		return 0;
+
+	if (!(l4->si[0].conn.flags & CO_FL_CONNECTED)) {
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	crt = SSL_get_certificate(l4->si[0].conn.xprt_ctx);
+	if (!crt)
+		goto out;
+
+	smp_trash = sample_get_trash_chunk();
+	if (ssl_sock_get_time(X509_get_notAfter(crt), smp_trash) <= 0)
+		goto out;
+
+	smp->data.str = *smp_trash;
+	smp->type = SMP_T_STR;
+	ret = 1;
+out:
+	return ret;
+}
+
+/*str, returns notbefore date in ASN1_UTCTIME format */
+static int
+smp_fetch_ssl_f_notbefore(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                       const struct arg *args, struct sample *smp)
+{
+	X509 *crt = NULL;
+	int ret = 0;
+	struct chunk *smp_trash;
+
+	if (!l4 || l4->si[0].conn.xprt != &ssl_sock)
+		return 0;
+
+	if (!(l4->si[0].conn.flags & CO_FL_CONNECTED)) {
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	crt = SSL_get_certificate(l4->si[0].conn.xprt_ctx);
+	if (!crt)
+		goto out;
+
+	smp_trash = sample_get_trash_chunk();
+	if (ssl_sock_get_time(X509_get_notBefore(crt), smp_trash) <= 0)
+		goto out;
+
+	smp->data.str = *smp_trash;
+	smp->type = SMP_T_STR;
 	ret = 1;
 out:
 	return ret;
@@ -2421,6 +2594,8 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
 	{ "ssl_c_err",              smp_fetch_ssl_c_err,          0,    NULL,    SMP_T_UINT, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_c_i_dn",             smp_fetch_ssl_c_i_dn,         ARG2(0,STR,SINT),    NULL,    SMP_T_STR,  SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_c_key_alg",          smp_fetch_ssl_c_key_alg,      0,    NULL,    SMP_T_STR,  SMP_CAP_REQ|SMP_CAP_RES },
+	{ "ssl_c_notafter",         smp_fetch_ssl_c_notafter,     0,    NULL,    SMP_T_STR,  SMP_CAP_REQ|SMP_CAP_RES },
+	{ "ssl_c_notbefore",        smp_fetch_ssl_c_notbefore,    0,    NULL,    SMP_T_STR,  SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_c_sig_alg",          smp_fetch_ssl_c_sig_alg,      0,    NULL,    SMP_T_STR,  SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_c_s_dn",             smp_fetch_ssl_c_s_dn,         ARG2(0,STR,SINT),    NULL,    SMP_T_STR,  SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_c_serial",           smp_fetch_ssl_c_serial,       0,    NULL,    SMP_T_BIN,  SMP_CAP_REQ|SMP_CAP_RES },
@@ -2428,6 +2603,8 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
 	{ "ssl_c_version",          smp_fetch_ssl_c_version,      0,    NULL,    SMP_T_UINT, SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_f_i_dn",             smp_fetch_ssl_f_i_dn,         ARG2(0,STR,SINT),    NULL,    SMP_T_STR,  SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_f_key_alg",          smp_fetch_ssl_f_key_alg,      0,    NULL,    SMP_T_STR,  SMP_CAP_REQ|SMP_CAP_RES },
+	{ "ssl_f_notafter",         smp_fetch_ssl_f_notafter,     0,    NULL,    SMP_T_STR,  SMP_CAP_REQ|SMP_CAP_RES },
+	{ "ssl_f_notbefore",        smp_fetch_ssl_f_notbefore,    0,    NULL,    SMP_T_STR,  SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_f_sig_alg",          smp_fetch_ssl_f_sig_alg,      0,    NULL,    SMP_T_STR,  SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_f_s_dn",             smp_fetch_ssl_f_s_dn,         ARG2(0,STR,SINT),    NULL,    SMP_T_STR,  SMP_CAP_REQ|SMP_CAP_RES },
 	{ "ssl_f_serial",           smp_fetch_ssl_f_serial,       0,    NULL,    SMP_T_BIN, SMP_CAP_REQ|SMP_CAP_RES },
@@ -2456,6 +2633,8 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "ssl_c_err",              acl_parse_int, smp_fetch_ssl_c_err,          acl_match_int,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "ssl_c_i_dn",             acl_parse_str, smp_fetch_ssl_c_i_dn,         acl_match_str,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, ARG2(0,STR,SINT) },
 	{ "ssl_c_key_alg",          acl_parse_str, smp_fetch_ssl_c_key_alg,      acl_match_str,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
+	{ "ssl_c_notafter",         acl_parse_str, smp_fetch_ssl_c_notafter,     acl_match_str,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
+	{ "ssl_c_notbefore",        acl_parse_str, smp_fetch_ssl_c_notbefore,    acl_match_str,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "ssl_c_sig_alg",          acl_parse_str, smp_fetch_ssl_c_sig_alg,      acl_match_str,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "ssl_c_s_dn",             acl_parse_str, smp_fetch_ssl_c_s_dn,         acl_match_str,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, ARG2(0,STR,SINT) },
 	{ "ssl_c_serial",           acl_parse_bin, smp_fetch_ssl_c_serial,       acl_match_bin,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
@@ -2463,6 +2642,8 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "ssl_c_version",          acl_parse_int, smp_fetch_ssl_c_version,      acl_match_int,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "ssl_f_i_dn",             acl_parse_str, smp_fetch_ssl_f_i_dn,         acl_match_str,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, ARG2(0,STR,SINT) },
 	{ "ssl_f_key_alg",          acl_parse_str, smp_fetch_ssl_f_key_alg,      acl_match_str,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
+	{ "ssl_f_notafter",         acl_parse_str, smp_fetch_ssl_f_notafter,     acl_match_str,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
+	{ "ssl_f_notbefore",        acl_parse_str, smp_fetch_ssl_f_notbefore,    acl_match_str,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "ssl_f_sig_alg",          acl_parse_str, smp_fetch_ssl_f_sig_alg,      acl_match_str,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },
 	{ "ssl_f_s_dn",             acl_parse_str, smp_fetch_ssl_f_s_dn,         acl_match_str,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, ARG2(0,STR,SINT) },
 	{ "ssl_f_serial",           acl_parse_bin, smp_fetch_ssl_f_serial,       acl_match_bin,     ACL_USE_L6REQ_PERMANENT|ACL_MAY_LOOKUP, 0 },

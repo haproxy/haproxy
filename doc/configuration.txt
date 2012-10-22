@@ -8390,6 +8390,16 @@ ssl_c_key_alg <string>
   layer, and the name of the algorithm used to generate the key of the
   certificate presented by the client matches the string.
 
+ssl_c_notafter <string>
+  Returns true when the incoming connection was made over an SSL/TLS transport
+  layer, and the end date of the certificate presented by the client matches
+  the string formatted as YYMMDDhhmmss[Z].
+
+ssl_c_notbefore <string>
+  Returns true when the incoming connection was made over an SSL/TLS transport
+  layer, and the start date of the certificate presented by the client matches
+  the string formatted as YYMMDDhhmmss[Z].
+
 ssl_c_s_dn <string>
 ssl_c_s_dn(entry[,occ]) <string>
   If no entry specified, returns true when the incoming connection was made
@@ -8436,6 +8446,16 @@ ssl_c_key_alg <string>
   Returns true when the incoming connection was made over an SSL/TLS transport
   layer, and the name of the algorithm used to generate the key of the
   certificate presented by the frontend matches the string.
+
+ssl_f_notafter <string>
+  Returns true when the incoming connection was made over an SSL/TLS transport
+  layer, and the end date of the certificate presented by the frontend matches
+  the string formatted as YYMMDDhhmmss[Z].
+
+ssl_f_notbefore <string>
+  Returns true when the incoming connection was made over an SSL/TLS transport
+  layer, and the start date of the certificate presented by the frontend matches
+  the string formatted as YYMMDDhhmmss[Z].
 
 ssl_f_s_dn <string>
 ssl_f_s_dn(entry[,occ]) <string>
@@ -9157,6 +9177,16 @@ The list of currently supported pattern fetch functions is the following :
                the certificate presented by the client when the incoming
                connection was made over an SSL/TLS transport layer.
 
+  ssl_c_notafter
+               Returns the end date presented by the client as a formatted
+               string YYMMDDhhmmss[Z] when the incoming connection was made
+               over an SSL/TLS transport layer.
+
+  ssl_c_notbefore
+               Returns the start date presented by the client as a formatted
+               string YYMMDDhhmmss[Z] when the incoming connection was made
+               over an SSL/TLS transport layer.
+
   ssl_c_s_dn[(entry[,occ])]
                If no entry specified, returns the full distinguished name of
                the subject of the certificate presented by the client when
@@ -9203,6 +9233,16 @@ The list of currently supported pattern fetch functions is the following :
                Returns the name of the algorithm used to generate the key of
                the certificate presented by the frontend when the incoming
                connection was made over an SSL/TLS transport layer.
+
+  ssl_f_notafter
+               Returns the end date presented by the frontend as a formatted
+               string YYMMDDhhmmss[Z] when the incoming connection was made
+               over an SSL/TLS transport layer.
+
+  ssl_f_notbefore
+               Returns the start date presented by the frontend as a formatted
+               string YYMMDDhhmmss[Z] when the incoming connection was made
+               over an SSL/TLS transport layer.
 
   ssl_f_s_dn[(entry[,occ])]
                If no entry specified, returns the full distinguished name of
