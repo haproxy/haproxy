@@ -83,8 +83,12 @@ int conn_fd_handler(int fd)
 	if ((conn->flags & CO_FL_INIT_DATA) && conn->data->init(conn) < 0)
 		return 0;
 
-	/* The data transfer starts here and stops on error and handshakes */
+	/* The data transfer starts here and stops on error and handshakes. Note
+	 * that we must absolutely test conn->xprt at each step in case it suddenly
+	 * changes due to a quick unexpected close().
+	 */
 	if ((fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR)) &&
+	    conn->xprt &&
 	    !(conn->flags & (CO_FL_WAIT_RD|CO_FL_WAIT_ROOM|CO_FL_ERROR|CO_FL_HANDSHAKE))) {
 		/* force detection of a flag change : it's impossible to have both
 		 * CONNECTED and WAIT_CONN so we're certain to trigger a change.
@@ -94,6 +98,7 @@ int conn_fd_handler(int fd)
 	}
 
 	if ((fdtab[fd].ev & (FD_POLL_OUT | FD_POLL_ERR)) &&
+	    conn->xprt &&
 	    !(conn->flags & (CO_FL_WAIT_WR|CO_FL_WAIT_DATA|CO_FL_ERROR|CO_FL_HANDSHAKE))) {
 		/* force detection of a flag change : it's impossible to have both
 		 * CONNECTED and WAIT_CONN so we're certain to trigger a change.
