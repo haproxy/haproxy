@@ -89,6 +89,10 @@ will automatically be linked with haproxy. Some systems also require libz, so
 if the build fails due to missing symbols such as deflateInit(), then try again
 with "ADDLIB=-lz".
 
+It is also possible to include native support for ZLIB to benefit from HTTP
+compression. For this, pass "USE_ZLIB=1" on the "make" command line and ensure
+that zlib is present on the system.
+
 By default, the DEBUG variable is set to '-g' to enable debug symbols. It is
 not wise to disable it on uncommon systems, because it's often the only way to
 get a complete core when you need one. Otherwise, you can set DEBUG to '-s' to
@@ -102,11 +106,12 @@ And I build it this way on OpenBSD or FreeBSD :
 
     $ make -f Makefile.bsd REGEX=pcre DEBUG= COPTS.generic="-Os -fomit-frame-pointer -mgnu"
 
-And on a recent Linux with SSL support :
+And on a recent Linux with SSL and ZLIB support :
 
-    $ make TARGET=linux2628 CPU=native USE_PCRE=1 USE_OPENSSL=1
+    $ make TARGET=linux2628 CPU=native USE_PCRE=1 USE_OPENSSL=1 USE_ZLIB=1
 
-In order to build a 32-bit binary on an x86_64 Linux system with SSL support :
+In order to build a 32-bit binary on an x86_64 Linux system with SSL support
+without support for compression but when OpenSSL requires ZLIB anyway :
 
     $ make TARGET=linux26 ARCH=i386 USE_OPENSSL=1 ADDLIB=-lz
 

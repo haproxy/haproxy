@@ -994,6 +994,7 @@ capture cookie                            -          X         X         -
 capture request header                    -          X         X         -
 capture response header                   -          X         X         -
 clitimeout                  (deprecated)  X          X         X         -
+compression                               X          X         X         X
 contimeout                  (deprecated)  X          -         X         X
 cookie                                    X          -         X         X
 default-server                            X          -         X         X
@@ -1777,6 +1778,18 @@ clitimeout <timeout> (deprecated)
   See also : "timeout client", "timeout http-request", "timeout server", and
              "srvtimeout".
 
+compression algo [ gzip ] ...
+compression type ...
+  Enable HTTP compression.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments :
+    algo  is followed by the list of supported compression algorithms.
+    type  is followed by the list of MIME types that will be compressed.
+
+  Examples :
+        compression algo gzip
+        compression type text/html text/plain
 
 contimeout <timeout> (deprecated)
   Set the maximum time to wait for a connection attempt to a server to succeed.

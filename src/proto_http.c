@@ -48,6 +48,7 @@
 #include <proto/backend.h>
 #include <proto/channel.h>
 #include <proto/checks.h>
+#include <proto/compression.h>
 #include <proto/dumpstats.h>
 #include <proto/fd.h>
 #include <proto/frontend.h>
@@ -1966,6 +1967,143 @@ static inline int http_skip_chunk_crlf(struct http_msg *msg)
 	return 1;
 }
 
+
+/*
+ * Selects a compression algorithm depending on the client request.
+*/
+
+int select_compression_request_header(struct session *s, struct buffer *req)
+{
+	struct http_txn *txn = &s->txn;
+	struct hdr_ctx ctx;
+	struct comp_algo *comp_algo = NULL;
+
+	ctx.idx = 0;
+	/* no compression when Cache-Control: no-transform found */
+	while (http_find_header2("Cache-Control", 13, req->p, &txn->hdr_idx, &ctx)) {
+		if (word_match(ctx.line + ctx.val, ctx.vlen, "no-transform", 12)) {
+			s->comp_algo = NULL;
+			return 0;
+		}
+	}
+
+	/* search for the algo in the backend in priority or the frontend */
+	if ((s->be->comp && (comp_algo = s->be->comp->algos)) || (s->fe->comp && (comp_algo = s->fe->comp->algos))) {
+		ctx.idx = 0;
+		while (http_find_header2("Accept-Encoding", 15, req->p, &txn->hdr_idx, &ctx)) {
+			for (; comp_algo; comp_algo = comp_algo->next) {
+				if (word_match(ctx.line + ctx.val, ctx.vlen, comp_algo->name, comp_algo->name_len)) {
+					s->comp_algo = comp_algo;
+					return 1;
+				}
+			}
+		}
+	}
+
+	/* identity is implicit does not require headers */
+	if ((s->be->comp && (comp_algo = s->be->comp->algos)) || (s->fe->comp && (comp_algo = s->fe->comp->algos))) {
+		for (; comp_algo; comp_algo = comp_algo->next) {
+			if (comp_algo->add_data == identity_add_data) {
+				s->comp_algo = comp_algo;
+				return 1;
+			}
+		}
+	}
+
+	s->comp_algo = NULL;
+
+	return 0;
+}
+
+/*
+ * Selects a comression algorithm depending of the server response.
+ */
+int select_compression_response_header(struct session *s, struct buffer *res)
+{
+	struct http_txn *txn = &s->txn;
+	struct http_msg *msg = &txn->rsp;
+	struct hdr_ctx ctx;
+	struct comp_type *comp_type;
+	char *hdr_val;
+	int hdr_len;
+
+	/* no common compression algorithm was found in request header */
+	if (s->comp_algo == NULL)
+		goto fail;
+
+	/* HTTP < 1.1 should not be compressed */
+	if (!(msg->flags & HTTP_MSGF_VER_11))
+		goto fail;
+
+	hdr_val = trash;
+	ctx.idx = 0;
+
+	/* Content-Length is null */
+	if (!(msg->flags & HTTP_MSGF_TE_CHNK) && msg->body_len == 0)
+		goto fail;
+
+	/* content is already compressed */
+	if (http_find_header2("Content-Encoding", 16, res->p, &txn->hdr_idx, &ctx))
+		goto fail;
+
+	comp_type = NULL;
+
+	/* if there was a compression content-type option in the backend or the frontend
+	 * The backend have priority.
+	 */
+	if ((s->be->comp && (comp_type = s->be->comp->types)) || (s->fe->comp && (comp_type = s->fe->comp->types))) {
+		if (http_find_header2("Content-Type", 12, res->p, &txn->hdr_idx, &ctx)) {
+			for (; comp_type; comp_type = comp_type->next) {
+				if (strncmp(ctx.line+ctx.val, comp_type->name, comp_type->name_len) == 0)
+					/* this Content-Type should be compressed */
+					break;
+			}
+		}
+		/* this Content-Type should not be compressed */
+		if (comp_type == NULL)
+			goto fail;
+	}
+
+	ctx.idx = 0;
+
+	/* remove Content-Length header */
+	if ((msg->flags & HTTP_MSGF_CNT_LEN) && http_find_header2("Content-Length", 14, res->p, &txn->hdr_idx, &ctx))
+		http_remove_header2(msg, &txn->hdr_idx, &ctx);
+
+	/* add Transfer-Encoding header */
+	if (!(msg->flags & HTTP_MSGF_TE_CHNK))
+		http_header_add_tail2(&txn->rsp, &txn->hdr_idx, "Transfer-Encoding: chunked", 26);
+
+	/*
+	 * Add Content-Encoding header when it's not identity encoding.
+         * RFC 2616 : Identity encoding: This content-coding is used only in the
+	 * Accept-Encoding header, and SHOULD NOT be used in the Content-Encoding
+	 * header.
+	 */
+	if (s->comp_algo->add_data != identity_add_data) {
+		hdr_len = 18;
+		memcpy(hdr_val, "Content-Encoding: ", hdr_len);
+		memcpy(hdr_val + hdr_len, s->comp_algo->name, s->comp_algo->name_len);
+		hdr_len += s->comp_algo->name_len;
+		hdr_val[hdr_len] = '\0';
+		http_header_add_tail2(&txn->rsp, &txn->hdr_idx, hdr_val, hdr_len);
+	}
+
+	/* initialize compression */
+	if (s->comp_algo->init(&s->comp_ctx.strm, 1) < 0)
+		goto fail;
+
+	return 1;
+
+fail:
+	if (s->comp_algo) {
+		s->comp_algo->end(&s->comp_ctx.strm);
+		s->comp_algo = NULL;
+	}
+	return 0;
+}
+
+
 /* This stream analyser waits for a complete HTTP request. It returns 1 if the
  * processing can continue on next analysers, or zero if it either needs more
  * data or wants to immediately abort the request (eg: timeout, error, ...). It
@@ -3327,6 +3465,9 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 		req->flags,
 		req->buf->i,
 		req->analysers);
+
+	if (s->fe->comp || s->be->comp)
+		select_compression_request_header(s, req->buf);
 
 	/*
 	 * Right now, we know that we have processed the entire headers
@@ -4956,6 +5097,9 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 		msg->body_len = msg->chunk_len = cl;
 	}
 
+	if (s->fe->comp || s->be->comp)
+		select_compression_response_header(s, rep->buf);
+
 	/* FIXME: we should also implement the multipart/byterange method.
 	 * For now on, we resort to close mode in this case (unknown length).
 	 */
@@ -5350,6 +5494,8 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &s->txn.rsp;
 	unsigned int bytes;
+	static struct buffer *tmpbuf = NULL;
+	int compressing = 0;
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
 		return 0;
@@ -5368,13 +5514,24 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	/* in most states, we should abort in case of early close */
 	channel_auto_close(res);
 
+	/* no data */
+	if (res->buf->i == 0)
+		return 0;
+
+	/* this is the first time we need the compression buffer */
+	if (s->comp_algo != NULL && tmpbuf == NULL) {
+		if ((tmpbuf = pool_alloc2(pool2_buffer)) == NULL)
+			goto aborted_xfer; /* no memory */
+	}
+
 	if (msg->msg_state < HTTP_MSG_CHUNK_SIZE) {
 		/* we have msg->sov which points to the first byte of message body.
-		 * rep->buf->p still points to the beginning of the message and msg->sol
-		 * is still null. We must save the body in msg->next because it
-		 * survives buffer re-alignments.
+		 * rep->buf.p still points to the beginning of the message and msg->sol
+		 * is still null. We forward the headers, we don't need them.
 		 */
-		msg->next = msg->sov;
+		channel_forward(res, msg->sov);
+		msg->next = 0;
+		msg->sov = 0;
 
 		if (msg->flags & HTTP_MSGF_TE_CHNK)
 			msg->msg_state = HTTP_MSG_CHUNK_SIZE;
@@ -5382,20 +5539,32 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 			msg->msg_state = HTTP_MSG_DATA;
 	}
 
+	if (s->comp_algo != NULL) {
+		int ret = http_compression_buffer_init(s, res->buf, tmpbuf); /* init a buffer with headers */
+		if (ret < 0)
+			goto missing_data; /* not enough spaces in buffers */
+		compressing = 1;
+	}
+
 	while (1) {
 		http_silent_debug(__LINE__, s);
 		/* we may have some data pending between sol and sov */
-		bytes = msg->sov - msg->sol;
-		if (msg->chunk_len || bytes) {
-			msg->sol = msg->sov;
-			msg->next -= bytes; /* will be forwarded */
-			msg->chunk_len += bytes;
-			msg->chunk_len -= channel_forward(res, msg->chunk_len);
+		if (s->comp_algo == NULL) {
+			bytes = msg->sov - msg->sol;
+			if (msg->chunk_len || bytes) {
+				msg->sol = msg->sov;
+				msg->next -= bytes; /* will be forwarded */
+				msg->chunk_len += bytes;
+				msg->chunk_len -= channel_forward(res, msg->chunk_len);
+			}
 		}
 
 		if (msg->msg_state == HTTP_MSG_DATA) {
 			/* must still forward */
-			if (res->to_forward)
+			if (compressing)
+				http_compression_buffer_add_data(s, res->buf, tmpbuf);
+
+			if (res->to_forward || msg->chunk_len)
 				goto missing_data;
 
 			/* nothing left to forward */
@@ -5418,6 +5587,13 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_CHUNK_SIZE, s->fe);
 				goto return_bad_res;
 			}
+			/* skipping data if we are in compression mode */
+			if (compressing && msg->chunk_len > 0) {
+				b_adv(res->buf, msg->next);
+				msg->next = 0;
+				msg->sov = 0;
+				msg->sol = 0;
+			}
 			/* otherwise we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state */
 		}
 		else if (msg->msg_state == HTTP_MSG_CHUNK_CRLF) {
@@ -5431,6 +5607,13 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_CHUNK_CRLF, s->fe);
 				goto return_bad_res;
 			}
+			/* skipping data in buffer for compression */
+			if (compressing) {
+				b_adv(res->buf, msg->next);
+				msg->next = 0;
+				msg->sov = 0;
+				msg->sol = 0;
+			}
 			/* we're in MSG_CHUNK_SIZE now */
 		}
 		else if (msg->msg_state == HTTP_MSG_TRAILERS) {
@@ -5443,10 +5626,19 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_TRAILERS, s->fe);
 				goto return_bad_res;
 			}
+			if (compressing) {
+				http_compression_buffer_end(s, &res->buf, &tmpbuf, 1);
+				compressing = 0;
+			}
 			/* we're in HTTP_MSG_DONE now */
 		}
 		else {
 			int old_state = msg->msg_state;
+
+			if (compressing) {
+				http_compression_buffer_end(s, &res->buf, &tmpbuf, 1);
+				compressing = 0;
+			}
 
 			/* other states, DONE...TUNNEL */
 			/* for keep-alive we don't want to forward closes on DONE */
@@ -5476,6 +5668,10 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	}
 
  missing_data:
+	if (compressing) {
+		http_compression_buffer_end(s, &res->buf, &tmpbuf, 0);
+		compressing = 0;
+	}
 	/* stop waiting for data if the input is closed before the end */
 	if (res->flags & CF_SHUTR) {
 		if (!(s->flags & SN_ERR_MASK))
@@ -5494,12 +5690,14 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 		goto return_bad_res;
 
 	/* forward any data pending between sol and sov */
-	bytes = msg->sov - msg->sol;
-	if (msg->chunk_len || bytes) {
-		msg->sol = msg->sov;
-		msg->next -= bytes; /* will be forwarded */
-		msg->chunk_len += bytes;
-		msg->chunk_len -= channel_forward(res, msg->chunk_len);
+	if (s->comp_algo == NULL) {
+		bytes = msg->sov - msg->sol;
+		if (msg->chunk_len || bytes) {
+			msg->sol = msg->sov;
+			msg->next -= bytes; /* will be forwarded */
+			msg->chunk_len += bytes;
+			msg->chunk_len -= channel_forward(res, msg->chunk_len);
+		}
 	}
 
 	/* When TE: chunked is used, we need to get there again to parse remaining

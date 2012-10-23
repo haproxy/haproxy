@@ -363,6 +363,7 @@ struct proxy {
 		struct list listeners;		/* list of listeners belonging to this frontend */
 	} conf;					/* config information */
 	void *parent;				/* parent of the proxy when applicable */
+	struct comp *comp;			/* http compression */
 };
 
 struct switching_rule {

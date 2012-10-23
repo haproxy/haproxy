@@ -347,6 +347,7 @@ int session_complete(struct session *s)
 	 */
 	s->be  = s->fe;
 	s->req = s->rep = NULL; /* will be allocated later */
+	s->comp_algo = NULL;
 
 	/* Let's count a session now */
 	proxy_inc_fe_sess_ctr(l, p);
@@ -549,6 +550,11 @@ static void session_free(struct session *s)
 		 * so this should not happen in fact.
 		 */
 		sess_change_server(s, NULL);
+	}
+
+	if (s->comp_algo) {
+		s->comp_algo->end(&s->comp_ctx.strm);
+		s->comp_algo = NULL;
 	}
 
 	if (s->req->pipe)

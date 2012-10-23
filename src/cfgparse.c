@@ -33,6 +33,7 @@
 #include <common/uri_auth.h>
 
 #include <types/capture.h>
+#include <types/compression.h>
 #include <types/global.h>
 #include <types/peers.h>
 
@@ -41,6 +42,7 @@
 #include <proto/backend.h>
 #include <proto/channel.h>
 #include <proto/checks.h>
+#include <proto/compression.h>
 #include <proto/dumpstats.h>
 #include <proto/frontend.h>
 #include <proto/hdr_idx.h>
@@ -1670,6 +1672,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		/* copy default header unique id */
 		if (defproxy.header_unique_id)
 			curproxy->header_unique_id = strdup(defproxy.header_unique_id);
+
+		/* default compression options */
+		if (defproxy.comp != NULL) {
+			curproxy->comp = calloc(1, sizeof(struct comp));
+			curproxy->comp->algos = defproxy.comp->algos;
+			curproxy->comp->types = defproxy.comp->types;
+		}
 
 		curproxy->grace  = defproxy.grace;
 		curproxy->conf.used_listener_id = EB_ROOT;
@@ -5236,6 +5245,57 @@ stats_error_parsing:
 			free(err);
 		}
 	}
+	else if (!strcmp(args[0], "compression")) {
+		struct comp *comp;
+		if (curproxy->comp == NULL) {
+			comp = calloc(1, sizeof(struct comp));
+			curproxy->comp = comp;
+		} else {
+			comp = curproxy->comp;
+		}
+
+		if (!strcmp(args[1], "algo")) {
+			int cur_arg;
+			cur_arg = 2;
+			if (!*args[cur_arg]) {
+				Alert("parsing [%s:%d] : '%s' expects <algorithm>\n",
+				      file, linenum, args[0]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			while (*(args[cur_arg])) {
+				if (comp_append_algo(comp, args[cur_arg]) < 0) {
+					Alert("parsing [%s:%d] : '%s' : '%s' is not a supported algorithm.\n",
+					      file, linenum, args[0], args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				cur_arg ++;
+				continue;
+			}
+		}
+		else if (!strcmp(args[1], "type")) {
+			int cur_arg;
+			cur_arg = 2;
+			if (!*args[cur_arg]) {
+				Alert("parsing [%s:%d] : '%s' expects <type>\n",
+				      file, linenum, args[0]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			while (*(args[cur_arg])) {
+				comp_append_type(comp, args[cur_arg]);
+				cur_arg ++;
+				continue;
+			}
+		}
+		else {
+			Alert("parsing [%s:%d] : '%s' expects algo or type\n",
+			      file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+		}
+	}
 	else {
 		struct cfg_kw_list *kwl;
 		int index;
@@ -5263,7 +5323,7 @@ stats_error_parsing:
 				}
 			}
 		}
-		
+
 		Alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], cursection);
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;

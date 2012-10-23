@@ -32,6 +32,7 @@
 #include <common/mini-clist.h>
 
 #include <types/channel.h>
+#include <types/compression.h>
 #include <types/proto_http.h>
 #include <types/proxy.h>
 #include <types/queue.h>
@@ -155,6 +156,8 @@ struct session {
 	void (*srv_error)(struct session *s,	/* the function to call upon unrecoverable server errors (or NULL) */
 			  struct stream_interface *si);
 	unsigned int uniq_id;			/* unique ID used for the traces */
+	struct comp_algo *comp_algo;		/* HTTP compression algorithm if not NULL */
+	union comp_ctx comp_ctx;		/* HTTP compression context */
 	char *unique_id;			/* custom unique ID */
 };
 
