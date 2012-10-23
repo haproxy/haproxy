@@ -776,7 +776,7 @@ int acl_match_ip(struct sample *smp, struct acl_pattern *pattern)
 		for (pos = 0; bits > 0; pos += 4, bits -= 32) {
 			v4 = *(uint32_t*)&v6->s6_addr[pos] ^ *(uint32_t*)&pattern->val.ipv6.addr.s6_addr[pos];
 			if (bits < 32)
-				v4 &= (~0U) << (32-bits);
+				v4 &= htonl((~0U) << (32-bits));
 			if (v4)
 				return ACL_PAT_FAIL;
 		}
