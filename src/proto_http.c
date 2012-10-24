@@ -8077,9 +8077,9 @@ smp_fetch_hdr_val(struct proxy *px, struct session *l4, void *l7, unsigned int o
 	return ret;
 }
 
-/* Fetch an HTTP header's integer value. The integer value is returned. It
- * takes a mandatory argument of type string and an optional one of type int
- * to designate a specific occurrence. It returns an IPv4 address.
+/* Fetch an HTTP header's IP value. takes a mandatory argument of type string
+ * and an optional one of type int to designate a specific occurrence.
+ * It returns an IPv4 or IPv6 address.
  */
 static int
 smp_fetch_hdr_ip(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
@@ -8088,9 +8088,21 @@ smp_fetch_hdr_ip(struct proxy *px, struct session *l4, void *l7, unsigned int op
 	int ret;
 
 	while ((ret = smp_fetch_hdr(px, l4, l7, opt, args, smp)) > 0) {
-		smp->type = SMP_T_IPV4;
-		if (url2ipv4((char *)smp->data.str.str, &smp->data.ipv4))
+		if (url2ipv4((char *)smp->data.str.str, &smp->data.ipv4)) {
+			smp->type = SMP_T_IPV4;
 			break;
+		} else {
+			struct chunk *temp = sample_get_trash_chunk();
+			if (smp->data.str.len < temp->size - 1) {
+				memcpy(temp->str, smp->data.str.str, smp->data.str.len);
+				temp->str[smp->data.str.len] = '\0';
+				if (inet_pton(AF_INET6, temp->str, &smp->data.ipv6)) {
+					smp->type = SMP_T_IPV6;
+					break;
+				}
+			}
+		}
+
 		/* if the header doesn't match an IP address, fetch next one */
 		if (!(smp->flags & SMP_F_NOT_LAST))
 			return 0;
