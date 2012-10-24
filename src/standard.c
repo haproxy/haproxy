@@ -906,12 +906,12 @@ int url2sa(const char *url, int ulen, struct sockaddr_storage *addr)
 			 * be warned this can slow down global daemon performances
 			 * while handling lagging dns responses.
 			 */
-			ret = url2ipv4(curr, &((struct sockaddr_in *)&addr)->sin_addr);
+			ret = url2ipv4(curr, &((struct sockaddr_in *)addr)->sin_addr);
 			if (!ret)
 				return -1;
 			curr += ret;
 			((struct sockaddr_in *)addr)->sin_port = (*curr == ':') ? str2uic(++curr) : 80;
-			((struct sockaddr_in *)addr)->sin_port = htons(((struct sockaddr_in *)&addr)->sin_port);
+			((struct sockaddr_in *)addr)->sin_port = htons(((struct sockaddr_in *)addr)->sin_port);
 		}
 		return 0;
 	}
