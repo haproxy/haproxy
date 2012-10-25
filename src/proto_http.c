@@ -1745,7 +1745,7 @@ void http_change_connection_header(struct http_txn *txn, struct http_msg *msg, i
  * Return >0 on success, 0 when some data is missing, <0 on error.
  * Note: this function is designed to parse wrapped CRLF at the end of the buffer.
  */
-int http_parse_chunk_size(struct http_msg *msg)
+static inline int http_parse_chunk_size(struct http_msg *msg)
 {
 	const struct buffer *buf = msg->chn->buf;
 	const char *ptr = b_ptr(buf, msg->next);
@@ -1855,7 +1855,7 @@ int http_parse_chunk_size(struct http_msg *msg)
  * important to note that this function is designed to be able to parse wrapped
  * headers at end of buffer.
  */
-int http_forward_trailers(struct http_msg *msg)
+static int http_forward_trailers(struct http_msg *msg)
 {
 	const struct buffer *buf = msg->chn->buf;
 
@@ -1929,7 +1929,7 @@ int http_forward_trailers(struct http_msg *msg)
  * does not change anything. Note: this function is designed to parse wrapped
  * CRLF at the end of the buffer.
  */
-int http_skip_chunk_crlf(struct http_msg *msg)
+static inline int http_skip_chunk_crlf(struct http_msg *msg)
 {
 	const struct buffer *buf = msg->chn->buf;
 	const char *ptr;
