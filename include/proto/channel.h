@@ -39,7 +39,7 @@ extern struct pool_head *pool2_channel;
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_channel();
 
-unsigned long long channel_forward(struct channel *chn, unsigned long long bytes);
+unsigned long long __channel_forward(struct channel *chn, unsigned long long bytes);
 
 /* SI-to-channel functions working with buffers */
 int bi_putblk(struct channel *chn, const char *str, int len);
@@ -60,6 +60,32 @@ static inline void channel_init(struct channel *chn)
 	chn->analysers = 0;
 	chn->cons = NULL;
 	chn->flags = 0;
+}
+
+/* Schedule up to <bytes> more bytes to be forwarded via the channel without
+ * notifying the owner task. Any data pending in the buffer are scheduled to be
+ * sent as well, in the limit of the number of bytes to forward. This must be
+ * the only method to use to schedule bytes to be forwarded. If the requested
+ * number is too large, it is automatically adjusted. The number of bytes taken
+ * into account is returned. Directly touching ->to_forward will cause lockups
+ * when buf->o goes down to zero if nobody is ready to push the remaining data.
+ */
+static inline unsigned long long channel_forward(struct channel *chn, unsigned long long bytes)
+{
+	/* hint: avoid comparisons on long long for the fast case, since if the
+	 * length does not fit in an unsigned it, it will never be forwarded at
+	 * once anyway.
+	 */
+	if (bytes <= ~0U) {
+		unsigned int bytes32 = bytes;
+
+		if (bytes32 <= chn->buf->i) {
+			/* OK this amount of bytes might be forwarded at once */
+			b_adv(chn->buf, bytes32);
+			return bytes;
+		}
+	}
+	return __channel_forward(chn, bytes);
 }
 
 /*********************************************************************/

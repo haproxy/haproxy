@@ -39,27 +39,10 @@ int init_channel()
  * into account is returned. Directly touching ->to_forward will cause lockups
  * when buf->o goes down to zero if nobody is ready to push the remaining data.
  */
-unsigned long long channel_forward(struct channel *chn, unsigned long long bytes)
+unsigned long long __channel_forward(struct channel *chn, unsigned long long bytes)
 {
 	unsigned int new_forward;
 	unsigned int forwarded;
-	unsigned int bytes32;
-
-	bytes32 = bytes;
-
-	/* hint: avoid comparisons on long long for the fast case, since if the
-	 * length does not fit in an unsigned it, it will never be forwarded at
-	 * once anyway.
-	 */
-	if (bytes <= ~0U) {
-		if (bytes32 <= chn->buf->i) {
-			/* OK this amount of bytes might be forwarded at once */
-			if (!bytes32)
-				return 0;
-			b_adv(chn->buf, bytes32);
-			return bytes;
-		}
-	}
 
 	forwarded = chn->buf->i;
 	b_adv(chn->buf, chn->buf->i);
