@@ -180,9 +180,19 @@ extern int ishex(char s);
 
 /*
  * Return integer equivalent of character <c> for a hex digit (0-9, a-f, A-F),
- * otherwise -1.
+ * otherwise -1. This compact form helps gcc produce efficient code.
  */
-extern int hex2i(int c);
+static inline int hex2i(int c)
+{
+	if ((unsigned char)(c -= '0') > 9) {
+		if ((unsigned char)(c -= 'A' - '0') > 5 &&
+		    (unsigned char)(c -= 'a' - 'A') > 5)
+			c = -11;
+		c += 10;
+	}
+	return c;
+}
+
 
 /*
  * Checks <name> for invalid characters. Valid chars are [A-Za-z0-9_:.-]. If an
