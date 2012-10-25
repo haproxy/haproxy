@@ -166,7 +166,7 @@
 #define HTTP_MSG_100_SENT     28 // parsing body after a 100-Continue was sent
 #define HTTP_MSG_CHUNK_SIZE   29 // parsing the chunk size (RFC2616 #3.6.1)
 #define HTTP_MSG_DATA         30 // skipping data chunk / content-length data
-#define HTTP_MSG_DATA_CRLF    31 // skipping CRLF after data chunk
+#define HTTP_MSG_CHUNK_CRLF   31 // skipping CRLF after data chunk
 #define HTTP_MSG_TRAILERS     32 // trailers (post-data entity headers)
 
 /* we enter this state when we've received the end of the current message */

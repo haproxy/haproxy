@@ -1919,7 +1919,7 @@ static int http_forward_trailers(struct http_msg *msg)
 	}
 }
 
-/* This function may be called only in HTTP_MSG_DATA_CRLF. It reads the CRLF or
+/* This function may be called only in HTTP_MSG_CHUNK_CRLF. It reads the CRLF or
  * a possible LF alone at the end of a chunk. It automatically adjusts msg->sov,
  * ->sol, ->next in order to include this part into the next forwarding phase.
  * Note that the caller must ensure that ->p points to the first byte to parse.
@@ -4318,9 +4318,8 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 
 		if (msg->flags & HTTP_MSGF_TE_CHNK)
 			msg->msg_state = HTTP_MSG_CHUNK_SIZE;
-		else {
+		else
 			msg->msg_state = HTTP_MSG_DATA;
-		}
 	}
 
 	while (1) {
@@ -4343,7 +4342,7 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 
 			/* nothing left to forward */
 			if (msg->flags & HTTP_MSGF_TE_CHNK)
-				msg->msg_state = HTTP_MSG_DATA_CRLF;
+				msg->msg_state = HTTP_MSG_CHUNK_CRLF;
 			else
 				msg->msg_state = HTTP_MSG_DONE;
 		}
@@ -4354,7 +4353,7 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 			 */
 			int ret = http_parse_chunk_size(msg);
 
-			if (!ret)
+			if (ret == 0)
 				goto missing_data;
 			else if (ret < 0) {
 				session_inc_http_err_ctr(s);
@@ -4364,18 +4363,16 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 			}
 			/* otherwise we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state */
 		}
-		else if (msg->msg_state == HTTP_MSG_DATA_CRLF) {
+		else if (msg->msg_state == HTTP_MSG_CHUNK_CRLF) {
 			/* we want the CRLF after the data */
-			int ret;
-
-			ret = http_skip_chunk_crlf(msg);
+			int ret = http_skip_chunk_crlf(msg);
 
 			if (ret == 0)
 				goto missing_data;
 			else if (ret < 0) {
 				session_inc_http_err_ctr(s);
 				if (msg->err_pos >= 0)
-					http_capture_bad_message(&s->fe->invalid_req, s, msg, HTTP_MSG_DATA_CRLF, s->be);
+					http_capture_bad_message(&s->fe->invalid_req, s, msg, HTTP_MSG_CHUNK_CRLF, s->be);
 				goto return_bad_req;
 			}
 			/* we're in MSG_CHUNK_SIZE now */
@@ -5381,9 +5378,8 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 
 		if (msg->flags & HTTP_MSGF_TE_CHNK)
 			msg->msg_state = HTTP_MSG_CHUNK_SIZE;
-		else {
+		else
 			msg->msg_state = HTTP_MSG_DATA;
-		}
 	}
 
 	while (1) {
@@ -5404,7 +5400,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 
 			/* nothing left to forward */
 			if (msg->flags & HTTP_MSGF_TE_CHNK)
-				msg->msg_state = HTTP_MSG_DATA_CRLF;
+				msg->msg_state = HTTP_MSG_CHUNK_CRLF;
 			else
 				msg->msg_state = HTTP_MSG_DONE;
 		}
@@ -5415,7 +5411,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 			 */
 			int ret = http_parse_chunk_size(msg);
 
-			if (!ret)
+			if (ret == 0)
 				goto missing_data;
 			else if (ret < 0) {
 				if (msg->err_pos >= 0)
@@ -5424,17 +5420,15 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 			}
 			/* otherwise we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state */
 		}
-		else if (msg->msg_state == HTTP_MSG_DATA_CRLF) {
+		else if (msg->msg_state == HTTP_MSG_CHUNK_CRLF) {
 			/* we want the CRLF after the data */
-			int ret;
+			int ret = http_skip_chunk_crlf(msg);
 
-			ret = http_skip_chunk_crlf(msg);
-
-			if (!ret)
+			if (ret == 0)
 				goto missing_data;
 			else if (ret < 0) {
 				if (msg->err_pos >= 0)
-					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_DATA_CRLF, s->fe);
+					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_CHUNK_CRLF, s->fe);
 				goto return_bad_res;
 			}
 			/* we're in MSG_CHUNK_SIZE now */
