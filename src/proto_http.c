@@ -1976,6 +1976,7 @@ int select_compression_request_header(struct session *s, struct buffer *req)
 	struct http_txn *txn = &s->txn;
 	struct hdr_ctx ctx;
 	struct comp_algo *comp_algo = NULL;
+	struct comp_algo *comp_algo_back = NULL;
 
 	/* Disable compression for older user agents announcing themselves as "Mozilla/4".
 	 * Note all of them are broken but they are very few and the broken ones are there.
@@ -1999,10 +2000,10 @@ int select_compression_request_header(struct session *s, struct buffer *req)
 	}
 
 	/* search for the algo in the backend in priority or the frontend */
-	if ((s->be->comp && (comp_algo = s->be->comp->algos)) || (s->fe->comp && (comp_algo = s->fe->comp->algos))) {
+	if ((s->be->comp && (comp_algo_back = s->be->comp->algos)) || (s->fe->comp && (comp_algo_back = s->fe->comp->algos))) {
 		ctx.idx = 0;
 		while (http_find_header2("Accept-Encoding", 15, req->p, &txn->hdr_idx, &ctx)) {
-			for (; comp_algo; comp_algo = comp_algo->next) {
+			for (comp_algo = comp_algo_back; comp_algo; comp_algo = comp_algo->next) {
 				if (word_match(ctx.line + ctx.val, ctx.vlen, comp_algo->name, comp_algo->name_len)) {
 					s->comp_algo = comp_algo;
 					return 1;
@@ -2012,8 +2013,8 @@ int select_compression_request_header(struct session *s, struct buffer *req)
 	}
 
 	/* identity is implicit does not require headers */
-	if ((s->be->comp && (comp_algo = s->be->comp->algos)) || (s->fe->comp && (comp_algo = s->fe->comp->algos))) {
-		for (; comp_algo; comp_algo = comp_algo->next) {
+	if ((s->be->comp && (comp_algo_back = s->be->comp->algos)) || (s->fe->comp && (comp_algo_back = s->fe->comp->algos))) {
+		for (comp_algo = comp_algo_back; comp_algo; comp_algo = comp_algo->next) {
 			if (comp_algo->add_data == identity_add_data) {
 				s->comp_algo = comp_algo;
 				return 1;
