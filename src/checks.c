@@ -1308,6 +1308,9 @@ static struct task *process_chk(struct task *t)
 		set_target_server(&conn->target, s);
 		conn_prepare(conn, &check_conn_cb, s->check.proto, s->check.xprt, s);
 
+		/* no client address */
+		clear_addr(&conn->addr.from);
+
 		if (is_addr(&s->check.addr))
 			/* we'll connect to the check addr specified on the server */
 			conn->addr.to = s->check.addr;

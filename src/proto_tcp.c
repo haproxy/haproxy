@@ -170,14 +170,18 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
 
 	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
 	if (foreign_ok) {
-		ret = bind(fd, (struct sockaddr *)&bind_addr, get_addr_len(&bind_addr));
-		if (ret < 0)
-			return 2;
+		if (is_addr(&bind_addr)) {
+			ret = bind(fd, (struct sockaddr *)&bind_addr, get_addr_len(&bind_addr));
+			if (ret < 0)
+				return 2;
+		}
 	}
 	else {
-		ret = bind(fd, (struct sockaddr *)local, get_addr_len(local));
-		if (ret < 0)
-			return 1;
+		if (is_addr(local)) {
+			ret = bind(fd, (struct sockaddr *)local, get_addr_len(local));
+			if (ret < 0)
+				return 1;
+		}
 	}
 
 	if (!flags)
@@ -295,15 +299,17 @@ int tcp_connect_server(struct connection *conn, int data)
 	if (srv != NULL && srv->state & SRV_BIND_SRC) {
 		int ret, flags = 0;
 
-		switch (srv->state & SRV_TPROXY_MASK) {
-		case SRV_TPROXY_ADDR:
-		case SRV_TPROXY_CLI:
-			flags = 3;
-			break;
-		case SRV_TPROXY_CIP:
-		case SRV_TPROXY_DYN:
-			flags = 1;
-			break;
+		if (is_addr(&conn->addr.from)) {
+			switch (srv->state & SRV_TPROXY_MASK) {
+			case SRV_TPROXY_ADDR:
+			case SRV_TPROXY_CLI:
+				flags = 3;
+				break;
+			case SRV_TPROXY_CIP:
+			case SRV_TPROXY_DYN:
+				flags = 1;
+				break;
+			}
 		}
 
 #ifdef SO_BINDTODEVICE
@@ -368,15 +374,17 @@ int tcp_connect_server(struct connection *conn, int data)
 	else if (be->options & PR_O_BIND_SRC) {
 		int ret, flags = 0;
 
-		switch (be->options & PR_O_TPXY_MASK) {
-		case PR_O_TPXY_ADDR:
-		case PR_O_TPXY_CLI:
-			flags = 3;
-			break;
-		case PR_O_TPXY_CIP:
-		case PR_O_TPXY_DYN:
-			flags = 1;
-			break;
+		if (is_addr(&conn->addr.from)) {
+			switch (be->options & PR_O_TPXY_MASK) {
+			case PR_O_TPXY_ADDR:
+			case PR_O_TPXY_CLI:
+				flags = 3;
+				break;
+			case PR_O_TPXY_CIP:
+			case PR_O_TPXY_DYN:
+				flags = 1;
+				break;
+			}
 		}
 
 #ifdef SO_BINDTODEVICE
