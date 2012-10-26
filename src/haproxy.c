@@ -710,9 +710,16 @@ void init(int argc, char **argv)
 	if (arg_mode & (MODE_DEBUG | MODE_FOREGROUND)) {
 		/* command line debug mode inhibits configuration mode */
 		global.mode &= ~(MODE_DAEMON | MODE_QUIET);
+		global.mode |= (arg_mode & (MODE_DEBUG | MODE_FOREGROUND));
 	}
-	global.mode |= (arg_mode & (MODE_DAEMON | MODE_FOREGROUND | MODE_QUIET |
-				    MODE_VERBOSE | MODE_DEBUG ));
+
+	if (arg_mode & MODE_DAEMON) {
+		/* command line daemon mode inhibits foreground and debug modes mode */
+		global.mode &= ~(MODE_DEBUG | MODE_FOREGROUND);
+		global.mode |= (arg_mode & MODE_DAEMON);
+	}
+
+	global.mode |= (arg_mode & (MODE_QUIET | MODE_VERBOSE));
 
 	if ((global.mode & MODE_DEBUG) && (global.mode & (MODE_DAEMON | MODE_QUIET))) {
 		Warning("<debug> mode incompatible with <quiet> and <daemon>. Keeping <debug> only.\n");
