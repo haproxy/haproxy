@@ -317,7 +317,7 @@ int gzip_init(void *v, int level)
 	strm->zfree = Z_NULL;
 	strm->opaque = Z_NULL;
 
-	if (deflateInit2(strm, level, Z_DEFLATED, MAX_WBITS + 16, 9, Z_DEFAULT_STRATEGY) != Z_OK)
+	if (deflateInit2(strm, level, Z_DEFLATED, MAX_WBITS + 16, 8, Z_DEFAULT_STRATEGY) != Z_OK)
 		return -1;
 
 	return 0;
