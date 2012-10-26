@@ -12,7 +12,15 @@
  */
 
 #include <stdio.h>
+
+/* Note: the crappy zlib and openssl libs both define the "free_func" type.
+ * That's a very clever idea to use such a generic name in general purpose
+ * libraries, really... The zlib one is easier to redefine than openssl's,
+ * so let's only fix this one.
+ */
+#define free_func zlib_free_func
 #include <zlib.h>
+#undef free_func
 
 #include <common/compat.h>
 
