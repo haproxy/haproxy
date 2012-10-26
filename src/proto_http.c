@@ -391,14 +391,14 @@ const char http_is_ver_token[256] = {
 static void http_silent_debug(int line, struct session *s)
 {
 	int size = 0;
-	size += snprintf(trash + size, trashlen - size,
+	size += snprintf(trash + size, global.tune.bufsize - size,
 			 "[%04d] req: p=%d(%d) s=%d bf=%08x an=%08x data=%p size=%d l=%d w=%p r=%p o=%p sm=%d fw=%ld tf=%08x\n",
 			 line,
 			 s->si[0].state, s->si[0].fd, s->txn.req.msg_state, s->req->flags, s->req->analysers,
 			 s->req->buf->data, s->req->buf->size, s->req->l, s->req->w, s->req->r, s->req->buf->p, s->req->buf->o, s->req->to_forward, s->txn.flags);
 	write(-1, trash, size);
 	size = 0;
-	size += snprintf(trash + size, trashlen - size,
+	size += snprintf(trash + size, global.tune.bufsize - size,
 			 " %04d  rep: p=%d(%d) s=%d bf=%08x an=%08x data=%p size=%d l=%d w=%p r=%p o=%p sm=%d fw=%ld\n",
 			 line,
 			 s->si[1].state, s->si[1].fd, s->txn.rsp.msg_state, s->rep->flags, s->rep->analysers,
@@ -769,7 +769,7 @@ void perform_http_redirect(struct session *s, struct stream_interface *si)
 	/* 1: create the response header */
 	rdr.len = strlen(HTTP_302);
 	rdr.str = trash;
-	rdr.size = trashlen;
+	rdr.size = global.tune.bufsize;
 	memcpy(rdr.str, HTTP_302, rdr.len);
 
 	srv = target_srv(&s->target);
@@ -3099,7 +3099,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 			realm = do_stats?STATS_DEFAULT_REALM:px->id;
 
 		sprintf(trash, (txn->flags & TX_USE_PX_CONN) ? HTTP_407_fmt : HTTP_401_fmt, realm);
-		chunk_initlen(&msg, trash, trashlen, strlen(trash));
+		chunk_initlen(&msg, trash, global.tune.bufsize, strlen(trash));
 		txn->status = 401;
 		stream_int_retnclose(req->prod, &msg);
 		/* on 401 we still count one error, because normal browsing
@@ -3207,7 +3207,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 		}
 
 		if (ret) {
-			struct chunk rdr = { .str = trash, .size = trashlen, .len = 0 };
+			struct chunk rdr = { .str = trash, .size = global.tune.bufsize, .len = 0 };
 			const char *msg_fmt;
 
 			/* build redirect message */
@@ -3950,7 +3950,7 @@ int http_send_name_header(struct http_txn *txn, struct proxy* be, const char* sr
 	hdr_val += hdr_name_len;
 	*hdr_val++ = ':';
 	*hdr_val++ = ' ';
-	hdr_val += strlcpy2(hdr_val, srv_name, trash + trashlen - hdr_val);
+	hdr_val += strlcpy2(hdr_val, srv_name, trash + global.tune.bufsize - hdr_val);
 	http_header_add_tail2(&txn->req, &txn->hdr_idx, trash, hdr_val - trash);
 
 	if (old_o) {
@@ -7654,7 +7654,7 @@ void debug_hdr(const char *dir, struct session *t, const char *start, const char
 		if (start[max] == '\r' || start[max] == '\n')
 			break;
 
-	UBOUND(max, trashlen - len - 3);
+	UBOUND(max, global.tune.bufsize - len - 3);
 	len += strlcpy2(trash + len, start, max + 1);
 	trash[len++] = '\n';
 	if (write(1, trash, len) < 0) /* shut gcc warning */;

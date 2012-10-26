@@ -280,7 +280,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 		goto fail;
 
 	do {
-		len = recv(conn->t.sock.fd, trash, trashlen, MSG_PEEK);
+		len = recv(conn->t.sock.fd, trash, global.tune.bufsize, MSG_PEEK);
 		if (len < 0) {
 			if (errno == EINTR)
 				continue;
@@ -548,7 +548,7 @@ int conn_local_send_proxy(struct connection *conn, unsigned int flag)
 	if (!(conn->flags & CO_FL_ADDR_TO_SET))
 		goto out_error;
 
-	len = make_proxy_line(trash, trashlen, &conn->addr.from, &conn->addr.to);
+	len = make_proxy_line(trash, global.tune.bufsize, &conn->addr.from, &conn->addr.to);
 	if (!len)
 		goto out_error;
 

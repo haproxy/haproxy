@@ -173,7 +173,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, struct bind_conf *s)
 	if (!servername)
 		return SSL_TLSEXT_ERR_NOACK;
 
-	for (i = 0; i < trashlen; i++) {
+	for (i = 0; i < global.tune.bufsize; i++) {
 		if (!servername[i])
 			break;
 		trash[i] = tolower(servername[i]);
@@ -887,7 +887,7 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 			 * TCP sockets. We first try to drain possibly pending
 			 * data to avoid this as much as possible.
 			 */
-			ret = recv(conn->t.sock.fd, trash, trashlen, MSG_NOSIGNAL|MSG_DONTWAIT);
+			ret = recv(conn->t.sock.fd, trash, global.tune.bufsize, MSG_NOSIGNAL|MSG_DONTWAIT);
 			goto out_error;
 		}
 	}
