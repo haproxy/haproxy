@@ -7156,6 +7156,15 @@ crl-file <crlfile>
 
   Supported in default-server: No
 
+crt <cert>
+  This setting is only available when support for OpenSSL was built in.
+  It designates a PEM file from which to load both a certificate and the
+  associated private key. This file can be built by concatenating both PEM
+  files into one. This certificate will be sent if the server send a client
+  certificate request.
+
+  Supported in default-server: No
+
 disabled
   The "disabled" keyword starts the server in the "disabled" state. That means
   that it is marked down in maintenance mode, and no connection other than the

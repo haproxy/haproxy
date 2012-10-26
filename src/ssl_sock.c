@@ -621,7 +621,26 @@ int ssl_sock_prepare_srv_ctx(struct server *srv, struct proxy *curproxy)
 		cfgerr++;
 		return cfgerr;
 	}
-
+	if (srv->ssl_ctx.client_crt) {
+		if (SSL_CTX_use_PrivateKey_file(srv->ssl_ctx.ctx, srv->ssl_ctx.client_crt, SSL_FILETYPE_PEM) <= 0) {
+			Alert("config : %s '%s', server '%s': unable to load SSL private key from PEM file '%s'.\n",
+			      proxy_type_str(curproxy), curproxy->id,
+			      srv->id, srv->ssl_ctx.client_crt);
+			cfgerr++;
+		}
+		else if (SSL_CTX_use_certificate_chain_file(srv->ssl_ctx.ctx, srv->ssl_ctx.client_crt) <= 0) {
+			Alert("config : %s '%s', server '%s': unable to load ssl certificate from PEM file '%s'.\n",
+			      proxy_type_str(curproxy), curproxy->id,
+			      srv->id, srv->ssl_ctx.client_crt);
+			cfgerr++;
+		}
+		else if (SSL_CTX_check_private_key(srv->ssl_ctx.ctx) <= 0) {
+			Alert("config : %s '%s', server '%s': inconsistencies between private key and certificate loaded from PEM file '%s'.\n",
+			      proxy_type_str(curproxy), curproxy->id,
+			      srv->id, srv->ssl_ctx.client_crt);
+			cfgerr++;
+		}
+	}
 
 	if (srv->ssl_ctx.options & SRV_SSL_O_NO_SSLV3)
 		options |= SSL_OP_NO_SSLv3;
@@ -2477,6 +2496,22 @@ static int srv_parse_crl_file(char **args, int *cur_arg, struct proxy *px, struc
 #endif
 }
 
+/* parse the "crt" server keyword */
+static int srv_parse_crt(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	if (!*args[*cur_arg + 1]) {
+		if (err)
+			memprintf(err, "'%s' : missing certificate file path", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if ((*args[*cur_arg + 1] != '/') && global.crt_base)
+		memprintf(&newsrv->ssl_ctx.client_crt, "%s/%s", global.ca_base, args[*cur_arg + 1]);
+	else
+		memprintf(&newsrv->ssl_ctx.client_crt, "%s", args[*cur_arg + 1]);
+
+	return 0;
+}
 
 /* parse the "force-sslv3" server keyword */
 static int srv_parse_force_sslv3(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
@@ -2706,6 +2741,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "check-ssl",             srv_parse_check_ssl,      0, 0 }, /* enable SSL for health checks */
 	{ "ciphers",               srv_parse_ciphers,        1, 0 }, /* select the cipher suite */
 	{ "crl-file",              srv_parse_crl_file,       1, 0 }, /* set certificate revocation list file use on server cert verify */
+	{ "crt",                   srv_parse_crt,            1, 0 }, /* set client certificate */
 	{ "force-sslv3",           srv_parse_force_sslv3,    0, 0 }, /* force SSLv3 */
 	{ "force-tlsv10",          srv_parse_force_tlsv10,   0, 0 }, /* force TLSv10 */
 	{ "force-tlsv11",          srv_parse_force_tlsv11,   0, 0 }, /* force TLSv11 */

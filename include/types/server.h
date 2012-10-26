@@ -200,6 +200,7 @@ struct server {
 		int verify;			/* verify method (set of SSL_VERIFY_* flags) */
 		char *ca_file;			/* CAfile to use on verify */
 		char *crl_file;			/* CRLfile to use on verify */
+		char *client_crt;		/* client certificate to send */
 	} ssl_ctx;
 #endif
 	struct {
