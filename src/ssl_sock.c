@@ -391,6 +391,13 @@ static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf
 			SSL_CTX_free(ctx);
 		return 1;
 	}
+
+	if (SSL_CTX_check_private_key(ctx) <= 0) {
+		memprintf(err, "%sinconsistencies between private key and certificate loaded from PEM file '%s'.\n",
+		          err && *err ? *err : "", path);
+		return 1;
+	}
+
 	/* we must not free the SSL_CTX anymore below, since it's already in
 	 * the tree, so it will be discovered and cleaned in time.
 	 */
