@@ -2,8 +2,8 @@
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 20000303 Stylable//EN"
              "http://www.w3.org/TR/2000/03/WD-SVG-20000303/DTD/svg-20000303-stylable.dtd">
 <!-- Creator: fig2dev Version 3.2 Patchlevel 4 -->
-<!-- CreationDate: Sun Oct 14 13:59:25 2012 -->
-<svg xmlns="http://www.w3.org/2000/svg" width="8.3in" height="11.7in" viewBox="0 0 13858 20157">
+<!-- CreationDate: Fri Oct 26 20:38:53 2012 -->
+<svg xmlns:a="http://www.w3.org/2000/svg" width="8.3in" height="11.7in" viewBox="0 0 13858 20157">
 <g style="stroke-width:.025in; stroke:black; fill:none">
 <defs>
 <pattern id="tile1" x="0" y="0" width="200" height="200"
@@ -195,15 +195,6 @@
 </pattern>
 </defs>
 <!-- Line -->
-<path d="M 708,3874
-13464,3874
-13464,8597
-708,8597
-708,3874
-" style="stroke:#000000;stroke-width:16;
-fill:#00ffff;
-"/>
-<!-- Line -->
 <path d="M 8834,2929
 10251,2929
 10251,3401
@@ -218,15 +209,6 @@ fill:#ffe0e0;
 8551,3401
 7133,3401
 7133,2929
-" style="stroke:#000000;stroke-width:16;
-fill:#ffe0e0;
-"/>
-<!-- Line -->
-<path d="M 9212,6518
-10629,6518
-10629,6991
-9212,6991
-9212,6518
 " style="stroke:#000000;stroke-width:16;
 fill:#ffe0e0;
 "/>
@@ -284,36 +266,79 @@ fill:#ff00ff;
 " style="stroke:#000000;stroke-width:16;
 fill:#ff00ff;
 "/>
+<!-- Line -->
+<path d="M 708,3874
+13464,3874
+13464,8597
+708,8597
+708,3874
+" style="stroke:#000000;stroke-width:16;
+fill:#00ffff;
+"/>
 <!-- Text -->
-<text x="8645" y="2362" fill="#000000" font-family="Courier" font-style="normal" font-weight="normal" font-size="152" text-anchor="start" >
+<text x="8645" y="2362" fill="#000000"  font-family="Courier" 
+		 font-style="normal" font-weight="normal" font-size="152" text-anchor="start" >
 cons</text>
 <!-- Text -->
-<text x="3637" y="2078" fill="#000000" font-family="Courier" font-style="normal" font-weight="normal" font-size="152" text-anchor="end" >
+<text x="3637" y="2078" fill="#000000"  font-family="Courier" 
+		 font-style="normal" font-weight="normal" font-size="152" text-anchor="end" >
 prod</text>
 <!-- Text -->
-<text x="3637" y="10014" fill="#000000" font-family="Courier" font-style="normal" font-weight="normal" font-size="152" text-anchor="end" >
+<text x="3637" y="10014" fill="#000000"  font-family="Courier" 
+		 font-style="normal" font-weight="normal" font-size="152" text-anchor="end" >
 cons</text>
 <!-- Text -->
-<text x="5338" y="3779" fill="#000000" font-family="Courier" font-style="normal" font-weight="normal" font-size="152" text-anchor="start" >
+<text x="5338" y="3779" fill="#000000"  font-family="Courier" 
+		 font-style="normal" font-weight="normal" font-size="152" text-anchor="start" >
 req</text>
 <!-- Text -->
-<text x="5338" y="8786" fill="#000000" font-family="Courier" font-style="normal" font-weight="normal" font-size="152" text-anchor="start" >
+<text x="5338" y="8786" fill="#000000"  font-family="Courier" 
+		 font-style="normal" font-weight="normal" font-size="152" text-anchor="start" >
 rep</text>
 <!-- Text -->
-<text x="2692" y="8786" fill="#000000" font-family="Courier" font-style="normal" font-weight="normal" font-size="152" text-anchor="start" >
+<text x="2692" y="8786" fill="#000000"  font-family="Courier" 
+		 font-style="normal" font-weight="normal" font-size="152" text-anchor="start" >
 ob</text>
 <!-- Text -->
-<text x="11480" y="8786" fill="#000000" font-family="Courier" font-style="normal" font-weight="normal" font-size="152" text-anchor="end" >
+<text x="11480" y="8786" fill="#000000"  font-family="Courier" 
+		 font-style="normal" font-weight="normal" font-size="152" text-anchor="end" >
 ib</text>
 <!-- Text -->
-<text x="8645" y="10109" fill="#000000" font-family="Courier" font-style="normal" font-weight="normal" font-size="152" text-anchor="start" >
+<text x="8645" y="10109" fill="#000000"  font-family="Courier" 
+		 font-style="normal" font-weight="normal" font-size="152" text-anchor="start" >
 prod</text>
 <!-- Text -->
-<text x="12141" y="3779" fill="#000000" font-family="Courier" font-style="normal" font-weight="normal" font-size="152" text-anchor="start" >
+<text x="12141" y="3779" fill="#000000"  font-family="Courier" 
+		 font-style="normal" font-weight="normal" font-size="152" text-anchor="start" >
 ob</text>
 <!-- Text -->
-<text x="2692" y="3779" fill="#000000" font-family="Courier" font-style="normal" font-weight="normal" font-size="152" text-anchor="start" >
+<text x="2692" y="3779" fill="#000000"  font-family="Courier" 
+		 font-style="normal" font-weight="normal" font-size="152" text-anchor="start" >
 ib</text>
+<!-- Text -->
+<text x="661" y="6330" fill="#000000"  font-family="Courier" 
+		 font-style="normal" font-weight="normal" font-size="152" text-anchor="end" >
+conn</text>
+<!-- Text -->
+<text x="13511" y="5811" fill="#000000"  font-family="Courier" 
+		 font-style="normal" font-weight="normal" font-size="152" text-anchor="start" >
+conn</text>
+<!-- Text -->
+<text x="-188" y="5811" fill="#000000"  font-family="Courier" 
+		 font-style="normal" font-weight="normal" font-size="152" text-anchor="start" >
+owner</text>
+<!-- Text -->
+<text x="15259" y="8409" fill="#000000"  font-family="Courier" 
+		 font-style="normal" font-weight="normal" font-size="152" text-anchor="start" >
+owner</text>
+<!-- Text -->
+<text x="-1039" y="8409" fill="#000000"  font-family="Courier" 
+		 font-style="normal" font-weight="normal" font-size="152" text-anchor="start" >
+owner</text>
+<!-- Text -->
+<text x="14362" y="6330" fill="#000000"  font-family="Courier" 
+		 font-style="normal" font-weight="normal" font-size="152" text-anchor="end" >
+owner</text>
 <!-- Line -->
 <path d="M 3543,4062
 8740,4062
@@ -324,20 +349,29 @@ ib</text>
 fill:#ffffff;
 "/>
 <!-- Line -->
-<path d="M 803,4062
-3165,4062
-3165,8408
-803,8408
-803,4062
+<path d="M 9212,4346
+10629,4346
+10629,4818
+9212,4818
+9212,4346
 " style="stroke:#000000;stroke-width:16;
 fill:#ffffff;
 "/>
 <!-- Line -->
 <path d="M 11007,4062
-13370,4062
-13370,8408
+13275,4062
+13275,8408
 11007,8408
 11007,4062
+" style="stroke:#000000;stroke-width:16;
+fill:#ffffff;
+"/>
+<!-- Line -->
+<path d="M 944,4062
+3165,4062
+3165,8408
+944,8408
+944,4062
 " style="stroke:#000000;stroke-width:16;
 fill:#ffffff;
 "/>
@@ -351,20 +385,20 @@ fill:#ffffff;
 fill:#ffffff;
 "/>
 <!-- Line -->
+<path d="M 9212,6518
+10629,6518
+10629,6991
+9212,6991
+9212,6518
+" style="stroke:#000000;stroke-width:16;
+fill:#ffe0e0;
+"/>
+<!-- Line -->
 <path d="M 9212,5480
 10629,5480
 10629,5952
 9212,5952
 9212,5480
-" style="stroke:#000000;stroke-width:16;
-fill:#ffffff;
-"/>
-<!-- Line -->
-<path d="M 9212,4346
-10629,4346
-10629,4818
-9212,4818
-9212,4346
 " style="stroke:#000000;stroke-width:16;
 fill:#ffffff;
 "/>
@@ -405,98 +439,133 @@ fill:#ffff00;
 fill:#ffff00;
 "/>
 <!-- Line -->
-<path d="M 897,5291
-2692,5291
-2692,7180
-897,7180
-897,5291
+<path d="M -1889,5196
+-236,5196
+-236,7085
+-1889,7085
+-1889,5196
 " style="stroke:#000000;stroke-width:16;
 fill:#ffff00;
 "/>
 <!-- Line -->
-<path d="M 11480,5291
-13275,5291
-13275,7180
-11480,7180
-11480,5291
+<path d="M 14409,8504
+16062,8504
+16062,8976
+14409,8976
+14409,8504
 " style="stroke:#000000;stroke-width:16;
 fill:#ffff00;
 "/>
 <!-- Line -->
-<path d="M 11763,6613
-13181,6613
-13181,7085
-11763,7085
-11763,6613
+<path d="M 14409,5196
+16062,5196
+16062,7085
+14409,7085
+14409,5196
+" style="stroke:#000000;stroke-width:16;
+fill:#ffff00;
+"/>
+<!-- Line -->
+<path d="M -1889,8504
+-236,8504
+-236,8976
+-1889,8976
+-1889,8504
+" style="stroke:#000000;stroke-width:16;
+fill:#ffff00;
+"/>
+<!-- Line -->
+<path d="M -1795,5951
+-377,5951
+-377,6424
+-1795,6424
+-1795,5951
 " style="stroke:#000000;stroke-width:16;
 fill:#00ff00;
 "/>
 <!-- Line -->
-<path d="M 992,6613
-2409,6613
-2409,7085
-992,7085
-992,6613
+<path d="M -1275,6519
+-803,6519
+-803,6991
+-1275,6991
+-1275,6519
 " style="stroke:#000000;stroke-width:16;
 fill:#00ff00;
 "/>
 <!-- Line -->
-<path d="M 992,5952
-1464,5952
-1464,6424
-992,6424
-992,5952
+<path d="M 14551,5857
+15968,5857
+15968,6329
+14551,6329
+14551,5857
 " style="stroke:#000000;stroke-width:16;
 fill:#00ff00;
 "/>
 <!-- Line -->
-<path d="M 12708,5952
-13181,5952
-13181,6424
-12708,6424
-12708,5952
+<path d="M 14976,6519
+15448,6519
+15448,6991
+14976,6991
+14976,6519
 " style="stroke:#000000;stroke-width:16;
 fill:#00ff00;
 "/>
+<!-- Text -->
+<text x="-1133" y="6235" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
+target</text>
+<!-- Text -->
+<text x="-992" y="6802" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
+fd</text>
+<!-- Text -->
+<text x="15212" y="6140" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
+target</text>
+<!-- Text -->
+<text x="15259" y="6802" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
+fd</text>
 <!-- Line -->
-<path d="M 2598,4062
-2598,2929
-3732,2456
+<path d="M 708,5669
+" style="stroke:#000000;stroke-width:16;
+"/>
+<!-- Line -->
+<path d="M -236,5905
+944,5905
 " style="stroke:#000000;stroke-width:16;
 "/>
 <!-- Arrowhead on endpoint -->
-<path d="M 3507 2617
-3716 2462
-3459 2500
-3507 2617
+<path d="M 743 5968
+932 5905
+743 5842
+743 5968
 Z
 " style="stroke:#000000;stroke-width:16;
 fill:#000000;"/>
 <!-- Line -->
-<path d="M 3732,2173
-2031,2929
-2031,4062
+<path d="M 944,6377
+-236,6377
 " style="stroke:#000000;stroke-width:16;
 "/>
 <!-- Arrowhead on endpoint -->
-<path d="M 1968 3794
-2031 4046
-2093 3794
-1968 3794
+<path d="M -33 6314
+-222 6377
+-33 6440
+-33 6314
 Z
 " style="stroke:#000000;stroke-width:16;
 fill:#000000;"/>
 <!-- Line -->
-<path d="M 2598,8408
-2598,9069
-3732,9542
+<path d="M -1086,8503
+-1086,7086
 " style="stroke:#000000;stroke-width:16;
 "/>
 <!-- Arrowhead on endpoint -->
-<path d="M 3459 9497
-3716 9535
-3507 9380
-3459 9497
+<path d="M -1022 7288
+-1085 7099
+-1148 7288
+-1022 7288
 Z
 " style="stroke:#000000;stroke-width:16;
 fill:#000000;"/>
@@ -507,10 +576,24 @@ fill:#000000;"/>
 " style="stroke:#000000;stroke-width:16;
 "/>
 <!-- Arrowhead on endpoint -->
-<path d="M 2093 8676
-2031 8425
-1968 8676
-2093 8676
+<path d="M 2094 8609
+2031 8420
+1968 8609
+2094 8609
+Z
+" style="stroke:#000000;stroke-width:16;
+fill:#000000;"/>
+<!-- Line -->
+<path d="M 2598,8408
+2598,9069
+3732,9542
+" style="stroke:#000000;stroke-width:16;
+"/>
+<!-- Arrowhead on endpoint -->
+<path d="M 3521 9522
+3720 9537
+3569 9405
+3521 9522
 Z
 " style="stroke:#000000;stroke-width:16;
 fill:#000000;"/>
@@ -520,23 +603,49 @@ fill:#000000;"/>
 " style="stroke:#000000;stroke-width:16;
 "/>
 <!-- Arrowhead on endpoint -->
-<path d="M 5181 9084
-5244 9336
-5306 9084
-5181 9084
+<path d="M 5181 9151
+5244 9340
+5307 9151
+5181 9151
 Z
 " style="stroke:#000000;stroke-width:16;
 fill:#000000;"/>
 <!-- Line -->
-<path d="M 5244,3874
-5244,2645
+<path d="M 6094,8124
+6094,9353
 " style="stroke:#000000;stroke-width:16;
 "/>
 <!-- Arrowhead on endpoint -->
-<path d="M 5306 2913
-5244 2662
-5181 2913
-5306 2913
+<path d="M 6031 9151
+6094 9340
+6157 9151
+6031 9151
+Z
+" style="stroke:#000000;stroke-width:16;
+fill:#000000;"/>
+<!-- Line -->
+<path d="M 4771,10109
+4771,10676
+" style="stroke:#000000;stroke-width:16;
+"/>
+<!-- Arrowhead on endpoint -->
+<path d="M 4708 10474
+4771 10663
+4834 10474
+4708 10474
+Z
+" style="stroke:#000000;stroke-width:16;
+fill:#000000;"/>
+<!-- Line -->
+<path d="M 7039,10109
+7039,10676
+" style="stroke:#000000;stroke-width:16;
+"/>
+<!-- Arrowhead on endpoint -->
+<path d="M 6976 10474
+7039 10663
+7102 10474
+6976 10474
 Z
 " style="stroke:#000000;stroke-width:16;
 fill:#000000;"/>
@@ -547,10 +656,10 @@ fill:#000000;"/>
 " style="stroke:#000000;stroke-width:16;
 "/>
 <!-- Arrowhead on endpoint -->
-<path d="M 8809 9445
-8567 9540
-8825 9570
-8809 9445
+<path d="M 8743 9454
+8563 9540
+8759 9579
+8743 9454
 Z
 " style="stroke:#000000;stroke-width:16;
 fill:#000000;"/>
@@ -561,25 +670,49 @@ fill:#000000;"/>
 " style="stroke:#000000;stroke-width:16;
 "/>
 <!-- Arrowhead on endpoint -->
-<path d="M 12203 8676
-12141 8425
-12078 8676
-12203 8676
+<path d="M 12204 8609
+12141 8420
+12078 8609
+12204 8609
 Z
 " style="stroke:#000000;stroke-width:16;
 fill:#000000;"/>
 <!-- Line -->
-<path d="M 8551,2456
-10629,2456
-11574,3401
-11574,4062
+<path d="M 15212,8503
+15212,7086
 " style="stroke:#000000;stroke-width:16;
 "/>
 <!-- Arrowhead on endpoint -->
-<path d="M 11511 3794
-11574 4046
-11636 3794
-11511 3794
+<path d="M 15275 7288
+15212 7099
+15149 7288
+15275 7288
+Z
+" style="stroke:#000000;stroke-width:16;
+fill:#000000;"/>
+<!-- Line -->
+<path d="M 14409,6377
+13275,6377
+" style="stroke:#000000;stroke-width:16;
+"/>
+<!-- Arrowhead on endpoint -->
+<path d="M 13477 6314
+13288 6377
+13477 6440
+13477 6314
+Z
+" style="stroke:#000000;stroke-width:16;
+fill:#000000;"/>
+<!-- Line -->
+<path d="M 13275,5905
+14409,5905
+" style="stroke:#000000;stroke-width:16;
+"/>
+<!-- Arrowhead on endpoint -->
+<path d="M 14207 5968
+14396 5905
+14207 5842
+14207 5968
 Z
 " style="stroke:#000000;stroke-width:16;
 fill:#000000;"/>
@@ -591,10 +724,25 @@ fill:#000000;"/>
 " style="stroke:#000000;stroke-width:16;
 "/>
 <!-- Arrowhead on endpoint -->
-<path d="M 8818 1921
-8567 1984
-8818 2046
-8818 1921
+<path d="M 8752 1921
+8563 1984
+8752 2047
+8752 1921
+Z
+" style="stroke:#000000;stroke-width:16;
+fill:#000000;"/>
+<!-- Line -->
+<path d="M 8551,2456
+10629,2456
+11574,3401
+11574,4062
+" style="stroke:#000000;stroke-width:16;
+"/>
+<!-- Arrowhead on endpoint -->
+<path d="M 11511 3861
+11574 4050
+11637 3861
+11511 3861
 Z
 " style="stroke:#000000;stroke-width:16;
 fill:#000000;"/>
@@ -604,10 +752,10 @@ fill:#000000;"/>
 " style="stroke:#000000;stroke-width:16;
 "/>
 <!-- Arrowhead on endpoint -->
-<path d="M 9132 3615
-9293 3412
-9055 3516
-9132 3615
+<path d="M 9185 3574
+9296 3409
+9108 3476
+9185 3574
 Z
 " style="stroke:#000000;stroke-width:16;
 fill:#000000;"/>
@@ -617,36 +765,10 @@ fill:#000000;"/>
 " style="stroke:#000000;stroke-width:16;
 "/>
 <!-- Arrowhead on endpoint -->
-<path d="M 7928 3643
-7799 3418
-7807 3677
-7928 3643
-Z
-" style="stroke:#000000;stroke-width:16;
-fill:#000000;"/>
-<!-- Line -->
-<path d="M 7039,10109
-7039,10676
-" style="stroke:#000000;stroke-width:16;
-"/>
-<!-- Arrowhead on endpoint -->
-<path d="M 6976 10407
-7039 10659
-7101 10407
-6976 10407
-Z
-" style="stroke:#000000;stroke-width:16;
-fill:#000000;"/>
-<!-- Line -->
-<path d="M 7039,1795
-7039,1322
-" style="stroke:#000000;stroke-width:16;
-"/>
-<!-- Arrowhead on endpoint -->
-<path d="M 7101 1590
-7039 1339
-6976 1590
-7101 1590
+<path d="M 7910 3577
+7798 3414
+7788 3612
+7910 3577
 Z
 " style="stroke:#000000;stroke-width:16;
 fill:#000000;"/>
@@ -656,36 +778,51 @@ fill:#000000;"/>
 " style="stroke:#000000;stroke-width:16;
 "/>
 <!-- Arrowhead on endpoint -->
-<path d="M 6061 2913
-5999 2662
-5937 2913
-6061 2913
+<path d="M 6062 2847
+5999 2658
+5937 2847
+6062 2847
 Z
 " style="stroke:#000000;stroke-width:16;
 fill:#000000;"/>
 <!-- Line -->
-<path d="M 6094,8124
-6094,9353
+<path d="M 5244,3874
+5244,2645
 " style="stroke:#000000;stroke-width:16;
 "/>
 <!-- Arrowhead on endpoint -->
-<path d="M 6031 9084
-6094 9336
-6156 9084
-6031 9084
+<path d="M 5307 2847
+5244 2658
+5181 2847
+5307 2847
 Z
 " style="stroke:#000000;stroke-width:16;
 fill:#000000;"/>
 <!-- Line -->
-<path d="M 4771,10109
-4771,10676
+<path d="M 2598,4062
+2598,2929
+3732,2456
 " style="stroke:#000000;stroke-width:16;
 "/>
 <!-- Arrowhead on endpoint -->
-<path d="M 4708 10407
-4771 10659
-4833 10407
-4708 10407
+<path d="M 3569 2592
+3720 2461
+3521 2475
+3569 2592
+Z
+" style="stroke:#000000;stroke-width:16;
+fill:#000000;"/>
+<!-- Line -->
+<path d="M 3732,2173
+2031,2929
+2031,4062
+" style="stroke:#000000;stroke-width:16;
+"/>
+<!-- Arrowhead on endpoint -->
+<path d="M 1968 3861
+2031 4050
+2094 3861
+1968 3861
 Z
 " style="stroke:#000000;stroke-width:16;
 fill:#000000;"/>
@@ -695,114 +832,153 @@ fill:#000000;"/>
 " style="stroke:#000000;stroke-width:16;
 "/>
 <!-- Arrowhead on endpoint -->
-<path d="M 4833 1590
-4771 1339
-4708 1590
-4833 1590
+<path d="M 4834 1524
+4771 1335
+4708 1524
+4834 1524
+Z
+" style="stroke:#000000;stroke-width:16;
+fill:#000000;"/>
+<!-- Line -->
+<path d="M 7039,1795
+7039,1322
+" style="stroke:#000000;stroke-width:16;
+"/>
+<!-- Arrowhead on endpoint -->
+<path d="M 7102 1524
+7039 1335
+6976 1524
+7102 1524
 Z
 " style="stroke:#000000;stroke-width:16;
 fill:#000000;"/>
 <!-- Text -->
-<text x="12425" y="6896" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
-target</text>
-<!-- Text -->
-<text x="1653" y="6896" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
-target</text>
-<!-- Text -->
-<text x="1842" y="5574" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
-connection</text>
-<!-- Text -->
-<text x="12330" y="5574" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
-connection</text>
-<!-- Text -->
-<text x="1937" y="4440" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
-stream_interface[0]</text>
-<!-- Text -->
-<text x="12141" y="4440" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
-stream_interface[1]</text>
-<!-- Text -->
-<text x="6094" y="4629" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
+<text x="6094" y="4629" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
 http_msg[req]</text>
 <!-- Text -->
-<text x="6094" y="7085" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
+<text x="6094" y="7085" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
 http_msg[rsp]</text>
 <!-- Text -->
-<text x="4488" y="6235" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
+<text x="4488" y="6235" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
 hdr_idx</text>
 <!-- Text -->
-<text x="6188" y="6235" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
+<text x="6188" y="6235" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
 auth</text>
 <!-- Text -->
-<text x="9968" y="7935" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
+<text x="9968" y="7935" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
 target</text>
 <!-- Text -->
-<text x="9968" y="6802" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
+<text x="9968" y="6802" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
 logs</text>
 <!-- Text -->
-<text x="9968" y="5763" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
+<text x="9968" y="5763" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
 stkctr</text>
 <!-- Text -->
-<text x="9968" y="4629" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
+<text x="9968" y="4629" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
 store</text>
 <!-- Text -->
-<text x="9968" y="8502" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
+<text x="9968" y="8502" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
 session</text>
 <!-- Text -->
-<text x="7984" y="6329" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
-http_txn</text>
-<!-- Text -->
-<text x="6094" y="9636" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
+<text x="6094" y="9636" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
 channel[rep]</text>
 <!-- Text -->
-<text x="1275" y="6235" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
-fd</text>
-<!-- Text -->
-<text x="12992" y="6235" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
-fd</text>
-<!-- Text -->
-<text x="7795" y="3212" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
+<text x="7795" y="3212" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
 uri</text>
 <!-- Text -->
-<text x="9590" y="3212" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
+<text x="9590" y="3212" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
 cookies</text>
 <!-- Text -->
-<text x="6094" y="5007" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="152" text-anchor="middle" >
+<text x="6094" y="5007" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="152" text-anchor="middle" >
 (HTTP request processing)</text>
 <!-- Text -->
-<text x="6094" y="7558" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="152" text-anchor="middle" >
+<text x="6094" y="7558" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="152" text-anchor="middle" >
 (HTTP response processing)</text>
 <!-- Text -->
-<text x="6094" y="2078" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
+<text x="6094" y="2078" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
 channel[req]</text>
 <!-- Text -->
-<text x="6094" y="2362" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="152" text-anchor="middle" >
+<text x="6094" y="2362" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="152" text-anchor="middle" >
 (request forwarding and analysis)</text>
 <!-- Text -->
-<text x="6094" y="9920" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="152" text-anchor="middle" >
+<text x="6094" y="9920" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="152" text-anchor="middle" >
 (response forwarding and analysis)</text>
 <!-- Text -->
-<text x="7039" y="661" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
+<text x="7039" y="661" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
 buffer</text>
 <!-- Text -->
-<text x="7039" y="944" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="152" text-anchor="middle" >
+<text x="7039" y="944" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="152" text-anchor="middle" >
 (internal storage)</text>
 <!-- Text -->
-<text x="7039" y="10959" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
+<text x="7039" y="10959" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
 buffer</text>
 <!-- Text -->
-<text x="7039" y="11243" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="152" text-anchor="middle" >
+<text x="7039" y="11243" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="152" text-anchor="middle" >
 (internal storage)</text>
 <!-- Text -->
-<text x="4771" y="11243" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="152" text-anchor="middle" >
+<text x="4771" y="11243" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="152" text-anchor="middle" >
 (kernel storage)</text>
 <!-- Text -->
-<text x="4771" y="10959" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
+<text x="4771" y="10959" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
 pipe</text>
 <!-- Text -->
-<text x="4771" y="944" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="152" text-anchor="middle" >
+<text x="4771" y="944" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="152" text-anchor="middle" >
 (kernel storage)</text>
 <!-- Text -->
-<text x="4771" y="661" fill="#000000" font-family="Times" font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
+<text x="4771" y="661" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
 pipe</text>
+<!-- Text -->
+<text x="2078" y="6236" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
+stream_interface[0]</text>
+<!-- Text -->
+<text x="12188" y="6236" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
+stream_interface[1]</text>
+<!-- Text -->
+<text x="15259" y="8834" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
+fdtab[fd]</text>
+<!-- Text -->
+<text x="15259" y="5480" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
+connection</text>
+<!-- Text -->
+<text x="-1039" y="5480" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
+connection</text>
+<!-- Text -->
+<text x="-1039" y="8834" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
+fdtab[fd]</text>
+<!-- Text -->
+<text x="7984" y="6329" fill="#000000"  font-family="Times" 
+		 font-style="normal" font-weight="normal" font-size="202" text-anchor="middle" >
+http_txn</text>
 </g>
 </svg>
