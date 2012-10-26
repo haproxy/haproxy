@@ -572,6 +572,12 @@ static inline unsigned int __full_hash(unsigned int a)
 	return a * 3221225473U;
 }
 
+/* sets the address family to AF_UNSPEC so that is_addr() does not match */
+static inline void clear_addr(struct sockaddr_storage *addr)
+{
+	addr->ss_family = AF_UNSPEC;
+}
+
 /* returns non-zero if addr has a valid and non-null IPv4 or IPv6 address,
  * otherwise zero.
  */
