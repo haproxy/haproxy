@@ -1780,12 +1780,24 @@ clitimeout <timeout> (deprecated)
 
 compression algo [ gzip ] ...
 compression type ...
+compression offload
   Enable HTTP compression.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
   Arguments :
     algo  is followed by the list of supported compression algorithms.
     type  is followed by the list of MIME types that will be compressed.
+    offload makes haproxy work as a compression offloader only (see notes).
+
+  The "offload" setting makes haproxy remove the Accept-Encoding header to
+  prevent backend servers from compressing responses. It is strongly
+  recommended not to do this because this means that all the compression work
+  will be done on the single point where haproxy is located. However in some
+  deployment scenarios, haproxy may be installed in front of a buggy gateway
+  and need to prevent it from emitting invalid payloads. In this case, simply
+  removing the header in the configuration does not work because it applies
+  before the header is parsed, so that prevents haproxy from compressing. The
+  "offload" setting should then be used for such scenarios.
 
   Examples :
         compression algo gzip

@@ -5273,6 +5273,9 @@ stats_error_parsing:
 				continue;
 			}
 		}
+		else if (!strcmp(args[1], "offload")) {
+			comp->offload = 1;
+		}
 		else if (!strcmp(args[1], "type")) {
 			int cur_arg;
 			cur_arg = 2;
@@ -5289,7 +5292,7 @@ stats_error_parsing:
 			}
 		}
 		else {
-			Alert("parsing [%s:%d] : '%s' expects algo or type\n",
+			Alert("parsing [%s:%d] : '%s' expects 'algo', 'type' or 'offload'\n",
 			      file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;

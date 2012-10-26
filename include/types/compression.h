@@ -28,6 +28,7 @@
 struct comp {
 	struct comp_algo *algos;
 	struct comp_type *types;
+	unsigned int offload;
 };
 
 struct comp_algo {

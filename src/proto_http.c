@@ -1974,6 +1974,7 @@ static inline int http_skip_chunk_crlf(struct http_msg *msg)
 int select_compression_request_header(struct session *s, struct buffer *req)
 {
 	struct http_txn *txn = &s->txn;
+	struct http_msg *msg = &txn->req;
 	struct hdr_ctx ctx;
 	struct comp_algo *comp_algo = NULL;
 	struct comp_algo *comp_algo_back = NULL;
@@ -2006,6 +2007,17 @@ int select_compression_request_header(struct session *s, struct buffer *req)
 			for (comp_algo = comp_algo_back; comp_algo; comp_algo = comp_algo->next) {
 				if (word_match(ctx.line + ctx.val, ctx.vlen, comp_algo->name, comp_algo->name_len)) {
 					s->comp_algo = comp_algo;
+
+					/* remove all occurrences of the header when "compression offload" is set */
+
+					if ((s->be->comp && s->be->comp->offload) ||
+					    (s->fe->comp && s->fe->comp->offload)) {
+						http_remove_header2(msg, &txn->hdr_idx, &ctx);
+						ctx.idx = 0;
+						while (http_find_header2("Accept-Encoding", 15, req->p, &txn->hdr_idx, &ctx)) {
+							http_remove_header2(msg, &txn->hdr_idx, &ctx);
+						}
+					}
 					return 1;
 				}
 			}
