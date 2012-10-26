@@ -5729,7 +5729,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	 * Similarly, with keep-alive on the client side, we don't want to forward a
 	 * close.
 	 */
-	if ((msg->flags & HTTP_MSGF_TE_CHNK) ||
+	if ((msg->flags & HTTP_MSGF_TE_CHNK) || s->comp_algo ||
 	    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
 	    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL)
 		channel_dont_close(res);
@@ -5742,7 +5742,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	 * flag with the last block of forwarded data, which would cause an
 	 * additional delay to be observed by the receiver.
 	 */
-	if (msg->flags & HTTP_MSGF_TE_CHNK)
+	if ((msg->flags & HTTP_MSGF_TE_CHNK) || s->comp_algo)
 		res->flags |= CF_EXPECT_MORE;
 
 	/* the session handler will take care of timeouts and errors */
