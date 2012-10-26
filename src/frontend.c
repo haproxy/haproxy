@@ -139,16 +139,16 @@ int frontend_accept(struct session *s)
 		else {
 			char pn[INET6_ADDRSTRLEN], sn[INET6_ADDRSTRLEN];
 
-			conn_get_from_addr(&s->req->prod->conn);
-			conn_get_to_addr(&s->req->prod->conn);
+			conn_get_from_addr(s->req->prod->conn);
+			conn_get_to_addr(s->req->prod->conn);
 
-			switch (addr_to_str(&s->req->prod->conn.addr.from, pn, sizeof(pn))) {
+			switch (addr_to_str(&s->req->prod->conn->addr.from, pn, sizeof(pn))) {
 			case AF_INET:
 			case AF_INET6:
-				addr_to_str(&s->req->prod->conn.addr.to, sn, sizeof(sn));
+				addr_to_str(&s->req->prod->conn->addr.to, sn, sizeof(sn));
 				send_log(s->fe, LOG_INFO, "Connect from %s:%d to %s:%d (%s/%s)\n",
-					 pn, get_host_port(&s->req->prod->conn.addr.from),
-					 sn, get_host_port(&s->req->prod->conn.addr.to),
+					 pn, get_host_port(&s->req->prod->conn->addr.from),
+					 sn, get_host_port(&s->req->prod->conn->addr.to),
 					 s->fe->id, (s->fe->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
 				break;
 			case AF_UNIX:
@@ -165,14 +165,14 @@ int frontend_accept(struct session *s)
 		char pn[INET6_ADDRSTRLEN];
 		int len = 0;
 
-		conn_get_from_addr(&s->req->prod->conn);
+		conn_get_from_addr(s->req->prod->conn);
 
-		switch (addr_to_str(&s->req->prod->conn.addr.from, pn, sizeof(pn))) {
+		switch (addr_to_str(&s->req->prod->conn->addr.from, pn, sizeof(pn))) {
 		case AF_INET:
 		case AF_INET6:
 			len = sprintf(trash, "%08x:%s.accept(%04x)=%04x from [%s:%d]\n",
 				      s->uniq_id, s->fe->id, (unsigned short)s->listener->fd, (unsigned short)cfd,
-				      pn, get_host_port(&s->req->prod->conn.addr.from));
+				      pn, get_host_port(&s->req->prod->conn->addr.from));
 			break;
 		case AF_UNIX:
 			/* UNIX socket, only the destination is known */

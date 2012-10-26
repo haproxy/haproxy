@@ -77,6 +77,7 @@
 #include <proto/backend.h>
 #include <proto/channel.h>
 #include <proto/checks.h>
+#include <proto/connection.h>
 #include <proto/fd.h>
 #include <proto/hdr_idx.h>
 #include <proto/listener.h>
@@ -430,6 +431,7 @@ void init(int argc, char **argv)
 	signal_init();
 	init_task();
 	init_session();
+	init_connection();
 	/* warning, we init buffers later */
 	init_pendconn();
 	init_proto_http();
@@ -1122,6 +1124,7 @@ void deinit(void)
 	}
 
 	pool_destroy2(pool2_session);
+	pool_destroy2(pool2_connection);
 	pool_destroy2(pool2_buffer);
 	pool_destroy2(pool2_channel);
 	pool_destroy2(pool2_requri);

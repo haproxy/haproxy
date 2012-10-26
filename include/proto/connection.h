@@ -23,8 +23,14 @@
 #define _PROTO_CONNECTION_H
 
 #include <common/config.h>
+#include <common/memory.h>
 #include <types/connection.h>
 #include <types/listener.h>
+
+extern struct pool_head *pool2_connection;
+
+/* perform minimal intializations, report 0 in case of error, 1 if OK. */
+int init_connection();
 
 /* I/O callback for fd-based connections. It calls the read/write handlers
  * provided by the connection's sock_ops. Returns 0.

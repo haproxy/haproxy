@@ -108,7 +108,7 @@ struct stream_interface {
 	unsigned int err_type;  /* first error detected, one of SI_ET_* */
 	void *err_loc;          /* commonly the server, NULL when SI_ET_NONE */
 
-	struct connection conn; /* descriptor for a connection */
+	struct connection *conn; /* descriptor for a connection */
 	struct si_ops *ops;     /* general operations at the stream interface layer */
 
 	void (*release)(struct stream_interface *); /* handler to call after the last close() */

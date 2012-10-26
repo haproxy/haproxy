@@ -863,7 +863,7 @@ int tcp_inspect_request(struct session *s, struct channel *req, int an_bit)
 					 * to consider rule->act_prm->trk_ctr.type.
 					 */
 					t = rule->act_prm.trk_ctr.table.t;
-					ts = stktable_get_entry(t, addr_to_stktable_key(&s->si[0].conn.addr.from));
+					ts = stktable_get_entry(t, addr_to_stktable_key(&s->si[0].conn->addr.from));
 					if (ts) {
 						session_track_stkctr1(s, t, ts);
 						if (s->fe != s->be)
@@ -879,7 +879,7 @@ int tcp_inspect_request(struct session *s, struct channel *req, int an_bit)
 					 * to consider rule->act_prm->trk_ctr.type.
 					 */
 					t = rule->act_prm.trk_ctr.table.t;
-					ts = stktable_get_entry(t, addr_to_stktable_key(&s->si[0].conn.addr.from));
+					ts = stktable_get_entry(t, addr_to_stktable_key(&s->si[0].conn->addr.from));
 					if (ts) {
 						session_track_stkctr2(s, t, ts);
 						if (s->fe != s->be)
@@ -1033,7 +1033,7 @@ int tcp_exec_req_rules(struct session *s)
 					 * to consider rule->act_prm->trk_ctr.type.
 					 */
 					t = rule->act_prm.trk_ctr.table.t;
-					ts = stktable_get_entry(t, addr_to_stktable_key(&s->si[0].conn.addr.from));
+					ts = stktable_get_entry(t, addr_to_stktable_key(&s->si[0].conn->addr.from));
 					if (ts)
 						session_track_stkctr1(s, t, ts);
 				}
@@ -1046,7 +1046,7 @@ int tcp_exec_req_rules(struct session *s)
 					 * to consider rule->act_prm->trk_ctr.type.
 					 */
 					t = rule->act_prm.trk_ctr.table.t;
-					ts = stktable_get_entry(t, addr_to_stktable_key(&s->si[0].conn.addr.from));
+					ts = stktable_get_entry(t, addr_to_stktable_key(&s->si[0].conn->addr.from));
 					if (ts)
 						session_track_stkctr2(s, t, ts);
 				}
@@ -1511,13 +1511,13 @@ static int
 smp_fetch_src(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
               const struct arg *args, struct sample *smp)
 {
-	switch (l4->si[0].conn.addr.from.ss_family) {
+	switch (l4->si[0].conn->addr.from.ss_family) {
 	case AF_INET:
-		smp->data.ipv4 = ((struct sockaddr_in *)&l4->si[0].conn.addr.from)->sin_addr;
+		smp->data.ipv4 = ((struct sockaddr_in *)&l4->si[0].conn->addr.from)->sin_addr;
 		smp->type = SMP_T_IPV4;
 		break;
 	case AF_INET6:
-		smp->data.ipv6 = ((struct sockaddr_in6 *)(&l4->si[0].conn.addr.from))->sin6_addr;
+		smp->data.ipv6 = ((struct sockaddr_in6 *)(&l4->si[0].conn->addr.from))->sin6_addr;
 		smp->type = SMP_T_IPV6;
 		break;
 	default:
@@ -1534,7 +1534,7 @@ smp_fetch_sport(struct proxy *px, struct session *l4, void *l7, unsigned int opt
                 const struct arg *args, struct sample *smp)
 {
 	smp->type = SMP_T_UINT;
-	if (!(smp->data.uint = get_host_port(&l4->si[0].conn.addr.from)))
+	if (!(smp->data.uint = get_host_port(&l4->si[0].conn->addr.from)))
 		return 0;
 
 	smp->flags = 0;
@@ -1546,15 +1546,15 @@ static int
 smp_fetch_dst(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
               const struct arg *args, struct sample *smp)
 {
-	conn_get_to_addr(&l4->si[0].conn);
+	conn_get_to_addr(l4->si[0].conn);
 
-	switch (l4->si[0].conn.addr.to.ss_family) {
+	switch (l4->si[0].conn->addr.to.ss_family) {
 	case AF_INET:
-		smp->data.ipv4 = ((struct sockaddr_in *)&l4->si[0].conn.addr.to)->sin_addr;
+		smp->data.ipv4 = ((struct sockaddr_in *)&l4->si[0].conn->addr.to)->sin_addr;
 		smp->type = SMP_T_IPV4;
 		break;
 	case AF_INET6:
-		smp->data.ipv6 = ((struct sockaddr_in6 *)(&l4->si[0].conn.addr.to))->sin6_addr;
+		smp->data.ipv6 = ((struct sockaddr_in6 *)(&l4->si[0].conn->addr.to))->sin6_addr;
 		smp->type = SMP_T_IPV6;
 		break;
 	default:
@@ -1570,10 +1570,10 @@ static int
 smp_fetch_dport(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp)
 {
-	conn_get_to_addr(&l4->si[0].conn);
+	conn_get_to_addr(l4->si[0].conn);
 
 	smp->type = SMP_T_UINT;
-	if (!(smp->data.uint = get_host_port(&l4->si[0].conn.addr.to)))
+	if (!(smp->data.uint = get_host_port(&l4->si[0].conn->addr.to)))
 		return 0;
 
 	smp->flags = 0;

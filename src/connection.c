@@ -26,6 +26,15 @@
 #include <proto/ssl_sock.h>
 #endif
 
+struct pool_head *pool2_connection;
+
+/* perform minimal intializations, report 0 in case of error, 1 if OK. */
+int init_connection()
+{
+	pool2_connection = create_pool("connection", sizeof (struct connection), MEM_F_SHARED);
+	return pool2_connection != NULL;
+}
+
 /* I/O callback for fd-based connections. It calls the read/write handlers
  * provided by the connection's sock_ops, which must be valid. It returns 0.
  */
