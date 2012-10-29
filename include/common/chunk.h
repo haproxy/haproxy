@@ -40,6 +40,9 @@ struct chunk {
 int chunk_printf(struct chunk *chk, const char *fmt, ...)
 	__attribute__ ((format(printf, 2, 3)));
 
+int chunk_appendf(struct chunk *chk, const char *fmt, ...)
+	__attribute__ ((format(printf, 2, 3)));
+
 int chunk_htmlencode(struct chunk *dst, struct chunk *src);
 int chunk_asciiencode(struct chunk *dst, struct chunk *src, char qc);
 int chunk_strcmp(const struct chunk *chk, const char *str);

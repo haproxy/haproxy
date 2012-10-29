@@ -151,39 +151,39 @@ const char *get_analyze_status(short analyze_status) {
 static void server_status_printf(struct chunk *msg, struct server *s, unsigned options, int xferred) {
 
 	if (s->track)
-		chunk_printf(msg, " via %s/%s",
+		chunk_appendf(msg, " via %s/%s",
 			s->track->proxy->id, s->track->id);
 
 	if (options & SSP_O_HCHK) {
-		chunk_printf(msg, ", reason: %s", get_check_status_description(s->check.status));
+		chunk_appendf(msg, ", reason: %s", get_check_status_description(s->check.status));
 
 		if (s->check.status >= HCHK_STATUS_L57DATA)
-			chunk_printf(msg, ", code: %d", s->check.code);
+			chunk_appendf(msg, ", code: %d", s->check.code);
 
 		if (*s->check.desc) {
 			struct chunk src;
 
-			chunk_printf(msg, ", info: \"");
+			chunk_appendf(msg, ", info: \"");
 
 			chunk_initlen(&src, s->check.desc, 0, strlen(s->check.desc));
 			chunk_asciiencode(msg, &src, '"');
 
-			chunk_printf(msg, "\"");
+			chunk_appendf(msg, "\"");
 		}
 
 		if (s->check.duration >= 0)
-			chunk_printf(msg, ", check duration: %ldms", s->check.duration);
+			chunk_appendf(msg, ", check duration: %ldms", s->check.duration);
 	}
 
 	if (xferred >= 0) {
 		if (!(s->state & SRV_RUNNING))
-        	        chunk_printf(msg, ". %d active and %d backup servers left.%s"
+			chunk_appendf(msg, ". %d active and %d backup servers left.%s"
 				" %d sessions active, %d requeued, %d remaining in queue",
 				s->proxy->srv_act, s->proxy->srv_bck,
 				(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
 				s->cur_sess, xferred, s->nbpend);
 		else 
-			chunk_printf(msg, ". %d active and %d backup servers online.%s"
+			chunk_appendf(msg, ". %d active and %d backup servers online.%s"
 				" %d sessions requeued, %d total in queue",
 				s->proxy->srv_act, s->proxy->srv_bck,
 				(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
@@ -274,7 +274,7 @@ static void set_server_check_status(struct server *s, short status, char *desc) 
 		}
 		/* FIXME end: calculate local version of the health/rise/fall/state */
 
-		chunk_printf(&msg,
+		chunk_appendf(&msg,
 			"Health check for %sserver %s/%s %s%s",
 			s->state & SRV_BACKUP ? "backup " : "",
 			s->proxy->id, s->id,
@@ -283,7 +283,7 @@ static void set_server_check_status(struct server *s, short status, char *desc) 
 
 		server_status_printf(&msg, s, SSP_O_HCHK, -1);
 
-		chunk_printf(&msg, ", status: %d/%d %s",
+		chunk_appendf(&msg, ", status: %d/%d %s",
 			(state & SRV_RUNNING) ? (health - rise + 1) : (health),
 			(state & SRV_RUNNING) ? (fall) : (rise),
 			(state & SRV_RUNNING)?"UP":"DOWN");
@@ -421,11 +421,11 @@ void set_server_down(struct server *s)
 		chunk_init(&msg, trash, global.tune.bufsize);
 
 		if (s->state & SRV_MAINTAIN) {
-			chunk_printf(&msg,
+			chunk_appendf(&msg,
 				"%sServer %s/%s is DOWN for maintenance", s->state & SRV_BACKUP ? "Backup " : "",
 				s->proxy->id, s->id);
 		} else {
-			chunk_printf(&msg,
+			chunk_appendf(&msg,
 				"%sServer %s/%s is DOWN", s->state & SRV_BACKUP ? "Backup " : "",
 				s->proxy->id, s->id);
 
@@ -513,11 +513,11 @@ void set_server_up(struct server *s) {
 		chunk_init(&msg, trash, global.tune.bufsize);
 
 		if (old_state & SRV_MAINTAIN) {
-			chunk_printf(&msg,
+			chunk_appendf(&msg,
 				"%sServer %s/%s is UP (leaving maintenance)", s->state & SRV_BACKUP ? "Backup " : "",
 				s->proxy->id, s->id);
 		} else {
-			chunk_printf(&msg,
+			chunk_appendf(&msg,
 				"%sServer %s/%s is UP", s->state & SRV_BACKUP ? "Backup " : "",
 				s->proxy->id, s->id);
 
@@ -559,7 +559,7 @@ static void set_server_disabled(struct server *s) {
 
 	chunk_init(&msg, trash, global.tune.bufsize);
 
-	chunk_printf(&msg,
+	chunk_appendf(&msg,
 		"Load-balancing on %sServer %s/%s is disabled",
 		s->state & SRV_BACKUP ? "Backup " : "",
 		s->proxy->id, s->id);
@@ -596,7 +596,7 @@ static void set_server_enabled(struct server *s) {
 
 	chunk_init(&msg, trash, global.tune.bufsize);
 
-	chunk_printf(&msg,
+	chunk_appendf(&msg,
 		"Load-balancing on %sServer %s/%s is enabled again",
 		s->state & SRV_BACKUP ? "Backup " : "",
 		s->proxy->id, s->id);

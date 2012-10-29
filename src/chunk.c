@@ -19,11 +19,36 @@
 #include <common/chunk.h>
 
 /*
+ * Does an snprintf() at the beginning of chunk <chk>, respecting the limit of
+ * at most chk->size chars. If the chk->len is over, nothing is added. Returns
+ * the new chunk size, or < 0 in case of failure.
+ */
+int chunk_printf(struct chunk *chk, const char *fmt, ...)
+{
+	va_list argp;
+	int ret;
+
+	if (!chk->str || !chk->size)
+		return 0;
+
+	va_start(argp, fmt);
+	ret = vsnprintf(chk->str, chk->size, fmt, argp);
+	va_end(argp);
+	chk->len = ret;
+
+	if (ret >= chk->size)
+		ret = -1;
+
+	chk->len = ret;
+	return chk->len;
+}
+
+/*
  * Does an snprintf() at the end of chunk <chk>, respecting the limit of
  * at most chk->size chars. If the chk->len is over, nothing is added. Returns
  * the new chunk size.
  */
-int chunk_printf(struct chunk *chk, const char *fmt, ...)
+int chunk_appendf(struct chunk *chk, const char *fmt, ...)
 {
 	va_list argp;
 	int ret;
