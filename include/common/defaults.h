@@ -83,13 +83,6 @@
 #define MIN_RECV_AT_ONCE_ENOUGH (7*1448)
 #endif
 
-// same, but for writes. Generally, it's enough to write twice: one time for
-// first half of the buffer, and a second time for the last half after a
-// wrap-around.
-#ifndef MAX_WRITE_POLL_LOOPS
-#define MAX_WRITE_POLL_LOOPS 2
-#endif
-
 // The minimum number of bytes to be forwarded that is worth trying to splice.
 // Below 4kB, it's not worth allocating pipes nor pretending to zero-copy.
 #ifndef MIN_SPLICE_FORWARD

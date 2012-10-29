@@ -671,7 +671,6 @@ static int si_conn_send_loop(struct connection *conn)
 {
 	struct stream_interface *si = conn->owner;
 	struct channel *chn = si->ob;
-	int write_poll = MAX_WRITE_POLL_LOOPS;
 	int ret;
 
 	if (chn->pipe && conn->xprt->snd_pipe) {
@@ -728,8 +727,10 @@ static int si_conn_send_loop(struct connection *conn)
 			break;
 		}
 
-		if (--write_poll <= 0)
-			break;
+		/* if some data remain in the buffer, it's only because the
+		 * system bufers are full, so we don't want to loop again.
+		 */
+		break;
 	} /* while */
 
 	if (conn->flags & CO_FL_ERROR)
