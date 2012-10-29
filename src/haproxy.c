@@ -742,6 +742,10 @@ void init(int argc, char **argv)
 		global.nbproc = 1;
 
 	swap_buffer = (char *)calloc(1, global.tune.bufsize);
+	sample_trash_buf1 = (char *)calloc(1, global.tune.bufsize);
+	sample_trash_buf2 = (char *)calloc(1, global.tune.bufsize);
+	get_http_auth_buff = (char *)calloc(1, global.tune.bufsize);
+
 
 	fdinfo = (struct fdinfo *)calloc(1,
 				       sizeof(struct fdinfo) * (global.maxsock));

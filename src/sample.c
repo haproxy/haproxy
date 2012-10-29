@@ -15,6 +15,8 @@
 #include <arpa/inet.h>
 #include <stdio.h>
 
+#include <types/global.h>
+
 #include <common/chunk.h>
 #include <common/standard.h>
 
@@ -28,11 +30,8 @@ static struct sample temp_smp;
 static struct chunk trash_chunk;
 
 /* trash buffers used or sample conversions */
-static char sample_trash_buf1[BUFSIZE];
-static char sample_trash_buf2[BUFSIZE];
-
-/* sample_trash_buf point on used buffer*/
-static char *sample_trash_buf = sample_trash_buf1;
+char *sample_trash_buf1;
+char *sample_trash_buf2;
 
 /* list head of all known sample fetch keywords */
 static struct sample_fetch_kw_list sample_fetches = {
@@ -109,12 +108,13 @@ struct sample_conv *find_sample_conv(const char *kw, int len)
 */
 struct chunk *sample_get_trash_chunk(void)
 {
-	if (sample_trash_buf == sample_trash_buf1)
-		sample_trash_buf = sample_trash_buf2;
-	else
-		sample_trash_buf = sample_trash_buf1;
+	char *sample_trash_buf;
 
-	chunk_init(&trash_chunk, sample_trash_buf, BUFSIZE);
+	sample_trash_buf  = sample_trash_buf1;
+	sample_trash_buf1 = sample_trash_buf2;
+	sample_trash_buf2 = sample_trash_buf1;
+
+	chunk_init(&trash_chunk, sample_trash_buf, global.tune.bufsize);
 
 	return &trash_chunk;
 }

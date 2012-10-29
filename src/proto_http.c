@@ -1196,7 +1196,7 @@ const char *http_parse_reqline(struct http_msg *msg,
  * searching again for something we are unable to find anyway.
  */
 
-char get_http_auth_buff[BUFSIZE];
+char *get_http_auth_buff;
 
 int
 get_http_auth(struct session *s)
@@ -1245,7 +1245,7 @@ get_http_auth(struct session *s)
 	if (!strncasecmp("Basic", auth_method.str, auth_method.len)) {
 
 		len = base64dec(txn->auth.method_data.str, txn->auth.method_data.len,
-				get_http_auth_buff, BUFSIZE - 1);
+				get_http_auth_buff, global.tune.bufsize - 1);
 
 		if (len < 0)
 			return 0;

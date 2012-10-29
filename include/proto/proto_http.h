@@ -53,6 +53,7 @@ extern const int http_err_codes[HTTP_ERR_SIZE];
 extern struct chunk http_err_chunks[HTTP_ERR_SIZE];
 extern const char *HTTP_302;
 extern const char *HTTP_303;
+extern char *get_http_auth_buff;
 
 #define HTTP_IS_CTL(x)   (http_is_ctl[(unsigned char)(x)])
 #define HTTP_IS_SEP(x)   (http_is_sep[(unsigned char)(x)])

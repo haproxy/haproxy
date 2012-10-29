@@ -26,6 +26,10 @@
 #include <types/sample.h>
 #include <types/stick_table.h>
 
+/* only exported for late memory allocation, do not use */
+extern char *sample_trash_buf1;
+extern char *sample_trash_buf2;
+
 struct sample_expr *sample_parse_expr(char **str, int *idx, char *err, int err_size);
 struct sample *sample_process(struct proxy *px, struct session *l4,
                                void *l7, unsigned int dir, struct sample_expr *expr,
