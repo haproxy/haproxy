@@ -156,7 +156,6 @@ static int oldpids_sig; /* use USR1 or TERM */
 
 /* this is used to drain data, and as a temporary buffer for sprintf()... */
 char *trash = NULL;
-int trashlen = BUFSIZE;
 
 /* this buffer is always the same size as standard buffers and is used for
  * swapping data inside a buffer.
