@@ -1974,16 +1974,21 @@ int select_compression_request_header(struct session *s, struct buffer *req)
 	struct comp_algo *comp_algo = NULL;
 	struct comp_algo *comp_algo_back = NULL;
 
-	/* Disable compression for older user agents announcing themselves as "Mozilla/4".
-	 * Note all of them are broken but they are very few and the broken ones are there.
+	/* Disable compression for older user agents announcing themselves as "Mozilla/4"
+	 * unless they are known good (MSIE 6 with XP SP2, or MSIE 7 and later).
 	 * See http://zoompf.com/2012/02/lose-the-wait-http-compression for more details.
 	 */
 	ctx.idx = 0;
 	if (http_find_header2("User-Agent", 10, req->p, &txn->hdr_idx, &ctx) &&
 	    ctx.vlen >= 9 &&
-	    memcmp(ctx.line + ctx.val, "Mozilla/4", 9) == 0) {
-		s->comp_algo = NULL;
-		return 0;
+	    memcmp(ctx.line + ctx.val, "Mozilla/4", 9) == 0 &&
+	    (ctx.vlen < 31 ||
+	     memcmp(ctx.line + ctx.val + 25, "MSIE ", 5) != 0 ||
+	     ctx.line[ctx.val + 30] < '6' ||
+	     (ctx.line[ctx.val + 30] == '6' &&
+	      (ctx.vlen < 54 || memcmp(ctx.line + 51, "SV1", 3) != 0)))) {
+	    s->comp_algo = NULL;
+	    return 0;
 	}
 
 	ctx.idx = 0;
