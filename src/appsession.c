@@ -97,13 +97,9 @@ static struct task *appsession_refresh(struct task *t)
 				if (tick_is_expired(element->expire, now_ms)) {
 					if ((global.mode & MODE_DEBUG) &&
 					    (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
-						int len;
-						/*
-						  on Linux NULL pointers are caught by sprintf, on solaris -> segfault 
-						*/
-						len = sprintf(trash, "appsession_refresh: cleaning up expired Session '%s' on Server %s\n", 
-							      element->sessid, element->serverid?element->serverid:"(null)");
-						if (write(1, trash, len) < 0) /* shut gcc warning */;
+						chunk_printf(&trash, "appsession_refresh: cleaning up expired Session '%s' on Server %s\n", 
+						             element->sessid, element->serverid?element->serverid:"(null)");
+						if (write(1, trash.str, trash.len) < 0) /* shut gcc warning */;
 					}
 					/* delete the expired element from within the hash table */
 					LIST_DEL(&element->hash_list);

@@ -198,10 +198,8 @@ static void server_status_printf(struct chunk *msg, struct server *s, unsigned o
  * Show information in logs about failed health check if server is UP
  * or succeeded health checks if server is DOWN.
  */
-static void set_server_check_status(struct server *s, short status, char *desc) {
-
-	struct chunk msg;
-
+static void set_server_check_status(struct server *s, short status, char *desc)
+{
 	if (status == HCHK_STATUS_START) {
 		s->result = SRV_CHK_UNKNOWN;	/* no result yet */
 		s->check.desc[0] = '\0';
@@ -238,7 +236,7 @@ static void set_server_check_status(struct server *s, short status, char *desc) 
 
 		int health, rise, fall, state;
 
-		chunk_init(&msg, trash, global.tune.bufsize);
+		chunk_reset(&trash);
 
 		/* FIXME begin: calculate local version of the health/rise/fall/state */
 		health = s->health;
@@ -274,22 +272,22 @@ static void set_server_check_status(struct server *s, short status, char *desc) 
 		}
 		/* FIXME end: calculate local version of the health/rise/fall/state */
 
-		chunk_appendf(&msg,
-			"Health check for %sserver %s/%s %s%s",
-			s->state & SRV_BACKUP ? "backup " : "",
-			s->proxy->id, s->id,
-			(s->result & SRV_CHK_DISABLE)?"conditionally ":"",
-			(s->result & SRV_CHK_RUNNING)?"succeeded":"failed");
+		chunk_appendf(&trash,
+		             "Health check for %sserver %s/%s %s%s",
+		             s->state & SRV_BACKUP ? "backup " : "",
+		             s->proxy->id, s->id,
+		             (s->result & SRV_CHK_DISABLE)?"conditionally ":"",
+		             (s->result & SRV_CHK_RUNNING)?"succeeded":"failed");
 
-		server_status_printf(&msg, s, SSP_O_HCHK, -1);
+		server_status_printf(&trash, s, SSP_O_HCHK, -1);
 
-		chunk_appendf(&msg, ", status: %d/%d %s",
-			(state & SRV_RUNNING) ? (health - rise + 1) : (health),
-			(state & SRV_RUNNING) ? (fall) : (rise),
-			(state & SRV_RUNNING)?"UP":"DOWN");
+		chunk_appendf(&trash, ", status: %d/%d %s",
+		             (state & SRV_RUNNING) ? (health - rise + 1) : (health),
+		             (state & SRV_RUNNING) ? (fall) : (rise),
+		             (state & SRV_RUNNING)?"UP":"DOWN");
 
-		Warning("%s.\n", trash);
-		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash);
+		Warning("%s.\n", trash.str);
+		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
 	}
 }
 
@@ -393,7 +391,6 @@ static void shutdown_backup_sessions(struct proxy *px, int why)
 void set_server_down(struct server *s)
 {
 	struct server *srv;
-	struct chunk msg;
 	int xferred;
 
 	if (s->state & SRV_MAINTAIN) {
@@ -418,28 +415,28 @@ void set_server_down(struct server *s)
 		 */
 		xferred = redistribute_pending(s);
 
-		chunk_init(&msg, trash, global.tune.bufsize);
+		chunk_reset(&trash);
 
 		if (s->state & SRV_MAINTAIN) {
-			chunk_appendf(&msg,
-				"%sServer %s/%s is DOWN for maintenance", s->state & SRV_BACKUP ? "Backup " : "",
-				s->proxy->id, s->id);
+			chunk_appendf(&trash,
+			             "%sServer %s/%s is DOWN for maintenance", s->state & SRV_BACKUP ? "Backup " : "",
+			             s->proxy->id, s->id);
 		} else {
-			chunk_appendf(&msg,
-				"%sServer %s/%s is DOWN", s->state & SRV_BACKUP ? "Backup " : "",
-				s->proxy->id, s->id);
+			chunk_appendf(&trash,
+			             "%sServer %s/%s is DOWN", s->state & SRV_BACKUP ? "Backup " : "",
+			             s->proxy->id, s->id);
 
-			server_status_printf(&msg, s,
-						((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
-						xferred);
+			server_status_printf(&trash, s,
+			                     ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? SSP_O_HCHK : 0),
+			                     xferred);
 		}
-		Warning("%s.\n", trash);
+		Warning("%s.\n", trash.str);
 
 		/* we don't send an alert if the server was previously paused */
 		if (srv_was_paused)
-			send_log(s->proxy, LOG_NOTICE, "%s.\n", trash);
+			send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
 		else
-			send_log(s->proxy, LOG_ALERT, "%s.\n", trash);
+			send_log(s->proxy, LOG_ALERT, "%s.\n", trash.str);
 
 		if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
 			set_backend_down(s->proxy);
@@ -459,7 +456,6 @@ void set_server_down(struct server *s)
 void set_server_up(struct server *s) {
 
 	struct server *srv;
-	struct chunk msg;
 	int xferred;
 	unsigned int old_state = s->state;
 
@@ -510,24 +506,24 @@ void set_server_up(struct server *s) {
 		 */
 		xferred = check_for_pending(s);
 
-		chunk_init(&msg, trash, global.tune.bufsize);
+		chunk_reset(&trash);
 
 		if (old_state & SRV_MAINTAIN) {
-			chunk_appendf(&msg,
-				"%sServer %s/%s is UP (leaving maintenance)", s->state & SRV_BACKUP ? "Backup " : "",
-				s->proxy->id, s->id);
+			chunk_appendf(&trash,
+			             "%sServer %s/%s is UP (leaving maintenance)", s->state & SRV_BACKUP ? "Backup " : "",
+			             s->proxy->id, s->id);
 		} else {
-			chunk_appendf(&msg,
-				"%sServer %s/%s is UP", s->state & SRV_BACKUP ? "Backup " : "",
-				s->proxy->id, s->id);
+			chunk_appendf(&trash,
+			             "%sServer %s/%s is UP", s->state & SRV_BACKUP ? "Backup " : "",
+			             s->proxy->id, s->id);
 
-			server_status_printf(&msg, s,
-						((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
-						xferred);
+			server_status_printf(&trash, s,
+			                     ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? SSP_O_HCHK : 0),
+			                     xferred);
 		}
 
-		Warning("%s.\n", trash);
-		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash);
+		Warning("%s.\n", trash.str);
+		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
 
 		if (s->state & SRV_CHECKED)
 			for(srv = s->tracknext; srv; srv = srv->tracknext)
@@ -544,7 +540,6 @@ void set_server_up(struct server *s) {
 static void set_server_disabled(struct server *s) {
 
 	struct server *srv;
-	struct chunk msg;
 	int xferred;
 
 	s->state |= SRV_GOINGDOWN;
@@ -557,19 +552,19 @@ static void set_server_disabled(struct server *s) {
 	 */
 	xferred = redistribute_pending(s);
 
-	chunk_init(&msg, trash, global.tune.bufsize);
+	chunk_reset(&trash);
 
-	chunk_appendf(&msg,
-		"Load-balancing on %sServer %s/%s is disabled",
-		s->state & SRV_BACKUP ? "Backup " : "",
-		s->proxy->id, s->id);
+	chunk_appendf(&trash,
+	             "Load-balancing on %sServer %s/%s is disabled",
+	             s->state & SRV_BACKUP ? "Backup " : "",
+	             s->proxy->id, s->id);
 
-	server_status_printf(&msg, s,
-				((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
-				xferred);
+	server_status_printf(&trash, s,
+	                     ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? SSP_O_HCHK : 0),
+	                     xferred);
 
-	Warning("%s.\n", trash);
-	send_log(s->proxy, LOG_NOTICE, "%s.\n", trash);
+	Warning("%s.\n", trash.str);
+	send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
 
 	if (!s->proxy->srv_bck && !s->proxy->srv_act)
 		set_backend_down(s->proxy);
@@ -582,7 +577,6 @@ static void set_server_disabled(struct server *s) {
 static void set_server_enabled(struct server *s) {
 
 	struct server *srv;
-	struct chunk msg;
 	int xferred;
 
 	s->state &= ~SRV_GOINGDOWN;
@@ -594,27 +588,27 @@ static void set_server_enabled(struct server *s) {
 	 */
 	xferred = check_for_pending(s);
 
-	chunk_init(&msg, trash, global.tune.bufsize);
+	chunk_reset(&trash);
 
-	chunk_appendf(&msg,
-		"Load-balancing on %sServer %s/%s is enabled again",
-		s->state & SRV_BACKUP ? "Backup " : "",
-		s->proxy->id, s->id);
+	chunk_appendf(&trash,
+	             "Load-balancing on %sServer %s/%s is enabled again",
+	             s->state & SRV_BACKUP ? "Backup " : "",
+	             s->proxy->id, s->id);
 
-	server_status_printf(&msg, s,
-				((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS))?SSP_O_HCHK:0),
-				xferred);
+	server_status_printf(&trash, s,
+	                     ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? SSP_O_HCHK : 0),
+	                     xferred);
 
-	Warning("%s.\n", trash);
-	send_log(s->proxy, LOG_NOTICE, "%s.\n", trash);
+	Warning("%s.\n", trash.str);
+	send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
 
 	if (s->state & SRV_CHECKED)
 		for(srv = s->tracknext; srv; srv = srv->tracknext)
 			set_server_enabled(srv);
 }
 
-void health_adjust(struct server *s, short status) {
-
+void health_adjust(struct server *s, short status)
+{
 	int failed;
 	int expire;
 
@@ -652,8 +646,8 @@ void health_adjust(struct server *s, short status) {
 	if (s->consecutive_errors < s->consecutive_errors_limit)
 		return;
 
-	sprintf(trash, "Detected %d consecutive errors, last one was: %s",
-		s->consecutive_errors, get_analyze_status(status));
+	chunk_printf(&trash, "Detected %d consecutive errors, last one was: %s",
+	             s->consecutive_errors, get_analyze_status(status));
 
 	switch (s->onerror) {
 		case HANA_ONERR_FASTINTER:
@@ -669,7 +663,7 @@ void health_adjust(struct server *s, short status) {
 
 		case HANA_ONERR_FAILCHK:
 		/* simulate a failed health check */
-			set_server_check_status(s, HCHK_STATUS_HANA, trash);
+			set_server_check_status(s, HCHK_STATUS_HANA, trash.str);
 
 			if (s->health > s->rise) {
 				s->health--; /* still good */
@@ -683,7 +677,7 @@ void health_adjust(struct server *s, short status) {
 		case HANA_ONERR_MARKDWN:
 		/* mark server down */
 			s->health = s->rise;
-			set_server_check_status(s, HCHK_STATUS_HANA, trash);
+			set_server_check_status(s, HCHK_STATUS_HANA, trash.str);
 			set_server_down(s);
 
 			break;
@@ -1298,7 +1292,7 @@ static struct task *process_chk(struct task *t)
 			}
 			else if ((s->proxy->options2 & PR_O2_CHK_ANY) == PR_O2_HTTP_CHK) {
 				if (s->proxy->options2 & PR_O2_CHK_SNDST)
-					bo_putblk(s->check.bo, trash, httpchk_build_status_header(s, trash));
+					bo_putblk(s->check.bo, trash.str, httpchk_build_status_header(s, trash.str));
 				bo_putstr(s->check.bo, "\r\n");
 				*s->check.bo->p = '\0'; /* to make gdb output easier to read */
 			}

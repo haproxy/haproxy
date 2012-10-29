@@ -158,7 +158,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		 *  - HEALTH mode without HTTP check => just send "OK"
 		 *  - TCP mode from monitoring address => just close
 		 */
-		recv(cfd, trash, global.tune.bufsize, MSG_DONTWAIT);
+		recv(cfd, trash.str, trash.size, MSG_DONTWAIT);
 		if (p->mode == PR_MODE_HTTP ||
 		    (p->mode == PR_MODE_HEALTH && (p->options2 & PR_O2_CHK_ANY) == PR_O2_HTTP_CHK))
 			send(cfd, "HTTP/1.0 200 OK\r\n\r\n", 19, MSG_DONTWAIT|MSG_NOSIGNAL|MSG_MORE);
@@ -2292,24 +2292,22 @@ struct task *process_session(struct task *t)
 	if (unlikely((global.mode & MODE_DEBUG) &&
 		     (!(global.mode & MODE_QUIET) ||
 		      (global.mode & MODE_VERBOSE)))) {
-		int len;
-
 		if (s->si[1].state == SI_ST_CLO &&
 		    s->si[1].prev_state == SI_ST_EST) {
-			len = sprintf(trash, "%08x:%s.srvcls[%04x:%04x]\n",
+			chunk_printf(&trash, "%08x:%s.srvcls[%04x:%04x]\n",
 				      s->uniq_id, s->be->id,
 				      (unsigned short)si_fd(&s->si[0]),
 				      (unsigned short)si_fd(&s->si[1]));
-			if (write(1, trash, len) < 0) /* shut gcc warning */;
+			if (write(1, trash.str, trash.len) < 0) /* shut gcc warning */;
 		}
 
 		if (s->si[0].state == SI_ST_CLO &&
 		    s->si[0].prev_state == SI_ST_EST) {
-			len = sprintf(trash, "%08x:%s.clicls[%04x:%04x]\n",
+			chunk_printf(&trash, "%08x:%s.clicls[%04x:%04x]\n",
 				      s->uniq_id, s->be->id,
 				      (unsigned short)si_fd(&s->si[0]),
 				      (unsigned short)si_fd(&s->si[1]));
-			if (write(1, trash, len) < 0) /* shut gcc warning */;
+			if (write(1, trash.str, trash.len) < 0) /* shut gcc warning */;
 		}
 	}
 
@@ -2412,11 +2410,10 @@ struct task *process_session(struct task *t)
 
 	if (unlikely((global.mode & MODE_DEBUG) &&
 		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
-		int len;
-		len = sprintf(trash, "%08x:%s.closed[%04x:%04x]\n",
+		chunk_printf(&trash, "%08x:%s.closed[%04x:%04x]\n",
 			      s->uniq_id, s->be->id,
 			      (unsigned short)si_fd(s->req->prod), (unsigned short)si_fd(s->req->cons));
-		if (write(1, trash, len) < 0) /* shut gcc warning */;
+		if (write(1, trash.str, trash.len) < 0) /* shut gcc warning */;
 	}
 
 	s->logs.t_close = tv_ms_elapsed(&s->logs.tv_accept, &now);

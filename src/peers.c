@@ -230,30 +230,30 @@ switchstate:
 				si->applet.st0 = PEER_SESSION_GETVERSION;
 				/* fall through */
 			case PEER_SESSION_GETVERSION:
-				reql = bo_getline(si->ob, trash, global.tune.bufsize);
+				reql = bo_getline(si->ob, trash.str, trash.size);
 				if (reql <= 0) { /* closed or EOL not found */
 					if (reql == 0)
 						goto out;
 					si->applet.st0 = PEER_SESSION_END;
 					goto switchstate;
 				}
-				if (trash[reql-1] != '\n') {
+				if (trash.str[reql-1] != '\n') {
 					si->applet.st0 = PEER_SESSION_END;
 					goto switchstate;
 				}
-				else if (reql > 1 && (trash[reql-2] == '\r'))
-					trash[reql-2] = 0;
+				else if (reql > 1 && (trash.str[reql-2] == '\r'))
+					trash.str[reql-2] = 0;
 				else
-					trash[reql-1] = 0;
+					trash.str[reql-1] = 0;
 
 				bo_skip(si->ob, reql);
 
 				/* test version */
-				if (strcmp(PEER_SESSION_PROTO_NAME " 1.0", trash) != 0) {
+				if (strcmp(PEER_SESSION_PROTO_NAME " 1.0", trash.str) != 0) {
 					si->applet.st0 = PEER_SESSION_EXIT;
 					si->applet.st1 = PEER_SESSION_ERRVERSION;
 					/* test protocol */
-					if (strncmp(PEER_SESSION_PROTO_NAME " ", trash, strlen(PEER_SESSION_PROTO_NAME)+1) != 0)
+					if (strncmp(PEER_SESSION_PROTO_NAME " ", trash.str, strlen(PEER_SESSION_PROTO_NAME)+1) != 0)
 						si->applet.st1 = PEER_SESSION_ERRPROTO;
 					goto switchstate;
 				}
@@ -261,26 +261,26 @@ switchstate:
 				si->applet.st0 = PEER_SESSION_GETHOST;
 				/* fall through */
 			case PEER_SESSION_GETHOST:
-				reql = bo_getline(si->ob, trash, global.tune.bufsize);
+				reql = bo_getline(si->ob, trash.str, trash.size);
 				if (reql <= 0) { /* closed or EOL not found */
 					if (reql == 0)
 						goto out;
 					si->applet.st0 = PEER_SESSION_END;
 					goto switchstate;
 				}
-				if (trash[reql-1] != '\n') {
+				if (trash.str[reql-1] != '\n') {
 					si->applet.st0 = PEER_SESSION_END;
 					goto switchstate;
 				}
-				else if (reql > 1 && (trash[reql-2] == '\r'))
-					trash[reql-2] = 0;
+				else if (reql > 1 && (trash.str[reql-2] == '\r'))
+					trash.str[reql-2] = 0;
 				else
-					trash[reql-1] = 0;
+					trash.str[reql-1] = 0;
 
 				bo_skip(si->ob, reql);
 
 				/* test hostname match */
-				if (strcmp(localpeer, trash) != 0) {
+				if (strcmp(localpeer, trash.str) != 0) {
 					si->applet.st0 = PEER_SESSION_EXIT;
 					si->applet.st1 = PEER_SESSION_ERRHOST;
 					goto switchstate;
@@ -291,27 +291,27 @@ switchstate:
 			case PEER_SESSION_GETPEER: {
 				struct peer *curpeer;
 				char *p;
-				reql = bo_getline(si->ob, trash, global.tune.bufsize);
+				reql = bo_getline(si->ob, trash.str, trash.size);
 				if (reql <= 0) { /* closed or EOL not found */
 					if (reql == 0)
 						goto out;
 					si->applet.st0 = PEER_SESSION_END;
 					goto switchstate;
 				}
-				if (trash[reql-1] != '\n') {
+				if (trash.str[reql-1] != '\n') {
 					/* Incomplete line, we quit */
 					si->applet.st0 = PEER_SESSION_END;
 					goto switchstate;
 				}
-				else if (reql > 1 && (trash[reql-2] == '\r'))
-					trash[reql-2] = 0;
+				else if (reql > 1 && (trash.str[reql-2] == '\r'))
+					trash.str[reql-2] = 0;
 				else
-					trash[reql-1] = 0;
+					trash.str[reql-1] = 0;
 
 				bo_skip(si->ob, reql);
 
 				/* parse line "<peer name> <pid>" */
-				p = strchr(trash, ' ');
+				p = strchr(trash.str, ' ');
 				if (!p) {
 					si->applet.st0 = PEER_SESSION_EXIT;
 					si->applet.st1 = PEER_SESSION_ERRPROTO;
@@ -321,7 +321,7 @@ switchstate:
 
 				/* lookup known peer */
 				for (curpeer = curpeers->remote; curpeer; curpeer = curpeer->next) {
-					if (strcmp(curpeer->id, trash) == 0)
+					if (strcmp(curpeer->id, trash.str) == 0)
 						break;
 				}
 
@@ -344,7 +344,7 @@ switchstate:
 				size_t key_size;
 				char *p;
 
-				reql = bo_getline(si->ob, trash, global.tune.bufsize);
+				reql = bo_getline(si->ob, trash.str, trash.size);
 				if (reql <= 0) { /* closed or EOL not found */
 					if (reql == 0)
 						goto out;
@@ -355,20 +355,20 @@ switchstate:
 				/* Re init si->conn->xprt_ctx to null, to handle correctly a release case */
 				si->conn->xprt_ctx = NULL;
 
-				if (trash[reql-1] != '\n') {
+				if (trash.str[reql-1] != '\n') {
 					/* Incomplete line, we quit */
 					si->applet.st0 = PEER_SESSION_END;
 					goto switchstate;
 				}
-				else if (reql > 1 && (trash[reql-2] == '\r'))
-					trash[reql-2] = 0;
+				else if (reql > 1 && (trash.str[reql-2] == '\r'))
+					trash.str[reql-2] = 0;
 				else
-					trash[reql-1] = 0;
+					trash.str[reql-1] = 0;
 
 				bo_skip(si->ob, reql);
 
 				/* Parse line "<table name> <type> <size>" */
-				p = strchr(trash, ' ');
+				p = strchr(trash.str, ' ');
 				if (!p) {
 					si->applet.st0 = PEER_SESSION_EXIT;
 					si->applet.st1 = PEER_SESSION_ERRPROTO;
@@ -388,7 +388,7 @@ switchstate:
 				key_size = (size_t)atoi(p);
 				for (st = curpeers->tables; st; st = st->next) {
 					/* If table name matches */
-					if (strcmp(st->table->id, trash) == 0) {
+					if (strcmp(st->table->id, trash.str) == 0) {
 						/* If key size mismatches */
 						if (key_size != st->table->key_size) {
 							si->applet.st0 = PEER_SESSION_EXIT;
@@ -445,8 +445,8 @@ switchstate:
 			case PEER_SESSION_SENDSUCCESS:{
 				struct peer_session *ps = (struct peer_session *)si->conn->xprt_ctx;
 
-				repl = snprintf(trash, global.tune.bufsize, "%d\n", PEER_SESSION_SUCCESSCODE);
-				repl = bi_putblk(si->ib, trash, repl);
+				repl = snprintf(trash.str, trash.size, "%d\n", PEER_SESSION_SUCCESSCODE);
+				repl = bi_putblk(si->ib, trash.str, repl);
 				if (repl <= 0) {
 					if (repl == -1)
 						goto out;
@@ -496,7 +496,7 @@ switchstate:
 				struct peer_session *ps = (struct peer_session *)si->conn->xprt_ctx;
 
 				/* Send headers */
-				repl = snprintf(trash, global.tune.bufsize,
+				repl = snprintf(trash.str, trash.size,
 				                PEER_SESSION_PROTO_NAME " 1.0\n%s\n%s %d\n%s %lu %d\n",
 				                ps->peer->id,
 				                localpeer,
@@ -505,12 +505,12 @@ switchstate:
 				                ps->table->table->type,
 				                (int)ps->table->table->key_size);
 
-				if (repl >= global.tune.bufsize) {
+				if (repl >= trash.size) {
 					si->applet.st0 = PEER_SESSION_END;
 					goto switchstate;
 				}
 
-				repl = bi_putblk(si->ib, trash, repl);
+				repl = bi_putblk(si->ib, trash.str, repl);
 				if (repl <= 0) {
 					if (repl == -1)
 						goto out;
@@ -528,27 +528,27 @@ switchstate:
 				if (si->ib->flags & CF_WRITE_PARTIAL)
 					ps->statuscode = PEER_SESSION_CONNECTEDCODE;
 
-				reql = bo_getline(si->ob, trash, global.tune.bufsize);
+				reql = bo_getline(si->ob, trash.str, trash.size);
 				if (reql <= 0) { /* closed or EOL not found */
 					if (reql == 0)
 						goto out;
 					si->applet.st0 = PEER_SESSION_END;
 					goto switchstate;
 				}
-				if (trash[reql-1] != '\n') {
+				if (trash.str[reql-1] != '\n') {
 					/* Incomplete line, we quit */
 					si->applet.st0 = PEER_SESSION_END;
 					goto switchstate;
 				}
-				else if (reql > 1 && (trash[reql-2] == '\r'))
-					trash[reql-2] = 0;
+				else if (reql > 1 && (trash.str[reql-2] == '\r'))
+					trash.str[reql-2] = 0;
 				else
-					trash[reql-1] = 0;
+					trash.str[reql-1] = 0;
 
 				bo_skip(si->ob, reql);
 
 				/* Register status code */
-				ps->statuscode = atoi(trash);
+				ps->statuscode = atoi(trash.str);
 
 				/* Awake main task */
 				task_wakeup(ps->table->sync_task, TASK_WOKEN_MSG);
@@ -866,11 +866,11 @@ incomplete:
 				if (ps->pushack != ps->lastack) {
 					uint32_t netinteger;
 
-					trash[0] = 'A';
+					trash.str[0] = 'A';
 					netinteger = htonl(ps->pushack);
-					memcpy(&trash[1], &netinteger, sizeof(netinteger));
+					memcpy(&trash.str[1], &netinteger, sizeof(netinteger));
 
-					repl = bi_putblk(si->ib, trash, 1+sizeof(netinteger));
+					repl = bi_putblk(si->ib, trash.str, 1+sizeof(netinteger));
 					if (repl <= 0) {
 						/* no more write possible */
 						if (repl == -1)
@@ -903,10 +903,10 @@ incomplete:
 							}
 
 							ts = eb32_entry(eb, struct stksess, upd);
-							msglen = peer_prepare_datamsg(ts, ps, trash, global.tune.bufsize);
+							msglen = peer_prepare_datamsg(ts, ps, trash.str, trash.size);
 							if (msglen) {
 								/* message to buffer */
-								repl = bi_putblk(si->ib, trash, msglen);
+								repl = bi_putblk(si->ib, trash.str, msglen);
 								if (repl <= 0) {
 									/* no more write possible */
 									if (repl == -1)
@@ -937,10 +937,10 @@ incomplete:
 							}
 
 							ts = eb32_entry(eb, struct stksess, upd);
-							msglen = peer_prepare_datamsg(ts, ps, trash, global.tune.bufsize);
+							msglen = peer_prepare_datamsg(ts, ps, trash.str, trash.size);
 							if (msglen) {
 								/* message to buffer */
-								repl = bi_putblk(si->ib, trash, msglen);
+								repl = bi_putblk(si->ib, trash.str, msglen);
 								if (repl <= 0) {
 									/* no more write possible */
 									if (repl == -1)
@@ -995,10 +995,10 @@ incomplete:
 						}
 
 						ts = eb32_entry(eb, struct stksess, upd);
-						msglen = peer_prepare_datamsg(ts, ps, trash, global.tune.bufsize);
+						msglen = peer_prepare_datamsg(ts, ps, trash.str, trash.size);
 						if (msglen) {
 							/* message to buffer */
-							repl = bi_putblk(si->ib, trash, msglen);
+							repl = bi_putblk(si->ib, trash.str, msglen);
 							if (repl <= 0) {
 								/* no more write possible */
 								if (repl == -1)
@@ -1015,9 +1015,9 @@ incomplete:
 				goto out;
 			}
 			case PEER_SESSION_EXIT:
-				repl = snprintf(trash, global.tune.bufsize, "%d\n", si->applet.st1);
+				repl = snprintf(trash.str, trash.size, "%d\n", si->applet.st1);
 
-				if (bi_putblk(si->ib, trash, repl) == -1)
+				if (bi_putblk(si->ib, trash.str, repl) == -1)
 					goto out;
 				si->applet.st0 = PEER_SESSION_END;
 				/* fall through */
@@ -1229,7 +1229,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	if ((s->req->buf = pool_alloc2(pool2_buffer)) == NULL)
 		goto out_fail_req_buf; /* no memory */
 
-	s->req->buf->size = global.tune.bufsize;
+	s->req->buf->size = trash.size;
 	channel_init(s->req);
 	s->req->prod = &s->si[0];
 	s->req->cons = &s->si[1];
@@ -1255,7 +1255,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	if ((s->rep->buf = pool_alloc2(pool2_buffer)) == NULL)
 		goto out_fail_rep_buf; /* no memory */
 
-	s->rep->buf->size = global.tune.bufsize;
+	s->rep->buf->size = trash.size;
 	channel_init(s->rep);
 	s->rep->prod = &s->si[1];
 	s->rep->cons = &s->si[0];

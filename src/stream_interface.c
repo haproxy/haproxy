@@ -507,7 +507,7 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 		 * (which is recomputed every time since it's constant). If
 		 * it is positive, it means we have to send from the start.
 		 */
-		ret = make_proxy_line(trash, global.tune.bufsize, &si->ob->prod->conn->addr.from, &si->ob->prod->conn->addr.to);
+		ret = make_proxy_line(trash.str, trash.size, &si->ob->prod->conn->addr.from, &si->ob->prod->conn->addr.to);
 		if (!ret)
 			goto out_error;
 
@@ -517,7 +517,7 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 		/* we have to send trash from (ret+sp for -sp bytes). If the
 		 * data layer has a pending write, we'll also set MSG_MORE.
 		 */
-		ret = send(conn->t.sock.fd, trash + ret + si->send_proxy_ofs, -si->send_proxy_ofs,
+		ret = send(conn->t.sock.fd, trash.str + ret + si->send_proxy_ofs, -si->send_proxy_ofs,
 			   (conn->flags & CO_FL_DATA_WR_ENA) ? MSG_MORE : 0);
 
 		if (ret == 0)

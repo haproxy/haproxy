@@ -155,7 +155,7 @@ static int *oldpids = NULL;
 static int oldpids_sig; /* use USR1 or TERM */
 
 /* this is used to drain data, and as a temporary buffer for sprintf()... */
-char *trash = NULL;
+struct chunk trash = { };
 
 /* this buffer is always the same size as standard buffers and is used for
  * swapping data inside a buffer.
@@ -345,37 +345,37 @@ void sig_dump_state(struct sig_handler *sh)
 
 		send_log(p, LOG_NOTICE, "SIGHUP received, dumping servers states for proxy %s.\n", p->id);
 		while (s) {
-			snprintf(trash, global.tune.bufsize,
-				 "SIGHUP: Server %s/%s is %s. Conn: %d act, %d pend, %lld tot.",
-				 p->id, s->id,
-				 (s->state & SRV_RUNNING) ? "UP" : "DOWN",
-				 s->cur_sess, s->nbpend, s->counters.cum_sess);
-			Warning("%s\n", trash);
-			send_log(p, LOG_NOTICE, "%s\n", trash);
+			chunk_printf(&trash,
+			             "SIGHUP: Server %s/%s is %s. Conn: %d act, %d pend, %lld tot.",
+			             p->id, s->id,
+			             (s->state & SRV_RUNNING) ? "UP" : "DOWN",
+			             s->cur_sess, s->nbpend, s->counters.cum_sess);
+			Warning("%s\n", trash.str);
+			send_log(p, LOG_NOTICE, "%s\n", trash.str);
 			s = s->next;
 		}
 
 		/* FIXME: those info are a bit outdated. We should be able to distinguish between FE and BE. */
 		if (!p->srv) {
-			snprintf(trash, global.tune.bufsize,
-				 "SIGHUP: Proxy %s has no servers. Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %lld+%lld.",
-				 p->id,
-				 p->feconn, p->beconn, p->totpend, p->nbpend, p->fe_counters.cum_conn, p->be_counters.cum_conn);
+			chunk_printf(&trash,
+			             "SIGHUP: Proxy %s has no servers. Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %lld+%lld.",
+			             p->id,
+			             p->feconn, p->beconn, p->totpend, p->nbpend, p->fe_counters.cum_conn, p->be_counters.cum_conn);
 		} else if (p->srv_act == 0) {
-			snprintf(trash, global.tune.bufsize,
-				 "SIGHUP: Proxy %s %s ! Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %lld+%lld.",
-				 p->id,
-				 (p->srv_bck) ? "is running on backup servers" : "has no server available",
-				 p->feconn, p->beconn, p->totpend, p->nbpend, p->fe_counters.cum_conn, p->be_counters.cum_conn);
+			chunk_printf(&trash,
+			             "SIGHUP: Proxy %s %s ! Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %lld+%lld.",
+			             p->id,
+			             (p->srv_bck) ? "is running on backup servers" : "has no server available",
+			             p->feconn, p->beconn, p->totpend, p->nbpend, p->fe_counters.cum_conn, p->be_counters.cum_conn);
 		} else {
-			snprintf(trash, global.tune.bufsize,
-				 "SIGHUP: Proxy %s has %d active servers and %d backup servers available."
-				 " Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %lld+%lld.",
-				 p->id, p->srv_act, p->srv_bck,
-				 p->feconn, p->beconn, p->totpend, p->nbpend, p->fe_counters.cum_conn, p->be_counters.cum_conn);
+			chunk_printf(&trash,
+			             "SIGHUP: Proxy %s has %d active servers and %d backup servers available."
+			             " Conn: act(FE+BE): %d+%d, %d pend (%d unass), tot(FE+BE): %lld+%lld.",
+			             p->id, p->srv_act, p->srv_bck,
+			             p->feconn, p->beconn, p->totpend, p->nbpend, p->fe_counters.cum_conn, p->be_counters.cum_conn);
 		}
-		Warning("%s\n", trash);
-		send_log(p, LOG_NOTICE, "%s\n", trash);
+		Warning("%s\n", trash.str);
+		send_log(p, LOG_NOTICE, "%s\n", trash.str);
 
 		p = p->next;
 	}
@@ -403,7 +403,7 @@ void init(int argc, char **argv)
 	char *change_dir = NULL;
 	struct tm curtime;
 
-	trash = malloc(global.tune.bufsize);
+	chunk_init(&trash, malloc(global.tune.bufsize), global.tune.bufsize);
 
 	/* NB: POSIX does not make it mandatory for gethostname() to NULL-terminate
 	 * the string in case of truncation, and at least FreeBSD appears not to do

@@ -282,15 +282,14 @@ void conn_update_sock_polling(struct connection *c)
 int conn_recv_proxy(struct connection *conn, int flag)
 {
 	char *line, *end;
-	int len;
 
 	/* we might have been called just after an asynchronous shutr */
 	if (conn->flags & CO_FL_SOCK_RD_SH)
 		goto fail;
 
 	do {
-		len = recv(conn->t.sock.fd, trash, global.tune.bufsize, MSG_PEEK);
-		if (len < 0) {
+		trash.len = recv(conn->t.sock.fd, trash.str, trash.size, MSG_PEEK);
+		if (trash.len < 0) {
 			if (errno == EINTR)
 				continue;
 			if (errno == EAGAIN) {
@@ -301,18 +300,18 @@ int conn_recv_proxy(struct connection *conn, int flag)
 		}
 	} while (0);
 
-	if (len < 6)
+	if (trash.len < 6)
 		goto missing;
 
-	line = trash;
-	end = trash + len;
+	line = trash.str;
+	end = trash.str + trash.len;
 
 	/* Decode a possible proxy request, fail early if it does not match */
 	if (strncmp(line, "PROXY ", 6) != 0)
 		goto fail;
 
 	line += 6;
-	if (len < 18) /* shortest possible line */
+	if (trash.len < 18) /* shortest possible line */
 		goto missing;
 
 	if (!memcmp(line, "TCP4 ", 5) != 0) {
@@ -425,12 +424,12 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	 * exact line at once. If we don't get the exact same result, we
 	 * fail.
 	 */
-	len = line - trash;
+	trash.len = line - trash.str;
 	do {
-		int len2 = recv(conn->t.sock.fd, trash, len, 0);
+		int len2 = recv(conn->t.sock.fd, trash.str, trash.len, 0);
 		if (len2 < 0 && errno == EINTR)
 			continue;
-		if (len2 != len)
+		if (len2 != trash.len)
 			goto fail;
 	} while (0);
 
@@ -542,7 +541,7 @@ int make_proxy_line(char *buf, int buf_len, struct sockaddr_storage *src, struct
  */
 int conn_local_send_proxy(struct connection *conn, unsigned int flag)
 {
-	int ret, len;
+	int ret;
 
 	/* we might have been called just after an asynchronous shutw */
 	if (conn->flags & CO_FL_SOCK_WR_SH)
@@ -557,14 +556,14 @@ int conn_local_send_proxy(struct connection *conn, unsigned int flag)
 	if (!(conn->flags & CO_FL_ADDR_TO_SET))
 		goto out_error;
 
-	len = make_proxy_line(trash, global.tune.bufsize, &conn->addr.from, &conn->addr.to);
-	if (!len)
+	trash.len = make_proxy_line(trash.str, trash.size, &conn->addr.from, &conn->addr.to);
+	if (!trash.len)
 		goto out_error;
 
-	/* we have to send trash from len bytes. If the data layer has a
+	/* we have to send the whole trash. If the data layer has a
 	 * pending write, we'll also set MSG_MORE.
 	 */
-	ret = send(conn->t.sock.fd, trash, len, (conn->flags & CO_FL_DATA_WR_ENA) ? MSG_MORE : 0);
+	ret = send(conn->t.sock.fd, trash.str, trash.len, (conn->flags & CO_FL_DATA_WR_ENA) ? MSG_MORE : 0);
 
 	if (ret == 0)
 		goto out_wait;
@@ -575,7 +574,7 @@ int conn_local_send_proxy(struct connection *conn, unsigned int flag)
 		goto out_error;
 	}
 
-	if (ret != len)
+	if (ret != trash.len)
 		goto out_error;
 
 	/* The connection is ready now, simply return and let the connection

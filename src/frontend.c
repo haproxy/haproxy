@@ -163,26 +163,25 @@ int frontend_accept(struct session *s)
 
 	if (unlikely((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
 		char pn[INET6_ADDRSTRLEN];
-		int len = 0;
 
 		conn_get_from_addr(s->req->prod->conn);
 
 		switch (addr_to_str(&s->req->prod->conn->addr.from, pn, sizeof(pn))) {
 		case AF_INET:
 		case AF_INET6:
-			len = sprintf(trash, "%08x:%s.accept(%04x)=%04x from [%s:%d]\n",
-				      s->uniq_id, s->fe->id, (unsigned short)s->listener->fd, (unsigned short)cfd,
-				      pn, get_host_port(&s->req->prod->conn->addr.from));
+			chunk_printf(&trash, "%08x:%s.accept(%04x)=%04x from [%s:%d]\n",
+			             s->uniq_id, s->fe->id, (unsigned short)s->listener->fd, (unsigned short)cfd,
+			             pn, get_host_port(&s->req->prod->conn->addr.from));
 			break;
 		case AF_UNIX:
 			/* UNIX socket, only the destination is known */
-			len = sprintf(trash, "%08x:%s.accept(%04x)=%04x from [unix:%d]\n",
-				      s->uniq_id, s->fe->id, (unsigned short)s->listener->fd, (unsigned short)cfd,
-				      s->listener->luid);
+			chunk_printf(&trash, "%08x:%s.accept(%04x)=%04x from [unix:%d]\n",
+			             s->uniq_id, s->fe->id, (unsigned short)s->listener->fd, (unsigned short)cfd,
+			             s->listener->luid);
 			break;
 		}
 
-		if (write(1, trash, len) < 0) /* shut gcc warning */;
+		if (write(1, trash.str, trash.len) < 0) /* shut gcc warning */;
 	}
 
 	if (s->fe->mode == PR_MODE_HTTP)

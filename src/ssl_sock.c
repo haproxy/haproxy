@@ -173,17 +173,17 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, struct bind_conf *s)
 	if (!servername)
 		return SSL_TLSEXT_ERR_NOACK;
 
-	for (i = 0; i < global.tune.bufsize; i++) {
+	for (i = 0; i < trash.size; i++) {
 		if (!servername[i])
 			break;
-		trash[i] = tolower(servername[i]);
-		if (!wildp && (trash[i] == '.'))
-			wildp = &trash[i];
+		trash.str[i] = tolower(servername[i]);
+		if (!wildp && (trash.str[i] == '.'))
+			wildp = &trash.str[i];
 	}
-	trash[i] = 0;
+	trash.str[i] = 0;
 
 	/* lookup in full qualified names */
-	node = ebst_lookup(&s->sni_ctx, trash);
+	node = ebst_lookup(&s->sni_ctx, trash.str);
 	if (!node) {
 		if (!wildp)
 			return SSL_TLSEXT_ERR_ALERT_WARNING;
@@ -887,7 +887,7 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 			 * TCP sockets. We first try to drain possibly pending
 			 * data to avoid this as much as possible.
 			 */
-			ret = recv(conn->t.sock.fd, trash, global.tune.bufsize, MSG_NOSIGNAL|MSG_DONTWAIT);
+			ret = recv(conn->t.sock.fd, trash.str, trash.size, MSG_NOSIGNAL|MSG_DONTWAIT);
 			goto out_error;
 		}
 	}

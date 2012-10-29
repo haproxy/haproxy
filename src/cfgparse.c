@@ -582,7 +582,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.tune.bufsize = atol(args[1]);
 		if (global.tune.maxrewrite >= global.tune.bufsize / 2)
 			global.tune.maxrewrite = global.tune.bufsize / 2;
-		trash = realloc(trash, global.tune.bufsize);
+		chunk_init(&trash, realloc(trash.str, global.tune.bufsize), global.tune.bufsize);
 	}
 	else if (!strcmp(args[0], "tune.maxrewrite")) {
 		if (*(args[1]) == 0) {
@@ -1100,9 +1100,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 				if (kwl->kw[index].section != CFG_GLOBAL)
 					continue;
 				if (strcmp(kwl->kw[index].kw, args[0]) == 0) {
-					/* prepare error message just in case */
-					snprintf(trash, global.tune.bufsize,
-						 "error near '%s' in '%s' section", args[0], "global");
 					rc = kwl->kw[index].parse(args, CFG_GLOBAL, NULL, NULL, file, linenum, &errmsg);
 					if (rc < 0) {
 						Alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
@@ -2928,9 +2925,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		expr = sample_parse_expr(args, &myidx, trash, global.tune.bufsize);
+		expr = sample_parse_expr(args, &myidx, trash.str, trash.size);
 		if (!expr) {
-			Alert("parsing [%s:%d] : '%s': %s\n", file, linenum, args[0], trash);
+			Alert("parsing [%s:%d] : '%s': %s\n", file, linenum, args[0], trash.str);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -5308,8 +5305,6 @@ stats_error_parsing:
 					continue;
 				if (strcmp(kwl->kw[index].kw, args[0]) == 0) {
 					/* prepare error message just in case */
-					snprintf(trash, global.tune.bufsize,
-						 "error near '%s' in %s section", args[0], cursection);
 					rc = kwl->kw[index].parse(args, CFG_LISTEN, curproxy, &defproxy, file, linenum, &errmsg);
 					if (rc < 0) {
 						Alert("parsing [%s:%d] : %s\n", file, linenum, errmsg);
@@ -6607,10 +6602,8 @@ out_uri_auth_compat:
 			/* enable separate counters */
 			if (curproxy->options2 & PR_O2_SOCKSTAT) {
 				listener->counters = (struct licounters *)calloc(1, sizeof(struct licounters));
-				if (!listener->name) {
-					sprintf(trash, "sock-%d", listener->luid);
-					listener->name = strdup(trash);
-				}
+				if (!listener->name)
+					memprintf(&listener->name, "sock-%d", listener->luid);
 			}
 
 			if (curproxy->options & PR_O_TCP_NOLING)
