@@ -762,6 +762,19 @@ static int sess_update_st_con_tcp(struct session *s, struct stream_interface *si
 	 * attempts and error reports.
 	 */
 	if (unlikely(si->flags & (SI_FL_EXP|SI_FL_ERR))) {
+		if (unlikely(si->ob->flags & CF_WRITE_PARTIAL)) {
+			/* Some data were sent past the connection establishment,
+			 * so we need to pretend we're established to log correctly
+			 * and let later states handle the failure.
+			 */
+			s->logs.t_connect = tv_ms_elapsed(&s->logs.tv_accept, &now);
+			si->exp      = TICK_ETERNITY;
+			si->state    = SI_ST_EST;
+			si->err_type = SI_ET_DATA_ERR;
+			si->ib->flags |= CF_READ_ERROR | CF_WRITE_ERROR;
+			si->err_loc = target_srv(&s->target);
+			return 1;
+		}
 		si->exp   = TICK_ETERNITY;
 		si->state = SI_ST_CER;
 		fd_delete(si_fd(si));
