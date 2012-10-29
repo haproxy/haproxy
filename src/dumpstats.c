@@ -541,11 +541,11 @@ static void stats_sock_table_key_request(struct stream_interface *si, char **arg
 	switch (px->table.type) {
 	case STKTABLE_TYPE_IP:
 		uint32_key = htonl(inetaddr_host(args[4]));
-		static_table_key.key = &uint32_key;
+		static_table_key->key = &uint32_key;
 		break;
 	case STKTABLE_TYPE_IPV6:
 		inet_pton(AF_INET6, args[4], ip6_key);
-		static_table_key.key = &ip6_key;
+		static_table_key->key = &ip6_key;
 		break;
 	case STKTABLE_TYPE_INTEGER:
 		{
@@ -561,13 +561,13 @@ static void stats_sock_table_key_request(struct stream_interface *si, char **arg
 				return;
 			}
 			uint32_key = (uint32_t) val;
-			static_table_key.key = &uint32_key;
+			static_table_key->key = &uint32_key;
 			break;
 		}
 		break;
 	case STKTABLE_TYPE_STRING:
-		static_table_key.key = args[4];
-		static_table_key.key_len = strlen(args[4]);
+		static_table_key->key = args[4];
+		static_table_key->key_len = strlen(args[4]);
 		break;
 	default:
 		switch (action) {
@@ -592,7 +592,7 @@ static void stats_sock_table_key_request(struct stream_interface *si, char **arg
 		return;
 	}
 
-	ts = stktable_lookup_key(&px->table, &static_table_key);
+	ts = stktable_lookup_key(&px->table, static_table_key);
 
 	switch (action) {
 	case STAT_CLI_O_TAB:
@@ -645,7 +645,7 @@ static void stats_sock_table_key_request(struct stream_interface *si, char **arg
 		if (ts)
 			stktable_touch(&px->table, ts, 1);
 		else {
-			ts = stksess_new(&px->table, &static_table_key);
+			ts = stksess_new(&px->table, static_table_key);
 			if (!ts) {
 				/* don't delete an entry which is currently referenced */
 				si->applet.ctx.cli.msg = "Unable to allocate a new entry\n";

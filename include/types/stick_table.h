@@ -176,15 +176,14 @@ union stktable_key_data {
 	struct in_addr ip;        /* used to store an ipv4 key */
 	struct in6_addr ipv6;     /* used to store an ipv6 key */
 	uint32_t integer;         /* used to store an integer key */
-	char buf[BUFSIZE];        /* used to store a null terminated string key or a buffer of data */
+	char buf[0];              /* dynamically allocated, used to store a null terminated string key or a buffer of data */
 };
 
 /* stick table key */
 struct stktable_key {
 	void *key;                      /* pointer on key buffer */
 	size_t key_len;                 /* data len to read in buff in case of null terminated string */
-	union stktable_key_data data;   /* data */
+	union stktable_key_data data;   /* data, must always be last */
 };
 
 #endif /* _TYPES_STICK_TABLE_H */
-

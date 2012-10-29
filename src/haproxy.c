@@ -745,6 +745,7 @@ void init(int argc, char **argv)
 	sample_trash_buf1 = (char *)calloc(1, global.tune.bufsize);
 	sample_trash_buf2 = (char *)calloc(1, global.tune.bufsize);
 	get_http_auth_buff = (char *)calloc(1, global.tune.bufsize);
+	static_table_key = calloc(1, sizeof(*static_table_key) + global.tune.bufsize);
 
 
 	fdinfo = (struct fdinfo *)calloc(1,

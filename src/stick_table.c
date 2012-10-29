@@ -31,7 +31,7 @@
 #include <types/global.h>
 
 /* structure used to return a table key built from a sample */
-struct stktable_key static_table_key;
+struct stktable_key *static_table_key;
 
 /*
  * Free an allocated sticky session <ts>, and decrease sticky sessions counter
@@ -618,42 +618,42 @@ struct stktable_key *stktable_fetch_key(struct stktable *t, struct proxy *px, st
 	if (!sample_to_key[smp->type][t->type])
 		return NULL;
 
-	static_table_key.key_len = t->key_size;
-	static_table_key.key = sample_to_key[smp->type][t->type](smp, &static_table_key.data, &static_table_key.key_len);
+	static_table_key->key_len = t->key_size;
+	static_table_key->key = sample_to_key[smp->type][t->type](smp, &static_table_key->data, &static_table_key->key_len);
 
-	if (!static_table_key.key)
+	if (!static_table_key->key)
 		return NULL;
 
-	if (static_table_key.key_len == 0)
+	if (static_table_key->key_len == 0)
 		return NULL;
 
-	if ((static_table_key.key_len < t->key_size) && (t->type != STKTABLE_TYPE_STRING)) {
+	if ((static_table_key->key_len < t->key_size) && (t->type != STKTABLE_TYPE_STRING)) {
 		/* need padding with null */
 
 		/* assume static_table_key.key_len is less than sizeof(static_table_key.data.buf)
 		cause t->key_size is necessary less than sizeof(static_table_key.data) */
 
-		if ((char *)static_table_key.key > (char *)&static_table_key.data &&
-		    (char *)static_table_key.key <  (char *)&static_table_key.data + sizeof(static_table_key.data)) {
+		if ((char *)static_table_key->key > (char *)&static_table_key->data &&
+		    (char *)static_table_key->key <  (char *)&static_table_key->data + global.tune.bufsize) {
 			/* key buffer is part of the static_table_key private data buffer, but is not aligned */
 
-			if (sizeof(static_table_key.data) - ((char *)static_table_key.key - (char *)&static_table_key.data) < t->key_size) {
-				/* if not remain enougth place for padding , process a realign */
-				memmove(static_table_key.data.buf, static_table_key.key, static_table_key.key_len);
-				static_table_key.key = static_table_key.data.buf;
+			if (global.tune.bufsize - ((char *)static_table_key->key - (char *)&static_table_key->data) < t->key_size) {
+				/* if not remain enough place for padding , process a realign */
+				memmove(static_table_key->data.buf, static_table_key->key, static_table_key->key_len);
+				static_table_key->key = static_table_key->data.buf;
 			}
 		}
-		else if (static_table_key.key != static_table_key.data.buf) {
+		else if (static_table_key->key != static_table_key->data.buf) {
 			/* key definitly not part of the static_table_key private data buffer */
 
-			memcpy(static_table_key.data.buf, static_table_key.key, static_table_key.key_len);
-			static_table_key.key = static_table_key.data.buf;
+			memcpy(static_table_key->data.buf, static_table_key->key, static_table_key->key_len);
+			static_table_key->key = static_table_key->data.buf;
 		}
 
-		memset(static_table_key.key + static_table_key.key_len, 0, t->key_size - static_table_key.key_len);
+		memset(static_table_key->key + static_table_key->key_len, 0, t->key_size - static_table_key->key_len);
 	}
 
-	return &static_table_key;
+	return static_table_key;
 }
 
 /*

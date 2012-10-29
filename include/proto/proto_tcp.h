@@ -48,15 +48,15 @@ static inline struct stktable_key *addr_to_stktable_key(struct sockaddr_storage 
 {
 	switch (addr->ss_family) {
 	case AF_INET:
-		static_table_key.key = (void *)&((struct sockaddr_in *)addr)->sin_addr;
+		static_table_key->key = (void *)&((struct sockaddr_in *)addr)->sin_addr;
 		break;
 	case AF_INET6:
-		static_table_key.key = (void *)&((struct sockaddr_in6 *)addr)->sin6_addr;
+		static_table_key->key = (void *)&((struct sockaddr_in6 *)addr)->sin6_addr;
 		break;
 	default:
 		return NULL;
 	}
-	return &static_table_key;
+	return static_table_key;
 }
 
 
