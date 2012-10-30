@@ -2111,14 +2111,14 @@ int select_compression_response_header(struct session *s, struct buffer *res)
 	}
 
 	/* initialize compression */
-	if (s->comp_algo->init(&s->comp_ctx.strm, 1) < 0)
+	if (s->comp_algo->init(&s->comp_ctx, 1) < 0)
 		goto fail;
 
 	return 1;
 
 fail:
 	if (s->comp_algo) {
-		s->comp_algo->end(&s->comp_ctx.strm);
+		s->comp_algo->end(&s->comp_ctx);
 		s->comp_algo = NULL;
 	}
 	return 0;

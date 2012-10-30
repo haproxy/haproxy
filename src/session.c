@@ -565,7 +565,7 @@ static void session_free(struct session *s)
 	}
 
 	if (s->comp_algo) {
-		s->comp_algo->end(&s->comp_ctx.strm);
+		s->comp_algo->end(&s->comp_ctx);
 		s->comp_algo = NULL;
 	}
 

@@ -31,19 +31,19 @@ struct comp {
 	unsigned int offload;
 };
 
+struct comp_ctx {
+	z_stream strm; /* zlib stream */
+};
+
 struct comp_algo {
 	char *name;
 	int name_len;
-	int (*init)(void *, int);
-	int (*add_data)(void *v, const char *in_data, int in_len, char *out_data, int out_len);
-	int (*flush)(void *v, struct buffer *out, int flag);
-	int (*reset)(void *v);
-	int (*end)(void *v);
+	int (*init)(struct comp_ctx *comp_ctx, int);
+	int (*add_data)(struct comp_ctx *comp_ctx, const char *in_data, int in_len, char *out_data, int out_len);
+	int (*flush)(struct comp_ctx *comp_ctx, struct buffer *out, int flag);
+	int (*reset)(struct comp_ctx *comp_ctx);
+	int (*end)(struct comp_ctx *comp_ctx);
 	struct comp_algo *next;
-};
-
-union comp_ctx {
-	z_stream strm; /* zlib */
 };
 
 struct comp_type {

@@ -166,7 +166,7 @@ int http_compression_buffer_add_data(struct session *s, struct buffer *in, struc
 
 	left = data_process_len - bi_contig_data(in);
 	if (left <= 0) {
-		ret = s->comp_algo->add_data(&s->comp_ctx.strm, bi_ptr(in),
+		ret = s->comp_algo->add_data(&s->comp_ctx, bi_ptr(in),
 					     data_process_len, bi_end(out),
 					     out->size - buffer_len(out));
 		if (ret < 0)
@@ -174,11 +174,11 @@ int http_compression_buffer_add_data(struct session *s, struct buffer *in, struc
 		out->i += ret;
 
 	} else {
-		ret = s->comp_algo->add_data(&s->comp_ctx.strm, bi_ptr(in), bi_contig_data(in), bi_end(out), out->size - buffer_len(out));
+		ret = s->comp_algo->add_data(&s->comp_ctx, bi_ptr(in), bi_contig_data(in), bi_end(out), out->size - buffer_len(out));
 		if (ret < 0)
 			return -1;
 		out->i += ret;
-		ret = s->comp_algo->add_data(&s->comp_ctx.strm, in->data, left, bi_end(out), out->size - buffer_len(out));
+		ret = s->comp_algo->add_data(&s->comp_ctx, in->data, left, bi_end(out), out->size - buffer_len(out));
 		if (ret < 0)
 			return -1;
 		out->i += ret;
@@ -271,7 +271,7 @@ int http_compression_buffer_end(struct session *s, struct buffer **in, struct bu
 /*
  * Init the identity algorithm
  */
-int identity_init(void *v, int level)
+int identity_init(struct comp_ctx *comp_ctx, int level)
 {
 	return 0;
 }
@@ -280,7 +280,7 @@ int identity_init(void *v, int level)
  * Process data
  *   Return size of processed data or -1 on error
  */
-int identity_add_data(void *comp_ctx, const char *in_data, int in_len, char *out_data, int out_len)
+int identity_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, char *out_data, int out_len)
 {
 	if (out_len < in_len)
 		return -1;
@@ -290,13 +290,13 @@ int identity_add_data(void *comp_ctx, const char *in_data, int in_len, char *out
 	return in_len;
 }
 
-int identity_flush(void *comp_ctx, struct buffer *out, int flag)
+int identity_flush(struct comp_ctx *comp_ctx, struct buffer *out, int flag)
 {
 	return 0;
 }
 
 
-int identity_reset(void *comp_ctx)
+int identity_reset(struct comp_ctx *comp_ctx)
 {
 	return 0;
 }
@@ -304,7 +304,7 @@ int identity_reset(void *comp_ctx)
 /*
  * Deinit the algorithm
  */
-int identity_end(void *comp_ctx)
+int identity_end(struct comp_ctx *comp_ctx)
 {
 	return 0;
 }
@@ -315,17 +315,15 @@ int identity_end(void *comp_ctx)
 /**************************
 ****  gzip algorithm   ****
 ***************************/
-int gzip_init(void *v, int level)
+int gzip_init(struct comp_ctx *comp_ctx, int level)
 {
-	z_stream *strm;
-
-	strm = v;
+	z_stream *strm = &comp_ctx->strm;
 
 	strm->zalloc = Z_NULL;
 	strm->zfree = Z_NULL;
 	strm->opaque = Z_NULL;
 
-	if (deflateInit2(strm, level, Z_DEFLATED, MAX_WBITS + 16, 8, Z_DEFAULT_STRATEGY) != Z_OK)
+	if (deflateInit2(&comp_ctx->strm, level, Z_DEFLATED, MAX_WBITS + 16, 8, Z_DEFAULT_STRATEGY) != Z_OK)
 		return -1;
 
 	return 0;
@@ -334,25 +332,23 @@ int gzip_init(void *v, int level)
 **** Deflate algorithm ****
 ***************************/
 
-int deflate_init(void *comp_ctx, int level)
+int deflate_init(struct comp_ctx *comp_ctx, int level)
 {
-	z_stream *strm;
-
-	strm = comp_ctx;
+	z_stream *strm = &comp_ctx->strm;
 
 	strm->zalloc = Z_NULL;
 	strm->zfree = Z_NULL;
 	strm->opaque = Z_NULL;
 
-	if (deflateInit(strm, level) != Z_OK)
+	if (deflateInit(&comp_ctx->strm, level) != Z_OK)
 		return -1;
 
 	return 0;
 }
 
-int deflate_add_data(void *comp_ctx, const char *in_data, int in_len, char *out_data, int out_len)
+int deflate_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, char *out_data, int out_len)
 {
-	z_stream *strm;
+	z_stream *strm = &comp_ctx->strm;
 	int ret;
 
 	if (in_len <= 0)
@@ -361,8 +357,6 @@ int deflate_add_data(void *comp_ctx, const char *in_data, int in_len, char *out_
 
 	if (out_len <= 0)
 		return -1;
-
-	strm = comp_ctx;
 
 	strm->next_in = (unsigned char *)in_data;
 	strm->avail_in = in_len;
@@ -378,13 +372,12 @@ int deflate_add_data(void *comp_ctx, const char *in_data, int in_len, char *out_
 	return out_len - strm->avail_out;
 }
 
-int deflate_flush(void *comp_ctx, struct buffer *out, int flag)
+int deflate_flush(struct comp_ctx *comp_ctx, struct buffer *out, int flag)
 {
 	int ret;
-	z_stream *strm;
 	int out_len = 0;
+	z_stream *strm = &comp_ctx->strm;
 
-	strm = comp_ctx;
 	strm->next_out = (unsigned char *)bi_end(out);
 	strm->avail_out = out->size - buffer_len(out);
 
@@ -398,21 +391,19 @@ int deflate_flush(void *comp_ctx, struct buffer *out, int flag)
 	return out_len;
 }
 
-int deflate_reset(void *comp_ctx)
+int deflate_reset(struct comp_ctx *comp_ctx)
 {
-	z_stream *strm;
+	z_stream *strm = &comp_ctx->strm;
 
-	strm = comp_ctx;
 	if (deflateReset(strm) == Z_OK)
 		return 0;
 	return -1;
 }
 
-int deflate_end(void *comp_ctx)
+int deflate_end(struct comp_ctx *comp_ctx)
 {
-	z_stream *strm;
+	z_stream *strm = &comp_ctx->strm;
 
-	strm = comp_ctx;
 	if (deflateEnd(strm) == Z_OK)
 		return 0;
 
