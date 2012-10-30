@@ -25,12 +25,26 @@
 #endif /* USE_ZLIB */
 
 #include <common/compat.h>
+#include <common/memory.h>
 
 #include <types/global.h>
 #include <types/compression.h>
 
 #include <proto/compression.h>
 #include <proto/proto_http.h>
+
+
+#ifdef USE_ZLIB
+
+/* zlib allocation  */
+static struct pool_head *zlib_pool_deflate_state = NULL;
+static struct pool_head *zlib_pool_window = NULL;
+static struct pool_head *zlib_pool_prev = NULL;
+static struct pool_head *zlib_pool_head = NULL;
+static struct pool_head *zlib_pool_pending_buf = NULL;
+
+#endif
+
 
 static const struct comp_algo comp_algos[] =
 {
@@ -317,6 +331,69 @@ int identity_end(struct comp_ctx *comp_ctx)
 
 
 #ifdef USE_ZLIB
+/*
+ * This is a tricky allocation function using the zlib.
+ * This is based on the allocation order in deflateInit2.
+ */
+static void *alloc_zlib(void *opaque, unsigned int items, unsigned int size)
+{
+	struct comp_ctx *ctx = opaque;
+	static char round = 0; /* order in deflateInit2 */
+	void *buf = NULL;
+
+	switch (round) {
+		case 0:
+			if (zlib_pool_deflate_state == NULL)
+				zlib_pool_deflate_state = create_pool("zlib_state", size * items, MEM_F_SHARED);
+			ctx->zlib_deflate_state = buf = pool_alloc2(zlib_pool_deflate_state);
+		break;
+
+		case 1:
+			if (zlib_pool_window == NULL)
+				zlib_pool_window = create_pool("zlib_window", size * items, MEM_F_SHARED);
+			ctx->zlib_window = buf = pool_alloc2(zlib_pool_window);
+		break;
+
+		case 2:
+			if (zlib_pool_prev == NULL)
+				zlib_pool_prev = create_pool("zlib_prev", size * items, MEM_F_SHARED);
+			ctx->zlib_prev = buf = pool_alloc2(zlib_pool_prev);
+		break;
+
+		case 3:
+			if (zlib_pool_head == NULL)
+				zlib_pool_head = create_pool("zlib_head", size * items, MEM_F_SHARED);
+			ctx->zlib_head = buf = pool_alloc2(zlib_pool_head);
+		break;
+
+		case 4:
+			if (zlib_pool_pending_buf == NULL)
+				zlib_pool_pending_buf = create_pool("zlib_pending_buf", size * items, MEM_F_SHARED);
+			ctx->zlib_pending_buf = buf = pool_alloc2(zlib_pool_pending_buf);
+		break;
+	}
+
+	round = (round + 1) % 5;   /* there are 5 zalloc call in deflateInit2 */
+	return buf;
+}
+
+static void free_zlib(void *opaque, void *ptr)
+{
+	struct comp_ctx *ctx = opaque;
+
+	if (ptr == ctx->zlib_window)
+		pool_free2(zlib_pool_window, ptr);
+	else if (ptr == ctx->zlib_deflate_state)
+		pool_free2(zlib_pool_deflate_state, ptr);
+	else if (ptr == ctx->zlib_prev)
+		pool_free2(zlib_pool_prev, ptr);
+	else if (ptr == ctx->zlib_head)
+		pool_free2(zlib_pool_head, ptr);
+	else if (ptr == ctx->zlib_pending_buf)
+		pool_free2(zlib_pool_pending_buf, ptr);
+
+}
+
 
 /**************************
 ****  gzip algorithm   ****
@@ -325,9 +402,9 @@ int gzip_init(struct comp_ctx *comp_ctx, int level)
 {
 	z_stream *strm = &comp_ctx->strm;
 
-	strm->zalloc = Z_NULL;
-	strm->zfree = Z_NULL;
-	strm->opaque = Z_NULL;
+	strm->zalloc = alloc_zlib;
+	strm->zfree = free_zlib;
+	strm->opaque = comp_ctx;
 
 	if (deflateInit2(&comp_ctx->strm, level, Z_DEFLATED, global.tune.zlibwindowsize + 16, global.tune.zlibmemlevel, Z_DEFAULT_STRATEGY) != Z_OK)
 		return -1;
@@ -342,9 +419,9 @@ int deflate_init(struct comp_ctx *comp_ctx, int level)
 {
 	z_stream *strm = &comp_ctx->strm;
 
-	strm->zalloc = Z_NULL;
-	strm->zfree = Z_NULL;
-	strm->opaque = Z_NULL;
+	strm->zalloc = alloc_zlib;
+	strm->zfree = free_zlib;
+	strm->opaque = comp_ctx;
 
 	if (deflateInit(&comp_ctx->strm, level) != Z_OK)
 		return -1;

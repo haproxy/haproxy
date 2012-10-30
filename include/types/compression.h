@@ -38,6 +38,11 @@ struct comp {
 struct comp_ctx {
 #ifdef USE_ZLIB
 	z_stream strm; /* zlib stream */
+	void *zlib_deflate_state;
+	void *zlib_window;
+	void *zlib_prev;
+	void *zlib_pending_buf;
+	void *zlib_head;
 #endif /* USE_ZLIB */
 };
 
