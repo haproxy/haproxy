@@ -23,7 +23,11 @@
 #ifndef _TYPES_COMP_H
 #define _TYPES_COMP_H
 
+#ifdef USE_ZLIB
+
 #include <zlib.h>
+
+#endif /* USE_ZLIB */
 
 struct comp {
 	struct comp_algo *algos;
@@ -32,7 +36,9 @@ struct comp {
 };
 
 struct comp_ctx {
+#ifdef USE_ZLIB
 	z_stream strm; /* zlib stream */
+#endif /* USE_ZLIB */
 };
 
 struct comp_algo {

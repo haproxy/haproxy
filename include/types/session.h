@@ -33,6 +33,7 @@
 
 #include <types/channel.h>
 #include <types/compression.h>
+
 #include <types/proto_http.h>
 #include <types/proxy.h>
 #include <types/queue.h>

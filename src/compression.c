@@ -13,6 +13,7 @@
 
 #include <stdio.h>
 
+#ifdef USE_ZLIB
 /* Note: the crappy zlib and openssl libs both define the "free_func" type.
  * That's a very clever idea to use such a generic name in general purpose
  * libraries, really... The zlib one is easier to redefine than openssl's,
@@ -21,6 +22,7 @@
 #define free_func zlib_free_func
 #include <zlib.h>
 #undef free_func
+#endif /* USE_ZLIB */
 
 #include <common/compat.h>
 
@@ -200,6 +202,8 @@ int http_compression_buffer_end(struct session *s, struct buffer **in, struct bu
 	int left;
 	struct http_msg *msg = &s->txn.rsp;
 	struct buffer *ib = *in, *ob = *out;
+
+#ifdef USE_ZLIB
 	int ret;
 
 	/* flush data here */
@@ -211,6 +215,8 @@ int http_compression_buffer_end(struct session *s, struct buffer **in, struct bu
 
 	if (ret < 0)
 		return -1; /* flush failed */
+
+#endif /* USE_ZLIB */
 
 	if (ob->i > 8) {
 		/* more than a chunk size => some data were emitted */
