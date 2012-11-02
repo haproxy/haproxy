@@ -4349,7 +4349,7 @@ redirect scheme   <sch> [code <code>] <option> [{if | unless} <condition>]
         redirect code 301 prefix / drop-query append-slash if missing_slash
 
   Example: redirect all HTTP traffic to HTTPS when SSL is handled by haproxy.
-        redirect scheme https if !{ is_ssl }
+        redirect scheme https if !{ ssl_fc }
 
   See section 7 about ACL usage.
 
