@@ -210,7 +210,8 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		return 1;
 	}
 
-	/* OK let's complete session initialization */
+	/* OK let's complete session initialization since there is no handshake */
+	s->si[0].conn->flags |= CO_FL_CONNECTED;
 	ret = session_complete(s);
 	if (ret > 0)
 		return ret;
