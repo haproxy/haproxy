@@ -201,7 +201,7 @@ void conn_update_data_polling(struct connection *c)
 		fd_stop_send(c->t.sock.fd);
 		f &= ~CO_FL_CURR_WR_ENA;
 	}
-	c->flags = f;
+	c->flags = f & ~(CO_FL_WAIT_RD | CO_FL_WAIT_WR);
 }
 
 /* Update polling on connection <c>'s file descriptor depending on its current
@@ -249,7 +249,7 @@ void conn_update_sock_polling(struct connection *c)
 		fd_stop_send(c->t.sock.fd);
 		f &= ~CO_FL_CURR_WR_ENA;
 	}
-	c->flags = f;
+	c->flags = f & ~(CO_FL_WAIT_RD | CO_FL_WAIT_WR);
 }
 
 /* This handshake handler waits a PROXY protocol header at the beginning of the
