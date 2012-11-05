@@ -96,49 +96,51 @@ void conn_update_data_polling(struct connection *c);
 int conn_local_send_proxy(struct connection *conn, unsigned int flag);
 
 /* inspects c->flags and returns non-zero if DATA ENA changes from the CURR ENA
- * or if the WAIT flags set new flags that were not in CURR POL. Additionally,
+ * or if the WAIT flags are set with their respective ENA flags. Additionally,
  * non-zero is also returned if an error was reported on the connection. This
  * function is used quite often and is inlined. In order to proceed optimally
  * with very little code and CPU cycles, the bits are arranged so that a change
- * can be detected by a simple left shift, a xor, and a mask. This operation
- * detects when POLL:DATA differs from WAIT:CURR. In order to detect the ERROR
- * flag without additional work, we remove it from the copy of the original
- * flags (unshifted) before doing the XOR. This operation is parallelized with
- * the shift and does not induce additional cycles. This explains why we check
- * the error bit shifted left in the mask. Last, the final operation is an AND
- * which the compiler is able to replace with a TEST in boolean conditions. The
- * result is that all these checks are done in 5-6 cycles only and less than 20
- * bytes.
+ * can be detected by a few left shifts, a xor, and a mask. These operations
+ * detect when W&D are both enabled for either direction, when C&D differ for
+ * either direction and when Error is set. The trick consists in first keeping
+ * only the bits we're interested in, since they don't collide when shifted,
+ * and to perform the AND at the end. In practice, the compiler is able to
+ * replace the last AND with a TEST in boolean conditions. This results in
+ * checks that are done in 4-6 cycles and less than 30 bytes.
  */
 static inline unsigned int conn_data_polling_changes(const struct connection *c)
 {
-	unsigned int f = c->flags << 2;
-	return ((c->flags & ~(CO_FL_ERROR << 2)) ^ f) &
-		((CO_FL_ERROR<<2)|CO_FL_WAIT_WR|CO_FL_CURR_WR_ENA|CO_FL_WAIT_RD|CO_FL_CURR_RD_ENA) &
-		~(f & (CO_FL_WAIT_WR|CO_FL_WAIT_RD));
+	unsigned int f = c->flags;
+	f &= CO_FL_DATA_WR_ENA | CO_FL_DATA_RD_ENA | CO_FL_CURR_WR_ENA |
+	     CO_FL_CURR_RD_ENA | CO_FL_ERROR | CO_FL_WAIT_WR | CO_FL_WAIT_RD;
+
+	f = (f & (f << 2)) |                         /* test W & D */
+	    ((f ^ (f << 1)) & (CO_FL_CURR_WR_ENA|CO_FL_CURR_RD_ENA));    /* test C ^ D */
+	return f & (CO_FL_WAIT_WR | CO_FL_WAIT_RD | CO_FL_CURR_WR_ENA | CO_FL_CURR_RD_ENA | CO_FL_ERROR);
 }
 
 /* inspects c->flags and returns non-zero if SOCK ENA changes from the CURR ENA
- * or if the WAIT flags set new flags that were not in CURR POL. Additionally,
+ * or if the WAIT flags are set with their respective ENA flags. Additionally,
  * non-zero is also returned if an error was reported on the connection. This
  * function is used quite often and is inlined. In order to proceed optimally
  * with very little code and CPU cycles, the bits are arranged so that a change
- * can be detected by a simple left shift, a xor, and a mask. This operation
- * detects when CURR:POLL differs from SOCK:WAIT. In order to detect the ERROR
- * flag without additional work, we remove it from the copy of the original
- * flags (unshifted) before doing the XOR. This operation is parallelized with
- * the shift and does not induce additional cycles. This explains why we check
- * the error bit shifted left in the mask. Last, the final operation is an AND
- * which the compiler is able to replace with a TEST in boolean conditions. The
- * result is that all these checks are done in 5-6 cycles only and less than 20
- * bytes.
+ * can be detected by a few left shifts, a xor, and a mask. These operations
+ * detect when W&S are both enabled for either direction, when C&S differ for
+ * either direction and when Error is set. The trick consists in first keeping
+ * only the bits we're interested in, since they don't collide when shifted,
+ * and to perform the AND at the end. In practice, the compiler is able to
+ * replace the last AND with a TEST in boolean conditions. This results in
+ * checks that are done in 4-6 cycles and less than 30 bytes.
  */
 static inline unsigned int conn_sock_polling_changes(const struct connection *c)
 {
-	unsigned int f = c->flags << 2;
-	return ((c->flags & ~(CO_FL_ERROR << 2)) ^ f) &
-		((CO_FL_ERROR<<2)|CO_FL_WAIT_WR|CO_FL_SOCK_WR_ENA|CO_FL_WAIT_RD|CO_FL_SOCK_RD_ENA) &
-		~(f & (CO_FL_WAIT_WR|CO_FL_WAIT_RD));
+	unsigned int f = c->flags;
+	f &= CO_FL_SOCK_WR_ENA | CO_FL_SOCK_RD_ENA | CO_FL_CURR_WR_ENA |
+	     CO_FL_CURR_RD_ENA | CO_FL_ERROR | CO_FL_WAIT_WR | CO_FL_WAIT_RD;
+
+	f = (f & (f << 3)) |                         /* test W & S */
+	    ((f ^ (f << 2)) & (CO_FL_CURR_WR_ENA|CO_FL_CURR_RD_ENA));    /* test C ^ S */
+	return f & (CO_FL_WAIT_WR | CO_FL_WAIT_RD | CO_FL_CURR_WR_ENA | CO_FL_CURR_RD_ENA | CO_FL_ERROR);
 }
 
 /* Automatically updates polling on connection <c> depending on the DATA flags

@@ -55,29 +55,18 @@ struct task;
  * - Stopping an I/O event consists in ANDing with ~1.
  * - Polling for an I/O event consists in ORing with ~3.
  *
- * The last computed state is remembered in CO_FL_CURR_* so that differential
+ * The last ENA state is remembered in CO_FL_CURR_* so that differential
  * changes can be applied. After bits are applied, the POLL status bits are
  * cleared so that it is possible to detect when an EAGAIN was encountered. For
  * pollers that do not support speculative I/O, POLLED is the same as ENABLED
  * and the POL flag can safely be ignored. However it makes a difference for
  * the connection handler.
  *
- * The ENA flags are per-layer (one pair for SOCK, another one for DATA).
- * The POL flags are only for the socket layer since they indicate that EAGAIN
- * was encountered. Thus, the DATA layer uses its own ENA flag and the socket
- * layer's POL flag.
- *
- * The bits are arranged so that it is possible to detect a change by performing
- * only a left shift followed by a xor and applying a mask to the result. The
- * principle is that depending on what we want to check (data polling changes or
- * sock polling changes), we mask different bits. The bits are arranged this way :
- *
- *    S(ock) - W(ait) - C(urr) - P(oll) - D(ata)
- *
- * SOCK changes are reported when (S != C) || (W != P) => (S:W) != (C:P)
- * DATA changes are reported when (D != C) || (W != P) => (W:C) != (P:D)
- * The R and W bits are split apart so that we never shift more than 2 bits at
- * a time, allowing move+shift to be done as a single operation on x86.
+ * The ENA flags are per-layer (one pair for SOCK, another one for DATA). The
+ * POL flags are irrelevant to these layers and only reflect the fact that
+ * EAGAIN was encountered, they're materialised by the CO_FL_WAIT_* connection
+ * flags. POL flags always indicate a polling change because it is assumed that
+ * the poller uses a cache and does not always poll.
  */
 
 /* flags for use in connection->flags */
@@ -85,16 +74,15 @@ enum {
 	CO_FL_NONE          = 0x00000000,  /* Just for initialization purposes */
 
 	/* Do not change these values without updating conn_*_poll_changes() ! */
-	CO_FL_DATA_RD_ENA   = 0x00000001,  /* receiving data is allowed */
-	CO_FL_CURR_RD_POL   = 0x00000002,  /* receiving needs to poll first */
+	CO_FL_SOCK_RD_ENA   = 0x00000001,  /* receiving handshakes is allowed */
+	CO_FL_DATA_RD_ENA   = 0x00000002,  /* receiving data is allowed */
 	CO_FL_CURR_RD_ENA   = 0x00000004,  /* receiving is currently allowed */
 	CO_FL_WAIT_RD       = 0x00000008,  /* receiving needs to poll first */
-	CO_FL_SOCK_RD_ENA   = 0x00000010,  /* receiving handshakes is allowed */
+
+	CO_FL_SOCK_WR_ENA   = 0x00000010,  /* sending handshakes is desired */
 	CO_FL_DATA_WR_ENA   = 0x00000020,  /* sending data is desired */
-	CO_FL_CURR_WR_POL   = 0x00000040,  /* sending needs to poll first */
-	CO_FL_CURR_WR_ENA   = 0x00000080,  /* sending is currently desired */
-	CO_FL_WAIT_WR       = 0x00000100,  /* sending needs to poll first */
-	CO_FL_SOCK_WR_ENA   = 0x00000200,  /* sending handshakes is desired */
+	CO_FL_CURR_WR_ENA   = 0x00000040,  /* sending is currently desired */
+	CO_FL_WAIT_WR       = 0x00000080,  /* sending needs to poll first */
 
 	/* These flags are used by data layers to indicate they had to stop
 	 * sending data because a buffer was empty (WAIT_DATA) or stop receiving
