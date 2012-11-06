@@ -1,7 +1,7 @@
 /*
  * FD polling functions for Speculative I/O combined with Linux epoll()
  *
- * Copyright 2000-2011 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2012 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -17,31 +17,75 @@
  * one side is polled, the other one may react accordingly depending on the
  * level of the buffer.
  *
- * It has a presents drawbacks though. If too many events are set for spec I/O,
- * those ones can starve the polled events. Experiments show that when polled
- * events starve, they quickly turn into spec I/O, making the situation even
- * worse. While we can reduce the number of polled events processed at once,
- * we cannot do this on speculative events because most of them are new ones
- * (avg 2/3 new - 1/3 old from experiments).
+ * More importantly, it enables I/O operations that are backed by invisible
+ * buffers. For example, SSL is able to read a whole socket buffer and not
+ * deliver it to the application buffer because it's full. Unfortunately, it
+ * won't be reported by epoll() anymore until some new activity happens. The
+ * only way to call it again thus is to perform speculative I/O as soon as
+ * reading on the FD is enabled again.
  *
- * The solution against this problem relies on those two factors :
- *   1) one FD registered as a spec event cannot be polled at the same time
- *   2) even during very high loads, we will almost never be interested in
- *      simultaneous read and write streaming on the same FD.
+ * The speculative I/O relies on a double list of expected events and updates.
+ * Expected events are events that are expected to come and that we must report
+ * to the application until it asks to stop or to poll. Updates are new requests
+ * for changing an FD state. Updates are the only way to create new events. This
+ * is important because it means that the number of speculative events cannot
+ * increase between updates and will only grow one at a time while processing
+ * updates. All updates must always be processed, though events might be
+ * processed by small batches if required. The result is that there is no need
+ * for preallocating room for spec events, updates evinced from the list always
+ * release at least as much as necessary.
  *
- * The first point implies that during starvation, we will not have more than
- * half of our FDs in the poll list, otherwise it means there is less than that
- * in the spec list, implying there is no starvation.
+ * In order to limit memory usage, events and updates share the same list (an
+ * array to be exact). The lower part (0..nbevts) is used by events and the
+ * higher part by updates. This way, an fd may be mapped to any entry (evt or
+ * update) using a single index. Updates may be simply turned to events. When
+ * events are deleted, the last event from the list must replace the deleted
+ * event, and if there were updates past this event, one must be moved to take
+ * its place. It still means that any file descriptor might be present in the
+ * event or update list, so the list must be at least as large as the maximum
+ * number of simultaneous file descriptors.
  *
- * The second point implies that we're statically only interested in half of
- * the maximum number of file descriptors at once, because we will unlikely
- * have simultaneous read and writes for a same buffer during long periods.
+ * It is important to understand that as long as all expected events are
+ * processed, they might starve the polled events, especially because polled
+ * I/O starvation quickly induces more speculative I/O. One solution to this
+ * consists in only processing a part of the events at once, but one drawback
+ * is that unhandled events will still wake epoll_wait() up. Using EPOLL_ET
+ * will solve this issue though.
  *
- * So, if we make it possible to drain maxsock/2/2 during peak loads, then we
- * can ensure that there will be no starvation effect. This means that we must
- * always allocate maxsock/4 events for the poller.
+ * A file descriptor has a distinct state for each direction. This state is a
+ * combination of two bits :
+ *  bit 0 = active Y/N : is set if the FD is active, which means that its
+ *          handler will be called without prior polling ;
+ *  bit 1 = polled Y/N : is set if the FD was subscribed to polling
  *
+ * It is perfectly valid to have both bits set at a time, which generally means
+ * that the FD was reported by polling, was marked active and not yet unpolled.
+ * Such a state must not last long to avoid unneeded wakeups.
  *
+ * The state of the FD as of last change is preserved in two other bits. These
+ * ones are useful to save a significant amount of system calls during state
+ * changes, because there is no need to call epoll_ctl() until we're about to
+ * call epoll_wait().
+ *
+ * Since we do not want to scan all the FD list to find speculative I/O events,
+ * we store them in a list consisting in a linear array holding only the FD
+ * indexes right now. Note that a closed FD cannot exist in the spec list,
+ * because it is closed by fd_delete() which in turn calls __fd_clo() which
+ * always removes it from the list.
+ *
+ * For efficiency reasons, we will store the Read and Write bits interlaced to
+ * form a 4-bit field, so that we can simply shift the value right by 0/1 and
+ * get what we want :
+ *    3  2  1  0
+ *   Wp Rp Wa Ra
+ *
+ * The FD array has to hold a back reference to the speculative list. This
+ * reference is always valid unless the FD if currently being polled and not
+ * updated (in which case the reference points to index 0).
+ *
+ * We store the FD state in the 4 lower bits of fdtab[fd].spec_e, and save the
+ * previous state upon changes in the 4 higher bits, so that changes are easy
+ * to spot.
  */
 
 #include <unistd.h>
@@ -63,90 +107,36 @@
 #include <proto/signal.h>
 #include <proto/task.h>
 
-/*
- * We define 4 states for each direction of a file descriptor, which we store
- * as 2 bits :
- *
- *  00 = IDLE : we're not interested in this event
- *  01 = SPEC : perform speculative I/O on this FD
- *  10 = WAIT : really wait for an availability event on this FD (poll)
- *  11 = STOP : was marked WAIT, but disabled. It can switch back to WAIT if
- *              the application changes its mind, otherwise disable FD polling
- *              and switch back to IDLE.
- *
- * Since we do not want to scan all the FD list to find speculative I/O events,
- * we store them in a list consisting in a linear array holding only the FD
- * indexes right now. Note that a closed FD cannot exist in the spec list,
- * because it is closed by fd_delete() which in turn calls __fd_clo() which
- * always removes it from the list.
- *
- * The STOP state requires the event to be present in the spec list so that
- * it can be detected and flushed upon next scan without having to scan the
- * whole FD list.
- *
- * This translates like this :
- *
- *   EVENT_IN_SPEC_LIST = 01
- *   EVENT_IN_POLL_LIST = 10
- *
- *   IDLE = 0
- *   SPEC = (EVENT_IN_SPEC_LIST)
- *   WAIT = (EVENT_IN_POLL_LIST)
- *   STOP = (EVENT_IN_SPEC_LIST|EVENT_IN_POLL_LIST)
- *
- * fd_is_set() just consists in checking that the status is 01 or 10.
- *
- * For efficiency reasons, we will store the Read and Write bits interlaced to
- * form a 4-bit field, so that we can simply shift the value right by 0/1 and
- * get what we want :
- *    3  2  1  0
- *   Wp Rp Ws Rs
- *
- * The FD array has to hold a back reference to the speculative list. This
- * reference is only valid if at least one of the directions is marked SPEC.
- *
- * We store the FD state in the 4 lower bits of fdtab[fd].spec_e, and save the
- * previous state upon changes in the 4 higher bits, so that changes are easy
- * to spot.
- */
 
-#define FD_EV_IN_SL	1U
-#define FD_EV_IN_PL	4U
+#define FD_EV_ACTIVE    1U
+#define FD_EV_POLLED    4U
+#define FD_EV_STATUS    (FD_EV_ACTIVE | FD_EV_POLLED)
+#define FD_EV_STATUS_R  (FD_EV_STATUS)
+#define FD_EV_STATUS_W  (FD_EV_STATUS << 1)
 
-#define FD_EV_IDLE	0
-#define FD_EV_SPEC	(FD_EV_IN_SL)
-#define FD_EV_WAIT	(FD_EV_IN_PL)
-#define FD_EV_STOP	(FD_EV_IN_SL|FD_EV_IN_PL)
+#define FD_EV_POLLED_R  (FD_EV_POLLED)
+#define FD_EV_POLLED_W  (FD_EV_POLLED << 1)
+#define FD_EV_POLLED_RW (FD_EV_POLLED_R | FD_EV_POLLED_W)
 
-/* Those match any of R or W for Spec list or Poll list */
-#define FD_EV_RW_SL	(FD_EV_IN_SL | (FD_EV_IN_SL << 1))
-#define FD_EV_RW_PL	(FD_EV_IN_PL | (FD_EV_IN_PL << 1))
-#define FD_EV_MASK_DIR	(FD_EV_IN_SL|FD_EV_IN_PL)
+#define FD_EV_ACTIVE_R  (FD_EV_ACTIVE)
+#define FD_EV_ACTIVE_W  (FD_EV_ACTIVE << 1)
+#define FD_EV_ACTIVE_RW (FD_EV_ACTIVE_R | FD_EV_ACTIVE_W)
 
-#define FD_EV_IDLE_R	0
-#define FD_EV_SPEC_R	(FD_EV_IN_SL)
-#define FD_EV_WAIT_R	(FD_EV_IN_PL)
-#define FD_EV_STOP_R	(FD_EV_IN_SL|FD_EV_IN_PL)
-#define FD_EV_MASK_R	(FD_EV_IN_SL|FD_EV_IN_PL)
-
-#define FD_EV_IDLE_W	(FD_EV_IDLE_R << 1)
-#define FD_EV_SPEC_W	(FD_EV_SPEC_R << 1)
-#define FD_EV_WAIT_W	(FD_EV_WAIT_R << 1)
-#define FD_EV_STOP_W	(FD_EV_STOP_R << 1)
-#define FD_EV_MASK_W	(FD_EV_MASK_R << 1)
-
-#define FD_EV_MASK	(FD_EV_MASK_W | FD_EV_MASK_R)
-#define FD_EV_MASK_OLD	(FD_EV_MASK << 4)
+#define FD_EV_CURR_MASK 0x0FU
+#define FD_EV_PREV_MASK 0xF0U
 
 /* This is the minimum number of events successfully processed in speculative
  * mode above which we agree to return without checking epoll() (1/2 times).
  */
 #define MIN_RETURN_EVENTS	25
 
-static int nbspec = 0;          // current size of the spec list
+static int nbspec = 0;          // number of speculative events in the list
+static int nbupdt = 0;          // number of updates in the list
 static int absmaxevents = 0;    // absolute maximum amounts of polled events
+static int in_poll_loop = 0;    // non-null if polled events are being processed
 
-static unsigned int *spec_list = NULL;	// speculative I/O list
+static unsigned int *spec_list = NULL;  // speculative I/O list
+static unsigned int *updt_list = NULL;  // FD updates list
 
 /* private data */
 static struct epoll_event *epoll_events;
@@ -158,14 +148,27 @@ static int epoll_fd;
 static struct epoll_event ev;
 
 
+/* Mark fd <fd> as updated and allocate an entry in the update list for this if
+ * it was not already there. This can be done at any time.
+ */
+REGPRM1 static inline void updt_fd(const int fd)
+{
+	if (fdtab[fd].updated)
+		/* already scheduled for update */
+		return;
+	updt_list[nbupdt++] = fd;
+	fdtab[fd].updated = 1;
+}
+
+
+/* allocate an entry for a speculative event. This can be done at any time. */
 REGPRM1 static inline void alloc_spec_entry(const int fd)
 {
 	if (fdtab[fd].spec_p)
-		/* sometimes the entry already exists for the other direction */
+		/* FD already in speculative I/O list */
 		return;
-	fdtab[fd].spec_p = nbspec + 1;
-	spec_list[nbspec] = fd;
-	nbspec++;
+	spec_list[nbspec++] = fd;
+	fdtab[fd].spec_p = nbspec;
 }
 
 /* Removes entry used by fd <fd> from the spec list and replaces it with the
@@ -179,19 +182,14 @@ REGPRM1 static void release_spec_entry(int fd)
 	pos = fdtab[fd].spec_p;
 	if (!pos)
 		return;
-
 	fdtab[fd].spec_p = 0;
-	pos--;
-	/* we have spec_list[pos]==fd */
-
 	nbspec--;
-	if (pos == nbspec)
-		return;
-
-	/* we replace current FD by the highest one, which may sometimes be the same */
-	fd = spec_list[nbspec];
-	spec_list[pos] = fd;
-	fdtab[fd].spec_p = pos + 1;
+	if (pos <= nbspec) {
+		/* was not the last entry */
+		fd = spec_list[nbspec];
+		spec_list[pos - 1] = fd;
+		fdtab[fd].spec_p = pos;
+	}
 }
 
 /*
@@ -199,16 +197,13 @@ REGPRM1 static void release_spec_entry(int fd)
  */
 REGPRM2 static int __fd_is_set(const int fd, int dir)
 {
-	int ret;
-
 #if DEBUG_DEV
 	if (!fdtab[fd].owner) {
 		fprintf(stderr, "sepoll.fd_isset called on closed fd #%d.\n", fd);
 		ABORT_NOW();
 	}
 #endif
-	ret = ((unsigned)fdtab[fd].spec_e >> dir) & FD_EV_MASK_DIR;
-	return (ret == FD_EV_SPEC || ret == FD_EV_WAIT);
+	return ((unsigned)fdtab[fd].spec_e >> dir) & FD_EV_STATUS;
 }
 
 /*
@@ -225,14 +220,12 @@ REGPRM2 static void __fd_wai(const int fd, int dir)
 		ABORT_NOW();
 	}
 #endif
-	i = ((unsigned)fdtab[fd].spec_e >> dir) & FD_EV_MASK_DIR;
+	i = ((unsigned)fdtab[fd].spec_e >> dir) & FD_EV_STATUS;
 
-	if (!(i & FD_EV_IN_SL)) {
-		if (i == FD_EV_WAIT)
-			return; /* already in desired state */
-		alloc_spec_entry(fd); /* need a spec entry */
-	}
-	fdtab[fd].spec_e ^= (i ^ (unsigned int)FD_EV_IN_PL) << dir;
+	if (i == FD_EV_POLLED)
+		return; /* already in desired state */
+	updt_fd(fd); /* need an update entry to change the state */
+	fdtab[fd].spec_e ^= (i ^ (unsigned int)FD_EV_POLLED) << dir;
 }
 
 REGPRM2 static void __fd_set(const int fd, int dir)
@@ -245,15 +238,16 @@ REGPRM2 static void __fd_set(const int fd, int dir)
 		ABORT_NOW();
 	}
 #endif
-	i = ((unsigned)fdtab[fd].spec_e >> dir) & FD_EV_MASK_DIR;
+	i = ((unsigned)fdtab[fd].spec_e >> dir) & FD_EV_STATUS;
 
-	if (i != FD_EV_STOP) {
-		if (unlikely(i != FD_EV_IDLE))
-			return;
-		// switch to SPEC state and allocate a SPEC entry.
-		alloc_spec_entry(fd);
-	}
-	fdtab[fd].spec_e ^= (unsigned int)(FD_EV_IN_SL << dir);
+	/* note that we don't care about disabling the polled state when
+	 * enabling the active state, since it brings no benefit but costs
+	 * some syscalls.
+	 */
+	if (i & FD_EV_ACTIVE)
+		return; /* already in desired state */
+	updt_fd(fd); /* need an update entry to change the state */
+	fdtab[fd].spec_e |= ((unsigned int)FD_EV_ACTIVE) << dir;
 }
 
 REGPRM2 static void __fd_clr(const int fd, int dir)
@@ -266,19 +260,12 @@ REGPRM2 static void __fd_clr(const int fd, int dir)
 		ABORT_NOW();
 	}
 #endif
-	i = ((unsigned)fdtab[fd].spec_e >> dir) & FD_EV_MASK_DIR;
+	i = ((unsigned)fdtab[fd].spec_e >> dir) & FD_EV_STATUS;
 
-	if (i != FD_EV_SPEC) {
-		if (unlikely(i != FD_EV_WAIT))
-			return;
-		// switch to STOP state
-		/* We will create a queue entry for this one because we want to
-		 * process it later in order to merge it with other events on
-		 * the same FD.
-		 */
-		alloc_spec_entry(fd);
-	}
-	fdtab[fd].spec_e ^= (unsigned int)(FD_EV_IN_SL << dir);
+	if (i == 0)
+		return /* already disabled */;
+	updt_fd(fd); /* need an update entry to change the state */
+	fdtab[fd].spec_e ^= i << dir;
 }
 
 /* normally unused */
@@ -295,7 +282,7 @@ REGPRM1 static void __fd_rem(int fd)
 REGPRM1 static void __fd_clo(int fd)
 {
 	release_spec_entry(fd);
-	fdtab[fd].spec_e &= ~(FD_EV_MASK | FD_EV_MASK_OLD);
+	fdtab[fd].spec_e &= ~(FD_EV_CURR_MASK | FD_EV_PREV_MASK);
 }
 
 /*
@@ -307,80 +294,61 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	int fd, opcode;
 	int count;
 	int spec_idx;
+	int updt_idx;
 	int wait_time;
 
-	/* first, update the poll list according to what changed in the spec list */
-	spec_idx = nbspec;
-	while (likely(spec_idx > 0)) {
-		spec_idx--;
-		fd = spec_list[spec_idx];
+	/* first, scan the update list to find changes */
+	for (updt_idx = 0; updt_idx < nbupdt; updt_idx++) {
+		fd = updt_list[updt_idx];
 		en = fdtab[fd].spec_e & 15;  /* new events */
 		eo = fdtab[fd].spec_e >> 4;  /* previous events */
 
-		/* If an fd with a poll bit is present here, it means that it
-		 * has last requested a poll, or is leaving from a poll. Given
-		 * that an FD is fully in the poll list or in the spec list but
-		 * not in both at once, we'll first ensure that if it is
-		 * already being polled in one direction and requests a spec
-		 * access, then we'll turn that into a polled access in order
-		 * to save a syscall which will likely return EAGAIN.
-		 */
+		if (fdtab[fd].owner && (eo ^ en)) {
+			if ((eo ^ en) & FD_EV_POLLED_RW) {
+				/* poll status changed */
+				if ((en & FD_EV_POLLED_RW) == 0) {
+					/* fd removed from poll list */
+					opcode = EPOLL_CTL_DEL;
+				}
+				else if ((eo & FD_EV_POLLED_RW) == 0) {
+					/* new fd in the poll list */
+					opcode = EPOLL_CTL_ADD;
+				}
+				else {
+					/* fd status changed */
+					opcode = EPOLL_CTL_MOD;
+				}
 
-		if ((en & FD_EV_RW_PL) && (en & FD_EV_RW_SL)) {
-			/* convert SPEC to WAIT if fd already being polled */
-			if ((en & FD_EV_MASK_R) == FD_EV_SPEC_R)
-				en = (en & ~FD_EV_MASK_R) | FD_EV_WAIT_R;
+				/* construct the epoll events based on new state */
+				ev.events = 0;
+				if (en & FD_EV_POLLED_R)
+					ev.events |= EPOLLIN;
 
-			if ((en & FD_EV_MASK_W) == FD_EV_SPEC_W)
-				en = (en & ~FD_EV_MASK_W) | FD_EV_WAIT_W;
-		}
+				if (en & FD_EV_POLLED_W)
+					ev.events |= EPOLLOUT;
 
-		if ((en & FD_EV_MASK_R) == FD_EV_STOP_R) {
-			/* This FD was being polled and is now being removed. */
-			en &= ~FD_EV_MASK_R;
-		}
-
-		if ((en & FD_EV_MASK_W) == FD_EV_STOP_W) {
-			/* This FD was being polled and is now being removed. */
-			en &= ~FD_EV_MASK_W;
-		}
-
-		if ((eo ^ en) & FD_EV_RW_PL) {
-			/* poll status changed */
-			if ((en & FD_EV_RW_PL) == 0) {
-				/* fd removed from poll list */
-				opcode = EPOLL_CTL_DEL;
-			}
-			else if ((eo & FD_EV_RW_PL) == 0) {
-				/* new fd in the poll list */
-				opcode = EPOLL_CTL_ADD;
-			}
-			else {
-				/* fd status changed */
-				opcode = EPOLL_CTL_MOD;
+				ev.data.fd = fd;
+				epoll_ctl(epoll_fd, opcode, fd, &ev);
 			}
 
-			/* construct the epoll events based on new state */
-			ev.events = 0;
-			if (en & FD_EV_WAIT_R)
-				ev.events |= EPOLLIN;
+			fdtab[fd].spec_e = (en << 4) + en;  /* save new events */
 
-			if (en & FD_EV_WAIT_W)
-				ev.events |= EPOLLOUT;
+			if (!(en & FD_EV_ACTIVE_RW)) {
+				/* This fd doesn't use any active entry anymore, we can
+				 * kill its entry.
+				 */
+				release_spec_entry(fd);
+			}
+			else if ((en & ~eo) & FD_EV_ACTIVE_RW) {
+				/* we need a new spec entry now */
+				alloc_spec_entry(fd);
+			}
 
-			ev.data.fd = fd;
-			epoll_ctl(epoll_fd, opcode, fd, &ev);
 		}
-
-		fdtab[fd].spec_e = (en << 4) + en;  /* save new events */
-
-		if (!(fdtab[fd].spec_e & FD_EV_RW_SL)) {
-			/* This fd switched to combinations of either WAIT or
-			 * IDLE. It must be removed from the spec list.
-			 */
-			release_spec_entry(fd);
-		}
+		fdtab[fd].updated = 0;
+		fdtab[fd].new = 0;
 	}
+	nbupdt = 0;
 
 	/* compute the epoll_wait() timeout */
 
@@ -404,14 +372,18 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		}
 	}
 
-	/* now let's wait for real events */
+	/* now let's wait for polled events */
+
 	fd = MIN(maxfd, global.tune.maxpollevents);
 	gettimeofday(&before_poll, NULL);
 	status = epoll_wait(epoll_fd, epoll_events, fd, wait_time);
 	tv_update_date(wait_time, status);
 	measure_idle();
 
-	/* process events */
+	in_poll_loop = 1;
+
+	/* process polled events */
+
 	for (count = 0; count < status; count++) {
 		int e = epoll_events[count].events;
 		fd = epoll_events[count].data.fd;
@@ -430,56 +402,94 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			((e & EPOLLERR) ? FD_POLL_ERR : 0) |
 			((e & EPOLLHUP) ? FD_POLL_HUP : 0);
 
-		if (fdtab[fd].iocb && fdtab[fd].owner && fdtab[fd].ev)
+		if (fdtab[fd].iocb && fdtab[fd].owner && fdtab[fd].ev) {
+			int new_updt, old_updt = nbupdt; /* Save number of updates to detect creation of new FDs. */
+
+			/* Mark the events as speculative before processing
+			 * them so that if nothing can be done we don't need
+			 * to poll again.
+			 */
+			if (fdtab[fd].ev & (FD_POLL_IN|FD_POLL_HUP|FD_POLL_ERR))
+				__fd_set(fd, DIR_RD);
+
+			if (fdtab[fd].ev & (FD_POLL_OUT|FD_POLL_ERR))
+				__fd_set(fd, DIR_WR);
+
 			fdtab[fd].iocb(fd);
+
+			/* One or more fd might have been created during the iocb().
+			 * This mainly happens with new incoming connections that have
+			 * just been accepted, so we'd like to process them immediately
+			 * for better efficiency. Second benefit, if at the end the fds
+			 * are disabled again, we can safely destroy their update entry
+			 * to reduce the scope of later scans. This is the reason we
+			 * scan the new entries backwards.
+			 */
+
+			for (new_updt = nbupdt; new_updt > old_updt; new_updt--) {
+				fd = updt_list[new_updt - 1];
+				if (!fdtab[fd].new)
+					continue;
+
+				fdtab[fd].new = 0;
+				fdtab[fd].ev &= FD_POLL_STICKY;
+
+				if ((fdtab[fd].spec_e & FD_EV_STATUS_R) == FD_EV_ACTIVE_R)
+					fdtab[fd].ev |= FD_POLL_IN;
+
+				if ((fdtab[fd].spec_e & FD_EV_STATUS_W) == FD_EV_ACTIVE_W)
+					fdtab[fd].ev |= FD_POLL_OUT;
+
+				if (fdtab[fd].ev && fdtab[fd].iocb && fdtab[fd].owner)
+					fdtab[fd].iocb(fd);
+
+				/* we can remove this update entry if it's the last one and is
+				 * unused, otherwise we don't touch anything.
+				 */
+				if (new_updt == nbupdt && fdtab[fd].spec_e == 0) {
+					fdtab[fd].updated = 0;
+					nbupdt--;
+				}
+			}
+		}
 	}
 
 	/* now process speculative events if any */
 
-	/* Here we have two options :
-	 * - either walk the list forwards and hope to match more events
-	 * - or walk it backwards to minimize the number of changes and
-	 *   to make better use of the cache.
-	 * Tests have shown that walking backwards improves perf by 0.2%.
-	 */
-
-	spec_idx = nbspec;
-	while (likely(spec_idx > 0)) {
-		spec_idx--;
+	for (spec_idx = 0; spec_idx < nbspec; ) {
 		fd = spec_list[spec_idx];
-		eo = fdtab[fd].spec_e;  /* save old events */
+		eo = fdtab[fd].spec_e;
 
 		/*
 		 * Process the speculative events.
 		 *
-		 * Principle: events which are marked FD_EV_SPEC are processed
-		 * with their assigned function. If the function returns 0, it
-		 * means there is nothing doable without polling first. We will
-		 * then convert the event to a pollable one by assigning them
-		 * the WAIT status.
+		 * Principle: events which are marked FD_EV_ACTIVE are processed
+		 * with their usual I/O callback. The callback may remove the
+		 * events from the list or tag them for polling. Changes will be
+		 * applied on next round.
 		 */
 
 		fdtab[fd].ev &= FD_POLL_STICKY;
-		if ((eo & FD_EV_MASK_R) == FD_EV_SPEC_R)
+
+		if ((eo & FD_EV_STATUS_R) == FD_EV_ACTIVE_R)
 			fdtab[fd].ev |= FD_POLL_IN;
 
-		if ((eo & FD_EV_MASK_W) == FD_EV_SPEC_W)
+		if ((eo & FD_EV_STATUS_W) == FD_EV_ACTIVE_W)
 			fdtab[fd].ev |= FD_POLL_OUT;
 
 		if (fdtab[fd].iocb && fdtab[fd].owner && fdtab[fd].ev)
 			fdtab[fd].iocb(fd);
 
-		/* one callback might already have closed the fd by itself */
-		if (!fdtab[fd].owner)
+		/* if the fd was removed from the spec list, it has been
+		 * replaced by the next one that we don't want to skip !
+		 */
+		if (spec_idx < nbspec && spec_list[spec_idx] != fd)
 			continue;
 
-		if (!(fdtab[fd].spec_e & (FD_EV_RW_SL|FD_EV_RW_PL))) {
-			/* This fd switched to IDLE, it can be removed from the spec list. */
-			release_spec_entry(fd);
-			continue;
-		}
+		spec_idx++;
 	}
 
+	in_poll_loop = 0;
 	/* in the end, we have processed status + spec_processed FDs */
 }
 
@@ -499,7 +509,7 @@ REGPRM1 static int _do_init(struct poller *p)
 		goto fail_fd;
 
 	/* See comments at the top of the file about this formula. */
-	absmaxevents = MAX(global.tune.maxpollevents, global.maxsock/4);
+	absmaxevents = MAX(global.tune.maxpollevents, global.maxsock);
 	epoll_events = (struct epoll_event*)
 		calloc(1, sizeof(struct epoll_event) * absmaxevents);
 
@@ -509,8 +519,13 @@ REGPRM1 static int _do_init(struct poller *p)
 	if ((spec_list = (uint32_t *)calloc(1, sizeof(uint32_t) * global.maxsock)) == NULL)
 		goto fail_spec;
 
+	if ((updt_list = (uint32_t *)calloc(1, sizeof(uint32_t) * global.maxsock)) == NULL)
+		goto fail_updt;
+
 	return 1;
 
+ fail_updt:
+	free(spec_list);
  fail_spec:
 	free(epoll_events);
  fail_ee:
@@ -527,6 +542,7 @@ REGPRM1 static int _do_init(struct poller *p)
  */
 REGPRM1 static void _do_term(struct poller *p)
 {
+	free(updt_list);
 	free(spec_list);
 	free(epoll_events);
 
@@ -535,6 +551,7 @@ REGPRM1 static void _do_term(struct poller *p)
 		epoll_fd = -1;
 	}
 
+	updt_list = NULL;
 	spec_list = NULL;
 	epoll_events = NULL;
 

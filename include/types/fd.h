@@ -52,6 +52,8 @@ struct fdtab {
 	unsigned int  spec_p;                /* speculative polling: position in spec list+1. 0=not in list. */
 	unsigned char spec_e;                /* speculative polling: read and write events status. 4 bits */
 	unsigned char ev;                    /* event seen in return of poll() : FD_POLL_* */
+	unsigned char new:1;                 /* 1 if this fd has just been created */
+	unsigned char updated:1;             /* 1 if this fd is already in the update list */
 };
 
 /* less often used information */

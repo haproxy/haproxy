@@ -112,6 +112,7 @@ static inline void fd_stop_both(int fd)
 static inline void fd_insert(int fd)
 {
 	fdtab[fd].ev = 0;
+	fdtab[fd].new = 1;
 	if (fd + 1 > maxfd)
 		maxfd = fd + 1;
 }
