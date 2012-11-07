@@ -5296,6 +5296,8 @@ stats_error_parsing:
 
 		if (!strcmp(args[1], "algo")) {
 			int cur_arg;
+			struct comp_ctx ctx;
+
 			cur_arg = 2;
 			if (!*args[cur_arg]) {
 				Alert("parsing [%s:%d] : '%s' expects <algorithm>\n",
@@ -5306,6 +5308,14 @@ stats_error_parsing:
 			while (*(args[cur_arg])) {
 				if (comp_append_algo(comp, args[cur_arg]) < 0) {
 					Alert("parsing [%s:%d] : '%s' : '%s' is not a supported algorithm.\n",
+					      file, linenum, args[0], args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				if (curproxy->comp->algos->init(&ctx, 9) == 0) {
+					curproxy->comp->algos->end(&ctx);
+				} else {
+					Alert("parsing [%s:%d] : '%s' : Can't init '%s' algorithm.\n",
 					      file, linenum, args[0], args[cur_arg]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
