@@ -841,6 +841,14 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.maxpipes = atol(args[1]);
 	}
+	else if (!strcmp(args[0], "maxzlibmem")) {
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		global.maxzlibmem = atol(args[1]);
+	}
 	else if (!strcmp(args[0], "ulimit-n")) {
 		if (global.rlimit_nofile != 0) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);

@@ -43,6 +43,9 @@ static struct pool_head *zlib_pool_prev = NULL;
 static struct pool_head *zlib_pool_head = NULL;
 static struct pool_head *zlib_pool_pending_buf = NULL;
 
+static long long zlib_memory_available = -1;
+
+
 #endif
 
 
@@ -341,6 +344,11 @@ static void *alloc_zlib(void *opaque, unsigned int items, unsigned int size)
 	static char round = 0; /* order in deflateInit2 */
 	void *buf = NULL;
 
+	if (global.maxzlibmem > 0 && zlib_memory_available < items * size){
+		buf = NULL;
+		goto end;
+	}
+
 	switch (round) {
 		case 0:
 			if (zlib_pool_deflate_state == NULL)
@@ -372,6 +380,10 @@ static void *alloc_zlib(void *opaque, unsigned int items, unsigned int size)
 			ctx->zlib_pending_buf = buf = pool_alloc2(zlib_pool_pending_buf);
 		break;
 	}
+	if (buf != NULL && global.maxzlibmem > 0)
+		zlib_memory_available -= items * size;
+
+end:
 
 	round = (round + 1) % 5;   /* there are 5 zalloc call in deflateInit2 */
 	return buf;
@@ -380,18 +392,22 @@ static void *alloc_zlib(void *opaque, unsigned int items, unsigned int size)
 static void free_zlib(void *opaque, void *ptr)
 {
 	struct comp_ctx *ctx = opaque;
+	struct pool_head *pool;
 
 	if (ptr == ctx->zlib_window)
-		pool_free2(zlib_pool_window, ptr);
+		pool = zlib_pool_window;
 	else if (ptr == ctx->zlib_deflate_state)
-		pool_free2(zlib_pool_deflate_state, ptr);
+		pool = zlib_pool_deflate_state;
 	else if (ptr == ctx->zlib_prev)
-		pool_free2(zlib_pool_prev, ptr);
+		pool = zlib_pool_prev;
 	else if (ptr == ctx->zlib_head)
-		pool_free2(zlib_pool_head, ptr);
+		pool = zlib_pool_head;
 	else if (ptr == ctx->zlib_pending_buf)
-		pool_free2(zlib_pool_pending_buf, ptr);
+		pool = zlib_pool_pending_buf;
 
+	pool_free2(pool, ptr);
+	if (global.maxzlibmem > 0)
+		zlib_memory_available += pool->size;
 }
 
 
@@ -401,6 +417,9 @@ static void free_zlib(void *opaque, void *ptr)
 int gzip_init(struct comp_ctx *comp_ctx, int level)
 {
 	z_stream *strm = &comp_ctx->strm;
+
+	if (global.maxzlibmem > 0 && zlib_memory_available < 0)
+		zlib_memory_available = global.maxzlibmem * 1024 * 1024;  /*  Megabytes to bytes */
 
 	strm->zalloc = alloc_zlib;
 	strm->zfree = free_zlib;
@@ -487,10 +506,10 @@ int deflate_end(struct comp_ctx *comp_ctx)
 {
 	z_stream *strm = &comp_ctx->strm;
 
-	if (deflateEnd(strm) == Z_OK)
-		return 0;
+	if (deflateEnd(strm) != Z_OK)
+		return -1;
 
-	return -1;
+	return 0;
 }
 
 #endif /* USE_ZLIB */

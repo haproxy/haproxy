@@ -688,6 +688,12 @@ maxsslconn <number>
   that the limit applies both to incoming and outgoing connections, so one
   connection which is deciphered then ciphered accounts for 2 SSL connections.
 
+maxzlibmem <number>
+  Sets the maximum amount of RAM in megabytes per process usable by the zlib.
+  When the maximum amount is reached, future sessions will not compress as long
+  as RAM is unavailable. When sets to 0, there is no limit.
+  The default value is 0.
+
 noepoll
   Disables the use of the "epoll" event polling system on Linux. It is
   equivalent to the command-line argument "-de". The next polling system
