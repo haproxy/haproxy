@@ -126,6 +126,12 @@ struct global global = {
 #ifdef USE_OPENSSL
 		.sslcachesize = 20000,
 #endif
+#ifdef USE_ZLIB
+		.zlibmemlevel = 8,
+		.zlibwindowsize = MAX_WBITS,
+#endif
+
+
 	},
 #ifdef USE_OPENSSL
 #ifdef DEFAULT_MAXSSLCONN

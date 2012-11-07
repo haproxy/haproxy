@@ -474,6 +474,8 @@ The following keywords are supported in the "global" section :
    - tune.rcvbuf.server
    - tune.sndbuf.client
    - tune.sndbuf.server
+   - tune.zlib.memlevel
+   - tune.zlib.windowsize
 
  * Debugging
    - debug
@@ -816,6 +818,18 @@ tune.sndbuf.server <number>
   to the kernel waiting for a large part of the buffer to be read before
   notifying haproxy again.
 
+tune.zlib.memlevel <number>
+  Sets the memLevel parameter in zlib initialization for each session. It
+  defines how much memory should be allocated for the intenal compression
+  state. A value of 1 uses minimum memory but is slow and reduces compression
+  ratio, a value of 9 uses maximum memory for optimal speed.  Can be a value
+  between 1 and 9. The default value is 8.
+
+tune.zlib.windowsize <number>
+  Sets the window size (the size of the history buffer) as a parameter of the
+  zlib initialization for each session. Larger values of this parameter result
+  in better compression at the expense of memory usage.  Can be a value between
+  8 and 15.  The default value is 15.
 
 3.3. Debugging
 --------------

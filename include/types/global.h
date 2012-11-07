@@ -112,6 +112,10 @@ struct global {
 #ifdef USE_OPENSSL
 		int sslcachesize;  /* SSL cache size in session, defaults to 20000 */
 #endif
+#ifdef USE_ZLIB
+		int zlibmemlevel;    /* zlib memlevel */
+		int zlibwindowsize;  /* zlib window size */
+#endif
 	} tune;
 	struct {
 		char *prefix;           /* path prefix of unix bind socket */

@@ -329,7 +329,7 @@ int gzip_init(struct comp_ctx *comp_ctx, int level)
 	strm->zfree = Z_NULL;
 	strm->opaque = Z_NULL;
 
-	if (deflateInit2(&comp_ctx->strm, level, Z_DEFLATED, MAX_WBITS + 16, 8, Z_DEFAULT_STRATEGY) != Z_OK)
+	if (deflateInit2(&comp_ctx->strm, level, Z_DEFLATED, global.tune.zlibwindowsize + 16, global.tune.zlibmemlevel, Z_DEFAULT_STRATEGY) != Z_OK)
 		return -1;
 
 	return 0;

@@ -44,7 +44,7 @@ struct comp_ctx {
 struct comp_algo {
 	char *name;
 	int name_len;
-	int (*init)(struct comp_ctx *comp_ctx, int);
+	int (*init)(struct comp_ctx *comp_ctx, int level);
 	int (*add_data)(struct comp_ctx *comp_ctx, const char *in_data, int in_len, char *out_data, int out_len);
 	int (*flush)(struct comp_ctx *comp_ctx, struct buffer *out, int flag);
 	int (*reset)(struct comp_ctx *comp_ctx);

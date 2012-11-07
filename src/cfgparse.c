@@ -662,6 +662,50 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.tune.max_http_hdr = atol(args[1]);
 	}
+	else if (!strcmp(args[0], "tune.zlib.memlevel")) {
+#ifdef USE_ZLIB
+		if (*args[1]) {
+			global.tune.zlibmemlevel = atoi(args[1]);
+			if (global.tune.zlibmemlevel < 1 || global.tune.zlibmemlevel > 9) {
+				Alert("parsing [%s:%d] : '%s' expects a numeric value between 1 and 9\n",
+				      file, linenum, args[0]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+		} else {
+			Alert("parsing [%s:%d] : '%s' expects a numeric value between 1 and 9\n",
+			      file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+#else
+		Alert("parsing [%s:%d] : '%s' is not implemented.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+#endif
+	}
+	else if (!strcmp(args[0], "tune.zlib.windowsize")) {
+#ifdef USE_ZLIB
+		if (*args[1]) {
+			global.tune.zlibwindowsize = atoi(args[1]);
+			if (global.tune.zlibwindowsize < 8 || global.tune.zlibwindowsize > 15) {
+				Alert("parsing [%s:%d] : '%s' expects a numeric value between 8 and 15\n",
+				      file, linenum, args[0]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+		} else {
+			Alert("parsing [%s:%d] : '%s' expects a numeric value between 8 and 15\n",
+			      file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+#else
+		Alert("parsing [%s:%d] : '%s' is not implemented.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+#endif
+	}
 	else if (!strcmp(args[0], "uid")) {
 		if (global.uid != 0) {
 			Alert("parsing [%s:%d] : user/uid already specified. Continuing.\n", file, linenum);
