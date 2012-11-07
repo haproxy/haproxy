@@ -2087,6 +2087,10 @@ int select_compression_response_header(struct session *s, struct buffer *res)
 
 	ctx.idx = 0;
 
+	/* initialize compression */
+	if (s->comp_algo->init(&s->comp_ctx, 1) < 0)
+		goto fail;
+
 	/* remove Content-Length header */
 	if ((msg->flags & HTTP_MSGF_CNT_LEN) && http_find_header2("Content-Length", 14, res->p, &txn->hdr_idx, &ctx))
 		http_remove_header2(msg, &txn->hdr_idx, &ctx);
@@ -2109,10 +2113,6 @@ int select_compression_response_header(struct session *s, struct buffer *res)
 		trash.str[trash.len] = '\0';
 		http_header_add_tail2(&txn->rsp, &txn->hdr_idx, trash.str, trash.len);
 	}
-
-	/* initialize compression */
-	if (s->comp_algo->init(&s->comp_ctx, 1) < 0)
-		goto fail;
 
 	return 1;
 
