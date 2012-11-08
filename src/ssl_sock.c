@@ -978,9 +978,9 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 		else {
 			ret =  SSL_get_error(conn->xprt_ctx, ret);
 			if (ret == SSL_ERROR_WANT_WRITE) {
-				/* handshake is running, and it needs to poll for a write event */
+				/* handshake is running, and it needs to enable write */
 				conn->flags |= CO_FL_SSL_WAIT_HS;
-				__conn_sock_poll_send(conn);
+				__conn_sock_want_send(conn);
 				break;
 			}
 			else if (ret == SSL_ERROR_WANT_READ) {
@@ -1061,13 +1061,9 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 				break;
 			}
 			else if (ret == SSL_ERROR_WANT_READ) {
-				/* handshake is running, and
-				   it needs to poll for a read event,
-				   write polling must be disabled cause
-				   we are sure we can't write anything more
-				   before handshake re-performed */
+				/* handshake is running, and it needs to enable read */
 				conn->flags |= CO_FL_SSL_WAIT_HS;
-				__conn_sock_poll_recv(conn);
+				__conn_sock_want_recv(conn);
 				break;
 			}
 			goto out_error;
