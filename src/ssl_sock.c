@@ -984,6 +984,12 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 				break;
 			}
 			else if (ret == SSL_ERROR_WANT_READ) {
+				if (SSL_renegotiate_pending(conn->xprt_ctx)) {
+					/* handshake is running, and it may need to re-enable read */
+					conn->flags |= CO_FL_SSL_WAIT_HS;
+					__conn_sock_want_recv(conn);
+					break;
+				}
 				/* we need to poll for retry a read later */
 				__conn_data_poll_recv(conn);
 				break;
@@ -1056,6 +1062,12 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 		else {
 			ret = SSL_get_error(conn->xprt_ctx, ret);
 			if (ret == SSL_ERROR_WANT_WRITE) {
+				if (SSL_renegotiate_pending(conn->xprt_ctx)) {
+					/* handshake is running, and it may need to re-enable write */
+					conn->flags |= CO_FL_SSL_WAIT_HS;
+					__conn_sock_want_send(conn);
+					break;
+				}
 				/* we need to poll to retry a write later */
 				__conn_data_poll_send(conn);
 				break;
