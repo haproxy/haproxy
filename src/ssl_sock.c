@@ -855,6 +855,61 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 	if (!conn->xprt_ctx)
 		goto out_error;
 
+	/* If we use SSL_do_handshake to process a reneg initiated by
+	 * the remote peer, it sometimes returns SSL_ERROR_SSL.
+	 * Usually SSL_write and SSL_read are used and process implicitly
+	 * the reneg handshake.
+	 * Here we use SSL_peek as a workaround for reneg.
+	 */
+	if ((conn->flags & CO_FL_CONNECTED) && SSL_renegotiate_pending(conn->xprt_ctx)) {
+		char c;
+
+		ret = SSL_peek(conn->xprt_ctx, &c, 1);
+		if (ret <= 0) {
+			/* handshake may have not been completed, let's find why */
+			ret = SSL_get_error(conn->xprt_ctx, ret);
+			if (ret == SSL_ERROR_WANT_WRITE) {
+				/* SSL handshake needs to write, L4 connection may not be ready */
+				__conn_sock_stop_recv(conn);
+				__conn_sock_poll_send(conn);
+				return 0;
+			}
+			else if (ret == SSL_ERROR_WANT_READ) {
+				/* handshake may have been completed but we have
+				 * no more data to read.
+                                 */
+				if (!SSL_renegotiate_pending(conn->xprt_ctx)) {
+					ret = 1;
+					goto reneg_ok;
+				}
+				/* SSL handshake needs to read, L4 connection is ready */
+				if (conn->flags & CO_FL_WAIT_L4_CONN)
+					conn->flags &= ~CO_FL_WAIT_L4_CONN;
+				__conn_sock_stop_send(conn);
+				__conn_sock_poll_recv(conn);
+				return 0;
+			}
+			else if (ret == SSL_ERROR_SYSCALL) {
+				/* if errno is null, then connection was successfully established */
+				if (!errno && conn->flags & CO_FL_WAIT_L4_CONN)
+					conn->flags &= ~CO_FL_WAIT_L4_CONN;
+				goto out_error;
+			}
+			else {
+				/* Fail on all other handshake errors */
+				/* Note: OpenSSL may leave unread bytes in the socket's
+				 * buffer, causing an RST to be emitted upon close() on
+				 * TCP sockets. We first try to drain possibly pending
+				 * data to avoid this as much as possible.
+				 */
+				ret = recv(conn->t.sock.fd, trash.str, trash.size, MSG_NOSIGNAL|MSG_DONTWAIT);
+				goto out_error;
+			}
+		}
+		/* read some data: consider handshake completed */
+		goto reneg_ok;
+	}
+
 	ret = SSL_do_handshake(conn->xprt_ctx);
 	if (ret != 1) {
 		/* handshake did not complete, let's find why */
@@ -891,6 +946,8 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 			goto out_error;
 		}
 	}
+
+reneg_ok:
 
 	/* Handshake succeeded */
 	if (objt_server(conn->target)) {
