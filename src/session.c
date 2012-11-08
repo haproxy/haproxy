@@ -1599,6 +1599,18 @@ struct task *process_session(struct task *t)
 				s->rep->prod->flags |= SI_FL_NOLINGER;
 			si_shutr(s->rep->prod);
 		}
+
+		/* Once in a while we're woken up because the task expires. But
+		 * this does not necessarily mean that a timeout has been reached.
+		 * So let's not run a whole session processing if only an expiration
+		 * timeout needs to be refreshed.
+		 */
+		if (!((s->req->flags | s->rep->flags) &
+		      (CF_SHUTR|CF_READ_ACTIVITY|CF_READ_TIMEOUT|CF_SHUTW|
+		       CF_WRITE_ACTIVITY|CF_WRITE_TIMEOUT|CF_ANA_TIMEOUT)) &&
+		    !((s->si[0].flags | s->si[1].flags) & (SI_FL_EXP|SI_FL_ERR)) &&
+		    ((t->state & TASK_WOKEN_ANY) == TASK_WOKEN_TIMER))
+			goto update_exp_and_leave;
 	}
 
 	/* 1b: check for low-level errors reported at the stream interface.
@@ -2376,6 +2388,7 @@ struct task *process_session(struct task *t)
 			}
 		}
 
+	update_exp_and_leave:
 		t->expire = tick_first(tick_first(s->req->rex, s->req->wex),
 				       tick_first(s->rep->rex, s->rep->wex));
 		if (s->req->analysers)
