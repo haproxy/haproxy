@@ -1086,8 +1086,10 @@ static void si_conn_recv_cb(struct connection *conn)
 			break;
 		}
 
-		if ((chn->flags & CF_READ_DONTWAIT) || --read_poll <= 0)
+		if ((chn->flags & CF_READ_DONTWAIT) || --read_poll <= 0) {
+			conn_data_stop_recv(conn);
 			break;
+		}
 
 		/* if too many bytes were missing from last read, it means that
 		 * it's pointless trying to read again because the system does
