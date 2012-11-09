@@ -31,6 +31,7 @@
 #include <types/compression.h>
 
 #include <proto/compression.h>
+#include <proto/freq_ctr.h>
 #include <proto/proto_http.h>
 
 
@@ -261,6 +262,10 @@ int http_compression_buffer_end(struct session *s, struct buffer **in, struct bu
 
 	to_forward = ob->i;
 
+	/* update input rate */
+	if (s->comp_ctx.cur_lvl > 0)
+		update_freq_ctr(&global.comp_bps_in, ib->o - ob->o);
+
 	/* copy the remaining data in the tmp buffer. */
 	if (ib->i > 0) {
 		left = ib->i - bi_contig_data(ib);
@@ -275,6 +280,9 @@ int http_compression_buffer_end(struct session *s, struct buffer **in, struct bu
 	/* swap the buffers */
 	*in = ob;
 	*out = ib;
+
+	if (s->comp_ctx.cur_lvl > 0)
+		update_freq_ctr(&global.comp_bps_out, to_forward);
 
 	/* forward the new chunk without remaining data */
 	b_adv(ob, to_forward);
@@ -489,6 +497,23 @@ int deflate_flush(struct comp_ctx *comp_ctx, struct buffer *out, int flag)
 
 	out_len = (out->size - buffer_len(out)) - strm->avail_out;
 	out->i += out_len;
+
+	/* compression rate limit */
+	if (global.comp_rate_lim > 0) {
+
+		if (read_freq_ctr(&global.comp_bps_out) > global.comp_rate_lim) {
+			/* decrease level */
+			if (comp_ctx->cur_lvl > 0) {
+				comp_ctx->cur_lvl--;
+				deflateParams(&comp_ctx->strm, comp_ctx->cur_lvl, Z_DEFAULT_STRATEGY);
+			}
+
+		} else if (comp_ctx->cur_lvl < global.comp_rate_lim) {
+			/* increase level */
+			comp_ctx->cur_lvl++ ;
+			deflateParams(&comp_ctx->strm, comp_ctx->cur_lvl, Z_DEFAULT_STRATEGY);
+		}
+	}
 
 	return out_len;
 }

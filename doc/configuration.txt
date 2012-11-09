@@ -455,6 +455,7 @@ The following keywords are supported in the "global" section :
  * Performance tuning
    - maxconn
    - maxconnrate
+   - maxcomprate
    - maxpipes
    - maxsslconn
    - noepoll
@@ -671,6 +672,15 @@ maxconnrate <number>
   limit is reached, so it's a good idea to also limit each frontend to some
   value close to its expected share. Also, lowering tune.maxaccept can improve
   fairness.
+
+maxcomprate <number>
+  Sets the maximum per-process input compression rate to <number> kilobytes
+  pers second.  For each session, if the maximum is reached, the compression
+  level will be decreased during the session. If the maximum is reached at the
+  beginning of a session, the session will not compress at all. If the maximum
+  is not reached, the compression level will be increased up to
+  tune.comp.maxlevel.  A value of zero means there is no limit, this is the
+  default value.
 
 maxpipes <number>
   Sets the maximum per-process number of pipes to <number>. Currently, pipes
@@ -11109,6 +11119,11 @@ set rate-limit connections global <value>
   'maxconnrate' setting. A value of zero disables the limitation. This limit
   applies to all frontends and the change has an immediate effect. The value
   is passed in number of connections per second.
+
+set rate-limit http-compression global <value>
+  Change the maximum input compression rate, which is set by the global
+  'maxcomprate' setting. A value of zero disables the limitation. The value is
+  passed in number of kilobytes per second.
 
 set table <table> key <key> data.<data_type> <value>
   Create or update a stick-table entry in the table. If the key is not present,

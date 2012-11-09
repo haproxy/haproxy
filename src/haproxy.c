@@ -113,6 +113,7 @@ struct global global = {
 	.req_count = 0,
 	.logsrvs = LIST_HEAD_INIT(global.logsrvs),
 	.maxzlibmem = 0,
+	.comp_rate_lim = 0,
 	.unix_bind = {
 		 .ux = {
 			 .uid = -1,

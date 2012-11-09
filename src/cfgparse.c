@@ -844,6 +844,14 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.cps_lim = atol(args[1]);
 	}
+	else if (!strcmp(args[0], "maxcomprate")) {
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects an integer argument in kb/s.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		global.comp_rate_lim = atoi(args[1]) * 1024;
+	}
 	else if (!strcmp(args[0], "maxpipes")) {
 		if (global.maxpipes != 0) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);

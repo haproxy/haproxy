@@ -1246,8 +1246,21 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 					return 1;
 				}
 			}
+			else if (strcmp(args[2], "http-compression") == 0) {
+				if (strcmp(args[3], "global") == 0) {
+					int v;
+
+					v = atoi(args[4]);
+					global.comp_rate_lim = v * 1024; /* Kilo to bytes. */
+				}
+				else {
+					si->applet.ctx.cli.msg = "'set rate-limit http-compression' only supports 'global'.\n";
+					si->applet.st0 = STAT_CLI_PRINT;
+					return 1;
+				}
+			}
 			else {
-				si->applet.ctx.cli.msg = "'set rate-limit' only supports 'connections'.\n";
+				si->applet.ctx.cli.msg = "'set rate-limit' supports 'connections' and 'http-compression'.\n";
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -1708,6 +1721,8 @@ static int stats_dump_raw_to_buffer(struct stream_interface *si)
 				     "ConnRate: %d\n"
 				     "ConnRateLimit: %d\n"
 				     "MaxConnRate: %d\n"
+				     "CompressBpsIn: %u\n"
+				     "CompressBpsOut: %u\n"
 				     "Tasks: %d\n"
 				     "Run_queue: %d\n"
 				     "Idle_pct: %d\n"
@@ -1724,6 +1739,7 @@ static int stats_dump_raw_to_buffer(struct stream_interface *si)
 				     global.maxsock, global.maxconn, global.hardmaxconn, global.maxpipes,
 				     actconn, pipes_used, pipes_free,
 				     read_freq_ctr(&global.conn_per_sec), global.cps_lim, global.cps_max,
+				     read_freq_ctr(&global.comp_bps_in), read_freq_ctr(&global.comp_bps_out),
 				     nb_tasks_cur, run_queue_cur, idle_pct,
 				     global.node, global.desc?global.desc:""
 				     );
