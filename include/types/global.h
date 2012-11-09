@@ -117,6 +117,7 @@ struct global {
 		int zlibmemlevel;    /* zlib memlevel */
 		int zlibwindowsize;  /* zlib window size */
 #endif
+		int comp_maxlevel;    /* max HTTP compression level */
 	} tune;
 	struct {
 		char *prefix;           /* path prefix of unix bind socket */

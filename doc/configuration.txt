@@ -465,6 +465,7 @@ The following keywords are supported in the "global" section :
    - spread-checks
    - tune.bufsize
    - tune.chksize
+   - tune.comp.maxlevel
    - tune.http.maxhdr
    - tune.maxaccept
    - tune.maxpollevents
@@ -752,6 +753,12 @@ tune.chksize <number>
   more memory and CPU usage. The default value is 16384 and can be changed at
   build time. It is not recommended to change this value, but to use better
   checks whenever possible.
+
+tune.comp.maxlevel <number>
+  Sets the maximum compression level. The compression level affects CPU
+  usage during compression. This value affects CPU usage during compression.
+  Each session using compression initializes the compression algorithm with
+  this value. The default value is 1.
 
 tune.http.maxhdr <number>
   Sets the maximum number of headers in a request. When a request comes with a

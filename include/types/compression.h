@@ -44,6 +44,7 @@ struct comp_ctx {
 	void *zlib_pending_buf;
 	void *zlib_head;
 #endif /* USE_ZLIB */
+	int cur_lvl;
 };
 
 struct comp_algo {

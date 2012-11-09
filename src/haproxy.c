@@ -131,6 +131,7 @@ struct global global = {
 		.zlibmemlevel = 8,
 		.zlibwindowsize = MAX_WBITS,
 #endif
+		.comp_maxlevel = 1,
 
 
 	},

@@ -2088,8 +2088,10 @@ int select_compression_response_header(struct session *s, struct buffer *res)
 	ctx.idx = 0;
 
 	/* initialize compression */
-	if (s->comp_algo->init(&s->comp_ctx, 1) < 0)
+	if (s->comp_algo->init(&s->comp_ctx, global.tune.comp_maxlevel) < 0)
 		goto fail;
+
+	s->comp_ctx.cur_lvl = global.tune.comp_maxlevel;
 
 	/* remove Content-Length header */
 	if ((msg->flags & HTTP_MSGF_CNT_LEN) && http_find_header2("Content-Length", 14, res->p, &txn->hdr_idx, &ctx))

@@ -706,6 +706,22 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		goto out;
 #endif
 	}
+	else if (!strcmp(args[0], "tune.comp.maxlevel")) {
+		if (*args[1]) {
+			global.tune.comp_maxlevel = atoi(args[1]);
+			if (global.tune.comp_maxlevel < 1 || global.tune.comp_maxlevel > 9) {
+				Alert("parsing [%s:%d] : '%s' expects a numeric value between 1 and 9\n",
+				      file, linenum, args[0]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+		} else {
+			Alert("parsing [%s:%d] : '%s' expects a numeric value between 1 and 9\n",
+			      file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
 	else if (!strcmp(args[0], "uid")) {
 		if (global.uid != 0) {
 			Alert("parsing [%s:%d] : user/uid already specified. Continuing.\n", file, linenum);
