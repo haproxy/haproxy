@@ -5533,10 +5533,6 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	/* in most states, we should abort in case of early close */
 	channel_auto_close(res);
 
-	/* no data */
-	if (res->buf->i == 0)
-		return 0;
-
 	/* this is the first time we need the compression buffer */
 	if (s->comp_algo != NULL && tmpbuf == NULL) {
 		if ((tmpbuf = pool_alloc2(pool2_buffer)) == NULL)
