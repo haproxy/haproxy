@@ -50,7 +50,7 @@ static long long zlib_memory_available = -1;
 #endif
 
 
-static const struct comp_algo comp_algos[] =
+const struct comp_algo comp_algos[] =
 {
 	{ "identity", 8, identity_init, identity_add_data, identity_flush, identity_reset, identity_end },
 #ifdef USE_ZLIB

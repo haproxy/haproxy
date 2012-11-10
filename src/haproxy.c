@@ -101,6 +101,8 @@
 
 /*********************************************************************/
 
+extern const struct comp_algo comp_algos[];
+
 /*********************************************************************/
 
 /* list of config files */
@@ -224,6 +226,24 @@ void display_build_opts()
 		"no"
 #endif
 		"\n");
+
+#ifdef USE_ZLIB
+	printf("Built with zlib version : " ZLIB_VERSION "\n");
+#else /* USE_ZLIB */
+	printf("Built without zlib support (USE_ZLIB not set)\n");
+#endif
+	printf("Compression algorithms supported :");
+	{
+		int i;
+
+		for (i = 0; comp_algos[i].name; i++) {
+			printf("%s %s", (i == 0 ? "" : ","), comp_algos[i].name);
+		}
+		if (i == 0) {
+			printf("none");
+		}
+	}
+	printf("\n");
 
 #ifdef USE_OPENSSL
 	printf("Built with OpenSSL version : " OPENSSL_VERSION_TEXT "\n");
