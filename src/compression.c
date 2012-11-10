@@ -400,7 +400,7 @@ end:
 static void free_zlib(void *opaque, void *ptr)
 {
 	struct comp_ctx *ctx = opaque;
-	struct pool_head *pool;
+	struct pool_head *pool = NULL;
 
 	if (ptr == ctx->zlib_window)
 		pool = zlib_pool_window;
