@@ -329,7 +329,7 @@ static int raw_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 			if (ret < try)
 				break;
 		}
-		else if (ret == 0 || errno == EAGAIN) {
+		else if (ret == 0 || errno == EAGAIN || errno == ENOTCONN) {
 			/* nothing written, we need to poll for write first */
 			__conn_data_poll_send(conn);
 			break;
