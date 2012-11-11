@@ -252,16 +252,11 @@ static void _do_register(void)
 	p->pref = 150;
 	p->private = NULL;
 
+	p->clo  = __fd_clo;
 	p->test = _do_test;
 	p->init = _do_init;
 	p->term = _do_term;
 	p->poll = _do_poll;
-	p->is_set = NULL;
-	p->set = NULL;
-	p->wai = NULL;
-	p->clr = NULL;
-	p->rem = NULL;
-	p->clo = __fd_clo;
 }
 
 

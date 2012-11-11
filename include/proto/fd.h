@@ -130,8 +130,6 @@ static inline void release_spec_entry(int fd)
  */
 static inline int fd_ev_is_set(const int fd, int dir)
 {
-	if (cur_poller.is_set)
-		return cur_poller.is_set(fd, dir);
 	return ((unsigned)fdtab[fd].spec_e >> dir) & FD_EV_STATUS;
 }
 
@@ -189,50 +187,36 @@ static inline void fd_ev_rem(const int fd)
 /* event manipulation primitives for use by I/O callbacks */
 static inline void fd_want_recv(int fd)
 {
-	if (cur_poller.set)
-		return cur_poller.set(fd, DIR_RD);
 	return fd_ev_set(fd, DIR_RD);
 }
 
 static inline void fd_stop_recv(int fd)
 {
-	if (cur_poller.clr)
-		return cur_poller.clr(fd, DIR_RD);
 	return fd_ev_clr(fd, DIR_RD);
 }
 
 static inline void fd_poll_recv(int fd)
 {
-	if (cur_poller.wai)
-		return cur_poller.wai(fd, DIR_RD);
 	return fd_ev_wai(fd, DIR_RD);
 }
 
 static inline void fd_want_send(int fd)
 {
-	if (cur_poller.set)
-		return cur_poller.set(fd, DIR_WR);
 	return fd_ev_set(fd, DIR_WR);
 }
 
 static inline void fd_stop_send(int fd)
 {
-	if (cur_poller.clr)
-		return cur_poller.clr(fd, DIR_WR);
 	return fd_ev_clr(fd, DIR_WR);
 }
 
 static inline void fd_poll_send(int fd)
 {
-	if (cur_poller.wai)
-		return cur_poller.wai(fd, DIR_WR);
 	return fd_ev_wai(fd, DIR_WR);
 }
 
 static inline void fd_stop_both(int fd)
 {
-	if (cur_poller.rem)
-		return cur_poller.rem(fd);
 	return fd_ev_rem(fd);
 }
 

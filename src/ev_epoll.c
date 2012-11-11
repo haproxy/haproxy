@@ -309,18 +309,12 @@ static void _do_register(void)
 	p->pref = 300;
 	p->private = NULL;
 
+	p->clo  = NULL;
 	p->test = _do_test;
 	p->init = _do_init;
 	p->term = _do_term;
 	p->poll = _do_poll;
 	p->fork = _do_fork;
-
-	p->is_set  = NULL;
-	p->set = NULL;
-	p->wai = NULL;
-	p->clr = NULL;
-	p->rem = NULL;
-	p->clo = NULL;
 }
 
 
