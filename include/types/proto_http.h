@@ -82,8 +82,9 @@
 #define TX_CON_CLO_SET  0x00400000	/* "connection: close" is now set */
 #define TX_CON_KAL_SET  0x00800000	/* "connection: keep-alive" is now set */
 
-/* Unused: 0x1000000, 0x2000000 */
+/* Unused: 0x1000000 */
 
+#define TX_HDR_CONN_UPG 0x02000000	/* The "Upgrade" token was found in the "Connection" header */
 #define TX_WAIT_NEXT_RQ	0x04000000	/* waiting for the second request to start, use keep-alive timeout */
 
 #define TX_HDR_CONN_PRS	0x08000000	/* "connection" header already parsed (req or res), results below */

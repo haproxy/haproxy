@@ -1631,6 +1631,7 @@ static int http_upgrade_v09_to_v10(struct http_txn *txn)
  * be removed, we remove them now. The <to_del> flags are used for that :
  *  - bit 0 means remove "close" headers (in HTTP/1.0 requests/responses)
  *  - bit 1 means remove "keep-alive" headers (in HTTP/1.1 reqs/resp to 1.1).
+ * Presence of the "Upgrade" token is also checked and reported.
  * The TX_HDR_CONN_* flags are adjusted in txn->flags depending on what was
  * found, and TX_CON_*_SET is adjusted depending on what is left so only
  * harmless combinations may be removed. Do not call that after changes have
@@ -1666,6 +1667,9 @@ void http_parse_connection_header(struct http_txn *txn, struct http_msg *msg, in
 				http_remove_header2(msg, &txn->hdr_idx, &ctx);
 			else
 				txn->flags |= TX_CON_CLO_SET;
+		}
+		else if (ctx.vlen >= 7 && word_match(ctx.line + ctx.val, ctx.vlen, "upgrade", 7)) {
+			txn->flags |= TX_HDR_CONN_UPG;
 		}
 	}
 
@@ -2545,7 +2549,7 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 		msg->flags |= HTTP_MSGF_VER_11;
 
 	/* "connection" has not been parsed yet */
-	txn->flags &= ~(TX_HDR_CONN_PRS | TX_HDR_CONN_CLO | TX_HDR_CONN_KAL);
+	txn->flags &= ~(TX_HDR_CONN_PRS | TX_HDR_CONN_CLO | TX_HDR_CONN_KAL | TX_HDR_CONN_UPG);
 
 	/* if the frontend has "option http-use-proxy-header", we'll check if
 	 * we have what looks like a proxied connection instead of a connection,
@@ -3661,9 +3665,14 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 		}
 	}
 
-	/* 11: add "Connection: close" or "Connection: keep-alive" if needed and not yet set. */
-	if (((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) ||
-	    ((s->fe->options|s->be->options) & PR_O_HTTP_CLOSE)) {
+	/* 11: add "Connection: close" or "Connection: keep-alive" if needed and not yet set.
+	 * If an "Upgrade" token is found, the header is left untouched in order not to have
+	 * to deal with some servers bugs : some of them fail an Upgrade if anything but
+	 * "Upgrade" is present in the Connection header.
+	 */
+	if (!(txn->flags & TX_HDR_CONN_UPG) &&
+	    (((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) ||
+	     ((s->fe->options|s->be->options) & PR_O_HTTP_CLOSE))) {
 		unsigned int want_flags = 0;
 
 		if (msg->flags & HTTP_MSGF_VER_11) {
@@ -4970,7 +4979,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 		msg->flags |= HTTP_MSGF_VER_11;
 
 	/* "connection" has not been parsed yet */
-	txn->flags &= ~(TX_HDR_CONN_PRS|TX_HDR_CONN_CLO|TX_HDR_CONN_KAL|TX_CON_CLO_SET|TX_CON_KAL_SET);
+	txn->flags &= ~(TX_HDR_CONN_PRS|TX_HDR_CONN_CLO|TX_HDR_CONN_KAL|TX_HDR_CONN_UPG|TX_CON_CLO_SET|TX_CON_KAL_SET);
 
 	/* transfer length unknown*/
 	msg->flags &= ~HTTP_MSGF_XFER_LEN;
@@ -5447,9 +5456,13 @@ int http_process_res_common(struct session *t, struct channel *rep, int an_bit, 
 
 		/*
 		 * 8: adjust "Connection: close" or "Connection: keep-alive" if needed.
+		 * If an "Upgrade" token is found, the header is left untouched in order
+		 * not to have to deal with some client bugs : some of them fail an upgrade
+		 * if anything but "Upgrade" is present in the Connection header.
 		 */
-		if (((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) ||
-		    ((t->fe->options|t->be->options) & PR_O_HTTP_CLOSE)) {
+		if (!(txn->flags & TX_HDR_CONN_UPG) &&
+		    (((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) ||
+		     ((t->fe->options|t->be->options) & PR_O_HTTP_CLOSE))) {
 			unsigned int want_flags = 0;
 
 			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
