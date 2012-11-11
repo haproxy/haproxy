@@ -405,12 +405,6 @@ static inline void set_target_applet(struct target *dest, struct si_applet *a)
 	dest->ptr.a = a;
 }
 
-static inline void set_target_task(struct target *dest, struct task *t)
-{
-	dest->type = TARG_TYPE_TASK;
-	dest->ptr.t = t;
-}
-
 static inline struct target *copy_target(struct target *dest, struct target *src)
 {
 	*dest = *src;

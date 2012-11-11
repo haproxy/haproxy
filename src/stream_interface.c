@@ -36,7 +36,6 @@
 #include <types/pipe.h>
 
 /* socket functions used when running a stream interface as a task */
-static void stream_int_update(struct stream_interface *si);
 static void stream_int_update_embedded(struct stream_interface *si);
 static void stream_int_chk_rcv(struct stream_interface *si);
 static void stream_int_chk_snd(struct stream_interface *si);
@@ -50,13 +49,6 @@ static int si_conn_wake_cb(struct connection *conn);
 /* stream-interface operations for embedded tasks */
 struct si_ops si_embedded_ops = {
 	.update  = stream_int_update_embedded,
-	.chk_rcv = stream_int_chk_rcv,
-	.chk_snd = stream_int_chk_snd,
-};
-
-/* stream-interface operations for external tasks */
-struct si_ops si_task_ops = {
-	.update  = stream_int_update,
 	.chk_rcv = stream_int_chk_rcv,
 	.chk_snd = stream_int_chk_snd,
 };
@@ -124,17 +116,6 @@ void stream_int_retnclose(struct stream_interface *si, const struct chunk *msg)
 	channel_auto_read(si->ob);
 	channel_auto_close(si->ob);
 	channel_shutr_now(si->ob);
-}
-
-/* default update function for scheduled tasks, not used for embedded tasks */
-static void stream_int_update(struct stream_interface *si)
-{
-	DPRINTF(stderr, "%s: si=%p, si->state=%d ib->flags=%08x ob->flags=%08x\n",
-		__FUNCTION__,
-		si, si->state, si->ib->flags, si->ob->flags);
-
-	if (!(si->flags & SI_FL_DONT_WAKE) && si->owner)
-		task_wakeup(si->owner, TASK_WOKEN_IO);
 }
 
 /* default update function for embedded tasks, to be used at the end of the i/o handler */
@@ -426,56 +407,17 @@ struct task *stream_int_register_handler(struct stream_interface *si, struct si_
 
 	si_prepare_embedded(si);
 	set_target_applet(&si->conn->target, app);
-	si->release   = app->release;
+	si->release = app->release;
 	si->flags |= SI_FL_WAIT_DATA;
 	return si->owner;
 }
 
-/* Register a function to handle a stream_interface as a standalone task. The
- * new task itself is returned and is assigned as si->owner. The stream_interface
- * pointer will be pointed to by the task's context. The handler can be detached
- * by using stream_int_unregister_handler().
- * FIXME: the code should be updated to ensure that we don't change si->owner
- * anymore as this is not needed. However, process_session still relies on it.
- */
-struct task *stream_int_register_handler_task(struct stream_interface *si,
-					      struct task *(*fct)(struct task *))
-{
-	struct task *t;
-
-	DPRINTF(stderr, "registering handler %p for si %p (was %p)\n", fct, si, si->owner);
-
-	si_prepare_task(si);
-	clear_target(&si->conn->target);
-	si->release   = NULL;
-	si->flags |= SI_FL_WAIT_DATA;
-
-	t = task_new();
-	si->owner = t;
-	if (!t)
-		return t;
-
-	set_target_task(&si->conn->target, t);
-
-	t->process = fct;
-	t->context = si;
-	task_wakeup(si->owner, TASK_WOKEN_INIT);
-
-	return t;
-}
-
 /* Unregister a stream interface handler. This must be called by the handler task
- * itself when it detects that it is in the SI_ST_DIS state. This function can
- * both detach standalone handlers and embedded handlers.
+ * itself when it detects that it is in the SI_ST_DIS state.
  */
 void stream_int_unregister_handler(struct stream_interface *si)
 {
-	if (si->conn->target.type == TARG_TYPE_TASK) {
-		/* external handler : kill the task */
-		task_delete(si->conn->target.ptr.t);
-		task_free(si->conn->target.ptr.t);
-	}
-	si->release   = NULL;
+	si->release = NULL;
 	si->owner = NULL;
 	clear_target(&si->conn->target);
 }

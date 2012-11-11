@@ -41,14 +41,11 @@ int stream_int_shutw(struct stream_interface *si);
 void stream_sock_read0(struct stream_interface *si);
 
 extern struct si_ops si_embedded_ops;
-extern struct si_ops si_task_ops;
 extern struct si_ops si_conn_ops;
 extern struct data_cb si_conn_cb;
 
 struct task *stream_int_register_handler(struct stream_interface *si,
 					 struct si_applet *app);
-struct task *stream_int_register_handler_task(struct stream_interface *si,
-					      struct task *(*fct)(struct task *));
 void stream_int_unregister_handler(struct stream_interface *si);
 
 static inline const struct protocol *si_ctrl(struct stream_interface *si)
@@ -71,12 +68,6 @@ static inline void si_takeover_conn(struct stream_interface *si, const struct pr
 static inline void si_prepare_embedded(struct stream_interface *si)
 {
 	si->ops = &si_embedded_ops;
-	conn_prepare(si->conn, NULL, NULL, NULL, si);
-}
-
-static inline void si_prepare_task(struct stream_interface *si)
-{
-	si->ops = &si_task_ops;
 	conn_prepare(si->conn, NULL, NULL, NULL, si);
 }
 
