@@ -149,11 +149,11 @@ static void stream_int_update_embedded(struct stream_interface *si)
 	if (si->state != SI_ST_EST)
 		return;
 
-	if ((si->ob->flags & (CF_SHUTW|CF_HIJACK|CF_SHUTW_NOW)) == CF_SHUTW_NOW &&
+	if ((si->ob->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW &&
 	    channel_is_empty(si->ob))
 		si_shutw(si);
 
-	if ((si->ob->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_HIJACK)) == 0 && !channel_full(si->ob))
+	if ((si->ob->flags & (CF_SHUTW|CF_SHUTW_NOW)) == 0 && !channel_full(si->ob))
 		si->flags |= SI_FL_WAIT_DATA;
 
 	/* we're almost sure that we need some space if the buffer is not
@@ -370,7 +370,7 @@ static void stream_int_chk_rcv(struct stream_interface *si)
 		__FUNCTION__,
 		si, si->state, si->ib->flags, si->ob->flags);
 
-	if (unlikely(si->state != SI_ST_EST || (ib->flags & (CF_SHUTR|CF_HIJACK|CF_DONT_READ))))
+	if (unlikely(si->state != SI_ST_EST || (ib->flags & (CF_SHUTR|CF_DONT_READ))))
 		return;
 
 	if (channel_full(ib)) {
@@ -581,14 +581,14 @@ static int si_conn_wake_cb(struct connection *conn)
 
 	/* process consumer side */
 	if (channel_is_empty(si->ob)) {
-		if (((si->ob->flags & (CF_SHUTW|CF_HIJACK|CF_SHUTW_NOW)) == CF_SHUTW_NOW) &&
+		if (((si->ob->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW) &&
 		    (si->state == SI_ST_EST))
 			stream_int_shutw(si);
 		__conn_data_stop_send(conn);
 		si->ob->wex = TICK_ETERNITY;
 	}
 
-	if ((si->ob->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_HIJACK)) == 0 && !channel_full(si->ob))
+	if ((si->ob->flags & (CF_SHUTW|CF_SHUTW_NOW)) == 0 && !channel_full(si->ob))
 		si->flags |= SI_FL_WAIT_DATA;
 
 	if (si->ob->flags & CF_WRITE_ACTIVITY) {
@@ -712,7 +712,7 @@ static int si_conn_send_loop(struct connection *conn)
 		if ((!(chn->flags & (CF_NEVER_WAIT|CF_SEND_DONTWAIT)) &&
 		     ((chn->to_forward && chn->to_forward != CHN_INFINITE_FORWARD) ||
 		      (chn->flags & CF_EXPECT_MORE))) ||
-		    ((chn->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_HIJACK)) == CF_SHUTW_NOW))
+		    ((chn->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW))
 			send_flag |= MSG_MORE;
 
 		ret = conn->xprt->snd_buf(conn, chn->buf, send_flag);
@@ -755,10 +755,10 @@ void stream_int_update_conn(struct stream_interface *si)
 	/* Check if we need to close the read side */
 	if (!(ib->flags & CF_SHUTR)) {
 		/* Read not closed, update FD status and timeout for reads */
-		if ((ib->flags & (CF_HIJACK|CF_DONT_READ)) || channel_full(ib)) {
+		if ((ib->flags & CF_DONT_READ) || channel_full(ib)) {
 			/* stop reading */
 			if (!(si->flags & SI_FL_WAIT_ROOM)) {
-				if (!(ib->flags & (CF_HIJACK|CF_DONT_READ))) /* full */
+				if (!(ib->flags & CF_DONT_READ)) /* full */
 					si->flags |= SI_FL_WAIT_ROOM;
 				conn_data_stop_recv(si->conn);
 				ib->rex = TICK_ETERNITY;
@@ -783,7 +783,7 @@ void stream_int_update_conn(struct stream_interface *si)
 		if (channel_is_empty(ob)) {
 			/* stop writing */
 			if (!(si->flags & SI_FL_WAIT_DATA)) {
-				if ((ob->flags & (CF_HIJACK|CF_SHUTW_NOW)) == 0)
+				if ((ob->flags & CF_SHUTW_NOW) == 0)
 					si->flags |= SI_FL_WAIT_DATA;
 				conn_data_stop_send(si->conn);
 				ob->wex = TICK_ETERNITY;
@@ -826,9 +826,9 @@ static void stream_int_chk_rcv_conn(struct stream_interface *si)
 	if (unlikely(si->state > SI_ST_EST || (ib->flags & CF_SHUTR)))
 		return;
 
-	if ((ib->flags & (CF_HIJACK|CF_DONT_READ)) || channel_full(ib)) {
+	if ((ib->flags & CF_DONT_READ) || channel_full(ib)) {
 		/* stop reading */
-		if (!(ib->flags & (CF_HIJACK|CF_DONT_READ))) /* full */
+		if (!(ib->flags & CF_DONT_READ)) /* full */
 			si->flags |= SI_FL_WAIT_ROOM;
 		conn_data_stop_recv(si->conn);
 	}
@@ -880,14 +880,14 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 		 * ->o limit was reached. Maybe we just wrote the last
 		 * chunk and need to close.
 		 */
-		if (((ob->flags & (CF_SHUTW|CF_HIJACK|CF_AUTO_CLOSE|CF_SHUTW_NOW)) ==
+		if (((ob->flags & (CF_SHUTW|CF_AUTO_CLOSE|CF_SHUTW_NOW)) ==
 		     (CF_AUTO_CLOSE|CF_SHUTW_NOW)) &&
 		    (si->state == SI_ST_EST)) {
 			si_shutw(si);
 			goto out_wakeup;
 		}
 
-		if ((ob->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_HIJACK)) == 0)
+		if ((ob->flags & (CF_SHUTW|CF_SHUTW_NOW)) == 0)
 			si->flags |= SI_FL_WAIT_DATA;
 		ob->wex = TICK_ETERNITY;
 	}

@@ -1883,23 +1883,7 @@ struct task *process_session(struct task *t)
  resync_response:
 	/* Analyse response */
 
-	if (unlikely(s->rep->flags & CF_HIJACK)) {
-		/* In inject mode, we wake up everytime something has
-		 * happened on the write side of the buffer.
-		 */
-		unsigned int flags = s->rep->flags;
-
-		if ((s->rep->flags & (CF_WRITE_PARTIAL|CF_WRITE_ERROR|CF_SHUTW)) &&
-		    !channel_full(s->rep)) {
-			s->rep->hijacker(s, s->rep);
-		}
-
-		if ((s->rep->flags ^ flags) & CF_MASK_STATIC) {
-			rpf_last = s->rep->flags;
-			goto resync_response;
-		}
-	}
-	else if (((s->rep->flags & ~rpf_last) & CF_MASK_ANALYSER) ||
+	if (((s->rep->flags & ~rpf_last) & CF_MASK_ANALYSER) ||
 		 (s->rep->flags ^ rpf_last) & CF_MASK_STATIC ||
 		 s->si[0].state != rp_cons_last ||
 		 s->si[1].state != rp_prod_last) {
@@ -2086,10 +2070,10 @@ struct task *process_session(struct task *t)
 	 * recent call to channel_abort().
 	 */
 	if (!s->req->analysers &&
-	    !(s->req->flags & (CF_HIJACK|CF_SHUTW|CF_SHUTR_NOW)) &&
+	    !(s->req->flags & (CF_SHUTW|CF_SHUTR_NOW)) &&
 	    (s->req->prod->state >= SI_ST_EST) &&
 	    (s->req->to_forward != CHN_INFINITE_FORWARD)) {
-		/* This buffer is freewheeling, there's no analyser nor hijacker
+		/* This buffer is freewheeling, there's no analyser
 		 * attached to it. If any data are left in, we'll permit them to
 		 * move.
 		 */
@@ -2129,7 +2113,7 @@ struct task *process_session(struct task *t)
 	 * happen either because the input is closed or because we want to force a close
 	 * once the server has begun to respond.
 	 */
-	if (unlikely((s->req->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_HIJACK|CF_AUTO_CLOSE|CF_SHUTR)) ==
+	if (unlikely((s->req->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_AUTO_CLOSE|CF_SHUTR)) ==
 		     (CF_AUTO_CLOSE|CF_SHUTR)))
 			channel_shutw_now(s->req);
 
@@ -2223,10 +2207,10 @@ struct task *process_session(struct task *t)
 	 * recent call to channel_abort().
 	 */
 	if (!s->rep->analysers &&
-	    !(s->rep->flags & (CF_HIJACK|CF_SHUTW|CF_SHUTR_NOW)) &&
+	    !(s->rep->flags & (CF_SHUTW|CF_SHUTR_NOW)) &&
 	    (s->rep->prod->state >= SI_ST_EST) &&
 	    (s->rep->to_forward != CHN_INFINITE_FORWARD)) {
-		/* This buffer is freewheeling, there's no analyser nor hijacker
+		/* This buffer is freewheeling, there's no analyser
 		 * attached to it. If any data are left in, we'll permit them to
 		 * move.
 		 */
@@ -2276,7 +2260,7 @@ struct task *process_session(struct task *t)
 	 */
 
 	/* first, let's check if the response buffer needs to shutdown(write) */
-	if (unlikely((s->rep->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_HIJACK|CF_AUTO_CLOSE|CF_SHUTR)) ==
+	if (unlikely((s->rep->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_AUTO_CLOSE|CF_SHUTR)) ==
 		     (CF_AUTO_CLOSE|CF_SHUTR)))
 		channel_shutw_now(s->rep);
 

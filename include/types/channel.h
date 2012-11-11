@@ -45,7 +45,7 @@
  *     CF_SHUTR, CF_SHUTW
  *
  *   - persistent control flags managed only by application level :
- *     CF_SHUT*_NOW, CF_*_ENA, CF_HIJACK
+ *     CF_SHUT*_NOW, CF_*_ENA
  *
  * The flags have been arranged for readability, so that the read and write
  * bits have the same position in a byte (read being the lower byte and write
@@ -75,10 +75,10 @@
 #define CF_SHUTW_NOW      0x00004000  /* the consumer must shut down for writes ASAP */
 #define CF_AUTO_CLOSE     0x00008000  /* producer can forward shutdown to other side */
 
-/* When either CF_SHUTR_NOW or CF_HIJACK is set, it is strictly forbidden for
- * the producer to alter the buffer contents. When CF_SHUTW_NOW is set, the
- * consumer is free to perform a shutw() when it has consumed the last contents,
- * otherwise the session processor will do it anyway.
+/* When CF_SHUTR_NOW is set, it is strictly forbidden for the producer to alter
+ * the buffer contents. When CF_SHUTW_NOW is set, the consumer is free to perform
+ * a shutw() when it has consumed the last contents, otherwise the session processor
+ * will do it anyway.
  *
  * The SHUT* flags work like this :
  *
@@ -95,9 +95,8 @@
  *    1       1      impossible
  *
  * The SHUTW_NOW flag should be set by the session processor when SHUTR and AUTO_CLOSE
- * are both set. It may also be set by a hijacker at the end of data. And it may also
- * be set by the producer when it detects SHUTR while directly forwarding data to the
- * consumer.
+ * are both set. And it may also be set by the producer when it detects SHUTR while
+ * directly forwarding data to the consumer.
  *
  * The SHUTR_NOW flag is mostly used to force the producer to abort when an error is
  * detected on the consumer side.
@@ -106,7 +105,7 @@
 #define CF_STREAMER       0x00010000  /* the producer is identified as streaming data */
 #define CF_STREAMER_FAST  0x00020000  /* the consumer seems to eat the stream very fast */
 
-#define CF_HIJACK         0x00040000  /* the producer is temporarily replaced by ->hijacker */
+/* unused: 0x00040000 */
 #define CF_ANA_TIMEOUT    0x00080000  /* the analyser timeout has expired */
 #define CF_READ_ATTACHED  0x00100000  /* the read side is attached for the first time */
 #define CF_KERN_SPLICING  0x00200000  /* kernel splicing desired for this channel */
@@ -185,7 +184,6 @@ struct channel {
 	int wex;                        /* expiration date for a write or connect, in ticks */
 	int rto;                        /* read timeout, in ticks */
 	int wto;                        /* write timeout, in ticks */
-	void (*hijacker)(struct session *, struct channel *); /* alternative content producer */
 	int analyse_exp;                /* expiration date for current analysers (if set) */
 };
 

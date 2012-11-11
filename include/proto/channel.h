@@ -190,26 +190,6 @@ static inline void channel_abort(struct channel *chn)
 	chn->flags &= ~CF_AUTO_CONNECT;
 }
 
-/* Installs <func> as a hijacker on the channel <b> for session <s>. The hijack
- * flag is set, and the function called once. The function is responsible for
- * clearing the hijack bit. It is possible that the function clears the flag
- * during this first call.
- */
-static inline void channel_install_hijacker(struct session *s,
-					   struct channel *chn,
-					   void (*func)(struct session *, struct channel *))
-{
-	chn->hijacker = func;
-	chn->flags |= CF_HIJACK;
-	func(s, chn);
-}
-
-/* Releases the channel from hijacking mode. Often used by the hijack function */
-static inline void channel_stop_hijacker(struct channel *chn)
-{
-	chn->flags &= ~CF_HIJACK;
-}
-
 /* allow the consumer to try to establish a new connection. */
 static inline void channel_auto_connect(struct channel *chn)
 {
