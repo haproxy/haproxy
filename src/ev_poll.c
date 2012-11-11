@@ -1,7 +1,7 @@
 /*
  * FD polling functions for generic poll()
  *
- * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2012 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -33,27 +33,7 @@ static fd_set *fd_evts[2];
 static struct pollfd *poll_events = NULL;
 
 
-/*
- * Benchmarks performed on a Pentium-M notebook show that using functions
- * instead of the usual macros improve the FD_* performance by about 80%,
- * and that marking them regparm(2) adds another 20%.
- */
-REGPRM2 static int __fd_is_set(const int fd, int dir)
-{
-	return FD_ISSET(fd, fd_evts[dir]);
-}
-
-REGPRM2 static void __fd_set(const int fd, int dir)
-{
-	FD_SET(fd, fd_evts[dir]);
-}
-
-REGPRM2 static void __fd_clr(const int fd, int dir)
-{
-	FD_CLR(fd, fd_evts[dir]);
-}
-
-REGPRM1 static void __fd_rem(const int fd)
+REGPRM1 static void __fd_clo(const int fd)
 {
 	FD_CLR(fd, fd_evts[DIR_RD]);
 	FD_CLR(fd, fd_evts[DIR_WR]);
@@ -67,10 +47,49 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	int status;
 	int fd, nbfd;
 	int wait_time;
-
+	int updt_idx, en, eo;
 	int fds, count;
 	int sr, sw;
 	unsigned rn, wn; /* read new, write new */
+
+	/* first, scan the update list to find changes */
+	for (updt_idx = 0; updt_idx < fd_nbupdt; updt_idx++) {
+		fd = fd_updt[updt_idx];
+		en = fdtab[fd].spec_e & 15;  /* new events */
+		eo = fdtab[fd].spec_e >> 4;  /* previous events */
+
+		if (fdtab[fd].owner && (eo ^ en)) {
+			if ((eo ^ en) & FD_EV_POLLED_RW) {
+				/* poll status changed, update the lists */
+				if ((eo & ~en) & FD_EV_POLLED_R)
+					FD_CLR(fd, fd_evts[DIR_RD]);
+				else if ((en & ~eo) & FD_EV_POLLED_R)
+					FD_SET(fd, fd_evts[DIR_RD]);
+
+				if ((eo & ~en) & FD_EV_POLLED_W)
+					FD_CLR(fd, fd_evts[DIR_WR]);
+				else if ((en & ~eo) & FD_EV_POLLED_W)
+					FD_SET(fd, fd_evts[DIR_WR]);
+			}
+
+			fdtab[fd].spec_e = (en << 4) + en;  /* save new events */
+
+			if (!(en & FD_EV_ACTIVE_RW)) {
+				/* This fd doesn't use any active entry anymore, we can
+				 * kill its entry.
+				 */
+				release_spec_entry(fd);
+			}
+			else if ((en & ~eo) & FD_EV_ACTIVE_RW) {
+				/* we need a new spec entry now */
+				alloc_spec_entry(fd);
+			}
+
+		}
+		fdtab[fd].updated = 0;
+		fdtab[fd].new = 0;
+	}
+	fd_nbupdt = 0;
 
 	nbfd = 0;
 	for (fds = 0; (fds * BITS_PER_INT) < maxfd; fds++) {
@@ -105,7 +124,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	}
       
 	/* now let's wait for events */
-	if (run_queue || signal_queue_len)
+	if (fd_nbspec || run_queue || signal_queue_len)
 		wait_time = 0;
 	else if (!exp)
 		wait_time = MAX_DELAY_MS;
@@ -142,8 +161,19 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			((e & POLLERR) ? FD_POLL_ERR : 0) |
 			((e & POLLHUP) ? FD_POLL_HUP : 0);
 
-		if (fdtab[fd].iocb && fdtab[fd].owner && fdtab[fd].ev)
+		if (fdtab[fd].iocb && fdtab[fd].owner && fdtab[fd].ev) {
+			/* Mark the events as speculative before processing
+			 * them so that if nothing can be done we don't need
+			 * to poll again.
+			 */
+			if (fdtab[fd].ev & (FD_POLL_IN|FD_POLL_HUP|FD_POLL_ERR))
+				fd_ev_set(fd, DIR_RD);
+
+			if (fdtab[fd].ev & (FD_POLL_OUT|FD_POLL_ERR))
+				fd_ev_set(fd, DIR_WR);
+
 			fdtab[fd].iocb(fd);
+		}
 	}
 
 }
@@ -228,11 +258,12 @@ static void _do_register(void)
 	p->init = _do_init;
 	p->term = _do_term;
 	p->poll = _do_poll;
-	p->is_set = __fd_is_set;
-	p->set = __fd_set;
-	p->wai = __fd_set;
-	p->clr = __fd_clr;
-	p->clo = p->rem = __fd_rem;
+	p->is_set = NULL;
+	p->set = NULL;
+	p->wai = NULL;
+	p->clr = NULL;
+	p->rem = NULL;
+	p->clo = __fd_clo;
 }
 
 
