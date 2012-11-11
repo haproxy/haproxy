@@ -25,13 +25,13 @@
 #include <common/config.h>
 #include <types/port_range.h>
 
+/* Direction for each FD event update */
 enum {
 	DIR_RD=0,
 	DIR_WR=1,
-	DIR_SIZE
 };
 
-/*
+/* Polling status flags returned in fdtab[].ev :
  * FD_POLL_IN remains set as long as some data is pending for read.
  * FD_POLL_OUT remains set as long as the fd accepts to write data.
  * FD_POLL_ERR and FD_POLL_ERR remain set forever (until processed).
@@ -44,6 +44,26 @@ enum {
 
 #define FD_POLL_DATA    (FD_POLL_IN  | FD_POLL_OUT)
 #define FD_POLL_STICKY  (FD_POLL_ERR | FD_POLL_HUP)
+
+/* Event state for an FD in each direction, as found in the 4 lower bits of
+ * fdtab[].spec_e, and in the 4 next bits.
+ */
+#define FD_EV_ACTIVE    1U
+#define FD_EV_POLLED    4U
+#define FD_EV_STATUS    (FD_EV_ACTIVE | FD_EV_POLLED)
+#define FD_EV_STATUS_R  (FD_EV_STATUS)
+#define FD_EV_STATUS_W  (FD_EV_STATUS << 1)
+
+#define FD_EV_POLLED_R  (FD_EV_POLLED)
+#define FD_EV_POLLED_W  (FD_EV_POLLED << 1)
+#define FD_EV_POLLED_RW (FD_EV_POLLED_R | FD_EV_POLLED_W)
+
+#define FD_EV_ACTIVE_R  (FD_EV_ACTIVE)
+#define FD_EV_ACTIVE_W  (FD_EV_ACTIVE << 1)
+#define FD_EV_ACTIVE_RW (FD_EV_ACTIVE_R | FD_EV_ACTIVE_W)
+
+#define FD_EV_CURR_MASK 0x0FU
+#define FD_EV_PREV_MASK 0xF0U
 
 /* info about one given fd */
 struct fdtab {

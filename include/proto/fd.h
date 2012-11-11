@@ -30,6 +30,12 @@
 #include <common/config.h>
 #include <types/fd.h>
 
+/* public variables */
+extern int fd_nbspec;          // number of speculative events in the list
+extern int fd_nbupdt;          // number of updates in the list
+extern unsigned int *fd_spec;  // speculative I/O list
+extern unsigned int *fd_updt;  // FD updates list
+
 /* Deletes an FD from the fdsets, and recomputes the maxfd limit.
  * The file descriptor is also closed.
  */
@@ -70,7 +76,49 @@ int list_pollers(FILE *out);
  */
 void run_poller();
 
-#define EV_FD_ISSET(fd, ev)  (cur_poller.is_set((fd), (ev)))
+/* Mark fd <fd> as updated and allocate an entry in the update list for this if
+ * it was not already there. This can be done at any time.
+ */
+static inline void updt_fd(const int fd)
+{
+	if (fdtab[fd].updated)
+		/* already scheduled for update */
+		return;
+	fd_updt[fd_nbupdt++] = fd;
+	fdtab[fd].updated = 1;
+}
+
+
+/* allocate an entry for a speculative event. This can be done at any time. */
+static inline void alloc_spec_entry(const int fd)
+{
+	if (fdtab[fd].spec_p)
+		/* FD already in speculative I/O list */
+		return;
+	fd_spec[fd_nbspec++] = fd;
+	fdtab[fd].spec_p = fd_nbspec;
+}
+
+/* Removes entry used by fd <fd> from the spec list and replaces it with the
+ * last one. The fdtab.spec is adjusted to match the back reference if needed.
+ * If the fd has no entry assigned, return immediately.
+ */
+static inline void release_spec_entry(int fd)
+{
+	unsigned int pos;
+
+	pos = fdtab[fd].spec_p;
+	if (!pos)
+		return;
+	fdtab[fd].spec_p = 0;
+	fd_nbspec--;
+	if (pos <= fd_nbspec) {
+		/* was not the last entry */
+		fd = fd_spec[fd_nbspec];
+		fd_spec[pos - 1] = fd;
+		fdtab[fd].spec_p = pos;
+	}
+}
 
 /* event manipulation primitives for use by I/O callbacks */
 static inline void fd_want_recv(int fd)
