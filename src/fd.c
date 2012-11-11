@@ -42,7 +42,7 @@ void fd_delete(int fd)
 	fdinfo[fd].port_range = NULL;
 	close(fd);
 	fdtab[fd].owner = NULL;
-	fdtab[fd].updated = fdtab[fd].new = 0;
+	fdtab[fd].new = 0;
 
 	while ((maxfd-1 >= 0) && !fdtab[maxfd-1].owner)
 		maxfd--;
