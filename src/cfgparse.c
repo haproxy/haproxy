@@ -514,9 +514,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	else if (!strcmp(args[0], "noepoll")) {
 		global.tune.options &= ~GTUNE_USE_EPOLL;
 	}
-	else if (!strcmp(args[0], "nosepoll")) {
-		global.tune.options &= ~GTUNE_USE_SEPOLL;
-	}
 	else if (!strcmp(args[0], "nokqueue")) {
 		global.tune.options &= ~GTUNE_USE_KQUEUE;
 	}

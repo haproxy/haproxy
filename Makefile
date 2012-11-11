@@ -17,7 +17,6 @@
 #   USE_POLL             : enable poll(). Automatic.
 #   USE_PRIVATE_CACHE    : disable shared memory cache of ssl sessions.
 #   USE_REGPARM          : enable regparm optimization. Recommended on x86.
-#   USE_SEPOLL           : enable speculative epoll(). Automatic.
 #   USE_STATIC_PCRE      : enable static libpcre. Recommended.
 #   USE_TPROXY           : enable transparent proxy. Automatic.
 #   USE_LINUX_TPROXY     : enable full transparent proxy. Automatic.
@@ -216,7 +215,6 @@ ifeq ($(TARGET),linux24e)
   USE_NETFILTER   = implicit
   USE_POLL        = implicit
   USE_EPOLL       = implicit
-  USE_SEPOLL      = implicit
   USE_MY_EPOLL    = implicit
   USE_TPROXY      = implicit
   USE_LIBCRYPT    = implicit
@@ -227,7 +225,6 @@ ifeq ($(TARGET),linux26)
   USE_NETFILTER   = implicit
   USE_POLL        = implicit
   USE_EPOLL       = implicit
-  USE_SEPOLL      = implicit
   USE_TPROXY      = implicit
   USE_LIBCRYPT    = implicit
   USE_FUTEX       = implicit
@@ -238,7 +235,6 @@ ifeq ($(TARGET),linux2628)
   USE_NETFILTER   = implicit
   USE_POLL        = implicit
   USE_EPOLL       = implicit
-  USE_SEPOLL      = implicit
   USE_TPROXY      = implicit
   USE_LIBCRYPT    = implicit
   USE_LINUX_SPLICE= implicit
@@ -422,12 +418,6 @@ ifneq ($(USE_EPOLL),)
 OPTIONS_CFLAGS += -DENABLE_EPOLL
 OPTIONS_OBJS   += src/ev_epoll.o
 BUILD_OPTIONS  += $(call ignore_implicit,USE_EPOLL)
-endif
-
-ifneq ($(USE_SEPOLL),)
-OPTIONS_CFLAGS += -DENABLE_SEPOLL
-OPTIONS_OBJS   += src/ev_sepoll.o
-BUILD_OPTIONS  += $(call ignore_implicit,USE_SEPOLL)
 endif
 
 ifneq ($(USE_MY_EPOLL),)

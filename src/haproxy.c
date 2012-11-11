@@ -308,9 +308,6 @@ void usage(char *name)
 #if defined(ENABLE_EPOLL)
 		"        -de disables epoll() usage even when available\n"
 #endif
-#if defined(ENABLE_SEPOLL)
-		"        -ds disables speculative epoll() usage even when available\n"
-#endif
 #if defined(ENABLE_KQUEUE)
 		"        -dk disables kqueue() usage even when available\n"
 #endif
@@ -476,9 +473,6 @@ void init(int argc, char **argv)
 #if defined(ENABLE_EPOLL)
 	global.tune.options |= GTUNE_USE_EPOLL;
 #endif
-#if defined(ENABLE_SEPOLL)
-	global.tune.options |= GTUNE_USE_SEPOLL;
-#endif
 #if defined(ENABLE_KQUEUE)
 	global.tune.options |= GTUNE_USE_KQUEUE;
 #endif
@@ -511,10 +505,6 @@ void init(int argc, char **argv)
 #if defined(ENABLE_EPOLL)
 			else if (*flag == 'd' && flag[1] == 'e')
 				global.tune.options &= ~GTUNE_USE_EPOLL;
-#endif
-#if defined(ENABLE_SEPOLL)
-			else if (*flag == 'd' && flag[1] == 's')
-				global.tune.options &= ~GTUNE_USE_SEPOLL;
 #endif
 #if defined(ENABLE_POLL)
 			else if (*flag == 'd' && flag[1] == 'p')
@@ -791,9 +781,6 @@ void init(int argc, char **argv)
 
 	if (!(global.tune.options & GTUNE_USE_EPOLL))
 		disable_poller("epoll");
-
-	if (!(global.tune.options & GTUNE_USE_SEPOLL))
-		disable_poller("sepoll");
 
 	if (!(global.tune.options & GTUNE_USE_POLL))
 		disable_poller("poll");

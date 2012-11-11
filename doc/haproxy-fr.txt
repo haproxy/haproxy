@@ -137,7 +137,6 @@ supportés sont :
   - daemon
   - debug
   - nokqueue
-  - nosepoll
   - noepoll
   - nopoll
   - quiet
@@ -384,7 +383,7 @@ puis epoll(), et se repliera sur poll(), puis en dernier lieu sur select().
 Cependant, si pour une raison quelconque il s'avérait nécessaire de désactiver
 epoll() ou poll() (p.ex: à cause d'un bug ou juste pour comparer les
 performances), de nouvelles options globales ont été ajoutées dans ce but :
-'nosepoll', 'nokqueue', 'noepoll' et 'nopoll'.
+'nokqueue', 'noepoll' et 'nopoll'.
 
 Exemple :
 ---------
@@ -403,7 +402,7 @@ activés lors de la compilation.
 Afin de simplifier la résolution de problèmes, le paramètre '-de' en ligne de
 commande désactive epoll(), le paramètre '-dp' désactive poll(), '-dk' kqueue()
 et '-ds' désactive speculative epoll(). Ils sont respectivement équivalents à
-'noepoll', 'nopoll', 'nokqueue' et 'nosepoll'.
+'noepoll', 'nopoll', et 'nokqueue'.
 
 
 2) Définition d'un service en écoute

@@ -461,7 +461,6 @@ The following keywords are supported in the "global" section :
    - noepoll
    - nokqueue
    - nopoll
-   - nosepoll
    - nosplice
    - spread-checks
    - tune.bufsize
@@ -708,7 +707,7 @@ maxzlibmem <number>
 noepoll
   Disables the use of the "epoll" event polling system on Linux. It is
   equivalent to the command-line argument "-de". The next polling system
-  used will generally be "poll". See also "nosepoll", and "nopoll".
+  used will generally be "poll". See also "nopoll".
 
 nokqueue
   Disables the use of the "kqueue" event polling system on BSD. It is
@@ -719,13 +718,7 @@ nopoll
   Disables the use of the "poll" event polling system. It is equivalent to the
   command-line argument "-dp". The next polling system used will be "select".
   It should never be needed to disable "poll" since it's available on all
-  platforms supported by HAProxy. See also "nosepoll", and "nopoll" and
-  "nokqueue".
-
-nosepoll
-  Disables the use of the "speculative epoll" event polling system on Linux. It
-  is equivalent to the command-line argument "-ds". The next polling system
-  used will generally be "epoll". See also "nosepoll", and "nopoll".
+  platforms supported by HAProxy. See also "nokqueue" and "noepoll".
 
 nosplice
   Disables the use of kernel tcp splicing between sockets on Linux. It is

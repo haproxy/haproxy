@@ -62,7 +62,6 @@ There are only a few command line options :
     -s shows statistics (only if compiled in)
     -l shows even more statistics (implies '-s')
     -dk disables use of kqueue()
-    -ds disables use of speculative epoll()
     -de disables use of epoll()
     -dp disables use of poll()
     -db disables background mode (stays in foreground, useful for debugging)
@@ -130,7 +129,6 @@ the following ones :
   - daemon
   - debug
   - nokqueue
-  - nosepoll
   - noepoll
   - nopoll
   - quiet
@@ -357,8 +355,8 @@ slightly save CPU cycles in presence of large number of connections.
 Haproxy will use kqueue() or speculative epoll() when available, then epoll(),
 and will fall back to poll(), then to select(). However, if for any reason you
 need to disable epoll() or poll() (eg. because of a bug or just to compare
-performance), new global options have been created for this matter : 'nosepoll',
-'nokqueue', 'noepoll' and 'nopoll'.
+performance), new global options have been created for this matter : 'nopoll',
+'nokqueue', and 'noepoll'.
 
 Example :
 ---------
@@ -378,7 +376,7 @@ time.
 To make debugging easier, the '-de' runtime argument disables epoll support,
 the '-dp' argument disables poll support, '-dk' disables kqueue and '-ds'
 disables speculative epoll(). They are respectively equivalent to 'noepoll',
-'nopoll', 'nokqueue' and 'nosepoll'.
+'nopoll', and 'nokqueue'.
 
 
 2) Declaration of a listening service

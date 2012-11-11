@@ -1,13 +1,12 @@
 /*
- * FD polling functions for linux epoll()
+ * FD polling functions for Linux epoll
  *
- * Copyright 2000-2011 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2012 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version
  * 2 of the License, or (at your option) any later version.
- *
  */
 
 #include <unistd.h>
@@ -16,37 +15,21 @@
 
 #include <common/compat.h>
 #include <common/config.h>
+#include <common/debug.h>
 #include <common/epoll.h>
 #include <common/standard.h>
 #include <common/ticks.h>
 #include <common/time.h>
 #include <common/tools.h>
 
-#include <types/fd.h>
 #include <types/global.h>
 
+#include <proto/fd.h>
 #include <proto/signal.h>
 #include <proto/task.h>
 
-/* This is what we store in a list. It consists in old values and fds to detect changes. */
-struct fd_chg {
-	unsigned int prev:2;	// previous state mask. New one is in fd_evts.
-	unsigned int fd:30;	// file descriptor
-};
 
-static int nbchanges = 0;		// number of changes pending
-static struct fd_chg *chg_list = NULL;	// list of changes
-static struct fd_chg **chg_ptr = NULL;	// per-fd changes
-
-/* Each 32-bit word contains 2-bit descriptors of the latest state for 16 FDs :
- *   desc = (u32 >> (2*fd)) & 3
- *   desc = 0 : FD not set
- *          1 : WRITE not set, READ set
- *          2 : WRITE set, READ not set
- *          3 : WRITE set, READ set
- */
-
-static uint32_t *fd_evts;
+static int absmaxevents = 0;    // absolute maximum amounts of polled events
 
 /* private data */
 static struct epoll_event *epoll_events;
@@ -57,189 +40,101 @@ static int epoll_fd;
  */
 static struct epoll_event ev;
 
-/* converts a direction to a single bitmask.
- *  0 => 1
- *  1 => 2
- */
-#define DIR2MSK(dir) ((dir) + 1)
-
-/* converts an FD to an fd_evts offset and to a bit shift */
-#define FD2OFS(fd)   ((uint32_t)(fd) >> 4)
-#define FD2BIT(fd)   (((uint32_t)(fd) & 0xF) << 1)
-#define FD2MSK(fd)   (3 << FD2BIT(fd))
-
 /*
- * Returns non-zero if direction <dir> is already set for <fd>.
- */
-REGPRM2 static int __fd_is_set(const int fd, int dir)
-{
-	return (fd_evts[FD2OFS(fd)] >> FD2BIT(fd)) & DIR2MSK(dir);
-}
-
-/*
- * Adds, mods or deletes <fd> according to current status and to new desired
- * mask <dmask> :
- *
- *    0 = nothing
- *    1 = EPOLLIN
- *    2 = EPOLLOUT
- *    3 = EPOLLIN | EPOLLOUT
- *
- */
-static int dmsk2event[4] = { 0, EPOLLIN, EPOLLOUT, EPOLLIN | EPOLLOUT };
-
-
-REGPRM2 static void fd_flush_changes()
-{
-	uint32_t ofs;
-	int opcode;
-	int prev, next;
-	int chg, fd;
-
-	for (chg = 0; chg < nbchanges; chg++) {
-		prev = chg_list[chg].prev;
-		fd = chg_list[chg].fd;
-		chg_ptr[fd] = NULL;
-
-		ofs = FD2OFS(fd);
-		next = (fd_evts[ofs] >> FD2BIT(fd)) & 3;
-
-		if (prev == next)
-			/* if the value was unchanged, do nothing */
-			continue;
-
-		ev.events = dmsk2event[next];
-		ev.data.fd = fd;
-
-		if (prev) {
-			if (!next) {
-				/* we want to delete it now */
-				opcode = EPOLL_CTL_DEL;
-			} else {
-				/* we want to switch it */
-				opcode = EPOLL_CTL_MOD;
-			}
-		} else {
-			/* the FD did not exist, let's add it */
-			opcode = EPOLL_CTL_ADD;
-		}
-
-		epoll_ctl(epoll_fd, opcode, fd, &ev);
-	}
-	nbchanges = 0;
-}
-
-REGPRM2 static void alloc_chg_list(const int fd, int old_evt)
-{
-	struct fd_chg *ptr;
-
-	if (unlikely(chg_ptr[fd] != NULL))
-		return;
-
-#if LIMIT_NUMBER_OF_CHANGES
-	if (nbchanges > 2)
-		fd_flush_changes();
-#endif
-
-	ptr = &chg_list[nbchanges++];
-	chg_ptr[fd] = ptr;
-	ptr->fd = fd;
-	ptr->prev = old_evt;
-}
-
-REGPRM2 static void __fd_set(const int fd, int dir)
-{
-	uint32_t ofs = FD2OFS(fd);
-	uint32_t dmsk = DIR2MSK(dir);
-	uint32_t old_evt;
-
-	old_evt = fd_evts[ofs] >> FD2BIT(fd);
-	old_evt &= 3;
-	if (unlikely(old_evt & dmsk))
-		return;
-
-	alloc_chg_list(fd, old_evt);
-	dmsk <<= FD2BIT(fd);
-	fd_evts[ofs] |= dmsk;
-}
-
-REGPRM2 static void __fd_clr(const int fd, int dir)
-{
-	uint32_t ofs = FD2OFS(fd);
-	uint32_t dmsk = DIR2MSK(dir);
-	uint32_t old_evt;
-
-	old_evt = fd_evts[ofs] >> FD2BIT(fd);
-	old_evt &= 3;
-	if (unlikely(!(old_evt & dmsk)))
-		return;
-
-	alloc_chg_list(fd, old_evt);
-	dmsk <<= FD2BIT(fd);
-	fd_evts[ofs] &= ~dmsk;
-}
-
-REGPRM1 static void __fd_rem(int fd)
-{
-	uint32_t ofs = FD2OFS(fd);
-	uint32_t old_evt;
-
-	old_evt = fd_evts[ofs] >> FD2BIT(fd);
-	old_evt &= 3;
-
-	if (unlikely(!old_evt))
-		return;
-
-	alloc_chg_list(fd, old_evt);
-	fd_evts[ofs] &= ~FD2MSK(fd);
-}
-
-/*
- * On valid epoll() implementations, a call to close() automatically removes
- * the fds. This means that the FD will appear as previously unset.
- */
-REGPRM1 static void __fd_clo(int fd)
-{
-	struct fd_chg *ptr;
-	fd_evts[FD2OFS(fd)] &= ~FD2MSK(fd);
-	ptr = chg_ptr[fd];
-	if (ptr) {
-		ptr->prev = 0;
-		chg_ptr[fd] = NULL;
-	}
-}
-
-/*
- * epoll() poller
+ * speculative epoll() poller
  */
 REGPRM2 static void _do_poll(struct poller *p, int exp)
 {
-	int status;
-	int fd;
+	int status, eo, en;
+	int fd, opcode;
 	int count;
+	int updt_idx;
 	int wait_time;
 
-	if (likely(nbchanges))
-		fd_flush_changes();
+	/* first, scan the update list to find changes */
+	for (updt_idx = 0; updt_idx < fd_nbupdt; updt_idx++) {
+		fd = fd_updt[updt_idx];
+		en = fdtab[fd].spec_e & 15;  /* new events */
+		eo = fdtab[fd].spec_e >> 4;  /* previous events */
 
-	/* now let's wait for events */
-	if (run_queue || signal_queue_len)
-		wait_time = 0;
-	else if (!exp)
-		wait_time = MAX_DELAY_MS;
-	else if (tick_is_expired(exp, now_ms))
-		wait_time = 0;
-	else {
-		wait_time = TICKS_TO_MS(tick_remain(now_ms, exp)) + 1;
-		if (wait_time > MAX_DELAY_MS)
-			wait_time = MAX_DELAY_MS;
+		if (fdtab[fd].owner && (eo ^ en)) {
+			if ((eo ^ en) & FD_EV_POLLED_RW) {
+				/* poll status changed */
+				if ((en & FD_EV_POLLED_RW) == 0) {
+					/* fd removed from poll list */
+					opcode = EPOLL_CTL_DEL;
+				}
+				else if ((eo & FD_EV_POLLED_RW) == 0) {
+					/* new fd in the poll list */
+					opcode = EPOLL_CTL_ADD;
+				}
+				else {
+					/* fd status changed */
+					opcode = EPOLL_CTL_MOD;
+				}
+
+				/* construct the epoll events based on new state */
+				ev.events = 0;
+				if (en & FD_EV_POLLED_R)
+					ev.events |= EPOLLIN;
+
+				if (en & FD_EV_POLLED_W)
+					ev.events |= EPOLLOUT;
+
+				ev.data.fd = fd;
+				epoll_ctl(epoll_fd, opcode, fd, &ev);
+			}
+
+			fdtab[fd].spec_e = (en << 4) + en;  /* save new events */
+
+			if (!(en & FD_EV_ACTIVE_RW)) {
+				/* This fd doesn't use any active entry anymore, we can
+				 * kill its entry.
+				 */
+				release_spec_entry(fd);
+			}
+			else if ((en & ~eo) & FD_EV_ACTIVE_RW) {
+				/* we need a new spec entry now */
+				alloc_spec_entry(fd);
+			}
+
+		}
+		fdtab[fd].updated = 0;
+		fdtab[fd].new = 0;
 	}
+	fd_nbupdt = 0;
+
+	/* compute the epoll_wait() timeout */
+
+	if (fd_nbspec || run_queue || signal_queue_len) {
+		/* Maybe we still have events in the spec list, or there are
+		 * some tasks left pending in the run_queue, so we must not
+		 * wait in epoll() otherwise we would delay their delivery by
+		 * the next timeout.
+		 */
+		wait_time = 0;
+	}
+	else {
+		if (!exp)
+			wait_time = MAX_DELAY_MS;
+		else if (tick_is_expired(exp, now_ms))
+			wait_time = 0;
+		else {
+			wait_time = TICKS_TO_MS(tick_remain(now_ms, exp)) + 1;
+			if (wait_time > MAX_DELAY_MS)
+				wait_time = MAX_DELAY_MS;
+		}
+	}
+
+	/* now let's wait for polled events */
 
 	fd = MIN(maxfd, global.tune.maxpollevents);
 	gettimeofday(&before_poll, NULL);
 	status = epoll_wait(epoll_fd, epoll_events, fd, wait_time);
 	tv_update_date(wait_time, status);
 	measure_idle();
+
+	/* process polled events */
 
 	for (count = 0; count < status; count++) {
 		int e = epoll_events[count].events;
@@ -259,53 +154,84 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			((e & EPOLLERR) ? FD_POLL_ERR : 0) |
 			((e & EPOLLHUP) ? FD_POLL_HUP : 0);
 
-		if (fdtab[fd].iocb && fdtab[fd].owner && fdtab[fd].ev)
+		if (fdtab[fd].iocb && fdtab[fd].owner && fdtab[fd].ev) {
+			int new_updt, old_updt = fd_nbupdt; /* Save number of updates to detect creation of new FDs. */
+
+			/* Mark the events as speculative before processing
+			 * them so that if nothing can be done we don't need
+			 * to poll again.
+			 */
+			if (fdtab[fd].ev & (FD_POLL_IN|FD_POLL_HUP|FD_POLL_ERR))
+				fd_ev_set(fd, DIR_RD);
+
+			if (fdtab[fd].ev & (FD_POLL_OUT|FD_POLL_ERR))
+				fd_ev_set(fd, DIR_WR);
+
 			fdtab[fd].iocb(fd);
+
+			/* One or more fd might have been created during the iocb().
+			 * This mainly happens with new incoming connections that have
+			 * just been accepted, so we'd like to process them immediately
+			 * for better efficiency. Second benefit, if at the end the fds
+			 * are disabled again, we can safely destroy their update entry
+			 * to reduce the scope of later scans. This is the reason we
+			 * scan the new entries backwards.
+			 */
+
+			for (new_updt = fd_nbupdt; new_updt > old_updt; new_updt--) {
+				fd = fd_updt[new_updt - 1];
+				if (!fdtab[fd].new)
+					continue;
+
+				fdtab[fd].new = 0;
+				fdtab[fd].ev &= FD_POLL_STICKY;
+
+				if ((fdtab[fd].spec_e & FD_EV_STATUS_R) == FD_EV_ACTIVE_R)
+					fdtab[fd].ev |= FD_POLL_IN;
+
+				if ((fdtab[fd].spec_e & FD_EV_STATUS_W) == FD_EV_ACTIVE_W)
+					fdtab[fd].ev |= FD_POLL_OUT;
+
+				if (fdtab[fd].ev && fdtab[fd].iocb && fdtab[fd].owner)
+					fdtab[fd].iocb(fd);
+
+				/* we can remove this update entry if it's the last one and is
+				 * unused, otherwise we don't touch anything.
+				 */
+				if (new_updt == fd_nbupdt && fdtab[fd].spec_e == 0) {
+					fdtab[fd].updated = 0;
+					fd_nbupdt--;
+				}
+			}
+		}
 	}
+
+	/* the caller will take care of speculative events */
 }
 
 /*
- * Initialization of the epoll() poller.
+ * Initialization of the speculative epoll() poller.
  * Returns 0 in case of failure, non-zero in case of success. If it fails, it
  * disables the poller by setting its pref to 0.
  */
 REGPRM1 static int _do_init(struct poller *p)
 {
-	__label__ fail_chg_ptr, fail_chg_list, fail_fdevt, fail_ee, fail_fd;
-	int fd_set_bytes;
-
 	p->private = NULL;
-	fd_set_bytes = 4 * (global.maxsock + 15) / 16;
 
 	epoll_fd = epoll_create(global.maxsock + 1);
 	if (epoll_fd < 0)
 		goto fail_fd;
 
+	/* See comments at the top of the file about this formula. */
+	absmaxevents = MAX(global.tune.maxpollevents, global.maxsock);
 	epoll_events = (struct epoll_event*)
-		calloc(1, sizeof(struct epoll_event) * global.tune.maxpollevents);
+		calloc(1, sizeof(struct epoll_event) * absmaxevents);
 
 	if (epoll_events == NULL)
 		goto fail_ee;
 
-	if ((fd_evts = (uint32_t *)calloc(1, fd_set_bytes)) == NULL)
-		goto fail_fdevt;
-
-	chg_list = (struct fd_chg *)calloc(1, sizeof(struct fd_chg) * global.maxsock);
-	if (chg_list == NULL)
-		goto fail_chg_list;
-
-	chg_ptr = (struct fd_chg **)calloc(1, sizeof(struct fd_chg*) * global.maxsock);
-	if (chg_ptr == NULL)
-		goto fail_chg_ptr;
-
 	return 1;
 
- fail_chg_ptr:
-	free(chg_list);
- fail_chg_list:
-	free(fd_evts);
- fail_fdevt:
-	free(epoll_events);
  fail_ee:
 	close(epoll_fd);
 	epoll_fd = -1;
@@ -315,16 +241,11 @@ REGPRM1 static int _do_init(struct poller *p)
 }
 
 /*
- * Termination of the epoll() poller.
+ * Termination of the speculative epoll() poller.
  * Memory is released and the poller is marked as unselectable.
  */
 REGPRM1 static void _do_term(struct poller *p)
 {
-	fd_flush_changes();
-
-	free(chg_ptr);
-	free(chg_list);
-	free(fd_evts);
 	free(epoll_events);
 
 	if (epoll_fd >= 0) {
@@ -332,11 +253,7 @@ REGPRM1 static void _do_term(struct poller *p)
 		epoll_fd = -1;
 	}
 
-	chg_ptr = NULL;
-	chg_list = NULL;
-	fd_evts = NULL;
 	epoll_events = NULL;
-
 	p->private = NULL;
 	p->pref = 0;
 }
@@ -398,12 +315,12 @@ static void _do_register(void)
 	p->poll = _do_poll;
 	p->fork = _do_fork;
 
-	p->is_set  = __fd_is_set;
-	p->set = __fd_set;
-	p->wai = __fd_set;
-	p->clr = __fd_clr;
-	p->rem = __fd_rem;
-	p->clo = __fd_clo;
+	p->is_set  = NULL;
+	p->set = NULL;
+	p->wai = NULL;
+	p->clr = NULL;
+	p->rem = NULL;
+	p->clo = NULL;
 }
 
 

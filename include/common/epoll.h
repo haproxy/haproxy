@@ -2,7 +2,7 @@
  * include/common/epoll.h
  * epoll definitions for older libc.
  *
- * Copyright (C) 2000-2011 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -29,7 +29,7 @@
 #ifndef _COMMON_EPOLL_H
 #define _COMMON_EPOLL_H
 
-#if defined (__linux__) && (defined(ENABLE_EPOLL) || defined(ENABLE_SEPOLL))
+#if defined (__linux__) && defined(ENABLE_EPOLL)
 
 #ifndef USE_MY_EPOLL
 #include <sys/epoll.h>
@@ -94,7 +94,7 @@ static inline _syscall4 (int, epoll_wait, int, epfd, struct epoll_event *, event
 
 #endif /* USE_MY_EPOLL */
 
-#endif /* __linux__ && (ENABLE_EPOLL || ENABLE_SEPOLL) */
+#endif /* __linux__ && ENABLE_EPOLL */
 
 #endif /* _COMMON_EPOLL_H */
 

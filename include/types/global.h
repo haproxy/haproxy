@@ -2,7 +2,7 @@
  * include/types/global.h
  * Global variables.
  *
- * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -54,9 +54,8 @@
 #define GTUNE_USE_POLL           (1<<1)
 #define GTUNE_USE_EPOLL          (1<<2)
 #define GTUNE_USE_KQUEUE         (1<<3)
-#define GTUNE_USE_SEPOLL         (1<<4)
 /* platform-specific options */
-#define GTUNE_USE_SPLICE         (1<<5)
+#define GTUNE_USE_SPLICE         (1<<4)
 
 /* Access level for a stats socket */
 #define ACCESS_LVL_NONE     0
