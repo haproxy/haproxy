@@ -132,6 +132,48 @@ void fd_delete(int fd)
 		maxfd--;
 }
 
+/* Scan and process the speculative events. This should be called right after
+ * the poller.
+ */
+void fd_process_spec_events()
+{
+	int fd, spec_idx, e;
+
+	/* now process speculative events if any */
+
+	for (spec_idx = 0; spec_idx < fd_nbspec; ) {
+		fd = fd_spec[spec_idx];
+		e = fdtab[fd].spec_e;
+
+		/*
+		 * Process the speculative events.
+		 *
+		 * Principle: events which are marked FD_EV_ACTIVE are processed
+		 * with their usual I/O callback. The callback may remove the
+		 * events from the list or tag them for polling. Changes will be
+		 * applied on next round.
+		 */
+
+		fdtab[fd].ev &= FD_POLL_STICKY;
+
+		if ((e & FD_EV_STATUS_R) == FD_EV_ACTIVE_R)
+			fdtab[fd].ev |= FD_POLL_IN;
+
+		if ((e & FD_EV_STATUS_W) == FD_EV_ACTIVE_W)
+			fdtab[fd].ev |= FD_POLL_OUT;
+
+		if (fdtab[fd].iocb && fdtab[fd].owner && fdtab[fd].ev)
+			fdtab[fd].iocb(fd);
+
+		/* if the fd was removed from the spec list, it has been
+		 * replaced by the next one that we don't want to skip !
+		 */
+		if (spec_idx < fd_nbspec && fd_spec[spec_idx] != fd)
+			continue;
+
+		spec_idx++;
+	}
+}
 
 /* disable the specified poller */
 void disable_poller(const char *poller_name)

@@ -76,6 +76,11 @@ int list_pollers(FILE *out);
  */
 void run_poller();
 
+/* Scan and process the speculative events. This should be called right after
+ * the poller.
+ */
+void fd_process_spec_events();
+
 /* Mark fd <fd> as updated and allocate an entry in the update list for this if
  * it was not already there. This can be done at any time.
  */

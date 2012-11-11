@@ -48,7 +48,6 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	int status, eo, en;
 	int fd, opcode;
 	int count;
-	int spec_idx;
 	int updt_idx;
 	int wait_time;
 
@@ -207,42 +206,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		}
 	}
 
-	/* now process speculative events if any */
-
-	for (spec_idx = 0; spec_idx < fd_nbspec; ) {
-		fd = fd_spec[spec_idx];
-		eo = fdtab[fd].spec_e;
-
-		/*
-		 * Process the speculative events.
-		 *
-		 * Principle: events which are marked FD_EV_ACTIVE are processed
-		 * with their usual I/O callback. The callback may remove the
-		 * events from the list or tag them for polling. Changes will be
-		 * applied on next round.
-		 */
-
-		fdtab[fd].ev &= FD_POLL_STICKY;
-
-		if ((eo & FD_EV_STATUS_R) == FD_EV_ACTIVE_R)
-			fdtab[fd].ev |= FD_POLL_IN;
-
-		if ((eo & FD_EV_STATUS_W) == FD_EV_ACTIVE_W)
-			fdtab[fd].ev |= FD_POLL_OUT;
-
-		if (fdtab[fd].iocb && fdtab[fd].owner && fdtab[fd].ev)
-			fdtab[fd].iocb(fd);
-
-		/* if the fd was removed from the spec list, it has been
-		 * replaced by the next one that we don't want to skip !
-		 */
-		if (spec_idx < fd_nbspec && fd_spec[spec_idx] != fd)
-			continue;
-
-		spec_idx++;
-	}
-
-	/* in the end, we have processed status + spec_processed FDs */
+	/* the caller will take care of speculative events */
 }
 
 /*

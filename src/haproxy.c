@@ -1216,6 +1216,7 @@ void run_poll_loop()
 
 		/* The poller will ensure it returns around <next> */
 		cur_poller.poll(&cur_poller, next);
+		fd_process_spec_events();
 	}
 }
 
