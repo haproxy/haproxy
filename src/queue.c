@@ -122,7 +122,7 @@ struct session *pendconn_get_next_sess(struct server *srv, struct proxy *px)
 
 	/* we want to note that the session has now been assigned a server */
 	sess->flags |= SN_ASSIGNED;
-	set_target_server(&sess->target, srv);
+	sess->target = &srv->obj_type;
 	session_add_srv_conn(sess, srv);
 	srv->served++;
 	if (px->lbprm.server_take_conn)
@@ -148,7 +148,7 @@ struct pendconn *pendconn_add(struct session *sess)
 
 	sess->pend_pos = p;
 	p->sess = sess;
-	p->srv = srv = target_srv(&sess->target);
+	p->srv = srv = objt_server(sess->target);
 
 	if (sess->flags & SN_ASSIGNED && srv) {
 		LIST_ADDQ(&srv->pendconns, &p->list);

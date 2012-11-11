@@ -36,6 +36,7 @@
 #include <types/connection.h>
 #include <types/counters.h>
 #include <types/freq_ctr.h>
+#include <types/obj_type.h>
 #include <types/port_range.h>
 #include <types/proxy.h>
 #include <types/queue.h>
@@ -107,6 +108,7 @@ struct tree_occ {
 };
 
 struct server {
+	enum obj_type obj_type;                 /* object type == OBJ_TYPE_SERVER */
 	struct server *next;
 	int state;				/* server state (SRV_*) */
 	int prev_state;				/* server state before last change (SRV_*) */

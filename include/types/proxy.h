@@ -42,6 +42,7 @@
 #include <types/freq_ctr.h>
 #include <types/listener.h>
 #include <types/log.h>
+#include <types/obj_type.h>
 #include <types/proto_http.h>
 #include <types/sample.h>
 #include <types/session.h>
@@ -200,10 +201,11 @@ struct error_snapshot {
 };
 
 struct proxy {
-	struct in_addr mon_net, mon_mask;	/* don't forward connections from this net (network order) FIXME: should support IPv6 */
+	enum obj_type obj_type;                 /* object type == OBJ_TYPE_PROXY */
 	int state;				/* proxy state */
 	int options;				/* PR_O_REDISP, PR_O_TRANSP, ... */
 	int options2;				/* PR_O2_* */
+	struct in_addr mon_net, mon_mask;	/* don't forward connections from this net (network order) FIXME: should support IPv6 */
 	unsigned int ck_opts;			/* PR_CK_* (cookie options) */
 	unsigned int fe_req_ana, be_req_ana;	/* bitmap of common request protocol analysers for the frontend and backend */
 	unsigned int fe_rsp_ana, be_rsp_ana;	/* bitmap of common response protocol analysers for the frontend and backend */

@@ -125,7 +125,7 @@ int ssl_sock_verifycbk(int ok, X509_STORE_CTX *x_store)
 			conn->xprt_st |= SSL_SOCK_CAEDEPTH_TO_ST(depth);
 		}
 
-		if (target_client(&conn->target)->bind_conf->ca_ignerr & (1ULL << err))
+		if (objt_listener(conn->target)->bind_conf->ca_ignerr & (1ULL << err))
 			return 1;
 
 		return 0;
@@ -135,7 +135,7 @@ int ssl_sock_verifycbk(int ok, X509_STORE_CTX *x_store)
 		conn->xprt_st |= SSL_SOCK_CRTERROR_TO_ST(err);
 
 	/* check if certificate error needs to be ignored */
-	if (target_client(&conn->target)->bind_conf->crt_ignerr & (1ULL << err))
+	if (objt_listener(conn->target)->bind_conf->crt_ignerr & (1ULL << err))
 		return 1;
 
 	return 0;
@@ -798,15 +798,15 @@ static int ssl_sock_init(struct connection *conn)
 
 	/* If it is in client mode initiate SSL session
 	   in connect state otherwise accept state */
-	if (target_srv(&conn->target)) {
+	if (objt_server(conn->target)) {
 		/* Alloc a new SSL session ctx */
-		conn->xprt_ctx = SSL_new(target_srv(&conn->target)->ssl_ctx.ctx);
+		conn->xprt_ctx = SSL_new(objt_server(conn->target)->ssl_ctx.ctx);
 		if (!conn->xprt_ctx)
 			return -1;
 
 		SSL_set_connect_state(conn->xprt_ctx);
-		if (target_srv(&conn->target)->ssl_ctx.reused_sess)
-			SSL_set_session(conn->xprt_ctx, target_srv(&conn->target)->ssl_ctx.reused_sess);
+		if (objt_server(conn->target)->ssl_ctx.reused_sess)
+			SSL_set_session(conn->xprt_ctx, objt_server(conn->target)->ssl_ctx.reused_sess);
 
 		/* set fd on SSL session context */
 		SSL_set_fd(conn->xprt_ctx, conn->t.sock.fd);
@@ -817,9 +817,9 @@ static int ssl_sock_init(struct connection *conn)
 		sslconns++;
 		return 0;
 	}
-	else if (target_client(&conn->target)) {
+	else if (objt_listener(conn->target)) {
 		/* Alloc a new SSL session ctx */
-		conn->xprt_ctx = SSL_new(target_client(&conn->target)->bind_conf->default_ctx);
+		conn->xprt_ctx = SSL_new(objt_listener(conn->target)->bind_conf->default_ctx);
 		if (!conn->xprt_ctx)
 			return -1;
 
@@ -893,13 +893,13 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 	}
 
 	/* Handshake succeeded */
-	if (target_srv(&conn->target)) {
+	if (objt_server(conn->target)) {
 		if (!SSL_session_reused(conn->xprt_ctx)) {
 			/* check if session was reused, if not store current session on server for reuse */
-			if (target_srv(&conn->target)->ssl_ctx.reused_sess)
-				SSL_SESSION_free(target_srv(&conn->target)->ssl_ctx.reused_sess);
+			if (objt_server(conn->target)->ssl_ctx.reused_sess)
+				SSL_SESSION_free(objt_server(conn->target)->ssl_ctx.reused_sess);
 
-			target_srv(&conn->target)->ssl_ctx.reused_sess = SSL_get1_session(conn->xprt_ctx);
+			objt_server(conn->target)->ssl_ctx.reused_sess = SSL_get1_session(conn->xprt_ctx);
 		}
 	}
 
@@ -909,9 +909,9 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 
  out_error:
 	/* free resumed session if exists */
-	if (target_srv(&conn->target) && target_srv(&conn->target)->ssl_ctx.reused_sess) {
-		SSL_SESSION_free(target_srv(&conn->target)->ssl_ctx.reused_sess);
-		target_srv(&conn->target)->ssl_ctx.reused_sess = NULL;
+	if (objt_server(conn->target) && objt_server(conn->target)->ssl_ctx.reused_sess) {
+		SSL_SESSION_free(objt_server(conn->target)->ssl_ctx.reused_sess);
+		objt_server(conn->target)->ssl_ctx.reused_sess = NULL;
 	}
 
 	/* Fail on all other handshake errors */

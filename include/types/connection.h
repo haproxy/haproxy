@@ -28,6 +28,7 @@
 #include <common/config.h>
 
 #include <types/listener.h>
+#include <types/obj_type.h>
 #include <types/protocol.h>
 
 /* referenced below */
@@ -141,16 +142,6 @@ enum {
 	CO_FL_XPRT_TRACKED  = 0x80000000,
 };
 
-/* target types */
-enum {
-	TARG_TYPE_NONE = 0,         /* no target set, pointer is NULL by definition */
-	TARG_TYPE_CLIENT,           /* target is a client, pointer is NULL by definition */
-	TARG_TYPE_PROXY,            /* target is a proxy   ; use address with the proxy's settings */
-	TARG_TYPE_SERVER,           /* target is a server  ; use address with server's and its proxy's settings */
-	TARG_TYPE_APPLET,           /* target is an applet ; use only the applet */
-};
-
-
 /* xprt_ops describes transport-layer operations for a connection. They
  * generally run over a socket-based control layer, but not always. Some
  * of them are used for data transfer with the upper layer (rcv_*, snd_*)
@@ -184,18 +175,6 @@ struct data_cb {
 	int  (*init)(struct connection *conn);  /* data-layer initialization */
 };
 
-/* a target describes what is on the remote side of the connection. */
-struct target {
-	int type;
-	union {
-		void *v;              /* pointer value, for any type */
-		struct proxy *p;      /* when type is TARG_TYPE_PROXY  */
-		struct server *s;     /* when type is TARG_TYPE_SERVER */
-		struct si_applet *a;  /* when type is TARG_TYPE_APPLET */
-		struct listener *l;   /* when type is TARG_TYPE_CLIENT */
-	} ptr;
-} __attribute__((packed));
-
 /* This structure describes a connection with its methods and data.
  * A connection may be performed to proxy or server via a local or remote
  * socket, and can also be made to an internal applet. It can support
@@ -216,7 +195,7 @@ struct connection {
 			int fd;       /* file descriptor for a stream driver when known */
 		} sock;
 	} t;
-	struct target target;         /* the target to connect to (server, proxy, applet, ...) */
+	enum obj_type *target;        /* the target to connect to (server, proxy, applet, ...) */
 	struct {
 		struct sockaddr_storage from;	/* client address, or address to spoof when connecting to the server */
 		struct sockaddr_storage to;	/* address reached by the client, or address to connect to */

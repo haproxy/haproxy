@@ -220,7 +220,7 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
  * pointed to by conn->addr.from in case of transparent proxying. Normal source
  * bind addresses are still determined locally (due to the possible need of a
  * source port). conn->target may point either to a valid server or to a backend,
- * depending on conn->target.type. Only TARG_TYPE_PROXY and TARG_TYPE_SERVER are
+ * depending on conn->target. Only OBJ_TYPE_PROXY and OBJ_TYPE_SERVER are
  * supported. The <data> parameter is a boolean indicating whether there are data
  * waiting for being sent or not, in order to adjust data write polling and on
  * some platforms, the ability to avoid an empty initial ACK.
@@ -241,13 +241,13 @@ int tcp_connect_server(struct connection *conn, int data)
 	struct server *srv;
 	struct proxy *be;
 
-	switch (conn->target.type) {
-	case TARG_TYPE_PROXY:
-		be = conn->target.ptr.p;
+	switch (obj_type(conn->target)) {
+	case OBJ_TYPE_PROXY:
+		be = objt_proxy(conn->target);
 		srv = NULL;
 		break;
-	case TARG_TYPE_SERVER:
-		srv = conn->target.ptr.s;
+	case OBJ_TYPE_SERVER:
+		srv = objt_server(conn->target);
 		be = srv->proxy;
 		break;
 	default:

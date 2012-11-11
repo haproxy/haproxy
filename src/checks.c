@@ -349,7 +349,7 @@ static int check_for_pending(struct server *s)
 		p = pendconn_from_px(s->proxy);
 		if (!p)
 			break;
-		set_target_server(&p->sess->target, s);
+		p->sess->target = &s->obj_type;
 		sess = p->sess;
 		pendconn_free(p);
 		task_wakeup(sess->task, TASK_WOKEN_RES);
@@ -1299,7 +1299,7 @@ static struct task *process_chk(struct task *t)
 		}
 
 		/* prepare a new connection */
-		set_target_server(&conn->target, s);
+		conn->target = &s->obj_type;
 		conn_prepare(conn, &check_conn_cb, s->check.proto, s->check.xprt, s);
 
 		/* no client address */

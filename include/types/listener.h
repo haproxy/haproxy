@@ -31,6 +31,7 @@
 
 #include <common/config.h>
 #include <common/mini-clist.h>
+#include <types/obj_type.h>
 #include <eb32tree.h>
 
 /* Some pointer types reference below */
@@ -146,6 +147,7 @@ struct bind_conf {
  * the fdtab.
  */
 struct listener {
+	enum obj_type obj_type;         /* object type = OBJ_TYPE_LISTENER */
 	int fd;				/* the listen socket */
 	char *name;			/* */
 	int luid;			/* listener universally unique ID, used for SNMP */

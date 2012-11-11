@@ -35,6 +35,7 @@
 #include <types/capture.h>
 #include <types/compression.h>
 #include <types/global.h>
+#include <types/obj_type.h>
 #include <types/peers.h>
 
 #include <proto/acl.h>
@@ -265,6 +266,7 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 
 		for (; port <= end; port++) {
 			l = (struct listener *)calloc(1, sizeof(struct listener));
+			l->obj_type = OBJ_TYPE_LISTENER;
 			LIST_ADDQ(&curproxy->conf.listeners, &l->by_fe);
 			LIST_ADDQ(&bind_conf->listeners, &l->by_bind);
 			l->frontend = curproxy;
@@ -4034,6 +4036,7 @@ stats_error_parsing:
 			newsrv->conf.file = strdup(file);
 			newsrv->conf.line = linenum;
 
+			newsrv->obj_type = OBJ_TYPE_SERVER;
 			LIST_INIT(&newsrv->actconns);
 			LIST_INIT(&newsrv->pendconns);
 			do_check = 0;

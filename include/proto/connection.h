@@ -26,6 +26,7 @@
 #include <common/memory.h>
 #include <types/connection.h>
 #include <types/listener.h>
+#include <proto/obj_type.h>
 
 extern struct pool_head *pool2_connection;
 
@@ -375,61 +376,6 @@ static inline int conn_sock_shutw_pending(struct connection *c)
 	return (c->flags & (CO_FL_DATA_WR_SH | CO_FL_SOCK_WR_SH)) == CO_FL_DATA_WR_SH;
 }
 
-static inline void clear_target(struct target *dest)
-{
-	dest->type = TARG_TYPE_NONE;
-	dest->ptr.v = NULL;
-}
-
-static inline void set_target_client(struct target *dest, struct listener *l)
-{
-	dest->type = TARG_TYPE_CLIENT;
-	dest->ptr.l = l;
-}
-
-static inline void set_target_server(struct target *dest, struct server *s)
-{
-	dest->type = TARG_TYPE_SERVER;
-	dest->ptr.s = s;
-}
-
-static inline void set_target_proxy(struct target *dest, struct proxy *p)
-{
-	dest->type = TARG_TYPE_PROXY;
-	dest->ptr.p = p;
-}
-
-static inline void set_target_applet(struct target *dest, struct si_applet *a)
-{
-	dest->type = TARG_TYPE_APPLET;
-	dest->ptr.a = a;
-}
-
-static inline struct target *copy_target(struct target *dest, struct target *src)
-{
-	*dest = *src;
-	return dest;
-}
-
-static inline int target_match(struct target *a, struct target *b)
-{
-	return a->type == b->type && a->ptr.v == b->ptr.v;
-}
-
-static inline struct server *target_srv(struct target *t)
-{
-	if (!t || t->type != TARG_TYPE_SERVER)
-		return NULL;
-	return t->ptr.s;
-}
-
-static inline struct listener *target_client(struct target *t)
-{
-	if (!t || t->type != TARG_TYPE_CLIENT)
-		return NULL;
-	return t->ptr.l;
-}
-
 /* Retrieves the connection's source address */
 static inline void conn_get_from_addr(struct connection *conn)
 {
@@ -440,8 +386,8 @@ static inline void conn_get_from_addr(struct connection *conn)
 		return;
 
 	if (conn->ctrl->get_src(conn->t.sock.fd, (struct sockaddr *)&conn->addr.from,
-	                         sizeof(conn->addr.from),
-	                         conn->target.type != TARG_TYPE_CLIENT) == -1)
+	                        sizeof(conn->addr.from),
+	                        obj_type(conn->target) != OBJ_TYPE_LISTENER) == -1)
 		return;
 	conn->flags |= CO_FL_ADDR_FROM_SET;
 }
@@ -456,8 +402,8 @@ static inline void conn_get_to_addr(struct connection *conn)
 		return;
 
 	if (conn->ctrl->get_dst(conn->t.sock.fd, (struct sockaddr *)&conn->addr.to,
-	                         sizeof(conn->addr.to),
-	                         conn->target.type != TARG_TYPE_CLIENT) == -1)
+	                        sizeof(conn->addr.to),
+	                        obj_type(conn->target) != OBJ_TYPE_LISTENER) == -1)
 		return;
 	conn->flags |= CO_FL_ADDR_TO_SET;
 }

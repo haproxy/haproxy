@@ -26,6 +26,7 @@
 #include <common/time.h>
 
 #include <types/global.h>
+#include <types/obj_type.h>
 #include <types/peers.h>
 
 #include <proto/backend.h>
@@ -425,6 +426,7 @@ int proxy_cfg_ensure_no_http(struct proxy *curproxy)
 void init_new_proxy(struct proxy *p)
 {
 	memset(p, 0, sizeof(struct proxy));
+	p->obj_type = OBJ_TYPE_PROXY;
 	LIST_INIT(&p->pendconns);
 	LIST_INIT(&p->acl);
 	LIST_INIT(&p->http_req_rules);

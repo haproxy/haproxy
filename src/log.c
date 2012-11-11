@@ -800,12 +800,12 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 
 	if (!(tolog & LW_SVID))
 		svid = "-";
-	else switch (s->target.type) {
-	case TARG_TYPE_SERVER:
-		svid = s->target.ptr.s->id;
+	else switch (obj_type(s->target)) {
+	case OBJ_TYPE_SERVER:
+		svid = objt_server(s->target)->id;
 		break;
-	case TARG_TYPE_APPLET:
-		svid = s->target.ptr.a->name;
+	case OBJ_TYPE_APPLET:
+		svid = objt_applet(s->target)->name;
 		break;
 	default:
 		svid = "<NOSRV>";
@@ -1175,8 +1175,8 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_SRVCONN:  // %sc
-				ret = ultoa_o(target_srv(&s->target) ?
-				                 target_srv(&s->target)->cur_sess :
+				ret = ultoa_o(obj_type(s->target) ?
+				                 objt_server(s->target)->cur_sess :
 				                 0, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;

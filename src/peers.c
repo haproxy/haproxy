@@ -25,7 +25,8 @@
 #include <common/time.h>
 
 #include <types/global.h>
-#include <proto/listener.h>
+#include <types/listener.h>
+#include <types/obj_type.h>
 #include <types/peers.h>
 
 #include <proto/acl.h>
@@ -1040,6 +1041,7 @@ quit:
 }
 
 static struct si_applet peer_applet = {
+	.obj_type = OBJ_TYPE_APPLET,
 	.name = "<PEER>", /* used for logging */
 	.fct = peer_io_handler,
 	.release = peer_session_release,
@@ -1052,8 +1054,7 @@ static void peer_session_forceshutdown(struct session * session)
 {
 	struct stream_interface *oldsi;
 
-	if (session->si[0].conn->target.type == TARG_TYPE_APPLET &&
-	    session->si[0].conn->target.ptr.a == &peer_applet) {
+	if (objt_applet(session->si[0].conn->target) == &peer_applet) {
 		oldsi = &session->si[0];
 	}
 	else {
@@ -1077,7 +1078,7 @@ int peer_accept(struct session *s)
 {
 	 /* we have a dedicated I/O handler for the stats */
 	stream_int_register_handler(&s->si[1], &peer_applet);
-	copy_target(&s->target, &s->si[1].conn->target); // for logging only
+	s->target = s->si[1].conn->target; // for logging only
 	s->si[1].conn->xprt_ctx = s;
 	s->si[1].applet.st0 = PEER_SESSION_ACCEPT;
 
@@ -1161,7 +1162,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->si[0].err_loc = NULL;
 	s->si[0].release = NULL;
 	s->si[0].send_proxy_ofs = 0;
-	set_target_client(&s->si[0].conn->target, l);
+	s->si[0].conn->target = &l->obj_type;
 	s->si[0].exp = TICK_ETERNITY;
 	s->si[0].flags = SI_FL_NONE;
 	if (s->fe->options2 & PR_O2_INDEPSTR)
@@ -1180,7 +1181,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->si[1].err_loc = NULL;
 	s->si[1].release = NULL;
 	s->si[1].send_proxy_ofs = 0;
-	set_target_proxy(&s->si[1].conn->target, s->be);
+	s->si[1].conn->target = &s->be->obj_type;
 	si_prepare_conn(&s->si[1], peer->proto, peer->xprt);
 	s->si[1].exp = TICK_ETERNITY;
 	s->si[1].flags = SI_FL_NONE;
@@ -1188,7 +1189,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 		s->si[1].flags |= SI_FL_INDEP_STR;
 
 	session_init_srv_conn(s);
-	set_target_proxy(&s->target, s->be);
+	s->target = &s->be->obj_type;
 	s->pend_pos = NULL;
 
 	/* init store persistence */

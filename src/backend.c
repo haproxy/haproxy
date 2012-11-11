@@ -38,6 +38,7 @@
 #include <proto/lb_fwlc.h>
 #include <proto/lb_fwrr.h>
 #include <proto/lb_map.h>
+#include <proto/obj_type.h>
 #include <proto/protocol.h>
 #include <proto/proto_http.h>
 #include <proto/proto_tcp.h>
@@ -489,7 +490,7 @@ int assign_server(struct session *s)
 	if (unlikely(s->pend_pos || s->flags & SN_ASSIGNED))
 		goto out_err;
 
-	prev_srv  = target_srv(&s->target);
+	prev_srv  = objt_server(s->target);
 	conn_slot = s->srv_conn;
 
 	/* We have to release any connection slot before applying any LB algo,
@@ -498,13 +499,13 @@ int assign_server(struct session *s)
 	if (conn_slot)
 		sess_change_server(s, NULL);
 
-	/* We will now try to find the good server and store it into <target_srv(&s->target)>.
-	 * Note that <target_srv(&s->target)> may be NULL in case of dispatch or proxy mode,
+	/* We will now try to find the good server and store it into <objt_server(s->target)>.
+	 * Note that <objt_server(s->target)> may be NULL in case of dispatch or proxy mode,
 	 * as well as if no server is available (check error code).
 	 */
 
 	srv = NULL;
-	clear_target(&s->target);
+	s->target = NULL;
 
 	if (s->be->lbprm.algo & BE_LB_KIND) {
 		/* we must check if we have at least one server available */
@@ -631,15 +632,15 @@ int assign_server(struct session *s)
 			s->be->be_counters.cum_lbconn++;
 			srv->counters.cum_lbconn++;
 		}
-		set_target_server(&s->target, srv);
+		s->target = &srv->obj_type;
 	}
 	else if (s->be->options & (PR_O_DISPATCH | PR_O_TRANSP)) {
-		set_target_proxy(&s->target, s->be);
+		s->target = &s->be->obj_type;
 	}
 	else if ((s->be->options & PR_O_HTTP_PROXY) &&
 		 is_addr(&s->req->cons->conn->addr.to)) {
 		/* in proxy mode, we need a valid destination address */
-		set_target_proxy(&s->target, s->be);
+		s->target = &s->be->obj_type;
 	}
 	else {
 		err = SRV_STATUS_NOSRV;
@@ -691,7 +692,7 @@ int assign_server_address(struct session *s)
 		if (!(s->flags & SN_ASSIGNED))
 			return SRV_STATUS_INTERNAL;
 
-		s->req->cons->conn->addr.to = target_srv(&s->target)->addr;
+		s->req->cons->conn->addr.to = objt_server(s->target)->addr;
 
 		if (!is_addr(&s->req->cons->conn->addr.to)) {
 			/* if the server has no address, we use the same address
@@ -710,7 +711,7 @@ int assign_server_address(struct session *s)
 
 		/* if this server remaps proxied ports, we'll use
 		 * the port the client connected to with an offset. */
-		if (target_srv(&s->target)->state & SRV_MAPPORTS) {
+		if (objt_server(s->target)->state & SRV_MAPPORTS) {
 			int base_port;
 
 			if (!(s->be->options & PR_O_TRANSP))
@@ -764,7 +765,7 @@ int assign_server_address(struct session *s)
  * Returns :
  *
  *   SRV_STATUS_OK       if everything is OK.
- *   SRV_STATUS_NOSRV    if no server is available. target_srv(&s->target) = NULL.
+ *   SRV_STATUS_NOSRV    if no server is available. objt_server(s->target) = NULL.
  *   SRV_STATUS_QUEUED   if the connection has been queued.
  *   SRV_STATUS_FULL     if the server(s) is/are saturated and the
  *                       connection could not be queued at the server's,
@@ -783,7 +784,7 @@ int assign_server_and_queue(struct session *s)
 
 	err = SRV_STATUS_OK;
 	if (!(s->flags & SN_ASSIGNED)) {
-		struct server *prev_srv = target_srv(&s->target);
+		struct server *prev_srv = objt_server(s->target);
 
 		err = assign_server(s);
 		if (prev_srv) {
@@ -796,7 +797,7 @@ int assign_server_and_queue(struct session *s)
 			 *  - if the server remained the same : update retries.
 			 */
 
-			if (prev_srv != target_srv(&s->target)) {
+			if (prev_srv != objt_server(s->target)) {
 				if ((s->txn.flags & TX_CK_MASK) == TX_CK_VALID) {
 					s->txn.flags &= ~TX_CK_MASK;
 					s->txn.flags |= TX_CK_DOWN;
@@ -814,7 +815,7 @@ int assign_server_and_queue(struct session *s)
 	switch (err) {
 	case SRV_STATUS_OK:
 		/* we have SN_ASSIGNED set */
-		srv = target_srv(&s->target);
+		srv = objt_server(s->target);
 		if (!srv)
 			return SRV_STATUS_OK;   /* dispatch or proxy mode */
 
@@ -882,7 +883,7 @@ int assign_server_and_queue(struct session *s)
 static void assign_tproxy_address(struct session *s)
 {
 #if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
-	struct server *srv = target_srv(&s->target);
+	struct server *srv = objt_server(s->target);
 
 	if (srv && srv->state & SRV_BIND_SRC) {
 		switch (srv->state & SRV_TPROXY_MASK) {
@@ -981,13 +982,13 @@ int connect_server(struct session *s)
 	}
 
 	/* the target was only on the session, assign it to the SI now */
-	copy_target(&s->req->cons->conn->target, &s->target);
+	s->req->cons->conn->target = s->target;
 
 	/* set the correct protocol on the output stream interface */
-	if (s->target.type == TARG_TYPE_SERVER) {
-		si_prepare_conn(s->req->cons, target_srv(&s->target)->proto, target_srv(&s->target)->xprt);
+	if (objt_server(s->target)) {
+		si_prepare_conn(s->req->cons, objt_server(s->target)->proto, objt_server(s->target)->xprt);
 	}
-	else if (s->target.type == TARG_TYPE_PROXY) {
+	else if (obj_type(s->target) == OBJ_TYPE_PROXY) {
 		/* proxies exclusively run on raw_sock right now */
 		si_prepare_conn(s->req->cons, protocol_by_family(s->req->cons->conn->addr.to.ss_family), &raw_sock);
 		if (!si_ctrl(s->req->cons))
@@ -998,7 +999,7 @@ int connect_server(struct session *s)
 
 	/* process the case where the server requires the PROXY protocol to be sent */
 	s->req->cons->send_proxy_ofs = 0;
-	if (s->target.type == TARG_TYPE_SERVER && (s->target.ptr.s->state & SRV_SEND_PROXY)) {
+	if (objt_server(s->target) && (objt_server(s->target)->state & SRV_SEND_PROXY)) {
 		s->req->cons->send_proxy_ofs = 1; /* must compute size */
 		conn_get_to_addr(s->req->prod->conn);
 	}
@@ -1021,7 +1022,7 @@ int connect_server(struct session *s)
 	/* set connect timeout */
 	s->req->cons->exp = tick_add_ifset(now_ms, s->be->timeout.connect);
 
-	srv = target_srv(&s->target);
+	srv = objt_server(s->target);
 	if (srv) {
 		s->flags |= SN_CURR_SESS;
 		srv->cur_sess++;
@@ -1053,7 +1054,7 @@ int srv_redispatch_connect(struct session *t)
 	 */
  redispatch:
 	conn_err = assign_server_and_queue(t);
-	srv = target_srv(&t->target);
+	srv = objt_server(t->target);
 
 	switch (conn_err) {
 	case SRV_STATUS_OK:
@@ -1173,13 +1174,13 @@ int tcp_persist_rdp_cookie(struct session *s, struct channel *req, int an_bit)
 	if (*p != '.')
 		goto no_cookie;
 
-	clear_target(&s->target);
+	s->target = NULL;
 	while (srv) {
 		if (memcmp(&addr, &(srv->addr), sizeof(addr)) == 0) {
 			if ((srv->state & SRV_RUNNING) || (px->options & PR_O_PERSIST)) {
 				/* we found the server and it is usable */
 				s->flags |= SN_DIRECT | SN_ASSIGNED;
-				set_target_server(&s->target, srv);
+				s->target = &srv->obj_type;
 				break;
 			}
 		}
@@ -1488,11 +1489,11 @@ static int
 acl_fetch_srv_id(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                  const struct arg *args, struct sample *smp)
 {
-	if (!target_srv(&l4->target))
+	if (!objt_server(l4->target))
 		return 0;
 
 	smp->type = SMP_T_UINT;
-	smp->data.uint = target_srv(&l4->target)->puid;
+	smp->data.uint = objt_server(l4->target)->puid;
 
 	return 1;
 }

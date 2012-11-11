@@ -406,7 +406,7 @@ struct task *stream_int_register_handler(struct stream_interface *si, struct si_
 	DPRINTF(stderr, "registering handler %p for si %p (was %p)\n", app, si, si->owner);
 
 	si_prepare_embedded(si);
-	set_target_applet(&si->conn->target, app);
+	si->conn->target = &app->obj_type;
 	si->release = app->release;
 	si->flags |= SI_FL_WAIT_DATA;
 	return si->owner;
@@ -419,7 +419,7 @@ void stream_int_unregister_handler(struct stream_interface *si)
 {
 	si->release = NULL;
 	si->owner = NULL;
-	clear_target(&si->conn->target);
+	si->conn->target = NULL;
 }
 
 /* This callback is used to send a valid PROXY protocol line to a socket being

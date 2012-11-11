@@ -27,6 +27,7 @@
 
 #include <types/channel.h>
 #include <types/connection.h>
+#include <types/obj_type.h>
 #include <common/config.h>
 
 /* A stream interface must have its own errors independently of the buffer's,
@@ -160,8 +161,9 @@ struct stream_interface {
 
 /* An applet designed to run in a stream interface */
 struct si_applet {
-	char *name; /* applet's name to report in logs */
-	void (*fct)(struct stream_interface *);  /* internal I/O handler, may never be NULL */
+	enum obj_type obj_type;                      /* object type = OBJ_TYPE_APPLET */
+	char *name;                                  /* applet's name to report in logs */
+	void (*fct)(struct stream_interface *);      /* internal I/O handler, may never be NULL */
 	void (*release)(struct stream_interface *);  /* callback to release resources, may be NULL */
 };
 
