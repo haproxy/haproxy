@@ -1815,16 +1815,34 @@ clitimeout <timeout> (deprecated)
   See also : "timeout client", "timeout http-request", "timeout server", and
              "srvtimeout".
 
-compression algo [ gzip ] ...
-compression type ...
+compression algo <algorithm> ...
+compression type <mime type> ...
 compression offload
   Enable HTTP compression.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
   Arguments :
-    algo  is followed by the list of supported compression algorithms.
-    type  is followed by the list of MIME types that will be compressed.
-    offload makes haproxy work as a compression offloader only (see notes).
+    algo     is followed by the list of supported compression algorithms.
+    type     is followed by the list of MIME types that will be compressed.
+    offload  makes haproxy work as a compression offloader only (see notes).
+
+  The currently supported algorithms are :
+    identity  this is mostly for debugging, and it was useful for developping
+              the compression feature. Identity does not apply any change on
+              data.
+
+    gzip      applies gzip compression. This setting is only available when
+              support for zlib was built in.
+
+    deflate   same as gzip, but with deflate algorithm and zlib format.
+              Note that this algorithm has ambiguous support on many browsers
+              and no support at all from recent ones. It is strongly
+              recommended not to use it for anything else than experimentation.
+              This setting is only available when support for zlib was built
+              in.
+
+  Compression will be activated depending of the Accept-Encoding request
+  header. With identity, it does not take care of that header.
 
   The "offload" setting makes haproxy remove the Accept-Encoding header to
   prevent backend servers from compressing responses. It is strongly
@@ -9359,8 +9377,8 @@ The list of currently supported pattern fetch functions is the following :
                haproxy -vv). See also the "npn" bind keyword.
 
   ssl_fc_protocol
-               Returns the name of the used protocol when the incoming connection
-               was made over an SSL/TLS transport layer.
+               Returns the name of the used protocol when the incoming
+               connection was made over an SSL/TLS transport layer.
 
   ssl_fc_session_id
                Returns the SSL ID of the front connection when the incoming
