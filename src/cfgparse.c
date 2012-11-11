@@ -4702,6 +4702,11 @@ stats_error_parsing:
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
+		if (*(args[2])) {
+			Alert("parsing [%s:%d] : %s expects only one argument, don't forget to escape spaces!\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
 		free(curproxy->uniqueid_format_string);
 		curproxy->uniqueid_format_string = strdup(args[1]);
 	}
@@ -4719,6 +4724,11 @@ stats_error_parsing:
 	else if (strcmp(args[0], "log-format") == 0) {
 		if (!*(args[1])) {
 			Alert("parsing [%s:%d] : %s expects an argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (*(args[2])) {
+			Alert("parsing [%s:%d] : %s expects only one argument, don't forget to escape spaces!\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
