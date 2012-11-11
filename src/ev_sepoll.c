@@ -30,7 +30,6 @@
 
 
 static int absmaxevents = 0;    // absolute maximum amounts of polled events
-static int in_poll_loop = 0;    // non-null if polled events are being processed
 
 /* private data */
 static struct epoll_event *epoll_events;
@@ -40,99 +39,6 @@ static int epoll_fd;
  * recursive functions !
  */
 static struct epoll_event ev;
-
-/*
- * Returns non-zero if <fd> is already monitored for events in direction <dir>.
- */
-REGPRM2 static int __fd_is_set(const int fd, int dir)
-{
-#if DEBUG_DEV
-	if (!fdtab[fd].owner) {
-		fprintf(stderr, "sepoll.fd_isset called on closed fd #%d.\n", fd);
-		ABORT_NOW();
-	}
-#endif
-	return ((unsigned)fdtab[fd].spec_e >> dir) & FD_EV_STATUS;
-}
-
-/*
- * Don't worry about the strange constructs in __fd_set/__fd_clr, they are
- * designed like this in order to reduce the number of jumps (verified).
- */
-REGPRM2 static void __fd_wai(const int fd, int dir)
-{
-	unsigned int i;
-
-#if DEBUG_DEV
-	if (!fdtab[fd].owner) {
-		fprintf(stderr, "sepoll.fd_wai called on closed fd #%d.\n", fd);
-		ABORT_NOW();
-	}
-#endif
-	i = ((unsigned)fdtab[fd].spec_e >> dir) & FD_EV_STATUS;
-
-	if (i == FD_EV_POLLED)
-		return; /* already in desired state */
-	updt_fd(fd); /* need an update entry to change the state */
-	fdtab[fd].spec_e ^= (i ^ (unsigned int)FD_EV_POLLED) << dir;
-}
-
-REGPRM2 static void __fd_set(const int fd, int dir)
-{
-	unsigned int i;
-
-#if DEBUG_DEV
-	if (!fdtab[fd].owner) {
-		fprintf(stderr, "sepoll.fd_set called on closed fd #%d.\n", fd);
-		ABORT_NOW();
-	}
-#endif
-	i = ((unsigned)fdtab[fd].spec_e >> dir) & FD_EV_STATUS;
-
-	/* note that we don't care about disabling the polled state when
-	 * enabling the active state, since it brings no benefit but costs
-	 * some syscalls.
-	 */
-	if (i & FD_EV_ACTIVE)
-		return; /* already in desired state */
-	updt_fd(fd); /* need an update entry to change the state */
-	fdtab[fd].spec_e |= ((unsigned int)FD_EV_ACTIVE) << dir;
-}
-
-REGPRM2 static void __fd_clr(const int fd, int dir)
-{
-	unsigned int i;
-
-#if DEBUG_DEV
-	if (!fdtab[fd].owner) {
-		fprintf(stderr, "sepoll.fd_clr called on closed fd #%d.\n", fd);
-		ABORT_NOW();
-	}
-#endif
-	i = ((unsigned)fdtab[fd].spec_e >> dir) & FD_EV_STATUS;
-
-	if (i == 0)
-		return /* already disabled */;
-	updt_fd(fd); /* need an update entry to change the state */
-	fdtab[fd].spec_e ^= i << dir;
-}
-
-/* normally unused */
-REGPRM1 static void __fd_rem(int fd)
-{
-	__fd_clr(fd, DIR_RD);
-	__fd_clr(fd, DIR_WR);
-}
-
-/*
- * On valid epoll() implementations, a call to close() automatically removes
- * the fds. This means that the FD will appear as previously unset.
- */
-REGPRM1 static void __fd_clo(int fd)
-{
-	release_spec_entry(fd);
-	fdtab[fd].spec_e &= ~(FD_EV_CURR_MASK | FD_EV_PREV_MASK);
-}
 
 /*
  * speculative epoll() poller
@@ -229,8 +135,6 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	tv_update_date(wait_time, status);
 	measure_idle();
 
-	in_poll_loop = 1;
-
 	/* process polled events */
 
 	for (count = 0; count < status; count++) {
@@ -259,10 +163,10 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			 * to poll again.
 			 */
 			if (fdtab[fd].ev & (FD_POLL_IN|FD_POLL_HUP|FD_POLL_ERR))
-				__fd_set(fd, DIR_RD);
+				fd_ev_set(fd, DIR_RD);
 
 			if (fdtab[fd].ev & (FD_POLL_OUT|FD_POLL_ERR))
-				__fd_set(fd, DIR_WR);
+				fd_ev_set(fd, DIR_WR);
 
 			fdtab[fd].iocb(fd);
 
@@ -338,7 +242,6 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		spec_idx++;
 	}
 
-	in_poll_loop = 0;
 	/* in the end, we have processed status + spec_processed FDs */
 }
 
@@ -448,12 +351,12 @@ static void _do_register(void)
 	p->poll = _do_poll;
 	p->fork = _do_fork;
 
-	p->is_set  = __fd_is_set;
-	p->set = __fd_set;
-	p->wai = __fd_wai;
-	p->clr = __fd_clr;
-	p->rem = __fd_rem;
-	p->clo = __fd_clo;
+	p->is_set  = NULL;
+	p->set = NULL;
+	p->wai = NULL;
+	p->clr = NULL;
+	p->rem = NULL;
+	p->clo = NULL;
 }
 
 

@@ -120,40 +120,115 @@ static inline void release_spec_entry(int fd)
 	}
 }
 
+/*
+ * Returns non-zero if <fd> is already monitored for events in direction <dir>.
+ */
+static inline int fd_ev_is_set(const int fd, int dir)
+{
+	if (cur_poller.is_set)
+		return cur_poller.is_set(fd, dir);
+	return ((unsigned)fdtab[fd].spec_e >> dir) & FD_EV_STATUS;
+}
+
+/* Disable processing of events on fd <fd> for direction <dir>. Note: this
+ * function was optimized to be used with a constant for <dir>.
+ */
+static inline void fd_ev_clr(const int fd, int dir)
+{
+	unsigned int i = ((unsigned int)fdtab[fd].spec_e) & (FD_EV_STATUS << dir);
+	if (i == 0)
+		return; /* already disabled */
+	fdtab[fd].spec_e ^= i;
+	updt_fd(fd); /* need an update entry to change the state */
+}
+
+/* Enable polling for events on fd <fd> for direction <dir>. Note: this
+ * function was optimized to be used with a constant for <dir>.
+ */
+static inline void fd_ev_wai(const int fd, int dir)
+{
+	unsigned int i = ((unsigned int)fdtab[fd].spec_e) & (FD_EV_STATUS << dir);
+	if (i == (FD_EV_POLLED << dir))
+		return; /* already in desired state */
+	fdtab[fd].spec_e ^= i ^ (FD_EV_POLLED << dir);
+	updt_fd(fd); /* need an update entry to change the state */
+}
+
+/* Enable processing of events on fd <fd> for direction <dir>. Note: this
+ * function was optimized to be used with a constant for <dir>.
+ */
+static inline void fd_ev_set(int fd, int dir)
+{
+	unsigned int i = ((unsigned int)fdtab[fd].spec_e) & (FD_EV_STATUS << dir);
+
+	/* note that we don't care about disabling the polled state when
+	 * enabling the active state, since it brings no benefit but costs
+	 * some syscalls.
+	 */
+	if (i & (FD_EV_ACTIVE << dir))
+		return; /* already in desired state */
+	fdtab[fd].spec_e |= (FD_EV_ACTIVE << dir);
+	updt_fd(fd); /* need an update entry to change the state */
+}
+
+/* Disable processing of events on fd <fd> for both directions. */
+static inline void fd_ev_rem(const int fd)
+{
+	unsigned int i = ((unsigned int)fdtab[fd].spec_e) & FD_EV_CURR_MASK;
+	if (i == 0)
+		return; /* already disabled */
+	fdtab[fd].spec_e ^= i;
+	updt_fd(fd); /* need an update entry to change the state */
+}
+
 /* event manipulation primitives for use by I/O callbacks */
 static inline void fd_want_recv(int fd)
 {
-	cur_poller.set(fd, DIR_RD);
+	if (cur_poller.set)
+		return cur_poller.set(fd, DIR_RD);
+	return fd_ev_set(fd, DIR_RD);
 }
 
 static inline void fd_stop_recv(int fd)
 {
-	cur_poller.clr(fd, DIR_RD);
+	if (cur_poller.clr)
+		return cur_poller.clr(fd, DIR_RD);
+	return fd_ev_clr(fd, DIR_RD);
 }
 
 static inline void fd_poll_recv(int fd)
 {
-	cur_poller.wai(fd, DIR_RD);
+	if (cur_poller.wai)
+		return cur_poller.wai(fd, DIR_RD);
+	return fd_ev_wai(fd, DIR_RD);
 }
 
 static inline void fd_want_send(int fd)
 {
-	cur_poller.set(fd, DIR_WR);
+	if (cur_poller.set)
+		return cur_poller.set(fd, DIR_WR);
+	return fd_ev_set(fd, DIR_WR);
 }
 
 static inline void fd_stop_send(int fd)
 {
-	cur_poller.clr(fd, DIR_WR);
+	if (cur_poller.clr)
+		return cur_poller.clr(fd, DIR_WR);
+	return fd_ev_clr(fd, DIR_WR);
 }
 
 static inline void fd_poll_send(int fd)
 {
-	cur_poller.wai(fd, DIR_WR);
+	if (cur_poller.wai)
+		return cur_poller.wai(fd, DIR_WR);
+	return fd_ev_wai(fd, DIR_WR);
 }
 
 static inline void fd_stop_both(int fd)
 {
-	cur_poller.rem(fd);
+	if (cur_poller.rem)
+		return cur_poller.rem(fd);
+	return fd_ev_rem(fd);
 }
 
 /* Prepares <fd> for being polled */

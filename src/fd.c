@@ -116,7 +116,12 @@ unsigned int *fd_updt = NULL;  // FD updates list
  */
 void fd_delete(int fd)
 {
-	cur_poller.clo(fd);
+	if (cur_poller.clo)
+		cur_poller.clo(fd);
+
+	release_spec_entry(fd);
+	fdtab[fd].spec_e &= ~(FD_EV_CURR_MASK | FD_EV_PREV_MASK);
+
 	port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
 	fdinfo[fd].port_range = NULL;
 	close(fd);
