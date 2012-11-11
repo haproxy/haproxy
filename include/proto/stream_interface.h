@@ -56,11 +56,6 @@ static inline const struct protocol *si_ctrl(struct stream_interface *si)
 	return si->conn->ctrl;
 }
 
-static inline int si_fd(struct stream_interface *si)
-{
-	return si->conn->t.sock.fd;
-}
-
 static inline void si_prepare_conn(struct stream_interface *si, const struct protocol *ctrl, const struct xprt_ops *xprt)
 {
 	si->ops = &si_conn_ops;

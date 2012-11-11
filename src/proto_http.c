@@ -2392,7 +2392,7 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 			 * previously disabled it, otherwise we might cause the client
 			 * to delay next data.
 			 */
-			setsockopt(si_fd(&s->si[0]), IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
+			setsockopt(s->si[0].conn->t.sock.fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
 		}
 #endif
 
@@ -3706,7 +3706,7 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 		if ((s->listener->options & LI_O_NOQUICKACK) &&
 		    ((msg->flags & HTTP_MSGF_TE_CHNK) ||
 		     (msg->body_len > req->buf->i - txn->req.eoh - 2)))
-			setsockopt(si_fd(&s->si[0]), IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
+			setsockopt(s->si[0].conn->t.sock.fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
 #endif
 	}
 
@@ -7657,7 +7657,8 @@ void debug_hdr(const char *dir, struct session *t, const char *start, const char
 {
 	int max;
 	chunk_printf(&trash, "%08x:%s.%s[%04x:%04x]: ", t->uniq_id, t->be->id,
-		      dir, (unsigned  short)si_fd(t->req->prod), (unsigned short)si_fd(t->req->cons));
+		      dir, (unsigned  short)t->req->prod->conn->t.sock.fd,
+		     (unsigned short)t->req->cons->conn->t.sock.fd);
 
 	for (max = 0; start + max < end; max++)
 		if (start[max] == '\r' || start[max] == '\n')

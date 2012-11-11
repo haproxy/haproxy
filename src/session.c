@@ -778,7 +778,7 @@ static int sess_update_st_con_tcp(struct session *s, struct stream_interface *si
 		}
 		si->exp   = TICK_ETERNITY;
 		si->state = SI_ST_CER;
-		fd_delete(si_fd(si));
+		fd_delete(si->conn->t.sock.fd);
 
 		conn_xprt_close(si->conn);
 		if (si->release)
@@ -2322,8 +2322,8 @@ struct task *process_session(struct task *t)
 		    s->si[1].prev_state == SI_ST_EST) {
 			chunk_printf(&trash, "%08x:%s.srvcls[%04x:%04x]\n",
 				      s->uniq_id, s->be->id,
-				      (unsigned short)si_fd(&s->si[0]),
-				      (unsigned short)si_fd(&s->si[1]));
+				      (unsigned short)s->si[0].conn->t.sock.fd,
+				      (unsigned short)s->si[1].conn->t.sock.fd);
 			if (write(1, trash.str, trash.len) < 0) /* shut gcc warning */;
 		}
 
@@ -2331,8 +2331,8 @@ struct task *process_session(struct task *t)
 		    s->si[0].prev_state == SI_ST_EST) {
 			chunk_printf(&trash, "%08x:%s.clicls[%04x:%04x]\n",
 				      s->uniq_id, s->be->id,
-				      (unsigned short)si_fd(&s->si[0]),
-				      (unsigned short)si_fd(&s->si[1]));
+				      (unsigned short)s->si[0].conn->t.sock.fd,
+				      (unsigned short)s->si[1].conn->t.sock.fd);
 			if (write(1, trash.str, trash.len) < 0) /* shut gcc warning */;
 		}
 	}
@@ -2439,7 +2439,8 @@ struct task *process_session(struct task *t)
 		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
 		chunk_printf(&trash, "%08x:%s.closed[%04x:%04x]\n",
 			      s->uniq_id, s->be->id,
-			      (unsigned short)si_fd(s->req->prod), (unsigned short)si_fd(s->req->cons));
+			      (unsigned short)s->req->prod->conn->t.sock.fd,
+			      (unsigned short)s->req->cons->conn->t.sock.fd);
 		if (write(1, trash.str, trash.len) < 0) /* shut gcc warning */;
 	}
 

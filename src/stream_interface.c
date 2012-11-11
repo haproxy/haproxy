@@ -248,7 +248,7 @@ int stream_int_shutr(struct stream_interface *si)
 	if (si->ob->flags & CF_SHUTW) {
 		conn_xprt_close(si->conn);
 		if (conn->ctrl)
-			fd_delete(si_fd(si));
+			fd_delete(si->conn->t.sock.fd);
 		si->state = SI_ST_DIS;
 		si->exp = TICK_ETERNITY;
 
@@ -307,7 +307,7 @@ int stream_int_shutw(struct stream_interface *si)
 		} else if (si->flags & SI_FL_NOLINGER) {
 			si->flags &= ~SI_FL_NOLINGER;
 			if (conn->ctrl) {
-				setsockopt(si_fd(si), SOL_SOCKET, SO_LINGER,
+				setsockopt(si->conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
 					   (struct linger *) &nolinger, sizeof(struct linger));
 			}
 			/* unclean data-layer shutdown */
@@ -321,7 +321,7 @@ int stream_int_shutw(struct stream_interface *si)
 			if (!(si->flags & SI_FL_NOHALF)) {
 				/* We shutdown transport layer */
 				if (conn->ctrl)
-					shutdown(si_fd(si), SHUT_WR);
+					shutdown(si->conn->t.sock.fd, SHUT_WR);
 
 				if (!(si->ib->flags & (CF_SHUTR|CF_DONT_READ))) {
 					/* OK just a shutw, but we want the caller
@@ -339,7 +339,7 @@ int stream_int_shutw(struct stream_interface *si)
 		 */
 		conn_xprt_close(si->conn);
 		if (conn->ctrl)
-			fd_delete(si_fd(si));
+			fd_delete(si->conn->t.sock.fd);
 		/* fall through */
 	case SI_ST_CER:
 	case SI_ST_QUE:
@@ -857,14 +857,14 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 
 	if (!ob->pipe &&                          /* spliced data wants to be forwarded ASAP */
 	    (!(si->flags & SI_FL_WAIT_DATA) ||    /* not waiting for data */
-	     (fdtab[si_fd(si)].ev & FD_POLL_OUT)))   /* we'll be called anyway */
+	     (fdtab[si->conn->t.sock.fd].ev & FD_POLL_OUT)))   /* we'll be called anyway */
 		return;
 
 	if (!(si->conn->flags & CO_FL_HANDSHAKE) && si_conn_send_loop(si->conn) < 0) {
 		/* Write error on the file descriptor. We mark the FD as STERROR so
 		 * that we don't use it anymore and we notify the task.
 		 */
-		fdtab[si_fd(si)].ev &= ~FD_POLL_STICKY;
+		fdtab[si->conn->t.sock.fd].ev &= ~FD_POLL_STICKY;
 		__conn_data_stop_both(si->conn);
 		si->flags |= SI_FL_ERR;
 		si->conn->flags |= CO_FL_ERROR;
@@ -1207,7 +1207,7 @@ void stream_sock_read0(struct stream_interface *si)
 		/* we want to immediately forward this close to the write side */
 		if (si->flags & SI_FL_NOLINGER) {
 			si->flags &= ~SI_FL_NOLINGER;
-			setsockopt(si_fd(si), SOL_SOCKET, SO_LINGER,
+			setsockopt(si->conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
 				   (struct linger *) &nolinger, sizeof(struct linger));
 		}
 		/* force flag on ssl to keep session in cache */
@@ -1222,7 +1222,7 @@ void stream_sock_read0(struct stream_interface *si)
 
  do_close:
 	conn_xprt_close(si->conn);
-	fd_delete(si_fd(si));
+	fd_delete(si->conn->t.sock.fd);
 	si->state = SI_ST_DIS;
 	si->exp = TICK_ETERNITY;
 	if (si->release)
