@@ -2103,6 +2103,8 @@ int select_compression_response_header(struct session *s, struct buffer *res)
 	if (s->comp_algo->init(&s->comp_ctx, global.tune.comp_maxlevel) < 0)
 		goto fail;
 
+	s->flags |= SN_COMP_READY;
+
 	s->comp_ctx.cur_lvl = global.tune.comp_maxlevel;
 
 	/* remove Content-Length header */
@@ -2131,9 +2133,10 @@ int select_compression_response_header(struct session *s, struct buffer *res)
 	return 1;
 
 fail:
-	if (s->comp_algo) {
+	if (s->flags & SN_COMP_READY) {
 		s->comp_algo->end(&s->comp_ctx);
 		s->comp_algo = NULL;
+		s->flags &= ~SN_COMP_READY;
 	}
 	return 0;
 }

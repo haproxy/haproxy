@@ -89,6 +89,8 @@
 #define SN_BE_TRACK_SC1 0x00100000	/* backend tracks stick-counter 1 */
 #define SN_BE_TRACK_SC2 0x00200000	/* backend tracks stick-counter 2 */
 
+#define SN_COMP_READY   0x00400000	/* the compression is initialized */
+
 
 /* WARNING: if new fields are added, they must be initialized in event_accept()
  * and freed in session_free() !
