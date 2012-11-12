@@ -129,7 +129,7 @@ int raw_sock_to_pipe(struct connection *conn, struct pipe *pipe, unsigned int co
 					__conn_data_poll_recv(conn); /* we know for sure that it's EAGAIN */
 				break;
 			}
-			else if (errno == ENOSYS || errno == EINVAL) {
+			else if (errno == ENOSYS || errno == EINVAL || errno == EBADF) {
 				/* splice not supported on this end, disable it.
 				 * We can safely return -1 since there is no
 				 * chance that any data has been piped yet.
