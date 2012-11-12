@@ -156,10 +156,10 @@ void fd_process_spec_events()
 
 		fdtab[fd].ev &= FD_POLL_STICKY;
 
-		if ((e & FD_EV_STATUS_R) == FD_EV_ACTIVE_R)
+		if (e & FD_EV_ACTIVE_R)
 			fdtab[fd].ev |= FD_POLL_IN;
 
-		if ((e & FD_EV_STATUS_W) == FD_EV_ACTIVE_W)
+		if (e & FD_EV_ACTIVE_W)
 			fdtab[fd].ev |= FD_POLL_OUT;
 
 		if (fdtab[fd].iocb && fdtab[fd].owner && fdtab[fd].ev)
