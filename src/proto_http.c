@@ -2083,6 +2083,9 @@ int select_compression_response_header(struct session *s, struct buffer *res)
 					/* this Content-Type should be compressed */
 					break;
 			}
+		} else {
+			/* there is no Content-Type header */
+			goto fail;
 		}
 		/* this Content-Type should not be compressed */
 		if (comp_type == NULL)
