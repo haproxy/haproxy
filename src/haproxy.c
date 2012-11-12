@@ -114,7 +114,11 @@ int  relative_pid = 1;		/* process id starting at 1 */
 struct global global = {
 	.req_count = 0,
 	.logsrvs = LIST_HEAD_INIT(global.logsrvs),
+#ifdef DEFAULT_MAXZLIBMEM
+	.maxzlibmem = DEFAULT_MAXZLIBMEM,
+#else
 	.maxzlibmem = 0,
+#endif
 	.comp_rate_lim = 0,
 	.unix_bind = {
 		 .ux = {
