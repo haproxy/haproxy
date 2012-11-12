@@ -1175,7 +1175,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_SRVCONN:  // %sc
-				ret = ultoa_o(obj_type(s->target) ?
+				ret = ultoa_o(objt_server(s->target) ?
 				                 objt_server(s->target)->cur_sess :
 				                 0, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
