@@ -708,11 +708,11 @@ int main(int argc, char **argv)
 	posix_fadvise(0, 0, 0, POSIX_FADV_SEQUENTIAL);
 #endif
 
-	if (!line_filter && lines_max >= 0 &&
+	if (!line_filter && /* FILT_COUNT_ONLY ( see above), and no input filter (see below) */
 	    !(filter & (FILT_HTTP_ONLY|FILT_TIME_RESP|FILT_ERRORS_ONLY|FILT_HTTP_STATUS|FILT_QUEUE_ONLY|FILT_QUEUE_SRV_ONLY|FILT_TERM_CODE_NAME))) {
-		/* read the whole file at once first */
+		/* read the whole file at once first, ignore it if inverted output */
 		if (!filter_invert)
-			while (fgets2(stdin) != NULL)
+			while ((lines_max < 0 || lines_out < lines_max) && fgets2(stdin) != NULL)
 				lines_out++;
 
 		goto skip_filters;
@@ -872,8 +872,8 @@ int main(int argc, char **argv)
 		if (line_filter)
 			line_filter(accept_field, time_field, &t);
 		else
-			lines_out++; /* we're just counting lines */
-		if (lines_out >= lines_max)
+			lines_out++; /* FILT_COUNT_ONLY was used, so we're just counting lines */
+		if (lines_max >= 0 && lines_out >= lines_max)
 			break;
 	}
 
@@ -914,7 +914,7 @@ int main(int argc, char **argv)
 				m = h % 60; h = h / 60;
 				printf("%02d:%02d:%02d.%03d %d %d %d\n", h, m, s, ms, last, d, t->count);
 				lines_out++;
-				if (lines_out >= lines_max)
+				if (lines_max >= 0 && lines_out >= lines_max)
 					break;
 			}
 			n = eb32_next(n);
@@ -944,12 +944,8 @@ int main(int argc, char **argv)
 				else
 					d = val;
 
-				if (d > 0.0) {
+				if (d > 0.0)
 					printf("%d %d %f\n", f, last, d+1.0);
-					lines_out++;
-					if (lines_out >= lines_max)
-						break;
-				}
 
 				n = eb32_next(n);
 			}
@@ -1006,7 +1002,7 @@ int main(int argc, char **argv)
 			t = container_of(n, struct timer, node);
 			printf("%d %d\n", n->key, t->count);
 			lines_out++;
-			if (lines_out >= lines_max)
+			if (lines_max >= 0 && lines_out >= lines_max)
 				break;
 			n = eb32_next(n);
 		}
@@ -1035,7 +1031,7 @@ int main(int argc, char **argv)
 			       (int)(srv->cum_ct / (srv->nb_ct?srv->nb_ct:1)), (int)(srv->cum_rt / (srv->nb_rt?srv->nb_rt:1)));
 			srv_node = ebmb_next(srv_node);
 			lines_out++;
-			if (lines_out >= lines_max)
+			if (lines_max >= 0 && lines_out >= lines_max)
 				break;
 		}
 	}
@@ -1046,7 +1042,7 @@ int main(int argc, char **argv)
 			t = container_of(n, struct timer, node);
 			printf("%c%c %d\n", (n->key >> 8), (n->key) & 255, t->count);
 			lines_out++;
-			if (lines_out >= lines_max)
+			if (lines_max >= 0 && lines_out >= lines_max)
 				break;
 			n = eb32_next(n);
 		}
@@ -1110,7 +1106,7 @@ int main(int argc, char **argv)
 
 			node = eb_prev(node);
 			lines_out++;
-			if (lines_out >= lines_max)
+			if (lines_max >= 0 && lines_out >= lines_max)
 				break;
 		}
 	}
