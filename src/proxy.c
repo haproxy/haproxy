@@ -115,8 +115,8 @@ int get_backend_server(const char *bk_name, const char *sv_name,
 		return 0;
 
 	for (s = p->srv; s; s = s->next)
-		if ((sid && s->puid == sid) ||
-		    (!sid && strcmp(s->id, sv_name) == 0))
+		if ((sid >= 0 && s->puid == sid) ||
+		    (sid < 0 && strcmp(s->id, sv_name) == 0))
 			break;
 	*sv = s;
 	if (!s)
