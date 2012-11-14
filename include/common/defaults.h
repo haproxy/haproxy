@@ -191,4 +191,9 @@
 #define LISTEN_DEFAULT_CIPHERS NULL
 #endif
 
+/* ssl cache size */
+#ifndef SSLCACHESIZE
+#define SSLCACHESIZE 20000
+#endif
+
 #endif /* _COMMON_DEFAULTS_H */

@@ -132,7 +132,7 @@ struct global global = {
 		.maxrewrite = MAXREWRITE,
 		.chksize = BUFSIZE,
 #ifdef USE_OPENSSL
-		.sslcachesize = 20000,
+		.sslcachesize = SSLCACHESIZE,
 #endif
 #ifdef USE_ZLIB
 		.zlibmemlevel = 8,
