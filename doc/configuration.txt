@@ -580,7 +580,7 @@ pidfile <pidfile>
   the "-p" command line argument. The file must be accessible to the user
   starting the process. See also "daemon".
 
-stats bind-process [ all | odd | even | <number 1-32> ] ...
+stats bind-process [ all | odd | even | <number 1-32>[-<number 1-32>] ] ...
   Limits the stats socket to a certain set of processes numbers. By default the
   stats socket is bound to all processes, causing a warning to be emitted when
   nbproc is greater than 1 because there is no way to select the target process
@@ -1582,7 +1582,7 @@ bind /<path> [, ...] [param*]
              documentation, and section 5 about bind options.
 
 
-bind-process [ all | odd | even | <number 1-32> ] ...
+bind-process [ all | odd | even | <number 1-32>[-<number 1-32>] ] ...
   Limit visibility of an instance to a certain set of processes numbers.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    yes   |   yes  |   yes
@@ -1598,10 +1598,11 @@ bind-process [ all | odd | even | <number 1-32> ] ...
                   with less than 2 processes otherwise some instances might be
                   missing from all processes.
 
-    number        The instance will be enabled on this process number, between
-                  1 and 32. You must be careful not to reference a process
-                  number greater than the configured global.nbproc, otherwise
-                  some instances might be missing from all processes.
+    number        The instance will be enabled on this process number or range,
+                  whose values must all be between 1 and 32. You must be
+                  careful not to reference a process number greater than the
+                  configured global.nbproc, otherwise some instances might be
+                  missing from all processes.
 
   This keyword limits binding of certain instances to certain processes. This
   is useful in order not to have too many processes listening to the same
@@ -1629,6 +1630,10 @@ bind-process [ all | odd | even | <number 1-32> ] ...
         listen management
             bind 10.0.0.3:80
             bind-process 1 2 3 4
+
+        listen management
+            bind 10.0.0.4:80
+            bind-process 1-4
 
   See also : "nbproc" in global section.
 
