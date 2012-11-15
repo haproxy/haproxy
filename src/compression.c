@@ -393,7 +393,13 @@ static void *alloc_zlib(void *opaque, unsigned int items, unsigned int size)
 
 end:
 
-	round = (round + 1) % 5;   /* there are 5 zalloc call in deflateInit2 */
+	/* deflateInit2() first allocates and checks the deflate_state, then if
+	 * it succeeds, it allocates all other 4 areas at ones and checks them
+	 * at the end. So we want to correctly count the rounds depending on when
+	 * zlib is supposed to abort.
+	 */
+	if (buf || round)
+		round = (round + 1) % 5;
 	return buf;
 }
 
