@@ -784,11 +784,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	}
 	/* end of user/group name handling*/
 	else if (!strcmp(args[0], "nbproc")) {
-		if (global.nbproc != 0) {
-			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT;
-			goto out;
-		}
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;

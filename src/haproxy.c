@@ -112,6 +112,7 @@ int  relative_pid = 1;		/* process id starting at 1 */
 
 /* global options */
 struct global global = {
+	.nbproc = 1,
 	.req_count = 0,
 	.logsrvs = LIST_HEAD_INIT(global.logsrvs),
 #ifdef DEFAULT_MAXZLIBMEM
