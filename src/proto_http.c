@@ -4085,6 +4085,12 @@ void http_end_txn_clean_session(struct session *s)
 	s->rep->flags &= ~(CF_SHUTR|CF_SHUTR_NOW|CF_READ_ATTACHED|CF_READ_ERROR|CF_READ_NOEXP|CF_STREAMER|CF_STREAMER_FAST|CF_WRITE_PARTIAL|CF_NEVER_WAIT);
 	s->flags &= ~(SN_DIRECT|SN_ASSIGNED|SN_ADDR_SET|SN_BE_ASSIGNED|SN_FORCE_PRST|SN_IGNORE_PRST);
 	s->flags &= ~(SN_CURR_SESS|SN_REDIRECTABLE);
+
+	if (s->flags & SN_COMP_READY)
+		s->comp_algo->end(&s->comp_ctx);
+	s->comp_algo = NULL;
+	s->flags &= ~SN_COMP_READY;
+
 	s->txn.meth = 0;
 	http_reset_txn(s);
 	s->txn.flags |= TX_NOT_FIRST | TX_WAIT_NEXT_RQ;
