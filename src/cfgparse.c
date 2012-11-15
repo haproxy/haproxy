@@ -6671,14 +6671,19 @@ out_uri_auth_compat:
 				curproxy->be_req_ana |= AN_REQ_PRST_RDP_COOKIE;
 		}
 
+#ifdef USE_OPENSSL
 		/* Configure SSL for each bind line.
 		 * Note: if configuration fails at some point, the ->ctx member
 		 * remains NULL so that listeners can later detach.
 		 */
 		list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
-			if (!bind_conf->is_ssl)
+			if (!bind_conf->is_ssl) {
+				if (bind_conf->default_ctx) {
+					Warning("Proxy '%s': A certificate was specified but SSL was not enabled on bind '%s' at [%s:%d] (use 'ssl').\n",
+					        curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+				}
 				continue;
-#ifdef USE_OPENSSL
+			}
 			if (!bind_conf->default_ctx) {
 				Alert("Proxy '%s': no SSL certificate specified for bind '%s' at [%s:%d] (use 'crt').\n",
 				      curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
@@ -6694,8 +6699,8 @@ out_uri_auth_compat:
 
 			/* initialize all certificate contexts */
 			cfgerr += ssl_sock_prepare_all_ctx(bind_conf, curproxy);
-#endif /* USE_OPENSSL */
 		}
+#endif /* USE_OPENSSL */
 
 		/* adjust this proxy's listeners */
 		next_id = 1;
