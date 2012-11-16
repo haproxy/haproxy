@@ -30,6 +30,7 @@
 #   USE_ACCEPT4          : enable use of accept4() on linux. Automatic.
 #   USE_MY_ACCEPT4       : use own implemention of accept4() if glibc < 2.10.
 #   USE_ZLIB             : enable zlib library support.
+#   USE_CPU_AFFINITY     : enable pinning processes to CPU on Linux. Automatic.
 #
 # Options can be forced by specifying "USE_xxx=1" or can be disabled by using
 # "USE_xxx=" (empty string).
@@ -241,6 +242,7 @@ ifeq ($(TARGET),linux2628)
   USE_LINUX_TPROXY= implicit
   USE_ACCEPT4     = implicit
   USE_FUTEX       = implicit
+  USE_CPU_AFFINITY= implicit
 else
 ifeq ($(TARGET),solaris)
   # This is for Solaris 8
@@ -435,6 +437,11 @@ ifneq ($(USE_VSYSCALL),)
 OPTIONS_OBJS   += src/i386-linux-vsys.o
 OPTIONS_CFLAGS += -DCONFIG_HAP_LINUX_VSYSCALL
 BUILD_OPTIONS  += $(call ignore_implicit,USE_VSYSCALL)
+endif
+
+ifneq ($(USE_CPU_AFFINITY),)
+OPTIONS_CFLAGS += -DUSE_CPU_AFFINITY
+BUILD_OPTIONS  += $(call ignore_implicit,USE_CPU_AFFINITY)
 endif
 
 ifneq ($(USE_MY_SPLICE),)

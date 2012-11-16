@@ -130,6 +130,9 @@ struct global {
 			int level;      /* access level (ACCESS_LVL_*) */
 		} ux;
 	} unix_bind;
+#ifdef USE_CPU_AFFINITY
+	unsigned long cpu_map[32];  /* list of CPU masks for the 32 first processes */
+#endif
 	struct proxy *stats_fe;     /* the frontend holding the stats settings */
 };
 

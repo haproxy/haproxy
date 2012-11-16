@@ -1,6 +1,6 @@
 /*
  * HA-Proxy : High Availability-enabled HTTP/TCP proxy
- * Copyright 2000-2011  Willy Tarreau <w@1wt.eu>.
+ * Copyright 2000-2012  Willy Tarreau <w@1wt.eu>.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -44,6 +44,11 @@
 #include <sys/resource.h>
 #include <time.h>
 #include <syslog.h>
+#ifdef USE_CPU_AFFINITY
+#define __USE_GNU
+#include <sched.h>
+#undef __USE_GNU
+#endif
 
 #ifdef DEBUG_FULL
 #include <assert.h>
@@ -1467,6 +1472,13 @@ int main(int argc, char **argv)
 			}
 			relative_pid++; /* each child will get a different one */
 		}
+
+#ifdef USE_CPU_AFFINITY
+		if (proc < global.nbproc &&  /* child */
+		    proc < 32 &&             /* only the first 32 processes may be pinned */
+		    global.cpu_map[proc])    /* only do this if the process has a CPU map */
+			sched_setaffinity(0, sizeof(unsigned long), (void *)&global.cpu_map[proc]);
+#endif
 		/* close the pidfile both in children and father */
 		if (pidfd >= 0) {
 			//lseek(pidfd, 0, SEEK_SET);  /* debug: emulate eglibc bug */

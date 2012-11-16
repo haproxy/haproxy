@@ -1160,6 +1160,75 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 	}
+	else if (strcmp(args[0], "cpu-map") == 0) {  /* map a process list to a CPU set */
+#ifdef USE_CPU_AFFINITY
+		int cur_arg, i;
+		unsigned int proc = 0;
+		unsigned long cpus = 0;
+
+		if (strcmp(args[1], "all") == 0)
+			proc = 0xFFFFFFFF;
+		else if (strcmp(args[1], "odd") == 0)
+			proc = 0x55555555;
+		else if (strcmp(args[1], "even") == 0)
+			proc = 0xAAAAAAAA;
+		else {
+			proc = atoi(args[1]);
+			if (proc >= 1 && proc <= 32)
+				proc = 1 << (proc - 1);
+		}
+
+		if (!proc || !*args[2]) {
+			Alert("parsing [%s:%d]: %s expects a process number including 'all', 'odd', 'even', or a number from 1 to 32, followed by a list of CPU ranges with numbers from 0 to 31.\n",
+			      file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		cur_arg = 2;
+		while (*args[cur_arg]) {
+			unsigned int low, high;
+
+			if (isdigit(*args[cur_arg])) {
+				char *dash = strchr(args[cur_arg], '-');
+
+				low = high = str2uic(args[cur_arg]);
+				if (dash)
+					high = str2uic(dash + 1);
+
+				if (high < low) {
+					unsigned int swap = low;
+					low = high;
+					high = swap;
+				}
+
+				if (low < 0 || high >= sizeof(long) * 8) {
+					Alert("parsing [%s:%d]: %s supports CPU numbers from 0 to %d.\n",
+					      file, linenum, args[0], (int)(sizeof(long) * 8 - 1));
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+				while (low <= high)
+					cpus |= 1UL << low++;
+			}
+			else {
+				Alert("parsing [%s:%d]: %s : '%s' is not a CPU range.\n",
+				      file, linenum, args[0], args[cur_arg]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			cur_arg++;
+		}
+		for (i = 0; i < 32; i++)
+			if (proc & (1 << i))
+				global.cpu_map[i] = cpus;
+#else
+		Alert("parsing [%s:%d] : '%s' is not enabled, please check build options for USE_CPU_AFFINITY.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+#endif
+	}
 	else {
 		struct cfg_kw_list *kwl;
 		int index;
