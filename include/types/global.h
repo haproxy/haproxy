@@ -114,6 +114,7 @@ struct global {
 		int max_http_hdr;  /* max number of HTTP headers, use MAX_HTTP_HDR if zero */
 #ifdef USE_OPENSSL
 		int sslcachesize;  /* SSL cache size in session, defaults to 20000 */
+		unsigned int ssllifetime;   /* SSL session lifetime in seconds */
 #endif
 #ifdef USE_ZLIB
 		int zlibmemlevel;    /* zlib memlevel */

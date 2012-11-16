@@ -860,6 +860,14 @@ tune.ssl.cachesize <number>
   allocated upon startup and are shared between all processes if "nbproc" is
   greater than 1.
 
+tune.ssl.lifetime <timeout>
+  Sets how long a cached SSL session may remain valid. This time is expressed
+  in seconds and defaults to 300 (5 mn). It is important to understand that it
+  does not guarantee that sessions will last that long, because if the cache is
+  full, the longest idle sessions will be purged despite their configured
+  lifetime. The real usefulness of this setting is to prevent sessions from
+  being used for too long.
+
 tune.zlib.memlevel <number>
   Sets the memLevel parameter in zlib initialization for each session. It
   defines how much memory should be allocated for the intenal compression

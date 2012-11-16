@@ -561,6 +561,9 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 #endif
 	}
 
+	if (global.tune.ssllifetime)
+		SSL_CTX_set_timeout(ctx, global.tune.ssllifetime);
+
 	shared_context_set_cache(ctx);
 	if (bind_conf->ciphers &&
 	    !SSL_CTX_set_cipher_list(ctx, bind_conf->ciphers)) {
@@ -701,6 +704,9 @@ int ssl_sock_prepare_srv_ctx(struct server *srv, struct proxy *curproxy)
 		}
 #endif
 	}
+
+	if (global.tune.ssllifetime)
+		SSL_CTX_set_timeout(srv->ssl_ctx.ctx, global.tune.ssllifetime);
 
 	SSL_CTX_set_session_cache_mode(srv->ssl_ctx.ctx, SSL_SESS_CACHE_OFF);
 	if (srv->ssl_ctx.ciphers &&

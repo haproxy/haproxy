@@ -571,6 +571,26 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.tune.sslcachesize = atol(args[1]);
 	}
+	else if (!strcmp(args[0], "tune.ssl.lifetime")) {
+		unsigned int ssllifetime;
+		const char *res;
+
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects ssl sessions <lifetime> in seconds as argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		res = parse_time_err(args[1], &ssllifetime, TIME_UNIT_S);
+		if (res) {
+			Alert("parsing [%s:%d]: unexpected character '%c' in argument to <%s>.\n",
+			      file, linenum, *res, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		global.tune.ssllifetime = ssllifetime;
+	}
 #endif
 	else if (!strcmp(args[0], "tune.bufsize")) {
 		if (*(args[1]) == 0) {
