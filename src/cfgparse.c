@@ -5442,7 +5442,7 @@ stats_error_parsing:
 
 		if (!strcmp(args[1], "algo")) {
 			int cur_arg;
-			struct comp_ctx ctx;
+			struct comp_ctx *ctx;
 
 			cur_arg = 2;
 			if (!*args[cur_arg]) {

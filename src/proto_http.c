@@ -2105,8 +2105,6 @@ int select_compression_response_header(struct session *s, struct buffer *res)
 
 	s->flags |= SN_COMP_READY;
 
-	s->comp_ctx.cur_lvl = global.tune.comp_maxlevel;
-
 	/* remove Content-Length header */
 	if ((msg->flags & HTTP_MSGF_CNT_LEN) && http_find_header2("Content-Length", 14, res->p, &txn->hdr_idx, &ctx))
 		http_remove_header2(msg, &txn->hdr_idx, &ctx);
