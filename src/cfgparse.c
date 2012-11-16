@@ -563,7 +563,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.tune.chksize = atol(args[1]);
 	}
 #ifdef USE_OPENSSL
-	else if (!strcmp(args[0], "tune.sslcachesize")) {
+	else if (!strcmp(args[0], "tune.ssl.cachesize")) {
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;

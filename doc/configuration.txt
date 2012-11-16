@@ -475,6 +475,7 @@ The following keywords are supported in the "global" section :
    - tune.rcvbuf.server
    - tune.sndbuf.client
    - tune.sndbuf.server
+   - tune.ssl.cachesize
    - tune.zlib.memlevel
    - tune.zlib.windowsize
 
@@ -848,6 +849,16 @@ tune.sndbuf.server <number>
   Another use case is to prevent write timeouts with extremely slow clients due
   to the kernel waiting for a large part of the buffer to be read before
   notifying haproxy again.
+
+tune.ssl.cachesize <number>
+  Sets the size of the global SSL session cache, in number of sessions. Each
+  entry uses approximately 600 bytes of memory. The default value may be forced
+  at build time, otherwise defaults to 20000. When the cache is full, the most
+  idle entries are purged and reassigned. Higher values reduce the occurrence
+  of such a purge, hence the number of CPU-intensive SSL handshakes by ensuring
+  that all users keep their session as long as possible. All entries are pre-
+  allocated upon startup and are shared between all processes if "nbproc" is
+  greater than 1.
 
 tune.zlib.memlevel <number>
   Sets the memLevel parameter in zlib initialization for each session. It
