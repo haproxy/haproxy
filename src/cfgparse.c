@@ -5957,6 +5957,7 @@ int check_config_validity()
 		struct tcp_rule *trule;
 		struct listener *listener;
 		unsigned int next_id;
+		int nbproc;
 
 		if (curproxy->uuid < 0) {
 			/* proxy ID not set, use automatic numbering with first
@@ -5975,6 +5976,9 @@ int check_config_validity()
 			curproxy = curproxy->next;
 			continue;
 		}
+
+		/* number of processes this proxy is bound to */
+		nbproc = curproxy->bind_proc ? popcount(curproxy->bind_proc) : global.nbproc;
 
 		switch (curproxy->mode) {
 		case PR_MODE_HEALTH:
@@ -6817,6 +6821,22 @@ out_uri_auth_compat:
 				listener->maxconn = curproxy->maxconn;
 			if (!listener->backlog)
 				listener->backlog = curproxy->backlog;
+			if (!listener->maxaccept)
+				listener->maxaccept = global.tune.maxaccept ? global.tune.maxaccept : 64;
+
+			/* we want to have an optimal behaviour on single process mode to
+			 * maximize the work at once, but in multi-process we want to keep
+			 * some fairness between processes, so we target half of the max
+			 * number of events to be balanced over all the processes the proxy
+			 * is bound to. Rememeber that maxaccept = -1 must be kept as it is
+			 * used to disable the limit.
+			 */
+			if (listener->maxaccept > 0) {
+				if (nbproc > 1)
+					listener->maxaccept = (listener->maxaccept + 1) / 2;
+				listener->maxaccept = (listener->maxaccept + nbproc - 1) / nbproc;
+			}
+
 			listener->timeout = &curproxy->timeout.client;
 			listener->accept = session_accept;
 			listener->handler = process_session;
