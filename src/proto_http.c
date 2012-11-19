@@ -5546,6 +5546,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	unsigned int bytes;
 	static struct buffer *tmpbuf = NULL;
 	int compressing = 0;
+	int consumed_data = 0;
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
 		return 0;
@@ -5606,18 +5607,28 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 		}
 
 		if (msg->msg_state == HTTP_MSG_DATA) {
+			int ret;
+
 			/* must still forward */
-			if (compressing)
-				http_compression_buffer_add_data(s, res->buf, tmpbuf);
+			if (compressing) {
+				consumed_data += ret = http_compression_buffer_add_data(s, res->buf, tmpbuf);
+				if (ret < 0)
+					goto aborted_xfer;
+			}
 
 			if (res->to_forward || msg->chunk_len)
 				goto missing_data;
 
 			/* nothing left to forward */
-			if (msg->flags & HTTP_MSGF_TE_CHNK)
+			if (msg->flags & HTTP_MSGF_TE_CHNK) {
 				msg->msg_state = HTTP_MSG_CHUNK_CRLF;
-			else
+			} else {
 				msg->msg_state = HTTP_MSG_DONE;
+				if (compressing && consumed_data) {
+					http_compression_buffer_end(s, &res->buf, &tmpbuf, 1);
+					compressing = 0;
+				}
+			}
 		}
 		else if (msg->msg_state == HTTP_MSG_CHUNK_SIZE) {
 			/* read the chunk size and assign it to ->chunk_len, then
@@ -5633,14 +5644,21 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_CHUNK_SIZE, s->fe);
 				goto return_bad_res;
 			}
-			/* skipping data if we are in compression mode */
-			if (compressing && msg->chunk_len > 0) {
-				b_adv(res->buf, msg->next);
-				msg->next = 0;
-				msg->sov = 0;
-				msg->sol = 0;
+			if (compressing) {
+				if (likely(msg->chunk_len > 0)) {
+					/* skipping data if we are in compression mode */
+					b_adv(res->buf, msg->next);
+					msg->next = 0;
+					msg->sov = 0;
+					msg->sol = 0;
+				} else {
+					if (consumed_data) {
+						http_compression_buffer_end(s, &res->buf, &tmpbuf, 1);
+						compressing = 0;
+					}
+				}
 			}
-			/* otherwise we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state */
+		/* otherwise we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state */
 		}
 		else if (msg->msg_state == HTTP_MSG_CHUNK_CRLF) {
 			/* we want the CRLF after the data */
@@ -5672,20 +5690,10 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_TRAILERS, s->fe);
 				goto return_bad_res;
 			}
-			if (compressing) {
-				http_compression_buffer_end(s, &res->buf, &tmpbuf, 1);
-				compressing = 0;
-			}
-			/* we're in HTTP_MSG_DONE now */
+					/* we're in HTTP_MSG_DONE now */
 		}
 		else {
 			int old_state = msg->msg_state;
-
-			if (compressing) {
-				http_compression_buffer_end(s, &res->buf, &tmpbuf, 1);
-				compressing = 0;
-			}
-
 			/* other states, DONE...TUNNEL */
 			/* for keep-alive we don't want to forward closes on DONE */
 			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
@@ -5714,7 +5722,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	}
 
  missing_data:
-	if (compressing) {
+	if (compressing && consumed_data) {
 		http_compression_buffer_end(s, &res->buf, &tmpbuf, 0);
 		compressing = 0;
 	}

@@ -164,6 +164,7 @@ int http_compression_buffer_init(struct session *s, struct buffer *in, struct bu
 int http_compression_buffer_add_data(struct session *s, struct buffer *in, struct buffer *out)
 {
 	struct http_msg *msg = &s->txn.rsp;
+	int consumed_data = 0;
 	int data_process_len;
 	int left;
 	int ret;
@@ -186,28 +187,23 @@ int http_compression_buffer_add_data(struct session *s, struct buffer *in, struc
 
 	left = data_process_len - bi_contig_data(in);
 	if (left <= 0) {
-		ret = s->comp_algo->add_data(&s->comp_ctx, bi_ptr(in),
-					     data_process_len, bi_end(out),
-					     out->size - buffer_len(out));
+		consumed_data += ret = s->comp_algo->add_data(&s->comp_ctx, bi_ptr(in), data_process_len, out);
 		if (ret < 0)
 			return -1;
-		out->i += ret;
 
 	} else {
-		ret = s->comp_algo->add_data(&s->comp_ctx, bi_ptr(in), bi_contig_data(in), bi_end(out), out->size - buffer_len(out));
+		consumed_data += ret = s->comp_algo->add_data(&s->comp_ctx, bi_ptr(in), bi_contig_data(in), out);
 		if (ret < 0)
 			return -1;
-		out->i += ret;
-		ret = s->comp_algo->add_data(&s->comp_ctx, in->data, left, bi_end(out), out->size - buffer_len(out));
+		consumed_data += ret = s->comp_algo->add_data(&s->comp_ctx, in->data, left, out);
 		if (ret < 0)
 			return -1;
-		out->i += ret;
 	}
 
 	b_adv(in, data_process_len);
 	msg->chunk_len -= data_process_len;
 
-	return 0;
+	return consumed_data;
 }
 
 /*
@@ -309,14 +305,19 @@ int identity_init(struct comp_ctx *comp_ctx, int level)
 
 /*
  * Process data
- *   Return size of processed data or -1 on error
+ *   Return size of consumed data or -1 on error
  */
-int identity_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, char *out_data, int out_len)
+int identity_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out)
 {
+	char *out_data = bi_end(out);
+	int out_len = out->size - buffer_len(out);
+
 	if (out_len < in_len)
 		return -1;
 
 	memcpy(out_data, in_data, in_len);
+
+	out->i += in_len;
 
 	return in_len;
 }
@@ -462,10 +463,13 @@ int deflate_init(struct comp_ctx *comp_ctx, int level)
 	return 0;
 }
 
-int deflate_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, char *out_data, int out_len)
+/* Return the size of consumed data or -1 */
+int deflate_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out)
 {
-	z_stream *strm = &comp_ctx->strm;
 	int ret;
+	z_stream *strm = &comp_ctx->strm;
+	char *out_data = bi_end(out);
+	int out_len = out->size - buffer_len(out);
 
 	if (in_len <= 0)
 		return 0;
@@ -484,8 +488,9 @@ int deflate_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len,
 		return -1;
 
 	/* deflate update the available data out */
+	out->i += out_len - strm->avail_out;
 
-	return out_len - strm->avail_out;
+	return in_len - strm->avail_in;
 }
 
 int deflate_flush(struct comp_ctx *comp_ctx, struct buffer *out, int flag)
