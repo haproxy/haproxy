@@ -2133,11 +2133,10 @@ int select_compression_response_header(struct session *s, struct buffer *res)
 	return 1;
 
 fail:
-	if (s->flags & SN_COMP_READY) {
+	if (s->flags & SN_COMP_READY)
 		s->comp_algo->end(&s->comp_ctx);
-		s->comp_algo = NULL;
-		s->flags &= ~SN_COMP_READY;
-	}
+	s->comp_algo = NULL;
+	s->flags &= ~SN_COMP_READY;
 	return 0;
 }
 
