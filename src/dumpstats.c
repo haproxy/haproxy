@@ -3506,7 +3506,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 			     sess->si[1].err_type);
 
 		chunk_appendf(&trash,
-		              "  lconn=%p (ctrl=%p(%s) xprt=%p(%s) data=%p(%s) fd=%d target=%d flags=0x%08x)\n",
+		              "  lconn=%p (ctrl=%p(%s) xprt=%p(%s) data=%p(%s) target=%d flags=0x%08x fd=%d fd_spec=%02x)\n",
 		              sess->si[0].conn,
 		              sess->si[0].conn->ctrl,
 		              sess->si[0].conn->ctrl ? sess->si[0].conn->ctrl->name : "NONE",
@@ -3522,12 +3522,13 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 		              (sess->si[0].conn->data == &sess_conn_cb) ? "SESS" :
 		              (sess->si[0].conn->data == &si_conn_cb) ? "STRM" :
 		              (sess->si[0].conn->data == &check_conn_cb) ? "CHCK" : "????",
-		              sess->si[0].conn->t.sock.fd,
 		              sess->si[0].conn->target ? *sess->si[0].conn->target : 0,
-		              sess->si[0].conn->flags);
+		              sess->si[0].conn->flags,
+		              sess->si[0].conn->t.sock.fd,
+		              sess->si[0].conn->t.sock.fd >= 0 ? fdtab[sess->si[0].conn->t.sock.fd].spec_e : 0);
 
 		chunk_appendf(&trash,
-		              "  rconn=%p (ctrl=%p(%s) xprt=%p(%s) data=%p(%s) fd=%d target=%d flags=0x%08x)\n",
+		              "  rconn=%p (ctrl=%p(%s) xprt=%p(%s) data=%p(%s) target=%d flags=0x%08x fd=%d fd_spec=%02x)\n",
 		              sess->si[1].conn,
 		              sess->si[1].conn->ctrl,
 		              sess->si[1].conn->ctrl ? sess->si[1].conn->ctrl->name : "NONE",
@@ -3543,9 +3544,10 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 		              (sess->si[1].conn->data == &sess_conn_cb) ? "SESS" :
 		              (sess->si[1].conn->data == &si_conn_cb) ? "STRM" :
 		              (sess->si[1].conn->data == &check_conn_cb) ? "CHCK" : "????",
-		              sess->si[1].conn->t.sock.fd,
 		              sess->si[1].conn->target ? *sess->si[1].conn->target : 0,
-		              sess->si[1].conn->flags);
+		              sess->si[1].conn->flags,
+		              sess->si[1].conn->t.sock.fd,
+		              sess->si[1].conn->t.sock.fd >= 0 ? fdtab[sess->si[1].conn->t.sock.fd].spec_e : 0);
 
 		chunk_appendf(&trash,
 			     "  txn=%p (flags=0x%x meth=%d status=%d req.st=%d rsp.st=%d)\n",
