@@ -3478,11 +3478,11 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 			     human_time(now.tv_sec - sess->logs.accept_date.tv_sec, 1));
 
 		chunk_appendf(&trash,
-			     "  si[0]=%p (state=%d flags=0x%02x fd=%d exp=%s, et=0x%03x)\n",
+			     "  si[0]=%p (state=%d flags=0x%02x conn=%p exp=%s, et=0x%03x)\n",
 			     &sess->si[0],
 			     sess->si[0].state,
 			     sess->si[0].flags,
-			     sess->si[0].conn->t.sock.fd,
+			     sess->si[0].conn,
 			     sess->si[0].exp ?
 			             tick_is_expired(sess->si[0].exp, now_ms) ? "<PAST>" :
 			                     human_time(TICKS_TO_MS(sess->si[0].exp - now_ms),
@@ -3490,16 +3490,58 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 			     sess->si[0].err_type);
 
 		chunk_appendf(&trash,
-			     "  si[1]=%p (state=%d flags=0x%02x fd=%d exp=%s, et=0x%03x)\n",
+			     "  si[1]=%p (state=%d flags=0x%02x conn=%p exp=%s, et=0x%03x)\n",
 			     &sess->si[1],
 			     sess->si[1].state,
 			     sess->si[1].flags,
-			     sess->si[1].conn->t.sock.fd,
+			     sess->si[1].conn,
 			     sess->si[1].exp ?
 			             tick_is_expired(sess->si[1].exp, now_ms) ? "<PAST>" :
 			                     human_time(TICKS_TO_MS(sess->si[1].exp - now_ms),
 			                     TICKS_TO_MS(1000)) : "<NEVER>",
 			     sess->si[1].err_type);
+
+		chunk_appendf(&trash,
+		              "  lconn=%p (ctrl=%p(%s) xprt=%p(%s) data=%p(%s) fd=%d target=%d flags=0x%08x)\n",
+		              sess->si[0].conn,
+		              sess->si[0].conn->ctrl,
+		              sess->si[0].conn->ctrl ? sess->si[0].conn->ctrl->name : "NONE",
+		              sess->si[0].conn->xprt,
+		              (sess->si[0].conn->xprt == NULL) ? "NONE" :
+		              (sess->si[0].conn->xprt == &raw_sock) ? "RAW" :
+#ifdef USE_OPENSSL
+		              (sess->si[0].conn->xprt == &ssl_sock) ? "SSL" :
+#endif
+			      "????",
+		              sess->si[0].conn->data,
+		              (sess->si[0].conn->data == NULL) ? "NONE" :
+		              (sess->si[0].conn->data == &sess_conn_cb) ? "SESS" :
+		              (sess->si[0].conn->data == &si_conn_cb) ? "STRM" :
+		              (sess->si[0].conn->data == &check_conn_cb) ? "CHCK" : "????",
+		              sess->si[0].conn->t.sock.fd,
+		              sess->si[0].conn->target ? *sess->si[0].conn->target : 0,
+		              sess->si[0].conn->flags);
+
+		chunk_appendf(&trash,
+		              "  rconn=%p (ctrl=%p(%s) xprt=%p(%s) data=%p(%s) fd=%d target=%d flags=0x%08x)\n",
+		              sess->si[1].conn,
+		              sess->si[1].conn->ctrl,
+		              sess->si[1].conn->ctrl ? sess->si[1].conn->ctrl->name : "NONE",
+		              sess->si[1].conn->xprt,
+		              (sess->si[1].conn->xprt == NULL) ? "NONE" :
+		              (sess->si[1].conn->xprt == &raw_sock) ? "RAW" :
+#ifdef USE_OPENSSL
+		              (sess->si[1].conn->xprt == &ssl_sock) ? "SSL" :
+#endif
+			      "UNKNOWN",
+		              sess->si[1].conn->data,
+		              (sess->si[1].conn->data == NULL) ? "NONE" :
+		              (sess->si[1].conn->data == &sess_conn_cb) ? "SESS" :
+		              (sess->si[1].conn->data == &si_conn_cb) ? "STRM" :
+		              (sess->si[1].conn->data == &check_conn_cb) ? "CHCK" : "????",
+		              sess->si[1].conn->t.sock.fd,
+		              sess->si[1].conn->target ? *sess->si[1].conn->target : 0,
+		              sess->si[1].conn->flags);
 
 		chunk_appendf(&trash,
 			     "  txn=%p (flags=0x%x meth=%d status=%d req.st=%d rsp.st=%d)\n",

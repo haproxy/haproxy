@@ -32,6 +32,8 @@ void set_server_up(struct server *s);
 int start_checks();
 void health_adjust(struct server *s, short status);
 
+extern struct data_cb check_conn_cb;
+
 #endif /* _PROTO_CHECKS_H */
 
 /*

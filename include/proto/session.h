@@ -31,6 +31,8 @@
 extern struct pool_head *pool2_session;
 extern struct list sessions;
 
+extern struct data_cb sess_conn_cb;
+
 int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr);
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
