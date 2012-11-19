@@ -56,6 +56,10 @@
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 
+#ifdef USE_OPENSSL
+#include <proto/ssl_sock.h>
+#endif
+
 static int stats_dump_raw_to_buffer(struct stream_interface *si);
 static int stats_dump_full_sess_to_buffer(struct stream_interface *si);
 static int stats_dump_sess_to_buffer(struct stream_interface *si);
