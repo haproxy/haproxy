@@ -519,6 +519,17 @@ static inline unsigned int div64_32(unsigned long long o1, unsigned int o2)
 	return result;
 }
 
+/* Simple popcount implementation. It returns the number of ones in a word */
+static inline unsigned int popcount(unsigned int a)
+{
+	unsigned int cnt;
+	for (cnt = 0; a; a >>= 1) {
+		if (a & 1)
+			cnt++;
+	}
+	return cnt;
+}
+
 /* copies at most <n> characters from <src> and always terminates with '\0' */
 char *my_strndup(const char *src, int n);
 
