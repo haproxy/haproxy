@@ -1746,6 +1746,7 @@ static int stats_dump_raw_to_buffer(struct stream_interface *si)
 				     "MaxConnRate: %d\n"
 				     "CompressBpsIn: %u\n"
 				     "CompressBpsOut: %u\n"
+				     "CompressBpsRateLim: %u\n"
 				     "Tasks: %d\n"
 				     "Run_queue: %d\n"
 				     "Idle_pct: %d\n"
@@ -1763,6 +1764,7 @@ static int stats_dump_raw_to_buffer(struct stream_interface *si)
 				     actconn, pipes_used, pipes_free,
 				     read_freq_ctr(&global.conn_per_sec), global.cps_lim, global.cps_max,
 				     read_freq_ctr(&global.comp_bps_in), read_freq_ctr(&global.comp_bps_out),
+				     global.comp_rate_lim,
 				     nb_tasks_cur, run_queue_cur, idle_pct,
 				     global.node, global.desc?global.desc:""
 				     );
