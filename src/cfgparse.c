@@ -885,7 +885,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		global.maxzlibmem = atol(args[1]);
+		global.maxzlibmem = atol(args[1]) * 1024L * 1024L;
 	}
 	else if (!strcmp(args[0], "ulimit-n")) {
 		if (global.rlimit_nofile != 0) {

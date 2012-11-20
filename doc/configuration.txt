@@ -718,7 +718,10 @@ maxzlibmem <number>
   Sets the maximum amount of RAM in megabytes per process usable by the zlib.
   When the maximum amount is reached, future sessions will not compress as long
   as RAM is unavailable. When sets to 0, there is no limit.
-  The default value is 0.
+  The default value is 0. The value is available in bytes on the UNIX socket
+  with "show info" on the line "MaxZlibMemUsage", the memory used by zlib is
+  "ZlibMemUsage" in bytes.
+
 
 noepoll
   Disables the use of the "epoll" event polling system on Linux. It is

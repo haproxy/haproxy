@@ -42,6 +42,7 @@
 #include <proto/backend.h>
 #include <proto/channel.h>
 #include <proto/checks.h>
+#include <proto/compression.h>
 #include <proto/dumpstats.h>
 #include <proto/fd.h>
 #include <proto/freq_ctr.h>
@@ -1747,6 +1748,10 @@ static int stats_dump_raw_to_buffer(struct stream_interface *si)
 				     "CompressBpsIn: %u\n"
 				     "CompressBpsOut: %u\n"
 				     "CompressBpsRateLim: %u\n"
+#ifdef USE_ZLIB
+				     "ZlibMemUsage: %ld\n"
+				     "MaxZlibMemUsage: %ld\n"
+#endif
 				     "Tasks: %d\n"
 				     "Run_queue: %d\n"
 				     "Idle_pct: %d\n"
@@ -1765,6 +1770,9 @@ static int stats_dump_raw_to_buffer(struct stream_interface *si)
 				     read_freq_ctr(&global.conn_per_sec), global.cps_lim, global.cps_max,
 				     read_freq_ctr(&global.comp_bps_in), read_freq_ctr(&global.comp_bps_out),
 				     global.comp_rate_lim,
+#ifdef USE_ZLIB
+				     zlib_used_memory, global.maxzlibmem,
+#endif
 				     nb_tasks_cur, run_queue_cur, idle_pct,
 				     global.node, global.desc?global.desc:""
 				     );

@@ -47,7 +47,7 @@ static struct pool_head *zlib_pool_prev = NULL;
 static struct pool_head *zlib_pool_head = NULL;
 static struct pool_head *zlib_pool_pending_buf = NULL;
 
-static long long zlib_memory_available = -1;
+long zlib_used_memory = 0;
 
 #endif
 
@@ -301,10 +301,7 @@ static inline int init_comp_ctx(struct comp_ctx **comp_ctx)
 #ifdef USE_ZLIB
 	z_stream *strm;
 
-	if (global.maxzlibmem > 0 && zlib_memory_available < 0)
-		zlib_memory_available = global.maxzlibmem * 1024 * 1024;  /*  Megabytes to bytes */
-
-	if (global.maxzlibmem > 0 && zlib_memory_available < sizeof(struct comp_ctx))
+	if (global.maxzlibmem > 0 && (global.maxzlibmem - zlib_used_memory) < sizeof(struct comp_ctx))
 		return -1;
 #endif
 
@@ -315,7 +312,7 @@ static inline int init_comp_ctx(struct comp_ctx **comp_ctx)
 	if (*comp_ctx == NULL)
 		return -1;
 #ifdef USE_ZLIB
-	zlib_memory_available -= sizeof(struct comp_ctx);
+	zlib_used_memory += sizeof(struct comp_ctx);
 
 	strm = &(*comp_ctx)->strm;
 	strm->zalloc = alloc_zlib;
@@ -337,9 +334,8 @@ static inline int deinit_comp_ctx(struct comp_ctx **comp_ctx)
 	*comp_ctx = NULL;
 
 #ifdef USE_ZLIB
-	zlib_memory_available += sizeof(struct comp_ctx);
+	zlib_used_memory -= sizeof(struct comp_ctx);
 #endif
-
 	return 0;
 }
 
@@ -380,7 +376,6 @@ int identity_flush(struct comp_ctx *comp_ctx, struct buffer *out, int flag)
 	return 0;
 }
 
-
 int identity_reset(struct comp_ctx *comp_ctx)
 {
 	return 0;
@@ -406,10 +401,8 @@ static void *alloc_zlib(void *opaque, unsigned int items, unsigned int size)
 	static char round = 0; /* order in deflateInit2 */
 	void *buf = NULL;
 
-	if (global.maxzlibmem > 0 && zlib_memory_available < items * size){
-		buf = NULL;
+	if (global.maxzlibmem > 0 && (global.maxzlibmem - zlib_used_memory) < (long)(items * size))
 		goto end;
-	}
 
 	switch (round) {
 		case 0:
@@ -442,8 +435,8 @@ static void *alloc_zlib(void *opaque, unsigned int items, unsigned int size)
 			ctx->zlib_pending_buf = buf = pool_alloc2(zlib_pool_pending_buf);
 		break;
 	}
-	if (buf != NULL && global.maxzlibmem > 0)
-		zlib_memory_available -= items * size;
+	if (buf != NULL)
+		zlib_used_memory += items * size;
 
 end:
 
@@ -474,8 +467,7 @@ static void free_zlib(void *opaque, void *ptr)
 		pool = zlib_pool_pending_buf;
 
 	pool_free2(pool, ptr);
-	if (global.maxzlibmem > 0)
-		zlib_memory_available += pool->size;
+	zlib_used_memory -= pool->size;
 }
 
 /**************************

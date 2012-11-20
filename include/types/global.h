@@ -87,7 +87,7 @@ struct global {
 	int maxsock;		/* max # of sockets */
 	int rlimit_nofile;	/* default ulimit-n value : 0=unset */
 	int rlimit_memmax;	/* default ulimit-d in megs value : 0=unset */
-	int maxzlibmem;         /* max RAM for zlib in megs */
+	long maxzlibmem;        /* max RAM for zlib in bytes */
 	int mode;
 	unsigned int req_count; /* HTTP request counter */
 	int last_checks;
