@@ -1274,6 +1274,12 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				if (strcmp(args[3], "global") == 0) {
 					int v;
 
+					if (!*args[4]) {
+						si->applet.ctx.cli.msg = "Expects a maximum input byte rate in kB/s.\n";
+						si->applet.st0 = STAT_CLI_PRINT;
+						return 1;
+					}
+
 					v = atoi(args[4]);
 					global.comp_rate_lim = v * 1024; /* Kilo to bytes. */
 				}
