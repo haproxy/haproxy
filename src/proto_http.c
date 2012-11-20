@@ -2099,6 +2099,10 @@ int select_compression_response_header(struct session *s, struct buffer *res)
 		if (read_freq_ctr(&global.comp_bps_in) > global.comp_rate_lim)
 			goto fail;
 
+	/* limit cpu usage */
+	if (idle_pct < compress_min_idle)
+		goto fail;
+
 	/* initialize compression */
 	if (s->comp_algo->init(&s->comp_ctx, global.tune.comp_maxlevel) < 0)
 		goto fail;

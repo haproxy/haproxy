@@ -51,6 +51,7 @@ long zlib_used_memory = 0;
 
 #endif
 
+unsigned int compress_min_idle = 0;
 static struct pool_head *pool_comp_ctx = NULL;
 
 
@@ -560,21 +561,19 @@ int deflate_flush(struct comp_ctx *comp_ctx, struct buffer *out, int flag)
 	out_len = (out->size - buffer_len(out)) - strm->avail_out;
 	out->i += out_len;
 
-	/* compression rate limit */
-	if (global.comp_rate_lim > 0) {
-
-		if (read_freq_ctr(&global.comp_bps_out) > global.comp_rate_lim) {
-			/* decrease level */
-			if (comp_ctx->cur_lvl > 0) {
-				comp_ctx->cur_lvl--;
-				deflateParams(&comp_ctx->strm, comp_ctx->cur_lvl, Z_DEFAULT_STRATEGY);
-			}
-
-		} else if (comp_ctx->cur_lvl < global.tune.comp_maxlevel) {
-			/* increase level */
-			comp_ctx->cur_lvl++ ;
+	/* compression limit */
+	if ((global.comp_rate_lim > 0 && (read_freq_ctr(&global.comp_bps_out) > global.comp_rate_lim)) ||    /* rate */
+	   (idle_pct < compress_min_idle)) {                                                                     /* idle */
+		/* decrease level */
+		if (comp_ctx->cur_lvl > 0) {
+			comp_ctx->cur_lvl--;
 			deflateParams(&comp_ctx->strm, comp_ctx->cur_lvl, Z_DEFAULT_STRATEGY);
 		}
+
+	} else if (comp_ctx->cur_lvl < global.tune.comp_maxlevel) {
+		/* increase level */
+		comp_ctx->cur_lvl++ ;
+		deflateParams(&comp_ctx->strm, comp_ctx->cur_lvl, Z_DEFAULT_STRATEGY);
 	}
 
 	return out_len;

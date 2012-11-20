@@ -25,6 +25,8 @@
 
 #include <types/compression.h>
 
+extern unsigned int compress_min_idle;
+
 int comp_append_type(struct comp *comp, const char *type);
 int comp_append_algo(struct comp *comp, const char *algo);
 
@@ -38,6 +40,7 @@ int identity_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len
 int identity_flush(struct comp_ctx *comp_ctx, struct buffer *out, int flag);
 int identity_reset(struct comp_ctx *comp_ctx);
 int identity_end(struct comp_ctx **comp_ctx);
+
 
 
 #ifdef USE_ZLIB

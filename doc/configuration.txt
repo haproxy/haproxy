@@ -456,6 +456,7 @@ The following keywords are supported in the "global" section :
    - maxconn
    - maxconnrate
    - maxcomprate
+   - maxcompcpuusage
    - maxpipes
    - maxsslconn
    - noepoll
@@ -697,6 +698,16 @@ maxcomprate <number>
   tune.comp.maxlevel.  A value of zero means there is no limit, this is the
   default value.
 
+maxcompcpuusage <number>
+  Sets the maximum CPU usage HAProxy can reach before stopping the compression
+  for new requests or decreasing the compression level of current requests.
+  It works like 'maxcomprate' but measures CPU usage instead of incoming data
+  bandwidth. The value is expressed in percent of the CPU used by haproxy. In
+  case of multiple processes (nbproc > 1), each process manages its individual
+  usage. A value of 100 disable the limit. The default value is 100. Setting
+  a lower value will prevent the compression work from slowing the whole
+  process down and from introducing high latencies.
+
 maxpipes <number>
   Sets the maximum per-process number of pipes to <number>. Currently, pipes
   are only used by kernel-based tcp splicing. Since a pipe contains two file
@@ -721,7 +732,6 @@ maxzlibmem <number>
   The default value is 0. The value is available in bytes on the UNIX socket
   with "show info" on the line "MaxZlibMemUsage", the memory used by zlib is
   "ZlibMemUsage" in bytes.
-
 
 noepoll
   Disables the use of the "epoll" event polling system on Linux. It is

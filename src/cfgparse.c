@@ -887,6 +887,20 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.maxzlibmem = atol(args[1]) * 1024L * 1024L;
 	}
+	else if (!strcmp(args[0], "maxcompcpuusage")) {
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects an integer argument between 0 and 100.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		compress_min_idle = 100 - atoi(args[1]);
+		if (compress_min_idle < 0 || compress_min_idle > 100) {
+			Alert("parsing [%s:%d] : '%s' expects an integer argument between 0 and 100.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+}
+
 	else if (!strcmp(args[0], "ulimit-n")) {
 		if (global.rlimit_nofile != 0) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
