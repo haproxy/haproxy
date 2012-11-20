@@ -1891,6 +1891,15 @@ compression offload
   before the header is parsed, so that prevents haproxy from compressing. The
   "offload" setting should then be used for such scenarios.
 
+  Compression is disabled when:
+    * the server is not HTTP/1.1.
+    * requests does not contain Transfer-Encoding: chunked or Content-Length.
+    * the request contains "Cache-control: no-transform".
+    * User-Agent matches "Mozilla/4" except MSIE 6 with XP SP2, or MSIE 7 and later.
+    * The response is already compressed (see compression offload).
+
+  The compression does not rewrite Etag headers
+
   Examples :
         compression algo gzip
         compression type text/html text/plain
