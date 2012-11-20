@@ -570,7 +570,7 @@ int deflate_flush(struct comp_ctx *comp_ctx, struct buffer *out, int flag)
 				deflateParams(&comp_ctx->strm, comp_ctx->cur_lvl, Z_DEFAULT_STRATEGY);
 			}
 
-		} else if (comp_ctx->cur_lvl < global.comp_rate_lim) {
+		} else if (comp_ctx->cur_lvl < global.tune.comp_maxlevel) {
 			/* increase level */
 			comp_ctx->cur_lvl++ ;
 			deflateParams(&comp_ctx->strm, comp_ctx->cur_lvl, Z_DEFAULT_STRATEGY);
