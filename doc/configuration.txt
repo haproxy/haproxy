@@ -1788,10 +1788,11 @@ capture request header <name> len <length>
   you log if you know your log parser is not smart enough to rely on the
   braces.
 
-  There is no limit to the number of captured request headers, but each capture
-  is limited to 64 characters. In order to keep log format consistent for a
-  same frontend, header captures can only be declared in a frontend. It is not
-  possible to specify a capture in a "defaults" section.
+  There is no limit to the number of captured request headers nor to their
+  length, though it is wise to keep them low to limit memory usage per session.
+  In order to keep log format consistent for a same frontend, header captures
+  can only be declared in a frontend. It is not possible to specify a capture
+  in a "defaults" section.
 
   Example:
         capture request header Host len 15
@@ -1826,10 +1827,11 @@ capture response header <name> len <length>
   header which indicates how many bytes are expected to be returned, the
   "Location" header to track redirections.
 
-  There is no limit to the number of captured response headers, but each
-  capture is limited to 64 characters. In order to keep log format consistent
-  for a same frontend, header captures can only be declared in a frontend. It
-  is not possible to specify a capture in a "defaults" section.
+  There is no limit to the number of captured response headers nor to their
+  length, though it is wise to keep them low to limit memory usage per session.
+  In order to keep log format consistent for a same frontend, header captures
+  can only be declared in a frontend. It is not possible to specify a capture
+  in a "defaults" section.
 
   Example:
         capture response header Content-length len 9
