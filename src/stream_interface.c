@@ -1165,8 +1165,20 @@ void stream_sock_read0(struct stream_interface *si)
 	return;
 
  do_close:
+	/* OK we completely close the socket here just as if we went through si_shut[rw]() */
 	conn_xprt_close(si->conn);
 	fd_delete(si->conn->t.sock.fd);
+
+	si->ib->flags &= ~CF_SHUTR_NOW;
+	si->ib->flags |= CF_SHUTR;
+	si->ib->rex = TICK_ETERNITY;
+
+	si->ob->flags &= ~CF_SHUTW_NOW;
+	si->ob->flags |= CF_SHUTW;
+	si->ob->wex = TICK_ETERNITY;
+
+	si->flags &= ~(SI_FL_WAIT_DATA | SI_FL_WAIT_ROOM);
+
 	si->state = SI_ST_DIS;
 	si->exp = TICK_ETERNITY;
 	if (si->release)
