@@ -28,7 +28,7 @@ and assign it to the TARGET variable :
   - linux2628   for Linux 2.6.28 and above (enables splice and tproxy)
   - solaris     for Solaris 8 or 10 (others untested)
   - freebsd     for FreeBSD 5 to 8.0 (others untested)
-  - openbsd     for OpenBSD 3.1 to 4.6 (others untested)
+  - openbsd     for OpenBSD 3.1 to 5.2 (others untested)
   - aix52       for AIX 5.2
   - cygwin      for Cygwin
   - generic     for any other OS.
@@ -115,6 +115,14 @@ without support for compression but when OpenSSL requires ZLIB anyway :
 
     $ make TARGET=linux26 ARCH=i386 USE_OPENSSL=1 ADDLIB=-lz
 
+The BSD and OSX makefiles do not support build options for OpenSSL nor zlib.
+Also, at least on OpenBSD, pthread_mutexattr_setpshared() does not exist so
+the SSL session cache cannot be shared between multiple processes. If you want
+to enable these options, you need to use GNU make with the default makefile as
+follows :
+
+    $ gmake TARGET=openbsd USE_OPENSSL=1 USE_ZLIB=1 USE_PRIVATE_CACHE=1
+
 If you need to pass other defines, includes, libraries, etc... then please
 check the Makefile to see which ones will be available in your case, and
 use the USE_* variables in the GNU Makefile, or ADDINC, ADDLIB, and DEFINE
@@ -180,7 +188,6 @@ before you has even encountered this issue. If it's unlikely, the you probably
 have an issue in your setup. Just in case of doubt, please consult the mailing
 list archives :
 
-                        http://www.formilux.org/archives/haproxy/
                         http://marc.info/?l=haproxy
 
 Otherwise, please try to gather the maximum amount of information to help
