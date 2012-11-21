@@ -119,6 +119,51 @@ struct chunk *http_error_message(struct session *s, int msgnum);
 		(msg)->eoh += (_bytes);		\
 	} while (0)
 
+/* for debugging, reports the HTTP message state name */
+static inline const char *http_msg_state_str(int msg_state)
+{
+	switch (msg_state) {
+	case HTTP_MSG_RQBEFORE:    return "MSG_RQBEFORE";
+	case HTTP_MSG_RQBEFORE_CR: return "MSG_RQBEFORE_CR";
+	case HTTP_MSG_RQMETH:      return "MSG_RQMETH";
+	case HTTP_MSG_RQMETH_SP:   return "MSG_RQMETH_SP";
+	case HTTP_MSG_RQURI:       return "MSG_RQURI";
+	case HTTP_MSG_RQURI_SP:    return "MSG_RQURI_SP";
+	case HTTP_MSG_RQVER:       return "MSG_RQVER";
+	case HTTP_MSG_RQLINE_END:  return "MSG_RQLINE_END";
+	case HTTP_MSG_RPBEFORE:    return "MSG_RPBEFORE";
+	case HTTP_MSG_RPBEFORE_CR: return "MSG_RPBEFORE_CR";
+	case HTTP_MSG_RPVER:       return "MSG_RPVER";
+	case HTTP_MSG_RPVER_SP:    return "MSG_RPVER_SP";
+	case HTTP_MSG_RPCODE:      return "MSG_RPCODE";
+	case HTTP_MSG_RPCODE_SP:   return "MSG_RPCODE_SP";
+	case HTTP_MSG_RPREASON:    return "MSG_RPREASON";
+	case HTTP_MSG_RPLINE_END:  return "MSG_RPLINE_END";
+	case HTTP_MSG_HDR_FIRST:   return "MSG_HDR_FIRST";
+	case HTTP_MSG_HDR_NAME:    return "MSG_HDR_NAME";
+	case HTTP_MSG_HDR_COL:     return "MSG_HDR_COL";
+	case HTTP_MSG_HDR_L1_SP:   return "MSG_HDR_L1_SP";
+	case HTTP_MSG_HDR_L1_LF:   return "MSG_HDR_L1_LF";
+	case HTTP_MSG_HDR_L1_LWS:  return "MSG_HDR_L1_LWS";
+	case HTTP_MSG_HDR_VAL:     return "MSG_HDR_VAL";
+	case HTTP_MSG_HDR_L2_LF:   return "MSG_HDR_L2_LF";
+	case HTTP_MSG_HDR_L2_LWS:  return "MSG_HDR_L2_LWS";
+	case HTTP_MSG_LAST_LF:     return "MSG_LAST_LF";
+	case HTTP_MSG_ERROR:       return "MSG_ERROR";
+	case HTTP_MSG_BODY:        return "MSG_BODY";
+	case HTTP_MSG_100_SENT:    return "MSG_100_SENT";
+	case HTTP_MSG_CHUNK_SIZE:  return "MSG_CHUNK_SIZE";
+	case HTTP_MSG_DATA:        return "MSG_DATA";
+	case HTTP_MSG_CHUNK_CRLF:  return "MSG_CHUNK_CRLF";
+	case HTTP_MSG_TRAILERS:    return "MSG_TRAILERS";
+	case HTTP_MSG_DONE:        return "MSG_DONE";
+	case HTTP_MSG_CLOSING:     return "MSG_CLOSING";
+	case HTTP_MSG_CLOSED:      return "MSG_CLOSED";
+	case HTTP_MSG_TUNNEL:      return "MSG_TUNNEL";
+	default:                   return "MSG_??????";
+	}
+}
+
 #endif /* _PROTO_PROTO_HTTP_H */
 
 /*
