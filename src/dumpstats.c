@@ -379,6 +379,7 @@ static int print_csv_header(struct chunk *msg)
 			    "hrsp_1xx,hrsp_2xx,hrsp_3xx,hrsp_4xx,hrsp_5xx,hrsp_other,hanafail,"
 			    "req_rate,req_rate_max,req_tot,"
 			    "cli_abrt,srv_abrt,"
+			     "comp_in, comp_out, comp_byp,"
 			    "\n");
 }
 
@@ -2477,13 +2478,25 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 				chunk_appendf(&trash,
 				     /* sessions: total, lbtot */
 				     ">%s%s%s</td><td></td>"
-				     /* bytes : in, out */
-				     "<td>%s</td><td>%s</td>"
+				     /* bytes : in */
+				     "<td>%s</td><td"
 				     "",
 				     (px->mode == PR_MODE_HTTP)?"<u>":"",
 				     U2H6(px->fe_counters.cum_sess),
 				     (px->mode == PR_MODE_HTTP)?"</u>":"",
-				     U2H7(px->fe_counters.bytes_in), U2H8(px->fe_counters.bytes_out));
+				     U2H7(px->fe_counters.bytes_in));
+
+				/* compression stats (via td title): comp_in, comp_out, comp_byp */
+				chunk_appendf(&trash, " title=\"compression: in=%lld out=%lld bypassed=%lld\"",
+				     px->fe_counters.comp_in, px->fe_counters.comp_out, px->fe_counters.comp_byp);
+
+				chunk_appendf(&trash,
+				     /* bytes: out */
+				     ">%s%s%s</td>"
+				     "",
+				     (px->fe_counters.comp_in || px->fe_counters.comp_byp) ? "<u>":"",
+				     U2H0(px->fe_counters.bytes_out),
+				     (px->fe_counters.comp_in || px->fe_counters.comp_byp) ? "</u>":"");
 
 				chunk_appendf(&trash,
 				     /* denied: req, resp */
@@ -2558,6 +2571,10 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 
 				/* errors: cli_aborts, srv_aborts */
 				chunk_appendf(&trash, ",,");
+
+				/* compression: in, out, bypassed */
+				chunk_appendf(&trash, "%lld,%lld,%lld,",
+			              px->fe_counters.comp_in, px->fe_counters.comp_out, px->fe_counters.comp_byp);
 
 				/* finish with EOL */
 				chunk_appendf(&trash, "\n");
@@ -3186,14 +3203,26 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 				chunk_appendf(&trash,
 				     /* sessions: total, lbtot */
 				     ">%s%s%s</td><td>%s</td>"
-				     /* bytes: in, out */
-				     "<td>%s</td><td>%s</td>"
+				     /* bytes: in */
+				     "<td>%s</td><td"
 				     "",
 				     (px->mode == PR_MODE_HTTP)?"<u>":"",
 				     U2H6(px->be_counters.cum_conn),
 				     (px->mode == PR_MODE_HTTP)?"</u>":"",
 				     U2H7(px->be_counters.cum_lbconn),
-				     U2H8(px->be_counters.bytes_in), U2H9(px->be_counters.bytes_out));
+				     U2H8(px->be_counters.bytes_in));
+
+				/* compression stats (via td title): comp_in, comp_out, comp_byp */
+				chunk_appendf(&trash, " title=\"compression: in=%lld out=%lld bypassed=%lld\"",
+				     px->be_counters.comp_in, px->be_counters.comp_out, px->be_counters.comp_byp);
+
+				chunk_appendf(&trash,
+				     /* bytes: out */
+				     ">%s%s%s</td>"
+				     "",
+				     (px->be_counters.comp_in || px->be_counters.comp_byp) ? "<u>":"",
+				     U2H0(px->be_counters.bytes_out),
+				     (px->be_counters.comp_in || px->be_counters.comp_byp) ? "</u>":"");
 
 				chunk_appendf(&trash,
 				     /* denied: req, resp */
@@ -3299,6 +3328,10 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 				/* errors: cli_aborts, srv_aborts */
 				chunk_appendf(&trash, "%lld,%lld,",
 					     px->be_counters.cli_aborts, px->be_counters.srv_aborts);
+
+				/* compression: in, out, bypassed */
+				chunk_appendf(&trash, "%lld,%lld,%lld,",
+			              px->be_counters.comp_in, px->be_counters.comp_out, px->be_counters.comp_byp);
 
 				/* finish with EOL */
 				chunk_appendf(&trash, "\n");

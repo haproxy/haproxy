@@ -37,6 +37,10 @@ struct pxcounters {
 	long long bytes_in;                     /* number of bytes transferred from the client to the server */
 	long long bytes_out;                    /* number of bytes transferred from the server to the client */
 
+	long long comp_in;                      /* input bytes fed to the compressor */
+	long long comp_out;                     /* output bytes emitted by the compressor */
+	long long comp_byp;                     /* input bytes that bypassed the compressor (cpu/ram/bw limitation) */
+
 	long long denied_req;                   /* blocked requests/responses because of security concerns */
 	long long denied_resp;                  /* blocked requests/responses because of security concerns */
 	long long failed_req;                   /* failed requests (eg: invalid or timeout) */

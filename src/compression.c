@@ -217,7 +217,7 @@ int http_compression_buffer_add_data(struct session *s, struct buffer *in, struc
  */
 int http_compression_buffer_end(struct session *s, struct buffer **in, struct buffer **out, int end)
 {
-	int to_forward;
+	int to_forward, forwarded;
 	int left;
 	struct http_msg *msg = &s->txn.rsp;
 	struct buffer *ib = *in, *ob = *out;
@@ -262,9 +262,17 @@ int http_compression_buffer_end(struct session *s, struct buffer **in, struct bu
 	}
 
 	to_forward = ob->i;
+
 	/* update input rate */
-	if (s->comp_ctx && s->comp_ctx->cur_lvl > 0)
-		update_freq_ctr(&global.comp_bps_in, ib->o - ob->o);
+	forwarded = ib->o - ob->o;
+	if (s->comp_ctx && s->comp_ctx->cur_lvl > 0) {
+		update_freq_ctr(&global.comp_bps_in, forwarded);
+		s->fe->fe_counters.comp_in += forwarded;
+		s->be->be_counters.comp_in += forwarded;
+	} else {
+		s->fe->fe_counters.comp_byp += forwarded;
+		s->be->be_counters.comp_byp += forwarded;
+	}
 
 	/* copy the remaining data in the tmp buffer. */
 	if (ib->i > 0) {
@@ -281,8 +289,11 @@ int http_compression_buffer_end(struct session *s, struct buffer **in, struct bu
 	*in = ob;
 	*out = ib;
 
-	if (s->comp_ctx && s->comp_ctx->cur_lvl > 0)
+	if (s->comp_ctx && s->comp_ctx->cur_lvl > 0) {
 		update_freq_ctr(&global.comp_bps_out, to_forward);
+		s->fe->fe_counters.comp_out += to_forward;
+		s->be->be_counters.comp_out += to_forward;
+	}
 
 	/* forward the new chunk without remaining data */
 	b_adv(ob, to_forward);
