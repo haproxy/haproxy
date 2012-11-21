@@ -269,7 +269,6 @@ void init_proto_http()
 
 	/* memory allocations */
 	pool2_requri = create_pool("requri", REQURI_LEN, MEM_F_SHARED);
-	pool2_capture = create_pool("capture", CAPTURE_LEN, MEM_F_SHARED);
 	pool2_uniqueid = create_pool("uniqueid", UNIQUEID_LEN, MEM_F_SHARED);
 }
 
@@ -862,7 +861,7 @@ extern const char sess_term_cond[8];
 extern const char sess_fin_state[8];
 extern const char *monthname[12];
 struct pool_head *pool2_requri;
-struct pool_head *pool2_capture;
+struct pool_head *pool2_capture = NULL;
 struct pool_head *pool2_uniqueid;
 
 /*

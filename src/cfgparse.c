@@ -673,6 +673,14 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.tune.pipesize = atol(args[1]);
 	}
+	else if (!strcmp(args[0], "tune.http.cookielen")) {
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		global.tune.cookie_len = atol(args[1]) + 1;
+	}
 	else if (!strcmp(args[0], "tune.http.maxhdr")) {
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
@@ -2495,12 +2503,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->capture_name = strdup(args[2]);
 			curproxy->capture_namelen = strlen(curproxy->capture_name);
 			curproxy->capture_len = atol(args[4]);
-			if (curproxy->capture_len >= CAPTURE_LEN) {
-				Warning("parsing [%s:%d] : truncating capture length to %d bytes.\n",
-					file, linenum, CAPTURE_LEN - 1);
-				err_code |= ERR_WARN;
-				curproxy->capture_len = CAPTURE_LEN - 1;
-			}
 			curproxy->to_log |= LW_COOKIE;
 		}
 		else if (!strcmp(args[1], "request") && !strcmp(args[2], "header")) {
@@ -5951,6 +5953,14 @@ int check_config_validity()
 	/* will be needed further to delay some tasks */
 	tv_update_date(0,1);
 
+	if (!global.tune.max_http_hdr)
+		global.tune.max_http_hdr = MAX_HTTP_HDR;
+
+	if (!global.tune.cookie_len)
+		global.tune.cookie_len = CAPTURE_LEN;
+
+	pool2_capture = create_pool("capture", global.tune.cookie_len, MEM_F_SHARED);
+
 	/* first, we will invert the proxy list order */
 	curproxy = NULL;
 	while (proxy) {
@@ -6436,6 +6446,14 @@ out_uri_auth_compat:
 			curproxy->check_len = sizeof(sslv3_client_hello_pkt) - 1;
 			curproxy->check_req = (char *)malloc(curproxy->check_len);
 			memcpy(curproxy->check_req, sslv3_client_hello_pkt, curproxy->check_len);
+		}
+
+		/* ensure that cookie capture length is not too large */
+		if (curproxy->capture_len >= global.tune.cookie_len) {
+			Warning("config : truncating capture length to %d bytes for %s '%s'.\n",
+				global.tune.cookie_len - 1, proxy_type_str(curproxy), curproxy->id);
+			err_code |= ERR_WARN;
+			curproxy->capture_len = global.tune.cookie_len - 1;
 		}
 
 		/* The small pools required for the capture lists */
@@ -7141,9 +7159,6 @@ out_uri_auth_compat:
 			*last = curpeers;
 		}
 	}
-
-	if (!global.tune.max_http_hdr)
-		global.tune.max_http_hdr = MAX_HTTP_HDR;
 
 	pool2_hdr_idx = create_pool("hdr_idx",
 				    global.tune.max_http_hdr * sizeof(struct hdr_idx_elem),

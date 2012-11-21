@@ -467,6 +467,7 @@ The following keywords are supported in the "global" section :
    - tune.bufsize
    - tune.chksize
    - tune.comp.maxlevel
+   - tune.http.cookielen
    - tune.http.maxhdr
    - tune.maxaccept
    - tune.maxpollevents
@@ -791,6 +792,16 @@ tune.comp.maxlevel <number>
   usage during compression. This value affects CPU usage during compression.
   Each session using compression initializes the compression algorithm with
   this value. The default value is 1.
+
+tune.http.cookielen <number>
+  Sets the maximum length of captured cookies. This is the maximum value that
+  the "capture cookie xxx len yyy" will be allowed to take, and any upper value
+  will automatically be truncated to this one. It is important not to set too
+  high a value because all cookie captures still allocate this size whatever
+  their configured value (they share a same pool). This value is per request
+  per response, so the memory allocated is twice this value per connection.
+  When not specified, the limit is set to 63 characters. It is recommended not
+  to change this value.
 
 tune.http.maxhdr <number>
   Sets the maximum number of headers in a request. When a request comes with a
@@ -1736,9 +1747,9 @@ capture cookie <name> len <length>
   The capture is performed in the frontend only because it is necessary that
   the log format does not change for a given frontend depending on the
   backends. This may change in the future. Note that there can be only one
-  "capture cookie" statement in a frontend. The maximum capture length is
-  configured in the sources by default to 64 characters. It is not possible to
-  specify a capture in a "defaults" section.
+  "capture cookie" statement in a frontend. The maximum capture length is set
+  by the global "tune.http.cookielen" setting and defaults to 63 characters. It
+  is not possible to specify a capture in a "defaults" section.
 
   Example:
         capture cookie ASPSESSION len 32
