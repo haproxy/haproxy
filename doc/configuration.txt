@@ -1748,7 +1748,7 @@ capture cookie <name> len <length>
 
 
 capture request header <name> len <length>
-  Capture and log the first occurrence of the specified request header.
+  Capture and log the last occurrence of the specified request header.
   May be used in sections :   defaults | frontend | listen | backend
                                   no   |    yes   |   yes  |   no
   Arguments :
@@ -1762,7 +1762,7 @@ capture request header <name> len <length>
               report in the logs. The string will be truncated on the right if
               it exceeds <length>.
 
-  Only the first value of the last occurrence of the header is captured. The
+  The complete value of the last occurrence of the header is captured. The
   value will be added to the logs between braces ('{}'). If multiple headers
   are captured, they will be delimited by a vertical bar ('|') and will appear
   in the same order they were declared in the configuration. Non-existent
@@ -1792,7 +1792,7 @@ capture request header <name> len <length>
 
 
 capture response header <name> len <length>
-  Capture and log the first occurrence of the specified response header.
+  Capture and log the last occurrence of the specified response header.
   May be used in sections :   defaults | frontend | listen | backend
                                   no   |    yes   |   yes  |   no
   Arguments :
@@ -1806,7 +1806,7 @@ capture response header <name> len <length>
               report in the logs. The string will be truncated on the right if
               it exceeds <length>.
 
-  Only the first value of the last occurrence of the header is captured. The
+  The complete value of the last occurrence of the header is captured. The
   result will be added to the logs between braces ('{}') after the captured
   request headers. If multiple headers are captured, they will be delimited by
   a vertical bar ('|') and will appear in the same order they were declared in
