@@ -1,6 +1,302 @@
 ChangeLog :
 ===========
 
+2012/11/22 : 1.5-dev13
+    - BUILD: fix build issue without USE_OPENSSL
+    - BUILD: fix compilation error with DEBUG_FULL
+    - DOC: ssl: remove prefer-server-ciphers documentation
+    - DOC: ssl: surround keywords with quotes
+    - DOC: fix minor typo on http-send-name-header
+    - BUG/MEDIUM: acls using IPv6 subnets patterns incorrectly match IPs
+    - BUG/MAJOR: fix a segfault on option http_proxy and url_ip acl
+    - MEDIUM: http: accept IPv6 values with (s)hdr_ip acl
+    - BUILD: report zlib support in haproxy -vv
+    - DOC: compression: add some details and clean up the formatting
+    - DOC: Change is_ssl acl to ssl_fc acl in example
+    - DOC: make it clear what the HTTP request size is
+    - MINOR: ssl: try to load Diffie-Hellman parameters from cert file
+    - DOC: ssl: update 'crt' statement on 'bind' about Diffie-Hellman parameters loading
+    - MINOR: ssl: add elliptic curve Diffie-Hellman support for ssl key generation
+    - DOC: ssl: add 'ecdhe' statement on 'bind'
+    - MEDIUM: ssl: add client certificate authentication support
+    - DOC: ssl: add 'verify', 'cafile' and 'crlfile' statements on 'bind'
+    - MINOR: ssl: add fetch and ACL 'client_crt' to test a client cert is present
+    - DOC: ssl: add fetch and ACL 'client_cert'
+    - MINOR: ssl: add ignore verify errors options
+    - DOC: ssl: add 'ca-ignore-err' and 'crt-ignore-err' statements on 'bind'
+    - MINOR: ssl: add fetch and ACL 'ssl_verify_result'
+    - DOC: ssl: add fetch and ACL 'ssl_verify_result'
+    - MINOR: ssl: add fetches and ACLs to return verify errors
+    - DOC: ssl: add fetches and ACLs 'ssl_verify_crterr', 'ssl_verify_caerr', and 'ssl_verify_crterr_depth'
+    - MINOR: ssl: disable shared memory and locks on session cache if nbproc == 1
+    - MINOR: ssl: add build param USE_PRIVATE_CACHE to build cache without shared memory
+    - MINOR: ssl : add statements 'notlsv11' and 'notlsv12' and rename 'notlsv1' to 'notlsv10'.
+    - DOC: ssl : add statements 'notlsv11' and 'notlsv12' and rename 'notlsv1' to 'notlsv10'.
+    - MEDIUM: config: authorize frontend and listen without bind.
+    - MINOR: ssl: add statement 'no-tls-tickets' on bind to disable stateless session resumption
+    - DOC: ssl: add 'no-tls-tickets' statement documentation.
+    - BUG/MINOR: ssl: Fix CRL check was not enabled when crlfile was specified.
+    - BUG/MINOR: build: Fix compilation issue on openssl 0.9.6 due to missing CRL feature.
+    - BUG/MINOR: conf: Fix 'maxsslconn' statement error if built without OPENSSL.
+    - BUG/MINOR: build: Fix failure with USE_OPENSSL=1 and USE_FUTEX=1 on archs i486 and i686.
+    - MINOR: ssl: remove prefer-server-ciphers statement and set it as the default on ssl listeners.
+    - BUG/MEDIUM: ssl: subsequent handshakes fail after server configuration changes
+    - MINOR: ssl: add 'crt-base' and 'ca-base' global statements.
+    - MEDIUM: conf: rename 'nosslv3' and 'notlsvXX' statements 'no-sslv3' and 'no-tlsvXX'.
+    - MEDIUM: conf: rename 'cafile' and 'crlfile' statements 'ca-file' and 'crl-file'
+    - MINOR: ssl: use bit fields to  store ssl options instead of one int each
+    - MINOR: ssl: add 'force-sslv3' and 'force-tlsvXX' statements on bind.
+    - MINOR: ssl: add 'force-sslv3' and 'force-tlsvXX' statements on server
+    - MINOR: ssl: add defines LISTEN_DEFAULT_CIPHERS and CONNECT_DEFAULT_CIPHERS.
+    - BUG/MINOR: ssl: Fix issue on server statements 'no-tls*' and 'no-sslv3'
+    - MINOR: ssl: move ssl context init for servers from cfgparse.c to ssl_sock.c
+    - MEDIUM: ssl: reject ssl server keywords in default-server statement
+    - MINOR: ssl: add statement 'no-tls-tickets' on server side.
+    - MINOR: ssl: add statements 'verify', 'ca-file' and 'crl-file' on servers.
+    - DOC: Fix rename of options cafile and crlfile to ca-file and crl-file.
+    - MINOR: sample: manage binary to string type convertion in stick-table and samples.
+    - MINOR: acl: add parse and match primitives to use binary type on ACLs
+    - MINOR: sample: export 'sample_get_trash_chunk(void)'
+    - MINOR: conf: rename all ssl modules fetches using prefix 'ssl_fc' and 'ssl_c'
+    - MINOR: ssl: add pattern and ACLs fetches 'ssl_fc_protocol', 'ssl_fc_cipher', 'ssl_fc_use_keysize' and 'ssl_fc_alg_keysize'
+    - MINOR: ssl: add pattern fetch 'ssl_fc_session_id'
+    - MINOR: ssl: add pattern and ACLs fetches 'ssl_c_version' and 'ssl_f_version'
+    - MINOR: ssl: add pattern and ACLs fetches 'ssl_c_s_dn', 'ssl_c_i_dn', 'ssl_f_s_dn' and 'ssl_c_i_dn'
+    - MINOR: ssl: add pattern and ACLs 'ssl_c_sig_alg' and 'ssl_f_sig_alg'
+    - MINOR: ssl: add pattern and ACLs fetches 'ssl_c_key_alg' and 'ssl_f_key_alg'
+    - MINOR: ssl: add pattern and ACLs fetches 'ssl_c_notbefore', 'ssl_c_notafter', 'ssl_f_notbefore' and 'ssl_f_notafter'
+    - MINOR: ssl: add 'crt' statement on server.
+    - MINOR: ssl: checks the consistency of a private key with the corresponding certificate
+    - BUG/MEDIUM: ssl: review polling on reneg.
+    - BUG/MEDIUM: ssl: Fix some reneg cases not correctly handled.
+    - BUG/MEDIUM: ssl: Fix sometimes reneg fails if requested by server.
+    - MINOR: build: allow packagers to specify the ssl cache size
+    - MINOR: conf: add warning if ssl is not enabled and a certificate is present on bind.
+    - MINOR: ssl: Add tune.ssl.lifetime statement in global.
+    - MINOR: compression: Enable compression for IE6 w/SP2, IE7 and IE8
+    - BUG: http: revert broken optimisation from 82fe75c1a79dac933391501b9d293bce34513755
+    - DOC: duplicate ssl_sni section
+    - MEDIUM: HTTP compression (zlib library support)
+    - CLEANUP: use struct comp_ctx instead of union
+    - BUILD: remove dependency to zlib.h
+    - MINOR: compression: memlevel and windowsize
+    - MEDIUM: use pool for zlib
+    - MINOR: compression: try init in cfgparse.c
+    - MINOR: compression: init before deleting headers
+    - MEDIUM: compression: limit RAM usage
+    - MINOR: compression: tune.comp.maxlevel
+    - MINOR: compression: maximum compression rate limit
+    - MINOR: log-format: check number of arguments in cfgparse.c
+    - BUG/MEDIUM: compression: no Content-Type header but type in configuration
+    - BUG/MINOR: compression: deinit zlib only when required
+    - MEDIUM: compression: don't compress when no data
+    - MEDIUM: compression: use pool for comp_ctx
+    - MINOR: compression: rate limit in 'show info'
+    - MINOR: compression: report zlib memory usage
+    - BUG/MINOR: compression: dynamic level increase
+    - DOC: compression: unsupported cases.
+    - MINOR: compression: CPU usage limit
+    - MEDIUM: http: add "redirect scheme" to ease HTTP to HTTPS redirection
+    - BUG/MAJOR: ssl: missing tests in ACL fetch functions
+    - MINOR: config: add a function to indent error messages
+    - REORG: split "protocols" files into protocol and listener
+    - MEDIUM: config: replace ssl_conf by bind_conf
+    - CLEANUP: listener: remove unused conf->file and conf->line
+    - MEDIUM: listener: add a minimal framework to register "bind" keyword options
+    - MEDIUM: config: move the "bind" TCP parameters to proto_tcp
+    - MEDIUM: move bind SSL parsing to ssl_sock
+    - MINOR: config: improve error reporting for "bind" lines
+    - MEDIUM: config: move the common "bind" settings to listener.c
+    - MEDIUM: config: move all unix-specific bind keywords to proto_uxst.c
+    - MEDIUM: config: enumerate full list of registered "bind" keywords upon error
+    - MINOR: listener: add a scope field in the bind keyword lists
+    - MINOR: config: pass the file and line to config keyword parsers
+    - MINOR: stats: fill the file and line numbers in the stats frontend
+    - MINOR: config: set the bind_conf entry on listeners created from a "listen" line.
+    - MAJOR: listeners: use dual-linked lists to chain listeners with frontends
+    - REORG: listener: move unix perms from the listener to the bind_conf
+    - BUG: backend: balance hdr was broken since 1.5-dev11
+    - MINOR: standard: make memprintf() support a NULL destination
+    - MINOR: config: make str2listener() use memprintf() to report errors.
+    - MEDIUM: stats: remove the stats_sock struct from the global struct
+    - MINOR: ssl: set the listeners' data layer to ssl during parsing
+    - MEDIUM: stats: make use of the standard "bind" parsers to parse global socket
+    - DOC: move bind options to their own section
+    - DOC: stats: refer to "bind" section for "stats socket" settings
+    - DOC: fix index to reference bind and server options
+    - BUG: http: do not print garbage on invalid requests in debug mode
+    - BUG/MINOR: config: check the proper pointer to report unknown protocol
+    - CLEANUP: connection: offer conn_prepare() to set up a connection
+    - CLEANUP: config: fix typo inteface => interface
+    - BUG: stats: fix regression introduced by commit 4348fad1
+    - MINOR: cli: allow to set frontend maxconn to zero
+    - BUG/MAJOR: http: chunk parser was broken with buffer changes
+    - MEDIUM: monitor: simplify handling of monitor-net and mode health
+    - MINOR: connection: add a pointer to the connection owner
+    - MEDIUM: connection: make use of the owner instead of container_of
+    - BUG/MINOR: ssl: report the L4 connection as established when possible
+    - BUG/MEDIUM: proxy: must not try to stop disabled proxies upon reload
+    - BUG/MINOR: config: use a copy of the file name in proxy configurations
+    - BUG/MEDIUM: listener: don't pause protocols that do not support it
+    - MEDIUM: proxy: add the global frontend to the list of normal proxies
+    - BUG/MINOR: epoll: correctly disable FD polling in fd_rem()
+    - MINOR: signal: really ignore signals configured with no handler
+    - MINOR: buffers: add a few functions to write chars, strings and blocks
+    - MINOR: raw_sock: always report asynchronous connection errors
+    - MEDIUM: raw_sock: improve connection error reporting
+    - REORG: connection: rename the data layer the "transport layer"
+    - REORG: connection: rename app_cb "data"
+    - MINOR: connection: provide a generic data layer wakeup callback
+    - MINOR: connection: split conn_prepare() in two functions
+    - MINOR: connection: add an init callback to the data_cb struct
+    - MEDIUM: session: use a specific data_cb for embryonic sessions
+    - MEDIUM: connection: use a generic data-layer init() callback
+    - MEDIUM: connection: reorganize connection flags
+    - MEDIUM: connection: only call the data->wake callback on activity
+    - MEDIUM: connection: make it possible for data->wake to return an error
+    - MEDIUM: session: register a data->wake callback to process errors
+    - MEDIUM: connection: don't call the data->init callback upon error
+    - MEDIUM: connection: it's not the data layer's role to validate the connection
+    - MEDIUM: connection: automatically disable polling on error
+    - REORG: connection: move the PROXY protocol management to connection.c
+    - MEDIUM: connection: add a new local send-proxy transport callback
+    - MAJOR: checks: make use of the connection layer to send checks
+    - REORG: server: move the check-specific parts into a check subsection
+    - MEDIUM: checks: use real buffers to store requests and responses
+    - MEDIUM: check: add the ctrl and transport layers in the server check structure
+    - MAJOR: checks: completely use the connection transport layer
+    - MEDIUM: checks: add the "check-ssl" server option
+    - MEDIUM: checks: enable the PROXY protocol with health checks
+    - CLEANUP: checks: remove minor warnings for assigned but not used variables
+    - MEDIUM: tcp: enable TCP Fast Open on systems which support it
+    - BUG: connection: fix regression from commit 9e272bf9
+    - CLEANUP: cttproxy: remove a warning on undeclared close()
+    - BUG/MAJOR: ensure that hdr_idx is always reserved when L7 fetches are used
+    - MEDIUM: listener: add support for linux's accept4() syscall
+    - MINOR: halog: sort output by cookie code
+    - BUG/MINOR: halog: -ad/-ac report the correct number of output lines
+    - BUG/MINOR: halog: fix help message for -ut/-uto
+    - MINOR: halog: add a parameter to limit output line count
+    - BUILD: accept4: move the socketcall declaration outside of accept4()
+    - MINOR: server: add minimal infrastructure to parse keywords
+    - MINOR: standard: make indent_msg() support empty messages
+    - MEDIUM: server: check for registered keywords when parsing unknown keywords
+    - MEDIUM: server: move parsing of keyword "id" to server.c
+    - BUG/MEDIUM: config: check-send-proxy was ignored if SSL was not builtin
+    - MEDIUM: ssl: move "server" keyword SSL options parsing to ssl_sock.c
+    - MEDIUM: log: suffix the frontend's name with '~' when using SSL
+    - MEDIUM: connection: always unset the transport layer upon close
+    - BUG/MINOR: session: fix some leftover from debug code
+    - BUG/MEDIUM: session: enable the conn_session_update() callback
+    - MEDIUM: connection: add a flag to hold the transport layer
+    - MEDIUM: log: add a new LW_XPRT flag to pin the transport layer
+    - MINOR: log: make lf_text use a const char *
+    - MEDIUM: log: report SSL ciphers and version in logs using logformat %sslc/%sslv
+    - REORG: http: rename msg->buf to msg->chn since it's a channel
+    - CLEANUP: http: use 'chn' to name channel variables, not 'buf'
+    - CLEANUP: channel: use 'chn' instead of 'buf' as local variable names
+    - CLEANUP: tcp: use 'chn' instead of 'buf' or 'b' for channel pointer names
+    - CLEANUP: stream_interface: use 'chn' instead of 'b' to name channel pointers
+    - CLEANUP: acl: use 'chn' instead of 'b' to name channel pointers
+    - MAJOR: channel: replace the struct buffer with a pointer to a buffer
+    - OPTIM: channel: reorganize struct members to improve cache efficiency
+    - CLEANUP: session: remove term_trace which is not used anymore
+    - OPTIM: session: reorder struct session fields
+    - OPTIM: connection: pack the struct target
+    - DOC: document relations between internal entities
+    - MINOR: ssl: add 'ssl_npn' sample/acl to extract TLS/NPN information
+    - BUILD: ssl: fix shctx build on older compilers
+    - MEDIUM: ssl: add support for the "npn" bind keyword
+    - BUG: ssl: fix ssl_sni ACLs to correctly process regular expressions
+    - MINOR: chunk: provide string compare functions
+    - MINOR: sample: accept fetch keywords without parenthesis
+    - MEDIUM: sample: pass an empty list instead of a null for fetch args
+    - MINOR: ssl: improve socket behaviour upon handshake abort.
+    - BUG/MEDIUM: http: set DONTWAIT on data when switching to tunnel mode
+    - MEDIUM: listener: provide a fallback for accept4() when not supported
+    - BUG/MAJOR: connection: risk of crash on certain tricky close scenario
+    - MEDIUM: cli: allow the stats socket to be bound to a specific set of processes
+    - OPTIM: channel: inline channel_forward's fast path
+    - OPTIM: http: inline http_parse_chunk_size() and http_skip_chunk_crlf()
+    - OPTIM: tools: inline hex2i()
+    - CLEANUP: http: rename HTTP_MSG_DATA_CRLF state
+    - MINOR: compression: automatically disable compression for older browsers
+    - MINOR: compression: optimize memLevel to improve byte rate
+    - BUG/MINOR: http: compression should consider all Accept-Encoding header values
+    - BUILD: fix coexistence of openssl and zlib
+    - MINOR: ssl: add pattern and ACLs fetches 'ssl_c_serial' and 'ssl_f_serial'
+    - BUG/MEDIUM: command-line option -D must have precedence over "debug"
+    - MINOR: tools: add a clear_addr() function to unset an address
+    - BUG/MEDIUM: tcp: transparent bind to the source only when address is set
+    - CLEANUP: remove trashlen
+    - MAJOR: session: detach the connections from the stream interfaces
+    - DOC: update document describing relations between internal entities
+    - BUILD: make it possible to specify ZLIB path
+    - MINOR: compression: add an offload option to remove the Accept-Encoding header
+    - BUG: compression: disable auto-close and enable MSG_MORE during transfer
+    - CLEANUP: completely remove trashlen
+    - MINOR: chunk: add a function to reset a chunk
+    - CLEANUP: replace chunk_printf() with chunk_appendf()
+    - MEDIUM: make the trash be a chunk instead of a char *
+    - MEDIUM: remove remains of BUFSIZE in HTTP auth and sample conversions
+    - MEDIUM: stick-table: allocate the table key of size buffer size
+    - BUG/MINOR: stream_interface: don't loop over ->snd_buf()
+    - BUG/MINOR: session: ensure that we don't retry connection if some data were sent
+    - OPTIM: session: don't process the whole session when only timers need a refresh
+    - BUG/MINOR: session: mark the handshake as complete earlier
+    - MAJOR: connection: remove the CO_FL_CURR_*_POL flag
+    - BUG/MAJOR: always clear the CO_FL_WAIT_* flags after updating polling flags
+    - MAJOR: sepoll: make the poller totally event-driven
+    - OPTIM: stream_interface: disable reading when CF_READ_DONTWAIT is set
+    - BUILD: compression: remove a build warning
+    - MEDIUM: fd: don't unset fdtab[].updated upon delete
+    - REORG: fd: move the speculative I/O management from ev_sepoll
+    - REORG: fd: move the fd state management from ev_sepoll
+    - REORG: fd: centralize the processing of speculative events
+    - BUG: raw_sock: also consider ENOTCONN in addition to EAGAIN
+    - BUILD: stream_interface: remove si_fd() and its references
+    - BUILD: compression: enable build in BSD and OSX Makefiles
+    - MAJOR: ev_select: make the poller support speculative events
+    - MAJOR: ev_poll: make the poller support speculative events
+    - MAJOR: ev_kqueue: make the poller support speculative events
+    - MAJOR: polling: replace epoll with sepoll and remove sepoll
+    - MAJOR: polling: remove unused callbacks from the poller struct
+    - MEDIUM: http: refrain from sending "Connection: close" when Upgrade is present
+    - CLEANUP: channel: remove any reference of the hijackers
+    - CLEANUP: stream_interface: remove the external task type target
+    - MAJOR: connection: replace struct target with a pointer to an enum
+    - BUG: connection: fix typo in previous commit
+    - BUG: polling: don't skip polled events in the spec list
+    - MINOR: splice: disable it when the system returns EBADF
+    - MINOR: build: allow packagers to specify the default maxzlibmem
+    - BUG: halog: fix broken output limitation
+    - BUG: proxy: fix server name lookup in get_backend_server()
+    - BUG: compression: do not always increment the round counter on allocation failure
+    - BUG/MEDIUM: compression: release the zlib pools between keep-alive requests
+    - MINOR: global: don't prevent nbproc from being redefined
+    - MINOR: config: support process ranges for "bind-process"
+    - MEDIUM: global: add support for CPU binding on Linux ("cpu-map")
+    - MINOR: ssl: rename and document the tune.ssl.cachesize option
+    - DOC: update the PROXY protocol spec to support v2
+    - MINOR: standard: add a simple popcount function
+    - MEDIUM: adjust the maxaccept per listener depending on the number of processes
+    - BUG: compression: properly disable compression when content-type does not match
+    - MINOR: cli: report connection status in "show sess xxx"
+    - BUG/MAJOR: stream_interface: certain workloads could cause get stuck
+    - BUILD: cli: fix build when SSL is enabled
+    - MINOR: cli: report the fd state in "show sess xxx"
+    - MINOR: cli: report an error message on missing argument to compression rate
+    - MINOR: http: add some debugging functions to pretty-print msg state names
+    - BUG/MAJOR: stream_interface: read0 not always handled since dev12
+    - DOC: documentation on http header capture is wrong
+    - MINOR: http: allow the cookie capture size to be changed
+    - DOC: http header capture has not been limited in size for a long time
+    - DOC: update readme with build methods for BSD
+    - BUILD: silence a warning on Solaris about usage of isdigit()
+    - MINOR: stats: report HTTP compression stats per frontend and per backend
+    - MINOR: log: add '%Tl' to log-format
+    - MINOR: samples: update the url_param fetch to match parameters in the path
+
 2012/09/10 : 1.5-dev12
     - CONTRIB: halog: sort URLs by avg bytes_read or total bytes_read
     - MEDIUM: ssl: add support for prefer-server-ciphers option
