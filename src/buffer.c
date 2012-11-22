@@ -10,6 +10,7 @@
  *
  */
 
+#include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -198,23 +199,32 @@ void buffer_bounce_realign(struct buffer *buf)
 void buffer_dump(FILE *o, struct buffer *b, int from, int to)
 {
 	fprintf(o, "Dumping buffer %p\n", b);
-	fprintf(o, "  data=%p o=%d i=%d p=%p\n",
-		b->data, b->o, b->i, b->p);
-
-	if (!to || to > buffer_len(b))
-		to = buffer_len(b);
+	fprintf(o, "            data=%p o=%d i=%d p=%p\n"
+                   "            relative:   p=0x%04x\n",
+		b->data, b->o, b->i, b->p, (unsigned int)(b->p - b->data));
 
 	fprintf(o, "Dumping contents from byte %d to byte %d\n", from, to);
-	for (; from < to; from++) {
-		if ((from & 15) == 0)
-			fprintf(o, "  %04x: ", from);
-		fprintf(o, "%02x ", b->data[from]);
-		if ((from & 15) == 7)
-			fprintf(o, "- ");
-		else if (((from & 15) == 15) && (from != to-1))
-			fprintf(o, "\n");
+	fprintf(o, "         0  1  2  3  4  5  6  7    8  9  a  b  c  d  e  f\n");
+	/* dump hexa */
+	while (from < to) {
+		int i;
+
+		fprintf(o, "  %04x: ", from);
+		for (i = 0; ((from + i) < to) && (i < 16) ; i++) {
+			fprintf(o, "%02x ", (unsigned char)b->data[from + i]);
+			if (((from + i)  & 15) == 7)
+				fprintf(o, "- ");
+		}
+		fprintf(o, "  ");
+		for (i = 0; (from + i < to) && (i < 16) ; i++) {
+			fprintf(o, "%c", isprint(b->data[from + i]) ? b->data[from + i] : '.') ;
+			if ((((from + i) & 15) == 15) && ((from + i) != to-1))
+				fprintf(o, "\n");
+		}
+		from += i;
 	}
 	fprintf(o, "\n--\n");
+	fflush(o);
 }
 
 
