@@ -322,7 +322,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 			else if (strcmp(args[cur_arg], "even") == 0) {
 				set |= 0xAAAAAAAA;
 			}
-			else if (isdigit(*args[cur_arg])) {
+			else if (isdigit((int)*args[cur_arg])) {
 				char *dash = strchr(args[cur_arg], '-');
 
 				low = high = str2uic(args[cur_arg]);

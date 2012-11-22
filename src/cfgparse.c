@@ -1231,7 +1231,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		while (*args[cur_arg]) {
 			unsigned int low, high;
 
-			if (isdigit(*args[cur_arg])) {
+			if (isdigit((int)*args[cur_arg])) {
 				char *dash = strchr(args[cur_arg], '-');
 
 				low = high = str2uic(args[cur_arg]);
@@ -2146,7 +2146,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			else if (strcmp(args[cur_arg], "even") == 0) {
 				set |= 0xAAAAAAAA;
 			}
-			else if (isdigit(*args[cur_arg])) {
+			else if (isdigit((int)*args[cur_arg])) {
 				char *dash = strchr(args[cur_arg], '-');
 
 				low = high = str2uic(args[cur_arg]);
@@ -4599,7 +4599,7 @@ stats_error_parsing:
 								name = end;
 								if (*end == '-')
 									end++;
-								while (isdigit(*end))
+								while (isdigit((int)*end))
 									end++;
 								newsrv->bind_hdr_occ = strl2ic(name, end-name);
 							}
@@ -5032,7 +5032,7 @@ stats_error_parsing:
 						name = end;
 						if (*end == '-')
 							end++;
-						while (isdigit(*end))
+						while (isdigit((int)*end))
 							end++;
 						curproxy->bind_hdr_occ = strl2ic(name, end-name);
 					}
