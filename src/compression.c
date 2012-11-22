@@ -298,10 +298,6 @@ int http_compression_buffer_end(struct session *s, struct buffer **in, struct bu
 	/* forward the new chunk without remaining data */
 	b_adv(ob, to_forward);
 
-	/* if there are data between p and next, there are trailers, must forward them */
-	b_adv(ob, msg->next);
-	msg->next = 0;
-
 	return to_forward;
 }
 

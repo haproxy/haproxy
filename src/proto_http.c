@@ -5691,7 +5691,12 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_TRAILERS, s->fe);
 				goto return_bad_res;
 			}
-					/* we're in HTTP_MSG_DONE now */
+			if (s->comp_algo != NULL) {
+				/* forwarding trailers */
+				channel_forward(res, msg->next);
+				msg->next = 0;
+			}
+			/* we're in HTTP_MSG_DONE now */
 		}
 		else {
 			int old_state = msg->msg_state;
