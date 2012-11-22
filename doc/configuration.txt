@@ -1887,7 +1887,7 @@ compression offload
     offload  makes haproxy work as a compression offloader only (see notes).
 
   The currently supported algorithms are :
-    identity  this is mostly for debugging, and it was useful for developping
+    identity  this is mostly for debugging, and it was useful for developing
               the compression feature. Identity does not apply any change on
               data.
 
@@ -1901,7 +1901,7 @@ compression offload
               This setting is only available when support for zlib was built
               in.
 
-  Compression will be activated depending of the Accept-Encoding request
+  Compression will be activated depending on the Accept-Encoding request
   header. With identity, it does not take care of that header.
 
   The "offload" setting makes haproxy remove the Accept-Encoding header to
