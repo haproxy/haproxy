@@ -7135,6 +7135,7 @@ out_uri_auth_compat:
 		while (*last) {
 			curpeers = *last;
 			if (curpeers->peers_fe) {
+				LIST_NEXT(&curpeers->peers_fe->conf.listeners, struct listener *, by_fe)->maxaccept = 1;
 				last = &curpeers->next;
 				continue;
 			}
