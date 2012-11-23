@@ -1323,7 +1323,6 @@ static struct task *process_chk(struct task *t)
 		 * connect() when a pure TCP check is used.
 		 */
 		ret = s->check.proto->connect(conn, (s->proxy->options2 & PR_O2_CHK_ANY) ? 1 : 2);
-		__conn_data_want_recv(conn);   /* prepare for reading a possible reply */
 		conn->flags |= CO_FL_WAKE_DATA;
 		if (s->check.send_proxy)
 			conn->flags |= CO_FL_LOCAL_SPROXY;
@@ -1340,6 +1339,7 @@ static struct task *process_chk(struct task *t)
 				int t_con = tick_add(now_ms, s->proxy->timeout.connect);
 				t->expire = tick_first(t->expire, t_con);
 			}
+			conn_data_poll_recv(conn);   /* prepare for reading a possible reply */
 			goto reschedule;
 
 		case SN_ERR_SRVTO: /* ETIMEDOUT */
