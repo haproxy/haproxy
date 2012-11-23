@@ -1430,10 +1430,10 @@ static struct task *process_chk(struct task *t)
 
 				set_server_up(s);
 			}
-			conn->t.sock.fd = -1; /* no check running anymore */
 			conn_xprt_close(conn);
 			if (conn->ctrl)
 				fd_delete(fd);
+			conn->t.sock.fd = -1; /* no check running anymore */
 
 			rv = 0;
 			if (global.spread_checks > 0) {
@@ -1462,10 +1462,10 @@ static struct task *process_chk(struct task *t)
 			}
 			else
 				set_server_down(s);
-			conn->t.sock.fd = -1;
 			conn_xprt_close(conn);
 			if (conn->ctrl)
 				fd_delete(fd);
+			conn->t.sock.fd = -1;
 
 			rv = 0;
 			if (global.spread_checks > 0) {
