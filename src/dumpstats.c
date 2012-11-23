@@ -49,6 +49,7 @@
 #include <proto/log.h>
 #include <proto/pipe.h>
 #include <proto/listener.h>
+#include <proto/proto_http.h>
 #include <proto/proto_uxst.h>
 #include <proto/proxy.h>
 #include <proto/session.h>
@@ -3599,9 +3600,9 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 		              sess->si[1].conn->t.sock.fd >= 0 ? fdtab[sess->si[1].conn->t.sock.fd].spec_e : 0);
 
 		chunk_appendf(&trash,
-			     "  txn=%p (flags=0x%x meth=%d status=%d req.st=%d rsp.st=%d)\n",
+			     "  txn=%p (flags=0x%x meth=%d status=%d req.st=%s rsp.st=%s)\n",
 			     &sess->txn, sess->txn.flags, sess->txn.meth, sess->txn.status,
-			     sess->txn.req.msg_state, sess->txn.rsp.msg_state);
+			     http_msg_state_str(sess->txn.req.msg_state), http_msg_state_str(sess->txn.rsp.msg_state));
 
 
 		chunk_appendf(&trash,
