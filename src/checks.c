@@ -1160,10 +1160,12 @@ static void event_srv_chk_r(struct connection *conn)
 	 */
 	if (conn->xprt && conn->xprt->shutw)
 		conn->xprt->shutw(conn, 0);
-	if (!(conn->flags & CO_FL_WAIT_RD))
-		recv(conn->t.sock.fd, trash.str, trash.size, MSG_NOSIGNAL|MSG_DONTWAIT);
-	setsockopt(conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
-		   (struct linger *) &nolinger, sizeof(struct linger));
+	if (conn->ctrl) {
+		if (!(conn->flags & CO_FL_WAIT_RD))
+			recv(conn->t.sock.fd, trash.str, trash.size, MSG_NOSIGNAL|MSG_DONTWAIT);
+		setsockopt(conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
+			   (struct linger *) &nolinger, sizeof(struct linger));
+	}
 	__conn_data_stop_both(conn);
 	task_wakeup(t, TASK_WOKEN_IO);
 	return;
@@ -1383,6 +1385,9 @@ static struct task *process_chk(struct task *t)
 				/* the check expired and the connection was not
 				 * yet closed, start by doing this.
 				 */
+				if (conn->ctrl)
+					setsockopt(conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
+						   (struct linger *) &nolinger, sizeof(struct linger));
 				conn_full_close(conn);
 			}
 
