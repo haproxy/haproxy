@@ -799,7 +799,6 @@ static void event_srv_chk_w(struct connection *conn)
 				t->expire = tick_add_ifset(now_ms, s->proxy->timeout.check);
 				task_queue(t);
 			}
-			__conn_data_want_recv(conn);   /* prepare for reading reply */
 			goto out_nowake;
 		}
 		goto out_poll;
@@ -1163,7 +1162,7 @@ static void event_srv_chk_r(struct connection *conn)
 		conn->xprt->shutw(conn, 0);
 	if (!(conn->flags & (CO_FL_WAIT_L4_CONN|CO_FL_SOCK_WR_SH)))
 		shutdown(conn->t.sock.fd, SHUT_RDWR);
-	__conn_data_stop_recv(conn);
+	__conn_data_stop_both(conn);
 	task_wakeup(t, TASK_WOKEN_IO);
 	return;
 
@@ -1324,6 +1323,7 @@ static struct task *process_chk(struct task *t)
 		 * Additionnally, in the case of SN_ERR_RESOURCE, an emergency log will be emitted.
 		 */
 		ret = s->check.proto->connect(conn, 1);
+		__conn_data_want_recv(conn);   /* prepare for reading a possible reply */
 		conn->flags |= CO_FL_WAKE_DATA;
 		if (s->check.send_proxy)
 			conn->flags |= CO_FL_LOCAL_SPROXY;
