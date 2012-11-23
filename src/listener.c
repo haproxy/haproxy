@@ -252,7 +252,7 @@ void listener_accept(int fd)
 {
 	struct listener *l = fdtab[fd].owner;
 	struct proxy *p = l->frontend;
-	int max_accept = l->maxaccept;
+	int max_accept = l->maxaccept ? l->maxaccept : 1;
 	int cfd;
 	int ret;
 
