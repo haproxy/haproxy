@@ -2933,7 +2933,7 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 					}
 
 					chunk_appendf(&trash, "\"><u> %s%s",
-					        (sv->state & SRV_CHK_RUNNING) ? "" : "* ",
+					        (sv->state & SRV_CHK_RUNNING) ? "* " : "",
 						get_check_status_info(sv->check.status));
 
 					if (sv->check.status >= HCHK_STATUS_L57DATA)
