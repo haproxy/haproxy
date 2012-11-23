@@ -1295,6 +1295,7 @@ static struct task *process_chk(struct task *t)
 		}
 
 		/* prepare a new connection */
+		conn->flags = CO_FL_NONE;
 		conn->target = &s->obj_type;
 		conn_prepare(conn, &check_conn_cb, s->check.proto, s->check.xprt, s);
 
@@ -1382,6 +1383,16 @@ static struct task *process_chk(struct task *t)
 		 * which can happen on connect timeout or error.
 		 */
 		if (s->result == SRV_CHK_UNKNOWN) {
+			if (expired && conn->xprt) {
+				/* the check expired and the connection was not
+				 * yet closed, start by doing this.
+				 */
+				conn_xprt_close(conn);
+				if (conn->ctrl)
+					fd_delete(conn->t.sock.fd);
+				conn->ctrl = NULL;
+			}
+
 			if ((conn->flags & (CO_FL_CONNECTED|CO_FL_WAIT_L4_CONN)) == CO_FL_WAIT_L4_CONN) {
 				/* L4 not established (yet) */
 				if (conn->flags & CO_FL_ERROR)
@@ -1410,10 +1421,6 @@ static struct task *process_chk(struct task *t)
 				else	/* HTTP, SMTP, ... */
 					set_server_check_status(s, HCHK_STATUS_L7TOUT, NULL);
 
-				conn_xprt_close(conn);
-				if (conn->ctrl)
-					fd_delete(conn->t.sock.fd);
-				conn->ctrl = NULL;
 			}
 			else
 				goto out_wait; /* timeout not reached, wait again */
