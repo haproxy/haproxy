@@ -70,8 +70,8 @@
 
 /* bits for s->result used for health-checks */
 #define SRV_CHK_UNKNOWN 0x0000   /* initialized to this by default */
-#define SRV_CHK_ERROR   0x0001   /* error encountered during the check; has precedence */
-#define SRV_CHK_RUNNING 0x0002   /* server seen as running */
+#define SRV_CHK_FAILED  0x0001   /* server check failed, flag has precedence over SRV_CHK_PASSED */
+#define SRV_CHK_PASSED  0x0002   /* server check succeeded unless FAILED is also set */
 #define SRV_CHK_DISABLE 0x0004   /* server returned a "disable" code */
 
 /* various constants */
