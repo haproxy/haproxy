@@ -249,7 +249,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 static void kill_mini_session(struct session *s)
 {
 	/* kill the connection now */
-	conn_xprt_close(s->si[0].conn);
+	conn_full_close(s->si[0].conn);
 
 	s->fe->feconn--;
 	if (s->stkctr1_entry || s->stkctr2_entry)
@@ -272,11 +272,6 @@ static void kill_mini_session(struct session *s)
 
 	task_delete(s->task);
 	task_free(s->task);
-
-	if (fdtab[s->si[0].conn->t.sock.fd].owner)
-		fd_delete(s->si[0].conn->t.sock.fd);
-	else
-		close(s->si[0].conn->t.sock.fd);
 
 	pool_free2(pool2_connection, s->si[1].conn);
 	pool_free2(pool2_connection, s->si[0].conn);

@@ -26,6 +26,7 @@
 #include <common/memory.h>
 #include <types/connection.h>
 #include <types/listener.h>
+#include <proto/fd.h>
 #include <proto/obj_type.h>
 
 extern struct pool_head *pool2_connection;
@@ -62,6 +63,23 @@ static inline void conn_xprt_close(struct connection *conn)
 	if (conn->xprt && !(conn->flags & CO_FL_XPRT_TRACKED)) {
 		if (conn->xprt->close)
 			conn->xprt->close(conn);
+		conn->xprt = NULL;
+	}
+}
+
+/* If the connection still has a transport layer, then call its close() function
+ * if any, and delete the file descriptor if a control layer is set. This is
+ * used to close everything at once and atomically. However this is not done if
+ * the CO_FL_XPRT_TRACKED flag is set, which allows logs to take data from the
+ * transport layer very late if needed.
+ */
+static inline void conn_full_close(struct connection *conn)
+{
+	if (conn->xprt && !(conn->flags & CO_FL_XPRT_TRACKED)) {
+		if (conn->xprt->close)
+			conn->xprt->close(conn);
+		if (conn->ctrl)
+			fd_delete(conn->t.sock.fd);
 		conn->xprt = NULL;
 	}
 }

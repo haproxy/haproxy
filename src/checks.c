@@ -1184,12 +1184,8 @@ static int wake_srv_chk(struct connection *conn)
 	if (unlikely(conn->flags & CO_FL_ERROR))
 		task_wakeup(s->check.task, TASK_WOKEN_IO);
 
-	if (s->result & (SRV_CHK_FAILED|SRV_CHK_PASSED)) {
-		conn_xprt_close(conn);
-		if (conn->ctrl)
-			fd_delete(conn->t.sock.fd);
-		conn->ctrl = NULL;
-	}
+	if (s->result & (SRV_CHK_FAILED|SRV_CHK_PASSED))
+		conn_full_close(conn);
 	return 0;
 }
 
@@ -1387,10 +1383,7 @@ static struct task *process_chk(struct task *t)
 				/* the check expired and the connection was not
 				 * yet closed, start by doing this.
 				 */
-				conn_xprt_close(conn);
-				if (conn->ctrl)
-					fd_delete(conn->t.sock.fd);
-				conn->ctrl = NULL;
+				conn_full_close(conn);
 			}
 
 			if ((conn->flags & (CO_FL_CONNECTED|CO_FL_WAIT_L4_CONN)) == CO_FL_WAIT_L4_CONN) {
