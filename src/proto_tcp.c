@@ -233,6 +233,9 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
  *  - SN_ERR_RESOURCE if a system resource is lacking (eg: fd limits, ports, ...)
  *  - SN_ERR_INTERNAL for any other purely internal errors
  * Additionnally, in the case of SN_ERR_RESOURCE, an emergency log will be emitted.
+ *
+ * The connection's fd is inserted only when SN_ERR_NONE is returned, otherwise
+ * it's invalid and the caller has nothing to do.
  */
 
 int tcp_connect_server(struct connection *conn, int data)

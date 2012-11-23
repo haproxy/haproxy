@@ -1359,6 +1359,8 @@ static struct task *process_chk(struct task *t)
 		}
 
 		/* here, we have seen a failure */
+
+		conn->t.sock.fd = -1; /* report that no check is running anymore */
 		if (s->health > s->rise) {
 			s->health--; /* still good */
 			s->counters.failed_checks++;
