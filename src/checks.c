@@ -1246,10 +1246,11 @@ static struct task *process_chk(struct task *t)
 	struct connection *conn = s->check.conn;
 	int rv;
 	int ret;
+	int expired = tick_is_expired(t->expire, now_ms);
 
 	if (!(s->state & SRV_CHK_RUNNING)) {
 		/* no check currently running */
-		if (!tick_is_expired(t->expire, now_ms)) /* woke up too early */
+		if (!expired) /* woke up too early */
 			return t;
 
 		/* we don't send any health-checks when the proxy is stopped or when
@@ -1373,26 +1374,33 @@ static struct task *process_chk(struct task *t)
 		 * which can happen on connect timeout or error.
 		 */
 		if (s->result == SRV_CHK_UNKNOWN) {
-			if ((conn->flags & CO_FL_CONNECTED) && !(s->proxy->options2 & PR_O2_CHK_ANY)) {
+			if ((conn->flags & (CO_FL_CONNECTED|CO_FL_WAIT_L4_CONN)) == CO_FL_WAIT_L4_CONN) {
+				/* L4 not established (yet) */
+				if (conn->flags & CO_FL_ERROR)
+					set_server_check_status(s, HCHK_STATUS_L4CON, NULL);
+				else if (expired)
+					set_server_check_status(s, HCHK_STATUS_L4TOUT, NULL);
+			}
+			else if ((conn->flags & (CO_FL_CONNECTED|CO_FL_WAIT_L6_CONN)) == CO_FL_WAIT_L6_CONN) {
+				/* L6 not established (yet) */
+				if (conn->flags & CO_FL_ERROR)
+					set_server_check_status(s, HCHK_STATUS_L6RSP, NULL);
+				else if (expired)
+					set_server_check_status(s, HCHK_STATUS_L6TOUT, NULL);
+			}
+			else if ((conn->flags & CO_FL_CONNECTED) && !(s->proxy->options2 & PR_O2_CHK_ANY)) {
 				/* good connection is enough for pure TCP check */
 				if (s->check.use_ssl)
 					set_server_check_status(s, HCHK_STATUS_L6OK, NULL);
 				else
 					set_server_check_status(s, HCHK_STATUS_L4OK, NULL);
 			}
-			else if ((conn->flags & (CO_FL_CONNECTED|CO_FL_WAIT_L4_CONN)) == CO_FL_WAIT_L4_CONN) {
-				/* L4 failed */
-				if (conn->flags & CO_FL_ERROR)
-					set_server_check_status(s, HCHK_STATUS_L4CON, NULL);
-				else
-					set_server_check_status(s, HCHK_STATUS_L4TOUT, NULL);
-			}
-			else if ((conn->flags & (CO_FL_CONNECTED|CO_FL_WAIT_L6_CONN)) == CO_FL_WAIT_L6_CONN) {
-				/* L6 failed */
-				if (conn->flags & CO_FL_ERROR)
-					set_server_check_status(s, HCHK_STATUS_L6RSP, NULL);
-				else
+			else if ((conn->flags & CO_FL_CONNECTED) && expired) {
+				/* connection established but expired check */
+				if ((s->proxy->options2 & PR_O2_CHK_ANY) == PR_O2_SSL3_CHK)
 					set_server_check_status(s, HCHK_STATUS_L6TOUT, NULL);
+				else	/* HTTP, SMTP, ... */
+					set_server_check_status(s, HCHK_STATUS_L7TOUT, NULL);
 			}
 		}
 
@@ -1426,18 +1434,7 @@ static struct task *process_chk(struct task *t)
 			}
 			t->expire = tick_add(now_ms, MS_TO_TICKS(srv_getinter(s) + rv));
 		}
-		else if ((s->result & SRV_CHK_FAILED) || tick_is_expired(t->expire, now_ms)) {
-			if (!(s->result & SRV_CHK_FAILED)) {
-				if (conn->flags & CO_FL_WAIT_L4_CONN) {
-					set_server_check_status(s, HCHK_STATUS_L4TOUT, NULL);
-				} else {
-					if ((s->proxy->options2 & PR_O2_CHK_ANY) == PR_O2_SSL3_CHK)
-						set_server_check_status(s, HCHK_STATUS_L6TOUT, NULL);
-					else	/* HTTP, SMTP */
-						set_server_check_status(s, HCHK_STATUS_L7TOUT, NULL);
-				}
-			}
-
+		else if (s->result & SRV_CHK_FAILED) {
 			/* failure or timeout detected */
 			if (s->health > s->rise) {
 				s->health--; /* still good */
