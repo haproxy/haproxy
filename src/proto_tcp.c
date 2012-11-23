@@ -221,9 +221,12 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
  * bind addresses are still determined locally (due to the possible need of a
  * source port). conn->target may point either to a valid server or to a backend,
  * depending on conn->target. Only OBJ_TYPE_PROXY and OBJ_TYPE_SERVER are
- * supported. The <data> parameter is a boolean indicating whether there are data
- * waiting for being sent or not, in order to adjust data write polling and on
- * some platforms, the ability to avoid an empty initial ACK.
+ * supported. The <data> parameter indicates when non-zero that data will
+ * immediately follow the connection and will tune the ACK behaviour after
+ * the connect :
+ *   - 0 = always send it
+ *   - 1 = send it unless the backends has the tcp-smart-connect option
+ *   - 2 = never send it
  *
  * It can return one of :
  *  - SN_ERR_NONE if everything's OK
@@ -418,9 +421,9 @@ int tcp_connect_server(struct connection *conn, int data)
 #if defined(TCP_QUICKACK)
 	/* disabling tcp quick ack now allows the first request to leave the
 	 * machine with the first ACK. We only do this if there are pending
-	 * data in the buffer.
+	 * data in the buffer or if we plan to close after SYN/ACK (TCP checks).
 	 */
-	if ((be->options2 & PR_O2_SMARTCON) && data)
+	if (data == 2 || (data && (be->options2 & PR_O2_SMARTCON)))
                 setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, &zero, sizeof(zero));
 #endif
 

@@ -1312,8 +1312,10 @@ static struct task *process_chk(struct task *t)
 		 *  - SN_ERR_RESOURCE if a system resource is lacking (eg: fd limits, ports, ...)
 		 *  - SN_ERR_INTERNAL for any other purely internal errors
 		 * Additionnally, in the case of SN_ERR_RESOURCE, an emergency log will be emitted.
+		 * Note that we try to prevent the network stack from sending the ACK during the
+		 * connect() when a pure TCP check is used.
 		 */
-		ret = s->check.proto->connect(conn, 1);
+		ret = s->check.proto->connect(conn, (s->proxy->options2 & PR_O2_CHK_ANY) ? 1 : 2);
 		__conn_data_want_recv(conn);   /* prepare for reading a possible reply */
 		conn->flags |= CO_FL_WAKE_DATA;
 		if (s->check.send_proxy)
