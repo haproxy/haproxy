@@ -1184,6 +1184,12 @@ static int wake_srv_chk(struct connection *conn)
 	if (unlikely(conn->flags & CO_FL_ERROR))
 		task_wakeup(s->check.task, TASK_WOKEN_IO);
 
+	if (s->result & (SRV_CHK_FAILED|SRV_CHK_PASSED)) {
+		conn_xprt_close(conn);
+		if (conn->ctrl)
+			fd_delete(conn->t.sock.fd);
+		conn->ctrl = NULL;
+	}
 	return 0;
 }
 
@@ -1390,82 +1396,67 @@ static struct task *process_chk(struct task *t)
 				else if (expired)
 					set_server_check_status(s, HCHK_STATUS_L6TOUT, NULL);
 			}
-			else if ((conn->flags & CO_FL_CONNECTED) && !(s->proxy->options2 & PR_O2_CHK_ANY)) {
+			else if (!(s->proxy->options2 & PR_O2_CHK_ANY)) {
 				/* good connection is enough for pure TCP check */
 				if (s->check.use_ssl)
 					set_server_check_status(s, HCHK_STATUS_L6OK, NULL);
 				else
 					set_server_check_status(s, HCHK_STATUS_L4OK, NULL);
 			}
-			else if ((conn->flags & CO_FL_CONNECTED) && expired) {
+			else if (expired) {
 				/* connection established but expired check */
 				if ((s->proxy->options2 & PR_O2_CHK_ANY) == PR_O2_SSL3_CHK)
 					set_server_check_status(s, HCHK_STATUS_L6TOUT, NULL);
 				else	/* HTTP, SMTP, ... */
 					set_server_check_status(s, HCHK_STATUS_L7TOUT, NULL);
+
+				conn_xprt_close(conn);
+				if (conn->ctrl)
+					fd_delete(conn->t.sock.fd);
+				conn->ctrl = NULL;
 			}
+			else
+				goto out_wait; /* timeout not reached, wait again */
 		}
 
-		if ((s->result & (SRV_CHK_FAILED|SRV_CHK_PASSED)) == SRV_CHK_PASSED) { /* good server detected */
-			/* we may have to add/remove this server from the LB group */
-			if ((s->state & SRV_RUNNING) && (s->proxy->options & PR_O_DISABLE404)) {
-				if ((s->state & SRV_GOINGDOWN) &&
-				    ((s->result & (SRV_CHK_PASSED|SRV_CHK_DISABLE)) == SRV_CHK_PASSED))
-					set_server_enabled(s);
-				else if (!(s->state & SRV_GOINGDOWN) &&
-					 ((s->result & (SRV_CHK_PASSED | SRV_CHK_DISABLE)) ==
-					  (SRV_CHK_PASSED | SRV_CHK_DISABLE)))
-					set_server_disabled(s);
-			}
+		/* check complete or aborted */
 
-			if (s->health < s->rise + s->fall - 1) {
-				s->health++; /* was bad, stays for a while */
-
-				set_server_up(s);
-			}
-
-			s->state &= ~SRV_CHK_RUNNING;
-			conn_xprt_close(conn);
-			if (conn->ctrl)
-				fd_delete(conn->t.sock.fd);
-
-			rv = 0;
-			if (global.spread_checks > 0) {
-				rv = srv_getinter(s) * global.spread_checks / 100;
-				rv -= (int) (2 * rv * (rand() / (RAND_MAX + 1.0)));
-			}
-			t->expire = tick_add(now_ms, MS_TO_TICKS(srv_getinter(s) + rv));
-		}
-		else if (s->result & SRV_CHK_FAILED) {
-			/* failure or timeout detected */
+		if (s->result & SRV_CHK_FAILED) {    /* a failure or timeout detected */
 			if (s->health > s->rise) {
 				s->health--; /* still good */
 				s->counters.failed_checks++;
 			}
 			else
 				set_server_down(s);
-
-			s->state &= ~SRV_CHK_RUNNING;
-			conn_xprt_close(conn);
-			if (conn->ctrl)
-				fd_delete(conn->t.sock.fd);
-
-			rv = 0;
-			if (global.spread_checks > 0) {
-				rv = srv_getinter(s) * global.spread_checks / 100;
-				rv -= (int) (2 * rv * (rand() / (RAND_MAX + 1.0)));
+		}
+		else {  /* check was OK */
+			/* we may have to add/remove this server from the LB group */
+			if ((s->state & SRV_RUNNING) && (s->proxy->options & PR_O_DISABLE404)) {
+				if ((s->state & SRV_GOINGDOWN) && !(s->result & SRV_CHK_DISABLE))
+					set_server_enabled(s);
+				else if (!(s->state & SRV_GOINGDOWN) && (s->result & SRV_CHK_DISABLE))
+					set_server_disabled(s);
 			}
-			t->expire = tick_add(now_ms, MS_TO_TICKS(srv_getinter(s) + rv));
+
+			if (s->health < s->rise + s->fall - 1) {
+				s->health++; /* was bad, stays for a while */
+				set_server_up(s);
+			}
 		}
-		else {
-			/* if result is unknown and there's no timeout, we have to wait again */
-			s->result = SRV_CHK_UNKNOWN;
+		s->state &= ~SRV_CHK_RUNNING;
+
+		rv = 0;
+		if (global.spread_checks > 0) {
+			rv = srv_getinter(s) * global.spread_checks / 100;
+			rv -= (int) (2 * rv * (rand() / (RAND_MAX + 1.0)));
 		}
+		t->expire = tick_add(now_ms, MS_TO_TICKS(srv_getinter(s) + rv));
 	}
 
  reschedule:
 	while (tick_is_expired(t->expire, now_ms))
 		t->expire = tick_add(t->expire, MS_TO_TICKS(s->inter));
+ out_wait:
 	return t;
 }
 
