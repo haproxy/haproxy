@@ -2091,14 +2091,14 @@ acl_find_targets(struct proxy *p)
 					struct server *srv;
 					char *pname, *sname;
 
-					if (!expr->args->data.str.len) {
+					if (!arg->data.str.len) {
 						Alert("proxy %s: acl '%s' %s(): missing server name.\n",
 						      p->id, acl->name, expr->kw->kw);
 						cfgerr++;
 						continue;
 					}
 
-					pname = expr->args->data.str.str;
+					pname = arg->data.str.str;
 					sname = strrchr(pname, '/');
 
 					if (sname)
@@ -2127,17 +2127,17 @@ acl_find_targets(struct proxy *p)
 						continue;
 					}
 
-					free(expr->args->data.str.str);
-					expr->args->data.str.str = NULL;
+					free(arg->data.str.str);
+					arg->data.str.str = NULL;
 					arg->unresolved = 0;
-					expr->args->data.srv = srv;
+					arg->data.srv = srv;
 				}
 				else if (arg->type == ARGT_FE) {
 					struct proxy *prx = p;
 					char *pname = p->id;
 
-					if (expr->args->data.str.len) {
-						pname = expr->args->data.str.str;
+					if (arg->data.str.len) {
+						pname = arg->data.str.str;
 						prx = findproxy(pname, PR_CAP_FE);
 					}
 
@@ -2155,17 +2155,17 @@ acl_find_targets(struct proxy *p)
 						continue;
 					}
 
-					free(expr->args->data.str.str);
-					expr->args->data.str.str = NULL;
+					free(arg->data.str.str);
+					arg->data.str.str = NULL;
 					arg->unresolved = 0;
-					expr->args->data.prx = prx;
+					arg->data.prx = prx;
 				}
 				else if (arg->type == ARGT_BE) {
 					struct proxy *prx = p;
 					char *pname = p->id;
 
-					if (expr->args->data.str.len) {
-						pname = expr->args->data.str.str;
+					if (arg->data.str.len) {
+						pname = arg->data.str.str;
 						prx = findproxy(pname, PR_CAP_BE);
 					}
 
@@ -2183,17 +2183,17 @@ acl_find_targets(struct proxy *p)
 						continue;
 					}
 
-					free(expr->args->data.str.str);
-					expr->args->data.str.str = NULL;
+					free(arg->data.str.str);
+					arg->data.str.str = NULL;
 					arg->unresolved = 0;
-					expr->args->data.prx = prx;
+					arg->data.prx = prx;
 				}
 				else if (arg->type == ARGT_TAB) {
 					struct proxy *prx = p;
 					char *pname = p->id;
 
-					if (expr->args->data.str.len) {
-						pname = expr->args->data.str.str;
+					if (arg->data.str.len) {
+						pname = arg->data.str.str;
 						prx = find_stktable(pname);
 					}
 
@@ -2212,13 +2212,13 @@ acl_find_targets(struct proxy *p)
 						continue;
 					}
 
-					free(expr->args->data.str.str);
-					expr->args->data.str.str = NULL;
+					free(arg->data.str.str);
+					arg->data.str.str = NULL;
 					arg->unresolved = 0;
-					expr->args->data.prx = prx;
+					arg->data.prx = prx;
 				}
 				else if (arg->type == ARGT_USR) {
-					if (!expr->args->data.str.len) {
+					if (!arg->data.str.len) {
 						Alert("proxy %s: acl '%s' %s(): missing userlist name.\n",
 						      p->id, acl->name, expr->kw->kw);
 						cfgerr++;
@@ -2226,22 +2226,22 @@ acl_find_targets(struct proxy *p)
 					}
 
 					if (p->uri_auth && p->uri_auth->userlist &&
-					    !strcmp(p->uri_auth->userlist->name, expr->args->data.str.str))
+					    !strcmp(p->uri_auth->userlist->name, arg->data.str.str))
 						ul = p->uri_auth->userlist;
 					else
-						ul = auth_find_userlist(expr->args->data.str.str);
+						ul = auth_find_userlist(arg->data.str.str);
 
 					if (!ul) {
 						Alert("proxy %s: acl '%s' %s(%s): unable to find userlist.\n",
-						      p->id, acl->name, expr->kw->kw, expr->args->data.str.str);
+						      p->id, acl->name, expr->kw->kw, arg->data.str.str);
 						cfgerr++;
 						continue;
 					}
 
-					free(expr->args->data.str.str);
-					expr->args->data.str.str = NULL;
+					free(arg->data.str.str);
+					arg->data.str.str = NULL;
 					arg->unresolved = 0;
-					expr->args->data.usr = ul;
+					arg->data.usr = ul;
 				}
 			} /* end of args processing */
 
@@ -2262,6 +2262,7 @@ acl_find_targets(struct proxy *p)
 				}
 
 				list_for_each_entry(pattern, &expr->patterns, list) {
+					/* this keyword only has one argument */
 					pattern->val.group_mask = auth_resolve_groups(expr->args->data.usr, pattern->ptr.str);
 
 					free(pattern->ptr.str);
