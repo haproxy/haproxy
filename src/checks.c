@@ -1157,11 +1157,18 @@ static void event_srv_chk_r(struct connection *conn)
 	*s->check.bi->data = '\0';
 	s->check.bi->i = 0;
 
-	/* Close the connection... */
+	/* Close the connection... We absolutely want to perform a hard close
+	 * and reset the connection if some data are pending, otherwise we end
+	 * up with many TIME_WAITs and eat all the source port range quickly.
+	 * To avoid sending RSTs all the time, we first try to drain pending
+	 * data.
+	 */
 	if (conn->xprt && conn->xprt->shutw)
 		conn->xprt->shutw(conn, 0);
-	if (!(conn->flags & (CO_FL_WAIT_L4_CONN|CO_FL_SOCK_WR_SH)))
-		shutdown(conn->t.sock.fd, SHUT_RDWR);
+	if (!(conn->flags & CO_FL_WAIT_RD))
+		recv(conn->t.sock.fd, trash.str, trash.size, MSG_NOSIGNAL|MSG_DONTWAIT);
+	setsockopt(conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
+		   (struct linger *) &nolinger, sizeof(struct linger));
 	__conn_data_stop_both(conn);
 	task_wakeup(t, TASK_WOKEN_IO);
 	return;
