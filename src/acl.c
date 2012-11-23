@@ -1269,7 +1269,6 @@ static struct acl_expr *prune_acl_expr(struct acl_expr *expr)
 			arg->data.str.str = NULL;
 			arg->unresolved = 0;
 		}
-		arg++;
 	}
 
 	if (expr->args != empty_arg_list)
