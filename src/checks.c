@@ -765,7 +765,7 @@ static void event_srv_chk_w(struct connection *conn)
 	int fd = conn->t.sock.fd;
 	struct task *t = s->check.task;
 
-	if (conn->flags & (CO_FL_SOCK_WR_SH | CO_FL_DATA_WR_SH | CO_FL_WAIT_DATA | CO_FL_WAIT_WR))
+	if (conn->flags & (CO_FL_SOCK_WR_SH | CO_FL_DATA_WR_SH))
 		conn->flags |= CO_FL_ERROR;
 
 	if (unlikely(conn->flags & CO_FL_ERROR)) {
@@ -779,7 +779,7 @@ static void event_srv_chk_w(struct connection *conn)
 		goto out_error;
 	}
 
-	if (conn->flags & CO_FL_HANDSHAKE)
+	if (conn->flags & (CO_FL_HANDSHAKE | CO_FL_WAIT_WR))
 		return;
 
 	/* here, we know that the connection is established */
@@ -791,25 +791,23 @@ static void event_srv_chk_w(struct connection *conn)
 				set_server_check_status(s, HCHK_STATUS_L4CON, strerror(errno));
 				goto out_wakeup;
 			}
+			if (s->check.bo->o) {
+				goto out_incomplete;
+			}
 		}
 
-		if (!s->check.bo->o) {
-			/* full request sent, we allow up to <timeout.check> if nonzero for a response */
-			if (s->proxy->timeout.check) {
-				t->expire = tick_add_ifset(now_ms, s->proxy->timeout.check);
-				task_queue(t);
-			}
-			goto out_nowake;
+		/* full request sent, we allow up to <timeout.check> if nonzero for a response */
+		if (s->proxy->timeout.check) {
+			t->expire = tick_add_ifset(now_ms, s->proxy->timeout.check);
+			task_queue(t);
 		}
-		goto out_poll;
+		goto out_nowake;
 	}
  out_wakeup:
 	task_wakeup(t, TASK_WOKEN_IO);
  out_nowake:
 	__conn_data_stop_send(conn);   /* nothing more to write */
-	return;
- out_poll:
-	__conn_data_poll_send(conn);
+ out_incomplete:
 	return;
  out_error:
 	conn->flags |= CO_FL_ERROR;
@@ -839,9 +837,6 @@ static void event_srv_chk_r(struct connection *conn)
 	int done;
 	unsigned short msglen;
 
-	if (conn->flags & (CO_FL_SOCK_WR_SH | CO_FL_DATA_WR_SH | CO_FL_WAIT_DATA | CO_FL_WAIT_WR))
-		conn->flags |= CO_FL_ERROR;
-
 	if (unlikely((s->result & SRV_CHK_FAILED) || (conn->flags & CO_FL_ERROR))) {
 		/* in case of TCP only, this tells us if the connection failed */
 		if (!(s->result & SRV_CHK_FAILED))
@@ -850,7 +845,7 @@ static void event_srv_chk_r(struct connection *conn)
 		goto out_wakeup;
 	}
 
-	if (conn->flags & CO_FL_HANDSHAKE)
+	if (conn->flags & (CO_FL_HANDSHAKE | CO_FL_WAIT_RD))
 		return;
 
 	/* Warning! Linux returns EAGAIN on SO_ERROR if data are still available
@@ -1247,38 +1242,26 @@ static struct task *server_warmup(struct task *t)
  */
 static struct task *process_chk(struct task *t)
 {
-	int attempts = 0;
 	struct server *s = t->context;
 	struct connection *conn = s->check.conn;
-	int fd;
 	int rv;
 	int ret;
 
- new_chk:
-	if (attempts++ > 0) {
-		/* we always fail to create a server, let's stop insisting... */
-		while (tick_is_expired(t->expire, now_ms))
-			t->expire = tick_add(t->expire, MS_TO_TICKS(s->inter));
-		return t;
-	}
-
-	fd = conn->t.sock.fd;
-	if (fd < 0) {   /* no check currently running */
+	if (!(s->state & SRV_CHK_RUNNING)) {
+		/* no check currently running */
 		if (!tick_is_expired(t->expire, now_ms)) /* woke up too early */
 			return t;
 
 		/* we don't send any health-checks when the proxy is stopped or when
 		 * the server should not be checked.
 		 */
-		if (!(s->state & SRV_CHECKED) || s->proxy->state == PR_STSTOPPED || (s->state & SRV_MAINTAIN)) {
-			while (tick_is_expired(t->expire, now_ms))
-				t->expire = tick_add(t->expire, MS_TO_TICKS(s->inter));
-			return t;
-		}
+		if (!(s->state & SRV_CHECKED) || s->proxy->state == PR_STSTOPPED || (s->state & SRV_MAINTAIN))
+			goto reschedule;
 
 		/* we'll initiate a new check */
 		set_server_check_status(s, HCHK_STATUS_START, NULL);
 
+		s->state |= SRV_CHK_RUNNING;
 		s->check.bi->p = s->check.bi->data;
 		s->check.bi->i = 0;
 		s->check.bo->p = s->check.bo->data;
@@ -1337,7 +1320,18 @@ static struct task *process_chk(struct task *t)
 
 		switch (ret) {
 		case SN_ERR_NONE:
-			break;
+			/* we allow up to min(inter, timeout.connect) for a connection
+			 * to establish but only when timeout.check is set
+			 * as it may be to short for a full check otherwise
+			 */
+			t->expire = tick_add(now_ms, MS_TO_TICKS(s->inter));
+
+			if (s->proxy->timeout.check && s->proxy->timeout.connect) {
+				int t_con = tick_add(now_ms, s->proxy->timeout.connect);
+				t->expire = tick_first(t->expire, t_con);
+			}
+			goto reschedule;
+
 		case SN_ERR_SRVTO: /* ETIMEDOUT */
 		case SN_ERR_SRVCL: /* ECONNREFUSED, ENETUNREACH, ... */
 			set_server_check_status(s, HCHK_STATUS_L4CON, strerror(errno));
@@ -1349,25 +1343,9 @@ static struct task *process_chk(struct task *t)
 			break;
 		}
 
-		if (s->result == SRV_CHK_UNKNOWN) {
-			/* connection attempt was started */
+		/* here, we have seen a synchronous error, no fd was allocated */
 
-			/* we allow up to min(inter, timeout.connect) for a connection
-			 * to establish but only when timeout.check is set
-			 * as it may be to short for a full check otherwise
-			 */
-			t->expire = tick_add(now_ms, MS_TO_TICKS(s->inter));
-
-			if (s->proxy->timeout.check && s->proxy->timeout.connect) {
-				int t_con = tick_add(now_ms, s->proxy->timeout.connect);
-				t->expire = tick_first(t->expire, t_con);
-			}
-			return t;
-		}
-
-		/* here, we have seen a failure */
-
-		conn->t.sock.fd = -1; /* report that no check is running anymore */
+		s->state &= ~SRV_CHK_RUNNING;
 		if (s->health > s->rise) {
 			s->health--; /* still good */
 			s->counters.failed_checks++;
@@ -1375,7 +1353,6 @@ static struct task *process_chk(struct task *t)
 		else
 			set_server_down(s);
 
-		//fprintf(stderr, "process_chk: 7, %lu\n", __tv_to_ms(&s->proxy->timeout.connect));
 		/* we allow up to min(inter, timeout.connect) for a connection
 		 * to establish but only when timeout.check is set
 		 * as it may be to short for a full check otherwise
@@ -1389,7 +1366,6 @@ static struct task *process_chk(struct task *t)
 			if (s->proxy->timeout.check)
 				t->expire = tick_first(t->expire, t_con);
 		}
-		goto new_chk;
 	}
 	else {
 		/* there was a test running.
@@ -1397,21 +1373,21 @@ static struct task *process_chk(struct task *t)
 		 * which can happen on connect timeout or error.
 		 */
 		if (s->result == SRV_CHK_UNKNOWN) {
-			if (conn->flags & CO_FL_CONNECTED) {
-				/* good TCP connection is enough */
+			if ((conn->flags & CO_FL_CONNECTED) && !(s->proxy->options2 & PR_O2_CHK_ANY)) {
+				/* good connection is enough for pure TCP check */
 				if (s->check.use_ssl)
 					set_server_check_status(s, HCHK_STATUS_L6OK, NULL);
 				else
 					set_server_check_status(s, HCHK_STATUS_L4OK, NULL);
 			}
-			else if (conn->flags & CO_FL_WAIT_L4_CONN) {
+			else if ((conn->flags & (CO_FL_CONNECTED|CO_FL_WAIT_L4_CONN)) == CO_FL_WAIT_L4_CONN) {
 				/* L4 failed */
 				if (conn->flags & CO_FL_ERROR)
 					set_server_check_status(s, HCHK_STATUS_L4CON, NULL);
 				else
 					set_server_check_status(s, HCHK_STATUS_L4TOUT, NULL);
 			}
-			else if (conn->flags & CO_FL_WAIT_L6_CONN) {
+			else if ((conn->flags & (CO_FL_CONNECTED|CO_FL_WAIT_L6_CONN)) == CO_FL_WAIT_L6_CONN) {
 				/* L6 failed */
 				if (conn->flags & CO_FL_ERROR)
 					set_server_check_status(s, HCHK_STATUS_L6RSP, NULL);
@@ -1437,10 +1413,11 @@ static struct task *process_chk(struct task *t)
 
 				set_server_up(s);
 			}
+
+			s->state &= ~SRV_CHK_RUNNING;
 			conn_xprt_close(conn);
 			if (conn->ctrl)
-				fd_delete(fd);
-			conn->t.sock.fd = -1; /* no check running anymore */
+				fd_delete(conn->t.sock.fd);
 
 			rv = 0;
 			if (global.spread_checks > 0) {
@@ -1448,7 +1425,6 @@ static struct task *process_chk(struct task *t)
 				rv -= (int) (2 * rv * (rand() / (RAND_MAX + 1.0)));
 			}
 			t->expire = tick_add(now_ms, MS_TO_TICKS(srv_getinter(s) + rv));
-			goto new_chk;
 		}
 		else if ((s->result & SRV_CHK_FAILED) || tick_is_expired(t->expire, now_ms)) {
 			if (!(s->result & SRV_CHK_FAILED)) {
@@ -1469,10 +1445,11 @@ static struct task *process_chk(struct task *t)
 			}
 			else
 				set_server_down(s);
+
+			s->state &= ~SRV_CHK_RUNNING;
 			conn_xprt_close(conn);
 			if (conn->ctrl)
-				fd_delete(fd);
-			conn->t.sock.fd = -1;
+				fd_delete(conn->t.sock.fd);
 
 			rv = 0;
 			if (global.spread_checks > 0) {
@@ -1480,11 +1457,16 @@ static struct task *process_chk(struct task *t)
 				rv -= (int) (2 * rv * (rand() / (RAND_MAX + 1.0)));
 			}
 			t->expire = tick_add(now_ms, MS_TO_TICKS(srv_getinter(s) + rv));
-			goto new_chk;
 		}
-		/* if result is unknown and there's no timeout, we have to wait again */
+		else {
+			/* if result is unknown and there's no timeout, we have to wait again */
+			s->result = SRV_CHK_UNKNOWN;
+		}
 	}
-	s->result = SRV_CHK_UNKNOWN;
+
+ reschedule:
+	while (tick_is_expired(t->expire, now_ms))
+		t->expire = tick_add(t->expire, MS_TO_TICKS(s->inter));
 	return t;
 }
 
