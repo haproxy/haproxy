@@ -180,6 +180,17 @@ static inline void conn_cond_update_sock_polling(struct connection *c)
 		conn_update_sock_polling(c);
 }
 
+/* Stop all polling on the fd. This might be used when an error is encountered
+ * for example.
+ */
+static inline void conn_stop_polling(struct connection *c)
+{
+	c->flags &= ~(CO_FL_CURR_RD_ENA | CO_FL_CURR_WR_ENA |
+		      CO_FL_SOCK_RD_ENA | CO_FL_SOCK_WR_ENA |
+		      CO_FL_DATA_RD_ENA | CO_FL_DATA_WR_ENA);
+	fd_stop_both(c->t.sock.fd);
+}
+
 /* Automatically update polling on connection <c> depending on the DATA and
  * SOCK flags, and on whether a handshake is in progress or not. This may be
  * called at any moment when there is a doubt about the effectiveness of the
@@ -187,7 +198,9 @@ static inline void conn_cond_update_sock_polling(struct connection *c)
  */
 static inline void conn_cond_update_polling(struct connection *c)
 {
-	if (!(c->flags & CO_FL_POLL_SOCK) && conn_data_polling_changes(c))
+	if (unlikely(c->flags & CO_FL_ERROR))
+		conn_stop_polling(c);
+	else if (!(c->flags & CO_FL_POLL_SOCK) && conn_data_polling_changes(c))
 		conn_update_data_polling(c);
 	else if ((c->flags & CO_FL_POLL_SOCK) && conn_sock_polling_changes(c))
 		conn_update_sock_polling(c);

@@ -166,14 +166,6 @@ void conn_update_data_polling(struct connection *c)
 {
 	unsigned int f = c->flags;
 
-	if (unlikely(f & CO_FL_ERROR)) {
-		c->flags &= ~(CO_FL_CURR_RD_ENA | CO_FL_CURR_WR_ENA |
-		              CO_FL_SOCK_RD_ENA | CO_FL_SOCK_WR_ENA |
-		              CO_FL_DATA_RD_ENA | CO_FL_DATA_WR_ENA);
-		fd_stop_both(c->t.sock.fd);
-		return;
-	}
-
 	/* update read status if needed */
 	if (unlikely((f & (CO_FL_DATA_RD_ENA|CO_FL_WAIT_RD)) == (CO_FL_DATA_RD_ENA|CO_FL_WAIT_RD))) {
 		fd_poll_recv(c->t.sock.fd);
@@ -213,14 +205,6 @@ void conn_update_data_polling(struct connection *c)
 void conn_update_sock_polling(struct connection *c)
 {
 	unsigned int f = c->flags;
-
-	if (unlikely(f & CO_FL_ERROR)) {
-		c->flags &= ~(CO_FL_CURR_RD_ENA | CO_FL_CURR_WR_ENA |
-		              CO_FL_SOCK_RD_ENA | CO_FL_SOCK_WR_ENA |
-		              CO_FL_DATA_RD_ENA | CO_FL_DATA_WR_ENA);
-		fd_stop_both(c->t.sock.fd);
-		return;
-	}
 
 	/* update read status if needed */
 	if (unlikely((f & (CO_FL_SOCK_RD_ENA|CO_FL_WAIT_RD)) == (CO_FL_SOCK_RD_ENA|CO_FL_WAIT_RD))) {
