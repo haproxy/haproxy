@@ -111,7 +111,7 @@ static inline int si_connect(struct stream_interface *si)
 	if (unlikely(!si_ctrl(si) || !si_ctrl(si)->connect))
 		return SN_ERR_INTERNAL;
 
-	ret = si_ctrl(si)->connect(si->conn, !channel_is_empty(si->ob));
+	ret = si_ctrl(si)->connect(si->conn, !channel_is_empty(si->ob), !!si->send_proxy_ofs);
 	if (ret != SN_ERR_NONE)
 		return ret;
 
