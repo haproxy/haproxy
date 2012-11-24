@@ -2433,12 +2433,18 @@ struct task *process_session(struct task *t)
 		if (n < 1 || n > 5)
 			n = 0;
 
-		if (s->fe->mode == PR_MODE_HTTP)
+		if (s->fe->mode == PR_MODE_HTTP) {
 			s->fe->fe_counters.p.http.rsp[n]++;
-
+			if (s->comp_algo)
+				s->fe->fe_counters.p.http.comp_rsp++;
+		}
 		if ((s->flags & SN_BE_ASSIGNED) &&
-		    (s->be->mode == PR_MODE_HTTP))
+		    (s->be->mode == PR_MODE_HTTP)) {
 			s->be->be_counters.p.http.rsp[n]++;
+			s->be->be_counters.p.http.cum_req++;
+			if (s->comp_algo)
+				s->be->be_counters.p.http.comp_rsp++;
+		}
 	}
 
 	/* let's do a final log if we need it */

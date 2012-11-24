@@ -380,7 +380,7 @@ static int print_csv_header(struct chunk *msg)
 			    "hrsp_1xx,hrsp_2xx,hrsp_3xx,hrsp_4xx,hrsp_5xx,hrsp_other,hanafail,"
 			    "req_rate,req_rate_max,req_tot,"
 			    "cli_abrt,srv_abrt,"
-			     "comp_in, comp_out, comp_byp,"
+			    "comp_in,comp_out,comp_byp,comp_rsp,"
 			    "\n");
 }
 
@@ -2473,6 +2473,10 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 						chunk_appendf(&trash, " %dxx=%lld,", i, px->fe_counters.p.http.rsp[i]);
 
 					chunk_appendf(&trash, " other=%lld,", px->fe_counters.p.http.rsp[0]);
+					chunk_appendf(&trash, " compressed=%lld (%d%%)",
+					              px->fe_counters.p.http.comp_rsp,
+					              px->fe_counters.p.http.cum_req ?
+					              (int)(100*px->fe_counters.p.http.comp_rsp/px->fe_counters.p.http.cum_req) : 0);
 					chunk_appendf(&trash, " intercepted=%lld\"", px->fe_counters.intercepted_req);
 				}
 
@@ -2578,6 +2582,10 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 				/* compression: in, out, bypassed */
 				chunk_appendf(&trash, "%lld,%lld,%lld,",
 			              px->fe_counters.comp_in, px->fe_counters.comp_out, px->fe_counters.comp_byp);
+
+				/* compression: comp_rsp */
+				chunk_appendf(&trash, "%lld,",
+			              px->fe_counters.p.http.comp_rsp);
 
 				/* finish with EOL */
 				chunk_appendf(&trash, "\n");
@@ -2708,6 +2716,8 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 				     ",,,"
 				     /* errors: cli_aborts, srv_aborts */
 				     ",,"
+				     /* compression: in, out, bypassed, comp_rsp */
+				     ",,,,"
 				     "\n",
 				     px->id, l->name,
 				     l->nbconn, l->counters->conn_max,
@@ -3126,6 +3136,9 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 				chunk_appendf(&trash, "%lld,%lld,",
 					     sv->counters.cli_aborts, sv->counters.srv_aborts);
 
+				/* compression: in, out, bypassed, comp_rsp */
+				chunk_appendf(&trash, ",,,,");
+
 				/* finish with EOL */
 				chunk_appendf(&trash, "\n");
 			}
@@ -3195,12 +3208,16 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 				if (px->mode == PR_MODE_HTTP) {
 					int i;
 
-					chunk_appendf(&trash, " title=\"rsp codes:");
+					chunk_appendf(&trash, " title=\"%lld requests:", px->be_counters.p.http.cum_req);
 
 					for (i = 1; i < 6; i++)
 						chunk_appendf(&trash, " %dxx=%lld", i, px->be_counters.p.http.rsp[i]);
 
-					chunk_appendf(&trash, " other=%lld\"", px->be_counters.p.http.rsp[0]);
+					chunk_appendf(&trash, " other=%lld ", px->be_counters.p.http.rsp[0]);
+					chunk_appendf(&trash, " compressed=%lld (%d%%)\"",
+					              px->be_counters.p.http.comp_rsp,
+					              px->be_counters.p.http.cum_req ?
+					              (int)(100*px->be_counters.p.http.comp_rsp/px->be_counters.p.http.cum_req) : 0);
 				}
 
 				chunk_appendf(&trash,
@@ -3337,6 +3354,10 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 				/* compression: in, out, bypassed */
 				chunk_appendf(&trash, "%lld,%lld,%lld,",
 			              px->be_counters.comp_in, px->be_counters.comp_out, px->be_counters.comp_byp);
+
+				/* compression: comp_rsp */
+				chunk_appendf(&trash, "%lld,",
+			              px->be_counters.p.http.comp_rsp);
 
 				/* finish with EOL */
 				chunk_appendf(&trash, "\n");

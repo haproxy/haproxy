@@ -57,6 +57,7 @@ struct pxcounters {
 	union {
 		struct {
 			long long cum_req;      /* cumulated number of processed HTTP requests */
+			long long comp_rsp;     /* number of compressed responses */
 			unsigned int rps_max;   /* maximum of new HTTP requests second observed */
 			long long rsp[6];       /* http response codes */
 		} http;
