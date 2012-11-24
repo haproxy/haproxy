@@ -531,14 +531,16 @@ int conn_local_send_proxy(struct connection *conn, unsigned int flag)
 	if (conn->flags & CO_FL_SOCK_WR_SH)
 		goto out_error;
 
-	/* The target server expects a PROXY line to be sent first. */
+	/* The target server expects a PROXY line to be sent first. Retrieving
+	 * local or remote addresses may fail until the connection is established.
+	 */
 	conn_get_from_addr(conn);
 	if (!(conn->flags & CO_FL_ADDR_FROM_SET))
-		goto out_error;
+		goto out_wait;
 
 	conn_get_to_addr(conn);
 	if (!(conn->flags & CO_FL_ADDR_TO_SET))
-		goto out_error;
+		goto out_wait;
 
 	trash.len = make_proxy_line(trash.str, trash.size, &conn->addr.from, &conn->addr.to);
 	if (!trash.len)
