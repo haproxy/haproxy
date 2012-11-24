@@ -1183,8 +1183,12 @@ static int wake_srv_chk(struct connection *conn)
 {
 	struct server *s = conn->owner;
 
-	if (unlikely(conn->flags & CO_FL_ERROR))
+	if (unlikely(conn->flags & CO_FL_ERROR)) {
+		/* Note that we might as well have been woken up by a handshake handler */
+		s->result |= SRV_CHK_FAILED;
+		__conn_data_stop_both(conn);
 		task_wakeup(s->check.task, TASK_WOKEN_IO);
+	}
 
 	if (s->result & (SRV_CHK_FAILED|SRV_CHK_PASSED))
 		conn_full_close(conn);
