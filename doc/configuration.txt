@@ -7156,11 +7156,19 @@ transparent
   kernel version. Some distribution kernels include backports of the feature,
   so check for support with your vendor.
 
+v4v6
+  Is an optional keyword which is supported only on most recent systems
+  including Linux kernels >= 2.4.21. It is used to bind a socket to both IPv4
+  and IPv6 when it uses the default address. Doing so is sometimes necessary
+  on systems which bind to IPv6 only by default. It has no effect on non-IPv6
+  sockets, and is overriden by the "v6only" option.
+
 v6only
   Is an optional keyword which is supported only on most recent systems
   including Linux kernels >= 2.4.21. It is used to bind a socket to IPv6 only
   when it uses the default address. Doing so is sometimes preferred to doing it
-  system-wide as it is per-listener. It has no effect on non-IPv6 sockets.
+  system-wide as it is per-listener. It has no effect on non-IPv6 sockets and
+  has precedence over the "v4v6" option.
 
 uid <uid>
   Sets the owner of the UNIX sockets to the designated system uid. It can also

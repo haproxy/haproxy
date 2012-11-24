@@ -703,6 +703,8 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 #if defined(IPV6_V6ONLY)
 	if (listener->options & LI_O_V6ONLY)
                 setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &one, sizeof(one));
+	else if (listener->options & LI_O_V4V6)
+                setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &zero, sizeof(zero));
 #endif
 
 	if (bind(fd, (struct sockaddr *)&listener->addr, listener->proto->sock_addrlen) == -1) {
@@ -1727,6 +1729,19 @@ static int val_payload_lv(struct arg *arg, char **err_msg)
 }
 
 #ifdef IPV6_V6ONLY
+/* parse the "v4v6" bind keyword */
+static int bind_parse_v4v6(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	struct listener *l;
+
+	list_for_each_entry(l, &conf->listeners, by_bind) {
+		if (l->addr.ss_family == AF_INET6)
+			l->options |= LI_O_V4V6;
+	}
+
+	return 0;
+}
+
 /* parse the "v6only" bind keyword */
 static int bind_parse_v6only(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -1899,6 +1914,7 @@ static struct bind_kw_list bind_kws = { "TCP", { }, {
 	{ "transparent",   bind_parse_transparent,  0 }, /* transparently bind to the specified addresses */
 #endif
 #ifdef IPV6_V6ONLY
+	{ "v4v6",          bind_parse_v4v6,         0 }, /* force socket to bind to IPv4+IPv6 */
 	{ "v6only",        bind_parse_v6only,       0 }, /* force socket to bind to IPv6 only */
 #endif
 	/* the versions with the NULL parse function*/
@@ -1906,6 +1922,7 @@ static struct bind_kw_list bind_kws = { "TCP", { }, {
 	{ "interface",     NULL,  1 },
 	{ "mss",           NULL,  1 },
 	{ "transparent",   NULL,  0 },
+	{ "v4v6",          NULL,  0 },
 	{ "v6only",        NULL,  0 },
 	{ NULL, NULL, 0 },
 }};
