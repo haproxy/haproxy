@@ -50,6 +50,10 @@ int conn_fd_handler(int fd)
 	 * more easily detect an EAGAIN condition from anywhere.
 	 */
 	flags = conn->flags &= ~(CO_FL_WAIT_DATA|CO_FL_WAIT_ROOM|CO_FL_WAIT_RD|CO_FL_WAIT_WR);
+	flags &= ~CO_FL_ERROR; /* ensure to call the wake handler upon error */
+
+	if (unlikely(conn->flags & CO_FL_ERROR))
+		goto leave;
 
  process_handshake:
 	/* The handshake callbacks are called in sequence. If either of them is
