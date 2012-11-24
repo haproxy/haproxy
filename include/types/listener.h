@@ -90,6 +90,7 @@ enum {
 #define LI_O_ACC_PROXY  0x0040  /* find the proxied address in the first request line */
 #define LI_O_UNLIMITED  0x0080  /* listener not subject to global limits (peers & stats socket) */
 #define LI_O_TCP_FO     0x0100  /* enable TCP Fast Open (linux >= 3.6) */
+#define LI_O_V6ONLY     0x0200  /* bind to IPv6 only on Linux >= 2.4.21 */
 
 /* Note: if a listener uses LI_O_UNLIMITED, it is highly recommended that it adds its own
  * maxconn setting to the global.maxsock value so that its resources are reserved.

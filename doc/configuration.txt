@@ -7156,6 +7156,12 @@ transparent
   kernel version. Some distribution kernels include backports of the feature,
   so check for support with your vendor.
 
+v6only
+  Is an optional keyword which is supported only on most recent systems
+  including Linux kernels >= 2.4.21. It is used to bind a socket to IPv6 only
+  when it uses the default address. Doing so is sometimes preferred to doing it
+  system-wide as it is per-listener. It has no effect on non-IPv6 sockets.
+
 uid <uid>
   Sets the owner of the UNIX sockets to the designated system uid. It can also
   be set by default in the global section's "unix-bind" statement. Note that

@@ -700,6 +700,11 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		}
 	}
 #endif
+#if defined(IPV6_V6ONLY)
+	if (listener->options & LI_O_V6ONLY)
+                setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &one, sizeof(one));
+#endif
+
 	if (bind(fd, (struct sockaddr *)&listener->addr, listener->proto->sock_addrlen) == -1) {
 		err |= ERR_RETRYABLE | ERR_ALERT;
 		msg = "cannot bind socket";
@@ -1721,6 +1726,21 @@ static int val_payload_lv(struct arg *arg, char **err_msg)
 	return 1;
 }
 
+#ifdef IPV6_V6ONLY
+/* parse the "v6only" bind keyword */
+static int bind_parse_v6only(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	struct listener *l;
+
+	list_for_each_entry(l, &conf->listeners, by_bind) {
+		if (l->addr.ss_family == AF_INET6)
+			l->options |= LI_O_V6ONLY;
+	}
+
+	return 0;
+}
+#endif
+
 #ifdef CONFIG_HAP_LINUX_TPROXY
 /* parse the "transparent" bind keyword */
 static int bind_parse_transparent(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
@@ -1878,11 +1898,15 @@ static struct bind_kw_list bind_kws = { "TCP", { }, {
 #ifdef CONFIG_HAP_LINUX_TPROXY
 	{ "transparent",   bind_parse_transparent,  0 }, /* transparently bind to the specified addresses */
 #endif
+#ifdef IPV6_V6ONLY
+	{ "v6only",        bind_parse_v6only,       0 }, /* force socket to bind to IPv6 only */
+#endif
 	/* the versions with the NULL parse function*/
 	{ "defer-accept",  NULL,  0 },
 	{ "interface",     NULL,  1 },
 	{ "mss",           NULL,  1 },
 	{ "transparent",   NULL,  0 },
+	{ "v6only",        NULL,  0 },
 	{ NULL, NULL, 0 },
 }};
 
