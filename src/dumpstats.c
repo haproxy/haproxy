@@ -2488,8 +2488,10 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 				     U2H7(px->fe_counters.bytes_in));
 
 				/* compression stats (via td title): comp_in, comp_out, comp_byp */
-				chunk_appendf(&trash, " title=\"compression: in=%lld out=%lld bypassed=%lld\"",
-				     px->fe_counters.comp_in, px->fe_counters.comp_out, px->fe_counters.comp_byp);
+				chunk_appendf(&trash, " title=\"compression: in=%lld out=%lld bypassed=%lld savings=%d%%\"",
+				              px->fe_counters.comp_in, px->fe_counters.comp_out, px->fe_counters.comp_byp,
+				              px->fe_counters.comp_in ?
+				              (int)((px->fe_counters.comp_in - px->fe_counters.comp_out)*100/px->fe_counters.comp_in) : 0);
 
 				chunk_appendf(&trash,
 				     /* bytes: out */
@@ -3214,8 +3216,10 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 				     U2H8(px->be_counters.bytes_in));
 
 				/* compression stats (via td title): comp_in, comp_out, comp_byp */
-				chunk_appendf(&trash, " title=\"compression: in=%lld out=%lld bypassed=%lld\"",
-				     px->be_counters.comp_in, px->be_counters.comp_out, px->be_counters.comp_byp);
+				chunk_appendf(&trash, " title=\"compression: in=%lld out=%lld bypassed=%lld savings=%d%%\"",
+				     px->be_counters.comp_in, px->be_counters.comp_out, px->be_counters.comp_byp,
+				     px->be_counters.comp_in ?
+				     (int)((px->be_counters.comp_in - px->be_counters.comp_out)*100/px->be_counters.comp_in) : 0);
 
 				chunk_appendf(&trash,
 				     /* bytes: out */
