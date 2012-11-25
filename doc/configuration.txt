@@ -11043,6 +11043,7 @@ page. Both means provide a CSV format whose fields follow.
  51. comp_in: number of HTTP response bytes fed to the compressor
  52. comp_out: number of HTTP response bytes emitted by the compressor
  53. comp_byp: number of bytes that bypassed the HTTP compressor (CPU/BW limit)
+ 54. comp_rsp: number of HTTP responses that were compressed
 
 
 9.2. Unix Socket commands
