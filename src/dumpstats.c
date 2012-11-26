@@ -2478,7 +2478,7 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 					chunk_appendf(&trash, " compressed=%lld (%d%%)",
 					              px->fe_counters.p.http.comp_rsp,
 					              px->fe_counters.p.http.cum_req ?
-					              (int)(100*px->fe_counters.p.http.comp_rsp/px->fe_counters.p.http.cum_req) : 0);
+					              (int)(100*px->fe_counters.p.http.comp_rsp/px->fe_counters.p.http.rsp[2]) : 0);
 					chunk_appendf(&trash, " intercepted=%lld\"", px->fe_counters.intercepted_req);
 				}
 
@@ -3219,7 +3219,7 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 					chunk_appendf(&trash, " compressed=%lld (%d%%)\"",
 					              px->be_counters.p.http.comp_rsp,
 					              px->be_counters.p.http.cum_req ?
-					              (int)(100*px->be_counters.p.http.comp_rsp/px->be_counters.p.http.cum_req) : 0);
+					              (int)(100*px->be_counters.p.http.comp_rsp/px->be_counters.p.http.rsp[2]) : 0);
 				}
 
 				chunk_appendf(&trash,
