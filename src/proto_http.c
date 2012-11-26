@@ -2060,6 +2060,10 @@ int select_compression_response_header(struct session *s, struct buffer *res)
 	if (!(msg->flags & HTTP_MSGF_VER_11))
 		goto fail;
 
+	/* 200 only */
+	if (txn->status != 200)
+		goto fail;
+
 	ctx.idx = 0;
 
 	/* Content-Length is null */
@@ -2092,6 +2096,13 @@ int select_compression_response_header(struct session *s, struct buffer *res)
 	}
 
 	ctx.idx = 0;
+
+	/* Don't compress multipart */
+	if (http_find_header2("Content-Type", 12, res->p, &txn->hdr_idx, &ctx)) {
+		if (strncasecmp("multipart", ctx.line+ctx.val, 9) == 0)
+			goto fail;
+
+	}
 
 	/* limit compression rate */
 	if (global.comp_rate_lim > 0)

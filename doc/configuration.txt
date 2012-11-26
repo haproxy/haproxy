@@ -1916,7 +1916,9 @@ compression offload
 
   Compression is disabled when:
     * the server is not HTTP/1.1.
+    * HTTP status code is not 200
     * requests does not contain Transfer-Encoding: chunked or Content-Length.
+    * Content-Type is multipart
     * the request contains "Cache-control: no-transform".
     * User-Agent matches "Mozilla/4" except MSIE 6 with XP SP2, or MSIE 7 and later.
     * The response is already compressed (see compression offload).
