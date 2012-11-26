@@ -2064,44 +2064,43 @@ int select_compression_response_header(struct session *s, struct buffer *res)
 	if (txn->status != 200)
 		goto fail;
 
-	ctx.idx = 0;
-
 	/* Content-Length is null */
 	if (!(msg->flags & HTTP_MSGF_TE_CHNK) && msg->body_len == 0)
 		goto fail;
 
 	/* content is already compressed */
+	ctx.idx = 0;
 	if (http_find_header2("Content-Encoding", 16, res->p, &txn->hdr_idx, &ctx))
 		goto fail;
 
 	comp_type = NULL;
 
-	/* if there was a compression content-type option in the backend or the frontend
-	 * The backend have priority.
+	/* we don't want to compress multipart content-types, nor content-types that are
+	 * not listed in the "compression type" directive if any. If no content-type was
+	 * found but configuration requires one, we don't compress either. Backend has
+	 * the priority.
 	 */
-	if ((s->be->comp && (comp_type = s->be->comp->types)) || (s->fe->comp && (comp_type = s->fe->comp->types))) {
-		if (http_find_header2("Content-Type", 12, res->p, &txn->hdr_idx, &ctx)) {
+	ctx.idx = 0;
+	if (http_find_header2("Content-Type", 12, res->p, &txn->hdr_idx, &ctx)) {
+		if (ctx.vlen >= 9 && strncasecmp("multipart", ctx.line+ctx.val, 9) == 0)
+			goto fail;
+
+		if ((s->be->comp && (comp_type = s->be->comp->types)) ||
+		    (s->fe->comp && (comp_type = s->fe->comp->types))) {
 			for (; comp_type; comp_type = comp_type->next) {
-				if (strncasecmp(ctx.line+ctx.val, comp_type->name, comp_type->name_len) == 0)
+				if (ctx.vlen >= comp_type->name_len &&
+				    strncasecmp(ctx.line+ctx.val, comp_type->name, comp_type->name_len) == 0)
 					/* this Content-Type should be compressed */
 					break;
 			}
-		} else {
-			/* there is no Content-Type header */
-			goto fail;
+			/* this Content-Type should not be compressed */
+			if (comp_type == NULL)
+				goto fail;
 		}
-		/* this Content-Type should not be compressed */
-		if (comp_type == NULL)
-			goto fail;
 	}
-
-	ctx.idx = 0;
-
-	/* Don't compress multipart */
-	if (http_find_header2("Content-Type", 12, res->p, &txn->hdr_idx, &ctx)) {
-		if (strncasecmp("multipart", ctx.line+ctx.val, 9) == 0)
-			goto fail;
-
+	else { /* no content-type header */
+		if ((s->be->comp && s->be->comp->types) || (s->fe->comp && s->fe->comp->types))
+			goto fail; /* a content-type was required */
 	}
 
 	/* limit compression rate */
@@ -2120,6 +2119,7 @@ int select_compression_response_header(struct session *s, struct buffer *res)
 	s->flags |= SN_COMP_READY;
 
 	/* remove Content-Length header */
+	ctx.idx = 0;
 	if ((msg->flags & HTTP_MSGF_CNT_LEN) && http_find_header2("Content-Length", 14, res->p, &txn->hdr_idx, &ctx))
 		http_remove_header2(msg, &txn->hdr_idx, &ctx);
 
