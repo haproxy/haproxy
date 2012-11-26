@@ -63,7 +63,7 @@
 #endif
 
 static int stats_dump_raw_to_buffer(struct stream_interface *si);
-static int stats_dump_full_sess_to_buffer(struct stream_interface *si);
+static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct session *sess);
 static int stats_dump_sess_to_buffer(struct stream_interface *si);
 static int stats_dump_errors_to_buffer(struct stream_interface *si);
 static int stats_table_request(struct stream_interface *si, bool show);
@@ -929,7 +929,9 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				si->applet.st0 = STAT_CLI_PRINT;
 				return 1;
 			}
-			if (*args[2])
+			if (*args[2] && strcmp(args[2], "all") == 0)
+				si->applet.ctx.sess.target = (void *)-1;
+			else if (*args[2])
 				si->applet.ctx.sess.target = (void *)strtoul(args[2], NULL, 0);
 			else
 				si->applet.ctx.sess.target = NULL;
@@ -3416,23 +3418,21 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
  * 0 if the output buffer is full and it needs to be called again, otherwise
  * non-zero. It is designed to be called from stats_dump_sess_to_buffer() below.
  */
-static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
+static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct session *sess)
 {
 	struct tm tm;
-	struct session *sess;
 	extern const char *monthname[12];
 	char pn[INET6_ADDRSTRLEN];
 
 	chunk_reset(&trash);
-	sess = si->applet.ctx.sess.target;
 
 	if (si->applet.ctx.sess.section > 0 && si->applet.ctx.sess.uid != sess->uniq_id) {
 		/* session changed, no need to go any further */
 		chunk_appendf(&trash, "  *** session terminated while we were watching it ***\n");
 		if (bi_putchk(si->ib, &trash) == -1)
 			return 0;
-		si->applet.ctx.sess.target = NULL;
 		si->applet.ctx.sess.uid = 0;
+		si->applet.ctx.sess.section = 0;
 		return 1;
 	}
 
@@ -3695,6 +3695,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si)
 	}
 	/* end of dump */
 	si->applet.ctx.sess.uid = 0;
+	si->applet.ctx.sess.section = 0;
 	return 1;
 }
 
@@ -3750,19 +3751,23 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 			curr_sess = LIST_ELEM(si->applet.ctx.sess.bref.ref, struct session *, list);
 
 			if (si->applet.ctx.sess.target) {
-				if (si->applet.ctx.sess.target != curr_sess)
+				if (si->applet.ctx.sess.target != (void *)-1 && si->applet.ctx.sess.target != curr_sess)
 					goto next_sess;
 
 				LIST_ADDQ(&curr_sess->back_refs, &si->applet.ctx.sess.bref.users);
 				/* call the proper dump() function and return if we're missing space */
-				if (!stats_dump_full_sess_to_buffer(si))
+				if (!stats_dump_full_sess_to_buffer(si, curr_sess))
 					return 0;
 
 				/* session dump complete */
 				LIST_DEL(&si->applet.ctx.sess.bref.users);
 				LIST_INIT(&si->applet.ctx.sess.bref.users);
-				si->applet.ctx.sess.target = NULL;
-				break;
+				if (si->applet.ctx.sess.target != (void *)-1) {
+					si->applet.ctx.sess.target = NULL;
+					break;
+				}
+				else
+					goto next_sess;
 			}
 
 			chunk_appendf(&trash,
@@ -3882,7 +3887,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 			si->applet.ctx.sess.bref.ref = curr_sess->list.n;
 		}
 
-		if (si->applet.ctx.sess.target) {
+		if (si->applet.ctx.sess.target && si->applet.ctx.sess.target != (void *)-1) {
 			/* specified session not found */
 			if (si->applet.ctx.sess.section > 0)
 				chunk_appendf(&trash, "  *** session terminated while we were watching it ***\n");
