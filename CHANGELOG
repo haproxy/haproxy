@@ -1,6 +1,44 @@
 ChangeLog :
 ===========
 
+2012/11/26 : 1.5-dev14
+    - DOC: fix minor typos
+    - BUG/MEDIUM: compression: does not forward trailers
+    - MINOR: buffer_dump with ASCII
+    - BUG/MEDIUM: checks: mark the check as stopped after a connect error
+    - BUG/MEDIUM: checks: ensure we completely disable polling upon success
+    - BUG/MINOR: checks: don't mark the FD as closed before transport close
+    - MEDIUM: checks: avoid accumulating TIME_WAITs during checks
+    - MINOR: cli: report the msg state in full text in "show sess $PTR"
+    - CLEANUP: checks: rename some server check flags
+    - MAJOR: checks: rework completely bogus state machine
+    - BUG/MINOR: checks: slightly clean the state machine up
+    - MEDIUM: checks: avoid waking the application up for pure TCP checks
+    - MEDIUM: checks: close the socket as soon as we have a response
+    - BUG/MAJOR: checks: close FD on all timeouts
+    - MINOR: checks: fix recv polling after connect()
+    - MEDIUM: connection: provide a common conn_full_close() function
+    - BUG/MEDIUM: checks: prevent TIME_WAITs from appearing also on timeouts
+    - BUG/MAJOR: peers: the listener's maxaccept was not set and caused loops
+    - MINOR: listeners: make the accept loop more robust when maxaccept==0
+    - BUG/MEDIUM: acl: correctly resolve all args, not just the first one
+    - BUG/MEDIUM: acl: make prue_acl_expr() correctly free ACL expressions upon exit
+    - BUG/MINOR: stats: fix inversion of the report of a check in progress
+    - MEDIUM: tcp: add explicit support for delayed ACK in connect()
+    - BUG/MEDIUM: connection: always disable polling upon error
+    - MINOR: connection: abort earlier when errors are detected
+    - BUG/MEDIUM: checks: report handshake failures
+    - BUG/MEDIUM: connection: local_send_proxy must wait for connection to establish
+    - MINOR: tcp: add support for the "v6only" bind option
+    - MINOR: stats: also report the computed compression savings in html stats
+    - MINOR: stats: report the total number of compressed responses per front/back
+    - MINOR: tcp: add support for the "v4v6" bind option
+    - DOC: stats: document the comp_rsp stats column
+    - BUILD: buffer: fix another isprint() warning on solaris
+    - MINOR: cli: add support for the "show sess all" command
+    - BUG/MAJOR: cli: show sess <id> may randomly corrupt the back-ref list
+    - MINOR: cli: improve output format for show sess $ptr
+
 2012/11/22 : 1.5-dev13
     - BUILD: fix build issue without USE_OPENSSL
     - BUILD: fix compilation error with DEBUG_FULL
