@@ -4918,6 +4918,29 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 			return 0;
 		}
 
+		/* client abort with an abortonclose */
+		else if ((rep->flags & CF_SHUTR) && ((s->req->flags & (CF_SHUTR|CF_SHUTW)) == (CF_SHUTR|CF_SHUTW))) {
+			s->fe->fe_counters.cli_aborts++;
+			s->be->be_counters.cli_aborts++;
+			if (objt_server(s->target))
+				objt_server(s->target)->counters.cli_aborts++;
+
+			rep->analysers = 0;
+			channel_auto_close(rep);
+
+			txn->status = 400;
+			bi_erase(rep);
+			stream_int_retnclose(rep->cons, http_error_message(s, HTTP_ERR_400));
+
+			if (!(s->flags & SN_ERR_MASK))
+				s->flags |= SN_ERR_CLICL;
+			if (!(s->flags & SN_FINST_MASK))
+				s->flags |= SN_FINST_H;
+
+			/* process_session() will take care of the error */
+			return 0;
+		}
+
 		/* close from server, capture the response if the server has started to respond */
 		else if (rep->flags & CF_SHUTR) {
 			if (msg->msg_state >= HTTP_MSG_RPVER || msg->err_pos >= 0)
@@ -5738,8 +5761,18 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 		http_compression_buffer_end(s, &res->buf, &tmpbuf, 0);
 		compressing = 0;
 	}
-	/* stop waiting for data if the input is closed before the end */
+
+	if (res->flags & CF_SHUTW)
+		goto aborted_xfer;
+
+	/* stop waiting for data if the input is closed before the end. If the
+	 * client side was already closed, it means that the client has aborted,
+	 * so we don't want to count this as a server abort. Otherwise it's a
+	 * server abort.
+	 */
 	if (res->flags & CF_SHUTR) {
+		if ((res->flags & CF_SHUTW_NOW) || (s->req->flags & CF_SHUTR))
+			goto aborted_xfer;
 		if (!(s->flags & SN_ERR_MASK))
 			s->flags |= SN_ERR_SRVCL;
 		s->be->be_counters.srv_aborts++;
@@ -5747,9 +5780,6 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 			objt_server(s->target)->counters.srv_aborts++;
 		goto return_bad_res_stats_ok;
 	}
-
-	if (res->flags & CF_SHUTW)
-		goto aborted_xfer;
 
 	/* we need to obey the req analyser, so if it leaves, we must too */
 	if (!s->req->analysers)
