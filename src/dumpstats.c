@@ -3911,6 +3911,18 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 	}
 }
 
+/* This is called when the stream interface is closed. For instance, upon an
+ * external abort, we won't call the i/o handler anymore so we may need to
+ * remove back references to the session currently being dumped.
+ */
+void cli_release_handler(struct stream_interface *si)
+{
+	if (si->applet.st0 == STAT_CLI_O_SESS && si->conn->xprt_st == STAT_ST_LIST) {
+		if (!LIST_ISEMPTY(&si->applet.ctx.sess.bref.users))
+			LIST_DEL(&si->applet.ctx.sess.bref.users);
+	}
+}
+
 /* This function dumps all tables' states onto the stream interface's
  * read buffer. The xprt_ctx must have been zeroed first, and the flags
  * properly set. It returns 0 if the output buffer is full and it needs
@@ -4318,7 +4330,7 @@ static struct si_applet cli_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
 	.name = "<CLI>", /* used for logging */
 	.fct = cli_io_handler,
-	.release = NULL,
+	.release = cli_release_handler,
 };
 
 static struct cfg_kw_list cfg_kws = {{ },{
