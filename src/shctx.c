@@ -447,6 +447,9 @@ void shared_context_set_cache(SSL_CTX *ctx)
 	SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_SERVER |
 	                                    SSL_SESS_CACHE_NO_INTERNAL |
 	                                    SSL_SESS_CACHE_NO_AUTO_CLEAR);
+
+	SSL_CTX_set_session_id_context(ctx, (const unsigned char *)SHCTX_APPNAME, strlen(SHCTX_APPNAME));
+
 	if (!shctx)
 		return;
 
