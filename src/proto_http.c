@@ -2078,7 +2078,7 @@ int select_compression_response_header(struct session *s, struct buffer *res)
 	if ((s->be->comp && (comp_type = s->be->comp->types)) || (s->fe->comp && (comp_type = s->fe->comp->types))) {
 		if (http_find_header2("Content-Type", 12, res->p, &txn->hdr_idx, &ctx)) {
 			for (; comp_type; comp_type = comp_type->next) {
-				if (strncmp(ctx.line+ctx.val, comp_type->name, comp_type->name_len) == 0)
+				if (strncasecmp(ctx.line+ctx.val, comp_type->name, comp_type->name_len) == 0)
 					/* this Content-Type should be compressed */
 					break;
 			}
