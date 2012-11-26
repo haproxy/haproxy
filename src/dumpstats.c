@@ -3412,6 +3412,51 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 	}
 }
 
+static inline const char *get_conn_ctrl_name(const struct connection *conn)
+{
+	if (!conn->ctrl)
+		return "NONE";
+	return conn->ctrl->name;
+}
+
+static inline const char *get_conn_xprt_name(const struct connection *conn)
+{
+	static char ptr[17];
+
+	if (!conn->xprt)
+		return "NONE";
+
+	if (conn->xprt == &raw_sock)
+		return "RAW";
+
+#ifdef USE_OPENSSL
+	if (conn->xprt == &ssl_sock)
+		return "SSL";
+#endif
+	snprintf(ptr, sizeof(ptr), "%p", conn->xprt);
+	return ptr;
+}
+
+static inline const char *get_conn_data_name(const struct connection *conn)
+{
+	static char ptr[17];
+
+	if (!conn->data)
+		return "NONE";
+
+	if (conn->data == &sess_conn_cb)
+		return "SESS";
+
+	if (conn->data == &si_conn_cb)
+		return "STRM";
+
+	if (conn->data == &check_conn_cb)
+		return "CHCK";
+
+	snprintf(ptr, sizeof(ptr), "%p", conn->data);
+	return ptr;
+}
+
 /* This function dumps a complete session state onto the stream interface's
  * read buffer. The xprt_ctx must have been zeroed first, and the flags
  * properly set. The session has to be set in xprt_ctx.sess.target. It returns
@@ -3581,63 +3626,46 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 			     sess->si[1].err_type);
 
 		chunk_appendf(&trash,
-		              "  lconn=%p (ctrl=%p(%s) xprt=%p(%s) data=%p(%s) target=%d flags=0x%08x fd=%d fd_spec=%02x)\n",
-		              sess->si[0].conn,
-		              sess->si[0].conn->ctrl,
-		              sess->si[0].conn->ctrl ? sess->si[0].conn->ctrl->name : "NONE",
-		              sess->si[0].conn->xprt,
-		              (sess->si[0].conn->xprt == NULL) ? "NONE" :
-		              (sess->si[0].conn->xprt == &raw_sock) ? "RAW" :
-#ifdef USE_OPENSSL
-		              (sess->si[0].conn->xprt == &ssl_sock) ? "SSL" :
-#endif
-			      "????",
-		              sess->si[0].conn->data,
-		              (sess->si[0].conn->data == NULL) ? "NONE" :
-		              (sess->si[0].conn->data == &sess_conn_cb) ? "SESS" :
-		              (sess->si[0].conn->data == &si_conn_cb) ? "STRM" :
-		              (sess->si[0].conn->data == &check_conn_cb) ? "CHCK" : "????",
+		              "  lconn=%p ctrl=%s xprt=%s data=%s\n",
+			      sess->si[0].conn,
+			      get_conn_ctrl_name(sess->si[0].conn),
+			      get_conn_xprt_name(sess->si[0].conn),
+			      get_conn_data_name(sess->si[0].conn));
+
+		chunk_appendf(&trash,
+		              "       target=%d flags=0x%08x fd=%d fd_spec=%02x\n",
 		              sess->si[0].conn->target ? *sess->si[0].conn->target : 0,
 		              sess->si[0].conn->flags,
 		              sess->si[0].conn->t.sock.fd,
 		              sess->si[0].conn->t.sock.fd >= 0 ? fdtab[sess->si[0].conn->t.sock.fd].spec_e : 0);
 
 		chunk_appendf(&trash,
-		              "  rconn=%p (ctrl=%p(%s) xprt=%p(%s) data=%p(%s) target=%d flags=0x%08x fd=%d fd_spec=%02x)\n",
-		              sess->si[1].conn,
-		              sess->si[1].conn->ctrl,
-		              sess->si[1].conn->ctrl ? sess->si[1].conn->ctrl->name : "NONE",
-		              sess->si[1].conn->xprt,
-		              (sess->si[1].conn->xprt == NULL) ? "NONE" :
-		              (sess->si[1].conn->xprt == &raw_sock) ? "RAW" :
-#ifdef USE_OPENSSL
-		              (sess->si[1].conn->xprt == &ssl_sock) ? "SSL" :
-#endif
-			      "UNKNOWN",
-		              sess->si[1].conn->data,
-		              (sess->si[1].conn->data == NULL) ? "NONE" :
-		              (sess->si[1].conn->data == &sess_conn_cb) ? "SESS" :
-		              (sess->si[1].conn->data == &si_conn_cb) ? "STRM" :
-		              (sess->si[1].conn->data == &check_conn_cb) ? "CHCK" : "????",
+		              "  rconn=%p ctrl=%s xprt=%s data=%s\n",
+			      sess->si[1].conn,
+			      get_conn_ctrl_name(sess->si[1].conn),
+			      get_conn_xprt_name(sess->si[1].conn),
+			      get_conn_data_name(sess->si[1].conn));
+
+		chunk_appendf(&trash,
+		              "     target=%d flags=0x%08x fd=%d fd_spec=%02x\n",
 		              sess->si[1].conn->target ? *sess->si[1].conn->target : 0,
 		              sess->si[1].conn->flags,
 		              sess->si[1].conn->t.sock.fd,
 		              sess->si[1].conn->t.sock.fd >= 0 ? fdtab[sess->si[1].conn->t.sock.fd].spec_e : 0);
 
 		chunk_appendf(&trash,
-			     "  txn=%p (flags=0x%x meth=%d status=%d req.st=%s rsp.st=%s)\n",
+			     "  txn=%p flags=0x%x meth=%d status=%d req.st=%s rsp.st=%s\n",
 			     &sess->txn, sess->txn.flags, sess->txn.meth, sess->txn.status,
 			     http_msg_state_str(sess->txn.req.msg_state), http_msg_state_str(sess->txn.rsp.msg_state));
 
 
 		chunk_appendf(&trash,
-			     "  req=%p (f=0x%06x an=0x%x i=%d o=%d pipe=%d fwd=%d)\n"
+			     "  req=%p (f=0x%06x an=0x%x pipe=%d tofwd=%d total=%lld)\n"
 			     "      an_exp=%s",
 			     sess->req,
 			     sess->req->flags, sess->req->analysers,
-			     sess->req->buf->i, sess->req->buf->o,
 			     sess->req->pipe ? sess->req->pipe->data : 0,
-			     sess->req->to_forward,
+			     sess->req->to_forward, sess->req->total,
 			     sess->req->analyse_exp ?
 			     human_time(TICKS_TO_MS(sess->req->analyse_exp - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>");
@@ -3650,23 +3678,23 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 
 		chunk_appendf(&trash,
 			     " wex=%s\n"
-			     "      data=%p p=%d next=%d total=%lld\n",
+			     "      buf=%p data=%p o=%d p=%d req.next=%d i=%d size=%d\n",
 			     sess->req->wex ?
 			     human_time(TICKS_TO_MS(sess->req->wex - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>",
-			     sess->req->buf->data,
+			     sess->req->buf,
+			     sess->req->buf->data, sess->req->buf->o,
 			     (int)(sess->req->buf->p - sess->req->buf->data),
-			     sess->txn.req.next,
-			     sess->req->total);
+			     sess->txn.req.next, sess->req->buf->i,
+			     sess->req->buf->size);
 
 		chunk_appendf(&trash,
-			     "  res=%p (f=0x%06x an=0x%x i=%d o=%d pipe=%d fwd=%d)\n"
+			     "  res=%p (f=0x%06x an=0x%x pipe=%d tofwd=%d total=%lld)\n"
 			     "      an_exp=%s",
 			     sess->rep,
 			     sess->rep->flags, sess->rep->analysers,
-			     sess->rep->buf->i, sess->rep->buf->o,
 			     sess->rep->pipe ? sess->rep->pipe->data : 0,
-			     sess->rep->to_forward,
+			     sess->rep->to_forward, sess->rep->total,
 			     sess->rep->analyse_exp ?
 			     human_time(TICKS_TO_MS(sess->rep->analyse_exp - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>");
@@ -3679,14 +3707,15 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 
 		chunk_appendf(&trash,
 			     " wex=%s\n"
-			     "      data=%p p=%d next=%d total=%lld\n",
+			     "      buf=%p data=%p o=%d p=%d rsp.next=%d i=%d size=%d\n",
 			     sess->rep->wex ?
 			     human_time(TICKS_TO_MS(sess->rep->wex - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>",
-			     sess->rep->buf->data,
+			     sess->rep->buf,
+			     sess->rep->buf->data, sess->rep->buf->o,
 			     (int)(sess->rep->buf->p - sess->rep->buf->data),
-			     sess->txn.rsp.next,
-			     sess->rep->total);
+			     sess->txn.rsp.next, sess->rep->buf->i,
+			     sess->rep->buf->size);
 
 		if (bi_putchk(si->ib, &trash) == -1)
 			return 0;
