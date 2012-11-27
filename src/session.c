@@ -2435,14 +2435,14 @@ struct task *process_session(struct task *t)
 
 		if (s->fe->mode == PR_MODE_HTTP) {
 			s->fe->fe_counters.p.http.rsp[n]++;
-			if (s->comp_algo)
+			if (s->comp_algo && (s->flags & SN_COMP_READY))
 				s->fe->fe_counters.p.http.comp_rsp++;
 		}
 		if ((s->flags & SN_BE_ASSIGNED) &&
 		    (s->be->mode == PR_MODE_HTTP)) {
 			s->be->be_counters.p.http.rsp[n]++;
 			s->be->be_counters.p.http.cum_req++;
-			if (s->comp_algo)
+			if (s->comp_algo && (s->flags & SN_COMP_READY))
 				s->be->be_counters.p.http.comp_rsp++;
 		}
 	}
