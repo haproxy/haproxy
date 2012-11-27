@@ -5136,6 +5136,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 	    (txn->status >= 100 && txn->status < 200) ||
 	    txn->status == 204 || txn->status == 304) {
 		msg->flags |= HTTP_MSGF_XFER_LEN;
+		s->comp_algo = NULL;
 		goto skip_content_length;
 	}
 
