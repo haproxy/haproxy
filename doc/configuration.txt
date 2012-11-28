@@ -1903,16 +1903,23 @@ compression offload
 
   Compression will be activated depending on the Accept-Encoding request
   header. With identity, it does not take care of that header.
+  If backend servers support HTTP compression, these directives
+  will be no-op: haproxy will see the compressed response and will not
+  compress again. If backend servers do not support HTTP compression and
+  there is Accept-Encoding header in request, haproxy will compress the
+  matching response.
 
   The "offload" setting makes haproxy remove the Accept-Encoding header to
   prevent backend servers from compressing responses. It is strongly
   recommended not to do this because this means that all the compression work
   will be done on the single point where haproxy is located. However in some
   deployment scenarios, haproxy may be installed in front of a buggy gateway
-  and need to prevent it from emitting invalid payloads. In this case, simply
-  removing the header in the configuration does not work because it applies
-  before the header is parsed, so that prevents haproxy from compressing. The
-  "offload" setting should then be used for such scenarios.
+  with broken HTTP compression implementation which can't be turned off.
+  In that case haproxy can be used to prevent that gateway from emitting
+  invalid payloads. In this case, simply removing the header in the
+  configuration does not work because it applies before the header is parsed,
+  so that prevents haproxy from compressing. The "offload" setting should
+  then be used for such scenarios.
 
   Compression is disabled when:
     * the server is not HTTP/1.1.
