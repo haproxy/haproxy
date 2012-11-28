@@ -173,7 +173,7 @@ static inline void _shared_context_unlock(void)
 				shctx->active.n = s;
 
 
-#define shsess_get_next()	(shctx->free.p == shctx->free.n) ? \
+#define shsess_get_next()	(shctx->free.p == &shctx->free) ? \
 				     shctx->active.p : shctx->free.p;
 
 /* Tree Macros */
