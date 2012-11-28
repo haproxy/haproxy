@@ -878,14 +878,16 @@ tune.sndbuf.server <number>
   notifying haproxy again.
 
 tune.ssl.cachesize <number>
-  Sets the size of the global SSL session cache, in number of sessions. Each
-  entry uses approximately 600 bytes of memory. The default value may be forced
-  at build time, otherwise defaults to 20000. When the cache is full, the most
-  idle entries are purged and reassigned. Higher values reduce the occurrence
-  of such a purge, hence the number of CPU-intensive SSL handshakes by ensuring
-  that all users keep their session as long as possible. All entries are pre-
-  allocated upon startup and are shared between all processes if "nbproc" is
-  greater than 1.
+  Sets the size of the global SSL session cache, in a number of blocks. A block
+  is large enough to contain an encoded session without peer certificate.
+  An encoded session with peer certificate is stored in multiple blocks
+  depending on the size of the peer certificate. A block use approximatively
+  200 bytes of memory. The default value may be forced at build time, otherwise
+  defaults to 20000.  When the cache is full, the most idle entries are purged
+  and reassigned. Higher values reduce the occurrence of such a purge, hence
+  the number of CPU-intensive SSL handshakes by ensuring that all users keep
+  their session as long as possible. All entries are pre-allocated upon startup
+  and are shared between all processes if "nbproc" is greater than 1.
 
 tune.ssl.lifetime <timeout>
   Sets how long a cached SSL session may remain valid. This time is expressed
