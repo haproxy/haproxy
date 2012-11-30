@@ -980,7 +980,6 @@ reneg_ok:
 
 	/* Fail on all other handshake errors */
 	conn->flags |= CO_FL_ERROR;
-	conn->flags &= ~flag;
 	return 0;
 }
 

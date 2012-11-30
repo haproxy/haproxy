@@ -428,7 +428,6 @@ int conn_recv_proxy(struct connection *conn, int flag)
  fail:
 	conn_sock_stop_both(conn);
 	conn->flags |= CO_FL_ERROR;
-	conn->flags &= ~flag;
 	return 0;
 }
 
@@ -574,7 +573,6 @@ int conn_local_send_proxy(struct connection *conn, unsigned int flag)
  out_error:
 	/* Write error on the file descriptor */
 	conn->flags |= CO_FL_ERROR;
-	conn->flags &= ~flag;
 	return 0;
 
  out_wait:

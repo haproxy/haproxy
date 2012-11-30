@@ -485,7 +485,6 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
  out_error:
 	/* Write error on the file descriptor */
 	conn->flags |= CO_FL_ERROR;
-	conn->flags &= ~flag;
 	return 0;
 
  out_wait:
