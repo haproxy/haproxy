@@ -1298,6 +1298,7 @@ static struct task *process_chk(struct task *t)
 
 		/* prepare a new connection */
 		conn->flags = CO_FL_NONE;
+		conn->err_code = CO_ER_NONE;
 		conn->target = &s->obj_type;
 		conn_prepare(conn, &check_conn_cb, s->check.proto, s->check.xprt, s);
 

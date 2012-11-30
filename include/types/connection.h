@@ -142,6 +142,12 @@ enum {
 	CO_FL_XPRT_TRACKED  = 0x80000000,
 };
 
+
+/* possible connection error codes */
+enum {
+	CO_ER_NONE,             /* no error */
+};
+
 /* xprt_ops describes transport-layer operations for a connection. They
  * generally run over a socket-based control layer, but not always. Some
  * of them are used for data transfer with the upper layer (rcv_*, snd_*)
@@ -186,7 +192,7 @@ struct connection {
 	const struct protocol *ctrl;  /* operations at the socket layer */
 	const struct xprt_ops *xprt;  /* operations at the transport layer */
 	const struct data_cb  *data;  /* data layer callbacks */
-	unsigned int flags;           /* CO_F_* */
+	unsigned int flags;           /* CO_FL_* */
 	int xprt_st;                  /* transport layer state, initialized to zero */
 	void *xprt_ctx;               /* general purpose pointer, initialized to NULL */
 	void *owner;                  /* pointer to upper layer's entity (eg: stream interface) */
@@ -195,6 +201,7 @@ struct connection {
 			int fd;       /* file descriptor for a stream driver when known */
 		} sock;
 	} t;
+	unsigned int err_code;        /* CO_ER_* */
 	enum obj_type *target;        /* the target to connect to (server, proxy, applet, ...) */
 	struct {
 		struct sockaddr_storage from;	/* client address, or address to spoof when connecting to the server */

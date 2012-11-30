@@ -109,6 +109,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[0].conn->t.sock.fd = cfd;
 	s->si[0].conn->ctrl = l->proto;
 	s->si[0].conn->flags = CO_FL_NONE;
+	s->si[0].conn->err_code = CO_ER_NONE;
 	s->si[0].conn->addr.from = *addr;
 	s->si[0].conn->target = &l->obj_type;
 
@@ -403,6 +404,7 @@ int session_complete(struct session *s)
 	 */
 	s->si[1].conn->t.sock.fd = -1; /* just to help with debugging */
 	s->si[1].conn->flags = CO_FL_NONE;
+	s->si[1].conn->err_code = CO_ER_NONE;
 	s->si[1].owner     = t;
 	s->si[1].state     = s->si[1].prev_state = SI_ST_INI;
 	s->si[1].err_type  = SI_ET_NONE;
