@@ -79,6 +79,7 @@ Summary
 8.2.2.        TCP log format
 8.2.3.        HTTP log format
 8.2.4.        Custom log format
+8.2.5.        Error log format
 8.3.      Advanced logging options
 8.3.1.        Disabling logging of external tests
 8.3.2.        Logging before waiting for the session to terminate
@@ -10239,6 +10240,34 @@ Please refer to the table below for currently defined variables :
   +---+------+-----------------------------------------------+-------------+
 
     R = Restrictions : H = mode http only ; S = SSL only
+
+
+8.2.5. Error log format
+-----------------------
+
+When an incoming connection fails due to an SSL handshake or an invalid PROXY
+protocol header, haproxy will log the event using a shorter, fixed line format.
+By default, logs are emitted at the LOG_INFO level, unless the option
+"log-separate-errors" is set in the backend, in which case the LOG_ERR level
+will be used. Connections on which no data are exchanged (eg: probes) are not
+logged if the "dontlognull" option is set.
+
+The format looks like this :
+
+    >>> Dec  3 18:27:14 localhost \
+          haproxy[6103]: 127.0.0.1:56059 [03/Dec/2012:17:35:10.380] frt/f1: \
+          Connection error during SSL handshake
+
+  Field   Format                                Extract from the example above
+      1   process_name '[' pid ']:'                             haproxy[6103]:
+      2   client_ip ':' client_port                            127.0.0.1:56059
+      3   '[' accept_date ']'                       [03/Dec/2012:17:35:10.380]
+      4   frontend_name "/" bind_name ":"                              frt/f1:
+      5   message                        Connection error during SSL handshake
+
+These fields just provide minimal information to help debugging connection
+failures.
+
 
 8.3. Advanced logging options
 -----------------------------
