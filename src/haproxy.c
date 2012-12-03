@@ -121,7 +121,7 @@ struct global global = {
 	.req_count = 0,
 	.logsrvs = LIST_HEAD_INIT(global.logsrvs),
 #ifdef DEFAULT_MAXZLIBMEM
-	.maxzlibmem = DEFAULT_MAXZLIBMEM,
+	.maxzlibmem = DEFAULT_MAXZLIBMEM * 1024U * 1024U,
 #else
 	.maxzlibmem = 0,
 #endif
