@@ -146,6 +146,8 @@ enum {
 /* possible connection error codes */
 enum {
 	CO_ER_NONE,             /* no error */
+	CO_ER_PRX_TIMEOUT,      /* timeout while waiting for a PROXY header */
+	CO_ER_SSL_TIMEOUT,      /* timeout during SSL handshake */
 };
 
 /* xprt_ops describes transport-layer operations for a connection. They

@@ -243,12 +243,69 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	return ret;
 }
 
+
+/* prepare the trash with a log prefix for session <s> */
+static void prepare_mini_sess_log_prefix(struct session *s)
+{
+	struct tm tm;
+	char pn[INET6_ADDRSTRLEN];
+	int ret;
+	char *end;
+
+	ret = addr_to_str(&s->si[0].conn->addr.from, pn, sizeof(pn));
+	if (ret <= 0)
+		chunk_printf(&trash, "unknown [");
+	else if (ret == AF_UNIX)
+		chunk_printf(&trash, "%s:%d [", pn, s->listener->luid);
+	else
+		chunk_printf(&trash, "%s:%d [", pn, get_host_port(&s->si[0].conn->addr.from));
+
+	get_localtime(s->logs.accept_date.tv_sec, &tm);
+	end = date2str_log(trash.str + trash.len, &tm, &(s->logs.accept_date), trash.size - trash.len);
+	trash.len = end - trash.str;
+	if (s->listener->name)
+		chunk_appendf(&trash, "] %s/%s", s->fe->id, s->listener->name);
+	else
+		chunk_appendf(&trash, "] %s/%d", s->fe->id, s->listener->luid);
+}
+
 /* This function kills an existing embryonic session. It stops the connection's
  * transport layer, releases assigned resources, resumes the listener if it was
  * disabled and finally kills the file descriptor.
  */
 static void kill_mini_session(struct session *s)
 {
+	int level = LOG_INFO;
+	struct connection *conn = s->si[0].conn;
+	unsigned int log = s->logs.logwait;
+	const char *err_msg;
+
+	if (s->fe->options2 & PR_O2_LOGERRORS)
+		level = LOG_ERR;
+
+	if (log && (s->fe->options & PR_O_NULLNOLOG)) {
+		/* with "option dontlognull", we don't log connections with no transfer */
+		if (!conn->err_code)
+			log = 0;
+	}
+
+	if (log) {
+		if (!conn->err_code && (s->task->state & TASK_WOKEN_TIMER)) {
+			if (conn->flags & CO_FL_ACCEPT_PROXY)
+				conn->err_code = CO_ER_PRX_TIMEOUT;
+			else if (conn->flags & CO_FL_SSL_WAIT_HS)
+				conn->err_code = CO_ER_SSL_TIMEOUT;
+		}
+
+		prepare_mini_sess_log_prefix(s);
+		err_msg = conn_err_code_str(conn);
+		if (err_msg)
+			send_log(s->fe, level, "%s: %s\n", trash.str, err_msg);
+		else
+			send_log(s->fe, level, "%s: unknown connection error (code=%d flags=%08x)\n",
+				 trash.str, conn->err_code, conn->flags);
+	}
+
 	/* kill the connection now */
 	conn_full_close(s->si[0].conn);
 

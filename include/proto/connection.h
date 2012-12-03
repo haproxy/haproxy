@@ -462,6 +462,19 @@ static inline void conn_prepare(struct connection *conn, const struct data_cb *d
 	conn->xprt_ctx = NULL;
 }
 
+/* returns a human-readable error code for conn->err_code, or NULL if the code
+ * is unknown.
+ */
+static inline const char *conn_err_code_str(struct connection *c)
+{
+	switch (c->err_code) {
+	case CO_ER_NONE:          return "Success";
+	case CO_ER_PRX_TIMEOUT:   return "Timeout while waiting for PROXY protocol header";
+	case CO_ER_SSL_TIMEOUT:   return "Timeout during SSL handshake";
+	}
+	return NULL;
+}
+
 #endif /* _PROTO_CONNECTION_H */
 
 /*
