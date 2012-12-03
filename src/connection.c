@@ -280,9 +280,15 @@ int conn_recv_proxy(struct connection *conn, int flag)
 				conn_sock_poll_recv(conn);
 				return 0;
 			}
-			goto fail;
+			goto recv_abort;
 		}
 	} while (0);
+
+	if (!trash.len) {
+		/* client shutdown */
+		conn->err_code = CO_ER_PRX_EMPTY;
+		goto fail;
+	}
 
 	if (trash.len < 6)
 		goto missing;
@@ -291,8 +297,10 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	end = trash.str + trash.len;
 
 	/* Decode a possible proxy request, fail early if it does not match */
-	if (strncmp(line, "PROXY ", 6) != 0)
+	if (strncmp(line, "PROXY ", 6) != 0) {
+		conn->err_code = CO_ER_PRX_NOT_HDR;
 		goto fail;
+	}
 
 	line += 6;
 	if (trash.len < 18) /* shortest possible line */
@@ -307,27 +315,27 @@ int conn_recv_proxy(struct connection *conn, int flag)
 		if (line == end)
 			goto missing;
 		if (*line++ != ' ')
-			goto fail;
+			goto bad_header;
 
 		dst3 = inetaddr_host_lim_ret(line, end, &line);
 		if (line == end)
 			goto missing;
 		if (*line++ != ' ')
-			goto fail;
+			goto bad_header;
 
 		sport = read_uint((const char **)&line, end);
 		if (line == end)
 			goto missing;
 		if (*line++ != ' ')
-			goto fail;
+			goto bad_header;
 
 		dport = read_uint((const char **)&line, end);
 		if (line > end - 2)
 			goto missing;
 		if (*line++ != '\r')
-			goto fail;
+			goto bad_header;
 		if (*line++ != '\n')
-			goto fail;
+			goto bad_header;
 
 		/* update the session's addresses and mark them set */
 		((struct sockaddr_in *)&conn->addr.from)->sin_family      = AF_INET;
@@ -357,7 +365,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 				*line = 0;
 				line++;
 				if (*line++ != '\n')
-					goto fail;
+					goto bad_header;
 				break;
 			}
 
@@ -374,21 +382,21 @@ int conn_recv_proxy(struct connection *conn, int flag)
 		}
 
 		if (!dst_s || !sport_s || !dport_s)
-			goto fail;
+			goto bad_header;
 
 		sport = read_uint((const char **)&sport_s,dport_s - 1);
 		if (*sport_s != 0)
-			goto fail;
+			goto bad_header;
 
 		dport = read_uint((const char **)&dport_s,line - 2);
 		if (*dport_s != 0)
-			goto fail;
+			goto bad_header;
 
 		if (inet_pton(AF_INET6, src_s, (void *)&src3) != 1)
-			goto fail;
+			goto bad_header;
 
 		if (inet_pton(AF_INET6, dst_s, (void *)&dst3) != 1)
-			goto fail;
+			goto bad_header;
 
 		/* update the session's addresses and mark them set */
 		((struct sockaddr_in6 *)&conn->addr.from)->sin6_family      = AF_INET6;
@@ -401,6 +409,8 @@ int conn_recv_proxy(struct connection *conn, int flag)
 		conn->flags |= CO_FL_ADDR_FROM_SET | CO_FL_ADDR_TO_SET;
 	}
 	else {
+		/* The protocol does not match something known (TCP4/TCP6) */
+		conn->err_code = CO_ER_PRX_BAD_PROTO;
 		goto fail;
 	}
 
@@ -414,7 +424,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 		if (len2 < 0 && errno == EINTR)
 			continue;
 		if (len2 != trash.len)
-			goto fail;
+			goto recv_abort;
 	} while (0);
 
 	conn->flags &= ~flag;
@@ -425,6 +435,18 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	 * we have not read anything. Otherwise we need to fail because we won't
 	 * be able to poll anymore.
 	 */
+	conn->err_code = CO_ER_PRX_TRUNCATED;
+	goto fail;
+
+ bad_header:
+	/* This is not a valid proxy protocol header */
+	conn->err_code = CO_ER_PRX_BAD_HDR;
+	goto fail;
+
+ recv_abort:
+	conn->err_code = CO_ER_PRX_ABORT;
+	goto fail;
+
  fail:
 	conn_sock_stop_both(conn);
 	conn->flags |= CO_FL_ERROR;

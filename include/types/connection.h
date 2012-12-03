@@ -146,7 +146,14 @@ enum {
 /* possible connection error codes */
 enum {
 	CO_ER_NONE,             /* no error */
+	CO_ER_PRX_EMPTY,        /* nothing received in PROXY protocol header */
+	CO_ER_PRX_ABORT,        /* client abort during PROXY protocol header */
 	CO_ER_PRX_TIMEOUT,      /* timeout while waiting for a PROXY header */
+	CO_ER_PRX_TRUNCATED,    /* truncated PROXY protocol header */
+	CO_ER_PRX_NOT_HDR,      /* not a PROXY protocol header */
+	CO_ER_PRX_BAD_HDR,      /* bad PROXY protocol header */
+	CO_ER_PRX_BAD_PROTO,    /* unsupported protocol in PROXY header */
+
 	CO_ER_SSL_TIMEOUT,      /* timeout during SSL handshake */
 };
 

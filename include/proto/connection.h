@@ -469,7 +469,13 @@ static inline const char *conn_err_code_str(struct connection *c)
 {
 	switch (c->err_code) {
 	case CO_ER_NONE:          return "Success";
+	case CO_ER_PRX_EMPTY:     return "Connection closed while waiting for PROXY protocol header";
+	case CO_ER_PRX_ABORT:     return "Connection error while waiting for PROXY protocol header";
 	case CO_ER_PRX_TIMEOUT:   return "Timeout while waiting for PROXY protocol header";
+	case CO_ER_PRX_TRUNCATED: return "Truncated PROXY protocol header received";
+	case CO_ER_PRX_NOT_HDR:   return "Received something which does not look like a PROXY protocol header";
+	case CO_ER_PRX_BAD_HDR:   return "Received an invalid PROXY protocol header";
+	case CO_ER_PRX_BAD_PROTO: return "Received an unhandled protocol in the PROXY protocol header";
 	case CO_ER_SSL_TIMEOUT:   return "Timeout during SSL handshake";
 	}
 	return NULL;
