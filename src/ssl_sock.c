@@ -127,8 +127,10 @@ int ssl_sock_verifycbk(int ok, X509_STORE_CTX *x_store)
 			conn->xprt_st |= SSL_SOCK_CAEDEPTH_TO_ST(depth);
 		}
 
-		if (objt_listener(conn->target)->bind_conf->ca_ignerr & (1ULL << err))
+		if (objt_listener(conn->target)->bind_conf->ca_ignerr & (1ULL << err)) {
+			ERR_clear_error();
 			return 1;
+		}
 
 		conn->err_code = CO_ER_SSL_CA_FAIL;
 		return 0;
@@ -138,8 +140,10 @@ int ssl_sock_verifycbk(int ok, X509_STORE_CTX *x_store)
 		conn->xprt_st |= SSL_SOCK_CRTERROR_TO_ST(err);
 
 	/* check if certificate error needs to be ignored */
-	if (objt_listener(conn->target)->bind_conf->crt_ignerr & (1ULL << err))
+	if (objt_listener(conn->target)->bind_conf->crt_ignerr & (1ULL << err)) {
+		ERR_clear_error();
 		return 1;
+	}
 
 	conn->err_code = CO_ER_SSL_CRT_FAIL;
 	return 0;
