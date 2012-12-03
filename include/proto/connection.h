@@ -476,7 +476,16 @@ static inline const char *conn_err_code_str(struct connection *c)
 	case CO_ER_PRX_NOT_HDR:   return "Received something which does not look like a PROXY protocol header";
 	case CO_ER_PRX_BAD_HDR:   return "Received an invalid PROXY protocol header";
 	case CO_ER_PRX_BAD_PROTO: return "Received an unhandled protocol in the PROXY protocol header";
+	case CO_ER_SSL_EMPTY:     return "Connection closed during SSL handshake";
+	case CO_ER_SSL_ABORT:     return "Connection error during SSL handshake";
 	case CO_ER_SSL_TIMEOUT:   return "Timeout during SSL handshake";
+	case CO_ER_SSL_TOO_MANY:  return "Too many SSL connections";
+	case CO_ER_SSL_NO_MEM:    return "Out of memory when initializing an SSL connection";
+	case CO_ER_SSL_RENEG:     return "Rejected a client-initiated SSL renegociation attempt";
+	case CO_ER_SSL_CA_FAIL:   return "SSL client CA chain cannot be verified";
+	case CO_ER_SSL_CRT_FAIL:  return "SSL client certificate not trusted";
+	case CO_ER_SSL_HANDSHAKE: return "SSL handshake failure";
+	case CO_ER_SSL_NO_TARGET: return "Attempt to use SSL on an unknownn target (internal error)";
 	}
 	return NULL;
 }

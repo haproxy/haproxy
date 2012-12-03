@@ -154,7 +154,16 @@ enum {
 	CO_ER_PRX_BAD_HDR,      /* bad PROXY protocol header */
 	CO_ER_PRX_BAD_PROTO,    /* unsupported protocol in PROXY header */
 
+	CO_ER_SSL_EMPTY,        /* client closed during SSL handshake */
+	CO_ER_SSL_ABORT,        /* client abort during SSL handshake */
 	CO_ER_SSL_TIMEOUT,      /* timeout during SSL handshake */
+	CO_ER_SSL_TOO_MANY,     /* too many SSL connections */
+	CO_ER_SSL_NO_MEM,       /* no more memory to allocate an SSL connection */
+	CO_ER_SSL_RENEG,        /* forbidden client renegociation */
+	CO_ER_SSL_CA_FAIL,      /* client cert verification failed in the CA chain */
+	CO_ER_SSL_CRT_FAIL,     /* client cert verification failed on the certificate */
+	CO_ER_SSL_HANDSHAKE,    /* SSL error during handshake */
+	CO_ER_SSL_NO_TARGET,    /* unkonwn target (not client nor server) */
 };
 
 /* xprt_ops describes transport-layer operations for a connection. They

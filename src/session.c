@@ -286,7 +286,8 @@ static void kill_mini_session(struct session *s)
 	if (log && (s->fe->options & PR_O_NULLNOLOG)) {
 		/* with "option dontlognull", we don't log connections with no transfer */
 		if (!conn->err_code ||
-		    conn->err_code == CO_ER_PRX_EMPTY || conn->err_code == CO_ER_PRX_ABORT)
+		    conn->err_code == CO_ER_PRX_EMPTY || conn->err_code == CO_ER_PRX_ABORT ||
+		    conn->err_code == CO_ER_SSL_EMPTY || conn->err_code == CO_ER_SSL_ABORT)
 			log = 0;
 	}
 
