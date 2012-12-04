@@ -2334,6 +2334,8 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 				session_inc_http_err_ctr(s);
 			}
 
+			txn->status = 400;
+			stream_int_retnclose(req->prod, NULL);
 			msg->msg_state = HTTP_MSG_ERROR;
 			req->analysers = 0;
 
