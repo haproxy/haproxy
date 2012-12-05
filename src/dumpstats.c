@@ -14,7 +14,6 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -66,7 +65,7 @@ static int stats_dump_raw_to_buffer(struct stream_interface *si);
 static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct session *sess);
 static int stats_dump_sess_to_buffer(struct stream_interface *si);
 static int stats_dump_errors_to_buffer(struct stream_interface *si);
-static int stats_table_request(struct stream_interface *si, bool show);
+static int stats_table_request(struct stream_interface *si, int show);
 static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_auth *uri);
 static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri);
 
@@ -3957,12 +3956,12 @@ void cli_release_handler(struct stream_interface *si)
  * properly set. It returns 0 if the output buffer is full and it needs
  * to be called again, otherwise non-zero.
  */
-static int stats_table_request(struct stream_interface *si, bool show)
+static int stats_table_request(struct stream_interface *si, int show)
 {
 	struct session *s = si->conn->xprt_ctx;
 	struct ebmb_node *eb;
 	int dt;
-	bool skip_entry;
+	int skip_entry;
 
 	/*
 	 * We have 3 possible states in si->conn->xprt_st :
@@ -4027,7 +4026,7 @@ static int stats_table_request(struct stream_interface *si, bool show)
 			break;
 
 		case STAT_ST_LIST:
-			skip_entry = false;
+			skip_entry = 0;
 
 			if (si->applet.ctx.table.data_type >= 0) {
 				/* we're filtering on some data contents */
@@ -4069,7 +4068,7 @@ static int stats_table_request(struct stream_interface *si, bool show)
 				     (si->applet.ctx.table.data_op == STD_OP_EQ ||
 				      si->applet.ctx.table.data_op == STD_OP_LT ||
 				      si->applet.ctx.table.data_op == STD_OP_LE)))
-					skip_entry = true;
+					skip_entry = 1;
 			}
 
 			if (show && !skip_entry &&
