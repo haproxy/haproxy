@@ -437,8 +437,8 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, struct proxy *cu
 	struct dirent *de;
 	DIR *dir;
 	struct stat buf;
-	int pathlen = 0;
-	char *end, *fp;
+	char *end;
+	char fp[MAXPATHLEN+1];
 	int cfgerr = 0;
 
 	if (!(dir = opendir(path)))
@@ -448,12 +448,8 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, struct proxy *cu
 	for (end = path + strlen(path) - 1; end >= path && *end == '/'; end--)
 		*end = 0;
 
-	if (end >= path)
-		pathlen = end + 1 - path;
-	fp = malloc(pathlen + 1 + NAME_MAX + 1);
-
 	while ((de = readdir(dir))) {
-		snprintf(fp, pathlen + 1 + NAME_MAX + 1, "%s/%s", path, de->d_name);
+		snprintf(fp, sizeof(fp), "%s/%s", path, de->d_name);
 		if (stat(fp, &buf) != 0) {
 			memprintf(err, "%sunable to stat SSL certificate from file '%s' : %s.\n",
 			          err && *err ? *err : "", fp, strerror(errno));
@@ -464,7 +460,6 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, struct proxy *cu
 			continue;
 		cfgerr += ssl_sock_load_cert_file(fp, bind_conf, curproxy, err);
 	}
-	free(fp);
 	closedir(dir);
 	return cfgerr;
 }
