@@ -153,7 +153,7 @@ int conn_fd_handler(int fd)
 		conn->flags |= CO_FL_CONNECTED;
 
 	/* remove the events before leaving */
-	fdtab[fd].ev &= ~(FD_POLL_IN | FD_POLL_OUT | FD_POLL_HUP | FD_POLL_ERR);
+	fdtab[fd].ev &= FD_POLL_STICKY;
 
 	/* commit polling changes */
 	conn_cond_update_polling(conn);

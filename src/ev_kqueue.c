@@ -152,10 +152,10 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			 * them so that if nothing can be done we don't need
 			 * to poll again.
 			 */
-			if (fdtab[fd].ev & (FD_POLL_IN|FD_POLL_HUP|FD_POLL_ERR))
+			if (fdtab[fd].ev & FD_POLL_IN)
 				fd_ev_set(fd, DIR_RD);
 
-			if (fdtab[fd].ev & (FD_POLL_OUT|FD_POLL_ERR))
+			if (fdtab[fd].ev & FD_POLL_OUT)
 				fd_ev_set(fd, DIR_WR);
 
 			fdtab[fd].iocb(fd);
