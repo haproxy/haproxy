@@ -1587,6 +1587,20 @@ acl_fetch_srv_conn(struct proxy *px, struct session *l4, void *l7, unsigned int 
 	return 1;
 }
 
+/* set temp integer to the number of enabled servers on the proxy.
+ * Accepts exactly 1 argument. Argument is a server, other types will lead to
+ * undefined behaviour.
+ */
+static int
+acl_fetch_srv_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                        const struct arg *args, struct sample *smp)
+{
+	smp->flags = SMP_F_VOL_TEST;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = read_freq_ctr(&args->data.srv->sess_per_sec);
+	return 1;
+}
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
@@ -1601,6 +1615,7 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "srv_conn",     acl_parse_int,     acl_fetch_srv_conn,       acl_match_int,     ACL_USE_NOTHING, ARG1(1,SRV) },
 	{ "srv_id",       acl_parse_int,     acl_fetch_srv_id,         acl_match_int,     ACL_USE_RTR_INTERNAL, 0 },
 	{ "srv_is_up",    acl_parse_nothing, acl_fetch_srv_is_up,      acl_match_nothing, ACL_USE_NOTHING, ARG1(1,SRV) },
+	{ "srv_sess_rate", acl_parse_int,    acl_fetch_srv_sess_rate,  acl_match_int,     ACL_USE_NOTHING, ARG1(1,SRV) },
 	{ NULL, NULL, NULL, NULL },
 }};
 

@@ -8021,6 +8021,20 @@ be_sess_rate(<backend>) <integer>
             acl being_scanned be_sess_rate gt 100
             redirect location /denied.html if being_scanned
 
+srv_sess_rate(<backend>/<server>) <integer>
+  Returns true when the sessions creation rate on the server matches the
+  specified values or ranges, in number of new sessions per second. This is
+  used to switch to an alternate backend when an expensive or fragile one
+  reaches too high a session rate, or to limit abuse of service (eg. prevent
+  latent requests from overloading servers).
+
+  Example :
+        # Redirect to a separate back
+        acl srv1_full srv_sess_rate(be1/srv1) gt 50
+        acl srv2_full srv_sess_rate(be1/srv2) gt 50
+        use_backend be2 if srv1_full or srv2_full
+
+
 connslots <integer>
 connslots(<backend>) <integer>
   The basic idea here is to be able to measure the number of connection "slots"
