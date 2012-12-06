@@ -282,6 +282,16 @@ static int raw_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
  read0:
 	conn_sock_read0(conn);
 	conn->flags &= ~CO_FL_WAIT_L4_CONN;
+
+	/* Now a final check for a possible asynchronous low-level error
+	 * report. This can happen when a connection receives a reset
+	 * after a shutdown, both POLL_HUP and POLL_ERR are queued, and
+	 * we might have come from there by just checking POLL_HUP instead
+	 * of recv()'s return value 0, so we have no way to tell there was
+	 * an error without checking.
+	 */
+	if (unlikely(fdtab[conn->t.sock.fd].ev & FD_POLL_ERR))
+		conn->flags |= CO_FL_ERROR;
 	return done;
 }
 
