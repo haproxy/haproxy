@@ -437,20 +437,18 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 	if ((connect(fd, (struct sockaddr *)&conn->addr.to, get_addr_len(&conn->addr.to)) == -1) &&
 	    (errno != EINPROGRESS) && (errno != EALREADY) && (errno != EISCONN)) {
 
-		if (errno == EAGAIN || errno == EADDRINUSE) {
+		if (errno == EAGAIN || errno == EADDRINUSE || errno == EADDRNOTAVAIL) {
 			char *msg;
-			if (errno == EAGAIN) /* no free ports left, try again later */
+			if (errno == EAGAIN || errno == EADDRNOTAVAIL)
 				msg = "no free ports";
 			else
 				msg = "local address already in use";
 
-			qfprintf(stderr,"Cannot connect: %s.\n",msg);
+			qfprintf(stderr,"Connect() failed for backend %s: %s.\n", be->id, msg);
 			port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
 			fdinfo[fd].port_range = NULL;
 			close(fd);
-			send_log(be, LOG_EMERG,
-				 "Connect() failed for server %s/%s: %s.\n",
-				 be->id, srv->id, msg);
+			send_log(be, LOG_ERR, "Connect() failed for backend %s: %s.\n", be->id, msg);
 			return SN_ERR_RESOURCE;
 		} else if (errno == ETIMEDOUT) {
 			//qfprintf(stderr,"Connect(): ETIMEDOUT");
