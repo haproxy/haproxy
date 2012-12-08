@@ -247,6 +247,7 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 	int fd;
 	struct server *srv;
 	struct proxy *be;
+	struct conn_src *src;
 
 	switch (obj_type(conn->target)) {
 	case OBJ_TYPE_PROXY:
@@ -303,11 +304,18 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 	 * - server-specific at first
 	 * - proxy-specific next
 	 */
-	if (srv != NULL && srv->conn_src.opts & CO_SRC_BIND) {
+	if (srv && srv->conn_src.opts & CO_SRC_BIND)
+		src = &srv->conn_src;
+	else if (be->conn_src.opts & CO_SRC_BIND)
+		src = &be->conn_src;
+	else
+		src = NULL;
+
+	if (src) {
 		int ret, flags = 0;
 
 		if (is_addr(&conn->addr.from)) {
-			switch (srv->conn_src.opts & CO_SRC_TPROXY_MASK) {
+			switch (src->opts & CO_SRC_TPROXY_MASK) {
 			case CO_SRC_TPROXY_ADDR:
 			case CO_SRC_TPROXY_CLI:
 				flags = 3;
@@ -321,16 +329,16 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 
 #ifdef SO_BINDTODEVICE
 		/* Note: this might fail if not CAP_NET_RAW */
-		if (srv->conn_src.iface_name)
-			setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, srv->conn_src.iface_name, srv->conn_src.iface_len + 1);
+		if (src->iface_name)
+			setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, src->iface_name, src->iface_len + 1);
 #endif
 
-		if (srv->conn_src.sport_range) {
+		if (src->sport_range) {
 			int attempts = 10; /* should be more than enough to find a spare port */
-			struct sockaddr_storage src;
+			struct sockaddr_storage sa;
 
 			ret = 1;
-			src = srv->conn_src.source_addr;
+			sa = src->source_addr;
 
 			do {
 				/* note: in case of retry, we may have to release a previously
@@ -343,76 +351,36 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 					break;
 				attempts--;
 
-				fdinfo[fd].local_port = port_range_alloc_port(srv->conn_src.sport_range);
+				fdinfo[fd].local_port = port_range_alloc_port(src->sport_range);
 				if (!fdinfo[fd].local_port)
 					break;
 
-				fdinfo[fd].port_range = srv->conn_src.sport_range;
-				set_host_port(&src, fdinfo[fd].local_port);
+				fdinfo[fd].port_range = src->sport_range;
+				set_host_port(&sa, fdinfo[fd].local_port);
 
-				ret = tcp_bind_socket(fd, flags, &src, &conn->addr.from);
+				ret = tcp_bind_socket(fd, flags, &sa, &conn->addr.from);
 			} while (ret != 0); /* binding NOK */
 		}
 		else {
-			ret = tcp_bind_socket(fd, flags, &srv->conn_src.source_addr, &conn->addr.from);
+			ret = tcp_bind_socket(fd, flags, &src->source_addr, &conn->addr.from);
 		}
 
-		if (ret) {
+		if (unlikely(ret != 0)) {
 			port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
 			fdinfo[fd].port_range = NULL;
 			close(fd);
 
 			if (ret == 1) {
-				Alert("Cannot bind to source address before connect() for server %s/%s. Aborting.\n",
-				      be->id, srv->id);
-				send_log(be, LOG_EMERG,
-					 "Cannot bind to source address before connect() for server %s/%s.\n",
-					 be->id, srv->id);
-			} else {
-				Alert("Cannot bind to tproxy source address before connect() for server %s/%s. Aborting.\n",
-				      be->id, srv->id);
-				send_log(be, LOG_EMERG,
-					 "Cannot bind to tproxy source address before connect() for server %s/%s.\n",
-					 be->id, srv->id);
-			}
-			return SN_ERR_RESOURCE;
-		}
-	}
-	else if (be->conn_src.opts & CO_SRC_BIND) {
-		int ret, flags = 0;
-
-		if (is_addr(&conn->addr.from)) {
-			switch (be->conn_src.opts & CO_SRC_BIND) {
-			case CO_SRC_TPROXY_ADDR:
-			case CO_SRC_TPROXY_CLI:
-				flags = 3;
-				break;
-			case CO_SRC_TPROXY_CIP:
-			case CO_SRC_TPROXY_DYN:
-				flags = 1;
-				break;
-			}
-		}
-
-#ifdef SO_BINDTODEVICE
-		/* Note: this might fail if not CAP_NET_RAW */
-		if (be->conn_src.iface_name)
-			setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, be->conn_src.iface_name, be->conn_src.iface_len + 1);
-#endif
-		ret = tcp_bind_socket(fd, flags, &be->conn_src.source_addr, &conn->addr.from);
-		if (ret) {
-			close(fd);
-			if (ret == 1) {
-				Alert("Cannot bind to source address before connect() for proxy %s. Aborting.\n",
+				Alert("Cannot bind to source address before connect() for backend %s. Aborting.\n",
 				      be->id);
 				send_log(be, LOG_EMERG,
-					 "Cannot bind to source address before connect() for proxy %s.\n",
+					 "Cannot bind to source address before connect() for backend %s.\n",
 					 be->id);
 			} else {
-				Alert("Cannot bind to tproxy source address before connect() for proxy %s. Aborting.\n",
+				Alert("Cannot bind to tproxy source address before connect() for backend %s. Aborting.\n",
 				      be->id);
 				send_log(be, LOG_EMERG,
-					 "Cannot bind to tproxy source address before connect() for proxy %s.\n",
+					 "Cannot bind to tproxy source address before connect() for backend %s.\n",
 					 be->id);
 			}
 			return SN_ERR_RESOURCE;
