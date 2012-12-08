@@ -470,6 +470,7 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 
 	fdtab[fd].owner = conn;
 	conn->flags  = CO_FL_WAIT_L4_CONN; /* connection in progress */
+	conn->flags |= CO_FL_ADDR_TO_SET;
 
 	fdtab[fd].iocb = conn_fd_handler;
 	fd_insert(fd);
