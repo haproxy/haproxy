@@ -1785,9 +1785,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->hh_len  = defproxy.hh_len;
 			curproxy->hh_match_domain  = defproxy.hh_match_domain;
 
-			if (defproxy.iface_name)
-				curproxy->iface_name = strdup(defproxy.iface_name);
-			curproxy->iface_len  = defproxy.iface_len;
+			if (defproxy.conn_src.iface_name)
+				curproxy->conn_src.iface_name = strdup(defproxy.conn_src.iface_name);
+			curproxy->conn_src.iface_len = defproxy.conn_src.iface_len;
+			curproxy->conn_src.opts = defproxy.conn_src.opts & ~CO_SRC_TPROXY_MASK;
 		}
 
 		if (curproxy->cap & PR_CAP_FE) {
@@ -1829,7 +1830,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->timeout.httpreq = defproxy.timeout.httpreq;
 			curproxy->timeout.httpka = defproxy.timeout.httpka;
 			curproxy->timeout.tunnel = defproxy.timeout.tunnel;
-			curproxy->source_addr = defproxy.source_addr;
+			curproxy->conn_src.source_addr = defproxy.conn_src.source_addr;
 		}
 
 		curproxy->mode = defproxy.mode;
@@ -1877,7 +1878,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		free(defproxy.capture_name);
 		free(defproxy.monitor_uri);
 		free(defproxy.defbe.name);
-		free(defproxy.iface_name);
+		free(defproxy.conn_src.iface_name);
 		free(defproxy.fwdfor_hdr_name);
 		defproxy.fwdfor_hdr_len = 0;
 		free(defproxy.orgto_hdr_name);
@@ -4519,14 +4520,14 @@ stats_error_parsing:
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
-				newsrv->state |= SRV_BIND_SRC;
+				newsrv->conn_src.opts |= CO_SRC_BIND;
 				sk = str2sa_range(args[cur_arg + 1], &port_low, &port_high);
 				if (!sk) {
 					Alert("parsing [%s:%d] : Unknown host in '%s'\n", file, linenum, args[cur_arg + 1]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
-				newsrv->source_addr = *sk;
+				newsrv->conn_src.source_addr = *sk;
 
 				if (port_low != port_high) {
 					int i;
@@ -4538,9 +4539,9 @@ stats_error_parsing:
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
 					}
-					newsrv->sport_range = port_range_alloc_range(port_high - port_low + 1);
-					for (i = 0; i < newsrv->sport_range->size; i++)
-						newsrv->sport_range->ports[i] = port_low + i;
+					newsrv->conn_src.sport_range = port_range_alloc_range(port_high - port_low + 1);
+					for (i = 0; i < newsrv->conn_src.sport_range->size; i++)
+						newsrv->conn_src.sport_range->ports[i] = port_low + i;
 				}
 
 				cur_arg += 2;
@@ -4548,7 +4549,7 @@ stats_error_parsing:
 					if (!strcmp(args[cur_arg], "usesrc")) {  /* address to use outside */
 #if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
 #if !defined(CONFIG_HAP_LINUX_TPROXY)
-						if (newsrv->source_addr.sin_addr.s_addr == INADDR_ANY) {
+						if (!is_addr(&newsrv->conn_src.source_addr)) {
 							Alert("parsing [%s:%d] : '%s' requires an explicit '%s' address.\n",
 							      file, linenum, "usesrc", "source");
 							err_code |= ERR_ALERT | ERR_FATAL;
@@ -4562,11 +4563,11 @@ stats_error_parsing:
 							goto out;
 						}
 						if (!strcmp(args[cur_arg + 1], "client")) {
-							newsrv->state &= ~SRV_TPROXY_MASK;
-							newsrv->state |= SRV_TPROXY_CLI;
+							newsrv->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
+							newsrv->conn_src.opts |= CO_SRC_TPROXY_CLI;
 						} else if (!strcmp(args[cur_arg + 1], "clientip")) {
-							newsrv->state &= ~SRV_TPROXY_MASK;
-							newsrv->state |= SRV_TPROXY_CIP;
+							newsrv->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
+							newsrv->conn_src.opts |= CO_SRC_TPROXY_CIP;
 						} else if (!strncmp(args[cur_arg + 1], "hdr_ip(", 7)) {
 							char *name, *end;
 
@@ -4578,13 +4579,13 @@ stats_error_parsing:
 							while (*end && !isspace(*end) && *end != ',' && *end != ')')
 								end++;
 
-							newsrv->state &= ~SRV_TPROXY_MASK;
-							newsrv->state |= SRV_TPROXY_DYN;
-							newsrv->bind_hdr_name = calloc(1, end - name + 1);
-							newsrv->bind_hdr_len = end - name;
-							memcpy(newsrv->bind_hdr_name, name, end - name);
-							newsrv->bind_hdr_name[end-name] = '\0';
-							newsrv->bind_hdr_occ = -1;
+							newsrv->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
+							newsrv->conn_src.opts |= CO_SRC_TPROXY_DYN;
+							newsrv->conn_src.bind_hdr_name = calloc(1, end - name + 1);
+							newsrv->conn_src.bind_hdr_len = end - name;
+							memcpy(newsrv->conn_src.bind_hdr_name, name, end - name);
+							newsrv->conn_src.bind_hdr_name[end-name] = '\0';
+							newsrv->conn_src.bind_hdr_occ = -1;
 
 							/* now look for an occurrence number */
 							while (isspace(*end))
@@ -4596,10 +4597,10 @@ stats_error_parsing:
 									end++;
 								while (isdigit((int)*end))
 									end++;
-								newsrv->bind_hdr_occ = strl2ic(name, end-name);
+								newsrv->conn_src.bind_hdr_occ = strl2ic(name, end-name);
 							}
 
-							if (newsrv->bind_hdr_occ < -MAX_HDR_HISTORY) {
+							if (newsrv->conn_src.bind_hdr_occ < -MAX_HDR_HISTORY) {
 								Alert("parsing [%s:%d] : usesrc hdr_ip(name,num) does not support negative"
 								      " occurrences values smaller than %d.\n",
 								      file, linenum, MAX_HDR_HISTORY);
@@ -4613,8 +4614,8 @@ stats_error_parsing:
 								err_code |= ERR_ALERT | ERR_FATAL;
 								goto out;
 							}
-							newsrv->tproxy_addr = *sk;
-							newsrv->state |= SRV_TPROXY_ADDR;
+							newsrv->conn_src.tproxy_addr = *sk;
+							newsrv->conn_src.opts |= CO_SRC_TPROXY_ADDR;
 						}
 						global.last_checks |= LSTCHK_NETADM;
 #if !defined(CONFIG_HAP_LINUX_TPROXY)
@@ -4638,11 +4639,9 @@ stats_error_parsing:
 							err_code |= ERR_ALERT | ERR_FATAL;
 							goto out;
 						}
-						if (newsrv->iface_name)
-							free(newsrv->iface_name);
-
-						newsrv->iface_name = strdup(args[cur_arg + 1]);
-						newsrv->iface_len  = strlen(newsrv->iface_name);
+						free(newsrv->conn_src.iface_name);
+						newsrv->conn_src.iface_name = strdup(args[cur_arg + 1]);
+						newsrv->conn_src.iface_len  = strlen(newsrv->conn_src.iface_name);
 						global.last_checks |= LSTCHK_NETADM;
 #else
 						Alert("parsing [%s:%d] : '%s' : '%s' option not implemented.\n",
@@ -4961,10 +4960,10 @@ stats_error_parsing:
 		}
 
 		/* we must first clear any optional default setting */	
-		curproxy->options &= ~PR_O_TPXY_MASK;
-		free(curproxy->iface_name);
-		curproxy->iface_name = NULL;
-		curproxy->iface_len = 0;
+		curproxy->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
+		free(curproxy->conn_src.iface_name);
+		curproxy->conn_src.iface_name = NULL;
+		curproxy->conn_src.iface_len = 0;
 
 		sk = str2sa(args[1]);
 		if (!sk) {
@@ -4972,15 +4971,15 @@ stats_error_parsing:
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-		curproxy->source_addr = *sk;
-		curproxy->options |= PR_O_BIND_SRC;
+		curproxy->conn_src.source_addr = *sk;
+		curproxy->conn_src.opts |= CO_SRC_BIND;
 
 		cur_arg = 2;
 		while (*(args[cur_arg])) {
 			if (!strcmp(args[cur_arg], "usesrc")) {  /* address to use outside */
 #if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
 #if !defined(CONFIG_HAP_LINUX_TPROXY)
-				if (curproxy->source_addr.sin_addr.s_addr == INADDR_ANY) {
+				if (!is_addr(&curproxy->conn_src.source_addr)) {
 					Alert("parsing [%s:%d] : '%s' requires an explicit 'source' address.\n",
 					      file, linenum, "usesrc");
 					err_code |= ERR_ALERT | ERR_FATAL;
@@ -4995,11 +4994,11 @@ stats_error_parsing:
 				}
 
 				if (!strcmp(args[cur_arg + 1], "client")) {
-					curproxy->options &= ~PR_O_TPXY_MASK;
-					curproxy->options |= PR_O_TPXY_CLI;
+					curproxy->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
+					curproxy->conn_src.opts |= CO_SRC_TPROXY_CLI;
 				} else if (!strcmp(args[cur_arg + 1], "clientip")) {
-					curproxy->options &= ~PR_O_TPXY_MASK;
-					curproxy->options |= PR_O_TPXY_CIP;
+					curproxy->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
+					curproxy->conn_src.opts |= CO_SRC_TPROXY_CIP;
 				} else if (!strncmp(args[cur_arg + 1], "hdr_ip(", 7)) {
 					char *name, *end;
 
@@ -5011,13 +5010,13 @@ stats_error_parsing:
 					while (*end && !isspace(*end) && *end != ',' && *end != ')')
 						end++;
 
-					curproxy->options &= ~PR_O_TPXY_MASK;
-					curproxy->options |= PR_O_TPXY_DYN;
-					curproxy->bind_hdr_name = calloc(1, end - name + 1);
-					curproxy->bind_hdr_len = end - name;
-					memcpy(curproxy->bind_hdr_name, name, end - name);
-					curproxy->bind_hdr_name[end-name] = '\0';
-					curproxy->bind_hdr_occ = -1;
+					curproxy->conn_src.opts &= ~CO_SRC_TPROXY_MASK;
+					curproxy->conn_src.opts |= CO_SRC_TPROXY_DYN;
+					curproxy->conn_src.bind_hdr_name = calloc(1, end - name + 1);
+					curproxy->conn_src.bind_hdr_len = end - name;
+					memcpy(curproxy->conn_src.bind_hdr_name, name, end - name);
+					curproxy->conn_src.bind_hdr_name[end-name] = '\0';
+					curproxy->conn_src.bind_hdr_occ = -1;
 
 					/* now look for an occurrence number */
 					while (isspace(*end))
@@ -5029,10 +5028,10 @@ stats_error_parsing:
 							end++;
 						while (isdigit((int)*end))
 							end++;
-						curproxy->bind_hdr_occ = strl2ic(name, end-name);
+						curproxy->conn_src.bind_hdr_occ = strl2ic(name, end-name);
 					}
 
-					if (curproxy->bind_hdr_occ < -MAX_HDR_HISTORY) {
+					if (curproxy->conn_src.bind_hdr_occ < -MAX_HDR_HISTORY) {
 						Alert("parsing [%s:%d] : usesrc hdr_ip(name,num) does not support negative"
 						      " occurrences values smaller than %d.\n",
 						      file, linenum, MAX_HDR_HISTORY);
@@ -5046,8 +5045,8 @@ stats_error_parsing:
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
 					}
-					curproxy->tproxy_addr = *sk;
-					curproxy->options |= PR_O_TPXY_ADDR;
+					curproxy->conn_src.tproxy_addr = *sk;
+					curproxy->conn_src.opts |= CO_SRC_TPROXY_ADDR;
 				}
 				global.last_checks |= LSTCHK_NETADM;
 #if !defined(CONFIG_HAP_LINUX_TPROXY)
@@ -5071,11 +5070,9 @@ stats_error_parsing:
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
-				if (curproxy->iface_name)
-					free(curproxy->iface_name);
-
-				curproxy->iface_name = strdup(args[cur_arg + 1]);
-				curproxy->iface_len  = strlen(curproxy->iface_name);
+				free(curproxy->conn_src.iface_name);
+				curproxy->conn_src.iface_name = strdup(args[cur_arg + 1]);
+				curproxy->conn_src.iface_len  = strlen(curproxy->conn_src.iface_name);
 				global.last_checks |= LSTCHK_NETADM;
 #else
 				Alert("parsing [%s:%d] : '%s' : '%s' option not implemented.\n",
@@ -6717,10 +6714,10 @@ out_uri_auth_compat:
 			}
 
 #if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
-			if (curproxy->bind_hdr_occ) {
-				curproxy->bind_hdr_occ = 0;
+			if (curproxy->conn_src.bind_hdr_occ) {
+				curproxy->conn_src.bind_hdr_occ = 0;
 				Warning("config : %s '%s' : ignoring use of header %s as source IP in non-HTTP mode.\n",
-					proxy_type_str(curproxy), curproxy->id, curproxy->bind_hdr_name);
+					proxy_type_str(curproxy), curproxy->id, curproxy->conn_src.bind_hdr_name);
 				err_code |= ERR_WARN;
 			}
 #endif
@@ -6744,10 +6741,10 @@ out_uri_auth_compat:
 			}
 
 #if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
-			if (curproxy->mode != PR_MODE_HTTP && newsrv->bind_hdr_occ) {
-				newsrv->bind_hdr_occ = 0;
+			if (curproxy->mode != PR_MODE_HTTP && newsrv->conn_src.bind_hdr_occ) {
+				newsrv->conn_src.bind_hdr_occ = 0;
 				Warning("config : %s '%s' : server %s cannot use header %s as source IP in non-HTTP mode.\n",
-					proxy_type_str(curproxy), curproxy->id, newsrv->id, newsrv->bind_hdr_name);
+					proxy_type_str(curproxy), curproxy->id, newsrv->id, newsrv->conn_src.bind_hdr_name);
 				err_code |= ERR_WARN;
 			}
 #endif

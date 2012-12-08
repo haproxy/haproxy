@@ -78,7 +78,7 @@ enum {
 #define PR_O_DISPATCH   0x00000040      /* use dispatch mode */
 #define PR_O_KEEPALIVE  0x00000080      /* follow keep-alive sessions */
 #define PR_O_FWDFOR     0x00000100      /* conditionally insert x-forwarded-for with client address */
-#define PR_O_BIND_SRC   0x00000200      /* bind to a specific source address when connect()ing */
+/* unused: 0x00000200 */
 #define PR_O_NULLNOLOG  0x00000400      /* a connect without request will not be logged */
 /* unused: 0x0800, 0x1000 */
 #define PR_O_FF_ALWAYS  0x00002000      /* always set x-forwarded-for */
@@ -93,13 +93,7 @@ enum {
 #define PR_O_TCP_NOLING 0x00400000      /* disable lingering on client and server connections */
 #define PR_O_ABRT_CLOSE 0x00800000      /* immediately abort request when client closes */
 
-/* TPXY: exclusive values */
-#define PR_O_TPXY_ADDR  0x01000000	/* bind to this non-local address when connect()ing */
-#define PR_O_TPXY_CIP   0x02000000	/* bind to the client's IP address when connect()ing */
-#define PR_O_TPXY_CLI   0x03000000	/* bind to the client's IP+port when connect()ing */
-#define PR_O_TPXY_DYN   0x04000000	/* bind to a dynamically computed non-local address */
-#define PR_O_TPXY_MASK  0x07000000	/* bind to a non-local address when connect()ing */
-
+/* unused: 0x01000000, 0x02000000, 0x04000000 */
 #define PR_O_SERVER_CLO 0x08000000	/* option http-server-close */
 #define PR_O_CONTSTATS	0x10000000	/* continous counters */
 #define PR_O_HTTP_PROXY 0x20000000	/* Enable session to use HTTP proxy operations */
@@ -303,9 +297,8 @@ struct proxy {
 
 	int conn_retries;			/* maximum number of connect retries */
 	int cap;				/* supported capabilities (PR_CAP_*) */
-	int iface_len;				/* bind interface name length */
-	char *iface_name;			/* bind interface name or NULL */
 	int (*accept)(struct session *s);       /* application layer's accept() */
+	struct conn_src conn_src;               /* connection source settings */
 	struct proxy *next;
 	struct list logsrvs;
 	struct list logformat; 			/* log_format linked list */
@@ -340,13 +333,6 @@ struct proxy {
 
 	/* warning: these structs are huge, keep them at the bottom */
 	struct sockaddr_storage dispatch_addr;	/* the default address to connect to */
-	struct sockaddr_storage source_addr;	/* the address to which we want to bind for connect() */
-#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
-	struct sockaddr_storage tproxy_addr;	/* non-local address we want to bind to for connect() */
-	char *bind_hdr_name;			/* bind to this header name if defined */
-	int bind_hdr_len;			/* length of the name of the header above */
-	int bind_hdr_occ;			/* occurrence number of header above: >0 = from first, <0 = from end, 0=disabled */
-#endif
 	struct error_snapshot invalid_req, invalid_rep; /* captures of last errors */
 
 	/* used only during configuration parsing */

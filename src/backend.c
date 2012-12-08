@@ -885,18 +885,18 @@ static void assign_tproxy_address(struct session *s)
 #if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
 	struct server *srv = objt_server(s->target);
 
-	if (srv && srv->state & SRV_BIND_SRC) {
-		switch (srv->state & SRV_TPROXY_MASK) {
-		case SRV_TPROXY_ADDR:
-			s->req->cons->conn->addr.from = srv->tproxy_addr;
+	if (srv && srv->conn_src.opts & CO_SRC_BIND) {
+		switch (srv->conn_src.opts & CO_SRC_TPROXY_MASK) {
+		case CO_SRC_TPROXY_ADDR:
+			s->req->cons->conn->addr.from = srv->conn_src.tproxy_addr;
 			break;
-		case SRV_TPROXY_CLI:
-		case SRV_TPROXY_CIP:
+		case CO_SRC_TPROXY_CLI:
+		case CO_SRC_TPROXY_CIP:
 			/* FIXME: what can we do if the client connects in IPv6 or unix socket ? */
 			s->req->cons->conn->addr.from = s->req->prod->conn->addr.from;
 			break;
-		case SRV_TPROXY_DYN:
-			if (srv->bind_hdr_occ) {
+		case CO_SRC_TPROXY_DYN:
+			if (srv->conn_src.bind_hdr_occ) {
 				char *vptr;
 				int vlen;
 				int rewind;
@@ -907,8 +907,8 @@ static void assign_tproxy_address(struct session *s)
 				((struct sockaddr_in *)&s->req->cons->conn->addr.from)->sin_addr.s_addr = 0;
 
 				b_rew(s->req->buf, rewind = s->req->buf->o);
-				if (http_get_hdr(&s->txn.req, srv->bind_hdr_name, srv->bind_hdr_len,
-						 &s->txn.hdr_idx, srv->bind_hdr_occ, NULL, &vptr, &vlen)) {
+				if (http_get_hdr(&s->txn.req, srv->conn_src.bind_hdr_name, srv->conn_src.bind_hdr_len,
+						 &s->txn.hdr_idx, srv->conn_src.bind_hdr_occ, NULL, &vptr, &vlen)) {
 					((struct sockaddr_in *)&s->req->cons->conn->addr.from)->sin_addr.s_addr =
 						htonl(inetaddr_host_lim(vptr, vptr + vlen));
 				}
@@ -919,18 +919,18 @@ static void assign_tproxy_address(struct session *s)
 			memset(&s->req->cons->conn->addr.from, 0, sizeof(s->req->cons->conn->addr.from));
 		}
 	}
-	else if (s->be->options & PR_O_BIND_SRC) {
-		switch (s->be->options & PR_O_TPXY_MASK) {
-		case PR_O_TPXY_ADDR:
-			s->req->cons->conn->addr.from = s->be->tproxy_addr;
+	else if (s->be->conn_src.opts & CO_SRC_BIND) {
+		switch (s->be->conn_src.opts & CO_SRC_TPROXY_MASK) {
+		case CO_SRC_TPROXY_ADDR:
+			s->req->cons->conn->addr.from = s->be->conn_src.tproxy_addr;
 			break;
-		case PR_O_TPXY_CLI:
-		case PR_O_TPXY_CIP:
+		case CO_SRC_TPROXY_CLI:
+		case CO_SRC_TPROXY_CIP:
 			/* FIXME: what can we do if the client connects in IPv6 or socket unix? */
 			s->req->cons->conn->addr.from = s->req->prod->conn->addr.from;
 			break;
-		case PR_O_TPXY_DYN:
-			if (s->be->bind_hdr_occ) {
+		case CO_SRC_TPROXY_DYN:
+			if (s->be->conn_src.bind_hdr_occ) {
 				char *vptr;
 				int vlen;
 				int rewind;
@@ -941,8 +941,8 @@ static void assign_tproxy_address(struct session *s)
 				((struct sockaddr_in *)&s->req->cons->conn->addr.from)->sin_addr.s_addr = 0;
 
 				b_rew(s->req->buf, rewind = s->req->buf->o);
-				if (http_get_hdr(&s->txn.req, s->be->bind_hdr_name, s->be->bind_hdr_len,
-						 &s->txn.hdr_idx, s->be->bind_hdr_occ, NULL, &vptr, &vlen)) {
+				if (http_get_hdr(&s->txn.req, s->be->conn_src.bind_hdr_name, s->be->conn_src.bind_hdr_len,
+						 &s->txn.hdr_idx, s->be->conn_src.bind_hdr_occ, NULL, &vptr, &vlen)) {
 					((struct sockaddr_in *)&s->req->cons->conn->addr.from)->sin_addr.s_addr =
 						htonl(inetaddr_host_lim(vptr, vptr + vlen));
 				}

@@ -303,17 +303,17 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 	 * - server-specific at first
 	 * - proxy-specific next
 	 */
-	if (srv != NULL && srv->state & SRV_BIND_SRC) {
+	if (srv != NULL && srv->conn_src.opts & CO_SRC_BIND) {
 		int ret, flags = 0;
 
 		if (is_addr(&conn->addr.from)) {
-			switch (srv->state & SRV_TPROXY_MASK) {
-			case SRV_TPROXY_ADDR:
-			case SRV_TPROXY_CLI:
+			switch (srv->conn_src.opts & CO_SRC_TPROXY_MASK) {
+			case CO_SRC_TPROXY_ADDR:
+			case CO_SRC_TPROXY_CLI:
 				flags = 3;
 				break;
-			case SRV_TPROXY_CIP:
-			case SRV_TPROXY_DYN:
+			case CO_SRC_TPROXY_CIP:
+			case CO_SRC_TPROXY_DYN:
 				flags = 1;
 				break;
 			}
@@ -321,16 +321,16 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 
 #ifdef SO_BINDTODEVICE
 		/* Note: this might fail if not CAP_NET_RAW */
-		if (srv->iface_name)
-			setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, srv->iface_name, srv->iface_len + 1);
+		if (srv->conn_src.iface_name)
+			setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, srv->conn_src.iface_name, srv->conn_src.iface_len + 1);
 #endif
 
-		if (srv->sport_range) {
+		if (srv->conn_src.sport_range) {
 			int attempts = 10; /* should be more than enough to find a spare port */
 			struct sockaddr_storage src;
 
 			ret = 1;
-			src = srv->source_addr;
+			src = srv->conn_src.source_addr;
 
 			do {
 				/* note: in case of retry, we may have to release a previously
@@ -343,18 +343,18 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 					break;
 				attempts--;
 
-				fdinfo[fd].local_port = port_range_alloc_port(srv->sport_range);
+				fdinfo[fd].local_port = port_range_alloc_port(srv->conn_src.sport_range);
 				if (!fdinfo[fd].local_port)
 					break;
 
-				fdinfo[fd].port_range = srv->sport_range;
+				fdinfo[fd].port_range = srv->conn_src.sport_range;
 				set_host_port(&src, fdinfo[fd].local_port);
 
 				ret = tcp_bind_socket(fd, flags, &src, &conn->addr.from);
 			} while (ret != 0); /* binding NOK */
 		}
 		else {
-			ret = tcp_bind_socket(fd, flags, &srv->source_addr, &conn->addr.from);
+			ret = tcp_bind_socket(fd, flags, &srv->conn_src.source_addr, &conn->addr.from);
 		}
 
 		if (ret) {
@@ -378,17 +378,17 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 			return SN_ERR_RESOURCE;
 		}
 	}
-	else if (be->options & PR_O_BIND_SRC) {
+	else if (be->conn_src.opts & CO_SRC_BIND) {
 		int ret, flags = 0;
 
 		if (is_addr(&conn->addr.from)) {
-			switch (be->options & PR_O_TPXY_MASK) {
-			case PR_O_TPXY_ADDR:
-			case PR_O_TPXY_CLI:
+			switch (be->conn_src.opts & CO_SRC_BIND) {
+			case CO_SRC_TPROXY_ADDR:
+			case CO_SRC_TPROXY_CLI:
 				flags = 3;
 				break;
-			case PR_O_TPXY_CIP:
-			case PR_O_TPXY_DYN:
+			case CO_SRC_TPROXY_CIP:
+			case CO_SRC_TPROXY_DYN:
 				flags = 1;
 				break;
 			}
@@ -396,10 +396,10 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 
 #ifdef SO_BINDTODEVICE
 		/* Note: this might fail if not CAP_NET_RAW */
-		if (be->iface_name)
-			setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, be->iface_name, be->iface_len + 1);
+		if (be->conn_src.iface_name)
+			setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, be->conn_src.iface_name, be->conn_src.iface_len + 1);
 #endif
-		ret = tcp_bind_socket(fd, flags, &be->source_addr, &conn->addr.from);
+		ret = tcp_bind_socket(fd, flags, &be->conn_src.source_addr, &conn->addr.from);
 		if (ret) {
 			close(fd);
 			if (ret == 1) {

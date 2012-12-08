@@ -37,7 +37,6 @@
 #include <types/counters.h>
 #include <types/freq_ctr.h>
 #include <types/obj_type.h>
-#include <types/port_range.h>
 #include <types/proxy.h>
 #include <types/queue.h>
 #include <types/task.h>
@@ -48,16 +47,12 @@
 #define SRV_RUNNING	0x0001	/* the server is UP */
 #define SRV_BACKUP	0x0002	/* this server is a backup server */
 #define SRV_MAPPORTS	0x0004	/* this server uses mapped ports */
-#define SRV_BIND_SRC	0x0008	/* this server uses a specific source address */
+/* unused: 0x0008 */
 #define SRV_CHECKED	0x0010	/* this server needs to be checked */
 #define SRV_GOINGDOWN	0x0020	/* this server says that it's going down (404) */
 #define SRV_WARMINGUP	0x0040	/* this server is warming up after a failure */
 #define SRV_MAINTAIN	0x0080	/* this server is in maintenance mode */
-#define SRV_TPROXY_ADDR	0x0100	/* bind to this non-local address to reach this server */
-#define SRV_TPROXY_CIP	0x0200	/* bind to the client's IP address to reach this server */
-#define SRV_TPROXY_CLI	0x0300	/* bind to the client's IP+port to reach this server */
-#define SRV_TPROXY_DYN	0x0400	/* bind to a dynamically computed non-local address */
-#define SRV_TPROXY_MASK	0x0700	/* bind to a non-local address to reach this server */
+/* unused: 0x0100, 0x0200, 0x0400 */
 #define SRV_SEND_PROXY	0x0800	/* this server talks the PROXY protocol */
 #define SRV_NON_STICK	0x1000	/* never add connections allocated to this server to a stick table */
 #define SRV_CHK_RUNNING 0x2000  /* a check is currently running on this server */
@@ -131,9 +126,7 @@ struct server {
 	struct list actconns;			/* active connections */
 	struct task *warmup;                    /* the task dedicated to the warmup when slowstart is set */
 
-	int iface_len;				/* bind interface name length */
-	char *iface_name;			/* bind interface name or NULL */
-	struct port_range *sport_range;		/* optional per-server TCP source ports */
+	struct conn_src conn_src;               /* connection source settings */
 
 	struct server *tracknext, *track;	/* next server in a tracking list, tracked server */
 	char *trackit;				/* temporary variable to make assignment deferrable */
@@ -163,13 +156,6 @@ struct server {
 
 	/* warning, these structs are huge, keep them at the bottom */
 	struct sockaddr_storage addr;		/* the address to connect to */
-	struct sockaddr_storage source_addr;	/* the address to which we want to bind for connect() */
-#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
-	struct sockaddr_storage tproxy_addr;	/* non-local address we want to bind to for connect() */
-	char *bind_hdr_name;			/* bind to this header name if defined */
-	int bind_hdr_len;			/* length of the name of the header above */
-	int bind_hdr_occ;			/* occurrence number of header above: >0 = from first, <0 = from end, 0=disabled */
-#endif
 	struct protocol *proto;	                /* server address protocol */
 	struct xprt_ops *xprt;                  /* transport-layer operations */
 	unsigned down_time;			/* total time the server was down */

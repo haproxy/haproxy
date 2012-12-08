@@ -29,6 +29,7 @@
 
 #include <types/listener.h>
 #include <types/obj_type.h>
+#include <types/port_range.h>
 #include <types/protocol.h>
 
 /* referenced below */
@@ -162,6 +163,19 @@ enum {
 	CO_ER_SSL_NO_TARGET,    /* unkonwn target (not client nor server) */
 };
 
+/* source address settings for outgoing connections */
+enum {
+	/* Tproxy exclusive values from 0 to 7 */
+	CO_SRC_TPROXY_ADDR = 0x0001,    /* bind to this non-local address when connecting */
+	CO_SRC_TPROXY_CIP  = 0x0002,    /* bind to the client's IP address when connecting */
+	CO_SRC_TPROXY_CLI  = 0x0003,    /* bind to the client's IP+port when connecting */
+	CO_SRC_TPROXY_DYN  = 0x0004,    /* bind to a dynamically computed non-local address */
+	CO_SRC_TPROXY_MASK = 0x0007,    /* bind to a non-local address when connecting */
+
+	CO_SRC_BIND        = 0x0008,    /* bind to a specific source address when connecting */
+};
+
+
 /* xprt_ops describes transport-layer operations for a connection. They
  * generally run over a socket-based control layer, but not always. Some
  * of them are used for data transfer with the upper layer (rcv_*, snd_*)
@@ -193,6 +207,24 @@ struct data_cb {
 	void (*send)(struct connection *conn);  /* data-layer send callback */
 	int  (*wake)(struct connection *conn);  /* data-layer callback to report activity */
 	int  (*init)(struct connection *conn);  /* data-layer initialization */
+};
+
+/* a connection source profile defines all the parameters needed to properly
+ * bind an outgoing connection for a server or proxy.
+ */
+
+struct conn_src {
+	unsigned int opts;                   /* CO_SRC_* */
+	int iface_len;                       /* bind interface name length */
+	char *iface_name;                    /* bind interface name or NULL */
+	struct port_range *sport_range;      /* optional per-server TCP source ports */
+	struct sockaddr_storage source_addr; /* the address to which we want to bind for connect() */
+#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
+	struct sockaddr_storage tproxy_addr; /* non-local address we want to bind to for connect() */
+	char *bind_hdr_name;                 /* bind to this header name if defined */
+	int bind_hdr_len;                    /* length of the name of the header above */
+	int bind_hdr_occ;                    /* occurrence number of header above: >0 = from first, <0 = from end, 0=disabled */
+#endif
 };
 
 /* This structure describes a connection with its methods and data.
