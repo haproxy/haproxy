@@ -4514,13 +4514,8 @@ stats_error_parsing:
 				struct sockaddr_storage *sk;
 
 				if (!*args[cur_arg + 1]) {
-#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
-					Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>[-<port>]], and optional '%s' <addr> as argument.\n",
-					      file, linenum, "source", "usesrc");
-#else
-					Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>[-<port>]] as argument.\n",
-					      file, linenum, "source");
-#endif
+					Alert("parsing [%s:%d] : '%s' expects <addr>[:<port>[-<port>]], and optionally '%s' <addr>, and '%s' <name> as argument.\n",
+					      file, linenum, "source", "usesrc", "interface");
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
