@@ -642,7 +642,7 @@ static void session_free(struct session *s)
 
 	/* ensure the client-side transport layer is destroyed */
 	s->si[0].conn->flags &= ~CO_FL_XPRT_TRACKED;
-	conn_xprt_close(s->si[0].conn);
+	conn_full_close(s->si[0].conn);
 
 	for (i = 0; i < s->store_count; i++) {
 		if (!s->store[i].ts)
@@ -834,9 +834,10 @@ static int sess_update_st_con_tcp(struct session *s, struct stream_interface *si
 		}
 		si->exp   = TICK_ETERNITY;
 		si->state = SI_ST_CER;
-		fd_delete(si->conn->t.sock.fd);
 
-		conn_xprt_close(si->conn);
+		si->conn->flags &= ~CO_FL_XPRT_TRACKED;
+		conn_full_close(si->conn);
+
 		if (si->release)
 			si->release(si);
 
