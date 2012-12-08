@@ -3487,9 +3487,12 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 		/* fall through */
 
 	case 1:
+		get_localtime(sess->logs.accept_date.tv_sec, &tm);
 		chunk_appendf(&trash,
-			     "%p: id=%u, proto=%s",
+			     "%p: [%02d/%s/%04d:%02d:%02d:%02d.%06d] id=%u proto=%s",
 			     sess,
+			     tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
+			     tm.tm_hour, tm.tm_min, tm.tm_sec, (int)(sess->logs.accept_date.tv_usec),
 			     sess->uniq_id,
 			     sess->listener->proto->name);
 
@@ -3583,7 +3586,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 		}
 
 		chunk_appendf(&trash,
-			     "  task=%p (state=0x%02x nice=%d calls=%d exp=%s%s)\n",
+			     "  task=%p (state=0x%02x nice=%d calls=%d exp=%s%s",
 			     sess->task,
 			     sess->task->state,
 			     sess->task->nice, sess->task->calls,
@@ -3593,17 +3596,19 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 			                     TICKS_TO_MS(1000)) : "<NEVER>",
 			     task_in_rq(sess->task) ? ", running" : "");
 
-		get_localtime(sess->logs.accept_date.tv_sec, &tm);
 		chunk_appendf(&trash,
-			     "  task created [%02d/%s/%04d:%02d:%02d:%02d.%06d] (age=%s)\n",
-			     tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
-			     tm.tm_hour, tm.tm_min, tm.tm_sec, (int)(sess->logs.accept_date.tv_usec),
+			     " age=%s)\n",
 			     human_time(now.tv_sec - sess->logs.accept_date.tv_sec, 1));
 
 		chunk_appendf(&trash,
-			     "  si[0]=%p (state=%d flags=0x%02x conn=%p exp=%s, et=0x%03x)\n",
+			     "  txn=%p flags=0x%x meth=%d status=%d req.st=%s rsp.st=%s\n",
+			     &sess->txn, sess->txn.flags, sess->txn.meth, sess->txn.status,
+			     http_msg_state_str(sess->txn.req.msg_state), http_msg_state_str(sess->txn.rsp.msg_state));
+
+		chunk_appendf(&trash,
+			     "  si[0]=%p (state=%s flags=0x%02x conn0=%p exp=%s, et=0x%03x)\n",
 			     &sess->si[0],
-			     sess->si[0].state,
+			     si_state_str(sess->si[0].state),
 			     sess->si[0].flags,
 			     sess->si[0].conn,
 			     sess->si[0].exp ?
@@ -3613,9 +3618,9 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 			     sess->si[0].err_type);
 
 		chunk_appendf(&trash,
-			     "  si[1]=%p (state=%d flags=0x%02x conn=%p exp=%s, et=0x%03x)\n",
+			     "  si[1]=%p (state=%s flags=0x%02x conn1=%p exp=%s, et=0x%03x)\n",
 			     &sess->si[1],
-			     sess->si[1].state,
+			     si_state_str(sess->si[1].state),
 			     sess->si[1].flags,
 			     sess->si[1].conn,
 			     sess->si[1].exp ?
@@ -3625,38 +3630,38 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 			     sess->si[1].err_type);
 
 		chunk_appendf(&trash,
-		              "  lconn=%p ctrl=%s xprt=%s data=%s\n",
+		              "  co0=%p ctrl=%s xprt=%s data=%s target=%s:%p\n",
 			      sess->si[0].conn,
 			      get_conn_ctrl_name(sess->si[0].conn),
 			      get_conn_xprt_name(sess->si[0].conn),
-			      get_conn_data_name(sess->si[0].conn));
+			      get_conn_data_name(sess->si[0].conn),
+		              obj_type_name(sess->si[0].conn->target),
+		              obj_base_ptr(sess->si[0].conn->target));
 
 		chunk_appendf(&trash,
-		              "       target=%d flags=0x%08x fd=%d fd_spec=%02x\n",
-		              sess->si[0].conn->target ? *sess->si[0].conn->target : 0,
+		              "      flags=0x%08x fd=%d fd_spec_e=%02x fd_spec_p=%d updt=%d\n",
 		              sess->si[0].conn->flags,
 		              sess->si[0].conn->t.sock.fd,
-		              sess->si[0].conn->t.sock.fd >= 0 ? fdtab[sess->si[0].conn->t.sock.fd].spec_e : 0);
+		              sess->si[0].conn->t.sock.fd >= 0 ? fdtab[sess->si[0].conn->t.sock.fd].spec_e : 0,
+		              sess->si[0].conn->t.sock.fd >= 0 ? fdtab[sess->si[0].conn->t.sock.fd].spec_p : 0,
+		              sess->si[0].conn->t.sock.fd >= 0 ? fdtab[sess->si[0].conn->t.sock.fd].updated : 0);
 
 		chunk_appendf(&trash,
-		              "  rconn=%p ctrl=%s xprt=%s data=%s\n",
+		              "  co1=%p ctrl=%s xprt=%s data=%s target=%s:%p\n",
 			      sess->si[1].conn,
 			      get_conn_ctrl_name(sess->si[1].conn),
 			      get_conn_xprt_name(sess->si[1].conn),
-			      get_conn_data_name(sess->si[1].conn));
+			      get_conn_data_name(sess->si[1].conn),
+		              obj_type_name(sess->si[1].conn->target),
+		              obj_base_ptr(sess->si[1].conn->target));
 
 		chunk_appendf(&trash,
-		              "     target=%d flags=0x%08x fd=%d fd_spec=%02x\n",
-		              sess->si[1].conn->target ? *sess->si[1].conn->target : 0,
+		              "      flags=0x%08x fd=%d fd_spec_e=%02x fd_spec_p=%d updt=%d\n",
 		              sess->si[1].conn->flags,
 		              sess->si[1].conn->t.sock.fd,
-		              sess->si[1].conn->t.sock.fd >= 0 ? fdtab[sess->si[1].conn->t.sock.fd].spec_e : 0);
-
-		chunk_appendf(&trash,
-			     "  txn=%p flags=0x%x meth=%d status=%d req.st=%s rsp.st=%s\n",
-			     &sess->txn, sess->txn.flags, sess->txn.meth, sess->txn.status,
-			     http_msg_state_str(sess->txn.req.msg_state), http_msg_state_str(sess->txn.rsp.msg_state));
-
+		              sess->si[1].conn->t.sock.fd >= 0 ? fdtab[sess->si[1].conn->t.sock.fd].spec_e : 0,
+		              sess->si[1].conn->t.sock.fd >= 0 ? fdtab[sess->si[1].conn->t.sock.fd].spec_p : 0,
+		              sess->si[1].conn->t.sock.fd >= 0 ? fdtab[sess->si[1].conn->t.sock.fd].updated : 0);
 
 		chunk_appendf(&trash,
 			     "  req=%p (f=0x%06x an=0x%x pipe=%d tofwd=%d total=%lld)\n"

@@ -132,6 +132,24 @@ static inline int si_connect(struct stream_interface *si)
 	return ret;
 }
 
+/* for debugging, reports the stream interface state name */
+static inline const char *si_state_str(int state)
+{
+	switch (state) {
+	case SI_ST_INI: return "INI";
+	case SI_ST_REQ: return "REQ";
+	case SI_ST_QUE: return "QUE";
+	case SI_ST_TAR: return "TAR";
+	case SI_ST_ASS: return "ASS";
+	case SI_ST_CON: return "CON";
+	case SI_ST_CER: return "CER";
+	case SI_ST_EST: return "EST";
+	case SI_ST_DIS: return "DIS";
+	case SI_ST_CLO: return "CLO";
+	default:        return "???";
+	}
+}
+
 #endif /* _PROTO_STREAM_INTERFACE_H */
 
 /*

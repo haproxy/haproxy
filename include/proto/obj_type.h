@@ -37,6 +37,17 @@ static inline enum obj_type obj_type(enum obj_type *t)
 	return *t;
 }
 
+static inline const char *obj_type_name(enum obj_type *t)
+{
+	switch (obj_type(t)) {
+	case OBJ_TYPE_LISTENER: return "LISTENER";
+	case OBJ_TYPE_PROXY:    return "PROXY";
+	case OBJ_TYPE_SERVER:   return "SERVER";
+	case OBJ_TYPE_APPLET:   return "APPLET";
+	default:                return "NONE";
+	}
+}
+
 static inline struct listener *objt_listener(enum obj_type *t)
 {
 	if (!t || *t != OBJ_TYPE_LISTENER)
@@ -63,6 +74,17 @@ static inline struct si_applet *objt_applet(enum obj_type *t)
 	if (!t || *t != OBJ_TYPE_APPLET)
 		return NULL;
 	return container_of(t, struct si_applet, obj_type);
+}
+
+static inline void *obj_base_ptr(enum obj_type *t)
+{
+	switch (obj_type(t)) {
+	case OBJ_TYPE_LISTENER: return objt_listener(t);
+	case OBJ_TYPE_PROXY:    return objt_proxy(t);
+	case OBJ_TYPE_SERVER:   return objt_server(t);
+	case OBJ_TYPE_APPLET:   return objt_applet(t);
+	default:                return NULL;
+	}
 }
 
 #endif /* _PROTO_OBJ_TYPE_H */
