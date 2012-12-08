@@ -35,10 +35,6 @@
 struct connection;
 struct buffer;
 struct pipe;
-struct server;
-struct proxy;
-struct si_applet;
-struct task;
 
 /* Polling flags that are manipulated by I/O callbacks and handshake callbacks
  * indicate what they expect from a file descriptor at each layer. For each
