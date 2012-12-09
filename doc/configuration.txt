@@ -9316,6 +9316,12 @@ The list of currently supported pattern fetch functions is the following :
                table also allows one to collect statistics about most commonly
                requested objects by host/path.
 
+  base32       This returns a 32-bit hash of the value returned by the "base"
+               fetch method above. This is useful to track per-URL activity on
+               high traffic sites without having to store all URLs. Instead a
+               shorter hash is stored, saving a lot of memory. The output type
+               is an unsigned integer.
+
   src          This is the source IPv4 address of the client of the session.
                It is of type IPv4 and works on both IPv4 and IPv6 tables.
                On IPv6 tables, IPv4 address is mapped to its IPv6 equivalent,

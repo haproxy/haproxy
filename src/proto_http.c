@@ -8489,6 +8489,55 @@ smp_fetch_base(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 	return 1;
 }
 
+/* This produces a 32-bit hash of the concatenation of the first occurrence of
+ * the Host header followed by the path component if it begins with a slash ('/').
+ * This means that '*' will not be added, resulting in exactly the first Host
+ * entry. If no Host header is found, then the path is used. The resulting value
+ * is hashed using the url hash followed by a full avalanche hash and provides a
+ * 32-bit integer value. This fetch is useful for tracking per-URL activity on
+ * high-traffic sites without having to store whole paths.
+ */
+static int
+smp_fetch_base32(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                 const struct arg *args, struct sample *smp)
+{
+	struct http_txn *txn = l7;
+	struct hdr_ctx ctx;
+	unsigned int hash = 0;
+	char *ptr, *beg, *end;
+	int len;
+
+	CHECK_HTTP_MESSAGE_FIRST();
+
+	ctx.idx = 0;
+	if (http_find_header2("Host", 4, txn->req.chn->buf->p + txn->req.sol, &txn->hdr_idx, &ctx)) {
+		/* OK we have the header value in ctx.line+ctx.val for ctx.vlen bytes */
+		ptr = ctx.line + ctx.val;
+		len = ctx.vlen;
+		while (len--)
+			hash = *(ptr++) + (hash << 6) + (hash << 16) - hash;
+	}
+
+	/* now retrieve the path */
+	end = txn->req.chn->buf->p + txn->req.sol + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
+	beg = http_get_path(txn);
+	if (!beg)
+		beg = end;
+
+	for (ptr = beg; ptr < end && *ptr != '?'; ptr++);
+
+	if (beg < ptr && *beg == '/') {
+		while (beg < ptr)
+			hash = *(beg++) + (hash << 6) + (hash << 16) - hash;
+	}
+	hash = full_hash(hash);
+
+	smp->type = SMP_T_UINT;
+	smp->data.uint = hash;
+	smp->flags = SMP_F_VOL_1ST;
+	return 1;
+}
+
 static int
 acl_fetch_proto_http(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                      const struct arg *args, struct sample *smp)
@@ -9110,6 +9159,7 @@ static struct acl_kw_list acl_kws = {{ },{
 static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
 	{ "hdr",        smp_fetch_hdr,            ARG2(1,STR,SINT), val_hdr, SMP_T_CSTR, SMP_CAP_L7|SMP_CAP_REQ },
 	{ "base",       smp_fetch_base,           0,                NULL,    SMP_T_CSTR, SMP_CAP_L7|SMP_CAP_REQ },
+	{ "base32",     smp_fetch_base32,         0,                NULL,    SMP_T_UINT, SMP_CAP_L7|SMP_CAP_REQ },
 	{ "path",       smp_fetch_path,           0,                NULL,    SMP_T_CSTR, SMP_CAP_L7|SMP_CAP_REQ },
 	{ "url",        smp_fetch_url,            0,                NULL,    SMP_T_CSTR, SMP_CAP_L7|SMP_CAP_REQ },
 	{ "url_ip",     smp_fetch_url_ip,         0,                NULL,    SMP_T_IPV4, SMP_CAP_L7|SMP_CAP_REQ },
