@@ -497,7 +497,7 @@ static void *k_str2str(struct sample *smp, union stktable_key_data *kdata, size_
 
 static void *k_ip2str(struct sample *smp, union stktable_key_data *kdata, size_t *len)
 {
-	if (!inet_ntop(AF_INET, &smp->data.ipv4, kdata->buf, sizeof(kdata->buf)))
+	if (!inet_ntop(AF_INET, &smp->data.ipv4, kdata->buf, *len))
 		return NULL;
 
 	*len = strlen((const char *)kdata->buf);
@@ -508,20 +508,21 @@ static void *k_bin2str(struct sample *smp, union stktable_key_data *kdata, size_
 {
 	unsigned char c;
 	int ptr = 0;
+	int max = *len;
+	int size = 0;
 
-	*len = 0;
-	while (ptr < smp->data.str.len && *len <= sizeof(kdata->buf) - 2) {
+	while (ptr < smp->data.str.len && size <= max - 2) {
 		c = smp->data.str.str[ptr++];
-		kdata->buf[(*len)++] = hextab[(c >> 4) & 0xF];
-		kdata->buf[(*len)++] = hextab[c & 0xF];
+		kdata->buf[size++] = hextab[(c >> 4) & 0xF];
+		kdata->buf[size++] = hextab[c & 0xF];
 	}
-
+	*len = size;
 	return (void *)kdata->buf;
 }
 
 static void *k_ipv62str(struct sample *smp, union stktable_key_data *kdata, size_t *len)
 {
-	if (!inet_ntop(AF_INET6, &smp->data.ipv6, kdata->buf, sizeof(kdata->buf)))
+	if (!inet_ntop(AF_INET6, &smp->data.ipv6, kdata->buf, *len))
 		return NULL;
 
 	*len = strlen((const char *)kdata->buf);
@@ -532,7 +533,7 @@ static void *k_int2str(struct sample *smp, union stktable_key_data *kdata, size_
 {
 	void *key;
 
-	key = (void *)ultoa_r(smp->data.uint,  kdata->buf,  sizeof(kdata->buf));
+	key = (void *)ultoa_r(smp->data.uint, kdata->buf, *len);
 	if (!key)
 		return NULL;
 
