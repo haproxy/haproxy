@@ -57,23 +57,17 @@ int parse_track_counters(char **args, int *arg,
 static inline void session_store_counters(struct session *s)
 {
 	void *ptr;
+	int i;
 
-	if (s->stkctr2_entry) {
-		ptr = stktable_data_ptr(s->stkctr2_table, s->stkctr2_entry, STKTABLE_DT_CONN_CUR);
+	for (i = 0; i < sizeof(s->stkctr) / sizeof(s->stkctr[0]); i++) {
+		if (!s->stkctr[i].entry)
+			continue;
+		ptr = stktable_data_ptr(s->stkctr[i].table, s->stkctr[i].entry, STKTABLE_DT_CONN_CUR);
 		if (ptr)
 			stktable_data_cast(ptr, conn_cur)--;
-		s->stkctr2_entry->ref_cnt--;
-		stksess_kill_if_expired(s->stkctr2_table, s->stkctr2_entry);
-		s->stkctr2_entry = NULL;
-	}
-
-	if (s->stkctr1_entry) {
-		ptr = stktable_data_ptr(s->stkctr1_table, s->stkctr1_entry, STKTABLE_DT_CONN_CUR);
-		if (ptr)
-			stktable_data_cast(ptr, conn_cur)--;
-		s->stkctr1_entry->ref_cnt--;
-		stksess_kill_if_expired(s->stkctr1_table, s->stkctr1_entry);
-		s->stkctr1_entry = NULL;
+		s->stkctr[i].entry->ref_cnt--;
+		stksess_kill_if_expired(s->stkctr[i].table, s->stkctr[i].entry);
+		s->stkctr[i].entry = NULL;
 	}
 }
 
@@ -84,26 +78,27 @@ static inline void session_store_counters(struct session *s)
 static inline void session_stop_backend_counters(struct session *s)
 {
 	void *ptr;
+	int i;
 
 	if (!(s->flags & (SN_BE_TRACK_SC1|SN_BE_TRACK_SC2)))
 		return;
 
-	if ((s->flags & SN_BE_TRACK_SC1) && s->stkctr1_entry) {
-		ptr = stktable_data_ptr(s->stkctr1_table, s->stkctr1_entry, STKTABLE_DT_CONN_CUR);
-		if (ptr)
-			stktable_data_cast(ptr, conn_cur)--;
-		s->stkctr1_entry->ref_cnt--;
-		stksess_kill_if_expired(s->stkctr1_table, s->stkctr1_entry);
-		s->stkctr1_entry = NULL;
-	}
+	for (i = 0; i < sizeof(s->stkctr) / sizeof(s->stkctr[0]); i++) {
+		if (!s->stkctr[i].entry)
+			continue;
 
-	if ((s->flags & SN_BE_TRACK_SC2) && s->stkctr2_entry) {
-		ptr = stktable_data_ptr(s->stkctr2_table, s->stkctr2_entry, STKTABLE_DT_CONN_CUR);
+		if ((i == 0) && !(s->flags & SN_BE_TRACK_SC1))
+			continue;
+
+		if ((i == 1) && !(s->flags & SN_BE_TRACK_SC2))
+			continue;
+
+		ptr = stktable_data_ptr(s->stkctr[i].table, s->stkctr[i].entry, STKTABLE_DT_CONN_CUR);
 		if (ptr)
 			stktable_data_cast(ptr, conn_cur)--;
-		s->stkctr2_entry->ref_cnt--;
-		stksess_kill_if_expired(s->stkctr2_table, s->stkctr2_entry);
-		s->stkctr2_entry = NULL;
+		s->stkctr[i].entry->ref_cnt--;
+		stksess_kill_if_expired(s->stkctr[i].table, s->stkctr[i].entry);
+		s->stkctr[i].entry = NULL;
 	}
 	s->flags &= ~(SN_BE_TRACK_SC1|SN_BE_TRACK_SC2);
 }
@@ -132,33 +127,18 @@ static inline void session_start_counters(struct stktable *t, struct stksess *ts
 		ts->expire = tick_add(now_ms, MS_TO_TICKS(t->expire));
 }
 
-/* Enable tracking of session counters as stkctr1 on stksess <ts>. The caller is
+/* Enable tracking of session counters as <stkctr> on stksess <ts>. The caller is
  * responsible for ensuring that <t> and <ts> are valid pointers. Some controls
  * are performed to ensure the state can still change.
  */
-static inline void session_track_stkctr1(struct session *s, struct stktable *t, struct stksess *ts)
+static inline void session_track_stkctr(struct stkctr *ctr, struct stktable *t, struct stksess *ts)
 {
-	if (s->stkctr1_entry)
+	if (ctr->entry)
 		return;
 
 	ts->ref_cnt++;
-	s->stkctr1_table = t;
-	s->stkctr1_entry = ts;
-	session_start_counters(t, ts);
-}
-
-/* Enable tracking of session counters as stkctr1 on stksess <ts>. The caller is
- * responsible for ensuring that <t> and <ts> are valid pointers. Some controls
- * are performed to ensure the state can still change.
- */
-static inline void session_track_stkctr2(struct session *s, struct stktable *t, struct stksess *ts)
-{
-	if (s->stkctr2_entry)
-		return;
-
-	ts->ref_cnt++;
-	s->stkctr2_table = t;
-	s->stkctr2_entry = ts;
+	ctr->table = t;
+	ctr->entry = ts;
 	session_start_counters(t, ts);
 }
 
@@ -166,27 +146,20 @@ static inline void session_track_stkctr2(struct session *s, struct stktable *t, 
 static void inline session_inc_http_req_ctr(struct session *s)
 {
 	void *ptr;
+	int i;
 
-	if (s->stkctr2_entry) {
-		ptr = stktable_data_ptr(s->stkctr2_table, s->stkctr2_entry, STKTABLE_DT_HTTP_REQ_CNT);
+	for (i = 0; i < sizeof(s->stkctr) / sizeof(s->stkctr[0]); i++) {
+		if (!s->stkctr[i].entry)
+			continue;
+
+		ptr = stktable_data_ptr(s->stkctr[i].table, s->stkctr[i].entry, STKTABLE_DT_HTTP_REQ_CNT);
 		if (ptr)
 			stktable_data_cast(ptr, http_req_cnt)++;
 
-		ptr = stktable_data_ptr(s->stkctr2_table, s->stkctr2_entry, STKTABLE_DT_HTTP_REQ_RATE);
+		ptr = stktable_data_ptr(s->stkctr[i].table, s->stkctr[i].entry, STKTABLE_DT_HTTP_REQ_RATE);
 		if (ptr)
 			update_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
-					       s->stkctr2_table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
-	}
-
-	if (s->stkctr1_entry) {
-		ptr = stktable_data_ptr(s->stkctr1_table, s->stkctr1_entry, STKTABLE_DT_HTTP_REQ_CNT);
-		if (ptr)
-			stktable_data_cast(ptr, http_req_cnt)++;
-
-		ptr = stktable_data_ptr(s->stkctr1_table, s->stkctr1_entry, STKTABLE_DT_HTTP_REQ_RATE);
-		if (ptr)
-			update_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
-					       s->stkctr1_table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
+					       s->stkctr[i].table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
 	}
 }
 
@@ -194,30 +167,29 @@ static void inline session_inc_http_req_ctr(struct session *s)
 static void inline session_inc_be_http_req_ctr(struct session *s)
 {
 	void *ptr;
+	int i;
 
 	if (likely(!(s->flags & (SN_BE_TRACK_SC1|SN_BE_TRACK_SC2))))
 		return;
 
-	if ((s->flags & SN_BE_TRACK_SC2) && s->stkctr2_entry) {
-		ptr = stktable_data_ptr(s->stkctr2_table, s->stkctr2_entry, STKTABLE_DT_HTTP_REQ_CNT);
+	for (i = 0; i < sizeof(s->stkctr) / sizeof(s->stkctr[0]); i++) {
+		if (!s->stkctr[i].entry)
+			continue;
+
+		if ((i == 0) && !(s->flags & SN_BE_TRACK_SC1))
+			continue;
+
+		if ((i == 1) && !(s->flags & SN_BE_TRACK_SC2))
+			continue;
+
+		ptr = stktable_data_ptr(s->stkctr[i].table, s->stkctr[i].entry, STKTABLE_DT_HTTP_REQ_CNT);
 		if (ptr)
 			stktable_data_cast(ptr, http_req_cnt)++;
 
-		ptr = stktable_data_ptr(s->stkctr2_table, s->stkctr2_entry, STKTABLE_DT_HTTP_REQ_RATE);
+		ptr = stktable_data_ptr(s->stkctr[i].table, s->stkctr[i].entry, STKTABLE_DT_HTTP_REQ_RATE);
 		if (ptr)
 			update_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
-					       s->stkctr2_table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
-	}
-
-	if ((s->flags & SN_BE_TRACK_SC1) && s->stkctr1_entry) {
-		ptr = stktable_data_ptr(s->stkctr1_table, s->stkctr1_entry, STKTABLE_DT_HTTP_REQ_CNT);
-		if (ptr)
-			stktable_data_cast(ptr, http_req_cnt)++;
-
-		ptr = stktable_data_ptr(s->stkctr1_table, s->stkctr1_entry, STKTABLE_DT_HTTP_REQ_RATE);
-		if (ptr)
-			update_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
-					       s->stkctr1_table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
+			                       s->stkctr[i].table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
 	}
 }
 
@@ -230,27 +202,20 @@ static void inline session_inc_be_http_req_ctr(struct session *s)
 static void inline session_inc_http_err_ctr(struct session *s)
 {
 	void *ptr;
+	int i;
 
-	if (s->stkctr2_entry) {
-		ptr = stktable_data_ptr(s->stkctr2_table, s->stkctr2_entry, STKTABLE_DT_HTTP_ERR_CNT);
+	for (i = 0; i < sizeof(s->stkctr) / sizeof(s->stkctr[0]); i++) {
+		if (!s->stkctr[i].entry)
+			continue;
+
+		ptr = stktable_data_ptr(s->stkctr[i].table, s->stkctr[i].entry, STKTABLE_DT_HTTP_ERR_CNT);
 		if (ptr)
 			stktable_data_cast(ptr, http_err_cnt)++;
 
-		ptr = stktable_data_ptr(s->stkctr2_table, s->stkctr2_entry, STKTABLE_DT_HTTP_ERR_RATE);
+		ptr = stktable_data_ptr(s->stkctr[i].table, s->stkctr[i].entry, STKTABLE_DT_HTTP_ERR_RATE);
 		if (ptr)
 			update_freq_ctr_period(&stktable_data_cast(ptr, http_err_rate),
-					       s->stkctr2_table->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u, 1);
-	}
-
-	if (s->stkctr1_entry) {
-		ptr = stktable_data_ptr(s->stkctr1_table, s->stkctr1_entry, STKTABLE_DT_HTTP_ERR_CNT);
-		if (ptr)
-			stktable_data_cast(ptr, http_err_cnt)++;
-
-		ptr = stktable_data_ptr(s->stkctr1_table, s->stkctr1_entry, STKTABLE_DT_HTTP_ERR_RATE);
-		if (ptr)
-			update_freq_ctr_period(&stktable_data_cast(ptr, http_err_rate),
-					       s->stkctr1_table->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u, 1);
+			                       s->stkctr[i].table->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u, 1);
 	}
 }
 

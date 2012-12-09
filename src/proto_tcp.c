@@ -836,8 +836,8 @@ int tcp_inspect_request(struct session *s, struct channel *req, int an_bit)
 					s->flags |= SN_FINST_R;
 				return 0;
 			}
-			else if ((rule->action == TCP_ACT_TRK_SC1 && !s->stkctr1_entry) ||
-			         (rule->action == TCP_ACT_TRK_SC2 && !s->stkctr2_entry)) {
+			else if ((rule->action == TCP_ACT_TRK_SC1 && !s->stkctr[0].entry) ||
+			         (rule->action == TCP_ACT_TRK_SC2 && !s->stkctr[1].entry)) {
 				/* Note: only the first valid tracking parameter of each
 				 * applies.
 				 */
@@ -848,11 +848,11 @@ int tcp_inspect_request(struct session *s, struct channel *req, int an_bit)
 
 				if (key && (ts = stktable_get_entry(t, key))) {
 					if (rule->action == TCP_ACT_TRK_SC1) {
-						session_track_stkctr1(s, t, ts);
+						session_track_stkctr(&s->stkctr[0], t, ts);
 						if (s->fe != s->be)
 							s->flags |= SN_BE_TRACK_SC1;
 					} else {
-						session_track_stkctr2(s, t, ts);
+						session_track_stkctr(&s->stkctr[1], t, ts);
 						if (s->fe != s->be)
 							s->flags |= SN_BE_TRACK_SC2;
 					}
@@ -996,8 +996,8 @@ int tcp_exec_req_rules(struct session *s)
 				result = 0;
 				break;
 			}
-			else if ((rule->action == TCP_ACT_TRK_SC1 && !s->stkctr1_entry) ||
-			         (rule->action == TCP_ACT_TRK_SC2 && !s->stkctr2_entry)) {
+			else if ((rule->action == TCP_ACT_TRK_SC1 && !s->stkctr[0].entry) ||
+			         (rule->action == TCP_ACT_TRK_SC2 && !s->stkctr[1].entry)) {
 				/* Note: only the first valid tracking parameter of each
 				 * applies.
 				 */
@@ -1008,9 +1008,9 @@ int tcp_exec_req_rules(struct session *s)
 
 				if (key && (ts = stktable_get_entry(t, key))) {
 					if (rule->action == TCP_ACT_TRK_SC1)
-						session_track_stkctr1(s, t, ts);
+						session_track_stkctr(&s->stkctr[0], t, ts);
 					else
-						session_track_stkctr2(s, t, ts);
+						session_track_stkctr(&s->stkctr[1], t, ts);
 				}
 			}
 			else {
