@@ -1113,7 +1113,8 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 			curpx->acl_requires |= ACL_USE_L7_ANY;
 
 		if (strcmp(args[arg], "table") == 0) {
-			if (!args[arg + 1]) {
+			arg++;
+			if (!args[arg]) {
 				memprintf(err,
 					  "'%s %s %s' : missing table name",
 					  args[0], args[1], args[kw]);
@@ -1121,7 +1122,7 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 				return -1;
 			}
 			/* we copy the table name for now, it will be resolved later */
-			rule->act_prm.trk_ctr.table.n = strdup(args[arg + 1]);
+			rule->act_prm.trk_ctr.table.n = strdup(args[arg]);
 			arg++;
 		}
 		rule->act_prm.trk_ctr.expr = expr;
