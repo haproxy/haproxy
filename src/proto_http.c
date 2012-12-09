@@ -8538,6 +8538,43 @@ smp_fetch_base32(struct proxy *px, struct session *l4, void *l7, unsigned int op
 	return 1;
 }
 
+/* This concatenates the source address with the 32-bit hash of the Host and
+ * URL as returned by smp_fetch_base32(). The idea is to have per-source and
+ * per-url counters. The result is a binary block from 8 to 20 bytes depending
+ * on the source address length. The URL hash is stored before the address so
+ * that in environments where IPv6 is insignificant, truncating the output to
+ * 8 bytes would still work.
+ */
+static int
+smp_fetch_base32_src(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                     const struct arg *args, struct sample *smp)
+{
+	struct chunk *temp = sample_get_trash_chunk();
+
+	if (!smp_fetch_base32(px, l4, l7, opt, args, smp))
+		return 0;
+
+	memcpy(temp->str + temp->len, &smp->data.uint, sizeof(smp->data.uint));
+	temp->len += sizeof(smp->data.uint);
+
+	switch (l4->si[0].conn->addr.from.ss_family) {
+	case AF_INET:
+		memcpy(temp->str + temp->len, &((struct sockaddr_in *)&l4->si[0].conn->addr.from)->sin_addr, 4);
+		temp->len += 4;
+		break;
+	case AF_INET6:
+		memcpy(temp->str + temp->len, &((struct sockaddr_in6 *)(&l4->si[0].conn->addr.from))->sin6_addr, 16);
+		temp->len += 16;
+		break;
+	default:
+		return 0;
+	}
+
+	smp->data.str = *temp;
+	smp->type = SMP_T_BIN;
+	return 1;
+}
+
 static int
 acl_fetch_proto_http(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                      const struct arg *args, struct sample *smp)
@@ -9160,6 +9197,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
 	{ "hdr",        smp_fetch_hdr,            ARG2(1,STR,SINT), val_hdr, SMP_T_CSTR, SMP_CAP_L7|SMP_CAP_REQ },
 	{ "base",       smp_fetch_base,           0,                NULL,    SMP_T_CSTR, SMP_CAP_L7|SMP_CAP_REQ },
 	{ "base32",     smp_fetch_base32,         0,                NULL,    SMP_T_UINT, SMP_CAP_L7|SMP_CAP_REQ },
+	{ "base32+src", smp_fetch_base32_src,     0,                NULL,    SMP_T_BIN,  SMP_CAP_L7|SMP_CAP_REQ },
 	{ "path",       smp_fetch_path,           0,                NULL,    SMP_T_CSTR, SMP_CAP_L7|SMP_CAP_REQ },
 	{ "url",        smp_fetch_url,            0,                NULL,    SMP_T_CSTR, SMP_CAP_L7|SMP_CAP_REQ },
 	{ "url_ip",     smp_fetch_url_ip,         0,                NULL,    SMP_T_IPV4, SMP_CAP_L7|SMP_CAP_REQ },

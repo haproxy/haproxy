@@ -9322,6 +9322,11 @@ The list of currently supported pattern fetch functions is the following :
                shorter hash is stored, saving a lot of memory. The output type
                is an unsigned integer.
 
+  base32+src   This returns the concatenation of the base32 fetch above and the
+               src fetch below. The resulting type is of type binary, with a
+               size of 8 or 20 bytes depending on the source address family.
+               This can be used to track per-IP, per-URL counters.
+
   src          This is the source IPv4 address of the client of the session.
                It is of type IPv4 and works on both IPv4 and IPv6 tables.
                On IPv6 tables, IPv4 address is mapped to its IPv6 equivalent,
