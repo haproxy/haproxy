@@ -1309,9 +1309,9 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 		}
 
 		if ((rule->action == TCP_ACT_TRK_SC1 || rule->action == TCP_ACT_TRK_SC2) &&
-		    (rule->act_prm.trk_ctr.expr->fetch->cap & SMP_CAP_RES)) {
+		    !(rule->act_prm.trk_ctr.expr->fetch->cap & SMP_CAP_REQ)) {
 			memprintf(err,
-			          "fetch '%s' involves some response-only criteria which will be ignored in '%s %s'",
+			          "fetch '%s' cannot be used on requests and will be ignored in '%s %s'",
 			          rule->act_prm.trk_ctr.expr->fetch->kw, args[0], args[1]);
 			warn++;
 		}
@@ -1352,9 +1352,9 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 		}
 
 		if ((rule->action == TCP_ACT_TRK_SC1 || rule->action == TCP_ACT_TRK_SC2) &&
-		    (rule->act_prm.trk_ctr.expr->fetch->cap & SMP_CAP_RES)) {
+		    !(rule->act_prm.trk_ctr.expr->fetch->cap & SMP_CAP_REQ)) {
 			memprintf(err,
-			          "fetch '%s' involves some response-only criteria which will be ignored in '%s %s'",
+			          "fetch '%s' cannot be used on requests and will be ignored in '%s %s'",
 			          rule->act_prm.trk_ctr.expr->fetch->kw, args[0], args[1]);
 			warn++;
 		}
