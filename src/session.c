@@ -3682,54 +3682,6 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ NULL, NULL, NULL, NULL },
 }};
 
-
-/* Parse a "track-sc[12]" line starting with "track-sc[12]" in args[arg-1].
- * Returns the number of warnings emitted, or -1 in case of fatal errors. The
- * <prm> struct is fed with the table name if any. If unspecified, the caller
- * will assume that the current proxy's table is used.
- */
-int parse_track_counters(char **args, int *arg,
-			 int section_type, struct proxy *curpx,
-			 struct track_ctr_prm *prm,
-			 struct proxy *defpx, char **err)
-{
-	int sample_type = 0;
-
-	/* parse the arguments of "track-sc[12]" before the condition in the
-	 * following form :
-	 *      track-sc[12] src [ table xxx ] [ if|unless ... ]
-	 */
-	while (args[*arg]) {
-		if (strcmp(args[*arg], "src") == 0) {
-			prm->type = STKTABLE_TYPE_IP;
-			sample_type = 1;
-		}
-		else if (strcmp(args[*arg], "table") == 0) {
-			if (!args[*arg + 1]) {
-				memprintf(err, "missing table name");
-				return -1;
-			}
-			/* we copy the table name for now, it will be resolved later */
-			prm->table.n = strdup(args[*arg + 1]);
-			(*arg)++;
-		}
-		else {
-			/* unhandled keywords are handled by the caller */
-			break;
-		}
-		(*arg)++;
-	}
-
-	if (!sample_type) {
-		memprintf(err,
-		          "tracking key not specified (found %s, only 'src' is supported)",
-		          quote_arg(args[*arg]));
-		return -1;
-	}
-
-	return 0;
-}
-
 __attribute__((constructor))
 static void __session_init(void)
 {

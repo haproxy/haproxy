@@ -166,7 +166,7 @@ struct session {
 
 /* parameters to configure tracked counters */
 struct track_ctr_prm {
-	int type;				/* type of the key */
+	struct sample_expr *expr;		/* expression used as the key */
 	union {
 		struct stktable *t;		/* a pointer to the table */
 		char *n;			/* or its name during parsing. */

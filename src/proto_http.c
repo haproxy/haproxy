@@ -3013,6 +3013,9 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 		}
 	}
 
+	/* just in case we have some per-backend tracking */
+	session_inc_be_http_req_ctr(s);
+
 	/* evaluate http-request rules */
 	http_req_last_rule = http_check_access_rule(px, &px->http_req_rules, s, txn);
 

@@ -836,32 +836,22 @@ int tcp_inspect_request(struct session *s, struct channel *req, int an_bit)
 					s->flags |= SN_FINST_R;
 				return 0;
 			}
-			else if (rule->action == TCP_ACT_TRK_SC1) {
-				if (!s->stkctr1_entry) {
-					/* only the first valid track-sc1 directive applies.
-					 * Also, note that right now we can only track SRC so we
-					 * don't check how to get the key, but later we may need
-					 * to consider rule->act_prm->trk_ctr.type.
-					 */
-					t = rule->act_prm.trk_ctr.table.t;
-					ts = stktable_get_entry(t, addr_to_stktable_key(&s->si[0].conn->addr.from));
-					if (ts) {
+			else if ((rule->action == TCP_ACT_TRK_SC1 && !s->stkctr1_entry) ||
+			         (rule->action == TCP_ACT_TRK_SC2 && !s->stkctr2_entry)) {
+				/* Note: only the first valid tracking parameter of each
+				 * applies.
+				 */
+				struct stktable_key *key;
+
+				t = rule->act_prm.trk_ctr.table.t;
+				key = stktable_fetch_key(t, s->be, s, &s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->act_prm.trk_ctr.expr);
+
+				if (key && (ts = stktable_get_entry(t, key))) {
+					if (rule->action == TCP_ACT_TRK_SC1) {
 						session_track_stkctr1(s, t, ts);
 						if (s->fe != s->be)
 							s->flags |= SN_BE_TRACK_SC1;
-					}
-				}
-			}
-			else if (rule->action == TCP_ACT_TRK_SC2) {
-				if (!s->stkctr2_entry) {
-					/* only the first valid track-sc2 directive applies.
-					 * Also, note that right now we can only track SRC so we
-					 * don't check how to get the key, but later we may need
-					 * to consider rule->act_prm->trk_ctr.type.
-					 */
-					t = rule->act_prm.trk_ctr.table.t;
-					ts = stktable_get_entry(t, addr_to_stktable_key(&s->si[0].conn->addr.from));
-					if (ts) {
+					} else {
 						session_track_stkctr2(s, t, ts);
 						if (s->fe != s->be)
 							s->flags |= SN_BE_TRACK_SC2;
@@ -1006,29 +996,20 @@ int tcp_exec_req_rules(struct session *s)
 				result = 0;
 				break;
 			}
-			else if (rule->action == TCP_ACT_TRK_SC1) {
-				if (!s->stkctr1_entry) {
-					/* only the first valid track-sc1 directive applies.
-					 * Also, note that right now we can only track SRC so we
-					 * don't check how to get the key, but later we may need
-					 * to consider rule->act_prm->trk_ctr.type.
-					 */
-					t = rule->act_prm.trk_ctr.table.t;
-					ts = stktable_get_entry(t, addr_to_stktable_key(&s->si[0].conn->addr.from));
-					if (ts)
+			else if ((rule->action == TCP_ACT_TRK_SC1 && !s->stkctr1_entry) ||
+			         (rule->action == TCP_ACT_TRK_SC2 && !s->stkctr2_entry)) {
+				/* Note: only the first valid tracking parameter of each
+				 * applies.
+				 */
+				struct stktable_key *key;
+
+				t = rule->act_prm.trk_ctr.table.t;
+				key = stktable_fetch_key(t, s->be, s, &s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->act_prm.trk_ctr.expr);
+
+				if (key && (ts = stktable_get_entry(t, key))) {
+					if (rule->action == TCP_ACT_TRK_SC1)
 						session_track_stkctr1(s, t, ts);
-				}
-			}
-			else if (rule->action == TCP_ACT_TRK_SC2) {
-				if (!s->stkctr2_entry) {
-					/* only the first valid track-sc2 directive applies.
-					 * Also, note that right now we can only track SRC so we
-					 * don't check how to get the key, but later we may need
-					 * to consider rule->act_prm->trk_ctr.type.
-					 */
-					t = rule->act_prm.trk_ctr.table.t;
-					ts = stktable_get_entry(t, addr_to_stktable_key(&s->si[0].conn->addr.from));
-					if (ts)
+					else
 						session_track_stkctr2(s, t, ts);
 				}
 			}
@@ -1105,37 +1086,50 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 		arg++;
 		rule->action = TCP_ACT_REJECT;
 	}
-	else if (strcmp(args[arg], "track-sc1") == 0) {
-		int ret;
+	else if (strcmp(args[arg], "track-sc1") == 0 || strcmp(args[arg], "track-sc2") == 0) {
+		struct sample_expr *expr;
 		int kw = arg;
 
 		arg++;
-		ret = parse_track_counters(args, &arg, section_type, curpx,
-					   &rule->act_prm.trk_ctr, defpx, err);
 
-		if (ret < 0) { /* nb: warnings are not handled yet */
+		expr = sample_parse_expr(args, &arg, trash.str, trash.size);
+		if (!expr) {
 			memprintf(err,
-			          "'%s %s %s' : %s in %s '%s'",
-			          args[0], args[1], args[kw], *err, proxy_type_str(curpx), curpx->id);
-			return ret;
+			          "'%s %s %s' : %s",
+			          args[0], args[1], args[kw], trash.str);
+			return -1;
 		}
-		rule->action = TCP_ACT_TRK_SC1;
-	}
-	else if (strcmp(args[arg], "track-sc2") == 0) {
-		int ret;
-		int kw = arg;
 
-		arg++;
-		ret = parse_track_counters(args, &arg, section_type, curpx,
-					   &rule->act_prm.trk_ctr, defpx, err);
-
-		if (ret < 0) { /* nb: warnings are not handled yet */
+		if (!(expr->fetch->cap & SMP_CAP_REQ)) {
 			memprintf(err,
-			          "'%s %s %s' : %s in %s '%s'",
-			          args[0], args[1], args[kw], *err, proxy_type_str(curpx), curpx->id);
-			return ret;
+			          "'%s %s %s' : fetch method '%s' cannot be used on request",
+			          args[0], args[1], args[kw], trash.str);
+			free(expr);
+			return -1;
 		}
-		rule->action = TCP_ACT_TRK_SC2;
+
+		/* check if we need to allocate an hdr_idx struct for HTTP parsing */
+		if (expr->fetch->cap & SMP_CAP_L7)
+			curpx->acl_requires |= ACL_USE_L7_ANY;
+
+		if (strcmp(args[arg], "table") == 0) {
+			if (!args[arg + 1]) {
+				memprintf(err,
+					  "'%s %s %s' : missing table name",
+					  args[0], args[1], args[kw]);
+				free(expr);
+				return -1;
+			}
+			/* we copy the table name for now, it will be resolved later */
+			rule->act_prm.trk_ctr.table.n = strdup(args[arg + 1]);
+			arg++;
+		}
+		rule->act_prm.trk_ctr.expr = expr;
+
+		if (args[kw][8] == '1')
+			rule->action = TCP_ACT_TRK_SC1;
+		else
+			rule->action = TCP_ACT_TRK_SC2;
 	}
 	else {
 		memprintf(err,
@@ -1312,6 +1306,15 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 			          name, args[0], args[1]);
 			warn++;
 		}
+
+		if ((rule->action == TCP_ACT_TRK_SC1 || rule->action == TCP_ACT_TRK_SC2) &&
+		    (rule->act_prm.trk_ctr.expr->fetch->cap & SMP_CAP_RES)) {
+			memprintf(err,
+			          "fetch '%s' involves some response-only criteria which will be ignored in '%s %s'",
+			          rule->act_prm.trk_ctr.expr->fetch->kw, args[0], args[1]);
+			warn++;
+		}
+
 		LIST_ADDQ(&curpx->tcp_req.inspect_rules, &rule->list);
 	}
 	else if (strcmp(args[1], "connection") == 0) {
@@ -1346,6 +1349,23 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 				          name, args[0], args[1]);
 			warn++;
 		}
+
+		if ((rule->action == TCP_ACT_TRK_SC1 || rule->action == TCP_ACT_TRK_SC2) &&
+		    (rule->act_prm.trk_ctr.expr->fetch->cap & SMP_CAP_RES)) {
+			memprintf(err,
+			          "fetch '%s' involves some response-only criteria which will be ignored in '%s %s'",
+			          rule->act_prm.trk_ctr.expr->fetch->kw, args[0], args[1]);
+			warn++;
+		}
+
+		if ((rule->action == TCP_ACT_TRK_SC1 || rule->action == TCP_ACT_TRK_SC2) &&
+		    (rule->act_prm.trk_ctr.expr->fetch->cap & SMP_CAP_L7)) {
+			memprintf(err,
+			          "fetch '%s' involves some layer7-only criteria which will be ignored in '%s %s'",
+			          rule->act_prm.trk_ctr.expr->fetch->kw, args[0], args[1]);
+			warn++;
+		}
+
 		LIST_ADDQ(&curpx->tcp_req.l4_rules, &rule->list);
 	}
 	else {

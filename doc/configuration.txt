@@ -6149,9 +6149,12 @@ tcp-request connection <action> [{if | unless} <condition>]
         the per-frontend counters and the second set for the per-backend ones.
 
         These actions take one or two arguments :
-          <key>   is mandatory, and defines the criterion the tracking key will
-                  be derived from. At the moment, only "src" is supported. With
-                  it, the key will be the connection's source IPv4 address.
+          <key>   is mandatory, and is a pattern extraction rule as described
+                  in section 7.8. It describes what elements of the incoming
+                  request or connection will be analysed, extracted, combined,
+                  and used to select which table entry to update the counters.
+                  Note that "tcp-request connection" cannot use content-based
+                  fetches.
 
          <table>  is an optional table to be used instead of the default one,
                   which is the stick-table declared in the current proxy. All
@@ -6163,6 +6166,11 @@ tcp-request connection <action> [{if | unless} <condition>]
         that entry is kept during all the session's life, and this entry's
         counters are updated as often as possible, every time the session's
         counters are updated, and also systematically when the session ends.
+        Counters are only updated for events that happen after the tracking has
+        been started. For example, connection counters will not be updated when
+        tracking layer 7 information, since the connection event happens before
+        layer7 information is extracted.
+
         If the entry tracks concurrent connection counters, one connection is
         counted for as long as the entry is tracked, and the entry will not
         expire during that time. Tracking counters also provides a performance
@@ -6237,9 +6245,12 @@ tcp-request content <action> [{if | unless} <condition>]
   Also, it is worth noting that if sticky counters are tracked from a rule
   defined in a backend, this tracking will automatically end when the session
   releases the backend. That allows per-backend counter tracking even in case
-  of HTTP keep-alive requests when the backend changes. While there is nothing
-  mandatory about it, it is recommended to use the track-sc1 pointer to track
-  per-frontend counters and track-sc2 to track per-backend counters.
+  of HTTP keep-alive requests when the backend changes. This makes a subtle
+  difference because tracking rules in "frontend" and "listen" section last for
+  all the session, as opposed to the backend rules. The difference appears when
+  some layer 7 information is tracked. While there is nothing mandatory about
+  it, it is recommended to use the track-sc1 pointer to track per-frontend
+  counters and track-sc2 to track per-backend counters.
 
   Note that the "if/unless" condition is optional. If no condition is set on
   the action, it is simply performed unconditionally. That can be useful for
@@ -6251,6 +6262,11 @@ tcp-request content <action> [{if | unless} <condition>]
   contents do not parse as a valid HTTP message, then the ACL does not match.
   The parser which is involved there is exactly the same as for all other HTTP
   processing, so there is no risk of parsing something differently.
+
+  Tracking layer7 information is also possible provided that the information
+  are present when the rule is processed. The current solution for making the
+  rule engine wait for such information is to set an inspect delay and to
+  condition its execution with an ACL relying on such information.
 
   Example:
         # Accept HTTP requests containing a Host header saying "example.com"
@@ -6271,6 +6287,16 @@ tcp-request content <action> [{if | unless} <condition>]
         acl content_present req_len gt 0
         tcp-request content accept if content_present
         tcp-request content reject
+
+  Example:
+        # Track the last IP from X-Forwarded-For
+        tcp-request inspect-delay 10s
+        tcp-request content track-sc1 hdr(x-forwarded-for,-1) if HTTP
+
+  Example:
+        # track request counts per "base" (concatenation of Host+URL)
+        tcp-request inspect-delay 10s
+        tcp-request content track-sc1 base table req-rate if HTTP
 
   Example: track per-frontend and per-backend counters, block abusers at the
            frontend when the backend detects abuse.

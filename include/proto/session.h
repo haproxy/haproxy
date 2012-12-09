@@ -190,6 +190,37 @@ static void inline session_inc_http_req_ctr(struct session *s)
 	}
 }
 
+/* Increase the number of cumulated HTTP requests in the backend's tracked counters */
+static void inline session_inc_be_http_req_ctr(struct session *s)
+{
+	void *ptr;
+
+	if (likely(!(s->flags & (SN_BE_TRACK_SC1|SN_BE_TRACK_SC2))))
+		return;
+
+	if ((s->flags & SN_BE_TRACK_SC2) && s->stkctr2_entry) {
+		ptr = stktable_data_ptr(s->stkctr2_table, s->stkctr2_entry, STKTABLE_DT_HTTP_REQ_CNT);
+		if (ptr)
+			stktable_data_cast(ptr, http_req_cnt)++;
+
+		ptr = stktable_data_ptr(s->stkctr2_table, s->stkctr2_entry, STKTABLE_DT_HTTP_REQ_RATE);
+		if (ptr)
+			update_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
+					       s->stkctr2_table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
+	}
+
+	if ((s->flags & SN_BE_TRACK_SC1) && s->stkctr1_entry) {
+		ptr = stktable_data_ptr(s->stkctr1_table, s->stkctr1_entry, STKTABLE_DT_HTTP_REQ_CNT);
+		if (ptr)
+			stktable_data_cast(ptr, http_req_cnt)++;
+
+		ptr = stktable_data_ptr(s->stkctr1_table, s->stkctr1_entry, STKTABLE_DT_HTTP_REQ_RATE);
+		if (ptr)
+			update_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
+					       s->stkctr1_table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
+	}
+}
+
 /* Increase the number of cumulated failed HTTP requests in the tracked
  * counters. Only 4xx requests should be counted here so that we can
  * distinguish between errors caused by client behaviour and other ones.

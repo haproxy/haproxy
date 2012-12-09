@@ -6263,11 +6263,6 @@ int check_config_validity()
 				      curproxy->id, trule->act_prm.trk_ctr.table.n ? trule->act_prm.trk_ctr.table.n : curproxy->id);
 				cfgerr++;
 			}
-			else if (trule->act_prm.trk_ctr.type != target->table.type) {
-				Alert("Proxy '%s': type of tracking key for sticky counter not usable with type of stick-table '%s'.\n",
-				      curproxy->id, trule->act_prm.trk_ctr.table.n ? trule->act_prm.trk_ctr.table.n : curproxy->id);
-				cfgerr++;
-			}
 			else {
 				free(trule->act_prm.trk_ctr.table.n);
 				trule->act_prm.trk_ctr.table.t = &target->table;
@@ -6298,11 +6293,6 @@ int check_config_validity()
 			}
 			else if (target->table.size == 0) {
 				Alert("Proxy '%s': table '%s' used but not configured.\n",
-				      curproxy->id, trule->act_prm.trk_ctr.table.n ? trule->act_prm.trk_ctr.table.n : curproxy->id);
-				cfgerr++;
-			}
-			else if (trule->act_prm.trk_ctr.type != target->table.type) {
-				Alert("Proxy '%s': type of tracking key for sticky counter not usable with type of stick-table '%s'.\n",
 				      curproxy->id, trule->act_prm.trk_ctr.table.n ? trule->act_prm.trk_ctr.table.n : curproxy->id);
 				cfgerr++;
 			}
