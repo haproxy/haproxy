@@ -8276,6 +8276,15 @@ sc2_sess_rate
   connection could result in many backend sessions if some HTTP keep-alive is
   performed over the connection with the client. See also src_sess_rate.
 
+sc1_trackers
+sc2_trackers
+  Returns the current amount of concurrent connections tracking the same
+  tracked counters. This number is automatically incremented when tracking
+  begins and decremented when tracking stops. It differs from sc1_conn_cur in
+  that it does not rely on any stored information but on the table's reference
+  count (the "use" value which is returned by "show table" on the CLI). This
+  may sometimes be more suited for layer7 tracking.
+
 so_id <integer>
   Applies to the socket's id. Useful in frontends with many bind keywords.
 

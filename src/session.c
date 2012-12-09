@@ -3597,6 +3597,28 @@ acl_fetch_src_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, uns
 	return acl_fetch_bytes_out_rate(&px->table, smp, stktable_lookup_key(&px->table, key));
 }
 
+/* set temp integer to the number of active trackers on the SC1 entry */
+static int
+acl_fetch_sc1_trackers(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                       const struct arg *args, struct sample *smp)
+{
+	if (!l4->stkctr1_entry)
+		return 0;
+
+	return l4->stkctr1_entry->ref_cnt;
+}
+
+/* set temp integer to the number of active trackers on the SC1 entry */
+static int
+acl_fetch_sc2_trackers(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                       const struct arg *args, struct sample *smp)
+{
+	if (!l4->stkctr2_entry)
+		return 0;
+
+	return l4->stkctr2_entry->ref_cnt;
+}
+
 /* set temp integer to the number of used entries in the table pointed to by expr.
  * Accepts exactly 1 argument of type table.
  */
@@ -3644,6 +3666,7 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "sc1_kbytes_out",     acl_parse_int,   acl_fetch_sc1_kbytes_out,     acl_match_int, ACL_USE_TCP4_VOLATILE, 0 },
 	{ "sc1_sess_cnt",       acl_parse_int,   acl_fetch_sc1_sess_cnt,       acl_match_int, ACL_USE_NOTHING,       0 },
 	{ "sc1_sess_rate",      acl_parse_int,   acl_fetch_sc1_sess_rate,      acl_match_int, ACL_USE_NOTHING,       0 },
+	{ "sc1_trackers",       acl_parse_int,   acl_fetch_sc1_trackers,       acl_match_int, ACL_USE_NOTHING,       0 },
 	{ "sc2_bytes_in_rate",  acl_parse_int,   acl_fetch_sc2_bytes_in_rate,  acl_match_int, ACL_USE_NOTHING,       0 },
 	{ "sc2_bytes_out_rate", acl_parse_int,   acl_fetch_sc2_bytes_out_rate, acl_match_int, ACL_USE_NOTHING,       0 },
 	{ "sc2_clr_gpc0",       acl_parse_int,   acl_fetch_sc2_clr_gpc0,       acl_match_int, ACL_USE_NOTHING,       0 },
@@ -3660,6 +3683,7 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "sc2_kbytes_out",     acl_parse_int,   acl_fetch_sc2_kbytes_out,     acl_match_int, ACL_USE_TCP4_VOLATILE, 0 },
 	{ "sc2_sess_cnt",       acl_parse_int,   acl_fetch_sc2_sess_cnt,       acl_match_int, ACL_USE_NOTHING,       0 },
 	{ "sc2_sess_rate",      acl_parse_int,   acl_fetch_sc2_sess_rate,      acl_match_int, ACL_USE_NOTHING,       0 },
+	{ "sc2_trackers",       acl_parse_int,   acl_fetch_sc2_trackers,       acl_match_int, ACL_USE_NOTHING,       0 },
 	{ "src_bytes_in_rate",  acl_parse_int,   acl_fetch_src_bytes_in_rate,  acl_match_int, ACL_USE_TCP4_VOLATILE, ARG1(1,TAB) },
 	{ "src_bytes_out_rate", acl_parse_int,   acl_fetch_src_bytes_out_rate, acl_match_int, ACL_USE_TCP4_VOLATILE, ARG1(1,TAB) },
 	{ "src_clr_gpc0",       acl_parse_int,   acl_fetch_src_clr_gpc0,       acl_match_int, ACL_USE_TCP4_VOLATILE, ARG1(1,TAB) },
