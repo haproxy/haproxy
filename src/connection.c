@@ -284,7 +284,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 			if (errno == EINTR)
 				continue;
 			if (errno == EAGAIN) {
-				conn_sock_poll_recv(conn);
+				__conn_sock_poll_recv(conn);
 				return 0;
 			}
 			goto recv_abort;
@@ -455,7 +455,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	goto fail;
 
  fail:
-	conn_sock_stop_both(conn);
+	__conn_sock_stop_both(conn);
 	conn->flags |= CO_FL_ERROR;
 	return 0;
 }

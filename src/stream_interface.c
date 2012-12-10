@@ -1035,7 +1035,7 @@ static void si_conn_recv_cb(struct connection *conn)
 		}
 
 		if ((chn->flags & CF_READ_DONTWAIT) || --read_poll <= 0) {
-			conn_data_stop_recv(conn);
+			__conn_data_stop_recv(conn);
 			break;
 		}
 
