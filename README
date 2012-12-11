@@ -68,7 +68,7 @@ install it on target systems. Available build options for PCRE are :
   - USE_STATIC_PCRE=1 to use a static version of libpcre even if the dynamic
     one is available. This will enhance portability.
 
-  - with no option, use your OS libc's standard regex implemntation (default).
+  - with no option, use your OS libc's standard regex implementation (default).
     Warning! group references on Solaris seem broken. Use static-pcre whenever
     possible.
 
@@ -106,7 +106,11 @@ And I build it this way on OpenBSD or FreeBSD :
 
     $ make -f Makefile.bsd REGEX=pcre DEBUG= COPTS.generic="-Os -fomit-frame-pointer -mgnu"
 
-And on a recent Linux with SSL and ZLIB support :
+And on a classic Linux with SSL and ZLIB support (eg: Red Hat 5.x) :
+
+    $ make TARGET=linux26 CPU=native USE_PCRE=1 USE_OPENSSL=1 USE_ZLIB=1
+
+And on a recent Linux >= 2.6.28 with SSL and ZLIB support :
 
     $ make TARGET=linux2628 CPU=native USE_PCRE=1 USE_OPENSSL=1 USE_ZLIB=1
 
@@ -453,6 +457,10 @@ in consideration. In order to clone the HAProxy Git repository :
 
     $ git clone http://git.1wt.eu/git/haproxy-1.4.git    (stable 1.4)
     $ git clone http://git.1wt.eu/git/haproxy.git/       (development)
+
+The site above is slow, a faster mirror is maintained up to date here :
+
+    $ git clone http://master.formilux.org/git/people/willy/haproxy.git/
 
 If you decide to use Git for your developments, then your commit messages will
 have the subject line in the format described above, then the whole description
