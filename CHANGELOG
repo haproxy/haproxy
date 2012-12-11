@@ -1,6 +1,56 @@
 ChangeLog :
 ===========
 
+2012/12/12 : 1.5-dev15
+    - DOC: add a few precisions on compression
+    - BUG/MEDIUM: ssl: Fix handshake failure on session resumption with client cert.
+    - BUG/MINOR: ssl: One free session in cache remains unused.
+    - BUG/MEDIUM: ssl: first outgoing connection would fail with {ca,crt}-ignore-err
+    - MEDIUM: ssl: manage shared cache by blocks for huge sessions.
+    - MINOR: acl: add fetch for server session rate
+    - BUG/MINOR: compression: Content-Type is case insensitive
+    - MINOR: compression: disable on multipart or status != 200
+    - BUG/MINOR: http: don't report client aborts as server errors
+    - MINOR: stats: compute the ratio of compressed response based on 2xx responses
+    - MINOR: http: factor out the content-type checks
+    - BUG/MAJOR: stats: correctly check for a possible divide error when showing compression ratios
+    - BUILD: ssl: OpenSSL 0.9.6 has no renegociation
+    - BUG/MINOR: http: disable compression when message has no body
+    - MINOR: compression: make the stats a bit more robust
+    - BUG/MEDIUM: comp: DEFAULT_MAXZLIBMEM was expressed in bytes and not megabytes
+    - MINOR: connection: don't remove failed handshake flags
+    - MEDIUM: connection: add an error code in connections
+    - MEDIUM: connection: add minimal error reporting in logs for incomplete connections
+    - MEDIUM: connection: add error reporting for the PROXY protocol header
+    - MEDIUM: connection: add error reporting for the SSL
+    - DOC: document the connection error format in logs
+    - BUG/MINOR: http: don't log a 503 on client errors while waiting for requests
+    - BUILD: stdbool is not portable
+    - BUILD: ssl: NAME_MAX is not portable, use MAXPATHLEN instead
+    - BUG/MAJOR: raw_sock: must check error code on hangup
+    - BUG/MAJOR: polling: do not set speculative events on ERR nor HUP
+    - BUG/MEDIUM: session: fix FD leak when transport layer logging is enabled
+    - MINOR: stats: add a few more information on session dump
+    - BUG/MINOR: tcp: set the ADDR_TO_SET flag on outgoing connections
+    - CLEANUP: connection: remove unused server/proxy/task/si_applet declarations
+    - BUG/MEDIUM: tcp: process could theorically crash on lack of source ports
+    - MINOR: cfgparse: mention "interface" in the list of allowed "source" options
+    - MEDIUM: connection: introduce "struct conn_src" for servers and proxies
+    - CLEANUP: proto_tcp: use the same code to bind servers and backends
+    - CLEANUP: backend: use the same tproxy address selection code for servers and backends
+    - BUG/MEDIUM: stick-tables: conversions to strings were broken in dev13
+    - MEDIUM: proto_tcp: add support for tracking L7 information
+    - MEDIUM: counters: add sc1_trackers/sc2_trackers
+    - MINOR: http: add the "base32" pattern fetch function
+    - MINOR: http: add the "base32+src" fetch method.
+    - CLEANUP: session: use an array for the stick counters
+    - BUG/MINOR: proto_tcp: fix parsing of "table" in track-sc1/2
+    - BUG/MINOR: proto_tcp: bidirectional fetches not supported anymore in track-sc1/2
+    - BUG/MAJOR: connection: always recompute polling status upon I/O
+    - BUG/MINOR: connection: remove a few synchronous calls to polling updates
+    - MINOR: config: improve error checking on TCP stick-table tracking
+    - DOC: add some clarifications to the readme
+
 2012/11/26 : 1.5-dev14
     - DOC: fix minor typos
     - BUG/MEDIUM: compression: does not forward trailers
