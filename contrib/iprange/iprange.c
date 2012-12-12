@@ -38,13 +38,13 @@ static const char *get_ipv4_addr(unsigned int addr)
 /* print all networks present between address <low> and address <high> in
  * cidr format, followed by <eol>.
  */
-static void convert_range(unsigned int low, unsigned int high, const char *eol)
+static void convert_range(unsigned int low, unsigned int high, const char *eol, const char *pfx)
 {
 	int bit;
 
 	if (low == high) {
 		/* single value */
-		printf("%s%s\n", get_ipv4_addr(low), eol);
+		printf("%s%s%s%s\n", pfx?pfx:"", pfx?" ":"", get_ipv4_addr(low), eol);
 		return;
 	}
 	else if (low > high) {
@@ -55,7 +55,7 @@ static void convert_range(unsigned int low, unsigned int high, const char *eol)
 
 	if (low == high + 1) {
 		/* full range */
-		printf("0.0.0.0/0%s\n", eol);
+		printf("%s%s0.0.0.0/0%s\n", pfx?pfx:"", pfx?" ":"", eol);
 		return;
 	}
 	//printf("low=%08x high=%08x\n", low, high);
@@ -65,7 +65,7 @@ static void convert_range(unsigned int low, unsigned int high, const char *eol)
 		/* enlarge mask */
 		if (low & (1 << bit)) {
 			/* can't aggregate anymore, dump and retry from the same bit */
-			printf("%s/%d%s\n", get_ipv4_addr(low), 32-bit, eol);
+			printf("%s%s%s/%d%s\n", pfx?pfx:"", pfx?" ":"", get_ipv4_addr(low), 32-bit, eol);
 			low += (1 << bit);
 		}
 		else {
@@ -82,7 +82,7 @@ static void convert_range(unsigned int low, unsigned int high, const char *eol)
 		if ((high - low + 1) & (1 << bit)) {
 			/* large bit accepted, dump and go on from the same bit */
 			//printf("max: %08x/%d\n", low, 32-bit);
-			printf("%s/%d%s\n", get_ipv4_addr(low), 32-bit, eol);
+			printf("%s%s%s/%d%s\n", pfx?pfx:"", pfx?" ":"", get_ipv4_addr(low), 32-bit, eol);
 			low += (1 << bit);
 		}
 		else {
@@ -96,7 +96,7 @@ static void convert_range(unsigned int low, unsigned int high, const char *eol)
 static void usage(const char *argv0)
 {
 	fprintf(stderr,
-	        "Usage: %s < iplist.csv\n"
+	        "Usage: %s [<addr> ...] < iplist.csv\n"
 	        "\n"
 	        "This program reads lines starting by two IP addresses and outputs them with\n"
 	        "the two IP addresses replaced by a netmask covering the range between these\n"
@@ -105,6 +105,9 @@ static void usage(const char *argv0)
 	        "stripped, and lines beginning with a sharp character ('#') are ignored. The\n"
 	        "IP addresses may be either in the dotted format or represented as a 32-bit\n"
 	        "integer value in network byte order.\n"
+		"\n"
+		"For each optional <addr> specified, only the network it belongs to is returned,\n"
+		"prefixed with the <addr> value.\n"
 		"\n", argv0);
 }
 
@@ -114,9 +117,9 @@ main(int argc, char **argv)
 	int l, lnum;
 	char *lb, *le, *hb, *he, *err;
 	struct in_addr src_addr, dst_addr;
-	unsigned int sa, da;
+	unsigned int sa, da, ta;
 
-	if (argc > 1) {
+	if (argc > 1 && *argv[1] == '-') {
 		usage(argv[0]);
 		exit(1);
 	}
@@ -182,6 +185,17 @@ main(int argc, char **argv)
 
 		sa = htonl(src_addr.s_addr);
 		da = htonl(dst_addr.s_addr);
-		convert_range(sa, da, he);
+		if (argc > 1) {
+			for (l = 1; l < argc; l++) {
+				if (inet_pton(AF_INET, argv[l], &dst_addr) <= 0)
+					continue;
+				ta = htonl(dst_addr.s_addr);
+				if ((sa <= ta && ta <= da) || (da <= ta && ta <= sa))
+					convert_range(sa, da, he, argv[l]);
+			}
+		}
+		else {
+			convert_range(sa, da, he, NULL);
+		}
 	}
 }
