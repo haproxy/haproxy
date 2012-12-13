@@ -144,15 +144,22 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			continue;
 
 		/* it looks complicated but gcc can optimize it away when constants
-		 * have same values.
+		 * have same values... In fact it depends on gcc :-(
 		 */
 		fdtab[fd].ev &= FD_POLL_STICKY;
-		fdtab[fd].ev |=
-			((e & EPOLLIN ) ? FD_POLL_IN  : 0) |
-			((e & EPOLLPRI) ? FD_POLL_PRI : 0) |
-			((e & EPOLLOUT) ? FD_POLL_OUT : 0) |
-			((e & EPOLLERR) ? FD_POLL_ERR : 0) |
-			((e & EPOLLHUP) ? FD_POLL_HUP : 0);
+		if (EPOLLIN == FD_POLL_IN && EPOLLOUT == FD_POLL_OUT &&
+		    EPOLLPRI == FD_POLL_PRI && EPOLLERR == FD_POLL_ERR &&
+		    EPOLLHUP == FD_POLL_HUP) {
+			fdtab[fd].ev |= e & (EPOLLIN|EPOLLOUT|EPOLLPRI|EPOLLERR|EPOLLHUP);
+		}
+		else {
+			fdtab[fd].ev |=
+				((e & EPOLLIN ) ? FD_POLL_IN  : 0) |
+				((e & EPOLLPRI) ? FD_POLL_PRI : 0) |
+				((e & EPOLLOUT) ? FD_POLL_OUT : 0) |
+				((e & EPOLLERR) ? FD_POLL_ERR : 0) |
+				((e & EPOLLHUP) ? FD_POLL_HUP : 0);
+		}
 
 		if (fdtab[fd].iocb && fdtab[fd].owner && fdtab[fd].ev) {
 			int new_updt, old_updt = fd_nbupdt; /* Save number of updates to detect creation of new FDs. */
