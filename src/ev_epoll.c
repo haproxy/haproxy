@@ -167,7 +167,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		fdtab[fd].ev |= n;
 
 		if (fdtab[fd].iocb) {
-			int new_updt, old_updt = fd_nbupdt; /* Save number of updates to detect creation of new FDs. */
+			int new_updt, old_updt;
 
 			/* Mark the events as speculative before processing
 			 * them so that if nothing can be done we don't need
@@ -179,6 +179,8 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			if (fdtab[fd].ev & FD_POLL_OUT)
 				fd_ev_set(fd, DIR_WR);
 
+			/* Save number of updates to detect creation of new FDs. */
+			old_updt = fd_nbupdt;
 			fdtab[fd].iocb(fd);
 
 			/* One or more fd might have been created during the iocb().
