@@ -89,8 +89,8 @@ static inline void updt_fd(const int fd)
 	if (fdtab[fd].updated)
 		/* already scheduled for update */
 		return;
-	fd_updt[fd_nbupdt++] = fd;
 	fdtab[fd].updated = 1;
+	fd_updt[fd_nbupdt++] = fd;
 }
 
 
@@ -100,8 +100,9 @@ static inline void alloc_spec_entry(const int fd)
 	if (fdtab[fd].spec_p)
 		/* FD already in speculative I/O list */
 		return;
-	fd_spec[fd_nbspec++] = fd;
+	fd_nbspec++;
 	fdtab[fd].spec_p = fd_nbspec;
+	fd_spec[fd_nbspec-1] = fd;
 }
 
 /* Removes entry used by fd <fd> from the spec list and replaces it with the
@@ -117,7 +118,7 @@ static inline void release_spec_entry(int fd)
 		return;
 	fdtab[fd].spec_p = 0;
 	fd_nbspec--;
-	if (pos <= fd_nbspec) {
+	if (likely(pos <= fd_nbspec)) {
 		/* was not the last entry */
 		fd = fd_spec[fd_nbspec];
 		fd_spec[pos - 1] = fd;
