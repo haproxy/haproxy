@@ -179,6 +179,11 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			if (fdtab[fd].ev & FD_POLL_OUT)
 				fd_ev_set(fd, DIR_WR);
 
+			if (fdtab[fd].spec_p) {
+				/* This fd was already scheduled for being called as a speculative I/O */
+				continue;
+			}
+
 			/* Save number of updates to detect creation of new FDs. */
 			old_updt = fd_nbupdt;
 			fdtab[fd].iocb(fd);
