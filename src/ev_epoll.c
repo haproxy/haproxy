@@ -161,7 +161,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 				((e & EPOLLHUP) ? FD_POLL_HUP : 0);
 		}
 
-		if (fdtab[fd].iocb && fdtab[fd].owner && fdtab[fd].ev) {
+		if (fdtab[fd].iocb && fdtab[fd].ev) {
 			int new_updt, old_updt = fd_nbupdt; /* Save number of updates to detect creation of new FDs. */
 
 			/* Mark the events as speculative before processing

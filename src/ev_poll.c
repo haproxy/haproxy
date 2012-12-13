@@ -170,7 +170,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 				((e & POLLHUP) ? FD_POLL_HUP : 0);
 		}
 
-		if (fdtab[fd].iocb && fdtab[fd].owner && fdtab[fd].ev) {
+		if (fdtab[fd].iocb && fdtab[fd].ev) {
 			/* Mark the events as speculative before processing
 			 * them so that if nothing can be done we don't need
 			 * to poll again.
