@@ -137,7 +137,8 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	/* process polled events */
 
 	for (count = 0; count < status; count++) {
-		int e = epoll_events[count].events;
+		unsigned char n;
+		unsigned char e = epoll_events[count].events;
 		fd = epoll_events[count].data.fd;
 
 		if (!fdtab[fd].owner)
@@ -150,18 +151,22 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		if (EPOLLIN == FD_POLL_IN && EPOLLOUT == FD_POLL_OUT &&
 		    EPOLLPRI == FD_POLL_PRI && EPOLLERR == FD_POLL_ERR &&
 		    EPOLLHUP == FD_POLL_HUP) {
-			fdtab[fd].ev |= e & (EPOLLIN|EPOLLOUT|EPOLLPRI|EPOLLERR|EPOLLHUP);
+			n = e & (EPOLLIN|EPOLLOUT|EPOLLPRI|EPOLLERR|EPOLLHUP);
 		}
 		else {
-			fdtab[fd].ev |=
-				((e & EPOLLIN ) ? FD_POLL_IN  : 0) |
+			n =	((e & EPOLLIN ) ? FD_POLL_IN  : 0) |
 				((e & EPOLLPRI) ? FD_POLL_PRI : 0) |
 				((e & EPOLLOUT) ? FD_POLL_OUT : 0) |
 				((e & EPOLLERR) ? FD_POLL_ERR : 0) |
 				((e & EPOLLHUP) ? FD_POLL_HUP : 0);
 		}
 
-		if (fdtab[fd].iocb && fdtab[fd].ev) {
+		if (!n)
+			continue;
+
+		fdtab[fd].ev |= n;
+
+		if (fdtab[fd].iocb) {
 			int new_updt, old_updt = fd_nbupdt; /* Save number of updates to detect creation of new FDs. */
 
 			/* Mark the events as speculative before processing
