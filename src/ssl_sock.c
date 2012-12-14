@@ -1078,6 +1078,11 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 		else if (ret == 0) {
 			ret =  SSL_get_error(conn->xprt_ctx, ret);
 			if (ret != SSL_ERROR_ZERO_RETURN) {
+				/* error on protocol or underlying transport */
+				if ((ret != SSL_ERROR_SYSCALL)
+				     || (errno && (errno != EAGAIN)))
+					conn->flags |= CO_FL_ERROR;
+
 				/* Clear openssl global errors stack */
 				ERR_clear_error();
 			}
