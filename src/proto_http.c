@@ -8187,6 +8187,9 @@ acl_fetch_stver(struct proxy *px, struct session *l4, void *l7, unsigned int opt
 
 	CHECK_HTTP_MESSAGE_FIRST();
 
+	if (txn->rsp.msg_state < HTTP_MSG_BODY)
+		return 0;
+
 	len = txn->rsp.sl.st.v_l;
 	ptr = txn->rsp.chn->buf->p;
 
@@ -8212,6 +8215,9 @@ acl_fetch_stcode(struct proxy *px, struct session *l4, void *l7, unsigned int op
 	int len;
 
 	CHECK_HTTP_MESSAGE_FIRST();
+
+	if (txn->rsp.msg_state < HTTP_MSG_BODY)
+		return 0;
 
 	len = txn->rsp.sl.st.c_l;
 	ptr = txn->rsp.chn->buf->p + txn->rsp.sl.st.c;
