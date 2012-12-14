@@ -232,6 +232,9 @@ int ssl_sock_load_dh_params(SSL_CTX *ctx, const char *file)
 	}
 
 	ret = 0; /* DH params not found */
+
+	/* Clear openssl global errors stack */
+	ERR_clear_error();
 end:
 	if (dh)
 		DH_free(dh);
@@ -563,6 +566,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 			}
 		}
 #endif
+		ERR_clear_error();
 	}
 
 	if (global.tune.ssllifetime)
@@ -1003,6 +1007,9 @@ reneg_ok:
 	return 1;
 
  out_error:
+	/* Clear openssl global errors stack */
+	ERR_clear_error();
+
 	/* free resumed session if exists */
 	if (objt_server(conn->target) && objt_server(conn->target)->ssl_ctx.reused_sess) {
 		SSL_SESSION_free(objt_server(conn->target)->ssl_ctx.reused_sess);
@@ -1058,7 +1065,7 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 		ret = SSL_read(conn->xprt_ctx, bi_end(buf), try);
 		if (conn->flags & CO_FL_ERROR) {
 			/* CO_FL_ERROR may be set by ssl_sock_infocbk */
-			break;
+			goto out_error;
 		}
 		if (ret > 0) {
 			buf->i += ret;
@@ -1069,6 +1076,11 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 			try = count;
 		}
 		else if (ret == 0) {
+			ret =  SSL_get_error(conn->xprt_ctx, ret);
+			if (ret != SSL_ERROR_ZERO_RETURN) {
+				/* Clear openssl global errors stack */
+				ERR_clear_error();
+			}
 			goto read0;
 		}
 		else {
@@ -1100,6 +1112,9 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 	conn_sock_read0(conn);
 	return done;
  out_error:
+	/* Clear openssl global errors stack */
+	ERR_clear_error();
+
 	conn->flags |= CO_FL_ERROR;
 	return done;
 }
@@ -1141,7 +1156,7 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 		ret = SSL_write(conn->xprt_ctx, bo_ptr(buf), try);
 		if (conn->flags & CO_FL_ERROR) {
 			/* CO_FL_ERROR may be set by ssl_sock_infocbk */
-			break;
+			goto out_error;
 		}
 		if (ret > 0) {
 			buf->o -= ret;
@@ -1180,10 +1195,12 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 	return done;
 
  out_error:
+	/* Clear openssl global errors stack */
+	ERR_clear_error();
+
 	conn->flags |= CO_FL_ERROR;
 	return done;
 }
-
 
 static void ssl_sock_close(struct connection *conn) {
 
@@ -1202,8 +1219,10 @@ static void ssl_sock_shutw(struct connection *conn, int clean)
 	if (conn->flags & CO_FL_HANDSHAKE)
 		return;
 	/* no handshake was in progress, try a clean ssl shutdown */
-	if (clean)
-		SSL_shutdown(conn->xprt_ctx);
+	if (clean && (SSL_shutdown(conn->xprt_ctx) <= 0)) {
+		/* Clear openssl global errors stack */
+		ERR_clear_error();
+	}
 
 	/* force flag on ssl to keep session in cache regardless shutdown result */
 	SSL_set_shutdown(conn->xprt_ctx, SSL_SENT_SHUTDOWN);
