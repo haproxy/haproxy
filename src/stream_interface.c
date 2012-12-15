@@ -806,7 +806,8 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 		if (si->conn->ctrl)
 			fd_want_send(si->conn->t.sock.fd);
 		si->conn->flags &= ~(CO_FL_WAIT_DATA|CO_FL_WAIT_ROOM|CO_FL_WAIT_RD|CO_FL_WAIT_WR);
-		si->conn->flags |= CO_FL_CURR_WR_ENA;
+		if (fd_ev_is_set(si->conn->t.sock.fd, DIR_WR))
+			si->conn->flags |= CO_FL_CURR_WR_ENA;
 
 		if (si_conn_send_loop(si->conn) < 0) {
 			/* Write error on the file descriptor */
