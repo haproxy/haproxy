@@ -795,8 +795,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 		return;
 
 	if (!ob->pipe &&                          /* spliced data wants to be forwarded ASAP */
-	    (!(si->flags & SI_FL_WAIT_DATA) ||    /* not waiting for data */
-	     (fdtab[si->conn->t.sock.fd].ev & FD_POLL_OUT)))   /* we'll be called anyway */
+	    !(si->flags & SI_FL_WAIT_DATA))       /* not waiting for data */
 		return;
 
 	if (!(si->conn->flags & (CO_FL_HANDSHAKE|CO_FL_WAIT_L4_CONN|CO_FL_WAIT_L6_CONN))) {
