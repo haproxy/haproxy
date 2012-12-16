@@ -1167,7 +1167,7 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 			buf->o -= ret;
 			done += ret;
 
-			if (likely(!buffer_len(buf)))
+			if (likely(buffer_empty(buf)))
 				/* optimize data alignment in the buffer */
 				buf->p = buf->data;
 

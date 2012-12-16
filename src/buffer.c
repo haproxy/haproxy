@@ -63,7 +63,7 @@ int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int
 
 	b->i += delta;
 
-	if (buffer_len(b) == 0)
+	if (buffer_empty(b))
 		b->p = b->data;
 
 	return delta;

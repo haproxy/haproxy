@@ -327,7 +327,7 @@ static inline void bo_skip(struct channel *chn, int len)
 {
 	chn->buf->o -= len;
 
-	if (buffer_len(chn->buf) == 0)
+	if (buffer_empty(chn->buf))
 		chn->buf->p = chn->buf->data;
 
 	/* notify that some data was written to the SI from the buffer */
