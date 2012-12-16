@@ -114,6 +114,24 @@ void conn_update_data_polling(struct connection *c);
  */
 int conn_local_send_proxy(struct connection *conn, unsigned int flag);
 
+/* Refresh the connection's polling flags from its file descriptor status.
+ * This should be called at the beginning of a connection handler.
+ */
+static inline void conn_refresh_polling_flags(struct connection *conn)
+{
+	conn->flags &= ~(CO_FL_WAIT_ROOM | CO_FL_WAIT_RD | CO_FL_WAIT_DATA | CO_FL_WAIT_WR);
+
+	if (conn->ctrl) {
+		unsigned int flags = conn->flags & ~(CO_FL_CURR_RD_ENA | CO_FL_CURR_WR_ENA);
+
+		if (fd_ev_is_set(conn->t.sock.fd, DIR_RD))
+			flags |= CO_FL_CURR_RD_ENA;
+		if (fd_ev_is_set(conn->t.sock.fd, DIR_WR))
+			flags |= CO_FL_CURR_WR_ENA;
+		conn->flags = flags;
+	}
+}
+
 /* inspects c->flags and returns non-zero if DATA ENA changes from the CURR ENA
  * or if the WAIT flags are set with their respective ENA flags. Additionally,
  * non-zero is also returned if an error was reported on the connection. This

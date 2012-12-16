@@ -46,18 +46,8 @@ int conn_fd_handler(int fd)
 	if (unlikely(!conn))
 		return 0;
 
-	/* before engaging there, we clear the new WAIT_* flags so that we can
-	 * more easily detect an EAGAIN condition from anywhere.
-	 */
-	flags = conn->flags &= ~(CO_FL_WAIT_DATA|CO_FL_WAIT_ROOM|CO_FL_WAIT_RD|CO_FL_WAIT_WR);
-	flags &= ~CO_FL_ERROR; /* ensure to call the wake handler upon error */
-
-	/* adjust current polling status if it has been updated below us */
-	if (fd_ev_is_set(conn->t.sock.fd, DIR_RD))
-		conn->flags |= CO_FL_CURR_RD_ENA;
-
-	if (fd_ev_is_set(conn->t.sock.fd, DIR_WR))
-		conn->flags |= CO_FL_CURR_WR_ENA;
+	conn_refresh_polling_flags(conn);
+	flags = conn->flags & ~CO_FL_ERROR; /* ensure to call the wake handler upon error */
 
 	if (unlikely(conn->flags & CO_FL_ERROR))
 		goto leave;

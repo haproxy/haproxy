@@ -765,17 +765,20 @@ static void stream_int_chk_rcv_conn(struct stream_interface *si)
 	if (unlikely(si->state > SI_ST_EST || (ib->flags & CF_SHUTR)))
 		return;
 
+	conn_refresh_polling_flags(si->conn);
+
 	if ((ib->flags & CF_DONT_READ) || channel_full(ib)) {
 		/* stop reading */
 		if (!(ib->flags & CF_DONT_READ)) /* full */
 			si->flags |= SI_FL_WAIT_ROOM;
-		conn_data_stop_recv(si->conn);
+		__conn_data_stop_recv(si->conn);
 	}
 	else {
 		/* (re)start reading */
 		si->flags &= ~SI_FL_WAIT_ROOM;
-		conn_data_want_recv(si->conn);
+		__conn_data_want_recv(si->conn);
 	}
+	conn_cond_update_data_polling(si->conn);
 }
 
 
@@ -804,9 +807,8 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 		 */
 		if (si->conn->ctrl)
 			fd_want_send(si->conn->t.sock.fd);
-		si->conn->flags &= ~(CO_FL_WAIT_DATA|CO_FL_WAIT_ROOM|CO_FL_WAIT_RD|CO_FL_WAIT_WR);
-		if (fd_ev_is_set(si->conn->t.sock.fd, DIR_WR))
-			si->conn->flags |= CO_FL_CURR_WR_ENA;
+
+		conn_refresh_polling_flags(si->conn);
 
 		if (si_conn_send_loop(si->conn) < 0) {
 			/* Write error on the file descriptor */
