@@ -571,11 +571,11 @@ static int si_conn_wake_cb(struct connection *conn)
 		__conn_data_stop_recv(conn);
 		si->ib->rex = TICK_ETERNITY;
 	}
-	else if ((si->ib->flags & (CF_SHUTR|CF_READ_PARTIAL|CF_DONT_READ|CF_READ_NOEXP)) == CF_READ_PARTIAL &&
+	else if ((si->ib->flags & (CF_SHUTR|CF_READ_PARTIAL|CF_DONT_READ)) == CF_READ_PARTIAL &&
 		 !channel_full(si->ib)) {
 		/* we must re-enable reading if si_chk_snd() has freed some space */
 		__conn_data_want_recv(conn);
-		if (tick_isset(si->ib->rex))
+		if (!(si->ib->flags & CF_READ_NOEXP) && tick_isset(si->ib->rex))
 			si->ib->rex = tick_add_ifset(now_ms, si->ib->rto);
 	}
 
