@@ -3751,7 +3751,8 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 	/* if the server closes the connection, we want to immediately react
 	 * and close the socket to save packets and syscalls.
 	 */
-	req->cons->flags |= SI_FL_NOHALF;
+	if (!(req->analysers & AN_REQ_HTTP_XFER_BODY))
+		req->cons->flags |= SI_FL_NOHALF;
 
 	s->logs.tv_request = now;
 	/* OK let's go on with the BODY now */
@@ -4182,6 +4183,11 @@ int http_sync_req_state(struct session *s)
 		if (!(s->be->options & PR_O_ABRT_CLOSE) && txn->meth != HTTP_METH_POST)
 			channel_dont_read(chn);
 
+		/* if the server closes the connection, we want to immediately react
+		 * and close the socket to save packets and syscalls.
+		 */
+		chn->cons->flags |= SI_FL_NOHALF;
+
 		if (txn->rsp.msg_state == HTTP_MSG_ERROR)
 			goto wait_other_side;
 
@@ -4453,10 +4459,10 @@ int http_resync_states(struct session *s)
 		channel_auto_close(s->rep);
 		channel_auto_read(s->rep);
 	}
-	else if (txn->rsp.msg_state == HTTP_MSG_CLOSED ||
+	else if ((txn->req.msg_state >= HTTP_MSG_DONE &&
+		  (txn->rsp.msg_state == HTTP_MSG_CLOSED || (s->rep->flags & CF_SHUTW))) ||
 		 txn->rsp.msg_state == HTTP_MSG_ERROR ||
-		 txn->req.msg_state == HTTP_MSG_ERROR ||
-		 (s->rep->flags & CF_SHUTW)) {
+		 txn->req.msg_state == HTTP_MSG_ERROR) {
 		s->rep->analysers = 0;
 		channel_auto_close(s->rep);
 		channel_auto_read(s->rep);
