@@ -10235,6 +10235,11 @@ Special variable "%o" may be used to propagate its flags to all other
 variables on the same format string. This is particularly handy with quoted
 string formats ("Q").
 
+If a variable is named between square brackets ('[' .. ']') then it is used
+as a pattern extraction rule (see section 7.8). This it useful to add some
+less common information such as the client's SSL certificate's DN, or to log
+the key that would be used to store an entry into a stick table.
+
 Note: spaces must be escaped. A space character is considered as a separator.
 HAproxy will automatically merge consecutive separators.
 

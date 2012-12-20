@@ -39,7 +39,7 @@
 enum {
 
 	LOG_FMT_TEXT = 0, /* raw text */
-
+	LOG_FMT_EXPR,     /* sample expression */
 	LOG_FMT_SEPARATOR, /* separator replaced by one space */
 	LOG_FMT_VARIABLE,
 
@@ -106,21 +106,25 @@ enum {
 	LF_STARTVAR,   // % in text
 	LF_STARG,      // after '%{' and berore '}'
 	LF_EDARG,      // '}' after '%{'
+	LF_STEXPR,     // after '%[' or '%{..}[' and berore ']'
+	LF_EDEXPR,     // ']' after '%['
 	LF_END,        // \0 found
 };
 
 
 struct logformat_node {
 	struct list list;
-	int type;
-	int options;
-	char *arg;
+	int type;      // LOG_FMT_*
+	int options;   // LOG_OPT_*
+	char *arg;     // text for LOG_FMT_TEXT, arg for others
+	void *expr;    // for use with LOG_FMT_EXPR
 };
 
 #define LOG_OPT_HEXA		0x00000001
 #define LOG_OPT_MANDATORY	0x00000002
 #define LOG_OPT_QUOTE		0x00000004
-
+#define LOG_OPT_REQ_CAP         0x00000008
+#define LOG_OPT_RES_CAP         0x00000010
 
 
 /* fields that need to be logged. They appear as flags in session->logs.logwait */

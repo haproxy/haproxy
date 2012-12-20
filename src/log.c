@@ -33,6 +33,7 @@
 
 #include <proto/frontend.h>
 #include <proto/log.h>
+#include <proto/sample.h>
 #include <proto/stream_interface.h>
 #ifdef USE_OPENSSL
 #include <proto/ssl_sock.h>
@@ -304,6 +305,51 @@ void add_to_logformat_list(char *start, char *end, int type, struct list *list_f
 }
 
 /*
+ * Parse the sample fetch expression <text> and add a node to <list_format> upon
+ * success. At the moment, sample converters are not yet supported but fetch arguments
+ * should work.
+ */
+void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct proxy *curpx, struct list *list_format, int options)
+{
+	char *cmd[2];
+	struct sample_expr *expr;
+	struct logformat_node *node;
+	int cmd_arg;
+
+	cmd[0] = text;
+	cmd[1] = "";
+	cmd_arg = 0;
+
+	expr = sample_parse_expr(cmd, &cmd_arg, trash.str, trash.size);
+	if (!expr) {
+		Warning("log-format: sample fetch <%s> failed with : %s\n", text, trash.str);
+		return;
+	}
+
+	node = calloc(1, sizeof(struct logformat_node));
+	node->type = LOG_FMT_EXPR;
+	node->expr = expr;
+	node->options = options;
+
+	if (arg_len) {
+		node->arg = my_strndup(arg, arg_len);
+		parse_logformat_var_args(node->arg, node);
+	}
+	if (expr->fetch->cap & SMP_CAP_REQ)
+		node->options |= LOG_OPT_REQ_CAP; /* fetch method is request-compatible */
+
+	if (expr->fetch->cap & SMP_CAP_RES)
+		node->options |= LOG_OPT_RES_CAP; /* fetch method is response-compatible */
+
+	/* check if we need to allocate an hdr_idx struct for HTTP parsing */
+	/* Note, we may also need to set curpx->to_log with certain fetches */
+	if (expr->fetch->cap & SMP_CAP_L7)
+		curpx->acl_requires |= ACL_USE_L7_ANY;
+
+	LIST_ADDQ(list_format, &node->list);
+}
+
+/*
  * Parse the log_format string and fill a linked list.
  * Variable name are preceded by % and composed by characters [a-zA-Z0-9]* : %varname
  * You can set arguments using { } : %{many arguments}varname
@@ -346,11 +392,15 @@ void parse_logformat_string(char *str, struct proxy *curproxy, struct list *list
 		 */
 		switch (pformat) {
 		case LF_STARTVAR:                      // text immediately following a '%'
-			arg = NULL;
+			arg = NULL; var = NULL;
 			arg_len = var_len = 0;
 			if (*str == '{') {             // optional argument
 				cformat = LF_STARG;
 				arg = str + 1;
+			}
+			else if (*str == '[') {
+				cformat = LF_STEXPR;
+				var = str + 1;         // store expr in variable name
 			}
 			else if (isalnum((int)*str)) { // variable name
 				cformat = LF_VAR;
@@ -371,14 +421,26 @@ void parse_logformat_string(char *str, struct proxy *curproxy, struct list *list
 			break;
 
 		case LF_EDARG:                         // text immediately following '%{arg}'
-			if (isalnum((int)*str)) {      // variable name
+			if (*str == '[') {
+				cformat = LF_STEXPR;
+				var = str + 1;         // store expr in variable name
+				break;
+			}
+			else if (isalnum((int)*str)) { // variable name
 				cformat = LF_VAR;
 				var = str;
 				break;
 			}
-
 			Warning("Skipping isolated argument in log-format line : '%%{%s}'\n", arg);
 			cformat = LF_INIT;
+			break;
+
+		case LF_STEXPR:                        // text immediately following '%['
+			if (*str == ']') {             // end of arg
+				cformat = LF_EDEXPR;
+				var_len = str - var;
+				*str = 0;              // needed for parsing the expression
+			}
 			break;
 
 		case LF_VAR:                           // text part of a variable name
@@ -387,7 +449,7 @@ void parse_logformat_string(char *str, struct proxy *curproxy, struct list *list
 				cformat = LF_INIT;     // not variable name anymore
 			break;
 
-		default:                               // LF_INIT, LF_TEXT, LF_SEPARATOR, LF_END
+		default:                               // LF_INIT, LF_TEXT, LF_SEPARATOR, LF_END, LF_EDEXPR
 			cformat = LF_INIT;
 		}
 
@@ -405,6 +467,9 @@ void parse_logformat_string(char *str, struct proxy *curproxy, struct list *list
 			case LF_VAR:
 				parse_logformat_var(arg, arg_len, var, var_len, curproxy, list_format, &options);
 				break;
+			case LF_STEXPR:
+				add_sample_to_logformat_list(var, arg, arg_len, curproxy, list_format, options);
+				break;
 			case LF_TEXT:
 			case LF_SEPARATOR:
 				add_to_logformat_list(sp, str, pformat, list_format);
@@ -414,8 +479,8 @@ void parse_logformat_string(char *str, struct proxy *curproxy, struct list *list
 		}
 	}
 
-	if (pformat == LF_STARTVAR || pformat == LF_STARG)
-		Warning("Ignoring end of truncated log-format line after '%s'\n", arg ? arg : "%");
+	if (pformat == LF_STARTVAR || pformat == LF_STARG || pformat == LF_STEXPR)
+		Warning("Ignoring end of truncated log-format line after '%s'\n", var ? var : arg ? arg : "%");
 }
 
 /*
@@ -823,8 +888,9 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 
 	list_for_each_entry(tmp, list_format, list) {
 		const char *src = NULL;
-		switch (tmp->type) {
+		struct sample *key;
 
+		switch (tmp->type) {
 			case LOG_FMT_SEPARATOR:
 				if (!last_isspace) {
 					LOGCHAR(' ');
@@ -838,6 +904,21 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				if (iret == 0)
 					goto out;
 				tmplog += iret;
+				last_isspace = 0;
+				break;
+
+			case LOG_FMT_EXPR: // sample expression, may be request or response
+				key = NULL;
+				if (tmp->options & LOG_OPT_REQ_CAP)
+					key = sample_fetch_string(be, s, txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, tmp->expr);
+				if (!key && (tmp->options & LOG_OPT_RES_CAP))
+					key = sample_fetch_string(be, s, txn, SMP_OPT_DIR_RES|SMP_OPT_FINAL, tmp->expr);
+				if (!key)
+					break;
+				ret = lf_text_len(tmplog, key->data.str.str, key->data.str.len, dst + maxsize - tmplog, tmp);
+				if (ret == 0)
+					goto out;
+				tmplog = ret;
 				last_isspace = 0;
 				break;
 
