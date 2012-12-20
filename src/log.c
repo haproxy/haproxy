@@ -302,7 +302,7 @@ void add_to_logformat_list(char *start, char *end, int type, struct list *list_f
 {
 	char *str;
 
-	if (type == LOG_FMT_TEXT) { /* type text */
+	if (type == LF_TEXT) { /* type text */
 		struct logformat_node *node = calloc(1, sizeof(struct logformat_node));
 		str = calloc(end - start + 1, 1);
 		strncpy(str, start, end - start);
@@ -310,7 +310,7 @@ void add_to_logformat_list(char *start, char *end, int type, struct list *list_f
 		node->arg = str;
 		node->type = LOG_FMT_TEXT; // type string
 		LIST_ADDQ(list_format, &node->list);
-	} else if (type == LOG_FMT_SEPARATOR) {
+	} else if (type == LF_SEPARATOR) {
 		struct logformat_node *node = calloc(1, sizeof(struct logformat_node));
 		node->type = LOG_FMT_SEPARATOR;
 		LIST_ADDQ(list_format, &node->list);
