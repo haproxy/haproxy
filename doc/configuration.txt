@@ -8641,6 +8641,10 @@ ssl_c_sig_alg <string>
   layer, and the name of the algorithm used to sign the certificate presented
   by the client matches the string.
 
+ssl_c_used
+  Returns true if current SSL session uses a client certificate even if current
+  connection uses SSL session resumption. See also "ssl_fc_has_crt".
+
 ssl_c_verify <integer>
   Returns true when the incoming connection was made over an SSL/TLS transport
   layer, and the verify result matches the specified value (check man verify
@@ -8719,6 +8723,10 @@ ssl_fc_cipher <string>
 ssl_fc_has_crt
   Returns true if a client certificate is present in an incoming connection over
   SSL/TLS transport layer. Useful if 'verify' statement is set to 'optional'.
+  Note: on SSL session resumption with Session ID or TLS ticket, client
+  certificate is not present in the current connection but may be retrieved
+  from the cache or the ticket. So prefer "ssl_c_used" if you want to check if
+  current SSL session uses a client certificate.
 
 ssl_fc_has_sni
   This is used to check for presence of a Server Name Indication TLS extension
@@ -9439,6 +9447,10 @@ The list of currently supported pattern fetch functions is the following :
                presented by the client when the incoming connection was made
                over an SSL/TLS transport layer.
 
+  ssl_c_used
+               Returns 1 if current SSL session use a client certificate,
+               otherwise 0. See also "ssl_fc_has_crt".
+
   ssl_c_verify Returns the verify result errorID when the incoming connection
                was made over an SSL/TLS transport layer, otherwise zero if no
                error is encountered.
@@ -9516,6 +9528,11 @@ The list of currently supported pattern fetch functions is the following :
   ssl_fc_has_crt
                Returns 1 if a client certificate is present in the front
                connection over SSL/TLS transport layer, otherwise 0.
+               Note: on SSL session resumption with Session ID or TLS ticket,
+               client certificate is not present in the current connection but
+               may be retrieved from the cache or the ticket. So prefer
+               "ssl_c_used" if you want to check if current SSL session uses
+               a client certificate.
 
   ssl_fc_has_sni
                This checks the transport layer used by the front connection, and
