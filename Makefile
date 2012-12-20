@@ -677,7 +677,7 @@ tar:	clean
 	    -cf - haproxy-$(VERSION)/* | gzip -c9 >haproxy-$(VERSION).tar.gz
 	rm -f haproxy-$(VERSION)
 
-git-tar: clean
+git-tar:
 	git archive --format=tar --prefix="haproxy-$(VERSION)/" HEAD | gzip -9 > haproxy-$(VERSION)$(SUBVERS).tar.gz
 
 version:
