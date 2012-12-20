@@ -55,10 +55,10 @@ void sess_log(struct session *s);
 int parse_logformat_var_args(char *args, struct logformat_node *node);
 
 /*
- * Parse a variable '%varname' or '%{args}varname' in logformat
+ * Parse a variable '%varname' or '%{args}varname' in log-format
  *
  */
-int parse_logformat_var(char *str, size_t len, struct proxy *curproxy, struct list *list_format, int *defoptions);
+int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct proxy *curproxy, struct list *list_format, int *defoptions);
 
 /*
  * add to the logformat linked list

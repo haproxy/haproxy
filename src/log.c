@@ -10,6 +10,7 @@
  *
  */
 
+#include <ctype.h>
 #include <fcntl.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -221,69 +222,54 @@ int parse_logformat_var_args(char *args, struct logformat_node *node)
 }
 
 /*
- * Parse a variable '%varname' or '%{args}varname' in logformat
- *
+ * Parse a variable '%varname' or '%{args}varname' in log-format. The caller
+ * must pass the args part in the <arg> pointer with its length in <arg_len>,
+ * and varname with its length in <var> and <var_len> respectively. <arg> is
+ * ignored when arg_len is 0. Neither <var> nor <var_len> may be null.
  */
-int parse_logformat_var(char *str, size_t len, struct proxy *curproxy, struct list *list_format, int *defoptions)
+int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct proxy *curproxy, struct list *list_format, int *defoptions)
 {
-	int i, j;
-	char *arg = NULL; // arguments
-	int fparam = 0;
-	char *name = NULL;
-	struct logformat_node *node = NULL;
-	char varname[255] = { 0 }; // variable name
+	int j;
+	struct logformat_node *node;
 
-	for (i = 1; i < len; i++) { // escape first char %
-		if (!arg && str[i] == '{') {
-			arg = str + i;
-			fparam = 1;
-		} else if (arg && str[i] == '}') {
-			char *tmp = arg;
-			arg = calloc(str + i - tmp, 1); // without {}
-			strncpy(arg, tmp + 1, str + i - tmp - 1); // copy without { and }
-			arg[str + i - tmp - 1] = '\0';
-			fparam = 0;
-		} else if (!name && !fparam) {
-			strncpy(varname, str + i, len - i + 1);
-			varname[len - i] = '\0';
-			for (j = 0; logformat_keywords[j].name; j++) { // search a log type
-				if (strcmp(varname, logformat_keywords[j].name) == 0) {
-					if (!((logformat_keywords[j].mode == PR_MODE_HTTP) && (curproxy->mode == PR_MODE_TCP))) {
-						node = calloc(1, sizeof(struct logformat_node));
-						node->type = logformat_keywords[j].type;
-						node->options = *defoptions;
-						node->arg = arg;
-						parse_logformat_var_args(node->arg, node);
-						if (node->type == LOG_FMT_GLOBAL) {
-							*defoptions = node->options;
-							free(node);
-						} else {
-							if (logformat_keywords[j].config_callback != NULL) {
-								if (logformat_keywords[j].config_callback(node, curproxy) != 0) {
-									return -1;
-								 }
-							}
-							curproxy->to_log |= logformat_keywords[j].lw;
-							LIST_ADDQ(list_format, &node->list);
-						}
-						if (logformat_keywords[j].replace_by)
-							Warning("Warning: deprecated variable '%s' in log-format, please replace it with '%s'\n",
-								varname, logformat_keywords[j].replace_by);
-						return 0;
-					} else {
-						Warning("Warning: No such variable name '%s' in this log mode\n", varname);
-						if (arg)
-							free(arg);
+	for (j = 0; logformat_keywords[j].name; j++) { // search a log type
+		if (strlen(logformat_keywords[j].name) == var_len &&
+		    strncmp(var, logformat_keywords[j].name, var_len) == 0) {
+			if (logformat_keywords[j].mode != PR_MODE_HTTP || curproxy->mode == PR_MODE_HTTP) {
+				node = calloc(1, sizeof(struct logformat_node));
+				node->type = logformat_keywords[j].type;
+				node->options = *defoptions;
+				if (arg_len) {
+					node->arg = my_strndup(arg, arg_len);
+					parse_logformat_var_args(node->arg, node);
+				}
+				if (node->type == LOG_FMT_GLOBAL) {
+					*defoptions = node->options;
+					free(node->arg);
+					free(node);
+				} else {
+					if (logformat_keywords[j].config_callback &&
+					    logformat_keywords[j].config_callback(node, curproxy) != 0) {
 						return -1;
 					}
+					curproxy->to_log |= logformat_keywords[j].lw;
+					LIST_ADDQ(list_format, &node->list);
 				}
+				if (logformat_keywords[j].replace_by)
+					Warning("Warning: deprecated variable '%s' in log-format, please replace it with '%s'\n",
+					        logformat_keywords[j].name, logformat_keywords[j].replace_by);
+				return 0;
+			} else {
+				Warning("Warning: log-format variable name '%s' is not suited to HTTP mode\n", logformat_keywords[j].name);
+				return -1;
 			}
-			Warning("Warning: No such variable name '%s' in log-format\n", varname);
-			if (arg)
-				free(arg);
-			return -1;
 		}
 	}
+
+	j = var[var_len];
+	var[var_len] = 0;
+	Warning("Warning: no such variable name '%s' in log-format\n", var);
+	var[var_len] = j;
 	return -1;
 }
 
@@ -329,9 +315,13 @@ void add_to_logformat_list(char *start, char *end, int type, struct list *list_f
  */
 void parse_logformat_string(char *str, struct proxy *curproxy, struct list *list_format, int capabilities)
 {
-	char *sp = str; /* start pointer */
-	int cformat = -1; /* current token format : LOG_TEXT, LOG_SEPARATOR, LOG_VARIABLE */
-	int pformat = -1; /* previous token format */
+	char *sp = str; /* start pointer for text parts */
+	char *arg = NULL; /* start pointer for args */
+	char *var = NULL; /* start pointer for vars */
+	int arg_len = 0;
+	int var_len = 0;
+	int cformat; /* current token format */
+	int pformat; /* previous token format */
 	struct logformat_node *tmplf, *back;
 	int options = 0;
 
@@ -343,87 +333,89 @@ void parse_logformat_string(char *str, struct proxy *curproxy, struct list *list
 		free(tmplf);
 	}
 
-	while (1) {
-
-		// push the variable only if formats are different, not
-		// within a variable, and not the first iteration
-		if ((cformat != pformat && cformat != -1 && pformat != -1) || *str == '\0') {
-			if (((pformat != LF_STARTVAR && cformat != LF_VAR) &&
-			    (pformat != LF_STARTVAR && cformat != LF_STARG) &&
-			    (pformat != LF_STARG && cformat !=  LF_VAR)) || *str == '\0') {
-				if (pformat > LF_VAR) // unfinished string
-					pformat = LF_TEXT;
-				if (pformat == LF_VAR)
-					parse_logformat_var(sp, str - sp, curproxy, list_format, &options);
-				else
-					add_to_logformat_list(sp, str, pformat, list_format);
-				sp = str;
-				if (*str == '\0')
-					break;
-			    }
-		}
-
-		if (cformat != -1)
-			str++; // consume the string, except on the first tour
-
+	for (cformat = LF_INIT; cformat != LF_END; str++) {
 		pformat = cformat;
 
-		if (*str == '\0') {
-			cformat = LF_STARTVAR; // for breaking in all cases
-			continue;
-		}
+		if (!*str)
+			cformat = LF_END;              // preset it to save all states from doing this
 
-		if (pformat == LF_STARTVAR) { // after a %
-			if ( (*str >= 'a' && *str <= 'z') || // parse varname
-			     (*str >= 'A' && *str <= 'Z') ||
-			     (*str >= '0' && *str <= '9')) {
-				cformat = LF_VAR; // varname
-				continue;
-			} else if (*str == '{') {
-				cformat = LF_STARG; // variable arguments
-				continue;
-			} else { // another unexpected token
-				pformat = LF_TEXT; // redefine the format of the previous token to TEXT
-				cformat = LF_TEXT;
-				continue;
-			}
-
-		} else if (pformat == LF_VAR) { // after a varname
-			if ( (*str >= 'a' && *str <= 'z') || // parse varname
-			     (*str >= 'A' && *str <= 'Z') ||
-			     (*str >= '0' && *str <= '9')) {
-				cformat = LF_VAR;
-				continue;
-			}
-		} else if (pformat  == LF_STARG) { // inside variable arguments
-			if (*str == '}') { // end of varname
-				cformat = LF_EDARG;
-				continue;
-			} else { // all tokens are acceptable within { }
+		/* The prinicple of the two-step state machine below is to first detect a change, and
+		 * second have all common paths processed at one place. The common paths are the ones
+		 * encountered in text areas (LF_INIT, LF_TEXT, LF_SEPARATOR) and at the end (LF_END).
+		 * We use the common LF_INIT state to dispatch to the different final states.
+		 */
+		switch (pformat) {
+		case LF_STARTVAR:                      // text immediately following a '%'
+			arg = NULL;
+			arg_len = var_len = 0;
+			if (*str == '{') {             // optional argument
 				cformat = LF_STARG;
-				continue;
+				arg = str + 1;
 			}
-		} else if (pformat == LF_EDARG) { //  after arguments
-			if ( (*str >= 'a' && *str <= 'z') || // parse a varname
-			     (*str >= 'A' && *str <= 'Z') ||
-			     (*str >= '0' && *str <= '9')) {
+			else if (isalnum((int)*str)) { // variable name
 				cformat = LF_VAR;
-				continue;
-			} else { // if no varname after arguments, transform in TEXT
-				pformat = LF_TEXT;
-				cformat = LF_TEXT;
+				var = str;
+			}
+			else if (*str == '%')
+				cformat = LF_TEXT;     // convert this character to a litteral (useful for '%')
+			else
+				cformat = LF_INIT;     // handle other cases of litterals
+			break;
+
+		case LF_STARG:                         // text immediately following '%{'
+			if (*str == '}') {             // end of arg
+				cformat = LF_EDARG;
+				arg_len = str - arg;
+				*str = 0;              // used for reporting errors
+			}
+			break;
+
+		case LF_EDARG:                         // text immediately following '%{arg}'
+			if (isalnum((int)*str)) {      // variable name
+				cformat = LF_VAR;
+				var = str;
+				break;
+			}
+
+			Warning("Skipping isolated argument in log-format line : '%%{%s}'\n", arg);
+			cformat = LF_INIT;
+			break;
+
+		case LF_VAR:                           // text part of a variable name
+			var_len = str - var;
+			if (!isalnum((int)*str))
+				cformat = LF_INIT;     // not variable name anymore
+			break;
+
+		default:                               // LF_INIT, LF_TEXT, LF_SEPARATOR, LF_END
+			cformat = LF_INIT;
+		}
+
+		if (cformat == LF_INIT) { /* resynchronize state to text/sep/startvar */
+			switch (*str) {
+			case '%': cformat = LF_STARTVAR;  break;
+			case ' ': cformat = LF_SEPARATOR; break;
+			case  0 : cformat = LF_END;       break;
+			default : cformat = LF_TEXT;      break;
 			}
 		}
 
-		// others tokens that don't match previous conditions
-		if (*str == '%') {
-			cformat = LF_STARTVAR;
-		} else if (*str == ' ') {
-			cformat = LF_SEPARATOR;
-		} else {
-			cformat = LF_TEXT;
+		if (cformat != pformat || pformat == LF_SEPARATOR) {
+			switch (pformat) {
+			case LF_VAR:
+				parse_logformat_var(arg, arg_len, var, var_len, curproxy, list_format, &options);
+				break;
+			case LF_TEXT:
+			case LF_SEPARATOR:
+				add_to_logformat_list(sp, str, pformat, list_format);
+				break;
+			}
+			sp = str; /* new start of text at every state switch and at every separator */
 		}
 	}
+
+	if (pformat == LF_STARTVAR || pformat == LF_STARG)
+		Warning("Ignoring end of truncated log-format line after '%s'\n", arg ? arg : "%");
 }
 
 /*

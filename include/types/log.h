@@ -97,15 +97,16 @@ enum {
 	LOG_FMT_SSL_VERSION,
 };
 
-/* enum for parse_logformat */
+/* enum for parse_logformat_string */
 enum {
-	LF_TEXT = 0,
-	LF_SEPARATOR,
-	LF_VAR, // after %
-
-	LF_STARTVAR,   // %
-	LF_STARG, // { and within { }
-	LF_EDARG, // end arg }
+	LF_INIT = 0,   // before first character
+	LF_TEXT,       // normal text
+	LF_SEPARATOR,  // a single separator
+	LF_VAR,        // variable name, after '%' or '%{..}'
+	LF_STARTVAR,   // % in text
+	LF_STARG,      // after '%{' and berore '}'
+	LF_EDARG,      // '}' after '%{'
+	LF_END,        // \0 found
 };
 
 
