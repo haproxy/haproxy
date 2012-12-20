@@ -184,7 +184,7 @@ int parse_logformat_var_args(char *args, struct logformat_node *node)
 
 		if (*args == '\0' || *args == ',') {
 			*args = '\0';
-			for (i = 0; var_args_list[i].name; i++) {
+			for (i = 0; sp && var_args_list[i].name; i++) {
 				if (strcmp(sp, var_args_list[i].name) == 0) {
 					if (flags == 1) {
 						node->options |= var_args_list[i].mask;
@@ -199,7 +199,7 @@ int parse_logformat_var_args(char *args, struct logformat_node *node)
 			if (end)
 				break;
 		}
-	args++;
+		args++;
 	}
 	return 0;
 }
