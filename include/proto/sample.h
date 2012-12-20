@@ -34,6 +34,8 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, char *err, int err_s
 struct sample *sample_process(struct proxy *px, struct session *l4,
                                void *l7, unsigned int dir, struct sample_expr *expr,
                                struct sample *p);
+struct sample *sample_fetch_string(struct proxy *px, struct session *l4, void *l7,
+                                   unsigned int opt, struct sample_expr *expr);
 void sample_register_fetches(struct sample_fetch_kw_list *psl);
 void sample_register_convs(struct sample_conv_kw_list *psl);
 struct chunk *sample_get_trash_chunk(void);

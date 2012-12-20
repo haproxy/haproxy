@@ -539,6 +539,31 @@ struct sample *sample_process(struct proxy *px, struct session *l4, void *l7,
 	return p;
 }
 
+/*
+ * Process a fetch + format conversion as defined by the sample expression <expr>
+ * on request or response considering the <opt> parameter. The output is always of
+ * type string. Returns either NULL if no sample could be extracted, or a pointer
+ * to the converted result stored in static temp_smp in format string.
+ */
+struct sample *sample_fetch_string(struct proxy *px, struct session *l4, void *l7,
+                                   unsigned int opt, struct sample_expr *expr)
+{
+	struct sample *smp;
+
+	smp = sample_process(px, l4, l7, opt, expr, NULL);
+	if (!smp)
+		return NULL;
+
+	if (!sample_casts[smp->type][SMP_T_CSTR])
+		return NULL;
+
+	if (!sample_casts[smp->type][SMP_T_CSTR](smp))
+		return NULL;
+
+	smp->type = SMP_T_CSTR;
+	return smp;
+}
+
 /*****************************************************************/
 /*    Sample format convert functions                            */
 /*    These functions set the data type on return.               */
