@@ -10272,6 +10272,7 @@ Please refer to the table below for currently defined variables :
   |   | %Ts  | timestamp                                     | numeric     |
   |   | %Tt  | Tt                                            | numeric     |
   |   | %Tw  | Tw                                            | numeric     |
+  |   | %U   | bytes_uploaded (from client to server)        | numeric     |
   |   | %ac  | actconn                                       | numeric     |
   |   | %b   | backend_name                                  | string      |
   |   | %bc  | beconn                                        | numeric     |

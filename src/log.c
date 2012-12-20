@@ -87,7 +87,8 @@ static const struct logformat_type logformat_keywords[] = {
 	{ "ft", LOG_FMT_FRONTEND_XPRT, PR_MODE_TCP, LW_INIT, NULL },  /* frontend with transport mode */
 	{ "b", LOG_FMT_BACKEND, PR_MODE_TCP, LW_INIT, NULL },   /* backend */
 	{ "s", LOG_FMT_SERVER, PR_MODE_TCP, LW_SVID, NULL },    /* server */
-	{ "B", LOG_FMT_BYTES, PR_MODE_TCP, LW_BYTES, NULL },     /* bytes read */
+	{ "B", LOG_FMT_BYTES, PR_MODE_TCP, LW_BYTES, NULL },     /* bytes from server to client */
+	{ "U", LOG_FMT_BYTES_UP, PR_MODE_TCP, LW_BYTES, NULL },  /* bytes from client to server */
 	{ "Tq", LOG_FMT_TQ, PR_MODE_HTTP, LW_BYTES, NULL },       /* Tq */
 	{ "Tw", LOG_FMT_TW, PR_MODE_TCP, LW_BYTES, NULL },       /* Tw */
 	{ "Tc", LOG_FMT_TC, PR_MODE_TCP, LW_BYTES, NULL },       /* Tc */
@@ -1111,6 +1112,16 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				if (!(tolog & LW_BYTES))
 					LOGCHAR('+');
 				ret = lltoa(s->logs.bytes_out, tmplog, dst + maxsize - tmplog);
+				if (ret == NULL)
+					goto out;
+				tmplog = ret;
+				last_isspace = 0;
+				break;
+
+			case LOG_FMT_BYTES_UP: // %U
+				if (!(tolog & LW_BYTES))
+					LOGCHAR('+');
+				ret = lltoa(s->logs.bytes_in, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
