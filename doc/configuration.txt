@@ -10223,7 +10223,7 @@ Detailed fields description :
 8.2.4. Custom log format
 ------------------------
 
-The directive log-format allows you to custom the logs in http mode and tcp
+The directive log-format allows you to customize the logs in http mode and tcp
 mode. It takes a string as argument.
 
 HAproxy understands some log format variables. % precedes log format variables.
@@ -10249,18 +10249,18 @@ Flags are :
 
 At the moment, the default HTTP format is defined this way :
 
-    log-format %Ci:%Cp\ [%t]\ %ft\ %b/%s\ %Tq/%Tw/%Tc/%Tr/%Tt\ %st\ %B\ %cc\ \
-               %cs\ %tsc\ %ac/%fc/%bc/%sc/%rc\ %sq/%bq\ %hr\ %hs\ %{+Q}r
+    log-format %ci:%cp\ [%t]\ %ft\ %b/%s\ %Tq/%Tw/%Tc/%Tr/%Tt\ %ST\ %B\ %CC\ \
+               %CS\ %tsc\ %ac/%fc/%bc/%sc/%rc\ %sq/%bq\ %hr\ %hs\ %{+Q}r
 
 the default CLF format is defined this way :
 
-    log-format %{+Q}o\ %{-Q}Ci\ -\ -\ [%T]\ %r\ %st\ %B\ \"\"\ \"\"\ %Cp\ \
+    log-format %{+Q}o\ %{-Q}ci\ -\ -\ [%T]\ %r\ %ST\ %B\ \"\"\ \"\"\ %cp\ \
                %ms\ %ft\ %b\ %s\ \%Tq\ %Tw\ %Tc\ %Tr\ %Tt\ %tsc\ %ac\ %fc\ \
-               %bc\ %sc\ %rc\ %sq\ %bq\ %cc\ %cs\ \%hrl\ %hsl
+               %bc\ %sc\ %rc\ %sq\ %bq\ %CC\ %CS\ \%hrl\ %hsl
 
 and the default TCP format is defined this way :
 
-    log-format %Ci:%Cp\ [%t]\ %ft\ %b/%s\ %Tw/%Tc/%Tt\ %B\ %ts\ \
+    log-format %ci:%cp\ [%t]\ %ft\ %b/%s\ %Tw/%Tc/%Tt\ %B\ %ts\ \
                %ac/%fc/%bc/%sc/%rc\ %sq/%bq
 
 Please refer to the table below for currently defined variables :
@@ -10270,17 +10270,12 @@ Please refer to the table below for currently defined variables :
   +---+------+-----------------------------------------------+-------------+
   |   | %o   | special variable, apply flags on all next var |             |
   +---+------+-----------------------------------------------+-------------+
-  |   | %B   | bytes_read                                    | numeric     |
-  |   | %Ci  | client_ip                                     | IP          |
-  |   | %Cp  | client_port                                   | numeric     |
-  |   | %Bi  | backend_source_ip                             | IP          |
-  |   | %Bp  | backend_source_port                           | numeric     |
-  |   | %Fi  | frontend_ip                                   | IP          |
-  |   | %Fp  | frontend_port                                 | numeric     |
+  |   | %B   | bytes_read           (from server to client)  | numeric     |
+  | H | %CC  | captured_request_cookie                       | string      |
+  | H | %CS  | captured_response_cookie                      | string      |
   |   | %H   | hostname                                      | string      |
   |   | %ID  | unique-id                                     | string      |
-  |   | %Si  | server_IP                                     | IP          |
-  |   | %Sp  | server_port                                   | numeric     |
+  | H | %ST  | status_code                                   | numeric     |
   |   | %T   | gmt_date_time                                 | date        |
   |   | %Tc  | Tc                                            | numeric     |
   |   | %Tl  | local_date_time                               | date        |
@@ -10289,17 +10284,20 @@ Please refer to the table below for currently defined variables :
   |   | %Ts  | timestamp                                     | numeric     |
   |   | %Tt  | Tt                                            | numeric     |
   |   | %Tw  | Tw                                            | numeric     |
-  |   | %U   | bytes_uploaded (from client to server)        | numeric     |
+  |   | %U   | bytes_uploaded       (from client to server)  | numeric     |
   |   | %ac  | actconn                                       | numeric     |
   |   | %b   | backend_name                                  | string      |
-  |   | %bc  | beconn                                        | numeric     |
+  |   | %bc  | beconn      (backend concurrent connections)  | numeric     |
+  |   | %bi  | backend_source_ip       (connecting address)  | IP          |
+  |   | %bp  | backend_source_port     (connecting address)  | numeric     |
   |   | %bq  | backend_queue                                 | numeric     |
-  | H | %cc  | captured_request_cookie                       | string      |
-  | H | %rt  | http_request_counter                          | numeric     |
-  | H | %cs  | captured_response_cookie                      | string      |
+  |   | %ci  | client_ip                 (accepted address)  | IP          |
+  |   | %cp  | client_port               (accepted address)  | numeric     |
   |   | %f   | frontend_name                                 | string      |
+  |   | %fc  | feconn     (frontend concurrent connections)  | numeric     |
+  |   | %fi  | frontend_ip              (accepting address)  | IP          |
+  |   | %fp  | frontend_port            (accepting address)  | numeric     |
   |   | %ft  | frontend_name_transport ('~' suffix for SSL)  | string      |
-  |   | %fc  | feconn                                        | numeric     |
   | H | %hr  | captured_request_headers default style        | string      |
   | H | %hrl | captured_request_headers CLF style            | string list |
   | H | %hs  | captured_response_headers default style       | string      |
@@ -10308,13 +10306,15 @@ Please refer to the table below for currently defined variables :
   |   | %pid | PID                                           | numeric     |
   | H | %r   | http_request                                  | string      |
   |   | %rc  | retries                                       | numeric     |
+  | H | %rt  | http_request_counter                          | numeric     |
   |   | %s   | server_name                                   | string      |
-  |   | %sc  | srv_conn                                      | numeric     |
+  |   | %sc  | srv_conn     (server concurrent connections)  | numeric     |
+  |   | %si  | server_IP                   (target address)  | IP          |
+  |   | %sp  | server_port                 (target address)  | numeric     |
   |   | %sq  | srv_queue                                     | numeric     |
   | S | %sslc| ssl_ciphers (ex: AES-SHA)                     | string      |
   | S | %sslv| ssl_version (ex: TLSv1)                       | string      |
-  | H | %st  | status_code                                   | numeric     |
-  |   | %t   | date_time                                     | date        |
+  |   | %t   | date_time      (with millisecond resolution)  | date        |
   |   | %ts  | termination_state                             | string      |
   | H | %tsc | termination_state with cookie status          | string      |
   +---+------+-----------------------------------------------+-------------+

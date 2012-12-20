@@ -63,6 +63,7 @@ struct logformat_type {
 	int mode;
 	int lw; /* logwait bitsfield */
 	int (*config_callback)(struct logformat_node *node, struct proxy *curproxy);
+	const char *replace_by; /* new option to use instead of old one */
 };
 
 int prepare_addrsource(struct logformat_node *node, struct proxy *curproxy);
@@ -70,59 +71,74 @@ int prepare_addrsource(struct logformat_node *node, struct proxy *curproxy);
 /* log_format variable names */
 static const struct logformat_type logformat_keywords[] = {
 	{ "o", LOG_FMT_GLOBAL, PR_MODE_TCP, 0, NULL },  /* global option */
-	{ "Ci", LOG_FMT_CLIENTIP, PR_MODE_TCP, LW_CLIP, NULL },  /* client ip */
-	{ "Cp", LOG_FMT_CLIENTPORT, PR_MODE_TCP, LW_CLIP, NULL }, /* client port */
-	{ "Bp", LOG_FMT_BACKENDPORT, PR_MODE_TCP, LW_BCKIP, prepare_addrsource }, /* backend source port */
-	{ "Bi", LOG_FMT_BACKENDIP, PR_MODE_TCP, LW_BCKIP, prepare_addrsource }, /* backend source ip */
-	{ "Fp", LOG_FMT_FRONTENDPORT, PR_MODE_TCP, LW_FRTIP, NULL }, /* frontend port */
-	{ "Fi", LOG_FMT_FRONTENDIP, PR_MODE_TCP, LW_FRTIP, NULL }, /* frontend ip */
-	{ "Sp", LOG_FMT_SERVERPORT, PR_MODE_TCP, LW_SVIP, NULL }, /* server destination port */
-	{ "Si", LOG_FMT_SERVERIP, PR_MODE_TCP, LW_SVIP, NULL }, /* server destination ip */
-	{ "t", LOG_FMT_DATE, PR_MODE_TCP, LW_INIT, NULL },      /* date */
-	{ "T", LOG_FMT_DATEGMT, PR_MODE_TCP, LW_INIT, NULL },   /* date GMT */
-	{ "Tl", LOG_FMT_DATELOCAL, PR_MODE_TCP, LW_INIT, NULL },   /* date local timezone */
-	{ "Ts", LOG_FMT_TS, PR_MODE_TCP, LW_INIT, NULL },   /* timestamp GMT */
-	{ "ms", LOG_FMT_MS, PR_MODE_TCP, LW_INIT, NULL },       /* accept date millisecond */
-	{ "f", LOG_FMT_FRONTEND, PR_MODE_TCP, LW_INIT, NULL },  /* frontend */
-	{ "ft", LOG_FMT_FRONTEND_XPRT, PR_MODE_TCP, LW_INIT, NULL },  /* frontend with transport mode */
-	{ "b", LOG_FMT_BACKEND, PR_MODE_TCP, LW_INIT, NULL },   /* backend */
-	{ "s", LOG_FMT_SERVER, PR_MODE_TCP, LW_SVID, NULL },    /* server */
+
+	/* please keep these lines sorted ! */
 	{ "B", LOG_FMT_BYTES, PR_MODE_TCP, LW_BYTES, NULL },     /* bytes from server to client */
-	{ "U", LOG_FMT_BYTES_UP, PR_MODE_TCP, LW_BYTES, NULL },  /* bytes from client to server */
-	{ "Tq", LOG_FMT_TQ, PR_MODE_HTTP, LW_BYTES, NULL },       /* Tq */
-	{ "Tw", LOG_FMT_TW, PR_MODE_TCP, LW_BYTES, NULL },       /* Tw */
-	{ "Tc", LOG_FMT_TC, PR_MODE_TCP, LW_BYTES, NULL },       /* Tc */
-	{ "Tr", LOG_FMT_TR, PR_MODE_HTTP, LW_BYTES, NULL },       /* Tr */
-	{ "Tt", LOG_FMT_TT, PR_MODE_TCP, LW_BYTES, NULL },       /* Tt */
-	{ "st", LOG_FMT_STATUS, PR_MODE_HTTP, LW_RESP, NULL },   /* status code */
-	{ "cc", LOG_FMT_CCLIENT, PR_MODE_HTTP, LW_REQHDR, NULL },  /* client cookie */
-	{ "cs", LOG_FMT_CSERVER, PR_MODE_HTTP, LW_RSPHDR, NULL },  /* server cookie */
-	{ "ts", LOG_FMT_TERMSTATE, PR_MODE_TCP, LW_BYTES, NULL },/* termination state */
-	{ "tsc", LOG_FMT_TERMSTATE_CK, PR_MODE_TCP, LW_INIT, NULL },/* termination state */
-	{ "ac", LOG_FMT_ACTCONN, PR_MODE_TCP, LW_BYTES, NULL },  /* actconn */
-	{ "fc", LOG_FMT_FECONN, PR_MODE_TCP, LW_BYTES, NULL },   /* feconn */
-	{ "bc", LOG_FMT_BECONN, PR_MODE_TCP, LW_BYTES, NULL },   /* beconn */
-	{ "sc", LOG_FMT_SRVCONN, PR_MODE_TCP, LW_BYTES, NULL },  /* srv_conn */
-	{ "rc", LOG_FMT_RETRIES, PR_MODE_TCP, LW_BYTES, NULL },  /* retries */
-	{ "sq", LOG_FMT_SRVQUEUE, PR_MODE_TCP, LW_BYTES, NULL  }, /* srv_queue */
-	{ "bq", LOG_FMT_BCKQUEUE, PR_MODE_TCP, LW_BYTES, NULL }, /* backend_queue */
-	{ "hr", LOG_FMT_HDRREQUEST, PR_MODE_HTTP, LW_REQHDR, NULL }, /* header request */
-	{ "hs", LOG_FMT_HDRRESPONS, PR_MODE_HTTP, LW_RSPHDR, NULL },  /* header response */
-	{ "hrl", LOG_FMT_HDRREQUESTLIST, PR_MODE_HTTP, LW_REQHDR, NULL }, /* header request list */
-	{ "hsl", LOG_FMT_HDRRESPONSLIST, PR_MODE_HTTP, LW_RSPHDR, NULL },  /* header response list */
-	{ "r", LOG_FMT_REQ, PR_MODE_HTTP, LW_REQ, NULL },  /* request */
-	{ "pid", LOG_FMT_PID, PR_MODE_TCP, LW_INIT, NULL }, /* log pid */
-	{ "rt", LOG_FMT_COUNTER, PR_MODE_HTTP, LW_REQ, NULL }, /* HTTP request counter */
+	{ "CC", LOG_FMT_CCLIENT, PR_MODE_HTTP, LW_REQHDR, NULL },  /* client cookie */
+	{ "CS", LOG_FMT_CSERVER, PR_MODE_HTTP, LW_RSPHDR, NULL },  /* server cookie */
 	{ "H", LOG_FMT_HOSTNAME, PR_MODE_TCP, LW_INIT, NULL }, /* Hostname */
 	{ "ID", LOG_FMT_UNIQUEID, PR_MODE_HTTP, LW_BYTES, NULL }, /* Unique ID */
+	{ "ST", LOG_FMT_STATUS, PR_MODE_HTTP, LW_RESP, NULL },   /* status code */
+	{ "T", LOG_FMT_DATEGMT, PR_MODE_TCP, LW_INIT, NULL },   /* date GMT */
+	{ "Tc", LOG_FMT_TC, PR_MODE_TCP, LW_BYTES, NULL },       /* Tc */
+	{ "Tl", LOG_FMT_DATELOCAL, PR_MODE_TCP, LW_INIT, NULL },   /* date local timezone */
+	{ "Tq", LOG_FMT_TQ, PR_MODE_HTTP, LW_BYTES, NULL },       /* Tq */
+	{ "Tr", LOG_FMT_TR, PR_MODE_HTTP, LW_BYTES, NULL },       /* Tr */
+	{ "Ts", LOG_FMT_TS, PR_MODE_TCP, LW_INIT, NULL },   /* timestamp GMT */
+	{ "Tt", LOG_FMT_TT, PR_MODE_TCP, LW_BYTES, NULL },       /* Tt */
+	{ "Tw", LOG_FMT_TW, PR_MODE_TCP, LW_BYTES, NULL },       /* Tw */
+	{ "U", LOG_FMT_BYTES_UP, PR_MODE_TCP, LW_BYTES, NULL },  /* bytes from client to server */
+	{ "ac", LOG_FMT_ACTCONN, PR_MODE_TCP, LW_BYTES, NULL },  /* actconn */
+	{ "b", LOG_FMT_BACKEND, PR_MODE_TCP, LW_INIT, NULL },   /* backend */
+	{ "bc", LOG_FMT_BECONN, PR_MODE_TCP, LW_BYTES, NULL },   /* beconn */
+	{ "bi", LOG_FMT_BACKENDIP, PR_MODE_TCP, LW_BCKIP, prepare_addrsource }, /* backend source ip */
+	{ "bp", LOG_FMT_BACKENDPORT, PR_MODE_TCP, LW_BCKIP, prepare_addrsource }, /* backend source port */
+	{ "bq", LOG_FMT_BCKQUEUE, PR_MODE_TCP, LW_BYTES, NULL }, /* backend_queue */
+	{ "ci", LOG_FMT_CLIENTIP, PR_MODE_TCP, LW_CLIP, NULL },  /* client ip */
+	{ "cp", LOG_FMT_CLIENTPORT, PR_MODE_TCP, LW_CLIP, NULL }, /* client port */
+	{ "f", LOG_FMT_FRONTEND, PR_MODE_TCP, LW_INIT, NULL },  /* frontend */
+	{ "fc", LOG_FMT_FECONN, PR_MODE_TCP, LW_BYTES, NULL },   /* feconn */
+	{ "fi", LOG_FMT_FRONTENDIP, PR_MODE_TCP, LW_FRTIP, NULL }, /* frontend ip */
+	{ "fp", LOG_FMT_FRONTENDPORT, PR_MODE_TCP, LW_FRTIP, NULL }, /* frontend port */
+	{ "ft", LOG_FMT_FRONTEND_XPRT, PR_MODE_TCP, LW_INIT, NULL },  /* frontend with transport mode */
+	{ "hr", LOG_FMT_HDRREQUEST, PR_MODE_HTTP, LW_REQHDR, NULL }, /* header request */
+	{ "hrl", LOG_FMT_HDRREQUESTLIST, PR_MODE_HTTP, LW_REQHDR, NULL }, /* header request list */
+	{ "hs", LOG_FMT_HDRRESPONS, PR_MODE_HTTP, LW_RSPHDR, NULL },  /* header response */
+	{ "hsl", LOG_FMT_HDRRESPONSLIST, PR_MODE_HTTP, LW_RSPHDR, NULL },  /* header response list */
+	{ "ms", LOG_FMT_MS, PR_MODE_TCP, LW_INIT, NULL },       /* accept date millisecond */
+	{ "pid", LOG_FMT_PID, PR_MODE_TCP, LW_INIT, NULL }, /* log pid */
+	{ "r", LOG_FMT_REQ, PR_MODE_HTTP, LW_REQ, NULL },  /* request */
+	{ "rc", LOG_FMT_RETRIES, PR_MODE_TCP, LW_BYTES, NULL },  /* retries */
+	{ "rt", LOG_FMT_COUNTER, PR_MODE_HTTP, LW_REQ, NULL }, /* HTTP request counter */
+	{ "s", LOG_FMT_SERVER, PR_MODE_TCP, LW_SVID, NULL },    /* server */
+	{ "sc", LOG_FMT_SRVCONN, PR_MODE_TCP, LW_BYTES, NULL },  /* srv_conn */
+	{ "si", LOG_FMT_SERVERIP, PR_MODE_TCP, LW_SVIP, NULL }, /* server destination ip */
+	{ "sp", LOG_FMT_SERVERPORT, PR_MODE_TCP, LW_SVIP, NULL }, /* server destination port */
+	{ "sq", LOG_FMT_SRVQUEUE, PR_MODE_TCP, LW_BYTES, NULL  }, /* srv_queue */
 	{ "sslc", LOG_FMT_SSL_CIPHER, PR_MODE_TCP, LW_XPRT, NULL }, /* client-side SSL ciphers */
 	{ "sslv", LOG_FMT_SSL_VERSION, PR_MODE_TCP, LW_XPRT, NULL }, /* client-side SSL protocol version */
+	{ "t", LOG_FMT_DATE, PR_MODE_TCP, LW_INIT, NULL },      /* date */
+	{ "ts", LOG_FMT_TERMSTATE, PR_MODE_TCP, LW_BYTES, NULL },/* termination state */
+	{ "tsc", LOG_FMT_TERMSTATE_CK, PR_MODE_TCP, LW_INIT, NULL },/* termination state */
+
+	/* The following tags are deprecated and will be removed soon */
+	{ "Bi", LOG_FMT_BACKENDIP, PR_MODE_TCP, LW_BCKIP, prepare_addrsource, "bi" }, /* backend source ip */
+	{ "Bp", LOG_FMT_BACKENDPORT, PR_MODE_TCP, LW_BCKIP, prepare_addrsource, "bp" }, /* backend source port */
+	{ "Ci", LOG_FMT_CLIENTIP, PR_MODE_TCP, LW_CLIP, NULL, "ci" },  /* client ip */
+	{ "Cp", LOG_FMT_CLIENTPORT, PR_MODE_TCP, LW_CLIP, NULL, "cp" }, /* client port */
+	{ "Fi", LOG_FMT_FRONTENDIP, PR_MODE_TCP, LW_FRTIP, NULL, "fi" }, /* frontend ip */
+	{ "Fp", LOG_FMT_FRONTENDPORT, PR_MODE_TCP, LW_FRTIP, NULL, "fp" }, /* frontend port */
+	{ "Si", LOG_FMT_SERVERIP, PR_MODE_TCP, LW_SVIP, NULL, "si" }, /* server destination ip */
+	{ "Sp", LOG_FMT_SERVERPORT, PR_MODE_TCP, LW_SVIP, NULL, "sp" }, /* server destination port */
+	{ "cc", LOG_FMT_CCLIENT, PR_MODE_HTTP, LW_REQHDR, NULL, "CC" },  /* client cookie */
+	{ "cs", LOG_FMT_CSERVER, PR_MODE_HTTP, LW_RSPHDR, NULL, "CS" },  /* server cookie */
+	{ "st", LOG_FMT_STATUS, PR_MODE_HTTP, LW_RESP, NULL, "ST" },   /* status code */
 	{ 0, 0, 0, 0, NULL }
 };
 
-char default_http_log_format[] = "%Ci:%Cp [%t] %ft %b/%s %Tq/%Tw/%Tc/%Tr/%Tt %st %B %cc %cs %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r"; // default format
-char clf_http_log_format[] = "%{+Q}o %{-Q}Ci - - [%T] %r %st %B \"\" \"\" %Cp %ms %ft %b %s %Tq %Tw %Tc %Tr %Tt %tsc %ac %fc %bc %sc %rc %sq %bq %cc %cs %hrl %hsl";
-char default_tcp_log_format[] = "%Ci:%Cp [%t] %ft %b/%s %Tw/%Tc/%Tt %B %ts %ac/%fc/%bc/%sc/%rc %sq/%bq";
+char default_http_log_format[] = "%ci:%cp [%t] %ft %b/%s %Tq/%Tw/%Tc/%Tr/%Tt %ST %B %CC %CS %tsc %ac/%fc/%bc/%sc/%rc %sq/%bq %hr %hs %{+Q}r"; // default format
+char clf_http_log_format[] = "%{+Q}o %{-Q}ci - - [%T] %r %ST %B \"\" \"\" %cp %ms %ft %b %s %Tq %Tw %Tc %Tr %Tt %tsc %ac %fc %bc %sc %rc %sq %bq %CC %CS %hrl %hsl";
+char default_tcp_log_format[] = "%ci:%cp [%t] %ft %b/%s %Tw/%Tc/%Tt %B %ts %ac/%fc/%bc/%sc/%rc %sq/%bq";
 char *log_format = NULL;
 
 /* This is a global syslog line, common to all outgoing messages. It begins
@@ -250,6 +266,9 @@ int parse_logformat_var(char *str, size_t len, struct proxy *curproxy, struct li
 							curproxy->to_log |= logformat_keywords[j].lw;
 							LIST_ADDQ(list_format, &node->list);
 						}
+						if (logformat_keywords[j].replace_by)
+							Warning("Warning: deprecated variable '%s' in log-format, please replace it with '%s'\n",
+								varname, logformat_keywords[j].replace_by);
 						return 0;
 					} else {
 						Warning("Warning: No such variable name '%s' in this log mode\n", varname);
@@ -259,7 +278,7 @@ int parse_logformat_var(char *str, size_t len, struct proxy *curproxy, struct li
 					}
 				}
 			}
-			Warning("Warning: No such variable name '%s' in logformat\n", varname);
+			Warning("Warning: No such variable name '%s' in log-format\n", varname);
 			if (arg)
 				free(arg);
 			return -1;
@@ -843,7 +862,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				last_isspace = 0;
 				break;
 
-			case LOG_FMT_CLIENTIP:  // %Ci
+			case LOG_FMT_CLIENTIP:  // %ci
 				ret = lf_ip(tmplog, (struct sockaddr *)&s->req->prod->conn->addr.from,
 					    dst + maxsize - tmplog, tmp);
 				if (ret == NULL)
@@ -852,7 +871,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				last_isspace = 0;
 				break;
 
-			case LOG_FMT_CLIENTPORT:  // %Cp
+			case LOG_FMT_CLIENTPORT:  // %cp
 				if (s->req->prod->conn->addr.from.ss_family == AF_UNIX) {
 					ret = ltoa_o(s->listener->luid, tmplog, dst + maxsize - tmplog);
 				} else {
@@ -865,7 +884,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				last_isspace = 0;
 				break;
 
-			case LOG_FMT_FRONTENDIP: // %Fi
+			case LOG_FMT_FRONTENDIP: // %fi
 				conn_get_to_addr(s->req->prod->conn);
 				ret = lf_ip(tmplog, (struct sockaddr *)&s->req->prod->conn->addr.to,
 					    dst + maxsize - tmplog, tmp);
@@ -875,7 +894,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				last_isspace = 0;
 				break;
 
-			case  LOG_FMT_FRONTENDPORT: // %Fp
+			case  LOG_FMT_FRONTENDPORT: // %fp
 				conn_get_to_addr(s->req->prod->conn);
 				if (s->req->prod->conn->addr.to.ss_family == AF_UNIX) {
 					ret = ltoa_o(s->listener->luid,
@@ -890,7 +909,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				last_isspace = 0;
 				break;
 
-			case LOG_FMT_BACKENDIP:  // %Bi
+			case LOG_FMT_BACKENDIP:  // %bi
 				ret = lf_ip(tmplog, (struct sockaddr *)&s->req->cons->conn->addr.from,
 					    dst + maxsize - tmplog, tmp);
 				if (ret == NULL)
@@ -899,7 +918,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				last_isspace = 0;
 				break;
 
-			case LOG_FMT_BACKENDPORT:  // %Bp
+			case LOG_FMT_BACKENDPORT:  // %bp
 				ret = lf_port(tmplog, (struct sockaddr *)&s->req->cons->conn->addr.from,
 					      dst + maxsize - tmplog, tmp);
 				if (ret == NULL)
@@ -908,7 +927,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				last_isspace = 0;
 				break;
 
-			case LOG_FMT_SERVERIP: // %Si
+			case LOG_FMT_SERVERIP: // %si
 				ret = lf_ip(tmplog, (struct sockaddr *)&s->req->cons->conn->addr.to,
 					    dst + maxsize - tmplog, tmp);
 				if (ret == NULL)
@@ -917,7 +936,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				last_isspace = 0;
 				break;
 
-			case LOG_FMT_SERVERPORT: // %Sp
+			case LOG_FMT_SERVERPORT: // %sp
 				ret = lf_port(tmplog, (struct sockaddr *)&s->req->cons->conn->addr.to,
 					      dst + maxsize - tmplog, tmp);
 				if (ret == NULL)
@@ -1100,7 +1119,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				last_isspace = 0;
 				break;
 
-			case LOG_FMT_STATUS: // %st
+			case LOG_FMT_STATUS: // %ST
 				ret = ltoa_o(txn->status, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
@@ -1128,7 +1147,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				last_isspace = 0;
 				break;
 
-			case LOG_FMT_CCLIENT: // %cc
+			case LOG_FMT_CCLIENT: // %CC
 				src = txn->cli_cookie;
 				ret = lf_text(tmplog, src, dst + maxsize - tmplog, tmp);
 				if (ret == NULL)
@@ -1137,7 +1156,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				last_isspace = 0;
 				break;
 
-			case LOG_FMT_CSERVER: // %cs
+			case LOG_FMT_CSERVER: // %CS
 				src = txn->srv_cookie;
 				ret = lf_text(tmplog, src, dst + maxsize - tmplog, tmp);
 				if (ret == NULL)
