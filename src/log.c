@@ -510,51 +510,38 @@ int get_log_facility(const char *fac)
  *
  * Return the adress of the \0 character, or NULL on error
  */
-char *lf_text(char *dst, const char *src, size_t size, struct logformat_node *node)
+char *lf_text_len(char *dst, const char *src, size_t len, size_t size, struct logformat_node *node)
 {
-	int n;
+	if (size < 2)
+		return NULL;
 
-	if (src == NULL || *src == '\0') {
-		if (node->options & LOG_OPT_QUOTE) {
-			if (size > 2) {
-				*(dst++) = '"';
-				*(dst++) = '"';
-				*dst = '\0';
-			} else {
-				dst = NULL;
-				return dst;
-			}
-		} else {
-			if (size > 1) {
-				*(dst++) = '-';
-				*dst = '\0';
-			} else { // error no space available
-				dst = NULL;
-				return dst;
-			}
-		}
-	} else {
-		if (node->options & LOG_OPT_QUOTE) {
-			if (size-- > 1 ) {
-				*(dst++) = '"';
-			} else {
-				dst = NULL;
-				return NULL;
-			}
-			n = strlcpy2(dst, src, size);
-			size -= n;
-			dst += n;
-			if (size > 1) {
-				*(dst++) = '"';
-				*dst = '\0';
-			} else {
-				dst = NULL;
-			}
-		} else {
-			dst += strlcpy2(dst, src, size);
-		}
+	if (node->options & LOG_OPT_QUOTE) {
+		*(dst++) = '"';
+		size--;
 	}
+
+	if (src) {
+		if (++len > size)
+			len = size;
+		len = strlcpy2(dst, src, len);
+
+		size -= len;
+		dst += len;
+	}
+
+	if (node->options & LOG_OPT_QUOTE) {
+		if (size < 2)
+			return NULL;
+		*(dst++) = '"';
+	}
+
+	*dst = '\0';
 	return dst;
+}
+
+static inline char *lf_text(char *dst, const char *src, size_t size, struct logformat_node *node)
+{
+	return lf_text_len(dst, src, size, size, node);
 }
 
 /*
