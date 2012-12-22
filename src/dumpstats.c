@@ -61,38 +61,40 @@
 #include <proto/ssl_sock.h>
 #endif
 
-static int stats_dump_raw_info_to_buffer(struct stream_interface *si);
-static int stats_dump_raw_stat_to_buffer(struct stream_interface *si);
+static int stats_dump_info_to_buffer(struct stream_interface *si);
 static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct session *sess);
 static int stats_dump_sess_to_buffer(struct stream_interface *si);
 static int stats_dump_errors_to_buffer(struct stream_interface *si);
 static int stats_table_request(struct stream_interface *si, int show);
-static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_auth *uri);
-static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri);
+static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, struct uri_auth *uri);
+static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_auth *uri);
 
 /*
-  cli_io_handler()
-      -> stats_dump_sess_to_buffer()      // "show sess"
-      -> stats_dump_errors_to_buffer()    // "show errors"
-      -> stats_dump_raw_info_to_buffer()  // "show info"
-         -> stats_dump_raw_info()
-      -> stats_dump_raw_stat_to_buffer()  // "show stat"
-         -> stats_dump_csv_header()
-         -> stats_dump_proxy()
-            -> stats_dump_px_hdr()
-            -> stats_dump_fe_stats()
-            -> stats_dump_li_stats()
-            -> stats_dump_sv_stats()
-            -> stats_dump_be_stats()
-            -> stats_dump_px_end()
-
-  http_stats_io_handler()
-      -> stats_dump_http()
-         -> stats_dump_html_head()      // emits the HTML headers
-         -> stats_dump_csv_header()     // emits the CSV headers (same as above)
-         -> stats_dump_http_info()      // note: ignores non-HTML output
-         -> stats_dump_proxy()          // same as above
-         -> stats_dump_http_end()       // emits HTML trailer
+ * cli_io_handler()
+ *     -> stats_dump_sess_to_buffer()     // "show sess"
+ *     -> stats_dump_errors_to_buffer()   // "show errors"
+ *     -> stats_dump_info_to_buffer()     // "show info"
+ *     -> stats_dump_stat_to_buffer()     // "show stat"
+ *        -> stats_dump_csv_header()
+ *        -> stats_dump_proxy_to_buffer()
+ *           -> stats_dump_fe_stats()
+ *           -> stats_dump_li_stats()
+ *           -> stats_dump_sv_stats()
+ *           -> stats_dump_be_stats()
+ *
+ * http_stats_io_handler()
+ *     -> stats_dump_stat_to_buffer()     // same as above, but used for CSV or HTML
+ *        -> stats_dump_csv_header()      // emits the CSV headers (same as above)
+ *        -> stats_dump_html_head()       // emits the HTML headers
+ *        -> stats_dump_html_info()       // emits the equivalent of "show info" at the top
+ *        -> stats_dump_proxy_to_buffer() // same as above, valid for CSV and HTML
+ *           -> stats_dump_html_px_hdr()
+ *           -> stats_dump_fe_stats()
+ *           -> stats_dump_li_stats()
+ *           -> stats_dump_sv_stats()
+ *           -> stats_dump_be_stats()
+ *           -> stats_dump_html_px_end()
+ *        -> stats_dump_html_end()       // emits HTML trailer
  */
 
 static struct si_applet cli_applet;
@@ -941,12 +943,12 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 
 			si->applet.ctx.stats.flags |= STAT_FMT_CSV;
 			si->conn->xprt_st = STAT_ST_INIT;
-			si->applet.st0 = STAT_CLI_O_STAT; // stats_dump_raw_stat_to_buffer
+			si->applet.st0 = STAT_CLI_O_STAT; // stats_dump_stat_to_buffer
 		}
 		else if (strcmp(args[1], "info") == 0) {
 			si->applet.ctx.stats.flags |= STAT_FMT_CSV;
 			si->conn->xprt_st = STAT_ST_INIT;
-			si->applet.st0 = STAT_CLI_O_INFO; // stats_dump_raw_info_to_buffer
+			si->applet.st0 = STAT_CLI_O_INFO; // stats_dump_info_to_buffer
 		}
 		else if (strcmp(args[1], "sess") == 0) {
 			si->conn->xprt_st = STAT_ST_INIT;
@@ -1642,11 +1644,11 @@ static void cli_io_handler(struct stream_interface *si)
 					si->applet.st0 = STAT_CLI_PROMPT;
 				break;
 			case STAT_CLI_O_INFO:
-				if (stats_dump_raw_info_to_buffer(si))
+				if (stats_dump_info_to_buffer(si))
 					si->applet.st0 = STAT_CLI_PROMPT;
 				break;
 			case STAT_CLI_O_STAT:
-				if (stats_dump_raw_stat_to_buffer(si))
+				if (stats_dump_stat_to_buffer(si, NULL))
 					si->applet.st0 = STAT_CLI_PROMPT;
 				break;
 			case STAT_CLI_O_SESS:
@@ -1732,121 +1734,71 @@ static void cli_io_handler(struct stream_interface *si)
 	}
 }
 
-/* Dumps the raw stats information block to the trash for and uses the state from
- * stream interface <si>. The caller is responsible for clearing the trash if needed.
- */
-static void stats_dump_raw_info(struct stream_interface *si)
-{
-	unsigned int up = (now.tv_sec - start_date.tv_sec);
-
-	chunk_appendf(&trash,
-	              "Name: " PRODUCT_NAME "\n"
-	              "Version: " HAPROXY_VERSION "\n"
-	              "Release_date: " HAPROXY_DATE "\n"
-	              "Nbproc: %d\n"
-	              "Process_num: %d\n"
-	              "Pid: %d\n"
-	              "Uptime: %dd %dh%02dm%02ds\n"
-	              "Uptime_sec: %d\n"
-	              "Memmax_MB: %d\n"
-	              "Ulimit-n: %d\n"
-	              "Maxsock: %d\n"
-	              "Maxconn: %d\n"
-	              "Hard_maxconn: %d\n"
-	              "Maxpipes: %d\n"
-	              "CurrConns: %d\n"
-	              "PipesUsed: %d\n"
-	              "PipesFree: %d\n"
-	              "ConnRate: %d\n"
-	              "ConnRateLimit: %d\n"
-	              "MaxConnRate: %d\n"
-	              "CompressBpsIn: %u\n"
-	              "CompressBpsOut: %u\n"
-	              "CompressBpsRateLim: %u\n"
-#ifdef USE_ZLIB
-	              "ZlibMemUsage: %ld\n"
-	              "MaxZlibMemUsage: %ld\n"
-#endif
-	              "Tasks: %d\n"
-	              "Run_queue: %d\n"
-	              "Idle_pct: %d\n"
-	              "node: %s\n"
-	              "description: %s\n"
-	              "",
-	              global.nbproc,
-	              relative_pid,
-	              pid,
-	              up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60),
-	              up,
-	              global.rlimit_memmax,
-	              global.rlimit_nofile,
-	              global.maxsock, global.maxconn, global.hardmaxconn, global.maxpipes,
-	              actconn, pipes_used, pipes_free,
-	              read_freq_ctr(&global.conn_per_sec), global.cps_lim, global.cps_max,
-	              read_freq_ctr(&global.comp_bps_in), read_freq_ctr(&global.comp_bps_out),
-	              global.comp_rate_lim,
-#ifdef USE_ZLIB
-	              zlib_used_memory, global.maxzlibmem,
-#endif
-	              nb_tasks_cur, run_queue_cur, idle_pct,
-	              global.node, global.desc ? global.desc : ""
-	              );
-}
-
 /* This function dumps information onto the stream interface's read buffer.
  * It returns 0 as long as it does not complete, non-zero upon completion.
  * No state is used.
  */
-static int stats_dump_raw_info_to_buffer(struct stream_interface *si)
+static int stats_dump_info_to_buffer(struct stream_interface *si)
 {
-	chunk_reset(&trash);
-	stats_dump_raw_info(si);
+	unsigned int up = (now.tv_sec - start_date.tv_sec);
+
+	chunk_printf(&trash,
+	             "Name: " PRODUCT_NAME "\n"
+	             "Version: " HAPROXY_VERSION "\n"
+	             "Release_date: " HAPROXY_DATE "\n"
+	             "Nbproc: %d\n"
+	             "Process_num: %d\n"
+	             "Pid: %d\n"
+	             "Uptime: %dd %dh%02dm%02ds\n"
+	             "Uptime_sec: %d\n"
+	             "Memmax_MB: %d\n"
+	             "Ulimit-n: %d\n"
+	             "Maxsock: %d\n"
+	             "Maxconn: %d\n"
+	             "Hard_maxconn: %d\n"
+	             "Maxpipes: %d\n"
+	             "CurrConns: %d\n"
+	             "PipesUsed: %d\n"
+	             "PipesFree: %d\n"
+	             "ConnRate: %d\n"
+	             "ConnRateLimit: %d\n"
+	             "MaxConnRate: %d\n"
+	             "CompressBpsIn: %u\n"
+	             "CompressBpsOut: %u\n"
+	             "CompressBpsRateLim: %u\n"
+#ifdef USE_ZLIB
+	             "ZlibMemUsage: %ld\n"
+	             "MaxZlibMemUsage: %ld\n"
+#endif
+	             "Tasks: %d\n"
+	             "Run_queue: %d\n"
+	             "Idle_pct: %d\n"
+	             "node: %s\n"
+	             "description: %s\n"
+	             "",
+	             global.nbproc,
+	             relative_pid,
+	             pid,
+	             up / 86400, (up % 86400) / 3600, (up % 3600) / 60, (up % 60),
+	             up,
+	             global.rlimit_memmax,
+	             global.rlimit_nofile,
+	             global.maxsock, global.maxconn, global.hardmaxconn, global.maxpipes,
+	             actconn, pipes_used, pipes_free,
+	             read_freq_ctr(&global.conn_per_sec), global.cps_lim, global.cps_max,
+	             read_freq_ctr(&global.comp_bps_in), read_freq_ctr(&global.comp_bps_out),
+	             global.comp_rate_lim,
+#ifdef USE_ZLIB
+	             zlib_used_memory, global.maxzlibmem,
+#endif
+	             nb_tasks_cur, run_queue_cur, idle_pct,
+	             global.node, global.desc ? global.desc : ""
+	             );
 
 	if (bi_putchk(si->ib, &trash) == -1)
 		return 0;
 
 	return 1;
-}
-
-/* This function dumps statistics onto the stream interface's read buffer.
- * The xprt_ctx must have been zeroed first, and the flags properly set.
- * It returns 0 as long as it does not complete, non-zero upon completion.
- * Only states STAT_ST_INIT and STAT_ST_LIST are used.
- */
-static int stats_dump_raw_stat_to_buffer(struct stream_interface *si)
-{
-	struct proxy *px;
-
-	chunk_reset(&trash);
-
-	switch (si->conn->xprt_st) {
-	case STAT_ST_INIT:
-		stats_dump_csv_header();
-		if (bi_putchk(si->ib, &trash) == -1)
-			return 0;
-
-		si->applet.ctx.stats.px = proxy;
-		si->applet.ctx.stats.px_st = STAT_PX_ST_INIT;
-		si->applet.ctx.stats.sv = NULL;
-		si->conn->xprt_st = STAT_ST_LIST;
-		/* fall through */
-
-	default:
-		/* dump proxies */
-		while (si->applet.ctx.stats.px) {
-			px = si->applet.ctx.stats.px;
-			/* skip the disabled proxies, global frontend and non-networked ones */
-			if (px->state != PR_STSTOPPED && px->uuid > 0 &&
-			    (px->cap & (PR_CAP_FE | PR_CAP_BE))) {
-				if (stats_dump_proxy(si, px, NULL) == 0)
-					return 0;
-			}
-			si->applet.ctx.stats.px = px->next;
-			si->applet.ctx.stats.px_st = STAT_PX_ST_INIT;
-		}
-		/* here, we just have reached the last proxy */
-		return 1;
-	}
 }
 
 /* Dumps a frontend's line to the trash for the current proxy <px> and uses
@@ -2726,16 +2678,12 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 	return 1;
 }
 
-/* Dumps the table header for proxy <px> to the trash for and uses the state from
+/* Dumps the HTML table header for proxy <px> to the trash for and uses the state from
  * stream interface <si> and per-uri parameters <uri>. The caller is responsible
- * for clearing the trash if needed. Returns non-zero if it emits anything, zero
- * otherwise.
+ * for clearing the trash if needed.
  */
-static int stats_dump_px_hdr(struct stream_interface *si, struct proxy *px, struct uri_auth *uri)
+static void stats_dump_html_px_hdr(struct stream_interface *si, struct proxy *px, struct uri_auth *uri)
 {
-	if (si->applet.ctx.stats.flags & STAT_FMT_CSV)
-		return 0;
-
 	if (px->cap & PR_CAP_BE && px->srv && (si->applet.ctx.stats.flags & STAT_ADMIN)) {
 		/* A form to enable/disable this proxy servers */
 		chunk_appendf(&trash,
@@ -2793,18 +2741,13 @@ static int stats_dump_px_hdr(struct stream_interface *si, struct proxy *px, stru
 	              "<th>Bck</th><th>Chk</th><th>Dwn</th><th>Dwntme</th>"
 	              "<th>Thrtle</th>\n"
 	              "</tr>");
-	return 1;
 }
 
-/* Dumps the table trailer for proxy <px> to the trash for and uses the state from
+/* Dumps the HTML table trailer for proxy <px> to the trash for and uses the state from
  * stream interface <si>. The caller is responsible for clearing the trash if needed.
- * Returns non-zero if it emits anything, zero otherwise.
  */
-static int stats_dump_px_end(struct stream_interface *si, struct proxy *px)
+static void stats_dump_html_px_end(struct stream_interface *si, struct proxy *px)
 {
-	if (si->applet.ctx.stats.flags & STAT_FMT_CSV)
-		return 0;
-
 	chunk_appendf(&trash, "</table>");
 
 	if ((px->cap & PR_CAP_BE) && px->srv && (si->applet.ctx.stats.flags & STAT_ADMIN)) {
@@ -2826,15 +2769,16 @@ static int stats_dump_px_end(struct stream_interface *si, struct proxy *px)
 	}
 
 	chunk_appendf(&trash, "<p>\n");
-	return 1;
 }
 
 /*
- * Dumps statistics for a proxy.
- * Returns 0 if it had to stop dumping data because of lack of buffer space,
- * ot non-zero if everything completed.
+ * Dumps statistics for a proxy. The output is sent to the stream interface's
+ * input buffer. Returns 0 if it had to stop dumping data because of lack of
+ * buffer space, or non-zero if everything completed. This function is used
+ * both by the CLI and the HTTP entry points, and is able to dump the output
+ * in HTML or CSV formats. If the later, <uri> must be NULL.
  */
-static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struct uri_auth *uri)
+static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, struct uri_auth *uri)
 {
 	struct session *s = si->conn->xprt_ctx;
 	struct channel *rep = si->ib;
@@ -2846,7 +2790,6 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 	switch (si->applet.ctx.stats.px_st) {
 	case STAT_PX_ST_INIT:
 		/* we are on a new proxy */
-
 		if (uri && uri->scope) {
 			/* we have a limited scope, we have to check the proxy name */
 			struct stat_scope *scope;
@@ -2880,9 +2823,11 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 		/* fall through */
 
 	case STAT_PX_ST_TH:
-		if (stats_dump_px_hdr(si, px, uri))
+		if (!(si->applet.ctx.stats.flags & STAT_FMT_CSV)) {
+			stats_dump_html_px_hdr(si, px, uri);
 			if (bi_putchk(rep, &trash) == -1)
 				return 0;
+		}
 
 		si->applet.ctx.stats.px_st = STAT_PX_ST_FE;
 		/* fall through */
@@ -2990,9 +2935,11 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 		/* fall through */
 
 	case STAT_PX_ST_END:
-		if (stats_dump_px_end(si, px))
+		if (!(si->applet.ctx.stats.flags & STAT_FMT_CSV)) {
+			stats_dump_html_px_end(si, px);
 			if (bi_putchk(rep, &trash) == -1)
 				return 0;
+		}
 
 		si->applet.ctx.stats.px_st = STAT_PX_ST_FIN;
 		/* fall through */
@@ -3006,11 +2953,10 @@ static int stats_dump_proxy(struct stream_interface *si, struct proxy *px, struc
 	}
 }
 
-/* Dumps the HTTP stats head block to the trash for and uses the state from
- * stream interface <si> and per-uri parameters <uri>. The caller is responsible
- * for clearing the trash if needed.
+/* Dumps the HTTP stats head block to the trash for and uses the per-uri
+ * parameters <uri>. The caller is responsible for clearing the trash if needed.
  */
-static void stats_dump_html_head(struct stream_interface *si, struct proxy *px, struct uri_auth *uri)
+static void stats_dump_html_head(struct uri_auth *uri)
 {
 	/* WARNING! This must fit in the first buffer !!! */
 	chunk_appendf(&trash,
@@ -3107,12 +3053,11 @@ static void stats_dump_html_head(struct stream_interface *si, struct proxy *px, 
 	              );
 }
 
-/* Dumps the HTTP stats information block to the trash for and uses the state from
+/* Dumps the HTML stats information block to the trash for and uses the state from
  * stream interface <si> and per-uri parameters <uri>. The caller is responsible
- * for clearing the trash if needed. Returns non-zero if it emits anything, zero
- * otherwise.
+ * for clearing the trash if needed.
  */
-static int stats_dump_http_info(struct stream_interface *si, struct proxy *px, struct uri_auth *uri)
+static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *uri)
 {
 	unsigned int up = (now.tv_sec - start_date.tv_sec);
 
@@ -3120,9 +3065,6 @@ static int stats_dump_http_info(struct stream_interface *si, struct proxy *px, s
 	 * We are around 3.5 kB, add adding entries will
 	 * become tricky if we want to support 4kB buffers !
 	 */
-	if ((si->applet.ctx.stats.flags & STAT_FMT_CSV))
-		return 0;
-
 	chunk_appendf(&trash,
 	              "<body><h1><a href=\"" PRODUCT_URL "\" style=\"text-decoration: none;\">"
 	              PRODUCT_NAME "%s</a></h1>\n"
@@ -3285,30 +3227,25 @@ static int stats_dump_http_info(struct stream_interface *si, struct proxy *px, s
 		}
 		chunk_appendf(&trash, "<p>\n");
 	}
-	return 1;
 }
 
-/* Dumps the HTTP stats trailer block to the trash for and uses the state from
- * stream interface <si> and per-uri parameters <uri>. The caller is responsible
- * for clearing the trash if needed. Returns non-zero if it emits anything, zero
- * otherwise.
+/* Dumps the HTML stats trailer block to the trash. The caller is responsible
+ * for clearing the trash if needed.
  */
-static int stats_dump_http_end(struct stream_interface *si, struct proxy *px, struct uri_auth *uri)
+static void stats_dump_html_end()
 {
-	if (si->applet.ctx.stats.flags & STAT_FMT_CSV)
-		return 0;
-
 	chunk_appendf(&trash, "</body></html>\n");
-	return 1;
 }
 
-/* This function dumps statistics in HTTP format onto the stream interface's
- * read buffer. The xprt_ctx must have been zeroed first, and the flags
- * properly set. It returns 0 if it had to stop writing data and an I/O is
- * needed, 1 if the dump is finished and the session must be closed, or -1
- * in case of any error.
+/* This function dumps statistics onto the stream interface's read buffer in
+ * either CSV or HTML format. <uri> contains some HTML-specific parameters that
+ * are ignored for CSV format (hence <uri> may be NULL there). The xprt_ctx must
+ * have been zeroed first, and the flags properly set. It returns 0 if it had to
+ * stop writing data and an I/O is needed, 1 if the dump is finished and the
+ * session must be closed, or -1 in case of any error. This function is used by
+ * both the CLI and the HTTP handlers.
  */
-static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
+static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_auth *uri)
 {
 	struct channel *rep = si->ib;
 	struct proxy *px;
@@ -3324,7 +3261,7 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 		if (si->applet.ctx.stats.flags & STAT_FMT_CSV)
 			stats_dump_csv_header();
 		else
-			stats_dump_html_head(si, px, uri);
+			stats_dump_html_head(uri);
 
 		if (bi_putchk(rep, &trash) == -1)
 			return 0;
@@ -3333,7 +3270,8 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 		/* fall through */
 
 	case STAT_ST_INFO:
-		if (stats_dump_http_info(si, px, uri)) {
+		if (!(si->applet.ctx.stats.flags & STAT_FMT_CSV)) {
+			stats_dump_html_info(si, uri);
 			if (bi_putchk(rep, &trash) == -1)
 				return 0;
 		}
@@ -3352,7 +3290,7 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 			px = si->applet.ctx.stats.px;
 			/* skip the disabled proxies, global frontend and non-networked ones */
 			if (px->state != PR_STSTOPPED && px->uuid > 0 && (px->cap & (PR_CAP_FE | PR_CAP_BE)))
-				if (stats_dump_proxy(si, px, uri) == 0)
+				if (stats_dump_proxy_to_buffer(si, px, uri) == 0)
 					return 0;
 
 			si->applet.ctx.stats.px = px->next;
@@ -3364,7 +3302,8 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 		/* fall through */
 
 	case STAT_ST_END:
-		if (stats_dump_http_end(si, px, uri)) {
+		if (!(si->applet.ctx.stats.flags & STAT_FMT_CSV)) {
+			stats_dump_html_end();
 			if (bi_putchk(rep, &trash) == -1)
 				return 0;
 		}
@@ -3401,7 +3340,7 @@ static void http_stats_io_handler(struct stream_interface *si)
 		si->applet.st0 = 1;
 
 	if (!si->applet.st0) {
-		if (stats_dump_http(si, s->be->uri_auth)) {
+		if (stats_dump_stat_to_buffer(si, s->be->uri_auth)) {
 			si->applet.st0 = 1;
 			si_shutw(si);
 		}
