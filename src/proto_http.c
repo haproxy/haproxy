@@ -7631,9 +7631,6 @@ int stats_check_uri(struct stream_interface *si, struct http_txn *txn, struct pr
 		}
 		h++;
 	}
-
-	si->applet.ctx.stats.flags |= STAT_SHOW_STAT | STAT_SHOW_INFO;
-
 	return 1;
 }
 

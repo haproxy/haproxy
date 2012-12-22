@@ -28,8 +28,6 @@
 
 /* Flags for applet.ctx.stats.flags */
 #define STAT_FMT_CSV    0x00000001	/* dump the stats in CSV format instead of HTML */
-#define STAT_SHOW_STAT  0x00000002	/* dump the stats part */
-#define STAT_SHOW_INFO  0x00000004	/* dump the info part */
 #define STAT_HIDE_DOWN  0x00000008	/* hide 'down' servers in the stats page */
 #define STAT_NO_REFRESH 0x00000010	/* do not automatically refresh the stats page */
 #define STAT_ADMIN      0x00000020	/* indicate a stats admin level */
@@ -48,12 +46,13 @@
 #define STAT_CLI_PROMPT 3   /* display the prompt (first output, same code) */
 #define STAT_CLI_PRINT  4   /* display message in cli->msg */
 
-#define STAT_CLI_O_INFO 5   /* dump info/stats */
+#define STAT_CLI_O_INFO 5   /* dump info */
 #define STAT_CLI_O_SESS 6   /* dump sessions */
 #define STAT_CLI_O_ERR  7   /* dump errors */
 #define STAT_CLI_O_TAB  8   /* dump tables */
 #define STAT_CLI_O_CLR  9   /* clear tables */
 #define STAT_CLI_O_SET  10  /* set entries in tables */
+#define STAT_CLI_O_STAT 11  /* dump stats */
 
 extern struct si_applet http_stats_applet;
 
