@@ -87,8 +87,7 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri);
             -> stats_dump_px_end()
 
   http_stats_io_handler()
-      -> stats_http_redir()
-      -> stats_dump_http()              // also emits the HTTP headers
+      -> stats_dump_http()
          -> stats_dump_html_head()      // emits the HTML headers
          -> stats_dump_csv_header()     // emits the CSV headers (same as above)
          -> stats_dump_http_info()      // note: ignores non-HTML output
@@ -3311,7 +3310,6 @@ static int stats_dump_http_end(struct stream_interface *si, struct proxy *px, st
  */
 static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 {
-	struct session *s = si->conn->xprt_ctx;
 	struct channel *rep = si->ib;
 	struct proxy *px;
 
@@ -3319,34 +3317,6 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 
 	switch (si->conn->xprt_st) {
 	case STAT_ST_INIT:
-		chunk_appendf(&trash,
-			     "HTTP/1.0 200 OK\r\n"
-			     "Cache-Control: no-cache\r\n"
-			     "Connection: close\r\n"
-			     "Content-Type: %s\r\n",
-			     (si->applet.ctx.stats.flags & STAT_FMT_CSV) ? "text/plain" : "text/html");
-
-		if (uri->refresh > 0 && !(si->applet.ctx.stats.flags & STAT_NO_REFRESH))
-			chunk_appendf(&trash, "Refresh: %d\r\n",
-				     uri->refresh);
-
-		chunk_appendf(&trash, "\r\n");
-
-		s->txn.status = 200;
-		if (bi_putchk(rep, &trash) == -1)
-			return 0;
-
-		if (!(s->flags & SN_ERR_MASK))  // this is not really an error but it is
-			s->flags |= SN_ERR_PRXCOND; // to mark that it comes from the proxy
-		if (!(s->flags & SN_FINST_MASK))
-			s->flags |= SN_FINST_R;
-
-		if (s->txn.meth == HTTP_METH_HEAD) {
-			/* that's all we return in case of HEAD request */
-			si->conn->xprt_st = STAT_ST_FIN;
-			return 1;
-		}
-
 		si->conn->xprt_st = STAT_ST_HEAD; /* let's start producing data */
 		/* fall through */
 
@@ -3412,48 +3382,6 @@ static int stats_dump_http(struct stream_interface *si, struct uri_auth *uri)
 	}
 }
 
-/* We don't want to land on the posted stats page because a refresh will
- * repost the data.  We don't want this to happen on accident so we redirect
- * the browse to the stats page with a GET.
- */
-static int stats_http_redir(struct stream_interface *si, struct uri_auth *uri)
-{
-	struct session *s = si->conn->xprt_ctx;
-
-	chunk_reset(&trash);
-
-	switch (si->conn->xprt_st) {
-	case STAT_ST_INIT:
-		chunk_appendf(&trash,
-			"HTTP/1.0 303 See Other\r\n"
-			"Cache-Control: no-cache\r\n"
-			"Content-Type: text/plain\r\n"
-			"Connection: close\r\n"
-			"Location: %s;st=%s",
-			uri->uri_prefix,
-			((si->applet.ctx.stats.st_code > STAT_STATUS_INIT) &&
-			 (si->applet.ctx.stats.st_code < STAT_STATUS_SIZE) &&
-			 stat_status_codes[si->applet.ctx.stats.st_code]) ?
-				stat_status_codes[si->applet.ctx.stats.st_code] :
-				stat_status_codes[STAT_STATUS_UNKN]);
-		chunk_appendf(&trash, "\r\n\r\n");
-
-		if (bi_putchk(si->ib, &trash) == -1)
-			return 0;
-
-		s->txn.status = 303;
-
-		if (!(s->flags & SN_ERR_MASK))  // this is not really an error but it is
-			s->flags |= SN_ERR_PRXCOND; // to mark that it comes from the proxy
-		if (!(s->flags & SN_FINST_MASK))
-			s->flags |= SN_FINST_R;
-
-		si->conn->xprt_st = STAT_ST_FIN;
-		return 1;
-	}
-	return 1;
-}
-
 /* This I/O handler runs as an applet embedded in a stream interface. It is
  * used to send HTTP stats over a TCP socket. The mechanism is very simple.
  * si->applet.st0 becomes non-zero once the transfer is finished. The handler
@@ -3473,16 +3401,9 @@ static void http_stats_io_handler(struct stream_interface *si)
 		si->applet.st0 = 1;
 
 	if (!si->applet.st0) {
-		if (s->txn.meth == HTTP_METH_POST) {
-			if (stats_http_redir(si, s->be->uri_auth)) {
-				si->applet.st0 = 1;
-				si_shutw(si);
-			}
-		} else {
-			if (stats_dump_http(si, s->be->uri_auth)) {
-				si->applet.st0 = 1;
-				si_shutw(si);
-			}
+		if (stats_dump_http(si, s->be->uri_auth)) {
+			si->applet.st0 = 1;
+			si_shutw(si);
 		}
 	}
 
