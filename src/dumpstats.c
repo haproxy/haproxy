@@ -1833,50 +1833,85 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 		              "",
 		              px->id, px->id);
 
+		chunk_appendf(&trash,
+		              /* sessions rate : current */
+		              "<td><u>%s<div><table class=det>"
+		              "<tr><th>Current connection rate:</th><td>%s/s</td></tr>"
+		              "<tr><th>Current session rate:</th><td>%s/s</td></tr>"
+		              "",
+		              U2H0(read_freq_ctr(&px->fe_sess_per_sec)),
+		              U2H1(read_freq_ctr(&px->fe_conn_per_sec)),
+		              U2H2(read_freq_ctr(&px->fe_sess_per_sec)));
+
 		if (px->mode == PR_MODE_HTTP)
 			chunk_appendf(&trash,
-			              /* sessions rate : current, max, limit */
-			              "<td><u>%s<div>Cur: %s req/s</div></u></td><td><u>%s<div>Max: %s req/s</div></u></td><td>%s</td>"
-			              "",
-			              U2H0(read_freq_ctr(&px->fe_sess_per_sec)),
-			              U2H1(read_freq_ctr(&px->fe_req_per_sec)),
-			              U2H2(px->fe_counters.p.http.rps_max),
-			              U2H3(px->fe_counters.sps_max),
-			              LIM2A4(px->fe_sps_lim, "-"));
-		else
+			              "<tr><th>Current request rate:</th><td>%s/s</td></tr>",
+			              U2H3(read_freq_ctr(&px->fe_req_per_sec)));
+
+		chunk_appendf(&trash,
+		              "</table></div></u></td>"
+		              /* sessions rate : max */
+		              "<td><u>%s<div><table class=det>"
+		              "<tr><th>Max connection rate:</th><td>%s/s</td></tr>"
+		              "<tr><th>Max session rate:</th><td>%s/s</td></tr>"
+		              "",
+		              U2H0(px->fe_counters.sps_max),
+		              U2H1(px->fe_counters.cps_max),
+		              U2H2(px->fe_counters.sps_max));
+
+		if (px->mode == PR_MODE_HTTP)
 			chunk_appendf(&trash,
-			              /* sessions rate : current, max, limit */
-			              "<td>%s</td><td>%s</td><td>%s</td>"
-			              "",
-			              U2H0(read_freq_ctr(&px->fe_sess_per_sec)),
-			              U2H1(px->fe_counters.sps_max), LIM2A2(px->fe_sps_lim, "-"));
+			              "<tr><th>Max request rate:</th><td>%s/s</td></tr>",
+			              U2H3(px->fe_counters.p.http.rps_max));
+
+		chunk_appendf(&trash,
+		              "</table></div></u></td>"
+		              /* sessions rate : limit */
+		              "<td>%s</td>",
+		              LIM2A4(px->fe_sps_lim, "-"));
 
 		chunk_appendf(&trash,
 		              /* sessions: current, max, limit, total */
 		              "<td>%s</td><td>%s</td><td>%s</td>"
-		              "<td>%s%s"
+		              "<td><u>%s<div><table class=det>"
+		              "<tr><th>Cum. connections:</th><td>%s</td></tr>"
+		              "<tr><th>Cum. sessions:</th><td>%s</td></tr>"
 		              "",
-		              U2H3(px->feconn), U2H4(px->fe_counters.conn_max), U2H5(px->maxconn),
-		              (px->mode == PR_MODE_HTTP)?"<u>":"", U2H6(px->fe_counters.cum_sess));
+		              U2H0(px->feconn), U2H1(px->fe_counters.conn_max), U2H2(px->maxconn),
+		              U2H3(px->fe_counters.cum_sess),
+		              U2H4(px->fe_counters.cum_conn),
+		              U2H5(px->fe_counters.cum_sess));
 
-		/* http response (via td title): 1xx, 2xx, 3xx, 4xx, 5xx, other */
+		/* http response (via hover): 1xx, 2xx, 3xx, 4xx, 5xx, other */
 		if (px->mode == PR_MODE_HTTP) {
-			chunk_appendf(&trash, "<div>%lld requests:", px->fe_counters.p.http.cum_req);
-
-			for (i = 1; i < 6; i++)
-				chunk_appendf(&trash, " %dxx=%lld,", i, px->fe_counters.p.http.rsp[i]);
-
-			chunk_appendf(&trash, " other=%lld,", px->fe_counters.p.http.rsp[0]);
-			chunk_appendf(&trash, " compressed=%lld (%d%%)",
-			              px->fe_counters.p.http.comp_rsp,
+			chunk_appendf(&trash,
+			              "<tr><th>Cum. HTTP requests:</th><td>%s</td></tr>"
+			              "<tr><th>- HTTP 1xx responses:</th><td>%s</td></tr>"
+			              "<tr><th>- HTTP 2xx responses:</th><td>%s</td></tr>"
+			              "<tr><th>&nbsp;&nbsp;Compressed 2xx:</th><td>%s</td><td>(%d%%)</td></tr>"
+			              "<tr><th>- HTTP 3xx responses:</th><td>%s</td></tr>"
+			              "<tr><th>- HTTP 4xx responses:</th><td>%s</td></tr>"
+			              "<tr><th>- HTTP 5xx responses:</th><td>%s</td></tr>"
+			              "<tr><th>- other responses:</th><td>%s</td></tr>"
+			              "<tr><th>Intercepted requests:</th><td>%s</td></tr>"
+			              "",
+			              U2H0(px->fe_counters.p.http.cum_req),
+			              U2H1(px->fe_counters.p.http.rsp[1]),
+			              U2H2(px->fe_counters.p.http.rsp[2]),
+			              U2H3(px->fe_counters.p.http.comp_rsp),
 			              px->fe_counters.p.http.rsp[2] ?
-			              (int)(100*px->fe_counters.p.http.comp_rsp/px->fe_counters.p.http.rsp[2]) : 0);
-			chunk_appendf(&trash, " intercepted=%lld</div></u>", px->fe_counters.intercepted_req);
+			              (int)(100*px->fe_counters.p.http.comp_rsp/px->fe_counters.p.http.rsp[2]) : 0,
+			              U2H4(px->fe_counters.p.http.rsp[3]),
+			              U2H5(px->fe_counters.p.http.rsp[4]),
+			              U2H6(px->fe_counters.p.http.rsp[5]),
+			              U2H7(px->fe_counters.p.http.rsp[0]),
+			              U2H8(px->fe_counters.intercepted_req));
 		}
 
 		chunk_appendf(&trash,
+		              "</table></div></u></td>"
 		              /* sessions: lbtot */
-		              "</td><td></td>"
+		              "<td></td>"
 		              /* bytes : in */
 		              "<td>%s</td>"
 		              "",
@@ -2189,31 +2224,50 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		              "%s</td><td>%s</td><td>%s</td><td>%s</td>"
 		              /* sessions rate : current, max, limit */
 		              "<td>%s</td><td>%s</td><td></td>"
-		              /* sessions: current, max, limit */
-		              "<td>%s</td><td>%s</td><td>%s</td>"
-		              /* sessions: total */
-		              "<td>%s%s"
 		              "",
 		              (flags & ST_SHLGNDS) ? "</u>" : "",
 		              U2H0(sv->nbpend), U2H1(sv->counters.nbpend_max), LIM2A2(sv->maxqueue, "-"),
-		              U2H3(read_freq_ctr(&sv->sess_per_sec)), U2H4(sv->counters.sps_max),
-		              U2H5(sv->cur_sess), U2H6(sv->counters.cur_sess_max), LIM2A7(sv->maxconn, "-"),
-		              (px->mode == PR_MODE_HTTP) ? "<u>" : "", U2H8(sv->counters.cum_sess));
+		              U2H3(read_freq_ctr(&sv->sess_per_sec)), U2H4(sv->counters.sps_max));
 
-		/* http response (via td title): 1xx, 2xx, 3xx, 4xx, 5xx, other */
+
+		chunk_appendf(&trash,
+		              /* sessions: current, max, limit, total */
+		              "<td>%s</td><td>%s</td><td>%s</td>"
+		              "<td><u>%s<div><table class=det>"
+		              "<tr><th>Cum. sessions:</th><td>%s</td></tr>"
+		              "",
+		              U2H0(sv->cur_sess), U2H1(sv->counters.cur_sess_max), LIM2A2(sv->maxconn, "-"),
+		              U2H3(sv->counters.cum_sess),
+		              U2H4(sv->counters.cum_sess));
+
+		/* http response (via hover): 1xx, 2xx, 3xx, 4xx, 5xx, other */
 		if (px->mode == PR_MODE_HTTP) {
-			chunk_appendf(&trash, "<div>rsp codes:");
+			unsigned long long tot;
+			for (tot = i = 0; i < 6; i++)
+				tot += sv->counters.p.http.rsp[i];
 
-			for (i = 1; i < 6; i++)
-				chunk_appendf(&trash, " %dxx=%lld,", i, sv->counters.p.http.rsp[i]);
-
-			chunk_appendf(&trash, " other=%lld</div>", sv->counters.p.http.rsp[0]);
+			chunk_appendf(&trash,
+			              "<tr><th>Cum. HTTP responses:</th><td>%s</td></tr>"
+			              "<tr><th>- HTTP 1xx responses:</th><td>%s</td><td>(%d%%)</td></tr>"
+			              "<tr><th>- HTTP 2xx responses:</th><td>%s</td><td>(%d%%)</td></tr>"
+			              "<tr><th>- HTTP 3xx responses:</th><td>%s</td><td>(%d%%)</td></tr>"
+			              "<tr><th>- HTTP 4xx responses:</th><td>%s</td><td>(%d%%)</td></tr>"
+			              "<tr><th>- HTTP 5xx responses:</th><td>%s</td><td>(%d%%)</td></tr>"
+			              "<tr><th>- other responses:</th><td>%s</td><td>(%d%%)</td></tr>"
+			              "",
+			              U2H0(tot),
+			              U2H1(sv->counters.p.http.rsp[1]), tot ? (int)(100*sv->counters.p.http.rsp[1] / tot) : 0,
+			              U2H2(sv->counters.p.http.rsp[2]), tot ? (int)(100*sv->counters.p.http.rsp[2] / tot) : 0,
+			              U2H3(sv->counters.p.http.rsp[3]), tot ? (int)(100*sv->counters.p.http.rsp[3] / tot) : 0,
+			              U2H4(sv->counters.p.http.rsp[4]), tot ? (int)(100*sv->counters.p.http.rsp[4] / tot) : 0,
+			              U2H5(sv->counters.p.http.rsp[5]), tot ? (int)(100*sv->counters.p.http.rsp[5] / tot) : 0,
+			              U2H6(sv->counters.p.http.rsp[0]), tot ? (int)(100*sv->counters.p.http.rsp[0] / tot) : 0);
 		}
 
 		chunk_appendf(&trash,
+		              "</table></div></u></td>"
 		              /* sessions: lbtot */
-		              "%s</td><td>%s</td>",
-		              (px->mode == PR_MODE_HTTP) ? "</u>" : "",
+		              "<td>%s</td>",
 		              U2H1(sv->counters.cum_lbconn));
 
 		chunk_appendf(&trash,
@@ -2522,28 +2576,43 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 		chunk_appendf(&trash,
 		              /* sessions: current, max, limit, total */
 		              "<td>%s</td><td>%s</td><td>%s</td>"
-		              "<td>%s%s"
+		              "<td><u>%s<div><table class=det>"
+		              "<tr><th>Cum. sessions:</th><td>%s</td></tr>"
 		              "",
-		              U2H2(px->beconn), U2H3(px->be_counters.conn_max), U2H4(px->fullconn),
-		              (px->mode == PR_MODE_HTTP)?"<u>":"", U2H6(px->be_counters.cum_conn));
+		              U2H0(px->beconn), U2H1(px->be_counters.conn_max), U2H2(px->fullconn),
+		              U2H3(px->be_counters.cum_conn),
+		              U2H4(px->be_counters.cum_conn));
 
-		/* http response (via td title): 1xx, 2xx, 3xx, 4xx, 5xx, other */
+		/* http response (via hover): 1xx, 2xx, 3xx, 4xx, 5xx, other */
 		if (px->mode == PR_MODE_HTTP) {
-			chunk_appendf(&trash, "<div>%lld requests:", px->be_counters.p.http.cum_req);
-
-			for (i = 1; i < 6; i++)
-				chunk_appendf(&trash, " %dxx=%lld", i, px->be_counters.p.http.rsp[i]);
-
-			chunk_appendf(&trash, " other=%lld ", px->be_counters.p.http.rsp[0]);
-			chunk_appendf(&trash, " compressed=%lld (%d%%)</div></u>",
-			              px->be_counters.p.http.comp_rsp,
+			chunk_appendf(&trash,
+			              "<tr><th>Cum. HTTP requests:</th><td>%s</td></tr>"
+			              "<tr><th>- HTTP 1xx responses:</th><td>%s</td></tr>"
+			              "<tr><th>- HTTP 2xx responses:</th><td>%s</td></tr>"
+			              "<tr><th>&nbsp;&nbsp;Compressed 2xx:</th><td>%s</td><td>(%d%%)</td></tr>"
+			              "<tr><th>- HTTP 3xx responses:</th><td>%s</td></tr>"
+			              "<tr><th>- HTTP 4xx responses:</th><td>%s</td></tr>"
+			              "<tr><th>- HTTP 5xx responses:</th><td>%s</td></tr>"
+			              "<tr><th>- other responses:</th><td>%s</td></tr>"
+			              "<tr><th>Intercepted requests:</th><td>%s</td></tr>"
+			              "",
+			              U2H0(px->be_counters.p.http.cum_req),
+			              U2H1(px->be_counters.p.http.rsp[1]),
+			              U2H2(px->be_counters.p.http.rsp[2]),
+			              U2H3(px->be_counters.p.http.comp_rsp),
 			              px->be_counters.p.http.rsp[2] ?
-			              (int)(100*px->be_counters.p.http.comp_rsp/px->be_counters.p.http.rsp[2]) : 0);
+			              (int)(100*px->be_counters.p.http.comp_rsp/px->be_counters.p.http.rsp[2]) : 0,
+			              U2H4(px->be_counters.p.http.rsp[3]),
+			              U2H5(px->be_counters.p.http.rsp[4]),
+			              U2H6(px->be_counters.p.http.rsp[5]),
+			              U2H7(px->be_counters.p.http.rsp[0]),
+			              U2H8(px->be_counters.intercepted_req));
 		}
 
 		chunk_appendf(&trash,
+		              "</table></div></u></td>"
 		              /* sessions: lbtot */
-		              "</td><td>%s</td>"
+		              "<td>%s</td>"
 		              /* bytes: in */
 		              "<td>%s</td>"
 		              "",
@@ -3047,6 +3116,9 @@ static void stats_dump_html_head(struct uri_auth *uri)
 	              "table.lgd { border-collapse: collapse; border-width: 1px; border-style: none none none solid; border-color: black;}\n"
 	              "table.lgd td { border-width: 1px; border-style: solid solid solid solid; border-color: gray; padding: 2px;}\n"
 	              "table.lgd td.noborder { border-style: none; padding: 2px; white-space: nowrap;}\n"
+	              "table.det { border-collapse: collapse; border-style: none; }\n"
+	              "table.det th { text-align: left; border-width: 0px; padding: 0px 1px 0px 0px; font-style:normal;font-size:11px;font-weight:bold;font-family: sans-serif;}\n"
+	              "table.det td { text-align: right; border-width: 0px; padding: 0px 0px 0px 4px; white-space: nowrap; font-style:normal;font-size:11px;font-weight:normal;font-family: monospace;}\n"
 	              "u {text-decoration:none; border-bottom: 1px dotted black;}\n"
 		      "div {\n"
 		      " display:block;\n"
