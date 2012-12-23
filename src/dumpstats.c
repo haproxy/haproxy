@@ -1839,14 +1839,14 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 		              "<tr><th>Current connection rate:</th><td>%s/s</td></tr>"
 		              "<tr><th>Current session rate:</th><td>%s/s</td></tr>"
 		              "",
-		              U2H0(read_freq_ctr(&px->fe_sess_per_sec)),
-		              U2H1(read_freq_ctr(&px->fe_conn_per_sec)),
-		              U2H2(read_freq_ctr(&px->fe_sess_per_sec)));
+		              U2H(read_freq_ctr(&px->fe_sess_per_sec)),
+		              U2H(read_freq_ctr(&px->fe_conn_per_sec)),
+		              U2H(read_freq_ctr(&px->fe_sess_per_sec)));
 
 		if (px->mode == PR_MODE_HTTP)
 			chunk_appendf(&trash,
 			              "<tr><th>Current request rate:</th><td>%s/s</td></tr>",
-			              U2H3(read_freq_ctr(&px->fe_req_per_sec)));
+			              U2H(read_freq_ctr(&px->fe_req_per_sec)));
 
 		chunk_appendf(&trash,
 		              "</table></div></u></td>"
@@ -1855,20 +1855,20 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 		              "<tr><th>Max connection rate:</th><td>%s/s</td></tr>"
 		              "<tr><th>Max session rate:</th><td>%s/s</td></tr>"
 		              "",
-		              U2H0(px->fe_counters.sps_max),
-		              U2H1(px->fe_counters.cps_max),
-		              U2H2(px->fe_counters.sps_max));
+		              U2H(px->fe_counters.sps_max),
+		              U2H(px->fe_counters.cps_max),
+		              U2H(px->fe_counters.sps_max));
 
 		if (px->mode == PR_MODE_HTTP)
 			chunk_appendf(&trash,
 			              "<tr><th>Max request rate:</th><td>%s/s</td></tr>",
-			              U2H3(px->fe_counters.p.http.rps_max));
+			              U2H(px->fe_counters.p.http.rps_max));
 
 		chunk_appendf(&trash,
 		              "</table></div></u></td>"
 		              /* sessions rate : limit */
 		              "<td>%s</td>",
-		              LIM2A4(px->fe_sps_lim, "-"));
+		              LIM2A(px->fe_sps_lim, "-"));
 
 		chunk_appendf(&trash,
 		              /* sessions: current, max, limit, total */
@@ -1877,10 +1877,10 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 		              "<tr><th>Cum. connections:</th><td>%s</td></tr>"
 		              "<tr><th>Cum. sessions:</th><td>%s</td></tr>"
 		              "",
-		              U2H0(px->feconn), U2H1(px->fe_counters.conn_max), U2H2(px->maxconn),
-		              U2H3(px->fe_counters.cum_sess),
-		              U2H4(px->fe_counters.cum_conn),
-		              U2H5(px->fe_counters.cum_sess));
+		              U2H(px->feconn), U2H(px->fe_counters.conn_max), U2H(px->maxconn),
+		              U2H(px->fe_counters.cum_sess),
+		              U2H(px->fe_counters.cum_conn),
+		              U2H(px->fe_counters.cum_sess));
 
 		/* http response (via hover): 1xx, 2xx, 3xx, 4xx, 5xx, other */
 		if (px->mode == PR_MODE_HTTP) {
@@ -1895,17 +1895,17 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 			              "<tr><th>- other responses:</th><td>%s</td></tr>"
 			              "<tr><th>Intercepted requests:</th><td>%s</td></tr>"
 			              "",
-			              U2H0(px->fe_counters.p.http.cum_req),
-			              U2H1(px->fe_counters.p.http.rsp[1]),
-			              U2H2(px->fe_counters.p.http.rsp[2]),
-			              U2H3(px->fe_counters.p.http.comp_rsp),
+			              U2H(px->fe_counters.p.http.cum_req),
+			              U2H(px->fe_counters.p.http.rsp[1]),
+			              U2H(px->fe_counters.p.http.rsp[2]),
+			              U2H(px->fe_counters.p.http.comp_rsp),
 			              px->fe_counters.p.http.rsp[2] ?
 			              (int)(100*px->fe_counters.p.http.comp_rsp/px->fe_counters.p.http.rsp[2]) : 0,
-			              U2H4(px->fe_counters.p.http.rsp[3]),
-			              U2H5(px->fe_counters.p.http.rsp[4]),
-			              U2H6(px->fe_counters.p.http.rsp[5]),
-			              U2H7(px->fe_counters.p.http.rsp[0]),
-			              U2H8(px->fe_counters.intercepted_req));
+			              U2H(px->fe_counters.p.http.rsp[3]),
+			              U2H(px->fe_counters.p.http.rsp[4]),
+			              U2H(px->fe_counters.p.http.rsp[5]),
+			              U2H(px->fe_counters.p.http.rsp[0]),
+			              U2H(px->fe_counters.intercepted_req));
 		}
 
 		chunk_appendf(&trash,
@@ -1915,13 +1915,13 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 		              /* bytes : in */
 		              "<td>%s</td>"
 		              "",
-		              U2H7(px->fe_counters.bytes_in));
+		              U2H(px->fe_counters.bytes_in));
 
 		chunk_appendf(&trash,
 			      /* bytes:out + compression stats (via hover): comp_in, comp_out, comp_byp */
 		              "<td>%s%s<div>compression: in=%lld out=%lld bypassed=%lld savings=%d%%</div>%s</td>",
 		              (px->fe_counters.comp_in || px->fe_counters.comp_byp) ? "<u>":"",
-		              U2H0(px->fe_counters.bytes_out),
+		              U2H(px->fe_counters.bytes_out),
 		              px->fe_counters.comp_in, px->fe_counters.comp_out, px->fe_counters.comp_byp,
 		              px->fe_counters.comp_in ?
 		              (int)((px->fe_counters.comp_in - px->fe_counters.comp_out)*100/px->fe_counters.comp_in) : 0,
@@ -1939,8 +1939,8 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 		              /* rest of server: nothing */
 		              "<td class=ac colspan=8></td></tr>"
 		              "",
-		              U2H0(px->fe_counters.denied_req), U2H1(px->fe_counters.denied_resp),
-		              U2H2(px->fe_counters.failed_req),
+		              U2H(px->fe_counters.denied_req), U2H(px->fe_counters.denied_resp),
+		              U2H(px->fe_counters.failed_req),
 		              px->state == PR_STREADY ? "OPEN" :
 		              px->state == PR_STFULL ? "FULL" : "STOP");
 	}
@@ -2073,8 +2073,8 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
 		              "<td>%s</td><td>%s</td>"
 		              "",
 		              (flags & ST_SHLGNDS)?"</u>":"",
-		              U2H3(l->nbconn), U2H4(l->counters->conn_max), U2H5(l->maxconn),
-		              U2H6(l->counters->cum_conn), U2H7(l->counters->bytes_in), U2H8(l->counters->bytes_out));
+		              U2H(l->nbconn), U2H(l->counters->conn_max), U2H(l->maxconn),
+		              U2H(l->counters->cum_conn), U2H(l->counters->bytes_in), U2H(l->counters->bytes_out));
 
 		chunk_appendf(&trash,
 		              /* denied: req, resp */
@@ -2088,8 +2088,8 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
 		              /* rest of server: nothing */
 		              "<td class=ac colspan=8></td></tr>"
 		              "",
-		              U2H0(l->counters->denied_req), U2H1(l->counters->denied_resp),
-		              U2H2(l->counters->failed_req),
+		              U2H(l->counters->denied_req), U2H(l->counters->denied_resp),
+		              U2H(l->counters->failed_req),
 		              (l->nbconn < l->maxconn) ? (l->state == LI_LIMITED) ? "WAITING" : "OPEN" : "FULL");
 	}
 	else { /* CSV mode */
@@ -2226,8 +2226,8 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		              "<td>%s</td><td>%s</td><td></td>"
 		              "",
 		              (flags & ST_SHLGNDS) ? "</u>" : "",
-		              U2H0(sv->nbpend), U2H1(sv->counters.nbpend_max), LIM2A2(sv->maxqueue, "-"),
-		              U2H3(read_freq_ctr(&sv->sess_per_sec)), U2H4(sv->counters.sps_max));
+		              U2H(sv->nbpend), U2H(sv->counters.nbpend_max), LIM2A(sv->maxqueue, "-"),
+		              U2H(read_freq_ctr(&sv->sess_per_sec)), U2H(sv->counters.sps_max));
 
 
 		chunk_appendf(&trash,
@@ -2236,9 +2236,9 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		              "<td><u>%s<div><table class=det>"
 		              "<tr><th>Cum. sessions:</th><td>%s</td></tr>"
 		              "",
-		              U2H0(sv->cur_sess), U2H1(sv->counters.cur_sess_max), LIM2A2(sv->maxconn, "-"),
-		              U2H3(sv->counters.cum_sess),
-		              U2H4(sv->counters.cum_sess));
+		              U2H(sv->cur_sess), U2H(sv->counters.cur_sess_max), LIM2A(sv->maxconn, "-"),
+		              U2H(sv->counters.cum_sess),
+		              U2H(sv->counters.cum_sess));
 
 		/* http response (via hover): 1xx, 2xx, 3xx, 4xx, 5xx, other */
 		if (px->mode == PR_MODE_HTTP) {
@@ -2255,20 +2255,20 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			              "<tr><th>- HTTP 5xx responses:</th><td>%s</td><td>(%d%%)</td></tr>"
 			              "<tr><th>- other responses:</th><td>%s</td><td>(%d%%)</td></tr>"
 			              "",
-			              U2H0(tot),
-			              U2H1(sv->counters.p.http.rsp[1]), tot ? (int)(100*sv->counters.p.http.rsp[1] / tot) : 0,
-			              U2H2(sv->counters.p.http.rsp[2]), tot ? (int)(100*sv->counters.p.http.rsp[2] / tot) : 0,
-			              U2H3(sv->counters.p.http.rsp[3]), tot ? (int)(100*sv->counters.p.http.rsp[3] / tot) : 0,
-			              U2H4(sv->counters.p.http.rsp[4]), tot ? (int)(100*sv->counters.p.http.rsp[4] / tot) : 0,
-			              U2H5(sv->counters.p.http.rsp[5]), tot ? (int)(100*sv->counters.p.http.rsp[5] / tot) : 0,
-			              U2H6(sv->counters.p.http.rsp[0]), tot ? (int)(100*sv->counters.p.http.rsp[0] / tot) : 0);
+			              U2H(tot),
+			              U2H(sv->counters.p.http.rsp[1]), tot ? (int)(100*sv->counters.p.http.rsp[1] / tot) : 0,
+			              U2H(sv->counters.p.http.rsp[2]), tot ? (int)(100*sv->counters.p.http.rsp[2] / tot) : 0,
+			              U2H(sv->counters.p.http.rsp[3]), tot ? (int)(100*sv->counters.p.http.rsp[3] / tot) : 0,
+			              U2H(sv->counters.p.http.rsp[4]), tot ? (int)(100*sv->counters.p.http.rsp[4] / tot) : 0,
+			              U2H(sv->counters.p.http.rsp[5]), tot ? (int)(100*sv->counters.p.http.rsp[5] / tot) : 0,
+			              U2H(sv->counters.p.http.rsp[0]), tot ? (int)(100*sv->counters.p.http.rsp[0] / tot) : 0);
 		}
 
 		chunk_appendf(&trash,
 		              "</table></div></u></td>"
 		              /* sessions: lbtot */
 		              "<td>%s</td>",
-		              U2H1(sv->counters.cum_lbconn));
+		              U2H(sv->counters.cum_lbconn));
 
 		chunk_appendf(&trash,
 		              /* bytes : in, out */
@@ -2282,10 +2282,10 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		              /* warnings: retries, redispatches */
 		              "<td>%lld</td><td>%lld</td>"
 		              "",
-		              U2H0(sv->counters.bytes_in), U2H1(sv->counters.bytes_out),
-		              U2H2(sv->counters.failed_secu),
-		              U2H3(sv->counters.failed_conns),
-		              U2H6(sv->counters.failed_resp),
+		              U2H(sv->counters.bytes_in), U2H(sv->counters.bytes_out),
+		              U2H(sv->counters.failed_secu),
+		              U2H(sv->counters.failed_conns),
+		              U2H(sv->counters.failed_resp),
 		              sv->counters.cli_aborts,
 		              sv->counters.srv_aborts,
 		              sv->counters.retries, sv->counters.redispatches);
@@ -2403,7 +2403,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		              "",
 		              px->id, sv->id,
 		              sv->nbpend, sv->counters.nbpend_max,
-		              sv->cur_sess, sv->counters.cur_sess_max, LIM2A0(sv->maxconn, ""), sv->counters.cum_sess,
+		              sv->cur_sess, sv->counters.cur_sess_max, LIM2A(sv->maxconn, ""), sv->counters.cum_sess,
 		              sv->counters.bytes_in, sv->counters.bytes_out,
 		              sv->counters.failed_secu,
 		              sv->counters.failed_conns, sv->counters.failed_resp,
@@ -2441,7 +2441,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		chunk_appendf(&trash,
 		              "%s,"
 		              "%d,%d,%d,",
-		              LIM2A0(sv->maxqueue, ""),
+		              LIM2A(sv->maxqueue, ""),
 		              relative_pid, px->uuid, sv->puid);
 
 		/* throttle */
@@ -2570,8 +2570,8 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 		              "<td>%s</td><td>%s</td><td></td>"
 		              "",
 		              (flags & ST_SHLGNDS)?"</u>":"",
-		              U2H0(px->nbpend) /* or px->totpend ? */, U2H1(px->be_counters.nbpend_max),
-		              U2H2(read_freq_ctr(&px->be_sess_per_sec)), U2H3(px->be_counters.sps_max));
+		              U2H(px->nbpend) /* or px->totpend ? */, U2H(px->be_counters.nbpend_max),
+		              U2H(read_freq_ctr(&px->be_sess_per_sec)), U2H(px->be_counters.sps_max));
 
 		chunk_appendf(&trash,
 		              /* sessions: current, max, limit, total */
@@ -2579,9 +2579,9 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 		              "<td><u>%s<div><table class=det>"
 		              "<tr><th>Cum. sessions:</th><td>%s</td></tr>"
 		              "",
-		              U2H0(px->beconn), U2H1(px->be_counters.conn_max), U2H2(px->fullconn),
-		              U2H3(px->be_counters.cum_conn),
-		              U2H4(px->be_counters.cum_conn));
+		              U2H(px->beconn), U2H(px->be_counters.conn_max), U2H(px->fullconn),
+		              U2H(px->be_counters.cum_conn),
+		              U2H(px->be_counters.cum_conn));
 
 		/* http response (via hover): 1xx, 2xx, 3xx, 4xx, 5xx, other */
 		if (px->mode == PR_MODE_HTTP) {
@@ -2596,17 +2596,17 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 			              "<tr><th>- other responses:</th><td>%s</td></tr>"
 			              "<tr><th>Intercepted requests:</th><td>%s</td></tr>"
 			              "",
-			              U2H0(px->be_counters.p.http.cum_req),
-			              U2H1(px->be_counters.p.http.rsp[1]),
-			              U2H2(px->be_counters.p.http.rsp[2]),
-			              U2H3(px->be_counters.p.http.comp_rsp),
+			              U2H(px->be_counters.p.http.cum_req),
+			              U2H(px->be_counters.p.http.rsp[1]),
+			              U2H(px->be_counters.p.http.rsp[2]),
+			              U2H(px->be_counters.p.http.comp_rsp),
 			              px->be_counters.p.http.rsp[2] ?
 			              (int)(100*px->be_counters.p.http.comp_rsp/px->be_counters.p.http.rsp[2]) : 0,
-			              U2H4(px->be_counters.p.http.rsp[3]),
-			              U2H5(px->be_counters.p.http.rsp[4]),
-			              U2H6(px->be_counters.p.http.rsp[5]),
-			              U2H7(px->be_counters.p.http.rsp[0]),
-			              U2H8(px->be_counters.intercepted_req));
+			              U2H(px->be_counters.p.http.rsp[3]),
+			              U2H(px->be_counters.p.http.rsp[4]),
+			              U2H(px->be_counters.p.http.rsp[5]),
+			              U2H(px->be_counters.p.http.rsp[0]),
+			              U2H(px->be_counters.intercepted_req));
 		}
 
 		chunk_appendf(&trash,
@@ -2616,14 +2616,14 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 		              /* bytes: in */
 		              "<td>%s</td>"
 		              "",
-		              U2H7(px->be_counters.cum_lbconn),
-		              U2H8(px->be_counters.bytes_in));
+		              U2H(px->be_counters.cum_lbconn),
+		              U2H(px->be_counters.bytes_in));
 
 		chunk_appendf(&trash,
 			      /* bytes:out + compression stats (via hover): comp_in, comp_out, comp_byp */
 		              "<td>%s%s<div>compression: in=%lld out=%lld bypassed=%lld savings=%d%%</div>%s</td>",
 		              (px->be_counters.comp_in || px->be_counters.comp_byp) ? "<u>":"",
-		              U2H0(px->be_counters.bytes_out),
+		              U2H(px->be_counters.bytes_out),
 		              px->be_counters.comp_in, px->be_counters.comp_out, px->be_counters.comp_byp,
 		              px->be_counters.comp_in ?
 		              (int)((px->be_counters.comp_in - px->be_counters.comp_out)*100/px->be_counters.comp_in) : 0,
@@ -2645,9 +2645,9 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 		              "<td class=ac>%s %s</td><td class=ac>&nbsp;</td><td class=ac>%d</td>"
 		              "<td class=ac>%d</td><td class=ac>%d</td>"
 		              "",
-		              U2H0(px->be_counters.denied_req), U2H1(px->be_counters.denied_resp),
-		              U2H2(px->be_counters.failed_conns),
-		              U2H5(px->be_counters.failed_resp),
+		              U2H(px->be_counters.denied_req), U2H(px->be_counters.denied_resp),
+		              U2H(px->be_counters.failed_conns),
+		              U2H(px->be_counters.failed_resp),
 		              px->be_counters.cli_aborts,
 		              px->be_counters.srv_aborts,
 		              px->be_counters.retries, px->be_counters.redispatches,

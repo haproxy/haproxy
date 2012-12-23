@@ -41,6 +41,8 @@
 # define ULLONG_MAX	(LLONG_MAX * 2ULL + 1)
 #endif
 
+/* number of itoa_str entries */
+#define NB_ITOA_STR	10
 
 /****** string-specific macros and functions ******/
 /* if a > max, then bound <a> to <max>. The macro returns the new <a> */
@@ -61,6 +63,8 @@ enum {
 	STD_OP_EQ = 2, STD_OP_NE = 3,
 	STD_OP_GE = 4, STD_OP_LT = 5,
 };
+
+extern int itoa_idx; /* index of next itoa_str to use */
 
 /*
  * copies at most <size-1> chars from <src> to <dst>. Last char is always
@@ -123,32 +127,6 @@ char *lltoa(long long n, char *dst, size_t size);
  */
 char *utoa_pad(unsigned int n, char *dst, size_t size);
 
-/* Fast macros to convert up to 10 different parameters inside a same call of
- * expression.
- */
-#define U2A0(n) ({ ultoa_r((n), itoa_str[0], sizeof(itoa_str[0])); })
-#define U2A1(n) ({ ultoa_r((n), itoa_str[1], sizeof(itoa_str[1])); })
-#define U2A2(n) ({ ultoa_r((n), itoa_str[2], sizeof(itoa_str[2])); })
-#define U2A3(n) ({ ultoa_r((n), itoa_str[3], sizeof(itoa_str[3])); })
-#define U2A4(n) ({ ultoa_r((n), itoa_str[4], sizeof(itoa_str[4])); })
-#define U2A5(n) ({ ultoa_r((n), itoa_str[5], sizeof(itoa_str[5])); })
-#define U2A6(n) ({ ultoa_r((n), itoa_str[6], sizeof(itoa_str[6])); })
-#define U2A7(n) ({ ultoa_r((n), itoa_str[7], sizeof(itoa_str[7])); })
-#define U2A8(n) ({ ultoa_r((n), itoa_str[8], sizeof(itoa_str[8])); })
-#define U2A9(n) ({ ultoa_r((n), itoa_str[9], sizeof(itoa_str[9])); })
-
-/* The same macros provide HTML encoding of numbers */
-#define U2H0(n) ({ ulltoh_r((n), itoa_str[0], sizeof(itoa_str[0])); })
-#define U2H1(n) ({ ulltoh_r((n), itoa_str[1], sizeof(itoa_str[1])); })
-#define U2H2(n) ({ ulltoh_r((n), itoa_str[2], sizeof(itoa_str[2])); })
-#define U2H3(n) ({ ulltoh_r((n), itoa_str[3], sizeof(itoa_str[3])); })
-#define U2H4(n) ({ ulltoh_r((n), itoa_str[4], sizeof(itoa_str[4])); })
-#define U2H5(n) ({ ulltoh_r((n), itoa_str[5], sizeof(itoa_str[5])); })
-#define U2H6(n) ({ ulltoh_r((n), itoa_str[6], sizeof(itoa_str[6])); })
-#define U2H7(n) ({ ulltoh_r((n), itoa_str[7], sizeof(itoa_str[7])); })
-#define U2H8(n) ({ ulltoh_r((n), itoa_str[8], sizeof(itoa_str[8])); })
-#define U2H9(n) ({ ulltoh_r((n), itoa_str[9], sizeof(itoa_str[9])); })
-
 /*
  * This function simply returns a locally allocated string containing the ascii
  * representation for number 'n' in decimal, unless n is 0 in which case it
@@ -159,19 +137,44 @@ char *utoa_pad(unsigned int n, char *dst, size_t size);
  */
 extern const char *limit_r(unsigned long n, char *buffer, int size, const char *alt);
 
-/* Fast macros to convert up to 10 different parameters inside a same call of
- * expression. Warning! they share the same vectors as U2A*!
+/* returns a locally allocated string containing the ASCII representation of
+ * the number 'n' in decimal. Up to NB_ITOA_STR calls may be used in the same
+ * function call (eg: printf), shared with the other similar functions making
+ * use of itoa_str[].
  */
-#define LIM2A0(n, alt) ({ limit_r((n), itoa_str[0], sizeof(itoa_str[0]), (alt)); })
-#define LIM2A1(n, alt) ({ limit_r((n), itoa_str[1], sizeof(itoa_str[1]), (alt)); })
-#define LIM2A2(n, alt) ({ limit_r((n), itoa_str[2], sizeof(itoa_str[2]), (alt)); })
-#define LIM2A3(n, alt) ({ limit_r((n), itoa_str[3], sizeof(itoa_str[3]), (alt)); })
-#define LIM2A4(n, alt) ({ limit_r((n), itoa_str[4], sizeof(itoa_str[4]), (alt)); })
-#define LIM2A5(n, alt) ({ limit_r((n), itoa_str[5], sizeof(itoa_str[5]), (alt)); })
-#define LIM2A6(n, alt) ({ limit_r((n), itoa_str[6], sizeof(itoa_str[6]), (alt)); })
-#define LIM2A7(n, alt) ({ limit_r((n), itoa_str[7], sizeof(itoa_str[7]), (alt)); })
-#define LIM2A8(n, alt) ({ limit_r((n), itoa_str[8], sizeof(itoa_str[8]), (alt)); })
-#define LIM2A9(n, alt) ({ limit_r((n), itoa_str[9], sizeof(itoa_str[9]), (alt)); })
+static inline const char *U2A(unsigned long n)
+{
+	const char *ret = ultoa_r(n, itoa_str[itoa_idx], sizeof(itoa_str[0]));
+	if (++itoa_idx >= NB_ITOA_STR)
+		itoa_idx = 0;
+	return ret;
+}
+
+/* returns a locally allocated string containing the HTML representation of
+ * the number 'n' in decimal. Up to NB_ITOA_STR calls may be used in the same
+ * function call (eg: printf), shared with the other similar functions making
+ * use of itoa_str[].
+ */
+static inline const char *U2H(unsigned long long n)
+{
+	const char *ret = ulltoh_r(n, itoa_str[itoa_idx], sizeof(itoa_str[0]));
+	if (++itoa_idx >= NB_ITOA_STR)
+		itoa_idx = 0;
+	return ret;
+}
+
+/* returns a locally allocated string containing the HTML representation of
+ * the number 'n' in decimal. Up to NB_ITOA_STR calls may be used in the same
+ * function call (eg: printf), shared with the other similar functions making
+ * use of itoa_str[].
+ */
+static inline const char *LIM2A(unsigned long n, const char *alt)
+{
+	const char *ret = limit_r(n, itoa_str[itoa_idx], sizeof(itoa_str[0]), alt);
+	if (++itoa_idx >= NB_ITOA_STR)
+		itoa_idx = 0;
+	return ret;
+}
 
 /*
  * Returns non-zero if character <s> is a hex digit (0-9, a-f, A-F), else zero.

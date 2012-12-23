@@ -25,7 +25,7 @@
 #include <common/standard.h>
 #include <eb32tree.h>
 
-/* enough to store 10 integers of :
+/* enough to store NB_ITOA_STR integers of :
  *   2^64-1 = 18446744073709551615 or
  *    -2^63 = -9223372036854775808
  *
@@ -33,7 +33,8 @@
  * '<span class="rls"></span>' around digits at positions 3N+1 in order
  * to add spacing at up to 6 positions : 18 446 744 073 709 551 615
  */
-char itoa_str[10][171];
+char itoa_str[NB_ITOA_STR][171];
+int itoa_idx = 0; /* index of next itoa_str to use */
 
 /*
  * unsigned long long ASCII representation
