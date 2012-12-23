@@ -941,12 +941,10 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				si->applet.ctx.stats.sid = atoi(args[4]);
 			}
 
-			si->applet.ctx.stats.flags |= STAT_FMT_CSV;
 			si->conn->xprt_st = STAT_ST_INIT;
 			si->applet.st0 = STAT_CLI_O_STAT; // stats_dump_stat_to_buffer
 		}
 		else if (strcmp(args[1], "info") == 0) {
-			si->applet.ctx.stats.flags |= STAT_FMT_CSV;
 			si->conn->xprt_st = STAT_ST_INIT;
 			si->applet.st0 = STAT_CLI_O_INFO; // stats_dump_info_to_buffer
 		}
@@ -1815,7 +1813,7 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 	if ((si->applet.ctx.stats.flags & STAT_BOUND) && !(si->applet.ctx.stats.type & (1 << STATS_TYPE_FE)))
 		return 0;
 
-	if (!(si->applet.ctx.stats.flags & STAT_FMT_CSV)) {
+	if (si->applet.ctx.stats.flags & STAT_FMT_HTML) {
 		chunk_appendf(&trash,
 		              /* name, queue */
 		              "<tr class=\"frontend\">");
@@ -2020,7 +2018,7 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
  */
 static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, struct listener *l, int flags)
 {
-	if (!(si->applet.ctx.stats.flags & STAT_FMT_CSV)) {
+	if (si->applet.ctx.stats.flags & STAT_FMT_HTML) {
 		chunk_appendf(&trash, "<tr class=socket>");
 		if (px->cap & PR_CAP_BE && px->srv && (si->applet.ctx.stats.flags & STAT_ADMIN)) {
 			/* Column sub-heading for Enable or Disable server */
@@ -2152,7 +2150,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 	struct chunk src;
 	int i;
 
-	if (!(si->applet.ctx.stats.flags & STAT_FMT_CSV)) { /* HTML mode */
+	if (si->applet.ctx.stats.flags & STAT_FMT_HTML) {
 		static char *srv_hlt_st[7] = {
 			"DOWN",
 			"DN %d/%d &uarr;",
@@ -2532,7 +2530,7 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 	if ((si->applet.ctx.stats.flags & STAT_BOUND) && !(si->applet.ctx.stats.type & (1 << STATS_TYPE_BE)))
 		return 0;
 
-	if (!(si->applet.ctx.stats.flags & STAT_FMT_CSV)) { /* HTML mode */
+	if (si->applet.ctx.stats.flags & STAT_FMT_HTML) {
 		chunk_appendf(&trash, "<tr class=\"backend\">");
 		if (px->srv && (si->applet.ctx.stats.flags & STAT_ADMIN)) {
 			/* Column sub-heading for Enable or Disable server */
@@ -2894,7 +2892,7 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 		/* fall through */
 
 	case STAT_PX_ST_TH:
-		if (!(si->applet.ctx.stats.flags & STAT_FMT_CSV)) {
+		if (si->applet.ctx.stats.flags & STAT_FMT_HTML) {
 			stats_dump_html_px_hdr(si, px, uri);
 			if (bi_putchk(rep, &trash) == -1)
 				return 0;
@@ -3006,7 +3004,7 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 		/* fall through */
 
 	case STAT_PX_ST_END:
-		if (!(si->applet.ctx.stats.flags & STAT_FMT_CSV)) {
+		if (si->applet.ctx.stats.flags & STAT_FMT_HTML) {
 			stats_dump_html_px_end(si, px);
 			if (bi_putchk(rep, &trash) == -1)
 				return 0;
@@ -3346,10 +3344,10 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 		/* fall through */
 
 	case STAT_ST_HEAD:
-		if (si->applet.ctx.stats.flags & STAT_FMT_CSV)
-			stats_dump_csv_header();
-		else
+		if (si->applet.ctx.stats.flags & STAT_FMT_HTML)
 			stats_dump_html_head(uri);
+		else
+			stats_dump_csv_header();
 
 		if (bi_putchk(rep, &trash) == -1)
 			return 0;
@@ -3358,7 +3356,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 		/* fall through */
 
 	case STAT_ST_INFO:
-		if (!(si->applet.ctx.stats.flags & STAT_FMT_CSV)) {
+		if (si->applet.ctx.stats.flags & STAT_FMT_HTML) {
 			stats_dump_html_info(si, uri);
 			if (bi_putchk(rep, &trash) == -1)
 				return 0;
@@ -3390,7 +3388,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 		/* fall through */
 
 	case STAT_ST_END:
-		if (!(si->applet.ctx.stats.flags & STAT_FMT_CSV)) {
+		if (si->applet.ctx.stats.flags & STAT_FMT_HTML) {
 			stats_dump_html_end();
 			if (bi_putchk(rep, &trash) == -1)
 				return 0;

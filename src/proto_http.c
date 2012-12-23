@@ -3022,7 +3022,7 @@ int http_handle_stats(struct session *s, struct channel *req)
 	             "Cache-Control: no-cache\r\n"
 	             "Connection: close\r\n"
 	             "Content-Type: %s\r\n",
-	             (si->applet.ctx.stats.flags & STAT_FMT_CSV) ? "text/plain" : "text/html");
+	             (si->applet.ctx.stats.flags & STAT_FMT_HTML) ? "text/html" : "text/plain");
 
 	if (uri->refresh > 0 && !(si->applet.ctx.stats.flags & STAT_NO_REFRESH))
 		chunk_appendf(&trash, "Refresh: %d\r\n",
@@ -7651,6 +7651,7 @@ int stats_check_uri(struct stream_interface *si, struct http_txn *txn, struct pr
 
 	memset(&si->applet.ctx.stats, 0, sizeof(si->applet.ctx.stats));
 	si->applet.ctx.stats.st_code = STAT_STATUS_INIT;
+	si->applet.ctx.stats.flags |= STAT_FMT_HTML; /* assume HTML mode by default */
 
 	/* check URI size */
 	if (uri_auth->uri_len > msg->sl.rq.u_l)
@@ -7683,7 +7684,7 @@ int stats_check_uri(struct stream_interface *si, struct http_txn *txn, struct pr
 	h = uri + uri_auth->uri_len;
 	while (h <= uri + msg->sl.rq.u_l - 4) {
 		if (memcmp(h, ";csv", 4) == 0) {
-			si->applet.ctx.stats.flags |= STAT_FMT_CSV;
+			si->applet.ctx.stats.flags &= ~STAT_FMT_HTML;
 			break;
 		}
 		h++;

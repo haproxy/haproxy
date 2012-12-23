@@ -27,7 +27,7 @@
 #include <types/stream_interface.h>
 
 /* Flags for applet.ctx.stats.flags */
-#define STAT_FMT_CSV    0x00000001	/* dump the stats in CSV format instead of HTML */
+#define STAT_FMT_HTML   0x00000001      /* dump the stats in HTML format */
 #define STAT_HIDE_DOWN  0x00000008	/* hide 'down' servers in the stats page */
 #define STAT_NO_REFRESH 0x00000010	/* do not automatically refresh the stats page */
 #define STAT_ADMIN      0x00000020	/* indicate a stats admin level */
