@@ -8481,7 +8481,7 @@ smp_fetch_hdr_ip(struct proxy *px, struct session *l4, void *l7, unsigned int op
 			smp->type = SMP_T_IPV4;
 			break;
 		} else {
-			struct chunk *temp = sample_get_trash_chunk();
+			struct chunk *temp = get_trash_chunk();
 			if (smp->data.str.len < temp->size - 1) {
 				memcpy(temp->str, smp->data.str.str, smp->data.str.len);
 				temp->str[smp->data.str.len] = '\0';
@@ -8632,11 +8632,12 @@ static int
 smp_fetch_base32_src(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                      const struct arg *args, struct sample *smp)
 {
-	struct chunk *temp = sample_get_trash_chunk();
+	struct chunk *temp;
 
 	if (!smp_fetch_base32(px, l4, l7, opt, args, smp))
 		return 0;
 
+	temp = get_trash_chunk();
 	memcpy(temp->str + temp->len, &smp->data.uint, sizeof(smp->data.uint));
 	temp->len += sizeof(smp->data.uint);
 

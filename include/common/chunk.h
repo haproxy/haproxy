@@ -47,6 +47,8 @@ int chunk_htmlencode(struct chunk *dst, struct chunk *src);
 int chunk_asciiencode(struct chunk *dst, struct chunk *src, char qc);
 int chunk_strcmp(const struct chunk *chk, const char *str);
 int chunk_strcasecmp(const struct chunk *chk, const char *str);
+int alloc_trash_buffers(int bufsize);
+struct chunk *get_trash_chunk(void);
 
 static inline void chunk_reset(struct chunk *chk)
 {

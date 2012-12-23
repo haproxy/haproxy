@@ -18,6 +18,48 @@
 #include <common/config.h>
 #include <common/chunk.h>
 
+/* trash chunks used for various conversions */
+static struct chunk *trash_chunk;
+static struct chunk trash_chunk1;
+static struct chunk trash_chunk2;
+
+/* trash buffers used for various conversions */
+static int trash_size;
+static char *trash_buf1;
+static char *trash_buf2;
+
+/*
+* Returns a pre-allocated and initialized trash chunk that can be used for any
+* type of conversion. Two chunks and their respective buffers are alternatively
+* returned so that it is always possible to iterate data transformations without
+* losing the data being transformed. The blocks are initialized to the size of
+* a standard buffer, so they should be enough for everything.
+*/
+struct chunk *get_trash_chunk(void)
+{
+	char *trash_buf;
+
+	if (trash_chunk == &trash_chunk1) {
+		trash_chunk = &trash_chunk2;
+		trash_buf = trash_buf2;
+	}
+	else {
+		trash_chunk = &trash_chunk1;
+		trash_buf = trash_buf1;
+	}
+	chunk_init(trash_chunk, trash_buf, trash_size);
+	return trash_chunk;
+}
+
+/* Allocates the trash buffers. Returns 0 in case of failure. */
+int alloc_trash_buffers(int bufsize)
+{
+	trash_size = bufsize;
+	trash_buf1 = (char *)calloc(1, bufsize);
+	trash_buf2 = (char *)calloc(1, bufsize);
+	return trash_buf1 && trash_buf2;
+}
+
 /*
  * Does an snprintf() at the beginning of chunk <chk>, respecting the limit of
  * at most chk->size chars. If the chk->len is over, nothing is added. Returns

@@ -1446,7 +1446,7 @@ smp_fetch_ssl_c_serial(struct proxy *px, struct session *l4, void *l7, unsigned 
 	if (!crt)
 		goto out;
 
-	smp_trash = sample_get_trash_chunk();
+	smp_trash = get_trash_chunk();
 	if (ssl_sock_get_serial(crt, smp_trash) <= 0)
 		goto out;
 
@@ -1481,7 +1481,7 @@ smp_fetch_ssl_c_notafter(struct proxy *px, struct session *l4, void *l7, unsigne
 	if (!crt)
 		goto out;
 
-	smp_trash = sample_get_trash_chunk();
+	smp_trash = get_trash_chunk();
 	if (ssl_sock_get_time(X509_get_notAfter(crt), smp_trash) <= 0)
 		goto out;
 
@@ -1521,7 +1521,7 @@ smp_fetch_ssl_c_i_dn(struct proxy *px, struct session *l4, void *l7, unsigned in
 	if (!name)
 		goto out;
 
-	smp_trash = sample_get_trash_chunk();
+	smp_trash = get_trash_chunk();
 	if (args && args[0].type == ARGT_STR) {
 		int pos = 1;
 
@@ -1567,7 +1567,7 @@ smp_fetch_ssl_c_notbefore(struct proxy *px, struct session *l4, void *l7, unsign
 	if (!crt)
 		goto out;
 
-	smp_trash = sample_get_trash_chunk();
+	smp_trash = get_trash_chunk();
 	if (ssl_sock_get_time(X509_get_notBefore(crt), smp_trash) <= 0)
 		goto out;
 
@@ -1607,7 +1607,7 @@ smp_fetch_ssl_c_s_dn(struct proxy *px, struct session *l4, void *l7, unsigned in
 	if (!name)
 		goto out;
 
-	smp_trash = sample_get_trash_chunk();
+	smp_trash = get_trash_chunk();
 	if (args && args[0].type == ARGT_STR) {
 		int pos = 1;
 
@@ -1799,7 +1799,7 @@ smp_fetch_ssl_f_serial(struct proxy *px, struct session *l4, void *l7, unsigned 
 	if (!crt)
 		goto out;
 
-	smp_trash = sample_get_trash_chunk();
+	smp_trash = get_trash_chunk();
 	if (ssl_sock_get_serial(crt, smp_trash) <= 0)
 		goto out;
 
@@ -1830,7 +1830,7 @@ smp_fetch_ssl_f_notafter(struct proxy *px, struct session *l4, void *l7, unsigne
 	if (!crt)
 		goto out;
 
-	smp_trash = sample_get_trash_chunk();
+	smp_trash = get_trash_chunk();
 	if (ssl_sock_get_time(X509_get_notAfter(crt), smp_trash) <= 0)
 		goto out;
 
@@ -1862,7 +1862,7 @@ smp_fetch_ssl_f_notbefore(struct proxy *px, struct session *l4, void *l7, unsign
 	if (!crt)
 		goto out;
 
-	smp_trash = sample_get_trash_chunk();
+	smp_trash = get_trash_chunk();
 	if (ssl_sock_get_time(X509_get_notBefore(crt), smp_trash) <= 0)
 		goto out;
 
@@ -1989,7 +1989,7 @@ smp_fetch_ssl_f_i_dn(struct proxy *px, struct session *l4, void *l7, unsigned in
 	if (!name)
 		goto out;
 
-	smp_trash = sample_get_trash_chunk();
+	smp_trash = get_trash_chunk();
 	if (args && args[0].type == ARGT_STR) {
 		int pos = 1;
 
@@ -2037,7 +2037,7 @@ smp_fetch_ssl_f_s_dn(struct proxy *px, struct session *l4, void *l7, unsigned in
 	if (!name)
 		goto out;
 
-	smp_trash = sample_get_trash_chunk();
+	smp_trash = get_trash_chunk();
 	if (args && args[0].type == ARGT_STR) {
 		int pos = 1;
 
