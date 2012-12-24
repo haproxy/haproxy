@@ -3061,13 +3061,16 @@ int http_handle_stats(struct session *s, struct channel *req)
 	return 1;
 }
 
-/* returns a pointer to the first rule which forbids access (deny or http_auth),
- * or NULL if everything's OK.
+/* Executes the http-request rules <rules> for session <s>, proxy <px> and
+ * transaction <txn>. Returns NULL if it executed all rules, or a pointer to
+ * the last rule if it had to stop before the end (auth, deny, allow). It may
+ * set the TX_CLDENY on txn->flags if it encounters a deny rule.
  */
-static inline struct http_req_rule *
+static struct http_req_rule *
 http_check_access_rule(struct proxy *px, struct list *rules, struct session *s, struct http_txn *txn)
 {
 	struct http_req_rule *rule;
+	struct hdr_ctx ctx;
 
 	list_for_each_entry(rule, rules, list) {
 		int ret = 1;
@@ -3085,13 +3088,36 @@ http_check_access_rule(struct proxy *px, struct list *rules, struct session *s, 
 		}
 
 		if (ret) {
-			if (rule->action == HTTP_REQ_ACT_ALLOW)
-				return NULL; /* no problem */
-			else
-				return rule; /* most likely a deny or auth rule */
+			switch (rule->action) {
+			case HTTP_REQ_ACT_ALLOW:
+				return rule;
+			case HTTP_REQ_ACT_DENY:
+				txn->flags |= TX_CLDENY;
+				return rule;
+			case HTTP_REQ_ACT_AUTH:
+				return rule;
+			case HTTP_REQ_ACT_SET_HDR:
+				ctx.idx = 0;
+				/* remove all occurrences of the header */
+				while (http_find_header2(rule->arg.hdr_add.name, rule->arg.hdr_add.name_len,
+				                         txn->req.chn->buf->p, &txn->hdr_idx, &ctx)) {
+					http_remove_header2(&txn->req, &txn->hdr_idx, &ctx);
+				}
+				/* now fall through to header addition */
+
+			case HTTP_REQ_ACT_ADD_HDR:
+				chunk_printf(&trash, "%s: ", rule->arg.hdr_add.name);
+				memcpy(trash.str, rule->arg.hdr_add.name, rule->arg.hdr_add.name_len);
+				trash.len = rule->arg.hdr_add.name_len;
+				trash.str[trash.len++] = ':';
+				trash.str[trash.len++] = ' ';
+				trash.len += build_logline(s, trash.str + trash.len, trash.size - trash.len, &rule->arg.hdr_add.fmt);
+				http_header_add_tail2(&txn->req, &txn->hdr_idx, trash.str, trash.len);
+				break;
+			}
 		}
 	}
-	return NULL;
+	return rule;
 }
 
 /* This stream analyser runs all HTTP request processing which is common to
@@ -3163,7 +3189,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 		do_stats = 0;
 
 	/* return a 403 if either rule has blocked */
-	if (http_req_last_rule && http_req_last_rule->action == HTTP_REQ_ACT_DENY) {
+	if (txn->flags & TX_CLDENY) {
 			txn->status = 403;
 			s->logs.tv_request = now;
 			stream_int_retnclose(req->prod, http_error_message(s, HTTP_ERR_403));
@@ -3267,7 +3293,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 	/* we can be blocked here because the request needs to be authenticated,
 	 * either to pass or to access stats.
 	 */
-	if (http_req_last_rule && http_req_last_rule->action == HTTP_REQ_ACT_HTTP_AUTH) {
+	if (http_req_last_rule && http_req_last_rule->action == HTTP_REQ_ACT_AUTH) {
 		char *realm = http_req_last_rule->arg.auth.realm;
 
 		if (!realm)
@@ -7970,7 +7996,7 @@ void free_http_req_rules(struct list *r) {
 
 	list_for_each_entry_safe(pr, tr, r, list) {
 		LIST_DEL(&pr->list);
-		if (pr->action == HTTP_REQ_ACT_HTTP_AUTH)
+		if (pr->action == HTTP_REQ_ACT_AUTH)
 			free(pr->arg.auth.realm);
 
 		free(pr);
@@ -7995,7 +8021,7 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		rule->action = HTTP_REQ_ACT_DENY;
 		cur_arg = 1;
 	} else if (!strcmp(args[0], "auth")) {
-		rule->action = HTTP_REQ_ACT_HTTP_AUTH;
+		rule->action = HTTP_REQ_ACT_AUTH;
 		cur_arg = 1;
 
 		while(*args[cur_arg]) {
@@ -8006,8 +8032,23 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 			} else
 				break;
 		}
+	} else if (strcmp(args[0], "add-header") == 0 || strcmp(args[0], "set-header") == 0) {
+		rule->action = *args[0] == 'a' ? HTTP_REQ_ACT_ADD_HDR : HTTP_REQ_ACT_SET_HDR;
+		cur_arg = 1;
+
+		if (!*args[cur_arg] || !*args[cur_arg+1] || *args[cur_arg+2]) {
+			Alert("parsing [%s:%d]: 'http-request %s' expects exactly 2 arguments.\n",
+			      file, linenum, args[0]);
+			return NULL;
+		}
+
+		rule->arg.hdr_add.name = strdup(args[cur_arg]);
+		rule->arg.hdr_add.name_len = strlen(rule->arg.hdr_add.name);
+		LIST_INIT(&rule->arg.hdr_add.fmt);
+		parse_logformat_string(args[cur_arg + 1], proxy, &rule->arg.hdr_add.fmt, PR_MODE_HTTP);
+		cur_arg += 2;
 	} else {
-		Alert("parsing [%s:%d]: 'http-request' expects 'allow', 'deny', 'auth', but got '%s'%s.\n",
+		Alert("parsing [%s:%d]: 'http-request' expects 'allow', 'deny', 'auth', 'add-header', 'set-header', but got '%s'%s.\n",
 		      file, linenum, args[0], *args[0] ? "" : " (missing argument)");
 		return NULL;
 	}

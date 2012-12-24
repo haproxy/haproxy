@@ -2585,8 +2585,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		if (!LIST_ISEMPTY(&curproxy->http_req_rules) && !LIST_PREV(&curproxy->http_req_rules, struct http_req_rule *, list)->cond) {
-			Warning("parsing [%s:%d]: previous '%s' action has no condition attached, further entries are NOOP.\n",
+		if (!LIST_ISEMPTY(&curproxy->http_req_rules) &&
+		    !LIST_PREV(&curproxy->http_req_rules, struct http_req_rule *, list)->cond &&
+		    (LIST_PREV(&curproxy->http_req_rules, struct http_req_rule *, list)->action == HTTP_REQ_ACT_ALLOW ||
+		     LIST_PREV(&curproxy->http_req_rules, struct http_req_rule *, list)->action == HTTP_REQ_ACT_DENY ||
+		     LIST_PREV(&curproxy->http_req_rules, struct http_req_rule *, list)->action == HTTP_REQ_ACT_AUTH)) {
+			Warning("parsing [%s:%d]: previous '%s' action is final and has no condition attached, further entries are NOOP.\n",
 			        file, linenum, args[0]);
 			err_code |= ERR_WARN;
 		}

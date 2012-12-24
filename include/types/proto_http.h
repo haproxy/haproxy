@@ -240,8 +240,10 @@ enum {
 	HTTP_REQ_ACT_UNKNOWN = 0,
 	HTTP_REQ_ACT_ALLOW,
 	HTTP_REQ_ACT_DENY,
-	HTTP_REQ_ACT_HTTP_AUTH,
-	HTTP_REQ_ACT_MAX
+	HTTP_REQ_ACT_AUTH,
+	HTTP_REQ_ACT_ADD_HDR,
+	HTTP_REQ_ACT_SET_HDR,
+	HTTP_REQ_ACT_MAX /* must always be last */
 };
 
 /*
@@ -347,6 +349,11 @@ struct http_req_rule {
 		struct {
 			char *realm;
 		} auth;                        /* arg used by "auth" */
+		struct {
+			char *name;            /* header name */
+			int name_len;          /* header name's length */
+			struct list fmt;       /* log-format compatible expression */
+		} hdr_add;                     /* args used by "add-header" and "set-header" */
 	} arg;                                 /* arguments used by some actions */
 };
 
