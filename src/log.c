@@ -359,9 +359,9 @@ void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct pro
  *  list_format: the destination list
  *  capabilities: PR_MODE_TCP_ | PR_MODE_HTTP
  */
-void parse_logformat_string(char *fmt, struct proxy *curproxy, struct list *list_format, int capabilities)
+void parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list *list_format, int capabilities)
 {
-	char *sp, *str; /* start pointer for text parts */
+	char *sp, *str, *backfmt; /* start pointer for text parts */
 	char *arg = NULL; /* start pointer for args */
 	char *var = NULL; /* start pointer for vars */
 	int arg_len = 0;
@@ -371,7 +371,7 @@ void parse_logformat_string(char *fmt, struct proxy *curproxy, struct list *list
 	struct logformat_node *tmplf, *back;
 	int options = 0;
 
-	sp = str = fmt = strdup(fmt);
+	sp = str = backfmt = strdup(fmt);
 	curproxy->to_log |= LW_INIT;
 
 	/* flush the list first. */
@@ -483,7 +483,7 @@ void parse_logformat_string(char *fmt, struct proxy *curproxy, struct list *list
 	if (pformat == LF_STARTVAR || pformat == LF_STARG || pformat == LF_STEXPR)
 		Warning("Ignoring end of truncated log-format line after '%s'\n", var ? var : arg ? arg : "%");
 
-	free(fmt);
+	free(backfmt);
 }
 
 /*
