@@ -1,6 +1,48 @@
 ChangeLog :
 ===========
 
+2012/12/24 : 1.5-dev16
+    - BUG/MEDIUM: ssl: Prevent ssl error from affecting other connections.
+    - BUG/MINOR: ssl: error is not reported if it occurs simultaneously with peer close detection.
+    - MINOR: ssl: add fetch and acl "ssl_c_used" to check if current SSL session uses a client certificate.
+    - MINOR: contrib: make the iprange tool grep for addresses
+    - CLEANUP: polling: gcc doesn't always optimize constants away
+    - OPTIM: poll: optimize fd management functions for low register count CPUs
+    - CLEANUP: poll: remove a useless double-check on fdtab[fd].owner
+    - OPTIM: epoll: use a temp variable for intermediary flag computations
+    - OPTIM: epoll: current fd does not count as a new one
+    - BUG/MINOR: poll: the I/O handler was called twice for polled I/Os
+    - MINOR: http: make resp_ver and status ACLs check for the presence of a response
+    - BUG/MEDIUM: stream-interface: fix possible stalls during transfers
+    - BUG/MINOR: stream_interface: don't return when the fd is already set
+    - BUG/MEDIUM: connection: always update connection flags prior to computing polling
+    - CLEANUP: buffer: use buffer_empty() instead of buffer_len()==0
+    - BUG/MAJOR: stream_interface: fix occasional data transfer freezes
+    - BUG/MEDIUM: stream_interface: fix another case where the reader might not be woken up
+    - BUG/MINOR: http: don't abort client connection on premature responses
+    - BUILD: no need to clean up when making git-tar
+    - MINOR: log: add a tag for amount of bytes uploaded from client to server
+    - BUG/MEDIUM: log: fix possible segfault during config parsing
+    - MEDIUM: log: change a few log tokens to make them easier to remember
+    - BUG/MINOR: log: add_to_logformat_list() used the wrong constants
+    - MEDIUM: log-format: make the format parser more robust and more extensible
+    - MINOR: sample: support cast from bool to string
+    - MINOR: samples: add a function to fetch and convert any sample to a string
+    - MINOR: log: add lf_text_len
+    - MEDIUM: log: add the ability to include samples in logs
+    - REORG: stats: massive code reorg and cleanup
+    - REORG: stats: move the HTTP header injection to proto_http
+    - REORG: stats: functions are now HTTP/CLI agnostic
+    - BUG/MINOR: log: fix regression introduced by commit 8a3f52
+    - MINOR: chunks: centralize the trash chunk allocation
+    - MEDIUM: stats: use hover boxes instead of title to report details
+    - MEDIUM: stats: use multi-line tips to display detailed counters
+    - MINOR: tools: simplify the use of the int to ascii macros
+    - MINOR: stats: replace STAT_FMT_CSV with STAT_FMT_HTML
+    - MINOR: http: prepare to support more http-request actions
+    - MINOR: log: make parse_logformat_string() take a const char *
+    - MEDIUM: http: add http-request 'add-header' and 'set-header' to build headers
+
 2012/12/12 : 1.5-dev15
     - DOC: add a few precisions on compression
     - BUG/MEDIUM: ssl: Fix handshake failure on session resumption with client cert.
