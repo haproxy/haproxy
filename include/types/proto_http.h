@@ -341,11 +341,13 @@ struct http_auth_data {
 
 struct http_req_rule {
 	struct list list;
-	struct acl_cond *cond;			/* acl condition to meet */
-	unsigned int action;
-	struct {
-		char *realm;
-	} http_auth;
+	struct acl_cond *cond;                 /* acl condition to meet */
+	unsigned int action;                   /* HTTP_REQ_* */
+	union {
+		struct {
+			char *realm;
+		} auth;                        /* arg used by "auth" */
+	} arg;                                 /* arguments used by some actions */
 };
 
 /* This is an HTTP transaction. It contains both a request message and a

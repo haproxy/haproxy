@@ -3268,7 +3268,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 	 * either to pass or to access stats.
 	 */
 	if (http_req_last_rule && http_req_last_rule->action == HTTP_REQ_ACT_HTTP_AUTH) {
-		char *realm = http_req_last_rule->http_auth.realm;
+		char *realm = http_req_last_rule->arg.auth.realm;
 
 		if (!realm)
 			realm = do_stats?STATS_DEFAULT_REALM:px->id;
@@ -7971,7 +7971,7 @@ void free_http_req_rules(struct list *r) {
 	list_for_each_entry_safe(pr, tr, r, list) {
 		LIST_DEL(&pr->list);
 		if (pr->action == HTTP_REQ_ACT_HTTP_AUTH)
-			free(pr->http_auth.realm);
+			free(pr->arg.auth.realm);
 
 		free(pr);
 	}
@@ -7988,9 +7988,7 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		return NULL;
 	}
 
-	if (!*args[0]) {
-		goto req_error_parsing;
-	} else if (!strcmp(args[0], "allow")) {
+	if (!strcmp(args[0], "allow")) {
 		rule->action = HTTP_REQ_ACT_ALLOW;
 		cur_arg = 1;
 	} else if (!strcmp(args[0], "deny")) {
@@ -8002,16 +8000,15 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 
 		while(*args[cur_arg]) {
 			if (!strcmp(args[cur_arg], "realm")) {
-				rule->http_auth.realm = strdup(args[cur_arg + 1]);
+				rule->arg.auth.realm = strdup(args[cur_arg + 1]);
 				cur_arg+=2;
 				continue;
 			} else
 				break;
 		}
 	} else {
-req_error_parsing:
-		Alert("parsing [%s:%d]: %s '%s', expects 'allow', 'deny', 'auth'.\n",
-			file, linenum, *args[1]?"unknown parameter":"missing keyword in", args[*args[1]?1:0]);
+		Alert("parsing [%s:%d]: 'http-request' expects 'allow', 'deny', 'auth', but got '%s'%s.\n",
+		      file, linenum, args[0], *args[0] ? "" : " (missing argument)");
 		return NULL;
 	}
 
