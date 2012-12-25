@@ -3113,7 +3113,7 @@ http_check_access_rule(struct proxy *px, struct list *rules, struct session *s, 
 				trash.str[trash.len++] = ' ';
 				trash.len += build_logline(s, trash.str + trash.len, trash.size - trash.len, &rule->arg.hdr_add.fmt);
 				http_header_add_tail2(&txn->req, &txn->hdr_idx, trash.str, trash.len);
-				return rule;
+				break;
 			}
 		}
 	}
