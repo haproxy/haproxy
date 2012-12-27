@@ -3101,6 +3101,10 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 			txn->flags |= TX_CLDENY;
 			return rule;
 
+		case HTTP_REQ_ACT_TARPIT:
+			txn->flags |= TX_CLTARPIT;
+			return rule;
+
 		case HTTP_REQ_ACT_AUTH:
 			return rule;
 
@@ -3419,7 +3423,8 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 		do_stats = 0;
 
 	/* return a 403 if either rule has blocked */
-	if (txn->flags & TX_CLDENY) {
+	if (txn->flags & (TX_CLDENY|TX_CLTARPIT)) {
+		if (txn->flags & TX_CLDENY) {
 			txn->status = 403;
 			s->logs.tv_request = now;
 			stream_int_retnclose(req->prod, http_error_message(s, HTTP_ERR_403));
@@ -3430,6 +3435,31 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 			if (s->listener->counters)
 				s->listener->counters->denied_req++;
 			goto return_prx_cond;
+		}
+		/* When a connection is tarpitted, we use the tarpit timeout,
+		 * which may be the same as the connect timeout if unspecified.
+		 * If unset, then set it to zero because we really want it to
+		 * eventually expire. We build the tarpit as an analyser.
+		 */
+		if (txn->flags & TX_CLTARPIT) {
+			channel_erase(s->req);
+			/* wipe the request out so that we can drop the connection early
+			 * if the client closes first.
+			 */
+			channel_dont_connect(req);
+			req->analysers = 0; /* remove switching rules etc... */
+			req->analysers |= AN_REQ_HTTP_TARPIT;
+			req->analyse_exp = tick_add_ifset(now_ms,  s->be->timeout.tarpit);
+			if (!req->analyse_exp)
+				req->analyse_exp = tick_add(now_ms, 0);
+			session_inc_http_err_ctr(s);
+			s->fe->fe_counters.denied_req++;
+			if (s->fe != s->be)
+				s->be->be_counters.denied_req++;
+			if (s->listener->counters)
+				s->listener->counters->denied_req++;
+			return 1;
+		}
 	}
 
 	/* try headers filters */
@@ -8058,6 +8088,9 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		cur_arg = 1;
 	} else if (!strcmp(args[0], "deny")) {
 		rule->action = HTTP_REQ_ACT_DENY;
+		cur_arg = 1;
+	} else if (!strcmp(args[0], "tarpit")) {
+		rule->action = HTTP_REQ_ACT_TARPIT;
 		cur_arg = 1;
 	} else if (!strcmp(args[0], "auth")) {
 		rule->action = HTTP_REQ_ACT_AUTH;

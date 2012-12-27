@@ -2606,7 +2606,7 @@ http-check send-state
 
   See also : "option httpchk", "http-check disable-on-404"
 
-http-request { allow | deny | auth [realm <realm>] | redirect <rule> |
+http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
               add-header <name> <fmt> | set-header <name> <fmt> }
              [ { if | unless } <condition> ]
   Access control for Layer 7 requests
@@ -2627,6 +2627,18 @@ http-request { allow | deny | auth [realm <realm>] | redirect <rule> |
     - "deny" : this stops the evaluation of the rules and immediately rejects
       the request and emits an HTTP 403 error. No further "http-request" rules
       are evaluated.
+
+    - "tarpit" : this stops the evaluation of the rules and immediately blocks
+      the request without responding for a delay specified by "timeout tarpit"
+      or "timeout connect" if the former is not set. After that delay, if the
+      client is still connected, an HTTP error 500 is returned so that the
+      client does not suspect it has been tarpitted. Logs will report the flags
+      "PT". The goal of the tarpit rule is to slow down robots during an attack
+      when they're limited on the number of concurrent requests. It can be very
+      efficient against very dumb robots, and will significantly reduce the
+      load on firewalls compared to a "deny" rule. But when facing "correctly"
+      developped robots, it can make things worse by forcing haproxy and the
+      front firewall to support insane number of concurrent connections.
 
     - "auth" : this stops the evaluation of the rules and immediately responds
       with an HTTP 401 or 407 error code to invite the user to present a valid
