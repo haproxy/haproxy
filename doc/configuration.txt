@@ -2606,7 +2606,7 @@ http-check send-state
 
   See also : "option httpchk", "http-check disable-on-404"
 
-http-request { allow | deny | auth [realm <realm>] |
+http-request { allow | deny | auth [realm <realm>] | redirect <rule> |
               add-header <name> <fmt> | set-header <name> <fmt> }
              [ { if | unless } <condition> ]
   Access control for Layer 7 requests
@@ -2633,6 +2633,11 @@ http-request { allow | deny | auth [realm <realm>] |
       user name and password. No further "http-request" rules are evaluated. An
       optional "realm" parameter is supported, it sets the authentication realm
       that is returned with the response (typically the application's name).
+
+    - "redirect" : this performs an HTTP redirection based on a redirect rule.
+      This is exactly the same as the "redirect" statement except that it
+      inserts a redirect rule which can be processed in the middle of other
+      "http-request" rules. See the "redirect" keyword for the rule's syntax.
 
     - "add-header" appends an HTTP header field whose name is specified in
       <name> and whose value is defined by <fmt> which follows the log-format

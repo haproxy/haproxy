@@ -3104,6 +3104,9 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 		case HTTP_REQ_ACT_AUTH:
 			return rule;
 
+		case HTTP_REQ_ACT_REDIR:
+			return rule;
+
 		case HTTP_REQ_ACT_SET_HDR:
 			ctx.idx = 0;
 			/* remove all occurrences of the header */
@@ -3550,6 +3553,13 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 
 		if (unlikely(http_header_add_tail(&txn->req, &txn->hdr_idx, wl->s) < 0))
 			goto return_bad_req;
+	}
+
+	if (http_req_last_rule && http_req_last_rule->action == HTTP_REQ_ACT_REDIR) {
+		if (!http_apply_redirect_rule(http_req_last_rule->arg.redir, s, txn))
+			goto return_bad_req;
+		req->analyse_exp = TICK_ETERNITY;
+		return 1;
 	}
 
 	if (unlikely(do_stats)) {
@@ -8040,7 +8050,7 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 	rule = (struct http_req_rule*)calloc(1, sizeof(struct http_req_rule));
 	if (!rule) {
 		Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
-		return NULL;
+		goto out_err;
 	}
 
 	if (!strcmp(args[0], "allow")) {
@@ -8068,7 +8078,7 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		if (!*args[cur_arg] || !*args[cur_arg+1] || *args[cur_arg+2]) {
 			Alert("parsing [%s:%d]: 'http-request %s' expects exactly 2 arguments.\n",
 			      file, linenum, args[0]);
-			return NULL;
+			goto out_err;
 		}
 
 		rule->arg.hdr_add.name = strdup(args[cur_arg]);
@@ -8076,10 +8086,29 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		LIST_INIT(&rule->arg.hdr_add.fmt);
 		parse_logformat_string(args[cur_arg + 1], proxy, &rule->arg.hdr_add.fmt, PR_MODE_HTTP);
 		cur_arg += 2;
+	} else if (strcmp(args[0], "redirect") == 0) {
+		struct redirect_rule *redir;
+		char *errmsg;
+
+		if ((redir = http_parse_redirect_rule(file, linenum, proxy, (const char **)args + 1, &errmsg)) == NULL) {
+			Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-request %s' rule : %s.\n",
+			      file, linenum, proxy_type_str(proxy), proxy->id, args[0], errmsg);
+			goto out_err;
+		}
+
+		/* this redirect rule might already contain a parsed condition which
+		 * we'll pass to the http-request rule.
+		 */
+		rule->action = HTTP_REQ_ACT_REDIR;
+		rule->arg.redir = redir;
+		rule->cond = redir->cond;
+		redir->cond = NULL;
+		cur_arg = 2;
+		return rule;
 	} else {
 		Alert("parsing [%s:%d]: 'http-request' expects 'allow', 'deny', 'auth', 'add-header', 'set-header', but got '%s'%s.\n",
 		      file, linenum, args[0], *args[0] ? "" : " (missing argument)");
-		return NULL;
+		goto out_err;
 	}
 
 	if (strcmp(args[cur_arg], "if") == 0 || strcmp(args[cur_arg], "unless") == 0) {
@@ -8090,7 +8119,7 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 			Alert("parsing [%s:%d] : error detected while parsing an 'http-request %s' condition : %s.\n",
 			      file, linenum, args[0], errmsg);
 			free(errmsg);
-			return NULL;
+			goto out_err;
 		}
 		rule->cond = cond;
 	}
@@ -8098,10 +8127,13 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		Alert("parsing [%s:%d]: 'http-request %s' expects 'realm' for 'auth' or"
 		      " either 'if' or 'unless' followed by a condition but found '%s'.\n",
 		      file, linenum, args[0], args[cur_arg]);
-		return NULL;
+		goto out_err;
 	}
 
 	return rule;
+ out_err:
+	free(rule);
+	return NULL;
 }
 
 /* Parses a redirect rule. Returns the redirect rule on success or NULL on error,
