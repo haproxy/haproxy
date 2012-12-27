@@ -3063,8 +3063,8 @@ int http_handle_stats(struct session *s, struct channel *req)
 
 /* Executes the http-request rules <rules> for session <s>, proxy <px> and
  * transaction <txn>. Returns NULL if it executed all rules, or a pointer to
- * the last rule if it had to stop before the end (auth, deny, allow). It may
- * set the TX_CLDENY on txn->flags if it encounters a deny rule.
+ * the last rule if it had to stop before the end (auth, deny). It may set
+ * the TX_CLDENY on txn->flags if it encounters a deny rule.
  */
 static struct http_req_rule *
 http_check_access_rule(struct proxy *px, struct list *rules, struct session *s, struct http_txn *txn)
@@ -3090,7 +3090,7 @@ http_check_access_rule(struct proxy *px, struct list *rules, struct session *s, 
 		if (ret) {
 			switch (rule->action) {
 			case HTTP_REQ_ACT_ALLOW:
-				return rule;
+				return NULL;
 			case HTTP_REQ_ACT_DENY:
 				txn->flags |= TX_CLDENY;
 				return rule;
