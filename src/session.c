@@ -2198,7 +2198,7 @@ struct task *process_session(struct task *t)
 
 			srv = objt_server(s->target);
 			if (s->si[1].state == SI_ST_ASS && srv && srv->rdr_len && (s->flags & SN_REDIRECTABLE))
-				perform_http_redirect(s, &s->si[1]);
+				http_perform_server_redirect(s, &s->si[1]);
 		} while (s->si[1].state == SI_ST_ASS);
 
 		/* Now we can add the server name to a header (if requested) */

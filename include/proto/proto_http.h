@@ -94,7 +94,7 @@ int http_find_header2(const char *name, int len,
 		      char *sol, struct hdr_idx *idx,
 		      struct hdr_ctx *ctx);
 void http_sess_log(struct session *s);
-void perform_http_redirect(struct session *s, struct stream_interface *si);
+void http_perform_server_redirect(struct session *s, struct stream_interface *si);
 void http_return_srv_error(struct session *s, struct stream_interface *si);
 void http_capture_bad_message(struct error_snapshot *es, struct session *s,
                               struct http_msg *msg,
