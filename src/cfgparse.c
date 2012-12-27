@@ -2648,13 +2648,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	}
 	else if (!strcmp(args[0], "redirect")) {
 		struct redirect_rule *rule;
-		int cur_arg;
-		int type = REDIRECT_TYPE_NONE;
-		int code = 302;
-		char *destination = NULL;
-		char *cookie = NULL;
-		int cookie_set = 0;
-		unsigned int flags = REDIRECT_FLAG_NONE;
 
 		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
@@ -2662,142 +2655,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		cur_arg = 1;
-		while (*(args[cur_arg])) {
-			if (!strcmp(args[cur_arg], "location")) {
-				if (!*args[cur_arg + 1]) {
-					Alert("parsing [%s:%d] : '%s': missing argument for '%s'.\n",
-					      file, linenum, args[0], args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				type = REDIRECT_TYPE_LOCATION;
-				cur_arg++;
-				destination = args[cur_arg];
-			}
-			else if (!strcmp(args[cur_arg], "prefix")) {
-				if (!*args[cur_arg + 1]) {
-					Alert("parsing [%s:%d] : '%s': missing argument for '%s'.\n",
-					      file, linenum, args[0], args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				type = REDIRECT_TYPE_PREFIX;
-				cur_arg++;
-				destination = args[cur_arg];
-			}
-			else if (!strcmp(args[cur_arg], "scheme")) {
-				if (!*args[cur_arg + 1]) {
-					Alert("parsing [%s:%d] : '%s': missing argument for '%s'.\n",
-					      file, linenum, args[0], args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				type = REDIRECT_TYPE_SCHEME;
-				cur_arg++;
-				destination = args[cur_arg];
-			}
-			else if (!strcmp(args[cur_arg], "set-cookie")) {
-				if (!*args[cur_arg + 1]) {
-					Alert("parsing [%s:%d] : '%s': missing argument for '%s'.\n",
-					      file, linenum, args[0], args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				cur_arg++;
-				cookie = args[cur_arg];
-				cookie_set = 1;
-			}
-			else if (!strcmp(args[cur_arg], "clear-cookie")) {
-				if (!*args[cur_arg + 1]) {
-					Alert("parsing [%s:%d] : '%s': missing argument for '%s'.\n",
-					      file, linenum, args[0], args[cur_arg]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				cur_arg++;
-				cookie = args[cur_arg];
-				cookie_set = 0;
-			}
-			else if (!strcmp(args[cur_arg],"code")) {
-				if (!*args[cur_arg + 1]) {
-					Alert("parsing [%s:%d] : '%s': missing HTTP code.\n",
-					      file, linenum, args[0]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				cur_arg++;
-				code = atol(args[cur_arg]);
-				if (code < 301 || code > 303) {
-					Alert("parsing [%s:%d] : '%s': unsupported HTTP code '%d'.\n",
-					      file, linenum, args[0], code);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-			}
-			else if (!strcmp(args[cur_arg],"drop-query")) {
-				flags |= REDIRECT_FLAG_DROP_QS;
-			}
-			else if (!strcmp(args[cur_arg],"append-slash")) {
-				flags |= REDIRECT_FLAG_APPEND_SLASH;
-			}
-			else if (strcmp(args[cur_arg], "if") == 0 ||
-				 strcmp(args[cur_arg], "unless") == 0) {
-				cond = build_acl_cond(file, linenum, curproxy, (const char **)args + cur_arg, &errmsg);
-				if (!cond) {
-					Alert("parsing [%s:%d] : '%s': error detected while parsing redirect condition : %s.\n",
-					      file, linenum, args[0], errmsg);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				break;
-			}
-			else {
-				Alert("parsing [%s:%d] : '%s' expects 'code', 'prefix', 'location', 'scheme', 'set-cookie', 'clear-cookie', 'drop-query' or 'append-slash' (was '%s').\n",
-				      file, linenum, args[0], args[cur_arg]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
-			}
-			cur_arg++;
-		}
-
-		if (type == REDIRECT_TYPE_NONE) {
-			Alert("parsing [%s:%d] : '%s' expects a redirection type ('prefix' or 'location').\n",
-			      file, linenum, args[0]);
+		if ((rule = http_parse_redirect_rule(file, linenum, curproxy, (const char **)args + 1, &errmsg)) == NULL) {
+			Alert("parsing [%s:%d] : error detected in %s '%s' while parsing redirect rule : %s.\n",
+			      file, linenum, proxy_type_str(curproxy), curproxy->id, errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
-		rule = (struct redirect_rule *)calloc(1, sizeof(*rule));
-		rule->cond = cond;
-		rule->rdr_str = strdup(destination);
-		rule->rdr_len = strlen(destination);
-		if (cookie) {
-			/* depending on cookie_set, either we want to set the cookie, or to clear it.
-			 * a clear consists in appending "; path=/; Max-Age=0;" at the end.
-			 */
-			rule->cookie_len = strlen(cookie);
-			if (cookie_set) {
-				rule->cookie_str = malloc(rule->cookie_len + 10);
-				memcpy(rule->cookie_str, cookie, rule->cookie_len);
-				memcpy(rule->cookie_str + rule->cookie_len, "; path=/;", 10);
-				rule->cookie_len += 9;
-			} else {
-				rule->cookie_str = malloc(rule->cookie_len + 21);
-				memcpy(rule->cookie_str, cookie, rule->cookie_len);
-				memcpy(rule->cookie_str + rule->cookie_len, "; path=/; Max-Age=0;", 21);
-				rule->cookie_len += 20;
-			}
-		}
-		rule->type = type;
-		rule->code = code;
-		rule->flags = flags;
-		LIST_INIT(&rule->list);
 		LIST_ADDQ(&curproxy->redirect_rules, &rule->list);
 		err_code |= warnif_rule_after_use_backend(curproxy, file, linenum, args[0]);
 		err_code |= warnif_cond_requires_resp(cond, file, linenum);
