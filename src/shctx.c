@@ -499,7 +499,7 @@ void shctx_remove_cb(SSL_CTX *ctx, SSL_SESSION *sess)
 
 /* Allocate shared memory context.
  * <size> is maximum cached sessions.
- * If <size> is set to less or equal to 0, SHCTX_DEFAULT_SIZE is used.
+ * If <size> is set to less or equal to 0, ssl cache is disabled.
  * Returns: -1 on alloc failure, <size> if it performs context alloc,
  * and 0 if cache is already allocated.
  */
@@ -518,7 +518,7 @@ int shared_context_init(int size, int shared)
 		return 0;
 
 	if (size<=0)
-		size = SHCTX_DEFAULT_SIZE;
+		return 0;
 
 	/* Increate size by one to reserve one node for lookup */
 	size++;
@@ -579,14 +579,16 @@ int shared_context_init(int size, int shared)
  * Shared context MUST be firstly initialized */
 void shared_context_set_cache(SSL_CTX *ctx)
 {
+	SSL_CTX_set_session_id_context(ctx, (const unsigned char *)SHCTX_APPNAME, strlen(SHCTX_APPNAME));
+
+	if (!shctx) {
+		SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_OFF);
+		return;
+	}
+
 	SSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_SERVER |
 	                                    SSL_SESS_CACHE_NO_INTERNAL |
 	                                    SSL_SESS_CACHE_NO_AUTO_CLEAR);
-
-	SSL_CTX_set_session_id_context(ctx, (const unsigned char *)SHCTX_APPNAME, strlen(SHCTX_APPNAME));
-
-	if (!shctx)
-		return;
 
 	/* Set callbacks */
 	SSL_CTX_sess_set_new_cb(ctx, shctx_new_cb);

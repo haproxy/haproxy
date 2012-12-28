@@ -887,7 +887,8 @@ tune.ssl.cachesize <number>
   and reassigned. Higher values reduce the occurrence of such a purge, hence
   the number of CPU-intensive SSL handshakes by ensuring that all users keep
   their session as long as possible. All entries are pre-allocated upon startup
-  and are shared between all processes if "nbproc" is greater than 1.
+  and are shared between all processes if "nbproc" is greater than 1. Setting
+  this value to 0 disables the SSL session cache.
 
 tune.ssl.lifetime <timeout>
   Sets how long a cached SSL session may remain valid. This time is expressed

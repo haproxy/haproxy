@@ -24,10 +24,6 @@
 #define SHSESS_MAX_DATA_LEN 4096
 #endif
 
-#ifndef SHCTX_DEFAULT_SIZE
-#define SHCTX_DEFAULT_SIZE 20000
-#endif
-
 #ifndef SHCTX_APPNAME
 #define SHCTX_APPNAME "haproxy"
 #endif
@@ -35,7 +31,7 @@
 /* Allocate shared memory context.
  * <size> is the number of allocated blocks into cache (default 128 bytes)
  * A block is large enough to contain a classic session (without client cert)
- * If <size> is set less or equal to 0, SHCTX_DEFAULT_SIZE is used.
+ * If <size> is set less or equal to 0, ssl cache is disabled.
  * Set <use_shared_memory> to 1 to use a mapped shared memory instead
  * of private. (ignored if compiled with USE_PRIVATE_CACHE=1).
  * Returns: -1 on alloc failure, <size> if it performs context alloc,
