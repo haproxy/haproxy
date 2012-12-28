@@ -844,7 +844,11 @@ const char sess_set_cookie[8] = "NPDIRU67";	/* No set-cookie, Set-cookie found a
 		} while(0)
 
 
-
+/* Builds a log line in <dst> based on <list_format>, and stops before reaching
+ * <maxsize> characters. Returns the size of the output string in characters,
+ * not counting the trailing zero which is always added if the resulting size
+ * is not zero.
+ */
 int build_logline(struct session *s, char *dst, size_t maxsize, struct list *list_format)
 {
 	struct proxy *fe = s->fe;
@@ -1474,8 +1478,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 out:
 	/* *tmplog is a unused character */
 	*tmplog = '\0';
-
-	return tmplog - dst + 1;
+	return tmplog - dst;
 
 }
 
@@ -1507,7 +1510,7 @@ void sess_log(struct session *s)
 	size = tmplog - logline;
 	size += build_logline(s, tmplog, sizeof(logline) - size, &s->fe->logformat);
 	if (size > 0) {
-		__send_log(s->fe, level, logline, size);
+		__send_log(s->fe, level, logline, size + 1);
 		s->logs.logwait = 0;
 	}
 }
