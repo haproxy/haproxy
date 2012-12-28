@@ -855,7 +855,6 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 	struct proxy *be = s->be;
 	struct http_txn *txn = &s->txn;
 	char *uri;
-	const char *svid;
 	struct tm tm;
 	int t_request;
 	int hdr;
