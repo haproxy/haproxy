@@ -127,8 +127,12 @@ struct logformat_node {
 #define LOG_OPT_RES_CAP         0x00000010
 
 
-/* fields that need to be logged. They appear as flags in session->logs.logwait */
-#define LW_INIT		1	/* date */
+/* Fields that need to be extracted from the incoming connection or request for
+ * logging or for sending specific header information. They're set in px->to_log
+ * and appear as flags in session->logs.logwait, which are removed once the
+ * required information has been collected.
+ */
+#define LW_INIT		1	/* anything */
 #define LW_CLIP		2	/* CLient IP */
 #define LW_SVIP		4	/* SerVer IP */
 #define LW_SVID		8	/* server ID */

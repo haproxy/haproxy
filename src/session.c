@@ -944,7 +944,7 @@ static void sess_establish(struct session *s, struct stream_interface *si)
 	if (s->be->mode == PR_MODE_TCP) { /* let's allow immediate data connection in this case */
 		/* if the user wants to log as soon as possible, without counting
 		 * bytes from the server, then this is the right moment. */
-		if (s->fe->to_log && !(s->logs.logwait & LW_BYTES)) {
+		if (!LIST_ISEMPTY(&s->fe->logformat) && !(s->logs.logwait & LW_BYTES)) {
 			s->logs.t_close = s->logs.t_connect; /* to get a valid end date */
 			s->do_log(s);
 		}
@@ -2472,7 +2472,7 @@ struct task *process_session(struct task *t)
 	}
 
 	/* let's do a final log if we need it */
-	if (s->logs.logwait &&
+	if (!LIST_ISEMPTY(&s->fe->logformat) && s->logs.logwait &&
 	    !(s->flags & SN_MONITOR) &&
 	    (!(s->fe->options & PR_O_NULLNOLOG) || s->req->total)) {
 		s->do_log(s);

@@ -6667,7 +6667,7 @@ out_uri_auth_compat:
 			curproxy->to_log &= ~LW_BYTES;
 
 		if ((curproxy->mode == PR_MODE_TCP || curproxy->mode == PR_MODE_HTTP) &&
-		    (curproxy->cap & PR_CAP_FE) && curproxy->to_log && LIST_ISEMPTY(&curproxy->logsrvs)) {
+		    (curproxy->cap & PR_CAP_FE) && !LIST_ISEMPTY(&curproxy->logformat) && LIST_ISEMPTY(&curproxy->logsrvs)) {
 			Warning("config : log format ignored for %s '%s' since it has no log address.\n",
 				proxy_type_str(curproxy), curproxy->id);
 			err_code |= ERR_WARN;

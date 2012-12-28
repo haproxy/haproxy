@@ -854,7 +854,6 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 	struct proxy *fe = s->fe;
 	struct proxy *be = s->be;
 	struct http_txn *txn = &s->txn;
-	int tolog;
 	char *uri;
 	const char *svid;
 	struct tm tm;
@@ -867,21 +866,6 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 	struct logformat_node *tmp;
 
 	/* FIXME: let's limit ourselves to frontend logging for now. */
-	tolog = fe->to_log;
-
-	if (!(tolog & LW_SVID))
-		svid = "-";
-	else switch (obj_type(s->target)) {
-	case OBJ_TYPE_SERVER:
-		svid = objt_server(s->target)->id;
-		break;
-	case OBJ_TYPE_APPLET:
-		svid = objt_applet(s->target)->name;
-		break;
-	default:
-		svid = "<NOSRV>";
-		break;
-	}
 
 	t_request = -1;
 	if (tv_isge(&s->logs.tv_request, &s->logs.tv_accept))
@@ -1133,7 +1117,17 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_SERVER: // %s
-				src = (char *)svid;
+				switch (obj_type(s->target)) {
+				case OBJ_TYPE_SERVER:
+					src = objt_server(s->target)->id;
+					break;
+				case OBJ_TYPE_APPLET:
+					src = objt_applet(s->target)->name;
+					break;
+				default:
+					src = "<NOSRV>";
+					break;
+				}
 				ret = lf_text(tmplog, src, dst + maxsize - tmplog, tmp);
 				if (ret == NULL)
 					goto out;
@@ -1177,7 +1171,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_TT:  // %Tt
-				if (!(tolog & LW_BYTES))
+				if (!(fe->to_log & LW_BYTES))
 					LOGCHAR('+');
 				ret = ltoa_o(s->logs.t_close, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
@@ -1195,7 +1189,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_BYTES: // %B
-				if (!(tolog & LW_BYTES))
+				if (!(fe->to_log & LW_BYTES))
 					LOGCHAR('+');
 				ret = lltoa(s->logs.bytes_out, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
@@ -1205,8 +1199,6 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_BYTES_UP: // %U
-				if (!(tolog & LW_BYTES))
-					LOGCHAR('+');
 				ret = lltoa(s->logs.bytes_in, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
@@ -1311,7 +1303,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 
 			case LOG_FMT_HDRREQUEST: // %hr
 				/* request header */
-				if (fe->to_log & LW_REQHDR && txn->req.cap) {
+				if (fe->nb_req_cap && txn->req.cap) {
 					if (tmp->options & LOG_OPT_QUOTE)
 						LOGCHAR('"');
 					LOGCHAR('{');
@@ -1337,7 +1329,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 
 			case LOG_FMT_HDRREQUESTLIST: // %hrl
 				/* request header list */
-				if (fe->to_log & LW_REQHDR && txn->req.cap) {
+				if (fe->nb_req_cap && txn->req.cap) {
 					for (hdr = 0; hdr < fe->nb_req_cap; hdr++) {
 						if (hdr > 0)
 							LOGCHAR(' ');
@@ -1361,8 +1353,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 
 			case LOG_FMT_HDRRESPONS: // %hs
 				/* response header */
-				if (fe->to_log & LW_RSPHDR &&
-				    txn->rsp.cap) {
+				if (fe->nb_rsp_cap && txn->rsp.cap) {
 					if (tmp->options & LOG_OPT_QUOTE)
 						LOGCHAR('"');
 					LOGCHAR('{');
@@ -1386,7 +1377,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 
 			case LOG_FMT_HDRRESPONSLIST: // %hsl
 				/* response header list */
-				if (fe->to_log & LW_RSPHDR && txn->rsp.cap) {
+				if (fe->nb_rsp_cap && txn->rsp.cap) {
 					for (hdr = 0; hdr < fe->nb_rsp_cap; hdr++) {
 						if (hdr > 0)
 							LOGCHAR(' ');

@@ -130,10 +130,10 @@ int frontend_accept(struct session *s)
 
 	if ((s->fe->mode == PR_MODE_TCP || s->fe->mode == PR_MODE_HTTP)
 	    && (!LIST_ISEMPTY(&s->fe->logsrvs))) {
-		if (likely(s->fe->to_log)) {
+		if (likely(!LIST_ISEMPTY(&s->fe->logformat))) {
 			/* we have the client ip */
 			if (s->logs.logwait & LW_CLIP)
-				if (!(s->logs.logwait &= ~LW_CLIP))
+				if (!(s->logs.logwait &= ~(LW_CLIP|LW_INIT)))
 					s->do_log(s);
 		}
 		else {

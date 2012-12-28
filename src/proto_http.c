@@ -2545,16 +2545,15 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 			memcpy(txn->uri, req->buf->p, urilen);
 			txn->uri[urilen] = 0;
 
-			if (!(s->logs.logwait &= ~LW_REQ))
+			if (!(s->logs.logwait &= ~(LW_REQ|LW_INIT)))
 				s->do_log(s);
 		} else {
 			Alert("HTTP logging : out of memory.\n");
 		}
 	}
 
-		if (!LIST_ISEMPTY(&s->fe->format_unique_id)) {
-			s->unique_id = pool_alloc2(pool2_uniqueid);
-		}
+	if (!LIST_ISEMPTY(&s->fe->format_unique_id))
+		s->unique_id = pool_alloc2(pool2_uniqueid);
 
 	/* 4. We may have to convert HTTP/0.9 requests to HTTP/1.0 */
 	if (unlikely(msg->sl.rq.v_l == 0) && !http_upgrade_v09_to_v10(txn))
@@ -4165,7 +4164,7 @@ void http_end_txn_clean_session(struct session *s)
 	s->logs.bytes_out -= s->rep->buf->i;
 
 	/* let's do a final log if we need it */
-	if (s->logs.logwait &&
+	if (!LIST_ISEMPTY(&s->fe->logformat) && s->logs.logwait &&
 	    !(s->flags & SN_MONITOR) &&
 	    (!(s->fe->options & PR_O_NULLNOLOG) || s->req->total)) {
 		s->do_log(s);
@@ -5668,7 +5667,7 @@ int http_process_res_common(struct session *t, struct channel *rep, int an_bit, 
 		 * bytes from the server, then this is the right moment. We have
 		 * to temporarily assign bytes_out to log what we currently have.
 		 */
-		if (t->fe->to_log && !(t->logs.logwait & LW_BYTES)) {
+		if (!LIST_ISEMPTY(&t->fe->logformat) && !(t->logs.logwait & LW_BYTES)) {
 			t->logs.t_close = t->logs.t_data; /* to get a valid end date */
 			t->logs.bytes_out = txn->rsp.eoh;
 			t->do_log(t);
