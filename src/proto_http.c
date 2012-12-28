@@ -2929,7 +2929,8 @@ int http_process_req_stat_post(struct stream_interface *si, struct http_txn *txn
 
 /* This function checks whether we need to enable a POST analyser to parse a
  * stats request, and also registers the stats I/O handler. It returns zero
- * if it needs to come back again, otherwise non-zero if it finishes.
+ * if it needs to come back again, otherwise non-zero if it finishes. In the
+ * latter case, it also clears the request analysers.
  */
 int http_handle_stats(struct session *s, struct channel *req)
 {
@@ -3012,6 +3013,7 @@ int http_handle_stats(struct session *s, struct channel *req)
 			s->flags |= SN_ERR_PRXCOND; // to mark that it comes from the proxy
 		if (!(s->flags & SN_FINST_MASK))
 			s->flags |= SN_FINST_R;
+		req->analysers = 0;
 		return 1;
 	}
 
@@ -3045,6 +3047,7 @@ int http_handle_stats(struct session *s, struct channel *req)
 		/* that's all we return in case of HEAD request, so let's immediately close. */
 		stream_int_retnclose(req->prod, &trash);
 		s->target = &http_stats_applet.obj_type; /* just for logging the applet name */
+		req->analysers = 0;
 		return 1;
 	}
 
@@ -3057,7 +3060,6 @@ int http_handle_stats(struct session *s, struct channel *req)
 	s->rep->prod->conn->xprt_ctx = s;
 	s->rep->prod->applet.st0 = s->rep->prod->applet.st1 = 0;
 	req->analysers = 0;
-
 	return 1;
 }
 
