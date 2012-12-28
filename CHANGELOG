@@ -1,6 +1,21 @@
 ChangeLog :
 ===========
 
+2012/12/28 : 1.5-dev17
+    - MINOR: ssl: Setting global tune.ssl.cachesize value to 0 disables SSL session cache.
+    - BUG/MEDIUM: stats: fix stats page regression introduced by commit 20b0de5
+    - BUG/MINOR: stats: last fix was still wrong
+    - BUG/MINOR: stats: http-request rules still don't cope with stats
+    - BUG/MINOR: http: http-request add-header emits a corrupted header
+    - BUG/MEDIUM: stats: disable request analyser when processing POST or HEAD
+    - BUG/MINOR: log: make log-format, unique-id-format and add-header more independant
+    - BUILD: log: unused variable svid
+    - CLEANUP: http: rename the misleading http_check_access_rule
+    - MINOR: http: move redirect rule processing to its own function
+    - REORG: config: move the http redirect rule parser to proto_http.c
+    - MEDIUM: http: add support for "http-request redirect" rules
+    - MEDIUM: http: add support for "http-request tarpit" rule
+
 2012/12/24 : 1.5-dev16
     - BUG/MEDIUM: ssl: Prevent ssl error from affecting other connections.
     - BUG/MINOR: ssl: error is not reported if it occurs simultaneously with peer close detection.
