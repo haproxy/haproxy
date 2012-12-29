@@ -815,7 +815,8 @@ static int sess_update_st_con_tcp(struct session *s, struct stream_interface *si
 	}
 
 	/* OK, maybe we want to abort */
-	if (unlikely((rep->flags & CF_SHUTW) ||
+	if (!(req->flags & CF_WRITE_PARTIAL) &&
+	    unlikely((rep->flags & CF_SHUTW) ||
 		     ((req->flags & CF_SHUTW_NOW) && /* FIXME: this should not prevent a connection from establishing */
 		      ((!(req->flags & CF_WRITE_ACTIVITY) && channel_is_empty(req)) ||
 		       s->be->options & PR_O_ABRT_CLOSE)))) {
