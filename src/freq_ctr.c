@@ -47,7 +47,7 @@ unsigned int read_freq_ctr(struct freq_ctr *ctr)
 	if (past <= 1 && !curr)
 		return past; /* very low rate, avoid flapping */
 
-	return curr + mul32hi(past, ~curr_sec_ms_scaled);
+	return curr + mul32hi(past, ms_left_scaled);
 }
 
 /* returns the number of remaining events that can occur on this freq counter
@@ -59,7 +59,6 @@ unsigned int freq_ctr_remain(struct freq_ctr *ctr, unsigned int freq, unsigned i
 	unsigned int curr, past;
 	unsigned int age;
 
-	past = 0;
 	curr = 0;		
 	age = now.tv_sec - ctr->curr_sec;
 
@@ -69,7 +68,7 @@ unsigned int freq_ctr_remain(struct freq_ctr *ctr, unsigned int freq, unsigned i
 			curr = past;
 			past = ctr->prev_ctr;
 		}
-		curr += mul32hi(past, ~curr_sec_ms_scaled);
+		curr += mul32hi(past, ms_left_scaled);
 	}
 	curr += pend;
 
@@ -99,7 +98,7 @@ unsigned int next_event_delay(struct freq_ctr *ctr, unsigned int freq, unsigned 
 			curr = past;
 			past = ctr->prev_ctr;
 		}
-		curr += mul32hi(past, ~curr_sec_ms_scaled);
+		curr += mul32hi(past, ms_left_scaled);
 	}
 	curr += pend;
 
