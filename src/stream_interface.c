@@ -297,7 +297,13 @@ int stream_int_shutw(struct stream_interface *si)
 			if (conn->xprt && conn->xprt->shutw)
 				conn->xprt->shutw(conn, 1);
 
-			if (!(si->flags & SI_FL_NOHALF)) {
+			/* If the stream interface is configured to disable half-open
+			 * connections, we'll skip the shutdown(), but only if the
+			 * read size is already closed. Otherwise we can't support
+			 * closed write with pending read (eg: abortonclose while
+			 * waiting for the server).
+			 */
+			if (!(si->flags & SI_FL_NOHALF) || !(si->ib->flags & (CF_SHUTR|CF_DONT_READ))) {
 				/* We shutdown transport layer */
 				if (conn->ctrl)
 					shutdown(si->conn->t.sock.fd, SHUT_WR);
