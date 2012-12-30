@@ -1185,7 +1185,8 @@ static int wake_srv_chk(struct connection *conn)
 
 	if (unlikely(conn->flags & CO_FL_ERROR)) {
 		/* Note that we might as well have been woken up by a handshake handler */
-		s->result |= SRV_CHK_FAILED;
+		if (s->result == SRV_CHK_UNKNOWN)
+			s->result |= SRV_CHK_FAILED;
 		__conn_data_stop_both(conn);
 		task_wakeup(s->check.task, TASK_WOKEN_IO);
 	}
