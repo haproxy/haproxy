@@ -6375,7 +6375,7 @@ tcp-request content <action> [{if | unless} <condition>]
             # by SC2), block it globally in the frontend.
             stick-table type ip size 1m expire 5m store http_req_rate(10s)
             acl click_too_fast sc2_http_req_rate gt 10
-            acl mark_as_abuser sc1_inc_gpc0
+            acl mark_as_abuser sc1_inc_gpc0 gt 0
             tcp-request content track-sc2 src
             tcp-request content reject if click_too_fast mark_as_abuser
 
@@ -8120,7 +8120,6 @@ srv_sess_rate(<backend>/<server>) <integer>
         acl srv2_full srv_sess_rate(be1/srv2) gt 50
         use_backend be2 if srv1_full or srv2_full
 
-
 connslots <integer>
 connslots(<backend>) <integer>
   The basic idea here is to be able to measure the number of connection "slots"
@@ -8214,112 +8213,110 @@ queue(<backend>) <integer>
   One possible action could be to reject new users but still accept old ones.
   See also the "avg_queue", "be_conn", and "be_sess_rate" criteria.
 
-sc1_bytes_in_rate
-sc2_bytes_in_rate
+sc1_bytes_in_rate <integer>
+sc2_bytes_in_rate <integer>
   Returns the average client-to-server bytes rate from the currently tracked
   counters, measured in amount of bytes over the period configured in the
   table. See also src_bytes_in_rate.
 
-sc1_bytes_out_rate
-sc2_bytes_out_rate
+sc1_bytes_out_rate <integer>
+sc2_bytes_out_rate <integer>
   Returns the average server-to-client bytes rate from the currently tracked
   counters, measured in amount of bytes over the period configured in the
   table. See also src_bytes_out_rate.
 
-sc1_clr_gpc0
-sc2_clr_gpc0
+sc1_clr_gpc0 <integer>
+sc2_clr_gpc0 <integer>
   Clears the first General Purpose Counter associated to the currently tracked
   counters, and returns its previous value. Before the first invocation, the
-  stored value is zero, so first invocation will always return zero. The test
-  can also be used alone and always returns true. This is typically used as a
-  second ACL in an expression in order to mark a connection when a first ACL
-  was verified :
+  stored value is zero, so first invocation will always return zero. This is
+  typically used as a second ACL in an expression in order to mark a connection
+  when a first ACL was verified :
 
         # block if 5 consecutive requests continue to come faster than 10 sess
         # per second, and reset the counter as soon as the traffic slows down.
         acl abuse sc1_http_req_rate gt 10
         acl kill  sc1_inc_gpc0 gt 5
-        acl save  sc1_clr_gpc0
+        acl save  sc1_clr_gpc0 ge 0
         tcp-request connection accept if !abuse save
         tcp-request connection reject if abuse kill
 
-sc1_conn_cnt
-sc2_conn_cnt
+sc1_conn_cnt <integer>
+sc2_conn_cnt <integer>
   Returns the cumulated number of incoming connections from currently tracked
   counters. See also src_conn_cnt.
 
-sc1_conn_cur
-sc2_conn_cur
+sc1_conn_cur <integer>
+sc2_conn_cur <integer>
   Returns the current amount of concurrent connections tracking the same
   tracked counters. This number is automatically incremented when tracking
   begins and decremented when tracking stops. See also src_conn_cur.
 
-sc1_conn_rate
-sc2_conn_rate
+sc1_conn_rate <integer>
+sc2_conn_rate <integer>
   Returns the average connection rate from the currently tracked counters,
   measured in amount of connections over the period configured in the table.
   See also src_conn_rate.
 
-sc1_get_gpc0
-sc2_get_gpc0
+sc1_get_gpc0 <integer>
+sc2_get_gpc0 <integer>
   Returns the value of the first General Purpose Counter associated to the
   currently tracked counters. See also src_get_gpc0 and sc1/sc2_inc_gpc0.
 
-sc1_http_err_cnt
-sc2_http_err_cnt
+sc1_http_err_cnt <integer>
+sc2_http_err_cnt <integer>
   Returns the cumulated number of HTTP errors from the currently tracked
   counters. This includes the both request errors and 4xx error responses.
   See also src_http_err_cnt.
 
-sc1_http_err_rate
-sc2_http_err_rate
+sc1_http_err_rate <integer>
+sc2_http_err_rate <integer>
   Returns the average rate of HTTP errors from the currently tracked counters,
   measured in amount of errors over the period configured in the table. This
   includes the both request errors and 4xx error responses. See also
   src_http_err_rate.
 
-sc1_http_req_cnt
-sc2_http_req_cnt
+sc1_http_req_cnt <integer>
+sc2_http_req_cnt <integer>
   Returns the cumulated number of HTTP requests from the currently tracked
   counters. This includes every started request, valid or not. See also
   src_http_req_cnt.
 
-sc1_http_req_rate
-sc2_http_req_rate
+sc1_http_req_rate <integer>
+sc2_http_req_rate <integer>
   Returns the average rate of HTTP requests from the currently tracked
   counters, measured in amount of requests over the period configured in
   the table. This includes every started request, valid or not. See also
   src_http_req_rate.
 
-sc1_inc_gpc0
-sc2_inc_gpc0
+sc1_inc_gpc0 <integer>
+sc2_inc_gpc0 <integer>
   Increments the first General Purpose Counter associated to the currently
-  tracked counters, and returns its value. Before the first invocation, the
-  stored value is zero, so first invocation will increase it to 1 and will
-  return 1. The test can also be used alone and always returns true. This is
-  typically used as a second ACL in an expression in order to mark a connection
-  when a first ACL was verified :
+  tracked counters, and returns its new value. Before the first invocation,
+  the stored value is zero, so first invocation will increase it to 1 and will
+  return 1. This is typically used as a second ACL in an expression in order
+  to mark a connection when a first ACL was verified :
 
         acl abuse sc1_http_req_rate gt 10
-        acl kill  sc1_inc_gpc0
+        acl kill  sc1_inc_gpc0 gt 0
         tcp-request connection reject if abuse kill
 
-sc1_kbytes_in
-sc2_kbytes_in
+sc1_kbytes_in <integer>
+sc2_kbytes_in <integer>
   Returns the amount of client-to-server data from the currently tracked
   counters, measured in kilobytes over the period configured in the table. The
   test is currently performed on 32-bit integers, which limits values to 4
   terabytes. See also src_kbytes_in.
 
-sc1_kbytes_out
-sc2_kbytes_out
+sc1_kbytes_out <integer>
+sc2_kbytes_out <integer>
   Returns the amount of server-to-client data from the currently tracked
   counters, measured in kilobytes over the period configured in the table. The
   test is currently performed on 32-bit integers, which limits values to 4
   terabytes. See also src_kbytes_out.
 
-sc1_sess_cnt
-sc2_sess_cnt
+sc1_sess_cnt <integer>
+sc2_sess_cnt <integer>
   Returns the cumulated number of incoming connections that were transformed
   into sessions, which means that they were accepted by a "tcp-request
   connection" rule, from the currently tracked counters. A backend may count
@@ -8327,8 +8324,8 @@ sc2_sess_cnt
   backend sessions if some HTTP keep-alive is performed over the connection
   with the client. See also src_sess_cnt.
 
-sc1_sess_rate
-sc2_sess_rate
+sc1_sess_rate <integer>
+sc2_sess_rate <integer>
   Returns the average session rate from the currently tracked counters,
   measured in amount of sessions over the period configured in the table. A
   session is a connection that got past the early "tcp-request connection"
@@ -8336,8 +8333,8 @@ sc2_sess_rate
   connection could result in many backend sessions if some HTTP keep-alive is
   performed over the connection with the client. See also src_sess_rate.
 
-sc1_trackers
-sc2_trackers
+sc1_trackers <integer>
+sc2_trackers <integer>
   Returns the current amount of concurrent connections tracking the same
   tracked counters. This number is automatically incremented when tracking
   begins and decremented when tracking stops. It differs from sc1_conn_cur in
@@ -8372,15 +8369,14 @@ src_clr_gpc0(<table>) <integer>
   Clears the first General Purpose Counter associated to the connection's
   source IPv4 address in the current proxy's stick-table or in the designated
   stick-table, and returns its previous value. If the address is not found, an
-  entry is created and 0 is returned. The test can also be used alone and
-  always returns true. This is typically used as a second ACL in an expression
-  in order to mark a connection when a first ACL was verified :
+  entry is created and 0 is returned. This is typically used as a second ACL in
+  an expression in order to mark a connection when a first ACL was verified :
 
         # block if 5 consecutive requests continue to come faster than 10 sess
         # per second, and reset the counter as soon as the traffic slows down.
         acl abuse src_http_req_rate gt 10
         acl kill  src_inc_gpc0 gt 5
-        acl save  src_clr_gpc0
+        acl save  src_clr_gpc0 ge 0
         tcp-request connection accept if !abuse save
         tcp-request connection reject if abuse kill
 
@@ -8446,13 +8442,12 @@ src_inc_gpc0 <integer>
 src_inc_gpc0(<table>) <integer>
   Increments the first General Purpose Counter associated to the connection's
   source IPv4 address in the current proxy's stick-table or in the designated
-  stick-table, and returns its value. If the address is not found, an entry is
-  created and 1 is returned. The test can also be used alone and always returns
-  true. This is typically used as a second ACL in an expression in order to
-  mark a connection when a first ACL was verified :
+  stick-table, and returns its new value. If the address is not found, an entry
+  is created and 1 is returned. This is typically used as a second ACL in an
+  expression in order to mark a connection when a first ACL was verified :
 
         acl abuse src_http_req_rate gt 10
-        acl kill  src_inc_gpc0
+        acl kill  src_inc_gpc0 gt 0
         tcp-request connection reject if abuse kill
 
 src_kbytes_in <integer>
