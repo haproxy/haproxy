@@ -106,6 +106,7 @@ int signal_init()
 	memset(signal_queue, 0, sizeof(signal_queue));
 	memset(signal_state, 0, sizeof(signal_state));
 	sigfillset(&blocked_sig);
+	sigdelset(&blocked_sig, SIGPROF);
 	for (sig = 0; sig < MAX_SIGNAL; sig++)
 		LIST_INIT(&signal_state[sig].handlers);
 
@@ -120,7 +121,8 @@ void deinit_signals()
 	struct sig_handler *sh, *shb;
 
 	for (sig = 0; sig < MAX_SIGNAL; sig++) {
-		signal(sig, SIG_DFL);
+		if (sig != SIGPROF)
+			signal(sig, SIG_DFL);
 		list_for_each_entry_safe(sh, shb, &signal_state[sig].handlers, list) {
 			LIST_DEL(&sh->list);
 			pool_free2(pool2_sig_handlers, sh);
