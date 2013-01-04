@@ -1865,13 +1865,13 @@ static struct cfg_kw_list cfg_kws = {{ },{
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct acl_kw_list acl_kws = {{ },{
-	{ "dst",        acl_parse_ip,    smp_fetch_dst,      acl_match_ip,  ACL_USE_TCP4_PERMANENT|ACL_MAY_LOOKUP, 0 },
+	{ "dst",        acl_parse_ip,    smp_fetch_dst,      acl_match_ip,  ACL_USE_TCP4_PERMANENT, 0 },
 	{ "dst_port",   acl_parse_int,   smp_fetch_dport,    acl_match_int, ACL_USE_TCP_PERMANENT, 0  },
-	{ "payload",    acl_parse_str,   smp_fetch_payload,  acl_match_str, ACL_USE_L6REQ_VOLATILE|ACL_MAY_LOOKUP, ARG2(2,UINT,UINT), val_payload },
-	{ "payload_lv", acl_parse_str, smp_fetch_payload_lv, acl_match_str, ACL_USE_L6REQ_VOLATILE|ACL_MAY_LOOKUP, ARG3(2,UINT,UINT,SINT), val_payload_lv },
-	{ "req_rdp_cookie",     acl_parse_str, smp_fetch_rdp_cookie,     acl_match_str, ACL_USE_L6REQ_VOLATILE|ACL_MAY_LOOKUP, ARG1(0,STR) },
+	{ "payload",    acl_parse_str,   smp_fetch_payload,  acl_match_str, ACL_USE_L6REQ_VOLATILE, ARG2(2,UINT,UINT), val_payload },
+	{ "payload_lv", acl_parse_str, smp_fetch_payload_lv, acl_match_str, ACL_USE_L6REQ_VOLATILE, ARG3(2,UINT,UINT,SINT), val_payload_lv },
+	{ "req_rdp_cookie",     acl_parse_str, smp_fetch_rdp_cookie,     acl_match_str, ACL_USE_L6REQ_VOLATILE, ARG1(0,STR) },
 	{ "req_rdp_cookie_cnt", acl_parse_int, acl_fetch_rdp_cookie_cnt, acl_match_int, ACL_USE_L6REQ_VOLATILE, ARG1(0,STR) },
-	{ "src",        acl_parse_ip,    smp_fetch_src,      acl_match_ip,  ACL_USE_TCP4_PERMANENT|ACL_MAY_LOOKUP, 0 },
+	{ "src",        acl_parse_ip,    smp_fetch_src,      acl_match_ip,  ACL_USE_TCP4_PERMANENT, 0 },
 	{ "src_port",   acl_parse_int,   smp_fetch_sport,    acl_match_int, ACL_USE_TCP_PERMANENT, 0  },
 	{ NULL, NULL, NULL, NULL },
 }};

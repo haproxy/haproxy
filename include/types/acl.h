@@ -145,12 +145,6 @@ enum {
 
 	/* any type of response information */
 	ACL_USE_RTR_ANY         = (ACL_USE_L6RTR_ANY | ACL_USE_L7RTR_ANY | ACL_USE_RTR_INTERNAL),
-
-	/* some flags indicating if a keyword supports exact pattern matching,
-	 * so that patterns may be arranged in lookup trees. Let's put those
-	 * flags at the end to leave some space for the other ones above.
-	 */
-	ACL_MAY_LOOKUP          =  1 << 31,  /* exact pattern lookup */
 };
 
 /* filtering hooks */

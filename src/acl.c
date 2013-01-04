@@ -1359,7 +1359,8 @@ static int acl_read_patterns_from_file(	struct acl_keyword *aclkw,
 		memset(pattern, 0, sizeof(*pattern));
 		pattern->flags = patflags;
 
-		if ((aclkw->requires & ACL_MAY_LOOKUP) && !(pattern->flags & ACL_PAT_F_IGNORE_CASE)) {
+		if (!(pattern->flags & ACL_PAT_F_IGNORE_CASE) &&
+		    (aclkw->match == acl_match_str || aclkw->match == acl_match_ip)) {
 			/* we pre-set the data pointer to the tree's head so that functions
 			 * which are able to insert in a tree know where to do that.
 			 */
@@ -2314,7 +2315,7 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "rep_ssl_hello_type",  acl_parse_int,        acl_fetch_ssl_hello_type, acl_match_int,     ACL_USE_L6RTR_VOLATILE, 0 },
 	{ "req_len",             acl_parse_int,        acl_fetch_req_len,        acl_match_int,     ACL_USE_L6REQ_VOLATILE, 0 },
 	{ "req_ssl_hello_type",  acl_parse_int,        acl_fetch_ssl_hello_type, acl_match_int,     ACL_USE_L6REQ_VOLATILE, 0 },
-	{ "req_ssl_sni",         acl_parse_str,        acl_fetch_ssl_hello_sni,  acl_match_str,     ACL_USE_L6REQ_VOLATILE|ACL_MAY_LOOKUP, 0 },
+	{ "req_ssl_sni",         acl_parse_str,        acl_fetch_ssl_hello_sni,  acl_match_str,     ACL_USE_L6REQ_VOLATILE, 0 },
 	{ "req_ssl_ver",         acl_parse_dotted_ver, acl_fetch_req_ssl_ver,    acl_match_int,     ACL_USE_L6REQ_VOLATILE, 0 },
 	{ "wait_end",            acl_parse_nothing,    acl_fetch_wait_end,       acl_match_nothing, ACL_USE_NOTHING, 0 },
 	{ NULL, NULL, NULL, NULL }
