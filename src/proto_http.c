@@ -8137,7 +8137,7 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		cur_arg = 2;
 		return rule;
 	} else {
-		Alert("parsing [%s:%d]: 'http-request' expects 'allow', 'deny', 'auth', 'add-header', 'set-header', but got '%s'%s.\n",
+		Alert("parsing [%s:%d]: 'http-request' expects 'allow', 'deny', 'auth', 'redirect', 'tarpit', 'add-header', 'set-header', but got '%s'%s.\n",
 		      file, linenum, args[0], *args[0] ? "" : " (missing argument)");
 		goto out_err;
 	}
