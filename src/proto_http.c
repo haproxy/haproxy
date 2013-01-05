@@ -1994,15 +1994,6 @@ int select_compression_request_header(struct session *s, struct buffer *req)
 	    return 0;
 	}
 
-	ctx.idx = 0;
-	/* no compression when Cache-Control: no-transform found */
-	while (http_find_header2("Cache-Control", 13, req->p, &txn->hdr_idx, &ctx)) {
-		if (word_match(ctx.line + ctx.val, ctx.vlen, "no-transform", 12)) {
-			s->comp_algo = NULL;
-			return 0;
-		}
-	}
-
 	/* search for the algo in the backend in priority or the frontend */
 	if ((s->be->comp && (comp_algo_back = s->be->comp->algos)) || (s->fe->comp && (comp_algo_back = s->fe->comp->algos))) {
 		ctx.idx = 0;
@@ -2072,6 +2063,13 @@ int select_compression_response_header(struct session *s, struct buffer *res)
 	ctx.idx = 0;
 	if (http_find_header2("Content-Encoding", 16, res->p, &txn->hdr_idx, &ctx))
 		goto fail;
+
+	/* no compression when Cache-Control: no-transform is present in the message */
+	ctx.idx = 0;
+	while (http_find_header2("Cache-Control", 13, res->p, &txn->hdr_idx, &ctx)) {
+		if (word_match(ctx.line + ctx.val, ctx.vlen, "no-transform", 12))
+			goto fail;
+	}
 
 	comp_type = NULL;
 
