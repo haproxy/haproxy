@@ -40,6 +40,11 @@ static int epoll_fd;
  */
 static struct epoll_event ev;
 
+#ifndef EPOLLRDHUP
+/* EPOLLRDHUP was defined late in libc, and it appeared in kernel 2.6.17 */
+#define EPOLLRDHUP 0x2000
+#endif
+
 /*
  * speculative epoll() poller
  */
@@ -76,7 +81,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 				/* construct the epoll events based on new state */
 				ev.events = 0;
 				if (en & FD_EV_POLLED_R)
-					ev.events |= EPOLLIN;
+					ev.events |= EPOLLIN | EPOLLRDHUP;
 
 				if (en & FD_EV_POLLED_W)
 					ev.events |= EPOLLOUT;
@@ -137,8 +142,8 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	/* process polled events */
 
 	for (count = 0; count < status; count++) {
-		unsigned char n;
-		unsigned char e = epoll_events[count].events;
+		unsigned int n;
+		unsigned int e = epoll_events[count].events;
 		fd = epoll_events[count].data.fd;
 
 		if (!fdtab[fd].owner)
@@ -160,6 +165,10 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 				((e & EPOLLERR) ? FD_POLL_ERR : 0) |
 				((e & EPOLLHUP) ? FD_POLL_HUP : 0);
 		}
+
+		/* always remap RDHUP to HUP as they're used similarly */
+		if (e & EPOLLRDHUP)
+			n |= FD_POLL_HUP;
 
 		if (!n)
 			continue;
