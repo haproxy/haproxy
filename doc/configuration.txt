@@ -9636,6 +9636,27 @@ The list of currently supported pattern fetch functions is the following :
                ports to some clients for a whole application session. It is of
                type integer and only works with such tables.
 
+  fe_conn([<frontend>])
+               Returns the number of currently established connections on the
+               the frontend, possibly including the connection being evaluated.
+               If no frontend name is specified, the current one is used. But
+               it is also possible to check another frontend. It can be used to
+               return a sorry page before hard-blocking, or to use a specific
+               backend to drain new requests when the farm is considered full.
+               This is mostly used with ACLs but can also be used to pass some
+               statistics to servers in HTTP headers. See also the "dst_conn",
+               "be_conn", "fe_sess_rate" criteria.
+
+  fe_id        Returns an integer containing the current frontend's id.
+
+  fe_sess_rate([<frontend>])
+               Returns an integer value corresponding to the sessions creation
+               rate on the frontend, in number of new sessions per second. This
+               is used with ACLs to limit the incoming session rate to an
+               acceptable range in order to prevent abuse of service at the
+               earliest moment. It can also be useful to add this element to
+               logs using a log-format directive.
+
   hdr(<name>[,<occ>])
                This extracts the last occurrence of header <name> in an HTTP
                request. Optionally, a specific occurrence might be specified as
