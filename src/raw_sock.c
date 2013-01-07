@@ -148,6 +148,10 @@ int raw_sock_to_pipe(struct connection *conn, struct pipe *pipe, unsigned int co
 		retval += ret;
 		pipe->data += ret;
 
+		/* if a POLL_HUP was present, we've read the last segment */
+		if ((fdtab[conn->t.sock.fd].ev & (FD_POLL_ERR|FD_POLL_HUP)) == FD_POLL_HUP)
+			goto out_read0;
+
 		if (pipe->data >= SPLICE_FULL_HINT || ret >= global.tune.recv_enough) {
 			/* We've read enough of it for this time, let's stop before
 			 * being asked to poll.
