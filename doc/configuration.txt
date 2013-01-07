@@ -9630,6 +9630,13 @@ The list of currently supported pattern fetch functions is the following :
                On IPv6 tables, IPv4 address is mapped to its IPv6 equivalent,
                according to RFC 4291.
 
+  dst_conn
+               Returns an integer value corresponding to the number of
+               currently established connections on the same socket including
+               the one being evaluated. It is normally used with ACLs but can
+               as well be used to pass the information to servers in an HTTP
+               header or in logs. See also "fe_conn" and "dst_conn".
+
   dst_port     This is the destination TCP port of the session on the client
                side, which is the port the client connected to. This might be
                used when running in transparent mode or when assigning dynamic
@@ -9786,6 +9793,8 @@ The list of currently supported pattern fetch functions is the following :
                 multi-peer synchronization and state keeping across restarts.
 
                See also : "appsession"
+
+  so_id        Returns an integer containing the listening socket's id.
 
   src          This is the source IPv4 address of the client of the session.
                It is of type IPv4 and works on both IPv4 and IPv6 tables.

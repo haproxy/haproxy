@@ -1,7 +1,7 @@
 /*
  * Listener management functions.
  *
- * Copyright 2000-2012 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2013 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,6 +28,7 @@
 #include <proto/fd.h>
 #include <proto/freq_ctr.h>
 #include <proto/log.h>
+#include <proto/sample.h>
 #include <proto/task.h>
 
 /* List head of all known bind keywords */
@@ -481,12 +482,12 @@ void bind_dump_kws(char **out)
 }
 
 /************************************************************************/
-/*           All supported ACL keywords must be declared here.          */
+/*      All supported sample and ACL keywords must be declared here.    */
 /************************************************************************/
 
 /* set temp integer to the number of connexions to the same listening socket */
 static int
-acl_fetch_dconn(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_dconn(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp)
 {
 	smp->type = SMP_T_UINT;
@@ -496,7 +497,7 @@ acl_fetch_dconn(struct proxy *px, struct session *l4, void *l7, unsigned int opt
 
 /* set temp integer to the id of the socket (listener) */
 static int
-acl_fetch_so_id(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_so_id(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp)
 {
 	smp->type = SMP_T_UINT;
@@ -642,10 +643,19 @@ static int bind_parse_nice(char **args, int cur_arg, struct proxy *px, struct bi
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
+static struct sample_fetch_kw_list smp_kws = {{ },{
+	{ "dst_conn", smp_fetch_dconn, 0, NULL, SMP_T_UINT, SMP_USE_FTEND, },
+	{ "so_id",    smp_fetch_so_id, 0, NULL, SMP_T_UINT, SMP_USE_FTEND, },
+	{ /* END */ },
+}};
+
+/* Note: must not be declared <const> as its list will be overwritten.
+ * Please take care of keeping this list alphabetically sorted.
+ */
 static struct acl_kw_list acl_kws = {{ },{
-	{ "dst_conn",   acl_parse_int,   acl_fetch_dconn,    acl_match_int, ACL_USE_NOTHING, 0 },
-	{ "so_id",      acl_parse_int,   acl_fetch_so_id,    acl_match_int, ACL_USE_NOTHING, 0 },
-	{ NULL, NULL, NULL, NULL },
+	{ "dst_conn",   acl_parse_int,   smp_fetch_dconn,    acl_match_int, ACL_USE_NOTHING, 0 },
+	{ "so_id",      acl_parse_int,   smp_fetch_so_id,    acl_match_int, ACL_USE_NOTHING, 0 },
+	{ /* END */ },
 }};
 
 /* Note: must not be declared <const> as its list will be overwritten.
@@ -662,12 +672,13 @@ static struct bind_kw_list bind_kws = { "ALL", { }, {
 	{ "maxconn",      bind_parse_maxconn,      1 }, /* set maxconn of listening socket */
 	{ "name",         bind_parse_name,         1 }, /* set name of listening socket */
 	{ "nice",         bind_parse_nice,         1 }, /* set nice of listening socket */
-	{ NULL, NULL, 0 },
+	{ /* END */ },
 }};
 
 __attribute__((constructor))
 static void __listener_init(void)
 {
+	sample_register_fetches(&smp_kws);
 	acl_register_keywords(&acl_kws);
 	bind_register_keywords(&bind_kws);
 }
