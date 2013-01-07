@@ -1,7 +1,7 @@
 /*
  * Backend variables and functions.
  *
- * Copyright 2000-2012 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2013 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -1370,7 +1370,7 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 
 
 /************************************************************************/
-/*             All supported keywords must be declared here.            */
+/*      All supported sample and ACL keywords must be declared here.    */
 /************************************************************************/
 
 /* set temp integer to the number of enabled servers on the proxy.
@@ -1378,7 +1378,7 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
  * undefined behaviour.
  */
 static int
-acl_fetch_nbsrv(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_nbsrv(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_TEST;
@@ -1401,7 +1401,7 @@ acl_fetch_nbsrv(struct proxy *px, struct session *l4, void *l7, unsigned int opt
  * undefined behaviour.
  */
 static int
-acl_fetch_srv_is_up(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_srv_is_up(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                     const struct arg *args, struct sample *smp)
 {
 	struct server *srv = args->data.srv;
@@ -1421,7 +1421,7 @@ acl_fetch_srv_is_up(struct proxy *px, struct session *l4, void *l7, unsigned int
  * undefined behaviour.
  */
 static int
-acl_fetch_connslots(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_connslots(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                     const struct arg *args, struct sample *smp)
 {
 	struct server *iterator;
@@ -1449,7 +1449,7 @@ acl_fetch_connslots(struct proxy *px, struct session *l4, void *l7, unsigned int
 
 /* set temp integer to the id of the backend */
 static int
-acl_fetch_be_id(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_be_id(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_TXN;
@@ -1460,7 +1460,7 @@ acl_fetch_be_id(struct proxy *px, struct session *l4, void *l7, unsigned int opt
 
 /* set temp integer to the id of the server */
 static int
-acl_fetch_srv_id(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_srv_id(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                  const struct arg *args, struct sample *smp)
 {
 	if (!objt_server(l4->target))
@@ -1477,7 +1477,7 @@ acl_fetch_srv_id(struct proxy *px, struct session *l4, void *l7, unsigned int op
  * undefined behaviour.
  */
 static int
-acl_fetch_be_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_be_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_TEST;
@@ -1491,7 +1491,7 @@ acl_fetch_be_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned 
  * undefined behaviour.
  */
 static int
-acl_fetch_be_conn(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_be_conn(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                   const struct arg *args, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_TEST;
@@ -1505,7 +1505,7 @@ acl_fetch_be_conn(struct proxy *px, struct session *l4, void *l7, unsigned int o
  * undefined behaviour.
  */
 static int
-acl_fetch_queue_size(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_queue_size(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                      const struct arg *args, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_TEST;
@@ -1523,7 +1523,7 @@ acl_fetch_queue_size(struct proxy *px, struct session *l4, void *l7, unsigned in
  * undefined behaviour.
  */
 static int
-acl_fetch_avg_queue_size(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_avg_queue_size(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                          const struct arg *args, struct sample *smp)
 {
 	int nbsrv;
@@ -1552,7 +1552,7 @@ acl_fetch_avg_queue_size(struct proxy *px, struct session *l4, void *l7, unsigne
  * undefined behaviour.
  */
 static int
-acl_fetch_srv_conn(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_srv_conn(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                    const struct arg *args, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_TEST;
@@ -1566,7 +1566,7 @@ acl_fetch_srv_conn(struct proxy *px, struct session *l4, void *l7, unsigned int 
  * undefined behaviour.
  */
 static int
-acl_fetch_srv_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_srv_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                         const struct arg *args, struct sample *smp)
 {
 	smp->flags = SMP_F_VOL_TEST;
@@ -1575,28 +1575,49 @@ acl_fetch_srv_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned
 	return 1;
 }
 
+
+/* Note: must not be declared <const> as its list will be overwritten.
+ * Please take care of keeping this list alphabetically sorted.
+ */
+static struct sample_fetch_kw_list smp_kws = {{ },{
+	{ "avg_queue",     smp_fetch_avg_queue_size, ARG1(1,BE),  NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "be_conn",       smp_fetch_be_conn,        ARG1(1,BE),  NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "be_id",         smp_fetch_be_id,          0,           NULL, SMP_T_UINT, SMP_USE_BKEND, },
+	{ "be_sess_rate",  smp_fetch_be_sess_rate,   ARG1(1,BE),  NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "connslots",     smp_fetch_connslots,      ARG1(1,BE),  NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "nbsrv",         smp_fetch_nbsrv,          ARG1(1,BE),  NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "queue",         smp_fetch_queue_size,     ARG1(1,BE),  NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "srv_conn",      smp_fetch_srv_conn,       ARG1(1,SRV), NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "srv_id",        smp_fetch_srv_id,         0,           NULL, SMP_T_UINT, SMP_USE_SERVR, },
+	{ "srv_is_up",     smp_fetch_srv_is_up,      ARG1(1,SRV), NULL, SMP_T_BOOL, SMP_USE_INTRN, },
+	{ "srv_sess_rate", smp_fetch_srv_sess_rate,  ARG1(1,SRV), NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ /* END */ },
+}};
+
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct acl_kw_list acl_kws = {{ },{
-	{ "avg_queue",    acl_parse_int,     acl_fetch_avg_queue_size, acl_match_int,     ACL_USE_NOTHING, ARG1(1,BE) },
-	{ "be_conn",      acl_parse_int,     acl_fetch_be_conn,        acl_match_int,     ACL_USE_NOTHING, ARG1(1,BE) },
-	{ "be_id",        acl_parse_int,     acl_fetch_be_id,          acl_match_int,     ACL_USE_NOTHING, 0 },
-	{ "be_sess_rate", acl_parse_int,     acl_fetch_be_sess_rate,   acl_match_int,     ACL_USE_NOTHING, ARG1(1,BE) },
-	{ "connslots",    acl_parse_int,     acl_fetch_connslots,      acl_match_int,     ACL_USE_NOTHING, ARG1(1,BE) },
-	{ "nbsrv",        acl_parse_int,     acl_fetch_nbsrv,          acl_match_int,     ACL_USE_NOTHING, ARG1(1,BE) },
-	{ "queue",        acl_parse_int,     acl_fetch_queue_size,     acl_match_int,     ACL_USE_NOTHING, ARG1(1,BE) },
-	{ "srv_conn",     acl_parse_int,     acl_fetch_srv_conn,       acl_match_int,     ACL_USE_NOTHING, ARG1(1,SRV) },
-	{ "srv_id",       acl_parse_int,     acl_fetch_srv_id,         acl_match_int,     ACL_USE_RTR_INTERNAL, 0 },
-	{ "srv_is_up",    acl_parse_nothing, acl_fetch_srv_is_up,      acl_match_nothing, ACL_USE_NOTHING, ARG1(1,SRV) },
-	{ "srv_sess_rate", acl_parse_int,    acl_fetch_srv_sess_rate,  acl_match_int,     ACL_USE_NOTHING, ARG1(1,SRV) },
-	{ NULL, NULL, NULL, NULL },
+	{ "avg_queue",     acl_parse_int,     smp_fetch_avg_queue_size, acl_match_int,     ACL_USE_NOTHING,      ARG1(1,BE)  },
+	{ "be_conn",       acl_parse_int,     smp_fetch_be_conn,        acl_match_int,     ACL_USE_NOTHING,      ARG1(1,BE)  },
+	{ "be_id",         acl_parse_int,     smp_fetch_be_id,          acl_match_int,     ACL_USE_NOTHING,      0           },
+	{ "be_sess_rate",  acl_parse_int,     smp_fetch_be_sess_rate,   acl_match_int,     ACL_USE_NOTHING,      ARG1(1,BE)  },
+	{ "connslots",     acl_parse_int,     smp_fetch_connslots,      acl_match_int,     ACL_USE_NOTHING,      ARG1(1,BE)  },
+	{ "nbsrv",         acl_parse_int,     smp_fetch_nbsrv,          acl_match_int,     ACL_USE_NOTHING,      ARG1(1,BE)  },
+	{ "queue",         acl_parse_int,     smp_fetch_queue_size,     acl_match_int,     ACL_USE_NOTHING,      ARG1(1,BE)  },
+	{ "srv_conn",      acl_parse_int,     smp_fetch_srv_conn,       acl_match_int,     ACL_USE_NOTHING,      ARG1(1,SRV) },
+	{ "srv_id",        acl_parse_int,     smp_fetch_srv_id,         acl_match_int,     ACL_USE_RTR_INTERNAL, 0           },
+	{ "srv_is_up",     acl_parse_nothing, smp_fetch_srv_is_up,      acl_match_nothing, ACL_USE_NOTHING,      ARG1(1,SRV) },
+	{ "srv_sess_rate", acl_parse_int,     smp_fetch_srv_sess_rate,  acl_match_int,     ACL_USE_NOTHING,      ARG1(1,SRV) },
+	{ /* END */ },
 }};
 
 
 __attribute__((constructor))
 static void __backend_init(void)
 {
+	sample_register_fetches(&smp_kws);
 	acl_register_keywords(&acl_kws);
 }
 

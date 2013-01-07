@@ -9548,6 +9548,25 @@ The list of currently supported pattern fetch functions is the following :
   always_true
                Always returns the boolean "true" value.
 
+  avg_queue([<backend>])
+               Returns the total number of queued connections of the designated
+               backend divided by the number of active servers. The current
+               backend is used if no backend is specified. This is very similar
+               to "queue" except that the size of the farm is considered, in
+               order to give a more accurate measurement of the time it may
+               take for a new connection to be processed. The main usage is
+               with ACL to return a sorry page to new users when it becomes
+               certain they will get a degraded service, or to pass to the
+               backend servers in a header so that they decide to work in
+               degraded mode or to disable some functions to speed up the
+               processing a bit. Note that in the event there would not be
+               any active server anymore, we would consider twice the number
+               of queued connections as the measured value. This is a fair
+               estimate, as we expect one server to get back soon anyway, but
+               we still prefer to send new traffic to another backend if in
+               better shape. See also the "queue", "be_conn", and
+               "be_sess_rate" sample fetches.
+
   base         This returns the concatenation of the first Host header and the
                path part of the request, which starts at the first slash and
                ends before the question mark. It can be useful in virtual
@@ -9566,6 +9585,32 @@ The list of currently supported pattern fetch functions is the following :
                src fetch below. The resulting type is of type binary, with a
                size of 8 or 20 bytes depending on the source address family.
                This can be used to track per-IP, per-URL counters.
+
+  be_conn([<backend>])
+               Returns the number of currently established connections on the
+               the backend, possibly including the connection being evaluated.
+               If no backend name is specified, the current one is used. But it
+               is also possible to check another backend. It can be used to use
+               a specific farm when the nominal one is full.  See also the
+               "fe_conn", "queue" and "be_sess_rate" criteria.
+
+  be_id        Returns an integer containing the current backend's id.
+
+  be_sess_rate([<backend>])
+               Returns an integer value corresponding to the sessions creation
+               rate on the backend, in number of new sessions per second. This
+               is used with ACLs to switch to an alternate backend when an
+               expensive or fragile one reaches too high a session rate, or to
+               limit abuse of service (eg. prevent sucking of an online
+               dictionary). It can also be useful to add this element to logs
+               using a log-format directive.
+
+  connslots([<backend>])
+               Returns an integer value corresponding to the number of
+               connection slots still available in the backend, by totalizing
+               the maximum amount of connections on all servers and the maximum
+               queue size. This is only used with ACLs. See the ACL "connslots"
+               keyword description for more information on possible caveats.
 
   cookie(<name>)
                This extracts the last occurrence of the cookie name <name> on a
@@ -9600,6 +9645,12 @@ The list of currently supported pattern fetch functions is the following :
                last one. A typical use is with the X-Forwarded-For header once
                converted to IP, associated with an IP stick-table.
 
+  nbsrv([<backend>])
+               Returns an integer value corresponding to the number of usable
+               servers of either the current backend or the named backend. This
+               is mostly used with ACLs but can also be useful when added to
+               logs.
+
   path         This extracts the request's URL path (without the host part). A
                typical use is with prefetch-capable caches, and with portals
                which need to aggregate multiple information from databases and
@@ -9621,6 +9672,13 @@ The list of currently supported pattern fetch functions is the following :
                If <offset2> is prefixed by '+' or '-', it is relative to
                <lengthoffset> + <lengthsize> else it is absolute.
                Ex: see SSL session id  example in "stick table" chapter.
+
+  queue([<backend>])
+               Returns the total number of queued connections of the designated
+               backend, including all the connections in server queues. If no
+               backend name is specified, the current one is used, but it is
+               also possible to check another one. This is useful with ACLs
+               or to pass statistics to backend servers.
 
   rdp_cookie(<name>)
                This extracts the value of the rdp cookie <name> as a string
@@ -9717,6 +9775,27 @@ The list of currently supported pattern fetch functions is the following :
                which is the port the client connected from. It is very unlikely
                that this function will be useful but it's available at no cost.
                It is of type integer and only works with such tables.
+
+  srv_conn(<backend>/<server>)
+               Returns an integer value corresponding to the number of
+               currently established connections on this server, possibly
+               including the connection being evaluated. It is only used with
+               ACLs.
+
+  srv_id       Returns an integer containing the server's id when processing
+               the response. While it's almost only used with ACLs, it may be
+               used for logging or debugging.
+
+  srv_is_up([<backend>/]<server>)
+               Returns a the boolean TRUE value when the designated server is
+               UP, and false when it is either DOWN or in maintenance mode. If
+               <backend> is omitted, then the server is looked up in the
+               current backend. It is almost only used with ACLs.
+
+  srv_sess_rate(<backend>/<server>)
+               Returns an integer corresponding to the sessions creation rate
+               on the server, in number of new sessions per second. This is
+               used with ACLs but may make sense with logs too.
 
   ssl_c_ca_err Returns the ID of the first error detected during verify of the
                client certificate at depth > 0, or 0 if no error was detected.
