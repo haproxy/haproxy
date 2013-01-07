@@ -8723,8 +8723,8 @@ rep_ssl_hello_type <integer>
   or superior) hello message and handshake type is equal to <integer>.
   This test was designed to be used with TCP response content inspection: a
   SSL session ID may be fetched. Note that this only applies to raw contents
-  found in the request buffer and not to contents deciphered via an SSL data
-  layer, so this will not work with "bind" lines having the "ssl" option.
+  found in the response buffer and not to contents deciphered via an SSL data
+  layer, so this will not work with "server" lines having the "ssl" option.
 
 req_len <integer>
   Returns true when the length of the data in the request buffer matches the
@@ -9542,6 +9542,12 @@ equivalent used in ACLs.
 
 The list of currently supported pattern fetch functions is the following :
 
+  always_false
+               Always returns the boolean "false" value.
+
+  always_true
+               Always returns the boolean "true" value.
+
   base         This returns the concatenation of the first Host header and the
                path part of the request, which starts at the first slash and
                ends before the question mark. It can be useful in virtual
@@ -9561,10 +9567,16 @@ The list of currently supported pattern fetch functions is the following :
                size of 8 or 20 bytes depending on the source address family.
                This can be used to track per-IP, per-URL counters.
 
-  src          This is the source IPv4 address of the client of the session.
-               It is of type IPv4 and works on both IPv4 and IPv6 tables.
-               On IPv6 tables, IPv4 address is mapped to its IPv6 equivalent,
-               according to RFC 4291.
+  cookie(<name>)
+               This extracts the last occurrence of the cookie name <name> on a
+               "Cookie" header line from the request, or a "Set-Cookie" header
+               from the response, and uses the corresponding value to match. A
+               typical use is to get multiple clients sharing a same profile
+               use the same server. This can be similar to what "appsession"
+               does with the "request-learn" statement, but with support for
+               multi-peer synchronization and state keeping across restarts.
+
+               See also : "appsession"
 
   dst          This is the destination IPv4 address of the session on the
                client side, which is the address the client connected to.
@@ -9609,6 +9621,97 @@ The list of currently supported pattern fetch functions is the following :
                If <offset2> is prefixed by '+' or '-', it is relative to
                <lengthoffset> + <lengthsize> else it is absolute.
                Ex: see SSL session id  example in "stick table" chapter.
+
+  rdp_cookie(<name>)
+               This extracts the value of the rdp cookie <name> as a string
+               and uses this value to match. This enables implementation of
+               persistence based on the mstshash cookie. This is typically
+               done if there is no msts cookie present.
+
+               This differs from "balance rdp-cookie" in that any balancing
+               algorithm may be used and thus the distribution of clients
+               to backend servers is not linked to a hash of the RDP
+               cookie. It is envisaged that using a balancing algorithm
+               such as "balance roundrobin" or "balance leastconnect" will
+               lead to a more even distribution of clients to backend
+               servers than the hash used by "balance rdp-cookie".
+
+               Example :
+                listen tse-farm
+                    bind 0.0.0.0:3389
+                    # wait up to 5s for an RDP cookie in the request
+                    tcp-request inspect-delay 5s
+                    tcp-request content accept if RDP_COOKIE
+                    # apply RDP cookie persistence
+                    persist rdp-cookie
+                    # Persist based on the mstshash cookie
+                    # This is only useful makes sense if
+                    # balance rdp-cookie is not used
+                    stick-table type string size 204800
+                    stick on rdp_cookie(mstshash)
+                    server srv1 1.1.1.1:3389
+                    server srv1 1.1.1.2:3389
+
+               See also : "balance rdp-cookie", "persist rdp-cookie",
+               "tcp-request" and the "req_rdp_cookie" ACL.
+
+  rdp_cookie_cnt([name])
+               Tries to parse the request buffer as RDP protocol, then returns
+               an integer corresponding to the number of RDP cookies found. If
+               an optional cookie name is passed, only cookies matching this
+               name are considered. This is mostly used in ACL.
+
+  rep_ssl_hello_type
+               Returns an integer value containing the type of the SSL hello
+               message found in the response buffer. Note that this only
+               applies to raw contents found in the response buffer and not to
+               contents deciphered via an SSL data layer, so this will not work
+               with "server" lines having the "ssl" option. This is mostly used
+               in ACL.
+
+  req_len      Returns an integer value corresponding to the number of bytes
+               present in the request buffer. This is mostly used in ACL.
+
+  req_ssl_hello_type
+               Returns an integer value containing the type of the SSL hello
+               message found in the request buffer. Note that this only applies
+               to raw contents found in the request buffer and not to contents
+               deciphered via an SSL data layer, so this will not work with
+               "bind" lines having the "ssl" option. This is mostly used in
+               ACL.
+
+  req_ssl_sni  Returns a string containing the value of the Server Name TLS
+               extension sent by a client in a TLS stream passing through the
+               request buffer. Note that this only applies to raw contents
+               found in the request buffer and not to contents deciphered via
+               an SSL data layer, so this will not work with "bind" lines
+               having the "ssl" option. This is mostly used in ACL.
+
+  req_ssl_ver  Returns an integer value containing the version of the SSL/TLS
+               protocol of a stream present in the request buffer. The value is
+               composed of the major version multiplied by 65536, added to the
+               minor version. Note that this only applies to raw contents found
+               in the request buffer and not to contents deciphered via an SSL
+               data layer, so this will not work with "bind" lines having the
+               "ssl" option. This is mostly used in ACL.
+
+  set-cookie(<name>)
+               This fetch function is deprecated and has been superseded by the
+               "cookie" fetch which is capable of handling both requests and
+               responses. This keyword will disappear soon.
+
+               This extracts the last occurrence of the cookie name <name> on a
+               "Set-Cookie" header line from the response and uses the
+               corresponding value to match. This can be comparable to what
+               "appsession" does with default options, but with support for
+                multi-peer synchronization and state keeping across restarts.
+
+               See also : "appsession"
+
+  src          This is the source IPv4 address of the client of the session.
+               It is of type IPv4 and works on both IPv4 and IPv6 tables.
+               On IPv6 tables, IPv4 address is mapped to its IPv6 equivalent,
+               according to RFC 4291.
 
   src_port     This is the source TCP port of the session on the client side,
                which is the port the client connected from. It is very unlikely
@@ -9823,62 +9926,8 @@ The list of currently supported pattern fetch functions is the following :
                  # match http://example.com/foo;JSESSIONID=some_id
                  stick on url_param(JSESSIONID,;)
 
-  rdp_cookie(<name>)
-               This extracts the value of the rdp cookie <name> as a string
-               and uses this value to match. This enables implementation of
-               persistence based on the mstshash cookie. This is typically
-               done if there is no msts cookie present.
-
-               This differs from "balance rdp-cookie" in that any balancing
-               algorithm may be used and thus the distribution of clients
-               to backend servers is not linked to a hash of the RDP
-               cookie. It is envisaged that using a balancing algorithm
-               such as "balance roundrobin" or "balance leastconnect" will
-               lead to a more even distribution of clients to backend
-               servers than the hash used by "balance rdp-cookie".
-
-               Example :
-                listen tse-farm
-                    bind 0.0.0.0:3389
-                    # wait up to 5s for an RDP cookie in the request
-                    tcp-request inspect-delay 5s
-                    tcp-request content accept if RDP_COOKIE
-                    # apply RDP cookie persistence
-                    persist rdp-cookie
-                    # Persist based on the mstshash cookie
-                    # This is only useful makes sense if
-                    # balance rdp-cookie is not used
-                    stick-table type string size 204800
-                    stick on rdp_cookie(mstshash)
-                    server srv1 1.1.1.1:3389
-                    server srv1 1.1.1.2:3389
-
-               See also : "balance rdp-cookie", "persist rdp-cookie",
-               "tcp-request" and the "req_rdp_cookie" ACL.
-
-  cookie(<name>)
-               This extracts the last occurrence of the cookie name <name> on a
-               "Cookie" header line from the request, or a "Set-Cookie" header
-               from the response, and uses the corresponding value to match. A
-               typical use is to get multiple clients sharing a same profile
-               use the same server. This can be similar to what "appsession"
-               does with the "request-learn" statement, but with support for
-               multi-peer synchronization and state keeping across restarts.
-
-               See also : "appsession"
-
-  set-cookie(<name>)
-               This fetch function is deprecated and has been superseded by the
-               "cookie" fetch which is capable of handling both requests and
-               responses. This keyword will disappear soon.
-
-               This extracts the last occurrence of the cookie name <name> on a
-               "Set-Cookie" header line from the response and uses the
-               corresponding value to match. This can be comparable to what
-               "appsession" does with default options, but with support for
-                multi-peer synchronization and state keeping across restarts.
-
-               See also : "appsession"
+  wait_end     Always returns true or does not fetch. This is only used for ACL
+               compatibility.
 
 
 The currently available list of transformations include :

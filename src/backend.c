@@ -39,10 +39,12 @@
 #include <proto/lb_fwrr.h>
 #include <proto/lb_map.h>
 #include <proto/obj_type.h>
+#include <proto/payload.h>
 #include <proto/protocol.h>
 #include <proto/proto_http.h>
 #include <proto/proto_tcp.h>
 #include <proto/queue.h>
+#include <proto/sample.h>
 #include <proto/server.h>
 #include <proto/session.h>
 #include <proto/raw_sock.h>

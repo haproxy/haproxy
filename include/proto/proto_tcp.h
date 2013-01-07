@@ -2,7 +2,7 @@
  * include/proto/proto_tcp.h
  * This file contains TCP socket protocol definitions.
  *
- * Copyright (C) 2000-2010 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2013 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -37,7 +37,6 @@ int tcp_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir);
 int tcp_inspect_request(struct session *s, struct channel *req, int an_bit);
 int tcp_inspect_response(struct session *s, struct channel *rep, int an_bit);
 int tcp_exec_req_rules(struct session *s);
-int smp_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, unsigned int opt, const struct arg *args, struct sample *smp);
 
 /* Converts the INET/INET6 source address to a stick_table key usable for table
  * lookups. Returns either NULL if the source cannot be converted (eg: not

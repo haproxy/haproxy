@@ -1,7 +1,7 @@
 /*
  * AF_INET/AF_INET6 SOCK_STREAM protocol layer (tcp)
  *
- * Copyright 2000-2010 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2013 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -1403,124 +1403,8 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 
 
 /************************************************************************/
-/*       All supported sample fetch functios must be declared here      */
+/*       All supported sample fetch functions must be declared here     */
 /************************************************************************/
-
-/* Fetch the request RDP cookie identified in the args, or any cookie if no arg
- * is passed. It is usable both for ACL and for samples. Note: this decoder
- * only works with non-wrapping data. Accepts either 0 or 1 argument. Argument
- * is a string (cookie name), other types will lead to undefined behaviour.
- */
-int
-smp_fetch_rdp_cookie(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                     const struct arg *args, struct sample *smp)
-{
-	int bleft;
-	const unsigned char *data;
-
-	if (!l4 || !l4->req)
-		return 0;
-
-	smp->flags = 0;
-	smp->type = SMP_T_CSTR;
-
-	bleft = l4->req->buf->i;
-	if (bleft <= 11)
-		goto too_short;
-
-	data = (const unsigned char *)l4->req->buf->p + 11;
-	bleft -= 11;
-
-	if (bleft <= 7)
-		goto too_short;
-
-	if (strncasecmp((const char *)data, "Cookie:", 7) != 0)
-		goto not_cookie;
-
-	data += 7;
-	bleft -= 7;
-
-	while (bleft > 0 && *data == ' ') {
-		data++;
-		bleft--;
-	}
-
-	if (args) {
-
-		if (bleft <= args->data.str.len)
-			goto too_short;
-
-		if ((data[args->data.str.len] != '=') ||
-		    strncasecmp(args->data.str.str, (const char *)data, args->data.str.len) != 0)
-			goto not_cookie;
-
-		data += args->data.str.len + 1;
-		bleft -= args->data.str.len + 1;
-	} else {
-		while (bleft > 0 && *data != '=') {
-			if (*data == '\r' || *data == '\n')
-				goto not_cookie;
-			data++;
-			bleft--;
-		}
-
-		if (bleft < 1)
-			goto too_short;
-
-		if (*data != '=')
-			goto not_cookie;
-
-		data++;
-		bleft--;
-	}
-
-	/* data points to cookie value */
-	smp->data.str.str = (char *)data;
-	smp->data.str.len = 0;
-
-	while (bleft > 0 && *data != '\r') {
-		data++;
-		bleft--;
-	}
-
-	if (bleft < 2)
-		goto too_short;
-
-	if (data[0] != '\r' || data[1] != '\n')
-		goto not_cookie;
-
-	smp->data.str.len = (char *)data - smp->data.str.str;
-	smp->flags = SMP_F_VOLATILE;
-	return 1;
-
- too_short:
-	smp->flags = SMP_F_MAY_CHANGE;
- not_cookie:
-	return 0;
-}
-
-/************************************************************************/
-/*           All supported ACL keywords must be declared here.          */
-/************************************************************************/
-
-/* returns either 1 or 0 depending on whether an RDP cookie is found or not */
-static int
-acl_fetch_rdp_cookie_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                         const struct arg *args, struct sample *smp)
-{
-	int ret;
-
-	ret = smp_fetch_rdp_cookie(px, l4, l7, opt, args, smp);
-
-	if (smp->flags & SMP_F_MAY_CHANGE)
-		return 0;
-
-	smp->flags = SMP_F_VOLATILE;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = ret;
-	return 1;
-}
-
 
 /* fetch the connection's source IPv4/IPv6 address */
 static int
@@ -1593,140 +1477,6 @@ smp_fetch_dport(struct proxy *px, struct session *l4, void *l7, unsigned int opt
 		return 0;
 
 	smp->flags = 0;
-	return 1;
-}
-
-static int
-smp_fetch_payload_lv(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                     const struct arg *arg_p, struct sample *smp)
-{
-	unsigned int len_offset = arg_p[0].data.uint;
-	unsigned int len_size = arg_p[1].data.uint;
-	unsigned int buf_offset;
-	unsigned int buf_size = 0;
-	struct channel *chn;
-	int i;
-
-	/* Format is (len offset, len size, buf offset) or (len offset, len size) */
-	/* by default buf offset == len offset + len size */
-	/* buf offset could be absolute or relative to len offset + len size if prefixed by + or - */
-
-	if (!l4)
-		return 0;
-
-	chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? l4->rep : l4->req;
-
-	if (!chn)
-		return 0;
-
-	if (len_offset + len_size > chn->buf->i)
-		goto too_short;
-
-	for (i = 0; i < len_size; i++) {
-		buf_size = (buf_size << 8) + ((unsigned char *)chn->buf->p)[i + len_offset];
-	}
-
-	/* buf offset may be implicit, absolute or relative */
-	buf_offset = len_offset + len_size;
-	if (arg_p[2].type == ARGT_UINT)
-		buf_offset = arg_p[2].data.uint;
-	else if (arg_p[2].type == ARGT_SINT)
-		buf_offset += arg_p[2].data.sint;
-
-	if (!buf_size || buf_size > chn->buf->size || buf_offset + buf_size > chn->buf->size) {
-		/* will never match */
-		smp->flags = 0;
-		return 0;
-	}
-
-	if (buf_offset + buf_size > chn->buf->i)
-		goto too_short;
-
-	/* init chunk as read only */
-	smp->type = SMP_T_CBIN;
-	chunk_initlen(&smp->data.str, chn->buf->p + buf_offset, 0, buf_size);
-	smp->flags = SMP_F_VOLATILE;
-	return 1;
-
- too_short:
-	smp->flags = SMP_F_MAY_CHANGE;
-	return 0;
-}
-
-static int
-smp_fetch_payload(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                  const struct arg *arg_p, struct sample *smp)
-{
-	unsigned int buf_offset = arg_p[0].data.uint;
-	unsigned int buf_size = arg_p[1].data.uint;
-	struct channel *chn;
-
-	if (!l4)
-		return 0;
-
-	chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? l4->rep : l4->req;
-
-	if (!chn)
-		return 0;
-
-	if (!buf_size || buf_size > chn->buf->size || buf_offset + buf_size > chn->buf->size) {
-		/* will never match */
-		smp->flags = 0;
-		return 0;
-	}
-
-	if (buf_offset + buf_size > chn->buf->i)
-		goto too_short;
-
-	/* init chunk as read only */
-	smp->type = SMP_T_CBIN;
-	chunk_initlen(&smp->data.str, chn->buf->p + buf_offset, 0, buf_size);
-	smp->flags = SMP_F_VOLATILE;
-	return 1;
-
- too_short:
-	smp->flags = SMP_F_MAY_CHANGE;
-	return 0;
-}
-
-/* This function is used to validate the arguments passed to a "payload" fetch
- * keyword. This keyword expects two positive integers, with the second one
- * being strictly positive. It is assumed that the types are already the correct
- * ones. Returns 0 on error, non-zero if OK. If <err_msg> is not NULL, it will be
- * filled with a pointer to an error message in case of error, that the caller
- * is responsible for freeing. The initial location must either be freeable or
- * NULL.
- */
-static int val_payload(struct arg *arg, char **err_msg)
-{
-	if (!arg[1].data.uint) {
-		memprintf(err_msg, "payload length must be > 0");
-		return 0;
-	}
-	return 1;
-}
-
-/* This function is used to validate the arguments passed to a "payload_lv" fetch
- * keyword. This keyword allows two positive integers and an optional signed one,
- * with the second one being strictly positive and the third one being greater than
- * the opposite of the two others if negative. It is assumed that the types are
- * already the correct ones. Returns 0 on error, non-zero if OK. If <err_msg> is
- * not NULL, it will be filled with a pointer to an error message in case of
- * error, that the caller is responsible for freeing. The initial location must
- * either be freeable or NULL.
- */
-static int val_payload_lv(struct arg *arg, char **err_msg)
-{
-	if (!arg[1].data.uint) {
-		memprintf(err_msg, "payload length must be > 0");
-		return 0;
-	}
-
-	if (arg[2].type == ARGT_SINT &&
-	    (int)(arg[0].data.uint + arg[1].data.uint + arg[2].data.sint) < 0) {
-		memprintf(err_msg, "payload offset too negative");
-		return 0;
-	}
 	return 1;
 }
 
@@ -1852,25 +1602,23 @@ static int bind_parse_interface(char **args, int cur_arg, struct proxy *px, stru
 #endif
 
 static struct cfg_kw_list cfg_kws = {{ },{
-	{ CFG_LISTEN, "tcp-request", tcp_parse_tcp_req },
+	{ CFG_LISTEN, "tcp-request",  tcp_parse_tcp_req },
 	{ CFG_LISTEN, "tcp-response", tcp_parse_tcp_rep },
 	{ 0, NULL, NULL },
 }};
+
 
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct acl_kw_list acl_kws = {{ },{
-	{ "dst",        acl_parse_ip,    smp_fetch_dst,      acl_match_ip,  ACL_USE_TCP4_PERMANENT, 0 },
-	{ "dst_port",   acl_parse_int,   smp_fetch_dport,    acl_match_int, ACL_USE_TCP_PERMANENT, 0  },
-	{ "payload",    acl_parse_str,   smp_fetch_payload,  acl_match_str, ACL_USE_L6REQ_VOLATILE, ARG2(2,UINT,UINT), val_payload },
-	{ "payload_lv", acl_parse_str, smp_fetch_payload_lv, acl_match_str, ACL_USE_L6REQ_VOLATILE, ARG3(2,UINT,UINT,SINT), val_payload_lv },
-	{ "req_rdp_cookie",     acl_parse_str, smp_fetch_rdp_cookie,     acl_match_str, ACL_USE_L6REQ_VOLATILE, ARG1(0,STR) },
-	{ "req_rdp_cookie_cnt", acl_parse_int, acl_fetch_rdp_cookie_cnt, acl_match_int, ACL_USE_L6REQ_VOLATILE, ARG1(0,STR) },
-	{ "src",        acl_parse_ip,    smp_fetch_src,      acl_match_ip,  ACL_USE_TCP4_PERMANENT, 0 },
-	{ "src_port",   acl_parse_int,   smp_fetch_sport,    acl_match_int, ACL_USE_TCP_PERMANENT, 0  },
-	{ NULL, NULL, NULL, NULL },
+	{ "dst",      acl_parse_ip,  smp_fetch_dst,   acl_match_ip,  ACL_USE_TCP4_PERMANENT, 0 },
+	{ "dst_port", acl_parse_int, smp_fetch_dport, acl_match_int, ACL_USE_TCP_PERMANENT,  0 },
+	{ "src",      acl_parse_ip,  smp_fetch_src,   acl_match_ip,  ACL_USE_TCP4_PERMANENT, 0 },
+	{ "src_port", acl_parse_int, smp_fetch_sport, acl_match_int, ACL_USE_TCP_PERMANENT,  0 },
+	{ /* END */ },
 }};
+
 
 /* Note: must not be declared <const> as its list will be overwritten.
  * Note: fetches that may return multiple types must be declared as the lowest
@@ -1878,14 +1626,11 @@ static struct acl_kw_list acl_kws = {{ },{
  * instance v4/v6 must be declared v4.
  */
 static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
-	{ "dst",         smp_fetch_dst,           0,                      NULL,           SMP_T_IPV4, SMP_USE_L4CLI },
-	{ "dst_port",    smp_fetch_dport,         0,                      NULL,           SMP_T_UINT, SMP_USE_L4CLI },
-	{ "payload",     smp_fetch_payload,       ARG2(2,UINT,UINT),      val_payload,    SMP_T_CBIN, SMP_USE_L6REQ|SMP_USE_L6RES },
-	{ "payload_lv",  smp_fetch_payload_lv,    ARG3(2,UINT,UINT,SINT), val_payload_lv, SMP_T_CBIN, SMP_USE_L6REQ|SMP_USE_L6RES },
-	{ "rdp_cookie",  smp_fetch_rdp_cookie,    ARG1(1,STR),            NULL,           SMP_T_CSTR, SMP_USE_L6REQ },
-	{ "src",         smp_fetch_src,           0,                      NULL,           SMP_T_IPV4, SMP_USE_L4CLI },
-	{ "src_port",    smp_fetch_sport,         0,                      NULL,           SMP_T_UINT, SMP_USE_L4CLI },
-	{ NULL, NULL, 0, 0, 0 },
+	{ "dst",      smp_fetch_dst,   0, NULL, SMP_T_IPV4, SMP_USE_L4CLI },
+	{ "dst_port", smp_fetch_dport, 0, NULL, SMP_T_UINT, SMP_USE_L4CLI },
+	{ "src",      smp_fetch_src,   0, NULL, SMP_T_IPV4, SMP_USE_L4CLI },
+	{ "src_port", smp_fetch_sport, 0, NULL, SMP_T_UINT, SMP_USE_L4CLI },
+	{ /* END */ },
 }};
 
 /************************************************************************/

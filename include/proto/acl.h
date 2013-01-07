@@ -2,7 +2,7 @@
  * include/proto/acl.h
  * This file provides interface definitions for ACL manipulation.
  *
- * Copyright (C) 2000-2011 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2013 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -176,10 +176,6 @@ int acl_parse_reg(const char **text, struct acl_pattern *pattern, int *opaque, c
  * otherwise 0.
  */
 int acl_parse_ip(const char **text, struct acl_pattern *pattern, int *opaque, char **err);
-
-/* always fake a data retrieval */
-int acl_fetch_nothing(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                      const struct arg *args, struct sample *smp);
 
 /* always return false */
 int acl_match_nothing(struct sample *smp, struct acl_pattern *pattern);
