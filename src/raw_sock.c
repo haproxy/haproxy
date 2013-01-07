@@ -54,6 +54,12 @@
  * infinite forwarding */
 #define MAX_SPLICE_AT_ONCE	(1<<30)
 
+/* Versions of splice between 2.6.25 and 2.6.27.12 were bogus and would return EAGAIN
+ * on incoming shutdowns. On these versions, we have to call recv() after such a return
+ * in order to find whether splice is OK or not. Since 2.6.27.13 we don't need to do
+ * this anymore, and we can avoid this logic by defining ASSUME_SPLICE_WORKS.
+ */
+
 /* Returns :
  *   -1 if splice() is not supported
  *   >= 0 to report the amount of spliced bytes.
@@ -62,7 +68,9 @@
  */
 int raw_sock_to_pipe(struct connection *conn, struct pipe *pipe, unsigned int count)
 {
+#ifndef ASSUME_SPLICE_WORKS
 	static int splice_detects_close;
+#endif
 	int ret;
 	int retval = 0;
 
@@ -95,7 +103,9 @@ int raw_sock_to_pipe(struct connection *conn, struct pipe *pipe, unsigned int co
 				 * recent kernels (>= 2.6.27.13). If we notice
 				 * it works, we store the info for later use.
 				 */
+#ifndef ASSUME_SPLICE_WORKS
 				splice_detects_close = 1;
+#endif
 				goto out_read0;
 			}
 
@@ -125,7 +135,9 @@ int raw_sock_to_pipe(struct connection *conn, struct pipe *pipe, unsigned int co
 				 * try to fall back to the normal recv scheme
 				 * which will be able to deal with the situation.
 				 */
+#ifndef ASSUME_SPLICE_WORKS
 				if (splice_detects_close)
+#endif
 					__conn_data_poll_recv(conn); /* we know for sure that it's EAGAIN */
 				break;
 			}

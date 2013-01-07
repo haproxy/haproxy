@@ -243,6 +243,7 @@ ifeq ($(TARGET),linux2628)
   USE_ACCEPT4     = implicit
   USE_FUTEX       = implicit
   USE_CPU_AFFINITY= implicit
+  ASSUME_SPLICE_WORKS= implicit
 else
 ifeq ($(TARGET),solaris)
   # This is for Solaris 8
@@ -447,6 +448,11 @@ endif
 ifneq ($(USE_MY_SPLICE),)
 OPTIONS_CFLAGS += -DUSE_MY_SPLICE
 BUILD_OPTIONS  += $(call ignore_implicit,USE_MY_SPLICE)
+endif
+
+ifneq ($(ASSUME_SPLICE_WORKS),)
+OPTIONS_CFLAGS += -DASSUME_SPLICE_WORKS
+BUILD_OPTIONS  += $(call ignore_implicit,ASSUME_SPLICE_WORKS)
 endif
 
 ifneq ($(USE_ACCEPT4),)
