@@ -1043,7 +1043,8 @@ int tcp_exec_req_rules(struct session *s)
 /* Parse a tcp-response rule. Return a negative value in case of failure */
 static int tcp_parse_response_rule(char **args, int arg, int section_type,
 				  struct proxy *curpx, struct proxy *defpx,
-				  struct tcp_rule *rule, char **err)
+				  struct tcp_rule *rule, char **err,
+                                  unsigned int where)
 {
 	if (curpx == defpx || !(curpx->cap & PR_CAP_BE)) {
 		memprintf(err, "%s %s is only allowed in 'backend' sections",
@@ -1087,8 +1088,9 @@ static int tcp_parse_response_rule(char **args, int arg, int section_type,
 
 /* Parse a tcp-request rule. Return a negative value in case of failure */
 static int tcp_parse_request_rule(char **args, int arg, int section_type,
-				  struct proxy *curpx, struct proxy *defpx,
-				  struct tcp_rule *rule, char **err)
+                                  struct proxy *curpx, struct proxy *defpx,
+                                  struct tcp_rule *rule, char **err,
+                                  unsigned int where)
 {
 	if (curpx == defpx) {
 		memprintf(err, "%s %s is not allowed in 'defaults' sections",
@@ -1118,16 +1120,16 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 			return -1;
 		}
 
-		if (!(expr->fetch->cap & SMP_CAP_REQ)) {
+		if (!(expr->fetch->val & where)) {
 			memprintf(err,
-			          "'%s %s %s' : fetch method '%s' cannot be used on request",
-			          args[0], args[1], args[kw], trash.str);
+			          "'%s %s %s' : fetch method '%s' extracts information from '%s', none of which is available here",
+			          args[0], args[1], args[kw], args[arg], sample_src_names(expr->fetch->use));
 			free(expr);
 			return -1;
 		}
 
 		/* check if we need to allocate an hdr_idx struct for HTTP parsing */
-		if (expr->fetch->cap & SMP_CAP_L7)
+		if (expr->fetch->use & SMP_USE_HTTP_ANY)
 			curpx->acl_requires |= ACL_USE_L7_ANY;
 
 		if (strcmp(args[arg], "table") == 0) {
@@ -1187,6 +1189,7 @@ static int tcp_parse_tcp_rep(char **args, int section_type, struct proxy *curpx,
 	int warn = 0;
 	int arg;
 	struct tcp_rule *rule;
+	unsigned int where;
 
 	if (!*args[1]) {
 		memprintf(err, "missing argument for '%s' in %s '%s'",
@@ -1222,10 +1225,17 @@ static int tcp_parse_tcp_rep(char **args, int section_type, struct proxy *curpx,
 	rule = calloc(1, sizeof(*rule));
 	LIST_INIT(&rule->list);
 	arg = 1;
+	where = 0;
 
 	if (strcmp(args[1], "content") == 0) {
 		arg++;
-		if (tcp_parse_response_rule(args, arg, section_type, curpx, defpx, rule, err) < 0)
+
+		if (curpx->cap & PR_CAP_FE)
+			where |= SMP_VAL_FE_RES_CNT;
+		if (curpx->cap & PR_CAP_BE)
+			where |= SMP_VAL_BE_RES_CNT;
+
+		if (tcp_parse_response_rule(args, arg, section_type, curpx, defpx, rule, err, where) < 0)
 			goto error;
 
 		if (rule->cond && (rule->cond->requires & ACL_USE_L6REQ_VOLATILE)) {
@@ -1269,6 +1279,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 	int warn = 0;
 	int arg;
 	struct tcp_rule *rule;
+	unsigned int where;
 
 	if (!*args[1]) {
 		if (curpx == defpx)
@@ -1307,10 +1318,17 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 	rule = calloc(1, sizeof(*rule));
 	LIST_INIT(&rule->list);
 	arg = 1;
+	where = 0;
 
 	if (strcmp(args[1], "content") == 0) {
 		arg++;
-		if (tcp_parse_request_rule(args, arg, section_type, curpx, defpx, rule, err) < 0)
+
+		if (curpx->cap & PR_CAP_FE)
+			where |= SMP_VAL_FE_REQ_CNT;
+		if (curpx->cap & PR_CAP_BE)
+			where |= SMP_VAL_BE_REQ_CNT;
+
+		if (tcp_parse_request_rule(args, arg, section_type, curpx, defpx, rule, err, where) < 0)
 			goto error;
 
 		if (rule->cond && (rule->cond->requires & ACL_USE_RTR_ANY)) {
@@ -1326,14 +1344,6 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 			warn++;
 		}
 
-		if ((rule->action == TCP_ACT_TRK_SC1 || rule->action == TCP_ACT_TRK_SC2) &&
-		    !(rule->act_prm.trk_ctr.expr->fetch->cap & SMP_CAP_REQ)) {
-			memprintf(err,
-			          "fetch '%s' cannot be used on requests and will be ignored in '%s %s'",
-			          rule->act_prm.trk_ctr.expr->fetch->kw, args[0], args[1]);
-			warn++;
-		}
-
 		LIST_ADDQ(&curpx->tcp_req.inspect_rules, &rule->list);
 	}
 	else if (strcmp(args[1], "connection") == 0) {
@@ -1345,7 +1355,9 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 			goto error;
 		}
 
-		if (tcp_parse_request_rule(args, arg, section_type, curpx, defpx, rule, err) < 0)
+		where |= SMP_VAL_FE_CON_ACC;
+
+		if (tcp_parse_request_rule(args, arg, section_type, curpx, defpx, rule, err, where) < 0)
 			goto error;
 
 		if (rule->cond && (rule->cond->requires & (ACL_USE_RTR_ANY|ACL_USE_L6_ANY|ACL_USE_L7_ANY))) {
@@ -1366,22 +1378,6 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 				memprintf(err,
 				          "acl '%s' involves some response-only criteria which will be ignored in '%s %s'",
 				          name, args[0], args[1]);
-			warn++;
-		}
-
-		if ((rule->action == TCP_ACT_TRK_SC1 || rule->action == TCP_ACT_TRK_SC2) &&
-		    !(rule->act_prm.trk_ctr.expr->fetch->cap & SMP_CAP_REQ)) {
-			memprintf(err,
-			          "fetch '%s' cannot be used on requests and will be ignored in '%s %s'",
-			          rule->act_prm.trk_ctr.expr->fetch->kw, args[0], args[1]);
-			warn++;
-		}
-
-		if ((rule->action == TCP_ACT_TRK_SC1 || rule->action == TCP_ACT_TRK_SC2) &&
-		    (rule->act_prm.trk_ctr.expr->fetch->cap & SMP_CAP_L7)) {
-			memprintf(err,
-			          "fetch '%s' involves some layer7-only criteria which will be ignored in '%s %s'",
-			          rule->act_prm.trk_ctr.expr->fetch->kw, args[0], args[1]);
 			warn++;
 		}
 
@@ -1882,13 +1878,13 @@ static struct acl_kw_list acl_kws = {{ },{
  * instance v4/v6 must be declared v4.
  */
 static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
-	{ "src",         smp_fetch_src,           0,                      NULL,           SMP_T_IPV4, SMP_CAP_REQ|SMP_CAP_RES },
-	{ "dst",         smp_fetch_dst,           0,                      NULL,           SMP_T_IPV4, SMP_CAP_REQ|SMP_CAP_RES },
-	{ "dst_port",    smp_fetch_dport,         0,                      NULL,           SMP_T_UINT, SMP_CAP_REQ|SMP_CAP_RES },
-	{ "payload",     smp_fetch_payload,       ARG2(2,UINT,UINT),      val_payload,    SMP_T_CBIN, SMP_CAP_REQ|SMP_CAP_RES },
-	{ "payload_lv",  smp_fetch_payload_lv,    ARG3(2,UINT,UINT,SINT), val_payload_lv, SMP_T_CBIN, SMP_CAP_REQ|SMP_CAP_RES },
-	{ "rdp_cookie",  smp_fetch_rdp_cookie,    ARG1(1,STR),            NULL,           SMP_T_CSTR, SMP_CAP_REQ|SMP_CAP_RES },
-	{ "src_port",    smp_fetch_sport,         0,                      NULL,           SMP_T_UINT, SMP_CAP_REQ|SMP_CAP_RES },
+	{ "dst",         smp_fetch_dst,           0,                      NULL,           SMP_T_IPV4, SMP_USE_L4CLI },
+	{ "dst_port",    smp_fetch_dport,         0,                      NULL,           SMP_T_UINT, SMP_USE_L4CLI },
+	{ "payload",     smp_fetch_payload,       ARG2(2,UINT,UINT),      val_payload,    SMP_T_CBIN, SMP_USE_L6REQ|SMP_USE_L6RES },
+	{ "payload_lv",  smp_fetch_payload_lv,    ARG3(2,UINT,UINT,SINT), val_payload_lv, SMP_T_CBIN, SMP_USE_L6REQ|SMP_USE_L6RES },
+	{ "rdp_cookie",  smp_fetch_rdp_cookie,    ARG1(1,STR),            NULL,           SMP_T_CSTR, SMP_USE_L6REQ },
+	{ "src",         smp_fetch_src,           0,                      NULL,           SMP_T_IPV4, SMP_USE_L4CLI },
+	{ "src_port",    smp_fetch_sport,         0,                      NULL,           SMP_T_UINT, SMP_USE_L4CLI },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 

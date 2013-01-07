@@ -3,7 +3,7 @@
  * Macros, variables and structures for sample management.
  *
  * Copyright (C) 2009-2010 EXCELIANCE, Emeric Brun <ebrun@exceliance.fr>
- * Copyright (C) 2012 Willy Tarreau <w@1wt.eu>
+ * Copyright (C) 2012-2013 Willy Tarreau <w@1wt.eu>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -44,14 +44,111 @@ enum {
 	SMP_TYPES        /* number of types, must always be last */
 };
 
-/* Sample fetch capabilities are used to declare keywords. Right now only
- * the supportd fetch directions are specified.
+/* Sample sources are used to establish a relation between fetch keywords and
+ * the location where they're about to be used. They're reserved for internal
+ * use and are not meant to be known outside the sample management code.
  */
 enum {
-	SMP_CAP_REQ = 1 << 0, /* fetch supported on request */
-	SMP_CAP_RES = 1 << 1, /* fetch supported on response */
-	SMP_CAP_L7  = 1 << 2, /* fetch may require access to L7 */
+	SMP_SRC_INTRN,  /* internal context-less information */
+	SMP_SRC_LISTN,  /* listener which accepted the connection */
+	SMP_SRC_FTEND,  /* frontend which accepted the connection */
+	SMP_SRC_L4CLI,  /* L4 information about the client */
+	SMP_SRC_L5CLI,  /* fetch uses client information from embryonic session */
+	SMP_SRC_TRACK,  /* fetch involves track counters */
+	SMP_SRC_L6REQ,  /* fetch uses raw information from the request buffer */
+	SMP_SRC_HRQHV,  /* fetch uses volatile information about HTTP request headers (eg: value) */
+	SMP_SRC_HRQHP,  /* fetch uses persistent information about HTTP request headers (eg: meth) */
+	SMP_SRC_HRQBO,  /* fetch uses information about HTTP request body */
+	SMP_SRC_BKEND,  /* fetch uses information about the backend */
+	SMP_SRC_SERVR,  /* fetch uses information about the selected server */
+	SMP_SRC_L4SRV,  /* fetch uses information about the server L4 connection */
+	SMP_SRC_L5SRV,  /* fetch uses information about the server L5 connection */
+	SMP_SRC_L6RES,  /* fetch uses raw information from the response buffer */
+	SMP_SRC_HRSHV,  /* fetch uses volatile information about HTTP response headers (eg: value) */
+	SMP_SRC_HRSHP,  /* fetch uses persistent information about HTTP response headers (eg: status) */
+	SMP_SRC_HRSBO,  /* fetch uses information about HTTP response body */
+	SMP_SRC_RQFIN,  /* final information about request buffer (eg: tot bytes) */
+	SMP_SRC_RSFIN,  /* final information about response buffer (eg: tot bytes) */
+	SMP_SRC_TXFIN,  /* final information about the transaction (eg: #comp rate) */
+	SMP_SRC_SSFIN,  /* final information about the session (eg: #requests, final flags) */
+	SMP_SRC_ENTRIES /* nothing after this */
 };
+
+/* SMP_USE_* are flags used to declare fetch keywords. Fetch methods are
+ * associated with bitfields composed of these values, generally only one, to
+ * indicate where the contents may be sampled. Some fetches are ambiguous as
+ * they apply to either the request or the response depending on the context,
+ * so they will have 2 of these bits (eg: hdr(), payload(), ...). These are
+ * stored in smp->use.
+ */
+enum {
+	SMP_USE_INTRN = 1 << SMP_SRC_INTRN,  /* internal context-less information */
+	SMP_USE_LISTN = 1 << SMP_SRC_LISTN,  /* listener which accepted the connection */
+	SMP_USE_FTEND = 1 << SMP_SRC_FTEND,  /* frontend which accepted the connection */
+	SMP_USE_L4CLI = 1 << SMP_SRC_L4CLI,  /* L4 information about the client */
+	SMP_USE_L5CLI = 1 << SMP_SRC_L5CLI,  /* fetch uses client information from embryonic session */
+	SMP_USE_TRACK = 1 << SMP_SRC_TRACK,  /* fetch involves track counters */
+	SMP_USE_L6REQ = 1 << SMP_SRC_L6REQ,  /* fetch uses raw information from the request buffer */
+	SMP_USE_HRQHV = 1 << SMP_SRC_HRQHV,  /* fetch uses volatile information about HTTP request headers (eg: value) */
+	SMP_USE_HRQHP = 1 << SMP_SRC_HRQHP,  /* fetch uses persistent information about HTTP request headers (eg: meth) */
+	SMP_USE_HRQBO = 1 << SMP_SRC_HRQBO,  /* fetch uses information about HTTP request body */
+	SMP_USE_BKEND = 1 << SMP_SRC_BKEND,  /* fetch uses information about the backend */
+	SMP_USE_SERVR = 1 << SMP_SRC_SERVR,  /* fetch uses information about the selected server */
+	SMP_USE_L4SRV = 1 << SMP_SRC_L4SRV,  /* fetch uses information about the server L4 connection */
+	SMP_USE_L5SRV = 1 << SMP_SRC_L5SRV,  /* fetch uses information about the server L5 connection */
+	SMP_USE_L6RES = 1 << SMP_SRC_L6RES,  /* fetch uses raw information from the response buffer */
+	SMP_USE_HRSHV = 1 << SMP_SRC_HRSHV,  /* fetch uses volatile information about HTTP response headers (eg: value) */
+	SMP_USE_HRSHP = 1 << SMP_SRC_HRSHP,  /* fetch uses persistent information about HTTP response headers (eg: status) */
+	SMP_USE_HRSBO = 1 << SMP_SRC_HRSBO,  /* fetch uses information about HTTP response body */
+	SMP_USE_RQFIN = 1 << SMP_SRC_RQFIN,  /* final information about request buffer (eg: tot bytes) */
+	SMP_USE_RSFIN = 1 << SMP_SRC_RSFIN,  /* final information about response buffer (eg: tot bytes) */
+	SMP_USE_TXFIN = 1 << SMP_SRC_TXFIN,  /* final information about the transaction (eg: #comp rate) */
+	SMP_USE_SSFIN = 1 << SMP_SRC_SSFIN,  /* final information about the session (eg: #requests, final flags) */
+
+	/* This composite one is useful to detect if an hdr_idx needs to be allocated */
+	SMP_USE_HTTP_ANY = SMP_USE_HRQHV | SMP_USE_HRQHP | SMP_USE_HRQBO |
+	                   SMP_USE_HRSHV | SMP_USE_HRSHP | SMP_USE_HRSBO,
+};
+
+/* Sample validity is computed from the fetch sources above when keywords
+ * are registered. Each fetch method may be used at different locations. The
+ * configuration parser will check whether the fetches are compatible with the
+ * location where they're used. These are stored in smp->val.
+ */
+enum {
+	SMP_VAL___________ = 0,        /* Just used as a visual marker */
+	SMP_VAL_FE_CON_ACC = 1 <<  0,  /* FE connection accept rules ("tcp request connection") */
+	SMP_VAL_FE_SES_ACC = 1 <<  1,  /* FE session accept rules (to come soon) */
+	SMP_VAL_FE_REQ_CNT = 1 <<  2,  /* FE request content rules ("tcp request content") */
+	SMP_VAL_FE_HRQ_HDR = 1 <<  3,  /* FE HTTP request headers (rules, headers, monitor, stats, redirect) */
+	SMP_VAL_FE_HRQ_BDY = 1 <<  4,  /* FE HTTP request body */
+	SMP_VAL_FE_SET_BCK = 1 <<  5,  /* FE backend switching rules ("use_backend") */
+	SMP_VAL_BE_REQ_CNT = 1 <<  6,  /* BE request content rules ("tcp request content") */
+	SMP_VAL_BE_HRQ_HDR = 1 <<  7,  /* BE HTTP request headers (rules, headers, monitor, stats, redirect) */
+	SMP_VAL_BE_HRQ_BDY = 1 <<  8,  /* BE HTTP request body */
+	SMP_VAL_BE_SET_SRV = 1 <<  9,  /* BE server switching rules ("use_server", "balance", "force-persist", "stick", ...) */
+	SMP_VAL_BE_SRV_CON = 1 << 10,  /* BE server connect (eg: "source") */
+	SMP_VAL_BE_RES_CNT = 1 << 11,  /* BE response content rules ("tcp response content") */
+	SMP_VAL_BE_HRS_HDR = 1 << 12,  /* BE HTTP response headers (rules, headers) */
+	SMP_VAL_BE_HRS_BDY = 1 << 13,  /* BE HTTP response body (stick-store rules are there) */
+	SMP_VAL_BE_STO_RUL = 1 << 14,  /* BE stick-store rules */
+	SMP_VAL_FE_RES_CNT = 1 << 15,  /* FE response content rules ("tcp response content") */
+	SMP_VAL_FE_HRS_HDR = 1 << 16,  /* FE HTTP response headers (rules, headers) */
+	SMP_VAL_FE_HRS_BDY = 1 << 17,  /* FE HTTP response body */
+	SMP_VAL_FE_LOG_END = 1 << 18,  /* FE log at the end of the txn/session */
+
+	/* a few combinations to decide what direction to try to fetch (useful for logs) */
+	SMP_VAL_REQUEST    = SMP_VAL_FE_CON_ACC | SMP_VAL_FE_SES_ACC | SMP_VAL_FE_REQ_CNT |
+	                     SMP_VAL_FE_HRQ_HDR | SMP_VAL_FE_HRQ_BDY | SMP_VAL_FE_SET_BCK |
+	                     SMP_VAL_BE_REQ_CNT | SMP_VAL_BE_HRQ_HDR | SMP_VAL_BE_HRQ_BDY |
+	                     SMP_VAL_BE_SET_SRV,
+
+	SMP_VAL_RESPONSE   = SMP_VAL_BE_SRV_CON | SMP_VAL_BE_RES_CNT | SMP_VAL_BE_HRS_HDR |
+	                     SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL | SMP_VAL_FE_RES_CNT |
+	                     SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY | SMP_VAL_FE_LOG_END,
+};
+
+extern const unsigned int fetch_cap[SMP_SRC_ENTRIES];
 
 /* Sample fetch options are passed to sample fetch functions to add precision
  * about what is desired :
@@ -145,7 +242,8 @@ struct sample_fetch {
 	int (*val_args)(struct arg *arg_p,
 			char **err_msg);          /* argument validation function */
 	unsigned long out_type;                   /* output sample type */
-	unsigned int cap;                         /* fetch capabilities (SMP_CAP_*) */
+	unsigned int use;                         /* fetch source (SMP_USE_*) */
+	unsigned int val;                         /* fetch validity (SMP_VAL_*) */
 };
 
 /* sample expression */

@@ -36,13 +36,249 @@ static struct sample_conv_kw_list sample_convs = {
 	.list = LIST_HEAD_INIT(sample_convs.list)
 };
 
-/*
- * Registers the sample fetch keyword list <kwl> as a list of valid keywords for next
- * parsing sessions.
+const unsigned int fetch_cap[SMP_SRC_ENTRIES] = {
+	[SMP_SRC_INTRN] = (SMP_VAL_FE_CON_ACC | SMP_VAL_FE_SES_ACC | SMP_VAL_FE_REQ_CNT |
+	                   SMP_VAL_FE_HRQ_HDR | SMP_VAL_FE_HRQ_BDY | SMP_VAL_FE_SET_BCK |
+	                   SMP_VAL_BE_REQ_CNT | SMP_VAL_BE_HRQ_HDR | SMP_VAL_BE_HRQ_BDY |
+	                   SMP_VAL_BE_SET_SRV | SMP_VAL_BE_SRV_CON | SMP_VAL_BE_RES_CNT |
+	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
+	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
+	                   SMP_VAL_FE_LOG_END),
+
+	[SMP_SRC_LISTN] = (SMP_VAL_FE_CON_ACC | SMP_VAL_FE_SES_ACC | SMP_VAL_FE_REQ_CNT |
+	                   SMP_VAL_FE_HRQ_HDR | SMP_VAL_FE_HRQ_BDY | SMP_VAL_FE_SET_BCK |
+	                   SMP_VAL_BE_REQ_CNT | SMP_VAL_BE_HRQ_HDR | SMP_VAL_BE_HRQ_BDY |
+	                   SMP_VAL_BE_SET_SRV | SMP_VAL_BE_SRV_CON | SMP_VAL_BE_RES_CNT |
+	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
+	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
+	                   SMP_VAL_FE_LOG_END),
+
+	[SMP_SRC_FTEND] = (SMP_VAL_FE_CON_ACC | SMP_VAL_FE_SES_ACC | SMP_VAL_FE_REQ_CNT |
+	                   SMP_VAL_FE_HRQ_HDR | SMP_VAL_FE_HRQ_BDY | SMP_VAL_FE_SET_BCK |
+	                   SMP_VAL_BE_REQ_CNT | SMP_VAL_BE_HRQ_HDR | SMP_VAL_BE_HRQ_BDY |
+	                   SMP_VAL_BE_SET_SRV | SMP_VAL_BE_SRV_CON | SMP_VAL_BE_RES_CNT |
+	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
+	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
+	                   SMP_VAL_FE_LOG_END),
+
+	[SMP_SRC_L4CLI] = (SMP_VAL_FE_CON_ACC | SMP_VAL_FE_SES_ACC | SMP_VAL_FE_REQ_CNT |
+	                   SMP_VAL_FE_HRQ_HDR | SMP_VAL_FE_HRQ_BDY | SMP_VAL_FE_SET_BCK |
+	                   SMP_VAL_BE_REQ_CNT | SMP_VAL_BE_HRQ_HDR | SMP_VAL_BE_HRQ_BDY |
+	                   SMP_VAL_BE_SET_SRV | SMP_VAL_BE_SRV_CON | SMP_VAL_BE_RES_CNT |
+	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
+	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
+	                   SMP_VAL_FE_LOG_END),
+
+	[SMP_SRC_L5CLI] = (SMP_VAL___________ | SMP_VAL_FE_SES_ACC | SMP_VAL_FE_REQ_CNT |
+	                   SMP_VAL_FE_HRQ_HDR | SMP_VAL_FE_HRQ_BDY | SMP_VAL_FE_SET_BCK |
+	                   SMP_VAL_BE_REQ_CNT | SMP_VAL_BE_HRQ_HDR | SMP_VAL_BE_HRQ_BDY |
+	                   SMP_VAL_BE_SET_SRV | SMP_VAL_BE_SRV_CON | SMP_VAL_BE_RES_CNT |
+	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
+	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
+	                   SMP_VAL_FE_LOG_END),
+
+	[SMP_SRC_TRACK] = (SMP_VAL_FE_CON_ACC | SMP_VAL_FE_SES_ACC | SMP_VAL_FE_REQ_CNT |
+	                   SMP_VAL_FE_HRQ_HDR | SMP_VAL_FE_HRQ_BDY | SMP_VAL_FE_SET_BCK |
+	                   SMP_VAL_BE_REQ_CNT | SMP_VAL_BE_HRQ_HDR | SMP_VAL_BE_HRQ_BDY |
+	                   SMP_VAL_BE_SET_SRV | SMP_VAL_BE_SRV_CON | SMP_VAL_BE_RES_CNT |
+	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
+	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
+	                   SMP_VAL_FE_LOG_END),
+
+	[SMP_SRC_L6REQ] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL_FE_REQ_CNT |
+	                   SMP_VAL_FE_HRQ_HDR | SMP_VAL_FE_HRQ_BDY | SMP_VAL_FE_SET_BCK |
+	                   SMP_VAL_BE_REQ_CNT | SMP_VAL_BE_HRQ_HDR | SMP_VAL_BE_HRQ_BDY |
+	                   SMP_VAL_BE_SET_SRV | SMP_VAL_BE_SRV_CON | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________),
+
+	[SMP_SRC_HRQHV] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL_FE_REQ_CNT |
+	                   SMP_VAL_FE_HRQ_HDR | SMP_VAL_FE_HRQ_BDY | SMP_VAL_FE_SET_BCK |
+	                   SMP_VAL_BE_REQ_CNT | SMP_VAL_BE_HRQ_HDR | SMP_VAL_BE_HRQ_BDY |
+	                   SMP_VAL_BE_SET_SRV | SMP_VAL_BE_SRV_CON | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________),
+
+	[SMP_SRC_HRQHP] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL_FE_REQ_CNT |
+	                   SMP_VAL_FE_HRQ_HDR | SMP_VAL_FE_HRQ_BDY | SMP_VAL_FE_SET_BCK |
+	                   SMP_VAL_BE_REQ_CNT | SMP_VAL_BE_HRQ_HDR | SMP_VAL_BE_HRQ_BDY |
+	                   SMP_VAL_BE_SET_SRV | SMP_VAL_BE_SRV_CON | SMP_VAL_BE_RES_CNT |
+	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
+	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
+	                   SMP_VAL_FE_LOG_END),
+
+	[SMP_SRC_HRQBO] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL_FE_HRQ_BDY | SMP_VAL_FE_SET_BCK |
+	                   SMP_VAL_BE_REQ_CNT | SMP_VAL_BE_HRQ_HDR | SMP_VAL_BE_HRQ_BDY |
+	                   SMP_VAL_BE_SET_SRV | SMP_VAL_BE_SRV_CON | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________),
+
+	[SMP_SRC_BKEND] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL_BE_REQ_CNT | SMP_VAL_BE_HRQ_HDR | SMP_VAL_BE_HRQ_BDY |
+	                   SMP_VAL_BE_SET_SRV | SMP_VAL_BE_SRV_CON | SMP_VAL_BE_RES_CNT |
+	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
+	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
+	                   SMP_VAL_FE_LOG_END),
+
+	[SMP_SRC_SERVR] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL_BE_SRV_CON | SMP_VAL_BE_RES_CNT |
+	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
+	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
+	                   SMP_VAL_FE_LOG_END),
+
+	[SMP_SRC_L4SRV] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL_BE_RES_CNT |
+	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
+	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
+	                   SMP_VAL_FE_LOG_END),
+
+	[SMP_SRC_L5SRV] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL_BE_RES_CNT |
+	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
+	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
+	                   SMP_VAL_FE_LOG_END),
+
+	[SMP_SRC_L6RES] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL_BE_RES_CNT |
+	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
+	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
+	                   SMP_VAL___________),
+
+	[SMP_SRC_HRSHV] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL_BE_RES_CNT |
+	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
+	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
+	                   SMP_VAL___________),
+
+	[SMP_SRC_HRSHP] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL_BE_RES_CNT |
+	                   SMP_VAL_BE_HRS_HDR | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
+	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
+	                   SMP_VAL_FE_LOG_END),
+
+	[SMP_SRC_HRSBO] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL_BE_HRS_BDY | SMP_VAL_BE_STO_RUL |
+	                   SMP_VAL_FE_RES_CNT | SMP_VAL_FE_HRS_HDR | SMP_VAL_FE_HRS_BDY |
+	                   SMP_VAL___________),
+
+	[SMP_SRC_RQFIN] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL_FE_LOG_END),
+
+	[SMP_SRC_RSFIN] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL_FE_LOG_END),
+
+	[SMP_SRC_TXFIN] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL_FE_LOG_END),
+
+	[SMP_SRC_SSFIN] = (SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL___________ | SMP_VAL___________ | SMP_VAL___________ |
+	                   SMP_VAL_FE_LOG_END),
+};
+
+static const char *fetch_src_names[SMP_SRC_ENTRIES] = {
+	[SMP_SRC_INTRN] = "internal state",
+	[SMP_SRC_LISTN] = "listener",
+	[SMP_SRC_FTEND] = "frontend",
+	[SMP_SRC_L4CLI] = "client address",
+	[SMP_SRC_L5CLI] = "client-side connection",
+	[SMP_SRC_TRACK] = "track counters",
+	[SMP_SRC_L6REQ] = "request buffer",
+	[SMP_SRC_HRQHV] = "HTTP request headers",
+	[SMP_SRC_HRQHP] = "HTTP request",
+	[SMP_SRC_HRQBO] = "HTTP request body",
+	[SMP_SRC_BKEND] = "backend",
+	[SMP_SRC_SERVR] = "server",
+	[SMP_SRC_L4SRV] = "server address",
+	[SMP_SRC_L5SRV] = "server-side connection",
+	[SMP_SRC_L6RES] = "response buffer",
+	[SMP_SRC_HRSHV] = "HTTP response headers",
+	[SMP_SRC_HRSHP] = "HTTP response",
+	[SMP_SRC_HRSBO] = "HTTP response body",
+	[SMP_SRC_RQFIN] = "request buffer statistics",
+	[SMP_SRC_RSFIN] = "response buffer statistics",
+	[SMP_SRC_TXFIN] = "transaction statistics",
+	[SMP_SRC_SSFIN] = "session statistics",
+};
+
+/* fill the trash with a comma-delimited list of source names for the <use> bit
+ * field which must be composed of a non-null set of SMP_USE_* flags. The return
+ * value is the pointer to the string in the trash buffer.
  */
-void sample_register_fetches(struct sample_fetch_kw_list *pfkl)
+const char *sample_src_names(unsigned int use)
 {
-	LIST_ADDQ(&sample_fetches.list, &pfkl->list);
+	int bit;
+
+	trash.len = 0;
+	trash.str[0] = '\0';
+	for (bit = 0; bit < SMP_SRC_ENTRIES; bit++) {
+		if (!(use & ~((1 << bit) - 1)))
+			break; /* no more bits */
+
+		if (!(use & (1 << bit)))
+			continue; /* bit not set */
+
+		trash.len += snprintf(trash.str + trash.len, trash.size - trash.len, "%s%s",
+				      (use & ((1 << bit) - 1)) ? "," : "",
+		                      fetch_src_names[bit]);
+	}
+	return trash.str;
+}
+
+/*
+ * Registers the sample fetch keyword list <kwl> as a list of valid keywords
+ * for next parsing sessions. The fetch keywords capabilities are also computed
+ * from their ->use field.
+ */
+void sample_register_fetches(struct sample_fetch_kw_list *kwl)
+{
+	struct sample_fetch *sf;
+	int bit;
+
+	for (sf = kwl->kw; sf->kw != NULL; sf++) {
+		for (bit = 0; bit < SMP_SRC_ENTRIES; bit++)
+			if (sf->use & (1 << bit))
+				sf->val |= fetch_cap[bit];
+	}
+	LIST_ADDQ(&sample_fetches.list, &kwl->list);
 }
 
 /*

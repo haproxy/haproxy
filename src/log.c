@@ -335,15 +335,15 @@ void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct pro
 		node->arg = my_strndup(arg, arg_len);
 		parse_logformat_var_args(node->arg, node);
 	}
-	if (expr->fetch->cap & SMP_CAP_REQ)
+	if (expr->fetch->val & SMP_VAL_REQUEST)
 		node->options |= LOG_OPT_REQ_CAP; /* fetch method is request-compatible */
 
-	if (expr->fetch->cap & SMP_CAP_RES)
+	if (expr->fetch->val & SMP_VAL_RESPONSE)
 		node->options |= LOG_OPT_RES_CAP; /* fetch method is response-compatible */
 
 	/* check if we need to allocate an hdr_idx struct for HTTP parsing */
 	/* Note, we may also need to set curpx->to_log with certain fetches */
-	if (expr->fetch->cap & SMP_CAP_L7)
+	if (expr->fetch->use & SMP_USE_HTTP_ANY)
 		curpx->acl_requires |= ACL_USE_L7_ANY;
 
 	/* FIXME: temporary workaround for missing LW_XPRT flag needed with some

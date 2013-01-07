@@ -3022,17 +3022,17 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		if (flags & STK_ON_RSP) {
-			if (!(expr->fetch->cap & SMP_CAP_RES)) {
-				Alert("parsing [%s:%d] : '%s': fetch method '%s' can not be used on response.\n",
-				      file, linenum, args[0], expr->fetch->kw);
+			if (!(expr->fetch->val & SMP_VAL_BE_STO_RUL)) {
+				Alert("parsing [%s:%d] : '%s': fetch method '%s' extracts information from '%s', none of which is available for 'store-response'.\n",
+				      file, linenum, args[0], expr->fetch->kw, sample_src_names(expr->fetch->use));
 		                err_code |= ERR_ALERT | ERR_FATAL;
 				free(expr);
 			        goto out;
 			}
 		} else {
-			if (!(expr->fetch->cap & SMP_CAP_REQ)) {
-				Alert("parsing [%s:%d] : '%s': fetch method '%s' can not be used on request.\n",
-				      file, linenum, args[0], expr->fetch->kw);
+			if (!(expr->fetch->val & SMP_VAL_BE_SET_SRV)) {
+				Alert("parsing [%s:%d] : '%s': fetch method '%s' extracts information from '%s', none of which is available during request.\n",
+				      file, linenum, args[0], expr->fetch->kw, sample_src_names(expr->fetch->use));
 				err_code |= ERR_ALERT | ERR_FATAL;
 				free(expr);
 				goto out;
@@ -3040,7 +3040,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		/* check if we need to allocate an hdr_idx struct for HTTP parsing */
-		if (expr->fetch->cap & SMP_CAP_L7)
+		if (expr->fetch->use & SMP_USE_HTTP_ANY)
 			curproxy->acl_requires |= ACL_USE_L7_ANY;
 
 		if (strcmp(args[myidx], "table") == 0) {
