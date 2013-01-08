@@ -70,7 +70,7 @@ void add_to_logformat_list(char *start, char *end, int type, struct list *list_f
  * Variable name are preceded by % and composed by characters [a-zA-Z0-9]* : %varname
  * You can set arguments using { } : %{many arguments}varname
  */
-void parse_logformat_string(const char *str, struct proxy *curproxy, struct list *list_format, int options);
+void parse_logformat_string(const char *str, struct proxy *curproxy, struct list *list_format, int options, int cap);
 /*
  * Displays the message on stderr with the date and pid. Overrides the quiet
  * mode during startup.

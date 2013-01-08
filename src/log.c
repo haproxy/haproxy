@@ -309,7 +309,7 @@ void add_to_logformat_list(char *start, char *end, int type, struct list *list_f
  * success. At the moment, sample converters are not yet supported but fetch arguments
  * should work.
  */
-void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct proxy *curpx, struct list *list_format, int options)
+void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct proxy *curpx, struct list *list_format, int options, int cap)
 {
 	char *cmd[2];
 	struct sample_expr *expr;
@@ -335,11 +335,15 @@ void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct pro
 		node->arg = my_strndup(arg, arg_len);
 		parse_logformat_var_args(node->arg, node);
 	}
-	if (expr->fetch->val & SMP_VAL_REQUEST)
+	if (expr->fetch->val & cap & SMP_VAL_REQUEST)
 		node->options |= LOG_OPT_REQ_CAP; /* fetch method is request-compatible */
 
-	if (expr->fetch->val & SMP_VAL_RESPONSE)
+	if (expr->fetch->val & cap & SMP_VAL_RESPONSE)
 		node->options |= LOG_OPT_RES_CAP; /* fetch method is response-compatible */
+
+	if (!(expr->fetch->val & cap))
+		Warning("log-format: sample fetch <%s> may not be reliably used %s because it needs '%s' which is not available here.\n",
+			text, cap == SMP_VAL_FE_LOG_END ? "with 'log-format'" : "here", sample_src_names(expr->fetch->use));
 
 	/* check if we need to allocate an hdr_idx struct for HTTP parsing */
 	/* Note, we may also need to set curpx->to_log with certain fetches */
@@ -363,8 +367,9 @@ void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct pro
  *  curproxy: the proxy affected
  *  list_format: the destination list
  *  options: LOG_OPT_* to force on every node
+ *  cap: all SMP_VAL_* flags supported by the consumer
  */
-void parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list *list_format, int options)
+void parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list *list_format, int options, int cap)
 {
 	char *sp, *str, *backfmt; /* start pointer for text parts */
 	char *arg = NULL; /* start pointer for args */
@@ -473,7 +478,7 @@ void parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list
 				parse_logformat_var(arg, arg_len, var, var_len, curproxy, list_format, &options);
 				break;
 			case LF_STEXPR:
-				add_sample_to_logformat_list(var, arg, arg_len, curproxy, list_format, options);
+				add_sample_to_logformat_list(var, arg, arg_len, curproxy, list_format, options, cap);
 				break;
 			case LF_TEXT:
 			case LF_SEPARATOR:
