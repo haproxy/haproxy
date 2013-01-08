@@ -9855,6 +9855,127 @@ The list of currently supported pattern fetch functions is the following :
   resp_ver     Returns the version string from the HTTP response, for example
                "1.1". This can be useful for logs, but is mostly there for ACL.
 
+  sc1_bytes_in_rate
+  sc2_bytes_in_rate
+               Returns the average client-to-server bytes rate from the
+               currently tracked counters, measured in amount of bytes over the
+               period configured in the table. See also src_bytes_in_rate.
+
+  sc1_bytes_out_rate
+  sc2_bytes_out_rate
+               Returns the average server-to-client bytes rate from the
+               currently tracked counters, measured in amount of bytes over the
+               period configured in the table. See also src_bytes_out_rate.
+
+  sc1_clr_gpc0
+  sc2_clr_gpc0
+               Clears the first General Purpose Counter associated to the
+               currently tracked counters, and returns its previous value.
+               This is only useful when used by ACLs.
+
+  sc1_conn_cnt
+  sc2_conn_cnt
+               Returns the cumulated number of incoming connections from
+               currently tracked counters. See also src_conn_cnt.
+
+  sc1_conn_cur
+  sc2_conn_cur
+               Returns the current amount of concurrent connections tracking
+               the same tracked counters. This number is automatically
+               incremented when tracking begins and decremented when tracking
+               stops. See also src_conn_cur.
+
+  sc1_conn_rate
+  sc2_conn_rate
+               Returns the average connection rate from the currently tracked
+               counters, measured in amount of connections over the period
+               configured in the table. See also src_conn_rate.
+
+  sc1_get_gpc0
+  sc2_get_gpc0
+               Returns the value of the first General Purpose Counter
+               associated to the currently tracked counters. See also
+               src_get_gpc0 and sc1/sc2_inc_gpc0.
+
+  sc1_http_err_cnt
+  sc2_http_err_cnt
+               Returns the cumulated number of HTTP errors from the currently
+               tracked counters. This includes the both request errors and 4xx
+               error responses. See also src_http_err_cnt.
+
+  sc1_http_err_rate
+  sc2_http_err_rate
+               Returns the average rate of HTTP errors from the currently
+               tracked counters, measured in amount of errors over the period
+               configured in the table. This includes the both request errors
+               and 4xx error responses. See also src_http_err_rate.
+
+  sc1_http_req_cnt
+  sc2_http_req_cnt
+               Returns the cumulated number of HTTP requests from the currently
+               tracked counters. This includes every started request, valid or
+               not. See also src_http_req_cnt.
+
+  sc1_http_req_rate
+  sc2_http_req_rate
+               Returns the average rate of HTTP requests from the currently
+               tracked counters, measured in amount of requests over the period
+               configured in the table. This includes every started request,
+               valid or not. See also src_http_req_rate.
+
+  sc1_inc_gpc0
+  sc2_inc_gpc0
+               Increments the first General Purpose Counter associated to the
+               currently tracked counters, and returns its new value. This is
+               only useful when used by ACLs.
+
+  sc1_kbytes_in
+  sc2_kbytes_in
+               Returns the amount of client-to-server data from the currently
+               tracked counters, measured in kilobytes over the period
+               configured in the table. The value being stored as a 32-bit
+               integer, it wraps at 4 terabytes. See also src_kbytes_in.
+
+  sc1_kbytes_out
+  sc2_kbytes_out
+               Returns the amount of server-to-client data from the currently
+               tracked counters, measured in kilobytes over the period
+               configured in the table. The value being stored as a 32-bit
+               integer, it wraps at 4 terabytes. See also src_kbytes_out.
+
+  sc1_sess_cnt
+  sc2_sess_cnt
+               Returns the cumulated number of incoming connections that were
+               transformed into sessions, which means that they were accepted
+               by a "tcp-request connection" rule, from the currently tracked
+               counters. A backend may count more sessions than connections
+               because each connection could result in many backend sessions if
+               some HTTP keep-alive is performed over the connection with the
+               client. See also src_sess_cnt.
+
+  sc1_sess_rate
+  sc2_sess_rate
+               Returns the average session rate from the currently tracked
+               counters, measured in amount of sessions over the period
+               configured in the table. A session is a connection that got past
+               the early "tcp-request connection" rules. A backend may count
+               more sessions than connections because each connection could
+               result in many backend sessions if some HTTP keep-alive is
+               performed over the connection with the client. See also
+               src_sess_rate.
+
+  sc1_trackers
+  sc2_trackers
+               Returns the current amount of concurrent connections tracking
+               the same tracked counters. This number is automatically
+               incremented when tracking begins and decremented when tracking
+               stops. It differs from sc1_conn_cur in that it does not rely on
+               any stored information but on the table's reference count (the
+               "use" value which is returned by "show table" on the CLI). This
+               may sometimes be more suited for layer7 tracking. It can be used
+               to tell a server how many concurrent connections there are from
+               a given address for example.
+
   scook([<name>])
                This extracts the last occurrence of the cookie name <name> on a
                "Set-Cookie" header line from the response, and returns its
@@ -9925,10 +10046,131 @@ The list of currently supported pattern fetch functions is the following :
                On IPv6 tables, IPv4 address is mapped to its IPv6 equivalent,
                according to RFC 4291.
 
+  src_bytes_in_rate([<table>])
+               Returns the average bytes rate from the connection's source IPv4
+               address in the current proxy's stick-table or in the designated
+               stick-table, measured in amount of bytes over the period
+               configured in the table. If the address is not found, zero is
+               returned. See also sc1/sc2_bytes_in_rate.
+
+  src_bytes_out_rate([<table>])
+               Returns the average bytes rate to the connection's source IPv4
+               address in the current proxy's stick-table or in the designated
+               stick-table, measured in amount of bytes over the period
+               configured in the table. If the address is not found, zero is
+               returned. See also sc1/sc2_bytes_out_rate.
+
+  src_clr_gpc0([<table>])
+               Clears the first General Purpose Counter associated to the
+               connection's source IPv4 address in the current proxy's
+               stick-table or in the designated stick-table, and returns its
+               previous value. This is only useful when used by ACLs.
+
+  src_conn_cnt([<table>])
+               Returns the cumulated number of connections initiated from the
+               current connection's source IPv4 address in the current proxy's
+               stick-table or in the designated stick-table. If the address is
+               not found, zero is returned. See also sc1/sc2_conn_cnt.
+
+  src_conn_cur([<table>])
+               Returns the current amount of concurrent connections initiated
+               from the current connection's source IPv4 address in the current
+               proxy's stick-table or in the designated stick-table. If the
+               address is not found, zero is returned. See also
+               sc1/sc2_conn_cur.
+
+  src_conn_rate([<table>])
+               Returns the average connection rate from the connection's source
+               IPv4 address in the current proxy's stick-table or in the
+               designated stick-table, measured in amount of connections over
+               the period configured in the table. If the address is not found,
+               zero is returned. See also sc1/sc2_conn_rate.
+
+  src_get_gpc0([<table>])
+               Returns the value of the first General Purpose Counter
+               associated to the connection's source IPv4 address in the
+               current proxy's stick-table or in the designated stick-table. If
+               the address is not found, zero is returned.  See also
+               sc1/sc2_get_gpc0 and src_inc_gpc0.
+
+  src_http_err_cnt([<table>])
+               Returns the cumulated number of HTTP errors from the current
+               connection's source IPv4 address in the current proxy's
+               stick-table or in the designated stick-table. This includes the
+               both request errors and 4xx error responses. If the address is
+               not found, zero is returned. See also sc1/sc2_http_err_cnt.
+
+  src_http_err_rate([<table>])
+               Returns the average rate of HTTP errors from the current
+               connection's source IPv4 address in the current proxy's
+               stick-table or in the designated stick- table, measured in
+               amount of errors over the period configured in the table.  This
+               includes the both request errors and 4xx error responses. If the
+               address is not found, zero is returned. See also
+               sc1/sc2_http_err_rate.
+
+  src_http_req_cnt([<table>])
+               Returns the cumulated number of HTTP requests from the current
+               connection's source IPv4 address in the current proxy's
+               stick-table or in the designated stick-table. This includes
+               every started request, valid or not. If the address is not
+               found, zero is returned. See also sc1/sc2_http_req_cnt.
+
+  src_http_req_rate([<table>])
+               Returns the average rate of HTTP requests from the current
+               connection's source IPv4 address in the current proxy's
+               stick-table or in the designated stick-table, measured in amount
+               of requests over the period configured in the table. This
+               includes every started request, valid or not. If the address is
+               not found, zero is returned. See also sc1/sc2_http_req_rate.
+
+  src_inc_gpc0([<table>])
+               Increments the first General Purpose Counter associated to the
+               connection's source IPv4 address in the current proxy's
+               stick-table or in the designated stick-table, and returns its
+               new value. This is only useful when used by ACLs.
+
+  src_kbytes_in([<table>])
+               Returns the amount of data received from the connection's source
+               IPv4 address in the current proxy's stick-table or in the
+               designated stick-table, measured in kilobytes over the period
+               configured in the table. If the address is not found, zero is
+               returned. The value being stored as a 32-bit integer, it wraps
+               at 4 terabytes. See also sc1/sc2_kbytes_in.
+
+  src_kbytes_out([<table>])
+               Returns the amount of data sent to the connection's source IPv4
+               address in the current proxy's stick-table or in the designated
+               stick-table, measured in kilobytes over the period configured in
+               the table. If the address is not found, zero is returned. The
+               value being stored as a 32-bit integer, it wraps at 4 terabytes.
+               See also sc1/sc2_kbytes_out.
+
   src_port     This is the source TCP port of the session on the client side,
                which is the port the client connected from. It is very unlikely
                that this function will be useful but it's available at no cost.
                It is of type integer and only works with such tables.
+
+  src_sess_cnt([<table>])
+               Returns the cumulated number of connections initiated from the
+               current connection's source IPv4 address in the current proxy's
+               stick-table or in the designated stick-table, that were
+               transformed into sessions, which means that they were accepted
+               by "tcp-request" rules. If the address is not found, zero is
+               returned. See also sc1/sc2_sess_cnt.
+
+  src_sess_rate([<table>])
+               Returns the average session rate from the connection's source
+               IPv4 address in the current proxy's stick-table or in the
+               designated stick-table, measured in amount of sessions over the
+               period configured in the table. A session is a connection that
+               got past the early "tcp-request" rules. If the address is not
+               found, zero is returned. See also sc1/sc2_sess_rate.
+
+  src_updt_conn_cnt([<table>])
+               Creates or updates the entry associated to the source IPv4
+               address in the current proxy's stick-table or in the designated
+               stick-table. This is only useful when used by ACLs.
 
   srv_conn(<backend>/<server>)
                Returns an integer value corresponding to the number of
@@ -10132,6 +10374,17 @@ The list of currently supported pattern fetch functions is the following :
 
   status       Returns an integer containing the HTTP status code in the HTTP
                response, for example, 302. It is mostly used within ACLs.
+
+  table_avl([<table>])
+               Returns the total number of available entries in the current
+               proxy's stick-table or in the designated stick-table. See also
+               table_cnt.
+
+  table_cnt([<table>])
+               Returns the total number of entries currently in use in the
+               current proxy's stick-table or in the designated stick-table.
+               See also src_conn_cnt and table_avl for other entry counting
+               methods.
 
   url          This extracts the request's URL as presented in the request. A
                typical use is with prefetch-capable caches, and with portals
