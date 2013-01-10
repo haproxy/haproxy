@@ -346,6 +346,11 @@ void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct pro
 	if (expr->fetch->cap & SMP_CAP_L7)
 		curpx->acl_requires |= ACL_USE_L7_ANY;
 
+	/* FIXME: temporary workaround for missing LW_XPRT flag needed with some
+	 * sample fetches (eg: ssl*). We always set it for now on, but this will
+	 * leave with sample capabilities soon.
+	 */
+	curpx->to_log |= LW_XPRT;
 	LIST_ADDQ(list_format, &node->list);
 }
 
