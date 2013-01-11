@@ -27,6 +27,7 @@
 #include <proto/channel.h>
 #include <proto/log.h>
 #include <proto/proxy.h>
+#include <proto/sample.h>
 #include <proto/stick_table.h>
 
 #include <ebsttree.h>
@@ -1583,7 +1584,7 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 				/* we need to reset context and flags */
 				memset(&smp, 0, sizeof(smp));
 			fetch_next:
-				if (!expr->kw->fetch(px, l4, l7, opt, expr->args, &smp)) {
+				if (!expr->kw->smp->process(px, l4, l7, opt, expr->args, &smp)) {
 					/* maybe we could not fetch because of missing data */
 					if (smp.flags & SMP_F_MAY_CHANGE && !(opt & SMP_OPT_FINAL))
 						acl_res |= ACL_PAT_MISS;
@@ -1901,6 +1902,35 @@ acl_find_targets(struct proxy *p)
 	return cfgerr;
 }
 
+/* initializes ACLs by resolving the sample fetch names they rely upon.
+ * Returns 0 on success, otherwise an error.
+ */
+int init_acl()
+{
+	int err = 0;
+	int index;
+	const char *name;
+	struct acl_kw_list *kwl;
+	struct sample_fetch *smp;
+
+	list_for_each_entry(kwl, &acl_keywords.list, list) {
+		for (index = 0; kwl->kw[index].kw != NULL; index++) {
+			name = kwl->kw[index].fetch_kw;
+			if (!name)
+				name = kwl->kw[index].kw;
+
+			smp = find_sample_fetch(name, strlen(name));
+			if (!smp) {
+				Alert("Critical internal error: ACL keyword '%s' relies on sample fetch '%s' which was not registered!\n",
+				      kwl->kw[index].kw, name);
+				err++;
+				continue;
+			}
+			kwl->kw[index].smp = smp;
+		}
+	}
+	return err;
+}
 
 /************************************************************************/
 /*       All supported sample fetch functions must be declared here     */
@@ -1947,8 +1977,8 @@ static struct sample_fetch_kw_list smp_kws = {{ },{
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct acl_kw_list acl_kws = {{ },{
-	{ "always_false", acl_parse_nothing, smp_fetch_false, acl_match_nothing, ACL_USE_NOTHING, 0 },
-	{ "always_true",  acl_parse_nothing, smp_fetch_true,  acl_match_nothing, ACL_USE_NOTHING, 0 },
+	{ "always_false", NULL, acl_parse_nothing, acl_match_nothing, ACL_USE_NOTHING, 0 },
+	{ "always_true",  NULL, acl_parse_nothing, acl_match_nothing, ACL_USE_NOTHING, 0 },
 	{ /* END */ },
 }};
 

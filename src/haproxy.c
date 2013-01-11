@@ -471,6 +471,8 @@ void init(int argc, char **argv)
 	strftime(localtimezone, 6, "%z", &curtime);
 
 	signal_init();
+	if (init_acl() != 0)
+		exit(1);
 	init_task();
 	init_session();
 	init_connection();

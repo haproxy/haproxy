@@ -124,6 +124,11 @@ void acl_register_keywords(struct acl_kw_list *kwl);
  */
 void acl_unregister_keywords(struct acl_kw_list *kwl);
 
+/* initializes ACLs by resolving the sample fetch names they rely upon.
+ * Returns 0 on success, otherwise an error.
+ */
+int init_acl();
+
 
 /*
  *

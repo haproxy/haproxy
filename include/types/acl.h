@@ -233,14 +233,14 @@ struct session;
 struct acl_expr;
 struct acl_keyword {
 	const char *kw;
+	char *fetch_kw;
 	int (*parse)(const char **text, struct acl_pattern *pattern, int *opaque, char **err);
-	int (*fetch)(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-	             const struct arg *args, struct sample *smp);
 	int (*match)(struct sample *smp, struct acl_pattern *pattern);
 	unsigned int requires;   /* bit mask of all ACL_USE_* required to evaluate this keyword */
 	int arg_mask; /* mask describing up to 7 arg types */
 	int (*val_args)(struct arg *arg_p, char **err_msg);  /* argument validation function */
 	/* must be after the config params */
+	struct sample_fetch *smp; /* the sample fetch we depend on */
 	int use_cnt;
 };
 
