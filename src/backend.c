@@ -1599,17 +1599,17 @@ static struct sample_fetch_kw_list smp_kws = {{ },{
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct acl_kw_list acl_kws = {{ },{
-	{ "avg_queue",     NULL, acl_parse_int,     acl_match_int,     ACL_USE_NOTHING,      ARG1(1,BE)  },
-	{ "be_conn",       NULL, acl_parse_int,     acl_match_int,     ACL_USE_NOTHING,      ARG1(1,BE)  },
-	{ "be_id",         NULL, acl_parse_int,     acl_match_int,     ACL_USE_NOTHING,      0           },
-	{ "be_sess_rate",  NULL, acl_parse_int,     acl_match_int,     ACL_USE_NOTHING,      ARG1(1,BE)  },
-	{ "connslots",     NULL, acl_parse_int,     acl_match_int,     ACL_USE_NOTHING,      ARG1(1,BE)  },
-	{ "nbsrv",         NULL, acl_parse_int,     acl_match_int,     ACL_USE_NOTHING,      ARG1(1,BE)  },
-	{ "queue",         NULL, acl_parse_int,     acl_match_int,     ACL_USE_NOTHING,      ARG1(1,BE)  },
-	{ "srv_conn",      NULL, acl_parse_int,     acl_match_int,     ACL_USE_NOTHING,      ARG1(1,SRV) },
-	{ "srv_id",        NULL, acl_parse_int,     acl_match_int,     ACL_USE_RTR_INTERNAL, 0           },
-	{ "srv_is_up",     NULL, acl_parse_nothing, acl_match_nothing, ACL_USE_NOTHING,      ARG1(1,SRV) },
-	{ "srv_sess_rate", NULL, acl_parse_int,     acl_match_int,     ACL_USE_NOTHING,      ARG1(1,SRV) },
+	{ "avg_queue",     NULL, acl_parse_int,     acl_match_int,     ACL_USE_NOTHING },
+	{ "be_conn",       NULL, acl_parse_int,     acl_match_int,     ACL_USE_NOTHING },
+	{ "be_id",         NULL, acl_parse_int,     acl_match_int,     ACL_USE_NOTHING },
+	{ "be_sess_rate",  NULL, acl_parse_int,     acl_match_int,     ACL_USE_NOTHING },
+	{ "connslots",     NULL, acl_parse_int,     acl_match_int,     ACL_USE_NOTHING },
+	{ "nbsrv",         NULL, acl_parse_int,     acl_match_int,     ACL_USE_NOTHING },
+	{ "queue",         NULL, acl_parse_int,     acl_match_int,     ACL_USE_NOTHING },
+	{ "srv_conn",      NULL, acl_parse_int,     acl_match_int,     ACL_USE_NOTHING },
+	{ "srv_id",        NULL, acl_parse_int,     acl_match_int,     ACL_USE_RTR_INTERNAL },
+	{ "srv_is_up",     NULL, acl_parse_nothing, acl_match_nothing, ACL_USE_NOTHING },
+	{ "srv_sess_rate", NULL, acl_parse_int,     acl_match_int,     ACL_USE_NOTHING },
 	{ /* END */ },
 }};
 

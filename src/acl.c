@@ -1023,7 +1023,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 	expr->args = empty_arg_list;
 
 	arg = strchr(args[0], '(');
-	if (aclkw->arg_mask) {
+	if (aclkw->smp->arg_mask) {
 		int nbargs = 0;
 		char *end;
 
@@ -1041,7 +1041,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 			 * An error is also reported if some mandatory arguments are
 			 * missing.
 			 */
-			nbargs = make_arg_list(arg, end - arg, aclkw->arg_mask, &expr->args,
+			nbargs = make_arg_list(arg, end - arg, aclkw->smp->arg_mask, &expr->args,
 					       err, NULL, NULL);
 			if (nbargs < 0) {
 				/* note that make_arg_list will have set <err> here */
@@ -1060,15 +1060,15 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 				goto out_free_expr;
 			}
 		}
-		else if (ARGM(aclkw->arg_mask) == 1) {
-			int type = (aclkw->arg_mask >> 4) & 15;
+		else if (ARGM(aclkw->smp->arg_mask) == 1) {
+			int type = (aclkw->smp->arg_mask >> 4) & 15;
 
 			/* If a proxy is noted as a mandatory argument, we'll fake
 			 * an empty one so that acl_find_targets() resolves it as
 			 * the current one later.
 			 */
 			if (type != ARGT_FE && type != ARGT_BE && type != ARGT_TAB) {
-				memprintf(err, "ACL keyword '%s' expects %d arguments", aclkw->kw, ARGM(aclkw->arg_mask));
+				memprintf(err, "ACL keyword '%s' expects %d arguments", aclkw->kw, ARGM(aclkw->smp->arg_mask));
 				goto out_free_expr;
 			}
 
@@ -1083,9 +1083,9 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 			expr->args[0].data.str.len = 0;
 			expr->args[1].type = ARGT_STOP;
 		}
-		else if (ARGM(aclkw->arg_mask)) {
+		else if (ARGM(aclkw->smp->arg_mask)) {
 			/* there were some mandatory arguments */
-			memprintf(err, "ACL keyword '%s' expects %d arguments", aclkw->kw, ARGM(aclkw->arg_mask));
+			memprintf(err, "ACL keyword '%s' expects %d arguments", aclkw->kw, ARGM(aclkw->smp->arg_mask));
 			goto out_free_expr;
 		}
 	}
@@ -1977,8 +1977,8 @@ static struct sample_fetch_kw_list smp_kws = {{ },{
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct acl_kw_list acl_kws = {{ },{
-	{ "always_false", NULL, acl_parse_nothing, acl_match_nothing, ACL_USE_NOTHING, 0 },
-	{ "always_true",  NULL, acl_parse_nothing, acl_match_nothing, ACL_USE_NOTHING, 0 },
+	{ "always_false", NULL, acl_parse_nothing, acl_match_nothing, ACL_USE_NOTHING },
+	{ "always_true",  NULL, acl_parse_nothing, acl_match_nothing, ACL_USE_NOTHING },
 	{ /* END */ },
 }};
 

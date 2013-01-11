@@ -669,16 +669,16 @@ static struct sample_fetch_kw_list smp_kws = {{ },{
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct acl_kw_list acl_kws = {{ },{
-	{ "payload",            NULL,             acl_parse_str,        acl_match_str,     ACL_USE_L6REQ_VOLATILE, ARG2(2,UINT,UINT),      val_payload },
-	{ "payload_lv",         NULL,             acl_parse_str,        acl_match_str,     ACL_USE_L6REQ_VOLATILE, ARG3(2,UINT,UINT,SINT), val_payload_lv },
-	{ "rep_ssl_hello_type", NULL,             acl_parse_int,        acl_match_int,     ACL_USE_L6RTR_VOLATILE, 0 },
-	{ "req_len",            NULL,             acl_parse_int,        acl_match_int,     ACL_USE_L6REQ_VOLATILE, 0 },
-	{ "req_rdp_cookie",     "rdp_cookie",     acl_parse_str,        acl_match_str,     ACL_USE_L6REQ_VOLATILE, ARG1(0,STR) },
-	{ "req_rdp_cookie_cnt", "rdp_cookie_cnt", acl_parse_int,        acl_match_int,     ACL_USE_L6REQ_VOLATILE, ARG1(0,STR) },
-	{ "req_ssl_hello_type", NULL,             acl_parse_int,        acl_match_int,     ACL_USE_L6REQ_VOLATILE, 0 },
-	{ "req_ssl_sni",        NULL,             acl_parse_str,        acl_match_str,     ACL_USE_L6REQ_VOLATILE, 0 },
-	{ "req_ssl_ver",        NULL,             acl_parse_dotted_ver, acl_match_int,     ACL_USE_L6REQ_VOLATILE, 0 },
-	{ "wait_end",           NULL,             acl_parse_nothing,    acl_match_nothing, ACL_USE_NOTHING, 0 },
+	{ "payload",            NULL,             acl_parse_str,        acl_match_str,     ACL_USE_L6REQ_VOLATILE, val_payload },
+	{ "payload_lv",         NULL,             acl_parse_str,        acl_match_str,     ACL_USE_L6REQ_VOLATILE, val_payload_lv },
+	{ "rep_ssl_hello_type", NULL,             acl_parse_int,        acl_match_int,     ACL_USE_L6RTR_VOLATILE },
+	{ "req_len",            NULL,             acl_parse_int,        acl_match_int,     ACL_USE_L6REQ_VOLATILE },
+	{ "req_rdp_cookie",     "rdp_cookie",     acl_parse_str,        acl_match_str,     ACL_USE_L6REQ_VOLATILE },
+	{ "req_rdp_cookie_cnt", "rdp_cookie_cnt", acl_parse_int,        acl_match_int,     ACL_USE_L6REQ_VOLATILE },
+	{ "req_ssl_hello_type", NULL,             acl_parse_int,        acl_match_int,     ACL_USE_L6REQ_VOLATILE },
+	{ "req_ssl_sni",        NULL,             acl_parse_str,        acl_match_str,     ACL_USE_L6REQ_VOLATILE },
+	{ "req_ssl_ver",        NULL,             acl_parse_dotted_ver, acl_match_int,     ACL_USE_L6REQ_VOLATILE },
+	{ "wait_end",           NULL,             acl_parse_nothing,    acl_match_nothing, ACL_USE_NOTHING },
 	{ /* END */ },
 }};
 
