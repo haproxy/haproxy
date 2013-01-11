@@ -237,7 +237,6 @@ struct acl_keyword {
 	int (*parse)(const char **text, struct acl_pattern *pattern, int *opaque, char **err);
 	int (*match)(struct sample *smp, struct acl_pattern *pattern);
 	unsigned int requires;   /* bit mask of all ACL_USE_* required to evaluate this keyword */
-	int (*val_args)(struct arg *arg_p, char **err_msg);  /* argument validation function */
 	/* must be after the config params */
 	struct sample_fetch *smp; /* the sample fetch we depend on */
 	int use_cnt;

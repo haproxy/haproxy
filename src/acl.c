@@ -1052,7 +1052,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 			if (!expr->args)
 				expr->args = empty_arg_list;
 
-			if (aclkw->val_args && !aclkw->val_args(expr->args, err)) {
+			if (aclkw->smp->val_args && !aclkw->smp->val_args(expr->args, err)) {
 				/* invalid keyword argument, error must have been
 				 * set by val_args().
 				 */

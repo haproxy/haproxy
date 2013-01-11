@@ -669,8 +669,8 @@ static struct sample_fetch_kw_list smp_kws = {{ },{
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct acl_kw_list acl_kws = {{ },{
-	{ "payload",            NULL,             acl_parse_str,        acl_match_str,     ACL_USE_L6REQ_VOLATILE, val_payload },
-	{ "payload_lv",         NULL,             acl_parse_str,        acl_match_str,     ACL_USE_L6REQ_VOLATILE, val_payload_lv },
+	{ "payload",            NULL,             acl_parse_str,        acl_match_str,     ACL_USE_L6REQ_VOLATILE },
+	{ "payload_lv",         NULL,             acl_parse_str,        acl_match_str,     ACL_USE_L6REQ_VOLATILE },
 	{ "rep_ssl_hello_type", NULL,             acl_parse_int,        acl_match_int,     ACL_USE_L6RTR_VOLATILE },
 	{ "req_len",            NULL,             acl_parse_int,        acl_match_int,     ACL_USE_L6REQ_VOLATILE },
 	{ "req_rdp_cookie",     "rdp_cookie",     acl_parse_str,        acl_match_str,     ACL_USE_L6REQ_VOLATILE },
