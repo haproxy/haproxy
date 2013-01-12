@@ -44,6 +44,7 @@
 #include <sys/resource.h>
 #include <time.h>
 #include <syslog.h>
+#include <grp.h>
 #ifdef USE_CPU_AFFINITY
 #define __USE_GNU
 #include <sched.h>
@@ -1416,10 +1417,16 @@ int main(int argc, char **argv)
 	 */
 
 	/* setgid / setuid */
-	if (global.gid && setgid(global.gid) == -1) {
-		Alert("[%s.main()] Cannot set gid %d.\n", argv[0], global.gid);
-		protocol_unbind_all();
-		exit(1);
+	if (global.gid) {
+		if (getgroups(0, NULL) > 0 && setgroups(0, NULL) == -1)
+			Warning("[%s.main()] Failed to drop supplementary groups. Using 'gid'/'group'"
+				" without 'uid'/'user' is generally useless.\n", argv[0]);
+
+		if (setgid(global.gid) == -1) {
+			Alert("[%s.main()] Cannot set gid %d.\n", argv[0], global.gid);
+			protocol_unbind_all();
+			exit(1);
+		}
 	}
 
 	if (global.uid && setuid(global.uid) == -1) {

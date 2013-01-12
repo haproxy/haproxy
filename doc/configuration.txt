@@ -532,6 +532,8 @@ gid <number>
   Changes the process' group ID to <number>. It is recommended that the group
   ID is dedicated to HAProxy or to a small set of similar daemons. HAProxy must
   be started with a user belonging to this group, or with superuser privileges.
+  Note that if haproxy is started from a user having supplementary groups, it
+  will only be able to drop these groups if started with superuser privileges.
   See also "group" and "uid".
 
 group <group name>
