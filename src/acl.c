@@ -533,7 +533,7 @@ int acl_match_reg(struct sample *smp, struct acl_pattern *pattern)
 	old_char = smp->data.str.str[smp->data.str.len];
 	smp->data.str.str[smp->data.str.len] = 0;
 
-	if (regexec(pattern->ptr.reg, smp->data.str.str, 0, NULL, 0) == 0)
+	if (regex_exec(pattern->ptr.reg, smp->data.str.str, smp->data.str.len) == 0)
 		ret = ACL_PAT_PASS;
 	else
 		ret = ACL_PAT_FAIL;
@@ -900,28 +900,47 @@ acl_parse_strcat(const char **text, struct acl_pattern *pattern, int *opaque, ch
 /* Free data allocated by acl_parse_reg */
 static void acl_free_reg(void *ptr)
 {
-	regfree((regex_t *)ptr);
+	regex_free(ptr);
 }
 
 /* Parse a regex. It is allocated. */
 int acl_parse_reg(const char **text, struct acl_pattern *pattern, int *opaque, char **err)
 {
-	regex_t *preg;
+	regex *preg;
 	int icase;
 
-	preg = calloc(1, sizeof(regex_t));
+	preg = calloc(1, sizeof(*preg));
 
 	if (!preg) {
 		memprintf(err, "out of memory while loading pattern");
 		return 0;
 	}
 
+#ifdef USE_PCRE_JIT
+	icase = (pattern->flags & ACL_PAT_F_IGNORE_CASE) ? PCRE_CASELESS : 0;
+	preg->reg = pcre_compile(*text, PCRE_NO_AUTO_CAPTURE | icase, NULL, NULL,
+		NULL);
+	if (!preg->reg) {
+		free(preg);
+		memprintf(err, "regex '%s' is invalid", *text);
+		return 0;
+	}
+
+	preg->extra = pcre_study(preg->reg, PCRE_STUDY_JIT_COMPILE, NULL);
+	if (!preg->extra) {
+		pcre_free(preg->reg);
+		free(preg);
+		memprintf(err, "failed to compile regex '%s'", *text);
+		return 0;
+	}
+#else
 	icase = (pattern->flags & ACL_PAT_F_IGNORE_CASE) ? REG_ICASE : 0;
 	if (regcomp(preg, *text, REG_EXTENDED | REG_NOSUB | icase) != 0) {
 		free(preg);
 		memprintf(err, "regex '%s' is invalid", *text);
 		return 0;
 	}
+#endif
 
 	pattern->ptr.reg = preg;
 	pattern->freeptrbuf = &acl_free_reg;

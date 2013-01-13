@@ -14,6 +14,7 @@
 #   USE_MY_SPLICE        : redefine the splice syscall if build fails without.
 #   USE_NETFILTER        : enable netfilter on Linux. Automatic.
 #   USE_PCRE             : enable use of libpcre for regex. Recommended.
+#   USE_PCRE_JIT         : enable use of libpcre jit for regex. Recommended.
 #   USE_POLL             : enable poll(). Automatic.
 #   USE_PRIVATE_CACHE    : disable shared memory cache of ssl sessions.
 #   USE_REGPARM          : enable regparm optimization. Recommended on x86.
@@ -521,7 +522,7 @@ endif
 endif
 endif
 
-ifneq ($(USE_PCRE)$(USE_STATIC_PCRE),)
+ifneq ($(USE_PCRE)$(USE_STATIC_PCRE)$(USE_PCRE_JIT),)
 # PCREDIR is used to automatically construct the PCRE_INC and PCRE_LIB paths,
 # by appending /include and /lib respectively. If your system does not use the
 # same sub-directories, simply force these variables instead of PCREDIR. It is
@@ -545,6 +546,10 @@ else
 OPTIONS_CFLAGS  += -DUSE_PCRE $(if $(PCRE_INC),-I$(PCRE_INC))
 OPTIONS_LDFLAGS += $(if $(PCRE_LIB),-L$(PCRE_LIB)) -Wl,-Bstatic -lpcreposix -lpcre -Wl,-Bdynamic
 BUILD_OPTIONS   += $(call ignore_implicit,USE_STATIC_PCRE)
+endif
+# JIT PCRE
+ifneq ($(USE_PCRE_JIT),)
+OPTIONS_CFLAGS  += -DUSE_PCRE_JIT
 endif
 endif
 

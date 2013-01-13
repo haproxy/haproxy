@@ -27,8 +27,20 @@
 #ifdef USE_PCRE
 #include <pcre.h>
 #include <pcreposix.h>
-#else
+
+#ifdef USE_PCRE_JIT
+struct jit_regex {
+    pcre *reg;
+    pcre_extra *extra;
+};
+typedef struct jit_regex regex;
+#else /* no PCRE_JIT */
+typedef regex_t regex;
+#endif
+
+#else /* no PCRE */
 #include <regex.h>
+typedef regex_t regex;
 #endif
 
 /* what to do when a header matches a regex */
@@ -54,6 +66,24 @@ int exp_replace(char *dst, char *src, const char *str,	const regmatch_t *matches
 const char *check_replace_string(const char *str);
 const char *chain_regex(struct hdr_exp **head, const regex_t *preg,
 			int action, const char *replace, void *cond);
+
+static inline int regex_exec(const regex *preg, const char *subject, int length) {
+#ifdef USE_PCRE_JIT
+	return pcre_exec(preg->reg, preg->extra, subject, length, 0, 0, NULL, 0);
+#else
+	return regexec(preg, subject, 0, NULL, 0);
+#endif
+}
+
+static inline void regex_free(regex *preg) {
+#ifdef USE_PCRE_JIT
+	pcre_free_study(preg->extra);
+	pcre_free(preg->reg);
+	free(preg);
+#else
+	regfree(preg);
+#endif
+}
 
 #endif /* _COMMON_REGEX_H */
 
