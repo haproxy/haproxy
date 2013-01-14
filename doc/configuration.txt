@@ -9721,20 +9721,16 @@ The list of currently supported pattern fetch functions is the following :
                wiser to use "url" instead.
 
   payload(<offset>,<length>)
-               This extracts a binary block of <length> bytes, and starting
-               at bytes <offset> in the buffer of request or response (request
-               on "stick on" or "stick match" or response in on "stick store
-               response").
+               This is an alias for "req.payload" when used in the context of a
+               request (eg: "stick on", "stick match"), and for "res.payload"
+               when used in the context of a response such as in
+               "stick store response".
 
   payload_lv(<offset1>,<length>[,<offset2>])
-               This extracts a binary block. In a first step the size of the
-               block is read from response or request buffer at <offset>
-               bytes and considered coded on <length> bytes. In a second step
-               data of the block are read from buffer at <offset2> bytes
-               (by default <lengthoffset> + <lengthsize>).
-               If <offset2> is prefixed by '+' or '-', it is relative to
-               <lengthoffset> + <lengthsize> else it is absolute.
-               Ex: see SSL session id  example in "stick table" chapter.
+               This is an alias for "req.payload_lv" when used in the context
+               of a request (eg: "stick on" or "stick match"), and for
+               "res.payload_lv" when used in the context of a response such as
+               in "stick store response".
 
   queue([<backend>])
                Returns the total number of queued connections of the designated
@@ -9744,51 +9740,13 @@ The list of currently supported pattern fetch functions is the following :
                or to pass statistics to backend servers.
 
   rdp_cookie(<name>)
-               This extracts the value of the rdp cookie <name> as a string
-               and uses this value to match. This enables implementation of
-               persistence based on the mstshash cookie. This is typically
-               done if there is no msts cookie present.
-
-               This differs from "balance rdp-cookie" in that any balancing
-               algorithm may be used and thus the distribution of clients
-               to backend servers is not linked to a hash of the RDP
-               cookie. It is envisaged that using a balancing algorithm
-               such as "balance roundrobin" or "balance leastconnect" will
-               lead to a more even distribution of clients to backend
-               servers than the hash used by "balance rdp-cookie".
-
-               Example :
-                listen tse-farm
-                    bind 0.0.0.0:3389
-                    # wait up to 5s for an RDP cookie in the request
-                    tcp-request inspect-delay 5s
-                    tcp-request content accept if RDP_COOKIE
-                    # apply RDP cookie persistence
-                    persist rdp-cookie
-                    # Persist based on the mstshash cookie
-                    # This is only useful makes sense if
-                    # balance rdp-cookie is not used
-                    stick-table type string size 204800
-                    stick on rdp_cookie(mstshash)
-                    server srv1 1.1.1.1:3389
-                    server srv1 1.1.1.2:3389
-
-               See also : "balance rdp-cookie", "persist rdp-cookie",
-               "tcp-request" and the "req_rdp_cookie" ACL.
+               This is an alias for "req.rdp_cookie".
 
   rdp_cookie_cnt([name])
-               Tries to parse the request buffer as RDP protocol, then returns
-               an integer corresponding to the number of RDP cookies found. If
-               an optional cookie name is passed, only cookies matching this
-               name are considered. This is mostly used in ACL.
+               This is an alias for "req.rdp_cookie_cnt".
 
   rep_ssl_hello_type
-               Returns an integer value containing the type of the SSL hello
-               message found in the response buffer. Note that this only
-               applies to raw contents found in the response buffer and not to
-               contents deciphered via an SSL data layer, so this will not work
-               with "server" lines having the "ssl" option. This is mostly used
-               in ACL.
+               This is an alias for "res.ssl_hello_type".
 
   req.cook([<name>])
                This extracts the last occurrence of the cookie name <name> on a
@@ -9839,6 +9797,23 @@ The list of currently supported pattern fetch functions is the following :
                relative to the last one, with -1 being the last one. A typical
                use is with the X-Forwarded-For header.
 
+  req.len      Returns an integer value corresponding to the number of bytes
+               present in the request buffer. This is mostly used in ACL.
+
+  req.payload(<offset>,<length>)
+               This extracts a binary block of <length> bytes and starting at
+               bytes <offset> in the request buffer.
+
+  req.payload_lv(<offset1>,<length>[,<offset2>])
+               This extracts a binary block. In a first step the size of the
+               block is read from the request request buffer at <offset> bytes
+               and considered coded on <length> bytes. In a second step data of
+               the block are read from buffer at <offset2> bytes (by default
+               <lengthoffset> + <lengthsize>). If <offset2> is prefixed by '+'
+               or '-', it is relative to <lengthoffset> + <lengthsize> else it
+               is absolute. Ex: see SSL session id example in "stick table"
+               chapter.
+
   req.proto_http
                Returns true when data in the request buffer look like HTTP and
                correctly parses as such. It is the same parser as the common
@@ -9846,16 +9821,46 @@ The list of currently supported pattern fetch functions is the following :
                surprises. This test may be used to report the protocol in TCP
                logs.
 
-  req.ver      Returns the version string from the HTTP request, for example
-               "1.1". This can be useful for logs, but is mostly there for ACL.
+  req.rdp_cookie(<name>)
+               This extracts the value of the rdp cookie <name> as a string
+               and uses this value to match. This enables implementation of
+               persistence based on the mstshash cookie. This is typically
+               done if there is no msts cookie present.
 
-  req_len      Returns an integer value corresponding to the number of bytes
-               present in the request buffer. This is mostly used in ACL.
+               This differs from "balance rdp-cookie" in that any balancing
+               algorithm may be used and thus the distribution of clients
+               to backend servers is not linked to a hash of the RDP
+               cookie. It is envisaged that using a balancing algorithm
+               such as "balance roundrobin" or "balance leastconn" will
+               lead to a more even distribution of clients to backend
+               servers than the hash used by "balance rdp-cookie".
 
-  req_proto_http
-               This is an alias for "req_proto_http".
+               Example :
+                listen tse-farm
+                    bind 0.0.0.0:3389
+                    # wait up to 5s for an RDP cookie in the request
+                    tcp-request inspect-delay 5s
+                    tcp-request content accept if RDP_COOKIE
+                    # apply RDP cookie persistence
+                    persist rdp-cookie
+                    # Persist based on the mstshash cookie
+                    # This is only useful makes sense if
+                    # balance rdp-cookie is not used
+                    stick-table type string size 204800
+                    stick on req.rdp_cookie(mstshash)
+                    server srv1 1.1.1.1:3389
+                    server srv1 1.1.1.2:3389
 
-  req_ssl_hello_type
+               See also : "balance rdp-cookie", "persist rdp-cookie",
+               "tcp-request" and the "req_rdp_cookie" ACL.
+
+  req.rdp_cookie_cnt([name])
+               Tries to parse the request buffer as RDP protocol, then returns
+               an integer corresponding to the number of RDP cookies found. If
+               an optional cookie name is passed, only cookies matching this
+               name are considered. This is mostly used in ACL.
+
+  req.ssl_hello_type
                Returns an integer value containing the type of the SSL hello
                message found in the request buffer. Note that this only applies
                to raw contents found in the request buffer and not to contents
@@ -9863,20 +9868,35 @@ The list of currently supported pattern fetch functions is the following :
                "bind" lines having the "ssl" option. This is mostly used in
                ACL.
 
-  req_ssl_sni  Returns a string containing the value of the Server Name TLS
+  req.ssl_sni  Returns a string containing the value of the Server Name TLS
                extension sent by a client in a TLS stream passing through the
                request buffer. Note that this only applies to raw contents
                found in the request buffer and not to contents deciphered via
                an SSL data layer, so this will not work with "bind" lines
                having the "ssl" option. This is mostly used in ACL.
 
-  req_ssl_ver  Returns an integer value containing the version of the SSL/TLS
+  req.ssl_ver  Returns an integer value containing the version of the SSL/TLS
                protocol of a stream present in the request buffer. The value is
                composed of the major version multiplied by 65536, added to the
                minor version. Note that this only applies to raw contents found
                in the request buffer and not to contents deciphered via an SSL
                data layer, so this will not work with "bind" lines having the
                "ssl" option. This is mostly used in ACL.
+
+  req.ver      Returns the version string from the HTTP request, for example
+               "1.1". This can be useful for logs, but is mostly there for ACL.
+
+  req_len      This is an alias for "req.len".
+
+  req_proto_http
+               This is an alias for "req_proto_http".
+
+  req_ssl_hello_type
+               This is an alias for "req.ssl_hello_type".
+
+  req_ssl_sni  This is an alias for "req.ssl_sni".
+
+  req_ssl_ver  This is an alias for "req.ssl_ver".
 
   req_ver      This is an alias for "req.ver".
 
@@ -9929,6 +9949,28 @@ The list of currently supported pattern fetch functions is the following :
                with 1 being the first one. Negative values indicate positions
                relative to the last one, with -1 being the last one. This can
                be useful to learn some data into a stick table.
+
+  res.payload(<offset>,<length>)
+               This extracts a binary block of <length> bytes and starting at
+               bytes <offset> in the response buffer.
+
+  res.payload_lv(<offset1>,<length>[,<offset2>])
+               This extracts a binary block. In a first step the size of the
+               block is read from the response request buffer at <offset> bytes
+               and considered coded on <length> bytes. In a second step data of
+               the block are read from buffer at <offset2> bytes (by default
+               <lengthoffset> + <lengthsize>). If <offset2> is prefixed by '+'
+               or '-', it is relative to <lengthoffset> + <lengthsize> else it
+               is absolute. Ex: see SSL session id example in "stick table"
+               chapter.
+
+  res.ssl_hello_type
+               Returns an integer value containing the type of the SSL hello
+               message found in the response buffer. Note that this only
+               applies to raw contents found in the response buffer and not to
+               contents deciphered via an SSL data layer, so this will not work
+               with "server" lines having the "ssl" option. This is mostly used
+               in ACL.
 
   res.ver      Returns the version string from the HTTP response, for example
                "1.1". This can be useful for logs, but is mostly there for ACL.
