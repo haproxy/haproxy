@@ -9613,10 +9613,7 @@ The list of currently supported pattern fetch functions is the following :
                keyword description for more information on possible caveats.
 
   cook([<name>])
-               This extracts the last occurrence of the cookie name <name> on a
-               "Cookie" header line from the request, and returns its value as
-               string. If no name is specified, the first cookie value is
-               returned.
+               This is an alias for "req.cook".
 
   cookie([<name>])
                This extracts the last occurrence of the cookie name <name> on a
@@ -9631,15 +9628,10 @@ The list of currently supported pattern fetch functions is the following :
                See also : "appsession"
 
   cook_cnt([<name>])
-               Returns an integer value representing the number of occurrences of
-               the cookie <name> in the request, or all cookies if <name> is not
-               specified.
+               This is an alias for "req.cook_cnt".
 
   cook_val([<name>])
-               This extracts the last occurrence of the cookie name <name> on a
-               "Cookie" header line from the request, and converts its value to
-               an integer which is returned. If no name is specified, the first
-               cookie value is returned.
+               This is an alias for "req.cook_val".
 
   dst          This is the destination IPv4 address of the session on the
                client side, which is the address the client connected to.
@@ -9683,36 +9675,18 @@ The list of currently supported pattern fetch functions is the following :
                logs using a log-format directive.
 
   hdr(<name>[,<occ>])
-               This extracts the last occurrence of header <name> in an HTTP
-               request. Optionally, a specific occurrence might be specified as
-               a position number. Positive values indicate a position from the
-               first occurrence, with 1 being the first one. Negative values
-               indicate positions relative to the last one, with -1 being the
-               last one. A typical use is with the X-Forwarded-For header once
-               converted to IP, associated with an IP stick-table.
+               This is an alias for "req.hdr" or "res.hdr" depending whether it
+               is used on the request path or the response path. Since it is
+               ambiguous, it is recommended not to use this form.
 
   hdr_cnt([<name>])
-               Returns an integer value representing the number of occurrences
-               of request header field name <name>, or the total number of
-               header fields if <name> is not specified.
+               This is an alias for "req.hdr_cnt".
 
   hdr_ip([<name>[,<occ>]])
-               This extracts the last occurrence of header <name> in an HTTP
-               request, converts it to an IPv4 or IPv6 address and returns this
-               address. Optionally, a specific occurrence might be specified as
-               a position number. Positive values indicate a position from the
-               first occurrence, with 1 being the first one. Negative values
-               indicate positions relative to the last one, with -1 being the
-               last one. A typical use is with the X-Forwarded-For header.
+               This is an alias for "req.hdr_ip".
 
   hdr_val([<name>[,<occ>]])
-               This extracts the last occurrence of header <name> in an HTTP
-               request, and converts it to an integer value. Optionally, a
-               specific occurrence might be specified as a position number.
-               Positive values indicate a position from the first occurrence,
-               with 1 being the first one. Negative values indicate positions
-               relative to the last one, with -1 being the last one. A typical
-               use is with the X-Forwarded-For header.
+               This is an alias for "req.hdr_val".
 
   http_auth(<userlist>)
   http_auth_group(<userlist>)
@@ -9816,15 +9790,70 @@ The list of currently supported pattern fetch functions is the following :
                with "server" lines having the "ssl" option. This is mostly used
                in ACL.
 
-  req_len      Returns an integer value corresponding to the number of bytes
-               present in the request buffer. This is mostly used in ACL.
+  req.cook([<name>])
+               This extracts the last occurrence of the cookie name <name> on a
+               "Cookie" header line from the request, and returns its value as
+               string. If no name is specified, the first cookie value is
+               returned.
 
-  req_proto_http
+  req.cook_cnt([<name>])
+               Returns an integer value representing the number of occurrences of
+               the cookie <name> in the request, or all cookies if <name> is not
+               specified.
+
+  req.cook_val([<name>])
+               This extracts the last occurrence of the cookie name <name> on a
+               "Cookie" header line from the request, and converts its value to
+               an integer which is returned. If no name is specified, the first
+               cookie value is returned.
+
+  req.hdr(<name>[,<occ>])
+               This extracts the last occurrence of header <name> in an HTTP
+               request. Optionally, a specific occurrence might be specified as
+               a position number. Positive values indicate a position from the
+               first occurrence, with 1 being the first one. Negative values
+               indicate positions relative to the last one, with -1 being the
+               last one. A typical use is with the X-Forwarded-For header once
+               converted to IP, associated with an IP stick-table.
+
+  req.hdr_cnt([<name>])
+               Returns an integer value representing the number of occurrences
+               of request header field name <name>, or the total number of
+               header fields if <name> is not specified.
+
+  req.hdr_ip([<name>[,<occ>]])
+               This extracts the last occurrence of header <name> in an HTTP
+               request, converts it to an IPv4 or IPv6 address and returns this
+               address. Optionally, a specific occurrence might be specified as
+               a position number. Positive values indicate a position from the
+               first occurrence, with 1 being the first one. Negative values
+               indicate positions relative to the last one, with -1 being the
+               last one. A typical use is with the X-Forwarded-For header.
+
+  req.hdr_val([<name>[,<occ>]])
+               This extracts the last occurrence of header <name> in an HTTP
+               request, and converts it to an integer value. Optionally, a
+               specific occurrence might be specified as a position number.
+               Positive values indicate a position from the first occurrence,
+               with 1 being the first one. Negative values indicate positions
+               relative to the last one, with -1 being the last one. A typical
+               use is with the X-Forwarded-For header.
+
+  req.proto_http
                Returns true when data in the request buffer look like HTTP and
                correctly parses as such. It is the same parser as the common
                HTTP request parser which is used so there should be no
                surprises. This test may be used to report the protocol in TCP
                logs.
+
+  req.ver      Returns the version string from the HTTP request, for example
+               "1.1". This can be useful for logs, but is mostly there for ACL.
+
+  req_len      Returns an integer value corresponding to the number of bytes
+               present in the request buffer. This is mostly used in ACL.
+
+  req_proto_http
+               This is an alias for "req_proto_http".
 
   req_ssl_hello_type
                Returns an integer value containing the type of the SSL hello
@@ -9849,11 +9878,62 @@ The list of currently supported pattern fetch functions is the following :
                data layer, so this will not work with "bind" lines having the
                "ssl" option. This is mostly used in ACL.
 
-  req_ver      Returns the version string from the HTTP request, for example
+  req_ver      This is an alias for "req.ver".
+
+  res.cook([<name>])
+               This extracts the last occurrence of the cookie name <name> on a
+               "Set-Cookie" header line from the response, and returns its
+               value as string. If no name is specified, the first cookie value
+               is returned.
+
+  res.cook_cnt([<name>])
+               Returns an integer value representing the number of occurrences of
+               the cookie <name> in the response, or all cookies if <name> is not
+               specified.
+
+  res.cook_val([<name>])
+               This extracts the last occurrence of the cookie name <name> on a
+               "Set-Cookie" header line from the response, and converts its
+               value to an integer which is returned. If no name is specified,
+               the first cookie value is returned.
+
+  res.hdr(<name>[,<occ>])
+               This extracts the last occurrence of header <name> in an HTTP
+               response. Optionally, a specific occurrence might be specified
+               as a position number. Positive values indicate a position from
+               the first occurrence, with 1 being the first one. Negative
+               values indicate positions relative to the last one, with -1
+               being the last one. This can be useful to learn some data into
+               a stick-table.
+
+  res.hdr_cnt([<name>])
+               Returns an integer value representing the number of occurrences
+               of response header field name <name>, or the total number of
+               header fields if <name> is not specified.
+
+  res.hdr_ip([<name>[,<occ>]])
+               This extracts the last occurrence of header <name> in an HTTP
+               response, convert it to an IPv4 or IPv6 address and returns this
+               address. Optionally, a specific occurrence might be specified as
+               a position number. Positive values indicate a position from the
+               first occurrence, with 1 being the first one. Negative values
+               indicate positions relative to the last one, with -1 being the
+               last one. This can be useful to learn some data into a stick
+               table.
+
+  res.hdr_val([<name>[,<occ>]])
+               This extracts the last occurrence of header <name> in an HTTP
+               response, and converts it to an integer value. Optionally, a
+               specific occurrence might be specified as a position number.
+               Positive values indicate a position from the first occurrence,
+               with 1 being the first one. Negative values indicate positions
+               relative to the last one, with -1 being the last one. This can
+               be useful to learn some data into a stick table.
+
+  res.ver      Returns the version string from the HTTP response, for example
                "1.1". This can be useful for logs, but is mostly there for ACL.
 
-  resp_ver     Returns the version string from the HTTP response, for example
-               "1.1". This can be useful for logs, but is mostly there for ACL.
+  resp_ver     This is an alias for "res.ver".
 
   sc1_bytes_in_rate
   sc2_bytes_in_rate
@@ -9977,21 +10057,13 @@ The list of currently supported pattern fetch functions is the following :
                a given address for example.
 
   scook([<name>])
-               This extracts the last occurrence of the cookie name <name> on a
-               "Set-Cookie" header line from the response, and returns its
-               value as string. If no name is specified, the first cookie value
-               is returned.
+               This is an alias for "res.cook".
 
   scook_cnt([<name>])
-               Returns an integer value representing the number of occurrences of
-               the cookie <name> in the response, or all cookies if <name> is not
-               specified.
+               This is an alias for "res.cook_cnt".
 
   scook_val([<name>])
-               This extracts the last occurrence of the cookie name <name> on a
-               "Set-Cookie" header line from the response, and converts its
-               value to an integer which is returned. If no name is specified,
-               the first cookie value is returned.
+               This is an alias for "res.cook_val".
 
   set-cookie(<name>)
                This fetch function is deprecated and has been superseded by the
@@ -10007,37 +10079,16 @@ The list of currently supported pattern fetch functions is the following :
                See also : "appsession"
 
   shdr(<name>[,<occ>])
-               This extracts the last occurrence of header <name> in an HTTP
-               response. Optionally, a specific occurrence might be specified
-               as a position number. Positive values indicate a position from
-               the first occurrence, with 1 being the first one. Negative
-               values indicate positions relative to the last one, with -1
-               being the last one. This can be useful to learn some data into
-               a stick-table.
+               This is an alias for "res.hdr".
 
   shdr_cnt([<name>])
-               Returns an integer value representing the number of occurrences
-               of response header field name <name>, or the total number of
-               header fields if <name> is not specified.
+               This is an alias for "res.hdr_cnt".
 
   shdr_ip([<name>[,<occ>]])
-               This extracts the last occurrence of header <name> in an HTTP
-               response, convert it to an IPv4 or IPv6 address and returns this
-               address. Optionally, a specific occurrence might be specified as
-               a position number. Positive values indicate a position from the
-               first occurrence, with 1 being the first one. Negative values
-               indicate positions relative to the last one, with -1 being the
-               last one. This can be useful to learn some data into a stick
-               table.
+               This is an alias for "res.hdr_ip".
 
   shdr_val([<name>[,<occ>]])
-               This extracts the last occurrence of header <name> in an HTTP
-               response, and converts it to an integer value. Optionally, a
-               specific occurrence might be specified as a position number.
-               Positive values indicate a position from the first occurrence,
-               with 1 being the first one. Negative values indicate positions
-               relative to the last one, with -1 being the last one. This can
-               be useful to learn some data into a stick table.
+               This is an alias for "res.hdr_val".
 
   so_id        Returns an integer containing the listening socket's id.
 
