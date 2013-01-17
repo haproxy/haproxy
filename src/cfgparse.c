@@ -6192,7 +6192,7 @@ int check_config_validity()
 			for (curpeers = peers; curpeers; curpeers = curpeers->next) {
 				if (strcmp(curpeers->id, curproxy->table.peers.name) == 0) {
 					free((void *)curproxy->table.peers.name);
-					curproxy->table.peers.p = peers;
+					curproxy->table.peers.p = curpeers;
 					break;
 				}
 			}
