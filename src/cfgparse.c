@@ -1555,6 +1555,8 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 				curpeers->peers_fe->timeout.connect = 5000;
 				curpeers->peers_fe->accept = peer_accept;
 				curpeers->peers_fe->options2 |= PR_O2_INDEPSTR | PR_O2_SMARTCON | PR_O2_SMARTACC;
+				curpeers->peers_fe->conf.file = strdup(file);
+				curpeers->peers_fe->conf.line = linenum;
 
 				bind_conf = bind_conf_alloc(&curpeers->peers_fe->conf.bind, file, linenum, args[2]);
 
@@ -1581,6 +1583,13 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 					l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
 					global.maxsock += l->maxconn;
 				}
+			}
+			else {
+				Alert("parsing [%s:%d] : '%s %s' : local peer name already referenced at %s:%d.\n",
+				      file, linenum, args[0], args[1],
+				      curpeers->peers_fe->conf.file, curpeers->peers_fe->conf.line);
+				err_code |= ERR_FATAL;
+				goto out;
 			}
 		}
 	} /* neither "peer" nor "peers" */
