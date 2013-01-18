@@ -345,7 +345,7 @@ struct proxy {
 	struct chunk errmsg[HTTP_ERR_SIZE];	/* default or customized error messages for known errors */
 	int uuid;				/* universally unique proxy ID, used for SNMP */
 	unsigned int backlog;			/* force the frontend's listen backlog */
-	unsigned int bind_proc;			/* bitmask of processes using this proxy. 0 = all. */
+	unsigned long bind_proc;		/* bitmask of processes using this proxy */
 
 	/* warning: these structs are huge, keep them at the bottom */
 	struct sockaddr_storage dispatch_addr;	/* the default address to connect to */

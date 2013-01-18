@@ -886,6 +886,12 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 		global.nbproc = atol(args[1]);
+		if (global.nbproc < 1 || global.nbproc > LONGBITS) {
+			Alert("parsing [%s:%d] : '%s' must be between 1 and %d (was %d).\n",
+			      file, linenum, args[0], LONGBITS, global.nbproc);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
 	}
 	else if (!strcmp(args[0], "maxconn")) {
 		if (global.maxconn != 0) {
@@ -1369,24 +1375,24 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "cpu-map") == 0) {  /* map a process list to a CPU set */
 #ifdef USE_CPU_AFFINITY
 		int cur_arg, i;
-		unsigned int proc = 0;
+		unsigned long proc = 0;
 		unsigned long cpus = 0;
 
 		if (strcmp(args[1], "all") == 0)
-			proc = 0xFFFFFFFF;
+			proc = ~0UL;
 		else if (strcmp(args[1], "odd") == 0)
-			proc = 0x55555555;
+			proc = ~0UL/3UL; /* 0x555....555 */
 		else if (strcmp(args[1], "even") == 0)
-			proc = 0xAAAAAAAA;
+			proc = (~0UL/3UL) << 1; /* 0xAAA...AAA */
 		else {
-			proc = atoi(args[1]);
-			if (proc >= 1 && proc <= 32)
-				proc = 1 << (proc - 1);
+			proc = atol(args[1]);
+			if (proc >= 1 && proc <= LONGBITS)
+				proc = 1UL << (proc - 1);
 		}
 
 		if (!proc || !*args[2]) {
-			Alert("parsing [%s:%d]: %s expects a process number including 'all', 'odd', 'even', or a number from 1 to 32, followed by a list of CPU ranges with numbers from 0 to 31.\n",
-			      file, linenum, args[0]);
+			Alert("parsing [%s:%d]: %s expects a process number including 'all', 'odd', 'even', or a number from 1 to %d, followed by a list of CPU ranges with numbers from 0 to %d.\n",
+			      file, linenum, args[0], LONGBITS, LONGBITS - 1);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -1408,9 +1414,9 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 					high = swap;
 				}
 
-				if (high >= sizeof(long) * 8) {
+				if (high >= LONGBITS) {
 					Alert("parsing [%s:%d]: %s supports CPU numbers from 0 to %d.\n",
-					      file, linenum, args[0], (int)(sizeof(long) * 8 - 1));
+					      file, linenum, args[0], LONGBITS - 1);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
@@ -1426,8 +1432,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			}
 			cur_arg++;
 		}
-		for (i = 0; i < 32; i++)
-			if (proc & (1 << i))
+		for (i = 0; i < LONGBITS; i++)
+			if (proc & (1UL << i))
 				global.cpu_map[i] = cpus;
 #else
 		Alert("parsing [%s:%d] : '%s' is not enabled, please check build options for USE_CPU_AFFINITY.\n", file, linenum, args[0]);
@@ -2350,7 +2356,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	}
 	else if (!strcmp(args[0], "bind-process")) {  /* enable this proxy only on some processes */
 		int cur_arg = 1;
-		unsigned int set = 0;
+		unsigned long set = 0;
 
 		while (*args[cur_arg]) {
 			unsigned int low, high;
@@ -2360,10 +2366,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				break;
 			}
 			else if (strcmp(args[cur_arg], "odd") == 0) {
-				set |= 0x55555555;
+				set |= ~0UL/3UL; /* 0x555....555 */
 			}
 			else if (strcmp(args[cur_arg], "even") == 0) {
-				set |= 0xAAAAAAAA;
+				set |= (~0UL/3UL) << 1; /* 0xAAA...AAA */
 			}
 			else if (isdigit((int)*args[cur_arg])) {
 				char *dash = strchr(args[cur_arg], '-');
@@ -2378,24 +2384,18 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 					high = swap;
 				}
 
-				if (low < 1 || high > 32) {
-					Alert("parsing [%s:%d]: %s supports process numbers from 1 to 32.\n",
-					      file, linenum, args[0]);
+				if (low < 1 || high > LONGBITS) {
+					Alert("parsing [%s:%d]: %s supports process numbers from 1 to %d.\n",
+					      file, linenum, args[0], LONGBITS);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
-
-				if (high > global.nbproc) {
-					Warning("parsing [%s:%d]: %s references process number %d which is higher than global.nbproc (%d).\n",
-						file, linenum, args[0], high, global.nbproc);
-					err_code |= ERR_WARN;
-				}
 				while (low <= high)
-					set |= 1 << (low++ - 1);
+					set |= 1UL << (low++ - 1);
 			}
 			else {
-				Alert("parsing [%s:%d]: %s expects 'all', 'odd', 'even', or a list of process ranges with numbers from 1 to 32.\n",
-				      file, linenum, args[0]);
+				Alert("parsing [%s:%d]: %s expects 'all', 'odd', 'even', or a list of process ranges with numbers from 1 to %d.\n",
+				      file, linenum, args[0], LONGBITS);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
@@ -6860,7 +6860,7 @@ out_uri_auth_compat:
 			if (curproxy->bind_proc) {
 				int proc;
 				for (proc = 0; proc < global.nbproc; proc++) {
-					if (curproxy->bind_proc & (1 << proc)) {
+					if (curproxy->bind_proc & (1UL << proc)) {
 						nbproc++;
 					}
 				}

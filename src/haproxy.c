@@ -1596,7 +1596,7 @@ int main(int argc, char **argv)
 		px = proxy;
 		while (px != NULL) {
 			if (px->bind_proc && px->state != PR_STSTOPPED) {
-				if (!(px->bind_proc & (1 << proc)))
+				if (!(px->bind_proc & (1UL << proc)))
 					stop_proxy(px);
 			}
 			px = px->next;

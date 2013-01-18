@@ -372,7 +372,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 	}
 	else if (!strcmp(args[1], "bind-process")) {  /* enable the socket only on some processes */
 		int cur_arg = 2;
-		unsigned int set = 0;
+		unsigned long set = 0;
 
 		if (!global.stats_fe) {
 			if ((global.stats_fe = alloc_stats_fe("GLOBAL", file, line)) == NULL) {
@@ -389,10 +389,10 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 				break;
 			}
 			else if (strcmp(args[cur_arg], "odd") == 0) {
-				set |= 0x55555555;
+				set |= ~0UL/3UL; /* 0x555....555 */
 			}
 			else if (strcmp(args[cur_arg], "even") == 0) {
-				set |= 0xAAAAAAAA;
+				set |= (~0UL/3UL) << 1; /* 0xAAA...AAA */
 			}
 			else if (isdigit((int)*args[cur_arg])) {
 				char *dash = strchr(args[cur_arg], '-');
@@ -407,19 +407,18 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 					high = swap;
 				}
 
-				if (low < 1 || high > 32) {
-					memprintf(err, "'%s %s' supports process numbers from 1 to 32.\n",
-					          args[0], args[1]);
+				if (low < 1 || high > LONGBITS) {
+					memprintf(err, "'%s %s' supports process numbers from 1 to %d.\n",
+					          args[0], args[1], LONGBITS);
 					return -1;
 				}
-
 				while (low <= high)
-					set |= 1 << (low++ - 1);
+					set |= 1UL << (low++ - 1);
 			}
 			else {
 				memprintf(err,
-				          "'%s %s' expects 'all', 'odd', 'even', or a list of process ranges with numbers from 1 to 32.\n",
-				          args[0], args[1]);
+				          "'%s %s' expects 'all', 'odd', 'even', or a list of process ranges with numbers from 1 to %d.\n",
+				          args[0], args[1], LONGBITS);
 				return -1;
 			}
 			cur_arg++;
