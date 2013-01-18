@@ -133,9 +133,8 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 
 	/* now let's wait for polled events */
 
-	fd = MIN(maxfd, global.tune.maxpollevents);
 	gettimeofday(&before_poll, NULL);
-	status = epoll_wait(epoll_fd, epoll_events, fd, wait_time);
+	status = epoll_wait(epoll_fd, epoll_events, global.tune.maxpollevents, wait_time);
 	tv_update_date(wait_time, status);
 	measure_idle();
 
