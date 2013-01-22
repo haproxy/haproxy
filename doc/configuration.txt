@@ -7214,6 +7214,20 @@ crt-ignore-err <errors>
   set to 'all', all errors are ignored. SSL handshake is not abored if an error
   is ignored.
 
+crt-list <file>
+  This setting is only available when support for OpenSSL was built in. It
+  designates a list of PEM file with an optional list of SNI filter per
+  certificate, with the following format for each line :
+
+        <crtfile>[ <snifilter>]*
+
+  Wildcards are supported in the SNI filter. The certificates will be presented
+  to clients who provide a valid TLS Server Name Indication field matching one
+  of SNI filter. If no SNI filter is specified the CN and alt subjects are
+  used. This directive may be specified multiple times. See the "crt" option
+  for more information. The default certificate is still needed to meet OpenSSL
+  expectations. If it is not used, the strict-sni option may be used.
+
 defer-accept
   Is an optional keyword which is supported only on certain Linux kernels. It
   states that a connection will only be accepted once some data arrive on it,

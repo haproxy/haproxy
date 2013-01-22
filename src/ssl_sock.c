@@ -258,10 +258,36 @@ end:
 }
 #endif
 
+int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct bind_conf *s, char *name, int len, int order)
+{
+	struct sni_ctx *sc;
+	int wild = 0;
+	int j;
+
+	if (len) {
+		if (*name == '*') {
+			wild = 1;
+			name++;
+			len--;
+		}
+		sc = malloc(sizeof(struct sni_ctx) + len + 1);
+		for (j = 0; j < len; j++)
+			sc->name.key[j] = tolower(name[j]);
+		sc->name.key[len] = 0;
+		sc->order = order++;
+		sc->ctx = ctx;
+		if (wild)
+			ebst_insert(&s->sni_w_ctx, &sc->name);
+		else
+			ebst_insert(&s->sni_ctx, &sc->name);
+	}
+	return order;
+}
+
 /* Loads a certificate key and CA chain from a file. Returns 0 on error, -1 if
  * an early error happens and the caller must call SSL_CTX_free() by itelf.
  */
-int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct bind_conf *s)
+int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct bind_conf *s, char *sni_filter)
 {
 	BIO *in;
 	X509 *x = NULL, *ca;
@@ -270,7 +296,6 @@ int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct bind_co
 	int order = 0;
 	X509_NAME *xname;
 	char *str;
-	struct sni_ctx *sc;
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	STACK_OF(GENERAL_NAME) *names;
 #endif
@@ -286,71 +311,43 @@ int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct bind_co
 	if (x == NULL)
 		goto end;
 
-#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
-	names = X509_get_ext_d2i(x, NID_subject_alt_name, NULL, NULL);
-	if (names) {
-		for (i = 0; i < sk_GENERAL_NAME_num(names); i++) {
-			GENERAL_NAME *name = sk_GENERAL_NAME_value(names, i);
-			if (name->type == GEN_DNS) {
-				if (ASN1_STRING_to_UTF8((unsigned char **)&str, name->d.dNSName) >= 0) {
-					if ((len = strlen(str))) {
-						int j;
-
-						if (*str != '*') {
-							sc = malloc(sizeof(struct sni_ctx) + len + 1);
-							for (j = 0; j < len; j++)
-								sc->name.key[j] = tolower(str[j]);
-							sc->name.key[len] = 0;
-							sc->order = order++;
-							sc->ctx = ctx;
-							ebst_insert(&s->sni_ctx, &sc->name);
-						}
-						else {
-							sc = malloc(sizeof(struct sni_ctx) + len);
-							for (j = 1; j < len; j++)
-								sc->name.key[j-1] = tolower(str[j]);
-							sc->name.key[len-1] = 0;
-							sc->order = order++;
-							sc->ctx = ctx;
-							ebst_insert(&s->sni_w_ctx, &sc->name);
-						}
-					}
-					OPENSSL_free(str);
-				}
-			}
+	if (sni_filter) {
+		while (*sni_filter) {
+			while (isspace(*sni_filter))
+				sni_filter++;
+			str = sni_filter;
+			while (!isspace(*sni_filter) && *sni_filter)
+				sni_filter++;
+			len = sni_filter - str;
+			order = ssl_sock_add_cert_sni(ctx, s, str, len, order);
 		}
-		sk_GENERAL_NAME_pop_free(names, GENERAL_NAME_free);
 	}
-#endif /* SSL_CTRL_SET_TLSEXT_HOSTNAME */
-
-	xname = X509_get_subject_name(x);
-	i = -1;
-	while ((i = X509_NAME_get_index_by_NID(xname, NID_commonName, i)) != -1) {
-		X509_NAME_ENTRY *entry = X509_NAME_get_entry(xname, i);
-		if (ASN1_STRING_to_UTF8((unsigned char **)&str, entry->value) >= 0) {
-			if ((len = strlen(str))) {
-				int j;
-
-				if (*str != '*') {
-					sc = malloc(sizeof(struct sni_ctx) + len + 1);
-					for (j = 0; j < len; j++)
-						sc->name.key[j] = tolower(str[j]);
-					sc->name.key[len] = 0;
-					sc->order = order++;
-					sc->ctx = ctx;
-					ebst_insert(&s->sni_ctx, &sc->name);
-				}
-				else {
-					sc = malloc(sizeof(struct sni_ctx) + len);
-					for (j = 1; j < len; j++)
-						sc->name.key[j-1] = tolower(str[j]);
-					sc->name.key[len-1] = 0;
-					sc->order = order++;
-					sc->ctx = ctx;
-					ebst_insert(&s->sni_w_ctx, &sc->name);
+	else {
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+		names = X509_get_ext_d2i(x, NID_subject_alt_name, NULL, NULL);
+		if (names) {
+			for (i = 0; i < sk_GENERAL_NAME_num(names); i++) {
+				GENERAL_NAME *name = sk_GENERAL_NAME_value(names, i);
+				if (name->type == GEN_DNS) {
+					if (ASN1_STRING_to_UTF8((unsigned char **)&str, name->d.dNSName) >= 0) {
+						len = strlen(str);
+						order = ssl_sock_add_cert_sni(ctx, s, str, len, order);
+						OPENSSL_free(str);
+					}
 				}
 			}
-			OPENSSL_free(str);
+			sk_GENERAL_NAME_pop_free(names, GENERAL_NAME_free);
+		}
+#endif /* SSL_CTRL_SET_TLSEXT_HOSTNAME */
+		xname = X509_get_subject_name(x);
+		i = -1;
+		while ((i = X509_NAME_get_index_by_NID(xname, NID_commonName, i)) != -1) {
+			X509_NAME_ENTRY *entry = X509_NAME_get_entry(xname, i);
+			if (ASN1_STRING_to_UTF8((unsigned char **)&str, entry->value) >= 0) {
+				len = strlen(str);
+				order = ssl_sock_add_cert_sni(ctx, s, str, len, order);
+				OPENSSL_free(str);
+			}
 		}
 	}
 
@@ -387,7 +384,7 @@ end:
 	return ret;
 }
 
-static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf, struct proxy *curproxy, char **err)
+static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf, struct proxy *curproxy, char *sni_filter, char **err)
 {
 	int ret;
 	SSL_CTX *ctx;
@@ -406,7 +403,7 @@ static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf
 		return 1;
 	}
 
-	ret = ssl_sock_load_cert_chain_file(ctx, path, bind_conf);
+	ret = ssl_sock_load_cert_chain_file(ctx, path, bind_conf, sni_filter);
 	if (ret <= 0) {
 		memprintf(err, "%sunable to load SSL certificate from PEM file '%s'.\n",
 		          err && *err ? *err : "", path);
@@ -457,7 +454,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, struct proxy *cu
 	int cfgerr = 0;
 
 	if (!(dir = opendir(path)))
-		return ssl_sock_load_cert_file(path, bind_conf, curproxy, err);
+		return ssl_sock_load_cert_file(path, bind_conf, curproxy, NULL, err);
 
 	/* strip trailing slashes, including first one */
 	for (end = path + strlen(path) - 1; end >= path && *end == '/'; end--)
@@ -473,7 +470,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, struct proxy *cu
 		}
 		if (!S_ISREG(buf.st_mode))
 			continue;
-		cfgerr += ssl_sock_load_cert_file(fp, bind_conf, curproxy, err);
+		cfgerr += ssl_sock_load_cert_file(fp, bind_conf, curproxy, NULL, err);
 	}
 	closedir(dir);
 	return cfgerr;
@@ -493,6 +490,120 @@ static int ssl_initialize_random()
 		random_initialized = 1;
 
 	return random_initialized;
+}
+
+int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct proxy *curproxy, char **err)
+{
+	char thisline[65536];
+	FILE *f;
+	int linenum = 0;
+	int cfgerr = 0;
+	char *sni_filter = NULL;
+	char *crt_file = NULL;
+
+	if ((f = fopen(file, "r")) == NULL)
+		return 1;
+
+	while (fgets(thisline, sizeof(thisline), f) != NULL) {
+		int arg;
+		char *end;
+		char *args[MAX_LINE_ARGS + 1];
+		char *line = thisline;
+
+		linenum++;
+		end = line + strlen(line);
+		if (end-line == sizeof(thisline)-1 && *(end-1) != '\n') {
+			/* Check if we reached the limit and the last char is not \n.
+			 * Watch out for the last line without the terminating '\n'!
+			 */
+			Alert("parsing [%s:%d]: line too long, limit: %d.\n",
+			      file, linenum, (int)sizeof(thisline)-1);
+			cfgerr = 1;
+		}
+
+		/* skip leading spaces */
+		while (isspace(*line))
+			line++;
+
+		arg = 0;
+		args[arg] = line;
+
+		while (*line && arg < MAX_LINE_ARGS) {
+			if (*line == '#' || *line == '\n' || *line == '\r') {
+				/* end of string, end of loop */
+				*line = 0;
+				break;
+			}
+			else if (isspace(*line)) {
+				/* a non-escaped space is an argument separator */
+				*line++ = '\0';
+				while (isspace(*line))
+					line++;
+				args[++arg] = line;
+				break;
+			}
+			else {
+				line++;
+			}
+		}
+		while (*line) {
+			if (*line == '#' || *line == '\n' || *line == '\r') {
+				/* end of string, end of loop */
+				*line = 0;
+				break;
+			}
+			else {
+				line++;
+			}
+		}
+		/* empty line */
+		if (!**args)
+			continue;
+		if (*line) {
+			/* we had to stop due to too many args.
+			 * Let's terminate the string, print the offending part then cut the
+			 * last arg.
+			 */
+			while (*line && *line != '#' && *line != '\n' && *line != '\r')
+				line++;
+			*line = '\0';
+
+			Alert("parsing [%s:%d]: line too long, truncating at word %d, position %ld: <%s>.\n",
+			      file, linenum, arg + 1, (long)(args[arg] - thisline + 1), args[arg]);
+			cfgerr = 1;
+			args[arg] = line;
+		}
+		/* zero out remaining args and ensure that at least one entry
+		 * is zeroed out.
+		 */
+		while (++arg <= MAX_LINE_ARGS) {
+			args[arg] = line;
+		}
+
+		crt_file = strdup(args[0]);
+		if (*args[1])
+			sni_filter = strdup(args[1]);
+		cfgerr = ssl_sock_load_cert_file(crt_file, bind_conf, curproxy, sni_filter, err);
+
+		if (sni_filter) {
+			free(sni_filter);
+			sni_filter = NULL;
+		}
+		if (crt_file) {
+			free(crt_file);
+			crt_file = NULL;
+		}
+
+		if (cfgerr)
+			break;
+	}
+	if (sni_filter)
+		free(sni_filter);
+	if (crt_file)
+		free(crt_file);
+
+	fclose(f);
+	return cfgerr;
 }
 
 #ifndef SSL_OP_CIPHER_SERVER_PREFERENCE                 /* needs OpenSSL >= 0.9.7 */
@@ -2388,6 +2499,20 @@ static int bind_parse_crt(char **args, int cur_arg, struct proxy *px, struct bin
 	return 0;
 }
 
+/* parse the "crt-list" bind keyword */
+static int bind_parse_crt_list(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	if (!*args[cur_arg + 1]) {
+		memprintf(err, "'%s' : missing certificate location", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	if (ssl_sock_load_cert_list_file(args[cur_arg + 1], conf, px, err) > 0)
+		return ERR_ALERT | ERR_FATAL;
+
+	return 0;
+}
+
 /* parse the "crl-file" bind keyword */
 static int bind_parse_crl_file(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -2929,6 +3054,7 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
 	{ "crl-file",              bind_parse_crl_file,       1 }, /* set certificat revocation list file use on client cert verify */
 	{ "crt",                   bind_parse_crt,            1 }, /* load SSL certificates from this location */
 	{ "crt-ignore-err",        bind_parse_ignore_err,     1 }, /* set error IDs to ingore on verify depth == 0 */
+	{ "crt-list",              bind_parse_crt_list,       1 }, /* load a list of crt from this location */
 	{ "ecdhe",                 bind_parse_ecdhe,          1 }, /* defines named curve for elliptic curve Diffie-Hellman */
 	{ "force-sslv3",           bind_parse_force_sslv3,    0 }, /* force SSLv3 */
 	{ "force-tlsv10",          bind_parse_force_tlsv10,   0 }, /* force TLSv10 */
