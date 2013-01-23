@@ -4785,7 +4785,7 @@ stats_error_parsing:
 			logsrv->minlvl = 0; /* limit syslog level to this level (emerg) */
 			if (*(args[4])) {
 				logsrv->minlvl = get_log_level(args[4]);
-				if (logsrv->level < 0) {
+				if (logsrv->minlvl < 0) {
 					Alert("parsing [%s:%d] : unknown optional minimum log level '%s'\n", file, linenum, args[4]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
