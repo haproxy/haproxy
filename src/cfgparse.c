@@ -1509,6 +1509,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		if (!realport) {
 			Alert("parsing [%s:%d] : Missing or invalid port in '%s'\n", file, linenum, args[2]);
 			err_code |= ERR_ALERT | ERR_FATAL;
+			free(raddr);
 			goto out;
 		}
 
