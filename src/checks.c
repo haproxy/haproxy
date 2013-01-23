@@ -619,7 +619,7 @@ void health_adjust(struct server *s, short status)
 	if (s->observe >= HANA_OBS_SIZE)
 		return;
 
-	if (status >= HCHK_STATUS_SIZE || !analyze_statuses[status].desc)
+	if (status >= HANA_STATUS_SIZE || !analyze_statuses[status].desc)
 		return;
 
 	switch (analyze_statuses[status].lr[s->observe - 1]) {
