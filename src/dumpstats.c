@@ -3538,7 +3538,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 			     tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
 			     tm.tm_hour, tm.tm_min, tm.tm_sec, (int)(sess->logs.accept_date.tv_usec),
 			     sess->uniq_id,
-			     sess->listener->proto->name);
+			     sess->listener && sess->listener->proto->name ? sess->listener->proto->name : "?");
 
 		switch (addr_to_str(&sess->si[0].conn->addr.from, pn, sizeof(pn))) {
 		case AF_INET:
