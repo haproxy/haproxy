@@ -43,6 +43,7 @@
 #include <openssl/x509v3.h>
 #include <openssl/x509.h>
 #include <openssl/err.h>
+#include <openssl/rand.h>
 
 #include <common/buffer.h>
 #include <common/compat.h>
@@ -478,6 +479,22 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, struct proxy *cu
 	return cfgerr;
 }
 
+/* Make sure openssl opens /dev/urandom before the chroot. The work is only
+ * done once. Zero is returned if the operation fails. No error is returned
+ * if the random is said as not implemented, because we expect that openssl
+ * will use another method once needed.
+ */
+static int ssl_initialize_random()
+{
+	unsigned char random;
+	static int random_initialized = 0;
+
+	if (!random_initialized && RAND_bytes(&random, 1) != 0)
+		random_initialized = 1;
+
+	return random_initialized;
+}
+
 #ifndef SSL_OP_CIPHER_SERVER_PREFERENCE                 /* needs OpenSSL >= 0.9.7 */
 #define SSL_OP_CIPHER_SERVER_PREFERENCE 0
 #endif
@@ -525,6 +542,12 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 		SSL_MODE_ENABLE_PARTIAL_WRITE |
 		SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
 		SSL_MODE_RELEASE_BUFFERS;
+
+	/* Make sure openssl opens /dev/urandom before the chroot */
+	if (!ssl_initialize_random()) {
+		Alert("OpenSSL random data generator initialization failed.\n");
+		cfgerr++;
+	}
 
 	if (bind_conf->ssl_options & BC_SSL_O_NO_SSLV3)
 		ssloptions |= SSL_OP_NO_SSLv3;
@@ -634,6 +657,12 @@ int ssl_sock_prepare_srv_ctx(struct server *srv, struct proxy *curproxy)
 		SSL_MODE_ENABLE_PARTIAL_WRITE |
 		SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
 		SSL_MODE_RELEASE_BUFFERS;
+
+	/* Make sure openssl opens /dev/urandom before the chroot */
+	if (!ssl_initialize_random()) {
+		Alert("OpenSSL random data generator initialization failed.\n");
+		cfgerr++;
+	}
 
 	 /* Initiate SSL context for current server */
 	srv->ssl_ctx.reused_sess = NULL;
