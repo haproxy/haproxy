@@ -1943,7 +1943,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		bind_conf = bind_conf_alloc(&curproxy->conf.bind, file, linenum, args[1]);
-		memcpy(&bind_conf->ux, &global.unix_bind.ux, sizeof(global.unix_bind.ux));
+
+		/* use default settings for unix sockets */
+		bind_conf->ux.uid  = global.unix_bind.ux.uid;
+		bind_conf->ux.gid  = global.unix_bind.ux.gid;
+		bind_conf->ux.mode = global.unix_bind.ux.mode;
 
 		/* NOTE: the following line might create several listeners if there
 		 * are comma-separated IPs or port ranges. So all further processing
