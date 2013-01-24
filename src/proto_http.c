@@ -817,8 +817,7 @@ void http_perform_server_redirect(struct session *s, struct stream_interface *si
 	http_server_error(s, si, SN_ERR_PRXCOND, SN_FINST_C, 302, &trash);
 
 	/* FIXME: we should increase a counter of redirects per server and per backend. */
-	if (srv)
-		srv_inc_sess_ctr(srv);
+	srv_inc_sess_ctr(srv);
 }
 
 /* Return the error message corresponding to si->err_type. It is assumed
