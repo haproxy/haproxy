@@ -178,8 +178,12 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, struct bind_conf *s)
 	(void)al; /* shut gcc stupid warning */
 
 	servername = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
-	if (!servername)
-		return SSL_TLSEXT_ERR_NOACK;
+	if (!servername) {
+		if (s->strict_sni)
+			return SSL_TLSEXT_ERR_ALERT_FATAL;
+		else
+			return SSL_TLSEXT_ERR_NOACK;
+	}
 
 	for (i = 0; i < trash.size; i++) {
 		if (!servername[i])
@@ -193,13 +197,20 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, struct bind_conf *s)
 	/* lookup in full qualified names */
 	node = ebst_lookup(&s->sni_ctx, trash.str);
 	if (!node) {
-		if (!wildp)
-			return SSL_TLSEXT_ERR_ALERT_WARNING;
-
+		if (!wildp) {
+			if (s->strict_sni)
+				return SSL_TLSEXT_ERR_ALERT_FATAL;
+			else
+				return SSL_TLSEXT_ERR_ALERT_WARNING;
+		}
 		/* lookup in full wildcards names */
 		node = ebst_lookup(&s->sni_w_ctx, wildp);
-		if (!node)
-			return SSL_TLSEXT_ERR_ALERT_WARNING;
+		if (!node) {
+			if (s->strict_sni)
+				return SSL_TLSEXT_ERR_ALERT_FATAL;
+			else
+				return SSL_TLSEXT_ERR_ALERT_WARNING;
+		}
 	}
 
 	/* switch ctx */
@@ -2569,6 +2580,13 @@ static int bind_parse_ssl(char **args, int cur_arg, struct proxy *px, struct bin
 	return 0;
 }
 
+/* parse the "strict-sni" bind keyword */
+static int bind_parse_strict_sni(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	conf->strict_sni = 1;
+	return 0;
+}
+
 /* parse the "verify" bind keyword */
 static int bind_parse_verify(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -2888,6 +2906,7 @@ static struct bind_kw_list bind_kws = { "SSL", { }, {
 	{ "no-tlsv12",             bind_parse_no_tlsv12,      0 }, /* disable TLSv12 */
 	{ "no-tls-tickets",        bind_parse_no_tls_tickets, 0 }, /* disable session resumption tickets */
 	{ "ssl",                   bind_parse_ssl,            0 }, /* enable SSL processing */
+	{ "strict-sni",            bind_parse_strict_sni,     0 }, /* refuse negotiation if sni doesn't match a certificate */
 	{ "verify",                bind_parse_verify,         1 }, /* set SSL verify method */
 	{ "npn",                   bind_parse_npn,            1 }, /* set NPN supported protocols */
 	{ NULL, NULL, 0 },

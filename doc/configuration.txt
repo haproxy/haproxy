@@ -7241,6 +7241,12 @@ ssl
   appear in clear text, so that ACLs and HTTP processing will only have access
   to deciphered contents.
 
+strict-sni
+  This setting is only available when support for OpenSSL was built in. The
+  SSL/TLS negotiation is allow only if the client provided an SNI which match
+  a certificate. The default certificate is not used.
+  See the "crt" option for more information.
+
 tfo
   Is an optional keyword which is supported only on Linux kernels >= 3.6. It
   enables TCP Fast Open on the listening socket, which means that clients which

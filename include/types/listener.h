@@ -127,6 +127,7 @@ struct bind_conf {
 	SSL_CTX *default_ctx;      /* SSL context of first/default certificate */
 	char *npn_str;             /* NPN protocol string */
 	int npn_len;               /* NPN protocol string length */
+	int strict_sni;            /* refuse negotiation if sni doesn't match a certificate */
 	struct eb_root sni_ctx;    /* sni_ctx tree of all known certs full-names sorted by name */
 	struct eb_root sni_w_ctx;  /* sni_ctx tree of all known certs wildcards sorted by name */
 #endif
