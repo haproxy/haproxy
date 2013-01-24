@@ -902,7 +902,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 		compress_min_idle = 100 - atoi(args[1]);
-		if (compress_min_idle < 0 || compress_min_idle > 100) {
+		if (compress_min_idle > 100) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument between 0 and 100.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
