@@ -1055,10 +1055,11 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 			} else {
 				if ((dst + maxsize - tmplog) < 4)
 					goto out;
-				tmplog = utoa_pad((unsigned int)s->logs.accept_date.tv_usec/1000,
-						  tmplog, 4);
-				if (!tmplog)
+				ret = utoa_pad((unsigned int)s->logs.accept_date.tv_usec/1000,
+				               tmplog, 4);
+				if (ret == NULL)
 					goto out;
+				tmplog = ret;
 				last_isspace = 0;
 			}
 			break;
