@@ -144,7 +144,10 @@ static void destroy_uxst_socket(const char *path)
 
 /* This function creates a UNIX socket associated to the listener. It changes
  * the state from ASSIGNED to LISTEN. The socket is NOT enabled for polling.
- * The return value is composed from ERR_NONE, ERR_RETRYABLE and ERR_FATAL.
+ * The return value is composed from ERR_NONE, ERR_RETRYABLE and ERR_FATAL. It
+ * may return a warning or an error message in <errmsg> if the message is at
+ * most <errlen> bytes long (including '\0'). Note that <errmsg> may be NULL if
+ * <errlen> is also zero.
  */
 static int uxst_bind_listener(struct listener *listener, char *errmsg, int errlen)
 {
@@ -158,7 +161,7 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	int ret;
 
 	/* ensure we never return garbage */
-	if (errmsg && errlen)
+	if (errlen)
 		*errmsg = 0;
 
 	if (listener->state != LI_ASSIGNED)

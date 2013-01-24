@@ -550,8 +550,9 @@ int tcp_connect_probe(struct connection *conn)
 
 
 /* This function tries to bind a TCPv4/v6 listener. It may return a warning or
- * an error message in <err> if the message is at most <errlen> bytes long
- * (including '\0'). The return value is composed from ERR_ABORT, ERR_WARN,
+ * an error message in <errmsg> if the message is at most <errlen> bytes long
+ * (including '\0'). Note that <errmsg> may be NULL if <errlen> is also zero.
+ * The return value is composed from ERR_ABORT, ERR_WARN,
  * ERR_ALERT, ERR_RETRYABLE and ERR_FATAL. ERR_NONE indicates that everything
  * was alright and that no message was returned. ERR_RETRYABLE means that an
  * error occurred but that it may vanish after a retry (eg: port in use), and
@@ -568,7 +569,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	const char *msg = NULL;
 
 	/* ensure we never return garbage */
-	if (errmsg && errlen)
+	if (errlen)
 		*errmsg = 0;
 
 	if (listener->state != LI_ASSIGNED)
