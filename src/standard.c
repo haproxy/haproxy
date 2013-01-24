@@ -1567,7 +1567,7 @@ const char *quote_arg(const char *ptr)
 	if (!ptr || !*ptr)
 		return "end of line";
 	val[0] = '\'';
-	for (i = 1; i < sizeof(val) - 1 && *ptr; i++)
+	for (i = 1; i < sizeof(val) - 2 && *ptr; i++)
 		val[i] = *ptr++;
 	val[i++] = '\'';
 	val[i] = '\0';
