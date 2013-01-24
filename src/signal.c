@@ -37,7 +37,7 @@ int signal_pending = 0; /* non-zero if t least one signal remains unprocessed */
  */
 void signal_handler(int sig)
 {
-	if (sig < 0 || sig > MAX_SIGNAL) {
+	if (sig < 0 || sig >= MAX_SIGNAL) {
 		/* unhandled signal */
 		signal(sig, SIG_IGN);
 		qfprintf(stderr, "Received unhandled signal %d. Signal has been disabled.\n", sig);
@@ -142,7 +142,7 @@ struct sig_handler *signal_register_fct(int sig, void (*fct)(struct sig_handler 
 {
 	struct sig_handler *sh;
 
-	if (sig < 0 || sig > MAX_SIGNAL)
+	if (sig < 0 || sig >= MAX_SIGNAL)
 		return NULL;
 
 	if (sig)
@@ -174,7 +174,7 @@ struct sig_handler *signal_register_task(int sig, struct task *task, int reason)
 {
 	struct sig_handler *sh;
 
-	if (sig < 0 || sig > MAX_SIGNAL)
+	if (sig < 0 || sig >= MAX_SIGNAL)
 		return NULL;
 
 	if (sig)
@@ -213,7 +213,7 @@ void signal_unregister_target(int sig, void *target)
 {
 	struct sig_handler *sh, *shb;
 
-	if (sig < 0 || sig > MAX_SIGNAL)
+	if (sig < 0 || sig >= MAX_SIGNAL)
 		return;
 
 	if (!target)
