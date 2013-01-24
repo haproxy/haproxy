@@ -247,12 +247,19 @@ struct uri_auth *stats_add_auth(struct uri_auth **root, char *user)
 		return NULL;
 
 	newuser->user = strdup(user);
-	newuser->pass = strdup(pass);
-	newuser->flags |= AU_O_INSECURE;
-
-	if (!newuser->user || !newuser->user)
+	if (!newuser->user) {
+		free(newuser);
 		return NULL;
+	}
 
+	newuser->pass = strdup(pass);
+	if (!newuser->pass) {
+		free(newuser->user);
+		free(newuser);
+		return NULL;
+	}
+
+	newuser->flags |= AU_O_INSECURE;
 	newuser->next = u->userlist->users;
 	u->userlist->users = newuser;
 
