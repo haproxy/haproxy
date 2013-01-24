@@ -4275,12 +4275,6 @@ stats_error_parsing:
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
-				if (val < 0) {
-					Alert("parsing [%s:%d]: invalid value %d for argument '%s' of server %s.\n",
-					      file, linenum, val, args[cur_arg], newsrv->id);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
 				newsrv->slowstart = (val + 999) / 1000;
 				cur_arg += 2;
 			}
