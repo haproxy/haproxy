@@ -5111,7 +5111,7 @@ source <addr>[:<port>] [interface <name>]
               This is the name of a comma-separated header list which can
               contain multiple IP addresses. By default, the last occurrence is
               used. This is designed to work with the X-Forwarded-For header
-              and to automatically bind to the the client's IP address as seen
+              and to automatically bind to the client's IP address as seen
               by previous proxy, typically Stunnel. In order to use another
               occurrence from the last one, please see the <occ> parameter
               below. When the header (or occurrence) is not found, no binding
@@ -9514,8 +9514,8 @@ The list of currently supported pattern fetch functions is the following :
                If no entry specified, returns the full distinguished name of
                the issuer of the certificate presented by the client when
                the incoming connection was made over an SSL/TLS transport
-               layer. Otherwise returns the the value of the first given entry
-               found from the the beginning of the DN. If a positive/negative
+               layer. Otherwise returns the value of the first given entry
+               found from the beginning of the DN. If a positive/negative
                occurrence number is specified as the optional second argument,
                it returns the value of the nth given entry found from the
                beginning/end of the DN. For instance to retrieve the common
@@ -9541,8 +9541,8 @@ The list of currently supported pattern fetch functions is the following :
                If no entry specified, returns the full distinguished name of
                the subject of the certificate presented by the client when
                the incoming connection was made over an SSL/TLS transport
-               layer. Otherwise returns the the value of the first given entry
-               found from the the beginning of the DN. If a positive/negative
+               layer. Otherwise returns the value of the first given entry
+               found from the beginning of the DN. If a positive/negative
                occurrence number is specified as the optional second argument,
                it returns the value of the nth given entry found from the
                beginning/end of the DN. For instance to retrieve the common
@@ -9575,8 +9575,8 @@ The list of currently supported pattern fetch functions is the following :
                If no entry specified, returns the full distinguished name of
                the issuer of the certificate presented by the frontend when
                the incoming connection was made over an SSL/TLS transport
-               layer. Otherwise returns the the value of the first given entry
-               found from the the beginning of the DN. If a positive/negative
+               layer. Otherwise returns the value of the first given entry
+               found from the beginning of the DN. If a positive/negative
                occurrence number is specified as the optional second argument,
                it returns the value of the nth given entry found from the
                beginning/end of the DN. For instance to retrieve the common
@@ -9602,8 +9602,8 @@ The list of currently supported pattern fetch functions is the following :
                If no entry specified, returns the full distinguished name of
                the subject of the certificate presented by the frontend when
                the incoming connection was made over an SSL/TLS transport
-               layer. Otherwise returns the the value of the first given entry
-               found from the the beginning of the DN. If a positive/negative
+               layer. Otherwise returns the value of the first given entry
+               found from the beginning of the DN. If a positive/negative
                occurrence number is specified as the optional second argument,
                it returns the value of the nth given entry found from the
                beginning/end of the DN. For instance to retrieve the common
