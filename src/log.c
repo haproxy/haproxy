@@ -362,9 +362,9 @@ void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct pro
  *  str: the string to parse
  *  curproxy: the proxy affected
  *  list_format: the destination list
- *  capabilities: PR_MODE_TCP_ | PR_MODE_HTTP
+ *  options: LOG_OPT_* to force on every node
  */
-void parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list *list_format, int capabilities)
+void parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list *list_format, int options)
 {
 	char *sp, *str, *backfmt; /* start pointer for text parts */
 	char *arg = NULL; /* start pointer for args */
@@ -374,7 +374,6 @@ void parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list
 	int cformat; /* current token format */
 	int pformat; /* previous token format */
 	struct logformat_node *tmplf, *back;
-	int options = 0;
 
 	sp = str = backfmt = strdup(fmt);
 	curproxy->to_log |= LW_INIT;
@@ -593,13 +592,18 @@ char *lf_text_len(char *dst, const char *src, size_t len, size_t size, struct lo
 		size--;
 	}
 
-	if (src) {
+	if (src && len) {
 		if (++len > size)
 			len = size;
 		len = strlcpy2(dst, src, len);
 
 		size -= len;
 		dst += len;
+	}
+	else if ((node->options & (LOG_OPT_QUOTE|LOG_OPT_MANDATORY)) == LOG_OPT_MANDATORY) {
+		if (size < 2)
+			return NULL;
+		*(dst++) = '-';
 	}
 
 	if (node->options & LOG_OPT_QUOTE) {
@@ -908,9 +912,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 					key = sample_fetch_string(be, s, txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, tmp->expr);
 				if (!key && (tmp->options & LOG_OPT_RES_CAP))
 					key = sample_fetch_string(be, s, txn, SMP_OPT_DIR_RES|SMP_OPT_FINAL, tmp->expr);
-				if (!key)
-					break;
-				ret = lf_text_len(tmplog, key->data.str.str, key->data.str.len, dst + maxsize - tmplog, tmp);
+				ret = lf_text_len(tmplog, key ? key->data.str.str : NULL, key ? key->data.str.len : 0, dst + maxsize - tmplog, tmp);
 				if (ret == 0)
 					goto out;
 				tmplog = ret;

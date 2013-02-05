@@ -6365,10 +6365,10 @@ out_uri_auth_compat:
 		}
 
 		if (curproxy->logformat_string)
-			parse_logformat_string(curproxy->logformat_string, curproxy, &curproxy->logformat, curproxy->mode);
+			parse_logformat_string(curproxy->logformat_string, curproxy, &curproxy->logformat, LOG_OPT_MANDATORY);
 
 		if (curproxy->uniqueid_format_string)
-			parse_logformat_string(curproxy->uniqueid_format_string, curproxy, &curproxy->format_unique_id, PR_MODE_HTTP);
+			parse_logformat_string(curproxy->uniqueid_format_string, curproxy, &curproxy->format_unique_id, 0);
 
 		/* first, we will invert the servers list order */
 		newsrv = NULL;

@@ -8109,7 +8109,7 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		rule->arg.hdr_add.name = strdup(args[cur_arg]);
 		rule->arg.hdr_add.name_len = strlen(rule->arg.hdr_add.name);
 		LIST_INIT(&rule->arg.hdr_add.fmt);
-		parse_logformat_string(args[cur_arg + 1], proxy, &rule->arg.hdr_add.fmt, PR_MODE_HTTP);
+		parse_logformat_string(args[cur_arg + 1], proxy, &rule->arg.hdr_add.fmt, LOG_OPT_MANDATORY);
 		cur_arg += 2;
 	} else if (strcmp(args[0], "redirect") == 0) {
 		struct redirect_rule *redir;
