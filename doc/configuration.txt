@@ -11439,18 +11439,19 @@ set timeout cli <delay>
 set weight <backend>/<server> <weight>[%]
   Change a server's weight to the value passed in argument. If the value ends
   with the '%' sign, then the new weight will be relative to the initially
-  configured weight. Relative weights are only permitted between 0 and 100%,
-  and absolute weights are permitted between 0 and 256. Servers which are part
-  of a farm running a static load-balancing algorithm have stricter limitations
-  because the weight cannot change once set. Thus for these servers, the only
-  accepted values are 0 and 100% (or 0 and the initial weight). Changes take
-  effect immediately, though certain LB algorithms require a certain amount of
-  requests to consider changes. A typical usage of this command is to disable
-  a server during an update by setting its weight to zero, then to enable it
-  again after the update by setting it back to 100%. This command is restricted
-  and can only be issued on sockets configured for level "admin". Both the
-  backend and the server may be specified either by their name or by their
-  numeric ID, prefixed with a sharp ('#').
+  configured weight.  Absolute weights are permitted between 0 and 256.
+  Relative weights must be positive with the resulting absolute weight is
+  capped at 256.  Servers which are part of a farm running a static
+  load-balancing algorithm have stricter limitations because the weight
+  cannot change once set. Thus for these servers, the only accepted values
+  are 0 and 100% (or 0 and the initial weight). Changes take effect
+  immediately, though certain LB algorithms require a certain amount of
+  requests to consider changes. A typical usage of this command is to
+  disable a server during an update by setting its weight to zero, then to
+  enable it again after the update by setting it back to 100%. This command
+  is restricted and can only be issued on sockets configured for level
+  "admin". Both the backend and the server may be specified either by their
+  name or by their numeric ID, prefixed with a sharp ('#').
 
 show errors [<iid>]
   Dump last known request and response errors collected by frontends and

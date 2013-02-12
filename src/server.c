@@ -176,9 +176,14 @@ const char *server_parse_weight_change_request(struct server *sv,
 
 	w = atoi(weight_str);
 	if (strchr(weight_str, '%') != NULL) {
-		if (w < 0 || w > 100)
+		if (w < 0)
 			return "Relative weight must be positive.\n";
+		/* Avoid integer overflow */
+		if (w > 25600)
+			w = 25600;
 		w = sv->iweight * w / 100;
+		if (w > 256)
+			w = 256;
 	}
 	else if (w < 0 || w > 256)
 		return "Absolute weight can only be between 0 and 256 inclusive.\n";
