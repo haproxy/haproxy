@@ -164,7 +164,8 @@ const char *server_parse_weight_change_request(struct server *sv,
 					       const char *weight_str)
 {
 	struct proxy *px;
-	int w;
+	long int w;
+	char *end;
 
 	px = sv->proxy;
 
@@ -174,8 +175,10 @@ const char *server_parse_weight_change_request(struct server *sv,
 	if (!*weight_str)
 		return "Require <weight> or <weight%>.\n";
 
-	w = atoi(weight_str);
-	if (strchr(weight_str, '%') != NULL) {
+	w = strtol(weight_str, &end, 10);
+	if (end == weight_str)
+		return "Empty weight string empty or preceded by garbage";
+	else if (end[0] == '%' && end[1] == '\0') {
 		if (w < 0)
 			return "Relative weight must be positive.\n";
 		/* Avoid integer overflow */
@@ -187,6 +190,8 @@ const char *server_parse_weight_change_request(struct server *sv,
 	}
 	else if (w < 0 || w > 256)
 		return "Absolute weight can only be between 0 and 256 inclusive.\n";
+	else if (end[0] != '\0')
+		return "Trailing garbage in weight string";
 
 	if (w && w != sv->iweight && !(px->lbprm.algo & BE_LB_PROP_DYN))
 		return "Backend is using a static LB algorithm and only accepts weights '0%' and '100%'.\n";
