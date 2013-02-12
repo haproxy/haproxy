@@ -198,7 +198,7 @@ static void server_status_printf(struct chunk *msg, struct server *s, unsigned o
  * Show information in logs about failed health check if server is UP
  * or succeeded health checks if server is DOWN.
  */
-static void set_server_check_status(struct server *s, short status, char *desc)
+static void set_server_check_status(struct server *s, short status, const char *desc)
 {
 	if (status == HCHK_STATUS_START) {
 		s->result = SRV_CHK_UNKNOWN;	/* no result yet */
