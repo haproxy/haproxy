@@ -593,7 +593,7 @@ all:
 	@echo
 	@exit 1
 else
-all: haproxy
+all: haproxy haproxy-systemd-wrapper
 endif
 
 OBJS = src/haproxy.o src/sessionhash.o src/base64.o src/protocol.o \
@@ -618,10 +618,15 @@ ifneq ($(TRACE),)
 OBJS += src/trace.o
 endif
 
+WRAPPER_OBJS = src/haproxy-systemd-wrapper.o
+
 # Not used right now
 LIB_EBTREE = $(EBTREE_DIR)/libebtree.a
 
 haproxy: $(OBJS) $(OPTIONS_OBJS) $(EBTREE_OBJS)
+	$(LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
+
+haproxy-systemd-wrapper: $(WRAPPER_OBJS)
 	$(LD) $(LDFLAGS) -o $@ $^ $(LDOPTS)
 
 $(LIB_EBTREE): $(EBTREE_OBJS)
@@ -646,6 +651,11 @@ src/haproxy.o:	src/haproxy.c
 	      -DBUILD_OPTIONS='"$(strip $(BUILD_OPTIONS))"' \
 	       -c -o $@ $<
 
+src/haproxy-systemd-wrapper.o:	src/haproxy-systemd-wrapper.c
+	$(CC) $(COPTS) \
+	      -DSBINDIR='"$(strip $(SBINDIR))"' \
+	       -c -o $@ $<
+
 src/dlmalloc.o: $(DLMALLOC_SRC)
 	$(CC) $(COPTS) -DDEFAULT_MMAP_THRESHOLD=$(DLMALLOC_THRES) -c -o $@ $<
 
@@ -659,9 +669,10 @@ install-doc:
 		install -m 644 doc/$$x.txt $(DESTDIR)$(DOCDIR) ; \
 	done
 
-install-bin: haproxy
+install-bin: haproxy haproxy-systemd-wrapper
 	install -d $(DESTDIR)$(SBINDIR)
 	install haproxy $(DESTDIR)$(SBINDIR)
+	install haproxy-systemd-wrapper $(DESTDIR)$(SBINDIR)
 
 install: install-bin install-man install-doc
 
@@ -670,6 +681,7 @@ clean:
 	for dir in . src include/* doc ebtree; do rm -f $$dir/*~ $$dir/*.rej $$dir/core; done
 	rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION)$(SUBVERS).tar.gz
 	rm -f haproxy-$(VERSION) nohup.out gmon.out
+	rm -f haproxy-systemd-wrapper
 
 tags:
 	find src include \( -name '*.c' -o -name '*.h' \) -print0 | \
