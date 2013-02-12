@@ -25,6 +25,7 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
+#include <stdbool.h>
 
 #include <common/chunk.h>
 #include <common/compat.h>
@@ -37,6 +38,7 @@
 
 #include <proto/backend.h>
 #include <proto/checks.h>
+#include <proto/dumpstats.h>
 #include <proto/fd.h>
 #include <proto/log.h>
 #include <proto/queue.h>
@@ -965,6 +967,55 @@ static void event_srv_chk_r(struct connection *conn)
 		else
 			set_server_check_status(s, HCHK_STATUS_L7STS, desc);
 		break;
+
+	case PR_O2_LB_AGENT_CHK: {
+		short status = HCHK_STATUS_L7RSP;
+		const char *desc = "Unknown feedback string";
+		const char *down_cmd = NULL;
+
+		if (!done)
+			goto wait_more_data;
+
+		cut_crlf(s->check.bi->data);
+
+		if (strchr(s->check.bi->data, '%')) {
+			desc = server_parse_weight_change_request(s, s->check.bi->data);
+			if (!desc) {
+				status = HCHK_STATUS_L7OKD;
+				desc = s->check.bi->data;
+			}
+		} else if (!strcasecmp(s->check.bi->data, "drain")) {
+			desc = server_parse_weight_change_request(s, "0%");
+			if (!desc) {
+				desc = "drain";
+				status = HCHK_STATUS_L7OKD;
+			}
+		} else if (!strncasecmp(s->check.bi->data, "down", strlen("down"))) {
+			down_cmd = "down";
+		} else if (!strncasecmp(s->check.bi->data, "stopped", strlen("stopped"))) {
+			down_cmd = "stopped";
+		} else if (!strncasecmp(s->check.bi->data, "fail", strlen("fail"))) {
+			down_cmd = "fail";
+		}
+
+		if (down_cmd) {
+			const char *end = s->check.bi->data + strlen(down_cmd);
+			/*
+			 * The command keyword must terminated the string or
+			 * be followed by a blank.
+			 */
+			if (end[0] == '\0' || isblank(end[0])) {
+				status = HCHK_STATUS_L7STS;
+				/* Skip over leading blanks */
+				while (end[0] != '\0' && isblank(end[0]))
+					end++;
+				desc = end;
+			}
+		}
+
+		set_server_check_status(s, status, desc);
+		break;
+	}
 
 	case PR_O2_PGSQL_CHK:
 		if (!done && s->check.bi->i < 9)

@@ -72,6 +72,7 @@ struct peer {
 		int line;	  /* line where the section appears */
 	} conf;		  	  /* config information */
 	time_t last_change;
+	time_t last_slowstart_change;
 	struct sockaddr_storage addr;  /* peer address */
 	struct protocol *proto;	       /* peer address protocol */
 	struct xprt_ops *xprt;         /* peer socket operations at transport layer */
