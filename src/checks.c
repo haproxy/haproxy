@@ -1388,16 +1388,6 @@ static struct task *process_chk(struct task *t)
 		 * which can happen on connect timeout or error.
 		 */
 		if (s->result == SRV_CHK_UNKNOWN) {
-			if (expired && conn->xprt) {
-				/* the check expired and the connection was not
-				 * yet closed, start by doing this.
-				 */
-				if (conn->ctrl)
-					setsockopt(conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
-						   (struct linger *) &nolinger, sizeof(struct linger));
-				conn_full_close(conn);
-			}
-
 			if ((conn->flags & (CO_FL_CONNECTED|CO_FL_WAIT_L4_CONN)) == CO_FL_WAIT_L4_CONN) {
 				/* L4 not established (yet) */
 				if (conn->flags & CO_FL_ERROR)
@@ -1432,6 +1422,18 @@ static struct task *process_chk(struct task *t)
 		}
 
 		/* check complete or aborted */
+
+		if (conn->xprt) {
+			/* The check was aborted and the connection was not yet closed.
+			 * This can happen upon timeout, or when an external event such
+			 * as a failed response coupled with "observe layer7" caused the
+			 * server state to be suddenly changed.
+			 */
+			if (conn->ctrl)
+				setsockopt(conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
+					   (struct linger *) &nolinger, sizeof(struct linger));
+			conn_full_close(conn);
+		}
 
 		if (s->result & SRV_CHK_FAILED) {    /* a failure or timeout detected */
 			if (s->health > s->rise) {
