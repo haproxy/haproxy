@@ -59,6 +59,13 @@ struct srv_kw *srv_find_kw(const char *kw);
 void srv_dump_kws(char **out);
 
 /*
+ * Parses weight_str and configures sv accordingly.
+ * Returns NULL on success, error message string otherwise.
+ */
+const char *server_parse_weight_change_request(struct server *sv,
+					       const char *weight_str);
+
+/*
  * Local variables:
  *  c-indent-level: 8
  *  c-basic-offset: 8
