@@ -7126,14 +7126,13 @@ id <id>
   option can only be used when defining only a single socket.
 
 interface <interface>
-  Sets the name of the network interface to listen. This is currently only
-  supported on Linux. The interface must be a primary system interface, not an
-  aliased interface. When specified, all addresses on the same line will only
-  be accepted if the incoming packets physically come through the designated
-  interface. It is also possible to bind multiple frontends to the same address
-  if they are bound to different interfaces.  Note that binding to a network
-  interface requires root privileges. This parameter is only compatible with
-  TCPv4/TCPv6 sockets.
+  Restricts the socket to a specific interface. When specified, only packets
+  received from that particular interface are processed by the socket. This is
+  currently only supported on Linux. The interface must be a primary system
+  interface, not an aliased interface. It is also possible to bind multiple
+  frontends to the same address if they are bound to different interfaces. Note
+  that binding to a network interface requires root privileges. This parameter
+  is only compatible with TCPv4/TCPv6 sockets.
 
 level <level>
   This setting is used with the stats sockets only to restrict the nature of
