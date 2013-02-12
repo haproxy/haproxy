@@ -51,6 +51,7 @@ There are only a few command line options :
        = 'maxconn' in 'listen' or 'default' sections
     -d starts in foregreound with debugging mode enabled
     -D starts in daemon mode
+    -Ds starts in systemd daemon mode
     -q disable messages on output
     -V displays messages on output even when -q or 'quiet' are specified.
     -c only checks config file and exits with code 0 if no error was found, or

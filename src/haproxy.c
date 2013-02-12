@@ -42,6 +42,7 @@
 #include <signal.h>
 #include <stdarg.h>
 #include <sys/resource.h>
+#include <sys/wait.h>
 #include <time.h>
 #include <syslog.h>
 #include <grp.h>
@@ -539,8 +540,11 @@ void init(int argc, char **argv)
 				arg_mode |= MODE_DEBUG;
 			else if (*flag == 'c')
 				arg_mode |= MODE_CHECK;
-			else if (*flag == 'D')
+			else if (*flag == 'D') {
 				arg_mode |= MODE_DAEMON;
+				if (flag[1] == 's')  /* -Ds */
+					arg_mode |= MODE_SYSTEMD;
+			}
 			else if (*flag == 'q')
 				arg_mode |= MODE_QUIET;
 			else if (*flag == 's' && (flag[1] == 'f' || flag[1] == 't')) {
@@ -594,7 +598,7 @@ void init(int argc, char **argv)
 	}
 
 	global.mode = MODE_STARTING | /* during startup, we want most of the alerts */
-		(arg_mode & (MODE_DAEMON | MODE_FOREGROUND | MODE_VERBOSE
+		(arg_mode & (MODE_DAEMON | MODE_SYSTEMD | MODE_FOREGROUND | MODE_VERBOSE
 			     | MODE_QUIET | MODE_CHECK | MODE_DEBUG));
 
 	if (LIST_ISEMPTY(&cfg_cfgfiles))
@@ -733,24 +737,24 @@ void init(int argc, char **argv)
 
 	if (arg_mode & (MODE_DEBUG | MODE_FOREGROUND)) {
 		/* command line debug mode inhibits configuration mode */
-		global.mode &= ~(MODE_DAEMON | MODE_QUIET);
+		global.mode &= ~(MODE_DAEMON | MODE_SYSTEMD | MODE_QUIET);
 		global.mode |= (arg_mode & (MODE_DEBUG | MODE_FOREGROUND));
 	}
 
-	if (arg_mode & MODE_DAEMON) {
+	if (arg_mode & (MODE_DAEMON | MODE_SYSTEMD)) {
 		/* command line daemon mode inhibits foreground and debug modes mode */
 		global.mode &= ~(MODE_DEBUG | MODE_FOREGROUND);
-		global.mode |= (arg_mode & MODE_DAEMON);
+		global.mode |= (arg_mode & (MODE_DAEMON | MODE_SYSTEMD));
 	}
 
 	global.mode |= (arg_mode & (MODE_QUIET | MODE_VERBOSE));
 
-	if ((global.mode & MODE_DEBUG) && (global.mode & (MODE_DAEMON | MODE_QUIET))) {
-		Warning("<debug> mode incompatible with <quiet> and <daemon>. Keeping <debug> only.\n");
-		global.mode &= ~(MODE_DAEMON | MODE_QUIET);
+	if ((global.mode & MODE_DEBUG) && (global.mode & (MODE_DAEMON | MODE_SYSTEMD | MODE_QUIET))) {
+		Warning("<debug> mode incompatible with <quiet>, <daemon> and <systemd>. Keeping <debug> only.\n");
+		global.mode &= ~(MODE_DAEMON | MODE_SYSTEMD | MODE_QUIET);
 	}
 
-	if ((global.nbproc > 1) && !(global.mode & MODE_DAEMON)) {
+	if ((global.nbproc > 1) && !(global.mode & (MODE_DAEMON | MODE_SYSTEMD))) {
 		if (!(global.mode & (MODE_FOREGROUND | MODE_DEBUG)))
 			Warning("<nbproc> is only meaningful in daemon mode. Setting limit to 1 process.\n");
 		global.nbproc = 1;
@@ -1355,7 +1359,7 @@ int main(int argc, char **argv)
 	}
 
 	/* open log & pid files before the chroot */
-	if (global.mode & MODE_DAEMON && global.pidfile != NULL) {
+	if (global.mode & (MODE_DAEMON | MODE_SYSTEMD) && global.pidfile != NULL) {
 		unlink(global.pidfile);
 		pidfd = open(global.pidfile, O_CREAT | O_WRONLY | O_TRUNC, 0644);
 		if (pidfd < 0) {
@@ -1443,9 +1447,10 @@ int main(int argc, char **argv)
 			argv[0], (int)limit.rlim_cur, global.maxconn, global.maxsock, global.maxsock);
 	}
 
-	if (global.mode & MODE_DAEMON) {
+	if (global.mode & (MODE_DAEMON | MODE_SYSTEMD)) {
 		struct proxy *px;
 		int ret = 0;
+		int *children = calloc(global.nbproc, sizeof(int));
 		int proc;
 
 		/* the father launches the required number of processes */
@@ -1458,6 +1463,7 @@ int main(int argc, char **argv)
 			}
 			else if (ret == 0) /* child breaks here */
 				break;
+			children[proc] = ret;
 			if (pidfd >= 0) {
 				char pidstr[100];
 				snprintf(pidstr, sizeof(pidstr), "%d\n", ret);
@@ -1493,8 +1499,13 @@ int main(int argc, char **argv)
 			px = px->next;
 		}
 
-		if (proc == global.nbproc)
+		if (proc == global.nbproc) {
+			if (global.mode & MODE_SYSTEMD) {
+				for (proc = 0; proc < global.nbproc; proc++)
+					while (waitpid(children[proc], NULL, 0) == -1 && errno == EINTR);
+			}
 			exit(0); /* parent must leave */
+		}
 
 		/* if we're NOT in QUIET mode, we should now close the 3 first FDs to ensure
 		 * that we can detach from the TTY. We MUST NOT do it in other cases since

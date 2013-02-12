@@ -53,6 +53,7 @@ Les options de lancement sont peu nombreuses :
        = 'maxconn' dans les sections 'listen' ou 'default'
     -d active le mode debug
     -D passe en daemon
+    -Ds passe en daemon systemd
     -q désactive l'affichage de messages sur la sortie standard.
     -V affiche les messages sur la sortie standard, même si -q ou 'quiet' sont
        spécifiés.
