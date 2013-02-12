@@ -3992,7 +3992,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
  * external abort, we won't call the i/o handler anymore so we may need to
  * remove back references to the session currently being dumped.
  */
-void cli_release_handler(struct stream_interface *si)
+static void cli_release_handler(struct stream_interface *si)
 {
 	if (si->applet.st0 == STAT_CLI_O_SESS && si->conn->xprt_st == STAT_ST_LIST) {
 		if (!LIST_ISEMPTY(&si->applet.ctx.sess.bref.users))
