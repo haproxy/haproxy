@@ -1004,10 +1004,10 @@ static void event_srv_chk_r(struct connection *conn)
 			 * The command keyword must terminated the string or
 			 * be followed by a blank.
 			 */
-			if (end[0] == '\0' || isblank(end[0])) {
+			if (end[0] == '\0' || end[0] == ' ' || end[0] == '\t') {
 				status = HCHK_STATUS_L7STS;
 				/* Skip over leading blanks */
-				while (end[0] != '\0' && isblank(end[0]))
+				while (end[0] != '\0' && (end[0] == ' ' || end[0] == '\t'))
 					end++;
 				desc = end;
 			}
