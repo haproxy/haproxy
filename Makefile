@@ -64,6 +64,8 @@
 #   DLMALLOC_SRC   : build with dlmalloc, indicate the location of dlmalloc.c.
 #   DLMALLOC_THRES : should match PAGE_SIZE on every platform (default: 4096).
 #   PCREDIR        : force the path to libpcre.
+#   PCRE_LIB       : force the lib path to libpcre (defaults to $PCREDIR/lib).
+#   PCRE_INC       : force the include path to libpcre ($PCREDIR/inc)
 #   IGNOREGIT      : ignore GIT commit versions if set.
 #   VERSION        : force haproxy version reporting.
 #   SUBVERS        : add a sub-version (eg: platform, model, ...).
@@ -519,29 +521,31 @@ endif
 endif
 endif
 
-ifneq ($(USE_PCRE),)
-# PCREDIR is the directory hosting include/pcre.h and lib/libpcre.*. It is
-# automatically detected but can be forced if required. Forcing it to an empty
-# string will result in search only in the default paths.
-ifeq ($(PCREDIR),)
+ifneq ($(USE_PCRE)$(USE_STATIC_PCRE),)
+# PCREDIR is used to automatically construct the PCRE_INC and PCRE_LIB paths,
+# by appending /include and /lib respectively. If your system does not use the
+# same sub-directories, simply force these variables instead of PCREDIR. It is
+# automatically detected but can be forced if required (for cross-compiling).
+# Forcing PCREDIR to an empty string will let the compiler use the default
+# locations.
+
 PCREDIR	        := $(shell pcre-config --prefix 2>/dev/null || echo /usr/local)
-endif
-ifeq ($(USE_STATIC_PCRE),)
-OPTIONS_CFLAGS  += -DUSE_PCRE $(if $(PCREDIR),-I$(PCREDIR)/include)
-OPTIONS_LDFLAGS += $(if $(PCREDIR),-L$(PCREDIR)/lib) -lpcreposix -lpcre
-endif
-BUILD_OPTIONS   += $(call ignore_implicit,USE_PCRE)
+ifneq ($(PCREDIR),)
+PCRE_INC        := $(PCREDIR)/include
+PCRE_LIB        := $(PCREDIR)/lib
 endif
 
-ifneq ($(USE_STATIC_PCRE),)
-# PCREDIR is the directory hosting include/pcre.h and lib/libpcre.*. It is
-# automatically detected but can be forced if required.
-ifeq ($(PCREDIR),)
-PCREDIR         := $(shell pcre-config --prefix 2>/dev/null || echo /usr/local)
-endif
-OPTIONS_CFLAGS  += -DUSE_PCRE $(if $(PCREDIR),-I$(PCREDIR)/include)
-OPTIONS_LDFLAGS += $(if $(PCREDIR),-L$(PCREDIR)/lib) -Wl,-Bstatic -lpcreposix -lpcre -Wl,-Bdynamic
+ifeq ($(USE_STATIC_PCRE),)
+# dynamic PCRE
+OPTIONS_CFLAGS  += -DUSE_PCRE $(if $(PCRE_INC),-I$(PCRE_INC))
+OPTIONS_LDFLAGS += $(if $(PCRE_LIB),-L$(PCRE_LIB)) -lpcreposix -lpcre
+BUILD_OPTIONS   += $(call ignore_implicit,USE_PCRE)
+else
+# static PCRE
+OPTIONS_CFLAGS  += -DUSE_PCRE $(if $(PCRE_INC),-I$(PCRE_INC))
+OPTIONS_LDFLAGS += $(if $(PCRE_LIB),-L$(PCRE_LIB)) -Wl,-Bstatic -lpcreposix -lpcre -Wl,-Bdynamic
 BUILD_OPTIONS   += $(call ignore_implicit,USE_STATIC_PCRE)
+endif
 endif
 
 # This one can be changed to look for ebtree files in an external directory
