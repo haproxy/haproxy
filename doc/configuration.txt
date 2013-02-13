@@ -7287,7 +7287,7 @@ strict-sni
   See the "crt" option for more information.
 
 tfo
-  Is an optional keyword which is supported only on Linux kernels >= 3.6. It
+  Is an optional keyword which is supported only on Linux kernels >= 3.7. It
   enables TCP Fast Open on the listening socket, which means that clients which
   support this feature will be able to send a request and receive a response
   during the 3-way handshake starting from second connection, thus saving one

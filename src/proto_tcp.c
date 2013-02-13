@@ -1776,7 +1776,7 @@ static int bind_parse_defer_accept(char **args, int cur_arg, struct proxy *px, s
 #endif
 
 #ifdef TCP_FASTOPEN
-/* parse the "defer-accept" bind keyword */
+/* parse the "tfo" bind keyword */
 static int bind_parse_tfo(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	struct listener *l;
