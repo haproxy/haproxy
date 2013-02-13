@@ -16,3 +16,4 @@ haproxy-*
 make-*
 dlmalloc.c
 00*.patch
+*.service
