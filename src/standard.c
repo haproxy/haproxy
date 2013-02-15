@@ -600,7 +600,8 @@ struct sockaddr_storage *str2ip(const char *str)
 			}
 		}
 
-		freeaddrinfo(result);
+		if (result)
+			freeaddrinfo(result);
 	}
 #endif
 	/* unsupported address family */
