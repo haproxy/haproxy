@@ -114,6 +114,7 @@ struct url_stat {
 			      FILT_COUNT_URL_BAVG|FILT_COUNT_URL_BTOT)
 
 #define FILT_COUNT_COOK_CODES 0x40000000
+#define FILT_COUNT_IP_COUNT   0x80000000
 
 unsigned int filter = 0;
 unsigned int filter_invert = 0;
@@ -126,6 +127,7 @@ int lines_max = -1;
 const char *fgets2(FILE *stream);
 
 void filter_count_url(const char *accept_field, const char *time_field, struct timer **tptr);
+void filter_count_ip(const char *source_field, const char *accept_field, const char *time_field, struct timer **tptr);
 void filter_count_srv_status(const char *accept_field, const char *time_field, struct timer **tptr);
 void filter_count_cook_codes(const char *accept_field, const char *time_field, struct timer **tptr);
 void filter_count_term_codes(const char *accept_field, const char *time_field, struct timer **tptr);
@@ -140,7 +142,7 @@ void usage(FILE *output, const char *msg)
 		"%s"
 		"Usage: halog [-h|--help] for long help\n"
 		"       halog [-q] [-c] [-m <lines>]\n"
-		"       {-cc|-gt|-pct|-st|-tc|-srv|-u|-uc|-ue|-ua|-ut|-uao|-uto|-uba|-ubt}\n"
+		"       {-cc|-gt|-pct|-st|-tc|-srv|-u|-uc|-ue|-ua|-ut|-uao|-uto|-uba|-ubt|-ic}\n"
 		"       [-s <skip>] [-e|-E] [-H] [-rt|-RT <time>] [-ad <delay>] [-ac <count>]\n"
 		"       [-v] [-Q|-QS] [-tcn|-TCN <termcode>] [ -hs|-HS [min][:[max]] ] < log\n"
 		"\n",
@@ -527,7 +529,7 @@ void truncated_line(int linenum, const char *line)
 
 int main(int argc, char **argv)
 {
-	const char *b, *e, *p, *time_field, *accept_field;
+	const char *b, *e, *p, *time_field, *accept_field, *source_field;
 	const char *filter_term_code_name = NULL;
 	const char *output_file = NULL;
 	int f, last, err;
@@ -657,6 +659,8 @@ int main(int argc, char **argv)
 			filter |= FILT_COUNT_URL_BAVG;
 		else if (strcmp(argv[0], "-ubt") == 0)
 			filter |= FILT_COUNT_URL_BTOT;
+		else if (strcmp(argv[0], "-ic") == 0)
+			filter |= FILT_COUNT_IP_COUNT;
 		else if (strcmp(argv[0], "-o") == 0) {
 			if (output_file)
 				die("Fatal: output file name already specified.\n");
@@ -721,13 +725,21 @@ int main(int argc, char **argv)
 	while ((line = fgets2(stdin)) != NULL) {
 		linenum++;
 		time_field = NULL; accept_field = NULL;
+		source_field = NULL;
 
 		test = 1;
 
 		/* for any line we process, we first ensure that there is a field
 		 * looking like the accept date field (beginning with a '[').
 		 */
-		accept_field = field_start(line, ACCEPT_FIELD + skip_fields);
+		if (filter & FILT_COUNT_IP_COUNT) {
+			/* we need the IP first */
+			source_field = field_start(line, SOURCE_FIELD + skip_fields);
+			accept_field = field_start(source_field, ACCEPT_FIELD - SOURCE_FIELD + 1);
+		}
+		else
+			accept_field = field_start(line, ACCEPT_FIELD + skip_fields);
+
 		if (unlikely(*accept_field != '[')) {
 			parse_err++;
 			continue;
@@ -869,8 +881,12 @@ int main(int argc, char **argv)
 
 		/************** here we process inputs *******************/
 
-		if (line_filter)
-			line_filter(accept_field, time_field, &t);
+		if (line_filter) {
+			if (filter & FILT_COUNT_IP_COUNT)
+				filter_count_ip(source_field, accept_field, time_field, &t);
+			else
+				line_filter(accept_field, time_field, &t);
+		}
 		else
 			lines_out++; /* FILT_COUNT_ONLY was used, so we're just counting lines */
 		if (lines_max >= 0 && lines_out >= lines_max)
@@ -1047,7 +1063,7 @@ int main(int argc, char **argv)
 			n = eb32_next(n);
 		}
 	}
-	else if (filter & FILT_COUNT_URL_ANY) {
+	else if (filter & (FILT_COUNT_URL_ANY|FILT_COUNT_IP_COUNT)) {
 		struct eb_node *node, *next;
 
 		if (!(filter & FILT_COUNT_URL_ONLY)) {
@@ -1062,7 +1078,7 @@ int main(int argc, char **argv)
 
 				ustat = container_of(node, struct url_stat, node.url.node);
 
-				if (filter & FILT_COUNT_URL_COUNT)
+				if (filter & (FILT_COUNT_URL_COUNT|FILT_COUNT_IP_COUNT))
 					ustat->node.val.key = ustat->nb_req;
 				else if (filter & FILT_COUNT_URL_ERR)
 					ustat->node.val.key = ustat->nb_err;
@@ -1087,7 +1103,10 @@ int main(int argc, char **argv)
 			timers[0] = timers[1];
 		}
 
-		printf("#req err ttot tavg oktot okavg bavg btot url\n");
+		if (FILT_COUNT_IP_COUNT)
+			printf("#req err ttot tavg oktot okavg bavg btot src\n");
+		else
+			printf("#req err ttot tavg oktot okavg bavg btot url\n");
 
 		/* scan the tree in its reverse sorting order */
 		node = eb_last(&timers[0]);
@@ -1391,6 +1410,95 @@ void filter_count_url(const char *accept_field, const char *time_field, struct t
 	 * to it from the node we're trying to insert. If it returns a
 	 * different value, it was already there. Otherwise we just have
 	 * to dynamically realloc an entry using strdup().
+	 */
+	ustat->node.url.key = (char *)b;
+	ebpt_old = ebis_insert(&timers[0], &ustat->node.url);
+
+	if (ebpt_old != &ustat->node.url) {
+		struct url_stat *ustat_old;
+		/* node was already there, let's update previous one */
+		ustat_old = container_of(ebpt_old, struct url_stat, node.url);
+		ustat_old->nb_req ++;
+		ustat_old->nb_err += ustat->nb_err;
+		ustat_old->total_time += ustat->total_time;
+		ustat_old->total_time_ok += ustat->total_time_ok;
+		ustat_old->total_bytes_sent += ustat->total_bytes_sent;
+	} else {
+		ustat->url = ustat->node.url.key = strdup(ustat->node.url.key);
+		ustat = NULL; /* node was used */
+	}
+}
+
+void filter_count_ip(const char *source_field, const char *accept_field, const char *time_field, struct timer **tptr)
+{
+	struct url_stat *ustat = NULL;
+	struct ebpt_node *ebpt_old;
+	const char *b, *e;
+	int f, err, array[5];
+	int val;
+
+	/* let's collect the response time */
+	if (!time_field) {
+		time_field = field_start(accept_field, TIME_FIELD - ACCEPT_FIELD + 1);  // avg 115 ns per line
+		if (unlikely(!*time_field)) {
+			truncated_line(linenum, line);
+			return;
+		}
+	}
+
+	/* we have the field TIME_FIELD starting at <time_field>. We'll
+	 * parse the 5 timers to detect errors, it takes avg 55 ns per line.
+	 */
+	e = time_field; err = 0; f = 0;
+	while (!SEP(*e)) {
+		if (f == 0 || f == 4) {
+			array[f] = str2ic(e);
+			if (array[f] < 0) {
+				array[f] = -1;
+				err = 1;
+			}
+		}
+		if (++f == 5)
+			break;
+		SKIP_CHAR(e, '/');
+	}
+	if (f < 5) {
+		parse_err++;
+		return;
+	}
+
+	/* OK we have our timers in array[0], and err is >0 if at
+	 * least one -1 was seen. <e> points to the first char of
+	 * the last timer. Let's prepare a new node with that.
+	 */
+	if (unlikely(!ustat))
+		ustat = calloc(1, sizeof(*ustat));
+
+	ustat->nb_err = err;
+	ustat->nb_req = 1;
+
+	/* use array[4] = total time in case of error */
+	ustat->total_time = (array[0] >= 0) ? array[0] : array[4];
+	ustat->total_time_ok = (array[0] >= 0) ? array[0] : 0;
+
+	e = field_start(e, BYTES_SENT_FIELD - TIME_FIELD + 1);
+	val = str2ic(e);
+	ustat->total_bytes_sent = val;
+
+	/* the source might be IPv4 or IPv6, so we always strip the port by
+	 * removing the last colon.
+	 */
+	b = source_field;
+	e = field_stop(b + 1);
+	while (e > b && e[-1] != ':')
+		e--;
+	*(char *)(e - 1) = '\0';
+
+	/* now instead of copying the src for a simple lookup, we'll link
+	 * to it from the node we're trying to insert. If it returns a
+	 * different value, it was already there. Otherwise we just have
+	 * to dynamically realloc an entry using strdup(). We're using the
+	 * <url> field of the node to store the source address.
 	 */
 	ustat->node.url.key = (char *)b;
 	ebpt_old = ebis_insert(&timers[0], &ustat->node.url);
