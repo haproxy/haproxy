@@ -1480,9 +1480,8 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		curpeers->id = strdup(args[1]);
 	}
 	else if (strcmp(args[0], "peer") == 0) { /* peer definition */
-		char *rport, *raddr;
-		short realport = 0;
 		struct sockaddr_storage *sk;
+		int port1, port2;
 		char *err_msg = NULL;
 
 		if (!*args[2]) {
@@ -1517,26 +1516,27 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		newpeer->last_change = now.tv_sec;
 		newpeer->id = strdup(args[1]);
 
-		raddr = strdup(args[2]);
-		rport = strrchr(raddr, ':');
-		if (rport) {
-			*rport++ = 0;
-			realport = atol(rport);
-		}
-		if (!realport) {
-			Alert("parsing [%s:%d] : Missing or invalid port in '%s'\n", file, linenum, args[2]);
+		sk = str2sa_range(args[2], &port1, &port2);
+		if (!sk) {
+			Alert("parsing [%s:%d] : '%s %s' : unknown host in '%s'\n", file, linenum, args[0], args[1], args[2]);
 			err_code |= ERR_ALERT | ERR_FATAL;
-			free(raddr);
 			goto out;
 		}
 
-		sk = str2ip(raddr);
-		free(raddr);
-		if (!sk) {
-			Alert("parsing [%s:%d] : Unknown host in '%s'\n", file, linenum, args[2]);
+		if (port1 != port2) {
+			Alert("parsing [%s:%d] : '%s %s' : port ranges and offsets are not allowed in '%s'\n",
+			      file, linenum, args[0], args[1], args[2]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
+
+		if (!port1) {
+			Alert("parsing [%s:%d] : '%s %s' : missing or invalid port in '%s'\n",
+			      file, linenum, args[0], args[1], args[2]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
 		newpeer->addr = *sk;
 		newpeer->proto = protocol_by_family(newpeer->addr.ss_family);
 		newpeer->xprt  = &raw_sock;
@@ -1548,8 +1548,6 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
-
-		set_host_port(&newpeer->addr, realport);
 
 		if (strcmp(newpeer->id, localpeer) == 0) {
 			/* Current is local peer, it define a frontend */
