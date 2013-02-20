@@ -229,16 +229,6 @@ struct sockaddr_un *str2sun(const char *str);
 struct sockaddr_storage *str2ip(const char *str);
 
 /*
- * converts <str> to a locally allocated struct sockaddr_storage *.
- * The format is "addr[:[port]]", where "addr" can be a dotted IPv4 address, an
- * IPv6 address, a host name, or empty or "*" to indicate INADDR_ANY. If an IPv6
- * address wants to ignore port, it must be terminated by a trailing colon (':').
- * The IPv6 '::' address is IN6ADDR_ANY, so in order to bind to a given port on
- * IPv6, use ":::port". NULL is returned if the host part cannot be resolved.
- */
-struct sockaddr_storage *str2sa(const char *str);
-
-/*
  * converts <str> to a locally allocated struct sockaddr_storage *, and a
  * port range consisting in two integers. The low and high end are always set
  * even if the port is unspecified, in which case (0,0) is returned. The low

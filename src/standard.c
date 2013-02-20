@@ -610,89 +610,85 @@ struct sockaddr_storage *str2ip(const char *str)
 }
 
 /*
- * converts <str> to a locally allocated struct sockaddr_storage *.
- * The format is "addr[:[port]]", where "addr" can be a dotted IPv4 address, an
- * IPv6 address, a host name, or empty or "*" to indicate INADDR_ANY. If an IPv6
- * address wants to ignore port, it must be terminated by a trailing colon (':').
- * The IPv6 '::' address is IN6ADDR_ANY, so in order to bind to a given port on
- * IPv6, use ":::port". NULL is returned if the host part cannot be resolved.
- */
-struct sockaddr_storage *str2sa(const char *str)
-{
-	struct sockaddr_storage *ret = NULL;
-	char *str2;
-	char *c;
-	int port;
-
-	str2 = strdup(str);
-	if (str2 == NULL)
-		goto out;
-
-	if ((c = strrchr(str2, ':')) != NULL) { /* Port */
-		*c++ = '\0';
-		port = atol(c);
-	}
-	else
-		port = 0;
-
-	ret = str2ip(str2);
-	if (!ret)
-		goto out;
-
-	set_host_port(ret, port);
- out:
-	free(str2);
-	return ret;
-}
-
-/*
- * converts <str> to a locally allocated struct sockaddr_storage *, and a
- * port range consisting in two integers. The low and high end are always set
- * even if the port is unspecified, in which case (0,0) is returned. The low
- * port is set in the sockaddr. Thus, it is enough to check the size of the
- * returned range to know if an array must be allocated or not. The format is
- * "addr[:[port[-port]]]", where "addr" can be a dotted IPv4 address, an IPv6
- * address, a host name, or empty or "*" to indicate INADDR_ANY. If an IPv6
- * address wants to ignore port, it must be terminated by a trailing colon (':').
- * The IPv6 '::' address is IN6ADDR_ANY, so in order to bind to a given port on
- * IPv6, use ":::port". NULL is returned if the host part cannot be resolved.
+ * Converts <str> to a locally allocated struct sockaddr_storage *, and a port
+ * range or offset consisting in two integers that the caller will have to
+ * check to find the relevant input format. The following format are supported :
+ *
+ *   String format           | address |  port  |  low   |  high
+ *    addr                   | <addr>  |   0    |   0    |   0
+ *    addr:                  | <addr>  |   0    |   0    |   0
+ *    addr:port              | <addr>  | <port> | <port> | <port>
+ *    addr:pl-ph             | <addr>  |  <pl>  |  <pl>  |  <ph>
+ *    addr:+port             | <addr>  | <port> |   0    | <port>
+ *    addr:-port             | <addr>  |-<port> | <port> |   0
+ *
+ * The detection of a port range or increment by the caller is made by
+ * comparing <low> and <high>. If both are equal, then port 0 means no port
+ * was specified. The caller may pass NULL for <low> and <high> if it is not
+ * interested in retrieving port ranges.
+ *
+ * Note that <addr> above may also be :
+ *    - empty ("")  => family will be AF_INET and address will be INADDR_ANY
+ *    - "*"         => family will be AF_INET and address will be INADDR_ANY
+ *    - "::"        => family will be AF_INET6 and address will be IN6ADDR_ANY
+ *    - a host name => family and address will depend on host name resolving.
+ *
+ * Also note that in order to avoid any ambiguity with IPv6 addresses, the ':'
+ * is mandatory after the IP address even when no port is specified. NULL is
+ * returned if the address cannot be parsed. The <low> and <high> ports are
+ * always initialized if non-null.
  */
 struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high)
 {
 	struct sockaddr_storage *ret = NULL;
 	char *str2;
-	char *c;
-	int portl, porth;
+	char *port1, *port2;
+	int portl, porth, porta;
+
+	portl = porth = porta = 0;
 
 	str2 = strdup(str);
 	if (str2 == NULL)
 		goto out;
 
-	if ((c = strrchr(str2,':')) != NULL) { /* Port */
-		char *sep;
-		*c++ = '\0';
-		sep = strchr(c, '-');
-		if (sep)
-			*sep++ = '\0';
-		else
-			sep = c;
-		portl = atol(c);
-		porth = atol(sep);
-	}
-	else {
-		portl = 0;
-		porth = 0;
-	}
+	port1 = strrchr(str2, ':');
+	if (port1)
+		*port1++ = '\0';
+	else
+		port1 = "";
 
 	ret = str2ip(str2);
 	if (!ret)
 		goto out;
 
-	set_host_port(ret, portl);
+	if (isdigit(*port1)) {	/* single port or range */
+		port2 = strchr(port1, '-');
+		if (port2)
+			*port2++ = '\0';
+		else
+			port2 = port1;
+		portl = atoi(port1);
+		porth = atoi(port2);
+		porta = portl;
+	}
+	else if (*port1 == '-') { /* negative offset */
+		portl = atoi(port1 + 1);
+		porta = -portl;
+	}
+	else if (*port1 == '+') { /* positive offset */
+		porth = atoi(port1 + 1);
+		porta = porth;
+	}
+	else if (*port1) /* other any unexpected char */
+		ret = NULL;
 
-	*low = portl;
-	*high = porth;
+	set_host_port(ret, porta);
+
  out:
+	if (low)
+		*low = portl;
+	if (high)
+		*high = porth;
 	free(str2);
 	return ret;
 }
@@ -889,7 +885,7 @@ int url2sa(const char *url, int ulen, struct sockaddr_storage *addr)
 		/* HTTP url matching */
 		if (http_code == 0x68747470) {
 			/* We are looking for IP address. If you want to parse and
-			 * resolve hostname found in url, you can use str2sa(), but
+			 * resolve hostname found in url, you can use str2sa_range(), but
 			 * be warned this can slow down global daemon performances
 			 * while handling lagging dns responses.
 			 */
