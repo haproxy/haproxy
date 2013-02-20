@@ -4032,7 +4032,6 @@ stats_error_parsing:
 	}
 	else if (!strcmp(args[0], "server") || !strcmp(args[0], "default-server")) {  /* server address */
 		int cur_arg;
-		char *rport, *raddr;
 		short realport = 0;
 		int do_check = 0, defsrv = (*args[0] == 'd');
 
@@ -4061,6 +4060,7 @@ stats_error_parsing:
 
 		if (!defsrv) {
 			struct sockaddr_storage *sk;
+			int port1, port2;
 
 			if ((newsrv = (struct server *)calloc(1, sizeof(struct server))) == NULL) {
 				Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
@@ -4090,23 +4090,29 @@ stats_error_parsing:
 			 *  - IP:+N => port=+N, relative
 			 *  - IP:-N => port=-N, relative
 			 */
-			raddr = strdup(args[2]);
-			rport = strrchr(raddr, ':');
-			if (rport) {
-				*rport++ = 0;
-				realport = atol(rport);
-				if (!isdigit((unsigned char)*rport))
-					newsrv->state |= SRV_MAPPORTS;
-			} else
-				newsrv->state |= SRV_MAPPORTS;
-
-			sk = str2ip(raddr);
-			free(raddr);
+			sk = str2sa_range(args[2], &port1, &port2);
 			if (!sk) {
 				Alert("parsing [%s:%d] : Unknown host in '%s'\n", file, linenum, args[2]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
+
+			if (!port1 || !port2) {
+				/* no port specified, +offset, -offset */
+				newsrv->state |= SRV_MAPPORTS;
+			}
+			else if (port1 != port2) {
+				/* port range */
+				Alert("parsing [%s:%d] : '%s %s' : port ranges are not allowed in '%s'\n",
+				      file, linenum, args[0], args[1], args[2]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			else {
+				/* used by checks */
+				realport = port1;
+			}
+
 			newsrv->addr = *sk;
 			newsrv->proto = newsrv->check.proto = protocol_by_family(newsrv->addr.ss_family);
 			newsrv->xprt  = newsrv->check.xprt  = &raw_sock;
@@ -4117,7 +4123,6 @@ stats_error_parsing:
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
-			set_host_port(&newsrv->addr, realport);
 
 			newsrv->check.use_ssl	= curproxy->defsrv.check.use_ssl;
 			newsrv->check.port	= curproxy->defsrv.check.port;
@@ -4691,8 +4696,9 @@ stats_error_parsing:
 			if (!newsrv->check.port)
 				newsrv->check.port = get_host_port(&newsrv->check.addr);
 
-			if (!newsrv->check.port && !(newsrv->state & SRV_MAPPORTS))
+			if (!newsrv->check.port)
 				newsrv->check.port = realport; /* by default */
+
 			if (!newsrv->check.port) {
 				/* not yet valid, because no port was set on
 				 * the server either. We'll check if we have
