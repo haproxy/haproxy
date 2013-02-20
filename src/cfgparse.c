@@ -245,8 +245,13 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 				goto fail;
 			}
 
-			if (!port) {
+			if (!port && !end) {
 				memprintf(err, "missing port number: '%s'\n", str);
+				goto fail;
+			}
+
+			if (!port || !end) {
+				memprintf(err, "port offsets are not allowed in 'bind': '%s'\n", str);
 				goto fail;
 			}
 
@@ -1140,15 +1145,27 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			}
 			logsrv->addr = *sk;
 		} else {
-			struct sockaddr_storage *sk = str2sa(args[1]);
+			struct sockaddr_storage *sk;
+			int port1, port2;
+
+			sk = str2sa_range(args[1], &port1, &port2);
 			if (!sk) {
-				Alert("parsing [%s:%d] : Unknown host in '%s'\n", file, linenum, args[1]);
+				Alert("parsing [%s:%d] : '%s' : unknown host in '%s'\n", file, linenum, args[0], args[1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				free(logsrv);
 				goto out;
 			}
+
+			if (port1 != port2) {
+				Alert("parsing [%s:%d] : '%s' : port ranges and offsets are not allowed in '%s'\n",
+				      file, linenum, args[0], args[1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				free(logsrv);
+				goto out;
+			}
+
 			logsrv->addr = *sk;
-			if (!get_host_port(&logsrv->addr))
+			if (!port1)
 				set_host_port(&logsrv->addr, SYSLOG_PORT);
 		}
 
@@ -3947,6 +3964,8 @@ stats_error_parsing:
 	}
 	else if (!strcmp(args[0], "dispatch")) {  /* dispatch address */
 		struct sockaddr_storage *sk;
+		int port1, port2;
+
 		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -3955,17 +3974,27 @@ stats_error_parsing:
 		else if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
-		if (strchr(args[1], ':') == NULL) {
-			Alert("parsing [%s:%d] : '%s' expects <addr:port> as argument.\n", file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-		sk = str2sa(args[1]);
+		sk = str2sa_range(args[1], &port1, &port2);
 		if (!sk) {
-			Alert("parsing [%s:%d] : Unknown host in '%s'\n", file, linenum, args[1]);
+			Alert("parsing [%s:%d] : '%s' : unknown host in '%s'\n", file, linenum, args[0], args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
+
+		if (port1 != port2) {
+			Alert("parsing [%s:%d] : '%s' : port ranges and offsets are not allowed in '%s'.\n",
+			      file, linenum, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if (!port1) {
+			Alert("parsing [%s:%d] : '%s' : missing port number in '%s', <addr:port> expected.\n",
+			      file, linenum, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
 		curproxy->dispatch_addr = *sk;
 		curproxy->options |= PR_O_DISPATCH;
 	}
@@ -4220,12 +4249,23 @@ stats_error_parsing:
 				cur_arg += 2;
 			}
 			else if (!defsrv && !strcmp(args[cur_arg], "addr")) {
-				struct sockaddr_storage *sk = str2sa(args[cur_arg + 1]);
+				struct sockaddr_storage *sk;
+				int port1, port2;
+
+				sk = str2sa_range(args[cur_arg + 1], &port1, &port2);
 				if (!sk) {
-					Alert("parsing [%s:%d] : Unknown host in '%s'\n", file, linenum, args[cur_arg + 1]);
+					Alert("parsing [%s:%d] : '%s' : unknown host in '%s'\n",
+					      file, linenum, args[cur_arg], args[cur_arg + 1]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
+				if (port1 != port2) {
+					Alert("parsing [%s:%d] : '%s' : port ranges and offsets are not allowed in '%s'\n",
+					      file, linenum, args[cur_arg], args[cur_arg + 1]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
 				newsrv->check.addr = *sk;
 				cur_arg += 2;
 			}
@@ -4414,6 +4454,14 @@ stats_error_parsing:
 
 				if (port_low != port_high) {
 					int i;
+
+					if (!port_low || !port_high) {
+						Alert("parsing [%s:%d] : %s does not support port offsets (found '%s').\n",
+						      file, linenum, args[cur_arg], args[cur_arg + 1]);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+
 					if (port_low  <= 0 || port_low > 65535 ||
 					    port_high <= 0 || port_high > 65535 ||
 					    port_low > port_high) {
@@ -4491,9 +4539,19 @@ stats_error_parsing:
 								goto out;
 							}
 						} else {
-							struct sockaddr_storage *sk = str2sa(args[cur_arg + 1]);
+							struct sockaddr_storage *sk;
+							int port1, port2;
+
+							sk = str2sa_range(args[cur_arg + 1], &port1, &port2);
 							if (!sk) {
-								Alert("parsing [%s:%d] : Unknown host in '%s'\n", file, linenum, args[cur_arg + 1]);
+								Alert("parsing [%s:%d] : '%s' : unknown host in '%s'\n",
+								      file, linenum, args[cur_arg], args[cur_arg + 1]);
+								err_code |= ERR_ALERT | ERR_FATAL;
+								goto out;
+							}
+							if (port1 != port2) {
+								Alert("parsing [%s:%d] : '%s' : port ranges and offsets are not allowed in '%s'\n",
+								      file, linenum, args[cur_arg], args[cur_arg + 1]);
 								err_code |= ERR_ALERT | ERR_FATAL;
 								goto out;
 							}
@@ -4808,14 +4866,26 @@ stats_error_parsing:
 				}
 				logsrv->addr = *sk;
 			} else {
-				struct sockaddr_storage *sk = str2sa(args[1]);
+				struct sockaddr_storage *sk;
+				int port1, port2;
+
+				sk = str2sa_range(args[1], &port1, &port2);
 				if (!sk) {
-					Alert("parsing [%s:%d] : Unknown host in '%s'\n", file, linenum, args[1]);
+					Alert("parsing [%s:%d] : '%s' : unknown host in '%s'\n",
+					      file, linenum, args[0], args[1]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
+
+				if (port1 != port2) {
+					Alert("parsing [%s:%d] : '%s' : port ranges and offsets are not allowed in '%s'\n",
+					      file, linenum, args[0], args[1]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
 				logsrv->addr = *sk;
-				if (!get_host_port(&logsrv->addr))
+				if (!port1)
 					set_host_port(&logsrv->addr, SYSLOG_PORT);
 			}
 
@@ -4830,6 +4900,7 @@ stats_error_parsing:
 	}
 	else if (!strcmp(args[0], "source")) {  /* address to which we bind when connecting */
 		int cur_arg;
+		int port1, port2;
 		struct sockaddr_storage *sk;
 
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
@@ -4848,12 +4919,21 @@ stats_error_parsing:
 		curproxy->conn_src.iface_name = NULL;
 		curproxy->conn_src.iface_len = 0;
 
-		sk = str2sa(args[1]);
+		sk = str2sa_range(args[1], &port1, &port2);
 		if (!sk) {
-			Alert("parsing [%s:%d] : Unknown host in '%s'\n", file, linenum, args[1]);
+			Alert("parsing [%s:%d] : '%s' : unknown host in '%s'\n",
+			      file, linenum, args[0], args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
+
+		if (port1 != port2) {
+			Alert("parsing [%s:%d] : '%s' : port ranges and offsets are not allowed in '%s'\n",
+			      file, linenum, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
 		curproxy->conn_src.source_addr = *sk;
 		curproxy->conn_src.opts |= CO_SRC_BIND;
 
@@ -4922,9 +5002,17 @@ stats_error_parsing:
 						goto out;
 					}
 				} else {
-					struct sockaddr_storage *sk = str2sa(args[cur_arg + 1]);
+					struct sockaddr_storage *sk = str2sa_range(args[cur_arg + 1], &port1, &port2);
+
 					if (!sk) {
-						Alert("parsing [%s:%d] : Unknown host in '%s'\n", file, linenum, args[cur_arg + 1]);
+						Alert("parsing [%s:%d] : '%s' : unknown host in '%s'\n",
+						      file, linenum, args[cur_arg], args[cur_arg + 1]);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+					if (port1 != port2) {
+						Alert("parsing [%s:%d] : '%s' : port ranges and offsets are not allowed in '%s'\n",
+						      file, linenum, args[cur_arg], args[cur_arg + 1]);
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
 					}
