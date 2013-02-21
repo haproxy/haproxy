@@ -479,6 +479,8 @@ The following keywords are supported in the "global" section :
    - tune.sndbuf.client
    - tune.sndbuf.server
    - tune.ssl.cachesize
+   - tune.ssl.lifetime
+   - tune.ssl.maxrecord
    - tune.zlib.memlevel
    - tune.zlib.windowsize
 
@@ -899,6 +901,19 @@ tune.ssl.lifetime <timeout>
   full, the longest idle sessions will be purged despite their configured
   lifetime. The real usefulness of this setting is to prevent sessions from
   being used for too long.
+
+tune.ssl.maxrecord <number>
+  Sets the maximum amount of bytes passed to SSL_write() at a time. Default
+  value 0 means there is no limit. Over SSL/TLS, the client can decipher the
+  data only once it has received a full record. With large records, it means
+  that clients might have to download up to 16kB of data before starting to
+  process them. Limiting the value can improve page load times on browsers
+  located over high latency or low bandwidth networks. It is suggested to find
+  optimal values which fit into 1 or 2 TCP segments (generally 1448 bytes over
+  Ethernet with TCP timestamps enabled, or 1460 when timestamps are disabled),
+  keeping in mind that SSL/TLS add some overhead. Typical values of 1419 and
+  2859 gave good results during tests. Use "strace -e trace=write" to find the
+  best value.
 
 tune.zlib.memlevel <number>
   Sets the memLevel parameter in zlib initialization for each session. It

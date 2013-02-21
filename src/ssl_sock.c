@@ -1194,6 +1194,10 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 	 */
 	while (buf->o) {
 		try = buf->o;
+
+		if (global.tune.ssl_max_record && try > global.tune.ssl_max_record)
+			try = global.tune.ssl_max_record;
+
 		/* outgoing data may wrap at the end */
 		if (buf->data + try > buf->p)
 			try = buf->data + try - buf->p;

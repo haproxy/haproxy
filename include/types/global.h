@@ -117,6 +117,7 @@ struct global {
 #ifdef USE_OPENSSL
 		int sslcachesize;  /* SSL cache size in session, defaults to 20000 */
 		unsigned int ssllifetime;   /* SSL session lifetime in seconds */
+		unsigned int ssl_max_record; /* SSL max record size */
 #endif
 #ifdef USE_ZLIB
 		int zlibmemlevel;    /* zlib memlevel */
