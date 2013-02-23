@@ -116,6 +116,7 @@ struct check {
 	int use_ssl;				/* use SSL for health checks */
 	int send_proxy;				/* send a PROXY protocol header with checks */
 	int inter, fastinter, downinter;        /* checks: time in milliseconds */
+	int result;				/* health-check result : SRV_CHK_* */
 	struct server *server;			/* back-pointer to server */
 };
 
@@ -154,7 +155,6 @@ struct server {
 	short onmarkeddown;			/* what to do when marked down: one of HANA_ONMARKEDDOWN_* */
 	short onmarkedup;			/* what to do when marked up: one of HANA_ONMARKEDUP_* */
 	int slowstart;				/* slowstart time in seconds (ms in the conf) */
-	int result;				/* health-check result : SRV_CHK_* */
 
 	char *id;				/* just for identification */
 	unsigned iweight,uweight, eweight;	/* initial weight, user-specified weight, and effective weight */

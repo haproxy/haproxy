@@ -193,7 +193,7 @@ static void server_status_printf(struct chunk *msg, struct server *s, unsigned o
 }
 
 /*
- * Set s->check.status, update s->check.duration and fill s->result with
+ * Set s->check.status, update s->check.duration and fill s->check.result with
  * an adequate SRV_CHK_* value.
  *
  * Show information in logs about failed health check if server is UP
@@ -202,7 +202,7 @@ static void server_status_printf(struct chunk *msg, struct server *s, unsigned o
 static void set_server_check_status(struct server *s, short status, const char *desc)
 {
 	if (status == HCHK_STATUS_START) {
-		s->result = SRV_CHK_UNKNOWN;	/* no result yet */
+		s->check.result = SRV_CHK_UNKNOWN;	/* no result yet */
 		s->check.desc[0] = '\0';
 		s->check.start = now;
 		return;
@@ -219,7 +219,7 @@ static void set_server_check_status(struct server *s, short status, const char *
 
 	s->check.status = status;
 	if (check_statuses[status].result)
-		s->result = check_statuses[status].result;
+		s->check.result = check_statuses[status].result;
 
 	if (status == HCHK_STATUS_HANA)
 		s->check.duration = -1;
@@ -230,10 +230,10 @@ static void set_server_check_status(struct server *s, short status, const char *
 	}
 
 	if (s->proxy->options2 & PR_O2_LOGHCHKS &&
-	(((s->health != 0) && (s->result & SRV_CHK_FAILED)) ||
-	    ((s->health != s->rise + s->fall - 1) && (s->result & SRV_CHK_PASSED)) ||
-	    ((s->state & SRV_GOINGDOWN) && !(s->result & SRV_CHK_DISABLE)) ||
-	    (!(s->state & SRV_GOINGDOWN) && (s->result & SRV_CHK_DISABLE)))) {
+	(((s->health != 0) && (s->check.result & SRV_CHK_FAILED)) ||
+	    ((s->health != s->rise + s->fall - 1) && (s->check.result & SRV_CHK_PASSED)) ||
+	    ((s->state & SRV_GOINGDOWN) && !(s->check.result & SRV_CHK_DISABLE)) ||
+	    (!(s->state & SRV_GOINGDOWN) && (s->check.result & SRV_CHK_DISABLE)))) {
 
 		int health, rise, fall, state;
 
@@ -245,7 +245,7 @@ static void set_server_check_status(struct server *s, short status, const char *
 		fall   = s->fall;
 		state  = s->state;
 
-		if (s->result & SRV_CHK_FAILED) {
+		if (s->check.result & SRV_CHK_FAILED) {
 			if (health > rise) {
 				health--; /* still good */
 			} else {
@@ -256,7 +256,7 @@ static void set_server_check_status(struct server *s, short status, const char *
 			}
 		}
 
-		if (s->result & SRV_CHK_PASSED) {
+		if (s->check.result & SRV_CHK_PASSED) {
 			if (health < rise + fall - 1) {
 				health++; /* was bad, stays for a while */
 
@@ -277,8 +277,8 @@ static void set_server_check_status(struct server *s, short status, const char *
 		             "Health check for %sserver %s/%s %s%s",
 		             s->state & SRV_BACKUP ? "backup " : "",
 		             s->proxy->id, s->id,
-		             (s->result & SRV_CHK_DISABLE)?"conditionally ":"",
-		             (s->result & SRV_CHK_PASSED)?"succeeded":"failed");
+		             (s->check.result & SRV_CHK_DISABLE)?"conditionally ":"",
+		             (s->check.result & SRV_CHK_PASSED)?"succeeded":"failed");
 
 		server_status_printf(&trash, s, SSP_O_HCHK, -1);
 
@@ -761,7 +761,7 @@ static int httpchk_build_status_header(struct server *s, char *buffer)
  * This function is used only for server health-checks. It handles
  * the connection acknowledgement. If the proxy requires L7 health-checks,
  * it sends the request. In other cases, it calls set_server_check_status()
- * to set s->check.status, s->check.duration and s->result.
+ * to set s->check.status, s->check.duration and s->check.result.
  */
 static void event_srv_chk_w(struct connection *conn)
 {
@@ -787,7 +787,7 @@ static void event_srv_chk_w(struct connection *conn)
 		return;
 
 	/* here, we know that the connection is established */
-	if (!(s->result & SRV_CHK_FAILED)) {
+	if (!(s->check.result & SRV_CHK_FAILED)) {
 		/* we don't want to mark 'UP' a server on which we detected an error earlier */
 		if (s->check.bo->o) {
 			conn->xprt->snd_buf(conn, s->check.bo, MSG_DONTWAIT | MSG_NOSIGNAL);
@@ -823,7 +823,7 @@ static void event_srv_chk_w(struct connection *conn)
  * This function is used only for server health-checks. It handles the server's
  * reply to an HTTP request, SSL HELLO or MySQL client Auth. It calls
  * set_server_check_status() to update s->check.status, s->check.duration
- * and s->result.
+ * and s->check.result.
 
  * The set_server_check_status function is called with HCHK_STATUS_L7OKD if
  * an HTTP server replies HTTP 2xx or 3xx (valid responses), if an SMTP server
@@ -841,9 +841,9 @@ static void event_srv_chk_r(struct connection *conn)
 	int done;
 	unsigned short msglen;
 
-	if (unlikely((s->result & SRV_CHK_FAILED) || (conn->flags & CO_FL_ERROR))) {
+	if (unlikely((s->check.result & SRV_CHK_FAILED) || (conn->flags & CO_FL_ERROR))) {
 		/* in case of TCP only, this tells us if the connection failed */
-		if (!(s->result & SRV_CHK_FAILED))
+		if (!(s->check.result & SRV_CHK_FAILED))
 			set_server_check_status(s, HCHK_STATUS_SOCKERR, NULL);
 
 		goto out_wakeup;
@@ -873,7 +873,7 @@ static void event_srv_chk_r(struct connection *conn)
 			 * or not. It is very common that an RST sent by the server is
 			 * reported as an error just after the last data chunk.
 			 */
-			if (!(s->result & SRV_CHK_FAILED))
+			if (!(s->check.result & SRV_CHK_FAILED))
 				set_server_check_status(s, HCHK_STATUS_SOCKERR, NULL);
 			goto out_wakeup;
 		}
@@ -1198,7 +1198,7 @@ static void event_srv_chk_r(struct connection *conn)
 	} /* switch */
 
  out_wakeup:
-	if (s->result & SRV_CHK_FAILED)
+	if (s->check.result & SRV_CHK_FAILED)
 		conn->flags |= CO_FL_ERROR;
 
 	/* Reset the check buffer... */
@@ -1238,13 +1238,13 @@ static int wake_srv_chk(struct connection *conn)
 
 	if (unlikely(conn->flags & CO_FL_ERROR)) {
 		/* Note that we might as well have been woken up by a handshake handler */
-		if (s->result == SRV_CHK_UNKNOWN)
-			s->result |= SRV_CHK_FAILED;
+		if (s->check.result == SRV_CHK_UNKNOWN)
+			s->check.result |= SRV_CHK_FAILED;
 		__conn_data_stop_both(conn);
 		task_wakeup(s->check.task, TASK_WOKEN_IO);
 	}
 
-	if (s->result & (SRV_CHK_FAILED|SRV_CHK_PASSED))
+	if (s->check.result & (SRV_CHK_FAILED|SRV_CHK_PASSED))
 		conn_full_close(conn);
 	return 0;
 }
@@ -1442,7 +1442,7 @@ static struct task *process_chk(struct task *t)
 		 * First, let's check whether there was an uncaught error,
 		 * which can happen on connect timeout or error.
 		 */
-		if (s->result == SRV_CHK_UNKNOWN) {
+		if (s->check.result == SRV_CHK_UNKNOWN) {
 			if ((conn->flags & (CO_FL_CONNECTED|CO_FL_WAIT_L4_CONN)) == CO_FL_WAIT_L4_CONN) {
 				/* L4 not established (yet) */
 				if (conn->flags & CO_FL_ERROR)
@@ -1490,7 +1490,7 @@ static struct task *process_chk(struct task *t)
 			conn_full_close(conn);
 		}
 
-		if (s->result & SRV_CHK_FAILED) {    /* a failure or timeout detected */
+		if (s->check.result & SRV_CHK_FAILED) {    /* a failure or timeout detected */
 			if (s->health > s->rise) {
 				s->health--; /* still good */
 				s->counters.failed_checks++;
@@ -1501,9 +1501,9 @@ static struct task *process_chk(struct task *t)
 		else {  /* check was OK */
 			/* we may have to add/remove this server from the LB group */
 			if ((s->state & SRV_RUNNING) && (s->proxy->options & PR_O_DISABLE404)) {
-				if ((s->state & SRV_GOINGDOWN) && !(s->result & SRV_CHK_DISABLE))
+				if ((s->state & SRV_GOINGDOWN) && !(s->check.result & SRV_CHK_DISABLE))
 					set_server_enabled(s);
-				else if (!(s->state & SRV_GOINGDOWN) && (s->result & SRV_CHK_DISABLE))
+				else if (!(s->state & SRV_GOINGDOWN) && (s->check.result & SRV_CHK_DISABLE))
 					set_server_disabled(s);
 			}
 
