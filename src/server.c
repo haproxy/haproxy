@@ -33,12 +33,12 @@ int srv_downtime(const struct server *s)
 int srv_getinter(const struct server *s)
 {
 	if ((s->state & SRV_CHECKED) && (s->health == s->rise + s->fall - 1))
-		return s->inter;
+		return s->check.inter;
 
 	if (!(s->state & SRV_RUNNING) && s->health==0)
-		return (s->downinter)?(s->downinter):(s->inter);
+		return (s->check.downinter)?(s->check.downinter):(s->check.inter);
 
-	return (s->fastinter)?(s->fastinter):(s->inter);
+	return (s->check.fastinter)?(s->check.fastinter):(s->check.inter);
 }
 
 /*

@@ -103,6 +103,22 @@ struct tree_occ {
 	struct eb32_node node;
 };
 
+struct check {
+	struct connection *conn;		/* connection state for health checks */
+
+	short port;				/* the port to use for the health checks */
+	struct buffer *bi, *bo;			/* input and output buffers to send/recv check */
+	struct task *task;			/* the task associated to the health check processing, NULL if disabled */
+	struct timeval start;			/* last health check start time */
+	long duration;				/* time in ms took to finish last health check */
+	short status, code;			/* check result, check code */
+	char desc[HCHK_DESC_LEN];		/* health check descritpion */
+	int use_ssl;				/* use SSL for health checks */
+	int send_proxy;				/* send a PROXY protocol header with checks */
+	int inter, fastinter, downinter;        /* checks: time in milliseconds */
+	struct server *server;			/* back-pointer to server */
+};
+
 struct server {
 	enum obj_type obj_type;                 /* object type == OBJ_TYPE_SERVER */
 	struct server *next;
@@ -137,7 +153,6 @@ struct server {
 	short observe, onerror;			/* observing mode: one of HANA_OBS_*; what to do on error: on of ANA_ONERR_* */
 	short onmarkeddown;			/* what to do when marked down: one of HANA_ONMARKEDDOWN_* */
 	short onmarkedup;			/* what to do when marked up: one of HANA_ONMARKEDUP_* */
-	int inter, fastinter, downinter;	/* checks: time in milliseconds */
 	int slowstart;				/* slowstart time in seconds (ms in the conf) */
 	int result;				/* health-check result : SRV_CHK_* */
 
@@ -163,21 +178,13 @@ struct server {
 
 	int puid;				/* proxy-unique server ID, used for SNMP, and "first" LB algo */
 
-	struct {                                /* health-check specific configuration */
-		struct connection *conn;        /* connection state for health checks */
+	struct {                                /* configuration  used by health-check and agent-check */
 		struct protocol *proto;	        /* server address protocol for health checks */
 		struct xprt_ops *xprt;          /* transport layer operations for health checks */
 		struct sockaddr_storage addr;   /* the address to check, if different from <addr> */
-		short port;                     /* the port to use for the health checks */
-		struct buffer *bi, *bo;         /* input and output buffers to send/recv check */
-		struct task *task;              /* the task associated to the health check processing, NULL if disabled */
-		struct timeval start;           /* last health check start time */
-		long duration;                  /* time in ms took to finish last health check */
-		short status, code;             /* check result, check code */
-		char desc[HCHK_DESC_LEN];       /* health check descritpion */
-		int use_ssl;                    /* use SSL for health checks */
-		int send_proxy;                 /* send a PROXY protocol header with checks */
-	} check;
+	} check_common;
+
+	struct check check;                     /* health-check specific configuration */
 
 #ifdef USE_OPENSSL
 	int use_ssl;				/* ssl enabled */

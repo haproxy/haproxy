@@ -916,7 +916,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv, struct proxy *curproxy)
 	if (srv->use_ssl)
 		srv->xprt = &ssl_sock;
 	if (srv->check.use_ssl)
-		srv->check.xprt = &ssl_sock;
+		srv->check_common.xprt = &ssl_sock;
 
 	srv->ssl_ctx.ctx = SSL_CTX_new(SSLv23_client_method());
 	if (!srv->ssl_ctx.ctx) {

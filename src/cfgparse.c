@@ -1322,9 +1322,9 @@ void init_default_instance()
 	defproxy.maxconn = cfg_maxpconn;
 	defproxy.conn_retries = CONN_RETRIES;
 
-	defproxy.defsrv.inter = DEF_CHKINTR;
-	defproxy.defsrv.fastinter = 0;
-	defproxy.defsrv.downinter = 0;
+	defproxy.defsrv.check.inter = DEF_CHKINTR;
+	defproxy.defsrv.check.fastinter = 0;
+	defproxy.defsrv.check.downinter = 0;
 	defproxy.defsrv.rise = DEF_RISETIME;
 	defproxy.defsrv.fall = DEF_FALLTIME;
 	defproxy.defsrv.check.port = 0;
@@ -4241,8 +4241,8 @@ stats_error_parsing:
 			}
 
 			newsrv->addr = *sk;
-			newsrv->proto = newsrv->check.proto = protocol_by_family(newsrv->addr.ss_family);
-			newsrv->xprt  = newsrv->check.xprt  = &raw_sock;
+			newsrv->proto = newsrv->check_common.proto = protocol_by_family(newsrv->addr.ss_family);
+			newsrv->xprt  = newsrv->check_common.xprt  = &raw_sock;
 
 			if (!newsrv->proto) {
 				Alert("parsing [%s:%d] : Unknown protocol family %d '%s'\n",
@@ -4251,11 +4251,11 @@ stats_error_parsing:
 				goto out;
 			}
 
-			newsrv->check.use_ssl	= curproxy->defsrv.check.use_ssl;
+			newsrv->check.use_ssl = curproxy->defsrv.check.use_ssl;
 			newsrv->check.port	= curproxy->defsrv.check.port;
-			newsrv->inter		= curproxy->defsrv.inter;
-			newsrv->fastinter	= curproxy->defsrv.fastinter;
-			newsrv->downinter	= curproxy->defsrv.downinter;
+			newsrv->check.inter	= curproxy->defsrv.check.inter;
+			newsrv->check.fastinter	= curproxy->defsrv.check.fastinter;
+			newsrv->check.downinter	= curproxy->defsrv.check.downinter;
 			newsrv->rise		= curproxy->defsrv.rise;
 			newsrv->fall		= curproxy->defsrv.fall;
 			newsrv->maxqueue	= curproxy->defsrv.maxqueue;
@@ -4343,7 +4343,7 @@ stats_error_parsing:
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
-				newsrv->inter = val;
+				newsrv->check.inter = val;
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "fastinter")) {
@@ -4360,7 +4360,7 @@ stats_error_parsing:
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
-				newsrv->fastinter = val;
+				newsrv->check.fastinter = val;
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "downinter")) {
@@ -4377,7 +4377,7 @@ stats_error_parsing:
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
-				newsrv->downinter = val;
+				newsrv->check.downinter = val;
 				cur_arg += 2;
 			}
 			else if (!defsrv && !strcmp(args[cur_arg], "addr")) {
@@ -4408,7 +4408,7 @@ stats_error_parsing:
 					goto out;
 				}
 
-				newsrv->check.addr = *sk;
+				newsrv->check_common.addr = *sk;
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "port")) {
@@ -4844,15 +4844,15 @@ stats_error_parsing:
 			 * same as for the production traffic. Otherwise we use raw_sock by
 			 * default, unless one is specified.
 			 */
-			if (!newsrv->check.port && !is_addr(&newsrv->check.addr)) {
+			if (!newsrv->check.port && !is_addr(&newsrv->check_common.addr)) {
 #ifdef USE_OPENSSL
 				newsrv->check.use_ssl |= newsrv->use_ssl;
 #endif
 				newsrv->check.send_proxy |= (newsrv->state & SRV_SEND_PROXY);
 			}
-			/* try to get the port from check.addr if check.port not set */
+			/* try to get the port from check_core.addr if check.port not set */
 			if (!newsrv->check.port)
-				newsrv->check.port = get_host_port(&newsrv->check.addr);
+				newsrv->check.port = get_host_port(&newsrv->check_common.addr);
 
 			if (!newsrv->check.port)
 				newsrv->check.port = realport; /* by default */
@@ -4902,6 +4902,7 @@ stats_error_parsing:
 
 			newsrv->check.conn->t.sock.fd = -1; /* no check in progress yet */
 			newsrv->check.status = HCHK_STATUS_INI;
+			newsrv->check.server = newsrv;
 			newsrv->state |= SRV_CHECKED;
 		}
 
