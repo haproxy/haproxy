@@ -2911,7 +2911,7 @@ int http_process_req_stat_post(struct stream_interface *si, struct http_txn *txn
 						if ((px->state != PR_STSTOPPED) && !(sv->state & SRV_MAINTAIN)) {
 							/* Not already in maintenance, we can change the server state */
 							sv->state |= SRV_MAINTAIN;
-							set_server_down(sv);
+							set_server_down(&sv->check);
 							altered_servers++;
 							total_servers++;
 						}
@@ -2919,7 +2919,7 @@ int http_process_req_stat_post(struct stream_interface *si, struct http_txn *txn
 					case ST_ADM_ACTION_ENABLE:
 						if ((px->state != PR_STSTOPPED) && (sv->state & SRV_MAINTAIN)) {
 							/* Already in maintenance, we can change the server state */
-							set_server_up(sv);
+							set_server_up(&sv->check);
 							sv->health = sv->rise;	/* up, but will fall down at first failure */
 							altered_servers++;
 							total_servers++;

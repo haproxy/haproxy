@@ -147,33 +147,30 @@ const char *get_analyze_status(short analyze_status) {
 		return analyze_statuses[HANA_STATUS_UNKNOWN].desc;
 }
 
-#define SSP_O_HCHK	0x0002
-
-static void server_status_printf(struct chunk *msg, struct server *s, unsigned options, int xferred) {
-
+static void server_status_printf(struct chunk *msg, struct server *s, struct check *check, int xferred) {
 	if (s->track)
 		chunk_appendf(msg, " via %s/%s",
 			s->track->proxy->id, s->track->id);
 
-	if (options & SSP_O_HCHK) {
-		chunk_appendf(msg, ", reason: %s", get_check_status_description(s->check.status));
+	if (check) {
+		chunk_appendf(msg, ", reason: %s", get_check_status_description(check->status));
 
-		if (s->check.status >= HCHK_STATUS_L57DATA)
-			chunk_appendf(msg, ", code: %d", s->check.code);
+		if (check->status >= HCHK_STATUS_L57DATA)
+			chunk_appendf(msg, ", code: %d", check->code);
 
-		if (*s->check.desc) {
+		if (*check->desc) {
 			struct chunk src;
 
 			chunk_appendf(msg, ", info: \"");
 
-			chunk_initlen(&src, s->check.desc, 0, strlen(s->check.desc));
+			chunk_initlen(&src, check->desc, 0, strlen(check->desc));
 			chunk_asciiencode(msg, &src, '"');
 
 			chunk_appendf(msg, "\"");
 		}
 
-		if (s->check.duration >= 0)
-			chunk_appendf(msg, ", check duration: %ldms", s->check.duration);
+		if (check->duration >= 0)
+			chunk_appendf(msg, ", check duration: %ldms", check->duration);
 	}
 
 	if (xferred >= 0) {
@@ -193,47 +190,49 @@ static void server_status_printf(struct chunk *msg, struct server *s, unsigned o
 }
 
 /*
- * Set s->check.status, update s->check.duration and fill s->check.result with
+ * Set check->status, update check->duration and fill check->result with
  * an adequate SRV_CHK_* value.
  *
  * Show information in logs about failed health check if server is UP
  * or succeeded health checks if server is DOWN.
  */
-static void set_server_check_status(struct server *s, short status, const char *desc)
+static void set_server_check_status(struct check *check, short status, const char *desc)
 {
+	struct server *s = check->server;
+
 	if (status == HCHK_STATUS_START) {
-		s->check.result = SRV_CHK_UNKNOWN;	/* no result yet */
-		s->check.desc[0] = '\0';
-		s->check.start = now;
+		check->result = SRV_CHK_UNKNOWN;	/* no result yet */
+		check->desc[0] = '\0';
+		check->start = now;
 		return;
 	}
 
-	if (!s->check.status)
+	if (!check->status)
 		return;
 
 	if (desc && *desc) {
-		strncpy(s->check.desc, desc, HCHK_DESC_LEN-1);
-		s->check.desc[HCHK_DESC_LEN-1] = '\0';
+		strncpy(check->desc, desc, HCHK_DESC_LEN-1);
+		check->desc[HCHK_DESC_LEN-1] = '\0';
 	} else
-		s->check.desc[0] = '\0';
+		check->desc[0] = '\0';
 
-	s->check.status = status;
+	check->status = status;
 	if (check_statuses[status].result)
-		s->check.result = check_statuses[status].result;
+		check->result = check_statuses[status].result;
 
 	if (status == HCHK_STATUS_HANA)
-		s->check.duration = -1;
-	else if (!tv_iszero(&s->check.start)) {
+		check->duration = -1;
+	else if (!tv_iszero(&check->start)) {
 		/* set_server_check_status() may be called more than once */
-		s->check.duration = tv_ms_elapsed(&s->check.start, &now);
-		tv_zero(&s->check.start);
+		check->duration = tv_ms_elapsed(&check->start, &now);
+		tv_zero(&check->start);
 	}
 
 	if (s->proxy->options2 & PR_O2_LOGHCHKS &&
-	(((s->health != 0) && (s->check.result & SRV_CHK_FAILED)) ||
-	    ((s->health != s->rise + s->fall - 1) && (s->check.result & SRV_CHK_PASSED)) ||
-	    ((s->state & SRV_GOINGDOWN) && !(s->check.result & SRV_CHK_DISABLE)) ||
-	    (!(s->state & SRV_GOINGDOWN) && (s->check.result & SRV_CHK_DISABLE)))) {
+	(((s->health != 0) && (check->result & SRV_CHK_FAILED)) ||
+	    ((s->health != s->rise + s->fall - 1) && (check->result & SRV_CHK_PASSED)) ||
+	    ((s->state & SRV_GOINGDOWN) && !(check->result & SRV_CHK_DISABLE)) ||
+	    (!(s->state & SRV_GOINGDOWN) && (check->result & SRV_CHK_DISABLE)))) {
 
 		int health, rise, fall, state;
 
@@ -245,7 +244,7 @@ static void set_server_check_status(struct server *s, short status, const char *
 		fall   = s->fall;
 		state  = s->state;
 
-		if (s->check.result & SRV_CHK_FAILED) {
+		if (check->result & SRV_CHK_FAILED) {
 			if (health > rise) {
 				health--; /* still good */
 			} else {
@@ -256,7 +255,7 @@ static void set_server_check_status(struct server *s, short status, const char *
 			}
 		}
 
-		if (s->check.result & SRV_CHK_PASSED) {
+		if (check->result & SRV_CHK_PASSED) {
 			if (health < rise + fall - 1) {
 				health++; /* was bad, stays for a while */
 
@@ -277,10 +276,10 @@ static void set_server_check_status(struct server *s, short status, const char *
 		             "Health check for %sserver %s/%s %s%s",
 		             s->state & SRV_BACKUP ? "backup " : "",
 		             s->proxy->id, s->id,
-		             (s->check.result & SRV_CHK_DISABLE)?"conditionally ":"",
-		             (s->check.result & SRV_CHK_PASSED)?"succeeded":"failed");
+		             (check->result & SRV_CHK_DISABLE)?"conditionally ":"",
+		             (check->result & SRV_CHK_PASSED)?"succeeded":"failed");
 
-		server_status_printf(&trash, s, SSP_O_HCHK, -1);
+		server_status_printf(&trash, s, check, -1);
 
 		chunk_appendf(&trash, ", status: %d/%d %s",
 		             (state & SRV_RUNNING) ? (health - rise + 1) : (health),
@@ -389,8 +388,9 @@ static void shutdown_backup_sessions(struct proxy *px, int why)
  * possible to other servers. It automatically recomputes the number of
  * servers, but not the map.
  */
-void set_server_down(struct server *s)
+void set_server_down(struct check *check)
 {
+	struct server *s = check->server;
 	struct server *srv;
 	int xferred;
 
@@ -428,7 +428,7 @@ void set_server_down(struct server *s)
 			             s->proxy->id, s->id);
 
 			server_status_printf(&trash, s,
-			                     ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? SSP_O_HCHK : 0),
+			                     ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check : 0),
 			                     xferred);
 		}
 		Warning("%s.\n", trash.str);
@@ -448,14 +448,15 @@ void set_server_down(struct server *s)
 			for(srv = s->tracknext; srv; srv = srv->tracknext)
 				if (! (srv->state & SRV_MAINTAIN))
 					/* Only notify tracking servers that are not already in maintenance. */
-					set_server_down(srv);
+					set_server_down(check);
 	}
 
 	s->health = 0; /* failure */
 }
 
-void set_server_up(struct server *s) {
+void set_server_up(struct check *check) {
 
+	struct server *s = check->server;
 	struct server *srv;
 	int xferred;
 	unsigned int old_state = s->state;
@@ -519,7 +520,7 @@ void set_server_up(struct server *s) {
 			             s->proxy->id, s->id);
 
 			server_status_printf(&trash, s,
-			                     ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? SSP_O_HCHK : 0),
+			                     ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ?  check : NULL),
 			                     xferred);
 		}
 
@@ -530,7 +531,7 @@ void set_server_up(struct server *s) {
 			for(srv = s->tracknext; srv; srv = srv->tracknext)
 				if (! (srv->state & SRV_MAINTAIN))
 					/* Only notify tracking servers if they're not in maintenance. */
-					set_server_up(srv);
+					set_server_up(check);
 	}
 
 	if (s->health >= s->rise)
@@ -538,8 +539,9 @@ void set_server_up(struct server *s) {
 
 }
 
-static void set_server_disabled(struct server *s) {
+static void set_server_disabled(struct check *check) {
 
+	struct server *s = check->server;
 	struct server *srv;
 	int xferred;
 
@@ -561,7 +563,7 @@ static void set_server_disabled(struct server *s) {
 	             s->proxy->id, s->id);
 
 	server_status_printf(&trash, s,
-	                     ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? SSP_O_HCHK : 0),
+	                     ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check : NULL),
 	                     xferred);
 
 	Warning("%s.\n", trash.str);
@@ -572,11 +574,12 @@ static void set_server_disabled(struct server *s) {
 
 	if (s->state & SRV_CHECKED)
 		for(srv = s->tracknext; srv; srv = srv->tracknext)
-			set_server_disabled(srv);
+			set_server_disabled(check);
 }
 
-static void set_server_enabled(struct server *s) {
+static void set_server_enabled(struct check *check) {
 
+	struct server *s = check->server;
 	struct server *srv;
 	int xferred;
 
@@ -597,7 +600,7 @@ static void set_server_enabled(struct server *s) {
 	             s->proxy->id, s->id);
 
 	server_status_printf(&trash, s,
-	                     ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? SSP_O_HCHK : 0),
+	                     ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check : NULL),
 	                     xferred);
 
 	Warning("%s.\n", trash.str);
@@ -605,7 +608,7 @@ static void set_server_enabled(struct server *s) {
 
 	if (s->state & SRV_CHECKED)
 		for(srv = s->tracknext; srv; srv = srv->tracknext)
-			set_server_enabled(srv);
+			set_server_enabled(check);
 }
 
 void health_adjust(struct server *s, short status)
@@ -664,22 +667,22 @@ void health_adjust(struct server *s, short status)
 
 		case HANA_ONERR_FAILCHK:
 		/* simulate a failed health check */
-			set_server_check_status(s, HCHK_STATUS_HANA, trash.str);
+			set_server_check_status(&s->check, HCHK_STATUS_HANA, trash.str);
 
 			if (s->health > s->rise) {
 				s->health--; /* still good */
 				s->counters.failed_checks++;
 			}
 			else
-				set_server_down(s);
+				set_server_down(&s->check);
 
 			break;
 
 		case HANA_ONERR_MARKDWN:
 		/* mark server down */
 			s->health = s->rise;
-			set_server_check_status(s, HCHK_STATUS_HANA, trash.str);
-			set_server_down(s);
+			set_server_check_status(&s->check, HCHK_STATUS_HANA, trash.str);
+			set_server_down(&s->check);
 
 			break;
 
@@ -761,13 +764,14 @@ static int httpchk_build_status_header(struct server *s, char *buffer)
  * This function is used only for server health-checks. It handles
  * the connection acknowledgement. If the proxy requires L7 health-checks,
  * it sends the request. In other cases, it calls set_server_check_status()
- * to set s->check.status, s->check.duration and s->check.result.
+ * to set check->status, check->duration and check->result.
  */
 static void event_srv_chk_w(struct connection *conn)
 {
-	struct server *s = conn->owner;
+	struct check *check = conn->owner;
+	struct server *s = check->server;
 	int fd = conn->t.sock.fd;
-	struct task *t = s->check.task;
+	struct task *t = check->task;
 
 	if (conn->flags & (CO_FL_SOCK_WR_SH | CO_FL_DATA_WR_SH))
 		conn->flags |= CO_FL_ERROR;
@@ -779,7 +783,7 @@ static void event_srv_chk_w(struct connection *conn)
 		if (!getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr) && skerr)
 			err = skerr;
 
-		set_server_check_status(s, HCHK_STATUS_L4CON, strerror(err));
+		set_server_check_status(check, HCHK_STATUS_L4CON, strerror(err));
 		goto out_error;
 	}
 
@@ -787,15 +791,15 @@ static void event_srv_chk_w(struct connection *conn)
 		return;
 
 	/* here, we know that the connection is established */
-	if (!(s->check.result & SRV_CHK_FAILED)) {
+	if (!(check->result & SRV_CHK_FAILED)) {
 		/* we don't want to mark 'UP' a server on which we detected an error earlier */
-		if (s->check.bo->o) {
-			conn->xprt->snd_buf(conn, s->check.bo, MSG_DONTWAIT | MSG_NOSIGNAL);
+		if (check->bo->o) {
+			conn->xprt->snd_buf(conn, check->bo, MSG_DONTWAIT | MSG_NOSIGNAL);
 			if (conn->flags & CO_FL_ERROR) {
-				set_server_check_status(s, HCHK_STATUS_L4CON, strerror(errno));
+				set_server_check_status(check, HCHK_STATUS_L4CON, strerror(errno));
 				goto out_wakeup;
 			}
-			if (s->check.bo->o) {
+			if (check->bo->o) {
 				goto out_incomplete;
 			}
 		}
@@ -822,8 +826,8 @@ static void event_srv_chk_w(struct connection *conn)
 /*
  * This function is used only for server health-checks. It handles the server's
  * reply to an HTTP request, SSL HELLO or MySQL client Auth. It calls
- * set_server_check_status() to update s->check.status, s->check.duration
- * and s->check.result.
+ * set_server_check_status() to update check->status, check->duration
+ * and check->result.
 
  * The set_server_check_status function is called with HCHK_STATUS_L7OKD if
  * an HTTP server replies HTTP 2xx or 3xx (valid responses), if an SMTP server
@@ -835,17 +839,17 @@ static void event_srv_chk_w(struct connection *conn)
  */
 static void event_srv_chk_r(struct connection *conn)
 {
-	struct server *s = conn->owner;
-	struct task *t = s->check.task;
+	struct check *check = conn->owner;
+	struct server *s = check->server;
+	struct task *t = check->task;
 	char *desc;
 	int done;
 	unsigned short msglen;
 
-	if (unlikely((s->check.result & SRV_CHK_FAILED) || (conn->flags & CO_FL_ERROR))) {
+	if (unlikely((check->result & SRV_CHK_FAILED) || (conn->flags & CO_FL_ERROR))) {
 		/* in case of TCP only, this tells us if the connection failed */
-		if (!(s->check.result & SRV_CHK_FAILED))
-			set_server_check_status(s, HCHK_STATUS_SOCKERR, NULL);
-
+		if (!(check->result & SRV_CHK_FAILED))
+			set_server_check_status(check, HCHK_STATUS_SOCKERR, NULL);
 		goto out_wakeup;
 	}
 
@@ -864,57 +868,57 @@ static void event_srv_chk_r(struct connection *conn)
 
 	done = 0;
 
-	conn->xprt->rcv_buf(conn, s->check.bi, s->check.bi->size);
+	conn->xprt->rcv_buf(conn, check->bi, check->bi->size);
 	if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_DATA_RD_SH)) {
 		done = 1;
-		if ((conn->flags & CO_FL_ERROR) && !s->check.bi->i) {
+		if ((conn->flags & CO_FL_ERROR) && !check->bi->i) {
 			/* Report network errors only if we got no other data. Otherwise
 			 * we'll let the upper layers decide whether the response is OK
 			 * or not. It is very common that an RST sent by the server is
 			 * reported as an error just after the last data chunk.
 			 */
-			if (!(s->check.result & SRV_CHK_FAILED))
-				set_server_check_status(s, HCHK_STATUS_SOCKERR, NULL);
+			if (!(check->result & SRV_CHK_FAILED))
+				set_server_check_status(check, HCHK_STATUS_SOCKERR, NULL);
 			goto out_wakeup;
 		}
 	}
 
 	/* Intermediate or complete response received.
-	 * Terminate string in check.bi->data buffer.
+	 * Terminate string in check->bi->data buffer.
 	 */
-	if (s->check.bi->i < s->check.bi->size)
-		s->check.bi->data[s->check.bi->i] = '\0';
+	if (check->bi->i < check->bi->size)
+		check->bi->data[check->bi->i] = '\0';
 	else {
-		s->check.bi->data[s->check.bi->i - 1] = '\0';
+		check->bi->data[check->bi->i - 1] = '\0';
 		done = 1; /* buffer full, don't wait for more data */
 	}
 
 	/* Run the checks... */
-	switch (s->proxy->options2 & PR_O2_CHK_ANY) {
+	switch (check->type) {
 	case PR_O2_HTTP_CHK:
-		if (!done && s->check.bi->i < strlen("HTTP/1.0 000\r"))
+		if (!done && check->bi->i < strlen("HTTP/1.0 000\r"))
 			goto wait_more_data;
 
 		/* Check if the server speaks HTTP 1.X */
-		if ((s->check.bi->i < strlen("HTTP/1.0 000\r")) ||
-		    (memcmp(s->check.bi->data, "HTTP/1.", 7) != 0 ||
-		    (*(s->check.bi->data + 12) != ' ' && *(s->check.bi->data + 12) != '\r')) ||
-		    !isdigit((unsigned char) *(s->check.bi->data + 9)) || !isdigit((unsigned char) *(s->check.bi->data + 10)) ||
-		    !isdigit((unsigned char) *(s->check.bi->data + 11))) {
-			cut_crlf(s->check.bi->data);
-			set_server_check_status(s, HCHK_STATUS_L7RSP, s->check.bi->data);
+		if ((check->bi->i < strlen("HTTP/1.0 000\r")) ||
+		    (memcmp(check->bi->data, "HTTP/1.", 7) != 0 ||
+		    (*(check->bi->data + 12) != ' ' && *(check->bi->data + 12) != '\r')) ||
+		    !isdigit((unsigned char) *(check->bi->data + 9)) || !isdigit((unsigned char) *(check->bi->data + 10)) ||
+		    !isdigit((unsigned char) *(check->bi->data + 11))) {
+			cut_crlf(check->bi->data);
+			set_server_check_status(check, HCHK_STATUS_L7RSP, check->bi->data);
 
 			goto out_wakeup;
 		}
 
-		s->check.code = str2uic(s->check.bi->data + 9);
-		desc = ltrim(s->check.bi->data + 12, ' ');
+		check->code = str2uic(check->bi->data + 9);
+		desc = ltrim(check->bi->data + 12, ' ');
 		
 		if ((s->proxy->options & PR_O_DISABLE404) &&
-			 (s->state & SRV_RUNNING) && (s->check.code == 404)) {
+			 (s->state & SRV_RUNNING) && (check->code == 404)) {
 			/* 404 may be accepted as "stopping" only if the server was up */
 			cut_crlf(desc);
-			set_server_check_status(s, HCHK_STATUS_L7OKCD, desc);
+			set_server_check_status(check, HCHK_STATUS_L7OKCD, desc);
 		}
 		else if (s->proxy->options2 & PR_O2_EXP_TYPE) {
 			/* Run content verification check... We know we have at least 13 chars */
@@ -922,52 +926,52 @@ static void event_srv_chk_r(struct connection *conn)
 				goto wait_more_data;
 		}
 		/* check the reply : HTTP/1.X 2xx and 3xx are OK */
-		else if (*(s->check.bi->data + 9) == '2' || *(s->check.bi->data + 9) == '3') {
+		else if (*(check->bi->data + 9) == '2' || *(check->bi->data + 9) == '3') {
 			cut_crlf(desc);
-			set_server_check_status(s, HCHK_STATUS_L7OKD, desc);
+			set_server_check_status(check,  HCHK_STATUS_L7OKD, desc);
 		}
 		else {
 			cut_crlf(desc);
-			set_server_check_status(s, HCHK_STATUS_L7STS, desc);
+			set_server_check_status(check, HCHK_STATUS_L7STS, desc);
 		}
 		break;
 
 	case PR_O2_SSL3_CHK:
-		if (!done && s->check.bi->i < 5)
+		if (!done && check->bi->i < 5)
 			goto wait_more_data;
 
 		/* Check for SSLv3 alert or handshake */
-		if ((s->check.bi->i >= 5) && (*s->check.bi->data == 0x15 || *s->check.bi->data == 0x16))
-			set_server_check_status(s, HCHK_STATUS_L6OK, NULL);
+		if ((check->bi->i >= 5) && (*check->bi->data == 0x15 || *check->bi->data == 0x16))
+			set_server_check_status(check, HCHK_STATUS_L6OK, NULL);
 		else
-			set_server_check_status(s, HCHK_STATUS_L6RSP, NULL);
+			set_server_check_status(check, HCHK_STATUS_L6RSP, NULL);
 		break;
 
 	case PR_O2_SMTP_CHK:
-		if (!done && s->check.bi->i < strlen("000\r"))
+		if (!done && check->bi->i < strlen("000\r"))
 			goto wait_more_data;
 
 		/* Check if the server speaks SMTP */
-		if ((s->check.bi->i < strlen("000\r")) ||
-		    (*(s->check.bi->data + 3) != ' ' && *(s->check.bi->data + 3) != '\r') ||
-		    !isdigit((unsigned char) *s->check.bi->data) || !isdigit((unsigned char) *(s->check.bi->data + 1)) ||
-		    !isdigit((unsigned char) *(s->check.bi->data + 2))) {
-			cut_crlf(s->check.bi->data);
-			set_server_check_status(s, HCHK_STATUS_L7RSP, s->check.bi->data);
+		if ((check->bi->i < strlen("000\r")) ||
+		    (*(check->bi->data + 3) != ' ' && *(check->bi->data + 3) != '\r') ||
+		    !isdigit((unsigned char) *check->bi->data) || !isdigit((unsigned char) *(check->bi->data + 1)) ||
+		    !isdigit((unsigned char) *(check->bi->data + 2))) {
+			cut_crlf(check->bi->data);
+			set_server_check_status(check, HCHK_STATUS_L7RSP, check->bi->data);
 
 			goto out_wakeup;
 		}
 
-		s->check.code = str2uic(s->check.bi->data);
+		check->code = str2uic(check->bi->data);
 
-		desc = ltrim(s->check.bi->data + 3, ' ');
+		desc = ltrim(check->bi->data + 3, ' ');
 		cut_crlf(desc);
 
 		/* Check for SMTP code 2xx (should be 250) */
-		if (*s->check.bi->data == '2')
-			set_server_check_status(s, HCHK_STATUS_L7OKD, desc);
+		if (*check->bi->data == '2')
+			set_server_check_status(check, HCHK_STATUS_L7OKD, desc);
 		else
-			set_server_check_status(s, HCHK_STATUS_L7STS, desc);
+			set_server_check_status(check, HCHK_STATUS_L7STS, desc);
 		break;
 
 	case PR_O2_LB_AGENT_CHK: {
@@ -978,30 +982,30 @@ static void event_srv_chk_r(struct connection *conn)
 		if (!done)
 			goto wait_more_data;
 
-		cut_crlf(s->check.bi->data);
+		cut_crlf(check->bi->data);
 
-		if (strchr(s->check.bi->data, '%')) {
-			desc = server_parse_weight_change_request(s, s->check.bi->data);
+		if (strchr(check->bi->data, '%')) {
+			desc = server_parse_weight_change_request(s, check->bi->data);
 			if (!desc) {
 				status = HCHK_STATUS_L7OKD;
-				desc = s->check.bi->data;
+				desc = check->bi->data;
 			}
-		} else if (!strcasecmp(s->check.bi->data, "drain")) {
+		} else if (!strcasecmp(check->bi->data, "drain")) {
 			desc = server_parse_weight_change_request(s, "0%");
 			if (!desc) {
 				desc = "drain";
 				status = HCHK_STATUS_L7OKD;
 			}
-		} else if (!strncasecmp(s->check.bi->data, "down", strlen("down"))) {
+		} else if (!strncasecmp(check->bi->data, "down", strlen("down"))) {
 			down_cmd = "down";
-		} else if (!strncasecmp(s->check.bi->data, "stopped", strlen("stopped"))) {
+		} else if (!strncasecmp(check->bi->data, "stopped", strlen("stopped"))) {
 			down_cmd = "stopped";
-		} else if (!strncasecmp(s->check.bi->data, "fail", strlen("fail"))) {
+		} else if (!strncasecmp(check->bi->data, "fail", strlen("fail"))) {
 			down_cmd = "fail";
 		}
 
 		if (down_cmd) {
-			const char *end = s->check.bi->data + strlen(down_cmd);
+			const char *end = check->bi->data + strlen(down_cmd);
 			/*
 			 * The command keyword must terminated the string or
 			 * be followed by a blank.
@@ -1015,52 +1019,52 @@ static void event_srv_chk_r(struct connection *conn)
 			}
 		}
 
-		set_server_check_status(s, status, desc);
+		set_server_check_status(check, status, desc);
 		break;
 	}
 
 	case PR_O2_PGSQL_CHK:
-		if (!done && s->check.bi->i < 9)
+		if (!done && check->bi->i < 9)
 			goto wait_more_data;
 
-		if (s->check.bi->data[0] == 'R') {
-			set_server_check_status(s, HCHK_STATUS_L7OKD, "PostgreSQL server is ok");
+		if (check->bi->data[0] == 'R') {
+			set_server_check_status(check, HCHK_STATUS_L7OKD, "PostgreSQL server is ok");
 		}
 		else {
-			if ((s->check.bi->data[0] == 'E') && (s->check.bi->data[5]!=0) && (s->check.bi->data[6]!=0))
-				desc = &s->check.bi->data[6];
+			if ((check->bi->data[0] == 'E') && (check->bi->data[5]!=0) && (check->bi->data[6]!=0))
+				desc = &check->bi->data[6];
 			else
 				desc = "PostgreSQL unknown error";
 
-			set_server_check_status(s, HCHK_STATUS_L7STS, desc);
+			set_server_check_status(check, HCHK_STATUS_L7STS, desc);
 		}
 		break;
 
 	case PR_O2_REDIS_CHK:
-		if (!done && s->check.bi->i < 7)
+		if (!done && check->bi->i < 7)
 			goto wait_more_data;
 
-		if (strcmp(s->check.bi->data, "+PONG\r\n") == 0) {
-			set_server_check_status(s, HCHK_STATUS_L7OKD, "Redis server is ok");
+		if (strcmp(check->bi->data, "+PONG\r\n") == 0) {
+			set_server_check_status(check, HCHK_STATUS_L7OKD, "Redis server is ok");
 		}
 		else {
-			set_server_check_status(s, HCHK_STATUS_L7STS, s->check.bi->data);
+			set_server_check_status(check, HCHK_STATUS_L7STS, check->bi->data);
 		}
 		break;
 
 	case PR_O2_MYSQL_CHK:
-		if (!done && s->check.bi->i < 5)
+		if (!done && check->bi->i < 5)
 			goto wait_more_data;
 
 		if (s->proxy->check_len == 0) { // old mode
-			if (*(s->check.bi->data + 4) != '\xff') {
+			if (*(check->bi->data + 4) != '\xff') {
 				/* We set the MySQL Version in description for information purpose
 				 * FIXME : it can be cool to use MySQL Version for other purpose,
 				 * like mark as down old MySQL server.
 				 */
-				if (s->check.bi->i > 51) {
-					desc = ltrim(s->check.bi->data + 5, ' ');
-					set_server_check_status(s, HCHK_STATUS_L7OKD, desc);
+				if (check->bi->i > 51) {
+					desc = ltrim(check->bi->data + 5, ' ');
+					set_server_check_status(check, HCHK_STATUS_L7OKD, desc);
 				}
 				else {
 					if (!done)
@@ -1068,58 +1072,58 @@ static void event_srv_chk_r(struct connection *conn)
 					/* it seems we have a OK packet but without a valid length,
 					 * it must be a protocol error
 					 */
-					set_server_check_status(s, HCHK_STATUS_L7RSP, s->check.bi->data);
+					set_server_check_status(check, HCHK_STATUS_L7RSP, check->bi->data);
 				}
 			}
 			else {
 				/* An error message is attached in the Error packet */
-				desc = ltrim(s->check.bi->data + 7, ' ');
-				set_server_check_status(s, HCHK_STATUS_L7STS, desc);
+				desc = ltrim(check->bi->data + 7, ' ');
+				set_server_check_status(check, HCHK_STATUS_L7STS, desc);
 			}
 		} else {
-			unsigned int first_packet_len = ((unsigned int) *s->check.bi->data) +
-			                                (((unsigned int) *(s->check.bi->data + 1)) << 8) +
-			                                (((unsigned int) *(s->check.bi->data + 2)) << 16);
+			unsigned int first_packet_len = ((unsigned int) *check->bi->data) +
+			                                (((unsigned int) *(check->bi->data + 1)) << 8) +
+			                                (((unsigned int) *(check->bi->data + 2)) << 16);
 
-			if (s->check.bi->i == first_packet_len + 4) {
+			if (check->bi->i == first_packet_len + 4) {
 				/* MySQL Error packet always begin with field_count = 0xff */
-				if (*(s->check.bi->data + 4) != '\xff') {
+				if (*(check->bi->data + 4) != '\xff') {
 					/* We have only one MySQL packet and it is a Handshake Initialization packet
 					* but we need to have a second packet to know if it is alright
 					*/
-					if (!done && s->check.bi->i < first_packet_len + 5)
+					if (!done && check->bi->i < first_packet_len + 5)
 						goto wait_more_data;
 				}
 				else {
 					/* We have only one packet and it is an Error packet,
 					* an error message is attached, so we can display it
 					*/
-					desc = &s->check.bi->data[7];
+					desc = &check->bi->data[7];
 					//Warning("onlyoneERR: %s\n", desc);
-					set_server_check_status(s, HCHK_STATUS_L7STS, desc);
+					set_server_check_status(check, HCHK_STATUS_L7STS, desc);
 				}
-			} else if (s->check.bi->i > first_packet_len + 4) {
-				unsigned int second_packet_len = ((unsigned int) *(s->check.bi->data + first_packet_len + 4)) +
-				                                 (((unsigned int) *(s->check.bi->data + first_packet_len + 5)) << 8) +
-				                                 (((unsigned int) *(s->check.bi->data + first_packet_len + 6)) << 16);
+			} else if (check->bi->i > first_packet_len + 4) {
+				unsigned int second_packet_len = ((unsigned int) *(check->bi->data + first_packet_len + 4)) +
+				                                 (((unsigned int) *(check->bi->data + first_packet_len + 5)) << 8) +
+				                                 (((unsigned int) *(check->bi->data + first_packet_len + 6)) << 16);
 
-				if (s->check.bi->i == first_packet_len + 4 + second_packet_len + 4 ) {
+				if (check->bi->i == first_packet_len + 4 + second_packet_len + 4 ) {
 					/* We have 2 packets and that's good */
 					/* Check if the second packet is a MySQL Error packet or not */
-					if (*(s->check.bi->data + first_packet_len + 8) != '\xff') {
+					if (*(check->bi->data + first_packet_len + 8) != '\xff') {
 						/* No error packet */
 						/* We set the MySQL Version in description for information purpose */
-						desc = &s->check.bi->data[5];
+						desc = &check->bi->data[5];
 						//Warning("2packetOK: %s\n", desc);
-						set_server_check_status(s, HCHK_STATUS_L7OKD, desc);
+						set_server_check_status(check, HCHK_STATUS_L7OKD, desc);
 					}
 					else {
 						/* An error message is attached in the Error packet
 						* so we can display it ! :)
 						*/
-						desc = &s->check.bi->data[first_packet_len+11];
+						desc = &check->bi->data[first_packet_len+11];
 						//Warning("2packetERR: %s\n", desc);
-						set_server_check_status(s, HCHK_STATUS_L7STS, desc);
+						set_server_check_status(check, HCHK_STATUS_L7STS, desc);
 					}
 				}
 			}
@@ -1129,15 +1133,15 @@ static void event_srv_chk_r(struct connection *conn)
 				/* it seems we have a Handshake Initialization packet but without a valid length,
 				 * it must be a protocol error
 				 */
-				desc = &s->check.bi->data[5];
+				desc = &check->bi->data[5];
 				//Warning("protoerr: %s\n", desc);
-				set_server_check_status(s, HCHK_STATUS_L7RSP, desc);
+				set_server_check_status(check, HCHK_STATUS_L7RSP, desc);
 			}
 		}
 		break;
 
 	case PR_O2_LDAP_CHK:
-		if (!done && s->check.bi->i < 14)
+		if (!done && check->bi->i < 14)
 			goto wait_more_data;
 
 		/* Check if the server speaks LDAP (ASN.1/BER)
@@ -1148,33 +1152,33 @@ static void event_srv_chk_r(struct connection *conn)
 		/* http://tools.ietf.org/html/rfc4511#section-4.1.1
 		 *   LDAPMessage: 0x30: SEQUENCE
 		 */
-		if ((s->check.bi->i < 14) || (*(s->check.bi->data) != '\x30')) {
-			set_server_check_status(s, HCHK_STATUS_L7RSP, "Not LDAPv3 protocol");
+		if ((check->bi->i < 14) || (*(check->bi->data) != '\x30')) {
+			set_server_check_status(check, HCHK_STATUS_L7RSP, "Not LDAPv3 protocol");
 		}
 		else {
 			 /* size of LDAPMessage */
-			msglen = (*(s->check.bi->data + 1) & 0x80) ? (*(s->check.bi->data + 1) & 0x7f) : 0;
+			msglen = (*(check->bi->data + 1) & 0x80) ? (*(check->bi->data + 1) & 0x7f) : 0;
 
 			/* http://tools.ietf.org/html/rfc4511#section-4.2.2
 			 *   messageID: 0x02 0x01 0x01: INTEGER 1
 			 *   protocolOp: 0x61: bindResponse
 			 */
 			if ((msglen > 2) ||
-			    (memcmp(s->check.bi->data + 2 + msglen, "\x02\x01\x01\x61", 4) != 0)) {
-				set_server_check_status(s, HCHK_STATUS_L7RSP, "Not LDAPv3 protocol");
+			    (memcmp(check->bi->data + 2 + msglen, "\x02\x01\x01\x61", 4) != 0)) {
+				set_server_check_status(check, HCHK_STATUS_L7RSP, "Not LDAPv3 protocol");
 
 				goto out_wakeup;
 			}
 
 			/* size of bindResponse */
-			msglen += (*(s->check.bi->data + msglen + 6) & 0x80) ? (*(s->check.bi->data + msglen + 6) & 0x7f) : 0;
+			msglen += (*(check->bi->data + msglen + 6) & 0x80) ? (*(check->bi->data + msglen + 6) & 0x7f) : 0;
 
 			/* http://tools.ietf.org/html/rfc4511#section-4.1.9
 			 *   ldapResult: 0x0a 0x01: ENUMERATION
 			 */
 			if ((msglen > 4) ||
-			    (memcmp(s->check.bi->data + 7 + msglen, "\x0a\x01", 2) != 0)) {
-				set_server_check_status(s, HCHK_STATUS_L7RSP, "Not LDAPv3 protocol");
+			    (memcmp(check->bi->data + 7 + msglen, "\x0a\x01", 2) != 0)) {
+				set_server_check_status(check, HCHK_STATUS_L7RSP, "Not LDAPv3 protocol");
 
 				goto out_wakeup;
 			}
@@ -1182,28 +1186,28 @@ static void event_srv_chk_r(struct connection *conn)
 			/* http://tools.ietf.org/html/rfc4511#section-4.1.9
 			 *   resultCode
 			 */
-			s->check.code = *(s->check.bi->data + msglen + 9);
-			if (s->check.code) {
-				set_server_check_status(s, HCHK_STATUS_L7STS, "See RFC: http://tools.ietf.org/html/rfc4511#section-4.1.9");
+			check->code = *(check->bi->data + msglen + 9);
+			if (check->code) {
+				set_server_check_status(check, HCHK_STATUS_L7STS, "See RFC: http://tools.ietf.org/html/rfc4511#section-4.1.9");
 			} else {
-				set_server_check_status(s, HCHK_STATUS_L7OKD, "Success");
+				set_server_check_status(check, HCHK_STATUS_L7OKD, "Success");
 			}
 		}
 		break;
 
 	default:
 		/* other checks are valid if the connection succeeded anyway */
-		set_server_check_status(s, HCHK_STATUS_L4OK, NULL);
+		set_server_check_status(check, HCHK_STATUS_L4OK, NULL);
 		break;
 	} /* switch */
 
  out_wakeup:
-	if (s->check.result & SRV_CHK_FAILED)
+	if (check->result & SRV_CHK_FAILED)
 		conn->flags |= CO_FL_ERROR;
 
 	/* Reset the check buffer... */
-	*s->check.bi->data = '\0';
-	s->check.bi->i = 0;
+	*check->bi->data = '\0';
+	check->bi->i = 0;
 
 	/* Close the connection... We absolutely want to perform a hard close
 	 * and reset the connection if some data are pending, otherwise we end
@@ -1234,17 +1238,17 @@ static void event_srv_chk_r(struct connection *conn)
  */
 static int wake_srv_chk(struct connection *conn)
 {
-	struct server *s = conn->owner;
+	struct check *check = conn->owner;
 
 	if (unlikely(conn->flags & CO_FL_ERROR)) {
 		/* Note that we might as well have been woken up by a handshake handler */
-		if (s->check.result == SRV_CHK_UNKNOWN)
-			s->check.result |= SRV_CHK_FAILED;
+		if (check->result == SRV_CHK_UNKNOWN)
+			check->result |= SRV_CHK_FAILED;
 		__conn_data_stop_both(conn);
-		task_wakeup(s->check.task, TASK_WOKEN_IO);
+		task_wakeup(check->task, TASK_WOKEN_IO);
 	}
 
-	if (s->check.result & (SRV_CHK_FAILED|SRV_CHK_PASSED))
+	if (check->result & (SRV_CHK_FAILED|SRV_CHK_PASSED))
 		conn_full_close(conn);
 	return 0;
 }
@@ -1304,8 +1308,9 @@ static struct task *server_warmup(struct task *t)
  */
 static struct task *process_chk(struct task *t)
 {
-	struct server *s = t->context;
-	struct connection *conn = s->check.conn;
+	struct check *check = t->context;
+	struct server *s = check->server;
+	struct connection *conn = check->conn;
 	int rv;
 	int ret;
 	int expired = tick_is_expired(t->expire, now_ms);
@@ -1322,31 +1327,31 @@ static struct task *process_chk(struct task *t)
 			goto reschedule;
 
 		/* we'll initiate a new check */
-		set_server_check_status(s, HCHK_STATUS_START, NULL);
+		set_server_check_status(check, HCHK_STATUS_START, NULL);
 
 		s->state |= SRV_CHK_RUNNING;
-		s->check.bi->p = s->check.bi->data;
-		s->check.bi->i = 0;
-		s->check.bo->p = s->check.bo->data;
-		s->check.bo->o = 0;
+		check->bi->p = check->bi->data;
+		check->bi->i = 0;
+		check->bo->p = check->bo->data;
+		check->bo->o = 0;
 
 		/* prepare the check buffer */
-		if (s->proxy->options2 & PR_O2_CHK_ANY) {
-			bo_putblk(s->check.bo, s->proxy->check_req, s->proxy->check_len);
+		if (check->type) {
+			bo_putblk(check->bo, s->proxy->check_req, s->proxy->check_len);
 
 			/* we want to check if this host replies to HTTP or SSLv3 requests
 			 * so we'll send the request, and won't wake the checker up now.
 			 */
-			if ((s->proxy->options2 & PR_O2_CHK_ANY) == PR_O2_SSL3_CHK) {
+			if ((check->type) == PR_O2_SSL3_CHK) {
 				/* SSL requires that we put Unix time in the request */
 				int gmt_time = htonl(date.tv_sec);
-				memcpy(s->check.bo->data + 11, &gmt_time, 4);
+				memcpy(check->bo->data + 11, &gmt_time, 4);
 			}
-			else if ((s->proxy->options2 & PR_O2_CHK_ANY) == PR_O2_HTTP_CHK) {
+			else if ((check->type) == PR_O2_HTTP_CHK) {
 				if (s->proxy->options2 & PR_O2_CHK_SNDST)
-					bo_putblk(s->check.bo, trash.str, httpchk_build_status_header(s, trash.str));
-				bo_putstr(s->check.bo, "\r\n");
-				*s->check.bo->p = '\0'; /* to make gdb output easier to read */
+					bo_putblk(check->bo, trash.str, httpchk_build_status_header(s, trash.str));
+				bo_putstr(check->bo, "\r\n");
+				*check->bo->p = '\0'; /* to make gdb output easier to read */
 			}
 		}
 
@@ -1354,7 +1359,7 @@ static struct task *process_chk(struct task *t)
 		conn->flags = CO_FL_NONE;
 		conn->err_code = CO_ER_NONE;
 		conn->target = &s->obj_type;
-		conn_prepare(conn, &check_conn_cb, s->check_common.proto, s->check_common.xprt, s);
+		conn_prepare(conn, &check_conn_cb, s->check_common.proto, s->check_common.xprt, check);
 
 		/* no client address */
 		clear_addr(&conn->addr.from);
@@ -1366,7 +1371,7 @@ static struct task *process_chk(struct task *t)
 			/* we'll connect to the addr on the server */
 			conn->addr.to = s->addr;
 
-		set_host_port(&conn->addr.to, s->check.port);
+		set_host_port(&conn->addr.to, check->port);
 
 		/* It can return one of :
 		 *  - SN_ERR_NONE if everything's OK
@@ -1381,10 +1386,10 @@ static struct task *process_chk(struct task *t)
 		 */
 		ret = SN_ERR_INTERNAL;
 		if (s->check_common.proto->connect)
-			ret = s->check_common.proto->connect(conn, s->proxy->options2 & PR_O2_CHK_ANY,
-							     s->check.send_proxy ? 1 : (s->proxy->options2 & PR_O2_CHK_ANY) ? 0 : 2);
+			ret = s->check_common.proto->connect(conn, check->type,
+							     s->check.send_proxy ? 1 : (check->type) ? 0 : 2);
 		conn->flags |= CO_FL_WAKE_DATA;
-		if (s->check.send_proxy)
+		if (check->send_proxy)
 			conn->flags |= CO_FL_LOCAL_SPROXY;
 
 		switch (ret) {
@@ -1393,7 +1398,7 @@ static struct task *process_chk(struct task *t)
 			 * to establish but only when timeout.check is set
 			 * as it may be to short for a full check otherwise
 			 */
-			t->expire = tick_add(now_ms, MS_TO_TICKS(s->check.inter));
+			t->expire = tick_add(now_ms, MS_TO_TICKS(check->inter));
 
 			if (s->proxy->timeout.check && s->proxy->timeout.connect) {
 				int t_con = tick_add(now_ms, s->proxy->timeout.connect);
@@ -1404,12 +1409,12 @@ static struct task *process_chk(struct task *t)
 
 		case SN_ERR_SRVTO: /* ETIMEDOUT */
 		case SN_ERR_SRVCL: /* ECONNREFUSED, ENETUNREACH, ... */
-			set_server_check_status(s, HCHK_STATUS_L4CON, strerror(errno));
+			set_server_check_status(check, HCHK_STATUS_L4CON, strerror(errno));
 			break;
 		case SN_ERR_PRXCOND:
 		case SN_ERR_RESOURCE:
 		case SN_ERR_INTERNAL:
-			set_server_check_status(s, HCHK_STATUS_SOCKERR, NULL);
+			set_server_check_status(check, HCHK_STATUS_SOCKERR, NULL);
 			break;
 		}
 
@@ -1421,7 +1426,7 @@ static struct task *process_chk(struct task *t)
 			s->counters.failed_checks++;
 		}
 		else
-			set_server_down(s);
+			set_server_down(check);
 
 		/* we allow up to min(inter, timeout.connect) for a connection
 		 * to establish but only when timeout.check is set
@@ -1431,7 +1436,7 @@ static struct task *process_chk(struct task *t)
 			int t_con;
 
 			t_con = tick_add(t->expire, s->proxy->timeout.connect);
-			t->expire = tick_add(t->expire, MS_TO_TICKS(s->check.inter));
+			t->expire = tick_add(t->expire, MS_TO_TICKS(check->inter));
 
 			if (s->proxy->timeout.check)
 				t->expire = tick_first(t->expire, t_con);
@@ -1446,30 +1451,30 @@ static struct task *process_chk(struct task *t)
 			if ((conn->flags & (CO_FL_CONNECTED|CO_FL_WAIT_L4_CONN)) == CO_FL_WAIT_L4_CONN) {
 				/* L4 not established (yet) */
 				if (conn->flags & CO_FL_ERROR)
-					set_server_check_status(s, HCHK_STATUS_L4CON, NULL);
+					set_server_check_status(check, HCHK_STATUS_L4CON, NULL);
 				else if (expired)
-					set_server_check_status(s, HCHK_STATUS_L4TOUT, NULL);
+					set_server_check_status(check, HCHK_STATUS_L4TOUT, NULL);
 			}
 			else if ((conn->flags & (CO_FL_CONNECTED|CO_FL_WAIT_L6_CONN)) == CO_FL_WAIT_L6_CONN) {
 				/* L6 not established (yet) */
 				if (conn->flags & CO_FL_ERROR)
-					set_server_check_status(s, HCHK_STATUS_L6RSP, NULL);
+					set_server_check_status(check, HCHK_STATUS_L6RSP, NULL);
 				else if (expired)
-					set_server_check_status(s, HCHK_STATUS_L6TOUT, NULL);
+					set_server_check_status(check, HCHK_STATUS_L6TOUT, NULL);
 			}
-			else if (!(s->proxy->options2 & PR_O2_CHK_ANY)) {
+			else if (!check->type) {
 				/* good connection is enough for pure TCP check */
-				if (s->check.use_ssl)
-					set_server_check_status(s, HCHK_STATUS_L6OK, NULL);
+				if (check->use_ssl)
+					set_server_check_status(check, HCHK_STATUS_L6OK, NULL);
 				else
-					set_server_check_status(s, HCHK_STATUS_L4OK, NULL);
+					set_server_check_status(check, HCHK_STATUS_L4OK, NULL);
 			}
 			else if (expired) {
 				/* connection established but expired check */
-				if ((s->proxy->options2 & PR_O2_CHK_ANY) == PR_O2_SSL3_CHK)
-					set_server_check_status(s, HCHK_STATUS_L6TOUT, NULL);
+				if (check->type == PR_O2_SSL3_CHK)
+					set_server_check_status(check, HCHK_STATUS_L6TOUT, NULL);
 				else	/* HTTP, SMTP, ... */
-					set_server_check_status(s, HCHK_STATUS_L7TOUT, NULL);
+					set_server_check_status(check, HCHK_STATUS_L7TOUT, NULL);
 
 			}
 			else
@@ -1477,7 +1482,6 @@ static struct task *process_chk(struct task *t)
 		}
 
 		/* check complete or aborted */
-
 		if (conn->xprt) {
 			/* The check was aborted and the connection was not yet closed.
 			 * This can happen upon timeout, or when an external event such
@@ -1496,35 +1500,35 @@ static struct task *process_chk(struct task *t)
 				s->counters.failed_checks++;
 			}
 			else
-				set_server_down(s);
+				set_server_down(check);
 		}
 		else {  /* check was OK */
 			/* we may have to add/remove this server from the LB group */
 			if ((s->state & SRV_RUNNING) && (s->proxy->options & PR_O_DISABLE404)) {
-				if ((s->state & SRV_GOINGDOWN) && !(s->check.result & SRV_CHK_DISABLE))
-					set_server_enabled(s);
-				else if (!(s->state & SRV_GOINGDOWN) && (s->check.result & SRV_CHK_DISABLE))
-					set_server_disabled(s);
+				if ((s->state & SRV_GOINGDOWN) && !(check->result & SRV_CHK_DISABLE))
+					set_server_enabled(check);
+				else if (!(s->state & SRV_GOINGDOWN) && (check->result & SRV_CHK_DISABLE))
+					set_server_disabled(check);
 			}
 
 			if (s->health < s->rise + s->fall - 1) {
 				s->health++; /* was bad, stays for a while */
-				set_server_up(s);
+				set_server_up(check);
 			}
 		}
 		s->state &= ~SRV_CHK_RUNNING;
 
 		rv = 0;
 		if (global.spread_checks > 0) {
-			rv = srv_getinter(s) * global.spread_checks / 100;
+			rv = srv_getinter(check) * global.spread_checks / 100;
 			rv -= (int) (2 * rv * (rand() / (RAND_MAX + 1.0)));
 		}
-		t->expire = tick_add(now_ms, MS_TO_TICKS(srv_getinter(s) + rv));
+		t->expire = tick_add(now_ms, MS_TO_TICKS(srv_getinter(check) + rv));
 	}
 
  reschedule:
 	while (tick_is_expired(t->expire, now_ms))
-		t->expire = tick_add(t->expire, MS_TO_TICKS(s->check.inter));
+		t->expire = tick_add(t->expire, MS_TO_TICKS(check->inter));
  out_wait:
 	return t;
 }
@@ -1538,7 +1542,7 @@ int start_checks() {
 	struct proxy *px;
 	struct server *s;
 	struct task *t;
-	int nbchk=0, mininter=0, srvpos=0;
+	int nbcheck=0, mininter=0, srvpos=0;
 
 	/* 1- count the checkers to run simultaneously.
 	 * We also determine the minimum interval among all of those which
@@ -1552,15 +1556,15 @@ int start_checks() {
 			if (!(s->state & SRV_CHECKED))
 				continue;
 
-			if ((srv_getinter(s) >= SRV_CHK_INTER_THRES) &&
-			    (!mininter || mininter > srv_getinter(s)))
-				mininter = srv_getinter(s);
+			if ((srv_getinter(&s->check) >= SRV_CHK_INTER_THRES) &&
+			    (!mininter || mininter > srv_getinter(&s->check)))
+				mininter = srv_getinter(&s->check);
 
-			nbchk++;
+			nbcheck++;
 		}
 	}
 
-	if (!nbchk)
+	if (!nbcheck)
 		return 0;
 
 	srand((unsigned)time(NULL));
@@ -1597,12 +1601,13 @@ int start_checks() {
 
 			s->check.task = t;
 			t->process = process_chk;
-			t->context = s;
+			t->context = &s->check;
 
 			/* check this every ms */
 			t->expire = tick_add(now_ms,
-					     MS_TO_TICKS(((mininter && mininter >= srv_getinter(s)) ?
-							  mininter : srv_getinter(s)) * srvpos / nbchk));
+					     MS_TO_TICKS(((mininter &&
+							   mininter >= srv_getinter(&s->check)) ?
+							  mininter : srv_getinter(&s->check)) * srvpos / nbcheck));
 			s->check.start = now;
 			task_queue(t);
 
@@ -1642,7 +1647,7 @@ static int httpchk_expect(struct server *s, int done)
 		if (s->proxy->options2 & PR_O2_EXP_INV)
 			ret = !ret;
 
-		set_server_check_status(s, ret ? HCHK_STATUS_L7OKD : HCHK_STATUS_L7STS, status_msg);
+		set_server_check_status(&s->check, ret ? HCHK_STATUS_L7OKD : HCHK_STATUS_L7STS, status_msg);
 		break;
 
 	case PR_O2_EXP_STR:
@@ -1668,7 +1673,7 @@ static int httpchk_expect(struct server *s, int done)
 			if (!done)
 				return 0;
 
-			set_server_check_status(s, HCHK_STATUS_L7RSP,
+			set_server_check_status(&s->check, HCHK_STATUS_L7RSP,
 						"HTTP content check could not find a response body");
 			return 1;
 		}
@@ -1678,7 +1683,7 @@ static int httpchk_expect(struct server *s, int done)
 			if (!done)
 				return 0;
 
-			set_server_check_status(s, HCHK_STATUS_L7RSP,
+			set_server_check_status(&s->check, HCHK_STATUS_L7RSP,
 						"HTTP content check found empty response body");
 			return 1;
 		}
@@ -1697,18 +1702,18 @@ static int httpchk_expect(struct server *s, int done)
 		if (ret) {
 			/* content matched */
 			if (s->proxy->options2 & PR_O2_EXP_INV)
-				set_server_check_status(s, HCHK_STATUS_L7RSP,
+				set_server_check_status(&s->check, HCHK_STATUS_L7RSP,
 							"HTTP check matched unwanted content");
 			else
-				set_server_check_status(s, HCHK_STATUS_L7OKD,
+				set_server_check_status(&s->check, HCHK_STATUS_L7OKD,
 							"HTTP content check matched");
 		}
 		else {
 			if (s->proxy->options2 & PR_O2_EXP_INV)
-				set_server_check_status(s, HCHK_STATUS_L7OKD,
+				set_server_check_status(&s->check, HCHK_STATUS_L7OKD,
 							"HTTP check did not match unwanted content");
 			else
-				set_server_check_status(s, HCHK_STATUS_L7RSP,
+				set_server_check_status(&s->check, HCHK_STATUS_L7RSP,
 							"HTTP content check did not match");
 		}
 		break;

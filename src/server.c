@@ -30,15 +30,17 @@ int srv_downtime(const struct server *s)
 	return now.tv_sec - s->last_change + s->down_time;
 }
 
-int srv_getinter(const struct server *s)
+int srv_getinter(const struct check *check)
 {
+	const struct server *s = check->server;
+
 	if ((s->state & SRV_CHECKED) && (s->health == s->rise + s->fall - 1))
-		return s->check.inter;
+		return check->inter;
 
 	if (!(s->state & SRV_RUNNING) && s->health==0)
-		return (s->check.downinter)?(s->check.downinter):(s->check.inter);
+		return (check->downinter)?(check->downinter):(check->inter);
 
-	return (s->check.fastinter)?(s->check.fastinter):(s->check.inter);
+	return (check->fastinter)?(check->fastinter):(check->inter);
 }
 
 /*

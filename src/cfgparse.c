@@ -4902,6 +4902,7 @@ stats_error_parsing:
 
 			newsrv->check.conn->t.sock.fd = -1; /* no check in progress yet */
 			newsrv->check.status = HCHK_STATUS_INI;
+			newsrv->check.type = curproxy->options2 & PR_O2_CHK_ANY;
 			newsrv->check.server = newsrv;
 			newsrv->state |= SRV_CHECKED;
 		}

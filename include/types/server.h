@@ -117,6 +117,7 @@ struct check {
 	int send_proxy;				/* send a PROXY protocol header with checks */
 	int inter, fastinter, downinter;        /* checks: time in milliseconds */
 	int result;				/* health-check result : SRV_CHK_* */
+	int type;				/* Check type, one of PR_O2_*_CHK */
 	struct server *server;			/* back-pointer to server */
 };
 

@@ -1308,14 +1308,14 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 					* we must restore the good status.
 					*/
 					if (sv->track->state & SRV_RUNNING) {
-						set_server_up(sv);
+						set_server_up(&sv->check);
 						sv->health = sv->rise;	/* up, but will fall down at first failure */
 					} else {
 						sv->state &= ~SRV_MAINTAIN;
-						set_server_down(sv);
+						set_server_down(&sv->check);
 					}
 				} else {
-					set_server_up(sv);
+					set_server_up(&sv->check);
 					sv->health = sv->rise;	/* up, but will fall down at first failure */
 				}
 			}
@@ -1365,7 +1365,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			if (! (sv->state & SRV_MAINTAIN)) {
 				/* Not already in maintenance, we can change the server state */
 				sv->state |= SRV_MAINTAIN;
-				set_server_down(sv);
+				set_server_down(&sv->check);
 			}
 
 			return 1;

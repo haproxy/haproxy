@@ -33,7 +33,7 @@
 #include <proto/freq_ctr.h>
 
 int srv_downtime(const struct server *s);
-int srv_getinter(const struct server *s);
+int srv_getinter(const struct check *check);
 
 /* increase the number of cumulated connections on the designated server */
 static void inline srv_inc_sess_ctr(struct server *s)
