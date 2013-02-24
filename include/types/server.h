@@ -55,7 +55,6 @@
 /* unused: 0x0100, 0x0200, 0x0400 */
 #define SRV_SEND_PROXY	0x0800	/* this server talks the PROXY protocol */
 #define SRV_NON_STICK	0x1000	/* never add connections allocated to this server to a stick table */
-#define SRV_CHK_RUNNING 0x2000  /* a check is currently running on this server */
 
 /* function which act on servers need to return various errors */
 #define SRV_STATUS_OK       0   /* everything is OK. */
@@ -69,6 +68,9 @@
 #define SRV_CHK_FAILED  0x0001   /* server check failed, flag has precedence over SRV_CHK_PASSED */
 #define SRV_CHK_PASSED  0x0002   /* server check succeeded unless FAILED is also set */
 #define SRV_CHK_DISABLE 0x0004   /* server returned a "disable" code */
+
+/* check flags */
+#define CHK_STATE_RUNNING	0x0001  /* this check is currently running */
 
 /* various constants */
 #define SRV_UWGHT_RANGE 256
@@ -117,6 +119,7 @@ struct check {
 	int send_proxy;				/* send a PROXY protocol header with checks */
 	int inter, fastinter, downinter;        /* checks: time in milliseconds */
 	int result;				/* health-check result : SRV_CHK_* */
+	int state;				/* health-check result : CHK_* */
 	int type;				/* Check type, one of PR_O2_*_CHK */
 	struct server *server;			/* back-pointer to server */
 };

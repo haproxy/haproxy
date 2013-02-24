@@ -1315,7 +1315,7 @@ static struct task *process_chk(struct task *t)
 	int ret;
 	int expired = tick_is_expired(t->expire, now_ms);
 
-	if (!(s->state & SRV_CHK_RUNNING)) {
+	if (!(check->state & CHK_STATE_RUNNING)) {
 		/* no check currently running */
 		if (!expired) /* woke up too early */
 			return t;
@@ -1329,7 +1329,7 @@ static struct task *process_chk(struct task *t)
 		/* we'll initiate a new check */
 		set_server_check_status(check, HCHK_STATUS_START, NULL);
 
-		s->state |= SRV_CHK_RUNNING;
+		check->state |= CHK_STATE_RUNNING;
 		check->bi->p = check->bi->data;
 		check->bi->i = 0;
 		check->bo->p = check->bo->data;
@@ -1420,7 +1420,7 @@ static struct task *process_chk(struct task *t)
 
 		/* here, we have seen a synchronous error, no fd was allocated */
 
-		s->state &= ~SRV_CHK_RUNNING;
+		check->state &= ~CHK_STATE_RUNNING;
 		if (s->health > s->rise) {
 			s->health--; /* still good */
 			s->counters.failed_checks++;
@@ -1516,7 +1516,7 @@ static struct task *process_chk(struct task *t)
 				set_server_up(check);
 			}
 		}
-		s->state &= ~SRV_CHK_RUNNING;
+		check->state &= ~CHK_STATE_RUNNING;
 
 		rv = 0;
 		if (global.spread_checks > 0) {

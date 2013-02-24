@@ -2273,7 +2273,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		if (sv->state & SRV_CHECKED) {
 			chunk_appendf(&trash,
 			              "</td><td class=ac><u> %s%s",
-			              (sv->state & SRV_CHK_RUNNING) ? "* " : "",
+			              (sv->check.state & CHK_STATE_RUNNING) ? "* " : "",
 			              get_check_status_info(sv->check.status));
 
 			if (sv->check.status >= HCHK_STATUS_L57DATA)
