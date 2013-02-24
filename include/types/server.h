@@ -120,6 +120,8 @@ struct check {
 	int inter, fastinter, downinter;        /* checks: time in milliseconds */
 	int result;				/* health-check result : SRV_CHK_* */
 	int state;				/* health-check result : CHK_* */
+	int health;				/* 0 to server->rise-1 = bad;
+						 * rise to server->rise+server->fall-1 = good */
 	int type;				/* Check type, one of PR_O2_*_CHK */
 	struct server *server;			/* back-pointer to server */
 };
@@ -151,7 +153,6 @@ struct server {
 
 	struct server *tracknext, *track;	/* next server in a tracking list, tracked server */
 	char *trackit;				/* temporary variable to make assignment deferrable */
-	int health;				/* 0->rise-1 = bad; rise->rise+fall-1 = good */
 	int consecutive_errors;			/* current number of consecutive errors */
 	int rise, fall;				/* time in iterations */
 	int consecutive_errors_limit;		/* number of consecutive errors that triggers an event */

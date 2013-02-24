@@ -1309,14 +1309,14 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 					*/
 					if (sv->track->state & SRV_RUNNING) {
 						set_server_up(&sv->check);
-						sv->health = sv->rise;	/* up, but will fall down at first failure */
+						sv->check.health = sv->rise;	/* up, but will fall down at first failure */
 					} else {
 						sv->state &= ~SRV_MAINTAIN;
 						set_server_down(&sv->check);
 					}
 				} else {
 					set_server_up(&sv->check);
-					sv->health = sv->rise;	/* up, but will fall down at first failure */
+					sv->check.health = sv->rise;	/* up, but will fall down at first failure */
 				}
 			}
 
@@ -2266,7 +2266,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			chunk_appendf(&trash, "%s ", human_time(now.tv_sec - ref->last_change, 1));
 			chunk_appendf(&trash,
 			              srv_hlt_st[state],
-			              (ref->state & SRV_RUNNING) ? (ref->health - ref->rise + 1) : (ref->health),
+			              (ref->state & SRV_RUNNING) ? (ref->check.health - ref->rise + 1) : (ref->check.health),
 			              (ref->state & SRV_RUNNING) ? (ref->fall) : (ref->rise));
 		}
 
@@ -2378,7 +2378,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		else
 			chunk_appendf(&trash,
 			              srv_hlt_st[state],
-			              (ref->state & SRV_RUNNING) ? (ref->health - ref->rise + 1) : (ref->health),
+			              (ref->state & SRV_RUNNING) ? (ref->check.health - ref->rise + 1) : (ref->check.health),
 			              (ref->state & SRV_RUNNING) ? (ref->fall) : (ref->rise));
 
 		chunk_appendf(&trash,
@@ -2950,7 +2950,7 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 			if (!(svs->state & SRV_CHECKED))
 				sv_state = 6;
 			else if (svs->state & SRV_RUNNING) {
-				if (svs->health == svs->rise + svs->fall - 1)
+				if (svs->check.health == svs->rise + svs->fall - 1)
 					sv_state = 3; /* UP */
 				else
 					sv_state = 2; /* going down */
@@ -2959,7 +2959,7 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 					sv_state += 2;
 			}
 			else
-				if (svs->health)
+				if (svs->check.health)
 					sv_state = 1; /* going up */
 				else
 					sv_state = 0; /* DOWN */

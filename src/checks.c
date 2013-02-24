@@ -229,8 +229,8 @@ static void set_server_check_status(struct check *check, short status, const cha
 	}
 
 	if (s->proxy->options2 & PR_O2_LOGHCHKS &&
-	(((s->health != 0) && (check->result & SRV_CHK_FAILED)) ||
-	    ((s->health != s->rise + s->fall - 1) && (check->result & SRV_CHK_PASSED)) ||
+	(((check->health != 0) && (check->result & SRV_CHK_FAILED)) ||
+	    ((check->health != s->rise + s->fall - 1) && (check->result & SRV_CHK_PASSED)) ||
 	    ((s->state & SRV_GOINGDOWN) && !(check->result & SRV_CHK_DISABLE)) ||
 	    (!(s->state & SRV_GOINGDOWN) && (check->result & SRV_CHK_DISABLE)))) {
 
@@ -239,7 +239,7 @@ static void set_server_check_status(struct check *check, short status, const cha
 		chunk_reset(&trash);
 
 		/* FIXME begin: calculate local version of the health/rise/fall/state */
-		health = s->health;
+		health = check->health;
 		rise   = s->rise;
 		fall   = s->fall;
 		state  = s->state;
@@ -395,10 +395,10 @@ void set_server_down(struct check *check)
 	int xferred;
 
 	if (s->state & SRV_MAINTAIN) {
-		s->health = s->rise;
+		check->health = s->rise;
 	}
 
-	if (s->health == s->rise || s->track) {
+	if (check->health == s->rise || s->track) {
 		int srv_was_paused = s->state & SRV_GOINGDOWN;
 		int prev_srv_count = s->proxy->srv_bck + s->proxy->srv_act;
 
@@ -451,7 +451,7 @@ void set_server_down(struct check *check)
 					set_server_down(check);
 	}
 
-	s->health = 0; /* failure */
+	check->health = 0; /* failure */
 }
 
 void set_server_up(struct check *check) {
@@ -462,10 +462,10 @@ void set_server_up(struct check *check) {
 	unsigned int old_state = s->state;
 
 	if (s->state & SRV_MAINTAIN) {
-		s->health = s->rise;
+		check->health = s->rise;
 	}
 
-	if (s->health == s->rise || s->track) {
+	if (check->health == s->rise || s->track) {
 		if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
 			if (s->proxy->last_change < now.tv_sec)		// ignore negative times
 				s->proxy->down_time += now.tv_sec - s->proxy->last_change;
@@ -534,8 +534,8 @@ void set_server_up(struct check *check) {
 					set_server_up(check);
 	}
 
-	if (s->health >= s->rise)
-		s->health = s->rise + s->fall - 1; /* OK now */
+	if (check->health >= s->rise)
+		check->health = s->rise + s->fall - 1; /* OK now */
 
 }
 
@@ -660,8 +660,8 @@ void health_adjust(struct server *s, short status)
 
 		case HANA_ONERR_SUDDTH:
 		/* simulate a pre-fatal failed health check */
-			if (s->health > s->rise)
-				s->health = s->rise + 1;
+			if (s->check.health > s->rise)
+				s->check.health = s->rise + 1;
 
 			/* no break - fall through */
 
@@ -669,8 +669,8 @@ void health_adjust(struct server *s, short status)
 		/* simulate a failed health check */
 			set_server_check_status(&s->check, HCHK_STATUS_HANA, trash.str);
 
-			if (s->health > s->rise) {
-				s->health--; /* still good */
+			if (s->check.health > s->rise) {
+				s->check.health--; /* still good */
 				s->counters.failed_checks++;
 			}
 			else
@@ -680,7 +680,7 @@ void health_adjust(struct server *s, short status)
 
 		case HANA_ONERR_MARKDWN:
 		/* mark server down */
-			s->health = s->rise;
+			s->check.health = s->rise;
 			set_server_check_status(&s->check, HCHK_STATUS_HANA, trash.str);
 			set_server_down(&s->check);
 
@@ -720,7 +720,7 @@ static int httpchk_build_status_header(struct server *s, char *buffer)
 	if (!(s->state & SRV_CHECKED))
 		sv_state = 6; /* should obviously never happen */
 	else if (s->state & SRV_RUNNING) {
-		if (s->health == s->rise + s->fall - 1)
+		if (s->check.health == s->rise + s->fall - 1)
 			sv_state = 3; /* UP */
 		else
 			sv_state = 2; /* going down */
@@ -728,7 +728,7 @@ static int httpchk_build_status_header(struct server *s, char *buffer)
 		if (s->state & SRV_GOINGDOWN)
 			sv_state += 2;
 	} else {
-		if (s->health)
+		if (s->check.health)
 			sv_state = 1; /* going up */
 		else
 			sv_state = 0; /* DOWN */
@@ -736,7 +736,7 @@ static int httpchk_build_status_header(struct server *s, char *buffer)
 
 	hlen += sprintf(buffer + hlen,
 			     srv_hlt_st[sv_state],
-			     (s->state & SRV_RUNNING) ? (s->health - s->rise + 1) : (s->health),
+			     (s->state & SRV_RUNNING) ? (s->check.health - s->rise + 1) : (s->check.health),
 			     (s->state & SRV_RUNNING) ? (s->fall) : (s->rise));
 
 	hlen += sprintf(buffer + hlen, "; name=%s/%s; node=%s; weight=%d/%d; scur=%d/%d; qcur=%d",
@@ -1421,8 +1421,8 @@ static struct task *process_chk(struct task *t)
 		/* here, we have seen a synchronous error, no fd was allocated */
 
 		check->state &= ~CHK_STATE_RUNNING;
-		if (s->health > s->rise) {
-			s->health--; /* still good */
+		if (check->health > s->rise) {
+			check->health--; /* still good */
 			s->counters.failed_checks++;
 		}
 		else
@@ -1494,9 +1494,9 @@ static struct task *process_chk(struct task *t)
 			conn_full_close(conn);
 		}
 
-		if (s->check.result & SRV_CHK_FAILED) {    /* a failure or timeout detected */
-			if (s->health > s->rise) {
-				s->health--; /* still good */
+		if (check->result & SRV_CHK_FAILED) {    /* a failure or timeout detected */
+			if (check->health > s->rise) {
+				check->health--; /* still good */
 				s->counters.failed_checks++;
 			}
 			else
@@ -1511,8 +1511,8 @@ static struct task *process_chk(struct task *t)
 					set_server_disabled(check);
 			}
 
-			if (s->health < s->rise + s->fall - 1) {
-				s->health++; /* was bad, stays for a while */
+			if (check->health < s->rise + s->fall - 1) {
+				check->health++; /* was bad, stays for a while */
 				set_server_up(check);
 			}
 		}

@@ -34,10 +34,10 @@ int srv_getinter(const struct check *check)
 {
 	const struct server *s = check->server;
 
-	if ((s->state & SRV_CHECKED) && (s->health == s->rise + s->fall - 1))
+	if ((s->state & SRV_CHECKED) && (check->health == s->rise + s->fall - 1))
 		return check->inter;
 
-	if (!(s->state & SRV_RUNNING) && s->health==0)
+	if (!(s->state & SRV_RUNNING) && check->health == 0)
 		return (check->downinter)?(check->downinter):(check->inter);
 
 	return (check->fastinter)?(check->fastinter):(check->inter);
