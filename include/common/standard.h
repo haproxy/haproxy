@@ -240,7 +240,7 @@ struct sockaddr_storage *str2ip(const char *str);
  * The IPv6 '::' address is IN6ADDR_ANY, so in order to bind to a given port on
  * IPv6, use ":::port". NULL is returned if the host part cannot be resolved.
  */
-struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high);
+struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char **err);
 
 /* converts <str> to a struct in_addr containing a network mask. It can be
  * passed in dotted form (255.255.255.0) or in CIDR form (24). It returns 1

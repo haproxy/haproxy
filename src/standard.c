@@ -638,7 +638,7 @@ struct sockaddr_storage *str2ip(const char *str)
  * returned if the address cannot be parsed. The <low> and <high> ports are
  * always initialized if non-null.
  */
-struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high)
+struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char **err)
 {
 	struct sockaddr_storage *ret = NULL;
 	char *str2;
@@ -648,8 +648,10 @@ struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high)
 	portl = porth = porta = 0;
 
 	str2 = strdup(str);
-	if (str2 == NULL)
+	if (str2 == NULL) {
+		memprintf(err, "out of memory in '%s'\n", __FUNCTION__);
 		goto out;
+	}
 
 	port1 = strrchr(str2, ':');
 	if (port1)
@@ -658,8 +660,10 @@ struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high)
 		port1 = "";
 
 	ret = str2ip(str2);
-	if (!ret)
+	if (!ret) {
+		memprintf(err, "invalid address: '%s' in '%s'\n", str2, str);
 		goto out;
+	}
 
 	if (isdigit(*port1)) {	/* single port or range */
 		port2 = strchr(port1, '-');
@@ -680,6 +684,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high)
 		porta = porth;
 	}
 	else if (*port1) { /* other any unexpected char */
+		memprintf(err, "invalid character '%c' in port number '%s'\n", *port1, port1);
 		ret = NULL;
 		goto out;
 	}
