@@ -656,6 +656,37 @@ struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char
 		goto out;
 	}
 
+	if (*str2 == '/') {
+		/* unix socket */
+		static struct sockaddr_storage ss;
+		int prefix_path_len;
+		int max_path_len;
+
+		/* complete unix socket path name during startup or soft-restart is
+		 * <unix_bind_prefix><path>.<pid>.<bak|tmp>
+		 */
+		prefix_path_len = pfx ? strlen(pfx) : 0;
+		max_path_len = (sizeof(((struct sockaddr_un *)&ss)->sun_path) - 1) -
+			(prefix_path_len ? prefix_path_len + 1 + 5 + 1 + 3 : 0);
+
+		if (strlen(str2) > max_path_len) {
+			memprintf(err, "socket path '%s' too long (max %d)\n", str, max_path_len);
+			goto out;
+		}
+
+		memset(&ss, 0, sizeof(ss));
+		ss.ss_family = AF_UNIX;
+		if (pfx) {
+			memcpy(((struct sockaddr_un *)&ss)->sun_path, pfx, prefix_path_len);
+			strcpy(((struct sockaddr_un *)&ss)->sun_path + prefix_path_len, str2);
+		}
+		else {
+			strcpy(((struct sockaddr_un *)&ss)->sun_path, str2);
+		}
+		ret = &ss;
+		goto out;
+	}
+
 	port1 = strrchr(str2, ':');
 	if (port1)
 		*port1++ = '\0';
