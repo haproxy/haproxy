@@ -132,6 +132,8 @@
 #define __NR_accept4            288
 #elif defined(__sparc__) || defined(__sparc64__)
 #define __NR_accept4            323
+#elif defined(__arm__) || defined(__thumb__)
+#define __NR_accept4            (__NR_SYSCALL_BASE+366)
 #else
 #define ACCEPT4_USE_SOCKETCALL    1
 #ifndef SYS_ACCEPT4
