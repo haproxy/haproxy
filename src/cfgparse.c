@@ -239,7 +239,7 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 		else {
 			struct sockaddr_storage *ss2;
 
-			ss2 = str2sa_range(str, &port, &end, NULL);
+			ss2 = str2sa_range(str, &port, &end, NULL, NULL);
 			if (!ss2) {
 				memprintf(err, "invalid listening address: '%s'\n", str);
 				goto fail;
@@ -1156,7 +1156,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			struct sockaddr_storage *sk;
 			int port1, port2;
 
-			sk = str2sa_range(args[1], &port1, &port2, NULL);
+			sk = str2sa_range(args[1], &port1, &port2, NULL, NULL);
 			if (!sk) {
 				Alert("parsing [%s:%d] : '%s' : unknown host in '%s'\n", file, linenum, args[0], args[1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -1530,7 +1530,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		newpeer->last_change = now.tv_sec;
 		newpeer->id = strdup(args[1]);
 
-		sk = str2sa_range(args[2], &port1, &port2, NULL);
+		sk = str2sa_range(args[2], &port1, &port2, NULL, NULL);
 		if (!sk) {
 			Alert("parsing [%s:%d] : '%s %s' : unknown host in '%s'\n", file, linenum, args[0], args[1], args[2]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -3986,7 +3986,7 @@ stats_error_parsing:
 		else if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
-		sk = str2sa_range(args[1], &port1, &port2, NULL);
+		sk = str2sa_range(args[1], &port1, &port2, NULL, NULL);
 		if (!sk) {
 			Alert("parsing [%s:%d] : '%s' : unknown host in '%s'\n", file, linenum, args[0], args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -4102,7 +4102,7 @@ stats_error_parsing:
 			 *  - IP:+N => port=+N, relative
 			 *  - IP:-N => port=-N, relative
 			 */
-			sk = str2sa_range(args[2], &port1, &port2, NULL);
+			sk = str2sa_range(args[2], &port1, &port2, NULL, NULL);
 			if (!sk) {
 				Alert("parsing [%s:%d] : Unknown host in '%s'\n", file, linenum, args[2]);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -4269,7 +4269,7 @@ stats_error_parsing:
 				struct sockaddr_storage *sk;
 				int port1, port2;
 
-				sk = str2sa_range(args[cur_arg + 1], &port1, &port2, NULL);
+				sk = str2sa_range(args[cur_arg + 1], &port1, &port2, NULL, NULL);
 				if (!sk) {
 					Alert("parsing [%s:%d] : '%s' : unknown host in '%s'\n",
 					      file, linenum, args[cur_arg], args[cur_arg + 1]);
@@ -4461,7 +4461,7 @@ stats_error_parsing:
 					goto out;
 				}
 				newsrv->conn_src.opts |= CO_SRC_BIND;
-				sk = str2sa_range(args[cur_arg + 1], &port_low, &port_high, NULL);
+				sk = str2sa_range(args[cur_arg + 1], &port_low, &port_high, NULL, NULL);
 				if (!sk) {
 					Alert("parsing [%s:%d] : Unknown host in '%s'\n", file, linenum, args[cur_arg + 1]);
 					err_code |= ERR_ALERT | ERR_FATAL;
@@ -4559,7 +4559,7 @@ stats_error_parsing:
 							struct sockaddr_storage *sk;
 							int port1, port2;
 
-							sk = str2sa_range(args[cur_arg + 1], &port1, &port2, NULL);
+							sk = str2sa_range(args[cur_arg + 1], &port1, &port2, NULL, NULL);
 							if (!sk) {
 								Alert("parsing [%s:%d] : '%s' : unknown host in '%s'\n",
 								      file, linenum, args[cur_arg], args[cur_arg + 1]);
@@ -4887,7 +4887,7 @@ stats_error_parsing:
 				struct sockaddr_storage *sk;
 				int port1, port2;
 
-				sk = str2sa_range(args[1], &port1, &port2, NULL);
+				sk = str2sa_range(args[1], &port1, &port2, NULL, NULL);
 				if (!sk) {
 					Alert("parsing [%s:%d] : '%s' : unknown host in '%s'\n",
 					      file, linenum, args[0], args[1]);
@@ -4937,7 +4937,7 @@ stats_error_parsing:
 		curproxy->conn_src.iface_name = NULL;
 		curproxy->conn_src.iface_len = 0;
 
-		sk = str2sa_range(args[1], &port1, &port2, NULL);
+		sk = str2sa_range(args[1], &port1, &port2, NULL, NULL);
 		if (!sk) {
 			Alert("parsing [%s:%d] : '%s' : unknown host in '%s'\n",
 			      file, linenum, args[0], args[1]);
@@ -5020,7 +5020,7 @@ stats_error_parsing:
 						goto out;
 					}
 				} else {
-					struct sockaddr_storage *sk = str2sa_range(args[cur_arg + 1], &port1, &port2, NULL);
+					struct sockaddr_storage *sk = str2sa_range(args[cur_arg + 1], &port1, &port2, NULL, NULL);
 
 					if (!sk) {
 						Alert("parsing [%s:%d] : '%s' : unknown host in '%s'\n",

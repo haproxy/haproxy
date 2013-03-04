@@ -637,8 +637,11 @@ struct sockaddr_storage *str2ip(const char *str)
  * is mandatory after the IP address even when no port is specified. NULL is
  * returned if the address cannot be parsed. The <low> and <high> ports are
  * always initialized if non-null.
+ *
+ * If <pfx> is non-null, it is used as a string prefix before any path-based
+ * address (typically the path to a unix socket).
  */
-struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char **err)
+struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char **err, const char *pfx)
 {
 	struct sockaddr_storage *ret = NULL;
 	char *str2;
