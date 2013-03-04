@@ -1377,8 +1377,10 @@ static struct task *process_chk(struct task *t)
 		 * Note that we try to prevent the network stack from sending the ACK during the
 		 * connect() when a pure TCP check is used (without PROXY protocol).
 		 */
-		ret = s->check.proto->connect(conn, s->proxy->options2 & PR_O2_CHK_ANY,
-		                              s->check.send_proxy ? 1 : (s->proxy->options2 & PR_O2_CHK_ANY) ? 0 : 2);
+		ret = SN_ERR_INTERNAL;
+		if (s->check.proto->connect)
+			ret = s->check.proto->connect(conn, s->proxy->options2 & PR_O2_CHK_ANY,
+		                                      s->check.send_proxy ? 1 : (s->proxy->options2 & PR_O2_CHK_ANY) ? 0 : 2);
 		conn->flags |= CO_FL_WAKE_DATA;
 		if (s->check.send_proxy)
 			conn->flags |= CO_FL_LOCAL_SPROXY;
