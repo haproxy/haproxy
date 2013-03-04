@@ -215,25 +215,13 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 		}
 
 		if (*str == '/') {
-			/* sun_path during a soft_stop rename is <unix_bind_prefix><path>.<pid>.<bak|tmp> */
-			/* so compute max path */
-			int prefix_path_len = (curproxy != global.stats_fe && global.unix_bind.prefix) ? strlen(global.unix_bind.prefix) : 0;
-			int max_path_len = (sizeof(((struct sockaddr_un *)&ss)->sun_path) - 1) - (prefix_path_len + 1 + 5 + 1 + 3);
+			struct sockaddr_storage *ss2;
 
-			if (strlen(str) > max_path_len) {
-				memprintf(err, "socket path '%s' too long (max %d)\n", str, max_path_len);
+			ss2 = str2sa_range(str, &port, &end, err,
+			                   curproxy == global.stats_fe ? NULL : global.unix_bind.prefix);
+			if (!ss2)
 				goto fail;
-			}
-
-			memset(&ss, 0, sizeof(ss));
-			ss.ss_family = AF_UNIX;
-			if (global.unix_bind.prefix) {
-				memcpy(((struct sockaddr_un *)&ss)->sun_path, global.unix_bind.prefix, prefix_path_len);
-				strcpy(((struct sockaddr_un *)&ss)->sun_path+prefix_path_len, str);
-			}
-			else {
-				strcpy(((struct sockaddr_un *)&ss)->sun_path, str);
-			}
+			ss = *ss2;
 			port = end = 0;
 		}
 		else {
