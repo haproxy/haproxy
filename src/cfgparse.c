@@ -217,7 +217,7 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 		if (*str == '/') {
 			/* sun_path during a soft_stop rename is <unix_bind_prefix><path>.<pid>.<bak|tmp> */
 			/* so compute max path */
-			int prefix_path_len = global.unix_bind.prefix ? strlen(global.unix_bind.prefix) : 0;
+			int prefix_path_len = (curproxy != global.stats_fe && global.unix_bind.prefix) ? strlen(global.unix_bind.prefix) : 0;
 			int max_path_len = (sizeof(((struct sockaddr_un *)&ss)->sun_path) - 1) - (prefix_path_len + 1 + 5 + 1 + 3);
 
 			if (strlen(str) > max_path_len) {
