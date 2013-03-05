@@ -1454,12 +1454,18 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 	int err_code = 0;
 
 	if (strcmp(args[0], "peers") == 0) { /* new peers section */
+		if (!*args[1]) {
+			Alert("parsing [%s:%d] : missing name for peers section.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
 
 		err = invalid_char(args[1]);
 		if (err) {
 			Alert("parsing [%s:%d] : character '%c' is not permitted in '%s' name '%s'.\n",
 			      file, linenum, *err, args[0], args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
 		}
 
 		for (curpeers = peers; curpeers != NULL; curpeers = curpeers->next) {
