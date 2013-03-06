@@ -625,14 +625,15 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 	SSL_CTX_set_tlsext_servername_arg(ctx, bind_conf);
 #endif
 #if defined(SSL_CTX_set_tmp_ecdh) && !defined(OPENSSL_NO_ECDH)
-	if (bind_conf->ecdhe) {
+	{
 		int i;
 		EC_KEY  *ecdh;
 
-		i = OBJ_sn2nid(bind_conf->ecdhe);
+		i = OBJ_sn2nid(bind_conf->ecdhe ? bind_conf->ecdhe : ECDHE_DEFAULT_CURVE);
 		if (!i || ((ecdh = EC_KEY_new_by_curve_name(i)) == NULL)) {
 			Alert("Proxy '%s': unable to set elliptic named curve to '%s' for bind '%s' at [%s:%d].\n",
-			      curproxy->id, bind_conf->ecdhe, bind_conf->arg, bind_conf->file, bind_conf->line);
+			      curproxy->id, bind_conf->ecdhe ? bind_conf->ecdhe : ECDHE_DEFAULT_CURVE,
+			      bind_conf->arg, bind_conf->file, bind_conf->line);
 			cfgerr++;
 		}
 		else {

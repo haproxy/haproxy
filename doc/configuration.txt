@@ -7079,8 +7079,8 @@ backlog <backlog>
 
 ecdhe <named curve>
   This setting is only available when support for OpenSSL was built in. It sets
-  the named curve (RFC 4492) used to generate ECDH ephemeral keys and makes
-  ECDHE cipher suites usable.
+  the named curve (RFC 4492) used to generate ECDH ephemeral keys. By default,
+  used named curve is prime256v1.
 
 ca-file <cafile>
   This setting is only available when support for OpenSSL was built in. It

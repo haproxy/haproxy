@@ -191,6 +191,11 @@
 #define LISTEN_DEFAULT_CIPHERS NULL
 #endif
 
+/* named curve used as defaults for ECDHE ciphers */
+#ifndef ECDHE_DEFAULT_CURVE
+#define ECDHE_DEFAULT_CURVE "prime256v1"
+#endif
+
 /* ssl cache size */
 #ifndef SSLCACHESIZE
 #define SSLCACHESIZE 20000
