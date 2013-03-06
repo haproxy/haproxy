@@ -1080,6 +1080,9 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 	}
 	else if (!strcmp(args[0], "log")) {  /* syslog server address */
+		struct sockaddr_storage *sk;
+		int port1, port2;
+		char *err_msg = NULL;
 		struct logsrv *logsrv;
 
 		if (*(args[1]) == 0 || *(args[2]) == 0) {
@@ -1117,28 +1120,18 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 
-		if (args[1][0] == '/') {
-			struct sockaddr_storage *sk = (struct sockaddr_storage *)str2sun(args[1]);
-			if (!sk) {
-				Alert("parsing [%s:%d] : Socket path '%s' too long (max %d)\n", file, linenum,
-				      args[1], (int)sizeof(((struct sockaddr_un *)&sk)->sun_path) - 1);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				free(logsrv);
-				goto out;
-			}
-			logsrv->addr = *sk;
-		} else {
-			struct sockaddr_storage *sk;
-			int port1, port2;
+		sk = str2sa_range(args[1], &port1, &port2, &err_msg, NULL);
+		if (!sk) {
+			Alert("parsing [%s:%d] : '%s': %s\n", file, linenum, args[0], err_msg);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			free(err_msg);
+			free(logsrv);
+			goto out;
+		}
+		logsrv->addr = *sk;
+		free(err_msg);
 
-			sk = str2sa_range(args[1], &port1, &port2, NULL, NULL);
-			if (!sk) {
-				Alert("parsing [%s:%d] : '%s' : unknown host in '%s'\n", file, linenum, args[0], args[1]);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				free(logsrv);
-				goto out;
-			}
-
+		if (sk->ss_family == AF_INET || sk->ss_family == AF_INET6) {
 			if (port1 != port2) {
 				Alert("parsing [%s:%d] : '%s' : port ranges and offsets are not allowed in '%s'\n",
 				      file, linenum, args[0], args[1]);
@@ -4816,6 +4809,9 @@ stats_error_parsing:
 			}
 		}
 		else if (*(args[1]) && *(args[2])) {
+			struct sockaddr_storage *sk;
+			int port1, port2;
+			char *err_msg = NULL;
 
 			logsrv = calloc(1, sizeof(struct logsrv));
 
@@ -4849,27 +4845,18 @@ stats_error_parsing:
 				}
 			}
 
-			if (args[1][0] == '/') {
-				struct sockaddr_storage *sk = (struct sockaddr_storage *)str2sun(args[1]);
-				if (!sk) {
-					Alert("parsing [%s:%d] : Socket path '%s' too long (max %d)\n", file, linenum,
-					      args[1], (int)sizeof(((struct sockaddr_un *)sk)->sun_path) - 1);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-				logsrv->addr = *sk;
-			} else {
-				struct sockaddr_storage *sk;
-				int port1, port2;
+			sk = str2sa_range(args[1], &port1, &port2, &err_msg, NULL);
+			if (!sk) {
+				Alert("parsing [%s:%d] : '%s': %s\n", file, linenum, args[0], err_msg);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				free(err_msg);
+				goto out;
+			}
 
-				sk = str2sa_range(args[1], &port1, &port2, NULL, NULL);
-				if (!sk) {
-					Alert("parsing [%s:%d] : '%s' : unknown host in '%s'\n",
-					      file, linenum, args[0], args[1]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
+			logsrv->addr = *sk;
+			free(err_msg);
 
+			if (sk->ss_family == AF_INET || sk->ss_family == AF_INET6) {
 				if (port1 != port2) {
 					Alert("parsing [%s:%d] : '%s' : port ranges and offsets are not allowed in '%s'\n",
 					      file, linenum, args[0], args[1]);
@@ -4877,7 +4864,6 @@ stats_error_parsing:
 					goto out;
 				}
 
-				logsrv->addr = *sk;
 				if (!port1)
 					set_host_port(&logsrv->addr, SYSLOG_PORT);
 			}
