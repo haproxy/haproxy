@@ -4248,14 +4248,27 @@ stats_error_parsing:
 			else if (!defsrv && !strcmp(args[cur_arg], "addr")) {
 				struct sockaddr_storage *sk;
 				int port1, port2;
+				char *err_msg = NULL;
+				struct protocol *proto;
 
-				sk = str2sa_range(args[cur_arg + 1], &port1, &port2, NULL, NULL);
+				sk = str2sa_range(args[cur_arg + 1], &port1, &port2, &err_msg, NULL);
 				if (!sk) {
-					Alert("parsing [%s:%d] : '%s' : unknown host in '%s'\n",
+					Alert("parsing [%s:%d] : '%s' : %s\n",
+					      file, linenum, args[cur_arg], err_msg);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					free(err_msg);
+					goto out;
+				}
+				free(err_msg);
+
+				proto = protocol_by_family(sk->ss_family);
+				if (!proto || !proto->connect) {
+					Alert("parsing [%s:%d] : '%s %s' : connect() not supported for this address family.\n",
 					      file, linenum, args[cur_arg], args[cur_arg + 1]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
+
 				if (port1 != port2) {
 					Alert("parsing [%s:%d] : '%s' : port ranges and offsets are not allowed in '%s'\n",
 					      file, linenum, args[cur_arg], args[cur_arg + 1]);
