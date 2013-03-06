@@ -679,8 +679,10 @@ struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high)
 		porth = atoi(port1 + 1);
 		porta = porth;
 	}
-	else if (*port1) /* other any unexpected char */
+	else if (*port1) { /* other any unexpected char */
 		ret = NULL;
+		goto out;
+	}
 
 	set_host_port(ret, porta);
 
