@@ -212,12 +212,6 @@ extern const char *invalid_char(const char *name);
 extern const char *invalid_domainchar(const char *name);
 
 /*
- * converts <str> to a struct sockaddr_un* which is locally allocated.
- * The format is "/path", where "/path" is a path to a UNIX domain socket.
- */
-struct sockaddr_un *str2sun(const char *str);
-
-/*
  * converts <str> to a struct sockaddr_storage* which is locally allocated. The
  * string is assumed to contain only an address, no port. The address can be a
  * dotted IPv4 address, an IPv6 address, a host name, or empty or "*" to

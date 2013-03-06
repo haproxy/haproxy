@@ -443,27 +443,6 @@ const char *limit_r(unsigned long n, char *buffer, int size, const char *alt)
 }
 
 /*
- * converts <str> to a struct sockaddr_un* which is locally allocated.
- * The format is "/path", where "/path" is a path to a UNIX domain socket.
- * NULL is returned if the socket path is invalid (too long).
- */
-struct sockaddr_un *str2sun(const char *str)
-{
-	static struct sockaddr_un su;
-	int strsz;	/* length included null */
-
-	memset(&su, 0, sizeof(su));
-	strsz = strlen(str) + 1;
-	if (strsz > sizeof(su.sun_path)) {
-		return NULL;
-	} else {
-		su.sun_family = AF_UNIX;
-		memcpy(su.sun_path, str, strsz);
-	}
-	return &su;
-}
-
-/*
  * Returns non-zero if character <s> is a hex digit (0-9, a-f, A-F), else zero.
  *
  * It looks like this one would be a good candidate for inlining, but this is
