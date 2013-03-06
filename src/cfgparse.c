@@ -206,7 +206,7 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 	next = dupstr = strdup(str);
 
 	while (next && *next) {
-		struct sockaddr_storage ss;
+		struct sockaddr_storage ss, *ss2;
 
 		str = next;
 		/* 1) look for the end of the first address */
@@ -214,25 +214,12 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 			*next++ = 0;
 		}
 
-		if (*str == '/') {
-			struct sockaddr_storage *ss2;
+		ss2 = str2sa_range(str, &port, &end, err,
+		                   curproxy == global.stats_fe ? NULL : global.unix_bind.prefix);
+		if (!ss2)
+			goto fail;
 
-			ss2 = str2sa_range(str, &port, &end, err,
-			                   curproxy == global.stats_fe ? NULL : global.unix_bind.prefix);
-			if (!ss2)
-				goto fail;
-			ss = *ss2;
-			port = end = 0;
-		}
-		else {
-			struct sockaddr_storage *ss2;
-
-			ss2 = str2sa_range(str, &port, &end, NULL, NULL);
-			if (!ss2) {
-				memprintf(err, "invalid listening address: '%s'\n", str);
-				goto fail;
-			}
-
+		if (ss2->ss_family == AF_INET || ss2->ss_family == AF_INET6) {
 			if (!port && !end) {
 				memprintf(err, "missing port number: '%s'\n", str);
 				goto fail;
@@ -242,9 +229,6 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 				memprintf(err, "port offsets are not allowed in 'bind': '%s'\n", str);
 				goto fail;
 			}
-
-			/* OK the address looks correct */
-			ss = *ss2;
 
 			if (port < 1 || port > 65535) {
 				memprintf(err, "invalid port '%d' specified for address '%s'.\n", port, str);
@@ -256,6 +240,9 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 				goto fail;
 			}
 		}
+
+		/* OK the address looks correct */
+		ss = *ss2;
 
 		for (; port <= end; port++) {
 			l = (struct listener *)calloc(1, sizeof(struct listener));
