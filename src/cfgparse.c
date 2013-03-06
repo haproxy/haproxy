@@ -3945,6 +3945,8 @@ stats_error_parsing:
 	else if (!strcmp(args[0], "dispatch")) {  /* dispatch address */
 		struct sockaddr_storage *sk;
 		int port1, port2;
+		char *err_msg = NULL;
+		struct protocol *proto;
 
 		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
@@ -3954,9 +3956,19 @@ stats_error_parsing:
 		else if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
-		sk = str2sa_range(args[1], &port1, &port2, NULL, NULL);
+		sk = str2sa_range(args[1], &port1, &port2, &err_msg, NULL);
 		if (!sk) {
-			Alert("parsing [%s:%d] : '%s' : unknown host in '%s'\n", file, linenum, args[0], args[1]);
+			Alert("parsing [%s:%d] : '%s' : %s\n", file, linenum, args[0], err_msg);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			free(err_msg);
+			goto out;
+		}
+		free(err_msg);
+
+		proto = protocol_by_family(sk->ss_family);
+		if (!proto || !proto->connect) {
+			Alert("parsing [%s:%d] : '%s %s' : connect() not supported for this address family.\n",
+			      file, linenum, args[0], args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
