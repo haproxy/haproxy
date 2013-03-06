@@ -4043,7 +4043,7 @@ stats_error_parsing:
 		}
 
 		err = invalid_char(args[1]);
-		if (err) {
+		if (err && !defsrv) {
 			Alert("parsing [%s:%d] : character '%c' is not permitted in server name '%s'.\n",
 			      file, linenum, *err, args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -4053,6 +4053,8 @@ stats_error_parsing:
 		if (!defsrv) {
 			struct sockaddr_storage *sk;
 			int port1, port2;
+			char *err_msg = NULL;
+			struct protocol *proto;
 
 			if ((newsrv = (struct server *)calloc(1, sizeof(struct server))) == NULL) {
 				Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
@@ -4082,9 +4084,19 @@ stats_error_parsing:
 			 *  - IP:+N => port=+N, relative
 			 *  - IP:-N => port=-N, relative
 			 */
-			sk = str2sa_range(args[2], &port1, &port2, NULL, NULL);
+			sk = str2sa_range(args[2], &port1, &port2, &err_msg, NULL);
 			if (!sk) {
-				Alert("parsing [%s:%d] : Unknown host in '%s'\n", file, linenum, args[2]);
+				Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], err_msg);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				free(err_msg);
+				goto out;
+			}
+			free(err_msg);
+
+			proto = protocol_by_family(sk->ss_family);
+			if (!proto || !proto->connect) {
+				Alert("parsing [%s:%d] : '%s %s' : connect() not supported for this address family.\n",
+				      file, linenum, args[0], args[1]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
