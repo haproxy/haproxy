@@ -111,6 +111,10 @@ static void destroy_uxst_socket(const char *path)
 	struct sockaddr_un addr;
 	int sock, ret;
 
+	/* if the path was cleared, we do nothing */
+	if (!*path)
+		return;
+
 	/* We might have been chrooted, so we may not be able to access the
 	 * socket. In order to avoid bothering the other end, we connect with a
 	 * wrong protocol, namely SOCK_DGRAM. The return code from connect()
@@ -157,6 +161,8 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	struct sockaddr_un addr;
 	const char *msg = NULL;
 	const char *path;
+	int ext, ready;
+	socklen_t ready_len;
 
 	int ret;
 
@@ -168,6 +174,16 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 		return ERR_NONE; /* already bound */
 		
 	path = ((struct sockaddr_un *)&listener->addr)->sun_path;
+
+	/* if the listener already has an fd assigned, then we were offered the
+	 * fd by an external process (most likely the parent), and we don't want
+	 * to create a new socket. However we still want to set a few flags on
+	 * the socket.
+	 */
+	fd = listener->fd;
+	ext = (fd >= 0);
+	if (ext)
+		goto fd_ready;
 
 	/* 1. create socket names */
 	if (!path[0]) {
@@ -215,6 +231,7 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 		goto err_unlink_back;
 	}
 
+ fd_ready:
 	if (fd >= global.maxsock) {
 		msg = "socket(): not enough free sockets, raise -n argument";
 		goto err_unlink_temp;
@@ -225,7 +242,7 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 		goto err_unlink_temp;
 	}
 	
-	if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+	if (!ext && bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
 		/* note that bind() creates the socket <tempname> on the file system */
 		msg = "cannot bind UNIX socket";
 		goto err_unlink_temp;
@@ -236,14 +253,21 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	 * While it is known not to be portable on every OS, it's still useful
 	 * where it works.
 	 */
-	if (((listener->bind_conf->ux.uid != -1 || listener->bind_conf->ux.gid != -1) &&
-	     (chown(tempname, listener->bind_conf->ux.uid, listener->bind_conf->ux.gid) == -1)) ||
-	    (listener->bind_conf->ux.mode != 0 && chmod(tempname, listener->bind_conf->ux.mode) == -1)) {
+	if (!ext &&
+	    (((listener->bind_conf->ux.uid != -1 || listener->bind_conf->ux.gid != -1) &&
+	      (chown(tempname, listener->bind_conf->ux.uid, listener->bind_conf->ux.gid) == -1)) ||
+	     (listener->bind_conf->ux.mode != 0 && chmod(tempname, listener->bind_conf->ux.mode) == -1))) {
 		msg = "cannot change UNIX socket ownership";
 		goto err_unlink_temp;
 	}
 
-	if (listen(fd, listener->backlog ? listener->backlog : listener->maxconn) < 0) {
+	ready = 0;
+	ready_len = sizeof(ready);
+	if (getsockopt(fd, SOL_SOCKET, SO_ACCEPTCONN, &ready, &ready_len) == -1)
+		ready = 0;
+
+	if (!(ext && ready) && /* only listen if not already done by external process */
+	    listen(fd, listener->backlog ? listener->backlog : listener->maxconn) < 0) {
 		msg = "cannot listen to UNIX socket";
 		goto err_unlink_temp;
 	}
@@ -253,13 +277,19 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	 * fear loosing the socket <path> because we have a copy of it in
 	 * backname.
 	 */
-	if (rename(tempname, path) < 0) {
+	if (!ext && rename(tempname, path) < 0) {
 		msg = "cannot switch final and temporary UNIX sockets";
 		goto err_rename;
 	}
 
-	/* 6. cleanup */
-	unlink(backname); /* no need to keep this one either */
+	/* 6. cleanup. If we're bound to an fd inherited from the parent, we
+	 * want to ensure that destroy_uxst_socket() will never remove the
+	 * path, and for this we simply clear the path to the socket.
+	 */
+	if (!ext)
+		unlink(backname);
+	else
+		((struct sockaddr_un *)&listener->addr)->sun_path[0] = 0;
 
 	/* the socket is now listening */
 	listener->fd = fd;
@@ -275,13 +305,19 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	if (ret < 0 && errno == ENOENT)
 		unlink(path);
  err_unlink_temp:
-	unlink(tempname);
+	if (!ext)
+		unlink(tempname);
 	close(fd);
  err_unlink_back:
-	unlink(backname);
+	if (!ext)
+		unlink(backname);
  err_return:
-	if (msg && errlen)
-		snprintf(errmsg, errlen, "%s [%s]", msg, path);
+	if (msg && errlen) {
+		if (!ext)
+			snprintf(errmsg, errlen, "%s [%s]", msg, path);
+		else
+			snprintf(errmsg, errlen, "%s [fd %d]", msg, fd);
+	}
 	return ERR_FATAL | ERR_ALERT;
 }
 

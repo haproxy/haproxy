@@ -207,6 +207,7 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 
 	while (next && *next) {
 		struct sockaddr_storage ss, *ss2;
+		int fd = -1;
 
 		str = next;
 		/* 1) look for the end of the first address */
@@ -240,6 +241,24 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 				goto fail;
 			}
 		}
+		else if (ss2->ss_family == AF_UNSPEC) {
+			socklen_t addr_len;
+
+			/* We want to attach to an already bound fd whose number
+			 * is in the addr part of ss2 when cast to sockaddr_in.
+			 * Note that by definition there is a single listener.
+			 * We still have to determine the address family to
+			 * register the correct protocol.
+			 */
+			fd = ((struct sockaddr_in *)ss2)->sin_addr.s_addr;
+			addr_len = sizeof(*ss2);
+			if (getsockname(fd, (struct sockaddr *)ss2, &addr_len) == -1) {
+				memprintf(err, "cannot use file descriptor '%d' : %s.\n", fd, strerror(errno));
+				goto fail;
+			}
+
+			port = end = get_host_port(ss2);
+		}
 
 		/* OK the address looks correct */
 		ss = *ss2;
@@ -252,7 +271,7 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 			l->frontend = curproxy;
 			l->bind_conf = bind_conf;
 
-			l->fd = -1;
+			l->fd = fd;
 			l->addr = ss;
 			l->xprt = &raw_sock;
 			l->state = LI_INIT;

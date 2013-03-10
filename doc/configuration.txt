@@ -1616,6 +1616,9 @@ bind /<path> [, ...] [param*]
                     - 'ipv4@'  -> address is always IPv4
                     - 'ipv6@'  -> address is always IPv6
                     - 'unix@'  -> address is a path to a local unix socket
+                    - 'fd@<n>' -> use file descriptor <n> inherited from the
+                      parent. The fd must be bound and may or may not already
+                      be listening.
 
     <port_range>  is either a unique TCP port, or a port range for which the
                   proxy will accept connections for the IP address specified

@@ -632,6 +632,7 @@ static struct sockaddr_storage *str2ip(const char *str, struct sockaddr_storage 
  *    - "ipv6@"  => force address to resolve as IPv6 and fail if not possible.
  *    - "unix@"  => force address to be a path to a UNIX socket even if the
  *                  path does not start with a '/'
+ *    - "fd@"    => an integer must follow, and is a file descriptor number.
  *
  * Also note that in order to avoid any ambiguity with IPv6 addresses, the ':'
  * is mandatory after the IP address even when no port is specified. NULL is
@@ -640,6 +641,9 @@ static struct sockaddr_storage *str2ip(const char *str, struct sockaddr_storage 
  *
  * If <pfx> is non-null, it is used as a string prefix before any path-based
  * address (typically the path to a unix socket).
+ *
+ * When a file descriptor is passed, its value is put into the s_addr part of
+ * the address when cast to sockaddr_in and the address family is AF_UNSPEC.
  */
 struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char **err, const char *pfx)
 {
@@ -677,7 +681,21 @@ struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char
 	else
 		ss.ss_family = AF_UNSPEC;
 
-	if (ss.ss_family == AF_UNIX) {
+	if (ss.ss_family == AF_UNSPEC && strncmp(str2, "fd@", 3) == 0) {
+		char *endptr;
+
+		str2 += 3;
+		((struct sockaddr_in *)&ss)->sin_addr.s_addr = strtol(str2, &endptr, 10);
+
+		if (!*str2 || *endptr) {
+			memprintf(err, "file descriptor '%s' is not a valid integer\n", str2);
+			goto out;
+		}
+
+		/* we return AF_UNSPEC if we use a file descriptor number */
+		ss.ss_family = AF_UNSPEC;
+	}
+	else if (ss.ss_family == AF_UNIX) {
 		int prefix_path_len;
 		int max_path_len;
 

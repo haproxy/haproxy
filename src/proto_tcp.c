@@ -566,6 +566,8 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 {
 	__label__ tcp_return, tcp_close_return;
 	int fd, err;
+	int ext, ready;
+	socklen_t ready_len;
 	const char *msg = NULL;
 
 	/* ensure we never return garbage */
@@ -577,7 +579,15 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 
 	err = ERR_NONE;
 
-	if ((fd = socket(listener->addr.ss_family, SOCK_STREAM, IPPROTO_TCP)) == -1) {
+	/* if the listener already has an fd assigned, then we were offered the
+	 * fd by an external process (most likely the parent), and we don't want
+	 * to create a new socket. However we still want to set a few flags on
+	 * the socket.
+	 */
+	fd = listener->fd;
+	ext = (fd >= 0);
+
+	if (!ext && (fd = socket(listener->addr.ss_family, SOCK_STREAM, IPPROTO_TCP)) == -1) {
 		err |= ERR_RETRYABLE | ERR_ALERT;
 		msg = "cannot create listening socket";
 		goto tcp_return;
@@ -595,7 +605,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		goto tcp_close_return;
 	}
 
-	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) == -1) {
+	if (!ext && setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one)) == -1) {
 		/* not fatal but should be reported */
 		msg = "cannot do so_reuseaddr";
 		err |= ERR_ALERT;
@@ -608,10 +618,11 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	/* OpenBSD supports this. As it's present in old libc versions of Linux,
 	 * it might return an error that we will silently ignore.
 	 */
-	setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one));
+	if (!ext)
+		setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one));
 #endif
 #ifdef CONFIG_HAP_LINUX_TPROXY
-	if (listener->options & LI_O_FOREIGN) {
+	if (!ext && (listener->options & LI_O_FOREIGN)) {
 		switch (listener->addr.ss_family) {
 		case AF_INET:
 			if ((setsockopt(fd, SOL_IP, IP_TRANSPARENT, &one, sizeof(one)) == -1)
@@ -631,7 +642,7 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 #endif
 #ifdef SO_BINDTODEVICE
 	/* Note: this might fail if not CAP_NET_RAW */
-	if (listener->interface) {
+	if (!ext && listener->interface) {
 		if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE,
 			       listener->interface, strlen(listener->interface) + 1) == -1) {
 			msg = "cannot bind listener to device";
@@ -675,13 +686,19 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
                 setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &zero, sizeof(zero));
 #endif
 
-	if (bind(fd, (struct sockaddr *)&listener->addr, listener->proto->sock_addrlen) == -1) {
+	if (!ext && bind(fd, (struct sockaddr *)&listener->addr, listener->proto->sock_addrlen) == -1) {
 		err |= ERR_RETRYABLE | ERR_ALERT;
 		msg = "cannot bind socket";
 		goto tcp_close_return;
 	}
 
-	if (listen(fd, listener->backlog ? listener->backlog : listener->maxconn) == -1) {
+	ready = 0;
+	ready_len = sizeof(ready);
+	if (getsockopt(fd, SOL_SOCKET, SO_ACCEPTCONN, &ready, &ready_len) == -1)
+		ready = 0;
+
+	if (!(ext && ready) && /* only listen if not already done by external process */
+	    listen(fd, listener->backlog ? listener->backlog : listener->maxconn) == -1) {
 		err |= ERR_RETRYABLE | ERR_ALERT;
 		msg = "cannot listen to socket";
 		goto tcp_close_return;
