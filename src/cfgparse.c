@@ -1082,7 +1082,6 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	else if (!strcmp(args[0], "log")) {  /* syslog server address */
 		struct sockaddr_storage *sk;
 		int port1, port2;
-		char *err_msg = NULL;
 		struct logsrv *logsrv;
 
 		if (*(args[1]) == 0 || *(args[2]) == 0) {
@@ -1120,16 +1119,14 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 
-		sk = str2sa_range(args[1], &port1, &port2, &err_msg, NULL);
+		sk = str2sa_range(args[1], &port1, &port2, &errmsg, NULL);
 		if (!sk) {
-			Alert("parsing [%s:%d] : '%s': %s\n", file, linenum, args[0], err_msg);
+			Alert("parsing [%s:%d] : '%s': %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
-			free(err_msg);
 			free(logsrv);
 			goto out;
 		}
 		logsrv->addr = *sk;
-		free(err_msg);
 
 		if (sk->ss_family == AF_INET || sk->ss_family == AF_INET6) {
 			if (port1 != port2) {
@@ -1420,6 +1417,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 	struct bind_conf *bind_conf;
 	struct listener *l;
 	int err_code = 0;
+	char *errmsg = NULL;
 
 	if (strcmp(args[0], "peers") == 0) { /* new peers section */
 		if (!*args[1]) {
@@ -1464,7 +1462,6 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 	else if (strcmp(args[0], "peer") == 0) { /* peer definition */
 		struct sockaddr_storage *sk;
 		int port1, port2;
-		char *err_msg = NULL;
 		struct protocol *proto;
 
 		if (!*args[2]) {
@@ -1499,14 +1496,12 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		newpeer->last_change = now.tv_sec;
 		newpeer->id = strdup(args[1]);
 
-		sk = str2sa_range(args[2], &port1, &port2, &err_msg, NULL);
+		sk = str2sa_range(args[2], &port1, &port2, &errmsg, NULL);
 		if (!sk) {
-			Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], err_msg);
+			Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
-			free(err_msg);
 			goto out;
 		}
-		free(err_msg);
 
 		proto = protocol_by_family(sk->ss_family);
 		if (!proto || !proto->connect) {
@@ -1562,15 +1557,14 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 
 				bind_conf = bind_conf_alloc(&curpeers->peers_fe->conf.bind, file, linenum, args[2]);
 
-				if (!str2listener(args[2], curpeers->peers_fe, bind_conf, file, linenum, &err_msg)) {
-					if (err_msg && *err_msg) {
-						indent_msg(&err_msg, 2);
-						Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], err_msg);
+				if (!str2listener(args[2], curpeers->peers_fe, bind_conf, file, linenum, &errmsg)) {
+					if (errmsg && *errmsg) {
+						indent_msg(&errmsg, 2);
+						Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
 					}
 					else
 						Alert("parsing [%s:%d] : '%s %s' : error encountered while parsing listening address %s.\n",
 						      file, linenum, args[0], args[1], args[2]);
-					free(err_msg);
 					err_code |= ERR_FATAL;
 					goto out;
 				}
@@ -1602,6 +1596,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 	}
 
 out:
+	free(errmsg);
 	return err_code;
 }
 
@@ -1686,19 +1681,17 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		/* parse the listener address if any */
 		if ((curproxy->cap & PR_CAP_FE) && *args[2]) {
 			struct listener *l;
-			char *err_msg = NULL;
 
 			bind_conf = bind_conf_alloc(&curproxy->conf.bind, file, linenum, args[2]);
 
-			if (!str2listener(args[2], curproxy, bind_conf, file, linenum, &err_msg)) {
-				if (err_msg && *err_msg) {
-					indent_msg(&err_msg, 2);
-					Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], err_msg);
+			if (!str2listener(args[2], curproxy, bind_conf, file, linenum, &errmsg)) {
+				if (errmsg && *errmsg) {
+					indent_msg(&errmsg, 2);
+					Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
 				}
 				else
 					Alert("parsing [%s:%d] : '%s %s' : error encountered while parsing listening address '%s'.\n",
 					      file, linenum, args[0], args[1], args[2]);
-				free(err_msg);
 				err_code |= ERR_FATAL;
 				goto out;
 			}
@@ -1926,7 +1919,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	if (!strcmp(args[0], "bind")) {  /* new listen addresses */
 		struct listener *l;
 		int cur_arg;
-		char *err_msg = NULL;
 
 		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
@@ -1954,15 +1946,14 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		 * are comma-separated IPs or port ranges. So all further processing
 		 * will have to be applied to all listeners created after last_listen.
 		 */
-		if (!str2listener(args[1], curproxy, bind_conf, file, linenum, &err_msg)) {
-			if (err_msg && *err_msg) {
-				indent_msg(&err_msg, 2);
-				Alert("parsing [%s:%d] : '%s' : %s\n", file, linenum, args[0], err_msg);
+		if (!str2listener(args[1], curproxy, bind_conf, file, linenum, &errmsg)) {
+			if (errmsg && *errmsg) {
+				indent_msg(&errmsg, 2);
+				Alert("parsing [%s:%d] : '%s' : %s\n", file, linenum, args[0], errmsg);
 			}
 			else
 				Alert("parsing [%s:%d] : '%s' : error encountered while parsing listening address '%s'.\n",
 				      file, linenum, args[0], args[1]);
-			free(err_msg);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -3949,7 +3940,6 @@ stats_error_parsing:
 	else if (!strcmp(args[0], "dispatch")) {  /* dispatch address */
 		struct sockaddr_storage *sk;
 		int port1, port2;
-		char *err_msg = NULL;
 		struct protocol *proto;
 
 		if (curproxy == &defproxy) {
@@ -3960,14 +3950,12 @@ stats_error_parsing:
 		else if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
-		sk = str2sa_range(args[1], &port1, &port2, &err_msg, NULL);
+		sk = str2sa_range(args[1], &port1, &port2, &errmsg, NULL);
 		if (!sk) {
-			Alert("parsing [%s:%d] : '%s' : %s\n", file, linenum, args[0], err_msg);
+			Alert("parsing [%s:%d] : '%s' : %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
-			free(err_msg);
 			goto out;
 		}
-		free(err_msg);
 
 		proto = protocol_by_family(sk->ss_family);
 		if (!proto || !proto->connect) {
@@ -4057,7 +4045,6 @@ stats_error_parsing:
 		if (!defsrv) {
 			struct sockaddr_storage *sk;
 			int port1, port2;
-			char *err_msg = NULL;
 			struct protocol *proto;
 
 			if ((newsrv = (struct server *)calloc(1, sizeof(struct server))) == NULL) {
@@ -4088,14 +4075,12 @@ stats_error_parsing:
 			 *  - IP:+N => port=+N, relative
 			 *  - IP:-N => port=-N, relative
 			 */
-			sk = str2sa_range(args[2], &port1, &port2, &err_msg, NULL);
+			sk = str2sa_range(args[2], &port1, &port2, &errmsg, NULL);
 			if (!sk) {
-				Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], err_msg);
+				Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
-				free(err_msg);
 				goto out;
 			}
-			free(err_msg);
 
 			proto = protocol_by_family(sk->ss_family);
 			if (!proto || !proto->connect) {
@@ -4264,18 +4249,15 @@ stats_error_parsing:
 			else if (!defsrv && !strcmp(args[cur_arg], "addr")) {
 				struct sockaddr_storage *sk;
 				int port1, port2;
-				char *err_msg = NULL;
 				struct protocol *proto;
 
-				sk = str2sa_range(args[cur_arg + 1], &port1, &port2, &err_msg, NULL);
+				sk = str2sa_range(args[cur_arg + 1], &port1, &port2, &errmsg, NULL);
 				if (!sk) {
 					Alert("parsing [%s:%d] : '%s' : %s\n",
-					      file, linenum, args[cur_arg], err_msg);
+					      file, linenum, args[cur_arg], errmsg);
 					err_code |= ERR_ALERT | ERR_FATAL;
-					free(err_msg);
 					goto out;
 				}
-				free(err_msg);
 
 				proto = protocol_by_family(sk->ss_family);
 				if (!proto || !proto->connect) {
@@ -4462,7 +4444,6 @@ stats_error_parsing:
 			else if (!defsrv && !strcmp(args[cur_arg], "source")) {  /* address to which we bind when connecting */
 				int port_low, port_high;
 				struct sockaddr_storage *sk;
-				char *err_msg = NULL;
 				struct protocol *proto;
 
 				if (!*args[cur_arg + 1]) {
@@ -4473,15 +4454,13 @@ stats_error_parsing:
 				}
 
 				newsrv->conn_src.opts |= CO_SRC_BIND;
-				sk = str2sa_range(args[cur_arg + 1], &port_low, &port_high, &err_msg, NULL);
+				sk = str2sa_range(args[cur_arg + 1], &port_low, &port_high, &errmsg, NULL);
 				if (!sk) {
 					Alert("parsing [%s:%d] : '%s %s' : %s\n",
-					      file, linenum, args[cur_arg], args[cur_arg+1], err_msg);
+					      file, linenum, args[cur_arg], args[cur_arg+1], errmsg);
 					err_code |= ERR_ALERT | ERR_FATAL;
-					free(err_msg);
 					goto out;
 				}
-				free(err_msg);
 
 				proto = protocol_by_family(sk->ss_family);
 				if (!proto || !proto->connect) {
@@ -4583,15 +4562,13 @@ stats_error_parsing:
 							struct sockaddr_storage *sk;
 							int port1, port2;
 
-							sk = str2sa_range(args[cur_arg + 1], &port1, &port2, &err_msg, NULL);
+							sk = str2sa_range(args[cur_arg + 1], &port1, &port2, &errmsg, NULL);
 							if (!sk) {
 								Alert("parsing [%s:%d] : '%s %s' : %s\n",
-								      file, linenum, args[cur_arg], args[cur_arg+1], err_msg);
+								      file, linenum, args[cur_arg], args[cur_arg+1], errmsg);
 								err_code |= ERR_ALERT | ERR_FATAL;
-								free(err_msg);
 								goto out;
 							}
-							free(err_msg);
 
 							proto = protocol_by_family(sk->ss_family);
 							if (!proto || !proto->connect) {
@@ -4878,7 +4855,6 @@ stats_error_parsing:
 		else if (*(args[1]) && *(args[2])) {
 			struct sockaddr_storage *sk;
 			int port1, port2;
-			char *err_msg = NULL;
 
 			logsrv = calloc(1, sizeof(struct logsrv));
 
@@ -4912,16 +4888,14 @@ stats_error_parsing:
 				}
 			}
 
-			sk = str2sa_range(args[1], &port1, &port2, &err_msg, NULL);
+			sk = str2sa_range(args[1], &port1, &port2, &errmsg, NULL);
 			if (!sk) {
-				Alert("parsing [%s:%d] : '%s': %s\n", file, linenum, args[0], err_msg);
+				Alert("parsing [%s:%d] : '%s': %s\n", file, linenum, args[0], errmsg);
 				err_code |= ERR_ALERT | ERR_FATAL;
-				free(err_msg);
 				goto out;
 			}
 
 			logsrv->addr = *sk;
-			free(err_msg);
 
 			if (sk->ss_family == AF_INET || sk->ss_family == AF_INET6) {
 				if (port1 != port2) {
@@ -4948,7 +4922,6 @@ stats_error_parsing:
 		int cur_arg;
 		int port1, port2;
 		struct sockaddr_storage *sk;
-		char *err_msg = NULL;
 		struct protocol *proto;
 
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
@@ -4967,15 +4940,13 @@ stats_error_parsing:
 		curproxy->conn_src.iface_name = NULL;
 		curproxy->conn_src.iface_len = 0;
 
-		sk = str2sa_range(args[1], &port1, &port2, &err_msg, NULL);
+		sk = str2sa_range(args[1], &port1, &port2, &errmsg, NULL);
 		if (!sk) {
 			Alert("parsing [%s:%d] : '%s %s' : %s\n",
-			      file, linenum, args[0], args[1], err_msg);
+			      file, linenum, args[0], args[1], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
-			free(err_msg);
 			goto out;
 		}
-		free(err_msg);
 
 		proto = protocol_by_family(sk->ss_family);
 		if (!proto || !proto->connect) {
@@ -5060,16 +5031,15 @@ stats_error_parsing:
 						goto out;
 					}
 				} else {
-					struct sockaddr_storage *sk = str2sa_range(args[cur_arg + 1], &port1, &port2, &err_msg, NULL);
+					struct sockaddr_storage *sk;
 
+					sk = str2sa_range(args[cur_arg + 1], &port1, &port2, &errmsg, NULL);
 					if (!sk) {
 						Alert("parsing [%s:%d] : '%s %s' : %s\n",
-						      file, linenum, args[cur_arg], args[cur_arg+1], err_msg);
+						      file, linenum, args[cur_arg], args[cur_arg+1], errmsg);
 						err_code |= ERR_ALERT | ERR_FATAL;
-						free(err_msg);
 						goto out;
 					}
-					free(err_msg);
 
 					proto = protocol_by_family(sk->ss_family);
 					if (!proto || !proto->connect) {
