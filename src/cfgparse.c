@@ -1465,6 +1465,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		struct sockaddr_storage *sk;
 		int port1, port2;
 		char *err_msg = NULL;
+		struct protocol *proto;
 
 		if (!*args[2]) {
 			Alert("parsing [%s:%d] : '%s' expects <name> and <addr>[:<port>] as arguments.\n",
@@ -1498,9 +1499,19 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		newpeer->last_change = now.tv_sec;
 		newpeer->id = strdup(args[1]);
 
-		sk = str2sa_range(args[2], &port1, &port2, NULL, NULL);
+		sk = str2sa_range(args[2], &port1, &port2, &err_msg, NULL);
 		if (!sk) {
-			Alert("parsing [%s:%d] : '%s %s' : unknown host in '%s'\n", file, linenum, args[0], args[1], args[2]);
+			Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], err_msg);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			free(err_msg);
+			goto out;
+		}
+		free(err_msg);
+
+		proto = protocol_by_family(sk->ss_family);
+		if (!proto || !proto->connect) {
+			Alert("parsing [%s:%d] : '%s %s' : connect() not supported for this address family.\n",
+			      file, linenum, args[0], args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -1520,16 +1531,9 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		}
 
 		newpeer->addr = *sk;
-		newpeer->proto = protocol_by_family(newpeer->addr.ss_family);
+		newpeer->proto = proto;
 		newpeer->xprt  = &raw_sock;
 		newpeer->sock_init_arg = NULL;
-
-		if (!newpeer->proto) {
-			Alert("parsing [%s:%d] : Unknown protocol family %d '%s'\n",
-			      file, linenum, newpeer->addr.ss_family, args[2]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
 
 		if (strcmp(newpeer->id, localpeer) == 0) {
 			/* Current is local peer, it define a frontend */
