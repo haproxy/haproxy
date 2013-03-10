@@ -1609,6 +1609,13 @@ bind /<path> [, ...] [param*]
                   listen on. If unset, all IPv4 addresses of the system will be
                   listened on. The same will apply for '*' or the system's
                   special address "0.0.0.0". The IPv6 equivalent is '::'.
+                  Optionally, an address family prefix may be used before the
+                  address to force the family regardless of the address format,
+                  which can be useful to specify a path to a unix socket with
+                  no slash ('/'). Currently supported prefixes are :
+                    - 'ipv4@'  -> address is always IPv4
+                    - 'ipv6@'  -> address is always IPv6
+                    - 'unix@'  -> address is a path to a local unix socket
 
     <port_range>  is either a unique TCP port, or a port range for which the
                   proxy will accept connections for the IP address specified
@@ -1659,6 +1666,11 @@ bind /<path> [, ...] [param*]
         listen http_https_proxy
             bind :80
             bind :443 ssl crt /etc/haproxy/site.pem
+
+        listen http_https_proxy_explicit
+            bind ipv6@:80
+            bind ipv4@public_ssl:443 ssl crt /etc/haproxy/site.pem
+            bind unix@ssl-frontend.sock user root mode 600 accept-proxy
 
   See also : "source", "option forwardfor", "unix-bind" and the PROXY protocol
              documentation, and section 5 about bind options.
@@ -5072,7 +5084,13 @@ server <name> <address>[:[port]] [param*]
               intercepted and haproxy must forward to the original destination
               address. This is more or less what the "transparent" keyword does
               except that with a server it's possible to limit concurrency and
-              to report statistics.
+              to report statistics. Optionally, an address family prefix may be
+              used before the address to force the family regardless of the
+              address format, which can be useful to specify a path to a unix
+              socket with no slash ('/'). Currently supported prefixes are :
+                    - 'ipv4@'  -> address is always IPv4
+                    - 'ipv6@'  -> address is always IPv6
+                    - 'unix@'  -> address is a path to a local unix socket
 
     <port>    is an optional port specification. If set, all connections will
               be sent to this port. If unset, the same port the client
@@ -5087,6 +5105,7 @@ server <name> <address>[:[port]] [param*]
   Examples :
         server first  10.1.1.1:1080 cookie first  check inter 1000
         server second 10.1.1.2:1080 cookie second check inter 1000
+        server transp ipv4@
 
   See also: "default-server", "http-send-name-header" and section 5 about
              server options
@@ -5101,8 +5120,16 @@ source <addr>[:<port>] [interface <name>]
   Arguments :
     <addr>    is the IPv4 address HAProxy will bind to before connecting to a
               server. This address is also used as a source for health checks.
+
               The default value of 0.0.0.0 means that the system will select
-              the most appropriate address to reach its destination.
+              the most appropriate address to reach its destination. Optionally
+              an address family prefix may be used before the address to force
+              the family regardless of the address format, which can be useful
+              to specify a path to a unix socket with no slash ('/'). Currently
+              supported prefixes are :
+                - 'ipv4@' -> address is always IPv4
+                - 'ipv6@' -> address is always IPv6
+                - 'unix@' -> address is a path to a local unix socket
 
     <port>    is an optional port. It is normally not needed but may be useful
               in some very specific contexts. The default value of zero means

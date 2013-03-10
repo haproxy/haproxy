@@ -505,6 +505,10 @@ const char *invalid_domainchar(const char *name) {
 
 /*
  * converts <str> to a struct sockaddr_storage* provided by the caller. The
+ * caller must have zeroed <sa> first, and may have set sa->ss_family to force
+ * parse a specific address format. If the ss_family is 0 or AF_UNSPEC, then
+ * the function tries to guess the address family from the syntax. If the
+ * family is forced and the format doesn't match, an error is returned. The
  * string is assumed to contain only an address, no port. The address can be a
  * dotted IPv4 address, an IPv6 address, a host name, or empty or "*" to
  * indicate INADDR_ANY. NULL is returned if the host part cannot be resolved.
@@ -512,32 +516,36 @@ const char *invalid_domainchar(const char *name) {
  * all other fields remain zero. The string is not supposed to be modified.
  * The IPv6 '::' address is IN6ADDR_ANY.
  */
-struct sockaddr_storage *str2ip(const char *str, struct sockaddr_storage *sa)
+static struct sockaddr_storage *str2ip(const char *str, struct sockaddr_storage *sa)
 {
 	struct hostent *he;
 
-	memset(sa, 0, sizeof(sa));
-
 	/* Any IPv6 address */
 	if (str[0] == ':' && str[1] == ':' && !str[2]) {
-		sa->ss_family = AF_INET6;
+		if (!sa->ss_family || sa->ss_family == AF_UNSPEC)
+			sa->ss_family = AF_INET6;
+		else if (sa->ss_family != AF_INET6)
+			goto fail;
 		return sa;
 	}
 
-	/* Any IPv4 address */
+	/* Any address for the family, defaults to IPv4 */
 	if (!str[0] || (str[0] == '*' && !str[1])) {
-		sa->ss_family = AF_INET;
+		if (!sa->ss_family || sa->ss_family == AF_UNSPEC)
+			sa->ss_family = AF_INET;
 		return sa;
 	}
 
 	/* check for IPv6 first */
-	if (inet_pton(AF_INET6, str, &((struct sockaddr_in6 *)sa)->sin6_addr)) {
+	if ((!sa->ss_family || sa->ss_family == AF_UNSPEC || sa->ss_family == AF_INET6) &&
+	    inet_pton(AF_INET6, str, &((struct sockaddr_in6 *)sa)->sin6_addr)) {
 		sa->ss_family = AF_INET6;
 		return sa;
 	}
 
 	/* then check for IPv4 */
-	if (inet_pton(AF_INET, str, &((struct sockaddr_in *)sa)->sin_addr)) {
+	if ((!sa->ss_family || sa->ss_family == AF_UNSPEC || sa->ss_family == AF_INET) &&
+	    inet_pton(AF_INET, str, &((struct sockaddr_in *)sa)->sin_addr)) {
 		sa->ss_family = AF_INET;
 		return sa;
 	}
@@ -545,7 +553,11 @@ struct sockaddr_storage *str2ip(const char *str, struct sockaddr_storage *sa)
 	/* try to resolve an IPv4/IPv6 hostname */
 	he = gethostbyname(str);
 	if (he) {
-		sa->ss_family = he->h_addrtype;
+		if (!sa->ss_family || sa->ss_family == AF_UNSPEC)
+			sa->ss_family = he->h_addrtype;
+		else if (sa->ss_family != he->h_addrtype)
+			goto fail;
+
 		switch (sa->ss_family) {
 		case AF_INET:
 			((struct sockaddr_in *)sa)->sin_addr = *(struct in_addr *) *(he->h_addr_list);
@@ -561,13 +573,17 @@ struct sockaddr_storage *str2ip(const char *str, struct sockaddr_storage *sa)
 
 		memset(&result, 0, sizeof(result));
 		memset(&hints, 0, sizeof(hints));
-		hints.ai_family = AF_UNSPEC;
+		hints.ai_family = sa->ss_family ? sa->ss_family : AF_UNSPEC;
 		hints.ai_socktype = SOCK_DGRAM;
 		hints.ai_flags = AI_PASSIVE;
 		hints.ai_protocol = 0;
 
 		if (getaddrinfo(str, NULL, &hints, &result) == 0) {
-			sa->ss_family = result->ai_family;
+			if (!sa->ss_family || sa->ss_family == AF_UNSPEC)
+				sa->ss_family = result->ai_family;
+			else if (sa->ss_family != result->ai_family)
+				goto fail;
+
 			switch (result->ai_family) {
 			case AF_INET:
 				memcpy((struct sockaddr_in *)sa, result->ai_addr, result->ai_addrlen);
@@ -583,7 +599,7 @@ struct sockaddr_storage *str2ip(const char *str, struct sockaddr_storage *sa)
 	}
 #endif
 	/* unsupported address family */
-
+ fail:
 	return NULL;
 }
 
@@ -611,10 +627,16 @@ struct sockaddr_storage *str2ip(const char *str, struct sockaddr_storage *sa)
  *    - "::"        => family will be AF_INET6 and address will be IN6ADDR_ANY
  *    - a host name => family and address will depend on host name resolving.
  *
+ * A prefix may be passed in before the address above to force the family :
+ *    - "ipv4@"  => force address to resolve as IPv4 and fail if not possible.
+ *    - "ipv6@"  => force address to resolve as IPv6 and fail if not possible.
+ *    - "unix@"  => force address to be a path to a UNIX socket even if the
+ *                  path does not start with a '/'
+ *
  * Also note that in order to avoid any ambiguity with IPv6 addresses, the ':'
  * is mandatory after the IP address even when no port is specified. NULL is
  * returned if the address cannot be parsed. The <low> and <high> ports are
- * always initialized if non-null.
+ * always initialized if non-null, even for non-IP families.
  *
  * If <pfx> is non-null, it is used as a string prefix before any path-based
  * address (typically the path to a unix socket).
@@ -623,20 +645,39 @@ struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char
 {
 	static struct sockaddr_storage ss;
 	struct sockaddr_storage *ret = NULL;
-	char *str2;
+	char *back, *str2;
 	char *port1, *port2;
 	int portl, porth, porta;
 
 	portl = porth = porta = 0;
 
-	str2 = strdup(str);
+	str2 = back = strdup(str);
 	if (str2 == NULL) {
 		memprintf(err, "out of memory in '%s'\n", __FUNCTION__);
 		goto out;
 	}
 
-	if (*str2 == '/') {
-		/* unix socket */
+	memset(&ss, 0, sizeof(ss));
+
+	if (strncmp(str2, "unix@", 5) == 0) {
+		str2 += 5;
+		ss.ss_family = AF_UNIX;
+	}
+	else if (strncmp(str2, "ipv4@", 5) == 0) {
+		str2 += 5;
+		ss.ss_family = AF_INET;
+	}
+	else if (strncmp(str2, "ipv6@", 5) == 0) {
+		str2 += 5;
+		ss.ss_family = AF_INET6;
+	}
+	else if (*str2 == '/') {
+		ss.ss_family = AF_UNIX;
+	}
+	else
+		ss.ss_family = AF_UNSPEC;
+
+	if (ss.ss_family == AF_UNIX) {
 		int prefix_path_len;
 		int max_path_len;
 
@@ -652,8 +693,6 @@ struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char
 			goto out;
 		}
 
-		memset(&ss, 0, sizeof(ss));
-		ss.ss_family = AF_UNIX;
 		if (pfx) {
 			memcpy(((struct sockaddr_un *)&ss)->sun_path, pfx, prefix_path_len);
 			strcpy(((struct sockaddr_un *)&ss)->sun_path + prefix_path_len, str2);
@@ -662,7 +701,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char
 			strcpy(((struct sockaddr_un *)&ss)->sun_path, str2);
 		}
 	}
-	else {
+	else { /* IPv4 and IPv6 */
 		port1 = strrchr(str2, ':');
 		if (port1)
 			*port1++ = '\0';
@@ -705,7 +744,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char
 		*low = portl;
 	if (high)
 		*high = porth;
-	free(str2);
+	free(back);
 	return ret;
 }
 
