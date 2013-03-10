@@ -504,7 +504,7 @@ const char *invalid_domainchar(const char *name) {
 }
 
 /*
- * converts <str> to a struct sockaddr_storage* which is locally allocated. The
+ * converts <str> to a struct sockaddr_storage* provided by the caller. The
  * string is assumed to contain only an address, no port. The address can be a
  * dotted IPv4 address, an IPv6 address, a host name, or empty or "*" to
  * indicate INADDR_ANY. NULL is returned if the host part cannot be resolved.
@@ -512,48 +512,47 @@ const char *invalid_domainchar(const char *name) {
  * all other fields remain zero. The string is not supposed to be modified.
  * The IPv6 '::' address is IN6ADDR_ANY.
  */
-struct sockaddr_storage *str2ip(const char *str)
+struct sockaddr_storage *str2ip(const char *str, struct sockaddr_storage *sa)
 {
-	static struct sockaddr_storage sa;
 	struct hostent *he;
 
-	memset(&sa, 0, sizeof(sa));
+	memset(sa, 0, sizeof(sa));
 
 	/* Any IPv6 address */
 	if (str[0] == ':' && str[1] == ':' && !str[2]) {
-		sa.ss_family = AF_INET6;
-		return &sa;
+		sa->ss_family = AF_INET6;
+		return sa;
 	}
 
 	/* Any IPv4 address */
 	if (!str[0] || (str[0] == '*' && !str[1])) {
-		sa.ss_family = AF_INET;
-		return &sa;
+		sa->ss_family = AF_INET;
+		return sa;
 	}
 
 	/* check for IPv6 first */
-	if (inet_pton(AF_INET6, str, &((struct sockaddr_in6 *)&sa)->sin6_addr)) {
-		sa.ss_family = AF_INET6;
-		return &sa;
+	if (inet_pton(AF_INET6, str, &((struct sockaddr_in6 *)sa)->sin6_addr)) {
+		sa->ss_family = AF_INET6;
+		return sa;
 	}
 
 	/* then check for IPv4 */
-	if (inet_pton(AF_INET, str, &((struct sockaddr_in *)&sa)->sin_addr)) {
-		sa.ss_family = AF_INET;
-		return &sa;
+	if (inet_pton(AF_INET, str, &((struct sockaddr_in *)sa)->sin_addr)) {
+		sa->ss_family = AF_INET;
+		return sa;
 	}
 
 	/* try to resolve an IPv4/IPv6 hostname */
 	he = gethostbyname(str);
 	if (he) {
-		sa.ss_family = he->h_addrtype;
-		switch (sa.ss_family) {
+		sa->ss_family = he->h_addrtype;
+		switch (sa->ss_family) {
 		case AF_INET:
-			((struct sockaddr_in *)&sa)->sin_addr = *(struct in_addr *) *(he->h_addr_list);
-			return &sa;
+			((struct sockaddr_in *)sa)->sin_addr = *(struct in_addr *) *(he->h_addr_list);
+			return sa;
 		case AF_INET6:
-			((struct sockaddr_in6 *)&sa)->sin6_addr = *(struct in6_addr *) *(he->h_addr_list);
-			return &sa;
+			((struct sockaddr_in6 *)sa)->sin6_addr = *(struct in6_addr *) *(he->h_addr_list);
+			return sa;
 		}
 	}
 #ifdef USE_GETADDRINFO
@@ -568,14 +567,14 @@ struct sockaddr_storage *str2ip(const char *str)
 		hints.ai_protocol = 0;
 
 		if (getaddrinfo(str, NULL, &hints, &result) == 0) {
-			sa.ss_family = result->ai_family;
+			sa->ss_family = result->ai_family;
 			switch (result->ai_family) {
 			case AF_INET:
-				memcpy((struct sockaddr_in *)&sa, result->ai_addr, result->ai_addrlen);
-				return &sa;
+				memcpy((struct sockaddr_in *)sa, result->ai_addr, result->ai_addrlen);
+				return sa;
 			case AF_INET6:
-				memcpy((struct sockaddr_in6 *)&sa, result->ai_addr, result->ai_addrlen);
-				return &sa;
+				memcpy((struct sockaddr_in6 *)sa, result->ai_addr, result->ai_addrlen);
+				return sa;
 			}
 		}
 
@@ -622,6 +621,7 @@ struct sockaddr_storage *str2ip(const char *str)
  */
 struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char **err, const char *pfx)
 {
+	static struct sockaddr_storage ss;
 	struct sockaddr_storage *ret = NULL;
 	char *str2;
 	char *port1, *port2;
@@ -637,7 +637,6 @@ struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char
 
 	if (*str2 == '/') {
 		/* unix socket */
-		static struct sockaddr_storage ss;
 		int prefix_path_len;
 		int max_path_len;
 
@@ -662,48 +661,45 @@ struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char
 		else {
 			strcpy(((struct sockaddr_un *)&ss)->sun_path, str2);
 		}
-		ret = &ss;
-		goto out;
 	}
-
-	port1 = strrchr(str2, ':');
-	if (port1)
-		*port1++ = '\0';
-	else
-		port1 = "";
-
-	ret = str2ip(str2);
-	if (!ret) {
-		memprintf(err, "invalid address: '%s' in '%s'\n", str2, str);
-		goto out;
-	}
-
-	if (isdigit(*port1)) {	/* single port or range */
-		port2 = strchr(port1, '-');
-		if (port2)
-			*port2++ = '\0';
+	else {
+		port1 = strrchr(str2, ':');
+		if (port1)
+			*port1++ = '\0';
 		else
-			port2 = port1;
-		portl = atoi(port1);
-		porth = atoi(port2);
-		porta = portl;
-	}
-	else if (*port1 == '-') { /* negative offset */
-		portl = atoi(port1 + 1);
-		porta = -portl;
-	}
-	else if (*port1 == '+') { /* positive offset */
-		porth = atoi(port1 + 1);
-		porta = porth;
-	}
-	else if (*port1) { /* other any unexpected char */
-		memprintf(err, "invalid character '%c' in port number '%s'\n", *port1, port1);
-		ret = NULL;
-		goto out;
+			port1 = "";
+
+		if (str2ip(str2, &ss) == NULL) {
+			memprintf(err, "invalid address: '%s' in '%s'\n", str2, str);
+			goto out;
+		}
+
+		if (isdigit(*port1)) {	/* single port or range */
+			port2 = strchr(port1, '-');
+			if (port2)
+				*port2++ = '\0';
+			else
+				port2 = port1;
+			portl = atoi(port1);
+			porth = atoi(port2);
+			porta = portl;
+		}
+		else if (*port1 == '-') { /* negative offset */
+			portl = atoi(port1 + 1);
+			porta = -portl;
+		}
+		else if (*port1 == '+') { /* positive offset */
+			porth = atoi(port1 + 1);
+			porta = porth;
+		}
+		else if (*port1) { /* other any unexpected char */
+			memprintf(err, "invalid character '%c' in port number '%s'\n", *port1, port1);
+			goto out;
+		}
+		set_host_port(&ss, porta);
 	}
 
-	set_host_port(ret, porta);
-
+	ret = &ss;
  out:
 	if (low)
 		*low = portl;

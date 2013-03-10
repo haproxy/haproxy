@@ -212,7 +212,7 @@ extern const char *invalid_char(const char *name);
 extern const char *invalid_domainchar(const char *name);
 
 /*
- * converts <str> to a struct sockaddr_storage* which is locally allocated. The
+ * converts <str> to a struct sockaddr_storage* provided by the caller. The
  * string is assumed to contain only an address, no port. The address can be a
  * dotted IPv4 address, an IPv6 address, a host name, or empty or "*" to
  * indicate INADDR_ANY. NULL is returned if the host part cannot be resolved.
@@ -220,7 +220,7 @@ extern const char *invalid_domainchar(const char *name);
  * all other fields remain zero. The string is not supposed to be modified.
  * The IPv6 '::' address is IN6ADDR_ANY.
  */
-struct sockaddr_storage *str2ip(const char *str);
+struct sockaddr_storage *str2ip(const char *str, struct sockaddr_storage *sa);
 
 /*
  * converts <str> to a locally allocated struct sockaddr_storage *, and a
