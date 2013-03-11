@@ -2979,7 +2979,7 @@ int http_handle_stats(struct session *s, struct channel *req)
 		 * the browse to the stats page with a GET.
 		 */
 		chunk_printf(&trash,
-		             "HTTP/1.0 303 See Other\r\n"
+		             "HTTP/1.1 303 See Other\r\n"
 		             "Cache-Control: no-cache\r\n"
 		             "Content-Type: text/plain\r\n"
 		             "Connection: close\r\n"
