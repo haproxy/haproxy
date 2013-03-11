@@ -75,7 +75,6 @@ const struct chunk http_100_chunk = {
 /* Warning: no "connection" header is provided with the 3xx messages below */
 const char *HTTP_301 =
 	"HTTP/1.1 301 Moved Permanently\r\n"
-	"Cache-Control: no-cache\r\n"
 	"Content-length: 0\r\n"
 	"Location: "; /* not terminated since it will be concatenated with the URL */
 
