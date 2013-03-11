@@ -732,6 +732,14 @@ char *memprintf(char **out, const char *format, ...)
  */
 char *indent_msg(char **out, int level);
 
+/* Convert occurrences of environment variables in the input string to their
+ * corresponding value. A variable is identified as a series of alphanumeric
+ * characters or underscores following a '$' sign. The <in> string must be
+ * free()able. NULL returns NULL. The resulting string might be reallocated if
+ * some expansion is made.
+ */
+char *env_expand(char *in);
+
 /* debugging macro to emit messages using write() on fd #-1 so that strace sees
  * them.
  */

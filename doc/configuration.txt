@@ -562,6 +562,11 @@ log <address> <facility> [max level [min level]]
           the chroot) and uid/gid (be sure the path is appropriately
           writeable).
 
+        Any part of the address string may reference any number of environment
+        variables by preceding their name with a dollar sign ('$') and
+        optionally enclosing them with braces ('{}'), similarly to what is done
+        in Bourne shell.
+
   <facility> must be one of the 24 standard syslog facilities :
 
           kern   user   mail   daemon auth   syslog lpr    news
@@ -1020,6 +1025,10 @@ peer <peername> <ip>:<port>
   peers and to only rely on the "-L" command line argument to change the local
   peer name. This makes it easier to maintain coherent configuration files
   across all peers.
+
+  Any part of the address string may reference any number of environment
+  variables by preceding their name with a dollar sign ('$') and optionally
+  enclosing them with braces ('{}'), similarly to what is done in Bourne shell.
 
   Example:
     peers mypeers
@@ -1619,6 +1628,10 @@ bind /<path> [, ...] [param*]
                     - 'fd@<n>' -> use file descriptor <n> inherited from the
                       parent. The fd must be bound and may or may not already
                       be listening.
+                  Any part of the address string may reference any number of
+                  environment variables by preceding their name with a dollar
+                  sign ('$') and optionally enclosing them with braces ('{}'),
+                  similarly to what is done in Bourne shell.
 
     <port_range>  is either a unique TCP port, or a port range for which the
                   proxy will accept connections for the IP address specified
@@ -1674,6 +1687,9 @@ bind /<path> [, ...] [param*]
             bind ipv6@:80
             bind ipv4@public_ssl:443 ssl crt /etc/haproxy/site.pem
             bind unix@ssl-frontend.sock user root mode 600 accept-proxy
+
+        listen external_bind_app1
+            bind fd@${FD_APP1}
 
   See also : "source", "option forwardfor", "unix-bind" and the PROXY protocol
              documentation, and section 5 about bind options.
@@ -2829,6 +2845,11 @@ no log
                  inside the chroot) and uid/gid (be sure the path is
                  appropriately writeable).
 
+               Any part of the address string may reference any number of
+               environment variables by preceding their name with a dollar
+               sign ('$') and optionally enclosing them with braces ('{}'),
+               similarly to what is done in Bourne shell.
+
     <facility> must be one of the 24 standard syslog facilities :
 
                  kern   user   mail   daemon auth   syslog lpr    news
@@ -2862,6 +2883,8 @@ no log
     log global
     log 127.0.0.1:514 local0 notice         # only send important events
     log 127.0.0.1:514 local0 notice notice  # same but limit output level
+    log ${LOCAL_SYSLOG}:514 local0 notice   # send to local server
+
 
 log-format <string>
    Allows you to custom a log line.
@@ -5094,6 +5117,10 @@ server <name> <address>[:[port]] [param*]
                     - 'ipv4@'  -> address is always IPv4
                     - 'ipv6@'  -> address is always IPv6
                     - 'unix@'  -> address is a path to a local unix socket
+              Any part of the address string may reference any number of
+              environment variables by preceding their name with a dollar
+              sign ('$') and optionally enclosing them with braces ('{}'),
+              similarly to what is done in Bourne shell.
 
     <port>    is an optional port specification. If set, all connections will
               be sent to this port. If unset, the same port the client
@@ -5109,6 +5136,9 @@ server <name> <address>[:[port]] [param*]
         server first  10.1.1.1:1080 cookie first  check inter 1000
         server second 10.1.1.2:1080 cookie second check inter 1000
         server transp ipv4@
+        server backup ${SRV_BACKUP}:1080 backup
+        server www1_dc1 ${LAN_DC1}.101:80
+        server www1_dc2 ${LAN_DC2}.101:80
 
   See also: "default-server", "http-send-name-header" and section 5 about
              server options
@@ -5133,6 +5163,10 @@ source <addr>[:<port>] [interface <name>]
                 - 'ipv4@' -> address is always IPv4
                 - 'ipv6@' -> address is always IPv6
                 - 'unix@' -> address is a path to a local unix socket
+              Any part of the address string may reference any number of
+              environment variables by preceding their name with a dollar
+              sign ('$') and optionally enclosing them with braces ('{}'),
+              similarly to what is done in Bourne shell.
 
     <port>    is an optional port. It is normally not needed but may be useful
               in some very specific contexts. The default value of zero means

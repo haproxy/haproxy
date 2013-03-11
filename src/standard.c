@@ -655,7 +655,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char
 
 	portl = porth = porta = 0;
 
-	str2 = back = strdup(str);
+	str2 = back = env_expand(strdup(str));
 	if (str2 == NULL) {
 		memprintf(err, "out of memory in '%s'\n", __FUNCTION__);
 		goto out;
@@ -688,7 +688,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char
 		((struct sockaddr_in *)&ss)->sin_addr.s_addr = strtol(str2, &endptr, 10);
 
 		if (!*str2 || *endptr) {
-			memprintf(err, "file descriptor '%s' is not a valid integer\n", str2);
+			memprintf(err, "file descriptor '%s' is not a valid integer in '%s'\n", str2, str);
 			goto out;
 		}
 
@@ -750,7 +750,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char
 			porta = porth;
 		}
 		else if (*port1) { /* other any unexpected char */
-			memprintf(err, "invalid character '%c' in port number '%s'\n", *port1, port1);
+			memprintf(err, "invalid character '%c' in port number '%s' in '%s'\n", *port1, port1, str);
 			goto out;
 		}
 		set_host_port(&ss, porta);
@@ -1994,6 +1994,83 @@ char *indent_msg(char **out, int level)
 	*out = ret;
 
 	return ret;
+}
+
+/* Convert occurrences of environment variables in the input string to their
+ * corresponding value. A variable is identified as a series of alphanumeric
+ * characters or underscores following a '$' sign. The <in> string must be
+ * free()able. NULL returns NULL. The resulting string might be reallocated if
+ * some expansion is made. Variable names may also be enclosed into braces if
+ * needed (eg: to concatenate alphanum characters).
+ */
+char *env_expand(char *in)
+{
+	char *txt_beg;
+	char *out;
+	char *txt_end;
+	char *var_beg;
+	char *var_end;
+	char *value;
+	char *next;
+	int out_len;
+	int val_len;
+
+	if (!in)
+		return in;
+
+	value = out = NULL;
+	out_len = 0;
+
+	txt_beg = in;
+	do {
+		/* look for next '$' sign in <in> */
+		for (txt_end = txt_beg; *txt_end && *txt_end != '$'; txt_end++);
+
+		if (!*txt_end && !out) /* end and no expansion performed */
+			return in;
+
+		val_len = 0;
+		next = txt_end;
+		if (*txt_end == '$') {
+			char save;
+
+			var_beg = txt_end + 1;
+			if (*var_beg == '{')
+				var_beg++;
+
+			var_end = var_beg;
+			while (isalnum((int)(unsigned char)*var_end) || *var_end == '_') {
+				var_end++;
+			}
+
+			next = var_end;
+			if (*var_end == '}' && (var_beg > txt_end + 1))
+				next++;
+
+			/* get value of the variable name at this location */
+			save = *var_end;
+			*var_end = '\0';
+			value = getenv(var_beg);
+			*var_end = save;
+			val_len = value ? strlen(value) : 0;
+		}
+
+		out = realloc(out, out_len + (txt_end - txt_beg) + val_len + 1);
+		if (txt_end > txt_beg) {
+			memcpy(out + out_len, txt_beg, txt_end - txt_beg);
+			out_len += txt_end - txt_beg;
+		}
+		if (val_len) {
+			memcpy(out + out_len, value, val_len);
+			out_len += val_len;
+		}
+		out[out_len] = 0;
+		txt_beg = next;
+	} while (*txt_beg);
+
+	/* here we know that <out> was allocated and that we don't need <in> anymore */
+	free(in);
+	return out;
 }
 
 /*
