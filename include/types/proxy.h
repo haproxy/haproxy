@@ -205,6 +205,7 @@ struct proxy {
 	unsigned int fe_req_ana, be_req_ana;	/* bitmap of common request protocol analysers for the frontend and backend */
 	unsigned int fe_rsp_ana, be_rsp_ana;	/* bitmap of common response protocol analysers for the frontend and backend */
 	int mode;				/* mode = PR_MODE_TCP, PR_MODE_HTTP or PR_MODE_HEALTH */
+	unsigned int http_needed;               /* non-null if HTTP analyser may be used */
 	union {
 		struct proxy *be;		/* default backend, or NULL if none set */
 		char *name;			/* default backend name during config parse */
@@ -227,7 +228,6 @@ struct proxy {
 		unsigned int inspect_delay;     /* inspection delay */
 		struct list inspect_rules;      /* inspection rules */
 	} tcp_rep;
-	int acl_requires;                       /* Elements required to satisfy all ACLs (ACL_USE_*) */
 	struct server *srv, defsrv;		/* known servers; default server configuration */
 	int srv_act, srv_bck;			/* # of servers eligible for LB (UP|!checked) AND (enabled+weight!=0) */
 	struct lbprm lbprm;			/* load-balancing parameters */

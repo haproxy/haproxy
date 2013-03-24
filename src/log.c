@@ -347,8 +347,7 @@ void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct pro
 
 	/* check if we need to allocate an hdr_idx struct for HTTP parsing */
 	/* Note, we may also need to set curpx->to_log with certain fetches */
-	if (expr->fetch->use & SMP_USE_HTTP_ANY)
-		curpx->acl_requires |= ACL_USE_L7_ANY;
+	curpx->http_needed |= !!(expr->fetch->use & SMP_USE_HTTP_ANY);
 
 	/* FIXME: temporary workaround for missing LW_XPRT flag needed with some
 	 * sample fetches (eg: ssl*). We always set it for now on, but this will

@@ -1463,8 +1463,8 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
 /* Builds an ACL condition starting at the if/unless keyword. The complete
  * condition is returned. NULL is returned in case of error or if the first
  * word is neither "if" nor "unless". It automatically sets the file name and
- * the line number in the condition for better error reporting, and adds the
- * ACL requirements to the proxy's acl_requires. If <err> is not NULL, it will
+ * the line number in the condition for better error reporting, and sets the
+ * HTTP intiailization requirements in the proxy. If <err> is not NULL, it will
  * be filled with a pointer to an error message in case of error, that the
  * caller is responsible for freeing. The initial location must either be
  * freeable or NULL.
@@ -1498,8 +1498,7 @@ struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, co
 
 	cond->file = file;
 	cond->line = line;
-	px->acl_requires |= cond->requires;
-
+	px->http_needed |= !!(cond->requires & ACL_USE_L7_ANY);
 	return cond;
 }
 

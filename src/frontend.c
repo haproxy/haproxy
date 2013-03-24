@@ -115,7 +115,7 @@ int frontend_accept(struct session *s)
 			goto out_free_reqcap;	/* no memory */
 	}
 
-	if (s->fe->acl_requires & ACL_USE_L7_ANY) {
+	if (s->fe->http_needed) {
 		/* we have to allocate header indexes only if we know
 		 * that we may make use of them. This of course includes
 		 * (mode == PR_MODE_HTTP).

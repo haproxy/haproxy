@@ -1129,8 +1129,7 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 		}
 
 		/* check if we need to allocate an hdr_idx struct for HTTP parsing */
-		if (expr->fetch->use & SMP_USE_HTTP_ANY)
-			curpx->acl_requires |= ACL_USE_L7_ANY;
+		curpx->http_needed |= !!(expr->fetch->use & SMP_USE_HTTP_ANY);
 
 		if (strcmp(args[arg], "table") == 0) {
 			arg++;

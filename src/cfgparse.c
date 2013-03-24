@@ -3040,8 +3040,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		/* check if we need to allocate an hdr_idx struct for HTTP parsing */
-		if (expr->fetch->use & SMP_USE_HTTP_ANY)
-			curproxy->acl_requires |= ACL_USE_L7_ANY;
+		curproxy->http_needed |= !!(expr->fetch->use & SMP_USE_HTTP_ANY);
 
 		if (strcmp(args[myidx], "table") == 0) {
 			myidx++;
@@ -6044,7 +6043,7 @@ int check_config_validity()
 			break;
 
 		case PR_MODE_HTTP:
-			curproxy->acl_requires |= ACL_USE_L7_ANY;
+			curproxy->http_needed = 1;
 			break;
 		}
 
