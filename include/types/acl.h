@@ -147,27 +147,6 @@ enum {
 	ACL_USE_RTR_ANY         = (ACL_USE_L6RTR_ANY | ACL_USE_L7RTR_ANY | ACL_USE_RTR_INTERNAL),
 };
 
-/* filtering hooks */
-enum {
-	/* hooks on the request path */
-	ACL_HOOK_REQ_FE_TCP = 0,
-	ACL_HOOK_REQ_FE_TCP_CONTENT,
-	ACL_HOOK_REQ_FE_HTTP_IN,
-	ACL_HOOK_REQ_FE_SWITCH,
-	ACL_HOOK_REQ_BE_TCP_CONTENT,
-	ACL_HOOK_REQ_BE_HTTP_IN,
-	ACL_HOOK_REQ_BE_SWITCH,
-	ACL_HOOK_REQ_FE_HTTP_OUT,
-	ACL_HOOK_REQ_BE_HTTP_OUT,
-	/* hooks on the response path */
-	ACL_HOOK_RTR_BE_TCP_CONTENT,
-	ACL_HOOK_RTR_BE_HTTP_IN,
-	ACL_HOOK_RTR_FE_TCP_CONTENT,
-	ACL_HOOK_RTR_FE_HTTP_IN,
-	ACL_HOOK_RTR_BE_HTTP_OUT,
-	ACL_HOOK_RTR_FE_HTTP_OUT,
-};
-
 /* How to store a time range and the valid days in 29 bits */
 struct acl_time {
 	int dow:7;              /* 1 bit per day of week: 0-6 */
