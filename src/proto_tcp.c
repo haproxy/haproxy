@@ -1189,6 +1189,8 @@ static int tcp_parse_tcp_rep(char **args, int section_type, struct proxy *curpx,
 	int arg;
 	struct tcp_rule *rule;
 	unsigned int where;
+	const struct acl *acl;
+	const struct acl_keyword *kw;
 
 	if (!*args[1]) {
 		memprintf(err, "missing argument for '%s' in %s '%s'",
@@ -1237,16 +1239,30 @@ static int tcp_parse_tcp_rep(char **args, int section_type, struct proxy *curpx,
 		if (tcp_parse_response_rule(args, arg, section_type, curpx, defpx, rule, err, where) < 0)
 			goto error;
 
-		if (rule->cond && (rule->cond->requires & ACL_USE_L6REQ_VOLATILE)) {
-			struct acl *acl;
-			const char *name;
+		acl = rule->cond ? acl_cond_conflicts(rule->cond, where) : NULL;
+		if (acl) {
+			if (acl->name && *acl->name)
+				memprintf(err,
+					  "acl '%s' will never match in '%s %s' because it only involves keywords that are incompatible with '%s'",
+					  acl->name, args[0], args[1], sample_ckp_names(where));
+			else
+				memprintf(err,
+					  "anonymous acl will never match in '%s %s' because it uses keyword '%s' which is incompatible with '%s'",
+					  args[0], args[1],
+					  LIST_ELEM(acl->expr.n, struct acl_expr *, list)->kw->kw,
+					  sample_ckp_names(where));
 
-			acl = cond_find_require(rule->cond, ACL_USE_L6REQ_VOLATILE);
-			name = acl ? acl->name : "(unknown)";
-
-			memprintf(err,
-			          "acl '%s' involves some request-only criteria which will be ignored in '%s %s'",
-			          name, args[0], args[1]);
+			warn++;
+		}
+		else if (rule->cond && acl_cond_kw_conflicts(rule->cond, where, &acl, &kw)) {
+			if (acl->name && *acl->name)
+				memprintf(err,
+					  "acl '%s' involves keyword '%s' which is incompatible with '%s'",
+					  acl->name, kw->kw, sample_ckp_names(where));
+			else
+				memprintf(err,
+					  "anonymous acl involves keyword '%s' which is incompatible with '%s'",
+					  kw->kw, sample_ckp_names(where));
 			warn++;
 		}
 
@@ -1279,6 +1295,8 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 	int arg;
 	struct tcp_rule *rule;
 	unsigned int where;
+	const struct acl *acl;
+	const struct acl_keyword *kw;
 
 	if (!*args[1]) {
 		if (curpx == defpx)
@@ -1330,16 +1348,30 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 		if (tcp_parse_request_rule(args, arg, section_type, curpx, defpx, rule, err, where) < 0)
 			goto error;
 
-		if (rule->cond && (rule->cond->requires & ACL_USE_RTR_ANY)) {
-			struct acl *acl;
-			const char *name;
+		acl = rule->cond ? acl_cond_conflicts(rule->cond, where) : NULL;
+		if (acl) {
+			if (acl->name && *acl->name)
+				memprintf(err,
+					  "acl '%s' will never match in '%s %s' because it only involves keywords that are incompatible with '%s'",
+					  acl->name, args[0], args[1], sample_ckp_names(where));
+			else
+				memprintf(err,
+					  "anonymous acl will never match in '%s %s' because it uses keyword '%s' which is incompatible with '%s'",
+					  args[0], args[1],
+					  LIST_ELEM(acl->expr.n, struct acl_expr *, list)->kw->kw,
+					  sample_ckp_names(where));
 
-			acl = cond_find_require(rule->cond, ACL_USE_RTR_ANY);
-			name = acl ? acl->name : "(unknown)";
-
-			memprintf(err,
-			          "acl '%s' involves some response-only criteria which will be ignored in '%s %s'",
-			          name, args[0], args[1]);
+			warn++;
+		}
+		else if (rule->cond && acl_cond_kw_conflicts(rule->cond, where, &acl, &kw)) {
+			if (acl->name && *acl->name)
+				memprintf(err,
+					  "acl '%s' involves keyword '%s' which is incompatible with '%s'",
+					  acl->name, kw->kw, sample_ckp_names(where));
+			else
+				memprintf(err,
+					  "anonymous acl involves keyword '%s' which is incompatible with '%s'",
+					  kw->kw, sample_ckp_names(where));
 			warn++;
 		}
 
@@ -1359,24 +1391,30 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 		if (tcp_parse_request_rule(args, arg, section_type, curpx, defpx, rule, err, where) < 0)
 			goto error;
 
-		if (rule->cond && (rule->cond->requires & (ACL_USE_RTR_ANY|ACL_USE_L6_ANY|ACL_USE_L7_ANY))) {
-			struct acl *acl;
-			const char *name;
-
-			acl = cond_find_require(rule->cond, ACL_USE_RTR_ANY|ACL_USE_L6_ANY|ACL_USE_L7_ANY);
-			name = acl ? acl->name : "(unknown)";
-
-			if (acl->requires & (ACL_USE_L6_ANY|ACL_USE_L7_ANY)) {
+		acl = rule->cond ? acl_cond_conflicts(rule->cond, where) : NULL;
+		if (acl) {
+			if (acl->name && *acl->name)
 				memprintf(err,
-				          "'%s %s' may not reference acl '%s' which makes use of "
-				          "payload in %s '%s'. Please use '%s content' for this.",
-				          args[0], args[1], name, proxy_type_str(curpx), curpx->id, args[0]);
-				goto error;
-			}
-			if (acl->requires & ACL_USE_RTR_ANY)
+					  "acl '%s' will never match in '%s %s' because it only involves keywords that are incompatible with '%s'",
+					  acl->name, args[0], args[1], sample_ckp_names(where));
+			else
 				memprintf(err,
-				          "acl '%s' involves some response-only criteria which will be ignored in '%s %s'",
-				          name, args[0], args[1]);
+					  "anonymous acl will never match in '%s %s' because it uses keyword '%s' which is incompatible with '%s'",
+					  args[0], args[1],
+					  LIST_ELEM(acl->expr.n, struct acl_expr *, list)->kw->kw,
+					  sample_ckp_names(where));
+
+			warn++;
+		}
+		else if (rule->cond && acl_cond_kw_conflicts(rule->cond, where, &acl, &kw)) {
+			if (acl->name && *acl->name)
+				memprintf(err,
+					  "acl '%s' involves keyword '%s' which is incompatible with '%s'",
+					  acl->name, kw->kw, sample_ckp_names(where));
+			else
+				memprintf(err,
+					  "anonymous acl involves keyword '%s' which is incompatible with '%s'",
+					  kw->kw, sample_ckp_names(where));
 			warn++;
 		}
 

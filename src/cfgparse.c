@@ -414,40 +414,40 @@ int warnif_misplaced_reqadd(struct proxy *proxy, const char *file, int line, con
 		warnif_rule_after_use_backend(proxy, file, line, arg);
 }
 
-/* Report it if a request ACL condition uses some response-only parameters. It
- * returns either 0 or ERR_WARN so that its result can be or'ed with err_code.
- * Note that <cond> may be NULL and then will be ignored.
+/* Report it if a request ACL condition uses some keywords that are incompatible
+ * with the place where the ACL is used. It returns either 0 or ERR_WARN so that
+ * its result can be or'ed with err_code. Note that <cond> may be NULL and then
+ * will be ignored.
  */
-static int warnif_cond_requires_resp(const struct acl_cond *cond, const char *file, int line)
+static int warnif_cond_conflicts(const struct acl_cond *cond, unsigned int where, const char *file, int line)
 {
-	struct acl *acl;
+	const struct acl *acl;
+	const struct acl_keyword *kw;
 
-	if (!cond || !(cond->requires & ACL_USE_RTR_ANY))
+	if (!cond)
 		return 0;
 
-	acl = cond_find_require(cond, ACL_USE_RTR_ANY);
-	Warning("parsing [%s:%d] : acl '%s' involves some response-only criteria which will be ignored.\n",
-		file, line, acl ? acl->name : "(unknown)");
-	return ERR_WARN;
-}
-
-/* Report it if a request ACL condition uses some request-only volatile parameters.
- * It returns either 0 or ERR_WARN so that its result can be or'ed with err_code.
- * Note that <cond> may be NULL and then will be ignored.
- */
-static int warnif_cond_requires_req(const struct acl_cond *cond, const char *file, int line)
-{
-	struct acl *acl;
-
-	if (!cond || !(cond->requires & ACL_USE_REQ_VOLATILE))
+	acl = acl_cond_conflicts(cond, where);
+	if (acl) {
+		if (acl->name && *acl->name)
+			Warning("parsing [%s:%d] : acl '%s' will never match because it only involves keywords that are incompatible with '%s'\n",
+			        file, line, acl->name, sample_ckp_names(where));
+		else
+			Warning("parsing [%s:%d] : anonymous acl will never match because it uses keyword '%s' which is incompatible with '%s'\n",
+			        file, line, LIST_ELEM(acl->expr.n, struct acl_expr *, list)->kw->kw, sample_ckp_names(where));
+		return ERR_WARN;
+	}
+	if (!acl_cond_kw_conflicts(cond, where, &acl, &kw))
 		return 0;
 
-	acl = cond_find_require(cond, ACL_USE_REQ_VOLATILE);
-	Warning("parsing [%s:%d] : acl '%s' involves some volatile request-only criteria which will be ignored.\n",
-		file, line, acl ? acl->name : "(unknown)");
+	if (acl->name && *acl->name)
+		Warning("parsing [%s:%d] : acl '%s' involves keywords '%s' which is incompatible with '%s'\n",
+		        file, line, acl->name, kw->kw, sample_ckp_names(where));
+	else
+		Warning("parsing [%s:%d] : anonymous acl involves keyword '%s' which is incompatible with '%s'\n",
+		        file, line, kw->kw, sample_ckp_names(where));
 	return ERR_WARN;
 }
-
 
 /*
  * parse a line in a <global> section. Returns the error code, 0 if OK, or
@@ -1380,10 +1380,11 @@ static int create_cond_regex_rule(const char *file, int line,
 		goto err;
 	}
 
-	if (dir == SMP_OPT_DIR_REQ)
-		err_code |= warnif_cond_requires_resp(cond, file, line);
-	else
-		err_code |= warnif_cond_requires_req(cond, file, line);
+	err_code |= warnif_cond_conflicts(cond,
+	                                  (dir == SMP_OPT_DIR_REQ) ?
+	                                  ((px->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR) :
+	                                  ((px->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR),
+	                                  file, line);
 
 	preg = calloc(1, sizeof(regex_t));
 	if (!preg) {
@@ -2627,7 +2628,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		err_code |= warnif_cond_requires_resp(rule->cond, file, linenum);
+		err_code |= warnif_cond_conflicts(rule->cond,
+	                                          (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
+	                                          file, linenum);
+
 		LIST_ADDQ(&curproxy->http_req_rules, &rule->list);
 	}
 	else if (!strcmp(args[0], "http-send-name-header")) { /* send server name in request header */
@@ -2689,7 +2693,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		LIST_ADDQ(&curproxy->redirect_rules, &rule->list);
 		err_code |= warnif_rule_after_use_backend(curproxy, file, linenum, args[0]);
-		err_code |= warnif_cond_requires_resp(rule->cond, file, linenum);
+		err_code |= warnif_cond_conflicts(rule->cond,
+	                                          (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
+	                                          file, linenum);
 	}
 	else if (!strcmp(args[0], "use_backend")) {
 		struct switching_rule *rule;
@@ -2723,7 +2729,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		err_code |= warnif_cond_requires_resp(cond, file, linenum);
+		err_code |= warnif_cond_conflicts(cond, SMP_VAL_FE_SET_BCK, file, linenum);
 
 		rule = (struct switching_rule *)calloc(1, sizeof(*rule));
 		rule->cond = cond;
@@ -2763,7 +2769,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		err_code |= warnif_cond_requires_resp(cond, file, linenum);
+		err_code |= warnif_cond_conflicts(cond, SMP_VAL_BE_SET_SRV, file, linenum);
 
 		rule = (struct server_rule *)calloc(1, sizeof(*rule));
 		rule->cond = cond;
@@ -2799,7 +2805,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		err_code |= warnif_cond_requires_resp(cond, file, linenum);
+		/* note: BE_REQ_CNT is the first one after FE_SET_BCK, which is
+		 * where force-persist is applied.
+		 */
+		err_code |= warnif_cond_conflicts(cond, SMP_VAL_BE_REQ_CNT, file, linenum);
 
 		rule = (struct persist_rule *)calloc(1, sizeof(*rule));
 		rule->cond = cond;
@@ -3064,9 +3073,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 		if (flags & STK_ON_RSP)
-			err_code |= warnif_cond_requires_req(cond, file, linenum);
+			err_code |= warnif_cond_conflicts(cond, SMP_VAL_BE_STO_RUL, file, linenum);
 		else
-			err_code |= warnif_cond_requires_resp(cond, file, linenum);
+			err_code |= warnif_cond_conflicts(cond, SMP_VAL_BE_SET_SRV, file, linenum);
 
 		rule = (struct sticking_rule *)calloc(1, sizeof(*rule));
 		rule->cond = cond;
@@ -3116,7 +3125,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			}
 
-			err_code |= warnif_cond_requires_resp(cond, file, linenum);
+			err_code |= warnif_cond_conflicts(cond,
+			                                  (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
+			                                  file, linenum);
 
 			rule = (struct stats_admin_rule *)calloc(1, sizeof(*rule));
 			rule->cond = cond;
@@ -3185,7 +3196,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				goto out;
 			}
 
-			err_code |= warnif_cond_requires_resp(rule->cond, file, linenum);
+			err_code |= warnif_cond_conflicts(rule->cond,
+			                                  (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
+			                                  file, linenum);
 			LIST_ADDQ(&curproxy->uri_auth->http_req_rules, &rule->list);
 
 		} else if (!strcmp(args[1], "auth")) {
@@ -5259,7 +5272,9 @@ stats_error_parsing:
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
-			err_code |= warnif_cond_requires_resp(cond, file, linenum);
+			err_code |= warnif_cond_conflicts(cond,
+			                                  (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
+			                                  file, linenum);
 		}
 		else if (*args[2]) {
 			Alert("parsing [%s:%d] : '%s' : Expecting nothing, 'if', or 'unless', got '%s'.\n",
@@ -5354,7 +5369,9 @@ stats_error_parsing:
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 			}
-			err_code |= warnif_cond_requires_req(cond, file, linenum);
+			err_code |= warnif_cond_conflicts(cond,
+			                                  (curproxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR,
+			                                  file, linenum);
 		}
 		else if (*args[2]) {
 			Alert("parsing [%s:%d] : '%s' : Expecting nothing, 'if', or 'unless', got '%s'.\n",

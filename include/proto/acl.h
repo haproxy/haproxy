@@ -97,10 +97,20 @@ struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, co
  */
 int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, void *l7, unsigned int opt);
 
-/* Reports a pointer to the first ACL used in condition <cond> which requires
- * at least one of the USE_FLAGS in <require>. Returns NULL if none matches.
+/* Returns a pointer to the first ACL conflicting with usage at place <where>
+ * which is one of the SMP_VAL_* bits indicating a check place, or NULL if
+ * no conflict is found. Only full conflicts are detected (ACL is not usable).
+ * Use the next function to check for useless keywords.
  */
-struct acl *cond_find_require(const struct acl_cond *cond, unsigned int require);
+const struct acl *acl_cond_conflicts(const struct acl_cond *cond, unsigned int where);
+
+/* Returns a pointer to the first ACL and its first keyword to conflict with
+ * usage at place <where> which is one of the SMP_VAL_* bits indicating a check
+ * place. Returns true if a conflict is found, with <acl> and <kw> set (if non
+ * null), or false if not conflict is found. The first useless keyword is
+ * returned.
+ */
+int acl_cond_kw_conflicts(const struct acl_cond *cond, unsigned int where, struct acl const **acl, struct acl_keyword const **kw);
 
 /*
  * Find targets for userlist and groups in acl. Function returns the number

@@ -1209,7 +1209,12 @@ struct acl *parse_acl(const char **args, struct list *known_acl, char **err)
 		cur_acl->name = name;
 	}
 
-	cur_acl->requires |= acl_expr->kw->requires;
+	/* We want to know what features the ACL needs (typically HTTP parsing),
+	 * and where it may be used. If an ACL relies on multiple matches, it is
+	 * OK if at least one of them may match in the context where it is used.
+	 */
+	cur_acl->use |= acl_expr->kw->smp->use;
+	cur_acl->val |= acl_expr->kw->smp->val;
 	LIST_ADDQ(&cur_acl->expr, &acl_expr->list);
 	return cur_acl;
 
@@ -1294,7 +1299,8 @@ struct acl *find_acl_default(const char *acl_name, struct list *known_acl, char 
 	}
 
 	cur_acl->name = name;
-	cur_acl->requires |= acl_expr->kw->requires;
+	cur_acl->use |= acl_expr->kw->smp->use;
+	cur_acl->val |= acl_expr->kw->smp->val;
 	LIST_INIT(&cur_acl->expr);
 	LIST_ADDQ(&cur_acl->expr, &acl_expr->list);
 	if (known_acl)
@@ -1342,6 +1348,7 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
 	struct acl_term *cur_term;
 	struct acl_term_suite *cur_suite;
 	struct acl_cond *cond;
+	unsigned int suite_val;
 
 	cond = (struct acl_cond *)calloc(1, sizeof(*cond));
 	if (cond == NULL) {
@@ -1352,8 +1359,10 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
 	LIST_INIT(&cond->list);
 	LIST_INIT(&cond->suites);
 	cond->pol = pol;
+	cond->val = 0;
 
 	cur_suite = NULL;
+	suite_val = ~0U;
 	neg = 0;
 	for (arg = 0; *args[arg]; arg++) {
 		word = args[arg];
@@ -1372,6 +1381,8 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
 
 		if (strcasecmp(word, "or") == 0 || strcmp(word, "||") == 0) {
 			/* new term suite */
+			cond->val |= suite_val;
+			suite_val = ~0U;
 			cur_suite = NULL;
 			neg = 0;
 			continue;
@@ -1408,6 +1419,7 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
 				/* note that parse_acl() must have filled <err> here */
 				goto out_free_suite;
 			}
+			word = args[arg + 1];
 			arg = arg_end;
 		}
 		else {
@@ -1434,7 +1446,18 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
 
 		cur_term->acl = cur_acl;
 		cur_term->neg = neg;
-		cond->requires |= cur_acl->requires;
+
+		/* Here it is a bit complex. The acl_term_suite is a conjunction
+		 * of many terms. It may only be used if all of its terms are
+		 * usable at the same time. So the suite's validity domain is an
+		 * AND between all ACL keywords' ones. But, the global condition
+		 * is valid if at least one term suite is OK. So it's an OR between
+		 * all of their validity domains. We could emit a warning as soon
+		 * as suite_val is null because it means that the last ACL is not
+		 * compatible with the previous ones. Let's remain simple for now.
+		 */
+		cond->use |= cur_acl->use;
+		suite_val &= cur_acl->val;
 
 		if (!cur_suite) {
 			cur_suite = (struct acl_term_suite *)calloc(1, sizeof(*cur_suite));
@@ -1449,6 +1472,7 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
 		neg = 0;
 	}
 
+	cond->val |= suite_val;
 	return cond;
 
  out_free_term:
@@ -1498,7 +1522,7 @@ struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, co
 
 	cond->file = file;
 	cond->line = line;
-	px->http_needed |= !!(cond->requires & ACL_USE_L7_ANY);
+	px->http_needed |= !!(cond->use & SMP_USE_HTTP_ANY);
 	return cond;
 }
 
@@ -1638,15 +1662,12 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 	return cond_res;
 }
 
-
-/* Reports a pointer to the first ACL used in condition <cond> which requires
- * at least one of the USE_FLAGS in <require>. Returns NULL if none matches.
- * The construct is almost the same as for acl_exec_cond() since we're walking
- * down the ACL tree as well. It is important that the tree is really walked
- * through and never cached, because that way, this function can be used as a
- * late check.
+/* Returns a pointer to the first ACL conflicting with usage at place <where>
+ * which is one of the SMP_VAL_* bits indicating a check place, or NULL if
+ * no conflict is found. Only full conflicts are detected (ACL is not usable).
+ * Use the next function to check for useless keywords.
  */
-struct acl *cond_find_require(const struct acl_cond *cond, unsigned int require)
+const struct acl *acl_cond_conflicts(const struct acl_cond *cond, unsigned int where)
 {
 	struct acl_term_suite *suite;
 	struct acl_term *term;
@@ -1655,11 +1676,39 @@ struct acl *cond_find_require(const struct acl_cond *cond, unsigned int require)
 	list_for_each_entry(suite, &cond->suites, list) {
 		list_for_each_entry(term, &suite->terms, list) {
 			acl = term->acl;
-			if (acl->requires & require)
+			if (!(acl->val & where))
 				return acl;
 		}
 	}
 	return NULL;
+}
+
+/* Returns a pointer to the first ACL and its first keyword to conflict with
+ * usage at place <where> which is one of the SMP_VAL_* bits indicating a check
+ * place. Returns true if a conflict is found, with <acl> and <kw> set (if non
+ * null), or false if not conflict is found. The first useless keyword is
+ * returned.
+ */
+int acl_cond_kw_conflicts(const struct acl_cond *cond, unsigned int where, struct acl const **acl, struct acl_keyword const **kw)
+{
+	struct acl_term_suite *suite;
+	struct acl_term *term;
+	struct acl_expr *expr;
+
+	list_for_each_entry(suite, &cond->suites, list) {
+		list_for_each_entry(term, &suite->terms, list) {
+			list_for_each_entry(expr, &term->acl->expr, list) {
+				if (!(expr->kw->smp->val & where)) {
+					if (acl)
+						*acl = term->acl;
+					if (kw)
+						*kw = expr->kw;
+					return 1;
+				}
+			}
+		}
+	}
+	return 0;
 }
 
 /*
