@@ -2689,7 +2689,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 		LIST_ADDQ(&curproxy->redirect_rules, &rule->list);
 		err_code |= warnif_rule_after_use_backend(curproxy, file, linenum, args[0]);
-		err_code |= warnif_cond_requires_resp(cond, file, linenum);
+		err_code |= warnif_cond_requires_resp(rule->cond, file, linenum);
 	}
 	else if (!strcmp(args[0], "use_backend")) {
 		struct switching_rule *rule;
