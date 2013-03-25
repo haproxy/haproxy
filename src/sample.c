@@ -239,6 +239,28 @@ static const char *fetch_src_names[SMP_SRC_ENTRIES] = {
 	[SMP_SRC_SSFIN] = "session statistics",
 };
 
+static const char *fetch_ckp_names[SMP_CKP_ENTRIES] = {
+	[SMP_CKP_FE_CON_ACC] = "frontend tcp-request connection rule",
+	[SMP_CKP_FE_SES_ACC] = "frontend tcp-request session rule",
+	[SMP_CKP_FE_REQ_CNT] = "frontend tcp-request content rule",
+	[SMP_CKP_FE_HRQ_HDR] = "frontend http-request header rule",
+	[SMP_CKP_FE_HRQ_BDY] = "frontend http-request body rule",
+	[SMP_CKP_FE_SET_BCK] = "frontend use-backend rule",
+	[SMP_CKP_BE_REQ_CNT] = "backend tcp-request content rule",
+	[SMP_CKP_BE_HRQ_HDR] = "backend http-request header rule",
+	[SMP_CKP_BE_HRQ_BDY] = "backend http-request body rule",
+	[SMP_CKP_BE_SET_SRV] = "backend use-server, balance or stick-match rule",
+	[SMP_CKP_BE_SRV_CON] = "server source selection",
+	[SMP_CKP_BE_RES_CNT] = "backend tcp-response content rule",
+	[SMP_CKP_BE_HRS_HDR] = "backend http-response header rule",
+	[SMP_CKP_BE_HRS_BDY] = "backend http-response body rule",
+	[SMP_CKP_BE_STO_RUL] = "backend stick-store rule",
+	[SMP_CKP_FE_RES_CNT] = "frontend tcp-response content rule",
+	[SMP_CKP_FE_HRS_HDR] = "frontend http-response header rule",
+	[SMP_CKP_FE_HRS_BDY] = "frontend http-response body rule",
+	[SMP_CKP_FE_LOG_END] = "logs",
+};
+
 /* fill the trash with a comma-delimited list of source names for the <use> bit
  * field which must be composed of a non-null set of SMP_USE_* flags. The return
  * value is the pointer to the string in the trash buffer.
@@ -261,6 +283,20 @@ const char *sample_src_names(unsigned int use)
 		                      fetch_src_names[bit]);
 	}
 	return trash.str;
+}
+
+/* return a pointer to the correct sample checkpoint name, or "unknown" when
+ * the flags are invalid. Only the lowest bit is used, higher bits are ignored
+ * if set.
+ */
+const char *sample_ckp_names(unsigned int use)
+{
+	int bit;
+
+	for (bit = 0; bit < SMP_CKP_ENTRIES; bit++)
+		if (use & (1 << bit))
+			return fetch_ckp_names[bit];
+	return "unknown sample check place, please report this bug";
 }
 
 /*

@@ -74,6 +74,32 @@ enum {
 	SMP_SRC_ENTRIES /* nothing after this */
 };
 
+/* Sample checkpoints are a list of places where samples may be used. This is
+ * an internal enum used only to build SMP_VAL_*.
+ */
+enum {
+	SMP_CKP_FE_CON_ACC,  /* FE connection accept rules ("tcp request connection") */
+	SMP_CKP_FE_SES_ACC,  /* FE session accept rules (to come soon) */
+	SMP_CKP_FE_REQ_CNT,  /* FE request content rules ("tcp request content") */
+	SMP_CKP_FE_HRQ_HDR,  /* FE HTTP request headers (rules, headers, monitor, stats, redirect) */
+	SMP_CKP_FE_HRQ_BDY,  /* FE HTTP request body */
+	SMP_CKP_FE_SET_BCK,  /* FE backend switching rules ("use_backend") */
+	SMP_CKP_BE_REQ_CNT,  /* BE request content rules ("tcp request content") */
+	SMP_CKP_BE_HRQ_HDR,  /* BE HTTP request headers (rules, headers, monitor, stats, redirect) */
+	SMP_CKP_BE_HRQ_BDY,  /* BE HTTP request body */
+	SMP_CKP_BE_SET_SRV,  /* BE server switching rules ("use_server", "balance", "force-persist", "stick", ...) */
+	SMP_CKP_BE_SRV_CON,  /* BE server connect (eg: "source") */
+	SMP_CKP_BE_RES_CNT,  /* BE response content rules ("tcp response content") */
+	SMP_CKP_BE_HRS_HDR,  /* BE HTTP response headers (rules, headers) */
+	SMP_CKP_BE_HRS_BDY,  /* BE HTTP response body (stick-store rules are there) */
+	SMP_CKP_BE_STO_RUL,  /* BE stick-store rules */
+	SMP_CKP_FE_RES_CNT,  /* FE response content rules ("tcp response content") */
+	SMP_CKP_FE_HRS_HDR,  /* FE HTTP response headers (rules, headers) */
+	SMP_CKP_FE_HRS_BDY,  /* FE HTTP response body */
+	SMP_CKP_FE_LOG_END,  /* FE log at the end of the txn/session */
+	SMP_CKP_ENTRIES /* nothing after this */
+};
+
 /* SMP_USE_* are flags used to declare fetch keywords. Fetch methods are
  * associated with bitfields composed of these values, generally only one, to
  * indicate where the contents may be sampled. Some fetches are ambiguous as
@@ -117,25 +143,25 @@ enum {
  */
 enum {
 	SMP_VAL___________ = 0,        /* Just used as a visual marker */
-	SMP_VAL_FE_CON_ACC = 1 <<  0,  /* FE connection accept rules ("tcp request connection") */
-	SMP_VAL_FE_SES_ACC = 1 <<  1,  /* FE session accept rules (to come soon) */
-	SMP_VAL_FE_REQ_CNT = 1 <<  2,  /* FE request content rules ("tcp request content") */
-	SMP_VAL_FE_HRQ_HDR = 1 <<  3,  /* FE HTTP request headers (rules, headers, monitor, stats, redirect) */
-	SMP_VAL_FE_HRQ_BDY = 1 <<  4,  /* FE HTTP request body */
-	SMP_VAL_FE_SET_BCK = 1 <<  5,  /* FE backend switching rules ("use_backend") */
-	SMP_VAL_BE_REQ_CNT = 1 <<  6,  /* BE request content rules ("tcp request content") */
-	SMP_VAL_BE_HRQ_HDR = 1 <<  7,  /* BE HTTP request headers (rules, headers, monitor, stats, redirect) */
-	SMP_VAL_BE_HRQ_BDY = 1 <<  8,  /* BE HTTP request body */
-	SMP_VAL_BE_SET_SRV = 1 <<  9,  /* BE server switching rules ("use_server", "balance", "force-persist", "stick", ...) */
-	SMP_VAL_BE_SRV_CON = 1 << 10,  /* BE server connect (eg: "source") */
-	SMP_VAL_BE_RES_CNT = 1 << 11,  /* BE response content rules ("tcp response content") */
-	SMP_VAL_BE_HRS_HDR = 1 << 12,  /* BE HTTP response headers (rules, headers) */
-	SMP_VAL_BE_HRS_BDY = 1 << 13,  /* BE HTTP response body (stick-store rules are there) */
-	SMP_VAL_BE_STO_RUL = 1 << 14,  /* BE stick-store rules */
-	SMP_VAL_FE_RES_CNT = 1 << 15,  /* FE response content rules ("tcp response content") */
-	SMP_VAL_FE_HRS_HDR = 1 << 16,  /* FE HTTP response headers (rules, headers) */
-	SMP_VAL_FE_HRS_BDY = 1 << 17,  /* FE HTTP response body */
-	SMP_VAL_FE_LOG_END = 1 << 18,  /* FE log at the end of the txn/session */
+	SMP_VAL_FE_CON_ACC = 1 << SMP_CKP_FE_CON_ACC,  /* FE connection accept rules ("tcp request connection") */
+	SMP_VAL_FE_SES_ACC = 1 << SMP_CKP_FE_SES_ACC,  /* FE session accept rules (to come soon) */
+	SMP_VAL_FE_REQ_CNT = 1 << SMP_CKP_FE_REQ_CNT,  /* FE request content rules ("tcp request content") */
+	SMP_VAL_FE_HRQ_HDR = 1 << SMP_CKP_FE_HRQ_HDR,  /* FE HTTP request headers (rules, headers, monitor, stats, redirect) */
+	SMP_VAL_FE_HRQ_BDY = 1 << SMP_CKP_FE_HRQ_BDY,  /* FE HTTP request body */
+	SMP_VAL_FE_SET_BCK = 1 << SMP_CKP_FE_SET_BCK,  /* FE backend switching rules ("use_backend") */
+	SMP_VAL_BE_REQ_CNT = 1 << SMP_CKP_BE_REQ_CNT,  /* BE request content rules ("tcp request content") */
+	SMP_VAL_BE_HRQ_HDR = 1 << SMP_CKP_BE_HRQ_HDR,  /* BE HTTP request headers (rules, headers, monitor, stats, redirect) */
+	SMP_VAL_BE_HRQ_BDY = 1 << SMP_CKP_BE_HRQ_BDY,  /* BE HTTP request body */
+	SMP_VAL_BE_SET_SRV = 1 << SMP_CKP_BE_SET_SRV,  /* BE server switching rules ("use_server", "balance", "force-persist", "stick", ...) */
+	SMP_VAL_BE_SRV_CON = 1 << SMP_CKP_BE_SRV_CON,  /* BE server connect (eg: "source") */
+	SMP_VAL_BE_RES_CNT = 1 << SMP_CKP_BE_RES_CNT,  /* BE response content rules ("tcp response content") */
+	SMP_VAL_BE_HRS_HDR = 1 << SMP_CKP_BE_HRS_HDR,  /* BE HTTP response headers (rules, headers) */
+	SMP_VAL_BE_HRS_BDY = 1 << SMP_CKP_BE_HRS_BDY,  /* BE HTTP response body (stick-store rules are there) */
+	SMP_VAL_BE_STO_RUL = 1 << SMP_CKP_BE_STO_RUL,  /* BE stick-store rules */
+	SMP_VAL_FE_RES_CNT = 1 << SMP_CKP_FE_RES_CNT,  /* FE response content rules ("tcp response content") */
+	SMP_VAL_FE_HRS_HDR = 1 << SMP_CKP_FE_HRS_HDR,  /* FE HTTP response headers (rules, headers) */
+	SMP_VAL_FE_HRS_BDY = 1 << SMP_CKP_FE_HRS_BDY,  /* FE HTTP response body */
+	SMP_VAL_FE_LOG_END = 1 << SMP_CKP_FE_LOG_END,  /* FE log at the end of the txn/session */
 
 	/* a few combinations to decide what direction to try to fetch (useful for logs) */
 	SMP_VAL_REQUEST    = SMP_VAL_FE_CON_ACC | SMP_VAL_FE_SES_ACC | SMP_VAL_FE_REQ_CNT |
