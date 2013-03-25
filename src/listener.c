@@ -653,8 +653,8 @@ static struct sample_fetch_kw_list smp_kws = {{ },{
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct acl_kw_list acl_kws = {{ },{
-	{ "dst_conn",  NULL, acl_parse_int, acl_match_int, ACL_USE_NOTHING },
-	{ "so_id",     NULL, acl_parse_int, acl_match_int, ACL_USE_NOTHING },
+	{ "dst_conn",  NULL, acl_parse_int, acl_match_int },
+	{ "so_id",     NULL, acl_parse_int, acl_match_int },
 	{ /* END */ },
 }};
 

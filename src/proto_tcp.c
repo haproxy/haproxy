@@ -1649,10 +1649,10 @@ static struct cfg_kw_list cfg_kws = {{ },{
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct acl_kw_list acl_kws = {{ },{
-	{ "dst",      NULL, acl_parse_ip,  acl_match_ip,  ACL_USE_TCP4_PERMANENT },
-	{ "dst_port", NULL, acl_parse_int, acl_match_int, ACL_USE_TCP_PERMANENT  },
-	{ "src",      NULL, acl_parse_ip,  acl_match_ip,  ACL_USE_TCP4_PERMANENT },
-	{ "src_port", NULL, acl_parse_int, acl_match_int, ACL_USE_TCP_PERMANENT  },
+	{ "dst",      NULL, acl_parse_ip,  acl_match_ip  },
+	{ "dst_port", NULL, acl_parse_int, acl_match_int },
+	{ "src",      NULL, acl_parse_ip,  acl_match_ip  },
+	{ "src_port", NULL, acl_parse_int, acl_match_int },
 	{ /* END */ },
 }};
 

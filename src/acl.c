@@ -2003,8 +2003,8 @@ static struct sample_fetch_kw_list smp_kws = {{ },{
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct acl_kw_list acl_kws = {{ },{
-	{ "always_false", NULL, acl_parse_nothing, acl_match_nothing, ACL_USE_NOTHING },
-	{ "always_true",  NULL, acl_parse_nothing, acl_match_nothing, ACL_USE_NOTHING },
+	{ "always_false", NULL, acl_parse_nothing, acl_match_nothing },
+	{ "always_true",  NULL, acl_parse_nothing, acl_match_nothing },
 	{ /* END */ },
 }};
 
