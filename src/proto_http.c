@@ -4162,8 +4162,11 @@ int http_send_name_header(struct http_txn *txn, struct proxy* be, const char* sr
 	if (old_o) {
 		/* If this was a forwarded request, we must readjust the amount of
 		 * data to be forwarded in order to take into account the size
-		 * variations.
+		 * variations. Note that if the request was already scheduled for
+		 * forwarding, it had its req->sol pointing to the body, which
+		 * must then be updated too.
 		 */
+		txn->req.sol += chn->buf->i - old_i;
 		b_adv(chn->buf, old_o + chn->buf->i - old_i);
 	}
 
