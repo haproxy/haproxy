@@ -317,6 +317,8 @@ Haproxy may emit the following status codes by itself :
    301  when performing a redirection, depending on the configured code
    302  when performing a redirection, depending on the configured code
    303  when performing a redirection, depending on the configured code
+   307  when performing a redirection, depending on the configured code
+   308  when performing a redirection, depending on the configured code
    400  for an invalid or too large request
    401  when an authentication is required to perform the action (when
         accessing the stats page)
@@ -4591,12 +4593,14 @@ redirect scheme   <sch> [code <code>] <option> [{if | unless} <condition>]
               HTTPS.
 
     <code>    The code is optional. It indicates which type of HTTP redirection
-              is desired. Only codes 301, 302 and 303 are supported, and 302 is
-              used if no code is specified. 301 means "Moved permanently", and
-              a browser may cache the Location. 302 means "Moved permanently"
-              and means that the browser should not cache the redirection. 303
-              is equivalent to 302 except that the browser will fetch the
-              location with a GET method.
+              is desired. Only codes 301, 302, 303, 307 and 308 are supported,
+              with 302 used by default if no code is specified. 301 means
+              "Moved permanently", and a browser may cache the Location. 302
+              means "Moved permanently" and means that the browser should not
+              cache the redirection. 303 is equivalent to 302 except that the
+              browser will fetch the location with a GET method. 307 is just
+              like 302 but makes it clear that the same method must be reused.
+              Likewise, 308 replaces 301 if the same method must be used.
 
     <option>  There are several options which can be specified to adjust the
               expected behaviour of a redirection :
