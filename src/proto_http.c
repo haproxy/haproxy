@@ -8360,6 +8360,13 @@ acl_prefetch_http(struct proxy *px, struct session *s, void *l7, unsigned int op
 		if (unlikely(!s->req))
 			return 0;
 
+		/* If the buffer does not leave enough free space at the end,
+		 * we must first realign it.
+		 */
+		if (s->req->buf->p > s->req->buf->data &&
+		    s->req->buf->i + s->req->buf->p > s->req->buf->data + s->req->buf->size - global.tune.maxrewrite)
+			buffer_slow_realign(s->req->buf);
+
 		if (unlikely(txn->req.msg_state < HTTP_MSG_BODY)) {
 			if ((msg->msg_state == HTTP_MSG_ERROR) ||
 			    buffer_full(s->req->buf, global.tune.maxrewrite)) {
@@ -8387,6 +8394,18 @@ acl_prefetch_http(struct proxy *px, struct session *s, void *l7, unsigned int op
 			 * preparation to perform so that further checks can rely
 			 * on HTTP tests.
 			 */
+
+			/* If the request was parsed but was too large, we must absolutely
+			 * return an error so that it is not processed. At the moment this
+			 * cannot happen, but if the parsers are to change in the future,
+			 * we want this check to be maintained.
+			 */
+			if (unlikely(s->req->buf->i + s->req->buf->p >
+				     s->req->buf->data + s->req->buf->size - global.tune.maxrewrite)) {
+				msg->msg_state = HTTP_MSG_ERROR;
+				return 1;
+			}
+
 			txn->meth = find_http_meth(msg->chn->buf->p, msg->sl.rq.m_l);
 			if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
 				s->flags |= SN_REDIRECTABLE;
