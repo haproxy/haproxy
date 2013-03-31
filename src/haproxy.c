@@ -795,7 +795,16 @@ void init(int argc, char **argv)
 		list_pollers(stderr);
 
 	if (!init_pollers()) {
-		Alert("No polling mechanism available.\n");
+		Alert("No polling mechanism available.\n"
+		      "  It is likely that haproxy was built with TARGET=generic and that FD_SETSIZE\n"
+		      "  is too low on this platform to support maxconn and the number of listeners\n"
+		      "  and servers. You should rebuild haproxy specifying your system using TARGET=\n"
+		      "  in order to support other polling systems (poll, epoll, kqueue) or reduce the\n"
+		      "  global maxconn setting to accomodate the system's limitation. For reference,\n"
+		      "  FD_SETSIZE=%d on this system, global.maxconn=%d resulting in a maximum of\n"
+		      "  %d file descriptors. You should thus reduce global.maxconn by %d. Also,\n"
+		      "  check build settings using 'haproxy -vv'.\n\n",
+		      FD_SETSIZE, global.maxconn, global.maxsock, (global.maxsock + 1 - FD_SETSIZE) / 2);
 		exit(1);
 	}
 	if (global.mode & (MODE_VERBOSE|MODE_DEBUG)) {
