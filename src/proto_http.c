@@ -8522,20 +8522,6 @@ static int acl_match_meth(struct sample *smp, struct acl_pattern *pattern)
 	return ACL_PAT_PASS;
 }
 
-/* 2. Check on Request/Status Version
- * We simply compare strings here.
- */
-static int acl_parse_ver(const char **text, struct acl_pattern *pattern, int *opaque, char **err)
-{
-	pattern->ptr.str = strdup(*text);
-	if (!pattern->ptr.str) {
-		memprintf(err, "out of memory while loading pattern");
-		return 0;
-	}
-	pattern->len = strlen(*text);
-	return 1;
-}
-
 static int
 smp_fetch_rqver(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp)
@@ -9571,8 +9557,8 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "path_sub",        "path",          acl_parse_str,     acl_match_sub     },
 
 	{ "req_proto_http",  "req.proto_http",acl_parse_nothing, acl_match_nothing },
-	{ "req_ver",         "req.ver",       acl_parse_ver,     acl_match_str     },
-	{ "resp_ver",        "res.ver",       acl_parse_ver,     acl_match_str     },
+	{ "req_ver",         "req.ver",       acl_parse_str,     acl_match_str     },
+	{ "resp_ver",        "res.ver",       acl_parse_str,     acl_match_str     },
 
 	{ "scook",           "res.cook",      acl_parse_str,     acl_match_str     },
 	{ "scook_beg",       "res.cook",      acl_parse_str,     acl_match_beg     },
