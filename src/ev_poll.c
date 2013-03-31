@@ -27,16 +27,31 @@
 #include <proto/task.h>
 
 
-static fd_set *fd_evts[2];
+static unsigned int *fd_evts[2];
 
 /* private data */
 static struct pollfd *poll_events = NULL;
 
 
-REGPRM1 static void __fd_clo(const int fd)
+static inline unsigned int hap_fd_isset(int fd, unsigned int *evts)
 {
-	FD_CLR(fd, fd_evts[DIR_RD]);
-	FD_CLR(fd, fd_evts[DIR_WR]);
+	return evts[fd / (8*sizeof(*evts))] & (1U << (fd & (8*sizeof(*evts) - 1)));
+}
+
+static inline void hap_fd_set(int fd, unsigned int *evts)
+{
+	evts[fd / (8*sizeof(*evts))] |= 1U << (fd & (8*sizeof(*evts) - 1));
+}
+
+static inline void hap_fd_clr(int fd, unsigned int *evts)
+{
+	evts[fd / (8*sizeof(*evts))] &= ~(1U << (fd & (8*sizeof(*evts) - 1)));
+}
+
+REGPRM1 static void __fd_clo(int fd)
+{
+	hap_fd_clr(fd, fd_evts[DIR_RD]);
+	hap_fd_clr(fd, fd_evts[DIR_WR]);
 }
 
 /*
@@ -62,14 +77,14 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			if ((eo ^ en) & FD_EV_POLLED_RW) {
 				/* poll status changed, update the lists */
 				if ((eo & ~en) & FD_EV_POLLED_R)
-					FD_CLR(fd, fd_evts[DIR_RD]);
+					hap_fd_clr(fd, fd_evts[DIR_RD]);
 				else if ((en & ~eo) & FD_EV_POLLED_R)
-					FD_SET(fd, fd_evts[DIR_RD]);
+					hap_fd_set(fd, fd_evts[DIR_RD]);
 
 				if ((eo & ~en) & FD_EV_POLLED_W)
-					FD_CLR(fd, fd_evts[DIR_WR]);
+					hap_fd_clr(fd, fd_evts[DIR_WR]);
 				else if ((en & ~eo) & FD_EV_POLLED_W)
-					FD_SET(fd, fd_evts[DIR_WR]);
+					hap_fd_set(fd, fd_evts[DIR_WR]);
 			}
 
 			fdtab[fd].spec_e = (en << 4) + en;  /* save new events */
@@ -92,33 +107,20 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	fd_nbupdt = 0;
 
 	nbfd = 0;
-	for (fds = 0; (fds * BITS_PER_INT) < maxfd; fds++) {
-
-		rn = ((int*)fd_evts[DIR_RD])[fds];
-		wn = ((int*)fd_evts[DIR_WR])[fds];
+	for (fds = 0; (fds * 8*sizeof(**fd_evts)) < maxfd; fds++) {
+		rn = fd_evts[DIR_RD][fds];
+		wn = fd_evts[DIR_WR][fds];
 	  
-		if ((rn|wn)) {
-			for (count = 0, fd = fds * BITS_PER_INT; count < BITS_PER_INT && fd < maxfd; count++, fd++) {
-#define FDSETS_ARE_INT_ALIGNED
-#ifdef FDSETS_ARE_INT_ALIGNED
+		if (!(rn|wn))
+			continue;
 
-#define WE_REALLY_KNOW_THAT_FDSETS_ARE_INTS
-#ifdef WE_REALLY_KNOW_THAT_FDSETS_ARE_INTS
-				sr = (rn >> count) & 1;
-				sw = (wn >> count) & 1;
-#else
-				sr = FD_ISSET(fd&(BITS_PER_INT-1), (typeof(fd_set*))&rn);
-				sw = FD_ISSET(fd&(BITS_PER_INT-1), (typeof(fd_set*))&wn);
-#endif
-#else
-				sr = FD_ISSET(fd, fd_evts[DIR_RD]);
-				sw = FD_ISSET(fd, fd_evts[DIR_WR]);
-#endif
-				if ((sr|sw)) {
-					poll_events[nbfd].fd = fd;
-					poll_events[nbfd].events = (sr ? POLLIN : 0) | (sw ? POLLOUT : 0);
-					nbfd++;
-				}
+		for (count = 0, fd = fds * 8*sizeof(**fd_evts); count < 8*sizeof(**fd_evts) && fd < maxfd; count++, fd++) {
+			sr = (rn >> count) & 1;
+			sw = (wn >> count) & 1;
+			if ((sr|sw)) {
+				poll_events[nbfd].fd = fd;
+				poll_events[nbfd].events = (sr ? POLLIN : 0) | (sw ? POLLOUT : 0);
+				nbfd++;
 			}
 		}		  
 	}
@@ -202,21 +204,20 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 REGPRM1 static int _do_init(struct poller *p)
 {
 	__label__ fail_swevt, fail_srevt, fail_pe;
-	int fd_set_bytes;
+	int fd_evts_bytes;
 
 	p->private = NULL;
-	fd_set_bytes = sizeof(fd_set) * (global.maxsock + FD_SETSIZE - 1) / FD_SETSIZE;
+	fd_evts_bytes = (global.maxsock + sizeof(**fd_evts) - 1) / sizeof(**fd_evts) * sizeof(**fd_evts);
 
-	poll_events = (struct pollfd*)
-		calloc(1, sizeof(struct pollfd) * global.maxsock);
+	poll_events = calloc(1, sizeof(struct pollfd) * global.maxsock);
 
 	if (poll_events == NULL)
 		goto fail_pe;
 		
-	if ((fd_evts[DIR_RD] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
+	if ((fd_evts[DIR_RD] = calloc(1, fd_evts_bytes)) == NULL)
 		goto fail_srevt;
 
-	if ((fd_evts[DIR_WR] = (fd_set *)calloc(1, fd_set_bytes)) == NULL)
+	if ((fd_evts[DIR_WR] = calloc(1, fd_evts_bytes)) == NULL)
 		goto fail_swevt;
 
 	return 1;
