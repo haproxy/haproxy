@@ -8288,6 +8288,14 @@ following situations :
 7.5. Available matching criteria
 --------------------------------
 
+A number of predefined criteria may be used to form ACL expressions. The ones
+that are ACL-specific are detailed here. In addition to these ones, all sample
+fetch methods described in section 7.8 may be used. However, with these last
+ones, no default pattern matching method is defined, so it is mandatory to pass
+"-m" followed by a method. When a same keyword exists in both forms, the ACL
+compatible form prevails.
+
+
 7.5.1. Matching at Layer 4 and below
 ------------------------------------
 

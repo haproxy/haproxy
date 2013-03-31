@@ -1037,11 +1037,24 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 	struct acl_pattern *pattern;
 	int opaque, patflags;
 	const char *arg;
+	struct sample_fetch *smp = NULL;
 
+	/* First, we lookd for an ACL keyword. And if we don't find one, then
+	 * we look for a sample fetch keyword.
+	 */
 	aclkw = find_acl_kw(args[0]);
 	if (!aclkw || !aclkw->parse) {
-		memprintf(err, "unknown ACL keyword '%s'", *args);
-		goto out_return;
+		const char *kwend;
+
+		kwend = strchr(args[0], '(');
+		if (!kwend)
+			kwend = args[0] + strlen(args[0]);
+		smp = find_sample_fetch(args[0], kwend - args[0]);
+
+		if (!smp) {
+			memprintf(err, "unknown ACL or sample keyword '%s'", *args);
+			goto out_return;
+		}
 	}
 
 	expr = (struct acl_expr *)calloc(1, sizeof(*expr));
@@ -1050,13 +1063,13 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 		goto out_return;
 	}
 
-	expr->kw = aclkw->kw;
+	expr->kw = aclkw ? aclkw->kw : smp->kw;
 	LIST_INIT(&expr->patterns);
 	expr->pattern_tree = EB_ROOT_UNIQUE;
-	expr->parse = aclkw->parse;
-	expr->match = aclkw->match;
+	expr->parse = aclkw ? aclkw->parse : NULL;
+	expr->match = aclkw ? aclkw->match : NULL;
 	expr->args = empty_arg_list;
-	expr->smp = aclkw->smp;
+	expr->smp = aclkw ? aclkw->smp : smp;
 
 	arg = strchr(args[0], '(');
 	if (expr->smp->arg_mask) {
@@ -1146,6 +1159,11 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 		if ((*args)[1] == 'i')
 			patflags |= ACL_PAT_F_IGNORE_CASE;
 		else if ((*args)[1] == 'f') {
+			if (!expr->parse) {
+				memprintf(err, "matching method must be specified first (using '-m') when using a sample fetch ('%s')", expr->kw);
+				goto out_free_expr;
+			}
+
 			if (!acl_read_patterns_from_file(expr, args[1], patflags | ACL_PAT_F_FROM_FILE, err))
 				goto out_free_expr;
 			args++;
@@ -1196,6 +1214,11 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 		else
 			break;
 		args++;
+	}
+
+	if (!expr->parse) {
+		memprintf(err, "matching method must be specified first (using '-m') when using a sample fetch ('%s')", expr->kw);
+		goto out_free_expr;
 	}
 
 	/* now parse all patterns */
