@@ -1050,7 +1050,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 		goto out_return;
 	}
 
-	expr->kw = aclkw;
+	expr->kw = aclkw->kw;
 	LIST_INIT(&expr->patterns);
 	expr->pattern_tree = EB_ROOT_UNIQUE;
 	expr->parse = aclkw->parse;
@@ -1068,7 +1068,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 			arg++;
 			end = strchr(arg, ')');
 			if (!end) {
-				memprintf(err, "missing closing ')' after arguments to ACL keyword '%s'", expr->kw->kw);
+				memprintf(err, "missing closing ')' after arguments to ACL keyword '%s'", expr->kw);
 				goto out_free_expr;
 			}
 
@@ -1081,7 +1081,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 					       err, NULL, NULL);
 			if (nbargs < 0) {
 				/* note that make_arg_list will have set <err> here */
-				memprintf(err, "in argument to '%s', %s", expr->kw->kw, *err);
+				memprintf(err, "in argument to '%s', %s", expr->kw, *err);
 				goto out_free_expr;
 			}
 
@@ -1092,7 +1092,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 				/* invalid keyword argument, error must have been
 				 * set by val_args().
 				 */
-				memprintf(err, "in argument to '%s', %s", expr->kw->kw, *err);
+				memprintf(err, "in argument to '%s', %s", expr->kw, *err);
 				goto out_free_expr;
 			}
 		}
@@ -1104,7 +1104,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 			 * the current one later.
 			 */
 			if (type != ARGT_FE && type != ARGT_BE && type != ARGT_TAB) {
-				memprintf(err, "ACL keyword '%s' expects %d arguments", expr->kw->kw, ARGM(expr->smp->arg_mask));
+				memprintf(err, "ACL keyword '%s' expects %d arguments", expr->kw, ARGM(expr->smp->arg_mask));
 				goto out_free_expr;
 			}
 
@@ -1121,14 +1121,14 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 		}
 		else if (ARGM(expr->smp->arg_mask)) {
 			/* there were some mandatory arguments */
-			memprintf(err, "ACL keyword '%s' expects %d arguments", expr->kw->kw, ARGM(expr->smp->arg_mask));
+			memprintf(err, "ACL keyword '%s' expects %d arguments", expr->kw, ARGM(expr->smp->arg_mask));
 			goto out_free_expr;
 		}
 	}
 	else {
 		if (arg) {
 			/* no argument expected */
-			memprintf(err, "ACL keyword '%s' takes no argument", expr->kw->kw);
+			memprintf(err, "ACL keyword '%s' takes no argument", expr->kw);
 			goto out_free_expr;
 		}
 	}
@@ -1184,7 +1184,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 				expr->match = acl_match_fcts[idx];
 			}
 			else {
-				memprintf(err, "matching method '%s' cannot be used with fetch keyword '%s'", args[1], expr->kw->kw);
+				memprintf(err, "matching method '%s' cannot be used with fetch keyword '%s'", args[1], expr->kw);
 				goto out_free_expr;
 			}
 			args++;
@@ -1791,7 +1791,7 @@ const struct acl *acl_cond_conflicts(const struct acl_cond *cond, unsigned int w
  * null), or false if not conflict is found. The first useless keyword is
  * returned.
  */
-int acl_cond_kw_conflicts(const struct acl_cond *cond, unsigned int where, struct acl const **acl, struct acl_keyword const **kw)
+int acl_cond_kw_conflicts(const struct acl_cond *cond, unsigned int where, struct acl const **acl, char const **kw)
 {
 	struct acl_term_suite *suite;
 	struct acl_term *term;
@@ -1840,7 +1840,7 @@ acl_find_targets(struct proxy *p)
 
 					if (!arg->data.str.len) {
 						Alert("proxy %s: acl '%s' %s(): missing server name.\n",
-						      p->id, acl->name, expr->kw->kw);
+						      p->id, acl->name, expr->kw);
 						cfgerr++;
 						continue;
 					}
@@ -1860,7 +1860,7 @@ acl_find_targets(struct proxy *p)
 						px = findproxy(pname, PR_CAP_BE);
 						if (!px) {
 							Alert("proxy %s: acl '%s' %s(): unable to find proxy '%s'.\n",
-							      p->id, acl->name, expr->kw->kw, pname);
+							      p->id, acl->name, expr->kw, pname);
 							cfgerr++;
 							continue;
 						}
@@ -1869,7 +1869,7 @@ acl_find_targets(struct proxy *p)
 					srv = findserver(px, sname);
 					if (!srv) {
 						Alert("proxy %s: acl '%s' %s(): unable to find server '%s'.\n",
-						      p->id, acl->name, expr->kw->kw, sname);
+						      p->id, acl->name, expr->kw, sname);
 						cfgerr++;
 						continue;
 					}
@@ -1890,14 +1890,14 @@ acl_find_targets(struct proxy *p)
 
 					if (!prx) {
 						Alert("proxy %s: acl '%s' %s(): unable to find frontend '%s'.\n",
-						      p->id, acl->name, expr->kw->kw, pname);
+						      p->id, acl->name, expr->kw, pname);
 						cfgerr++;
 						continue;
 					}
 
 					if (!(prx->cap & PR_CAP_FE)) {
 						Alert("proxy %s: acl '%s' %s(): proxy '%s' has no frontend capability.\n",
-						      p->id, acl->name, expr->kw->kw, pname);
+						      p->id, acl->name, expr->kw, pname);
 						cfgerr++;
 						continue;
 					}
@@ -1918,14 +1918,14 @@ acl_find_targets(struct proxy *p)
 
 					if (!prx) {
 						Alert("proxy %s: acl '%s' %s(): unable to find backend '%s'.\n",
-						      p->id, acl->name, expr->kw->kw, pname);
+						      p->id, acl->name, expr->kw, pname);
 						cfgerr++;
 						continue;
 					}
 
 					if (!(prx->cap & PR_CAP_BE)) {
 						Alert("proxy %s: acl '%s' %s(): proxy '%s' has no backend capability.\n",
-						      p->id, acl->name, expr->kw->kw, pname);
+						      p->id, acl->name, expr->kw, pname);
 						cfgerr++;
 						continue;
 					}
@@ -1946,7 +1946,7 @@ acl_find_targets(struct proxy *p)
 
 					if (!prx) {
 						Alert("proxy %s: acl '%s' %s(): unable to find table '%s'.\n",
-						      p->id, acl->name, expr->kw->kw, pname);
+						      p->id, acl->name, expr->kw, pname);
 						cfgerr++;
 						continue;
 					}
@@ -1954,7 +1954,7 @@ acl_find_targets(struct proxy *p)
 
 					if (!prx->table.size) {
 						Alert("proxy %s: acl '%s' %s(): no table in proxy '%s'.\n",
-						      p->id, acl->name, expr->kw->kw, pname);
+						      p->id, acl->name, expr->kw, pname);
 						cfgerr++;
 						continue;
 					}
@@ -1967,7 +1967,7 @@ acl_find_targets(struct proxy *p)
 				else if (arg->type == ARGT_USR) {
 					if (!arg->data.str.len) {
 						Alert("proxy %s: acl '%s' %s(): missing userlist name.\n",
-						      p->id, acl->name, expr->kw->kw);
+						      p->id, acl->name, expr->kw);
 						cfgerr++;
 						continue;
 					}
@@ -1980,7 +1980,7 @@ acl_find_targets(struct proxy *p)
 
 					if (!ul) {
 						Alert("proxy %s: acl '%s' %s(%s): unable to find userlist.\n",
-						      p->id, acl->name, expr->kw->kw, arg->data.str.str);
+						      p->id, acl->name, expr->kw, arg->data.str.str);
 						cfgerr++;
 						continue;
 					}
@@ -1998,12 +1998,12 @@ acl_find_targets(struct proxy *p)
 			if (cfgerr)
 				break;
 
-			if (!strcmp(expr->kw->kw, "http_auth_group")) {
+			if (!strcmp(expr->kw, "http_auth_group")) {
 				/* note: argument resolved above thanks to ARGT_USR */
 
 				if (LIST_ISEMPTY(&expr->patterns)) {
 					Alert("proxy %s: acl %s %s(): no groups specified.\n",
-						p->id, acl->name, expr->kw->kw);
+						p->id, acl->name, expr->kw);
 					cfgerr++;
 					continue;
 				}
@@ -2018,7 +2018,7 @@ acl_find_targets(struct proxy *p)
 
 					if (!pattern->val.group_mask) {
 						Alert("proxy %s: acl %s %s(): invalid group(s).\n",
-							p->id, acl->name, expr->kw->kw);
+							p->id, acl->name, expr->kw);
 						cfgerr++;
 						continue;
 					}

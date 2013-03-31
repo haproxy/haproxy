@@ -422,7 +422,7 @@ int warnif_misplaced_reqadd(struct proxy *proxy, const char *file, int line, con
 static int warnif_cond_conflicts(const struct acl_cond *cond, unsigned int where, const char *file, int line)
 {
 	const struct acl *acl;
-	const struct acl_keyword *kw;
+	const char *kw;
 
 	if (!cond)
 		return 0;
@@ -434,7 +434,7 @@ static int warnif_cond_conflicts(const struct acl_cond *cond, unsigned int where
 			        file, line, acl->name, sample_ckp_names(where));
 		else
 			Warning("parsing [%s:%d] : anonymous acl will never match because it uses keyword '%s' which is incompatible with '%s'\n",
-			        file, line, LIST_ELEM(acl->expr.n, struct acl_expr *, list)->kw->kw, sample_ckp_names(where));
+			        file, line, LIST_ELEM(acl->expr.n, struct acl_expr *, list)->kw, sample_ckp_names(where));
 		return ERR_WARN;
 	}
 	if (!acl_cond_kw_conflicts(cond, where, &acl, &kw))
@@ -442,10 +442,10 @@ static int warnif_cond_conflicts(const struct acl_cond *cond, unsigned int where
 
 	if (acl->name && *acl->name)
 		Warning("parsing [%s:%d] : acl '%s' involves keywords '%s' which is incompatible with '%s'\n",
-		        file, line, acl->name, kw->kw, sample_ckp_names(where));
+		        file, line, acl->name, kw, sample_ckp_names(where));
 	else
 		Warning("parsing [%s:%d] : anonymous acl involves keyword '%s' which is incompatible with '%s'\n",
-		        file, line, kw->kw, sample_ckp_names(where));
+		        file, line, kw, sample_ckp_names(where));
 	return ERR_WARN;
 }
 

@@ -110,7 +110,7 @@ const struct acl *acl_cond_conflicts(const struct acl_cond *cond, unsigned int w
  * null), or false if not conflict is found. The first useless keyword is
  * returned.
  */
-int acl_cond_kw_conflicts(const struct acl_cond *cond, unsigned int where, struct acl const **acl, struct acl_keyword const **kw);
+int acl_cond_kw_conflicts(const struct acl_cond *cond, unsigned int where, struct acl const **acl, char const **kw);
 
 /*
  * Find targets for userlist and groups in acl. Function returns the number

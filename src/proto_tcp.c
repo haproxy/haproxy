@@ -1190,7 +1190,7 @@ static int tcp_parse_tcp_rep(char **args, int section_type, struct proxy *curpx,
 	struct tcp_rule *rule;
 	unsigned int where;
 	const struct acl *acl;
-	const struct acl_keyword *kw;
+	const char *kw;
 
 	if (!*args[1]) {
 		memprintf(err, "missing argument for '%s' in %s '%s'",
@@ -1249,7 +1249,7 @@ static int tcp_parse_tcp_rep(char **args, int section_type, struct proxy *curpx,
 				memprintf(err,
 					  "anonymous acl will never match in '%s %s' because it uses keyword '%s' which is incompatible with '%s'",
 					  args[0], args[1],
-					  LIST_ELEM(acl->expr.n, struct acl_expr *, list)->kw->kw,
+					  LIST_ELEM(acl->expr.n, struct acl_expr *, list)->kw,
 					  sample_ckp_names(where));
 
 			warn++;
@@ -1258,11 +1258,11 @@ static int tcp_parse_tcp_rep(char **args, int section_type, struct proxy *curpx,
 			if (acl->name && *acl->name)
 				memprintf(err,
 					  "acl '%s' involves keyword '%s' which is incompatible with '%s'",
-					  acl->name, kw->kw, sample_ckp_names(where));
+					  acl->name, kw, sample_ckp_names(where));
 			else
 				memprintf(err,
 					  "anonymous acl involves keyword '%s' which is incompatible with '%s'",
-					  kw->kw, sample_ckp_names(where));
+					  kw, sample_ckp_names(where));
 			warn++;
 		}
 
@@ -1296,7 +1296,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 	struct tcp_rule *rule;
 	unsigned int where;
 	const struct acl *acl;
-	const struct acl_keyword *kw;
+	const char *kw;
 
 	if (!*args[1]) {
 		if (curpx == defpx)
@@ -1358,7 +1358,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 				memprintf(err,
 					  "anonymous acl will never match in '%s %s' because it uses keyword '%s' which is incompatible with '%s'",
 					  args[0], args[1],
-					  LIST_ELEM(acl->expr.n, struct acl_expr *, list)->kw->kw,
+					  LIST_ELEM(acl->expr.n, struct acl_expr *, list)->kw,
 					  sample_ckp_names(where));
 
 			warn++;
@@ -1367,11 +1367,11 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 			if (acl->name && *acl->name)
 				memprintf(err,
 					  "acl '%s' involves keyword '%s' which is incompatible with '%s'",
-					  acl->name, kw->kw, sample_ckp_names(where));
+					  acl->name, kw, sample_ckp_names(where));
 			else
 				memprintf(err,
 					  "anonymous acl involves keyword '%s' which is incompatible with '%s'",
-					  kw->kw, sample_ckp_names(where));
+					  kw, sample_ckp_names(where));
 			warn++;
 		}
 
@@ -1401,7 +1401,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 				memprintf(err,
 					  "anonymous acl will never match in '%s %s' because it uses keyword '%s' which is incompatible with '%s'",
 					  args[0], args[1],
-					  LIST_ELEM(acl->expr.n, struct acl_expr *, list)->kw->kw,
+					  LIST_ELEM(acl->expr.n, struct acl_expr *, list)->kw,
 					  sample_ckp_names(where));
 
 			warn++;
@@ -1410,11 +1410,11 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 			if (acl->name && *acl->name)
 				memprintf(err,
 					  "acl '%s' involves keyword '%s' which is incompatible with '%s'",
-					  acl->name, kw->kw, sample_ckp_names(where));
+					  acl->name, kw, sample_ckp_names(where));
 			else
 				memprintf(err,
 					  "anonymous acl involves keyword '%s' which is incompatible with '%s'",
-					  kw->kw, sample_ckp_names(where));
+					  kw, sample_ckp_names(where));
 			warn++;
 		}
 

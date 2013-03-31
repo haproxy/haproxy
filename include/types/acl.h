@@ -197,7 +197,7 @@ struct acl_expr {
 	struct list patterns;         /* list of acl_patterns */
 	struct eb_root pattern_tree;  /* may be used for lookup in large datasets */
 	struct list list;             /* chaining */
-	struct acl_keyword *kw;       /* back-reference to the keyword */
+	const char *kw;               /* points to the ACL kw's name or fetch's name (must not free) */
 };
 
 /* The acl will be linked to from the proxy where it is declared */
