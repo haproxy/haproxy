@@ -8092,7 +8092,73 @@ The following ACL flags are currently supported :
 
    -i : ignore case during matching of all subsequent patterns.
    -f : load patterns from a file.
+   -m : changes the pattern matching method
    -- : force end of flags. Useful when a string looks like one of the flags.
+
+The "-m" flag is special. It allows the default pattern matching method to be
+changed for the fetched sample. The default method depends on the keyword and
+is described later in this document. When "-m" is specified and followed by a
+pattern matching method name, this method is used instead. This makes it
+possible to match contents in ways that were not initially planned. There are
+some restrictions however. Not all methods can be used with all sample fetch
+methods. Also, if "-m" is used in conjunction with "-f", it must be placed
+first. The pattern matching method must be one of the following :
+
+  - "found" : only check if the requested sample could be found in the stream,
+              but do not compare it against any pattern. It is recommended not
+              to pass any pattern to avoid any confusion. This matching method
+              is particularly useful to detect presence of certain contents
+              such as headers, cookies, etc... even if they are empty and
+              without comparing them to anything nor counting them.
+
+  - "bool"  : check the value as a boolean. It can only be applied to fetches
+              which return a boolean or integer value, and takes no pattern.
+              Value zero does not match, all other values do match.
+
+  - "int"   : match the value as an integer. It can be used with integer and
+              boolean samples.
+
+  - "ip"    : match the value as an IPv4 or IPv6 address. It is compatible
+              with IP addresse only.
+
+  - "bin"   : match the contents against an hexadecimal string representing a
+              binary sequence. This may be used with binary or string samples.
+
+  - "len"   : match the sample's length as an integer. This may be used with
+              binary or string samples.
+
+  - "str"   : match the contents against a string. This may be used with
+              binary or string samples.
+
+  - "beg"   : check that the contents begin like the provided string patterns.
+              This may be used with binary or string samples.
+
+  - "sub"   : check that the contents contain at least one of the provided
+              string patterns. This may be used with binary or string samples.
+
+  - "dir"   : check that a slash-delimited portion of the contents exactly
+              match one of the provided string patterns. This may be used with
+              binary or string samples.
+
+  - "dom"   : check that a dot-delimited portion of the contents exactly
+              match one of the provided string patterns. This may be used with
+              binary or string samples.
+
+  - "end"   : check that the contents end like the provided string patterns.
+              This may be used with binary or string samples.
+
+  - "reg"   : match the contents against a list of regular expressions. This
+              may be used with binary or string samples.
+
+For example, to quickly detect the presence of cookie "JSESSIONID" in an HTTP
+request, it is possible to do :
+
+    acl jsess_present cook(JSESSIONID) -m found
+
+In order to apply a regular expression on the 500 first bytes of data in the
+buffer, one would use the following acl :
+
+    acl script_tag payload(0,500) -m reg -i <script>
 
 The "-f" flag is special as it loads all of the lines it finds in the file
 specified in argument and loads all of them before continuing. It is even

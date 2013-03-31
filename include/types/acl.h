@@ -79,6 +79,25 @@ enum {
 	ACL_PAT_F_TREE        = 1 << 3,       /* some patterns are arranged in a tree */
 };
 
+/* ACL match methods */
+enum {
+	ACL_MATCH_FOUND, /* just ensure that fetch found the sample */
+	ACL_MATCH_BOOL,  /* match fetch's integer value as boolean */
+	ACL_MATCH_INT,   /* unsigned integer (int) */
+	ACL_MATCH_IP,    /* IPv4/IPv6 address (IP) */
+	ACL_MATCH_BIN,   /* hex string (bin) */
+	ACL_MATCH_LEN,   /* string length (str -> int) */
+	ACL_MATCH_STR,   /* exact string match (str) */
+	ACL_MATCH_BEG,   /* beginning of string (str) */
+	ACL_MATCH_SUB,   /* substring (str) */
+	ACL_MATCH_DIR,   /* directory-like sub-string (str) */
+	ACL_MATCH_DOM,   /* domain-like sub-string (str) */
+	ACL_MATCH_END,   /* end of string (str) */
+	ACL_MATCH_REG,   /* regex (str -> reg) */
+	/* keep this one last */
+	ACL_MATCH_NUM
+};
+
 /* How to store a time range and the valid days in 29 bits */
 struct acl_time {
 	int dow:7;              /* 1 bit per day of week: 0-6 */

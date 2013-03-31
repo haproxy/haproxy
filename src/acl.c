@@ -37,6 +37,64 @@ static struct acl_kw_list acl_keywords = {
 	.list = LIST_HEAD_INIT(acl_keywords.list)
 };
 
+static char *acl_match_names[ACL_MATCH_NUM] = {
+	[ACL_MATCH_FOUND] = "found",
+	[ACL_MATCH_BOOL]  = "bool",
+	[ACL_MATCH_INT]   = "int",
+	[ACL_MATCH_IP]    = "ip",
+	[ACL_MATCH_BIN]   = "bin",
+	[ACL_MATCH_LEN]   = "len",
+	[ACL_MATCH_STR]   = "str",
+	[ACL_MATCH_BEG]   = "beg",
+	[ACL_MATCH_SUB]   = "sub",
+	[ACL_MATCH_DIR]   = "dir",
+	[ACL_MATCH_DOM]   = "dom",
+	[ACL_MATCH_END]   = "end",
+	[ACL_MATCH_REG]   = "reg",
+};
+
+static int (*acl_parse_fcts[ACL_MATCH_NUM])(const char **, struct acl_pattern *, int *, char **) = {
+	[ACL_MATCH_FOUND] = acl_parse_nothing,
+	[ACL_MATCH_BOOL]  = acl_parse_nothing,
+	[ACL_MATCH_INT]   = acl_parse_int,
+	[ACL_MATCH_IP]    = acl_parse_ip,
+	[ACL_MATCH_BIN]   = acl_parse_bin,
+	[ACL_MATCH_LEN]   = acl_parse_int,
+	[ACL_MATCH_STR]   = acl_parse_str,
+	[ACL_MATCH_BEG]   = acl_parse_str,
+	[ACL_MATCH_SUB]   = acl_parse_str,
+	[ACL_MATCH_DIR]   = acl_parse_str,
+	[ACL_MATCH_DOM]   = acl_parse_str,
+	[ACL_MATCH_END]   = acl_parse_str,
+	[ACL_MATCH_REG]   = acl_parse_reg,
+};
+
+static int (*acl_match_fcts[ACL_MATCH_NUM])(struct sample *, struct acl_pattern *) = {
+	[ACL_MATCH_FOUND] = NULL,
+	[ACL_MATCH_BOOL]  = acl_match_nothing,
+	[ACL_MATCH_INT]   = acl_match_int,
+	[ACL_MATCH_IP]    = acl_match_ip,
+	[ACL_MATCH_BIN]   = acl_match_bin,
+	[ACL_MATCH_LEN]   = acl_match_len,
+	[ACL_MATCH_STR]   = acl_match_str,
+	[ACL_MATCH_BEG]   = acl_match_beg,
+	[ACL_MATCH_SUB]   = acl_match_sub,
+	[ACL_MATCH_DIR]   = acl_match_dir,
+	[ACL_MATCH_DOM]   = acl_match_dom,
+	[ACL_MATCH_END]   = acl_match_end,
+	[ACL_MATCH_REG]   = acl_match_reg,
+};
+
+/* return the ACL_MATCH_* index for match name "name", or < 0 if not found */
+static int acl_find_match_name(const char *name)
+{
+	int i;
+
+	for (i = 0; i < ACL_MATCH_NUM; i++)
+		if (strcmp(name, acl_match_names[i]) == 0)
+			return i;
+	return -1;
+}
 
 /*
  * These functions are exported and may be used by any other component.
@@ -1082,6 +1140,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 	/* check for options before patterns. Supported options are :
 	 *   -i : ignore case for all patterns by default
 	 *   -f : read patterns from those files
+	 *   -m : force matching method (must be used before -f)
 	 *   -- : everything after this is not an option
 	 */
 	patflags = 0;
@@ -1091,6 +1150,45 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 		else if ((*args)[1] == 'f') {
 			if (!acl_read_patterns_from_file(expr, args[1], patflags | ACL_PAT_F_FROM_FILE, err))
 				goto out_free_expr;
+			args++;
+		}
+		else if ((*args)[1] == 'm') {
+			int idx;
+
+			if (!LIST_ISEMPTY(&expr->patterns) || !eb_is_empty(&expr->pattern_tree)) {
+				memprintf(err, "'-m' must only be specified before patterns and files in parsing ACL expression");
+				goto out_free_expr;
+			}
+
+			idx = acl_find_match_name(args[1]);
+			if (idx < 0) {
+				memprintf(err, "unknown matching method '%s' when parsing ACL expression", args[1]);
+				goto out_free_expr;
+			}
+
+			/* Note: -m found is always valid, bool/int are compatible, str/bin/reg/len are compatible */
+			if (idx == ACL_MATCH_FOUND ||                           /* -m found */
+			    ((idx == ACL_MATCH_BOOL || idx == ACL_MATCH_INT) && /* -m bool/int */
+			     (expr->smp->out_type == SMP_T_BOOL ||
+			      expr->smp->out_type == SMP_T_UINT ||
+			      expr->smp->out_type == SMP_T_SINT)) ||
+			    (idx == ACL_MATCH_IP &&                             /* -m ip */
+			     (expr->smp->out_type == SMP_T_IPV4 ||
+			      expr->smp->out_type == SMP_T_IPV6)) ||
+			    ((idx == ACL_MATCH_BIN || idx == ACL_MATCH_LEN || idx == ACL_MATCH_STR ||
+			      idx == ACL_MATCH_BEG || idx == ACL_MATCH_SUB || idx == ACL_MATCH_DIR ||
+			      idx == ACL_MATCH_DOM || idx == ACL_MATCH_END || idx == ACL_MATCH_REG) &&  /* strings */
+			     (expr->smp->out_type == SMP_T_STR ||
+			      expr->smp->out_type == SMP_T_BIN ||
+			      expr->smp->out_type == SMP_T_CSTR ||
+			      expr->smp->out_type == SMP_T_CBIN))) {
+				expr->parse = acl_parse_fcts[idx];
+				expr->match = acl_match_fcts[idx];
+			}
+			else {
+				memprintf(err, "matching method '%s' cannot be used with fetch keyword '%s'", args[1], expr->kw->kw);
+				goto out_free_expr;
+			}
 			args++;
 		}
 		else if ((*args)[1] == '-') {
@@ -1599,6 +1697,10 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 						acl_res |= ACL_PAT_PASS;
 					else
 						acl_res |= ACL_PAT_FAIL;
+				}
+				else if (!expr->match) {
+					/* just check for existence */
+					acl_res |= ACL_PAT_PASS;
 				}
 				else {
 					if (!eb_is_empty(&expr->pattern_tree)) {
