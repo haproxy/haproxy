@@ -168,7 +168,6 @@ struct acl_keyword {
 	int (*match)(struct sample *smp, struct acl_pattern *pattern);
 	/* must be after the config params */
 	struct sample_fetch *smp; /* the sample fetch we depend on */
-	int use_cnt;
 };
 
 /*

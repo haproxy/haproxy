@@ -928,7 +928,6 @@ static struct acl_expr *prune_acl_expr(struct acl_expr *expr)
 
 	if (expr->args != empty_arg_list)
 		free(expr->args);
-	expr->kw->use_cnt--;
 	return expr;
 }
 
@@ -1052,7 +1051,6 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 	}
 
 	expr->kw = aclkw;
-	aclkw->use_cnt++;
 	LIST_INIT(&expr->patterns);
 	expr->pattern_tree = EB_ROOT_UNIQUE;
 	expr->parse = aclkw->parse;
