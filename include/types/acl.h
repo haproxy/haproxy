@@ -165,19 +165,21 @@ struct acl_kw_list {
 
 /*
  * Description of an ACL expression.
- * It contains a subject and a set of patterns to test against it.
- *  - the function get() is called to retrieve the subject from the
- *    current session or transaction and build a test.
- *  - the function test() is called to evaluate the test based on the
- *    available patterns and return ACL_PAT_*
- * Both of those functions are available through the keyword.
+ * The expression is part of a list. It contains pointers to the keyword, the
+ * parse and match functions which default to the keyword's, the sample fetch
+ * descriptor which also defaults to the keyword's, and a list or tree of
+ * patterns to test against. The structure is organized so that the hot parts
+ * are grouped together in order to optimize caching.
  */
 struct acl_expr {
-	struct list list;           /* chaining */
-	struct acl_keyword *kw;     /* back-reference to the keyword */
-	struct arg *args;           /* optional argument list (eg: header or cookie name) */
-	struct list patterns;       /* list of acl_patterns */
+	int (*parse)(const char **text, struct acl_pattern *pattern, int *opaque, char **err);
+	int (*match)(struct sample *smp, struct acl_pattern *pattern);
+	struct arg *args;             /* optional fetch argument list (eg: header or cookie name) */
+	struct sample_fetch *smp;     /* the sample fetch we depend on */
+	struct list patterns;         /* list of acl_patterns */
 	struct eb_root pattern_tree;  /* may be used for lookup in large datasets */
+	struct list list;             /* chaining */
+	struct acl_keyword *kw;       /* back-reference to the keyword */
 };
 
 /* The acl will be linked to from the proxy where it is declared */

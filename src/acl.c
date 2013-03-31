@@ -878,10 +878,9 @@ static struct acl_expr *prune_acl_expr(struct acl_expr *expr)
 /* Reads patterns from a file. If <err_msg> is non-NULL, an error message will
  * be returned there on errors and the caller will have to free it.
  */
-static int acl_read_patterns_from_file(	struct acl_keyword *aclkw,
-					struct acl_expr *expr,
-					const char *filename, int patflags,
-					char **err)
+static int acl_read_patterns_from_file(struct acl_expr *expr,
+                                       const char *filename, int patflags,
+                                       char **err)
 {
 	FILE *file;
 	char *c;
@@ -938,7 +937,7 @@ static int acl_read_patterns_from_file(	struct acl_keyword *aclkw,
 		pattern->flags = patflags;
 
 		if (!(pattern->flags & ACL_PAT_F_IGNORE_CASE) &&
-		    (aclkw->match == acl_match_str || aclkw->match == acl_match_ip)) {
+		    (expr->match == acl_match_str || expr->match == acl_match_ip)) {
 			/* we pre-set the data pointer to the tree's head so that functions
 			 * which are able to insert in a tree know where to do that.
 			 */
@@ -947,7 +946,7 @@ static int acl_read_patterns_from_file(	struct acl_keyword *aclkw,
 		}
 
 		pattern->type = SMP_TYPES; /* unspecified type by default */
-		if (!aclkw->parse(args, pattern, &opaque, err))
+		if (!expr->parse(args, pattern, &opaque, err))
 			goto out_free_pattern;
 
 		/* if the parser did not feed the tree, let's chain the pattern to the list */
@@ -998,10 +997,13 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 	aclkw->use_cnt++;
 	LIST_INIT(&expr->patterns);
 	expr->pattern_tree = EB_ROOT_UNIQUE;
+	expr->parse = aclkw->parse;
+	expr->match = aclkw->match;
 	expr->args = empty_arg_list;
+	expr->smp = aclkw->smp;
 
 	arg = strchr(args[0], '(');
-	if (aclkw->smp->arg_mask) {
+	if (expr->smp->arg_mask) {
 		int nbargs = 0;
 		char *end;
 
@@ -1010,7 +1012,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 			arg++;
 			end = strchr(arg, ')');
 			if (!end) {
-				memprintf(err, "missing closing ')' after arguments to ACL keyword '%s'", aclkw->kw);
+				memprintf(err, "missing closing ')' after arguments to ACL keyword '%s'", expr->kw->kw);
 				goto out_free_expr;
 			}
 
@@ -1019,34 +1021,34 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 			 * An error is also reported if some mandatory arguments are
 			 * missing.
 			 */
-			nbargs = make_arg_list(arg, end - arg, aclkw->smp->arg_mask, &expr->args,
+			nbargs = make_arg_list(arg, end - arg, expr->smp->arg_mask, &expr->args,
 					       err, NULL, NULL);
 			if (nbargs < 0) {
 				/* note that make_arg_list will have set <err> here */
-				memprintf(err, "in argument to '%s', %s", aclkw->kw, *err);
+				memprintf(err, "in argument to '%s', %s", expr->kw->kw, *err);
 				goto out_free_expr;
 			}
 
 			if (!expr->args)
 				expr->args = empty_arg_list;
 
-			if (aclkw->smp->val_args && !aclkw->smp->val_args(expr->args, err)) {
+			if (expr->smp->val_args && !expr->smp->val_args(expr->args, err)) {
 				/* invalid keyword argument, error must have been
 				 * set by val_args().
 				 */
-				memprintf(err, "in argument to '%s', %s", aclkw->kw, *err);
+				memprintf(err, "in argument to '%s', %s", expr->kw->kw, *err);
 				goto out_free_expr;
 			}
 		}
-		else if (ARGM(aclkw->smp->arg_mask) == 1) {
-			int type = (aclkw->smp->arg_mask >> 4) & 15;
+		else if (ARGM(expr->smp->arg_mask) == 1) {
+			int type = (expr->smp->arg_mask >> 4) & 15;
 
 			/* If a proxy is noted as a mandatory argument, we'll fake
 			 * an empty one so that acl_find_targets() resolves it as
 			 * the current one later.
 			 */
 			if (type != ARGT_FE && type != ARGT_BE && type != ARGT_TAB) {
-				memprintf(err, "ACL keyword '%s' expects %d arguments", aclkw->kw, ARGM(aclkw->smp->arg_mask));
+				memprintf(err, "ACL keyword '%s' expects %d arguments", expr->kw->kw, ARGM(expr->smp->arg_mask));
 				goto out_free_expr;
 			}
 
@@ -1061,16 +1063,16 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 			expr->args[0].data.str.len = 0;
 			expr->args[1].type = ARGT_STOP;
 		}
-		else if (ARGM(aclkw->smp->arg_mask)) {
+		else if (ARGM(expr->smp->arg_mask)) {
 			/* there were some mandatory arguments */
-			memprintf(err, "ACL keyword '%s' expects %d arguments", aclkw->kw, ARGM(aclkw->smp->arg_mask));
+			memprintf(err, "ACL keyword '%s' expects %d arguments", expr->kw->kw, ARGM(expr->smp->arg_mask));
 			goto out_free_expr;
 		}
 	}
 	else {
 		if (arg) {
 			/* no argument expected */
-			memprintf(err, "ACL keyword '%s' takes no argument", aclkw->kw);
+			memprintf(err, "ACL keyword '%s' takes no argument", expr->kw->kw);
 			goto out_free_expr;
 		}
 	}
@@ -1087,7 +1089,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 		if ((*args)[1] == 'i')
 			patflags |= ACL_PAT_F_IGNORE_CASE;
 		else if ((*args)[1] == 'f') {
-			if (!acl_read_patterns_from_file(aclkw, expr, args[1], patflags | ACL_PAT_F_FROM_FILE, err))
+			if (!acl_read_patterns_from_file(expr, args[1], patflags | ACL_PAT_F_FROM_FILE, err))
 				goto out_free_expr;
 			args++;
 		}
@@ -1112,7 +1114,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 		pattern->flags = patflags;
 
 		pattern->type = SMP_TYPES; /* unspecified type */
-		ret = aclkw->parse(args, pattern, &opaque, err);
+		ret = expr->parse(args, pattern, &opaque, err);
 		if (!ret)
 			goto out_free_pattern;
 
@@ -1213,8 +1215,8 @@ struct acl *parse_acl(const char **args, struct list *known_acl, char **err)
 	 * and where it may be used. If an ACL relies on multiple matches, it is
 	 * OK if at least one of them may match in the context where it is used.
 	 */
-	cur_acl->use |= acl_expr->kw->smp->use;
-	cur_acl->val |= acl_expr->kw->smp->val;
+	cur_acl->use |= acl_expr->smp->use;
+	cur_acl->val |= acl_expr->smp->val;
 	LIST_ADDQ(&cur_acl->expr, &acl_expr->list);
 	return cur_acl;
 
@@ -1299,8 +1301,8 @@ struct acl *find_acl_default(const char *acl_name, struct list *known_acl, char 
 	}
 
 	cur_acl->name = name;
-	cur_acl->use |= acl_expr->kw->smp->use;
-	cur_acl->val |= acl_expr->kw->smp->val;
+	cur_acl->use |= acl_expr->smp->use;
+	cur_acl->val |= acl_expr->smp->val;
 	LIST_INIT(&cur_acl->expr);
 	LIST_ADDQ(&cur_acl->expr, &acl_expr->list);
 	if (known_acl)
@@ -1585,7 +1587,7 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 				/* we need to reset context and flags */
 				memset(&smp, 0, sizeof(smp));
 			fetch_next:
-				if (!expr->kw->smp->process(px, l4, l7, opt, expr->args, &smp)) {
+				if (!expr->smp->process(px, l4, l7, opt, expr->args, &smp)) {
 					/* maybe we could not fetch because of missing data */
 					if (smp.flags & SMP_F_MAY_CHANGE && !(opt & SMP_OPT_FINAL))
 						acl_res |= ACL_PAT_MISS;
@@ -1601,9 +1603,9 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 				else {
 					if (!eb_is_empty(&expr->pattern_tree)) {
 						/* a tree is present, let's check what type it is */
-						if (expr->kw->match == acl_match_str)
+						if (expr->match == acl_match_str)
 							acl_res |= acl_lookup_str(&smp, expr) ? ACL_PAT_PASS : ACL_PAT_FAIL;
-						else if (expr->kw->match == acl_match_ip)
+						else if (expr->match == acl_match_ip)
 							acl_res |= acl_lookup_ip(&smp, expr) ? ACL_PAT_PASS : ACL_PAT_FAIL;
 					}
 
@@ -1611,7 +1613,7 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 					list_for_each_entry(pattern, &expr->patterns, list) {
 						if (acl_res == ACL_PAT_PASS)
 							break;
-						acl_res |= expr->kw->match(&smp, pattern);
+						acl_res |= expr->match(&smp, pattern);
 					}
 				}
 				/*
@@ -1698,7 +1700,7 @@ int acl_cond_kw_conflicts(const struct acl_cond *cond, unsigned int where, struc
 	list_for_each_entry(suite, &cond->suites, list) {
 		list_for_each_entry(term, &suite->terms, list) {
 			list_for_each_entry(expr, &term->acl->expr, list) {
-				if (!(expr->kw->smp->val & where)) {
+				if (!(expr->smp->val & where)) {
 					if (acl)
 						*acl = term->acl;
 					if (kw)
