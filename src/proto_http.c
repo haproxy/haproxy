@@ -5784,6 +5784,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	static struct buffer *tmpbuf = NULL;
 	int compressing = 0;
 	int consumed_data = 0;
+	int ret;
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
 		return 0;
@@ -5824,7 +5825,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	}
 
 	if (s->comp_algo != NULL) {
-		int ret = http_compression_buffer_init(s, res->buf, tmpbuf); /* init a buffer with headers */
+		ret = http_compression_buffer_init(s, res->buf, tmpbuf); /* init a buffer with headers */
 		if (ret < 0)
 			goto missing_data; /* not enough spaces in buffers */
 		compressing = 1;
@@ -5843,10 +5844,8 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 			}
 		}
 
-		if (msg->msg_state == HTTP_MSG_DATA) {
-			int ret;
-
-			/* must still forward */
+		switch (msg->msg_state - HTTP_MSG_DATA) {
+		case HTTP_MSG_DATA - HTTP_MSG_DATA:	/* must still forward */
 			if (compressing) {
 				consumed_data += ret = http_compression_buffer_add_data(s, res->buf, tmpbuf);
 				if (ret < 0)
@@ -5865,15 +5864,37 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 					http_compression_buffer_end(s, &res->buf, &tmpbuf, 1);
 					compressing = 0;
 				}
+				break;
 			}
-		}
-		else if (msg->msg_state == HTTP_MSG_CHUNK_SIZE) {
+			/* fall through for HTTP_MSG_CHUNK_CRLF */
+
+		case HTTP_MSG_CHUNK_CRLF - HTTP_MSG_DATA:
+			/* we want the CRLF after the data */
+
+			ret = http_skip_chunk_crlf(msg);
+			if (ret == 0)
+				goto missing_data;
+			else if (ret < 0) {
+				if (msg->err_pos >= 0)
+					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_CHUNK_CRLF, s->fe);
+				goto return_bad_res;
+			}
+			/* skipping data in buffer for compression */
+			if (compressing) {
+				b_adv(res->buf, msg->next);
+				msg->next = 0;
+				msg->sov = 0;
+				msg->sol = 0;
+			}
+			/* we're in MSG_CHUNK_SIZE now, fall through */
+
+		case HTTP_MSG_CHUNK_SIZE - HTTP_MSG_DATA:
 			/* read the chunk size and assign it to ->chunk_len, then
 			 * set ->sov and ->next to point to the body and switch to DATA or
 			 * TRAILERS state.
 			 */
-			int ret = http_parse_chunk_size(msg);
 
+			ret = http_parse_chunk_size(msg);
 			if (ret == 0)
 				goto missing_data;
 			else if (ret < 0) {
@@ -5896,30 +5917,10 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 				}
 			}
 			/* otherwise we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state */
-		}
-		else if (msg->msg_state == HTTP_MSG_CHUNK_CRLF) {
-			/* we want the CRLF after the data */
-			int ret = http_skip_chunk_crlf(msg);
+			break;
 
-			if (ret == 0)
-				goto missing_data;
-			else if (ret < 0) {
-				if (msg->err_pos >= 0)
-					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_CHUNK_CRLF, s->fe);
-				goto return_bad_res;
-			}
-			/* skipping data in buffer for compression */
-			if (compressing) {
-				b_adv(res->buf, msg->next);
-				msg->next = 0;
-				msg->sov = 0;
-				msg->sol = 0;
-			}
-			/* we're in MSG_CHUNK_SIZE now */
-		}
-		else if (msg->msg_state == HTTP_MSG_TRAILERS) {
-			int ret = http_forward_trailers(msg);
-
+		case HTTP_MSG_TRAILERS - HTTP_MSG_DATA:
+			ret = http_forward_trailers(msg);
 			if (ret == 0)
 				goto missing_data;
 			else if (ret < 0) {
@@ -5932,11 +5933,12 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 				channel_forward(res, msg->next);
 				msg->next = 0;
 			}
-			/* we're in HTTP_MSG_DONE now */
-		}
-		else {
-			int old_state = msg->msg_state;
+			/* we're in HTTP_MSG_DONE now, fall through */
+
+		default:
 			/* other states, DONE...TUNNEL */
+
+			ret = msg->msg_state;
 			/* for keep-alive we don't want to forward closes on DONE */
 			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
 			    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL)
@@ -5954,7 +5956,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 						goto aborted_xfer;
 					}
 					if (msg->err_pos >= 0)
-						http_capture_bad_message(&s->be->invalid_rep, s, msg, old_state, s->fe);
+						http_capture_bad_message(&s->be->invalid_rep, s, msg, ret, s->fe);
 					goto return_bad_res;
 				}
 				return 1;
