@@ -1776,7 +1776,7 @@ static inline int http_parse_chunk_size(struct http_msg *msg)
 		c = hex2i(*ptr);
 		if (c < 0) /* not a hex digit anymore */
 			break;
-		if (++ptr >= end)
+		if (unlikely(++ptr >= end))
 			ptr = buf->data;
 		if (chunk & 0xF8000000) /* integer overflow will occur if result >= 2GB */
 			goto error;
@@ -1784,13 +1784,13 @@ static inline int http_parse_chunk_size(struct http_msg *msg)
 	}
 
 	/* empty size not allowed */
-	if (ptr == ptr_old)
+	if (unlikely(ptr == ptr_old))
 		goto error;
 
 	while (http_is_spht[(unsigned char)*ptr]) {
 		if (++ptr >= end)
 			ptr = buf->data;
-		if (ptr == stop)
+		if (unlikely(ptr == stop))
 			return 0;
 	}
 
@@ -1838,7 +1838,7 @@ static inline int http_parse_chunk_size(struct http_msg *msg)
 	 * which may or may not be present. We save that into ->next and
 	 * ->sov.
 	 */
-	if (ptr < ptr_old)
+	if (unlikely(ptr < ptr_old))
 		msg->sov += buf->size;
 	msg->sov += ptr - ptr_old;
 	msg->next = buffer_count(buf, buf->p, ptr);
@@ -1968,7 +1968,7 @@ static inline int http_skip_chunk_crlf(struct http_msg *msg)
 	}
 
 	ptr++;
-	if (ptr >= buf->data + buf->size)
+	if (unlikely(ptr >= buf->data + buf->size))
 		ptr = buf->data;
 	/* prepare the CRLF to be forwarded (between ->sol and ->sov) */
 	msg->sol = 0;
@@ -5895,7 +5895,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 					}
 				}
 			}
-		/* otherwise we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state */
+			/* otherwise we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state */
 		}
 		else if (msg->msg_state == HTTP_MSG_CHUNK_CRLF) {
 			/* we want the CRLF after the data */

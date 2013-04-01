@@ -187,9 +187,9 @@ extern int ishex(char s);
  */
 static inline int hex2i(int c)
 {
-	if ((unsigned char)(c -= '0') > 9) {
-		if ((unsigned char)(c -= 'A' - '0') > 5 &&
-		    (unsigned char)(c -= 'a' - 'A') > 5)
+	if (unlikely((unsigned char)(c -= '0') > 9)) {
+		if (likely((unsigned char)(c -= 'A' - '0') > 5 &&
+			      (unsigned char)(c -= 'a' - 'A') > 5))
 			c = -11;
 		c += 10;
 	}
