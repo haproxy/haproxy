@@ -272,8 +272,8 @@ static inline const char *buffer_pointer(const struct buffer *buf, const char *p
 static inline int buffer_count(const struct buffer *buf, const char *from, const char *to)
 {
 	int count = to - from;
-	if (count < 0)
-		count += buf->size;
+
+	count += count < 0 ? buf->size : 0;
 	return count;
 }
 
