@@ -731,7 +731,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char
 			goto out;
 		}
 
-		if (isdigit(*port1)) {	/* single port or range */
+		if (isdigit((int)(unsigned char)*port1)) {	/* single port or range */
 			port2 = strchr(port1, '-');
 			if (port2)
 				*port2++ = '\0';
