@@ -1900,13 +1900,21 @@ char *memprintf(char **out, const char *format, ...)
 		 * intermediate evaluations get wrong.
 		 */
 		va_start(args, format);
-		needed = vsnprintf(ret, allocated, format, args) + 1;
+		needed = vsnprintf(ret, allocated, format, args);
 		va_end(args);
 
-		if (needed <= allocated)
-			break;
+		if (needed < allocated) {
+			/* Note: on Solaris 8, the first iteration always
+			 * returns -1 if allocated is zero, so we force a
+			 * retry.
+			 */
+			if (!allocated)
+				needed = 0;
+			else
+				break;
+		}
 
-		allocated = needed;
+		allocated = needed + 1;
 		ret = realloc(ret, allocated);
 	} while (ret);
 
