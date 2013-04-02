@@ -269,6 +269,13 @@ ifeq ($(TARGET),freebsd)
   USE_TPROXY     = implicit
   USE_LIBCRYPT   = implicit
 else
+ifeq ($(TARGET),osx)
+  # This is for Mac OS/X
+  USE_POLL       = implicit
+  USE_KQUEUE     = implicit
+  USE_TPROXY     = implicit
+  USE_LIBCRYPT   = implicit
+else
 ifeq ($(TARGET),openbsd)
   # This is for OpenBSD >= 3.0
   USE_POLL       = implicit
@@ -291,6 +298,7 @@ ifeq ($(TARGET),cygwin)
 endif # cygwin
 endif # aix52
 endif # openbsd
+endif # osx
 endif # freebsd
 endif # solaris
 endif # linux2628
