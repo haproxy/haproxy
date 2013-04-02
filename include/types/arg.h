@@ -26,6 +26,7 @@
 #include <netinet/in.h>
 
 #include <common/chunk.h>
+#include <common/mini-clist.h>
 
 enum {
 	ARGT_STOP = 0, /* end of the arg list */
@@ -45,6 +46,16 @@ enum {
 	ARGT_USR,      /* a pointer to a user list */
 	ARGT_UNASSIGNED15, /* will probably be used for variables later */
 	ARGT_NBTYPES   /* no more values past 15 */
+};
+
+/* context where arguments are used, in order to help error reporting */
+enum {
+	ARGC_ACL = 0,  /* ACL */
+	ARGC_STK,      /* sticking rule */
+	ARGC_TRK,      /* tracking rule */
+	ARGC_LOG,      /* log-format */
+	ARGC_HDR,      /* add-header */
+	ARGC_UIF,      /* unique-id-format */
 };
 
 /* some types that are externally defined */
@@ -69,6 +80,21 @@ struct arg {
 	union arg_data data;      /* argument data */
 };
 
+/* arg lists are used to store information about arguments that could not be
+ * resolved when parsing the configuration. The head is an arg_list which
+ * serves as a template to create new entries. Nothing here is allocated,
+ * so plain copies are OK.
+ */
+struct arg_list {
+	struct list list;         /* chaining with other arg_list, or list head */
+	struct arg *arg;          /* pointer to the arg, NULL on list head */
+	int arg_pos;              /* argument position */
+	int ctx;                  /* context where the arg is used (ARGC_*) */
+	const char *kw;           /* keyword making use of these args */
+	const char *conv;         /* conv keyword when in conv, otherwise NULL */
+	const char *file;         /* file name where the args are referenced */
+	int line;                 /* line number where the args are referenced */
+};
 
 #endif /* _TYPES_ARG_H */
 

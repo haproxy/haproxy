@@ -307,7 +307,7 @@ void add_to_logformat_list(char *start, char *end, int type, struct list *list_f
 /*
  * Parse the sample fetch expression <text> and add a node to <list_format> upon
  * success. At the moment, sample converters are not yet supported but fetch arguments
- * should work.
+ * should work. The curpx->conf.args.ctx must be set by the caller.
  */
 void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct proxy *curpx, struct list *list_format, int options, int cap)
 {
@@ -320,7 +320,7 @@ void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct pro
 	cmd[1] = "";
 	cmd_arg = 0;
 
-	expr = sample_parse_expr(cmd, &cmd_arg, trash.str, trash.size);
+	expr = sample_parse_expr(cmd, &cmd_arg, trash.str, trash.size, &curpx->conf.args);
 	if (!expr) {
 		Warning("log-format: sample fetch <%s> failed with : %s\n", text, trash.str);
 		return;
@@ -360,7 +360,8 @@ void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct pro
 /*
  * Parse the log_format string and fill a linked list.
  * Variable name are preceded by % and composed by characters [a-zA-Z0-9]* : %varname
- * You can set arguments using { } : %{many arguments}varname
+ * You can set arguments using { } : %{many arguments}varname.
+ * The curproxy->conf.args.ctx must be set by the caller.
  *
  *  str: the string to parse
  *  curproxy: the proxy affected

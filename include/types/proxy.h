@@ -350,6 +350,7 @@ struct proxy {
 		struct eb_root used_server_id;	/* list of server IDs in use */
 		struct list bind;		/* list of bind settings */
 		struct list listeners;		/* list of listeners belonging to this frontend */
+		struct arg_list args;           /* sample arg list that need to be resolved */
 	} conf;					/* config information */
 	void *parent;				/* parent of the proxy when applicable */
 	struct comp *comp;			/* http compression */

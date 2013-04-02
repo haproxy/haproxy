@@ -1112,7 +1112,8 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 
 		arg++;
 
-		expr = sample_parse_expr(args, &arg, trash.str, trash.size);
+		curpx->conf.args.ctx = ARGC_TRK;
+		expr = sample_parse_expr(args, &arg, trash.str, trash.size, &curpx->conf.args);
 		if (!expr) {
 			memprintf(err,
 			          "'%s %s %s' : %s",

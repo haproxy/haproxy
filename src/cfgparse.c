@@ -1572,8 +1572,8 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 				curpeers->peers_fe->timeout.connect = 5000;
 				curpeers->peers_fe->accept = peer_accept;
 				curpeers->peers_fe->options2 |= PR_O2_INDEPSTR | PR_O2_SMARTCON | PR_O2_SMARTACC;
-				curpeers->peers_fe->conf.file = strdup(file);
-				curpeers->peers_fe->conf.line = linenum;
+				curpeers->peers_fe->conf.args.file = curpeers->peers_fe->conf.file = strdup(file);
+				curpeers->peers_fe->conf.args.line = curpeers->peers_fe->conf.line = linenum;
 
 				bind_conf = bind_conf_alloc(&curpeers->peers_fe->conf.bind, file, linenum, args[2]);
 
@@ -1692,8 +1692,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		init_new_proxy(curproxy);
 		curproxy->next = proxy;
 		proxy = curproxy;
-		curproxy->conf.file = strdup(file);
-		curproxy->conf.line = linenum;
+		curproxy->conf.args.file = curproxy->conf.file = strdup(file);
+		curproxy->conf.args.line = curproxy->conf.line = linenum;
 		curproxy->last_change = now.tv_sec;
 		curproxy->id = strdup(args[1]);
 		curproxy->cap = rc;
@@ -1925,6 +1925,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		/* we cannot free uri_auth because it might already be used */
 		init_default_instance();
 		curproxy = &defproxy;
+		curproxy->conf.args.file = curproxy->conf.file = strdup(file);
+		curproxy->conf.args.line = curproxy->conf.line = linenum;
 		defproxy.cap = PR_CAP_LISTEN; /* all caps for now */
 		goto out;
 	}
@@ -1933,7 +1935,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		err_code |= ERR_ALERT | ERR_FATAL;
 		goto out;
 	}
-    
+
+	/* update the current file and line being parsed */
+	curproxy->conf.args.file = curproxy->conf.file;
+	curproxy->conf.args.line = linenum;
 
 	/* Now let's parse the proxy-specific keywords */
 	if (!strcmp(args[0], "bind")) {  /* new listen addresses */
@@ -2225,7 +2230,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 
-		if (parse_acl((const char **)args + 1, &curproxy->acl, &errmsg) == NULL) {
+		if (parse_acl((const char **)args + 1, &curproxy->acl, &errmsg, &curproxy->conf.args) == NULL) {
 			Alert("parsing [%s:%d] : error detected while parsing ACL '%s' : %s.\n",
 			      file, linenum, args[1], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -3023,7 +3028,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		expr = sample_parse_expr(args, &myidx, trash.str, trash.size);
+		curproxy->conf.args.ctx = ARGC_STK;
+		expr = sample_parse_expr(args, &myidx, trash.str, trash.size, &curproxy->conf.args);
 		if (!expr) {
 			Alert("parsing [%s:%d] : '%s': %s\n", file, linenum, args[0], trash.str);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -4825,6 +4831,18 @@ stats_error_parsing:
 		}
 		free(curproxy->uniqueid_format_string);
 		curproxy->uniqueid_format_string = strdup(args[1]);
+
+		/* get a chance to improve log-format error reporting by
+		 * reporting the correct line-number when possible.
+		 */
+		if (curproxy != &defproxy) {
+			curproxy->conf.args.ctx = ARGC_UIF;
+			if (curproxy->uniqueid_format_string)
+				parse_logformat_string(curproxy->uniqueid_format_string, curproxy, &curproxy->format_unique_id, 0,
+						       (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR);
+			free(curproxy->uniqueid_format_string);
+			curproxy->uniqueid_format_string = NULL;
+		}
 	}
 
 	else if (strcmp(args[0], "unique-id-header") == 0) {
@@ -4854,6 +4872,23 @@ stats_error_parsing:
 		    curproxy->logformat_string != clf_http_log_format)
 			free(curproxy->logformat_string);
 		curproxy->logformat_string = strdup(args[1]);
+
+		/* get a chance to improve log-format error reporting by
+		 * reporting the correct line-number when possible.
+		 */
+		if (curproxy != &defproxy && !(curproxy->cap & PR_CAP_FE)) {
+			Warning("parsing [%s:%d] : backend '%s' : 'log-format' directive is ignored in backends.\n",
+				file, linenum, curproxy->id);
+			err_code |= ERR_WARN;
+		}
+		else if (curproxy->cap & PR_CAP_FE) {
+			curproxy->conf.args.ctx = ARGC_LOG;
+			if (curproxy->logformat_string)
+				parse_logformat_string(curproxy->logformat_string, curproxy, &curproxy->logformat, LOG_OPT_MANDATORY,
+						       SMP_VAL_FE_LOG_END);
+			free(curproxy->logformat_string);
+			curproxy->logformat_string = NULL;
+		}
 	}
 
 	else if (!strcmp(args[0], "log") && kwm == KWM_NO) {
@@ -6434,7 +6469,29 @@ int check_config_validity()
 		}
 out_uri_auth_compat:
 
-		cfgerr += acl_find_targets(curproxy);
+		/* compile the log format */
+		if (!(curproxy->cap & PR_CAP_FE)) {
+			if (curproxy->logformat_string != default_http_log_format &&
+			    curproxy->logformat_string != default_tcp_log_format &&
+			    curproxy->logformat_string != clf_http_log_format)
+				free(curproxy->logformat_string);
+			curproxy->logformat_string = NULL;
+		}
+
+		curproxy->conf.args.ctx = ARGC_LOG;
+		if (curproxy->logformat_string)
+			parse_logformat_string(curproxy->logformat_string, curproxy, &curproxy->logformat, LOG_OPT_MANDATORY,
+					       SMP_VAL_FE_LOG_END);
+
+		curproxy->conf.args.ctx = ARGC_UIF;
+		if (curproxy->uniqueid_format_string)
+			parse_logformat_string(curproxy->uniqueid_format_string, curproxy, &curproxy->format_unique_id, 0,
+					       (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR);
+
+		/* only now we can check if some args remain unresolved */
+		cfgerr += smp_resolve_args(curproxy);
+		if (!cfgerr)
+			cfgerr += acl_find_targets(curproxy);
 
 		if ((curproxy->mode == PR_MODE_TCP || curproxy->mode == PR_MODE_HTTP) &&
 		    (((curproxy->cap & PR_CAP_FE) && !curproxy->timeout.client) ||
@@ -6523,23 +6580,6 @@ out_uri_auth_compat:
 				curproxy->nb_rsp_cap = 0;
 			}
 		}
-
-		/* compile the log format */
-		if (!(curproxy->cap & PR_CAP_FE)) {
-			if (curproxy->logformat_string != default_http_log_format &&
-			    curproxy->logformat_string != default_tcp_log_format &&
-			    curproxy->logformat_string != clf_http_log_format)
-				free(curproxy->logformat_string);
-			curproxy->logformat_string = NULL;
-		}
-
-		if (curproxy->logformat_string)
-			parse_logformat_string(curproxy->logformat_string, curproxy, &curproxy->logformat, LOG_OPT_MANDATORY,
-					       SMP_VAL_FE_LOG_END);
-
-		if (curproxy->uniqueid_format_string)
-			parse_logformat_string(curproxy->uniqueid_format_string, curproxy, &curproxy->format_unique_id, 0,
-					       (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR);
 
 		/* first, we will invert the servers list order */
 		newsrv = NULL;

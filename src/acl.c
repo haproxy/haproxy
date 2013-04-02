@@ -1024,12 +1024,13 @@ static int acl_read_patterns_from_file(struct acl_expr *expr,
 
 /* Parse an ACL expression starting at <args>[0], and return it. If <err> is
  * not NULL, it will be filled with a pointer to an error message in case of
- * error. This pointer must be freeable or NULL.
+ * error. This pointer must be freeable or NULL. <al> is an arg_list serving
+ * as a list head to report missing dependencies.
  *
  * Right now, the only accepted syntax is :
  * <subject> [<value>...]
  */
-struct acl_expr *parse_acl_expr(const char **args, char **err)
+struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *al)
 {
 	__label__ out_return, out_free_expr, out_free_pattern;
 	struct acl_expr *expr;
@@ -1088,10 +1089,14 @@ struct acl_expr *parse_acl_expr(const char **args, char **err)
 			/* Parse the arguments. Note that currently we have no way to
 			 * report parsing errors, hence the NULL in the error pointers.
 			 * An error is also reported if some mandatory arguments are
-			 * missing.
+			 * missing. We prepare the args list to report unresolved
+			 * dependencies.
 			 */
+			al->ctx = ARGC_ACL;
+			al->kw = expr->kw;
+			al->conv = NULL;
 			nbargs = make_arg_list(arg, end - arg, expr->smp->arg_mask, &expr->args,
-					       err, NULL, NULL);
+					       err, NULL, NULL, al);
 			if (nbargs < 0) {
 				/* note that make_arg_list will have set <err> here */
 				memprintf(err, "in argument to '%s', %s", expr->kw, *err);
@@ -1273,11 +1278,12 @@ struct acl *prune_acl(struct acl *acl) {
  * A pointer to that ACL is returned. If the ACL has an empty name, then it's
  * an anonymous one and it won't be merged with any other one. If <err> is not
  * NULL, it will be filled with an appropriate error. This pointer must be
- * freeable or NULL.
+ * freeable or NULL. <al> is the arg_list serving as a head for unresolved
+ * dependencies.
  *
  * args syntax: <aclname> <acl_expr>
  */
-struct acl *parse_acl(const char **args, struct list *known_acl, char **err)
+struct acl *parse_acl(const char **args, struct list *known_acl, char **err, struct arg_list *al)
 {
 	__label__ out_return, out_free_acl_expr, out_free_name;
 	struct acl *cur_acl;
@@ -1290,7 +1296,7 @@ struct acl *parse_acl(const char **args, struct list *known_acl, char **err)
 		goto out_return;
 	}
 
-	acl_expr = parse_acl_expr(args + 1, err);
+	acl_expr = parse_acl_expr(args + 1, err, al);
 	if (!acl_expr) {
 		/* parse_acl_expr will have filled <err> here */
 		goto out_return;
@@ -1381,9 +1387,11 @@ const struct {
  * except when default ACLs are broken, in which case it will return NULL.
  * If <known_acl> is not NULL, the ACL will be queued at its tail. If <err> is
  * not NULL, it will be filled with an error message if an error occurs. This
- * pointer must be freeable or NULL.
+ * pointer must be freeable or NULL. <al> is an arg_list serving as a list head
+ * to report missing dependencies.
  */
-struct acl *find_acl_default(const char *acl_name, struct list *known_acl, char **err)
+static struct acl *find_acl_default(const char *acl_name, struct list *known_acl,
+                                    char **err, struct arg_list *al)
 {
 	__label__ out_return, out_free_acl_expr, out_free_name;
 	struct acl *cur_acl;
@@ -1401,7 +1409,7 @@ struct acl *find_acl_default(const char *acl_name, struct list *known_acl, char 
 		return NULL;
 	}
 
-	acl_expr = parse_acl_expr((const char **)default_acl_list[index].expr, err);
+	acl_expr = parse_acl_expr((const char **)default_acl_list[index].expr, err, al);
 	if (!acl_expr) {
 		/* parse_acl_expr must have filled err here */
 		goto out_return;
@@ -1458,9 +1466,11 @@ struct acl_cond *prune_acl_cond(struct acl_cond *cond)
  * case of low memory). Supports multiple conditions separated by "or". If
  * <err> is not NULL, it will be filled with a pointer to an error message in
  * case of error, that the caller is responsible for freeing. The initial
- * location must either be freeable or NULL.
+ * location must either be freeable or NULL. The list <al> serves as a list head
+ * for unresolved dependencies.
  */
-struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int pol, char **err)
+struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl,
+                                int pol, char **err, struct arg_list *al)
 {
 	__label__ out_return, out_free_suite, out_free_term;
 	int arg, neg;
@@ -1533,7 +1543,7 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
 			args_new[0] = "";
 			memcpy(args_new + 1, args + arg + 1, (arg_end - arg) * sizeof(*args_new));
 			args_new[arg_end - arg] = "";
-			cur_acl = parse_acl(args_new, known_acl, err);
+			cur_acl = parse_acl(args_new, known_acl, err, al);
 			free(args_new);
 
 			if (!cur_acl) {
@@ -1551,7 +1561,7 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
 			 */
 			cur_acl = find_acl_by_name(word, known_acl);
 			if (cur_acl == NULL) {
-				cur_acl = find_acl_default(word, known_acl, err);
+				cur_acl = find_acl_default(word, known_acl, err, al);
 				if (cur_acl == NULL) {
 					/* note that find_acl_default() must have filled <err> here */
 					goto out_free_suite;
@@ -1635,7 +1645,7 @@ struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, co
 		return NULL;
 	}
 
-	cond = parse_acl_cond(args, &px->acl, pol, err);
+	cond = parse_acl_cond(args, &px->acl, pol, err, &px->conf.args);
 	if (!cond) {
 		/* note that parse_acl_cond must have filled <err> here */
 		return NULL;
@@ -1838,191 +1848,29 @@ int acl_cond_kw_conflicts(const struct acl_cond *cond, unsigned int where, struc
 
 /*
  * Find targets for userlist and groups in acl. Function returns the number
- * of errors or OK if everything is fine.
+ * of errors or OK if everything is fine. It must be called only once sample
+ * fetch arguments have been resolved (after smp_resolve_args()).
  */
-int
-acl_find_targets(struct proxy *p)
+int acl_find_targets(struct proxy *p)
 {
 
 	struct acl *acl;
 	struct acl_expr *expr;
 	struct acl_pattern *pattern;
-	struct userlist *ul;
-	struct arg *arg;
 	int cfgerr = 0;
 
 	list_for_each_entry(acl, &p->acl, list) {
 		list_for_each_entry(expr, &acl->expr, list) {
-			for (arg = expr->args; arg && arg->type != ARGT_STOP; arg++) {
-				if (!arg->unresolved)
-					continue;
-				else if (arg->type == ARGT_SRV) {
-					struct proxy *px;
-					struct server *srv;
-					char *pname, *sname;
-
-					if (!arg->data.str.len) {
-						Alert("proxy %s: acl '%s' %s(): missing server name.\n",
-						      p->id, acl->name, expr->kw);
-						cfgerr++;
-						continue;
-					}
-
-					pname = arg->data.str.str;
-					sname = strrchr(pname, '/');
-
-					if (sname)
-						*sname++ = '\0';
-					else {
-						sname = pname;
-						pname = NULL;
-					}
-
-					px = p;
-					if (pname) {
-						px = findproxy(pname, PR_CAP_BE);
-						if (!px) {
-							Alert("proxy %s: acl '%s' %s(): unable to find proxy '%s'.\n",
-							      p->id, acl->name, expr->kw, pname);
-							cfgerr++;
-							continue;
-						}
-					}
-
-					srv = findserver(px, sname);
-					if (!srv) {
-						Alert("proxy %s: acl '%s' %s(): unable to find server '%s'.\n",
-						      p->id, acl->name, expr->kw, sname);
-						cfgerr++;
-						continue;
-					}
-
-					free(arg->data.str.str);
-					arg->data.str.str = NULL;
-					arg->unresolved = 0;
-					arg->data.srv = srv;
-				}
-				else if (arg->type == ARGT_FE) {
-					struct proxy *prx = p;
-					char *pname = p->id;
-
-					if (arg->data.str.len) {
-						pname = arg->data.str.str;
-						prx = findproxy(pname, PR_CAP_FE);
-					}
-
-					if (!prx) {
-						Alert("proxy %s: acl '%s' %s(): unable to find frontend '%s'.\n",
-						      p->id, acl->name, expr->kw, pname);
-						cfgerr++;
-						continue;
-					}
-
-					if (!(prx->cap & PR_CAP_FE)) {
-						Alert("proxy %s: acl '%s' %s(): proxy '%s' has no frontend capability.\n",
-						      p->id, acl->name, expr->kw, pname);
-						cfgerr++;
-						continue;
-					}
-
-					free(arg->data.str.str);
-					arg->data.str.str = NULL;
-					arg->unresolved = 0;
-					arg->data.prx = prx;
-				}
-				else if (arg->type == ARGT_BE) {
-					struct proxy *prx = p;
-					char *pname = p->id;
-
-					if (arg->data.str.len) {
-						pname = arg->data.str.str;
-						prx = findproxy(pname, PR_CAP_BE);
-					}
-
-					if (!prx) {
-						Alert("proxy %s: acl '%s' %s(): unable to find backend '%s'.\n",
-						      p->id, acl->name, expr->kw, pname);
-						cfgerr++;
-						continue;
-					}
-
-					if (!(prx->cap & PR_CAP_BE)) {
-						Alert("proxy %s: acl '%s' %s(): proxy '%s' has no backend capability.\n",
-						      p->id, acl->name, expr->kw, pname);
-						cfgerr++;
-						continue;
-					}
-
-					free(arg->data.str.str);
-					arg->data.str.str = NULL;
-					arg->unresolved = 0;
-					arg->data.prx = prx;
-				}
-				else if (arg->type == ARGT_TAB) {
-					struct proxy *prx = p;
-					char *pname = p->id;
-
-					if (arg->data.str.len) {
-						pname = arg->data.str.str;
-						prx = find_stktable(pname);
-					}
-
-					if (!prx) {
-						Alert("proxy %s: acl '%s' %s(): unable to find table '%s'.\n",
-						      p->id, acl->name, expr->kw, pname);
-						cfgerr++;
-						continue;
-					}
-
-
-					if (!prx->table.size) {
-						Alert("proxy %s: acl '%s' %s(): no table in proxy '%s'.\n",
-						      p->id, acl->name, expr->kw, pname);
-						cfgerr++;
-						continue;
-					}
-
-					free(arg->data.str.str);
-					arg->data.str.str = NULL;
-					arg->unresolved = 0;
-					arg->data.prx = prx;
-				}
-				else if (arg->type == ARGT_USR) {
-					if (!arg->data.str.len) {
-						Alert("proxy %s: acl '%s' %s(): missing userlist name.\n",
-						      p->id, acl->name, expr->kw);
-						cfgerr++;
-						continue;
-					}
-
-					if (p->uri_auth && p->uri_auth->userlist &&
-					    !strcmp(p->uri_auth->userlist->name, arg->data.str.str))
-						ul = p->uri_auth->userlist;
-					else
-						ul = auth_find_userlist(arg->data.str.str);
-
-					if (!ul) {
-						Alert("proxy %s: acl '%s' %s(%s): unable to find userlist.\n",
-						      p->id, acl->name, expr->kw, arg->data.str.str);
-						cfgerr++;
-						continue;
-					}
-
-					free(arg->data.str.str);
-					arg->data.str.str = NULL;
-					arg->unresolved = 0;
-					arg->data.usr = ul;
-				}
-			} /* end of args processing */
-
-			/* don't try to resolve groups if we're not certain of having
-			 * resolved userlists first.
-			 */
-			if (cfgerr)
-				break;
-
 			if (!strcmp(expr->kw, "http_auth_group")) {
-				/* note: argument resolved above thanks to ARGT_USR */
+				/* Note: the ARGT_USR argument may only have been resolved earlier
+				 * by smp_resolve_args().
+				 */
+				if (expr->args->unresolved) {
+					Alert("Internal bug in proxy %s: %sacl %s %s() makes use of unresolved userlist '%s'. Please report this.\n",
+					      p->id, *acl->name ? "" : "anonymous ", acl->name, expr->kw, expr->args->data.str.str);
+					cfgerr++;
+					continue;
+				}
 
 				if (LIST_ISEMPTY(&expr->patterns)) {
 					Alert("proxy %s: acl %s %s(): no groups specified.\n",
@@ -2035,16 +1883,14 @@ acl_find_targets(struct proxy *p)
 					/* this keyword only has one argument */
 					pattern->val.group_mask = auth_resolve_groups(expr->args->data.usr, pattern->ptr.str);
 
+					if (!pattern->val.group_mask) {
+						Alert("proxy %s: acl %s %s(): invalid group '%s'.\n",
+						      p->id, acl->name, expr->kw, pattern->ptr.str);
+						cfgerr++;
+					}
 					free(pattern->ptr.str);
 					pattern->ptr.str = NULL;
 					pattern->len = 0;
-
-					if (!pattern->val.group_mask) {
-						Alert("proxy %s: acl %s %s(): invalid group(s).\n",
-							p->id, acl->name, expr->kw);
-						cfgerr++;
-						continue;
-					}
 				}
 			}
 		}

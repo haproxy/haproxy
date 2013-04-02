@@ -41,6 +41,41 @@ static const char *arg_type_names[ARGT_NBTYPES] = {
  */
 struct arg empty_arg_list[8] = { };
 
+/* This function clones a struct arg_list template into a new one which is
+ * returned.
+ */
+struct arg_list *arg_list_clone(const struct arg_list *orig)
+{
+	struct arg_list *new;
+
+	if ((new = calloc(1, sizeof(*new))) != NULL) {
+		/* ->list will be set by the caller when inserting the element.
+		 * ->arg and ->arg_pos will be set by the caller.
+		 */
+		new->ctx = orig->ctx;
+		new->kw = orig->kw;
+		new->conv = orig->conv;
+		new->file = orig->file;
+		new->line = orig->line;
+	}
+	return new;
+}
+
+/* This function clones a struct <arg_list> template into a new one which is
+ * set to point to arg <arg> at pos <pos>, and which is returned if the caller
+ * wants to apply further changes.
+ */
+struct arg_list *arg_list_add(struct arg_list *orig, struct arg *arg, int pos)
+{
+	struct arg_list *new;
+
+	new = arg_list_clone(orig);
+	new->arg = arg;
+	new->arg_pos = pos;
+	LIST_ADDQ(&orig->list, &new->list);
+	return new;
+}
+
 /* This function builds an argument list from a config line. It returns the
  * number of arguments found, or <0 in case of any error. Everything needed
  * it automatically allocated. A pointer to an error message might be returned
@@ -48,20 +83,25 @@ struct arg empty_arg_list[8] = { };
  * will have to check it and free it. The output arg list is returned in argp
  * which must be valid. The returned array is always terminated by an arg of
  * type ARGT_STOP (0), unless the mask indicates that no argument is supported.
- * The mask is composed of a number of mandatory arguments in its lower 4 bits,
- * and a concatenation of each argument type in each subsequent 4-bit block. If
- * <err_msg> is not NULL, it must point to a freeable or NULL pointer.
+ * Unresolved arguments are appended to arg list <al>, which also serves as a
+ * template to create new entries. The mask is composed of a number of
+ * mandatory arguments in its lower 4 bits, and a concatenation of each
+ * argument type in each subsequent 4-bit block. If <err_msg> is not NULL, it
+ * must point to a freeable or NULL pointer.
  */
 int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
-		  char **err_msg, const char **err_ptr, int *err_arg)
+                  char **err_msg, const char **err_ptr, int *err_arg,
+                  struct arg_list *al)
 {
 	int nbarg;
 	int pos;
-	struct arg *arg, *arg_list = NULL;
+	struct arg *arg;
 	const char *beg;
 	char *word = NULL;
 	const char *ptr_err = NULL;
 	int min_arg;
+
+	*argp = NULL;
 
 	min_arg = mask & 15;
 	mask >>= 4;
@@ -79,7 +119,7 @@ int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
 	if (!len && !min_arg)
 		goto end_parse;
 
-	arg = arg_list = calloc(nbarg + 1, sizeof(*arg));
+	arg = *argp = calloc(nbarg + 1, sizeof(*arg));
 
 	/* Note: empty arguments after a comma always exist. */
 	while (pos < nbarg) {
@@ -136,6 +176,8 @@ int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
 			 * parsing then resolved later.
 			 */
 			arg->unresolved = 1;
+			arg_list_add(al, arg, pos);
+
 			/* fall through */
 		case ARGT_STR:
 			/* all types that must be resolved are stored as strings
@@ -239,8 +281,6 @@ int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
 	/* note that pos might be < nbarg and this is not an error, it's up to the
 	 * caller to decide what to do with optional args.
 	 */
-	*argp = arg_list;
-
 	if (err_arg)
 		*err_arg = pos;
 	if (err_ptr)
@@ -249,7 +289,7 @@ int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
 
  err:
 	free(word);
-	free(arg_list);
+	free(*argp);
 	if (err_arg)
 		*err_arg = pos;
 	if (err_ptr)

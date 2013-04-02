@@ -19,9 +19,14 @@
 
 #include <common/chunk.h>
 #include <common/standard.h>
+#include <common/uri_auth.h>
 
 #include <proto/arg.h>
+#include <proto/auth.h>
+#include <proto/log.h>
+#include <proto/proxy.h>
 #include <proto/sample.h>
+#include <proto/stick_table.h>
 
 /* static sample used in sample_process() when <p> is NULL */
 static struct sample temp_smp;
@@ -525,8 +530,9 @@ static sample_cast_fct sample_casts[SMP_TYPES][SMP_TYPES] = {
  * Parse a sample expression configuration:
  *        fetch keyword followed by format conversion keywords.
  * Returns a pointer on allocated sample expression structure.
+ * The caller must have set al->ctx.
  */
-struct sample_expr *sample_parse_expr(char **str, int *idx, char *err, int err_size)
+struct sample_expr *sample_parse_expr(char **str, int *idx, char *err, int err_size, struct arg_list *al)
 {
 	const char *endw;
 	const char *end;
@@ -598,7 +604,9 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, char *err, int err_s
 			goto out_error;
 		}
 
-		if (make_arg_list(endw + 1, end - endw - 2, fetch->arg_mask, &expr->arg_p, &err_msg, NULL, &err_arg) < 0) {
+		al->kw = expr->fetch->kw;
+		al->conv = NULL;
+		if (make_arg_list(endw + 1, end - endw - 2, fetch->arg_mask, &expr->arg_p, &err_msg, NULL, &err_arg, al) < 0) {
 			p = my_strndup(str[*idx], endw - str[*idx]);
 			if (p) {
 				snprintf(err, err_size, "invalid arg %d in fetch method '%s' : %s.", err_arg+1, p, err_msg);
@@ -693,7 +701,9 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, char *err, int err_s
 				goto out_error;
 			}
 
-			if (make_arg_list(endw + 1, end - endw - 2, conv->arg_mask, &conv_expr->arg_p, &err_msg, NULL, &err_arg) < 0) {
+			al->kw = expr->fetch->kw;
+			al->conv = conv_expr->conv->kw;
+			if (make_arg_list(endw + 1, end - endw - 2, conv->arg_mask, &conv_expr->arg_p, &err_msg, NULL, &err_arg, al) < 0) {
 				p = my_strndup(str[*idx], endw - str[*idx]);
 				if (p) {
 					snprintf(err, err_size, "invalid arg %d in conv method '%s' : %s.", err_arg+1, p, err_msg);
@@ -784,6 +794,214 @@ struct sample *sample_process(struct proxy *px, struct session *l4, void *l7,
 			return NULL;
 	}
 	return p;
+}
+
+/*
+ * Resolve all remaining arguments in proxy <p>. Returns the number of
+ * errors or 0 if everything is fine.
+ */
+int smp_resolve_args(struct proxy *p)
+{
+	struct arg_list *cur, *bak;
+	const char *ctx, *where;
+	const char *conv_ctx, *conv_pre, *conv_pos;
+	struct userlist *ul;
+	struct arg *arg;
+	int cfgerr = 0;
+
+	list_for_each_entry_safe(cur, bak, &p->conf.args.list, list) {
+		struct proxy *px;
+		struct server *srv;
+		char *pname, *sname;
+
+		arg = cur->arg;
+
+		/* prepare output messages */
+		conv_pre = conv_pos = conv_ctx = "";
+		if (cur->conv) {
+			conv_ctx = cur->conv;
+			conv_pre = "conversion keyword '";
+			conv_pos = "' for ";
+		}
+
+		where = "in";
+		ctx = "sample fetch keyword";
+		switch (cur->ctx) {
+		case ARGC_STK:where = "in stick rule in"; break;
+		case ARGC_TRK: where = "in tracking rule in"; break;
+		case ARGC_LOG: where = "in log-format string in"; break;
+		case ARGC_HDR: where = "in HTTP header format string in"; break;
+		case ARGC_UIF: where = "in unique-id-format string in"; break;
+		case ARGC_ACL: ctx = "ACL keyword"; break;
+		}
+
+		/* set a few default settings */
+		px = p;
+		pname = p->id;
+
+		switch (arg->type) {
+		case ARGT_SRV:
+			if (!arg->data.str.len) {
+				Alert("parsing [%s:%d] : missing server name in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
+				      cur->file, cur->line,
+				      cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
+				cfgerr++;
+				continue;
+			}
+
+			/* we support two formats : "bck/srv" and "srv" */
+			sname = strrchr(arg->data.str.str, '/');
+
+			if (sname) {
+				*sname++ = '\0';
+				pname = arg->data.str.str;
+
+				px = findproxy(pname, PR_CAP_BE);
+				if (!px) {
+					Alert("parsing [%s:%d] : unable to find proxy '%s' referenced in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
+					      cur->file, cur->line, pname,
+					      cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
+					cfgerr++;
+					break;
+				}
+			}
+			else
+				sname = arg->data.str.str;
+
+			srv = findserver(px, sname);
+			if (!srv) {
+				Alert("parsing [%s:%d] : unable to find server '%s' in proxy '%s', referenced in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
+				      cur->file, cur->line, sname, pname,
+				      cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
+				cfgerr++;
+				break;
+			}
+
+			free(arg->data.str.str);
+			arg->data.str.str = NULL;
+			arg->unresolved = 0;
+			arg->data.srv = srv;
+			break;
+
+		case ARGT_FE:
+			if (arg->data.str.len) {
+				pname = arg->data.str.str;
+				px = findproxy(pname, PR_CAP_FE);
+			}
+
+			if (!px) {
+				Alert("parsing [%s:%d] : unable to find frontend '%s' referenced in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
+				      cur->file, cur->line, pname,
+				      cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
+				cfgerr++;
+				break;
+			}
+
+			if (!(px->cap & PR_CAP_FE)) {
+				Alert("parsing [%s:%d] : proxy '%s', referenced in arg %d of %s%s%s%s '%s' %s proxy '%s', has not frontend capability.\n",
+				      cur->file, cur->line, pname,
+				      cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
+				cfgerr++;
+				break;
+			}
+
+			free(arg->data.str.str);
+			arg->data.str.str = NULL;
+			arg->unresolved = 0;
+			arg->data.prx = px;
+			break;
+
+		case ARGT_BE:
+			if (arg->data.str.len) {
+				pname = arg->data.str.str;
+				px = findproxy(pname, PR_CAP_BE);
+			}
+
+			if (!px) {
+				Alert("parsing [%s:%d] : unable to find backend '%s' referenced in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
+				      cur->file, cur->line, pname,
+				      cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
+				cfgerr++;
+				break;
+			}
+
+			if (!(px->cap & PR_CAP_BE)) {
+				Alert("parsing [%s:%d] : proxy '%s', referenced in arg %d of %s%s%s%s '%s' %s proxy '%s', has not backend capability.\n",
+				      cur->file, cur->line, pname,
+				      cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
+				cfgerr++;
+				break;
+			}
+
+			free(arg->data.str.str);
+			arg->data.str.str = NULL;
+			arg->unresolved = 0;
+			arg->data.prx = px;
+			break;
+
+		case ARGT_TAB:
+			if (arg->data.str.len) {
+				pname = arg->data.str.str;
+				px = find_stktable(pname);
+			}
+
+			if (!px) {
+				Alert("parsing [%s:%d] : unable to find table '%s' referenced in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
+				      cur->file, cur->line, pname,
+				      cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
+				cfgerr++;
+				break;
+			}
+
+			if (!px->table.size) {
+				Alert("parsing [%s:%d] : no table in proxy '%s' referenced in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
+				      cur->file, cur->line, pname,
+				      cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
+				cfgerr++;
+				break;
+			}
+
+			free(arg->data.str.str);
+			arg->data.str.str = NULL;
+			arg->unresolved = 0;
+			arg->data.prx = px;
+			break;
+
+		case ARGT_USR:
+			if (!arg->data.str.len) {
+				Alert("parsing [%s:%d] : missing userlist name in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
+				      cur->file, cur->line,
+				      cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
+				cfgerr++;
+				break;
+			}
+
+			if (p->uri_auth && p->uri_auth->userlist &&
+			    !strcmp(p->uri_auth->userlist->name, arg->data.str.str))
+				ul = p->uri_auth->userlist;
+			else
+				ul = auth_find_userlist(arg->data.str.str);
+
+			if (!ul) {
+				Alert("parsing [%s:%d] : unable to find userlist '%s' referenced in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
+				      cur->file, cur->line, arg->data.str.str,
+				      cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
+				cfgerr++;
+				break;
+			}
+
+			free(arg->data.str.str);
+			arg->data.str.str = NULL;
+			arg->unresolved = 0;
+			arg->data.usr = ul;
+			break;
+		}
+
+		LIST_DEL(&cur->list);
+		free(cur);
+	} /* end of args processing */
+
+	return cfgerr;
 }
 
 /*
