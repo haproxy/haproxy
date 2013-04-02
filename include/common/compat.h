@@ -106,6 +106,13 @@
 #endif /* SO_REUSEADDR */
 #endif /* SO_REUSEPORT */
 
+/* only Linux defines TCP_FASTOPEN */
+#ifdef USE_TFO
+#ifndef TCP_FASTOPEN
+#define TCP_FASTOPEN 23
+#endif
+#endif
+
 #if defined(__dietlibc__)
 #include <strings.h>
 #endif

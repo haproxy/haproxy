@@ -32,6 +32,7 @@
 #   USE_MY_ACCEPT4       : use own implemention of accept4() if glibc < 2.10.
 #   USE_ZLIB             : enable zlib library support.
 #   USE_CPU_AFFINITY     : enable pinning processes to CPU on Linux. Automatic.
+#   USE_TFO              : enable TCP fast open. Supported on Linux >= 3.7.
 #
 # Options can be forced by specifying "USE_xxx=1" or can be disabled by using
 # "USE_xxx=" (empty string).
@@ -562,6 +563,12 @@ endif
 ifneq ($(USE_PCRE_JIT),)
 OPTIONS_CFLAGS  += -DUSE_PCRE_JIT
 endif
+endif
+
+# TCP Fast Open
+ifneq ($(USE_TFO),)
+OPTIONS_CFLAGS  += -DUSE_TFO
+BUILD_OPTIONS   += $(call ignore_implicit,USE_TFO)
 endif
 
 # This one can be changed to look for ebtree files in an external directory

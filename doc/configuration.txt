@@ -7408,7 +7408,9 @@ tfo
   that use high connection rates and where each round trip matters. This can
   possibly cause issues with many firewalls which do not accept data on SYN
   packets, so this option should only be enabled once well tested. This option
-  is only supported on TCPv4/TCPv6 sockets and ignored by other ones.
+  is only supported on TCPv4/TCPv6 sockets and ignored by other ones. You may
+  need to build HAProxy with USE_TFO=1 if your libc doesn't define
+  TCP_FASTOPEN.
 
 transparent
   Is an optional keyword which is supported only on certain Linux kernels. It
