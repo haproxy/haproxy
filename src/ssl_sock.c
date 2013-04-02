@@ -165,6 +165,21 @@ static int ssl_sock_advertise_npn_protos(SSL *s, const unsigned char **data,
 }
 #endif
 
+#ifdef OPENSSL_ALPN_NEGOTIATED
+/* This callback is used so that the server advertises the list of
+ * negociable protocols for ALPN.
+ */
+static int ssl_sock_advertise_alpn_protos(SSL *s, const unsigned char **data,
+                                          unsigned int *len, void *arg)
+{
+	struct bind_conf *conf = arg;
+
+	*data = (const unsigned char *)conf->alpn_str;
+	*len = conf->alpn_len;
+	return SSL_TLSEXT_ERR_OK;
+}
+#endif
+
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 /* Sets the SSL ctx of <ssl> to match the advertised server name. Returns a
  * warning when no match is found, which implies the default (first) cert
@@ -691,6 +706,10 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 #ifdef OPENSSL_NPN_NEGOTIATED
 	if (bind_conf->npn_str)
 		SSL_CTX_set_next_protos_advertised_cb(ctx, ssl_sock_advertise_npn_protos, bind_conf);
+#endif
+#ifdef OPENSSL_ALPN_NEGOTIATED
+	if (bind_conf->alpn_str)
+		SSL_CTX_set_alpn_advertised_cb(ctx, ssl_sock_advertise_alpn_protos, bind_conf);
 #endif
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
@@ -2253,6 +2272,28 @@ smp_fetch_ssl_fc_npn(struct proxy *px, struct session *l4, void *l7, unsigned in
 }
 #endif
 
+#ifdef OPENSSL_ALPN_NEGOTIATED
+static int
+smp_fetch_ssl_fc_alpn(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                      const struct arg *args, struct sample *smp)
+{
+	smp->flags = 0;
+	smp->type = SMP_T_CSTR;
+
+	if (!l4 || !l4->si[0].conn->xprt_ctx || l4->si[0].conn->xprt != &ssl_sock)
+		return 0;
+
+	smp->data.str.str = NULL;
+	SSL_get0_alpn_negotiated(l4->si[0].conn->xprt_ctx,
+	                         (const unsigned char **)&smp->data.str.str, (unsigned *)&smp->data.str.len);
+
+	if (!smp->data.str.str)
+		return 0;
+
+	return 1;
+}
+#endif
+
 static int
 smp_fetch_ssl_fc_protocol(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                           const struct arg *args, struct sample *smp)
@@ -2687,6 +2728,54 @@ static int bind_parse_npn(char **args, int cur_arg, struct proxy *px, struct bin
 #endif
 }
 
+/* parse the "alpn" bind keyword */
+static int bind_parse_alpn(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+#ifdef OPENSSL_ALPN_NEGOTIATED
+	char *p1, *p2;
+
+	if (!*args[cur_arg + 1]) {
+		memprintf(err, "'%s' : missing the comma-delimited ALPN protocol suite", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	free(conf->alpn_str);
+
+	/* the ALPN string is built as a suite of (<len> <name>)* */
+	conf->alpn_len = strlen(args[cur_arg + 1]) + 1;
+	conf->alpn_str = calloc(1, conf->alpn_len);
+	memcpy(conf->alpn_str + 1, args[cur_arg + 1], conf->alpn_len);
+
+	/* replace commas with the name length */
+	p1 = conf->alpn_str;
+	p2 = p1 + 1;
+	while (1) {
+		p2 = memchr(p1 + 1, ',', conf->alpn_str + conf->alpn_len - (p1 + 1));
+		if (!p2)
+			p2 = p1 + 1 + strlen(p1 + 1);
+
+		if (p2 - (p1 + 1) > 255) {
+			*p2 = '\0';
+			memprintf(err, "'%s' : ALPN protocol name too long : '%s'", args[cur_arg], p1 + 1);
+			return ERR_ALERT | ERR_FATAL;
+		}
+
+		*p1 = p2 - (p1 + 1);
+		p1 = p2;
+
+		if (!*p2)
+			break;
+
+		*(p2++) = '\0';
+	}
+	return 0;
+#else
+	if (err)
+		memprintf(err, "'%s' : library does not support TLS ALPN extension", args[cur_arg]);
+	return ERR_ALERT | ERR_FATAL;
+#endif
+}
+
 /* parse the "ssl" bind keyword */
 static int bind_parse_ssl(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -2956,6 +3045,9 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
 #ifdef OPENSSL_NPN_NEGOTIATED
 	{ "ssl_fc_npn",             smp_fetch_ssl_fc_npn,         0,                   NULL,    SMP_T_CSTR, SMP_USE_L5CLI },
 #endif
+#ifdef OPENSSL_ALPN_NEGOTIATED
+	{ "ssl_fc_alpn",            smp_fetch_ssl_fc_alpn,        0,                   NULL,    SMP_T_CSTR, SMP_USE_L5CLI },
+#endif
 	{ "ssl_fc_protocol",        smp_fetch_ssl_fc_protocol,    0,                   NULL,    SMP_T_CSTR, SMP_USE_L5CLI },
 	{ "ssl_fc_use_keysize",     smp_fetch_ssl_fc_use_keysize, 0,                   NULL,    SMP_T_UINT, SMP_USE_L5CLI },
 	{ "ssl_fc_session_id",      smp_fetch_ssl_fc_session_id,  0,                   NULL,    SMP_T_CBIN, SMP_USE_L5CLI },
@@ -2996,6 +3088,9 @@ static struct acl_kw_list acl_kws = {{ },{
 #ifdef OPENSSL_NPN_NEGOTIATED
 	{ "ssl_fc_npn",             NULL,         acl_parse_str,     acl_match_str     },
 #endif
+#ifdef OPENSSL_ALPN_NEGOTIATED
+	{ "ssl_fc_alpn",            NULL,         acl_parse_str,     acl_match_str     },
+#endif
 	{ "ssl_fc_protocol",        NULL,         acl_parse_str,     acl_match_str     },
 	{ "ssl_fc_use_keysize",     NULL,         acl_parse_int,     acl_match_int     },
 	{ "ssl_fc_sni",             "ssl_fc_sni", acl_parse_str,     acl_match_str     },
@@ -3012,6 +3107,7 @@ static struct acl_kw_list acl_kws = {{ },{
  * not enabled.
  */
 static struct bind_kw_list bind_kws = { "SSL", { }, {
+	{ "alpn",                  bind_parse_alpn,           1 }, /* set ALPN supported protocols */
 	{ "ca-file",               bind_parse_ca_file,        1 }, /* set CAfile to process verify on client cert */
 	{ "ca-ignore-err",         bind_parse_ignore_err,     1 }, /* set error IDs to ignore on verify depth > 0 */
 	{ "ciphers",               bind_parse_ciphers,        1 }, /* set SSL cipher suite */
