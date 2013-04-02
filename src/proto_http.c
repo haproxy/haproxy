@@ -5936,7 +5936,10 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 				channel_forward(res, msg->next);
 				msg->next = 0;
 			}
-			/* we're in HTTP_MSG_DONE now, fall through */
+			/* we're in HTTP_MSG_DONE now, but we might still have
+			 * some data pending, so let's loop over once.
+			 */
+			break;
 
 		default:
 			/* other states, DONE...TUNNEL */
