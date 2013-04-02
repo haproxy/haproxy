@@ -8673,7 +8673,7 @@ smp_fetch_hdr(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 		/* first call */
 		ctx = &static_hdr_ctx;
 		ctx->idx = 0;
-		smp->ctx.a[2] = ctx;
+		smp->ctx.a[0] = ctx;
 	}
 
 	if (args) {
