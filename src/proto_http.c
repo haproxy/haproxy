@@ -9471,35 +9471,6 @@ static int val_hdr(struct arg *arg, char **err_msg)
 	return 1;
 }
 
-/* This function is used to validate the arguments passed to any "http_auth" fetch
- * keyword. These keywords support a mandatory userlist name which must be replaced
- * by a pointer to the userlist. It is assumed that the types are already the correct
- * ones. Returns 0 on error, non-zero if OK. If <err> is not NULL, it will be filled
- * with a pointer to an error message in case of error, that the caller is responsible
- * for freeing. The initial location must either be freeable or NULL.
- */
-static int val_usr(struct arg *arg, char **err_msg)
-{
-	struct userlist *ul;
-
-	if (!arg || arg[0].type != ARGT_USR || !arg[0].data.str.len) {
-		memprintf(err_msg, "the name of a userlist is expected");
-		return 0;
-	}
-
-	ul = auth_find_userlist(arg[0].data.str.str);
-	if (!ul) {
-		memprintf(err_msg, "unable to find userlist <%s>", arg[0].data.str.str);
-		return 0;
-	}
-
-	free(arg[0].data.str.str);
-	arg[0].data.str.str = NULL;
-	arg[0].unresolved = 0;
-	arg[0].data.usr = ul;
-	return 1;
-}
-
 /************************************************************************/
 /*          All supported ACL keywords must be declared here.           */
 /************************************************************************/
@@ -9637,8 +9608,8 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
 	{ "hdr_ip",          smp_fetch_hdr_ip,         ARG2(0,STR,SINT), val_hdr, SMP_T_IPV4, SMP_USE_HRQHV },
 	{ "hdr_val",         smp_fetch_hdr_val,        ARG2(0,STR,SINT), val_hdr, SMP_T_UINT, SMP_USE_HRQHV },
 
-	{ "http_auth",       smp_fetch_http_auth,      ARG1(1,USR),      val_usr, SMP_T_BOOL, SMP_USE_HRQHV },
-	{ "http_auth_group", smp_fetch_http_auth_grp,  ARG1(1,USR),      val_usr, SMP_T_BOOL, SMP_USE_HRQHV },
+	{ "http_auth",       smp_fetch_http_auth,      ARG1(1,USR),      NULL,    SMP_T_BOOL, SMP_USE_HRQHV },
+	{ "http_auth_group", smp_fetch_http_auth_grp,  ARG1(1,USR),      NULL,    SMP_T_BOOL, SMP_USE_HRQHV },
 	{ "http_first_req",  smp_fetch_http_first_req, 0,                NULL,    SMP_T_BOOL, SMP_USE_HRQHP },
 	{ "method",          smp_fetch_meth,           0,                NULL,    SMP_T_UINT, SMP_USE_HRQHP },
 	{ "path",            smp_fetch_path,           0,                NULL,    SMP_T_CSTR, SMP_USE_HRQHV },
