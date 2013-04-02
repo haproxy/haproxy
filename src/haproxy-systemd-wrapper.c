@@ -19,12 +19,11 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
-static pid_t pid = 0;
 static char *pid_file = "/run/haproxy.pid";
 static int main_argc;
 static char **main_argv;
 
-static pid_t spawn_haproxy(char **pid_strv, int nb_pid)
+static void spawn_haproxy(char **pid_strv, int nb_pid)
 {
 	pid_t pid = fork();
 	if (!pid) {
@@ -45,7 +44,6 @@ static pid_t spawn_haproxy(char **pid_strv, int nb_pid)
 		execv(argv[0], argv);
 		exit(0);
 	}
-	return pid;
 }
 
 static int read_pids(char ***pid_strv)
@@ -77,7 +75,7 @@ static void signal_handler(int signum __attribute__((unused)))
 	char **pid_strv = NULL;
 	int nb_pid = read_pids(&pid_strv);
 
-	pid = spawn_haproxy(pid_strv, nb_pid);
+	spawn_haproxy(pid_strv, nb_pid);
 
 	for (i = 0; i < nb_pid; ++i)
 		free(pid_strv[i]);
@@ -107,8 +105,8 @@ int main(int argc, char **argv)
 
 	signal(SIGUSR2, &signal_handler);
 
-	pid = spawn_haproxy(NULL, 0);
-	while (-1 != waitpid(pid, NULL, 0) || errno == EINTR);
+	spawn_haproxy(NULL, 0);
+	while (-1 != wait(NULL) || errno == EINTR);
 
 	return EXIT_SUCCESS;
 }
