@@ -220,6 +220,9 @@ const char *stat_status_codes[STAT_STATUS_SIZE] = {
  */
 struct chunk http_err_chunks[HTTP_ERR_SIZE];
 
+/* this struct is used between calls to smp_fetch_hdr() or smp_fetch_cookie() */
+static struct hdr_ctx static_hdr_ctx;
+
 #define FD_SETS_ARE_BITFIELDS
 #ifdef FD_SETS_ARE_BITFIELDS
 /*
@@ -8660,11 +8663,18 @@ smp_fetch_hdr(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 {
 	struct http_txn *txn = l7;
 	struct hdr_idx *idx = &txn->hdr_idx;
-	struct hdr_ctx *ctx = (struct hdr_ctx *)smp->ctx.a;
+	struct hdr_ctx *ctx = smp->ctx.a[0];
 	const struct http_msg *msg = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) ? &txn->req : &txn->rsp;
 	int occ = 0;
 	const char *name_str = NULL;
 	int name_len = 0;
+
+	if (!ctx) {
+		/* first call */
+		ctx = &static_hdr_ctx;
+		ctx->idx = 0;
+		smp->ctx.a[2] = ctx;
+	}
 
 	if (args) {
 		if (args[0].type != ARGT_STR)
@@ -9116,7 +9126,7 @@ extract_cookie_value(char *hdr, const char *hdr_end,
 
 /* Iterate over all cookies present in a message. The context is stored in
  * smp->ctx.a[0] for the in-header position, smp->ctx.a[1] for the
- * end-of-header-value, and smp->ctx.a[2] for the hdr_idx. Depending on
+ * end-of-header-value, and smp->ctx.a[2] for the hdr_ctx. Depending on
  * the direction, multiple cookies may be parsed on the same line or not.
  * The cookie name is in args and the name length in args->data.str.len.
  * Accepts exactly 1 argument of type string. If the input options indicate
@@ -9128,7 +9138,7 @@ smp_fetch_cookie(struct proxy *px, struct session *l4, void *l7, unsigned int op
 {
 	struct http_txn *txn = l7;
 	struct hdr_idx *idx = &txn->hdr_idx;
-	struct hdr_ctx *ctx = (struct hdr_ctx *)&smp->ctx.a[2];
+	struct hdr_ctx *ctx = smp->ctx.a[2];
 	const struct http_msg *msg;
 	const char *hdr_name;
 	int hdr_name_len;
@@ -9138,6 +9148,13 @@ smp_fetch_cookie(struct proxy *px, struct session *l4, void *l7, unsigned int op
 
 	if (!args || args->type != ARGT_STR)
 		return 0;
+
+	if (!ctx) {
+		/* first call */
+		ctx = &static_hdr_ctx;
+		ctx->idx = 0;
+		smp->ctx.a[2] = ctx;
+	}
 
 	CHECK_HTTP_MESSAGE_FIRST();
 
