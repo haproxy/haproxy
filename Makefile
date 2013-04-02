@@ -192,7 +192,10 @@ LDFLAGS = $(ARCH_FLAGS) -g
 # Depending on the target platform, some options are set, as well as some
 # CFLAGS and LDFLAGS. The USE_* values are set to "implicit" so that they are
 # not reported in the build options string. You should not have to change
-# anything there.
+# anything there. poll() is always supported, unless explicitly disabled by
+# passing USE_POLL="" on the make command line.
+USE_POLL   = default
+
 ifeq ($(TARGET),generic)
   # generic system target has nothing specific
   USE_POLL   = implicit
