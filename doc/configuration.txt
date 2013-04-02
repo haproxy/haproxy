@@ -7216,10 +7216,10 @@ crt-ignore-err <errors>
 
 crt-list <file>
   This setting is only available when support for OpenSSL was built in. It
-  designates a list of PEM file with an optional list of SNI filter per
-  certificate, with the following format for each line :
+  designates a list of PEM file with an optional SNI filter per certificate,
+  with the following format for each line :
 
-        <crtfile>[ <snifilter>]*
+        <crtfile> [<snifilter>]
 
   Wildcards are supported in the SNI filter. The certificates will be presented
   to clients who provide a valid TLS Server Name Indication field matching one

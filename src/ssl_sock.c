@@ -498,11 +498,11 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 	FILE *f;
 	int linenum = 0;
 	int cfgerr = 0;
-	char *sni_filter = NULL;
-	char *crt_file = NULL;
 
-	if ((f = fopen(file, "r")) == NULL)
+	if ((f = fopen(file, "r")) == NULL) {
+		memprintf(err, "cannot open file '%s' : %s", file, strerror(errno));
 		return 1;
+	}
 
 	while (fgets(thisline, sizeof(thisline), f) != NULL) {
 		int arg;
@@ -516,9 +516,10 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 			/* Check if we reached the limit and the last char is not \n.
 			 * Watch out for the last line without the terminating '\n'!
 			 */
-			Alert("parsing [%s:%d]: line too long, limit: %d.\n",
-			      file, linenum, (int)sizeof(thisline)-1);
+			memprintf(err, "line %d too long in file '%s', limit is %d characters",
+				  linenum, file, (int)sizeof(thisline)-1);
 			cfgerr = 1;
+			break;
 		}
 
 		/* skip leading spaces */
@@ -540,68 +541,29 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 				while (isspace(*line))
 					line++;
 				args[++arg] = line;
-				break;
 			}
 			else {
 				line++;
 			}
 		}
-		while (*line) {
-			if (*line == '#' || *line == '\n' || *line == '\r') {
-				/* end of string, end of loop */
-				*line = 0;
-				break;
-			}
-			else {
-				line++;
-			}
-		}
+
 		/* empty line */
 		if (!**args)
 			continue;
-		if (*line) {
-			/* we had to stop due to too many args.
-			 * Let's terminate the string, print the offending part then cut the
-			 * last arg.
-			 */
-			while (*line && *line != '#' && *line != '\n' && *line != '\r')
-				line++;
-			*line = '\0';
 
-			Alert("parsing [%s:%d]: line too long, truncating at word %d, position %ld: <%s>.\n",
-			      file, linenum, arg + 1, (long)(args[arg] - thisline + 1), args[arg]);
+		if (arg > 2) {
+			memprintf(err, "too many args on line %d in file '%s', only one SNI filter is supported (was '%s')",
+				  linenum, file, args[2]);
 			cfgerr = 1;
-			args[arg] = line;
-		}
-		/* zero out remaining args and ensure that at least one entry
-		 * is zeroed out.
-		 */
-		while (++arg <= MAX_LINE_ARGS) {
-			args[arg] = line;
-		}
-
-		crt_file = strdup(args[0]);
-		if (*args[1])
-			sni_filter = strdup(args[1]);
-		cfgerr = ssl_sock_load_cert_file(crt_file, bind_conf, curproxy, sni_filter, err);
-
-		if (sni_filter) {
-			free(sni_filter);
-			sni_filter = NULL;
-		}
-		if (crt_file) {
-			free(crt_file);
-			crt_file = NULL;
-		}
-
-		if (cfgerr)
 			break;
-	}
-	if (sni_filter)
-		free(sni_filter);
-	if (crt_file)
-		free(crt_file);
+		}
 
+		cfgerr = ssl_sock_load_cert_file(args[0], bind_conf, curproxy, arg > 1 ? args[1] : NULL, err);
+		if (cfgerr) {
+			memprintf(err, "error processing line %d in file '%s' : %s", linenum, file, *err);
+			break;
+		}
+	}
 	fclose(f);
 	return cfgerr;
 }
@@ -2507,8 +2469,10 @@ static int bind_parse_crt_list(char **args, int cur_arg, struct proxy *px, struc
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	if (ssl_sock_load_cert_list_file(args[cur_arg + 1], conf, px, err) > 0)
+	if (ssl_sock_load_cert_list_file(args[cur_arg + 1], conf, px, err) > 0) {
+		memprintf(err, "'%s' : %s", args[cur_arg], *err);
 		return ERR_ALERT | ERR_FATAL;
+	}
 
 	return 0;
 }
