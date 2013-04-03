@@ -1,6 +1,147 @@
 ChangeLog :
 ===========
 
+2013/04/03 : 1.5-dev18
+    - DOCS: Add explanation of intermediate certs to crt paramater
+    - DOC: typo and minor fixes in compression paragraph
+    - MINOR: config: http-request configuration error message misses new keywords
+    - DOC: minor typo fix in documentation
+    - BUG/MEDIUM: ssl: ECDHE ciphers not usable without named curve configured.
+    - MEDIUM: ssl: add bind-option "strict-sni"
+    - MEDIUM: ssl: add mapping from SNI to cert file using "crt-list"
+    - MEDIUM: regex: Use PCRE JIT in acl
+    - DOC: simplify bind option "interface" explanation
+    - DOC: tfo: bump required kernel to linux-3.7
+    - BUILD: add explicit support for TFO with USE_TFO
+    - MEDIUM: New cli option -Ds for systemd compatibility
+    - MEDIUM: add haproxy-systemd-wrapper
+    - MEDIUM: add systemd service
+    - BUG/MEDIUM: systemd-wrapper: don't leak zombie processes
+    - BUG/MEDIUM: remove supplementary groups when changing gid
+    - BUG/MEDIUM: config: fix parser crash with bad bind or server address
+    - BUG/MINOR: Correct logic in cut_crlf()
+    - CLEANUP: checks: Make desc argument to set_server_check_status const
+    - CLEANUP: dumpstats: Make cli_release_handler() static
+    - MEDIUM: server: Break out set weight processing code
+    - MEDIUM: server: Allow relative weights greater than 100%
+    - MEDIUM: server: Tighten up parsing of weight string
+    - MEDIUM: checks: Add agent health check
+    - BUG/MEDIUM: ssl: openssl 0.9.8 doesn't open /dev/random before chroot
+    - BUG/MINOR: time: frequency counters are not totally accurate
+    - BUG/MINOR: http: don't process abortonclose when request was sent
+    - BUG/MEDIUM: stream_interface: don't close outgoing connections on shutw()
+    - BUG/MEDIUM: checks: ignore late resets after valid responses
+    - DOC: fix bogus recommendation on usage of gpc0 counter
+    - BUG/MINOR: http-compression: lookup Cache-Control in the response, not the request
+    - MINOR: signal: don't block SIGPROF by default
+    - OPTIM: epoll: make use of EPOLLRDHUP
+    - OPTIM: splice: detect shutdowns and avoid splice() == 0
+    - OPTIM: splice: assume by default that splice is working correctly
+    - BUG/MINOR: log: temporary fix for lost SSL info in some situations
+    - BUG/MEDIUM: peers: only the last peers section was used by tables
+    - BUG/MEDIUM: config: verbosely reject peers sections with multiple local peers
+    - BUG/MINOR: epoll: use a fix maxevents argument in epoll_wait()
+    - BUG/MINOR: config: fix improper check for failed memory alloc in ACL parser
+    - BUG/MINOR: config: free peer's address when exiting upon parsing error
+    - BUG/MINOR: config: check the proper variable when parsing log minlvl
+    - BUG/MEDIUM: checks: ensure the health_status is always within bounds
+    - BUG/MINOR: cli: show sess should always validate s->listener
+    - BUG/MINOR: log: improper NULL return check on utoa_pad()
+    - CLEANUP: http: remove a useless null check
+    - CLEANUP: tcp/unix: remove useless NULL check in {tcp,unix}_bind_listener()
+    - BUG/MEDIUM: signal: signal handler does not properly check for signal bounds
+    - BUG/MEDIUM: tools: off-by-one in quote_arg()
+    - BUG/MEDIUM: uri_auth: missing NULL check and memory leak on memory shortage
+    - BUG/MINOR: unix: remove the 'level' field from the ux struct
+    - CLEANUP: http: don't try to deinitialize http compression if it fails before init
+    - CLEANUP: config: slowstart is never negative
+    - CLEANUP: config: maxcompcpuusage is never negative
+    - BUG/MEDIUM: log: emit '-' for empty fields again
+    - BUG/MEDIUM: checks: fix a race condition between checks and observe layer7
+    - BUILD: fix a warning emitted by isblank() on non-c99 compilers
+    - BUILD: improve the makefile's support for libpcre
+    - MEDIUM: halog: add support for counting per source address (-ic)
+    - MEDIUM: tools: make str2sa_range support all address syntaxes
+    - MEDIUM: config: make use of str2sa_range() instead of str2sa()
+    - MEDIUM: config: use str2sa_range() to parse server addresses
+    - MEDIUM: config: use str2sa_range() to parse peers addresses
+    - MINOR: tests: add a config file to ease address parsing tests.
+    - MINOR: ssl: add a global tunable for the max SSL/TLS record size
+    - BUG/MINOR: syscall: fix NR_accept4 system call on sparc/linux
+    - BUILD/MINOR: syscall: add definition of NR_accept4 for ARM
+    - MINOR: config: report missing peers section name
+    - BUG/MEDIUM: tools: fix bad character handling in str2sa_range()
+    - BUG/MEDIUM: stats: never apply "unix-bind prefix" to the global stats socket
+    - MINOR: tools: prepare str2sa_range() to return an error message
+    - BUG/MEDIUM: checks: don't call connect() on unsupported address families
+    - MINOR: tools: prepare str2sa_range() to accept a prefix
+    - MEDIUM: tools: make str2sa_range() parse unix addresses too
+    - MEDIUM: config: make str2listener() use str2sa_range() to parse unix addresses
+    - MEDIUM: config: use a single str2sa_range() call to parse bind addresses
+    - MEDIUM: config: use str2sa_range() to parse log addresses
+    - CLEANUP: tools: remove str2sun() which is not used anymore.
+    - MEDIUM: config: add complete support for str2sa_range() in dispatch
+    - MEDIUM: config: add complete support for str2sa_range() in server addr
+    - MEDIUM: config: add complete support for str2sa_range() in 'server'
+    - MEDIUM: config: add complete support for str2sa_range() in 'peer'
+    - MEDIUM: config: add complete support for str2sa_range() in 'source' and 'usesrc'
+    - CLEANUP: minor cleanup in str2sa_range() and str2ip()
+    - CLEANUP: config: do not use multiple errmsg at once
+    - MEDIUM: tools: support specifying explicit address families in str2sa_range()
+    - MAJOR: listener: support inheriting a listening fd from the parent
+    - MAJOR: tools: support environment variables in addresses
+    - BUG/MEDIUM: http: add-header should not emit "-" for empty fields
+    - BUG/MEDIUM: config: ACL compatibility check on "redirect" was wrong
+    - BUG/MEDIUM: http: fix another issue caused by http-send-name-header
+    - DOC: mention the new HTTP 307 and 308 redirect statues
+    - MEDIUM: poll: do not use FD_* macros anymore
+    - BUG/MAJOR: ev_select: disable the select() poller if maxsock > FD_SETSIZE
+    - BUG/MINOR: acl: ssl_fc_{alg,use}_keysize must parse integers, not strings
+    - BUG/MINOR: acl: ssl_c_used, ssl_fc{,_has_crt,_has_sni} take no pattern
+    - BUILD: fix usual isdigit() warning on solaris
+    - BUG/MEDIUM: tools: vsnprintf() is not always reliable on Solaris
+    - OPTIM: buffer: remove one jump in buffer_count()
+    - OPTIM: http: improve branching in chunk size parser
+    - OPTIM: http: optimize the response forward state machine
+    - BUILD: enable poll() by default in the makefile
+    - BUILD: add explicit support for Mac OS/X
+    - BUG/MAJOR: http: use a static storage for sample fetch context
+    - BUG/MEDIUM: ssl: improve error processing and reporting in ssl_sock_load_cert_list_file()
+    - BUG/MAJOR: http: fix regression introduced by commit a890d072
+    - BUG/MAJOR: http: fix regression introduced by commit d655ffe
+    - BUG/CRITICAL: using HTTP information in tcp-request content may crash the process
+    - MEDIUM: acl: remove flag ACL_MAY_LOOKUP which is improperly used
+    - MEDIUM: samples: use new flags to describe compatibility between fetches and their usages
+    - MINOR: log: indicate it when some unreliable sample fetches are logged
+    - MEDIUM: samples: move payload-based fetches and ACLs to their own file
+    - MINOR: backend: rename sample fetch functions and declare the sample keywords
+    - MINOR: frontend: rename sample fetch functions and declare the sample keywords
+    - MINOR: listener: rename sample fetch functions and declare the sample keywords
+    - MEDIUM: http: unify acl and sample fetch functions
+    - MINOR: session: rename sample fetch functions and declare the sample keywords
+    - MAJOR: acl: make all ACLs reference the fetch function via a sample.
+    - MAJOR: acl: remove the arg_mask from the ACL definition and use the sample fetch's
+    - MAJOR: acl: remove fetch argument validation from the ACL struct
+    - MINOR: http: add new direction-explicit sample fetches for headers and cookies
+    - MINOR: payload: add new direction-explicit sample fetches
+    - CLEANUP: acl: remove ACL hooks which were never used
+    - MEDIUM: proxy: remove acl_requires and just keep a flag "http_needed"
+    - MINOR: sample: provide a function to report the name of a sample check point
+    - MAJOR: acl: convert all ACL requires to SMP use+val instead of ->requires
+    - CLEANUP: acl: remove unused references to ACL_USE_*
+    - MINOR: http: replace acl_parse_ver with acl_parse_str
+    - MEDIUM: acl: move the ->parse, ->match and ->smp fields to acl_expr
+    - MAJOR: acl: add option -m to change the pattern matching method
+    - MINOR: acl: remove the use_count in acl keywords
+    - MEDIUM: acl: have a pointer to the keyword name in acl_expr
+    - MEDIUM: acl: support using sample fetches directly in ACLs
+    - MEDIUM: http: remove val_usr() to validate user_lists
+    - MAJOR: sample: maintain a per-proxy list of the fetch args to resolve
+    - MINOR: ssl: add support for the "alpn" bind keyword
+    - MINOR: http: status code 303 is HTTP/1.1 only
+    - MEDIUM: http: implement redirect 307 and 308
+    - MINOR: http: status 301 should not be marked non-cacheable
+
 2012/12/28 : 1.5-dev17
     - MINOR: ssl: Setting global tune.ssl.cachesize value to 0 disables SSL session cache.
     - BUG/MEDIUM: stats: fix stats page regression introduced by commit 20b0de5
