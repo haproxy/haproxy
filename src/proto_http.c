@@ -8130,7 +8130,8 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		rule->action = *args[0] == 'a' ? HTTP_REQ_ACT_ADD_HDR : HTTP_REQ_ACT_SET_HDR;
 		cur_arg = 1;
 
-		if (!*args[cur_arg] || !*args[cur_arg+1] || *args[cur_arg+2]) {
+		if (!*args[cur_arg] || !*args[cur_arg+1] ||
+		    (*args[cur_arg+2] && strcmp(args[cur_arg+2], "if") != 0 && strcmp(args[cur_arg+2], "unless") != 0)) {
 			Alert("parsing [%s:%d]: 'http-request %s' expects exactly 2 arguments.\n",
 			      file, linenum, args[0]);
 			goto out_err;
