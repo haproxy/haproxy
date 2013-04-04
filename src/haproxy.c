@@ -289,6 +289,20 @@ void display_build_opts()
 #else /* USE_OPENSSL */
 	printf("Built without OpenSSL support (USE_OPENSSL not set)\n");
 #endif
+
+#ifdef USE_PCRE
+	printf("Built with PCRE version : %s", pcre_version());
+	printf("\nPCRE library supports JIT : "
+#ifndef USE_PCRE_JIT
+	       "no (USE_PCRE_JIT not set)"
+#else
+	       "yes"
+#endif
+	       "\n");
+#else
+	printf("Built without PCRE support (using libc's regex instead)\n");
+#endif
+
 	putchar('\n');
 
 	list_pollers(stdout);

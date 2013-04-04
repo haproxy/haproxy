@@ -562,6 +562,7 @@ endif
 # JIT PCRE
 ifneq ($(USE_PCRE_JIT),)
 OPTIONS_CFLAGS  += -DUSE_PCRE_JIT
+BUILD_OPTIONS   += $(call ignore_implicit,USE_PCRE_JIT)
 endif
 endif
 
