@@ -14,7 +14,7 @@
 #   USE_MY_SPLICE        : redefine the splice syscall if build fails without.
 #   USE_NETFILTER        : enable netfilter on Linux. Automatic.
 #   USE_PCRE             : enable use of libpcre for regex. Recommended.
-#   USE_PCRE_JIT         : enable use of libpcre jit for regex. Recommended.
+#   USE_PCRE_JIT         : enable JIT for faster regex on libpcre >= 8.32
 #   USE_POLL             : enable poll(). Automatic.
 #   USE_PRIVATE_CACHE    : disable shared memory cache of ssl sessions.
 #   USE_REGPARM          : enable regparm optimization. Recommended on x86.
