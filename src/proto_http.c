@@ -1924,8 +1924,8 @@ void http_change_connection_header(struct http_txn *txn, struct http_msg *msg, i
 }
 
 /* Parse the chunk size at msg->next. Once done, it adjusts ->next to point to the
- * first byte of body, and increments msg->sov by the number of bytes parsed,
- * so that we know we can forward between ->sol and ->sov.
+ * first byte of body, and increments msg->sov by the number of bytes parsed.
+ * so that we know we can forward ->sov bytes.
  * Return >0 on success, 0 when some data is missing, <0 on error.
  * Note: this function is designed to parse wrapped CRLF at the end of the buffer.
  */
@@ -2034,10 +2034,9 @@ static inline int http_parse_chunk_size(struct http_msg *msg)
  * change anything except maybe msg->next and msg->sov. Note that the message
  * must already be in HTTP_MSG_TRAILERS state before calling this function,
  * which implies that all non-trailers data have already been scheduled for
- * forwarding, and that the difference between msg->sol and msg->sov exactly
- * matches the length of trailers already parsed and not forwarded. It is also
- * important to note that this function is designed to be able to parse wrapped
- * headers at end of buffer.
+ * forwarding, and that msg->sov exactly matches the length of trailers already
+ * parsed and not forwarded. It is also important to note that this function is
+ * designed to be able to parse wrapped headers at end of buffer.
  */
 static int http_forward_trailers(struct http_msg *msg)
 {
@@ -2105,7 +2104,7 @@ static int http_forward_trailers(struct http_msg *msg)
 
 /* This function may be called only in HTTP_MSG_CHUNK_CRLF. It reads the CRLF or
  * a possible LF alone at the end of a chunk. It automatically adjusts msg->sov,
- * ->sol, ->next in order to include this part into the next forwarding phase.
+ * and ->next in order to include this part into the next forwarding phase.
  * Note that the caller must ensure that ->p points to the first byte to parse.
  * It also sets msg_state to HTTP_MSG_CHUNK_SIZE and returns >0 on success. If
  * not enough data are available, the function does not change anything and
@@ -2143,8 +2142,7 @@ static inline int http_skip_chunk_crlf(struct http_msg *msg)
 	ptr++;
 	if (unlikely(ptr >= buf->data + buf->size))
 		ptr = buf->data;
-	/* prepare the CRLF to be forwarded (between ->sol and ->sov) */
-	msg->sol = 0;
+	/* prepare the CRLF to be forwarded (->sov) */
 	msg->sov = msg->next = bytes;
 	msg->msg_state = HTTP_MSG_CHUNK_SIZE;
 	return 1;
@@ -2439,7 +2437,7 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 	 *   msg->next          = first non-visited byte
 	 *
 	 * At end of parsing, we may perform a capture of the error (if any), and
-	 * we will set a few fields (msg->sol, txn->meth, sn->flags/SN_REDIRECTABLE).
+	 * we will set a few fields (txn->meth, sn->flags/SN_REDIRECTABLE).
 	 * We also check for monitor-uri, logging, HTTP/0.9 to 1.0 conversion, and
 	 * finally headers capture.
 	 */
@@ -3378,7 +3376,7 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct session *
 		host = "";
 		hostlen = 0;
 		ctx.idx = 0;
-		if (http_find_header2("Host", 4, txn->req.chn->buf->p + txn->req.sol, &txn->hdr_idx, &ctx)) {
+		if (http_find_header2("Host", 4, txn->req.chn->buf->p, &txn->hdr_idx, &ctx)) {
 			host = ctx.line + ctx.val;
 			hostlen = ctx.vlen;
 		}
@@ -4324,9 +4322,9 @@ int http_wait_for_request_body(struct session *s, struct channel *req, int an_bi
 		}
 
 		/* we have msg->sov which points to the first byte of message body.
-		 * req->buf->p still points to the beginning of the message and msg->sol
-		 * is still null. We must save the body in msg->next because it
-		 * survives buffer re-alignments.
+		 * req->buf->p still points to the beginning of the message. We
+		 * must save the body in msg->next because it survives buffer
+		 * re-alignments.
 		 */
 		msg->next = msg->sov;
 
@@ -4450,6 +4448,8 @@ int http_send_name_header(struct http_txn *txn, struct proxy* be, const char* sr
 	if (old_o) {
 		/* The request was already skipped, let's restore it */
 		b_rew(chn->buf, old_o);
+		txn->req.next += old_o;
+		txn->req.sov  += old_o;
 	}
 
 	old_i = chn->buf->i;
@@ -4470,12 +4470,13 @@ int http_send_name_header(struct http_txn *txn, struct proxy* be, const char* sr
 	if (old_o) {
 		/* If this was a forwarded request, we must readjust the amount of
 		 * data to be forwarded in order to take into account the size
-		 * variations. Note that if the request was already scheduled for
-		 * forwarding, it had its req->sol pointing to the body, which
-		 * must then be updated too.
+		 * variations. Note that the current state is >= HTTP_MSG_BODY,
+		 * so we don't have to adjust ->sol.
 		 */
-		txn->req.sol += chn->buf->i - old_i;
-		b_adv(chn->buf, old_o + chn->buf->i - old_i);
+		old_o += chn->buf->i - old_i;
+		b_adv(chn->buf, old_o);
+		txn->req.next -= old_o;
+		txn->req.sov  -= old_o;
 	}
 
 	return 0;
@@ -5044,9 +5045,9 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 
 	if (msg->msg_state < HTTP_MSG_CHUNK_SIZE) {
 		/* we have msg->sov which points to the first byte of message body.
-		 * req->buf->p still points to the beginning of the message and msg->sol
-		 * is still null. We must save the body in msg->next because it
-		 * survives buffer re-alignments.
+		 * req->buf->p still points to the beginning of the message. We
+		 * must save the body in msg->next because it survives buffer
+		 * re-alignments.
 		 */
 		msg->next = msg->sov;
 
@@ -5060,16 +5061,14 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 	channel_auto_close(req);
 
 	while (1) {
-		unsigned int bytes;
-
 		http_silent_debug(__LINE__, s);
-		/* we may have some data pending between sol and sov */
-		bytes = msg->sov - msg->sol;
-		if (msg->chunk_len || bytes) {
-			msg->sol = msg->sov;
-			msg->next -= bytes; /* will be forwarded */
-			msg->chunk_len += bytes;
+
+		/* we may have some pending data starting at req->buf->p */
+		if (msg->chunk_len || msg->sov) {
+			msg->chunk_len += msg->sov;
 			msg->chunk_len -= channel_forward(req, msg->chunk_len);
+			msg->next      -= msg->sov;
+			msg->sov        = 0;
 		}
 
 		if (msg->msg_state == HTTP_MSG_DATA) {
@@ -6160,7 +6159,6 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 {
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &s->txn.rsp;
-	unsigned int bytes;
 	static struct buffer *tmpbuf = NULL;
 	int compressing = 0;
 	int consumed_data = 0;
@@ -6191,8 +6189,8 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 
 	if (msg->msg_state < HTTP_MSG_CHUNK_SIZE) {
 		/* we have msg->sov which points to the first byte of message body.
-		 * rep->buf.p still points to the beginning of the message and msg->sol
-		 * is still null. We forward the headers, we don't need them.
+		 * res->buf.p still points to the beginning of the message. We
+		 * forward the headers, we don't need them.
 		 */
 		channel_forward(res, msg->sov);
 		msg->next = 0;
@@ -6215,14 +6213,14 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 
 	while (1) {
 		http_silent_debug(__LINE__, s);
-		/* we may have some data pending between sol and sov */
+
+		/* we may have some pending data starting at res->buf->p */
 		if (s->comp_algo == NULL) {
-			bytes = msg->sov - msg->sol;
-			if (msg->chunk_len || bytes) {
-				msg->sol = msg->sov;
-				msg->next -= bytes; /* will be forwarded */
-				msg->chunk_len += bytes;
+			if (msg->chunk_len || msg->sov) {
+				msg->chunk_len += msg->sov;
 				msg->chunk_len -= channel_forward(res, msg->chunk_len);
+				msg->next      -= msg->sov;
+				msg->sov        = 0;
 			}
 		}
 
@@ -6268,7 +6266,6 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 				b_adv(res->buf, msg->next);
 				msg->next = 0;
 				msg->sov = 0;
-				msg->sol = 0;
 			}
 			/* we're in MSG_CHUNK_SIZE now, fall through */
 
@@ -6292,7 +6289,6 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 					b_adv(res->buf, msg->next);
 					msg->next = 0;
 					msg->sov = 0;
-					msg->sol = 0;
 				} else {
 					if (consumed_data) {
 						http_compression_buffer_end(s, &res->buf, &tmpbuf, 1);
@@ -6381,14 +6377,13 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	if (!s->req->analysers)
 		goto return_bad_res;
 
-	/* forward any data pending between sol and sov */
+	/* forward any pending data starting at res->buf->p */
 	if (s->comp_algo == NULL) {
-		bytes = msg->sov - msg->sol;
-		if (msg->chunk_len || bytes) {
-			msg->sol = msg->sov;
-			msg->next -= bytes; /* will be forwarded */
-			msg->chunk_len += bytes;
+		if (msg->chunk_len || msg->sov) {
+			msg->chunk_len += msg->sov;
 			msg->chunk_len -= channel_forward(res, msg->chunk_len);
+			msg->next      -= msg->sov;
+			msg->sov        = 0;
 		}
 	}
 
@@ -9622,8 +9617,7 @@ smp_fetch_base(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 	CHECK_HTTP_MESSAGE_FIRST();
 
 	ctx.idx = 0;
-	if (!http_find_header2("Host", 4, txn->req.chn->buf->p + txn->req.sol, &txn->hdr_idx, &ctx) ||
-	    !ctx.vlen)
+	if (!http_find_header2("Host", 4, txn->req.chn->buf->p, &txn->hdr_idx, &ctx) || !ctx.vlen)
 		return smp_fetch_path(px, l4, l7, opt, args, smp, kw);
 
 	/* OK we have the header value in ctx.line+ctx.val for ctx.vlen bytes */
@@ -9633,7 +9627,7 @@ smp_fetch_base(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 	smp->data.str.len = ctx.vlen;
 
 	/* now retrieve the path */
-	end = txn->req.chn->buf->p + txn->req.sol + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
+	end = txn->req.chn->buf->p + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
 	beg = http_get_path(txn);
 	if (!beg)
 		beg = end;
@@ -9670,7 +9664,7 @@ smp_fetch_base32(struct proxy *px, struct session *l4, void *l7, unsigned int op
 	CHECK_HTTP_MESSAGE_FIRST();
 
 	ctx.idx = 0;
-	if (http_find_header2("Host", 4, txn->req.chn->buf->p + txn->req.sol, &txn->hdr_idx, &ctx)) {
+	if (http_find_header2("Host", 4, txn->req.chn->buf->p, &txn->hdr_idx, &ctx)) {
 		/* OK we have the header value in ctx.line+ctx.val for ctx.vlen bytes */
 		ptr = ctx.line + ctx.val;
 		len = ctx.vlen;
@@ -9679,7 +9673,7 @@ smp_fetch_base32(struct proxy *px, struct session *l4, void *l7, unsigned int op
 	}
 
 	/* now retrieve the path */
-	end = txn->req.chn->buf->p + txn->req.sol + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
+	end = txn->req.chn->buf->p + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
 	beg = http_get_path(txn);
 	if (!beg)
 		beg = end;
@@ -10382,7 +10376,7 @@ smp_fetch_url32(struct proxy *px, struct session *l4, void *l7, unsigned int opt
 	CHECK_HTTP_MESSAGE_FIRST();
 
 	ctx.idx = 0;
-	if (http_find_header2("Host", 4, txn->req.chn->buf->p + txn->req.sol, &txn->hdr_idx, &ctx)) {
+	if (http_find_header2("Host", 4, txn->req.chn->buf->p, &txn->hdr_idx, &ctx)) {
 		/* OK we have the header value in ctx.line+ctx.val for ctx.vlen bytes */
 		ptr = ctx.line + ctx.val;
 		len = ctx.vlen;
@@ -10391,7 +10385,7 @@ smp_fetch_url32(struct proxy *px, struct session *l4, void *l7, unsigned int opt
 	}
 
 	/* now retrieve the path */
-	end = txn->req.chn->buf->p + txn->req.sol + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
+	end = txn->req.chn->buf->p + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
 	beg = http_get_path(txn);
 	if (!beg)
 		beg = end;

@@ -324,9 +324,17 @@ enum {
  *                             so that we can rewind the buffer to change some
  *                             headers if needed (eg: http-send-name-header).
  *
- *  - sov                    : When in HTTP_MSG_BODY, will point to the first
- *                             byte of data (relative to buffer's origin).
- *  - sol (start of line)    : start of current line during parsing, or zero.
+ *  - sov (start of value)   : Before HTTP_MSG_BODY, points to the value of
+ *                             the header being parsed. Starting from
+ *                             HTTP_MSG_BODY, will point to the start of the
+ *                             body (relative to buffer's origin), or to data
+ *                             following a chunk size. Thus <sov> bytes of
+ *                             headers will have to be sent only once.
+ *
+ *  - next (parse pointer)   : next relative byte to be parsed. Always points
+ *                             to a byte matching the current state.
+ *
+ *  - sol (start of line)    : start of current line before MSG_BODY, or zero.
  *
  *  - eol (End of Line)      : Before HTTP_MSG_BODY, relative offset in the
  *                             buffer of the first byte which marks the end of
