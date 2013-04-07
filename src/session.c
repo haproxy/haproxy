@@ -2194,21 +2194,22 @@ struct task *process_session(struct task *t)
 			 */
 			if (s->si[1].state != SI_ST_REQ)
 				sess_update_stream_int(s, &s->si[1]);
-			if (s->si[1].state == SI_ST_REQ)
+			if (s->si[1].state == SI_ST_REQ) {
 				sess_prepare_conn_req(s, &s->si[1]);
+
+				/* Now we can add the server name to a header (if requested) */
+				/* check for HTTP mode and proxy server_name_hdr_name != NULL */
+				if ((s->flags & SN_BE_ASSIGNED) &&
+				    (s->be->mode == PR_MODE_HTTP) &&
+				    (s->be->server_id_hdr_name != NULL)) {
+					http_send_name_header(&s->txn, s->be, objt_server(s->target)->id);
+				}
+			}
 
 			srv = objt_server(s->target);
 			if (s->si[1].state == SI_ST_ASS && srv && srv->rdr_len && (s->flags & SN_REDIRECTABLE))
 				http_perform_server_redirect(s, &s->si[1]);
 		} while (s->si[1].state == SI_ST_ASS);
-
-		/* Now we can add the server name to a header (if requested) */
-		/* check for HTTP mode and proxy server_name_hdr_name != NULL */
-		if ((s->flags & SN_BE_ASSIGNED) &&
-		    (s->be->mode == PR_MODE_HTTP) &&
-		    (s->be->server_id_hdr_name != NULL)) {
-			http_send_name_header(&s->txn, s->be, objt_server(s->target)->id);
-		}
 	}
 
 	/* Benchmarks have shown that it's optimal to do a full resync now */
