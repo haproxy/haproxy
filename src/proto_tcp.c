@@ -1429,7 +1429,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 		else
 			memprintf(err,
 			          "'%s' expects 'inspect-delay', 'connection', or 'content' in %s '%s' (got '%s')",
-			          args[0], args[1], proxy_type_str(curpx), curpx->id);
+			          args[0], proxy_type_str(curpx), curpx->id, args[1]);
 		goto error;
 	}
 
