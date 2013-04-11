@@ -600,14 +600,9 @@ switchstate:
 				int totl = 0;
 
 				reql = bo_getblk(si->ob, (char *)&c, sizeof(c), totl);
-				if (reql <= 0) { /* closed or EOL not found */
-					if (reql == 0) {
-						/* nothing to read */
-						goto incomplete;
-					}
-					si->applet.st0 = PEER_SESSION_END;
-					goto switchstate;
-				}
+				if (reql <= 0) /* closed or EOL not found */
+					goto incomplete;
+
 				totl += reql;
 
 				if ((c & 0x80) || (c == 'D')) {
@@ -625,13 +620,9 @@ switchstate:
 					}
 					else {
 						reql = bo_getblk(si->ob, (char *)&netinteger, sizeof(netinteger), totl);
-						if (reql <= 0) { /* closed or EOL not found */
-							if (reql == 0) {
-								goto incomplete;
-							}
-							si->applet.st0 = PEER_SESSION_END;
-							goto switchstate;
-						}
+						if (reql <= 0) /* closed or EOL not found */
+							goto incomplete;
+
 						totl += reql;
 						pushack = ntohl(netinteger);
 					}
@@ -642,24 +633,16 @@ switchstate:
 						stkey.key = stkey.data.buf;
 
 						reql = bo_getblk(si->ob, (char *)&netinteger, sizeof(netinteger), totl);
-						if (reql <= 0) { /* closed or EOL not found */
-							if (reql == 0) {
-								goto incomplete;
-							}
-							si->applet.st0 = PEER_SESSION_END;
-							goto switchstate;
-						}
+						if (reql <= 0) /* closed or EOL not found */
+							goto incomplete;
+
 						totl += reql;
 						stkey.key_len = ntohl(netinteger);
 
 						reql = bo_getblk(si->ob, stkey.key, stkey.key_len, totl);
-						if (reql <= 0) { /* closed or EOL not found */
-							if (reql == 0) {
-								goto incomplete;
-							}
-							si->applet.st0 = PEER_SESSION_END;
-							goto switchstate;
-						}
+						if (reql <= 0) /* closed or EOL not found */
+							goto incomplete;
+
 						totl += reql;
 					}
 					else if (ps->table->table->type == STKTABLE_TYPE_INTEGER) {
@@ -668,13 +651,9 @@ switchstate:
 						stkey.key = &stkey.data.integer;
 
 						reql = bo_getblk(si->ob, (char *)&netinteger, sizeof(netinteger), totl);
-						if (reql <= 0) { /* closed or EOL not found */
-							if (reql == 0) {
-								goto incomplete;
-							}
-							si->applet.st0 = PEER_SESSION_END;
-							goto switchstate;
-						}
+						if (reql <= 0) /* closed or EOL not found */
+							goto incomplete;
+
 						totl += reql;
 						stkey.data.integer = ntohl(netinteger);
 					}
@@ -684,26 +663,17 @@ switchstate:
 						stkey.key = stkey.data.buf;
 
 						reql = bo_getblk(si->ob, (char *)&stkey.data.buf, ps->table->table->key_size, totl);
-						if (reql <= 0) { /* closed or EOL not found */
-							if (reql == 0) {
-								goto incomplete;
-							}
-							si->applet.st0 = PEER_SESSION_END;
-							goto switchstate;
-						}
-						totl += reql;
+						if (reql <= 0) /* closed or EOL not found */
+							goto incomplete;
 
+						totl += reql;
 					}
 
 					/* read server id */
 					reql = bo_getblk(si->ob, (char *)&netinteger, sizeof(netinteger), totl);
-					if (reql <= 0) { /* closed or EOL not found */
-						if (reql == 0) {
-							goto incomplete;
-						}
-						si->applet.st0 = PEER_SESSION_END;
-						goto switchstate;
-					}
+					if (reql <= 0) /* closed or EOL not found */
+						goto incomplete;
+
 					totl += reql;
 					srvid = ntohl(netinteger);
 
@@ -806,13 +776,9 @@ switchstate:
 					uint32_t netinteger;
 
 					reql = bo_getblk(si->ob, (char *)&netinteger, sizeof(netinteger), totl);
-					if (reql <= 0) { /* closed or EOL not found */
-						if (reql == 0) {
-							goto incomplete;
-						}
-						si->applet.st0 = PEER_SESSION_END;
-						goto switchstate;
-					}
+					if (reql <= 0) /* closed or EOL not found */
+						goto incomplete;
+
 					totl += reql;
 
 					/* Consider remote is up to date with "acked" version */
@@ -828,8 +794,16 @@ switchstate:
 				bo_skip(si->ob, totl);
 
 				/* loop on that state to peek next message */
-				continue;
+				goto switchstate;
+
 incomplete:
+				/* we get here when a bo_getblk() returns <= 0 */
+				if (reql < 0) {
+					/* there was an error */
+					si->applet.st0 = PEER_SESSION_END;
+					goto switchstate;
+				}
+
 				/* Nothing to read, now we start to write */
 
 				/* Confirm finished or partial messages */
