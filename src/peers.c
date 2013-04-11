@@ -596,6 +596,7 @@ switchstate:
 			}
 			case PEER_SESSION_WAITMSG: {
 				struct peer_session *ps = (struct peer_session *)si->conn->xprt_ctx;
+				struct stksess *ts, *newts = NULL;
 				char c;
 				int totl = 0;
 
@@ -608,9 +609,6 @@ switchstate:
 				if ((c & 0x80) || (c == 'D')) {
 					/* Here we have data message */
 					unsigned int pushack;
-					struct stksess *ts;
-					struct stksess *newts;
-					struct stktable_key stkey;
 					int srvid;
 					uint32_t netinteger;
 
@@ -627,45 +625,46 @@ switchstate:
 						pushack = ntohl(netinteger);
 					}
 
-					/* read key */
+					/* read key. We try to read it directly
+					 * to the target memory location so that
+					 * we are certain there is always enough
+					 * space. However, if the allocation fails,
+					 * we fall back to trash and we ignore the
+					 * input data not to block the sync of other
+					 * tables (think about a full table with
+					 * "nopurge" for example).
+					 */
 					if (ps->table->table->type == STKTABLE_TYPE_STRING) {
-						/* type string */
-						stkey.key = stkey.data.buf;
-
+						/* read size first */
 						reql = bo_getblk(si->ob, (char *)&netinteger, sizeof(netinteger), totl);
 						if (reql <= 0) /* closed or EOL not found */
 							goto incomplete;
 
 						totl += reql;
-						stkey.key_len = ntohl(netinteger);
-
-						reql = bo_getblk(si->ob, stkey.key, stkey.key_len, totl);
+						newts = stksess_new(ps->table->table, NULL);
+						reql = bo_getblk(si->ob, newts ? (char *)newts->key.key : trash.str, ntohl(netinteger), totl);
 						if (reql <= 0) /* closed or EOL not found */
 							goto incomplete;
+
+						/* always truncate the string to the approprite size */
+						if (newts)
+							newts->key.key[MIN(ntohl(netinteger), ps->table->table->key_size)] = 0;
 
 						totl += reql;
 					}
 					else if (ps->table->table->type == STKTABLE_TYPE_INTEGER) {
-						/* type integer */
-						stkey.key_len = (size_t)-1;
-						stkey.key = &stkey.data.integer;
-
-						reql = bo_getblk(si->ob, (char *)&netinteger, sizeof(netinteger), totl);
+						newts = stksess_new(ps->table->table, NULL);
+						reql = bo_getblk(si->ob, newts ? (char *)newts->key.key : trash.str, sizeof(netinteger), totl);
 						if (reql <= 0) /* closed or EOL not found */
 							goto incomplete;
-
 						totl += reql;
-						stkey.data.integer = ntohl(netinteger);
 					}
 					else {
-						/* type ip */
-						stkey.key_len = (size_t)-1;
-						stkey.key = stkey.data.buf;
-
-						reql = bo_getblk(si->ob, (char *)&stkey.data.buf, ps->table->table->key_size, totl);
+						/* type ip or binary */
+						newts = stksess_new(ps->table->table, NULL);
+						reql = bo_getblk(si->ob, newts ? (char *)newts->key.key : trash.str, ps->table->table->key_size, totl);
 						if (reql <= 0) /* closed or EOL not found */
 							goto incomplete;
-
 						totl += reql;
 					}
 
@@ -678,7 +677,6 @@ switchstate:
 					srvid = ntohl(netinteger);
 
 					/* update entry */
-					newts = stksess_new(ps->table->table, &stkey);
 					if (newts) {
 						/* lookup for existing entry */
 						ts = stktable_lookup(ps->table->table, newts);
@@ -686,12 +684,15 @@ switchstate:
 							 /* the entry already exist, we can free ours */
 							stktable_touch(ps->table->table, ts, 0);
 							stksess_free(ps->table->table, newts);
+							newts = NULL;
 						}
 						else {
 							struct eb32_node *eb;
 
 							/* create new entry */
 							ts = stktable_store(ps->table->table, newts, 0);
+							newts = NULL; /* don't reuse it */
+
 							ts->upd.key= (++ps->table->table->update)+(2^31);
 							eb = eb32_insert(&ps->table->table->updates, &ts->upd);
 							if (eb != &ts->upd) {
@@ -797,7 +798,14 @@ switchstate:
 				goto switchstate;
 
 incomplete:
-				/* we get here when a bo_getblk() returns <= 0 */
+				/* we get here when a bo_getblk() returns <= 0 in reql */
+
+				/* first, we may have to release newts */
+				if (newts) {
+					stksess_free(ps->table->table, newts);
+					newts = NULL;
+				}
+
 				if (reql < 0) {
 					/* there was an error */
 					si->applet.st0 = PEER_SESSION_END;
