@@ -152,7 +152,8 @@ static int stktable_trash_oldest(struct stktable *t, int to_batch)
  * Allocate and initialise a new sticky session.
  * The new sticky session is returned or NULL in case of lack of memory.
  * Sticky sessions should only be allocated this way, and must be freed using
- * stksess_free(). Increase table <t> sticky session counter.
+ * stksess_free(). Table <t>'s sticky session counter is increased. If <key>
+ * is not NULL, it is assigned to the new session.
  */
 struct stksess *stksess_new(struct stktable *t, struct stktable_key *key)
 {
@@ -170,7 +171,8 @@ struct stksess *stksess_new(struct stktable *t, struct stktable_key *key)
 	if (ts) {
 		t->current++;
 		stksess_init(t, ts);
-		stksess_setkey(t, ts, key);
+		if (key)
+			stksess_setkey(t, ts, key);
 	}
 
 	return ts;
