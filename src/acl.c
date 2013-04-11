@@ -544,6 +544,10 @@ int acl_parse_reg(const char **text, struct acl_pattern *pattern, int *opaque, c
 {
 	regex *preg;
 	int icase;
+#ifdef USE_PCRE_JIT
+	const char *error;
+	int erroffset;
+#endif
 
 	preg = calloc(1, sizeof(*preg));
 
@@ -554,19 +558,19 @@ int acl_parse_reg(const char **text, struct acl_pattern *pattern, int *opaque, c
 
 #ifdef USE_PCRE_JIT
 	icase = (pattern->flags & ACL_PAT_F_IGNORE_CASE) ? PCRE_CASELESS : 0;
-	preg->reg = pcre_compile(*text, PCRE_NO_AUTO_CAPTURE | icase, NULL, NULL,
+	preg->reg = pcre_compile(*text, PCRE_NO_AUTO_CAPTURE | icase, &error, &erroffset,
 		NULL);
 	if (!preg->reg) {
 		free(preg);
-		memprintf(err, "regex '%s' is invalid", *text);
+		memprintf(err, "regex '%s' is invalid (error=%s, erroffset=%d)", *text, error, erroffset);
 		return 0;
 	}
 
-	preg->extra = pcre_study(preg->reg, PCRE_STUDY_JIT_COMPILE, NULL);
+	preg->extra = pcre_study(preg->reg, PCRE_STUDY_JIT_COMPILE, &error);
 	if (!preg->extra) {
 		pcre_free(preg->reg);
 		free(preg);
-		memprintf(err, "failed to compile regex '%s'", *text);
+		memprintf(err, "failed to compile regex '%s' (error=%s)", *text, error);
 		return 0;
 	}
 #else
