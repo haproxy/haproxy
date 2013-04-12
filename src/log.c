@@ -161,6 +161,17 @@ struct logformat_var_args var_args_list[] = {
 	{  0,  0 }
 };
 
+/* return the name of the directive used in the current proxy for which we're
+ * currently parsing a header, when it is known.
+ */
+static inline const char *fmt_directive(const struct proxy *curproxy)
+{
+	if (curproxy->conf.args.ctx == ARGC_UIF)
+		return "unique-id-format";
+	else
+		return "log-format";
+}
+
 /*
  * callback used to configure addr source retrieval
  */
@@ -257,11 +268,14 @@ int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct p
 					LIST_ADDQ(list_format, &node->list);
 				}
 				if (logformat_keywords[j].replace_by)
-					Warning("Warning: deprecated variable '%s' in log-format, please replace it with '%s'\n",
-					        logformat_keywords[j].name, logformat_keywords[j].replace_by);
+					Warning("parsing [%s:%d] : deprecated variable '%s' in '%s', please replace it with '%s'\n",
+					        curproxy->conf.args.file, curproxy->conf.args.line,
+					        logformat_keywords[j].name, fmt_directive(curproxy), logformat_keywords[j].replace_by);
 				return 0;
 			} else {
-				Warning("Warning: log-format variable name '%s' is not suited to HTTP mode\n", logformat_keywords[j].name);
+				Warning("parsing [%s:%d] : '%s' variable name '%s' is reserved for HTTP mode\n",
+				        curproxy->conf.args.file, curproxy->conf.args.line, fmt_directive(curproxy),
+				        logformat_keywords[j].name);
 				return -1;
 			}
 		}
@@ -269,7 +283,8 @@ int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct p
 
 	j = var[var_len];
 	var[var_len] = 0;
-	Warning("Warning: no such variable name '%s' in log-format\n", var);
+	Warning("parsing [%s:%d] : no such variable name '%s' in '%s'\n",
+	        curproxy->conf.args.file, curproxy->conf.args.line, var, fmt_directive(curproxy));
 	var[var_len] = j;
 	return -1;
 }
@@ -322,7 +337,9 @@ void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct pro
 
 	expr = sample_parse_expr(cmd, &cmd_arg, trash.str, trash.size, &curpx->conf.args);
 	if (!expr) {
-		Warning("log-format: sample fetch <%s> failed with : %s\n", text, trash.str);
+		Warning("parsing [%s:%d] : '%s' : sample fetch <%s> failed with : %s\n",
+		        curpx->conf.args.file, curpx->conf.args.line, fmt_directive(curpx),
+		        text, trash.str);
 		return;
 	}
 
@@ -342,8 +359,9 @@ void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct pro
 		node->options |= LOG_OPT_RES_CAP; /* fetch method is response-compatible */
 
 	if (!(expr->fetch->val & cap))
-		Warning("log-format: sample fetch <%s> may not be reliably used %s because it needs '%s' which is not available here.\n",
-			text, cap == SMP_VAL_FE_LOG_END ? "with 'log-format'" : "here", sample_src_names(expr->fetch->use));
+		Warning("parsing [%s:%d] : '%s' : sample fetch <%s> may not be reliably used here because it needs '%s' which is not available here.\n",
+		        curpx->conf.args.file, curpx->conf.args.line, fmt_directive(curpx),
+			text, sample_src_names(expr->fetch->use));
 
 	/* check if we need to allocate an hdr_idx struct for HTTP parsing */
 	/* Note, we may also need to set curpx->to_log with certain fetches */
@@ -441,7 +459,8 @@ void parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list
 				var = str;
 				break;
 			}
-			Warning("Skipping isolated argument in log-format line : '%%{%s}'\n", arg);
+			Warning("parsing [%s:%d] : Skipping isolated argument in '%s' line : '%%{%s}'\n",
+			        curproxy->conf.args.file, curproxy->conf.args.line, fmt_directive(curproxy), arg);
 			cformat = LF_INIT;
 			break;
 
@@ -490,7 +509,9 @@ void parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list
 	}
 
 	if (pformat == LF_STARTVAR || pformat == LF_STARG || pformat == LF_STEXPR)
-		Warning("Ignoring end of truncated log-format line after '%s'\n", var ? var : arg ? arg : "%");
+		Warning("parsing [%s:%d] : Ignoring end of truncated '%s' line after '%s'\n",
+		        curproxy->conf.args.file, curproxy->conf.args.line, fmt_directive(curproxy),
+		        var ? var : arg ? arg : "%");
 
 	free(backfmt);
 }
