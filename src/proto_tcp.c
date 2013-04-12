@@ -1124,7 +1124,7 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 		if (!(expr->fetch->val & where)) {
 			memprintf(err,
 			          "'%s %s %s' : fetch method '%s' extracts information from '%s', none of which is available here",
-			          args[0], args[1], args[kw], args[arg], sample_src_names(expr->fetch->use));
+			          args[0], args[1], args[kw], args[arg-1], sample_src_names(expr->fetch->use));
 			free(expr);
 			return -1;
 		}
