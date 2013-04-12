@@ -332,6 +332,13 @@ struct server *chash_get_next_server(struct proxy *p, struct server *srvtoavoid)
 			/* no node is available */
 			return NULL;
 
+		/* Note: if we came here after a down/up cycle with no last
+		 * pointer, and after a redispatch (srvtoavoid is set), we
+		 * must set stop to non-null otherwise we can loop forever.
+		 */
+		if (!stop)
+			stop = node;
+
 		/* OK, we have a server. However, it may be saturated, in which
 		 * case we don't want to reconsider it for now, so we'll simply
 		 * skip it. Same if it's the server we try to avoid, in which
