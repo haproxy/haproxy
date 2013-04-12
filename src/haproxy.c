@@ -932,12 +932,14 @@ void deinit(void)
 		free(p->capture_name);
 		free(p->monitor_uri);
 		free(p->rdp_cookie_name);
-		if (p->logformat_string != default_http_log_format &&
-		    p->logformat_string != default_tcp_log_format &&
-		    p->logformat_string != clf_http_log_format)
-			free(p->logformat_string);
+		if (p->conf.logformat_string != default_http_log_format &&
+		    p->conf.logformat_string != default_tcp_log_format &&
+		    p->conf.logformat_string != clf_http_log_format)
+			free(p->conf.logformat_string);
 
-		free(p->uniqueid_format_string);
+		free(p->conf.lfs_file);
+		free(p->conf.uniqueid_format_string);
+		free(p->conf.uif_file);
 
 		for (i = 0; i < HTTP_ERR_SIZE; i++)
 			chunk_destroy(&p->errmsg[i]);

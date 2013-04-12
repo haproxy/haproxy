@@ -409,10 +409,12 @@ int proxy_cfg_ensure_no_http(struct proxy *curproxy)
 		Warning("config : 'option httplog' not usable with %s '%s' (needs 'mode http'). Falling back to 'option tcplog'.\n",
 			proxy_type_str(curproxy), curproxy->id);
 	}
-	if (curproxy->logformat_string == default_http_log_format ||
-	    curproxy->logformat_string == clf_http_log_format) {
-		curproxy->logformat_string = default_tcp_log_format;
-		Warning("config : 'option httplog' not usable with %s '%s' (needs 'mode http'). Falling back to 'option tcplog'.\n",
+	if (curproxy->conf.logformat_string == default_http_log_format ||
+	    curproxy->conf.logformat_string == clf_http_log_format) {
+		/* Note: we don't change the directive's file:line number */
+		curproxy->conf.logformat_string = default_tcp_log_format;
+		Warning("parsing [%s:%d] : 'option httplog' not usable with %s '%s' (needs 'mode http'). Falling back to 'option tcplog'.\n",
+			curproxy->conf.lfs_file, curproxy->conf.lfs_line,
 			proxy_type_str(curproxy), curproxy->id);
 	}
 

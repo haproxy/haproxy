@@ -340,8 +340,6 @@ struct proxy {
 	int no_options;				/* PR_O_REDISP, PR_O_TRANSP, ... */
 	int no_options2;			/* PR_O2_* */
 
-	char *logformat_string;			/* log format string */
-	char *uniqueid_format_string;		/* unique-id format string */
 	struct {
 		char *file;			/* file where the section appears */
 		int line;			/* line where the section appears */
@@ -351,6 +349,12 @@ struct proxy {
 		struct list bind;		/* list of bind settings */
 		struct list listeners;		/* list of listeners belonging to this frontend */
 		struct arg_list args;           /* sample arg list that need to be resolved */
+		char *logformat_string;		/* log format string */
+		char *lfs_file;                 /* file name where the logformat string appears (strdup) */
+		int   lfs_line;                 /* file name where the logformat string appears */
+		char *uniqueid_format_string;	/* unique-id format string */
+		char *uif_file;                 /* file name where the unique-id-format string appears (strdup) */
+		int   uif_line;                 /* file name where the unique-id-format string appears */
 	} conf;					/* config information */
 	void *parent;				/* parent of the proxy when applicable */
 	struct comp *comp;			/* http compression */
