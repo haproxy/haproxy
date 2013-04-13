@@ -3946,17 +3946,19 @@ static void cli_release_handler(struct stream_interface *si)
 	}
 }
 
-/* This function dumps all tables' states onto the stream interface's
- * read buffer. The xprt_ctx must have been zeroed first, and the flags
- * properly set. It returns 0 if the output buffer is full and it needs
- * to be called again, otherwise non-zero.
+/* This function is used to either dump tables states (when action is set
+ * to STAT_CLI_O_TAB) or clear tables (when action is STAT_CLI_O_CLR).
+ * The xprt_ctx must have been zeroed first, and the flags properly set.
+ * It returns 0 if the output buffer is full and it needs to be called
+ * again, otherwise non-zero.
  */
-static int stats_table_request(struct stream_interface *si, int show)
+static int stats_table_request(struct stream_interface *si, int action)
 {
 	struct session *s = si->conn->xprt_ctx;
 	struct ebmb_node *eb;
 	int dt;
 	int skip_entry;
+	int show = action == STAT_CLI_O_TAB;
 
 	/*
 	 * We have 3 possible states in si->conn->xprt_st :
