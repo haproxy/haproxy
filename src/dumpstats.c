@@ -741,8 +741,8 @@ static void stats_sock_table_key_request(struct stream_interface *si, char **arg
 
 static void stats_sock_table_data_request(struct stream_interface *si, char **args, int action)
 {
-	if (action != STAT_CLI_O_TAB) {
-		si->applet.ctx.cli.msg = "content-based lookup is only supported with the \"show\" action";
+	if (action != STAT_CLI_O_TAB && action != STAT_CLI_O_CLR) {
+		si->applet.ctx.cli.msg = "content-based lookup is only supported with the \"show\" and \"clear\" actions";
 		si->applet.st0 = STAT_CLI_PRINT;
 		return;
 	}
