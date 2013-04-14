@@ -292,13 +292,20 @@ void display_build_opts()
 
 #ifdef USE_PCRE
 	printf("Built with PCRE version : %s", pcre_version());
-	printf("\nPCRE library supports JIT : "
-#ifndef USE_PCRE_JIT
-	       "no (USE_PCRE_JIT not set)"
+	printf("\nPCRE library supports JIT : ");
+#ifdef USE_PCRE_JIT
+	{
+		int r;
+		pcre_config(PCRE_CONFIG_JIT, &r);
+		if (r)
+			printf("yes");
+		else
+			printf("no (libpcre build without JIT?)");
+	}
 #else
-	       "yes"
+	printf("no (USE_PCRE_JIT not set)");
 #endif
-	       "\n");
+	printf("\n");
 #else
 	printf("Built without PCRE support (using libc's regex instead)\n");
 #endif
