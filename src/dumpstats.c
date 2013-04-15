@@ -2695,11 +2695,25 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
  */
 static void stats_dump_html_px_hdr(struct stream_interface *si, struct proxy *px, struct uri_auth *uri)
 {
+	char scope_txt[STAT_SCOPE_TXT_MAXLEN + sizeof STAT_SCOPE_PATTERN];
+
 	if (px->cap & PR_CAP_BE && px->srv && (si->applet.ctx.stats.flags & STAT_ADMIN)) {
 		/* A form to enable/disable this proxy servers */
+
+		/* scope_txt = search pattern + search query, si->applet.ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
+		scope_txt[0] = 0;
+		if (si->applet.ctx.stats.scope_len) {
+			strcpy(scope_txt, STAT_SCOPE_PATTERN);
+			memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), bo_ptr(si->ob->buf) + si->applet.ctx.stats.scope_str, si->applet.ctx.stats.scope_len);
+			scope_txt[strlen(STAT_SCOPE_PATTERN) + si->applet.ctx.stats.scope_len] = 0;
+		}
+
 		chunk_appendf(&trash,
-			      "<form action=\"%s\" method=\"post\">",
-			      uri->uri_prefix);
+			      "<form action=\"%s%s%s%s\" method=\"post\">",
+			      uri->uri_prefix,
+			      (si->applet.ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
+			      (si->applet.ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+			      scope_txt);
 	}
 
 	/* print a new table */
@@ -2768,19 +2782,19 @@ static void stats_dump_html_px_end(struct stream_interface *si, struct proxy *px
 	if ((px->cap & PR_CAP_BE) && px->srv && (si->applet.ctx.stats.flags & STAT_ADMIN)) {
 		/* close the form used to enable/disable this proxy servers */
 		chunk_appendf(&trash,
-		              "Choose the action to perform on the checked servers : "
-		              "<select name=action>"
-		              "<option value=\"\"></option>"
-		              "<option value=\"disable\">Disable</option>"
-		              "<option value=\"enable\">Enable</option>"
-		              "<option value=\"stop\">Soft Stop</option>"
-		              "<option value=\"start\">Soft Start</option>"
-		              "<option value=\"shutdown\">Kill Sessions</option>"
-		              "</select>"
-		              "<input type=\"hidden\" name=\"b\" value=\"#%d\">"
-		              "&nbsp;<input type=\"submit\" value=\"Apply\">"
-		              "</form>",
-		              px->uuid);
+			      "Choose the action to perform on the checked servers : "
+			      "<select name=action>"
+			      "<option value=\"\"></option>"
+			      "<option value=\"disable\">Disable</option>"
+			      "<option value=\"enable\">Enable</option>"
+			      "<option value=\"stop\">Soft Stop</option>"
+			      "<option value=\"start\">Soft Start</option>"
+			      "<option value=\"shutdown\">Kill Sessions</option>"
+			      "</select>"
+			      "<input type=\"hidden\" name=\"b\" value=\"#%d\">"
+			      "&nbsp;<input type=\"submit\" value=\"Apply\">"
+			      "</form>",
+			      px->uuid);
 	}
 
 	chunk_appendf(&trash, "<p>\n");
@@ -2828,6 +2842,13 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 			if (scope == NULL)
 				return 1;
 		}
+
+		/* if the user has requested a limited output and the proxy
+		 * name does not match, skip it.
+		 */
+		if (si->applet.ctx.stats.scope_len &&
+		    strnistr(px->id, strlen(px->id), bo_ptr(si->ob->buf) + si->applet.ctx.stats.scope_str, si->applet.ctx.stats.scope_len) == NULL)
+			return 1;
 
 		if ((si->applet.ctx.stats.flags & STAT_BOUND) &&
 		    (si->applet.ctx.stats.iid != -1) &&
@@ -3092,6 +3113,7 @@ static void stats_dump_html_head(struct uri_auth *uri)
 static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *uri)
 {
 	unsigned int up = (now.tv_sec - start_date.tv_sec);
+	char scope_txt[STAT_SCOPE_TXT_MAXLEN + sizeof STAT_SCOPE_PATTERN];
 
 	/* WARNING! this has to fit the first packet too.
 	 * We are around 3.5 kB, add adding entries will
@@ -3147,44 +3169,70 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 	              run_queue_cur, nb_tasks_cur, idle_pct
 	              );
 
+	/* scope_txt = search query, si->applet.ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
+	memcpy(scope_txt, bo_ptr(si->ob->buf) + si->applet.ctx.stats.scope_str, si->applet.ctx.stats.scope_len);
+	scope_txt[si->applet.ctx.stats.scope_len] = '\0';
+
+	chunk_appendf(&trash,
+		      "<li><form method=GET ACTION='%s%s%s'>Scope : <input value='%s' name='" STAT_SCOPE_INPUT_NAME "' autofocus size=8 maxlength='%d'/></form>\n",
+		      uri->uri_prefix,
+		      (si->applet.ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
+		      (si->applet.ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+		      (si->applet.ctx.stats.scope_len > 0) ? scope_txt : "",
+		      STAT_SCOPE_TXT_MAXLEN);
+
+	/* scope_txt = search pattern + search query, si->applet.ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
+	scope_txt[0] = 0;
+	if (si->applet.ctx.stats.scope_len) {
+		strcpy(scope_txt, STAT_SCOPE_PATTERN);
+		memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), bo_ptr(si->ob->buf) + si->applet.ctx.stats.scope_str, si->applet.ctx.stats.scope_len);
+		scope_txt[strlen(STAT_SCOPE_PATTERN) + si->applet.ctx.stats.scope_len] = 0;
+	}
+
 	if (si->applet.ctx.stats.flags & STAT_HIDE_DOWN)
 		chunk_appendf(&trash,
-		              "<li><a href=\"%s%s%s\">Show all servers</a><br>\n",
+		              "<li><a href=\"%s%s%s%s\">Show all servers</a><br>\n",
 		              uri->uri_prefix,
 		              "",
-		              (si->applet.ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "");
+		              (si->applet.ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+			      scope_txt);
 	else
 		chunk_appendf(&trash,
-		              "<li><a href=\"%s%s%s\">Hide 'DOWN' servers</a><br>\n",
+		              "<li><a href=\"%s%s%s%s\">Hide 'DOWN' servers</a><br>\n",
 		              uri->uri_prefix,
 		              ";up",
-		              (si->applet.ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "");
+		              (si->applet.ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+			      scope_txt);
 
 	if (uri->refresh > 0) {
 		if (si->applet.ctx.stats.flags & STAT_NO_REFRESH)
 			chunk_appendf(&trash,
-			              "<li><a href=\"%s%s%s\">Enable refresh</a><br>\n",
+			              "<li><a href=\"%s%s%s%s\">Enable refresh</a><br>\n",
 			              uri->uri_prefix,
 			              (si->applet.ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
-			              "");
+			              "",
+				      scope_txt);
 		else
 			chunk_appendf(&trash,
-			              "<li><a href=\"%s%s%s\">Disable refresh</a><br>\n",
+			              "<li><a href=\"%s%s%s%s\">Disable refresh</a><br>\n",
 			              uri->uri_prefix,
 			              (si->applet.ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
-			              ";norefresh");
+			              ";norefresh",
+				      scope_txt);
 	}
 
 	chunk_appendf(&trash,
-	              "<li><a href=\"%s%s%s\">Refresh now</a><br>\n",
+	              "<li><a href=\"%s%s%s%s\">Refresh now</a><br>\n",
 	              uri->uri_prefix,
 	              (si->applet.ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
-	              (si->applet.ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "");
+	              (si->applet.ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+		      scope_txt);
 
 	chunk_appendf(&trash,
-	              "<li><a href=\"%s;csv%s\">CSV export</a><br>\n",
+	              "<li><a href=\"%s;csv%s%s\">CSV export</a><br>\n",
 	              uri->uri_prefix,
-	              (uri->refresh > 0) ? ";norefresh" : "");
+	              (uri->refresh > 0) ? ";norefresh" : "",
+		      scope_txt);
 
 	chunk_appendf(&trash,
 	              "</ul></td>"

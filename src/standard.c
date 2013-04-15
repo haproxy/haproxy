@@ -2081,6 +2081,55 @@ char *env_expand(char *in)
 	return out;
 }
 
+
+/* same as strstr() but case-insensitive and with limit length */
+const char *strnistr(const char *str1, int len_str1, const char *str2, int len_str2)
+{
+	char *pptr, *sptr, *start;
+	uint slen, plen;
+	uint tmp1, tmp2;
+
+	if (str1 == NULL || len_str1 == 0) // search pattern into an empty string => search is not found
+		return NULL;
+
+	if (str2 == NULL || len_str2 == 0) // pattern is empty => every str1 match
+		return str1;
+
+	if (len_str1 < len_str2) // pattern is longer than string => search is not found
+		return NULL;
+
+	for (tmp1 = 0, start = (char *)str1, pptr = (char *)str2, slen = len_str1, plen = len_str2; slen >= plen; start++, slen--) {
+		while (toupper(*start) != toupper(*str2)) {
+			start++;
+			slen--;
+			tmp1++;
+
+			if (tmp1 >= len_str1)
+				return NULL;
+
+			/* if pattern longer than string */
+			if (slen < plen)
+				return NULL;
+		}
+
+		sptr = start;
+		pptr = (char *)str2;
+
+		tmp2 = 0;
+		while (toupper(*sptr) == toupper(*pptr)) {
+			sptr++;
+			pptr++;
+			tmp2++;
+
+			if (*pptr == '\0' || tmp2 == len_str2) /* end of pattern found */
+				return start;
+			if (*sptr == '\0' || tmp2 == len_str1) /* end of string found and the pattern is not fully found */
+				return NULL;
+		}
+	}
+	return NULL;
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8

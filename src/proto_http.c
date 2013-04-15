@@ -2971,6 +2971,8 @@ int http_handle_stats(struct session *s, struct channel *req)
 
 	/* Was the status page requested with a POST ? */
 	if (unlikely(txn->meth == HTTP_METH_POST)) {
+		char scope_txt[STAT_SCOPE_TXT_MAXLEN + sizeof STAT_SCOPE_PATTERN];
+
 		if (si->applet.ctx.stats.flags & STAT_ADMIN) {
 			if (msg->msg_state < HTTP_MSG_100_SENT) {
 				/* If we have HTTP/1.1 and Expect: 100-continue, then we must
@@ -2993,6 +2995,14 @@ int http_handle_stats(struct session *s, struct channel *req)
 		}
 		else
 			si->applet.ctx.stats.st_code = STAT_STATUS_DENY;
+		/* scope_txt = search pattern + search query, si->applet.ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
+		scope_txt[0] = 0;
+		if (si->applet.ctx.stats.scope_len) {
+			strcpy(scope_txt, STAT_SCOPE_PATTERN);
+			memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), bo_ptr(req->buf) + si->applet.ctx.stats.scope_str, si->applet.ctx.stats.scope_len);
+			scope_txt[strlen(STAT_SCOPE_PATTERN) + si->applet.ctx.stats.scope_len] = 0;
+		}
+
 
 		/* We don't want to land on the posted stats page because a refresh will
 		 * repost the data. We don't want this to happen on accident so we redirect
@@ -3003,14 +3013,17 @@ int http_handle_stats(struct session *s, struct channel *req)
 		             "Cache-Control: no-cache\r\n"
 		             "Content-Type: text/plain\r\n"
 		             "Connection: close\r\n"
-		             "Location: %s;st=%s\r\n"
+		             "Location: %s;st=%s%s%s%s\r\n"
 		             "\r\n",
 		             uri->uri_prefix,
 		             ((si->applet.ctx.stats.st_code > STAT_STATUS_INIT) &&
 		              (si->applet.ctx.stats.st_code < STAT_STATUS_SIZE) &&
 		              stat_status_codes[si->applet.ctx.stats.st_code]) ?
 		             stat_status_codes[si->applet.ctx.stats.st_code] :
-		             stat_status_codes[STAT_STATUS_UNKN]);
+		             stat_status_codes[STAT_STATUS_UNKN],
+			     (si->applet.ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
+			     (si->applet.ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+			     scope_txt);
 
 		s->txn.status = 303;
 		s->logs.tv_request = now;
@@ -7827,6 +7840,44 @@ int stats_check_uri(struct stream_interface *si, struct http_txn *txn, struct pr
 		}
 		h++;
 	}
+
+	si->applet.ctx.stats.scope_str = 0;
+	si->applet.ctx.stats.scope_len = 0;
+	h = uri + uri_auth->uri_len;
+	while (h <= uri + msg->sl.rq.u_l - 8) {
+		if (memcmp(h, STAT_SCOPE_INPUT_NAME "=", strlen(STAT_SCOPE_INPUT_NAME) + 1) == 0) {
+			int itx = 0;
+			const char *h2;
+			char scope_txt[STAT_SCOPE_TXT_MAXLEN + 1];
+			const char *err;
+
+			h += strlen(STAT_SCOPE_INPUT_NAME) + 1;
+			h2 = h;
+			si->applet.ctx.stats.scope_str = h2 - msg->chn->buf->p;
+			while (*h != ';' && *h != '\0' && *h != '&' && *h != ' ' && *h != '\n') {
+				itx++;
+				h++;
+			}
+
+			if (itx > STAT_SCOPE_TXT_MAXLEN)
+				itx = STAT_SCOPE_TXT_MAXLEN;
+			si->applet.ctx.stats.scope_len = itx;
+
+			/* scope_txt = search query, si->applet.ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
+			memcpy(scope_txt, h2, itx);
+			scope_txt[itx] = '\0';
+			err = invalid_char(scope_txt);
+			if (err) {
+				/* bad char in search text => clear scope */
+				si->applet.ctx.stats.scope_str = 0;
+				si->applet.ctx.stats.scope_len = 0;
+			}
+			break;
+		}
+		h++;
+	}
+
+
 	return 1;
 }
 

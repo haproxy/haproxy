@@ -745,4 +745,7 @@ char *env_expand(char *in);
  */
 #define fddebug(msg...) do { char *_m = NULL; memprintf(&_m, ##msg); if (_m) write(-1, _m, strlen(_m)); free(_m); } while (0)
 
+/* same as strstr() but case-insensitive */
+const char *strnistr(const char *str1, int len_str1, const char *str2, int len_str2);
+
 #endif /* _COMMON_STANDARD_H */

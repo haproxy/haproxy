@@ -54,6 +54,11 @@
 #define STAT_CLI_O_SET  10  /* set entries in tables */
 #define STAT_CLI_O_STAT 11  /* dump stats */
 
+/* HTML form to limit output scope */
+#define STAT_SCOPE_TXT_MAXLEN 20      /* max len for scope substring */
+#define STAT_SCOPE_INPUT_NAME "scope" /* pattern form scope name <input> in html form */
+#define STAT_SCOPE_PATTERN    "?" STAT_SCOPE_INPUT_NAME "="
+
 extern struct si_applet http_stats_applet;
 
 void stats_io_handler(struct stream_interface *si);

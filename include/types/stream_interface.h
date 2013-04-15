@@ -124,6 +124,8 @@ struct stream_interface {
 				struct proxy *px;
 				struct server *sv;
 				void *l;
+				int scope_str;		/* limit scope to a frontend/backend substring */
+				int scope_len;		/* length of the string above in the buffer */
 				int px_st;		/* STAT_PX_ST* */
 				unsigned int flags;	/* STAT_* */
 				int iid, type, sid;	/* proxy id, type and service id if bounding of stats is enabled */
