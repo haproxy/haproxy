@@ -2109,6 +2109,8 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 
 		if ((sv->state & SRV_MAINTAIN) || (ref->state & SRV_MAINTAIN))
 			chunk_appendf(&trash, "<tr class=\"maintain\">");
+		else if (sv->eweight == 0)
+			chunk_appendf(&trash, "<tr class=\"softstop\">");
 		else
 			chunk_appendf(&trash,
 			              "<tr class=\"%s%d\">",
@@ -3061,6 +3063,7 @@ static void stats_dump_html_head(struct uri_auth *uri)
 	              ".backup5	{background: #90b0e0;}\n"  /* NOLB state shows same as going down */
 	              ".backup6	{background: #e0e0e0;}\n"
 	              ".maintain	{background: #c07820;}\n"
+	              ".softstop	{background: #0067FF;}\n"
 	              ".rls      {letter-spacing: 0.2em; margin-right: 1px;}\n" /* right letter spacing (used for grouping digits) */
 	              "\n"
 	              "a.px:link {color: #ffff40; text-decoration: none;}"
@@ -3147,6 +3150,8 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 	              "<td class=\"active6\"></td><td class=\"noborder\">not checked </td>"
 	              "</tr><tr>\n"
 	              "<td class=\"maintain\"></td><td class=\"noborder\" colspan=\"3\">active or backup DOWN for maintenance (MAINT) &nbsp;</td>"
+	              "</tr><tr>\n"
+	              "<td class=\"softstop\"></td><td class=\"noborder\" colspan=\"3\">active or backup SOFT STOPPED for maintenance &nbsp;</td>"
 	              "</tr></table>\n"
 	              "Note: UP with load-balancing disabled is reported as \"NOLB\"."
 	              "</td>"
