@@ -3174,7 +3174,7 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 	scope_txt[si->applet.ctx.stats.scope_len] = '\0';
 
 	chunk_appendf(&trash,
-		      "<li><form method=GET ACTION='%s%s%s'>Scope : <input value='%s' name='" STAT_SCOPE_INPUT_NAME "' autofocus size=8 maxlength='%d'/></form>\n",
+		      "<li><form method=\"GET\" action=\"%s%s%s\">Scope : <input value=\"%s\" name=\"" STAT_SCOPE_INPUT_NAME "\" size=\"8\" maxlength=\"%d\" tabindex=\"1\"/></form>\n",
 		      uri->uri_prefix,
 		      (si->applet.ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
 		      (si->applet.ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
