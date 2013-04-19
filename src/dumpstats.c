@@ -1779,7 +1779,7 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 
 		chunk_appendf(&trash,
 		              /* sessions rate : current */
-		              "<td><u>%s<div><table class=det>"
+		              "<td><u>%s<div class=tips><table class=det>"
 		              "<tr><th>Current connection rate:</th><td>%s/s</td></tr>"
 		              "<tr><th>Current session rate:</th><td>%s/s</td></tr>"
 		              "",
@@ -1795,7 +1795,7 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 		chunk_appendf(&trash,
 		              "</table></div></u></td>"
 		              /* sessions rate : max */
-		              "<td><u>%s<div><table class=det>"
+		              "<td><u>%s<div class=tips><table class=det>"
 		              "<tr><th>Max connection rate:</th><td>%s/s</td></tr>"
 		              "<tr><th>Max session rate:</th><td>%s/s</td></tr>"
 		              "",
@@ -1817,7 +1817,7 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 		chunk_appendf(&trash,
 		              /* sessions: current, max, limit, total */
 		              "<td>%s</td><td>%s</td><td>%s</td>"
-		              "<td><u>%s<div><table class=det>"
+		              "<td><u>%s<div class=tips><table class=det>"
 		              "<tr><th>Cum. connections:</th><td>%s</td></tr>"
 		              "<tr><th>Cum. sessions:</th><td>%s</td></tr>"
 		              "",
@@ -1863,7 +1863,7 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 
 		chunk_appendf(&trash,
 			      /* bytes:out + compression stats (via hover): comp_in, comp_out, comp_byp */
-		              "<td>%s%s<div>compression: in=%lld out=%lld bypassed=%lld savings=%d%%</div>%s</td>",
+		              "<td>%s%s<div class=tips>compression: in=%lld out=%lld bypassed=%lld savings=%d%%</div>%s</td>",
 		              (px->fe_counters.comp_in || px->fe_counters.comp_byp) ? "<u>":"",
 		              U2H(px->fe_counters.bytes_out),
 		              px->fe_counters.comp_in, px->fe_counters.comp_out, px->fe_counters.comp_byp,
@@ -1983,7 +1983,7 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
 			char str[INET6_ADDRSTRLEN];
 			int port;
 
-			chunk_appendf(&trash, "<div>");
+			chunk_appendf(&trash, "<div class=tips>");
 
 			port = get_host_port(&l->addr);
 			switch (addr_to_str(&l->addr, str, sizeof(str))) {
@@ -2128,7 +2128,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		              px->id, sv->id, sv->id);
 
 		if (flags & ST_SHLGNDS) {
-			chunk_appendf(&trash, "<div>");
+			chunk_appendf(&trash, "<div class=tips>");
 
 			switch (addr_to_str(&sv->addr, str, sizeof(str))) {
 			case AF_INET:
@@ -2177,7 +2177,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		chunk_appendf(&trash,
 		              /* sessions: current, max, limit, total */
 		              "<td>%s</td><td>%s</td><td>%s</td>"
-		              "<td><u>%s<div><table class=det>"
+		              "<td><u>%s<div class=tips><table class=det>"
 		              "<tr><th>Cum. sessions:</th><td>%s</td></tr>"
 		              "",
 		              U2H(sv->cur_sess), U2H(sv->counters.cur_sess_max), LIM2A(sv->maxconn, "-"),
@@ -2222,7 +2222,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		              /* errors : request, connect */
 		              "<td></td><td>%s</td>"
 		              /* errors : response */
-		              "<td><u>%s<div>Connection resets during transfers: %lld client, %lld server</div></u></td>"
+		              "<td><u>%s<div class=tips>Connection resets during transfers: %lld client, %lld server</div></u></td>"
 		              /* warnings: retries, redispatches */
 		              "<td>%lld</td><td>%lld</td>"
 		              "",
@@ -2265,7 +2265,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			if (sv->check.status >= HCHK_STATUS_CHECKED && sv->check.duration >= 0)
 				chunk_appendf(&trash, " in %lums", sv->check.duration);
 
-			chunk_appendf(&trash, "<div>%s",
+			chunk_appendf(&trash, "<div class=tips>%s",
 				      get_check_status_description(sv->check.status));
 			if (*sv->check.desc) {
 				chunk_appendf(&trash, ": ");
@@ -2295,7 +2295,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 				chunk_appendf(&trash, "/%lld", ref->counters.failed_hana);
 
 			chunk_appendf(&trash,
-			              "<div>Failed Health Checks%s</div></u></td>"
+			              "<div class=tips>Failed Health Checks%s</div></u></td>"
 			              "<td>%lld</td><td>%s</td>"
 			              "",
 			              ref->observe ? "/Health Analyses" : "",
@@ -2493,7 +2493,7 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 
 		if (flags & ST_SHLGNDS) {
 			/* balancing */
-			chunk_appendf(&trash, "<div>balancing: %s",
+			chunk_appendf(&trash, "<div class=tips>balancing: %s",
 			              backend_lb_algo_str(px->lbprm.algo & BE_LB_ALGO));
 
 			/* cookie */
@@ -2520,7 +2520,7 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 		chunk_appendf(&trash,
 		              /* sessions: current, max, limit, total */
 		              "<td>%s</td><td>%s</td><td>%s</td>"
-		              "<td><u>%s<div><table class=det>"
+		              "<td><u>%s<div class=tips><table class=det>"
 		              "<tr><th>Cum. sessions:</th><td>%s</td></tr>"
 		              "",
 		              U2H(px->beconn), U2H(px->be_counters.conn_max), U2H(px->fullconn),
@@ -2565,7 +2565,7 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 
 		chunk_appendf(&trash,
 			      /* bytes:out + compression stats (via hover): comp_in, comp_out, comp_byp */
-		              "<td>%s%s<div>compression: in=%lld out=%lld bypassed=%lld savings=%d%%</div>%s</td>",
+		              "<td>%s%s<div class=tips>compression: in=%lld out=%lld bypassed=%lld savings=%d%%</div>%s</td>",
 		              (px->be_counters.comp_in || px->be_counters.comp_byp) ? "<u>":"",
 		              U2H(px->be_counters.bytes_out),
 		              px->be_counters.comp_in, px->be_counters.comp_out, px->be_counters.comp_byp,
@@ -2579,7 +2579,7 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 		              /* errors : request, connect */
 		              "<td></td><td>%s</td>"
 		              /* errors : response */
-		              "<td><u>%s<div>Connection resets during transfers: %lld client, %lld server</div></u></td>"
+		              "<td><u>%s<div class=tips>Connection resets during transfers: %lld client, %lld server</div></u></td>"
 		              /* warnings: retries, redispatches */
 		              "<td>%lld</td><td>%lld</td>"
 		              /* backend status: reflect backend status (up/down): we display UP
@@ -2731,7 +2731,7 @@ static void stats_dump_html_px_hdr(struct stream_interface *si, struct proxy *px
 
 	if (uri->flags & ST_SHLGNDS) {
 		/* cap, mode, id */
-		chunk_appendf(&trash, "<div>cap: %s, mode: %s, id: %d",
+		chunk_appendf(&trash, "<div class=tips>cap: %s, mode: %s, id: %d",
 		              proxy_cap_str(px->cap), proxy_mode_str(px->mode),
 		              px->uuid);
 		chunk_appendf(&trash, "</div>");
@@ -3085,7 +3085,7 @@ static void stats_dump_html_head(struct uri_auth *uri)
 	              "table.det th { text-align: left; border-width: 0px; padding: 0px 1px 0px 0px; font-style:normal;font-size:11px;font-weight:bold;font-family: sans-serif;}\n"
 	              "table.det td { text-align: right; border-width: 0px; padding: 0px 0px 0px 4px; white-space: nowrap; font-style:normal;font-size:11px;font-weight:normal;font-family: monospace;}\n"
 	              "u {text-decoration:none; border-bottom: 1px dotted black;}\n"
-		      "div {\n"
+		      "div.tips {\n"
 		      " display:block;\n"
 		      " visibility:hidden;\n"
 		      " z-index:2147483647;\n"
@@ -3098,7 +3098,7 @@ static void stats_dump_html_head(struct uri_auth *uri)
 		      " -moz-border-radius:3px;-webkit-border-radius:3px;border-radius:3px;\n"
 		      " -moz-box-shadow:gray 2px 2px 3px;-webkit-box-shadow:gray 2px 2px 3px;box-shadow:gray 2px 2px 3px;\n"
 		      "}\n"
-		      "u:hover div {visibility:visible;}\n"
+		      "u:hover div.tips {visibility:visible;}\n"
 	              "-->\n"
 	              "</style></head>\n",
 	              (uri->flags & ST_SHNODE) ? " on " : "",
