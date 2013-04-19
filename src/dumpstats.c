@@ -3252,58 +3252,79 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 		case STAT_STATUS_DONE:
 			chunk_appendf(&trash,
 			              "<p><div class=active3>"
-			              "<a class=lfsb href=\"%s\" title=\"Remove this message\">[X]</a> "
+			              "<a class=lfsb href=\"%s%s%s%s\" title=\"Remove this message\">[X]</a> "
 			              "Action processed successfully."
-			              "</div>\n", uri->uri_prefix);
+			              "</div>\n", uri->uri_prefix,
+			              (si->applet.ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
+			              (si->applet.ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+			              scope_txt);
 			break;
 		case STAT_STATUS_NONE:
 			chunk_appendf(&trash,
 			              "<p><div class=active2>"
-			              "<a class=lfsb href=\"%s\" title=\"Remove this message\">[X]</a> "
+			              "<a class=lfsb href=\"%s%s%s%s\" title=\"Remove this message\">[X]</a> "
 			              "Nothing has changed."
-			              "</div>\n", uri->uri_prefix);
+			              "</div>\n", uri->uri_prefix,
+			              (si->applet.ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
+			              (si->applet.ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+			              scope_txt);
 			break;
 		case STAT_STATUS_PART:
 			chunk_appendf(&trash,
 			              "<p><div class=active2>"
-			              "<a class=lfsb href=\"%s\" title=\"Remove this message\">[X]</a> "
+			              "<a class=lfsb href=\"%s%s%s%s\" title=\"Remove this message\">[X]</a> "
 			              "Action partially processed.<br>"
 			              "Some server names are probably unknown or ambiguous (duplicated names in the backend)."
-			              "</div>\n", uri->uri_prefix);
+			              "</div>\n", uri->uri_prefix,
+			              (si->applet.ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
+			              (si->applet.ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+			              scope_txt);
 			break;
 		case STAT_STATUS_ERRP:
 			chunk_appendf(&trash,
 			              "<p><div class=active0>"
-			              "<a class=lfsb href=\"%s\" title=\"Remove this message\">[X]</a> "
+			              "<a class=lfsb href=\"%s%s%s%s\" title=\"Remove this message\">[X]</a> "
 			              "Action not processed because of invalid parameters."
 			              "<ul>"
 			              "<li>The action is maybe unknown.</li>"
 			              "<li>The backend name is probably unknown or ambiguous (duplicated names).</li>"
 			              "<li>Some server names are probably unknown or ambiguous (duplicated names in the backend).</li>"
 			              "</ul>"
-			              "</div>\n", uri->uri_prefix);
+			              "</div>\n", uri->uri_prefix,
+			              (si->applet.ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
+			              (si->applet.ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+			              scope_txt);
 			break;
 		case STAT_STATUS_EXCD:
 			chunk_appendf(&trash,
 			              "<p><div class=active0>"
-			              "<a class=lfsb href=\"%s\" title=\"Remove this message\">[X]</a> "
+			              "<a class=lfsb href=\"%s%s%s%s\" title=\"Remove this message\">[X]</a> "
 			              "<b>Action not processed : the buffer couldn't store all the data.<br>"
 			              "You should retry with less servers at a time.</b>"
-			              "</div>\n", uri->uri_prefix);
+			              "</div>\n", uri->uri_prefix,
+			              (si->applet.ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
+			              (si->applet.ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+			              scope_txt);
 			break;
 		case STAT_STATUS_DENY:
 			chunk_appendf(&trash,
 			              "<p><div class=active0>"
-			              "<a class=lfsb href=\"%s\" title=\"Remove this message\">[X]</a> "
+			              "<a class=lfsb href=\"%s%s%s%s\" title=\"Remove this message\">[X]</a> "
 			              "<b>Action denied.</b>"
-			              "</div>\n", uri->uri_prefix);
+			              "</div>\n", uri->uri_prefix,
+			              (si->applet.ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
+			              (si->applet.ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+			              scope_txt);
 			break;
 		default:
 			chunk_appendf(&trash,
 			              "<p><div class=active6>"
-			              "<a class=lfsb href=\"%s\" title=\"Remove this message\">[X]</a> "
+			              "<a class=lfsb href=\"%s%s%s%s\" title=\"Remove this message\">[X]</a> "
 			              "Unexpected result."
-			              "</div>\n", uri->uri_prefix);
+			              "</div>\n", uri->uri_prefix,
+			              (si->applet.ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
+			              (si->applet.ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+			              scope_txt);
 		}
 		chunk_appendf(&trash, "<p>\n");
 	}
