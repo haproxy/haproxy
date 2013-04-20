@@ -337,6 +337,13 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		int cur_arg = 2;
 		unsigned int set = 0;
 
+		if (!global.stats_fe) {
+			if ((global.stats_fe = alloc_stats_fe("GLOBAL", file, line)) == NULL) {
+				memprintf(err, "'%s %s' : out of memory trying to allocate a frontend", args[0], args[1]);
+				return -1;
+			}
+		}
+
 		while (*args[cur_arg]) {
 			unsigned int low, high;
 
