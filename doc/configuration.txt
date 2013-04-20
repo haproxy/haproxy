@@ -9994,6 +9994,13 @@ The list of currently supported pattern fetch functions is the following :
 
   req_ver      This is an alias for "req.ver".
 
+  res.comp     Returns the boolean "true" value if the response has been
+               compressed by HAProxy, otherwise returns boolean "false".
+
+  res.comp_algo
+               Returns a string containing the name of the algorithm used if
+               the response was compressed by HAProxy.
+
   res.cook([<name>])
                This extracts the last occurrence of the cookie name <name> on a
                "Set-Cookie" header line from the response, and returns its
