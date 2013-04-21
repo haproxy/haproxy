@@ -3629,6 +3629,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 			/* we need more data, let's come back here later */
 			req->analysers |= an_bit;
 			channel_dont_connect(req);
+			return 0;
 		}
 		return 1;
 	}
