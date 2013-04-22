@@ -302,7 +302,7 @@ int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct bind_conf *s, char *name, int len
 /* Loads a certificate key and CA chain from a file. Returns 0 on error, -1 if
  * an early error happens and the caller must call SSL_CTX_free() by itelf.
  */
-int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct bind_conf *s, char *sni_filter)
+int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct bind_conf *s, char **sni_filter, int fcount)
 {
 	BIO *in;
 	X509 *x = NULL, *ca;
@@ -326,16 +326,9 @@ int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct bind_co
 	if (x == NULL)
 		goto end;
 
-	if (sni_filter) {
-		while (*sni_filter) {
-			while (isspace(*sni_filter))
-				sni_filter++;
-			str = sni_filter;
-			while (!isspace(*sni_filter) && *sni_filter)
-				sni_filter++;
-			len = sni_filter - str;
-			order = ssl_sock_add_cert_sni(ctx, s, str, len, order);
-		}
+	if (fcount) {
+		while (fcount--)
+			order = ssl_sock_add_cert_sni(ctx, s, sni_filter[fcount], strlen(sni_filter[fcount]), order);
 	}
 	else {
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
@@ -399,7 +392,7 @@ end:
 	return ret;
 }
 
-static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf, struct proxy *curproxy, char *sni_filter, char **err)
+static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf, struct proxy *curproxy, char **sni_filter, int fcount, char **err)
 {
 	int ret;
 	SSL_CTX *ctx;
@@ -418,7 +411,7 @@ static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf
 		return 1;
 	}
 
-	ret = ssl_sock_load_cert_chain_file(ctx, path, bind_conf, sni_filter);
+	ret = ssl_sock_load_cert_chain_file(ctx, path, bind_conf, sni_filter, fcount);
 	if (ret <= 0) {
 		memprintf(err, "%sunable to load SSL certificate from PEM file '%s'.\n",
 		          err && *err ? *err : "", path);
@@ -469,7 +462,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, struct proxy *cu
 	int cfgerr = 0;
 
 	if (!(dir = opendir(path)))
-		return ssl_sock_load_cert_file(path, bind_conf, curproxy, NULL, err);
+		return ssl_sock_load_cert_file(path, bind_conf, curproxy, NULL, 0, err);
 
 	/* strip trailing slashes, including first one */
 	for (end = path + strlen(path) - 1; end >= path && *end == '/'; end--)
@@ -485,7 +478,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, struct proxy *cu
 		}
 		if (!S_ISREG(buf.st_mode))
 			continue;
-		cfgerr += ssl_sock_load_cert_file(fp, bind_conf, curproxy, NULL, err);
+		cfgerr += ssl_sock_load_cert_file(fp, bind_conf, curproxy, NULL, 0, err);
 	}
 	closedir(dir);
 	return cfgerr;
@@ -521,6 +514,7 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 
 	while (fgets(thisline, sizeof(thisline), f) != NULL) {
 		int arg;
+		int newarg;
 		char *end;
 		char *args[MAX_LINE_ARGS + 1];
 		char *line = thisline;
@@ -537,43 +531,36 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 			break;
 		}
 
-		/* skip leading spaces */
-		while (isspace(*line))
-			line++;
-
 		arg = 0;
-		args[arg] = line;
-
-		while (*line && arg < MAX_LINE_ARGS) {
+		newarg = 1;
+		while (*line) {
 			if (*line == '#' || *line == '\n' || *line == '\r') {
 				/* end of string, end of loop */
 				*line = 0;
 				break;
 			}
 			else if (isspace(*line)) {
-				/* a non-escaped space is an argument separator */
-				*line++ = '\0';
-				while (isspace(*line))
-					line++;
-				args[++arg] = line;
+				newarg = 1;
+				*line = 0;
 			}
-			else {
-				line++;
+			else if (newarg) {
+				if (arg == MAX_LINE_ARGS) {
+					memprintf(err, "too many args on line %d in file '%s'.",
+						  linenum, file);
+					cfgerr = 1;
+					break;
+				}
+				newarg = 0;
+				args[arg++] = line;
 			}
+			line++;
 		}
 
 		/* empty line */
-		if (!**args)
+		if (!arg)
 			continue;
 
-		if (arg > 2) {
-			memprintf(err, "too many args on line %d in file '%s', only one SNI filter is supported (was '%s')",
-				  linenum, file, args[2]);
-			cfgerr = 1;
-			break;
-		}
-
-		cfgerr = ssl_sock_load_cert_file(args[0], bind_conf, curproxy, arg > 1 ? args[1] : NULL, err);
+		cfgerr = ssl_sock_load_cert_file(args[0], bind_conf, curproxy, &args[1], arg-1, err);
 		if (cfgerr) {
 			memprintf(err, "error processing line %d in file '%s' : %s", linenum, file, *err);
 			break;
