@@ -1813,7 +1813,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				curproxy->conn_src.iface_name = strdup(defproxy.conn_src.iface_name);
 			curproxy->conn_src.iface_len = defproxy.conn_src.iface_len;
 			curproxy->conn_src.opts = defproxy.conn_src.opts;
+#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
 			curproxy->conn_src.tproxy_addr = defproxy.conn_src.tproxy_addr;
+#endif
 		}
 
 		if (curproxy->cap & PR_CAP_FE) {
