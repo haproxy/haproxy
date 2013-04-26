@@ -350,7 +350,7 @@ int shctx_new_cb(SSL *ssl, SSL_SESSION *sess)
 	unsigned char encsess[sizeof(struct shsess_packet)+SHSESS_MAX_DATA_LEN];
 	struct shsess_packet *packet = (struct shsess_packet *)encsess;
 	unsigned char *p;
-	int data_len, sid_length;
+	int data_len, sid_length, sid_ctx_length;
 
 
 	/* Session id is already stored in to key and session id is known
@@ -358,6 +358,7 @@ int shctx_new_cb(SSL *ssl, SSL_SESSION *sess)
 	 */
 	sid_length = sess->session_id_length;
 	sess->session_id_length = 0;
+	sid_ctx_length = sess->sid_ctx_length;
 	sess->sid_ctx_length = 0;
 
 	/* check if buffer is large enough for the ASN1 encoded session */
@@ -382,8 +383,8 @@ int shctx_new_cb(SSL *ssl, SSL_SESSION *sess)
 
 err:
 	/* reset original length values */
-	sess->sid_ctx_length = ssl->sid_ctx_length;
 	sess->session_id_length = sid_length;
+	sess->sid_ctx_length = sid_ctx_length;
 
 	return 0; /* do not increment session reference count */
 }
@@ -461,7 +462,7 @@ SSL_SESSION *shctx_get_cb(SSL *ssl, unsigned char *key, int key_len, int *do_cop
 	if (sess) {
 		memcpy(sess->session_id, key, key_len);
 		sess->session_id_length = key_len;
-		memcpy(sess->sid_ctx, ssl->sid_ctx, ssl->sid_ctx_length);
+		memcpy(sess->sid_ctx, (const unsigned char *)SHCTX_APPNAME, strlen(SHCTX_APPNAME));
 		sess->sid_ctx_length = ssl->sid_ctx_length;
 	}
 
