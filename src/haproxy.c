@@ -259,6 +259,9 @@ void display_build_opts()
 
 #ifdef USE_OPENSSL
 	printf("Built with OpenSSL version : " OPENSSL_VERSION_TEXT "\n");
+	printf("Running on OpenSSL version : %s%s\n",
+	       SSLeay_version(SSLEAY_VERSION),
+	       ((OPENSSL_VERSION_NUMBER ^ SSLeay()) >> 8) ? " (VERSIONS DIFFER!)" : "");
 	printf("OpenSSL library supports TLS extensions : "
 #if OPENSSL_VERSION_NUMBER < 0x00907000L
 	       "no (library version too old)"
