@@ -513,7 +513,7 @@ int deflate_init(struct comp_ctx **comp_ctx, int level)
 
 	strm = &(*comp_ctx)->strm;
 
-	if (deflateInit(strm, level) != Z_OK) {
+	if (deflateInit2(strm, level, Z_DEFLATED, global.tune.zlibwindowsize, global.tune.zlibmemlevel, Z_DEFAULT_STRATEGY) != Z_OK) {
 		deinit_comp_ctx(comp_ctx);
 		return -1;
 	}
