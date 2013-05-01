@@ -250,6 +250,23 @@ it happens quite often in fact. Also, don't waste your time with the doc when
 submitting patches for review, only add the doc with the patch you consider
 ready to merge.
 
+Another important point concerns code portability. Haproxy requires gcc as the
+C compiler, and may or may not work with other compilers. However it's known
+to build using gcc 2.95 or any later version. As such, it is important to keep
+in mind that certain facilities offered by recent versions must not be used in
+the code :
+
+  - declarations mixed in the code (requires gcc >= 3.x)
+  - GCC builtins without checking for their availability based on version and
+    architecture ;
+  - assembly code without any alternate portable form for other platforms
+  - use of stdbool.h, "bool", "false", "true" : simply use "int", "0", "1"
+  - in general, anything which requires C99 (such as declaring variables in
+    "for" statements)
+
+Since most of these restrictions are just a matter of coding style, it is
+normally not a problem to comply.
+
 If your work is very confidential and you can't publicly discuss it, you can
 also mail me directly about it, but your mail may be waiting several days in
 the queue before you get a response.
