@@ -25,7 +25,6 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
-#include <stdbool.h>
 
 #include <common/chunk.h>
 #include <common/compat.h>
