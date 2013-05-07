@@ -321,6 +321,16 @@ static inline int fls64(unsigned long long x)
 #define container_of(ptr, type, name) ((type *)(((void *)(ptr)) - ((long)&((type *)0)->name)))
 #endif
 
+/* returns a pointer to the structure of type <type> which has its member <name>
+ * stored at address <ptr>, unless <ptr> is 0, in which case 0 is returned.
+ */
+#ifndef container_of_safe
+#define container_of_safe(ptr, type, name) \
+	({ void *__p = (ptr); \
+		__p ? (type *)(__p - ((long)&((type *)0)->name)) : (type *)0; \
+	})
+#endif
+
 /* Number of bits per node, and number of leaves per node */
 #define EB_NODE_BITS          1
 #define EB_NODE_BRANCHES      (1 << EB_NODE_BITS)
@@ -515,6 +525,12 @@ static inline int eb_is_empty(struct eb_root *root)
 	return !root->b[EB_LEFT];
 }
 
+/* Return non-zero if the node is a duplicate, otherwise zero */
+static inline int eb_is_dup(struct eb_node *node)
+{
+	return node->bit < 0;
+}
+
 /* Return the first leaf in the tree starting at <root>, or NULL if none */
 static inline struct eb_node *eb_first(struct eb_root *root)
 {
@@ -555,6 +571,51 @@ static inline struct eb_node *eb_next(struct eb_node *node)
 		t = (eb_root_to_node(eb_untag(t, EB_RGHT)))->node_p;
 
 	/* Note that <t> cannot be NULL at this stage */
+	t = (eb_untag(t, EB_LEFT))->b[EB_RGHT];
+	if (eb_clrtag(t) == NULL)
+		return NULL;
+	return eb_walk_down(t, EB_LEFT);
+}
+
+/* Return previous leaf node within a duplicate sub-tree, or NULL if none. */
+static inline struct eb_node *eb_prev_dup(struct eb_node *node)
+{
+	eb_troot_t *t = node->leaf_p;
+
+	while (eb_gettag(t) == EB_LEFT) {
+		/* Walking up from left branch. We must ensure that we never
+		 * walk beyond root.
+		 */
+		if (unlikely(eb_clrtag((eb_untag(t, EB_LEFT))->b[EB_RGHT]) == NULL))
+			return NULL;
+		/* if the current node leaves a dup tree, quit */
+		if ((eb_root_to_node(eb_untag(t, EB_LEFT)))->bit >= 0)
+			return NULL;
+		t = (eb_root_to_node(eb_untag(t, EB_LEFT)))->node_p;
+	}
+	/* Note that <t> cannot be NULL at this stage */
+	if ((eb_root_to_node(eb_untag(t, EB_RGHT)))->bit >= 0)
+		return NULL;
+	t = (eb_untag(t, EB_RGHT))->b[EB_LEFT];
+	return eb_walk_down(t, EB_RGHT);
+}
+
+/* Return next leaf node within a duplicate sub-tree, or NULL if none. */
+static inline struct eb_node *eb_next_dup(struct eb_node *node)
+{
+	eb_troot_t *t = node->leaf_p;
+
+	while (eb_gettag(t) != EB_LEFT) {
+		/* Walking up from right branch, so we cannot be below root */
+		/* if the current node leaves a dup tree, quit */
+		if ((eb_root_to_node(eb_untag(t, EB_RGHT)))->bit >= 0)
+			return NULL;
+		t = (eb_root_to_node(eb_untag(t, EB_RGHT)))->node_p;
+	}
+
+	/* Note that <t> cannot be NULL at this stage */
+	if ((eb_root_to_node(eb_untag(t, EB_LEFT)))->bit >= 0)
+		return NULL;
 	t = (eb_untag(t, EB_LEFT))->b[EB_RGHT];
 	if (eb_clrtag(t) == NULL)
 		return NULL;

@@ -74,6 +74,18 @@ static inline struct eb64_node *eb64_prev(struct eb64_node *eb64)
 	return eb64_entry(eb_prev(&eb64->node), struct eb64_node, node);
 }
 
+/* Return next leaf node within a duplicate sub-tree, or NULL if none. */
+static inline struct eb64_node *eb64_next_dup(struct eb64_node *eb64)
+{
+	return eb64_entry(eb_next_dup(&eb64->node), struct eb64_node, node);
+}
+
+/* Return previous leaf node within a duplicate sub-tree, or NULL if none. */
+static inline struct eb64_node *eb64_prev_dup(struct eb64_node *eb64)
+{
+	return eb64_entry(eb_prev_dup(&eb64->node), struct eb64_node, node);
+}
+
 /* Return next node in the tree, skipping duplicates, or NULL if none */
 static inline struct eb64_node *eb64_next_unique(struct eb64_node *eb64)
 {

@@ -74,6 +74,18 @@ static inline struct eb32_node *eb32_prev(struct eb32_node *eb32)
 	return eb32_entry(eb_prev(&eb32->node), struct eb32_node, node);
 }
 
+/* Return next leaf node within a duplicate sub-tree, or NULL if none. */
+static inline struct eb32_node *eb32_next_dup(struct eb32_node *eb32)
+{
+	return eb32_entry(eb_next_dup(&eb32->node), struct eb32_node, node);
+}
+
+/* Return previous leaf node within a duplicate sub-tree, or NULL if none. */
+static inline struct eb32_node *eb32_prev_dup(struct eb32_node *eb32)
+{
+	return eb32_entry(eb_prev_dup(&eb32->node), struct eb32_node, node);
+}
+
 /* Return next node in the tree, skipping duplicates, or NULL if none */
 static inline struct eb32_node *eb32_next_unique(struct eb32_node *eb32)
 {

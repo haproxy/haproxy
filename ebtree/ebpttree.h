@@ -80,6 +80,18 @@ static forceinline struct ebpt_node *ebpt_prev(struct ebpt_node *ebpt)
 	return ebpt_entry(eb_prev(&ebpt->node), struct ebpt_node, node);
 }
 
+/* Return next leaf node within a duplicate sub-tree, or NULL if none. */
+static inline struct ebpt_node *ebpt_next_dup(struct ebpt_node *ebpt)
+{
+	return ebpt_entry(eb_next_dup(&ebpt->node), struct ebpt_node, node);
+}
+
+/* Return previous leaf node within a duplicate sub-tree, or NULL if none. */
+static inline struct ebpt_node *ebpt_prev_dup(struct ebpt_node *ebpt)
+{
+	return ebpt_entry(eb_prev_dup(&ebpt->node), struct ebpt_node, node);
+}
+
 /* Return next node in the tree, skipping duplicates, or NULL if none */
 static forceinline struct ebpt_node *ebpt_next_unique(struct ebpt_node *ebpt)
 {

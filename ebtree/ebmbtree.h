@@ -72,6 +72,18 @@ static forceinline struct ebmb_node *ebmb_prev(struct ebmb_node *ebmb)
 	return ebmb_entry(eb_prev(&ebmb->node), struct ebmb_node, node);
 }
 
+/* Return next leaf node within a duplicate sub-tree, or NULL if none. */
+static inline struct ebmb_node *ebmb_next_dup(struct ebmb_node *ebmb)
+{
+	return ebmb_entry(eb_next_dup(&ebmb->node), struct ebmb_node, node);
+}
+
+/* Return previous leaf node within a duplicate sub-tree, or NULL if none. */
+static inline struct ebmb_node *ebmb_prev_dup(struct ebmb_node *ebmb)
+{
+	return ebmb_entry(eb_prev_dup(&ebmb->node), struct ebmb_node, node);
+}
+
 /* Return next node in the tree, skipping duplicates, or NULL if none */
 static forceinline struct ebmb_node *ebmb_next_unique(struct ebmb_node *ebmb)
 {
