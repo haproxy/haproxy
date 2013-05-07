@@ -189,16 +189,15 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, struct bind_conf *s)
 {
 	const char *servername;
 	const char *wildp = NULL;
-	struct ebmb_node *node;
+	struct ebmb_node *node, *n;
 	int i;
 	(void)al; /* shut gcc stupid warning */
 
 	servername = SSL_get_servername(ssl, TLSEXT_NAMETYPE_host_name);
 	if (!servername) {
-		if (s->strict_sni)
-			return SSL_TLSEXT_ERR_ALERT_FATAL;
-		else
-			return SSL_TLSEXT_ERR_NOACK;
+		return (s->strict_sni ?
+			SSL_TLSEXT_ERR_ALERT_FATAL :
+			SSL_TLSEXT_ERR_ALERT_WARNING);
 	}
 
 	for (i = 0; i < trash.size; i++) {
@@ -212,25 +211,27 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, struct bind_conf *s)
 
 	/* lookup in full qualified names */
 	node = ebst_lookup(&s->sni_ctx, trash.str);
-	if (!node) {
-		if (!wildp) {
-			if (s->strict_sni)
-				return SSL_TLSEXT_ERR_ALERT_FATAL;
-			else
-				return SSL_TLSEXT_ERR_ALERT_WARNING;
+
+	/* lookup a not neg filter */
+	for (n = node; n; n = ebmb_next_dup(n)) {
+		if (!container_of(n, struct sni_ctx, name)->neg) {
+			node = n;
+			break;
 		}
-		/* lookup in full wildcards names */
+		wildp = NULL; /* never match a wildcard after matching a neg */
+	}
+	if (!node && wildp) {
+		/* lookup in wildcards names */
 		node = ebst_lookup(&s->sni_w_ctx, wildp);
-		if (!node) {
-			if (s->strict_sni)
-				return SSL_TLSEXT_ERR_ALERT_FATAL;
-			else
-				return SSL_TLSEXT_ERR_ALERT_WARNING;
-		}
+	}
+	if (!node || container_of(node, struct sni_ctx, name)->neg) {
+		return (s->strict_sni ?
+			SSL_TLSEXT_ERR_ALERT_FATAL :
+			SSL_TLSEXT_ERR_ALERT_WARNING);
 	}
 
 	/* switch ctx */
-	SSL_set_SSL_CTX(ssl,  container_of(node, struct sni_ctx, name)->ctx);
+	SSL_set_SSL_CTX(ssl, container_of(node, struct sni_ctx, name)->ctx);
 	return SSL_TLSEXT_ERR_OK;
 }
 #endif /* SSL_CTRL_SET_TLSEXT_HOSTNAME */
@@ -309,24 +310,32 @@ end:
 }
 #endif
 
-int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct bind_conf *s, char *name, int len, int order)
+static int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct bind_conf *s, char *name, int order)
 {
 	struct sni_ctx *sc;
-	int wild = 0;
-	int j;
+	int wild = 0, neg = 0;
 
-	if (len) {
-		if (*name == '*') {
-			wild = 1;
-			name++;
-			len--;
-		}
+	if (*name == '!') {
+		neg = 1;
+		name++;
+	}
+	if (*name == '*') {
+		wild = 1;
+		name++;
+	}
+	/* !* filter is a nop */
+	if (neg && wild)
+		return order;
+	if (*name) {
+		int j, len;
+		len = strlen(name);
 		sc = malloc(sizeof(struct sni_ctx) + len + 1);
 		for (j = 0; j < len; j++)
 			sc->name.key[j] = tolower(name[j]);
 		sc->name.key[len] = 0;
-		sc->order = order++;
 		sc->ctx = ctx;
+		sc->order = order++;
+		sc->neg = neg;
 		if (wild)
 			ebst_insert(&s->sni_w_ctx, &sc->name);
 		else
@@ -338,11 +347,11 @@ int ssl_sock_add_cert_sni(SSL_CTX *ctx, struct bind_conf *s, char *name, int len
 /* Loads a certificate key and CA chain from a file. Returns 0 on error, -1 if
  * an early error happens and the caller must call SSL_CTX_free() by itelf.
  */
-int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct bind_conf *s, char **sni_filter, int fcount)
+static int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct bind_conf *s, char **sni_filter, int fcount)
 {
 	BIO *in;
 	X509 *x = NULL, *ca;
-	int i, len, err;
+	int i, err;
 	int ret = -1;
 	int order = 0;
 	X509_NAME *xname;
@@ -364,7 +373,7 @@ int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct bind_co
 
 	if (fcount) {
 		while (fcount--)
-			order = ssl_sock_add_cert_sni(ctx, s, sni_filter[fcount], strlen(sni_filter[fcount]), order);
+			order = ssl_sock_add_cert_sni(ctx, s, sni_filter[fcount], order);
 	}
 	else {
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
@@ -374,8 +383,7 @@ int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct bind_co
 				GENERAL_NAME *name = sk_GENERAL_NAME_value(names, i);
 				if (name->type == GEN_DNS) {
 					if (ASN1_STRING_to_UTF8((unsigned char **)&str, name->d.dNSName) >= 0) {
-						len = strlen(str);
-						order = ssl_sock_add_cert_sni(ctx, s, str, len, order);
+						order = ssl_sock_add_cert_sni(ctx, s, str, order);
 						OPENSSL_free(str);
 					}
 				}
@@ -388,8 +396,7 @@ int ssl_sock_load_cert_chain_file(SSL_CTX *ctx, const char *file, struct bind_co
 		while ((i = X509_NAME_get_index_by_NID(xname, NID_commonName, i)) != -1) {
 			X509_NAME_ENTRY *entry = X509_NAME_get_entry(xname, i);
 			if (ASN1_STRING_to_UTF8((unsigned char **)&str, entry->value) >= 0) {
-				len = strlen(str);
-				order = ssl_sock_add_cert_sni(ctx, s, str, len, order);
+				order = ssl_sock_add_cert_sni(ctx, s, str, order);
 				OPENSSL_free(str);
 			}
 		}
@@ -538,7 +545,7 @@ static int ssl_initialize_random()
 
 int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct proxy *curproxy, char **err)
 {
-	char thisline[65536];
+	char thisline[LINESIZE];
 	FILE *f;
 	int linenum = 0;
 	int cfgerr = 0;
@@ -591,6 +598,8 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 			}
 			line++;
 		}
+		if (cfgerr)
+			break;
 
 		/* empty line */
 		if (!arg)

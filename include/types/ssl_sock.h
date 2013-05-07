@@ -28,6 +28,7 @@
 struct sni_ctx {
 	SSL_CTX *ctx;             /* context associated to the certificate */
 	int order;                /* load order for the certificate */
+	int neg;                  /* reject if match */
 	struct ebmb_node name;    /* node holding the servername value */
 };
 
