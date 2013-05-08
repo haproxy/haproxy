@@ -333,6 +333,9 @@ void display_build_opts()
 #if defined(IPV6_BINDANY)
 	       " IPV6_BINDANY"
 #endif
+#if defined(SO_BINDANY)
+	       " SO_BINDANY"
+#endif
 	       "\n");
 #endif
 	putchar('\n');
