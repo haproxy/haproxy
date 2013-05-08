@@ -327,6 +327,12 @@ void display_build_opts()
 #if defined(IP_FREEBIND)
 	       " IP_FREEBIND"
 #endif
+#if defined(IP_BINDANY)
+	       " IP_BINDANY"
+#endif
+#if defined(IPV6_BINDANY)
+	       " IPV6_BINDANY"
+#endif
 	       "\n");
 #endif
 	putchar('\n');

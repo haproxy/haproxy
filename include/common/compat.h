@@ -94,6 +94,8 @@
 #endif /* CONFIG_HAP_LINUX_TPROXY */
 
 #if defined(IP_FREEBIND)       \
+ || defined(IP_BINDANY)        \
+ || defined(IPV6_BINDANY)      \
  || defined(IP_TRANSPARENT)    \
  || defined(IPV6_TRANSPARENT)
 #define CONFIG_HAP_TRANSPARENT

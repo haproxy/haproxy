@@ -139,6 +139,9 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
 #if defined(IP_FREEBIND)
 			    || (setsockopt(fd, SOL_IP, IP_FREEBIND, &one, sizeof(one)) == 0)
 #endif
+#if defined(IP_BINDANY)
+			    || (setsockopt(fd, IPPROTO_IP, IP_BINDANY, &one, sizeof(one)) == 0)
+#endif
 			    )
 				foreign_ok = 1;
 			else
@@ -150,6 +153,9 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
 			if (0
 #if defined(IPV6_TRANSPARENT)
 			    || (setsockopt(fd, SOL_IPV6, IPV6_TRANSPARENT, &one, sizeof(one)) == 0)
+#endif
+#if defined(IPV6_BINDANY)
+			    || (setsockopt(fd, IPPROTO_IPV6, IPV6_BINDANY, &one, sizeof(one)) == 0)
 #endif
 			    )
 				foreign_ok = 1;
@@ -645,6 +651,9 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 #if defined(IP_FREEBIND)
 			    && (setsockopt(fd, SOL_IP, IP_FREEBIND, &one, sizeof(one)) == -1)
 #endif
+#if defined(IP_BINDANY)
+			    && (setsockopt(fd, IPPROTO_IP, IP_BINDANY, &one, sizeof(one)) == -1)
+#endif
 			    ) {
 				msg = "cannot make listening socket transparent";
 				err |= ERR_ALERT;
@@ -654,6 +663,9 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 			if (1
 #if defined(IPV6_TRANSPARENT)
 			    && (setsockopt(fd, SOL_IPV6, IPV6_TRANSPARENT, &one, sizeof(one)) == -1)
+#endif
+#if defined(IPV6_BINDANY)
+			    && (setsockopt(fd, IPPROTO_IPV6, IPV6_BINDANY, &one, sizeof(one)) == -1)
 #endif
 			    ) {
 				msg = "cannot make listening socket transparent";
