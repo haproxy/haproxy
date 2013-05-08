@@ -79,7 +79,6 @@ static inline void regex_free(regex *preg) {
 #ifdef USE_PCRE_JIT
 	pcre_free_study(preg->extra);
 	pcre_free(preg->reg);
-	free(preg);
 #else
 	regfree(preg);
 #endif
