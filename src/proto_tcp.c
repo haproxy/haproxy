@@ -122,15 +122,24 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
 	struct sockaddr_storage bind_addr;
 	int foreign_ok = 0;
 	int ret;
-
-#ifdef CONFIG_HAP_LINUX_TPROXY
 	static int ip_transp_working = 1;
 	static int ip6_transp_working = 1;
+
 	switch (local->ss_family) {
 	case AF_INET:
 		if (flags && ip_transp_working) {
-			if (setsockopt(fd, SOL_IP, IP_TRANSPARENT, &one, sizeof(one)) == 0
-			    || setsockopt(fd, SOL_IP, IP_FREEBIND, &one, sizeof(one)) == 0)
+			/* This deserves some explanation. Some platforms will support
+			 * multiple combinations of certain methods, so we try the
+			 * supported ones until one succeeds.
+			 */
+			if (0
+#if defined(IP_TRANSPARENT)
+			    || (setsockopt(fd, SOL_IP, IP_TRANSPARENT, &one, sizeof(one)) == 0)
+#endif
+#if defined(IP_FREEBIND)
+			    || (setsockopt(fd, SOL_IP, IP_FREEBIND, &one, sizeof(one)) == 0)
+#endif
+			    )
 				foreign_ok = 1;
 			else
 				ip_transp_working = 0;
@@ -138,14 +147,18 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
 		break;
 	case AF_INET6:
 		if (flags && ip6_transp_working) {
-			if (setsockopt(fd, SOL_IPV6, IPV6_TRANSPARENT, &one, sizeof(one)) == 0)
+			if (0
+#if defined(IPV6_TRANSPARENT)
+			    || (setsockopt(fd, SOL_IPV6, IPV6_TRANSPARENT, &one, sizeof(one)) == 0)
+#endif
+			    )
 				foreign_ok = 1;
 			else
 				ip6_transp_working = 0;
 		}
 		break;
 	}
-#endif
+
 	if (flags) {
 		memset(&bind_addr, 0, sizeof(bind_addr));
 		bind_addr.ss_family = remote->ss_family;
@@ -621,25 +634,35 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 	if (!ext)
 		setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one));
 #endif
-#ifdef CONFIG_HAP_LINUX_TPROXY
+
 	if (!ext && (listener->options & LI_O_FOREIGN)) {
 		switch (listener->addr.ss_family) {
 		case AF_INET:
-			if ((setsockopt(fd, SOL_IP, IP_TRANSPARENT, &one, sizeof(one)) == -1)
-			    && (setsockopt(fd, SOL_IP, IP_FREEBIND, &one, sizeof(one)) == -1)) {
+			if (1
+#if defined(IP_TRANSPARENT)
+			    && (setsockopt(fd, SOL_IP, IP_TRANSPARENT, &one, sizeof(one)) == -1)
+#endif
+#if defined(IP_FREEBIND)
+			    && (setsockopt(fd, SOL_IP, IP_FREEBIND, &one, sizeof(one)) == -1)
+#endif
+			    ) {
 				msg = "cannot make listening socket transparent";
 				err |= ERR_ALERT;
 			}
 		break;
 		case AF_INET6:
-			if (setsockopt(fd, SOL_IPV6, IPV6_TRANSPARENT, &one, sizeof(one)) == -1) {
+			if (1
+#if defined(IPV6_TRANSPARENT)
+			    && (setsockopt(fd, SOL_IPV6, IPV6_TRANSPARENT, &one, sizeof(one)) == -1)
+#endif
+			    ) {
 				msg = "cannot make listening socket transparent";
 				err |= ERR_ALERT;
 			}
 		break;
 		}
 	}
-#endif
+
 #ifdef SO_BINDTODEVICE
 	/* Note: this might fail if not CAP_NET_RAW */
 	if (!ext && listener->interface) {
@@ -1546,7 +1569,7 @@ static int bind_parse_v6only(char **args, int cur_arg, struct proxy *px, struct 
 }
 #endif
 
-#ifdef CONFIG_HAP_LINUX_TPROXY
+#ifdef CONFIG_HAP_TRANSPARENT
 /* parse the "transparent" bind keyword */
 static int bind_parse_transparent(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
@@ -1695,7 +1718,7 @@ static struct bind_kw_list bind_kws = { "TCP", { }, {
 #ifdef TCP_FASTOPEN
 	{ "tfo",           bind_parse_tfo,          0 }, /* enable TCP_FASTOPEN of listening socket */
 #endif
-#ifdef CONFIG_HAP_LINUX_TPROXY
+#ifdef CONFIG_HAP_TRANSPARENT
 	{ "transparent",   bind_parse_transparent,  0 }, /* transparently bind to the specified addresses */
 #endif
 #ifdef IPV6_V6ONLY

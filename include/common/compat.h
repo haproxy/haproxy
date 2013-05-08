@@ -93,6 +93,12 @@
 #endif /* !IPV6_TRANSPARENT */
 #endif /* CONFIG_HAP_LINUX_TPROXY */
 
+#if defined(IP_FREEBIND)       \
+ || defined(IP_TRANSPARENT)    \
+ || defined(IPV6_TRANSPARENT)
+#define CONFIG_HAP_TRANSPARENT
+#endif
+
 /* We'll try to enable SO_REUSEPORT on Linux 2.4 and 2.6 if not defined.
  * There are two families of values depending on the architecture. Those
  * are at least valid on Linux 2.4 and 2.6, reason why we'll rely on the

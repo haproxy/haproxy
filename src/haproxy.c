@@ -313,6 +313,22 @@ void display_build_opts()
 	printf("Built without PCRE support (using libc's regex instead)\n");
 #endif
 
+#if defined(CONFIG_HAP_TRANSPARENT) || defined(CONFIG_HAP_CTTPROXY)
+	printf("Built with transparent proxy support using:"
+#if defined(CONFIG_HAP_CTTPROXY)
+	       " CTTPROXY"
+#endif
+#if defined(IP_TRANSPARENT)
+	       " IP_TRANSPARENT"
+#endif
+#if defined(IPV6_TRANSPARENT)
+	       " IPV6_TRANSPARENT"
+#endif
+#if defined(IP_FREEBIND)
+	       " IP_FREEBIND"
+#endif
+	       "\n");
+#endif
 	putchar('\n');
 
 	list_pollers(stdout);

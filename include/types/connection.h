@@ -219,7 +219,7 @@ struct conn_src {
 	char *iface_name;                    /* bind interface name or NULL */
 	struct port_range *sport_range;      /* optional per-server TCP source ports */
 	struct sockaddr_storage source_addr; /* the address to which we want to bind for connect() */
-#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
+#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_TRANSPARENT)
 	struct sockaddr_storage tproxy_addr; /* non-local address we want to bind to for connect() */
 	char *bind_hdr_name;                 /* bind to this header name if defined */
 	int bind_hdr_len;                    /* length of the name of the header above */

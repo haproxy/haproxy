@@ -1813,7 +1813,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 				curproxy->conn_src.iface_name = strdup(defproxy.conn_src.iface_name);
 			curproxy->conn_src.iface_len = defproxy.conn_src.iface_len;
 			curproxy->conn_src.opts = defproxy.conn_src.opts;
-#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
+#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_TRANSPARENT)
 			curproxy->conn_src.tproxy_addr = defproxy.conn_src.tproxy_addr;
 #endif
 		}
@@ -4558,8 +4558,8 @@ stats_error_parsing:
 				cur_arg += 2;
 				while (*(args[cur_arg])) {
 					if (!strcmp(args[cur_arg], "usesrc")) {  /* address to use outside */
-#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
-#if !defined(CONFIG_HAP_LINUX_TPROXY)
+#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_TRANSPARENT)
+#if !defined(CONFIG_HAP_TRANSPARENT)
 						if (!is_addr(&newsrv->conn_src.source_addr)) {
 							Alert("parsing [%s:%d] : '%s' requires an explicit '%s' address.\n",
 							      file, linenum, "usesrc", "source");
@@ -4648,7 +4648,7 @@ stats_error_parsing:
 							newsrv->conn_src.opts |= CO_SRC_TPROXY_ADDR;
 						}
 						global.last_checks |= LSTCHK_NETADM;
-#if !defined(CONFIG_HAP_LINUX_TPROXY)
+#if !defined(CONFIG_HAP_TRANSPARENT)
 						global.last_checks |= LSTCHK_CTTPROXY;
 #endif
 						cur_arg += 2;
@@ -4658,7 +4658,7 @@ stats_error_parsing:
 						      file, linenum, "usesrc");
 						err_code |= ERR_ALERT | ERR_FATAL;
 						goto out;
-#endif /* defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY) */
+#endif /* defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_TRANSPARENT) */
 					} /* "usesrc" */
 
 					if (!strcmp(args[cur_arg], "interface")) { /* specifically bind to this interface */
@@ -5046,8 +5046,8 @@ stats_error_parsing:
 		cur_arg = 2;
 		while (*(args[cur_arg])) {
 			if (!strcmp(args[cur_arg], "usesrc")) {  /* address to use outside */
-#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
-#if !defined(CONFIG_HAP_LINUX_TPROXY)
+#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_TRANSPARENT)
+#if !defined(CONFIG_HAP_TRANSPARENT)
 				if (!is_addr(&curproxy->conn_src.source_addr)) {
 					Alert("parsing [%s:%d] : '%s' requires an explicit 'source' address.\n",
 					      file, linenum, "usesrc");
@@ -5136,7 +5136,7 @@ stats_error_parsing:
 					curproxy->conn_src.opts |= CO_SRC_TPROXY_ADDR;
 				}
 				global.last_checks |= LSTCHK_NETADM;
-#if !defined(CONFIG_HAP_LINUX_TPROXY)
+#if !defined(CONFIG_HAP_TRANSPARENT)
 				global.last_checks |= LSTCHK_CTTPROXY;
 #endif
 #else	/* no TPROXY support */
@@ -6826,7 +6826,7 @@ out_uri_auth_compat:
 				}
 			}
 
-#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
+#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_TRANSPARENT)
 			if (curproxy->conn_src.bind_hdr_occ) {
 				curproxy->conn_src.bind_hdr_occ = 0;
 				Warning("config : %s '%s' : ignoring use of header %s as source IP in non-HTTP mode.\n",
@@ -6853,7 +6853,7 @@ out_uri_auth_compat:
 				err_code |= ERR_WARN;
 			}
 
-#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_LINUX_TPROXY)
+#if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_TRANSPARENT)
 			if (curproxy->mode != PR_MODE_HTTP && newsrv->conn_src.bind_hdr_occ) {
 				newsrv->conn_src.bind_hdr_occ = 0;
 				Warning("config : %s '%s' : server %s cannot use header %s as source IP in non-HTTP mode.\n",
