@@ -851,7 +851,7 @@ void init(int argc, char **argv)
 		      "  is too low on this platform to support maxconn and the number of listeners\n"
 		      "  and servers. You should rebuild haproxy specifying your system using TARGET=\n"
 		      "  in order to support other polling systems (poll, epoll, kqueue) or reduce the\n"
-		      "  global maxconn setting to accomodate the system's limitation. For reference,\n"
+		      "  global maxconn setting to accommodate the system's limitation. For reference,\n"
 		      "  FD_SETSIZE=%d on this system, global.maxconn=%d resulting in a maximum of\n"
 		      "  %d file descriptors. You should thus reduce global.maxconn by %d. Also,\n"
 		      "  check build settings using 'haproxy -vv'.\n\n",
