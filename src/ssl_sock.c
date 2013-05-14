@@ -1628,6 +1628,42 @@ out:
 	return ret;
 }
 
+/* bin, returns the client certificate's SHA-1 fingerprint (SHA-1 hash of DER-encoded certificate) in a binary chunk */
+static int
+smp_fetch_ssl_c_sha1(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                     const struct arg *args, struct sample *smp)
+{
+	X509 *crt = NULL;
+	const EVP_MD *digest;
+	int ret = 0;
+	struct chunk *smp_trash;
+
+	if (!l4 || l4->si[0].conn->xprt != &ssl_sock)
+		return 0;
+
+	if (!(l4->si[0].conn->flags & CO_FL_CONNECTED)) {
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	/* SSL_get_peer_certificate, it increase X509 * ref count */
+	crt = SSL_get_peer_certificate(l4->si[0].conn->xprt_ctx);
+	if (!crt)
+		goto out;
+
+	smp_trash = get_trash_chunk();
+	digest = EVP_sha1();
+	X509_digest(crt, digest, (unsigned char *)smp_trash->str, (unsigned int *)&smp_trash->len);
+
+	smp->data.str = *smp_trash;
+	smp->type = SMP_T_BIN;
+	ret = 1;
+out:
+	if (crt)
+		X509_free(crt);
+	return ret;
+}
+
 /*str, returns notafter date in ASN1_UTCTIME format */
 static int
 smp_fetch_ssl_c_notafter(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
@@ -3058,6 +3094,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
 	{ "ssl_c_sig_alg",          smp_fetch_ssl_c_sig_alg,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_c_s_dn",             smp_fetch_ssl_c_s_dn,         ARG2(0,STR,SINT),    NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_c_serial",           smp_fetch_ssl_c_serial,       0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
+	{ "ssl_c_sha1",             smp_fetch_ssl_c_sha1,         0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 	{ "ssl_c_used",             smp_fetch_ssl_c_used,         0,                   NULL,    SMP_T_BOOL, SMP_USE_L5CLI },
 	{ "ssl_c_verify",           smp_fetch_ssl_c_verify,       0,                   NULL,    SMP_T_UINT, SMP_USE_L5CLI },
 	{ "ssl_c_version",          smp_fetch_ssl_c_version,      0,                   NULL,    SMP_T_UINT, SMP_USE_L5CLI },

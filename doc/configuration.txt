@@ -10442,6 +10442,11 @@ The list of currently supported pattern fetch functions is the following :
                when the incoming connection was made over an SSL/TLS transport
                layer.
 
+  ssl_c_sha1   Returns the SHA-1 fingerprint of the certificate presented by
+               the client when the incoming connection was made over an SSL/TLS
+               transport layer. This can be used to stick a client to a server,
+               or to pass this information to a server.
+
   ssl_c_sig_alg
                Returns the name of the algorithm used to sign the certificate
                presented by the client when the incoming connection was made
