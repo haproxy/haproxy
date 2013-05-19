@@ -90,6 +90,17 @@ will automatically be linked with haproxy. Some systems also require libz, so
 if the build fails due to missing symbols such as deflateInit(), then try again
 with "ADDLIB=-lz".
 
+To link OpenSSL statically against haproxy, build OpenSSL with the no-shared
+keyword and install it to a local directory, so your system is not affected :
+
+    $ export STATICLIBSSL=/tmp/staticlibssl
+    $ ./config --prefix=$STATICLIBSSL no-shared
+    $ make && make install_sw
+
+When building haproxy, pass that path via ADDINC and ADDLIB to make and include
+libdl ("-ldl").
+    $ make TARGET=linux2628 USE_OPENSSL=1 ADDINC=-I$STATICLIBSSL/include ADDLIB="-L$STATICLIBSSL/lib -ldl"
+
 It is also possible to include native support for ZLIB to benefit from HTTP
 compression. For this, pass "USE_ZLIB=1" on the "make" command line and ensure
 that zlib is present on the system.
