@@ -5011,7 +5011,7 @@ rspidel <search> [{if | unless} <cond>]  (ignore case)
 
   Example :
      # remove the Server header from responses
-     reqidel ^Server:.*
+     rspidel ^Server:.*
 
   See also: "rspadd", "rsprep", "reqdel", section 6 about HTTP header
             manipulation, and section 7 about ACLs.
