@@ -1178,8 +1178,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 
 	/* init store persistence */
 	s->store_count = 0;
-	s->stkctr[0].entry = NULL;
-	s->stkctr[1].entry = NULL;
+	memset(s->stkctr, 0, sizeof(s->stkctr));
 
 	/* FIXME: the logs are horribly complicated now, because they are
 	 * defined in <p>, <p>, and later <be> and <be>.

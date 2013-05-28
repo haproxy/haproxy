@@ -32,7 +32,7 @@
 enum {
 	TCP_ACT_ACCEPT = 1,
 	TCP_ACT_REJECT = 2,
-	TCP_ACT_TRK_SC1 = 3,
+	TCP_ACT_TRK_SC1 = 3, /* TCP request tracking : must be contiguous */
 	TCP_ACT_TRK_SC2 = 4,
 };
 

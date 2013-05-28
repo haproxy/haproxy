@@ -86,10 +86,13 @@
 #define	SN_FINST_SHIFT	16		/* bit shift */
 
 #define SN_IGNORE_PRST	0x00080000	/* ignore persistence */
-#define SN_BE_TRACK_SC1 0x00100000	/* backend tracks stick-counter 1 */
-#define SN_BE_TRACK_SC2 0x00200000	/* backend tracks stick-counter 2 */
 
-#define SN_COMP_READY   0x00400000	/* the compression is initialized */
+#define SN_COMP_READY   0x00100000	/* the compression is initialized */
+
+/* session tracking flags: these ones must absolutely be contiguous */
+#define SN_BE_TRACK_SC1 0x00200000	/* backend tracks stick-counter 1 */
+#define SN_BE_TRACK_SC2 0x00400000	/* backend tracks stick-counter 2 */
+#define SN_BE_TRACK_ANY 0x00600000      /* union of all SN_BE_TRACK_* above */
 
 
 /* WARNING: if new fields are added, they must be initialized in event_accept()
