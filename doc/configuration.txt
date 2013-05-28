@@ -6292,8 +6292,8 @@ tcp-request connection <action> [{if | unless} <condition>]
                                  no    |    yes   |   yes  |   no
   Arguments :
     <action>    defines the action to perform if the condition applies. Valid
-                actions include : "accept", "reject", "track-sc1", "track-sc2".
-                See below for more details.
+                actions include : "accept", "reject", "track-sc1", "track-sc2",
+                and "track-sc3". See below for more details.
 
     <condition> is a standard layer4-only ACL-based condition (see section 7).
 
@@ -6331,7 +6331,7 @@ tcp-request connection <action> [{if | unless} <condition>]
         logging is absolutely desired, then "tcp-request content" rules should
         be used instead.
 
-    - { track-sc1 | track-sc2 } <key> [table <table>] :
+    - { track-sc1 | track-sc2 | track-sc3 } <key> [table <table>] :
         enables tracking of sticky counters from current connection. These
         rules do not stop evaluation and do not change default action. Two sets
         of counters may be simultaneously tracked by the same connection. The
@@ -6340,6 +6340,7 @@ tcp-request connection <action> [{if | unless} <condition>]
         enables tracking of the counters of the specified table as the second
         set. It is a recommended practice to use the first set of counters for
         the per-frontend counters and the second set for the per-backend ones.
+        But this is just a guideline, all may be used everywhere.
 
         These actions take one or two arguments :
           <key>   is mandatory, and is a pattern extraction rule as described
@@ -6401,8 +6402,9 @@ tcp-request content <action> [{if | unless} <condition>]
                                  no    |    yes   |   yes  |   yes
   Arguments :
     <action>    defines the action to perform if the condition applies. Valid
-                actions include : "accept", "reject", "track-sc1", "track-sc2".
-                See "tcp-request connection" above for their signification.
+                actions include : "accept", "reject", "track-sc1", "track-sc2",
+                and "track-sc3". See "tcp-request connection" above for their
+                signification.
 
     <condition> is a standard layer 4-7 ACL-based condition (see section 7).
 
@@ -6430,7 +6432,7 @@ tcp-request content <action> [{if | unless} <condition>]
   Three types of actions are supported :
     - accept :
     - reject :
-    - { track-sc1 | track-sc2 } <key> [table <table>]
+    - { track-sc1 | track-sc2 | track-sc3 } <key> [table <table>]
 
   They have the same meaning as their counter-parts in "tcp-request connection"
   so please refer to that section for a complete description.
@@ -6443,7 +6445,8 @@ tcp-request content <action> [{if | unless} <condition>]
   all the session, as opposed to the backend rules. The difference appears when
   some layer 7 information is tracked. While there is nothing mandatory about
   it, it is recommended to use the track-sc1 pointer to track per-frontend
-  counters and track-sc2 to track per-backend counters.
+  counters and track-sc2 to track per-backend counters, but this is just a
+  guideline and all counters may be used everywhere.
 
   Note that the "if/unless" condition is optional. If no condition is set on
   the action, it is simply performed unconditionally. That can be useful for
@@ -8471,18 +8474,21 @@ queue(<backend>) <integer>
 
 sc1_bytes_in_rate <integer>
 sc2_bytes_in_rate <integer>
+sc3_bytes_in_rate <integer>
   Returns the average client-to-server bytes rate from the currently tracked
   counters, measured in amount of bytes over the period configured in the
   table. See also src_bytes_in_rate.
 
 sc1_bytes_out_rate <integer>
 sc2_bytes_out_rate <integer>
+sc3_bytes_out_rate <integer>
   Returns the average server-to-client bytes rate from the currently tracked
   counters, measured in amount of bytes over the period configured in the
   table. See also src_bytes_out_rate.
 
 sc1_clr_gpc0 <integer>
 sc2_clr_gpc0 <integer>
+sc3_clr_gpc0 <integer>
   Clears the first General Purpose Counter associated to the currently tracked
   counters, and returns its previous value. Before the first invocation, the
   stored value is zero, so first invocation will always return zero. This is
@@ -8499,34 +8505,40 @@ sc2_clr_gpc0 <integer>
 
 sc1_conn_cnt <integer>
 sc2_conn_cnt <integer>
+sc3_conn_cnt <integer>
   Returns the cumulated number of incoming connections from currently tracked
   counters. See also src_conn_cnt.
 
 sc1_conn_cur <integer>
 sc2_conn_cur <integer>
+sc3_conn_cur <integer>
   Returns the current amount of concurrent connections tracking the same
   tracked counters. This number is automatically incremented when tracking
   begins and decremented when tracking stops. See also src_conn_cur.
 
 sc1_conn_rate <integer>
 sc2_conn_rate <integer>
+sc3_conn_rate <integer>
   Returns the average connection rate from the currently tracked counters,
   measured in amount of connections over the period configured in the table.
   See also src_conn_rate.
 
 sc1_get_gpc0 <integer>
 sc2_get_gpc0 <integer>
+sc3_get_gpc0 <integer>
   Returns the value of the first General Purpose Counter associated to the
   currently tracked counters. See also src_get_gpc0 and sc1/sc2_inc_gpc0.
 
 sc1_http_err_cnt <integer>
 sc2_http_err_cnt <integer>
+sc3_http_err_cnt <integer>
   Returns the cumulated number of HTTP errors from the currently tracked
   counters. This includes the both request errors and 4xx error responses.
   See also src_http_err_cnt.
 
 sc1_http_err_rate <integer>
 sc2_http_err_rate <integer>
+sc3_http_err_rate <integer>
   Returns the average rate of HTTP errors from the currently tracked counters,
   measured in amount of errors over the period configured in the table. This
   includes the both request errors and 4xx error responses. See also
@@ -8534,12 +8546,14 @@ sc2_http_err_rate <integer>
 
 sc1_http_req_cnt <integer>
 sc2_http_req_cnt <integer>
+sc3_http_req_cnt <integer>
   Returns the cumulated number of HTTP requests from the currently tracked
   counters. This includes every started request, valid or not. See also
   src_http_req_cnt.
 
 sc1_http_req_rate <integer>
 sc2_http_req_rate <integer>
+sc3_http_req_rate <integer>
   Returns the average rate of HTTP requests from the currently tracked
   counters, measured in amount of requests over the period configured in
   the table. This includes every started request, valid or not. See also
@@ -8547,6 +8561,7 @@ sc2_http_req_rate <integer>
 
 sc1_inc_gpc0 <integer>
 sc2_inc_gpc0 <integer>
+sc3_inc_gpc0 <integer>
   Increments the first General Purpose Counter associated to the currently
   tracked counters, and returns its new value. Before the first invocation,
   the stored value is zero, so first invocation will increase it to 1 and will
@@ -8559,6 +8574,7 @@ sc2_inc_gpc0 <integer>
 
 sc1_kbytes_in <integer>
 sc2_kbytes_in <integer>
+sc3_kbytes_in <integer>
   Returns the amount of client-to-server data from the currently tracked
   counters, measured in kilobytes over the period configured in the table. The
   test is currently performed on 32-bit integers, which limits values to 4
@@ -8566,6 +8582,7 @@ sc2_kbytes_in <integer>
 
 sc1_kbytes_out <integer>
 sc2_kbytes_out <integer>
+sc3_kbytes_out <integer>
   Returns the amount of server-to-client data from the currently tracked
   counters, measured in kilobytes over the period configured in the table. The
   test is currently performed on 32-bit integers, which limits values to 4
@@ -8573,6 +8590,7 @@ sc2_kbytes_out <integer>
 
 sc1_sess_cnt <integer>
 sc2_sess_cnt <integer>
+sc3_sess_cnt <integer>
   Returns the cumulated number of incoming connections that were transformed
   into sessions, which means that they were accepted by a "tcp-request
   connection" rule, from the currently tracked counters. A backend may count
@@ -8582,6 +8600,7 @@ sc2_sess_cnt <integer>
 
 sc1_sess_rate <integer>
 sc2_sess_rate <integer>
+sc3_sess_rate <integer>
   Returns the average session rate from the currently tracked counters,
   measured in amount of sessions over the period configured in the table. A
   session is a connection that got past the early "tcp-request connection"
@@ -8591,6 +8610,7 @@ sc2_sess_rate <integer>
 
 sc1_trackers <integer>
 sc2_trackers <integer>
+sc3_trackers <integer>
   Returns the current amount of concurrent connections tracking the same
   tracked counters. This number is automatically incremented when tracking
   begins and decremented when tracking stops. It differs from sc1_conn_cur in
@@ -10082,29 +10102,34 @@ The list of currently supported pattern fetch functions is the following :
 
   sc1_bytes_in_rate
   sc2_bytes_in_rate
+  sc3_bytes_in_rate
                Returns the average client-to-server bytes rate from the
                currently tracked counters, measured in amount of bytes over the
                period configured in the table. See also src_bytes_in_rate.
 
   sc1_bytes_out_rate
   sc2_bytes_out_rate
+  sc3_bytes_out_rate
                Returns the average server-to-client bytes rate from the
                currently tracked counters, measured in amount of bytes over the
                period configured in the table. See also src_bytes_out_rate.
 
   sc1_clr_gpc0
   sc2_clr_gpc0
+  sc3_clr_gpc0
                Clears the first General Purpose Counter associated to the
                currently tracked counters, and returns its previous value.
                This is only useful when used by ACLs.
 
   sc1_conn_cnt
   sc2_conn_cnt
+  sc3_conn_cnt
                Returns the cumulated number of incoming connections from
                currently tracked counters. See also src_conn_cnt.
 
   sc1_conn_cur
   sc2_conn_cur
+  sc3_conn_cur
                Returns the current amount of concurrent connections tracking
                the same tracked counters. This number is automatically
                incremented when tracking begins and decremented when tracking
@@ -10112,24 +10137,28 @@ The list of currently supported pattern fetch functions is the following :
 
   sc1_conn_rate
   sc2_conn_rate
+  sc3_conn_rate
                Returns the average connection rate from the currently tracked
                counters, measured in amount of connections over the period
                configured in the table. See also src_conn_rate.
 
   sc1_get_gpc0
   sc2_get_gpc0
+  sc3_get_gpc0
                Returns the value of the first General Purpose Counter
                associated to the currently tracked counters. See also
                src_get_gpc0 and sc1/sc2_inc_gpc0.
 
   sc1_http_err_cnt
   sc2_http_err_cnt
+  sc3_http_err_cnt
                Returns the cumulated number of HTTP errors from the currently
                tracked counters. This includes the both request errors and 4xx
                error responses. See also src_http_err_cnt.
 
   sc1_http_err_rate
   sc2_http_err_rate
+  sc3_http_err_rate
                Returns the average rate of HTTP errors from the currently
                tracked counters, measured in amount of errors over the period
                configured in the table. This includes the both request errors
@@ -10137,12 +10166,14 @@ The list of currently supported pattern fetch functions is the following :
 
   sc1_http_req_cnt
   sc2_http_req_cnt
+  sc3_http_req_cnt
                Returns the cumulated number of HTTP requests from the currently
                tracked counters. This includes every started request, valid or
                not. See also src_http_req_cnt.
 
   sc1_http_req_rate
   sc2_http_req_rate
+  sc3_http_req_rate
                Returns the average rate of HTTP requests from the currently
                tracked counters, measured in amount of requests over the period
                configured in the table. This includes every started request,
@@ -10150,12 +10181,14 @@ The list of currently supported pattern fetch functions is the following :
 
   sc1_inc_gpc0
   sc2_inc_gpc0
+  sc3_inc_gpc0
                Increments the first General Purpose Counter associated to the
                currently tracked counters, and returns its new value. This is
                only useful when used by ACLs.
 
   sc1_kbytes_in
   sc2_kbytes_in
+  sc3_kbytes_in
                Returns the amount of client-to-server data from the currently
                tracked counters, measured in kilobytes over the period
                configured in the table. The value being stored as a 32-bit
@@ -10163,6 +10196,7 @@ The list of currently supported pattern fetch functions is the following :
 
   sc1_kbytes_out
   sc2_kbytes_out
+  sc3_kbytes_out
                Returns the amount of server-to-client data from the currently
                tracked counters, measured in kilobytes over the period
                configured in the table. The value being stored as a 32-bit
@@ -10170,6 +10204,7 @@ The list of currently supported pattern fetch functions is the following :
 
   sc1_sess_cnt
   sc2_sess_cnt
+  sc3_sess_cnt
                Returns the cumulated number of incoming connections that were
                transformed into sessions, which means that they were accepted
                by a "tcp-request connection" rule, from the currently tracked
@@ -10180,6 +10215,7 @@ The list of currently supported pattern fetch functions is the following :
 
   sc1_sess_rate
   sc2_sess_rate
+  sc3_sess_rate
                Returns the average session rate from the currently tracked
                counters, measured in amount of sessions over the period
                configured in the table. A session is a connection that got past
@@ -10191,6 +10227,7 @@ The list of currently supported pattern fetch functions is the following :
 
   sc1_trackers
   sc2_trackers
+  sc3_trackers
                Returns the current amount of concurrent connections tracking
                the same tracked counters. This number is automatically
                incremented when tracking begins and decremented when tracking
