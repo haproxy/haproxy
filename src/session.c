@@ -2645,6 +2645,77 @@ smp_fetch_src_get_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned 
 	return smp_fetch_get_gpc0(&px->table, smp, stktable_lookup_key(&px->table, key));
 }
 
+/* set temp integer to the General Purpose Counter 0's event rate in the stksess entry <ts> */
+static int
+smp_fetch_gpc0_rate(struct stktable *table, struct sample *smp, struct stksess *ts)
+{
+	smp->flags = SMP_F_VOL_TEST;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = 0;
+	if (ts != NULL) {
+		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_GPC0_RATE);
+		if (!ptr)
+			return 0; /* parameter not stored */
+		smp->data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, gpc0_rate),
+					       table->data_arg[STKTABLE_DT_GPC0_RATE].u);
+	}
+	return 1;
+}
+
+/* set temp integer to the General Purpose Counter 0's event rate from the
+ * session's tracked frontend counters.
+ */
+static int
+smp_fetch_sc1_gpc0_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                       const struct arg *args, struct sample *smp)
+{
+	if (!l4->stkctr[0].entry)
+		return 0;
+	return smp_fetch_gpc0_rate(l4->stkctr[0].table, smp, l4->stkctr[0].entry);
+}
+
+/* set temp integer to the General Purpose Counter 0's event rate from the
+ * session's tracked backend counters.
+ */
+static int
+smp_fetch_sc2_gpc0_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                       const struct arg *args, struct sample *smp)
+{
+	if (!l4->stkctr[1].entry)
+		return 0;
+	return smp_fetch_gpc0_rate(l4->stkctr[1].table, smp, l4->stkctr[1].entry);
+}
+
+/* set temp integer to the General Purpose Counter 0's event rate from the
+ * session's tracked backend counters.
+ */
+static int
+smp_fetch_sc3_gpc0_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                       const struct arg *args, struct sample *smp)
+{
+	if (!l4->stkctr[2].entry)
+		return 0;
+	return smp_fetch_gpc0_rate(l4->stkctr[2].table, smp, l4->stkctr[2].entry);
+}
+
+/* set temp integer to the General Purpose Counter 0's event rate from the
+ * session's source address in the table pointed to by expr.
+ * Accepts exactly 1 argument of type table.
+ */
+static int
+smp_fetch_src_gpc0_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                       const struct arg *args, struct sample *smp)
+{
+	struct stktable_key *key;
+
+	key = addr_to_stktable_key(&l4->si[0].conn->addr.from);
+	if (!key)
+		return 0;
+
+	px = args->data.prx;
+	return smp_fetch_gpc0_rate(&px->table, smp, stktable_lookup_key(&px->table, key));
+}
+
 /* Increment the General Purpose Counter 0 value in the stksess entry <ts> and
  * return it into temp integer.
  */
@@ -2655,10 +2726,22 @@ smp_fetch_inc_gpc0(struct stktable *table, struct sample *smp, struct stksess *t
 	smp->type = SMP_T_UINT;
 	smp->data.uint = 0;
 	if (ts != NULL) {
-		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_GPC0);
-		if (!ptr)
-			return 0; /* parameter not stored */
-		smp->data.uint = ++stktable_data_cast(ptr, gpc0);
+		void *ptr;
+
+		/* First, update gpc0_rate if it's tracked. Second, update its
+		 * gpc0 if tracked. Returns gpc0's value otherwise the curr_ctr.
+		 */
+		ptr = stktable_data_ptr(table, ts, STKTABLE_DT_GPC0_RATE);
+		if (ptr) {
+			update_freq_ctr_period(&stktable_data_cast(ptr, gpc0_rate),
+					       table->data_arg[STKTABLE_DT_GPC0_RATE].u, 1);
+			smp->data.uint = (&stktable_data_cast(ptr, gpc0_rate))->curr_ctr;
+		}
+
+		ptr = stktable_data_ptr(table, ts, STKTABLE_DT_GPC0);
+		if (ptr)
+			smp->data.uint = ++stktable_data_cast(ptr, gpc0);
+
 	}
 	return 1;
 }
@@ -3825,6 +3908,7 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "sc1_conn_cur",       NULL, acl_parse_int, acl_match_int },
 	{ "sc1_conn_rate",      NULL, acl_parse_int, acl_match_int },
 	{ "sc1_get_gpc0",       NULL, acl_parse_int, acl_match_int },
+	{ "sc1_gpc0_rate",      NULL, acl_parse_int, acl_match_int },
 	{ "sc1_http_err_cnt",   NULL, acl_parse_int, acl_match_int },
 	{ "sc1_http_err_rate",  NULL, acl_parse_int, acl_match_int },
 	{ "sc1_http_req_cnt",   NULL, acl_parse_int, acl_match_int },
@@ -3842,6 +3926,7 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "sc2_conn_cur",       NULL, acl_parse_int, acl_match_int },
 	{ "sc2_conn_rate",      NULL, acl_parse_int, acl_match_int },
 	{ "sc2_get_gpc0",       NULL, acl_parse_int, acl_match_int },
+	{ "sc2_gpc0_rate",      NULL, acl_parse_int, acl_match_int },
 	{ "sc2_http_err_cnt",   NULL, acl_parse_int, acl_match_int },
 	{ "sc2_http_err_rate",  NULL, acl_parse_int, acl_match_int },
 	{ "sc2_http_req_cnt",   NULL, acl_parse_int, acl_match_int },
@@ -3859,6 +3944,7 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "sc3_conn_cur",       NULL, acl_parse_int, acl_match_int },
 	{ "sc3_conn_rate",      NULL, acl_parse_int, acl_match_int },
 	{ "sc3_get_gpc0",       NULL, acl_parse_int, acl_match_int },
+	{ "sc3_gpc0_rate",      NULL, acl_parse_int, acl_match_int },
 	{ "sc3_http_err_cnt",   NULL, acl_parse_int, acl_match_int },
 	{ "sc3_http_err_rate",  NULL, acl_parse_int, acl_match_int },
 	{ "sc3_http_req_cnt",   NULL, acl_parse_int, acl_match_int },
@@ -3876,6 +3962,7 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "src_conn_cur",       NULL, acl_parse_int, acl_match_int },
 	{ "src_conn_rate",      NULL, acl_parse_int, acl_match_int },
 	{ "src_get_gpc0",       NULL, acl_parse_int, acl_match_int },
+	{ "src_gpc0_rate",      NULL, acl_parse_int, acl_match_int },
 	{ "src_http_err_cnt",   NULL, acl_parse_int, acl_match_int },
 	{ "src_http_err_rate",  NULL, acl_parse_int, acl_match_int },
 	{ "src_http_req_cnt",   NULL, acl_parse_int, acl_match_int },
@@ -3902,6 +3989,7 @@ static struct sample_fetch_kw_list smp_fetch_keywords = {{ },{
 	{ "sc1_conn_cur",       smp_fetch_sc1_conn_cur,       0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc1_conn_rate",      smp_fetch_sc1_conn_rate,      0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc1_get_gpc0",       smp_fetch_sc1_get_gpc0,       0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc1_gpc0_rate",      smp_fetch_sc1_gpc0_rate,      0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc1_http_err_cnt",   smp_fetch_sc1_http_err_cnt,   0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc1_http_err_rate",  smp_fetch_sc1_http_err_rate,  0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc1_http_req_cnt",   smp_fetch_sc1_http_req_cnt,   0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
@@ -3919,6 +4007,7 @@ static struct sample_fetch_kw_list smp_fetch_keywords = {{ },{
 	{ "sc2_conn_cur",       smp_fetch_sc2_conn_cur,       0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc2_conn_rate",      smp_fetch_sc2_conn_rate,      0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc2_get_gpc0",       smp_fetch_sc2_get_gpc0,       0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc2_gpc0_rate",      smp_fetch_sc2_gpc0_rate,      0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc2_http_err_cnt",   smp_fetch_sc2_http_err_cnt,   0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc2_http_err_rate",  smp_fetch_sc2_http_err_rate,  0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc2_http_req_cnt",   smp_fetch_sc2_http_req_cnt,   0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
@@ -3936,6 +4025,7 @@ static struct sample_fetch_kw_list smp_fetch_keywords = {{ },{
 	{ "sc3_conn_cur",       smp_fetch_sc3_conn_cur,       0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc3_conn_rate",      smp_fetch_sc3_conn_rate,      0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc3_get_gpc0",       smp_fetch_sc3_get_gpc0,       0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc3_gpc0_rate",      smp_fetch_sc3_gpc0_rate,      0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc3_http_err_cnt",   smp_fetch_sc3_http_err_cnt,   0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc3_http_err_rate",  smp_fetch_sc3_http_err_rate,  0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc3_http_req_cnt",   smp_fetch_sc3_http_req_cnt,   0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
@@ -3953,6 +4043,7 @@ static struct sample_fetch_kw_list smp_fetch_keywords = {{ },{
 	{ "src_conn_cur",       smp_fetch_src_conn_cur,       ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
 	{ "src_conn_rate",      smp_fetch_src_conn_rate,      ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
 	{ "src_get_gpc0",       smp_fetch_src_get_gpc0,       ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
+	{ "src_gpc0_rate",      smp_fetch_src_gpc0_rate,      ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
 	{ "src_http_err_cnt",   smp_fetch_src_http_err_cnt,   ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
 	{ "src_http_err_rate",  smp_fetch_src_http_err_rate,  ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
 	{ "src_http_req_cnt",   smp_fetch_src_http_req_cnt,   ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },

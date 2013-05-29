@@ -6085,6 +6085,13 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
       to put a special tag on some entries, for instance to note that a
       specific behaviour was detected and must be known for future matches.
 
+    - gpc0_rate(<period>) : increment rate of the first General Purpose Counter
+      over a period. It is a positive 32-bit integer integer which may be used
+      for anything. Just like <gpc0>, it counts events, but instead of keeping
+      a cumulative count, it maintains the rate at which the counter is
+      incremented. Most of the time it will be used to measure the frequency of
+      occurrence of certain events (eg: requests to a specific URL).
+
     - conn_cnt : Connection Count. It is a positive 32-bit integer which counts
       the absolute number of connections received from clients which matched
       this entry. It does not mean the connections were accepted, just that
@@ -8527,7 +8534,17 @@ sc1_get_gpc0 <integer>
 sc2_get_gpc0 <integer>
 sc3_get_gpc0 <integer>
   Returns the value of the first General Purpose Counter associated to the
-  currently tracked counters. See also src_get_gpc0 and sc1/sc2_inc_gpc0.
+  currently tracked counters. See also src_get_gpc0 and sc1/sc2/sc3_get_gpc0.
+
+sc1_gpc0_rate <integer>
+sc2_gpc0_rate <integer>
+sc3_gpc0_rate <integer>
+  Returns the average increment rate of the first General Purpose Counter
+  associated to the currently tracked counters. It reports the frequency
+  which the gpc0 counter was incremented over the configured period. See also
+  src_gpc0_rate, sc1/sc2/sc3_get_gpc0, and sc1/sc2/sc3_inc_gpc0. Note that the
+  "gpc0_rate" counter must be stored in the stick-table for a value to be
+  returned, as "gpc0" only holds the event count.
 
 sc1_http_err_cnt <integer>
 sc2_http_err_cnt <integer>
@@ -8683,6 +8700,16 @@ src_get_gpc0(<table>) <integer>
   connection's source IPv4 address in the current proxy's stick-table or in
   the designated stick-table. If the address is not found, zero is returned.
   See also sc1/sc2_get_gpc0 and src_inc_gpc0.
+
+src_gpc0_rate <integer>
+src_gpc0_rate(<table>) <integer>
+  Returns the average increment rate of the first General Purpose Counter
+  associated to the connection's source IPv4 address in the current proxy's
+  stick-table or in the designated stick-table. It reports the frequency
+  which the gpc0 counter was incremented over the configured period. See also
+  sc1/sc2/sc3_gpc0_rate, src_get_gpc0, and sc1/sc2/sc3_inc_gpc0. Note that the
+  "gpc0_rate" counter must be stored in the stick-table for a value to be
+  returned, as "gpc0" only holds the event count.
 
 src_http_err_cnt <integer>
 src_http_err_cnt(<table>) <integer>
@@ -10149,6 +10176,17 @@ The list of currently supported pattern fetch functions is the following :
                associated to the currently tracked counters. See also
                src_get_gpc0 and sc1/sc2_inc_gpc0.
 
+  sc1_gpc0_rate
+  sc2_gpc0_rate
+  sc3_gpc0_rate
+               Returns the average increment rate of the first General Purpose
+               Counter associated to the currently tracked counters. It reports
+               the frequency which the gpc0 counter was incremented over the
+               configured period. See also src_gpc0_rate, sc1/sc2/sc3_get_gpc0,
+               and sc1/sc2/sc3_inc_gpc0. Note that the "gpc0_rate" counter must
+               be stored in the stick-table for a value to be returned, as
+               "gpc0" only holds the event count.
+
   sc1_http_err_cnt
   sc2_http_err_cnt
   sc3_http_err_cnt
@@ -10325,6 +10363,16 @@ The list of currently supported pattern fetch functions is the following :
                current proxy's stick-table or in the designated stick-table. If
                the address is not found, zero is returned.  See also
                sc1/sc2_get_gpc0 and src_inc_gpc0.
+
+  src_gpc0_rate([<table>])
+               Returns the average increment rate of the first General Purpose
+               Counter associated to the connection's source IPv4 address in
+               the current proxy's stick-table or in the designated stick-
+               table. It reports the frequency which the gpc0 counter was
+               incremented over the configured period. See also src_gpc0_rate,
+               sc1/sc2/sc3_get_gpc0, and sc1/sc2/sc3_inc_gpc0. Note that the
+               "gpc0_rate" counter must be stored in the stick-table for a
+               value to be returned, as "gpc0" only holds the event count.
 
   src_http_err_cnt([<table>])
                Returns the cumulated number of HTTP errors from the current

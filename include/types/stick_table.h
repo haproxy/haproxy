@@ -46,6 +46,7 @@ enum {
 enum {
 	STKTABLE_DT_SERVER_ID,    /* the server ID to use with this session if > 0 */
 	STKTABLE_DT_GPC0,         /* General Purpose Counter 0 (unsigned 32-bit integer) */
+	STKTABLE_DT_GPC0_RATE,    /* General Purpose Counter 0's event rate */
 	STKTABLE_DT_CONN_CNT,     /* cumulated number of connections */
 	STKTABLE_DT_CONN_RATE,    /* incoming connection rate */
 	STKTABLE_DT_CONN_CUR,     /* concurrent number of connections */
@@ -88,6 +89,7 @@ union stktable_data {
 	/* types of each storable data */
 	int server_id;
 	unsigned int gpc0;
+	struct freq_ctr_period gpc0_rate;
 	unsigned int conn_cnt;
 	struct freq_ctr_period conn_rate;
 	unsigned int conn_cur;
