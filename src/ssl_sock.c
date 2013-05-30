@@ -1318,14 +1318,10 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 	 * in which case we accept to do it once again.
 	 */
 	while (buf->o) {
-		try = buf->o;
+		try = bo_contig_data(buf);
 
 		if (global.tune.ssl_max_record && try > global.tune.ssl_max_record)
 			try = global.tune.ssl_max_record;
-
-		/* outgoing data may wrap at the end */
-		if (buf->data + try > buf->p)
-			try = buf->data + try - buf->p;
 
 		ret = SSL_write(conn->xprt_ctx, bo_ptr(buf), try);
 		if (conn->flags & CO_FL_ERROR) {
