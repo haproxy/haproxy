@@ -197,7 +197,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, struct bind_conf *s)
 	if (!servername) {
 		return (s->strict_sni ?
 			SSL_TLSEXT_ERR_ALERT_FATAL :
-			SSL_TLSEXT_ERR_ALERT_WARNING);
+			SSL_TLSEXT_ERR_NOACK);
 	}
 
 	for (i = 0; i < trash.size; i++) {
@@ -218,7 +218,6 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, struct bind_conf *s)
 			node = n;
 			break;
 		}
-		wildp = NULL; /* never match a wildcard after matching a neg */
 	}
 	if (!node && wildp) {
 		/* lookup in wildcards names */
