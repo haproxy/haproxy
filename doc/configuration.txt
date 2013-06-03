@@ -8625,6 +8625,13 @@ sc3_sess_rate <integer>
   connection could result in many backend sessions if some HTTP keep-alive is
   performed over the connection with the client. See also src_sess_rate.
 
+sc1_tracked
+sc2_tracked
+sc3_tracked
+  Returns true if the designated session counter is currently being tracked by
+  the current session. This can be useful when deciding whether or not we want
+  to set some values in a header passed to the server.
+
 sc1_trackers <integer>
 sc2_trackers <integer>
 sc3_trackers <integer>
@@ -10262,6 +10269,14 @@ The list of currently supported pattern fetch functions is the following :
                result in many backend sessions if some HTTP keep-alive is
                performed over the connection with the client. See also
                src_sess_rate.
+
+  sc1_tracked
+  sc2_tracked
+  sc3_tracked
+               Returns true if the designated session counter is currently
+               being tracked by the current session. This can be useful when
+               deciding whether or not we want to set some values in a header
+               passed to the server.
 
   sc1_trackers
   sc2_trackers

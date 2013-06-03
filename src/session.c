@@ -2575,6 +2575,39 @@ void session_shutdown(struct session *session, int why)
 /*           All supported ACL keywords must be declared here.          */
 /************************************************************************/
 
+/* set return a boolean indicating if sc1 is currently being tracked or not */
+static int
+smp_fetch_sc1_tracked(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                      const struct arg *args, struct sample *smp)
+{
+	smp->flags = SMP_F_VOL_TEST;
+	smp->type = SMP_T_BOOL;
+	smp->data.uint = !!l4->stkctr[0].entry;
+	return 1;
+}
+
+/* set return a boolean indicating if sc2 is currently being tracked or not */
+static int
+smp_fetch_sc2_tracked(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                      const struct arg *args, struct sample *smp)
+{
+	smp->flags = SMP_F_VOL_TEST;
+	smp->type = SMP_T_BOOL;
+	smp->data.uint = !!l4->stkctr[1].entry;
+	return 1;
+}
+
+/* set return a boolean indicating if sc3 is currently being tracked or not */
+static int
+smp_fetch_sc3_tracked(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                      const struct arg *args, struct sample *smp)
+{
+	smp->flags = SMP_F_VOL_TEST;
+	smp->type = SMP_T_BOOL;
+	smp->data.uint = !!l4->stkctr[2].entry;
+	return 1;
+}
+
 /* set temp integer to the General Purpose Counter 0 value in the stksess entry <ts> */
 static int
 smp_fetch_get_gpc0(struct stktable *table, struct sample *smp, struct stksess *ts)
@@ -3918,6 +3951,7 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "sc1_kbytes_out",     NULL, acl_parse_int, acl_match_int },
 	{ "sc1_sess_cnt",       NULL, acl_parse_int, acl_match_int },
 	{ "sc1_sess_rate",      NULL, acl_parse_int, acl_match_int },
+	{ "sc1_tracked",        NULL, acl_parse_nothing, acl_match_nothing },
 	{ "sc1_trackers",       NULL, acl_parse_int, acl_match_int },
 	{ "sc2_bytes_in_rate",  NULL, acl_parse_int, acl_match_int },
 	{ "sc2_bytes_out_rate", NULL, acl_parse_int, acl_match_int },
@@ -3936,6 +3970,7 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "sc2_kbytes_out",     NULL, acl_parse_int, acl_match_int },
 	{ "sc2_sess_cnt",       NULL, acl_parse_int, acl_match_int },
 	{ "sc2_sess_rate",      NULL, acl_parse_int, acl_match_int },
+	{ "sc2_tracked",        NULL, acl_parse_nothing, acl_match_nothing },
 	{ "sc2_trackers",       NULL, acl_parse_int, acl_match_int },
 	{ "sc3_bytes_in_rate",  NULL, acl_parse_int, acl_match_int },
 	{ "sc3_bytes_out_rate", NULL, acl_parse_int, acl_match_int },
@@ -3954,6 +3989,7 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "sc3_kbytes_out",     NULL, acl_parse_int, acl_match_int },
 	{ "sc3_sess_cnt",       NULL, acl_parse_int, acl_match_int },
 	{ "sc3_sess_rate",      NULL, acl_parse_int, acl_match_int },
+	{ "sc3_tracked",        NULL, acl_parse_nothing, acl_match_nothing },
 	{ "sc3_trackers",       NULL, acl_parse_int, acl_match_int },
 	{ "src_bytes_in_rate",  NULL, acl_parse_int, acl_match_int },
 	{ "src_bytes_out_rate", NULL, acl_parse_int, acl_match_int },
@@ -3999,6 +4035,7 @@ static struct sample_fetch_kw_list smp_fetch_keywords = {{ },{
 	{ "sc1_kbytes_out",     smp_fetch_sc1_kbytes_out,     0,           NULL, SMP_T_UINT, SMP_USE_L4CLI, },
 	{ "sc1_sess_cnt",       smp_fetch_sc1_sess_cnt,       0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc1_sess_rate",      smp_fetch_sc1_sess_rate,      0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc1_tracked",        smp_fetch_sc1_tracked,        0,           NULL, SMP_T_BOOL, SMP_USE_INTRN, },
 	{ "sc1_trackers",       smp_fetch_sc1_trackers,       0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc2_bytes_in_rate",  smp_fetch_sc2_bytes_in_rate,  0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc2_bytes_out_rate", smp_fetch_sc2_bytes_out_rate, 0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
@@ -4017,6 +4054,7 @@ static struct sample_fetch_kw_list smp_fetch_keywords = {{ },{
 	{ "sc2_kbytes_out",     smp_fetch_sc2_kbytes_out,     0,           NULL, SMP_T_UINT, SMP_USE_L4CLI, },
 	{ "sc2_sess_cnt",       smp_fetch_sc2_sess_cnt,       0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc2_sess_rate",      smp_fetch_sc2_sess_rate,      0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc2_tracked",        smp_fetch_sc2_tracked,        0,           NULL, SMP_T_BOOL, SMP_USE_INTRN, },
 	{ "sc2_trackers",       smp_fetch_sc2_trackers,       0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc3_bytes_in_rate",  smp_fetch_sc3_bytes_in_rate,  0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc3_bytes_out_rate", smp_fetch_sc3_bytes_out_rate, 0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
@@ -4035,6 +4073,7 @@ static struct sample_fetch_kw_list smp_fetch_keywords = {{ },{
 	{ "sc3_kbytes_out",     smp_fetch_sc3_kbytes_out,     0,           NULL, SMP_T_UINT, SMP_USE_L4CLI, },
 	{ "sc3_sess_cnt",       smp_fetch_sc3_sess_cnt,       0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc3_sess_rate",      smp_fetch_sc3_sess_rate,      0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc3_tracked",        smp_fetch_sc3_tracked,        0,           NULL, SMP_T_BOOL, SMP_USE_INTRN, },
 	{ "sc3_trackers",       smp_fetch_sc3_trackers,       0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "src_bytes_in_rate",  smp_fetch_src_bytes_in_rate,  ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
 	{ "src_bytes_out_rate", smp_fetch_src_bytes_out_rate, ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
