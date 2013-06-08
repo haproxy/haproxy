@@ -102,10 +102,28 @@ static inline unsigned int channel_is_empty(struct channel *c)
 	return !(c->buf->o | (long)c->pipe);
 }
 
-/* Returns non-zero if the buffer input is considered full. The reserved space
- * is taken into account if ->to_forward indicates that an end of transfer is
- * close to happen. The test is optimized to avoid as many operations as
- * possible for the fast case and to be used as an "if" condition.
+/* Returns non-zero if the buffer input has all of its reserve available. This
+ * is used to decide when a request or response may be parsed when some data
+ * from a previous exchange might still be present.
+ */
+static inline int channel_reserved(const struct channel *chn)
+{
+	int rem = chn->buf->size;
+
+	rem -= chn->buf->o;
+	rem -= chn->buf->i;
+	rem -= global.tune.maxrewrite;
+	return rem >= 0;
+}
+
+/* Returns non-zero if the buffer input is considered full. This is used to
+ * decide when to stop reading into a buffer when we want to ensure that we
+ * leave the reserve untouched after all pending outgoing data are forwarded.
+ * The reserved space is taken into account if ->to_forward indicates that an
+ * end of transfer is close to happen. Note that both ->buf->o and ->to_forward
+ * are considered as available since they're supposed to leave the buffer. The
+ * test is optimized to avoid as many operations as possible for the fast case
+ * and to be used as an "if" condition.
  */
 static inline int channel_full(const struct channel *chn)
 {
