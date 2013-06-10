@@ -9915,6 +9915,23 @@ The list of currently supported pattern fetch functions is the following :
                an integer which is returned. If no name is specified, the first
                cookie value is returned.
 
+  req.fhdr(<name>[,<occ>])
+               This extracts the last occurrence of header <name> in an HTTP
+               request. Optionally, a specific occurrence might be specified as
+               a position number. Positive values indicate a position from the
+               first occurrence, with 1 being the first one. Negative values
+               indicate positions relative to the last one, with -1 being the
+               last one. It differs from req.hdr() in that any commas present
+               in the value are returned and are not used as delimiters. This
+               is sometimes useful with headers such as User-Agent.
+
+  req.fhdr_cnt([<name>])
+               Returns an integer value representing the number of occurrences
+               of request header field name <name>, or the total number of
+               header fields if <name> is not specified. Contrary to its
+               req.hdr_cnt() cousin, this function returns the number of full
+               line headers and does not stop on commas.
+
   req.hdr(<name>[,<occ>])
                This extracts the last occurrence of header <name> in an HTTP
                request. Optionally, a specific occurrence might be specified as
@@ -9922,12 +9939,14 @@ The list of currently supported pattern fetch functions is the following :
                first occurrence, with 1 being the first one. Negative values
                indicate positions relative to the last one, with -1 being the
                last one. A typical use is with the X-Forwarded-For header once
-               converted to IP, associated with an IP stick-table.
+               converted to IP, associated with an IP stick-table. The function
+               considers any comma as a delimiter for distinct values.
 
   req.hdr_cnt([<name>])
                Returns an integer value representing the number of occurrences
                of request header field name <name>, or the total number of
-               header fields if <name> is not specified.
+               header field values if <name> is not specified. The function
+               considers any comma as a delimiter for distinct values.
 
   req.hdr_ip([<name>[,<occ>]])
                This extracts the last occurrence of header <name> in an HTTP
@@ -10074,6 +10093,23 @@ The list of currently supported pattern fetch functions is the following :
                value to an integer which is returned. If no name is specified,
                the first cookie value is returned.
 
+  res.fhdr(<name>[,<occ>])
+               This extracts the last occurrence of header <name> in an HTTP
+               response. Optionally, a specific occurrence might be specified
+               as a position number. Positive values indicate a position from
+               the first occurrence, with 1 being the first one. Negative
+               values indicate positions relative to the last one, with -1
+               being the last one. It differs from res.hdr() in that any commas
+               present in the value are returned and are not used as delimiters.
+               This is sometimes useful with headers such as Date or Expires.
+
+  res.fhdr_cnt([<name>])
+               Returns an integer value representing the number of occurrences
+               of response header field name <name>, or the total number of
+               header fields if <name> is not specified. Contrary to its
+               res.hdr_cnt() cousin, this function returns the number of full
+               line headers and does not stop on commas.
+
   res.hdr(<name>[,<occ>])
                This extracts the last occurrence of header <name> in an HTTP
                response. Optionally, a specific occurrence might be specified
@@ -10081,12 +10117,14 @@ The list of currently supported pattern fetch functions is the following :
                the first occurrence, with 1 being the first one. Negative
                values indicate positions relative to the last one, with -1
                being the last one. This can be useful to learn some data into
-               a stick-table.
+               a stick-table. The function considers any comma as a delimiter
+               for distinct values.
 
   res.hdr_cnt([<name>])
                Returns an integer value representing the number of occurrences
                of response header field name <name>, or the total number of
-               header fields if <name> is not specified.
+               header fields if <name> is not specified. The function considers
+               any comma as a delimiter for distinct values.
 
   res.hdr_ip([<name>[,<occ>]])
                This extracts the last occurrence of header <name> in an HTTP

@@ -488,6 +488,75 @@ int http_header_match2(const char *hdr, const char *end,
 	return val - hdr;
 }
 
+/* Find the first or next occurrence of header <name> in message buffer <sol>
+ * using headers index <idx>, and return it in the <ctx> structure. This
+ * structure holds everything necessary to use the header and find next
+ * occurrence. If its <idx> member is 0, the header is searched from the
+ * beginning. Otherwise, the next occurrence is returned. The function returns
+ * 1 when it finds a value, and 0 when there is no more. It is very similar to
+ * http_find_header2() except that it is designed to work with full-line headers
+ * whose comma is not a delimiter but is part of the syntax. As a special case,
+ * if ctx->val is NULL when searching for a new values of a header, the current
+ * header is rescanned. This allows rescanning after a header deletion.
+ */
+int http_find_full_header2(const char *name, int len,
+                           char *sol, struct hdr_idx *idx,
+                           struct hdr_ctx *ctx)
+{
+	char *eol, *sov;
+	int cur_idx, old_idx;
+
+	cur_idx = ctx->idx;
+	if (cur_idx) {
+		/* We have previously returned a header, let's search another one */
+		sol = ctx->line;
+		eol = sol + idx->v[cur_idx].len;
+		goto next_hdr;
+	}
+
+	/* first request for this header */
+	sol += hdr_idx_first_pos(idx);
+	old_idx = 0;
+	cur_idx = hdr_idx_first_idx(idx);
+	while (cur_idx) {
+		eol = sol + idx->v[cur_idx].len;
+
+		if (len == 0) {
+			/* No argument was passed, we want any header.
+			 * To achieve this, we simply build a fake request. */
+			while (sol + len < eol && sol[len] != ':')
+				len++;
+			name = sol;
+		}
+
+		if ((len < eol - sol) &&
+		    (sol[len] == ':') &&
+		    (strncasecmp(sol, name, len) == 0)) {
+			ctx->del = len;
+			sov = sol + len + 1;
+			while (sov < eol && http_is_lws[(unsigned char)*sov])
+				sov++;
+
+			ctx->line = sol;
+			ctx->prev = old_idx;
+			ctx->idx  = cur_idx;
+			ctx->val  = sov - sol;
+			ctx->tws = 0;
+			while (eol > sov && http_is_lws[(unsigned char)*(eol - 1)]) {
+				eol--;
+				ctx->tws++;
+			}
+			ctx->vlen = eol - sov;
+			return 1;
+		}
+	next_hdr:
+		sol = eol + idx->v[cur_idx].cr + 1;
+		old_idx = cur_idx;
+		cur_idx = idx->v[cur_idx].next;
+	}
+	return 0;
+}
+
 /* Find the end of the header value contained between <s> and <e>. See RFC2616,
  * par 2.2 for more information. Note that it requires a valid header to return
  * a valid result. This works for headers defined as comma-separated lists.
@@ -7934,7 +8003,8 @@ void http_capture_bad_message(struct error_snapshot *es, struct session *s,
  * <occ> is positive or null, occurrence #occ from the beginning (or last ctx)
  * is returned. Occ #0 and #1 are equivalent. If <occ> is negative (and no less
  * than -MAX_HDR_HISTORY), the occurrence is counted from the last one which is
- * -1.
+ * -1. The value fetch stops at commas, so this function is suited for use with
+ * list headers.
  * The return value is 0 if nothing was found, or non-zero otherwise.
  */
 unsigned int http_get_hdr(const struct http_msg *msg, const char *hname, int hlen,
@@ -7971,6 +8041,70 @@ unsigned int http_get_hdr(const struct http_msg *msg, const char *hname, int hle
 
 	found = hist_ptr = 0;
 	while (http_find_header2(hname, hlen, msg->chn->buf->p, idx, ctx)) {
+		ptr_hist[hist_ptr] = ctx->line + ctx->val;
+		len_hist[hist_ptr] = ctx->vlen;
+		if (++hist_ptr >= MAX_HDR_HISTORY)
+			hist_ptr = 0;
+		found++;
+	}
+	if (-occ > found)
+		return 0;
+	/* OK now we have the last occurrence in [hist_ptr-1], and we need to
+	 * find occurrence -occ, so we have to check [hist_ptr+occ].
+	 */
+	hist_ptr += occ;
+	if (hist_ptr >= MAX_HDR_HISTORY)
+		hist_ptr -= MAX_HDR_HISTORY;
+	*vptr = ptr_hist[hist_ptr];
+	*vlen = len_hist[hist_ptr];
+	return 1;
+}
+
+/* Return in <vptr> and <vlen> the pointer and length of occurrence <occ> of
+ * header whose name is <hname> of length <hlen>. If <ctx> is null, lookup is
+ * performed over the whole headers. Otherwise it must contain a valid header
+ * context, initialised with ctx->idx=0 for the first lookup in a series. If
+ * <occ> is positive or null, occurrence #occ from the beginning (or last ctx)
+ * is returned. Occ #0 and #1 are equivalent. If <occ> is negative (and no less
+ * than -MAX_HDR_HISTORY), the occurrence is counted from the last one which is
+ * -1. This function differs from http_get_hdr() in that it only returns full
+ * line header values and does not stop at commas.
+ * The return value is 0 if nothing was found, or non-zero otherwise.
+ */
+unsigned int http_get_fhdr(const struct http_msg *msg, const char *hname, int hlen,
+			   struct hdr_idx *idx, int occ,
+			   struct hdr_ctx *ctx, char **vptr, int *vlen)
+{
+	struct hdr_ctx local_ctx;
+	char *ptr_hist[MAX_HDR_HISTORY];
+	int len_hist[MAX_HDR_HISTORY];
+	unsigned int hist_ptr;
+	int found;
+
+	if (!ctx) {
+		local_ctx.idx = 0;
+		ctx = &local_ctx;
+	}
+
+	if (occ >= 0) {
+		/* search from the beginning */
+		while (http_find_full_header2(hname, hlen, msg->chn->buf->p, idx, ctx)) {
+			occ--;
+			if (occ <= 0) {
+				*vptr = ctx->line + ctx->val;
+				*vlen = ctx->vlen;
+				return 1;
+			}
+		}
+		return 0;
+	}
+
+	/* negative occurrence, we scan all the list then walk back */
+	if (-occ > MAX_HDR_HISTORY)
+		return 0;
+
+	found = hist_ptr = 0;
+	while (http_find_full_header2(hname, hlen, msg->chn->buf->p, idx, ctx)) {
 		ptr_hist[hist_ptr] = ctx->line + ctx->val;
 		len_hist[hist_ptr] = ctx->vlen;
 		if (++hist_ptr >= MAX_HDR_HISTORY)
@@ -8715,6 +8849,95 @@ smp_fetch_url_port(struct proxy *px, struct session *l4, void *l7, unsigned int 
 		l4->flags |= SN_ADDR_SET;
 
 	smp->flags = 0;
+	return 1;
+}
+
+/* Fetch an HTTP header. A pointer to the beginning of the value is returned.
+ * Accepts an optional argument of type string containing the header field name,
+ * and an optional argument of type signed or unsigned integer to request an
+ * explicit occurrence of the header. Note that in the event of a missing name,
+ * headers are considered from the first one. It does not stop on commas and
+ * returns full lines instead (useful for User-Agent or Date for example).
+ */
+static int
+smp_fetch_fhdr(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+               const struct arg *args, struct sample *smp)
+{
+	struct http_txn *txn = l7;
+	struct hdr_idx *idx = &txn->hdr_idx;
+	struct hdr_ctx *ctx = smp->ctx.a[0];
+	const struct http_msg *msg = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) ? &txn->req : &txn->rsp;
+	int occ = 0;
+	const char *name_str = NULL;
+	int name_len = 0;
+
+	if (!ctx) {
+		/* first call */
+		ctx = &static_hdr_ctx;
+		ctx->idx = 0;
+		smp->ctx.a[0] = ctx;
+	}
+
+	if (args) {
+		if (args[0].type != ARGT_STR)
+			return 0;
+		name_str = args[0].data.str.str;
+		name_len = args[0].data.str.len;
+
+		if (args[1].type == ARGT_UINT || args[1].type == ARGT_SINT)
+			occ = args[1].data.uint;
+	}
+
+	CHECK_HTTP_MESSAGE_FIRST();
+
+	if (ctx && !(smp->flags & SMP_F_NOT_LAST))
+		/* search for header from the beginning */
+		ctx->idx = 0;
+
+	if (!occ && !(opt & SMP_OPT_ITERATE))
+		/* no explicit occurrence and single fetch => last header by default */
+		occ = -1;
+
+	if (!occ)
+		/* prepare to report multiple occurrences for ACL fetches */
+		smp->flags |= SMP_F_NOT_LAST;
+
+	smp->type = SMP_T_CSTR;
+	smp->flags |= SMP_F_VOL_HDR;
+	if (http_get_fhdr(msg, name_str, name_len, idx, occ, ctx, &smp->data.str.str, &smp->data.str.len))
+		return 1;
+
+	smp->flags &= ~SMP_F_NOT_LAST;
+	return 0;
+}
+
+/* 6. Check on HTTP header count. The number of occurrences is returned.
+ * Accepts exactly 1 argument of type string. It does not stop on commas and
+ * returns full lines instead (useful for User-Agent or Date for example).
+ */
+static int
+smp_fetch_fhdr_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                  const struct arg *args, struct sample *smp)
+{
+	struct http_txn *txn = l7;
+	struct hdr_idx *idx = &txn->hdr_idx;
+	struct hdr_ctx ctx;
+	const struct http_msg *msg = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) ? &txn->req : &txn->rsp;
+	int cnt;
+
+	if (!args || args->type != ARGT_STR)
+		return 0;
+
+	CHECK_HTTP_MESSAGE_FIRST();
+
+	ctx.idx = 0;
+	cnt = 0;
+	while (http_find_full_header2(args->data.str.str, args->data.str.len, msg->chn->buf->p, idx, &ctx))
+		cnt++;
+
+	smp->type = SMP_T_UINT;
+	smp->data.uint = cnt;
+	smp->flags = SMP_F_VOL_HDR;
 	return 1;
 }
 
@@ -9689,6 +9912,8 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
 	{ "req.cook_cnt",    smp_fetch_cookie_cnt,     ARG1(0,STR),      NULL,    SMP_T_UINT, SMP_USE_HRQHV },
 	{ "req.cook_val",    smp_fetch_cookie_val,     ARG1(0,STR),      NULL,    SMP_T_UINT, SMP_USE_HRQHV },
 
+	{ "req.fhdr",        smp_fetch_fhdr,           ARG2(0,STR,SINT), val_hdr, SMP_T_CSTR, SMP_USE_HRQHV },
+	{ "req.fhdr_cnt",    smp_fetch_fhdr_cnt,       ARG1(0,STR),      NULL,    SMP_T_UINT, SMP_USE_HRQHV },
 	{ "req.hdr",         smp_fetch_hdr,            ARG2(0,STR,SINT), val_hdr, SMP_T_CSTR, SMP_USE_HRQHV },
 	{ "req.hdr_cnt",     smp_fetch_hdr_cnt,        ARG1(0,STR),      NULL,    SMP_T_UINT, SMP_USE_HRQHV },
 	{ "req.hdr_ip",      smp_fetch_hdr_ip,         ARG2(0,STR,SINT), val_hdr, SMP_T_IPV4, SMP_USE_HRQHV },
@@ -9699,6 +9924,8 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
 	{ "res.cook_cnt",    smp_fetch_cookie_cnt,     ARG1(0,STR),      NULL,    SMP_T_UINT, SMP_USE_HRSHV },
 	{ "res.cook_val",    smp_fetch_cookie_val,     ARG1(0,STR),      NULL,    SMP_T_UINT, SMP_USE_HRSHV },
 
+	{ "res.fhdr",        smp_fetch_fhdr,           ARG2(0,STR,SINT), val_hdr, SMP_T_CSTR, SMP_USE_HRSHV },
+	{ "res.fhdr_cnt",    smp_fetch_fhdr_cnt,       ARG1(0,STR),      NULL,    SMP_T_UINT, SMP_USE_HRSHV },
 	{ "res.hdr",         smp_fetch_hdr,            ARG2(0,STR,SINT), val_hdr, SMP_T_CSTR, SMP_USE_HRSHV },
 	{ "res.hdr_cnt",     smp_fetch_hdr_cnt,        ARG1(0,STR),      NULL,    SMP_T_UINT, SMP_USE_HRSHV },
 	{ "res.hdr_ip",      smp_fetch_hdr_ip,         ARG2(0,STR,SINT), val_hdr, SMP_T_IPV4, SMP_USE_HRSHV },
