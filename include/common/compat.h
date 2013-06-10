@@ -64,6 +64,13 @@
 #define MSG_MORE	0
 #endif
 
+/* On Linux 2.4 and above, MSG_TRUNC can be used on TCP sockets to drop any
+ * pending data. Let's rely on NETFILTER to detect if this is supported.
+ */
+#ifdef NETFILTER
+#define MSG_TRUNC_CLEARS_INPUT
+#endif
+
 /* Maximum path length, OS-dependant */
 #ifndef MAXPATHLEN
 #define MAXPATHLEN 128

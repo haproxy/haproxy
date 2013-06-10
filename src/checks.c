@@ -1210,11 +1210,11 @@ static void event_srv_chk_r(struct connection *conn)
 	 */
 	if (conn->xprt && conn->xprt->shutw)
 		conn->xprt->shutw(conn, 0);
-	if (conn->ctrl) {
-		if (!(conn->flags & CO_FL_WAIT_RD))
-			recv(conn->t.sock.fd, trash.str, trash.size, MSG_NOSIGNAL|MSG_DONTWAIT);
-		setsockopt(conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
-			   (struct linger *) &nolinger, sizeof(struct linger));
+
+	if (conn->ctrl && !(conn->flags & CO_FL_SOCK_RD_SH)) {
+		if (conn->flags & CO_FL_WAIT_RD || !conn->ctrl->drain || !conn->ctrl->drain(conn->t.sock.fd))
+			setsockopt(conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
+			           (struct linger *) &nolinger, sizeof(struct linger));
 	}
 	__conn_data_stop_both(conn);
 	task_wakeup(t, TASK_WOKEN_IO);

@@ -59,6 +59,7 @@ struct protocol {
 	int (*connect)(struct connection *, int data, int delack);  /* connect function if any */
 	int (*get_src)(int fd, struct sockaddr *, socklen_t, int dir); /* syscall used to retrieve src addr */
 	int (*get_dst)(int fd, struct sockaddr *, socklen_t, int dir); /* syscall used to retrieve dst addr */
+	int (*drain)(int fd);                           /* indicates whether we can safely close the fd */
 
 	struct list listeners;				/* list of listeners using this protocol */
 	int nb_listeners;				/* number of listeners */
