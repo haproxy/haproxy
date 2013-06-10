@@ -22,6 +22,8 @@
 #ifndef _PROTO_LISTENER_H
 #define _PROTO_LISTENER_H
 
+#include <string.h>
+
 #include <types/listener.h>
 
 /* This function adds the specified listener's file descriptor to the polling
