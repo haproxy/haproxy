@@ -830,7 +830,7 @@ void http_perform_server_redirect(struct session *s, struct stream_interface *si
 	si->state    = SI_ST_CLO;
 
 	/* send the message */
-	http_server_error(s, si, SN_ERR_PRXCOND, SN_FINST_C, 302, &trash);
+	http_server_error(s, si, SN_ERR_LOCAL, SN_FINST_C, 302, &trash);
 
 	/* FIXME: we should increase a counter of redirects per server and per backend. */
 	srv_inc_sess_ctr(srv);
@@ -2529,6 +2529,8 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 				/* we fail this request, let's return 503 service unavail */
 				txn->status = 503;
 				stream_int_retnclose(req->prod, http_error_message(s, HTTP_ERR_503));
+				if (!(s->flags & SN_ERR_MASK))
+					s->flags |= SN_ERR_LOCAL; /* we don't want a real error here */
 				goto return_prx_cond;
 			}
 		}
@@ -2536,6 +2538,8 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 		/* nothing to fail, let's reply normaly */
 		txn->status = 200;
 		stream_int_retnclose(req->prod, http_error_message(s, HTTP_ERR_200));
+		if (!(s->flags & SN_ERR_MASK))
+			s->flags |= SN_ERR_LOCAL; /* we don't want a real error here */
 		goto return_prx_cond;
 	}
 
@@ -3031,7 +3035,7 @@ int http_handle_stats(struct session *s, struct channel *req)
 			s->fe->fe_counters.intercepted_req++;
 
 		if (!(s->flags & SN_ERR_MASK))      // this is not really an error but it is
-			s->flags |= SN_ERR_PRXCOND; // to mark that it comes from the proxy
+			s->flags |= SN_ERR_LOCAL;   // to mark that it comes from the proxy
 		if (!(s->flags & SN_FINST_MASK))
 			s->flags |= SN_FINST_R;
 		req->analysers = 0;
@@ -3060,7 +3064,7 @@ int http_handle_stats(struct session *s, struct channel *req)
 		s->fe->fe_counters.intercepted_req++;
 
 	if (!(s->flags & SN_ERR_MASK))      // this is not really an error but it is
-		s->flags |= SN_ERR_PRXCOND; // to mark that it comes from the proxy
+		s->flags |= SN_ERR_LOCAL;   // to mark that it comes from the proxy
 	if (!(s->flags & SN_FINST_MASK))
 		s->flags |= SN_FINST_R;
 
@@ -3375,7 +3379,7 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct session *
 	}
 
 	if (!(s->flags & SN_ERR_MASK))
-		s->flags |= SN_ERR_PRXCOND;
+		s->flags |= SN_ERR_LOCAL;
 	if (!(s->flags & SN_FINST_MASK))
 		s->flags |= SN_FINST_R;
 

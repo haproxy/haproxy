@@ -11651,8 +11651,10 @@ each of which has a special meaning :
             connection limit enforcement, because a DENY filter was matched,
             because of a security check which detected and blocked a dangerous
             error in server response which might have caused information leak
-            (eg: cacheable cookie), or because the response was processed by
-            the proxy (redirect, stats, etc...).
+            (eg: cacheable cookie).
+
+        L : the session was locally processed by haproxy and was not passed to
+            a server. This is what happens for stats and redirects.
 
         R : a resource on the proxy has been exhausted (memory, sockets, source
             ports, ...). Usually, this appears during the connection phase, and
@@ -11836,6 +11838,9 @@ easier finding and understanding.
           might make sense to lower the "timeout tarpit" value to something
           closer to the average reported "Tw" timer, in order not to consume
           resources for just a few attackers.
+
+     LR   The request was intercepted and locally handled by haproxy. Generally
+          it means that this was a redirect or a stats request.
 
      SC   The server or an equipment between it and haproxy explicitly refused
           the TCP connection (the proxy received a TCP RST or an ICMP message

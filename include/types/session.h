@@ -60,19 +60,20 @@
 #define SN_TUNNEL	0x00000800	/* tunnel-mode session, nothing to catch after data */
 
 /* session termination conditions, bits values 0x1000 to 0x7000 (0-9 shift 12) */
-#define SN_ERR_NONE     0x00000000
-#define SN_ERR_CLITO	0x00001000	/* client time-out */
-#define SN_ERR_CLICL	0x00002000	/* client closed (read/write error) */
-#define SN_ERR_SRVTO	0x00003000	/* server time-out, connect time-out */
-#define SN_ERR_SRVCL	0x00004000	/* server closed (connect/read/write error) */
-#define SN_ERR_PRXCOND	0x00005000	/* the proxy decided to close (deny...) */
-#define SN_ERR_RESOURCE	0x00006000	/* the proxy encountered a lack of a local resources (fd, mem, ...) */
-#define SN_ERR_INTERNAL	0x00007000	/* the proxy encountered an internal error */
-#define SN_ERR_DOWN	0x00008000	/* the proxy killed a session because the backend became unavailable */
-#define SN_ERR_KILLED	0x00009000	/* the proxy killed a session because it was asked to do so */
-#define SN_ERR_UP	0x0000a000	/* the proxy killed a session because a preferred backend became available */
-#define SN_ERR_MASK	0x0000f000	/* mask to get only session error flags */
-#define SN_ERR_SHIFT	12		/* bit shift */
+#define SN_ERR_NONE     0x00000000	/* normal end of request */
+#define SN_ERR_LOCAL    0x00001000	/* the proxy locally processed this request => not an error */
+#define SN_ERR_CLITO    0x00002000	/* client time-out */
+#define SN_ERR_CLICL    0x00003000	/* client closed (read/write error) */
+#define SN_ERR_SRVTO    0x00004000	/* server time-out, connect time-out */
+#define SN_ERR_SRVCL    0x00005000	/* server closed (connect/read/write error) */
+#define SN_ERR_PRXCOND  0x00006000	/* the proxy decided to close (deny...) */
+#define SN_ERR_RESOURCE 0x00007000	/* the proxy encountered a lack of a local resources (fd, mem, ...) */
+#define SN_ERR_INTERNAL 0x00008000	/* the proxy encountered an internal error */
+#define SN_ERR_DOWN     0x00009000	/* the proxy killed a session because the backend became unavailable */
+#define SN_ERR_KILLED   0x0000a000	/* the proxy killed a session because it was asked to do so */
+#define SN_ERR_UP       0x0000b000	/* the proxy killed a session because a preferred backend became available */
+#define SN_ERR_MASK     0x0000f000	/* mask to get only session error flags */
+#define SN_ERR_SHIFT    12		/* bit shift */
 
 /* session state at termination, bits values 0x10000 to 0x70000 (0-7 shift 16) */
 #define SN_FINST_R	0x00010000	/* session ended during client request */

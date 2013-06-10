@@ -54,7 +54,7 @@ const char *log_levels[NB_LOG_LEVELS] = {
 	"warning", "notice", "info", "debug"
 };
 
-const char sess_term_cond[16] = "-cCsSPRIDKUIIIII"; /* normal, CliTo, CliErr, SrvTo, SrvErr, PxErr, Resource, Internal, Down, Killed, Up, -- */
+const char sess_term_cond[16] = "-LcCsSPRIDKUIIII"; /* normal, Local, CliTo, CliErr, SrvTo, SrvErr, PxErr, Resource, Internal, Down, Killed, Up, -- */
 const char sess_fin_state[8]  = "-RCHDLQT";	/* cliRequest, srvConnect, srvHeader, Data, Last, Queue, Tarpit */
 
 
@@ -1516,9 +1516,11 @@ void sess_log(struct session *s)
 	int size, err, level;
 
 	/* if we don't want to log normal traffic, return now */
-	err = (s->flags & (SN_ERR_MASK | SN_REDISP)) ||
-		(s->req->cons->conn_retries != s->be->conn_retries) ||
-			((s->fe->mode == PR_MODE_HTTP) && s->txn.status >= 500);
+	err = (s->flags & SN_REDISP) ||
+              ((s->flags & SN_ERR_MASK) > SN_ERR_LOCAL) ||
+	      (((s->flags & SN_ERR_MASK) == SN_ERR_NONE) &&
+	       (s->req->cons->conn_retries != s->be->conn_retries)) ||
+	      ((s->fe->mode == PR_MODE_HTTP) && s->txn.status >= 500);
 
 	if (!err && (s->fe->options2 & PR_O2_NOLOGNORM))
 		return;
