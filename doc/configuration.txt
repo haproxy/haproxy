@@ -2669,7 +2669,8 @@ http-check send-state
 
 http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
               add-header <name> <fmt> | set-header <name> <fmt> |
-              set-nice <nice> | set-log-level <level> | set-tos <tos> }
+              set-nice <nice> | set-log-level <level> | set-tos <tos> |
+              set-mark <mark> }
              [ { if | unless } <condition> ]
   Access control for Layer 7 requests
 
@@ -2752,6 +2753,15 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
       border routers based on some information from the request. See RFC 2474,
       2597, 3260 and 4594 for more information.
 
+    - "set-mark" is used to set the Netfilter MARK on all packets sent to the
+      client to the value passed in <mark> on platforms which support it. This
+      value is an unsigned 32 bit value which can be matched by netfilter and
+      by the routing table. It can be expressed both in decimal or hexadecimal
+      format (prefixed by "0x"). This can be useful to force certain packets to
+      take a different route (for example a cheaper network path for bulk
+      downloads). This works on Linux kernels 2.6.32 and above and requires
+      admin privileges.
+
   There is no limit to the number of http-request statements per instance.
 
   It is important to know that http-request rules are processed very early in
@@ -2788,8 +2798,8 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
              about ACL usage.
 
 http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
-                set-header <name> <fmt> | set-log-level <level> }
-                [ { if | unless } <condition> ]
+                set-header <name> <fmt> | set-log-level <level> |
+                set-mark <mark> } [ { if | unless } <condition> ]
   Access control for Layer 7 responses
 
   May be used in sections:   defaults | frontend | listen | backend
@@ -2848,6 +2858,15 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
       bits are always 0. This can be used to adjust some routing behaviour on
       border routers based on some information from the request. See RFC 2474,
       2597, 3260 and 4594 for more information.
+
+    - "set-mark" is used to set the Netfilter MARK on all packets sent to the
+      client to the value passed in <mark> on platforms which support it. This
+      value is an unsigned 32 bit value which can be matched by netfilter and
+      by the routing table. It can be expressed both in decimal or hexadecimal
+      format (prefixed by "0x"). This can be useful to force certain packets to
+      take a different route (for example a cheaper network path for bulk
+      downloads). This works on Linux kernels 2.6.32 and above and requires
+      admin privileges.
 
   There is no limit to the number of http-response statements per instance.
 

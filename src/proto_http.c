@@ -3218,6 +3218,12 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 #endif
 			break;
 
+		case HTTP_REQ_ACT_SET_MARK:
+#ifdef SO_MARK
+			setsockopt(s->req->prod->conn->t.sock.fd, SOL_SOCKET, SO_MARK, &rule->arg.mark, sizeof(rule->arg.mark));
+#endif
+			break;
+
 		case HTTP_REQ_ACT_SET_LOGL:
 			s->logs.level = rule->arg.loglevel;
 			break;
@@ -3295,6 +3301,12 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 #ifdef IP_TOS
 			if (s->req->prod->conn->addr.to.ss_family == AF_INET)
 				setsockopt(s->req->prod->conn->t.sock.fd, IPPROTO_IP, IP_TOS, &rule->arg.tos, sizeof(rule->arg.tos));
+#endif
+			break;
+
+		case HTTP_RES_ACT_SET_MARK:
+#ifdef SO_MARK
+			setsockopt(s->req->prod->conn->t.sock.fd, SOL_SOCKET, SO_MARK, &rule->arg.mark, sizeof(rule->arg.mark));
 #endif
 			break;
 
@@ -8458,6 +8470,31 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		Alert("parsing [%s:%d]: 'http-request %s' is not supported on this platform (IP_TOS undefined).\n", file, linenum, args[0]);
 		goto out_err;
 #endif
+	} else if (!strcmp(args[0], "set-mark")) {
+#ifdef SO_MARK
+		char *err;
+		rule->action = HTTP_REQ_ACT_SET_MARK;
+		cur_arg = 1;
+
+		if (!*args[cur_arg] ||
+		    (*args[cur_arg + 1] && strcmp(args[cur_arg + 1], "if") != 0 && strcmp(args[cur_arg + 1], "unless") != 0)) {
+			Alert("parsing [%s:%d]: 'http-request %s' expects exactly 1 argument (integer/hex value).\n",
+			      file, linenum, args[0]);
+			goto out_err;
+		}
+
+		rule->arg.mark = strtoul(args[cur_arg], &err, 0);
+		if (err && *err != '\0') {
+			Alert("parsing [%s:%d]: invalid character starting at '%s' in 'http-request %s' (integer/hex value expected).\n",
+			      file, linenum, err, args[0]);
+			goto out_err;
+		}
+		cur_arg++;
+		global.last_checks |= LSTCHK_NETADM;
+#else
+		Alert("parsing [%s:%d]: 'http-request %s' is not supported on this platform (SO_MARK undefined).\n", file, linenum, args[0]);
+		goto out_err;
+#endif
 	} else if (!strcmp(args[0], "set-log-level")) {
 		rule->action = HTTP_REQ_ACT_SET_LOGL;
 		cur_arg = 1;
@@ -8513,7 +8550,7 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		cur_arg = 2;
 		return rule;
 	} else {
-		Alert("parsing [%s:%d]: 'http-request' expects 'allow', 'deny', 'auth', 'redirect', 'tarpit', 'add-header', 'set-header', 'set-nice', 'set-tos', 'set-log-level', but got '%s'%s.\n",
+		Alert("parsing [%s:%d]: 'http-request' expects 'allow', 'deny', 'auth', 'redirect', 'tarpit', 'add-header', 'set-header', 'set-nice', 'set-tos', 'set-mark', 'set-log-level', but got '%s'%s.\n",
 		      file, linenum, args[0], *args[0] ? "" : " (missing argument)");
 		goto out_err;
 	}
@@ -8601,6 +8638,31 @@ struct http_res_rule *parse_http_res_cond(const char **args, const char *file, i
 		Alert("parsing [%s:%d]: 'http-response %s' is not supported on this platform (IP_TOS undefined).\n", file, linenum, args[0]);
 		goto out_err;
 #endif
+	} else if (!strcmp(args[0], "set-mark")) {
+#ifdef SO_MARK
+		char *err;
+		rule->action = HTTP_RES_ACT_SET_MARK;
+		cur_arg = 1;
+
+		if (!*args[cur_arg] ||
+		    (*args[cur_arg + 1] && strcmp(args[cur_arg + 1], "if") != 0 && strcmp(args[cur_arg + 1], "unless") != 0)) {
+			Alert("parsing [%s:%d]: 'http-response %s' expects exactly 1 argument (integer/hex value).\n",
+			      file, linenum, args[0]);
+			goto out_err;
+		}
+
+		rule->arg.mark = strtoul(args[cur_arg], &err, 0);
+		if (err && *err != '\0') {
+			Alert("parsing [%s:%d]: invalid character starting at '%s' in 'http-response %s' (integer/hex value expected).\n",
+			      file, linenum, err, args[0]);
+			goto out_err;
+		}
+		cur_arg++;
+		global.last_checks |= LSTCHK_NETADM;
+#else
+		Alert("parsing [%s:%d]: 'http-response %s' is not supported on this platform (SO_MARK undefined).\n", file, linenum, args[0]);
+		goto out_err;
+#endif
 	} else if (!strcmp(args[0], "set-log-level")) {
 		rule->action = HTTP_RES_ACT_SET_LOGL;
 		cur_arg = 1;
@@ -8637,7 +8699,7 @@ struct http_res_rule *parse_http_res_cond(const char **args, const char *file, i
 				       (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR);
 		cur_arg += 2;
 	} else {
-		Alert("parsing [%s:%d]: 'http-response' expects 'allow', 'deny', 'redirect', 'add-header', 'set-header', 'set-nice', 'set-tos', 'set-log-level', but got '%s'%s.\n",
+		Alert("parsing [%s:%d]: 'http-response' expects 'allow', 'deny', 'redirect', 'add-header', 'set-header', 'set-nice', 'set-tos', 'set-mark', 'set-log-level', but got '%s'%s.\n",
 		      file, linenum, args[0], *args[0] ? "" : " (missing argument)");
 		goto out_err;
 	}

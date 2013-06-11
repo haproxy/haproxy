@@ -249,6 +249,7 @@ enum {
 	HTTP_REQ_ACT_SET_NICE,
 	HTTP_REQ_ACT_SET_LOGL,
 	HTTP_REQ_ACT_SET_TOS,
+	HTTP_REQ_ACT_SET_MARK,
 	HTTP_REQ_ACT_MAX /* must always be last */
 };
 
@@ -262,6 +263,7 @@ enum {
 	HTTP_RES_ACT_SET_NICE,
 	HTTP_RES_ACT_SET_LOGL,
 	HTTP_RES_ACT_SET_TOS,
+	HTTP_RES_ACT_SET_MARK,
 	HTTP_RES_ACT_MAX /* must always be last */
 };
 
@@ -377,6 +379,7 @@ struct http_req_rule {
 		int nice;                      /* nice value for HTTP_REQ_ACT_SET_NICE */
 		int loglevel;                  /* log-level value for HTTP_REQ_ACT_SET_LOGL */
 		int tos;                       /* tos value for HTTP_REQ_ACT_SET_TOS */
+		int mark;                      /* nfmark value for HTTP_REQ_ACT_SET_MARK */
 	} arg;                                 /* arguments used by some actions */
 };
 
@@ -393,6 +396,7 @@ struct http_res_rule {
 		int nice;                      /* nice value for HTTP_RES_ACT_SET_NICE */
 		int loglevel;                  /* log-level value for HTTP_RES_ACT_SET_LOGL */
 		int tos;                       /* tos value for HTTP_RES_ACT_SET_TOS */
+		int mark;                      /* nfmark value for HTTP_RES_ACT_SET_MARK */
 	} arg;                                 /* arguments used by some actions */
 };
 
