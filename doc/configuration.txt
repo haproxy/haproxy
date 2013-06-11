@@ -6418,7 +6418,7 @@ tcp-request connection <action> [{if | unless} <condition>]
   Arguments :
     <action>    defines the action to perform if the condition applies. Valid
                 actions include : "accept", "reject", "track-sc1", "track-sc2",
-                and "track-sc3". See below for more details.
+                "track-sc3", and "expect-proxy". See below for more details.
 
     <condition> is a standard layer4-only ACL-based condition (see section 7).
 
@@ -6455,6 +6455,15 @@ tcp-request connection <action> [{if | unless} <condition>]
         system collapse and would considerably lower the filtering capacity. If
         logging is absolutely desired, then "tcp-request content" rules should
         be used instead.
+
+    - expect-proxy layer4 :
+        configures the client-facing connection to receive a PROXY protocol
+        header before any byte is read from the socket. This is equivalent to
+        having the "accept-proxy" keyword on the "bind" line, except that using
+        the TCP rule allows the PROXY protocol to be accepted only for certain
+        IP address ranges using an ACL. This is convenient when multiple layers
+        of load balancers are passed through by traffic coming from public
+        hosts.
 
     - { track-sc1 | track-sc2 | track-sc3 } <key> [table <table>] :
         enables tracking of sticky counters from current connection. These
@@ -6515,6 +6524,10 @@ tcp-request connection <action> [{if | unless} <condition>]
         tcp-request connection accept if { src -f /etc/haproxy/whitelist.lst }
         tcp-request connection track-sc1 src
         tcp-request connection reject if { sc1_conn_rate gt 10 }
+
+  Example: enable the PROXY protocol for traffic coming from all known proxies.
+
+        tcp-request connection expect-proxy layer4 if { src -f proxies.lst }
 
   See section 7 about ACL usage.
 
@@ -7267,7 +7280,8 @@ accept-proxy
   address will still be used.  This keyword combined with support from external
   components can be used as an efficient and reliable alternative to the
   X-Forwarded-For mechanism which is not always reliable and not even always
-  usable.
+  usable. See also "tcp-request connection expect-proxy" for a finer-grained
+  setting of which client is allowed to use the protocol.
 
 alpn <protocols>
   This enables the TLS ALPN extension and advertises the specified protocol

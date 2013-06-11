@@ -32,9 +32,10 @@
 enum {
 	TCP_ACT_ACCEPT = 1,
 	TCP_ACT_REJECT = 2,
-	TCP_ACT_TRK_SC1 = 3, /* TCP request tracking : must be contiguous */
-	TCP_ACT_TRK_SC2 = 4,
-	TCP_ACT_TRK_SC3 = 5,
+	TCP_ACT_EXPECT_PX = 3,
+	TCP_ACT_TRK_SC1 = 4, /* TCP request tracking : must be contiguous */
+	TCP_ACT_TRK_SC2 = 5,
+	TCP_ACT_TRK_SC3 = 6,
 };
 
 struct tcp_rule {

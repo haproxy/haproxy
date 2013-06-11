@@ -1105,6 +1105,10 @@ int tcp_exec_req_rules(struct session *s)
 				if (key && (ts = stktable_get_entry(t, key)))
 					session_track_stkctr(&s->stkctr[tcp_trk_idx(rule->action)], t, ts);
 			}
+			else if (rule->action == TCP_ACT_EXPECT_PX) {
+				s->si[0].conn->flags |= CO_FL_ACCEPT_PROXY;
+				conn_sock_want_recv(s->si[0].conn);
+			}
 			else {
 				/* otherwise it's an accept */
 				break;
@@ -1221,6 +1225,24 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 		}
 		rule->act_prm.trk_ctr.expr = expr;
 		rule->action = TCP_ACT_TRK_SC1 + args[kw][8] - '1';
+	}
+	else if (strcmp(args[arg], "expect-proxy") == 0) {
+		if (strcmp(args[arg+1], "layer4") != 0) {
+			memprintf(err,
+				  "'%s %s %s' only supports 'layer4' in %s '%s' (got '%s')",
+				  args[0], args[1], args[arg], proxy_type_str(curpx), curpx->id, args[arg+1]);
+			return -1;
+		}
+
+		if (!(where & SMP_VAL_FE_CON_ACC)) {
+			memprintf(err,
+				  "'%s %s' is not allowed in '%s %s' rules in %s '%s'",
+				  args[arg], args[arg+1], args[0], args[1], proxy_type_str(curpx), curpx->id);
+			return -1;
+		}
+
+		arg += 2;
+		rule->action = TCP_ACT_EXPECT_PX;
 	}
 	else {
 		memprintf(err,
