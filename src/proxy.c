@@ -433,6 +433,7 @@ void init_new_proxy(struct proxy *p)
 	LIST_INIT(&p->pendconns);
 	LIST_INIT(&p->acl);
 	LIST_INIT(&p->http_req_rules);
+	LIST_INIT(&p->http_res_rules);
 	LIST_INIT(&p->block_cond);
 	LIST_INIT(&p->redirect_rules);
 	LIST_INIT(&p->mon_fail_cond);

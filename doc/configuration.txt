@@ -1138,6 +1138,7 @@ http-check disable-on-404                 X          -         X         X
 http-check expect                         -          -         X         X
 http-check send-state                     X          -         X         X
 http-request                              -          X         X         X
+http-response                             -          X         X         X
 id                                        -          X         X         X
 ignore-persist                            -          X         X         X
 log                                  (*)  X          X         X         X
@@ -2759,6 +2760,52 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
 
   See also : "stats http-request", section 3.4 about userlists and section 7
              about ACL usage.
+
+http-response { allow | deny | add-header <name> <fmt> |
+                set-header <name> <fmt> } [ { if | unless } <condition> ]
+  Access control for Layer 7 responses
+
+  May be used in sections:   defaults | frontend | listen | backend
+                                no    |    yes   |   yes  |   yes
+
+  The http-response statement defines a set of rules which apply to layer 7
+  processing. The rules are evaluated in their declaration order when they are
+  met in a frontend, listen or backend section. Any rule may optionally be
+  followed by an ACL-based condition, in which case it will only be evaluated
+  if the condition is true. Since these rules apply on responses, the backend
+  rules are applied first, followed by the frontend's rules.
+
+  The first keyword is the rule's action. Currently supported actions include :
+    - "allow" : this stops the evaluation of the rules and lets the response
+      pass the check. No further "http-response" rules are evaluated for the
+      current section.
+
+    - "deny" : this stops the evaluation of the rules and immediately rejects
+      the response and emits an HTTP 502 error. No further "http-response"
+      rules are evaluated.
+
+    - "add-header" appends an HTTP header field whose name is specified in
+      <name> and whose value is defined by <fmt> which follows the log-format
+      rules (see Custom Log Format in section 8.2.4). This may be used to send
+      a cookie to a client for example, or to pass some internal information.
+      This rule is not final, so it is possible to add other similar rules.
+      Note that header addition is performed immediately, so one rule might
+      reuse the resulting header from a previous rule.
+
+    - "set-header" does the same as "add-header" except that the header name
+      is first removed if it existed. This is useful when passing security
+      information to the server, where the header must not be manipulated by
+      external users.
+
+  There is no limit to the number of http-response statements per instance.
+
+  It is important to know that http-reqsponse rules are processed very early in
+  the HTTP processing, before "reqdel" or "reqrep" rules. That way, headers
+  added by "add-header"/"set-header" are visible by almost all further ACL
+  rules.
+
+  See also : "http-request", section 3.4 about userlists and section 7 about
+             ACL usage.
 
 http-send-name-header [<header>]
   Add the server name to a request. Use the header string given by <header>

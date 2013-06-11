@@ -3232,6 +3232,71 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 }
 
 
+/* Executes the http-response rules <rules> for session <s>, proxy <px> and
+ * transaction <txn>. Returns the first rule that prevents further processing
+ * of the response (deny, ...) or NULL if it executed all rules or stopped
+ * on an allow. It may set the TX_SVDENY on txn->flags if it encounters a deny
+ * rule.
+ */
+static struct http_res_rule *
+http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session *s, struct http_txn *txn)
+{
+	struct http_res_rule *rule;
+	struct hdr_ctx ctx;
+
+	list_for_each_entry(rule, rules, list) {
+		if (rule->action >= HTTP_RES_ACT_MAX)
+			continue;
+
+		/* check optional condition */
+		if (rule->cond) {
+			int ret;
+
+			ret = acl_exec_cond(rule->cond, px, s, txn, SMP_OPT_DIR_RES|SMP_OPT_FINAL);
+			ret = acl_pass(ret);
+
+			if (rule->cond->pol == ACL_COND_UNLESS)
+				ret = !ret;
+
+			if (!ret) /* condition not matched */
+				continue;
+		}
+
+
+		switch (rule->action) {
+		case HTTP_RES_ACT_ALLOW:
+			return NULL; /* "allow" rules are OK */
+
+		case HTTP_RES_ACT_DENY:
+			txn->flags |= TX_SVDENY;
+			return rule;
+
+		case HTTP_RES_ACT_SET_HDR:
+			ctx.idx = 0;
+			/* remove all occurrences of the header */
+			while (http_find_header2(rule->arg.hdr_add.name, rule->arg.hdr_add.name_len,
+						 txn->rsp.chn->buf->p, &txn->hdr_idx, &ctx)) {
+				http_remove_header2(&txn->rsp, &txn->hdr_idx, &ctx);
+			}
+			/* now fall through to header addition */
+
+		case HTTP_RES_ACT_ADD_HDR:
+			chunk_printf(&trash, "%s: ", rule->arg.hdr_add.name);
+			memcpy(trash.str, rule->arg.hdr_add.name, rule->arg.hdr_add.name_len);
+			trash.len = rule->arg.hdr_add.name_len;
+			trash.str[trash.len++] = ':';
+			trash.str[trash.len++] = ' ';
+			trash.len += build_logline(s, trash.str + trash.len, trash.size - trash.len, &rule->arg.hdr_add.fmt);
+			http_header_add_tail2(&txn->rsp, &txn->hdr_idx, trash.str, trash.len);
+			break;
+		}
+	}
+
+	/* we reached the end of the rules, nothing to report */
+	return NULL;
+}
+
+
 /* Perform an HTTP redirect based on the information in <rule>. The function
  * returns non-zero on success, or zero in case of a, irrecoverable error such
  * as too large a request to build a valid response.
@@ -5494,6 +5559,7 @@ int http_process_res_common(struct session *t, struct channel *rep, int an_bit, 
 	struct http_msg *msg = &txn->rsp;
 	struct proxy *cur_proxy;
 	struct cond_wordlist *wl;
+	struct http_res_rule *http_res_last_rule = NULL;
 
 	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
@@ -5590,6 +5656,10 @@ int http_process_res_common(struct session *t, struct channel *rep, int an_bit, 
 		cur_proxy = t->be;
 		while (1) {
 			struct proxy *rule_set = cur_proxy;
+
+			/* evaluate http-response rules */
+			if (!http_res_last_rule)
+				http_res_last_rule = http_res_get_intercept_rule(cur_proxy, &cur_proxy->http_res_rules, t, txn);
 
 			/* try headers filters */
 			if (rule_set->rsp_exp != NULL) {
@@ -8283,6 +8353,7 @@ void free_http_req_rules(struct list *r) {
 	}
 }
 
+/* parse an "http-request" rule */
 struct http_req_rule *parse_http_req_cond(const char **args, const char *file, int linenum, struct proxy *proxy)
 {
 	struct http_req_rule *rule;
@@ -8373,6 +8444,74 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 	}
 	else if (*args[cur_arg]) {
 		Alert("parsing [%s:%d]: 'http-request %s' expects 'realm' for 'auth' or"
+		      " either 'if' or 'unless' followed by a condition but found '%s'.\n",
+		      file, linenum, args[0], args[cur_arg]);
+		goto out_err;
+	}
+
+	return rule;
+ out_err:
+	free(rule);
+	return NULL;
+}
+
+/* parse an "http-respose" rule */
+struct http_res_rule *parse_http_res_cond(const char **args, const char *file, int linenum, struct proxy *proxy)
+{
+	struct http_res_rule *rule;
+	int cur_arg;
+
+	rule = calloc(1, sizeof(*rule));
+	if (!rule) {
+		Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+		goto out_err;
+	}
+
+	if (!strcmp(args[0], "allow")) {
+		rule->action = HTTP_RES_ACT_ALLOW;
+		cur_arg = 1;
+	} else if (!strcmp(args[0], "deny")) {
+		rule->action = HTTP_RES_ACT_DENY;
+		cur_arg = 1;
+	} else if (strcmp(args[0], "add-header") == 0 || strcmp(args[0], "set-header") == 0) {
+		rule->action = *args[0] == 'a' ? HTTP_RES_ACT_ADD_HDR : HTTP_RES_ACT_SET_HDR;
+		cur_arg = 1;
+
+		if (!*args[cur_arg] || !*args[cur_arg+1] ||
+		    (*args[cur_arg+2] && strcmp(args[cur_arg+2], "if") != 0 && strcmp(args[cur_arg+2], "unless") != 0)) {
+			Alert("parsing [%s:%d]: 'http-response %s' expects exactly 2 arguments.\n",
+			      file, linenum, args[0]);
+			goto out_err;
+		}
+
+		rule->arg.hdr_add.name = strdup(args[cur_arg]);
+		rule->arg.hdr_add.name_len = strlen(rule->arg.hdr_add.name);
+		LIST_INIT(&rule->arg.hdr_add.fmt);
+
+		proxy->conf.args.ctx = ARGC_HDR;
+		parse_logformat_string(args[cur_arg + 1], proxy, &rule->arg.hdr_add.fmt, 0,
+				       (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR);
+		cur_arg += 2;
+	} else {
+		Alert("parsing [%s:%d]: 'http-response' expects 'allow', 'deny', 'redirect', 'add-header', 'set-header', but got '%s'%s.\n",
+		      file, linenum, args[0], *args[0] ? "" : " (missing argument)");
+		goto out_err;
+	}
+
+	if (strcmp(args[cur_arg], "if") == 0 || strcmp(args[cur_arg], "unless") == 0) {
+		struct acl_cond *cond;
+		char *errmsg = NULL;
+
+		if ((cond = build_acl_cond(file, linenum, proxy, args+cur_arg, &errmsg)) == NULL) {
+			Alert("parsing [%s:%d] : error detected while parsing an 'http-response %s' condition : %s.\n",
+			      file, linenum, args[0], errmsg);
+			free(errmsg);
+			goto out_err;
+		}
+		rule->cond = cond;
+	}
+	else if (*args[cur_arg]) {
+		Alert("parsing [%s:%d]: 'http-response %s' expects"
 		      " either 'if' or 'unless' followed by a condition but found '%s'.\n",
 		      file, linenum, args[0], args[cur_arg]);
 		goto out_err;
