@@ -151,6 +151,7 @@ struct session {
 	struct stream_interface si[2];          /* client and server stream interfaces */
 	struct {
 		int logwait;			/* log fields waiting to be collected : LW_* */
+		int level;			/* log level to force + 1 if > 0, -1 = no log */
 		struct timeval accept_date;	/* date of the accept() in user date */
 		struct timeval tv_accept;	/* date of the accept() in internal date (monotonic) */
 		struct timeval tv_request;	/* date the request arrives, {0,0} if never occurs */

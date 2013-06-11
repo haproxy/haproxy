@@ -1185,6 +1185,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	 */
 
 	s->logs.logwait = 0;
+	s->logs.level = 0;
 	s->do_log = NULL;
 
 	/* default error reporting function, may be changed by analysers */

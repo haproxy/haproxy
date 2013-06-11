@@ -1528,9 +1528,18 @@ void sess_log(struct session *s)
 	if (LIST_ISEMPTY(&s->fe->logsrvs))
 		return;
 
-	level = LOG_INFO;
-	if (err && (s->fe->options2 & PR_O2_LOGERRORS))
-		level = LOG_ERR;
+	if (s->logs.level) { /* loglevel was overridden */
+		if (s->logs.level == -1) {
+			s->logs.logwait = 0; /* logs disabled */
+			return;
+		}
+		level = s->logs.level - 1;
+	}
+	else {
+		level = LOG_INFO;
+		if (err && (s->fe->options2 & PR_O2_LOGERRORS))
+			level = LOG_ERR;
+	}
 
 	tmplog = update_log_hdr();
 	size = tmplog - logline;

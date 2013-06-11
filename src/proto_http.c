@@ -2528,6 +2528,7 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 		msg->msg_state = HTTP_MSG_RQBEFORE;
 		req->analysers = 0;
 		s->logs.logwait = 0;
+		s->logs.level = 0;
 		s->rep->flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
 		stream_int_retnclose(req->prod, NULL);
 		return 0;
@@ -8315,6 +8316,7 @@ void http_reset_txn(struct session *s)
 
 	s->be = s->fe;
 	s->logs.logwait = s->fe->to_log;
+	s->logs.level = 0;
 	session_del_srv_conn(s);
 	s->target = NULL;
 	/* re-init store persistence */
