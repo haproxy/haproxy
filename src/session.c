@@ -97,6 +97,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	 */
 	s->flags = 0;
 	s->logs.logwait = p->to_log;
+	s->logs.level = 0;
 
 	memset(s->stkctr, 0, sizeof(s->stkctr));
 

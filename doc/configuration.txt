@@ -2669,7 +2669,7 @@ http-check send-state
 
 http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
               add-header <name> <fmt> | set-header <name> <fmt> |
-              set-nice <nice> }
+              set-nice <nice> | set-log-level <level> }
              [ { if | unless } <condition> ]
   Access control for Layer 7 requests
 
@@ -2736,6 +2736,13 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
       some requests, or lower the priority of non-important requests. Using
       this setting without prior experimentation can cause some major slowdown.
 
+    - "set-log-level" is used to change the log level of the current request
+      when a certain condition is met. Valid levels are the 8 syslog levels
+      (see the "log" keyword) plus the special level "silent" which disables
+      logging for this request. This rule is not final so the last matching
+      rule wins. This rule can be useful to disable health checks coming from
+      another equipment.
+
   There is no limit to the number of http-request statements per instance.
 
   It is important to know that http-request rules are processed very early in
@@ -2772,7 +2779,8 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
              about ACL usage.
 
 http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
-                set-header <name> <fmt> } [ { if | unless } <condition> ]
+                set-header <name> <fmt> | set-log-level <level> }
+                [ { if | unless } <condition> ]
   Access control for Layer 7 responses
 
   May be used in sections:   defaults | frontend | listen | backend
@@ -2815,6 +2823,13 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
       important than other ones. This can be useful to improve the speed of
       some requests, or lower the priority of non-important requests. Using
       this setting without prior experimentation can cause some major slowdown.
+
+    - "set-log-level" is used to change the log level of the current request
+      when a certain condition is met. Valid levels are the 8 syslog levels
+      (see the "log" keyword) plus the special level "silent" which disables
+      logging for this request. This rule is not final so the last matching
+      rule wins. This rule can be useful to disable health checks coming from
+      another equipment.
 
   There is no limit to the number of http-response statements per instance.
 

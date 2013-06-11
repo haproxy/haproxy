@@ -247,6 +247,7 @@ enum {
 	HTTP_REQ_ACT_SET_HDR,
 	HTTP_REQ_ACT_REDIR,
 	HTTP_REQ_ACT_SET_NICE,
+	HTTP_REQ_ACT_SET_LOGL,
 	HTTP_REQ_ACT_MAX /* must always be last */
 };
 
@@ -258,6 +259,7 @@ enum {
 	HTTP_RES_ACT_ADD_HDR,
 	HTTP_RES_ACT_SET_HDR,
 	HTTP_RES_ACT_SET_NICE,
+	HTTP_RES_ACT_SET_LOGL,
 	HTTP_RES_ACT_MAX /* must always be last */
 };
 
@@ -371,6 +373,7 @@ struct http_req_rule {
 		} hdr_add;                     /* args used by "add-header" and "set-header" */
 		struct redirect_rule *redir;   /* redirect rule or "http-request redirect" */
 		int nice;                      /* nice value for HTTP_REQ_ACT_SET_NICE */
+		int loglevel;                  /* log-level value for HTTP_REQ_ACT_SET_LOGL */
 	} arg;                                 /* arguments used by some actions */
 };
 
@@ -385,6 +388,7 @@ struct http_res_rule {
 			struct list fmt;       /* log-format compatible expression */
 		} hdr_add;                     /* args used by "add-header" and "set-header" */
 		int nice;                      /* nice value for HTTP_RES_ACT_SET_NICE */
+		int loglevel;                  /* log-level value for HTTP_RES_ACT_SET_LOGL */
 	} arg;                                 /* arguments used by some actions */
 };
 
