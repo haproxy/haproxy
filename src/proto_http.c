@@ -10137,10 +10137,7 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "hdr_sub",         "req.hdr",       acl_parse_str,     acl_match_sub     },
 	{ "hdr_val",         "req.hdr_val",   acl_parse_int,     acl_match_int     },
 
-	{ "http_auth",       NULL,            acl_parse_nothing, acl_match_nothing },
 	{ "http_auth_group", NULL,            acl_parse_strcat,  acl_match_auth    },
-
-	{ "http_first_req",  NULL,            acl_parse_nothing, acl_match_nothing },
 
 	{ "method",          NULL,            acl_parse_meth,    acl_match_meth    },
 
@@ -10179,8 +10176,6 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "shdr_reg",        "res.hdr",       acl_parse_reg,     acl_match_reg     },
 	{ "shdr_sub",        "res.hdr",       acl_parse_str,     acl_match_sub     },
 	{ "shdr_val",        "res.hdr_val",   acl_parse_int,     acl_match_int     },
-
-	{ "status",          NULL,            acl_parse_int,     acl_match_int     },
 
 	{ "url",             "url",           acl_parse_str,     acl_match_str     },
 	{ "url_beg",         "url",           acl_parse_str,     acl_match_beg     },

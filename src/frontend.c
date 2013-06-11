@@ -268,9 +268,6 @@ static struct sample_fetch_kw_list smp_kws = {{ },{
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct acl_kw_list acl_kws = {{ },{
-	{ "fe_conn",      NULL, acl_parse_int, acl_match_int },
-	{ "fe_id",        NULL, acl_parse_int, acl_match_int },
-	{ "fe_sess_rate", NULL, acl_parse_int, acl_match_int },
 	{ /* END */ },
 }};
 

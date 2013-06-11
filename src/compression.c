@@ -636,7 +636,6 @@ smp_fetch_res_comp_algo(struct proxy *px, struct session *l4, void *l7, unsigned
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct acl_kw_list acl_kws = {{ },{
-	{ "res.comp",          NULL,            acl_parse_nothing,     acl_match_nothing  },
 	{ /* END */ },
 }};
 

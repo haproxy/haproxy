@@ -690,7 +690,6 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "req_ssl_hello_type", "req.ssl_hello_type", acl_parse_int,        acl_match_int     },
 	{ "req_ssl_sni",        "req.ssl_sni",        acl_parse_str,        acl_match_str     },
 	{ "req_ssl_ver",        "req.ssl_ver",        acl_parse_dotted_ver, acl_match_int     },
-	{ "wait_end",           NULL,                 acl_parse_nothing,    acl_match_nothing },
 	{ /* END */ },
 }};
 
