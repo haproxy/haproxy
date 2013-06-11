@@ -2668,7 +2668,8 @@ http-check send-state
   See also : "option httpchk", "http-check disable-on-404"
 
 http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
-              add-header <name> <fmt> | set-header <name> <fmt> }
+              add-header <name> <fmt> | set-header <name> <fmt> |
+              set-nice <nice> }
              [ { if | unless } <condition> ]
   Access control for Layer 7 requests
 
@@ -2726,6 +2727,15 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
       information to the server, where the header must not be manipulated by
       external users.
 
+    - "set-nice" sets the "nice" factor of the current request being processed.
+      It only has effect against the other requests being processed at the same
+      time. The default value is 0, unless altered by the "nice" setting on the
+      "bind" line. The accepted range is -1024..1024. The higher the value, the
+      nicest the request will be. Lower values will make the request more
+      important than other ones. This can be useful to improve the speed of
+      some requests, or lower the priority of non-important requests. Using
+      this setting without prior experimentation can cause some major slowdown.
+
   There is no limit to the number of http-request statements per instance.
 
   It is important to know that http-request rules are processed very early in
@@ -2761,7 +2771,7 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
   See also : "stats http-request", section 3.4 about userlists and section 7
              about ACL usage.
 
-http-response { allow | deny | add-header <name> <fmt> |
+http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
                 set-header <name> <fmt> } [ { if | unless } <condition> ]
   Access control for Layer 7 responses
 
@@ -2796,6 +2806,15 @@ http-response { allow | deny | add-header <name> <fmt> |
       is first removed if it existed. This is useful when passing security
       information to the server, where the header must not be manipulated by
       external users.
+
+    - "set-nice" sets the "nice" factor of the current request being processed.
+      It only has effect against the other requests being processed at the same
+      time. The default value is 0, unless altered by the "nice" setting on the
+      "bind" line. The accepted range is -1024..1024. The higher the value, the
+      nicest the request will be. Lower values will make the request more
+      important than other ones. This can be useful to improve the speed of
+      some requests, or lower the priority of non-important requests. Using
+      this setting without prior experimentation can cause some major slowdown.
 
   There is no limit to the number of http-response statements per instance.
 

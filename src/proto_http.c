@@ -3206,6 +3206,10 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 		case HTTP_REQ_ACT_REDIR:
 			return rule;
 
+		case HTTP_REQ_ACT_SET_NICE:
+			s->task->nice = rule->arg.nice;
+			break;
+
 		case HTTP_REQ_ACT_SET_HDR:
 			ctx.idx = 0;
 			/* remove all occurrences of the header */
@@ -3270,6 +3274,10 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 		case HTTP_RES_ACT_DENY:
 			txn->flags |= TX_SVDENY;
 			return rule;
+
+		case HTTP_RES_ACT_SET_NICE:
+			s->task->nice = rule->arg.nice;
+			break;
 
 		case HTTP_RES_ACT_SET_HDR:
 			ctx.idx = 0;
@@ -8386,6 +8394,22 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 			} else
 				break;
 		}
+	} else if (!strcmp(args[0], "set-nice")) {
+		rule->action = HTTP_REQ_ACT_SET_NICE;
+		cur_arg = 1;
+
+		if (!*args[cur_arg] ||
+		    (*args[cur_arg + 1] && strcmp(args[cur_arg + 1], "if") != 0 && strcmp(args[cur_arg + 1], "unless") != 0)) {
+			Alert("parsing [%s:%d]: 'http-request %s' expects exactly 1 argument (integer value).\n",
+			      file, linenum, args[0]);
+			goto out_err;
+		}
+		rule->arg.nice = atoi(args[cur_arg]);
+		if (rule->arg.nice < -1024)
+			rule->arg.nice = -1024;
+		else if (rule->arg.nice > 1024)
+			rule->arg.nice = 1024;
+		cur_arg++;
 	} else if (strcmp(args[0], "add-header") == 0 || strcmp(args[0], "set-header") == 0) {
 		rule->action = *args[0] == 'a' ? HTTP_REQ_ACT_ADD_HDR : HTTP_REQ_ACT_SET_HDR;
 		cur_arg = 1;
@@ -8425,7 +8449,7 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		cur_arg = 2;
 		return rule;
 	} else {
-		Alert("parsing [%s:%d]: 'http-request' expects 'allow', 'deny', 'auth', 'redirect', 'tarpit', 'add-header', 'set-header', but got '%s'%s.\n",
+		Alert("parsing [%s:%d]: 'http-request' expects 'allow', 'deny', 'auth', 'redirect', 'tarpit', 'add-header', 'set-header', 'set-nice', but got '%s'%s.\n",
 		      file, linenum, args[0], *args[0] ? "" : " (missing argument)");
 		goto out_err;
 	}
@@ -8473,6 +8497,22 @@ struct http_res_rule *parse_http_res_cond(const char **args, const char *file, i
 	} else if (!strcmp(args[0], "deny")) {
 		rule->action = HTTP_RES_ACT_DENY;
 		cur_arg = 1;
+	} else if (!strcmp(args[0], "set-nice")) {
+		rule->action = HTTP_RES_ACT_SET_NICE;
+		cur_arg = 1;
+
+		if (!*args[cur_arg] ||
+		    (*args[cur_arg + 1] && strcmp(args[cur_arg + 1], "if") != 0 && strcmp(args[cur_arg + 1], "unless") != 0)) {
+			Alert("parsing [%s:%d]: 'http-response %s' expects exactly 1 argument (integer value).\n",
+			      file, linenum, args[0]);
+			goto out_err;
+		}
+		rule->arg.nice = atoi(args[cur_arg]);
+		if (rule->arg.nice < -1024)
+			rule->arg.nice = -1024;
+		else if (rule->arg.nice > 1024)
+			rule->arg.nice = 1024;
+		cur_arg++;
 	} else if (strcmp(args[0], "add-header") == 0 || strcmp(args[0], "set-header") == 0) {
 		rule->action = *args[0] == 'a' ? HTTP_RES_ACT_ADD_HDR : HTTP_RES_ACT_SET_HDR;
 		cur_arg = 1;
@@ -8493,7 +8533,7 @@ struct http_res_rule *parse_http_res_cond(const char **args, const char *file, i
 				       (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR);
 		cur_arg += 2;
 	} else {
-		Alert("parsing [%s:%d]: 'http-response' expects 'allow', 'deny', 'redirect', 'add-header', 'set-header', but got '%s'%s.\n",
+		Alert("parsing [%s:%d]: 'http-response' expects 'allow', 'deny', 'redirect', 'add-header', 'set-header', 'set-nice', but got '%s'%s.\n",
 		      file, linenum, args[0], *args[0] ? "" : " (missing argument)");
 		goto out_err;
 	}
