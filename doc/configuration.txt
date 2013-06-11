@@ -2669,7 +2669,7 @@ http-check send-state
 
 http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
               add-header <name> <fmt> | set-header <name> <fmt> |
-              set-nice <nice> | set-log-level <level> }
+              set-nice <nice> | set-log-level <level> | set-tos <tos> }
              [ { if | unless } <condition> ]
   Access control for Layer 7 requests
 
@@ -2742,6 +2742,15 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
       logging for this request. This rule is not final so the last matching
       rule wins. This rule can be useful to disable health checks coming from
       another equipment.
+
+    - "set-tos" is used to set the TOS or DSCP field value of packets sent to
+      the client to the value passed in <tos> on platforms which support this.
+      This value represents the whole 8 bits of the IP TOS field, and can be
+      expressed both in decimal or hexadecimal format (prefixed by "0x"). Note
+      that only the 6 higher bits are used in DSCP or TOS, and the two lower
+      bits are always 0. This can be used to adjust some routing behaviour on
+      border routers based on some information from the request. See RFC 2474,
+      2597, 3260 and 4594 for more information.
 
   There is no limit to the number of http-request statements per instance.
 
@@ -2830,6 +2839,15 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
       logging for this request. This rule is not final so the last matching
       rule wins. This rule can be useful to disable health checks coming from
       another equipment.
+
+    - "set-tos" is used to set the TOS or DSCP field value of packets sent to
+      the client to the value passed in <tos> on platforms which support this.
+      This value represents the whole 8 bits of the IP TOS field, and can be
+      expressed both in decimal or hexadecimal format (prefixed by "0x"). Note
+      that only the 6 higher bits are used in DSCP or TOS, and the two lower
+      bits are always 0. This can be used to adjust some routing behaviour on
+      border routers based on some information from the request. See RFC 2474,
+      2597, 3260 and 4594 for more information.
 
   There is no limit to the number of http-response statements per instance.
 

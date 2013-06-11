@@ -3211,6 +3211,13 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 			s->task->nice = rule->arg.nice;
 			break;
 
+		case HTTP_REQ_ACT_SET_TOS:
+#ifdef IP_TOS
+			if (s->req->prod->conn->addr.to.ss_family == AF_INET)
+				setsockopt(s->req->prod->conn->t.sock.fd, IPPROTO_IP, IP_TOS, &rule->arg.tos, sizeof(rule->arg.tos));
+#endif
+			break;
+
 		case HTTP_REQ_ACT_SET_LOGL:
 			s->logs.level = rule->arg.loglevel;
 			break;
@@ -3282,6 +3289,13 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 
 		case HTTP_RES_ACT_SET_NICE:
 			s->task->nice = rule->arg.nice;
+			break;
+
+		case HTTP_RES_ACT_SET_TOS:
+#ifdef IP_TOS
+			if (s->req->prod->conn->addr.to.ss_family == AF_INET)
+				setsockopt(s->req->prod->conn->t.sock.fd, IPPROTO_IP, IP_TOS, &rule->arg.tos, sizeof(rule->arg.tos));
+#endif
 			break;
 
 		case HTTP_RES_ACT_SET_LOGL:
@@ -8420,6 +8434,30 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		else if (rule->arg.nice > 1024)
 			rule->arg.nice = 1024;
 		cur_arg++;
+	} else if (!strcmp(args[0], "set-tos")) {
+#ifdef IP_TOS
+		char *err;
+		rule->action = HTTP_REQ_ACT_SET_TOS;
+		cur_arg = 1;
+
+		if (!*args[cur_arg] ||
+		    (*args[cur_arg + 1] && strcmp(args[cur_arg + 1], "if") != 0 && strcmp(args[cur_arg + 1], "unless") != 0)) {
+			Alert("parsing [%s:%d]: 'http-request %s' expects exactly 1 argument (integer/hex value).\n",
+			      file, linenum, args[0]);
+			goto out_err;
+		}
+
+		rule->arg.tos = strtol(args[cur_arg], &err, 0);
+		if (err && *err != '\0') {
+			Alert("parsing [%s:%d]: invalid character starting at '%s' in 'http-request %s' (integer/hex value expected).\n",
+			      file, linenum, err, args[0]);
+			goto out_err;
+		}
+		cur_arg++;
+#else
+		Alert("parsing [%s:%d]: 'http-request %s' is not supported on this platform (IP_TOS undefined).\n", file, linenum, args[0]);
+		goto out_err;
+#endif
 	} else if (!strcmp(args[0], "set-log-level")) {
 		rule->action = HTTP_REQ_ACT_SET_LOGL;
 		cur_arg = 1;
@@ -8475,7 +8513,7 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		cur_arg = 2;
 		return rule;
 	} else {
-		Alert("parsing [%s:%d]: 'http-request' expects 'allow', 'deny', 'auth', 'redirect', 'tarpit', 'add-header', 'set-header', 'set-nice', 'set-log-level', but got '%s'%s.\n",
+		Alert("parsing [%s:%d]: 'http-request' expects 'allow', 'deny', 'auth', 'redirect', 'tarpit', 'add-header', 'set-header', 'set-nice', 'set-tos', 'set-log-level', but got '%s'%s.\n",
 		      file, linenum, args[0], *args[0] ? "" : " (missing argument)");
 		goto out_err;
 	}
@@ -8539,6 +8577,30 @@ struct http_res_rule *parse_http_res_cond(const char **args, const char *file, i
 		else if (rule->arg.nice > 1024)
 			rule->arg.nice = 1024;
 		cur_arg++;
+	} else if (!strcmp(args[0], "set-tos")) {
+#ifdef IP_TOS
+		char *err;
+		rule->action = HTTP_RES_ACT_SET_TOS;
+		cur_arg = 1;
+
+		if (!*args[cur_arg] ||
+		    (*args[cur_arg + 1] && strcmp(args[cur_arg + 1], "if") != 0 && strcmp(args[cur_arg + 1], "unless") != 0)) {
+			Alert("parsing [%s:%d]: 'http-response %s' expects exactly 1 argument (integer/hex value).\n",
+			      file, linenum, args[0]);
+			goto out_err;
+		}
+
+		rule->arg.tos = strtol(args[cur_arg], &err, 0);
+		if (err && *err != '\0') {
+			Alert("parsing [%s:%d]: invalid character starting at '%s' in 'http-response %s' (integer/hex value expected).\n",
+			      file, linenum, err, args[0]);
+			goto out_err;
+		}
+		cur_arg++;
+#else
+		Alert("parsing [%s:%d]: 'http-response %s' is not supported on this platform (IP_TOS undefined).\n", file, linenum, args[0]);
+		goto out_err;
+#endif
 	} else if (!strcmp(args[0], "set-log-level")) {
 		rule->action = HTTP_RES_ACT_SET_LOGL;
 		cur_arg = 1;
@@ -8575,7 +8637,7 @@ struct http_res_rule *parse_http_res_cond(const char **args, const char *file, i
 				       (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR);
 		cur_arg += 2;
 	} else {
-		Alert("parsing [%s:%d]: 'http-response' expects 'allow', 'deny', 'redirect', 'add-header', 'set-header', 'set-nice', 'set-log-level', but got '%s'%s.\n",
+		Alert("parsing [%s:%d]: 'http-response' expects 'allow', 'deny', 'redirect', 'add-header', 'set-header', 'set-nice', 'set-tos', 'set-log-level', but got '%s'%s.\n",
 		      file, linenum, args[0], *args[0] ? "" : " (missing argument)");
 		goto out_err;
 	}
