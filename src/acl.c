@@ -1076,6 +1076,27 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	expr->args = empty_arg_list;
 	expr->smp = aclkw ? aclkw->smp : smp;
 
+	if (!expr->parse) {
+		/* some types can be automatically converted */
+
+		switch (expr->smp->out_type) {
+		case SMP_T_BOOL:
+			expr->parse = acl_parse_fcts[ACL_MATCH_BOOL];
+			expr->match = acl_match_fcts[ACL_MATCH_BOOL];
+			break;
+		case SMP_T_SINT:
+		case SMP_T_UINT:
+			expr->parse = acl_parse_fcts[ACL_MATCH_INT];
+			expr->match = acl_match_fcts[ACL_MATCH_INT];
+			break;
+		case SMP_T_IPV4:
+		case SMP_T_IPV6:
+			expr->parse = acl_parse_fcts[ACL_MATCH_IP];
+			expr->match = acl_match_fcts[ACL_MATCH_IP];
+			break;
+		}
+	}
+
 	arg = strchr(args[0], '(');
 	if (expr->smp->arg_mask) {
 		int nbargs = 0;
@@ -1171,7 +1192,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			patflags |= ACL_PAT_F_IGNORE_CASE;
 		else if ((*args)[1] == 'f') {
 			if (!expr->parse) {
-				memprintf(err, "matching method must be specified first (using '-m') when using a sample fetch ('%s')", expr->kw);
+				memprintf(err, "matching method must be specified first (using '-m') when using a sample fetch of this type ('%s')", expr->kw);
 				goto out_free_expr;
 			}
 
@@ -1228,7 +1249,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	}
 
 	if (!expr->parse) {
-		memprintf(err, "matching method must be specified first (using '-m') when using a sample fetch ('%s')", expr->kw);
+		memprintf(err, "matching method must be specified first (using '-m') when using a sample fetch of this type ('%s')", expr->kw);
 		goto out_free_expr;
 	}
 
