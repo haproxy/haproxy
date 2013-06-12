@@ -1750,7 +1750,7 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 					continue;
 				}
 
-				if (smp.type == SMP_T_BOOL) {
+				if (expr->match == acl_match_nothing) {
 					if (smp.data.uint)
 						acl_res |= ACL_PAT_PASS;
 					else
