@@ -10180,7 +10180,6 @@ static struct acl_kw_list acl_kws = {{ },{
 	{ "urlp_dir",        "urlp",          acl_parse_str,     acl_match_dir     },
 	{ "urlp_dom",        "urlp",          acl_parse_str,     acl_match_dom     },
 	{ "urlp_end",        "urlp",          acl_parse_str,     acl_match_end     },
-	{ "urlp_ip",         "urlp",          acl_parse_ip,      acl_match_ip      },
 	{ "urlp_len",        "urlp",          acl_parse_int,     acl_match_len     },
 	{ "urlp_reg",        "urlp",          acl_parse_reg,     acl_match_reg     },
 	{ "urlp_sub",        "urlp",          acl_parse_str,     acl_match_sub     },
