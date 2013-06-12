@@ -8795,6 +8795,20 @@ connslots([<backend>]) : integer
   then this fetch clearly does not make sense, in which case the value returned
   will be -1.
 
+env(<name>) : string
+  Returns a string containing the value of environment variable <name>. As a
+  reminder, environment variables are per-process and are sampled when the
+  process starts. This can be useful to pass some information to a next hop
+  server, or with ACLs to take specific action when the process is started a
+  certain way.
+
+  Examples :
+      # Pass the Via header to next hop with the local hostname in it
+      http-request add-header Via 1.1\ %[env(HOSTNAME)]
+
+      # reject cookie-less requests when the STOP environment variable is set
+      http-request deny if !{ cook(SESSIONID) -m found } { env(STOP) -m found }
+
 fe_conn([<frontend>]) : integer
   Returns the number of currently established connections on the frontend,
   possibly including the connection being evaluated. If no frontend name is
