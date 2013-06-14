@@ -10,6 +10,9 @@
  *
  */
 
+#ifndef _TYPES_CHECKS_H
+#define _TYPES_CHECKS_H
+
 /* check status */
 enum {
 	HCHK_STATUS_UNKNOWN	 = 0,	/* Unknown */
@@ -102,3 +105,5 @@ struct analyze_status {
 	char *desc;				/* description */
 	unsigned char lr[HANA_OBS_SIZE];	/* result for l4/l7: 0 = ignore, 1 - error, 2 - OK */
 };
+
+#endif /* _TYPES_CHECKS_H */
