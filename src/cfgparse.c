@@ -6367,7 +6367,7 @@ int check_config_validity()
 		list_for_each_entry(trule, &curproxy->tcp_req.l4_rules, list) {
 			struct proxy *target;
 
-			if (trule->action < TCP_ACT_TRK_SC1 || trule->action > TCP_ACT_TRK_SC3)
+			if (trule->action < TCP_ACT_TRK_SC0 || trule->action > TCP_ACT_TRK_SC2)
 				continue;
 
 			if (trule->act_prm.trk_ctr.table.n)
@@ -6406,7 +6406,7 @@ int check_config_validity()
 		list_for_each_entry(trule, &curproxy->tcp_req.inspect_rules, list) {
 			struct proxy *target;
 
-			if (trule->action < TCP_ACT_TRK_SC1 || trule->action > TCP_ACT_TRK_SC3)
+			if (trule->action < TCP_ACT_TRK_SC0 || trule->action > TCP_ACT_TRK_SC2)
 				continue;
 
 			if (trule->act_prm.trk_ctr.table.n)

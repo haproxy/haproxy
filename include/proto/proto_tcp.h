@@ -64,7 +64,7 @@ static inline struct stktable_key *addr_to_stktable_key(struct sockaddr_storage 
  */
 static inline int tcp_trk_idx(int trk_action)
 {
-	return trk_action - TCP_ACT_TRK_SC1;
+	return trk_action - TCP_ACT_TRK_SC0;
 }
 
 #endif /* _PROTO_PROTO_TCP_H */

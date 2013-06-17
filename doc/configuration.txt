@@ -6421,8 +6421,8 @@ tcp-request connection <action> [{if | unless} <condition>]
                                  no    |    yes   |   yes  |   no
   Arguments :
     <action>    defines the action to perform if the condition applies. Valid
-                actions include : "accept", "reject", "track-sc1", "track-sc2",
-                "track-sc3", and "expect-proxy". See below for more details.
+                actions include : "accept", "reject", "track-sc0", "track-sc1",
+                "track-sc2", and "expect-proxy". See below for more details.
 
     <condition> is a standard layer4-only ACL-based condition (see section 7).
 
@@ -6469,16 +6469,18 @@ tcp-request connection <action> [{if | unless} <condition>]
         of load balancers are passed through by traffic coming from public
         hosts.
 
-    - { track-sc1 | track-sc2 | track-sc3 } <key> [table <table>] :
+    - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>] :
         enables tracking of sticky counters from current connection. These
         rules do not stop evaluation and do not change default action. Two sets
         of counters may be simultaneously tracked by the same connection. The
-        first "track-sc1" rule executed enables tracking of the counters of the
-        specified table as the first set. The first "track-sc2" rule executed
+        first "track-sc0" rule executed enables tracking of the counters of the
+        specified table as the first set. The first "track-sc1" rule executed
         enables tracking of the counters of the specified table as the second
-        set. It is a recommended practice to use the first set of counters for
-        the per-frontend counters and the second set for the per-backend ones.
-        But this is just a guideline, all may be used everywhere.
+        set. The first "track-sc2" rule executed enables tracking of the
+        counters of the specified table as the third set. It is a recommended
+        practice to use the first set of counters for the per-frontend counters
+        and the second set for the per-backend ones. But this is just a
+        guideline, all may be used everywhere.
 
         These actions take one or two arguments :
           <key>   is mandatory, and is a pattern extraction rule as described
@@ -6519,15 +6521,15 @@ tcp-request connection <action> [{if | unless} <condition>]
 
         tcp-request connection accept if { src -f /etc/haproxy/whitelist.lst }
         tcp-request connection reject if { src_conn_rate gt 10 }
-        tcp-request connection track-sc1 src
+        tcp-request connection track-sc0 src
 
   Example: accept all connections from white-listed hosts, count all other
            connections and reject too fast ones. This results in abusive ones
            being blocked as long as they don't slow down.
 
         tcp-request connection accept if { src -f /etc/haproxy/whitelist.lst }
-        tcp-request connection track-sc1 src
-        tcp-request connection reject if { sc1_conn_rate gt 10 }
+        tcp-request connection track-sc0 src
+        tcp-request connection reject if { sc0_conn_rate gt 10 }
 
   Example: enable the PROXY protocol for traffic coming from all known proxies.
 
@@ -6544,8 +6546,8 @@ tcp-request content <action> [{if | unless} <condition>]
                                  no    |    yes   |   yes  |   yes
   Arguments :
     <action>    defines the action to perform if the condition applies. Valid
-                actions include : "accept", "reject", "track-sc1", "track-sc2",
-                and "track-sc3". See "tcp-request connection" above for their
+                actions include : "accept", "reject", "track-sc0", "track-sc1",
+                and "track-sc2". See "tcp-request connection" above for their
                 signification.
 
     <condition> is a standard layer 4-7 ACL-based condition (see section 7).
@@ -6574,7 +6576,7 @@ tcp-request content <action> [{if | unless} <condition>]
   Three types of actions are supported :
     - accept :
     - reject :
-    - { track-sc1 | track-sc2 | track-sc3 } <key> [table <table>]
+    - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>]
 
   They have the same meaning as their counter-parts in "tcp-request connection"
   so please refer to that section for a complete description.
@@ -6586,8 +6588,8 @@ tcp-request content <action> [{if | unless} <condition>]
   difference because tracking rules in "frontend" and "listen" section last for
   all the session, as opposed to the backend rules. The difference appears when
   some layer 7 information is tracked. While there is nothing mandatory about
-  it, it is recommended to use the track-sc1 pointer to track per-frontend
-  counters and track-sc2 to track per-backend counters, but this is just a
+  it, it is recommended to use the track-sc0 pointer to track per-frontend
+  counters and track-sc1 to track per-backend counters, but this is just a
   guideline and all counters may be used everywhere.
 
   Note that the "if/unless" condition is optional. If no condition is set on
@@ -6629,32 +6631,32 @@ tcp-request content <action> [{if | unless} <condition>]
   Example:
         # Track the last IP from X-Forwarded-For
         tcp-request inspect-delay 10s
-        tcp-request content track-sc1 hdr(x-forwarded-for,-1) if HTTP
+        tcp-request content track-sc0 hdr(x-forwarded-for,-1) if HTTP
 
   Example:
         # track request counts per "base" (concatenation of Host+URL)
         tcp-request inspect-delay 10s
-        tcp-request content track-sc1 base table req-rate if HTTP
+        tcp-request content track-sc0 base table req-rate if HTTP
 
   Example: track per-frontend and per-backend counters, block abusers at the
            frontend when the backend detects abuse.
 
         frontend http
-            # Use General Purpose Couter 0 in SC1 as a global abuse counter
+            # Use General Purpose Couter 0 in SC0 as a global abuse counter
             # protecting all our sites
             stick-table type ip size 1m expire 5m store gpc0
-            tcp-request connection track-sc1 src
-            tcp-request connection reject if { sc1_get_gpc0 gt 0 }
+            tcp-request connection track-sc0 src
+            tcp-request connection reject if { sc0_get_gpc0 gt 0 }
             ...
             use_backend http_dynamic if { path_end .php }
 
         backend http_dynamic
             # if a source makes too fast requests to this dynamic site (tracked
-            # by SC2), block it globally in the frontend.
+            # by SC1), block it globally in the frontend.
             stick-table type ip size 1m expire 5m store http_req_rate(10s)
-            acl click_too_fast sc2_http_req_rate gt 10
-            acl mark_as_abuser sc1_inc_gpc0 gt 0
-            tcp-request content track-sc2 src
+            acl click_too_fast sc1_http_req_rate gt 10
+            acl mark_as_abuser sc0_inc_gpc0 gt 0
+            tcp-request content track-sc1 src
             tcp-request content reject if click_too_fast mark_as_abuser
 
   See section 7 about ACL usage.
@@ -8948,23 +8950,23 @@ fe_id : integer
   backends to check from which backend it was called, or to stick all users
   coming via a same frontend to the same server.
 
+sc0_bytes_in_rate : integer
 sc1_bytes_in_rate : integer
 sc2_bytes_in_rate : integer
-sc3_bytes_in_rate : integer
   Returns the average client-to-server bytes rate from the currently tracked
   counters, measured in amount of bytes over the period configured in the
   table. See also src_bytes_in_rate.
 
+sc0_bytes_out_rate : integer
 sc1_bytes_out_rate : integer
 sc2_bytes_out_rate : integer
-sc3_bytes_out_rate : integer
   Returns the average server-to-client bytes rate from the currently tracked
   counters, measured in amount of bytes over the period configured in the
   table. See also src_bytes_out_rate.
 
+sc0_clr_gpc0 : integer
 sc1_clr_gpc0 : integer
 sc2_clr_gpc0 : integer
-sc3_clr_gpc0 : integer
   Clears the first General Purpose Counter associated to the currently tracked
   counters, and returns its previous value. Before the first invocation, the
   stored value is zero, so first invocation will always return zero. This is
@@ -8973,110 +8975,110 @@ sc3_clr_gpc0 : integer
 
         # block if 5 consecutive requests continue to come faster than 10 sess
         # per second, and reset the counter as soon as the traffic slows down.
-        acl abuse sc1_http_req_rate gt 10
-        acl kill  sc1_inc_gpc0 gt 5
-        acl save  sc1_clr_gpc0 ge 0
+        acl abuse sc0_http_req_rate gt 10
+        acl kill  sc0_inc_gpc0 gt 5
+        acl save  sc0_clr_gpc0 ge 0
         tcp-request connection accept if !abuse save
         tcp-request connection reject if abuse kill
 
+sc0_conn_cnt : integer
 sc1_conn_cnt : integer
 sc2_conn_cnt : integer
-sc3_conn_cnt : integer
   Returns the cumulated number of incoming connections from currently tracked
   counters. See also src_conn_cnt.
 
+sc0_conn_cur : integer
 sc1_conn_cur : integer
 sc2_conn_cur : integer
-sc3_conn_cur : integer
   Returns the current amount of concurrent connections tracking the same
   tracked counters. This number is automatically incremented when tracking
   begins and decremented when tracking stops. See also src_conn_cur.
 
+sc0_conn_rate : integer
 sc1_conn_rate : integer
 sc2_conn_rate : integer
-sc3_conn_rate : integer
   Returns the average connection rate from the currently tracked counters,
   measured in amount of connections over the period configured in the table.
   See also src_conn_rate.
 
+sc0_get_gpc0 : integer
 sc1_get_gpc0 : integer
 sc2_get_gpc0 : integer
-sc3_get_gpc0 : integer
   Returns the value of the first General Purpose Counter associated to the
-  currently tracked counters. See also src_get_gpc0 and sc1/sc2/sc3_get_gpc0.
+  currently tracked counters. See also src_get_gpc0 and sc0/sc1/sc2_get_gpc0.
 
+sc0_gpc0_rate : integer
 sc1_gpc0_rate : integer
 sc2_gpc0_rate : integer
-sc3_gpc0_rate : integer
   Returns the average increment rate of the first General Purpose Counter
   associated to the currently tracked counters. It reports the frequency
   which the gpc0 counter was incremented over the configured period. See also
-  src_gpc0_rate, sc1/sc2/sc3_get_gpc0, and sc1/sc2/sc3_inc_gpc0. Note that the
+  src_gpc0_rate, sc0/sc1/sc2_get_gpc0, and sc0/sc1/sc2_inc_gpc0. Note that the
   "gpc0_rate" counter must be stored in the stick-table for a value to be
   returned, as "gpc0" only holds the event count.
 
+sc0_http_err_cnt : integer
 sc1_http_err_cnt : integer
 sc2_http_err_cnt : integer
-sc3_http_err_cnt : integer
   Returns the cumulated number of HTTP errors from the currently tracked
   counters. This includes the both request errors and 4xx error responses.
   See also src_http_err_cnt.
 
+sc0_http_err_rate : integer
 sc1_http_err_rate : integer
 sc2_http_err_rate : integer
-sc3_http_err_rate : integer
   Returns the average rate of HTTP errors from the currently tracked counters,
   measured in amount of errors over the period configured in the table. This
   includes the both request errors and 4xx error responses. See also
   src_http_err_rate.
 
+sc0_http_req_cnt : integer
 sc1_http_req_cnt : integer
 sc2_http_req_cnt : integer
-sc3_http_req_cnt : integer
   Returns the cumulated number of HTTP requests from the currently tracked
   counters. This includes every started request, valid or not. See also
   src_http_req_cnt.
 
+sc0_http_req_rate : integer
 sc1_http_req_rate : integer
 sc2_http_req_rate : integer
-sc3_http_req_rate : integer
   Returns the average rate of HTTP requests from the currently tracked
   counters, measured in amount of requests over the period configured in
   the table. This includes every started request, valid or not. See also
   src_http_req_rate.
 
+sc0_inc_gpc0 : integer
 sc1_inc_gpc0 : integer
 sc2_inc_gpc0 : integer
-sc3_inc_gpc0 : integer
   Increments the first General Purpose Counter associated to the currently
   tracked counters, and returns its new value. Before the first invocation,
   the stored value is zero, so first invocation will increase it to 1 and will
   return 1. This is typically used as a second ACL in an expression in order
   to mark a connection when a first ACL was verified :
 
-        acl abuse sc1_http_req_rate gt 10
-        acl kill  sc1_inc_gpc0 gt 0
+        acl abuse sc0_http_req_rate gt 10
+        acl kill  sc0_inc_gpc0 gt 0
         tcp-request connection reject if abuse kill
 
+sc0_kbytes_in : integer
 sc1_kbytes_in : integer
 sc2_kbytes_in : integer
-sc3_kbytes_in : integer
   Returns the amount of client-to-server data from the currently tracked
   counters, measured in kilobytes over the period configured in the table. The
   test is currently performed on 32-bit integers, which limits values to 4
   terabytes. See also src_kbytes_in.
 
+sc0_kbytes_out : integer
 sc1_kbytes_out : integer
 sc2_kbytes_out : integer
-sc3_kbytes_out : integer
   Returns the amount of server-to-client data from the currently tracked
   counters, measured in kilobytes over the period configured in the table. The
   test is currently performed on 32-bit integers, which limits values to 4
   terabytes. See also src_kbytes_out.
 
+sc0_sess_cnt : integer
 sc1_sess_cnt : integer
 sc2_sess_cnt : integer
-sc3_sess_cnt : integer
   Returns the cumulated number of incoming connections that were transformed
   into sessions, which means that they were accepted by a "tcp-request
   connection" rule, from the currently tracked counters. A backend may count
@@ -9084,9 +9086,9 @@ sc3_sess_cnt : integer
   backend sessions if some HTTP keep-alive is performed over the connection
   with the client. See also src_sess_cnt.
 
+sc0_sess_rate : integer
 sc1_sess_rate : integer
 sc2_sess_rate : integer
-sc3_sess_rate : integer
   Returns the average session rate from the currently tracked counters,
   measured in amount of sessions over the period configured in the table. A
   session is a connection that got past the early "tcp-request connection"
@@ -9094,19 +9096,19 @@ sc3_sess_rate : integer
   connection could result in many backend sessions if some HTTP keep-alive is
   performed over the connection with the client. See also src_sess_rate.
 
+sc0_tracked : boolean
 sc1_tracked : boolean
 sc2_tracked : boolean
-sc3_tracked : boolean
   Returns true if the designated session counter is currently being tracked by
   the current session. This can be useful when deciding whether or not we want
   to set some values in a header passed to the server.
 
+sc0_trackers : integer
 sc1_trackers : integer
 sc2_trackers : integer
-sc3_trackers : integer
   Returns the current amount of concurrent connections tracking the same
   tracked counters. This number is automatically incremented when tracking
-  begins and decremented when tracking stops. It differs from sc1_conn_cur in
+  begins and decremented when tracking stops. It differs from sc0_conn_cur in
   that it does not rely on any stored information but on the table's reference
   count (the "use" value which is returned by "show table" on the CLI). This
   may sometimes be more suited for layer7 tracking. It can be used to tell a
@@ -9131,13 +9133,13 @@ src_bytes_in_rate([<table>]) : integer
   Returns the average bytes rate from the incoming connection's source address
   in the current proxy's stick-table or in the designated stick-table, measured
   in amount of bytes over the period configured in the table. If the address is
-  not found, zero is returned. See also sc1/sc2/sc3_bytes_in_rate.
+  not found, zero is returned. See also sc0/sc1/sc2_bytes_in_rate.
 
 src_bytes_out_rate([<table>]) : integer
   Returns the average bytes rate to the incoming connection's source address in
   the current proxy's stick-table or in the designated stick-table, measured in
   amount of bytes over the period configured in the table. If the address is
-  not found, zero is returned. See also sc1/sc2/sc3_bytes_out_rate.
+  not found, zero is returned. See also sc0/sc1/sc2_bytes_out_rate.
 
 src_clr_gpc0([<table>]) : integer
   Clears the first General Purpose Counter associated to the incoming
@@ -9159,32 +9161,32 @@ src_conn_cnt([<table>]) : integer
   Returns the cumulated number of connections initiated from the current
   incoming connection's source address in the current proxy's stick-table or in
   the designated stick-table. If the address is not found, zero is returned.
-  See also sc1/sc2/sc3_conn_cnt.
+  See also sc0/sc1/sc2_conn_cnt.
 
 src_conn_cur([<table>]) : integer
   Returns the current amount of concurrent connections initiated from the
   current incoming connection's source address in the current proxy's
   stick-table or in the designated stick-table. If the address is not found,
-  zero is returned. See also sc1/sc2/sc3_conn_cur.
+  zero is returned. See also sc0/sc1/sc2_conn_cur.
 
 src_conn_rate([<table>]) : integer
   Returns the average connection rate from the incoming connection's source
   address in the current proxy's stick-table or in the designated stick-table,
   measured in amount of connections over the period configured in the table. If
-  the address is not found, zero is returned. See also sc1/sc2/sc3_conn_rate.
+  the address is not found, zero is returned. See also sc0/sc1/sc2_conn_rate.
 
 src_get_gpc0([<table>]) : integer
   Returns the value of the first General Purpose Counter associated to the
   incoming connection's source address in the current proxy's stick-table or in
   the designated stick-table. If the address is not found, zero is returned.
-  See also sc1/sc2/sc3_get_gpc0 and src_inc_gpc0.
+  See also sc0/sc1/sc2_get_gpc0 and src_inc_gpc0.
 
 src_gpc0_rate([<table>]) : integer
   Returns the average increment rate of the first General Purpose Counter
   associated to the incoming connection's source address in the current proxy's
   stick-table or in the designated stick-table. It reports the frequency
   which the gpc0 counter was incremented over the configured period. See also
-  sc1/sc2/sc3_gpc0_rate, src_get_gpc0, and sc1/sc2/sc3_inc_gpc0. Note that the
+  sc0/sc1/sc2_gpc0_rate, src_get_gpc0, and sc0/sc1/sc2_inc_gpc0. Note that the
   "gpc0_rate" counter must be stored in the stick-table for a value to be
   returned, as "gpc0" only holds the event count.
 
@@ -9192,7 +9194,7 @@ src_http_err_cnt([<table>]) : integer
   Returns the cumulated number of HTTP errors from the incoming connection's
   source address in the current proxy's stick-table or in the designated
   stick-table. This includes the both request errors and 4xx error responses.
-  See also sc1/sc2/sc3_http_err_cnt. If the address is not found, zero is
+  See also sc0/sc1/sc2_http_err_cnt. If the address is not found, zero is
   returned.
 
 src_http_err_rate([<table>]) : integer
@@ -9200,26 +9202,26 @@ src_http_err_rate([<table>]) : integer
   address in the current proxy's stick-table or in the designated stick-table,
   measured in amount of errors over the period configured in the table. This
   includes the both request errors and 4xx error responses. If the address is
-  not found, zero is returned. See also sc1/sc2/sc3_http_err_rate.
+  not found, zero is returned. See also sc0/sc1/sc2_http_err_rate.
 
 src_http_req_cnt([<table>]) : integer
   Returns the cumulated number of HTTP requests from the incoming connection's
   source address in the current proxy's stick-table or in the designated stick-
   table. This includes every started request, valid or not. If the address is
-  not found, zero is returned. See also sc1/sc2/sc3_http_req_cnt.
+  not found, zero is returned. See also sc0/sc1/sc2_http_req_cnt.
 
 src_http_req_rate([<table>]) : integer
   Returns the average rate of HTTP requests from the incoming connection's
   source address in the current proxy's stick-table or in the designated stick-
   table, measured in amount of requests over the period configured in the
   table. This includes every started request, valid or not. If the address is
-  not found, zero is returned. See also sc1/sc2/sc3_http_req_rate.
+  not found, zero is returned. See also sc0/sc1/sc2_http_req_rate.
 
 src_inc_gpc0([<table>]) : integer
   Increments the first General Purpose Counter associated to the incoming
   connection's source address in the current proxy's stick-table or in the
   designated stick-table, and returns its new value. If the address is not
-  found, an entry is created and 1 is returned. See also sc1/sc3/sc3_inc_gpc0.
+  found, an entry is created and 1 is returned. See also sc0/sc2/sc2_inc_gpc0.
   This is typically used as a second ACL in an expression in order to mark a
   connection when a first ACL was verified :
 
@@ -9232,14 +9234,14 @@ src_kbytes_in([<table>]) : integer
   address in the current proxy's stick-table or in the designated stick-table,
   measured in kilobytes over the period configured in the table. If the address
   is not found, zero is returned. The test is currently performed on 32-bit
-  integers, which limits values to 4 terabytes. See also sc1/sc2/sc3_kbytes_in.
+  integers, which limits values to 4 terabytes. See also sc0/sc1/sc2_kbytes_in.
 
 src_kbytes_out([<table>]) : integer
   Returns the amount of data sent to the incoming connection's source address
   in the current proxy's stick-table or in the designated stick-table, measured
   in kilobytes over the period configured in the table. If the address is not
   found, zero is returned. The test is currently performed on 32-bit integers,
-  which limits values to 4 terabytes. See also sc1/sc2/sc3_kbytes_out.
+  which limits values to 4 terabytes. See also sc0/sc1/sc2_kbytes_out.
 
 src_port : integer
   Returns an integer value corresponding to the TCP source port of the
@@ -9252,14 +9254,14 @@ src_sess_cnt([<table>]) : integer
   connection's source IPv4 address in the current proxy's stick-table or in the
   designated stick-table, that were transformed into sessions, which means that
   they were accepted by "tcp-request" rules. If the address is not found, zero
-  is returned. See also sc1/sc2/sc3_sess_cnt.
+  is returned. See also sc0/sc1/sc2_sess_cnt.
 
 src_sess_rate([<table>]) : integer
   Returns the average session rate from the incoming connection's source
   address in the current proxy's stick-table or in the designated stick-table,
   measured in amount of sessions over the period configured in the table. A
   session is a connection that went past the early "tcp-request" rules. If the
-  address is not found, zero is returned. See also sc1/sc2/sc3_sess_rate.
+  address is not found, zero is returned. See also sc0/sc1/sc2_sess_rate.
 
 src_updt_conn_cnt([<table>]) : integer
   Creates or updates the entry associated to the incoming connection's source
@@ -9640,7 +9642,7 @@ req_proto_http : boolean (deprecated)
         # track request counts per "base" (concatenation of Host+URL)
         tcp-request inspect-delay 10s
         tcp-request content reject if !HTTP
-        tcp-request content track-sc1 base table req-rate
+        tcp-request content track-sc0 base table req-rate
 
 req.rdp_cookie([<name>]) : string
 rdp_cookie([<name>]) : string (deprecated)

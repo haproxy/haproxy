@@ -91,9 +91,9 @@
 #define SN_COMP_READY   0x00100000	/* the compression is initialized */
 
 /* session tracking flags: these ones must absolutely be contiguous. See also s->stkctr */
-#define SN_BE_TRACK_SC1 0x00200000	/* backend tracks stick-counter 1 */
-#define SN_BE_TRACK_SC2 0x00400000	/* backend tracks stick-counter 2 */
-#define SN_BE_TRACK_SC3 0x00800000	/* backend tracks stick-counter 3 */
+#define SN_BE_TRACK_SC0 0x00200000	/* backend tracks stick-counter 0 */
+#define SN_BE_TRACK_SC1 0x00400000	/* backend tracks stick-counter 1 */
+#define SN_BE_TRACK_SC2 0x00800000	/* backend tracks stick-counter 2 */
 #define SN_BE_TRACK_ANY 0x00E00000      /* union of all SN_BE_TRACK_* above */
 
 

@@ -87,7 +87,7 @@ static inline void session_stop_backend_counters(struct session *s)
 		if (!s->stkctr[i].entry)
 			continue;
 
-		if (!(s->flags & (SN_BE_TRACK_SC1 << i)))
+		if (!(s->flags & (SN_BE_TRACK_SC0 << i)))
 			continue;
 
 		ptr = stktable_data_ptr(s->stkctr[i].table, s->stkctr[i].entry, STKTABLE_DT_CONN_CUR);
@@ -173,7 +173,7 @@ static void inline session_inc_be_http_req_ctr(struct session *s)
 		if (!s->stkctr[i].entry)
 			continue;
 
-		if (!(s->flags & (SN_BE_TRACK_SC1 << i)))
+		if (!(s->flags & (SN_BE_TRACK_SC0 << i)))
 			continue;
 
 		ptr = stktable_data_ptr(s->stkctr[i].table, s->stkctr[i].entry, STKTABLE_DT_HTTP_REQ_CNT);
