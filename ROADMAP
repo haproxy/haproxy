@@ -1,8 +1,8 @@
-Medium-long term roadmap - 2011/03/01
+Medium-long term roadmap - 2013/06/17
 
 Legend: '+' = done, '-' = todo, '*' = done except doc
 
-1.5 (ETA 2010/12/31) :
+1.5 (ETA 2013/12/31) :
   - server-side HTTP keepalive
     => maybe with limitation to only reuse connections that don't depend
        on layer7 in a first time (just check the target).
@@ -35,22 +35,6 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
     based on request matching. Each session will have one ebtree node to be
     attached to whatever queue the session is waiting in.
 
-  - assign a nice priority based on ACLs.
-
-  - dontlog if <acl> (front/back)
-
-  - fix "PR--" flags when accessing stats
-
-  - pattern extraction is needed for ACLs and stickiness. It would work like
-    this :
-
-       acl <name> <pattern> [-i] <values>...
-
-    All ACL fetch method currently available would be transformed into pattern
-    extraction methods. That way we could stick on hdr(x-forwarded-for) or use
-    source 0.0.0.0 usesrc <pattern> (such as "hdr_ip(headername)"). Note that
-    ACLs sometimes need iterative matching/extraction.
-
   - add support for complex pattern extraction rules :
 
        pattern = <pattern_term>
@@ -75,7 +59,7 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
 
   - add a flag in logs to indicate keep-alive requests ?
 
-  - make it possible to condition a timeout on an ACL
+  - make it possible to condition a timeout on an ACL (dynamic timeouts)
 
   - forwardfor/originalto except with IPv6
 
@@ -85,6 +69,14 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
 
   - remove lots of remaining Alert() calls or ensure that they forward to
     send_log() after the fork.
+
+  - tcp-request session
+
+  - http-request track-sc* to avoid having the ugly "if !HTTP" in tcp-request
+
+  - tcp-request {connection|session} expect-proxy {L4|L5} if ...
+
+  - compression : to be fixed
 
 DONE:
   * rename L4 acls as L6 ACLs when some content is involved
@@ -137,15 +129,26 @@ DONE:
     to explain the possible huge difference between frontend and backend
     sessions.
 
+  * assign a nice priority based on ACLs.
+
+  * set-log-level if <acl> (front/back)
+
+  * fix "PR--" flags when accessing stats
+
+  * merged ACL/fetches
+
+  * use_server ... if ...
+
+  * ability to kill an arbitrary session from the command line. Put a "kill now"
+    flag in every session which preempts any other processing and wake the
+    session up.
 
 1.6 (will probably change anyway) :
-  - wait on resource (mem, socket, server's conn, server's rate, ...)
+  - wait on resource (time, mem, CPU, socket, buffers, server's conn, server's rate, ...)
 
   - bandwidth limits
 
   - create internal services and make stats, CLI, etc... part of that.
-
-  - use_server ... if ...
 
   - buddy servers to build defined lists of failovers. Detect loops during
     the config check.
@@ -163,10 +166,6 @@ DONE:
   - evaluate the changes required for multi-process+shared mem or multi-thread
     +thread-local+fast locking.
 
-  - ability to kill an arbitrary session from the command line. Put a "kill now"
-    flag in every session which preempts any other processing and wake the
-    session up.
-
   - ability to decide whether to drain or kill sessions when putting a server
     to maintenance mode => requires a per-server session list and the change
     above.
@@ -176,8 +175,6 @@ Old, maybe obsolete points
 
  - 3 memory models : failsafe (prealloc), normal (current), optimal (alloc on
    demand)
-
- - ability to assign a task priority based on L7 matching
 
  - implement support for event-triggerred epoll()
 
@@ -189,3 +186,25 @@ Old, maybe obsolete points
  - new keyword 'check' : check http xxx, check smtp xxx, check ssl-hello
 
  - initcwnd parameter for bind sockets : needed in kernel first
+
+Unsorted :
+  - outgoing log load-balancing (round-robin or hash among multiple servers)
+  - internal socket for "server XXX frontend:name"
+  - ACL feeding via the UNIX socket
+  - HTTP/2.0
+  - DNS requests on health checks
+  - XML inspection (content-switching for SOAP requests)
+  - lookup tables (eg: map IP to country)
+  - sync all stick-tables data, not just serverid.
+  - request, session and user variables
+  - random cookie generator
+  - external checker
+  - fastcgi to servers
+  - hot config reload
+  - RAM-based cache for small files
+  - RHI - BGP
+  - telnet/SSH cli
+  - dynamic memory allocation
+  - dynamic weights based on check response headers and traffic response time
+  - various kernel-level acceleration (multi-accept, ssplice, epoll2...)
+  - "show stats detail" with a different output format and encoding of quotes
