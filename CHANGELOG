@@ -1,6 +1,87 @@
 ChangeLog :
 ===========
 
+2013/06/17 : 1.5-dev19
+    - MINOR: stats: remove the autofocus on the scope input field
+    - BUG/MEDIUM: Fix crt-list file parsing error: filtered name was ignored.
+    - BUG/MEDIUM: ssl: EDH ciphers are not usable if no DH parameters present in pem file.
+    - BUG/MEDIUM: shctx: makes the code independent on SSL runtime version.
+    - MEDIUM: ssl: improve crt-list format to support negation
+    - BUG: ssl: fix crt-list for clients not supporting SNI
+    - MINOR: stats: show soft-stopped servers in different color
+    - BUG/MINOR: config: "source" does not work in defaults section
+    - BUG: regex: fix pcre compile error when using JIT
+    - MINOR: ssl: add pattern fetch 'ssl_c_sha1'
+    - BUG: ssl: send payload gets corrupted if tune.ssl.maxrecord is used
+    - MINOR: show PCRE version and JIT status in -vv
+    - BUG/MINOR: jit: don't rely on USE flag to detect support
+    - DOC: readme: add suggestion to link against static openssl
+    - DOC: examples: provide simplified ssl configuration
+    - REORG: tproxy: prepare the transparent proxy defines for accepting other OSes
+    - MINOR: tproxy: add support for FreeBSD
+    - MINOR: tproxy: add support for OpenBSD
+    - DOC: examples: provide an example of transparent proxy configuration for FreeBSD 8
+    - CLEANUP: fix minor typo in error message.
+    - CLEANUP: fix missing include <string.h> in proto/listener.h
+    - CLEANUP: protect checks.h from multiple inclusions
+    - MINOR: compression: acl "res.comp" and fetch "res.comp_algo"
+    - BUG/MINOR: http: add-header/set-header did not accept the ACL condition
+    - BUILD: mention in the Makefile that USE_PCRE_JIT is for libpcre >= 8.32
+    - BUG/MEDIUM: splicing is broken since 1.5-dev12
+    - BUG/MAJOR: acl: add implicit arguments to the resolve list
+    - BUG/MINOR: tcp: fix error reporting for TCP rules
+    - CLEANUP: peers: remove a bit of spaghetti to prepare for the next bugfix
+    - MINOR: stick-table: allow to allocate an entry without filling it
+    - BUG/MAJOR: peers: fix an overflow when syncing strings larger than 16 bytes
+    - MINOR: session: only call http_send_name_header() when changing the server
+    - MINOR: tcp: report the erroneous word in tcp-request track*
+    - BUG/MAJOR: backend: consistent hash can loop forever in certain circumstances
+    - BUG/MEDIUM: log: fix regression on log-format handling
+    - MEDIUM: log: report file name, line number, and directive name with log-format errors
+    - BUG/MINOR: cli: "clear table" did not work anymore without a key
+    - BUG/MINOR: cli: "clear table xx data.xx" does not work anymore
+    - BUG/MAJOR: http: compression still has defects on chunked responses
+    - BUG/MINOR: stats: fix confirmation links on the stats interface
+    - BUG/MINOR: stats: the status bar does not appear anymore after a change
+    - BUG/MEDIUM: stats: allocate the stats frontend also on "stats bind-process"
+    - BUG/MEDIUM: stats: fix a regression when dealing with POST requests
+    - BUG/MINOR: fix unterminated ACL array in compression
+    - BUILD: last fix broke non-linux platforms
+    - MINOR: init: indicate the SSL runtime version on -vv.
+    - BUG/MEDIUM: compression: the deflate algorithm must use global settings as well
+    - BUILD: stdbool is not portable (again)
+    - DOC: readme: add a small reminder about restrictions to respect in the code
+    - MINOR: ebtree: add new eb_next_dup/eb_prev_dup() functions to visit duplicates
+    - BUG/MINOR: acl: fix a double free during exit when using PCRE_JIT
+    - DOC: fix wrong copy-paste in the rspdel example
+    - MINOR: counters: make it easier to extend the amount of tracked counters
+    - MEDIUM: counters: add support for tracking a third counter
+    - MEDIUM: counters: add a new "gpc0_rate" counter in stick-tables
+    - BUG/MAJOR: http: always ensure response buffer has some room for a response
+    - MINOR: counters: add fetch/acl sc*_tracked to indicate whether a counter is tracked
+    - MINOR: defaults: allow REQURI_LEN and CAPTURE_LEN to be redefined
+    - MINOR: log: add a new flag 'L' for locally processed requests
+    - MINOR: http: add full-length header fetch methods
+    - MEDIUM: protocol: implement a "drain" function in protocol layers
+    - MEDIUM: http: add a new "http-response" ruleset
+    - MEDIUM: http: add the "set-nice" action to http-request and http-response
+    - MEDIUM: log: add a log level override value in struct session
+    - MEDIUM: http: add support for action "set-log-level" in http-request/http-response
+    - MEDIUM: http: add support for "set-tos" in http-request/http-response
+    - MEDIUM: http: add the "set-mark" action on http-request/http-response rules
+    - MEDIUM: tcp: add "tcp-request connection expect-proxy layer4"
+    - MEDIUM: acl: automatically detect the type of certain fetches
+    - MEDIUM: acl: remove a lot of useless ACLs that are equivalent to their fetches
+    - MEDIUM: acl: remove 15 additional useless ACLs that are equivalent to their fetches
+    - DOC: major reorg of ACL + sample fetch
+    - CLEANUP: http: remove the bogus urlp_ip ACL match
+    - MINOR: acl: add the new "env()" fetch method to retrieve an environment variable
+    - BUG/MINOR: acl: correctly consider boolean fetches when doing casts
+    - BUG/CRITICAL: fix a possible crash when using negative header occurrences
+    - DOC: update ROADMAP file
+    - MEDIUM: counters: use sc0/sc1/sc2 instead of sc1/sc2/sc3
+    - MEDIUM: stats: add proxy name filtering on the statistic page
+
 2013/04/03 : 1.5-dev18
     - DOCS: Add explanation of intermediate certs to crt paramater
     - DOC: typo and minor fixes in compression paragraph
