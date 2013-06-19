@@ -2803,7 +2803,8 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
 
 http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
                 set-header <name> <fmt> | set-log-level <level> |
-                set-mark <mark> } [ { if | unless } <condition> ]
+                set-mark <mark> | set-tos <tos> }
+              [ { if | unless } <condition> ]
   Access control for Layer 7 responses
 
   May be used in sections:   defaults | frontend | listen | backend

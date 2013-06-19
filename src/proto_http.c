@@ -3213,7 +3213,7 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 
 		case HTTP_REQ_ACT_SET_TOS:
 #ifdef IP_TOS
-			if (s->req->prod->conn->addr.to.ss_family == AF_INET)
+			if (s->req->prod->conn->addr.from.ss_family == AF_INET)
 				setsockopt(s->req->prod->conn->t.sock.fd, IPPROTO_IP, IP_TOS, &rule->arg.tos, sizeof(rule->arg.tos));
 #endif
 			break;
@@ -3299,7 +3299,7 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 
 		case HTTP_RES_ACT_SET_TOS:
 #ifdef IP_TOS
-			if (s->req->prod->conn->addr.to.ss_family == AF_INET)
+			if (s->req->prod->conn->addr.from.ss_family == AF_INET)
 				setsockopt(s->req->prod->conn->t.sock.fd, IPPROTO_IP, IP_TOS, &rule->arg.tos, sizeof(rule->arg.tos));
 #endif
 			break;
