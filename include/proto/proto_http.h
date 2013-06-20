@@ -63,7 +63,6 @@ extern char *get_http_auth_buff;
 #define HTTP_IS_TOKEN(x) (http_is_token[(unsigned char)(x)])
 #define HTTP_IS_VER_TOKEN(x) (http_is_ver_token[(unsigned char)(x)])
 
-int event_accept(int fd);
 int process_cli(struct session *t);
 int process_srv_data(struct session *t);
 int process_srv_conn(struct session *t);

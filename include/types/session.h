@@ -97,7 +97,7 @@
 #define SN_BE_TRACK_ANY 0x00E00000      /* union of all SN_BE_TRACK_* above */
 
 
-/* WARNING: if new fields are added, they must be initialized in event_accept()
+/* WARNING: if new fields are added, they must be initialized in session_accept()
  * and freed in session_free() !
  */
 
