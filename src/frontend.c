@@ -256,7 +256,7 @@ smp_fetch_fe_conn(struct proxy *px, struct session *l4, void *l7, unsigned int o
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
-static struct sample_fetch_kw_list smp_kws = {{ },{
+static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "fe_conn",      smp_fetch_fe_conn,      ARG1(1,FE), NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "fe_id",        smp_fetch_fe_id,        0,          NULL, SMP_T_UINT, SMP_USE_FTEND, },
 	{ "fe_sess_rate", smp_fetch_fe_sess_rate, ARG1(1,FE), NULL, SMP_T_UINT, SMP_USE_INTRN, },
@@ -267,7 +267,7 @@ static struct sample_fetch_kw_list smp_kws = {{ },{
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
-static struct acl_kw_list acl_kws = {{ },{
+static struct acl_kw_list acl_kws = {ILH, {
 	{ /* END */ },
 }};
 

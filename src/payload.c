@@ -650,7 +650,7 @@ static int val_payload_lv(struct arg *arg, char **err_msg)
  * common denominator, the type that can be casted into all other ones. For
  * instance IPv4/IPv6 must be declared IPv4.
  */
-static struct sample_fetch_kw_list smp_kws = {{ },{
+static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "payload",             smp_fetch_payload,        ARG2(2,UINT,UINT),      val_payload,    SMP_T_CBIN, SMP_USE_L6REQ|SMP_USE_L6RES },
 	{ "payload_lv",          smp_fetch_payload_lv,     ARG3(2,UINT,UINT,SINT), val_payload_lv, SMP_T_CBIN, SMP_USE_L6REQ|SMP_USE_L6RES },
 	{ "rdp_cookie",          smp_fetch_rdp_cookie,     ARG1(0,STR),            NULL,           SMP_T_CSTR, SMP_USE_L6REQ },
@@ -680,7 +680,7 @@ static struct sample_fetch_kw_list smp_kws = {{ },{
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
-static struct acl_kw_list acl_kws = {{ },{
+static struct acl_kw_list acl_kws = {ILH, {
 	{ "payload",            "req.payload",        acl_parse_str,        acl_match_str     },
 	{ "payload_lv",         "req.payload_lv",     acl_parse_str,        acl_match_str     },
 	{ "req_rdp_cookie",     "req.rdp_cookie",     acl_parse_str,        acl_match_str     },

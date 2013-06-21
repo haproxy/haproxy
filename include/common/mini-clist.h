@@ -53,6 +53,12 @@ struct cond_wordlist {
 #undef LIST_INIT
 #undef LIST_NEXT
 
+/* ILH = Initialized List Head : used to prevent gcc from moving an empty
+ * list to BSS. Some older version tend to trim all the array and cause
+ * corruption.
+ */
+#define ILH		{ .n = (struct list *)1, .p = (struct list *)2 }
+
 #define LIST_HEAD(a)	((void *)(&(a)))
 
 #define LIST_INIT(l) ((l)->n = (l)->p = (l))

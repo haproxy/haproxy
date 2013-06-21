@@ -4439,7 +4439,7 @@ static struct si_applet cli_applet = {
 	.release = cli_release_handler,
 };
 
-static struct cfg_kw_list cfg_kws = {{ },{
+static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_GLOBAL, "stats", stats_parse_global },
 	{ 0, NULL, NULL },
 }};

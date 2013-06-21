@@ -3080,7 +3080,7 @@ static int srv_parse_verify(char **args, int *cur_arg, struct proxy *px, struct 
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
-static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
+static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_c_ca_err",           smp_fetch_ssl_c_ca_err,       0,                   NULL,    SMP_T_UINT, SMP_USE_L5CLI },
 	{ "ssl_c_ca_err_depth",     smp_fetch_ssl_c_ca_err_depth, 0,                   NULL,    SMP_T_UINT, SMP_USE_L5CLI },
 	{ "ssl_c_err",              smp_fetch_ssl_c_err,          0,                   NULL,    SMP_T_UINT, SMP_USE_L5CLI },
@@ -3124,7 +3124,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
-static struct acl_kw_list acl_kws = {{ },{
+static struct acl_kw_list acl_kws = {ILH, {
 	{ "ssl_c_i_dn",             NULL,         acl_parse_str,     acl_match_str     },
 	{ "ssl_c_key_alg",          NULL,         acl_parse_str,     acl_match_str     },
 	{ "ssl_c_notafter",         NULL,         acl_parse_str,     acl_match_str     },

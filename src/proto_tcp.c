@@ -1731,7 +1731,7 @@ static int bind_parse_interface(char **args, int cur_arg, struct proxy *px, stru
 }
 #endif
 
-static struct cfg_kw_list cfg_kws = {{ },{
+static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "tcp-request",  tcp_parse_tcp_req },
 	{ CFG_LISTEN, "tcp-response", tcp_parse_tcp_rep },
 	{ 0, NULL, NULL },
@@ -1741,7 +1741,7 @@ static struct cfg_kw_list cfg_kws = {{ },{
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
-static struct acl_kw_list acl_kws = {{ },{
+static struct acl_kw_list acl_kws = {ILH, {
 	{ /* END */ },
 }};
 
@@ -1751,7 +1751,7 @@ static struct acl_kw_list acl_kws = {{ },{
  * common denominator, the type that can be casted into all other ones. For
  * instance v4/v6 must be declared v4.
  */
-static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
+static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "dst",      smp_fetch_dst,   0, NULL, SMP_T_IPV4, SMP_USE_L4CLI },
 	{ "dst_port", smp_fetch_dport, 0, NULL, SMP_T_UINT, SMP_USE_L4CLI },
 	{ "src",      smp_fetch_src,   0, NULL, SMP_T_IPV4, SMP_USE_L4CLI },

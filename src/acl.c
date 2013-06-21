@@ -2010,7 +2010,7 @@ smp_fetch_env(struct proxy *px, struct session *s, void *l7, unsigned int opt,
  * common denominator, the type that can be casted into all other ones. For
  * instance IPv4/IPv6 must be declared IPv4.
  */
-static struct sample_fetch_kw_list smp_kws = {{ },{
+static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "always_false", smp_fetch_false, 0,            NULL, SMP_T_BOOL, SMP_USE_INTRN },
 	{ "always_true",  smp_fetch_true,  0,            NULL, SMP_T_BOOL, SMP_USE_INTRN },
 	{ "env",          smp_fetch_env,   ARG1(1,STR),  NULL, SMP_T_CSTR, SMP_USE_INTRN },
@@ -2021,7 +2021,7 @@ static struct sample_fetch_kw_list smp_kws = {{ },{
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
-static struct acl_kw_list acl_kws = {{ },{
+static struct acl_kw_list acl_kws = {ILH, {
 	{ /* END */ },
 }};
 

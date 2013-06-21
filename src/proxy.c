@@ -859,7 +859,7 @@ int session_set_backend(struct session *s, struct proxy *be)
 	return 1;
 }
 
-static struct cfg_kw_list cfg_kws = {{ },{
+static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "timeout", proxy_parse_timeout },
 	{ CFG_LISTEN, "clitimeout", proxy_parse_timeout },
 	{ CFG_LISTEN, "contimeout", proxy_parse_timeout },

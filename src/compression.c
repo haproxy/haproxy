@@ -635,12 +635,12 @@ smp_fetch_res_comp_algo(struct proxy *px, struct session *l4, void *l7, unsigned
 }
 
 /* Note: must not be declared <const> as its list will be overwritten */
-static struct acl_kw_list acl_kws = {{ },{
+static struct acl_kw_list acl_kws = {ILH, {
 	{ /* END */ },
 }};
 
 /* Note: must not be declared <const> as its list will be overwritten */
-static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
+static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "res.comp",             smp_fetch_res_comp,      0,                NULL,    SMP_T_BOOL, SMP_USE_HRSHP },
 	{ "res.comp_algo",        smp_fetch_res_comp_algo, 0,                NULL,    SMP_T_STR, SMP_USE_HRSHP },
 	{ /* END */ },

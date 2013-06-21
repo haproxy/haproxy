@@ -1579,7 +1579,7 @@ smp_fetch_srv_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
-static struct sample_fetch_kw_list smp_kws = {{ },{
+static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "avg_queue",     smp_fetch_avg_queue_size, ARG1(1,BE),  NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "be_conn",       smp_fetch_be_conn,        ARG1(1,BE),  NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "be_id",         smp_fetch_be_id,          0,           NULL, SMP_T_UINT, SMP_USE_BKEND, },
@@ -1598,7 +1598,7 @@ static struct sample_fetch_kw_list smp_kws = {{ },{
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
-static struct acl_kw_list acl_kws = {{ },{
+static struct acl_kw_list acl_kws = {ILH, {
 	{ /* END */ },
 }};
 

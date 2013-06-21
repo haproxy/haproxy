@@ -3938,14 +3938,14 @@ smp_fetch_table_avl(struct proxy *px, struct session *l4, void *l7, unsigned int
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
-static struct acl_kw_list acl_kws = {{ },{
+static struct acl_kw_list acl_kws = {ILH, {
 	{ /* END */ },
 }};
 
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
-static struct sample_fetch_kw_list smp_fetch_keywords = {{ },{
+static struct sample_fetch_kw_list smp_fetch_keywords = {ILH, {
 	{ "sc0_bytes_in_rate",  smp_fetch_sc0_bytes_in_rate,  0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc0_bytes_out_rate", smp_fetch_sc0_bytes_out_rate, 0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc0_clr_gpc0",       smp_fetch_sc0_clr_gpc0,       0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },

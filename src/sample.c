@@ -1073,7 +1073,7 @@ static int sample_conv_ipmask(const struct arg *arg_p, struct sample *smp)
 }
 
 /* Note: must not be declared <const> as its list will be overwritten */
-static struct sample_conv_kw_list sample_conv_kws = {{ },{
+static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "upper",  sample_conv_str2upper, 0,            NULL, SMP_T_STR,  SMP_T_STR  },
 	{ "lower",  sample_conv_str2lower, 0,            NULL, SMP_T_STR,  SMP_T_STR  },
 	{ "ipmask", sample_conv_ipmask,    ARG1(1,MSK4), NULL, SMP_T_IPV4, SMP_T_IPV4 },

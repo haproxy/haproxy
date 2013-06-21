@@ -10106,7 +10106,7 @@ static int val_hdr(struct arg *arg, char **err_msg)
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
-static struct acl_kw_list acl_kws = {{ },{
+static struct acl_kw_list acl_kws = {ILH, {
 	{ "base",            "base",          acl_parse_str,     acl_match_str     },
 	{ "base_beg",        "base",          acl_parse_str,     acl_match_beg     },
 	{ "base_dir",        "base",          acl_parse_str,     acl_match_dir     },
@@ -10193,7 +10193,7 @@ static struct acl_kw_list acl_kws = {{ },{
 /*         All supported pattern keywords must be declared here.        */
 /************************************************************************/
 /* Note: must not be declared <const> as its list will be overwritten */
-static struct sample_fetch_kw_list sample_fetch_keywords = {{ },{
+static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "base",            smp_fetch_base,           0,                NULL,    SMP_T_CSTR, SMP_USE_HRQHV },
 	{ "base32",          smp_fetch_base32,         0,                NULL,    SMP_T_UINT, SMP_USE_HRQHV },
 	{ "base32+src",      smp_fetch_base32_src,     0,                NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
