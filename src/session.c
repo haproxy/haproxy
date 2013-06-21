@@ -2139,8 +2139,11 @@ struct task *process_session(struct task *t)
 
 	/* shutdown(write) pending */
 	if (unlikely((s->req->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW &&
-		     channel_is_empty(s->req)))
+		     channel_is_empty(s->req))) {
+		if (s->req->flags & CF_READ_ERROR)
+			s->req->cons->flags |= SI_FL_NOLINGER;
 		si_shutw(s->req->cons);
+	}
 
 	/* shutdown(write) done on server side, we must stop the client too */
 	if (unlikely((s->req->flags & (CF_SHUTW|CF_SHUTR|CF_SHUTR_NOW)) == CF_SHUTW &&
