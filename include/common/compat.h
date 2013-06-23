@@ -129,6 +129,14 @@
 #endif
 #endif
 
+/* If IPv6 is supported, define IN6_IS_ADDR_V4MAPPED() if missing. */
+#if defined(IPV6_TCLASS) && !defined(IN6_IS_ADDR_V4MAPPED)
+#define IN6_IS_ADDR_V4MAPPED(a) \
+((((const uint32_t *) (a))[0] == 0) \
+&& (((const uint32_t *) (a))[1] == 0) \
+&& (((const uint32_t *) (a))[2] == htonl (0xffff)))
+#endif
+
 #if defined(__dietlibc__)
 #include <strings.h>
 #endif

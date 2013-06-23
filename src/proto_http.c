@@ -3158,6 +3158,26 @@ int http_handle_stats(struct session *s, struct channel *req)
 	return 1;
 }
 
+/* Sets the TOS header in IPv4 and the traffic class header in IPv6 packets
+ * (as per RFC3260 #4 and BCP37 #4.2 and #5.2).
+ */
+static inline void inet_set_tos(int fd, struct sockaddr_storage from, int tos)
+{
+#ifdef IP_TOS
+	if (from.ss_family == AF_INET)
+		setsockopt(fd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
+#endif
+#ifdef IPV6_TCLASS
+	if (from.ss_family == AF_INET6) {
+		if (IN6_IS_ADDR_V4MAPPED(&((struct sockaddr_in6 *)&from)->sin6_addr))
+			/* v4-mapped addresses need IP_TOS */
+			setsockopt(fd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
+		else
+			setsockopt(fd, IPPROTO_IPV6, IPV6_TCLASS, &tos, sizeof(tos));
+	}
+#endif
+}
+
 /* Executes the http-request rules <rules> for session <s>, proxy <px> and
  * transaction <txn>. Returns the first rule that prevents further processing
  * of the request (auth, deny, ...) or NULL if it executed all rules or stopped
@@ -3212,10 +3232,7 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 			break;
 
 		case HTTP_REQ_ACT_SET_TOS:
-#ifdef IP_TOS
-			if (s->req->prod->conn->addr.from.ss_family == AF_INET)
-				setsockopt(s->req->prod->conn->t.sock.fd, IPPROTO_IP, IP_TOS, &rule->arg.tos, sizeof(rule->arg.tos));
-#endif
+			inet_set_tos(s->req->prod->conn->t.sock.fd, s->req->prod->conn->addr.from, rule->arg.tos);
 			break;
 
 		case HTTP_REQ_ACT_SET_MARK:
@@ -3298,10 +3315,7 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 			break;
 
 		case HTTP_RES_ACT_SET_TOS:
-#ifdef IP_TOS
-			if (s->req->prod->conn->addr.from.ss_family == AF_INET)
-				setsockopt(s->req->prod->conn->t.sock.fd, IPPROTO_IP, IP_TOS, &rule->arg.tos, sizeof(rule->arg.tos));
-#endif
+			inet_set_tos(s->req->prod->conn->t.sock.fd, s->req->prod->conn->addr.from, rule->arg.tos);
 			break;
 
 		case HTTP_RES_ACT_SET_MARK:
