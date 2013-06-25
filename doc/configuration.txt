@@ -8070,14 +8070,13 @@ source <addr>[:<pl>[-<ph>]] [interface <name>] ...
   Supported in default-server: No
 
 ssl
-  This option enables SSL ciphering on outgoing connections to the server. At
-  the moment, server certificates are not checked, so this is prone to man in
-  the middle attacks. The real intended use is to permit SSL communication
-  with software which cannot work in other modes over networks that would
-  otherwise be considered safe enough for clear text communications. When this
-  option is used, health checks are automatically sent in SSL too unless there
-  is a "port" or an "addr" directive indicating the check should be sent to a
-  different location. See the "check-ssl" optino to force SSL health checks.
+  This option enables SSL ciphering on outgoing connections to the server. It
+  is critical to verify server certificates using "verify" when using SSL to
+  connect to servers, otherwise the communication is prone to trivial man in
+  the-middle attacks rendering SSL useless. When this option is used, health
+  checks are automatically sent in SSL too unless there is a "port" or an
+  "addr" directive indicating the check should be sent to a different location.
+  See the "check-ssl" optino to force SSL health checks.
 
   Supported in default-server: No
 
@@ -8095,7 +8094,9 @@ verify [none|required]
   to 'none', server certificate is not verified. This is the default. In the
   other case, The certificate provided by the server is verified using CAs from
   'ca-file' and optional CRLs from 'crl-file'. On verify failure the handshake
-  is aborted.
+  is aborted. It is critically important to verify server certificates when
+  using SSL to connect to servers, otherwise the communication is prone to
+  trivial man-in-the-middle attacks rendering SSL totally useless.
 
   Supported in default-server: No
 
