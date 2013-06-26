@@ -1198,6 +1198,7 @@ void deinit(void)
 	free(global.pidfile); global.pidfile = NULL;
 	free(global.node);    global.node = NULL;
 	free(global.desc);    global.desc = NULL;
+	free(fdinfo);         fdinfo  = NULL;
 	free(fdtab);          fdtab   = NULL;
 	free(oldpids);        oldpids = NULL;
 	free(global_listener_queue_task); global_listener_queue_task = NULL;
