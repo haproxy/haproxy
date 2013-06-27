@@ -187,6 +187,7 @@ struct server {
 		char *ciphers;			/* cipher suite to use if non-null */
 		int options;			/* ssl options */
 		int verify;			/* verify method (set of SSL_VERIFY_* flags) */
+		char *verify_host;              /* hostname of certificate must match this host */
 		char *ca_file;			/* CAfile to use on verify */
 		char *crl_file;			/* CRLfile to use on verify */
 		char *client_crt;		/* client certificate to send */

@@ -8100,6 +8100,16 @@ verify [none|required]
 
   Supported in default-server: No
 
+verifyhost <hostname>
+  This setting is only available when support for OpenSSL was built in, and
+  only takes effect if 'verify required' is also specified. When set, the
+  hostnames in the subject and subjectAlternateNames of the certificate
+  provided by the server are checked. If none of the hostnames in the
+  certificate match the specified hostname, the handshake is aborted. The
+  hostnames in the server-provided certificate may include wildcards.
+
+  Supported in default-server: No
+
 weight <weight>
   The "weight" parameter is used to adjust the server's weight relative to
   other servers. All servers will receive a load proportional to their weight

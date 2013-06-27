@@ -104,7 +104,7 @@ void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
 /* Callback is called for each certificate of the chain during a verify
    ok is set to 1 if preverify detect no error on current certificate.
    Returns 0 to break the handshake, 1 otherwise. */
-int ssl_sock_verifycbk(int ok, X509_STORE_CTX *x_store)
+int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 {
 	SSL *ssl;
 	struct connection *conn;
@@ -693,7 +693,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 
 	SSL_CTX_set_options(ctx, ssloptions);
 	SSL_CTX_set_mode(ctx, sslmode);
-	SSL_CTX_set_verify(ctx, bind_conf->verify ? bind_conf->verify : SSL_VERIFY_NONE, ssl_sock_verifycbk);
+	SSL_CTX_set_verify(ctx, bind_conf->verify ? bind_conf->verify : SSL_VERIFY_NONE, ssl_sock_bind_verifycbk);
 	if (bind_conf->verify & SSL_VERIFY_PEER) {
 		if (bind_conf->ca_file) {
 			/* load CAfile to verify */
@@ -767,6 +767,113 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 #endif
 
 	return cfgerr;
+}
+
+static int ssl_sock_srv_hostcheck(const char *pattern, const char *hostname)
+{
+	const char *pattern_wildcard, *pattern_left_label_end, *hostname_left_label_end;
+	size_t prefixlen, suffixlen;
+
+	/* Trivial case */
+	if (strcmp(pattern, hostname) == 0)
+		return 1;
+
+	/* If it's not trivial and there are no wildcards, it can't
+	 * match */
+	if (!(pattern_wildcard = strchr(pattern, '*')))
+		return 0;
+
+	/* The rest of this logic is based on RFC 6125, section 6.4.3
+	 * (http://tools.ietf.org/html/rfc6125#section-6.4.3) */
+
+	/* Make sure the wildcard occurs in the leftmost label */
+	pattern_left_label_end = strchr(pattern, '.');
+	if (!pattern_left_label_end
+	    || pattern_left_label_end < pattern_wildcard)
+		return 0;
+
+	/* Make sure all labels match except the leftmost */
+	hostname_left_label_end = strchr(hostname, '.');
+	if (!hostname_left_label_end
+	    || strcmp(pattern_left_label_end, hostname_left_label_end) != 0)
+		return 0;
+
+	/* Make sure the leftmost label of the hostname is long enough
+	 * that the wildcard can match */
+	if (hostname_left_label_end - hostname < pattern_left_label_end - pattern)
+		return 0;
+
+	/* Finally compare the string on either side of the
+	 * wildcard */
+	prefixlen = pattern_wildcard - pattern;
+	suffixlen = pattern_left_label_end - (pattern_wildcard + 1);
+	if (strncmp(pattern, hostname, prefixlen) != 0
+	    || strncmp(pattern_wildcard + 1, hostname_left_label_end - suffixlen, suffixlen) != 0)
+		return 0;
+
+	return 1;
+}
+
+static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
+{
+	SSL *ssl;
+	struct connection *conn;
+	char *servername;
+
+	int depth;
+	X509 *cert;
+	STACK_OF(GENERAL_NAME) *alt_names;
+	int i;
+	X509_NAME *cert_subject;
+	char *str;
+
+	if (ok == 0)
+		return ok;
+
+	ssl = X509_STORE_CTX_get_ex_data(ctx, SSL_get_ex_data_X509_STORE_CTX_idx());
+	conn = (struct connection *)SSL_get_app_data(ssl);
+
+	servername = objt_server(conn->target)->ssl_ctx.verify_host;
+
+	/* We only need to verify the CN on the actual server cert,
+	 * not the indirect CAs */
+	depth = X509_STORE_CTX_get_error_depth(ctx);
+	if (depth != 0)
+		return ok;
+
+	/* At this point, the cert is *not* OK unless we can find a
+	 * hostname match */
+	ok = 0;
+
+	cert = X509_STORE_CTX_get_current_cert(ctx);
+	/* It seems like this might happen if verify peer isn't set */
+	if (!cert)
+		return ok;
+
+	alt_names = X509_get_ext_d2i(cert, NID_subject_alt_name, NULL, NULL);
+	if (alt_names) {
+		for (i = 0; !ok && i < sk_GENERAL_NAME_num(alt_names); i++) {
+			GENERAL_NAME *name = sk_GENERAL_NAME_value(alt_names, i);
+			if (name->type == GEN_DNS) {
+				if (ASN1_STRING_to_UTF8((unsigned char **)&str, name->d.dNSName) >= 0) {
+					ok = ssl_sock_srv_hostcheck(str, servername);
+					OPENSSL_free(str);
+				}
+			}
+		}
+	}
+
+	cert_subject = X509_get_subject_name(cert);
+	i = -1;
+	while (!ok && (i = X509_NAME_get_index_by_NID(cert_subject, NID_commonName, i)) != -1) {
+		X509_NAME_ENTRY *entry = X509_NAME_get_entry(cert_subject, i);
+		if (ASN1_STRING_to_UTF8((unsigned char **)&str, entry->value) >= 0) {
+			ok = ssl_sock_srv_hostcheck(str, servername);
+			OPENSSL_free(str);
+		}
+	}
+
+	return ok;
 }
 
 /* prepare ssl context from servers options. Returns an error count */
@@ -849,7 +956,9 @@ int ssl_sock_prepare_srv_ctx(struct server *srv, struct proxy *curproxy)
 
 	SSL_CTX_set_options(srv->ssl_ctx.ctx, options);
 	SSL_CTX_set_mode(srv->ssl_ctx.ctx, mode);
-	SSL_CTX_set_verify(srv->ssl_ctx.ctx, srv->ssl_ctx.verify ? srv->ssl_ctx.verify : SSL_VERIFY_NONE, NULL);
+	SSL_CTX_set_verify(srv->ssl_ctx.ctx,
+	                   srv->ssl_ctx.verify ? srv->ssl_ctx.verify : SSL_VERIFY_NONE,
+	                   srv->ssl_ctx.verify_host ? ssl_sock_srv_verifycbk : NULL);
 	if (srv->ssl_ctx.verify & SSL_VERIFY_PEER) {
 		if (srv->ssl_ctx.ca_file) {
 			/* load CAfile to verify */
@@ -992,6 +1101,9 @@ static int ssl_sock_init(struct connection *conn)
 
 		/* set fd on SSL session context */
 		SSL_set_fd(conn->xprt_ctx, conn->t.sock.fd);
+
+		/* set connection pointer */
+		SSL_set_app_data(conn->xprt_ctx, conn);
 
 		/* leave init state and start handshake */
 		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
@@ -3077,6 +3189,20 @@ static int srv_parse_verify(char **args, int *cur_arg, struct proxy *px, struct 
 	return 0;
 }
 
+/* parse the "verifyhost" server keyword */
+static int srv_parse_verifyhost(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	if (!*args[*cur_arg + 1]) {
+		if (err)
+			memprintf(err, "'%s' : missing hostname to verify against", args[*cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	newsrv->ssl_ctx.verify_host = strdup(args[*cur_arg + 1]);
+
+	return 0;
+}
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
@@ -3210,6 +3336,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "no-tls-tickets",        srv_parse_no_tls_tickets, 0, 0 }, /* disable session resumption tickets */
 	{ "ssl",                   srv_parse_ssl,            0, 0 }, /* enable SSL processing */
 	{ "verify",                srv_parse_verify,         1, 0 }, /* set SSL verify method */
+	{ "verifyhost",            srv_parse_verifyhost,     1, 0 }, /* require that SSL cert verifies for hostname */
 	{ NULL, NULL, 0, 0 },
 }};
 
