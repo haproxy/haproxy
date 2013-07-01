@@ -2875,7 +2875,7 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
 
   There is no limit to the number of http-response statements per instance.
 
-  It is important to know that http-reqsponse rules are processed very early in
+  It is important to know that http-response rules are processed very early in
   the HTTP processing, before "reqdel" or "reqrep" rules. That way, headers
   added by "add-header"/"set-header" are visible by almost all further ACL
   rules.
