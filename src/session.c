@@ -312,8 +312,7 @@ static void kill_mini_session(struct session *s)
 	conn_full_close(s->si[0].conn);
 
 	s->fe->feconn--;
-	if (s->stkctr[0].entry || s->stkctr[1].entry)
-		session_store_counters(s);
+	session_store_counters(s);
 
 	if (!(s->listener->options & LI_O_UNLIMITED))
 		actconn--;
@@ -649,8 +648,7 @@ static void session_free(struct session *s)
 		pool_free2(fe->req_cap_pool, txn->req.cap);
 	}
 
-	if (s->stkctr[0].entry || s->stkctr[1].entry)
-		session_store_counters(s);
+	session_store_counters(s);
 
 	list_for_each_entry_safe(bref, back, &s->back_refs, users) {
 		/* we have to unlink all watchers. We must not relink them if
