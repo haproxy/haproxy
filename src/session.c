@@ -2202,7 +2202,7 @@ struct task *process_session(struct task *t)
 				/* check for HTTP mode and proxy server_name_hdr_name != NULL */
 				if ((s->flags & SN_BE_ASSIGNED) &&
 				    (s->be->mode == PR_MODE_HTTP) &&
-				    (s->be->server_id_hdr_name != NULL)) {
+				    (s->be->server_id_hdr_name != NULL && s->target)) {
 					http_send_name_header(&s->txn, s->be, objt_server(s->target)->id);
 				}
 			}
