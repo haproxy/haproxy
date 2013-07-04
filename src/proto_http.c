@@ -7870,6 +7870,7 @@ void check_response_for_cacheability(struct session *t, struct channel *rtr)
 
 		/* OK, so we know that either p2 points to the end of string or to a comma */
 		if (((p2 - p1 ==  7) && strncasecmp(p1, "private", 7) == 0) ||
+		    ((p2 - p1 ==  8) && strncasecmp(p1, "no-cache", 8) == 0) ||
 		    ((p2 - p1 ==  8) && strncasecmp(p1, "no-store", 8) == 0) ||
 		    ((p2 - p1 ==  9) && strncasecmp(p1, "max-age=0", 9) == 0) ||
 		    ((p2 - p1 == 10) && strncasecmp(p1, "s-maxage=0", 10) == 0)) {
