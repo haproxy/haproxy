@@ -8890,12 +8890,14 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
  * another test is made to ensure the required information is not gone.
  *
  * The function returns :
- *   0 if some data is missing or if the requested data cannot be fetched
- *  -1 if it is certain that we'll never have any HTTP message there
+ *   0 with SMP_F_MAY_CHANGE in the sample flags if some data is missing to
+ *     decide whether or not an HTTP message is present ;
+ *   0 if the requested data cannot be fetched or if it is certain that
+ *     we'll never have any HTTP message there ;
  *   1 if an HTTP message is ready
  */
 static int
-acl_prefetch_http(struct proxy *px, struct session *s, void *l7, unsigned int opt,
+smp_prefetch_http(struct proxy *px, struct session *s, void *l7, unsigned int opt,
                   const struct arg *args, struct sample *smp, int req_vol)
 {
 	struct http_txn *txn = l7;
@@ -8925,8 +8927,7 @@ acl_prefetch_http(struct proxy *px, struct session *s, void *l7, unsigned int op
 		if (unlikely(txn->req.msg_state < HTTP_MSG_BODY)) {
 			if ((msg->msg_state == HTTP_MSG_ERROR) ||
 			    buffer_full(s->req->buf, global.tune.maxrewrite)) {
-				smp->data.uint = 0;
-				return -1;
+				return 0;
 			}
 
 			/* Try to decode HTTP request */
@@ -8937,8 +8938,7 @@ acl_prefetch_http(struct proxy *px, struct session *s, void *l7, unsigned int op
 			if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 				if ((msg->msg_state == HTTP_MSG_ERROR) ||
 				    buffer_full(s->req->buf, global.tune.maxrewrite)) {
-					smp->data.uint = 0;
-					return -1;
+					return 0;
 				}
 				/* wait for final state */
 				smp->flags |= SMP_F_MAY_CHANGE;
@@ -8958,6 +8958,7 @@ acl_prefetch_http(struct proxy *px, struct session *s, void *l7, unsigned int op
 			if (unlikely(s->req->buf->i + s->req->buf->p >
 				     s->req->buf->data + s->req->buf->size - global.tune.maxrewrite)) {
 				msg->msg_state = HTTP_MSG_ERROR;
+				smp->data.uint = 1;
 				return 1;
 			}
 
@@ -8965,32 +8966,34 @@ acl_prefetch_http(struct proxy *px, struct session *s, void *l7, unsigned int op
 			if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
 				s->flags |= SN_REDIRECTABLE;
 
-			if (unlikely(msg->sl.rq.v_l == 0) && !http_upgrade_v09_to_v10(txn)) {
-				smp->data.uint = 0;
-				return -1;
-			}
+			if (unlikely(msg->sl.rq.v_l == 0) && !http_upgrade_v09_to_v10(txn))
+				return 0;
 		}
 
-		if (req_vol && txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
+		if (req_vol && txn->rsp.msg_state != HTTP_MSG_RPBEFORE) {
 			return 0;  /* data might have moved and indexes changed */
+		}
 
 		/* otherwise everything's ready for the request */
 	}
 	else {
 		/* Check for a dependency on a response */
-		if (txn->rsp.msg_state < HTTP_MSG_BODY)
+		if (txn->rsp.msg_state < HTTP_MSG_BODY) {
+			smp->flags |= SMP_F_MAY_CHANGE;
 			return 0;
+		}
 	}
 
 	/* everything's OK */
+	smp->data.uint = 1;
 	return 1;
 }
 
 #define CHECK_HTTP_MESSAGE_FIRST() \
-	do { int r = acl_prefetch_http(px, l4, l7, opt, args, smp, 1); if (r <= 0) return r; } while (0)
+	do { int r = smp_prefetch_http(px, l4, l7, opt, args, smp, 1); if (r <= 0) return r; } while (0)
 
 #define CHECK_HTTP_MESSAGE_FIRST_PERM() \
-	do { int r = acl_prefetch_http(px, l4, l7, opt, args, smp, 0); if (r <= 0) return r; } while (0)
+	do { int r = smp_prefetch_http(px, l4, l7, opt, args, smp, 0); if (r <= 0) return r; } while (0)
 
 
 /* 1. Check on METHOD
