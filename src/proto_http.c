@@ -3131,7 +3131,7 @@ int http_handle_stats(struct session *s, struct channel *req)
 	stream_int_register_handler(s->rep->prod, &http_stats_applet);
 	s->target = s->rep->prod->conn->target; // for logging only
 	s->rep->prod->conn->xprt_ctx = s;
-	s->rep->prod->applet.st0 = s->rep->prod->applet.st1 = 0;
+	s->rep->prod->applet.st0 = s->rep->prod->applet.st1 = s->rep->prod->applet.st2 = 0;
 	req->analysers = 0;
 	return 1;
 }

@@ -793,7 +793,7 @@ static void stats_sock_table_data_request(struct stream_interface *si, char **ar
 static void stats_sock_table_request(struct stream_interface *si, char **args, int action)
 {
 	si->applet.ctx.table.data_type = -1;
-	si->conn->xprt_st = STAT_ST_INIT;
+	si->applet.st2 = STAT_ST_INIT;
 	si->applet.ctx.table.target = NULL;
 	si->applet.ctx.table.proxy = NULL;
 	si->applet.ctx.table.entry = NULL;
@@ -956,15 +956,15 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				si->applet.ctx.stats.sid = atoi(args[4]);
 			}
 
-			si->conn->xprt_st = STAT_ST_INIT;
+			si->applet.st2 = STAT_ST_INIT;
 			si->applet.st0 = STAT_CLI_O_STAT; // stats_dump_stat_to_buffer
 		}
 		else if (strcmp(args[1], "info") == 0) {
-			si->conn->xprt_st = STAT_ST_INIT;
+			si->applet.st2 = STAT_ST_INIT;
 			si->applet.st0 = STAT_CLI_O_INFO; // stats_dump_info_to_buffer
 		}
 		else if (strcmp(args[1], "sess") == 0) {
-			si->conn->xprt_st = STAT_ST_INIT;
+			si->applet.st2 = STAT_ST_INIT;
 			if (s->listener->bind_conf->level < ACCESS_LVL_OPER) {
 				si->applet.ctx.cli.msg = stats_permission_denied_msg;
 				si->applet.st0 = STAT_CLI_PRINT;
@@ -991,7 +991,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			else
 				si->applet.ctx.errors.iid	= -1;
 			si->applet.ctx.errors.px = NULL;
-			si->conn->xprt_st = STAT_ST_INIT;
+			si->applet.st2 = STAT_ST_INIT;
 			si->applet.st0 = STAT_CLI_O_ERR; // stats_dump_errors_to_buffer
 		}
 		else if (strcmp(args[1], "table") == 0) {
@@ -3410,9 +3410,9 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 
 	chunk_reset(&trash);
 
-	switch (si->conn->xprt_st) {
+	switch (si->applet.st2) {
 	case STAT_ST_INIT:
-		si->conn->xprt_st = STAT_ST_HEAD; /* let's start producing data */
+		si->applet.st2 = STAT_ST_HEAD; /* let's start producing data */
 		/* fall through */
 
 	case STAT_ST_HEAD:
@@ -3424,7 +3424,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 		if (bi_putchk(rep, &trash) == -1)
 			return 0;
 
-		si->conn->xprt_st = STAT_ST_INFO;
+		si->applet.st2 = STAT_ST_INFO;
 		/* fall through */
 
 	case STAT_ST_INFO:
@@ -3436,7 +3436,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 
 		si->applet.ctx.stats.px = proxy;
 		si->applet.ctx.stats.px_st = STAT_PX_ST_INIT;
-		si->conn->xprt_st = STAT_ST_LIST;
+		si->applet.st2 = STAT_ST_LIST;
 		/* fall through */
 
 	case STAT_ST_LIST:
@@ -3456,7 +3456,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 		}
 		/* here, we just have reached the last proxy */
 
-		si->conn->xprt_st = STAT_ST_END;
+		si->applet.st2 = STAT_ST_END;
 		/* fall through */
 
 	case STAT_ST_END:
@@ -3466,7 +3466,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 				return 0;
 		}
 
-		si->conn->xprt_st = STAT_ST_FIN;
+		si->applet.st2 = STAT_ST_FIN;
 		/* fall through */
 
 	case STAT_ST_FIN:
@@ -3474,7 +3474,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 
 	default:
 		/* unknown state ! */
-		si->conn->xprt_st = STAT_ST_FIN;
+		si->applet.st2 = STAT_ST_FIN;
 		return -1;
 	}
 }
@@ -3860,7 +3860,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 		/* If we're forced to shut down, we might have to remove our
 		 * reference to the last session being dumped.
 		 */
-		if (si->conn->xprt_st == STAT_ST_LIST) {
+		if (si->applet.st2 == STAT_ST_LIST) {
 			if (!LIST_ISEMPTY(&si->applet.ctx.sess.bref.users)) {
 				LIST_DEL(&si->applet.ctx.sess.bref.users);
 				LIST_INIT(&si->applet.ctx.sess.bref.users);
@@ -3871,7 +3871,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 
 	chunk_reset(&trash);
 
-	switch (si->conn->xprt_st) {
+	switch (si->applet.st2) {
 	case STAT_ST_INIT:
 		/* the function had not been called yet, let's prepare the
 		 * buffer for a response. We initialize the current session
@@ -3882,7 +3882,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 		 */
 		LIST_INIT(&si->applet.ctx.sess.bref.users);
 		si->applet.ctx.sess.bref.ref = sessions.n;
-		si->conn->xprt_st = STAT_ST_LIST;
+		si->applet.st2 = STAT_ST_LIST;
 		/* fall through */
 
 	case STAT_ST_LIST:
@@ -4051,11 +4051,11 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 			return 1;
 		}
 
-		si->conn->xprt_st = STAT_ST_FIN;
+		si->applet.st2 = STAT_ST_FIN;
 		/* fall through */
 
 	default:
-		si->conn->xprt_st = STAT_ST_FIN;
+		si->applet.st2 = STAT_ST_FIN;
 		return 1;
 	}
 }
@@ -4066,7 +4066,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
  */
 static void cli_release_handler(struct stream_interface *si)
 {
-	if (si->applet.st0 == STAT_CLI_O_SESS && si->conn->xprt_st == STAT_ST_LIST) {
+	if (si->applet.st0 == STAT_CLI_O_SESS && si->applet.st2 == STAT_ST_LIST) {
 		if (!LIST_ISEMPTY(&si->applet.ctx.sess.bref.users))
 			LIST_DEL(&si->applet.ctx.sess.bref.users);
 	}
@@ -4087,7 +4087,7 @@ static int stats_table_request(struct stream_interface *si, int action)
 	int show = action == STAT_CLI_O_TAB;
 
 	/*
-	 * We have 3 possible states in si->conn->xprt_st :
+	 * We have 3 possible states in si->applet.st2 :
 	 *   - STAT_ST_INIT : the first call
 	 *   - STAT_ST_INFO : the proxy pointer points to the next table to
 	 *     dump, the entry pointer is NULL ;
@@ -4100,7 +4100,7 @@ static int stats_table_request(struct stream_interface *si, int action)
 
 	if (unlikely(si->ib->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
 		/* in case of abort, remove any refcount we might have set on an entry */
-		if (si->conn->xprt_st == STAT_ST_LIST) {
+		if (si->applet.st2 == STAT_ST_LIST) {
 			si->applet.ctx.table.entry->ref_cnt--;
 			stksess_kill_if_expired(&si->applet.ctx.table.proxy->table, si->applet.ctx.table.entry);
 		}
@@ -4109,22 +4109,22 @@ static int stats_table_request(struct stream_interface *si, int action)
 
 	chunk_reset(&trash);
 
-	while (si->conn->xprt_st != STAT_ST_FIN) {
-		switch (si->conn->xprt_st) {
+	while (si->applet.st2 != STAT_ST_FIN) {
+		switch (si->applet.st2) {
 		case STAT_ST_INIT:
 			si->applet.ctx.table.proxy = si->applet.ctx.table.target;
 			if (!si->applet.ctx.table.proxy)
 				si->applet.ctx.table.proxy = proxy;
 
 			si->applet.ctx.table.entry = NULL;
-			si->conn->xprt_st = STAT_ST_INFO;
+			si->applet.st2 = STAT_ST_INFO;
 			break;
 
 		case STAT_ST_INFO:
 			if (!si->applet.ctx.table.proxy ||
 			    (si->applet.ctx.table.target &&
 			     si->applet.ctx.table.proxy != si->applet.ctx.table.target)) {
-				si->conn->xprt_st = STAT_ST_END;
+				si->applet.st2 = STAT_ST_END;
 				break;
 			}
 
@@ -4140,7 +4140,7 @@ static int stats_table_request(struct stream_interface *si, int action)
 					if (eb) {
 						si->applet.ctx.table.entry = ebmb_entry(eb, struct stksess, key);
 						si->applet.ctx.table.entry->ref_cnt++;
-						si->conn->xprt_st = STAT_ST_LIST;
+						si->applet.st2 = STAT_ST_LIST;
 						break;
 					}
 				}
@@ -4220,11 +4220,11 @@ static int stats_table_request(struct stream_interface *si, int action)
 				stksess_kill(&si->applet.ctx.table.proxy->table, si->applet.ctx.table.entry);
 
 			si->applet.ctx.table.proxy = si->applet.ctx.table.proxy->next;
-			si->conn->xprt_st = STAT_ST_INFO;
+			si->applet.st2 = STAT_ST_INFO;
 			break;
 
 		case STAT_ST_END:
-			si->conn->xprt_st = STAT_ST_FIN;
+			si->applet.st2 = STAT_ST_FIN;
 			break;
 		}
 	}

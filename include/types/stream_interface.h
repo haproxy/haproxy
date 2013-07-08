@@ -117,7 +117,10 @@ struct stream_interface {
 	int conn_retries;	/* number of connect retries left */
 	int send_proxy_ofs;	/* <0 = offset to (re)send from the end, >0 = send all */
 	struct {
-		unsigned int st0, st1;     /* may be used by any function above */
+		unsigned int st0;     /* CLI state for stats, session state for peers */
+		unsigned int st1;     /* prompt for stats, session error for peers */
+		unsigned int st2;     /* output state for stats, unused by peers  */
+
 		union {
 			struct {
 				struct proxy *px;
