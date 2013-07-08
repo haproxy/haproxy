@@ -107,7 +107,6 @@ struct stream_interface {
 	unsigned int exp;       /* wake up time for connect, queue, turn-around, ... */
 	void *owner;            /* generally a (struct task*) */
 	unsigned int err_type;  /* first error detected, one of SI_ET_* */
-	void *err_loc;          /* commonly the server, NULL when SI_ET_NONE */
 
 	struct connection *conn; /* descriptor for a connection */
 	struct si_ops *ops;     /* general operations at the stream interface layer */

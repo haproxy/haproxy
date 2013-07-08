@@ -1072,7 +1072,6 @@ int srv_redispatch_connect(struct session *t)
 
 		if (!t->req->cons->err_type) {
 			t->req->cons->err_type = SI_ET_QUEUE_ERR;
-			t->req->cons->err_loc = srv;
 		}
 
 		srv->counters.failed_conns++;
@@ -1083,7 +1082,6 @@ int srv_redispatch_connect(struct session *t)
 		/* note: it is guaranteed that srv == NULL here */
 		if (!t->req->cons->err_type) {
 			t->req->cons->err_type = SI_ET_CONN_ERR;
-			t->req->cons->err_loc = NULL;
 		}
 
 		t->be->be_counters.failed_conns++;
@@ -1099,7 +1097,6 @@ int srv_redispatch_connect(struct session *t)
 	default:
 		if (!t->req->cons->err_type) {
 			t->req->cons->err_type = SI_ET_CONN_OTHER;
-			t->req->cons->err_loc = srv;
 		}
 
 		if (srv)

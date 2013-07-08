@@ -442,7 +442,6 @@ int session_complete(struct session *s)
 	s->si[0].owner     = t;
 	s->si[0].state     = s->si[0].prev_state = SI_ST_EST;
 	s->si[0].err_type  = SI_ET_NONE;
-	s->si[0].err_loc   = NULL;
 	s->si[0].release   = NULL;
 	s->si[0].send_proxy_ofs = 0;
 	s->si[0].exp       = TICK_ETERNITY;
@@ -461,7 +460,6 @@ int session_complete(struct session *s)
 	s->si[1].state     = s->si[1].prev_state = SI_ST_INI;
 	s->si[1].err_type  = SI_ET_NONE;
 	s->si[1].conn_retries = 0;  /* used for logging too */
-	s->si[1].err_loc   = NULL;
 	s->si[1].release   = NULL;
 	s->si[1].send_proxy_ofs = 0;
 	s->si[1].conn->target = NULL;
@@ -791,7 +789,6 @@ static int sess_update_st_con_tcp(struct session *s, struct stream_interface *si
 			si->state    = SI_ST_EST;
 			si->err_type = SI_ET_DATA_ERR;
 			si->ib->flags |= CF_READ_ERROR | CF_WRITE_ERROR;
-			si->err_loc = objt_server(s->target);
 			return 1;
 		}
 		si->exp   = TICK_ETERNITY;
@@ -806,7 +803,6 @@ static int sess_update_st_con_tcp(struct session *s, struct stream_interface *si
 		if (si->err_type)
 			return 0;
 
-		si->err_loc = objt_server(s->target);
 		if (si->flags & SI_FL_ERR)
 			si->err_type = SI_ET_CONN_ERR;
 		else
@@ -823,7 +819,6 @@ static int sess_update_st_con_tcp(struct session *s, struct stream_interface *si
 		/* give up */
 		si_shutw(si);
 		si->err_type |= SI_ET_CONN_ABRT;
-		si->err_loc  = objt_server(s->target);
 		if (s->srv_error)
 			s->srv_error(s, si);
 		return 1;
@@ -840,7 +835,6 @@ static int sess_update_st_con_tcp(struct session *s, struct stream_interface *si
 	si->exp      = TICK_ETERNITY;
 	si->state    = SI_ST_EST;
 	si->err_type = SI_ET_NONE;
-	si->err_loc  = NULL;
 	return 1;
 }
 
@@ -870,7 +864,6 @@ static int sess_update_st_cer(struct session *s, struct stream_interface *si)
 	if (si->conn_retries < 0) {
 		if (!si->err_type) {
 			si->err_type = SI_ET_CONN_ERR;
-			si->err_loc = objt_server(s->target);
 		}
 
 		if (objt_server(s->target))
@@ -1005,7 +998,6 @@ static void sess_update_stream_int(struct session *s, struct stream_interface *s
 		if (conn_err == SN_ERR_INTERNAL) {
 			if (!si->err_type) {
 				si->err_type = SI_ET_CONN_OTHER;
-				si->err_loc  = srv;
 			}
 
 			if (srv)

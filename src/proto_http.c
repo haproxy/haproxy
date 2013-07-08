@@ -896,7 +896,6 @@ void http_perform_server_redirect(struct session *s, struct stream_interface *si
 	si_shutr(si);
 	si_shutw(si);
 	si->err_type = SI_ET_NONE;
-	si->err_loc  = NULL;
 	si->state    = SI_ST_CLO;
 
 	/* send the message */
@@ -4481,7 +4480,6 @@ void http_end_txn_clean_session(struct session *s)
 	s->req->cons->conn->err_code = CO_ER_NONE;
 	s->req->cons->err_type  = SI_ET_NONE;
 	s->req->cons->conn_retries = 0;  /* used for logging too */
-	s->req->cons->err_loc   = NULL;
 	s->req->cons->exp       = TICK_ETERNITY;
 	s->req->cons->flags     = SI_FL_NONE;
 	s->req->flags &= ~(CF_SHUTW|CF_SHUTW_NOW|CF_AUTO_CONNECT|CF_WRITE_ERROR|CF_STREAMER|CF_STREAMER_FAST|CF_NEVER_WAIT);
