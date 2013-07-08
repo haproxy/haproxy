@@ -159,7 +159,6 @@ static int stats_accept(struct session *s)
 	/* we have a dedicated I/O handler for the stats */
 	stream_int_register_handler(&s->si[1], &cli_applet);
 	s->target = s->si[1].conn->target; // for logging only
-	s->si[1].conn->xprt_ctx = s;
 	s->si[1].applet.st1 = 0;
 	s->si[1].applet.st0 = STAT_CLI_INIT;
 
@@ -494,7 +493,7 @@ static int dump_binary(struct chunk *out, const char *buf, int bsize)
 static int stats_dump_table_head_to_buffer(struct chunk *msg, struct stream_interface *si,
 					   struct proxy *proxy, struct proxy *target)
 {
-	struct session *s = si->conn->xprt_ctx;
+	struct session *s = session_from_task(si->owner);
 
 	chunk_appendf(msg, "# table: %s, type: %s, size:%d, used:%d\n",
 		     proxy->id, stktable_types[proxy->table.type].kw, proxy->table.size, proxy->table.current);
@@ -583,7 +582,7 @@ static int stats_dump_table_entry_to_buffer(struct chunk *msg, struct stream_int
 
 static void stats_sock_table_key_request(struct stream_interface *si, char **args, int action)
 {
-	struct session *s = si->conn->xprt_ctx;
+	struct session *s = session_from_task(si->owner);
 	struct proxy *px = si->applet.ctx.table.target;
 	struct stksess *ts;
 	uint32_t uint32_key;
@@ -919,7 +918,7 @@ static struct server *expect_server_admin(struct session *s, struct stream_inter
  */
 static int stats_sock_parse_request(struct stream_interface *si, char *line)
 {
-	struct session *s = si->conn->xprt_ctx;
+	struct session *s = session_from_task(si->owner);
 	char *args[MAX_STATS_ARGS + 1];
 	int arg;
 
@@ -2857,7 +2856,7 @@ static void stats_dump_html_px_end(struct stream_interface *si, struct proxy *px
  */
 static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, struct uri_auth *uri)
 {
-	struct session *s = si->conn->xprt_ctx;
+	struct session *s = session_from_task(si->owner);
 	struct channel *rep = si->ib;
 	struct server *sv, *svs;	/* server and server-state, server-state=server or server->track */
 	struct listener *l;
@@ -3397,11 +3396,10 @@ static void stats_dump_html_end()
 
 /* This function dumps statistics onto the stream interface's read buffer in
  * either CSV or HTML format. <uri> contains some HTML-specific parameters that
- * are ignored for CSV format (hence <uri> may be NULL there). The xprt_ctx must
- * have been zeroed first, and the flags properly set. It returns 0 if it had to
- * stop writing data and an I/O is needed, 1 if the dump is finished and the
- * session must be closed, or -1 in case of any error. This function is used by
- * both the CLI and the HTTP handlers.
+ * are ignored for CSV format (hence <uri> may be NULL there). It returns 0 if
+ * it had to stop writing data and an I/O is needed, 1 if the dump is finished
+ * and the session must be closed, or -1 in case of any error. This function is
+ * used by both the CLI and the HTTP handlers.
  */
 static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_auth *uri)
 {
@@ -3486,7 +3484,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
  */
 static void http_stats_io_handler(struct stream_interface *si)
 {
-	struct session *s = si->conn->xprt_ctx;
+	struct session *s = session_from_task(si->owner);
 	struct channel *req = si->ob;
 	struct channel *res = si->ib;
 
@@ -3573,8 +3571,7 @@ static inline const char *get_conn_data_name(const struct connection *conn)
 }
 
 /* This function dumps a complete session state onto the stream interface's
- * read buffer. The xprt_ctx must have been zeroed first, and the flags
- * properly set. The session has to be set in xprt_ctx.sess.target. It returns
+ * read buffer. The session has to be set in sess->target. It returns
  * 0 if the output buffer is full and it needs to be called again, otherwise
  * non-zero. It is designed to be called from stats_dump_sess_to_buffer() below.
  */
@@ -3849,8 +3846,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 }
 
 /* This function dumps all sessions' states onto the stream interface's
- * read buffer. The xprt_ctx must have been zeroed first, and the flags
- * properly set. It returns 0 if the output buffer is full and it needs
+ * read buffer. It returns 0 if the output buffer is full and it needs
  * to be called again, otherwise non-zero. It is designed to be called
  * from stats_dump_sess_to_buffer() below.
  */
@@ -4074,13 +4070,12 @@ static void cli_release_handler(struct stream_interface *si)
 
 /* This function is used to either dump tables states (when action is set
  * to STAT_CLI_O_TAB) or clear tables (when action is STAT_CLI_O_CLR).
- * The xprt_ctx must have been zeroed first, and the flags properly set.
  * It returns 0 if the output buffer is full and it needs to be called
  * again, otherwise non-zero.
  */
 static int stats_table_request(struct stream_interface *si, int action)
 {
-	struct session *s = si->conn->xprt_ctx;
+	struct session *s = session_from_task(si->owner);
 	struct ebmb_node *eb;
 	int dt;
 	int skip_entry;
@@ -4290,8 +4285,7 @@ static int dump_text_line(struct chunk *out, const char *buf, int bsize, int len
 }
 
 /* This function dumps all captured errors onto the stream interface's
- * read buffer. The xprt_ctx must have been zeroed first, and the flags
- * properly set. It returns 0 if the output buffer is full and it needs
+ * read buffer. It returns 0 if the output buffer is full and it needs
  * to be called again, otherwise non-zero.
  */
 static int stats_dump_errors_to_buffer(struct stream_interface *si)
