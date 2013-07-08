@@ -120,6 +120,7 @@ struct stream_interface {
 		unsigned int st0;     /* CLI state for stats, session state for peers */
 		unsigned int st1;     /* prompt for stats, session error for peers */
 		unsigned int st2;     /* output state for stats, unused by peers  */
+		void *ptr;            /* struct peer for peers */
 
 		union {
 			struct {
