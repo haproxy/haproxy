@@ -964,20 +964,29 @@ static void si_conn_recv_cb(struct connection *conn)
 		if (conn->flags & CO_FL_ERROR)
 			goto out_error;
 
-		if (conn->flags & CO_FL_WAIT_ROOM) /* most likely the pipe is full */
+		if (conn->flags & CO_FL_WAIT_ROOM) {
+			/* the pipe is full or we have read enough data that it
+			 * could soon be full. Let's stop before needing to poll.
+			 */
 			si->flags |= SI_FL_WAIT_ROOM;
+			__conn_data_stop_recv(conn);
+		}
 
 		/* splice not possible (anymore), let's go on on standard copy */
 	}
 
  abort_splice:
-	/* release the pipe if we can, which is almost always the case */
-	if (chn->pipe && !chn->pipe->data) {
+	if (chn->pipe && unlikely(!chn->pipe->data)) {
 		put_pipe(chn->pipe);
 		chn->pipe = NULL;
 	}
 
-	while (!chn->pipe && !(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_DATA_RD_SH | CO_FL_WAIT_RD | CO_FL_WAIT_ROOM | CO_FL_HANDSHAKE))) {
+	/* Important note : if we're called with POLL_IN|POLL_HUP, it means the read polling
+	 * was enabled, which implies that the recv buffer was not full. So we have a guarantee
+	 * that if such an event is not handled above in splice, it will be handled here by
+	 * recv().
+	 */
+	while (!(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_DATA_RD_SH | CO_FL_WAIT_RD | CO_FL_WAIT_ROOM | CO_FL_HANDSHAKE))) {
 		max = bi_avail(chn);
 
 		if (!max) {

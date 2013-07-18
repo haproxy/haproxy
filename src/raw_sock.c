@@ -165,6 +165,7 @@ int raw_sock_to_pipe(struct connection *conn, struct pipe *pipe, unsigned int co
 			/* We've read enough of it for this time, let's stop before
 			 * being asked to poll.
 			 */
+			conn->flags |= CO_FL_WAIT_ROOM;
 			break;
 		}
 	} /* while */
