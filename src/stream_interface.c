@@ -934,7 +934,8 @@ static void si_conn_recv_cb(struct connection *conn)
 	 * using a buffer.
 	 */
 	if (conn->xprt->rcv_pipe &&
-	    chn->to_forward >= MIN_SPLICE_FORWARD && chn->flags & CF_KERN_SPLICING) {
+	    (chn->pipe || chn->to_forward >= MIN_SPLICE_FORWARD) &&
+	    chn->flags & CF_KERN_SPLICING) {
 		if (buffer_not_empty(chn->buf)) {
 			/* We're embarrassed, there are already data pending in
 			 * the buffer and we don't want to have them at two
