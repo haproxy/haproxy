@@ -4392,9 +4392,9 @@ stats_error_parsing:
 			else if (!strcmp(args[cur_arg], "weight")) {
 				int w;
 				w = atol(args[cur_arg + 1]);
-				if (w < 0 || w > 256) {
-					Alert("parsing [%s:%d] : weight of server %s is not within 0 and 256 (%d).\n",
-					      file, linenum, newsrv->id, w);
+				if (w < 0 || w > SRV_UWGHT_MAX) {
+					Alert("parsing [%s:%d] : weight of server %s is not within 0 and %d (%d).\n",
+					      file, linenum, newsrv->id, SRV_UWGHT_MAX, w);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}

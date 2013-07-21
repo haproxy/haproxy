@@ -114,8 +114,8 @@
  * weight modulation even with small weights (eg: 1). It should not be too high
  * though because it limits the number of servers in FWRR mode in order to
  * prevent any integer overflow. The max number of servers per backend is
- * limited to about 2^32/255^2/scale ~= 66051/scale. A scale of 16 looks like
- * a good value, as it allows more than 4000 servers per backend while leaving
+ * limited to about (2^32-1)/256^2/scale ~= 65535.9999/scale. A scale of 16
+ * looks like a good value, as it allows 4095 servers per backend while leaving
  * modulation steps of about 6% for servers with the lowest weight (1).
  */
 #define BE_WEIGHT_SCALE 16

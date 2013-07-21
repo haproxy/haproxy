@@ -343,7 +343,7 @@ static void fwrr_queue_srv(struct server *s)
 		 * lower the scale, the rougher the weights modulation, and the
 		 * higher the scale, the lower the number of servers without
 		 * overflow. With this formula, the result is always positive,
-		 * so we can use eb3é_insert().
+		 * so we can use eb32_insert().
 		 */
 		s->lb_node.key = SRV_UWGHT_RANGE * s->npos +
 			(unsigned)(SRV_EWGHT_MAX + s->rweight - s->eweight) / BE_WEIGHT_SCALE;
