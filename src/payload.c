@@ -394,14 +394,12 @@ smp_fetch_ssl_hello_sni(struct proxy *px, struct session *s, void *l7, unsigned 
 	return 0;
 }
 
-/* Fetch the request RDP cookie identified in the args, or any cookie if no arg
- * is passed. It is usable both for ACL and for samples. Note: this decoder
- * only works with non-wrapping data. Accepts either 0 or 1 argument. Argument
- * is a string (cookie name), other types will lead to undefined behaviour.
+/* Fetch the request RDP cookie identified in <cname>:<clen>, or any cookie if
+ * <clen> is empty (cname is then ignored). It returns the data into sample <smp>.
+ * Note: this decoder only works with non-wrapping data.
  */
 int
-smp_fetch_rdp_cookie(struct proxy *px, struct session *s, void *l7, unsigned int opt,
-                     const struct arg *args, struct sample *smp, const char *kw)
+fetch_rdp_cookie_name(struct session *s, struct sample *smp, const char *cname, int clen)
 {
 	int bleft;
 	const unsigned char *data;
@@ -433,17 +431,16 @@ smp_fetch_rdp_cookie(struct proxy *px, struct session *s, void *l7, unsigned int
 		bleft--;
 	}
 
-	if (args) {
-
-		if (bleft <= args->data.str.len)
+	if (clen) {
+		if (bleft <= clen)
 			goto too_short;
 
-		if ((data[args->data.str.len] != '=') ||
-		    strncasecmp(args->data.str.str, (const char *)data, args->data.str.len) != 0)
+		if ((data[clen] != '=') ||
+		    strncasecmp(cname, (const char *)data, clen) != 0)
 			goto not_cookie;
 
-		data += args->data.str.len + 1;
-		bleft -= args->data.str.len + 1;
+		data += clen + 1;
+		bleft -= clen + 1;
 	} else {
 		while (bleft > 0 && *data != '=') {
 			if (*data == '\r' || *data == '\n')
@@ -485,6 +482,18 @@ smp_fetch_rdp_cookie(struct proxy *px, struct session *s, void *l7, unsigned int
 	smp->flags = SMP_F_MAY_CHANGE;
  not_cookie:
 	return 0;
+}
+
+/* Fetch the request RDP cookie identified in the args, or any cookie if no arg
+ * is passed. It is usable both for ACL and for samples. Note: this decoder
+ * only works with non-wrapping data. Accepts either 0 or 1 argument. Argument
+ * is a string (cookie name), other types will lead to undefined behaviour.
+ */
+int
+smp_fetch_rdp_cookie(struct proxy *px, struct session *s, void *l7, unsigned int opt,
+                     const struct arg *args, struct sample *smp, const char *kw)
+{
+	return fetch_rdp_cookie_name(s, smp, args ? args->data.str.str : NULL, args ? args->data.str.len : 0);
 }
 
 /* returns either 1 or 0 depending on whether an RDP cookie is found or not */

@@ -23,12 +23,10 @@
 #define _PROTO_PROTO_PAYLOAD_H
 
 #include <common/config.h>
-#include <types/arg.h>
-#include <types/proxy.h>
 #include <types/sample.h>
 #include <types/session.h>
 
-int smp_fetch_rdp_cookie(struct proxy *px, struct session *s, void *l7, unsigned int opt, const struct arg *args, struct sample *smp, const char *kw);
+int fetch_rdp_cookie_name(struct session *s, struct sample *smp, const char *cname, int clen);
 
 #endif /* _PROTO_PROTO_PAYLOAD_H */
 

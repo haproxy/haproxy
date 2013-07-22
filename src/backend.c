@@ -408,7 +408,6 @@ struct server *get_server_rch(struct session *s)
 	const char      *p;
 	int              ret;
 	struct sample    smp;
-	struct arg       args[2];
 	int rewind;
 
 	/* tot_weight appears to mean srv_count */
@@ -417,14 +416,9 @@ struct server *get_server_rch(struct session *s)
 
 	memset(&smp, 0, sizeof(smp));
 
-	args[0].type = ARGT_STR;
-	args[0].data.str.str = px->hh_name;
-	args[0].data.str.len = px->hh_len;
-	args[1].type = ARGT_STOP;
-
 	b_rew(s->req->buf, rewind = s->req->buf->o);
 
-	ret = smp_fetch_rdp_cookie(px, s, NULL, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, args, &smp, NULL);
+	ret = fetch_rdp_cookie_name(s, &smp, px->hh_name, px->hh_len);
 	len = smp.data.str.len;
 
 	b_adv(s->req->buf, rewind);
@@ -1111,7 +1105,6 @@ int tcp_persist_rdp_cookie(struct session *s, struct channel *req, int an_bit)
 	struct server *srv = px->srv;
 	struct sockaddr_in addr;
 	char *p;
-	struct arg       args[2];
 
 	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
@@ -1127,12 +1120,7 @@ int tcp_persist_rdp_cookie(struct session *s, struct channel *req, int an_bit)
 
 	memset(&smp, 0, sizeof(smp));
 
-	args[0].type = ARGT_STR;
-	args[0].data.str.str = s->be->rdp_cookie_name;
-	args[0].data.str.len = s->be->rdp_cookie_len;
-	args[1].type = ARGT_STOP;
-
-	ret = smp_fetch_rdp_cookie(px, s, NULL, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, args, &smp, NULL);
+	ret = fetch_rdp_cookie_name(s, &smp, s->be->rdp_cookie_name, s->be->rdp_cookie_len);
 	if (ret == 0 || (smp.flags & SMP_F_MAY_CHANGE) || smp.data.str.len == 0)
 		goto no_cookie;
 
