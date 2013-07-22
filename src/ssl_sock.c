@@ -1573,7 +1573,7 @@ ssl_sock_get_dn_oneline(X509_NAME *a, struct chunk *out)
 /* boolean, returns true if client cert was present */
 static int
 smp_fetch_ssl_fc_has_crt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                         const struct arg *args, struct sample *smp)
+                         const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4 || l4->si[0].conn->xprt != &ssl_sock)
 		return 0;
@@ -1593,7 +1593,7 @@ smp_fetch_ssl_fc_has_crt(struct proxy *px, struct session *l4, void *l7, unsigne
 /* bin, returns serial in a binary chunk */
 static int
 smp_fetch_ssl_c_serial(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	X509 *crt = NULL;
 	int ret = 0;
@@ -1628,7 +1628,7 @@ out:
 /* bin, returns the client certificate's SHA-1 fingerprint (SHA-1 hash of DER-encoded certificate) in a binary chunk */
 static int
 smp_fetch_ssl_c_sha1(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                     const struct arg *args, struct sample *smp)
+                     const struct arg *args, struct sample *smp, const char *kw)
 {
 	X509 *crt = NULL;
 	const EVP_MD *digest;
@@ -1664,7 +1664,7 @@ out:
 /*str, returns notafter date in ASN1_UTCTIME format */
 static int
 smp_fetch_ssl_c_notafter(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	X509 *crt = NULL;
 	int ret = 0;
@@ -1699,7 +1699,7 @@ out:
 /* str, returns a string of a formatted full dn \C=..\O=..\OU=.. \CN=.. */
 static int
 smp_fetch_ssl_c_i_dn(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	X509 *crt = NULL;
 	X509_NAME *name;
@@ -1750,7 +1750,7 @@ out:
 /*str, returns notbefore date in ASN1_UTCTIME format */
 static int
 smp_fetch_ssl_c_notbefore(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	X509 *crt = NULL;
 	int ret = 0;
@@ -1785,7 +1785,7 @@ out:
 /* str, returns a string of a formatted full dn \C=..\O=..\OU=.. \CN=.. */
 static int
 smp_fetch_ssl_c_s_dn(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	X509 *crt = NULL;
 	X509_NAME *name;
@@ -1836,7 +1836,7 @@ out:
 /* integer, returns true if current session use a client certificate */
 static int
 smp_fetch_ssl_c_used(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                        const struct arg *args, struct sample *smp)
+                        const struct arg *args, struct sample *smp, const char *kw)
 {
 	X509 *crt;
 
@@ -1862,7 +1862,7 @@ smp_fetch_ssl_c_used(struct proxy *px, struct session *l4, void *l7, unsigned in
 /* integer, returns the client certificate version */
 static int
 smp_fetch_ssl_c_version(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                        const struct arg *args, struct sample *smp)
+                        const struct arg *args, struct sample *smp, const char *kw)
 {
 	X509 *crt;
 
@@ -1889,7 +1889,7 @@ smp_fetch_ssl_c_version(struct proxy *px, struct session *l4, void *l7, unsigned
 /* str, returns the client certificate sig alg */
 static int
 smp_fetch_ssl_c_sig_alg(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                        const struct arg *args, struct sample *smp)
+                        const struct arg *args, struct sample *smp, const char *kw)
 {
 	X509 *crt;
 	int nid;
@@ -1923,7 +1923,7 @@ smp_fetch_ssl_c_sig_alg(struct proxy *px, struct session *l4, void *l7, unsigned
 /* str, returns the client certificate key alg */
 static int
 smp_fetch_ssl_c_key_alg(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                        const struct arg *args, struct sample *smp)
+                        const struct arg *args, struct sample *smp, const char *kw)
 {
 	X509 *crt;
 	int nid;
@@ -1957,7 +1957,7 @@ smp_fetch_ssl_c_key_alg(struct proxy *px, struct session *l4, void *l7, unsigned
 /* boolean, returns true if front conn. transport layer is SSL */
 static int
 smp_fetch_ssl_fc(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                 const struct arg *args, struct sample *smp)
+                 const struct arg *args, struct sample *smp, const char *kw)
 {
 	smp->type = SMP_T_BOOL;
 	smp->data.uint = (l4->si[0].conn->xprt == &ssl_sock);
@@ -1967,7 +1967,7 @@ smp_fetch_ssl_fc(struct proxy *px, struct session *l4, void *l7, unsigned int op
 /* boolean, returns true if client present a SNI */
 static int
 smp_fetch_ssl_fc_has_sni(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                         const struct arg *args, struct sample *smp)
+                         const struct arg *args, struct sample *smp, const char *kw)
 {
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	smp->type = SMP_T_BOOL;
@@ -1983,7 +1983,7 @@ smp_fetch_ssl_fc_has_sni(struct proxy *px, struct session *l4, void *l7, unsigne
 /* bin, returns serial in a binary chunk */
 static int
 smp_fetch_ssl_f_serial(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	X509 *crt = NULL;
 	int ret = 0;
@@ -2014,7 +2014,7 @@ out:
 /*str, returns notafter date in ASN1_UTCTIME format */
 static int
 smp_fetch_ssl_f_notafter(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	X509 *crt = NULL;
 	int ret = 0;
@@ -2046,7 +2046,7 @@ out:
 /*str, returns notbefore date in ASN1_UTCTIME format */
 static int
 smp_fetch_ssl_f_notbefore(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	X509 *crt = NULL;
 	int ret = 0;
@@ -2078,7 +2078,7 @@ out:
 /* integer, returns the frontend certificate version */
 static int
 smp_fetch_ssl_f_version(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                           const struct arg *args, struct sample *smp)
+                           const struct arg *args, struct sample *smp, const char *kw)
 {
 	X509 *crt;
 
@@ -2104,7 +2104,7 @@ smp_fetch_ssl_f_version(struct proxy *px, struct session *l4, void *l7, unsigned
 /* str, returns the client certificate sig alg */
 static int
 smp_fetch_ssl_f_sig_alg(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                        const struct arg *args, struct sample *smp)
+                        const struct arg *args, struct sample *smp, const char *kw)
 {
 	X509 *crt;
 	int nid;
@@ -2136,7 +2136,7 @@ smp_fetch_ssl_f_sig_alg(struct proxy *px, struct session *l4, void *l7, unsigned
 /* str, returns the client certificate key alg */
 static int
 smp_fetch_ssl_f_key_alg(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                        const struct arg *args, struct sample *smp)
+                        const struct arg *args, struct sample *smp, const char *kw)
 {
 	X509 *crt;
 	int nid;
@@ -2168,7 +2168,7 @@ smp_fetch_ssl_f_key_alg(struct proxy *px, struct session *l4, void *l7, unsigned
 /* str, returns a string of a formatted full dn \C=..\O=..\OU=.. \CN=.. */
 static int
 smp_fetch_ssl_f_i_dn(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	X509 *crt = NULL;
 	X509_NAME *name;
@@ -2216,7 +2216,7 @@ out:
 /* str, returns a string of a formatted full dn \C=..\O=..\OU=.. \CN=.. */
 static int
 smp_fetch_ssl_f_s_dn(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	X509 *crt = NULL;
 	X509_NAME *name;
@@ -2263,7 +2263,7 @@ out:
 
 static int
 smp_fetch_ssl_fc_cipher(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                        const struct arg *args, struct sample *smp)
+                        const struct arg *args, struct sample *smp, const char *kw)
 {
 	smp->flags = 0;
 
@@ -2282,7 +2282,7 @@ smp_fetch_ssl_fc_cipher(struct proxy *px, struct session *l4, void *l7, unsigned
 
 static int
 smp_fetch_ssl_fc_alg_keysize(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                             const struct arg *args, struct sample *smp)
+                             const struct arg *args, struct sample *smp, const char *kw)
 {
 	smp->flags = 0;
 
@@ -2299,7 +2299,7 @@ smp_fetch_ssl_fc_alg_keysize(struct proxy *px, struct session *l4, void *l7, uns
 
 static int
 smp_fetch_ssl_fc_use_keysize(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                             const struct arg *args, struct sample *smp)
+                             const struct arg *args, struct sample *smp, const char *kw)
 {
 	smp->flags = 0;
 
@@ -2318,7 +2318,7 @@ smp_fetch_ssl_fc_use_keysize(struct proxy *px, struct session *l4, void *l7, uns
 #ifdef OPENSSL_NPN_NEGOTIATED
 static int
 smp_fetch_ssl_fc_npn(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                     const struct arg *args, struct sample *smp)
+                     const struct arg *args, struct sample *smp, const char *kw)
 {
 	smp->flags = 0;
 	smp->type = SMP_T_CSTR;
@@ -2340,7 +2340,7 @@ smp_fetch_ssl_fc_npn(struct proxy *px, struct session *l4, void *l7, unsigned in
 #ifdef OPENSSL_ALPN_NEGOTIATED
 static int
 smp_fetch_ssl_fc_alpn(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                      const struct arg *args, struct sample *smp)
+                      const struct arg *args, struct sample *smp, const char *kw)
 {
 	smp->flags = 0;
 	smp->type = SMP_T_CSTR;
@@ -2361,7 +2361,7 @@ smp_fetch_ssl_fc_alpn(struct proxy *px, struct session *l4, void *l7, unsigned i
 
 static int
 smp_fetch_ssl_fc_protocol(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                          const struct arg *args, struct sample *smp)
+                          const struct arg *args, struct sample *smp, const char *kw)
 {
 	smp->flags = 0;
 
@@ -2380,7 +2380,7 @@ smp_fetch_ssl_fc_protocol(struct proxy *px, struct session *l4, void *l7, unsign
 
 static int
 smp_fetch_ssl_fc_session_id(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                            const struct arg *args, struct sample *smp)
+                            const struct arg *args, struct sample *smp, const char *kw)
 {
 #if OPENSSL_VERSION_NUMBER > 0x0090800fL
 	SSL_SESSION *sess;
@@ -2407,7 +2407,7 @@ smp_fetch_ssl_fc_session_id(struct proxy *px, struct session *l4, void *l7, unsi
 
 static int
 smp_fetch_ssl_fc_sni(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                     const struct arg *args, struct sample *smp)
+                     const struct arg *args, struct sample *smp, const char *kw)
 {
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	smp->flags = 0;
@@ -2430,7 +2430,7 @@ smp_fetch_ssl_fc_sni(struct proxy *px, struct session *l4, void *l7, unsigned in
 /* integer, returns the first verify error in CA chain of client certificate chain. */
 static int
 smp_fetch_ssl_c_ca_err(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4 || l4->si[0].conn->xprt != &ssl_sock)
 		return 0;
@@ -2450,7 +2450,7 @@ smp_fetch_ssl_c_ca_err(struct proxy *px, struct session *l4, void *l7, unsigned 
 /* integer, returns the depth of the first verify error in CA chain of client certificate chain. */
 static int
 smp_fetch_ssl_c_ca_err_depth(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                             const struct arg *args, struct sample *smp)
+                             const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4 || l4->si[0].conn->xprt != &ssl_sock)
 		return 0;
@@ -2470,7 +2470,7 @@ smp_fetch_ssl_c_ca_err_depth(struct proxy *px, struct session *l4, void *l7, uns
 /* integer, returns the first verify error on client certificate */
 static int
 smp_fetch_ssl_c_err(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                    const struct arg *args, struct sample *smp)
+                    const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4 || l4->si[0].conn->xprt != &ssl_sock)
 		return 0;
@@ -2490,7 +2490,7 @@ smp_fetch_ssl_c_err(struct proxy *px, struct session *l4, void *l7, unsigned int
 /* integer, returns the verify result on client cert */
 static int
 smp_fetch_ssl_c_verify(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4 || l4->si[0].conn->xprt != &ssl_sock)
 		return 0;

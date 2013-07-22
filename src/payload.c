@@ -29,7 +29,7 @@
  */
 static int
 smp_fetch_wait_end(struct proxy *px, struct session *s, void *l7, unsigned int opt,
-                   const struct arg *args, struct sample *smp)
+                   const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!(opt & SMP_OPT_FINAL)) {
 		smp->flags |= SMP_F_MAY_CHANGE;
@@ -43,7 +43,7 @@ smp_fetch_wait_end(struct proxy *px, struct session *s, void *l7, unsigned int o
 /* return the number of bytes in the request buffer */
 static int
 smp_fetch_req_len(struct proxy *px, struct session *s, void *l7, unsigned int opt,
-                  const struct arg *args, struct sample *smp)
+                  const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!s || !s->req)
 		return 0;
@@ -57,7 +57,7 @@ smp_fetch_req_len(struct proxy *px, struct session *s, void *l7, unsigned int op
 /* returns the type of SSL hello message (mainly used to detect an SSL hello) */
 static int
 smp_fetch_ssl_hello_type(struct proxy *px, struct session *s, void *l7, unsigned int opt,
-                         const struct arg *args, struct sample *smp)
+                         const struct arg *args, struct sample *smp, const char *kw)
 {
 	int hs_len;
 	int hs_type, bleft;
@@ -126,7 +126,7 @@ smp_fetch_ssl_hello_type(struct proxy *px, struct session *s, void *l7, unsigned
  */
 static int
 smp_fetch_req_ssl_ver(struct proxy *px, struct session *s, void *l7, unsigned int opt,
-                      const struct arg *args, struct sample *smp)
+                      const struct arg *args, struct sample *smp, const char *kw)
 {
 	int version, bleft, msg_len;
 	const unsigned char *data;
@@ -262,7 +262,7 @@ smp_fetch_req_ssl_ver(struct proxy *px, struct session *s, void *l7, unsigned in
  */
 static int
 smp_fetch_ssl_hello_sni(struct proxy *px, struct session *s, void *l7, unsigned int opt,
-                        const struct arg *args, struct sample *smp)
+                        const struct arg *args, struct sample *smp, const char *kw)
 {
 	int hs_len, ext_len, bleft;
 	struct channel *chn;
@@ -401,7 +401,7 @@ smp_fetch_ssl_hello_sni(struct proxy *px, struct session *s, void *l7, unsigned 
  */
 int
 smp_fetch_rdp_cookie(struct proxy *px, struct session *s, void *l7, unsigned int opt,
-                     const struct arg *args, struct sample *smp)
+                     const struct arg *args, struct sample *smp, const char *kw)
 {
 	int bleft;
 	const unsigned char *data;
@@ -490,11 +490,11 @@ smp_fetch_rdp_cookie(struct proxy *px, struct session *s, void *l7, unsigned int
 /* returns either 1 or 0 depending on whether an RDP cookie is found or not */
 static int
 smp_fetch_rdp_cookie_cnt(struct proxy *px, struct session *s, void *l7, unsigned int opt,
-                         const struct arg *args, struct sample *smp)
+                         const struct arg *args, struct sample *smp, const char *kw)
 {
 	int ret;
 
-	ret = smp_fetch_rdp_cookie(px, s, l7, opt, args, smp);
+	ret = smp_fetch_rdp_cookie(px, s, l7, opt, args, smp, kw);
 
 	if (smp->flags & SMP_F_MAY_CHANGE)
 		return 0;
@@ -508,7 +508,7 @@ smp_fetch_rdp_cookie_cnt(struct proxy *px, struct session *s, void *l7, unsigned
 /* extracts part of a payload with offset and length at a given position */
 static int
 smp_fetch_payload_lv(struct proxy *px, struct session *s, void *l7, unsigned int opt,
-                     const struct arg *arg_p, struct sample *smp)
+                     const struct arg *arg_p, struct sample *smp, const char *kw)
 {
 	unsigned int len_offset = arg_p[0].data.uint;
 	unsigned int len_size = arg_p[1].data.uint;
@@ -566,7 +566,7 @@ smp_fetch_payload_lv(struct proxy *px, struct session *s, void *l7, unsigned int
 /* extracts some payload at a fixed position and length */
 static int
 smp_fetch_payload(struct proxy *px, struct session *s, void *l7, unsigned int opt,
-                  const struct arg *arg_p, struct sample *smp)
+                  const struct arg *arg_p, struct sample *smp, const char *kw)
 {
 	unsigned int buf_offset = arg_p[0].data.uint;
 	unsigned int buf_size = arg_p[1].data.uint;

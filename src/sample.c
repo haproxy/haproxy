@@ -775,7 +775,7 @@ struct sample *sample_process(struct proxy *px, struct session *l4, void *l7,
 		p->flags = 0;
 	}
 
-	if (!expr->fetch->process(px, l4, l7, opt, expr->arg_p, p))
+	if (!expr->fetch->process(px, l4, l7, opt, expr->arg_p, p, expr->fetch->kw))
 		return NULL;
 
 	if ((p->flags & SMP_F_MAY_CHANGE) && !(opt & SMP_OPT_FINAL))
@@ -1088,7 +1088,7 @@ static int sample_conv_ipmask(const struct arg *arg_p, struct sample *smp)
 /* force TRUE to be returned at the fetch level */
 static int
 smp_fetch_true(struct proxy *px, struct session *s, void *l7, unsigned int opt,
-               const struct arg *args, struct sample *smp)
+               const struct arg *args, struct sample *smp, const char *kw)
 {
 	smp->type = SMP_T_BOOL;
 	smp->data.uint = 1;
@@ -1098,7 +1098,7 @@ smp_fetch_true(struct proxy *px, struct session *s, void *l7, unsigned int opt,
 /* force FALSE to be returned at the fetch level */
 static int
 smp_fetch_false(struct proxy *px, struct session *s, void *l7, unsigned int opt,
-                const struct arg *args, struct sample *smp)
+                const struct arg *args, struct sample *smp, const char *kw)
 {
 	smp->type = SMP_T_BOOL;
 	smp->data.uint = 0;
@@ -1108,7 +1108,7 @@ smp_fetch_false(struct proxy *px, struct session *s, void *l7, unsigned int opt,
 /* retrieve environment variable $1 as a string */
 static int
 smp_fetch_env(struct proxy *px, struct session *s, void *l7, unsigned int opt,
-              const struct arg *args, struct sample *smp)
+              const struct arg *args, struct sample *smp, const char *kw)
 {
 	char *env;
 
@@ -1130,7 +1130,7 @@ smp_fetch_env(struct proxy *px, struct session *s, void *l7, unsigned int opt,
  */
 static int
 smp_fetch_date(struct proxy *px, struct session *s, void *l7, unsigned int opt,
-               const struct arg *args, struct sample *smp)
+               const struct arg *args, struct sample *smp, const char *kw)
 {
 	smp->data.uint = date.tv_sec;
 

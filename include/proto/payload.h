@@ -28,7 +28,7 @@
 #include <types/sample.h>
 #include <types/session.h>
 
-int smp_fetch_rdp_cookie(struct proxy *px, struct session *s, void *l7, unsigned int opt, const struct arg *args, struct sample *smp);
+int smp_fetch_rdp_cookie(struct proxy *px, struct session *s, void *l7, unsigned int opt, const struct arg *args, struct sample *smp, const char *kw);
 
 #endif /* _PROTO_PROTO_PAYLOAD_H */
 

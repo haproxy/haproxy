@@ -263,7 +263,8 @@ struct sample_fetch {
 	               void *l7,
 		       unsigned int opt,          /* fetch options (SMP_OPT_*) */
 		       const struct arg *arg_p,
-	               struct sample *smp);       /* fetch processing function */
+	               struct sample *smp,
+	               const char *kw);           /* fetch processing function */
 	unsigned int arg_mask;                    /* arguments (ARG*()) */
 	int (*val_args)(struct arg *arg_p,
 			char **err_msg);          /* argument validation function */

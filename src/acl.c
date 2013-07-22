@@ -1743,7 +1743,7 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 				/* we need to reset context and flags */
 				memset(&smp, 0, sizeof(smp));
 			fetch_next:
-				if (!expr->smp->process(px, l4, l7, opt, expr->args, &smp)) {
+				if (!expr->smp->process(px, l4, l7, opt, expr->args, &smp, expr->smp->kw)) {
 					/* maybe we could not fetch because of missing data */
 					if (smp.flags & SMP_F_MAY_CHANGE && !(opt & SMP_OPT_FINAL))
 						acl_res |= ACL_PAT_MISS;

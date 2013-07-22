@@ -2581,7 +2581,7 @@ void session_shutdown(struct session *session, int why)
 /* set return a boolean indicating if sc0 is currently being tracked or not */
 static int
 smp_fetch_sc0_tracked(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                      const struct arg *args, struct sample *smp)
+                      const struct arg *args, struct sample *smp, const char *kw)
 {
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_BOOL;
@@ -2592,7 +2592,7 @@ smp_fetch_sc0_tracked(struct proxy *px, struct session *l4, void *l7, unsigned i
 /* set return a boolean indicating if sc1 is currently being tracked or not */
 static int
 smp_fetch_sc1_tracked(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                      const struct arg *args, struct sample *smp)
+                      const struct arg *args, struct sample *smp, const char *kw)
 {
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_BOOL;
@@ -2603,7 +2603,7 @@ smp_fetch_sc1_tracked(struct proxy *px, struct session *l4, void *l7, unsigned i
 /* set return a boolean indicating if sc2 is currently being tracked or not */
 static int
 smp_fetch_sc2_tracked(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                      const struct arg *args, struct sample *smp)
+                      const struct arg *args, struct sample *smp, const char *kw)
 {
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_BOOL;
@@ -2632,7 +2632,7 @@ smp_fetch_get_gpc0(struct stktable *table, struct sample *smp, struct stksess *t
  */
 static int
 smp_fetch_sc0_get_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[0].entry)
 		return 0;
@@ -2644,7 +2644,7 @@ smp_fetch_sc0_get_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned 
  */
 static int
 smp_fetch_sc1_get_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[1].entry)
 		return 0;
@@ -2656,7 +2656,7 @@ smp_fetch_sc1_get_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned 
  */
 static int
 smp_fetch_sc2_get_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[2].entry)
 		return 0;
@@ -2669,7 +2669,7 @@ smp_fetch_sc2_get_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned 
  */
 static int
 smp_fetch_src_get_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	struct stktable_key *key;
 
@@ -2703,7 +2703,7 @@ smp_fetch_gpc0_rate(struct stktable *table, struct sample *smp, struct stksess *
  */
 static int
 smp_fetch_sc0_gpc0_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[0].entry)
 		return 0;
@@ -2715,7 +2715,7 @@ smp_fetch_sc0_gpc0_rate(struct proxy *px, struct session *l4, void *l7, unsigned
  */
 static int
 smp_fetch_sc1_gpc0_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[1].entry)
 		return 0;
@@ -2727,7 +2727,7 @@ smp_fetch_sc1_gpc0_rate(struct proxy *px, struct session *l4, void *l7, unsigned
  */
 static int
 smp_fetch_sc2_gpc0_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[2].entry)
 		return 0;
@@ -2740,7 +2740,7 @@ smp_fetch_sc2_gpc0_rate(struct proxy *px, struct session *l4, void *l7, unsigned
  */
 static int
 smp_fetch_src_gpc0_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	struct stktable_key *key;
 
@@ -2787,7 +2787,7 @@ smp_fetch_inc_gpc0(struct stktable *table, struct sample *smp, struct stksess *t
  */
 static int
 smp_fetch_sc0_inc_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[0].entry)
 		return 0;
@@ -2799,7 +2799,7 @@ smp_fetch_sc0_inc_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned 
  */
 static int
 smp_fetch_sc1_inc_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[1].entry)
 		return 0;
@@ -2811,7 +2811,7 @@ smp_fetch_sc1_inc_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned 
  */
 static int
 smp_fetch_sc2_inc_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[2].entry)
 		return 0;
@@ -2824,7 +2824,7 @@ smp_fetch_sc2_inc_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned 
  */
 static int
 smp_fetch_src_inc_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	struct stktable_key *key;
 
@@ -2860,7 +2860,7 @@ smp_fetch_clr_gpc0(struct stktable *table, struct sample *smp, struct stksess *t
  */
 static int
 smp_fetch_sc0_clr_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[0].entry)
 		return 0;
@@ -2872,7 +2872,7 @@ smp_fetch_sc0_clr_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned 
  */
 static int
 smp_fetch_sc1_clr_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[1].entry)
 		return 0;
@@ -2884,7 +2884,7 @@ smp_fetch_sc1_clr_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned 
  */
 static int
 smp_fetch_sc2_clr_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[2].entry)
 		return 0;
@@ -2897,7 +2897,7 @@ smp_fetch_sc2_clr_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned 
  */
 static int
 smp_fetch_src_clr_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	struct stktable_key *key;
 
@@ -2928,7 +2928,7 @@ smp_fetch_conn_cnt(struct stktable *table, struct sample *smp, struct stksess *t
 /* set temp integer to the cumulated number of connections from the session's tracked FE counters */
 static int
 smp_fetch_sc0_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[0].entry)
 		return 0;
@@ -2939,7 +2939,7 @@ smp_fetch_sc0_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsigned 
 /* set temp integer to the cumulated number of connections from the session's tracked BE counters */
 static int
 smp_fetch_sc1_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[1].entry)
 		return 0;
@@ -2950,7 +2950,7 @@ smp_fetch_sc1_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsigned 
 /* set temp integer to the cumulated number of connections from the session's tracked BE counters */
 static int
 smp_fetch_sc2_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[2].entry)
 		return 0;
@@ -2964,7 +2964,7 @@ smp_fetch_sc2_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsigned 
  */
 static int
 smp_fetch_src_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	struct stktable_key *key;
 
@@ -2998,7 +2998,7 @@ smp_fetch_conn_rate(struct stktable *table, struct sample *smp, struct stksess *
  */
 static int
 smp_fetch_sc0_conn_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                        const struct arg *args, struct sample *smp)
+                        const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[0].entry)
 		return 0;
@@ -3011,7 +3011,7 @@ smp_fetch_sc0_conn_rate(struct proxy *px, struct session *l4, void *l7, unsigned
  */
 static int
 smp_fetch_sc1_conn_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                        const struct arg *args, struct sample *smp)
+                        const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[1].entry)
 		return 0;
@@ -3024,7 +3024,7 @@ smp_fetch_sc1_conn_rate(struct proxy *px, struct session *l4, void *l7, unsigned
  */
 static int
 smp_fetch_sc2_conn_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                        const struct arg *args, struct sample *smp)
+                        const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[2].entry)
 		return 0;
@@ -3038,7 +3038,7 @@ smp_fetch_sc2_conn_rate(struct proxy *px, struct session *l4, void *l7, unsigned
  */
 static int
 smp_fetch_src_conn_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                        const struct arg *args, struct sample *smp)
+                        const struct arg *args, struct sample *smp, const char *kw)
 {
 	struct stktable_key *key;
 
@@ -3056,7 +3056,7 @@ smp_fetch_src_conn_rate(struct proxy *px, struct session *l4, void *l7, unsigned
  */
 static int
 smp_fetch_src_updt_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                            const struct arg *args, struct sample *smp)
+                            const struct arg *args, struct sample *smp, const char *kw)
 {
 	struct stksess *ts;
 	struct stktable_key *key;
@@ -3102,7 +3102,7 @@ smp_fetch_conn_cur(struct stktable *table, struct sample *smp, struct stksess *t
 /* set temp integer to the number of concurrent connections from the session's tracked FE counters */
 static int
 smp_fetch_sc0_conn_cur(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[0].entry)
 		return 0;
@@ -3113,7 +3113,7 @@ smp_fetch_sc0_conn_cur(struct proxy *px, struct session *l4, void *l7, unsigned 
 /* set temp integer to the number of concurrent connections from the session's tracked BE counters */
 static int
 smp_fetch_sc1_conn_cur(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[1].entry)
 		return 0;
@@ -3124,7 +3124,7 @@ smp_fetch_sc1_conn_cur(struct proxy *px, struct session *l4, void *l7, unsigned 
 /* set temp integer to the number of concurrent connections from the session's tracked BE counters */
 static int
 smp_fetch_sc2_conn_cur(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[2].entry)
 		return 0;
@@ -3138,7 +3138,7 @@ smp_fetch_sc2_conn_cur(struct proxy *px, struct session *l4, void *l7, unsigned 
  */
 static int
 smp_fetch_src_conn_cur(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	struct stktable_key *key;
 
@@ -3169,7 +3169,7 @@ smp_fetch_sess_cnt(struct stktable *table, struct sample *smp, struct stksess *t
 /* set temp integer to the cumulated number of sessions from the session's tracked FE counters */
 static int
 smp_fetch_sc0_sess_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[0].entry)
 		return 0;
@@ -3180,7 +3180,7 @@ smp_fetch_sc0_sess_cnt(struct proxy *px, struct session *l4, void *l7, unsigned 
 /* set temp integer to the cumulated number of sessions from the session's tracked BE counters */
 static int
 smp_fetch_sc1_sess_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[1].entry)
 		return 0;
@@ -3191,7 +3191,7 @@ smp_fetch_sc1_sess_cnt(struct proxy *px, struct session *l4, void *l7, unsigned 
 /* set temp integer to the cumulated number of sessions from the session's tracked BE counters */
 static int
 smp_fetch_sc2_sess_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[2].entry)
 		return 0;
@@ -3205,7 +3205,7 @@ smp_fetch_sc2_sess_cnt(struct proxy *px, struct session *l4, void *l7, unsigned 
  */
 static int
 smp_fetch_src_sess_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	struct stktable_key *key;
 
@@ -3239,7 +3239,7 @@ smp_fetch_sess_rate(struct stktable *table, struct sample *smp, struct stksess *
  */
 static int
 smp_fetch_sc0_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                        const struct arg *args, struct sample *smp)
+                        const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[0].entry)
 		return 0;
@@ -3252,7 +3252,7 @@ smp_fetch_sc0_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned
  */
 static int
 smp_fetch_sc1_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                        const struct arg *args, struct sample *smp)
+                        const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[1].entry)
 		return 0;
@@ -3265,7 +3265,7 @@ smp_fetch_sc1_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned
  */
 static int
 smp_fetch_sc2_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                        const struct arg *args, struct sample *smp)
+                        const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[2].entry)
 		return 0;
@@ -3279,7 +3279,7 @@ smp_fetch_sc2_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned
  */
 static int
 smp_fetch_src_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                        const struct arg *args, struct sample *smp)
+                        const struct arg *args, struct sample *smp, const char *kw)
 {
 	struct stktable_key *key;
 
@@ -3310,7 +3310,7 @@ smp_fetch_http_req_cnt(struct stktable *table, struct sample *smp, struct stkses
 /* set temp integer to the cumulated number of sessions from the session's tracked FE counters */
 static int
 smp_fetch_sc0_http_req_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                           const struct arg *args, struct sample *smp)
+                           const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[0].entry)
 		return 0;
@@ -3321,7 +3321,7 @@ smp_fetch_sc0_http_req_cnt(struct proxy *px, struct session *l4, void *l7, unsig
 /* set temp integer to the cumulated number of sessions from the session's tracked BE counters */
 static int
 smp_fetch_sc1_http_req_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                           const struct arg *args, struct sample *smp)
+                           const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[1].entry)
 		return 0;
@@ -3332,7 +3332,7 @@ smp_fetch_sc1_http_req_cnt(struct proxy *px, struct session *l4, void *l7, unsig
 /* set temp integer to the cumulated number of sessions from the session's tracked BE counters */
 static int
 smp_fetch_sc2_http_req_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                           const struct arg *args, struct sample *smp)
+                           const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[2].entry)
 		return 0;
@@ -3346,7 +3346,7 @@ smp_fetch_sc2_http_req_cnt(struct proxy *px, struct session *l4, void *l7, unsig
  */
 static int
 smp_fetch_src_http_req_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                           const struct arg *args, struct sample *smp)
+                           const struct arg *args, struct sample *smp, const char *kw)
 {
 	struct stktable_key *key;
 
@@ -3380,7 +3380,7 @@ smp_fetch_http_req_rate(struct stktable *table, struct sample *smp, struct stkse
  */
 static int
 smp_fetch_sc0_http_req_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                            const struct arg *args, struct sample *smp)
+                            const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[0].entry)
 		return 0;
@@ -3393,7 +3393,7 @@ smp_fetch_sc0_http_req_rate(struct proxy *px, struct session *l4, void *l7, unsi
  */
 static int
 smp_fetch_sc1_http_req_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                            const struct arg *args, struct sample *smp)
+                            const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[1].entry)
 		return 0;
@@ -3406,7 +3406,7 @@ smp_fetch_sc1_http_req_rate(struct proxy *px, struct session *l4, void *l7, unsi
  */
 static int
 smp_fetch_sc2_http_req_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                            const struct arg *args, struct sample *smp)
+                            const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[2].entry)
 		return 0;
@@ -3420,7 +3420,7 @@ smp_fetch_sc2_http_req_rate(struct proxy *px, struct session *l4, void *l7, unsi
  */
 static int
 smp_fetch_src_http_req_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                            const struct arg *args, struct sample *smp)
+                            const struct arg *args, struct sample *smp, const char *kw)
 {
 	struct stktable_key *key;
 
@@ -3451,7 +3451,7 @@ smp_fetch_http_err_cnt(struct stktable *table, struct sample *smp, struct stkses
 /* set temp integer to the cumulated number of sessions from the session's tracked FE counters */
 static int
 smp_fetch_sc0_http_err_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                           const struct arg *args, struct sample *smp)
+                           const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[0].entry)
 		return 0;
@@ -3462,7 +3462,7 @@ smp_fetch_sc0_http_err_cnt(struct proxy *px, struct session *l4, void *l7, unsig
 /* set temp integer to the cumulated number of sessions from the session's tracked BE counters */
 static int
 smp_fetch_sc1_http_err_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                           const struct arg *args, struct sample *smp)
+                           const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[1].entry)
 		return 0;
@@ -3473,7 +3473,7 @@ smp_fetch_sc1_http_err_cnt(struct proxy *px, struct session *l4, void *l7, unsig
 /* set temp integer to the cumulated number of sessions from the session's tracked BE counters */
 static int
 smp_fetch_sc2_http_err_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                           const struct arg *args, struct sample *smp)
+                           const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[2].entry)
 		return 0;
@@ -3487,7 +3487,7 @@ smp_fetch_sc2_http_err_cnt(struct proxy *px, struct session *l4, void *l7, unsig
  */
 static int
 smp_fetch_src_http_err_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                           const struct arg *args, struct sample *smp)
+                           const struct arg *args, struct sample *smp, const char *kw)
 {
 	struct stktable_key *key;
 
@@ -3521,7 +3521,7 @@ smp_fetch_http_err_rate(struct stktable *table, struct sample *smp, struct stkse
  */
 static int
 smp_fetch_sc0_http_err_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                            const struct arg *args, struct sample *smp)
+                            const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[0].entry)
 		return 0;
@@ -3534,7 +3534,7 @@ smp_fetch_sc0_http_err_rate(struct proxy *px, struct session *l4, void *l7, unsi
  */
 static int
 smp_fetch_sc1_http_err_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                            const struct arg *args, struct sample *smp)
+                            const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[1].entry)
 		return 0;
@@ -3547,7 +3547,7 @@ smp_fetch_sc1_http_err_rate(struct proxy *px, struct session *l4, void *l7, unsi
  */
 static int
 smp_fetch_sc2_http_err_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                            const struct arg *args, struct sample *smp)
+                            const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[2].entry)
 		return 0;
@@ -3561,7 +3561,7 @@ smp_fetch_sc2_http_err_rate(struct proxy *px, struct session *l4, void *l7, unsi
  */
 static int
 smp_fetch_src_http_err_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                            const struct arg *args, struct sample *smp)
+                            const struct arg *args, struct sample *smp, const char *kw)
 {
 	struct stktable_key *key;
 
@@ -3595,7 +3595,7 @@ smp_fetch_kbytes_in(struct stktable *table, struct sample *smp, struct stksess *
  */
 static int
 smp_fetch_sc0_kbytes_in(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                        const struct arg *args, struct sample *smp)
+                        const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[0].entry)
 		return 0;
@@ -3608,7 +3608,7 @@ smp_fetch_sc0_kbytes_in(struct proxy *px, struct session *l4, void *l7, unsigned
  */
 static int
 smp_fetch_sc1_kbytes_in(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                        const struct arg *args, struct sample *smp)
+                        const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[1].entry)
 		return 0;
@@ -3621,7 +3621,7 @@ smp_fetch_sc1_kbytes_in(struct proxy *px, struct session *l4, void *l7, unsigned
  */
 static int
 smp_fetch_sc2_kbytes_in(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                        const struct arg *args, struct sample *smp)
+                        const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[2].entry)
 		return 0;
@@ -3635,7 +3635,7 @@ smp_fetch_sc2_kbytes_in(struct proxy *px, struct session *l4, void *l7, unsigned
  */
 static int
 smp_fetch_src_kbytes_in(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	struct stktable_key *key;
 
@@ -3671,7 +3671,7 @@ smp_fetch_bytes_in_rate(struct stktable *table, struct sample *smp, struct stkse
  */
 static int
 smp_fetch_sc0_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                            const struct arg *args, struct sample *smp)
+                            const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[0].entry)
 		return 0;
@@ -3684,7 +3684,7 @@ smp_fetch_sc0_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, unsi
  */
 static int
 smp_fetch_sc1_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                            const struct arg *args, struct sample *smp)
+                            const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[1].entry)
 		return 0;
@@ -3697,7 +3697,7 @@ smp_fetch_sc1_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, unsi
  */
 static int
 smp_fetch_sc2_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                            const struct arg *args, struct sample *smp)
+                            const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[2].entry)
 		return 0;
@@ -3711,7 +3711,7 @@ smp_fetch_sc2_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, unsi
  */
 static int
 smp_fetch_src_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                            const struct arg *args, struct sample *smp)
+                            const struct arg *args, struct sample *smp, const char *kw)
 {
 	struct stktable_key *key;
 
@@ -3745,7 +3745,7 @@ smp_fetch_kbytes_out(struct stktable *table, struct sample *smp, struct stksess 
  */
 static int
 smp_fetch_sc0_kbytes_out(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                         const struct arg *args, struct sample *smp)
+                         const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[0].entry)
 		return 0;
@@ -3758,7 +3758,7 @@ smp_fetch_sc0_kbytes_out(struct proxy *px, struct session *l4, void *l7, unsigne
  */
 static int
 smp_fetch_sc1_kbytes_out(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                         const struct arg *args, struct sample *smp)
+                         const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[1].entry)
 		return 0;
@@ -3771,7 +3771,7 @@ smp_fetch_sc1_kbytes_out(struct proxy *px, struct session *l4, void *l7, unsigne
  */
 static int
 smp_fetch_sc2_kbytes_out(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                         const struct arg *args, struct sample *smp)
+                         const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[2].entry)
 		return 0;
@@ -3785,7 +3785,7 @@ smp_fetch_sc2_kbytes_out(struct proxy *px, struct session *l4, void *l7, unsigne
  */
 static int
 smp_fetch_src_kbytes_out(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                         const struct arg *args, struct sample *smp)
+                         const struct arg *args, struct sample *smp, const char *kw)
 {
 	struct stktable_key *key;
 
@@ -3821,7 +3821,7 @@ smp_fetch_bytes_out_rate(struct stktable *table, struct sample *smp, struct stks
  */
 static int
 smp_fetch_sc0_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                             const struct arg *args, struct sample *smp)
+                             const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[0].entry)
 		return 0;
@@ -3834,7 +3834,7 @@ smp_fetch_sc0_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, uns
  */
 static int
 smp_fetch_sc1_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                             const struct arg *args, struct sample *smp)
+                             const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[1].entry)
 		return 0;
@@ -3847,7 +3847,7 @@ smp_fetch_sc1_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, uns
  */
 static int
 smp_fetch_sc2_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                             const struct arg *args, struct sample *smp)
+                             const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[2].entry)
 		return 0;
@@ -3861,7 +3861,7 @@ smp_fetch_sc2_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, uns
  */
 static int
 smp_fetch_src_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                             const struct arg *args, struct sample *smp)
+                             const struct arg *args, struct sample *smp, const char *kw)
 {
 	struct stktable_key *key;
 
@@ -3876,7 +3876,7 @@ smp_fetch_src_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, uns
 /* set temp integer to the number of active trackers on the SC0 entry */
 static int
 smp_fetch_sc0_trackers(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[0].entry)
 		return 0;
@@ -3887,7 +3887,7 @@ smp_fetch_sc0_trackers(struct proxy *px, struct session *l4, void *l7, unsigned 
 /* set temp integer to the number of active trackers on the SC0 entry */
 static int
 smp_fetch_sc1_trackers(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[1].entry)
 		return 0;
@@ -3898,7 +3898,7 @@ smp_fetch_sc1_trackers(struct proxy *px, struct session *l4, void *l7, unsigned 
 /* set temp integer to the number of active trackers on the SC0 entry */
 static int
 smp_fetch_sc2_trackers(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp)
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
 	if (!l4->stkctr[2].entry)
 		return 0;
@@ -3911,7 +3911,7 @@ smp_fetch_sc2_trackers(struct proxy *px, struct session *l4, void *l7, unsigned 
  */
 static int
 smp_fetch_table_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                    const struct arg *args, struct sample *smp)
+                    const struct arg *args, struct sample *smp, const char *kw)
 {
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
@@ -3924,7 +3924,7 @@ smp_fetch_table_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int
  */
 static int
 smp_fetch_table_avl(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                    const struct arg *args, struct sample *smp)
+                    const struct arg *args, struct sample *smp, const char *kw)
 {
 	px = args->data.prx;
 	smp->flags = SMP_F_VOL_TEST;
