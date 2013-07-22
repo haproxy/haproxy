@@ -2736,71 +2736,29 @@ smp_fetch_sc_clr_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned i
 	return 1;
 }
 
-/* set temp integer to the cumulated number of connections in the stksess entry <ts> */
+/* set <smp> to the cumulated number of connections from the session's tracked
+ * frontend counters. Supports being called as "sc[0-9]_conn_cnt" or
+ * "src_conn_cnt" only.
+ */
 static int
-smp_fetch_conn_cnt(struct stktable *table, struct sample *smp, struct stksess *ts)
+smp_fetch_sc_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                      const struct arg *args, struct sample *smp, const char *kw)
 {
+	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
+
+	if (!stkctr)
+		return 0;
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
 	smp->data.uint = 0;
-	if (ts != NULL) {
-		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_CONN_CNT);
+	if (stkctr->entry != NULL) {
+		void *ptr = stktable_data_ptr(stkctr->table, stkctr->entry, STKTABLE_DT_CONN_CNT);
 		if (!ptr)
 			return 0; /* parameter not stored */
 		smp->data.uint = stktable_data_cast(ptr, conn_cnt);
 	}
 	return 1;
-}
-
-/* set temp integer to the cumulated number of connections from the session's tracked FE counters */
-static int
-smp_fetch_sc0_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp, const char *kw)
-{
-	if (!l4->stkctr[0].entry)
-		return 0;
-
-	return smp_fetch_conn_cnt(l4->stkctr[0].table, smp, l4->stkctr[0].entry);
-}
-
-/* set temp integer to the cumulated number of connections from the session's tracked BE counters */
-static int
-smp_fetch_sc1_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp, const char *kw)
-{
-	if (!l4->stkctr[1].entry)
-		return 0;
-
-	return smp_fetch_conn_cnt(l4->stkctr[1].table, smp, l4->stkctr[1].entry);
-}
-
-/* set temp integer to the cumulated number of connections from the session's tracked BE counters */
-static int
-smp_fetch_sc2_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp, const char *kw)
-{
-	if (!l4->stkctr[2].entry)
-		return 0;
-
-	return smp_fetch_conn_cnt(l4->stkctr[2].table, smp, l4->stkctr[2].entry);
-}
-
-/* set temp integer to the cumulated number of connections from the session's source
- * address in the table pointed to by expr.
- * Accepts exactly 1 argument of type table.
- */
-static int
-smp_fetch_src_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp, const char *kw)
-{
-	struct stktable_key *key;
-
-	key = addr_to_stktable_key(&l4->si[0].conn->addr.from);
-	if (!key)
-		return 0;
-
-	px = args->data.prx;
-	return smp_fetch_conn_cnt(&px->table, smp, stktable_lookup_key(&px->table, key));
 }
 
 /* set temp integer to the connection rate in the stksess entry <ts> over the configured period */
@@ -3774,7 +3732,7 @@ static struct sample_fetch_kw_list smp_fetch_keywords = {ILH, {
 	{ "sc0_bytes_in_rate",  smp_fetch_sc0_bytes_in_rate,  0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc0_bytes_out_rate", smp_fetch_sc0_bytes_out_rate, 0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc0_clr_gpc0",       smp_fetch_sc_clr_gpc0,        0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc0_conn_cnt",       smp_fetch_sc0_conn_cnt,       0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc0_conn_cnt",       smp_fetch_sc_conn_cnt,        0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc0_conn_cur",       smp_fetch_sc0_conn_cur,       0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc0_conn_rate",      smp_fetch_sc0_conn_rate,      0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc0_get_gpc0",       smp_fetch_sc_get_gpc0,        0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
@@ -3793,7 +3751,7 @@ static struct sample_fetch_kw_list smp_fetch_keywords = {ILH, {
 	{ "sc1_bytes_in_rate",  smp_fetch_sc1_bytes_in_rate,  0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc1_bytes_out_rate", smp_fetch_sc1_bytes_out_rate, 0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc1_clr_gpc0",       smp_fetch_sc_clr_gpc0,        0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc1_conn_cnt",       smp_fetch_sc1_conn_cnt,       0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc1_conn_cnt",       smp_fetch_sc_conn_cnt,        0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc1_conn_cur",       smp_fetch_sc1_conn_cur,       0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc1_conn_rate",      smp_fetch_sc1_conn_rate,      0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc1_get_gpc0",       smp_fetch_sc_get_gpc0,        0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
@@ -3812,7 +3770,7 @@ static struct sample_fetch_kw_list smp_fetch_keywords = {ILH, {
 	{ "sc2_bytes_in_rate",  smp_fetch_sc2_bytes_in_rate,  0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc2_bytes_out_rate", smp_fetch_sc2_bytes_out_rate, 0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc2_clr_gpc0",       smp_fetch_sc_clr_gpc0,        0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc2_conn_cnt",       smp_fetch_sc2_conn_cnt,       0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc2_conn_cnt",       smp_fetch_sc_conn_cnt,        0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc2_conn_cur",       smp_fetch_sc2_conn_cur,       0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc2_conn_rate",      smp_fetch_sc2_conn_rate,      0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc2_get_gpc0",       smp_fetch_sc_get_gpc0,        0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
@@ -3831,7 +3789,7 @@ static struct sample_fetch_kw_list smp_fetch_keywords = {ILH, {
 	{ "src_bytes_in_rate",  smp_fetch_src_bytes_in_rate,  ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
 	{ "src_bytes_out_rate", smp_fetch_src_bytes_out_rate, ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
 	{ "src_clr_gpc0",       smp_fetch_sc_clr_gpc0,        ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "src_conn_cnt",       smp_fetch_src_conn_cnt,       ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
+	{ "src_conn_cnt",       smp_fetch_sc_conn_cnt,        ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
 	{ "src_conn_cur",       smp_fetch_src_conn_cur,       ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
 	{ "src_conn_rate",      smp_fetch_src_conn_rate,      ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
 	{ "src_get_gpc0",       smp_fetch_sc_get_gpc0,        ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
