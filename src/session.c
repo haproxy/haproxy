@@ -2578,6 +2578,33 @@ void session_shutdown(struct session *session, int why)
 /*           All supported ACL keywords must be declared here.          */
 /************************************************************************/
 
+/* Returns a pointer to an stkctr depending on the fetch keyword name.
+ * It is designed to be called as sc[0-9]_* or src_* exclusively.
+ * sc[0-9]_* will return a pointer to the respective field in the
+ * session <l4>. src_* will fill a locally allocated structure with
+ * the table and entry corresponding to what is specified with src_*.
+ * NULL may be returned if the designated stkctr is not tracked.
+ */
+static struct stkctr *
+smp_fetch_sc_stkctr(struct session *l4, const struct arg *args, const char *kw)
+{
+	static struct stkctr stkctr;
+	unsigned char num = kw[2];
+
+	if (num - '0' <= 9) { /* sc[0-9]_* variant */
+		return l4->stkctr[num - '0'].entry ? &l4->stkctr[num - '0'] : NULL;
+	}
+	else { /* src_* variant, arg[0] = table */
+		struct stktable_key *key = addr_to_stktable_key(&l4->si[0].conn->addr.from);
+
+		if (!key)
+			return NULL;
+		stkctr.table = &args->data.prx->table;
+		stkctr.entry = stktable_lookup_key(stkctr.table, key);
+		return &stkctr;
+	}
+}
+
 /* set return a boolean indicating if the requested session counter is
  * currently being tracked or not.
  * Supports being called as "sc[0-9]_tracked" only.
