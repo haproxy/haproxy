@@ -3072,80 +3072,30 @@ smp_fetch_sc_kbytes_out(struct proxy *px, struct session *l4, void *l7, unsigned
 	return 1;
 }
 
-/* set temp integer to the bytes rate to clients in the stksess entry <ts> over the
- * configured period.
+/* set <smp> to the data rate sent to clients in bytes/s, as found in the
+ * session's tracked frontend counters. Supports being called as
+ * "sc[0-9]_bytes_out_rate" or "src_bytes_out_rate" only.
  */
 static int
-smp_fetch_bytes_out_rate(struct stktable *table, struct sample *smp, struct stksess *ts)
+smp_fetch_sc_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                            const struct arg *args, struct sample *smp, const char *kw)
 {
+	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
+
+	if (!stkctr)
+		return 0;
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
 	smp->data.uint = 0;
-	if (ts != NULL) {
-		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_BYTES_OUT_RATE);
+	if (stkctr->entry != NULL) {
+		void *ptr = stktable_data_ptr(stkctr->table, stkctr->entry, STKTABLE_DT_BYTES_OUT_RATE);
 		if (!ptr)
 			return 0; /* parameter not stored */
 		smp->data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, bytes_out_rate),
-					       table->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u);
+					       stkctr->table->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u);
 	}
 	return 1;
-}
-
-/* set temp integer to the bytes rate to clients from the session's tracked FE counters
- * over the configured period.
- */
-static int
-smp_fetch_sc0_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                             const struct arg *args, struct sample *smp, const char *kw)
-{
-	if (!l4->stkctr[0].entry)
-		return 0;
-
-	return smp_fetch_bytes_out_rate(l4->stkctr[0].table, smp, l4->stkctr[0].entry);
-}
-
-/* set temp integer to the bytes rate to clients from the session's tracked BE counters
- * over the configured period.
- */
-static int
-smp_fetch_sc1_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                             const struct arg *args, struct sample *smp, const char *kw)
-{
-	if (!l4->stkctr[1].entry)
-		return 0;
-
-	return smp_fetch_bytes_out_rate(l4->stkctr[1].table, smp, l4->stkctr[1].entry);
-}
-
-/* set temp integer to the bytes rate to clients from the session's tracked BE counters
- * over the configured period.
- */
-static int
-smp_fetch_sc2_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                             const struct arg *args, struct sample *smp, const char *kw)
-{
-	if (!l4->stkctr[2].entry)
-		return 0;
-
-	return smp_fetch_bytes_out_rate(l4->stkctr[2].table, smp, l4->stkctr[2].entry);
-}
-
-/* set temp integer to the bytes rate to client from the session's source address in
- * the table pointed to by expr, over the configured period.
- * Accepts exactly 1 argument of type table.
- */
-static int
-smp_fetch_src_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                             const struct arg *args, struct sample *smp, const char *kw)
-{
-	struct stktable_key *key;
-
-	key = addr_to_stktable_key(&l4->si[0].conn->addr.from);
-	if (!key)
-		return 0;
-
-	px = args->data.prx;
-	return smp_fetch_bytes_out_rate(&px->table, smp, stktable_lookup_key(&px->table, key));
 }
 
 /* set temp integer to the number of active trackers on the SC0 entry */
@@ -3220,7 +3170,7 @@ static struct acl_kw_list acl_kws = {ILH, {
  */
 static struct sample_fetch_kw_list smp_fetch_keywords = {ILH, {
 	{ "sc0_bytes_in_rate",  smp_fetch_sc_bytes_in_rate,   0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc0_bytes_out_rate", smp_fetch_sc0_bytes_out_rate, 0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc0_bytes_out_rate", smp_fetch_sc_bytes_out_rate,  0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc0_clr_gpc0",       smp_fetch_sc_clr_gpc0,        0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc0_conn_cnt",       smp_fetch_sc_conn_cnt,        0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc0_conn_cur",       smp_fetch_sc_conn_cur,        0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
@@ -3239,7 +3189,7 @@ static struct sample_fetch_kw_list smp_fetch_keywords = {ILH, {
 	{ "sc0_tracked",        smp_fetch_sc_tracked,         0,           NULL, SMP_T_BOOL, SMP_USE_INTRN, },
 	{ "sc0_trackers",       smp_fetch_sc0_trackers,       0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc1_bytes_in_rate",  smp_fetch_sc_bytes_in_rate,   0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc1_bytes_out_rate", smp_fetch_sc1_bytes_out_rate, 0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc1_bytes_out_rate", smp_fetch_sc_bytes_out_rate,  0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc1_clr_gpc0",       smp_fetch_sc_clr_gpc0,        0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc1_conn_cnt",       smp_fetch_sc_conn_cnt,        0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc1_conn_cur",       smp_fetch_sc_conn_cur,        0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
@@ -3258,7 +3208,7 @@ static struct sample_fetch_kw_list smp_fetch_keywords = {ILH, {
 	{ "sc1_tracked",        smp_fetch_sc_tracked,         0,           NULL, SMP_T_BOOL, SMP_USE_INTRN, },
 	{ "sc1_trackers",       smp_fetch_sc1_trackers,       0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc2_bytes_in_rate",  smp_fetch_sc_bytes_in_rate,   0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc2_bytes_out_rate", smp_fetch_sc2_bytes_out_rate, 0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc2_bytes_out_rate", smp_fetch_sc_bytes_out_rate,  0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc2_clr_gpc0",       smp_fetch_sc_clr_gpc0,        0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc2_conn_cnt",       smp_fetch_sc_conn_cnt,        0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc2_conn_cur",       smp_fetch_sc_conn_cur,        0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
@@ -3277,7 +3227,7 @@ static struct sample_fetch_kw_list smp_fetch_keywords = {ILH, {
 	{ "sc2_tracked",        smp_fetch_sc_tracked,         0,           NULL, SMP_T_BOOL, SMP_USE_INTRN, },
 	{ "sc2_trackers",       smp_fetch_sc2_trackers,       0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "src_bytes_in_rate",  smp_fetch_sc_bytes_in_rate,   ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "src_bytes_out_rate", smp_fetch_src_bytes_out_rate, ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
+	{ "src_bytes_out_rate", smp_fetch_sc_bytes_out_rate,  ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
 	{ "src_clr_gpc0",       smp_fetch_sc_clr_gpc0,        ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
 	{ "src_conn_cnt",       smp_fetch_sc_conn_cnt,        ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
 	{ "src_conn_cur",       smp_fetch_sc_conn_cur,        ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
