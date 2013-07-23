@@ -8942,7 +8942,9 @@ TCP/IP addresses and ports, as well as elements from stick-tables related to
 the incoming connection. For retrieving a value from a sticky counters, the
 counter number can be explicitly set as 0, 1, or 2 using the pre-defined
 "sc0_", "sc1_", or "sc2_" prefix, or it can be specified as the first integer
-argument when using the "sc_" prefix.
+argument when using the "sc_" prefix. An optional table may be specified with
+the "sc*" form, in which case the currently tracked key will be looked up into
+this alternate table instead of the table currently being tracked.
 
 be_id : integer
   Returns an integer containing the current backend's id. It can be used in
@@ -8978,26 +8980,26 @@ fe_id : integer
   backends to check from which backend it was called, or to stick all users
   coming via a same frontend to the same server.
 
-sc_bytes_in_rate(<ctr>) : integer
-sc0_bytes_in_rate : integer
-sc1_bytes_in_rate : integer
-sc2_bytes_in_rate : integer
+sc_bytes_in_rate(<ctr>,[<table>]) : integer
+sc0_bytes_in_rate([<table>]) : integer
+sc1_bytes_in_rate([<table>]) : integer
+sc2_bytes_in_rate([<table>]) : integer
   Returns the average client-to-server bytes rate from the currently tracked
   counters, measured in amount of bytes over the period configured in the
   table. See also src_bytes_in_rate.
 
-sc_bytes_out_rate(<ctr>) : integer
-sc0_bytes_out_rate : integer
-sc1_bytes_out_rate : integer
-sc2_bytes_out_rate : integer
+sc_bytes_out_rate(<ctr>,[<table>]) : integer
+sc0_bytes_out_rate([<table>]) : integer
+sc1_bytes_out_rate([<table>]) : integer
+sc2_bytes_out_rate([<table>]) : integer
   Returns the average server-to-client bytes rate from the currently tracked
   counters, measured in amount of bytes over the period configured in the
   table. See also src_bytes_out_rate.
 
-sc_clr_gpc0(<ctr>) : integer
-sc0_clr_gpc0 : integer
-sc1_clr_gpc0 : integer
-sc2_clr_gpc0 : integer
+sc_clr_gpc0(<ctr>,[<table>]) : integer
+sc0_clr_gpc0([<table>]) : integer
+sc1_clr_gpc0([<table>]) : integer
+sc2_clr_gpc0([<table>]) : integer
   Clears the first General Purpose Counter associated to the currently tracked
   counters, and returns its previous value. Before the first invocation, the
   stored value is zero, so first invocation will always return zero. This is
@@ -9012,40 +9014,40 @@ sc2_clr_gpc0 : integer
         tcp-request connection accept if !abuse save
         tcp-request connection reject if abuse kill
 
-sc_conn_cnt(<ctr>) : integer
-sc0_conn_cnt : integer
-sc1_conn_cnt : integer
-sc2_conn_cnt : integer
+sc_conn_cnt(<ctr>,[<table>]) : integer
+sc0_conn_cnt([<table>]) : integer
+sc1_conn_cnt([<table>]) : integer
+sc2_conn_cnt([<table>]) : integer
   Returns the cumulated number of incoming connections from currently tracked
   counters. See also src_conn_cnt.
 
-sc_conn_cur(<ctr>) : integer
-sc0_conn_cur : integer
-sc1_conn_cur : integer
-sc2_conn_cur : integer
+sc_conn_cur(<ctr>,[<table>]) : integer
+sc0_conn_cur([<table>]) : integer
+sc1_conn_cur([<table>]) : integer
+sc2_conn_cur([<table>]) : integer
   Returns the current amount of concurrent connections tracking the same
   tracked counters. This number is automatically incremented when tracking
   begins and decremented when tracking stops. See also src_conn_cur.
 
-sc_conn_rate(<ctr>) : integer
-sc0_conn_rate : integer
-sc1_conn_rate : integer
-sc2_conn_rate : integer
+sc_conn_rate(<ctr>,[<table>]) : integer
+sc0_conn_rate([<table>]) : integer
+sc1_conn_rate([<table>]) : integer
+sc2_conn_rate([<table>]) : integer
   Returns the average connection rate from the currently tracked counters,
   measured in amount of connections over the period configured in the table.
   See also src_conn_rate.
 
-sc_get_gpc0(<ctr>) : integer
-sc0_get_gpc0 : integer
-sc1_get_gpc0 : integer
-sc2_get_gpc0 : integer
+sc_get_gpc0(<ctr>,[<table>]) : integer
+sc0_get_gpc0([<table>]) : integer
+sc1_get_gpc0([<table>]) : integer
+sc2_get_gpc0([<table>]) : integer
   Returns the value of the first General Purpose Counter associated to the
   currently tracked counters. See also src_get_gpc0 and sc/sc0/sc1/sc2_inc_gpc0.
 
-sc_gpc0_rate(<ctr>) : integer
-sc0_gpc0_rate : integer
-sc1_gpc0_rate : integer
-sc2_gpc0_rate : integer
+sc_gpc0_rate(<ctr>,[<table>]) : integer
+sc0_gpc0_rate([<table>]) : integer
+sc1_gpc0_rate([<table>]) : integer
+sc2_gpc0_rate([<table>]) : integer
   Returns the average increment rate of the first General Purpose Counter
   associated to the currently tracked counters. It reports the frequency
   which the gpc0 counter was incremented over the configured period. See also
@@ -9053,44 +9055,44 @@ sc2_gpc0_rate : integer
   that the "gpc0_rate" counter must be stored in the stick-table for a value to
   be returned, as "gpc0" only holds the event count.
 
-sc_http_err_cnt(<ctr>) : integer
-sc0_http_err_cnt : integer
-sc1_http_err_cnt : integer
-sc2_http_err_cnt : integer
+sc_http_err_cnt(<ctr>,[<table>]) : integer
+sc0_http_err_cnt([<table>]) : integer
+sc1_http_err_cnt([<table>]) : integer
+sc2_http_err_cnt([<table>]) : integer
   Returns the cumulated number of HTTP errors from the currently tracked
   counters. This includes the both request errors and 4xx error responses.
   See also src_http_err_cnt.
 
-sc_http_err_rate(<ctr>) : integer
-sc0_http_err_rate : integer
-sc1_http_err_rate : integer
-sc2_http_err_rate : integer
+sc_http_err_rate(<ctr>,[<table>]) : integer
+sc0_http_err_rate([<table>]) : integer
+sc1_http_err_rate([<table>]) : integer
+sc2_http_err_rate([<table>]) : integer
   Returns the average rate of HTTP errors from the currently tracked counters,
   measured in amount of errors over the period configured in the table. This
   includes the both request errors and 4xx error responses. See also
   src_http_err_rate.
 
-sc_http_req_cnt(<ctr>) : integer
-sc0_http_req_cnt : integer
-sc1_http_req_cnt : integer
-sc2_http_req_cnt : integer
+sc_http_req_cnt(<ctr>,[<table>]) : integer
+sc0_http_req_cnt([<table>]) : integer
+sc1_http_req_cnt([<table>]) : integer
+sc2_http_req_cnt([<table>]) : integer
   Returns the cumulated number of HTTP requests from the currently tracked
   counters. This includes every started request, valid or not. See also
   src_http_req_cnt.
 
-sc_http_req_rate(<ctr>) : integer
-sc0_http_req_rate : integer
-sc1_http_req_rate : integer
-sc2_http_req_rate : integer
+sc_http_req_rate(<ctr>,[<table>]) : integer
+sc0_http_req_rate([<table>]) : integer
+sc1_http_req_rate([<table>]) : integer
+sc2_http_req_rate([<table>]) : integer
   Returns the average rate of HTTP requests from the currently tracked
   counters, measured in amount of requests over the period configured in
   the table. This includes every started request, valid or not. See also
   src_http_req_rate.
 
-sc_inc_gpc0(<ctr>) : integer
-sc0_inc_gpc0 : integer
-sc1_inc_gpc0 : integer
-sc2_inc_gpc0 : integer
+sc_inc_gpc0(<ctr>,[<table>]) : integer
+sc0_inc_gpc0([<table>]) : integer
+sc1_inc_gpc0([<table>]) : integer
+sc2_inc_gpc0([<table>]) : integer
   Increments the first General Purpose Counter associated to the currently
   tracked counters, and returns its new value. Before the first invocation,
   the stored value is zero, so first invocation will increase it to 1 and will
@@ -9101,28 +9103,28 @@ sc2_inc_gpc0 : integer
         acl kill  sc0_inc_gpc0 gt 0
         tcp-request connection reject if abuse kill
 
-sc_kbytes_in(<ctr>) : integer
-sc0_kbytes_in : integer
-sc1_kbytes_in : integer
-sc2_kbytes_in : integer
+sc_kbytes_in(<ctr>,[<table>]) : integer
+sc0_kbytes_in([<table>]) : integer
+sc1_kbytes_in([<table>]) : integer
+sc2_kbytes_in([<table>]) : integer
   Returns the amount of client-to-server data from the currently tracked
   counters, measured in kilobytes over the period configured in the table. The
   test is currently performed on 32-bit integers, which limits values to 4
   terabytes. See also src_kbytes_in.
 
-sc_kbytes_out(<ctr>) : integer
-sc0_kbytes_out : integer
-sc1_kbytes_out : integer
-sc2_kbytes_out : integer
+sc_kbytes_out(<ctr>,[<table>]) : integer
+sc0_kbytes_out([<table>]) : integer
+sc1_kbytes_out([<table>]) : integer
+sc2_kbytes_out([<table>]) : integer
   Returns the amount of server-to-client data from the currently tracked
   counters, measured in kilobytes over the period configured in the table. The
   test is currently performed on 32-bit integers, which limits values to 4
   terabytes. See also src_kbytes_out.
 
-sc_sess_cnt(<ctr>) : integer
-sc0_sess_cnt : integer
-sc1_sess_cnt : integer
-sc2_sess_cnt : integer
+sc_sess_cnt(<ctr>,[<table>]) : integer
+sc0_sess_cnt([<table>]) : integer
+sc1_sess_cnt([<table>]) : integer
+sc2_sess_cnt([<table>]) : integer
   Returns the cumulated number of incoming connections that were transformed
   into sessions, which means that they were accepted by a "tcp-request
   connection" rule, from the currently tracked counters. A backend may count
@@ -9130,10 +9132,10 @@ sc2_sess_cnt : integer
   backend sessions if some HTTP keep-alive is performed over the connection
   with the client. See also src_sess_cnt.
 
-sc_sess_rate(<ctr>) : integer
-sc0_sess_rate : integer
-sc1_sess_rate : integer
-sc2_sess_rate : integer
+sc_sess_rate(<ctr>,[<table>]) : integer
+sc0_sess_rate([<table>]) : integer
+sc1_sess_rate([<table>]) : integer
+sc2_sess_rate([<table>]) : integer
   Returns the average session rate from the currently tracked counters,
   measured in amount of sessions over the period configured in the table. A
   session is a connection that got past the early "tcp-request connection"
@@ -9141,18 +9143,18 @@ sc2_sess_rate : integer
   connection could result in many backend sessions if some HTTP keep-alive is
   performed over the connection with the client. See also src_sess_rate.
 
-sc_tracked(<ctr>) : boolean
-sc0_tracked : boolean
-sc1_tracked : boolean
-sc2_tracked : boolean
+sc_tracked(<ctr>,[<table>]) : boolean
+sc0_tracked([<table>]) : boolean
+sc1_tracked([<table>]) : boolean
+sc2_tracked([<table>]) : boolean
   Returns true if the designated session counter is currently being tracked by
   the current session. This can be useful when deciding whether or not we want
   to set some values in a header passed to the server.
 
-sc_trackers(<ctr>) : integer
-sc0_trackers : integer
-sc1_trackers : integer
-sc2_trackers : integer
+sc_trackers(<ctr>,[<table>]) : integer
+sc0_trackers([<table>]) : integer
+sc1_trackers([<table>]) : integer
+sc2_trackers([<table>]) : integer
   Returns the current amount of concurrent connections tracking the same
   tracked counters. This number is automatically incremented when tracking
   begins and decremented when tracking stops. It differs from sc0_conn_cur in
