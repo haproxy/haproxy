@@ -730,11 +730,15 @@ static void stats_sock_table_key_request(struct stream_interface *si, char **arg
 			stktable_data_cast(ptr, std_t_ull) = value;
 			break;
 		case STD_T_FRQP:
-			/* We only reset the previous value so that it slowly fades out */
+			/* We set both the current and previous values. That way
+			 * the reported frequency is stable during all the period
+			 * then slowly fades out. This allows external tools to
+			 * push measures without having to update them too often.
+			 */
 			frqp = &stktable_data_cast(ptr, std_t_frqp);
 			frqp->curr_tick = now_ms;
-			frqp->prev_ctr = value;
-			frqp->curr_ctr = 0;
+			frqp->prev_ctr = 0;
+			frqp->curr_ctr = value;
 			break;
 		}
 		break;
