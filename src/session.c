@@ -2578,10 +2578,11 @@ void session_shutdown(struct session *session, int why)
 /*           All supported ACL keywords must be declared here.          */
 /************************************************************************/
 
-/* Returns a pointer to an stkctr depending on the fetch keyword name.
- * It is designed to be called as sc[0-9]_* or src_* exclusively.
+/* Returns a pointer to a stkctr depending on the fetch keyword name.
+ * It is designed to be called as sc[0-9]_* sc_* or src_* exclusively.
  * sc[0-9]_* will return a pointer to the respective field in the
- * session <l4>. src_* will fill a locally allocated structure with
+ * session <l4>. sc_* requires an UINT argument specifying the stick
+ * counter number. src_* will fill a locally allocated structure with
  * the table and entry corresponding to what is specified with src_*.
  * NULL may be returned if the designated stkctr is not tracked.
  */
@@ -2589,10 +2590,17 @@ static struct stkctr *
 smp_fetch_sc_stkctr(struct session *l4, const struct arg *args, const char *kw)
 {
 	static struct stkctr stkctr;
-	unsigned char num = kw[2];
+	unsigned int num = kw[2] - '0';
 
-	if (num - '0' <= 9) { /* sc[0-9]_* variant */
-		return l4->stkctr[num - '0'].entry ? &l4->stkctr[num - '0'] : NULL;
+	if (num <= 9) { /* sc[0-9]_* variant */
+		return l4->stkctr[num].entry ? &l4->stkctr[num] : NULL;
+	}
+	else if (num == '_' - '0') {
+		/* sc_* variant, arg[0] = ctr# (mandatory) */
+		num = args[0].data.uint;
+		if (num >= MAX_SESS_STKCTR)
+			return NULL;
+		return l4->stkctr[num].entry ? &l4->stkctr[num] : NULL;
 	}
 	else { /* src_* variant, arg[0] = table */
 		struct stktable_key *key = addr_to_stktable_key(&l4->si[0].conn->addr.from);
@@ -3154,6 +3162,25 @@ static struct acl_kw_list acl_kws = {ILH, {
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct sample_fetch_kw_list smp_fetch_keywords = {ILH, {
+	{ "sc_bytes_in_rate",   smp_fetch_sc_bytes_in_rate,  ARG1(1,UINT), NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc_bytes_out_rate",  smp_fetch_sc_bytes_out_rate, ARG1(1,UINT), NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc_clr_gpc0",        smp_fetch_sc_clr_gpc0,       ARG1(1,UINT), NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc_conn_cnt",        smp_fetch_sc_conn_cnt,       ARG1(1,UINT), NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc_conn_cur",        smp_fetch_sc_conn_cur,       ARG1(1,UINT), NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc_conn_rate",       smp_fetch_sc_conn_rate,      ARG1(1,UINT), NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc_get_gpc0",        smp_fetch_sc_get_gpc0,       ARG1(1,UINT), NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc_gpc0_rate",       smp_fetch_sc_gpc0_rate,      ARG1(1,UINT), NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc_http_err_cnt",    smp_fetch_sc_http_err_cnt,   ARG1(1,UINT), NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc_http_err_rate",   smp_fetch_sc_http_err_rate,  ARG1(1,UINT), NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc_http_req_cnt",    smp_fetch_sc_http_req_cnt,   ARG1(1,UINT), NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc_http_req_rate",   smp_fetch_sc_http_req_rate,  ARG1(1,UINT), NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc_inc_gpc0",        smp_fetch_sc_inc_gpc0,       ARG1(1,UINT), NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc_kbytes_in",       smp_fetch_sc_kbytes_in,      ARG1(1,UINT), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
+	{ "sc_kbytes_out",      smp_fetch_sc_kbytes_out,     ARG1(1,UINT), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
+	{ "sc_sess_cnt",        smp_fetch_sc_sess_cnt,       ARG1(1,UINT), NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc_sess_rate",       smp_fetch_sc_sess_rate,      ARG1(1,UINT), NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc_tracked",         smp_fetch_sc_tracked,        ARG1(1,UINT), NULL, SMP_T_BOOL, SMP_USE_INTRN, },
+	{ "sc_trackers",        smp_fetch_sc_trackers,       ARG1(1,UINT), NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc0_bytes_in_rate",  smp_fetch_sc_bytes_in_rate,   0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc0_bytes_out_rate", smp_fetch_sc_bytes_out_rate,  0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc0_clr_gpc0",       smp_fetch_sc_clr_gpc0,        0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
