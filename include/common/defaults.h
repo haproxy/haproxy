@@ -73,6 +73,13 @@
 #define MAX_HDR_HISTORY 10
 #endif
 
+// max # of stick counters per session (at least 3 for sc0..sc2)
+// Some changes are needed in TCP_ACT_TRK_SC* and SN_BE_TRACK_SC* if more
+// values are required.
+#ifndef MAX_SESS_STKCTR
+#define MAX_SESS_STKCTR 3
+#endif
+
 // max # of loops we can perform around a read() which succeeds.
 // It's very frequent that the system returns a few TCP segments at a time.
 #ifndef MAX_READ_POLL_LOOPS

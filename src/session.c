@@ -420,7 +420,7 @@ int session_complete(struct session *s)
 	/* Let's count a session now */
 	proxy_inc_fe_sess_ctr(l, p);
 
-	for (i = 0; i < sizeof(s->stkctr) / sizeof(s->stkctr[0]); i++) {
+	for (i = 0; i < MAX_SESS_STKCTR; i++) {
 		void *ptr;
 
 		if (!s->stkctr[i].entry)
@@ -707,7 +707,7 @@ void session_process_counters(struct session *s)
 			if (s->listener->counters)
 				s->listener->counters->bytes_in += bytes;
 
-			for (i = 0; i < sizeof(s->stkctr) / sizeof(s->stkctr[0]); i++) {
+			for (i = 0; i < MAX_SESS_STKCTR; i++) {
 				if (!s->stkctr[i].entry)
 					continue;
 
@@ -741,7 +741,7 @@ void session_process_counters(struct session *s)
 			if (s->listener->counters)
 				s->listener->counters->bytes_out += bytes;
 
-			for (i = 0; i < sizeof(s->stkctr) / sizeof(s->stkctr[0]); i++) {
+			for (i = 0; i < MAX_SESS_STKCTR; i++) {
 				if (!s->stkctr[i].entry)
 					continue;
 

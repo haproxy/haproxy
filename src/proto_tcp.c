@@ -938,7 +938,7 @@ int tcp_inspect_request(struct session *s, struct channel *req, int an_bit)
 					s->flags |= SN_FINST_R;
 				return 0;
 			}
-			else if ((rule->action >= TCP_ACT_TRK_SC0 && rule->action <= TCP_ACT_TRK_SC2) &&
+			else if ((rule->action >= TCP_ACT_TRK_SC0 && rule->action <= TCP_ACT_TRK_SCMAX) &&
 				 !s->stkctr[tcp_trk_idx(rule->action)].entry) {
 				/* Note: only the first valid tracking parameter of each
 				 * applies.
@@ -1092,7 +1092,7 @@ int tcp_exec_req_rules(struct session *s)
 				result = 0;
 				break;
 			}
-			else if ((rule->action >= TCP_ACT_TRK_SC0 && rule->action <= TCP_ACT_TRK_SC2) &&
+			else if ((rule->action >= TCP_ACT_TRK_SC0 && rule->action <= TCP_ACT_TRK_SCMAX) &&
 				 !s->stkctr[tcp_trk_idx(rule->action)].entry) {
 				/* Note: only the first valid tracking parameter of each
 				 * applies.
@@ -1184,7 +1184,9 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 		arg++;
 		rule->action = TCP_ACT_REJECT;
 	}
-	else if (strcmp(args[arg], "track-sc0") == 0 || strcmp(args[arg], "track-sc1") == 0 || strcmp(args[arg], "track-sc2") == 0) {
+	else if (strncmp(args[arg], "track-sc", 8) == 0 &&
+		 args[arg][9] == '\0' && args[arg][8] >= '0' &&
+		 args[arg][8] <= '0' + MAX_SESS_STKCTR) { /* track-sc 0..9 */
 		struct sample_expr *expr;
 		int kw = arg;
 
@@ -1246,9 +1248,9 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 	}
 	else {
 		memprintf(err,
-		          "'%s %s' expects 'accept', 'reject', 'track-sc0', 'track-sc1' "
-		          " or 'track-sc2' in %s '%s' (got '%s')",
-		          args[0], args[1], proxy_type_str(curpx), curpx->id, args[arg]);
+		          "'%s %s' expects 'accept', 'reject', 'track-sc0' ... 'track-sc%d' "
+		          " in %s '%s' (got '%s')",
+		          args[0], args[1], MAX_SESS_STKCTR, proxy_type_str(curpx), curpx->id, args[arg]);
 		return -1;
 	}
 

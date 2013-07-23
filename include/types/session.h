@@ -90,7 +90,9 @@
 
 #define SN_COMP_READY   0x00100000	/* the compression is initialized */
 
-/* session tracking flags: these ones must absolutely be contiguous. See also s->stkctr */
+/* session tracking flags: these ones must absolutely be contiguous and cover
+ * at least MAX_SESS_STKCTR flags.
+ */
 #define SN_BE_TRACK_SC0 0x00200000	/* backend tracks stick-counter 0 */
 #define SN_BE_TRACK_SC1 0x00400000	/* backend tracks stick-counter 1 */
 #define SN_BE_TRACK_SC2 0x00800000	/* backend tracks stick-counter 2 */
@@ -146,7 +148,7 @@ struct session {
 	} store[8];				/* tracked stickiness values to store */
 	int store_count;
 
-	struct stkctr stkctr[3];                /* stick counters */
+	struct stkctr stkctr[MAX_SESS_STKCTR];  /* stick counters */
 
 	struct stream_interface si[2];          /* client and server stream interfaces */
 	struct {
