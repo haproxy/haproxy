@@ -2869,78 +2869,29 @@ smp_fetch_sc_sess_cnt(struct proxy *px, struct session *l4, void *l7, unsigned i
 	return 1;
 }
 
-/* set temp integer to the session rate in the stksess entry <ts> over the configured period */
+/* set <smp> to the session rate from the session's tracked frontend counters.
+ * Supports being called as "sc[0-9]_sess_rate" or "src_sess_rate" only.
+ */
 static int
-smp_fetch_sess_rate(struct stktable *table, struct sample *smp, struct stksess *ts)
+smp_fetch_sc_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                       const struct arg *args, struct sample *smp, const char *kw)
 {
+	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
+
+	if (!stkctr)
+		return 0;
+
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
 	smp->data.uint = 0;
-	if (ts != NULL) {
-		void *ptr = stktable_data_ptr(table, ts, STKTABLE_DT_SESS_RATE);
+	if (stkctr->entry != NULL) {
+		void *ptr = stktable_data_ptr(stkctr->table, stkctr->entry, STKTABLE_DT_SESS_RATE);
 		if (!ptr)
 			return 0; /* parameter not stored */
 		smp->data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, sess_rate),
-					       table->data_arg[STKTABLE_DT_SESS_RATE].u);
+					       stkctr->table->data_arg[STKTABLE_DT_SESS_RATE].u);
 	}
 	return 1;
-}
-
-/* set temp integer to the session rate from the session's tracked FE counters over
- * the configured period.
- */
-static int
-smp_fetch_sc0_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                        const struct arg *args, struct sample *smp, const char *kw)
-{
-	if (!l4->stkctr[0].entry)
-		return 0;
-
-	return smp_fetch_sess_rate(l4->stkctr[0].table, smp, l4->stkctr[0].entry);
-}
-
-/* set temp integer to the session rate from the session's tracked BE counters over
- * the configured period.
- */
-static int
-smp_fetch_sc1_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                        const struct arg *args, struct sample *smp, const char *kw)
-{
-	if (!l4->stkctr[1].entry)
-		return 0;
-
-	return smp_fetch_sess_rate(l4->stkctr[1].table, smp, l4->stkctr[1].entry);
-}
-
-/* set temp integer to the session rate from the session's tracked BE counters over
- * the configured period.
- */
-static int
-smp_fetch_sc2_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                        const struct arg *args, struct sample *smp, const char *kw)
-{
-	if (!l4->stkctr[2].entry)
-		return 0;
-
-	return smp_fetch_sess_rate(l4->stkctr[2].table, smp, l4->stkctr[2].entry);
-}
-
-/* set temp integer to the session rate from the session's source address in the
- * table pointed to by expr, over the configured period.
- * Accepts exactly 1 argument of type table.
- */
-static int
-smp_fetch_src_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                        const struct arg *args, struct sample *smp, const char *kw)
-{
-	struct stktable_key *key;
-
-	key = addr_to_stktable_key(&l4->si[0].conn->addr.from);
-	if (!key)
-		return 0;
-
-	px = args->data.prx;
-	return smp_fetch_sess_rate(&px->table, smp, stktable_lookup_key(&px->table, key));
 }
 
 /* set temp integer to the cumulated number of sessions in the stksess entry <ts> */
@@ -3612,7 +3563,7 @@ static struct sample_fetch_kw_list smp_fetch_keywords = {ILH, {
 	{ "sc0_kbytes_in",      smp_fetch_sc0_kbytes_in,      0,           NULL, SMP_T_UINT, SMP_USE_L4CLI, },
 	{ "sc0_kbytes_out",     smp_fetch_sc0_kbytes_out,     0,           NULL, SMP_T_UINT, SMP_USE_L4CLI, },
 	{ "sc0_sess_cnt",       smp_fetch_sc_sess_cnt,        0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc0_sess_rate",      smp_fetch_sc0_sess_rate,      0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc0_sess_rate",      smp_fetch_sc_sess_rate,       0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc0_tracked",        smp_fetch_sc_tracked,         0,           NULL, SMP_T_BOOL, SMP_USE_INTRN, },
 	{ "sc0_trackers",       smp_fetch_sc0_trackers,       0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc1_bytes_in_rate",  smp_fetch_sc1_bytes_in_rate,  0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
@@ -3631,7 +3582,7 @@ static struct sample_fetch_kw_list smp_fetch_keywords = {ILH, {
 	{ "sc1_kbytes_in",      smp_fetch_sc1_kbytes_in,      0,           NULL, SMP_T_UINT, SMP_USE_L4CLI, },
 	{ "sc1_kbytes_out",     smp_fetch_sc1_kbytes_out,     0,           NULL, SMP_T_UINT, SMP_USE_L4CLI, },
 	{ "sc1_sess_cnt",       smp_fetch_sc_sess_cnt,        0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc1_sess_rate",      smp_fetch_sc1_sess_rate,      0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc1_sess_rate",      smp_fetch_sc_sess_rate,       0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc1_tracked",        smp_fetch_sc_tracked,         0,           NULL, SMP_T_BOOL, SMP_USE_INTRN, },
 	{ "sc1_trackers",       smp_fetch_sc1_trackers,       0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc2_bytes_in_rate",  smp_fetch_sc2_bytes_in_rate,  0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
@@ -3650,7 +3601,7 @@ static struct sample_fetch_kw_list smp_fetch_keywords = {ILH, {
 	{ "sc2_kbytes_in",      smp_fetch_sc2_kbytes_in,      0,           NULL, SMP_T_UINT, SMP_USE_L4CLI, },
 	{ "sc2_kbytes_out",     smp_fetch_sc2_kbytes_out,     0,           NULL, SMP_T_UINT, SMP_USE_L4CLI, },
 	{ "sc2_sess_cnt",       smp_fetch_sc_sess_cnt,        0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
-	{ "sc2_sess_rate",      smp_fetch_sc2_sess_rate,      0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
+	{ "sc2_sess_rate",      smp_fetch_sc_sess_rate,       0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "sc2_tracked",        smp_fetch_sc_tracked,         0,           NULL, SMP_T_BOOL, SMP_USE_INTRN, },
 	{ "sc2_trackers",       smp_fetch_sc2_trackers,       0,           NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "src_bytes_in_rate",  smp_fetch_src_bytes_in_rate,  ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
@@ -3669,7 +3620,7 @@ static struct sample_fetch_kw_list smp_fetch_keywords = {ILH, {
 	{ "src_kbytes_in",      smp_fetch_src_kbytes_in,      ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
 	{ "src_kbytes_out",     smp_fetch_src_kbytes_out,     ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
 	{ "src_sess_cnt",       smp_fetch_sc_sess_cnt,        ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
-	{ "src_sess_rate",      smp_fetch_src_sess_rate,      ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
+	{ "src_sess_rate",      smp_fetch_sc_sess_rate,       ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
 	{ "src_updt_conn_cnt",  smp_fetch_src_updt_conn_cnt,  ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_L4CLI, },
 	{ "table_avl",          smp_fetch_table_avl,          ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_INTRN, },
 	{ "table_cnt",          smp_fetch_table_cnt,          ARG1(1,TAB), NULL, SMP_T_UINT, SMP_USE_INTRN, },
