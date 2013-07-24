@@ -534,55 +534,59 @@ static sample_cast_fct sample_casts[SMP_TYPES][SMP_TYPES] = {
  */
 struct sample_expr *sample_parse_expr(char **str, int *idx, char *err, int err_size, struct arg_list *al)
 {
-	const char *endw;
-	const char *end;
+	const char *begw; /* beginning of word */
+	const char *endw; /* end of word */
+	const char *endt; /* end of term */
 	struct sample_expr *expr;
 	struct sample_fetch *fetch;
 	struct sample_conv *conv;
 	unsigned long prev_type;
-	char *p;
+	char *fkw = NULL;
+	char *ckw = NULL;
 
+	/* prepare a generic message if any further snprintf() fails */
 	snprintf(err, err_size, "memory error.");
-	if (!str[*idx]) {
 
+	begw = str[*idx];
+	for (endw = begw; *endw && *endw != '(' && *endw != ','; endw++);
+
+	if (endw == begw) {
 		snprintf(err, err_size, "missing fetch method.");
 		goto out_error;
 	}
 
-	end = str[*idx] + strlen(str[*idx]);
-	endw = strchr(str[*idx], '(');
+	/* keep a copy of the current fetch keyword for error reporting */
+	fkw = my_strndup(begw, endw - begw);
 
-	if (!endw)
-		endw = end;
-	else if ((end-1)[0] != ')') {
-		p = my_strndup(str[*idx], endw - str[*idx]);
-		if (p) {
-			snprintf(err, err_size, "syntax error: missing ')' after keyword '%s'.", p);
-			free(p);
-		}
-		goto out_error;
-	}
-
-	fetch = find_sample_fetch(str[*idx], endw - str[*idx]);
+	fetch = find_sample_fetch(begw, endw - begw);
 	if (!fetch) {
-		p = my_strndup(str[*idx], endw - str[*idx]);
-		if (p) {
-			snprintf(err, err_size, "unknown fetch method '%s'.", p);
-			free(p);
-		}
+		snprintf(err, err_size, "unknown fetch method '%s'.", fkw);
 		goto out_error;
 	}
+
+	endt = endw;
+	if (*endt == '(') {
+		/* look for the end of this term */
+		while (*endt && *endt != ')')
+			endt++;
+		if (*endt != ')') {
+			snprintf(err, err_size, "syntax error: missing ')' after fetch keyword '%s'.", fkw);
+			goto out_error;
+		}
+	}
+
+	/* At this point, we have :
+	 *   - begw : beginning of the keyword
+	 *   - endw : end of the keyword (points to next delimiter or '(')
+	 *   - endt : end of the term (=endw or last parenthesis if args are present)
+	 */
+
 	if (fetch->out_type >= SMP_TYPES) {
-
-		p = my_strndup(str[*idx], endw - str[*idx]);
-		if (p) {
-			snprintf(err, err_size, "returns type of fetch method '%s' is unknown.", p);
-			free(p);
-		}
+		snprintf(err, err_size, "returns type of fetch method '%s' is unknown.", fkw);
 		goto out_error;
 	}
-
 	prev_type = fetch->out_type;
+
 	expr = calloc(1, sizeof(struct sample_expr));
 	if (!expr)
 		goto out_error;
@@ -591,27 +595,19 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, char *err, int err_s
 	expr->fetch = fetch;
 	expr->arg_p = empty_arg_list;
 
-	if (end != endw) {
+	if (endt != endw) {
 		char *err_msg = NULL;
 		int err_arg;
 
 		if (!fetch->arg_mask) {
-			p = my_strndup(str[*idx], endw - str[*idx]);
-			if (p) {
-				snprintf(err, err_size, "fetch method '%s' does not support any args.", p);
-				free(p);
-			}
+			snprintf(err, err_size, "fetch method '%s' does not support any args.", fkw);
 			goto out_error;
 		}
 
 		al->kw = expr->fetch->kw;
 		al->conv = NULL;
-		if (make_arg_list(endw + 1, end - endw - 2, fetch->arg_mask, &expr->arg_p, &err_msg, NULL, &err_arg, al) < 0) {
-			p = my_strndup(str[*idx], endw - str[*idx]);
-			if (p) {
-				snprintf(err, err_size, "invalid arg %d in fetch method '%s' : %s.", err_arg+1, p, err_msg);
-				free(p);
-			}
+		if (make_arg_list(endw + 1, endt - endw - 1, fetch->arg_mask, &expr->arg_p, &err_msg, NULL, &err_arg, al) < 0) {
+			snprintf(err, err_size, "invalid arg %d in fetch method '%s' : %s.", err_arg+1, fkw, err_msg);
 			free(err_msg);
 			goto out_error;
 		}
@@ -620,62 +616,88 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, char *err, int err_s
 			expr->arg_p = empty_arg_list;
 
 		if (fetch->val_args && !fetch->val_args(expr->arg_p, &err_msg)) {
-			p = my_strndup(str[*idx], endw - str[*idx]);
-			if (p) {
-				snprintf(err, err_size, "invalid args in fetch method '%s' : %s.", p, err_msg);
-				free(p);
-			}
+			snprintf(err, err_size, "invalid args in fetch method '%s' : %s.", fkw, err_msg);
 			free(err_msg);
 			goto out_error;
 		}
 	}
 	else if (ARGM(fetch->arg_mask)) {
-		p = my_strndup(str[*idx], endw - str[*idx]);
-		if (p) {
-			snprintf(err, err_size, "missing args for fetch method '%s'.", p);
-			free(p);
-		}
+		snprintf(err, err_size, "missing args for fetch method '%s'.", fkw);
 		goto out_error;
 	}
 
-	for (*idx += 1; *(str[*idx]); (*idx)++) {
+	/* Now process the converters if any. We have two supported syntaxes
+	 * for the converters, which can be combined :
+	 *  - comma-delimited list of converters just after the keyword and args ;
+	 *  - one converter per keyword
+	 * The combination allows to have each keyword being a comma-delimited
+	 * series of converters.
+	 *
+	 * We want to process the former first, then the latter. For this we start
+	 * from the beginning of the supposed place in the exiting conv chain, which
+	 * starts at the last comma (endt).
+	 */
+
+	while (1) {
 		struct sample_conv_expr *conv_expr;
 
-		end = str[*idx] + strlen(str[*idx]);
-		endw = strchr(str[*idx], '(');
+		if (*endt == ')') /* skip last closing parenthesis */
+			endt++;
 
-		if (!endw)
-			endw = end;
-		else if ((end-1)[0] != ')') {
-			p = my_strndup(str[*idx], endw - str[*idx]);
-			if (p) {
-				snprintf(err, err_size, "syntax error, missing ')' after keyword '%s'.", p);
-				free(p);
-			}
+		if (*endt && *endt != ',') {
+			if (ckw)
+				snprintf(err, err_size, "missing comma after conv keyword '%s'.", ckw);
+			else
+				snprintf(err, err_size, "missing comma after fetch keyword '%s'.", fkw);
 			goto out_error;
 		}
 
-		conv = find_sample_conv(str[*idx], endw - str[*idx]);
-		if (!conv)
-			break;
+		while (*endt == ',') /* then trailing commas */
+			endt++;
 
-		if (conv->in_type >= SMP_TYPES ||
-		    conv->out_type >= SMP_TYPES) {
-			p = my_strndup(str[*idx], endw - str[*idx]);
-			if (p) {
-				snprintf(err, err_size, "returns type of conv method '%s' is unknown.", p);
-				free(p);
+		begw = endt; /* start of conv keyword */
+
+		if (!*begw) {
+			/* none ? skip to next string */
+			(*idx)++;
+			begw = str[*idx];
+			if (!begw || !*begw)
+				break;
+		}
+
+		for (endw = begw; *endw && *endw != '(' && *endw != ','; endw++);
+
+		free(ckw);
+		ckw = my_strndup(begw, endw - begw);
+
+		conv = find_sample_conv(begw, endw - begw);
+		if (!conv) {
+			/* we found an isolated keyword that we don't know, it's not ours */
+			if (begw == str[*idx])
+				break;
+			snprintf(err, err_size, "unknown conv method '%s'.", ckw);
+			goto out_error;
+		}
+
+		endt = endw;
+		if (*endt == '(') {
+			/* look for the end of this term */
+			while (*endt && *endt != ')')
+				endt++;
+			if (*endt != ')') {
+				snprintf(err, err_size, "syntax error: missing ')' after conv keyword '%s'.", ckw);
+				goto out_error;
 			}
+		}
+
+		if (conv->in_type >= SMP_TYPES || conv->out_type >= SMP_TYPES) {
+			snprintf(err, err_size, "returns type of conv method '%s' is unknown.", ckw);
 			goto out_error;
 		}
 
 		/* If impossible type conversion */
 		if (!sample_casts[prev_type][conv->in_type]) {
-			p = my_strndup(str[*idx], endw - str[*idx]);
-			if (p) {
-				snprintf(err, err_size, "conv method '%s' cannot be applied.", p);
-				free(p);
-			}
+			snprintf(err, err_size, "conv method '%s' cannot be applied.", ckw);
 			goto out_error;
 		}
 
@@ -687,28 +709,19 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, char *err, int err_s
 		LIST_ADDQ(&(expr->conv_exprs), &(conv_expr->list));
 		conv_expr->conv = conv;
 
-		if (end != endw) {
+		if (endt != endw) {
 			char *err_msg = NULL;
 			int err_arg;
 
 			if (!conv->arg_mask) {
-				p = my_strndup(str[*idx], endw - str[*idx]);
-
-				if (p) {
-					snprintf(err, err_size, "conv method '%s' does not support any args.", p);
-					free(p);
-				}
+				snprintf(err, err_size, "conv method '%s' does not support any args.", ckw);
 				goto out_error;
 			}
 
 			al->kw = expr->fetch->kw;
 			al->conv = conv_expr->conv->kw;
-			if (make_arg_list(endw + 1, end - endw - 2, conv->arg_mask, &conv_expr->arg_p, &err_msg, NULL, &err_arg, al) < 0) {
-				p = my_strndup(str[*idx], endw - str[*idx]);
-				if (p) {
-					snprintf(err, err_size, "invalid arg %d in conv method '%s' : %s.", err_arg+1, p, err_msg);
-					free(p);
-				}
+			if (make_arg_list(endw + 1, endt - endw - 1, conv->arg_mask, &conv_expr->arg_p, &err_msg, NULL, &err_arg, al) < 0) {
+				snprintf(err, err_size, "invalid arg %d in conv method '%s' : %s.", err_arg+1, ckw, err_msg);
 				free(err_msg);
 				goto out_error;
 			}
@@ -717,31 +730,26 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, char *err, int err_s
 				conv_expr->arg_p = empty_arg_list;
 
 			if (conv->val_args && !conv->val_args(conv_expr->arg_p, &err_msg)) {
-				p = my_strndup(str[*idx], endw - str[*idx]);
-				if (p) {
-					snprintf(err, err_size, "invalid args in conv method '%s' : %s.", p, err_msg);
-					free(p);
-				}
+				snprintf(err, err_size, "invalid args in conv method '%s' : %s.", ckw, err_msg);
 				free(err_msg);
 				goto out_error;
 			}
 		}
-		else if (conv->arg_mask) {
-			p = my_strndup(str[*idx], endw - str[*idx]);
-			if (p) {
-				snprintf(err, err_size, "missing args for conv method '%s'.", p);
-				free(p);
-			}
+		else if (ARGM(conv->arg_mask)) {
+			snprintf(err, err_size, "missing args for conv method '%s'.", ckw);
 			goto out_error;
 		}
-
 	}
 
+ out:
+	free(fkw);
+	free(ckw);
 	return expr;
 
 out_error:
 	/* TODO: prune_sample_expr(expr); */
-	return NULL;
+	expr = NULL;
+	goto out;
 }
 
 /*

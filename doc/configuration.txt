@@ -8699,8 +8699,10 @@ sample fetch system. The "stick on", and "stick store-request" directives
 support sample fetch rules which allow a list of transformations to be applied
 on top of the fetched sample, and the finaly result is automatically converted
 to the type of the table. These transformations are enumerated as a series
-of specific keywords after the sample fetch method. These keywords can also
-support some arguments (eg: a netmask) which must be passed in parenthesis.
+of specific keywords after the sample fetch method. These keywords may equally
+be appended immediately after the fetch keyword's argument, delimited by a
+comma. These keywords can also support some arguments (eg: a netmask) which
+must be passed in parenthesis.
 
 The currently available list of transformation keywords include :
 
