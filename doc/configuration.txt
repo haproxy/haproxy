@@ -8720,6 +8720,15 @@ The currently available list of transformation keywords include :
                  the same server. The mask can be passed in dotted form (eg:
                  255.255.255.0) or in CIDR form (eg: 24).
 
+  http_date([<offset>])
+                 Converts an integer supposed to contain a date since epoch to
+                 a string representing this date in a format suitable for use
+                 in HTTP header fields. If an offset value is specified, then
+                 it is a number of seconds that is added to the date before the
+                 conversion is operated. This is particularly useful to emit
+                 Date header fields, Expires values in responses when combined
+                 with a positive offset, or Last-Modified values when the
+                 offset is negative.
 
 7.3.1. Fetching samples from internal states
 --------------------------------------------
@@ -8806,6 +8815,12 @@ date([<offset>]) : integer
   If an offset value is specified, then it is a number of seconds that is added
   to the current date before returning the value. This is particularly useful
   to compute relative dates, as both positive and negative offsets are allowed.
+  It is useful combined with the http_date converter.
+
+  Example :
+
+     # set an expires header to now+1 hour in every response
+     http-response set-header Expires %[date(3600),http_date]
 
 env(<name>) : string
   Returns a string containing the value of environment variable <name>. As a
