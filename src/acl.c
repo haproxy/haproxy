@@ -1957,66 +1957,8 @@ int init_acl()
 }
 
 /************************************************************************/
-/*       All supported sample fetch functions must be declared here     */
-/************************************************************************/
-
-/* force TRUE to be returned at the fetch level */
-static int
-smp_fetch_true(struct proxy *px, struct session *s, void *l7, unsigned int opt,
-               const struct arg *args, struct sample *smp)
-{
-	smp->type = SMP_T_BOOL;
-	smp->data.uint = 1;
-	return 1;
-}
-
-/* force FALSE to be returned at the fetch level */
-static int
-smp_fetch_false(struct proxy *px, struct session *s, void *l7, unsigned int opt,
-                const struct arg *args, struct sample *smp)
-{
-	smp->type = SMP_T_BOOL;
-	smp->data.uint = 0;
-	return 1;
-}
-
-/* retrieve environment variable $1 as a string */
-static int
-smp_fetch_env(struct proxy *px, struct session *s, void *l7, unsigned int opt,
-              const struct arg *args, struct sample *smp)
-{
-	char *env;
-
-	if (!args || args[0].type != ARGT_STR)
-		return 0;
-
-	env = getenv(args[0].data.str.str);
-	if (!env)
-		return 0;
-
-	smp->type = SMP_T_CSTR;
-	smp->data.str.str = env;
-	smp->data.str.len = strlen(env);
-	return 1;
-}
-
-
-/************************************************************************/
 /*      All supported sample and ACL keywords must be declared here.    */
 /************************************************************************/
-
-/* Note: must not be declared <const> as its list will be overwritten.
- * Note: fetches that may return multiple types must be declared as the lowest
- * common denominator, the type that can be casted into all other ones. For
- * instance IPv4/IPv6 must be declared IPv4.
- */
-static struct sample_fetch_kw_list smp_kws = {ILH, {
-	{ "always_false", smp_fetch_false, 0,            NULL, SMP_T_BOOL, SMP_USE_INTRN },
-	{ "always_true",  smp_fetch_true,  0,            NULL, SMP_T_BOOL, SMP_USE_INTRN },
-	{ "env",          smp_fetch_env,   ARG1(1,STR),  NULL, SMP_T_CSTR, SMP_USE_INTRN },
-	{ /* END */ },
-}};
-
 
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
@@ -2025,11 +1967,9 @@ static struct acl_kw_list acl_kws = {ILH, {
 	{ /* END */ },
 }};
 
-
 __attribute__((constructor))
 static void __acl_init(void)
 {
-	sample_register_fetches(&smp_kws);
 	acl_register_keywords(&acl_kws);
 }
 
