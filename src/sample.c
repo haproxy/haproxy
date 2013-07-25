@@ -770,14 +770,15 @@ struct sample *sample_process(struct proxy *px, struct session *l4, void *l7,
 {
 	struct sample_conv_expr *conv_expr;
 
-	if (p == NULL)
+	if (p == NULL) {
 		p = &temp_smp;
+		p->flags = 0;
+	}
 
-	p->flags = 0;
 	if (!expr->fetch->process(px, l4, l7, opt, expr->arg_p, p))
 		return NULL;
 
-	if (p->flags & SMP_F_MAY_CHANGE)
+	if ((p->flags & SMP_F_MAY_CHANGE) && !(opt & SMP_OPT_FINAL))
 		return NULL; /* we can only use stable samples */
 
 	list_for_each_entry(conv_expr, &expr->conv_exprs, list) {
