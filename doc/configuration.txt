@@ -8801,6 +8801,12 @@ connslots([<backend>]) : integer
   then this fetch clearly does not make sense, in which case the value returned
   will be -1.
 
+date([<offset>]) : integer
+  Returns the current date as the epoch (number of seconds since 01/01/1970).
+  If an offset value is specified, then it is a number of seconds that is added
+  to the current date before returning the value. This is particularly useful
+  to compute relative dates, as both positive and negative offsets are allowed.
+
 env(<name>) : string
   Returns a string containing the value of environment variable <name>. As a
   reminder, environment variables are per-process and are sampled when the
