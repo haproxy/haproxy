@@ -11775,19 +11775,84 @@ page. Both means provide a CSV format whose fields follow.
 9.2. Unix Socket commands
 -------------------------
 
-The following commands are supported on the UNIX stats socket ; all of them
-must be terminated by a line feed. The socket supports pipelining, so that it
-is possible to chain multiple commands at once provided they are delimited by
-a semi-colon or a line feed, although the former is more reliable as it has no
-risk of being truncated over the network. The responses themselves will each be
-followed by an empty line, so it will be easy for an external script to match a
-given response with a given request. By default one command line is processed
-then the connection closes, but there is an interactive allowing multiple lines
-to be issued one at a time.
+The stats socket is not enabled by default. In order to enable it, it is
+necessary to add one line in the global section of the haproxy configuration.
+A second line is recommended to set a larger timeout, always appreciated when
+issuing commands by hand :
+
+    global
+        stats socket /var/run/haproxy.sock mode 600 level admin
+        stats timeout 2m
+
+It is also possible to add multiple instances of the stats socket by repeating
+the line, and make them listen to a TCP port instead of a UNIX socket. This is
+never done by default because this is dangerous, but can be handy in some
+situations :
+
+    global
+        stats socket /var/run/haproxy.sock mode 600 level admin
+        stats socket ipv4@192.168.0.1:9999 level admin
+        stats timeout 2m
+
+To access the socket, an external utility such as "socat" is required. Socat is a
+swiss-army knife to connect anything to anything. We use it to connect terminals
+to the socket, or a couple of stdin/stdout pipes to it for scripts. The two main
+syntaxes we'll use are the following :
+
+    # socat /var/run/haproxy.sock stdio
+    # socat /var/run/haproxy.sock readline
+
+The first one is used with scripts. It is possible to send the output of a
+script to haproxy, and pass haproxy's output to another script. That's useful
+for retrieving counters or attack traces for example.
+
+The second one is only useful for issuing commands by hand. It has the benefit
+that the terminal is handled by the readline library which supports line
+editing and history, which is very convenient when issuing repeated commands
+(eg: watch a counter).
+
+The socket supports two operation modes :
+  - interactive
+  - non-interactive
+
+The non-interactive mode is the default when socat connects to the socket. In
+this mode, a single line may be sent. It is processed as a whole, responses are
+sent back, and the connection closes after the end of the response. This is the
+mode that scripts and monitoring tools use. It is possible to send multiple
+commands in this mode, they need to be delimited by a semi-colon (';'). For
+example :
+
+    # echo "show info;show stat;show table" | socat /var/run/haproxy stdio
+
+The interactive mode displays a prompt ('>') and waits for commands to be
+entered on the line, then processes them, and displays the prompt again to wait
+for a new command. This mode is entered via the "prompt" command which must be
+sent on the first line in non-interactive mode. The mode is a flip switch, if
+"prompt" is sent in interactive mode, it is disabled and the connection closes
+after processing the last command of the same line.
+
+For this reason, when debugging by hand, it's quite common to start with the
+"prompt" command :
+
+   # socat /var/run/haproxy readline
+   prompt
+   > show info
+   ...
+   >
+
+Since multiple commands may be issued at once, haproxy uses the empty line as a
+delimiter to mark an end of output for each command, and takes care of ensuring
+that no command can emit an empty line on output. A script can thus easily
+parse the output even when multiple commands were pipelined on a single line.
 
 It is important to understand that when multiple haproxy processes are started
 on the same sockets, any process may pick up the request and will output its
 own stats.
+
+The list of commands currently supported on the stats socket is provided below.
+If an unknown command is sent, haproxy displays the usage message which reminds
+all supported commands. Some commands support a more complex syntax, generally
+it will explain what part of the command is invalid when this happens.
 
 clear counters
   Clear the max values of the statistics counters in each proxy (frontend &
