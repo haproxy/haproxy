@@ -590,6 +590,7 @@ static void stats_sock_table_key_request(struct stream_interface *si, char **arg
 	unsigned char ip6_key[sizeof(struct in6_addr)];
 	long long value;
 	int data_type;
+	int cur_arg;
 	void *ptr;
 	struct freq_ctr_period *frqp;
 
@@ -680,31 +681,6 @@ static void stats_sock_table_key_request(struct stream_interface *si, char **arg
 		break;
 
 	case STAT_CLI_O_SET:
-		if (strncmp(args[5], "data.", 5) != 0) {
-			si->applet.ctx.cli.msg = "\"data.<type>\" followed by a value expected\n";
-			si->applet.st0 = STAT_CLI_PRINT;
-			return;
-		}
-
-		data_type = stktable_get_data_type(args[5] + 5);
-		if (data_type < 0) {
-			si->applet.ctx.cli.msg = "Unknown data type\n";
-			si->applet.st0 = STAT_CLI_PRINT;
-			return;
-		}
-
-		if (!px->table.data_ofs[data_type]) {
-			si->applet.ctx.cli.msg = "Data type not stored in this table\n";
-			si->applet.st0 = STAT_CLI_PRINT;
-			return;
-		}
-
-		if (!*args[6] || strl2llrc(args[6], strlen(args[6]), &value) != 0) {
-			si->applet.ctx.cli.msg = "Require a valid integer value to store\n";
-			si->applet.st0 = STAT_CLI_PRINT;
-			return;
-		}
-
 		if (ts)
 			stktable_touch(&px->table, ts, 1);
 		else {
@@ -718,28 +694,56 @@ static void stats_sock_table_key_request(struct stream_interface *si, char **arg
 			stktable_store(&px->table, ts, 1);
 		}
 
-		ptr = stktable_data_ptr(&px->table, ts, data_type);
-		switch (stktable_data_types[data_type].std_type) {
-		case STD_T_SINT:
-			stktable_data_cast(ptr, std_t_sint) = value;
-			break;
-		case STD_T_UINT:
-			stktable_data_cast(ptr, std_t_uint) = value;
-			break;
-		case STD_T_ULL:
-			stktable_data_cast(ptr, std_t_ull) = value;
-			break;
-		case STD_T_FRQP:
-			/* We set both the current and previous values. That way
-			 * the reported frequency is stable during all the period
-			 * then slowly fades out. This allows external tools to
-			 * push measures without having to update them too often.
-			 */
-			frqp = &stktable_data_cast(ptr, std_t_frqp);
-			frqp->curr_tick = now_ms;
-			frqp->prev_ctr = 0;
-			frqp->curr_ctr = value;
-			break;
+		for (cur_arg = 5; *args[cur_arg]; cur_arg += 2) {
+			if (strncmp(args[cur_arg], "data.", 5) != 0) {
+				si->applet.ctx.cli.msg = "\"data.<type>\" followed by a value expected\n";
+				si->applet.st0 = STAT_CLI_PRINT;
+				return;
+			}
+
+			data_type = stktable_get_data_type(args[cur_arg] + 5);
+			if (data_type < 0) {
+				si->applet.ctx.cli.msg = "Unknown data type\n";
+				si->applet.st0 = STAT_CLI_PRINT;
+				return;
+			}
+
+			if (!px->table.data_ofs[data_type]) {
+				si->applet.ctx.cli.msg = "Data type not stored in this table\n";
+				si->applet.st0 = STAT_CLI_PRINT;
+				return;
+			}
+
+			if (!*args[cur_arg+1] || strl2llrc(args[cur_arg+1], strlen(args[cur_arg+1]), &value) != 0) {
+				si->applet.ctx.cli.msg = "Require a valid integer value to store\n";
+				si->applet.st0 = STAT_CLI_PRINT;
+				return;
+			}
+
+			ptr = stktable_data_ptr(&px->table, ts, data_type);
+
+			switch (stktable_data_types[data_type].std_type) {
+			case STD_T_SINT:
+				stktable_data_cast(ptr, std_t_sint) = value;
+				break;
+			case STD_T_UINT:
+				stktable_data_cast(ptr, std_t_uint) = value;
+				break;
+			case STD_T_ULL:
+				stktable_data_cast(ptr, std_t_ull) = value;
+				break;
+			case STD_T_FRQP:
+				/* We set both the current and previous values. That way
+				 * the reported frequency is stable during all the period
+				 * then slowly fades out. This allows external tools to
+				 * push measures without having to update them too often.
+				 */
+				frqp = &stktable_data_cast(ptr, std_t_frqp);
+				frqp->curr_tick = now_ms;
+				frqp->prev_ctr = 0;
+				frqp->curr_ctr = value;
+				break;
+			}
 		}
 		break;
 

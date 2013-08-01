@@ -57,7 +57,8 @@
 #define MAX_LINE_ARGS   64
 
 // max # args on a stats socket
-#define MAX_STATS_ARGS  16
+// This should cover at least 5 + twice the # of data_types
+#define MAX_STATS_ARGS  64
 
 // max # of matches per regexp
 #define	MAX_MATCH       10
