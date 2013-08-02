@@ -589,7 +589,7 @@ smp_fetch_payload(struct proxy *px, struct session *s, void *l7, unsigned int op
 	if (!chn)
 		return 0;
 
-	if (!buf_size || buf_size > chn->buf->size || buf_offset + buf_size > chn->buf->size) {
+	if (buf_size > chn->buf->size || buf_offset + buf_size > chn->buf->size) {
 		/* will never match */
 		smp->flags = 0;
 		return 0;
@@ -600,30 +600,16 @@ smp_fetch_payload(struct proxy *px, struct session *s, void *l7, unsigned int op
 
 	/* init chunk as read only */
 	smp->type = SMP_T_CBIN;
-	chunk_initlen(&smp->data.str, chn->buf->p + buf_offset, 0, buf_size);
+	chunk_initlen(&smp->data.str, chn->buf->p + buf_offset, 0, buf_size ? buf_size : (chn->buf->i - buf_offset));
 	smp->flags = SMP_F_VOLATILE;
+	if (!buf_size && !channel_full(chn) && !channel_input_closed(chn))
+		smp->flags |= SMP_F_MAY_CHANGE;
+
 	return 1;
 
  too_short:
 	smp->flags = SMP_F_MAY_CHANGE;
 	return 0;
-}
-
-/* This function is used to validate the arguments passed to a "payload" fetch
- * keyword. This keyword expects two positive integers, with the second one
- * being strictly positive. It is assumed that the types are already the correct
- * ones. Returns 0 on error, non-zero if OK. If <err_msg> is not NULL, it will be
- * filled with a pointer to an error message in case of error, that the caller
- * is responsible for freeing. The initial location must either be freeable or
- * NULL.
- */
-static int val_payload(struct arg *arg, char **err_msg)
-{
-	if (!arg[1].data.uint) {
-		memprintf(err_msg, "payload length must be > 0");
-		return 0;
-	}
-	return 1;
 }
 
 /* This function is used to validate the arguments passed to a "payload_lv" fetch
@@ -660,7 +646,7 @@ static int val_payload_lv(struct arg *arg, char **err_msg)
  * instance IPv4/IPv6 must be declared IPv4.
  */
 static struct sample_fetch_kw_list smp_kws = {ILH, {
-	{ "payload",             smp_fetch_payload,        ARG2(2,UINT,UINT),      val_payload,    SMP_T_CBIN, SMP_USE_L6REQ|SMP_USE_L6RES },
+	{ "payload",             smp_fetch_payload,        ARG2(2,UINT,UINT),      NULL,           SMP_T_CBIN, SMP_USE_L6REQ|SMP_USE_L6RES },
 	{ "payload_lv",          smp_fetch_payload_lv,     ARG3(2,UINT,UINT,SINT), val_payload_lv, SMP_T_CBIN, SMP_USE_L6REQ|SMP_USE_L6RES },
 	{ "rdp_cookie",          smp_fetch_rdp_cookie,     ARG1(0,STR),            NULL,           SMP_T_CSTR, SMP_USE_L6REQ },
 	{ "rdp_cookie_cnt",      smp_fetch_rdp_cookie_cnt, ARG1(0,STR),            NULL,           SMP_T_UINT, SMP_USE_L6REQ },
@@ -671,14 +657,14 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "req_ssl_ver",         smp_fetch_req_ssl_ver,    0,                      NULL,           SMP_T_UINT, SMP_USE_L6REQ },
 
 	{ "req.len",             smp_fetch_req_len,        0,                      NULL,           SMP_T_UINT, SMP_USE_L6REQ },
-	{ "req.payload",         smp_fetch_payload,        ARG2(2,UINT,UINT),      val_payload,    SMP_T_CBIN, SMP_USE_L6REQ },
+	{ "req.payload",         smp_fetch_payload,        ARG2(2,UINT,UINT),      NULL,           SMP_T_CBIN, SMP_USE_L6REQ },
 	{ "req.payload_lv",      smp_fetch_payload_lv,     ARG3(2,UINT,UINT,SINT), val_payload_lv, SMP_T_CBIN, SMP_USE_L6REQ },
 	{ "req.rdp_cookie",      smp_fetch_rdp_cookie,     ARG1(0,STR),            NULL,           SMP_T_CSTR, SMP_USE_L6REQ },
 	{ "req.rdp_cookie_cnt",  smp_fetch_rdp_cookie_cnt, ARG1(0,STR),            NULL,           SMP_T_UINT, SMP_USE_L6REQ },
 	{ "req.ssl_hello_type",  smp_fetch_ssl_hello_type, 0,                      NULL,           SMP_T_UINT, SMP_USE_L6REQ },
 	{ "req.ssl_sni",         smp_fetch_ssl_hello_sni,  0,                      NULL,           SMP_T_CSTR, SMP_USE_L6REQ },
 	{ "req.ssl_ver",         smp_fetch_req_ssl_ver,    0,                      NULL,           SMP_T_UINT, SMP_USE_L6REQ },
-	{ "res.payload",         smp_fetch_payload,        ARG2(2,UINT,UINT),      val_payload,    SMP_T_CBIN, SMP_USE_L6RES },
+	{ "res.payload",         smp_fetch_payload,        ARG2(2,UINT,UINT),      NULL,           SMP_T_CBIN, SMP_USE_L6RES },
 	{ "res.payload_lv",      smp_fetch_payload_lv,     ARG3(2,UINT,UINT,SINT), val_payload_lv, SMP_T_CBIN, SMP_USE_L6RES },
 	{ "res.ssl_hello_type",  smp_fetch_ssl_hello_type, 0,                      NULL,           SMP_T_UINT, SMP_USE_L6RES },
 	{ "wait_end",            smp_fetch_wait_end,       0,                      NULL,           SMP_T_BOOL, SMP_USE_INTRN },

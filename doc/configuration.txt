@@ -9662,7 +9662,10 @@ req_len : integer (deprecated)
 
 req.payload(<offset>,<length>) : binary
   This extracts a binary block of <length> bytes and starting at byte <offset>
-  in the request buffer.
+  in the request buffer. As a special case, if the <length> argument is zero,
+  the the whole buffer from <offset> to the end is extracted. This can be used
+  with ACLs in order to check for the presence of some content in a buffer at
+  any location.
 
   ACL alternatives :
     payload(<offset>,<length>) : hex binary match
@@ -9805,7 +9808,10 @@ req_ssl_ver : integer (deprecated)
 
 res.payload(<offset>,<length>) : binary
   This extracts a binary block of <length> bytes and starting at byte <offset>
-  in the response buffer.
+  in the response buffer. As a special case, if the <length> argument is zero,
+  the the whole buffer from <offset> to the end is extracted. This can be used
+  with ACLs in order to check for the presence of some content in a buffer at
+  any location.
 
 res.payload_lv(<offset1>,<length>[,<offset2>]) : binary
   This extracts a binary block whose size is specified at <offset1> for <length>
