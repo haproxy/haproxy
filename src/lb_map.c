@@ -229,7 +229,7 @@ struct server *map_get_server_rr(struct proxy *px, struct server *srvtoavoid)
 	avoididx = 0; /* shut a gcc warning */
 	do {
 		srv = px->lbprm.map.srv[newidx++];
-		if (!srv->maxconn || srv->cur_sess < srv_dynamic_maxconn(srv)) {
+		if (!srv->maxconn || (!srv->nbpend && srv->served < srv_dynamic_maxconn(srv))) {
 			/* make sure it is not the server we are try to exclude... */
 			if (srv != srvtoavoid) {
 				px->lbprm.map.rr_idx = newidx;
