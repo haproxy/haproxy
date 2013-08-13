@@ -6885,6 +6885,12 @@ out_uri_auth_compat:
 				err_code |= ERR_WARN;
 			}
 
+			if ((newsrv->state & SRV_MAPPORTS) && (curproxy->options2 & PR_O2_RDPC_PRST)) {
+				Warning("config : %s '%s' : RDP cookie persistence will not work for server '%s' because it lacks an explicit port number.\n",
+				        proxy_type_str(curproxy), curproxy->id, newsrv->id);
+				err_code |= ERR_WARN;
+			}
+
 #if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_TRANSPARENT)
 			if (curproxy->mode != PR_MODE_HTTP && newsrv->conn_src.bind_hdr_occ) {
 				newsrv->conn_src.bind_hdr_occ = 0;
