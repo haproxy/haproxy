@@ -4170,7 +4170,7 @@ static int stats_table_request(struct stream_interface *si, int action)
 				si->applet.ctx.table.entry = ebmb_entry(eb, struct stksess, key);
 				if (show)
 					stksess_kill_if_expired(&si->applet.ctx.table.proxy->table, old);
-				else
+				else if (!skip_entry && !si->applet.ctx.table.entry->ref_cnt)
 					stksess_kill(&si->applet.ctx.table.proxy->table, old);
 				si->applet.ctx.table.entry->ref_cnt++;
 				break;
