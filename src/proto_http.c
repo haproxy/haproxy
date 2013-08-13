@@ -8289,8 +8289,6 @@ void http_init_txn(struct session *s)
 	txn->flags = 0;
 	txn->status = -1;
 
-	global.req_count++;
-
 	txn->cookie_first_date = 0;
 	txn->cookie_last_date = 0;
 
