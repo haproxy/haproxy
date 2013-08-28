@@ -1488,8 +1488,10 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_UNIQUEID: // %ID
+				ret = NULL;
 				src = s->unique_id;
-				ret = lf_text(tmplog, src, maxsize - (tmplog - dst), tmp);
+				if (src)
+					ret = lf_text(tmplog, src, maxsize - (tmplog - dst), tmp);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -1539,6 +1541,12 @@ void sess_log(struct session *s)
 		level = LOG_INFO;
 		if (err && (s->fe->options2 & PR_O2_LOGERRORS))
 			level = LOG_ERR;
+	}
+
+	/* if unique-id was not generated */
+	if (!s->unique_id && !LIST_ISEMPTY(&s->fe->format_unique_id)) {
+		if ((s->unique_id = pool_alloc2(pool2_uniqueid)) != NULL)
+			build_logline(s, s->unique_id, UNIQUEID_LEN, &s->fe->format_unique_id);
 	}
 
 	tmplog = update_log_hdr();

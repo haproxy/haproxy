@@ -2635,9 +2635,6 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 		}
 	}
 
-	if (!LIST_ISEMPTY(&s->fe->format_unique_id))
-		s->unique_id = pool_alloc2(pool2_uniqueid);
-
 	/* 4. We may have to convert HTTP/0.9 requests to HTTP/1.0 */
 	if (unlikely(msg->sl.rq.v_l == 0) && !http_upgrade_v09_to_v10(txn))
 		goto return_bad_req;
@@ -3950,8 +3947,12 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 
 	/* add unique-id if "header-unique-id" is specified */
 
-	if (!LIST_ISEMPTY(&s->fe->format_unique_id))
+	if (!LIST_ISEMPTY(&s->fe->format_unique_id)) {
+		if ((s->unique_id = pool_alloc2(pool2_uniqueid)) == NULL)
+			goto return_bad_req;
+		s->unique_id[0] = '\0';
 		build_logline(s, s->unique_id, UNIQUEID_LEN, &s->fe->format_unique_id);
+	}
 
 	if (s->fe->header_unique_id && s->unique_id) {
 		chunk_printf(&trash, "%s: %s", s->fe->header_unique_id, s->unique_id);
