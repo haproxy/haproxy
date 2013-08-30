@@ -847,7 +847,7 @@ void __send_log(struct proxy *p, int level, char *message, size_t size)
 		} while (fac_level && log_ptr > dataptr);
 		*log_ptr = '<';
 
-		sent = sendto(*plogfd, log_ptr, size + log_ptr - dataptr,
+		sent = sendto(*plogfd, log_ptr, size - (log_ptr - dataptr),
 			      MSG_DONTWAIT | MSG_NOSIGNAL,
 			      (struct sockaddr *)&logsrv->addr, get_addr_len(&logsrv->addr));
 		if (sent < 0) {
