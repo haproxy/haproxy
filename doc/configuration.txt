@@ -11448,7 +11448,8 @@ easier finding and understanding.
      PD   The proxy blocked an incorrectly formatted chunked encoded message in
           a request or a response, after the server has emitted its headers. In
           most cases, this will indicate an invalid message from the server to
-          the client.
+          the client. Haproxy supports chunk sizes of up to 2GB - 1 (2147483647
+          bytes). Any larger size will be considered as an error.
 
      PH   The proxy blocked the server's response, because it was invalid,
           incomplete, dangerous (cache control), or matched a security filter.
