@@ -468,7 +468,7 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 			goto out_wait;
 
 		if (ret < 0) {
-			if (errno == EAGAIN)
+			if (errno == EAGAIN || errno == ENOTCONN)
 				goto out_wait;
 			goto out_error;
 		}
