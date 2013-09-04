@@ -1401,6 +1401,7 @@ static struct task *process_peer_sync(struct task * task)
 				/* add DO NOT STOP flag if not present */
 				jobs++;
 				st->flags |= SHTABLE_F_DONOTSTOP;
+				st->table->syncing++;
 			}
 
 			/* disconnect all connected peers */
@@ -1418,6 +1419,7 @@ static struct task *process_peer_sync(struct task * task)
 				/* resync of new process was complete, current process can die now */
 				jobs--;
 				st->flags &= ~SHTABLE_F_DONOTSTOP;
+				st->table->syncing--;
 			}
 		}
 		else if (!ps->session) {
@@ -1440,6 +1442,7 @@ static struct task *process_peer_sync(struct task * task)
 					/* unable to resync new process, current process can die now */
 					jobs--;
 					st->flags &= ~SHTABLE_F_DONOTSTOP;
+					st->table->syncing--;
 				}
 			}
 		}

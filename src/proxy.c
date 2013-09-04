@@ -560,6 +560,24 @@ struct task *manage_proxy(struct task *t)
 		}
 	}
 
+	/* If the proxy holds a stick table, we need to purge all unused
+	 * entries. These are all the ones in the table with ref_cnt == 0
+	 * and all the ones in the pool used to allocate new entries. Any
+	 * entry attached to an existing session waiting for a store will
+	 * be in neither list. Any entry being dumped will have ref_cnt > 0.
+	 * However we protect tables that are being synced to peers.
+	 */
+	if (unlikely(stopping && p->state == PR_STSTOPPED && p->table.current)) {
+		if (!p->table.syncing) {
+			stktable_trash_oldest(&p->table, p->table.current);
+			pool_gc2();
+		}
+		if (p->table.current) {
+			/* some entries still remain, let's recheck in one second */
+			next = tick_first(next, tick_add(now_ms, 1000));
+		}
+	}
+
 	/* the rest below is just for frontends */
 	if (!(p->cap & PR_CAP_FE))
 		goto out;

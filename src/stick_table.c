@@ -90,7 +90,7 @@ static struct stksess *stksess_init(struct stktable *t, struct stksess * ts)
  * Trash oldest <to_batch> sticky sessions from table <t>
  * Returns number of trashed sticky sessions.
  */
-static int stktable_trash_oldest(struct stktable *t, int to_batch)
+int stktable_trash_oldest(struct stktable *t, int to_batch)
 {
 	struct stksess *ts;
 	struct eb32_node *eb;

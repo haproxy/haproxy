@@ -150,6 +150,7 @@ struct stktable {
 	struct task *sync_task;   /* sync task */
 	unsigned int update;
 	unsigned int localupdate;
+	unsigned int syncing;     /* number of sync tasks watching this table now */
 	union {
 		struct peers *p; /* sync peers */
 		char *name;

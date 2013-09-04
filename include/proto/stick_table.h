@@ -52,6 +52,7 @@ struct stktable_key *stktable_fetch_key(struct stktable *t, struct proxy *px,
 int stktable_compatible_sample(struct sample_expr *expr, unsigned long table_type);
 int stktable_get_data_type(char *name);
 struct proxy *find_stktable(const char *name);
+int stktable_trash_oldest(struct stktable *t, int to_batch);
 
 /* return allocation size for standard data type <type> */
 static inline int stktable_type_size(int type)
