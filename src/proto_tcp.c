@@ -51,6 +51,7 @@
 #include <proto/sample.h>
 #include <proto/session.h>
 #include <proto/stick_table.h>
+#include <proto/stream_interface.h>
 #include <proto/task.h>
 
 #ifdef CONFIG_HAP_CTTPROXY
@@ -1039,6 +1040,12 @@ int tcp_inspect_response(struct session *s, struct channel *rep, int an_bit)
 					s->flags |= SN_FINST_D;
 				return 0;
 			}
+			else if (rule->action == TCP_ACT_CLOSE) {
+				rep->prod->flags |= SI_FL_NOLINGER | SI_FL_NOHALF;
+				si_shutr(rep->prod);
+				si_shutw(rep->prod);
+				break;
+			}
 			else {
 				/* otherwise accept */
 				break;
@@ -1138,9 +1145,13 @@ static int tcp_parse_response_rule(char **args, int arg, int section_type,
 		arg++;
 		rule->action = TCP_ACT_REJECT;
 	}
+	else if (strcmp(args[arg], "close") == 0) {
+		arg++;
+		rule->action = TCP_ACT_CLOSE;
+	}
 	else {
 		memprintf(err,
-		          "'%s %s' expects 'accept' or 'reject' in %s '%s' (got '%s')",
+		          "'%s %s' expects 'accept', 'close' or 'reject' in %s '%s' (got '%s')",
 		          args[0], args[1], proxy_type_str(curpx), curpx->id, args[arg]);
 		return -1;
 	}

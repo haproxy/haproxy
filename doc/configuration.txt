@@ -6718,16 +6718,15 @@ tcp-response content <action> [{if | unless} <condition>]
                                  no    |    no    |   yes  |   yes
   Arguments :
     <action>    defines the action to perform if the condition applies. Valid
-                actions include : "accept", "reject".
-                See "tcp-request connection" above for their signification.
+                actions include : "accept", "close", "reject".
 
     <condition> is a standard layer 4-7 ACL-based condition (see section 7).
 
   Response contents can be analysed at an early stage of response processing
   called "TCP content inspection". During this stage, ACL-based rules are
   evaluated every time the response contents are updated, until either an
-  "accept" or a "reject" rule matches, or a TCP response inspection delay is
-  set and expires with no matching rule.
+  "accept", "close" or a "reject" rule matches, or a TCP response inspection
+  delay is set and expires with no matching rule.
 
   Most often, these decisions will consider a protocol recognition or validity.
 
@@ -6741,6 +6740,16 @@ tcp-response content <action> [{if | unless} <condition>]
         accepts the response if the condition is true (when used with "if")
         or false (when used with "unless"). The first such rule executed ends
         the rules evaluation.
+
+    - close :
+        immediately closes the connection with the server if the condition is
+        true (when used with "if"), or false (when used with "unless"). The
+        first such rule executed ends the rules evaluation. The main purpose of
+        this action is to force a connection to be finished between a client
+        and a server after an exchange when the application protocol expects
+        some long time outs to elapse first. The goal is to eliminate idle
+        connections which take signifiant resources on servers with certain
+        protocols.
 
     - reject :
         rejects the response if the condition is true (when used with "if")

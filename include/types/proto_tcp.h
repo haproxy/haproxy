@@ -37,6 +37,7 @@ enum {
 	TCP_ACT_TRK_SC1 = 5,
 	TCP_ACT_TRK_SC2 = 6,
 	TCP_ACT_TRK_SCMAX = TCP_ACT_TRK_SC0 + MAX_SESS_STKCTR - 1,
+	TCP_ACT_CLOSE, /* close at the sender's */
 };
 
 struct tcp_rule {
