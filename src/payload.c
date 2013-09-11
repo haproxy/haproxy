@@ -42,14 +42,16 @@ smp_fetch_wait_end(struct proxy *px, struct session *s, void *l7, unsigned int o
 
 /* return the number of bytes in the request buffer */
 static int
-smp_fetch_req_len(struct proxy *px, struct session *s, void *l7, unsigned int opt,
+smp_fetch_len(struct proxy *px, struct session *s, void *l7, unsigned int opt,
                   const struct arg *args, struct sample *smp, const char *kw)
 {
-	if (!s || !s->req)
+	struct channel *chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? s->rep : s->req;
+
+	if (!s || !chn)
 		return 0;
 
 	smp->type = SMP_T_UINT;
-	smp->data.uint = s->req->buf->i;
+	smp->data.uint = chn->buf->i;
 	smp->flags = SMP_F_VOLATILE | SMP_F_MAY_CHANGE;
 	return 1;
 }
@@ -651,12 +653,12 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "rdp_cookie",          smp_fetch_rdp_cookie,     ARG1(0,STR),            NULL,           SMP_T_CSTR, SMP_USE_L6REQ },
 	{ "rdp_cookie_cnt",      smp_fetch_rdp_cookie_cnt, ARG1(0,STR),            NULL,           SMP_T_UINT, SMP_USE_L6REQ },
 	{ "rep_ssl_hello_type",  smp_fetch_ssl_hello_type, 0,                      NULL,           SMP_T_UINT, SMP_USE_L6RES },
-	{ "req_len",             smp_fetch_req_len,        0,                      NULL,           SMP_T_UINT, SMP_USE_L6REQ },
+	{ "req_len",             smp_fetch_len,            0,                      NULL,           SMP_T_UINT, SMP_USE_L6REQ },
 	{ "req_ssl_hello_type",  smp_fetch_ssl_hello_type, 0,                      NULL,           SMP_T_UINT, SMP_USE_L6REQ },
 	{ "req_ssl_sni",         smp_fetch_ssl_hello_sni,  0,                      NULL,           SMP_T_CSTR, SMP_USE_L6REQ },
 	{ "req_ssl_ver",         smp_fetch_req_ssl_ver,    0,                      NULL,           SMP_T_UINT, SMP_USE_L6REQ },
 
-	{ "req.len",             smp_fetch_req_len,        0,                      NULL,           SMP_T_UINT, SMP_USE_L6REQ },
+	{ "req.len",             smp_fetch_len,            0,                      NULL,           SMP_T_UINT, SMP_USE_L6REQ },
 	{ "req.payload",         smp_fetch_payload,        ARG2(2,UINT,UINT),      NULL,           SMP_T_CBIN, SMP_USE_L6REQ },
 	{ "req.payload_lv",      smp_fetch_payload_lv,     ARG3(2,UINT,UINT,SINT), val_payload_lv, SMP_T_CBIN, SMP_USE_L6REQ },
 	{ "req.rdp_cookie",      smp_fetch_rdp_cookie,     ARG1(0,STR),            NULL,           SMP_T_CSTR, SMP_USE_L6REQ },
@@ -664,6 +666,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "req.ssl_hello_type",  smp_fetch_ssl_hello_type, 0,                      NULL,           SMP_T_UINT, SMP_USE_L6REQ },
 	{ "req.ssl_sni",         smp_fetch_ssl_hello_sni,  0,                      NULL,           SMP_T_CSTR, SMP_USE_L6REQ },
 	{ "req.ssl_ver",         smp_fetch_req_ssl_ver,    0,                      NULL,           SMP_T_UINT, SMP_USE_L6REQ },
+	{ "res.len",             smp_fetch_len,            0,                      NULL,           SMP_T_UINT, SMP_USE_L6RES },
 	{ "res.payload",         smp_fetch_payload,        ARG2(2,UINT,UINT),      NULL,           SMP_T_CBIN, SMP_USE_L6RES },
 	{ "res.payload_lv",      smp_fetch_payload_lv,     ARG3(2,UINT,UINT,SINT), val_payload_lv, SMP_T_CBIN, SMP_USE_L6RES },
 	{ "res.ssl_hello_type",  smp_fetch_ssl_hello_type, 0,                      NULL,           SMP_T_UINT, SMP_USE_L6RES },

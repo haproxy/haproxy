@@ -9825,6 +9825,16 @@ req_ssl_ver : integer (deprecated)
   ACL derivatives :
     req_ssl_ver : decimal match
 
+res.len : integer
+  Returns an integer value corresponding to the number of bytes present in the
+  response buffer. This is mostly used in ACL. It is important to understand
+  that this test does not return false as long as the buffer is changing. This
+  means that a check with equality to zero will almost always immediately match
+  at the beginning of the session, while a test for more data will wait for
+  that data to come in and return false only when haproxy is certain that no
+  more data will come in. This test was designed to be used with TCP response
+  content inspection.
+
 res.payload(<offset>,<length>) : binary
   This extracts a binary block of <length> bytes and starting at byte <offset>
   in the response buffer. As a special case, if the <length> argument is zero,
