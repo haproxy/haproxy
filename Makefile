@@ -68,6 +68,8 @@
 #   PCREDIR        : force the path to libpcre.
 #   PCRE_LIB       : force the lib path to libpcre (defaults to $PCREDIR/lib).
 #   PCRE_INC       : force the include path to libpcre ($PCREDIR/inc)
+#   SSL_LIB        : force the lib path to libssl/libcrypto
+#   SSL_INC        : force the include path to libssl/libcrypto
 #   IGNOREGIT      : ignore GIT commit versions if set.
 #   VERSION        : force haproxy version reporting.
 #   SUBVERS        : add a sub-version (eg: platform, model, ...).
@@ -517,11 +519,11 @@ ifneq ($(USE_OPENSSL),)
 # OpenSSL is packaged in various forms and with various dependences.
 # In general -lssl is enough, but on some platforms, -lcrypto may be needed,
 # reason why it's added by default. Some even need -lz, then you'll need to
-# pass it in the "ADDLIB" variable if needed. Similarly, use ADDINC and ADDLIB
-# to specify -I and -L if your OpenSSL library is not in the standard path.
+# pass it in the "ADDLIB" variable if needed. If your SSL libraries are not
+# in the usual path, use SSL_INC=/path/to/inc and SSL_LIB=/path/to/lib.
 BUILD_OPTIONS   += $(call ignore_implicit,USE_OPENSSL)
-OPTIONS_CFLAGS  += -DUSE_OPENSSL
-OPTIONS_LDFLAGS += -lssl -lcrypto
+OPTIONS_CFLAGS  += -DUSE_OPENSSL $(if $(SSL_INC),-I$(SSL_INC))
+OPTIONS_LDFLAGS += $(if $(SSL_LIB),-L$(SSL_LIB)) -lssl -lcrypto
 OPTIONS_OBJS  += src/ssl_sock.o src/shctx.o
 ifneq ($(USE_PRIVATE_CACHE),)
 OPTIONS_CFLAGS  += -DUSE_PRIVATE_CACHE
