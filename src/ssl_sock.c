@@ -855,7 +855,11 @@ static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
 		for (i = 0; !ok && i < sk_GENERAL_NAME_num(alt_names); i++) {
 			GENERAL_NAME *name = sk_GENERAL_NAME_value(alt_names, i);
 			if (name->type == GEN_DNS) {
+#if OPENSSL_VERSION_NUMBER < 0x00907000L
+				if (ASN1_STRING_to_UTF8((unsigned char **)&str, name->d.ia5) >= 0) {
+#else
 				if (ASN1_STRING_to_UTF8((unsigned char **)&str, name->d.dNSName) >= 0) {
+#endif
 					ok = ssl_sock_srv_hostcheck(str, servername);
 					OPENSSL_free(str);
 				}
