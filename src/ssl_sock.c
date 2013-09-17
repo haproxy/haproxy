@@ -861,6 +861,7 @@ static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
 				}
 			}
 		}
+		sk_GENERAL_NAME_pop_free(alt_names, GENERAL_NAME_free);
 	}
 
 	cert_subject = X509_get_subject_name(cert);
