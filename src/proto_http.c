@@ -5700,6 +5700,9 @@ int http_process_res_common(struct session *t, struct channel *rep, int an_bit, 
 		}
 	}
 
+	/* we want to have the response time before we start processing it */
+	t->logs.t_data = tv_ms_elapsed(&t->logs.tv_accept, &now);
+
 	if (1) {
 		/*
 		 * 3: we will have to evaluate the filters.
@@ -5731,6 +5734,7 @@ int http_process_res_common(struct session *t, struct channel *rep, int an_bit, 
 				return_srv_prx_502:
 					rep->analysers = 0;
 					txn->status = 502;
+					t->logs.t_data = -1; /* was not a valid response */
 					rep->prod->flags |= SI_FL_NOLINGER;
 					bi_erase(rep);
 					stream_int_retnclose(rep->cons, http_error_message(t, HTTP_ERR_502));
@@ -5788,6 +5792,7 @@ int http_process_res_common(struct session *t, struct channel *rep, int an_bit, 
 			msg->next -= channel_forward(rep, msg->next);
 			msg->msg_state = HTTP_MSG_RPBEFORE;
 			txn->status = 0;
+			t->logs.t_data = -1; /* was not a response yet */
 			rep->analysers |= AN_RES_WAIT_HTTP | an_bit;
 			return 1;
 		}
@@ -5959,8 +5964,6 @@ int http_process_res_common(struct session *t, struct channel *rep, int an_bit, 
 		 * OK, that's finished for the headers. We have done what we *
 		 * could. Let's switch to the DATA state.                    *
 		 ************************************************************/
-
-		t->logs.t_data = tv_ms_elapsed(&t->logs.tv_accept, &now);
 
 		/* if the user wants to log as soon as possible, without counting
 		 * bytes from the server, then this is the right moment. We have
