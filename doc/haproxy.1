@@ -6,7 +6,7 @@ HAProxy \- fast and reliable http reverse proxy and load balancer
 
 .SH SYNOPSIS
 
-haproxy \-f <configuration\ file> [\-n\ maxconn] [\-N\ maxconn] [\-d] [\-D] [\-q] [\-V] [\-c] [\-p\ <pidfile>] [\-s] [\-l] [\-dk] [\-ds] [\-de] [\-dp] [\-db] [\-m\ <megs>] [{\-sf|\-st}\ pidlist...] 
+haproxy \-f <configuration\ file> [\-L\ <name>] [\-n\ maxconn] [\-N\ maxconn] [\-C\ <dir>] [\-v|\-vv] [\-d] [\-D] [\-q] [\-V] [\-c] [\-p\ <pidfile>] [\-s] [\-l] [\-dk] [\-ds] [\-de] [\-dp] [\-db] [\-dM[<byte>]] [\-m\ <megs>] [{\-sf|\-st}\ pidlist...]
 
 .SH DESCRIPTION
 
@@ -37,12 +37,31 @@ instances without risking the system's stability.
 Specify configuration file path.
 
 .TP
+\fB\-L <name>\fP
+Set the local instance's peer name. Peers are defined in the \fBpeers\fP
+configuration section and used for syncing stick tables between different
+instances. If this option is not specified, the local hostname is used as peer
+name.
+
+.TP
 \fB\-n <maxconn>\fP
 Set the high limit for the total number of simultaneous connections.
 
 .TP
 \fB\-N <maxconn>\fP
 Set the high limit for the per-listener number of simultaneous connections.
+
+.TP
+\fB\-C <dir>\fP
+Change directory to <\fIdir\fP> before loading any files.
+
+.TP
+\fB\-v\fP
+Display HAProxy's version.
+
+.TP
+\fB\-vv\fP
+Display HAProxy's version and all build options.
 
 .TP
 \fB\-d\fP
@@ -108,12 +127,23 @@ and some custom Linux 2.4 systems.
 Disables use of poll(). select() might be used instead.
 
 .TP
+\fB\-dS\fP
+Disables use of splice(), which is broken on older kernels.
+
+.TP
 \fB\-db\fP
 Disables background mode (stays in foreground, useful for debugging).
 For debugging, the '\-db' option is very useful as it temporarily
 disables daemon mode and multi-process mode. The service can then be
 stopped by simply pressing Ctrl-C, without having to edit the config nor
 run full debug.
+
+.TP
+\fB\-dM[<byte>]\fP
+Initializes all allocated memory areas with the given <\fIbyte\fP>. This makes
+it easier to detect bugs resulting from uninitialized memory accesses, at the
+expense of touching all allocated memory once. If <\fIbyte\fP> is not
+specified, it defaults to 0x50 (ASCII 'P').
 
 .TP
 \fB\-m <megs>\fP
