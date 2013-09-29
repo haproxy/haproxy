@@ -158,7 +158,7 @@ static int stats_accept(struct session *s)
 {
 	/* we have a dedicated I/O handler for the stats */
 	stream_int_register_handler(&s->si[1], &cli_applet);
-	s->target = s->si[1].conn->target; // for logging only
+	s->target = &cli_applet.obj_type; // for logging only
 	s->si[1].appctx.st1 = 0;
 	s->si[1].appctx.st0 = STAT_CLI_INIT;
 
@@ -3910,7 +3910,8 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 			     sess->uniq_id,
 			     sess->listener && sess->listener->proto->name ? sess->listener->proto->name : "?");
 
-		switch (addr_to_str(&sess->si[0].conn->addr.from, pn, sizeof(pn))) {
+		switch ((obj_type(sess->si[0].end) == OBJ_TYPE_CONN) ?
+			addr_to_str(&sess->si[0].conn->addr.from, pn, sizeof(pn)) : AF_UNSPEC) {
 		case AF_INET:
 		case AF_INET6:
 			chunk_appendf(&trash, " source=%s:%d\n",
@@ -3935,8 +3936,11 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 			     sess->listener ? sess->listener->name ? sess->listener->name : "?" : "?",
 			     sess->listener ? sess->listener->luid : 0);
 
-		conn_get_to_addr(sess->si[0].conn);
-		switch (addr_to_str(&sess->si[0].conn->addr.to, pn, sizeof(pn))) {
+		if (obj_type(sess->si[0].end) == OBJ_TYPE_CONN)
+			conn_get_to_addr(sess->si[0].conn);
+
+		switch ((obj_type(sess->si[0].end) == OBJ_TYPE_CONN) ?
+			addr_to_str(&sess->si[0].conn->addr.to, pn, sizeof(pn)) : AF_UNSPEC) {
 		case AF_INET:
 		case AF_INET6:
 			chunk_appendf(&trash, " addr=%s:%d\n",
@@ -3959,8 +3963,11 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 		else
 			chunk_appendf(&trash, "  backend=<NONE> (id=-1 mode=-)");
 
-		conn_get_from_addr(sess->si[1].conn);
-		switch (addr_to_str(&sess->si[1].conn->addr.from, pn, sizeof(pn))) {
+		if (obj_type(sess->si[1].end) == OBJ_TYPE_CONN)
+			conn_get_from_addr(sess->si[1].conn);
+
+		switch ((obj_type(sess->si[1].end) == OBJ_TYPE_CONN) ?
+			addr_to_str(&sess->si[1].conn->addr.from, pn, sizeof(pn)) : AF_UNSPEC) {
 		case AF_INET:
 		case AF_INET6:
 			chunk_appendf(&trash, " addr=%s:%d\n",
@@ -3983,8 +3990,11 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 		else
 			chunk_appendf(&trash, "  server=<NONE> (id=-1)");
 
-		conn_get_to_addr(sess->si[1].conn);
-		switch (addr_to_str(&sess->si[1].conn->addr.to, pn, sizeof(pn))) {
+		if (obj_type(sess->si[1].end) == OBJ_TYPE_CONN)
+			conn_get_to_addr(sess->si[1].conn);
+
+		switch ((obj_type(sess->si[1].end) == OBJ_TYPE_CONN) ?
+			addr_to_str(&sess->si[1].conn->addr.to, pn, sizeof(pn)) : AF_UNSPEC) {
 		case AF_INET:
 		case AF_INET6:
 			chunk_appendf(&trash, " addr=%s:%d\n",
@@ -4020,10 +4030,12 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 			     http_msg_state_str(sess->txn.req.msg_state), http_msg_state_str(sess->txn.rsp.msg_state));
 
 		chunk_appendf(&trash,
-			     "  si[0]=%p (state=%s flags=0x%02x conn0=%p exp=%s, et=0x%03x)\n",
+			     "  si[0]=%p (state=%s flags=0x%02x endp0=%s:%p conn0=%p exp=%s, et=0x%03x)\n",
 			     &sess->si[0],
 			     si_state_str(sess->si[0].state),
 			     sess->si[0].flags,
+			     obj_type_name(sess->si[0].end),
+			     obj_base_ptr(sess->si[0].end),
 			     sess->si[0].conn,
 			     sess->si[0].exp ?
 			             tick_is_expired(sess->si[0].exp, now_ms) ? "<PAST>" :
@@ -4032,10 +4044,12 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 			     sess->si[0].err_type);
 
 		chunk_appendf(&trash,
-			     "  si[1]=%p (state=%s flags=0x%02x conn1=%p exp=%s, et=0x%03x)\n",
+			     "  si[1]=%p (state=%s flags=0x%02x endp1=%s:%p conn1=%p exp=%s, et=0x%03x)\n",
 			     &sess->si[1],
 			     si_state_str(sess->si[1].state),
 			     sess->si[1].flags,
+			     obj_type_name(sess->si[1].end),
+			     obj_base_ptr(sess->si[1].end),
 			     sess->si[1].conn,
 			     sess->si[1].exp ?
 			             tick_is_expired(sess->si[1].exp, now_ms) ? "<PAST>" :
@@ -4043,39 +4057,43 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 			                     TICKS_TO_MS(1000)) : "<NEVER>",
 			     sess->si[1].err_type);
 
-		chunk_appendf(&trash,
-		              "  co0=%p ctrl=%s xprt=%s data=%s target=%s:%p\n",
-			      sess->si[0].conn,
-			      get_conn_ctrl_name(sess->si[0].conn),
-			      get_conn_xprt_name(sess->si[0].conn),
-			      get_conn_data_name(sess->si[0].conn),
-		              obj_type_name(sess->si[0].conn->target),
-		              obj_base_ptr(sess->si[0].conn->target));
+		if (obj_type(sess->si[0].end) == OBJ_TYPE_CONN) {
+			chunk_appendf(&trash,
+			              "  co0=%p ctrl=%s xprt=%s data=%s target=%s:%p\n",
+				      sess->si[0].conn,
+				      get_conn_ctrl_name(sess->si[0].conn),
+				      get_conn_xprt_name(sess->si[0].conn),
+				      get_conn_data_name(sess->si[0].conn),
+			              obj_type_name(sess->si[0].conn->target),
+			              obj_base_ptr(sess->si[0].conn->target));
 
-		chunk_appendf(&trash,
-		              "      flags=0x%08x fd=%d fd_spec_e=%02x fd_spec_p=%d updt=%d\n",
-		              sess->si[0].conn->flags,
-		              sess->si[0].conn->t.sock.fd,
-		              sess->si[0].conn->t.sock.fd >= 0 ? fdtab[sess->si[0].conn->t.sock.fd].spec_e : 0,
-		              sess->si[0].conn->t.sock.fd >= 0 ? fdtab[sess->si[0].conn->t.sock.fd].spec_p : 0,
-		              sess->si[0].conn->t.sock.fd >= 0 ? fdtab[sess->si[0].conn->t.sock.fd].updated : 0);
+			chunk_appendf(&trash,
+			              "      flags=0x%08x fd=%d fd_spec_e=%02x fd_spec_p=%d updt=%d\n",
+			              sess->si[0].conn->flags,
+			              sess->si[0].conn->t.sock.fd,
+			              sess->si[0].conn->t.sock.fd >= 0 ? fdtab[sess->si[0].conn->t.sock.fd].spec_e : 0,
+			              sess->si[0].conn->t.sock.fd >= 0 ? fdtab[sess->si[0].conn->t.sock.fd].spec_p : 0,
+			              sess->si[0].conn->t.sock.fd >= 0 ? fdtab[sess->si[0].conn->t.sock.fd].updated : 0);
+		}
 
-		chunk_appendf(&trash,
-		              "  co1=%p ctrl=%s xprt=%s data=%s target=%s:%p\n",
-			      sess->si[1].conn,
-			      get_conn_ctrl_name(sess->si[1].conn),
-			      get_conn_xprt_name(sess->si[1].conn),
-			      get_conn_data_name(sess->si[1].conn),
-		              obj_type_name(sess->si[1].conn->target),
-		              obj_base_ptr(sess->si[1].conn->target));
+		if (obj_type(sess->si[1].end) == OBJ_TYPE_CONN) {
+			chunk_appendf(&trash,
+			              "  co1=%p ctrl=%s xprt=%s data=%s target=%s:%p\n",
+				      sess->si[1].conn,
+				      get_conn_ctrl_name(sess->si[1].conn),
+				      get_conn_xprt_name(sess->si[1].conn),
+				      get_conn_data_name(sess->si[1].conn),
+			              obj_type_name(sess->si[1].conn->target),
+			              obj_base_ptr(sess->si[1].conn->target));
 
-		chunk_appendf(&trash,
-		              "      flags=0x%08x fd=%d fd_spec_e=%02x fd_spec_p=%d updt=%d\n",
-		              sess->si[1].conn->flags,
-		              sess->si[1].conn->t.sock.fd,
-		              sess->si[1].conn->t.sock.fd >= 0 ? fdtab[sess->si[1].conn->t.sock.fd].spec_e : 0,
-		              sess->si[1].conn->t.sock.fd >= 0 ? fdtab[sess->si[1].conn->t.sock.fd].spec_p : 0,
-		              sess->si[1].conn->t.sock.fd >= 0 ? fdtab[sess->si[1].conn->t.sock.fd].updated : 0);
+			chunk_appendf(&trash,
+			              "      flags=0x%08x fd=%d fd_spec_e=%02x fd_spec_p=%d updt=%d\n",
+			              sess->si[1].conn->flags,
+			              sess->si[1].conn->t.sock.fd,
+			              sess->si[1].conn->t.sock.fd >= 0 ? fdtab[sess->si[1].conn->t.sock.fd].spec_e : 0,
+			              sess->si[1].conn->t.sock.fd >= 0 ? fdtab[sess->si[1].conn->t.sock.fd].spec_p : 0,
+			              sess->si[1].conn->t.sock.fd >= 0 ? fdtab[sess->si[1].conn->t.sock.fd].updated : 0);
+		}
 
 		chunk_appendf(&trash,
 			     "  req=%p (f=0x%06x an=0x%x pipe=%d tofwd=%d total=%lld)\n"
@@ -4222,7 +4240,8 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 				     curr_sess->listener->proto->name);
 
 
-			switch (addr_to_str(&curr_sess->si[0].conn->addr.from, pn, sizeof(pn))) {
+			switch ((obj_type(curr_sess->si[0].end) == OBJ_TYPE_CONN) ?
+				addr_to_str(&curr_sess->si[0].conn->addr.from, pn, sizeof(pn)) : AF_UNSPEC) {
 			case AF_INET:
 			case AF_INET6:
 				chunk_appendf(&trash,
@@ -4297,7 +4316,8 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 				     " s0=[%d,%1xh,fd=%d,ex=%s]",
 				     curr_sess->si[0].state,
 				     curr_sess->si[0].flags,
-				     curr_sess->si[0].conn->t.sock.fd,
+				     (obj_type(curr_sess->si[0].end) == OBJ_TYPE_CONN) ?
+				      curr_sess->si[0].conn->t.sock.fd : -1,
 				     curr_sess->si[0].exp ?
 				     human_time(TICKS_TO_MS(curr_sess->si[0].exp - now_ms),
 						TICKS_TO_MS(1000)) : "");
@@ -4306,7 +4326,8 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 				     " s1=[%d,%1xh,fd=%d,ex=%s]",
 				     curr_sess->si[1].state,
 				     curr_sess->si[1].flags,
-				     curr_sess->si[1].conn->t.sock.fd,
+				     (obj_type(curr_sess->si[1].end) == OBJ_TYPE_CONN) ?
+				      curr_sess->si[1].conn->t.sock.fd : -1,
 				     curr_sess->si[1].exp ?
 				     human_time(TICKS_TO_MS(curr_sess->si[1].exp - now_ms),
 						TICKS_TO_MS(1000)) : "");

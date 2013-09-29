@@ -1062,7 +1062,7 @@ static void peer_session_forceshutdown(struct session * session)
 {
 	struct stream_interface *oldsi;
 
-	if (objt_applet(session->si[0].conn->target) == &peer_applet) {
+	if (si_applet(&session->si[0]) == &peer_applet) {
 		oldsi = &session->si[0];
 	}
 	else {
@@ -1086,7 +1086,7 @@ int peer_accept(struct session *s)
 {
 	 /* we have a dedicated I/O handler for the stats */
 	stream_int_register_handler(&s->si[1], &peer_applet);
-	s->target = s->si[1].conn->target; // for logging only
+	s->target = &peer_applet.obj_type; // for logging only
 	s->si[1].appctx.ctx.peers.ptr = s;
 	s->si[1].appctx.st0 = PEER_SESSION_ACCEPT;
 

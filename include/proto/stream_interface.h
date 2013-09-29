@@ -55,38 +55,52 @@ static inline void si_prepare_none(struct stream_interface *si)
 {
 	si->ops = &si_embedded_ops;
 	si->end = NULL;
-	conn_prepare(si->conn, NULL, NULL, NULL, si);
-	si->conn->target = NULL;
 	si->appctx.applet = NULL;
 }
 
 static inline void si_prepare_conn(struct stream_interface *si, const struct protocol *ctrl, const struct xprt_ops *xprt)
 {
 	si->ops = &si_conn_ops;
-	si->end = NULL;
+	si->end = &si->conn->obj_type;
 	conn_prepare(si->conn, &si_conn_cb, ctrl, xprt, si);
 }
 
 static inline void si_takeover_conn(struct stream_interface *si, const struct protocol *ctrl, const struct xprt_ops *xprt)
 {
 	si->ops = &si_conn_ops;
-	si->end = NULL;
+	si->end = &si->conn->obj_type;
 	conn_assign(si->conn, &si_conn_cb, ctrl, xprt, si);
 }
 
 static inline void si_prepare_applet(struct stream_interface *si, struct si_applet *applet)
 {
 	si->ops = &si_embedded_ops;
-	si->end = NULL;
-	conn_prepare(si->conn, NULL, NULL, NULL, si);
-	si->conn->target = &applet->obj_type;
 	si->appctx.applet = applet;
+	si->appctx.obj_type = OBJ_TYPE_APPCTX;
+	si->end = &si->appctx.obj_type;
 }
 
 /* returns a pointer to the applet being run in the SI or NULL if none */
 static inline const struct si_applet *si_applet(struct stream_interface *si)
 {
-	return objt_applet(si->conn->target);
+	if (objt_appctx(si->end))
+		return si->appctx.applet;
+	return NULL;
+}
+
+/* Call the applet's main function when an appctx is attached to the stream
+ * interface. Returns zero if no call was made, or non-zero if a call was made.
+ */
+static inline int si_applet_call(struct stream_interface *si)
+{
+	const struct si_applet *applet;
+
+	applet = si_applet(si);
+	if (applet) {
+		applet->fct(si);
+		return 1;
+	}
+	return 0;
 }
 
 /* call the applet's release function if any. Needs to be called upon close() */

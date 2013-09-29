@@ -365,7 +365,6 @@ struct task *stream_int_register_handler(struct stream_interface *si, struct si_
 void stream_int_unregister_handler(struct stream_interface *si)
 {
 	si->owner = NULL;
-	si->conn->target = NULL;
 	si->end = NULL;
 }
 

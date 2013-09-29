@@ -2182,9 +2182,9 @@ struct task *process_session(struct task *t)
 	if (s->req->cons->state == SI_ST_INI) {
 		if (!(s->req->flags & CF_SHUTW)) {
 			if ((s->req->flags & CF_AUTO_CONNECT) || !channel_is_empty(s->req)) {
-				/* If we have an applet without a connect method, we immediately
-				 * switch to the connected state, otherwise we perform a connection
-				 * request.
+				/* If we have an appctx, there is no connect method, so we
+				 * immediately switch to the connected state, otherwise we
+				 * perform a connection request.
 				 */
 				s->req->cons->state = SI_ST_REQ; /* new connection requested */
 				s->req->cons->conn_retries = s->be->conn_retries;
@@ -2366,10 +2366,10 @@ struct task *process_session(struct task *t)
 		if ((s->fe->options & PR_O_CONTSTATS) && (s->flags & SN_BE_ASSIGNED))
 			session_process_counters(s);
 
-		if (s->rep->cons->state == SI_ST_EST && obj_type(s->rep->cons->conn->target) != OBJ_TYPE_APPLET)
+		if (s->rep->cons->state == SI_ST_EST && obj_type(s->rep->cons->end) != OBJ_TYPE_APPCTX)
 			si_update(s->rep->cons);
 
-		if (s->req->cons->state == SI_ST_EST && obj_type(s->req->cons->conn->target) != OBJ_TYPE_APPLET)
+		if (s->req->cons->state == SI_ST_EST && obj_type(s->req->cons->end) != OBJ_TYPE_APPCTX)
 			si_update(s->req->cons);
 
 		s->req->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_WRITE_NULL|CF_WRITE_PARTIAL|CF_READ_ATTACHED);
@@ -2393,20 +2393,17 @@ struct task *process_session(struct task *t)
 			s->req->rex = TICK_ETERNITY;
 		}
 
-		/* Call the stream interfaces' I/O handlers when embedded.
-		 * Note that this one may wake the task up again.
+		/* When any of the stream interfaces is attached to an applet,
+		 * we have to call it here. Note that this one may wake the
+		 * task up again. If at least one applet was called, the current
+		 * task might have been woken up, in which case we don't want it
+		 * to be requeued to the wait queue but rather to the run queue
+		 * to run ASAP. The bitwise "or" in the condition ensures that
+		 * both functions are always called and that we wake up if at
+		 * least one did something.
 		 */
-		if (obj_type(s->req->cons->conn->target) == OBJ_TYPE_APPLET ||
-		    obj_type(s->rep->cons->conn->target) == OBJ_TYPE_APPLET) {
-			if (objt_applet(s->req->cons->conn->target))
-				objt_applet(s->req->cons->conn->target)->fct(s->req->cons);
-			if (objt_applet(s->rep->cons->conn->target))
-				objt_applet(s->rep->cons->conn->target)->fct(s->rep->cons);
+		if ((si_applet_call(s->req->cons) | si_applet_call(s->rep->cons)) != 0) {
 			if (task_in_rq(t)) {
-				/* If we woke up, we don't want to requeue the
-				 * task to the wait queue, but rather requeue
-				 * it into the runqueue ASAP.
-				 */
 				t->expire = TICK_ETERNITY;
 				return t;
 			}
