@@ -51,6 +51,13 @@ static inline const struct protocol *si_ctrl(struct stream_interface *si)
 	return si->conn->ctrl;
 }
 
+static inline void si_prepare_none(struct stream_interface *si)
+{
+	si->ops = &si_embedded_ops;
+	conn_prepare(si->conn, NULL, NULL, NULL, si);
+	si->conn->target = NULL;
+}
+
 static inline void si_prepare_conn(struct stream_interface *si, const struct protocol *ctrl, const struct xprt_ops *xprt)
 {
 	si->ops = &si_conn_ops;
@@ -63,10 +70,11 @@ static inline void si_takeover_conn(struct stream_interface *si, const struct pr
 	conn_assign(si->conn, &si_conn_cb, ctrl, xprt, si);
 }
 
-static inline void si_prepare_embedded(struct stream_interface *si)
+static inline void si_prepare_applet(struct stream_interface *si, struct si_applet *applet)
 {
 	si->ops = &si_embedded_ops;
 	conn_prepare(si->conn, NULL, NULL, NULL, si);
+	si->conn->target = &applet->obj_type;
 }
 
 /* Sends a shutr to the connection using the data layer */

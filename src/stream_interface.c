@@ -358,8 +358,7 @@ struct task *stream_int_register_handler(struct stream_interface *si, struct si_
 {
 	DPRINTF(stderr, "registering handler %p for si %p (was %p)\n", app, si, si->owner);
 
-	si_prepare_embedded(si);
-	si->conn->target = &app->obj_type;
+	si_prepare_applet(si, app);
 	si->release = app->release;
 	si->flags |= SI_FL_WAIT_DATA;
 	return si->owner;

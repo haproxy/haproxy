@@ -469,8 +469,7 @@ int session_complete(struct session *s)
 	s->si[1].conn_retries = 0;  /* used for logging too */
 	s->si[1].release   = NULL;
 	s->si[1].send_proxy_ofs = 0;
-	s->si[1].conn->target = NULL;
-	si_prepare_embedded(&s->si[1]);
+	si_prepare_none(&s->si[1]);
 	s->si[1].exp       = TICK_ETERNITY;
 	s->si[1].flags     = SI_FL_NONE;
 
