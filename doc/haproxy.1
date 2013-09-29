@@ -6,7 +6,7 @@ HAProxy \- fast and reliable http reverse proxy and load balancer
 
 .SH SYNOPSIS
 
-haproxy \-f <configuration\ file> [\-L\ <name>] [\-n\ maxconn] [\-N\ maxconn] [\-C\ <dir>] [\-v|\-vv] [\-d] [\-D] [\-q] [\-V] [\-c] [\-p\ <pidfile>] [\-s] [\-l] [\-dk] [\-ds] [\-de] [\-dp] [\-db] [\-dM[<byte>]] [\-m\ <megs>] [{\-sf|\-st}\ pidlist...]
+haproxy \-f <configuration\ file> [\-L\ <name>] [\-n\ maxconn] [\-N\ maxconn] [\-C\ <dir>] [\-v|\-vv] [\-d] [\-D] [\-q] [\-V] [\-c] [\-p\ <pidfile>] [\-dk] [\-ds] [\-de] [\-dp] [\-db] [\-dM[<byte>]] [\-m\ <megs>] [{\-sf|\-st}\ pidlist...]
 
 .SH DESCRIPTION
 
@@ -97,16 +97,6 @@ exits with code 1 if a syntax error was found.
 \fB\-p <pidfile>\fP
 Ask the process to write down each of its children's pids to this file
 in daemon mode.
-
-.TP
-\fB\-s\fP
-Show statistics (only if compiled in).
-Statistics are only available if compiled in with the 'STATTIME' option.
-It's only used during code optimization phases, and will soon disappear.
-
-.TP
-\fB\-l\fP
-Show even more statistics (implies '\-s').
 
 .TP
 \fB\-dk\fP
