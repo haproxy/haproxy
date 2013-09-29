@@ -2,7 +2,7 @@
  * include/types/obj_type.h
  * This file declares some object types for use in various structures.
  *
- * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2013 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -37,6 +37,7 @@ enum obj_type {
 	OBJ_TYPE_PROXY,        /* object is a struct proxy */
 	OBJ_TYPE_SERVER,       /* object is a struct server */
 	OBJ_TYPE_APPLET,       /* object is a struct si_applet */
+	OBJ_TYPE_ENTRIES       /* last one : number of entries */
 };
 
 #endif /* _TYPES_OBJ_TYPE_H */
