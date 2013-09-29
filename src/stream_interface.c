@@ -372,6 +372,7 @@ void stream_int_unregister_handler(struct stream_interface *si)
 	si->release = NULL;
 	si->owner = NULL;
 	si->conn->target = NULL;
+	si->end = NULL;
 }
 
 /* This callback is used to send a valid PROXY protocol line to a socket being
