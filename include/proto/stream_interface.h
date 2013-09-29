@@ -36,8 +36,6 @@ int stream_int_check_timeouts(struct stream_interface *si);
 void stream_int_report_error(struct stream_interface *si);
 void stream_int_retnclose(struct stream_interface *si, const struct chunk *msg);
 int conn_si_send_proxy(struct connection *conn, unsigned int flag);
-int stream_int_shutr(struct stream_interface *si);
-int stream_int_shutw(struct stream_interface *si);
 void stream_sock_read0(struct stream_interface *si);
 
 extern struct si_ops si_embedded_ops;
@@ -74,14 +72,14 @@ static inline void si_prepare_embedded(struct stream_interface *si)
 /* Sends a shutr to the connection using the data layer */
 static inline void si_shutr(struct stream_interface *si)
 {
-	if (stream_int_shutr(si))
+	if (si->ops->shutr(si))
 		conn_data_stop_recv(si->conn);
 }
 
 /* Sends a shutw to the connection using the data layer */
 static inline void si_shutw(struct stream_interface *si)
 {
-	if (stream_int_shutw(si))
+	if (si->ops->shutw(si))
 		conn_data_stop_send(si->conn);
 }
 
