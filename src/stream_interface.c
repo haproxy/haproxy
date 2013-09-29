@@ -37,13 +37,13 @@
 
 /* socket functions used when running a stream interface as a task */
 static void stream_int_update_embedded(struct stream_interface *si);
-static int stream_int_shutr(struct stream_interface *si);
-static int stream_int_shutw(struct stream_interface *si);
+static void stream_int_shutr(struct stream_interface *si);
+static void stream_int_shutw(struct stream_interface *si);
 static void stream_int_chk_rcv(struct stream_interface *si);
 static void stream_int_chk_snd(struct stream_interface *si);
 static void stream_int_update_conn(struct stream_interface *si);
-static int stream_int_shutr_conn(struct stream_interface *si);
-static int stream_int_shutw_conn(struct stream_interface *si);
+static void stream_int_shutr_conn(struct stream_interface *si);
+static void stream_int_shutw_conn(struct stream_interface *si);
 static void stream_int_chk_rcv_conn(struct stream_interface *si);
 static void stream_int_chk_snd_conn(struct stream_interface *si);
 static void si_conn_recv_cb(struct connection *conn);
@@ -213,20 +213,19 @@ static void stream_int_update_embedded(struct stream_interface *si)
  * either shuts the read side or marks itself as closed. The buffer flags are
  * updated to reflect the new state. If the stream interface has SI_FL_NOHALF,
  * we also forward the close to the write side. The owner task is woken up if
- * it exists. No control layer is supposed to be defined so this function
- * always returns zero.
+ * it exists.
  */
-static int stream_int_shutr(struct stream_interface *si)
+static void stream_int_shutr(struct stream_interface *si)
 {
 	si->ib->flags &= ~CF_SHUTR_NOW;
 	if (si->ib->flags & CF_SHUTR)
-		return 0;
+		return;
 	si->ib->flags |= CF_SHUTR;
 	si->ib->rex = TICK_ETERNITY;
 	si->flags &= ~SI_FL_WAIT_ROOM;
 
 	if (si->state != SI_ST_EST && si->state != SI_ST_CON)
-		return 0;
+		return;
 
 	if (si->ob->flags & CF_SHUTW) {
 		si->state = SI_ST_DIS;
@@ -243,7 +242,6 @@ static int stream_int_shutr(struct stream_interface *si)
 	/* note that if the task exists, it must unregister itself once it runs */
 	if (!(si->flags & SI_FL_DONT_WAKE) && si->owner)
 		task_wakeup(si->owner, TASK_WOKEN_IO);
-	return 0;
 }
 
 /*
@@ -252,14 +250,12 @@ static int stream_int_shutr(struct stream_interface *si)
  * either shuts the write side or marks itself as closed. The buffer flags are
  * updated to reflect the new state. It does also close everything if the SI
  * was marked as being in error state. The owner task is woken up if it exists.
- * No control layer is supposed to be defined so this function always returns
- * zero.
  */
-static int stream_int_shutw(struct stream_interface *si)
+static void stream_int_shutw(struct stream_interface *si)
 {
 	si->ob->flags &= ~CF_SHUTW_NOW;
 	if (si->ob->flags & CF_SHUTW)
-		return 0;
+		return;
 	si->ob->flags |= CF_SHUTW;
 	si->ob->wex = TICK_ETERNITY;
 	si->flags &= ~SI_FL_WAIT_DATA;
@@ -274,7 +270,7 @@ static int stream_int_shutw(struct stream_interface *si)
 		 */
 		if (!(si->flags & (SI_FL_ERR | SI_FL_NOLINGER)) &&
 		    !(si->ib->flags & (CF_SHUTR|CF_DONT_READ)))
-			return 0;
+			return;
 
 		/* fall through */
 	case SI_ST_CON:
@@ -297,7 +293,6 @@ static int stream_int_shutw(struct stream_interface *si)
 	/* note that if the task exists, it must unregister itself once it runs */
 	if (!(si->flags & SI_FL_DONT_WAKE) && si->owner)
 		task_wakeup(si->owner, TASK_WOKEN_IO);
-	return 0;
 }
 
 /* default chk_rcv function for scheduled tasks */
@@ -719,27 +714,25 @@ void stream_int_update_conn(struct stream_interface *si)
  * flags are updated to reflect the new state. If the stream interface has
  * SI_FL_NOHALF, we also forward the close to the write side. If a control
  * layer is defined, then it is supposed to be a socket layer and file
- * descriptors are then shutdown or closed accordingly. The function does not
- * disable polling on the FD by itself, it returns non-zero instead if the
- * caller needs to do so (except when the FD is deleted where this is
- * implicit).
+ * descriptors are then shutdown or closed accordingly. The function
+ * automatically disables polling if needed.
  */
-static int stream_int_shutr_conn(struct stream_interface *si)
+static void stream_int_shutr_conn(struct stream_interface *si)
 {
 	struct connection *conn = si->conn;
 
 	si->ib->flags &= ~CF_SHUTR_NOW;
 	if (si->ib->flags & CF_SHUTR)
-		return 0;
+		return;
 	si->ib->flags |= CF_SHUTR;
 	si->ib->rex = TICK_ETERNITY;
 	si->flags &= ~SI_FL_WAIT_ROOM;
 
 	if (si->state != SI_ST_EST && si->state != SI_ST_CON)
-		return 0;
+		return;
 
 	if (si->ob->flags & CF_SHUTW) {
-		conn_full_close(si->conn);
+		conn_full_close(conn);
 		si->state = SI_ST_DIS;
 		si->exp = TICK_ETERNITY;
 
@@ -752,10 +745,8 @@ static int stream_int_shutr_conn(struct stream_interface *si)
 	}
 	else if (conn->ctrl) {
 		/* we want the caller to disable polling on this FD */
-		return 1;
+		conn_data_stop_recv(conn);
 	}
-
-	return 0;
 }
 
 /*
@@ -766,20 +757,18 @@ static int stream_int_shutr_conn(struct stream_interface *si)
  * everything if the SI was marked as being in error state. If there is a
  * data-layer shutdown, it is called. If a control layer is defined, then it is
  * supposed to be a socket layer and file descriptors are then shutdown or
- * closed accordingly. The function does not disable polling on the FD by
- * itself, it returns non-zero instead if the caller needs to do so (except
- * when the FD is deleted where this is implicit). Note: at the moment, we
- * continue to check conn->ctrl eventhough we *know* it is valid. This will
- * help selecting the proper shutdown() and setsockopt() calls if/when we
- * implement remote sockets later.
+ * closed accordingly. The function automatically disables polling if needed.
+ * Note: at the moment, we continue to check conn->ctrl eventhough we *know* it
+ * is valid. This will help selecting the proper shutdown() and setsockopt()
+ * calls if/when we implement remote sockets later.
  */
-static int stream_int_shutw_conn(struct stream_interface *si)
+static void stream_int_shutw_conn(struct stream_interface *si)
 {
 	struct connection *conn = si->conn;
 
 	si->ob->flags &= ~CF_SHUTW_NOW;
 	if (si->ob->flags & CF_SHUTW)
-		return 0;
+		return;
 	si->ob->flags |= CF_SHUTW;
 	si->ob->wex = TICK_ETERNITY;
 	si->flags &= ~SI_FL_WAIT_DATA;
@@ -797,7 +786,7 @@ static int stream_int_shutw_conn(struct stream_interface *si)
 		}
 		else if (si->flags & SI_FL_NOLINGER) {
 			if (conn->ctrl) {
-				setsockopt(si->conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
+				setsockopt(conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
 					   (struct linger *) &nolinger, sizeof(struct linger));
 			}
 			/* unclean data-layer shutdown */
@@ -818,13 +807,15 @@ static int stream_int_shutw_conn(struct stream_interface *si)
 			if (!(si->flags & SI_FL_NOHALF) || !(si->ib->flags & (CF_SHUTR|CF_DONT_READ))) {
 				/* We shutdown transport layer */
 				if (conn->ctrl)
-					shutdown(si->conn->t.sock.fd, SHUT_WR);
+					shutdown(conn->t.sock.fd, SHUT_WR);
 
 				if (!(si->ib->flags & (CF_SHUTR|CF_DONT_READ))) {
 					/* OK just a shutw, but we want the caller
 					 * to disable polling on this FD if exists.
 					 */
-					return !!conn->ctrl;
+					if (conn->ctrl)
+						conn_data_stop_send(conn);
+					return;
 				}
 			}
 		}
@@ -834,7 +825,7 @@ static int stream_int_shutw_conn(struct stream_interface *si)
 		/* we may have to close a pending connection, and mark the
 		 * response buffer as shutr
 		 */
-		conn_full_close(si->conn);
+		conn_full_close(conn);
 		/* fall through */
 	case SI_ST_CER:
 	case SI_ST_QUE:
@@ -850,7 +841,6 @@ static int stream_int_shutw_conn(struct stream_interface *si)
 		si->ib->rex = TICK_ETERNITY;
 		si->exp = TICK_ETERNITY;
 	}
-	return 0;
 }
 
 /* This function is used for inter-stream-interface calls. It is called by the

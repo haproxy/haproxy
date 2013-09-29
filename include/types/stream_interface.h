@@ -85,8 +85,8 @@ struct si_ops {
 	void (*update)(struct stream_interface *);  /* I/O update function */
 	void (*chk_rcv)(struct stream_interface *); /* chk_rcv function */
 	void (*chk_snd)(struct stream_interface *); /* chk_snd function */
-	int (*shutr)(struct stream_interface *);    /* shut read function */
-	int (*shutw)(struct stream_interface *);    /* shut write function */
+	void (*shutr)(struct stream_interface *);   /* shut read function */
+	void (*shutw)(struct stream_interface *);   /* shut write function */
 };
 
 /* A stream interface has 3 parts :

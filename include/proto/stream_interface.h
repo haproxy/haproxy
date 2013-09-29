@@ -72,15 +72,13 @@ static inline void si_prepare_embedded(struct stream_interface *si)
 /* Sends a shutr to the connection using the data layer */
 static inline void si_shutr(struct stream_interface *si)
 {
-	if (si->ops->shutr(si))
-		conn_data_stop_recv(si->conn);
+	si->ops->shutr(si);
 }
 
 /* Sends a shutw to the connection using the data layer */
 static inline void si_shutw(struct stream_interface *si)
 {
-	if (si->ops->shutw(si))
-		conn_data_stop_send(si->conn);
+	si->ops->shutw(si);
 }
 
 /* Calls the data state update on the stream interfaace */
