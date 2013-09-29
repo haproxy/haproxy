@@ -230,11 +230,12 @@ struct conn_src {
 /* This structure describes a connection with its methods and data.
  * A connection may be performed to proxy or server via a local or remote
  * socket, and can also be made to an internal applet. It can support
- * several transport schemes (applet, raw, ssl, ...). It can support several
+ * several transport schemes (raw, ssl, ...). It can support several
  * connection control schemes, generally a protocol for socket-oriented
  * connections, but other methods for applets.
  */
 struct connection {
+	enum obj_type obj_type;       /* differentiates connection from applet context */
 	const struct protocol *ctrl;  /* operations at the socket layer */
 	const struct xprt_ops *xprt;  /* operations at the transport layer */
 	const struct data_cb  *data;  /* data layer callbacks */
