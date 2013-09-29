@@ -1162,6 +1162,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 
 	s->req = s->rep = NULL; /* will be allocated later */
 
+	s->si[0].conn->obj_type = OBJ_TYPE_CONN;
 	s->si[0].conn->t.sock.fd = -1;
 	s->si[0].conn->flags = CO_FL_NONE;
 	s->si[0].conn->err_code = CO_ER_NONE;
@@ -1180,6 +1181,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->si[0].applet.st0 = PEER_SESSION_CONNECT;
 	s->si[0].applet.ptr = (void *)ps;
 
+	s->si[1].conn->obj_type = OBJ_TYPE_CONN;
 	s->si[1].conn->t.sock.fd = -1; /* just to help with debugging */
 	s->si[1].conn->flags = CO_FL_NONE;
 	s->si[1].conn->err_code = CO_ER_NONE;

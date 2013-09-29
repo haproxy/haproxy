@@ -105,12 +105,18 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->fe  = p;
 
 	/* OK, we're keeping the session, so let's properly initialize the session */
+	s->si[0].conn->obj_type = OBJ_TYPE_CONN;
 	s->si[0].conn->t.sock.fd = cfd;
 	s->si[0].conn->ctrl = l->proto;
 	s->si[0].conn->flags = CO_FL_NONE | CO_FL_ADDR_FROM_SET;
 	s->si[0].conn->err_code = CO_ER_NONE;
 	s->si[0].conn->addr.from = *addr;
 	s->si[0].conn->target = &l->obj_type;
+
+	/* FIXME: this should be replaced with OBJ_TYPE_NONE once all users check the
+	 * object type before dereferencing the connection pointer.
+	 */
+	s->si[1].conn->obj_type = OBJ_TYPE_CONN;
 
 	s->logs.accept_date = date; /* user-visible date for logging */
 	s->logs.tv_accept = now;  /* corrected date for internal use */
@@ -453,6 +459,7 @@ int session_complete(struct session *s)
 	/* pre-initialize the other side's stream interface to an INIT state. The
 	 * callbacks will be initialized before attempting to connect.
 	 */
+	s->si[1].conn->obj_type = OBJ_TYPE_CONN;
 	s->si[1].conn->t.sock.fd = -1; /* just to help with debugging */
 	s->si[1].conn->flags = CO_FL_NONE;
 	s->si[1].conn->err_code = CO_ER_NONE;

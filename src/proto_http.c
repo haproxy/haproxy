@@ -4283,6 +4283,7 @@ void http_end_txn_clean_session(struct session *s)
 	s->target = NULL;
 
 	s->req->cons->state     = s->req->cons->prev_state = SI_ST_INI;
+	s->req->cons->conn->obj_type = OBJ_TYPE_CONN;
 	s->req->cons->conn->t.sock.fd = -1; /* just to help with debugging */
 	s->req->cons->conn->flags = CO_FL_NONE;
 	s->req->cons->conn->err_code = CO_ER_NONE;
