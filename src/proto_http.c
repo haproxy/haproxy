@@ -9148,23 +9148,16 @@ smp_fetch_url_ip(struct proxy *px, struct session *l4, void *l7, unsigned int op
                  const struct arg *args, struct sample *smp, const char *kw)
 {
 	struct http_txn *txn = l7;
+	struct sockaddr_storage addr;
 
 	CHECK_HTTP_MESSAGE_FIRST();
 
-	/* Parse HTTP request */
-	url2sa(txn->req.chn->buf->p + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &l4->req->cons->conn->addr.to);
-	if (((struct sockaddr_in *)&l4->req->cons->conn->addr.to)->sin_family != AF_INET)
+	url2sa(txn->req.chn->buf->p + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &addr);
+	if (((struct sockaddr_in *)&addr)->sin_family != AF_INET)
 		return 0;
+
 	smp->type = SMP_T_IPV4;
-	smp->data.ipv4 = ((struct sockaddr_in *)&l4->req->cons->conn->addr.to)->sin_addr;
-
-	/*
-	 * If we are parsing url in frontend space, we prepare backend stage
-	 * to not parse again the same url ! optimization lazyness...
-	 */
-	if (px->options & PR_O_HTTP_PROXY)
-		l4->flags |= SN_ADDR_SET;
-
+	smp->data.ipv4 = ((struct sockaddr_in *)&addr)->sin_addr;
 	smp->flags = 0;
 	return 1;
 }
@@ -9174,17 +9167,16 @@ smp_fetch_url_port(struct proxy *px, struct session *l4, void *l7, unsigned int 
                    const struct arg *args, struct sample *smp, const char *kw)
 {
 	struct http_txn *txn = l7;
+	struct sockaddr_storage addr;
 
 	CHECK_HTTP_MESSAGE_FIRST();
 
-	/* Same optimization as url_ip */
-	url2sa(txn->req.chn->buf->p + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &l4->req->cons->conn->addr.to);
+	url2sa(txn->req.chn->buf->p + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &addr);
+	if (((struct sockaddr_in *)&addr)->sin_family != AF_INET)
+		return 0;
+
 	smp->type = SMP_T_UINT;
-	smp->data.uint = ntohs(((struct sockaddr_in *)&l4->req->cons->conn->addr.to)->sin_port);
-
-	if (px->options & PR_O_HTTP_PROXY)
-		l4->flags |= SN_ADDR_SET;
-
+	smp->data.uint = ntohs(((struct sockaddr_in *)&addr)->sin_port);
 	smp->flags = 0;
 	return 1;
 }
