@@ -46,11 +46,6 @@ struct task *stream_int_register_handler(struct stream_interface *si,
 					 struct si_applet *app);
 void stream_int_unregister_handler(struct stream_interface *si);
 
-static inline const struct protocol *si_ctrl(struct stream_interface *si)
-{
-	return si->conn->ctrl;
-}
-
 static inline void si_prepare_none(struct stream_interface *si)
 {
 	si->ops = &si_embedded_ops;
@@ -148,10 +143,10 @@ static inline int si_connect(struct stream_interface *si)
 {
 	int ret;
 
-	if (unlikely(!si_ctrl(si) || !si_ctrl(si)->connect))
+	if (unlikely(!si->conn->ctrl || !si->conn->ctrl->connect))
 		return SN_ERR_INTERNAL;
 
-	ret = si_ctrl(si)->connect(si->conn, !channel_is_empty(si->ob), !!si->send_proxy_ofs);
+	ret = si->conn->ctrl->connect(si->conn, !channel_is_empty(si->ob), !!si->send_proxy_ofs);
 	if (ret != SN_ERR_NONE)
 		return ret;
 

@@ -987,7 +987,7 @@ int connect_server(struct session *s)
 	else if (obj_type(s->target) == OBJ_TYPE_PROXY) {
 		/* proxies exclusively run on raw_sock right now */
 		si_prepare_conn(s->req->cons, protocol_by_family(s->req->cons->conn->addr.to.ss_family), &raw_sock);
-		if (!si_ctrl(s->req->cons))
+		if (!s->req->cons->conn->ctrl)
 			return SN_ERR_INTERNAL;
 	}
 	else
