@@ -97,9 +97,9 @@ keyword and install it to a local directory, so your system is not affected :
     $ ./config --prefix=$STATICLIBSSL no-shared
     $ make && make install_sw
 
-When building haproxy, pass that path via ADDINC and ADDLIB to make and include
-libdl ("-ldl").
-    $ make TARGET=linux2628 USE_OPENSSL=1 ADDINC=-I$STATICLIBSSL/include ADDLIB="-L$STATICLIBSSL/lib -ldl"
+When building haproxy, pass that path via SSL_INC and SSL_LIB to make and
+include additional libs with ADDLIB if needed (in this case for example libdl):
+    $ make TARGET=linux26 USE_OPENSSL=1 SSL_INC=$STATICLIBSSL/include SSL_LIB=$STATICLIBSSL/lib ADDLIB=-ldl
 
 It is also possible to include native support for ZLIB to benefit from HTTP
 compression. For this, pass "USE_ZLIB=1" on the "make" command line and ensure
