@@ -118,7 +118,7 @@
 #define CF_NEVER_WAIT     0x08000000  /* never wait for sending data (permanent) */
 
 #define CF_WAKE_ONCE      0x10000000  /* pretend there is activity on this channel (one-shoot) */
-/* unused: 0x20000000, 0x20000000, 0x80000000 */
+/* unused: 0x20000000, 0x40000000, 0x80000000 */
 
 /* Use these masks to clear the flags before going back to lower layers */
 #define CF_CLEAR_READ     (~(CF_READ_NULL|CF_READ_PARTIAL|CF_READ_ERROR|CF_READ_ATTACHED))
@@ -266,7 +266,7 @@ struct channel {
    eventually leave the buffer. So as long as ->to_forward is larger than
    global.maxrewrite, we can fill the buffer. If ->to_forward is smaller than
    global.maxrewrite, then we don't want to fill the buffer with more than
-   vuf->size - global.maxrewrite + ->to_forward.
+   buf->size - global.maxrewrite + ->to_forward.
 
    A buffer may contain up to 5 areas :
      - the data waiting to be sent. These data are located between buf->p-o and

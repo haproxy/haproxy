@@ -121,7 +121,7 @@
 
 /* these ones define a request start line */
 #define HTTP_MSG_RQMETH        2 // parsing the Method
-#define HTTP_MSG_RQMETH_SP     3 // space(s) after the ethod
+#define HTTP_MSG_RQMETH_SP     3 // space(s) after the Method
 #define HTTP_MSG_RQURI         4 // parsing the Request URI
 #define HTTP_MSG_RQURI_SP      5 // space(s) after the Request URI
 #define HTTP_MSG_RQVER         6 // parsing the Request Version
