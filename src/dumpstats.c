@@ -156,7 +156,12 @@ extern const char *stat_status_codes[];
  */
 static int stats_accept(struct session *s)
 {
-	/* we have a dedicated I/O handler for the stats */
+	/* we have a dedicated I/O handler for the CLI/stats, so we can safely
+	 * release the pre-allocated connection that we will never use.
+	 */
+	pool_free2(pool2_connection, s->si[1].conn);
+	s->si[1].conn = NULL;
+
 	stream_int_register_handler(&s->si[1], &cli_applet);
 	s->target = &cli_applet.obj_type; // for logging only
 	s->si[1].appctx.st1 = 0;

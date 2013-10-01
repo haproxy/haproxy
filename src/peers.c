@@ -1083,7 +1083,12 @@ static void peer_session_forceshutdown(struct session * session)
  */
 int peer_accept(struct session *s)
 {
-	 /* we have a dedicated I/O handler for the stats */
+	/* we have a dedicated I/O handler for the peers, so we can safely
+	 * release the pre-allocated connection that we will never use.
+	 */
+	pool_free2(pool2_connection, s->si[1].conn);
+	s->si[1].conn = NULL;
+
 	stream_int_register_handler(&s->si[1], &peer_applet);
 	s->target = &peer_applet.obj_type; // for logging only
 	s->si[1].appctx.ctx.peers.ptr = s;
@@ -1123,9 +1128,6 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 		goto out_close;
 	}
 
-	if (unlikely((s->si[0].conn = pool_alloc2(pool2_connection)) == NULL))
-		goto out_fail_conn0;
-
 	if (unlikely((s->si[1].conn = pool_alloc2(pool2_connection)) == NULL))
 		goto out_fail_conn1;
 
@@ -1161,13 +1163,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 
 	s->req = s->rep = NULL; /* will be allocated later */
 
-	/* si[0] is the applet, we should not need s->si[0].conn anymore soon */
-	s->si[0].conn->obj_type = OBJ_TYPE_CONN;
-	s->si[0].conn->t.sock.fd = -1;
-	s->si[0].conn->flags = CO_FL_NONE;
-	s->si[0].conn->err_code = CO_ER_NONE;
-	s->si[0].conn->target = &l->obj_type;
-
+	s->si[0].conn = NULL;
 	s->si[0].owner = t;
 	s->si[0].state = s->si[0].prev_state = SI_ST_EST;
 	s->si[0].err_type = SI_ET_NONE;
@@ -1319,8 +1315,6 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	LIST_DEL(&s->list);
 	pool_free2(pool2_connection, s->si[1].conn);
  out_fail_conn1:
-	pool_free2(pool2_connection, s->si[0].conn);
- out_fail_conn0:
 	pool_free2(pool2_session, s);
  out_close:
 	return s;
