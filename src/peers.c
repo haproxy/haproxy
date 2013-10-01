@@ -1181,11 +1181,14 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	memset(s->stkctr, 0, sizeof(s->stkctr));
 
 	/* FIXME: the logs are horribly complicated now, because they are
-	 * defined in <p>, <p>, and later <be> and <be>.
+	 * defined in <p>, <p>, and later <be> and <be>. We still initialize
+	 * a few of them to help troubleshooting (eg: show sess shows them).
 	 */
 
 	s->logs.logwait = 0;
 	s->logs.level = 0;
+	s->logs.accept_date = date; /* user-visible date for logging */
+	s->logs.tv_accept = now;  /* corrected date for internal use */
 	s->do_log = NULL;
 
 	/* default error reporting function, may be changed by analysers */
