@@ -451,13 +451,14 @@ int conn_recv_proxy(struct connection *conn, int flag)
  * buffer <buf> for a maximum size of <buf_len> (including the trailing zero).
  * It returns the number of bytes composing this line (including the trailing
  * LF), or zero in case of failure (eg: not enough space). It supports TCP4,
- * TCP6 and "UNKNOWN" formats.
+ * TCP6 and "UNKNOWN" formats. If any of <src> or <dst> is null, UNKNOWN is
+ * emitted as well.
  */
 int make_proxy_line(char *buf, int buf_len, struct sockaddr_storage *src, struct sockaddr_storage *dst)
 {
 	int ret = 0;
 
-	if (src->ss_family == dst->ss_family && src->ss_family == AF_INET) {
+	if (src && dst && src->ss_family == dst->ss_family && src->ss_family == AF_INET) {
 		ret = snprintf(buf + ret, buf_len - ret, "PROXY TCP4 ");
 		if (ret >= buf_len)
 			return 0;
@@ -487,7 +488,7 @@ int make_proxy_line(char *buf, int buf_len, struct sockaddr_storage *src, struct
 		if (ret >= buf_len)
 			return 0;
 	}
-	else if (src->ss_family == dst->ss_family && src->ss_family == AF_INET6) {
+	else if (src && dst && src->ss_family == dst->ss_family && src->ss_family == AF_INET6) {
 		ret = snprintf(buf + ret, buf_len - ret, "PROXY TCP6 ");
 		if (ret >= buf_len)
 			return 0;
