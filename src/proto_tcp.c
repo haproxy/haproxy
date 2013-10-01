@@ -1086,15 +1086,19 @@ int tcp_inspect_response(struct session *s, struct channel *rep, int an_bit)
 /* This function performs the TCP layer4 analysis on the current request. It
  * returns 0 if a reject rule matches, otherwise 1 if either an accept rule
  * matches or if no more rule matches. It can only use rules which don't need
- * any data.
+ * any data. This only works on connection-based client-facing stream interfaces.
  */
 int tcp_exec_req_rules(struct session *s)
 {
 	struct tcp_rule *rule;
 	struct stksess *ts;
 	struct stktable *t = NULL;
+	struct connection *conn = objt_conn(s->si[0].end);
 	int result = 1;
 	enum acl_test_res ret;
+
+	if (!conn)
+		return result;
 
 	list_for_each_entry(rule, &s->fe->tcp_req.l4_rules, list) {
 		ret = ACL_TEST_PASS;
@@ -1136,8 +1140,8 @@ int tcp_exec_req_rules(struct session *s)
 					session_track_stkctr(&s->stkctr[tcp_trk_idx(rule->action)], t, ts);
 			}
 			else if (rule->action == TCP_ACT_EXPECT_PX) {
-				s->si[0].conn->flags |= CO_FL_ACCEPT_PROXY;
-				conn_sock_want_recv(s->si[0].conn);
+				conn->flags |= CO_FL_ACCEPT_PROXY;
+				conn_sock_want_recv(conn);
 			}
 			else {
 				/* otherwise it's an accept */
@@ -1577,13 +1581,18 @@ static int
 smp_fetch_src(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
               const struct arg *args, struct sample *smp, const char *kw)
 {
-	switch (l4->si[0].conn->addr.from.ss_family) {
+	struct connection *cli_conn = objt_conn(l4->si[0].end);
+
+	if (!cli_conn)
+		return 0;
+
+	switch (cli_conn->addr.from.ss_family) {
 	case AF_INET:
-		smp->data.ipv4 = ((struct sockaddr_in *)&l4->si[0].conn->addr.from)->sin_addr;
+		smp->data.ipv4 = ((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr;
 		smp->type = SMP_T_IPV4;
 		break;
 	case AF_INET6:
-		smp->data.ipv6 = ((struct sockaddr_in6 *)(&l4->si[0].conn->addr.from))->sin6_addr;
+		smp->data.ipv6 = ((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_addr;
 		smp->type = SMP_T_IPV6;
 		break;
 	default:
@@ -1599,8 +1608,13 @@ static int
 smp_fetch_sport(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp, const char *kw)
 {
+	struct connection *cli_conn = objt_conn(l4->si[0].end);
+
+	if (!cli_conn)
+		return 0;
+
 	smp->type = SMP_T_UINT;
-	if (!(smp->data.uint = get_host_port(&l4->si[0].conn->addr.from)))
+	if (!(smp->data.uint = get_host_port(&cli_conn->addr.from)))
 		return 0;
 
 	smp->flags = 0;
@@ -1612,15 +1626,20 @@ static int
 smp_fetch_dst(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
               const struct arg *args, struct sample *smp, const char *kw)
 {
-	conn_get_to_addr(l4->si[0].conn);
+	struct connection *cli_conn = objt_conn(l4->si[0].end);
 
-	switch (l4->si[0].conn->addr.to.ss_family) {
+	if (!cli_conn)
+		return 0;
+
+	conn_get_to_addr(cli_conn);
+
+	switch (cli_conn->addr.to.ss_family) {
 	case AF_INET:
-		smp->data.ipv4 = ((struct sockaddr_in *)&l4->si[0].conn->addr.to)->sin_addr;
+		smp->data.ipv4 = ((struct sockaddr_in *)&cli_conn->addr.to)->sin_addr;
 		smp->type = SMP_T_IPV4;
 		break;
 	case AF_INET6:
-		smp->data.ipv6 = ((struct sockaddr_in6 *)(&l4->si[0].conn->addr.to))->sin6_addr;
+		smp->data.ipv6 = ((struct sockaddr_in6 *)&cli_conn->addr.to)->sin6_addr;
 		smp->type = SMP_T_IPV6;
 		break;
 	default:
@@ -1636,10 +1655,15 @@ static int
 smp_fetch_dport(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp, const char *kw)
 {
-	conn_get_to_addr(l4->si[0].conn);
+	struct connection *cli_conn = objt_conn(l4->si[0].end);
+
+	if (!cli_conn)
+		return 0;
+
+	conn_get_to_addr(cli_conn);
 
 	smp->type = SMP_T_UINT;
-	if (!(smp->data.uint = get_host_port(&l4->si[0].conn->addr.to)))
+	if (!(smp->data.uint = get_host_port(&cli_conn->addr.to)))
 		return 0;
 
 	smp->flags = 0;

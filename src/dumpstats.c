@@ -151,7 +151,7 @@ enum {
 extern const char *stat_status_codes[];
 
 /* This function is called from the session-level accept() in order to instanciate
- * a new stats socket. It returns a positive value upon success, 0 if the connection
+ * a new stats socket. It returns a positive value upon success, 0 if the session
  * needs to be closed and ignored, or a negative value upon critical failure.
  */
 static int stats_accept(struct session *s)
@@ -3881,6 +3881,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 	struct tm tm;
 	extern const char *monthname[12];
 	char pn[INET6_ADDRSTRLEN];
+	struct connection *conn;
 
 	chunk_reset(&trash);
 
@@ -3910,12 +3911,12 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 			     sess->uniq_id,
 			     sess->listener && sess->listener->proto->name ? sess->listener->proto->name : "?");
 
-		switch ((obj_type(sess->si[0].end) == OBJ_TYPE_CONN) ?
-			addr_to_str(&sess->si[0].conn->addr.from, pn, sizeof(pn)) : AF_UNSPEC) {
+		conn = objt_conn(sess->si[0].end);
+		switch (conn ? addr_to_str(&conn->addr.from, pn, sizeof(pn)) : AF_UNSPEC) {
 		case AF_INET:
 		case AF_INET6:
 			chunk_appendf(&trash, " source=%s:%d\n",
-				     pn, get_host_port(&sess->si[0].conn->addr.from));
+			              pn, get_host_port(&conn->addr.from));
 			break;
 		case AF_UNIX:
 			chunk_appendf(&trash, " source=unix:%d\n", sess->listener->luid);
@@ -3936,15 +3937,14 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 			     sess->listener ? sess->listener->name ? sess->listener->name : "?" : "?",
 			     sess->listener ? sess->listener->luid : 0);
 
-		if (obj_type(sess->si[0].end) == OBJ_TYPE_CONN)
-			conn_get_to_addr(sess->si[0].conn);
+		if (conn)
+			conn_get_to_addr(conn);
 
-		switch ((obj_type(sess->si[0].end) == OBJ_TYPE_CONN) ?
-			addr_to_str(&sess->si[0].conn->addr.to, pn, sizeof(pn)) : AF_UNSPEC) {
+		switch (conn ? addr_to_str(&conn->addr.to, pn, sizeof(pn)) : AF_UNSPEC) {
 		case AF_INET:
 		case AF_INET6:
 			chunk_appendf(&trash, " addr=%s:%d\n",
-				     pn, get_host_port(&sess->si[0].conn->addr.to));
+				     pn, get_host_port(&conn->addr.to));
 			break;
 		case AF_UNIX:
 			chunk_appendf(&trash, " addr=unix:%d\n", sess->listener->luid);
@@ -3963,15 +3963,15 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 		else
 			chunk_appendf(&trash, "  backend=<NONE> (id=-1 mode=-)");
 
-		if (obj_type(sess->si[1].end) == OBJ_TYPE_CONN)
-			conn_get_from_addr(sess->si[1].conn);
+		conn = objt_conn(sess->si[1].end);
+		if (conn)
+			conn_get_from_addr(conn);
 
-		switch ((obj_type(sess->si[1].end) == OBJ_TYPE_CONN) ?
-			addr_to_str(&sess->si[1].conn->addr.from, pn, sizeof(pn)) : AF_UNSPEC) {
+		switch (conn ? addr_to_str(&conn->addr.from, pn, sizeof(pn)) : AF_UNSPEC) {
 		case AF_INET:
 		case AF_INET6:
 			chunk_appendf(&trash, " addr=%s:%d\n",
-				     pn, get_host_port(&sess->si[1].conn->addr.from));
+				     pn, get_host_port(&conn->addr.from));
 			break;
 		case AF_UNIX:
 			chunk_appendf(&trash, " addr=unix\n");
@@ -3990,15 +3990,14 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 		else
 			chunk_appendf(&trash, "  server=<NONE> (id=-1)");
 
-		if (obj_type(sess->si[1].end) == OBJ_TYPE_CONN)
-			conn_get_to_addr(sess->si[1].conn);
+		if (conn)
+			conn_get_to_addr(conn);
 
-		switch ((obj_type(sess->si[1].end) == OBJ_TYPE_CONN) ?
-			addr_to_str(&sess->si[1].conn->addr.to, pn, sizeof(pn)) : AF_UNSPEC) {
+		switch (conn ? addr_to_str(&conn->addr.to, pn, sizeof(pn)) : AF_UNSPEC) {
 		case AF_INET:
 		case AF_INET6:
 			chunk_appendf(&trash, " addr=%s:%d\n",
-				     pn, get_host_port(&sess->si[1].conn->addr.to));
+				     pn, get_host_port(&conn->addr.to));
 			break;
 		case AF_UNIX:
 			chunk_appendf(&trash, " addr=unix\n");
@@ -4057,42 +4056,44 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 			                     TICKS_TO_MS(1000)) : "<NEVER>",
 			     sess->si[1].err_type);
 
-		if (obj_type(sess->si[0].end) == OBJ_TYPE_CONN) {
+		conn = objt_conn(sess->si[0].end);
+		if (conn) {
 			chunk_appendf(&trash,
 			              "  co0=%p ctrl=%s xprt=%s data=%s target=%s:%p\n",
-				      sess->si[0].conn,
-				      get_conn_ctrl_name(sess->si[0].conn),
-				      get_conn_xprt_name(sess->si[0].conn),
-				      get_conn_data_name(sess->si[0].conn),
-			              obj_type_name(sess->si[0].conn->target),
-			              obj_base_ptr(sess->si[0].conn->target));
+				      conn,
+				      get_conn_ctrl_name(conn),
+				      get_conn_xprt_name(conn),
+				      get_conn_data_name(conn),
+			              obj_type_name(conn->target),
+			              obj_base_ptr(conn->target));
 
 			chunk_appendf(&trash,
 			              "      flags=0x%08x fd=%d fd_spec_e=%02x fd_spec_p=%d updt=%d\n",
-			              sess->si[0].conn->flags,
-			              sess->si[0].conn->t.sock.fd,
-			              sess->si[0].conn->t.sock.fd >= 0 ? fdtab[sess->si[0].conn->t.sock.fd].spec_e : 0,
-			              sess->si[0].conn->t.sock.fd >= 0 ? fdtab[sess->si[0].conn->t.sock.fd].spec_p : 0,
-			              sess->si[0].conn->t.sock.fd >= 0 ? fdtab[sess->si[0].conn->t.sock.fd].updated : 0);
+			              conn->flags,
+			              conn->t.sock.fd,
+			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].spec_e : 0,
+			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].spec_p : 0,
+			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].updated : 0);
 		}
 
-		if (obj_type(sess->si[1].end) == OBJ_TYPE_CONN) {
+		conn = objt_conn(sess->si[1].end);
+		if (conn) {
 			chunk_appendf(&trash,
 			              "  co1=%p ctrl=%s xprt=%s data=%s target=%s:%p\n",
-				      sess->si[1].conn,
-				      get_conn_ctrl_name(sess->si[1].conn),
-				      get_conn_xprt_name(sess->si[1].conn),
-				      get_conn_data_name(sess->si[1].conn),
-			              obj_type_name(sess->si[1].conn->target),
-			              obj_base_ptr(sess->si[1].conn->target));
+				      conn,
+				      get_conn_ctrl_name(conn),
+				      get_conn_xprt_name(conn),
+				      get_conn_data_name(conn),
+			              obj_type_name(conn->target),
+			              obj_base_ptr(conn->target));
 
 			chunk_appendf(&trash,
 			              "      flags=0x%08x fd=%d fd_spec_e=%02x fd_spec_p=%d updt=%d\n",
-			              sess->si[1].conn->flags,
-			              sess->si[1].conn->t.sock.fd,
-			              sess->si[1].conn->t.sock.fd >= 0 ? fdtab[sess->si[1].conn->t.sock.fd].spec_e : 0,
-			              sess->si[1].conn->t.sock.fd >= 0 ? fdtab[sess->si[1].conn->t.sock.fd].spec_p : 0,
-			              sess->si[1].conn->t.sock.fd >= 0 ? fdtab[sess->si[1].conn->t.sock.fd].updated : 0);
+			              conn->flags,
+			              conn->t.sock.fd,
+			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].spec_e : 0,
+			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].spec_p : 0,
+			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].updated : 0);
 		}
 
 		chunk_appendf(&trash,
@@ -4171,6 +4172,8 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
  */
 static int stats_dump_sess_to_buffer(struct stream_interface *si)
 {
+	struct connection *conn;
+
 	if (unlikely(si->ib->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
 		/* If we're forced to shut down, we might have to remove our
 		 * reference to the last session being dumped.
@@ -4240,14 +4243,14 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 				     curr_sess->listener->proto->name);
 
 
-			switch ((obj_type(curr_sess->si[0].end) == OBJ_TYPE_CONN) ?
-				addr_to_str(&curr_sess->si[0].conn->addr.from, pn, sizeof(pn)) : AF_UNSPEC) {
+			conn = objt_conn(curr_sess->si[0].end);
+			switch (conn ? addr_to_str(&conn->addr.from, pn, sizeof(pn)) : AF_UNSPEC) {
 			case AF_INET:
 			case AF_INET6:
 				chunk_appendf(&trash,
 					     " src=%s:%d fe=%s be=%s srv=%s",
 					     pn,
-					     get_host_port(&curr_sess->si[0].conn->addr.from),
+					     get_host_port(&conn->addr.from),
 					     curr_sess->fe->id,
 					     (curr_sess->be->cap & PR_CAP_BE) ? curr_sess->be->id : "<NONE>",
 					     objt_server(curr_sess->target) ? objt_server(curr_sess->target)->id : "<none>"
@@ -4312,22 +4315,22 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 				     human_time(TICKS_TO_MS(curr_sess->rep->analyse_exp - now_ms),
 						TICKS_TO_MS(1000)) : "");
 
+			conn = objt_conn(curr_sess->si[0].end);
 			chunk_appendf(&trash,
 				     " s0=[%d,%1xh,fd=%d,ex=%s]",
 				     curr_sess->si[0].state,
 				     curr_sess->si[0].flags,
-				     (obj_type(curr_sess->si[0].end) == OBJ_TYPE_CONN) ?
-				      curr_sess->si[0].conn->t.sock.fd : -1,
+				     conn ? conn->t.sock.fd : -1,
 				     curr_sess->si[0].exp ?
 				     human_time(TICKS_TO_MS(curr_sess->si[0].exp - now_ms),
 						TICKS_TO_MS(1000)) : "");
 
+			conn = objt_conn(curr_sess->si[1].end);
 			chunk_appendf(&trash,
 				     " s1=[%d,%1xh,fd=%d,ex=%s]",
 				     curr_sess->si[1].state,
 				     curr_sess->si[1].flags,
-				     (obj_type(curr_sess->si[1].end) == OBJ_TYPE_CONN) ?
-				      curr_sess->si[1].conn->t.sock.fd : -1,
+				     conn ? conn->t.sock.fd : -1,
 				     curr_sess->si[1].exp ?
 				     human_time(TICKS_TO_MS(curr_sess->si[1].exp - now_ms),
 						TICKS_TO_MS(1000)) : "");

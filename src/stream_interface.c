@@ -395,7 +395,12 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 		 * (which is recomputed every time since it's constant). If
 		 * it is positive, it means we have to send from the start.
 		 */
-		ret = make_proxy_line(trash.str, trash.size, &si->ob->prod->conn->addr.from, &si->ob->prod->conn->addr.to);
+		struct connection *remote = objt_conn(si->ob->prod->end);
+		if (remote)
+			ret = make_proxy_line(trash.str, trash.size, &remote->addr.from, &remote->addr.to);
+		else
+			ret = make_proxy_line(trash.str, trash.size, NULL, NULL);
+
 		if (!ret)
 			goto out_error;
 
@@ -638,6 +643,7 @@ void stream_int_update_conn(struct stream_interface *si)
 {
 	struct channel *ib = si->ib;
 	struct channel *ob = si->ob;
+	struct connection *conn = __objt_conn(si->end);
 
 	/* Check if we need to close the read side */
 	if (!(ib->flags & CF_SHUTR)) {
@@ -647,7 +653,7 @@ void stream_int_update_conn(struct stream_interface *si)
 			if (!(si->flags & SI_FL_WAIT_ROOM)) {
 				if (!(ib->flags & CF_DONT_READ)) /* full */
 					si->flags |= SI_FL_WAIT_ROOM;
-				conn_data_stop_recv(si->conn);
+				conn_data_stop_recv(conn);
 				ib->rex = TICK_ETERNITY;
 			}
 		}
@@ -658,7 +664,7 @@ void stream_int_update_conn(struct stream_interface *si)
 			 * have updated it if there has been a completed I/O.
 			 */
 			si->flags &= ~SI_FL_WAIT_ROOM;
-			conn_data_want_recv(si->conn);
+			conn_data_want_recv(conn);
 			if (!(ib->flags & (CF_READ_NOEXP|CF_DONT_READ)) && !tick_isset(ib->rex))
 				ib->rex = tick_add_ifset(now_ms, ib->rto);
 		}
@@ -672,7 +678,7 @@ void stream_int_update_conn(struct stream_interface *si)
 			if (!(si->flags & SI_FL_WAIT_DATA)) {
 				if ((ob->flags & CF_SHUTW_NOW) == 0)
 					si->flags |= SI_FL_WAIT_DATA;
-				conn_data_stop_send(si->conn);
+				conn_data_stop_send(conn);
 				ob->wex = TICK_ETERNITY;
 			}
 		}
@@ -683,7 +689,7 @@ void stream_int_update_conn(struct stream_interface *si)
 			 * have updated it if there has been a completed I/O.
 			 */
 			si->flags &= ~SI_FL_WAIT_DATA;
-			conn_data_want_send(si->conn);
+			conn_data_want_send(conn);
 			if (!tick_isset(ob->wex)) {
 				ob->wex = tick_add_ifset(now_ms, ob->wto);
 				if (tick_isset(ib->rex) && !(si->flags & SI_FL_INDEP_STR)) {
@@ -712,7 +718,7 @@ void stream_int_update_conn(struct stream_interface *si)
  */
 static void stream_int_shutr_conn(struct stream_interface *si)
 {
-	struct connection *conn = si->conn;
+	struct connection *conn = __objt_conn(si->end);
 
 	si->ib->flags &= ~CF_SHUTR_NOW;
 	if (si->ib->flags & CF_SHUTR)
@@ -754,7 +760,7 @@ static void stream_int_shutr_conn(struct stream_interface *si)
  */
 static void stream_int_shutw_conn(struct stream_interface *si)
 {
-	struct connection *conn = si->conn;
+	struct connection *conn = __objt_conn(si->end);
 
 	si->ob->flags &= ~CF_SHUTW_NOW;
 	if (si->ob->flags & CF_SHUTW)
@@ -840,24 +846,25 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 static void stream_int_chk_rcv_conn(struct stream_interface *si)
 {
 	struct channel *ib = si->ib;
+	struct connection *conn = __objt_conn(si->end);
 
 	if (unlikely(si->state > SI_ST_EST || (ib->flags & CF_SHUTR)))
 		return;
 
-	conn_refresh_polling_flags(si->conn);
+	conn_refresh_polling_flags(conn);
 
 	if ((ib->flags & CF_DONT_READ) || channel_full(ib)) {
 		/* stop reading */
 		if (!(ib->flags & CF_DONT_READ)) /* full */
 			si->flags |= SI_FL_WAIT_ROOM;
-		__conn_data_stop_recv(si->conn);
+		__conn_data_stop_recv(conn);
 	}
 	else {
 		/* (re)start reading */
 		si->flags &= ~SI_FL_WAIT_ROOM;
-		__conn_data_want_recv(si->conn);
+		__conn_data_want_recv(conn);
 	}
-	conn_cond_update_data_polling(si->conn);
+	conn_cond_update_data_polling(conn);
 }
 
 
@@ -869,6 +876,7 @@ static void stream_int_chk_rcv_conn(struct stream_interface *si)
 static void stream_int_chk_snd_conn(struct stream_interface *si)
 {
 	struct channel *ob = si->ob;
+	struct connection *conn = __objt_conn(si->end);
 
 	if (unlikely(si->state > SI_ST_EST || (ob->flags & CF_SHUTW)))
 		return;
@@ -880,7 +888,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 	    !(si->flags & SI_FL_WAIT_DATA))       /* not waiting for data */
 		return;
 
-	if (si->conn->flags & (CO_FL_DATA_WR_ENA|CO_FL_CURR_WR_ENA)) {
+	if (conn->flags & (CO_FL_DATA_WR_ENA|CO_FL_CURR_WR_ENA)) {
 		/* already subscribed to write notifications, will be called
 		 * anyway, so let's avoid calling it especially if the reader
 		 * is not ready.
@@ -888,20 +896,20 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 		return;
 	}
 
-	if (!(si->conn->flags & (CO_FL_HANDSHAKE|CO_FL_WAIT_L4_CONN|CO_FL_WAIT_L6_CONN))) {
+	if (!(conn->flags & (CO_FL_HANDSHAKE|CO_FL_WAIT_L4_CONN|CO_FL_WAIT_L6_CONN))) {
 		/* Before calling the data-level operations, we have to prepare
 		 * the polling flags to ensure we properly detect changes.
 		 */
-		if (si->conn->ctrl)
-			fd_want_send(si->conn->t.sock.fd);
+		if (conn->ctrl)
+			fd_want_send(conn->t.sock.fd);
 
-		conn_refresh_polling_flags(si->conn);
+		conn_refresh_polling_flags(conn);
 
-		si_conn_send(si->conn);
-		if (si->conn->flags & CO_FL_ERROR) {
+		si_conn_send(conn);
+		if (conn->flags & CO_FL_ERROR) {
 			/* Write error on the file descriptor */
-			fd_stop_both(si->conn->t.sock.fd);
-			__conn_data_stop_both(si->conn);
+			fd_stop_both(conn->t.sock.fd);
+			__conn_data_stop_both(conn);
 			si->flags |= SI_FL_ERR;
 			goto out_wakeup;
 		}
@@ -916,7 +924,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 		 * ->o limit was reached. Maybe we just wrote the last
 		 * chunk and need to close.
 		 */
-		__conn_data_stop_send(si->conn);
+		__conn_data_stop_send(conn);
 		if (((ob->flags & (CF_SHUTW|CF_AUTO_CLOSE|CF_SHUTW_NOW)) ==
 		     (CF_AUTO_CLOSE|CF_SHUTW_NOW)) &&
 		    (si->state == SI_ST_EST)) {
@@ -932,7 +940,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 		/* Otherwise there are remaining data to be sent in the buffer,
 		 * which means we have to poll before doing so.
 		 */
-		__conn_data_want_send(si->conn);
+		__conn_data_want_send(conn);
 		si->flags &= ~SI_FL_WAIT_DATA;
 		if (!tick_isset(ob->wex))
 			ob->wex = tick_add_ifset(now_ms, ob->wto);
@@ -969,7 +977,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 	}
 
 	/* commit possible polling changes */
-	conn_cond_update_polling(si->conn);
+	conn_cond_update_polling(conn);
 }
 
 /*
@@ -1205,7 +1213,7 @@ static void si_conn_send_cb(struct connection *conn)
 	if (conn->flags & CO_FL_ERROR)
 		return;
 
-	if (si->conn->flags & CO_FL_HANDSHAKE)
+	if (conn->flags & CO_FL_HANDSHAKE)
 		/* a handshake was requested */
 		return;
 
@@ -1229,6 +1237,8 @@ static void si_conn_send_cb(struct connection *conn)
  */
 void stream_sock_read0(struct stream_interface *si)
 {
+	struct connection *conn = __objt_conn(si->end);
+
 	si->ib->flags &= ~CF_SHUTR_NOW;
 	if (si->ib->flags & CF_SHUTR)
 		return;
@@ -1246,22 +1256,22 @@ void stream_sock_read0(struct stream_interface *si)
 		/* we want to immediately forward this close to the write side */
 		if (si->flags & SI_FL_NOLINGER) {
 			si->flags &= ~SI_FL_NOLINGER;
-			setsockopt(si->conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
+			setsockopt(conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
 				   (struct linger *) &nolinger, sizeof(struct linger));
 		}
 		/* force flag on ssl to keep session in cache */
-		if (si->conn->xprt->shutw)
-			si->conn->xprt->shutw(si->conn, 0);
+		if (conn->xprt->shutw)
+			conn->xprt->shutw(conn, 0);
 		goto do_close;
 	}
 
 	/* otherwise that's just a normal read shutdown */
-	__conn_data_stop_recv(si->conn);
+	__conn_data_stop_recv(conn);
 	return;
 
  do_close:
 	/* OK we completely close the socket here just as if we went through si_shut[rw]() */
-	conn_full_close(si->conn);
+	conn_full_close(conn);
 
 	si->ib->flags &= ~CF_SHUTR_NOW;
 	si->ib->flags |= CF_SHUTR;

@@ -2488,12 +2488,12 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 		req->flags |= CF_READ_DONTWAIT; /* try to get back here ASAP */
 		s->rep->flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
 #ifdef TCP_QUICKACK
-		if (s->listener->options & LI_O_NOQUICKACK && req->buf->i) {
+		if (s->listener->options & LI_O_NOQUICKACK && req->buf->i && objt_conn(s->req->prod->end)) {
 			/* We need more data, we have to re-enable quick-ack in case we
 			 * previously disabled it, otherwise we might cause the client
 			 * to delay next data.
 			 */
-			setsockopt(s->si[0].conn->t.sock.fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
+			setsockopt(__objt_conn(s->req->prod->end)->t.sock.fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
 		}
 #endif
 
@@ -2969,6 +2969,7 @@ static inline void inet_set_tos(int fd, struct sockaddr_storage from, int tos)
 static struct http_req_rule *
 http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session *s, struct http_txn *txn)
 {
+	struct connection *cli_conn;
 	struct http_req_rule *rule;
 	struct hdr_ctx ctx;
 
@@ -3014,12 +3015,14 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 			break;
 
 		case HTTP_REQ_ACT_SET_TOS:
-			inet_set_tos(s->req->prod->conn->t.sock.fd, s->req->prod->conn->addr.from, rule->arg.tos);
+			if ((cli_conn = objt_conn(s->req->prod->end)))
+				inet_set_tos(cli_conn->t.sock.fd, cli_conn->addr.from, rule->arg.tos);
 			break;
 
 		case HTTP_REQ_ACT_SET_MARK:
 #ifdef SO_MARK
-			setsockopt(s->req->prod->conn->t.sock.fd, SOL_SOCKET, SO_MARK, &rule->arg.mark, sizeof(rule->arg.mark));
+			if ((cli_conn = objt_conn(s->req->prod->end)))
+				setsockopt(cli_conn->t.sock.fd, SOL_SOCKET, SO_MARK, &rule->arg.mark, sizeof(rule->arg.mark));
 #endif
 			break;
 
@@ -3062,6 +3065,7 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 static struct http_res_rule *
 http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session *s, struct http_txn *txn)
 {
+	struct connection *cli_conn;
 	struct http_res_rule *rule;
 	struct hdr_ctx ctx;
 
@@ -3097,12 +3101,14 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 			break;
 
 		case HTTP_RES_ACT_SET_TOS:
-			inet_set_tos(s->req->prod->conn->t.sock.fd, s->req->prod->conn->addr.from, rule->arg.tos);
+			if ((cli_conn = objt_conn(s->req->prod->end)))
+				inet_set_tos(cli_conn->t.sock.fd, cli_conn->addr.from, rule->arg.tos);
 			break;
 
 		case HTTP_RES_ACT_SET_MARK:
 #ifdef SO_MARK
-			setsockopt(s->req->prod->conn->t.sock.fd, SOL_SOCKET, SO_MARK, &rule->arg.mark, sizeof(rule->arg.mark));
+			if ((cli_conn = objt_conn(s->req->prod->end)))
+				setsockopt(cli_conn->t.sock.fd, SOL_SOCKET, SO_MARK, &rule->arg.mark, sizeof(rule->arg.mark));
 #endif
 			break;
 
@@ -3684,6 +3690,7 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 {
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->req;
+	struct connection *cli_conn = objt_conn(req->prod->end);
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 		/* we need more data */
@@ -3711,8 +3718,9 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 	 */
 
 	/*
-	 * If HTTP PROXY is set we simply get remote server address
-	 * parsing incoming request.
+	 * If HTTP PROXY is set we simply get remote server address parsing
+	 * incoming request. Note that this requires that a connection is
+	 * allocated on the server side.
 	 */
 	if ((s->be->options & PR_O_HTTP_PROXY) && !(s->flags & SN_ADDR_SET)) {
 		url2sa(req->buf->p + msg->sl.rq.u, msg->sl.rq.u_l, &s->req->cons->conn->addr.to);
@@ -3769,19 +3777,19 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 			 * and we found it, so don't do anything.
 			 */
 		}
-		else if (s->req->prod->conn->addr.from.ss_family == AF_INET) {
+		else if (cli_conn && cli_conn->addr.from.ss_family == AF_INET) {
 			/* Add an X-Forwarded-For header unless the source IP is
 			 * in the 'except' network range.
 			 */
 			if ((!s->fe->except_mask.s_addr ||
-			     (((struct sockaddr_in *)&s->req->prod->conn->addr.from)->sin_addr.s_addr & s->fe->except_mask.s_addr)
+			     (((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr.s_addr & s->fe->except_mask.s_addr)
 			     != s->fe->except_net.s_addr) &&
 			    (!s->be->except_mask.s_addr ||
-			     (((struct sockaddr_in *)&s->req->prod->conn->addr.from)->sin_addr.s_addr & s->be->except_mask.s_addr)
+			     (((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr.s_addr & s->be->except_mask.s_addr)
 			     != s->be->except_net.s_addr)) {
 				int len;
 				unsigned char *pn;
-				pn = (unsigned char *)&((struct sockaddr_in *)&s->req->prod->conn->addr.from)->sin_addr;
+				pn = (unsigned char *)&((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr;
 
 				/* Note: we rely on the backend to get the header name to be used for
 				 * x-forwarded-for, because the header is really meant for the backends.
@@ -3801,14 +3809,14 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 					goto return_bad_req;
 			}
 		}
-		else if (s->req->prod->conn->addr.from.ss_family == AF_INET6) {
+		else if (cli_conn && cli_conn->addr.from.ss_family == AF_INET6) {
 			/* FIXME: for the sake of completeness, we should also support
 			 * 'except' here, although it is mostly useless in this case.
 			 */
 			int len;
 			char pn[INET6_ADDRSTRLEN];
 			inet_ntop(AF_INET6,
-				  (const void *)&((struct sockaddr_in6 *)(&s->req->prod->conn->addr.from))->sin6_addr,
+				  (const void *)&((struct sockaddr_in6 *)(&cli_conn->addr.from))->sin6_addr,
 				  pn, sizeof(pn));
 
 			/* Note: we rely on the backend to get the header name to be used for
@@ -3837,22 +3845,22 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 	if ((s->fe->options | s->be->options) & PR_O_ORGTO) {
 
 		/* FIXME: don't know if IPv6 can handle that case too. */
-		if (s->req->prod->conn->addr.from.ss_family == AF_INET) {
+		if (cli_conn && cli_conn->addr.from.ss_family == AF_INET) {
 			/* Add an X-Original-To header unless the destination IP is
 			 * in the 'except' network range.
 			 */
-			conn_get_to_addr(s->req->prod->conn);
+			conn_get_to_addr(cli_conn);
 
-			if (s->req->prod->conn->addr.to.ss_family == AF_INET &&
+			if (cli_conn->addr.to.ss_family == AF_INET &&
 			    ((!s->fe->except_mask_to.s_addr ||
-			      (((struct sockaddr_in *)&s->req->prod->conn->addr.to)->sin_addr.s_addr & s->fe->except_mask_to.s_addr)
+			      (((struct sockaddr_in *)&cli_conn->addr.to)->sin_addr.s_addr & s->fe->except_mask_to.s_addr)
 			      != s->fe->except_to.s_addr) &&
 			     (!s->be->except_mask_to.s_addr ||
-			      (((struct sockaddr_in *)&s->req->prod->conn->addr.to)->sin_addr.s_addr & s->be->except_mask_to.s_addr)
+			      (((struct sockaddr_in *)&cli_conn->addr.to)->sin_addr.s_addr & s->be->except_mask_to.s_addr)
 			      != s->be->except_to.s_addr))) {
 				int len;
 				unsigned char *pn;
-				pn = (unsigned char *)&((struct sockaddr_in *)&s->req->prod->conn->addr.to)->sin_addr;
+				pn = (unsigned char *)&((struct sockaddr_in *)&cli_conn->addr.to)->sin_addr;
 
 				/* Note: we rely on the backend to get the header name to be used for
 				 * x-original-to, because the header is really meant for the backends.
@@ -3922,9 +3930,10 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 		 * the client to delay further data.
 		 */
 		if ((s->listener->options & LI_O_NOQUICKACK) &&
+		    cli_conn &&
 		    ((msg->flags & HTTP_MSGF_TE_CHNK) ||
 		     (msg->body_len > req->buf->i - txn->req.eoh - 2)))
-			setsockopt(s->si[0].conn->t.sock.fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
+			setsockopt(cli_conn->t.sock.fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
 #endif
 	}
 
@@ -4282,7 +4291,9 @@ void http_end_txn_clean_session(struct session *s)
 
 	s->target = NULL;
 
+	/* reinitialize the connection to the server */
 	s->req->cons->state     = s->req->cons->prev_state = SI_ST_INI;
+	s->req->cons->end = NULL;
 	s->req->cons->conn->obj_type = OBJ_TYPE_CONN;
 	s->req->cons->conn->t.sock.fd = -1; /* just to help with debugging */
 	s->req->cons->conn->flags = CO_FL_NONE;
@@ -7786,7 +7797,11 @@ void http_capture_bad_message(struct error_snapshot *es, struct session *s,
 	es->sid  = s->uniq_id;
 	es->srv  = objt_server(s->target);
 	es->oe   = other_end;
-	es->src  = s->req->prod->conn->addr.from;
+	if (objt_conn(s->req->prod->end))
+		es->src  = __objt_conn(s->req->prod->end)->addr.from;
+	else
+		memset(&es->src, 0, sizeof(es->src));
+
 	es->state = state;
 	es->ev_id = error_snapshot_id++;
 	es->b_flags = chn->flags;
@@ -7939,8 +7954,9 @@ void debug_hdr(const char *dir, struct session *t, const char *start, const char
 {
 	int max;
 	chunk_printf(&trash, "%08x:%s.%s[%04x:%04x]: ", t->uniq_id, t->be->id,
-		      dir, (unsigned  short)t->req->prod->conn->t.sock.fd,
-		     (unsigned short)t->req->cons->conn->t.sock.fd);
+		      dir,
+		     objt_conn(t->req->prod->end) ? (unsigned short)objt_conn(t->req->prod->end)->t.sock.fd : -1,
+		     objt_conn(t->req->cons->end) ? (unsigned short)objt_conn(t->req->cons->end)->t.sock.fd : -1);
 
 	for (max = 0; start + max < end; max++)
 		if (start[max] == '\r' || start[max] == '\n')
@@ -9264,6 +9280,10 @@ smp_fetch_base32_src(struct proxy *px, struct session *l4, void *l7, unsigned in
                      const struct arg *args, struct sample *smp, const char *kw)
 {
 	struct chunk *temp;
+	struct connection *cli_conn = objt_conn(l4->si[0].end);
+
+	if (!cli_conn)
+		return 0;
 
 	if (!smp_fetch_base32(px, l4, l7, opt, args, smp, kw))
 		return 0;
@@ -9272,13 +9292,13 @@ smp_fetch_base32_src(struct proxy *px, struct session *l4, void *l7, unsigned in
 	memcpy(temp->str + temp->len, &smp->data.uint, sizeof(smp->data.uint));
 	temp->len += sizeof(smp->data.uint);
 
-	switch (l4->si[0].conn->addr.from.ss_family) {
+	switch (cli_conn->addr.from.ss_family) {
 	case AF_INET:
-		memcpy(temp->str + temp->len, &((struct sockaddr_in *)&l4->si[0].conn->addr.from)->sin_addr, 4);
+		memcpy(temp->str + temp->len, &((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr, 4);
 		temp->len += 4;
 		break;
 	case AF_INET6:
-		memcpy(temp->str + temp->len, &((struct sockaddr_in6 *)(&l4->si[0].conn->addr.from))->sin6_addr, 16);
+		memcpy(temp->str + temp->len, &((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_addr, 16);
 		temp->len += 16;
 		break;
 	default:
@@ -9848,6 +9868,7 @@ smp_fetch_url32_src(struct proxy *px, struct session *l4, void *l7, unsigned int
                      const struct arg *args, struct sample *smp, const char *kw)
 {
 	struct chunk *temp;
+	struct connection *cli_conn = objt_conn(l4->si[0].end);
 
 	if (!smp_fetch_url32(px, l4, l7, opt, args, smp, kw))
 		return 0;
@@ -9856,13 +9877,13 @@ smp_fetch_url32_src(struct proxy *px, struct session *l4, void *l7, unsigned int
 	memcpy(temp->str + temp->len, &smp->data.uint, sizeof(smp->data.uint));
 	temp->len += sizeof(smp->data.uint);
 
-	switch (l4->si[0].conn->addr.from.ss_family) {
+	switch (cli_conn->addr.from.ss_family) {
 	case AF_INET:
-		memcpy(temp->str + temp->len, &((struct sockaddr_in *)&l4->si[0].conn->addr.from)->sin_addr, 4);
+		memcpy(temp->str + temp->len, &((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr, 4);
 		temp->len += 4;
 		break;
 	case AF_INET6:
-		memcpy(temp->str + temp->len, &((struct sockaddr_in6 *)(&l4->si[0].conn->addr.from))->sin6_addr, 16);
+		memcpy(temp->str + temp->len, &((struct sockaddr_in6 *)&cli_conn->addr.from)->sin6_addr, 16);
 		temp->len += 16;
 		break;
 	default:

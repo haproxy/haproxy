@@ -1076,11 +1076,10 @@ static void peer_session_forceshutdown(struct session * session)
 	task_wakeup(session->task, TASK_WOKEN_MSG);
 }
 
-/*
- * this function is called on a read event from a listen socket, corresponding
- * to an accept. It tries to accept as many connections as possible.
- * It returns a positive value upon success, 0 if the connection needs to be
- * closed and ignored, or a negative value upon critical failure.
+/* Finish a session accept() for a peer. It returns a negative value in case of
+ * a critical failure which must cause the listener to be disabled, a positive
+ * value in case of success, or zero if it is a success but the session must be
+ * closed ASAP and ignored.
  */
 int peer_accept(struct session *s)
 {
@@ -1162,15 +1161,17 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 
 	s->req = s->rep = NULL; /* will be allocated later */
 
+	/* si[0] is the applet, we should not need s->si[0].conn anymore soon */
 	s->si[0].conn->obj_type = OBJ_TYPE_CONN;
 	s->si[0].conn->t.sock.fd = -1;
 	s->si[0].conn->flags = CO_FL_NONE;
 	s->si[0].conn->err_code = CO_ER_NONE;
+	s->si[0].conn->target = &l->obj_type;
+
 	s->si[0].owner = t;
 	s->si[0].state = s->si[0].prev_state = SI_ST_EST;
 	s->si[0].err_type = SI_ET_NONE;
 	s->si[0].send_proxy_ofs = 0;
-	s->si[0].conn->target = &l->obj_type;
 	s->si[0].exp = TICK_ETERNITY;
 	s->si[0].flags = SI_FL_NONE;
 	if (s->fe->options2 & PR_O2_INDEPSTR)
@@ -1184,17 +1185,22 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->si[1].conn->t.sock.fd = -1; /* just to help with debugging */
 	s->si[1].conn->flags = CO_FL_NONE;
 	s->si[1].conn->err_code = CO_ER_NONE;
+	s->si[1].conn->target = &s->be->obj_type;
+
 	s->si[1].owner = t;
 	s->si[1].state = s->si[1].prev_state = SI_ST_ASS;
 	s->si[1].conn_retries = p->conn_retries;
 	s->si[1].err_type = SI_ET_NONE;
 	s->si[1].send_proxy_ofs = 0;
-	s->si[1].conn->target = &s->be->obj_type;
-	si_prepare_conn(&s->si[1], peer->proto, peer->xprt);
 	s->si[1].exp = TICK_ETERNITY;
 	s->si[1].flags = SI_FL_NONE;
 	if (s->be->options2 & PR_O2_INDEPSTR)
 		s->si[1].flags |= SI_FL_INDEP_STR;
+
+	/* will automatically prepare the stream interface to connect to the
+	 * pre-initialized connection in si->conn.
+	 */
+	si_prepare_conn(&s->si[1], peer->proto, peer->xprt);
 
 	session_init_srv_conn(s);
 	s->target = &s->be->obj_type;

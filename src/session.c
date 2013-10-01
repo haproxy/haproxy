@@ -72,6 +72,7 @@ struct data_cb sess_conn_cb = {
  */
 int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 {
+	struct connection *cli_conn;
 	struct proxy *p = l->frontend;
 	struct session *s;
 	struct task *t;
@@ -83,7 +84,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	if (unlikely((s = pool_alloc2(pool2_session)) == NULL))
 		goto out_close;
 
-	if (unlikely((s->si[0].conn = pool_alloc2(pool2_connection)) == NULL))
+	if (unlikely((cli_conn = s->si[0].conn = pool_alloc2(pool2_connection)) == NULL))
 		goto out_fail_conn0;
 
 	if (unlikely((s->si[1].conn = pool_alloc2(pool2_connection)) == NULL))
@@ -104,19 +105,21 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->listener = l;
 	s->fe  = p;
 
-	/* OK, we're keeping the session, so let's properly initialize the session */
-	s->si[0].conn->obj_type = OBJ_TYPE_CONN;
-	s->si[0].conn->t.sock.fd = cfd;
-	s->si[0].conn->ctrl = l->proto;
-	s->si[0].conn->flags = CO_FL_NONE | CO_FL_ADDR_FROM_SET;
-	s->si[0].conn->err_code = CO_ER_NONE;
-	s->si[0].conn->addr.from = *addr;
-	s->si[0].conn->target = &l->obj_type;
-
-	/* FIXME: this should be replaced with OBJ_TYPE_NONE once all users check the
-	 * object type before dereferencing the connection pointer.
+	/* OK, we're keeping the session, so let's properly initialize the session.
+	 * We first have to initialize the client-side connection.
 	 */
-	s->si[1].conn->obj_type = OBJ_TYPE_CONN;
+	cli_conn->obj_type = OBJ_TYPE_CONN;
+	cli_conn->t.sock.fd = cfd;
+	cli_conn->ctrl = l->proto;
+	cli_conn->flags = CO_FL_NONE | CO_FL_ADDR_FROM_SET;
+	cli_conn->err_code = CO_ER_NONE;
+	cli_conn->addr.from = *addr;
+	cli_conn->target = &l->obj_type;
+
+	/* The server side is not used yet, but just initialize it to avoid
+	 * confusing some debugging or "show sess" for example.
+	 */
+	s->si[1].conn->obj_type = OBJ_TYPE_NONE;
 
 	s->logs.accept_date = date; /* user-visible date for logging */
 	s->logs.tv_accept = now;  /* corrected date for internal use */
@@ -178,8 +181,8 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 
 	/* wait for a PROXY protocol header */
 	if (l->options & LI_O_ACC_PROXY) {
-		s->si[0].conn->flags |= CO_FL_ACCEPT_PROXY;
-		conn_sock_want_recv(s->si[0].conn);
+		cli_conn->flags |= CO_FL_ACCEPT_PROXY;
+		conn_sock_want_recv(cli_conn);
 	}
 
 	if (unlikely((t = task_new()) == NULL))
@@ -193,14 +196,14 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	 * but not initialized. Also note we need to be careful as the stream
 	 * int is not initialized yet.
 	 */
-	conn_prepare(s->si[0].conn, &sess_conn_cb, l->proto, l->xprt, s);
+	conn_prepare(cli_conn, &sess_conn_cb, l->proto, l->xprt, s);
 
 	/* finish initialization of the accepted file descriptor */
 	fd_insert(cfd);
-	fdtab[cfd].owner = s->si[0].conn;
+	fdtab[cfd].owner = cli_conn;
 	fdtab[cfd].iocb = conn_fd_handler;
-	conn_data_want_recv(s->si[0].conn);
-	if (conn_xprt_init(s->si[0].conn) < 0)
+	conn_data_want_recv(cli_conn);
+	if (conn_xprt_init(cli_conn) < 0)
 		goto out_free_task;
 
 	/* OK, now either we have a pending handshake to execute with and
@@ -209,16 +212,16 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	 * set the I/O timeout to the frontend's client timeout.
 	 */
 
-	if (s->si[0].conn->flags & CO_FL_HANDSHAKE) {
+	if (cli_conn->flags & CO_FL_HANDSHAKE) {
 		t->process = expire_mini_session;
 		t->expire = tick_add_ifset(now_ms, p->timeout.client);
 		task_queue(t);
-		s->si[0].conn->flags |= CO_FL_INIT_DATA | CO_FL_WAKE_DATA;
+		cli_conn->flags |= CO_FL_INIT_DATA | CO_FL_WAKE_DATA;
 		return 1;
 	}
 
 	/* OK let's complete session initialization since there is no handshake */
-	s->si[0].conn->flags |= CO_FL_CONNECTED;
+	cli_conn->flags |= CO_FL_CONNECTED;
 	ret = session_complete(s);
 	if (ret > 0)
 		return ret;
@@ -252,21 +255,24 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 }
 
 
-/* prepare the trash with a log prefix for session <s> */
+/* prepare the trash with a log prefix for session <s>. It only works with
+ * embryonic sessions based on a real connection.
+ */
 static void prepare_mini_sess_log_prefix(struct session *s)
 {
 	struct tm tm;
 	char pn[INET6_ADDRSTRLEN];
 	int ret;
 	char *end;
+	struct connection *cli_conn = s->si[0].conn;
 
-	ret = addr_to_str(&s->si[0].conn->addr.from, pn, sizeof(pn));
+	ret = addr_to_str(&cli_conn->addr.from, pn, sizeof(pn));
 	if (ret <= 0)
 		chunk_printf(&trash, "unknown [");
 	else if (ret == AF_UNIX)
 		chunk_printf(&trash, "%s:%d [", pn, s->listener->luid);
 	else
-		chunk_printf(&trash, "%s:%d [", pn, get_host_port(&s->si[0].conn->addr.from));
+		chunk_printf(&trash, "%s:%d [", pn, get_host_port(&cli_conn->addr.from));
 
 	get_localtime(s->logs.accept_date.tv_sec, &tm);
 	end = date2str_log(trash.str + trash.len, &tm, &(s->logs.accept_date), trash.size - trash.len);
@@ -317,7 +323,7 @@ static void kill_mini_session(struct session *s)
 	}
 
 	/* kill the connection now */
-	conn_full_close(s->si[0].conn);
+	conn_full_close(conn);
 
 	s->fe->feconn--;
 	session_store_counters(s);
@@ -393,6 +399,7 @@ static struct task *expire_mini_session(struct task *t)
  * be called with an embryonic session. It returns a positive value upon
  * success, 0 if the connection can be ignored, or a negative value upon
  * critical failure. The accepted file descriptor is closed if we return <= 0.
+ * The client-side end point is assumed to be a connection.
  */
 int session_complete(struct session *s)
 {
@@ -462,14 +469,16 @@ int session_complete(struct session *s)
 	s->si[1].conn->t.sock.fd = -1; /* just to help with debugging */
 	s->si[1].conn->flags = CO_FL_NONE;
 	s->si[1].conn->err_code = CO_ER_NONE;
+	s->si[1].conn->target = NULL;
 	s->si[1].owner     = t;
 	s->si[1].state     = s->si[1].prev_state = SI_ST_INI;
 	s->si[1].err_type  = SI_ET_NONE;
 	s->si[1].conn_retries = 0;  /* used for logging too */
 	s->si[1].send_proxy_ofs = 0;
-	si_prepare_none(&s->si[1]);
 	s->si[1].exp       = TICK_ETERNITY;
 	s->si[1].flags     = SI_FL_NONE;
+
+	si_prepare_none(&s->si[1]);
 
 	if (likely(s->fe->options2 & PR_O2_INDEPSTR))
 		s->si[1].flags |= SI_FL_INDEP_STR;
@@ -549,7 +558,7 @@ int session_complete(struct session *s)
 	txn->rsp.chn = s->rep;
 
 	/* finish initialization of the accepted file descriptor */
-	conn_data_want_recv(s->si[0].conn);
+	conn_data_want_recv(__objt_conn(s->si[0].end));
 
 	if (p->accept && (ret = p->accept(s)) <= 0) {
 		/* Either we had an unrecoverable error (<0) or work is
@@ -561,10 +570,10 @@ int session_complete(struct session *s)
 
 	/* if logs require transport layer information, note it on the connection */
 	if (s->logs.logwait & LW_XPRT)
-		s->si[0].conn->flags |= CO_FL_XPRT_TRACKED;
+		__objt_conn(s->si[0].end)->flags |= CO_FL_XPRT_TRACKED;
 
 	/* we want the connection handler to notify the stream interface about updates. */
-	s->si[0].conn->flags |= CO_FL_WAKE_DATA;
+	__objt_conn(s->si[0].end)->flags |= CO_FL_WAKE_DATA;
 
 	/* it is important not to call the wakeup function directly but to
 	 * pass through task_wakeup(), because this one knows how to apply
@@ -594,6 +603,7 @@ static void session_free(struct session *s)
 	struct http_txn *txn = &s->txn;
 	struct proxy *fe = s->fe;
 	struct bref *bref, *back;
+	struct connection *cli_conn = objt_conn(s->si[0].end);
 	int i;
 
 	if (s->pend_pos)
@@ -636,8 +646,10 @@ static void session_free(struct session *s)
 	http_end_txn(s);
 
 	/* ensure the client-side transport layer is destroyed */
-	s->si[0].conn->flags &= ~CO_FL_XPRT_TRACKED;
-	conn_full_close(s->si[0].conn);
+	if (cli_conn) {
+		cli_conn->flags &= ~CO_FL_XPRT_TRACKED;
+		conn_full_close(cli_conn);
+	}
 
 	for (i = 0; i < s->store_count; i++) {
 		if (!s->store[i].ts)
@@ -771,12 +783,13 @@ void session_process_counters(struct session *s)
  * We must check for establishment, error and abort. Possible output states
  * are SI_ST_EST (established), SI_ST_CER (error), SI_ST_DIS (abort), and
  * SI_ST_CON (no change). The function returns 0 if it switches to SI_ST_CER,
- * otherwise 1.
+ * otherwise 1. This only works with connection-based sessions.
  */
 static int sess_update_st_con_tcp(struct session *s, struct stream_interface *si)
 {
 	struct channel *req = si->ob;
 	struct channel *rep = si->ib;
+	struct connection *srv_conn = __objt_conn(si->end);
 
 	/* If we got an error, or if nothing happened and the connection timed
 	 * out, we must give up. The CER state handler will take care of retry
@@ -798,8 +811,8 @@ static int sess_update_st_con_tcp(struct session *s, struct stream_interface *si
 		si->exp   = TICK_ETERNITY;
 		si->state = SI_ST_CER;
 
-		si->conn->flags &= ~CO_FL_XPRT_TRACKED;
-		conn_full_close(si->conn);
+		srv_conn->flags &= ~CO_FL_XPRT_TRACKED;
+		conn_full_close(srv_conn);
 
 		if (si->err_type)
 			return 0;
@@ -954,7 +967,7 @@ static void sess_establish(struct session *s, struct stream_interface *si)
 
 	rep->analysers |= s->fe->fe_rsp_ana | s->be->be_rsp_ana;
 	rep->flags |= CF_READ_ATTACHED; /* producer is now attached */
-	if (si->conn->ctrl) {
+	if (objt_conn(si->end)) {
 		/* real connections have timeouts */
 		req->wto = s->be->timeout.server;
 		rep->rto = s->be->timeout.server;
@@ -2130,8 +2143,8 @@ struct task *process_session(struct task *t)
 	if (!(s->req->flags & (CF_KERN_SPLICING|CF_SHUTR)) &&
 	    s->req->to_forward &&
 	    (global.tune.options & GTUNE_USE_SPLICE) &&
-	    (s->si[0].conn->xprt && s->si[0].conn->xprt->rcv_pipe && s->si[0].conn->xprt->snd_pipe) &&
-	    (s->si[1].conn->xprt && s->si[1].conn->xprt->rcv_pipe && s->si[1].conn->xprt->snd_pipe) &&
+	    (objt_conn(s->si[0].end) && __objt_conn(s->si[0].end)->xprt && __objt_conn(s->si[0].end)->xprt->rcv_pipe) &&
+	    (objt_conn(s->si[1].end) && __objt_conn(s->si[1].end)->xprt && __objt_conn(s->si[1].end)->xprt->snd_pipe) &&
 	    (pipes_used < global.maxpipes) &&
 	    (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_REQ) ||
 	     (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
@@ -2278,8 +2291,8 @@ struct task *process_session(struct task *t)
 	if (!(s->rep->flags & (CF_KERN_SPLICING|CF_SHUTR)) &&
 	    s->rep->to_forward &&
 	    (global.tune.options & GTUNE_USE_SPLICE) &&
-	    (s->si[0].conn->xprt && s->si[0].conn->xprt->rcv_pipe && s->si[0].conn->xprt->snd_pipe) &&
-	    (s->si[1].conn->xprt && s->si[1].conn->xprt->rcv_pipe && s->si[1].conn->xprt->snd_pipe) &&
+	    (objt_conn(s->si[0].end) && __objt_conn(s->si[0].end)->xprt && __objt_conn(s->si[0].end)->xprt->snd_pipe) &&
+	    (objt_conn(s->si[1].end) && __objt_conn(s->si[1].end)->xprt && __objt_conn(s->si[1].end)->xprt->rcv_pipe) &&
 	    (pipes_used < global.maxpipes) &&
 	    (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_RTR) ||
 	     (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
@@ -2345,8 +2358,8 @@ struct task *process_session(struct task *t)
 		    s->si[1].prev_state == SI_ST_EST) {
 			chunk_printf(&trash, "%08x:%s.srvcls[%04x:%04x]\n",
 				      s->uniq_id, s->be->id,
-				      (unsigned short)s->si[0].conn->t.sock.fd,
-				      (unsigned short)s->si[1].conn->t.sock.fd);
+			              objt_conn(s->si[0].end) ? (unsigned short)objt_conn(s->si[0].end)->t.sock.fd : -1,
+			              objt_conn(s->si[1].end) ? (unsigned short)objt_conn(s->si[1].end)->t.sock.fd : -1);
 			if (write(1, trash.str, trash.len) < 0) /* shut gcc warning */;
 		}
 
@@ -2354,8 +2367,8 @@ struct task *process_session(struct task *t)
 		    s->si[0].prev_state == SI_ST_EST) {
 			chunk_printf(&trash, "%08x:%s.clicls[%04x:%04x]\n",
 				      s->uniq_id, s->be->id,
-				      (unsigned short)s->si[0].conn->t.sock.fd,
-				      (unsigned short)s->si[1].conn->t.sock.fd);
+			              objt_conn(s->si[0].end) ? (unsigned short)objt_conn(s->si[0].end)->t.sock.fd : -1,
+			              objt_conn(s->si[1].end) ? (unsigned short)objt_conn(s->si[1].end)->t.sock.fd : -1);
 			if (write(1, trash.str, trash.len) < 0) /* shut gcc warning */;
 		}
 	}
@@ -2459,8 +2472,8 @@ struct task *process_session(struct task *t)
 		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
 		chunk_printf(&trash, "%08x:%s.closed[%04x:%04x]\n",
 			      s->uniq_id, s->be->id,
-			      (unsigned short)s->req->prod->conn->t.sock.fd,
-			      (unsigned short)s->req->cons->conn->t.sock.fd);
+		              objt_conn(s->si[0].end) ? (unsigned short)objt_conn(s->si[0].end)->t.sock.fd : -1,
+		              objt_conn(s->si[1].end) ? (unsigned short)objt_conn(s->si[1].end)->t.sock.fd : -1);
 		if (write(1, trash.str, trash.len) < 0) /* shut gcc warning */;
 	}
 
@@ -2619,10 +2632,16 @@ smp_fetch_sc_stkctr(struct session *l4, const struct arg *args, const char *kw)
 			return NULL;
 	}
 	else if (num > 9) { /* src_* variant, args[0] = table */
-		struct stktable_key *key = addr_to_stktable_key(&l4->si[0].conn->addr.from);
+		struct stktable_key *key;
+		struct connection *conn = objt_conn(l4->si[0].end);
 
+		if (!conn)
+			return NULL;
+
+		key = addr_to_stktable_key(&conn->addr.from);
 		if (!key)
 			return NULL;
+
 		stkctr.table = &args->data.prx->table;
 		stkctr.entry = stktable_lookup_key(stkctr.table, key);
 		return &stkctr;
@@ -2831,11 +2850,15 @@ static int
 smp_fetch_src_updt_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                             const struct arg *args, struct sample *smp, const char *kw)
 {
+	struct connection *conn = objt_conn(l4->si[0].end);
 	struct stksess *ts;
 	struct stktable_key *key;
 	void *ptr;
 
-	key = addr_to_stktable_key(&l4->si[0].conn->addr.from);
+	if (!conn)
+		return 0;
+
+	key = addr_to_stktable_key(&conn->addr.from);
 	if (!key)
 		return 0;
 

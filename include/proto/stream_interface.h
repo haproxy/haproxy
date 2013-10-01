@@ -53,18 +53,30 @@ static inline void si_prepare_none(struct stream_interface *si)
 	si->appctx.applet = NULL;
 }
 
+/* Assign the stream interface's pre-allocated connection to the end point,
+ * and initialize the connection's context. This is used for outgoing
+ * connections.
+ */
 static inline void si_prepare_conn(struct stream_interface *si, const struct protocol *ctrl, const struct xprt_ops *xprt)
 {
+	struct connection *conn = si->conn;
+
 	si->ops = &si_conn_ops;
-	si->end = &si->conn->obj_type;
-	conn_prepare(si->conn, &si_conn_cb, ctrl, xprt, si);
+	si->end = &conn->obj_type;
+	conn_prepare(conn, &si_conn_cb, ctrl, xprt, si);
 }
 
+/* Assign the stream interface's pre-allocated connection to the end point,
+ * and leave the connection's context untouched. This is used for incoming
+ * connections.
+ */
 static inline void si_takeover_conn(struct stream_interface *si, const struct protocol *ctrl, const struct xprt_ops *xprt)
 {
+	struct connection *conn = si->conn;
+
 	si->ops = &si_conn_ops;
-	si->end = &si->conn->obj_type;
-	conn_assign(si->conn, &si_conn_cb, ctrl, xprt, si);
+	si->end = &conn->obj_type;
+	conn_assign(conn, &si_conn_cb, ctrl, xprt, si);
 }
 
 static inline void si_prepare_applet(struct stream_interface *si, struct si_applet *applet)
@@ -141,25 +153,26 @@ static inline void si_chk_snd(struct stream_interface *si)
 /* Calls chk_snd on the connection using the ctrl layer */
 static inline int si_connect(struct stream_interface *si)
 {
+	struct connection *conn = objt_conn(si->end);
 	int ret;
 
-	if (unlikely(!si->conn->ctrl || !si->conn->ctrl->connect))
+	if (unlikely(!conn || !conn->ctrl || !conn->ctrl->connect))
 		return SN_ERR_INTERNAL;
 
-	ret = si->conn->ctrl->connect(si->conn, !channel_is_empty(si->ob), !!si->send_proxy_ofs);
+	ret = conn->ctrl->connect(conn, !channel_is_empty(si->ob), !!si->send_proxy_ofs);
 	if (ret != SN_ERR_NONE)
 		return ret;
 
 	/* needs src ip/port for logging */
 	if (si->flags & SI_FL_SRC_ADDR)
-		conn_get_from_addr(si->conn);
+		conn_get_from_addr(conn);
 
 	/* Prepare to send a few handshakes related to the on-wire protocol. */
 	if (si->send_proxy_ofs)
-		si->conn->flags |= CO_FL_SI_SEND_PROXY;
+		conn->flags |= CO_FL_SI_SEND_PROXY;
 
 	/* we need to be notified about connection establishment */
-	si->conn->flags |= CO_FL_WAKE_DATA;
+	conn->flags |= CO_FL_WAKE_DATA;
 
 	/* we're in the process of establishing a connection */
 	si->state = SI_ST_CON;

@@ -935,6 +935,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 		return 0;
 
 	list_for_each_entry(tmp, list_format, list) {
+		struct connection *conn;
 		const char *src = NULL;
 		struct sample *key;
 
@@ -969,8 +970,11 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_CLIENTIP:  // %ci
-				ret = lf_ip(tmplog, (struct sockaddr *)&s->req->prod->conn->addr.from,
-					    dst + maxsize - tmplog, tmp);
+				conn = objt_conn(s->req->prod->end);
+				if (conn)
+					ret = lf_ip(tmplog, (struct sockaddr *)&conn->addr.from, dst + maxsize - tmplog, tmp);
+				else
+					ret = lf_text_len(tmplog, NULL, 0, dst + maxsize - tmplog, tmp);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -978,12 +982,18 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_CLIENTPORT:  // %cp
-				if (s->req->prod->conn->addr.from.ss_family == AF_UNIX) {
-					ret = ltoa_o(s->listener->luid, tmplog, dst + maxsize - tmplog);
-				} else {
-					ret = lf_port(tmplog, (struct sockaddr *)&s->req->prod->conn->addr.from,
-						      dst + maxsize - tmplog, tmp);
+				conn = objt_conn(s->req->prod->end);
+				if (conn) {
+					if (conn->addr.from.ss_family == AF_UNIX) {
+						ret = ltoa_o(s->listener->luid, tmplog, dst + maxsize - tmplog);
+					} else {
+						ret = lf_port(tmplog, (struct sockaddr *)&conn->addr.from,
+						              dst + maxsize - tmplog, tmp);
+					}
 				}
+				else
+					ret = lf_text_len(tmplog, NULL, 0, dst + maxsize - tmplog, tmp);
+
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -991,9 +1001,14 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_FRONTENDIP: // %fi
-				conn_get_to_addr(s->req->prod->conn);
-				ret = lf_ip(tmplog, (struct sockaddr *)&s->req->prod->conn->addr.to,
-					    dst + maxsize - tmplog, tmp);
+				conn = objt_conn(s->req->prod->end);
+				if (conn) {
+					conn_get_to_addr(conn);
+					ret = lf_ip(tmplog, (struct sockaddr *)&conn->addr.to, dst + maxsize - tmplog, tmp);
+				}
+				else
+					ret = lf_text_len(tmplog, NULL, 0, dst + maxsize - tmplog, tmp);
+
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -1001,14 +1016,17 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case  LOG_FMT_FRONTENDPORT: // %fp
-				conn_get_to_addr(s->req->prod->conn);
-				if (s->req->prod->conn->addr.to.ss_family == AF_UNIX) {
-					ret = ltoa_o(s->listener->luid,
-						     tmplog, dst + maxsize - tmplog);
-				} else {
-					ret = lf_port(tmplog, (struct sockaddr *)&s->req->prod->conn->addr.to,
-						      dst + maxsize - tmplog, tmp);
+				conn = objt_conn(s->req->prod->end);
+				if (conn) {
+					conn_get_to_addr(conn);
+					if (conn->addr.to.ss_family == AF_UNIX)
+						ret = ltoa_o(s->listener->luid, tmplog, dst + maxsize - tmplog);
+					else
+						ret = lf_port(tmplog, (struct sockaddr *)&conn->addr.to, dst + maxsize - tmplog, tmp);
 				}
+				else
+					ret = lf_text_len(tmplog, NULL, 0, dst + maxsize - tmplog, tmp);
+
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -1016,8 +1034,12 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_BACKENDIP:  // %bi
-				ret = lf_ip(tmplog, (struct sockaddr *)&s->req->cons->conn->addr.from,
-					    dst + maxsize - tmplog, tmp);
+				conn = objt_conn(s->req->cons->end);
+				if (conn)
+					ret = lf_ip(tmplog, (struct sockaddr *)&conn->addr.from, dst + maxsize - tmplog, tmp);
+				else
+					ret = lf_text_len(tmplog, NULL, 0, dst + maxsize - tmplog, tmp);
+
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -1025,8 +1047,12 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_BACKENDPORT:  // %bp
-				ret = lf_port(tmplog, (struct sockaddr *)&s->req->cons->conn->addr.from,
-					      dst + maxsize - tmplog, tmp);
+				conn = objt_conn(s->req->cons->end);
+				if (conn)
+					ret = lf_port(tmplog, (struct sockaddr *)&conn->addr.from, dst + maxsize - tmplog, tmp);
+				else
+					ret = lf_text_len(tmplog, NULL, 0, dst + maxsize - tmplog, tmp);
+
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -1034,8 +1060,12 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_SERVERIP: // %si
-				ret = lf_ip(tmplog, (struct sockaddr *)&s->req->cons->conn->addr.to,
-					    dst + maxsize - tmplog, tmp);
+				conn = objt_conn(s->req->cons->end);
+				if (conn)
+					ret = lf_ip(tmplog, (struct sockaddr *)&conn->addr.to, dst + maxsize - tmplog, tmp);
+				else
+					ret = lf_text_len(tmplog, NULL, 0, dst + maxsize - tmplog, tmp);
+
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -1043,8 +1073,12 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_SERVERPORT: // %sp
-				ret = lf_port(tmplog, (struct sockaddr *)&s->req->cons->conn->addr.to,
-					      dst + maxsize - tmplog, tmp);
+				conn = objt_conn(s->req->cons->end);
+				if (conn)
+					ret = lf_port(tmplog, (struct sockaddr *)&conn->addr.to, dst + maxsize - tmplog, tmp);
+				else
+					ret = lf_text_len(tmplog, NULL, 0, dst + maxsize - tmplog, tmp);
+
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
@@ -1143,8 +1177,11 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 #ifdef USE_OPENSSL
 			case LOG_FMT_SSL_CIPHER: // %sslc
 				src = NULL;
-				if (s->listener->xprt == &ssl_sock)
-					src = ssl_sock_get_cipher_name(s->si[0].conn);
+				conn = objt_conn(s->si[0].end);
+				if (conn) {
+					if (s->listener->xprt == &ssl_sock)
+						src = ssl_sock_get_cipher_name(conn);
+				}
 				ret = lf_text(tmplog, src, dst + maxsize - tmplog, tmp);
 				if (ret == NULL)
 					goto out;
@@ -1154,8 +1191,11 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 
 			case LOG_FMT_SSL_VERSION: // %sslv
 				src = NULL;
-				if (s->listener->xprt == &ssl_sock)
-					src = ssl_sock_get_proto_version(s->si[0].conn);
+				conn = objt_conn(s->si[0].end);
+				if (conn) {
+					if (s->listener->xprt == &ssl_sock)
+						src = ssl_sock_get_proto_version(conn);
+				}
 				ret = lf_text(tmplog, src, dst + maxsize - tmplog, tmp);
 				if (ret == NULL)
 					goto out;

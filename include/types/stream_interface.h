@@ -164,7 +164,7 @@ struct stream_interface {
 	unsigned int err_type;  /* first error detected, one of SI_ET_* */
 	enum obj_type *end;     /* points to the end point (connection or appctx) */
 
-	struct connection *conn; /* descriptor for a connection */
+	struct connection *conn; /* pre-allocated connection */
 	struct si_ops *ops;     /* general operations at the stream interface layer */
 
 	/* struct members below are the "remote" part, as seen from the buffer side */

@@ -505,7 +505,7 @@ struct server *get_server_rch(struct session *s)
 
 int assign_server(struct session *s)
 {
-
+	struct connection *conn;
 	struct server *conn_slot;
 	struct server *srv, *prev_srv;
 	int err;
@@ -574,14 +574,15 @@ int assign_server(struct session *s)
 
 			switch (s->be->lbprm.algo & BE_LB_PARM) {
 			case BE_LB_HASH_SRC:
-				if (s->req->prod->conn->addr.from.ss_family == AF_INET) {
+				conn = objt_conn(s->req->prod->end);
+				if (conn && conn->addr.from.ss_family == AF_INET) {
 					srv = get_server_sh(s->be,
-							    (void *)&((struct sockaddr_in *)&s->req->prod->conn->addr.from)->sin_addr,
+							    (void *)&((struct sockaddr_in *)&conn->addr.from)->sin_addr,
 							    4);
 				}
-				else if (s->req->prod->conn->addr.from.ss_family == AF_INET6) {
+				else if (conn && conn->addr.from.ss_family == AF_INET6) {
 					srv = get_server_sh(s->be,
-							    (void *)&((struct sockaddr_in6 *)&s->req->prod->conn->addr.from)->sin6_addr,
+							    (void *)&((struct sockaddr_in6 *)&conn->addr.from)->sin6_addr,
 							    16);
 				}
 				else {
@@ -664,7 +665,8 @@ int assign_server(struct session *s)
 		s->target = &s->be->obj_type;
 	}
 	else if ((s->be->options & PR_O_HTTP_PROXY) &&
-		 is_addr(&s->req->cons->conn->addr.to)) {
+		 (conn = objt_conn(s->req->cons->end)) &&
+		 is_addr(&conn->addr.to)) {
 		/* in proxy mode, we need a valid destination address */
 		s->target = &s->be->obj_type;
 	}
@@ -706,9 +708,15 @@ int assign_server(struct session *s)
  * Upon successful return, the session flag SN_ADDR_SET is set. This flag is
  * not cleared, so it's to the caller to clear it if required.
  *
+ * The address is set on si->conn only. This connection is expected to be
+ * already allocated and initialized.
+ *
  */
 int assign_server_address(struct session *s)
 {
+	struct connection *cli_conn = objt_conn(s->req->prod->end);
+	struct connection *srv_conn = s->req->cons->conn;
+
 #ifdef DEBUG_FULL
 	fprintf(stderr,"assign_server_address : s=%p\n",s);
 #endif
@@ -718,51 +726,47 @@ int assign_server_address(struct session *s)
 		if (!(s->flags & SN_ASSIGNED))
 			return SRV_STATUS_INTERNAL;
 
-		s->req->cons->conn->addr.to = objt_server(s->target)->addr;
+		srv_conn->addr.to = objt_server(s->target)->addr;
 
-		if (!is_addr(&s->req->cons->conn->addr.to)) {
+		if (!is_addr(&srv_conn->addr.to) && cli_conn) {
 			/* if the server has no address, we use the same address
 			 * the client asked, which is handy for remapping ports
 			 * locally on multiple addresses at once.
 			 */
-			conn_get_to_addr(s->req->prod->conn);
+			conn_get_to_addr(cli_conn);
 
-			if (s->req->prod->conn->addr.to.ss_family == AF_INET) {
-				((struct sockaddr_in *)&s->req->cons->conn->addr.to)->sin_addr = ((struct sockaddr_in *)&s->req->prod->conn->addr.to)->sin_addr;
-			} else if (s->req->prod->conn->addr.to.ss_family == AF_INET6) {
-				((struct sockaddr_in6 *)&s->req->cons->conn->addr.to)->sin6_addr = ((struct sockaddr_in6 *)&s->req->prod->conn->addr.to)->sin6_addr;
+			if (cli_conn->addr.to.ss_family == AF_INET) {
+				((struct sockaddr_in *)&srv_conn->addr.to)->sin_addr = ((struct sockaddr_in *)&cli_conn->addr.to)->sin_addr;
+			} else if (cli_conn->addr.to.ss_family == AF_INET6) {
+				((struct sockaddr_in6 *)&srv_conn->addr.to)->sin6_addr = ((struct sockaddr_in6 *)&cli_conn->addr.to)->sin6_addr;
 			}
 		}
 
 		/* if this server remaps proxied ports, we'll use
 		 * the port the client connected to with an offset. */
-		if (objt_server(s->target)->state & SRV_MAPPORTS) {
+		if ((objt_server(s->target)->state & SRV_MAPPORTS) && cli_conn) {
 			int base_port;
 
-			conn_get_to_addr(s->req->prod->conn);
+			conn_get_to_addr(cli_conn);
 
 			/* First, retrieve the port from the incoming connection */
-			base_port = get_host_port(&s->req->prod->conn->addr.to);
+			base_port = get_host_port(&cli_conn->addr.to);
 
 			/* Second, assign the outgoing connection's port */
-			base_port += get_host_port(&s->req->cons->conn->addr.to);
-			set_host_port(&s->req->cons->conn->addr.to, base_port);
+			base_port += get_host_port(&srv_conn->addr.to);
+			set_host_port(&srv_conn->addr.to, base_port);
 		}
 	}
 	else if (s->be->options & PR_O_DISPATCH) {
 		/* connect to the defined dispatch addr */
-		s->req->cons->conn->addr.to = s->be->dispatch_addr;
+		srv_conn->addr.to = s->be->dispatch_addr;
 	}
-	else if (s->be->options & PR_O_TRANSP) {
+	else if ((s->be->options & PR_O_TRANSP) && cli_conn) {
 		/* in transparent mode, use the original dest addr if no dispatch specified */
-		conn_get_to_addr(s->req->prod->conn);
+		conn_get_to_addr(cli_conn);
 
-		if (s->req->prod->conn->addr.to.ss_family == AF_INET || s->req->prod->conn->addr.to.ss_family == AF_INET6) {
-			memcpy(&s->req->cons->conn->addr.to, &s->req->prod->conn->addr.to, MIN(sizeof(s->req->cons->conn->addr.to), sizeof(s->req->prod->conn->addr.to)));
-		}
-		/* when we support IPv6 on the backend, we may add other tests */
-		//qfprintf(stderr, "Cannot get original server address.\n");
-		//return SRV_STATUS_INTERNAL;
+		if (cli_conn->addr.to.ss_family == AF_INET || cli_conn->addr.to.ss_family == AF_INET6)
+			srv_conn->addr.to = cli_conn->addr.to;
 	}
 	else if (s->be->options & PR_O_HTTP_PROXY) {
 		/* If HTTP PROXY option is set, then server is already assigned
@@ -902,13 +906,16 @@ int assign_server_and_queue(struct session *s)
 
 /* If an explicit source binding is specified on the server and/or backend, and
  * this source makes use of the transparent proxy, then it is extracted now and
- * assigned to the session's req->cons->addr.from entry.
+ * assigned to the session's pending connection. This function assumes that an
+ * outgoing connection has already been allocated into s->req->cons->conn.
  */
 static void assign_tproxy_address(struct session *s)
 {
 #if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_TRANSPARENT)
 	struct server *srv = objt_server(s->target);
 	struct conn_src *src;
+	struct connection *cli_conn;
+	struct connection *srv_conn = s->req->cons->conn;
 
 	if (srv && srv->conn_src.opts & CO_SRC_BIND)
 		src = &srv->conn_src;
@@ -919,12 +926,16 @@ static void assign_tproxy_address(struct session *s)
 
 	switch (src->opts & CO_SRC_TPROXY_MASK) {
 	case CO_SRC_TPROXY_ADDR:
-		s->req->cons->conn->addr.from = src->tproxy_addr;
+		srv_conn->addr.from = src->tproxy_addr;
 		break;
 	case CO_SRC_TPROXY_CLI:
 	case CO_SRC_TPROXY_CIP:
 		/* FIXME: what can we do if the client connects in IPv6 or unix socket ? */
-		s->req->cons->conn->addr.from = s->req->prod->conn->addr.from;
+		cli_conn = objt_conn(s->req->prod->end);
+		if (cli_conn)
+			srv_conn->addr.from = cli_conn->addr.from;
+		else
+			memset(&srv_conn->addr.from, 0, sizeof(srv_conn->addr.from));
 		break;
 	case CO_SRC_TPROXY_DYN:
 		if (src->bind_hdr_occ) {
@@ -933,21 +944,21 @@ static void assign_tproxy_address(struct session *s)
 			int rewind;
 
 			/* bind to the IP in a header */
-			((struct sockaddr_in *)&s->req->cons->conn->addr.from)->sin_family = AF_INET;
-			((struct sockaddr_in *)&s->req->cons->conn->addr.from)->sin_port = 0;
-			((struct sockaddr_in *)&s->req->cons->conn->addr.from)->sin_addr.s_addr = 0;
+			((struct sockaddr_in *)&srv_conn->addr.from)->sin_family = AF_INET;
+			((struct sockaddr_in *)&srv_conn->addr.from)->sin_port = 0;
+			((struct sockaddr_in *)&srv_conn->addr.from)->sin_addr.s_addr = 0;
 
 			b_rew(s->req->buf, rewind = s->req->buf->o);
 			if (http_get_hdr(&s->txn.req, src->bind_hdr_name, src->bind_hdr_len,
 					 &s->txn.hdr_idx, src->bind_hdr_occ, NULL, &vptr, &vlen)) {
-				((struct sockaddr_in *)&s->req->cons->conn->addr.from)->sin_addr.s_addr =
+				((struct sockaddr_in *)&srv_conn->addr.from)->sin_addr.s_addr =
 					htonl(inetaddr_host_lim(vptr, vptr + vlen));
 			}
 			b_adv(s->req->buf, rewind);
 		}
 		break;
 	default:
-		memset(&s->req->cons->conn->addr.from, 0, sizeof(s->req->cons->conn->addr.from));
+		memset(&srv_conn->addr.from, 0, sizeof(srv_conn->addr.from));
 	}
 #endif
 }
@@ -965,9 +976,13 @@ static void assign_tproxy_address(struct session *s)
  *  - SN_ERR_RESOURCE if a system resource is lacking (eg: fd limits, ports, ...)
  *  - SN_ERR_INTERNAL for any other purely internal errors
  * Additionnally, in the case of SN_ERR_RESOURCE, an emergency log will be emitted.
+ * The server-facing stream interface is expected to hold a pre-allocated connection
+ * in s->req->cons->conn.
  */
 int connect_server(struct session *s)
 {
+	struct connection *cli_conn;
+	struct connection *srv_conn = s->req->cons->conn;
 	struct server *srv;
 	int err;
 
@@ -978,7 +993,7 @@ int connect_server(struct session *s)
 	}
 
 	/* the target was only on the session, assign it to the SI now */
-	s->req->cons->conn->target = s->target;
+	srv_conn->target = s->target;
 
 	/* set the correct protocol on the output stream interface */
 	if (objt_server(s->target)) {
@@ -986,8 +1001,8 @@ int connect_server(struct session *s)
 	}
 	else if (obj_type(s->target) == OBJ_TYPE_PROXY) {
 		/* proxies exclusively run on raw_sock right now */
-		si_prepare_conn(s->req->cons, protocol_by_family(s->req->cons->conn->addr.to.ss_family), &raw_sock);
-		if (!s->req->cons->conn->ctrl)
+		si_prepare_conn(s->req->cons, protocol_by_family(srv_conn->addr.to.ss_family), &raw_sock);
+		if (!objt_conn(s->req->cons->end) || !objt_conn(s->req->cons->end)->ctrl)
 			return SN_ERR_INTERNAL;
 	}
 	else
@@ -997,7 +1012,9 @@ int connect_server(struct session *s)
 	s->req->cons->send_proxy_ofs = 0;
 	if (objt_server(s->target) && (objt_server(s->target)->state & SRV_SEND_PROXY)) {
 		s->req->cons->send_proxy_ofs = 1; /* must compute size */
-		conn_get_to_addr(s->req->prod->conn);
+		cli_conn = objt_conn(s->req->prod->end);
+		if (cli_conn)
+			conn_get_to_addr(cli_conn);
 	}
 
 	assign_tproxy_address(s);
