@@ -975,6 +975,7 @@ void deinit(void)
 		free(p->conf.lfs_file);
 		free(p->conf.uniqueid_format_string);
 		free(p->conf.uif_file);
+		free(p->lbprm.map.srv);
 
 		for (i = 0; i < HTTP_ERR_SIZE; i++)
 			chunk_destroy(&p->errmsg[i]);
