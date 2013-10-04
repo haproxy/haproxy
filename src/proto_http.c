@@ -2861,7 +2861,7 @@ int http_process_req_stat_post(struct stream_interface *si, struct http_txn *txn
 				*value++ = '\0';
 			}
 
-			if (!url_decode(key) || !url_decode(value))
+			if (url_decode(key) < 0 || url_decode(value) < 0)
 				break;
 
 			/* Now we can check the key to see what to do */

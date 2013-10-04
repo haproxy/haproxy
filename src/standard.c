@@ -1047,13 +1047,13 @@ char *encode_string(char *start, char *stop,
 
 /* Decode an URL-encoded string in-place. The resulting string might
  * be shorter. If some forbidden characters are found, the conversion is
- * aborted, the string is truncated before the issue and non-zero is returned,
- * otherwise the operation returns non-zero indicating success.
+ * aborted, the string is truncated before the issue and a negative value is
+ * returned, otherwise the operation returns the length of the decoded string.
  */
 int url_decode(char *string)
 {
 	char *in, *out;
-	int ret = 0;
+	int ret = -1;
 
 	in = string;
 	out = string;
@@ -1074,7 +1074,7 @@ int url_decode(char *string)
 		}
 		in++;
 	}
-	ret = 1; /* success */
+	ret = out - string; /* success */
  end:
 	*out = 0;
 	return ret;
