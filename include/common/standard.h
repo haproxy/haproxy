@@ -519,6 +519,12 @@ int parse_binary(const char *source, char **binstr, int *binstrlen, char **err);
 /* copies at most <n> characters from <src> and always terminates with '\0' */
 char *my_strndup(const char *src, int n);
 
+/*
+ * search needle in haystack
+ * returns the pointer if found, returns NULL otherwise
+ */
+const void *my_memmem(const void *, size_t, const void *, size_t);
+
 /* This function returns the first unused key greater than or equal to <key> in
  * ID tree <root>. Zero is returned if no place is found.
  */
