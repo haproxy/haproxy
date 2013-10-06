@@ -152,7 +152,8 @@ enum {
 #define PR_O2_LDAP_CHK  0x60000000      /* use LDAP check for server health */
 #define PR_O2_SSL3_CHK  0x70000000      /* use SSLv3 CLIENT_HELLO packets for server health */
 #define PR_O2_LB_AGENT_CHK 0x80000000   /* use a TCP connection to obtain a metric of server health */
-/* unused: 0x90000000 to 0xF000000, reserved for health checks */
+#define PR_O2_TCPCHK_CHK 0x90000000     /* use TCPCHK check for server health */
+/* unused: 0xA0000000 to 0xF000000, reserved for health checks */
 #define PR_O2_CHK_ANY   0xF0000000      /* Mask to cover any check */
 /* end of proxy->options2 */
 
@@ -324,6 +325,7 @@ struct proxy {
 
 	struct task *task;			/* the associated task, mandatory to manage rate limiting, stopping and resource shortage, NULL if disabled */
 	int grace;				/* grace time after stop request */
+	struct list tcpcheck_rules;		/* tcp-check send / expect rules */
 	char *check_req;			/* HTTP or SSL request to use for PR_O_HTTP_CHK|PR_O_SSL3_CHK */
 	int check_len;				/* Length of the HTTP or SSL3 request */
 	char *expect_str;			/* http-check expected content : string or text version of the regex */

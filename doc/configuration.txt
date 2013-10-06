@@ -1144,6 +1144,9 @@ http-check expect                         -          -         X         X
 http-check send-state                     X          -         X         X
 http-request                              -          X         X         X
 http-response                             -          X         X         X
+tcp-check expect                          -          -         X         X
+tcp-check send                            -          -         X         X
+tcp-check send-binary                     -          -         X         X
 http-send-name-header                     -          -         X         X
 id                                        -          X         X         X
 ignore-persist                            -          X         X         X
@@ -1165,6 +1168,7 @@ option dontlognull                   (*)  X          X         X         -
 option forceclose                    (*)  X          X         X         X
 -- keyword -------------------------- defaults - frontend - listen -- backend -
 option forwardfor                         X          X         X         X
+option tcp-check                          X          -         X         X
 option http-no-delay                 (*)  X          X         X         X
 option http-pretend-keepalive        (*)  X          X         X         X
 option http-server-close             (*)  X          X         X         X
@@ -2936,6 +2940,132 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
   See also : "http-request", section 3.4 about userlists and section 7 about
              ACL usage.
 
+
+tcp-check expect [!] <match> <pattern>
+  Specify data to be collected and analysed during a generic health check
+  May be used in sections:   defaults | frontend | listen | backend
+                               no     |    no    |   yes  |   yes
+
+  Arguments :
+    <match>   is a keyword indicating how to look for a specific pattern in the
+              response. The keyword may be one of "string", "rstring" or
+              binary.
+              The keyword may be preceded by an exclamation mark ("!") to negate
+              the match. Spaces are allowed between the exclamation mark and the
+              keyword. See below for more details on the supported keywords.
+
+    <pattern> is the pattern to look for. It may be a string or a regular
+              expression. If the pattern contains spaces, they must be escaped
+              with the usual backslash ('\').
+              If the match is set to binary, then the pattern must be passed as
+              a serie of hexadecimal digits in an even number. Each sequence of
+              two digits will represent a byte. The hexadecimal digits may be
+              used upper or lower case.
+
+
+  The available matches are intentionally similar to their http-check cousins :
+
+    string <string> : test the exact string matches in the response buffer.
+                      A health check response will be considered valid if the
+                      response's buffer contains this exact string. If the
+                      "string" keyword is prefixed with "!", then the response
+                      will be considered invalid if the body contains this
+                      string. This can be used to look for a mandatory pattern
+                      in a protocol response, or to detect a failure when a
+                      specific error appears in a protocol banner.
+
+    rstring <regex> : test a regular expression on the response buffer.
+                      A health check response will be considered valid if the
+                      response's buffer matches this expression. If the
+                      "rstring" keyword is prefixed with "!", then the response
+                      will be considered invalid if the body matches the
+                      expression.
+
+    binary <hexstring> : test the exact string in its hexadecimal form matches
+                         in the response buffer. A health check response will
+                         be considered valid if the response's buffer contains
+                         this exact hexadecimal string.
+                         Purpose is to match data on binary protocols.
+
+  It is important to note that the responses will be limited to a certain size
+  defined by the global "tune.chksize" option, which defaults to 16384 bytes.
+  Thus, too large responses may not contain the mandatory pattern when using
+  "string", "rstring" or binary. If a large response is absolutely required, it
+  is possible to change the default max size by setting the global variable.
+  However, it is worth keeping in mind that parsing very large responses can
+  waste some CPU cycles, especially when regular expressions are used, and that
+  it is always better to focus the checks on smaller resources. Also, in its
+  current state, the check will not find any string nor regex past a null
+  character in the response. Similarly it is not possible to request matching
+  the null character.
+
+  Examples :
+         # perform a POP check
+         option tcp-check
+         tcp-check expect string +OK\ POP3\ ready
+
+         # perform an IMAP check
+         option tcp-check
+         tcp-check expect string *\ OK\ IMAP4\ ready
+
+         # look for the redis master server
+         option tcp-check
+         tcp-check send PING\r\n
+         tcp-check expect +PONG
+         tcp-check send info\ replication\r\n
+         tcp-check expect string role:master
+         tcp-check send QUIT\r\n
+         tcp-check expect string +OK
+
+
+  See also : "option tcp-check", "tcp-check send", "http-check expect",
+             tune.chksize
+
+
+tcp-check send <data>
+  Specify a string to be sent as a question during a generic health check
+  May be used in sections:   defaults | frontend | listen | backend
+                               no     |    no    |   yes  |   yes
+
+    <data> : the data to be sent as a question during a generic health check
+             session. For now, <data> must be a string.
+
+  Examples :
+         # look for the redis master server
+         option tcp-check
+         tcp-check send info\ replication\r\n
+         tcp-check expect string role:master
+
+  See also : "option tcp-check", "tcp-check expect", "tcp-check send-binary",
+             tune.chksize
+
+
+tcp-check send-binary <hexastring>
+  Specify an hexa digits string to be sent as a binary question during a raw
+  tcp health check
+  May be used in sections:   defaults | frontend | listen | backend
+                               no     |    no    |   yes  |   yes
+
+    <data> : the data to be sent as a question during a generic health check
+             session. For now, <data> must be a string.
+    <hexastring> : test the exact string in its hexadecimal form matches in the
+                   response buffer. A health check response will be considered
+                   valid if the response's buffer contains this exact
+                   hexadecimal string.
+                   Purpose is to send binary data to ask on binary protocols.
+
+  Examples :
+         # redis check in binary
+         option tcp-check
+         tcp-check send-binary 50494e470d0a # PING\r\n
+         tcp-check expect binary 2b504F4e47 # +PONG
+
+
+  See also : "option tcp-check", "tcp-check expect", "tcp-check send",
+             tune.chksize
+
+
+
 http-send-name-header [<header>]
   Add the server name to a request. Use the header string given by <header>
 
@@ -3629,6 +3759,75 @@ option forwardfor [ except <network> ] [ header <name> ] [ if-none ]
 
   See also : "option httpclose", "option http-server-close",
              "option forceclose"
+
+
+option tcp-check
+  Perform health checks using tcp-check send/expect sequences
+  May be used in sections:   defaults | frontend | listen | backend
+                               yes    |    no    |   yes  |   yes
+
+  This health check method is intended to be combined with "tcp-check" command
+  lists in order to support send/expect types of health check sequences.
+
+  TCP checks currently support 4 modes of operations :
+    - no "tcp-check" directive : the health check only consists in a connection
+      attempt, which remains the default mode.
+
+    - "tcp-check send" or "tcp-check send-binary" only is mentionned : this is
+      used to send a string along with a connection opening. With some
+      protocols, it helps sending a "QUIT" message for example that prevents
+      the server from logging a connection error for each health check. The
+      check result will still be based on the ability to open the connection
+      only.
+
+    - "tcp-check expect" only is mentionned : this is used to test a banner.
+      The connection is opened and haproxy waits for the server to present some
+      contents which must validate some rules. The check result will be based
+      on the matching between the contents and the rules. This is suited for
+      POP, IMAP, SMTP, FTP, SSH, TELNET.
+
+    - both "tcp-check send" and "tcp-check expect" are mentionned : this is
+      used to test a hello-type protocol. Haproxy sends a message, the server
+      responds and its response is analysed. the check result will be based on
+      the maching between the response contents and the rules. This is often
+      suited for protocols which require a binding or a request/response model.
+      LDAP, MySQL, Redis and SSL are example of such protocols, though they
+      already all have their dedicated checks with a deeper understanding of
+      the respective protocols.
+      In this mode, many questions may be sent and many answers may be
+      analysed.
+
+  Examples :
+         # perform a POP check (analyse only server's banner)
+         option tcp-check
+         tcp-check expect string +OK\ POP3\ ready
+
+         # perform an IMAP check (analyse only server's banner)
+         option tcp-check
+         tcp-check expect string *\ OK\ IMAP4\ ready
+
+         # look for the redis master server after ensuring it speaks well
+         # redis protocol, then it exits properly.
+         # (send a command then analyse the response 3 tims)
+         option tcp-check
+         tcp-check send PING\r\n
+         tcp-check expect +PONG
+         tcp-check send info\ replication\r\n
+         tcp-check expect string role:master
+         tcp-check send QUIT\r\n
+         tcp-check expect string +OK
+
+         forge a HTTP request, then analyse the response
+         (send many headers before analyzing)
+         option tcp-check
+         tcp-check send HEAD\ /\ HTTP/1.1\r\n
+         tcp-check send Host:\ www.mydomain.com\r\n
+         tcp-check send User-Agent:\ HAProxy\ tcpcheck\r\n
+         tcp-check send \r\n
+         tcp-check expect rstring HTTP/1\..\ (2..|3..)
+
+
+  See also : "tcp-check expect", "tcp-check send"
 
 
 option http-no-delay

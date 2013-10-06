@@ -106,4 +106,21 @@ struct analyze_status {
 	unsigned char lr[HANA_OBS_SIZE];	/* result for l4/l7: 0 = ignore, 1 - error, 2 - OK */
 };
 
+/* bits for tcpcheck_rule->action */
+enum {
+	TCPCHK_ACT_SEND        = 1,             /* send action, regular string format */
+	TCPCHK_ACT_EXPECT,                      /* expect action, either regular or binary string */
+};
+
+struct tcpcheck_rule {
+	struct list list;                       /* list linked to from the proxy */
+	int action;                             /* action: send or expect */
+	/* match type uses NON-NULL pointer from either string or expect_regex below */
+	/* sent string is string */
+	char *string;                           /* sent or expected string */
+	int string_len;                         /* string lenght */
+	regex_t *expect_regex;                  /* expected */
+	int inverse;                            /* 0 = regular match, 1 = inverse match */
+};
+
 #endif /* _TYPES_CHECKS_H */
