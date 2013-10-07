@@ -263,13 +263,31 @@ void listener_accept(int fd)
 		return;
 	}
 
-	if (global.cps_lim && !(l->options & LI_O_UNLIMITED)) {
-		int max = freq_ctr_remain(&global.conn_per_sec, global.cps_lim, 0);
+	if (!(l->options & LI_O_UNLIMITED) && global.sps_lim) {
+		int max = freq_ctr_remain(&global.sess_per_sec, global.sps_lim, 0);
+		int expire;
 
 		if (unlikely(!max)) {
 			/* frontend accept rate limit was reached */
 			limit_listener(l, &global_listener_queue);
-			task_schedule(global_listener_queue_task, tick_add(now_ms, next_event_delay(&global.conn_per_sec, global.cps_lim, 0)));
+			expire = tick_add(now_ms, next_event_delay(&global.sess_per_sec, global.sps_lim, 0));
+			task_schedule(global_listener_queue_task, tick_first(expire, global_listener_queue_task->expire));
+			return;
+		}
+
+		if (max_accept > max)
+			max_accept = max;
+	}
+
+	if (!(l->options & LI_O_UNLIMITED) && global.cps_lim) {
+		int max = freq_ctr_remain(&global.conn_per_sec, global.cps_lim, 0);
+		int expire;
+
+		if (unlikely(!max)) {
+			/* frontend accept rate limit was reached */
+			limit_listener(l, &global_listener_queue);
+			expire = tick_add(now_ms, next_event_delay(&global.conn_per_sec, global.cps_lim, 0));
+			task_schedule(global_listener_queue_task, tick_first(expire, global_listener_queue_task->expire));
 			return;
 		}
 
@@ -409,6 +427,13 @@ void listener_accept(int fd)
 		if (l->nbconn >= l->maxconn) {
 			listener_full(l);
 			return;
+		}
+
+		/* increase the per-process number of cumulated connections */
+		if (!(l->options & LI_O_UNLIMITED)) {
+			update_freq_ctr(&global.sess_per_sec, 1);
+			if (global.sess_per_sec.curr_ctr > global.sps_max)
+				global.sps_max = global.sess_per_sec.curr_ctr;
 		}
 
 	} /* end of while (max_accept--) */

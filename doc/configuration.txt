@@ -465,6 +465,7 @@ The following keywords are supported in the "global" section :
    - maxcomprate
    - maxcompcpuusage
    - maxpipes
+   - maxsessrate
    - maxsslconn
    - noepoll
    - nokqueue
@@ -732,6 +733,16 @@ maxpipes <number>
   value is maxconn/4, which seems to be more than enough for most heavy usages.
   The splice code dynamically allocates and releases pipes, and can fall back
   to standard copy, so setting this value too low may only impact performance.
+
+maxsessrate <number>
+  Sets the maximum per-process number of sessions per second to <number>.
+  Proxies will stop accepting connections when this limit is reached. It can be
+  used to limit the global capacity regardless of each frontend capacity. It is
+  important to note that this can only be used as a service protection measure,
+  as there will not necessarily be a fair share between frontends when the
+  limit is reached, so it's a good idea to also limit each frontend to some
+  value close to its expected share. Also, lowering tune.maxaccept can improve
+  fairness.
 
 maxsslconn <number>
   Sets the maximum per-process number of concurrent SSL connections to
@@ -12597,6 +12608,12 @@ set rate-limit http-compression global <value>
   'maxcomprate' setting. A value of zero disables the limitation. The value is
   passed in number of kilobytes per second. The value is available in the "show
   info" on the line "CompressBpsRateLim" in bytes.
+
+set rate-limit sessions global <value>
+  Change the process-wide session rate limit, which is set by the global
+  'maxsessrate' setting. A value of zero disables the limitation. This limit
+  applies to all frontends and the change has an immediate effect. The value
+  is passed in number of sessions per second.
 
 set table <table> key <key> [data.<data_type> <value>]*
   Create or update a stick-table entry in the table. If the key is not present,

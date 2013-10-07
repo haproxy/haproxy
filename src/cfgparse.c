@@ -875,6 +875,19 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.cps_lim = atol(args[1]);
 	}
+	else if (!strcmp(args[0], "maxsessrate")) {
+		if (global.sps_lim != 0) {
+			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT;
+			goto out;
+		}
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		global.sps_lim = atol(args[1]);
+	}
 	else if (!strcmp(args[0], "maxcomprate")) {
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument in kb/s.\n", file, linenum, args[0]);
