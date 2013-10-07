@@ -81,10 +81,12 @@ struct global {
 #endif
 	struct freq_ctr conn_per_sec;
 	struct freq_ctr sess_per_sec;
+	struct freq_ctr ssl_per_sec;
 	struct freq_ctr comp_bps_in;	/* bytes per second, before http compression */
 	struct freq_ctr comp_bps_out;	/* bytes per second, after http compression */
 	int cps_lim, cps_max;
 	int sps_lim, sps_max;
+	int ssl_lim, ssl_max;
 	int comp_rate_lim;           /* HTTP compression rate limit */
 	int maxpipes;		/* max # of pipes */
 	int maxsock;		/* max # of sockets */

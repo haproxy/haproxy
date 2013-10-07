@@ -1462,6 +1462,45 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 					return 1;
 				}
 			}
+#ifdef USE_OPENSSL
+			else if (strcmp(args[2], "ssl-sessions") == 0) {
+				if (strcmp(args[3], "global") == 0) {
+					int v;
+
+					if (s->listener->bind_conf->level < ACCESS_LVL_ADMIN) {
+						appctx->ctx.cli.msg = stats_permission_denied_msg;
+						appctx->st0 = STAT_CLI_PRINT;
+						return 1;
+					}
+
+					if (!*args[4]) {
+						appctx->ctx.cli.msg = "Expects an integer value.\n";
+						appctx->st0 = STAT_CLI_PRINT;
+						return 1;
+					}
+
+					v = atoi(args[4]);
+					if (v < 0) {
+						appctx->ctx.cli.msg = "Value out of range.\n";
+						appctx->st0 = STAT_CLI_PRINT;
+						return 1;
+					}
+
+					global.ssl_lim = v;
+
+					/* Dequeues all of the listeners waiting for a resource */
+					if (!LIST_ISEMPTY(&global_listener_queue))
+						dequeue_all_listeners(&global_listener_queue);
+
+					return 1;
+				}
+				else {
+					appctx->ctx.cli.msg = "'set rate-limit ssl-sessions' only supports 'global'.\n";
+					appctx->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
+			}
+#endif
 			else if (strcmp(args[2], "http-compression") == 0) {
 				if (strcmp(args[3], "global") == 0) {
 					int v;
@@ -1482,7 +1521,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				}
 			}
 			else {
-				appctx->ctx.cli.msg = "'set rate-limit' supports 'connections', 'sessions', and 'http-compression'.\n";
+				appctx->ctx.cli.msg = "'set rate-limit' supports 'connections', 'sessions', 'ssl-sessions', and 'http-compression'.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -2223,6 +2262,11 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 	             "SessRate: %d\n"
 	             "SessRateLimit: %d\n"
 	             "MaxSessRate: %d\n"
+#ifdef USE_OPENSSL
+	             "SslRate: %d\n"
+	             "SslRateLimit: %d\n"
+	             "MaxSslRate: %d\n"
+#endif
 	             "CompressBpsIn: %u\n"
 	             "CompressBpsOut: %u\n"
 	             "CompressBpsRateLim: %u\n"
@@ -2251,6 +2295,9 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 		     global.maxpipes, pipes_used, pipes_free,
 	             read_freq_ctr(&global.conn_per_sec), global.cps_lim, global.cps_max,
 	             read_freq_ctr(&global.sess_per_sec), global.sps_lim, global.sps_max,
+#ifdef USE_OPENSSL
+	             read_freq_ctr(&global.ssl_per_sec), global.ssl_lim, global.ssl_max,
+#endif
 	             read_freq_ctr(&global.comp_bps_in), read_freq_ctr(&global.comp_bps_out),
 	             global.comp_rate_lim,
 #ifdef USE_ZLIB

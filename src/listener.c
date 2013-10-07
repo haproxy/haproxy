@@ -294,7 +294,23 @@ void listener_accept(int fd)
 		if (max_accept > max)
 			max_accept = max;
 	}
+#ifdef USE_OPENSSL
+	if (!(l->options & LI_O_UNLIMITED) && global.ssl_lim && l->bind_conf && l->bind_conf->is_ssl) {
+		int max = freq_ctr_remain(&global.ssl_per_sec, global.ssl_lim, 0);
+		int expire;
 
+		if (unlikely(!max)) {
+			/* frontend accept rate limit was reached */
+			limit_listener(l, &global_listener_queue);
+			expire = tick_add(now_ms, next_event_delay(&global.ssl_per_sec, global.ssl_lim, 0));
+			task_schedule(global_listener_queue_task, tick_first(expire, global_listener_queue_task->expire));
+			return;
+		}
+
+		if (max_accept > max)
+			max_accept = max;
+	}
+#endif
 	if (p && p->fe_sps_lim) {
 		int max = freq_ctr_remain(&p->fe_sess_per_sec, p->fe_sps_lim, 0);
 
@@ -435,6 +451,14 @@ void listener_accept(int fd)
 			if (global.sess_per_sec.curr_ctr > global.sps_max)
 				global.sps_max = global.sess_per_sec.curr_ctr;
 		}
+#ifdef USE_OPENSSL
+		if (!(l->options & LI_O_UNLIMITED) && l->bind_conf && l->bind_conf->is_ssl) {
+
+			update_freq_ctr(&global.ssl_per_sec, 1);
+			if (global.ssl_per_sec.curr_ctr > global.ssl_max)
+				global.ssl_max = global.ssl_per_sec.curr_ctr;
+		}
+#endif
 
 	} /* end of while (max_accept--) */
 

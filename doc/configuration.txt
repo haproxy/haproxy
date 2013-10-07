@@ -467,6 +467,7 @@ The following keywords are supported in the "global" section :
    - maxpipes
    - maxsessrate
    - maxsslconn
+   - maxsslrate
    - noepoll
    - nokqueue
    - nopoll
@@ -752,6 +753,18 @@ maxsslconn <number>
   (since it unfortunately does not reliably check for such conditions). Note
   that the limit applies both to incoming and outgoing connections, so one
   connection which is deciphered then ciphered accounts for 2 SSL connections.
+
+maxsslrate <number>
+  Sets the maximum per-process number of SSL sessions per second to <number>.
+  SSL listeners will stop accepting connections when this limit is reached. It
+  can be used to limit the global SSL CPU usage regardless of each frontend
+  capacity. It is important to note that this can only be used as a service
+  protection measure, as there will not necessarily be a fair share between
+  frontends when the limit is reached, so it's a good idea to also limit each
+  frontend to some value close to its expected share. It is also important to
+  note that the sessions are accounted before they enter the SSL stack and not
+  after, which also protects the stack against bad handshakes. Also, lowering
+  tune.maxaccept can improve fairness.
 
 maxzlibmem <number>
   Sets the maximum amount of RAM in megabytes per process usable by the zlib.
@@ -12614,6 +12627,13 @@ set rate-limit sessions global <value>
   'maxsessrate' setting. A value of zero disables the limitation. This limit
   applies to all frontends and the change has an immediate effect. The value
   is passed in number of sessions per second.
+
+set rate-limit ssl-sessions global <value>
+  Change the process-wide SSL session rate limit, which is set by the global
+  'maxsslrate' setting. A value of zero disables the limitation. This limit
+  applies to all frontends and the change has an immediate effect. The value
+  is passed in number of sessions per second sent to the SSL stack. It applies
+  before the handshake in order to protect the stack against handshake abuses.
 
 set table <table> key <key> [data.<data_type> <value>]*
   Create or update a stick-table entry in the table. If the key is not present,
