@@ -2027,8 +2027,10 @@ smp_fetch_ssl_c_sig_alg(struct proxy *px, struct session *l4, void *l7, unsigned
 	nid = OBJ_obj2nid((ASN1_OBJECT *)(crt->cert_info->signature->algorithm));
 
 	smp->data.str.str = (char *)OBJ_nid2sn(nid);
-	if (!smp->data.str.str)
+	if (!smp->data.str.str) {
+		X509_free(crt);
 		return 0;
+	}
 
 	smp->type = SMP_T_CSTR;
 	smp->data.str.len = strlen(smp->data.str.str);
@@ -2061,8 +2063,10 @@ smp_fetch_ssl_c_key_alg(struct proxy *px, struct session *l4, void *l7, unsigned
 	nid = OBJ_obj2nid((ASN1_OBJECT *)(crt->cert_info->key->algor->algorithm));
 
 	smp->data.str.str = (char *)OBJ_nid2sn(nid);
-	if (!smp->data.str.str)
+	if (!smp->data.str.str) {
+		X509_free(crt);
 		return 0;
+	}
 
 	smp->type = SMP_T_CSTR;
 	smp->data.str.len = strlen(smp->data.str.str);
