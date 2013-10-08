@@ -811,7 +811,7 @@ static int ssl_sock_srv_hostcheck(const char *pattern, const char *hostname)
 
 	/* Make sure the leftmost label of the hostname is long enough
 	 * that the wildcard can match */
-	if (hostname_left_label_end - hostname < pattern_left_label_end - pattern)
+	if (hostname_left_label_end - hostname < (pattern_left_label_end - pattern) - 1)
 		return 0;
 
 	/* Finally compare the string on either side of the
