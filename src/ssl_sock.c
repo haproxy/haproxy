@@ -778,18 +778,29 @@ static int ssl_sock_srv_hostcheck(const char *pattern, const char *hostname)
 	if (strcmp(pattern, hostname) == 0)
 		return 1;
 
-	/* If it's not trivial and there are no wildcards, it can't
-	 * match */
-	if (!(pattern_wildcard = strchr(pattern, '*')))
-		return 0;
-
 	/* The rest of this logic is based on RFC 6125, section 6.4.3
 	 * (http://tools.ietf.org/html/rfc6125#section-6.4.3) */
 
-	/* Make sure the wildcard occurs in the leftmost label */
-	pattern_left_label_end = strchr(pattern, '.');
-	if (!pattern_left_label_end
-	    || pattern_left_label_end < pattern_wildcard)
+	pattern_wildcard = NULL;
+	pattern_left_label_end = pattern;
+	while (*pattern_left_label_end != '.') {
+		switch (*pattern_left_label_end) {
+			case 0:
+				/* End of label not found */
+				return 0;
+			case '*':
+				/* If there is more than one wildcards */
+                                if (pattern_wildcard)
+                                        return 0;
+				pattern_wildcard = pattern_left_label_end;
+				break;
+		}
+		pattern_left_label_end++;
+	}
+
+	/* If it's not trivial and there is no wildcard, it can't
+	 * match */
+	if (!pattern_wildcard)
 		return 0;
 
 	/* Make sure all labels match except the leftmost */
@@ -807,8 +818,8 @@ static int ssl_sock_srv_hostcheck(const char *pattern, const char *hostname)
 	 * wildcard */
 	prefixlen = pattern_wildcard - pattern;
 	suffixlen = pattern_left_label_end - (pattern_wildcard + 1);
-	if (strncmp(pattern, hostname, prefixlen) != 0
-	    || strncmp(pattern_wildcard + 1, hostname_left_label_end - suffixlen, suffixlen) != 0)
+	if ((prefixlen && (memcmp(pattern, hostname, prefixlen) != 0))
+	    || (suffixlen && (memcmp(pattern_wildcard + 1, hostname_left_label_end - suffixlen, suffixlen) != 0)))
 		return 0;
 
 	return 1;
