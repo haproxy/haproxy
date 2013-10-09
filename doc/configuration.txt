@@ -2242,6 +2242,18 @@ default_backend <backend>
   See also : "use_backend", "reqsetbe", "reqisetbe"
 
 
+description <string>
+  Describe a listen, frontend or backend.
+  May be used in sections :   defaults | frontend | listen | backend
+                                 no    |    yes   |   yes  |   yes
+  Arguments : string
+
+  Allows to add a sentence to describe the related object in the HAProxy HTML
+  stats page. The description will be printed on the right of the object name
+  it describes.
+  No need to backslash spaces in the <string> arguments.
+
+
 disabled
   Disable a proxy, frontend or backend.
   May be used in sections :   defaults | frontend | listen | backend
