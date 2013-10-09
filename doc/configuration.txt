@@ -1143,6 +1143,7 @@ http-check expect                         -          -         X         X
 http-check send-state                     X          -         X         X
 http-request                              -          X         X         X
 http-response                             -          X         X         X
+http-send-name-header                     -          -         X         X
 id                                        -          X         X         X
 ignore-persist                            -          X         X         X
 log                                  (*)  X          X         X         X
