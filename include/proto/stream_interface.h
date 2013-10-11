@@ -70,11 +70,22 @@ static inline void si_set_state(struct stream_interface *si, int state)
 	si->state = si->prev_state = state;
 }
 
-static inline void si_detach(struct stream_interface *si)
+/* release the endpoint if it's a connection, then nullify it */
+static inline void si_release_endpoint(struct stream_interface *si)
 {
-	si->ops = &si_embedded_ops;
+	struct connection *conn;
+
+	conn = objt_conn(si->end);
+	if (conn)
+		pool_free2(pool2_connection, conn);
 	si->end = NULL;
 	si->appctx.applet = NULL;
+}
+
+static inline void si_detach(struct stream_interface *si)
+{
+	si_release_endpoint(si);
+	si->ops = &si_embedded_ops;
 }
 
 /* Attach connection <conn> to the stream interface <si>. The stream interface
@@ -90,6 +101,7 @@ static inline void si_attach_conn(struct stream_interface *si, struct connection
 
 static inline void si_attach_applet(struct stream_interface *si, struct si_applet *applet)
 {
+	si_release_endpoint(si);
 	si->ops = &si_embedded_ops;
 	si->appctx.applet = applet;
 	si->appctx.obj_type = OBJ_TYPE_APPCTX;
@@ -127,6 +139,28 @@ static inline void si_applet_release(struct stream_interface *si)
 	applet = si_applet(si);
 	if (applet && applet->release)
 		applet->release(si);
+}
+
+/* Returns the stream interface's existing connection if one such already
+ * exists, or tries to allocate and initialize a new one which is then
+ * assigned to the stream interface.
+ */
+static inline struct connection *si_alloc_conn(struct stream_interface *si)
+{
+	struct connection *conn;
+
+	/* we return the connection whether it's a real connection or NULL
+	 * in case another entity (an applet) is registered instead.
+	 */
+	conn = objt_conn(si->end);
+	if (si->end)
+		return conn;
+
+	conn = conn_new();
+	if (conn)
+		si_attach_conn(si, conn);
+
+	return conn;
 }
 
 /* Sends a shutr to the connection using the data layer */

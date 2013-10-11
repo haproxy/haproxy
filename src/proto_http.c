@@ -3723,7 +3723,22 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 	 * allocated on the server side.
 	 */
 	if ((s->be->options & PR_O_HTTP_PROXY) && !(s->flags & SN_ADDR_SET)) {
-		url2sa(req->buf->p + msg->sl.rq.u, msg->sl.rq.u_l, &s->req->cons->conn->addr.to);
+		struct connection *conn;
+
+		if (unlikely((conn = si_alloc_conn(req->cons)) == NULL)) {
+			txn->req.msg_state = HTTP_MSG_ERROR;
+			txn->status = 500;
+			req->analysers = 0;
+			stream_int_retnclose(req->prod, http_error_message(s, HTTP_ERR_500));
+
+			if (!(s->flags & SN_ERR_MASK))
+				s->flags |= SN_ERR_RESOURCE;
+			if (!(s->flags & SN_FINST_MASK))
+				s->flags |= SN_FINST_R;
+
+			return 0;
+		}
+		url2sa(req->buf->p + msg->sl.rq.u, msg->sl.rq.u_l, &conn->addr.to);
 	}
 
 	/*
@@ -4291,11 +4306,8 @@ void http_end_txn_clean_session(struct session *s)
 
 	s->target = NULL;
 
-	/* reinitialize the connection to the server */
-	conn_init(s->req->cons->conn);
-
 	s->req->cons->state     = s->req->cons->prev_state = SI_ST_INI;
-	s->req->cons->end = NULL;
+	si_release_endpoint(s->req->cons);
 	s->req->cons->err_type  = SI_ET_NONE;
 	s->req->cons->conn_retries = 0;  /* used for logging too */
 	s->req->cons->exp       = TICK_ETERNITY;

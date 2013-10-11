@@ -156,12 +156,6 @@ extern const char *stat_status_codes[];
  */
 static int stats_accept(struct session *s)
 {
-	/* we have a dedicated I/O handler for the CLI/stats, so we can safely
-	 * release the pre-allocated connection that we will never use.
-	 */
-	pool_free2(pool2_connection, s->si[1].conn);
-	s->si[1].conn = NULL;
-
 	stream_int_register_handler(&s->si[1], &cli_applet);
 	s->target = &cli_applet.obj_type; // for logging only
 	s->si[1].appctx.st1 = 0;
@@ -4034,13 +4028,12 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 			     http_msg_state_str(sess->txn.req.msg_state), http_msg_state_str(sess->txn.rsp.msg_state));
 
 		chunk_appendf(&trash,
-			     "  si[0]=%p (state=%s flags=0x%02x endp0=%s:%p conn0=%p exp=%s, et=0x%03x)\n",
+			     "  si[0]=%p (state=%s flags=0x%02x endp0=%s:%p exp=%s, et=0x%03x)\n",
 			     &sess->si[0],
 			     si_state_str(sess->si[0].state),
 			     sess->si[0].flags,
 			     obj_type_name(sess->si[0].end),
 			     obj_base_ptr(sess->si[0].end),
-			     sess->si[0].conn,
 			     sess->si[0].exp ?
 			             tick_is_expired(sess->si[0].exp, now_ms) ? "<PAST>" :
 			                     human_time(TICKS_TO_MS(sess->si[0].exp - now_ms),
@@ -4048,13 +4041,12 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 			     sess->si[0].err_type);
 
 		chunk_appendf(&trash,
-			     "  si[1]=%p (state=%s flags=0x%02x endp1=%s:%p conn1=%p exp=%s, et=0x%03x)\n",
+			     "  si[1]=%p (state=%s flags=0x%02x endp1=%s:%p exp=%s, et=0x%03x)\n",
 			     &sess->si[1],
 			     si_state_str(sess->si[1].state),
 			     sess->si[1].flags,
 			     obj_type_name(sess->si[1].end),
 			     obj_base_ptr(sess->si[1].end),
-			     sess->si[1].conn,
 			     sess->si[1].exp ?
 			             tick_is_expired(sess->si[1].exp, now_ms) ? "<PAST>" :
 			                     human_time(TICKS_TO_MS(sess->si[1].exp - now_ms),

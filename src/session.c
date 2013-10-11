@@ -81,14 +81,18 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 
 	ret = -1; /* assume unrecoverable error by default */
 
-	if (unlikely((s = pool_alloc2(pool2_session)) == NULL))
+	if (unlikely((cli_conn = conn_new()) == NULL))
 		goto out_close;
 
-	if (unlikely((cli_conn = s->si[0].conn = pool_alloc2(pool2_connection)) == NULL))
-		goto out_fail_conn0;
+	conn_prepare(cli_conn, l->proto, l->xprt);
 
-	if (unlikely((s->si[1].conn = pool_alloc2(pool2_connection)) == NULL))
-		goto out_fail_conn1;
+	cli_conn->t.sock.fd = cfd;
+	cli_conn->addr.from = *addr;
+	cli_conn->flags |= CO_FL_ADDR_FROM_SET;
+	cli_conn->target = &l->obj_type;
+
+	if (unlikely((s = pool_alloc2(pool2_session)) == NULL))
+		goto out_free_conn;
 
 	/* minimum session initialization required for an embryonic session is
 	 * fairly low. We need very little to execute L4 ACLs, then we need a
@@ -105,16 +109,6 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->listener = l;
 	s->fe  = p;
 
-	/* OK, we're keeping the session, so let's properly initialize the session.
-	 * We first have to initialize the client-side connection.
-	 */
-	conn_init(cli_conn);
-	cli_conn->t.sock.fd = cfd;
-	cli_conn->flags |= CO_FL_ADDR_FROM_SET;
-	conn_prepare(cli_conn, l->proto, l->xprt);
-	cli_conn->addr.from = *addr;
-	cli_conn->target = &l->obj_type;
-
 	/* On a mini-session, the connection is directly attached to the
 	 * session's target so that we don't need to initialize the stream
 	 * interfaces. Another benefit is that it's easy to detect a mini-
@@ -122,11 +116,6 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	 * connection in s->target.
 	 */
 	s->target = &cli_conn->obj_type;
-
-	/* The server side is not used yet, but just initialize it to avoid
-	 * confusing some debugging or "show sess" for example.
-	 */
-	s->si[1].conn->obj_type = OBJ_TYPE_NONE;
 
 	s->logs.accept_date = date; /* user-visible date for logging */
 	s->logs.tv_accept = now;  /* corrected date for internal use */
@@ -185,7 +174,6 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		goto out_free_session;
 	}
 
-
 	/* wait for a PROXY protocol header */
 	if (l->options & LI_O_ACC_PROXY) {
 		cli_conn->flags |= CO_FL_ACCEPT_PROXY;
@@ -239,13 +227,11 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	p->feconn--;
 	if (s->stkctr[0].entry || s->stkctr[1].entry)
 		session_store_counters(s);
-	pool_free2(pool2_connection, s->si[1].conn);
- out_fail_conn1:
-	s->si[0].conn->flags &= ~CO_FL_XPRT_TRACKED;
-	conn_xprt_close(s->si[0].conn);
-	pool_free2(pool2_connection, s->si[0].conn);
- out_fail_conn0:
 	pool_free2(pool2_session, s);
+ out_free_conn:
+	cli_conn->flags &= ~CO_FL_XPRT_TRACKED;
+	conn_xprt_close(cli_conn);
+	conn_free(cli_conn);
  out_close:
 	if (ret < 0 && l->xprt == &raw_sock && p->mode == PR_MODE_HTTP) {
 		/* critical error, no more memory, try to emit a 500 response */
@@ -354,8 +340,7 @@ static void kill_mini_session(struct session *s)
 	task_delete(s->task);
 	task_free(s->task);
 
-	pool_free2(pool2_connection, s->si[1].conn);
-	pool_free2(pool2_connection, s->si[0].conn);
+	pool_free2(pool2_connection, conn);
 	pool_free2(pool2_session, s);
 }
 
@@ -425,17 +410,6 @@ int session_complete(struct session *s)
 	LIST_ADDQ(&sessions, &s->list);
 	LIST_INIT(&s->back_refs);
 
-	/* attach the incoming connection to the stream interface now */
-	si_reset(&s->si[0], t);
-	si_set_state(&s->si[0], SI_ST_EST);
-
-	if (likely(s->fe->options2 & PR_O2_INDEPSTR))
-		s->si[0].flags |= SI_FL_INDEP_STR;
-
-	s->si[0].conn = conn;
-	conn_prepare(conn, l->proto, l->xprt);
-	si_attach_conn(&s->si[0], conn);
-
 	s->flags |= SN_INITIALIZED;
 	s->unique_id = NULL;
 
@@ -470,12 +444,20 @@ int session_complete(struct session *s)
 					       s->stkctr[i].table->data_arg[STKTABLE_DT_SESS_RATE].u, 1);
 	}
 
+	/* this part should be common with other protocols */
+	si_reset(&s->si[0], t);
+	si_set_state(&s->si[0], SI_ST_EST);
+
+	/* attach the incoming connection to the stream interface now */
+	si_attach_conn(&s->si[0], conn);
+
+	if (likely(s->fe->options2 & PR_O2_INDEPSTR))
+		s->si[0].flags |= SI_FL_INDEP_STR;
+
 	/* pre-initialize the other side's stream interface to an INIT state. The
 	 * callbacks will be initialized before attempting to connect.
 	 */
 	si_reset(&s->si[1], t);
-	conn_init(s->si[1].conn);
-	s->si[1].conn->target = NULL;
 	si_detach(&s->si[1]);
 
 	if (likely(s->fe->options2 & PR_O2_INDEPSTR))
@@ -673,8 +655,8 @@ static void session_free(struct session *s)
 		bref->ref = s->list.n;
 	}
 	LIST_DEL(&s->list);
-	pool_free2(pool2_connection, s->si[1].conn);
-	pool_free2(pool2_connection, s->si[0].conn);
+	si_release_endpoint(&s->si[1]);
+	si_release_endpoint(&s->si[0]);
 	pool_free2(pool2_session, s);
 
 	/* We may want to free the maximum amount of pools if the proxy is stopping */

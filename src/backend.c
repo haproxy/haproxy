@@ -708,14 +708,14 @@ int assign_server(struct session *s)
  * Upon successful return, the session flag SN_ADDR_SET is set. This flag is
  * not cleared, so it's to the caller to clear it if required.
  *
- * The address is set on si->conn only. This connection is expected to be
- * already allocated and initialized.
+ * The caller is responsible for having already assigned a connection
+ * to si->end.
  *
  */
 int assign_server_address(struct session *s)
 {
 	struct connection *cli_conn = objt_conn(s->req->prod->end);
-	struct connection *srv_conn = s->req->cons->conn;
+	struct connection *srv_conn = objt_conn(s->req->cons->end);
 
 #ifdef DEBUG_FULL
 	fprintf(stderr,"assign_server_address : s=%p\n",s);
@@ -907,7 +907,7 @@ int assign_server_and_queue(struct session *s)
 /* If an explicit source binding is specified on the server and/or backend, and
  * this source makes use of the transparent proxy, then it is extracted now and
  * assigned to the session's pending connection. This function assumes that an
- * outgoing connection has already been allocated into s->req->cons->conn.
+ * outgoing connection has already been assigned to s->req->cons->end.
  */
 static void assign_tproxy_address(struct session *s)
 {
@@ -915,7 +915,7 @@ static void assign_tproxy_address(struct session *s)
 	struct server *srv = objt_server(s->target);
 	struct conn_src *src;
 	struct connection *cli_conn;
-	struct connection *srv_conn = s->req->cons->conn;
+	struct connection *srv_conn = objt_conn(s->req->cons->end);
 
 	if (srv && srv->conn_src.opts & CO_SRC_BIND)
 		src = &srv->conn_src;
@@ -982,9 +982,12 @@ static void assign_tproxy_address(struct session *s)
 int connect_server(struct session *s)
 {
 	struct connection *cli_conn;
-	struct connection *srv_conn = s->req->cons->conn;
+	struct connection *srv_conn = si_alloc_conn(s->req->cons);
 	struct server *srv;
 	int err;
+
+	if (!srv_conn)
+		return SN_ERR_RESOURCE;
 
 	if (!(s->flags & SN_ADDR_SET)) {
 		err = assign_server_address(s);

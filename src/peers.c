@@ -1083,12 +1083,6 @@ static void peer_session_forceshutdown(struct session * session)
  */
 int peer_accept(struct session *s)
 {
-	/* we have a dedicated I/O handler for the peers, so we can safely
-	 * release the pre-allocated connection that we will never use.
-	 */
-	pool_free2(pool2_connection, s->si[1].conn);
-	s->si[1].conn = NULL;
-
 	stream_int_register_handler(&s->si[1], &peer_applet);
 	s->target = &peer_applet.obj_type; // for logging only
 	s->si[1].appctx.ctx.peers.ptr = s;
@@ -1122,14 +1116,12 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	struct session *s;
 	struct http_txn *txn;
 	struct task *t;
+	struct connection *conn;
 
 	if ((s = pool_alloc2(pool2_session)) == NULL) { /* disable this proxy for a while */
 		Alert("out of memory in peer_session_create().\n");
 		goto out_close;
 	}
-
-	if (unlikely((s->si[1].conn = pool_alloc2(pool2_connection)) == NULL))
-		goto out_fail_conn1;
 
 	LIST_ADDQ(&sessions, &s->list);
 	LIST_INIT(&s->back_refs);
@@ -1151,7 +1143,6 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	t->context = s;
 	t->nice = l->nice;
 
-	memcpy(&s->si[1].conn->addr.to, &peer->addr, sizeof(s->si[1].conn->addr.to));
 	s->task = t;
 	s->listener = l;
 
@@ -1163,7 +1154,6 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 
 	s->req = s->rep = NULL; /* will be allocated later */
 
-	s->si[0].conn = NULL;
 	si_reset(&s->si[0], t);
 	si_set_state(&s->si[0], SI_ST_EST);
 
@@ -1183,15 +1173,19 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	if (s->be->options2 & PR_O2_INDEPSTR)
 		s->si[1].flags |= SI_FL_INDEP_STR;
 
-	/* will automatically prepare the stream interface to connect to the
+	/* automatically prepare the stream interface to connect to the
 	 * pre-initialized connection in si->conn.
 	 */
-	conn_init(s->si[1].conn);
-	conn_prepare(s->si[1].conn, peer->proto, peer->xprt);
-	si_attach_conn(&s->si[1], s->si[1].conn);
+	if (unlikely((conn = conn_new()) == NULL))
+		goto out_fail_conn1;
+
+	conn_prepare(conn, peer->proto, peer->xprt);
+	si_attach_conn(&s->si[1], conn);
+
+	conn->target = s->target = &s->be->obj_type;
+	memcpy(&conn->addr.to, &peer->addr, sizeof(conn->addr.to));
 
 	session_init_srv_conn(s);
-	s->si[1].conn->target = s->target = &s->be->obj_type;
 	s->pend_pos = NULL;
 
 	/* init store persistence */
@@ -1302,11 +1296,11 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
  out_fail_req_buf:
 	pool_free2(pool2_channel, s->req);
  out_fail_req:
+	conn_free(conn);
+ out_fail_conn1:
 	task_free(t);
  out_free_session:
 	LIST_DEL(&s->list);
-	pool_free2(pool2_connection, s->si[1].conn);
- out_fail_conn1:
 	pool_free2(pool2_session, s);
  out_close:
 	return s;
