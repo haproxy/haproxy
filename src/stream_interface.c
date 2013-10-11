@@ -609,10 +609,10 @@ static int si_conn_wake_cb(struct connection *conn)
 /*
  * This function is called to send buffer data to a stream socket.
  * It returns -1 in case of unrecoverable error, otherwise zero.
- * It iterates the transport layer's snd_buf function. It relies on the
+ * It calls the transport layer's snd_buf function. It relies on the
  * caller to commit polling changes.
  */
-static int si_conn_send_loop(struct connection *conn)
+static int si_conn_send(struct connection *conn)
 {
 	struct stream_interface *si = conn->owner;
 	struct channel *chn = si->ob;
@@ -638,10 +638,10 @@ static int si_conn_send_loop(struct connection *conn)
 	if (!chn->buf->o)
 		return 0;
 
-	/* when we're in this loop, we already know that there is no spliced
+	/* when we're here, we already know that there is no spliced
 	 * data left, and that there are sendable buffered data.
 	 */
-	while (!(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_WR_SH | CO_FL_DATA_WR_SH | CO_FL_WAIT_DATA | CO_FL_WAIT_WR | CO_FL_HANDSHAKE))) {
+	if (!(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_WR_SH | CO_FL_DATA_WR_SH | CO_FL_WAIT_DATA | CO_FL_WAIT_WR | CO_FL_HANDSHAKE))) {
 		/* check if we want to inform the kernel that we're interested in
 		 * sending more data after this call. We want this if :
 		 *  - we're about to close after this last send and want to merge
@@ -661,22 +661,19 @@ static int si_conn_send_loop(struct connection *conn)
 			send_flag |= MSG_MORE;
 
 		ret = conn->xprt->snd_buf(conn, chn->buf, send_flag);
-		if (ret <= 0)
-			break;
+		if (ret > 0) {
+			chn->flags |= CF_WRITE_PARTIAL;
 
-		chn->flags |= CF_WRITE_PARTIAL;
+			if (!chn->buf->o) {
+				/* Always clear both flags once everything has been sent, they're one-shot */
+				chn->flags &= ~(CF_EXPECT_MORE | CF_SEND_DONTWAIT);
+			}
 
-		if (!chn->buf->o) {
-			/* Always clear both flags once everything has been sent, they're one-shot */
-			chn->flags &= ~(CF_EXPECT_MORE | CF_SEND_DONTWAIT);
-			break;
+			/* if some data remain in the buffer, it's only because the
+			 * system buffers are full, we will try next time.
+			 */
 		}
-
-		/* if some data remain in the buffer, it's only because the
-		 * system bufers are full, so we don't want to loop again.
-		 */
-		break;
-	} /* while */
+	}
 
 	if (conn->flags & CO_FL_ERROR)
 		return -1;
@@ -824,7 +821,7 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 
 		conn_refresh_polling_flags(si->conn);
 
-		if (si_conn_send_loop(si->conn) < 0) {
+		if (si_conn_send(si->conn) < 0) {
 			/* Write error on the file descriptor */
 			fd_stop_both(si->conn->t.sock.fd);
 			__conn_data_stop_both(si->conn);
@@ -1145,7 +1142,7 @@ static void si_conn_send_cb(struct connection *conn)
 		return;
 
 	/* OK there are data waiting to be sent */
-	if (si_conn_send_loop(conn) < 0)
+	if (si_conn_send(conn) < 0)
 		goto out_error;
 
 	/* OK all done */
