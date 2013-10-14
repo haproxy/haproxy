@@ -426,7 +426,7 @@ int session_complete(struct session *s)
 
 	/* attach the incoming connection to the stream interface now */
 	s->si[0].conn = conn;
-	si_takeover_conn(&s->si[0], l->proto, l->xprt);
+	si_prepare_conn(&s->si[0], l->proto, l->xprt);
 
 	s->flags |= SN_INITIALIZED;
 	s->unique_id = NULL;

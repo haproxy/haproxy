@@ -54,23 +54,11 @@ static inline void si_prepare_none(struct stream_interface *si)
 }
 
 /* Assign the stream interface's pre-allocated connection to the end point,
- * and initialize the connection's context. This is used for outgoing
- * connections.
+ * and leave the connection's context untouched. This is used for incoming
+ * and outgoing connections. The caller is responsible for ensuring that
+ * si->conn already points to the connection.
  */
 static inline void si_prepare_conn(struct stream_interface *si, const struct protocol *ctrl, const struct xprt_ops *xprt)
-{
-	struct connection *conn = si->conn;
-
-	si->ops = &si_conn_ops;
-	si->end = &conn->obj_type;
-	conn_assign(conn, &si_conn_cb, ctrl, xprt, si);
-}
-
-/* Assign the stream interface's pre-allocated connection to the end point,
- * and leave the connection's context untouched. This is used for incoming
- * connections.
- */
-static inline void si_takeover_conn(struct stream_interface *si, const struct protocol *ctrl, const struct xprt_ops *xprt)
 {
 	struct connection *conn = si->conn;
 
