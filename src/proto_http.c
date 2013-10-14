@@ -8927,10 +8927,8 @@ smp_prefetch_http(struct proxy *px, struct session *s, void *l7, unsigned int op
 			buffer_slow_realign(s->req->buf);
 
 		if (unlikely(txn->req.msg_state < HTTP_MSG_BODY)) {
-			if ((msg->msg_state == HTTP_MSG_ERROR) ||
-			    buffer_full(s->req->buf, global.tune.maxrewrite)) {
+			if (msg->msg_state == HTTP_MSG_ERROR)
 				return 0;
-			}
 
 			/* Try to decode HTTP request */
 			if (likely(msg->next < s->req->buf->i))
