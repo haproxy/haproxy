@@ -543,11 +543,6 @@ static void acl_free_reg(void *ptr)
 int acl_parse_reg(const char **text, struct acl_pattern *pattern, int *opaque, char **err)
 {
 	regex *preg;
-	int icase;
-#ifdef USE_PCRE_JIT
-	const char *error;
-	int erroffset;
-#endif
 
 	preg = calloc(1, sizeof(*preg));
 
@@ -556,31 +551,10 @@ int acl_parse_reg(const char **text, struct acl_pattern *pattern, int *opaque, c
 		return 0;
 	}
 
-#ifdef USE_PCRE_JIT
-	icase = (pattern->flags & ACL_PAT_F_IGNORE_CASE) ? PCRE_CASELESS : 0;
-	preg->reg = pcre_compile(*text, PCRE_NO_AUTO_CAPTURE | icase, &error, &erroffset,
-		NULL);
-	if (!preg->reg) {
+	if (!regex_comp(*text, preg, !(pattern->flags & ACL_PAT_F_IGNORE_CASE), 0, err)) {
 		free(preg);
-		memprintf(err, "regex '%s' is invalid (error=%s, erroffset=%d)", *text, error, erroffset);
 		return 0;
 	}
-
-	preg->extra = pcre_study(preg->reg, PCRE_STUDY_JIT_COMPILE, &error);
-	if (!preg->extra) {
-		pcre_free(preg->reg);
-		free(preg);
-		memprintf(err, "failed to compile regex '%s' (error=%s)", *text, error);
-		return 0;
-	}
-#else
-	icase = (pattern->flags & ACL_PAT_F_IGNORE_CASE) ? REG_ICASE : 0;
-	if (regcomp(preg, *text, REG_EXTENDED | REG_NOSUB | icase) != 0) {
-		free(preg);
-		memprintf(err, "regex '%s' is invalid", *text);
-		return 0;
-	}
-#endif
 
 	pattern->ptr.reg = preg;
 	pattern->freeptrbuf = &acl_free_reg;

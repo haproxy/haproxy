@@ -122,7 +122,45 @@ const char *chain_regex(struct hdr_exp **head, const regex_t *preg,
 	return NULL;
 }
 
+int regex_comp(const char *str, regex *regex, int cs, int cap, char **err)
+{
+#ifdef USE_PCRE_JIT
+	int flags = 0;
+	const char *error;
+	int erroffset;
 
+	if (!cs)
+		flags |= PCRE_CASELESS;
+	if (!cap)
+		flags |= PCRE_NO_AUTO_CAPTURE;
+
+	regex->reg = pcre_compile(str, flags, &error, &erroffset, NULL);
+	if (!regex->reg) {
+		memprintf(err, "regex '%s' is invalid (error=%s, erroffset=%d)", str, error, erroffset);
+		return 0;
+	}
+
+	regex->extra = pcre_study(regex->reg, PCRE_STUDY_JIT_COMPILE, &error);
+	if (!regex->extra) {
+		pcre_free(regex->reg);
+		memprintf(err, "failed to compile regex '%s' (error=%s)", str, error);
+		return 0;
+	}
+#else
+	int flags = REG_EXTENDED;
+
+	if (!cs)
+		flags |= REG_ICASE;
+	if (!cap)
+		flags |= REG_NOSUB;
+
+	if (regcomp(regex, str, flags) != 0) {
+		memprintf(err, "regex '%s' is invalid", str);
+		return 0;
+	}
+#endif
+	return 1;
+}
 
 /*
  * Local variables:

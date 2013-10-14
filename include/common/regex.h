@@ -31,6 +31,9 @@
 #include <pcreposix.h>
 
 #ifdef USE_PCRE_JIT
+#ifndef PCRE_CONFIG_JIT
+#error "The PCRE lib doesn't support JIT. Change your lib, or remove the option USE_PCRE_JIT."
+#endif
 struct jit_regex {
     pcre *reg;
     pcre_extra *extra;
@@ -64,6 +67,17 @@ struct hdr_exp {
 
 extern regmatch_t pmatch[MAX_MATCH];
 
+/* "str" is the string that contain the regex to compile.
+ * "regex" is preallocated memory. After the execution of this function, this
+ *         struct contain the compiled regex.
+ * "cs" is the case sensitive flag. If cs is true, case sensitive is enabled.
+ * "cap" is capture flag. If cap if true the regex can capture into
+ *       parenthesis strings.
+ * "err" is the standar error message pointer.
+ *
+ * The function return 1 is succes case, else return 0 and err is filled.
+ */
+int regex_comp(const char *str, regex *regex, int cs, int cap, char **err);
 int exp_replace(char *dst, char *src, const char *str,	const regmatch_t *matches);
 const char *check_replace_string(const char *str);
 const char *chain_regex(struct hdr_exp **head, const regex_t *preg,
