@@ -1177,12 +1177,6 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->si[0].appctx.st0 = PEER_SESSION_CONNECT;
 	s->si[0].appctx.ctx.peers.ptr = (void *)ps;
 
-	s->si[1].conn->obj_type = OBJ_TYPE_CONN;
-	s->si[1].conn->t.sock.fd = -1; /* just to help with debugging */
-	s->si[1].conn->flags = CO_FL_NONE;
-	s->si[1].conn->err_code = CO_ER_NONE;
-	s->si[1].conn->target = &s->be->obj_type;
-
 	s->si[1].owner = t;
 	s->si[1].state = s->si[1].prev_state = SI_ST_ASS;
 	s->si[1].conn_retries = p->conn_retries;
@@ -1196,10 +1190,11 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	/* will automatically prepare the stream interface to connect to the
 	 * pre-initialized connection in si->conn.
 	 */
+	conn_init(s->si[1].conn);
 	si_prepare_conn(&s->si[1], peer->proto, peer->xprt);
 
 	session_init_srv_conn(s);
-	s->target = &s->be->obj_type;
+	s->si[1].conn->target = s->target = &s->be->obj_type;
 	s->pend_pos = NULL;
 
 	/* init store persistence */
