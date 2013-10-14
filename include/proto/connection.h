@@ -425,6 +425,24 @@ static inline int conn_sock_shutw_pending(struct connection *c)
 	return (c->flags & (CO_FL_DATA_WR_SH | CO_FL_SOCK_WR_SH)) == CO_FL_DATA_WR_SH;
 }
 
+/* Initializes all required fields for a new connection. Note that it does the
+ * minimum acceptable initialization for a connection that already exists and
+ * is about to be reused. It also leaves the addresses untouched, which makes
+ * it usable across connection retries to reset a connection to a known state.
+ */
+static inline void conn_init(struct connection *conn)
+{
+	conn->obj_type = OBJ_TYPE_CONN;
+	conn->flags = CO_FL_NONE;
+	conn->xprt_st = 0;
+	conn->xprt_ctx = NULL;
+	conn->data = NULL;
+	conn->owner = NULL;
+	conn->t.sock.fd = -1; /* just to help with debugging */
+	conn->err_code = CO_ER_NONE;
+	conn->target = NULL;
+}
+
 /* Retrieves the connection's source address */
 static inline void conn_get_from_addr(struct connection *conn)
 {
