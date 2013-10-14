@@ -122,7 +122,7 @@ struct stkctr {
  */
 struct session {
 	int flags;				/* some flags describing the session */
-	enum obj_type *target;			/* target to use for this session */
+	enum obj_type *target;			/* target to use for this session ; for mini-sess: incoming connection */
 
 	struct channel *req;			/* request buffer */
 	struct channel *rep;			/* response buffer */

@@ -116,6 +116,14 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	cli_conn->addr.from = *addr;
 	cli_conn->target = &l->obj_type;
 
+	/* On a mini-session, the connection is directly attached to the
+	 * session's target so that we don't need to initialize the stream
+	 * interfaces. Another benefit is that it's easy to detect a mini-
+	 * session in dumps using this : it's the only one which has a
+	 * connection in s->target.
+	 */
+	s->target = &cli_conn->obj_type;
+
 	/* The server side is not used yet, but just initialize it to avoid
 	 * confusing some debugging or "show sess" for example.
 	 */
@@ -264,7 +272,7 @@ static void prepare_mini_sess_log_prefix(struct session *s)
 	char pn[INET6_ADDRSTRLEN];
 	int ret;
 	char *end;
-	struct connection *cli_conn = s->si[0].conn;
+	struct connection *cli_conn = __objt_conn(s->target);
 
 	ret = addr_to_str(&cli_conn->addr.from, pn, sizeof(pn));
 	if (ret <= 0)
@@ -290,7 +298,7 @@ static void prepare_mini_sess_log_prefix(struct session *s)
 static void kill_mini_session(struct session *s)
 {
 	int level = LOG_INFO;
-	struct connection *conn = s->si[0].conn;
+	struct connection *conn = __objt_conn(s->target);
 	unsigned int log = s->logs.logwait;
 	const char *err_msg;
 
@@ -407,6 +415,7 @@ int session_complete(struct session *s)
 	struct proxy *p = s->fe;
 	struct http_txn *txn;
 	struct task *t = s->task;
+	struct connection *conn = __objt_conn(s->target);
 	int ret;
 	int i;
 
@@ -415,9 +424,12 @@ int session_complete(struct session *s)
 	/* OK, we're keeping the session, so let's properly initialize the session */
 	LIST_ADDQ(&sessions, &s->list);
 	LIST_INIT(&s->back_refs);
-	si_takeover_conn(&s->si[0], l->proto, l->xprt);
-	s->flags |= SN_INITIALIZED;
 
+	/* attach the incoming connection to the stream interface now */
+	s->si[0].conn = conn;
+	si_takeover_conn(&s->si[0], l->proto, l->xprt);
+
+	s->flags |= SN_INITIALIZED;
 	s->unique_id = NULL;
 
 	t->process = l->handler;
@@ -558,7 +570,7 @@ int session_complete(struct session *s)
 	txn->rsp.chn = s->rep;
 
 	/* finish initialization of the accepted file descriptor */
-	conn_data_want_recv(__objt_conn(s->si[0].end));
+	conn_data_want_recv(conn);
 
 	if (p->accept && (ret = p->accept(s)) <= 0) {
 		/* Either we had an unrecoverable error (<0) or work is
@@ -570,10 +582,10 @@ int session_complete(struct session *s)
 
 	/* if logs require transport layer information, note it on the connection */
 	if (s->logs.logwait & LW_XPRT)
-		__objt_conn(s->si[0].end)->flags |= CO_FL_XPRT_TRACKED;
+		conn->flags |= CO_FL_XPRT_TRACKED;
 
 	/* we want the connection handler to notify the stream interface about updates. */
-	__objt_conn(s->si[0].end)->flags |= CO_FL_WAKE_DATA;
+	conn->flags |= CO_FL_WAKE_DATA;
 
 	/* it is important not to call the wakeup function directly but to
 	 * pass through task_wakeup(), because this one knows how to apply
