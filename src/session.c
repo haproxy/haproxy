@@ -108,11 +108,10 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	/* OK, we're keeping the session, so let's properly initialize the session.
 	 * We first have to initialize the client-side connection.
 	 */
-	cli_conn->obj_type = OBJ_TYPE_CONN;
+	conn_init(cli_conn);
 	cli_conn->t.sock.fd = cfd;
 	cli_conn->ctrl = l->proto;
-	cli_conn->flags = CO_FL_NONE | CO_FL_ADDR_FROM_SET;
-	cli_conn->err_code = CO_ER_NONE;
+	cli_conn->flags |= CO_FL_ADDR_FROM_SET;
 	cli_conn->addr.from = *addr;
 	cli_conn->target = &l->obj_type;
 
@@ -477,11 +476,6 @@ int session_complete(struct session *s)
 	/* pre-initialize the other side's stream interface to an INIT state. The
 	 * callbacks will be initialized before attempting to connect.
 	 */
-	s->si[1].conn->obj_type = OBJ_TYPE_CONN;
-	s->si[1].conn->t.sock.fd = -1; /* just to help with debugging */
-	s->si[1].conn->flags = CO_FL_NONE;
-	s->si[1].conn->err_code = CO_ER_NONE;
-	s->si[1].conn->target = NULL;
 	s->si[1].owner     = t;
 	s->si[1].state     = s->si[1].prev_state = SI_ST_INI;
 	s->si[1].err_type  = SI_ET_NONE;
@@ -490,6 +484,8 @@ int session_complete(struct session *s)
 	s->si[1].exp       = TICK_ETERNITY;
 	s->si[1].flags     = SI_FL_NONE;
 
+	conn_init(s->si[1].conn);
+	s->si[1].conn->target = NULL;
 	si_prepare_none(&s->si[1]);
 
 	if (likely(s->fe->options2 & PR_O2_INDEPSTR))
