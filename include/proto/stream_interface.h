@@ -63,7 +63,7 @@ static inline void si_prepare_conn(struct stream_interface *si, const struct pro
 
 	si->ops = &si_conn_ops;
 	si->end = &conn->obj_type;
-	conn_prepare(conn, &si_conn_cb, ctrl, xprt, si);
+	conn_assign(conn, &si_conn_cb, ctrl, xprt, si);
 }
 
 /* Assign the stream interface's pre-allocated connection to the end point,

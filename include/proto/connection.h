@@ -486,18 +486,6 @@ static inline void conn_assign(struct connection *conn, const struct data_cb *da
 	conn->owner = owner;
 }
 
-/* prepares a connection with the appropriate data, ctrl, transport layers, and
- * owner. The transport state and context are set to 0.
- */
-static inline void conn_prepare(struct connection *conn, const struct data_cb *data,
-                                const struct protocol *ctrl, const struct xprt_ops *xprt,
-                                void *owner)
-{
-	conn_assign(conn, data, ctrl, xprt, owner);
-	conn->xprt_st = 0;
-	conn->xprt_ctx = NULL;
-}
-
 /* returns a human-readable error code for conn->err_code, or NULL if the code
  * is unknown.
  */

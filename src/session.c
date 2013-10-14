@@ -203,7 +203,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	 * but not initialized. Also note we need to be careful as the stream
 	 * int is not initialized yet.
 	 */
-	conn_prepare(cli_conn, &sess_conn_cb, l->proto, l->xprt, s);
+	conn_assign(cli_conn, &sess_conn_cb, l->proto, l->xprt, s);
 
 	/* finish initialization of the accepted file descriptor */
 	fd_insert(cfd);

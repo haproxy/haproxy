@@ -1541,7 +1541,7 @@ static struct task *process_chk(struct task *t)
 
 		/* prepare a new connection */
 		conn_init(conn);
-		conn_prepare(conn, &check_conn_cb, s->check_common.proto, s->check_common.xprt, check);
+		conn_assign(conn, &check_conn_cb, s->check_common.proto, s->check_common.xprt, check);
 		conn->target = &s->obj_type;
 
 		/* no client address */
