@@ -95,6 +95,10 @@ int http_find_full_header2(const char *name, int len,
 int http_find_header2(const char *name, int len,
 		      char *sol, struct hdr_idx *idx,
 		      struct hdr_ctx *ctx);
+char *find_hdr_value_end(char *s, const char *e);
+int http_header_match2(const char *hdr, const char *end, const char *name, int len);
+int http_remove_header2(struct http_msg *msg, struct hdr_idx *idx, struct hdr_ctx *ctx);
+int http_header_add_tail2(struct http_msg *msg, struct hdr_idx *hdr_idx, const char *text, int len);
 void http_sess_log(struct session *s);
 void http_perform_server_redirect(struct session *s, struct stream_interface *si);
 void http_return_srv_error(struct session *s, struct stream_interface *si);
