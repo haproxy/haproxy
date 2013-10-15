@@ -163,19 +163,9 @@ static void *acl_lookup_str(struct sample *smp, struct acl_expr *expr)
  */
 int acl_match_reg(struct sample *smp, struct acl_pattern *pattern)
 {
-	char old_char;
-	int ret;
-
-	old_char = smp->data.str.str[smp->data.str.len];
-	smp->data.str.str[smp->data.str.len] = 0;
-
 	if (regex_exec(pattern->ptr.reg, smp->data.str.str, smp->data.str.len) == 0)
-		ret = ACL_PAT_PASS;
-	else
-		ret = ACL_PAT_FAIL;
-
-	smp->data.str.str[smp->data.str.len] = old_char;
-	return ret;
+		return ACL_PAT_PASS;
+	return ACL_PAT_FAIL;
 }
 
 /* Checks that the pattern matches the beginning of the tested string. */

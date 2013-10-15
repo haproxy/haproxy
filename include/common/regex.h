@@ -83,11 +83,20 @@ const char *check_replace_string(const char *str);
 const char *chain_regex(struct hdr_exp **head, const regex_t *preg,
 			int action, const char *replace, void *cond);
 
-static inline int regex_exec(const regex *preg, const char *subject, int length) {
+/* Note that <subject> MUST be at least <length+1> characters long and must
+ * be writable because the function will temporarily force a zero past the
+ * last character.
+ */
+static inline int regex_exec(const regex *preg, char *subject, int length) {
 #ifdef USE_PCRE_JIT
 	return pcre_exec(preg->reg, preg->extra, subject, length, 0, 0, NULL, 0);
 #else
-	return regexec(preg, subject, 0, NULL, 0);
+	int match;
+	char old_char = subject[length];
+	subject[length] = 0;
+	match = regexec(preg, subject, 0, NULL, 0);
+	subject[length] = old_char;
+	return match;
 #endif
 }
 
