@@ -24,6 +24,7 @@
 
 #include <common/chunk.h>
 #include <common/config.h>
+#include <common/mini-clist.h>
 
 #include <types/hdr_idx.h>
 
