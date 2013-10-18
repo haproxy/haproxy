@@ -717,6 +717,9 @@ tags:
 	find src include \( -name '*.c' -o -name '*.h' \) -print0 | \
 	   xargs -0 etags --declarations --members
 
+cscope:
+	find src include -name "*.[ch]" -print | cscope -q -b -i -
+
 tar:	clean
 	ln -s . haproxy-$(VERSION)
 	tar --exclude=haproxy-$(VERSION)/.git \
