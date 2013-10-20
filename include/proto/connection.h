@@ -443,6 +443,27 @@ static inline void conn_init(struct connection *conn)
 	conn->target = NULL;
 }
 
+/* Tries to allocate a new connection and initialized its main fields. The
+ * connection is returned on success, NULL on failure. The connection must
+ * be released using pool_free2() or conn_free().
+ */
+static inline struct connection *conn_new()
+{
+	struct connection *conn;
+
+	conn = pool_alloc2(pool2_connection);
+	if (likely(conn != NULL))
+		conn_init(conn);
+	return conn;
+}
+
+/* Releases a connection previously allocated by conn_new() */
+static inline void conn_free(struct connection *conn)
+{
+	pool_free2(pool2_connection, conn);
+}
+
+
 /* Retrieves the connection's source address */
 static inline void conn_get_from_addr(struct connection *conn)
 {
