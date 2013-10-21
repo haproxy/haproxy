@@ -43,27 +43,61 @@ int conn_fd_handler(int fd);
 int conn_recv_proxy(struct connection *conn, int flag);
 int make_proxy_line(char *buf, int buf_len, struct sockaddr_storage *src, struct sockaddr_storage *dst);
 
-/* calls the init() function of the transport layer if any.
+/* Calls the init() function of the transport layer if any and if not done yet,
+ * and sets the CO_FL_XPRT_READY flag to indicate it was properly initialized.
  * Returns <0 in case of error.
  */
 static inline int conn_xprt_init(struct connection *conn)
 {
-	if (conn->xprt && conn->xprt->init)
-		return conn->xprt->init(conn);
-	return 0;
+	int ret = 0;
+
+	if (!(conn->flags & CO_FL_XPRT_READY) && conn->xprt && conn->xprt->init)
+		ret = conn->xprt->init(conn);
+
+	if (ret >= 0)
+		conn->flags |= CO_FL_XPRT_READY;
+
+	return ret;
 }
 
-/* Calls the close() function of the transport layer if any, and always unsets
- * the transport layer. However this is not done if the CO_FL_XPRT_TRACKED flag
- * is set, which allows logs to take data from the transport layer very late if
- * needed.
+/* Calls the close() function of the transport layer if any and if not done
+ * yet, and clears the CO_FL_XPRT_READY flag. However this is not done if the
+ * CO_FL_XPRT_TRACKED flag is set, which allows logs to take data from the
+ * transport layer very late if needed.
  */
 static inline void conn_xprt_close(struct connection *conn)
 {
-	if (conn->xprt && !(conn->flags & CO_FL_XPRT_TRACKED)) {
-		if (conn->xprt->close)
+	if ((conn->flags & (CO_FL_XPRT_READY|CO_FL_XPRT_TRACKED)) == CO_FL_XPRT_READY) {
+		if (conn->xprt && conn->xprt->close)
 			conn->xprt->close(conn);
-		conn->xprt = NULL;
+		conn->flags &= ~CO_FL_XPRT_READY;
+	}
+}
+
+/* Initializes the connection's control layer which essentially consists in
+ * registering the file descriptor for polling and setting the CO_FL_CTRL_READY
+ * flag.
+ */
+static inline void conn_ctrl_init(struct connection *conn)
+{
+	if (!(conn->flags & CO_FL_CTRL_READY)) {
+		int fd = conn->t.sock.fd;
+
+		fd_insert(fd);
+		fdtab[fd].owner = conn;
+		fdtab[fd].iocb = conn_fd_handler;
+		conn->flags |= CO_FL_CTRL_READY;
+	}
+}
+
+/* Deletes the FD if the transport layer is already gone. Once done,
+ * it then removes the CO_FL_CTRL_READY flag.
+ */
+static inline void conn_ctrl_close(struct connection *conn)
+{
+	if ((conn->flags & (CO_FL_XPRT_READY|CO_FL_CTRL_READY)) == CO_FL_CTRL_READY) {
+		fd_delete(conn->t.sock.fd);
+		conn->flags &= ~CO_FL_CTRL_READY;
 	}
 }
 
@@ -75,13 +109,22 @@ static inline void conn_xprt_close(struct connection *conn)
  */
 static inline void conn_full_close(struct connection *conn)
 {
-	if (conn->xprt && !(conn->flags & CO_FL_XPRT_TRACKED)) {
-		if (conn->xprt->close)
-			conn->xprt->close(conn);
-		if (conn->ctrl)
-			fd_delete(conn->t.sock.fd);
-		conn->xprt = NULL;
-	}
+	conn_xprt_close(conn);
+	conn_ctrl_close(conn);
+}
+
+/* Force to close the connection whatever the tracking state. This is mainly
+ * used on the error path where the tracking does not make sense.
+ */
+static inline void conn_force_close(struct connection *conn)
+{
+	if ((conn->flags & CO_FL_XPRT_READY) && conn->xprt && conn->xprt->close)
+		conn->xprt->close(conn);
+
+	if (conn->flags & CO_FL_CTRL_READY)
+		fd_delete(conn->t.sock.fd);
+
+	conn->flags &= ~(CO_FL_XPRT_READY|CO_FL_CTRL_READY);
 }
 
 /* Update polling on connection <c>'s file descriptor depending on its current
@@ -121,7 +164,7 @@ static inline void conn_refresh_polling_flags(struct connection *conn)
 {
 	conn->flags &= ~(CO_FL_WAIT_ROOM | CO_FL_WAIT_RD | CO_FL_WAIT_DATA | CO_FL_WAIT_WR);
 
-	if (conn->ctrl) {
+	if ((conn->flags & CO_FL_CTRL_READY) && conn->ctrl) {
 		unsigned int flags = conn->flags & ~(CO_FL_CURR_RD_ENA | CO_FL_CURR_WR_ENA);
 
 		if (fd_ev_is_set(conn->t.sock.fd, DIR_RD))
@@ -470,7 +513,7 @@ static inline void conn_get_from_addr(struct connection *conn)
 	if (conn->flags & CO_FL_ADDR_FROM_SET)
 		return;
 
-	if (!conn->ctrl || !conn->ctrl->get_src)
+	if (!(conn->flags & CO_FL_CTRL_READY) || !conn->ctrl || !conn->ctrl->get_src)
 		return;
 
 	if (conn->ctrl->get_src(conn->t.sock.fd, (struct sockaddr *)&conn->addr.from,
@@ -486,7 +529,7 @@ static inline void conn_get_to_addr(struct connection *conn)
 	if (conn->flags & CO_FL_ADDR_TO_SET)
 		return;
 
-	if (!conn->ctrl || !conn->ctrl->get_dst)
+	if (!(conn->flags & CO_FL_CTRL_READY) || !conn->ctrl || !conn->ctrl->get_dst)
 		return;
 
 	if (conn->ctrl->get_dst(conn->t.sock.fd, (struct sockaddr *)&conn->addr.to,

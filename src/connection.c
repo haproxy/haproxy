@@ -163,6 +163,9 @@ void conn_update_data_polling(struct connection *c)
 {
 	unsigned int f = c->flags;
 
+	if (!(c->flags & CO_FL_CTRL_READY))
+		return;
+
 	/* update read status if needed */
 	if (unlikely((f & (CO_FL_DATA_RD_ENA|CO_FL_WAIT_RD)) == (CO_FL_DATA_RD_ENA|CO_FL_WAIT_RD))) {
 		fd_poll_recv(c->t.sock.fd);
@@ -202,6 +205,9 @@ void conn_update_data_polling(struct connection *c)
 void conn_update_sock_polling(struct connection *c)
 {
 	unsigned int f = c->flags;
+
+	if (!(c->flags & CO_FL_CTRL_READY))
+		return;
 
 	/* update read status if needed */
 	if (unlikely((f & (CO_FL_SOCK_RD_ENA|CO_FL_WAIT_RD)) == (CO_FL_SOCK_RD_ENA|CO_FL_WAIT_RD))) {
@@ -262,6 +268,9 @@ int conn_recv_proxy(struct connection *conn, int flag)
 
 	/* we might have been called just after an asynchronous shutr */
 	if (conn->flags & CO_FL_SOCK_RD_SH)
+		goto fail;
+
+	if (!(conn->flags & CO_FL_CTRL_READY))
 		goto fail;
 
 	do {
@@ -545,6 +554,9 @@ int conn_local_send_proxy(struct connection *conn, unsigned int flag)
 
 	/* we might have been called just after an asynchronous shutw */
 	if (conn->flags & CO_FL_SOCK_WR_SH)
+		goto out_error;
+
+	if (!(conn->flags & CO_FL_CTRL_READY))
 		goto out_error;
 
 	/* The target server expects a PROXY line to be sent first. Retrieving

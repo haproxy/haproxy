@@ -74,6 +74,10 @@ int raw_sock_to_pipe(struct connection *conn, struct pipe *pipe, unsigned int co
 	int ret;
 	int retval = 0;
 
+
+	if (!(conn->flags & CO_FL_CTRL_READY))
+		return 0;
+
 	errno = 0;
 
 	/* Under Linux, if FD_POLL_HUP is set, we have reached the end.
@@ -189,6 +193,9 @@ int raw_sock_from_pipe(struct connection *conn, struct pipe *pipe)
 {
 	int ret, done;
 
+	if (!(conn->flags & CO_FL_CTRL_READY))
+		return 0;
+
 	done = 0;
 	while (pipe->data) {
 		ret = splice(pipe->cons, NULL, conn->t.sock.fd, NULL, pipe->data,
@@ -233,6 +240,9 @@ static int raw_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 {
 	int ret, done = 0;
 	int try = count;
+
+	if (!(conn->flags & CO_FL_CTRL_READY))
+		return 0;
 
 	errno = 0;
 
@@ -330,6 +340,9 @@ static int raw_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 static int raw_sock_from_buf(struct connection *conn, struct buffer *buf, int flags)
 {
 	int ret, try, done, send_flag;
+
+	if (!(conn->flags & CO_FL_CTRL_READY))
+		return 0;
 
 	done = 0;
 	/* send the largest possible block. For this we perform only one call

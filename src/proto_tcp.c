@@ -462,16 +462,14 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 		}
 	}
 
-	fdtab[fd].owner = conn;
 	conn->flags  = CO_FL_WAIT_L4_CONN; /* connection in progress */
 	conn->flags |= CO_FL_ADDR_TO_SET;
 
-	fdtab[fd].iocb = conn_fd_handler;
-	fd_insert(fd);
+	conn_ctrl_init(conn);       /* registers the FD */
 	conn_sock_want_send(conn);  /* for connect status */
 
 	if (conn_xprt_init(conn) < 0) {
-		fd_delete(fd);
+		conn_force_close(conn);
 		return SN_ERR_RESOURCE;
 	}
 
@@ -573,6 +571,9 @@ int tcp_connect_probe(struct connection *conn)
 	int skerr;
 
 	if (conn->flags & CO_FL_ERROR)
+		return 0;
+
+	if (!(conn->flags & CO_FL_CTRL_READY))
 		return 0;
 
 	if (!(conn->flags & CO_FL_WAIT_L4_CONN))

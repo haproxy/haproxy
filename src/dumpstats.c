@@ -3833,7 +3833,7 @@ static void http_stats_io_handler(struct stream_interface *si)
 
 static inline const char *get_conn_ctrl_name(const struct connection *conn)
 {
-	if (!conn->ctrl)
+	if (!(conn->flags & CO_FL_CTRL_READY) || !conn->ctrl)
 		return "NONE";
 	return conn->ctrl->name;
 }
@@ -3842,7 +3842,7 @@ static inline const char *get_conn_xprt_name(const struct connection *conn)
 {
 	static char ptr[17];
 
-	if (!conn->xprt)
+	if (!(conn->flags & CO_FL_XPRT_READY) || !conn->xprt)
 		return "NONE";
 
 	if (conn->xprt == &raw_sock)

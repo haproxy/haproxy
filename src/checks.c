@@ -796,7 +796,7 @@ static int retrieve_errno_from_socket(struct connection *conn)
 	if (conn->flags & CO_FL_ERROR && ((errno && errno != EAGAIN) || !conn->ctrl))
 		return 1;
 
-	if (!conn->ctrl)
+	if (!(conn->flags & CO_FL_CTRL_READY) || !conn->ctrl)
 		return 0;
 
 	if (getsockopt(conn->t.sock.fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr) == 0)
@@ -1430,12 +1430,12 @@ static int wake_srv_chk(struct connection *conn)
 		/* We're here because nobody wants to handle the error, so we
 		 * sure want to abort the hard way.
 		 */
-		if (conn->ctrl && !(conn->flags & CO_FL_SOCK_RD_SH)) {
+		if ((conn->flags & CO_FL_CTRL_READY) && !(conn->flags & CO_FL_SOCK_RD_SH)) {
 			if (conn->flags & CO_FL_WAIT_RD || !conn->ctrl->drain || !conn->ctrl->drain(conn->t.sock.fd))
 				setsockopt(conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
 				           (struct linger *) &nolinger, sizeof(struct linger));
 		}
-		conn_full_close(conn);
+		conn_force_close(conn);
 	}
 	return 0;
 }
@@ -1650,12 +1650,12 @@ static struct task *process_chk(struct task *t)
 			 * as a failed response coupled with "observe layer7" caused the
 			 * server state to be suddenly changed.
 			 */
-			if (conn->ctrl && !(conn->flags & CO_FL_SOCK_RD_SH)) {
+			if ((conn->flags & CO_FL_CTRL_READY) && !(conn->flags & CO_FL_SOCK_RD_SH)) {
 				if (conn->flags & CO_FL_WAIT_RD || !conn->ctrl->drain || !conn->ctrl->drain(conn->t.sock.fd))
 					setsockopt(conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
 					           (struct linger *) &nolinger, sizeof(struct linger));
 			}
-			conn_full_close(conn);
+			conn_force_close(conn);
 		}
 
 		if (check->result & SRV_CHK_FAILED)  /* a failure or timeout detected */

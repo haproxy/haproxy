@@ -1097,6 +1097,9 @@ static int ssl_sock_init(struct connection *conn)
 	if (conn->xprt_ctx)
 		return 0;
 
+	if (!(conn->flags & CO_FL_CTRL_READY))
+		return 0;
+
 	if (global.maxsslconn && sslconns >= global.maxsslconn) {
 		conn->err_code = CO_ER_SSL_TOO_MANY;
 		return -1;
@@ -1166,6 +1169,9 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 {
 	int ret;
 
+	if (!(conn->flags & CO_FL_CTRL_READY))
+		return 0;
+
 	if (!conn->xprt_ctx)
 		goto out_error;
 
@@ -1225,7 +1231,7 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 				 * TCP sockets. We first try to drain possibly pending
 				 * data to avoid this as much as possible.
 				 */
-				if (conn->ctrl && conn->ctrl->drain)
+				if ((conn->flags & CO_FL_CTRL_READY) && conn->ctrl && conn->ctrl->drain)
 					conn->ctrl->drain(conn->t.sock.fd);
 				if (!conn->err_code)
 					conn->err_code = CO_ER_SSL_HANDSHAKE;
@@ -1276,7 +1282,7 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 			 * TCP sockets. We first try to drain possibly pending
 			 * data to avoid this as much as possible.
 			 */
-			if (conn->ctrl && conn->ctrl->drain)
+			if ((conn->flags & CO_FL_CTRL_READY) && conn->ctrl && conn->ctrl->drain)
 				conn->ctrl->drain(conn->t.sock.fd);
 			if (!conn->err_code)
 				conn->err_code = CO_ER_SSL_HANDSHAKE;

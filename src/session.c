@@ -206,9 +206,8 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	conn_assign(cli_conn, &sess_conn_cb, l->proto, l->xprt, s);
 
 	/* finish initialization of the accepted file descriptor */
-	fd_insert(cfd);
-	fdtab[cfd].owner = cli_conn;
-	fdtab[cfd].iocb = conn_fd_handler;
+	conn_ctrl_init(cli_conn);
+
 	conn_data_want_recv(cli_conn);
 	if (conn_xprt_init(cli_conn) < 0)
 		goto out_free_task;
@@ -242,6 +241,8 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		session_store_counters(s);
 	pool_free2(pool2_connection, s->si[1].conn);
  out_fail_conn1:
+	s->si[0].conn->flags &= ~CO_FL_XPRT_TRACKED;
+	conn_xprt_close(s->si[0].conn);
 	pool_free2(pool2_connection, s->si[0].conn);
  out_fail_conn0:
 	pool_free2(pool2_session, s);
@@ -330,7 +331,7 @@ static void kill_mini_session(struct session *s)
 	}
 
 	/* kill the connection now */
-	conn_full_close(conn);
+	conn_force_close(conn);
 
 	s->fe->feconn--;
 	session_store_counters(s);
@@ -654,10 +655,8 @@ static void session_free(struct session *s)
 	http_end_txn(s);
 
 	/* ensure the client-side transport layer is destroyed */
-	if (cli_conn) {
-		cli_conn->flags &= ~CO_FL_XPRT_TRACKED;
-		conn_full_close(cli_conn);
-	}
+	if (cli_conn)
+		conn_force_close(cli_conn);
 
 	for (i = 0; i < s->store_count; i++) {
 		if (!s->store[i].ts)
@@ -819,8 +818,7 @@ static int sess_update_st_con_tcp(struct session *s, struct stream_interface *si
 		si->exp   = TICK_ETERNITY;
 		si->state = SI_ST_CER;
 
-		srv_conn->flags &= ~CO_FL_XPRT_TRACKED;
-		conn_full_close(srv_conn);
+		conn_force_close(srv_conn);
 
 		if (si->err_type)
 			return 0;

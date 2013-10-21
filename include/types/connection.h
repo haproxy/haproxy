@@ -82,6 +82,10 @@ enum {
 	CO_FL_CURR_WR_ENA   = 0x00000040,  /* sending is currently desired */
 	CO_FL_WAIT_WR       = 0x00000080,  /* sending needs to poll first */
 
+	/* These flags indicate whether the Control and Transport layers are initialized */
+	CO_FL_CTRL_READY    = 0x00000100, /* FD was registered, fd_delete() needed */
+	CO_FL_XPRT_READY    = 0x00000200, /* xprt_init() done, xprt_close() needed */
+
 	/* These flags are used by data layers to indicate they had to stop
 	 * sending data because a buffer was empty (WAIT_DATA) or stop receiving
 	 * data because a buffer was full (WAIT_ROOM). The connection handler
@@ -131,6 +135,8 @@ enum {
 	 * as DATA or SOCK on some implementations.
 	 */
 	CO_FL_POLL_SOCK     = CO_FL_HANDSHAKE | CO_FL_WAIT_L4_CONN | CO_FL_WAIT_L6_CONN,
+
+	/* unused : 0x10000000, 0x20000000, 0x40000000 */
 
 	/* This last flag indicates that the transport layer is used (for instance
 	 * by logs) and must not be cleared yet. The last call to conn_xprt_close()
@@ -238,7 +244,7 @@ struct connection {
 	enum obj_type obj_type;       /* differentiates connection from applet context */
 	const struct protocol *ctrl;  /* operations at the socket layer */
 	const struct xprt_ops *xprt;  /* operations at the transport layer */
-	const struct data_cb  *data;  /* data layer callbacks */
+	const struct data_cb  *data;  /* data layer callbacks. Must be set before xprt->init() */
 	unsigned int flags;           /* CO_FL_* */
 	int xprt_st;                  /* transport layer state, initialized to zero */
 	void *xprt_ctx;               /* general purpose pointer, initialized to NULL */
