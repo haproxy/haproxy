@@ -1134,6 +1134,10 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			expr->args[0].data.str.str = strdup("");
 			expr->args[0].data.str.size = 1;
 			expr->args[0].data.str.len = 0;
+
+			al->ctx = ARGC_ACL;
+			al->kw = expr->kw;
+			al->conv = NULL;
 			arg_list_add(al, &expr->args[0], 0);
 
 			expr->args[1].type = ARGT_STOP;
