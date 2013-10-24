@@ -257,6 +257,8 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
  *   - 1 = delayed ACK if backend has tcp-smart-connect, regardless of data
  *   - 2 = delayed ACK regardless of backend options
  *
+ * Note that a pending send_proxy message accounts for data.
+ *
  * It can return one of :
  *  - SN_ERR_NONE if everything's OK
  *  - SN_ERR_SRVTO if there are no more servers
@@ -415,6 +417,9 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 		}
 	}
 
+	/* if a send_proxy is there, there are data */
+	data |= conn->send_proxy_ofs;
+
 #if defined(TCP_QUICKACK)
 	/* disabling tcp quick ack now allows the first request to leave the
 	 * machine with the first ACK. We only do this if there are pending
@@ -464,6 +469,10 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 
 	conn->flags  = CO_FL_WAIT_L4_CONN; /* connection in progress */
 	conn->flags |= CO_FL_ADDR_TO_SET;
+
+	/* Prepare to send a few handshakes related to the on-wire protocol. */
+	if (conn->send_proxy_ofs)
+		conn->flags |= CO_FL_SI_SEND_PROXY;
 
 	conn_ctrl_init(conn);       /* registers the FD */
 	conn_sock_want_send(conn);  /* for connect status */

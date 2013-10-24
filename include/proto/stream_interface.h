@@ -201,17 +201,13 @@ static inline int si_connect(struct stream_interface *si)
 	if (unlikely(!conn || !conn->ctrl || !conn->ctrl->connect))
 		return SN_ERR_INTERNAL;
 
-	ret = conn->ctrl->connect(conn, !channel_is_empty(si->ob), !!conn->send_proxy_ofs);
+	ret = conn->ctrl->connect(conn, !channel_is_empty(si->ob), 0);
 	if (ret != SN_ERR_NONE)
 		return ret;
 
 	/* needs src ip/port for logging */
 	if (si->flags & SI_FL_SRC_ADDR)
 		conn_get_from_addr(conn);
-
-	/* Prepare to send a few handshakes related to the on-wire protocol. */
-	if (conn->send_proxy_ofs)
-		conn->flags |= CO_FL_SI_SEND_PROXY;
 
 	/* we need to be notified about connection establishment */
 	conn->flags |= CO_FL_WAKE_DATA;
