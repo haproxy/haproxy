@@ -433,7 +433,8 @@ int session_complete(struct session *s)
 		s->si[0].flags |= SI_FL_INDEP_STR;
 
 	s->si[0].conn = conn;
-	si_prepare_conn(&s->si[0], l->proto, l->xprt);
+	conn_prepare(conn, l->proto, l->xprt);
+	si_attach_conn(&s->si[0], conn);
 
 	s->flags |= SN_INITIALIZED;
 	s->unique_id = NULL;
@@ -475,7 +476,7 @@ int session_complete(struct session *s)
 	si_reset(&s->si[1], t);
 	conn_init(s->si[1].conn);
 	s->si[1].conn->target = NULL;
-	si_prepare_none(&s->si[1]);
+	si_detach(&s->si[1]);
 
 	if (likely(s->fe->options2 & PR_O2_INDEPSTR))
 		s->si[1].flags |= SI_FL_INDEP_STR;

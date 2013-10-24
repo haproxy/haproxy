@@ -997,16 +997,18 @@ int connect_server(struct session *s)
 
 	/* set the correct protocol on the output stream interface */
 	if (objt_server(s->target)) {
-		si_prepare_conn(s->req->cons, objt_server(s->target)->proto, objt_server(s->target)->xprt);
+		conn_prepare(srv_conn, objt_server(s->target)->proto, objt_server(s->target)->xprt);
 	}
 	else if (obj_type(s->target) == OBJ_TYPE_PROXY) {
 		/* proxies exclusively run on raw_sock right now */
-		si_prepare_conn(s->req->cons, protocol_by_family(srv_conn->addr.to.ss_family), &raw_sock);
+		conn_prepare(srv_conn, protocol_by_family(srv_conn->addr.to.ss_family), &raw_sock);
 		if (!objt_conn(s->req->cons->end) || !objt_conn(s->req->cons->end)->ctrl)
 			return SN_ERR_INTERNAL;
 	}
 	else
 		return SN_ERR_INTERNAL;  /* how did we get there ? */
+
+	si_attach_conn(s->req->cons, srv_conn);
 
 	/* process the case where the server requires the PROXY protocol to be sent */
 	s->req->cons->send_proxy_ofs = 0;

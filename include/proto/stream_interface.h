@@ -70,29 +70,25 @@ static inline void si_set_state(struct stream_interface *si, int state)
 	si->state = si->prev_state = state;
 }
 
-static inline void si_prepare_none(struct stream_interface *si)
+static inline void si_detach(struct stream_interface *si)
 {
 	si->ops = &si_embedded_ops;
 	si->end = NULL;
 	si->appctx.applet = NULL;
 }
 
-/* Assign the stream interface's pre-allocated connection to the end point,
- * and leave the connection's context untouched. This is used for incoming
- * and outgoing connections. The caller is responsible for ensuring that
- * si->conn already points to the connection.
+/* Attach connection <conn> to the stream interface <si>. The stream interface
+ * is configured to work with a connection and the connection it configured
+ * with a stream interface data layer.
  */
-static inline void si_prepare_conn(struct stream_interface *si, const struct protocol *ctrl, const struct xprt_ops *xprt)
+static inline void si_attach_conn(struct stream_interface *si, struct connection *conn)
 {
-	struct connection *conn = si->conn;
-
 	si->ops = &si_conn_ops;
 	si->end = &conn->obj_type;
-	conn_prepare(conn, ctrl, xprt);
 	conn_attach(conn, si, &si_conn_cb);
 }
 
-static inline void si_prepare_applet(struct stream_interface *si, struct si_applet *applet)
+static inline void si_attach_applet(struct stream_interface *si, struct si_applet *applet)
 {
 	si->ops = &si_embedded_ops;
 	si->appctx.applet = applet;

@@ -1187,7 +1187,8 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	 * pre-initialized connection in si->conn.
 	 */
 	conn_init(s->si[1].conn);
-	si_prepare_conn(&s->si[1], peer->proto, peer->xprt);
+	conn_prepare(s->si[1].conn, peer->proto, peer->xprt);
+	si_attach_conn(&s->si[1], s->si[1].conn);
 
 	session_init_srv_conn(s);
 	s->si[1].conn->target = s->target = &s->be->obj_type;
