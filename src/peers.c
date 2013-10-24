@@ -1169,7 +1169,6 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->si[0].owner = t;
 	s->si[0].state = s->si[0].prev_state = SI_ST_EST;
 	s->si[0].err_type = SI_ET_NONE;
-	s->si[0].release = NULL;
 	s->si[0].send_proxy_ofs = 0;
 	s->si[0].conn->target = &l->obj_type;
 	s->si[0].exp = TICK_ETERNITY;
@@ -1189,7 +1188,6 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->si[1].state = s->si[1].prev_state = SI_ST_ASS;
 	s->si[1].conn_retries = p->conn_retries;
 	s->si[1].err_type = SI_ET_NONE;
-	s->si[1].release = NULL;
 	s->si[1].send_proxy_ofs = 0;
 	s->si[1].conn->target = &s->be->obj_type;
 	si_prepare_conn(&s->si[1], peer->proto, peer->xprt);

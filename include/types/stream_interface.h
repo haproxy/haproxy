@@ -167,8 +167,6 @@ struct stream_interface {
 	struct connection *conn; /* descriptor for a connection */
 	struct si_ops *ops;     /* general operations at the stream interface layer */
 
-	void (*release)(struct stream_interface *); /* handler to call after the last close() */
-
 	/* struct members below are the "remote" part, as seen from the buffer side */
 	int conn_retries;	/* number of connect retries left */
 	int send_proxy_ofs;	/* <0 = offset to (re)send from the end, >0 = send all */

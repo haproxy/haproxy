@@ -83,6 +83,22 @@ static inline void si_prepare_applet(struct stream_interface *si, struct si_appl
 	si->appctx.applet = applet;
 }
 
+/* returns a pointer to the applet being run in the SI or NULL if none */
+static inline const struct si_applet *si_applet(struct stream_interface *si)
+{
+	return objt_applet(si->conn->target);
+}
+
+/* call the applet's release function if any. Needs to be called upon close() */
+static inline void si_applet_release(struct stream_interface *si)
+{
+	const struct si_applet *applet;
+
+	applet = si_applet(si);
+	if (applet && applet->release)
+		applet->release(si);
+}
+
 /* Sends a shutr to the connection using the data layer */
 static inline void si_shutr(struct stream_interface *si)
 {

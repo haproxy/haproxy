@@ -448,7 +448,6 @@ int session_complete(struct session *s)
 	s->si[0].owner     = t;
 	s->si[0].state     = s->si[0].prev_state = SI_ST_EST;
 	s->si[0].err_type  = SI_ET_NONE;
-	s->si[0].release   = NULL;
 	s->si[0].send_proxy_ofs = 0;
 	s->si[0].exp       = TICK_ETERNITY;
 	s->si[0].flags     = SI_FL_NONE;
@@ -467,7 +466,6 @@ int session_complete(struct session *s)
 	s->si[1].state     = s->si[1].prev_state = SI_ST_INI;
 	s->si[1].err_type  = SI_ET_NONE;
 	s->si[1].conn_retries = 0;  /* used for logging too */
-	s->si[1].release   = NULL;
 	s->si[1].send_proxy_ofs = 0;
 	si_prepare_none(&s->si[1]);
 	s->si[1].exp       = TICK_ETERNITY;
@@ -802,9 +800,6 @@ static int sess_update_st_con_tcp(struct session *s, struct stream_interface *si
 
 		si->conn->flags &= ~CO_FL_XPRT_TRACKED;
 		conn_full_close(si->conn);
-
-		if (si->release)
-			si->release(si);
 
 		if (si->err_type)
 			return 0;

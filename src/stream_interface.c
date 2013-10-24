@@ -230,9 +230,7 @@ static void stream_int_shutr(struct stream_interface *si)
 	if (si->ob->flags & CF_SHUTW) {
 		si->state = SI_ST_DIS;
 		si->exp = TICK_ETERNITY;
-
-		if (si->release)
-			si->release(si);
+		si_applet_release(si);
 	}
 	else if (si->flags & SI_FL_NOHALF) {
 		/* we want to immediately forward this close to the write side */
@@ -279,9 +277,7 @@ static void stream_int_shutw(struct stream_interface *si)
 	case SI_ST_TAR:
 		/* Note that none of these states may happen with applets */
 		si->state = SI_ST_DIS;
-
-		if (si->release)
-			si->release(si);
+		si_applet_release(si);
 	default:
 		si->flags &= ~(SI_FL_WAIT_ROOM | SI_FL_NOLINGER);
 		si->ib->flags &= ~CF_SHUTR_NOW;
@@ -359,7 +355,6 @@ struct task *stream_int_register_handler(struct stream_interface *si, struct si_
 	DPRINTF(stderr, "registering handler %p for si %p (was %p)\n", app, si, si->owner);
 
 	si_prepare_applet(si, app);
-	si->release = app->release;
 	si->flags |= SI_FL_WAIT_DATA;
 	return si->owner;
 }
@@ -369,7 +364,6 @@ struct task *stream_int_register_handler(struct stream_interface *si, struct si_
  */
 void stream_int_unregister_handler(struct stream_interface *si)
 {
-	si->release = NULL;
 	si->owner = NULL;
 	si->conn->target = NULL;
 	si->end = NULL;
@@ -735,9 +729,6 @@ static void stream_int_shutr_conn(struct stream_interface *si)
 		conn_full_close(conn);
 		si->state = SI_ST_DIS;
 		si->exp = TICK_ETERNITY;
-
-		if (si->release)
-			si->release(si);
 	}
 	else if (si->flags & SI_FL_NOHALF) {
 		/* we want to immediately forward this close to the write side */
@@ -831,9 +822,7 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 	case SI_ST_QUE:
 	case SI_ST_TAR:
 		si->state = SI_ST_DIS;
-
-		if (si->release)
-			si->release(si);
+		/* fall through */
 	default:
 		si->flags &= ~(SI_FL_WAIT_ROOM | SI_FL_NOLINGER);
 		si->ib->flags &= ~CF_SHUTR_NOW;
@@ -1287,8 +1276,6 @@ void stream_sock_read0(struct stream_interface *si)
 
 	si->state = SI_ST_DIS;
 	si->exp = TICK_ETERNITY;
-	if (si->release)
-		si->release(si);
 	return;
 }
 
