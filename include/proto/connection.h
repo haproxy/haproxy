@@ -548,14 +548,10 @@ static inline void conn_get_to_addr(struct connection *conn)
 	conn->flags |= CO_FL_ADDR_TO_SET;
 }
 
-/* Assigns a connection with the appropriate data, ctrl, transport layers, and owner. */
-static inline void conn_assign(struct connection *conn, const struct data_cb *data,
-                               const struct protocol *ctrl, const struct xprt_ops *xprt,
-                               void *owner)
+/* Attaches a connection to an owner and assigns a data layer */
+static inline void conn_attach(struct connection *conn, void *owner, const struct data_cb *data)
 {
 	conn->data = data;
-	conn->ctrl = ctrl;
-	conn->xprt = xprt;
 	conn->owner = owner;
 }
 

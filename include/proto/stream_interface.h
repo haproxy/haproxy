@@ -88,7 +88,8 @@ static inline void si_prepare_conn(struct stream_interface *si, const struct pro
 
 	si->ops = &si_conn_ops;
 	si->end = &conn->obj_type;
-	conn_assign(conn, &si_conn_cb, ctrl, xprt, si);
+	conn_prepare(conn, ctrl, xprt);
+	conn_attach(conn, si, &si_conn_cb);
 }
 
 static inline void si_prepare_applet(struct stream_interface *si, struct si_applet *applet)
