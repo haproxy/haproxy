@@ -468,6 +468,17 @@ static inline int conn_sock_shutw_pending(struct connection *c)
 	return (c->flags & (CO_FL_DATA_WR_SH | CO_FL_SOCK_WR_SH)) == CO_FL_DATA_WR_SH;
 }
 
+/* prepares a connection to work with protocol <proto> and transport <xprt>.
+ * The transport's context is initialized as well.
+ */
+static inline void conn_prepare(struct connection *conn, const struct protocol *proto, const struct xprt_ops *xprt)
+{
+	conn->ctrl = proto;
+	conn->xprt = xprt;
+	conn->xprt_st = 0;
+	conn->xprt_ctx = NULL;
+}
+
 /* Initializes all required fields for a new connection. Note that it does the
  * minimum acceptable initialization for a connection that already exists and
  * is about to be reused. It also leaves the addresses untouched, which makes
@@ -477,8 +488,6 @@ static inline void conn_init(struct connection *conn)
 {
 	conn->obj_type = OBJ_TYPE_CONN;
 	conn->flags = CO_FL_NONE;
-	conn->xprt_st = 0;
-	conn->xprt_ctx = NULL;
 	conn->data = NULL;
 	conn->owner = NULL;
 	conn->t.sock.fd = -1; /* just to help with debugging */
