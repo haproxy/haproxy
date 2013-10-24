@@ -57,6 +57,7 @@ static inline void si_prepare_none(struct stream_interface *si)
 	si->end = NULL;
 	conn_prepare(si->conn, NULL, NULL, NULL, si);
 	si->conn->target = NULL;
+	si->appctx.applet = NULL;
 }
 
 static inline void si_prepare_conn(struct stream_interface *si, const struct protocol *ctrl, const struct xprt_ops *xprt)
@@ -79,6 +80,7 @@ static inline void si_prepare_applet(struct stream_interface *si, struct si_appl
 	si->end = NULL;
 	conn_prepare(si->conn, NULL, NULL, NULL, si);
 	si->conn->target = &applet->obj_type;
+	si->appctx.applet = applet;
 }
 
 /* Sends a shutr to the connection using the data layer */

@@ -79,6 +79,7 @@ enum {
 };
 
 struct stream_interface;
+struct si_applet;
 
 /* operations available on a stream-interface */
 struct si_ops {
@@ -95,6 +96,7 @@ struct appctx {
 	unsigned int st0;          /* CLI state for stats, session state for peers */
 	unsigned int st1;          /* prompt for stats, session error for peers */
 	unsigned int st2;          /* output state for stats, unused by peers  */
+	struct si_applet *applet;  /* applet this context refers to */
 
 	union {
 		struct {
