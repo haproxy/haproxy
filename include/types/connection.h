@@ -121,13 +121,13 @@ enum {
 	 * handshake should be added after this point, and CO_FL_HANDSHAKE
 	 * should be updated.
 	 */
-	CO_FL_SI_SEND_PROXY = 0x01000000,  /* send a valid PROXY protocol header */
+	CO_FL_SEND_PROXY    = 0x01000000,  /* send a valid PROXY protocol header */
 	CO_FL_SSL_WAIT_HS   = 0x02000000,  /* wait for an SSL handshake to complete */
 	CO_FL_ACCEPT_PROXY  = 0x04000000,  /* receive a valid PROXY protocol header */
-	CO_FL_LOCAL_SPROXY  = 0x08000000,  /* send a valid local PROXY protocol header */
+	/* unused : 0x08000000 */
 
 	/* below we have all handshake flags grouped into one */
-	CO_FL_HANDSHAKE     = CO_FL_SI_SEND_PROXY | CO_FL_SSL_WAIT_HS | CO_FL_ACCEPT_PROXY | CO_FL_LOCAL_SPROXY,
+	CO_FL_HANDSHAKE     = CO_FL_SEND_PROXY | CO_FL_SSL_WAIT_HS | CO_FL_ACCEPT_PROXY,
 
 	/* when any of these flags is set, polling is defined by socket-layer
 	 * operations, as opposed to data-layer. Transport is explicitly not

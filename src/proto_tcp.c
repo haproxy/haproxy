@@ -472,7 +472,7 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 
 	/* Prepare to send a few handshakes related to the on-wire protocol. */
 	if (conn->send_proxy_ofs)
-		conn->flags |= CO_FL_SI_SEND_PROXY;
+		conn->flags |= CO_FL_SEND_PROXY;
 
 	conn_ctrl_init(conn);       /* registers the FD */
 	conn_sock_want_send(conn);  /* for connect status */

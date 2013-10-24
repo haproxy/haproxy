@@ -1570,11 +1570,12 @@ static struct task *process_chk(struct task *t)
 		 */
 		ret = SN_ERR_INTERNAL;
 		if (s->check_common.proto->connect)
-			ret = s->check_common.proto->connect(conn, check->type,
-							     s->check.send_proxy ? 1 : (check->type) ? 0 : 2);
+			ret = s->check_common.proto->connect(conn, check->type, (check->type) ? 0 : 2);
 		conn->flags |= CO_FL_WAKE_DATA;
-		if (check->send_proxy)
-			conn->flags |= CO_FL_LOCAL_SPROXY;
+		if (s->check.send_proxy) {
+			conn->send_proxy_ofs = 1;
+			conn->flags |= CO_FL_SEND_PROXY;
+		}
 
 		switch (ret) {
 		case SN_ERR_NONE:

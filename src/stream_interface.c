@@ -373,11 +373,12 @@ void stream_int_unregister_handler(struct stream_interface *si)
  * further, otherwise it returns non-zero and removes itself from the connection's
  * flags (the bit is provided in <flag> by the caller). It is designed to be
  * called by the connection handler and relies on it to commit polling changes.
+ * Note that it can emit a PROXY line by relying on the other end's address
+ * when the connection is attached to a stream interface, or by resolving the
+ * local address otherwise (also called a LOCAL line).
  */
 int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 {
-	struct stream_interface *si = conn->owner;
-
 	/* we might have been called just after an asynchronous shutw */
 	if (conn->flags & CO_FL_SOCK_WR_SH)
 		goto out_error;
@@ -397,12 +398,33 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 		 * offset to start sending from then end of the proxy string
 		 * (which is recomputed every time since it's constant). If
 		 * it is positive, it means we have to send from the start.
+		 * We can only send a "normal" PROXY line when the connection
+		 * is attached to a stream interface. Otherwise we can only
+		 * send a LOCAL line (eg: for use with health checks).
 		 */
-		struct connection *remote = objt_conn(si->ob->prod->end);
-		if (remote)
-			ret = make_proxy_line(trash.str, trash.size, &remote->addr.from, &remote->addr.to);
-		else
-			ret = make_proxy_line(trash.str, trash.size, NULL, NULL);
+		if (conn->data == &si_conn_cb) {
+			struct stream_interface *si = conn->owner;
+			struct connection *remote = objt_conn(si->ob->prod->end);
+
+			if (remote)
+				ret = make_proxy_line(trash.str, trash.size, &remote->addr.from, &remote->addr.to);
+			else
+				ret = make_proxy_line(trash.str, trash.size, NULL, NULL);
+		}
+		else {
+			/* The target server expects a LOCAL line to be sent first. Retrieving
+			 * local or remote addresses may fail until the connection is established.
+			 */
+			conn_get_from_addr(conn);
+			if (!(conn->flags & CO_FL_ADDR_FROM_SET))
+				goto out_wait;
+
+			conn_get_to_addr(conn);
+			if (!(conn->flags & CO_FL_ADDR_TO_SET))
+				goto out_wait;
+
+			ret = make_proxy_line(trash.str, trash.size, &conn->addr.from, &conn->addr.to);
+		}
 
 		if (!ret)
 			goto out_error;
