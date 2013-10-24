@@ -426,6 +426,12 @@ int session_complete(struct session *s)
 	LIST_INIT(&s->back_refs);
 
 	/* attach the incoming connection to the stream interface now */
+	si_reset(&s->si[0], t);
+	si_set_state(&s->si[0], SI_ST_EST);
+
+	if (likely(s->fe->options2 & PR_O2_INDEPSTR))
+		s->si[0].flags |= SI_FL_INDEP_STR;
+
 	s->si[0].conn = conn;
 	si_prepare_conn(&s->si[0], l->proto, l->xprt);
 
@@ -463,28 +469,10 @@ int session_complete(struct session *s)
 					       s->stkctr[i].table->data_arg[STKTABLE_DT_SESS_RATE].u, 1);
 	}
 
-	/* this part should be common with other protocols */
-	s->si[0].owner     = t;
-	s->si[0].state     = s->si[0].prev_state = SI_ST_EST;
-	s->si[0].err_type  = SI_ET_NONE;
-	s->si[0].send_proxy_ofs = 0;
-	s->si[0].exp       = TICK_ETERNITY;
-	s->si[0].flags     = SI_FL_NONE;
-
-	if (likely(s->fe->options2 & PR_O2_INDEPSTR))
-		s->si[0].flags |= SI_FL_INDEP_STR;
-
 	/* pre-initialize the other side's stream interface to an INIT state. The
 	 * callbacks will be initialized before attempting to connect.
 	 */
-	s->si[1].owner     = t;
-	s->si[1].state     = s->si[1].prev_state = SI_ST_INI;
-	s->si[1].err_type  = SI_ET_NONE;
-	s->si[1].conn_retries = 0;  /* used for logging too */
-	s->si[1].send_proxy_ofs = 0;
-	s->si[1].exp       = TICK_ETERNITY;
-	s->si[1].flags     = SI_FL_NONE;
-
+	si_reset(&s->si[1], t);
 	conn_init(s->si[1].conn);
 	s->si[1].conn->target = NULL;
 	si_prepare_none(&s->si[1]);

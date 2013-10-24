@@ -1164,12 +1164,9 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->req = s->rep = NULL; /* will be allocated later */
 
 	s->si[0].conn = NULL;
-	s->si[0].owner = t;
-	s->si[0].state = s->si[0].prev_state = SI_ST_EST;
-	s->si[0].err_type = SI_ET_NONE;
-	s->si[0].send_proxy_ofs = 0;
-	s->si[0].exp = TICK_ETERNITY;
-	s->si[0].flags = SI_FL_NONE;
+	si_reset(&s->si[0], t);
+	si_set_state(&s->si[0], SI_ST_EST);
+
 	if (s->fe->options2 & PR_O2_INDEPSTR)
 		s->si[0].flags |= SI_FL_INDEP_STR;
 
@@ -1177,13 +1174,12 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->si[0].appctx.st0 = PEER_SESSION_CONNECT;
 	s->si[0].appctx.ctx.peers.ptr = (void *)ps;
 
-	s->si[1].owner = t;
-	s->si[1].state = s->si[1].prev_state = SI_ST_ASS;
+	si_reset(&s->si[1], t);
+
+	/* initiate an outgoing connection */
+	si_set_state(&s->si[1], SI_ST_ASS);
 	s->si[1].conn_retries = p->conn_retries;
-	s->si[1].err_type = SI_ET_NONE;
-	s->si[1].send_proxy_ofs = 0;
-	s->si[1].exp = TICK_ETERNITY;
-	s->si[1].flags = SI_FL_NONE;
+
 	if (s->be->options2 & PR_O2_INDEPSTR)
 		s->si[1].flags |= SI_FL_INDEP_STR;
 

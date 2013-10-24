@@ -46,6 +46,30 @@ struct task *stream_int_register_handler(struct stream_interface *si,
 					 struct si_applet *app);
 void stream_int_unregister_handler(struct stream_interface *si);
 
+/* initializes a stream interface in the SI_ST_INI state. It's detached from
+ * any endpoint and is only attached to an owner (generally a task).
+ */
+static inline void si_reset(struct stream_interface *si, void *owner)
+{
+	si->owner          = owner;
+	si->err_type       = SI_ET_NONE;
+	si->conn_retries   = 0;  /* used for logging too */
+	si->send_proxy_ofs = 0;
+	si->exp            = TICK_ETERNITY;
+	si->flags          = SI_FL_NONE;
+	si->end            = NULL;
+	si->state          = si->prev_state = SI_ST_INI;
+}
+
+/* sets the current and previous state of a stream interface to <state>. This
+ * is mainly used to create one in the established state on incoming
+ * conncetions.
+ */
+static inline void si_set_state(struct stream_interface *si, int state)
+{
+	si->state = si->prev_state = state;
+}
+
 static inline void si_prepare_none(struct stream_interface *si)
 {
 	si->ops = &si_embedded_ops;
