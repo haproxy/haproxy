@@ -158,17 +158,16 @@ struct stream_interface {
 	unsigned int state;     /* SI_ST* */
 	unsigned int prev_state;/* SI_ST*, copy of previous state */
 	unsigned int flags;     /* SI_FL_* */
-	struct channel *ib, *ob; /* input and output buffers */
 	unsigned int exp;       /* wake up time for connect, queue, turn-around, ... */
+	struct channel *ib, *ob; /* input and output buffers */
 	void *owner;            /* generally a (struct task*) */
-	unsigned int err_type;  /* first error detected, one of SI_ET_* */
 	enum obj_type *end;     /* points to the end point (connection or appctx) */
 
 	struct si_ops *ops;     /* general operations at the stream interface layer */
 
 	/* struct members below are the "remote" part, as seen from the buffer side */
+	unsigned int err_type;  /* first error detected, one of SI_ET_* */
 	int conn_retries;	/* number of connect retries left */
-	int send_proxy_ofs;	/* <0 = offset to (re)send from the end, >0 = send all */
 	struct appctx appctx;   /* context of the running applet if any */
 };
 

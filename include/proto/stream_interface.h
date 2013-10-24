@@ -54,7 +54,6 @@ static inline void si_reset(struct stream_interface *si, void *owner)
 	si->owner          = owner;
 	si->err_type       = SI_ET_NONE;
 	si->conn_retries   = 0;  /* used for logging too */
-	si->send_proxy_ofs = 0;
 	si->exp            = TICK_ETERNITY;
 	si->flags          = SI_FL_NONE;
 	si->end            = NULL;
@@ -202,7 +201,7 @@ static inline int si_connect(struct stream_interface *si)
 	if (unlikely(!conn || !conn->ctrl || !conn->ctrl->connect))
 		return SN_ERR_INTERNAL;
 
-	ret = conn->ctrl->connect(conn, !channel_is_empty(si->ob), !!si->send_proxy_ofs);
+	ret = conn->ctrl->connect(conn, !channel_is_empty(si->ob), !!conn->send_proxy_ofs);
 	if (ret != SN_ERR_NONE)
 		return ret;
 
@@ -211,7 +210,7 @@ static inline int si_connect(struct stream_interface *si)
 		conn_get_from_addr(conn);
 
 	/* Prepare to send a few handshakes related to the on-wire protocol. */
-	if (si->send_proxy_ofs)
+	if (conn->send_proxy_ofs)
 		conn->flags |= CO_FL_SI_SEND_PROXY;
 
 	/* we need to be notified about connection establishment */

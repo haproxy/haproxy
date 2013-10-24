@@ -389,7 +389,7 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 	 * connection, in which case the connection is validated only once
 	 * we've sent the whole proxy line. Otherwise we use connect().
 	 */
-	while (si->send_proxy_ofs) {
+	while (conn->send_proxy_ofs) {
 		int ret;
 
 		/* The target server expects a PROXY line to be sent first.
@@ -407,13 +407,13 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 		if (!ret)
 			goto out_error;
 
-		if (si->send_proxy_ofs > 0)
-			si->send_proxy_ofs = -ret; /* first call */
+		if (conn->send_proxy_ofs > 0)
+			conn->send_proxy_ofs = -ret; /* first call */
 
 		/* we have to send trash from (ret+sp for -sp bytes). If the
 		 * data layer has a pending write, we'll also set MSG_MORE.
 		 */
-		ret = send(conn->t.sock.fd, trash.str + ret + si->send_proxy_ofs, -si->send_proxy_ofs,
+		ret = send(conn->t.sock.fd, trash.str + ret + conn->send_proxy_ofs, -conn->send_proxy_ofs,
 			   (conn->flags & CO_FL_DATA_WR_ENA) ? MSG_MORE : 0);
 
 		if (ret == 0)
@@ -428,8 +428,8 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 			goto out_error;
 		}
 
-		si->send_proxy_ofs += ret; /* becomes zero once complete */
-		if (si->send_proxy_ofs != 0)
+		conn->send_proxy_ofs += ret; /* becomes zero once complete */
+		if (conn->send_proxy_ofs != 0)
 			goto out_wait;
 
 		/* OK we've sent the whole line, we're connected */

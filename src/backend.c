@@ -1014,9 +1014,9 @@ int connect_server(struct session *s)
 	si_attach_conn(s->req->cons, srv_conn);
 
 	/* process the case where the server requires the PROXY protocol to be sent */
-	s->req->cons->send_proxy_ofs = 0;
+	srv_conn->send_proxy_ofs = 0;
 	if (objt_server(s->target) && (objt_server(s->target)->state & SRV_SEND_PROXY)) {
-		s->req->cons->send_proxy_ofs = 1; /* must compute size */
+		srv_conn->send_proxy_ofs = 1; /* must compute size */
 		cli_conn = objt_conn(s->req->prod->end);
 		if (cli_conn)
 			conn_get_to_addr(cli_conn);

@@ -490,6 +490,7 @@ static inline void conn_init(struct connection *conn)
 	conn->flags = CO_FL_NONE;
 	conn->data = NULL;
 	conn->owner = NULL;
+	conn->send_proxy_ofs = 0;
 	conn->t.sock.fd = -1; /* just to help with debugging */
 	conn->err_code = CO_ER_NONE;
 	conn->target = NULL;
