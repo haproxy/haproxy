@@ -91,6 +91,7 @@ struct si_ops {
 
 /* Context of a running applet. */
 struct appctx {
+	enum obj_type obj_type;    /* OBJ_TYPE_APPCTX */
 	unsigned int st0;          /* CLI state for stats, session state for peers */
 	unsigned int st1;          /* prompt for stats, session error for peers */
 	unsigned int st2;          /* output state for stats, unused by peers  */
