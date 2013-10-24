@@ -122,7 +122,6 @@ struct stream_interface {
 		unsigned int st0;     /* CLI state for stats, session state for peers */
 		unsigned int st1;     /* prompt for stats, session error for peers */
 		unsigned int st2;     /* output state for stats, unused by peers  */
-		void *ptr;            /* struct peer for peers */
 
 		union {
 			struct {
@@ -162,6 +161,9 @@ struct stream_interface {
 			struct {
 				const char *msg;	/* pointer to a persistent message to be returned in PRINT state */
 			} cli;
+			struct {
+				void *ptr;              /* multi-purpose pointer for peers */
+			} peers;
 		} ctx;					/* used by stats I/O handlers to dump the stats */
 	} applet;
 };

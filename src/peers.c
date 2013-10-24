@@ -184,9 +184,9 @@ static int peer_prepare_datamsg(struct stksess *ts, struct peer_session *ps, cha
 static void peer_session_release(struct stream_interface *si)
 {
 	struct session *s = session_from_task(si->owner);
-	struct peer_session *ps = (struct peer_session *)si->applet.ptr;
+	struct peer_session *ps = (struct peer_session *)si->applet.ctx.peers.ptr;
 
-	/* si->applet.ptr is not a peer session */
+	/* si->applet.ctx.peers.ptr is not a peer session */
 	if (si->applet.st0 < PEER_SESSION_SENDSUCCESS)
 		return;
 
@@ -225,7 +225,7 @@ static void peer_io_handler(struct stream_interface *si)
 switchstate:
 		switch(si->applet.st0) {
 			case PEER_SESSION_ACCEPT:
-				si->applet.ptr = NULL;
+				si->applet.ctx.peers.ptr = NULL;
 				si->applet.st0 = PEER_SESSION_GETVERSION;
 				/* fall through */
 			case PEER_SESSION_GETVERSION:
@@ -331,12 +331,12 @@ switchstate:
 					goto switchstate;
 				}
 
-				si->applet.ptr = curpeer;
+				si->applet.ctx.peers.ptr = curpeer;
 				si->applet.st0 = PEER_SESSION_GETTABLE;
 				/* fall through */
 			}
 			case PEER_SESSION_GETTABLE: {
-				struct peer *curpeer = (struct peer *)si->applet.ptr;
+				struct peer *curpeer = (struct peer *)si->applet.ctx.peers.ptr;
 				struct shared_table *st;
 				struct peer_session *ps = NULL;
 				unsigned long key_type;
@@ -347,12 +347,12 @@ switchstate:
 				if (reql <= 0) { /* closed or EOL not found */
 					if (reql == 0)
 						goto out;
-					si->applet.ptr = NULL;
+					si->applet.ctx.peers.ptr = NULL;
 					si->applet.st0 = PEER_SESSION_END;
 					goto switchstate;
 				}
-				/* Re init si->applet.ptr to null, to handle correctly a release case */
-				si->applet.ptr = NULL;
+				/* Re init si->applet.ctx.peers.ptr to null, to handle correctly a release case */
+				si->applet.ctx.peers.ptr = NULL;
 
 				if (trash.str[reql-1] != '\n') {
 					/* Incomplete line, we quit */
@@ -378,7 +378,7 @@ switchstate:
 
 				p = strchr(p+1, ' ');
 				if (!p) {
-					si->applet.ptr = NULL;
+					si->applet.ctx.peers.ptr = NULL;
 					si->applet.st0 = PEER_SESSION_EXIT;
 					si->applet.st1 = PEER_SESSION_ERRPROTO;
 					goto switchstate;
@@ -442,12 +442,12 @@ switchstate:
 					goto switchstate;
 				}
 
-				si->applet.ptr = ps;
+				si->applet.ctx.peers.ptr = ps;
 				si->applet.st0 = PEER_SESSION_SENDSUCCESS;
 				/* fall through */
 			}
 			case PEER_SESSION_SENDSUCCESS:{
-				struct peer_session *ps = (struct peer_session *)si->applet.ptr;
+				struct peer_session *ps = (struct peer_session *)si->applet.ctx.peers.ptr;
 
 				repl = snprintf(trash.str, trash.size, "%d\n", PEER_SESSION_SUCCESSCODE);
 				repl = bi_putblk(si->ib, trash.str, repl);
@@ -497,7 +497,7 @@ switchstate:
 				goto switchstate;
 			}
 			case PEER_SESSION_CONNECT: {
-				struct peer_session *ps = (struct peer_session *)si->applet.ptr;
+				struct peer_session *ps = (struct peer_session *)si->applet.ctx.peers.ptr;
 
 				/* Send headers */
 				repl = snprintf(trash.str, trash.size,
@@ -527,7 +527,7 @@ switchstate:
 				/* fall through */
 			}
 			case PEER_SESSION_GETSTATUS: {
-				struct peer_session *ps = (struct peer_session *)si->applet.ptr;
+				struct peer_session *ps = (struct peer_session *)si->applet.ctx.peers.ptr;
 
 				if (si->ib->flags & CF_WRITE_PARTIAL)
 					ps->statuscode = PEER_SESSION_CONNECTEDCODE;
@@ -598,7 +598,7 @@ switchstate:
 				/* fall through */
 			}
 			case PEER_SESSION_WAITMSG: {
-				struct peer_session *ps = (struct peer_session *)si->applet.ptr;
+				struct peer_session *ps = (struct peer_session *)si->applet.ctx.peers.ptr;
 				struct stksess *ts, *newts = NULL;
 				char c;
 				int totl = 0;
@@ -1072,7 +1072,7 @@ static void peer_session_forceshutdown(struct session * session)
 	/* call release to reinit resync states if needed */
 	peer_session_release(oldsi);
 	oldsi->applet.st0 = PEER_SESSION_END;
-	oldsi->applet.ptr = NULL;
+	oldsi->applet.ctx.peers.ptr = NULL;
 	task_wakeup(session->task, TASK_WOKEN_MSG);
 }
 
@@ -1087,7 +1087,7 @@ int peer_accept(struct session *s)
 	 /* we have a dedicated I/O handler for the stats */
 	stream_int_register_handler(&s->si[1], &peer_applet);
 	s->target = s->si[1].conn->target; // for logging only
-	s->si[1].applet.ptr = s;
+	s->si[1].applet.ctx.peers.ptr = s;
 	s->si[1].applet.st0 = PEER_SESSION_ACCEPT;
 
 	tv_zero(&s->logs.tv_request);
@@ -1179,7 +1179,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 
 	stream_int_register_handler(&s->si[0], &peer_applet);
 	s->si[0].applet.st0 = PEER_SESSION_CONNECT;
-	s->si[0].applet.ptr = (void *)ps;
+	s->si[0].applet.ctx.peers.ptr = (void *)ps;
 
 	s->si[1].conn->obj_type = OBJ_TYPE_CONN;
 	s->si[1].conn->t.sock.fd = -1; /* just to help with debugging */
