@@ -2175,8 +2175,7 @@ struct task *process_session(struct task *t)
 				 */
 				s->req->cons->state = SI_ST_REQ; /* new connection requested */
 				s->req->cons->conn_retries = s->be->conn_retries;
-				if (unlikely(obj_type(s->req->cons->conn->target) == OBJ_TYPE_APPLET &&
-					     !(si_ctrl(s->req->cons) && si_ctrl(s->req->cons)->connect))) {
+				if (unlikely(obj_type(s->target) == OBJ_TYPE_APPLET)) {
 					s->req->cons->state = SI_ST_EST; /* connection established */
 					s->rep->flags |= CF_READ_ATTACHED; /* producer is now attached */
 					s->req->wex = TICK_ETERNITY;
