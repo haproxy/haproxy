@@ -939,12 +939,14 @@ int tcp_inspect_request(struct session *s, struct channel *req, int an_bit)
 					s->flags |= SN_FINST_R;
 				return 0;
 			}
-			else if ((rule->action >= TCP_ACT_TRK_SC0 && rule->action <= TCP_ACT_TRK_SCMAX) &&
-				 !s->stkctr[tcp_trk_idx(rule->action)].entry) {
+			else if (rule->action >= TCP_ACT_TRK_SC0 && rule->action <= TCP_ACT_TRK_SCMAX) {
 				/* Note: only the first valid tracking parameter of each
 				 * applies.
 				 */
 				struct stktable_key *key;
+
+				if (s->stkctr[tcp_trk_idx(rule->action)].entry)
+					continue;
 
 				t = rule->act_prm.trk_ctr.table.t;
 				key = stktable_fetch_key(t, s->be, s, &s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->act_prm.trk_ctr.expr);
@@ -1099,12 +1101,14 @@ int tcp_exec_req_rules(struct session *s)
 				result = 0;
 				break;
 			}
-			else if ((rule->action >= TCP_ACT_TRK_SC0 && rule->action <= TCP_ACT_TRK_SCMAX) &&
-				 !s->stkctr[tcp_trk_idx(rule->action)].entry) {
+			else if (rule->action >= TCP_ACT_TRK_SC0 && rule->action <= TCP_ACT_TRK_SCMAX) {
 				/* Note: only the first valid tracking parameter of each
 				 * applies.
 				 */
 				struct stktable_key *key;
+
+				if (s->stkctr[tcp_trk_idx(rule->action)].entry)
+					continue;
 
 				t = rule->act_prm.trk_ctr.table.t;
 				key = stktable_fetch_key(t, s->be, s, &s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->act_prm.trk_ctr.expr);
