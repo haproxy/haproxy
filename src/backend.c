@@ -23,6 +23,7 @@
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/debug.h>
+#include <common/hash.h>
 #include <common/ticks.h>
 #include <common/time.h>
 
@@ -50,6 +51,25 @@
 #include <proto/raw_sock.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
+
+/* helper function to invoke the correct hash method */
+static unsigned long gen_hash(const struct proxy* px, const char* key, unsigned long len)
+{
+	unsigned long hash;
+
+	switch (px->lbprm.algo & BE_LB_HASH_FUNC) {
+	case BE_LB_HFCN_DJB2:
+		hash = hash_djb2(key, len);
+		break;
+	case BE_LB_HFCN_SDBM:
+		/* this is the default hash function */
+	default:
+		hash = hash_sdbm(key, len);
+		break;
+	}
+
+	return hash;
+}
 
 /*
  * This function recounts the number of usable active and backup servers for
@@ -153,6 +173,7 @@ struct server *get_server_uh(struct proxy *px, char *uri, int uri_len)
 	unsigned long hash = 0;
 	int c;
 	int slashes = 0;
+	const char *start, *end;
 
 	if (px->lbprm.tot_weight == 0)
 		return NULL;
@@ -164,8 +185,9 @@ struct server *get_server_uh(struct proxy *px, char *uri, int uri_len)
 	if (px->uri_len_limit)
 		uri_len = MIN(uri_len, px->uri_len_limit);
 
+	start = end = uri;
 	while (uri_len--) {
-		c = *uri++;
+		c = *end++;
 		if (c == '/') {
 			slashes++;
 			if (slashes == px->uri_dirs_depth1) /* depth+1 */
@@ -173,9 +195,10 @@ struct server *get_server_uh(struct proxy *px, char *uri, int uri_len)
 		}
 		else if (c == '?' && !px->uri_whole)
 			break;
-
-		hash = c + (hash << 6) + (hash << 16) - hash;
 	}
+
+	hash = gen_hash(px, start, (end - start));
+
 	if ((px->lbprm.algo & BE_LB_HASH_TYPE) != BE_LB_HASH_MAP)
 		hash = full_hash(hash);
  hash_done:
@@ -197,6 +220,7 @@ struct server *get_server_uh(struct proxy *px, char *uri, int uri_len)
 struct server *get_server_ph(struct proxy *px, const char *uri, int uri_len)
 {
 	unsigned long hash = 0;
+	const char *start, *end;
 	const char *p;
 	const char *params;
 	int plen;
@@ -223,15 +247,18 @@ struct server *get_server_ph(struct proxy *px, const char *uri, int uri_len)
 				 * skip the equal symbol
 				 */
 				p += plen + 1;
+				start = end = p;
 				uri_len -= plen + 1;
 
-				while (uri_len && *p != '&') {
-					hash = *p + (hash << 6) + (hash << 16) - hash;
+				while (uri_len && *end != '&') {
 					uri_len--;
-					p++;
+					end++;
 				}
+				hash = gen_hash(px, start, (end - start));
+
 				if ((px->lbprm.algo & BE_LB_HASH_TYPE) != BE_LB_HASH_MAP)
 					hash = full_hash(hash);
+
 				if (px->lbprm.algo & BE_LB_LKUP_CHTREE)
 					return chash_get_server_hash(px, hash);
 				else
@@ -263,6 +290,7 @@ struct server *get_server_ph_post(struct session *s)
 	unsigned long    len  = msg->body_len;
 	const char      *params = b_ptr(req->buf, (int)(msg->sov - req->buf->o));
 	const char      *p    = params;
+	const char      *start, *end;
 
 	if (len > buffer_len(req->buf) - msg->sov)
 		len = buffer_len(req->buf) - msg->sov;
@@ -282,12 +310,13 @@ struct server *get_server_ph_post(struct session *s)
 				 * skip the equal symbol
 				 */
 				p += plen + 1;
+				start = end = p;
 				len -= plen + 1;
 
-				while (len && *p != '&') {
+				while (len && *end != '&') {
 					if (unlikely(!HTTP_IS_TOKEN(*p))) {
 						/* if in a POST, body must be URI encoded or it's not a URI.
-						 * Do not interprete any possible binary data as a parameter.
+						 * Do not interpret any possible binary data as a parameter.
 						 */
 						if (likely(HTTP_IS_LWS(*p))) /* eol, uncertain uri len */
 							break;
@@ -295,13 +324,15 @@ struct server *get_server_ph_post(struct session *s)
 									      * This body does not contain parameters.
 									      */
 					}
-					hash = *p + (hash << 6) + (hash << 16) - hash;
 					len--;
-					p++;
+					end++;
 					/* should we break if vlen exceeds limit? */
 				}
+				hash = gen_hash(px, start, (end - start));
+
 				if ((px->lbprm.algo & BE_LB_HASH_TYPE) != BE_LB_HASH_MAP)
 					hash = full_hash(hash);
+
 				if (px->lbprm.algo & BE_LB_LKUP_CHTREE)
 					return chash_get_server_hash(px, hash);
 				else
@@ -338,6 +369,7 @@ struct server *get_server_hh(struct session *s)
 	unsigned long    len;
 	struct hdr_ctx   ctx;
 	const char      *p;
+	const char *start, *end;
 
 	/* tot_weight appears to mean srv_count */
 	if (px->lbprm.tot_weight == 0)
@@ -362,14 +394,11 @@ struct server *get_server_hh(struct session *s)
 	len = ctx.vlen;
 	p = (char *)ctx.line + ctx.val;
 	if (!px->hh_match_domain) {
-		while (len) {
-			hash = *p + (hash << 6) + (hash << 16) - hash;
-			len--;
-			p++;
-		}
+		hash = gen_hash(px, p, len);
 	} else {
 		int dohash = 0;
 		p += len - 1;
+		start = end = p;
 		/* special computation, use only main domain name, not tld/host
 		 * going back from the end of string, start hashing at first
 		 * dot stop at next.
@@ -378,17 +407,20 @@ struct server *get_server_hh(struct session *s)
 		 */
 		while (len) {
 			if (*p == '.') {
-				if (!dohash)
+				if (!dohash) {
 					dohash = 1;
+					start = end = p - 1;
+				}
 				else
 					break;
 			} else {
 				if (dohash)
-					hash = *p + (hash << 6) + (hash << 16) - hash;
+					start--;
 			}
 			len--;
 			p--;
 		}
+		hash = gen_hash(px, start, (end - start));
 	}
 	if ((px->lbprm.algo & BE_LB_HASH_TYPE) != BE_LB_HASH_MAP)
 		hash = full_hash(hash);
@@ -405,7 +437,6 @@ struct server *get_server_rch(struct session *s)
 	unsigned long    hash = 0;
 	struct proxy    *px   = s->be;
 	unsigned long    len;
-	const char      *p;
 	int              ret;
 	struct sample    smp;
 	int rewind;
@@ -433,12 +464,8 @@ struct server *get_server_rch(struct session *s)
 	/* Found a the hh_name in the headers.
 	 * we will compute the hash based on this value ctx.val.
 	 */
-	p = smp.data.str.str;
-	while (len) {
-		hash = *p + (hash << 6) + (hash << 16) - hash;
-		len--;
-		p++;
-	}
+	hash = gen_hash(px, smp.data.str.str, len);
+
 	if ((px->lbprm.algo & BE_LB_HASH_TYPE) != BE_LB_HASH_MAP)
 		hash = full_hash(hash);
  hash_done:
@@ -1318,7 +1345,6 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 			}
 			curproxy->hh_match_domain = 1;
 		}
-
 	}
 	else if (!strncmp(args[0], "rdp-cookie", 10)) {
 		curproxy->lbprm.algo &= ~BE_LB_ALGO;

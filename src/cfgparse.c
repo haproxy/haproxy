@@ -4085,23 +4085,35 @@ stats_error_parsing:
 		}
 	}
 	else if (!strcmp(args[0], "hash-type")) { /* set hashing method */
+		curproxy->lbprm.algo &= ~(BE_LB_HASH_TYPE | BE_LB_HASH_FUNC);
+
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
 		if (strcmp(args[1], "consistent") == 0) {	/* use consistent hashing */
-			curproxy->lbprm.algo &= ~BE_LB_HASH_TYPE;
 			curproxy->lbprm.algo |= BE_LB_HASH_CONS;
 		}
 		else if (strcmp(args[1], "map-based") == 0) {	/* use map-based hashing */
-			curproxy->lbprm.algo &= ~BE_LB_HASH_TYPE;
 			curproxy->lbprm.algo |= BE_LB_HASH_MAP;
 		}
 		else if (strcmp(args[1], "avalanche") == 0) {	/* use full hash before map-based hashing */
-			curproxy->lbprm.algo &= ~BE_LB_HASH_TYPE;
 			curproxy->lbprm.algo |= BE_LB_HASH_AVAL;
 		}
 		else {
 			Alert("parsing [%s:%d] : '%s' only supports 'avalanche', 'consistent' and 'map-based'.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		/* set the hash function to use */
+		if (!*args[2]) {
+			curproxy->lbprm.algo |= BE_LB_HFCN_SDBM;
+		} else if (!strcmp(args[2], "sdbm")) {
+			curproxy->lbprm.algo |= BE_LB_HFCN_SDBM;
+		} else if (!strcmp(args[2], "djb2")) {
+			curproxy->lbprm.algo |= BE_LB_HFCN_DJB2;
+		} else {
+			Alert("parsing [%s:%d] : '%s' only supports 'sdbm' and 'djb2' hash functions.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
