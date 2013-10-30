@@ -1779,8 +1779,8 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 
 			suite_res &= acl_res;
 
-			/* we're ANDing these terms, so a single FAIL is enough */
-			if (suite_res == ACL_PAT_FAIL)
+			/* we're ANDing these terms, so a single FAIL or MISS is enough */
+			if (suite_res != ACL_PAT_PASS)
 				break;
 		}
 		cond_res |= suite_res;
