@@ -9462,8 +9462,8 @@ smp_fetch_base(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
  * the Host header followed by the path component if it begins with a slash ('/').
  * This means that '*' will not be added, resulting in exactly the first Host
  * entry. If no Host header is found, then the path is used. The resulting value
- * is hashed using the url hash followed by a full avalanche hash and provides a
- * 32-bit integer value. This fetch is useful for tracking per-URL activity on
+ * is hashed using the path hash followed by a full avalanche hash and provides a
+ * 32-bit integer value. This fetch is useful for tracking per-path activity on
  * high-traffic sites without having to store whole paths.
  */
 static int
@@ -9508,9 +9508,9 @@ smp_fetch_base32(struct proxy *px, struct session *l4, void *l7, unsigned int op
 }
 
 /* This concatenates the source address with the 32-bit hash of the Host and
- * URL as returned by smp_fetch_base32(). The idea is to have per-source and
- * per-url counters. The result is a binary block from 8 to 20 bytes depending
- * on the source address length. The URL hash is stored before the address so
+ * path as returned by smp_fetch_base32(). The idea is to have per-source and
+ * per-path counters. The result is a binary block from 8 to 20 bytes depending
+ * on the source address length. The path hash is stored before the address so
  * that in environments where IPv6 is insignificant, truncating the output to
  * 8 bytes would still work.
  */
@@ -10040,6 +10040,95 @@ smp_fetch_url_param_val(struct proxy *px, struct session *l4, void *l7, unsigned
 	return ret;
 }
 
+/* This produces a 32-bit hash of the concatenation of the first occurrence of
+ * the Host header followed by the path component if it begins with a slash ('/').
+ * This means that '*' will not be added, resulting in exactly the first Host
+ * entry. If no Host header is found, then the path is used. The resulting value
+ * is hashed using the url hash followed by a full avalanche hash and provides a
+ * 32-bit integer value. This fetch is useful for tracking per-URL activity on
+ * high-traffic sites without having to store whole paths.
+ * this differs from the base32 functions in that it includes the url parameters
+ * as well as the path
+ */
+static int
+smp_fetch_url32(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                 const struct arg *args, struct sample *smp)
+{
+	struct http_txn *txn = l7;
+	struct hdr_ctx ctx;
+	unsigned int hash = 0;
+	char *ptr, *beg, *end;
+	int len;
+
+	CHECK_HTTP_MESSAGE_FIRST();
+
+	ctx.idx = 0;
+	if (http_find_header2("Host", 4, txn->req.chn->buf->p + txn->req.sol, &txn->hdr_idx, &ctx)) {
+		/* OK we have the header value in ctx.line+ctx.val for ctx.vlen bytes */
+		ptr = ctx.line + ctx.val;
+		len = ctx.vlen;
+		while (len--)
+			hash = *(ptr++) + (hash << 6) + (hash << 16) - hash;
+	}
+
+	/* now retrieve the path */
+	end = txn->req.chn->buf->p + txn->req.sol + txn->req.sl.rq.u + txn->req.sl.rq.u_l;
+	beg = http_get_path(txn);
+	if (!beg)
+		beg = end;
+
+	for (ptr = beg; ptr < end ; ptr++);
+
+	if (beg < ptr && *beg == '/') {
+		while (beg < ptr)
+			hash = *(beg++) + (hash << 6) + (hash << 16) - hash;
+	}
+	hash = full_hash(hash);
+
+	smp->type = SMP_T_UINT;
+	smp->data.uint = hash;
+	smp->flags = SMP_F_VOL_1ST;
+	return 1;
+}
+
+/* This concatenates the source address with the 32-bit hash of the Host and
+ * URL as returned by smp_fetch_base32(). The idea is to have per-source and
+ * per-url counters. The result is a binary block from 8 to 20 bytes depending
+ * on the source address length. The URL hash is stored before the address so
+ * that in environments where IPv6 is insignificant, truncating the output to
+ * 8 bytes would still work.
+ */
+static int
+smp_fetch_url32_src(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                     const struct arg *args, struct sample *smp)
+{
+	struct chunk *temp;
+
+	if (!smp_fetch_url32(px, l4, l7, opt, args, smp))
+		return 0;
+
+	temp = get_trash_chunk();
+	memcpy(temp->str + temp->len, &smp->data.uint, sizeof(smp->data.uint));
+	temp->len += sizeof(smp->data.uint);
+
+	switch (l4->si[0].conn->addr.from.ss_family) {
+	case AF_INET:
+		memcpy(temp->str + temp->len, &((struct sockaddr_in *)&l4->si[0].conn->addr.from)->sin_addr, 4);
+		temp->len += 4;
+		break;
+	case AF_INET6:
+		memcpy(temp->str + temp->len, &((struct sockaddr_in6 *)(&l4->si[0].conn->addr.from))->sin6_addr, 16);
+		temp->len += 16;
+		break;
+	default:
+		return 0;
+	}
+
+	smp->data.str = *temp;
+	smp->type = SMP_T_BIN;
+	return 1;
+}
+
 /* This function is used to validate the arguments passed to any "hdr" fetch
  * keyword. These keywords support an optional positive or negative occurrence
  * number. We must ensure that the number is greater than -MAX_HDR_HISTORY. It
@@ -10259,6 +10348,8 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 
 	{ "status",          smp_fetch_stcode,         0,                NULL,    SMP_T_UINT, SMP_USE_HRSHP },
 	{ "url",             smp_fetch_url,            0,                NULL,    SMP_T_CSTR, SMP_USE_HRQHV },
+	{ "url32",           smp_fetch_url32,          0,                NULL,    SMP_T_UINT, SMP_USE_HRQHV },
+	{ "url32+src",       smp_fetch_url32_src,      0,                NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
 	{ "url_ip",          smp_fetch_url_ip,         0,                NULL,    SMP_T_IPV4, SMP_USE_HRQHV },
 	{ "url_port",        smp_fetch_url_port,       0,                NULL,    SMP_T_UINT, SMP_USE_HRQHV },
 	{ "url_param",       smp_fetch_url_param,      ARG2(1,STR,STR),  NULL,    SMP_T_CSTR, SMP_USE_HRQHV },
