@@ -1146,6 +1146,17 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		}
 	}
 
+	/* Additional check to protect against common mistakes */
+	if (expr->parse && expr->smp->out_type != SMP_T_BOOL && !*args[1]) {
+		Warning("parsing acl keyword '%s' :\n"
+		        "  no pattern to match against were provided, so this ACL will never match.\n"
+		        "  If this is what you intended, please add '--' to get rid of this warning.\n"
+		        "  If you intended to match only for existence, please use '-m found'.\n"
+		        "  If you wanted to force an int to match as a bool, please use '-m bool'.\n"
+		        "\n",
+		        args[0]);
+	}
+
 	args++;
 
 	/* check for options before patterns. Supported options are :
