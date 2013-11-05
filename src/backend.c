@@ -147,7 +147,7 @@ struct server *get_server_sh(struct proxy *px, const char *addr, int len)
 		h ^= ntohl(*(unsigned int *)(&addr[l]));
 		l += sizeof (int);
 	}
-	if ((px->lbprm.algo & BE_LB_HASH_TYPE) != BE_LB_HASH_MAP)
+	if ((px->lbprm.algo & BE_LB_HASH_MOD) == BE_LB_HMOD_AVAL)
 		h = full_hash(h);
  hash_done:
 	if (px->lbprm.algo & BE_LB_LKUP_CHTREE)
@@ -199,7 +199,7 @@ struct server *get_server_uh(struct proxy *px, char *uri, int uri_len)
 
 	hash = gen_hash(px, start, (end - start));
 
-	if ((px->lbprm.algo & BE_LB_HASH_TYPE) != BE_LB_HASH_MAP)
+	if ((px->lbprm.algo & BE_LB_HASH_MOD) == BE_LB_HMOD_AVAL)
 		hash = full_hash(hash);
  hash_done:
 	if (px->lbprm.algo & BE_LB_LKUP_CHTREE)
@@ -256,7 +256,7 @@ struct server *get_server_ph(struct proxy *px, const char *uri, int uri_len)
 				}
 				hash = gen_hash(px, start, (end - start));
 
-				if ((px->lbprm.algo & BE_LB_HASH_TYPE) != BE_LB_HASH_MAP)
+				if ((px->lbprm.algo & BE_LB_HASH_MOD) == BE_LB_HMOD_AVAL)
 					hash = full_hash(hash);
 
 				if (px->lbprm.algo & BE_LB_LKUP_CHTREE)
@@ -330,7 +330,7 @@ struct server *get_server_ph_post(struct session *s)
 				}
 				hash = gen_hash(px, start, (end - start));
 
-				if ((px->lbprm.algo & BE_LB_HASH_TYPE) != BE_LB_HASH_MAP)
+				if ((px->lbprm.algo & BE_LB_HASH_MOD) == BE_LB_HMOD_AVAL)
 					hash = full_hash(hash);
 
 				if (px->lbprm.algo & BE_LB_LKUP_CHTREE)
@@ -422,7 +422,7 @@ struct server *get_server_hh(struct session *s)
 		}
 		hash = gen_hash(px, start, (end - start));
 	}
-	if ((px->lbprm.algo & BE_LB_HASH_TYPE) != BE_LB_HASH_MAP)
+	if ((px->lbprm.algo & BE_LB_HASH_MOD) == BE_LB_HMOD_AVAL)
 		hash = full_hash(hash);
  hash_done:
 	if (px->lbprm.algo & BE_LB_LKUP_CHTREE)
@@ -466,7 +466,7 @@ struct server *get_server_rch(struct session *s)
 	 */
 	hash = gen_hash(px, smp.data.str.str, len);
 
-	if ((px->lbprm.algo & BE_LB_HASH_TYPE) != BE_LB_HASH_MAP)
+	if ((px->lbprm.algo & BE_LB_HASH_MOD) == BE_LB_HMOD_AVAL)
 		hash = full_hash(hash);
  hash_done:
 	if (px->lbprm.algo & BE_LB_LKUP_CHTREE)

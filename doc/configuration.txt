@@ -2496,7 +2496,7 @@ grace <time>
   simplify it.
 
 
-hash-type <method> <function>
+hash-type <method> <function> <modifier>
   Specify a method to use for mapping hashes to servers
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
@@ -2515,15 +2515,6 @@ hash-type <method> <function>
                   different servers. This can be inconvenient with caches for
                   instance.
 
-      avalanche   this mechanism uses the default map-based hashing described
-                  above but applies a full avalanche hash before performing the
-                  mapping. The result is a slightly less smooth hash for most
-                  situations, but the hash becomes better than pure map-based
-                  hashes when the number of servers is a multiple of the size of
-                  the input set. When using URI hash with a number of servers
-                  multiple of 64, it's desirable to change the hash type to
-                  this value.
-
       consistent  the hash table is a tree filled with many occurrences of each
                   server. The hash key is looked up in the tree and the closest
                   server is chosen. This hash is dynamic, it supports changing
@@ -2537,8 +2528,8 @@ hash-type <method> <function>
                   server's weight or its ID to get a more balanced distribution.
                   In order to get the same distribution on multiple load
                   balancers, it is important that all servers have the exact
-                  same IDs. Note: by default, a full avalanche hash is always
-                  performed before applying the consistent hash.
+                  same IDs. Note: consistent hash uses sdbm and avalanche if no
+                  hash function is specified.
 
     <function> is the hash function to be used :
 
@@ -2546,11 +2537,31 @@ hash-type <method> <function>
               reimplementation of ndbm) database library. It was found to do
               well in scrambling bits, causing better distribution of the keys
               and fewer splits. It also happens to be a good general hashing
-              function with good distribution.
+              function with good distribution, unless the total server weight
+              is a multiple of 64, in which case applying the avalanche
+              modifier may help.
 
        djb2   this function was first proposed by Dan Bernstein many years ago
               on comp.lang.c. Studies have shown that for certain workload this
-              function provides a better distribution than sdbm.
+              function provides a better distribution than sdbm. It generally
+              works well with text-based inputs though it can perform extremely
+              poorly with numeric-only input or when the total server weight is
+              a multiple of 33, unless the avalanche modifier is also used.
+
+    <modifier> indicates an optional method applied after hashing the key :
+
+       avalanche   This directive indicates that the result from the hash
+                   function above should not be used in its raw form but that
+                   a 4-byte full avalanche hash must be applied first. The
+                   purpose of this step is to mix the resulting bits from the
+                   previous hash in order to avoid any undesired effect when
+                   the input contains some limited values or when the number of
+                   servers is a multiple of one of the hash's components (64
+                   for SDBM, 33 for DJB2). Enabling avalanche tends to make the
+                   result less predictable, but it's also not as smooth as when
+                   using the original function. Some testing might be needed
+                   with some workloads. This hash is one of the many proposed
+                   by Bob Jenkins.
 
   The default hash type is "map-based" and is recommended for most usages. The
   default function is "sdbm", the selection of a function should be based on
