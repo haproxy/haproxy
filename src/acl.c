@@ -871,6 +871,7 @@ static void free_pattern_tree(struct eb_root *root)
 	node = eb_first(root);
 	while (node) {
 		next = eb_next(node);
+		eb_delete(node);
 		free(node);
 		node = next;
 	}
