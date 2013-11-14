@@ -2548,6 +2548,14 @@ hash-type <method> <function> <modifier>
               poorly with numeric-only input or when the total server weight is
               a multiple of 33, unless the avalanche modifier is also used.
 
+       wt6    this function was designed for haproxy while testing other
+              functions in the past. It is not as smooth as the other ones, but
+              is much less sensible to the input data set or to the number of
+              servers. It can make sense as an alternative to sdbm+avalanche or
+              djb2+avalanche for consistent hashing or when hashing on numeric
+              data such as a source IP address or a visitor identifier in a URL
+              parameter.
+
     <modifier> indicates an optional method applied after hashing the key :
 
        avalanche   This directive indicates that the result from the hash

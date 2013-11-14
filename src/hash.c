@@ -17,6 +17,33 @@
 #include <common/hash.h>
 
 
+unsigned long hash_wt6(const char *key, int len)
+{
+	unsigned h0 = 0xa53c965aUL;
+	unsigned h1 = 0x5ca6953aUL;
+	unsigned step0 = 6;
+	unsigned step1 = 18;
+
+	for (; len > 0; len--) {
+		unsigned int t;
+
+		t = ((unsigned int)*key);
+		key++;
+
+		h0 = ~(h0 ^ t);
+		h1 = ~(h1 + t);
+
+		t  = (h1 << step0) | (h1 >> (32-step0));
+		h1 = (h0 << step1) | (h0 >> (32-step1));
+		h0 = t;
+
+		t = ((h0 >> 16) ^ h1) & 0xffff;
+		step0 = t & 0x1F;
+		step1 = t >> 11;
+	}
+	return h0 ^ h1;
+}
+
 unsigned long hash_djb2(const char *key, int len)
 {
 	unsigned long hash = 5381;

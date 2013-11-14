@@ -61,6 +61,9 @@ static unsigned long gen_hash(const struct proxy* px, const char* key, unsigned 
 	case BE_LB_HFCN_DJB2:
 		hash = hash_djb2(key, len);
 		break;
+	case BE_LB_HFCN_WT6:
+		hash = hash_wt6(key, len);
+		break;
 	case BE_LB_HFCN_SDBM:
 		/* this is the default hash function */
 	default:

@@ -23,6 +23,7 @@
 #define _COMMON_HASH_H_
 
 unsigned long hash_djb2(const char *key, int len);
+unsigned long hash_wt6(const char *key, int len);
 unsigned long hash_sdbm(const char *key, int len);
 
 #endif /* _COMMON_HASH_H_ */
