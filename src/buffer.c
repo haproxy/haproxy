@@ -215,6 +215,11 @@ void buffer_dump(FILE *o, struct buffer *b, int from, int to)
 			if (((from + i)  & 15) == 7)
 				fprintf(o, "- ");
 		}
+		if (to - from < 16) {
+			int j;
+			for (j = 0; j <  from + 16 - to; j++)
+				fprintf(o, "   ");
+		}
 		fprintf(o, "  ");
 		for (i = 0; (from + i < to) && (i < 16) ; i++) {
 			fprintf(o, "%c", isprint((int)b->data[from + i]) ? b->data[from + i] : '.') ;
