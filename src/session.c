@@ -107,7 +107,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	/* OK, we're keeping the session, so let's properly initialize the session */
 	s->si[0].conn->t.sock.fd = cfd;
 	s->si[0].conn->ctrl = l->proto;
-	s->si[0].conn->flags = CO_FL_NONE;
+	s->si[0].conn->flags = CO_FL_NONE | CO_FL_ADDR_FROM_SET;
 	s->si[0].conn->err_code = CO_ER_NONE;
 	s->si[0].conn->addr.from = *addr;
 	s->si[0].conn->target = &l->obj_type;
