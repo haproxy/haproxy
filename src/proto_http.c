@@ -3695,6 +3695,11 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 			s->logs.tv_request = now;
 			stream_int_retnclose(req->prod, http_error_message(s, HTTP_ERR_403));
 			session_inc_http_err_ctr(s);
+			s->fe->fe_counters.denied_req++;
+			if (s->fe != s->be)
+				s->be->be_counters.denied_req++;
+			if (s->listener->counters)
+				s->listener->counters->denied_req++;
 			goto return_prx_cond;
 		}
 
@@ -3715,6 +3720,11 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 			if (!req->analyse_exp)
 				req->analyse_exp = tick_add(now_ms, 0);
 			session_inc_http_err_ctr(s);
+			s->fe->fe_counters.denied_req++;
+			if (s->fe != s->be)
+				s->be->be_counters.denied_req++;
+			if (s->listener->counters)
+				s->listener->counters->denied_req++;
 			return 1;
 		}
 	}
@@ -6360,25 +6370,11 @@ int apply_filter_to_req_headers(struct session *t, struct channel *req, struct h
 			case ACT_DENY:
 				txn->flags |= TX_CLDENY;
 				last_hdr = 1;
-
-				t->fe->fe_counters.denied_req++;
-				if (t->fe != t->be)
-					t->be->be_counters.denied_req++;
-				if (t->listener->counters)
-					t->listener->counters->denied_req++;
-
 				break;
 
 			case ACT_TARPIT:
 				txn->flags |= TX_CLTARPIT;
 				last_hdr = 1;
-
-				t->fe->fe_counters.denied_req++;
-				if (t->fe != t->be)
-					t->be->be_counters.denied_req++;
-				if (t->listener->counters)
-					t->listener->counters->denied_req++;
-
 				break;
 
 			case ACT_REPLACE:
@@ -6482,25 +6478,11 @@ int apply_filter_to_req_line(struct session *t, struct channel *req, struct hdr_
 
 		case ACT_DENY:
 			txn->flags |= TX_CLDENY;
-
-			t->fe->fe_counters.denied_req++;
-			if (t->fe != t->be)
-				t->be->be_counters.denied_req++;
-			if (t->listener->counters)
-				t->listener->counters->denied_req++;
-
 			done = 1;
 			break;
 
 		case ACT_TARPIT:
 			txn->flags |= TX_CLTARPIT;
-
-			t->fe->fe_counters.denied_req++;
-			if (t->fe != t->be)
-				t->be->be_counters.denied_req++;
-			if (t->listener->counters)
-				t->listener->counters->denied_req++;
-
 			done = 1;
 			break;
 
