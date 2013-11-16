@@ -3642,56 +3642,18 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 	else
 		do_stats = 0;
 
+	/* only apply req{,i}{rep/deny/tarpit} if the request was not yet
+	 * blocked by an http-request rule.
+	 */
+	if (!(txn->flags & (TX_CLDENY|TX_CLTARPIT)) && (px->req_exp != NULL)) {
+		if (apply_filters_to_request(s, req, px) < 0)
+			goto return_bad_req;
+	}
+
 	/* return a 403 if either rule has blocked */
 	if (txn->flags & (TX_CLDENY|TX_CLTARPIT)) {
 		if (txn->flags & TX_CLDENY) {
 			txn->status = 403;
-			s->logs.tv_request = now;
-			stream_int_retnclose(req->prod, http_error_message(s, HTTP_ERR_403));
-			session_inc_http_err_ctr(s);
-			s->fe->fe_counters.denied_req++;
-			if (an_bit == AN_REQ_HTTP_PROCESS_BE)
-				s->be->be_counters.denied_req++;
-			if (s->listener->counters)
-				s->listener->counters->denied_req++;
-			goto return_prx_cond;
-		}
-		/* When a connection is tarpitted, we use the tarpit timeout,
-		 * which may be the same as the connect timeout if unspecified.
-		 * If unset, then set it to zero because we really want it to
-		 * eventually expire. We build the tarpit as an analyser.
-		 */
-		if (txn->flags & TX_CLTARPIT) {
-			channel_erase(s->req);
-			/* wipe the request out so that we can drop the connection early
-			 * if the client closes first.
-			 */
-			channel_dont_connect(req);
-			req->analysers = 0; /* remove switching rules etc... */
-			req->analysers |= AN_REQ_HTTP_TARPIT;
-			req->analyse_exp = tick_add_ifset(now_ms,  s->be->timeout.tarpit);
-			if (!req->analyse_exp)
-				req->analyse_exp = tick_add(now_ms, 0);
-			session_inc_http_err_ctr(s);
-			s->fe->fe_counters.denied_req++;
-			if (s->fe != s->be)
-				s->be->be_counters.denied_req++;
-			if (s->listener->counters)
-				s->listener->counters->denied_req++;
-			return 1;
-		}
-	}
-
-	/* try headers filters */
-	if (px->req_exp != NULL) {
-		if (apply_filters_to_request(s, req, px) < 0)
-			goto return_bad_req;
-
-		/* has the request been denied ? */
-		if (txn->flags & TX_CLDENY) {
-			/* no need to go further */
-			txn->status = 403;
-			/* let's log the request time */
 			s->logs.tv_request = now;
 			stream_int_retnclose(req->prod, http_error_message(s, HTTP_ERR_403));
 			session_inc_http_err_ctr(s);
