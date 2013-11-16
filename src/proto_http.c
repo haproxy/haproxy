@@ -4209,10 +4209,6 @@ int http_process_tarpit(struct session *s, struct channel *req, int an_bit)
 	req->analysers = 0;
 	req->analyse_exp = TICK_ETERNITY;
 
-	s->fe->fe_counters.failed_req++;
-	if (s->listener->counters)
-		s->listener->counters->failed_req++;
-
 	if (!(s->flags & SN_ERR_MASK))
 		s->flags |= SN_ERR_PRXCOND;
 	if (!(s->flags & SN_FINST_MASK))
