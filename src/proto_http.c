@@ -8491,7 +8491,7 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		cur_arg += 2;
 	} else if (strcmp(args[0], "redirect") == 0) {
 		struct redirect_rule *redir;
-		char *errmsg;
+		char *errmsg = NULL;
 
 		if ((redir = http_parse_redirect_rule(file, linenum, proxy, (const char **)args + 1, &errmsg)) == NULL) {
 			Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-request %s' rule : %s.\n",
