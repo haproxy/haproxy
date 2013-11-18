@@ -10052,7 +10052,7 @@ smp_fetch_url_param_val(struct proxy *px, struct session *l4, void *l7, unsigned
  */
 static int
 smp_fetch_url32(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                 const struct arg *args, struct sample *smp)
+                 const struct arg *args, struct sample *smp, const char *kw)
 {
 	struct http_txn *txn = l7;
 	struct hdr_ctx ctx;
@@ -10100,11 +10100,11 @@ smp_fetch_url32(struct proxy *px, struct session *l4, void *l7, unsigned int opt
  */
 static int
 smp_fetch_url32_src(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                     const struct arg *args, struct sample *smp)
+                     const struct arg *args, struct sample *smp, const char *kw)
 {
 	struct chunk *temp;
 
-	if (!smp_fetch_url32(px, l4, l7, opt, args, smp))
+	if (!smp_fetch_url32(px, l4, l7, opt, args, smp, kw))
 		return 0;
 
 	temp = get_trash_chunk();
