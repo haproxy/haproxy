@@ -2578,7 +2578,9 @@ fullconn <conns>
 
   Since it's hard to get this value right, haproxy automatically sets it to
   10% of the sum of the maxconns of all frontends that may branch to this
-  backend. That way it's safe to leave it unset.
+  backend (based on "use_backend" and "default_backend" rules). That way it's
+  safe to leave it unset. However, "use_backend" involving dynamic names are
+  not counted since there is no way to know if they could match or not.
 
   Example :
      # The servers will accept between 100 and 1000 concurrent connections each
@@ -7711,7 +7713,8 @@ use_backend <backend> unless <condition>
   May be used in sections :   defaults | frontend | listen | backend
                                   no   |    yes   |   yes  |   no
   Arguments :
-    <backend>   is the name of a valid backend or "listen" section.
+    <backend>   is the name of a valid backend or "listen" section, or a
+                "log-format" string resolving to a backend name.
 
     <condition> is a condition composed of ACLs, as described in section 7.
 
@@ -7740,7 +7743,22 @@ use_backend <backend> unless <condition>
   a complete HTTP request to get in. This feature is useful when a frontend
   must decode several protocols on a unique port, one of them being HTTP.
 
-  See also: "default_backend", "tcp-request", and section 7 about ACLs.
+  When <backend> is a simple name, it is resolved at configuration time, and an
+  error is reported if the specified backend does not exist. If <backend> is
+  a log-format string instead, no check may be done at configuration time, so
+  the backend name is resolved dynamically at run time. If the resulting
+  backend name does not correspond to any valid backend, no other rule is
+  evaluated, and the default_backend directive is applied instead. Note that
+  when using dynamic backend names, it is highly recommended to use a prefix
+  that no other backend uses in order to ensure that an unauthorized backend
+  cannot be forced from the request.
+
+  It is worth mentionning that "use_backend" rules with an explicit name are
+  used to detect the association between frontends and backends to compute the
+  backend's "fullconn" setting. This cannot be done for dynamic names.
+
+  See also: "default_backend", "tcp-request", "fullconn", "log-format", and
+            section 7 about ACLs.
 
 
 use-server <server> if <condition>

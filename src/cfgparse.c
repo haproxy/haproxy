@@ -6813,6 +6813,33 @@ int check_config_validity()
 		/* find the target proxy for 'use_backend' rules */
 		list_for_each_entry(rule, &curproxy->switching_rules, list) {
 			struct proxy *target;
+			struct logformat_node *node;
+			char *pxname;
+
+			/* Try to parse the string as a log format expression. If the result
+			 * of the parsing is only one entry containing a simple string, then
+			 * it's a standard string corresponding to a static rule, thus the
+			 * parsing is cancelled and be.name is restored to be resolved.
+			 */
+			pxname = rule->be.name;
+			LIST_INIT(&rule->be.expr);
+			parse_logformat_string(pxname, curproxy, &rule->be.expr, 0, SMP_VAL_FE_HRQ_HDR,
+			                       curproxy->conf.args.file, curproxy->conf.args.line);
+			node = LIST_NEXT(&rule->be.expr, struct logformat_node *, list);
+
+			if (!LIST_ISEMPTY(&rule->be.expr)) {
+				if (node->type != LOG_FMT_TEXT || node->list.n != &rule->be.expr) {
+					rule->dynamic = 1;
+					free(pxname);
+					continue;
+				}
+				/* simple string: free the expression and fall back to static rule */
+				free(node->arg);
+				free(node);
+			}
+
+			rule->dynamic = 0;
+			rule->be.name = pxname;
 
 			target = findproxy_mode(rule->be.name, curproxy->mode, PR_CAP_BE);
 
@@ -7722,7 +7749,7 @@ out_uri_auth_compat:
 				/* check if a "use_backend" rule matches */
 				if (!found) {
 					list_for_each_entry(rule, &fe->switching_rules, list) {
-						if (rule->be.backend == curproxy) {
+						if (!rule->dynamic && rule->be.backend == curproxy) {
 							found = 1;
 							break;
 						}

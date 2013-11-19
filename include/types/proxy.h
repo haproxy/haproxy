@@ -379,9 +379,11 @@ struct proxy {
 struct switching_rule {
 	struct list list;			/* list linked to from the proxy */
 	struct acl_cond *cond;			/* acl condition to meet */
+	int dynamic;				/* this is a dynamic rule using the logformat expression */
 	union {
 		struct proxy *backend;		/* target backend */
 		char *name;			/* target backend name during config parsing */
+		struct list expr;		/* logformat expression to use for dynamic rules */
 	} be;
 };
 

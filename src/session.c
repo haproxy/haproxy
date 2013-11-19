@@ -1244,7 +1244,24 @@ static int process_switching_rules(struct session *s, struct channel *req, int a
 				ret = !ret;
 
 			if (ret) {
-				if (!session_set_backend(s, rule->be.backend))
+				/* If the backend name is dynamic, try to resolve the name.
+				 * If we can't resolve the name, or if any error occurs, break
+				 * the loop and fallback to the default backend.
+				 */
+				struct proxy *backend;
+
+				if (rule->dynamic) {
+					struct chunk *tmp = get_trash_chunk();
+					if (!build_logline(s, tmp->str, tmp->size, &rule->be.expr))
+						break;
+					backend = findproxy(tmp->str, PR_CAP_BE);
+					if (!backend)
+						break;
+				}
+				else
+					backend = rule->be.backend;
+
+				if (!session_set_backend(s, backend))
 					goto sw_failed;
 				break;
 			}
