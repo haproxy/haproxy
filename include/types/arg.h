@@ -54,7 +54,8 @@ enum {
 	ARGC_STK,      /* sticking rule */
 	ARGC_TRK,      /* tracking rule */
 	ARGC_LOG,      /* log-format */
-	ARGC_HDR,      /* add-header */
+	ARGC_HRQ,      /* http-request */
+	ARGC_HRS,      /* http-response */
 	ARGC_UIF,      /* unique-id-format */
 };
 

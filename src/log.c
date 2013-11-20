@@ -168,6 +168,10 @@ static inline const char *fmt_directive(const struct proxy *curproxy)
 {
 	if (curproxy->conf.args.ctx == ARGC_UIF)
 		return "unique-id-format";
+	else if (curproxy->conf.args.ctx == ARGC_HRQ)
+		return "http-request";
+	else if (curproxy->conf.args.ctx == ARGC_HRS)
+		return "http-response";
 	else
 		return "log-format";
 }
