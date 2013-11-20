@@ -1,0 +1,83 @@
+2013/11/20 - How hashing works internally in haproxy - maddalab@gmail.com
+
+This document describes how Haproxy implements hashing both map-based and
+consistent hashing, both prior to versions 1.5 and the motivation and tests
+that were done when providing additional options starting in version 1.5.
+
+A note on hashing in general, hash functions strive to have little
+correlation between input and output. The heart of a hash function is its
+mixing step. The behavior of the mixing step largely determines whether the
+hash function is collision-resistant. Hash functions that are collision
+resistant are more likely to have an even distribution of load.
+
+The purpose of the mixing function is to spread the effect of each message
+bit throughout all the bits of the internal state. Ideally every bit in the
+hash state is affected by every bit in the message. And we want to do that
+as quickly as possible simply for the sake of program performance. A
+function is said to satisfy the strict avalanche criterion if, whenever a
+single input bit is complemented (toggled between 0 and 1), each of the
+output bits should change with a probability of one half for an arbitrary
+selection of the remaining input bits.
+
+To guard against a combination of hash function and input that results in
+high rate of collisions, haproxy implements an avalanche algorithm on the
+result of the hashing function. In all versions 1.4 and prior avalanche is
+always applied when using the consistent hashing directive. It is intended
+to provide quite a good distribution for little input variations. The result
+is quite suited to fit over a 32-bit space with enough variations so that
+a randomly picked number falls equally before any server position, which is
+ideal for consistently hashed backends, a common use case for caches.
+
+In all versions 1.4 and prior Haproxy implements the SDBM hashing function.
+However tests show that alternatives to SDBM have a better cache
+distribution on different hashing criteria. Additional tests involving
+alternatives for hash input and an option to trigger avalanche, we found
+different algorithms perform better on different criteria. DJB2 performs
+well when hashing ascii text and is a good choice when hashing on host
+header. Other alternatives perform better on numbers and are a good choice
+when using source ip. The results also vary by use of the avalanche flag.
+
+The results of the testing can be found under the tests folder. Here is
+a summary of the discussion on the results on 1 input criteria and the
+methodology used to generate the results.
+
+A note of the setup when validating the results independently, one
+would want to avoid backend server counts that may skew the results. As
+an example with DJB2 avoid 33 servers. Please see the implementations of
+the hashing function, which can be found in the links under references.
+
+The following was the set up used
+
+(a) hash-type consistent/map-based
+(b) avalanche on/off
+(c) balanche host(hdr)
+(d) 3 criteria for inputs
+    - ~ 10K requests, including duplicates
+    - ~ 46K requests, unique requests from 1 MM requests were obtained
+    - ~ 250K requests, including duplicates
+(e) 17 servers in backend, all servers were assigned the same weight
+
+Result of the hashing were obtained across the server via monitoring log
+files for haproxy. Population Standard deviation was used to evaluate the
+efficacy of the hashing algorithm. Lower standard deviation, indicates
+a better distribution of load across the backends.
+
+On 10K requests, when using consistent hashing with avalanche on host
+headers, DJB2 significantly out performs SDBM. Std dev on SDBM was 48.95
+and DJB2 was 26.29. This relationship is inverted with avalanche disabled,
+however DJB2 with avalanche enabled out performs SDBM with avalanche
+disabled.
+
+On map-based hashing SDBM out performs DJB2 irrespective of the avalanche
+option. SDBM without avalanche is marginally better than with avalanche.
+DJB2 performs significantly worse with avalanche enabled.
+
+Summary: The results of the testing indicate that there isn't a hashing
+algorithm that can be applied across all input criteria. It is necessary
+to support alternatives to SDBM, which is generally the best option, with
+algorithms that are better for different inputs. Avalanche is not always
+applicable and may result in less smooth distribution.
+
+References:
+Mixing Functions/Avalanche: http://home.comcast.net/~bretm/hash/3.html
+Hash Functions: http://www.cse.yorku.ca/~oz/hash.html
