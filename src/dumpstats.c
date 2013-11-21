@@ -2326,12 +2326,8 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			chunk_appendf(&trash, "<td colspan=3></td>");
 
 		/* throttle */
-		if ((sv->state & SRV_WARMINGUP) &&
-		    now.tv_sec < sv->last_change + sv->slowstart &&
-		    now.tv_sec >= sv->last_change) {
-			chunk_appendf(&trash, "<td class=ac>%d %%</td></tr>\n",
-			              (int)MAX(1, 100 * (now.tv_sec - sv->last_change) / sv->slowstart));
-		}
+		if (sv->state & SRV_WARMINGUP)
+			chunk_appendf(&trash, "<td class=ac>%d %%</td></tr>\n", server_throttle_rate(sv));
 		else
 			chunk_appendf(&trash, "<td class=ac>-</td></tr>\n");
 	}
@@ -2406,10 +2402,8 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		              relative_pid, px->uuid, sv->puid);
 
 		/* throttle */
-		if ((sv->state & SRV_WARMINGUP) &&
-		    now.tv_sec < sv->last_change + sv->slowstart &&
-		    now.tv_sec >= sv->last_change)
-			chunk_appendf(&trash, "%d", (int)MAX(1, 100 * (now.tv_sec - sv->last_change) / sv->slowstart));
+		if (sv->state & SRV_WARMINGUP)
+			chunk_appendf(&trash, "%d", server_throttle_rate(sv));
 
 		/* sessions: lbtot */
 		chunk_appendf(&trash, ",%lld,", sv->counters.cum_lbconn);

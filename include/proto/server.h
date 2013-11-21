@@ -64,6 +64,20 @@ void srv_dump_kws(char **out);
  */
 void server_recalc_eweight(struct server *sv);
 
+/* returns the current server throttle rate between 0 and 100% */
+static inline unsigned int server_throttle_rate(struct server *sv)
+{
+	struct proxy *px = sv->proxy;
+
+	/* when uweight is 0, we're in soft-stop so that cannot be a slowstart,
+	 * thus the throttle is 100%.
+	 */
+	if (!sv->uweight)
+		return 100;
+
+	return 100U * (px->lbprm.wmult * sv->eweight + px->lbprm.wdiv - 1) / (px->lbprm.wdiv * sv->uweight);
+}
+
 /*
  * Parses weight_str and configures sv accordingly.
  * Returns NULL on success, error message string otherwise.
