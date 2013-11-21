@@ -1553,6 +1553,20 @@ int start_checks() {
 	 */
 	for (px = proxy; px; px = px->next) {
 		for (s = px->srv; s; s = s->next) {
+			if (s->slowstart) {
+				if ((t = task_new()) == NULL) {
+					Alert("Starting [%s:%s] check: out of memory.\n", px->id, s->id);
+					return -1;
+				}
+				/* We need a warmup task that will be called when the server
+				 * state switches from down to up.
+				 */
+				s->warmup = t;
+				t->process = server_warmup;
+				t->context = s;
+				t->expire = TICK_ETERNITY;
+			}
+
 			if (!(s->state & SRV_CHECKED))
 				continue;
 
@@ -1576,20 +1590,6 @@ int start_checks() {
 	 */
 	for (px = proxy; px; px = px->next) {
 		for (s = px->srv; s; s = s->next) {
-			if (s->slowstart) {
-				if ((t = task_new()) == NULL) {
-					Alert("Starting [%s:%s] check: out of memory.\n", px->id, s->id);
-					return -1;
-				}
-				/* We need a warmup task that will be called when the server
-				 * state switches from down to up.
-				 */
-				s->warmup = t;
-				t->process = server_warmup;
-				t->context = s;
-				t->expire = TICK_ETERNITY;
-			}
-
 			if (!(s->state & SRV_CHECKED))
 				continue;
 
