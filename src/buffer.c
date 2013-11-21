@@ -216,9 +216,12 @@ void buffer_dump(FILE *o, struct buffer *b, int from, int to)
 				fprintf(o, "- ");
 		}
 		if (to - from < 16) {
-			int j;
+			int j = 0;
+
 			for (j = 0; j <  from + 16 - to; j++)
 				fprintf(o, "   ");
+			if (j > 8)
+				fprintf(o, "  ");
 		}
 		fprintf(o, "  ");
 		for (i = 0; (from + i < to) && (i < 16) ; i++) {
