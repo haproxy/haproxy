@@ -1277,7 +1277,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 					if (!conv_expr->arg_p)
 						conv_expr->arg_p = empty_arg_list;
 
-					if (conv->val_args && !conv->val_args(conv_expr->arg_p, &err_msg)) {
+					if (conv->val_args && !conv->val_args(conv_expr->arg_p, conv, &err_msg)) {
 						memprintf(err, "ACL keyword '%s' : invalid args in conv method '%s' : %s.",
 						          expr->kw, ckw, err_msg);
 						free(err_msg);

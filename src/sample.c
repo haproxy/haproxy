@@ -745,7 +745,7 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, char *err, int err_s
 			if (!conv_expr->arg_p)
 				conv_expr->arg_p = empty_arg_list;
 
-			if (conv->val_args && !conv->val_args(conv_expr->arg_p, &err_msg)) {
+			if (conv->val_args && !conv->val_args(conv_expr->arg_p, conv, &err_msg)) {
 				snprintf(err, err_size, "invalid args in conv method '%s' : %s.", ckw, err_msg);
 				free(err_msg);
 				goto out_error;
