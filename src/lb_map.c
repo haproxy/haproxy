@@ -180,7 +180,7 @@ void init_server_map(struct proxy *p)
 
 	act = bck = 0;
 	for (srv = p->srv; srv; srv = srv->next) {
-		srv->eweight = srv->uweight / pgcd;
+		srv->eweight = (srv->uweight * p->lbprm.wdiv + p->lbprm.wmult - 1) / p->lbprm.wmult;
 		srv->prev_eweight = srv->eweight;
 		srv->prev_state = srv->state;
 		if (srv->state & SRV_BACKUP)

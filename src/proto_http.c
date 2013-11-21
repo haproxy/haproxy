@@ -2932,28 +2932,8 @@ int http_process_req_stat_post(struct stream_interface *si, struct http_txn *txn
 						else
 							sv->uweight = 0;
 
-						if (px->lbprm.algo & BE_LB_PROP_DYN) {
-							/* we must take care of not pushing the server to full throttle during slow starts */
-							if ((sv->state & SRV_WARMINGUP) && (px->lbprm.algo & BE_LB_PROP_DYN))
-								sv->eweight = (BE_WEIGHT_SCALE * (now.tv_sec - sv->last_change) + sv->slowstart - 1) / sv->slowstart;
-							else
-								sv->eweight = BE_WEIGHT_SCALE;
-							sv->eweight *= sv->uweight;
-						} else {
-							sv->eweight = sv->uweight;
-						}
+						server_recalc_eweight(sv);
 
-						/* static LB algorithms are a bit harder to update */
-						if (px->lbprm.update_server_eweight)
-							px->lbprm.update_server_eweight(sv);
-						else if (sv->eweight) {
-							if (px->lbprm.set_server_status_up)
-								px->lbprm.set_server_status_up(sv);
-						}
-						else {
-							if (px->lbprm.set_server_status_down)
-								px->lbprm.set_server_status_down(sv);
-						}
 						altered_servers++;
 						total_servers++;
 						break;

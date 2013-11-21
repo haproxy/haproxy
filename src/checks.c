@@ -481,18 +481,10 @@ void set_server_up(struct check *check) {
 
 		if (s->slowstart > 0) {
 			s->state |= SRV_WARMINGUP;
-			if (s->proxy->lbprm.algo & BE_LB_PROP_DYN) {
-				/* For dynamic algorithms, start at the first step of the weight,
-				 * without multiplying by BE_WEIGHT_SCALE.
-				 */
-				s->eweight = s->uweight;
-				if (s->proxy->lbprm.update_server_eweight)
-					s->proxy->lbprm.update_server_eweight(s);
-			}
 			task_schedule(s->warmup, tick_add(now_ms, MS_TO_TICKS(MAX(1000, s->slowstart / 20))));
 		}
-		if (s->proxy->lbprm.set_server_status_up)
-			s->proxy->lbprm.set_server_status_up(s);
+
+		server_recalc_eweight(s);
 
 		/* If the server is set with "on-marked-up shutdown-backup-sessions",
 		 * and it's not a backup server and its effective weight is > 0,
@@ -1273,23 +1265,7 @@ static struct task *server_warmup(struct task *t)
 	if ((s->state & (SRV_RUNNING|SRV_WARMINGUP|SRV_MAINTAIN)) != (SRV_RUNNING|SRV_WARMINGUP))
 		return t;
 
-	if (now.tv_sec < s->last_change || now.tv_sec >= s->last_change + s->slowstart) {
-		/* go to full throttle if the slowstart interval is reached */
-		s->state &= ~SRV_WARMINGUP;
-		if (s->proxy->lbprm.algo & BE_LB_PROP_DYN)
-			s->eweight = s->uweight * BE_WEIGHT_SCALE;
-		if (s->proxy->lbprm.update_server_eweight)
-			s->proxy->lbprm.update_server_eweight(s);
-	}
-	else if (s->proxy->lbprm.algo & BE_LB_PROP_DYN) {
-		/* for dynamic algorithms, let's slowly update the weight */
-		s->eweight = (BE_WEIGHT_SCALE * (now.tv_sec - s->last_change) +
-			      s->slowstart - 1) / s->slowstart;
-		s->eweight *= s->uweight;
-		if (s->proxy->lbprm.update_server_eweight)
-			s->proxy->lbprm.update_server_eweight(s);
-	}
-	/* Note that static algorithms are already running at full throttle */
+	server_recalc_eweight(s);
 
 	/* probably that we can refill this server with a bit more connections */
 	check_for_pending(s);

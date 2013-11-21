@@ -58,6 +58,12 @@ struct srv_kw *srv_find_kw(const char *kw);
 /* Dumps all registered "server" keywords to the <out> string pointer. */
 void srv_dump_kws(char **out);
 
+/* Recomputes the server's eweight based on its state, uweight, the current time,
+ * and the proxy's algorihtm. To be used after updating sv->uweight. The warmup
+ * state is automatically disabled if the time is elapsed.
+ */
+void server_recalc_eweight(struct server *sv);
+
 /*
  * Parses weight_str and configures sv accordingly.
  * Returns NULL on success, error message string otherwise.

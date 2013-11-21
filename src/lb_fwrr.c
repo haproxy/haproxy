@@ -272,7 +272,8 @@ void fwrr_init_server_groups(struct proxy *p)
 
 	p->lbprm.wdiv = BE_WEIGHT_SCALE;
 	for (srv = p->srv; srv; srv = srv->next) {
-		srv->prev_eweight = srv->eweight = srv->uweight * BE_WEIGHT_SCALE;
+		srv->eweight = (srv->uweight * p->lbprm.wdiv + p->lbprm.wmult - 1) / p->lbprm.wmult;
+		srv->prev_eweight = srv->eweight;
 		srv->prev_state = srv->state;
 	}
 
