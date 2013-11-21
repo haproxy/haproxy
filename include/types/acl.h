@@ -192,8 +192,7 @@ struct acl_kw_list {
 struct acl_expr {
 	int (*parse)(const char **text, struct acl_pattern *pattern, int *opaque, char **err);
 	int (*match)(struct sample *smp, struct acl_pattern *pattern);
-	struct arg *args;             /* optional fetch argument list (eg: header or cookie name) */
-	struct sample_fetch *smp;     /* the sample fetch we depend on */
+	struct sample_expr *smp;      /* the sample expression we depend on */
 	struct list patterns;         /* list of acl_patterns */
 	struct eb_root pattern_tree;  /* may be used for lookup in large datasets */
 	struct list list;             /* chaining */

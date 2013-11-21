@@ -266,6 +266,23 @@ static const char *fetch_ckp_names[SMP_CKP_ENTRIES] = {
 	[SMP_CKP_FE_LOG_END] = "logs",
 };
 
+/* This function returns the type of the data returned by the sample_expr.
+ * It assumes that the <expr> and all of its converters are properly
+ * initialized.
+ */
+inline
+int smp_expr_output_type(struct sample_expr *expr)
+{
+	struct sample_conv_expr *smp_expr;
+
+	if (!LIST_ISEMPTY(&expr->conv_exprs)) {
+		smp_expr = LIST_PREV(&expr->conv_exprs, struct sample_conv_expr *, list);
+		return smp_expr->conv->out_type;
+	}
+	return expr->fetch->out_type;
+}
+
+
 /* fill the trash with a comma-delimited list of source names for the <use> bit
  * field which must be composed of a non-null set of SMP_USE_* flags. The return
  * value is the pointer to the string in the trash buffer.
