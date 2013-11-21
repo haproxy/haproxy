@@ -293,4 +293,7 @@ struct sample_conv_kw_list {
 	struct sample_conv kw[VAR_ARRAY];         /* array of sample conversion descriptors */
 };
 
+typedef int (*sample_cast_fct)(struct sample *smp);
+extern sample_cast_fct sample_casts[SMP_TYPES][SMP_TYPES];
+
 #endif /* _TYPES_SAMPLE_H */

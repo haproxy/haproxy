@@ -512,8 +512,7 @@ static int c_str2int(struct sample *smp)
 /*           NULL pointer used for impossible sample casts       */
 /*****************************************************************/
 
-typedef int (*sample_cast_fct)(struct sample *smp);
-static sample_cast_fct sample_casts[SMP_TYPES][SMP_TYPES] = {
+sample_cast_fct sample_casts[SMP_TYPES][SMP_TYPES] = {
 /*            to:  BOOL       UINT       SINT       IPV4      IPV6        STR         BIN        CSTR        CBIN   */
 /* from: BOOL */ { c_none,    c_none,    c_none,    NULL,     NULL,       c_int2str,  NULL,      c_int2str,  NULL   },
 /*       UINT */ { c_none,    c_none,    c_none,    c_int2ip, NULL,       c_int2str,  NULL,      c_int2str,  NULL   },
