@@ -55,6 +55,12 @@ static void spawn_haproxy(char **pid_strv, int nb_pid)
 				argv[argno++] = pid_strv[i];
 		}
 		argv[argno] = NULL;
+
+		printf("%s", "haproxy-systemd-wrapper: executing ");
+		for (i = 0; argv[i]; ++i)
+			printf("%s ", argv[i]);
+		puts("");
+
 		execv(argv[0], argv);
 		exit(0);
 	}
@@ -104,6 +110,7 @@ static void sigint_handler(int signum __attribute__((unused)))
 	for (i = 0; i < nb_pid; ++i) {
 		pid = atoi(pid_strv[i]);
 		if (pid > 0) {
+			printf("haproxy-systemd-wrapper: SIGINT -> %d\n", pid);
 			kill(pid, SIGINT);
 			free(pid_strv[i]);
 		}
@@ -126,9 +133,11 @@ static void init(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
+	int status;
+
 	--argc; ++argv;
-        main_argc = argc;
-        main_argv = argv;
+	main_argc = argc;
+	main_argv = argv;
 
 	init(argc, argv);
 
@@ -136,7 +145,10 @@ int main(int argc, char **argv)
 	signal(SIGUSR2, &sigusr2_handler);
 
 	spawn_haproxy(NULL, 0);
-	while (-1 != wait(NULL) || errno == EINTR);
+	status = -1;
+	while (-1 != wait(&status) || errno == EINTR)
+		;
 
+	printf("haproxy-systemd-wrapper: exit, haproxy RC=%d\n", status);
 	return EXIT_SUCCESS;
 }
