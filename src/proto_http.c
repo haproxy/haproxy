@@ -2794,7 +2794,8 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
  * "100-continue" expectation, check that admin rules are met for POST requests,
  * and program a response message if something was unexpected. It cannot fail
  * and always relies on the stats applet to complete the job. It does not touch
- * analysers nor counters.
+ * analysers nor counters, which are left to the caller. It does not touch
+ * s->target which is supposed to already point to the stats applet.
  */
 int http_handle_stats(struct session *s, struct channel *req)
 {
@@ -2802,9 +2803,90 @@ int http_handle_stats(struct session *s, struct channel *req)
 	struct stream_interface *si = s->rep->prod;
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->req;
+	struct uri_auth *uri_auth = s->be->uri_auth;
+	const char *uri, *h, *lookup;
+
+	memset(&si->applet.ctx.stats, 0, sizeof(si->applet.ctx.stats));
+	si->applet.ctx.stats.st_code = STAT_STATUS_INIT;
+	si->applet.ctx.stats.flags |= STAT_FMT_HTML; /* assume HTML mode by default */
+
+	uri = msg->chn->buf->p + msg->sl.rq.u;
+	lookup = uri + uri_auth->uri_len;
+
+	for (h = lookup; h <= uri + msg->sl.rq.u_l - 3; h++) {
+		if (memcmp(h, ";up", 3) == 0) {
+			si->applet.ctx.stats.flags |= STAT_HIDE_DOWN;
+			break;
+		}
+	}
+
+	if (uri_auth->refresh) {
+		for (h = lookup; h <= uri + msg->sl.rq.u_l - 10; h++) {
+			if (memcmp(h, ";norefresh", 10) == 0) {
+				si->applet.ctx.stats.flags |= STAT_NO_REFRESH;
+				break;
+			}
+		}
+	}
+
+	for (h = lookup; h <= uri + msg->sl.rq.u_l - 4; h++) {
+		if (memcmp(h, ";csv", 4) == 0) {
+			si->applet.ctx.stats.flags &= ~STAT_FMT_HTML;
+			break;
+		}
+	}
+
+	for (h = lookup; h <= uri + msg->sl.rq.u_l - 8; h++) {
+		if (memcmp(h, ";st=", 4) == 0) {
+			int i;
+			h += 4;
+			si->applet.ctx.stats.st_code = STAT_STATUS_UNKN;
+			for (i = STAT_STATUS_INIT + 1; i < STAT_STATUS_SIZE; i++) {
+				if (strncmp(stat_status_codes[i], h, 4) == 0) {
+					si->applet.ctx.stats.st_code = i;
+					break;
+				}
+			}
+			break;
+		}
+	}
+
+	si->applet.ctx.stats.scope_str = 0;
+	si->applet.ctx.stats.scope_len = 0;
+	for (h = lookup; h <= uri + msg->sl.rq.u_l - 8; h++) {
+		if (memcmp(h, STAT_SCOPE_INPUT_NAME "=", strlen(STAT_SCOPE_INPUT_NAME) + 1) == 0) {
+			int itx = 0;
+			const char *h2;
+			char scope_txt[STAT_SCOPE_TXT_MAXLEN + 1];
+			const char *err;
+
+			h += strlen(STAT_SCOPE_INPUT_NAME) + 1;
+			h2 = h;
+			si->applet.ctx.stats.scope_str = h2 - msg->chn->buf->p;
+			while (*h != ';' && *h != '\0' && *h != '&' && *h != ' ' && *h != '\n') {
+				itx++;
+				h++;
+			}
+
+			if (itx > STAT_SCOPE_TXT_MAXLEN)
+				itx = STAT_SCOPE_TXT_MAXLEN;
+			si->applet.ctx.stats.scope_len = itx;
+
+			/* scope_txt = search query, si->applet.ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
+			memcpy(scope_txt, h2, itx);
+			scope_txt[itx] = '\0';
+			err = invalid_char(scope_txt);
+			if (err) {
+				/* bad char in search text => clear scope */
+				si->applet.ctx.stats.scope_str = 0;
+				si->applet.ctx.stats.scope_len = 0;
+			}
+			break;
+		}
+	}
 
 	/* now check whether we have some admin rules for this request */
-	list_for_each_entry(stats_admin_rule, &s->be->uri_auth->admin_rules, list) {
+	list_for_each_entry(stats_admin_rule, &uri_auth->admin_rules, list) {
 		int ret = 1;
 
 		if (stats_admin_rule->cond) {
@@ -2854,7 +2936,6 @@ int http_handle_stats(struct session *s, struct channel *req)
 
 	s->task->nice = -32; /* small boost for HTTP statistics */
 	stream_int_register_handler(s->rep->prod, &http_stats_applet);
-	s->target = s->rep->prod->conn->target; // for logging only
 	s->rep->prod->applet.st1 = s->rep->prod->applet.st2 = 0;
 	return 1;
 }
@@ -3325,7 +3406,6 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 	struct http_req_rule *http_req_last_rule = NULL;
 	struct redirect_rule *rule;
 	struct cond_wordlist *wl;
-	int do_stats;
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 		/* we need more data */
@@ -3371,12 +3451,13 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 
 	/* evaluate stats http-request rules only if http-request is OK */
 	if (!http_req_last_rule) {
-		do_stats = stats_check_uri(s->rep->prod, txn, px);
-		if (do_stats)
+		if (stats_check_uri(s->rep->prod, txn, px)) {
+			s->target = &http_stats_applet.obj_type;
+			/* parse the whole stats request and extract the relevant information */
+			http_handle_stats(s, req);
 			http_req_last_rule = http_req_get_intercept_rule(px, &px->uri_auth->http_req_rules, s, txn);
+		}
 	}
-	else
-		do_stats = 0;
 
 	/* only apply req{,i}{rep/deny/tarpit} if the request was not yet
 	 * blocked by an http-request rule.
@@ -3485,7 +3566,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 		char *realm = http_req_last_rule->arg.auth.realm;
 
 		if (!realm)
-			realm = do_stats?STATS_DEFAULT_REALM:px->id;
+			realm = (objt_applet(s->target) == &http_stats_applet) ? STATS_DEFAULT_REALM : px->id;
 
 		chunk_printf(&trash, (txn->flags & TX_USE_PX_CONN) ? HTTP_407_fmt : HTTP_401_fmt, realm);
 		txn->status = 401;
@@ -3520,10 +3601,8 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 		return 1;
 	}
 
-	if (unlikely(do_stats)) {
+	if (unlikely(objt_applet(s->target) == &http_stats_applet)) {
 		/* process the stats request now */
-		http_handle_stats(s, req);
-
 		if (s->fe == s->be) /* report it if the request was intercepted by the frontend */
 			s->fe->fe_counters.intercepted_req++;
 
@@ -7657,7 +7736,6 @@ int stats_check_uri(struct stream_interface *si, struct http_txn *txn, struct pr
 	struct uri_auth *uri_auth = backend->uri_auth;
 	struct http_msg *msg = &txn->req;
 	const char *uri = msg->chn->buf->p+ msg->sl.rq.u;
-	const char *h;
 
 	if (!uri_auth)
 		return 0;
@@ -7665,100 +7743,12 @@ int stats_check_uri(struct stream_interface *si, struct http_txn *txn, struct pr
 	if (txn->meth != HTTP_METH_GET && txn->meth != HTTP_METH_HEAD && txn->meth != HTTP_METH_POST)
 		return 0;
 
-	memset(&si->applet.ctx.stats, 0, sizeof(si->applet.ctx.stats));
-	si->applet.ctx.stats.st_code = STAT_STATUS_INIT;
-	si->applet.ctx.stats.flags |= STAT_FMT_HTML; /* assume HTML mode by default */
-
 	/* check URI size */
 	if (uri_auth->uri_len > msg->sl.rq.u_l)
 		return 0;
 
-	h = uri;
-	if (memcmp(h, uri_auth->uri_prefix, uri_auth->uri_len) != 0)
+	if (memcmp(uri, uri_auth->uri_prefix, uri_auth->uri_len) != 0)
 		return 0;
-
-	h += uri_auth->uri_len;
-	while (h <= uri + msg->sl.rq.u_l - 3) {
-		if (memcmp(h, ";up", 3) == 0) {
-			si->applet.ctx.stats.flags |= STAT_HIDE_DOWN;
-			break;
-		}
-		h++;
-	}
-
-	if (uri_auth->refresh) {
-		h = uri + uri_auth->uri_len;
-		while (h <= uri + msg->sl.rq.u_l - 10) {
-			if (memcmp(h, ";norefresh", 10) == 0) {
-				si->applet.ctx.stats.flags |= STAT_NO_REFRESH;
-				break;
-			}
-			h++;
-		}
-	}
-
-	h = uri + uri_auth->uri_len;
-	while (h <= uri + msg->sl.rq.u_l - 4) {
-		if (memcmp(h, ";csv", 4) == 0) {
-			si->applet.ctx.stats.flags &= ~STAT_FMT_HTML;
-			break;
-		}
-		h++;
-	}
-
-	h = uri + uri_auth->uri_len;
-	while (h <= uri + msg->sl.rq.u_l - 8) {
-		if (memcmp(h, ";st=", 4) == 0) {
-			int i;
-			h += 4;
-			si->applet.ctx.stats.st_code = STAT_STATUS_UNKN;
-			for (i = STAT_STATUS_INIT + 1; i < STAT_STATUS_SIZE; i++) {
-				if (strncmp(stat_status_codes[i], h, 4) == 0) {
-					si->applet.ctx.stats.st_code = i;
-					break;
-				}
-			}
-			break;
-		}
-		h++;
-	}
-
-	si->applet.ctx.stats.scope_str = 0;
-	si->applet.ctx.stats.scope_len = 0;
-	h = uri + uri_auth->uri_len;
-	while (h <= uri + msg->sl.rq.u_l - 8) {
-		if (memcmp(h, STAT_SCOPE_INPUT_NAME "=", strlen(STAT_SCOPE_INPUT_NAME) + 1) == 0) {
-			int itx = 0;
-			const char *h2;
-			char scope_txt[STAT_SCOPE_TXT_MAXLEN + 1];
-			const char *err;
-
-			h += strlen(STAT_SCOPE_INPUT_NAME) + 1;
-			h2 = h;
-			si->applet.ctx.stats.scope_str = h2 - msg->chn->buf->p;
-			while (*h != ';' && *h != '\0' && *h != '&' && *h != ' ' && *h != '\n') {
-				itx++;
-				h++;
-			}
-
-			if (itx > STAT_SCOPE_TXT_MAXLEN)
-				itx = STAT_SCOPE_TXT_MAXLEN;
-			si->applet.ctx.stats.scope_len = itx;
-
-			/* scope_txt = search query, si->applet.ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
-			memcpy(scope_txt, h2, itx);
-			scope_txt[itx] = '\0';
-			err = invalid_char(scope_txt);
-			if (err) {
-				/* bad char in search text => clear scope */
-				si->applet.ctx.stats.scope_str = 0;
-				si->applet.ctx.stats.scope_len = 0;
-			}
-			break;
-		}
-		h++;
-	}
-
 
 	return 1;
 }
