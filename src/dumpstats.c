@@ -3477,6 +3477,282 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 	}
 }
 
+/* We reached the stats page through a POST request.
+ * Parse the posted data and enable/disable servers if necessary.
+ * Returns 1 if request was parsed or zero if it needs more data.
+ */
+static int stats_process_http_post(struct stream_interface *si)
+{
+	struct session *s = session_from_task(si->owner);
+
+	struct proxy *px = NULL;
+	struct server *sv = NULL;
+
+	char key[LINESIZE];
+	int action = ST_ADM_ACTION_NONE;
+	int reprocess = 0;
+
+	int total_servers = 0;
+	int altered_servers = 0;
+
+	char *first_param, *cur_param, *next_param, *end_params;
+	char *st_cur_param = NULL;
+	char *st_next_param = NULL;
+
+	struct chunk *temp;
+	int reql;
+
+	temp = get_trash_chunk();
+	if (temp->size < s->txn.req.body_len) {
+		/* too large request */
+		si->applet.ctx.stats.st_code = STAT_STATUS_EXCD;
+		goto out;
+	}
+
+	reql = bo_getblk(si->ob, temp->str, s->txn.req.body_len, s->txn.req.eoh + 2);
+	if (reql <= 0) {
+		/* we need more data */
+		si->applet.ctx.stats.st_code = STAT_STATUS_NONE;
+		return 0;
+	}
+
+	first_param = temp->str;
+	end_params  = temp->str + reql;
+	cur_param = next_param = end_params;
+	*end_params = '\0';
+
+	si->applet.ctx.stats.st_code = STAT_STATUS_NONE;
+
+	/*
+	 * Parse the parameters in reverse order to only store the last value.
+	 * From the html form, the backend and the action are at the end.
+	 */
+	while (cur_param > first_param) {
+		char *value;
+		int poffset, plen;
+
+		cur_param--;
+
+		if ((*cur_param == '&') || (cur_param == first_param)) {
+		reprocess_servers:
+			/* Parse the key */
+			poffset = (cur_param != first_param ? 1 : 0);
+			plen = next_param - cur_param + (cur_param == first_param ? 1 : 0);
+			if ((plen > 0) && (plen <= sizeof(key))) {
+				strncpy(key, cur_param + poffset, plen);
+				key[plen - 1] = '\0';
+			} else {
+				si->applet.ctx.stats.st_code = STAT_STATUS_EXCD;
+				goto out;
+			}
+
+			/* Parse the value */
+			value = key;
+			while (*value != '\0' && *value != '=') {
+				value++;
+			}
+			if (*value == '=') {
+				/* Ok, a value is found, we can mark the end of the key */
+				*value++ = '\0';
+			}
+			if (url_decode(key) < 0 || url_decode(value) < 0)
+				break;
+
+			/* Now we can check the key to see what to do */
+			if (!px && (strcmp(key, "b") == 0)) {
+				if ((px = findproxy(value, PR_CAP_BE)) == NULL) {
+					/* the backend name is unknown or ambiguous (duplicate names) */
+					si->applet.ctx.stats.st_code = STAT_STATUS_ERRP;
+					goto out;
+				}
+			}
+			else if (!action && (strcmp(key, "action") == 0)) {
+				if (strcmp(value, "disable") == 0) {
+					action = ST_ADM_ACTION_DISABLE;
+				}
+				else if (strcmp(value, "enable") == 0) {
+					action = ST_ADM_ACTION_ENABLE;
+				}
+				else if (strcmp(value, "stop") == 0) {
+					action = ST_ADM_ACTION_STOP;
+				}
+				else if (strcmp(value, "start") == 0) {
+					action = ST_ADM_ACTION_START;
+				}
+				else if (strcmp(value, "shutdown") == 0) {
+					action = ST_ADM_ACTION_SHUTDOWN;
+				}
+				else {
+					si->applet.ctx.stats.st_code = STAT_STATUS_ERRP;
+					goto out;
+				}
+			}
+			else if (strcmp(key, "s") == 0) {
+				if (!(px && action)) {
+					/*
+					 * Indicates that we'll need to reprocess the parameters
+					 * as soon as backend and action are known
+					 */
+					if (!reprocess) {
+						st_cur_param  = cur_param;
+						st_next_param = next_param;
+					}
+					reprocess = 1;
+				}
+				else if ((sv = findserver(px, value)) != NULL) {
+					switch (action) {
+					case ST_ADM_ACTION_DISABLE:
+						if ((px->state != PR_STSTOPPED) && !(sv->state & SRV_MAINTAIN)) {
+							/* Not already in maintenance, we can change the server state */
+							sv->state |= SRV_MAINTAIN;
+							set_server_down(&sv->check);
+							altered_servers++;
+							total_servers++;
+						}
+						break;
+					case ST_ADM_ACTION_ENABLE:
+						if ((px->state != PR_STSTOPPED) && (sv->state & SRV_MAINTAIN)) {
+							/* Already in maintenance, we can change the server state */
+							set_server_up(&sv->check);
+							sv->check.health = sv->check.rise;	/* up, but will fall down at first failure */
+							altered_servers++;
+							total_servers++;
+						}
+						break;
+					case ST_ADM_ACTION_STOP:
+					case ST_ADM_ACTION_START:
+						if (action == ST_ADM_ACTION_START)
+							sv->uweight = sv->iweight;
+						else
+							sv->uweight = 0;
+
+						server_recalc_eweight(sv);
+						set_server_drain_state(sv);
+
+						altered_servers++;
+						total_servers++;
+						break;
+					case ST_ADM_ACTION_SHUTDOWN:
+						if (px->state != PR_STSTOPPED) {
+							struct session *sess, *sess_bck;
+
+							list_for_each_entry_safe(sess, sess_bck, &sv->actconns, by_srv)
+								if (sess->srv_conn == sv)
+									session_shutdown(sess, SN_ERR_KILLED);
+
+							altered_servers++;
+							total_servers++;
+						}
+						break;
+					}
+				} else {
+					/* the server name is unknown or ambiguous (duplicate names) */
+					total_servers++;
+				}
+			}
+			if (reprocess && px && action) {
+				/* Now, we know the backend and the action chosen by the user.
+				 * We can safely restart from the first server parameter
+				 * to reprocess them
+				 */
+				cur_param  = st_cur_param;
+				next_param = st_next_param;
+				reprocess = 0;
+				goto reprocess_servers;
+			}
+
+			next_param = cur_param;
+		}
+	}
+
+	if (total_servers == 0) {
+		si->applet.ctx.stats.st_code = STAT_STATUS_NONE;
+	}
+	else if (altered_servers == 0) {
+		si->applet.ctx.stats.st_code = STAT_STATUS_ERRP;
+	}
+	else if (altered_servers == total_servers) {
+		si->applet.ctx.stats.st_code = STAT_STATUS_DONE;
+	}
+	else {
+		si->applet.ctx.stats.st_code = STAT_STATUS_PART;
+	}
+ out:
+	return 1;
+}
+
+
+static int stats_send_http_headers(struct stream_interface *si)
+{
+	struct session *s = session_from_task(si->owner);
+	struct uri_auth *uri = s->be->uri_auth;
+
+	chunk_printf(&trash,
+		     "HTTP/1.0 200 OK\r\n"
+		     "Cache-Control: no-cache\r\n"
+		     "Connection: close\r\n"
+		     "Content-Type: %s\r\n",
+		     (si->applet.ctx.stats.flags & STAT_FMT_HTML) ? "text/html" : "text/plain");
+
+	if (uri->refresh > 0 && !(si->applet.ctx.stats.flags & STAT_NO_REFRESH))
+		chunk_appendf(&trash, "Refresh: %d\r\n",
+			      uri->refresh);
+
+	chunk_appendf(&trash, "\r\n");
+
+	s->txn.status = 200;
+	s->logs.tv_request = now;
+
+	if (bi_putchk(si->ib, &trash) == -1)
+		return 0;
+
+	return 1;
+}
+
+static int stats_send_http_redirect(struct stream_interface *si)
+{
+	char scope_txt[STAT_SCOPE_TXT_MAXLEN + sizeof STAT_SCOPE_PATTERN];
+	struct session *s = session_from_task(si->owner);
+	struct uri_auth *uri = s->be->uri_auth;
+
+	/* scope_txt = search pattern + search query, si->applet.ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
+	scope_txt[0] = 0;
+	if (si->applet.ctx.stats.scope_len) {
+		strcpy(scope_txt, STAT_SCOPE_PATTERN);
+		memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), bo_ptr(si->ob->buf) + si->applet.ctx.stats.scope_str, si->applet.ctx.stats.scope_len);
+		scope_txt[strlen(STAT_SCOPE_PATTERN) + si->applet.ctx.stats.scope_len] = 0;
+	}
+
+	/* We don't want to land on the posted stats page because a refresh will
+	 * repost the data. We don't want this to happen on accident so we redirect
+	 * the browse to the stats page with a GET.
+	 */
+	chunk_printf(&trash,
+		     "HTTP/1.1 303 See Other\r\n"
+		     "Cache-Control: no-cache\r\n"
+		     "Content-Type: text/plain\r\n"
+		     "Connection: close\r\n"
+		     "Location: %s;st=%s%s%s%s\r\n"
+		     "\r\n",
+		     uri->uri_prefix,
+		     ((si->applet.ctx.stats.st_code > STAT_STATUS_INIT) &&
+		      (si->applet.ctx.stats.st_code < STAT_STATUS_SIZE) &&
+		      stat_status_codes[si->applet.ctx.stats.st_code]) ?
+		     stat_status_codes[si->applet.ctx.stats.st_code] :
+		     stat_status_codes[STAT_STATUS_UNKN],
+		     (si->applet.ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
+		     (si->applet.ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+		     scope_txt);
+
+	s->txn.status = 303;
+	s->logs.tv_request = now;
+
+	if (bi_putchk(si->ib, &trash) == -1)
+		return 0;
+
+	return 1;
+}
+
 /* This I/O handler runs as an applet embedded in a stream interface. It is
  * used to send HTTP stats over a TCP socket. The mechanism is very simple.
  * si->applet.st0 contains the operation in progress (dump, done). The handler
@@ -3495,14 +3771,35 @@ static void http_stats_io_handler(struct stream_interface *si)
 	if (res->flags & (CF_SHUTW|CF_SHUTW_NOW))
 		si->applet.st0 = STAT_HTTP_DONE;
 
-	switch (si->applet.st0) {
-	case STAT_HTTP_DUMP:
-		if (stats_dump_stat_to_buffer(si, s->be->uri_auth)) {
-			si->applet.st0 = STAT_HTTP_DONE;
-			si_shutw(si);
+	/* all states are processed in sequence */
+	if (si->applet.st0 == STAT_HTTP_HEAD) {
+		if (stats_send_http_headers(si)) {
+			if (s->txn.meth == HTTP_METH_HEAD)
+				si->applet.st0 = STAT_HTTP_DONE;
+			else
+				si->applet.st0 = STAT_HTTP_DUMP;
 		}
-		break;
 	}
+
+	if (si->applet.st0 == STAT_HTTP_DUMP) {
+		if (stats_dump_stat_to_buffer(si, s->be->uri_auth))
+			si->applet.st0 = STAT_HTTP_DONE;
+	}
+
+	if (si->applet.st0 == STAT_HTTP_POST) {
+		if (stats_process_http_post(si))
+			si->applet.st0 = STAT_HTTP_LAST;
+		else if (si->ob->flags & CF_SHUTR)
+			si->applet.st0 = STAT_HTTP_DONE;
+	}
+
+	if (si->applet.st0 == STAT_HTTP_LAST) {
+		if (stats_send_http_redirect(si))
+			si->applet.st0 = STAT_HTTP_DONE;
+	}
+
+	if (si->applet.st0 == STAT_HTTP_DONE)
+		si_shutw(si);
 
 	if ((res->flags & CF_SHUTR) && (si->state == SI_ST_EST))
 		si_shutw(si);

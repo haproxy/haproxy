@@ -57,7 +57,10 @@
 /* HTTP stats : applet.st0 */
 enum {
 	STAT_HTTP_DONE = 0,  /* finished */
+	STAT_HTTP_HEAD,      /* send headers before dump */
 	STAT_HTTP_DUMP,      /* dumping stats */
+	STAT_HTTP_POST,      /* waiting post data */
+	STAT_HTTP_LAST,      /* sending last chunk of response */
 };
 
 /* HTML form to limit output scope */

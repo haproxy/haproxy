@@ -2789,208 +2789,12 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 	return 0;
 }
 
-/* We reached the stats page through a POST request.
- * Parse the posted data and enable/disable servers if necessary.
- * Returns 1 if request was parsed or zero if it needs more data.
- */
-int http_process_req_stat_post(struct stream_interface *si, struct http_txn *txn, struct channel *req)
-{
-	struct proxy *px = NULL;
-	struct server *sv = NULL;
 
-	char key[LINESIZE];
-	int action = ST_ADM_ACTION_NONE;
-	int reprocess = 0;
-
-	int total_servers = 0;
-	int altered_servers = 0;
-
-	char *first_param, *cur_param, *next_param, *end_params;
-	char *st_cur_param = NULL;
-	char *st_next_param = NULL;
-
-	first_param = req->buf->p + txn->req.eoh + 2;
-	end_params  = first_param + txn->req.body_len;
-
-	cur_param = next_param = end_params;
-
-	if (end_params >= req->buf->data + req->buf->size - global.tune.maxrewrite) {
-		/* Prevent buffer overflow */
-		si->applet.ctx.stats.st_code = STAT_STATUS_EXCD;
-		return 1;
-	}
-	else if (end_params > req->buf->p + req->buf->i) {
-		/* we need more data */
-		si->applet.ctx.stats.st_code = STAT_STATUS_NONE;
-		return 0;
-	}
-
-	*end_params = '\0';
-
-	si->applet.ctx.stats.st_code = STAT_STATUS_NONE;
-
-	/*
-	 * Parse the parameters in reverse order to only store the last value.
-	 * From the html form, the backend and the action are at the end.
-	 */
-	while (cur_param > first_param) {
-		char *value;
-		int poffset, plen;
-
-		cur_param--;
-		if ((*cur_param == '&') || (cur_param == first_param)) {
- reprocess_servers:
-			/* Parse the key */
-			poffset = (cur_param != first_param ? 1 : 0);
-			plen = next_param - cur_param + (cur_param == first_param ? 1 : 0);
-			if ((plen > 0) && (plen <= sizeof(key))) {
-				strncpy(key, cur_param + poffset, plen);
-				key[plen - 1] = '\0';
-			} else {
-				si->applet.ctx.stats.st_code = STAT_STATUS_EXCD;
-				goto out;
-			}
-
-			/* Parse the value */
-			value = key;
-			while (*value != '\0' && *value != '=') {
-				value++;
-			}
-			if (*value == '=') {
-				/* Ok, a value is found, we can mark the end of the key */
-				*value++ = '\0';
-			}
-
-			if (url_decode(key) < 0 || url_decode(value) < 0)
-				break;
-
-			/* Now we can check the key to see what to do */
-			if (!px && (strcmp(key, "b") == 0)) {
-				if ((px = findproxy(value, PR_CAP_BE)) == NULL) {
-					/* the backend name is unknown or ambiguous (duplicate names) */
-					si->applet.ctx.stats.st_code = STAT_STATUS_ERRP;
-					goto out;
-				}
-			}
-			else if (!action && (strcmp(key, "action") == 0)) {
-				if (strcmp(value, "disable") == 0) {
-					action = ST_ADM_ACTION_DISABLE;
-				}
-				else if (strcmp(value, "enable") == 0) {
-					action = ST_ADM_ACTION_ENABLE;
-				}
-				else if (strcmp(value, "stop") == 0) {
-					action = ST_ADM_ACTION_STOP;
-				}
-				else if (strcmp(value, "start") == 0) {
-					action = ST_ADM_ACTION_START;
-				}
-				else if (strcmp(value, "shutdown") == 0) {
-					action = ST_ADM_ACTION_SHUTDOWN;
-				}
-				else {
-					si->applet.ctx.stats.st_code = STAT_STATUS_ERRP;
-					goto out;
-				}
-			}
-			else if (strcmp(key, "s") == 0) {
-				if (!(px && action)) {
-					/*
-					 * Indicates that we'll need to reprocess the parameters
-					 * as soon as backend and action are known
-					 */
-					if (!reprocess) {
-						st_cur_param  = cur_param;
-						st_next_param = next_param;
-					}
-					reprocess = 1;
-				}
-				else if ((sv = findserver(px, value)) != NULL) {
-					switch (action) {
-					case ST_ADM_ACTION_DISABLE:
-						if ((px->state != PR_STSTOPPED) && !(sv->state & SRV_MAINTAIN)) {
-							/* Not already in maintenance, we can change the server state */
-							sv->state |= SRV_MAINTAIN;
-							set_server_down(&sv->check);
-							altered_servers++;
-							total_servers++;
-						}
-						break;
-					case ST_ADM_ACTION_ENABLE:
-						if ((px->state != PR_STSTOPPED) && (sv->state & SRV_MAINTAIN)) {
-							/* Already in maintenance, we can change the server state */
-							set_server_up(&sv->check);
-							sv->check.health = sv->check.rise;	/* up, but will fall down at first failure */
-							altered_servers++;
-							total_servers++;
-						}
-						break;
-					case ST_ADM_ACTION_STOP:
-					case ST_ADM_ACTION_START:
-						if (action == ST_ADM_ACTION_START)
-							sv->uweight = sv->iweight;
-						else
-							sv->uweight = 0;
-
-						server_recalc_eweight(sv);
-						set_server_drain_state(sv);
-
-						altered_servers++;
-						total_servers++;
-						break;
-					case ST_ADM_ACTION_SHUTDOWN:
-						if (px->state != PR_STSTOPPED) {
-							struct session *sess, *sess_bck;
-
-							list_for_each_entry_safe(sess, sess_bck, &sv->actconns, by_srv)
-								if (sess->srv_conn == sv)
-									session_shutdown(sess, SN_ERR_KILLED);
-
-							altered_servers++;
-							total_servers++;
-						}
-						break;
-					}
-				} else {
-					/* the server name is unknown or ambiguous (duplicate names) */
-					total_servers++;
-				}
-			}
-			if (reprocess && px && action) {
-				/* Now, we know the backend and the action chosen by the user.
-				 * We can safely restart from the first server parameter
-				 * to reprocess them
-				 */
-				cur_param  = st_cur_param;
-				next_param = st_next_param;
-				reprocess = 0;
-				goto reprocess_servers;
-			}
-
-			next_param = cur_param;
-		}
-	}
-
-	if (total_servers == 0) {
-		si->applet.ctx.stats.st_code = STAT_STATUS_NONE;
-	}
-	else if (altered_servers == 0) {
-		si->applet.ctx.stats.st_code = STAT_STATUS_ERRP;
-	}
-	else if (altered_servers == total_servers) {
-		si->applet.ctx.stats.st_code = STAT_STATUS_DONE;
-	}
-	else {
-		si->applet.ctx.stats.st_code = STAT_STATUS_PART;
-	}
- out:
-	return 1;
-}
-
-/* This function checks whether we need to enable a POST analyser to parse a
- * stats request, and also registers the stats I/O handler. It returns zero
- * if it needs to come back again, otherwise non-zero if it finishes. In the
- * latter case, it also clears the request analysers.
+/* This function prepares an applet to handle the stats. It can deal with the
+ * "100-continue" expectation, check that admin rules are met for POST requests,
+ * and program a response message if something was unexpected. It cannot fail
+ * and always relies on the stats applet to complete the job. It does not touch
+ * analysers nor counters.
  */
 int http_handle_stats(struct session *s, struct channel *req)
 {
@@ -2998,7 +2802,6 @@ int http_handle_stats(struct session *s, struct channel *req)
 	struct stream_interface *si = s->rep->prod;
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->req;
-	struct uri_auth *uri = s->be->uri_auth;
 
 	/* now check whether we have some admin rules for this request */
 	list_for_each_entry(stats_admin_rule, &s->be->uri_auth->admin_rules, list) {
@@ -3019,9 +2822,7 @@ int http_handle_stats(struct session *s, struct channel *req)
 	}
 
 	/* Was the status page requested with a POST ? */
-	if (unlikely(txn->meth == HTTP_METH_POST)) {
-		char scope_txt[STAT_SCOPE_TXT_MAXLEN + sizeof STAT_SCOPE_PATTERN];
-
+	if (unlikely(txn->meth == HTTP_METH_POST && txn->req.body_len > 0)) {
 		if (si->applet.ctx.stats.flags & STAT_ADMIN) {
 			if (msg->msg_state < HTTP_MSG_100_SENT) {
 				/* If we have HTTP/1.1 and Expect: 100-continue, then we must
@@ -3039,100 +2840,22 @@ int http_handle_stats(struct session *s, struct channel *req)
 				msg->msg_state = HTTP_MSG_100_SENT;
 				s->logs.tv_request = now;  /* update the request timer to reflect full request */
 			}
-			if (!http_process_req_stat_post(si, txn, req))
-				return 0;   /* we need more data */
+			s->rep->prod->applet.st0 = STAT_HTTP_POST;
 		}
-		else
+		else {
 			si->applet.ctx.stats.st_code = STAT_STATUS_DENY;
-		/* scope_txt = search pattern + search query, si->applet.ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
-		scope_txt[0] = 0;
-		if (si->applet.ctx.stats.scope_len) {
-			strcpy(scope_txt, STAT_SCOPE_PATTERN);
-			memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), bo_ptr(req->buf) + si->applet.ctx.stats.scope_str, si->applet.ctx.stats.scope_len);
-			scope_txt[strlen(STAT_SCOPE_PATTERN) + si->applet.ctx.stats.scope_len] = 0;
+			s->rep->prod->applet.st0 = STAT_HTTP_LAST;
 		}
-
-
-		/* We don't want to land on the posted stats page because a refresh will
-		 * repost the data. We don't want this to happen on accident so we redirect
-		 * the browse to the stats page with a GET.
-		 */
-		chunk_printf(&trash,
-		             "HTTP/1.1 303 See Other\r\n"
-		             "Cache-Control: no-cache\r\n"
-		             "Content-Type: text/plain\r\n"
-		             "Connection: close\r\n"
-		             "Location: %s;st=%s%s%s%s\r\n"
-		             "\r\n",
-		             uri->uri_prefix,
-		             ((si->applet.ctx.stats.st_code > STAT_STATUS_INIT) &&
-		              (si->applet.ctx.stats.st_code < STAT_STATUS_SIZE) &&
-		              stat_status_codes[si->applet.ctx.stats.st_code]) ?
-		             stat_status_codes[si->applet.ctx.stats.st_code] :
-		             stat_status_codes[STAT_STATUS_UNKN],
-			     (si->applet.ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
-			     (si->applet.ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
-			     scope_txt);
-
-		s->txn.status = 303;
-		s->logs.tv_request = now;
-		stream_int_retnclose(req->prod, &trash);
-		s->target = &http_stats_applet.obj_type; /* just for logging the applet name */
-
-		if (s->fe == s->be) /* report it if the request was intercepted by the frontend */
-			s->fe->fe_counters.intercepted_req++;
-
-		if (!(s->flags & SN_ERR_MASK))      // this is not really an error but it is
-			s->flags |= SN_ERR_LOCAL;   // to mark that it comes from the proxy
-		if (!(s->flags & SN_FINST_MASK))
-			s->flags |= SN_FINST_R;
-		req->analysers = 0;
-		return 1;
 	}
-
-	/* OK, let's go on now */
-
-	chunk_printf(&trash,
-	             "HTTP/1.0 200 OK\r\n"
-	             "Cache-Control: no-cache\r\n"
-	             "Connection: close\r\n"
-	             "Content-Type: %s\r\n",
-	             (si->applet.ctx.stats.flags & STAT_FMT_HTML) ? "text/html" : "text/plain");
-
-	if (uri->refresh > 0 && !(si->applet.ctx.stats.flags & STAT_NO_REFRESH))
-		chunk_appendf(&trash, "Refresh: %d\r\n",
-		              uri->refresh);
-
-	chunk_appendf(&trash, "\r\n");
-
-	s->txn.status = 200;
-	s->logs.tv_request = now;
-
-	if (s->fe == s->be) /* report it if the request was intercepted by the frontend */
-		s->fe->fe_counters.intercepted_req++;
-
-	if (!(s->flags & SN_ERR_MASK))      // this is not really an error but it is
-		s->flags |= SN_ERR_LOCAL;   // to mark that it comes from the proxy
-	if (!(s->flags & SN_FINST_MASK))
-		s->flags |= SN_FINST_R;
-
-	if (s->txn.meth == HTTP_METH_HEAD) {
-		/* that's all we return in case of HEAD request, so let's immediately close. */
-		stream_int_retnclose(req->prod, &trash);
-		s->target = &http_stats_applet.obj_type; /* just for logging the applet name */
-		req->analysers = 0;
-		return 1;
+	else {
+		/* So it was another method (GET/HEAD) */
+		s->rep->prod->applet.st0 = STAT_HTTP_HEAD;
 	}
-
-	/* OK, push the response and hand over to the stats I/O handler */
-	bi_putchk(s->rep, &trash);
 
 	s->task->nice = -32; /* small boost for HTTP statistics */
 	stream_int_register_handler(s->rep->prod, &http_stats_applet);
 	s->target = s->rep->prod->conn->target; // for logging only
-	s->rep->prod->applet.st0 = STAT_HTTP_DUMP;
 	s->rep->prod->applet.st1 = s->rep->prod->applet.st2 = 0;
-	req->analysers = 0;
 	return 1;
 }
 
@@ -3799,12 +3522,18 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 
 	if (unlikely(do_stats)) {
 		/* process the stats request now */
-		if (!http_handle_stats(s, req)) {
-			/* we need more data, let's come back here later */
-			req->analysers |= an_bit;
-			channel_dont_connect(req);
-			return 0;
-		}
+		http_handle_stats(s, req);
+
+		if (s->fe == s->be) /* report it if the request was intercepted by the frontend */
+			s->fe->fe_counters.intercepted_req++;
+
+		if (!(s->flags & SN_ERR_MASK))      // this is not really an error but it is
+			s->flags |= SN_ERR_LOCAL;   // to mark that it comes from the proxy
+		if (!(s->flags & SN_FINST_MASK))
+			s->flags |= SN_FINST_R;
+
+		req->analyse_exp = TICK_ETERNITY;
+		req->analysers = 0;
 		return 1;
 	}
 
