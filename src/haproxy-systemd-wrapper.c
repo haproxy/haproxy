@@ -83,7 +83,7 @@ static int read_pids(char ***pid_strv)
 	return read;
 }
 
-static void signal_handler(int signum __attribute__((unused)))
+static void sigusr2_handler(int signum __attribute__((unused)))
 {
 	int i;
 	char **pid_strv = NULL;
@@ -93,6 +93,21 @@ static void signal_handler(int signum __attribute__((unused)))
 
 	for (i = 0; i < nb_pid; ++i)
 		free(pid_strv[i]);
+	free(pid_strv);
+}
+
+static void sigint_handler(int signum __attribute__((unused)))
+{
+	int i, pid;
+	char **pid_strv = NULL;
+	int nb_pid = read_pids(&pid_strv);
+	for (i = 0; i < nb_pid; ++i) {
+		pid = atoi(pid_strv[i]);
+		if (pid > 0) {
+			kill(pid, SIGINT);
+			free(pid_strv[i]);
+		}
+	}
 	free(pid_strv);
 }
 
@@ -117,7 +132,8 @@ int main(int argc, char **argv)
 
 	init(argc, argv);
 
-	signal(SIGUSR2, &signal_handler);
+	signal(SIGINT, &sigint_handler);
+	signal(SIGUSR2, &sigusr2_handler);
 
 	spawn_haproxy(NULL, 0);
 	while (-1 != wait(NULL) || errno == EINTR);
