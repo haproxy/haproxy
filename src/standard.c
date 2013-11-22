@@ -1625,6 +1625,27 @@ int buf2ip(const char *buf, size_t len, struct in_addr *dst)
 	return addr - cp;
 }
 
+/* This function converts the string in <buf> of the len <len> to
+ * struct in6_addr <dst> which must be allocated by the caller.
+ * This function returns 1 in success case, otherwise zero.
+ */
+#define MAX_IP6_LEN 45
+int buf2ip6(const char *buf, size_t len, struct in6_addr *dst)
+{
+	char null_term_ip6[MAX_IP6_LEN + 1];
+
+	if (len > MAX_IP6_LEN)
+		return 0;
+
+	memcpy(null_term_ip6, buf, len);
+	null_term_ip6[len] = '\0';
+
+	if (!inet_pton(AF_INET6, null_term_ip6, dst))
+		return 0;
+
+	return 1;
+}
+
 /* To be used to quote config arg positions. Returns the short string at <ptr>
  * surrounded by simple quotes if <ptr> is valid and non-empty, or "end of line"
  * if ptr is NULL or empty. The string is locally allocated.

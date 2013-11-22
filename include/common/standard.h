@@ -527,6 +527,7 @@ int word_match(const char *sample, int slen, const char *word, int wlen);
  * or the number of chars read in case of success.
  */
 int buf2ip(const char *buf, size_t len, struct in_addr *dst);
+int buf2ip6(const char *buf, size_t len, struct in6_addr *dst);
 
 /* To be used to quote config arg positions. Returns the string at <ptr>
  * surrounded by simple quotes if <ptr> is valid and non-empty, or "end of line"
