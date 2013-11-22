@@ -44,7 +44,7 @@ enum {
 	ARGT_TAB,      /* a pointer to a stick table */
 	ARGT_SRV,      /* a pointer to a server */
 	ARGT_USR,      /* a pointer to a user list */
-	ARGT_UNASSIGNED15, /* will probably be used for variables later */
+	ARGT_MAP,      /* a pointer to a map descriptor */
 	ARGT_NBTYPES   /* no more values past 15 */
 };
 
@@ -73,6 +73,7 @@ union arg_data {
 	struct proxy *prx; /* used for fe, be, tables */
 	struct server *srv;
 	struct userlist *usr;
+	struct map_descriptor *map;
 };
 
 struct arg {
