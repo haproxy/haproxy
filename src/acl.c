@@ -1834,6 +1834,44 @@ struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, co
 	return cond;
 }
 
+/* This function execute the match part of the acl.
+ * it return ACL_PAT_FAIL, ACL_PAT_MISS or ACL_PAT_PASS
+ */
+inline int acl_exec_match(struct acl_expr *expr, struct sample *smp)
+{
+	int acl_res = ACL_PAT_FAIL;
+	struct acl_pattern *pattern;
+
+	if (expr->match == acl_match_nothing) {
+		if (smp->data.uint)
+			acl_res |= ACL_PAT_PASS;
+		else
+			acl_res |= ACL_PAT_FAIL;
+	}
+	else if (!expr->match) {
+		/* just check for existence */
+		acl_res |= ACL_PAT_PASS;
+	}
+	else {
+		if (!eb_is_empty(&expr->pattern_tree)) {
+			/* a tree is present, let's check what type it is */
+			if (expr->match == acl_match_str)
+				acl_res |= acl_lookup_str(smp, expr) ? ACL_PAT_PASS : ACL_PAT_FAIL;
+			else if (expr->match == acl_match_ip)
+				acl_res |= acl_lookup_ip(smp, expr) ? ACL_PAT_PASS : ACL_PAT_FAIL;
+		}
+
+		/* call the match() function for all tests on this value */
+		list_for_each_entry(pattern, &expr->patterns, list) {
+			if (acl_res == ACL_PAT_PASS)
+				break;
+			acl_res |= expr->match(smp, pattern);
+		}
+	}
+
+	return acl_res;
+}
+
 /* Execute condition <cond> and return either ACL_PAT_FAIL, ACL_PAT_MISS or
  * ACL_PAT_PASS depending on the test results. ACL_PAT_MISS may only be
  * returned if <opt> does not contain SMP_OPT_FINAL, indicating that incomplete
@@ -1855,7 +1893,6 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 	struct acl_term *term;
 	struct acl_expr *expr;
 	struct acl *acl;
-	struct acl_pattern *pattern;
 	struct sample smp;
 	int acl_res, suite_res, cond_res;
 
@@ -1900,32 +1937,7 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 					continue;
 				}
 
-				if (expr->match == acl_match_nothing) {
-					if (smp.data.uint)
-						acl_res |= ACL_PAT_PASS;
-					else
-						acl_res |= ACL_PAT_FAIL;
-				}
-				else if (!expr->match) {
-					/* just check for existence */
-					acl_res |= ACL_PAT_PASS;
-				}
-				else {
-					if (!eb_is_empty(&expr->pattern_tree)) {
-						/* a tree is present, let's check what type it is */
-						if (expr->match == acl_match_str)
-							acl_res |= acl_lookup_str(&smp, expr) ? ACL_PAT_PASS : ACL_PAT_FAIL;
-						else if (expr->match == acl_match_ip)
-							acl_res |= acl_lookup_ip(&smp, expr) ? ACL_PAT_PASS : ACL_PAT_FAIL;
-					}
-
-					/* call the match() function for all tests on this value */
-					list_for_each_entry(pattern, &expr->patterns, list) {
-						if (acl_res == ACL_PAT_PASS)
-							break;
-						acl_res |= expr->match(&smp, pattern);
-					}
-				}
+				acl_res |= acl_exec_match(expr, &smp);
 				/*
 				 * OK now acl_res holds the result of this expression
 				 * as one of ACL_PAT_FAIL, ACL_PAT_MISS or ACL_PAT_PASS.

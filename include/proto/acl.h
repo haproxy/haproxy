@@ -138,6 +138,11 @@ int acl_find_targets(struct proxy *p);
  */
 struct acl *find_acl_by_name(const char *name, struct list *head);
 
+/* This function execute the match part of the acl.
+ * it return ACL_PAT_FAIL, ACL_PAT_MISS or ACL_PAT_PASS
+ */
+inline int acl_exec_match(struct acl_expr *expr, struct sample *smp);
+
 /*
  * Registers the ACL keyword list <kwl> as a list of valid keywords for next
  * parsing sessions.
