@@ -37,7 +37,7 @@ static struct acl_kw_list acl_keywords = {
 	.list = LIST_HEAD_INIT(acl_keywords.list)
 };
 
-static char *acl_match_names[ACL_MATCH_NUM] = {
+char *acl_match_names[ACL_MATCH_NUM] = {
 	[ACL_MATCH_FOUND] = "found",
 	[ACL_MATCH_BOOL]  = "bool",
 	[ACL_MATCH_INT]   = "int",
@@ -53,7 +53,7 @@ static char *acl_match_names[ACL_MATCH_NUM] = {
 	[ACL_MATCH_REG]   = "reg",
 };
 
-static int (*acl_parse_fcts[ACL_MATCH_NUM])(const char **, struct acl_pattern *, int *, char **) = {
+int (*acl_parse_fcts[ACL_MATCH_NUM])(const char **, struct acl_pattern *, int *, char **) = {
 	[ACL_MATCH_FOUND] = acl_parse_nothing,
 	[ACL_MATCH_BOOL]  = acl_parse_nothing,
 	[ACL_MATCH_INT]   = acl_parse_int,
@@ -69,7 +69,7 @@ static int (*acl_parse_fcts[ACL_MATCH_NUM])(const char **, struct acl_pattern *,
 	[ACL_MATCH_REG]   = acl_parse_reg,
 };
 
-static int (*acl_match_fcts[ACL_MATCH_NUM])(struct sample *, struct acl_pattern *) = {
+int (*acl_match_fcts[ACL_MATCH_NUM])(struct sample *, struct acl_pattern *) = {
 	[ACL_MATCH_FOUND] = NULL,
 	[ACL_MATCH_BOOL]  = acl_match_nothing,
 	[ACL_MATCH_INT]   = acl_match_int,

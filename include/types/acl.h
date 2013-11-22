@@ -231,6 +231,9 @@ struct acl_cond {
 	int line;                   /* line in the config file where the condition is declared */
 };
 
+extern char *acl_match_names[ACL_MATCH_NUM];
+extern int (*acl_parse_fcts[ACL_MATCH_NUM])(const char **, struct acl_pattern *, int *, char **);
+extern int (*acl_match_fcts[ACL_MATCH_NUM])(struct sample *, struct acl_pattern *);
 
 #endif /* _TYPES_ACL_H */
 
