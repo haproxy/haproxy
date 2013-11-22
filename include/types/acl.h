@@ -105,6 +105,14 @@ struct acl_time {
 	int h2:5, m2:6;         /* 0..24:0..60. Use 24:0 for all day. */
 };
 
+/* This contain each tree indexed entry. This struct permit to associate
+ * "sample" with a tree entry. It is used with maps.
+ */
+struct acl_idx_elt {
+	struct sample_storage *smp;
+	struct ebmb_node node;
+};
+
 /* This describes one ACL pattern, which might be a single value or a tree of
  * values. All patterns for a single ACL expression are linked together. Some
  * of them might have a type (eg: IP). Right now, the types are shared with
@@ -142,6 +150,9 @@ struct acl_pattern {
 	void(*freeptrbuf)(void *ptr);	/* a destructor able to free objects from the ptr */
 	int len;                        /* data length when required  */
 	int flags;                      /* expr or pattern flags. */
+	struct sample_storage *smp;     /* used to store a pointer to sample value associated
+	                                   with the match. It is used with maps */
+
 };
 
 /* some dummy declarations to silent the compiler */
@@ -164,7 +175,7 @@ struct acl_expr;
 struct acl_keyword {
 	const char *kw;
 	char *fetch_kw;
-	int (*parse)(const char **text, struct acl_pattern *pattern, int *opaque, char **err);
+	int (*parse)(const char **text, struct acl_pattern *pattern, struct sample_storage *smp, int *opaque, char **err);
 	int (*match)(struct sample *smp, struct acl_pattern *pattern);
 	/* must be after the config params */
 	struct sample_fetch *smp; /* the sample fetch we depend on */
@@ -190,7 +201,7 @@ struct acl_kw_list {
  * are grouped together in order to optimize caching.
  */
 struct acl_expr {
-	int (*parse)(const char **text, struct acl_pattern *pattern, int *opaque, char **err);
+	int (*parse)(const char **text, struct acl_pattern *pattern, struct sample_storage *smp, int *opaque, char **err);
 	int (*match)(struct sample *smp, struct acl_pattern *pattern);
 	struct sample_expr *smp;      /* the sample expression we depend on */
 	struct list patterns;         /* list of acl_patterns */
@@ -232,7 +243,7 @@ struct acl_cond {
 };
 
 extern char *acl_match_names[ACL_MATCH_NUM];
-extern int (*acl_parse_fcts[ACL_MATCH_NUM])(const char **, struct acl_pattern *, int *, char **);
+extern int (*acl_parse_fcts[ACL_MATCH_NUM])(const char **, struct acl_pattern *, struct sample_storage *, int *, char **);
 extern int (*acl_match_fcts[ACL_MATCH_NUM])(struct sample *, struct acl_pattern *);
 
 #endif /* _TYPES_ACL_H */

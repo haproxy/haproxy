@@ -8920,13 +8920,14 @@ smp_prefetch_http(struct proxy *px, struct session *s, void *l7, unsigned int op
  * We use the pre-parsed method if it is known, and store its number as an
  * integer. If it is unknown, we use the pointer and the length.
  */
-static int acl_parse_meth(const char **text, struct acl_pattern *pattern, int *opaque, char **err)
+static int acl_parse_meth(const char **text, struct acl_pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
 {
 	int len, meth;
 
 	len  = strlen(*text);
 	meth = find_http_meth(*text, len);
 
+	pattern->smp = smp;
 	pattern->val.i = meth;
 	if (meth == HTTP_METH_OTHER) {
 		pattern->ptr.str = strdup(*text);

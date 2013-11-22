@@ -125,7 +125,7 @@ int acl_cond_kw_conflicts(const struct acl_cond *cond, unsigned int where, struc
  * fails, with <err> message filled. It returns -2 in "out of memory"
  * error case.
  */
-int acl_register_pattern(struct acl_expr *expr, char *text, struct acl_pattern **pattern, int patflags, char **err);
+int acl_register_pattern(struct acl_expr *expr, char *text, struct sample_storage *smp, struct acl_pattern **pattern, int patflags, char **err);
 
 /*
  * Find targets for userlist and groups in acl. Function returns the number
@@ -138,10 +138,12 @@ int acl_find_targets(struct proxy *p);
  */
 struct acl *find_acl_by_name(const char *name, struct list *head);
 
-/* This function execute the match part of the acl.
- * it return ACL_PAT_FAIL, ACL_PAT_MISS or ACL_PAT_PASS
+/* This function execute the match part of the acl. It's applying
+ * acl <expr> on sample <smp>. <sample> is filled only if the pointer
+ * is not NULL. The function return ACL_PAT_FAIL, ACL_PAT_MISS or
+ * ACL_PAT_PASS
  */
-inline int acl_exec_match(struct acl_expr *expr, struct sample *smp);
+inline int acl_exec_match(struct acl_expr *expr, struct sample *smp, struct sample_storage **sample);
 
 /*
  * Registers the ACL keyword list <kwl> as a list of valid keywords for next
@@ -168,7 +170,7 @@ int init_acl();
 
 
 /* ignore the current line */
-int acl_parse_nothing(const char **text, struct acl_pattern *pattern, int *opaque, char **err);
+int acl_parse_nothing(const char **text, struct acl_pattern *pattern, struct sample_storage *smp, int *opaque, char **err);
 
 /* NB: For two strings to be identical, it is required that their lengths match */
 int acl_match_str(struct sample *smp, struct acl_pattern *pattern);
@@ -183,34 +185,34 @@ int acl_match_len(struct sample *smp, struct acl_pattern *pattern);
 int acl_match_int(struct sample *smp, struct acl_pattern *pattern);
 
 /* Parse an integer. It is put both in min and max. */
-int acl_parse_int(const char **text, struct acl_pattern *pattern, int *opaque, char **err);
+int acl_parse_int(const char **text, struct acl_pattern *pattern, struct sample_storage *smp, int *opaque, char **err);
 
 /* Parse an version. It is put both in min and max. */
-int acl_parse_dotted_ver(const char **text, struct acl_pattern *pattern, int *opaque, char **err);
+int acl_parse_dotted_ver(const char **text, struct acl_pattern *pattern, struct sample_storage *smp, int *opaque, char **err);
 
 /* Parse a range of integers delimited by either ':' or '-'. If only one
  * integer is read, it is set as both min and max.
  */
-int acl_parse_range(const char **text, struct acl_pattern *pattern, int *opaque, char **err);
+int acl_parse_range(const char **text, struct acl_pattern *pattern, struct sample_storage *smp, int *opaque, char **err);
 
 /* Parse a string. It is allocated and duplicated. */
-int acl_parse_str(const char **text, struct acl_pattern *pattern, int *opaque, char **err);
+int acl_parse_str(const char **text, struct acl_pattern *pattern, struct sample_storage *smp, int *opaque, char **err);
 
 /* Parse a hexa binary definition. It is allocated and duplicated. */
-int acl_parse_bin(const char **text, struct acl_pattern *pattern, int *opaque, char **err);
+int acl_parse_bin(const char **text, struct acl_pattern *pattern, struct sample_storage *smp, int *opaque, char **err);
 
 /* Parse and concatenate strings into one. It is allocated and duplicated. */
-int acl_parse_strcat(const char **text, struct acl_pattern *pattern, int *opaque, char **err);
+int acl_parse_strcat(const char **text, struct acl_pattern *pattern, struct sample_storage *smp, int *opaque, char **err);
 
 /* Parse a regex. It is allocated. */
-int acl_parse_reg(const char **text, struct acl_pattern *pattern, int *opaque, char **err);
+int acl_parse_reg(const char **text, struct acl_pattern *pattern, struct sample_storage *smp, int *opaque, char **err);
 
 /* Parse an IP address and an optional mask in the form addr[/mask].
  * The addr may either be an IPv4 address or a hostname. The mask
  * may either be a dotted mask or a number of bits. Returns 1 if OK,
  * otherwise 0.
  */
-int acl_parse_ip(const char **text, struct acl_pattern *pattern, int *opaque, char **err);
+int acl_parse_ip(const char **text, struct acl_pattern *pattern, struct sample_storage *smp, int *opaque, char **err);
 
 /* always return false */
 int acl_match_nothing(struct sample *smp, struct acl_pattern *pattern);
