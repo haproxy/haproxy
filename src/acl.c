@@ -900,6 +900,50 @@ static struct acl_expr *prune_acl_expr(struct acl_expr *expr)
 	return expr;
 }
 
+/* return 1 if the process is ok
+ * return -1 if the parser fail. The err message is filled.
+ * return -2 if out of memory
+ */
+int acl_register_pattern(struct acl_expr *expr, char *text,
+                         struct acl_pattern **pattern,
+                         int patflags, char **err)
+{
+	const char *args[2];
+	int opaque = 0;
+
+	args[0] = text;
+	args[1] = "";
+
+	/* we keep the previous pattern along iterations as long as it's not used */
+	if (!*pattern)
+		*pattern = (struct acl_pattern *)malloc(sizeof(**pattern));
+	if (!*pattern)
+		return -1;
+
+	memset(*pattern, 0, sizeof(**pattern));
+	(*pattern)->flags = patflags;
+
+	if (!((*pattern)->flags & ACL_PAT_F_IGNORE_CASE) &&
+	    (expr->match == acl_match_str || expr->match == acl_match_ip)) {
+		/* we pre-set the data pointer to the tree's head so that functions
+		 * which are able to insert in a tree know where to do that.
+		 */
+		(*pattern)->flags |= ACL_PAT_F_TREE_OK;
+		(*pattern)->val.tree = &expr->pattern_tree;
+	}
+
+	(*pattern)->type = SMP_TYPES; /* unspecified type by default */
+	if (!expr->parse(args, *pattern, &opaque, err))
+		return -1;
+
+	/* if the parser did not feed the tree, let's chain the pattern to the list */
+	if (!((*pattern)->flags & ACL_PAT_F_TREE)) {
+		LIST_ADDQ(&expr->patterns, &(*pattern)->list);
+		*pattern = NULL; /* get a new one */
+	}
+
+	return 1;
+}
 
 /* Reads patterns from a file. If <err_msg> is non-NULL, an error message will
  * be returned there on errors and the caller will have to free it.
@@ -910,11 +954,11 @@ static int acl_read_patterns_from_file(struct acl_expr *expr,
 {
 	FILE *file;
 	char *c;
-	const char *args[2];
+	char *arg;
 	struct acl_pattern *pattern;
-	int opaque;
 	int ret = 0;
 	int line = 0;
+	int code;
 
 	file = fopen(filename, "r");
 	if (!file) {
@@ -926,9 +970,7 @@ static int acl_read_patterns_from_file(struct acl_expr *expr,
 	 * line. If the line contains spaces, they will be part of the pattern.
 	 * The pattern stops at the first CR, LF or EOF encountered.
 	 */
-	opaque = 0;
 	pattern = NULL;
-	args[1] = "";
 	while (fgets(trash.str, trash.size, file) != NULL) {
 		line++;
 		c = trash.str;
@@ -942,43 +984,23 @@ static int acl_read_patterns_from_file(struct acl_expr *expr,
 			c++;
 
 
-		args[0] = c;
+		arg = c;
 		while (*c && *c != '\n' && *c != '\r')
 			c++;
 		*c = 0;
 
 		/* empty lines are ignored too */
-		if (c == args[0])
+		if (c == arg)
 			continue;
 
-		/* we keep the previous pattern along iterations as long as it's not used */
-		if (!pattern)
-			pattern = (struct acl_pattern *)malloc(sizeof(*pattern));
-		if (!pattern) {
+		code = acl_register_pattern(expr, arg, &pattern, patflags, err);
+		if (code == -2) {
 			memprintf(err, "out of memory when loading patterns from file <%s>", filename);
 			goto out_close;
 		}
-
-		memset(pattern, 0, sizeof(*pattern));
-		pattern->flags = patflags;
-
-		if (!(pattern->flags & ACL_PAT_F_IGNORE_CASE) &&
-		    (expr->match == acl_match_str || expr->match == acl_match_ip)) {
-			/* we pre-set the data pointer to the tree's head so that functions
-			 * which are able to insert in a tree know where to do that.
-			 */
-			pattern->flags |= ACL_PAT_F_TREE_OK;
-			pattern->val.tree = &expr->pattern_tree;
-		}
-
-		pattern->type = SMP_TYPES; /* unspecified type by default */
-		if (!expr->parse(args, pattern, &opaque, err))
+		else if (code < 0) {
+			memprintf(err, "%s when loading patterns from file <%s>", *err, filename);
 			goto out_free_pattern;
-
-		/* if the parser did not feed the tree, let's chain the pattern to the list */
-		if (!(pattern->flags & ACL_PAT_F_TREE)) {
-			LIST_ADDQ(&expr->patterns, &pattern->list);
-			pattern = NULL; /* get a new one */
 		}
 	}
 

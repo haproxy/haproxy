@@ -112,6 +112,21 @@ const struct acl *acl_cond_conflicts(const struct acl_cond *cond, unsigned int w
  */
 int acl_cond_kw_conflicts(const struct acl_cond *cond, unsigned int where, struct acl const **acl, char const **kw);
 
+/* parse the <text> with <expr> compliant parser. <pattern> is a context for
+ * the current parsed acl. It must initialized at NULL:
+ *
+ *    struct acl_pattern *pattern = NULL
+ *    acl_register_pattern(..., &pattern, ...);
+ *
+ * patflag are a combination of 'ACL_PAT_F_*' flags pattern compatible. see
+ * <types/acl.h>.
+ *
+ * The function returns 1 if the processing is ok, return -1 if the parser
+ * fails, with <err> message filled. It returns -2 in "out of memory"
+ * error case.
+ */
+int acl_register_pattern(struct acl_expr *expr, char *text, struct acl_pattern **pattern, int patflags, char **err);
+
 /*
  * Find targets for userlist and groups in acl. Function returns the number
  * of errors or OK if everything is fine.
