@@ -54,6 +54,12 @@
 #define STAT_CLI_O_SET  10  /* set entries in tables */
 #define STAT_CLI_O_STAT 11  /* dump stats */
 
+/* HTTP stats : applet.st0 */
+enum {
+	STAT_HTTP_DONE = 0,  /* finished */
+	STAT_HTTP_DUMP,      /* dumping stats */
+};
+
 /* HTML form to limit output scope */
 #define STAT_SCOPE_TXT_MAXLEN 20      /* max len for scope substring */
 #define STAT_SCOPE_INPUT_NAME "scope" /* pattern form scope name <input> in html form */

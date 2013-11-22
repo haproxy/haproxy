@@ -3479,7 +3479,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 
 /* This I/O handler runs as an applet embedded in a stream interface. It is
  * used to send HTTP stats over a TCP socket. The mechanism is very simple.
- * si->applet.st0 becomes non-zero once the transfer is finished. The handler
+ * si->applet.st0 contains the operation in progress (dump, done). The handler
  * automatically unregisters itself once transfer is complete.
  */
 static void http_stats_io_handler(struct stream_interface *si)
@@ -3493,21 +3493,25 @@ static void http_stats_io_handler(struct stream_interface *si)
 
 	/* check that the output is not closed */
 	if (res->flags & (CF_SHUTW|CF_SHUTW_NOW))
-		si->applet.st0 = 1;
+		si->applet.st0 = STAT_HTTP_DONE;
 
-	if (!si->applet.st0) {
+	switch (si->applet.st0) {
+	case STAT_HTTP_DUMP:
 		if (stats_dump_stat_to_buffer(si, s->be->uri_auth)) {
-			si->applet.st0 = 1;
+			si->applet.st0 = STAT_HTTP_DONE;
 			si_shutw(si);
 		}
+		break;
 	}
 
 	if ((res->flags & CF_SHUTR) && (si->state == SI_ST_EST))
 		si_shutw(si);
 
-	if ((req->flags & CF_SHUTW) && (si->state == SI_ST_EST) && si->applet.st0) {
-		si_shutr(si);
-		res->flags |= CF_READ_NULL;
+	if (si->applet.st0 == STAT_HTTP_DONE) {
+		if ((req->flags & CF_SHUTW) && (si->state == SI_ST_EST)) {
+			si_shutr(si);
+			res->flags |= CF_READ_NULL;
+		}
 	}
 
 	/* update all other flags and resync with the other side */
