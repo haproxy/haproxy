@@ -50,6 +50,12 @@ int parse_track_counters(char **args, int *arg,
 			 struct track_ctr_prm *prm,
 			 struct proxy *defpx, char **err);
 
+/* returns the session from a void *owner */
+static inline struct session *session_from_task(struct task *t)
+{
+	return (struct session *)t->context;
+}
+
 /* Remove the refcount from the session to the tracked counters, and clear the
  * pointer to ensure this is only performed once. The caller is responsible for
  * ensuring that the pointer is valid first.
