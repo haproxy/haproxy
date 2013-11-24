@@ -169,7 +169,7 @@ struct stream_interface {
 	/* struct members below are the "remote" part, as seen from the buffer side */
 	int conn_retries;	/* number of connect retries left */
 	int send_proxy_ofs;	/* <0 = offset to (re)send from the end, >0 = send all */
-	struct appctx applet;   /* context of the running applet if any */
+	struct appctx appctx;   /* context of the running applet if any */
 };
 
 /* An applet designed to run in a stream interface */

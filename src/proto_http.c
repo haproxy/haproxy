@@ -2806,16 +2806,16 @@ int http_handle_stats(struct session *s, struct channel *req)
 	struct uri_auth *uri_auth = s->be->uri_auth;
 	const char *uri, *h, *lookup;
 
-	memset(&si->applet.ctx.stats, 0, sizeof(si->applet.ctx.stats));
-	si->applet.ctx.stats.st_code = STAT_STATUS_INIT;
-	si->applet.ctx.stats.flags |= STAT_FMT_HTML; /* assume HTML mode by default */
+	memset(&si->appctx.ctx.stats, 0, sizeof(si->appctx.ctx.stats));
+	si->appctx.ctx.stats.st_code = STAT_STATUS_INIT;
+	si->appctx.ctx.stats.flags |= STAT_FMT_HTML; /* assume HTML mode by default */
 
 	uri = msg->chn->buf->p + msg->sl.rq.u;
 	lookup = uri + uri_auth->uri_len;
 
 	for (h = lookup; h <= uri + msg->sl.rq.u_l - 3; h++) {
 		if (memcmp(h, ";up", 3) == 0) {
-			si->applet.ctx.stats.flags |= STAT_HIDE_DOWN;
+			si->appctx.ctx.stats.flags |= STAT_HIDE_DOWN;
 			break;
 		}
 	}
@@ -2823,7 +2823,7 @@ int http_handle_stats(struct session *s, struct channel *req)
 	if (uri_auth->refresh) {
 		for (h = lookup; h <= uri + msg->sl.rq.u_l - 10; h++) {
 			if (memcmp(h, ";norefresh", 10) == 0) {
-				si->applet.ctx.stats.flags |= STAT_NO_REFRESH;
+				si->appctx.ctx.stats.flags |= STAT_NO_REFRESH;
 				break;
 			}
 		}
@@ -2831,7 +2831,7 @@ int http_handle_stats(struct session *s, struct channel *req)
 
 	for (h = lookup; h <= uri + msg->sl.rq.u_l - 4; h++) {
 		if (memcmp(h, ";csv", 4) == 0) {
-			si->applet.ctx.stats.flags &= ~STAT_FMT_HTML;
+			si->appctx.ctx.stats.flags &= ~STAT_FMT_HTML;
 			break;
 		}
 	}
@@ -2840,10 +2840,10 @@ int http_handle_stats(struct session *s, struct channel *req)
 		if (memcmp(h, ";st=", 4) == 0) {
 			int i;
 			h += 4;
-			si->applet.ctx.stats.st_code = STAT_STATUS_UNKN;
+			si->appctx.ctx.stats.st_code = STAT_STATUS_UNKN;
 			for (i = STAT_STATUS_INIT + 1; i < STAT_STATUS_SIZE; i++) {
 				if (strncmp(stat_status_codes[i], h, 4) == 0) {
-					si->applet.ctx.stats.st_code = i;
+					si->appctx.ctx.stats.st_code = i;
 					break;
 				}
 			}
@@ -2851,8 +2851,8 @@ int http_handle_stats(struct session *s, struct channel *req)
 		}
 	}
 
-	si->applet.ctx.stats.scope_str = 0;
-	si->applet.ctx.stats.scope_len = 0;
+	si->appctx.ctx.stats.scope_str = 0;
+	si->appctx.ctx.stats.scope_len = 0;
 	for (h = lookup; h <= uri + msg->sl.rq.u_l - 8; h++) {
 		if (memcmp(h, STAT_SCOPE_INPUT_NAME "=", strlen(STAT_SCOPE_INPUT_NAME) + 1) == 0) {
 			int itx = 0;
@@ -2862,7 +2862,7 @@ int http_handle_stats(struct session *s, struct channel *req)
 
 			h += strlen(STAT_SCOPE_INPUT_NAME) + 1;
 			h2 = h;
-			si->applet.ctx.stats.scope_str = h2 - msg->chn->buf->p;
+			si->appctx.ctx.stats.scope_str = h2 - msg->chn->buf->p;
 			while (*h != ';' && *h != '\0' && *h != '&' && *h != ' ' && *h != '\n') {
 				itx++;
 				h++;
@@ -2870,16 +2870,16 @@ int http_handle_stats(struct session *s, struct channel *req)
 
 			if (itx > STAT_SCOPE_TXT_MAXLEN)
 				itx = STAT_SCOPE_TXT_MAXLEN;
-			si->applet.ctx.stats.scope_len = itx;
+			si->appctx.ctx.stats.scope_len = itx;
 
-			/* scope_txt = search query, si->applet.ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
+			/* scope_txt = search query, si->appctx.ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
 			memcpy(scope_txt, h2, itx);
 			scope_txt[itx] = '\0';
 			err = invalid_char(scope_txt);
 			if (err) {
 				/* bad char in search text => clear scope */
-				si->applet.ctx.stats.scope_str = 0;
-				si->applet.ctx.stats.scope_len = 0;
+				si->appctx.ctx.stats.scope_str = 0;
+				si->appctx.ctx.stats.scope_len = 0;
 			}
 			break;
 		}
@@ -2898,14 +2898,14 @@ int http_handle_stats(struct session *s, struct channel *req)
 
 		if (ret) {
 			/* no rule, or the rule matches */
-			s->rep->prod->applet.ctx.stats.flags |= STAT_ADMIN;
+			s->rep->prod->appctx.ctx.stats.flags |= STAT_ADMIN;
 			break;
 		}
 	}
 
 	/* Was the status page requested with a POST ? */
 	if (unlikely(txn->meth == HTTP_METH_POST && txn->req.body_len > 0)) {
-		if (si->applet.ctx.stats.flags & STAT_ADMIN) {
+		if (si->appctx.ctx.stats.flags & STAT_ADMIN) {
 			if (msg->msg_state < HTTP_MSG_100_SENT) {
 				/* If we have HTTP/1.1 and Expect: 100-continue, then we must
 				 * send an HTTP/1.1 100 Continue intermediate response.
@@ -2922,21 +2922,21 @@ int http_handle_stats(struct session *s, struct channel *req)
 				msg->msg_state = HTTP_MSG_100_SENT;
 				s->logs.tv_request = now;  /* update the request timer to reflect full request */
 			}
-			s->rep->prod->applet.st0 = STAT_HTTP_POST;
+			s->rep->prod->appctx.st0 = STAT_HTTP_POST;
 		}
 		else {
-			si->applet.ctx.stats.st_code = STAT_STATUS_DENY;
-			s->rep->prod->applet.st0 = STAT_HTTP_LAST;
+			si->appctx.ctx.stats.st_code = STAT_STATUS_DENY;
+			s->rep->prod->appctx.st0 = STAT_HTTP_LAST;
 		}
 	}
 	else {
 		/* So it was another method (GET/HEAD) */
-		s->rep->prod->applet.st0 = STAT_HTTP_HEAD;
+		s->rep->prod->appctx.st0 = STAT_HTTP_HEAD;
 	}
 
 	s->task->nice = -32; /* small boost for HTTP statistics */
 	stream_int_register_handler(s->rep->prod, &http_stats_applet);
-	s->rep->prod->applet.st1 = s->rep->prod->applet.st2 = 0;
+	s->rep->prod->appctx.st1 = s->rep->prod->appctx.st2 = 0;
 	return 1;
 }
 
