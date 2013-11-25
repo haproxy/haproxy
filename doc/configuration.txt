@@ -7700,6 +7700,10 @@ agent-check
 
     This currently has the same behaviour as "down".
 
+  Failure to connect to the agent is not considered an error as connectivity
+  is tested by the regular health check which is enabled by the "check"
+  parameter.
+
   Requires the ""agent-port" parameter to be set.
   See also the "agent-check" parameter.
 
