@@ -49,17 +49,16 @@ int conn_fd_handler(int fd)
 	conn_refresh_polling_flags(conn);
 	flags = conn->flags & ~CO_FL_ERROR; /* ensure to call the wake handler upon error */
 
-	if (unlikely(conn->flags & CO_FL_ERROR))
-		goto leave;
-
  process_handshake:
 	/* The handshake callbacks are called in sequence. If either of them is
 	 * missing something, it must enable the required polling at the socket
 	 * layer of the connection. Polling state is not guaranteed when entering
 	 * these handlers, so any handshake handler which does not complete its
-	 * work must explicitly disable events it's not interested in.
+	 * work must explicitly disable events it's not interested in. Error
+	 * handling is also performed here in order to reduce the number of tests
+	 * around.
 	 */
-	while (unlikely(conn->flags & CO_FL_HANDSHAKE)) {
+	while (unlikely(conn->flags & (CO_FL_HANDSHAKE | CO_FL_ERROR))) {
 		if (unlikely(conn->flags & (CO_FL_ERROR|CO_FL_WAIT_RD|CO_FL_WAIT_WR)))
 			goto leave;
 
@@ -117,13 +116,10 @@ int conn_fd_handler(int fd)
 		conn->data->send(conn);
 	}
 
-	if (unlikely(conn->flags & CO_FL_ERROR))
-		goto leave;
-
 	/* It may happen during the data phase that a handshake is
 	 * enabled again (eg: SSL)
 	 */
-	if (unlikely(conn->flags & CO_FL_HANDSHAKE))
+	if (unlikely(conn->flags & (CO_FL_HANDSHAKE | CO_FL_ERROR)))
 		goto process_handshake;
 
 	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN) && !(conn->flags & CO_FL_WAIT_WR)) {
