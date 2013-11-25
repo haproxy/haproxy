@@ -603,6 +603,18 @@ static void set_server_enabled(struct check *check) {
 			set_server_enabled(check);
 }
 
+static void check_failed(struct check *check)
+{
+	struct server *s = check->server;
+
+	if (check->health > s->rise) {
+		check->health--; /* still good */
+		s->counters.failed_checks++;
+	}
+	else
+		set_server_down(check);
+}
+
 void health_adjust(struct server *s, short status)
 {
 	int failed;
@@ -660,13 +672,7 @@ void health_adjust(struct server *s, short status)
 		case HANA_ONERR_FAILCHK:
 		/* simulate a failed health check */
 			set_server_check_status(&s->check, HCHK_STATUS_HANA, trash.str);
-
-			if (s->check.health > s->rise) {
-				s->check.health--; /* still good */
-				s->counters.failed_checks++;
-			}
-			else
-				set_server_down(&s->check);
+			check_failed(&s->check);
 
 			break;
 
@@ -1397,12 +1403,7 @@ static struct task *process_chk(struct task *t)
 		/* here, we have seen a synchronous error, no fd was allocated */
 
 		check->state &= ~CHK_STATE_RUNNING;
-		if (check->health > s->rise) {
-			check->health--; /* still good */
-			s->counters.failed_checks++;
-		}
-		else
-			set_server_down(check);
+		check_failed(check);
 
 		/* we allow up to min(inter, timeout.connect) for a connection
 		 * to establish but only when timeout.check is set
@@ -1470,14 +1471,8 @@ static struct task *process_chk(struct task *t)
 			conn_full_close(conn);
 		}
 
-		if (check->result & SRV_CHK_FAILED) {    /* a failure or timeout detected */
-			if (check->health > s->rise) {
-				check->health--; /* still good */
-				s->counters.failed_checks++;
-			}
-			else
-				set_server_down(check);
-		}
+		if (check->result & SRV_CHK_FAILED)  /* a failure or timeout detected */
+			check_failed(check);
 		else {  /* check was OK */
 			/* we may have to add/remove this server from the LB group */
 			if ((s->state & SRV_RUNNING) && (s->proxy->options & PR_O_DISABLE404)) {
