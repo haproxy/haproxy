@@ -398,7 +398,7 @@ void set_server_down(struct check *check)
 		check->health = s->rise;
 	}
 
-	if (check->health == s->rise || s->track) {
+	if ((s->state & SRV_RUNNING && check->health == s->rise) || s->track) {
 		int srv_was_paused = s->state & SRV_GOINGDOWN;
 		int prev_srv_count = s->proxy->srv_bck + s->proxy->srv_act;
 
@@ -465,7 +465,8 @@ void set_server_up(struct check *check) {
 		check->health = s->rise;
 	}
 
-	if (check->health == s->rise || s->track) {
+	if ((s->check.health >= s->rise && s->agent.health >= s->rise &&
+	     check->health == s->rise) || s->track) {
 		if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
 			if (s->proxy->last_change < now.tv_sec)		// ignore negative times
 				s->proxy->down_time += now.tv_sec - s->proxy->last_change;
@@ -1314,8 +1315,11 @@ static struct task *process_chk(struct task *t)
 		check->bo->p = check->bo->data;
 		check->bo->o = 0;
 
-		/* prepare the check buffer */
-		if (check->type) {
+	       /* prepare the check buffer
+	        * This should not be used if check is the secondary agent check
+	        * of a server as s->proxy->check_req will relate to the
+	        * configuration of the primary check */
+	       if (check->type && check != &s->agent) {
 			bo_putblk(check->bo, s->proxy->check_req, s->proxy->check_len);
 
 			/* we want to check if this host replies to HTTP or SSLv3 requests
@@ -1584,12 +1588,20 @@ int start_checks() {
 	 */
 	for (px = proxy; px; px = px->next) {
 		for (s = px->srv; s; s = s->next) {
-			if (!(s->state & SRV_CHECKED))
-				continue;
+			/* A task for the main check */
+			if (s->state & SRV_CHECKED) {
+				if (!start_check_task(&s->check, mininter, nbcheck, srvpos))
+					return -1;
+				srvpos++;
+			}
 
-			if (!start_check_task(&s->check, mininter, nbcheck, srvpos))
-				return -1;
-			srvpos++;
+			/* A task for a auxiliary agent check */
+			if (s->state & SRV_AGENT_CHECKED) {
+				if (!start_check_task(&s->agent, mininter, nbcheck, srvpos)) {
+					return -1;
+				}
+				srvpos++;
+			}
 		}
 	}
 	return 0;

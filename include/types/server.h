@@ -55,6 +55,9 @@
 /* unused: 0x0100, 0x0200, 0x0400 */
 #define SRV_SEND_PROXY	0x0800	/* this server talks the PROXY protocol */
 #define SRV_NON_STICK	0x1000	/* never add connections allocated to this server to a stick table */
+#define SRV_AGENT_CHECKED  0x2000  /* this server needs to be checked using an agent check.
+				    * This is run independently of the main check whose
+				    * presence is indicated by the SRV_CHECKED flag */
 
 /* function which act on servers need to return various errors */
 #define SRV_STATUS_OK       0   /* everything is OK. */
@@ -190,6 +193,7 @@ struct server {
 	} check_common;
 
 	struct check check;                     /* health-check specific configuration */
+	struct check agent;                     /* agent specific configuration */
 
 #ifdef USE_OPENSSL
 	int use_ssl;				/* ssl enabled */
