@@ -127,6 +127,8 @@
 #define	DEF_CHKINTR     2000
 #define DEF_FALLTIME    3
 #define DEF_RISETIME    2
+#define DEF_AGENT_FALLTIME    1
+#define DEF_AGENT_RISETIME    1
 #define DEF_CHECK_REQ   "OPTIONS / HTTP/1.0\r\n"
 #define DEF_SMTP_CHECK_REQ   "HELO localhost\r\n"
 #define DEF_LDAP_CHECK_REQ   "\x30\x0c\x02\x01\x01\x60\x07\x02\x01\x03\x04\x00\x80\x00"

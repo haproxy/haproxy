@@ -123,8 +123,9 @@ struct check {
 	int inter, fastinter, downinter;        /* checks: time in milliseconds */
 	int result;				/* health-check result : SRV_CHK_* */
 	int state;				/* health-check result : CHK_* */
-	int health;				/* 0 to server->rise-1 = bad;
-						 * rise to server->rise+server->fall-1 = good */
+	int health;				/* 0 to rise-1 = bad;
+						 * rise to rise+fall-1 = good */
+	int rise, fall;				/* time in iterations */
 	int type;				/* Check type, one of PR_O2_*_CHK */
 	struct server *server;			/* back-pointer to server */
 };
@@ -157,7 +158,6 @@ struct server {
 	struct server *tracknext, *track;	/* next server in a tracking list, tracked server */
 	char *trackit;				/* temporary variable to make assignment deferrable */
 	int consecutive_errors;			/* current number of consecutive errors */
-	int rise, fall;				/* time in iterations */
 	int consecutive_errors_limit;		/* number of consecutive errors that triggers an event */
 	short observe, onerror;			/* observing mode: one of HANA_OBS_*; what to do on error: on of ANA_ONERR_* */
 	short onmarkeddown;			/* what to do when marked down: one of HANA_ONMARKEDDOWN_* */
