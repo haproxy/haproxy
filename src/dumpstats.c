@@ -1112,6 +1112,12 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				return 1;
 
 			warning = server_parse_weight_change_request(sv, args[3]);
+			/*
+			 * The user-weight may now be zero and thus
+			 * the server considered to be draining.
+			 * Update the server's drain state as necessary.
+			 */
+			set_server_drain_state(sv);
 			if (warning) {
 				si->applet.ctx.cli.msg = warning;
 				si->applet.st0 = STAT_CLI_PRINT;
@@ -2124,7 +2130,8 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
  * from stream interface <si>, stats flags <flags>, and server state <state>.
  * The caller is responsible for clearing the trash if needed. Returns non-zero
  * if it emits anything, zero otherwise. The <state> parameter can take the
- * following values : 0=DOWN, 1=going up, 2=going down, 3=UP, 4,5=NOLB, 6=unchecked.
+ * following values : 0=DOWN, 1=going up, 2=going down, 3=UP, 4,5=NOLB,
+ * 6,7=DRAIN, 8=unchecked.
  */
 static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, int flags, struct server *sv, int state)
 {
@@ -2134,19 +2141,21 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 	int i;
 
 	if (si->applet.ctx.stats.flags & STAT_FMT_HTML) {
-		static char *srv_hlt_st[7] = {
+		static char *srv_hlt_st[9] = {
 			"DOWN",
 			"DN %d/%d &uarr;",
 			"UP %d/%d &darr;",
 			"UP",
 			"NOLB %d/%d &darr;",
 			"NOLB",
+			"DRAIN %d/%d &darr;",
+			"DRAIN",
 			"<i>no check</i>"
 		};
 
 		if ((sv->state & SRV_MAINTAIN) || (ref->state & SRV_MAINTAIN))
 			chunk_appendf(&trash, "<tr class=\"maintain\">");
-		else if (sv->eweight == 0)
+		else if (sv->eweight == 0 && !(sv->state & SRV_DRAIN))
 			chunk_appendf(&trash, "<tr class=\"softstop\">");
 		else
 			chunk_appendf(&trash,
@@ -2354,13 +2363,15 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			chunk_appendf(&trash, "<td class=ac>-</td></tr>\n");
 	}
 	else { /* CSV mode */
-		static char *srv_hlt_st[7] = {
+		static char *srv_hlt_st[9] = {
 			"DOWN,",
 			"DOWN %d/%d,",
 			"UP %d/%d,",
 			"UP,",
 			"NOLB %d/%d,",
 			"NOLB,",
+			"DRAIN %d/%d,",
+			"DRAIN,",
 			"no check,"
 		};
 
@@ -2964,7 +2975,7 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 
 			/* FIXME: produce some small strings for "UP/DOWN x/y &#xxxx;" */
 			if (!(svs->state & SRV_CHECKED))
-				sv_state = 6;
+				sv_state = 8;
 			else if (svs->state & SRV_RUNNING) {
 				if (svs->check.health == svs->check.rise + svs->check.fall - 1)
 					sv_state = 3; /* UP */
@@ -2973,6 +2984,8 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 
 				if (svs->state & SRV_GOINGDOWN)
 					sv_state += 2;
+				else if (svs->state & SRV_DRAIN)
+					sv_state += 4;
 			}
 			else
 				if (svs->check.health)
@@ -3085,14 +3098,18 @@ static void stats_dump_html_head(struct uri_auth *uri)
 	              ".active3	{background: #c0ffc0;}\n"
 	              ".active4	{background: #ffffa0;}\n"  /* NOLB state shows same as going down */
 	              ".active5	{background: #a0e0a0;}\n"  /* NOLB state shows darker than up */
-	              ".active6	{background: #e0e0e0;}\n"
+	              ".active6	{background: #ffffa0;}\n"
+	              ".active7	{background: #cc9900;}\n"
+	              ".active8	{background: #e0e0e0;}\n"
 	              ".backup0	{background: #ff9090;}\n"
 	              ".backup1	{background: #ff80ff;}\n"
 	              ".backup2	{background: #c060ff;}\n"
 	              ".backup3	{background: #b0d0ff;}\n"
 	              ".backup4	{background: #c060ff;}\n"  /* NOLB state shows same as going down */
 	              ".backup5	{background: #90b0e0;}\n"  /* NOLB state shows same as going down */
-	              ".backup6	{background: #e0e0e0;}\n"
+	              ".backup6	{background: #c060ff;}\n"
+	              ".backup7	{background: #cc9900;}\n"
+	              ".backup8	{background: #e0e0e0;}\n"
 	              ".maintain	{background: #c07820;}\n"
 	              ".softstop	{background: #0067FF;}\n"
 	              ".rls      {letter-spacing: 0.2em; margin-right: 1px;}\n" /* right letter spacing (used for grouping digits) */
@@ -3178,7 +3195,9 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 	              "<td class=\"backup1\"></td><td class=\"noborder\">backup DOWN, going up </td>"
 	              "</tr><tr>\n"
 	              "<td class=\"active0\"></td><td class=\"noborder\">active or backup DOWN &nbsp;</td>"
-	              "<td class=\"active6\"></td><td class=\"noborder\">not checked </td>"
+	              "<td class=\"active7\"></td><td class=\"noborder\">active or backup DRAIN &nbsp;</td>"
+	              "</tr><tr>\n"
+	              "<td class=\"active8\"></td><td class=\"noborder\">not checked </td>"
 	              "</tr><tr>\n"
 	              "<td class=\"maintain\"></td><td class=\"noborder\" colspan=\"3\">active or backup DOWN for maintenance (MAINT) &nbsp;</td>"
 	              "</tr><tr>\n"
@@ -3354,7 +3373,7 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 			break;
 		default:
 			chunk_appendf(&trash,
-			              "<p><div class=active6>"
+			              "<p><div class=active8>"
 			              "<a class=lfsb href=\"%s%s%s%s\" title=\"Remove this message\">[X]</a> "
 			              "Unexpected result."
 			              "</div>\n", uri->uri_prefix,

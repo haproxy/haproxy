@@ -4899,6 +4899,9 @@ stats_error_parsing:
 			}
 		}
 
+		/* Set initial drain state using now-configured weight */
+		set_server_drain_state(newsrv);
+
 		if (do_check) {
 			int ret;
 

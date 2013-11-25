@@ -52,7 +52,8 @@
 #define SRV_GOINGDOWN	0x0020	/* this server says that it's going down (404) */
 #define SRV_WARMINGUP	0x0040	/* this server is warming up after a failure */
 #define SRV_MAINTAIN	0x0080	/* this server is in maintenance mode */
-/* unused: 0x0100, 0x0200, 0x0400 */
+#define SRV_DRAIN	0x0100	/* this server has been requested to drain its connections */
+/* unused: 0x0200, 0x0400 */
 #define SRV_SEND_PROXY	0x0800	/* this server talks the PROXY protocol */
 #define SRV_NON_STICK	0x1000	/* never add connections allocated to this server to a stick table */
 #define SRV_AGENT_CHECKED  0x2000  /* this server needs to be checked using an agent check.

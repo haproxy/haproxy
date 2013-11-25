@@ -86,6 +86,18 @@ const char *server_parse_weight_change_request(struct server *sv,
 					       const char *weight_str);
 
 /*
+ * Update the server's drain state to reflect its user-weight.  This is not
+ * done immediately to allow a discrepancy between the server's user-weight
+ * and drains state to control logging of changes in the drain state.
+ */
+static inline void set_server_drain_state(struct server *s)
+{
+	if (!s->uweight)
+		s->state |= SRV_DRAIN;
+	else
+		s->state &= ~SRV_DRAIN;
+}
+/*
  * Local variables:
  *  c-indent-level: 8
  *  c-basic-offset: 8
