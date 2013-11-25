@@ -1173,7 +1173,6 @@ option httpclose                     (*)  X          X         X         X
 option httplog                            X          X         X         X
 option http_proxy                    (*)  X          X         X         X
 option independent-streams           (*)  X          X         X         X
-option lb-agent-chk                       X          -         X         X
 option ldap-check                         X          -         X         X
 option log-health-checks             (*)  X          -         X         X
 option log-separate-errors           (*)  X          X         X         -
@@ -3823,9 +3822,9 @@ option httpchk <method> <uri> <version>
           option httpchk OPTIONS * HTTP/1.1\r\nHost:\ www
           server apache1 192.168.1.1:443 check port 80
 
-  See also : "option lb-agent-chk", "option ssl-hello-chk", "option smtpchk",
-             "option mysql-check", "option pgsql-check", "http-check" and
-             the "check", "port" and "inter" server options.
+  See also : "option ssl-hello-chk", "option smtpchk", "option mysql-check",
+             "option pgsql-check", "http-check" and the "check", "port" and
+             "inter" server options.
 
 
 option httpclose
@@ -3960,45 +3959,6 @@ no option independent-streams
         deprecated.
 
   See also : "timeout client", "timeout server" and "timeout tunnel"
-
-
-option lb-agent-chk
-  Use a TCP connection to obtain a metric of server health
-  May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |     no   |   yes  |   yes
-  Arguments : none
-
-  This alters health checking behaviour by connecting making a TCP
-  connection and reading an ASCII string. The string should have one of
-  the following forms:
-
-  * An ASCII representation of an positive integer percentage.
-     e.g. "75%"
-
-     Values in this format will set the weight proportional to the initial
-     weight of a server as configured when haproxy starts.
-
-  * The string "drain".
-
-    This will cause the weight of a server to be set to 0, and thus it will
-    not accept any new connections other than those that are accepted via
-    persistence.
-
-  * The string "down", optionally followed by a description string.
-
-    Mark the server as down and log the description string as the reason.
-
-  * The string "stopped", optionally followed by a description string.
-
-    This currently has the same behaviour as down (iii).
-
-  * The string "fail", optionally followed by a description string.
-
-    This currently has the same behaviour as down (iii).
-
-  The use of an alternate check-port, used to obtain agent heath check
-  information described above as opposed to the port of the service, may be
-  useful in conjunction with this option.
 
 
 option ldap-check
@@ -7735,10 +7695,9 @@ check
   backend. It is possible to change the address using the "addr" parameter, the
   port using the "port" parameter, the source address using the "source"
   address, and the interval and timers using the "inter", "rise" and "fall"
-  parameters. The request method is define in the backend using the
-  "httpchk", "lb-agent-chk", "smtpchk", "mysql-check", "pgsql-check" and
-  "ssl-hello-chk" options. Please refer to those options and parameters for
-  more information.
+  parameters. The request method is define in the backend using the "httpchk",
+  "smtpchk", "mysql-check", "pgsql-check" and "ssl-hello-chk" options. Please
+  refer to those options and parameters for more information.
 
   Supported in default-server: No
 
