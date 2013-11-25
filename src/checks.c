@@ -1010,10 +1010,7 @@ static void event_srv_chk_r(struct connection *conn)
 			 */
 			if (end[0] == '\0' || end[0] == ' ' || end[0] == '\t') {
 				status = HCHK_STATUS_L7STS;
-				/* Skip over leading blanks */
-				while (end[0] != '\0' && (end[0] == ' ' || end[0] == '\t'))
-					end++;
-				desc = end;
+				desc = check->bi->data;
 			}
 		}
 
