@@ -12051,6 +12051,28 @@ clear table <table> [ data.<type> <operator> <value> ] | [ key <key> ]
         $ echo "show table http_proxy" | socat stdio /tmp/sock1
     >>> # table: http_proxy, type: ip, size:204800, used:1
 
+enable agent <backend>/<server>
+  Mark the auxiliary agent check as temporarily stopped.
+
+  In the case where an agent check is being run as a auxiliary check, due
+  to the agent-check parameter of a server directive, new checks are only
+  initialised when the agent is in the enabled. Thus, disable agent will
+  prevent any new agent checks from begin initiated until the agent
+  re-enabled using enable agent.
+
+  When an agent is disabled the processing of an auxiliary agent check that
+  was initiated while the agent was set as enabled is as follows: All
+  results that would alter the weight, specifically "drain" or a weight
+  returned by the agent, are ignored. The processing of agent check is
+  otherwise unchanged.
+
+  The motivation for this feature is to allow the weight changing effects
+  of the agent checks to be paused to allow the weight of a server to be
+  configured using set weight without being overridden by the agent.
+
+  This command is restricted and can only be issued on sockets configured for
+  level "admin".
+
 disable frontend <frontend>
   Mark the frontend as temporarily stopped. This corresponds to the mode which
   is used during a soft restart : the frontend releases the port but can be
@@ -12078,6 +12100,15 @@ disable server <backend>/<server>
 
   Both the backend and the server may be specified either by their name or by
   their numeric ID, prefixed with a sharp ('#').
+
+  This command is restricted and can only be issued on sockets configured for
+  level "admin".
+
+enable agent <backend>/<server>
+  Resume auxiliary agent check that was temporarily stopped.
+
+  See "disable agent" for details of the effect of temporarily starting
+  and stopping an auxiliary agent.
 
   This command is restricted and can only be issued on sockets configured for
   level "admin".

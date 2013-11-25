@@ -1294,6 +1294,17 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 		}
 	}
 	else if (strcmp(args[0], "enable") == 0) {
+		if (strcmp(args[1], "agent") == 0) {
+			struct server *sv;
+
+			sv = expect_server_admin(s, si, args[2]);
+			if (!sv)
+				return 1;
+
+			sv->agent.state &= ~CHK_STATE_DISABLED;
+
+			return 1;
+		}
 		if (strcmp(args[1], "server") == 0) {
 			struct server *sv;
 
@@ -1355,7 +1366,18 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 		}
 	}
 	else if (strcmp(args[0], "disable") == 0) {
-		if (strcmp(args[1], "server") == 0) {
+		if (strcmp(args[1], "agent") == 0) {
+			struct server *sv;
+
+			sv = expect_server_admin(s, si, args[2]);
+			if (!sv)
+				return 1;
+
+			sv->agent.state |= CHK_STATE_DISABLED;
+
+			return 1;
+		}
+		else if (strcmp(args[1], "server") == 0) {
 			struct server *sv;
 
 			sv = expect_server_admin(s, si, args[2]);

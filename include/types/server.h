@@ -74,6 +74,7 @@
 
 /* check flags */
 #define CHK_STATE_RUNNING	0x0001  /* this check is currently running */
+#define CHK_STATE_DISABLED	0x0002  /* this check is currently administratively disabled */
 
 /* various constants */
 #define SRV_UWGHT_RANGE 256

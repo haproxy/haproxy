@@ -836,7 +836,6 @@ static void event_srv_chk_w(struct connection *conn)
 	goto out_wakeup;
 }
 
-
 /*
  * This function is used only for server health-checks. It handles the server's
  * reply to an HTTP request, SSL HELLO or MySQL client Auth. It calls
@@ -992,19 +991,36 @@ static void event_srv_chk_r(struct connection *conn)
 		short status = HCHK_STATUS_L7RSP;
 		const char *desc = "Unknown feedback string";
 		const char *down_cmd = NULL;
+		int disabled;
 
 		if (!done)
 			goto wait_more_data;
 
 		cut_crlf(check->bi->data);
 
+		/*
+		 * The agent may have been disabled after a check was
+		 * initialised.  If so, ignore weight changes and drain
+		 * settings from the agent.  Note that the setting is
+		 * always present in the state of the agent the server,
+		 * regardless of if the agent is being run as a primary or
+		 * secondary check. That is, regardless of if the check
+		 * parameter of this function is the agent or check field
+		 * of the server.
+		 */
+		disabled = check->server->agent.state & CHK_STATE_DISABLED;
+
 		if (strchr(check->bi->data, '%')) {
+			if (disabled)
+				break;
 			desc = server_parse_weight_change_request(s, check->bi->data);
 			if (!desc) {
 				status = HCHK_STATUS_L7OKD;
 				desc = check->bi->data;
 			}
 		} else if (!strcasecmp(check->bi->data, "drain")) {
+			if (disabled)
+				break;
 			desc = server_parse_weight_change_request(s, "0%");
 			if (!desc) {
 				desc = "drain";
@@ -1315,10 +1331,14 @@ static struct task *process_chk(struct task *t)
 		if (!expired) /* woke up too early */
 			return t;
 
-		/* we don't send any health-checks when the proxy is stopped or when
-		 * the server should not be checked.
+		/* we don't send any health-checks when the proxy is
+		 * stopped, the server should not be checked or the check
+		 * is disabled.
 		 */
-		if (!(s->state & SRV_CHECKED) || s->proxy->state == PR_STSTOPPED || (s->state & SRV_MAINTAIN))
+		if (!(s->state & SRV_CHECKED) ||
+		    s->proxy->state == PR_STSTOPPED ||
+		    (s->state & SRV_MAINTAIN) ||
+		    (check->state & CHK_STATE_DISABLED))
 			goto reschedule;
 
 		/* we'll initiate a new check */
