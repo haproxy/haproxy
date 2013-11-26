@@ -8334,6 +8334,7 @@ from the request, the response or any environmental status. The principle is
 simple :
 
   - extract a data sample from a stream, table or the environment
+  - optionally apply some format conversion to the extracted sample
   - apply one or multiple pattern matching methods on this sample
   - perform actions only when a pattern matches the sample
 
@@ -8347,8 +8348,10 @@ In order to define a test, the "acl" keyword is used. The syntax is :
 This creates a new ACL <aclname> or completes an existing one with new tests.
 Those tests apply to the portion of request/response specified in <criterion>
 and may be adjusted with optional flags [flags]. Some criteria also support
-an operator which may be specified before the set of values. The values are
-of the type supported by the criterion, and are separated by spaces.
+an operator which may be specified before the set of values. Optionally some
+conversion operators may be applied to the sample, and they will be specified
+as a comma-delimited list of keywords just after the first keyword. The values
+are of the type supported by the criterion, and are separated by spaces.
 
 ACL names must be formed from upper and lower case letters, digits, '-' (dash),
 '_' (underscore) , '.' (dot) and ':' (colon). ACL names are case-sensitive,
@@ -8360,7 +8363,8 @@ performance, they just consume a small amount of memory.
 The criterion generally is the name of a sample fetch method, or one of its ACL
 specific declinations. The default test method is implied by the output type of
 this sample fetch method. The ACL declinations can describe alternate matching
-methods of a same sample fetch method.
+methods of a same sample fetch method. The sample fetch methods are the only
+ones supporting a conversion.
 
 Sample fetch methods return data which can be of the following types :
   - boolean
@@ -8368,6 +8372,12 @@ Sample fetch methods return data which can be of the following types :
   - IPv4 or IPv6 address
   - string
   - data block
+
+Converters transform any of these data into any of these. For example, some
+converters might convert a string to a lower-case string while other ones
+would turn a string to an IPv4 address, or apply a netmask to an IP address.
+The resulting sample is of the type of the last converter applied to the list,
+which defaults to the type of the sample fetch method.
 
 The ACL engine can match these types against patterns of the following types :
   - boolean
@@ -8476,6 +8486,11 @@ buffer, one would use the following acl :
 
     acl script_tag payload(0,500) -m reg -i <script>
 
+On systems where the regex library is much slower when using "-i", it is
+possible to convert the sample to lowercase before matching, like this :
+
+    acl script_tag payload(0,500),lower -m reg <script>
+
 All ACL-specific criteria imply a default matching method. Most often, these
 criteria are composed by concatenating the name of the original sample fetch
 method and the matching method. For example, "hdr_beg" applies the "beg" match
@@ -8493,7 +8508,7 @@ example, all ACLs below are exact equivalent :
     acl alternate3  hdr(host)     -m beg www.
 
 
-The table below summarizes the compatibility matrix between sample fetch types
+The table below summarizes the compatibility matrix between sample types
 and the pattern types to fetch against. It indicates for each compatible
 combination the name of the matching method to be used, prefixed with "*" when
 the method is implicit and will work by default without "-m".
@@ -8789,15 +8804,17 @@ Thus, the syntax of a standard sample fetch method is one of the following :
    - name(arg1)
    - name(arg1,arg2)
 
-At the moment, the stickiness features are the most advanced users of the
-sample fetch system. The "stick on", and "stick store-request" directives
-support sample fetch rules which allow a list of transformations to be applied
-on top of the fetched sample, and the finaly result is automatically converted
-to the type of the table. These transformations are enumerated as a series
-of specific keywords after the sample fetch method. These keywords may equally
-be appended immediately after the fetch keyword's argument, delimited by a
-comma. These keywords can also support some arguments (eg: a netmask) which
-must be passed in parenthesis.
+Sample fetch methods may be combined with transformations to be applied on top
+of the fetched sample (also called "converters"). These combinations form what
+is called "sample expressions" and the result is a "sample". Initially this
+was only supported by "stick on" and "stick store-request" directives but this
+has now be extended to all places where samples may be used (acls, log-format,
+unique-id-format, add-header, ...).
+
+These transformations are enumerated as a series of specific keywords after the
+sample fetch method. These keywords may equally be appended immediately after
+the fetch keyword's argument, delimited by a comma. These keywords can also
+support some arguments (eg: a netmask) which must be passed in parenthesis.
 
 The currently available list of transformation keywords include :
 
