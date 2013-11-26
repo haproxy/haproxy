@@ -260,6 +260,7 @@ struct sample_conv {
 			char **err_msg);          /* argument validation function */
 	unsigned int in_type;                     /* expected input sample type */
 	unsigned int out_type;                    /* output sample type */
+	unsigned int private;                     /* private values. only used by maps */
 };
 
 /* sample conversion expression */
