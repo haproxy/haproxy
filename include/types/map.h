@@ -56,11 +56,10 @@ struct sample_storage;
 struct map_descriptor {
 	struct list list;              /* used for listing */
 	struct map_reference *ref;     /* the reference used for unindexed entries */
-	struct sample_conv *conv;      /* original convertissor descriptor */
+	struct sample_conv *conv;      /* original converter descriptor */
 	int (*parse)(const char *text, /* The function that can parse the output value */
 	             struct sample_storage *smp);
-	struct acl_expr acl;           /* dummy acl expression. just for using the acl
-	                                  match primitive and storage system */
+	struct pattern_expr pat;       /* the pattern matching associated to the map */
 	char *default_value;           /* a copy of default value. This copy is
 	                                  useful if the type is str */
 	struct sample_storage *def;    /* contain the default value */

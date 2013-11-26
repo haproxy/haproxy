@@ -8842,6 +8842,59 @@ The currently available list of transformation keywords include :
                  with a positive offset, or Last-Modified values when the
                  offset is negative.
 
+  map(<map_file>[,<default_value>])
+  map_<match_type>(<map_file>[,<default_value>])
+  map_<match_type>_<output_type>(<map_file>[,<default_value>])
+                 Search the input value from <map_file> using the <match_type>
+                 matching method, and return the associated value converted to
+                 the type <output_type>. If the input value cannot be found in
+                 the <map_file>, the converter returns the <default_value>. If
+                 the <default_value> is not set, the converter fails and acts
+                 as if no input value could be fetched. If the <match_type> is
+                 not set, it defaults to "str". Likewise, if the <output_type>
+                 is not set, it defaults to "str". For convenience, the "map"
+                 keyword is an alias for "map_str" and maps a string to another
+                 string. The following array contains contains the list of all
+                 the map* converters.
+
+                 It is important to avoid overlapping between the keys : IP
+                 addresses and strings are stored in trees, so the first of the
+                 finest match will be used. Other keys are stored in lists, so
+                 the first matching occurrence will be used.
+
+                 +----+----------+---------+-------------+------------+
+                 |     `-_   out |         |             |            |
+                 | input  `-_    |   str   |     int     |     ip     |
+                 | / match   `-_ |         |             |            |
+                 +---------------+---------+-------------+------------+
+                 | str   / str   | map_str | map_str_int | map_str_ip |
+                 | str   / sub   | map_sub | map_sub_int | map_sub_ip |
+                 | str   / dir   | map_dir | map_dir_int | map_dir_ip |
+                 | str   / dom   | map_dom | map_dom_int | map_dom_ip |
+                 | str   / end   | map_end | map_end_int | map_end_ip |
+                 | str   / reg   | map_reg | map_reg_int | map_reg_ip |
+                 | int   / int   | map_int | map_int_int | map_int_ip |
+                 | ip    / ip    | map_ip  | map_ip_int  | map_ip_ip  |
+                 +---------------+---------+-------------+------------+
+
+                 The file contains one key + value per line. Lines which start
+                 with '#' are ignored, just like empty lines. Leading tabs and
+                 spaces are stripped. The key is then the first "word" (series
+                 of non-space/tabs characters), and the value is what follows
+                 this series of space/tab till the end of the line excluding
+                 trailing spaces/tabs.
+
+                 Example :
+
+                 # this is a comment and is ignored
+                    2.22.246.0/23    United Kingdom      \n
+                 <-><-----------><--><------------><---->
+                  |       |      |         |         `- trailing spaces ignored
+                  |       |      |         `----------- value
+                  |       |      `--------------------- middle spaces ignored
+                  |       `---------------------------- key
+                  `------------------------------------ leading spaces ignored
+
 7.3.1. Fetching samples from internal states
 --------------------------------------------
 
@@ -9289,6 +9342,10 @@ src : ip
   behind a proxy. However if the "accept-proxy" bind directive is used, it can
   be the address of a client behind another PROXY-protocol compatible component
   for all rule sets except "tcp-request connection" which sees the real address.
+
+  Example:
+       # add an HTTP header in requests with the originating address' country
+       http-request set-header X-Country %[src,map_ip(geoip.lst)]
 
 src_bytes_in_rate([<table>]) : integer
   Returns the average bytes rate from the incoming connection's source address
