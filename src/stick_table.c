@@ -589,6 +589,7 @@ static sample_to_key_fct sample_to_key[SMP_TYPES][STKTABLE_TYPES] = {
 /* patt. type: BOOL */ { NULL,     NULL,        k_int2int, k_int2str,  NULL      },
 /*             UINT */ { k_int2ip, NULL,        k_int2int, k_int2str,  NULL      },
 /*             SINT */ { k_int2ip, NULL,        k_int2int, k_int2str,  NULL      },
+/*             ADDR */ { k_ip2ip,  k_ip2ipv6,   k_ip2int,  k_ip2str,   NULL      },
 /*             IPV4 */ { k_ip2ip,  k_ip2ipv6,   k_ip2int,  k_ip2str,   NULL      },
 /*             IPV6 */ { k_ip2ip,  k_ip2ipv6,   k_ip2int,  k_ip2str,   NULL      },
 /*              STR */ { k_str2ip, k_str2ipv6,  k_str2int, k_str2str,  k_str2str },

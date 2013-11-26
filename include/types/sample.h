@@ -35,6 +35,7 @@ enum {
 	SMP_T_BOOL = 0,  /* boolean */
 	SMP_T_UINT,      /* unsigned 32bits integer type */
 	SMP_T_SINT,      /* signed 32bits integer type */
+	SMP_T_ADDR,      /* ipv4 or ipv6, only used for input type compatibility */
 	SMP_T_IPV4,      /* ipv4 type */
 	SMP_T_IPV6,      /* ipv6 type */
 	SMP_T_STR,       /* char string type */

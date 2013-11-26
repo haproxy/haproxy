@@ -397,6 +397,7 @@ struct sample_conv *find_sample_conv(const char *kw, int len)
 static int c_ip2int(struct sample *smp)
 {
 	smp->data.uint = ntohl(smp->data.ipv4.s_addr);
+	smp->type = SMP_T_UINT;
 	return 1;
 }
 
@@ -409,6 +410,7 @@ static int c_ip2str(struct sample *smp)
 
 	trash->len = strlen(trash->str);
 	smp->data.str = *trash;
+	smp->type = SMP_T_STR;
 
 	return 1;
 }
@@ -416,6 +418,7 @@ static int c_ip2str(struct sample *smp)
 static int c_ip2ipv6(struct sample *smp)
 {
 	v4tov6(&smp->data.ipv6, &smp->data.ipv4);
+	smp->type = SMP_T_IPV6;
 	return 1;
 }
 
@@ -428,6 +431,7 @@ static int c_ipv62str(struct sample *smp)
 
 	trash->len = strlen(trash->str);
 	smp->data.str = *trash;
+	smp->type = SMP_T_STR;
 	return 1;
 }
 
@@ -441,6 +445,21 @@ static int c_ipv62ip(struct sample *smp)
 static int c_int2ip(struct sample *smp)
 {
 	smp->data.ipv4.s_addr = htonl(smp->data.uint);
+	smp->type = SMP_T_IPV4;
+	return 1;
+}
+
+static int c_str2addr(struct sample *smp)
+{
+	int ret;
+
+	if (!buf2ip(smp->data.str.str, smp->data.str.len, &smp->data.ipv4)) {
+		ret = inet_pton(AF_INET6, smp->data.str.str, &smp->data.ipv6);
+		if (ret)
+			smp->type = SMP_T_IPV6;
+		return ret;
+	}
+	smp->type = SMP_T_IPV4;
 	return 1;
 }
 
@@ -448,12 +467,18 @@ static int c_str2ip(struct sample *smp)
 {
 	if (!buf2ip(smp->data.str.str, smp->data.str.len, &smp->data.ipv4))
 		return 0;
+	smp->type = SMP_T_IPV4;
 	return 1;
 }
 
 static int c_str2ipv6(struct sample *smp)
 {
-	return inet_pton(AF_INET6, smp->data.str.str, &smp->data.ipv6);
+	int ret;
+
+	ret = inet_pton(AF_INET6, smp->data.str.str, &smp->data.ipv6);
+	if (ret)
+		smp->type = SMP_T_IPV6;
+	return ret;
 }
 
 static int c_bin2str(struct sample *smp)
@@ -469,6 +494,7 @@ static int c_bin2str(struct sample *smp)
 		trash->str[trash->len++] = hextab[c & 0xF];
 	}
 	smp->data.str = *trash;
+	smp->type = SMP_T_STR;
 	return 1;
 }
 
@@ -486,16 +512,33 @@ static int c_int2str(struct sample *smp)
 	trash->str = pos;
 	trash->len = strlen(pos);
 	smp->data.str = *trash;
+	smp->type = SMP_T_STR;
 	return 1;
 }
 
-static int c_datadup(struct sample *smp)
+static inline void _c_datadup(struct sample *smp)
 {
 	struct chunk *trash = get_trash_chunk();
 
 	trash->len = smp->data.str.len < trash->size ? smp->data.str.len : trash->size;
 	memcpy(trash->str, smp->data.str.str, trash->len);
 	smp->data.str = *trash;
+}
+
+static int c_datadup(struct sample *smp)
+{
+	_c_datadup(smp);
+	if (smp->type == SMP_T_CSTR)
+		smp->type = SMP_T_STR;
+	else
+		smp->type = SMP_T_BIN;
+	return 1;
+}
+
+static int c_bindup(struct sample *smp)
+{
+	_c_datadup(smp);
+	smp->type = SMP_T_BIN;
 	return 1;
 }
 
@@ -520,6 +563,7 @@ static int c_str2int(struct sample *smp)
 	}
 
 	smp->data.uint = ret;
+	smp->type = SMP_T_UINT;
 	return 1;
 }
 
@@ -530,16 +574,17 @@ static int c_str2int(struct sample *smp)
 /*****************************************************************/
 
 sample_cast_fct sample_casts[SMP_TYPES][SMP_TYPES] = {
-/*            to:  BOOL       UINT       SINT       IPV4      IPV6        STR         BIN        CSTR        CBIN   */
-/* from: BOOL */ { c_none,    c_none,    c_none,    NULL,     NULL,       c_int2str,  NULL,      c_int2str,  NULL   },
-/*       UINT */ { c_none,    c_none,    c_none,    c_int2ip, NULL,       c_int2str,  NULL,      c_int2str,  NULL   },
-/*       SINT */ { c_none,    c_none,    c_none,    c_int2ip, NULL,       c_int2str,  NULL,      c_int2str,  NULL   },
-/*       IPV4 */ { NULL,      c_ip2int,  c_ip2int,  c_none,   c_ip2ipv6,  c_ip2str,   NULL,      c_ip2str,   NULL   },
-/*       IPV6 */ { NULL,      NULL,      NULL,      NULL,     c_none,     c_ipv62str, NULL,      c_ipv62str, NULL   },
-/*        STR */ { c_str2int, c_str2int, c_str2int, c_str2ip, c_str2ipv6, c_none,     c_none,    c_none,     c_none },
-/*        BIN */ { NULL,      NULL,      NULL,      NULL,     NULL,       c_bin2str,  c_none,    c_bin2str,  c_none },
-/*       CSTR */ { c_str2int, c_str2int, c_str2int, c_str2ip, c_str2ipv6, c_datadup,  c_datadup, c_none,     c_none },
-/*       CBIN */ { NULL,      NULL,      NULL,      NULL,     NULL,       c_bin2str,  c_datadup, c_bin2str,  c_none },
+/*            to:  BOOL       UINT       SINT       ADDR        IPV4      IPV6        STR         BIN        CSTR        CBIN    */
+/* from: BOOL */ { c_none,    c_none,    c_none,    NULL,       NULL,     NULL,       c_int2str,  NULL,      c_int2str,  NULL,   },
+/*       UINT */ { c_none,    c_none,    c_none,    c_int2ip,   c_int2ip, NULL,       c_int2str,  NULL,      c_int2str,  NULL,   },
+/*       SINT */ { c_none,    c_none,    c_none,    c_int2ip,   c_int2ip, NULL,       c_int2str,  NULL,      c_int2str,  NULL,   },
+/*       ADDR */ { NULL,      NULL,      NULL,      NULL,       NULL,     NULL,       NULL,       NULL,      NULL,       NULL,   },
+/*       IPV4 */ { NULL,      c_ip2int,  c_ip2int,  c_none,     c_none,   c_ip2ipv6,  c_ip2str,   NULL,      c_ip2str,   NULL,   },
+/*       IPV6 */ { NULL,      NULL,      NULL,      c_none,     NULL,     c_none,     c_ipv62str, NULL,      c_ipv62str, NULL,   },
+/*        STR */ { c_str2int, c_str2int, c_str2int, c_str2addr, c_str2ip, c_str2ipv6, c_none,     c_none,    c_none,     c_none, },
+/*        BIN */ { NULL,      NULL,      NULL,      NULL,       NULL,     NULL,       c_bin2str,  c_none,    c_bin2str,  c_none, },
+/*       CSTR */ { c_str2int, c_str2int, c_str2int, c_str2addr, c_str2ip, c_str2ipv6, c_datadup,  c_bindup,  c_none,     c_none, },
+/*       CBIN */ { NULL,      NULL,      NULL,      NULL,       NULL,     NULL,       c_bin2str,  c_datadup, c_bin2str,  c_none, },
 };
 
 /*
@@ -813,8 +858,6 @@ struct sample *sample_process(struct proxy *px, struct session *l4, void *l7,
 
 		/* OK cast succeeded */
 
-		/* force the output type after a cast */
-		p->type = conv_expr->conv->in_type;
 		if (!conv_expr->conv->process(conv_expr->arg_p, p))
 			return NULL;
 	}
