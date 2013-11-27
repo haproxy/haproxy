@@ -665,19 +665,15 @@ struct stktable_key *stktable_fetch_key(struct stktable *t, struct proxy *px, st
  */
 int stktable_compatible_sample(struct sample_expr *expr, unsigned long table_type)
 {
+	int out_type;
+
 	if (table_type >= STKTABLE_TYPES)
 		return 0;
 
-	if (LIST_ISEMPTY(&expr->conv_exprs)) {
-		if (!sample_to_key[expr->fetch->out_type][table_type])
-			return 0;
-	} else {
-		struct sample_conv_expr *conv_expr;
-		conv_expr = LIST_PREV(&expr->conv_exprs, typeof(conv_expr), list);
+	out_type = smp_expr_output_type(expr);
+	if (!sample_to_key[out_type][table_type])
+		return 0;
 
-		if (!sample_to_key[conv_expr->conv->out_type][table_type])
-			return 0;
-	}
 	return 1;
 }
 
