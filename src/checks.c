@@ -454,10 +454,10 @@ void set_server_down(struct check *check)
 		s->counters.down_trans++;
 
 		if (s->state & SRV_CHECKED)
-			for(srv = s->tracknext; srv; srv = srv->tracknext)
-				if (! (srv->state & SRV_MAINTAIN))
+			for (srv = s->tracknext; srv; srv = srv->tracknext)
+				if (!(srv->state & SRV_MAINTAIN))
 					/* Only notify tracking servers that are not already in maintenance. */
-					set_server_down(check);
+					set_server_down(&srv->check);
 	}
 
 	check->health = 0; /* failure */
@@ -530,10 +530,10 @@ void set_server_up(struct check *check) {
 		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
 
 		if (s->state & SRV_CHECKED)
-			for(srv = s->tracknext; srv; srv = srv->tracknext)
-				if (! (srv->state & SRV_MAINTAIN))
+			for (srv = s->tracknext; srv; srv = srv->tracknext)
+				if (!(srv->state & SRV_MAINTAIN))
 					/* Only notify tracking servers if they're not in maintenance. */
-					set_server_up(check);
+					set_server_up(&srv->check);
 	}
 
 	if (check->health >= check->rise)
