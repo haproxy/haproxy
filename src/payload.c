@@ -16,6 +16,7 @@
 #include <proto/acl.h>
 #include <proto/arg.h>
 #include <proto/channel.h>
+#include <proto/pattern.h>
 #include <proto/payload.h>
 #include <proto/sample.h>
 

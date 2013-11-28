@@ -66,6 +66,7 @@
 #include <proto/freq_ctr.h>
 #include <proto/frontend.h>
 #include <proto/listener.h>
+#include <proto/pattern.h>
 #include <proto/server.h>
 #include <proto/log.h>
 #include <proto/proxy.h>
