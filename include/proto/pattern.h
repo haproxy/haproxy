@@ -22,6 +22,8 @@
 #ifndef _PROTO_PATTERN_H
 #define _PROTO_PATTERN_H
 
+#include <string.h>
+
 #include <common/config.h>
 #include <common/standard.h>
 #include <types/pattern.h>
@@ -40,6 +42,17 @@
  * error case.
  */
 int pattern_register(struct pattern_expr *expr, char *text, struct sample_storage *smp, struct pattern **pattern, int patflags, char **err);
+
+/* return the PAT_MATCH_* index for match name "name", or < 0 if not found */
+static inline int pat_find_match_name(const char *name)
+{
+	int i;
+
+	for (i = 0; i < PAT_MATCH_NUM; i++)
+		if (strcmp(name, pat_match_names[i]) == 0)
+			return i;
+	return -1;
+}
 
 /* This function executes a pattern match on a sample. It applies pattern <expr>
  * to sample <smp>. If <sample> is not NULL, a pointer to an optional sample

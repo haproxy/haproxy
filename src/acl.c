@@ -38,17 +38,6 @@ static struct acl_kw_list acl_keywords = {
 	.list = LIST_HEAD_INIT(acl_keywords.list)
 };
 
-/* return the PAT_MATCH_* index for match name "name", or < 0 if not found */
-static int acl_find_match_name(const char *name)
-{
-	int i;
-
-	for (i = 0; i < PAT_MATCH_NUM; i++)
-		if (strcmp(name, pat_match_names[i]) == 0)
-			return i;
-	return -1;
-}
-
 /* input values are 0 or 3, output is the same */
 static inline enum acl_test_res pat2acl(enum pat_match_res res)
 {
@@ -474,7 +463,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 				goto out_free_expr;
 			}
 
-			idx = acl_find_match_name(args[1]);
+			idx = pat_find_match_name(args[1]);
 			if (idx < 0) {
 				memprintf(err, "unknown matching method '%s' when parsing ACL expression", args[1]);
 				goto out_free_expr;
