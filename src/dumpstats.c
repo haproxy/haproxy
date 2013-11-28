@@ -2349,10 +2349,16 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			              ref->observe ? "/Health Analyses" : "",
 			              ref->counters.down_trans, human_time(srv_downtime(sv), 1));
 		}
-		else if (sv != ref)
-			chunk_appendf(&trash,
-			              "<td class=ac colspan=3><a class=lfsb href=\"#%s/%s\">via %s/%s<a></td>",
-			              ref->proxy->id, ref->id, ref->proxy->id, ref->id);
+		else if (sv != ref) {
+			if (sv->state & SRV_MAINTAIN)
+				chunk_appendf(&trash,
+					      "<td class=ac colspan=3><a class=lfsb href=\"#%s/%s\"><a></td>",
+					      ref->proxy->id, ref->id);
+			else
+				chunk_appendf(&trash,
+					      "<td class=ac colspan=3><a class=lfsb href=\"#%s/%s\">via %s/%s<a></td>",
+					      ref->proxy->id, ref->id, ref->proxy->id, ref->id);
+		}
 		else
 			chunk_appendf(&trash, "<td colspan=3></td>");
 
