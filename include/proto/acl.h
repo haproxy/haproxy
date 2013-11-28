@@ -33,13 +33,13 @@
 /* Negate an acl result. This turns (ACL_MATCH_FAIL, ACL_MATCH_MISS,
  * ACL_MATCH_PASS) into (ACL_MATCH_PASS, ACL_MATCH_MISS, ACL_MATCH_FAIL).
  */
-static inline int acl_neg(int res)
+static inline enum acl_test_res acl_neg(enum acl_test_res res)
 {
 	return (3 >> res);
 }
 
 /* Convert an acl result to a boolean. Only ACL_MATCH_PASS returns 1. */
-static inline int acl_pass(int res)
+static inline int acl_pass(enum acl_test_res res)
 {
 	return (res >> 1);
 }
@@ -79,7 +79,8 @@ struct acl_cond *prune_acl_cond(struct acl_cond *cond);
  * known ACLs passed in <known_acl>. The new condition is returned (or NULL in
  * case of low memory). Supports multiple conditions separated by "or".
  */
-struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int pol, char **err, struct arg_list *al);
+struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl,
+                                enum acl_cond_pol pol, char **err, struct arg_list *al);
 
 /* Builds an ACL condition starting at the if/unless keyword. The complete
  * condition is returned. NULL is returned in case of error or if the first
@@ -97,7 +98,7 @@ struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, co
  * function only computes the condition, it does not apply the polarity required
  * by IF/UNLESS, it's up to the caller to do this.
  */
-int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, void *l7, unsigned int opt);
+enum acl_test_res acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, void *l7, unsigned int opt);
 
 /* Returns a pointer to the first ACL conflicting with usage at place <where>
  * which is one of the SMP_VAL_* bits indicating a check place, or NULL if

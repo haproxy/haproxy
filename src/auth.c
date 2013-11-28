@@ -167,7 +167,7 @@ check_user(struct userlist *ul, unsigned int group_mask, const char *user, const
 		return 0;
 }
 
-int
+enum pat_match_res
 pat_match_auth(struct sample *smp, struct pattern *pattern)
 {
 

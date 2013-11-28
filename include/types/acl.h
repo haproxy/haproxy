@@ -93,7 +93,7 @@ struct acl_keyword {
 	const char *kw;
 	char *fetch_kw;
 	int (*parse)(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err);
-	int (*match)(struct sample *smp, struct pattern *pattern);
+	enum pat_match_res (*match)(struct sample *smp, struct pattern *pattern);
 	/* must be after the config params */
 	struct sample_fetch *smp; /* the sample fetch we depend on */
 };
@@ -148,7 +148,7 @@ struct acl_term_suite {
 struct acl_cond {
 	struct list list;           /* Some specific tests may use multiple conditions */
 	struct list suites;         /* list of acl_term_suites */
-	int pol;                    /* polarity: ACL_COND_IF / ACL_COND_UNLESS */
+	enum acl_cond_pol pol;      /* polarity: ACL_COND_IF / ACL_COND_UNLESS */
 	unsigned int use;           /* or'ed bit mask of all suites's SMP_USE_* */
 	unsigned int val;           /* or'ed bit mask of all suites's SMP_VAL_* */
 	const char *file;           /* config file where the condition is declared */

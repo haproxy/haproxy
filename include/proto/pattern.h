@@ -22,6 +22,10 @@
 #ifndef _PROTO_PATTERN_H
 #define _PROTO_PATTERN_H
 
+#include <common/config.h>
+#include <common/standard.h>
+#include <types/pattern.h>
+
 /* parse the <text> with <expr> compliant parser. <pattern> is a context for
  * the current parsed acl. It must initialized at NULL:
  *
@@ -42,7 +46,7 @@ int pattern_register(struct pattern_expr *expr, char *text, struct sample_storag
  * associated to the matching patterned will be put there. The function returns
  * PAT_MATCH or PAT_NOMATCH.
  */
-inline int pattern_exec_match(struct pattern_expr *expr, struct sample *smp, struct sample_storage **sample);
+enum pat_match_res pattern_exec_match(struct pattern_expr *expr, struct sample *smp, struct sample_storage **sample);
 
 /*
  *
@@ -55,16 +59,16 @@ inline int pattern_exec_match(struct pattern_expr *expr, struct sample *smp, str
 int pat_parse_nothing(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err);
 
 /* NB: For two strings to be identical, it is required that their lengths match */
-int pat_match_str(struct sample *smp, struct pattern *pattern);
+enum pat_match_res pat_match_str(struct sample *smp, struct pattern *pattern);
 
 /* NB: For two binary buffers to be identical, it is required that their lengths match */
-int pat_match_bin(struct sample *smp, struct pattern *pattern);
+enum pat_match_res pat_match_bin(struct sample *smp, struct pattern *pattern);
 
 /* Checks that the length of the pattern in <test> is included between min and max */
-int pat_match_len(struct sample *smp, struct pattern *pattern);
+enum pat_match_res pat_match_len(struct sample *smp, struct pattern *pattern);
 
 /* Checks that the integer in <test> is included between min and max */
-int pat_match_int(struct sample *smp, struct pattern *pattern);
+enum pat_match_res pat_match_int(struct sample *smp, struct pattern *pattern);
 
 /* Parse an integer. It is put both in min and max. */
 int pat_parse_int(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err);
@@ -97,36 +101,36 @@ int pat_parse_reg(const char **text, struct pattern *pattern, struct sample_stor
 int pat_parse_ip(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err);
 
 /* always return false */
-int pat_match_nothing(struct sample *smp, struct pattern *pattern);
+enum pat_match_res pat_match_nothing(struct sample *smp, struct pattern *pattern);
 
 /* Checks that the pattern matches the end of the tested string. */
-int pat_match_end(struct sample *smp, struct pattern *pattern);
+enum pat_match_res pat_match_end(struct sample *smp, struct pattern *pattern);
 
 /* Checks that the pattern matches the beginning of the tested string. */
-int pat_match_beg(struct sample *smp, struct pattern *pattern);
+enum pat_match_res pat_match_beg(struct sample *smp, struct pattern *pattern);
 
 /* Checks that the pattern is included inside the tested string. */
-int pat_match_sub(struct sample *smp, struct pattern *pattern);
+enum pat_match_res pat_match_sub(struct sample *smp, struct pattern *pattern);
 
 /* Checks that the pattern is included inside the tested string, but enclosed
  * between slashes or at the beginning or end of the string. Slashes at the
  * beginning or end of the pattern are ignored.
  */
-int pat_match_dir(struct sample *smp, struct pattern *pattern);
+enum pat_match_res pat_match_dir(struct sample *smp, struct pattern *pattern);
 
 /* Checks that the pattern is included inside the tested string, but enclosed
  * between dots or at the beginning or end of the string. Dots at the beginning
  * or end of the pattern are ignored.
  */
-int pat_match_dom(struct sample *smp, struct pattern *pattern);
+enum pat_match_res pat_match_dom(struct sample *smp, struct pattern *pattern);
 
 /* Check that the IPv4 address in <test> matches the IP/mask in pattern */
-int pat_match_ip(struct sample *smp, struct pattern *pattern);
+enum pat_match_res pat_match_ip(struct sample *smp, struct pattern *pattern);
 
 /* Executes a regex. It temporarily changes the data to add a trailing zero,
  * and restores the previous character when leaving.
  */
-int pat_match_reg(struct sample *smp, struct pattern *pattern);
+enum pat_match_res pat_match_reg(struct sample *smp, struct pattern *pattern);
 
 int pattern_read_from_file(struct pattern_expr *expr, const char *filename, int patflags, char **err);
 void pattern_free(struct pattern *pat);

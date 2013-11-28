@@ -904,7 +904,7 @@ int tcp_inspect_request(struct session *s, struct channel *req, int an_bit)
 		partial = 0;
 
 	list_for_each_entry(rule, &s->be->tcp_req.inspect_rules, list) {
-		int ret = ACL_TEST_PASS;
+		enum acl_test_res ret = ACL_TEST_PASS;
 
 		if (rule->cond) {
 			ret = acl_exec_cond(rule->cond, s->be, s, &s->txn, SMP_OPT_DIR_REQ | partial);
@@ -1008,7 +1008,7 @@ int tcp_inspect_response(struct session *s, struct channel *rep, int an_bit)
 		partial = 0;
 
 	list_for_each_entry(rule, &s->be->tcp_rep.inspect_rules, list) {
-		int ret = ACL_TEST_PASS;
+		enum acl_test_res ret = ACL_TEST_PASS;
 
 		if (rule->cond) {
 			ret = acl_exec_cond(rule->cond, s->be, s, &s->txn, SMP_OPT_DIR_RES | partial);
@@ -1075,7 +1075,7 @@ int tcp_exec_req_rules(struct session *s)
 	struct stksess *ts;
 	struct stktable *t = NULL;
 	int result = 1;
-	int ret;
+	enum acl_test_res ret;
 
 	list_for_each_entry(rule, &s->fe->tcp_req.l4_rules, list) {
 		ret = ACL_TEST_PASS;

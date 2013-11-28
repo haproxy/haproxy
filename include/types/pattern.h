@@ -56,7 +56,7 @@
  *      MATCH   = 0
  *      NOMATCH = 3
  */
-enum {
+enum pat_match_res {
 	PAT_NOMATCH = 0,         /* sample didn't match any pattern */
 	PAT_MATCH = 3,           /* sample matched at least one pattern */
 };
@@ -152,13 +152,13 @@ struct pattern {
  */
 struct pattern_expr {
 	int (*parse)(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err);
-	int (*match)(struct sample *smp, struct pattern *pattern);
+	enum pat_match_res (*match)(struct sample *smp, struct pattern *pattern);
 	struct list patterns;         /* list of acl_patterns */
 	struct eb_root pattern_tree;  /* may be used for lookup in large datasets */
 };
 
 extern char *pat_match_names[PAT_MATCH_NUM];
 extern int (*pat_parse_fcts[PAT_MATCH_NUM])(const char **, struct pattern *, struct sample_storage *, int *, char **);
-extern int (*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern *);
+extern enum pat_match_res (*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern *);
 
 #endif /* _TYPES_PATTERN_H */

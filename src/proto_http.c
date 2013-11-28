@@ -8974,7 +8974,7 @@ smp_fetch_meth(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 }
 
 /* See above how the method is stored in the global pattern */
-static int pat_match_meth(struct sample *smp, struct pattern *pattern)
+static enum pat_match_res pat_match_meth(struct sample *smp, struct pattern *pattern)
 {
 	int icase;
 

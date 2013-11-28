@@ -49,6 +49,12 @@ static int acl_find_match_name(const char *name)
 	return -1;
 }
 
+/* input values are 0 or 3, output is the same */
+static inline enum acl_test_res pat2acl(enum pat_match_res res)
+{
+	return (enum acl_test_res)res;
+}
+
 /*
  * Registers the ACL keyword list <kwl> as a list of valid keywords for next
  * parsing sessions.
@@ -758,7 +764,7 @@ struct acl_cond *prune_acl_cond(struct acl_cond *cond)
  * for unresolved dependencies.
  */
 struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl,
-                                int pol, char **err, struct arg_list *al)
+                                enum acl_cond_pol pol, char **err, struct arg_list *al)
 {
 	__label__ out_return, out_free_suite, out_free_term;
 	int arg, neg;
@@ -914,7 +920,7 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl,
  */
 struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, const char **args, char **err)
 {
-	int pol = ACL_COND_NONE;
+	enum acl_cond_pol pol = ACL_COND_NONE;
 	struct acl_cond *cond = NULL;
 
 	if (err)
@@ -958,7 +964,7 @@ struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, co
  *     if (cond->pol == ACL_COND_UNLESS)
  *         res = !res;
  */
-int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, void *l7, unsigned int opt)
+enum acl_test_res acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, void *l7, unsigned int opt)
 {
 	__label__ fetch_next;
 	struct acl_term_suite *suite;
@@ -966,7 +972,7 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 	struct acl_expr *expr;
 	struct acl *acl;
 	struct sample smp;
-	int acl_res, suite_res, cond_res;
+	enum acl_test_res acl_res, suite_res, cond_res;
 
 	/* ACLs are iterated over all values, so let's always set the flag to
 	 * indicate this to the fetch functions.
@@ -979,7 +985,7 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 	cond_res = ACL_TEST_FAIL;
 	list_for_each_entry(suite, &cond->suites, list) {
 		/* Evaluate condition suite <suite>. We stop at the first term
-		 * which returns PAT_FAIL. The MISS status is still propagated
+		 * which returns ACL_TEST_FAIL. The MISS status is still propagated
 		 * in case of uncertainty in the result.
 		 */
 
@@ -1009,7 +1015,7 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 					continue;
 				}
 
-				acl_res |= pattern_exec_match(&expr->pat, &smp, NULL);
+				acl_res |= pat2acl(pattern_exec_match(&expr->pat, &smp, NULL));
 				/*
 				 * OK now acl_res holds the result of this expression
 				 * as one of ACL_TEST_FAIL, ACL_TEST_MISS or ACL_TEST_PASS.

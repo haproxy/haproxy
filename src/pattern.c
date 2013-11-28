@@ -55,7 +55,7 @@ int (*pat_parse_fcts[PAT_MATCH_NUM])(const char **, struct pattern *, struct sam
 	[PAT_MATCH_REG]   = pat_parse_reg,
 };
 
-int (*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern *) = {
+enum pat_match_res (*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern *) = {
 	[PAT_MATCH_FOUND] = NULL,
 	[PAT_MATCH_BOOL]  = pat_match_nothing,
 	[PAT_MATCH_INT]   = pat_match_int,
@@ -82,14 +82,14 @@ int pat_parse_nothing(const char **text, struct pattern *pattern, struct sample_
 }
 
 /* always return false */
-int pat_match_nothing(struct sample *smp, struct pattern *pattern)
+enum pat_match_res pat_match_nothing(struct sample *smp, struct pattern *pattern)
 {
 	return PAT_NOMATCH;
 }
 
 
 /* NB: For two strings to be identical, it is required that their lengths match */
-int pat_match_str(struct sample *smp, struct pattern *pattern)
+enum pat_match_res pat_match_str(struct sample *smp, struct pattern *pattern)
 {
 	int icase;
 
@@ -104,7 +104,7 @@ int pat_match_str(struct sample *smp, struct pattern *pattern)
 }
 
 /* NB: For two binaries buf to be identical, it is required that their lengths match */
-int pat_match_bin(struct sample *smp, struct pattern *pattern)
+enum pat_match_res pat_match_bin(struct sample *smp, struct pattern *pattern)
 {
 	if (pattern->len != smp->data.str.len)
 		return PAT_NOMATCH;
@@ -136,7 +136,7 @@ static void *pat_lookup_str(struct sample *smp, struct pattern_expr *expr)
 /* Executes a regex. It temporarily changes the data to add a trailing zero,
  * and restores the previous character when leaving.
  */
-int pat_match_reg(struct sample *smp, struct pattern *pattern)
+enum pat_match_res pat_match_reg(struct sample *smp, struct pattern *pattern)
 {
 	if (regex_exec(pattern->ptr.reg, smp->data.str.str, smp->data.str.len) == 0)
 		return PAT_MATCH;
@@ -144,7 +144,7 @@ int pat_match_reg(struct sample *smp, struct pattern *pattern)
 }
 
 /* Checks that the pattern matches the beginning of the tested string. */
-int pat_match_beg(struct sample *smp, struct pattern *pattern)
+enum pat_match_res pat_match_beg(struct sample *smp, struct pattern *pattern)
 {
 	int icase;
 
@@ -159,7 +159,7 @@ int pat_match_beg(struct sample *smp, struct pattern *pattern)
 }
 
 /* Checks that the pattern matches the end of the tested string. */
-int pat_match_end(struct sample *smp, struct pattern *pattern)
+enum pat_match_res pat_match_end(struct sample *smp, struct pattern *pattern)
 {
 	int icase;
 
@@ -175,7 +175,7 @@ int pat_match_end(struct sample *smp, struct pattern *pattern)
 /* Checks that the pattern is included inside the tested string.
  * NB: Suboptimal, should be rewritten using a Boyer-Moore method.
  */
-int pat_match_sub(struct sample *smp, struct pattern *pattern)
+enum pat_match_res pat_match_sub(struct sample *smp, struct pattern *pattern)
 {
 	int icase;
 	char *end;
@@ -285,7 +285,7 @@ static int match_word(struct sample *smp, struct pattern *pattern, unsigned int 
  * between the delimiters '?' or '/' or at the beginning or end of the string.
  * Delimiters at the beginning or end of the pattern are ignored.
  */
-int pat_match_dir(struct sample *smp, struct pattern *pattern)
+enum pat_match_res pat_match_dir(struct sample *smp, struct pattern *pattern)
 {
 	return match_word(smp, pattern, make_4delim('/', '?', '?', '?'));
 }
@@ -294,13 +294,13 @@ int pat_match_dir(struct sample *smp, struct pattern *pattern)
  * between the delmiters '/', '?', '.' or ":" or at the beginning or end of
  * the string. Delimiters at the beginning or end of the pattern are ignored.
  */
-int pat_match_dom(struct sample *smp, struct pattern *pattern)
+enum pat_match_res pat_match_dom(struct sample *smp, struct pattern *pattern)
 {
 	return match_word(smp, pattern, make_4delim('/', '?', '.', ':'));
 }
 
 /* Checks that the integer in <test> is included between min and max */
-int pat_match_int(struct sample *smp, struct pattern *pattern)
+enum pat_match_res pat_match_int(struct sample *smp, struct pattern *pattern)
 {
 	if ((!pattern->val.range.min_set || pattern->val.range.min <= smp->data.uint) &&
 	    (!pattern->val.range.max_set || smp->data.uint <= pattern->val.range.max))
@@ -309,7 +309,7 @@ int pat_match_int(struct sample *smp, struct pattern *pattern)
 }
 
 /* Checks that the length of the pattern in <test> is included between min and max */
-int pat_match_len(struct sample *smp, struct pattern *pattern)
+enum pat_match_res pat_match_len(struct sample *smp, struct pattern *pattern)
 {
 	if ((!pattern->val.range.min_set || pattern->val.range.min <= smp->data.str.len) &&
 	    (!pattern->val.range.max_set || smp->data.str.len <= pattern->val.range.max))
@@ -317,7 +317,7 @@ int pat_match_len(struct sample *smp, struct pattern *pattern)
 	return PAT_NOMATCH;
 }
 
-int pat_match_ip(struct sample *smp, struct pattern *pattern)
+enum pat_match_res pat_match_ip(struct sample *smp, struct pattern *pattern)
 {
 	unsigned int v4; /* in network byte order */
 	struct in6_addr *v6;
@@ -939,10 +939,10 @@ int pattern_read_from_file(struct pattern_expr *expr,
  * with the pointer associated with the matching pattern. This function returns
  * PAT_NOMATCH or PAT_MATCH.
  */
-inline int pattern_exec_match(struct pattern_expr *expr, struct sample *smp,
-                          struct sample_storage **sample)
+enum pat_match_res pattern_exec_match(struct pattern_expr *expr, struct sample *smp,
+                                      struct sample_storage **sample)
 {
-	int pat_res = PAT_NOMATCH;
+	enum pat_match_res pat_res = PAT_NOMATCH;
 	struct pattern *pattern;
 	struct ebmb_node *node = NULL;
 	struct pat_idx_elt *elt;
