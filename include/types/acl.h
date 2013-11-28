@@ -105,17 +105,13 @@ struct acl_kw_list {
 /*
  * Description of an ACL expression.
  * The expression is part of a list. It contains pointers to the keyword, the
- * parse and match functions which default to the keyword's, the sample fetch
- * descriptor which also defaults to the keyword's, and a list or tree of
- * patterns to test against. The structure is organized so that the hot parts
- * are grouped together in order to optimize caching.
+ * sample fetch descriptor which defaults to the keyword's, and the associated
+ * pattern matching. The structure is organized so that the hot parts are
+ * grouped together in order to optimize caching.
  */
 struct acl_expr {
-	int (*parse)(const char **text, struct acl_pattern *pattern, struct sample_storage *smp, int *opaque, char **err);
-	int (*match)(struct sample *smp, struct acl_pattern *pattern);
 	struct sample_expr *smp;      /* the sample expression we depend on */
-	struct list patterns;         /* list of acl_patterns */
-	struct eb_root pattern_tree;  /* may be used for lookup in large datasets */
+	struct pattern_expr pat;      /* the pattern matching expression */
 	struct list list;             /* chaining */
 	const char *kw;               /* points to the ACL kw's name or fetch's name (must not free) */
 };

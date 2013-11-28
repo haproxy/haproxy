@@ -107,9 +107,7 @@ static struct acl_expr *prune_acl_expr(struct acl_expr *expr)
 {
 	struct arg *arg;
 
-	free_pattern_list(&expr->patterns);
-	free_pattern_tree(&expr->pattern_tree);
-	LIST_INIT(&expr->patterns);
+	prune_pattern_expr(&expr->pat);
 
 	for (arg = expr->smp->arg_p; arg; arg++) {
 		if (arg->type == ARGT_STOP)
@@ -171,30 +169,30 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		goto out_return;
 	}
 
+	init_pattern_expr(&expr->pat);
+
 	expr->kw = aclkw ? aclkw->kw : smp->fetch->kw;
-	LIST_INIT(&expr->patterns);
-	expr->pattern_tree = EB_ROOT_UNIQUE;
-	expr->parse = aclkw ? aclkw->parse : NULL;
-	expr->match = aclkw ? aclkw->match : NULL;
+	expr->pat.parse = aclkw ? aclkw->parse : NULL;
+	expr->pat.match = aclkw ? aclkw->match : NULL;
 	expr->smp = aclkw ? NULL : smp;
 
-	if (!expr->parse) {
+	if (!expr->pat.parse) {
 		/* some types can be automatically converted */
 
 		switch (expr->smp ? expr->smp->fetch->out_type : aclkw->smp->out_type) {
 		case SMP_T_BOOL:
-			expr->parse = acl_parse_fcts[ACL_MATCH_BOOL];
-			expr->match = acl_match_fcts[ACL_MATCH_BOOL];
+			expr->pat.parse = acl_parse_fcts[ACL_MATCH_BOOL];
+			expr->pat.match = acl_match_fcts[ACL_MATCH_BOOL];
 			break;
 		case SMP_T_SINT:
 		case SMP_T_UINT:
-			expr->parse = acl_parse_fcts[ACL_MATCH_INT];
-			expr->match = acl_match_fcts[ACL_MATCH_INT];
+			expr->pat.parse = acl_parse_fcts[ACL_MATCH_INT];
+			expr->pat.match = acl_match_fcts[ACL_MATCH_INT];
 			break;
 		case SMP_T_IPV4:
 		case SMP_T_IPV6:
-			expr->parse = acl_parse_fcts[ACL_MATCH_IP];
-			expr->match = acl_match_fcts[ACL_MATCH_IP];
+			expr->pat.parse = acl_parse_fcts[ACL_MATCH_IP];
+			expr->pat.match = acl_match_fcts[ACL_MATCH_IP];
 			break;
 		}
 	}
@@ -430,7 +428,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 
 	/* Additional check to protect against common mistakes */
 	cur_type = smp_expr_output_type(expr->smp);
-	if (expr->parse && cur_type != SMP_T_BOOL && !*args[1]) {
+	if (expr->pat.parse && cur_type != SMP_T_BOOL && !*args[1]) {
 		Warning("parsing acl keyword '%s' :\n"
 		        "  no pattern to match against were provided, so this ACL will never match.\n"
 		        "  If this is what you intended, please add '--' to get rid of this warning.\n"
@@ -453,19 +451,19 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		if ((*args)[1] == 'i')
 			patflags |= ACL_PAT_F_IGNORE_CASE;
 		else if ((*args)[1] == 'f') {
-			if (!expr->parse) {
+			if (!expr->pat.parse) {
 				memprintf(err, "matching method must be specified first (using '-m') when using a sample fetch of this type ('%s')", expr->kw);
 				goto out_free_expr;
 			}
 
-			if (!acl_read_patterns_from_file(expr, args[1], patflags | ACL_PAT_F_FROM_FILE, err))
+			if (!acl_read_patterns_from_file(&expr->pat, args[1], patflags | ACL_PAT_F_FROM_FILE, err))
 				goto out_free_expr;
 			args++;
 		}
 		else if ((*args)[1] == 'm') {
 			int idx;
 
-			if (!LIST_ISEMPTY(&expr->patterns) || !eb_is_empty(&expr->pattern_tree)) {
+			if (!LIST_ISEMPTY(&expr->pat.patterns) || !eb_is_empty(&expr->pat.pattern_tree)) {
 				memprintf(err, "'-m' must only be specified before patterns and files in parsing ACL expression");
 				goto out_free_expr;
 			}
@@ -492,8 +490,8 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			      cur_type == SMP_T_BIN ||
 			      cur_type == SMP_T_CSTR ||
 			      cur_type == SMP_T_CBIN))) {
-				expr->parse = acl_parse_fcts[idx];
-				expr->match = acl_match_fcts[idx];
+				expr->pat.parse = acl_parse_fcts[idx];
+				expr->pat.match = acl_match_fcts[idx];
 			}
 			else {
 				memprintf(err, "matching method '%s' cannot be used with fetch keyword '%s'", args[1], expr->kw);
@@ -510,7 +508,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		args++;
 	}
 
-	if (!expr->parse) {
+	if (!expr->pat.parse) {
 		memprintf(err, "matching method must be specified first (using '-m') when using a sample fetch of this type ('%s')", expr->kw);
 		goto out_free_expr;
 	}
@@ -527,11 +525,11 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		pattern->flags = patflags;
 
 		pattern->type = SMP_TYPES; /* unspecified type */
-		ret = expr->parse(args, pattern, NULL, &opaque, err);
+		ret = expr->pat.parse(args, pattern, NULL, &opaque, err);
 		if (!ret)
 			goto out_free_pattern;
 
-		LIST_ADDQ(&expr->patterns, &pattern->list);
+		LIST_ADDQ(&expr->pat.patterns, &pattern->list);
 		args += ret;
 	}
 
@@ -1012,7 +1010,7 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 					continue;
 				}
 
-				acl_res |= acl_exec_match(expr, &smp, NULL);
+				acl_res |= acl_exec_match(&expr->pat, &smp, NULL);
 				/*
 				 * OK now acl_res holds the result of this expression
 				 * as one of ACL_PAT_FAIL, ACL_PAT_MISS or ACL_PAT_PASS.
@@ -1136,14 +1134,14 @@ int acl_find_targets(struct proxy *p)
 					continue;
 				}
 
-				if (LIST_ISEMPTY(&expr->patterns)) {
+				if (LIST_ISEMPTY(&expr->pat.patterns)) {
 					Alert("proxy %s: acl %s %s(): no groups specified.\n",
 						p->id, acl->name, expr->kw);
 					cfgerr++;
 					continue;
 				}
 
-				list_for_each_entry(pattern, &expr->patterns, list) {
+				list_for_each_entry(pattern, &expr->pat.patterns, list) {
 					/* this keyword only has one argument */
 					pattern->val.group_mask = auth_resolve_groups(expr->smp->arg_p->data.usr, pattern->ptr.str);
 

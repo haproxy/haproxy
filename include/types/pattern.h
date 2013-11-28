@@ -121,6 +121,18 @@ struct acl_pattern {
 
 };
 
+/* Description of a pattern expression.
+ * It contains pointers to the parse and match functions, and a list or tree of
+ * patterns to test against. The structure is organized so that the hot parts
+ * are grouped together in order to optimize caching.
+ */
+struct pattern_expr {
+	int (*parse)(const char **text, struct acl_pattern *pattern, struct sample_storage *smp, int *opaque, char **err);
+	int (*match)(struct sample *smp, struct acl_pattern *pattern);
+	struct list patterns;         /* list of acl_patterns */
+	struct eb_root pattern_tree;  /* may be used for lookup in large datasets */
+};
+
 extern char *acl_match_names[ACL_MATCH_NUM];
 extern int (*acl_parse_fcts[ACL_MATCH_NUM])(const char **, struct acl_pattern *, struct sample_storage *, int *, char **);
 extern int (*acl_match_fcts[ACL_MATCH_NUM])(struct sample *, struct acl_pattern *);

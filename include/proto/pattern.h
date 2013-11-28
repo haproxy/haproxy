@@ -35,14 +35,14 @@
  * fails, with <err> message filled. It returns -2 in "out of memory"
  * error case.
  */
-int acl_register_pattern(struct acl_expr *expr, char *text, struct sample_storage *smp, struct acl_pattern **pattern, int patflags, char **err);
+int acl_register_pattern(struct pattern_expr *expr, char *text, struct sample_storage *smp, struct acl_pattern **pattern, int patflags, char **err);
 
 /* This function executes a pattern match on a sample. It applies pattern <expr>
  * to sample <smp>. If <sample> is not NULL, a pointer to an optional sample
  * associated to the matching patterned will be put there. The function returns
  * ACL_PAT_FAIL, ACL_PAT_MISS or ACL_PAT_PASS.
  */
-inline int acl_exec_match(struct acl_expr *expr, struct sample *smp, struct sample_storage **sample);
+inline int acl_exec_match(struct pattern_expr *expr, struct sample *smp, struct sample_storage **sample);
 
 /*
  *
@@ -128,9 +128,9 @@ int acl_match_ip(struct sample *smp, struct acl_pattern *pattern);
  */
 int acl_match_reg(struct sample *smp, struct acl_pattern *pattern);
 
-int acl_read_patterns_from_file(struct acl_expr *expr, const char *filename, int patflags, char **err);
+int acl_read_patterns_from_file(struct pattern_expr *expr, const char *filename, int patflags, char **err);
 void free_pattern(struct acl_pattern *pat);
-void free_pattern_list(struct list *head);
-void free_pattern_tree(struct eb_root *root);
+void prune_pattern_expr(struct pattern_expr *expr);
+void init_pattern_expr(struct pattern_expr *expr);
 
 #endif

@@ -117,7 +117,7 @@ int acl_match_bin(struct sample *smp, struct acl_pattern *pattern)
 /* Lookup a string in the expression's pattern tree. The node is returned if it
  * exists, otherwise NULL.
  */
-static void *acl_lookup_str(struct sample *smp, struct acl_expr *expr)
+static void *acl_lookup_str(struct sample *smp, struct pattern_expr *expr)
 {
 	/* data are stored in a tree */
 	struct ebmb_node *node;
@@ -389,7 +389,7 @@ int acl_match_ip(struct sample *smp, struct acl_pattern *pattern)
 /* Lookup an IPv4 address in the expression's pattern tree using the longest
  * match method. The node is returned if it exists, otherwise NULL.
  */
-static void *acl_lookup_ip(struct sample *smp, struct acl_expr *expr)
+static void *acl_lookup_ip(struct sample *smp, struct pattern_expr *expr)
 {
 	struct in_addr *s;
 
@@ -807,11 +807,24 @@ void free_pattern_tree(struct eb_root *root)
 	}
 }
 
+void prune_pattern_expr(struct pattern_expr *expr)
+{
+	free_pattern_list(&expr->patterns);
+	free_pattern_tree(&expr->pattern_tree);
+	LIST_INIT(&expr->patterns);
+}
+
+void init_pattern_expr(struct pattern_expr *expr)
+{
+	LIST_INIT(&expr->patterns);
+	expr->pattern_tree = EB_ROOT_UNIQUE;
+}
+
 /* return 1 if the process is ok
  * return -1 if the parser fail. The err message is filled.
  * return -2 if out of memory
  */
-int acl_register_pattern(struct acl_expr *expr, char *text,
+int acl_register_pattern(struct pattern_expr *expr, char *text,
                          struct sample_storage *smp,
                          struct acl_pattern **pattern,
                          int patflags, char **err)
@@ -856,7 +869,7 @@ int acl_register_pattern(struct acl_expr *expr, char *text,
 /* Reads patterns from a file. If <err_msg> is non-NULL, an error message will
  * be returned there on errors and the caller will have to free it.
  */
-int acl_read_patterns_from_file(struct acl_expr *expr,
+int acl_read_patterns_from_file(struct pattern_expr *expr,
                                 const char *filename, int patflags,
                                 char **err)
 {
@@ -926,7 +939,7 @@ int acl_read_patterns_from_file(struct acl_expr *expr,
  * is not NULL. The function return ACL_PAT_FAIL, ACL_PAT_MISS or
  * ACL_PAT_PASS
  */
-inline int acl_exec_match(struct acl_expr *expr, struct sample *smp,
+inline int acl_exec_match(struct pattern_expr *expr, struct sample *smp,
                           struct sample_storage **sample)
 {
 	int acl_res = ACL_PAT_FAIL;
