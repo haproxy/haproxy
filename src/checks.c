@@ -576,7 +576,7 @@ static void set_server_disabled(struct check *check) {
 
 	if (s->state & SRV_CHECKED)
 		for(srv = s->tracknext; srv; srv = srv->tracknext)
-			set_server_disabled(check);
+			set_server_disabled(&srv->check);
 }
 
 static void set_server_enabled(struct check *check) {
@@ -610,7 +610,7 @@ static void set_server_enabled(struct check *check) {
 
 	if (s->state & SRV_CHECKED)
 		for(srv = s->tracknext; srv; srv = srv->tracknext)
-			set_server_enabled(check);
+			set_server_enabled(&srv->check);
 }
 
 static void check_failed(struct check *check)
