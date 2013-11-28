@@ -23,52 +23,52 @@
 
 #include <ebsttree.h>
 
-char *acl_match_names[ACL_MATCH_NUM] = {
-	[ACL_MATCH_FOUND] = "found",
-	[ACL_MATCH_BOOL]  = "bool",
-	[ACL_MATCH_INT]   = "int",
-	[ACL_MATCH_IP]    = "ip",
-	[ACL_MATCH_BIN]   = "bin",
-	[ACL_MATCH_LEN]   = "len",
-	[ACL_MATCH_STR]   = "str",
-	[ACL_MATCH_BEG]   = "beg",
-	[ACL_MATCH_SUB]   = "sub",
-	[ACL_MATCH_DIR]   = "dir",
-	[ACL_MATCH_DOM]   = "dom",
-	[ACL_MATCH_END]   = "end",
-	[ACL_MATCH_REG]   = "reg",
+char *pat_match_names[PAT_MATCH_NUM] = {
+	[PAT_MATCH_FOUND] = "found",
+	[PAT_MATCH_BOOL]  = "bool",
+	[PAT_MATCH_INT]   = "int",
+	[PAT_MATCH_IP]    = "ip",
+	[PAT_MATCH_BIN]   = "bin",
+	[PAT_MATCH_LEN]   = "len",
+	[PAT_MATCH_STR]   = "str",
+	[PAT_MATCH_BEG]   = "beg",
+	[PAT_MATCH_SUB]   = "sub",
+	[PAT_MATCH_DIR]   = "dir",
+	[PAT_MATCH_DOM]   = "dom",
+	[PAT_MATCH_END]   = "end",
+	[PAT_MATCH_REG]   = "reg",
 };
 
-int (*acl_parse_fcts[ACL_MATCH_NUM])(const char **, struct acl_pattern *, struct sample_storage *, int *, char **) = {
-	[ACL_MATCH_FOUND] = acl_parse_nothing,
-	[ACL_MATCH_BOOL]  = acl_parse_nothing,
-	[ACL_MATCH_INT]   = acl_parse_int,
-	[ACL_MATCH_IP]    = acl_parse_ip,
-	[ACL_MATCH_BIN]   = acl_parse_bin,
-	[ACL_MATCH_LEN]   = acl_parse_int,
-	[ACL_MATCH_STR]   = acl_parse_str,
-	[ACL_MATCH_BEG]   = acl_parse_str,
-	[ACL_MATCH_SUB]   = acl_parse_str,
-	[ACL_MATCH_DIR]   = acl_parse_str,
-	[ACL_MATCH_DOM]   = acl_parse_str,
-	[ACL_MATCH_END]   = acl_parse_str,
-	[ACL_MATCH_REG]   = acl_parse_reg,
+int (*pat_parse_fcts[PAT_MATCH_NUM])(const char **, struct pattern *, struct sample_storage *, int *, char **) = {
+	[PAT_MATCH_FOUND] = pat_parse_nothing,
+	[PAT_MATCH_BOOL]  = pat_parse_nothing,
+	[PAT_MATCH_INT]   = pat_parse_int,
+	[PAT_MATCH_IP]    = pat_parse_ip,
+	[PAT_MATCH_BIN]   = pat_parse_bin,
+	[PAT_MATCH_LEN]   = pat_parse_int,
+	[PAT_MATCH_STR]   = pat_parse_str,
+	[PAT_MATCH_BEG]   = pat_parse_str,
+	[PAT_MATCH_SUB]   = pat_parse_str,
+	[PAT_MATCH_DIR]   = pat_parse_str,
+	[PAT_MATCH_DOM]   = pat_parse_str,
+	[PAT_MATCH_END]   = pat_parse_str,
+	[PAT_MATCH_REG]   = pat_parse_reg,
 };
 
-int (*acl_match_fcts[ACL_MATCH_NUM])(struct sample *, struct acl_pattern *) = {
-	[ACL_MATCH_FOUND] = NULL,
-	[ACL_MATCH_BOOL]  = acl_match_nothing,
-	[ACL_MATCH_INT]   = acl_match_int,
-	[ACL_MATCH_IP]    = acl_match_ip,
-	[ACL_MATCH_BIN]   = acl_match_bin,
-	[ACL_MATCH_LEN]   = acl_match_len,
-	[ACL_MATCH_STR]   = acl_match_str,
-	[ACL_MATCH_BEG]   = acl_match_beg,
-	[ACL_MATCH_SUB]   = acl_match_sub,
-	[ACL_MATCH_DIR]   = acl_match_dir,
-	[ACL_MATCH_DOM]   = acl_match_dom,
-	[ACL_MATCH_END]   = acl_match_end,
-	[ACL_MATCH_REG]   = acl_match_reg,
+int (*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern *) = {
+	[PAT_MATCH_FOUND] = NULL,
+	[PAT_MATCH_BOOL]  = pat_match_nothing,
+	[PAT_MATCH_INT]   = pat_match_int,
+	[PAT_MATCH_IP]    = pat_match_ip,
+	[PAT_MATCH_BIN]   = pat_match_bin,
+	[PAT_MATCH_LEN]   = pat_match_len,
+	[PAT_MATCH_STR]   = pat_match_str,
+	[PAT_MATCH_BEG]   = pat_match_beg,
+	[PAT_MATCH_SUB]   = pat_match_sub,
+	[PAT_MATCH_DIR]   = pat_match_dir,
+	[PAT_MATCH_DOM]   = pat_match_dom,
+	[PAT_MATCH_END]   = pat_match_end,
+	[PAT_MATCH_REG]   = pat_match_reg,
 };
 
 /*
@@ -76,48 +76,48 @@ int (*acl_match_fcts[ACL_MATCH_NUM])(struct sample *, struct acl_pattern *) = {
  */
 
 /* ignore the current line */
-int acl_parse_nothing(const char **text, struct acl_pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
+int pat_parse_nothing(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
 {
 	return 1;
 }
 
 /* always return false */
-int acl_match_nothing(struct sample *smp, struct acl_pattern *pattern)
+int pat_match_nothing(struct sample *smp, struct pattern *pattern)
 {
-	return ACL_PAT_FAIL;
+	return PAT_NOMATCH;
 }
 
 
 /* NB: For two strings to be identical, it is required that their lengths match */
-int acl_match_str(struct sample *smp, struct acl_pattern *pattern)
+int pat_match_str(struct sample *smp, struct pattern *pattern)
 {
 	int icase;
 
 	if (pattern->len != smp->data.str.len)
-		return ACL_PAT_FAIL;
+		return PAT_NOMATCH;
 
-	icase = pattern->flags & ACL_PAT_F_IGNORE_CASE;
+	icase = pattern->flags & PAT_F_IGNORE_CASE;
 	if ((icase && strncasecmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) == 0) ||
 	    (!icase && strncmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) == 0))
-		return ACL_PAT_PASS;
-	return ACL_PAT_FAIL;
+		return PAT_MATCH;
+	return PAT_NOMATCH;
 }
 
 /* NB: For two binaries buf to be identical, it is required that their lengths match */
-int acl_match_bin(struct sample *smp, struct acl_pattern *pattern)
+int pat_match_bin(struct sample *smp, struct pattern *pattern)
 {
 	if (pattern->len != smp->data.str.len)
-		return ACL_PAT_FAIL;
+		return PAT_NOMATCH;
 
 	if (memcmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) == 0)
-		return ACL_PAT_PASS;
-	return ACL_PAT_FAIL;
+		return PAT_MATCH;
+	return PAT_NOMATCH;
 }
 
 /* Lookup a string in the expression's pattern tree. The node is returned if it
  * exists, otherwise NULL.
  */
-static void *acl_lookup_str(struct sample *smp, struct pattern_expr *expr)
+static void *pat_lookup_str(struct sample *smp, struct pattern_expr *expr)
 {
 	/* data are stored in a tree */
 	struct ebmb_node *node;
@@ -136,72 +136,72 @@ static void *acl_lookup_str(struct sample *smp, struct pattern_expr *expr)
 /* Executes a regex. It temporarily changes the data to add a trailing zero,
  * and restores the previous character when leaving.
  */
-int acl_match_reg(struct sample *smp, struct acl_pattern *pattern)
+int pat_match_reg(struct sample *smp, struct pattern *pattern)
 {
 	if (regex_exec(pattern->ptr.reg, smp->data.str.str, smp->data.str.len) == 0)
-		return ACL_PAT_PASS;
-	return ACL_PAT_FAIL;
+		return PAT_MATCH;
+	return PAT_NOMATCH;
 }
 
 /* Checks that the pattern matches the beginning of the tested string. */
-int acl_match_beg(struct sample *smp, struct acl_pattern *pattern)
+int pat_match_beg(struct sample *smp, struct pattern *pattern)
 {
 	int icase;
 
 	if (pattern->len > smp->data.str.len)
-		return ACL_PAT_FAIL;
+		return PAT_NOMATCH;
 
-	icase = pattern->flags & ACL_PAT_F_IGNORE_CASE;
+	icase = pattern->flags & PAT_F_IGNORE_CASE;
 	if ((icase && strncasecmp(pattern->ptr.str, smp->data.str.str, pattern->len) != 0) ||
 	    (!icase && strncmp(pattern->ptr.str, smp->data.str.str, pattern->len) != 0))
-		return ACL_PAT_FAIL;
-	return ACL_PAT_PASS;
+		return PAT_NOMATCH;
+	return PAT_MATCH;
 }
 
 /* Checks that the pattern matches the end of the tested string. */
-int acl_match_end(struct sample *smp, struct acl_pattern *pattern)
+int pat_match_end(struct sample *smp, struct pattern *pattern)
 {
 	int icase;
 
 	if (pattern->len > smp->data.str.len)
-		return ACL_PAT_FAIL;
-	icase = pattern->flags & ACL_PAT_F_IGNORE_CASE;
+		return PAT_NOMATCH;
+	icase = pattern->flags & PAT_F_IGNORE_CASE;
 	if ((icase && strncasecmp(pattern->ptr.str, smp->data.str.str + smp->data.str.len - pattern->len, pattern->len) != 0) ||
 	    (!icase && strncmp(pattern->ptr.str, smp->data.str.str + smp->data.str.len - pattern->len, pattern->len) != 0))
-		return ACL_PAT_FAIL;
-	return ACL_PAT_PASS;
+		return PAT_NOMATCH;
+	return PAT_MATCH;
 }
 
 /* Checks that the pattern is included inside the tested string.
  * NB: Suboptimal, should be rewritten using a Boyer-Moore method.
  */
-int acl_match_sub(struct sample *smp, struct acl_pattern *pattern)
+int pat_match_sub(struct sample *smp, struct pattern *pattern)
 {
 	int icase;
 	char *end;
 	char *c;
 
 	if (pattern->len > smp->data.str.len)
-		return ACL_PAT_FAIL;
+		return PAT_NOMATCH;
 
 	end = smp->data.str.str + smp->data.str.len - pattern->len;
-	icase = pattern->flags & ACL_PAT_F_IGNORE_CASE;
+	icase = pattern->flags & PAT_F_IGNORE_CASE;
 	if (icase) {
 		for (c = smp->data.str.str; c <= end; c++) {
 			if (tolower(*c) != tolower(*pattern->ptr.str))
 				continue;
 			if (strncasecmp(pattern->ptr.str, c, pattern->len) == 0)
-				return ACL_PAT_PASS;
+				return PAT_MATCH;
 		}
 	} else {
 		for (c = smp->data.str.str; c <= end; c++) {
 			if (*c != *pattern->ptr.str)
 				continue;
 			if (strncmp(pattern->ptr.str, c, pattern->len) == 0)
-				return ACL_PAT_PASS;
+				return PAT_MATCH;
 		}
 	}
-	return ACL_PAT_FAIL;
+	return PAT_NOMATCH;
 }
 
 /* Background: Fast way to find a zero byte in a word
@@ -232,7 +232,7 @@ static inline unsigned int make_4delim(unsigned char d1, unsigned char d2, unsig
  * provided as an unsigned int made by make_4delim() and match up to 4 different
  * delimiters. Delimiters are stripped at the beginning and end of the pattern.
  */
-static int match_word(struct sample *smp, struct acl_pattern *pattern, unsigned int delimiters)
+static int match_word(struct sample *smp, struct pattern *pattern, unsigned int delimiters)
 {
 	int may_match, icase;
 	char *c, *end;
@@ -251,10 +251,10 @@ static int match_word(struct sample *smp, struct acl_pattern *pattern, unsigned 
 		pl--;
 
 	if (pl > smp->data.str.len)
-		return ACL_PAT_FAIL;
+		return PAT_NOMATCH;
 
 	may_match = 1;
-	icase = pattern->flags & ACL_PAT_F_IGNORE_CASE;
+	icase = pattern->flags & PAT_F_IGNORE_CASE;
 	end = smp->data.str.str + smp->data.str.len - pl;
 	for (c = smp->data.str.str; c <= end; c++) {
 		if (is_delimiter(*c, delimiters)) {
@@ -269,23 +269,23 @@ static int match_word(struct sample *smp, struct acl_pattern *pattern, unsigned 
 			if ((tolower(*c) == tolower(*ps)) &&
 			    (strncasecmp(ps, c, pl) == 0) &&
 			    (c == end || is_delimiter(c[pl], delimiters)))
-				return ACL_PAT_PASS;
+				return PAT_MATCH;
 		} else {
 			if ((*c == *ps) &&
 			    (strncmp(ps, c, pl) == 0) &&
 			    (c == end || is_delimiter(c[pl], delimiters)))
-				return ACL_PAT_PASS;
+				return PAT_MATCH;
 		}
 		may_match = 0;
 	}
-	return ACL_PAT_FAIL;
+	return PAT_NOMATCH;
 }
 
 /* Checks that the pattern is included inside the tested string, but enclosed
  * between the delimiters '?' or '/' or at the beginning or end of the string.
  * Delimiters at the beginning or end of the pattern are ignored.
  */
-int acl_match_dir(struct sample *smp, struct acl_pattern *pattern)
+int pat_match_dir(struct sample *smp, struct pattern *pattern)
 {
 	return match_word(smp, pattern, make_4delim('/', '?', '?', '?'));
 }
@@ -294,30 +294,30 @@ int acl_match_dir(struct sample *smp, struct acl_pattern *pattern)
  * between the delmiters '/', '?', '.' or ":" or at the beginning or end of
  * the string. Delimiters at the beginning or end of the pattern are ignored.
  */
-int acl_match_dom(struct sample *smp, struct acl_pattern *pattern)
+int pat_match_dom(struct sample *smp, struct pattern *pattern)
 {
 	return match_word(smp, pattern, make_4delim('/', '?', '.', ':'));
 }
 
 /* Checks that the integer in <test> is included between min and max */
-int acl_match_int(struct sample *smp, struct acl_pattern *pattern)
+int pat_match_int(struct sample *smp, struct pattern *pattern)
 {
 	if ((!pattern->val.range.min_set || pattern->val.range.min <= smp->data.uint) &&
 	    (!pattern->val.range.max_set || smp->data.uint <= pattern->val.range.max))
-		return ACL_PAT_PASS;
-	return ACL_PAT_FAIL;
+		return PAT_MATCH;
+	return PAT_NOMATCH;
 }
 
 /* Checks that the length of the pattern in <test> is included between min and max */
-int acl_match_len(struct sample *smp, struct acl_pattern *pattern)
+int pat_match_len(struct sample *smp, struct pattern *pattern)
 {
 	if ((!pattern->val.range.min_set || pattern->val.range.min <= smp->data.str.len) &&
 	    (!pattern->val.range.max_set || smp->data.str.len <= pattern->val.range.max))
-		return ACL_PAT_PASS;
-	return ACL_PAT_FAIL;
+		return PAT_MATCH;
+	return PAT_NOMATCH;
 }
 
-int acl_match_ip(struct sample *smp, struct acl_pattern *pattern)
+int pat_match_ip(struct sample *smp, struct pattern *pattern)
 {
 	unsigned int v4; /* in network byte order */
 	struct in6_addr *v6;
@@ -346,15 +346,15 @@ int acl_match_ip(struct sample *smp, struct acl_pattern *pattern)
 				            ntohs(*(uint16_t*)&smp->data.ipv6.s6_addr[4]));
 			}
 			else
-				return ACL_PAT_FAIL;
+				return PAT_NOMATCH;
 		}
 		else
-			return ACL_PAT_FAIL;
+			return PAT_NOMATCH;
 
 		if (((v4 ^ pattern->val.ipv4.addr.s_addr) & pattern->val.ipv4.mask.s_addr) == 0)
-			return ACL_PAT_PASS;
+			return PAT_MATCH;
 		else
-			return ACL_PAT_FAIL;
+			return PAT_NOMATCH;
 	}
 	else if (pattern->type == SMP_T_IPV6) {
 		if (smp->type == SMP_T_IPV4) {
@@ -370,7 +370,7 @@ int acl_match_ip(struct sample *smp, struct acl_pattern *pattern)
 			v6 = &smp->data.ipv6;
 		}
 		else {
-			return ACL_PAT_FAIL;
+			return PAT_NOMATCH;
 		}
 
 		bits = pattern->val.ipv6.mask;
@@ -379,40 +379,40 @@ int acl_match_ip(struct sample *smp, struct acl_pattern *pattern)
 			if (bits < 32)
 				v4 &= htonl((~0U) << (32-bits));
 			if (v4)
-				return ACL_PAT_FAIL;
+				return PAT_NOMATCH;
 		}
-		return ACL_PAT_PASS;
+		return PAT_MATCH;
 	}
-	return ACL_PAT_FAIL;
+	return PAT_NOMATCH;
 }
 
 /* Lookup an IPv4 address in the expression's pattern tree using the longest
  * match method. The node is returned if it exists, otherwise NULL.
  */
-static void *acl_lookup_ip(struct sample *smp, struct pattern_expr *expr)
+static void *pat_lookup_ip(struct sample *smp, struct pattern_expr *expr)
 {
 	struct in_addr *s;
 
 	if (smp->type != SMP_T_IPV4)
-		return ACL_PAT_FAIL;
+		return PAT_NOMATCH;
 
 	s = &smp->data.ipv4;
 	return ebmb_lookup_longest(&expr->pattern_tree, &s->s_addr);
 }
 
 /* Parse a string. It is allocated and duplicated. */
-int acl_parse_str(const char **text, struct acl_pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
+int pat_parse_str(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
 {
 	int len;
 
 	len  = strlen(*text);
 	pattern->type = SMP_T_CSTR;
 
-	if (pattern->flags & ACL_PAT_F_TREE_OK) {
+	if (pattern->flags & PAT_F_TREE_OK) {
 		/* we're allowed to put the data in a tree whose root is pointed
 		 * to by val.tree.
 		 */
-		struct acl_idx_elt *node;
+		struct pat_idx_elt *node;
 
 		node = calloc(1, sizeof(*node) + len + 1);
 		if (!node) {
@@ -423,7 +423,7 @@ int acl_parse_str(const char **text, struct acl_pattern *pattern, struct sample_
 		memcpy(node->node.key, *text, len + 1);
 		if (ebst_insert(pattern->val.tree, &node->node) != &node->node)
 			free(node); /* was a duplicate */
-		pattern->flags |= ACL_PAT_F_TREE; /* this pattern now contains a tree */
+		pattern->flags |= PAT_F_TREE; /* this pattern now contains a tree */
 		return 1;
 	}
 
@@ -438,7 +438,7 @@ int acl_parse_str(const char **text, struct acl_pattern *pattern, struct sample_
 }
 
 /* Parse a binary written in hexa. It is allocated. */
-int acl_parse_bin(const char **text, struct acl_pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
+int pat_parse_bin(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
 {
 	int len;
 	const char *p = *text;
@@ -477,7 +477,7 @@ bad_input:
 
 /* Parse and concatenate all further strings into one. */
 int
-acl_parse_strcat(const char **text, struct acl_pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
+pat_parse_strcat(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
 {
 
 	int len = 0, i;
@@ -502,14 +502,14 @@ acl_parse_strcat(const char **text, struct acl_pattern *pattern, struct sample_s
 	return i;
 }
 
-/* Free data allocated by acl_parse_reg */
-static void acl_free_reg(void *ptr)
+/* Free data allocated by pat_parse_reg */
+static void pat_free_reg(void *ptr)
 {
 	regex_free(ptr);
 }
 
 /* Parse a regex. It is allocated. */
-int acl_parse_reg(const char **text, struct acl_pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
+int pat_parse_reg(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
 {
 	regex *preg;
 
@@ -520,13 +520,13 @@ int acl_parse_reg(const char **text, struct acl_pattern *pattern, struct sample_
 		return 0;
 	}
 
-	if (!regex_comp(*text, preg, !(pattern->flags & ACL_PAT_F_IGNORE_CASE), 0, err)) {
+	if (!regex_comp(*text, preg, !(pattern->flags & PAT_F_IGNORE_CASE), 0, err)) {
 		free(preg);
 		return 0;
 	}
 
 	pattern->ptr.reg = preg;
-	pattern->freeptrbuf = &acl_free_reg;
+	pattern->freeptrbuf = &pat_free_reg;
 	pattern->smp = smp;
 	return 1;
 }
@@ -545,7 +545,7 @@ int acl_parse_reg(const char **text, struct acl_pattern *pattern, struct sample_
  * the caller will have to free it.
  *
  */
-int acl_parse_int(const char **text, struct acl_pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
+int pat_parse_int(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
 {
 	signed long long i;
 	unsigned int j, last, skip = 0;
@@ -637,7 +637,7 @@ int acl_parse_int(const char **text, struct acl_pattern *pattern, struct sample_
  *    acl valid_ssl       ssl_req_proto 3.0-3.1
  *
  */
-int acl_parse_dotted_ver(const char **text, struct acl_pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
+int pat_parse_dotted_ver(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
 {
 	signed long long i;
 	unsigned int j, last, skip = 0;
@@ -728,15 +728,15 @@ int acl_parse_dotted_ver(const char **text, struct acl_pattern *pattern, struct 
  * may either be a dotted mask or a number of bits. Returns 1 if OK,
  * otherwise 0. NOTE: IP address patterns are typed (IPV4/IPV6).
  */
-int acl_parse_ip(const char **text, struct acl_pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
+int pat_parse_ip(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
 {
 	struct eb_root *tree = NULL;
-	if (pattern->flags & ACL_PAT_F_TREE_OK)
+	if (pattern->flags & PAT_F_TREE_OK)
 		tree = pattern->val.tree;
 
 	if (str2net(*text, &pattern->val.ipv4.addr, &pattern->val.ipv4.mask)) {
 		unsigned int mask = ntohl(pattern->val.ipv4.mask.s_addr);
-		struct acl_idx_elt *node;
+		struct pat_idx_elt *node;
 		/* check if the mask is contiguous so that we can insert the
 		 * network into the tree. A continuous mask has only ones on
 		 * the left. This means that this mask + its lower bit added
@@ -756,7 +756,7 @@ int acl_parse_ip(const char **text, struct acl_pattern *pattern, struct sample_s
 			node->node.node.pfx = mask;
 			if (ebmb_insert_prefix(tree, &node->node, 4) != &node->node)
 				free(node); /* was a duplicate */
-			pattern->flags |= ACL_PAT_F_TREE;
+			pattern->flags |= PAT_F_TREE;
 			return 1;
 		}
 		return 1;
@@ -773,7 +773,7 @@ int acl_parse_ip(const char **text, struct acl_pattern *pattern, struct sample_s
 }
 
 /* NB: does nothing if <pat> is NULL */
-void free_pattern(struct acl_pattern *pat)
+void pattern_free(struct pattern *pat)
 {
 	if (!pat)
 		return;
@@ -790,9 +790,9 @@ void free_pattern(struct acl_pattern *pat)
 
 void free_pattern_list(struct list *head)
 {
-	struct acl_pattern *pat, *tmp;
+	struct pattern *pat, *tmp;
 	list_for_each_entry_safe(pat, tmp, head, list)
-		free_pattern(pat);
+		pattern_free(pat);
 }
 
 void free_pattern_tree(struct eb_root *root)
@@ -807,14 +807,14 @@ void free_pattern_tree(struct eb_root *root)
 	}
 }
 
-void prune_pattern_expr(struct pattern_expr *expr)
+void pattern_prune_expr(struct pattern_expr *expr)
 {
 	free_pattern_list(&expr->patterns);
 	free_pattern_tree(&expr->pattern_tree);
 	LIST_INIT(&expr->patterns);
 }
 
-void init_pattern_expr(struct pattern_expr *expr)
+void pattern_init_expr(struct pattern_expr *expr)
 {
 	LIST_INIT(&expr->patterns);
 	expr->pattern_tree = EB_ROOT_UNIQUE;
@@ -824,9 +824,9 @@ void init_pattern_expr(struct pattern_expr *expr)
  * return -1 if the parser fail. The err message is filled.
  * return -2 if out of memory
  */
-int acl_register_pattern(struct pattern_expr *expr, char *text,
+int pattern_register(struct pattern_expr *expr, char *text,
                          struct sample_storage *smp,
-                         struct acl_pattern **pattern,
+                         struct pattern **pattern,
                          int patflags, char **err)
 {
 	const char *args[2];
@@ -837,19 +837,19 @@ int acl_register_pattern(struct pattern_expr *expr, char *text,
 
 	/* we keep the previous pattern along iterations as long as it's not used */
 	if (!*pattern)
-		*pattern = (struct acl_pattern *)malloc(sizeof(**pattern));
+		*pattern = (struct pattern *)malloc(sizeof(**pattern));
 	if (!*pattern)
 		return -1;
 
 	memset(*pattern, 0, sizeof(**pattern));
 	(*pattern)->flags = patflags;
 
-	if (!((*pattern)->flags & ACL_PAT_F_IGNORE_CASE) &&
-	    (expr->match == acl_match_str || expr->match == acl_match_ip)) {
+	if (!((*pattern)->flags & PAT_F_IGNORE_CASE) &&
+	    (expr->match == pat_match_str || expr->match == pat_match_ip)) {
 		/* we pre-set the data pointer to the tree's head so that functions
 		 * which are able to insert in a tree know where to do that.
 		 */
-		(*pattern)->flags |= ACL_PAT_F_TREE_OK;
+		(*pattern)->flags |= PAT_F_TREE_OK;
 		(*pattern)->val.tree = &expr->pattern_tree;
 	}
 
@@ -858,7 +858,7 @@ int acl_register_pattern(struct pattern_expr *expr, char *text,
 		return -1;
 
 	/* if the parser did not feed the tree, let's chain the pattern to the list */
-	if (!((*pattern)->flags & ACL_PAT_F_TREE)) {
+	if (!((*pattern)->flags & PAT_F_TREE)) {
 		LIST_ADDQ(&expr->patterns, &(*pattern)->list);
 		*pattern = NULL; /* get a new one */
 	}
@@ -869,14 +869,14 @@ int acl_register_pattern(struct pattern_expr *expr, char *text,
 /* Reads patterns from a file. If <err_msg> is non-NULL, an error message will
  * be returned there on errors and the caller will have to free it.
  */
-int acl_read_patterns_from_file(struct pattern_expr *expr,
+int pattern_read_from_file(struct pattern_expr *expr,
                                 const char *filename, int patflags,
                                 char **err)
 {
 	FILE *file;
 	char *c;
 	char *arg;
-	struct acl_pattern *pattern;
+	struct pattern *pattern;
 	int ret = 0;
 	int line = 0;
 	int code;
@@ -914,7 +914,7 @@ int acl_read_patterns_from_file(struct pattern_expr *expr,
 		if (c == arg)
 			continue;
 
-		code = acl_register_pattern(expr, arg, NULL, &pattern, patflags, err);
+		code = pattern_register(expr, arg, NULL, &pattern, patflags, err);
 		if (code == -2) {
 			memprintf(err, "out of memory when loading patterns from file <%s>", filename);
 			goto out_close;
@@ -928,45 +928,45 @@ int acl_read_patterns_from_file(struct pattern_expr *expr,
 	ret = 1; /* success */
 
  out_free_pattern:
-	free_pattern(pattern);
+	pattern_free(pattern);
  out_close:
 	fclose(file);
 	return ret;
 }
 
-/* This function execute the match part of the acl. It's applying
- * acl <expr> on sample <smp>. <sample> is filled only if the pointer
- * is not NULL. The function return ACL_PAT_FAIL, ACL_PAT_MISS or
- * ACL_PAT_PASS
+/* This function matches a sample <smp> against a set of patterns presented in
+ * pattern expression <expr>. Upon success, if <sample> is not NULL, it is fed
+ * with the pointer associated with the matching pattern. This function returns
+ * PAT_NOMATCH or PAT_MATCH.
  */
-inline int acl_exec_match(struct pattern_expr *expr, struct sample *smp,
+inline int pattern_exec_match(struct pattern_expr *expr, struct sample *smp,
                           struct sample_storage **sample)
 {
-	int acl_res = ACL_PAT_FAIL;
-	struct acl_pattern *pattern;
+	int pat_res = PAT_NOMATCH;
+	struct pattern *pattern;
 	struct ebmb_node *node = NULL;
-	struct acl_idx_elt *elt;
+	struct pat_idx_elt *elt;
 
-	if (expr->match == acl_match_nothing) {
+	if (expr->match == pat_match_nothing) {
 		if (smp->data.uint)
-			acl_res |= ACL_PAT_PASS;
+			pat_res |= PAT_MATCH;
 		else
-			acl_res |= ACL_PAT_FAIL;
+			pat_res |= PAT_NOMATCH;
 	}
 	else if (!expr->match) {
 		/* just check for existence */
-		acl_res |= ACL_PAT_PASS;
+		pat_res |= PAT_MATCH;
 	}
 	else {
 		if (!eb_is_empty(&expr->pattern_tree)) {
 			/* a tree is present, let's check what type it is */
-			if (expr->match == acl_match_str)
-				node = acl_lookup_str(smp, expr);
-			else if (expr->match == acl_match_ip)
-				node = acl_lookup_ip(smp, expr);
+			if (expr->match == pat_match_str)
+				node = pat_lookup_str(smp, expr);
+			else if (expr->match == pat_match_ip)
+				node = pat_lookup_ip(smp, expr);
 			if (node) {
-				acl_res |= ACL_PAT_PASS;
-				elt = ebmb_entry(node, struct acl_idx_elt, node);
+				pat_res |= PAT_MATCH;
+				elt = ebmb_entry(node, struct pat_idx_elt, node);
 				if (sample)
 					*sample = elt->smp;
 			}
@@ -974,14 +974,14 @@ inline int acl_exec_match(struct pattern_expr *expr, struct sample *smp,
 
 		/* call the match() function for all tests on this value */
 		list_for_each_entry(pattern, &expr->patterns, list) {
-			if (acl_res == ACL_PAT_PASS)
+			if (pat_res == PAT_MATCH)
 				break;
-			acl_res |= expr->match(smp, pattern);
+			pat_res |= expr->match(smp, pattern);
 			if (sample)
 				*sample = pattern->smp;
 		}
 	}
 
-	return acl_res;
+	return pat_res;
 }
 

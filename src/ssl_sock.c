@@ -3272,31 +3272,31 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct acl_kw_list acl_kws = {ILH, {
-	{ "ssl_c_i_dn",             NULL,         acl_parse_str,     acl_match_str     },
-	{ "ssl_c_key_alg",          NULL,         acl_parse_str,     acl_match_str     },
-	{ "ssl_c_notafter",         NULL,         acl_parse_str,     acl_match_str     },
-	{ "ssl_c_notbefore",        NULL,         acl_parse_str,     acl_match_str     },
-	{ "ssl_c_sig_alg",          NULL,         acl_parse_str,     acl_match_str     },
-	{ "ssl_c_s_dn",             NULL,         acl_parse_str,     acl_match_str     },
-	{ "ssl_c_serial",           NULL,         acl_parse_bin,     acl_match_bin     },
-	{ "ssl_f_i_dn",             NULL,         acl_parse_str,     acl_match_str     },
-	{ "ssl_f_key_alg",          NULL,         acl_parse_str,     acl_match_str     },
-	{ "ssl_f_notafter",         NULL,         acl_parse_str,     acl_match_str     },
-	{ "ssl_f_notbefore",        NULL,         acl_parse_str,     acl_match_str     },
-	{ "ssl_f_sig_alg",          NULL,         acl_parse_str,     acl_match_str     },
-	{ "ssl_f_s_dn",             NULL,         acl_parse_str,     acl_match_str     },
-	{ "ssl_f_serial",           NULL,         acl_parse_bin,     acl_match_bin     },
-	{ "ssl_fc_cipher",          NULL,         acl_parse_str,     acl_match_str     },
+	{ "ssl_c_i_dn",             NULL,         pat_parse_str,     pat_match_str     },
+	{ "ssl_c_key_alg",          NULL,         pat_parse_str,     pat_match_str     },
+	{ "ssl_c_notafter",         NULL,         pat_parse_str,     pat_match_str     },
+	{ "ssl_c_notbefore",        NULL,         pat_parse_str,     pat_match_str     },
+	{ "ssl_c_sig_alg",          NULL,         pat_parse_str,     pat_match_str     },
+	{ "ssl_c_s_dn",             NULL,         pat_parse_str,     pat_match_str     },
+	{ "ssl_c_serial",           NULL,         pat_parse_bin,     pat_match_bin     },
+	{ "ssl_f_i_dn",             NULL,         pat_parse_str,     pat_match_str     },
+	{ "ssl_f_key_alg",          NULL,         pat_parse_str,     pat_match_str     },
+	{ "ssl_f_notafter",         NULL,         pat_parse_str,     pat_match_str     },
+	{ "ssl_f_notbefore",        NULL,         pat_parse_str,     pat_match_str     },
+	{ "ssl_f_sig_alg",          NULL,         pat_parse_str,     pat_match_str     },
+	{ "ssl_f_s_dn",             NULL,         pat_parse_str,     pat_match_str     },
+	{ "ssl_f_serial",           NULL,         pat_parse_bin,     pat_match_bin     },
+	{ "ssl_fc_cipher",          NULL,         pat_parse_str,     pat_match_str     },
 #ifdef OPENSSL_NPN_NEGOTIATED
-	{ "ssl_fc_npn",             NULL,         acl_parse_str,     acl_match_str     },
+	{ "ssl_fc_npn",             NULL,         pat_parse_str,     pat_match_str     },
 #endif
 #ifdef OPENSSL_ALPN_NEGOTIATED
-	{ "ssl_fc_alpn",            NULL,         acl_parse_str,     acl_match_str     },
+	{ "ssl_fc_alpn",            NULL,         pat_parse_str,     pat_match_str     },
 #endif
-	{ "ssl_fc_protocol",        NULL,         acl_parse_str,     acl_match_str     },
-	{ "ssl_fc_sni",             "ssl_fc_sni", acl_parse_str,     acl_match_str     },
-	{ "ssl_fc_sni_end",         "ssl_fc_sni", acl_parse_str,     acl_match_end     },
-	{ "ssl_fc_sni_reg",         "ssl_fc_sni", acl_parse_reg,     acl_match_reg     },
+	{ "ssl_fc_protocol",        NULL,         pat_parse_str,     pat_match_str     },
+	{ "ssl_fc_sni",             "ssl_fc_sni", pat_parse_str,     pat_match_str     },
+	{ "ssl_fc_sni_end",         "ssl_fc_sni", pat_parse_str,     pat_match_end     },
+	{ "ssl_fc_sni_reg",         "ssl_fc_sni", pat_parse_reg,     pat_match_reg     },
 	{ /* END */ },
 }};
 

@@ -904,11 +904,11 @@ int tcp_inspect_request(struct session *s, struct channel *req, int an_bit)
 		partial = 0;
 
 	list_for_each_entry(rule, &s->be->tcp_req.inspect_rules, list) {
-		int ret = ACL_PAT_PASS;
+		int ret = ACL_TEST_PASS;
 
 		if (rule->cond) {
 			ret = acl_exec_cond(rule->cond, s->be, s, &s->txn, SMP_OPT_DIR_REQ | partial);
-			if (ret == ACL_PAT_MISS) {
+			if (ret == ACL_TEST_MISS) {
 				channel_dont_connect(req);
 				/* just set the request timeout once at the beginning of the request */
 				if (!tick_isset(req->analyse_exp) && s->be->tcp_req.inspect_delay)
@@ -1008,11 +1008,11 @@ int tcp_inspect_response(struct session *s, struct channel *rep, int an_bit)
 		partial = 0;
 
 	list_for_each_entry(rule, &s->be->tcp_rep.inspect_rules, list) {
-		int ret = ACL_PAT_PASS;
+		int ret = ACL_TEST_PASS;
 
 		if (rule->cond) {
 			ret = acl_exec_cond(rule->cond, s->be, s, &s->txn, SMP_OPT_DIR_RES | partial);
-			if (ret == ACL_PAT_MISS) {
+			if (ret == ACL_TEST_MISS) {
 				/* just set the analyser timeout once at the beginning of the response */
 				if (!tick_isset(rep->analyse_exp) && s->be->tcp_rep.inspect_delay)
 					rep->analyse_exp = tick_add(now_ms, s->be->tcp_rep.inspect_delay);
@@ -1078,7 +1078,7 @@ int tcp_exec_req_rules(struct session *s)
 	int ret;
 
 	list_for_each_entry(rule, &s->fe->tcp_req.l4_rules, list) {
-		ret = ACL_PAT_PASS;
+		ret = ACL_TEST_PASS;
 
 		if (rule->cond) {
 			ret = acl_exec_cond(rule->cond, s->fe, s, NULL, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);

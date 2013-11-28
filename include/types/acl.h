@@ -35,7 +35,7 @@
 
 #include <ebmbtree.h>
 
-/* Pattern matching function result.
+/* ACL test result.
  *
  * We're using a 3-state matching system :
  *   - PASS : at least one pattern already matches
@@ -53,13 +53,20 @@
  *
  *  neg(x) = (3 >> x)       and(x,y) = (x & y)           or(x,y) = (x | y)
  *
+ * For efficiency, the ACL return flags are directly mapped from the pattern
+ * match flags. See include/pattern.h for existing values.
  */
+enum acl_test_res {
+	ACL_TEST_FAIL = 0,           /* test failed */
+	ACL_TEST_MISS = 1,           /* test may pass with more info */
+	ACL_TEST_PASS = 3,           /* test passed */
+};
 
 /* Condition polarity. It makes it easier for any option to choose between
  * IF/UNLESS if it can store that information within the condition itself.
  * Those should be interpreted as "IF/UNLESS result == PASS".
  */
-enum {
+enum acl_cond_pol {
 	ACL_COND_NONE,		/* no polarity set yet */
 	ACL_COND_IF,		/* positive condition (after 'if') */
 	ACL_COND_UNLESS,	/* negative condition (after 'unless') */
@@ -85,8 +92,8 @@ struct acl_expr;
 struct acl_keyword {
 	const char *kw;
 	char *fetch_kw;
-	int (*parse)(const char **text, struct acl_pattern *pattern, struct sample_storage *smp, int *opaque, char **err);
-	int (*match)(struct sample *smp, struct acl_pattern *pattern);
+	int (*parse)(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err);
+	int (*match)(struct sample *smp, struct pattern *pattern);
 	/* must be after the config params */
 	struct sample_fetch *smp; /* the sample fetch we depend on */
 };

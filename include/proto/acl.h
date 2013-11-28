@@ -30,15 +30,15 @@
  * FIXME: we need destructor functions too !
  */
 
-/* Negate an acl result. This turns (ACL_PAT_FAIL, ACL_PAT_MISS, ACL_PAT_PASS)
- * into (ACL_PAT_PASS, ACL_PAT_MISS, ACL_PAT_FAIL).
+/* Negate an acl result. This turns (ACL_MATCH_FAIL, ACL_MATCH_MISS,
+ * ACL_MATCH_PASS) into (ACL_MATCH_PASS, ACL_MATCH_MISS, ACL_MATCH_FAIL).
  */
 static inline int acl_neg(int res)
 {
 	return (3 >> res);
 }
 
-/* Convert an acl result to a boolean. Only ACL_PAT_PASS returns 1. */
+/* Convert an acl result to a boolean. Only ACL_MATCH_PASS returns 1. */
 static inline int acl_pass(int res)
 {
 	return (res >> 1);
@@ -90,10 +90,12 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl, int p
  */
 struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, const char **args, char **err);
 
-/* Execute condition <cond> and return either ACL_PAT_FAIL, ACL_PAT_MISS or
- * ACL_PAT_PASS depending on the test results. This function only computes the
- * condition, it does not apply the polarity required by IF/UNLESS, it's up to
- * the caller to do this.
+/* Execute condition <cond> and return either ACL_TEST_FAIL, ACL_TEST_MISS or
+ * ACL_TEST_PASS depending on the test results. ACL_TEST_MISS may only be
+ * returned if <opt> does not contain SMP_OPT_FINAL, indicating that incomplete
+ * data is being examined. The function automatically sets SMP_OPT_ITERATE. This
+ * function only computes the condition, it does not apply the polarity required
+ * by IF/UNLESS, it's up to the caller to do this.
  */
 int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, void *l7, unsigned int opt);
 

@@ -38,13 +38,13 @@ static struct acl_kw_list acl_keywords = {
 	.list = LIST_HEAD_INIT(acl_keywords.list)
 };
 
-/* return the ACL_MATCH_* index for match name "name", or < 0 if not found */
+/* return the PAT_MATCH_* index for match name "name", or < 0 if not found */
 static int acl_find_match_name(const char *name)
 {
 	int i;
 
-	for (i = 0; i < ACL_MATCH_NUM; i++)
-		if (strcmp(name, acl_match_names[i]) == 0)
+	for (i = 0; i < PAT_MATCH_NUM; i++)
+		if (strcmp(name, pat_match_names[i]) == 0)
 			return i;
 	return -1;
 }
@@ -107,7 +107,7 @@ static struct acl_expr *prune_acl_expr(struct acl_expr *expr)
 {
 	struct arg *arg;
 
-	prune_pattern_expr(&expr->pat);
+	pattern_prune_expr(&expr->pat);
 
 	for (arg = expr->smp->arg_p; arg; arg++) {
 		if (arg->type == ARGT_STOP)
@@ -137,7 +137,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	__label__ out_return, out_free_expr, out_free_pattern;
 	struct acl_expr *expr;
 	struct acl_keyword *aclkw;
-	struct acl_pattern *pattern;
+	struct pattern *pattern;
 	int opaque, patflags;
 	const char *arg;
 	struct sample_expr *smp = NULL;
@@ -169,7 +169,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		goto out_return;
 	}
 
-	init_pattern_expr(&expr->pat);
+	pattern_init_expr(&expr->pat);
 
 	expr->kw = aclkw ? aclkw->kw : smp->fetch->kw;
 	expr->pat.parse = aclkw ? aclkw->parse : NULL;
@@ -181,18 +181,18 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 
 		switch (expr->smp ? expr->smp->fetch->out_type : aclkw->smp->out_type) {
 		case SMP_T_BOOL:
-			expr->pat.parse = acl_parse_fcts[ACL_MATCH_BOOL];
-			expr->pat.match = acl_match_fcts[ACL_MATCH_BOOL];
+			expr->pat.parse = pat_parse_fcts[PAT_MATCH_BOOL];
+			expr->pat.match = pat_match_fcts[PAT_MATCH_BOOL];
 			break;
 		case SMP_T_SINT:
 		case SMP_T_UINT:
-			expr->pat.parse = acl_parse_fcts[ACL_MATCH_INT];
-			expr->pat.match = acl_match_fcts[ACL_MATCH_INT];
+			expr->pat.parse = pat_parse_fcts[PAT_MATCH_INT];
+			expr->pat.match = pat_match_fcts[PAT_MATCH_INT];
 			break;
 		case SMP_T_IPV4:
 		case SMP_T_IPV6:
-			expr->pat.parse = acl_parse_fcts[ACL_MATCH_IP];
-			expr->pat.match = acl_match_fcts[ACL_MATCH_IP];
+			expr->pat.parse = pat_parse_fcts[PAT_MATCH_IP];
+			expr->pat.match = pat_match_fcts[PAT_MATCH_IP];
 			break;
 		}
 	}
@@ -449,14 +449,14 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	patflags = 0;
 	while (**args == '-') {
 		if ((*args)[1] == 'i')
-			patflags |= ACL_PAT_F_IGNORE_CASE;
+			patflags |= PAT_F_IGNORE_CASE;
 		else if ((*args)[1] == 'f') {
 			if (!expr->pat.parse) {
 				memprintf(err, "matching method must be specified first (using '-m') when using a sample fetch of this type ('%s')", expr->kw);
 				goto out_free_expr;
 			}
 
-			if (!acl_read_patterns_from_file(&expr->pat, args[1], patflags | ACL_PAT_F_FROM_FILE, err))
+			if (!pattern_read_from_file(&expr->pat, args[1], patflags | PAT_F_FROM_FILE, err))
 				goto out_free_expr;
 			args++;
 		}
@@ -475,23 +475,23 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			}
 
 			/* Note: -m found is always valid, bool/int are compatible, str/bin/reg/len are compatible */
-			if (idx == ACL_MATCH_FOUND ||                           /* -m found */
-			    ((idx == ACL_MATCH_BOOL || idx == ACL_MATCH_INT) && /* -m bool/int */
+			if (idx == PAT_MATCH_FOUND ||                           /* -m found */
+			    ((idx == PAT_MATCH_BOOL || idx == PAT_MATCH_INT) && /* -m bool/int */
 			     (cur_type == SMP_T_BOOL ||
 			      cur_type == SMP_T_UINT ||
 			      cur_type == SMP_T_SINT)) ||
-			    (idx == ACL_MATCH_IP &&                             /* -m ip */
+			    (idx == PAT_MATCH_IP &&                             /* -m ip */
 			     (cur_type == SMP_T_IPV4 ||
 			      cur_type == SMP_T_IPV6)) ||
-			    ((idx == ACL_MATCH_BIN || idx == ACL_MATCH_LEN || idx == ACL_MATCH_STR ||
-			      idx == ACL_MATCH_BEG || idx == ACL_MATCH_SUB || idx == ACL_MATCH_DIR ||
-			      idx == ACL_MATCH_DOM || idx == ACL_MATCH_END || idx == ACL_MATCH_REG) &&  /* strings */
+			    ((idx == PAT_MATCH_BIN || idx == PAT_MATCH_LEN || idx == PAT_MATCH_STR ||
+			      idx == PAT_MATCH_BEG || idx == PAT_MATCH_SUB || idx == PAT_MATCH_DIR ||
+			      idx == PAT_MATCH_DOM || idx == PAT_MATCH_END || idx == PAT_MATCH_REG) &&  /* strings */
 			     (cur_type == SMP_T_STR ||
 			      cur_type == SMP_T_BIN ||
 			      cur_type == SMP_T_CSTR ||
 			      cur_type == SMP_T_CBIN))) {
-				expr->pat.parse = acl_parse_fcts[idx];
-				expr->pat.match = acl_match_fcts[idx];
+				expr->pat.parse = pat_parse_fcts[idx];
+				expr->pat.match = pat_match_fcts[idx];
 			}
 			else {
 				memprintf(err, "matching method '%s' cannot be used with fetch keyword '%s'", args[1], expr->kw);
@@ -517,7 +517,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	opaque = 0;
 	while (**args) {
 		int ret;
-		pattern = (struct acl_pattern *)calloc(1, sizeof(*pattern));
+		pattern = (struct pattern *)calloc(1, sizeof(*pattern));
 		if (!pattern) {
 			memprintf(err, "out of memory when parsing ACL pattern");
 			goto out_free_expr;
@@ -536,7 +536,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	return expr;
 
  out_free_pattern:
-	free_pattern(pattern);
+	pattern_free(pattern);
  out_free_expr:
 	prune_acl_expr(expr);
 	free(expr);
@@ -945,16 +945,15 @@ struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, co
 	return cond;
 }
 
-/* Execute condition <cond> and return either ACL_PAT_FAIL, ACL_PAT_MISS or
- * ACL_PAT_PASS depending on the test results. ACL_PAT_MISS may only be
+/* Execute condition <cond> and return either ACL_TEST_FAIL, ACL_TEST_MISS or
+ * ACL_TEST_PASS depending on the test results. ACL_TEST_MISS may only be
  * returned if <opt> does not contain SMP_OPT_FINAL, indicating that incomplete
- * data is being examined. The function automatically sets SMP_OPT_ITERATE.
- * This function only computes the condition, it does not apply the polarity
- * required by IF/UNLESS, it's up to the caller to do this using something like
- * this :
+ * data is being examined. The function automatically sets SMP_OPT_ITERATE. This
+ * function only computes the condition, it does not apply the polarity required
+ * by IF/UNLESS, it's up to the caller to do this using something like this :
  *
  *     res = acl_pass(res);
- *     if (res == ACL_PAT_MISS)
+ *     if (res == ACL_TEST_MISS)
  *         return 0;
  *     if (cond->pol == ACL_COND_UNLESS)
  *         res = !res;
@@ -977,17 +976,17 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 	/* We're doing a logical OR between conditions so we initialize to FAIL.
 	 * The MISS status is propagated down from the suites.
 	 */
-	cond_res = ACL_PAT_FAIL;
+	cond_res = ACL_TEST_FAIL;
 	list_for_each_entry(suite, &cond->suites, list) {
 		/* Evaluate condition suite <suite>. We stop at the first term
-		 * which returns ACL_PAT_FAIL. The MISS status is still propagated
+		 * which returns PAT_FAIL. The MISS status is still propagated
 		 * in case of uncertainty in the result.
 		 */
 
 		/* we're doing a logical AND between terms, so we must set the
 		 * initial value to PASS.
 		 */
-		suite_res = ACL_PAT_PASS;
+		suite_res = ACL_TEST_PASS;
 		list_for_each_entry(term, &suite->terms, list) {
 			acl = term->acl;
 
@@ -998,7 +997,7 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 			/* ACL result not cached. Let's scan all the expressions
 			 * and use the first one to match.
 			 */
-			acl_res = ACL_PAT_FAIL;
+			acl_res = ACL_TEST_FAIL;
 			list_for_each_entry(expr, &acl->expr, list) {
 				/* we need to reset context and flags */
 				memset(&smp, 0, sizeof(smp));
@@ -1006,14 +1005,14 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 				if (!sample_process(px, l4, l7, opt, expr->smp, &smp)) {
 					/* maybe we could not fetch because of missing data */
 					if (smp.flags & SMP_F_MAY_CHANGE && !(opt & SMP_OPT_FINAL))
-						acl_res |= ACL_PAT_MISS;
+						acl_res |= ACL_TEST_MISS;
 					continue;
 				}
 
-				acl_res |= acl_exec_match(&expr->pat, &smp, NULL);
+				acl_res |= pattern_exec_match(&expr->pat, &smp, NULL);
 				/*
 				 * OK now acl_res holds the result of this expression
-				 * as one of ACL_PAT_FAIL, ACL_PAT_MISS or ACL_PAT_PASS.
+				 * as one of ACL_TEST_FAIL, ACL_TEST_MISS or ACL_TEST_PASS.
 				 *
 				 * Then if (!MISS) we can cache the result, and put
 				 * (smp.flags & SMP_F_VOLATILE) in the cache flags.
@@ -1023,7 +1022,7 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 				 */
 
 				/* we're ORing these terms, so a single PASS is enough */
-				if (acl_res == ACL_PAT_PASS)
+				if (acl_res == ACL_TEST_PASS)
 					break;
 
 				if (smp.flags & SMP_F_NOT_LAST)
@@ -1034,7 +1033,7 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 				 * size, time, ...)
 				 */
 				if (smp.flags & SMP_F_MAY_CHANGE && !(opt & SMP_OPT_FINAL))
-					acl_res |= ACL_PAT_MISS;
+					acl_res |= ACL_TEST_MISS;
 			}
 			/*
 			 * Here we have the result of an ACL (cached or not).
@@ -1047,13 +1046,13 @@ int acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, v
 			suite_res &= acl_res;
 
 			/* we're ANDing these terms, so a single FAIL or MISS is enough */
-			if (suite_res != ACL_PAT_PASS)
+			if (suite_res != ACL_TEST_PASS)
 				break;
 		}
 		cond_res |= suite_res;
 
 		/* we're ORing these terms, so a single PASS is enough */
-		if (cond_res == ACL_PAT_PASS)
+		if (cond_res == ACL_TEST_PASS)
 			break;
 	}
 	return cond_res;
@@ -1118,7 +1117,7 @@ int acl_find_targets(struct proxy *p)
 
 	struct acl *acl;
 	struct acl_expr *expr;
-	struct acl_pattern *pattern;
+	struct pattern *pattern;
 	int cfgerr = 0;
 
 	list_for_each_entry(acl, &p->acl, list) {

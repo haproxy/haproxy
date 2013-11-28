@@ -31,6 +31,7 @@
 #include <proto/log.h>
 
 #include <types/auth.h>
+#include <types/pattern.h>
 
 struct userlist *userlist = NULL;    /* list of all existing userlists */
 
@@ -167,7 +168,7 @@ check_user(struct userlist *ul, unsigned int group_mask, const char *user, const
 }
 
 int
-acl_match_auth(struct sample *smp, struct acl_pattern *pattern)
+pat_match_auth(struct sample *smp, struct pattern *pattern)
 {
 
 	struct userlist *ul = smp->ctx.a[0];
@@ -176,7 +177,7 @@ acl_match_auth(struct sample *smp, struct acl_pattern *pattern)
 	unsigned int group_mask = pattern->val.group_mask;
 
 	if (check_user(ul, group_mask, user, pass))
-		return ACL_PAT_PASS;
+		return PAT_MATCH;
 	else
-		return ACL_PAT_FAIL;
+		return PAT_NOMATCH;
 }

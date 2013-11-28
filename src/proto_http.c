@@ -8921,7 +8921,7 @@ smp_prefetch_http(struct proxy *px, struct session *s, void *l7, unsigned int op
  * We use the pre-parsed method if it is known, and store its number as an
  * integer. If it is unknown, we use the pointer and the length.
  */
-static int acl_parse_meth(const char **text, struct acl_pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
+static int pat_parse_meth(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
 {
 	int len, meth;
 
@@ -8947,7 +8947,7 @@ static int acl_parse_meth(const char **text, struct acl_pattern *pattern, struct
  *     in <len> and <ptr> is NULL ;
  *   - if the method is unknown (HTTP_METH_OTHER), <ptr> points to the text and
  *     <len> to its length.
- * This is intended to be used with acl_match_meth() only.
+ * This is intended to be used with pat_match_meth() only.
  */
 static int
 smp_fetch_meth(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
@@ -8974,7 +8974,7 @@ smp_fetch_meth(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 }
 
 /* See above how the method is stored in the global pattern */
-static int acl_match_meth(struct sample *smp, struct acl_pattern *pattern)
+static int pat_match_meth(struct sample *smp, struct pattern *pattern)
 {
 	int icase;
 
@@ -8982,23 +8982,23 @@ static int acl_match_meth(struct sample *smp, struct acl_pattern *pattern)
 	if (smp->type == SMP_T_UINT) {
 		/* well-known method */
 		if (smp->data.uint == pattern->val.i)
-			return ACL_PAT_PASS;
-		return ACL_PAT_FAIL;
+			return PAT_MATCH;
+		return PAT_NOMATCH;
 	}
 
 	/* Uncommon method, only HTTP_METH_OTHER is accepted now */
 	if (pattern->val.i != HTTP_METH_OTHER)
-		return ACL_PAT_FAIL;
+		return PAT_NOMATCH;
 
 	/* Other method, we must compare the strings */
 	if (pattern->len != smp->data.str.len)
-		return ACL_PAT_FAIL;
+		return PAT_NOMATCH;
 
-	icase = pattern->flags & ACL_PAT_F_IGNORE_CASE;
+	icase = pattern->flags & PAT_F_IGNORE_CASE;
 	if ((icase && strncasecmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) != 0) ||
 	    (!icase && strncmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) != 0))
-		return ACL_PAT_FAIL;
-	return ACL_PAT_PASS;
+		return PAT_NOMATCH;
+	return PAT_MATCH;
 }
 
 static int
@@ -9588,7 +9588,7 @@ smp_fetch_http_auth_grp(struct proxy *px, struct session *l4, void *l7, unsigned
 	if (!get_http_auth(l4))
 		return 0;
 
-	/* acl_match_auth() will need several information at once */
+	/* pat_match_auth() will need several information at once */
 	smp->ctx.a[0] = args->data.usr;      /* user list */
 	smp->ctx.a[1] = l4->txn.auth.user;   /* user name */
 	smp->ctx.a[2] = l4->txn.auth.pass;   /* password */
@@ -9596,7 +9596,7 @@ smp_fetch_http_auth_grp(struct proxy *px, struct session *l4, void *l7, unsigned
 	/* if the user does not belong to the userlist or has a wrong password,
 	 * report that it unconditionally does not match. Otherwise we return
 	 * a non-zero integer which will be ignored anyway since all the params
-	 * that acl_match_auth() will use are in test->ctx.a[0,1,2].
+	 * that pat_match_auth() will use are in test->ctx.a[0,1,2].
 	 */
 	smp->type = SMP_T_BOOL;
 	smp->data.uint = check_user(args->data.usr, 0, l4->txn.auth.user, l4->txn.auth.pass);
@@ -10165,84 +10165,84 @@ static int sample_conv_http_date(const struct arg *args, struct sample *smp)
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct acl_kw_list acl_kws = {ILH, {
-	{ "base",            "base",          acl_parse_str,     acl_match_str     },
-	{ "base_beg",        "base",          acl_parse_str,     acl_match_beg     },
-	{ "base_dir",        "base",          acl_parse_str,     acl_match_dir     },
-	{ "base_dom",        "base",          acl_parse_str,     acl_match_dom     },
-	{ "base_end",        "base",          acl_parse_str,     acl_match_end     },
-	{ "base_len",        "base",          acl_parse_int,     acl_match_len     },
-	{ "base_reg",        "base",          acl_parse_reg,     acl_match_reg     },
-	{ "base_sub",        "base",          acl_parse_str,     acl_match_sub     },
+	{ "base",            "base",          pat_parse_str,     pat_match_str     },
+	{ "base_beg",        "base",          pat_parse_str,     pat_match_beg     },
+	{ "base_dir",        "base",          pat_parse_str,     pat_match_dir     },
+	{ "base_dom",        "base",          pat_parse_str,     pat_match_dom     },
+	{ "base_end",        "base",          pat_parse_str,     pat_match_end     },
+	{ "base_len",        "base",          pat_parse_int,     pat_match_len     },
+	{ "base_reg",        "base",          pat_parse_reg,     pat_match_reg     },
+	{ "base_sub",        "base",          pat_parse_str,     pat_match_sub     },
 
-	{ "cook",            "req.cook",      acl_parse_str,     acl_match_str     },
-	{ "cook_beg",        "req.cook",      acl_parse_str,     acl_match_beg     },
-	{ "cook_dir",        "req.cook",      acl_parse_str,     acl_match_dir     },
-	{ "cook_dom",        "req.cook",      acl_parse_str,     acl_match_dom     },
-	{ "cook_end",        "req.cook",      acl_parse_str,     acl_match_end     },
-	{ "cook_len",        "req.cook",      acl_parse_int,     acl_match_len     },
-	{ "cook_reg",        "req.cook",      acl_parse_reg,     acl_match_reg     },
-	{ "cook_sub",        "req.cook",      acl_parse_str,     acl_match_sub     },
+	{ "cook",            "req.cook",      pat_parse_str,     pat_match_str     },
+	{ "cook_beg",        "req.cook",      pat_parse_str,     pat_match_beg     },
+	{ "cook_dir",        "req.cook",      pat_parse_str,     pat_match_dir     },
+	{ "cook_dom",        "req.cook",      pat_parse_str,     pat_match_dom     },
+	{ "cook_end",        "req.cook",      pat_parse_str,     pat_match_end     },
+	{ "cook_len",        "req.cook",      pat_parse_int,     pat_match_len     },
+	{ "cook_reg",        "req.cook",      pat_parse_reg,     pat_match_reg     },
+	{ "cook_sub",        "req.cook",      pat_parse_str,     pat_match_sub     },
 
-	{ "hdr",             "req.hdr",       acl_parse_str,     acl_match_str     },
-	{ "hdr_beg",         "req.hdr",       acl_parse_str,     acl_match_beg     },
-	{ "hdr_dir",         "req.hdr",       acl_parse_str,     acl_match_dir     },
-	{ "hdr_dom",         "req.hdr",       acl_parse_str,     acl_match_dom     },
-	{ "hdr_end",         "req.hdr",       acl_parse_str,     acl_match_end     },
-	{ "hdr_len",         "req.hdr",       acl_parse_int,     acl_match_len     },
-	{ "hdr_reg",         "req.hdr",       acl_parse_reg,     acl_match_reg     },
-	{ "hdr_sub",         "req.hdr",       acl_parse_str,     acl_match_sub     },
+	{ "hdr",             "req.hdr",       pat_parse_str,     pat_match_str     },
+	{ "hdr_beg",         "req.hdr",       pat_parse_str,     pat_match_beg     },
+	{ "hdr_dir",         "req.hdr",       pat_parse_str,     pat_match_dir     },
+	{ "hdr_dom",         "req.hdr",       pat_parse_str,     pat_match_dom     },
+	{ "hdr_end",         "req.hdr",       pat_parse_str,     pat_match_end     },
+	{ "hdr_len",         "req.hdr",       pat_parse_int,     pat_match_len     },
+	{ "hdr_reg",         "req.hdr",       pat_parse_reg,     pat_match_reg     },
+	{ "hdr_sub",         "req.hdr",       pat_parse_str,     pat_match_sub     },
 
-	{ "http_auth_group", NULL,            acl_parse_strcat,  acl_match_auth    },
+	{ "http_auth_group", NULL,            pat_parse_strcat,  pat_match_auth    },
 
-	{ "method",          NULL,            acl_parse_meth,    acl_match_meth    },
+	{ "method",          NULL,            pat_parse_meth,    pat_match_meth    },
 
-	{ "path",            "path",          acl_parse_str,     acl_match_str     },
-	{ "path_beg",        "path",          acl_parse_str,     acl_match_beg     },
-	{ "path_dir",        "path",          acl_parse_str,     acl_match_dir     },
-	{ "path_dom",        "path",          acl_parse_str,     acl_match_dom     },
-	{ "path_end",        "path",          acl_parse_str,     acl_match_end     },
-	{ "path_len",        "path",          acl_parse_int,     acl_match_len     },
-	{ "path_reg",        "path",          acl_parse_reg,     acl_match_reg     },
-	{ "path_sub",        "path",          acl_parse_str,     acl_match_sub     },
+	{ "path",            "path",          pat_parse_str,     pat_match_str     },
+	{ "path_beg",        "path",          pat_parse_str,     pat_match_beg     },
+	{ "path_dir",        "path",          pat_parse_str,     pat_match_dir     },
+	{ "path_dom",        "path",          pat_parse_str,     pat_match_dom     },
+	{ "path_end",        "path",          pat_parse_str,     pat_match_end     },
+	{ "path_len",        "path",          pat_parse_int,     pat_match_len     },
+	{ "path_reg",        "path",          pat_parse_reg,     pat_match_reg     },
+	{ "path_sub",        "path",          pat_parse_str,     pat_match_sub     },
 
-	{ "req_ver",         "req.ver",       acl_parse_str,     acl_match_str     },
-	{ "resp_ver",        "res.ver",       acl_parse_str,     acl_match_str     },
+	{ "req_ver",         "req.ver",       pat_parse_str,     pat_match_str     },
+	{ "resp_ver",        "res.ver",       pat_parse_str,     pat_match_str     },
 
-	{ "scook",           "res.cook",      acl_parse_str,     acl_match_str     },
-	{ "scook_beg",       "res.cook",      acl_parse_str,     acl_match_beg     },
-	{ "scook_dir",       "res.cook",      acl_parse_str,     acl_match_dir     },
-	{ "scook_dom",       "res.cook",      acl_parse_str,     acl_match_dom     },
-	{ "scook_end",       "res.cook",      acl_parse_str,     acl_match_end     },
-	{ "scook_len",       "res.cook",      acl_parse_int,     acl_match_len     },
-	{ "scook_reg",       "res.cook",      acl_parse_reg,     acl_match_reg     },
-	{ "scook_sub",       "res.cook",      acl_parse_str,     acl_match_sub     },
+	{ "scook",           "res.cook",      pat_parse_str,     pat_match_str     },
+	{ "scook_beg",       "res.cook",      pat_parse_str,     pat_match_beg     },
+	{ "scook_dir",       "res.cook",      pat_parse_str,     pat_match_dir     },
+	{ "scook_dom",       "res.cook",      pat_parse_str,     pat_match_dom     },
+	{ "scook_end",       "res.cook",      pat_parse_str,     pat_match_end     },
+	{ "scook_len",       "res.cook",      pat_parse_int,     pat_match_len     },
+	{ "scook_reg",       "res.cook",      pat_parse_reg,     pat_match_reg     },
+	{ "scook_sub",       "res.cook",      pat_parse_str,     pat_match_sub     },
 
-	{ "shdr",            "res.hdr",       acl_parse_str,     acl_match_str     },
-	{ "shdr_beg",        "res.hdr",       acl_parse_str,     acl_match_beg     },
-	{ "shdr_dir",        "res.hdr",       acl_parse_str,     acl_match_dir     },
-	{ "shdr_dom",        "res.hdr",       acl_parse_str,     acl_match_dom     },
-	{ "shdr_end",        "res.hdr",       acl_parse_str,     acl_match_end     },
-	{ "shdr_len",        "res.hdr",       acl_parse_int,     acl_match_len     },
-	{ "shdr_reg",        "res.hdr",       acl_parse_reg,     acl_match_reg     },
-	{ "shdr_sub",        "res.hdr",       acl_parse_str,     acl_match_sub     },
+	{ "shdr",            "res.hdr",       pat_parse_str,     pat_match_str     },
+	{ "shdr_beg",        "res.hdr",       pat_parse_str,     pat_match_beg     },
+	{ "shdr_dir",        "res.hdr",       pat_parse_str,     pat_match_dir     },
+	{ "shdr_dom",        "res.hdr",       pat_parse_str,     pat_match_dom     },
+	{ "shdr_end",        "res.hdr",       pat_parse_str,     pat_match_end     },
+	{ "shdr_len",        "res.hdr",       pat_parse_int,     pat_match_len     },
+	{ "shdr_reg",        "res.hdr",       pat_parse_reg,     pat_match_reg     },
+	{ "shdr_sub",        "res.hdr",       pat_parse_str,     pat_match_sub     },
 
-	{ "url",             "url",           acl_parse_str,     acl_match_str     },
-	{ "url_beg",         "url",           acl_parse_str,     acl_match_beg     },
-	{ "url_dir",         "url",           acl_parse_str,     acl_match_dir     },
-	{ "url_dom",         "url",           acl_parse_str,     acl_match_dom     },
-	{ "url_end",         "url",           acl_parse_str,     acl_match_end     },
-	{ "url_len",         "url",           acl_parse_int,     acl_match_len     },
-	{ "url_reg",         "url",           acl_parse_reg,     acl_match_reg     },
-	{ "url_sub",         "url",           acl_parse_str,     acl_match_sub     },
+	{ "url",             "url",           pat_parse_str,     pat_match_str     },
+	{ "url_beg",         "url",           pat_parse_str,     pat_match_beg     },
+	{ "url_dir",         "url",           pat_parse_str,     pat_match_dir     },
+	{ "url_dom",         "url",           pat_parse_str,     pat_match_dom     },
+	{ "url_end",         "url",           pat_parse_str,     pat_match_end     },
+	{ "url_len",         "url",           pat_parse_int,     pat_match_len     },
+	{ "url_reg",         "url",           pat_parse_reg,     pat_match_reg     },
+	{ "url_sub",         "url",           pat_parse_str,     pat_match_sub     },
 
-	{ "urlp",            "urlp",          acl_parse_str,     acl_match_str     },
-	{ "urlp_beg",        "urlp",          acl_parse_str,     acl_match_beg     },
-	{ "urlp_dir",        "urlp",          acl_parse_str,     acl_match_dir     },
-	{ "urlp_dom",        "urlp",          acl_parse_str,     acl_match_dom     },
-	{ "urlp_end",        "urlp",          acl_parse_str,     acl_match_end     },
-	{ "urlp_len",        "urlp",          acl_parse_int,     acl_match_len     },
-	{ "urlp_reg",        "urlp",          acl_parse_reg,     acl_match_reg     },
-	{ "urlp_sub",        "urlp",          acl_parse_str,     acl_match_sub     },
+	{ "urlp",            "urlp",          pat_parse_str,     pat_match_str     },
+	{ "urlp_beg",        "urlp",          pat_parse_str,     pat_match_beg     },
+	{ "urlp_dir",        "urlp",          pat_parse_str,     pat_match_dir     },
+	{ "urlp_dom",        "urlp",          pat_parse_str,     pat_match_dom     },
+	{ "urlp_end",        "urlp",          pat_parse_str,     pat_match_end     },
+	{ "urlp_len",        "urlp",          pat_parse_int,     pat_match_len     },
+	{ "urlp_reg",        "urlp",          pat_parse_reg,     pat_match_reg     },
+	{ "urlp_sub",        "urlp",          pat_parse_str,     pat_match_sub     },
 
 	{ /* END */ },
 }};

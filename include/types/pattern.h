@@ -31,41 +31,65 @@
 
 #include <ebmbtree.h>
 
+/* Pattern matching function result.
+ *
+ * We're using a 3-state matching system to match samples against patterns in
+ * ACLs :
+ *   - PASS : at least one pattern already matches
+ *   - MISS : some data is missing to decide if some rules may finally match.
+ *   - FAIL : no mattern may ever match
+ *
+ * We assign values 0, 1 and 3 to FAIL, MISS and PASS respectively, so that we
+ * can make use of standard arithmetics for the truth tables below :
+ *
+ *      x  | !x          x&y | F(0) | M(1) | P(3)     x|y | F(0) | M(1) | P(3)
+ *   ------+-----       -----+------+------+-----    -----+------+------+-----
+ *    F(0) | P(3)        F(0)| F(0) | F(0) | F(0)     F(0)| F(0) | M(1) | P(3)
+ *    M(1) | M(1)        M(1)| F(0) | M(1) | M(1)     M(1)| M(1) | M(1) | P(3)
+ *    P(3) | F(0)        P(3)| F(0) | M(1) | P(3)     P(3)| P(3) | P(3) | P(3)
+ *
+ *  neg(x) = (3 >> x)       and(x,y) = (x & y)           or(x,y) = (x | y)
+ *
+ * For efficiency, the ACL return flags are directly mapped from the pattern
+ * match flags. A pattern can't return "MISS" since it's always presented an
+ * existing sample. So that leaves us with only two possible values :
+ *      MATCH   = 0
+ *      NOMATCH = 3
+ */
 enum {
-	ACL_PAT_FAIL = 0,           /* test failed */
-	ACL_PAT_MISS = 1,           /* test may pass with more info */
-	ACL_PAT_PASS = 3,           /* test passed */
+	PAT_NOMATCH = 0,         /* sample didn't match any pattern */
+	PAT_MATCH = 3,           /* sample matched at least one pattern */
 };
 
 /* possible flags for expressions or patterns */
 enum {
-	ACL_PAT_F_IGNORE_CASE = 1 << 0,       /* ignore case */
-	ACL_PAT_F_FROM_FILE   = 1 << 1,       /* pattern comes from a file */
-	ACL_PAT_F_TREE_OK     = 1 << 2,       /* the pattern parser is allowed to build a tree */
-	ACL_PAT_F_TREE        = 1 << 3,       /* some patterns are arranged in a tree */
+	PAT_F_IGNORE_CASE = 1 << 0,       /* ignore case */
+	PAT_F_FROM_FILE   = 1 << 1,       /* pattern comes from a file */
+	PAT_F_TREE_OK     = 1 << 2,       /* the pattern parser is allowed to build a tree */
+	PAT_F_TREE        = 1 << 3,       /* some patterns are arranged in a tree */
 };
 
 /* ACL match methods */
 enum {
-	ACL_MATCH_FOUND, /* just ensure that fetch found the sample */
-	ACL_MATCH_BOOL,  /* match fetch's integer value as boolean */
-	ACL_MATCH_INT,   /* unsigned integer (int) */
-	ACL_MATCH_IP,    /* IPv4/IPv6 address (IP) */
-	ACL_MATCH_BIN,   /* hex string (bin) */
-	ACL_MATCH_LEN,   /* string length (str -> int) */
-	ACL_MATCH_STR,   /* exact string match (str) */
-	ACL_MATCH_BEG,   /* beginning of string (str) */
-	ACL_MATCH_SUB,   /* substring (str) */
-	ACL_MATCH_DIR,   /* directory-like sub-string (str) */
-	ACL_MATCH_DOM,   /* domain-like sub-string (str) */
-	ACL_MATCH_END,   /* end of string (str) */
-	ACL_MATCH_REG,   /* regex (str -> reg) */
+	PAT_MATCH_FOUND, /* just ensure that fetch found the sample */
+	PAT_MATCH_BOOL,  /* match fetch's integer value as boolean */
+	PAT_MATCH_INT,   /* unsigned integer (int) */
+	PAT_MATCH_IP,    /* IPv4/IPv6 address (IP) */
+	PAT_MATCH_BIN,   /* hex string (bin) */
+	PAT_MATCH_LEN,   /* string length (str -> int) */
+	PAT_MATCH_STR,   /* exact string match (str) */
+	PAT_MATCH_BEG,   /* beginning of string (str) */
+	PAT_MATCH_SUB,   /* substring (str) */
+	PAT_MATCH_DIR,   /* directory-like sub-string (str) */
+	PAT_MATCH_DOM,   /* domain-like sub-string (str) */
+	PAT_MATCH_END,   /* end of string (str) */
+	PAT_MATCH_REG,   /* regex (str -> reg) */
 	/* keep this one last */
-	ACL_MATCH_NUM
+	PAT_MATCH_NUM
 };
 
 /* How to store a time range and the valid days in 29 bits */
-struct acl_time {
+struct pat_time {
 	int dow:7;              /* 1 bit per day of week: 0-6 */
 	int h1:5, m1:6;         /* 0..24:0..60. Use 0:0 for all day. */
 	int h2:5, m2:6;         /* 0..24:0..60. Use 24:0 for all day. */
@@ -74,7 +98,7 @@ struct acl_time {
 /* This contain each tree indexed entry. This struct permit to associate
  * "sample" with a tree entry. It is used with maps.
  */
-struct acl_idx_elt {
+struct pat_idx_elt {
 	struct sample_storage *smp;
 	struct ebmb_node node;
 };
@@ -86,7 +110,7 @@ struct acl_idx_elt {
  * accommodate for other types (eg: meth, regex). Unsigned and constant types
  * are preferred when there is a doubt.
  */
-struct acl_pattern {
+struct pattern {
 	struct list list;                       /* chaining */
 	int type;                               /* type of the ACL pattern (SMP_T_*) */
 	union {
@@ -104,7 +128,7 @@ struct acl_pattern {
 			struct in6_addr addr;
 			unsigned char mask;     /* number of bits */
 		} ipv6;                         /* IPv6 address/mask */
-		struct acl_time time;           /* valid hours and days */
+		struct pat_time time;           /* valid hours and days */
 		unsigned int group_mask;
 		struct eb_root *tree;           /* tree storing all values if any */
 	} val;                                  /* direct value */
@@ -127,14 +151,14 @@ struct acl_pattern {
  * are grouped together in order to optimize caching.
  */
 struct pattern_expr {
-	int (*parse)(const char **text, struct acl_pattern *pattern, struct sample_storage *smp, int *opaque, char **err);
-	int (*match)(struct sample *smp, struct acl_pattern *pattern);
+	int (*parse)(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err);
+	int (*match)(struct sample *smp, struct pattern *pattern);
 	struct list patterns;         /* list of acl_patterns */
 	struct eb_root pattern_tree;  /* may be used for lookup in large datasets */
 };
 
-extern char *acl_match_names[ACL_MATCH_NUM];
-extern int (*acl_parse_fcts[ACL_MATCH_NUM])(const char **, struct acl_pattern *, struct sample_storage *, int *, char **);
-extern int (*acl_match_fcts[ACL_MATCH_NUM])(struct sample *, struct acl_pattern *);
+extern char *pat_match_names[PAT_MATCH_NUM];
+extern int (*pat_parse_fcts[PAT_MATCH_NUM])(const char **, struct pattern *, struct sample_storage *, int *, char **);
+extern int (*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern *);
 
 #endif /* _TYPES_PATTERN_H */
