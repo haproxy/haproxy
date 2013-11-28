@@ -1700,11 +1700,16 @@ const char rfc4291_pfx[] = { 0x00, 0x00, 0x00, 0x00,
 			     0x00, 0x00, 0x00, 0x00,
 			     0x00, 0x00, 0xFF, 0xFF };
 
-/* Map IPv4 adress on IPv6 address, as specified in RFC 3513. */
+/* Map IPv4 adress on IPv6 address, as specified in RFC 3513.
+ * Input and output may overlap.
+ */
 void v4tov6(struct in6_addr *sin6_addr, struct in_addr *sin_addr)
 {
+	struct in_addr tmp_addr;
+
+	tmp_addr.s_addr = sin_addr->s_addr;
 	memcpy(sin6_addr->s6_addr, rfc4291_pfx, sizeof(rfc4291_pfx));
-	memcpy(sin6_addr->s6_addr+12, &sin_addr->s_addr, 4);
+	memcpy(sin6_addr->s6_addr+12, &tmp_addr.s_addr, 4);
 }
 
 /* Map IPv6 adress on IPv4 address, as specified in RFC 3513.
