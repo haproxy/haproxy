@@ -2768,7 +2768,8 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
     - "redirect" : this performs an HTTP redirection based on a redirect rule.
       This is exactly the same as the "redirect" statement except that it
       inserts a redirect rule which can be processed in the middle of other
-      "http-request" rules. See the "redirect" keyword for the rule's syntax.
+      "http-request" rules and that these rules use the "log-format" strings.
+      See the "redirect" keyword for the rule's syntax.
 
     - "add-header" appends an HTTP header field whose name is specified in
       <name> and whose value is defined by <fmt> which follows the log-format
@@ -4709,14 +4710,19 @@ redirect scheme   <sch> [code <code>] <option> [{if | unless} <condition>]
 
   Arguments :
     <loc>     With "redirect location", the exact value in <loc> is placed into
-              the HTTP "Location" header.
+              the HTTP "Location" header. When used in an "http-request" rule,
+              <loc> value follows the log-format rules and can include some
+              dynamic values (see Custom Log Format in section 8.2.4).
 
     <pfx>     With "redirect prefix", the "Location" header is built from the
               concatenation of <pfx> and the complete URI path, including the
               query string, unless the "drop-query" option is specified (see
               below). As a special case, if <pfx> equals exactly "/", then
               nothing is inserted before the original URI. It allows one to
-              redirect to the same URL (for instance, to insert a cookie).
+              redirect to the same URL (for instance, to insert a cookie). When
+              used in an "http-request" rule, <pfx> value follows the log-format
+              rules and can include some dynamic values (see Custom Log Format
+              in section 8.2.4).
 
     <sch>     With "redirect scheme", then the "Location" header is built by
               concatenating <sch> with "://" then the first occurrence of the
@@ -4726,7 +4732,9 @@ redirect scheme   <sch> [code <code>] <option> [{if | unless} <condition>]
               no "Host" header is found, then an empty host component will be
               returned, which most recent browsers interprete as redirecting to
               the same host. This directive is mostly used to redirect HTTP to
-              HTTPS.
+              HTTPS. When used in an "http-request" rule, <sch> value follows
+              the log-format rules and can include some dynamic values (see
+              Custom Log Format in section 8.2.4).
 
     <code>    The code is optional. It indicates which type of HTTP redirection
               is desired. Only codes 301, 302, 303, 307 and 308 are supported,
@@ -4789,6 +4797,10 @@ redirect scheme   <sch> [code <code>] <option> [{if | unless} <condition>]
 
   Example: redirect all HTTP traffic to HTTPS when SSL is handled by haproxy.
         redirect scheme https if !{ ssl_fc }
+
+  Example: append 'www.' prefix in front of all hosts not having it
+        http-request redirect code 301 location www.%[hdr(host)]%[req.uri] \
+          unless { hdr_beg(host) -i www }
 
   See section 7 about ACL usage.
 

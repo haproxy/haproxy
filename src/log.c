@@ -177,6 +177,8 @@ static inline const char *fmt_directive(const struct proxy *curproxy)
 		return "stick";
 	case ARGC_TRK:
 		return "track-sc"; break;
+	case ARGC_RDR:
+		return "redirect"; break;
 	case ARGC_ACL:
 		return "acl"; break;
 	default:

@@ -3340,6 +3340,7 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct session *
 {
 	struct http_msg *msg = &txn->req;
 	const char *msg_fmt;
+	const char *location;
 
 	/* build redirect message */
 	switch(rule->code) {
@@ -3363,6 +3364,8 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct session *
 
 	if (unlikely(!chunk_strcpy(&trash, msg_fmt)))
 		return 0;
+
+	location = trash.str + trash.len;
 
 	switch(rule->type) {
 	case REDIRECT_TYPE_SCHEME: {
@@ -3399,14 +3402,23 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct session *
 			pathlen = 1;
 		}
 
-		/* check if we can add scheme + "://" + host + path */
-		if (trash.len + rule->rdr_len + 3 + hostlen + pathlen > trash.size - 4)
-			return 0;
+		if (rule->rdr_str) { /* this is an old "redirect" rule */
+			/* check if we can add scheme + "://" + host + path */
+			if (trash.len + rule->rdr_len + 3 + hostlen + pathlen > trash.size - 4)
+				return 0;
 
-		/* add scheme */
-		memcpy(trash.str + trash.len, rule->rdr_str, rule->rdr_len);
-		trash.len += rule->rdr_len;
+			/* add scheme */
+			memcpy(trash.str + trash.len, rule->rdr_str, rule->rdr_len);
+			trash.len += rule->rdr_len;
+		}
+		else {
+			/* add scheme with executing log format */
+			trash.len += build_logline(s, trash.str + trash.len, trash.size - trash.len, &rule->rdr_fmt);
 
+			/* check if we can add scheme + "://" + host + path */
+			if (trash.len + 3 + hostlen + pathlen > trash.size - 4)
+				return 0;
+		}
 		/* add "://" */
 		memcpy(trash.str + trash.len, "://", 3);
 		trash.len += 3;
@@ -3419,7 +3431,7 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct session *
 		memcpy(trash.str + trash.len, path, pathlen);
 		trash.len += pathlen;
 
-		/* append a slash at the end of the location is needed and missing */
+		/* append a slash at the end of the location if needed and missing */
 		if (trash.len && trash.str[trash.len - 1] != '/' &&
 		    (rule->flags & REDIRECT_FLAG_APPEND_SLASH)) {
 			if (trash.len > trash.size - 5)
@@ -3453,23 +3465,33 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct session *
 			pathlen = 1;
 		}
 
-		if (trash.len + rule->rdr_len + pathlen > trash.size - 4)
-			return 0;
+		if (rule->rdr_str) { /* this is an old "redirect" rule */
+			if (trash.len + rule->rdr_len + pathlen > trash.size - 4)
+				return 0;
 
-		/* add prefix. Note that if prefix == "/", we don't want to
-		 * add anything, otherwise it makes it hard for the user to
-		 * configure a self-redirection.
-		 */
-		if (rule->rdr_len != 1 || *rule->rdr_str != '/') {
-			memcpy(trash.str + trash.len, rule->rdr_str, rule->rdr_len);
-			trash.len += rule->rdr_len;
+			/* add prefix. Note that if prefix == "/", we don't want to
+			 * add anything, otherwise it makes it hard for the user to
+			 * configure a self-redirection.
+			 */
+			if (rule->rdr_len != 1 || *rule->rdr_str != '/') {
+				memcpy(trash.str + trash.len, rule->rdr_str, rule->rdr_len);
+				trash.len += rule->rdr_len;
+			}
+		}
+		else {
+			/* add prefix with executing log format */
+			trash.len += build_logline(s, trash.str + trash.len, trash.size - trash.len, &rule->rdr_fmt);
+
+			/* Check length */
+			if (trash.len + pathlen > trash.size - 4)
+				return 0;
 		}
 
 		/* add path */
 		memcpy(trash.str + trash.len, path, pathlen);
 		trash.len += pathlen;
 
-		/* append a slash at the end of the location is needed and missing */
+		/* append a slash at the end of the location if needed and missing */
 		if (trash.len && trash.str[trash.len - 1] != '/' &&
 		    (rule->flags & REDIRECT_FLAG_APPEND_SLASH)) {
 			if (trash.len > trash.size - 5)
@@ -3482,12 +3504,22 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct session *
 	}
 	case REDIRECT_TYPE_LOCATION:
 	default:
-		if (trash.len + rule->rdr_len > trash.size - 4)
-			return 0;
+		if (rule->rdr_str) { /* this is an old "redirect" rule */
+			if (trash.len + rule->rdr_len > trash.size - 4)
+				return 0;
 
-		/* add location */
-		memcpy(trash.str + trash.len, rule->rdr_str, rule->rdr_len);
-		trash.len += rule->rdr_len;
+			/* add location */
+			memcpy(trash.str + trash.len, rule->rdr_str, rule->rdr_len);
+			trash.len += rule->rdr_len;
+		}
+		else {
+			/* add location with executing log format */
+			trash.len += build_logline(s, trash.str + trash.len, trash.size - trash.len, &rule->rdr_fmt);
+
+			/* Check left length */
+			if (trash.len > trash.size - 4)
+				return 0;
+		}
 		break;
 	}
 
@@ -3509,7 +3541,7 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct session *
 	/* let's log the request time */
 	s->logs.tv_request = now;
 
-	if (rule->rdr_len >= 1 && *rule->rdr_str == '/' &&
+	if (*location == '/' &&
 	    (msg->flags & HTTP_MSGF_XFER_LEN) &&
 	    !(msg->flags & HTTP_MSGF_TE_CHNK) && !txn->req.body_len &&
 	    ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL ||
@@ -8474,7 +8506,7 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		struct redirect_rule *redir;
 		char *errmsg = NULL;
 
-		if ((redir = http_parse_redirect_rule(file, linenum, proxy, (const char **)args + 1, &errmsg)) == NULL) {
+		if ((redir = http_parse_redirect_rule(file, linenum, proxy, (const char **)args + 1, &errmsg, 1)) == NULL) {
 			Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-request %s' rule : %s.\n",
 			      file, linenum, proxy_type_str(proxy), proxy->id, args[0], errmsg);
 			goto out_err;
@@ -8670,10 +8702,11 @@ struct http_res_rule *parse_http_res_cond(const char **args, const char *file, i
 }
 
 /* Parses a redirect rule. Returns the redirect rule on success or NULL on error,
- * with <err> filled with the error message.
+ * with <err> filled with the error message. If <use_fmt> is not null, builds a
+ * dynamic log-format rule instead of a static string.
  */
 struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, struct proxy *curproxy,
-                                               const char **args, char **errmsg)
+                                               const char **args, char **errmsg, int use_fmt)
 {
 	struct redirect_rule *rule;
 	int cur_arg;
@@ -8771,8 +8804,27 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 
 	rule = (struct redirect_rule *)calloc(1, sizeof(*rule));
 	rule->cond = cond;
-	rule->rdr_str = strdup(destination);
-	rule->rdr_len = strlen(destination);
+
+	if (!use_fmt) {
+		/* old-style static redirect rule */
+		rule->rdr_str = strdup(destination);
+		rule->rdr_len = strlen(destination);
+	}
+	else {
+		/* log-format based redirect rule */
+		LIST_INIT(&rule->rdr_fmt);
+
+		/* Parse destination. Note that in the REDIRECT_TYPE_PREFIX case,
+		 * if prefix == "/", we don't want to add anything, otherwise it
+		 * makes it hard for the user to configure a self-redirection.
+		 */
+		proxy->conf.args.ctx = ARGC_RDR;
+		if (!(type == REDIRECT_TYPE_PREFIX && destination[0] == '/' && destination[1] == '\0')) {
+			parse_logformat_string(destination, curproxy, &rule->rdr_fmt, 0,
+			                       (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR);
+		}
+	}
+
 	if (cookie) {
 		/* depending on cookie_set, either we want to set the cookie, or to clear it.
 		 * a clear consists in appending "; path=/; Max-Age=0;" at the end.

@@ -57,6 +57,7 @@ enum {
 	ARGC_HRQ,      /* http-request */
 	ARGC_HRS,      /* http-response */
 	ARGC_UIF,      /* unique-id-format */
+	ARGC_RDR,      /* redirect */
 };
 
 /* some types that are externally defined */

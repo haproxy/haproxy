@@ -901,6 +901,7 @@ int smp_resolve_args(struct proxy *p)
 		case ARGC_HRQ: where = "in http-request header format string in"; break;
 		case ARGC_HRS: where = "in http-response header format string in"; break;
 		case ARGC_UIF: where = "in unique-id-format string in"; break;
+		case ARGC_RDR: where = "in redirect format string in"; break;
 		case ARGC_ACL: ctx = "ACL keyword"; break;
 		}
 

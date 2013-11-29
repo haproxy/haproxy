@@ -1073,6 +1073,10 @@ void deinit(void)
 				free(rdr->cond);
 			}
 			free(rdr->rdr_str);
+			list_for_each_entry_safe(lf, lfb, &rdr->rdr_fmt, list) {
+				LIST_DEL(&lf->list);
+				free(lf);
+			}
 			free(rdr);
 		}
 

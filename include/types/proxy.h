@@ -403,6 +403,7 @@ struct redirect_rule {
 	int type;
 	int rdr_len;
 	char *rdr_str;
+	struct list rdr_fmt;
 	int code;
 	unsigned int flags;
 	int cookie_len;

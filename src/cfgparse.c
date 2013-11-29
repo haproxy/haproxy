@@ -2770,7 +2770,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		if ((rule = http_parse_redirect_rule(file, linenum, curproxy, (const char **)args + 1, &errmsg)) == NULL) {
+		if ((rule = http_parse_redirect_rule(file, linenum, curproxy, (const char **)args + 1, &errmsg, 0)) == NULL) {
 			Alert("parsing [%s:%d] : error detected in %s '%s' while parsing redirect rule : %s.\n",
 			      file, linenum, proxy_type_str(curproxy), curproxy->id, errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
