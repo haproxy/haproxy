@@ -1151,9 +1151,10 @@ static void sess_set_term_flags(struct session *s)
 }
 
 /* This function initiates a server connection request on a stream interface
- * already in SI_ST_REQ state. Upon success, the state goes to SI_ST_ASS,
- * indicating that a server has been assigned. It may also return SI_ST_QUE,
- * or SI_ST_CLO upon error.
+ * already in SI_ST_REQ state. Upon success, the state goes to SI_ST_ASS for
+ * a real connection to a server, indicating that a server has been assigned,
+ * or SI_ST_EST for a successful connection to an applet. It may also return
+ * SI_ST_QUE, or SI_ST_CLO upon error.
  */
 static void sess_prepare_conn_req(struct session *s, struct stream_interface *si)
 {
@@ -1167,6 +1168,18 @@ static void sess_prepare_conn_req(struct session *s, struct stream_interface *si
 
 	if (si->state != SI_ST_REQ)
 		return;
+
+	if (unlikely(obj_type(s->target) == OBJ_TYPE_APPLET)) {
+		/* the applet directly goes to the EST state */
+		s->logs.t_queue   = tv_ms_elapsed(&s->logs.tv_accept, &now);
+		s->logs.t_connect = tv_ms_elapsed(&s->logs.tv_accept, &now);
+		si->state         = SI_ST_EST;
+		si->err_type      = SI_ET_NONE;
+		si->exp           = TICK_ETERNITY;
+		s->req->wex       = TICK_ETERNITY;
+		s->rep->flags    |= CF_READ_ATTACHED; /* producer is now attached */
+		return;
+	}
 
 	/* Try to assign a server */
 	if (srv_redispatch_connect(s) != 0) {
@@ -2175,11 +2188,6 @@ struct task *process_session(struct task *t)
 				 */
 				s->req->cons->state = SI_ST_REQ; /* new connection requested */
 				s->req->cons->conn_retries = s->be->conn_retries;
-				if (unlikely(obj_type(s->target) == OBJ_TYPE_APPLET)) {
-					s->req->cons->state = SI_ST_EST; /* connection established */
-					s->rep->flags |= CF_READ_ATTACHED; /* producer is now attached */
-					s->req->wex = TICK_ETERNITY;
-				}
 			}
 		}
 		else {
@@ -2207,7 +2215,7 @@ struct task *process_session(struct task *t)
 				/* check for HTTP mode and proxy server_name_hdr_name != NULL */
 				if ((s->flags & SN_BE_ASSIGNED) &&
 				    (s->be->mode == PR_MODE_HTTP) &&
-				    (s->be->server_id_hdr_name != NULL && s->target)) {
+				    (s->be->server_id_hdr_name != NULL && objt_server(s->target))) {
 					http_send_name_header(&s->txn, s->be, objt_server(s->target)->id);
 				}
 			}
