@@ -1176,8 +1176,7 @@ static void sess_prepare_conn_req(struct session *s, struct stream_interface *si
 		si->state         = SI_ST_EST;
 		si->err_type      = SI_ET_NONE;
 		si->exp           = TICK_ETERNITY;
-		s->req->wex       = TICK_ETERNITY;
-		s->rep->flags    |= CF_READ_ATTACHED; /* producer is now attached */
+		/* let sess_establish() finish the job */
 		return;
 	}
 
@@ -2210,6 +2209,10 @@ struct task *process_session(struct task *t)
 				sess_update_stream_int(s, &s->si[1]);
 			if (s->si[1].state == SI_ST_REQ) {
 				sess_prepare_conn_req(s, &s->si[1]);
+
+				/* applets directly go to the ESTABLISHED state */
+				if (unlikely(s->si[1].state == SI_ST_EST))
+					sess_establish(s, &s->si[1]);
 
 				/* Now we can add the server name to a header (if requested) */
 				/* check for HTTP mode and proxy server_name_hdr_name != NULL */
