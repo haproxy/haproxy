@@ -1162,6 +1162,29 @@ static void sess_prepare_conn_req(struct session *s, struct stream_interface *si
 
 	if (unlikely(obj_type(s->target) == OBJ_TYPE_APPLET)) {
 		/* the applet directly goes to the EST state */
+		struct appctx *appctx = objt_appctx(si->end);
+
+		if (!appctx || appctx->applet != __objt_applet(s->target))
+			appctx = stream_int_register_handler(si, objt_applet(s->target));
+
+		if (!appctx) {
+			/* No more memory, let's immediately abort. Force the
+			 * error code to ignore the ERR_LOCAL which is not a
+			 * real error.
+			 */
+			s->flags = (s->flags & ~SN_ERR_MASK) | SN_ERR_RESOURCE;
+			s->flags = (s->flags & ~SN_FINST_MASK) | SN_FINST_C;
+
+			si_shutr(si);
+			si_shutw(si);
+			si->ob->flags |= CF_WRITE_ERROR;
+			si->err_type = SI_ET_CONN_OTHER;
+			si->state = SI_ST_CLO;
+			if (s->srv_error)
+				s->srv_error(s, si);
+			return;
+		}
+
 		s->logs.t_queue   = tv_ms_elapsed(&s->logs.tv_accept, &now);
 		s->logs.t_connect = tv_ms_elapsed(&s->logs.tv_accept, &now);
 		si->state         = SI_ST_EST;
