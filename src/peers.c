@@ -1089,14 +1089,8 @@ static void peer_session_forceshutdown(struct session * session)
  */
 int peer_accept(struct session *s)
 {
-	struct appctx *appctx;
-
 	s->target = &peer_applet.obj_type;
-	appctx = stream_int_register_handler(&s->si[1], objt_applet(s->target));
-	if (!appctx)
-		return -1;
-	appctx->st0 = PEER_SESS_ST_ACCEPT;
-	appctx->ctx.peers.ptr = s;
+	/* no need to initialize the applet, it will start with st0=st1 = 0 */
 
 	tv_zero(&s->logs.tv_request);
 	s->logs.t_queue = 0;
