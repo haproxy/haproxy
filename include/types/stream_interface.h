@@ -162,13 +162,11 @@ struct stream_interface {
 	struct channel *ib, *ob; /* input and output buffers */
 	void *owner;            /* generally a (struct task*) */
 	enum obj_type *end;     /* points to the end point (connection or appctx) */
-
 	struct si_ops *ops;     /* general operations at the stream interface layer */
 
 	/* struct members below are the "remote" part, as seen from the buffer side */
 	unsigned int err_type;  /* first error detected, one of SI_ET_* */
 	int conn_retries;	/* number of connect retries left */
-	struct appctx appctx;   /* context of the running applet if any */
 };
 
 /* An applet designed to run in a stream interface */

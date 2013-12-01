@@ -45,6 +45,47 @@ extern struct data_cb si_conn_cb;
 struct appctx *stream_int_register_handler(struct stream_interface *si, struct si_applet *app);
 void stream_int_unregister_handler(struct stream_interface *si);
 
+/* Initializes all required fields for a new appctx. Note that it does the
+ * minimum acceptable initialization for an appctx. This means only the
+ * 3 integer states st0, st1, st2 are zeroed.
+ */
+static inline void appctx_init(struct appctx *appctx)
+{
+	appctx->st0 = appctx->st1 = appctx->st2 = 0;
+}
+
+/* sets <appctx>'s applet to point to <applet> */
+static inline void appctx_set_applet(struct appctx *appctx, struct si_applet *applet)
+{
+	appctx->applet = applet;
+}
+
+/* Tries to allocate a new appctx and initialize its main fields. The
+ * appctx is returned on success, NULL on failure. The appctx must be
+ * released using pool_free2(connection) or appctx_free(), since it's
+ * allocated from the connection pool.
+ */
+static inline struct appctx *appctx_new()
+{
+	struct appctx *appctx;
+
+	appctx = pool_alloc2(pool2_connection);
+	if (likely(appctx != NULL)) {
+		appctx->obj_type = OBJ_TYPE_APPCTX;
+		appctx->applet = NULL;
+		appctx_init(appctx);
+	}
+	return appctx;
+}
+
+/* Releases an appctx previously allocated by appctx_new(). Note that
+ * we share the connection pool.
+ */
+static inline void appctx_free(struct appctx *appctx)
+{
+	pool_free2(pool2_connection, appctx);
+}
+
 /* initializes a stream interface in the SI_ST_INI state. It's detached from
  * any endpoint and is only attached to an owner (generally a task).
  */
@@ -68,16 +109,27 @@ static inline void si_set_state(struct stream_interface *si, int state)
 	si->state = si->prev_state = state;
 }
 
-/* release the endpoint if it's a connection, then nullify it */
+/* Release the endpoint if it's a connection or an applet, then nullify it.
+ * Note: released connections are closed then freed.
+ */
 static inline void si_release_endpoint(struct stream_interface *si)
 {
 	struct connection *conn;
+	struct appctx *appctx;
 
-	conn = objt_conn(si->end);
-	if (conn)
-		pool_free2(pool2_connection, conn);
+	if (!si->end)
+		return;
+
+	if ((conn = objt_conn(si->end))) {
+		conn_force_close(conn);
+		conn_free(conn);
+	}
+	else if ((appctx = objt_appctx(si->end))) {
+		if (appctx->applet->release)
+			appctx->applet->release(si);
+		appctx_free(appctx); /* we share the connection pool */
+	}
 	si->end = NULL;
-	si->appctx.applet = NULL;
 }
 
 static inline void si_detach(struct stream_interface *si)
@@ -97,13 +149,15 @@ static inline void si_attach_conn(struct stream_interface *si, struct connection
 	conn_attach(conn, si, &si_conn_cb);
 }
 
-static inline void si_attach_applet(struct stream_interface *si, struct si_applet *applet)
+/* Attach appctx <appctx> to the stream interface <si>. The stream interface
+ * is configured to work with an applet context. It is left to the caller to
+ * call appctx_set_applet() to assign an applet to this context.
+ */
+static inline void si_attach_appctx(struct stream_interface *si, struct appctx *appctx)
 {
-	si_release_endpoint(si);
 	si->ops = &si_embedded_ops;
-	si->appctx.applet = applet;
-	si->appctx.obj_type = OBJ_TYPE_APPCTX;
-	si->end = &si->appctx.obj_type;
+	appctx->obj_type = OBJ_TYPE_APPCTX;
+	si->end = &appctx->obj_type;
 }
 
 /* returns a pointer to the appctx being run in the SI or NULL if none */
@@ -156,18 +210,39 @@ static inline struct connection *si_alloc_conn(struct stream_interface *si)
 {
 	struct connection *conn;
 
-	/* we return the connection whether it's a real connection or NULL
-	 * in case another entity (an applet) is registered instead.
+	/* If we find a connection, we return it, otherwise it's an applet
+	 * and we start by releasing it.
 	 */
-	conn = objt_conn(si->end);
-	if (si->end)
-		return conn;
+	if (si->end) {
+		conn = objt_conn(si->end);
+		if (conn)
+			return conn;
+		/* it was an applet then */
+		si_release_endpoint(si);
+	}
 
 	conn = conn_new();
 	if (conn)
 		si_attach_conn(si, conn);
 
 	return conn;
+}
+
+/* Release the interface's existing endpoint (connection or appctx) and
+ * allocate then initialize a new appctx which is assigned to the interface
+ * and returned. NULL may be returned upon memory shortage. It is left to the
+ * caller to call appctx_set_applet() to assign an applet to this context.
+ */
+static inline struct appctx *si_alloc_appctx(struct stream_interface *si)
+{
+	struct appctx *appctx;
+
+	si_release_endpoint(si);
+	appctx = appctx_new();
+	if (appctx)
+		si_attach_appctx(si, appctx);
+
+	return appctx;
 }
 
 /* Sends a shutr to the connection using the data layer */
