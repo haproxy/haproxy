@@ -3461,8 +3461,15 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 	if (!http_req_last_rule) {
 		if (stats_check_uri(s->rep->prod, txn, px)) {
 			s->target = &http_stats_applet.obj_type;
-			stream_int_register_handler(s->rep->prod, objt_applet(s->target));
+			if (unlikely(!stream_int_register_handler(s->rep->prod, objt_applet(s->target)))) {
+				txn->status = 500;
+				s->logs.tv_request = now;
+				stream_int_retnclose(req->prod, http_error_message(s, HTTP_ERR_500));
 
+				if (!(s->flags & SN_ERR_MASK))
+					s->flags |= SN_ERR_RESOURCE;
+				goto return_prx_cond;
+			}
 			/* parse the whole stats request and extract the relevant information */
 			http_handle_stats(s, req);
 			http_req_last_rule = http_req_get_intercept_rule(px, &px->uri_auth->http_req_rules, s, txn);

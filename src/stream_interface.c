@@ -342,21 +342,21 @@ static void stream_int_chk_snd(struct stream_interface *si)
 		task_wakeup(si->owner, TASK_WOKEN_IO);
 }
 
-/* Register an applet to handle a stream_interface as part of the stream
- * interface's owner task, which is returned. The SI will wake it up everytime
- * it is solicited. The task's processing function must call the applet's
- * function before returning. It must be deleted by the task handler using
- * stream_int_unregister_handler(), possibly from within the function itself.
- * It also pre-initializes applet.state to zero and the connection context
- * to NULL.
+/* Register an applet to handle a stream_interface as part of the
+ * stream interface's owner task. The SI will wake it up everytime it
+ * is solicited.  The task's processing function must call the applet's
+ * function before returning. It must be deleted by the task handler
+ * using stream_int_unregister_handler(), possibly from within the
+ * function itself. It also pre-initializes the applet's context and
+ * returns it (or NULL in case it could not be allocated).
  */
-struct task *stream_int_register_handler(struct stream_interface *si, struct si_applet *app)
+struct appctx *stream_int_register_handler(struct stream_interface *si, struct si_applet *app)
 {
 	DPRINTF(stderr, "registering handler %p for si %p (was %p)\n", app, si, si->owner);
 
 	si_attach_applet(si, app);
 	si->flags |= SI_FL_WAIT_DATA;
-	return si->owner;
+	return si_appctx(si);
 }
 
 /* Unregister a stream interface handler. This must be called by the handler task

@@ -159,8 +159,9 @@ static int stats_accept(struct session *s)
 	struct appctx *appctx;
 
 	s->target = &cli_applet.obj_type;
-	stream_int_register_handler(&s->si[1], objt_applet(s->target));
-	appctx = si_appctx(&s->si[1]);
+	appctx = stream_int_register_handler(&s->si[1], objt_applet(s->target));
+	if (!appctx)
+		return -1;
 	appctx->st1 = 0;
 	appctx->st0 = STAT_CLI_INIT;
 

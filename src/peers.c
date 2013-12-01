@@ -1097,8 +1097,9 @@ int peer_accept(struct session *s)
 	struct appctx *appctx;
 
 	s->target = &peer_applet.obj_type;
-	stream_int_register_handler(&s->si[1], objt_applet(s->target));
-	appctx = si_appctx(&s->si[1]);
+	appctx = stream_int_register_handler(&s->si[1], objt_applet(s->target));
+	if (!appctx)
+		return -1;
 	appctx->st0 = PEER_SESSION_ACCEPT;
 	appctx->ctx.peers.ptr = s;
 
@@ -1175,8 +1176,9 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	if (s->fe->options2 & PR_O2_INDEPSTR)
 		s->si[0].flags |= SI_FL_INDEP_STR;
 
-	stream_int_register_handler(&s->si[0], &peer_applet);
-	appctx = si_appctx(&s->si[0]);
+	appctx = stream_int_register_handler(&s->si[0], &peer_applet);
+	if (!appctx)
+		goto out_fail_conn1;
 	appctx->st0 = PEER_SESSION_CONNECT;
 	appctx->ctx.peers.ptr = (void *)ps;
 
