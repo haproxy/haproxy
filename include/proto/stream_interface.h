@@ -107,11 +107,20 @@ static inline void si_attach_applet(struct stream_interface *si, struct si_apple
 	si->end = &si->appctx.obj_type;
 }
 
+/* returns a pointer to the appctx being run in the SI or NULL if none */
+static inline struct appctx *si_appctx(struct stream_interface *si)
+{
+	return objt_appctx(si->end);
+}
+
 /* returns a pointer to the applet being run in the SI or NULL if none */
 static inline const struct si_applet *si_applet(struct stream_interface *si)
 {
-	if (objt_appctx(si->end))
-		return si->appctx.applet;
+	const struct appctx *appctx;
+
+	appctx = si_appctx(si);
+	if (appctx)
+		return appctx->applet;
 	return NULL;
 }
 
