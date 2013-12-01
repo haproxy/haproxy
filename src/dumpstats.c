@@ -3904,6 +3904,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 	extern const char *monthname[12];
 	char pn[INET6_ADDRSTRLEN];
 	struct connection *conn;
+	struct appctx *tmpctx;
 
 	chunk_reset(&trash);
 
@@ -4076,8 +4077,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 			                     TICKS_TO_MS(1000)) : "<NEVER>",
 			     sess->si[1].err_type);
 
-		conn = objt_conn(sess->si[0].end);
-		if (conn) {
+		if ((conn = objt_conn(sess->si[0].end)) != NULL) {
 			chunk_appendf(&trash,
 			              "  co0=%p ctrl=%s xprt=%s data=%s target=%s:%p\n",
 				      conn,
@@ -4095,9 +4095,17 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].spec_p : 0,
 			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].updated : 0);
 		}
+		else if ((tmpctx = objt_appctx(sess->si[0].end)) != NULL) {
+			chunk_appendf(&trash,
+			              "  app0=%p st0=%d st1=%d st2=%d applet=%s\n",
+				      tmpctx,
+				      tmpctx->st0,
+				      tmpctx->st1,
+				      tmpctx->st2,
+			              tmpctx->applet->name);
+		}
 
-		conn = objt_conn(sess->si[1].end);
-		if (conn) {
+		if ((conn = objt_conn(sess->si[1].end)) != NULL) {
 			chunk_appendf(&trash,
 			              "  co1=%p ctrl=%s xprt=%s data=%s target=%s:%p\n",
 				      conn,
@@ -4114,6 +4122,15 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].spec_e : 0,
 			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].spec_p : 0,
 			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].updated : 0);
+		}
+		else if ((tmpctx = objt_appctx(sess->si[1].end)) != NULL) {
+			chunk_appendf(&trash,
+			              "  app1=%p st0=%d st1=%d st2=%d applet=%s\n",
+				      tmpctx,
+				      tmpctx->st0,
+				      tmpctx->st1,
+				      tmpctx->st2,
+			              tmpctx->applet->name);
 		}
 
 		chunk_appendf(&trash,
