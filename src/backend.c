@@ -725,8 +725,7 @@ int assign_server_address(struct session *s)
 			 * the client asked, which is handy for remapping ports
 			 * locally on multiple addresses at once.
 			 */
-			if (!(s->be->options & PR_O_TRANSP))
-				conn_get_to_addr(s->req->prod->conn);
+			conn_get_to_addr(s->req->prod->conn);
 
 			if (s->req->prod->conn->addr.to.ss_family == AF_INET) {
 				((struct sockaddr_in *)&s->req->cons->conn->addr.to)->sin_addr = ((struct sockaddr_in *)&s->req->prod->conn->addr.to)->sin_addr;
@@ -740,8 +739,7 @@ int assign_server_address(struct session *s)
 		if (objt_server(s->target)->state & SRV_MAPPORTS) {
 			int base_port;
 
-			if (!(s->be->options & PR_O_TRANSP))
-				conn_get_to_addr(s->req->prod->conn);
+			conn_get_to_addr(s->req->prod->conn);
 
 			/* First, retrieve the port from the incoming connection */
 			base_port = get_host_port(&s->req->prod->conn->addr.to);
