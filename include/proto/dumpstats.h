@@ -39,7 +39,7 @@
 #define STATS_TYPE_SO  3
 
 /* unix stats socket states */
-#define STAT_CLI_INIT   0   /* initial state */
+#define STAT_CLI_INIT   0   /* initial state, must leave to zero ! */
 #define STAT_CLI_END    1   /* final state, let's close */
 #define STAT_CLI_GETREQ 2   /* wait for a request */
 #define STAT_CLI_OUTPUT 3   /* all states after this one are responses */

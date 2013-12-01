@@ -156,14 +156,8 @@ extern const char *stat_status_codes[];
  */
 static int stats_accept(struct session *s)
 {
-	struct appctx *appctx;
-
 	s->target = &cli_applet.obj_type;
-	appctx = stream_int_register_handler(&s->si[1], objt_applet(s->target));
-	if (!appctx)
-		return -1;
-	appctx->st1 = 0;
-	appctx->st0 = STAT_CLI_INIT;
+	/* no need to initialize the applet, it will start with st0=st1 = 0 */
 
 	tv_zero(&s->logs.tv_request);
 	s->logs.t_queue = 0;
