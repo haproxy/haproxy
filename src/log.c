@@ -450,7 +450,7 @@ void parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list
 			}
 			else if (*str == '%')
 				cformat = LF_TEXT;     // convert this character to a litteral (useful for '%')
-			else if (isdigit(*str) || isblank(*str)) {
+			else if (isdigit(*str) || *str == ' ' || *str == '\t') {
 				/* single '%' followed by blank or digit, send them both */
 				cformat = LF_TEXT;
 				pformat = LF_TEXT; /* finally we include the previous char as well */
