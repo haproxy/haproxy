@@ -280,12 +280,12 @@ int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct p
 					LIST_ADDQ(list_format, &node->list);
 				}
 				if (logformat_keywords[j].replace_by)
-					Warning("parsing [%s:%d] : deprecated variable '%s' in '%s', please replace it with '%s'\n",
+					Warning("parsing [%s:%d] : deprecated variable '%s' in '%s', please replace it with '%s'.\n",
 					        curproxy->conf.args.file, curproxy->conf.args.line,
 					        logformat_keywords[j].name, fmt_directive(curproxy), logformat_keywords[j].replace_by);
 				return 0;
 			} else {
-				Warning("parsing [%s:%d] : '%s' : format variable '%s' is reserved for HTTP mode\n",
+				Warning("parsing [%s:%d] : '%s' : format variable '%s' is reserved for HTTP mode.\n",
 				        curproxy->conf.args.file, curproxy->conf.args.line, fmt_directive(curproxy),
 				        logformat_keywords[j].name);
 				return -1;
@@ -295,7 +295,7 @@ int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct p
 
 	j = var[var_len];
 	var[var_len] = 0;
-	Warning("parsing [%s:%d] : no such format variable '%s' in '%s'\n",
+	Warning("parsing [%s:%d] : no such format variable '%s' in '%s'. If you wanted to emit the '%%' character verbatim, you need to use '%%%%' in log-format expressions.\n",
 	        curproxy->conf.args.file, curproxy->conf.args.line, var, fmt_directive(curproxy));
 	var[var_len] = j;
 	return -1;
@@ -442,12 +442,21 @@ void parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list
 				cformat = LF_STEXPR;
 				var = str + 1;         // store expr in variable name
 			}
-			else if (isalnum((int)*str)) { // variable name
+			else if (isalpha((int)*str)) { // variable name
 				cformat = LF_VAR;
 				var = str;
 			}
 			else if (*str == '%')
 				cformat = LF_TEXT;     // convert this character to a litteral (useful for '%')
+			else if (isdigit(*str) || isblank(*str)) {
+				/* single '%' followed by blank or digit, send them both */
+				cformat = LF_TEXT;
+				pformat = LF_TEXT; /* finally we include the previous char as well */
+				sp = str - 1; /* send both the '%' and the current char */
+				Warning("parsing [%s:%d] : Fixed missing '%%' before '%c' at position %d in %s line : '%s'. Please use '%%%%' when you need the '%%' character in a log-format expression.\n",
+					curproxy->conf.args.file, curproxy->conf.args.line, *str, (int)(str - backfmt), fmt_directive(curproxy), fmt);
+
+			}
 			else
 				cformat = LF_INIT;     // handle other cases of litterals
 			break;

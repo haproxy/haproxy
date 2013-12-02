@@ -11049,7 +11049,8 @@ less common information such as the client's SSL certificate's DN, or to log
 the key that would be used to store an entry into a stick table.
 
 Note: spaces must be escaped. A space character is considered as a separator.
-HAproxy will automatically merge consecutive separators.
+In order to emit a verbatim '%', it must be preceeded by another '%' resulting
+in '%%'. HAProxy will automatically merge consecutive separators.
 
 Flags are :
   * Q: quote a string
