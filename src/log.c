@@ -166,14 +166,22 @@ struct logformat_var_args var_args_list[] = {
  */
 static inline const char *fmt_directive(const struct proxy *curproxy)
 {
-	if (curproxy->conf.args.ctx == ARGC_UIF)
+	switch (curproxy->conf.args.ctx) {
+	case ARGC_UIF:
 		return "unique-id-format";
-	else if (curproxy->conf.args.ctx == ARGC_HRQ)
+	case ARGC_HRQ:
 		return "http-request";
-	else if (curproxy->conf.args.ctx == ARGC_HRS)
+	case ARGC_HRS:
 		return "http-response";
-	else
+	case ARGC_STK:
+		return "stick";
+	case ARGC_TRK:
+		return "track-sc"; break;
+	case ARGC_ACL:
+		return "acl"; break;
+	default:
 		return "log-format";
+	}
 }
 
 /*
@@ -277,7 +285,7 @@ int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct p
 					        logformat_keywords[j].name, fmt_directive(curproxy), logformat_keywords[j].replace_by);
 				return 0;
 			} else {
-				Warning("parsing [%s:%d] : '%s' variable name '%s' is reserved for HTTP mode\n",
+				Warning("parsing [%s:%d] : '%s' : format variable '%s' is reserved for HTTP mode\n",
 				        curproxy->conf.args.file, curproxy->conf.args.line, fmt_directive(curproxy),
 				        logformat_keywords[j].name);
 				return -1;
@@ -287,7 +295,7 @@ int parse_logformat_var(char *arg, int arg_len, char *var, int var_len, struct p
 
 	j = var[var_len];
 	var[var_len] = 0;
-	Warning("parsing [%s:%d] : no such variable name '%s' in '%s'\n",
+	Warning("parsing [%s:%d] : no such format variable '%s' in '%s'\n",
 	        curproxy->conf.args.file, curproxy->conf.args.line, var, fmt_directive(curproxy));
 	var[var_len] = j;
 	return -1;
