@@ -8804,6 +8804,7 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 
 	rule = (struct redirect_rule *)calloc(1, sizeof(*rule));
 	rule->cond = cond;
+	LIST_INIT(&rule->rdr_fmt);
 
 	if (!use_fmt) {
 		/* old-style static redirect rule */
@@ -8812,7 +8813,6 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 	}
 	else {
 		/* log-format based redirect rule */
-		LIST_INIT(&rule->rdr_fmt);
 
 		/* Parse destination. Note that in the REDIRECT_TYPE_PREFIX case,
 		 * if prefix == "/", we don't want to add anything, otherwise it
