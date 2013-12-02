@@ -6498,7 +6498,7 @@ int check_config_validity()
 			if (!target) {
 				Alert("Proxy '%s': unable to find table '%s' referenced by track-sc%d.\n",
 				      curproxy->id, trule->act_prm.trk_ctr.table.n,
-				      1 + tcp_trk_idx(trule->action));
+				      tcp_trk_idx(trule->action));
 				cfgerr++;
 			}
 			else if (target->table.size == 0) {
@@ -6509,7 +6509,7 @@ int check_config_validity()
 			else if (!stktable_compatible_sample(trule->act_prm.trk_ctr.expr,  target->table.type)) {
 				Alert("Proxy '%s': stick-table '%s' uses a type incompatible with the 'track-sc%d' rule.\n",
 				      curproxy->id, trule->act_prm.trk_ctr.table.n ? trule->act_prm.trk_ctr.table.n : curproxy->id,
-				      1 + tcp_trk_idx(trule->action));
+				      tcp_trk_idx(trule->action));
 				cfgerr++;
 			}
 			else {
@@ -6537,7 +6537,7 @@ int check_config_validity()
 			if (!target) {
 				Alert("Proxy '%s': unable to find table '%s' referenced by track-sc%d.\n",
 				      curproxy->id, trule->act_prm.trk_ctr.table.n,
-				      1 + tcp_trk_idx(trule->action));
+				      tcp_trk_idx(trule->action));
 				cfgerr++;
 			}
 			else if (target->table.size == 0) {
@@ -6548,7 +6548,7 @@ int check_config_validity()
 			else if (!stktable_compatible_sample(trule->act_prm.trk_ctr.expr,  target->table.type)) {
 				Alert("Proxy '%s': stick-table '%s' uses a type incompatible with the 'track-sc%d' rule.\n",
 				      curproxy->id, trule->act_prm.trk_ctr.table.n ? trule->act_prm.trk_ctr.table.n : curproxy->id,
-				      1 + tcp_trk_idx(trule->action));
+				      tcp_trk_idx(trule->action));
 				cfgerr++;
 			}
 			else {

@@ -60,7 +60,7 @@ static inline struct stktable_key *addr_to_stktable_key(struct sockaddr_storage 
 }
 
 /* for a tcp-request action TCP_ACT_TRK_*, return a tracking index starting at
- * zero for SC1. Unknown actions also return zero.
+ * zero for SC0. Unknown actions also return zero.
  */
 static inline int tcp_trk_idx(int trk_action)
 {
