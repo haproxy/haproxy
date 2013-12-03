@@ -440,39 +440,10 @@ int pat_parse_str(const char **text, struct pattern *pattern, struct sample_stor
 /* Parse a binary written in hexa. It is allocated. */
 int pat_parse_bin(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
 {
-	int len;
-	const char *p = *text;
-	int i,j;
-
-	len  = strlen(p);
-	if (len%2) {
-		memprintf(err, "an even number of hex digit is expected");
-		return 0;
-	}
-
 	pattern->type = SMP_T_CBIN;
-	pattern->len = len >> 1;
-	pattern->ptr.str = malloc(pattern->len);
 	pattern->smp = smp;
-	if (!pattern->ptr.str) {
-		memprintf(err, "out of memory while loading string pattern");
-		return 0;
-	}
 
-	i = j = 0;
-	while (j < pattern->len) {
-		if (!ishex(p[i++]))
-			goto bad_input;
-		if (!ishex(p[i++]))
-			goto bad_input;
-		pattern->ptr.str[j++] =  (hex2i(p[i-2]) << 4) + hex2i(p[i-1]);
-	}
-	return 1;
-
-bad_input:
-	memprintf(err, "an hex digit is expected (found '%c')", p[i-1]);
-	free(pattern->ptr.str);
-	return 0;
+	return parse_binary(*text, &pattern->ptr.str, &pattern->len, err);
 }
 
 /* Parse and concatenate all further strings into one. */

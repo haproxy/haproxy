@@ -508,6 +508,14 @@ static inline unsigned int popcount(unsigned int a)
 	return cnt;
 }
 
+/*
+ * Parse binary string written in hexadecimal (source) and store the decoded
+ * result into binstr and set binstrlen to the lengh of binstr. Memory for
+ * binstr is allocated by the function. In case of error, returns 0 with an
+ * error message in err.
+ */
+int parse_binary(const char *source, char **binstr, int *binstrlen, char **err);
+
 /* copies at most <n> characters from <src> and always terminates with '\0' */
 char *my_strndup(const char *src, int n);
 

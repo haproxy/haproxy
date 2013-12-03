@@ -1356,6 +1356,48 @@ const char *parse_size_err(const char *text, unsigned *ret) {
 	return NULL;
 }
 
+/*
+ * Parse binary string written in hexadecimal (source) and store the decoded
+ * result into binstr and set binstrlen to the lengh of binstr. Memory for
+ * binstr is allocated by the function. In case of error, returns 0 with an
+ * error message in err.
+ */
+int parse_binary(const char *source, char **binstr, int *binstrlen, char **err)
+{
+	int len;
+	const char *p = source;
+	int i,j;
+
+	len = strlen(source);
+	if (len % 2) {
+		memprintf(err, "an even number of hex digit is expected");
+		return 0;
+	}
+
+	len = len >> 1;
+	*binstrlen = len;
+	*binstr = calloc(len, sizeof(char));
+	if (!*binstr) {
+		memprintf(err, "out of memory while loading string pattern");
+		return 0;
+	}
+
+	i = j = 0;
+	while (j < len) {
+		if (!ishex(p[i++]))
+			goto bad_input;
+		if (!ishex(p[i++]))
+			goto bad_input;
+		(*binstr)[j++] =  (hex2i(p[i-2]) << 4) + hex2i(p[i-1]);
+	}
+	return len;
+
+bad_input:
+	memprintf(err, "an hex digit is expected (found '%c')", p[i-1]);
+	free(binstr);
+	return 0;
+}
+
 /* copies at most <n> characters from <src> and always terminates with '\0' */
 char *my_strndup(const char *src, int n)
 {
