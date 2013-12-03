@@ -2934,6 +2934,7 @@ int http_process_req_stat_post(struct stream_interface *si, struct http_txn *txn
 							sv->uweight = 0;
 
 						server_recalc_eweight(sv);
+						set_server_drain_state(sv);
 
 						altered_servers++;
 						total_servers++;
