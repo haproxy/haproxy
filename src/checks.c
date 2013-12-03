@@ -1467,31 +1467,58 @@ static struct task *process_chk(struct task *t)
 		 * which can happen on connect timeout or error.
 		 */
 		if (s->check.result == SRV_CHK_UNKNOWN) {
-			int skerr, err = errno;
+			int skerr, err;
 			socklen_t lskerr = sizeof(skerr);
+			const char *err_msg;
 
+			err = 0;
 			if (conn->ctrl) {
 				if (getsockopt(conn->t.sock.fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr) == 0 && skerr)
 					err = skerr;
+				/* EAGAIN is normal on a timeout */
+				if (err == EAGAIN)
+					err = 0;
 			}
 
-			/* eagain is normal on a timeout */
-			if (err == EAGAIN)
-				err = 0;
+			/* we'll try to build a meaningful error message
+			 * depending on the context of the error possibly
+			 * present in conn->err_type, and the socket error
+			 * possibly collected above.
+			 */
+			if (conn->err_code) {
+				if (err)
+					chunk_printf(&trash, "%s (%s)", conn_err_code_str(conn), strerror(err));
+				else
+					chunk_printf(&trash, "%s", conn_err_code_str(conn));
+				err_msg = trash.str;
+			}
+			else {
+				if (err) {
+					chunk_printf(&trash, "%s", strerror(err));
+					err_msg = trash.str;
+				}
+				else {
+					err_msg = NULL;
+				}
+			}
 
 			if ((conn->flags & (CO_FL_CONNECTED|CO_FL_WAIT_L4_CONN)) == CO_FL_WAIT_L4_CONN) {
 				/* L4 not established (yet) */
 				if (conn->flags & CO_FL_ERROR)
-					set_server_check_status(check, HCHK_STATUS_L4CON, err ? strerror(err) : NULL);
+					set_server_check_status(check, HCHK_STATUS_L4CON, err_msg);
 				else if (expired)
-					set_server_check_status(check, HCHK_STATUS_L4TOUT, NULL);
+					set_server_check_status(check, HCHK_STATUS_L4TOUT, err_msg);
 			}
 			else if ((conn->flags & (CO_FL_CONNECTED|CO_FL_WAIT_L6_CONN)) == CO_FL_WAIT_L6_CONN) {
 				/* L6 not established (yet) */
 				if (conn->flags & CO_FL_ERROR)
-					set_server_check_status(check, HCHK_STATUS_L6RSP, err ? strerror(err) : NULL);
+					set_server_check_status(check, HCHK_STATUS_L6RSP, err_msg);
 				else if (expired)
-					set_server_check_status(check, HCHK_STATUS_L6TOUT, NULL);
+					set_server_check_status(check, HCHK_STATUS_L6TOUT, err_msg);
+			}
+			else if (conn->flags & CO_FL_ERROR) {
+				/* I/O error after connection was established and before we could diagnose */
+				set_server_check_status(check, HCHK_STATUS_SOCKERR, err_msg);
 			}
 			else if (!check->type) {
 				/* good connection is enough for pure TCP check */
