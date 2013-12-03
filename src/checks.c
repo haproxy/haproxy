@@ -1272,9 +1272,11 @@ static int wake_srv_chk(struct connection *conn)
 	struct check *check = conn->owner;
 
 	if (unlikely(conn->flags & CO_FL_ERROR)) {
-		/* Note that we might as well have been woken up by a handshake handler */
-		if (check->result == SRV_CHK_UNKNOWN)
-			check->result |= SRV_CHK_FAILED;
+		/* We may get error reports bypassing the I/O handlers, typically
+		 * the case when sending a pure TCP check which fails, then the I/O
+		 * handlers above are not called. This is completely handled by the
+		 * main processing task so let's simply wake it up.
+		 */
 		__conn_data_stop_both(conn);
 		task_wakeup(check->task, TASK_WOKEN_IO);
 	}
@@ -1465,17 +1467,29 @@ static struct task *process_chk(struct task *t)
 		 * which can happen on connect timeout or error.
 		 */
 		if (s->check.result == SRV_CHK_UNKNOWN) {
+			int skerr, err = errno;
+			socklen_t lskerr = sizeof(skerr);
+
+			if (conn->ctrl) {
+				if (getsockopt(conn->t.sock.fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr) == 0 && skerr)
+					err = skerr;
+			}
+
+			/* eagain is normal on a timeout */
+			if (err == EAGAIN)
+				err = 0;
+
 			if ((conn->flags & (CO_FL_CONNECTED|CO_FL_WAIT_L4_CONN)) == CO_FL_WAIT_L4_CONN) {
 				/* L4 not established (yet) */
 				if (conn->flags & CO_FL_ERROR)
-					set_server_check_status(check, HCHK_STATUS_L4CON, NULL);
+					set_server_check_status(check, HCHK_STATUS_L4CON, err ? strerror(err) : NULL);
 				else if (expired)
 					set_server_check_status(check, HCHK_STATUS_L4TOUT, NULL);
 			}
 			else if ((conn->flags & (CO_FL_CONNECTED|CO_FL_WAIT_L6_CONN)) == CO_FL_WAIT_L6_CONN) {
 				/* L6 not established (yet) */
 				if (conn->flags & CO_FL_ERROR)
-					set_server_check_status(check, HCHK_STATUS_L6RSP, NULL);
+					set_server_check_status(check, HCHK_STATUS_L6RSP, err ? strerror(err) : NULL);
 				else if (expired)
 					set_server_check_status(check, HCHK_STATUS_L6TOUT, NULL);
 			}
