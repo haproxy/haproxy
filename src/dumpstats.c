@@ -2155,8 +2155,6 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 
 		if ((sv->state & SRV_MAINTAIN) || (ref->state & SRV_MAINTAIN))
 			chunk_appendf(&trash, "<tr class=\"maintain\">");
-		else if (sv->eweight == 0 && !(sv->state & SRV_DRAIN))
-			chunk_appendf(&trash, "<tr class=\"softstop\">");
 		else
 			chunk_appendf(&trash,
 			              "<tr class=\"%s%d\">",
@@ -2988,10 +2986,10 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 				else
 					sv_state = 2; /* going down */
 
-				if (svs->state & SRV_GOINGDOWN)
-					sv_state += 2;
-				else if (svs->state & SRV_DRAIN)
+				if (svs->state & SRV_DRAIN)
 					sv_state += 4;
+				else if (svs->state & SRV_GOINGDOWN)
+					sv_state += 2;
 			}
 			else
 				if (svs->check.health)
@@ -3103,9 +3101,9 @@ static void stats_dump_html_head(struct uri_auth *uri)
 	              ".active2	{background: #ffffa0;}\n"
 	              ".active3	{background: #c0ffc0;}\n"
 	              ".active4	{background: #ffffa0;}\n"  /* NOLB state shows same as going down */
-	              ".active5	{background: #a0e0a0;}\n"  /* NOLB state shows darker than up */
-	              ".active6	{background: #ffffa0;}\n"
-	              ".active7	{background: #cc9900;}\n"
+	              ".active5	{background: #20a0ff;}\n"  /* NOLB state shows different to be detected */
+	              ".active6	{background: #ffffa0;}\n"  /* DRAIN going down = same as going down */
+	              ".active7	{background: #20a0FF;}\n"  /* DRAIN must be detected (weight=0) */
 	              ".active8	{background: #e0e0e0;}\n"
 	              ".backup0	{background: #ff9090;}\n"
 	              ".backup1	{background: #ff80ff;}\n"
@@ -3117,7 +3115,6 @@ static void stats_dump_html_head(struct uri_auth *uri)
 	              ".backup7	{background: #cc9900;}\n"
 	              ".backup8	{background: #e0e0e0;}\n"
 	              ".maintain	{background: #c07820;}\n"
-	              ".softstop	{background: #0067FF;}\n"
 	              ".rls      {letter-spacing: 0.2em; margin-right: 1px;}\n" /* right letter spacing (used for grouping digits) */
 	              "\n"
 	              "a.px:link {color: #ffff40; text-decoration: none;}"
@@ -3201,15 +3198,14 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 	              "<td class=\"backup1\"></td><td class=\"noborder\">backup DOWN, going up </td>"
 	              "</tr><tr>\n"
 	              "<td class=\"active0\"></td><td class=\"noborder\">active or backup DOWN &nbsp;</td>"
-	              "<td class=\"active7\"></td><td class=\"noborder\">active or backup DRAIN &nbsp;</td>"
 	              "</tr><tr>\n"
 	              "<td class=\"active8\"></td><td class=\"noborder\">not checked </td>"
 	              "</tr><tr>\n"
 	              "<td class=\"maintain\"></td><td class=\"noborder\" colspan=\"3\">active or backup DOWN for maintenance (MAINT) &nbsp;</td>"
 	              "</tr><tr>\n"
-	              "<td class=\"softstop\"></td><td class=\"noborder\" colspan=\"3\">active or backup SOFT STOPPED for maintenance &nbsp;</td>"
+	              "<td class=\"active7\"></td><td class=\"noborder\" colspan=\"3\">active or backup SOFT STOPPED for maintenance &nbsp;</td>"
 	              "</tr></table>\n"
-	              "Note: UP with load-balancing disabled is reported as \"NOLB\"."
+	              "Note: \"NOLB\"/\"DRAIN\" = UP with load-balancing disabled."
 	              "</td>"
 	              "<td align=\"left\" valign=\"top\" nowrap width=\"1%%\">"
 	              "<b>Display option:</b><ul style=\"margin-top: 0.25em;\">"
