@@ -4950,9 +4950,8 @@ stats_error_parsing:
 				goto out;
 			}
 
-			ret = init_check(&newsrv->check,
-					 curproxy->options2 & PR_O2_CHK_ANY,
-					 file, linenum);
+			/* note: check type will be set during the config review phase */
+			ret = init_check(&newsrv->check, 0, file, linenum);
 			if (ret) {
 				err_code |= ret;
 				goto out;
@@ -6811,6 +6810,9 @@ out_uri_auth_compat:
 			if (newsrv->use_ssl || newsrv->check.use_ssl)
 				cfgerr += ssl_sock_prepare_srv_ctx(newsrv, curproxy);
 #endif /* USE_OPENSSL */
+
+			/* set the check type on the server */
+			newsrv->check.type = curproxy->options2 & PR_O2_CHK_ANY;
 
 			if (newsrv->trackit) {
 				struct proxy *px;
