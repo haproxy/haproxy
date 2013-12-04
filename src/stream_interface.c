@@ -608,11 +608,11 @@ static int si_conn_wake_cb(struct connection *conn)
 
 /*
  * This function is called to send buffer data to a stream socket.
- * It returns -1 in case of unrecoverable error, otherwise zero.
  * It calls the transport layer's snd_buf function. It relies on the
- * caller to commit polling changes.
+ * caller to commit polling changes. The caller should check conn->flags
+ * for errors.
  */
-static int si_conn_send(struct connection *conn)
+static void si_conn_send(struct connection *conn)
 {
 	struct stream_interface *si = conn->owner;
 	struct channel *chn = si->ob;
@@ -629,14 +629,14 @@ static int si_conn_send(struct connection *conn)
 		}
 
 		if (conn->flags & CO_FL_ERROR)
-			return -1;
+			return;
 	}
 
 	/* At this point, the pipe is empty, but we may still have data pending
 	 * in the normal buffer.
 	 */
 	if (!chn->buf->o)
-		return 0;
+		return;
 
 	/* when we're here, we already know that there is no spliced
 	 * data left, and that there are sendable buffered data.
@@ -675,10 +675,7 @@ static int si_conn_send(struct connection *conn)
 		}
 	}
 
-	if (conn->flags & CO_FL_ERROR)
-		return -1;
-
-	return 0;
+	return;
 }
 
 
@@ -821,12 +818,12 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 
 		conn_refresh_polling_flags(si->conn);
 
-		if (si_conn_send(si->conn) < 0) {
+		si_conn_send(si->conn);
+		if (si->conn->flags & CO_FL_ERROR) {
 			/* Write error on the file descriptor */
 			fd_stop_both(si->conn->t.sock.fd);
 			__conn_data_stop_both(si->conn);
 			si->flags |= SI_FL_ERR;
-			si->conn->flags |= CO_FL_ERROR;
 			goto out_wakeup;
 		}
 	}
@@ -915,7 +912,7 @@ static void si_conn_recv_cb(struct connection *conn)
 	 * which rejects it before reading it all.
 	 */
 	if (conn->flags & CO_FL_ERROR)
-		goto out_error;
+		return;
 
 	/* stop here if we reached the end of data */
 	if (conn_data_read0_pending(conn))
@@ -968,7 +965,7 @@ static void si_conn_recv_cb(struct connection *conn)
 			goto out_shutdown_r;
 
 		if (conn->flags & CO_FL_ERROR)
-			goto out_error;
+			return;
 
 		if (conn->flags & CO_FL_WAIT_ROOM) {
 			/* the pipe is full or we have read enough data that it
@@ -1098,7 +1095,7 @@ static void si_conn_recv_cb(struct connection *conn)
 	} /* while !flags */
 
 	if (conn->flags & CO_FL_ERROR)
-		goto out_error;
+		return;
 
 	if (conn_data_read0_pending(conn))
 		/* connection closed */
@@ -1114,10 +1111,6 @@ static void si_conn_recv_cb(struct connection *conn)
 	stream_sock_read0(si);
 	conn_data_read0(conn);
 	return;
-
- out_error:
-	/* Read error on the connection, report the error and stop I/O */
-	conn->flags |= CO_FL_ERROR;
 }
 
 /*
@@ -1131,7 +1124,7 @@ static void si_conn_send_cb(struct connection *conn)
 	struct channel *chn = si->ob;
 
 	if (conn->flags & CO_FL_ERROR)
-		goto out_error;
+		return;
 
 	if (si->conn->flags & CO_FL_HANDSHAKE)
 		/* a handshake was requested */
@@ -1142,15 +1135,10 @@ static void si_conn_send_cb(struct connection *conn)
 		return;
 
 	/* OK there are data waiting to be sent */
-	if (si_conn_send(conn) < 0)
-		goto out_error;
+	si_conn_send(conn);
 
 	/* OK all done */
 	return;
-
- out_error:
-	/* Write error on the connection, report the error and stop I/O */
-	conn->flags |= CO_FL_ERROR;
 }
 
 /*
