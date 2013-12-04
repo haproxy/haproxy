@@ -818,6 +818,84 @@ static int retrieve_errno_from_socket(struct connection *conn)
 	return 1;
 }
 
+/* Try to collect as much information as possible on the connection status,
+ * and adjust the server status accordingly. It may make use of <errno_bck>
+ * if non-null when the caller is absolutely certain of its validity (eg:
+ * checked just after a syscall). If the caller doesn't have a valid errno,
+ * it can pass zero, and retrieve_errno_from_socket() will be called to try
+ * to extract errno from the socket. If no error is reported, it will consider
+ * the <expired> flag. This is intended to be used when a connection error was
+ * reported in conn->flags or when a timeout was reported in <expired>. The
+ * function takes care of not updating a server status which was already set.
+ * All situations where at least one of <expired> or CO_FL_ERROR are set
+ * produce a status.
+ */
+static void chk_report_conn_err(struct connection *conn, int errno_bck, int expired)
+{
+	struct check *check = conn->owner;
+	const char *err_msg;
+
+	if (check->result != SRV_CHK_UNKNOWN)
+		return;
+
+	errno = errno_bck;
+	if (!errno || errno == EAGAIN)
+		retrieve_errno_from_socket(conn);
+
+	if (!(conn->flags & CO_FL_ERROR) && !expired)
+		return;
+
+	/* we'll try to build a meaningful error message depending on the
+	 * context of the error possibly present in conn->err_code, and the
+	 * socket error possibly collected above. This is useful to know the
+	 * exact step of the L6 layer (eg: SSL handshake).
+	 */
+	if (conn->err_code) {
+		if (errno && errno != EAGAIN)
+			chunk_printf(&trash, "%s (%s)", conn_err_code_str(conn), strerror(errno));
+		else
+			chunk_printf(&trash, "%s", conn_err_code_str(conn));
+		err_msg = trash.str;
+	}
+	else {
+		if (errno && errno != EAGAIN) {
+			chunk_printf(&trash, "%s", strerror(errno));
+			err_msg = trash.str;
+		}
+		else {
+			err_msg = NULL;
+		}
+	}
+
+	if ((conn->flags & (CO_FL_CONNECTED|CO_FL_WAIT_L4_CONN)) == CO_FL_WAIT_L4_CONN) {
+		/* L4 not established (yet) */
+		if (conn->flags & CO_FL_ERROR)
+			set_server_check_status(check, HCHK_STATUS_L4CON, err_msg);
+		else if (expired)
+			set_server_check_status(check, HCHK_STATUS_L4TOUT, err_msg);
+	}
+	else if ((conn->flags & (CO_FL_CONNECTED|CO_FL_WAIT_L6_CONN)) == CO_FL_WAIT_L6_CONN) {
+		/* L6 not established (yet) */
+		if (conn->flags & CO_FL_ERROR)
+			set_server_check_status(check, HCHK_STATUS_L6RSP, err_msg);
+		else if (expired)
+			set_server_check_status(check, HCHK_STATUS_L6TOUT, err_msg);
+	}
+	else if (conn->flags & CO_FL_ERROR) {
+		/* I/O error after connection was established and before we could diagnose */
+		set_server_check_status(check, HCHK_STATUS_SOCKERR, err_msg);
+	}
+	else if (expired) {
+		/* connection established but expired check */
+		if (check->type == PR_O2_SSL3_CHK)
+			set_server_check_status(check, HCHK_STATUS_L6TOUT, err_msg);
+		else	/* HTTP, SMTP, ... */
+			set_server_check_status(check, HCHK_STATUS_L7TOUT, err_msg);
+	}
+
+	return;
+}
+
 /*
  * This function is used only for server health-checks. It handles
  * the connection acknowledgement. If the proxy requires L7 health-checks,
@@ -830,50 +908,48 @@ static void event_srv_chk_w(struct connection *conn)
 	struct server *s = check->server;
 	struct task *t = check->task;
 
-	if (retrieve_errno_from_socket(conn)) {
-		set_server_check_status(check, HCHK_STATUS_L4CON, strerror(errno));
-		__conn_data_stop_both(conn);
+	if (unlikely(check->result & SRV_CHK_FAILED))
 		goto out_wakeup;
-	}
-
-	if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_WR_SH | CO_FL_DATA_WR_SH)) {
-		/* if the output is closed, we can't do anything */
-		conn->flags |= CO_FL_ERROR;
-		set_server_check_status(check, HCHK_STATUS_L4CON, NULL);
-		goto out_wakeup;
-	}
 
 	if (conn->flags & (CO_FL_HANDSHAKE | CO_FL_WAIT_WR))
 		return;
 
-	/* here, we know that the connection is established */
-	if (!(check->result & SRV_CHK_FAILED)) {
-		/* we don't want to mark 'UP' a server on which we detected an error earlier */
-		if (check->bo->o) {
-			conn->xprt->snd_buf(conn, check->bo, MSG_DONTWAIT | MSG_NOSIGNAL);
-			if (conn->flags & CO_FL_ERROR) {
-				set_server_check_status(check, HCHK_STATUS_L4CON, strerror(errno));
-				__conn_data_stop_both(conn);
-				goto out_wakeup;
-			}
-			if (check->bo->o) {
-				goto out_incomplete;
-			}
-		}
-
-		/* full request sent, we allow up to <timeout.check> if nonzero for a response */
-		if (s->proxy->timeout.check) {
-			t->expire = tick_add_ifset(now_ms, s->proxy->timeout.check);
-			task_queue(t);
-		}
-		goto out_nowake;
+	if (retrieve_errno_from_socket(conn)) {
+		chk_report_conn_err(conn, errno, 0);
+		__conn_data_stop_both(conn);
+		goto out_wakeup;
 	}
+
+	if (conn->flags & (CO_FL_SOCK_WR_SH | CO_FL_DATA_WR_SH)) {
+		/* if the output is closed, we can't do anything */
+		conn->flags |= CO_FL_ERROR;
+		chk_report_conn_err(conn, 0, 0);
+		goto out_wakeup;
+	}
+
+	/* here, we know that the connection is established */
+	if (check->bo->o) {
+		conn->xprt->snd_buf(conn, check->bo, MSG_DONTWAIT | MSG_NOSIGNAL);
+		if (conn->flags & CO_FL_ERROR) {
+			chk_report_conn_err(conn, errno, 0);
+			__conn_data_stop_both(conn);
+			goto out_wakeup;
+		}
+		if (check->bo->o)
+			return;
+	}
+
+	/* full request sent, we allow up to <timeout.check> if nonzero for a response */
+	if (s->proxy->timeout.check) {
+		t->expire = tick_add_ifset(now_ms, s->proxy->timeout.check);
+		task_queue(t);
+	}
+	goto out_nowake;
+
  out_wakeup:
 	task_wakeup(t, TASK_WOKEN_IO);
  out_nowake:
 	__conn_data_stop_send(conn);   /* nothing more to write */
- out_incomplete:
-	return;
 }
 
 /*
@@ -899,18 +975,8 @@ static void event_srv_chk_r(struct connection *conn)
 	int done;
 	unsigned short msglen;
 
-	if (retrieve_errno_from_socket(conn)) {
-		set_server_check_status(check, HCHK_STATUS_L4CON, strerror(errno));
-		__conn_data_stop_both(conn);
+	if (unlikely(check->result & SRV_CHK_FAILED))
 		goto out_wakeup;
-	}
-
-	if (unlikely((check->result & SRV_CHK_FAILED) || (conn->flags & CO_FL_ERROR))) {
-		/* in case of TCP only, this tells us if the connection failed */
-		if (!(check->result & SRV_CHK_FAILED))
-			set_server_check_status(check, HCHK_STATUS_SOCKERR, NULL);
-		goto out_wakeup;
-	}
 
 	if (conn->flags & (CO_FL_HANDSHAKE | CO_FL_WAIT_RD))
 		return;
@@ -936,11 +1002,11 @@ static void event_srv_chk_r(struct connection *conn)
 			 * or not. It is very common that an RST sent by the server is
 			 * reported as an error just after the last data chunk.
 			 */
-			if (!(check->result & SRV_CHK_FAILED))
-				set_server_check_status(check, HCHK_STATUS_SOCKERR, NULL);
+			chk_report_conn_err(conn, errno, 0);
 			goto out_wakeup;
 		}
 	}
+
 
 	/* Intermediate or complete response received.
 	 * Terminate string in check->bi->data buffer.
@@ -1276,8 +1342,9 @@ static void event_srv_chk_r(struct connection *conn)
 	} /* switch */
 
  out_wakeup:
-	if (check->result & SRV_CHK_FAILED)
-		conn->flags |= CO_FL_ERROR;
+	/* collect possible new errors */
+	if (conn->flags & CO_FL_ERROR)
+		chk_report_conn_err(conn, 0, 0);
 
 	/* Reset the check buffer... */
 	*check->bi->data = '\0';
@@ -1297,6 +1364,11 @@ static void event_srv_chk_r(struct connection *conn)
 			setsockopt(conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
 			           (struct linger *) &nolinger, sizeof(struct linger));
 	}
+
+	/* OK, let's not stay here forever */
+	if (check->result & SRV_CHK_FAILED)
+		conn->flags |= CO_FL_ERROR;
+
 	__conn_data_stop_both(conn);
 	task_wakeup(t, TASK_WOKEN_IO);
 	return;
@@ -1314,16 +1386,23 @@ static int wake_srv_chk(struct connection *conn)
 {
 	struct check *check = conn->owner;
 
-	if (retrieve_errno_from_socket(conn)) {
-		set_server_check_status(check, HCHK_STATUS_L4CON, strerror(errno));
-	}
-
 	if (unlikely(conn->flags & CO_FL_ERROR)) {
 		/* We may get error reports bypassing the I/O handlers, typically
 		 * the case when sending a pure TCP check which fails, then the I/O
 		 * handlers above are not called. This is completely handled by the
-		 * main processing task so let's simply wake it up.
+		 * main processing task so let's simply wake it up. If we get here,
+		 * we expect errno to still be valid.
 		 */
+		chk_report_conn_err(conn, errno, 0);
+
+		/* We're here because nobody wants to handle the error, so we
+		 * sure want to abort the hard way.
+		 */
+		if (conn->ctrl && !(conn->flags & CO_FL_SOCK_RD_SH)) {
+			setsockopt(conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
+			           (struct linger *) &nolinger, sizeof(struct linger));
+		}
+
 		__conn_data_stop_both(conn);
 		task_wakeup(check->task, TASK_WOKEN_IO);
 	}
@@ -1514,73 +1593,15 @@ static struct task *process_chk(struct task *t)
 		 * which can happen on connect timeout or error.
 		 */
 		if (s->check.result == SRV_CHK_UNKNOWN) {
-			int skerr, err;
-			socklen_t lskerr = sizeof(skerr);
-			const char *err_msg;
-
-			err = 0;
-			if (conn->ctrl) {
-				if (getsockopt(conn->t.sock.fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr) == 0 && skerr)
-					err = skerr;
-				/* EAGAIN is normal on a timeout */
-				if (err == EAGAIN)
-					err = 0;
-			}
-
-			/* we'll try to build a meaningful error message
-			 * depending on the context of the error possibly
-			 * present in conn->err_type, and the socket error
-			 * possibly collected above.
-			 */
-			if (conn->err_code) {
-				if (err)
-					chunk_printf(&trash, "%s (%s)", conn_err_code_str(conn), strerror(err));
-				else
-					chunk_printf(&trash, "%s", conn_err_code_str(conn));
-				err_msg = trash.str;
-			}
-			else {
-				if (err) {
-					chunk_printf(&trash, "%s", strerror(err));
-					err_msg = trash.str;
-				}
-				else {
-					err_msg = NULL;
-				}
-			}
-
-			if ((conn->flags & (CO_FL_CONNECTED|CO_FL_WAIT_L4_CONN)) == CO_FL_WAIT_L4_CONN) {
-				/* L4 not established (yet) */
-				if (conn->flags & CO_FL_ERROR)
-					set_server_check_status(check, HCHK_STATUS_L4CON, err_msg);
-				else if (expired)
-					set_server_check_status(check, HCHK_STATUS_L4TOUT, err_msg);
-			}
-			else if ((conn->flags & (CO_FL_CONNECTED|CO_FL_WAIT_L6_CONN)) == CO_FL_WAIT_L6_CONN) {
-				/* L6 not established (yet) */
-				if (conn->flags & CO_FL_ERROR)
-					set_server_check_status(check, HCHK_STATUS_L6RSP, err_msg);
-				else if (expired)
-					set_server_check_status(check, HCHK_STATUS_L6TOUT, err_msg);
-			}
-			else if (conn->flags & CO_FL_ERROR) {
-				/* I/O error after connection was established and before we could diagnose */
-				set_server_check_status(check, HCHK_STATUS_SOCKERR, err_msg);
-			}
-			else if (!check->type) {
-				/* good connection is enough for pure TCP check */
+			/* good connection is enough for pure TCP check */
+			if ((conn->flags & CO_FL_CONNECTED) && !check->type) {
 				if (check->use_ssl)
 					set_server_check_status(check, HCHK_STATUS_L6OK, NULL);
 				else
 					set_server_check_status(check, HCHK_STATUS_L4OK, NULL);
 			}
-			else if (expired) {
-				/* connection established but expired check */
-				if (check->type == PR_O2_SSL3_CHK)
-					set_server_check_status(check, HCHK_STATUS_L6TOUT, NULL);
-				else	/* HTTP, SMTP, ... */
-					set_server_check_status(check, HCHK_STATUS_L7TOUT, NULL);
-
+			else if ((conn->flags & CO_FL_ERROR) || expired) {
+				chk_report_conn_err(conn, 0, expired);
 			}
 			else
 				goto out_wait; /* timeout not reached, wait again */
