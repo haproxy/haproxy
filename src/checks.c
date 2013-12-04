@@ -777,6 +777,47 @@ static int httpchk_build_status_header(struct server *s, char *buffer)
 	return hlen;
 }
 
+/* Check the connection. If an error has already been reported or the socket is
+ * closed, keep errno intact as it is supposed to contain the valid error code.
+ * If no error is reported, check the socket's error queue using getsockopt().
+ * Warning, this must be done only once when returning from poll, and never
+ * after an I/O error was attempted, otherwise the error queue might contain
+ * inconsistent errors. If an error is detected, the CO_FL_ERROR is set on the
+ * socket. Returns non-zero if an error was reported, zero if everything is
+ * clean (including a properly closed socket).
+ */
+static int retrieve_errno_from_socket(struct connection *conn)
+{
+	int skerr;
+	socklen_t lskerr = sizeof(skerr);
+
+	if (conn->flags & CO_FL_ERROR && ((errno && errno != EAGAIN) || !conn->ctrl))
+		return 1;
+
+	if (!conn->ctrl)
+		return 0;
+
+	if (getsockopt(conn->t.sock.fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr) == 0)
+		errno = skerr;
+
+	if (errno == EAGAIN)
+		errno = 0;
+
+	if (!errno) {
+		/* we could not retrieve an error, that does not mean there is
+		 * none. Just don't change anything and only report the prior
+		 * error if any.
+		 */
+		if (conn->flags & CO_FL_ERROR)
+			return 1;
+		else
+			return 0;
+	}
+
+	conn->flags |= CO_FL_ERROR | CO_FL_SOCK_WR_SH | CO_FL_SOCK_RD_SH;
+	return 1;
+}
+
 /*
  * This function is used only for server health-checks. It handles
  * the connection acknowledgement. If the proxy requires L7 health-checks,
@@ -787,21 +828,19 @@ static void event_srv_chk_w(struct connection *conn)
 {
 	struct check *check = conn->owner;
 	struct server *s = check->server;
-	int fd = conn->t.sock.fd;
 	struct task *t = check->task;
 
-	if (conn->flags & (CO_FL_SOCK_WR_SH | CO_FL_DATA_WR_SH))
+	if (retrieve_errno_from_socket(conn)) {
+		set_server_check_status(check, HCHK_STATUS_L4CON, strerror(errno));
+		__conn_data_stop_both(conn);
+		goto out_wakeup;
+	}
+
+	if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_WR_SH | CO_FL_DATA_WR_SH)) {
+		/* if the output is closed, we can't do anything */
 		conn->flags |= CO_FL_ERROR;
-
-	if (unlikely(conn->flags & CO_FL_ERROR)) {
-		int skerr, err = errno;
-		socklen_t lskerr = sizeof(skerr);
-
-		if (!getsockopt(fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr) && skerr)
-			err = skerr;
-
-		set_server_check_status(check, HCHK_STATUS_L4CON, strerror(err));
-		goto out_error;
+		set_server_check_status(check, HCHK_STATUS_L4CON, NULL);
+		goto out_wakeup;
 	}
 
 	if (conn->flags & (CO_FL_HANDSHAKE | CO_FL_WAIT_WR))
@@ -814,6 +853,7 @@ static void event_srv_chk_w(struct connection *conn)
 			conn->xprt->snd_buf(conn, check->bo, MSG_DONTWAIT | MSG_NOSIGNAL);
 			if (conn->flags & CO_FL_ERROR) {
 				set_server_check_status(check, HCHK_STATUS_L4CON, strerror(errno));
+				__conn_data_stop_both(conn);
 				goto out_wakeup;
 			}
 			if (check->bo->o) {
@@ -834,9 +874,6 @@ static void event_srv_chk_w(struct connection *conn)
 	__conn_data_stop_send(conn);   /* nothing more to write */
  out_incomplete:
 	return;
- out_error:
-	conn->flags |= CO_FL_ERROR;
-	goto out_wakeup;
 }
 
 /*
@@ -861,6 +898,12 @@ static void event_srv_chk_r(struct connection *conn)
 	char *desc;
 	int done;
 	unsigned short msglen;
+
+	if (retrieve_errno_from_socket(conn)) {
+		set_server_check_status(check, HCHK_STATUS_L4CON, strerror(errno));
+		__conn_data_stop_both(conn);
+		goto out_wakeup;
+	}
 
 	if (unlikely((check->result & SRV_CHK_FAILED) || (conn->flags & CO_FL_ERROR))) {
 		/* in case of TCP only, this tells us if the connection failed */
@@ -1270,6 +1313,10 @@ static void event_srv_chk_r(struct connection *conn)
 static int wake_srv_chk(struct connection *conn)
 {
 	struct check *check = conn->owner;
+
+	if (retrieve_errno_from_socket(conn)) {
+		set_server_check_status(check, HCHK_STATUS_L4CON, strerror(errno));
+	}
 
 	if (unlikely(conn->flags & CO_FL_ERROR)) {
 		/* We may get error reports bypassing the I/O handlers, typically
