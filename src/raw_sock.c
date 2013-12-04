@@ -74,6 +74,8 @@ int raw_sock_to_pipe(struct connection *conn, struct pipe *pipe, unsigned int co
 	int ret;
 	int retval = 0;
 
+	errno = 0;
+
 	/* Under Linux, if FD_POLL_HUP is set, we have reached the end.
 	 * Since older splice() implementations were buggy and returned
 	 * EAGAIN on end of read, let's bypass the call to splice() now.
@@ -86,6 +88,7 @@ int raw_sock_to_pipe(struct connection *conn, struct pipe *pipe, unsigned int co
 		/* report error on POLL_ERR before connection establishment */
 		if ((fdtab[conn->t.sock.fd].ev & FD_POLL_ERR) && (conn->flags & CO_FL_WAIT_L4_CONN)) {
 			conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
+			errno = 0; /* let the caller do a getsockopt() if it wants it */
 			return retval;
 		}
 	}
@@ -223,11 +226,15 @@ int raw_sock_from_pipe(struct connection *conn, struct pipe *pipe)
  * empty). The caller is responsible for taking care of those events and
  * avoiding the call if inappropriate. The function does not call the
  * connection's polling update function, so the caller is responsible for this.
+ * errno is cleared before starting so that the caller knows that if it spots an
+ * error without errno, it's pending and can be retrieved via getsockopt(SO_ERROR).
  */
 static int raw_sock_to_buf(struct connection *conn, struct buffer *buf, int count)
 {
 	int ret, done = 0;
 	int try = count;
+
+	errno = 0;
 
 	if (unlikely(!(fdtab[conn->t.sock.fd].ev & FD_POLL_IN))) {
 		/* stop here if we reached the end of data */
