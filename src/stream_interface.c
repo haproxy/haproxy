@@ -472,6 +472,7 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 				goto out_wait;
 			if (errno == EINTR)
 				continue;
+			conn->flags |= CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
 			goto out_error;
 		}
 

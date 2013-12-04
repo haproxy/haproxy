@@ -625,7 +625,7 @@ int tcp_connect_probe(struct connection *conn)
 	 * and disable polling on this FD.
 	 */
 
-	conn->flags |= CO_FL_ERROR;
+	conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
 	__conn_sock_stop_both(conn);
 	return 0;
 }

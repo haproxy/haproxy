@@ -85,7 +85,7 @@ int raw_sock_to_pipe(struct connection *conn, struct pipe *pipe, unsigned int co
 
 		/* report error on POLL_ERR before connection establishment */
 		if ((fdtab[conn->t.sock.fd].ev & FD_POLL_ERR) && (conn->flags & CO_FL_WAIT_L4_CONN)) {
-			conn->flags |= CO_FL_ERROR;
+			conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
 			return retval;
 		}
 	}
@@ -236,7 +236,7 @@ static int raw_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 
 		/* report error on POLL_ERR before connection establishment */
 		if ((fdtab[conn->t.sock.fd].ev & FD_POLL_ERR) && (conn->flags & CO_FL_WAIT_L4_CONN)) {
-			conn->flags |= CO_FL_ERROR;
+			conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
 			return done;
 		}
 	}
@@ -284,7 +284,7 @@ static int raw_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 			break;
 		}
 		else if (errno != EINTR) {
-			conn->flags |= CO_FL_ERROR;
+			conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
 			break;
 		}
 	}
@@ -305,7 +305,7 @@ static int raw_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 	 * an error without checking.
 	 */
 	if (unlikely(fdtab[conn->t.sock.fd].ev & FD_POLL_ERR))
-		conn->flags |= CO_FL_ERROR;
+		conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
 	return done;
 }
 
@@ -359,7 +359,7 @@ static int raw_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 			break;
 		}
 		else if (errno != EINTR) {
-			conn->flags |= CO_FL_ERROR;
+			conn->flags |= CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
 			break;
 		}
 	}
