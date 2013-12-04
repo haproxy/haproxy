@@ -563,16 +563,20 @@ int conn_local_send_proxy(struct connection *conn, unsigned int flag)
 	/* we have to send the whole trash. If the data layer has a
 	 * pending write, we'll also set MSG_MORE.
 	 */
-	ret = send(conn->t.sock.fd, trash.str, trash.len, (conn->flags & CO_FL_DATA_WR_ENA) ? MSG_MORE : 0);
+	do {
+		ret = send(conn->t.sock.fd, trash.str, trash.len, (conn->flags & CO_FL_DATA_WR_ENA) ? MSG_MORE : 0);
 
-	if (ret == 0)
-		goto out_wait;
-
-	if (ret < 0) {
-		if (errno == EAGAIN || errno == ENOTCONN)
+		if (ret == 0)
 			goto out_wait;
-		goto out_error;
-	}
+
+		if (ret < 0) {
+			if (errno == EAGAIN || errno == ENOTCONN)
+				goto out_wait;
+			if (errno == EINTR)
+				continue;
+			goto out_error;
+		}
+	} while (0);
 
 	if (ret != trash.len)
 		goto out_error;

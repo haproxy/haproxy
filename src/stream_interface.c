@@ -442,7 +442,7 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 	 * connection, in which case the connection is validated only once
 	 * we've sent the whole proxy line. Otherwise we use connect().
 	 */
-	if (si->send_proxy_ofs) {
+	while (si->send_proxy_ofs) {
 		int ret;
 
 		/* The target server expects a PROXY line to be sent first.
@@ -470,6 +470,8 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 		if (ret < 0) {
 			if (errno == EAGAIN || errno == ENOTCONN)
 				goto out_wait;
+			if (errno == EINTR)
+				continue;
 			goto out_error;
 		}
 
@@ -478,6 +480,7 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 			goto out_wait;
 
 		/* OK we've sent the whole line, we're connected */
+		break;
 	}
 
 	/* The connection is ready now, simply return and let the connection
