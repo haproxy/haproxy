@@ -927,7 +927,12 @@ static void event_srv_chk_w(struct connection *conn)
 		goto out_wakeup;
 	}
 
-	/* here, we know that the connection is established */
+	/* here, we know that the connection is established. That's enough for
+	 * a pure TCP check.
+	 */
+	if (!check->type)
+		goto out_wakeup;
+
 	if (check->bo->o) {
 		conn->xprt->snd_buf(conn, check->bo, MSG_DONTWAIT | MSG_NOSIGNAL);
 		if (conn->flags & CO_FL_ERROR) {
@@ -1336,8 +1341,7 @@ static void event_srv_chk_r(struct connection *conn)
 		break;
 
 	default:
-		/* other checks are valid if the connection succeeded anyway */
-		set_server_check_status(check, HCHK_STATUS_L4OK, NULL);
+		/* for other checks (eg: pure TCP), delegate to the main task */
 		break;
 	} /* switch */
 
@@ -1554,7 +1558,10 @@ static struct task *process_chk(struct task *t)
 				int t_con = tick_add(now_ms, s->proxy->timeout.connect);
 				t->expire = tick_first(t->expire, t_con);
 			}
-			conn_data_poll_recv(conn);   /* prepare for reading a possible reply */
+
+			if (check->type)
+				conn_data_want_recv(conn);   /* prepare for reading a possible reply */
+
 			goto reschedule;
 
 		case SN_ERR_SRVTO: /* ETIMEDOUT */
