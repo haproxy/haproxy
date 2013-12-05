@@ -59,7 +59,8 @@ struct map_descriptor {
 	struct sample_conv *conv;      /* original converter descriptor */
 	int (*parse)(const char *text, /* The function that can parse the output value */
 	             struct sample_storage *smp);
-	struct pattern_expr pat;       /* the pattern matching associated to the map */
+	struct pattern_expr *pat;      /* the pattern matching associated to the map */
+	int do_free;                   /* set if <pat> is the orignal pat and must be freed */
 	char *default_value;           /* a copy of default value. This copy is
 	                                  useful if the type is str */
 	struct sample_storage *def;    /* contain the default value */
