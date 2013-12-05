@@ -168,6 +168,7 @@ static struct map_descriptor *map_create_descriptor(struct map_reference *ref,
 		return NULL;
 
 	desc->conv = conv;
+	desc->ref = ref;
 
 	LIST_ADDQ(&ref->maps, &desc->list);
 
@@ -366,7 +367,6 @@ static int sample_load_map(struct arg *arg, struct sample_conv *conv, char **err
 		return 0;
 	}
 
-	desc->ref = ref;
 	pattern_init_expr(&desc->pat);
 
 	/* set the match method */
