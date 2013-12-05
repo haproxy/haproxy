@@ -615,6 +615,9 @@ struct stktable_key *stktable_fetch_key(struct stktable *t, struct proxy *px, st
 	if (!smp)
 		return NULL;
 
+	if ((smp->flags & SMP_F_MAY_CHANGE) && !(opt & SMP_OPT_FINAL))
+		return NULL; /* we can only use stable samples */
+
 	if (!sample_to_key[smp->type][t->type])
 		return NULL;
 
