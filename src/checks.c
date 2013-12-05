@@ -1363,12 +1363,6 @@ static void event_srv_chk_r(struct connection *conn)
 	if (conn->xprt && conn->xprt->shutw)
 		conn->xprt->shutw(conn, 0);
 
-	if (conn->ctrl && !(conn->flags & CO_FL_SOCK_RD_SH)) {
-		if (conn->flags & CO_FL_WAIT_RD || !conn->ctrl->drain || !conn->ctrl->drain(conn->t.sock.fd))
-			setsockopt(conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
-			           (struct linger *) &nolinger, sizeof(struct linger));
-	}
-
 	/* OK, let's not stay here forever */
 	if (check->result & SRV_CHK_FAILED)
 		conn->flags |= CO_FL_ERROR;
@@ -1399,20 +1393,21 @@ static int wake_srv_chk(struct connection *conn)
 		 */
 		chk_report_conn_err(conn, errno, 0);
 
-		/* We're here because nobody wants to handle the error, so we
-		 * sure want to abort the hard way.
-		 */
-		if (conn->ctrl && !(conn->flags & CO_FL_SOCK_RD_SH)) {
-			setsockopt(conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
-			           (struct linger *) &nolinger, sizeof(struct linger));
-		}
-
 		__conn_data_stop_both(conn);
 		task_wakeup(check->task, TASK_WOKEN_IO);
 	}
 
-	if (check->result & (SRV_CHK_FAILED|SRV_CHK_PASSED))
+	if (check->result & (SRV_CHK_FAILED|SRV_CHK_PASSED)) {
+		/* We're here because nobody wants to handle the error, so we
+		 * sure want to abort the hard way.
+		 */
+		if (conn->ctrl && !(conn->flags & CO_FL_SOCK_RD_SH)) {
+			if (conn->flags & CO_FL_WAIT_RD || !conn->ctrl->drain || !conn->ctrl->drain(conn->t.sock.fd))
+				setsockopt(conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
+				           (struct linger *) &nolinger, sizeof(struct linger));
+		}
 		conn_full_close(conn);
+	}
 	return 0;
 }
 
@@ -1621,9 +1616,11 @@ static struct task *process_chk(struct task *t)
 			 * as a failed response coupled with "observe layer7" caused the
 			 * server state to be suddenly changed.
 			 */
-			if (conn->ctrl)
-				setsockopt(conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
-					   (struct linger *) &nolinger, sizeof(struct linger));
+			if (conn->ctrl && !(conn->flags & CO_FL_SOCK_RD_SH)) {
+				if (conn->flags & CO_FL_WAIT_RD || !conn->ctrl->drain || !conn->ctrl->drain(conn->t.sock.fd))
+					setsockopt(conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
+					           (struct linger *) &nolinger, sizeof(struct linger));
+			}
 			conn_full_close(conn);
 		}
 
