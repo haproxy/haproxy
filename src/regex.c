@@ -122,7 +122,7 @@ const char *chain_regex(struct hdr_exp **head, const regex_t *preg,
 	return NULL;
 }
 
-int regex_comp(const char *str, regex *regex, int cs, int cap, char **err)
+int regex_comp(const char *str, struct my_regex *regex, int cs, int cap, char **err)
 {
 #ifdef USE_PCRE_JIT
 	int flags = 0;
@@ -154,7 +154,7 @@ int regex_comp(const char *str, regex *regex, int cs, int cap, char **err)
 	if (!cap)
 		flags |= REG_NOSUB;
 
-	if (regcomp(regex, str, flags) != 0) {
+	if (regcomp(&regex->regex, str, flags) != 0) {
 		memprintf(err, "regex '%s' is invalid", str);
 		return 0;
 	}

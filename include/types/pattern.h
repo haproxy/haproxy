@@ -135,7 +135,7 @@ struct pattern {
 	union {
 		void *ptr;              /* any data */
 		char *str;              /* any string  */
-		regex *reg;             /* a compiled regex */
+		struct my_regex *reg;   /* a compiled regex */
 	} ptr;                          /* indirect values, allocated */
 	void(*freeptrbuf)(void *ptr);	/* a destructor able to free objects from the ptr */
 	int len;                        /* data length when required  */

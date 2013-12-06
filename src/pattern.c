@@ -476,7 +476,7 @@ static void pat_free_reg(void *ptr)
 /* Parse a regex. It is allocated. */
 int pat_parse_reg(const char **text, struct pattern *pattern, int *opaque, char **err)
 {
-	regex *preg;
+	struct my_regex *preg;
 
 	preg = calloc(1, sizeof(*preg));
 

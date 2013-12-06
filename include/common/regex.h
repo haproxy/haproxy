@@ -29,24 +29,25 @@
 #ifdef USE_PCRE
 #include <pcre.h>
 #include <pcreposix.h>
+#else /* no PCRE */
+#include <regex.h>
+#endif
 
+struct my_regex {
+#ifdef USE_PCRE
 #ifdef USE_PCRE_JIT
 #ifndef PCRE_CONFIG_JIT
 #error "The PCRE lib doesn't support JIT. Change your lib, or remove the option USE_PCRE_JIT."
 #endif
-struct jit_regex {
-    pcre *reg;
-    pcre_extra *extra;
-};
-typedef struct jit_regex regex;
+	pcre *reg;
+	pcre_extra *extra;
 #else /* no PCRE_JIT */
-typedef regex_t regex;
+	regex_t regex;
 #endif
-
 #else /* no PCRE */
-#include <regex.h>
-typedef regex_t regex;
+	regex_t regex;
 #endif
+};
 
 /* what to do when a header matches a regex */
 #define ACT_ALLOW	0	/* allow the request */
@@ -77,7 +78,7 @@ extern regmatch_t pmatch[MAX_MATCH];
  *
  * The function return 1 is succes case, else return 0 and err is filled.
  */
-int regex_comp(const char *str, regex *regex, int cs, int cap, char **err);
+int regex_comp(const char *str, struct my_regex *regex, int cs, int cap, char **err);
 int exp_replace(char *dst, char *src, const char *str,	const regmatch_t *matches);
 const char *check_replace_string(const char *str);
 const char *chain_regex(struct hdr_exp **head, const regex_t *preg,
@@ -87,25 +88,25 @@ const char *chain_regex(struct hdr_exp **head, const regex_t *preg,
  * be writable because the function will temporarily force a zero past the
  * last character.
  */
-static inline int regex_exec(const regex *preg, char *subject, int length) {
+static inline int regex_exec(const struct my_regex *preg, char *subject, int length) {
 #ifdef USE_PCRE_JIT
 	return pcre_exec(preg->reg, preg->extra, subject, length, 0, 0, NULL, 0);
 #else
 	int match;
 	char old_char = subject[length];
 	subject[length] = 0;
-	match = regexec(preg, subject, 0, NULL, 0);
+	match = regexec(&preg->regex, subject, 0, NULL, 0);
 	subject[length] = old_char;
 	return match;
 #endif
 }
 
-static inline void regex_free(regex *preg) {
+static inline void regex_free(struct my_regex *preg) {
 #ifdef USE_PCRE_JIT
 	pcre_free_study(preg->extra);
 	pcre_free(preg->reg);
 #else
-	regfree(preg);
+	regfree(&preg->regex);
 #endif
 }
 
