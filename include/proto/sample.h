@@ -41,4 +41,17 @@ struct sample_fetch *find_sample_fetch(const char *kw, int len);
 int smp_resolve_args(struct proxy *p);
 int smp_expr_output_type(struct sample_expr *expr);
 
+/*
+ * This function just apply a cast on sample. It returns 0 if the cast is not
+ * avalaible or if the cast fails, otherwise returns 1. It does not modify the
+ * input sample on failure.
+ */
+static inline
+int sample_convert(struct sample *sample, int req_type)
+{
+	if (!sample_casts[sample->type][req_type])
+		return 0;
+	return sample_casts[sample->type][req_type](sample);
+}
+
 #endif /* _PROTO_SAMPLE_H */

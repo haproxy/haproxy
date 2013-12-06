@@ -20,6 +20,7 @@
 #include <types/pattern.h>
 
 #include <proto/pattern.h>
+#include <proto/sample.h>
 
 #include <ebsttree.h>
 
@@ -69,6 +70,23 @@ enum pat_match_res (*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct patt
 	[PAT_MATCH_DOM]   = pat_match_dom,
 	[PAT_MATCH_END]   = pat_match_end,
 	[PAT_MATCH_REG]   = pat_match_reg,
+};
+
+/* Just used for checking configuration compatibility */
+int pat_match_types[PAT_MATCH_NUM] = {
+	[PAT_MATCH_FOUND] = SMP_T_UINT,
+	[PAT_MATCH_BOOL]  = SMP_T_UINT,
+	[PAT_MATCH_INT]   = SMP_T_UINT,
+	[PAT_MATCH_IP]    = SMP_T_ADDR,
+	[PAT_MATCH_BIN]   = SMP_T_CBIN,
+	[PAT_MATCH_LEN]   = SMP_T_CSTR,
+	[PAT_MATCH_STR]   = SMP_T_CSTR,
+	[PAT_MATCH_BEG]   = SMP_T_CSTR,
+	[PAT_MATCH_SUB]   = SMP_T_CSTR,
+	[PAT_MATCH_DIR]   = SMP_T_CSTR,
+	[PAT_MATCH_DOM]   = SMP_T_CSTR,
+	[PAT_MATCH_END]   = SMP_T_CSTR,
+	[PAT_MATCH_REG]   = SMP_T_CSTR,
 };
 
 /*
@@ -949,10 +967,14 @@ enum pat_match_res pattern_exec_match(struct pattern_expr *expr, struct sample *
 	else {
 		if (!eb_is_empty(&expr->pattern_tree)) {
 			/* a tree is present, let's check what type it is */
-			if (expr->match == pat_match_str)
-				node = pat_lookup_str(smp, expr);
-			else if (expr->match == pat_match_ip)
-				node = pat_lookup_ip(smp, expr);
+			if (expr->match == pat_match_str) {
+				if (sample_convert(smp, SMP_T_STR))
+					node = pat_lookup_str(smp, expr);
+			}
+			else if (expr->match == pat_match_ip) {
+				if (sample_convert(smp, SMP_T_IPV4))
+					node = pat_lookup_ip(smp, expr);
+			}
 			if (node) {
 				pat_res |= PAT_MATCH;
 				elt = ebmb_entry(node, struct pat_idx_elt, node);
@@ -965,7 +987,8 @@ enum pat_match_res pattern_exec_match(struct pattern_expr *expr, struct sample *
 		list_for_each_entry(pattern, &expr->patterns, list) {
 			if (pat_res == PAT_MATCH)
 				break;
-			pat_res |= expr->match(smp, pattern);
+			if (sample_convert(smp, pattern->expect_type))
+				pat_res |= expr->match(smp, pattern);
 			if (sample)
 				*sample = pattern->smp;
 		}

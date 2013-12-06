@@ -474,28 +474,12 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			}
 
 			/* Note: -m found is always valid, bool/int are compatible, str/bin/reg/len are compatible */
-			if (idx == PAT_MATCH_FOUND ||                           /* -m found */
-			    ((idx == PAT_MATCH_BOOL || idx == PAT_MATCH_INT) && /* -m bool/int */
-			     (cur_type == SMP_T_BOOL ||
-			      cur_type == SMP_T_UINT ||
-			      cur_type == SMP_T_SINT)) ||
-			    (idx == PAT_MATCH_IP &&                             /* -m ip */
-			     (cur_type == SMP_T_IPV4 ||
-			      cur_type == SMP_T_IPV6)) ||
-			    ((idx == PAT_MATCH_BIN || idx == PAT_MATCH_LEN || idx == PAT_MATCH_STR ||
-			      idx == PAT_MATCH_BEG || idx == PAT_MATCH_SUB || idx == PAT_MATCH_DIR ||
-			      idx == PAT_MATCH_DOM || idx == PAT_MATCH_END || idx == PAT_MATCH_REG) &&  /* strings */
-			     (cur_type == SMP_T_STR ||
-			      cur_type == SMP_T_BIN ||
-			      cur_type == SMP_T_CSTR ||
-			      cur_type == SMP_T_CBIN))) {
-				expr->pat.parse = pat_parse_fcts[idx];
-				expr->pat.match = pat_match_fcts[idx];
-			}
-			else {
+			if (!sample_casts[cur_type][pat_match_types[idx]]) {
 				memprintf(err, "matching method '%s' cannot be used with fetch keyword '%s'", args[1], expr->kw);
 				goto out_free_expr;
 			}
+			expr->pat.parse = pat_parse_fcts[idx];
+			expr->pat.match = pat_match_fcts[idx];
 			args++;
 		}
 		else if ((*args)[1] == '-') {

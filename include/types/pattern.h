@@ -161,5 +161,6 @@ struct pattern_expr {
 extern char *pat_match_names[PAT_MATCH_NUM];
 extern int (*pat_parse_fcts[PAT_MATCH_NUM])(const char **, struct pattern *, struct sample_storage *, int *, char **);
 extern enum pat_match_res (*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern *);
+extern int pat_match_types[PAT_MATCH_NUM];
 
 #endif /* _TYPES_PATTERN_H */
