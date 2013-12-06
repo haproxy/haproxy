@@ -217,7 +217,7 @@ enum {
 };
 
 /* Known HTTP methods */
-typedef enum {
+enum http_meth_t {
 	HTTP_METH_NONE = 0,
 	HTTP_METH_OPTIONS,
 	HTTP_METH_GET,
@@ -228,7 +228,7 @@ typedef enum {
 	HTTP_METH_TRACE,
 	HTTP_METH_CONNECT,
 	HTTP_METH_OTHER,
-} http_meth_t;
+} __attribute__((packed));
 
 enum {
 	HTTP_AUTH_WRONG		= -1,		/* missing or unknown */
@@ -405,13 +405,13 @@ struct http_res_rule {
  * response message (which can be empty).
  */
 struct http_txn {
-	struct http_msg req;            /* HTTP request message */
 	struct hdr_idx hdr_idx;         /* array of header indexes (max: global.tune.max_http_hdr) */
-	unsigned int flags;             /* transaction flags */
-	http_meth_t meth;               /* HTTP method */
-
-	int status;                     /* HTTP status from the server, negative if from proxy */
 	struct http_msg rsp;            /* HTTP response message */
+	struct http_msg req;            /* HTTP request message */
+	unsigned int flags;             /* transaction flags */
+	enum http_meth_t meth;          /* HTTP method */
+	/* 1 unused byte here */
+	short status;                   /* HTTP status from the server, negative if from proxy */
 
 	char *uri;                      /* first line if log needed, NULL otherwise */
 	char *cli_cookie;               /* cookie presented by the client, in capture mode */

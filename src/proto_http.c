@@ -294,7 +294,7 @@ void init_proto_http()
  * up to 3 entries (2 valid, 1 null).
  */
 struct http_method_desc {
-	http_meth_t meth;
+	enum http_meth_t meth;
 	int len;
 	const char text[8];
 };
@@ -767,7 +767,7 @@ struct chunk *http_error_message(struct session *s, int msgnum)
  * returns HTTP_METH_NONE if there is nothing valid to read (empty or non-text
  * string), HTTP_METH_OTHER for unknown methods, or the identified method.
  */
-static http_meth_t find_http_meth(const char *str, const int len)
+static enum http_meth_t find_http_meth(const char *str, const int len)
 {
 	unsigned char m;
 	const struct http_method_desc *h;
