@@ -30,7 +30,7 @@
  * various types of objects.
  */
 
-/* object types */
+/* object types : these ones take the same space as a char */
 enum obj_type {
 	OBJ_TYPE_NONE = 0,     /* pointer is NULL by definition */
 	OBJ_TYPE_LISTENER,     /* object is a struct listener */
@@ -40,7 +40,7 @@ enum obj_type {
 	OBJ_TYPE_APPCTX,       /* object is a struct appctx */
 	OBJ_TYPE_CONN,         /* object is a struct connection */
 	OBJ_TYPE_ENTRIES       /* last one : number of entries */
-};
+} __attribute__((packed)) ;
 
 #endif /* _TYPES_OBJ_TYPE_H */
 
