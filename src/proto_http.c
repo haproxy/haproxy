@@ -8746,12 +8746,15 @@ static int pat_parse_meth(const char **text, struct pattern *pattern, struct sam
 	pattern->val.i = meth;
 	if (meth == HTTP_METH_OTHER) {
 		pattern->ptr.str = strdup(*text);
+		pattern->expect_type = SMP_T_CSTR;
 		if (!pattern->ptr.str) {
 			memprintf(err, "out of memory while loading pattern");
 			return 0;
 		}
 		pattern->len = len;
 	}
+	else
+		pattern->expect_type = SMP_T_UINT;
 	return 1;
 }
 

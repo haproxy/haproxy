@@ -45,7 +45,7 @@ int (*pat_parse_fcts[PAT_MATCH_NUM])(const char **, struct pattern *, struct sam
 	[PAT_MATCH_INT]   = pat_parse_int,
 	[PAT_MATCH_IP]    = pat_parse_ip,
 	[PAT_MATCH_BIN]   = pat_parse_bin,
-	[PAT_MATCH_LEN]   = pat_parse_int,
+	[PAT_MATCH_LEN]   = pat_parse_len,
 	[PAT_MATCH_STR]   = pat_parse_str,
 	[PAT_MATCH_BEG]   = pat_parse_str,
 	[PAT_MATCH_SUB]   = pat_parse_str,
@@ -407,6 +407,7 @@ int pat_parse_str(const char **text, struct pattern *pattern, struct sample_stor
 
 	len  = strlen(*text);
 	pattern->type = SMP_T_CSTR;
+	pattern->expect_type = SMP_T_CSTR;
 
 	if (pattern->flags & PAT_F_TREE_OK) {
 		/* we're allowed to put the data in a tree whose root is pointed
@@ -441,6 +442,7 @@ int pat_parse_str(const char **text, struct pattern *pattern, struct sample_stor
 int pat_parse_bin(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
 {
 	pattern->type = SMP_T_CBIN;
+	pattern->expect_type = SMP_T_CBIN;
 	pattern->smp = smp;
 
 	return parse_binary(*text, &pattern->ptr.str, &pattern->len, err);
@@ -499,6 +501,7 @@ int pat_parse_reg(const char **text, struct pattern *pattern, struct sample_stor
 	pattern->ptr.reg = preg;
 	pattern->freeptrbuf = &pat_free_reg;
 	pattern->smp = smp;
+	pattern->expect_type = SMP_T_CSTR;
 	return 1;
 }
 
@@ -523,6 +526,7 @@ int pat_parse_int(const char **text, struct pattern *pattern, struct sample_stor
 	const char *ptr = *text;
 
 	pattern->type = SMP_T_UINT;
+	pattern->expect_type = SMP_T_UINT;
 	pattern->smp = smp;
 	while (!isdigit((unsigned char)*ptr)) {
 		switch (get_std_op(ptr)) {
@@ -586,6 +590,15 @@ int pat_parse_int(const char **text, struct pattern *pattern, struct sample_stor
 		break;
 	}
 	return skip + 1;
+}
+
+int pat_parse_len(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
+{
+	int ret;
+
+	ret = pat_parse_int(text, pattern, smp, opaque, err);
+	pattern->expect_type = SMP_T_CSTR;
+	return ret;
 }
 
 /* Parse a range of positive 2-component versions delimited by either ':' or
@@ -668,6 +681,7 @@ int pat_parse_dotted_ver(const char **text, struct pattern *pattern, struct samp
 	}
 
 	pattern->smp = smp;
+	pattern->expect_type = SMP_T_CSTR;
 
 	if (!last)
 		pattern->val.range.min = i;
@@ -705,6 +719,7 @@ int pat_parse_ip(const char **text, struct pattern *pattern, struct sample_stora
 	if (pattern->flags & PAT_F_TREE_OK)
 		tree = pattern->val.tree;
 
+	pattern->expect_type = SMP_T_ADDR;
 	if (str2net(*text, &pattern->val.ipv4.addr, &pattern->val.ipv4.mask)) {
 		unsigned int mask = ntohl(pattern->val.ipv4.mask.s_addr);
 		struct pat_idx_elt *node;

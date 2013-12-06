@@ -113,6 +113,7 @@ struct pat_idx_elt {
 struct pattern {
 	struct list list;                       /* chaining */
 	int type;                               /* type of the ACL pattern (SMP_T_*) */
+	int expect_type;                        /* type of the expected sample (SMP_T_*) */
 	union {
 		int i;                          /* integer value */
 		struct {

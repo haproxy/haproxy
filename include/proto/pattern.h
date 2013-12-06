@@ -86,6 +86,9 @@ enum pat_match_res pat_match_int(struct sample *smp, struct pattern *pattern);
 /* Parse an integer. It is put both in min and max. */
 int pat_parse_int(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err);
 
+/* Parse len like an integer, but specify expected string type */
+int pat_parse_len(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err);
+
 /* Parse an version. It is put both in min and max. */
 int pat_parse_dotted_ver(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err);
 
