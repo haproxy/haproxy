@@ -35,7 +35,7 @@
  * interface is performing some retries (eg: connection error). Some states are
  * transient and do not last beyond process_session().
  */
-enum {
+enum si_state {
 	SI_ST_INI = 0,           /* interface not sollicitated yet */
 	SI_ST_REQ,               /* [transient] connection initiation desired and not started yet */
 	SI_ST_QUE,               /* interface waiting in queue */
@@ -46,7 +46,7 @@ enum {
 	SI_ST_EST,               /* connection established (resource exists) */
 	SI_ST_DIS,               /* [transient] disconnected from other side, but cleanup not done yet */
 	SI_ST_CLO,               /* stream intf closed, might not existing anymore. Buffers shut. */
-};
+} __attribute__((packed));
 
 /* error types reported on the streams interface for more accurate reporting */
 enum {
@@ -63,7 +63,7 @@ enum {
 	SI_ET_DATA_ABRT  = 0x0200,  /* data phase aborted by external cause */
 };
 
-/* flags set after I/O */
+/* flags set after I/O (16 bit) */
 enum {
 	SI_FL_NONE       = 0x0000,  /* nothing */
 	SI_FL_EXP        = 0x0001,  /* timeout has expired */
@@ -93,6 +93,7 @@ struct si_ops {
 /* Context of a running applet. */
 struct appctx {
 	enum obj_type obj_type;    /* OBJ_TYPE_APPCTX */
+	/* 3 unused bytes here */
 	unsigned int st0;          /* CLI state for stats, session state for peers */
 	unsigned int st1;          /* prompt for stats, session error for peers */
 	unsigned int st2;          /* output state for stats, unused by peers  */
@@ -155,9 +156,9 @@ struct appctx {
  */
 struct stream_interface {
 	/* struct members used by the "buffer" side */
-	unsigned int state;     /* SI_ST* */
-	unsigned int prev_state;/* SI_ST*, copy of previous state */
-	unsigned int flags;     /* SI_FL_* */
+	enum si_state state;     /* SI_ST* */
+	enum si_state prev_state;/* SI_ST*, copy of previous state */
+	unsigned short flags;    /* SI_FL_* */
 	unsigned int exp;       /* wake up time for connect, queue, turn-around, ... */
 	struct channel *ib, *ob; /* input and output buffers */
 	void *owner;            /* generally a (struct task*) */
@@ -172,6 +173,7 @@ struct stream_interface {
 /* An applet designed to run in a stream interface */
 struct si_applet {
 	enum obj_type obj_type;                      /* object type = OBJ_TYPE_APPLET */
+	/* 3 unused bytes here */
 	char *name;                                  /* applet's name to report in logs */
 	void (*fct)(struct stream_interface *);      /* internal I/O handler, may never be NULL */
 	void (*release)(struct stream_interface *);  /* callback to release resources, may be NULL */
