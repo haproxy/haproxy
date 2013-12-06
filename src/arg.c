@@ -290,6 +290,7 @@ int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
  err:
 	free(word);
 	free(*argp);
+	*argp = NULL;
 	if (err_arg)
 		*err_arg = pos;
 	if (err_ptr)
