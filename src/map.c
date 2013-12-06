@@ -22,6 +22,8 @@
 #include <proto/pattern.h>
 #include <proto/sample.h>
 
+struct list maps = LIST_HEAD_INIT(maps); /* list of struct map_reference */
+
 /* This function return existing map reference or return NULL. */
 static struct map_reference *map_get_reference(const char *reference)
 {

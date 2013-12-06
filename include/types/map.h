@@ -29,7 +29,7 @@
  *
  * "maps" is the list head. This list cotains all the mao file name identifier.
  */
-struct list maps = LIST_HEAD_INIT(maps); /* list of struct map_reference */
+extern struct list maps;
 
 struct map_reference {
 	struct list list;    /* used for listing */
