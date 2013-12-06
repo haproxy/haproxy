@@ -1953,9 +1953,6 @@ static void tcpcheck_main(struct connection *conn)
 		return;
 	}
 
-	/* It's only the rules which will enable send/recv */
-	__conn_data_stop_both(conn);
-
 	/* here, we know that the connection is established */
 	if (check->result & (SRV_CHK_FAILED | SRV_CHK_PASSED)) {
 		goto out_end_tcpcheck;
@@ -1981,22 +1978,38 @@ static void tcpcheck_main(struct connection *conn)
 		cur = check->current_step;
 	}
 
+	if (conn->flags & CO_FL_HANDSHAKE)
+		return;
+
+	/* It's only the rules which will enable send/recv */
+	__conn_data_stop_both(conn);
+
 	while (1) {
-		/* we must always ensure that nothing remains in the output buffer */
-		while (check->bo->o) {
-			conn->xprt->snd_buf(conn, check->bo, MSG_DONTWAIT | MSG_NOSIGNAL);
-			if (conn->flags & CO_FL_ERROR) {
-				chk_report_conn_err(conn, errno, 0);
-				__conn_data_stop_both(conn);
-				goto out_end_tcpcheck;
+		/* we have to try to flush the output buffer before reading, at the end,
+		 * or if we're about to send a string that does not fit in the remaining space.
+		 */
+		if (check->bo->o &&
+		    (&cur->list == head ||
+		     check->current_step->action != TCPCHK_ACT_SEND ||
+		     check->current_step->string_len >= buffer_total_space(check->bo))) {
+
+			if ((conn->flags & CO_FL_WAIT_WR) ||
+			    conn->xprt->snd_buf(conn, check->bo, MSG_DONTWAIT | MSG_NOSIGNAL) <= 0) {
+				if (conn->flags & CO_FL_ERROR) {
+					chk_report_conn_err(conn, errno, 0);
+					__conn_data_stop_both(conn);
+					goto out_end_tcpcheck;
+				}
+				goto out_need_io;
 			}
-			if (conn->flags & CO_FL_WAIT_WR)
-				goto out_incomplete;
 		}
 
-		/* did we reach the end ? */
-		if (&cur->list == head)
+		/* did we reach the end ? If so, let's check that everything was sent */
+		if (&cur->list == head) {
+			if (check->bo->o)
+				goto out_need_io;
 			break;
+		}
 
 		if (check->current_step->action == TCPCHK_ACT_SEND) {
 			/* reset the read buffer */
@@ -2011,9 +2024,6 @@ static void tcpcheck_main(struct connection *conn)
 				goto out_end_tcpcheck;
 			}
 
-			if (conn->flags & (CO_FL_HANDSHAKE | CO_FL_WAIT_WR))
-				return;
-
 			if (check->current_step->string_len >= check->bo->size) {
 				chunk_printf(&trash, "tcp-check send : string too large (%d) for buffer size (%d) at step %d",
 					     check->current_step->string_len, check->bo->size,
@@ -2021,6 +2031,10 @@ static void tcpcheck_main(struct connection *conn)
 				set_server_check_status(check, HCHK_STATUS_L7RSP, trash.str);
 				goto out_end_tcpcheck;
 			}
+
+			/* do not try to send if there is no space */
+			if (check->current_step->string_len >= buffer_total_space(check->bo))
+				continue;
 
 			bo_putblk(check->bo, check->current_step->string, check->current_step->string_len);
 			*check->bo->p = '\0'; /* to make gdb output easier to read */
@@ -2033,22 +2047,22 @@ static void tcpcheck_main(struct connection *conn)
 			if (unlikely(check->result & SRV_CHK_FAILED))
 				goto out_end_tcpcheck;
 
-			if (conn->flags & (CO_FL_HANDSHAKE | CO_FL_WAIT_RD))
-				return;
-
-			conn->xprt->rcv_buf(conn, check->bi, buffer_total_space(check->bi));
-
-			if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_DATA_RD_SH)) {
-				done = 1;
-				if ((conn->flags & CO_FL_ERROR) && !check->bi->i) {
-					/* Report network errors only if we got no other data. Otherwise
-					 * we'll let the upper layers decide whether the response is OK
-					 * or not. It is very common that an RST sent by the server is
-					 * reported as an error just after the last data chunk.
-					 */
-					chk_report_conn_err(conn, errno, 0);
-					goto out_end_tcpcheck;
+			if ((conn->flags & CO_FL_WAIT_RD) ||
+			    conn->xprt->rcv_buf(conn, check->bi, buffer_total_space(check->bi)) <= 0) {
+				if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_DATA_RD_SH)) {
+					done = 1;
+					if ((conn->flags & CO_FL_ERROR) && !check->bi->i) {
+						/* Report network errors only if we got no other data. Otherwise
+						 * we'll let the upper layers decide whether the response is OK
+						 * or not. It is very common that an RST sent by the server is
+						 * reported as an error just after the last data chunk.
+						 */
+						chk_report_conn_err(conn, errno, 0);
+						goto out_end_tcpcheck;
+					}
 				}
+				else
+					goto out_need_io;
 			}
 
 			/* Intermediate or complete response received.
@@ -2068,7 +2082,7 @@ static void tcpcheck_main(struct connection *conn)
 			/* Check that response body is not empty... */
 			if (*contentptr == '\0') {
 				if (!done)
-					return;
+					continue;
 
 				/* empty response */
 				chunk_printf(&trash, "TCPCHK got an empty response at step %d",
@@ -2148,7 +2162,12 @@ static void tcpcheck_main(struct connection *conn)
 	set_server_check_status(check, HCHK_STATUS_L7OKD, "(tcp-check)");
 	goto out_end_tcpcheck;
 
- out_incomplete:
+ out_need_io:
+	if (check->bo->o)
+		__conn_data_want_send(conn);
+
+	if (check->current_step->action == TCPCHK_ACT_EXPECT)
+		__conn_data_want_recv(conn);
 	return;
 
  out_end_tcpcheck:
