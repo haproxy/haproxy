@@ -1459,18 +1459,6 @@ static int process_store_rules(struct session *s, struct channel *rep, int an_bi
 
 	list_for_each_entry(rule, &px->storersp_rules, list) {
 		int ret = 1 ;
-		int storereqidx = -1;
-
-		for (i = 0; i < s->store_count; i++) {
-			if (rule->table.t == s->store[i].table) {
-				if (!(s->store[i].flags))
-					storereqidx = i;
-				break;
-			}
-		}
-
-		if ((i !=  s->store_count) && (storereqidx == -1))
-			continue;
 
 		if (rule->cond) {
 	                ret = acl_exec_cond(rule->cond, px, s, &s->txn, SMP_OPT_DIR_RES|SMP_OPT_FINAL);
@@ -1486,17 +1474,12 @@ static int process_store_rules(struct session *s, struct channel *rep, int an_bi
 			if (!key)
 				continue;
 
-			if (storereqidx != -1) {
-				stksess_setkey(s->store[storereqidx].table, s->store[storereqidx].ts, key);
-				s->store[storereqidx].flags = 1;
-			}
-			else if (s->store_count < (sizeof(s->store) / sizeof(s->store[0]))) {
+			if (s->store_count < (sizeof(s->store) / sizeof(s->store[0]))) {
 				struct stksess *ts;
 
 				ts = stksess_new(rule->table.t, key);
 				if (ts) {
 					s->store[s->store_count].table = rule->table.t;
-					s->store[s->store_count].flags = 1;
 					s->store[s->store_count++].ts = ts;
 				}
 			}

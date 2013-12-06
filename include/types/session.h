@@ -144,7 +144,6 @@ struct session {
 	struct {
 		struct stksess *ts;
 		struct stktable *table;
-		int flags;
 	} store[8];				/* tracked stickiness values to store */
 	int store_count;
 
