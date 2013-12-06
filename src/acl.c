@@ -153,7 +153,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		smp = sample_parse_expr((char **)args, &idx, trash.str, trash.size, al);
 
 		if (!smp) {
-			memprintf(err, "unknown ACL or sample keyword '%s': %s", *args, trash.str);
+			memprintf(err, "%s in sample expression '%s'", trash.str, *args);
 			goto out_return;
 		}
 	}
