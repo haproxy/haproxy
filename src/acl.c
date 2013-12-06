@@ -251,6 +251,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 					memprintf(err, "in argument to '%s', %s", expr->kw, *err);
 					goto out_free_expr;
 				}
+				arg = end;
 			}
 			else if (ARGM(expr->smp->fetch->arg_mask) == 1) {
 				int type = (expr->smp->fetch->arg_mask >> 4) & 15;
@@ -308,7 +309,10 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		 */
 
 		/* look for the begining of the converters list */
-		arg = strchr(args[0], ',');
+		if (arg)
+			arg = strchr(arg, ',');
+		else
+			arg = strchr(args[0], ',');
 		if (arg) {
 			prev_type = expr->smp->fetch->out_type;
 			while (1) {
