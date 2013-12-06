@@ -242,6 +242,8 @@ struct conn_src {
  */
 struct connection {
 	enum obj_type obj_type;       /* differentiates connection from applet context */
+	unsigned char err_code;       /* CO_ER_* */
+	signed short send_proxy_ofs;  /* <0 = offset to (re)send from the end, >0 = send all */
 	unsigned int flags;           /* CO_FL_* */
 	const struct protocol *ctrl;  /* operations at the socket layer */
 	const struct xprt_ops *xprt;  /* operations at the transport layer */
@@ -249,13 +251,12 @@ struct connection {
 	void *xprt_ctx;               /* general purpose pointer, initialized to NULL */
 	void *owner;                  /* pointer to upper layer's entity (eg: stream interface) */
 	int xprt_st;                  /* transport layer state, initialized to zero */
-	int send_proxy_ofs;           /* <0 = offset to (re)send from the end, >0 = send all */
+
 	union {                       /* definitions which depend on connection type */
 		struct {              /*** information used by socket-based connections ***/
 			int fd;       /* file descriptor for a stream driver when known */
 		} sock;
 	} t;
-	unsigned int err_code;        /* CO_ER_* */
 	enum obj_type *target;        /* the target to connect to (server, proxy, applet, ...) */
 	struct {
 		struct sockaddr_storage from;	/* client address, or address to spoof when connecting to the server */
