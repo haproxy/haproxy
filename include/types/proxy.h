@@ -50,19 +50,21 @@
 #include <types/stick_table.h>
 
 /* values for proxy->state */
-enum {
+enum pr_state {
 	PR_STNEW = 0,           /* proxy has not been initialized yet */
 	PR_STREADY,             /* proxy has been initialized and is ready */
 	PR_STFULL,              /* frontend is full (maxconn reached) */
 	PR_STPAUSED,            /* frontend is paused (during hot restart) */
 	PR_STSTOPPED,           /* proxy is stopped (end of a restart) */
 	PR_STERROR,             /* proxy experienced an unrecoverable error */
-};
+} __attribute__((packed));
 
 /* values for proxy->mode */
-#define PR_MODE_TCP     0
-#define PR_MODE_HTTP    1
-#define PR_MODE_HEALTH  2
+enum pr_mode {
+	PR_MODE_TCP = 0,
+	PR_MODE_HTTP,
+	PR_MODE_HEALTH,
+} __attribute__((packed));
 
 /* flag values for proxy->cap. This is a bitmask of capabilities supported by the proxy */
 #define PR_CAP_NONE    0x0000
@@ -198,14 +200,17 @@ struct error_snapshot {
 
 struct proxy {
 	enum obj_type obj_type;                 /* object type == OBJ_TYPE_PROXY */
-	int state;				/* proxy state */
+	enum pr_state state;                    /* proxy state, one of PR_* */
+	enum pr_mode mode;                      /* mode = PR_MODE_TCP, PR_MODE_HTTP or PR_MODE_HEALTH */
+	char cap;                               /* supported capabilities (PR_CAP_*) */
+	unsigned int maxconn;                   /* max # of active sessions on the frontend */
+
 	int options;				/* PR_O_REDISP, PR_O_TRANSP, ... */
 	int options2;				/* PR_O2_* */
 	struct in_addr mon_net, mon_mask;	/* don't forward connections from this net (network order) FIXME: should support IPv6 */
 	unsigned int ck_opts;			/* PR_CK_* (cookie options) */
 	unsigned int fe_req_ana, be_req_ana;	/* bitmap of common request protocol analysers for the frontend and backend */
 	unsigned int fe_rsp_ana, be_rsp_ana;	/* bitmap of common response protocol analysers for the frontend and backend */
-	int mode;				/* mode = PR_MODE_TCP, PR_MODE_HTTP or PR_MODE_HEALTH */
 	unsigned int http_needed;               /* non-null if HTTP analyser may be used */
 	union {
 		struct proxy *be;		/* default backend, or NULL if none set */
@@ -281,7 +286,6 @@ struct proxy {
 	struct freq_ctr fe_conn_per_sec;	/* received connections per second on the frontend */
 	struct freq_ctr fe_sess_per_sec;	/* accepted sessions per second on the frontend (after tcp rules) */
 	struct freq_ctr be_sess_per_sec;	/* sessions per second on the backend */
-	unsigned int maxconn;			/* max # of active sessions on the frontend */
 	unsigned int fe_sps_lim;		/* limit on new sessions per second on the frontend */
 	unsigned int fullconn;			/* #conns on backend above which servers are used at full load */
 	struct in_addr except_net, except_mask; /* don't x-forward-for for this address. FIXME: should support IPv6 */
@@ -299,7 +303,6 @@ struct proxy {
 	time_t last_change;			/* last time, when the state was changed */
 
 	int conn_retries;			/* maximum number of connect retries */
-	int cap;				/* supported capabilities (PR_CAP_*) */
 	int (*accept)(struct session *s);       /* application layer's accept() */
 	struct conn_src conn_src;               /* connection source settings */
 	struct proxy *next;
