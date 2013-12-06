@@ -133,7 +133,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	struct acl_expr *expr;
 	struct acl_keyword *aclkw;
 	struct pattern *pattern;
-	int opaque, patflags;
+	int patflags;
 	const char *arg;
 	struct sample_expr *smp = NULL;
 	const char *p;
@@ -497,23 +497,9 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	}
 
 	/* now parse all patterns */
-	opaque = 0;
-	while (**args) {
-		int ret;
-		pattern = (struct pattern *)calloc(1, sizeof(*pattern));
-		if (!pattern) {
-			memprintf(err, "out of memory when parsing ACL pattern");
-			goto out_free_expr;
-		}
-		pattern->flags = patflags;
-
-		ret = expr->pat.parse(args, pattern, NULL, &opaque, err);
-		if (!ret)
-			goto out_free_pattern;
-
-		LIST_ADDQ(&expr->pat.patterns, &pattern->list);
-		args += ret;
-	}
+	pattern = NULL;
+	if (!pattern_register(&expr->pat, args, NULL, &pattern, patflags, err))
+		goto out_free_pattern;
 
 	return expr;
 

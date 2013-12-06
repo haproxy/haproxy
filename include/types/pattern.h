@@ -65,8 +65,7 @@ enum pat_match_res {
 enum {
 	PAT_F_IGNORE_CASE = 1 << 0,       /* ignore case */
 	PAT_F_FROM_FILE   = 1 << 1,       /* pattern comes from a file */
-	PAT_F_TREE_OK     = 1 << 2,       /* the pattern parser is allowed to build a tree */
-	PAT_F_TREE        = 1 << 3,       /* some patterns are arranged in a tree */
+	PAT_F_TREE        = 1 << 2,       /* some patterns are arranged in a tree */
 };
 
 /* ACL match methods */
@@ -152,14 +151,14 @@ struct pattern {
  * are grouped together in order to optimize caching.
  */
 struct pattern_expr {
-	int (*parse)(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err);
+	int (*parse)(const char **text, struct pattern *pattern, int *opaque, char **err);
 	enum pat_match_res (*match)(struct sample *smp, struct pattern *pattern);
 	struct list patterns;         /* list of acl_patterns */
 	struct eb_root pattern_tree;  /* may be used for lookup in large datasets */
 };
 
 extern char *pat_match_names[PAT_MATCH_NUM];
-extern int (*pat_parse_fcts[PAT_MATCH_NUM])(const char **, struct pattern *, struct sample_storage *, int *, char **);
+extern int (*pat_parse_fcts[PAT_MATCH_NUM])(const char **, struct pattern *, int *, char **);
 extern enum pat_match_res (*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern *);
 extern int pat_match_types[PAT_MATCH_NUM];
 

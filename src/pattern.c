@@ -40,7 +40,7 @@ char *pat_match_names[PAT_MATCH_NUM] = {
 	[PAT_MATCH_REG]   = "reg",
 };
 
-int (*pat_parse_fcts[PAT_MATCH_NUM])(const char **, struct pattern *, struct sample_storage *, int *, char **) = {
+int (*pat_parse_fcts[PAT_MATCH_NUM])(const char **, struct pattern *, int *, char **) = {
 	[PAT_MATCH_FOUND] = pat_parse_nothing,
 	[PAT_MATCH_BOOL]  = pat_parse_nothing,
 	[PAT_MATCH_INT]   = pat_parse_int,
@@ -94,7 +94,7 @@ int pat_match_types[PAT_MATCH_NUM] = {
  */
 
 /* ignore the current line */
-int pat_parse_nothing(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
+int pat_parse_nothing(const char **text, struct pattern *pattern, int *opaque, char **err)
 {
 	return 1;
 }
@@ -419,56 +419,31 @@ static void *pat_lookup_ip(struct sample *smp, struct pattern_expr *expr)
 }
 
 /* Parse a string. It is allocated and duplicated. */
-int pat_parse_str(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
+int pat_parse_str(const char **text, struct pattern *pattern, int *opaque, char **err)
 {
-	int len;
-
-	len  = strlen(*text);
 	pattern->type = SMP_T_CSTR;
 	pattern->expect_type = SMP_T_CSTR;
-
-	if (pattern->flags & PAT_F_TREE_OK) {
-		/* we're allowed to put the data in a tree whose root is pointed
-		 * to by val.tree.
-		 */
-		struct pat_idx_elt *node;
-
-		node = calloc(1, sizeof(*node) + len + 1);
-		if (!node) {
-			memprintf(err, "out of memory while loading string pattern");
-			return 0;
-		}
-		node->smp = smp;
-		memcpy(node->node.key, *text, len + 1);
-		if (ebst_insert(pattern->val.tree, &node->node) != &node->node)
-			free(node); /* was a duplicate */
-		pattern->flags |= PAT_F_TREE; /* this pattern now contains a tree */
-		return 1;
-	}
-
 	pattern->ptr.str = strdup(*text);
-	pattern->smp = smp;
 	if (!pattern->ptr.str) {
 		memprintf(err, "out of memory while loading string pattern");
 		return 0;
 	}
-	pattern->len = len;
+	pattern->len = strlen(*text);
 	return 1;
 }
 
 /* Parse a binary written in hexa. It is allocated. */
-int pat_parse_bin(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
+int pat_parse_bin(const char **text, struct pattern *pattern, int *opaque, char **err)
 {
 	pattern->type = SMP_T_CBIN;
 	pattern->expect_type = SMP_T_CBIN;
-	pattern->smp = smp;
 
 	return parse_binary(*text, &pattern->ptr.str, &pattern->len, err);
 }
 
 /* Parse and concatenate all further strings into one. */
 int
-pat_parse_strcat(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
+pat_parse_strcat(const char **text, struct pattern *pattern, int *opaque, char **err)
 {
 
 	int len = 0, i;
@@ -479,7 +454,6 @@ pat_parse_strcat(const char **text, struct pattern *pattern, struct sample_stora
 
 	pattern->type = SMP_T_CSTR;
 	pattern->ptr.str = s = calloc(1, len);
-	pattern->smp = smp;
 	if (!pattern->ptr.str) {
 		memprintf(err, "out of memory while loading pattern");
 		return 0;
@@ -500,7 +474,7 @@ static void pat_free_reg(void *ptr)
 }
 
 /* Parse a regex. It is allocated. */
-int pat_parse_reg(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
+int pat_parse_reg(const char **text, struct pattern *pattern, int *opaque, char **err)
 {
 	regex *preg;
 
@@ -518,7 +492,6 @@ int pat_parse_reg(const char **text, struct pattern *pattern, struct sample_stor
 
 	pattern->ptr.reg = preg;
 	pattern->freeptrbuf = &pat_free_reg;
-	pattern->smp = smp;
 	pattern->expect_type = SMP_T_CSTR;
 	return 1;
 }
@@ -537,7 +510,7 @@ int pat_parse_reg(const char **text, struct pattern *pattern, struct sample_stor
  * the caller will have to free it.
  *
  */
-int pat_parse_int(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
+int pat_parse_int(const char **text, struct pattern *pattern, int *opaque, char **err)
 {
 	signed long long i;
 	unsigned int j, last, skip = 0;
@@ -545,7 +518,7 @@ int pat_parse_int(const char **text, struct pattern *pattern, struct sample_stor
 
 	pattern->type = SMP_T_UINT;
 	pattern->expect_type = SMP_T_UINT;
-	pattern->smp = smp;
+
 	while (!isdigit((unsigned char)*ptr)) {
 		switch (get_std_op(ptr)) {
 		case STD_OP_EQ: *opaque = 0; break;
@@ -610,11 +583,11 @@ int pat_parse_int(const char **text, struct pattern *pattern, struct sample_stor
 	return skip + 1;
 }
 
-int pat_parse_len(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
+int pat_parse_len(const char **text, struct pattern *pattern, int *opaque, char **err)
 {
 	int ret;
 
-	ret = pat_parse_int(text, pattern, smp, opaque, err);
+	ret = pat_parse_int(text, pattern, opaque, err);
 	pattern->expect_type = SMP_T_CSTR;
 	return ret;
 }
@@ -639,7 +612,7 @@ int pat_parse_len(const char **text, struct pattern *pattern, struct sample_stor
  *    acl valid_ssl       ssl_req_proto 3.0-3.1
  *
  */
-int pat_parse_dotted_ver(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
+int pat_parse_dotted_ver(const char **text, struct pattern *pattern, int *opaque, char **err)
 {
 	signed long long i;
 	unsigned int j, last, skip = 0;
@@ -698,7 +671,6 @@ int pat_parse_dotted_ver(const char **text, struct pattern *pattern, struct samp
 		return 0;
 	}
 
-	pattern->smp = smp;
 	pattern->expect_type = SMP_T_CSTR;
 
 	if (!last)
@@ -731,38 +703,11 @@ int pat_parse_dotted_ver(const char **text, struct pattern *pattern, struct samp
  * may either be a dotted mask or a number of bits. Returns 1 if OK,
  * otherwise 0. NOTE: IP address patterns are typed (IPV4/IPV6).
  */
-int pat_parse_ip(const char **text, struct pattern *pattern, struct sample_storage *smp, int *opaque, char **err)
+int pat_parse_ip(const char **text, struct pattern *pattern, int *opaque, char **err)
 {
-	struct eb_root *tree = NULL;
-	if (pattern->flags & PAT_F_TREE_OK)
-		tree = pattern->val.tree;
-
 	pattern->expect_type = SMP_T_ADDR;
 	if (str2net(*text, &pattern->val.ipv4.addr, &pattern->val.ipv4.mask)) {
-		unsigned int mask = ntohl(pattern->val.ipv4.mask.s_addr);
-		struct pat_idx_elt *node;
-		/* check if the mask is contiguous so that we can insert the
-		 * network into the tree. A continuous mask has only ones on
-		 * the left. This means that this mask + its lower bit added
-		 * once again is null.
-		 */
 		pattern->type = SMP_T_IPV4;
-		if (mask + (mask & -mask) == 0 && tree) {
-			mask = mask ? 33 - flsnz(mask & -mask) : 0; /* equals cidr value */
-			/* FIXME: insert <addr>/<mask> into the tree here */
-			node = calloc(1, sizeof(*node) + 4); /* reserve 4 bytes for IPv4 address */
-			if (!node) {
-				memprintf(err, "out of memory while loading IPv4 pattern");
-				return 0;
-			}
-			node->smp = smp;
-			memcpy(node->node.key, &pattern->val.ipv4.addr, 4); /* network byte order */
-			node->node.node.pfx = mask;
-			if (ebmb_insert_prefix(tree, &node->node, 4) != &node->node)
-				free(node); /* was a duplicate */
-			pattern->flags |= PAT_F_TREE;
-			return 1;
-		}
 		return 1;
 	}
 	else if (str62net(*text, &pattern->val.ipv6.addr, &pattern->val.ipv6.mask)) {
@@ -831,42 +776,152 @@ void pattern_init_expr(struct pattern_expr *expr)
  * return -1 if the parser fail. The err message is filled.
  * return -2 if out of memory
  */
-int pattern_register(struct pattern_expr *expr, char *text,
+int pattern_register(struct pattern_expr *expr, const char **args,
                          struct sample_storage *smp,
                          struct pattern **pattern,
                          int patflags, char **err)
 {
-	const char *args[2];
 	int opaque = 0;
+	unsigned int mask = 0;
+	struct pat_idx_elt *node;
+	int len;
+	int ret;
 
-	args[0] = text;
-	args[1] = "";
+	/* eat args */
+	while (**args) {
 
-	/* we keep the previous pattern along iterations as long as it's not used */
-	if (!*pattern)
-		*pattern = (struct pattern *)malloc(sizeof(**pattern));
-	if (!*pattern)
-		return -1;
+		/* we keep the previous pattern along iterations as long as it's not used */
+		if (!*pattern)
+			*pattern = (struct pattern *)malloc(sizeof(**pattern));
+		if (!*pattern) {
+			memprintf(err, "out of memory while loading pattern");
+			return 0;
+		}
 
-	memset(*pattern, 0, sizeof(**pattern));
-	(*pattern)->flags = patflags;
+		memset(*pattern, 0, sizeof(**pattern));
+		(*pattern)->flags = patflags;
 
-	if (!((*pattern)->flags & PAT_F_IGNORE_CASE) &&
-	    (expr->match == pat_match_str || expr->match == pat_match_ip)) {
-		/* we pre-set the data pointer to the tree's head so that functions
-		 * which are able to insert in a tree know where to do that.
+		ret = expr->parse(args, *pattern, &opaque, err);
+		if (!ret)
+			return 0;
+
+		/* each parser return the number of args eated */
+		args += ret;
+
+		/*
+		 *
+		 * SMP_T_CSTR tree indexation
+		 *
+		 * The match "pat_match_str()" can use tree.
+		 *
 		 */
-		(*pattern)->flags |= PAT_F_TREE_OK;
-		(*pattern)->val.tree = &expr->pattern_tree;
-	}
+		if (expr->match == pat_match_str) {
 
-	if (!expr->parse(args, *pattern, smp, &opaque, err))
-		return -1;
+			/* If the flag PAT_F_IGNORE_CASE is set, we cannot use trees */
+			if ((*pattern)->flags & PAT_F_IGNORE_CASE)
+				goto just_chain_the_pattern;
 
-	/* if the parser did not feed the tree, let's chain the pattern to the list */
-	if (!((*pattern)->flags & PAT_F_TREE)) {
-		LIST_ADDQ(&expr->patterns, &(*pattern)->list);
-		*pattern = NULL; /* get a new one */
+			/* Process the key len */
+			len = strlen((*pattern)->ptr.str) + 1;
+
+			/* node memory allocation */
+			node = calloc(1, sizeof(*node) + len);
+			if (!node) {
+				memprintf(err, "out of memory while loading pattern");
+				return 0;
+			}
+
+			/* copy the pointer to sample associated to this node */
+			node->smp = smp;
+
+			/* copy the string */
+			memcpy(node->node.key, (*pattern)->ptr.str, len);
+
+			/* the "map_parser_str()" function always duplicate string information */
+			free((*pattern)->ptr.str);
+
+			/* we pre-set the data pointer to the tree's head so that functions
+			 * which are able to insert in a tree know where to do that.
+			 *
+			 * because "val" is an "union", the previous data are crushed.
+			 */
+			(*pattern)->flags |= PAT_F_TREE;
+			(*pattern)->val.tree = &expr->pattern_tree;
+
+			/* index the new node */
+			if (ebst_insert((*pattern)->val.tree, &node->node) != &node->node)
+				free(node); /* was a duplicate */
+		}
+
+		/*
+		 *
+		 * SMP_T_IPV4 tree indexation
+		 *
+		 * The match "pat_match_ip()" can use tree.
+		 *
+		 */
+		else if (expr->match == pat_match_ip) {
+
+			/* Only IPv4 can be indexed */
+			if ((*pattern)->type != SMP_T_IPV4)
+				goto just_chain_the_pattern;
+
+			/* in IPv4 case, check if the mask is contiguous so that we can
+			 * insert the network into the tree. A continuous mask has only
+			 * ones on the left. This means that this mask + its lower bit
+			 * added once again is null.
+			 */
+			mask = ntohl((*pattern)->val.ipv4.mask.s_addr);
+			if (mask + (mask & -mask) != 0)
+				goto just_chain_the_pattern;
+			mask = mask ? 33 - flsnz(mask & -mask) : 0; /* equals cidr value */
+
+			/* node memory allocation */
+			node = calloc(1, sizeof(*node) + 4);
+			if (!node) {
+				memprintf(err, "out of memory while loading pattern");
+				return 0;
+			}
+
+			/* copy the pointer to sample associated to this node */
+			node->smp = smp;
+
+			/* FIXME: insert <addr>/<mask> into the tree here */
+			memcpy(node->node.key, &(*pattern)->val.ipv4.addr, 4); /* network byte order */
+
+			/* we pre-set the data pointer to the tree's head so that functions
+			 * which are able to insert in a tree know where to do that.
+			 *
+			 * because "val" is an "union", the previous data are crushed.
+			 */
+			(*pattern)->flags |= PAT_F_TREE;
+			(*pattern)->val.tree = &expr->pattern_tree;
+
+			/* Index the new node
+			 * FIXME: insert <addr>/<mask> into the tree here
+			 */
+			node->node.node.pfx = mask;
+			if (ebmb_insert_prefix((*pattern)->val.tree, &node->node, 4) != &node->node)
+				free(node); /* was a duplicate */
+		}
+
+		/*
+		 *
+		 * if the parser did not feed the tree, let's chain the pattern to the list
+		 *
+		 */
+		else {
+
+just_chain_the_pattern:
+
+			LIST_ADDQ(&expr->patterns, &(*pattern)->list);
+
+			/* copy the pointer to sample associated to this node */
+			(*pattern)->smp = smp;
+
+			/* get a new one */
+			*pattern = NULL;
+		}
 	}
 
 	return 1;
@@ -886,6 +941,7 @@ int pattern_read_from_file(struct pattern_expr *expr,
 	int ret = 0;
 	int line = 0;
 	int code;
+	const char *args[2];
 
 	file = fopen(filename, "r");
 	if (!file) {
@@ -920,7 +976,10 @@ int pattern_read_from_file(struct pattern_expr *expr,
 		if (c == arg)
 			continue;
 
-		code = pattern_register(expr, arg, NULL, &pattern, patflags, err);
+		args[0] = arg;
+		args[1] = "";
+
+		code = pattern_register(expr, args, NULL, &pattern, patflags, err);
 		if (code == -2) {
 			memprintf(err, "out of memory when loading patterns from file <%s>", filename);
 			goto out_close;
