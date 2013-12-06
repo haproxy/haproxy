@@ -8735,21 +8735,33 @@ smp_prefetch_http(struct proxy *px, struct session *s, void *l7, unsigned int op
  * We use the pre-parsed method if it is known, and store its number as an
  * integer. If it is unknown, we use the pointer and the length.
  */
-static int pat_parse_meth(const char **text, struct pattern *pattern, int *opaque, char **err)
+static int pat_parse_meth(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err)
 {
 	int len, meth;
+	struct chunk *trash;
 
 	len  = strlen(*text);
 	meth = find_http_meth(*text, len);
 
 	pattern->val.i = meth;
 	if (meth == HTTP_METH_OTHER) {
-		pattern->ptr.str = strdup(*text);
-		pattern->expect_type = SMP_T_CSTR;
-		if (!pattern->ptr.str) {
-			memprintf(err, "out of memory while loading pattern");
-			return 0;
+		if (usage == PAT_U_COMPILE) {
+			pattern->ptr.str = strdup(*text);
+			if (!pattern->ptr.str) {
+				memprintf(err, "out of memory while loading pattern");
+				return 0;
+			}
 		}
+		else {
+			trash = get_trash_chunk();
+			if (trash->size < len) {
+				memprintf(err, "no space avalaible in the buffer. expect %d, provides %d",
+				          len, trash->size);
+				return 0;
+			}
+			pattern->ptr.str = trash->str;
+		}
+		pattern->expect_type = SMP_T_CSTR;
 		pattern->len = len;
 	}
 	else

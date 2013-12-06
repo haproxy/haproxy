@@ -40,7 +40,7 @@ char *pat_match_names[PAT_MATCH_NUM] = {
 	[PAT_MATCH_REG]   = "reg",
 };
 
-int (*pat_parse_fcts[PAT_MATCH_NUM])(const char **, struct pattern *, int *, char **) = {
+int (*pat_parse_fcts[PAT_MATCH_NUM])(const char **, struct pattern *, enum pat_usage, int *, char **) = {
 	[PAT_MATCH_FOUND] = pat_parse_nothing,
 	[PAT_MATCH_BOOL]  = pat_parse_nothing,
 	[PAT_MATCH_INT]   = pat_parse_int,
@@ -94,7 +94,7 @@ int pat_match_types[PAT_MATCH_NUM] = {
  */
 
 /* ignore the current line */
-int pat_parse_nothing(const char **text, struct pattern *pattern, int *opaque, char **err)
+int pat_parse_nothing(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err)
 {
 	return 1;
 }
@@ -419,45 +419,70 @@ static void *pat_lookup_ip(struct sample *smp, struct pattern_expr *expr)
 }
 
 /* Parse a string. It is allocated and duplicated. */
-int pat_parse_str(const char **text, struct pattern *pattern, int *opaque, char **err)
+int pat_parse_str(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err)
 {
 	pattern->type = SMP_T_CSTR;
 	pattern->expect_type = SMP_T_CSTR;
-	pattern->ptr.str = strdup(*text);
-	if (!pattern->ptr.str) {
-		memprintf(err, "out of memory while loading string pattern");
-		return 0;
+	if (usage == PAT_U_COMPILE) {
+		pattern->ptr.str = strdup(*text);
+		if (!pattern->ptr.str) {
+			memprintf(err, "out of memory while loading string pattern");
+			return 0;
+		}
 	}
+	else
+		pattern->ptr.str = (char *)*text;
 	pattern->len = strlen(*text);
 	return 1;
 }
 
 /* Parse a binary written in hexa. It is allocated. */
-int pat_parse_bin(const char **text, struct pattern *pattern, int *opaque, char **err)
+int pat_parse_bin(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err)
 {
+	struct chunk *trash;
+
 	pattern->type = SMP_T_CBIN;
 	pattern->expect_type = SMP_T_CBIN;
 
+	if (usage == PAT_U_COMPILE)
+		return parse_binary(*text, &pattern->ptr.str, &pattern->len, err);
+
+	trash = get_trash_chunk();
+	pattern->len = trash->size;
+	pattern->ptr.str = trash->str;
 	return parse_binary(*text, &pattern->ptr.str, &pattern->len, err);
 }
 
 /* Parse and concatenate all further strings into one. */
 int
-pat_parse_strcat(const char **text, struct pattern *pattern, int *opaque, char **err)
+pat_parse_strcat(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err)
 {
-
 	int len = 0, i;
 	char *s;
+	struct chunk *trash;
 
 	for (i = 0; *text[i]; i++)
 		len += strlen(text[i])+1;
 
 	pattern->type = SMP_T_CSTR;
-	pattern->ptr.str = s = calloc(1, len);
-	if (!pattern->ptr.str) {
-		memprintf(err, "out of memory while loading pattern");
-		return 0;
+	if (usage == PAT_U_COMPILE) {
+		pattern->ptr.str = calloc(1, len);
+		if (!pattern->ptr.str) {
+			memprintf(err, "out of memory while loading pattern");
+			return 0;
+		}
 	}
+	else {
+		trash = get_trash_chunk();
+		if (trash->size < len) {
+			memprintf(err, "no space avalaible in the buffer. expect %d, provides %d",
+			          len, trash->size);
+			return 0;
+		}
+		pattern->ptr.str = trash->str;
+	}
+
+	s = pattern->ptr.str;
 
 	for (i = 0; *text[i]; i++)
 		s += sprintf(s, i?" %s":"%s", text[i]);
@@ -474,24 +499,40 @@ static void pat_free_reg(void *ptr)
 }
 
 /* Parse a regex. It is allocated. */
-int pat_parse_reg(const char **text, struct pattern *pattern, int *opaque, char **err)
+int pat_parse_reg(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err)
 {
 	struct my_regex *preg;
+	struct chunk *trash;
 
-	preg = calloc(1, sizeof(*preg));
+	if (usage == PAT_U_COMPILE) {
 
-	if (!preg) {
-		memprintf(err, "out of memory while loading pattern");
-		return 0;
+		preg = calloc(1, sizeof(*preg));
+		if (!preg) {
+			memprintf(err, "out of memory while loading pattern");
+			return 0;
+		}
+
+		if (!regex_comp(*text, preg, !(pattern->flags & PAT_F_IGNORE_CASE), 0, err)) {
+			free(preg);
+			return 0;
+		}
+		pattern->freeptrbuf = &pat_free_reg;
 	}
+	else {
 
-	if (!regex_comp(*text, preg, !(pattern->flags & PAT_F_IGNORE_CASE), 0, err)) {
-		free(preg);
-		return 0;
+		trash = get_trash_chunk();
+		if (trash->size < sizeof(*preg)) {
+			memprintf(err, "no space avalaible in the buffer. expect %d, provides %d",
+			          (int)sizeof(*preg), trash->size);
+			return 0;
+		}
+
+		preg = (struct my_regex *)trash->str;
+		preg->regstr = (char *)*text;
+		pattern->freeptrbuf = NULL;
 	}
 
 	pattern->ptr.reg = preg;
-	pattern->freeptrbuf = &pat_free_reg;
 	pattern->expect_type = SMP_T_CSTR;
 	return 1;
 }
@@ -510,7 +551,7 @@ int pat_parse_reg(const char **text, struct pattern *pattern, int *opaque, char 
  * the caller will have to free it.
  *
  */
-int pat_parse_int(const char **text, struct pattern *pattern, int *opaque, char **err)
+int pat_parse_int(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err)
 {
 	signed long long i;
 	unsigned int j, last, skip = 0;
@@ -583,11 +624,11 @@ int pat_parse_int(const char **text, struct pattern *pattern, int *opaque, char 
 	return skip + 1;
 }
 
-int pat_parse_len(const char **text, struct pattern *pattern, int *opaque, char **err)
+int pat_parse_len(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err)
 {
 	int ret;
 
-	ret = pat_parse_int(text, pattern, opaque, err);
+	ret = pat_parse_int(text, pattern, usage, opaque, err);
 	pattern->expect_type = SMP_T_CSTR;
 	return ret;
 }
@@ -612,7 +653,7 @@ int pat_parse_len(const char **text, struct pattern *pattern, int *opaque, char 
  *    acl valid_ssl       ssl_req_proto 3.0-3.1
  *
  */
-int pat_parse_dotted_ver(const char **text, struct pattern *pattern, int *opaque, char **err)
+int pat_parse_dotted_ver(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err)
 {
 	signed long long i;
 	unsigned int j, last, skip = 0;
@@ -703,7 +744,7 @@ int pat_parse_dotted_ver(const char **text, struct pattern *pattern, int *opaque
  * may either be a dotted mask or a number of bits. Returns 1 if OK,
  * otherwise 0. NOTE: IP address patterns are typed (IPV4/IPV6).
  */
-int pat_parse_ip(const char **text, struct pattern *pattern, int *opaque, char **err)
+int pat_parse_ip(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err)
 {
 	pattern->expect_type = SMP_T_ADDR;
 	if (str2net(*text, &pattern->val.ipv4.addr, &pattern->val.ipv4.mask)) {
@@ -801,7 +842,7 @@ int pattern_register(struct pattern_expr *expr, const char **args,
 		memset(*pattern, 0, sizeof(**pattern));
 		(*pattern)->flags = patflags;
 
-		ret = expr->parse(args, *pattern, &opaque, err);
+		ret = expr->parse(args, *pattern, PAT_U_COMPILE, &opaque, err);
 		if (!ret)
 			return 0;
 
