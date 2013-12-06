@@ -122,6 +122,7 @@ struct stkctr {
  */
 struct session {
 	int flags;				/* some flags describing the session */
+	unsigned int uniq_id;			/* unique ID used for the traces */
 	enum obj_type *target;			/* target to use for this session ; for mini-sess: incoming connection */
 
 	struct channel *req;			/* request buffer */
@@ -146,6 +147,7 @@ struct session {
 		struct stktable *table;
 	} store[8];				/* tracked stickiness values to store */
 	int store_count;
+	/* 4 unused bytes here */
 
 	struct stkctr stkctr[MAX_SESS_STKCTR];  /* stick counters */
 
@@ -168,7 +170,6 @@ struct session {
 	void (*do_log)(struct session *s);	/* the function to call in order to log (or NULL) */
 	void (*srv_error)(struct session *s,	/* the function to call upon unrecoverable server errors (or NULL) */
 			  struct stream_interface *si);
-	unsigned int uniq_id;			/* unique ID used for the traces */
 	struct comp_ctx *comp_ctx;		/* HTTP compression context */
 	struct comp_algo *comp_algo;		/* HTTP compression algorithm if not NULL */
 	char *unique_id;			/* custom unique ID */
