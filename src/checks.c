@@ -1953,6 +1953,9 @@ static void tcpcheck_main(struct connection *conn)
 		return;
 	}
 
+	/* It's only the rules which will enable send/recv */
+	__conn_data_stop_both(conn);
+
 	/* here, we know that the connection is established */
 	if (check->result & (SRV_CHK_FAILED | SRV_CHK_PASSED)) {
 		goto out_end_tcpcheck;
@@ -1996,7 +1999,6 @@ static void tcpcheck_main(struct connection *conn)
 				return;
 
 			/* disable reading for now */
-			//if (conn->flags & (CO_FL_WAIT_RD | CO_FL_DATA_RD_ENA))
 			__conn_data_stop_recv(conn);
 
 			bo_putblk(check->bo, check->current_step->string, check->current_step->string_len);
@@ -2068,16 +2070,16 @@ static void tcpcheck_main(struct connection *conn)
 			}
 
 			if (!done && (cur->string != NULL) && (check->bi->i < cur->string_len) )
-				goto wait_more_data;
+				continue; /* try to read more */
 
-tcpcheck_expect:
+		tcpcheck_expect:
 			if (cur->string != NULL)
 				ret = my_memmem(contentptr, contentlen, cur->string, cur->string_len) != NULL;
 			else if (cur->expect_regex != NULL)
 				ret = regexec(cur->expect_regex, contentptr, MAX_MATCH, pmatch, 0) == 0;
 
 			if (!ret && !done)
-				goto wait_more_data;
+				continue; /* try to read more */
 
 			/* matched */
 			if (ret) {
@@ -2136,10 +2138,6 @@ tcpcheck_expect:
 
 	set_server_check_status(check, HCHK_STATUS_L7OKD, "(tcp-check)");
 	goto out_end_tcpcheck;
-
- wait_more_data:
-	__conn_data_poll_recv(conn);
-	return;
 
  out_incomplete:
 	return;
