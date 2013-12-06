@@ -1998,7 +1998,7 @@ static void tcpcheck_main(struct connection *conn)
 		if (&cur->list == head)
 			break;
 
-		if (check->current_step->action & TCPCHK_ACT_SEND) {
+		if (check->current_step->action == TCPCHK_ACT_SEND) {
 			/* reset the read buffer */
 			if (*check->bi->data != '\0') {
 				*check->bi->data = '\0';
@@ -2029,7 +2029,7 @@ static void tcpcheck_main(struct connection *conn)
 			cur = (struct tcpcheck_rule *)cur->list.n;
 			check->current_step = cur;
 		} /* end 'send' */
-		else if (check->current_step->action & TCPCHK_ACT_EXPECT) {
+		else if (check->current_step->action == TCPCHK_ACT_EXPECT) {
 			if (unlikely(check->result & SRV_CHK_FAILED))
 				goto out_end_tcpcheck;
 
@@ -2111,7 +2111,7 @@ static void tcpcheck_main(struct connection *conn)
 				else {
 					cur = (struct tcpcheck_rule*)cur->list.n;
 					check->current_step = cur;
-					if (check->current_step->action & TCPCHK_ACT_EXPECT)
+					if (check->current_step->action == TCPCHK_ACT_EXPECT)
 						goto tcpcheck_expect;
 					__conn_data_stop_recv(conn);
 				}
@@ -2122,7 +2122,7 @@ static void tcpcheck_main(struct connection *conn)
 				if (cur->inverse) {
 					cur = (struct tcpcheck_rule*)cur->list.n;
 					check->current_step = cur;
-					if (check->current_step->action & TCPCHK_ACT_EXPECT)
+					if (check->current_step->action == TCPCHK_ACT_EXPECT)
 						goto tcpcheck_expect;
 					__conn_data_stop_recv(conn);
 				}

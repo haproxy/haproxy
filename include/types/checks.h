@@ -106,9 +106,9 @@ struct analyze_status {
 	unsigned char lr[HANA_OBS_SIZE];	/* result for l4/l7: 0 = ignore, 1 - error, 2 - OK */
 };
 
-/* bits for tcpcheck_rule->action */
+/* possible actions for tcpcheck_rule->action */
 enum {
-	TCPCHK_ACT_SEND        = 1,             /* send action, regular string format */
+	TCPCHK_ACT_SEND        = 0,             /* send action, regular string format */
 	TCPCHK_ACT_EXPECT,                      /* expect action, either regular or binary string */
 };
 
