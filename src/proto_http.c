@@ -1038,8 +1038,8 @@ void capture_headers(char *som, struct hdr_idx *idx,
  * labels and variable names. Note that msg->sol is left unchanged.
  */
 const char *http_parse_stsline(struct http_msg *msg,
-			       unsigned int state, const char *ptr, const char *end,
-			       unsigned int *ret_ptr, unsigned int *ret_state)
+			       enum ht_state state, const char *ptr, const char *end,
+			       unsigned int *ret_ptr, enum ht_state *ret_state)
 {
 	const char *msg_start = msg->chn->buf->p;
 
@@ -1112,11 +1112,12 @@ const char *http_parse_stsline(struct http_msg *msg,
 		msg->sl.st.l = ptr - msg_start - msg->sol;
 		return ptr;
 
-#ifdef DEBUG_FULL
 	default:
+#ifdef DEBUG_FULL
 		fprintf(stderr, "FIXME !!!! impossible state at %s:%d = %d\n", __FILE__, __LINE__, state);
 		exit(1);
 #endif
+		;
 	}
 
  http_msg_ood:
@@ -1148,8 +1149,8 @@ const char *http_parse_stsline(struct http_msg *msg,
  * labels and variable names. Note that msg->sol is left unchanged.
  */
 const char *http_parse_reqline(struct http_msg *msg,
-			       unsigned int state, const char *ptr, const char *end,
-			       unsigned int *ret_ptr, unsigned int *ret_state)
+			       enum ht_state state, const char *ptr, const char *end,
+			       unsigned int *ret_ptr, enum ht_state *ret_state)
 {
 	const char *msg_start = msg->chn->buf->p;
 
@@ -1256,11 +1257,12 @@ const char *http_parse_reqline(struct http_msg *msg,
 		state = HTTP_MSG_ERROR;
 		break;
 
-#ifdef DEBUG_FULL
 	default:
+#ifdef DEBUG_FULL
 		fprintf(stderr, "FIXME !!!! impossible state at %s:%d = %d\n", __FILE__, __LINE__, state);
 		exit(1);
 #endif
+		;
 	}
 
  http_msg_ood:
@@ -1367,7 +1369,7 @@ get_http_auth(struct session *s)
  */
 void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 {
-	unsigned int state;       /* updated only when leaving the FSM */
+	enum ht_state state;       /* updated only when leaving the FSM */
 	register char *ptr, *end; /* request pointers, to avoid dereferences */
 	struct buffer *buf;
 
@@ -1650,11 +1652,12 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 		/* this may only happen if we call http_msg_analyser() twice with an error */
 		break;
 
-#ifdef DEBUG_FULL
 	default:
+#ifdef DEBUG_FULL
 		fprintf(stderr, "FIXME !!!! impossible state at %s:%d = %d\n", __FILE__, __LINE__, state);
 		exit(1);
 #endif
+		;
 	}
  http_msg_ood:
 	/* out of data */
@@ -7795,7 +7798,7 @@ int stats_check_uri(struct stream_interface *si, struct http_txn *txn, struct pr
  */
 void http_capture_bad_message(struct error_snapshot *es, struct session *s,
                               struct http_msg *msg,
-			      int state, struct proxy *other_end)
+			      enum ht_state state, struct proxy *other_end)
 {
 	struct channel *chn = msg->chn;
 	int len1, len2;
