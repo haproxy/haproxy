@@ -1981,7 +1981,23 @@ static void tcpcheck_main(struct connection *conn)
 		cur = check->current_step;
 	}
 
-	while (&cur->list != head) {
+	while (1) {
+		/* we must always ensure that nothing remains in the output buffer */
+		while (check->bo->o) {
+			conn->xprt->snd_buf(conn, check->bo, MSG_DONTWAIT | MSG_NOSIGNAL);
+			if (conn->flags & CO_FL_ERROR) {
+				chk_report_conn_err(conn, errno, 0);
+				__conn_data_stop_both(conn);
+				goto out_end_tcpcheck;
+			}
+			if (conn->flags & CO_FL_WAIT_WR)
+				goto out_incomplete;
+		}
+
+		/* did we reach the end ? */
+		if (&cur->list == head)
+			break;
+
 		if (check->current_step->action & TCPCHK_ACT_SEND) {
 			/* reset the read buffer */
 			if (*check->bi->data != '\0') {
@@ -1998,27 +2014,20 @@ static void tcpcheck_main(struct connection *conn)
 			if (conn->flags & (CO_FL_HANDSHAKE | CO_FL_WAIT_WR))
 				return;
 
-			/* disable reading for now */
-			__conn_data_stop_recv(conn);
+			if (check->current_step->string_len >= check->bo->size) {
+				chunk_printf(&trash, "tcp-check send : string too large (%d) for buffer size (%d) at step %d",
+					     check->current_step->string_len, check->bo->size,
+					     tcpcheck_get_step_id(s));
+				set_server_check_status(check, HCHK_STATUS_L7RSP, trash.str);
+				goto out_end_tcpcheck;
+			}
 
 			bo_putblk(check->bo, check->current_step->string, check->current_step->string_len);
 			*check->bo->p = '\0'; /* to make gdb output easier to read */
 
-			if (check->bo->o) {
-				conn->xprt->snd_buf(conn, check->bo, MSG_DONTWAIT | MSG_NOSIGNAL);
-				if (conn->flags & CO_FL_ERROR) {
-					chk_report_conn_err(conn, errno, 0);
-					__conn_data_stop_both(conn);
-					goto out_end_tcpcheck;
-				}
-			}
+			/* go to next rule and try to send */
 			cur = (struct tcpcheck_rule *)cur->list.n;
 			check->current_step = cur;
-
-			if (check->bo->o)
-				goto out_incomplete;
-
-			__conn_data_stop_send(conn);   /* nothing more to write */
 		} /* end 'send' */
 		else if (check->current_step->action & TCPCHK_ACT_EXPECT) {
 			if (unlikely(check->result & SRV_CHK_FAILED))
