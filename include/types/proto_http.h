@@ -225,12 +225,12 @@ enum http_meth_t {
 	HTTP_METH_OTHER,
 } __attribute__((packed));
 
-enum {
+enum ht_auth_m {
 	HTTP_AUTH_WRONG		= -1,		/* missing or unknown */
 	HTTP_AUTH_UNKNOWN	= 0,
 	HTTP_AUTH_BASIC,
 	HTTP_AUTH_DIGEST,
-};
+} __attribute__((packed));
 
 /* actions for "http-request" */
 enum {
@@ -354,9 +354,10 @@ struct http_msg {
 };
 
 struct http_auth_data {
-	int method;			/* one of HTTP_AUTH_* */
-	struct chunk method_data;	/* points to the creditial part from 'Authorization:' header */
-	char *user, *pass;		/* extracted username & password */
+	enum ht_auth_m method;                /* one of HTTP_AUTH_* */
+	/* 7 bytes unused here */
+	struct chunk method_data;             /* points to the creditial part from 'Authorization:' header */
+	char *user, *pass;                    /* extracted username & password */
 };
 
 struct http_req_rule {
