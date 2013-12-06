@@ -1367,6 +1367,7 @@ int parse_binary(const char *source, char **binstr, int *binstrlen, char **err)
 	int len;
 	const char *p = source;
 	int i,j;
+	int alloc;
 
 	len = strlen(source);
 	if (len % 2) {
@@ -1375,12 +1376,24 @@ int parse_binary(const char *source, char **binstr, int *binstrlen, char **err)
 	}
 
 	len = len >> 1;
-	*binstrlen = len;
-	*binstr = calloc(len, sizeof(char));
+
 	if (!*binstr) {
-		memprintf(err, "out of memory while loading string pattern");
-		return 0;
+		*binstr = calloc(len, sizeof(char));
+		if (!*binstr) {
+			memprintf(err, "out of memory while loading string pattern");
+			return 0;
+		}
+		alloc = 1;
 	}
+	else {
+		if (*binstrlen < len) {
+			memprintf(err, "no space avalaible in the buffer. expect %d, provides %d",
+			          len, *binstrlen);
+			return 0;
+		}
+		alloc = 0;
+	}
+	*binstrlen = len;
 
 	i = j = 0;
 	while (j < len) {
@@ -1394,7 +1407,8 @@ int parse_binary(const char *source, char **binstr, int *binstrlen, char **err)
 
 bad_input:
 	memprintf(err, "an hex digit is expected (found '%c')", p[i-1]);
-	free(binstr);
+	if (alloc)
+		free(binstr);
 	return 0;
 }
 
