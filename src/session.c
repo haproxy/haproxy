@@ -1172,13 +1172,12 @@ static void sess_prepare_conn_req(struct session *s, struct stream_interface *si
 			 * error code to ignore the ERR_LOCAL which is not a
 			 * real error.
 			 */
-			s->flags = (s->flags & ~SN_ERR_MASK) | SN_ERR_RESOURCE;
-			s->flags = (s->flags & ~SN_FINST_MASK) | SN_FINST_C;
+			s->flags &= ~(SN_ERR_MASK | SN_FINST_MASK);
 
 			si_shutr(si);
 			si_shutw(si);
 			si->ob->flags |= CF_WRITE_ERROR;
-			si->err_type = SI_ET_CONN_OTHER;
+			si->err_type = SI_ET_CONN_RES;
 			si->state = SI_ST_CLO;
 			if (s->srv_error)
 				s->srv_error(s, si);
