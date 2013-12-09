@@ -769,11 +769,14 @@ void free_pattern_list(struct list *head)
 void free_pattern_tree(struct eb_root *root)
 {
 	struct eb_node *node, *next;
+	struct pat_idx_elt *elt;
+
 	node = eb_first(root);
 	while (node) {
 		next = eb_next(node);
 		eb_delete(node);
-		free(node);
+		elt = container_of(node, struct pat_idx_elt, node);
+		free(elt);
 		node = next;
 	}
 }
