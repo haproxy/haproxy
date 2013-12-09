@@ -6297,7 +6297,12 @@ stick store-request <pattern> [table <table>] [{if | unless} <condition>]
   request or the response, regardless of the number of rules. Only the 8 first
   ones which match will be kept. Using this, it is possible to feed multiple
   tables at once in the hope to increase the chance to recognize a user on
-  another protocol or access method.
+  another protocol or access method. Using multiple store-request rules with
+  the same table is possible and may be used to find the best criterion to rely
+  on, by arranging the rules by decreasing preference order. Only the first
+  extracted criterion for a given table will be stored. All subsequent store-
+  request rules referencing the same table will be skipped and their ACLs will
+  not be evaluated.
 
   The "store-request" rules are evaluated once the server connection has been
   established, so that the table will contain the real server that processed
@@ -6601,7 +6606,15 @@ stick store-response <pattern> [table <table>] [{if | unless} <condition>]
   request or the response, regardless of the number of rules. Only the 8 first
   ones which match will be kept. Using this, it is possible to feed multiple
   tables at once in the hope to increase the chance to recognize a user on
-  another protocol or access method.
+  another protocol or access method. Using multiple store-response rules with
+  the same table is possible and may be used to find the best criterion to rely
+  on, by arranging the rules by decreasing preference order. Only the first
+  extracted criterion for a given table will be stored. All subsequent store-
+  response rules referencing the same table will be skipped and their ACLs will
+  not be evaluated. However, even if a store-request rule references a table, a
+  store-response rule may also use the same table. This means that each table
+  may learn exactly one element from the request and one element from the
+  response at once.
 
   The table will contain the real server that processed the request.
 
