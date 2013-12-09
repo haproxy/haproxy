@@ -880,13 +880,38 @@ static void event_srv_chk_r(struct connection *conn)
 		break;
 
 	case PR_O2_LB_AGENT_CHK: {
-		short status = HCHK_STATUS_L7RSP;
-		const char *desc = "Unknown feedback string";
-		const char *down_cmd = NULL;
-		int disabled;
-		char *p;
+		int status = HCHK_STATUS_CHECKED;
+		const char *hs = NULL; /* health status      */
+		const char *as = NULL; /* admin status */
+		const char *ps = NULL; /* performance status */
+		const char *err = NULL; /* first error to report */
+		const char *wrn = NULL; /* first warning to report */
+		char *cmd, *p;
 
-		/* get a complete line first */
+		/* We're getting an agent check response. The agent could
+		 * have been disabled in the mean time with a long check
+		 * still pending. It is important that we ignore the whole
+		 * response.
+		 */
+		if (!(check->server->agent.state & CHK_ST_ENABLED))
+			break;
+
+		/* The agent supports strings made of a single line ended by the
+		 * first CR ('\r') or LF ('\n'). This line is composed of words
+		 * delimited by spaces (' '), tabs ('\t'), or commas (','). The
+		 * line may optionally contained a description of a state change
+		 * after a sharp ('#'), which is only considered if a health state
+		 * is announced.
+		 *
+		 * Words may be composed of :
+		 *   - a numeric weight suffixed by the percent character ('%').
+		 *   - a health status among "up", "down", "stopped", and "fail".
+		 *   - an admin status among "ready", "drain", "maint".
+		 *
+		 * These words may appear in any order. If multiple words of the
+		 * same category appear, the last one wins.
+		 */
+
 		p = check->bi->data;
 		while (*p && *p != '\n' && *p != '\r')
 			p++;
@@ -899,57 +924,148 @@ static void event_srv_chk_r(struct connection *conn)
 			set_server_check_status(check, check->status, "Ignoring incomplete line from agent");
 			break;
 		}
+
 		*p = 0;
+		cmd = check->bi->data;
 
-		/*
-		 * The agent may have been disabled after a check was
-		 * initialised.  If so, ignore weight changes and drain
-		 * settings from the agent.  Note that the setting is
-		 * always present in the state of the agent the server,
-		 * regardless of if the agent is being run as a primary or
-		 * secondary check. That is, regardless of if the check
-		 * parameter of this function is the agent or check field
-		 * of the server.
-		 */
-		disabled = !(check->server->agent.state & CHK_ST_ENABLED);
-
-		if (strchr(check->bi->data, '%')) {
-			if (disabled)
-				break;
-			desc = server_parse_weight_change_request(s, check->bi->data);
-			if (!desc) {
-				status = HCHK_STATUS_L7OKD;
-				desc = check->bi->data;
+		while (*cmd) {
+			/* look for next word */
+			if (*cmd == ' ' || *cmd == '\t' || *cmd == ',') {
+				cmd++;
+				continue;
 			}
-		} else if (!strcasecmp(check->bi->data, "drain")) {
-			if (disabled)
-				break;
-			desc = server_parse_weight_change_request(s, "0%");
-			if (!desc) {
-				desc = "drain";
-				status = HCHK_STATUS_L7OKD;
-			}
-		} else if (!strncasecmp(check->bi->data, "down", strlen("down"))) {
-			down_cmd = "down";
-		} else if (!strncasecmp(check->bi->data, "stopped", strlen("stopped"))) {
-			down_cmd = "stopped";
-		} else if (!strncasecmp(check->bi->data, "fail", strlen("fail"))) {
-			down_cmd = "fail";
-		}
 
-		if (down_cmd) {
-			const char *end = check->bi->data + strlen(down_cmd);
-			/*
-			 * The command keyword must terminated the string or
-			 * be followed by a blank.
+			if (*cmd == '#') {
+				/* this is the beginning of a health status description,
+				 * skip the sharp and blanks.
+				 */
+				cmd++;
+				while (*cmd == '\t' || *cmd == ' ')
+					cmd++;
+				break;
+			}
+
+			/* find the end of the word so that we have a null-terminated
+			 * word between <cmd> and <p>.
 			 */
-			if (end[0] == '\0' || end[0] == ' ' || end[0] == '\t') {
-				status = HCHK_STATUS_L7STS;
-				desc = check->bi->data;
+			p = cmd + 1;
+			while (*p && *p != '\t' && *p != ' ' && *p != '\n' && *p != ',')
+				p++;
+			if (*p)
+				*p++ = 0;
+
+			/* first, health statuses */
+			if (strcasecmp(cmd, "up") == 0) {
+				check->health = check->rise + check->fall - 1;
+				status = HCHK_STATUS_L7OKD;
+				hs = cmd;
 			}
+			else if (strcasecmp(cmd, "down") == 0) {
+				check->health = 0;
+				status = HCHK_STATUS_L7STS;
+				hs = cmd;
+			}
+			else if (strcasecmp(cmd, "stopped") == 0) {
+				check->health = 0;
+				status = HCHK_STATUS_L7STS;
+				hs = cmd;
+			}
+			else if (strcasecmp(cmd, "fail") == 0) {
+				check->health = 0;
+				status = HCHK_STATUS_L7STS;
+				hs = cmd;
+			}
+			/* admin statuses */
+			else if (strcasecmp(cmd, "ready") == 0) {
+				as = cmd;
+			}
+			else if (strcasecmp(cmd, "drain") == 0) {
+				as = cmd;
+			}
+			else if (strcasecmp(cmd, "maint") == 0) {
+				as = cmd;
+			}
+			/* else try to parse a weight here and keep the last one */
+			else if (isdigit((unsigned char)*cmd) && strchr(cmd, '%') != NULL) {
+				ps = cmd;
+			}
+			else {
+				/* keep a copy of the first error */
+				if (!err)
+					err = cmd;
+			}
+			/* skip to next word */
+			cmd = p;
+		}
+		/* here, cmd points either to \0 or to the beginning of a
+		 * description. Skip possible leading spaces.
+		 */
+		while (*cmd == ' ' || *cmd == '\n')
+			cmd++;
+
+		/* First, update the admin status so that we avoid sending other
+		 * possibly useless warnings and can also update the health if
+		 * present after going back up.
+		 */
+		if (as) {
+			if (strcasecmp(as, "drain") == 0)
+				srv_adm_set_drain(check->server);
+			else if (strcasecmp(as, "maint") == 0)
+				srv_adm_set_maint(check->server);
+			else
+				srv_adm_set_ready(check->server);
 		}
 
-		set_server_check_status(check, status, desc);
+		/* now change weights */
+		if (ps) {
+			const char *msg;
+
+			msg = server_parse_weight_change_request(s, ps);
+			if (!wrn || !*wrn)
+				wrn = msg;
+		}
+
+		/* and finally health status */
+		if (hs) {
+			/* We'll report some of the warnings and errors we have
+			 * here. Down reports are critical, we leave them untouched.
+			 * Lack of report, or report of 'UP' leaves the room for
+			 * ERR first, then WARN.
+			 */
+			const char *msg = cmd;
+			struct chunk *t;
+
+			if (!*msg || status == HCHK_STATUS_L7OKD) {
+				if (err && *err)
+					msg = err;
+				else if (wrn && *wrn)
+					msg = wrn;
+			}
+
+			t = get_trash_chunk();
+			chunk_printf(t, "via agent : %s%s%s%s",
+				     hs, *msg ? " (" : "",
+				     msg, *msg ? ")" : "");
+
+			set_server_check_status(check, status, t->str);
+		}
+		else if (err && *err) {
+			/* No status change but we'd like to report something odd.
+			 * Just report the current state and copy the message.
+			 */
+			chunk_printf(&trash, "agent reports an error : %s", err);
+			set_server_check_status(check, status/*check->status*/, trash.str);
+
+		}
+		else if (wrn && *wrn) {
+			/* No status change but we'd like to report something odd.
+			 * Just report the current state and copy the message.
+			 */
+			chunk_printf(&trash, "agent warns : %s", wrn);
+			set_server_check_status(check, status/*check->status*/, trash.str);
+		}
+		else
+			set_server_check_status(check, status, NULL);
 		break;
 	}
 

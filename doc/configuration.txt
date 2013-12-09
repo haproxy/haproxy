@@ -8469,40 +8469,56 @@ addr <ipv4|ipv6>
 
 agent-check
   Enable an auxiliary agent check which is run independently of a regular
-  health check. An agent health check is performed by making a TCP
-  connection to the port set by the "agent-port" parameter" and reading
-  an ASCII string. The string should have one of the following forms:
+  health check. An agent health check is performed by making a TCP connection
+  to the port set by the "agent-port" parameter and reading an ASCII string.
+  The string is made of a series of words delimited by spaces, tabs or commas
+  in any order, optionally terminated by '\r' and/or '\n', each consisting of :
 
-  * An ASCII representation of an positive integer percentage.
-    e.g. "75%"
-
+  - An ASCII representation of a positive integer percentage, e.g. "75%".
     Values in this format will set the weight proportional to the initial
     weight of a server as configured when haproxy starts.
 
-  * The string "drain".
+  - The word "ready". This will turn the server's administrative state to the
+    READY mode, thus cancelling any DRAIN or MAINT state
 
-    This will cause the weight of a server to be set to 0, and thus it will
-    not accept any new connections other than those that are accepted via
-    persistence.
+  - The word "drain". This will turn the server's administrative state to the
+    DRAIN mode, thus it will not accept any new connections other than those
+    that are accepted via persistence.
 
-  * The string "down", optionally followed by a description string.
+  - The word "maint". This will turn the server's administrative state to the
+    MAINT mode, thus it will not accept any new connections at all, and health
+    checks will be stopped.
 
-    Mark the server as down and log the description string as the reason.
+  - The words "down", "failed", or "stopped", optionally followed by a
+    description string after a sharp ('#'). All of these mark the server's
+    operating state as DOWN, but since the word itself is reported on the stats
+    page, the difference allows an administrator to know if the situation was
+    expected or not : the service may intentionally be stopped, may appear up
+    but fail some validity tests, or may be seen as down (eg: missing process,
+    or port not responding).
 
-  * The string "stopped", optionally followed by a description string.
+  - The word "up" sets back the server's operating state as UP if health checks
+    also report that the service is accessible.
 
-    This currently has the same behaviour as "down".
-
-  * The string "fail", optionally followed by a description string.
-
-    This currently has the same behaviour as "down".
+  Parameters which are not advertised by the agent are not changed. For
+  example, an agent might be designed to monitor CPU usage and only report a
+  relative weight and never interact with the operating status. Similarly, an
+  agent could be designed as an end-user interface with 3 radio buttons
+  allowing an administrator to change only the administrative state. However,
+  it is important to consider that only the agent may revert its own actions,
+  so if a server is set to DRAIN mode or to DOWN state using the agent, the
+  agent must implement the other equivalent actions to bring the service into
+  operations again.
 
   Failure to connect to the agent is not considered an error as connectivity
   is tested by the regular health check which is enabled by the "check"
-  parameter.
+  parameter. Warning though, it is not a good idea to stop an agent after it
+  reports "down", since only an agent reporting "up" will be able to turn the
+  server up again. Note that the CLI on the Unix stats socket is also able to
+  force an agent's result in order to workaround a bogus agent if needed.
 
-  Requires the ""agent-port" parameter to be set.
-  See also the "agent-check" parameter.
+  Requires the "agent-port" parameter to be set. See also the "agent-inter"
+  parameter.
 
   Supported in default-server: No
 
