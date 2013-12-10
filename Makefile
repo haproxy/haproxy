@@ -356,10 +356,10 @@ ifeq ($(VERSION),)
 VERSION := $(shell cat VERSION 2>/dev/null || touch VERSION)
 endif
 ifeq ($(SUBVERS),)
-SUBVERS := $(shell cat SUBVERS 2>/dev/null || touch SUBVERS)
+SUBVERS := $(shell (grep -v '^\$$' SUBVERS 2>/dev/null || touch SUBVERS) | head -n 1)
 endif
 ifeq ($(VERDATE),)
-VERDATE := $(shell cat VERDATE 2>/dev/null || touch VERDATE)
+VERDATE := $(shell (grep -v '^\$$' VERDATE 2>/dev/null || touch VERDATE) | head -n 1)
 endif
 
 #### Build options
