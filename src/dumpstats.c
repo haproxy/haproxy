@@ -926,6 +926,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 	struct appctx *appctx = __objt_appctx(si->end);
 	char *args[MAX_STATS_ARGS + 1];
 	int arg;
+	int i, j;
 
 	while (isspace((unsigned char)*line))
 		line++;
@@ -934,7 +935,12 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 	args[arg] = line;
 
 	while (*line && arg < MAX_STATS_ARGS) {
-		if (isspace((unsigned char)*line)) {
+		if (*line == '\\') {
+			line++;
+			if (*line == '\0')
+				break;
+		}
+		else if (isspace((unsigned char)*line)) {
 			*line++ = '\0';
 
 			while (isspace((unsigned char)*line))
@@ -949,6 +955,20 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 
 	while (++arg <= MAX_STATS_ARGS)
 		args[arg] = line;
+
+	/* remove \ */
+	arg = 0;
+	while (*args[arg] != '\0') {
+		j = 0;
+		for (i=0; args[arg][i] != '\0'; i++) {
+			if (args[arg][i] == '\\')
+				continue;
+			args[arg][j] = args[arg][i];
+			j++;
+		}
+		args[arg][j] = '\0';
+		arg++;
+	}
 
 	appctx->ctx.stats.flags = 0;
 	if (strcmp(args[0], "show") == 0) {
