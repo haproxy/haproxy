@@ -151,5 +151,7 @@ int pattern_read_from_file(struct pattern_expr *expr, const char *filename, int 
 void pattern_free(struct pattern *pat);
 void pattern_prune_expr(struct pattern_expr *expr);
 void pattern_init_expr(struct pattern_expr *expr);
+int pattern_lookup(const char *args, struct pattern_expr *expr, struct pattern **pat_elt, struct pat_idx_elt **idx_elt, char **err);
+
 
 #endif

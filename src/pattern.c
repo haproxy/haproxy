@@ -1101,3 +1101,166 @@ enum pat_match_res pattern_exec_match(struct pattern_expr *expr, struct sample *
 	return pat_res;
 }
 
+/* This function browse the pattern expr <expr> to lookup the key <key>. On
+ * error it returns 0. On success, it returns 1 and fills either <pat_elt>
+ * or <idx_elt> with the respectively matched pointers, and the other one with
+ * NULL. Pointers are not set if they're passed as NULL.
+ */
+int pattern_lookup(const char *key, struct pattern_expr *expr,
+                   struct pattern **pat_elt, struct pat_idx_elt **idx_elt, char **err)
+{
+	struct pattern pattern;
+	struct pattern *pat;
+	struct ebmb_node *node;
+	struct pat_idx_elt *elt;
+	const char *args[2];
+	int opaque = 0;
+	unsigned int mask;
+
+	/* no real pattern */
+	if (!expr->match || expr->match == pat_match_nothing)
+		return 0;
+
+	/* build lookup pattern */
+	args[0] = key;
+	args[1] = "";
+	if (!expr->parse(args, &pattern, PAT_U_LOOKUP, &opaque, NULL))
+		return 0;
+
+	pat = NULL;
+	elt = NULL;
+	/* The current pattern is a tree, try to look up */
+	if (!eb_is_empty(&expr->pattern_tree)) {
+		/* IPv6 is not indexed */
+		if (pattern.type == SMP_T_IPV6)
+			goto browse_list;
+
+		/* Check the pattern type */
+		if (pattern.type != SMP_T_STR &&
+		    pattern.type != SMP_T_CSTR &&
+		    pattern.type != SMP_T_IPV4) {
+			memprintf(err, "Unexpected pattern type.");
+			return 0;
+		}
+
+		/* Convert mask. If the mask is not contiguous, ignore the lookup
+		 * in the tree, and browse the list.
+		 */
+		if (expr->match == pat_match_ip) {
+			mask = ntohl(pattern.val.ipv4.mask.s_addr);
+			if (mask + (mask & -mask) != 0)
+				goto browse_list;
+			mask = mask ? 33 - flsnz(mask & -mask) : 0; /* equals cidr value */
+		}
+
+		/* browse each node of the tree, and check string */
+		if (expr->match == pat_match_str) {
+			for (node = ebmb_first(&expr->pattern_tree);
+			     node;
+			     node = ebmb_next(node)) {
+				elt = container_of(node, struct pat_idx_elt, node);
+				if (strcmp(pattern.ptr.str, (char *)elt->node.key) == 0)
+					goto found;
+			}
+		}
+		else if (expr->match == pat_match_ip) {
+			for (node = ebmb_first(&expr->pattern_tree);
+			     node;
+			     node = ebmb_next(node)) {
+				elt = container_of(node, struct pat_idx_elt, node);
+				if (elt->node.node.pfx == mask &&
+				    memcmp(&pattern.val.ipv4.addr.s_addr, elt->node.key, 4) == 0)
+					goto found;
+			}
+		}
+	}
+
+browse_list:
+	if (expr->parse == pat_parse_int ||
+	         expr->parse == pat_parse_len) {
+		list_for_each_entry(pat, &expr->patterns, list) {
+			if (pat->flags & PAT_F_TREE)
+				continue;
+			if (pattern.val.range.min_set != pat->val.range.min_set)
+				continue;
+			if (pattern.val.range.max_set != pat->val.range.max_set)
+				continue;
+			if (pattern.val.range.min_set &&
+			    pattern.val.range.min != pat->val.range.min)
+				continue;
+			if (pattern.val.range.max_set &&
+			    pattern.val.range.max != pat->val.range.max)
+				continue;
+			goto found;
+		}
+	}
+	else if (expr->parse == pat_parse_ip) {
+		list_for_each_entry(pat, &expr->patterns, list) {
+			if (pat->flags & PAT_F_TREE)
+				continue;
+			if (pattern.type != pat->type)
+				continue;
+			if (pattern.type == SMP_T_IPV4 &&
+			    memcmp(&pattern.val.ipv4.addr, &pat->val.ipv4.addr, sizeof(pat->val.ipv4.addr)) != 0)
+				continue;
+			if (pattern.type == SMP_T_IPV4 &&
+			    memcmp(&pattern.val.ipv4.mask, &pat->val.ipv4.mask, sizeof(pat->val.ipv4.addr)) != 0)
+				continue;
+			if (pattern.type == SMP_T_IPV6 &&
+			    memcmp(&pattern.val.ipv6.addr, &pat->val.ipv6.addr, sizeof(pat->val.ipv6.addr)) != 0)
+				continue;
+			if (pattern.type == SMP_T_IPV6 &&
+			    pattern.val.ipv6.mask != pat->val.ipv6.mask)
+				continue;
+			goto found;
+		}
+	}
+	else if (expr->parse == pat_parse_str) {
+		list_for_each_entry(pat, &expr->patterns, list) {
+			if (pat->flags & PAT_F_TREE)
+				continue;
+			if (pattern.len != pat->len)
+				continue;
+			if ((pat->flags & PAT_F_IGNORE_CASE) &&
+			    strncasecmp(pattern.ptr.str, pat->ptr.str, pat->len) != 0)
+				continue;
+			if (strncmp(pattern.ptr.str, pat->ptr.str, pat->len) != 0)
+				continue;
+			goto found;
+		}
+	}
+	else if (expr->parse == pat_parse_bin) {
+		list_for_each_entry(pat, &expr->patterns, list) {
+			if (pat->flags & PAT_F_TREE)
+				continue;
+			if (pattern.len != pat->len)
+				continue;
+			if (memcmp(pattern.ptr.ptr, pat->ptr.ptr, pat->len) != 0)
+				continue;
+			goto found;
+		}
+	}
+	else if (expr->parse == pat_parse_reg) {
+		list_for_each_entry(pat, &expr->patterns, list) {
+			if (pat->flags & PAT_F_TREE)
+				continue;
+			if ((pat->flags & PAT_F_IGNORE_CASE) &&
+			    strcasecmp(pattern.ptr.reg->regstr, pat->ptr.reg->regstr) != 0)
+				continue;
+			if (strcmp(pattern.ptr.reg->regstr, pat->ptr.reg->regstr) != 0)
+				continue;
+			goto found;
+		}
+	}
+
+	/* if we get there, we didn't find the pattern */
+	return 0;
+found:
+	if (idx_elt)
+		*idx_elt = elt;
+
+	if (pat_elt)
+		*pat_elt = pat;
+
+	return 1;
+}
