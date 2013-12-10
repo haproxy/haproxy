@@ -343,11 +343,11 @@ endif
 # holding the same names in the current directory.
 
 ifeq ($(IGNOREGIT),)
-VERSION := $(shell [ -d .git/. ] && ref=`(git describe --tags --match 'v*') 2>/dev/null` && ref=$${ref%-g*} && echo "$${ref\#v}")
+VERSION := $(shell [ -d .git/. ] && ref=`(git describe --tags --match 'v*' --abbrev=0) 2>/dev/null` && ref=$${ref%-g*} && echo "$${ref\#v}")
 ifneq ($(VERSION),)
 # OK git is there and works.
-SUBVERS := $(shell comms=`git log --no-merges v$(VERSION).. 2>/dev/null |grep -c ^commit `; [ $$comms -gt 0 ] && echo "-$$comms" )
-VERDATE := $(shell date +%Y/%m/%d -d "`git log --pretty=fuller HEAD^.. 2>/dev/null | sed -ne '/^CommitDate:/{s/\(^[^ ]*:\)\|\( [-+].*\)//gp;q}'`" )
+SUBVERS := $(shell comms=`git log --format=oneline --no-merges v$(VERSION).. 2>/dev/null | wc -l`; [ $$comms -gt 0 ] && echo "-$$comms")
+VERDATE := $(shell git log -1 --pretty=format:%ci | cut -f1 -d' ' | tr '-' '/')
 endif
 endif
 
@@ -710,7 +710,7 @@ clean:
 	rm -f *.[oas] src/*.[oas] ebtree/*.[oas] haproxy test
 	for dir in . src include/* doc ebtree; do rm -f $$dir/*~ $$dir/*.rej $$dir/core; done
 	rm -f haproxy-$(VERSION).tar.gz haproxy-$(VERSION)$(SUBVERS).tar.gz
-	rm -f haproxy-$(VERSION) nohup.out gmon.out
+	rm -f haproxy-$(VERSION) haproxy-$(VERSION)$(SUBVERS) nohup.out gmon.out
 	rm -f haproxy-systemd-wrapper
 
 tags:
@@ -721,15 +721,15 @@ cscope:
 	find src include -name "*.[ch]" -print | cscope -q -b -i -
 
 tar:	clean
-	ln -s . haproxy-$(VERSION)
-	tar --exclude=haproxy-$(VERSION)/.git \
-	    --exclude=haproxy-$(VERSION)/haproxy-$(VERSION) \
-	    --exclude=haproxy-$(VERSION)/haproxy-$(VERSION).tar.gz \
-	    -cf - haproxy-$(VERSION)/* | gzip -c9 >haproxy-$(VERSION).tar.gz
-	rm -f haproxy-$(VERSION)
+	ln -s . haproxy-$(VERSION)$(SUBVERS)
+	tar --exclude=haproxy-$(VERSION)$(SUBVERS)/.git \
+	    --exclude=haproxy-$(VERSION)$(SUBVERS)/haproxy-$(VERSION)$(SUBVERS) \
+	    --exclude=haproxy-$(VERSION)$(SUBVERS)/haproxy-$(VERSION)$(SUBVERS).tar.gz \
+	    -cf - haproxy-$(VERSION)$(SUBVERS)/* | gzip -c9 >haproxy-$(VERSION)$(SUBVERS).tar.gz
+	rm -f haproxy-$(VERSION)$(SUBVERS)
 
 git-tar:
-	git archive --format=tar --prefix="haproxy-$(VERSION)/" HEAD | gzip -9 > haproxy-$(VERSION)$(SUBVERS).tar.gz
+	git archive --format=tar --prefix="haproxy-$(VERSION)$(SUBVERS)/" HEAD | gzip -9 > haproxy-$(VERSION)$(SUBVERS).tar.gz
 
 version:
 	@echo "VERSION: $(VERSION)"
