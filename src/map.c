@@ -467,7 +467,7 @@ static int sample_conv_map(const struct arg *arg_p, struct sample *smp)
 	desc = arg_p[0].data.map;
 
 	/* Execute the match function. */
-	ret = pattern_exec_match(desc->pat, smp, &sample);
+	ret = pattern_exec_match(desc->pat, smp, &sample, NULL, NULL);
 	if (ret != PAT_MATCH) {
 		if (!desc->def)
 			return 0;

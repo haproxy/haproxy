@@ -977,7 +977,7 @@ enum acl_test_res acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct 
 					continue;
 				}
 
-				acl_res |= pat2acl(pattern_exec_match(&expr->pat, &smp, NULL));
+				acl_res |= pat2acl(pattern_exec_match(&expr->pat, &smp, NULL, NULL, NULL));
 				/*
 				 * OK now acl_res holds the result of this expression
 				 * as one of ACL_TEST_FAIL, ACL_TEST_MISS or ACL_TEST_PASS.

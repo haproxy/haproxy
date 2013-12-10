@@ -58,7 +58,7 @@ static inline int pat_find_match_name(const char *name)
  * associated to the matching patterned will be put there. The function returns
  * PAT_MATCH or PAT_NOMATCH.
  */
-enum pat_match_res pattern_exec_match(struct pattern_expr *expr, struct sample *smp, struct sample_storage **sample);
+enum pat_match_res pattern_exec_match(struct pattern_expr *expr, struct sample *smp, struct sample_storage **sample, struct pattern **pat, struct pat_idx_elt **elt);
 
 /*
  *

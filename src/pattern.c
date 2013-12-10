@@ -1046,7 +1046,8 @@ int pattern_read_from_file(struct pattern_expr *expr,
  * PAT_NOMATCH or PAT_MATCH.
  */
 enum pat_match_res pattern_exec_match(struct pattern_expr *expr, struct sample *smp,
-                                      struct sample_storage **sample)
+                                      struct sample_storage **sample,
+                                      struct pattern **pat, struct pat_idx_elt **idx_elt)
 {
 	enum pat_match_res pat_res = PAT_NOMATCH;
 	struct pattern *pattern;
@@ -1079,6 +1080,8 @@ enum pat_match_res pattern_exec_match(struct pattern_expr *expr, struct sample *
 				elt = ebmb_entry(node, struct pat_idx_elt, node);
 				if (sample)
 					*sample = elt->smp;
+				if (idx_elt)
+					*idx_elt = elt;
 			}
 		}
 
@@ -1090,6 +1093,8 @@ enum pat_match_res pattern_exec_match(struct pattern_expr *expr, struct sample *
 				pat_res |= expr->match(smp, pattern);
 			if (sample)
 				*sample = pattern->smp;
+			if (pat)
+				*pat = pattern;
 		}
 	}
 
