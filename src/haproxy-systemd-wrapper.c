@@ -24,9 +24,9 @@ static char **main_argv;
 
 static void locate_haproxy(char *buffer, size_t buffer_size)
 {
-	char* end;
-	readlink("/proc/self/exe", buffer, buffer_size);
-	end = strrchr(buffer, '/');
+	char* end = NULL;
+	if (readlink("/proc/self/exe", buffer, buffer_size) > 0)
+		end = strrchr(buffer, '/');
 	if (end == NULL)
 		strncpy(buffer, "/usr/sbin/haproxy", buffer_size);
 	end[1] = '\0';
