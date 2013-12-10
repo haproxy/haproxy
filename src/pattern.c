@@ -775,6 +775,7 @@ void pattern_free(struct pattern *pat)
 		free(pat->ptr.ptr);
 	}
 
+	free(pat->smp);
 	free(pat);
 }
 
@@ -795,6 +796,7 @@ void free_pattern_tree(struct eb_root *root)
 		next = eb_next(node);
 		eb_delete(node);
 		elt = container_of(node, struct pat_idx_elt, node);
+		free(elt->smp);
 		free(elt);
 		node = next;
 	}
@@ -1129,12 +1131,9 @@ int pattern_lookup(const char *key, struct pattern_expr *expr,
 
 	pat = NULL;
 	elt = NULL;
-	/* The current pattern is a tree, try to look up */
-	if (!eb_is_empty(&expr->pattern_tree)) {
-		/* IPv6 is not indexed */
-		if (pattern.type == SMP_T_IPV6)
-			goto browse_list;
 
+	/* Try to look up the tree first. IPv6 is not indexed */
+	if (!eb_is_empty(&expr->pattern_tree) && pattern.type != SMP_T_IPV6) {
 		/* Check the pattern type */
 		if (pattern.type != SMP_T_STR &&
 		    pattern.type != SMP_T_CSTR &&
@@ -1176,6 +1175,7 @@ int pattern_lookup(const char *key, struct pattern_expr *expr,
 	}
 
 browse_list:
+	elt = NULL;
 	if (expr->parse == pat_parse_int ||
 	         expr->parse == pat_parse_len) {
 		list_for_each_entry(pat, &expr->patterns, list) {
