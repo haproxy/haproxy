@@ -24,6 +24,12 @@
 
 #include <types/map.h>
 
+/* maps output sample parser */
+int map_parse_ip(const char *text, struct sample_storage *smp);
+int map_parse_ip6(const char *text, struct sample_storage *smp);
+int map_parse_str(const char *text, struct sample_storage *smp);
+int map_parse_int(const char *text, struct sample_storage *smp);
+
 struct map_reference *map_get_reference(const char *reference);
 
 #endif /* _PROTO_PATTERN_H */

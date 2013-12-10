@@ -19,6 +19,7 @@
 #include <types/map.h>
 
 #include <proto/arg.h>
+#include <proto/map.h>
 #include <proto/pattern.h>
 #include <proto/sample.h>
 
@@ -39,7 +40,7 @@ struct map_reference *map_get_reference(const char *reference)
 /* Parse an IPv4 address and store it into the sample.
  * The output type is IPV4.
  */
-static int map_parse_ip(const char *text, struct sample_storage *smp)
+int map_parse_ip(const char *text, struct sample_storage *smp)
 {
 	if (!buf2ip(text, strlen(text), &smp->data.ipv4))
 		return 0;
@@ -50,7 +51,7 @@ static int map_parse_ip(const char *text, struct sample_storage *smp)
 /* Parse an IPv6 address and store it into the sample.
  * The output type is IPV6.
  */
-static int map_parse_ip6(const char *text, struct sample_storage *smp)
+int map_parse_ip6(const char *text, struct sample_storage *smp)
 {
 	if (!buf2ip6(text, strlen(text), &smp->data.ipv6))
 		return 0;
@@ -62,7 +63,7 @@ static int map_parse_ip6(const char *text, struct sample_storage *smp)
  * string must be left in memory because we return a direct memory reference.
  * The output type is CSTR.
  */
-static int map_parse_str(const char *text, struct sample_storage *smp)
+int map_parse_str(const char *text, struct sample_storage *smp)
 {
 	/* The loose of the "const" is balanced by the SMP_T_CSTR type */
 	smp->data.str.str = (char *)text;
@@ -76,7 +77,7 @@ static int map_parse_str(const char *text, struct sample_storage *smp)
  * number is negative, or UINT if it is positive or null. The function returns
  * zero (error) if the number is too large.
  */
-static int map_parse_int(const char *text, struct sample_storage *smp)
+int map_parse_int(const char *text, struct sample_storage *smp)
 {
 	long long int value;
 	char *error;
