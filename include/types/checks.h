@@ -135,6 +135,7 @@ struct check {
 	int use_ssl;				/* use SSL for health checks */
 	int send_proxy;				/* send a PROXY protocol header with checks */
 	struct tcpcheck_rule *current_step;     /* current step when using tcpcheck */
+	struct tcpcheck_rule *last_started_step;/* pointer to latest tcpcheck rule started */
 	int inter, fastinter, downinter;        /* checks: time in milliseconds */
 	enum chk_result result;                 /* health-check result : CHK_RES_* */
 	int state;				/* state of the check : CHK_ST_*   */
@@ -160,7 +161,13 @@ struct analyze_status {
 enum {
 	TCPCHK_ACT_SEND        = 0,             /* send action, regular string format */
 	TCPCHK_ACT_EXPECT,                      /* expect action, either regular or binary string */
+	TCPCHK_ACT_CONNECT,                     /* connect action, to probe a new port */
 };
+
+/* flags used by tcpcheck_rule->conn_opts */
+#define TCPCHK_OPT_NONE         0x0000  /* no options specified, default */
+#define TCPCHK_OPT_SEND_PROXY   0x0001  /* send proxy-protocol string */
+#define TCPCHK_OPT_SSL          0x0002  /* SSL connection */
 
 struct tcpcheck_rule {
 	struct list list;                       /* list linked to from the proxy */
@@ -171,6 +178,8 @@ struct tcpcheck_rule {
 	int string_len;                         /* string lenght */
 	regex_t *expect_regex;                  /* expected */
 	int inverse;                            /* 0 = regular match, 1 = inverse match */
+	unsigned short port;                    /* port to connect to */
+	unsigned short conn_opts;               /* options when setting up a new connection */
 };
 
 #endif /* _TYPES_CHECKS_H */

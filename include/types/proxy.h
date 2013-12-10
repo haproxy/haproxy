@@ -104,8 +104,7 @@ enum pr_mode {
 #define PR_O_HTTP_TUN   0x04000000      /* HTTP tunnel mode : no analysis past first request/response */
 /* unassigned values : 0x05000000, 0x06000000, 0x07000000 */
 #define PR_O_HTTP_MODE  0x07000000      /* MASK to retrieve the HTTP mode */
-
-/* unused: 0x08000000 */
+#define PR_O_TCPCHK_SSL 0x08000000	/* at least one TCPCHECK connect rule requires SSL */
 #define PR_O_CONTSTATS	0x10000000	/* continous counters */
 #define PR_O_HTTP_PROXY 0x20000000	/* Enable session to use HTTP proxy operations */
 #define PR_O_DISABLE404 0x40000000      /* Disable a server on a 404 response to a health-check */

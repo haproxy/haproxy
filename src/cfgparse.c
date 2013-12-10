@@ -4089,7 +4089,70 @@ stats_error_parsing:
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
-		if (strcmp(args[1], "send") == 0) {
+		if (strcmp(args[1], "connect") == 0) {
+			const char *ptr_arg;
+			int cur_arg;
+			struct tcpcheck_rule *tcpcheck;
+			struct list *l;
+
+			/* check if first rule is also a 'connect' action */
+			l = (struct list *)&curproxy->tcpcheck_rules;
+			if (l->p != l->n) {
+				tcpcheck = (struct tcpcheck_rule *)l->n;
+				if (tcpcheck && tcpcheck->action != TCPCHK_ACT_CONNECT) {
+					Alert("parsing [%s:%d] : first step MUST also be a 'connect' when there is a 'connect' step in the tcp-check ruleset.\n",
+					      file, linenum);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+			}
+
+			cur_arg = 2;
+			tcpcheck = (struct tcpcheck_rule *)calloc(1, sizeof(*tcpcheck));
+			tcpcheck->action = TCPCHK_ACT_CONNECT;
+
+			/* parsing each parameters to fill up the rule */
+			while (*(ptr_arg = args[cur_arg])) {
+				/* tcp port */
+				if (strcmp(args[cur_arg], "port") == 0) {
+					if ( (atol(args[cur_arg + 1]) > 65535) ||
+							(atol(args[cur_arg + 1]) < 1) ){
+						Alert("parsing [%s:%d] : '%s %s %s' expects a valid TCP port (from range 1 to 65535), got %s.\n",
+						      file, linenum, args[0], args[1], "port", args[cur_arg + 1]);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+					tcpcheck->port = atol(args[cur_arg + 1]);
+					cur_arg += 2;
+				}
+				/* send proxy protocol */
+				else if (strcmp(args[cur_arg], "send-proxy") == 0) {
+					tcpcheck->conn_opts |= TCPCHK_OPT_SEND_PROXY;
+					cur_arg++;
+				}
+#ifdef USE_OPENSSL
+				else if (strcmp(args[cur_arg], "ssl") == 0) {
+					curproxy->options |= PR_O_TCPCHK_SSL;
+					tcpcheck->conn_opts |= TCPCHK_OPT_SSL;
+					cur_arg++;
+				}
+#endif /* USE_OPENSSL */
+				else {
+#ifdef USE_OPENSSL
+					Alert("parsing [%s:%d] : '%s %s' expects 'port', 'send-proxy' or 'ssl' but got '%s' as argument.\n",
+#else /* USE_OPENSSL */
+					Alert("parsing [%s:%d] : '%s %s' expects 'port', 'send-proxy' or but got '%s' as argument.\n",
+#endif /* USE_OPENSSL */
+					      file, linenum, args[0], args[1], args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+
+			}
+
+			LIST_ADDQ(&curproxy->tcpcheck_rules, &tcpcheck->list);
+		}
+		else if (strcmp(args[1], "send") == 0) {
 			if (! *(args[2]) ) {
 				/* SEND string expected */
 				Alert("parsing [%s:%d] : '%s %s %s' expects <STRING> as argument.\n",
@@ -4235,7 +4298,7 @@ stats_error_parsing:
 			}
 		}
 		else {
-			Alert("parsing [%s:%d] : '%s' only supports 'send' or 'expect'.\n", file, linenum, args[0]);
+			Alert("parsing [%s:%d] : '%s' only supports 'connect', 'send' or 'expect'.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
@@ -5191,7 +5254,7 @@ stats_error_parsing:
 			 */
 			if (!newsrv->check.port && !is_addr(&newsrv->check_common.addr)) {
 #ifdef USE_OPENSSL
-				newsrv->check.use_ssl |= newsrv->use_ssl;
+				newsrv->check.use_ssl |= (newsrv->use_ssl || (newsrv->proxy->options & PR_O_TCPCHK_SSL));
 #endif
 				newsrv->check.send_proxy |= (newsrv->state & SRV_SEND_PROXY);
 			}
@@ -5215,11 +5278,40 @@ stats_error_parsing:
 						break;
 				}
 			}
+			/*
+			 * We need at least a service port, a check port or the first tcp-check rule must
+			 * be a 'connect' one
+			 */
 			if (!newsrv->check.port) {
-				Alert("parsing [%s:%d] : server %s has neither service port nor check port. Check has been disabled.\n",
-				      file, linenum, newsrv->id);
-				err_code |= ERR_ALERT | ERR_FATAL;
-				goto out;
+				struct tcpcheck_rule *n = NULL, *r = NULL;
+				struct list *l;
+
+				r = (struct tcpcheck_rule *)newsrv->proxy->tcpcheck_rules.n;
+				if (!r) {
+					Alert("parsing [%s:%d] : server %s has neither service port nor check port. Check has been disabled.\n",
+					      file, linenum, newsrv->id);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				if ((r->action != TCPCHK_ACT_CONNECT) || !r->port) {
+					Alert("parsing [%s:%d] : server %s has neither service port nor check port nor tcp_check rule 'connect' with port information. Check has been disabled.\n",
+					      file, linenum, newsrv->id);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				else {
+					/* scan the tcp-check ruleset to ensure a port has been configured */
+					l = &newsrv->proxy->tcpcheck_rules;
+					list_for_each_entry(n, l, list) {
+						r = (struct tcpcheck_rule *)n->list.p;
+						if ((r->action == TCPCHK_ACT_CONNECT) && (!r->port)) {
+							Alert("parsing [%s:%d] : server %s has neither service port nor check port, and a tcp_check rule 'connect' with no port information. Check has been disabled.\n",
+							      file, linenum, newsrv->id);
+							err_code |= ERR_ALERT | ERR_FATAL;
+							goto out;
+						}
+					}
+				}
 			}
 
 			/* note: check type will be set during the config review phase */

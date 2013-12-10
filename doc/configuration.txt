@@ -1220,6 +1220,7 @@ http-check expect                         -          -         X         X
 http-check send-state                     X          -         X         X
 http-request                              -          X         X         X
 http-response                             -          X         X         X
+tcp-check connect                         -          -         X         X
 tcp-check expect                          -          -         X         X
 tcp-check send                            -          -         X         X
 tcp-check send-binary                     -          -         X         X
@@ -3021,6 +3022,63 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
              ACL usage.
 
 
+tcp-check connect [params*]
+  Opens a new connection
+  May be used in sections:   defaults | frontend | listen | backend
+                               no     |    no    |   yes  |   yes
+
+  When an application lies on more than a single TCP port or when HAProxy
+  load-balance many services in a single backend, it makes sense to probe all
+  the services individually before considering a server as operational.
+
+  When there are no TCP port configured on the server line neither server port
+  directive, then the 'tcp-check connect port <port>' must be the first step
+  of the sequence.
+
+  In a tcp-check ruleset a 'connect' is required, it is also mandatory to start
+  the ruleset with a 'connect' rule. Purpose is to ensure admin know what they
+  do.
+
+  Parameters :
+    They are optional and can be used to describe how HAProxy should open and
+    use the TCP connection.
+
+    port      if not set, check port or server port is used.
+              It tells HAProxy where to open the connection to.
+              <port> must be a valid TCP port source integer, from 1 to 65535.
+
+    send-proxy   send a PROXY protocol string
+
+    ssl          opens a ciphered connection
+
+    Examples:
+         # check HTTP and HTTPs services on a server.
+         # first open port 80 thanks to server line port directive, then
+         # tcp-check opens port 443, ciphered and run a request on it:
+         option tcp-check
+         tcp-check connect
+         tcp-check send GET\ /\ HTTP/1.0\r\n
+         tcp-check send Host:\ haproxy.1wt.eu\r\n
+         tcp-check send \r\n
+         tcp-check expect rstring (2..|3..)
+         tcp-check connect port 443 ssl
+         tcp-check send GET\ /\ HTTP/1.0\r\n
+         tcp-check send Host:\ haproxy.1wt.eu\r\n
+         tcp-check send \r\n
+         tcp-check expect rstring (2..|3..)
+         server www 10.0.0.1 check port 80
+
+         # check both POP and IMAP from a single server:
+         option tcp-check
+         tcp-check connect port 110
+         tcp-check expect string +OK\ POP3\ ready
+         tcp-check connect port 143
+         tcp-check expect string *\ OK\ IMAP4\ ready
+         server mail 10.0.0.1 check
+
+  See also : "option tcp-check", "tcp-check send", "tcp-check expect"
+
+
 tcp-check expect [!] <match> <pattern>
   Specify data to be collected and analysed during a generic health check
   May be used in sections:   defaults | frontend | listen | backend
@@ -3098,8 +3156,8 @@ tcp-check expect [!] <match> <pattern>
          tcp-check expect string +OK
 
 
-  See also : "option tcp-check", "tcp-check send", "http-check expect",
-             tune.chksize
+  See also : "option tcp-check", "tcp-check connect", "tcp-check send",
+             "tcp-check send-binary", "http-check expect", tune.chksize
 
 
 tcp-check send <data>
@@ -3116,8 +3174,8 @@ tcp-check send <data>
          tcp-check send info\ replication\r\n
          tcp-check expect string role:master
 
-  See also : "option tcp-check", "tcp-check expect", "tcp-check send-binary",
-             tune.chksize
+  See also : "option tcp-check", "tcp-check connect", "tcp-check expect",
+             "tcp-check send-binary", tune.chksize
 
 
 tcp-check send-binary <hexastring>
@@ -3141,9 +3199,8 @@ tcp-check send-binary <hexastring>
          tcp-check expect binary 2b504F4e47 # +PONG
 
 
-  See also : "option tcp-check", "tcp-check expect", "tcp-check send",
-             tune.chksize
-
+  See also : "option tcp-check", "tcp-check connect", "tcp-check expect",
+             "tcp-check send", tune.chksize
 
 
 http-send-name-header [<header>]
