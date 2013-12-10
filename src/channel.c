@@ -230,7 +230,8 @@ int bo_getline(struct channel *chn, char *str, int len)
 			break;
 		p = buffer_wrap_add(chn->buf, p + 1);
 	}
-	if (ret > 0 && ret < len && ret < chn->buf->o &&
+	if (ret > 0 && ret < len &&
+	    (ret < chn->buf->o || !channel_full(chn)) &&
 	    *(str-1) != '\n' &&
 	    !(chn->flags & (CF_SHUTW|CF_SHUTW_NOW)))
 		ret = 0;
