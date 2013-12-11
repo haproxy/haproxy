@@ -1771,6 +1771,11 @@ int start_checks() {
 			    (!mininter || mininter > srv_getinter(&s->check)))
 				mininter = srv_getinter(&s->check);
 
+			if ((s->agent.state & CHK_ST_CONFIGURED) &&
+			    (srv_getinter(&s->agent) >= SRV_CHK_INTER_THRES) &&
+			    (!mininter || mininter > srv_getinter(&s->agent)))
+				mininter = srv_getinter(&s->agent);
+
 			nbcheck++;
 		}
 	}
