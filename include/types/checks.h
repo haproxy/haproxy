@@ -13,6 +13,28 @@
 #ifndef _TYPES_CHECKS_H
 #define _TYPES_CHECKS_H
 
+#include <sys/time.h>
+
+#include <common/config.h>
+#include <common/mini-clist.h>
+#include <common/regex.h>
+
+#include <types/connection.h>
+#include <types/obj_type.h>
+#include <types/task.h>
+#include <types/server.h>
+
+
+/* bits for s->result used for health-checks */
+#define SRV_CHK_UNKNOWN 0x0000
+#define SRV_CHK_FAILED  0x0001
+#define SRV_CHK_PASSED  0x0002
+#define SRV_CHK_DISABLE 0x0004
+
+/* check flags */
+#define CHK_STATE_RUNNING	0x0001  /* this check is currently running */
+#define CHK_STATE_DISABLED	0x0002  /* this check is currently administratively disabled */
+
 /* check status */
 enum {
 	HCHK_STATUS_UNKNOWN	 = 0,	/* Unknown */
@@ -93,6 +115,28 @@ enum {
 	HANA_OBS_LAYER7,		/* Observe L7 - for example http */
 
 	HANA_OBS_SIZE
+};
+
+struct check {
+	struct connection *conn;		/* connection state for health checks */
+	unsigned short port;			/* the port to use for the health checks */
+	struct buffer *bi, *bo;			/* input and output buffers to send/recv check */
+	struct task *task;			/* the task associated to the health check processing, NULL if disabled */
+	struct timeval start;			/* last health check start time */
+	long duration;				/* time in ms took to finish last health check */
+	short status, code;			/* check result, check code */
+	char desc[HCHK_DESC_LEN];		/* health check descritpion */
+	int use_ssl;				/* use SSL for health checks */
+	int send_proxy;				/* send a PROXY protocol header with checks */
+	struct tcpcheck_rule *current_step;     /* current step when using tcpcheck */
+	int inter, fastinter, downinter;        /* checks: time in milliseconds */
+	int result;				/* health-check result : SRV_CHK_* */
+	int state;				/* health-check result : CHK_* */
+	int health;				/* 0 to rise-1 = bad;
+						 * rise to rise+fall-1 = good */
+	int rise, fall;				/* time in iterations */
+	int type;				/* Check type, one of PR_O2_*_CHK */
+	struct server *server;			/* back-pointer to server */
 };
 
 struct check_status {
