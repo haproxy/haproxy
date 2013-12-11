@@ -1138,11 +1138,22 @@ static void event_srv_chk_r(struct connection *conn)
 		const char *desc = "Unknown feedback string";
 		const char *down_cmd = NULL;
 		int disabled;
+		char *p;
 
-		if (!done)
-			goto wait_more_data;
+		/* get a complete line first */
+		p = check->bi->data;
+		while (*p && *p != '\n' && *p != '\r')
+			p++;
 
-		cut_crlf(check->bi->data);
+		if (!*p) {
+			if (!done)
+				goto wait_more_data;
+
+			/* at least inform the admin that the agent is mis-behaving */
+			set_server_check_status(check, check->status, "Ignoring incomplete line from agent");
+			break;
+		}
+		*p = 0;
 
 		/*
 		 * The agent may have been disabled after a check was
