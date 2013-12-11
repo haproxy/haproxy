@@ -39,6 +39,7 @@ enum chk_result {
 #define CHK_ST_CONFIGURED       0x0002  /* this check is configured and may be enabled */
 #define CHK_ST_ENABLED          0x0004  /* this check is currently administratively enabled */
 #define CHK_ST_PAUSED           0x0008  /* checks are paused because of maintenance (health only) */
+#define CHK_ST_AGENT            0x0010  /* check is an agent check (otherwise it's a health check) */
 
 /* check status */
 enum {

@@ -233,7 +233,7 @@ static void set_server_check_status(struct check *check, short status, const cha
 	/* Failure to connect to the agent as a secondary check should not
 	 * cause the server to be marked down. So only log status changes
 	 * for HCHK_STATUS_* statuses */
-	if (check == &s->agent && check->status < HCHK_STATUS_L7TOUT)
+	if ((check->state & CHK_ST_AGENT) && check->status < HCHK_STATUS_L7TOUT)
 		return;
 
 	if (s->proxy->options2 & PR_O2_LOGHCHKS &&
@@ -626,7 +626,7 @@ static void check_failed(struct check *check)
 	 * The implication here is that failure to connect to the agent
 	 * as a secondary check should not cause the server to be marked
 	 * down. */
-	if (check == &s->agent && check->status != HCHK_STATUS_L7STS)
+	if ((check->state & CHK_ST_AGENT) && check->status != HCHK_STATUS_L7STS)
 		return;
 
 	if (check->health > check->rise) {
@@ -1532,7 +1532,7 @@ static struct task *process_chk(struct task *t)
 		 * configuration of the primary check. Similarly, tcp-check uses
 		 * its own strings.
 		 */
-		if (check->type && check->type != PR_O2_TCPCHK_CHK && check != &s->agent) {
+		if (check->type && check->type != PR_O2_TCPCHK_CHK && !(check->state & CHK_ST_AGENT)) {
 			bo_putblk(check->bo, s->proxy->check_req, s->proxy->check_len);
 
 			/* we want to check if this host replies to HTTP or SSLv3 requests

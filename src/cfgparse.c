@@ -5146,7 +5146,7 @@ stats_error_parsing:
 				goto out;
 			}
 
-			newsrv->agent.state |= CHK_ST_CONFIGURED | CHK_ST_ENABLED;
+			newsrv->agent.state |= CHK_ST_CONFIGURED | CHK_ST_ENABLED | CHK_ST_AGENT;
 		}
 
 		if (!defsrv) {
