@@ -1696,12 +1696,11 @@ int buf2ip(const char *buf, size_t len, struct in_addr *dst)
  * struct in6_addr <dst> which must be allocated by the caller.
  * This function returns 1 in success case, otherwise zero.
  */
-#define MAX_IP6_LEN 45
 int buf2ip6(const char *buf, size_t len, struct in6_addr *dst)
 {
-	char null_term_ip6[MAX_IP6_LEN + 1];
+	char null_term_ip6[INET6_ADDRSTRLEN + 1];
 
-	if (len > MAX_IP6_LEN)
+	if (len > INET6_ADDRSTRLEN)
 		return 0;
 
 	memcpy(null_term_ip6, buf, len);
