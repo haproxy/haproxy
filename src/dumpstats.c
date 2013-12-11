@@ -1528,8 +1528,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			if (!sv)
 				return 1;
 
-			sv->agent.state &= ~CHK_STATE_DISABLED;
-
+			sv->agent.state &= ~CHK_ST_DISABLED;
 			return 1;
 		}
 		if (strcmp(args[1], "server") == 0) {
@@ -1600,8 +1599,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			if (!sv)
 				return 1;
 
-			sv->agent.state |= CHK_STATE_DISABLED;
-
+			sv->agent.state |= CHK_ST_DISABLED;
 			return 1;
 		}
 		else if (strcmp(args[1], "server") == 0) {
@@ -2723,7 +2721,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		if (sv->state & SRV_CHECKED) {
 			chunk_appendf(&trash,
 			              "</td><td class=ac><u> %s%s",
-			              (sv->check.state & CHK_STATE_RUNNING) ? "* " : "",
+			              (sv->check.state & CHK_ST_INPROGRESS) ? "* " : "",
 			              get_check_status_info(sv->check.status));
 
 			if (sv->check.status >= HCHK_STATUS_L57DATA)

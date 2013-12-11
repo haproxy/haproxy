@@ -1165,7 +1165,7 @@ static void event_srv_chk_r(struct connection *conn)
 		 * parameter of this function is the agent or check field
 		 * of the server.
 		 */
-		disabled = check->server->agent.state & CHK_STATE_DISABLED;
+		disabled = check->server->agent.state & CHK_ST_DISABLED;
 
 		if (strchr(check->bi->data, '%')) {
 			if (disabled)
@@ -1497,7 +1497,7 @@ static struct task *process_chk(struct task *t)
 	int ret;
 	int expired = tick_is_expired(t->expire, now_ms);
 
-	if (!(check->state & CHK_STATE_RUNNING)) {
+	if (!(check->state & CHK_ST_INPROGRESS)) {
 		/* no check currently running */
 		if (!expired) /* woke up too early */
 			return t;
@@ -1509,13 +1509,13 @@ static struct task *process_chk(struct task *t)
 		if (!(s->state & SRV_CHECKED) ||
 		    s->proxy->state == PR_STSTOPPED ||
 		    (s->state & SRV_MAINTAIN) ||
-		    (check->state & CHK_STATE_DISABLED))
+		    (check->state & CHK_ST_DISABLED))
 			goto reschedule;
 
 		/* we'll initiate a new check */
 		set_server_check_status(check, HCHK_STATUS_START, NULL);
 
-		check->state |= CHK_STATE_RUNNING;
+		check->state |= CHK_ST_INPROGRESS;
 		check->bi->p = check->bi->data;
 		check->bi->i = 0;
 		check->bo->p = check->bo->data;
@@ -1619,7 +1619,7 @@ static struct task *process_chk(struct task *t)
 
 		/* here, we have seen a synchronous error, no fd was allocated */
 
-		check->state &= ~CHK_STATE_RUNNING;
+		check->state &= ~CHK_ST_INPROGRESS;
 		check_failed(check);
 
 		/* we allow up to min(inter, timeout.connect) for a connection
@@ -1687,7 +1687,7 @@ static struct task *process_chk(struct task *t)
 				set_server_up(check);
 			}
 		}
-		check->state &= ~CHK_STATE_RUNNING;
+		check->state &= ~CHK_ST_INPROGRESS;
 
 		rv = 0;
 		if (global.spread_checks > 0) {

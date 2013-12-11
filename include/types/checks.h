@@ -34,9 +34,9 @@ enum chk_result {
 	CHK_RES_CONDPASS,               /* check reports the server doesn't want new sessions */
 };
 
-/* check flags */
-#define CHK_STATE_RUNNING	0x0001  /* this check is currently running */
-#define CHK_STATE_DISABLED	0x0002  /* this check is currently administratively disabled */
+/* flags used by check->state */
+#define CHK_ST_INPROGRESS       0x0001  /* a check is currently running */
+#define CHK_ST_DISABLED         0x0002  /* this check is currently administratively disabled */
 
 /* check status */
 enum {
@@ -134,7 +134,7 @@ struct check {
 	struct tcpcheck_rule *current_step;     /* current step when using tcpcheck */
 	int inter, fastinter, downinter;        /* checks: time in milliseconds */
 	enum chk_result result;                 /* health-check result : CHK_RES_* */
-	int state;				/* health-check result : CHK_* */
+	int state;				/* state of the check : CHK_ST_*   */
 	int health;				/* 0 to rise-1 = bad;
 						 * rise to rise+fall-1 = good */
 	int rise, fall;				/* time in iterations */
