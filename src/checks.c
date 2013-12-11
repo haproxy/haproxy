@@ -1765,19 +1765,19 @@ int start_checks() {
 				t->expire = TICK_ETERNITY;
 			}
 
-			if (!(s->check.state & CHK_ST_CONFIGURED))
-				continue;
+			if (s->check.state & CHK_ST_CONFIGURED) {
+				nbcheck++;
+				if ((srv_getinter(&s->check) >= SRV_CHK_INTER_THRES) &&
+				    (!mininter || mininter > srv_getinter(&s->check)))
+					mininter = srv_getinter(&s->check);
+			}
 
-			if ((srv_getinter(&s->check) >= SRV_CHK_INTER_THRES) &&
-			    (!mininter || mininter > srv_getinter(&s->check)))
-				mininter = srv_getinter(&s->check);
-
-			if ((s->agent.state & CHK_ST_CONFIGURED) &&
-			    (srv_getinter(&s->agent) >= SRV_CHK_INTER_THRES) &&
-			    (!mininter || mininter > srv_getinter(&s->agent)))
-				mininter = srv_getinter(&s->agent);
-
-			nbcheck++;
+			if (s->agent.state & CHK_ST_CONFIGURED) {
+				nbcheck++;
+				if ((srv_getinter(&s->agent) >= SRV_CHK_INTER_THRES) &&
+				    (!mininter || mininter > srv_getinter(&s->agent)))
+					mininter = srv_getinter(&s->agent);
+			}
 		}
 	}
 
