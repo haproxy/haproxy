@@ -368,7 +368,8 @@ static int sample_load_map(struct arg *arg, struct sample_conv *conv, char **err
 	else {
 		list_for_each_entry(desc, &ref->maps, list)
 			if (desc->conv->in_type == conv->in_type &&
-			    desc->conv->out_type == conv->out_type)
+			    desc->conv->out_type == conv->out_type &&
+			    desc->conv->private == conv->private)
 				break;
 		if (&desc->list !=  &ref->maps)
 			pat = desc->pat;
@@ -409,17 +410,7 @@ static int sample_load_map(struct arg *arg, struct sample_conv *conv, char **err
 
 		/* set the match method */
 		desc->pat->match = pat_match_fcts[conv->private];
-
-		/* set the input parse method */
-		switch (desc->conv->in_type) {
-		case SMP_T_STR:  desc->pat->parse = pat_parse_fcts[PAT_MATCH_STR]; break;
-		case SMP_T_UINT: desc->pat->parse = pat_parse_fcts[PAT_MATCH_INT]; break;
-		case SMP_T_ADDR: desc->pat->parse = pat_parse_fcts[PAT_MATCH_IP];  break;
-		default:
-			memprintf(err, "map: internal haproxy error: no default parse case for the input type <%d>.",
-			          conv->in_type);
-			return 0;
-		}
+		desc->pat->parse = pat_parse_fcts[conv->private];
 
 		/* parse each line of the file */
 		pattern = NULL;
