@@ -1528,7 +1528,13 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			if (!sv)
 				return 1;
 
-			sv->agent.state &= ~CHK_ST_DISABLED;
+			if (!(sv->agent.state & CHK_ST_CONFIGURED)) {
+				appctx->ctx.cli.msg = "Agent was not configured on this server, cannot enable.\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			sv->agent.state |= CHK_ST_ENABLED;
 			return 1;
 		}
 		if (strcmp(args[1], "server") == 0) {
@@ -1599,7 +1605,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			if (!sv)
 				return 1;
 
-			sv->agent.state |= CHK_ST_DISABLED;
+			sv->agent.state &= ~CHK_ST_ENABLED;
 			return 1;
 		}
 		else if (strcmp(args[1], "server") == 0) {

@@ -5123,6 +5123,7 @@ stats_error_parsing:
 				goto out;
 			}
 
+			newsrv->check.state |= CHK_ST_CONFIGURED | CHK_ST_ENABLED;
 			newsrv->state |= SRV_CHECKED;
 		}
 
@@ -5145,6 +5146,7 @@ stats_error_parsing:
 				goto out;
 			}
 
+			newsrv->agent.state |= CHK_ST_CONFIGURED | CHK_ST_ENABLED;
 			newsrv->state |= SRV_AGENT_CHECKED;
 		}
 

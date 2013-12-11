@@ -1165,7 +1165,7 @@ static void event_srv_chk_r(struct connection *conn)
 		 * parameter of this function is the agent or check field
 		 * of the server.
 		 */
-		disabled = check->server->agent.state & CHK_ST_DISABLED;
+		disabled = !(check->server->agent.state & CHK_ST_ENABLED);
 
 		if (strchr(check->bi->data, '%')) {
 			if (disabled)
@@ -1509,7 +1509,7 @@ static struct task *process_chk(struct task *t)
 		if (!(s->state & SRV_CHECKED) ||
 		    s->proxy->state == PR_STSTOPPED ||
 		    (s->state & SRV_MAINTAIN) ||
-		    (check->state & CHK_ST_DISABLED))
+		    !(check->state & CHK_ST_ENABLED))
 			goto reschedule;
 
 		/* we'll initiate a new check */
