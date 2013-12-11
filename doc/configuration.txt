@@ -3518,7 +3518,7 @@ no option allbackups
 
 option checkcache
 no option checkcache
-  Analyze all server responses and block requests with cacheable cookies
+  Analyze all server responses and block responses with cacheable cookies
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |     no   |   yes  |   yes
   Arguments : none
