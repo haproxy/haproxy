@@ -451,13 +451,11 @@ static int c_int2ip(struct sample *smp)
 
 static int c_str2addr(struct sample *smp)
 {
-	int ret;
-
 	if (!buf2ip(smp->data.str.str, smp->data.str.len, &smp->data.ipv4)) {
-		ret = inet_pton(AF_INET6, smp->data.str.str, &smp->data.ipv6);
-		if (ret)
-			smp->type = SMP_T_IPV6;
-		return ret;
+		if (!buf2ip6(smp->data.str.str, smp->data.str.len, &smp->data.ipv6))
+			return 0;
+		smp->type = SMP_T_IPV6;
+		return 1;
 	}
 	smp->type = SMP_T_IPV4;
 	return 1;
@@ -473,12 +471,10 @@ static int c_str2ip(struct sample *smp)
 
 static int c_str2ipv6(struct sample *smp)
 {
-	int ret;
-
-	ret = inet_pton(AF_INET6, smp->data.str.str, &smp->data.ipv6);
-	if (ret)
-		smp->type = SMP_T_IPV6;
-	return ret;
+	if (!buf2ip6(smp->data.str.str, smp->data.str.len, &smp->data.ipv6))
+		return 0;
+	smp->type = SMP_T_IPV6;
+	return 1;
 }
 
 static int c_bin2str(struct sample *smp)
