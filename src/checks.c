@@ -1507,9 +1507,7 @@ static struct task *process_chk(struct task *t)
 		 * stopped, the server should not be checked or the check
 		 * is disabled.
 		 */
-		if (!(check->state & CHK_ST_ENABLED) ||
-		    !(s->check.state & CHK_ST_ENABLED) ||
-		    (s->check.state & CHK_ST_PAUSED) ||
+		if (((check->state & (CHK_ST_ENABLED | CHK_ST_PAUSED)) != CHK_ST_ENABLED) ||
 		    s->proxy->state == PR_STSTOPPED)
 			goto reschedule;
 
