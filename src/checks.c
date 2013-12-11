@@ -455,11 +455,10 @@ void set_server_down(struct check *check)
 
 		s->counters.down_trans++;
 
-		if (s->state & SRV_CHECKED)
-			for (srv = s->tracknext; srv; srv = srv->tracknext)
-				if (!(srv->state & SRV_MAINTAIN))
-					/* Only notify tracking servers that are not already in maintenance. */
-					set_server_down(&srv->check);
+		for (srv = s->trackers; srv; srv = srv->tracknext)
+			if (!(srv->state & SRV_MAINTAIN))
+				/* Only notify tracking servers that are not already in maintenance. */
+				set_server_down(&srv->check);
 	}
 
 	check->health = 0; /* failure */
@@ -531,11 +530,10 @@ void set_server_up(struct check *check) {
 		Warning("%s.\n", trash.str);
 		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
 
-		if (s->state & SRV_CHECKED)
-			for (srv = s->tracknext; srv; srv = srv->tracknext)
-				if (!(srv->state & SRV_MAINTAIN))
-					/* Only notify tracking servers if they're not in maintenance. */
-					set_server_up(&srv->check);
+		for (srv = s->trackers; srv; srv = srv->tracknext)
+			if (!(srv->state & SRV_MAINTAIN))
+				/* Only notify tracking servers if they're not in maintenance. */
+				set_server_up(&srv->check);
 	}
 
 	if (check->health >= check->rise)
@@ -576,9 +574,8 @@ static void set_server_disabled(struct check *check) {
 	if (!s->proxy->srv_bck && !s->proxy->srv_act)
 		set_backend_down(s->proxy);
 
-	if (s->state & SRV_CHECKED)
-		for(srv = s->tracknext; srv; srv = srv->tracknext)
-			set_server_disabled(&srv->check);
+	for (srv = s->trackers; srv; srv = srv->tracknext)
+		set_server_disabled(&srv->check);
 }
 
 static void set_server_enabled(struct check *check) {
@@ -610,9 +607,8 @@ static void set_server_enabled(struct check *check) {
 	Warning("%s.\n", trash.str);
 	send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
 
-	if (s->state & SRV_CHECKED)
-		for(srv = s->tracknext; srv; srv = srv->tracknext)
-			set_server_enabled(&srv->check);
+	for (srv = s->trackers; srv; srv = srv->tracknext)
+		set_server_enabled(&srv->check);
 }
 
 static void check_failed(struct check *check)

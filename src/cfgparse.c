@@ -7044,8 +7044,8 @@ out_uri_auth_compat:
 				}
 
 				newsrv->track = srv;
-				newsrv->tracknext = srv->tracknext;
-				srv->tracknext = newsrv;
+				newsrv->tracknext = srv->trackers;
+				srv->trackers = newsrv;
 
 				free(newsrv->trackit);
 				newsrv->trackit = NULL;

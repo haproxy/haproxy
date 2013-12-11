@@ -158,7 +158,9 @@ struct server {
 
 	struct conn_src conn_src;               /* connection source settings */
 
-	struct server *tracknext, *track;	/* next server in a tracking list, tracked server */
+	struct server *track;                   /* the server we're currently tracking, if any */
+	struct server *trackers;                /* the list of servers tracking us, if any */
+	struct server *tracknext;               /* next server tracking <track> in <track>'s trackers list */
 	char *trackit;				/* temporary variable to make assignment deferrable */
 	int consecutive_errors;			/* current number of consecutive errors */
 	int consecutive_errors_limit;		/* number of consecutive errors that triggers an event */
