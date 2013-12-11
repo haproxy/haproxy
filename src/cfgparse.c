@@ -5124,7 +5124,6 @@ stats_error_parsing:
 			}
 
 			newsrv->check.state |= CHK_ST_CONFIGURED | CHK_ST_ENABLED;
-			newsrv->state |= SRV_CHECKED;
 		}
 
 		if (do_agent) {
@@ -5147,7 +5146,6 @@ stats_error_parsing:
 			}
 
 			newsrv->agent.state |= CHK_ST_CONFIGURED | CHK_ST_ENABLED;
-			newsrv->state |= SRV_AGENT_CHECKED;
 		}
 
 		if (!defsrv) {
@@ -7018,7 +7016,7 @@ out_uri_auth_compat:
 					goto next_srv;
 				}
 
-				if (!(srv->state & SRV_CHECKED)) {
+				if (!(srv->check.state & CHK_ST_CONFIGURED)) {
 					Alert("config : %s '%s', server '%s': unable to use %s/%s for "
 						"tracking as it does not have checks enabled.\n",
 						proxy_type_str(curproxy), curproxy->id,

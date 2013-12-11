@@ -736,8 +736,8 @@ static int httpchk_build_status_header(struct server *s, char *buffer)
 	memcpy(buffer + hlen, "X-Haproxy-Server-State: ", 24);
 	hlen += 24;
 
-	if (!(s->state & SRV_CHECKED))
-		sv_state = 6; /* should obviously never happen */
+	if (!(s->check.state & CHK_ST_ENABLED))
+		sv_state = 6;
 	else if (s->state & SRV_RUNNING) {
 		if (s->check.health == s->check.rise + s->check.fall - 1)
 			sv_state = 3; /* UP */
@@ -1506,7 +1506,7 @@ static struct task *process_chk(struct task *t)
 		 * stopped, the server should not be checked or the check
 		 * is disabled.
 		 */
-		if (!(s->state & SRV_CHECKED) ||
+		if (!(s->check.state & CHK_ST_ENABLED) ||
 		    s->proxy->state == PR_STSTOPPED ||
 		    (s->state & SRV_MAINTAIN) ||
 		    !(check->state & CHK_ST_ENABLED))
@@ -1764,7 +1764,7 @@ int start_checks() {
 				t->expire = TICK_ETERNITY;
 			}
 
-			if (!(s->state & SRV_CHECKED))
+			if (!(s->check.state & CHK_ST_CONFIGURED))
 				continue;
 
 			if ((srv_getinter(&s->check) >= SRV_CHK_INTER_THRES) &&
@@ -1788,14 +1788,14 @@ int start_checks() {
 	for (px = proxy; px; px = px->next) {
 		for (s = px->srv; s; s = s->next) {
 			/* A task for the main check */
-			if (s->state & SRV_CHECKED) {
+			if (s->check.state & CHK_ST_CONFIGURED) {
 				if (!start_check_task(&s->check, mininter, nbcheck, srvpos))
 					return -1;
 				srvpos++;
 			}
 
 			/* A task for a auxiliary agent check */
-			if (s->state & SRV_AGENT_CHECKED) {
+			if (s->agent.state & CHK_ST_CONFIGURED) {
 				if (!start_check_task(&s->agent, mininter, nbcheck, srvpos)) {
 					return -1;
 				}

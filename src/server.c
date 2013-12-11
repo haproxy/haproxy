@@ -34,7 +34,7 @@ int srv_getinter(const struct check *check)
 {
 	const struct server *s = check->server;
 
-	if ((s->state & SRV_CHECKED) && (check->health == check->rise + check->fall - 1))
+	if ((check->state & CHK_ST_CONFIGURED) && (check->health == check->rise + check->fall - 1))
 		return check->inter;
 
 	if (!(s->state & SRV_RUNNING) && check->health == 0)

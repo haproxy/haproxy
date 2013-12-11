@@ -48,7 +48,7 @@
 #define SRV_BACKUP	0x0002	/* this server is a backup server */
 #define SRV_MAPPORTS	0x0004	/* this server uses mapped ports */
 /* unused: 0x0008 */
-#define SRV_CHECKED	0x0010	/* this server needs to be checked */
+/* unused: 0x0010 */
 #define SRV_GOINGDOWN	0x0020	/* this server says that it's going down (404) */
 #define SRV_WARMINGUP	0x0040	/* this server is warming up after a failure */
 #define SRV_MAINTAIN	0x0080	/* this server is in maintenance mode */
@@ -56,9 +56,6 @@
 /* unused: 0x0200, 0x0400 */
 #define SRV_SEND_PROXY	0x0800	/* this server talks the PROXY protocol */
 #define SRV_NON_STICK	0x1000	/* never add connections allocated to this server to a stick table */
-#define SRV_AGENT_CHECKED  0x2000  /* this server needs to be checked using an agent check.
-				    * This is run independently of the main check whose
-				    * presence is indicated by the SRV_CHECKED flag */
 
 /* function which act on servers need to return various errors */
 #define SRV_STATUS_OK       0   /* everything is OK. */

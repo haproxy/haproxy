@@ -1443,7 +1443,7 @@ smp_fetch_srv_is_up(struct proxy *px, struct session *l4, void *l7, unsigned int
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_BOOL;
 	if (!(srv->state & SRV_MAINTAIN) &&
-	    (!(srv->state & SRV_CHECKED) || (srv->state & SRV_RUNNING)))
+	    (!(srv->check.state & CHK_ST_CONFIGURED) || (srv->state & SRV_RUNNING)))
 		smp->data.uint = 1;
 	else
 		smp->data.uint = 0;

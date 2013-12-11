@@ -2716,7 +2716,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			chunk_appendf(&trash, "%s ", human_time(now.tv_sec - ref->last_change, 1));
 			chunk_appendf(&trash, "MAINT(via)");
 		}
-		else if (ref->state & SRV_CHECKED) {
+		else if (ref->check.state & CHK_ST_ENABLED) {
 			chunk_appendf(&trash, "%s ", human_time(now.tv_sec - ref->last_change, 1));
 			chunk_appendf(&trash,
 			              srv_hlt_st[state],
@@ -2724,7 +2724,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			              (ref->state & SRV_RUNNING) ? (ref->check.fall) : (ref->check.rise));
 		}
 
-		if (sv->state & SRV_CHECKED) {
+		if (sv->check.state & CHK_ST_ENABLED) {
 			chunk_appendf(&trash,
 			              "</td><td class=ac><u> %s%s",
 			              (sv->check.state & CHK_ST_INPROGRESS) ? "* " : "",
@@ -2759,7 +2759,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		              (sv->state & SRV_BACKUP) ? "Y" : "-");
 
 		/* check failures: unique, fatal, down time */
-		if (sv->state & SRV_CHECKED) {
+		if (sv->check.state & CHK_ST_ENABLED) {
 			chunk_appendf(&trash, "<td><u>%lld", ref->counters.failed_checks);
 
 			if (ref->observe)
@@ -2848,7 +2848,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		              (sv->state & SRV_BACKUP) ? 1 : 0);
 
 		/* check failures: unique, fatal; last change, total downtime */
-		if (sv->state & SRV_CHECKED)
+		if (sv->check.state & CHK_ST_ENABLED)
 			chunk_appendf(&trash,
 			              "%lld,%lld,%d,%d,",
 			              sv->counters.failed_checks, sv->counters.down_trans,
@@ -2885,7 +2885,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		              read_freq_ctr(&sv->sess_per_sec),
 		              sv->counters.sps_max);
 
-		if (sv->state & SRV_CHECKED) {
+		if (sv->check.state & CHK_ST_ENABLED) {
 			/* check_status */
 			chunk_appendf(&trash, "%s,", get_check_status_info(sv->check.status));
 
@@ -3407,7 +3407,7 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 				svs = sv;
 
 			/* FIXME: produce some small strings for "UP/DOWN x/y &#xxxx;" */
-			if (!(svs->state & SRV_CHECKED))
+			if (!(svs->check.state & CHK_ST_ENABLED))
 				sv_state = 8;
 			else if (svs->state & SRV_RUNNING) {
 				if (svs->check.health == svs->check.rise + svs->check.fall - 1)
