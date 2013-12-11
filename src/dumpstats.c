@@ -1555,6 +1555,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 						sv->check.health = sv->check.rise;	/* up, but will fall down at first failure */
 					} else {
 						sv->state &= ~SRV_MAINTAIN;
+						sv->check.state &= ~CHK_ST_PAUSED;
 						set_server_down(&sv->check);
 					}
 				} else {
@@ -1618,6 +1619,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			if (! (sv->state & SRV_MAINTAIN)) {
 				/* Not already in maintenance, we can change the server state */
 				sv->state |= SRV_MAINTAIN;
+				sv->check.state |= CHK_ST_PAUSED;
 				set_server_down(&sv->check);
 			}
 
@@ -4039,6 +4041,7 @@ static int stats_process_http_post(struct stream_interface *si)
 						if ((px->state != PR_STSTOPPED) && !(sv->state & SRV_MAINTAIN)) {
 							/* Not already in maintenance, we can change the server state */
 							sv->state |= SRV_MAINTAIN;
+							sv->check.state |= CHK_ST_PAUSED;
 							set_server_down(&sv->check);
 							altered_servers++;
 							total_servers++;

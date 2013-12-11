@@ -493,6 +493,7 @@ void set_server_up(struct check *check) {
 		s->last_change = now.tv_sec;
 		s->state |= SRV_RUNNING;
 		s->state &= ~SRV_MAINTAIN;
+		s->check.state &= ~CHK_ST_PAUSED;
 
 		if (s->slowstart > 0) {
 			s->state |= SRV_WARMINGUP;
@@ -1506,10 +1507,10 @@ static struct task *process_chk(struct task *t)
 		 * stopped, the server should not be checked or the check
 		 * is disabled.
 		 */
-		if (!(s->check.state & CHK_ST_ENABLED) ||
-		    s->proxy->state == PR_STSTOPPED ||
-		    (s->state & SRV_MAINTAIN) ||
-		    !(check->state & CHK_ST_ENABLED))
+		if (!(check->state & CHK_ST_ENABLED) ||
+		    !(s->check.state & CHK_ST_ENABLED) ||
+		    (s->check.state & CHK_ST_PAUSED) ||
+		    s->proxy->state == PR_STSTOPPED)
 			goto reschedule;
 
 		/* we'll initiate a new check */

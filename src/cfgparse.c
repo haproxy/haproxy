@@ -4721,6 +4721,7 @@ stats_error_parsing:
 			else if (!defsrv && !strcmp(args[cur_arg], "disabled")) {
 				newsrv->state |= SRV_MAINTAIN;
 				newsrv->state &= ~SRV_RUNNING;
+				newsrv->check.state |= CHK_ST_PAUSED;
 				newsrv->check.health = 0;
 				newsrv->agent.health = 0;
 				cur_arg += 1;
@@ -7038,6 +7039,7 @@ out_uri_auth_compat:
 				/* if the other server is forced disabled, we have to do the same here */
 				if (srv->state & SRV_MAINTAIN) {
 					newsrv->state |= SRV_MAINTAIN;
+					newsrv->check.state |= CHK_ST_PAUSED;
 					newsrv->state &= ~SRV_RUNNING;
 					newsrv->check.health = 0;
 					newsrv->agent.health = 0;

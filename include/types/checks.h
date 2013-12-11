@@ -38,6 +38,7 @@ enum chk_result {
 #define CHK_ST_INPROGRESS       0x0001  /* a check is currently running */
 #define CHK_ST_CONFIGURED       0x0002  /* this check is configured and may be enabled */
 #define CHK_ST_ENABLED          0x0004  /* this check is currently administratively enabled */
+#define CHK_ST_PAUSED           0x0008  /* checks are paused because of maintenance (health only) */
 
 /* check status */
 enum {
