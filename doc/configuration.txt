@@ -12292,6 +12292,11 @@ If an unknown command is sent, haproxy displays the usage message which reminds
 all supported commands. Some commands support a more complex syntax, generally
 it will explain what part of the command is invalid when this happens.
 
+add map <map> <key> <value>
+  Add an entry into the map <map> to associate the value <value> to the key
+  <key>. This command does not verify if the entry already exists. It is
+  mainly used to fill a map after a clear operation.
+
 clear counters
   Clear the max values of the statistics counters in each proxy (frontend &
   backend) and in each server. The cumulated counters are not affected. This
@@ -12303,6 +12308,9 @@ clear counters all
   Clear all statistics counters in each proxy (frontend & backend) and in each
   server. This has the same effect as restarting. This command is restricted
   and can only be issued on sockets configured for level "admin".
+
+clear map <map>
+  Remove all entries from the map <map>.
 
 clear table <table> [ data.<type> <operator> <value> ] | [ key <key> ]
   Remove entries from the stick-table <table>.
@@ -12373,6 +12381,9 @@ enable agent <backend>/<server>
 
   This command is restricted and can only be issued on sockets configured for
   level "admin".
+
+del map <map> <key>
+  Delete all the map entries from the map <map> corresponding to the key <key>.
 
 disable frontend <frontend>
   Mark the frontend as temporarily stopped. This corresponds to the mode which
@@ -12461,6 +12472,10 @@ prompt
 
 quit
   Close the connection when in interactive mode.
+
+set map <map> <key> <value>
+  Modify the value corresponding to each key <key> in a map <map>. The new value
+  is <value>.
 
 set maxconn frontend <frontend> <value>
   Dynamically change the specified frontend's maxconn setting. Any positive
@@ -12576,6 +12591,10 @@ show errors [<iid>]
 
 show info
   Dump info about haproxy status on current process.
+
+show map [<map>]
+  Dump info about map converters. Without argument, the list of all available
+  maps is returned. If a <map> is specified, its contents are dumped.
 
 show sess
   Dump all known sessions. Avoid doing this on slow connections as this can

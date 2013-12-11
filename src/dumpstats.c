@@ -46,8 +46,10 @@
 #include <proto/fd.h>
 #include <proto/freq_ctr.h>
 #include <proto/log.h>
+#include <proto/pattern.h>
 #include <proto/pipe.h>
 #include <proto/listener.h>
+#include <proto/map.h>
 #include <proto/proto_http.h>
 #include <proto/proto_uxst.h>
 #include <proto/proxy.h>
@@ -68,6 +70,9 @@ static int stats_dump_errors_to_buffer(struct stream_interface *si);
 static int stats_table_request(struct stream_interface *si, int show);
 static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, struct uri_auth *uri);
 static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_auth *uri);
+static int stats_maps_list(struct stream_interface *si);
+static int stats_map_list(struct stream_interface *si);
+static int stats_map_lookup(struct stream_interface *si);
 
 /*
  * cli_io_handler()
@@ -103,6 +108,7 @@ static const char stats_sock_usage_msg[] =
 	"Unknown command. Please enter one of the following commands only :\n"
 	"  clear counters : clear max statistics counters (add 'all' for all counters)\n"
 	"  clear table    : remove an entry from a table\n"
+	"  clear map [id] : clear the content of this map\n"
 	"  help           : this message\n"
 	"  prompt         : toggle interactive mode with prompt\n"
 	"  quit           : disconnect\n"
@@ -111,12 +117,16 @@ static const char stats_sock_usage_msg[] =
 	"  show errors    : report last request and response errors for each proxy\n"
 	"  show sess [id] : report the list of current sessions or dump this session\n"
 	"  show table [id]: report table usage stats or dump this table's contents\n"
+	"  show map [id]  : report avalaible maps or dump this map's contents\n"
 	"  get weight     : report a server's current weight\n"
 	"  set weight     : change a server's weight\n"
 	"  set table [id] : update or create a table entry's data\n"
 	"  set timeout    : change a timeout setting\n"
 	"  set maxconn    : change a maxconn setting\n"
 	"  set rate-limit : change a rate limiting value\n"
+	"  set map [id] [key] [value] : modify map entry\n"
+	"  add map [id] [key] [value] : add map entry\n"
+	"  del map [id] [key] : delete map entry\n"
 	"  disable        : put a server or frontend in maintenance mode\n"
 	"  enable         : re-enable a server or frontend which is in maintenance mode\n"
 	"  shutdown       : kill a session or a frontend (eg:to release listening ports)\n"
@@ -914,6 +924,42 @@ static struct server *expect_server_admin(struct session *s, struct stream_inter
 	return sv;
 }
 
+/* This function is used with map management. It permits to browse each
+ * really allocated descriptors of one map reference. The variable
+ * <appctx->ctx.map.ref> must contain the map reference to browse.
+ * The variable <appctx->ctx.map.desc> contain the descriptor of the
+ * current allocated map descriptor. This variable must be initialized
+ * to NULL.
+ */
+static inline void stats_map_lookup_next(struct stream_interface *si)
+{
+	struct appctx *appctx = __objt_appctx(si->end);
+
+	/* search the next allocated map */
+	while (1) {
+		/* get next descriptor */
+		if (!appctx->ctx.map.desc)
+			appctx->ctx.map.desc = LIST_NEXT(&appctx->ctx.map.ref->maps,
+			                                 struct map_descriptor *, list);
+		else
+			appctx->ctx.map.desc = LIST_NEXT(&appctx->ctx.map.desc->list,
+			                                 struct map_descriptor *, list);
+
+		/* detect end of list */
+		if (&appctx->ctx.map.desc->list == &appctx->ctx.map.ref->maps) {
+			appctx->ctx.map.desc = NULL;
+			return;
+		}
+
+		/* do not lookup this entry */
+		if (!appctx->ctx.map.desc->do_free)
+			continue;
+
+		/* avalaible descriptor */
+		return;
+	}
+}
+
 /* Processes the stats interpreter on the statistics socket. This function is
  * called from an applet running in a stream interface. The function returns 1
  * if the request was understood, otherwise zero. It sets appctx->st0 to a value
@@ -1021,6 +1067,25 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 		else if (strcmp(args[1], "table") == 0) {
 			stats_sock_table_request(si, args, STAT_CLI_O_TAB);
 		}
+		else if (strcmp(args[1], "map") == 0) {
+
+			/* no parameter: display all map avalaible */
+			if (!*args[2]) {
+				appctx->st2 = STAT_ST_INIT;
+				appctx->st0 = STAT_CLI_O_MAPS;
+				return 1;
+			}
+
+			/* lookup into the maps */
+			appctx->ctx.map.ref = map_get_reference(args[2]);
+			if (!appctx->ctx.map.ref) {
+				appctx->ctx.cli.msg = "Unknown map reference.\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+			appctx->st2 = STAT_ST_INIT;
+			appctx->st0 = STAT_CLI_O_MAP;
+		}
 		else { /* neither "stat" nor "info" nor "sess" nor "errors" nor "table" */
 			return 0;
 		}
@@ -1088,6 +1153,43 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			/* end of processing */
 			return 1;
 		}
+		else if (strcmp(args[1], "map") == 0) {
+			struct map_reference *mref;
+			struct map_descriptor *mdesc;
+			struct map_entry *ent, *nent;
+
+			/* no parameter */
+			if (!*args[2]) {
+				appctx->ctx.cli.msg = "Expect map reference.\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			/* lookup into the maps */
+			mref = map_get_reference(args[2]);
+			if (!mref) {
+				appctx->ctx.cli.msg = "Unknown map reference.\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			/* clear all maps */
+			list_for_each_entry(mdesc, &mref->maps, list)
+				if (mdesc->do_free)
+					pattern_prune_expr(mdesc->pat);
+
+			/* clear map reference */
+			list_for_each_entry_safe(ent, nent, &mref->entries, list) {
+				LIST_DEL(&ent->list);
+				free(ent->key);
+				free(ent->value);
+				free(ent);
+			}
+
+			/* return response */
+			appctx->ctx.cli.msg = "Done.\n";
+			appctx->st0 = STAT_CLI_PRINT;
+		}
 		else {
 			/* unknown "clear" argument */
 			return 0;
@@ -1121,6 +1223,37 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			snprintf(trash.str, trash.size, "%d (initial %d)\n", sv->uweight, sv->iweight);
 			bi_putstr(si->ib, trash.str);
 			return 1;
+		}
+		else if (strcmp(args[1], "map") == 0) {
+
+			/* no parameter */
+			if (!*args[2] || !*args[3]) {
+				appctx->ctx.cli.msg = "Expect map reference and required key.\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			/* lookup into the maps */
+			appctx->ctx.map.ref = map_get_reference(args[2]);
+			if (!appctx->ctx.map.ref) {
+				appctx->ctx.cli.msg = "Unknown map reference.\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			/* copy input string */
+			appctx->ctx.map.chunk.len = strlen(args[3]);
+			appctx->ctx.map.chunk.size = appctx->ctx.map.chunk.len + 1;
+			appctx->ctx.map.chunk.str = strdup(args[3]);
+			if (!appctx->ctx.map.chunk.str) {
+				appctx->ctx.cli.msg = "Out of memory error.\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			/* prepare response */
+			appctx->st2 = STAT_ST_INIT;
+			appctx->st0 = STAT_CLI_O_MLOOK;
 		}
 		else { /* not "get weight" */
 			return 0;
@@ -1318,6 +1451,70 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 		}
 		else if (strcmp(args[1], "table") == 0) {
 			stats_sock_table_request(si, args, STAT_CLI_O_SET);
+		}
+		else if (strcmp(args[1], "map") == 0) {
+			struct pattern *pat_elt;
+			struct pat_idx_elt *idx_elt;
+			char *value;
+
+			/* Expect three parameters: map name, key and new value. */
+			if (!*args[2] || !*args[3] || !*args[4]) {
+				appctx->ctx.cli.msg = "'set map' expect three parameters: map name, key and value.\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			/* Lookup the reference in the maps. */
+			appctx->ctx.map.ref = map_get_reference(args[2]);
+			if (!appctx->ctx.map.ref) {
+				appctx->ctx.cli.msg = "Unknown map reference.\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			/* Lookup the entry in the reference values. */
+			list_for_each_entry(appctx->ctx.map.ent, &appctx->ctx.map.ref->entries, list)
+				if (strcmp(args[3], appctx->ctx.map.ent->key) == 0)
+					break;
+
+			if (&appctx->ctx.map.ent->list == &appctx->ctx.map.ref->entries) {
+				appctx->ctx.cli.msg = "Entry not found.\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			/* Update each reference entries. */
+			list_for_each_entry(appctx->ctx.map.ent, &appctx->ctx.map.ref->entries, list) {
+				if (strcmp(args[3], appctx->ctx.map.ent->key) == 0) {
+					value = strdup(args[4]);
+					if (!value) {
+						appctx->ctx.cli.msg = "Out of memory error.\n";
+						appctx->st0 = STAT_CLI_PRINT;
+						return 1;
+					}
+					free(appctx->ctx.map.ent->value);
+					appctx->ctx.map.ent->value = value;
+				}
+			}
+
+			/* Change the sample. The lookup juste return the first entry, other
+			 * entries are not changed, but are never matched.
+			 */
+			appctx->ctx.map.desc = NULL;
+			for (stats_map_lookup_next(si);
+			     appctx->ctx.map.desc;
+			     stats_map_lookup_next(si)) {
+				pattern_lookup(args[3], appctx->ctx.map.desc->pat, &pat_elt, &idx_elt, NULL);
+				if (pat_elt != NULL)
+					appctx->ctx.map.desc->parse(appctx->ctx.map.ent->value, pat_elt->smp);
+				if (idx_elt != NULL)
+					appctx->ctx.map.desc->parse(appctx->ctx.map.ent->value, idx_elt->smp);
+			}
+
+			/* The set is done, send message. */
+			appctx->ctx.cli.msg = "Done.\n";
+			appctx->st0 = STAT_CLI_PRINT;
+			return 1;
 		}
 		else { /* unknown "set" parameter */
 			return 0;
@@ -1536,6 +1733,190 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			return 1;
 		}
 	}
+	else if (strcmp(args[0], "del") == 0) {
+		if (strcmp(args[1], "map") == 0) {
+			struct pattern *pat_elt;
+			struct pat_idx_elt *idx_elt;
+			struct map_entry *ent;
+
+			/* Expect two parameters: map name and key. */
+			if (!*args[2] || !*args[3]) {
+				appctx->ctx.cli.msg = "'del map' expect two parameters: map name and key.\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			/* Lookup the reference in the maps. */
+			appctx->ctx.map.ref = map_get_reference(args[2]);
+			if (!appctx->ctx.map.ref) {
+				appctx->ctx.cli.msg = "Unknown map reference.\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			/* Lookup the entry in the reference values.
+			 * If the entry is not found in the reference, return error message.
+			 */
+			list_for_each_entry(appctx->ctx.map.ent, &appctx->ctx.map.ref->entries, list)
+				if (strcmp(args[3], appctx->ctx.map.ent->key) == 0)
+					break;
+
+			if (&appctx->ctx.map.ent->list == &appctx->ctx.map.ref->entries) {
+				appctx->ctx.cli.msg = "Entry not found.\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			/* Delete each enties from reference. */
+			list_for_each_entry_safe(appctx->ctx.map.ent, ent, &appctx->ctx.map.ref->entries, list) {
+				if (strcmp(args[3], appctx->ctx.map.ent->key) == 0) {
+					LIST_DEL(&appctx->ctx.map.ent->list);
+					free(appctx->ctx.map.ent->key);
+					free(appctx->ctx.map.ent->value);
+					free(appctx->ctx.map.ent);
+				}
+			}
+
+			/* Delete all matching entries for each map descritor. */
+			appctx->ctx.map.desc = NULL;
+			stats_map_lookup_next(si);
+			while (appctx->ctx.map.desc) {
+				while (pattern_lookup(args[3], appctx->ctx.map.desc->pat, &pat_elt, &idx_elt, NULL)) {
+					if (pat_elt != NULL) {
+						LIST_DEL(&pat_elt->list);
+						pattern_free(pat_elt);
+					}
+					if (idx_elt != NULL) {
+						ebmb_delete(&idx_elt->node);
+						free(idx_elt);
+					}
+				}
+				stats_map_lookup_next(si);
+			}
+
+			/* The deletion is done, send message. */
+			appctx->ctx.cli.msg = "Done.\n";
+			appctx->st0 = STAT_CLI_PRINT;
+			return 1;
+		}
+		else { /* unknown "del" parameter */
+			appctx->ctx.cli.msg = "'del' only supports 'map'.\n";
+			appctx->st0 = STAT_CLI_PRINT;
+			return 1;
+		}
+	}
+	else if (strcmp(args[0], "add") == 0) {
+		if (strcmp(args[1], "map") == 0) {
+			const char *params[2];
+			struct pattern *pat;
+			struct map_entry *ent;
+			struct sample_storage *smp;
+
+			/* Expect three parameters: map name, key and new value. */
+			if (!*args[2] || !*args[3] || !*args[4]) {
+				appctx->ctx.cli.msg = "'add map' expect three parameters: map name, key and value.\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			params[0] = args[3];
+			params[1] = "";
+
+			/* Lookup the reference in the maps. */
+			appctx->ctx.map.ref = map_get_reference(args[2]);
+			if (!appctx->ctx.map.ref) {
+				appctx->ctx.cli.msg = "Unknown map reference.\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			/* Prepare and link the new map_entry element. If out of memory
+			 * error the action is cancelled and the descriptor are left
+			 * coherents.
+			 */
+			ent = malloc(sizeof(*ent));
+			if (!ent) {
+				appctx->ctx.cli.msg = "Out of memory error.\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+			ent->key = strdup(args[3]);
+			if (!ent->key) {
+				free(ent);
+				appctx->ctx.cli.msg = "Out of memory error.\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+			ent->value = strdup(args[4]);
+			if (!ent->value) {
+				free(ent->key);
+				free(ent);
+				appctx->ctx.cli.msg = "Out of memory error.\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+			LIST_ADDQ(&appctx->ctx.map.ref->entries, &ent->list);
+
+			/* Browse each map descritor and try to insert this new value. */
+			appctx->ctx.map.desc = NULL;
+			for (stats_map_lookup_next(si);
+			     appctx->ctx.map.desc;
+			     stats_map_lookup_next(si)) {
+
+				/* Create new sample. Return out of memory error
+				 * if the memory cannot be allocated. The 'add' process
+				 * is aborted, but the already inserted entries are not
+				 * deleted.
+				 */
+				smp = calloc(1, sizeof(*smp));
+				if (!smp) {
+					appctx->ctx.cli.msg = "Out of memory error. The value is not added in all maps.\n";
+					appctx->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
+
+				/* Create sample. If this function fails, the insertion
+				 * is canceled for this 'descriptor', but continue, for
+				 * the other descriptors.
+				 */
+				if (!appctx->ctx.map.desc->parse(ent->value, smp)) {
+					free(smp);
+					continue;
+				}
+
+				/* If the value can be indexed, get the first pattern. If
+				 * the return entry is not the indexed entry, new 'pattern' is
+				 * created by the function pattern_register(). If the 'pattern'
+				 * is NULL, new entry is created. This is ugly because the
+				 * following code interfers with the own code of the function
+				 * pattern_register().
+				 */
+				if (appctx->ctx.map.desc->pat->match == pat_match_str ||
+				    appctx->ctx.map.desc->pat->match == pat_match_ip) {
+					pat = LIST_NEXT(&appctx->ctx.map.desc->pat->patterns, struct pattern *, list);
+					if (&pat->list == &appctx->ctx.map.desc->pat->patterns)
+						pat = NULL;
+				}
+				else
+					pat = NULL;
+
+				if (!pattern_register(appctx->ctx.map.desc->pat, params, smp, &pat, 0, NULL)) {
+					free(smp);
+					continue;
+				}
+			}
+
+			/* The add is done, send message. */
+			appctx->ctx.cli.msg = "Done.\n";
+			appctx->st0 = STAT_CLI_PRINT;
+			return 1;
+		}
+		else { /* unknown "del" parameter */
+			appctx->ctx.cli.msg = "'add' only supports 'map'.\n";
+			appctx->st0 = STAT_CLI_PRINT;
+			return 1;
+		}
+	}
 	else { /* not "show" nor "clear" nor "get" nor "set" nor "enable" nor "disable" */
 		return 0;
 	}
@@ -1676,6 +2057,17 @@ static void cli_io_handler(struct stream_interface *si)
 				if (stats_table_request(si, appctx->st0))
 					appctx->st0 = STAT_CLI_PROMPT;
 				break;
+			case STAT_CLI_O_MAPS:
+				if (stats_maps_list(si))
+					appctx->st0 = STAT_CLI_PROMPT;
+				break;
+			case STAT_CLI_O_MAP:
+				if (stats_map_list(si))
+					appctx->st0 = STAT_CLI_PROMPT;
+				break;
+			case STAT_CLI_O_MLOOK:
+				if (stats_map_lookup(si))
+					appctx->st0 = STAT_CLI_PROMPT;
 			default: /* abnormal state */
 				appctx->st0 = STAT_CLI_PROMPT;
 				break;
@@ -4220,6 +4612,252 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 	appctx->ctx.sess.uid = 0;
 	appctx->ctx.sess.section = 0;
 	return 1;
+}
+
+static int stats_maps_list(struct stream_interface *si)
+{
+	struct appctx *appctx = __objt_appctx(si->end);
+
+	switch (appctx->st2) {
+	case STAT_ST_INIT:
+		/* Init to the first entry. The list cannot be change */
+		appctx->ctx.map.ref = LIST_NEXT(&maps, struct map_reference *, list);
+		appctx->st2 = STAT_ST_LIST;
+		/* fall through */
+
+	case STAT_ST_LIST:
+		while (appctx->ctx.map.ref) {
+
+			chunk_reset(&trash);
+
+			/* build messages */
+			chunk_appendf(&trash, "%s\n", appctx->ctx.map.ref->reference);
+
+			if (bi_putchk(si->ib, &trash) == -1) {
+				/* let's try again later from this session. We add ourselves into
+				 * this session's users so that it can remove us upon termination.
+				 */
+				return 0;
+			}
+
+			/* get next list entry and check the end of the list */
+			appctx->ctx.map.ref = LIST_NEXT(&appctx->ctx.map.ref->list,
+			                                 struct map_reference *, list);
+			if (&appctx->ctx.map.ref->list == &maps)
+				break;
+		}
+
+		appctx->st2 = STAT_ST_FIN;
+		/* fall through */
+
+	default:
+		appctx->st2 = STAT_ST_FIN;
+		return 1;
+	}
+}
+
+static const char *smp_to_type[SMP_TYPES] = {
+	[SMP_T_BOOL] = "bool",
+	[SMP_T_UINT] = "uint",
+	[SMP_T_SINT] = "sint",
+	[SMP_T_ADDR] = "addr",
+	[SMP_T_IPV4] = "ipv4",
+	[SMP_T_IPV6] = "ipv6",
+	[SMP_T_STR]  = "str",
+	[SMP_T_BIN]  = "bin",
+	[SMP_T_CSTR] = "cstr",
+	[SMP_T_CBIN] = "cbin",
+};
+
+static int stats_map_lookup(struct stream_interface *si)
+{
+	struct appctx *appctx = __objt_appctx(si->end);
+	struct sample_storage *smp;
+	struct sample sample;
+	struct pattern *pat;
+	struct pat_idx_elt *elt;
+	enum pat_match_res res;
+	struct sockaddr_in addr;
+	char s_addr[INET_ADDRSTRLEN];
+
+	switch (appctx->st2) {
+	case STAT_ST_INIT:
+		appctx->ctx.map.desc = NULL;
+		stats_map_lookup_next(si);
+		appctx->st2 = STAT_ST_LIST;
+		/* fall through */
+
+	case STAT_ST_LIST:
+		/* for each lookup type */
+		while (appctx->ctx.map.desc) {
+			/* initialise chunk to build new message */
+			chunk_reset(&trash);
+
+			/* execute pattern matching */
+			sample.type = SMP_T_CSTR;
+			sample.data.str.len = appctx->ctx.map.chunk.len;
+			sample.data.str.str = appctx->ctx.map.chunk.str;
+			pat = NULL;
+			elt = NULL;
+			res = pattern_exec_match(appctx->ctx.map.desc->pat, &sample, &smp, &pat, &elt);
+
+			/* build return message: set type of match */
+			/**/ if (appctx->ctx.map.desc->pat->match == NULL)
+				chunk_appendf(&trash, "found, ");
+			else if (appctx->ctx.map.desc->pat->match == pat_match_nothing)
+				chunk_appendf(&trash, "bool, ");
+			else if (appctx->ctx.map.desc->pat->match == pat_match_int)
+				chunk_appendf(&trash, "int, ");
+			else if (appctx->ctx.map.desc->pat->match == pat_match_ip)
+				chunk_appendf(&trash, "ip, ");
+			else if (appctx->ctx.map.desc->pat->match == pat_match_bin)
+				chunk_appendf(&trash, "bin, ");
+			else if (appctx->ctx.map.desc->pat->match == pat_match_len)
+				chunk_appendf(&trash, "len, ");
+			else if (appctx->ctx.map.desc->pat->match == pat_match_str)
+				chunk_appendf(&trash, "str, ");
+			else if (appctx->ctx.map.desc->pat->match == pat_match_beg)
+				chunk_appendf(&trash, "beg, ");
+			else if (appctx->ctx.map.desc->pat->match == pat_match_sub)
+				chunk_appendf(&trash, "sub, ");
+			else if (appctx->ctx.map.desc->pat->match == pat_match_dir)
+				chunk_appendf(&trash, "dir, ");
+			else if (appctx->ctx.map.desc->pat->match == pat_match_dom)
+				chunk_appendf(&trash, "dom, ");
+			else if (appctx->ctx.map.desc->pat->match == pat_match_end)
+				chunk_appendf(&trash, "end, ");
+			else if (appctx->ctx.map.desc->pat->match == pat_match_reg)
+				chunk_appendf(&trash, "reg, ");
+			else /* The never appens case */
+				chunk_appendf(&trash, "unknown(%p), ", appctx->ctx.map.desc->pat->match);
+
+			/* Display no match, and set default value */
+			if (res == PAT_NOMATCH) {
+				chunk_appendf(&trash, "no-match, ");
+				smp = appctx->ctx.map.desc->def;
+			}
+
+			/* Display match and match info */
+			else {
+				/* display match */
+				chunk_appendf(&trash, "match, ");
+
+				/* display search mode */
+				if (elt)
+					chunk_appendf(&trash, "tree, ");
+				else
+					chunk_appendf(&trash, "list, ");
+
+				/* display search options */
+				if (pat) {
+					/* case sensitive */
+					if (pat->flags & PAT_F_IGNORE_CASE)
+						chunk_appendf(&trash, "case-insensitive, ");
+					else
+						chunk_appendf(&trash, "case-sensitive, ");
+
+					/* display source */
+					if (pat->flags & PAT_F_FROM_FILE)
+						chunk_appendf(&trash, "from-file, ");
+				}
+
+				/* display match expresion */
+				if (elt) {
+					if (appctx->ctx.map.desc->pat->match == pat_match_str) {
+						chunk_appendf(&trash, "match=\"%s\", ", elt->node.key);
+					}
+					/* only IPv4 */
+					else if (appctx->ctx.map.desc->pat->match == pat_match_ip) {
+						/* convert ip */
+						memcpy(&addr.sin_addr, elt->node.key, 4);
+						addr.sin_family = AF_INET;
+						if (addr_to_str((struct sockaddr_storage *)&addr, s_addr, INET_ADDRSTRLEN))
+							chunk_appendf(&trash, "match=\"%s/%d\", ", s_addr, elt->node.node.pfx);
+					}
+				}
+			}
+
+			/* display return value */
+			if (!smp) {
+				chunk_appendf(&trash, "return=nothing\n");
+			}
+			else {
+				memcpy(&sample.data, &smp->data, sizeof(sample.data));
+				sample.type = smp->type;
+				if (sample_casts[sample.type][SMP_T_CSTR] &&
+				    sample_casts[sample.type][SMP_T_CSTR](&sample))
+					chunk_appendf(&trash, "return=\"%s\", type=\"%s\"\n",
+					              sample.data.str.str, smp_to_type[smp->type]);
+				else
+					chunk_appendf(&trash, "return=cannot-display, type=\"%s\"\n",
+					              smp_to_type[smp->type]);
+			}
+
+			/* display response */
+			if (bi_putchk(si->ib, &trash) == -1) {
+				/* let's try again later from this session. We add ourselves into
+				 * this session's users so that it can remove us upon termination.
+				 */
+				return 0;
+			}
+
+			/* get next entry */
+			stats_map_lookup_next(si);
+		}
+
+		appctx->st2 = STAT_ST_FIN;
+		/* fall through */
+
+	default:
+		appctx->st2 = STAT_ST_FIN;
+		free(appctx->ctx.map.chunk.str);
+		return 1;
+	}
+}
+
+static int stats_map_list(struct stream_interface *si)
+{
+	struct appctx *appctx = __objt_appctx(si->end);
+
+	switch (appctx->st2) {
+
+	case STAT_ST_INIT:
+		/* Init to the first entry. The list cannot be change */
+		appctx->ctx.map.ent = LIST_NEXT(&appctx->ctx.map.ref->entries,
+		                                struct map_entry *, list);
+		if (&appctx->ctx.map.ent->list == &appctx->ctx.map.ref->entries)
+			appctx->ctx.map.ent = NULL;
+		appctx->st2 = STAT_ST_LIST;
+		/* fall through */
+
+	case STAT_ST_LIST:
+		while (appctx->ctx.map.ent) {
+			chunk_reset(&trash);
+
+			/* build messages */
+			chunk_appendf(&trash, "%s %s\n", appctx->ctx.map.ent->key, appctx->ctx.map.ent->value);
+
+			if (bi_putchk(si->ib, &trash) == -1) {
+				/* let's try again later from this session. We add ourselves into
+				 * this session's users so that it can remove us upon termination.
+				 */
+				return 0;
+			}
+
+			/* get next list entry and check the end of the list */
+			appctx->ctx.map.ent = LIST_NEXT(&appctx->ctx.map.ent->list,
+			                                struct map_entry *, list);
+			if (&appctx->ctx.map.ent->list == &appctx->ctx.map.ref->entries)
+				break;
+		}
+
+		appctx->st2 = STAT_ST_FIN;
+		/* fall through */
+
+	default:
+		appctx->st2 = STAT_ST_FIN;
+		return 1;
+	}
 }
 
 /* This function dumps all sessions' states onto the stream interface's

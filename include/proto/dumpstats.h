@@ -39,20 +39,24 @@
 #define STATS_TYPE_SO  3
 
 /* unix stats socket states */
-#define STAT_CLI_INIT   0   /* initial state, must leave to zero ! */
-#define STAT_CLI_END    1   /* final state, let's close */
-#define STAT_CLI_GETREQ 2   /* wait for a request */
-#define STAT_CLI_OUTPUT 3   /* all states after this one are responses */
-#define STAT_CLI_PROMPT 3   /* display the prompt (first output, same code) */
-#define STAT_CLI_PRINT  4   /* display message in cli->msg */
+#define STAT_CLI_INIT    0   /* initial state, must leave to zero ! */
+#define STAT_CLI_END     1   /* final state, let's close */
+#define STAT_CLI_GETREQ  2   /* wait for a request */
+#define STAT_CLI_OUTPUT  3   /* all states after this one are responses */
+#define STAT_CLI_PROMPT  3   /* display the prompt (first output, same code) */
+#define STAT_CLI_PRINT   4   /* display message in cli->msg */
 
-#define STAT_CLI_O_INFO 5   /* dump info */
-#define STAT_CLI_O_SESS 6   /* dump sessions */
-#define STAT_CLI_O_ERR  7   /* dump errors */
-#define STAT_CLI_O_TAB  8   /* dump tables */
-#define STAT_CLI_O_CLR  9   /* clear tables */
-#define STAT_CLI_O_SET  10  /* set entries in tables */
-#define STAT_CLI_O_STAT 11  /* dump stats */
+#define STAT_CLI_O_INFO  5   /* dump info */
+#define STAT_CLI_O_SESS  6   /* dump sessions */
+#define STAT_CLI_O_ERR   7   /* dump errors */
+#define STAT_CLI_O_TAB   8   /* dump tables */
+#define STAT_CLI_O_CLR   9   /* clear tables */
+#define STAT_CLI_O_SET   10  /* set entries in tables */
+#define STAT_CLI_O_STAT  11  /* dump stats */
+
+#define STAT_CLI_O_MAPS  12  /* list all maps */
+#define STAT_CLI_O_MAP   13  /* list all map entries of a map */
+#define STAT_CLI_O_MLOOK 14  /* lookup a map entry */
 
 /* HTTP stats : applet.st0 */
 enum {

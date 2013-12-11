@@ -141,6 +141,12 @@ struct appctx {
 		struct {
 			void *ptr;              /* multi-purpose pointer for peers */
 		} peers;
+		struct {
+			struct map_reference *ref;
+			struct map_entry *ent;
+			struct map_descriptor *desc;
+			struct chunk chunk;
+		} map;
 	} ctx;					/* used by stats I/O handlers to dump the stats */
 };
 
