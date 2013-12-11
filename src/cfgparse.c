@@ -2932,12 +2932,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			}
 			else if (strcmp(args[myidx], "peers") == 0) {
 				myidx++;
-                                if (!*(args[myidx])) {
-                                        Alert("parsing [%s:%d] : stick-table: missing argument after '%s'.\n",
-                                              file, linenum, args[myidx-1]);
-                                        err_code |= ERR_ALERT | ERR_FATAL;
-                                        goto out;
-                                }
+				if (!*(args[myidx])) {
+				        Alert("parsing [%s:%d] : stick-table: missing argument after '%s'.\n",
+				              file, linenum, args[myidx-1]);
+				        err_code |= ERR_ALERT | ERR_FATAL;
+				        goto out;
+				}
 				curproxy->table.peers.name = strdup(args[myidx++]);
 			}
 			else if (strcmp(args[myidx], "expire") == 0) {
