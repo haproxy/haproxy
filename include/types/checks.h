@@ -24,12 +24,15 @@
 #include <types/task.h>
 #include <types/server.h>
 
-
-/* bits for s->result used for health-checks */
-#define SRV_CHK_UNKNOWN 0x0000
-#define SRV_CHK_FAILED  0x0001
-#define SRV_CHK_PASSED  0x0002
-#define SRV_CHK_DISABLE 0x0004
+/* enum used by check->result. Must remain in this order, as some code uses
+ * result >= CHK_RES_PASSED to declare success.
+ */
+enum chk_result {
+	CHK_RES_UNKNOWN = 0,            /* initialized to this by default */
+	CHK_RES_FAILED,                 /* check failed */
+	CHK_RES_PASSED,                 /* check succeeded and server is fully up again */
+	CHK_RES_CONDPASS,               /* check reports the server doesn't want new sessions */
+};
 
 /* check flags */
 #define CHK_STATE_RUNNING	0x0001  /* this check is currently running */
@@ -130,7 +133,7 @@ struct check {
 	int send_proxy;				/* send a PROXY protocol header with checks */
 	struct tcpcheck_rule *current_step;     /* current step when using tcpcheck */
 	int inter, fastinter, downinter;        /* checks: time in milliseconds */
-	int result;				/* health-check result : SRV_CHK_* */
+	enum chk_result result;                 /* health-check result : CHK_RES_* */
 	int state;				/* health-check result : CHK_* */
 	int health;				/* 0 to rise-1 = bad;
 						 * rise to rise+fall-1 = good */
