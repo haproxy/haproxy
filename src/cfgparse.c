@@ -7535,8 +7535,12 @@ out_uri_auth_compat:
 	 * be done earlier because the data size may be discovered while parsing
 	 * other proxies.
 	 */
-	for (curproxy = proxy; curproxy; curproxy = curproxy->next)
-		stktable_init(&curproxy->table);
+	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
+		if (!stktable_init(&curproxy->table)) {
+			Alert("Proxy '%s': failed to initialize stick-table.\n", curproxy->id);
+			cfgerr++;
+		}
+	}
 
 	/*
 	 * Recount currently required checks.
