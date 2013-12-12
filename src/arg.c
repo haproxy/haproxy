@@ -263,7 +263,7 @@ int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
 	if (pos < min_arg) {
 		/* not enough arguments */
 		memprintf(err_msg,
-		          "Missing arguments (got %d/%d), type '%s' expected",
+		          "missing arguments (got %d/%d), type '%s' expected",
 		          pos, min_arg, arg_type_names[(mask >> (pos * 4)) & 15]);
 		goto err;
 	}
@@ -272,8 +272,11 @@ int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
 		/* too many arguments, starting at <in> */
 		/* the caller is responsible for freeing this message */
 		word = my_strndup(in, len);
-		memprintf(err_msg, "end of arguments expected at position %d, but got '%s'",
-		          pos + 1, word);
+		if (nbarg)
+			memprintf(err_msg, "end of arguments expected at position %d, but got '%s'",
+			          pos + 1, word);
+		else
+			memprintf(err_msg, "no argument supported, but got '%s'", word);
 		free(word); word = NULL;
 		goto err;
 	}
