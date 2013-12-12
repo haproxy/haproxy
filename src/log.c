@@ -344,16 +344,17 @@ void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct pro
 	struct sample_expr *expr;
 	struct logformat_node *node;
 	int cmd_arg;
+	char *errmsg = NULL;
 
 	cmd[0] = text;
 	cmd[1] = "";
 	cmd_arg = 0;
 
-	expr = sample_parse_expr(cmd, &cmd_arg, trash.str, trash.size, &curpx->conf.args);
+	expr = sample_parse_expr(cmd, &cmd_arg, &errmsg, &curpx->conf.args);
 	if (!expr) {
 		Warning("parsing [%s:%d] : '%s' : sample fetch <%s> failed with : %s\n",
 		        curpx->conf.args.file, curpx->conf.args.line, fmt_directive(curpx),
-		        text, trash.str);
+		        text, errmsg);
 		return;
 	}
 

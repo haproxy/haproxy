@@ -26,7 +26,7 @@
 #include <types/sample.h>
 #include <types/stick_table.h>
 
-struct sample_expr *sample_parse_expr(char **str, int *idx, char *err, int err_size, struct arg_list *al);
+struct sample_expr *sample_parse_expr(char **str, int *idx, char **err, struct arg_list *al);
 struct sample_conv *find_sample_conv(const char *kw, int len);
 struct sample *sample_process(struct proxy *px, struct session *l4,
                                void *l7, unsigned int dir, struct sample_expr *expr,

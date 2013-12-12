@@ -149,11 +149,9 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	 */
 	aclkw = find_acl_kw(args[0]);
 	if (!aclkw || !aclkw->parse) {
-
-		smp = sample_parse_expr((char **)args, &idx, trash.str, trash.size, al);
-
+		smp = sample_parse_expr((char **)args, &idx, err, al);
 		if (!smp) {
-			memprintf(err, "%s in sample expression '%s'", trash.str, *args);
+			memprintf(err, "%s in sample expression '%s'", *err, *args);
 			goto out_return;
 		}
 	}
