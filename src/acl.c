@@ -507,7 +507,6 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		}
 		pattern->flags = patflags;
 
-		pattern->type = SMP_TYPES; /* unspecified type */
 		ret = expr->pat.parse(args, pattern, NULL, &opaque, err);
 		if (!ret)
 			goto out_free_pattern;

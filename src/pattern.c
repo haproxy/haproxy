@@ -860,7 +860,6 @@ int pattern_register(struct pattern_expr *expr, char *text,
 		(*pattern)->val.tree = &expr->pattern_tree;
 	}
 
-	(*pattern)->type = SMP_TYPES; /* unspecified type by default */
 	if (!expr->parse(args, *pattern, smp, &opaque, err))
 		return -1;
 
