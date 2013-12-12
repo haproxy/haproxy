@@ -600,6 +600,7 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, char **err_msg, stru
 	unsigned long prev_type;
 	char *fkw = NULL;
 	char *ckw = NULL;
+	int err_arg;
 
 	begw = str[*idx];
 	for (endw = begw; *endw && *endw != '(' && *endw != ','; endw++);
@@ -620,7 +621,8 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, char **err_msg, stru
 
 	endt = endw;
 	if (*endt == '(') {
-		/* look for the end of this term */
+		/* look for the end of this term and skip the opening parenthesis */
+		endt = ++endw;
 		while (*endt && *endt != ')')
 			endt++;
 		if (*endt != ')') {
@@ -631,7 +633,9 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, char **err_msg, stru
 
 	/* At this point, we have :
 	 *   - begw : beginning of the keyword
-	 *   - endw : end of the keyword (points to next delimiter or '(')
+	 *   - endw : end of the keyword, first character not part of keyword
+	 *            nor the opening parenthesis (so first character of args
+	 *            if present).
 	 *   - endt : end of the term (=endw or last parenthesis if args are present)
 	 */
 
@@ -649,31 +653,22 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, char **err_msg, stru
 	expr->fetch = fetch;
 	expr->arg_p = empty_arg_list;
 
-	if (endt != endw) {
-		int err_arg;
-
-		if (!fetch->arg_mask) {
-			memprintf(err_msg, "fetch method '%s' does not support any args", fkw);
-			goto out_error;
-		}
-
-		al->kw = expr->fetch->kw;
-		al->conv = NULL;
-		if (make_arg_list(endw + 1, endt - endw - 1, fetch->arg_mask, &expr->arg_p, err_msg, NULL, &err_arg, al) < 0) {
-			memprintf(err_msg, "invalid arg %d in fetch method '%s' : %s", err_arg+1, fkw, *err_msg);
-			goto out_error;
-		}
-
-		if (!expr->arg_p)
-			expr->arg_p = empty_arg_list;
-
-		if (fetch->val_args && !fetch->val_args(expr->arg_p, err_msg)) {
-			memprintf(err_msg, "invalid args in fetch method '%s' : %s", fkw, *err_msg);
-			goto out_error;
-		}
+	/* Note that we call the argument parser even with an empty string,
+	 * this allows it to automatically create entries for mandatory
+	 * implicit arguments (eg: local proxy name).
+	 */
+	al->kw = expr->fetch->kw;
+	al->conv = NULL;
+	if (make_arg_list(endw, endt - endw, fetch->arg_mask, &expr->arg_p, err_msg, NULL, &err_arg, al) < 0) {
+		memprintf(err_msg, "fetch method '%s' : %s", fkw, *err_msg);
+		goto out_error;
 	}
-	else if (ARGM(fetch->arg_mask)) {
-		memprintf(err_msg, "missing args for fetch method '%s'", fkw);
+
+	if (!expr->arg_p) {
+		expr->arg_p = empty_arg_list;
+	}
+	else if (fetch->val_args && !fetch->val_args(expr->arg_p, err_msg)) {
+		memprintf(err_msg, "invalid args in fetch method '%s' : %s", fkw, *err_msg);
 		goto out_error;
 	}
 
