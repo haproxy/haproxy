@@ -1644,6 +1644,7 @@ unsigned int inetaddr_host_lim_ret(char *text, char *stop, char **ret)
  * or the number of chars read in case of success. Maybe this could be replaced
  * by one of the functions above. Also, apparently this function does not support
  * hosts above 255 and requires exactly 4 octets.
+ * The destination is only modified on success.
  */
 int buf2ip(const char *buf, size_t len, struct in_addr *dst)
 {
@@ -1695,10 +1696,12 @@ int buf2ip(const char *buf, size_t len, struct in_addr *dst)
 /* This function converts the string in <buf> of the len <len> to
  * struct in6_addr <dst> which must be allocated by the caller.
  * This function returns 1 in success case, otherwise zero.
+ * The destination is only modified on success.
  */
 int buf2ip6(const char *buf, size_t len, struct in6_addr *dst)
 {
 	char null_term_ip6[INET6_ADDRSTRLEN + 1];
+	struct in6_addr out;
 
 	if (len > INET6_ADDRSTRLEN)
 		return 0;
@@ -1706,9 +1709,10 @@ int buf2ip6(const char *buf, size_t len, struct in6_addr *dst)
 	memcpy(null_term_ip6, buf, len);
 	null_term_ip6[len] = '\0';
 
-	if (!inet_pton(AF_INET6, null_term_ip6, dst))
+	if (!inet_pton(AF_INET6, null_term_ip6, &out))
 		return 0;
 
+	*dst = out;
 	return 1;
 }
 
