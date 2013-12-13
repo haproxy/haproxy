@@ -734,25 +734,25 @@ enum pat_match_res pat_match_ip(struct sample *smp, struct pattern *pattern)
 }
 
 /* NB: does nothing if <pat> is NULL */
-void pattern_free(struct pattern *pat)
+void pattern_free(struct pattern_list *pat)
 {
 	if (!pat)
 		return;
 
-	if (pat->ptr.ptr) {
-		if (pat->freeptrbuf)
-			pat->freeptrbuf(pat->ptr.ptr);
+	if (pat->pat.ptr.ptr) {
+		if (pat->pat.freeptrbuf)
+			pat->pat.freeptrbuf(pat->pat.ptr.ptr);
 
-		free(pat->ptr.ptr);
+		free(pat->pat.ptr.ptr);
 	}
 
-	free(pat->smp);
+	free(pat->pat.smp);
 	free(pat);
 }
 
 void free_pattern_list(struct list *head)
 {
-	struct pattern *pat, *tmp;
+	struct pattern_list *pat, *tmp;
 	list_for_each_entry_safe(pat, tmp, head, list)
 		pattern_free(pat);
 }
@@ -792,7 +792,7 @@ void pattern_init_expr(struct pattern_expr *expr)
  */
 int pattern_register(struct pattern_expr *expr, const char *arg,
                      struct sample_storage *smp,
-                     struct pattern **pattern,
+                     struct pattern_list **pattern,
                      int patflags, char **err)
 {
 	unsigned int mask = 0;
@@ -802,16 +802,16 @@ int pattern_register(struct pattern_expr *expr, const char *arg,
 
 	/* we keep the previous pattern along iterations as long as it's not used */
 	if (!*pattern)
-		*pattern = (struct pattern *)malloc(sizeof(**pattern));
+		*pattern = (struct pattern_list *)malloc(sizeof(**pattern));
 	if (!*pattern) {
 		memprintf(err, "out of memory while loading pattern");
 		return 0;
 	}
 
 	memset(*pattern, 0, sizeof(**pattern));
-	(*pattern)->flags = patflags;
+	(*pattern)->pat.flags = patflags;
 
-	ret = expr->parse(arg, *pattern, PAT_U_COMPILE, err);
+	ret = expr->parse(arg, &(*pattern)->pat, PAT_U_COMPILE, err);
 	if (!ret)
 		return 0;
 
@@ -819,13 +819,13 @@ int pattern_register(struct pattern_expr *expr, const char *arg,
 		/* SMP_T_CSTR tree indexation.
 		 * The match "pat_match_str()" can use trees.
 		 */
-		if ((*pattern)->flags & PAT_F_IGNORE_CASE) {
+		if ((*pattern)->pat.flags & PAT_F_IGNORE_CASE) {
 			/* If the flag PAT_F_IGNORE_CASE is set, we cannot use trees */
 			goto just_chain_the_pattern;
 		}
 
 		/* Process the key len */
-		len = strlen((*pattern)->ptr.str) + 1;
+		len = strlen((*pattern)->pat.ptr.str) + 1;
 
 		/* node memory allocation */
 		node = calloc(1, sizeof(*node) + len);
@@ -838,29 +838,29 @@ int pattern_register(struct pattern_expr *expr, const char *arg,
 		node->smp = smp;
 
 		/* copy the string */
-		memcpy(node->node.key, (*pattern)->ptr.str, len);
+		memcpy(node->node.key, (*pattern)->pat.ptr.str, len);
 
 		/* the "map_parser_str()" function always duplicate string information */
-		free((*pattern)->ptr.str);
-		(*pattern)->ptr.str = NULL;
+		free((*pattern)->pat.ptr.str);
+		(*pattern)->pat.ptr.str = NULL;
 
 		/* we pre-set the data pointer to the tree's head so that functions
 		 * which are able to insert in a tree know where to do that.
 		 *
 		 * because "val" is an "union", the previous data are crushed.
 		 */
-		(*pattern)->flags |= PAT_F_TREE;
-		(*pattern)->val.tree = &expr->pattern_tree;
+		(*pattern)->pat.flags |= PAT_F_TREE;
+		(*pattern)->pat.val.tree = &expr->pattern_tree;
 
 		/* index the new node */
-		if (ebst_insert((*pattern)->val.tree, &node->node) != &node->node)
+		if (ebst_insert((*pattern)->pat.val.tree, &node->node) != &node->node)
 			free(node); /* was a duplicate */
 	}
 	else if (expr->match == pat_match_ip) {
 		/* SMP_T_IPV4 tree indexation
 		 * The match "pat_match_ip()" can use tree.
 		 */
-		if ((*pattern)->type != SMP_T_IPV4) {
+		if ((*pattern)->pat.type != SMP_T_IPV4) {
 			/* Only IPv4 can be indexed */
 			goto just_chain_the_pattern;
 		}
@@ -870,7 +870,7 @@ int pattern_register(struct pattern_expr *expr, const char *arg,
 		 * ones on the left. This means that this mask + its lower bit
 		 * added once again is null.
 		 */
-		mask = ntohl((*pattern)->val.ipv4.mask.s_addr);
+		mask = ntohl((*pattern)->pat.val.ipv4.mask.s_addr);
 		if (mask + (mask & -mask) != 0)
 			goto just_chain_the_pattern;
 		mask = mask ? 33 - flsnz(mask & -mask) : 0; /* equals cidr value */
@@ -886,21 +886,21 @@ int pattern_register(struct pattern_expr *expr, const char *arg,
 		node->smp = smp;
 
 		/* FIXME: insert <addr>/<mask> into the tree here */
-		memcpy(node->node.key, &(*pattern)->val.ipv4.addr, 4); /* network byte order */
+		memcpy(node->node.key, &(*pattern)->pat.val.ipv4.addr, 4); /* network byte order */
 
 		/* we pre-set the data pointer to the tree's head so that functions
 		 * which are able to insert in a tree know where to do that.
 		 *
 		 * because "val" is an "union", the previous data are crushed.
 		 */
-		(*pattern)->flags |= PAT_F_TREE;
-		(*pattern)->val.tree = &expr->pattern_tree;
+		(*pattern)->pat.flags |= PAT_F_TREE;
+		(*pattern)->pat.val.tree = &expr->pattern_tree;
 
 		/* Index the new node
 		 * FIXME: insert <addr>/<mask> into the tree here
 		 */
 		node->node.node.pfx = mask;
-		if (ebmb_insert_prefix((*pattern)->val.tree, &node->node, 4) != &node->node)
+		if (ebmb_insert_prefix((*pattern)->pat.val.tree, &node->node, 4) != &node->node)
 			free(node); /* was a duplicate */
 	}
 	else {
@@ -909,7 +909,7 @@ just_chain_the_pattern:
 		LIST_ADDQ(&expr->patterns, &(*pattern)->list);
 
 		/* copy the pointer to sample associated to this node */
-		(*pattern)->smp = smp;
+		(*pattern)->pat.smp = smp;
 
 		/* get a new one */
 		*pattern = NULL;
@@ -928,7 +928,7 @@ int pattern_read_from_file(struct pattern_expr *expr,
 	FILE *file;
 	char *c;
 	char *arg;
-	struct pattern *pattern;
+	struct pattern_list *pattern;
 	int ret = 0;
 	int line = 0;
 	int code;
@@ -996,7 +996,7 @@ enum pat_match_res pattern_exec_match(struct pattern_expr *expr, struct sample *
                                       struct pattern **pat, struct pat_idx_elt **idx_elt)
 {
 	enum pat_match_res pat_res = PAT_NOMATCH;
-	struct pattern *pattern;
+	struct pattern_list *pattern;
 	struct ebmb_node *node = NULL;
 	struct pat_idx_elt *elt;
 
@@ -1035,12 +1035,12 @@ enum pat_match_res pattern_exec_match(struct pattern_expr *expr, struct sample *
 		list_for_each_entry(pattern, &expr->patterns, list) {
 			if (pat_res == PAT_MATCH)
 				break;
-			if (sample_convert(smp, pattern->expect_type))
-				pat_res |= expr->match(smp, pattern);
+			if (sample_convert(smp, pattern->pat.expect_type))
+				pat_res |= expr->match(smp, &pattern->pat);
 			if (sample)
-				*sample = pattern->smp;
+				*sample = pattern->pat.smp;
 			if (pat)
-				*pat = pattern;
+				*pat = &pattern->pat;
 		}
 	}
 
@@ -1053,10 +1053,10 @@ enum pat_match_res pattern_exec_match(struct pattern_expr *expr, struct sample *
  * NULL. Pointers are not set if they're passed as NULL.
  */
 int pattern_lookup(const char *key, struct pattern_expr *expr,
-                   struct pattern **pat_elt, struct pat_idx_elt **idx_elt, char **err)
+                   struct pattern_list **pat_elt, struct pat_idx_elt **idx_elt, char **err)
 {
 	struct pattern pattern;
-	struct pattern *pat;
+	struct pattern_list *pat;
 	struct ebmb_node *node;
 	struct pat_idx_elt *elt;
 	unsigned int mask = 0;
@@ -1119,54 +1119,54 @@ browse_list:
 	if (expr->parse == pat_parse_int ||
 	         expr->parse == pat_parse_len) {
 		list_for_each_entry(pat, &expr->patterns, list) {
-			if (pat->flags & PAT_F_TREE)
+			if (pat->pat.flags & PAT_F_TREE)
 				continue;
-			if (pattern.val.range.min_set != pat->val.range.min_set)
+			if (pattern.val.range.min_set != pat->pat.val.range.min_set)
 				continue;
-			if (pattern.val.range.max_set != pat->val.range.max_set)
+			if (pattern.val.range.max_set != pat->pat.val.range.max_set)
 				continue;
 			if (pattern.val.range.min_set &&
-			    pattern.val.range.min != pat->val.range.min)
+			    pattern.val.range.min != pat->pat.val.range.min)
 				continue;
 			if (pattern.val.range.max_set &&
-			    pattern.val.range.max != pat->val.range.max)
+			    pattern.val.range.max != pat->pat.val.range.max)
 				continue;
 			goto found;
 		}
 	}
 	else if (expr->parse == pat_parse_ip) {
 		list_for_each_entry(pat, &expr->patterns, list) {
-			if (pat->flags & PAT_F_TREE)
+			if (pat->pat.flags & PAT_F_TREE)
 				continue;
-			if (pattern.type != pat->type)
-				continue;
-			if (pattern.type == SMP_T_IPV4 &&
-			    memcmp(&pattern.val.ipv4.addr, &pat->val.ipv4.addr, sizeof(pat->val.ipv4.addr)) != 0)
+			if (pattern.type != pat->pat.type)
 				continue;
 			if (pattern.type == SMP_T_IPV4 &&
-			    memcmp(&pattern.val.ipv4.mask, &pat->val.ipv4.mask, sizeof(pat->val.ipv4.addr)) != 0)
+			    memcmp(&pattern.val.ipv4.addr, &pat->pat.val.ipv4.addr, sizeof(pat->pat.val.ipv4.addr)) != 0)
+				continue;
+			if (pattern.type == SMP_T_IPV4 &&
+			    memcmp(&pattern.val.ipv4.mask, &pat->pat.val.ipv4.mask, sizeof(pat->pat.val.ipv4.addr)) != 0)
 				continue;
 			if (pattern.type == SMP_T_IPV6 &&
-			    memcmp(&pattern.val.ipv6.addr, &pat->val.ipv6.addr, sizeof(pat->val.ipv6.addr)) != 0)
+			    memcmp(&pattern.val.ipv6.addr, &pat->pat.val.ipv6.addr, sizeof(pat->pat.val.ipv6.addr)) != 0)
 				continue;
 			if (pattern.type == SMP_T_IPV6 &&
-			    pattern.val.ipv6.mask != pat->val.ipv6.mask)
+			    pattern.val.ipv6.mask != pat->pat.val.ipv6.mask)
 				continue;
 			goto found;
 		}
 	}
 	else if (expr->parse == pat_parse_str) {
 		list_for_each_entry(pat, &expr->patterns, list) {
-			if (pat->flags & PAT_F_TREE)
+			if (pat->pat.flags & PAT_F_TREE)
 				continue;
-			if (pattern.len != pat->len)
+			if (pattern.len != pat->pat.len)
 				continue;
-			if (pat->flags & PAT_F_IGNORE_CASE) {
-				if (strncasecmp(pattern.ptr.str, pat->ptr.str, pat->len) != 0)
+			if (pat->pat.flags & PAT_F_IGNORE_CASE) {
+				if (strncasecmp(pattern.ptr.str, pat->pat.ptr.str, pat->pat.len) != 0)
 					continue;
 			}
 			else {
-				if (strncmp(pattern.ptr.str, pat->ptr.str, pat->len) != 0)
+				if (strncmp(pattern.ptr.str, pat->pat.ptr.str, pat->pat.len) != 0)
 					continue;
 			}
 			goto found;
@@ -1174,25 +1174,25 @@ browse_list:
 	}
 	else if (expr->parse == pat_parse_bin) {
 		list_for_each_entry(pat, &expr->patterns, list) {
-			if (pat->flags & PAT_F_TREE)
+			if (pat->pat.flags & PAT_F_TREE)
 				continue;
-			if (pattern.len != pat->len)
+			if (pattern.len != pat->pat.len)
 				continue;
-			if (memcmp(pattern.ptr.ptr, pat->ptr.ptr, pat->len) != 0)
+			if (memcmp(pattern.ptr.ptr, pat->pat.ptr.ptr, pat->pat.len) != 0)
 				continue;
 			goto found;
 		}
 	}
 	else if (expr->parse == pat_parse_reg) {
 		list_for_each_entry(pat, &expr->patterns, list) {
-			if (pat->flags & PAT_F_TREE)
+			if (pat->pat.flags & PAT_F_TREE)
 				continue;
-			if (pat->flags & PAT_F_IGNORE_CASE) {
-				if (strcasecmp(pattern.ptr.reg->regstr, pat->ptr.reg->regstr) != 0)
+			if (pat->pat.flags & PAT_F_IGNORE_CASE) {
+				if (strcasecmp(pattern.ptr.reg->regstr, pat->pat.ptr.reg->regstr) != 0)
 					continue;
 			}
 			else {
-				if (strcmp(pattern.ptr.reg->regstr, pat->ptr.reg->regstr) != 0)
+				if (strcmp(pattern.ptr.reg->regstr, pat->pat.ptr.reg->regstr) != 0)
 					continue;
 			}
 			goto found;

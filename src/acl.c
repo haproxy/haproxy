@@ -133,7 +133,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	__label__ out_return, out_free_expr, out_free_pattern;
 	struct acl_expr *expr;
 	struct acl_keyword *aclkw;
-	struct pattern *pattern;
+	struct pattern_list *pattern;
 	int patflags;
 	const char *arg;
 	struct sample_expr *smp = NULL;
@@ -1160,7 +1160,7 @@ int acl_find_targets(struct proxy *p)
 
 	struct acl *acl;
 	struct acl_expr *expr;
-	struct pattern *pattern;
+	struct pattern_list *pattern;
 	int cfgerr = 0;
 
 	list_for_each_entry(acl, &p->acl, list) {
@@ -1185,9 +1185,9 @@ int acl_find_targets(struct proxy *p)
 
 				/* For each pattern, check if the group exists. */
 				list_for_each_entry(pattern, &expr->pat.patterns, list) {
-					if (!check_group(expr->smp->arg_p->data.usr, pattern->ptr.str)) {
+					if (!check_group(expr->smp->arg_p->data.usr, pattern->pat.ptr.str)) {
 						Alert("proxy %s: acl %s %s(): invalid group '%s'.\n",
-						      p->id, acl->name, expr->kw, pattern->ptr.str);
+						      p->id, acl->name, expr->kw, pattern->pat.ptr.str);
 						cfgerr++;
 					}
 				}

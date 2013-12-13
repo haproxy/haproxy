@@ -1559,7 +1559,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			stats_sock_table_request(si, args, STAT_CLI_O_SET);
 		}
 		else if (strcmp(args[1], "map") == 0) {
-			struct pattern *pat_elt;
+			struct pattern_list *pat_elt;
 			struct pat_idx_elt *idx_elt;
 			char *value = NULL;
 
@@ -1612,7 +1612,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			     stats_map_lookup_next(si)) {
 				pattern_lookup(args[3], appctx->ctx.map.desc->pat, &pat_elt, &idx_elt, NULL);
 				if (pat_elt != NULL)
-					appctx->ctx.map.desc->parse(value, pat_elt->smp);
+					appctx->ctx.map.desc->parse(value, pat_elt->pat.smp);
 				if (idx_elt != NULL)
 					appctx->ctx.map.desc->parse(value, idx_elt->smp);
 			}
@@ -1847,7 +1847,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 	}
 	else if (strcmp(args[0], "del") == 0) {
 		if (strcmp(args[1], "map") == 0) {
-			struct pattern *pat_elt;
+			struct pattern_list *pat_elt;
 			struct pat_idx_elt *idx_elt;
 			struct map_entry *ent;
 
@@ -1919,7 +1919,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 	}
 	else if (strcmp(args[0], "add") == 0) {
 		if (strcmp(args[1], "map") == 0) {
-			struct pattern *pat;
+			struct pattern_list *pat;
 			struct map_entry *ent;
 			struct sample_storage *smp;
 
@@ -2001,7 +2001,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				 */
 				if (appctx->ctx.map.desc->pat->match == pat_match_str ||
 				    appctx->ctx.map.desc->pat->match == pat_match_ip) {
-					pat = LIST_NEXT(&appctx->ctx.map.desc->pat->patterns, struct pattern *, list);
+					pat = LIST_NEXT(&appctx->ctx.map.desc->pat->patterns, struct pattern_list *, list);
 					if (&pat->list == &appctx->ctx.map.desc->pat->patterns)
 						pat = NULL;
 				}

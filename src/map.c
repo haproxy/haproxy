@@ -301,7 +301,7 @@ static int map_read_entries_from_file(const char *filename,
  * <patflags> must be PAT_F_*.
  */
 static int map_parse_and_index(struct map_descriptor *desc,
-                               struct pattern **pattern,
+                               struct pattern_list **pattern,
                                struct map_entry *ent,
                                int patflags,
                                char **err)
@@ -337,7 +337,7 @@ static int sample_load_map(struct arg *arg, struct sample_conv *conv, char **err
 {
 	struct map_reference *ref;
 	struct map_descriptor *desc;
-	struct pattern *pattern;
+	struct pattern_list *pattern;
 	struct map_entry *ent;
 	struct pattern_expr *pat = NULL;
 

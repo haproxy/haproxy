@@ -119,7 +119,6 @@ struct pat_idx_elt {
  * are preferred when there is a doubt.
  */
 struct pattern {
-	struct list list;                       /* chaining */
 	int type;                               /* type of the ACL pattern (SMP_T_*) */
 	int expect_type;                        /* type of the expected sample (SMP_T_*) */
 	union {
@@ -151,6 +150,12 @@ struct pattern {
 	struct sample_storage *smp;     /* used to store a pointer to sample value associated
 	                                   with the match. It is used with maps */
 
+};
+
+/* This struct is just used for chaining patterns */
+struct pattern_list {
+	struct list list;
+	struct pattern pat;
 };
 
 /* Description of a pattern expression.
