@@ -193,6 +193,11 @@ const struct linger nolinger = { .l_onoff = 1, .l_linger = 0 };
 char hostname[MAX_HOSTNAME_LEN];
 char localpeer[MAX_HOSTNAME_LEN];
 
+/* used from everywhere just to drain results we don't want to read and which
+ * recent versions of gcc increasingly and annoyingly complain about.
+ */
+int shut_your_big_mouth_gcc_int = 0;
+
 /* list of the temporarily limited listeners because of lack of resource */
 struct list global_listener_queue = LIST_HEAD_INIT(global_listener_queue);
 struct task *global_listener_queue_task;
@@ -1541,7 +1546,7 @@ int main(int argc, char **argv)
 			if (pidfd >= 0) {
 				char pidstr[100];
 				snprintf(pidstr, sizeof(pidstr), "%d\n", ret);
-				if (write(pidfd, pidstr, strlen(pidstr)) < 0) /* shut gcc warning */;
+				shut_your_big_mouth_gcc(write(pidfd, pidstr, strlen(pidstr)));
 			}
 			relative_pid++; /* each child will get a different one */
 		}

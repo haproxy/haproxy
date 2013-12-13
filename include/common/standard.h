@@ -760,6 +760,19 @@ char *env_expand(char *in);
  */
 #define fddebug(msg...) do { char *_m = NULL; memprintf(&_m, ##msg); if (_m) write(-1, _m, strlen(_m)); free(_m); } while (0)
 
+/* used from everywhere just to drain results we don't want to read and which
+ * recent versions of gcc increasingly and annoyingly complain about.
+ */
+extern int shut_your_big_mouth_gcc_int;
+
+/* used from everywhere just to drain results we don't want to read and which
+ * recent versions of gcc increasingly and annoyingly complain about.
+ */
+static inline void shut_your_big_mouth_gcc(int r)
+{
+	shut_your_big_mouth_gcc_int = r;
+}
+
 /* same as strstr() but case-insensitive */
 const char *strnistr(const char *str1, int len_str1, const char *str2, int len_str2);
 

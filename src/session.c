@@ -2359,7 +2359,7 @@ struct task *process_session(struct task *t)
 				      s->uniq_id, s->be->id,
 			              objt_conn(s->si[0].end) ? (unsigned short)objt_conn(s->si[0].end)->t.sock.fd : -1,
 			              objt_conn(s->si[1].end) ? (unsigned short)objt_conn(s->si[1].end)->t.sock.fd : -1);
-			if (write(1, trash.str, trash.len) < 0) /* shut gcc warning */;
+			shut_your_big_mouth_gcc(write(1, trash.str, trash.len));
 		}
 
 		if (s->si[0].state == SI_ST_CLO &&
@@ -2368,7 +2368,7 @@ struct task *process_session(struct task *t)
 				      s->uniq_id, s->be->id,
 			              objt_conn(s->si[0].end) ? (unsigned short)objt_conn(s->si[0].end)->t.sock.fd : -1,
 			              objt_conn(s->si[1].end) ? (unsigned short)objt_conn(s->si[1].end)->t.sock.fd : -1);
-			if (write(1, trash.str, trash.len) < 0) /* shut gcc warning */;
+			shut_your_big_mouth_gcc(write(1, trash.str, trash.len));
 		}
 	}
 
@@ -2473,7 +2473,7 @@ struct task *process_session(struct task *t)
 			      s->uniq_id, s->be->id,
 		              objt_conn(s->si[0].end) ? (unsigned short)objt_conn(s->si[0].end)->t.sock.fd : -1,
 		              objt_conn(s->si[1].end) ? (unsigned short)objt_conn(s->si[1].end)->t.sock.fd : -1);
-		if (write(1, trash.str, trash.len) < 0) /* shut gcc warning */;
+		shut_your_big_mouth_gcc(write(1, trash.str, trash.len));
 	}
 
 	s->logs.t_close = tv_ms_elapsed(&s->logs.tv_accept, &now);

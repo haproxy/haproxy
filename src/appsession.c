@@ -99,7 +99,7 @@ static struct task *appsession_refresh(struct task *t)
 					    (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))) {
 						chunk_printf(&trash, "appsession_refresh: cleaning up expired Session '%s' on Server %s\n", 
 						             element->sessid, element->serverid?element->serverid:"(null)");
-						if (write(1, trash.str, trash.len) < 0) /* shut gcc warning */;
+						shut_your_big_mouth_gcc(write(1, trash.str, trash.len));
 					}
 					/* delete the expired element from within the hash table */
 					LIST_DEL(&element->hash_list);

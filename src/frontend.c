@@ -184,7 +184,7 @@ int frontend_accept(struct session *s)
 			break;
 		}
 
-		if (write(1, trash.str, trash.len) < 0) /* shut gcc warning */;
+		shut_your_big_mouth_gcc(write(1, trash.str, trash.len));
 	}
 
 	if (s->fe->mode == PR_MODE_HTTP)
