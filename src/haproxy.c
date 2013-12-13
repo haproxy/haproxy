@@ -491,6 +491,7 @@ void init(int argc, char **argv)
 	struct tm curtime;
 
 	chunk_init(&trash, malloc(global.tune.bufsize), global.tune.bufsize);
+	alloc_trash_buffers(global.tune.bufsize);
 
 	/* NB: POSIX does not make it mandatory for gethostname() to NULL-terminate
 	 * the string in case of truncation, and at least FreeBSD appears not to do
@@ -817,7 +818,6 @@ void init(int argc, char **argv)
 	swap_buffer = (char *)calloc(1, global.tune.bufsize);
 	get_http_auth_buff = (char *)calloc(1, global.tune.bufsize);
 	static_table_key = calloc(1, sizeof(*static_table_key) + global.tune.bufsize);
-	alloc_trash_buffers(global.tune.bufsize);
 
 	fdinfo = (struct fdinfo *)calloc(1,
 				       sizeof(struct fdinfo) * (global.maxsock));

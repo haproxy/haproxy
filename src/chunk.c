@@ -51,12 +51,14 @@ struct chunk *get_trash_chunk(void)
 	return trash_chunk;
 }
 
-/* Allocates the trash buffers. Returns 0 in case of failure. */
+/* (re)allocates the trash buffers. Returns 0 in case of failure. It is
+ * possible to call this function multiple times if the trash size changes.
+ */
 int alloc_trash_buffers(int bufsize)
 {
 	trash_size = bufsize;
-	trash_buf1 = (char *)calloc(1, bufsize);
-	trash_buf2 = (char *)calloc(1, bufsize);
+	trash_buf1 = (char *)realloc(trash_buf1, bufsize);
+	trash_buf2 = (char *)realloc(trash_buf2, bufsize);
 	return trash_buf1 && trash_buf2;
 }
 

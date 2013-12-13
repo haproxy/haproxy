@@ -609,6 +609,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		if (global.tune.maxrewrite >= global.tune.bufsize / 2)
 			global.tune.maxrewrite = global.tune.bufsize / 2;
 		chunk_init(&trash, realloc(trash.str, global.tune.bufsize), global.tune.bufsize);
+		alloc_trash_buffers(global.tune.bufsize);
 	}
 	else if (!strcmp(args[0], "tune.maxrewrite")) {
 		if (*(args[1]) == 0) {
