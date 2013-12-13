@@ -287,7 +287,6 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			conv_expr->conv = conv;
 
 			if (arg != endw) {
-				char *err_msg = NULL;
 				int err_arg;
 
 				if (!conv->arg_mask) {
@@ -298,20 +297,18 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 
 				al->kw = smp->fetch->kw;
 				al->conv = conv_expr->conv->kw;
-				if (make_arg_list(endw + 1, arg - endw - 1, conv->arg_mask, &conv_expr->arg_p, &err_msg, NULL, &err_arg, al) < 0) {
+				if (make_arg_list(endw + 1, arg - endw - 1, conv->arg_mask, &conv_expr->arg_p, err, NULL, &err_arg, al) < 0) {
 					memprintf(err, "ACL keyword '%s' : invalid arg %d in conv method '%s' : %s.",
-						  aclkw->kw, err_arg+1, ckw, err_msg);
-					free(err_msg);
+						  aclkw->kw, err_arg+1, ckw, *err);
 					goto out_free_smp;
 				}
 
 				if (!conv_expr->arg_p)
 					conv_expr->arg_p = empty_arg_list;
 
-				if (conv->val_args && !conv->val_args(conv_expr->arg_p, conv, &err_msg)) {
+				if (conv->val_args && !conv->val_args(conv_expr->arg_p, conv, err)) {
 					memprintf(err, "ACL keyword '%s' : invalid args in conv method '%s' : %s.",
-						  aclkw->kw, ckw, err_msg);
-					free(err_msg);
+						  aclkw->kw, ckw, *err);
 					goto out_free_smp;
 				}
 			}
