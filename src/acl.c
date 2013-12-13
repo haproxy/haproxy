@@ -145,68 +145,28 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	int cur_type;
 	int nbargs;
 
-	/* First, we lookd for an ACL keyword. And if we don't find one, then
-	 * we look for a sample fetch keyword.
+	/* First, we look for an ACL keyword. And if we don't find one, then
+	 * we look for a sample fetch expression starting with a sample fetch
+	 * keyword.
 	 */
 
-	al->ctx  = ARGC_ACL;
+	al->ctx  = ARGC_ACL;   // to report errors while resolving args late
 	al->kw   = *args;
 	al->conv = NULL;
 
 	aclkw = find_acl_kw(args[0]);
-	if (!aclkw || !aclkw->parse) {
-		smp = sample_parse_expr((char **)args, &idx, err, al);
-		if (!smp) {
-			memprintf(err, "%s in ACL expression '%s'", *err, *args);
-			goto out_return;
-		}
-	}
+	if (aclkw && aclkw->parse) {
+		/* OK we have a real ACL keyword */
 
-	expr = (struct acl_expr *)calloc(1, sizeof(*expr));
-	if (!expr) {
-		memprintf(err, "out of memory when parsing ACL expression");
-		goto out_return;
-	}
-
-	pattern_init_expr(&expr->pat);
-
-	expr->kw = aclkw ? aclkw->kw : smp->fetch->kw;
-	expr->pat.parse = aclkw ? aclkw->parse : NULL;
-	expr->pat.match = aclkw ? aclkw->match : NULL;
-	expr->smp = aclkw ? NULL : smp;
-
-	if (!expr->pat.parse) {
-		/* some types can be automatically converted */
-
-		switch (expr->smp ? expr->smp->fetch->out_type : aclkw->smp->out_type) {
-		case SMP_T_BOOL:
-			expr->pat.parse = pat_parse_fcts[PAT_MATCH_BOOL];
-			expr->pat.match = pat_match_fcts[PAT_MATCH_BOOL];
-			break;
-		case SMP_T_SINT:
-		case SMP_T_UINT:
-			expr->pat.parse = pat_parse_fcts[PAT_MATCH_INT];
-			expr->pat.match = pat_match_fcts[PAT_MATCH_INT];
-			break;
-		case SMP_T_IPV4:
-		case SMP_T_IPV6:
-			expr->pat.parse = pat_parse_fcts[PAT_MATCH_IP];
-			expr->pat.match = pat_match_fcts[PAT_MATCH_IP];
-			break;
-		}
-	}
-
-	/* now parse the rest of acl only if "find_acl_kw" match */
-	if (aclkw) {
 		/* build new sample expression for this ACL */
-		expr->smp = calloc(1, sizeof(struct sample_expr));
-		if (!expr->smp) {
+		smp = calloc(1, sizeof(struct sample_expr));
+		if (!smp) {
 			memprintf(err, "out of memory when parsing ACL expression");
 			goto out_return;
 		}
-		LIST_INIT(&(expr->smp->conv_exprs));
-		expr->smp->fetch = aclkw->smp;
-		expr->smp->arg_p = empty_arg_list;
+		LIST_INIT(&(smp->conv_exprs));
+		smp->fetch = aclkw->smp;
+		smp->arg_p = empty_arg_list;
 
 		/* look for the begining of the subject arguments */
 		for (arg = args[0]; *arg && *arg != '(' && *arg != ','; arg++);
@@ -218,8 +178,8 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			while (*endt && *endt != ')')
 				endt++;
 			if (*endt != ')') {
-				memprintf(err, "missing closing ')' after arguments to ACL keyword '%s'", expr->kw);
-				goto out_free_expr;
+				memprintf(err, "missing closing ')' after arguments to ACL keyword '%s'", aclkw->kw);
+				goto out_free_smp;
 			}
 		}
 
@@ -230,30 +190,30 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		 *               if present).
 		 *   - endt    : end of the term (=arg or last parenthesis if args are present)
 		 */
-		nbargs = make_arg_list(arg, endt - arg, expr->smp->fetch->arg_mask, &expr->smp->arg_p,
+		nbargs = make_arg_list(arg, endt - arg, smp->fetch->arg_mask, &smp->arg_p,
 		                       err, NULL, NULL, al);
 		if (nbargs < 0) {
 			/* note that make_arg_list will have set <err> here */
-			memprintf(err, "ACL keyword '%s' : %s", expr->kw, *err);
-			goto out_free_expr;
+			memprintf(err, "ACL keyword '%s' : %s", aclkw->kw, *err);
+			goto out_free_smp;
 		}
 
-		if (!expr->smp->arg_p) {
-			expr->smp->arg_p = empty_arg_list;
+		if (!smp->arg_p) {
+			smp->arg_p = empty_arg_list;
 		}
-		else if (expr->smp->fetch->val_args && !expr->smp->fetch->val_args(expr->smp->arg_p, err)) {
+		else if (smp->fetch->val_args && !smp->fetch->val_args(smp->arg_p, err)) {
 			/* invalid keyword argument, error must have been
 			 * set by val_args().
 			 */
-			memprintf(err, "in argument to '%s', %s", expr->kw, *err);
-			goto out_free_expr;
+			memprintf(err, "in argument to '%s', %s", aclkw->kw, *err);
+			goto out_free_smp;
 		}
 		arg = endt;
 
 		/* look for the begining of the converters list. Those directly attached
 		 * to the ACL keyword are found just after <arg> which points to the comma.
 		 */
-		prev_type = expr->smp->fetch->out_type;
+		prev_type = smp->fetch->out_type;
 		while (*arg) {
 			struct sample_conv *conv;
 			struct sample_conv_expr *conv_expr;
@@ -264,11 +224,11 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			if (*arg && *arg != ',') {
 				if (ckw)
 					memprintf(err, "ACL keyword '%s' : missing comma after conv keyword '%s'.",
-						  expr->kw, ckw);
+						  aclkw->kw, ckw);
 				else
 					memprintf(err, "ACL keyword '%s' : missing comma after fetch keyword.",
-						  expr->kw);
-				goto out_free_expr;
+						  aclkw->kw);
+				goto out_free_smp;
 			}
 
 			while (*arg == ',') /* then trailing commas */
@@ -289,8 +249,8 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			if (!conv) {
 				/* Unknown converter method */
 				memprintf(err, "ACL keyword '%s' : unknown conv method '%s'.",
-					  expr->kw, ckw);
-				goto out_free_expr;
+					  aclkw->kw, ckw);
+				goto out_free_smp;
 			}
 
 			arg = endw;
@@ -300,30 +260,30 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 					arg++;
 				if (*arg != ')') {
 					memprintf(err, "ACL keyword '%s' : syntax error: missing ')' after conv keyword '%s'.",
-						  expr->kw, ckw);
-					goto out_free_expr;
+						  aclkw->kw, ckw);
+					goto out_free_smp;
 				}
 			}
 
 			if (conv->in_type >= SMP_TYPES || conv->out_type >= SMP_TYPES) {
 				memprintf(err, "ACL keyword '%s' : returns type of conv method '%s' is unknown.",
-					  expr->kw, ckw);
-				goto out_free_expr;
+					  aclkw->kw, ckw);
+				goto out_free_smp;
 			}
 
 			/* If impossible type conversion */
 			if (!sample_casts[prev_type][conv->in_type]) {
 				memprintf(err, "ACL keyword '%s' : conv method '%s' cannot be applied.",
-					  expr->kw, ckw);
-				goto out_free_expr;
+					  aclkw->kw, ckw);
+				goto out_free_smp;
 			}
 
 			prev_type = conv->out_type;
 			conv_expr = calloc(1, sizeof(struct sample_conv_expr));
 			if (!conv_expr)
-				goto out_free_expr;
+				goto out_free_smp;
 
-			LIST_ADDQ(&(expr->smp->conv_exprs), &(conv_expr->list));
+			LIST_ADDQ(&(smp->conv_exprs), &(conv_expr->list));
 			conv_expr->conv = conv;
 
 			if (arg != endw) {
@@ -332,17 +292,17 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 
 				if (!conv->arg_mask) {
 					memprintf(err, "ACL keyword '%s' : conv method '%s' does not support any args.",
-						  expr->kw, ckw);
-					goto out_free_expr;
+						  aclkw->kw, ckw);
+					goto out_free_smp;
 				}
 
-				al->kw = expr->smp->fetch->kw;
+				al->kw = smp->fetch->kw;
 				al->conv = conv_expr->conv->kw;
 				if (make_arg_list(endw + 1, arg - endw - 1, conv->arg_mask, &conv_expr->arg_p, &err_msg, NULL, &err_arg, al) < 0) {
 					memprintf(err, "ACL keyword '%s' : invalid arg %d in conv method '%s' : %s.",
-						  expr->kw, err_arg+1, ckw, err_msg);
+						  aclkw->kw, err_arg+1, ckw, err_msg);
 					free(err_msg);
-					goto out_free_expr;
+					goto out_free_smp;
 				}
 
 				if (!conv_expr->arg_p)
@@ -350,16 +310,63 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 
 				if (conv->val_args && !conv->val_args(conv_expr->arg_p, conv, &err_msg)) {
 					memprintf(err, "ACL keyword '%s' : invalid args in conv method '%s' : %s.",
-						  expr->kw, ckw, err_msg);
+						  aclkw->kw, ckw, err_msg);
 					free(err_msg);
-					goto out_free_expr;
+					goto out_free_smp;
 				}
 			}
 			else if (ARGM(conv->arg_mask)) {
 				memprintf(err, "ACL keyword '%s' : missing args for conv method '%s'.",
-					  expr->kw, ckw);
-				goto out_free_expr;
+					  aclkw->kw, ckw);
+				goto out_free_smp;
 			}
+		}
+	}
+	else {
+		/* This is not an ACL keyword, so we hope this is a sample fetch
+		 * keyword that we're going to transparently use as an ACL. If
+		 * so, we retrieve a completely parsed expression with args and
+		 * convs already done.
+		 */
+		smp = sample_parse_expr((char **)args, &idx, err, al);
+		if (!smp) {
+			memprintf(err, "%s in ACL expression '%s'", *err, *args);
+			goto out_return;
+		}
+	}
+
+	expr = (struct acl_expr *)calloc(1, sizeof(*expr));
+	if (!expr) {
+		memprintf(err, "out of memory when parsing ACL expression");
+		goto out_return;
+	}
+
+	pattern_init_expr(&expr->pat);
+
+	expr->kw = aclkw ? aclkw->kw : smp->fetch->kw;
+	expr->pat.parse = aclkw ? aclkw->parse : NULL;
+	expr->pat.match = aclkw ? aclkw->match : NULL;
+	expr->smp = smp;
+	smp = NULL;
+
+	if (!expr->pat.parse) {
+		/* some types can be automatically converted */
+
+		switch (expr->smp ? expr->smp->fetch->out_type : aclkw->smp->out_type) {
+		case SMP_T_BOOL:
+			expr->pat.parse = pat_parse_fcts[PAT_MATCH_BOOL];
+			expr->pat.match = pat_match_fcts[PAT_MATCH_BOOL];
+			break;
+		case SMP_T_SINT:
+		case SMP_T_UINT:
+			expr->pat.parse = pat_parse_fcts[PAT_MATCH_INT];
+			expr->pat.match = pat_match_fcts[PAT_MATCH_INT];
+			break;
+		case SMP_T_IPV4:
+		case SMP_T_IPV6:
+			expr->pat.parse = pat_parse_fcts[PAT_MATCH_IP];
+			expr->pat.match = pat_match_fcts[PAT_MATCH_IP];
+			break;
 		}
 	}
 
@@ -447,6 +454,8 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	prune_acl_expr(expr);
 	free(expr);
 	free(ckw);
+ out_free_smp:
+	free(smp);
  out_return:
 	return NULL;
 }
