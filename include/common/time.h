@@ -108,7 +108,8 @@ REGPRM2 void tv_update_date(int max_wait, int interrupted);
  */
 REGPRM1 static inline struct timeval *tv_eternity(struct timeval *tv)
 {
-	tv->tv_sec = tv->tv_usec = TV_ETERNITY;
+	tv->tv_sec  = (typeof(tv->tv_sec))TV_ETERNITY;
+	tv->tv_usec = (typeof(tv->tv_usec))TV_ETERNITY;
 	return tv;
 }
 
@@ -124,12 +125,12 @@ REGPRM1 static inline struct timeval *tv_zero(struct timeval *tv) {
 /*
  * returns non null if tv is [eternity], otherwise 0.
  */
-#define tv_iseternity(tv)       ((tv)->tv_usec == TV_ETERNITY)
+#define tv_iseternity(tv)       ((tv)->tv_usec == (typeof((tv)->tv_usec))TV_ETERNITY)
 
 /*
  * returns 0 if tv is [eternity], otherwise non-zero.
  */
-#define tv_isset(tv)       ((tv)->tv_usec != TV_ETERNITY)
+#define tv_isset(tv)       ((tv)->tv_usec != (typeof((tv)->tv_usec))TV_ETERNITY)
 
 /*
  * returns non null if tv is [0], otherwise 0.
