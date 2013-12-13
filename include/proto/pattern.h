@@ -80,40 +80,37 @@ int pat_idx_tree_str(struct pattern_expr *expr, struct pattern *pat, char **err)
 
 
 /* ignore the current line */
-int pat_parse_nothing(const char *text, struct pattern *pattern, enum pat_usage usage, char **err);
+int pat_parse_nothing(const char *text, struct pattern *pattern, char **err);
 
 /* Parse an integer. It is put both in min and max. */
-int pat_parse_int(const char *text, struct pattern *pattern, enum pat_usage usage, char **err);
+int pat_parse_int(const char *text, struct pattern *pattern, char **err);
 
 /* Parse len like an integer, but specify expected string type */
-int pat_parse_len(const char *text, struct pattern *pattern, enum pat_usage usage, char **err);
+int pat_parse_len(const char *text, struct pattern *pattern, char **err);
 
 /* Parse an version. It is put both in min and max. */
-int pat_parse_dotted_ver(const char *text, struct pattern *pattern, enum pat_usage usage, char **err);
+int pat_parse_dotted_ver(const char *text, struct pattern *pattern, char **err);
 
 /* Parse a range of integers delimited by either ':' or '-'. If only one
  * integer is read, it is set as both min and max.
  */
-int pat_parse_range(const char *text, struct pattern *pattern, enum pat_usage usage, char **err);
+int pat_parse_range(const char *text, struct pattern *pattern, char **err);
 
 /* Parse a string. It is allocated and duplicated. */
-int pat_parse_str(const char *text, struct pattern *pattern, enum pat_usage usage, char **err);
+int pat_parse_str(const char *text, struct pattern *pattern, char **err);
 
 /* Parse a hexa binary definition. It is allocated and duplicated. */
-int pat_parse_bin(const char *text, struct pattern *pattern, enum pat_usage usage, char **err);
-
-/* Parse and concatenate strings into one. It is allocated and duplicated. */
-int pat_parse_strcat(const char *text, struct pattern *pattern, enum pat_usage usage, char **err);
+int pat_parse_bin(const char *text, struct pattern *pattern, char **err);
 
 /* Parse a regex. It is allocated. */
-int pat_parse_reg(const char *text, struct pattern *pattern, enum pat_usage usage, char **err);
+int pat_parse_reg(const char *text, struct pattern *pattern, char **err);
 
 /* Parse an IP address and an optional mask in the form addr[/mask].
  * The addr may either be an IPv4 address or a hostname. The mask
  * may either be a dotted mask or a number of bits. Returns 1 if OK,
  * otherwise 0.
  */
-int pat_parse_ip(const char *text, struct pattern *pattern, enum pat_usage usage, char **err);
+int pat_parse_ip(const char *text, struct pattern *pattern, char **err);
 
 /* NB: For two strings to be identical, it is required that their lengths match */
 enum pat_match_res pat_match_str(struct sample *smp, struct pattern *pattern);

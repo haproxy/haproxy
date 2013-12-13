@@ -61,15 +61,6 @@ enum pat_match_res {
 	PAT_MATCH = 3,           /* sample matched at least one pattern */
 };
 
-/* This enum describe the running mode of the function pat_parse_*().
- * The lookup mode does not allocate memory. The compile mode allocate
- * memory and create any data
- */
-enum pat_usage {
-	PAT_U_LOOKUP,
-	PAT_U_COMPILE,
-};
-
 /* possible flags for expressions or patterns */
 enum {
 	PAT_F_IGNORE_CASE = 1 << 0,       /* ignore case */
@@ -164,7 +155,7 @@ struct pattern_list {
  * are grouped together in order to optimize caching.
  */
 struct pattern_expr {
-	int (*parse)(const char *text, struct pattern *pattern, enum pat_usage usage, char **err);
+	int (*parse)(const char *text, struct pattern *pattern, char **err);
 	int (*index)(struct pattern_expr *, struct pattern *, char **);
 	enum pat_match_res (*match)(struct sample *smp, struct pattern *pattern);
 	struct list patterns;         /* list of acl_patterns */
@@ -172,7 +163,7 @@ struct pattern_expr {
 };
 
 extern char *pat_match_names[PAT_MATCH_NUM];
-extern int (*pat_parse_fcts[PAT_MATCH_NUM])(const char *, struct pattern *, enum pat_usage, char **);
+extern int (*pat_parse_fcts[PAT_MATCH_NUM])(const char *, struct pattern *, char **);
 extern int (*pat_index_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *, char **);
 extern enum pat_match_res (*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern *);
 extern int pat_match_types[PAT_MATCH_NUM];
