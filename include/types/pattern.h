@@ -97,7 +97,7 @@ struct pat_time {
 /* This contain each tree indexed entry. This struct permit to associate
  * "sample" with a tree entry. It is used with maps.
  */
-struct pat_idx_elt {
+struct pattern_tree {
 	struct sample_storage *smp;
 	struct ebmb_node node;
 };

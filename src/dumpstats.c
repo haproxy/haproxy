@@ -1561,7 +1561,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 		}
 		else if (strcmp(args[1], "map") == 0) {
 			struct pattern_list *pat_elt;
-			struct pat_idx_elt *idx_elt;
+			struct pattern_tree *idx_elt;
 			char *value = NULL;
 
 			/* Expect three parameters: map name, key and new value. */
@@ -1849,7 +1849,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 	else if (strcmp(args[0], "del") == 0) {
 		if (strcmp(args[1], "map") == 0) {
 			struct pattern_list *pat_elt;
-			struct pat_idx_elt *idx_elt;
+			struct pattern_tree *idx_elt;
 			struct map_entry *ent;
 
 			/* Expect two parameters: map name and key. */
@@ -4826,7 +4826,7 @@ static int stats_map_lookup(struct stream_interface *si)
 	struct sample_storage *smp;
 	struct sample sample;
 	struct pattern *pat;
-	struct pat_idx_elt *elt;
+	struct pattern_tree *elt;
 	enum pat_match_res res;
 	struct sockaddr_in addr;
 	char addr_str[INET_ADDRSTRLEN];

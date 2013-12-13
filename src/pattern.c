@@ -739,13 +739,13 @@ void free_pattern_list(struct list *head)
 void free_pattern_tree(struct eb_root *root)
 {
 	struct eb_node *node, *next;
-	struct pat_idx_elt *elt;
+	struct pattern_tree *elt;
 
 	node = eb_first(root);
 	while (node) {
 		next = eb_next(node);
 		eb_delete(node);
-		elt = container_of(node, struct pat_idx_elt, node);
+		elt = container_of(node, struct pattern_tree, node);
 		free(elt->smp);
 		free(elt);
 		node = next;
@@ -889,7 +889,7 @@ int pat_idx_list_reg(struct pattern_expr *expr, struct pattern *pat, char **err)
 int pat_idx_tree_ip(struct pattern_expr *expr, struct pattern *pat, char **err)
 {
 	unsigned int mask;
-	struct pat_idx_elt *node;
+	struct pattern_tree *node;
 
 	/* Only IPv4 can be indexed */
 	if (pat->type == SMP_T_IPV4) {
@@ -930,7 +930,7 @@ int pat_idx_tree_ip(struct pattern_expr *expr, struct pattern *pat, char **err)
 int pat_idx_tree_str(struct pattern_expr *expr, struct pattern *pat, char **err)
 {
 	int len;
-	struct pat_idx_elt *node;
+	struct pattern_tree *node;
 
 	/* Only string can be indexed */
 	if (pat->type != SMP_T_CSTR && pat->type != SMP_T_STR) {
@@ -1066,12 +1066,12 @@ int pattern_read_from_file(struct pattern_expr *expr,
  */
 enum pat_match_res pattern_exec_match(struct pattern_expr *expr, struct sample *smp,
                                       struct sample_storage **sample,
-                                      struct pattern **pat, struct pat_idx_elt **idx_elt)
+                                      struct pattern **pat, struct pattern_tree **idx_elt)
 {
 	enum pat_match_res pat_res = PAT_NOMATCH;
 	struct pattern_list *pattern;
 	struct ebmb_node *node = NULL;
-	struct pat_idx_elt *elt;
+	struct pattern_tree *elt;
 
 	if (expr->match == pat_match_nothing) {
 		if (smp->data.uint)
@@ -1096,7 +1096,7 @@ enum pat_match_res pattern_exec_match(struct pattern_expr *expr, struct sample *
 			}
 			if (node) {
 				pat_res |= PAT_MATCH;
-				elt = ebmb_entry(node, struct pat_idx_elt, node);
+				elt = ebmb_entry(node, struct pattern_tree, node);
 				if (sample)
 					*sample = elt->smp;
 				if (idx_elt)
@@ -1126,12 +1126,12 @@ enum pat_match_res pattern_exec_match(struct pattern_expr *expr, struct sample *
  * NULL. Pointers are not set if they're passed as NULL.
  */
 int pattern_lookup(const char *key, struct pattern_expr *expr,
-                   struct pattern_list **pat_elt, struct pat_idx_elt **idx_elt, char **err)
+                   struct pattern_list **pat_elt, struct pattern_tree **idx_elt, char **err)
 {
 	struct pattern pattern;
 	struct pattern_list *pat;
 	struct ebmb_node *node;
-	struct pat_idx_elt *elt;
+	struct pattern_tree *elt;
 	unsigned int mask = 0;
 
 	/* no real pattern */
@@ -1170,7 +1170,7 @@ int pattern_lookup(const char *key, struct pattern_expr *expr,
 			for (node = ebmb_first(&expr->pattern_tree);
 			     node;
 			     node = ebmb_next(node)) {
-				elt = container_of(node, struct pat_idx_elt, node);
+				elt = container_of(node, struct pattern_tree, node);
 				if (strcmp(pattern.ptr.str, (char *)elt->node.key) == 0)
 					goto found;
 			}
@@ -1179,7 +1179,7 @@ int pattern_lookup(const char *key, struct pattern_expr *expr,
 			for (node = ebmb_first(&expr->pattern_tree);
 			     node;
 			     node = ebmb_next(node)) {
-				elt = container_of(node, struct pat_idx_elt, node);
+				elt = container_of(node, struct pattern_tree, node);
 				if (elt->node.node.pfx == mask &&
 				    memcmp(&pattern.val.ipv4.addr.s_addr, elt->node.key, 4) == 0)
 					goto found;
