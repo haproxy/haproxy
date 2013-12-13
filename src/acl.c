@@ -130,10 +130,9 @@ static struct acl_expr *prune_acl_expr(struct acl_expr *expr)
  */
 struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *al)
 {
-	__label__ out_return, out_free_expr, out_free_pattern;
+	__label__ out_return, out_free_expr;
 	struct acl_expr *expr;
 	struct acl_keyword *aclkw;
-	struct pattern_list *pattern;
 	int patflags;
 	const char *arg;
 	struct sample_expr *smp = NULL;
@@ -350,6 +349,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 
 	expr->kw = aclkw ? aclkw->kw : smp->fetch->kw;
 	expr->pat.parse = aclkw ? aclkw->parse : NULL;
+	expr->pat.index = aclkw ? aclkw->index : NULL;
 	expr->pat.match = aclkw ? aclkw->match : NULL;
 	expr->smp = smp;
 	smp = NULL;
@@ -360,16 +360,19 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		switch (expr->smp ? expr->smp->fetch->out_type : aclkw->smp->out_type) {
 		case SMP_T_BOOL:
 			expr->pat.parse = pat_parse_fcts[PAT_MATCH_BOOL];
+			expr->pat.index = pat_index_fcts[PAT_MATCH_BOOL];
 			expr->pat.match = pat_match_fcts[PAT_MATCH_BOOL];
 			break;
 		case SMP_T_SINT:
 		case SMP_T_UINT:
 			expr->pat.parse = pat_parse_fcts[PAT_MATCH_INT];
+			expr->pat.index = pat_index_fcts[PAT_MATCH_INT];
 			expr->pat.match = pat_match_fcts[PAT_MATCH_INT];
 			break;
 		case SMP_T_IPV4:
 		case SMP_T_IPV6:
 			expr->pat.parse = pat_parse_fcts[PAT_MATCH_IP];
+			expr->pat.index = pat_index_fcts[PAT_MATCH_IP];
 			expr->pat.match = pat_match_fcts[PAT_MATCH_IP];
 			break;
 		}
@@ -429,6 +432,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 				goto out_free_expr;
 			}
 			expr->pat.parse = pat_parse_fcts[idx];
+			expr->pat.index = pat_index_fcts[idx];
 			expr->pat.match = pat_match_fcts[idx];
 			args++;
 		}
@@ -447,7 +451,6 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	}
 
 	/* now parse all patterns */
-	pattern = NULL;
 	while (**args) {
 		arg = *args;
 
@@ -513,11 +516,11 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 				if (expr->pat.parse == pat_parse_dotted_ver && have_dot) {
 					if (strl2llrc(dot+1, strlen(dot+1), &minor) != 0) {
 						memprintf(err, "'%s' is neither a number nor a supported operator", arg);
-						goto out_free_pattern;
+						goto out_free_expr;
 					}
 					if (minor >= 65536) {
 						memprintf(err, "'%s' contains too large a minor value", arg);
-						goto out_free_pattern;
+						goto out_free_expr;
 					}
 				}
 
@@ -526,12 +529,12 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 				 */
 				if (strl2llrc(arg, dot - arg, &value) != 0) {
 					memprintf(err, "'%s' is neither a number nor a supported operator", arg);
-					goto out_free_pattern;
+					goto out_free_expr;
 				}
 				if (expr->pat.parse == pat_parse_dotted_ver)  {
 					if (value >= 65536) {
 						memprintf(err, "'%s' contains too large a major value", arg);
-						goto out_free_pattern;
+						goto out_free_expr;
 					}
 					value = (value << 16) | (minor & 0xffff);
 				}
@@ -540,7 +543,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 
 				case STD_OP_EQ: /* this case is not possible. */
 					memprintf(err, "internal error");
-					goto out_free_pattern;
+					goto out_free_expr;
 
 				case STD_OP_GT:
 					value++; /* gt = ge + 1 */
@@ -569,15 +572,13 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			}
 		}
 
-		if (!pattern_register(&expr->pat, arg, NULL, &pattern, patflags, err))
-			goto out_free_pattern;
+		if (!pattern_register(&expr->pat, arg, NULL, patflags, err))
+			goto out_free_expr;
 		args++;
 	}
 
 	return expr;
 
- out_free_pattern:
-	pattern_free(pattern);
  out_free_expr:
 	prune_acl_expr(expr);
 	free(expr);

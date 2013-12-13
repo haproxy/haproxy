@@ -681,13 +681,13 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct acl_kw_list acl_kws = {ILH, {
-	{ "payload",            "req.payload",        pat_parse_bin,        pat_match_bin     },
-	{ "payload_lv",         "req.payload_lv",     pat_parse_bin,        pat_match_bin     },
-	{ "req_rdp_cookie",     "req.rdp_cookie",     pat_parse_str,        pat_match_str     },
-	{ "req_rdp_cookie_cnt", "req.rdp_cookie_cnt", pat_parse_int,        pat_match_int     },
-	{ "req_ssl_sni",        "req.ssl_sni",        pat_parse_str,        pat_match_str     },
-	{ "req_ssl_ver",        "req.ssl_ver",        pat_parse_dotted_ver, pat_match_int     },
-	{ "req.ssl_ver",        "req.ssl_ver",        pat_parse_dotted_ver, pat_match_int     },
+	{ "payload",            "req.payload",        pat_parse_bin,        pat_idx_list_ptr, pat_match_bin },
+	{ "payload_lv",         "req.payload_lv",     pat_parse_bin,        pat_idx_list_ptr, pat_match_bin },
+	{ "req_rdp_cookie",     "req.rdp_cookie",     pat_parse_str,        pat_idx_tree_str, pat_match_str },
+	{ "req_rdp_cookie_cnt", "req.rdp_cookie_cnt", pat_parse_int,        pat_idx_list_val, pat_match_int },
+	{ "req_ssl_sni",        "req.ssl_sni",        pat_parse_str,        pat_idx_tree_str, pat_match_str },
+	{ "req_ssl_ver",        "req.ssl_ver",        pat_parse_dotted_ver, pat_idx_list_val, pat_match_int },
+	{ "req.ssl_ver",        "req.ssl_ver",        pat_parse_dotted_ver, pat_idx_list_val, pat_match_int },
 	{ /* END */ },
 }};
 

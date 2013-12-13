@@ -40,7 +40,7 @@
  * The function returns 1 if the processing is ok, return 0
  * if the parser fails, with <err> message filled.
  */
-int pattern_register(struct pattern_expr *expr, const char *arg, struct sample_storage *smp, struct pattern_list **pattern, int patflags, char **err);
+int pattern_register(struct pattern_expr *expr, const char *arg, struct sample_storage *smp, int patflags, char **err);
 
 /* return the PAT_MATCH_* index for match name "name", or < 0 if not found */
 static inline int pat_find_match_name(const char *name)
@@ -59,6 +59,18 @@ static inline int pat_find_match_name(const char *name)
  * PAT_MATCH or PAT_NOMATCH.
  */
 enum pat_match_res pattern_exec_match(struct pattern_expr *expr, struct sample *smp, struct sample_storage **sample, struct pattern **pat, struct pat_idx_elt **elt);
+
+/*
+ *
+ * The following function gets "pattern", duplicate it and index it in "expr"
+ *
+ */
+int pat_idx_list_val(struct pattern_expr *expr, struct pattern *pat, char **err);
+int pat_idx_list_ptr(struct pattern_expr *expr, struct pattern *pat, char **err);
+int pat_idx_list_str(struct pattern_expr *expr, struct pattern *pat, char **err);
+int pat_idx_list_reg(struct pattern_expr *expr, struct pattern *pat, char **err);
+int pat_idx_tree_ip(struct pattern_expr *expr, struct pattern *pat, char **err);
+int pat_idx_tree_str(struct pattern_expr *expr, struct pattern *pat, char **err);
 
 /*
  *

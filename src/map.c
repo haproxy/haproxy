@@ -301,7 +301,6 @@ static int map_read_entries_from_file(const char *filename,
  * <patflags> must be PAT_F_*.
  */
 static int map_parse_and_index(struct map_descriptor *desc,
-                               struct pattern_list **pattern,
                                struct map_entry *ent,
                                int patflags,
                                char **err)
@@ -321,7 +320,7 @@ static int map_parse_and_index(struct map_descriptor *desc,
 	}
 
 	/* register key */
-	if (!pattern_register(desc->pat, ent->key, smp, pattern, patflags, err))
+	if (!pattern_register(desc->pat, ent->key, smp, patflags, err))
 		return 0;
 
 	return 1;
@@ -337,7 +336,6 @@ static int sample_load_map(struct arg *arg, struct sample_conv *conv, char **err
 {
 	struct map_reference *ref;
 	struct map_descriptor *desc;
-	struct pattern_list *pattern;
 	struct map_entry *ent;
 	struct pattern_expr *pat = NULL;
 
@@ -412,11 +410,11 @@ static int sample_load_map(struct arg *arg, struct sample_conv *conv, char **err
 		/* set the match method */
 		desc->pat->match = pat_match_fcts[conv->private];
 		desc->pat->parse = pat_parse_fcts[conv->private];
+		desc->pat->index = pat_index_fcts[conv->private];
 
 		/* parse each line of the file */
-		pattern = NULL;
 		list_for_each_entry(ent, &ref->entries, list)
-			if (!map_parse_and_index(desc, &pattern, ent, 0, err))
+			if (!map_parse_and_index(desc, ent, 0, err))
 				return 0;
 	}
 

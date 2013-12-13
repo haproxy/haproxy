@@ -1920,7 +1920,6 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 	}
 	else if (strcmp(args[0], "add") == 0) {
 		if (strcmp(args[1], "map") == 0) {
-			struct pattern_list *pat;
 			struct map_entry *ent;
 			struct sample_storage *smp;
 
@@ -1993,23 +1992,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 					continue;
 				}
 
-				/* If the value can be indexed, get the first pattern. If
-				 * the return entry is not the indexed entry, new 'pattern' is
-				 * created by the function pattern_register(). If the 'pattern'
-				 * is NULL, new entry is created. This is ugly because the
-				 * following code interfers with the own code of the function
-				 * pattern_register().
-				 */
-				if (appctx->ctx.map.desc->pat->match == pat_match_str ||
-				    appctx->ctx.map.desc->pat->match == pat_match_ip) {
-					pat = LIST_NEXT(&appctx->ctx.map.desc->pat->patterns, struct pattern_list *, list);
-					if (&pat->list == &appctx->ctx.map.desc->pat->patterns)
-						pat = NULL;
-				}
-				else
-					pat = NULL;
-
-				if (!pattern_register(appctx->ctx.map.desc->pat, args[3], smp, &pat, 0, NULL)) {
+				if (!pattern_register(appctx->ctx.map.desc->pat, args[3], smp, 0, NULL)) {
 					free(smp);
 					continue;
 				}

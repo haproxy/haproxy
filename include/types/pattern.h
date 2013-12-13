@@ -165,6 +165,7 @@ struct pattern_list {
  */
 struct pattern_expr {
 	int (*parse)(const char *text, struct pattern *pattern, enum pat_usage usage, char **err);
+	int (*index)(struct pattern_expr *, struct pattern *, char **);
 	enum pat_match_res (*match)(struct sample *smp, struct pattern *pattern);
 	struct list patterns;         /* list of acl_patterns */
 	struct eb_root pattern_tree;  /* may be used for lookup in large datasets */
@@ -172,6 +173,7 @@ struct pattern_expr {
 
 extern char *pat_match_names[PAT_MATCH_NUM];
 extern int (*pat_parse_fcts[PAT_MATCH_NUM])(const char *, struct pattern *, enum pat_usage, char **);
+extern int (*pat_index_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *, char **);
 extern enum pat_match_res (*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern *);
 extern int pat_match_types[PAT_MATCH_NUM];
 
