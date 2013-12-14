@@ -479,8 +479,9 @@ void set_server_up(struct check *check) {
 		check->health = check->rise;
 	}
 
-	if ((s->check.health >= s->check.rise && s->agent.health >= s->agent.rise &&
-	     check->health == check->rise) || s->track) {
+	if (s->track ||
+	    (s->check.health == s->check.rise && (s->agent.health >= s->agent.rise || !(s->agent.state & CHK_ST_ENABLED))) ||
+	    (s->agent.health == s->agent.rise && (s->check.health >= s->check.rise || !(s->check.state & CHK_ST_ENABLED)))) {
 		if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
 			if (s->proxy->last_change < now.tv_sec)		// ignore negative times
 				s->proxy->down_time += now.tv_sec - s->proxy->last_change;
