@@ -791,6 +791,18 @@ int str2mask(const char *str, struct in_addr *mask)
 	return 1;
 }
 
+/* convert <cidr> to struct in_addr <mask>. It returns 1 if the conversion
+ * succeeds otherwise zero.
+ */
+int cidr2dotted(int cidr, struct in_addr *mask) {
+
+	if (cidr < 0 || cidr > 32)
+		return 0;
+
+	mask->s_addr = cidr ? htonl(~0UL << (32 - cidr)) : 0;
+	return 1;
+}
+
 /*
  * converts <str> to two struct in_addr* which must be pre-allocated.
  * The format is "addr[/mask]", where "addr" cannot be empty, and mask

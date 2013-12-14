@@ -237,6 +237,11 @@ struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char
  */
 int str2mask(const char *str, struct in_addr *mask);
 
+/* convert <cidr> to struct in_addr <mask>. It returns 1 if the conversion
+ * succeeds otherwise non-zero.
+ */
+int cidr2dotted(int cidr, struct in_addr *mask);
+
 /*
  * converts <str> to two struct in_addr* which must be pre-allocated.
  * The format is "addr[/mask]", where "addr" cannot be empty, and mask
