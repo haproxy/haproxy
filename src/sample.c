@@ -559,7 +559,7 @@ static int c_bindup(struct sample *smp)
 }
 
 
-static int c_none(struct sample *smp)
+int c_none(struct sample *smp)
 {
 	return 1;
 }
