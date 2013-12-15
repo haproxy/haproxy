@@ -3794,7 +3794,9 @@ no option http-keep-alive
 
   If the client request has to go to another backend or another server due to
   content switching or the load balancing algorithm, the idle connection will
-  immediately be closed and a new one re-opened.
+  immediately be closed and a new one re-opened. Option "prefer-last-server" is
+  available to try optimize server selection so that if the server currently
+  attached to an idle connection is usable, it will be used.
 
   In general it is preferred to use "option http-server-close" with application
   servers, and some static servers might benefit from "option http-keep-alive".
@@ -3815,8 +3817,8 @@ no option http-keep-alive
   in a specific instance by prepending the "no" keyword before it.
 
   See also : "option forceclose", "option http-server-close",
-             "option httpclose", "option http-pretend-keepalive" and
-             "1.1. The HTTP transaction model".
+             "option prefer-last-server", "option http-pretend-keepalive",
+             "option httpclose", and "1.1. The HTTP transaction model".
 
 
 option http-no-delay
@@ -4426,6 +4428,30 @@ option pgsql-check [ user <username> ]
   This check is identical with the "mysql-check".
 
   See also: "option httpchk"
+
+
+option prefer-last-server
+no option prefer-last-server
+  Allow multiple load balanced requests to remain on the same server
+  May be used in sections:    defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments : none
+
+  When the load balancing algorithm in use is not deterministic, and a previous
+  request was sent to a server to which haproxy still holds a connection, it is
+  sometimes desirable that subsequent requests on a same session go to the same
+  server as much as possible. Note that this is different from persistence, as
+  we only indicate a preference which haproxy tries to apply without any form
+  of warranty. The real use is for keep-alive connections sent to servers. When
+  this option is used, haproxy will try to reuse the same connection that is
+  attached to the server instead of rebalancing to another server, causing a
+  close of the connection. This can make sense for static file servers. It does
+  not make much sense to use this in combination with hashing algorithms.
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+  See also: "option http-keep-alive"
 
 
 option redispatch

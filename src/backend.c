@@ -532,8 +532,19 @@ int assign_server(struct session *s)
 
 	srv = NULL;
 	s->target = NULL;
+	conn = objt_conn(s->req->cons->end);
 
-	if (s->be->lbprm.algo & BE_LB_KIND) {
+	if (conn && (s->be->options & PR_O_PREF_LAST) &&
+	    objt_server(conn->target) && __objt_server(conn->target)->proxy == s->be &&
+	    srv_is_usable(__objt_server(conn->target)->state, __objt_server(conn->target)->eweight)) {
+		/* This session was relying on a server in a previous request
+		 * and the proxy has "option prefer-current-server" set, so
+		 * let's try to reuse the same server.
+		 */
+		srv = __objt_server(conn->target);
+		s->target = &srv->obj_type;
+	}
+	else if (s->be->lbprm.algo & BE_LB_KIND) {
 		/* we must check if we have at least one server available */
 		if (!s->be->lbprm.tot_weight) {
 			err = SRV_STATUS_NOSRV;

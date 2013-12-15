@@ -134,6 +134,7 @@ static const struct cfg_opt cfg_opts[] =
 	{ "httpclose",    PR_O_HTTP_CLOSE, PR_CAP_FE | PR_CAP_BE, 0, PR_MODE_HTTP },
 	{ "http-keep-alive",   PR_O_KEEPALIVE,   PR_CAP_FE | PR_CAP_BE, 0, PR_MODE_HTTP },
 	{ "http-server-close", PR_O_SERVER_CLO,  PR_CAP_FE | PR_CAP_BE, 0, PR_MODE_HTTP },
+	{ "prefer-last-server", PR_O_PREF_LAST,  PR_CAP_BE, 0, PR_MODE_HTTP },
 	{ "logasap",      PR_O_LOGASAP,    PR_CAP_FE, 0, 0 },
 	{ "nolinger",     PR_O_TCP_NOLING, PR_CAP_FE | PR_CAP_BE, 0, 0 },
 	{ "persist",      PR_O_PERSIST,    PR_CAP_BE, 0, 0 },

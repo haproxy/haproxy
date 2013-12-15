@@ -76,7 +76,8 @@ enum pr_mode {
 /* bits for proxy->options */
 #define PR_O_REDISP     0x00000001      /* allow reconnection to dispatch in case of errors */
 #define PR_O_TRANSP     0x00000002      /* transparent mode : use original DEST as dispatch */
-/* unused: 0x04, 0x08, 0x10, 0x20 */
+/* unused: 0x04, 0x08, 0x10 */
+#define PR_O_PREF_LAST  0x00000020      /* prefer last server */
 #define PR_O_DISPATCH   0x00000040      /* use dispatch mode */
 #define PR_O_KEEPALIVE  0x00000080      /* follow keep-alive sessions */
 #define PR_O_FWDFOR     0x00000100      /* conditionally insert x-forwarded-for with client address */
