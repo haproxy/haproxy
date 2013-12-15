@@ -1443,10 +1443,9 @@ static int wake_srv_chk(struct connection *conn)
 		/* We're here because nobody wants to handle the error, so we
 		 * sure want to abort the hard way.
 		 */
-		if ((conn->flags & CO_FL_CTRL_READY) && !(conn->flags & CO_FL_SOCK_RD_SH)) {
-			if (conn->flags & CO_FL_WAIT_RD || !conn->ctrl->drain || !conn->ctrl->drain(conn->t.sock.fd))
-				setsockopt(conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
-				           (struct linger *) &nolinger, sizeof(struct linger));
+		if (conn_ctrl_ready(conn) && !(conn->flags & CO_FL_SOCK_RD_SH)) {
+			if (!(conn->flags & CO_FL_WAIT_RD) && conn->ctrl->drain && conn->ctrl->drain(conn->t.sock.fd))
+				fdtab[conn->t.sock.fd].linger_risk = 0;
 		}
 		conn_force_close(conn);
 	}
@@ -1663,10 +1662,9 @@ static struct task *process_chk(struct task *t)
 			 * as a failed response coupled with "observe layer7" caused the
 			 * server state to be suddenly changed.
 			 */
-			if ((conn->flags & CO_FL_CTRL_READY) && !(conn->flags & CO_FL_SOCK_RD_SH)) {
-				if (conn->flags & CO_FL_WAIT_RD || !conn->ctrl->drain || !conn->ctrl->drain(conn->t.sock.fd))
-					setsockopt(conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
-					           (struct linger *) &nolinger, sizeof(struct linger));
+			if (conn_ctrl_ready(conn) && !(conn->flags & CO_FL_SOCK_RD_SH)) {
+				if (!(conn->flags & CO_FL_WAIT_RD) && conn->ctrl->drain && conn->ctrl->drain(conn->t.sock.fd))
+					fdtab[conn->t.sock.fd].linger_risk = 0;
 			}
 			conn_force_close(conn);
 		}

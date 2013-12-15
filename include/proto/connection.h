@@ -434,6 +434,11 @@ static inline void conn_sock_read0(struct connection *c)
 {
 	c->flags |= CO_FL_SOCK_RD_SH;
 	__conn_sock_stop_recv(c);
+	/* we don't risk keeping ports unusable if we found the
+	 * zero from the other side.
+	 */
+	if (c->flags & CO_FL_CTRL_READY)
+		fdtab[c->t.sock.fd].linger_risk = 0;
 }
 
 static inline void conn_data_read0(struct connection *c)

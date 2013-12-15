@@ -226,6 +226,7 @@ static inline void fd_insert(int fd)
 {
 	fdtab[fd].ev = 0;
 	fdtab[fd].new = 1;
+	fdtab[fd].linger_risk = 0;
 	if (fd + 1 > maxfd)
 		maxfd = fd + 1;
 }

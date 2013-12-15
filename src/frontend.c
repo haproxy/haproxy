@@ -85,8 +85,8 @@ int frontend_accept(struct session *s)
 				   (char *) &one, sizeof(one));
 
 		if (s->fe->options & PR_O_TCP_NOLING)
-			setsockopt(cfd, SOL_SOCKET, SO_LINGER,
-				   (struct linger *) &nolinger, sizeof(struct linger));
+			fdtab[cfd].linger_risk = 1;
+
 #if defined(TCP_MAXSEG)
 		if (s->listener->maxseg < 0) {
 			/* we just want to reduce the current MSS by that value */

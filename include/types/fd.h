@@ -74,6 +74,7 @@ struct fdtab {
 	unsigned char ev;                    /* event seen in return of poll() : FD_POLL_* */
 	unsigned char new:1;                 /* 1 if this fd has just been created */
 	unsigned char updated:1;             /* 1 if this fd is already in the update list */
+	unsigned char linger_risk:1;         /* 1 if we must kill lingering before closing */
 };
 
 /* less often used information */

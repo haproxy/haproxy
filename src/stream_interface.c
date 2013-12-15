@@ -812,10 +812,6 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 			/* quick close, the socket is alredy shut anyway */
 		}
 		else if (si->flags & SI_FL_NOLINGER) {
-			if (conn_ctrl_ready(conn)) {
-				setsockopt(conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
-					   (struct linger *) &nolinger, sizeof(struct linger));
-			}
 			/* unclean data-layer shutdown */
 			if (conn->xprt && conn->xprt->shutw)
 				conn->xprt->shutw(conn, 0);
@@ -1285,12 +1281,6 @@ void stream_sock_read0(struct stream_interface *si)
 
 	if (si->flags & SI_FL_NOHALF) {
 		/* we want to immediately forward this close to the write side */
-		if (si->flags & SI_FL_NOLINGER) {
-			si->flags &= ~SI_FL_NOLINGER;
-			if (conn_ctrl_ready(conn))
-				setsockopt(conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
-				           (struct linger *) &nolinger, sizeof(struct linger));
-		}
 		/* force flag on ssl to keep session in cache */
 		if (conn->xprt->shutw)
 			conn->xprt->shutw(conn, 0);
@@ -1298,6 +1288,8 @@ void stream_sock_read0(struct stream_interface *si)
 	}
 
 	/* otherwise that's just a normal read shutdown */
+	if (conn_ctrl_ready(conn))
+		fdtab[conn->t.sock.fd].linger_risk = 0;
 	__conn_data_stop_recv(conn);
 	return;
 

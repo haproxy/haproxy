@@ -475,6 +475,7 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 		conn->flags |= CO_FL_SEND_PROXY;
 
 	conn_ctrl_init(conn);       /* registers the FD */
+	fdtab[fd].linger_risk = 1;  /* close hard if needed */
 	conn_sock_want_send(conn);  /* for connect status */
 
 	if (conn_xprt_init(conn) < 0) {
