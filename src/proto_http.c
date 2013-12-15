@@ -913,6 +913,8 @@ void http_perform_server_redirect(struct session *s, struct stream_interface *si
  * logs might explain incomplete retries. All others should avoid
  * being cumulated. It should normally not be possible to have multiple
  * aborts at once, but just in case, the first one in sequence is reported.
+ * Note that connection errors appearing on the second request of a keep-alive
+ * connection are not reported since this allows the client to retry.
  */
 void http_return_srv_error(struct session *s, struct stream_interface *si)
 {
@@ -923,7 +925,8 @@ void http_return_srv_error(struct session *s, struct stream_interface *si)
 				  503, http_error_message(s, HTTP_ERR_503));
 	else if (err_type & SI_ET_CONN_ABRT)
 		http_server_error(s, si, SN_ERR_CLICL, SN_FINST_C,
-				  503, http_error_message(s, HTTP_ERR_503));
+				  503, (s->txn.flags & TX_NOT_FIRST) ? NULL :
+				  http_error_message(s, HTTP_ERR_503));
 	else if (err_type & SI_ET_QUEUE_TO)
 		http_server_error(s, si, SN_ERR_SRVTO, SN_FINST_Q,
 				  503, http_error_message(s, HTTP_ERR_503));
@@ -932,13 +935,16 @@ void http_return_srv_error(struct session *s, struct stream_interface *si)
 				  503, http_error_message(s, HTTP_ERR_503));
 	else if (err_type & SI_ET_CONN_TO)
 		http_server_error(s, si, SN_ERR_SRVTO, SN_FINST_C,
-				  503, http_error_message(s, HTTP_ERR_503));
+				  503, (s->txn.flags & TX_NOT_FIRST) ? NULL :
+				  http_error_message(s, HTTP_ERR_503));
 	else if (err_type & SI_ET_CONN_ERR)
 		http_server_error(s, si, SN_ERR_SRVCL, SN_FINST_C,
-				  503, http_error_message(s, HTTP_ERR_503));
+				  503, (s->txn.flags & TX_NOT_FIRST) ? NULL :
+				  http_error_message(s, HTTP_ERR_503));
 	else if (err_type & SI_ET_CONN_RES)
 		http_server_error(s, si, SN_ERR_RESOURCE, SN_FINST_C,
-				  503, http_error_message(s, HTTP_ERR_503));
+				  503, (s->txn.flags & TX_NOT_FIRST) ? NULL :
+				  http_error_message(s, HTTP_ERR_503));
 	else /* SI_ET_CONN_OTHER and others */
 		http_server_error(s, si, SN_ERR_INTERNAL, SN_FINST_C,
 				  500, http_error_message(s, HTTP_ERR_500));
@@ -5136,6 +5142,8 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 		else if (rep->flags & CF_READ_ERROR) {
 			if (msg->err_pos >= 0)
 				http_capture_bad_message(&s->be->invalid_rep, s, msg, msg->msg_state, s->fe);
+			else if (txn->flags & TX_NOT_FIRST)
+				goto abort_keep_alive;
 
 			s->be->be_counters.failed_resp++;
 			if (objt_server(s->target)) {
@@ -5161,6 +5169,8 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 		else if (rep->flags & CF_READ_TIMEOUT) {
 			if (msg->err_pos >= 0)
 				http_capture_bad_message(&s->be->invalid_rep, s, msg, msg->msg_state, s->fe);
+			else if (txn->flags & TX_NOT_FIRST)
+				goto abort_keep_alive;
 
 			s->be->be_counters.failed_resp++;
 			if (objt_server(s->target)) {
@@ -5209,6 +5219,8 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 		else if (rep->flags & CF_SHUTR) {
 			if (msg->msg_state >= HTTP_MSG_RPVER || msg->err_pos >= 0)
 				http_capture_bad_message(&s->be->invalid_rep, s, msg, msg->msg_state, s->fe);
+			else if (txn->flags & TX_NOT_FIRST)
+				goto abort_keep_alive;
 
 			s->be->be_counters.failed_resp++;
 			if (objt_server(s->target)) {
@@ -5234,6 +5246,8 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 		else if (rep->flags & CF_WRITE_ERROR) {
 			if (msg->err_pos >= 0)
 				http_capture_bad_message(&s->be->invalid_rep, s, msg, msg->msg_state, s->fe);
+			else if (txn->flags & TX_NOT_FIRST)
+				goto abort_keep_alive;
 
 			s->be->be_counters.failed_resp++;
 			rep->analysers = 0;
@@ -5451,6 +5465,22 @@ skip_content_length:
 	rep->analyse_exp = TICK_ETERNITY;
 	channel_auto_close(rep);
 	return 1;
+
+ abort_keep_alive:
+	/* A keep-alive request to the server failed on a network error.
+	 * The client is required to retry. We need to close without returning
+	 * any other information so that the client retries.
+	 */
+	txn->status = 0;
+	rep->analysers = 0;
+	s->req->analysers = 0;
+	channel_auto_close(rep);
+	s->logs.logwait = 0;
+	s->logs.level = 0;
+	s->rep->flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
+	bi_erase(rep);
+	stream_int_retnclose(rep->cons, NULL);
+	return 0;
 }
 
 /* This function performs all the processing enabled for the current response.
