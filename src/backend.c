@@ -982,10 +982,33 @@ static void assign_tproxy_address(struct session *s)
 int connect_server(struct session *s)
 {
 	struct connection *cli_conn;
-	struct connection *srv_conn = si_alloc_conn(s->req->cons, 0);
+	struct connection *srv_conn;
 	struct server *srv;
+	int reuse = 0;
 	int err;
 
+	srv_conn = objt_conn(s->req->cons->end);
+	if (srv_conn)
+		reuse = s->target == srv_conn->target;
+
+	if (reuse) {
+		/* Disable connection reuse if a dynamic source is used.
+		 * As long as we don't share connections between servers,
+		 * we don't need to disable connection reuse on no-idempotent
+		 * requests nor when PROXY protocol is used.
+		 */
+		srv = objt_server(s->target);
+		if (srv && srv->conn_src.opts & CO_SRC_BIND) {
+			if ((srv->conn_src.opts & CO_SRC_TPROXY_MASK) == CO_SRC_TPROXY_DYN)
+				reuse = 0;
+		}
+		else if (s->be->conn_src.opts & CO_SRC_BIND) {
+			if ((s->be->conn_src.opts & CO_SRC_TPROXY_MASK) == CO_SRC_TPROXY_DYN)
+				reuse = 0;
+		}
+	}
+
+	srv_conn = si_alloc_conn(s->req->cons, reuse);
 	if (!srv_conn)
 		return SN_ERR_RESOURCE;
 
