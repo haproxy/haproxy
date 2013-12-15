@@ -5230,6 +5230,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 		}
 
 		channel_dont_close(rep);
+		rep->flags |= CF_READ_DONTWAIT; /* try to get back here ASAP */
 		return 0;
 	}
 
