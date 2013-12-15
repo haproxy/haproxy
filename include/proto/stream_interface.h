@@ -298,14 +298,22 @@ static inline void si_chk_snd(struct stream_interface *si)
 static inline int si_connect(struct stream_interface *si)
 {
 	struct connection *conn = objt_conn(si->end);
-	int ret;
+	int ret = SN_ERR_NONE;
 
 	if (unlikely(!conn || !conn->ctrl || !conn->ctrl->connect))
 		return SN_ERR_INTERNAL;
 
-	ret = conn->ctrl->connect(conn, !channel_is_empty(si->ob), 0);
-	if (ret != SN_ERR_NONE)
-		return ret;
+	if (!conn_ctrl_ready(conn) || !conn_xprt_ready(conn)) {
+		ret = conn->ctrl->connect(conn, !channel_is_empty(si->ob), 0);
+		if (ret != SN_ERR_NONE)
+			return ret;
+	}
+	else if (!channel_is_empty(si->ob)) {
+		/* reuse the existing connection, we'll have to send a
+		 * request there.
+		 */
+		conn_data_want_send(conn);
+	}
 
 	/* needs src ip/port for logging */
 	if (si->flags & SI_FL_SRC_ADDR)
