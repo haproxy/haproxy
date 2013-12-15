@@ -4305,20 +4305,6 @@ option mysql-check [ user <username> ]
 
   See also: "option httpchk"
 
-option pgsql-check [ user <username> ]
-  Use PostgreSQL health checks for server testing
-  May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    no    |   yes  |   yes
-  Arguments :
-    <username> This is the username which will be used when connecting to
-               PostgreSQL server.
-
-  The check sends a PostgreSQL StartupMessage and waits for either
-  Authentication request or ErrorResponse message. It is a basic but useful
-  test which does not produce error nor aborted connect on the server.
-  This check is identical with the "mysql-check".
-
-  See also: "option httpchk"
 
 option nolinger
 no option nolinger
@@ -4435,6 +4421,22 @@ no option persist
   in a specific instance by prepending the "no" keyword before it.
 
   See also : "option redispatch", "retries", "force-persist"
+
+
+option pgsql-check [ user <username> ]
+  Use PostgreSQL health checks for server testing
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+  Arguments :
+    <username> This is the username which will be used when connecting to
+               PostgreSQL server.
+
+  The check sends a PostgreSQL StartupMessage and waits for either
+  Authentication request or ErrorResponse message. It is a basic but useful
+  test which does not produce error nor aborted connect on the server.
+  This check is identical with the "mysql-check".
+
+  See also: "option httpchk"
 
 
 option redispatch
