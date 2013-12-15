@@ -389,7 +389,7 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 	if (conn->flags & CO_FL_SOCK_WR_SH)
 		goto out_error;
 
-	if (!(conn->flags & CO_FL_CTRL_READY))
+	if (!conn_ctrl_ready(conn))
 		goto out_error;
 
 	/* If we have a PROXY line to send, we'll use this to validate the
@@ -812,7 +812,7 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 			/* quick close, the socket is alredy shut anyway */
 		}
 		else if (si->flags & SI_FL_NOLINGER) {
-			if ((conn->flags & CO_FL_CTRL_READY) && conn->ctrl) {
+			if (conn_ctrl_ready(conn)) {
 				setsockopt(conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
 					   (struct linger *) &nolinger, sizeof(struct linger));
 			}
@@ -833,7 +833,7 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 			 */
 			if (!(si->flags & SI_FL_NOHALF) || !(si->ib->flags & (CF_SHUTR|CF_DONT_READ))) {
 				/* We shutdown transport layer */
-				if ((conn->flags & CO_FL_CTRL_READY) && conn->ctrl)
+				if (conn_ctrl_ready(conn))
 					shutdown(conn->t.sock.fd, SHUT_WR);
 
 				if (!(si->ib->flags & (CF_SHUTR|CF_DONT_READ))) {
@@ -931,13 +931,13 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 		/* Before calling the data-level operations, we have to prepare
 		 * the polling flags to ensure we properly detect changes.
 		 */
-		if ((conn->flags & CO_FL_CTRL_READY) && conn->ctrl)
+		if (conn_ctrl_ready(conn))
 			fd_want_send(conn->t.sock.fd);
 
 		conn_refresh_polling_flags(conn);
 
 		si_conn_send(conn);
-		if ((conn->flags & CO_FL_CTRL_READY) && (conn->flags & CO_FL_ERROR)) {
+		if (conn_ctrl_ready(conn) && (conn->flags & CO_FL_ERROR)) {
 			/* Write error on the file descriptor */
 			fd_stop_both(conn->t.sock.fd);
 			__conn_data_stop_both(conn);
@@ -1287,7 +1287,7 @@ void stream_sock_read0(struct stream_interface *si)
 		/* we want to immediately forward this close to the write side */
 		if (si->flags & SI_FL_NOLINGER) {
 			si->flags &= ~SI_FL_NOLINGER;
-			if (conn->flags & CO_FL_CTRL_READY)
+			if (conn_ctrl_ready(conn))
 				setsockopt(conn->t.sock.fd, SOL_SOCKET, SO_LINGER,
 				           (struct linger *) &nolinger, sizeof(struct linger));
 		}

@@ -149,6 +149,16 @@ static inline void si_attach_conn(struct stream_interface *si, struct connection
 	conn_attach(conn, si, &si_conn_cb);
 }
 
+/* Returns true if a connection is attached to the stream interface <si> and
+ * if this connection is ready.
+ */
+static inline int si_conn_ready(struct stream_interface *si)
+{
+	struct connection *conn = objt_conn(si->end);
+
+	return conn && conn_ctrl_ready(conn) && conn_xprt_ready(conn);
+}
+
 /* Attach appctx <appctx> to the stream interface <si>. The stream interface
  * is configured to work with an applet context. It is left to the caller to
  * call appctx_set_applet() to assign an applet to this context.

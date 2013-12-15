@@ -43,6 +43,18 @@ int conn_fd_handler(int fd);
 int conn_recv_proxy(struct connection *conn, int flag);
 int make_proxy_line(char *buf, int buf_len, struct sockaddr_storage *src, struct sockaddr_storage *dst);
 
+/* returns true is the transport layer is ready */
+static inline int conn_xprt_ready(struct connection *conn)
+{
+	return (conn->flags & CO_FL_XPRT_READY) && conn->xprt;
+}
+
+/* returns true is the control layer is ready */
+static inline int conn_ctrl_ready(struct connection *conn)
+{
+	return (conn->flags & CO_FL_CTRL_READY);
+}
+
 /* Calls the init() function of the transport layer if any and if not done yet,
  * and sets the CO_FL_XPRT_READY flag to indicate it was properly initialized.
  * Returns <0 in case of error.
