@@ -1117,7 +1117,7 @@ int pattern_lookup(const char *key, struct pattern_expr *expr,
 	struct pat_idx_elt *elt;
 	const char *args[2];
 	int opaque = 0;
-	unsigned int mask;
+	unsigned int mask = 0;
 
 	/* no real pattern */
 	if (!expr->match || expr->match == pat_match_nothing)
