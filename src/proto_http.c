@@ -4496,6 +4496,8 @@ int http_sync_req_state(struct session *s)
 
 	if (txn->req.msg_state == HTTP_MSG_CLOSED) {
 	http_msg_closed:
+		if (!(s->be->options & PR_O_ABRT_CLOSE))
+			channel_dont_read(chn);
 		goto wait_other_side;
 	}
 
