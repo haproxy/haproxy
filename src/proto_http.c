@@ -4249,9 +4249,15 @@ void http_end_txn_clean_session(struct session *s)
 	 */
 	http_silent_debug(__LINE__, s);
 
-	s->req->cons->flags |= SI_FL_NOLINGER | SI_FL_NOHALF;
-	si_shutr(s->req->cons);
-	si_shutw(s->req->cons);
+	/* unless we're doing keep-alive, we want to quickly close the connection
+	 * to the server.
+	 */
+	if (((s->txn.flags & TX_CON_WANT_MSK) != TX_CON_WANT_KAL) ||
+	    !si_conn_ready(s->req->cons)) {
+		s->req->cons->flags |= SI_FL_NOLINGER | SI_FL_NOHALF;
+		si_shutr(s->req->cons);
+		si_shutw(s->req->cons);
+	}
 
 	http_silent_debug(__LINE__, s);
 
@@ -4324,8 +4330,15 @@ void http_end_txn_clean_session(struct session *s)
 
 	s->target = NULL;
 
+	/* only release our endpoint if we don't intend to reuse the
+	 * connection.
+	 */
+	if (((s->txn.flags & TX_CON_WANT_MSK) != TX_CON_WANT_KAL) ||
+	    !si_conn_ready(s->req->cons)) {
+		si_release_endpoint(s->req->cons);
+	}
+
 	s->req->cons->state     = s->req->cons->prev_state = SI_ST_INI;
-	si_release_endpoint(s->req->cons);
 	s->req->cons->err_type  = SI_ET_NONE;
 	s->req->cons->conn_retries = 0;  /* used for logging too */
 	s->req->cons->exp       = TICK_ETERNITY;
@@ -4454,14 +4467,14 @@ int http_sync_req_state(struct session *s)
 			}
 		}
 		else {
-			/* The last possible modes are keep-alive and tunnel. Since tunnel
-			 * mode does not set the body analyser, we can't reach this place
-			 * in tunnel mode, so we're left with keep-alive only.
-			 * This mode is currently not implemented, we switch to tunnel mode.
+			/* The last possible modes are keep-alive and tunnel. Tunnel mode
+			 * will not have any analyser so it needs to poll for reads.
 			 */
-			channel_auto_read(chn);
-			txn->req.msg_state = HTTP_MSG_TUNNEL;
-			chn->flags |= CF_NEVER_WAIT;
+			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_TUN) {
+				channel_auto_read(chn);
+				txn->req.msg_state = HTTP_MSG_TUNNEL;
+				chn->flags |= CF_NEVER_WAIT;
+			}
 		}
 
 		if (chn->flags & (CF_SHUTW|CF_SHUTW_NOW)) {
@@ -4581,14 +4594,14 @@ int http_sync_res_state(struct session *s)
 			}
 		}
 		else {
-			/* The last possible modes are keep-alive and tunnel. Since tunnel
-			 * mode does not set the body analyser, we can't reach this place
-			 * in tunnel mode, so we're left with keep-alive only.
-			 * This mode is currently not implemented, we switch to tunnel mode.
+			/* The last possible modes are keep-alive and tunnel. Tunnel will
+			 * need to forward remaining data. Keep-alive will need to monitor
+			 * for connection closing.
 			 */
 			channel_auto_read(chn);
-			txn->rsp.msg_state = HTTP_MSG_TUNNEL;
 			chn->flags |= CF_NEVER_WAIT;
+			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_TUN)
+				txn->rsp.msg_state = HTTP_MSG_TUNNEL;
 		}
 
 		if (chn->flags & (CF_SHUTW|CF_SHUTW_NOW)) {
@@ -4699,11 +4712,14 @@ int http_resync_states(struct session *s)
 		channel_auto_read(s->req);
 		bi_erase(s->req);
 	}
-	else if (txn->req.msg_state == HTTP_MSG_CLOSED &&
+	else if ((txn->req.msg_state == HTTP_MSG_DONE ||
+		  txn->req.msg_state == HTTP_MSG_CLOSED) &&
 		 txn->rsp.msg_state == HTTP_MSG_DONE &&
-		 ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL)) {
-		/* server-close: terminate this server connection and
-		 * reinitialize a fresh-new transaction.
+		 ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL ||
+		  (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL)) {
+		/* server-close/keep-alive: terminate this transaction,
+		 * possibly killing the server connection and reinitialize
+		 * a fresh-new transaction.
 		 */
 		http_end_txn_clean_session(s);
 	}
