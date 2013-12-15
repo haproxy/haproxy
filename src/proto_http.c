@@ -3742,7 +3742,8 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 	if ((s->be->options & PR_O_HTTP_PROXY) && !(s->flags & SN_ADDR_SET)) {
 		struct connection *conn;
 
-		if (unlikely((conn = si_alloc_conn(req->cons)) == NULL)) {
+		/* Note that for now we don't reuse existing proxy connections */
+		if (unlikely((conn = si_alloc_conn(req->cons, 0)) == NULL)) {
 			txn->req.msg_state = HTTP_MSG_ERROR;
 			txn->status = 500;
 			req->analysers = 0;

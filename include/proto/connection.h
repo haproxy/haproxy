@@ -126,7 +126,8 @@ static inline void conn_full_close(struct connection *conn)
 }
 
 /* Force to close the connection whatever the tracking state. This is mainly
- * used on the error path where the tracking does not make sense.
+ * used on the error path where the tracking does not make sense, or to kill
+ * an idle connection we want to abort immediately.
  */
 static inline void conn_force_close(struct connection *conn)
 {

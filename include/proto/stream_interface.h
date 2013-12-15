@@ -212,11 +212,15 @@ static inline void si_applet_release(struct stream_interface *si)
 		applet->release(si);
 }
 
+/* Try to allocate a new connection and assign it to the interface. If
+ * a connection was previously allocated and the <reuse> flag is set,
+ * it is returned unmodified. Otherwise it is reset.
+ */
 /* Returns the stream interface's existing connection if one such already
  * exists, or tries to allocate and initialize a new one which is then
  * assigned to the stream interface.
  */
-static inline struct connection *si_alloc_conn(struct stream_interface *si)
+static inline struct connection *si_alloc_conn(struct stream_interface *si, int reuse)
 {
 	struct connection *conn;
 
@@ -225,8 +229,13 @@ static inline struct connection *si_alloc_conn(struct stream_interface *si)
 	 */
 	if (si->end) {
 		conn = objt_conn(si->end);
-		if (conn)
+		if (conn) {
+			if (!reuse) {
+				conn_force_close(conn);
+				conn_init(conn);
+			}
 			return conn;
+		}
 		/* it was an applet then */
 		si_release_endpoint(si);
 	}

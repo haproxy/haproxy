@@ -982,7 +982,7 @@ static void assign_tproxy_address(struct session *s)
 int connect_server(struct session *s)
 {
 	struct connection *cli_conn;
-	struct connection *srv_conn = si_alloc_conn(s->req->cons);
+	struct connection *srv_conn = si_alloc_conn(s->req->cons, 0);
 	struct server *srv;
 	int err;
 
