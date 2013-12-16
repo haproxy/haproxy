@@ -1,6 +1,18 @@
 ChangeLog :
 ===========
 
+2013/12/17 : 1.5-dev21
+    - MINOR: stats: don't use a monospace font to report numbers
+    - MINOR: session: remove debugging code
+    - BUG/MAJOR: patterns: fix double free caused by loading strings from files
+    - MEDIUM: http: make option http_proxy automatically rewrite the URL
+    - BUG/MEDIUM: http: cook_cnt() forgets to set its output type
+    - BUG/MINOR: stats: correctly report throttle rate of low weight servers
+    - BUG/MEDIUM: checks: servers must not start in slowstart mode
+    - BUG/MINOR: acl: parser must also stop at comma on ACL-only keywords
+    - MEDIUM: stream-int: implement a very simplistic idle connection manager
+    - DOC: update the ROADMAP file
+
 2013/12/16 : 1.5-dev20
     - DOC: add missing options to the manpage
     - DOC: add manpage references to all system calls
