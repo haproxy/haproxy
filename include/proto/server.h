@@ -75,7 +75,7 @@ static inline unsigned int server_throttle_rate(struct server *sv)
 	if (!sv->uweight)
 		return 100;
 
-	return 100U * (px->lbprm.wmult * sv->eweight + px->lbprm.wdiv - 1) / (px->lbprm.wdiv * sv->uweight);
+	return (100U * px->lbprm.wmult * sv->eweight + px->lbprm.wdiv - 1) / (px->lbprm.wdiv * sv->uweight);
 }
 
 /*
