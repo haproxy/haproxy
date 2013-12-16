@@ -3568,7 +3568,7 @@ static void stats_dump_html_head(struct uri_auth *uri)
 	              "table.lgd td.noborder { border-style: none; padding: 2px; white-space: nowrap;}\n"
 	              "table.det { border-collapse: collapse; border-style: none; }\n"
 	              "table.det th { text-align: left; border-width: 0px; padding: 0px 1px 0px 0px; font-style:normal;font-size:11px;font-weight:bold;font-family: sans-serif;}\n"
-	              "table.det td { text-align: right; border-width: 0px; padding: 0px 0px 0px 4px; white-space: nowrap; font-style:normal;font-size:11px;font-weight:normal;font-family: monospace;}\n"
+	              "table.det td { text-align: right; border-width: 0px; padding: 0px 0px 0px 4px; white-space: nowrap; font-style:normal;font-size:11px;font-weight:normal;}\n"
 	              "u {text-decoration:none; border-bottom: 1px dotted black;}\n"
 		      "div.tips {\n"
 		      " display:block;\n"
