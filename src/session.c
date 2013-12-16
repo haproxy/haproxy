@@ -131,6 +131,18 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	 * to abort right here as soon as possible, we check the rules before
 	 * even initializing the stream interfaces.
 	 */
+	memset(&s->si[0], 0x55, sizeof(s->si[0]));
+
+	/* Add the minimum callbacks to prepare the connection's control layer.
+	 * We need this so that we can safely execute the ACLs used by the
+	 * "tcp-request connection" ruleset. We also carefully attach the
+	 * connection to the stream interface without initializing the rest,
+	 * so that ACLs can use si[0]->end.
+	 */
+	si_attach_conn(&s->si[0], cli_conn);
+	conn_attach(cli_conn, s, &sess_conn_cb);
+	conn_ctrl_init(cli_conn);
+
 	if ((l->options & LI_O_TCP_RULES) && !tcp_exec_req_rules(s)) {
 		/* let's do a no-linger now to close with a single RST. */
 		setsockopt(cfd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
@@ -187,15 +199,10 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	t->nice = l->nice;
 	s->task = t;
 
-	/* Add the various callbacks. Right now the transport layer is present
+	/* Finish setting the callbacks. Right now the transport layer is present
 	 * but not initialized. Also note we need to be careful as the stream
 	 * int is not initialized yet.
 	 */
-	conn_attach(cli_conn, s, &sess_conn_cb);
-
-	/* finish initialization of the accepted file descriptor */
-	conn_ctrl_init(cli_conn);
-
 	conn_data_want_recv(cli_conn);
 	if (conn_xprt_init(cli_conn) < 0)
 		goto out_free_task;
