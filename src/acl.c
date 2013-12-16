@@ -76,7 +76,8 @@ struct acl *find_acl_by_name(const char *name, struct list *head)
 }
 
 /* Return a pointer to the ACL keyword <kw>, or NULL if not found. Note that if
- * <kw> contains an opening parenthesis, only the left part of it is checked.
+ * <kw> contains an opening parenthesis or a comma, only the left part of it is
+ * checked.
  */
 struct acl_keyword *find_acl_kw(const char *kw)
 {
@@ -84,9 +85,9 @@ struct acl_keyword *find_acl_kw(const char *kw)
 	const char *kwend;
 	struct acl_kw_list *kwl;
 
-	kwend = strchr(kw, '(');
-	if (!kwend)
-		kwend = kw + strlen(kw);
+	kwend = kw;
+	while (*kwend && *kwend != '(' && *kwend != ',')
+		kwend++;
 
 	list_for_each_entry(kwl, &acl_keywords.list, list) {
 		for (index = 0; kwl->kw[index].kw != NULL; index++) {
