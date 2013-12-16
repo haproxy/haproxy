@@ -49,6 +49,8 @@ static void stream_int_chk_snd_conn(struct stream_interface *si);
 static void si_conn_recv_cb(struct connection *conn);
 static void si_conn_send_cb(struct connection *conn);
 static int si_conn_wake_cb(struct connection *conn);
+static int si_idle_conn_wake_cb(struct connection *conn);
+static void si_idle_conn_null_cb(struct connection *conn);
 
 /* stream-interface operations for embedded tasks */
 struct si_ops si_embedded_ops = {
@@ -72,6 +74,12 @@ struct data_cb si_conn_cb = {
 	.recv    = si_conn_recv_cb,
 	.send    = si_conn_send_cb,
 	.wake    = si_conn_wake_cb,
+};
+
+struct data_cb si_idle_conn_cb = {
+	.recv    = si_idle_conn_null_cb,
+	.send    = si_idle_conn_null_cb,
+	.wake    = si_idle_conn_wake_cb,
 };
 
 /*
@@ -480,6 +488,47 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
  out_wait:
 	__conn_sock_stop_recv(conn);
 	__conn_sock_poll_send(conn);
+	return 0;
+}
+
+
+/* Tiny I/O callback called on recv/send I/O events on idle connections.
+ * It simply sets the CO_FL_SOCK_RD_SH flag so that si_idle_conn_wake_cb()
+ * is notified and can kill the connection.
+ */
+static void si_idle_conn_null_cb(struct connection *conn)
+{
+	if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH))
+		return;
+
+	if ((fdtab[conn->t.sock.fd].ev & (FD_POLL_ERR|FD_POLL_HUP)) ||
+	    (conn->ctrl->drain && conn->ctrl->drain(conn->t.sock.fd)))
+		conn->flags |= CO_FL_SOCK_RD_SH;
+
+	/* disable draining if we were called and have no drain function */
+	if (!conn->ctrl->drain)
+		__conn_data_stop_recv(conn);
+}
+
+/* Callback to be used by connection I/O handlers when some activity is detected
+ * on an idle server connection. Its main purpose is to kill the connection once
+ * a close was detected on it. It returns 0 if it did nothing serious, or -1 if
+ * it killed the connection.
+ */
+static int si_idle_conn_wake_cb(struct connection *conn)
+{
+	struct stream_interface *si = conn->owner;
+
+	if (!conn_ctrl_ready(conn))
+		return 0;
+
+	if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH)) {
+		/* warning, we can't do anything on <conn> after this call ! */
+		conn_force_close(conn);
+		conn_free(conn);
+		si->end = NULL;
+		return -1;
+	}
 	return 0;
 }
 

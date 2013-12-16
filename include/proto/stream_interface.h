@@ -41,6 +41,7 @@ void stream_sock_read0(struct stream_interface *si);
 extern struct si_ops si_embedded_ops;
 extern struct si_ops si_conn_ops;
 extern struct data_cb si_conn_cb;
+extern struct data_cb si_idle_conn_cb;
 
 struct appctx *stream_int_register_handler(struct stream_interface *si, struct si_applet *app);
 void stream_int_unregister_handler(struct stream_interface *si);
@@ -136,6 +137,21 @@ static inline void si_detach(struct stream_interface *si)
 {
 	si_release_endpoint(si);
 	si->ops = &si_embedded_ops;
+}
+
+/* Turn a possibly existing connection endpoint of stream interface <si> to
+ * idle mode, which means that the connection will be polled for incoming events
+ * and might be killed by the underlying I/O handler.
+ */
+static inline void si_idle_conn(struct stream_interface *si)
+{
+	struct connection *conn = objt_conn(si->end);
+
+	if (!conn)
+		return;
+
+	conn_attach(conn, si, &si_idle_conn_cb);
+	conn_data_want_recv(conn);
 }
 
 /* Attach connection <conn> to the stream interface <si>. The stream interface

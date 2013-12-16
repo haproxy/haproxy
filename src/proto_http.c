@@ -4423,6 +4423,9 @@ void http_end_txn_clean_session(struct session *s)
 	channel_auto_read(s->rep);
 	channel_auto_close(s->rep);
 
+	/* we're in keep-alive with an idle connection, monitor it */
+	si_idle_conn(s->req->cons);
+
 	s->req->analysers = s->listener->analysers;
 	s->rep->analysers = 0;
 
