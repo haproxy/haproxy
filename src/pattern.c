@@ -882,6 +882,7 @@ int pattern_register(struct pattern_expr *expr, const char **args,
 
 			/* the "map_parser_str()" function always duplicate string information */
 			free((*pattern)->ptr.str);
+			(*pattern)->ptr.str = NULL;
 
 			/* we pre-set the data pointer to the tree's head so that functions
 			 * which are able to insert in a tree know where to do that.
