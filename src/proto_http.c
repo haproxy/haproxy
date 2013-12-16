@@ -3747,6 +3747,7 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 	 */
 	if ((s->be->options & PR_O_HTTP_PROXY) && !(s->flags & SN_ADDR_SET)) {
 		struct connection *conn;
+		char *path;
 
 		/* Note that for now we don't reuse existing proxy connections */
 		if (unlikely((conn = si_alloc_conn(req->cons, 0)) == NULL)) {
@@ -3762,7 +3763,39 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 
 			return 0;
 		}
-		url2sa(req->buf->p + msg->sl.rq.u, msg->sl.rq.u_l, &conn->addr.to);
+
+		path = http_get_path(txn);
+		url2sa(req->buf->p + msg->sl.rq.u,
+		       path ? path - (req->buf->p + msg->sl.rq.u) : msg->sl.rq.u_l,
+		       &conn->addr.to);
+		/* if the path was found, we have to remove everything between
+		 * req->buf->p + msg->sl.rq.u and path (excluded). If it was not
+		 * found, we need to replace from req->buf->p + msg->sl.rq.u for
+		 * u_l characters by a single "/".
+		 */
+		if (path) {
+			char *cur_ptr = req->buf->p;
+			char *cur_end = cur_ptr + txn->req.sl.rq.l;
+			int delta;
+
+			delta = buffer_replace2(req->buf, req->buf->p + msg->sl.rq.u, path, NULL, 0);
+			http_msg_move_end(&txn->req, delta);
+			cur_end += delta;
+			if (http_parse_reqline(&txn->req, HTTP_MSG_RQMETH,  cur_ptr, cur_end + 1, NULL, NULL) == NULL)
+				goto return_bad_req;
+		}
+		else {
+			char *cur_ptr = req->buf->p;
+			char *cur_end = cur_ptr + txn->req.sl.rq.l;
+			int delta;
+
+			delta = buffer_replace2(req->buf, req->buf->p + msg->sl.rq.u,
+						req->buf->p + msg->sl.rq.u + msg->sl.rq.u_l, "/", 1);
+			http_msg_move_end(&txn->req, delta);
+			cur_end += delta;
+			if (http_parse_reqline(&txn->req, HTTP_MSG_RQMETH,  cur_ptr, cur_end + 1, NULL, NULL) == NULL)
+				goto return_bad_req;
+		}
 	}
 
 	/*
