@@ -43,6 +43,7 @@ struct sample_fetch *find_sample_fetch(const char *kw, int len);
 int smp_resolve_args(struct proxy *p);
 int smp_expr_output_type(struct sample_expr *expr);
 int c_none(struct sample *smp);
+int smp_dup(struct sample *smp);
 
 /*
  * This function just apply a cast on sample. It returns 0 if the cast is not

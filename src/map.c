@@ -61,15 +61,16 @@ int map_parse_ip6(const char *text, struct sample_storage *smp)
 
 /* Parse a string and store a pointer to it into the sample. The original
  * string must be left in memory because we return a direct memory reference.
- * The output type is CSTR.
+ * The output type is SMP_T_STR. There is no risk that the data will be
+ * overwritten because sample_conv_map() makes a const sample with this
+ * output.
  */
 int map_parse_str(const char *text, struct sample_storage *smp)
 {
-	/* The loose of the "const" is balanced by the SMP_T_CSTR type */
 	smp->data.str.str = (char *)text;
 	smp->data.str.len = strlen(text);
 	smp->data.str.size = smp->data.str.len + 1;
-	smp->type = SMP_T_CSTR;
+	smp->type = SMP_T_STR;
 	return 1;
 }
 
@@ -472,6 +473,7 @@ static int sample_conv_map(const struct arg *arg_p, struct sample *smp)
 
 	/* copy new data */
 	smp->type = sample->type;
+	smp->flags |= SMP_F_CONST;
 	memcpy(&smp->data, &sample->data, sizeof(smp->data));
 	return 1;
 }

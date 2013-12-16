@@ -8990,7 +8990,7 @@ static int pat_parse_meth(const char *text, struct pattern *pattern, char **err)
 			return 0;
 		}
 		pattern->ptr.str = trash->str;
-		pattern->expect_type = SMP_T_CSTR;
+		pattern->expect_type = SMP_T_STR;
 		pattern->len = len;
 	}
 	else
@@ -9016,17 +9016,19 @@ smp_fetch_meth(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 	CHECK_HTTP_MESSAGE_FIRST_PERM();
 
 	meth = txn->meth;
+	smp->flags = 0;
 	smp->type = SMP_T_UINT;
 	smp->data.uint = meth;
 	if (meth == HTTP_METH_OTHER) {
 		if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
 			/* ensure the indexes are not affected */
 			return 0;
-		smp->type = SMP_T_CSTR;
+		smp->type = SMP_T_STR;
+		smp->flags |= SMP_F_CONST;
 		smp->data.str.len = txn->req.sl.rq.m_l;
 		smp->data.str.str = txn->req.chn->buf->p;
 	}
-	smp->flags = SMP_F_VOL_1ST;
+	smp->flags |= SMP_F_VOL_1ST;
 	return 1;
 }
 
@@ -9075,11 +9077,11 @@ smp_fetch_rqver(struct proxy *px, struct session *l4, void *l7, unsigned int opt
 	if (len <= 0)
 		return 0;
 
-	smp->type = SMP_T_CSTR;
+	smp->type = SMP_T_STR;
 	smp->data.str.str = ptr;
 	smp->data.str.len = len;
 
-	smp->flags = SMP_F_VOL_1ST;
+	smp->flags = SMP_F_VOL_1ST | SMP_F_CONST;
 	return 1;
 }
 
@@ -9103,11 +9105,11 @@ smp_fetch_stver(struct proxy *px, struct session *l4, void *l7, unsigned int opt
 	if (len <= 0)
 		return 0;
 
-	smp->type = SMP_T_CSTR;
+	smp->type = SMP_T_STR;
 	smp->data.str.str = ptr;
 	smp->data.str.len = len;
 
-	smp->flags = SMP_F_VOL_1ST;
+	smp->flags = SMP_F_VOL_1ST | SMP_F_CONST;
 	return 1;
 }
 
@@ -9143,10 +9145,10 @@ smp_fetch_url(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 
 	CHECK_HTTP_MESSAGE_FIRST();
 
-	smp->type = SMP_T_CSTR;
+	smp->type = SMP_T_STR;
 	smp->data.str.len = txn->req.sl.rq.u_l;
 	smp->data.str.str = txn->req.chn->buf->p + txn->req.sl.rq.u;
-	smp->flags = SMP_F_VOL_1ST;
+	smp->flags = SMP_F_VOL_1ST | SMP_F_CONST;
 	return 1;
 }
 
@@ -9238,8 +9240,8 @@ smp_fetch_fhdr(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 		/* prepare to report multiple occurrences for ACL fetches */
 		smp->flags |= SMP_F_NOT_LAST;
 
-	smp->type = SMP_T_CSTR;
-	smp->flags |= SMP_F_VOL_HDR;
+	smp->type = SMP_T_STR;
+	smp->flags |= SMP_F_VOL_HDR | SMP_F_CONST;
 	if (http_get_fhdr(msg, name_str, name_len, idx, occ, ctx, &smp->data.str.str, &smp->data.str.len))
 		return 1;
 
@@ -9326,8 +9328,8 @@ smp_fetch_hdr(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 		/* prepare to report multiple occurrences for ACL fetches */
 		smp->flags |= SMP_F_NOT_LAST;
 
-	smp->type = SMP_T_CSTR;
-	smp->flags |= SMP_F_VOL_HDR;
+	smp->type = SMP_T_STR;
+	smp->flags |= SMP_F_VOL_HDR | SMP_F_CONST;
 	if (http_get_hdr(msg, name_str, name_len, idx, occ, ctx, &smp->data.str.str, &smp->data.str.len))
 		return 1;
 
@@ -9434,14 +9436,14 @@ smp_fetch_path(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 		return 0;
 
 	/* OK, we got the '/' ! */
-	smp->type = SMP_T_CSTR;
+	smp->type = SMP_T_STR;
 	smp->data.str.str = ptr;
 
 	while (ptr < end && *ptr != '?')
 		ptr++;
 
 	smp->data.str.len = ptr - smp->data.str.str;
-	smp->flags = SMP_F_VOL_1ST;
+	smp->flags = SMP_F_VOL_1ST | SMP_F_CONST;
 	return 1;
 }
 
@@ -9652,7 +9654,8 @@ smp_fetch_http_auth_grp(struct proxy *px, struct session *l4, void *l7, unsigned
 	/* pat_match_auth() will need the user list */
 	smp->ctx.a[0] = args->data.usr;
 
-	smp->type = SMP_T_CSTR;
+	smp->type = SMP_T_STR;
+	smp->flags = SMP_F_CONST;
 	smp->data.str.str = l4->txn.auth.user;
 	smp->data.str.len = strlen(l4->txn.auth.user);
 
@@ -9773,7 +9776,8 @@ smp_fetch_capture_header_req(struct proxy *px, struct session *l4, void *l7, uns
 	if (idx > (fe->nb_req_cap - 1) || txn->req.cap == NULL || txn->req.cap[idx] == NULL)
 		return 0;
 
-	smp->type = SMP_T_CSTR;
+	smp->type = SMP_T_STR;
+	smp->flags |= SMP_F_CONST;
 	smp->data.str.str = txn->req.cap[idx];
 	smp->data.str.len = strlen(txn->req.cap[idx]);
 
@@ -9799,7 +9803,8 @@ smp_fetch_capture_header_res(struct proxy *px, struct session *l4, void *l7, uns
 	if (idx > (fe->nb_rsp_cap - 1) || txn->rsp.cap == NULL || txn->rsp.cap[idx] == NULL)
 		return 0;
 
-	smp->type = SMP_T_CSTR;
+	smp->type = SMP_T_STR;
+	smp->flags |= SMP_F_CONST;
 	smp->data.str.str = txn->rsp.cap[idx];
 	smp->data.str.len = strlen(txn->rsp.cap[idx]);
 
@@ -9827,7 +9832,8 @@ smp_fetch_capture_req_method(struct proxy *px, struct session *l4, void *l7, uns
 	temp->str = txn->uri;
 	temp->len = ptr - txn->uri;
 	smp->data.str = *temp;
-	smp->type = SMP_T_CSTR;
+	smp->type = SMP_T_STR;
+	smp->flags = SMP_F_CONST;
 
 	return 1;
 
@@ -9864,7 +9870,8 @@ smp_fetch_capture_req_uri(struct proxy *px, struct session *l4, void *l7, unsign
 
 	smp->data.str = *temp;
 	smp->data.str.len = ptr - temp->str;
-	smp->type = SMP_T_CSTR;
+	smp->type = SMP_T_STR;
+	smp->flags = SMP_F_CONST;
 
 	return 1;
 }
@@ -9948,7 +9955,8 @@ smp_fetch_cookie(struct proxy *px, struct session *l4, void *l7, unsigned int op
 			smp->ctx.a[1] = smp->ctx.a[0] + ctx->vlen;
 		}
 
-		smp->type = SMP_T_CSTR;
+		smp->type = SMP_T_STR;
+		smp->flags |= SMP_F_CONST;
 		smp->ctx.a[0] = extract_cookie_value(smp->ctx.a[0], smp->ctx.a[1],
 						 args->data.str.str, args->data.str.len,
 						 (opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ,
@@ -10024,7 +10032,8 @@ smp_fetch_cookie_cnt(struct proxy *px, struct session *l4, void *l7, unsigned in
 			val_end = val_beg + ctx.vlen;
 		}
 
-		smp->type = SMP_T_CSTR;
+		smp->type = SMP_T_STR;
+		smp->flags |= SMP_F_CONST;
 		while ((val_beg = extract_cookie_value(val_beg, val_end,
 						       args->data.str.str, args->data.str.len,
 						       (opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ,
@@ -10171,8 +10180,8 @@ smp_fetch_url_param(struct proxy *px, struct session *l4, void *l7, unsigned int
                                  delim))
 		return 0;
 
-	smp->type = SMP_T_CSTR;
-	smp->flags = SMP_F_VOL_1ST;
+	smp->type = SMP_T_STR;
+	smp->flags = SMP_F_VOL_1ST | SMP_F_CONST;
 	return 1;
 }
 
@@ -10424,23 +10433,23 @@ static struct acl_kw_list acl_kws = {ILH, {
 /************************************************************************/
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
-	{ "base",            smp_fetch_base,           0,                NULL,    SMP_T_CSTR, SMP_USE_HRQHV },
+	{ "base",            smp_fetch_base,           0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 	{ "base32",          smp_fetch_base32,         0,                NULL,    SMP_T_UINT, SMP_USE_HRQHV },
 	{ "base32+src",      smp_fetch_base32_src,     0,                NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
 
-	{ "capture.req.uri",    smp_fetch_capture_req_uri,    0,          NULL,    SMP_T_CSTR, SMP_USE_HRQHP },
-	{ "capture.req.method", smp_fetch_capture_req_method, 0,          NULL,    SMP_T_CSTR, SMP_USE_HRQHP },
+	{ "capture.req.uri",    smp_fetch_capture_req_uri,    0,          NULL,    SMP_T_STR, SMP_USE_HRQHP },
+	{ "capture.req.method", smp_fetch_capture_req_method, 0,          NULL,    SMP_T_STR, SMP_USE_HRQHP },
 
 	/* capture are allocated and are permanent in the session */
-	{ "capture.req.hdr", smp_fetch_capture_header_req, ARG1(1, UINT), NULL, SMP_T_CSTR, SMP_USE_HRQHP },
-	{ "capture.res.hdr", smp_fetch_capture_header_res, ARG1(1, UINT), NULL, SMP_T_CSTR, SMP_USE_HRSHP },
+	{ "capture.req.hdr", smp_fetch_capture_header_req, ARG1(1, UINT), NULL,   SMP_T_STR,  SMP_USE_HRQHP },
+	{ "capture.res.hdr", smp_fetch_capture_header_res, ARG1(1, UINT), NULL,   SMP_T_STR,  SMP_USE_HRSHP },
 
 	/* cookie is valid in both directions (eg: for "stick ...") but cook*
 	 * are only here to match the ACL's name, are request-only and are used
 	 * for ACL compatibility only.
 	 */
-	{ "cook",            smp_fetch_cookie,         ARG1(0,STR),      NULL,    SMP_T_CSTR, SMP_USE_HRQHV },
-	{ "cookie",          smp_fetch_cookie,         ARG1(0,STR),      NULL,    SMP_T_CSTR, SMP_USE_HRQHV|SMP_USE_HRSHV },
+	{ "cook",            smp_fetch_cookie,         ARG1(0,STR),      NULL,    SMP_T_STR,  SMP_USE_HRQHV },
+	{ "cookie",          smp_fetch_cookie,         ARG1(0,STR),      NULL,    SMP_T_STR,  SMP_USE_HRQHV|SMP_USE_HRSHV },
 	{ "cook_cnt",        smp_fetch_cookie_cnt,     ARG1(0,STR),      NULL,    SMP_T_UINT, SMP_USE_HRQHV },
 	{ "cook_val",        smp_fetch_cookie_val,     ARG1(0,STR),      NULL,    SMP_T_UINT, SMP_USE_HRQHV },
 
@@ -10448,73 +10457,73 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	 * only here to match the ACL's name, are request-only and are used for
 	 * ACL compatibility only.
 	 */
-	{ "hdr",             smp_fetch_hdr,            ARG2(0,STR,SINT), val_hdr, SMP_T_CSTR, SMP_USE_HRQHV|SMP_USE_HRSHV },
+	{ "hdr",             smp_fetch_hdr,            ARG2(0,STR,SINT), val_hdr, SMP_T_STR,  SMP_USE_HRQHV|SMP_USE_HRSHV },
 	{ "hdr_cnt",         smp_fetch_hdr_cnt,        ARG1(0,STR),      NULL,    SMP_T_UINT, SMP_USE_HRQHV },
 	{ "hdr_ip",          smp_fetch_hdr_ip,         ARG2(0,STR,SINT), val_hdr, SMP_T_IPV4, SMP_USE_HRQHV },
 	{ "hdr_val",         smp_fetch_hdr_val,        ARG2(0,STR,SINT), val_hdr, SMP_T_UINT, SMP_USE_HRQHV },
 
 	{ "http_auth",       smp_fetch_http_auth,      ARG1(1,USR),      NULL,    SMP_T_BOOL, SMP_USE_HRQHV },
-	{ "http_auth_group", smp_fetch_http_auth_grp,  ARG1(1,USR),      NULL,    SMP_T_CSTR, SMP_USE_HRQHV },
+	{ "http_auth_group", smp_fetch_http_auth_grp,  ARG1(1,USR),      NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 	{ "http_first_req",  smp_fetch_http_first_req, 0,                NULL,    SMP_T_BOOL, SMP_USE_HRQHP },
 	{ "method",          smp_fetch_meth,           0,                NULL,    SMP_T_UINT, SMP_USE_HRQHP },
-	{ "path",            smp_fetch_path,           0,                NULL,    SMP_T_CSTR, SMP_USE_HRQHV },
+	{ "path",            smp_fetch_path,           0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 
 	/* HTTP protocol on the request path */
 	{ "req.proto_http",  smp_fetch_proto_http,     0,                NULL,    SMP_T_BOOL, SMP_USE_HRQHP },
 	{ "req_proto_http",  smp_fetch_proto_http,     0,                NULL,    SMP_T_BOOL, SMP_USE_HRQHP },
 
 	/* HTTP version on the request path */
-	{ "req.ver",         smp_fetch_rqver,          0,                NULL,    SMP_T_CSTR, SMP_USE_HRQHV },
-	{ "req_ver",         smp_fetch_rqver,          0,                NULL,    SMP_T_CSTR, SMP_USE_HRQHV },
+	{ "req.ver",         smp_fetch_rqver,          0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
+	{ "req_ver",         smp_fetch_rqver,          0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 
 	/* HTTP version on the response path */
-	{ "res.ver",         smp_fetch_stver,          0,                NULL,    SMP_T_CSTR, SMP_USE_HRSHV },
-	{ "resp_ver",        smp_fetch_stver,          0,                NULL,    SMP_T_CSTR, SMP_USE_HRSHV },
+	{ "res.ver",         smp_fetch_stver,          0,                NULL,    SMP_T_STR,  SMP_USE_HRSHV },
+	{ "resp_ver",        smp_fetch_stver,          0,                NULL,    SMP_T_STR,  SMP_USE_HRSHV },
 
 	/* explicit req.{cook,hdr} are used to force the fetch direction to be request-only */
-	{ "req.cook",        smp_fetch_cookie,         ARG1(0,STR),      NULL,    SMP_T_CSTR, SMP_USE_HRQHV },
+	{ "req.cook",        smp_fetch_cookie,         ARG1(0,STR),      NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 	{ "req.cook_cnt",    smp_fetch_cookie_cnt,     ARG1(0,STR),      NULL,    SMP_T_UINT, SMP_USE_HRQHV },
 	{ "req.cook_val",    smp_fetch_cookie_val,     ARG1(0,STR),      NULL,    SMP_T_UINT, SMP_USE_HRQHV },
 
-	{ "req.fhdr",        smp_fetch_fhdr,           ARG2(0,STR,SINT), val_hdr, SMP_T_CSTR, SMP_USE_HRQHV },
+	{ "req.fhdr",        smp_fetch_fhdr,           ARG2(0,STR,SINT), val_hdr, SMP_T_STR,  SMP_USE_HRQHV },
 	{ "req.fhdr_cnt",    smp_fetch_fhdr_cnt,       ARG1(0,STR),      NULL,    SMP_T_UINT, SMP_USE_HRQHV },
-	{ "req.hdr",         smp_fetch_hdr,            ARG2(0,STR,SINT), val_hdr, SMP_T_CSTR, SMP_USE_HRQHV },
+	{ "req.hdr",         smp_fetch_hdr,            ARG2(0,STR,SINT), val_hdr, SMP_T_STR,  SMP_USE_HRQHV },
 	{ "req.hdr_cnt",     smp_fetch_hdr_cnt,        ARG1(0,STR),      NULL,    SMP_T_UINT, SMP_USE_HRQHV },
 	{ "req.hdr_ip",      smp_fetch_hdr_ip,         ARG2(0,STR,SINT), val_hdr, SMP_T_IPV4, SMP_USE_HRQHV },
 	{ "req.hdr_val",     smp_fetch_hdr_val,        ARG2(0,STR,SINT), val_hdr, SMP_T_UINT, SMP_USE_HRQHV },
 
 	/* explicit req.{cook,hdr} are used to force the fetch direction to be response-only */
-	{ "res.cook",        smp_fetch_cookie,         ARG1(0,STR),      NULL,    SMP_T_CSTR, SMP_USE_HRSHV },
+	{ "res.cook",        smp_fetch_cookie,         ARG1(0,STR),      NULL,    SMP_T_STR,  SMP_USE_HRSHV },
 	{ "res.cook_cnt",    smp_fetch_cookie_cnt,     ARG1(0,STR),      NULL,    SMP_T_UINT, SMP_USE_HRSHV },
 	{ "res.cook_val",    smp_fetch_cookie_val,     ARG1(0,STR),      NULL,    SMP_T_UINT, SMP_USE_HRSHV },
 
-	{ "res.fhdr",        smp_fetch_fhdr,           ARG2(0,STR,SINT), val_hdr, SMP_T_CSTR, SMP_USE_HRSHV },
+	{ "res.fhdr",        smp_fetch_fhdr,           ARG2(0,STR,SINT), val_hdr, SMP_T_STR,  SMP_USE_HRSHV },
 	{ "res.fhdr_cnt",    smp_fetch_fhdr_cnt,       ARG1(0,STR),      NULL,    SMP_T_UINT, SMP_USE_HRSHV },
-	{ "res.hdr",         smp_fetch_hdr,            ARG2(0,STR,SINT), val_hdr, SMP_T_CSTR, SMP_USE_HRSHV },
+	{ "res.hdr",         smp_fetch_hdr,            ARG2(0,STR,SINT), val_hdr, SMP_T_STR,  SMP_USE_HRSHV },
 	{ "res.hdr_cnt",     smp_fetch_hdr_cnt,        ARG1(0,STR),      NULL,    SMP_T_UINT, SMP_USE_HRSHV },
 	{ "res.hdr_ip",      smp_fetch_hdr_ip,         ARG2(0,STR,SINT), val_hdr, SMP_T_IPV4, SMP_USE_HRSHV },
 	{ "res.hdr_val",     smp_fetch_hdr_val,        ARG2(0,STR,SINT), val_hdr, SMP_T_UINT, SMP_USE_HRSHV },
 
 	/* scook is valid only on the response and is used for ACL compatibility */
-	{ "scook",           smp_fetch_cookie,         ARG1(0,STR),      NULL,    SMP_T_CSTR, SMP_USE_HRSHV },
+	{ "scook",           smp_fetch_cookie,         ARG1(0,STR),      NULL,    SMP_T_STR,  SMP_USE_HRSHV },
 	{ "scook_cnt",       smp_fetch_cookie_cnt,     ARG1(0,STR),      NULL,    SMP_T_UINT, SMP_USE_HRSHV },
 	{ "scook_val",       smp_fetch_cookie_val,     ARG1(0,STR),      NULL,    SMP_T_UINT, SMP_USE_HRSHV },
-	{ "set-cookie",      smp_fetch_cookie,         ARG1(0,STR),      NULL,    SMP_T_CSTR, SMP_USE_HRSHV }, /* deprecated */
+	{ "set-cookie",      smp_fetch_cookie,         ARG1(0,STR),      NULL,    SMP_T_STR,  SMP_USE_HRSHV }, /* deprecated */
 
 	/* shdr is valid only on the response and is used for ACL compatibility */
-	{ "shdr",            smp_fetch_hdr,            ARG2(0,STR,SINT), val_hdr, SMP_T_CSTR, SMP_USE_HRSHV },
+	{ "shdr",            smp_fetch_hdr,            ARG2(0,STR,SINT), val_hdr, SMP_T_STR,  SMP_USE_HRSHV },
 	{ "shdr_cnt",        smp_fetch_hdr_cnt,        ARG1(0,STR),      NULL,    SMP_T_UINT, SMP_USE_HRSHV },
 	{ "shdr_ip",         smp_fetch_hdr_ip,         ARG2(0,STR,SINT), val_hdr, SMP_T_IPV4, SMP_USE_HRSHV },
 	{ "shdr_val",        smp_fetch_hdr_val,        ARG2(0,STR,SINT), val_hdr, SMP_T_UINT, SMP_USE_HRSHV },
 
 	{ "status",          smp_fetch_stcode,         0,                NULL,    SMP_T_UINT, SMP_USE_HRSHP },
-	{ "url",             smp_fetch_url,            0,                NULL,    SMP_T_CSTR, SMP_USE_HRQHV },
+	{ "url",             smp_fetch_url,            0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 	{ "url32",           smp_fetch_url32,          0,                NULL,    SMP_T_UINT, SMP_USE_HRQHV },
 	{ "url32+src",       smp_fetch_url32_src,      0,                NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
 	{ "url_ip",          smp_fetch_url_ip,         0,                NULL,    SMP_T_IPV4, SMP_USE_HRQHV },
 	{ "url_port",        smp_fetch_url_port,       0,                NULL,    SMP_T_UINT, SMP_USE_HRQHV },
-	{ "url_param",       smp_fetch_url_param,      ARG2(1,STR,STR),  NULL,    SMP_T_CSTR, SMP_USE_HRQHV },
-	{ "urlp"     ,       smp_fetch_url_param,      ARG2(1,STR,STR),  NULL,    SMP_T_CSTR, SMP_USE_HRQHV },
+	{ "url_param",       smp_fetch_url_param,      ARG2(1,STR,STR),  NULL,    SMP_T_STR,  SMP_USE_HRQHV },
+	{ "urlp"     ,       smp_fetch_url_param,      ARG2(1,STR,STR),  NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 	{ "urlp_val",        smp_fetch_url_param_val,  ARG2(1,STR,STR),  NULL,    SMP_T_UINT, SMP_USE_HRQHV },
 	{ /* END */ },
 }};

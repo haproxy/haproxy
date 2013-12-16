@@ -4845,7 +4845,8 @@ static int stats_map_lookup(struct stream_interface *si)
 			chunk_reset(&trash);
 
 			/* execute pattern matching */
-			sample.type = SMP_T_CSTR;
+			sample.type = SMP_T_STR;
+			sample.flags |= SMP_F_CONST;
 			sample.data.str.len = appctx->ctx.map.chunk.len;
 			sample.data.str.str = appctx->ctx.map.chunk.str;
 			pat = NULL;
@@ -4935,8 +4936,8 @@ static int stats_map_lookup(struct stream_interface *si)
 			else {
 				memcpy(&sample.data, &smp->data, sizeof(sample.data));
 				sample.type = smp->type;
-				if (sample_casts[sample.type][SMP_T_CSTR] &&
-				    sample_casts[sample.type][SMP_T_CSTR](&sample))
+				if (sample_casts[sample.type][SMP_T_STR] &&
+				    sample_casts[sample.type][SMP_T_STR](&sample))
 					chunk_appendf(&trash, "return=\"%s\", type=\"%s\"\n",
 					              sample.data.str.str, smp_to_type[smp->type]);
 				else

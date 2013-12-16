@@ -94,15 +94,15 @@ int pat_match_types[PAT_MATCH_NUM] = {
 	[PAT_MATCH_BOOL]  = SMP_T_UINT,
 	[PAT_MATCH_INT]   = SMP_T_UINT,
 	[PAT_MATCH_IP]    = SMP_T_ADDR,
-	[PAT_MATCH_BIN]   = SMP_T_CBIN,
-	[PAT_MATCH_LEN]   = SMP_T_CSTR,
-	[PAT_MATCH_STR]   = SMP_T_CSTR,
-	[PAT_MATCH_BEG]   = SMP_T_CSTR,
-	[PAT_MATCH_SUB]   = SMP_T_CSTR,
-	[PAT_MATCH_DIR]   = SMP_T_CSTR,
-	[PAT_MATCH_DOM]   = SMP_T_CSTR,
-	[PAT_MATCH_END]   = SMP_T_CSTR,
-	[PAT_MATCH_REG]   = SMP_T_CSTR,
+	[PAT_MATCH_BIN]   = SMP_T_BIN,
+	[PAT_MATCH_LEN]   = SMP_T_STR,
+	[PAT_MATCH_STR]   = SMP_T_STR,
+	[PAT_MATCH_BEG]   = SMP_T_STR,
+	[PAT_MATCH_SUB]   = SMP_T_STR,
+	[PAT_MATCH_DIR]   = SMP_T_STR,
+	[PAT_MATCH_DOM]   = SMP_T_STR,
+	[PAT_MATCH_END]   = SMP_T_STR,
+	[PAT_MATCH_REG]   = SMP_T_STR,
 };
 
 /*
@@ -202,8 +202,8 @@ int pat_parse_nothing(const char *text, struct pattern *pattern, char **err)
 /* Parse a string. It is allocated and duplicated. */
 int pat_parse_str(const char *text, struct pattern *pattern, char **err)
 {
-	pattern->type = SMP_T_CSTR;
-	pattern->expect_type = SMP_T_CSTR;
+	pattern->type = SMP_T_STR;
+	pattern->expect_type = SMP_T_STR;
 	pattern->ptr.str = (char *)text;
 	pattern->len = strlen(text);
 	return 1;
@@ -214,8 +214,8 @@ int pat_parse_bin(const char *text, struct pattern *pattern, char **err)
 {
 	struct chunk *trash;
 
-	pattern->type = SMP_T_CBIN;
-	pattern->expect_type = SMP_T_CBIN;
+	pattern->type = SMP_T_BIN;
+	pattern->expect_type = SMP_T_BIN;
 	trash = get_trash_chunk();
 	pattern->len = trash->size;
 	pattern->ptr.str = trash->str;
@@ -238,7 +238,7 @@ int pat_parse_reg(const char *text, struct pattern *pattern, char **err)
 	pattern->ptr.reg->regstr = (char *)text;
 	pattern->freeptrbuf = NULL;
 
-	pattern->expect_type = SMP_T_CSTR;
+	pattern->expect_type = SMP_T_STR;
 	return 1;
 }
 
@@ -328,7 +328,7 @@ int pat_parse_len(const char *text, struct pattern *pattern, char **err)
 	int ret;
 
 	ret = pat_parse_int(text, pattern, err);
-	pattern->expect_type = SMP_T_CSTR;
+	pattern->expect_type = SMP_T_STR;
 	return ret;
 }
 
@@ -933,7 +933,7 @@ int pat_idx_tree_str(struct pattern_expr *expr, struct pattern *pat, char **err)
 	struct pattern_tree *node;
 
 	/* Only string can be indexed */
-	if (pat->type != SMP_T_CSTR && pat->type != SMP_T_STR) {
+	if (pat->type != SMP_T_STR) {
 		memprintf(err, "internal error: string expected, but the type is '%s'",
 		          smp_to_type[pat->type]);
 		return 0;
@@ -1149,7 +1149,6 @@ int pattern_lookup(const char *key, struct pattern_expr *expr,
 	if (!eb_is_empty(&expr->pattern_tree) && pattern.type != SMP_T_IPV6) {
 		/* Check the pattern type */
 		if (pattern.type != SMP_T_STR &&
-		    pattern.type != SMP_T_CSTR &&
 		    pattern.type != SMP_T_IPV4) {
 			memprintf(err, "Unexpected pattern type.");
 			return 0;

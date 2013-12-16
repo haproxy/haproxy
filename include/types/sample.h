@@ -40,8 +40,6 @@ enum {
 	SMP_T_IPV6,      /* ipv6 type */
 	SMP_T_STR,       /* char string type */
 	SMP_T_BIN,       /* buffer type */
-	SMP_T_CSTR,      /* constant char string type, data need dup before conversion */
-	SMP_T_CBIN,      /* constant buffer type, data need dup before conversion */
 	SMP_TYPES        /* number of types, must always be last */
 };
 
@@ -203,6 +201,7 @@ enum {
 	SMP_F_VOL_TXN    = 1 << 5, /* result sensitive to new transaction (eg: HTTP version) */
 	SMP_F_VOL_SESS   = 1 << 6, /* result sensitive to new session (eg: src IP) */
 	SMP_F_VOLATILE   = (1<<2)|(1<<3)|(1<<4)|(1<<5)|(1<<6), /* any volatility condition */
+	SMP_F_CONST      = 1 << 7, /* This sample use constant memory. May diplicate it before changes */
 };
 
 /* needed below */

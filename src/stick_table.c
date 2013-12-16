@@ -594,8 +594,6 @@ static sample_to_key_fct sample_to_key[SMP_TYPES][STKTABLE_TYPES] = {
 /*             IPV6 */ { k_ip2ip,  k_ip2ipv6,   k_ip2int,  k_ip2str,   NULL      },
 /*              STR */ { k_str2ip, k_str2ipv6,  k_str2int, k_str2str,  k_str2str },
 /*              BIN */ { NULL,     NULL,        NULL,      k_bin2str,  k_str2str },
-/*             CSTR */ { k_str2ip, k_str2ipv6,  k_str2int, k_str2str,  k_str2str },
-/*             CBIN */ { NULL,     NULL,        NULL,      k_bin2str,  k_str2str },
 };
 
 

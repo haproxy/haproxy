@@ -375,10 +375,10 @@ smp_fetch_ssl_hello_sni(struct proxy *px, struct session *s, void *l7, unsigned 
 			name_len = (data[7] << 8) + data[8];
 
 			if (name_type == 0) { /* hostname */
-				smp->type = SMP_T_CSTR;
+				smp->type = SMP_T_STR;
 				smp->data.str.str = (char *)data + 9;
 				smp->data.str.len = name_len;
-				smp->flags = SMP_F_VOLATILE;
+				smp->flags = SMP_F_VOLATILE | SMP_F_CONST;
 				return 1;
 			}
 		}
@@ -410,8 +410,8 @@ fetch_rdp_cookie_name(struct session *s, struct sample *smp, const char *cname, 
 	if (!s || !s->req)
 		return 0;
 
-	smp->flags = 0;
-	smp->type = SMP_T_CSTR;
+	smp->flags = SMP_F_CONST;
+	smp->type = SMP_T_STR;
 
 	bleft = s->req->buf->i;
 	if (bleft <= 11)
@@ -478,11 +478,11 @@ fetch_rdp_cookie_name(struct session *s, struct sample *smp, const char *cname, 
 		goto not_cookie;
 
 	smp->data.str.len = (char *)data - smp->data.str.str;
-	smp->flags = SMP_F_VOLATILE;
+	smp->flags = SMP_F_VOLATILE | SMP_F_CONST;
 	return 1;
 
  too_short:
-	smp->flags = SMP_F_MAY_CHANGE;
+	smp->flags = SMP_F_MAY_CHANGE | SMP_F_CONST;
  not_cookie:
 	return 0;
 }
@@ -566,13 +566,13 @@ smp_fetch_payload_lv(struct proxy *px, struct session *s, void *l7, unsigned int
 		goto too_short;
 
 	/* init chunk as read only */
-	smp->type = SMP_T_CBIN;
+	smp->type = SMP_T_BIN;
+	smp->flags = SMP_F_VOLATILE | SMP_F_CONST;
 	chunk_initlen(&smp->data.str, chn->buf->p + buf_offset, 0, buf_size);
-	smp->flags = SMP_F_VOLATILE;
 	return 1;
 
  too_short:
-	smp->flags = SMP_F_MAY_CHANGE;
+	smp->flags = SMP_F_MAY_CHANGE | SMP_F_CONST;
 	return 0;
 }
 
@@ -603,16 +603,16 @@ smp_fetch_payload(struct proxy *px, struct session *s, void *l7, unsigned int op
 		goto too_short;
 
 	/* init chunk as read only */
-	smp->type = SMP_T_CBIN;
+	smp->type = SMP_T_BIN;
+	smp->flags = SMP_F_VOLATILE | SMP_F_CONST;
 	chunk_initlen(&smp->data.str, chn->buf->p + buf_offset, 0, buf_size ? buf_size : (chn->buf->i - buf_offset));
-	smp->flags = SMP_F_VOLATILE;
 	if (!buf_size && !channel_full(chn) && !channel_input_closed(chn))
 		smp->flags |= SMP_F_MAY_CHANGE;
 
 	return 1;
 
  too_short:
-	smp->flags = SMP_F_MAY_CHANGE;
+	smp->flags = SMP_F_MAY_CHANGE | SMP_F_CONST;
 	return 0;
 }
 
@@ -650,27 +650,27 @@ static int val_payload_lv(struct arg *arg, char **err_msg)
  * instance IPv4/IPv6 must be declared IPv4.
  */
 static struct sample_fetch_kw_list smp_kws = {ILH, {
-	{ "payload",             smp_fetch_payload,        ARG2(2,UINT,UINT),      NULL,           SMP_T_CBIN, SMP_USE_L6REQ|SMP_USE_L6RES },
-	{ "payload_lv",          smp_fetch_payload_lv,     ARG3(2,UINT,UINT,SINT), val_payload_lv, SMP_T_CBIN, SMP_USE_L6REQ|SMP_USE_L6RES },
-	{ "rdp_cookie",          smp_fetch_rdp_cookie,     ARG1(0,STR),            NULL,           SMP_T_CSTR, SMP_USE_L6REQ },
+	{ "payload",             smp_fetch_payload,        ARG2(2,UINT,UINT),      NULL,           SMP_T_BIN,  SMP_USE_L6REQ|SMP_USE_L6RES },
+	{ "payload_lv",          smp_fetch_payload_lv,     ARG3(2,UINT,UINT,SINT), val_payload_lv, SMP_T_BIN,  SMP_USE_L6REQ|SMP_USE_L6RES },
+	{ "rdp_cookie",          smp_fetch_rdp_cookie,     ARG1(0,STR),            NULL,           SMP_T_STR,  SMP_USE_L6REQ },
 	{ "rdp_cookie_cnt",      smp_fetch_rdp_cookie_cnt, ARG1(0,STR),            NULL,           SMP_T_UINT, SMP_USE_L6REQ },
 	{ "rep_ssl_hello_type",  smp_fetch_ssl_hello_type, 0,                      NULL,           SMP_T_UINT, SMP_USE_L6RES },
 	{ "req_len",             smp_fetch_len,            0,                      NULL,           SMP_T_UINT, SMP_USE_L6REQ },
 	{ "req_ssl_hello_type",  smp_fetch_ssl_hello_type, 0,                      NULL,           SMP_T_UINT, SMP_USE_L6REQ },
-	{ "req_ssl_sni",         smp_fetch_ssl_hello_sni,  0,                      NULL,           SMP_T_CSTR, SMP_USE_L6REQ },
+	{ "req_ssl_sni",         smp_fetch_ssl_hello_sni,  0,                      NULL,           SMP_T_STR,  SMP_USE_L6REQ },
 	{ "req_ssl_ver",         smp_fetch_req_ssl_ver,    0,                      NULL,           SMP_T_UINT, SMP_USE_L6REQ },
 
 	{ "req.len",             smp_fetch_len,            0,                      NULL,           SMP_T_UINT, SMP_USE_L6REQ },
-	{ "req.payload",         smp_fetch_payload,        ARG2(2,UINT,UINT),      NULL,           SMP_T_CBIN, SMP_USE_L6REQ },
-	{ "req.payload_lv",      smp_fetch_payload_lv,     ARG3(2,UINT,UINT,SINT), val_payload_lv, SMP_T_CBIN, SMP_USE_L6REQ },
-	{ "req.rdp_cookie",      smp_fetch_rdp_cookie,     ARG1(0,STR),            NULL,           SMP_T_CSTR, SMP_USE_L6REQ },
+	{ "req.payload",         smp_fetch_payload,        ARG2(2,UINT,UINT),      NULL,           SMP_T_BIN,  SMP_USE_L6REQ },
+	{ "req.payload_lv",      smp_fetch_payload_lv,     ARG3(2,UINT,UINT,SINT), val_payload_lv, SMP_T_BIN,  SMP_USE_L6REQ },
+	{ "req.rdp_cookie",      smp_fetch_rdp_cookie,     ARG1(0,STR),            NULL,           SMP_T_STR,  SMP_USE_L6REQ },
 	{ "req.rdp_cookie_cnt",  smp_fetch_rdp_cookie_cnt, ARG1(0,STR),            NULL,           SMP_T_UINT, SMP_USE_L6REQ },
 	{ "req.ssl_hello_type",  smp_fetch_ssl_hello_type, 0,                      NULL,           SMP_T_UINT, SMP_USE_L6REQ },
-	{ "req.ssl_sni",         smp_fetch_ssl_hello_sni,  0,                      NULL,           SMP_T_CSTR, SMP_USE_L6REQ },
+	{ "req.ssl_sni",         smp_fetch_ssl_hello_sni,  0,                      NULL,           SMP_T_STR,  SMP_USE_L6REQ },
 	{ "req.ssl_ver",         smp_fetch_req_ssl_ver,    0,                      NULL,           SMP_T_UINT, SMP_USE_L6REQ },
 	{ "res.len",             smp_fetch_len,            0,                      NULL,           SMP_T_UINT, SMP_USE_L6RES },
-	{ "res.payload",         smp_fetch_payload,        ARG2(2,UINT,UINT),      NULL,           SMP_T_CBIN, SMP_USE_L6RES },
-	{ "res.payload_lv",      smp_fetch_payload_lv,     ARG3(2,UINT,UINT,SINT), val_payload_lv, SMP_T_CBIN, SMP_USE_L6RES },
+	{ "res.payload",         smp_fetch_payload,        ARG2(2,UINT,UINT),      NULL,           SMP_T_BIN,  SMP_USE_L6RES },
+	{ "res.payload_lv",      smp_fetch_payload_lv,     ARG3(2,UINT,UINT,SINT), val_payload_lv, SMP_T_BIN,  SMP_USE_L6RES },
 	{ "res.ssl_hello_type",  smp_fetch_ssl_hello_type, 0,                      NULL,           SMP_T_UINT, SMP_USE_L6RES },
 	{ "wait_end",            smp_fetch_wait_end,       0,                      NULL,           SMP_T_BOOL, SMP_USE_INTRN },
 	{ /* END */ },
