@@ -256,12 +256,14 @@ check_user(struct userlist *ul, const char *user, const char *pass)
 		return 0;
 }
 
-enum pat_match_res
-pat_match_auth(struct sample *smp, struct pattern *pattern)
+struct pattern *
+pat_match_auth(struct sample *smp, struct pattern_expr *expr, int fill)
 {
 	struct userlist *ul = smp->ctx.a[0];
+	struct pattern_list *lst;
 	struct auth_users *u;
 	struct auth_groups_list *agl;
+	struct pattern *pattern;
 
 	/* Check if the userlist is present in the context data. */
 	if (!ul)
@@ -273,14 +275,17 @@ pat_match_auth(struct sample *smp, struct pattern *pattern)
 			break;
 	}
 	if (!u)
-		return 0;
+		return NULL;
 
-	/* Browse each group for searching group name that match the pattern. */
-	for (agl = u->u.groups; agl; agl = agl->next) {
-		if (strcmp(agl->group->name, pattern->ptr.str) == 0)
-			break;
+	/* Browse each pattern. */
+	list_for_each_entry(lst, &expr->patterns, list) {
+		pattern = &lst->pat;
+
+		/* Browse each group for searching group name that match the pattern. */
+		for (agl = u->u.groups; agl; agl = agl->next) {
+			if (strcmp(agl->group->name, pattern->ptr.str) == 0)
+				return pattern;
+		}
 	}
-	if (!agl)
-		return PAT_NOMATCH;
-	return PAT_MATCH;
+	return NULL;
 }

@@ -72,7 +72,7 @@ int (*pat_index_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *, ch
 	[PAT_MATCH_REG]   = pat_idx_list_reg,
 };
 
-enum pat_match_res (*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern *) = {
+struct pattern *(*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern_expr *, int) = {
 	[PAT_MATCH_FOUND] = NULL,
 	[PAT_MATCH_BOOL]  = pat_match_nothing,
 	[PAT_MATCH_INT]   = pat_match_int,
@@ -115,43 +115,10 @@ static struct pattern static_pattern;
  *
  */
 
-/* Lookup an IPv4 address in the expression's pattern tree using the longest
- * match method. The node is returned if it exists, otherwise NULL.
- */
-static void *pat_lookup_ip(struct sample *smp, struct pattern_expr *expr)
-{
-	struct in_addr *s;
-
-	if (smp->type != SMP_T_IPV4)
-		return PAT_NOMATCH;
-
-	s = &smp->data.ipv4;
-	return ebmb_lookup_longest(&expr->pattern_tree, &s->s_addr);
-}
-
 /* Free data allocated by pat_parse_reg */
 static void pat_free_reg(void *ptr)
 {
 	regex_free(ptr);
-}
-
-/* Lookup a string in the expression's pattern tree. The node is returned if it
- * exists, otherwise NULL.
- */
-static void *pat_lookup_str(struct sample *smp, struct pattern_expr *expr)
-{
-	/* data are stored in a tree */
-	struct ebmb_node *node;
-	char prev;
-
-	/* we may have to force a trailing zero on the test pattern */
-	prev = smp->data.str.str[smp->data.str.len];
-	if (prev)
-		smp->data.str.str[smp->data.str.len] = '\0';
-	node = ebst_lookup(&expr->pattern_tree, smp->data.str.str);
-	if (prev)
-		smp->data.str.str[smp->data.str.len] = prev;
-	return node;
 }
 
 /* Background: Fast way to find a zero byte in a word
@@ -452,107 +419,204 @@ int pat_parse_ip(const char *text, struct pattern *pattern, char **err)
  */
 
 /* always return false */
-enum pat_match_res pat_match_nothing(struct sample *smp, struct pattern *pattern)
+struct pattern *pat_match_nothing(struct sample *smp, struct pattern_expr *expr, int fill)
 {
-	return PAT_NOMATCH;
+	return NULL;
 }
 
 
 /* NB: For two strings to be identical, it is required that their lengths match */
-enum pat_match_res pat_match_str(struct sample *smp, struct pattern *pattern)
+struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int fill)
 {
 	int icase;
+	struct ebmb_node *node;
+	char prev;
+	struct pattern_tree *elt;
+	struct pattern_list *lst;
+	struct pattern *pattern;
 
-	if (pattern->len != smp->data.str.len)
-		return PAT_NOMATCH;
+	/* convert input to string */
+	if (!sample_convert(smp, SMP_T_STR))
+		return NULL;
 
-	icase = pattern->flags & PAT_F_IGNORE_CASE;
-	if ((icase && strncasecmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) == 0) ||
-	    (!icase && strncmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) == 0))
-		return PAT_MATCH;
-	return PAT_NOMATCH;
+	/* Lookup a string in the expression's pattern tree. */
+	if (!eb_is_empty(&expr->pattern_tree)) {
+		/* we may have to force a trailing zero on the test pattern */
+		prev = smp->data.str.str[smp->data.str.len];
+		if (prev)
+			smp->data.str.str[smp->data.str.len] = '\0';
+		node = ebst_lookup(&expr->pattern_tree, smp->data.str.str);
+		if (prev)
+			smp->data.str.str[smp->data.str.len] = prev;
+
+		if (node) {
+			if (fill) {
+				elt = ebmb_entry(node, struct pattern_tree, node);
+				static_pattern.smp = elt->smp;
+				static_pattern.flags = PAT_F_TREE;
+				static_pattern.type = SMP_T_STR;
+				static_pattern.ptr.str = (char *)elt->node.key;
+			}
+			return &static_pattern;
+		}
+	}
+
+	/* look in the list */
+	list_for_each_entry(lst, &expr->patterns, list) {
+		pattern = &lst->pat;
+
+		if (pattern->len != smp->data.str.len)
+			continue;
+
+		icase = pattern->flags & PAT_F_IGNORE_CASE;
+		if ((icase && strncasecmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) == 0) ||
+		    (!icase && strncmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) == 0))
+			return pattern;
+	}
+
+	return NULL;
 }
 
 /* NB: For two binaries buf to be identical, it is required that their lengths match */
-enum pat_match_res pat_match_bin(struct sample *smp, struct pattern *pattern)
+struct pattern *pat_match_bin(struct sample *smp, struct pattern_expr *expr, int fill)
 {
-	if (pattern->len != smp->data.str.len)
-		return PAT_NOMATCH;
+	struct pattern_list *lst;
+	struct pattern *pattern;
 
-	if (memcmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) == 0)
-		return PAT_MATCH;
-	return PAT_NOMATCH;
+	/* Convert input to binary. */
+	if (!sample_convert(smp, SMP_T_BIN))
+		return NULL;
+
+	/* Look in the list. */
+	list_for_each_entry(lst, &expr->patterns, list) {
+		pattern = &lst->pat;
+
+		if (pattern->len != smp->data.str.len)
+			continue;
+
+		if (memcmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) == 0)
+			return pattern;
+	}
+
+	return NULL;
 }
 
 /* Executes a regex. It temporarily changes the data to add a trailing zero,
  * and restores the previous character when leaving.
  */
-enum pat_match_res pat_match_reg(struct sample *smp, struct pattern *pattern)
+struct pattern *pat_match_reg(struct sample *smp, struct pattern_expr *expr, int fill)
 {
-	if (regex_exec(pattern->ptr.reg, smp->data.str.str, smp->data.str.len) == 0)
-		return PAT_MATCH;
-	return PAT_NOMATCH;
+	struct pattern_list *lst;
+	struct pattern *pattern;
+
+	/* convert input to string */
+	if (!sample_convert(smp, SMP_T_STR))
+		return NULL;
+
+	/* look in the list */
+	list_for_each_entry(lst, &expr->patterns, list) {
+		pattern = &lst->pat;
+
+		if (regex_exec(pattern->ptr.reg, smp->data.str.str, smp->data.str.len) == 0)
+			return pattern;
+	}
+	return NULL;
 }
 
 /* Checks that the pattern matches the beginning of the tested string. */
-enum pat_match_res pat_match_beg(struct sample *smp, struct pattern *pattern)
+struct pattern *pat_match_beg(struct sample *smp, struct pattern_expr *expr, int fill)
 {
 	int icase;
+	struct pattern_list *lst;
+	struct pattern *pattern;
 
-	if (pattern->len > smp->data.str.len)
-		return PAT_NOMATCH;
+	/* convert input to string */
+	if (!sample_convert(smp, SMP_T_STR))
+		return NULL;
 
-	icase = pattern->flags & PAT_F_IGNORE_CASE;
-	if ((icase && strncasecmp(pattern->ptr.str, smp->data.str.str, pattern->len) != 0) ||
-	    (!icase && strncmp(pattern->ptr.str, smp->data.str.str, pattern->len) != 0))
-		return PAT_NOMATCH;
-	return PAT_MATCH;
+	list_for_each_entry(lst, &expr->patterns, list) {
+		pattern = &lst->pat;
+
+		if (pattern->len > smp->data.str.len)
+			continue;
+
+		icase = pattern->flags & PAT_F_IGNORE_CASE;
+		if ((icase && strncasecmp(pattern->ptr.str, smp->data.str.str, pattern->len) != 0) ||
+		    (!icase && strncmp(pattern->ptr.str, smp->data.str.str, pattern->len) != 0))
+			continue;
+
+		return pattern;
+	}
+	return NULL;
 }
 
 /* Checks that the pattern matches the end of the tested string. */
-enum pat_match_res pat_match_end(struct sample *smp, struct pattern *pattern)
+struct pattern *pat_match_end(struct sample *smp, struct pattern_expr *expr, int fill)
 {
 	int icase;
+	struct pattern_list *lst;
+	struct pattern *pattern;
 
-	if (pattern->len > smp->data.str.len)
-		return PAT_NOMATCH;
-	icase = pattern->flags & PAT_F_IGNORE_CASE;
-	if ((icase && strncasecmp(pattern->ptr.str, smp->data.str.str + smp->data.str.len - pattern->len, pattern->len) != 0) ||
-	    (!icase && strncmp(pattern->ptr.str, smp->data.str.str + smp->data.str.len - pattern->len, pattern->len) != 0))
-		return PAT_NOMATCH;
-	return PAT_MATCH;
+	/* convert input to string */
+	if (!sample_convert(smp, SMP_T_STR))
+		return NULL;
+
+	list_for_each_entry(lst, &expr->patterns, list) {
+		pattern = &lst->pat;
+
+		if (pattern->len > smp->data.str.len)
+			continue;
+
+		icase = pattern->flags & PAT_F_IGNORE_CASE;
+		if ((icase && strncasecmp(pattern->ptr.str, smp->data.str.str + smp->data.str.len - pattern->len, pattern->len) != 0) ||
+		    (!icase && strncmp(pattern->ptr.str, smp->data.str.str + smp->data.str.len - pattern->len, pattern->len) != 0))
+			continue;
+
+		return pattern;
+	}
+	return  NULL;
 }
 
 /* Checks that the pattern is included inside the tested string.
  * NB: Suboptimal, should be rewritten using a Boyer-Moore method.
  */
-enum pat_match_res pat_match_sub(struct sample *smp, struct pattern *pattern)
+struct pattern *pat_match_sub(struct sample *smp, struct pattern_expr *expr, int fill)
 {
 	int icase;
 	char *end;
 	char *c;
+	struct pattern_list *lst;
+	struct pattern *pattern;
 
-	if (pattern->len > smp->data.str.len)
-		return PAT_NOMATCH;
+	/* convert input to string */
+	if (!sample_convert(smp, SMP_T_STR))
+		return NULL;
 
-	end = smp->data.str.str + smp->data.str.len - pattern->len;
-	icase = pattern->flags & PAT_F_IGNORE_CASE;
-	if (icase) {
-		for (c = smp->data.str.str; c <= end; c++) {
-			if (tolower(*c) != tolower(*pattern->ptr.str))
-				continue;
-			if (strncasecmp(pattern->ptr.str, c, pattern->len) == 0)
-				return PAT_MATCH;
-		}
-	} else {
-		for (c = smp->data.str.str; c <= end; c++) {
-			if (*c != *pattern->ptr.str)
-				continue;
-			if (strncmp(pattern->ptr.str, c, pattern->len) == 0)
-				return PAT_MATCH;
+	list_for_each_entry(lst, &expr->patterns, list) {
+		pattern = &lst->pat;
+
+		if (pattern->len > smp->data.str.len)
+			continue;
+
+		end = smp->data.str.str + smp->data.str.len - pattern->len;
+		icase = pattern->flags & PAT_F_IGNORE_CASE;
+		if (icase) {
+			for (c = smp->data.str.str; c <= end; c++) {
+				if (tolower(*c) != tolower(*pattern->ptr.str))
+					continue;
+				if (strncasecmp(pattern->ptr.str, c, pattern->len) == 0)
+					return pattern;
+			}
+		} else {
+			for (c = smp->data.str.str; c <= end; c++) {
+				if (*c != *pattern->ptr.str)
+					continue;
+				if (strncmp(pattern->ptr.str, c, pattern->len) == 0)
+					return pattern;
+			}
 		}
 	}
-	return PAT_NOMATCH;
+	return NULL;
 }
 
 /* This one is used by other real functions. It checks that the pattern is
@@ -614,105 +678,183 @@ static int match_word(struct sample *smp, struct pattern *pattern, unsigned int 
  * between the delimiters '?' or '/' or at the beginning or end of the string.
  * Delimiters at the beginning or end of the pattern are ignored.
  */
-enum pat_match_res pat_match_dir(struct sample *smp, struct pattern *pattern)
+struct pattern *pat_match_dir(struct sample *smp, struct pattern_expr *expr, int fill)
 {
-	return match_word(smp, pattern, make_4delim('/', '?', '?', '?'));
+	struct pattern_list *lst;
+	struct pattern *pattern;
+
+	/* convert input to string */
+	if (!sample_convert(smp, SMP_T_STR))
+		return NULL;
+
+	list_for_each_entry(lst, &expr->patterns, list) {
+		pattern = &lst->pat;
+		if (match_word(smp, pattern, make_4delim('/', '?', '?', '?')))
+			return pattern;
+	}
+	return NULL;
 }
 
 /* Checks that the pattern is included inside the tested string, but enclosed
  * between the delmiters '/', '?', '.' or ":" or at the beginning or end of
  * the string. Delimiters at the beginning or end of the pattern are ignored.
  */
-enum pat_match_res pat_match_dom(struct sample *smp, struct pattern *pattern)
+struct pattern *pat_match_dom(struct sample *smp, struct pattern_expr *expr, int fill)
 {
-	return match_word(smp, pattern, make_4delim('/', '?', '.', ':'));
+	struct pattern_list *lst;
+	struct pattern *pattern;
+
+	/* convert input to string */
+	if (!sample_convert(smp, SMP_T_STR))
+		return NULL;
+
+	list_for_each_entry(lst, &expr->patterns, list) {
+		pattern = &lst->pat;
+		if (match_word(smp, pattern, make_4delim('/', '?', '.', ':')))
+			return pattern;
+	}
+	return NULL;
 }
 
 /* Checks that the integer in <test> is included between min and max */
-enum pat_match_res pat_match_int(struct sample *smp, struct pattern *pattern)
+struct pattern *pat_match_int(struct sample *smp, struct pattern_expr *expr, int fill)
 {
-	if ((!pattern->val.range.min_set || pattern->val.range.min <= smp->data.uint) &&
-	    (!pattern->val.range.max_set || smp->data.uint <= pattern->val.range.max))
-		return PAT_MATCH;
-	return PAT_NOMATCH;
+	struct pattern_list *lst;
+	struct pattern *pattern;
+
+	/* convert input to integer */
+	if (!sample_convert(smp, SMP_T_UINT))
+		return NULL;
+
+	list_for_each_entry(lst, &expr->patterns, list) {
+		pattern = &lst->pat;
+		if ((!pattern->val.range.min_set || pattern->val.range.min <= smp->data.uint) &&
+		    (!pattern->val.range.max_set || smp->data.uint <= pattern->val.range.max))
+			return pattern;
+	}
+	return NULL;
 }
 
 /* Checks that the length of the pattern in <test> is included between min and max */
-enum pat_match_res pat_match_len(struct sample *smp, struct pattern *pattern)
+struct pattern *pat_match_len(struct sample *smp, struct pattern_expr *expr, int fill)
 {
-	if ((!pattern->val.range.min_set || pattern->val.range.min <= smp->data.str.len) &&
-	    (!pattern->val.range.max_set || smp->data.str.len <= pattern->val.range.max))
-		return PAT_MATCH;
-	return PAT_NOMATCH;
+	struct pattern_list *lst;
+	struct pattern *pattern;
+
+	/* convert input to string */
+	if (!sample_convert(smp, SMP_T_STR))
+		return NULL;
+
+	list_for_each_entry(lst, &expr->patterns, list) {
+		pattern = &lst->pat;
+		if ((!pattern->val.range.min_set || pattern->val.range.min <= smp->data.str.len) &&
+		    (!pattern->val.range.max_set || smp->data.str.len <= pattern->val.range.max))
+			return pattern;
+	}
+	return NULL;
 }
 
-enum pat_match_res pat_match_ip(struct sample *smp, struct pattern *pattern)
+struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int fill)
 {
 	unsigned int v4; /* in network byte order */
 	struct in6_addr *v6;
 	int bits, pos;
 	struct in6_addr tmp6;
+	struct in_addr *s;
+	struct ebmb_node *node;
+	struct pattern_tree *elt;
+	struct pattern_list *lst;
+	struct pattern *pattern;
 
-	if (pattern->type == SMP_T_IPV4) {
-		if (smp->type == SMP_T_IPV4) {
-			v4 = smp->data.ipv4.s_addr;
-		}
-		else if (smp->type == SMP_T_IPV6) {
-			/* v4 match on a V6 sample. We want to check at least for
-			 * the following forms :
-			 *   - ::ffff:ip:v4 (ipv4 mapped)
-			 *   - ::0000:ip:v4 (old ipv4 mapped)
-			 *   - 2002:ip:v4:: (6to4)
-			 */
-			if (*(uint32_t*)&smp->data.ipv6.s6_addr[0] == 0 &&
-			    *(uint32_t*)&smp->data.ipv6.s6_addr[4]  == 0 &&
-			    (*(uint32_t*)&smp->data.ipv6.s6_addr[8] == 0 ||
-			     *(uint32_t*)&smp->data.ipv6.s6_addr[8] == htonl(0xFFFF))) {
-				v4 = *(uint32_t*)&smp->data.ipv6.s6_addr[12];
+	/* convert input to addr */
+	if (!sample_convert(smp, SMP_T_ADDR))
+		return NULL;
+
+	/* Lookup an IPv4 address in the expression's pattern tree using the longest
+	 * match method.
+	 */
+	if (smp->type == SMP_T_IPV4) {
+		s = &smp->data.ipv4;
+		node = ebmb_lookup_longest(&expr->pattern_tree, &s->s_addr);
+		if (node) {
+			if (fill) {
+				elt = ebmb_entry(node, struct pattern_tree, node);
+				static_pattern.smp = elt->smp;
+				static_pattern.flags = PAT_F_TREE;
+				static_pattern.type = SMP_T_IPV4;
+				memcpy(&static_pattern.val.ipv4.addr.s_addr, elt->node.key, 4);
+				if (!cidr2dotted(elt->node.node.pfx, &static_pattern.val.ipv4.mask))
+					return NULL;
 			}
-			else if (*(uint16_t*)&smp->data.ipv6.s6_addr[0] == htons(0x2002)) {
-				v4 = htonl((ntohs(*(uint16_t*)&smp->data.ipv6.s6_addr[2]) << 16) +
-				            ntohs(*(uint16_t*)&smp->data.ipv6.s6_addr[4]));
+			return &static_pattern;
+		}
+	}
+
+	/* Lookup in the list */
+	list_for_each_entry(lst, &expr->patterns, list) {
+		pattern = &lst->pat;
+
+		if (pattern->type == SMP_T_IPV4) {
+			if (smp->type == SMP_T_IPV4) {
+				v4 = smp->data.ipv4.s_addr;
+			}
+			else if (smp->type == SMP_T_IPV6) {
+				/* v4 match on a V6 sample. We want to check at least for
+				 * the following forms :
+				 *   - ::ffff:ip:v4 (ipv4 mapped)
+				 *   - ::0000:ip:v4 (old ipv4 mapped)
+				 *   - 2002:ip:v4:: (6to4)
+				 */
+				if (*(uint32_t*)&smp->data.ipv6.s6_addr[0] == 0 &&
+				    *(uint32_t*)&smp->data.ipv6.s6_addr[4]  == 0 &&
+				    (*(uint32_t*)&smp->data.ipv6.s6_addr[8] == 0 ||
+				     *(uint32_t*)&smp->data.ipv6.s6_addr[8] == htonl(0xFFFF))) {
+					v4 = *(uint32_t*)&smp->data.ipv6.s6_addr[12];
+				}
+				else if (*(uint16_t*)&smp->data.ipv6.s6_addr[0] == htons(0x2002)) {
+					v4 = htonl((ntohs(*(uint16_t*)&smp->data.ipv6.s6_addr[2]) << 16) +
+					            ntohs(*(uint16_t*)&smp->data.ipv6.s6_addr[4]));
+				}
+				else
+					continue;
 			}
 			else
-				return PAT_NOMATCH;
-		}
-		else
-			return PAT_NOMATCH;
+				continue;
 
-		if (((v4 ^ pattern->val.ipv4.addr.s_addr) & pattern->val.ipv4.mask.s_addr) == 0)
-			return PAT_MATCH;
-		else
-			return PAT_NOMATCH;
-	}
-	else if (pattern->type == SMP_T_IPV6) {
-		if (smp->type == SMP_T_IPV4) {
-			/* Convert the IPv4 sample address to IPv4 with the
-			 * mapping method using the ::ffff: prefix.
-			 */
-			memset(&tmp6, 0, 10);
-			*(uint16_t*)&tmp6.s6_addr[10] = htons(0xffff);
-			*(uint32_t*)&tmp6.s6_addr[12] = smp->data.ipv4.s_addr;
-			v6 = &tmp6;
+			if (((v4 ^ pattern->val.ipv4.addr.s_addr) & pattern->val.ipv4.mask.s_addr) == 0)
+				return pattern;
+			else
+				continue;
 		}
-		else if (smp->type == SMP_T_IPV6) {
-			v6 = &smp->data.ipv6;
-		}
-		else {
-			return PAT_NOMATCH;
-		}
+		else if (pattern->type == SMP_T_IPV6) {
+			if (smp->type == SMP_T_IPV4) {
+				/* Convert the IPv4 sample address to IPv4 with the
+				 * mapping method using the ::ffff: prefix.
+				 */
+				memset(&tmp6, 0, 10);
+				*(uint16_t*)&tmp6.s6_addr[10] = htons(0xffff);
+				*(uint32_t*)&tmp6.s6_addr[12] = smp->data.ipv4.s_addr;
+				v6 = &tmp6;
+			}
+			else if (smp->type == SMP_T_IPV6) {
+				v6 = &smp->data.ipv6;
+			}
+			else {
+				continue;
+			}
 
-		bits = pattern->val.ipv6.mask;
-		for (pos = 0; bits > 0; pos += 4, bits -= 32) {
-			v4 = *(uint32_t*)&v6->s6_addr[pos] ^ *(uint32_t*)&pattern->val.ipv6.addr.s6_addr[pos];
-			if (bits < 32)
-				v4 &= htonl((~0U) << (32-bits));
-			if (v4)
-				return PAT_NOMATCH;
+			bits = pattern->val.ipv6.mask;
+			for (pos = 0; bits > 0; pos += 4, bits -= 32) {
+				v4 = *(uint32_t*)&v6->s6_addr[pos] ^ *(uint32_t*)&pattern->val.ipv6.addr.s6_addr[pos];
+				if (bits < 32)
+					v4 &= htonl((~0U) << (32-bits));
+				if (v4)
+					continue;
+			}
+			return pattern;
 		}
-		return PAT_MATCH;
 	}
-	return PAT_NOMATCH;
+	return NULL;
 }
 
 /* NB: does nothing if <pat> is NULL */
@@ -1070,91 +1212,16 @@ int pattern_read_from_file(struct pattern_expr *expr,
  */
 struct pattern *pattern_exec_match(struct pattern_expr *expr, struct sample *smp, int fill)
 {
-	enum pat_match_res pat_res = PAT_NOMATCH;
-	struct pattern_list *pattern = NULL;
-	struct ebmb_node *node = NULL;
-	struct pattern_tree *elt = NULL;
-
-	if (expr->match == pat_match_nothing) {
-		if (smp->data.uint)
-			pat_res |= PAT_MATCH;
-		else
-			pat_res |= PAT_NOMATCH;
-	}
-	else if (!expr->match) {
-		/* just check for existence */
-		pat_res |= PAT_MATCH;
-	}
-	else {
-		if (!eb_is_empty(&expr->pattern_tree)) {
-			/* a tree is present, let's check what type it is */
-			if (expr->match == pat_match_str) {
-				if (sample_convert(smp, SMP_T_STR))
-					node = pat_lookup_str(smp, expr);
-			}
-			else if (expr->match == pat_match_ip) {
-				if (sample_convert(smp, SMP_T_IPV4))
-					node = pat_lookup_ip(smp, expr);
-			}
-			if (node) {
-				pat_res |= PAT_MATCH;
-				elt = ebmb_entry(node, struct pattern_tree, node);
-			}
-		}
-
-		/* call the match() function for all tests on this value */
-		if (pat_res != PAT_MATCH) {
-			list_for_each_entry(pattern, &expr->patterns, list) {
-				if (sample_convert(smp, pattern->pat.expect_type))
-					pat_res |= expr->match(smp, &pattern->pat);
-				if (pat_res == PAT_MATCH)
-					break;
-			}
-		}
-	}
-
-	if (pat_res == PAT_MATCH) {
-		static_pattern.flags = 0;
+	if (!expr->match) {
 		if (fill) {
-			/* fill with boolean */
-			if (expr->match == NULL ||
-			    expr->match == pat_match_nothing) {
-				static_pattern.smp = NULL;
-				static_pattern.type = SMP_T_BOOL;
-				static_pattern.val.i = 1;
-				return &static_pattern;
-			}
-
-			/* fill with ipv4 */
-			if (expr->match == pat_match_ip && elt) {
-				static_pattern.smp = elt->smp;;
-				static_pattern.flags |= PAT_F_TREE;
-				static_pattern.type = SMP_T_IPV4;
-				memcpy(&static_pattern.val.ipv4.addr, &elt->node.key, 4);
-				if (!cidr2dotted(elt->node.node.pfx, &static_pattern.val.ipv4.mask))
-					return NULL;
-				return &static_pattern;
-			}
-
-			/* fill with string */
-			if (expr->match == pat_match_str && elt) {
-				static_pattern.smp = elt->smp;;
-				static_pattern.flags |= PAT_F_TREE;
-				static_pattern.type = SMP_T_STR;
-				static_pattern.ptr.str = (char *)elt->node.key;
-				return &static_pattern;
-			}
-
-			/* return the pattern */
-			return &pattern->pat;
+			static_pattern.smp = NULL;
+			static_pattern.flags = 0;
+			static_pattern.type = SMP_T_UINT;
+			static_pattern.val.i = 1;
 		}
-
-		/* Return uninitialized pattern. The content must not be used by the caller */
 		return &static_pattern;
 	}
-
-	/* No match */
-	return NULL;
+	return expr->match(smp, expr, fill);
 }
 
 /* This function browse the pattern expr <expr> to lookup the key <key>. On
