@@ -445,13 +445,13 @@ void parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list
 				cformat = LF_STEXPR;
 				var = str + 1;         // store expr in variable name
 			}
-			else if (isalpha((int)*str)) { // variable name
+			else if (isalpha((unsigned char)*str)) { // variable name
 				cformat = LF_VAR;
 				var = str;
 			}
 			else if (*str == '%')
 				cformat = LF_TEXT;     // convert this character to a litteral (useful for '%')
-			else if (isdigit(*str) || *str == ' ' || *str == '\t') {
+			else if (isdigit((unsigned char)*str) || *str == ' ' || *str == '\t') {
 				/* single '%' followed by blank or digit, send them both */
 				cformat = LF_TEXT;
 				pformat = LF_TEXT; /* finally we include the previous char as well */
@@ -478,7 +478,7 @@ void parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list
 				var = str + 1;         // store expr in variable name
 				break;
 			}
-			else if (isalnum((int)*str)) { // variable name
+			else if (isalnum((unsigned char)*str)) { // variable name
 				cformat = LF_VAR;
 				var = str;
 				break;
@@ -498,7 +498,7 @@ void parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list
 
 		case LF_VAR:                           // text part of a variable name
 			var_len = str - var;
-			if (!isalnum((int)*str))
+			if (!isalnum((unsigned char)*str))
 				cformat = LF_INIT;     // not variable name anymore
 			break;
 
