@@ -127,12 +127,6 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 
 	proxy_inc_fe_conn_ctr(l, p);
 
-	/* now evaluate the tcp-request layer4 rules. Since we expect to be able
-	 * to abort right here as soon as possible, we check the rules before
-	 * even initializing the stream interfaces.
-	 */
-	memset(&s->si[0], 0x55, sizeof(s->si[0]));
-
 	/* Add the minimum callbacks to prepare the connection's control layer.
 	 * We need this so that we can safely execute the ACLs used by the
 	 * "tcp-request connection" ruleset. We also carefully attach the
@@ -143,6 +137,10 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	conn_attach(cli_conn, s, &sess_conn_cb);
 	conn_ctrl_init(cli_conn);
 
+	/* now evaluate the tcp-request layer4 rules. Since we expect to be able
+	 * to abort right here as soon as possible, we check the rules before
+	 * even initializing the stream interfaces.
+	 */
 	if ((l->options & LI_O_TCP_RULES) && !tcp_exec_req_rules(s)) {
 		/* let's do a no-linger now to close with a single RST. */
 		setsockopt(cfd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
