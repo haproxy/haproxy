@@ -398,8 +398,8 @@ smp_fetch_ssl_hello_sni(struct proxy *px, struct session *s, void *l7, unsigned 
 }
 
 /* Fetch the request RDP cookie identified in <cname>:<clen>, or any cookie if
- * <clen> is empty (cname is then ignored). It returns the data into sample <smp>.
- * Note: this decoder only works with non-wrapping data.
+ * <clen> is empty (cname is then ignored). It returns the data into sample <smp>
+ * of type SMP_T_CSTR. Note: this decoder only works with non-wrapping data.
  */
 int
 fetch_rdp_cookie_name(struct session *s, struct sample *smp, const char *cname, int clen)
@@ -490,7 +490,8 @@ fetch_rdp_cookie_name(struct session *s, struct sample *smp, const char *cname, 
 /* Fetch the request RDP cookie identified in the args, or any cookie if no arg
  * is passed. It is usable both for ACL and for samples. Note: this decoder
  * only works with non-wrapping data. Accepts either 0 or 1 argument. Argument
- * is a string (cookie name), other types will lead to undefined behaviour.
+ * is a string (cookie name), other types will lead to undefined behaviour. The
+ * returned sample has type SMP_T_CSTR.
  */
 int
 smp_fetch_rdp_cookie(struct proxy *px, struct session *s, void *l7, unsigned int opt,

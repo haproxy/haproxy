@@ -9304,6 +9304,7 @@ smp_fetch_path(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
  * that '*' will not be added, resulting in exactly the first Host entry.
  * If no Host header is found, then the path is returned as-is. The returned
  * value is stored in the trash so it does not need to be marked constant.
+ * The returned sample is of type string.
  */
 static int
 smp_fetch_base(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
@@ -9615,6 +9616,7 @@ extract_cookie_value(char *hdr, const char *hdr_end,
  * The cookie name is in args and the name length in args->data.str.len.
  * Accepts exactly 1 argument of type string. If the input options indicate
  * that no iterating is desired, then only last value is fetched if any.
+ * The returned sample is of type CSTR.
  */
 static int
 smp_fetch_cookie(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
@@ -9711,8 +9713,8 @@ smp_fetch_cookie(struct proxy *px, struct session *l4, void *l7, unsigned int op
 
 /* Iterate over all cookies present in a request to count how many occurrences
  * match the name in args and args->data.str.len. If <multi> is non-null, then
- * multiple cookies may be parsed on the same line.
- * Accepts exactly 1 argument of type string.
+ * multiple cookies may be parsed on the same line. The returned sample is of
+ * type UINT. Accepts exactly 1 argument of type string.
  */
 static int
 smp_fetch_cookie_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
@@ -9771,6 +9773,7 @@ smp_fetch_cookie_cnt(struct proxy *px, struct session *l4, void *l7, unsigned in
 		}
 	}
 
+	smp->type = SMP_T_UINT;
 	smp->data.uint = cnt;
 	smp->flags |= SMP_F_VOL_HDR;
 	return 1;
