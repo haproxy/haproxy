@@ -4685,7 +4685,7 @@ static int stats_map_lookup(struct stream_interface *si)
 	struct pat_idx_elt *elt;
 	enum pat_match_res res;
 	struct sockaddr_in addr;
-	char s_addr[INET_ADDRSTRLEN];
+	char addr_str[INET_ADDRSTRLEN];
 
 	switch (appctx->st2) {
 	case STAT_ST_INIT:
@@ -4778,8 +4778,8 @@ static int stats_map_lookup(struct stream_interface *si)
 						/* convert ip */
 						memcpy(&addr.sin_addr, elt->node.key, 4);
 						addr.sin_family = AF_INET;
-						if (addr_to_str((struct sockaddr_storage *)&addr, s_addr, INET_ADDRSTRLEN))
-							chunk_appendf(&trash, "match=\"%s/%d\", ", s_addr, elt->node.node.pfx);
+						if (addr_to_str((struct sockaddr_storage *)&addr, addr_str, INET_ADDRSTRLEN))
+							chunk_appendf(&trash, "match=\"%s/%d\", ", addr_str, elt->node.node.pfx);
 					}
 				}
 			}
