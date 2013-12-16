@@ -3,10 +3,6 @@ Medium-long term roadmap - 2013/06/17
 Legend: '+' = done, '-' = todo, '*' = done except doc
 
 1.5 (ETA 2013/12/31) :
-  - server-side HTTP keepalive
-    => maybe with limitation to only reuse connections that don't depend
-       on layer7 in a first time (just check the target).
-
   - POST parameter extraction and size/speed measurement to use in ACLs
 
   - return-html code xxx [ file "xxx" | text "xxx" ] if <acl>
@@ -35,26 +31,6 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
     based on request matching. Each session will have one ebtree node to be
     attached to whatever queue the session is waiting in.
 
-  - add support for complex pattern extraction rules :
-
-       pattern = <pattern_term>
-               | '{' pattern_expr '}'
-
-       pattern_expr = <pattern_term> [ <transform> ... ]
-
-  - support loading data sets from files
-      + present/not present (eg: netmasks)
-      - pattern conversion per prefixes. Eg: convert src IP to country.
-
-  - what to do with data after a POST and how to detect some data were
-    received when responding ? In theory we should read everything because
-    the TCP stack does not notify us that the FIN was acked. In practice,
-    reading just before closing should be enough. Right now we simply read
-    whatever comes after the POST.
-    => switch the connection to a "drain" state, where it monitors its
-       output queue on each I/O and where it can be stolen if fds are
-       missing.
-
   - half-closed timeouts ?
 
   - add a flag in logs to indicate keep-alive requests ?
@@ -72,13 +48,41 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
 
   - tcp-request session
 
-  - http-request track-sc* to avoid having the ugly "if !HTTP" in tcp-request
+  - tcp-request session expect-proxy {L4|L5} if ...
 
-  - tcp-request {connection|session} expect-proxy {L4|L5} if ...
+  - http-request track-sc* to avoid having the ugly "if !HTTP" in tcp-request
 
   - compression : to be fixed
 
 DONE:
+  * server-side HTTP keepalive
+    => maybe with limitation to only reuse connections that don't depend
+       on layer7 in a first time (just check the target).
+
+  * add support for complex pattern extraction rules :
+
+       pattern = <pattern_term>
+               | '{' pattern_expr '}'
+
+       pattern_expr = <pattern_term> [ <transform> ... ]
+    => changed to <sample>[,<conv>]*
+
+  * support loading data sets from files
+      * present/not present (eg: netmasks)
+      * pattern conversion per prefixes. Eg: convert src IP to country.
+      => maps
+
+  * what to do with data after a POST and how to detect some data were
+    received when responding ? In theory we should read everything because
+    the TCP stack does not notify us that the FIN was acked. In practice,
+    reading just before closing should be enough. Right now we simply read
+    whatever comes after the POST.
+    => switch the connection to a "drain" state, where it monitors its
+       output queue on each I/O and where it can be stolen if fds are
+       missing.
+
+  * tcp-request {connection|session} expect-proxy {L4|L5} if ...
+
   * rename L4 acls as L6 ACLs when some content is involved
 
   * add new L4 ACL checks immediately after accept, before even allocating the
