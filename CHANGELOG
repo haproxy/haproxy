@@ -1,6 +1,353 @@
 ChangeLog :
 ===========
 
+2013/12/16 : 1.5-dev20
+    - DOC: add missing options to the manpage
+    - DOC: add manpage references to all system calls
+    - DOC: update manpage reference to haproxy-en.txt
+    - DOC: remove -s and -l options from the manpage
+    - DOC: missing information for the "description" keyword
+    - DOC: missing http-send-name-header keyword in keyword table
+    - MINOR: tools: function my_memmem() to lookup binary contents
+    - MEDIUM: checks: add send/expect tcp based check
+    - MEDIUM: backend: Enhance hash-type directive with an algorithm options
+    - MEDIUM: backend: Implement avalanche as a modifier of the hashing functions.
+    - DOC: Documentation for hashing function, with test results.
+    - BUG/MEDIUM: ssl: potential memory leak using verifyhost
+    - BUILD: ssl: compilation issue with openssl v0.9.6.
+    - BUG/MINOR: ssl: potential memory leaks using ssl_c_key_alg or ssl_c_sig_alg.
+    - MINOR: ssl: optimization of verifyhost on wildcard certificates.
+    - BUG/MINOR: ssl: verifyhost does not match empty strings on wildcard.
+    - MINOR: ssl: Add statement 'verifyhost' to "server" statements
+    - CLEANUP: session: remove event_accept() which was not used anymore
+    - BUG/MINOR: deinit: free fdinfo while doing cleanup
+    - DOC: minor typo fix in documentation
+    - BUG/MEDIUM: server: set the macro for server's max weight SRV_UWGHT_MAX to SRV_UWGHT_RANGE
+    - BUG/MINOR: use the same check condition for server as other algorithms
+    - DOC: fix typo in comments
+    - BUG/MINOR: deinit: free server map which is allocated in init_server_map()
+    - CLEANUP: stream_interface: cleanup loop information in si_conn_send_loop()
+    - MINOR: buffer: align the last output line of buffer_dump()
+    - MINOR: buffer: align the last output line if there are less than 8 characters left
+    - DOC: stick-table: modify the description
+    - OPTIM: stream_interface: return directly if the connection flag CO_FL_ERROR has been set
+    - CLEANUP: code style: use tabs to indent codes
+    - DOC: checkcache: block responses with cacheable cookies
+    - BUG/MINOR: check_config_validity: check the returned value of stktable_init()
+    - MEDIUM: haproxy-systemd-wrapper: Use haproxy in same directory
+    - MEDIUM: systemd-wrapper: Kill child processes when interrupted
+    - LOW: systemd-wrapper: Write debug information to stdout
+    - BUG/MINOR: http: fix "set-tos" not working in certain configurations
+    - MEDIUM: http: add IPv6 support for "set-tos"
+    - DOC: ssl: update build instructions to use new SSL_* variables
+    - BUILD/MINOR: systemd: fix compiler warning about unused result
+    - url32+src - like base32+src but whole url including parameters
+    - BUG/MINOR: fix forcing fastinter in "on-error"
+    - CLEANUP: Make parameters of srv_downtime and srv_getinter const
+    - CLEANUP: Remove unused 'last_slowstart_change' field from struct peer
+    - MEDIUM: Split up struct server's check element
+    - MEDIUM: Move result element to struct check
+    - MEDIUM: Paramatise functions over the check of a server
+    - MEDIUM: cfgparse: Factor out check initialisation
+    - MEDIUM: Add state to struct check
+    - MEDIUM: Move health element to struct check
+    - MEDIUM: Add helper for task creation for checks
+    - MEDIUM: Add helper function for failed checks
+    - MEDIUM: Log agent fail, stopped or down as info
+    - MEDIUM: Remove option lb-agent-chk
+    - MEDIUM: checks: Add supplementary agent checks
+    - MEDIUM: Do not mark a server as down if the agent is unavailable
+    - MEDIUM: Set rise and fall of agent checks to 1
+    - MEDIUM: Add enable and disable agent unix socket commands
+    - MEDIUM: Add DRAIN state and report it on the stats page
+    - BUILD/MINOR: missing header file
+    - CLEANUP: regex: Create regex_comp function that compiles regex using compilation options
+    - CLEANUP: The function "regex_exec" needs the string length but in many case they expect null terminated char.
+    - MINOR: http: some exported functions were not in the header file
+    - MINOR: http: change url_decode to return the size of the decoded string.
+    - BUILD/MINOR: missing header file
+    - BUG/MEDIUM: sample: The function v4tov6 cannot support input and output overlap
+    - BUG/MINOR: arg: fix error reporting for add-header/set-header sample fetch arguments
+    - MINOR: sample: export the generic sample conversion parser
+    - MINOR: sample: export sample_casts
+    - MEDIUM: acl: use the fetch syntax 'fetch(args),conv(),conv()' into the ACL keyword
+    - MINOR: stick-table: use smp_expr_output_type() to retrieve the output type of a "struct sample_expr"
+    - MINOR: sample: provide the original sample_conv descriptor struct to the argument checker function.
+    - MINOR: tools: Add a function to convert buffer to an ipv6 address
+    - MINOR: acl: export acl arrays
+    - MINOR: acl: Extract the pattern parsing and indexation from the "acl_read_patterns_from_file()" function
+    - MINOR: acl: Extract the pattern matching function
+    - MINOR: sample: Define new struct sample_storage
+    - MEDIUM: acl: associate "struct sample_storage" to each "struct acl_pattern"
+    - REORG: acl/pattern: extract pattern matching from the acl file and create pattern.c
+    - MEDIUM: pattern: create pattern expression
+    - MEDIUM: pattern: rename "acl" prefix to "pat"
+    - MEDIUM: sample: let the cast functions set their output type
+    - MINOR: sample: add a private field to the struct sample_conv
+    - MINOR: map: Define map types
+    - MEDIUM: sample: add the "map" converter
+    - MEDIUM: http: The redirect strings follows the log format rules.
+    - BUG/MINOR: acl: acl parser does not recognize empty converter list
+    - BUG/MINOR: map: The map list was declared in the map.h file
+    - MINOR: map: Cleanup the initialisation of map descriptors.
+    - MEDIUM: map: merge identical maps
+    - BUG/MEDIUM: pattern: Pattern node has type of "struct pat_idx_elt" in place of "struct eb_node"
+    - BUG/MEDIUM: map: Bad map file parser
+    - CLEANUP/MINOR: standard: use the system define INET6_ADDRSTRLEN in place of MAX_IP6_LEN
+    - BUG/MEDIUM: sample: conversion from str to ipv6 may read data past end
+    - MINOR: map: export map_get_reference() function
+    - MINOR: pattern: Each pattern sets the expected input type
+    - MEDIUM: acl: Last patch change the output type
+    - MEDIUM: pattern: Extract the index process from the pat_parse_*() functions
+    - MINOR: standard: The function parse_binary() can use preallocated buffer
+    - MINOR: regex: Change the struct containing regex
+    - MINOR: regex: Copy the original regex expression into string.
+    - MINOR: pattern: add support for compiling patterns for lookups
+    - MINOR: pattern: make the pattern matching function return a pointer to the matched element
+    - MINOR: map: export parse output sample functions
+    - MINOR: pattern: add function to lookup a specific entry in pattern list
+    - MINOR: pattern/map: Each pattern must free the associated sample
+    - MEDIUM: dumpstat: make the CLI parser understand the backslash as an escape char
+    - MEDIUM: map: dynamic manipulation of maps
+    - BUG/MEDIUM: unique_id: junk in log on empty unique_id
+    - BUG/MINOR: log: junk at the end of syslog packet
+    - MINOR: Makefile: provide cscope rule
+    - DOC: compression: chunk are not compressed anymore
+    - MEDIUM: session: disable lingering on the server when the client aborts
+    - BUG/MEDIUM: prevent gcc from moving empty keywords lists into BSS
+    - DOC: remove the comment saying that SSL certs are not checked on the server side
+    - BUG: counters: third counter was not stored if others unset
+    - BUG/MAJOR: http: don't emit the send-name-header when no server is available
+    - BUG/MEDIUM: http: "option checkcache" fails with the no-cache header
+    - BUG/MAJOR: http: sample prefetch code was not properly migrated
+    - BUG/MEDIUM: splicing: fix abnormal CPU usage with splicing
+    - BUG/MINOR: stream_interface: don't call chk_snd() on polled events
+    - OPTIM: splicing: use splice() for the last block when relevant
+    - MEDIUM: sample: handle comma-delimited converter list
+    - MINOR: sample: fix sample_process handling of unstable data
+    - CLEANUP: acl: move the 3 remaining sample fetches to samples.c
+    - MINOR: sample: add a new "date" fetch to return the current date
+    - MINOR: samples: add the http_date([<offset>]) sample converter.
+    - DOC: minor improvements to the part on the stats socket.
+    - MEDIUM: sample: systematically pass the keyword pointer to the keyword
+    - MINOR: payload: split smp_fetch_rdp_cookie()
+    - MINOR: counters: factor out smp_fetch_sc*_tracked
+    - MINOR: counters: provide a generic function to retrieve a stkctr for sc* and src.
+    - MEDIUM: counters: factor out smp_fetch_sc*_get_gpc0
+    - MEDIUM: counters: factor out smp_fetch_sc*_gpc0_rate
+    - MEDIUM: counters: factor out smp_fetch_sc*_inc_gpc0
+    - MEDIUM: counters: factor out smp_fetch_sc*_clr_gpc0
+    - MEDIUM: counters: factor out smp_fetch_sc*_conn_cnt
+    - MEDIUM: counters: factor out smp_fetch_sc*_conn_rate
+    - MEDIUM: counters: factor out smp_fetch_sc*_conn_cur
+    - MEDIUM: counters: factor out smp_fetch_sc*_sess_cnt
+    - MEDIUM: counters: factor out smp_fetch_sc*_sess_rate
+    - MEDIUM: counters: factor out smp_fetch_sc*_http_req_cnt
+    - MEDIUM: counters: factor out smp_fetch_sc*_http_req_rate
+    - MEDIUM: counters: factor out smp_fetch_sc*_http_err_cnt
+    - MEDIUM: counters: factor out smp_fetch_sc*_http_err_rate
+    - MEDIUM: counters: factor out smp_fetch_sc*_kbytes_in
+    - MEDIUM: counters: factor out smp_fetch_sc*_bytes_in_rate
+    - MEDIUM: counters: factor out smp_fetch_sc*_kbytes_out
+    - MEDIUM: counters: factor out smp_fetch_sc*_bytes_out_rate
+    - MEDIUM: counters: factor out smp_fetch_sc*_trackers
+    - MINOR: session: make the number of stick counter entries more configurable
+    - MEDIUM: counters: support passing the counter number as a fetch argument
+    - MEDIUM: counters: support looking up a key in an alternate table
+    - MEDIUM: cli: adjust the method for feeding frequency counters in tables
+    - MINOR: cli: make it possible to enter multiple values at once with "set table"
+    - MINOR: payload: allow the payload sample fetches to retrieve arbitrary lengths
+    - BUG/MINOR: cli: "clear table" must not kill entries that don't match condition
+    - MINOR: ssl: use MAXPATHLEN instead of PATH_MAX
+    - MINOR: config: warn when a server with no specific port uses rdp-cookie
+    - BUG/MEDIUM: unique_id: HTTP request counter must be unique!
+    - DOC: add a mention about the limited chunk size
+    - BUG/MEDIUM: fix broken send_proxy on FreeBSD
+    - MEDIUM: stick-tables: flush old entries upon soft-stop
+    - MINOR: tcp: add new "close" action for tcp-response
+    - MINOR: payload: provide the "res.len" fetch method
+    - BUILD: add SSL_INC/SSL_LIB variables to force the path to openssl
+    - MINOR: http: compute response time before processing headers
+    - BUG/MINOR: acl: fix improper string size assignment in proxy argument
+    - BUG/MEDIUM: http: accept full buffers on smp_prefetch_http
+    - BUG/MINOR: acl: implicit arguments of ACL keywords were not properly resolved
+    - BUG/MEDIUM: session: risk of crash on out of memory conditions
+    - BUG/MINOR: peers: set the accept date in outgoing connections
+    - BUG/MEDIUM: tcp: do not skip tracking rules on second pass
+    - BUG/MEDIUM: acl: do not evaluate next terms after a miss
+    - MINOR: acl: add a warning when an ACL keyword is used without any value
+    - MINOR: tcp: don't use tick_add_ifset() when timeout is known to be set
+    - BUG/MINOR: acl: remove patterns from the tree before freeing them
+    - MEDIUM: backend: add support for the wt6 hash
+    - OPTIM/MEDIUM: epoll: fuse active events into polled ones during polling changes
+    - OPTIM/MINOR: mark the source address as already known on accept()
+    - BUG/MINOR: stats: don't count tarpitted connections twice
+    - CLEANUP: http: homogenize processing of denied req counter
+    - CLEANUP: http: merge error handling for req* and http-request *
+    - BUG/MEDIUM: http: fix possible parser crash when parsing erroneous "http-request redirect" rules
+    - BUG/MINOR: http: fix build warning introduced with url32/url32_src
+    - BUG/MEDIUM: checks: fix slow start regression after fix attempt
+    - BUG/MAJOR: server: weight calculation fails for map-based algorithms
+    - MINOR: stats: report correct throttling percentage for servers in slowstart
+    - OPTIM: connection: fold the error handling with handshake handling
+    - MINOR: peers: accept to learn strings of different lengths
+    - BUG/MAJOR: fix haproxy crash when using server tracking instead of checks
+    - BUG/MAJOR: check: fix haproxy crash during soft-stop/soft-start
+    - BUG/MINOR: stats: do not report "via" on tracking servers in maintenance
+    - BUG/MINOR: connection: fix typo in error message report
+    - BUG/MINOR: backend: fix target address retrieval in transparent mode
+    - BUG/MINOR: config: report the correct track-sc number in tcp-rules
+    - BUG/MINOR: log: fix log-format parsing errors
+    - DOC: add some information about how to apply converters to samples
+    - MINOR: acl/pattern: use types different from int to clarify who does what.
+    - MINOR: pattern: import acl_find_match_name() into pattern.h
+    - MEDIUM: stick-tables: support automatic conversion from ipv4<->ipv6
+    - MEDIUM: log-format: relax parsing of '%' followed by unsupported characters
+    - BUG/MINOR: http: usual deinit stuff in last commit
+    - BUILD: log: silent a warning about isblank() with latest patches
+    - BUG/MEDIUM: checks: fix health check regression causing them to depend on declaration order
+    - BUG/MEDIUM: checks: fix a long-standing issue with reporting connection errors
+    - BUG/MINOR: checks: don't consider errno and use conn->err_code
+    - BUG/MEDIUM: checks: also update the DRAIN state from the web interface
+    - MINOR: stats: remove some confusion between the DRAIN state and NOLB
+    - BUG/MINOR: tcp: check that no error is pending during a connect probe
+    - BUG/MINOR: connection: check EINTR when sending a PROXY header
+    - MEDIUM: connection: set the socket shutdown flags on socket errors
+    - BUG/MEDIUM: acl: fix regression introduced by latest converters support
+    - MINOR: connection: clear errno prior to checking for errors
+    - BUG/MINOR: checks: do not trust errno in write event before any syscall
+    - MEDIUM: checks: centralize error reporting
+    - OPTIM: checks: don't poll on recv when using plain TCP connects
+    - OPTIM: checks: avoid setting SO_LINGER twice
+    - MINOR: tools: add a generic binary hex string parser
+    - BUG/MEDIUM: checks: tcp-check: do not poll when there's nothing to send
+    - BUG/MEDIUM: check: tcp-check might miss some outgoing data when socket buffers are full
+    - BUG/MEDIUM: args: fix double free on error path in argument expression parser
+    - BUG/MINOR: acl: fix sample expression error reporting
+    - BUG/MINOR: checks: tcp-check actions are enums, not flags
+    - MEDIUM: checks: make tcp-check perform multiple send() at once
+    - BUG/MEDIUM: stick: completely remove the unused flag from the store entries
+    - OPTIM: ebtree: pack the struct eb_node to avoid holes on 64-bit
+    - BUG/MEDIUM: stick-tables: complete the latest fix about store-responses
+    - CLEANUP: stream_interface: remove unused field err_loc
+    - MEDIUM: stats: don't use conn->xprt_st anymore
+    - MINOR: session: add a simple function to retrieve a session from a task
+    - MEDIUM: stats: don't use conn->xprt_ctx anymore
+    - MEDIUM: peers: don't rely on conn->xprt_ctx anymore
+    - MINOR: http: prevent smp_fetch_url_{ip,port} from using si->conn
+    - MINOR: connection: make it easier to emit proxy protocol for unknown addresses
+    - MEDIUM: stats: prepare the HTTP stats I/O handler to support more states
+    - MAJOR: stats: move the HTTP stats handling to its applet
+    - MEDIUM: stats: move request argument processing to the final step
+    - MEDIUM: session: detect applets from the session by using s->target
+    - MAJOR: session: check for a connection to an applet in sess_prepare_conn_req()
+    - MAJOR: session: pass applet return traffic through the response analysers
+    - MEDIUM: stream-int: split the shutr/shutw functions between applet and conn
+    - MINOR: stream-int: make the shutr/shutw functions void
+    - MINOR: obj: provide a safe and an unsafe access to pointed objects
+    - MINOR: connection: add a field to store an object type
+    - MINOR: connection: always initialize conn->objt_type to OBJ_TYPE_CONN
+    - MEDIUM: stream interface: move the peers' ptr into the applet context
+    - MINOR: stream-interface: move the applet context to its own struct
+    - MINOR: obj: introduce a new type appctx
+    - MINOR: stream-int: rename ->applet to ->appctx
+    - MINOR: stream-int: split si_prepare_embedded into si_prepare_none and si_prepare_applet
+    - MINOR: stream-int: add a new pointer to the end point
+    - MEDIUM: stream-interface: set the pointer to the applet into the applet context
+    - MAJOR: stream interface: remove the ->release function pointer
+    - MEDIUM: stream-int: make ->end point to the connection or the appctx
+    - CLEANUP: stream-int: remove obsolete si_ctrl function
+    - MAJOR: stream-int: stop using si->conn and use si->end instead
+    - MEDIUM: stream-int: do not allocate a connection in parallel to applets
+    - MEDIUM: session: attach incoming connection to target on embryonic sessions
+    - MINOR: connection: add conn_init() to (re)initialize a connection
+    - MINOR: checks: call conn_init() to properly initialize the connection.
+    - MINOR: peers: make use of conn_init() to initialize the connection
+    - MINOR: session: use conn_init() to initialize the connections
+    - MINOR: http: use conn_init() to reinitialize the server connection
+    - MEDIUM: connection: replace conn_prepare with conn_assign
+    - MINOR: get rid of si_takeover_conn()
+    - MINOR: connection: add conn_new() / conn_free()
+    - MAJOR: connection: add two new flags to indicate readiness of control/transport
+    - MINOR: stream-interface: introduce si_reset() and si_set_state()
+    - MINOR: connection: reintroduce conn_prepare to set the protocol and transport
+    - MINOR: connection: replace conn_assign with conn_attach
+    - MEDIUM: stream-interface: introduce si_attach_conn to replace si_prepare_conn
+    - MAJOR: stream interface: dynamically allocate the outgoing connection
+    - MEDIUM: connection: move the send_proxy offset to the connection
+    - MINOR: connection: check for send_proxy during the connect(), not the SI
+    - MEDIUM: connection: merge the send_proxy and local_send_proxy calls
+    - MEDIUM: stream-int: replace occurrences of si->appctx with si_appctx()
+    - MEDIUM: stream-int: return the allocated appctx in stream_int_register_handler()
+    - MAJOR: stream-interface: dynamically allocate the applet context
+    - MEDIUM: session: automatically register the applet designated by the target
+    - MEDIUM: stats: delay appctx initialization
+    - CLEANUP: peers: use less confusing state/status code names
+    - MEDIUM: peers: delay appctx initialization
+    - MINOR: stats: provide some appctx information in "show sess all"
+    - DIET/MINOR: obj: pack the obj_type enum to 8 bits
+    - DIET/MINOR: connection: rearrange a few fields to save 8 bytes in the struct
+    - DIET/MINOR: listener: rearrange a few fields in struct listener to save 16 bytes
+    - DIET/MINOR: proxy: rearrange a few fields in struct proxy to save 16 bytes
+    - DIET/MINOR: session: reduce the struct session size by 8 bytes
+    - DIET/MINOR: stream-int: rearrange a few fields in struct stream_interface to save 8 bytes
+    - DIET/MINOR: http: reduce the size of struct http_txn by 8 bytes
+    - MINOR: http: switch the http state to an enum
+    - MINOR: http: use an enum for the auth method in http_auth_data
+    - DIET/MINOR: task: reduce struct task size by 8 bytes
+    - MINOR: stream_interface: add reporting of ressouce allocation errors
+    - MINOR: session: report lack of resources using the new stream-interface's error code
+    - BUILD: simplify the date and version retrieval in the makefile
+    - BUILD: prepare the makefile to skip format lines in SUBVERS and VERDATE
+    - BUILD: use format tags in VERDATE and SUBVERS files
+    - BUG/MEDIUM: channel:  bo_getline() must wait for \n until buffer is full
+    - CLEANUP: check: server port is unsigned
+    - BUG/MEDIUM: checks: agent doesn't get the response if server does not closes
+    - MINOR: tools: buf2ip6 must not modify output on failure
+    - MINOR: pattern: do not assign SMP_TYPES by default to patterns
+    - MINOR: sample: make sample_parse_expr() use memprintf() to report parse errors
+    - MINOR: arg: improve wording on error reporting
+    - BUG/MEDIUM: sample: simplify and fix the argument parsing
+    - MEDIUM: acl: fix the argument parser to let the lower layer report detailed errors
+    - MEDIUM: acl: fix the initialization order of the ACL expression
+    - CLEANUP: acl: remove useless blind copy-paste from sample converters
+    - TESTS: add regression tests for ACL and sample expression parsers
+    - BUILD: time: adapt the type of TV_ETERNITY to the local system
+    - MINOR: chunks: allocate the trash chunks before parsing the config
+    - BUILD: definitely silence some stupid GCC warnings
+    - MINOR: chunks: always initialize the output chunk in get_trash_chunk()
+    - MINOR: checks: improve handling of the servers tracking chain
+    - REORG: checks: retrieve the check-specific defines from server.h to checks.h
+    - MINOR: checks: use an enum instead of flags to report a check result
+    - MINOR: checks: rename the state flags
+    - MINOR: checks: replace state DISABLED with CONFIGURED and ENABLED
+    - MINOR: checks: use check->state instead of srv->state & SRV_CHECKED
+    - MINOR: checks: fix agent check interval computation
+    - MINOR: checks: add a PAUSED state for the checks
+    - MINOR: checks: create the agent tasks even when no check is configured
+    - MINOR: checks: add a flag to indicate what check is an agent
+    - MEDIUM: checks: enable agent checks even if health checks are disabled
+    - BUG/MEDIUM: checks: ensure we can enable a server after boot
+    - BUG/MEDIUM: checks: tracking servers must not inherit the MAINT flag
+    - BUG/MAJOR: session: repair tcp-request connection rules
+    - BUILD: fix SUBVERS extraction in the Makefile
+    - BUILD: pattern: silence a warning about uninitialized value
+    - BUILD: log: fix build warning on Solaris
+    - BUILD: dumpstats: fix build error on Solaris
+    - DOC: move option pgsql-check to the correct place
+    - DOC: move option tcp-check to the proper place
+    - MINOR: connection: add simple functions to report connection readiness
+    - MEDIUM: connection: centralize handling of nolinger in fd management
+    - OPTIM: http: set CF_READ_DONTWAIT on response message
+    - OPTIM: http: do not re-enable reading on client side while closing the server side
+    - MINOR: config: add option http-keep-alive
+    - MEDIUM: connection: inform si_alloc_conn() whether existing conn is OK or not
+    - MAJOR: stream-int: handle the connection reuse in si_connect()
+    - MAJOR: http: add the keep-alive transition on the server side
+    - MAJOR: backend: enable connection reuse
+    - MINOR: http: add option prefer-last-server
+    - MEDIUM: http: do not report connection errors for second and further requests
+
 2013/06/17 : 1.5-dev19
     - MINOR: stats: remove the autofocus on the scope input field
     - BUG/MEDIUM: Fix crt-list file parsing error: filtered name was ignored.
