@@ -1168,7 +1168,6 @@ option dontlognull                   (*)  X          X         X         -
 option forceclose                    (*)  X          X         X         X
 -- keyword -------------------------- defaults - frontend - listen -- backend -
 option forwardfor                         X          X         X         X
-option tcp-check                          X          -         X         X
 option http-no-delay                 (*)  X          X         X         X
 option http-pretend-keepalive        (*)  X          X         X         X
 option http-server-close             (*)  X          X         X         X
@@ -1197,6 +1196,7 @@ option splice-response               (*)  X          X         X         X
 option srvtcpka                      (*)  X          -         X         X
 option ssl-hello-chk                      X          -         X         X
 -- keyword -------------------------- defaults - frontend - listen -- backend -
+option tcp-check                          X          -         X         X
 option tcp-smart-accept              (*)  X          X         X         -
 option tcp-smart-connect             (*)  X          -         X         X
 option tcpka                              X          X         X         X
@@ -3763,75 +3763,6 @@ option forwardfor [ except <network> ] [ header <name> ] [ if-none ]
              "option forceclose"
 
 
-option tcp-check
-  Perform health checks using tcp-check send/expect sequences
-  May be used in sections:   defaults | frontend | listen | backend
-                               yes    |    no    |   yes  |   yes
-
-  This health check method is intended to be combined with "tcp-check" command
-  lists in order to support send/expect types of health check sequences.
-
-  TCP checks currently support 4 modes of operations :
-    - no "tcp-check" directive : the health check only consists in a connection
-      attempt, which remains the default mode.
-
-    - "tcp-check send" or "tcp-check send-binary" only is mentionned : this is
-      used to send a string along with a connection opening. With some
-      protocols, it helps sending a "QUIT" message for example that prevents
-      the server from logging a connection error for each health check. The
-      check result will still be based on the ability to open the connection
-      only.
-
-    - "tcp-check expect" only is mentionned : this is used to test a banner.
-      The connection is opened and haproxy waits for the server to present some
-      contents which must validate some rules. The check result will be based
-      on the matching between the contents and the rules. This is suited for
-      POP, IMAP, SMTP, FTP, SSH, TELNET.
-
-    - both "tcp-check send" and "tcp-check expect" are mentionned : this is
-      used to test a hello-type protocol. Haproxy sends a message, the server
-      responds and its response is analysed. the check result will be based on
-      the maching between the response contents and the rules. This is often
-      suited for protocols which require a binding or a request/response model.
-      LDAP, MySQL, Redis and SSL are example of such protocols, though they
-      already all have their dedicated checks with a deeper understanding of
-      the respective protocols.
-      In this mode, many questions may be sent and many answers may be
-      analysed.
-
-  Examples :
-         # perform a POP check (analyse only server's banner)
-         option tcp-check
-         tcp-check expect string +OK\ POP3\ ready
-
-         # perform an IMAP check (analyse only server's banner)
-         option tcp-check
-         tcp-check expect string *\ OK\ IMAP4\ ready
-
-         # look for the redis master server after ensuring it speaks well
-         # redis protocol, then it exits properly.
-         # (send a command then analyse the response 3 tims)
-         option tcp-check
-         tcp-check send PING\r\n
-         tcp-check expect +PONG
-         tcp-check send info\ replication\r\n
-         tcp-check expect string role:master
-         tcp-check send QUIT\r\n
-         tcp-check expect string +OK
-
-         forge a HTTP request, then analyse the response
-         (send many headers before analyzing)
-         option tcp-check
-         tcp-check send HEAD\ /\ HTTP/1.1\r\n
-         tcp-check send Host:\ www.mydomain.com\r\n
-         tcp-check send User-Agent:\ HAProxy\ tcpcheck\r\n
-         tcp-check send \r\n
-         tcp-check expect rstring HTTP/1\..\ (2..|3..)
-
-
-  See also : "tcp-check expect", "tcp-check send"
-
-
 option http-no-delay
 no option http-no-delay
   Instruct the system to favor low interactive delays over performance in HTTP
@@ -4679,6 +4610,75 @@ option ssl-hello-chk
   to use native SSL health checks instead of this one.
 
   See also: "option httpchk", "check-ssl"
+
+
+option tcp-check
+  Perform health checks using tcp-check send/expect sequences
+  May be used in sections:   defaults | frontend | listen | backend
+                               yes    |    no    |   yes  |   yes
+
+  This health check method is intended to be combined with "tcp-check" command
+  lists in order to support send/expect types of health check sequences.
+
+  TCP checks currently support 4 modes of operations :
+    - no "tcp-check" directive : the health check only consists in a connection
+      attempt, which remains the default mode.
+
+    - "tcp-check send" or "tcp-check send-binary" only is mentionned : this is
+      used to send a string along with a connection opening. With some
+      protocols, it helps sending a "QUIT" message for example that prevents
+      the server from logging a connection error for each health check. The
+      check result will still be based on the ability to open the connection
+      only.
+
+    - "tcp-check expect" only is mentionned : this is used to test a banner.
+      The connection is opened and haproxy waits for the server to present some
+      contents which must validate some rules. The check result will be based
+      on the matching between the contents and the rules. This is suited for
+      POP, IMAP, SMTP, FTP, SSH, TELNET.
+
+    - both "tcp-check send" and "tcp-check expect" are mentionned : this is
+      used to test a hello-type protocol. Haproxy sends a message, the server
+      responds and its response is analysed. the check result will be based on
+      the maching between the response contents and the rules. This is often
+      suited for protocols which require a binding or a request/response model.
+      LDAP, MySQL, Redis and SSL are example of such protocols, though they
+      already all have their dedicated checks with a deeper understanding of
+      the respective protocols.
+      In this mode, many questions may be sent and many answers may be
+      analysed.
+
+  Examples :
+         # perform a POP check (analyse only server's banner)
+         option tcp-check
+         tcp-check expect string +OK\ POP3\ ready
+
+         # perform an IMAP check (analyse only server's banner)
+         option tcp-check
+         tcp-check expect string *\ OK\ IMAP4\ ready
+
+         # look for the redis master server after ensuring it speaks well
+         # redis protocol, then it exits properly.
+         # (send a command then analyse the response 3 tims)
+         option tcp-check
+         tcp-check send PING\r\n
+         tcp-check expect +PONG
+         tcp-check send info\ replication\r\n
+         tcp-check expect string role:master
+         tcp-check send QUIT\r\n
+         tcp-check expect string +OK
+
+         forge a HTTP request, then analyse the response
+         (send many headers before analyzing)
+         option tcp-check
+         tcp-check send HEAD\ /\ HTTP/1.1\r\n
+         tcp-check send Host:\ www.mydomain.com\r\n
+         tcp-check send User-Agent:\ HAProxy\ tcpcheck\r\n
+         tcp-check send \r\n
+         tcp-check expect rstring HTTP/1\..\ (2..|3..)
+
+
+  See also : "tcp-check expect", "tcp-check send"
 
 
 option tcp-smart-accept
