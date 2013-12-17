@@ -508,6 +508,8 @@ static void si_idle_conn_null_cb(struct connection *conn)
 	/* disable draining if we were called and have no drain function */
 	if (!conn->ctrl->drain)
 		__conn_data_stop_recv(conn);
+	else if (!(conn->flags & CO_FL_SOCK_RD_SH))
+		__conn_data_poll_recv(conn);
 }
 
 /* Callback to be used by connection I/O handlers when some activity is detected
