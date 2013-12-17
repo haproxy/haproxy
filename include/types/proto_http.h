@@ -227,7 +227,7 @@ enum http_meth_t {
 	HTTP_METH_DELETE,
 	HTTP_METH_TRACE,
 	HTTP_METH_CONNECT,
-	HTTP_METH_OTHER,
+	HTTP_METH_OTHER, /* Must be the last entry */
 } __attribute__((packed));
 
 enum ht_auth_m {
@@ -441,6 +441,13 @@ struct hdr_ctx {
 	int  del;  /* relative to line */
 	int  prev; /* index of previous header */
 };
+
+struct http_method_name {
+	char *name;
+	int len;
+};
+
+extern const struct http_method_name http_known_methods[HTTP_METH_OTHER];
 
 #endif /* _TYPES_PROTO_HTTP_H */
 

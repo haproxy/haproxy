@@ -120,6 +120,8 @@ struct chunk *http_error_message(struct session *s, int msgnum);
 struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, struct proxy *curproxy,
                                                const char **args, char **errmsg, int use_fmt);
 
+enum http_meth_t find_http_meth(const char *str, const int len);
+
 /* to be used when contents change in an HTTP message */
 #define http_msg_move_end(msg, bytes) do { \
 		unsigned int _bytes = (bytes);	\

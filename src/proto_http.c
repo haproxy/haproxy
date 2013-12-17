@@ -352,6 +352,18 @@ const struct http_method_desc http_methods[26][3] = {
 	 */
 };
 
+const struct http_method_name http_known_methods[HTTP_METH_OTHER] = {
+	[HTTP_METH_NONE]    = { "",         0 },
+	[HTTP_METH_OPTIONS] = { "OPTIONS",  7 },
+	[HTTP_METH_GET]     = { "GET",      3 },
+	[HTTP_METH_HEAD]    = { "HEAD",     4 },
+	[HTTP_METH_POST]    = { "POST",     4 },
+	[HTTP_METH_PUT]     = { "PUT",      3 },
+	[HTTP_METH_DELETE]  = { "DELETE",   6 },
+	[HTTP_METH_TRACE]   = { "TRACE",    5 },
+	[HTTP_METH_CONNECT] = { "CONNECT",  7 },
+};
+
 /* It is about twice as fast on recent architectures to lookup a byte in a
  * table than to perform a boolean AND or OR between two tests. Refer to
  * RFC2616 for those chars.
@@ -795,7 +807,7 @@ struct chunk *http_error_message(struct session *s, int msgnum)
  * returns HTTP_METH_NONE if there is nothing valid to read (empty or non-text
  * string), HTTP_METH_OTHER for unknown methods, or the identified method.
  */
-static enum http_meth_t find_http_meth(const char *str, const int len)
+enum http_meth_t find_http_meth(const char *str, const int len)
 {
 	unsigned char m;
 	const struct http_method_desc *h;
@@ -8993,8 +9005,11 @@ static int pat_parse_meth(const char *text, struct pattern *pattern, char **err)
 		pattern->expect_type = SMP_T_STR;
 		pattern->len = len;
 	}
-	else
+	else {
+		pattern->ptr.str = NULL;
+		pattern->len = 0;
 		pattern->expect_type = SMP_T_UINT;
+	}
 	return 1;
 }
 
@@ -9016,17 +9031,15 @@ smp_fetch_meth(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 	CHECK_HTTP_MESSAGE_FIRST_PERM();
 
 	meth = txn->meth;
-	smp->flags = 0;
-	smp->type = SMP_T_UINT;
-	smp->data.uint = meth;
+	smp->type = SMP_T_METH;
+	smp->data.meth.meth = meth;
 	if (meth == HTTP_METH_OTHER) {
 		if (txn->rsp.msg_state != HTTP_MSG_RPBEFORE)
 			/* ensure the indexes are not affected */
 			return 0;
-		smp->type = SMP_T_STR;
 		smp->flags |= SMP_F_CONST;
-		smp->data.str.len = txn->req.sl.rq.m_l;
-		smp->data.str.str = txn->req.chn->buf->p;
+		smp->data.meth.str.len = txn->req.sl.rq.m_l;
+		smp->data.meth.str.str = txn->req.chn->buf->p;
 	}
 	smp->flags |= SMP_F_VOL_1ST;
 	return 1;
@@ -9037,27 +9050,23 @@ static enum pat_match_res pat_match_meth(struct sample *smp, struct pattern *pat
 {
 	int icase;
 
-
-	if (smp->type == SMP_T_UINT) {
-		/* well-known method */
-		if (smp->data.uint == pattern->val.i)
+	/* well-known method */
+	if (pattern->val.i != HTTP_METH_OTHER) {
+		if (smp->data.meth.meth == pattern->val.i)
 			return PAT_MATCH;
-		return PAT_NOMATCH;
+		else
+			return PAT_NOMATCH;
 	}
 
-	/* Uncommon method, only HTTP_METH_OTHER is accepted now */
-	if (pattern->val.i != HTTP_METH_OTHER)
-		return PAT_NOMATCH;
-
 	/* Other method, we must compare the strings */
-	if (pattern->len != smp->data.str.len)
+	if (pattern->len != smp->data.meth.str.len)
 		return PAT_NOMATCH;
 
 	icase = pattern->flags & PAT_F_IGNORE_CASE;
-	if ((icase && strncasecmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) != 0) ||
-	    (!icase && strncmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) != 0))
-		return PAT_NOMATCH;
-	return PAT_MATCH;
+	if ((icase && strncasecmp(pattern->ptr.str, smp->data.meth.str.str, smp->data.meth.str.len) != 0) ||
+	    (!icase && strncmp(pattern->ptr.str, smp->data.meth.str.str, smp->data.meth.str.len) != 0))
+		return PAT_MATCH;
+	return PAT_NOMATCH;
 }
 
 static int
@@ -10465,7 +10474,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "http_auth",       smp_fetch_http_auth,      ARG1(1,USR),      NULL,    SMP_T_BOOL, SMP_USE_HRQHV },
 	{ "http_auth_group", smp_fetch_http_auth_grp,  ARG1(1,USR),      NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 	{ "http_first_req",  smp_fetch_http_first_req, 0,                NULL,    SMP_T_BOOL, SMP_USE_HRQHP },
-	{ "method",          smp_fetch_meth,           0,                NULL,    SMP_T_UINT, SMP_USE_HRQHP },
+	{ "method",          smp_fetch_meth,           0,                NULL,    SMP_T_METH, SMP_USE_HRQHP },
 	{ "path",            smp_fetch_path,           0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 
 	/* HTTP protocol on the request path */

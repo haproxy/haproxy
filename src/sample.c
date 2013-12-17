@@ -24,6 +24,7 @@
 #include <proto/arg.h>
 #include <proto/auth.h>
 #include <proto/log.h>
+#include <proto/proto_http.h>
 #include <proto/proxy.h>
 #include <proto/sample.h>
 #include <proto/stick_table.h>
@@ -607,6 +608,51 @@ static int c_str2int(struct sample *smp)
 	return 1;
 }
 
+static int c_str2meth(struct sample *smp)
+{
+	enum http_meth_t meth;
+	int len;
+
+	meth = find_http_meth(smp->data.str.str, smp->data.str.len);
+	if (meth == HTTP_METH_OTHER) {
+		len = smp->data.str.len;
+		smp->data.meth.str.str = smp->data.str.str;
+		smp->data.meth.str.len = len;
+	}
+	else
+		smp->flags &= ~SMP_F_CONST;
+	smp->data.meth.meth = meth;
+	smp->type = SMP_T_METH;
+	return 1;
+}
+
+static int c_meth2str(struct sample *smp)
+{
+	int len;
+	enum http_meth_t meth;
+
+	if (smp->data.meth.meth == HTTP_METH_OTHER) {
+		/* The method is unknown. Copy the original pointer. */
+		len = smp->data.meth.str.len;
+		smp->data.str.str = smp->data.meth.str.str;
+		smp->data.str.len = len;
+		smp->type = SMP_T_STR;
+	}
+	else if (smp->data.meth.meth < HTTP_METH_OTHER) {
+		/* The method is known, copy the pointer containing the string. */
+		meth = smp->data.meth.meth;
+		smp->data.str.str = http_known_methods[meth].name;
+		smp->data.str.len = http_known_methods[meth].len;
+		smp->flags |= SMP_F_CONST;
+		smp->type = SMP_T_STR;
+	}
+	else {
+		/* Unknown method */
+		return 0;
+	}
+	return 1;
+}
+
 /*****************************************************************/
 /*      Sample casts matrix:                                     */
 /*           sample_casts[from type][to type]                    */
@@ -614,15 +660,16 @@ static int c_str2int(struct sample *smp)
 /*****************************************************************/
 
 sample_cast_fct sample_casts[SMP_TYPES][SMP_TYPES] = {
-/*            to:  BOOL       UINT       SINT       ADDR        IPV4      IPV6        STR         BIN     */
-/* from: BOOL */ { c_none,    c_none,    c_none,    NULL,       NULL,     NULL,       c_int2str,  NULL,   },
-/*       UINT */ { c_none,    c_none,    c_none,    c_int2ip,   c_int2ip, NULL,       c_int2str,  NULL,   },
-/*       SINT */ { c_none,    c_none,    c_none,    c_int2ip,   c_int2ip, NULL,       c_int2str,  NULL,   },
-/*       ADDR */ { NULL,      NULL,      NULL,      NULL,       NULL,     NULL,       NULL,       NULL,   },
-/*       IPV4 */ { NULL,      c_ip2int,  c_ip2int,  c_none,     c_none,   c_ip2ipv6,  c_ip2str,   NULL,   },
-/*       IPV6 */ { NULL,      NULL,      NULL,      c_none,     NULL,     c_none,     c_ipv62str, NULL,   },
-/*        STR */ { c_str2int, c_str2int, c_str2int, c_str2addr, c_str2ip, c_str2ipv6, c_none,     c_none, },
-/*        BIN */ { NULL,      NULL,      NULL,      NULL,       NULL,     NULL,       c_bin2str,  c_none, },
+/*            to:  BOOL       UINT       SINT       ADDR        IPV4      IPV6        STR         BIN         METH */
+/* from: BOOL */ { c_none,    c_none,    c_none,    NULL,       NULL,     NULL,       c_int2str,  NULL,       NULL,       },
+/*       UINT */ { c_none,    c_none,    c_none,    c_int2ip,   c_int2ip, NULL,       c_int2str,  NULL,       NULL,       },
+/*       SINT */ { c_none,    c_none,    c_none,    c_int2ip,   c_int2ip, NULL,       c_int2str,  NULL,       NULL,       },
+/*       ADDR */ { NULL,      NULL,      NULL,      NULL,       NULL,     NULL,       NULL,       NULL,       NULL,       },
+/*       IPV4 */ { NULL,      c_ip2int,  c_ip2int,  c_none,     c_none,   c_ip2ipv6,  c_ip2str,   NULL,       NULL,       },
+/*       IPV6 */ { NULL,      NULL,      NULL,      c_none,     NULL,     c_none,     c_ipv62str, NULL,       NULL,       },
+/*        STR */ { c_str2int, c_str2int, c_str2int, c_str2addr, c_str2ip, c_str2ipv6, c_none,     c_none,     c_str2meth, },
+/*        BIN */ { NULL,      NULL,      NULL,      NULL,       NULL,     NULL,       c_bin2str,  c_none,     c_str2meth, },
+/*       METH */ { NULL,      NULL,      NULL,      NULL,       NULL,     NULL,       c_meth2str, c_meth2str, c_none,     },
 };
 
 /*
