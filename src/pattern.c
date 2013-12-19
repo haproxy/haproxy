@@ -398,7 +398,6 @@ int pat_parse_ip(const char *text, struct pattern *pattern, char **err)
 		return 1;
 	}
 	else if (str62net(text, &pattern->val.ipv6.addr, &pattern->val.ipv6.mask)) {
-		/* no tree support right now */
 		pattern->type = SMP_T_IPV6;
 		return 1;
 	}
@@ -757,8 +756,6 @@ struct pattern *pat_match_len(struct sample *smp, struct pattern_expr *expr, int
 struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int fill)
 {
 	unsigned int v4; /* in network byte order */
-	struct in6_addr *v6;
-	int bits, pos;
 	struct in6_addr tmp6;
 	struct in_addr *s;
 	struct ebmb_node *node;
@@ -770,10 +767,11 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 	if (!sample_convert(smp, SMP_T_ADDR))
 		return NULL;
 
-	/* Lookup an IPv4 address in the expression's pattern tree using the longest
-	 * match method.
-	 */
+	/* The input sample is IPv4. Try to match in the trees. */
 	if (smp->type == SMP_T_IPV4) {
+		/* Lookup an IPv4 address in the expression's pattern tree using
+		 * the longest match method.
+		 */
 		s = &smp->data.ipv4;
 		node = ebmb_lookup_longest(&expr->pattern_tree, &s->s_addr);
 		if (node) {
@@ -788,71 +786,114 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 			}
 			return &static_pattern;
 		}
+
+		/* The IPv4 sample dont match the IPv4 tree. Convert the IPv4
+		 * sample address to IPv6 with the mapping method using the ::ffff:
+		 * prefix, and try to lookup in the IPv6 tree.
+		 */
+		memset(&tmp6, 0, 10);
+		*(uint16_t*)&tmp6.s6_addr[10] = htons(0xffff);
+		*(uint32_t*)&tmp6.s6_addr[12] = smp->data.ipv4.s_addr;
+		node = ebmb_lookup_longest(&expr->pattern_tree_2, &tmp6);
+		if (node) {
+			if (fill) {
+				elt = ebmb_entry(node, struct pattern_tree, node);
+				static_pattern.smp = elt->smp;
+				static_pattern.flags = PAT_F_TREE;
+				static_pattern.type = SMP_T_IPV6;
+				memcpy(&static_pattern.val.ipv6.addr, elt->node.key, 16);
+				static_pattern.val.ipv6.mask = elt->node.node.pfx;
+			}
+			return &static_pattern;
+		}
 	}
 
-	/* Lookup in the list */
+	/* The input sample is IPv6. Try to match in the trees. */
+	if (smp->type == SMP_T_IPV6) {
+		/* Lookup an IPv6 address in the expression's pattern tree using
+		 * the longest match method.
+		 */
+		node = ebmb_lookup_longest(&expr->pattern_tree_2, &smp->data.ipv6);
+		if (node) {
+			if (fill) {
+				elt = ebmb_entry(node, struct pattern_tree, node);
+				static_pattern.smp = elt->smp;
+				static_pattern.flags = PAT_F_TREE;
+				static_pattern.type = SMP_T_IPV6;
+				memcpy(&static_pattern.val.ipv6.addr, elt->node.key, 16);
+				static_pattern.val.ipv6.mask = elt->node.node.pfx;
+			}
+			return &static_pattern;
+		}
+
+		/* Try to convert 6 to 4 when the start of the ipv6 address match the
+		 * following forms :
+		 *   - ::ffff:ip:v4 (ipv4 mapped)
+		 *   - ::0000:ip:v4 (old ipv4 mapped)
+		 *   - 2002:ip:v4:: (6to4)
+		 */
+		if ((*(uint32_t*)&smp->data.ipv6.s6_addr[0] == 0 &&
+		     *(uint32_t*)&smp->data.ipv6.s6_addr[4]  == 0 &&
+		     (*(uint32_t*)&smp->data.ipv6.s6_addr[8] == 0 ||
+		      *(uint32_t*)&smp->data.ipv6.s6_addr[8] == htonl(0xFFFF))) ||
+		    *(uint16_t*)&smp->data.ipv6.s6_addr[0] == htons(0x2002)) {
+			if (*(uint32_t*)&smp->data.ipv6.s6_addr[0] == 0)
+				v4 = *(uint32_t*)&smp->data.ipv6.s6_addr[12];
+			else
+				v4 = htonl((ntohs(*(uint16_t*)&smp->data.ipv6.s6_addr[2]) << 16) +
+				            ntohs(*(uint16_t*)&smp->data.ipv6.s6_addr[4]));
+
+			/* Lookup an IPv4 address in the expression's pattern tree using the longest
+			 * match method.
+			 */
+			node = ebmb_lookup_longest(&expr->pattern_tree, &v4);
+			if (node) {
+				if (fill) {
+					elt = ebmb_entry(node, struct pattern_tree, node);
+					static_pattern.smp = elt->smp;
+					static_pattern.flags = PAT_F_TREE;
+					static_pattern.type = SMP_T_IPV4;
+					memcpy(&static_pattern.val.ipv4.addr.s_addr, elt->node.key, 4);
+					if (!cidr2dotted(elt->node.node.pfx, &static_pattern.val.ipv4.mask))
+						return NULL;
+				}
+				return &static_pattern;
+			}
+		}
+	}
+
+	/* Lookup in the list. the list contain only IPv4 patterns */
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
 
-		if (pattern->type == SMP_T_IPV4) {
-			if (smp->type == SMP_T_IPV4) {
-				v4 = smp->data.ipv4.s_addr;
+		/* The input sample is IPv4, use it as is. */
+		if (smp->type == SMP_T_IPV4) {
+			v4 = smp->data.ipv4.s_addr;
+		}
+		else if (smp->type == SMP_T_IPV6) {
+			/* v4 match on a V6 sample. We want to check at least for
+			 * the following forms :
+			 *   - ::ffff:ip:v4 (ipv4 mapped)
+			 *   - ::0000:ip:v4 (old ipv4 mapped)
+			 *   - 2002:ip:v4:: (6to4)
+			 */
+			if (*(uint32_t*)&smp->data.ipv6.s6_addr[0] == 0 &&
+			    *(uint32_t*)&smp->data.ipv6.s6_addr[4]  == 0 &&
+			    (*(uint32_t*)&smp->data.ipv6.s6_addr[8] == 0 ||
+			     *(uint32_t*)&smp->data.ipv6.s6_addr[8] == htonl(0xFFFF))) {
+				v4 = *(uint32_t*)&smp->data.ipv6.s6_addr[12];
 			}
-			else if (smp->type == SMP_T_IPV6) {
-				/* v4 match on a V6 sample. We want to check at least for
-				 * the following forms :
-				 *   - ::ffff:ip:v4 (ipv4 mapped)
-				 *   - ::0000:ip:v4 (old ipv4 mapped)
-				 *   - 2002:ip:v4:: (6to4)
-				 */
-				if (*(uint32_t*)&smp->data.ipv6.s6_addr[0] == 0 &&
-				    *(uint32_t*)&smp->data.ipv6.s6_addr[4]  == 0 &&
-				    (*(uint32_t*)&smp->data.ipv6.s6_addr[8] == 0 ||
-				     *(uint32_t*)&smp->data.ipv6.s6_addr[8] == htonl(0xFFFF))) {
-					v4 = *(uint32_t*)&smp->data.ipv6.s6_addr[12];
-				}
-				else if (*(uint16_t*)&smp->data.ipv6.s6_addr[0] == htons(0x2002)) {
-					v4 = htonl((ntohs(*(uint16_t*)&smp->data.ipv6.s6_addr[2]) << 16) +
-					            ntohs(*(uint16_t*)&smp->data.ipv6.s6_addr[4]));
-				}
-				else
-					continue;
+			else if (*(uint16_t*)&smp->data.ipv6.s6_addr[0] == htons(0x2002)) {
+				v4 = htonl((ntohs(*(uint16_t*)&smp->data.ipv6.s6_addr[2]) << 16) +
+				            ntohs(*(uint16_t*)&smp->data.ipv6.s6_addr[4]));
 			}
-			else
-				continue;
-
-			if (((v4 ^ pattern->val.ipv4.addr.s_addr) & pattern->val.ipv4.mask.s_addr) == 0)
-				return pattern;
 			else
 				continue;
 		}
-		else if (pattern->type == SMP_T_IPV6) {
-			if (smp->type == SMP_T_IPV4) {
-				/* Convert the IPv4 sample address to IPv4 with the
-				 * mapping method using the ::ffff: prefix.
-				 */
-				memset(&tmp6, 0, 10);
-				*(uint16_t*)&tmp6.s6_addr[10] = htons(0xffff);
-				*(uint32_t*)&tmp6.s6_addr[12] = smp->data.ipv4.s_addr;
-				v6 = &tmp6;
-			}
-			else if (smp->type == SMP_T_IPV6) {
-				v6 = &smp->data.ipv6;
-			}
-			else {
-				continue;
-			}
 
-			bits = pattern->val.ipv6.mask;
-			for (pos = 0; bits > 0; pos += 4, bits -= 32) {
-				v4 = *(uint32_t*)&v6->s6_addr[pos] ^ *(uint32_t*)&pattern->val.ipv6.addr.s6_addr[pos];
-				if (bits < 32)
-					v4 &= htonl((~0U) << (32-bits));
-				if (v4)
-					continue;
-			}
+		/* Check if the input sample match the current pattern. */
+		if (((v4 ^ pattern->val.ipv4.addr.s_addr) & pattern->val.ipv4.mask.s_addr) == 0)
 			return pattern;
-		}
 	}
 	return NULL;
 }
@@ -901,6 +942,7 @@ void pattern_prune_expr(struct pattern_expr *expr)
 {
 	free_pattern_list(&expr->patterns);
 	free_pattern_tree(&expr->pattern_tree);
+	free_pattern_tree(&expr->pattern_tree_2);
 	LIST_INIT(&expr->patterns);
 }
 
@@ -908,6 +950,7 @@ void pattern_init_expr(struct pattern_expr *expr)
 {
 	LIST_INIT(&expr->patterns);
 	expr->pattern_tree = EB_ROOT_UNIQUE;
+	expr->pattern_tree_2 = EB_ROOT_UNIQUE;
 }
 
 /*
@@ -1066,10 +1109,33 @@ int pat_idx_tree_ip(struct pattern_expr *expr, struct pattern *pat, char **err)
 			/* that's ok */
 			return 1;
 		}
+		else {
+			/* If the mask is not contiguous, just add the pattern to the list */
+			return pat_idx_list_val(expr, pat, err);
+		}
+	}
+	else if (pat->type == SMP_T_IPV6) {
+		/* IPv6 also can be indexed */
+		node = calloc(1, sizeof(*node) + 16);
+		if (!node) {
+			memprintf(err, "out of memory while loading pattern");
+			return 0;
+		}
+
+		/* copy the pointer to sample associated to this node */
+		node->smp = pat->smp;
+
+		/* FIXME: insert <addr>/<mask> into the tree here */
+		memcpy(node->node.key, &pat->val.ipv6.addr, 16); /* network byte order */
+		node->node.node.pfx = pat->val.ipv6.mask;
+		if (ebmb_insert_prefix(&expr->pattern_tree_2, &node->node, 16) != &node->node)
+			free(node); /* was a duplicate */
+
+		/* that's ok */
+		return 1;
 	}
 
-	/* If the value cannot be indexed, just add it to the list */
-	return pat_idx_list_val(expr, pat, err);
+	return 0;
 }
 
 int pat_idx_tree_str(struct pattern_expr *expr, struct pattern *pat, char **err)

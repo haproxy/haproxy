@@ -160,6 +160,7 @@ struct pattern_expr {
 	struct pattern *(*match)(struct sample *, struct pattern_expr *, int);
 	struct list patterns;         /* list of acl_patterns */
 	struct eb_root pattern_tree;  /* may be used for lookup in large datasets */
+	struct eb_root pattern_tree_2;  /* may be used for different types */
 };
 
 extern char *pat_match_names[PAT_MATCH_NUM];
