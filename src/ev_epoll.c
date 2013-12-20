@@ -64,14 +64,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 
 		if (fdtab[fd].owner && (eo ^ en)) {
 			if ((eo ^ en) & FD_EV_POLLED_RW) {
-				/* poll status changed. We'll have to run some syscalls
-				 * for this, so let's merge any pending speculative events
-				 * into them in order to avoid possible future failed calls
-				 * (typically recv()). In practice on a slow connection
-				 * establishment, this saves one epoll_ctl() and one recv().
-				 */
-				en = (en & FD_EV_POLLED_RW) | ((en & FD_EV_ACTIVE_RW) * FD_EV_POLLED / FD_EV_ACTIVE);
-
+				/* poll status changed */
 				if ((en & FD_EV_POLLED_RW) == 0) {
 					/* fd removed from poll list */
 					opcode = EPOLL_CTL_DEL;
