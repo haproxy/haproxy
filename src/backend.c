@@ -1029,34 +1029,40 @@ int connect_server(struct session *s)
 			return SN_ERR_INTERNAL;
 	}
 
-	/* the target was only on the session, assign it to the SI now */
-	srv_conn->target = s->target;
+	if (!conn_xprt_ready(srv_conn)) {
+		/* the target was only on the session, assign it to the SI now */
+		srv_conn->target = s->target;
 
-	/* set the correct protocol on the output stream interface */
-	if (objt_server(s->target)) {
-		conn_prepare(srv_conn, objt_server(s->target)->proto, objt_server(s->target)->xprt);
+		/* set the correct protocol on the output stream interface */
+		if (objt_server(s->target)) {
+			conn_prepare(srv_conn, objt_server(s->target)->proto, objt_server(s->target)->xprt);
+		}
+		else if (obj_type(s->target) == OBJ_TYPE_PROXY) {
+			/* proxies exclusively run on raw_sock right now */
+			conn_prepare(srv_conn, protocol_by_family(srv_conn->addr.to.ss_family), &raw_sock);
+			if (!objt_conn(s->req->cons->end) || !objt_conn(s->req->cons->end)->ctrl)
+				return SN_ERR_INTERNAL;
+		}
+		else
+			return SN_ERR_INTERNAL;  /* how did we get there ? */
+
+		/* process the case where the server requires the PROXY protocol to be sent */
+		srv_conn->send_proxy_ofs = 0;
+		if (objt_server(s->target) && (objt_server(s->target)->state & SRV_SEND_PROXY)) {
+			srv_conn->send_proxy_ofs = 1; /* must compute size */
+			cli_conn = objt_conn(s->req->prod->end);
+			if (cli_conn)
+				conn_get_to_addr(cli_conn);
+		}
+
+		si_attach_conn(s->req->cons, srv_conn);
+
+		assign_tproxy_address(s);
 	}
-	else if (obj_type(s->target) == OBJ_TYPE_PROXY) {
-		/* proxies exclusively run on raw_sock right now */
-		conn_prepare(srv_conn, protocol_by_family(srv_conn->addr.to.ss_family), &raw_sock);
-		if (!objt_conn(s->req->cons->end) || !objt_conn(s->req->cons->end)->ctrl)
-			return SN_ERR_INTERNAL;
+	else {
+		/* the connection is being reused, just re-attach it */
+		si_attach_conn(s->req->cons, srv_conn);
 	}
-	else
-		return SN_ERR_INTERNAL;  /* how did we get there ? */
-
-	si_attach_conn(s->req->cons, srv_conn);
-
-	/* process the case where the server requires the PROXY protocol to be sent */
-	srv_conn->send_proxy_ofs = 0;
-	if (objt_server(s->target) && (objt_server(s->target)->state & SRV_SEND_PROXY)) {
-		srv_conn->send_proxy_ofs = 1; /* must compute size */
-		cli_conn = objt_conn(s->req->prod->end);
-		if (cli_conn)
-			conn_get_to_addr(cli_conn);
-	}
-
-	assign_tproxy_address(s);
 
 	/* flag for logging source ip/port */
 	if (s->fe->options2 & PR_O2_SRC_ADDR)
