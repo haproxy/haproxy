@@ -1682,7 +1682,8 @@ static struct task *process_chk(struct task *t)
 					set_server_disabled(check);
 			}
 
-			if (check->health < check->rise + check->fall - 1) {
+			if (!(s->state & SRV_MAINTAIN) &&
+			    check->health < check->rise + check->fall - 1) {
 				check->health++; /* was bad, stays for a while */
 				set_server_up(check);
 			}
