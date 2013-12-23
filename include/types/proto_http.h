@@ -83,7 +83,7 @@
 #define TX_CON_CLO_SET  0x00400000	/* "connection: close" is now set */
 #define TX_CON_KAL_SET  0x00800000	/* "connection: keep-alive" is now set */
 
-/* Unused: 0x1000000 */
+#define TX_PREFER_LAST  0x01000000      /* try to stay on same server if possible (eg: after 401) */
 
 #define TX_HDR_CONN_UPG 0x02000000	/* The "Upgrade" token was found in the "Connection" header */
 #define TX_WAIT_NEXT_RQ	0x04000000	/* waiting for the second request to start, use keep-alive timeout */

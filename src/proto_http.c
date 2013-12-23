@@ -4281,6 +4281,8 @@ int http_send_name_header(struct http_txn *txn, struct proxy* be, const char* sr
  */
 void http_end_txn_clean_session(struct session *s)
 {
+	int prev_status = s->txn.status;
+
 	/* FIXME: We need a more portable way of releasing a backend's and a
 	 * server's connections. We need a safer way to reinitialize buffer
 	 * flags. We also need a more accurate method for computing per-request
@@ -4395,6 +4397,18 @@ void http_end_txn_clean_session(struct session *s)
 	s->txn.meth = 0;
 	http_reset_txn(s);
 	s->txn.flags |= TX_NOT_FIRST | TX_WAIT_NEXT_RQ;
+
+	if (prev_status == 401 || prev_status == 407) {
+		/* In HTTP keep-alive mode, if we receive a 401, we still have
+		 * a chance of being able to send the visitor again to the same
+		 * server over the same connection. This is required by some
+		 * broken protocols such as NTLM, and anyway whenever there is
+		 * an opportunity for sending the challenge to the proper place,
+		 * it's better to do it (at least it helps with debugging).
+		 */
+		s->txn.flags |= TX_PREFER_LAST;
+	}
+
 	if (s->fe->options2 & PR_O2_INDEPSTR)
 		s->req->cons->flags |= SI_FL_INDEP_STR;
 

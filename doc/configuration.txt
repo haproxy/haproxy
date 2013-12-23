@@ -4446,7 +4446,13 @@ no option prefer-last-server
   this option is used, haproxy will try to reuse the same connection that is
   attached to the server instead of rebalancing to another server, causing a
   close of the connection. This can make sense for static file servers. It does
-  not make much sense to use this in combination with hashing algorithms.
+  not make much sense to use this in combination with hashing algorithms. Note,
+  haproxy already automatically tries to stick to a server which sends a 401 or
+  to a proxy which sends a 407 (authentication required). This is mandatory for
+  use with the broken NTLM authentication challenge, and significantly helps in
+  troubleshooting some faulty applications. Option prefer-last-server might be
+  desirable in these environments as well, to avoid redistributing the traffic
+  after every other response.
 
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
