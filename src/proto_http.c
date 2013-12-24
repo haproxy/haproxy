@@ -2143,7 +2143,7 @@ int select_compression_response_header(struct session *s, struct buffer *res)
 		goto fail;
 
 	/* HTTP < 1.1 should not be compressed */
-	if (!(msg->flags & HTTP_MSGF_VER_11))
+	if (!(msg->flags & HTTP_MSGF_VER_11) || !(txn->req.flags & HTTP_MSGF_VER_11))
 		goto fail;
 
 	/* 200 only */
