@@ -171,7 +171,15 @@ static inline void fd_ev_set(int fd, int dir)
 	 */
 	if (i & (FD_EV_ACTIVE << dir))
 		return; /* already in desired state */
-	fdtab[fd].spec_e |= (FD_EV_ACTIVE << dir);
+
+	/* If we're touching an FD which is still being polled, and was
+	 * recently disabled, we re-enable polling in order not to perform
+	 * a syscall dance and to avoid a missed speculative event.
+	 */
+	if ((((unsigned int)fdtab[fd].spec_e) >> 4) & (FD_EV_POLLED << dir))
+		fdtab[fd].spec_e ^= i ^ (FD_EV_POLLED << dir);
+	else
+		fdtab[fd].spec_e |= (FD_EV_ACTIVE << dir);
 	updt_fd(fd); /* need an update entry to change the state */
 }
 
