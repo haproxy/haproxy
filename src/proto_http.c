@@ -4473,8 +4473,15 @@ int http_sync_req_state(struct session *s)
 		 * this CRLF must be read so that it does not remain in the kernel
 		 * buffers, otherwise a close could cause an RST on some systems
 		 * (eg: Linux).
+		 * Note that if we're using keep-alive on the client side, we'd
+		 * rather poll now and keep the polling enabled for the whole
+		 * session's life than enabling/disabling it between each
+		 * response and next request.
 		 */
-		if (!(s->be->options & PR_O_ABRT_CLOSE) && txn->meth != HTTP_METH_POST)
+		if (((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_SCL) &&
+		    ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_KAL) &&
+		    !(s->be->options & PR_O_ABRT_CLOSE) &&
+		    txn->meth != HTTP_METH_POST)
 			channel_dont_read(chn);
 
 		/* if the server closes the connection, we want to immediately react
@@ -4566,7 +4573,10 @@ int http_sync_req_state(struct session *s)
 
 	if (txn->req.msg_state == HTTP_MSG_CLOSED) {
 	http_msg_closed:
-		if (!(s->be->options & PR_O_ABRT_CLOSE))
+		/* see above in MSG_DONE why we only do this in these states */
+		if (((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_SCL) &&
+		    ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_KAL) &&
+		    !(s->be->options & PR_O_ABRT_CLOSE))
 			channel_dont_read(chn);
 		goto wait_other_side;
 	}
