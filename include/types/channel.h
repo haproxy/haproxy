@@ -164,7 +164,7 @@
 
 
 /* Magic value to forward infinite size (TCP, ...), used with ->to_forward */
-#define CHN_INFINITE_FORWARD    MAX_RANGE(int)
+#define CHN_INFINITE_FORWARD    MAX_RANGE(unsigned int)
 
 /* needed for a declaration below */
 struct session;
