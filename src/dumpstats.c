@@ -4151,7 +4151,7 @@ static int stats_send_http_headers(struct stream_interface *si)
 
 	if (appctx->ctx.stats.flags & STAT_CHUNKED)
 		chunk_appendf(&trash, "Transfer-Encoding: chunked\r\n");
-	else if (appctx->ctx.stats.flags & STAT_CHUNKED)
+	else
 		chunk_appendf(&trash, "\r\n");
 
 	s->txn.status = 200;
