@@ -4049,9 +4049,19 @@ static int stats_process_http_post(struct stream_interface *si)
 						break;
 					case ST_ADM_ACTION_ENABLE:
 						if ((px->state != PR_STSTOPPED) && (sv->state & SRV_MAINTAIN)) {
-							/* Already in maintenance, we can change the server state */
-							set_server_up(&sv->check);
-							sv->check.health = sv->check.rise;	/* up, but will fall down at first failure */
+							/* Already in maintenance, we can change the server state.
+							 * If this server tracks the status of another one,
+							 * we must restore the good status.
+							 */
+							if (!sv->track || (sv->track->state & SRV_RUNNING)) {
+								set_server_up(&sv->check);
+								sv->check.health = sv->check.rise;	/* up, but will fall down at first failure */
+							}
+							else {
+								sv->state &= ~SRV_MAINTAIN;
+								sv->check.state &= ~CHK_ST_PAUSED;
+								set_server_down(&sv->check);
+							}
 							altered_servers++;
 							total_servers++;
 						}
