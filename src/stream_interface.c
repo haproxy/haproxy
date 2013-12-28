@@ -379,7 +379,6 @@ struct appctx *stream_int_register_handler(struct stream_interface *si, struct s
 void stream_int_unregister_handler(struct stream_interface *si)
 {
 	si_detach(si);
-	si->owner = NULL;
 }
 
 /* This callback is used to send a valid PROXY protocol line to a socket being
