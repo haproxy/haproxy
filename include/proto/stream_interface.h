@@ -323,23 +323,26 @@ static inline int si_connect(struct stream_interface *si)
 		ret = conn->ctrl->connect(conn, !channel_is_empty(si->ob), 0);
 		if (ret != SN_ERR_NONE)
 			return ret;
+
+		/* we need to be notified about connection establishment */
+		conn->flags |= CO_FL_WAKE_DATA;
+
+		/* we're in the process of establishing a connection */
+		si->state = SI_ST_CON;
 	}
 	else if (!channel_is_empty(si->ob)) {
 		/* reuse the existing connection, we'll have to send a
 		 * request there.
 		 */
 		conn_data_want_send(conn);
+
+		/* the connection is established */
+		si->state = SI_ST_EST;
 	}
 
 	/* needs src ip/port for logging */
 	if (si->flags & SI_FL_SRC_ADDR)
 		conn_get_from_addr(conn);
-
-	/* we need to be notified about connection establishment */
-	conn->flags |= CO_FL_WAKE_DATA;
-
-	/* we're in the process of establishing a connection */
-	si->state = SI_ST_CON;
 
 	return ret;
 }

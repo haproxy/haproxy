@@ -957,8 +957,9 @@ static void sess_establish(struct session *s, struct stream_interface *si)
 
 /* Update stream interface status for input states SI_ST_ASS, SI_ST_QUE, SI_ST_TAR.
  * Other input states are simply ignored.
- * Possible output states are SI_ST_CLO, SI_ST_TAR, SI_ST_ASS, SI_ST_REQ, SI_ST_CON.
- * Flags must have previously been updated for timeouts and other conditions.
+ * Possible output states are SI_ST_CLO, SI_ST_TAR, SI_ST_ASS, SI_ST_REQ, SI_ST_CON
+ * and SI_ST_EST. Flags must have previously been updated for timeouts and other
+ * conditions.
  */
 static void sess_update_stream_int(struct session *s, struct stream_interface *si)
 {
@@ -980,7 +981,7 @@ static void sess_update_stream_int(struct session *s, struct stream_interface *s
 		srv = objt_server(s->target);
 
 		if (conn_err == SN_ERR_NONE) {
-			/* state = SI_ST_CON now */
+			/* state = SI_ST_CON or SI_ST_EST now */
 			if (srv)
 				srv_inc_sess_ctr(srv);
 			return;
@@ -2225,7 +2226,10 @@ struct task *process_session(struct task *t)
 			if (s->si[1].state == SI_ST_REQ)
 				sess_prepare_conn_req(s, &s->si[1]);
 
-			/* applets directly go to the ESTABLISHED state */
+			/* applets directly go to the ESTABLISHED state. Similarly,
+			 * servers experience the same fate when their connection
+			 * is reused.
+			 */
 			if (unlikely(s->si[1].state == SI_ST_EST))
 				sess_establish(s, &s->si[1]);
 
