@@ -785,8 +785,6 @@ static int sess_update_st_con_tcp(struct session *s, struct stream_interface *si
 			 * so we need to pretend we're established to log correctly
 			 * and let later states handle the failure.
 			 */
-			s->logs.t_connect = tv_ms_elapsed(&s->logs.tv_accept, &now);
-			si->exp      = TICK_ETERNITY;
 			si->state    = SI_ST_EST;
 			si->err_type = SI_ET_DATA_ERR;
 			si->ib->flags |= CF_READ_ERROR | CF_WRITE_ERROR;
@@ -828,8 +826,6 @@ static int sess_update_st_con_tcp(struct session *s, struct stream_interface *si
 	/* OK, this means that a connection succeeded. The caller will be
 	 * responsible for handling the transition from CON to EST.
 	 */
-	s->logs.t_connect = tv_ms_elapsed(&s->logs.tv_accept, &now);
-	si->exp      = TICK_ETERNITY;
 	si->state    = SI_ST_EST;
 	si->err_type = SI_ET_NONE;
 	return 1;
@@ -928,6 +924,10 @@ static void sess_establish(struct session *s, struct stream_interface *si)
 {
 	struct channel *req = si->ob;
 	struct channel *rep = si->ib;
+
+	/* First, centralize the timers information */
+	s->logs.t_connect = tv_ms_elapsed(&s->logs.tv_accept, &now);
+	si->exp      = TICK_ETERNITY;
 
 	if (objt_server(s->target))
 		health_adjust(objt_server(s->target), HANA_STATUS_L4_OK);
@@ -1188,10 +1188,8 @@ static void sess_prepare_conn_req(struct session *s, struct stream_interface *si
 		}
 
 		s->logs.t_queue   = tv_ms_elapsed(&s->logs.tv_accept, &now);
-		s->logs.t_connect = tv_ms_elapsed(&s->logs.tv_accept, &now);
 		si->state         = SI_ST_EST;
 		si->err_type      = SI_ET_NONE;
-		si->exp           = TICK_ETERNITY;
 		/* let sess_establish() finish the job */
 		return;
 	}
