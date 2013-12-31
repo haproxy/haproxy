@@ -641,14 +641,13 @@ static void check_failed(struct check *check)
 		set_server_down(check);
 }
 
-void health_adjust(struct server *s, short status)
+/* note: use health_adjust() only, which first checks that the observe mode is
+ * enabled.
+ */
+void __health_adjust(struct server *s, short status)
 {
 	int failed;
 	int expire;
-
-	/* return now if observing nor health check is not enabled */
-	if (!s->observe || !s->check.task)
-		return;
 
 	if (s->observe >= HANA_OBS_SIZE)
 		return;

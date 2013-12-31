@@ -30,9 +30,21 @@ const char *get_check_status_info(short check_status);
 void set_server_down(struct check *check);
 void set_server_up(struct check *check);
 int start_checks();
-void health_adjust(struct server *s, short status);
+void __health_adjust(struct server *s, short status);
 
 extern struct data_cb check_conn_cb;
+
+/* Use this one only. This inline version only ensures that we don't
+ * call the function when the observe mode is disabled.
+ */
+static inline void health_adjust(struct server *s, short status)
+{
+	/* return now if observing nor health check is not enabled */
+	if (!s->observe || !s->check.task)
+		return;
+
+	return __health_adjust(s, status);
+}
 
 #endif /* _PROTO_CHECKS_H */
 
