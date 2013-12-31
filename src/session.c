@@ -942,10 +942,7 @@ static void sess_establish(struct session *s, struct stream_interface *si)
 	}
 	else {
 		s->txn.rsp.msg_state = HTTP_MSG_RPBEFORE;
-		/* reset hdr_idx which was already initialized by the request.
-		 * right now, the http parser does it.
-		 * hdr_idx_init(&s->txn.hdr_idx);
-		 */
+		rep->flags |= CF_READ_DONTWAIT; /* a single read is enough to get response headers */
 	}
 
 	rep->analysers |= s->fe->fe_rsp_ana | s->be->be_rsp_ana;
