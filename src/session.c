@@ -2121,10 +2121,10 @@ struct task *process_session(struct task *t)
 	 * Note that we're checking CF_SHUTR_NOW as an indication of a possible
 	 * recent call to channel_abort().
 	 */
-	if (!s->req->analysers &&
+	if (unlikely(!s->req->analysers &&
 	    !(s->req->flags & (CF_SHUTW|CF_SHUTR_NOW)) &&
 	    (s->req->prod->state >= SI_ST_EST) &&
-	    (s->req->to_forward != CHN_INFINITE_FORWARD)) {
+	    (s->req->to_forward != CHN_INFINITE_FORWARD))) {
 		/* This buffer is freewheeling, there's no analyser
 		 * attached to it. If any data are left in, we'll permit them to
 		 * move.
@@ -2263,10 +2263,10 @@ struct task *process_session(struct task *t)
 	 * Note that we're checking CF_SHUTR_NOW as an indication of a possible
 	 * recent call to channel_abort().
 	 */
-	if (!s->rep->analysers &&
+	if (unlikely(!s->rep->analysers &&
 	    !(s->rep->flags & (CF_SHUTW|CF_SHUTR_NOW)) &&
 	    (s->rep->prod->state >= SI_ST_EST) &&
-	    (s->rep->to_forward != CHN_INFINITE_FORWARD)) {
+	    (s->rep->to_forward != CHN_INFINITE_FORWARD))) {
 		/* This buffer is freewheeling, there's no analyser
 		 * attached to it. If any data are left in, we'll permit them to
 		 * move.
