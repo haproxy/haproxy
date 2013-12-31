@@ -2222,20 +2222,20 @@ struct task *process_session(struct task *t)
 			 */
 			if (s->si[1].state != SI_ST_REQ)
 				sess_update_stream_int(s, &s->si[1]);
-			if (s->si[1].state == SI_ST_REQ) {
+			if (s->si[1].state == SI_ST_REQ)
 				sess_prepare_conn_req(s, &s->si[1]);
 
-				/* applets directly go to the ESTABLISHED state */
-				if (unlikely(s->si[1].state == SI_ST_EST))
-					sess_establish(s, &s->si[1]);
+			/* applets directly go to the ESTABLISHED state */
+			if (unlikely(s->si[1].state == SI_ST_EST))
+				sess_establish(s, &s->si[1]);
 
-				/* Now we can add the server name to a header (if requested) */
-				/* check for HTTP mode and proxy server_name_hdr_name != NULL */
-				if ((s->flags & SN_BE_ASSIGNED) &&
-				    (s->be->mode == PR_MODE_HTTP) &&
-				    (s->be->server_id_hdr_name != NULL && objt_server(s->target))) {
-					http_send_name_header(&s->txn, s->be, objt_server(s->target)->id);
-				}
+			/* Now we can add the server name to a header (if requested) */
+			/* check for HTTP mode and proxy server_name_hdr_name != NULL */
+			if ((s->si[1].state >= SI_ST_CON) &&
+			    (s->be->server_id_hdr_name != NULL) &&
+			    (s->be->mode == PR_MODE_HTTP) &&
+			    objt_server(s->target)) {
+				http_send_name_header(&s->txn, s->be, objt_server(s->target)->id);
 			}
 
 			srv = objt_server(s->target);
