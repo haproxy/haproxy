@@ -1605,7 +1605,8 @@ struct task *process_session(struct task *t)
 	memset(&s->txn.auth, 0, sizeof(s->txn.auth));
 
 	/* This flag must explicitly be set every time */
-	s->req->flags &= ~CF_READ_NOEXP;
+	s->req->flags &= ~(CF_READ_NOEXP|CF_WAKE_WRITE);
+	s->rep->flags &= ~(CF_READ_NOEXP|CF_WAKE_WRITE);
 
 	/* Keep a copy of req/rep flags so that we can detect shutdowns */
 	rqf_last = s->req->flags & ~CF_MASK_ANALYSER;

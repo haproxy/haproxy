@@ -2307,6 +2307,7 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 				/* some data has still not left the buffer, wake us once that's done */
 				channel_dont_connect(req);
 				req->flags |= CF_READ_DONTWAIT; /* try to get back here ASAP */
+				req->flags |= CF_WAKE_WRITE;
 				return 0;
 			}
 			if (unlikely(bi_end(req->buf) < b_ptr(req->buf, msg->next) ||
@@ -2331,6 +2332,7 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 				/* don't let a connection request be initiated */
 				channel_dont_connect(req);
 				s->rep->flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
+				s->rep->flags |= CF_WAKE_WRITE;
 				s->rep->analysers |= an_bit; /* wake us up once it changes */
 				return 0;
 			}
@@ -5115,6 +5117,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 				goto abort_response;
 			channel_dont_close(rep);
 			rep->flags |= CF_READ_DONTWAIT; /* try to get back here ASAP */
+			rep->flags |= CF_WAKE_WRITE;
 			return 0;
 		}
 

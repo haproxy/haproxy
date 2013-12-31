@@ -113,14 +113,18 @@ int bo_inject(struct channel *chn, const char *msg, int len)
  * input is closed, -2 is returned. If there is not enough room left in the
  * buffer, -1 is returned. Otherwise the number of bytes copied is returned
  * (1). Channel flag READ_PARTIAL is updated if some data can be transferred.
+ * Channel flag CF_WAKE_WRITE is set if the write fails because the buffer is
+ * full.
  */
 int bi_putchr(struct channel *chn, char c)
 {
 	if (unlikely(channel_input_closed(chn)))
 		return -2;
 
-	if (channel_full(chn))
+	if (channel_full(chn)) {
+		chn->flags |= CF_WAKE_WRITE;
 		return -1;
+	}
 
 	*bi_end(chn->buf) = c;
 
@@ -143,7 +147,8 @@ int bi_putchr(struct channel *chn, char c)
  * -3 is returned. If there is not enough room left in the buffer, -1 is
  * returned. Otherwise the number of bytes copied is returned (0 being a valid
  * number). Channel flag READ_PARTIAL is updated if some data can be
- * transferred.
+ * transferred. Channel flag CF_WAKE_WRITE is set if the write fails because
+ * the buffer is full.
  */
 int bi_putblk(struct channel *chn, const char *blk, int len)
 {
@@ -161,6 +166,7 @@ int bi_putblk(struct channel *chn, const char *blk, int len)
 		if (len > max)
 			return -3;
 
+		chn->flags |= CF_WAKE_WRITE;
 		return -1;
 	}
 

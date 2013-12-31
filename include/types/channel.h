@@ -70,7 +70,7 @@
 #define CF_WRITE_ERROR    0x00000800  /* unrecoverable error on consumer side */
 #define CF_WRITE_ACTIVITY (CF_WRITE_NULL|CF_WRITE_PARTIAL|CF_WRITE_ERROR)
 
-/* unused: 0x00001000 */
+#define CF_WAKE_WRITE     0x00001000  /* wake the task up when there's write activity */
 #define CF_SHUTW          0x00002000  /* consumer has already shut down */
 #define CF_SHUTW_NOW      0x00004000  /* the consumer must shut down for writes ASAP */
 #define CF_AUTO_CLOSE     0x00008000  /* producer can forward shutdown to other side */
@@ -119,11 +119,6 @@
 
 #define CF_WAKE_ONCE      0x10000000  /* pretend there is activity on this channel (one-shoot) */
 /* unused: 0x20000000, 0x40000000, 0x80000000 */
-
-/* Use these masks to clear the flags before going back to lower layers */
-#define CF_CLEAR_READ     (~(CF_READ_NULL|CF_READ_PARTIAL|CF_READ_ERROR|CF_READ_ATTACHED))
-#define CF_CLEAR_WRITE    (~(CF_WRITE_NULL|CF_WRITE_PARTIAL|CF_WRITE_ERROR))
-#define CF_CLEAR_TIMEOUT  (~(CF_READ_TIMEOUT|CF_WRITE_TIMEOUT|CF_ANA_TIMEOUT))
 
 /* Masks which define input events for stream analysers */
 #define CF_MASK_ANALYSER  (CF_READ_ATTACHED|CF_READ_ACTIVITY|CF_READ_TIMEOUT|CF_ANA_TIMEOUT|CF_WRITE_ACTIVITY|CF_WAKE_ONCE)
