@@ -6937,6 +6937,30 @@ out_uri_auth_compat:
 			curproxy->srv = next;
 		}
 
+		/* Check that no server name conflicts. This causes trouble in the stats.
+		 * We only emit a warning for the first conflict affecting each server,
+		 * in order to avoid combinatory explosion if all servers have the same
+		 * name. We do that only for servers which do not have an explicit ID,
+		 * because these IDs were made also for distinguishing them and we don't
+		 * want to annoy people who correctly manage them.
+		 */
+		for (newsrv = curproxy->srv; newsrv; newsrv = newsrv->next) {
+			struct server *other_srv;
+
+			if (newsrv->puid)
+				continue;
+
+			for (other_srv = curproxy->srv; other_srv && other_srv != newsrv; other_srv = other_srv->next) {
+				if (!other_srv->puid && strcmp(other_srv->id, newsrv->id) == 0) {
+					Warning("parsing [%s:%d] : %s '%s', another server named '%s' was defined without an explicit ID at line %d, this is not recommended.\n",
+						newsrv->conf.file, newsrv->conf.line,
+						proxy_type_str(curproxy), curproxy->id,
+						newsrv->id, other_srv->conf.line);
+					break;
+				}
+			}
+		}
+
 		/* assign automatic UIDs to servers which don't have one yet */
 		next_id = 1;
 		newsrv = curproxy->srv;
