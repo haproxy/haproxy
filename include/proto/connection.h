@@ -96,6 +96,9 @@ static inline void conn_ctrl_init(struct connection *conn)
 		int fd = conn->t.sock.fd;
 
 		fd_insert(fd);
+		/* mark the fd as ready so as not to needlessly poll at the beginning */
+		fd_may_recv(fd);
+		fd_may_send(fd);
 		fdtab[fd].owner = conn;
 		fdtab[fd].iocb = conn_fd_handler;
 		conn->flags |= CO_FL_CTRL_READY;
@@ -166,9 +169,9 @@ static inline void conn_refresh_polling_flags(struct connection *conn)
 	if ((conn->flags & CO_FL_CTRL_READY) && conn->ctrl) {
 		unsigned int flags = conn->flags & ~(CO_FL_CURR_RD_ENA | CO_FL_CURR_WR_ENA);
 
-		if (fd_ev_is_set(conn->t.sock.fd, DIR_RD))
+		if (fd_recv_active(conn->t.sock.fd))
 			flags |= CO_FL_CURR_RD_ENA;
-		if (fd_ev_is_set(conn->t.sock.fd, DIR_WR))
+		if (fd_send_active(conn->t.sock.fd))
 			flags |= CO_FL_CURR_WR_ENA;
 		conn->flags = flags;
 	}

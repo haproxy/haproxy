@@ -1416,7 +1416,7 @@ static void event_srv_chk_r(struct connection *conn)
 	return;
 
  wait_more_data:
-	__conn_data_poll_recv(conn);
+	__conn_data_want_recv(conn);
 }
 
 /*

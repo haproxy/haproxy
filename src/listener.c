@@ -324,7 +324,7 @@ void listener_accept(int fd)
 		if (unlikely(cfd == -1)) {
 			switch (errno) {
 			case EAGAIN:
-				fd_poll_recv(fd);
+				fd_cant_recv(fd);
 				return;   /* nothing more to accept */
 			case EINTR:
 			case ECONNABORTED:

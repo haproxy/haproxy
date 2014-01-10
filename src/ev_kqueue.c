@@ -1,16 +1,12 @@
 /*
  * FD polling functions for FreeBSD kqueue()
  *
- * Copyright 2000-2008 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2014 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version
  * 2 of the License, or (at your option) any later version.
- *
- * Note: not knowing much about kqueue, I had to rely on OpenBSD's detailed man
- * page and to check how it was implemented in lighttpd to understand it better.
- * But it is possible that I got things wrong.
  *
  */
 
@@ -51,10 +47,33 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	/* first, scan the update list to find changes */
 	for (updt_idx = 0; updt_idx < fd_nbupdt; updt_idx++) {
 		fd = fd_updt[updt_idx];
-		en = fdtab[fd].state & 15;  /* new events */
-		eo = fdtab[fd].state >> 4;  /* previous events */
+		en = eo = fdtab[fd].state;
 
-		if (fdtab[fd].owner && (eo ^ en)) {
+		fdtab[fd].updated = 0;
+		fdtab[fd].new = 0;
+
+		if (!fdtab[fd].owner)
+			continue;
+
+		if (en & FD_EV_ACTIVE_R) {
+			if (!(en & FD_EV_READY_R))
+				en |= FD_EV_POLLED_R;
+		}
+		else
+			en &= ~FD_EV_POLLED_R;
+
+		if (en & FD_EV_ACTIVE_W) {
+			if (!(en & FD_EV_READY_W))
+				en |= FD_EV_POLLED_W;
+		}
+		else
+			en &= ~FD_EV_POLLED_W;
+
+
+		if ((eo ^ en) & FD_EV_POLLED_RW) {
+			/* poll status changed */
+			fdtab[fd].state = en;
+
 			if ((eo ^ en) & FD_EV_POLLED_R) {
 				/* read poll status changed */
 				if (en & FD_EV_POLLED_R) {
@@ -78,22 +97,9 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 					changes++;
 				}
 			}
-
-			fdtab[fd].state = (en << 4) + en;  /* save new events */
-
-			if (!(en & FD_EV_ACTIVE_RW)) {
-				/* This fd doesn't use any active entry anymore, we can
-				 * kill its entry.
-				 */
-				fd_release_cache_entry(fd);
-			}
-			else if ((en & ~eo) & FD_EV_ACTIVE_RW) {
-				/* we need a new cache entry now */
-				fd_alloc_cache_entry(fd);
-			}
 		}
-		fdtab[fd].updated = 0;
-		fdtab[fd].new = 0;
+
+		fd_alloc_or_release_cache_entry(fd, en);
 	}
 	if (changes)
 		kevent(kqueue_fd, kev, changes, NULL, 0, NULL);
@@ -147,22 +153,14 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		}
 
 		if (fdtab[fd].iocb && fdtab[fd].ev) {
-			/* Mark the events as speculative before processing
-			 * them so that if nothing can be done we don't need
-			 * to poll again.
-			 */
 			if (fdtab[fd].ev & FD_POLL_IN)
-				fd_ev_set(fd, DIR_RD);
+				fd_may_recv(fd);
 
 			if (fdtab[fd].ev & FD_POLL_OUT)
-				fd_ev_set(fd, DIR_WR);
+				fd_may_send(fd);
 
-			if (fdtab[fd].cache) {
-				/* This fd was already scheduled for being
-				 * called as a speculative I/O.
-				 */
+			if (fdtab[fd].cache)
 				continue;
-			}
 
 			fdtab[fd].iocb(fd);
 		}

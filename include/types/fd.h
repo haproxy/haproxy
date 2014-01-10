@@ -1,8 +1,8 @@
 /*
  * include/types/fd.h
- * File descriptors states.
+ * File descriptors states - check src/fd.c for explanations.
  *
- * Copyright (C) 2000-2009 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2014 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -45,32 +45,43 @@ enum {
 #define FD_POLL_DATA    (FD_POLL_IN  | FD_POLL_OUT)
 #define FD_POLL_STICKY  (FD_POLL_ERR | FD_POLL_HUP)
 
-/* Event state for an FD in each direction, as found in the 4 lower bits of
- * fdtab[].state, and in the 4 next bits.
- */
 #define FD_EV_ACTIVE    1U
+#define FD_EV_READY     2U
 #define FD_EV_POLLED    4U
-#define FD_EV_STATUS    (FD_EV_ACTIVE | FD_EV_POLLED)
+
+#define FD_EV_STATUS    (FD_EV_ACTIVE | FD_EV_POLLED | FD_EV_READY)
 #define FD_EV_STATUS_R  (FD_EV_STATUS)
-#define FD_EV_STATUS_W  (FD_EV_STATUS << 1)
+#define FD_EV_STATUS_W  (FD_EV_STATUS << 4)
 
 #define FD_EV_POLLED_R  (FD_EV_POLLED)
-#define FD_EV_POLLED_W  (FD_EV_POLLED << 1)
+#define FD_EV_POLLED_W  (FD_EV_POLLED << 4)
 #define FD_EV_POLLED_RW (FD_EV_POLLED_R | FD_EV_POLLED_W)
 
 #define FD_EV_ACTIVE_R  (FD_EV_ACTIVE)
-#define FD_EV_ACTIVE_W  (FD_EV_ACTIVE << 1)
+#define FD_EV_ACTIVE_W  (FD_EV_ACTIVE << 4)
 #define FD_EV_ACTIVE_RW (FD_EV_ACTIVE_R | FD_EV_ACTIVE_W)
 
-#define FD_EV_CURR_MASK 0x0FU
-#define FD_EV_PREV_MASK 0xF0U
+#define FD_EV_READY_R   (FD_EV_READY)
+#define FD_EV_READY_W   (FD_EV_READY << 4)
+#define FD_EV_READY_RW  (FD_EV_READY_R | FD_EV_READY_W)
+
+enum fd_states {
+	FD_ST_DISABLED = 0,
+	FD_ST_MUSTPOLL,
+	FD_ST_STOPPED,
+	FD_ST_ACTIVE,
+	FD_ST_ABORT,
+	FD_ST_POLLED,
+	FD_ST_PAUSED,
+	FD_ST_READY
+};
 
 /* info about one given fd */
 struct fdtab {
 	int (*iocb)(int fd);                 /* I/O handler, returns FD_WAIT_* */
 	void *owner;                         /* the connection or listener associated with this fd, NULL if closed */
 	unsigned int  cache;                 /* position+1 in the FD cache. 0=not in cache. */
-	unsigned char state;                 /* FD state for read and write directions (4+4 bits) */
+	unsigned char state;                 /* FD state for read and write directions (2*3 bits) */
 	unsigned char ev;                    /* event seen in return of poll() : FD_POLL_* */
 	unsigned char new:1;                 /* 1 if this fd has just been created */
 	unsigned char updated:1;             /* 1 if this fd is already in the update list */

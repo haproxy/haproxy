@@ -584,8 +584,11 @@ int tcp_drain(int fd)
 		}
 
 		if (len < 0) {
-			if (errno == EAGAIN) /* connection not closed yet */
+			if (errno == EAGAIN) {
+				/* connection not closed yet */
+				fd_cant_recv(fd);
 				return -1;
+			}
 			if (errno == EINTR)  /* oops, try again */
 				continue;
 			/* other errors indicate a dead connection, fine. */

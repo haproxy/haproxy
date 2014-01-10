@@ -1,7 +1,7 @@
 /*
  * FD polling functions for Linux epoll
  *
- * Copyright 2000-2012 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2014 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -46,7 +46,7 @@ static struct epoll_event ev;
 #endif
 
 /*
- * speculative epoll() poller
+ * Linux epoll() poller
  */
 REGPRM2 static void _do_poll(struct poller *p, int exp)
 {
@@ -59,52 +59,58 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	/* first, scan the update list to find changes */
 	for (updt_idx = 0; updt_idx < fd_nbupdt; updt_idx++) {
 		fd = fd_updt[updt_idx];
-		en = fdtab[fd].state & 15;  /* new events */
-		eo = fdtab[fd].state >> 4;  /* previous events */
+		en = eo = fdtab[fd].state;
 
-		if (fdtab[fd].owner && (eo ^ en)) {
-			if ((eo ^ en) & FD_EV_POLLED_RW) {
-				/* poll status changed */
-				if ((en & FD_EV_POLLED_RW) == 0) {
-					/* fd removed from poll list */
-					opcode = EPOLL_CTL_DEL;
-				}
-				else if ((eo & FD_EV_POLLED_RW) == 0) {
-					/* new fd in the poll list */
-					opcode = EPOLL_CTL_ADD;
-				}
-				else {
-					/* fd status changed */
-					opcode = EPOLL_CTL_MOD;
-				}
-
-				/* construct the epoll events based on new state */
-				ev.events = 0;
-				if (en & FD_EV_POLLED_R)
-					ev.events |= EPOLLIN | EPOLLRDHUP;
-
-				if (en & FD_EV_POLLED_W)
-					ev.events |= EPOLLOUT;
-
-				ev.data.fd = fd;
-				epoll_ctl(epoll_fd, opcode, fd, &ev);
-			}
-
-			fdtab[fd].state = (en << 4) + en;  /* save new events */
-
-			if (!(en & FD_EV_ACTIVE_RW)) {
-				/* This fd doesn't use any active entry anymore, we can
-				 * kill its entry.
-				 */
-				fd_release_cache_entry(fd);
-			}
-			else if ((en & ~eo) & FD_EV_ACTIVE_RW) {
-				/* we need a new cache entry now */
-				fd_alloc_cache_entry(fd);
-			}
-		}
 		fdtab[fd].updated = 0;
 		fdtab[fd].new = 0;
+
+		if (!fdtab[fd].owner)
+			continue;
+
+		if (en & FD_EV_ACTIVE_R) {
+			if (!(en & FD_EV_READY_R))
+				en |= FD_EV_POLLED_R;
+		}
+		else
+			en &= ~FD_EV_POLLED_R;
+
+		if (en & FD_EV_ACTIVE_W) {
+			if (!(en & FD_EV_READY_W))
+				en |= FD_EV_POLLED_W;
+		}
+		else
+			en &= ~FD_EV_POLLED_W;
+
+		if ((eo ^ en) & FD_EV_POLLED_RW) {
+			/* poll status changed */
+			fdtab[fd].state = en;
+
+			if ((en & FD_EV_POLLED_RW) == 0) {
+				/* fd removed from poll list */
+				opcode = EPOLL_CTL_DEL;
+			}
+			else if ((eo & FD_EV_POLLED_RW) == 0) {
+				/* new fd in the poll list */
+				opcode = EPOLL_CTL_ADD;
+			}
+			else {
+				/* fd status changed */
+				opcode = EPOLL_CTL_MOD;
+			}
+
+			/* construct the epoll events based on new state */
+			ev.events = 0;
+			if (en & FD_EV_POLLED_R)
+				ev.events |= EPOLLIN | EPOLLRDHUP;
+
+			if (en & FD_EV_POLLED_W)
+				ev.events |= EPOLLOUT;
+
+			ev.data.fd = fd;
+			epoll_ctl(epoll_fd, opcode, fd, &ev);
+		}
+
+		fd_alloc_or_release_cache_entry(fd, en);
 	}
 	fd_nbupdt = 0;
 
@@ -176,20 +182,15 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		if (fdtab[fd].iocb) {
 			int new_updt, old_updt;
 
-			/* Mark the events as speculative before processing
-			 * them so that if nothing can be done we don't need
-			 * to poll again.
-			 */
-			if (fdtab[fd].ev & FD_POLL_IN)
-				fd_ev_set(fd, DIR_RD);
+			/* Mark the events as ready before processing */
+			if (fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
+				fd_may_recv(fd);
 
-			if (fdtab[fd].ev & FD_POLL_OUT)
-				fd_ev_set(fd, DIR_WR);
+			if (fdtab[fd].ev & (FD_POLL_OUT | FD_POLL_ERR))
+				fd_may_send(fd);
 
-			if (fdtab[fd].cache) {
-				/* This fd was already scheduled for being called as a speculative I/O */
+			if (fdtab[fd].cache)
 				continue;
-			}
 
 			/* Save number of updates to detect creation of new FDs. */
 			old_updt = fd_nbupdt;
@@ -212,10 +213,10 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 				fdtab[fd].new = 0;
 				fdtab[fd].ev &= FD_POLL_STICKY;
 
-				if ((fdtab[fd].state & FD_EV_STATUS_R) == FD_EV_ACTIVE_R)
+				if ((fdtab[fd].state & FD_EV_STATUS_R) == (FD_EV_READY_R | FD_EV_ACTIVE_R))
 					fdtab[fd].ev |= FD_POLL_IN;
 
-				if ((fdtab[fd].state & FD_EV_STATUS_W) == FD_EV_ACTIVE_W)
+				if ((fdtab[fd].state & FD_EV_STATUS_W) == (FD_EV_READY_W | FD_EV_ACTIVE_W))
 					fdtab[fd].ev |= FD_POLL_OUT;
 
 				if (fdtab[fd].ev && fdtab[fd].iocb && fdtab[fd].owner)
@@ -224,19 +225,18 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 				/* we can remove this update entry if it's the last one and is
 				 * unused, otherwise we don't touch anything.
 				 */
-				if (new_updt == fd_nbupdt && fdtab[fd].state == 0) {
+				if (new_updt == fd_nbupdt && !fd_recv_active(fd) && !fd_send_active(fd)) {
 					fdtab[fd].updated = 0;
 					fd_nbupdt--;
 				}
 			}
 		}
 	}
-
-	/* the caller will take care of speculative events */
+	/* the caller will take care of cached events */
 }
 
 /*
- * Initialization of the speculative epoll() poller.
+ * Initialization of the epoll() poller.
  * Returns 0 in case of failure, non-zero in case of success. If it fails, it
  * disables the poller by setting its pref to 0.
  */
@@ -267,7 +267,7 @@ REGPRM1 static int _do_init(struct poller *p)
 }
 
 /*
- * Termination of the speculative epoll() poller.
+ * Termination of the epoll() poller.
  * Memory is released and the poller is marked as unselectable.
  */
 REGPRM1 static void _do_term(struct poller *p)

@@ -2,7 +2,7 @@
  * include/proto/fd.h
  * File descriptors states.
  *
- * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2014 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -127,99 +127,165 @@ static inline void fd_release_cache_entry(int fd)
 	}
 }
 
+/* Automatically allocates or releases a cache entry for fd <fd> depending on
+ * its new state. This is meant to be used by pollers while processing updates.
+ */
+static inline void fd_alloc_or_release_cache_entry(int fd, int new_state)
+{
+	/* READY and ACTIVE states (the two with both flags set) require a cache entry */
+
+	if (((new_state & (FD_EV_READY_R | FD_EV_ACTIVE_R)) == (FD_EV_READY_R | FD_EV_ACTIVE_R)) ||
+	    ((new_state & (FD_EV_READY_W | FD_EV_ACTIVE_W)) == (FD_EV_READY_W | FD_EV_ACTIVE_W))) {
+		fd_alloc_cache_entry(fd);
+	}
+	else {
+		fd_release_cache_entry(fd);
+	}
+}
+
 /*
- * Returns non-zero if <fd> is already monitored for events in direction <dir>.
+ * returns the FD's recv state (FD_EV_*)
  */
-static inline int fd_ev_is_set(const int fd, int dir)
+static inline int fd_recv_state(const int fd)
 {
-	return ((unsigned)fdtab[fd].state >> dir) & FD_EV_STATUS;
+	return ((unsigned)fdtab[fd].state >> (4 * DIR_RD)) & FD_EV_STATUS;
 }
 
-/* Disable processing of events on fd <fd> for direction <dir>. Note: this
- * function was optimized to be used with a constant for <dir>.
+/*
+ * returns true if the FD is active for recv
  */
-static inline void fd_ev_clr(const int fd, int dir)
+static inline int fd_recv_active(const int fd)
 {
-	unsigned int i = ((unsigned int)fdtab[fd].state) & (FD_EV_STATUS << dir);
-	if (i == 0)
+	return (unsigned)fdtab[fd].state & FD_EV_ACTIVE_R;
+}
+
+/*
+ * returns true if the FD is ready for recv
+ */
+static inline int fd_recv_ready(const int fd)
+{
+	return (unsigned)fdtab[fd].state & FD_EV_READY_R;
+}
+
+/*
+ * returns true if the FD is polled for recv
+ */
+static inline int fd_recv_polled(const int fd)
+{
+	return (unsigned)fdtab[fd].state & FD_EV_POLLED_R;
+}
+
+/*
+ * returns the FD's send state (FD_EV_*)
+ */
+static inline int fd_send_state(const int fd)
+{
+	return ((unsigned)fdtab[fd].state >> (4 * DIR_WR)) & FD_EV_STATUS;
+}
+
+/*
+ * returns true if the FD is active for send
+ */
+static inline int fd_send_active(const int fd)
+{
+	return (unsigned)fdtab[fd].state & FD_EV_ACTIVE_W;
+}
+
+/*
+ * returns true if the FD is ready for send
+ */
+static inline int fd_send_ready(const int fd)
+{
+	return (unsigned)fdtab[fd].state & FD_EV_READY_W;
+}
+
+/*
+ * returns true if the FD is polled for send
+ */
+static inline int fd_send_polled(const int fd)
+{
+	return (unsigned)fdtab[fd].state & FD_EV_POLLED_W;
+}
+
+/* Disable processing recv events on fd <fd> */
+static inline void fd_stop_recv(int fd)
+{
+	if (!((unsigned int)fdtab[fd].state & FD_EV_ACTIVE_R))
 		return; /* already disabled */
-	fdtab[fd].state ^= i;
+	fdtab[fd].state &= ~FD_EV_ACTIVE_R;
 	updt_fd(fd); /* need an update entry to change the state */
 }
 
-/* Enable polling for events on fd <fd> for direction <dir>. Note: this
- * function was optimized to be used with a constant for <dir>.
- */
-static inline void fd_ev_wai(const int fd, int dir)
+/* Disable processing send events on fd <fd> */
+static inline void fd_stop_send(int fd)
 {
-	unsigned int i = ((unsigned int)fdtab[fd].state) & (FD_EV_STATUS << dir);
-	if (i == (FD_EV_POLLED << dir))
-		return; /* already in desired state */
-	fdtab[fd].state ^= i ^ (FD_EV_POLLED << dir);
-	updt_fd(fd); /* need an update entry to change the state */
-}
-
-/* Enable processing of events on fd <fd> for direction <dir>. Note: this
- * function was optimized to be used with a constant for <dir>.
- */
-static inline void fd_ev_set(int fd, int dir)
-{
-	unsigned int i = ((unsigned int)fdtab[fd].state) & (FD_EV_STATUS << dir);
-
-	/* note that we don't care about disabling the polled state when
-	 * enabling the active state, since it brings no benefit but costs
-	 * some syscalls.
-	 */
-	if (i & (FD_EV_ACTIVE << dir))
-		return; /* already in desired state */
-	fdtab[fd].state |= (FD_EV_ACTIVE << dir);
+	if (!((unsigned int)fdtab[fd].state & FD_EV_ACTIVE_W))
+		return; /* already disabled */
+	fdtab[fd].state &= ~FD_EV_ACTIVE_W;
 	updt_fd(fd); /* need an update entry to change the state */
 }
 
 /* Disable processing of events on fd <fd> for both directions. */
-static inline void fd_ev_rem(const int fd)
+static inline void fd_stop_both(int fd)
 {
-	unsigned int i = ((unsigned int)fdtab[fd].state) & FD_EV_CURR_MASK;
-	if (i == 0)
+	if (!((unsigned int)fdtab[fd].state & FD_EV_ACTIVE_RW))
 		return; /* already disabled */
-	fdtab[fd].state ^= i;
+	fdtab[fd].state &= ~FD_EV_ACTIVE_RW;
 	updt_fd(fd); /* need an update entry to change the state */
 }
 
-/* event manipulation primitives for use by I/O callbacks */
+/* Report that FD <fd> cannot receive anymore without polling (EAGAIN detected). */
+static inline void fd_cant_recv(const int fd)
+{
+	if (!(((unsigned int)fdtab[fd].state) & FD_EV_READY_R))
+		return; /* already marked as blocked */
+	fdtab[fd].state &= ~FD_EV_READY_R;
+	updt_fd(fd);
+}
+
+/* Report that FD <fd> can receive anymore without polling. */
+static inline void fd_may_recv(const int fd)
+{
+	if (((unsigned int)fdtab[fd].state) & FD_EV_READY_R)
+		return; /* already marked as blocked */
+	fdtab[fd].state |= FD_EV_READY_R;
+	updt_fd(fd);
+}
+
+/* Report that FD <fd> cannot send anymore without polling (EAGAIN detected). */
+static inline void fd_cant_send(const int fd)
+{
+	if (!(((unsigned int)fdtab[fd].state) & FD_EV_READY_W))
+		return; /* already marked as blocked */
+	fdtab[fd].state &= ~FD_EV_READY_W;
+	updt_fd(fd);
+}
+
+/* Report that FD <fd> can send anymore without polling (EAGAIN detected). */
+static inline void fd_may_send(const int fd)
+{
+	if (((unsigned int)fdtab[fd].state) & FD_EV_READY_W)
+		return; /* already marked as blocked */
+	fdtab[fd].state |= FD_EV_READY_W;
+	updt_fd(fd);
+}
+
+/* Prepare FD <fd> to try to receive */
 static inline void fd_want_recv(int fd)
 {
-	return fd_ev_set(fd, DIR_RD);
+	if (((unsigned int)fdtab[fd].state & FD_EV_ACTIVE_R))
+		return; /* already enabled */
+	fdtab[fd].state |= FD_EV_ACTIVE_R;
+	updt_fd(fd); /* need an update entry to change the state */
 }
 
-static inline void fd_stop_recv(int fd)
-{
-	return fd_ev_clr(fd, DIR_RD);
-}
-
-static inline void fd_poll_recv(int fd)
-{
-	return fd_ev_wai(fd, DIR_RD);
-}
-
+/* Prepare FD <fd> to try to send */
 static inline void fd_want_send(int fd)
 {
-	return fd_ev_set(fd, DIR_WR);
-}
-
-static inline void fd_stop_send(int fd)
-{
-	return fd_ev_clr(fd, DIR_WR);
-}
-
-static inline void fd_poll_send(int fd)
-{
-	return fd_ev_wai(fd, DIR_WR);
-}
-
-static inline void fd_stop_both(int fd)
-{
-	return fd_ev_rem(fd);
+	if (((unsigned int)fdtab[fd].state & FD_EV_ACTIVE_W))
+		return; /* already enabled */
+	fdtab[fd].state |= FD_EV_ACTIVE_W;
+	updt_fd(fd); /* need an update entry to change the state */
 }
 
 /* Prepares <fd> for being polled */

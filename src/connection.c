@@ -164,7 +164,8 @@ void conn_update_data_polling(struct connection *c)
 
 	/* update read status if needed */
 	if (unlikely((f & (CO_FL_DATA_RD_ENA|CO_FL_WAIT_RD)) == (CO_FL_DATA_RD_ENA|CO_FL_WAIT_RD))) {
-		fd_poll_recv(c->t.sock.fd);
+		fd_want_recv(c->t.sock.fd);
+		fd_cant_recv(c->t.sock.fd);
 		f |= CO_FL_CURR_RD_ENA;
 	}
 	else if (unlikely((f & (CO_FL_CURR_RD_ENA|CO_FL_DATA_RD_ENA)) == CO_FL_DATA_RD_ENA)) {
@@ -178,7 +179,8 @@ void conn_update_data_polling(struct connection *c)
 
 	/* update write status if needed */
 	if (unlikely((f & (CO_FL_DATA_WR_ENA|CO_FL_WAIT_WR)) == (CO_FL_DATA_WR_ENA|CO_FL_WAIT_WR))) {
-		fd_poll_send(c->t.sock.fd);
+		fd_want_send(c->t.sock.fd);
+		fd_cant_send(c->t.sock.fd);
 		f |= CO_FL_CURR_WR_ENA;
 	}
 	else if (unlikely((f & (CO_FL_CURR_WR_ENA|CO_FL_DATA_WR_ENA)) == CO_FL_DATA_WR_ENA)) {
@@ -207,7 +209,8 @@ void conn_update_sock_polling(struct connection *c)
 
 	/* update read status if needed */
 	if (unlikely((f & (CO_FL_SOCK_RD_ENA|CO_FL_WAIT_RD)) == (CO_FL_SOCK_RD_ENA|CO_FL_WAIT_RD))) {
-		fd_poll_recv(c->t.sock.fd);
+		fd_want_recv(c->t.sock.fd);
+		fd_cant_recv(c->t.sock.fd);
 		f |= CO_FL_CURR_RD_ENA;
 	}
 	else if (unlikely((f & (CO_FL_CURR_RD_ENA|CO_FL_SOCK_RD_ENA)) == CO_FL_SOCK_RD_ENA)) {
@@ -221,7 +224,8 @@ void conn_update_sock_polling(struct connection *c)
 
 	/* update write status if needed */
 	if (unlikely((f & (CO_FL_SOCK_WR_ENA|CO_FL_WAIT_WR)) == (CO_FL_SOCK_WR_ENA|CO_FL_WAIT_WR))) {
-		fd_poll_send(c->t.sock.fd);
+		fd_want_send(c->t.sock.fd);
+		fd_cant_send(c->t.sock.fd);
 		f |= CO_FL_CURR_WR_ENA;
 	}
 	else if (unlikely((f & (CO_FL_CURR_WR_ENA|CO_FL_SOCK_WR_ENA)) == CO_FL_SOCK_WR_ENA)) {
