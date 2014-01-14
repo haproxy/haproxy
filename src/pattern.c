@@ -1222,11 +1222,14 @@ browse_list:
 				continue;
 			if (pattern.len != pat->len)
 				continue;
-			if ((pat->flags & PAT_F_IGNORE_CASE) &&
-			    strncasecmp(pattern.ptr.str, pat->ptr.str, pat->len) != 0)
-				continue;
-			if (strncmp(pattern.ptr.str, pat->ptr.str, pat->len) != 0)
-				continue;
+			if (pat->flags & PAT_F_IGNORE_CASE) {
+				if (strncasecmp(pattern.ptr.str, pat->ptr.str, pat->len) != 0)
+					continue;
+			}
+			else {
+				if (strncmp(pattern.ptr.str, pat->ptr.str, pat->len) != 0)
+					continue;
+			}
 			goto found;
 		}
 	}
@@ -1245,11 +1248,14 @@ browse_list:
 		list_for_each_entry(pat, &expr->patterns, list) {
 			if (pat->flags & PAT_F_TREE)
 				continue;
-			if ((pat->flags & PAT_F_IGNORE_CASE) &&
-			    strcasecmp(pattern.ptr.reg->regstr, pat->ptr.reg->regstr) != 0)
-				continue;
-			if (strcmp(pattern.ptr.reg->regstr, pat->ptr.reg->regstr) != 0)
-				continue;
+			if (pat->flags & PAT_F_IGNORE_CASE) {
+				if (strcasecmp(pattern.ptr.reg->regstr, pat->ptr.reg->regstr) != 0)
+					continue;
+			}
+			else {
+				if (strcmp(pattern.ptr.reg->regstr, pat->ptr.reg->regstr) != 0)
+					continue;
+			}
 			goto found;
 		}
 	}
