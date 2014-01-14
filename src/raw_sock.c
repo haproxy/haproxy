@@ -226,8 +226,7 @@ int raw_sock_from_pipe(struct connection *conn, struct pipe *pipe)
 
 
 /* Receive up to <count> bytes from connection <conn>'s socket and store them
- * into buffer <buf>. The caller must ensure that <count> is always smaller
- * than the buffer's size. Only one call to recv() is performed, unless the
+ * into buffer <buf>. Only one call to recv() is performed, unless the
  * buffer wraps, in which case a second call may be performed. The connection's
  * flags are updated with whatever special event is detected (error, read0,
  * empty). The caller is responsible for taking care of those events and
@@ -239,7 +238,7 @@ int raw_sock_from_pipe(struct connection *conn, struct pipe *pipe)
 static int raw_sock_to_buf(struct connection *conn, struct buffer *buf, int count)
 {
 	int ret, done = 0;
-	int try = count;
+	int try;
 
 	if (!(conn->flags & CO_FL_CTRL_READY))
 		return 0;
@@ -258,24 +257,27 @@ static int raw_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 		}
 	}
 
-	/* compute the maximum block size we can read at once. */
-	if (buffer_empty(buf)) {
-		/* let's realign the buffer to optimize I/O */
+	/* let's realign the buffer to optimize I/O */
+	if (buffer_empty(buf))
 		buf->p = buf->data;
-	}
-	else if (buf->data + buf->o < buf->p &&
-		 buf->p + buf->i < buf->data + buf->size) {
-		/* remaining space wraps at the end, with a moving limit */
-		if (try > buf->data + buf->size - (buf->p + buf->i))
-			try = buf->data + buf->size - (buf->p + buf->i);
-	}
 
 	/* read the largest possible block. For this, we perform only one call
 	 * to recv() unless the buffer wraps and we exactly fill the first hunk,
 	 * in which case we accept to do it once again. A new attempt is made on
 	 * EINTR too.
 	 */
-	while (try) {
+	while (count > 0) {
+		/* first check if we have some room after p+i */
+		try = buf->data + buf->size - (buf->p + buf->i);
+		/* otherwise continue between data and p-o */
+		if (try <= 0) {
+			try = buf->p - (buf->data + buf->o);
+			if (try <= 0)
+				break;
+		}
+		if (try > count)
+			try = count;
+
 		ret = recv(conn->t.sock.fd, bi_end(buf), try, 0);
 
 		if (ret > 0) {
@@ -291,7 +293,6 @@ static int raw_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 				break;
 			}
 			count -= ret;
-			try = count;
 		}
 		else if (ret == 0) {
 			goto read0;
