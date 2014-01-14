@@ -3546,31 +3546,31 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct acl_kw_list acl_kws = {ILH, {
-	{ "ssl_c_i_dn",             NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_match_str     },
-	{ "ssl_c_key_alg",          NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_match_str     },
-	{ "ssl_c_notafter",         NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_match_str     },
-	{ "ssl_c_notbefore",        NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_match_str     },
-	{ "ssl_c_sig_alg",          NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_match_str     },
-	{ "ssl_c_s_dn",             NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_match_str     },
-	{ "ssl_c_serial",           NULL,         pat_parse_bin, pat_idx_list_ptr, pat_del_list_ptr, pat_match_bin     },
-	{ "ssl_f_i_dn",             NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_match_str     },
-	{ "ssl_f_key_alg",          NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_match_str     },
-	{ "ssl_f_notafter",         NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_match_str     },
-	{ "ssl_f_notbefore",        NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_match_str     },
-	{ "ssl_f_sig_alg",          NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_match_str     },
-	{ "ssl_f_s_dn",             NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_match_str     },
-	{ "ssl_f_serial",           NULL,         pat_parse_bin, pat_idx_list_ptr, pat_del_list_ptr, pat_match_bin     },
-	{ "ssl_fc_cipher",          NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_match_str     },
+	{ "ssl_c_i_dn",             NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_prune_ptr, pat_match_str     },
+	{ "ssl_c_key_alg",          NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_prune_ptr, pat_match_str     },
+	{ "ssl_c_notafter",         NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_prune_ptr, pat_match_str     },
+	{ "ssl_c_notbefore",        NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_prune_ptr, pat_match_str     },
+	{ "ssl_c_sig_alg",          NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_prune_ptr, pat_match_str     },
+	{ "ssl_c_s_dn",             NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_prune_ptr, pat_match_str     },
+	{ "ssl_c_serial",           NULL,         pat_parse_bin, pat_idx_list_ptr, pat_del_list_ptr, pat_prune_ptr, pat_match_bin     },
+	{ "ssl_f_i_dn",             NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_prune_ptr, pat_match_str     },
+	{ "ssl_f_key_alg",          NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_prune_ptr, pat_match_str     },
+	{ "ssl_f_notafter",         NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_prune_ptr, pat_match_str     },
+	{ "ssl_f_notbefore",        NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_prune_ptr, pat_match_str     },
+	{ "ssl_f_sig_alg",          NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_prune_ptr, pat_match_str     },
+	{ "ssl_f_s_dn",             NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_prune_ptr, pat_match_str     },
+	{ "ssl_f_serial",           NULL,         pat_parse_bin, pat_idx_list_ptr, pat_del_list_ptr, pat_prune_ptr, pat_match_bin     },
+	{ "ssl_fc_cipher",          NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_prune_ptr, pat_match_str     },
 #ifdef OPENSSL_NPN_NEGOTIATED
-	{ "ssl_fc_npn",             NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_match_str     },
+	{ "ssl_fc_npn",             NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_prune_ptr, pat_match_str     },
 #endif
 #ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
-	{ "ssl_fc_alpn",            NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_match_str     },
+	{ "ssl_fc_alpn",            NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_prune_ptr, pat_match_str     },
 #endif
-	{ "ssl_fc_protocol",        NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_match_str     },
-	{ "ssl_fc_sni",             "ssl_fc_sni", pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_match_str     },
-	{ "ssl_fc_sni_end",         "ssl_fc_sni", pat_parse_str, pat_idx_list_str, pat_del_list_str, pat_match_end     },
-	{ "ssl_fc_sni_reg",         "ssl_fc_sni", pat_parse_reg, pat_idx_list_reg, pat_del_list_reg, pat_match_reg     },
+	{ "ssl_fc_protocol",        NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_prune_ptr, pat_match_str     },
+	{ "ssl_fc_sni",             "ssl_fc_sni", pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_prune_ptr, pat_match_str     },
+	{ "ssl_fc_sni_end",         "ssl_fc_sni", pat_parse_str, pat_idx_list_str, pat_del_list_str, pat_prune_ptr, pat_match_end     },
+	{ "ssl_fc_sni_reg",         "ssl_fc_sni", pat_parse_reg, pat_idx_list_reg, pat_del_list_reg, pat_prune_reg, pat_match_reg     },
 	{ /* END */ },
 }};
 

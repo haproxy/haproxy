@@ -1208,7 +1208,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			/* clear all maps */
 			list_for_each_entry(mdesc, &mref->maps, list)
 				if (mdesc->do_free)
-					pattern_prune_expr(mdesc->pat);
+					mdesc->pat->prune(mdesc->pat);
 
 			/* clear map reference */
 			list_for_each_entry_safe(ent, nent, &mref->entries, list) {

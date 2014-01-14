@@ -135,7 +135,6 @@ struct pattern {
 		char *str;              /* any string  */
 		struct my_regex *reg;   /* a compiled regex */
 	} ptr;                          /* indirect values, allocated */
-	void(*freeptrbuf)(void *ptr);	/* a destructor able to free objects from the ptr */
 	int len;                        /* data length when required  */
 	int flags;                      /* expr or pattern flags. */
 	struct sample_storage *smp;     /* used to store a pointer to sample value associated
@@ -158,6 +157,7 @@ struct pattern_expr {
 	int (*parse)(const char *text, struct pattern *pattern, char **err);
 	int (*index)(struct pattern_expr *, struct pattern *, char **);
 	void (*delete)(struct pattern_expr *, struct pattern *);
+	void (*prune)(struct pattern_expr *);
 	struct pattern *(*match)(struct sample *, struct pattern_expr *, int);
 	struct list patterns;         /* list of acl_patterns */
 	struct eb_root pattern_tree;  /* may be used for lookup in large datasets */
@@ -168,6 +168,7 @@ extern char *pat_match_names[PAT_MATCH_NUM];
 extern int (*pat_parse_fcts[PAT_MATCH_NUM])(const char *, struct pattern *, char **);
 extern int (*pat_index_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *, char **);
 extern void (*pat_delete_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *);
+void (*pat_prune_fcts[PAT_MATCH_NUM])(struct pattern_expr *);
 extern struct pattern *(*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern_expr *, int);
 extern int pat_match_types[PAT_MATCH_NUM];
 

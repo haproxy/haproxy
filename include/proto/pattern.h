@@ -89,6 +89,16 @@ void pat_del_list_reg(struct pattern_expr *expr, struct pattern *pat);
 
 /*
  *
+ * The following functions clean all entries of a pattern expression and
+ * reset the tree and list root.
+ *
+ */
+void pat_prune_val(struct pattern_expr *expr);
+void pat_prune_ptr(struct pattern_expr *expr);
+void pat_prune_reg(struct pattern_expr *expr);
+
+/*
+ *
  * The following functions are general purpose pattern matching functions.
  *
  */
@@ -172,11 +182,10 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 struct pattern *pat_match_reg(struct sample *smp, struct pattern_expr *expr, int fill);
 
 int pattern_read_from_file(struct pattern_expr *expr, const char *filename, int patflags, char **err);
-void pattern_free(struct pattern_list *pat);
-void pattern_prune_expr(struct pattern_expr *expr);
 void pattern_init_expr(struct pattern_expr *expr);
 int pattern_lookup(const char *args, struct pattern_expr *expr, struct pattern_list **pat_elt, struct pattern_tree **idx_elt, char **err);
 int pattern_delete(const char *key, struct pattern_expr *expr, char **err);
+void pattern_prune(struct pattern_expr *expr);
 
 
 #endif

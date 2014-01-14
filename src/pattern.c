@@ -88,6 +88,22 @@ void (*pat_delete_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *) 
 	[PAT_MATCH_REG]   = pat_del_list_reg,
 };
 
+void (*pat_prune_fcts[PAT_MATCH_NUM])(struct pattern_expr *) = {
+	[PAT_MATCH_FOUND] = pat_prune_val,
+	[PAT_MATCH_BOOL]  = pat_prune_val,
+	[PAT_MATCH_INT]   = pat_prune_val,
+	[PAT_MATCH_IP]    = pat_prune_val,
+	[PAT_MATCH_BIN]   = pat_prune_ptr,
+	[PAT_MATCH_LEN]   = pat_prune_val,
+	[PAT_MATCH_STR]   = pat_prune_ptr,
+	[PAT_MATCH_BEG]   = pat_prune_ptr,
+	[PAT_MATCH_SUB]   = pat_prune_ptr,
+	[PAT_MATCH_DIR]   = pat_prune_ptr,
+	[PAT_MATCH_DOM]   = pat_prune_ptr,
+	[PAT_MATCH_END]   = pat_prune_ptr,
+	[PAT_MATCH_REG]   = pat_prune_reg,
+};
+
 struct pattern *(*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern_expr *, int) = {
 	[PAT_MATCH_FOUND] = NULL,
 	[PAT_MATCH_BOOL]  = pat_match_nothing,
@@ -130,12 +146,6 @@ static struct pattern static_pattern;
  * of pattern matching
  *
  */
-
-/* Free data allocated by pat_parse_reg */
-static void pat_free_reg(void *ptr)
-{
-	regex_free(ptr);
-}
 
 /* Background: Fast way to find a zero byte in a word
  * http://graphics.stanford.edu/~seander/bithacks.html#ZeroInWord
@@ -222,7 +232,6 @@ int pat_parse_reg(const char *text, struct pattern *pattern, char **err)
 
 	pattern->ptr.reg = (struct my_regex *)trash->str;
 	pattern->ptr.reg->regstr = (char *)text;
-	pattern->freeptrbuf = NULL;
 
 	pattern->expect_type = SMP_T_STR;
 	return 1;
@@ -914,30 +923,6 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 	return NULL;
 }
 
-/* NB: does nothing if <pat> is NULL */
-void pattern_free(struct pattern_list *pat)
-{
-	if (!pat)
-		return;
-
-	if (pat->pat.ptr.ptr) {
-		if (pat->pat.freeptrbuf)
-			pat->pat.freeptrbuf(pat->pat.ptr.ptr);
-
-		free(pat->pat.ptr.ptr);
-	}
-
-	free(pat->pat.smp);
-	free(pat);
-}
-
-void free_pattern_list(struct list *head)
-{
-	struct pattern_list *pat, *tmp;
-	list_for_each_entry_safe(pat, tmp, head, list)
-		pattern_free(pat);
-}
-
 void free_pattern_tree(struct eb_root *root)
 {
 	struct eb_node *node, *next;
@@ -954,9 +939,45 @@ void free_pattern_tree(struct eb_root *root)
 	}
 }
 
-void pattern_prune_expr(struct pattern_expr *expr)
+void pat_prune_val(struct pattern_expr *expr)
 {
-	free_pattern_list(&expr->patterns);
+	struct pattern_list *pat, *tmp;
+
+	list_for_each_entry_safe(pat, tmp, &expr->patterns, list) {
+		free(pat->pat.smp);
+		free(pat);
+	}
+
+	free_pattern_tree(&expr->pattern_tree);
+	free_pattern_tree(&expr->pattern_tree_2);
+	LIST_INIT(&expr->patterns);
+}
+
+void pat_prune_ptr(struct pattern_expr *expr)
+{
+	struct pattern_list *pat, *tmp;
+
+	list_for_each_entry_safe(pat, tmp, &expr->patterns, list) {
+		free(pat->pat.ptr.ptr);
+		free(pat->pat.smp);
+		free(pat);
+	}
+
+	free_pattern_tree(&expr->pattern_tree);
+	free_pattern_tree(&expr->pattern_tree_2);
+	LIST_INIT(&expr->patterns);
+}
+
+void pat_prune_reg(struct pattern_expr *expr)
+{
+	struct pattern_list *pat, *tmp;
+
+	list_for_each_entry_safe(pat, tmp, &expr->patterns, list) {
+		regex_free(pat->pat.ptr.ptr);
+		free(pat->pat.smp);
+		free(pat);
+	}
+
 	free_pattern_tree(&expr->pattern_tree);
 	free_pattern_tree(&expr->pattern_tree_2);
 	LIST_INIT(&expr->patterns);
@@ -1079,9 +1100,6 @@ int pat_idx_list_reg(struct pattern_expr *expr, struct pattern *pat, char **err)
 		free(patl->pat.ptr.reg);
 		return 0;
 	}
-
-	/* free pattern method */
-	patl->pat.freeptrbuf = &pat_free_reg;
 
 	/* chain pattern in the expression */
 	LIST_ADDQ(&expr->patterns, &patl->list);
@@ -1500,6 +1518,12 @@ struct pattern *pattern_exec_match(struct pattern_expr *expr, struct sample *smp
 		return &static_pattern;
 	}
 	return expr->match(smp, expr, fill);
+}
+
+/* This function prune the pattern expression. */
+void pattern_prune(struct pattern_expr *expr)
+{
+	expr->prune(expr);
 }
 
 /* This function search all the pattern matching the <key> and delete it.

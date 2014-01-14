@@ -413,6 +413,7 @@ static int sample_load_map(struct arg *arg, struct sample_conv *conv, char **err
 		desc->pat->parse = pat_parse_fcts[conv->private];
 		desc->pat->index = pat_index_fcts[conv->private];
 		desc->pat->delete = pat_delete_fcts[conv->private];
+		desc->pat->prune = pat_prune_fcts[conv->private];
 
 		/* parse each line of the file */
 		list_for_each_entry(ent, &ref->entries, list)
