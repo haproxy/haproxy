@@ -197,7 +197,6 @@ struct pattern *pat_match_reg(struct sample *smp, struct pattern_expr *expr, int
 
 int pattern_read_from_file(struct pattern_expr *expr, const char *filename, int patflags, char **err);
 void pattern_init_expr(struct pattern_expr *expr);
-int pattern_lookup(const char *args, struct pattern_expr *expr, struct pattern_list **pat_elt, struct pattern_tree **idx_elt, char **err);
 struct sample_storage **pattern_find_smp(const char *key, struct pattern_expr *expr, char **err);
 int pattern_delete(const char *key, struct pattern_expr *expr, char **err);
 void pattern_prune(struct pattern_expr *expr);
