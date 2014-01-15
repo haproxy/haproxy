@@ -314,7 +314,7 @@ static int map_parse_and_index(struct map_descriptor *desc,
 		return 0;
 
 	/* first read and convert value */
-	if (!desc->parse(ent->value, smp)) {
+	if (!desc->pat->parse_smp(ent->value, smp)) {
 		memprintf(err, "parse value failed at line %d of file <%s>",
 		          ent->line, desc->ref->reference);
 		return 0;
@@ -384,10 +384,10 @@ static int sample_load_map(struct arg *arg, struct sample_conv *conv, char **err
 
 	/* check the output parse method */
 	switch (desc->conv->out_type) {
-	case SMP_T_STR:  desc->parse = map_parse_str;  break;
-	case SMP_T_UINT: desc->parse = map_parse_int;  break;
-	case SMP_T_IPV4: desc->parse = map_parse_ip;   break;
-	case SMP_T_IPV6: desc->parse = map_parse_ip6;  break;
+	case SMP_T_STR:  desc->pat->parse_smp = map_parse_str;  break;
+	case SMP_T_UINT: desc->pat->parse_smp = map_parse_int;  break;
+	case SMP_T_IPV4: desc->pat->parse_smp = map_parse_ip;   break;
+	case SMP_T_IPV6: desc->pat->parse_smp = map_parse_ip6;  break;
 	default:
 		memprintf(err, "map: internal haproxy error: no default parse case for the input type <%d>.",
 		          conv->out_type);
@@ -442,7 +442,7 @@ static int sample_load_map(struct arg *arg, struct sample_conv *conv, char **err
 			memprintf(err, "out of memory");
 			return 0;
 		}
-		if (!desc->parse(desc->default_value, desc->def)) {
+		if (!desc->pat->parse_smp(desc->default_value, desc->def)) {
 			memprintf(err, "Cannot parse default value");
 			return 0;
 		}

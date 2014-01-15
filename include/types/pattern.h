@@ -155,6 +155,7 @@ struct pattern_list {
  */
 struct pattern_expr {
 	int (*parse)(const char *text, struct pattern *pattern, char **err);
+	int (*parse_smp)(const char *text, struct sample_storage *smp);
 	int (*index)(struct pattern_expr *, struct pattern *, char **);
 	void (*delete)(struct pattern_expr *, struct pattern *);
 	struct sample_storage **(*find_smp)(struct pattern_expr *, struct pattern *);

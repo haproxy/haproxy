@@ -1613,7 +1613,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			     stats_map_lookup_next(si)) {
 				smp = pattern_find_smp(args[3], appctx->ctx.map.desc->pat, NULL);
 				if (smp)
-					appctx->ctx.map.desc->parse(value, *smp);
+					appctx->ctx.map.desc->pat->parse_smp(value, *smp);
 			}
 
 			/* The set is done, send message. */
@@ -1974,7 +1974,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				 * is canceled for this 'descriptor', but continue, for
 				 * the other descriptors.
 				 */
-				if (!appctx->ctx.map.desc->parse(ent->value, smp)) {
+				if (!appctx->ctx.map.desc->pat->parse_smp(ent->value, smp)) {
 					free(smp);
 					continue;
 				}
