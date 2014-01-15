@@ -1455,7 +1455,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 		else if (strcmp(args[1], "map") == 0) {
 			struct pattern *pat_elt;
 			struct pat_idx_elt *idx_elt;
-			char *value;
+			char *value = NULL;
 
 			/* Expect three parameters: map name, key and new value. */
 			if (!*args[2] || !*args[3] || !*args[4]) {
@@ -1506,9 +1506,9 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			     stats_map_lookup_next(si)) {
 				pattern_lookup(args[3], appctx->ctx.map.desc->pat, &pat_elt, &idx_elt, NULL);
 				if (pat_elt != NULL)
-					appctx->ctx.map.desc->parse(appctx->ctx.map.ent->value, pat_elt->smp);
+					appctx->ctx.map.desc->parse(value, pat_elt->smp);
 				if (idx_elt != NULL)
-					appctx->ctx.map.desc->parse(appctx->ctx.map.ent->value, idx_elt->smp);
+					appctx->ctx.map.desc->parse(value, idx_elt->smp);
 			}
 
 			/* The set is done, send message. */
