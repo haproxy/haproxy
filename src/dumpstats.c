@@ -1561,8 +1561,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			stats_sock_table_request(si, args, STAT_CLI_O_SET);
 		}
 		else if (strcmp(args[1], "map") == 0) {
-			struct pattern_list *pat_elt;
-			struct pattern_tree *idx_elt;
+			struct sample_storage **smp;
 			char *value = NULL;
 
 			/* Expect three parameters: map name, key and new value. */
@@ -1612,11 +1611,9 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			for (stats_map_lookup_next(si);
 			     appctx->ctx.map.desc;
 			     stats_map_lookup_next(si)) {
-				pattern_lookup(args[3], appctx->ctx.map.desc->pat, &pat_elt, &idx_elt, NULL);
-				if (pat_elt != NULL)
-					appctx->ctx.map.desc->parse(value, pat_elt->pat.smp);
-				if (idx_elt != NULL)
-					appctx->ctx.map.desc->parse(value, idx_elt->smp);
+				smp = pattern_find_smp(args[3], appctx->ctx.map.desc->pat, NULL);
+				if (smp)
+					appctx->ctx.map.desc->parse(value, *smp);
 			}
 
 			/* The set is done, send message. */

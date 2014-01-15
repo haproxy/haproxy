@@ -89,6 +89,20 @@ void pat_del_list_reg(struct pattern_expr *expr, struct pattern *pat);
 
 /*
  *
+ * The following function lookup the pattern and return a pointer on the
+ * pointer containing the sample expression. This is useful to replace
+ * the sample.
+ *
+ */
+struct sample_storage **pat_find_smp_list_val(struct pattern_expr *expr, struct pattern *pattern);
+struct sample_storage **pat_find_smp_tree_ip(struct pattern_expr *expr, struct pattern *pattern);
+struct sample_storage **pat_find_smp_list_ptr(struct pattern_expr *expr, struct pattern *pattern);
+struct sample_storage **pat_find_smp_tree_str(struct pattern_expr *expr, struct pattern *pattern);
+struct sample_storage **pat_find_smp_list_str(struct pattern_expr *expr, struct pattern *pattern);
+struct sample_storage **pat_find_smp_list_reg(struct pattern_expr *expr, struct pattern *pattern);
+
+/*
+ *
  * The following functions clean all entries of a pattern expression and
  * reset the tree and list root.
  *
@@ -184,6 +198,7 @@ struct pattern *pat_match_reg(struct sample *smp, struct pattern_expr *expr, int
 int pattern_read_from_file(struct pattern_expr *expr, const char *filename, int patflags, char **err);
 void pattern_init_expr(struct pattern_expr *expr);
 int pattern_lookup(const char *args, struct pattern_expr *expr, struct pattern_list **pat_elt, struct pattern_tree **idx_elt, char **err);
+struct sample_storage **pattern_find_smp(const char *key, struct pattern_expr *expr, char **err);
 int pattern_delete(const char *key, struct pattern_expr *expr, char **err);
 void pattern_prune(struct pattern_expr *expr);
 

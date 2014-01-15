@@ -356,6 +356,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	expr->pat.match = aclkw ? aclkw->match : NULL;
 	expr->pat.delete = aclkw ? aclkw->delete : NULL;
 	expr->pat.prune = aclkw ? aclkw->prune : NULL;
+	expr->pat.find_smp = aclkw ? aclkw->find_smp : NULL;
 	expr->smp = smp;
 	smp = NULL;
 
@@ -369,6 +370,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			expr->pat.match = pat_match_fcts[PAT_MATCH_BOOL];
 			expr->pat.delete = pat_delete_fcts[PAT_MATCH_BOOL];
 			expr->pat.prune = pat_prune_fcts[PAT_MATCH_BOOL];
+			expr->pat.find_smp = pat_find_smp_fcts[PAT_MATCH_BOOL];
 			break;
 		case SMP_T_SINT:
 		case SMP_T_UINT:
@@ -377,6 +379,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			expr->pat.match = pat_match_fcts[PAT_MATCH_INT];
 			expr->pat.delete = pat_delete_fcts[PAT_MATCH_INT];
 			expr->pat.prune = pat_prune_fcts[PAT_MATCH_INT];
+			expr->pat.find_smp = pat_find_smp_fcts[PAT_MATCH_INT];
 			break;
 		case SMP_T_IPV4:
 		case SMP_T_IPV6:
@@ -385,6 +388,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			expr->pat.match = pat_match_fcts[PAT_MATCH_IP];
 			expr->pat.delete = pat_delete_fcts[PAT_MATCH_IP];
 			expr->pat.prune = pat_prune_fcts[PAT_MATCH_IP];
+			expr->pat.find_smp = pat_find_smp_fcts[PAT_MATCH_IP];
 			break;
 		}
 	}
@@ -447,6 +451,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			expr->pat.match = pat_match_fcts[idx];
 			expr->pat.delete = pat_delete_fcts[idx];
 			expr->pat.prune = pat_prune_fcts[idx];
+			expr->pat.find_smp = pat_find_smp_fcts[idx];
 			args++;
 		}
 		else if ((*args)[1] == '-') {
