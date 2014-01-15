@@ -354,6 +354,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	expr->pat.parse = aclkw ? aclkw->parse : NULL;
 	expr->pat.index = aclkw ? aclkw->index : NULL;
 	expr->pat.match = aclkw ? aclkw->match : NULL;
+	expr->pat.delete = aclkw ? aclkw->delete : NULL;
 	expr->smp = smp;
 	smp = NULL;
 
@@ -365,18 +366,21 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			expr->pat.parse = pat_parse_fcts[PAT_MATCH_BOOL];
 			expr->pat.index = pat_index_fcts[PAT_MATCH_BOOL];
 			expr->pat.match = pat_match_fcts[PAT_MATCH_BOOL];
+			expr->pat.delete = pat_delete_fcts[PAT_MATCH_BOOL];
 			break;
 		case SMP_T_SINT:
 		case SMP_T_UINT:
 			expr->pat.parse = pat_parse_fcts[PAT_MATCH_INT];
 			expr->pat.index = pat_index_fcts[PAT_MATCH_INT];
 			expr->pat.match = pat_match_fcts[PAT_MATCH_INT];
+			expr->pat.delete = pat_delete_fcts[PAT_MATCH_INT];
 			break;
 		case SMP_T_IPV4:
 		case SMP_T_IPV6:
 			expr->pat.parse = pat_parse_fcts[PAT_MATCH_IP];
 			expr->pat.index = pat_index_fcts[PAT_MATCH_IP];
 			expr->pat.match = pat_match_fcts[PAT_MATCH_IP];
+			expr->pat.delete = pat_delete_fcts[PAT_MATCH_IP];
 			break;
 		}
 	}
@@ -437,6 +441,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			expr->pat.parse = pat_parse_fcts[idx];
 			expr->pat.index = pat_index_fcts[idx];
 			expr->pat.match = pat_match_fcts[idx];
+			expr->pat.delete = pat_delete_fcts[idx];
 			args++;
 		}
 		else if ((*args)[1] == '-') {

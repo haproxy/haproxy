@@ -1849,8 +1849,6 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 	}
 	else if (strcmp(args[0], "del") == 0) {
 		if (strcmp(args[1], "map") == 0) {
-			struct pattern_list *pat_elt;
-			struct pattern_tree *idx_elt;
 			struct map_entry *ent;
 
 			/* Expect two parameters: map name and key. */
@@ -1895,16 +1893,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			appctx->ctx.map.desc = NULL;
 			stats_map_lookup_next(si);
 			while (appctx->ctx.map.desc) {
-				while (pattern_lookup(args[3], appctx->ctx.map.desc->pat, &pat_elt, &idx_elt, NULL)) {
-					if (pat_elt != NULL) {
-						LIST_DEL(&pat_elt->list);
-						pattern_free(pat_elt);
-					}
-					if (idx_elt != NULL) {
-						ebmb_delete(&idx_elt->node);
-						free(idx_elt);
-					}
-				}
+				pattern_delete(args[3], appctx->ctx.map.desc->pat, NULL);
 				stats_map_lookup_next(si);
 			}
 

@@ -72,6 +72,22 @@ int (*pat_index_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *, ch
 	[PAT_MATCH_REG]   = pat_idx_list_reg,
 };
 
+void (*pat_delete_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *) = {
+	[PAT_MATCH_FOUND] = pat_del_list_val,
+	[PAT_MATCH_BOOL]  = pat_del_list_val,
+	[PAT_MATCH_INT]   = pat_del_list_val,
+	[PAT_MATCH_IP]    = pat_del_tree_ip,
+	[PAT_MATCH_BIN]   = pat_del_list_ptr,
+	[PAT_MATCH_LEN]   = pat_del_list_val,
+	[PAT_MATCH_STR]   = pat_del_tree_str,
+	[PAT_MATCH_BEG]   = pat_del_list_str,
+	[PAT_MATCH_SUB]   = pat_del_list_str,
+	[PAT_MATCH_DIR]   = pat_del_list_str,
+	[PAT_MATCH_DOM]   = pat_del_list_str,
+	[PAT_MATCH_END]   = pat_del_list_str,
+	[PAT_MATCH_REG]   = pat_del_list_reg,
+};
+
 struct pattern *(*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern_expr *, int) = {
 	[PAT_MATCH_FOUND] = NULL,
 	[PAT_MATCH_BOOL]  = pat_match_nothing,
@@ -1178,6 +1194,202 @@ int pat_idx_tree_str(struct pattern_expr *expr, struct pattern *pat, char **err)
 	return 1;
 }
 
+void pat_del_list_val(struct pattern_expr *expr, struct pattern *pattern)
+{
+	struct pattern_list *pat;
+	struct pattern_list *safe;
+
+	list_for_each_entry_safe(pat, safe, &expr->patterns, list) {
+		/* Check equality. */
+		if (pattern->val.range.min_set != pat->pat.val.range.min_set)
+			continue;
+		if (pattern->val.range.max_set != pat->pat.val.range.max_set)
+			continue;
+		if (pattern->val.range.min_set &&
+		    pattern->val.range.min != pat->pat.val.range.min)
+			continue;
+		if (pattern->val.range.max_set &&
+		    pattern->val.range.max != pat->pat.val.range.max)
+			continue;
+
+		/* Delete and free entry. */
+		LIST_DEL(&pat->list);
+		free(pat->pat.smp);
+		free(pat);
+	}
+}
+
+void pat_del_tree_ip(struct pattern_expr *expr, struct pattern *pattern)
+{
+	struct ebmb_node *node, *next_node;
+	struct pattern_tree *elt;
+	struct pattern_list *pat;
+	struct pattern_list *safe;
+	unsigned int mask;
+
+	/* browse each node of the tree for IPv4 addresses. */
+	if (pattern->type == SMP_T_IPV4) {
+		/* Convert mask. If the mask is contiguous, browse each node
+		 * of the tree for IPv4 addresses.
+		 */
+		mask = ntohl(pattern->val.ipv4.mask.s_addr);
+		if (mask + (mask & -mask) == 0) {
+			mask = mask ? 33 - flsnz(mask & -mask) : 0; /* equals cidr value */
+
+			for (node = ebmb_first(&expr->pattern_tree), next_node = node ? ebmb_next(node) : NULL;
+			     node;
+			     node = next_node, next_node = node ? ebmb_next(node) : NULL) {
+				/* Extract container of the tree node. */
+				elt = container_of(node, struct pattern_tree, node);
+
+				/* Check equality. */
+				if (memcmp(&pattern->val.ipv4.addr, elt->node.key,
+				           sizeof(pattern->val.ipv4.addr)) != 0)
+					continue;
+				if (elt->node.node.pfx != mask)
+					continue;
+
+				/* Delete and free entry. */
+				ebmb_delete(node);
+				free(elt->smp);
+				free(elt);
+			}
+		}
+		else {
+			/* Browse each node of the list for IPv4 addresses. */
+			list_for_each_entry_safe(pat, safe, &expr->patterns, list) {
+				/* Check equality, addr then mask */
+				if (memcmp(&pattern->val.ipv4.addr, &pat->pat.val.ipv4.addr,
+				           sizeof(pat->pat.val.ipv4.addr)) != 0)
+					continue;
+
+				if (memcmp(&pattern->val.ipv4.mask, &pat->pat.val.ipv4.mask,
+				           sizeof(pat->pat.val.ipv4.addr)) != 0)
+					continue;
+
+				/* Delete and free entry. */
+				LIST_DEL(&pat->list);
+				free(pat->pat.smp);
+				free(pat);
+			}
+		}
+	}
+	else if (pattern->type == SMP_T_IPV6) {
+		/* browse each node of the tree for IPv6 addresses. */
+		for (node = ebmb_first(&expr->pattern_tree_2), next_node = node ? ebmb_next(node) : NULL;
+		     node;
+		     node = next_node, next_node = node ? ebmb_next(node) : NULL) {
+			/* Extract container of the tree node. */
+			elt = container_of(node, struct pattern_tree, node);
+
+			/* Check equality. */
+			if (memcmp(&pattern->val.ipv6.addr, elt->node.key,
+				   sizeof(pattern->val.ipv6.addr)) != 0)
+				continue;
+			if (elt->node.node.pfx != pattern->val.ipv6.mask)
+				continue;
+
+			/* Delete and free entry. */
+			ebmb_delete(node);
+			free(elt->smp);
+			free(elt);
+		}
+	}
+}
+
+void pat_del_list_ptr(struct pattern_expr *expr, struct pattern *pattern)
+{
+	struct pattern_list *pat;
+	struct pattern_list *safe;
+
+	list_for_each_entry_safe(pat, safe, &expr->patterns, list) {
+		/* Check equality. */
+		if (pattern->len != pat->pat.len)
+			continue;
+		if (memcmp(pattern->ptr.ptr, pat->pat.ptr.ptr, pat->pat.len) != 0)
+			continue;
+
+		/* Delete and free entry. */
+		LIST_DEL(&pat->list);
+		free(pat->pat.ptr.ptr);
+		free(pat->pat.smp);
+		free(pat);
+	}
+}
+
+void pat_del_tree_str(struct pattern_expr *expr, struct pattern *pattern)
+{
+	struct ebmb_node *node, *next_node;
+	struct pattern_tree *elt;
+
+	/* browse each node of the tree. */
+	for (node = ebmb_first(&expr->pattern_tree), next_node = node ? ebmb_next(node) : NULL;
+	     node;
+	     node = next_node, next_node = node ? ebmb_next(node) : NULL) {
+		/* Extract container of the tree node. */
+		elt = container_of(node, struct pattern_tree, node);
+
+		/* Check equality. */
+		if (strcmp(pattern->ptr.str, (char *)elt->node.key) != 0)
+			continue;
+
+		/* Delete and free entry. */
+		ebmb_delete(node);
+		free(elt->smp);
+		free(elt);
+	}
+}
+
+void pat_del_list_str(struct pattern_expr *expr, struct pattern *pattern)
+{
+	struct pattern_list *pat;
+	struct pattern_list *safe;
+
+	list_for_each_entry_safe(pat, safe, &expr->patterns, list) {
+		/* Check equality. */
+		if (pattern->len != pat->pat.len)
+			continue;
+		if (pat->pat.flags & PAT_F_IGNORE_CASE) {
+			if (strncasecmp(pattern->ptr.str, pat->pat.ptr.str, pat->pat.len) != 0)
+				continue;
+		}
+		else {
+			if (strncmp(pattern->ptr.str, pat->pat.ptr.str, pat->pat.len) != 0)
+				continue;
+		}
+
+		/* Delete and free entry. */
+		LIST_DEL(&pat->list);
+		free(pat->pat.ptr.str);
+		free(pat->pat.smp);
+		free(pat);
+	}
+}
+
+void pat_del_list_reg(struct pattern_expr *expr, struct pattern *pattern)
+{
+	struct pattern_list *pat;
+	struct pattern_list *safe;
+
+	list_for_each_entry_safe(pat, safe, &expr->patterns, list) {
+		/* Check equality. */
+		if (pat->pat.flags & PAT_F_IGNORE_CASE) {
+			if (strcasecmp(pattern->ptr.reg->regstr, pat->pat.ptr.reg->regstr) != 0)
+				continue;
+		}
+		else {
+			if (strcmp(pattern->ptr.reg->regstr, pat->pat.ptr.reg->regstr) != 0)
+				continue;
+		}
+
+		/* Delete and free entry. */
+		LIST_DEL(&pat->list);
+		regex_free(pat->pat.ptr.ptr);
+		free(pat->pat.smp);
+		free(pat);
+	}
+}
+
 /* return 1 if the process is ok
  * return -1 if the parser fail. The err message is filled.
  * return -2 if out of memory
@@ -1288,6 +1500,20 @@ struct pattern *pattern_exec_match(struct pattern_expr *expr, struct sample *smp
 		return &static_pattern;
 	}
 	return expr->match(smp, expr, fill);
+}
+
+/* This function search all the pattern matching the <key> and delete it.
+ * If the parsing of the input key fails, the function returns 0 and the
+ * <err> is filled, else return 1;
+ */
+int pattern_delete(const char *key, struct pattern_expr *expr, char **err)
+{
+	struct pattern pattern;
+
+	if (!expr->parse(key, &pattern, err))
+		return 0;
+	expr->delete(expr, &pattern);
+	return 1;
 }
 
 /* This function browse the pattern expr <expr> to lookup the key <key>. On
