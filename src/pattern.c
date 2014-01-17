@@ -105,6 +105,9 @@ int pat_match_types[PAT_MATCH_NUM] = {
 	[PAT_MATCH_REG]   = SMP_T_STR,
 };
 
+/* this struct is used to return information */
+static struct pattern static_pattern;
+
 /*
  *
  * The following functions are not exported and are used by internals process
@@ -1059,19 +1062,18 @@ int pattern_read_from_file(struct pattern_expr *expr,
 	return ret;
 }
 
-/* This function matches a sample <smp> against a set of patterns presented in
- * pattern expression <expr>. Upon success, if <sample> is not NULL, it is fed
- * with the pointer associated with the matching pattern. This function returns
- * PAT_NOMATCH or PAT_MATCH.
+/* This function executes a pattern match on a sample. It applies pattern <expr>
+ * to sample <smp>. The function returns NULL if the sample dont match. It returns
+ * non-null if the sample match. If <fill> is true and the sample match, the
+ * function returns the matched pattern. In many cases, this pattern can be a
+ * static buffer.
  */
-enum pat_match_res pattern_exec_match(struct pattern_expr *expr, struct sample *smp,
-                                      struct sample_storage **sample,
-                                      struct pattern **pat, struct pattern_tree **idx_elt)
+struct pattern *pattern_exec_match(struct pattern_expr *expr, struct sample *smp, int fill)
 {
 	enum pat_match_res pat_res = PAT_NOMATCH;
-	struct pattern_list *pattern;
+	struct pattern_list *pattern = NULL;
 	struct ebmb_node *node = NULL;
-	struct pattern_tree *elt;
+	struct pattern_tree *elt = NULL;
 
 	if (expr->match == pat_match_nothing) {
 		if (smp->data.uint)
@@ -1097,27 +1099,62 @@ enum pat_match_res pattern_exec_match(struct pattern_expr *expr, struct sample *
 			if (node) {
 				pat_res |= PAT_MATCH;
 				elt = ebmb_entry(node, struct pattern_tree, node);
-				if (sample)
-					*sample = elt->smp;
-				if (idx_elt)
-					*idx_elt = elt;
 			}
 		}
 
 		/* call the match() function for all tests on this value */
-		list_for_each_entry(pattern, &expr->patterns, list) {
-			if (pat_res == PAT_MATCH)
-				break;
-			if (sample_convert(smp, pattern->pat.expect_type))
-				pat_res |= expr->match(smp, &pattern->pat);
-			if (sample)
-				*sample = pattern->pat.smp;
-			if (pat)
-				*pat = &pattern->pat;
+		if (pat_res != PAT_MATCH) {
+			list_for_each_entry(pattern, &expr->patterns, list) {
+				if (sample_convert(smp, pattern->pat.expect_type))
+					pat_res |= expr->match(smp, &pattern->pat);
+				if (pat_res == PAT_MATCH)
+					break;
+			}
 		}
 	}
 
-	return pat_res;
+	if (pat_res == PAT_MATCH) {
+		static_pattern.flags = 0;
+		if (fill) {
+			/* fill with boolean */
+			if (expr->match == NULL ||
+			    expr->match == pat_match_nothing) {
+				static_pattern.smp = NULL;
+				static_pattern.type = SMP_T_BOOL;
+				static_pattern.val.i = 1;
+				return &static_pattern;
+			}
+
+			/* fill with ipv4 */
+			if (expr->match == pat_match_ip && elt) {
+				static_pattern.smp = elt->smp;;
+				static_pattern.flags |= PAT_F_TREE;
+				static_pattern.type = SMP_T_IPV4;
+				memcpy(&static_pattern.val.ipv4.addr, &elt->node.key, 4);
+				if (!cidr2dotted(elt->node.node.pfx, &static_pattern.val.ipv4.mask))
+					return NULL;
+				return &static_pattern;
+			}
+
+			/* fill with string */
+			if (expr->match == pat_match_str && elt) {
+				static_pattern.smp = elt->smp;;
+				static_pattern.flags |= PAT_F_TREE;
+				static_pattern.type = SMP_T_STR;
+				static_pattern.ptr.str = (char *)elt->node.key;
+				return &static_pattern;
+			}
+
+			/* return the pattern */
+			return &pattern->pat;
+		}
+
+		/* Return uninitialized pattern. The content must not be used by the caller */
+		return &static_pattern;
+	}
+
+	/* No match */
+	return NULL;
 }
 
 /* This function browse the pattern expr <expr> to lookup the key <key>. On

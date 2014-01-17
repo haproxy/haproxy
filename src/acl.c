@@ -39,9 +39,12 @@ static struct acl_kw_list acl_keywords = {
 };
 
 /* input values are 0 or 3, output is the same */
-static inline enum acl_test_res pat2acl(enum pat_match_res res)
+static inline enum acl_test_res pat2acl(struct pattern *pat)
 {
-	return (enum acl_test_res)res;
+	if (pat)
+		return ACL_TEST_PASS;
+	else
+		return ACL_TEST_FAIL;
 }
 
 /*
@@ -1053,7 +1056,7 @@ enum acl_test_res acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct 
 					continue;
 				}
 
-				acl_res |= pat2acl(pattern_exec_match(&expr->pat, &smp, NULL, NULL, NULL));
+				acl_res |= pat2acl(pattern_exec_match(&expr->pat, &smp, 0));
 				/*
 				 * OK now acl_res holds the result of this expression
 				 * as one of ACL_TEST_FAIL, ACL_TEST_MISS or ACL_TEST_PASS.

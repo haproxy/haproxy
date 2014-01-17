@@ -4827,10 +4827,10 @@ static int stats_map_lookup(struct stream_interface *si)
 	struct sample_storage *smp;
 	struct sample sample;
 	struct pattern *pat;
-	struct pattern_tree *elt;
-	enum pat_match_res res;
-	struct sockaddr_in addr;
-	char addr_str[INET_ADDRSTRLEN];
+	struct sockaddr_storage addr;
+	char s_addr[INET_ADDRSTRLEN];
+	char s_mask[INET_ADDRSTRLEN];
+	char s_addr6[INET6_ADDRSTRLEN];
 
 	switch (appctx->st2) {
 	case STAT_ST_INIT:
@@ -4850,9 +4850,7 @@ static int stats_map_lookup(struct stream_interface *si)
 			sample.flags |= SMP_F_CONST;
 			sample.data.str.len = appctx->ctx.map.chunk.len;
 			sample.data.str.str = appctx->ctx.map.chunk.str;
-			pat = NULL;
-			elt = NULL;
-			res = pattern_exec_match(appctx->ctx.map.desc->pat, &sample, &smp, &pat, &elt);
+			pat = pattern_exec_match(appctx->ctx.map.desc->pat, &sample, 1);
 
 			/* build return message: set type of match */
 			/**/ if (appctx->ctx.map.desc->pat->match == NULL)
@@ -4885,9 +4883,8 @@ static int stats_map_lookup(struct stream_interface *si)
 				chunk_appendf(&trash, "unknown(%p), ", appctx->ctx.map.desc->pat->match);
 
 			/* Display no match, and set default value */
-			if (res == PAT_NOMATCH) {
+			if (!pat) {
 				chunk_appendf(&trash, "no-match, ");
-				smp = appctx->ctx.map.desc->def;
 			}
 
 			/* Display match and match info */
@@ -4895,46 +4892,61 @@ static int stats_map_lookup(struct stream_interface *si)
 				/* display match */
 				chunk_appendf(&trash, "match, ");
 
-				/* display search mode */
-				if (elt)
+				/* display index mode */
+				if (pat->flags & PAT_F_TREE)
 					chunk_appendf(&trash, "tree, ");
 				else
 					chunk_appendf(&trash, "list, ");
 
-				/* display search options */
-				if (pat) {
-					/* case sensitive */
-					if (pat->flags & PAT_F_IGNORE_CASE)
-						chunk_appendf(&trash, "case-insensitive, ");
-					else
-						chunk_appendf(&trash, "case-sensitive, ");
+				/* case sensitive */
+				if (pat->flags & PAT_F_IGNORE_CASE)
+					chunk_appendf(&trash, "case-insensitive, ");
+				else
+					chunk_appendf(&trash, "case-sensitive, ");
 
-					/* display source */
-					if (pat->flags & PAT_F_FROM_FILE)
-						chunk_appendf(&trash, "from-file, ");
+				/* display source */
+				if (pat->flags & PAT_F_FROM_FILE)
+					chunk_appendf(&trash, "from-file, ");
+
+				/* display string */
+				if (appctx->ctx.map.desc->pat->match == pat_match_str ||
+				    appctx->ctx.map.desc->pat->match == pat_match_str ||
+				    appctx->ctx.map.desc->pat->match == pat_match_beg ||
+				    appctx->ctx.map.desc->pat->match == pat_match_sub ||
+				    appctx->ctx.map.desc->pat->match == pat_match_dir ||
+				    appctx->ctx.map.desc->pat->match == pat_match_dom ||
+				    appctx->ctx.map.desc->pat->match == pat_match_end) {
+					chunk_appendf(&trash, "match=\"%s\", ", pat->ptr.str);
 				}
-
-				/* display match expresion */
-				if (elt) {
-					if (appctx->ctx.map.desc->pat->match == pat_match_str) {
-						chunk_appendf(&trash, "match=\"%s\", ", elt->node.key);
+				else if (appctx->ctx.map.desc->pat->match == pat_match_ip) {
+					/* display IPv4/v6 */
+					if (pat->type == SMP_T_IPV4) {
+						((struct sockaddr_in *)&addr)->sin_family = AF_INET;
+						memcpy(&((struct sockaddr_in *)&addr)->sin_addr, &pat->val.ipv4.addr,
+						       sizeof(pat->val.ipv4.addr));
+						if (addr_to_str(&addr, s_addr, INET_ADDRSTRLEN)) {
+							memcpy(&((struct sockaddr_in *)&addr)->sin_addr, &pat->val.ipv4.mask,
+							       sizeof(pat->val.ipv4.mask));
+							if (addr_to_str(&addr, s_mask, INET_ADDRSTRLEN))
+								chunk_appendf(&trash, "match=\"%s/%s\", ", s_addr, s_mask);
+						}
 					}
-					/* only IPv4 */
-					else if (appctx->ctx.map.desc->pat->match == pat_match_ip) {
-						/* convert ip */
-						memcpy(&addr.sin_addr, elt->node.key, 4);
-						addr.sin_family = AF_INET;
-						if (addr_to_str((struct sockaddr_storage *)&addr, addr_str, INET_ADDRSTRLEN))
-							chunk_appendf(&trash, "match=\"%s/%d\", ", addr_str, elt->node.node.pfx);
+					else if (pat->type == SMP_T_IPV6) {
+						((struct sockaddr_in6 *)&addr)->sin6_family = AF_INET6;
+						memcpy(&((struct sockaddr_in6 *)&addr)->sin6_addr, &pat->val.ipv6.addr,
+						       sizeof(pat->val.ipv6.addr));
+						if (addr_to_str(&addr, s_addr6, INET6_ADDRSTRLEN))
+							chunk_appendf(&trash, "match=\"%s/%d\", ", s_addr6, pat->val.ipv6.mask);
 					}
 				}
 			}
 
 			/* display return value */
-			if (!smp) {
+			if (!pat || !pat->smp) {
 				chunk_appendf(&trash, "return=nothing\n");
 			}
 			else {
+				smp = pat->smp;
 				memcpy(&sample.data, &smp->data, sizeof(sample.data));
 				sample.type = smp->type;
 				if (sample_casts[sample.type][SMP_T_STR] &&

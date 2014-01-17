@@ -54,11 +54,12 @@ static inline int pat_find_match_name(const char *name)
 }
 
 /* This function executes a pattern match on a sample. It applies pattern <expr>
- * to sample <smp>. If <sample> is not NULL, a pointer to an optional sample
- * associated to the matching patterned will be put there. The function returns
- * PAT_MATCH or PAT_NOMATCH.
+ * to sample <smp>. The function returns NULL if the sample dont match. It returns
+ * non-null if the sample match. If <fill> is true and the sample match, the
+ * function returns the matched pattern. In many cases, this pattern can be a
+ * static buffer.
  */
-enum pat_match_res pattern_exec_match(struct pattern_expr *expr, struct sample *smp, struct sample_storage **sample, struct pattern **pat, struct pattern_tree **elt);
+struct pattern *pattern_exec_match(struct pattern_expr *expr, struct sample *smp, int fill);
 
 /*
  *

@@ -457,24 +457,38 @@ static int sample_load_map(struct arg *arg, struct sample_conv *conv, char **err
 static int sample_conv_map(const struct arg *arg_p, struct sample *smp)
 {
 	struct map_descriptor *desc;
-	struct sample_storage *sample;
-	enum pat_match_res ret;
+	struct pattern *pat;
 
 	/* get config */
 	desc = arg_p[0].data.map;
 
 	/* Execute the match function. */
-	ret = pattern_exec_match(desc->pat, smp, &sample, NULL, NULL);
-	if (ret != PAT_MATCH) {
-		if (!desc->def)
-			return 0;
-		sample = desc->def;
+	pat = pattern_exec_match(desc->pat, smp, 1);
+
+	/* Match case. */
+	if (pat) {
+		/* Copy sample. */
+		if (pat->smp) {
+			smp->type = pat->smp->type;
+			smp->flags |= SMP_F_CONST;
+			memcpy(&smp->data, &pat->smp->data, sizeof(smp->data));
+			return 1;
+		}
+
+		/* Return just int sample containing 1. */
+		smp->type = SMP_T_UINT;
+		smp->data.uint= 1;
+		return 1;
 	}
 
-	/* copy new data */
-	smp->type = sample->type;
+	/* If no default value avalaible, the converter fails. */
+	if (!desc->def)
+		return 0;
+
+	/* Return the default value. */
+	smp->type = desc->def->type;
 	smp->flags |= SMP_F_CONST;
-	memcpy(&smp->data, &sample->data, sizeof(smp->data));
+	memcpy(&smp->data, &desc->def->data, sizeof(smp->data));
 	return 1;
 }
 
