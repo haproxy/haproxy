@@ -1353,7 +1353,7 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 	 * in which case we accept to do it once again. A new attempt is made on
 	 * EINTR too.
 	 */
-	while (try) {
+	while (count > 0) {
 		/* first check if we have some room after p+i */
 		try = buf->data + buf->size - (buf->p + buf->i);
 		/* otherwise continue between data and p-o */
