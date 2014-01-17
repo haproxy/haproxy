@@ -4941,6 +4941,23 @@ static int stats_map_lookup(struct stream_interface *si)
 							chunk_appendf(&trash, ", key=\"%s/%d\"", s_addr6, pat->val.ipv6.mask);
 					}
 				}
+				else if (appctx->ctx.map.desc->pat->match == pat_match_int) {
+					/* display int */
+					chunk_appendf(&trash, "match=\"");
+					if (pat->val.range.min_set && pat->val.range.max_set &&
+					    pat->val.range.min == pat->val.range.max) {
+						chunk_appendf(&trash, "%lld", pat->val.range.min);
+					}
+					else {
+						if (pat->val.range.min_set)
+							chunk_appendf(&trash, "is >= %lld", pat->val.range.min);
+						if (pat->val.range.min_set && pat->val.range.max_set)
+							chunk_appendf(&trash, " and ");
+						if (pat->val.range.max_set)
+							chunk_appendf(&trash, "is <= %lld", pat->val.range.max);
+					}
+					chunk_appendf(&trash, "\", ");
+				}
 			}
 
 			/* display return value */
