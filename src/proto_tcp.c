@@ -525,9 +525,9 @@ int tcp_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
 }
 
 /* Tries to drain any pending incoming data from the socket to reach the
- * receive shutdown. Returns non-zero if the shutdown was found, otherwise
- * zero. This is useful to decide whether we can close a connection cleanly
- * are we must kill it hard.
+ * receive shutdown. Returns positive if the shutdown was found, negative
+ * if EAGAIN was hit, otherwise zero. This is useful to decide whether we
+ * can close a connection cleanly are we must kill it hard.
  */
 int tcp_drain(int fd)
 {
@@ -546,7 +546,7 @@ int tcp_drain(int fd)
 
 		if (len < 0) {
 			if (errno == EAGAIN) /* connection not closed yet */
-				return 0;
+				return -1;
 			if (errno == EINTR)  /* oops, try again */
 				continue;
 			/* other errors indicate a dead connection, fine. */

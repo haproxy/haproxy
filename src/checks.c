@@ -1446,7 +1446,7 @@ static int wake_srv_chk(struct connection *conn)
 		 * sure want to abort the hard way.
 		 */
 		if (conn_ctrl_ready(conn) && !(conn->flags & CO_FL_SOCK_RD_SH)) {
-			if (!(conn->flags & CO_FL_WAIT_RD) && conn->ctrl->drain && conn->ctrl->drain(conn->t.sock.fd))
+			if (!(conn->flags & CO_FL_WAIT_RD) && conn->ctrl->drain && conn->ctrl->drain(conn->t.sock.fd) > 0)
 				fdtab[conn->t.sock.fd].linger_risk = 0;
 		}
 		conn_force_close(conn);
@@ -1665,7 +1665,7 @@ static struct task *process_chk(struct task *t)
 			 * server state to be suddenly changed.
 			 */
 			if (conn_ctrl_ready(conn) && !(conn->flags & CO_FL_SOCK_RD_SH)) {
-				if (!(conn->flags & CO_FL_WAIT_RD) && conn->ctrl->drain && conn->ctrl->drain(conn->t.sock.fd))
+				if (!(conn->flags & CO_FL_WAIT_RD) && conn->ctrl->drain && conn->ctrl->drain(conn->t.sock.fd) > 0)
 					fdtab[conn->t.sock.fd].linger_risk = 0;
 			}
 			conn_force_close(conn);

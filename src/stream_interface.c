@@ -499,7 +499,7 @@ static void si_idle_conn_null_cb(struct connection *conn)
 		return;
 
 	if ((fdtab[conn->t.sock.fd].ev & (FD_POLL_ERR|FD_POLL_HUP)) ||
-	    (conn->ctrl->drain && conn->ctrl->drain(conn->t.sock.fd)))
+	    (conn->ctrl->drain && conn->ctrl->drain(conn->t.sock.fd) > 0))
 		conn->flags |= CO_FL_SOCK_RD_SH;
 
 	/* disable draining if we were called and have no drain function */
