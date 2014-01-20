@@ -156,7 +156,8 @@ void fd_process_spec_events()
 		 * Principle: events which are marked FD_EV_ACTIVE are processed
 		 * with their usual I/O callback. The callback may remove the
 		 * events from the list or tag them for polling. Changes will be
-		 * applied on next round.
+		 * applied on next round. Speculative entries with no more activity
+		 * are automatically scheduled for removal.
 		 */
 
 		fdtab[fd].ev &= FD_POLL_STICKY;
@@ -169,6 +170,8 @@ void fd_process_spec_events()
 
 		if (fdtab[fd].iocb && fdtab[fd].owner && fdtab[fd].ev)
 			fdtab[fd].iocb(fd);
+		else
+			updt_fd(fd);
 
 		/* if the fd was removed from the spec list, it has been
 		 * replaced by the next one that we don't want to skip !
