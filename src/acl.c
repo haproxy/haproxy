@@ -155,6 +155,10 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	/* The following buffer contain two numbers, a ':' separator and the final \0. */
 	char buffer[NB_LLMAX_STR + 1 + NB_LLMAX_STR + 1];
 	int is_loaded;
+	int unique_id;
+	char *error;
+	struct pat_ref *ref;
+	struct pattern_expr *pattern_expr;
 
 	/* First, we look for an ACL keyword. And if we don't find one, then
 	 * we look for a sample fetch expression starting with a sample fetch
@@ -416,13 +420,30 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	 *   -i : ignore case for all patterns by default
 	 *   -f : read patterns from those files
 	 *   -m : force matching method (must be used before -f)
+	 *   -u : force the unique id of the acl
 	 *   -- : everything after this is not an option
 	 */
 	patflags = 0;
 	is_loaded = 0;
+	unique_id = -1;
 	while (**args == '-') {
 		if ((*args)[1] == 'i')
 			patflags |= PAT_F_IGNORE_CASE;
+		else if ((*args)[1] == 'u') {
+			unique_id = strtol(args[1], &error, 10);
+			if (*error != '\0') {
+				memprintf(err, "the argument of -u must be an integer");
+				goto out_free_expr;
+			}
+
+			/* Check if this id is really unique. */
+			if (pat_ref_lookupid(unique_id)) {
+				memprintf(err, "the id is already used");
+				goto out_free_expr;
+			}
+
+			args++;
+		}
 		else if ((*args)[1] == 'f') {
 			if (!expr->pat.parse) {
 				memprintf(err, "matching method must be specified first (using '-m') when using a sample fetch of this type ('%s')", expr->kw);
@@ -475,6 +496,18 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		memprintf(err, "matching method must be specified first (using '-m') when using a sample fetch of this type ('%s')", expr->kw);
 		goto out_free_expr;
 	}
+
+	/* Create new patern reference. */
+	ref = pat_ref_newid(unique_id, PAT_REF_ACL);
+	if (!ref) {
+		memprintf(err, "memory error");
+		goto out_free_expr;
+	}
+
+	/* Create new pattern expression associated to this reference. */
+	pattern_expr = pattern_new_expr(&expr->pat, ref, err);
+	if (!pattern_expr)
+		goto out_free_expr;
 
 	/* now parse all patterns */
 	while (**args) {
@@ -598,7 +631,10 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			}
 		}
 
-		if (!pattern_register(&expr->pat, -1, PAT_REF_ACL, arg, NULL, patflags, err))
+		/* Add sample to the reference, and try to compile it fior each pattern
+		 * using this value.
+		 */
+		if (!pat_ref_add(ref, arg, NULL, err))
 			goto out_free_expr;
 		args++;
 	}
