@@ -1231,8 +1231,7 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 				 * TCP sockets. We first try to drain possibly pending
 				 * data to avoid this as much as possible.
 				 */
-				if ((conn->flags & CO_FL_CTRL_READY) && conn->ctrl && conn->ctrl->drain)
-					conn->ctrl->drain(conn->t.sock.fd);
+				conn_drain(conn);
 				if (!conn->err_code)
 					conn->err_code = CO_ER_SSL_HANDSHAKE;
 				goto out_error;
@@ -1282,8 +1281,7 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 			 * TCP sockets. We first try to drain possibly pending
 			 * data to avoid this as much as possible.
 			 */
-			if ((conn->flags & CO_FL_CTRL_READY) && conn->ctrl && conn->ctrl->drain)
-				conn->ctrl->drain(conn->t.sock.fd);
+			conn_drain(conn);
 			if (!conn->err_code)
 				conn->err_code = CO_ER_SSL_HANDSHAKE;
 			goto out_error;
