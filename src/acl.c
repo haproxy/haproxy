@@ -1184,7 +1184,7 @@ int acl_find_targets(struct proxy *p)
 	struct acl_expr *expr;
 	struct pattern_list *pattern;
 	int cfgerr = 0;
-	struct pattern_expr *pexp;
+	struct pattern_expr_list *pexp;
 
 	list_for_each_entry(acl, &p->acl, list) {
 		list_for_each_entry(expr, &acl->expr, list) {
@@ -1207,15 +1207,16 @@ int acl_find_targets(struct proxy *p)
 				}
 
 				/* For each pattern, check if the group exists. */
-				list_for_each_entry(pexp, &expr->pat.head, listh) {
-					if (LIST_ISEMPTY(&pexp->patterns)) {
+				list_for_each_entry(pexp, &expr->pat.head, list) {
+					if (LIST_ISEMPTY(&pexp->expr->patterns)) {
 						Alert("proxy %s: acl %s %s(): no groups specified.\n",
 							p->id, acl->name, expr->kw);
 						cfgerr++;
 						continue;
 					}
 
-					list_for_each_entry(pattern, &pexp->patterns, list) {
+					list_for_each_entry(pattern, &pexp->expr->patterns, list) {
+						/* this keyword only has one argument */
 						if (!check_group(expr->smp->arg_p->data.usr, pattern->pat.ptr.str)) {
 							Alert("proxy %s: acl %s %s(): invalid group '%s'.\n",
 							      p->id, acl->name, expr->kw, pattern->pat.ptr.str);

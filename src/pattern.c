@@ -1660,7 +1660,7 @@ int pat_ref_delete(struct pat_ref *ref, const char *key)
 	if (!found)
 		return 0;
 
-	list_for_each_entry(expr, &ref->pat, listr)
+	list_for_each_entry(expr, &ref->pat, list)
 		pattern_delete(key, expr, NULL);
 
 	return 1;
@@ -1691,7 +1691,7 @@ int pat_ref_set(struct pat_ref *ref, const char *key, const char *value)
 	if (!found)
 		return 0;
 
-	list_for_each_entry(expr, &ref->pat, listr) {
+	list_for_each_entry(expr, &ref->pat, list) {
 		smp = pattern_find_smp(key, expr, NULL);
 		if (smp && expr->pat_head->parse_smp)
 			if (!expr->pat_head->parse_smp(value, *smp))
@@ -1879,7 +1879,7 @@ int pat_ref_add(struct pat_ref *ref,
 
 	LIST_ADDQ(&ref->head, &elt->list);
 
-	list_for_each_entry(expr, &ref->pat, listr) {
+	list_for_each_entry(expr, &ref->pat, list) {
 		if (!pat_ref_push(elt, expr, 0, err)) {
 			/* Try to delete all the added entries. */
 			pat_ref_delete(ref, pattern);
@@ -1905,7 +1905,7 @@ void pat_ref_prune(struct pat_ref *ref)
 		free(elt);
 	}
 
-	list_for_each_entry(expr, &ref->pat, listr)
+	list_for_each_entry(expr, &ref->pat, list)
 		expr->pat_head->prune(expr);
 }
 
@@ -1933,11 +1933,11 @@ int pat_ref_load(struct pat_ref *ref, struct pattern_expr *expr,
 /* This function lookup for existing reference <ref> in pattern_head <head>. */
 struct pattern_expr *pattern_lookup_expr(struct pattern_head *head, struct pat_ref *ref)
 {
-	struct pattern_expr *expr;
+	struct pattern_expr_list *expr;
 
-	list_for_each_entry(expr, &head->head, listh)
-		if (expr->ref == ref)
-			return expr;
+	list_for_each_entry(expr, &head->head, list)
+		if (expr->expr->ref == ref)
+			return expr->expr;
 	return NULL;
 }
 
@@ -1949,27 +1949,69 @@ struct pattern_expr *pattern_lookup_expr(struct pattern_head *head, struct pat_r
 struct pattern_expr *pattern_new_expr(struct pattern_head *head, struct pat_ref *ref, char **err)
 {
 	struct pattern_expr *expr;
+	struct pattern_expr_list *list;
 
-	/* A lot of memory. */
-	expr = malloc(sizeof(*expr));
-	if (!expr) {
+	/* Memory and initialization of the chain element. */
+	list = malloc(sizeof(*list));
+	if (!list) {
 		memprintf(err, "out of memory");
 		return NULL;
 	}
 
-	pattern_init_expr(expr);
-
-	/* Link with the pattern_head. */
-	LIST_ADDQ(&head->head, &expr->listh);
-	expr->pat_head = head;
-
-	/* Link with ref, or to self to facilitate LIST_DEL() */
-	if (ref)
-		LIST_ADDQ(&ref->pat, &expr->listr);
+	/* Look for existing similar expr. No that only the index, parse and
+	 * parse_smp function must be identical for having similar pattern.
+	 * The other function depends of theses first.
+	 */
+	if (ref) {
+		list_for_each_entry(expr, &ref->pat, list)
+			if (expr->pat_head->index     == head->index &&
+			    expr->pat_head->parse     == head->parse &&
+			    expr->pat_head->parse_smp == head->parse_smp)
+				break;
+		if (&expr->list == &ref->pat)
+			expr = NULL;
+	}
 	else
-		LIST_INIT(&expr->listr);
+		expr = NULL;
 
-	expr->ref = ref;
+	/* If no similar expr was found, we create new expr. */
+	if (!expr) {
+		/* Get a lot of memory for the expr struct. */
+		expr = malloc(sizeof(*expr));
+		if (!expr) {
+			memprintf(err, "out of memory");
+			return NULL;
+		}
+
+		/* Initialize this new expr. */
+		pattern_init_expr(expr);
+
+		/* This new pattern expression reference one of his heads. */
+		expr->pat_head = head;
+
+		/* Link with ref, or to self to facilitate LIST_DEL() */
+		if (ref)
+			LIST_ADDQ(&ref->pat, &expr->list);
+		else
+			LIST_INIT(&expr->list);
+
+		expr->ref = ref;
+
+		/* We must free this pattern if it is no more used. */
+		list->do_free = 1;
+	}
+	else {
+		/* If the pattern used already exists, it is already linked
+		 * with ref and we must not free it.
+		 */
+		list->do_free = 0;
+	}
+
+	/* The new list element reference the pattern_expr. */
+	list->expr = expr;
+
+	/* Link the list element with the pattern_head. */
+	LIST_ADDQ(&head->head, &list->list);
 	return expr;
 }
 
@@ -2119,7 +2161,7 @@ int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
  */
 struct pattern *pattern_exec_match(struct pattern_head *head, struct sample *smp, int fill)
 {
-	struct pattern_expr *expr;
+	struct pattern_expr_list *list;
 	struct pattern *pat;
 
 	if (!head->match) {
@@ -2132,8 +2174,8 @@ struct pattern *pattern_exec_match(struct pattern_head *head, struct sample *smp
 		return &static_pattern;
 	}
 
-	list_for_each_entry(expr, &head->head, listh) {
-		pat = head->match(smp, expr, fill);
+	list_for_each_entry(list, &head->head, list) {
+		pat = head->match(smp, list->expr, fill);
 		if (pat)
 			return pat;
 	}
@@ -2143,13 +2185,16 @@ struct pattern *pattern_exec_match(struct pattern_head *head, struct sample *smp
 /* This function prune the pattern expression. */
 void pattern_prune(struct pattern_head *head)
 {
-	struct pattern_expr *expr, *safe;
+	struct pattern_expr_list *list, *safe;
 
-	list_for_each_entry_safe(expr, safe, &head->head, listh) {
-		LIST_DEL(&expr->listh);
-		LIST_DEL(&expr->listr);
-		head->prune(expr);
-		free(expr);
+	list_for_each_entry_safe(list, safe, &head->head, list) {
+		LIST_DEL(&list->list);
+		if (list->do_free) {
+			LIST_DEL(&list->expr->list);
+			head->prune(list->expr);
+			free(list->expr);
+		}
+		free(list);
 	}
 }
 

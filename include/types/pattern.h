@@ -178,13 +178,26 @@ struct pattern_list {
  * are grouped together in order to optimize caching.
  */
 struct pattern_expr {
-	struct list listh; /* Used for chaining pattern_expr in pattern_head. */
-	struct list listr; /* Used for chaining pattern_expr in pat_ref. */
+	struct list list; /* Used for chaining pattern_expr in pat_ref. */
 	struct pat_ref *ref; /* The pattern reference if exists. */
-	struct pattern_head *pat_head; /* Point to the pattern_head that contain manipulation functions. */
+	struct pattern_head *pat_head; /* Point to the pattern_head that contain manipulation functions.
+	                                * Note that this link point on compatible head but not on the real
+	                                * head. You can use only the function, and you must not use the
+	                                * "head". Dont write "(struct pattern_expr *)any->pat_head->expr".
+	                                */
 	struct list patterns;         /* list of acl_patterns */
 	struct eb_root pattern_tree;  /* may be used for lookup in large datasets */
 	struct eb_root pattern_tree_2;  /* may be used for different types */
+};
+
+/* This is a list of expression. A struct pattern_expr can be used by
+ * more than one "struct pattern_head". this intermediate struct
+ * permit more than one list.
+ */
+struct pattern_expr_list {
+	struct list list; /* Used for chaining pattern_expr in pattern_head. */
+	int do_free;
+	struct pattern_expr *expr; /* The used expr. */
 };
 
 /* This struct contain a list of pattern expr */
@@ -197,7 +210,7 @@ struct pattern_head {
 	void (*prune)(struct pattern_expr *);
 	struct pattern *(*match)(struct sample *, struct pattern_expr *, int);
 
-	struct list head;
+	struct list head; /* This is a list of struct pattern_expr_list. */
 };
 
 extern char *pat_match_names[PAT_MATCH_NUM];

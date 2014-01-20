@@ -989,8 +989,8 @@ static inline
 struct pattern_expr *pat_expr_get_next(struct pattern_expr *getnext, struct list *end)
 {
 	struct pattern_expr *expr;
-	expr = LIST_NEXT(&getnext->listr, struct pattern_expr *, listr);
-	if (&expr->listr == end)
+	expr = LIST_NEXT(&getnext->list, struct pattern_expr *, list);
+	if (&expr->list == end)
 		return NULL;
 	return expr;
 }
@@ -4807,7 +4807,7 @@ static int stats_map_lookup(struct stream_interface *si)
 	switch (appctx->st2) {
 	case STAT_ST_INIT:
 		/* Init to the first entry. The list cannot be change */
-		appctx->ctx.map.expr = LIST_ELEM(&appctx->ctx.map.ref->pat, struct pattern_expr *, listr);
+		appctx->ctx.map.expr = LIST_ELEM(&appctx->ctx.map.ref->pat, struct pattern_expr *, list);
 		appctx->ctx.map.expr = pat_expr_get_next(appctx->ctx.map.expr, &appctx->ctx.map.ref->pat);
 		appctx->st2 = STAT_ST_LIST;
 		/* fall through */
