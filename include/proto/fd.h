@@ -97,11 +97,11 @@ static inline void updt_fd(const int fd)
 /* allocate an entry for a speculative event. This can be done at any time. */
 static inline void alloc_spec_entry(const int fd)
 {
-	if (fdtab[fd].spec_p)
+	if (fdtab[fd].cache)
 		/* FD already in speculative I/O list */
 		return;
 	fd_nbspec++;
-	fdtab[fd].spec_p = fd_nbspec;
+	fdtab[fd].cache = fd_nbspec;
 	fd_spec[fd_nbspec-1] = fd;
 }
 
@@ -113,16 +113,16 @@ static inline void release_spec_entry(int fd)
 {
 	unsigned int pos;
 
-	pos = fdtab[fd].spec_p;
+	pos = fdtab[fd].cache;
 	if (!pos)
 		return;
-	fdtab[fd].spec_p = 0;
+	fdtab[fd].cache = 0;
 	fd_nbspec--;
 	if (likely(pos <= fd_nbspec)) {
 		/* was not the last entry */
 		fd = fd_spec[fd_nbspec];
 		fd_spec[pos - 1] = fd;
-		fdtab[fd].spec_p = pos;
+		fdtab[fd].cache = pos;
 	}
 }
 

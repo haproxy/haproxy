@@ -4529,7 +4529,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 			              conn->flags,
 			              conn->t.sock.fd,
 			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].state : 0,
-			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].spec_p : 0,
+			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].cache : 0,
 			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].updated : 0);
 		}
 		else if ((tmpctx = objt_appctx(sess->si[0].end)) != NULL) {
@@ -4557,7 +4557,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 			              conn->flags,
 			              conn->t.sock.fd,
 			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].state : 0,
-			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].spec_p : 0,
+			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].cache : 0,
 			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].updated : 0);
 		}
 		else if ((tmpctx = objt_appctx(sess->si[1].end)) != NULL) {

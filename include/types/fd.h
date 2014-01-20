@@ -69,8 +69,8 @@ enum {
 struct fdtab {
 	int (*iocb)(int fd);                 /* I/O handler, returns FD_WAIT_* */
 	void *owner;                         /* the connection or listener associated with this fd, NULL if closed */
-	unsigned int  spec_p;                /* speculative polling: position in spec list+1. 0=not in list. */
-	unsigned char state;                 /* FD state for read and write directions */
+	unsigned int  cache;                 /* position+1 in the FD cache. 0=not in cache. */
+	unsigned char state;                 /* FD state for read and write directions (4+4 bits) */
 	unsigned char ev;                    /* event seen in return of poll() : FD_POLL_* */
 	unsigned char new:1;                 /* 1 if this fd has just been created */
 	unsigned char updated:1;             /* 1 if this fd is already in the update list */
