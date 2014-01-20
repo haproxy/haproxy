@@ -632,6 +632,9 @@ int tcp_connect_probe(struct connection *conn)
 	if (!(conn->flags & CO_FL_WAIT_L4_CONN))
 		return 1; /* strange we were called while ready */
 
+	if (!fd_send_ready(fd))
+		return 0;
+
 	/* we might be the first witness of FD_POLL_ERR. Note that FD_POLL_HUP
 	 * without FD_POLL_IN also indicates a hangup without input data meaning
 	 * there was no connection.

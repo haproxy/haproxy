@@ -400,6 +400,9 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 	if (!conn_ctrl_ready(conn))
 		goto out_error;
 
+	if (!fd_send_ready(conn->t.sock.fd))
+		goto out_wait;
+
 	/* If we have a PROXY line to send, we'll use this to validate the
 	 * connection, in which case the connection is validated only once
 	 * we've sent the whole proxy line. Otherwise we use connect().

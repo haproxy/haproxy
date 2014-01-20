@@ -75,7 +75,10 @@ int raw_sock_to_pipe(struct connection *conn, struct pipe *pipe, unsigned int co
 	int retval = 0;
 
 
-	if (!(conn->flags & CO_FL_CTRL_READY))
+	if (!conn_ctrl_ready(conn))
+		return 0;
+
+	if (!fd_recv_ready(conn->t.sock.fd))
 		return 0;
 
 	errno = 0;
@@ -193,7 +196,10 @@ int raw_sock_from_pipe(struct connection *conn, struct pipe *pipe)
 {
 	int ret, done;
 
-	if (!(conn->flags & CO_FL_CTRL_READY))
+	if (!conn_ctrl_ready(conn))
+		return 0;
+
+	if (!fd_send_ready(conn->t.sock.fd))
 		return 0;
 
 	done = 0;
@@ -240,7 +246,10 @@ static int raw_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 	int ret, done = 0;
 	int try;
 
-	if (!(conn->flags & CO_FL_CTRL_READY))
+	if (!conn_ctrl_ready(conn))
+		return 0;
+
+	if (!fd_recv_ready(conn->t.sock.fd))
 		return 0;
 
 	errno = 0;
@@ -342,7 +351,10 @@ static int raw_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 {
 	int ret, try, done, send_flag;
 
-	if (!(conn->flags & CO_FL_CTRL_READY))
+	if (!conn_ctrl_ready(conn))
+		return 0;
+
+	if (!fd_send_ready(conn->t.sock.fd))
 		return 0;
 
 	done = 0;

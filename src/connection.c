@@ -120,7 +120,7 @@ int conn_fd_handler(int fd)
 	if (unlikely(conn->flags & (CO_FL_HANDSHAKE | CO_FL_ERROR)))
 		goto process_handshake;
 
-	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN) && fd_send_ready(conn->t.sock.fd)) {
+	if (unlikely(conn->flags & CO_FL_WAIT_L4_CONN)) {
 		/* still waiting for a connection to establish and nothing was
 		 * attempted yet to probe the connection. Then let's retry the
 		 * connect().
@@ -254,6 +254,9 @@ int conn_recv_proxy(struct connection *conn, int flag)
 
 	if (!(conn->flags & CO_FL_CTRL_READY))
 		goto fail;
+
+	if (!fd_recv_ready(conn->t.sock.fd))
+		return 0;
 
 	do {
 		trash.len = recv(conn->t.sock.fd, trash.str, trash.size, MSG_PEEK);
