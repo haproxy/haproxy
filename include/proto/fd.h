@@ -131,7 +131,7 @@ static inline void release_spec_entry(int fd)
  */
 static inline int fd_ev_is_set(const int fd, int dir)
 {
-	return ((unsigned)fdtab[fd].spec_e >> dir) & FD_EV_STATUS;
+	return ((unsigned)fdtab[fd].state >> dir) & FD_EV_STATUS;
 }
 
 /* Disable processing of events on fd <fd> for direction <dir>. Note: this
@@ -139,10 +139,10 @@ static inline int fd_ev_is_set(const int fd, int dir)
  */
 static inline void fd_ev_clr(const int fd, int dir)
 {
-	unsigned int i = ((unsigned int)fdtab[fd].spec_e) & (FD_EV_STATUS << dir);
+	unsigned int i = ((unsigned int)fdtab[fd].state) & (FD_EV_STATUS << dir);
 	if (i == 0)
 		return; /* already disabled */
-	fdtab[fd].spec_e ^= i;
+	fdtab[fd].state ^= i;
 	updt_fd(fd); /* need an update entry to change the state */
 }
 
@@ -151,10 +151,10 @@ static inline void fd_ev_clr(const int fd, int dir)
  */
 static inline void fd_ev_wai(const int fd, int dir)
 {
-	unsigned int i = ((unsigned int)fdtab[fd].spec_e) & (FD_EV_STATUS << dir);
+	unsigned int i = ((unsigned int)fdtab[fd].state) & (FD_EV_STATUS << dir);
 	if (i == (FD_EV_POLLED << dir))
 		return; /* already in desired state */
-	fdtab[fd].spec_e ^= i ^ (FD_EV_POLLED << dir);
+	fdtab[fd].state ^= i ^ (FD_EV_POLLED << dir);
 	updt_fd(fd); /* need an update entry to change the state */
 }
 
@@ -163,7 +163,7 @@ static inline void fd_ev_wai(const int fd, int dir)
  */
 static inline void fd_ev_set(int fd, int dir)
 {
-	unsigned int i = ((unsigned int)fdtab[fd].spec_e) & (FD_EV_STATUS << dir);
+	unsigned int i = ((unsigned int)fdtab[fd].state) & (FD_EV_STATUS << dir);
 
 	/* note that we don't care about disabling the polled state when
 	 * enabling the active state, since it brings no benefit but costs
@@ -171,17 +171,17 @@ static inline void fd_ev_set(int fd, int dir)
 	 */
 	if (i & (FD_EV_ACTIVE << dir))
 		return; /* already in desired state */
-	fdtab[fd].spec_e |= (FD_EV_ACTIVE << dir);
+	fdtab[fd].state |= (FD_EV_ACTIVE << dir);
 	updt_fd(fd); /* need an update entry to change the state */
 }
 
 /* Disable processing of events on fd <fd> for both directions. */
 static inline void fd_ev_rem(const int fd)
 {
-	unsigned int i = ((unsigned int)fdtab[fd].spec_e) & FD_EV_CURR_MASK;
+	unsigned int i = ((unsigned int)fdtab[fd].state) & FD_EV_CURR_MASK;
 	if (i == 0)
 		return; /* already disabled */
-	fdtab[fd].spec_e ^= i;
+	fdtab[fd].state ^= i;
 	updt_fd(fd); /* need an update entry to change the state */
 }
 

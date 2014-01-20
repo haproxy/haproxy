@@ -53,8 +53,8 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	/* first, scan the update list to find changes */
 	for (updt_idx = 0; updt_idx < fd_nbupdt; updt_idx++) {
 		fd = fd_updt[updt_idx];
-		en = fdtab[fd].spec_e & 15;  /* new events */
-		eo = fdtab[fd].spec_e >> 4;  /* previous events */
+		en = fdtab[fd].state & 15;  /* new events */
+		eo = fdtab[fd].state >> 4;  /* previous events */
 
 		if (fdtab[fd].owner && (eo ^ en)) {
 			if ((eo ^ en) & FD_EV_POLLED_RW) {
@@ -70,7 +70,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 					FD_SET(fd, fd_evts[DIR_WR]);
 			}
 
-			fdtab[fd].spec_e = (en << 4) + en;  /* save new events */
+			fdtab[fd].state = (en << 4) + en;  /* save new events */
 
 			if (!(en & FD_EV_ACTIVE_RW)) {
 				/* This fd doesn't use any active entry anymore, we can

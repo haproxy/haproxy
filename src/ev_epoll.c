@@ -59,8 +59,8 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	/* first, scan the update list to find changes */
 	for (updt_idx = 0; updt_idx < fd_nbupdt; updt_idx++) {
 		fd = fd_updt[updt_idx];
-		en = fdtab[fd].spec_e & 15;  /* new events */
-		eo = fdtab[fd].spec_e >> 4;  /* previous events */
+		en = fdtab[fd].state & 15;  /* new events */
+		eo = fdtab[fd].state >> 4;  /* previous events */
 
 		if (fdtab[fd].owner && (eo ^ en)) {
 			if ((eo ^ en) & FD_EV_POLLED_RW) {
@@ -90,7 +90,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 				epoll_ctl(epoll_fd, opcode, fd, &ev);
 			}
 
-			fdtab[fd].spec_e = (en << 4) + en;  /* save new events */
+			fdtab[fd].state = (en << 4) + en;  /* save new events */
 
 			if (!(en & FD_EV_ACTIVE_RW)) {
 				/* This fd doesn't use any active entry anymore, we can
@@ -213,10 +213,10 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 				fdtab[fd].new = 0;
 				fdtab[fd].ev &= FD_POLL_STICKY;
 
-				if ((fdtab[fd].spec_e & FD_EV_STATUS_R) == FD_EV_ACTIVE_R)
+				if ((fdtab[fd].state & FD_EV_STATUS_R) == FD_EV_ACTIVE_R)
 					fdtab[fd].ev |= FD_POLL_IN;
 
-				if ((fdtab[fd].spec_e & FD_EV_STATUS_W) == FD_EV_ACTIVE_W)
+				if ((fdtab[fd].state & FD_EV_STATUS_W) == FD_EV_ACTIVE_W)
 					fdtab[fd].ev |= FD_POLL_OUT;
 
 				if (fdtab[fd].ev && fdtab[fd].iocb && fdtab[fd].owner)
@@ -225,7 +225,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 				/* we can remove this update entry if it's the last one and is
 				 * unused, otherwise we don't touch anything.
 				 */
-				if (new_updt == fd_nbupdt && fdtab[fd].spec_e == 0) {
+				if (new_updt == fd_nbupdt && fdtab[fd].state == 0) {
 					fdtab[fd].updated = 0;
 					fd_nbupdt--;
 				}

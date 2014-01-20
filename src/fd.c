@@ -77,7 +77,7 @@
  * reference is always valid unless the FD if currently being polled and not
  * updated (in which case the reference points to index 0).
  *
- * We store the FD state in the 4 lower bits of fdtab[fd].spec_e, and save the
+ * We store the FD state in the 4 lower bits of fdtab[fd].state, and save the
  * previous state upon changes in the 4 higher bits, so that changes are easy
  * to spot.
  */
@@ -125,7 +125,7 @@ void fd_delete(int fd)
 		cur_poller.clo(fd);
 
 	release_spec_entry(fd);
-	fdtab[fd].spec_e &= ~(FD_EV_CURR_MASK | FD_EV_PREV_MASK);
+	fdtab[fd].state &= ~(FD_EV_CURR_MASK | FD_EV_PREV_MASK);
 
 	port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
 	fdinfo[fd].port_range = NULL;
@@ -148,7 +148,7 @@ void fd_process_spec_events()
 
 	for (spec_idx = 0; spec_idx < fd_nbspec; ) {
 		fd = fd_spec[spec_idx];
-		e = fdtab[fd].spec_e;
+		e = fdtab[fd].state;
 
 		/*
 		 * Process the speculative events.

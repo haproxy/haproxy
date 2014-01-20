@@ -46,7 +46,7 @@ enum {
 #define FD_POLL_STICKY  (FD_POLL_ERR | FD_POLL_HUP)
 
 /* Event state for an FD in each direction, as found in the 4 lower bits of
- * fdtab[].spec_e, and in the 4 next bits.
+ * fdtab[].state, and in the 4 next bits.
  */
 #define FD_EV_ACTIVE    1U
 #define FD_EV_POLLED    4U
@@ -70,7 +70,7 @@ struct fdtab {
 	int (*iocb)(int fd);                 /* I/O handler, returns FD_WAIT_* */
 	void *owner;                         /* the connection or listener associated with this fd, NULL if closed */
 	unsigned int  spec_p;                /* speculative polling: position in spec list+1. 0=not in list. */
-	unsigned char spec_e;                /* speculative polling: read and write events status. 4 bits */
+	unsigned char state;                 /* FD state for read and write directions */
 	unsigned char ev;                    /* event seen in return of poll() : FD_POLL_* */
 	unsigned char new:1;                 /* 1 if this fd has just been created */
 	unsigned char updated:1;             /* 1 if this fd is already in the update list */

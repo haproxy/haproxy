@@ -4528,7 +4528,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 			              "      flags=0x%08x fd=%d fd_spec_e=%02x fd_spec_p=%d updt=%d\n",
 			              conn->flags,
 			              conn->t.sock.fd,
-			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].spec_e : 0,
+			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].state : 0,
 			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].spec_p : 0,
 			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].updated : 0);
 		}
@@ -4556,7 +4556,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 			              "      flags=0x%08x fd=%d fd_spec_e=%02x fd_spec_p=%d updt=%d\n",
 			              conn->flags,
 			              conn->t.sock.fd,
-			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].spec_e : 0,
+			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].state : 0,
 			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].spec_p : 0,
 			              conn->t.sock.fd >= 0 ? fdtab[conn->t.sock.fd].updated : 0);
 		}
