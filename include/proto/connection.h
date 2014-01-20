@@ -560,6 +560,40 @@ static inline void conn_attach(struct connection *conn, void *owner, const struc
 	conn->owner = owner;
 }
 
+/* Drains possibly pending incoming data on the file descriptor attached to the
+ * connection and update the connection's flags accordingly. This is used to
+ * know whether we need to disable lingering on close. Returns non-zero if it
+ * is safe to close without disabling lingering, otherwise zero. The SOCK_RD_SH
+ * flag may also be updated if the incoming shutdown was reported by the drain()
+ * function.
+ */
+static inline int conn_drain(struct connection *conn)
+{
+	int ret;
+
+	if (!conn_ctrl_ready(conn))
+		return 1;
+
+	if (conn->flags & CO_FL_SOCK_RD_SH)
+		return 1;
+
+	if (conn->flags & CO_FL_WAIT_RD)
+		return 0;
+
+	if (!conn->ctrl->drain)
+		return 0;
+
+	ret = conn->ctrl->drain(conn->t.sock.fd);
+	if (ret < 0)
+		__conn_data_poll_recv(conn);
+
+	if (ret <= 0)
+		return 0;
+
+	conn->flags |= CO_FL_SOCK_RD_SH;
+	return 1;
+}
+
 /* returns a human-readable error code for conn->err_code, or NULL if the code
  * is unknown.
  */
