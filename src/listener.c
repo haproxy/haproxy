@@ -324,10 +324,11 @@ void listener_accept(int fd)
 		if (unlikely(cfd == -1)) {
 			switch (errno) {
 			case EAGAIN:
-			case EINTR:
-			case ECONNABORTED:
 				fd_poll_recv(fd);
 				return;   /* nothing more to accept */
+			case EINTR:
+			case ECONNABORTED:
+				continue;
 			case ENFILE:
 				if (p)
 					send_log(p, LOG_EMERG,
@@ -354,8 +355,7 @@ void listener_accept(int fd)
 				task_schedule(global_listener_queue_task, tick_add(now_ms, 100)); /* try again in 100 ms */
 				return;
 			default:
-				/* unexpected result, let's go back to poll */
-				fd_poll_recv(fd);
+				/* unexpected result, let's give up and let other tasks run */
 				return;
 			}
 		}
