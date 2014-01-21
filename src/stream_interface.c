@@ -980,15 +980,13 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 		return;
 	}
 
+	/* Before calling the data-level operations, we have to prepare
+	 * the polling flags to ensure we properly detect changes.
+	 */
+	conn_refresh_polling_flags(conn);
+	__conn_data_want_send(conn);
+
 	if (!(conn->flags & (CO_FL_HANDSHAKE|CO_FL_WAIT_L4_CONN|CO_FL_WAIT_L6_CONN))) {
-		/* Before calling the data-level operations, we have to prepare
-		 * the polling flags to ensure we properly detect changes.
-		 */
-		if (conn_ctrl_ready(conn))
-			fd_want_send(conn->t.sock.fd);
-
-		conn_refresh_polling_flags(conn);
-
 		si_conn_send(conn);
 		if (conn_ctrl_ready(conn) && (conn->flags & CO_FL_ERROR)) {
 			/* Write error on the file descriptor */
