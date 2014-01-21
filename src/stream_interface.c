@@ -988,9 +988,8 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 
 	if (!(conn->flags & (CO_FL_HANDSHAKE|CO_FL_WAIT_L4_CONN|CO_FL_WAIT_L6_CONN))) {
 		si_conn_send(conn);
-		if (conn_ctrl_ready(conn) && (conn->flags & CO_FL_ERROR)) {
+		if (conn->flags & CO_FL_ERROR) {
 			/* Write error on the file descriptor */
-			fd_stop_both(conn->t.sock.fd);
 			__conn_data_stop_both(conn);
 			si->flags |= SI_FL_ERR;
 			goto out_wakeup;
