@@ -445,12 +445,18 @@ int pat_parse_bin(const char **text, struct pattern *pattern, enum pat_usage usa
 	pattern->expect_type = SMP_T_CBIN;
 
 	if (usage == PAT_U_COMPILE)
-		return parse_binary(*text, &pattern->ptr.str, &pattern->len, err);
+		/* If the parse_binary fails, it returns 0. In succes case, it returns
+		 * the length of the arsed binary content. The function pat_parse_* 
+		 * must return 0 if fail and the number of elements eated from **text
+		 * if not fail. In succes case, this function eat always 1 elements.
+		 * The double operator "!" converts the range "1-n" to "1".
+		 */
+		return !!parse_binary(*text, &pattern->ptr.str, &pattern->len, err);
 
 	trash = get_trash_chunk();
 	pattern->len = trash->size;
 	pattern->ptr.str = trash->str;
-	return parse_binary(*text, &pattern->ptr.str, &pattern->len, err);
+	return !!parse_binary(*text, &pattern->ptr.str, &pattern->len, err);
 }
 
 /* Parse and concatenate all further strings into one. */
