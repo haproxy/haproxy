@@ -1360,7 +1360,7 @@ const char *parse_size_err(const char *text, unsigned *ret) {
  * Parse binary string written in hexadecimal (source) and store the decoded
  * result into binstr and set binstrlen to the lengh of binstr. Memory for
  * binstr is allocated by the function. In case of error, returns 0 with an
- * error message in err.
+ * error message in err. In succes case, it returns the consumed length.
  */
 int parse_binary(const char *source, char **binstr, int *binstrlen, char **err)
 {
@@ -1403,7 +1403,7 @@ int parse_binary(const char *source, char **binstr, int *binstrlen, char **err)
 			goto bad_input;
 		(*binstr)[j++] =  (hex2i(p[i-2]) << 4) + hex2i(p[i-1]);
 	}
-	return len;
+	return len << 1;
 
 bad_input:
 	memprintf(err, "an hex digit is expected (found '%c')", p[i-1]);
