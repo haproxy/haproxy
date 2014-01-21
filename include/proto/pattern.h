@@ -70,18 +70,6 @@ enum pat_match_res pattern_exec_match(struct pattern_expr *expr, struct sample *
 /* ignore the current line */
 int pat_parse_nothing(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err);
 
-/* NB: For two strings to be identical, it is required that their lengths match */
-enum pat_match_res pat_match_str(struct sample *smp, struct pattern *pattern);
-
-/* NB: For two binary buffers to be identical, it is required that their lengths match */
-enum pat_match_res pat_match_bin(struct sample *smp, struct pattern *pattern);
-
-/* Checks that the length of the pattern in <test> is included between min and max */
-enum pat_match_res pat_match_len(struct sample *smp, struct pattern *pattern);
-
-/* Checks that the integer in <test> is included between min and max */
-enum pat_match_res pat_match_int(struct sample *smp, struct pattern *pattern);
-
 /* Parse an integer. It is put both in min and max. */
 int pat_parse_int(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err);
 
@@ -114,6 +102,18 @@ int pat_parse_reg(const char **text, struct pattern *pattern, enum pat_usage usa
  * otherwise 0.
  */
 int pat_parse_ip(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err);
+
+/* NB: For two strings to be identical, it is required that their lengths match */
+enum pat_match_res pat_match_str(struct sample *smp, struct pattern *pattern);
+
+/* NB: For two binary buffers to be identical, it is required that their lengths match */
+enum pat_match_res pat_match_bin(struct sample *smp, struct pattern *pattern);
+
+/* Checks that the length of the pattern in <test> is included between min and max */
+enum pat_match_res pat_match_len(struct sample *smp, struct pattern *pattern);
+
+/* Checks that the integer in <test> is included between min and max */
+enum pat_match_res pat_match_int(struct sample *smp, struct pattern *pattern);
 
 /* always return false */
 enum pat_match_res pat_match_nothing(struct sample *smp, struct pattern *pattern);

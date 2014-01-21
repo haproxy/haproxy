@@ -90,46 +90,30 @@ int pat_match_types[PAT_MATCH_NUM] = {
 };
 
 /*
- * These functions are exported and may be used by any other component.
+ *
+ * The following functions are not exported and are used by internals process
+ * of pattern matching
+ *
  */
 
-/* ignore the current line */
-int pat_parse_nothing(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err)
+/* Lookup an IPv4 address in the expression's pattern tree using the longest
+ * match method. The node is returned if it exists, otherwise NULL.
+ */
+static void *pat_lookup_ip(struct sample *smp, struct pattern_expr *expr)
 {
-	return 1;
-}
+	struct in_addr *s;
 
-/* always return false */
-enum pat_match_res pat_match_nothing(struct sample *smp, struct pattern *pattern)
-{
-	return PAT_NOMATCH;
-}
-
-
-/* NB: For two strings to be identical, it is required that their lengths match */
-enum pat_match_res pat_match_str(struct sample *smp, struct pattern *pattern)
-{
-	int icase;
-
-	if (pattern->len != smp->data.str.len)
+	if (smp->type != SMP_T_IPV4)
 		return PAT_NOMATCH;
 
-	icase = pattern->flags & PAT_F_IGNORE_CASE;
-	if ((icase && strncasecmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) == 0) ||
-	    (!icase && strncmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) == 0))
-		return PAT_MATCH;
-	return PAT_NOMATCH;
+	s = &smp->data.ipv4;
+	return ebmb_lookup_longest(&expr->pattern_tree, &s->s_addr);
 }
 
-/* NB: For two binaries buf to be identical, it is required that their lengths match */
-enum pat_match_res pat_match_bin(struct sample *smp, struct pattern *pattern)
+/* Free data allocated by pat_parse_reg */
+static void pat_free_reg(void *ptr)
 {
-	if (pattern->len != smp->data.str.len)
-		return PAT_NOMATCH;
-
-	if (memcmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) == 0)
-		return PAT_MATCH;
-	return PAT_NOMATCH;
+	regex_free(ptr);
 }
 
 /* Lookup a string in the expression's pattern tree. The node is returned if it
@@ -149,77 +133,6 @@ static void *pat_lookup_str(struct sample *smp, struct pattern_expr *expr)
 	if (prev)
 		smp->data.str.str[smp->data.str.len] = prev;
 	return node;
-}
-
-/* Executes a regex. It temporarily changes the data to add a trailing zero,
- * and restores the previous character when leaving.
- */
-enum pat_match_res pat_match_reg(struct sample *smp, struct pattern *pattern)
-{
-	if (regex_exec(pattern->ptr.reg, smp->data.str.str, smp->data.str.len) == 0)
-		return PAT_MATCH;
-	return PAT_NOMATCH;
-}
-
-/* Checks that the pattern matches the beginning of the tested string. */
-enum pat_match_res pat_match_beg(struct sample *smp, struct pattern *pattern)
-{
-	int icase;
-
-	if (pattern->len > smp->data.str.len)
-		return PAT_NOMATCH;
-
-	icase = pattern->flags & PAT_F_IGNORE_CASE;
-	if ((icase && strncasecmp(pattern->ptr.str, smp->data.str.str, pattern->len) != 0) ||
-	    (!icase && strncmp(pattern->ptr.str, smp->data.str.str, pattern->len) != 0))
-		return PAT_NOMATCH;
-	return PAT_MATCH;
-}
-
-/* Checks that the pattern matches the end of the tested string. */
-enum pat_match_res pat_match_end(struct sample *smp, struct pattern *pattern)
-{
-	int icase;
-
-	if (pattern->len > smp->data.str.len)
-		return PAT_NOMATCH;
-	icase = pattern->flags & PAT_F_IGNORE_CASE;
-	if ((icase && strncasecmp(pattern->ptr.str, smp->data.str.str + smp->data.str.len - pattern->len, pattern->len) != 0) ||
-	    (!icase && strncmp(pattern->ptr.str, smp->data.str.str + smp->data.str.len - pattern->len, pattern->len) != 0))
-		return PAT_NOMATCH;
-	return PAT_MATCH;
-}
-
-/* Checks that the pattern is included inside the tested string.
- * NB: Suboptimal, should be rewritten using a Boyer-Moore method.
- */
-enum pat_match_res pat_match_sub(struct sample *smp, struct pattern *pattern)
-{
-	int icase;
-	char *end;
-	char *c;
-
-	if (pattern->len > smp->data.str.len)
-		return PAT_NOMATCH;
-
-	end = smp->data.str.str + smp->data.str.len - pattern->len;
-	icase = pattern->flags & PAT_F_IGNORE_CASE;
-	if (icase) {
-		for (c = smp->data.str.str; c <= end; c++) {
-			if (tolower(*c) != tolower(*pattern->ptr.str))
-				continue;
-			if (strncasecmp(pattern->ptr.str, c, pattern->len) == 0)
-				return PAT_MATCH;
-		}
-	} else {
-		for (c = smp->data.str.str; c <= end; c++) {
-			if (*c != *pattern->ptr.str)
-				continue;
-			if (strncmp(pattern->ptr.str, c, pattern->len) == 0)
-				return PAT_MATCH;
-		}
-	}
-	return PAT_NOMATCH;
 }
 
 /* Background: Fast way to find a zero byte in a word
@@ -244,178 +157,48 @@ static inline unsigned int make_4delim(unsigned char d1, unsigned char d2, unsig
 	return d1 << 24 | d2 << 16 | d3 << 8 | d4;
 }
 
-/* This one is used by other real functions. It checks that the pattern is
- * included inside the tested string, but enclosed between the specified
- * delimiters or at the beginning or end of the string. The delimiters are
- * provided as an unsigned int made by make_4delim() and match up to 4 different
- * delimiters. Delimiters are stripped at the beginning and end of the pattern.
+
+/*
+ *
+ * These functions are exported and may be used by any other component.
+ *
+ * The following functions are used for parsing pattern matching
+ * input value. The <text> contain a list of word. The last entry
+ * must be one NULL character. the <text> contain the string to be
+ * parsed. <pattern> must be a preallocated pattern. The pat_parse_*
+ * functions fill this structure with the parsed value. <usage> can
+ * be PAT_U_COMPILE or PAT_U_LOOKUP. If the value PAT_U_COMPILE is
+ * used memory is allocated for filling the pattern. If the value
+ * PAT_U_LOOKUP is set, the parser use "trash" or return pointers
+ * to the input strings. In both cases, the caller must use the
+ * value PAT_U_LOOKUP with caution. <opaque> is used to pass value
+ * between two calls to the parser. the interger must ben initilized
+ * to 0 (see note below). <err> is filled with an error message built
+ * with memprintf() function.
+ *
+ * In succes case, the pat_parse_* function return the number of
+ * <text> eated. If the function fail, it returns 0 and <err> is
+ * filled.
+ *
+ * NOTE: <opaque>iIt is used with integer range parser. The following 
+ * configuration line is processed with this method:
+ *
+ *    acl ... -m int eq 10 20
+ *
+ * The first call to the parser eat 2 elements: "eq" and "10". The
+ * pattern is filled with "eq 10" content. The <opaque> contain
+ * coded value value that represent "eq".
+ *
+ * The second call to the parser just eat 1 element: "20". The opaque
+ * contain the value of the operator. The parser returns pattern filled
+ * with "eq 20".
+ *
  */
-static int match_word(struct sample *smp, struct pattern *pattern, unsigned int delimiters)
+
+/* ignore the current line */
+int pat_parse_nothing(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err)
 {
-	int may_match, icase;
-	char *c, *end;
-	char *ps;
-	int pl;
-
-	pl = pattern->len;
-	ps = pattern->ptr.str;
-
-	while (pl > 0 && is_delimiter(*ps, delimiters)) {
-		pl--;
-		ps++;
-	}
-
-	while (pl > 0 && is_delimiter(ps[pl - 1], delimiters))
-		pl--;
-
-	if (pl > smp->data.str.len)
-		return PAT_NOMATCH;
-
-	may_match = 1;
-	icase = pattern->flags & PAT_F_IGNORE_CASE;
-	end = smp->data.str.str + smp->data.str.len - pl;
-	for (c = smp->data.str.str; c <= end; c++) {
-		if (is_delimiter(*c, delimiters)) {
-			may_match = 1;
-			continue;
-		}
-
-		if (!may_match)
-			continue;
-
-		if (icase) {
-			if ((tolower(*c) == tolower(*ps)) &&
-			    (strncasecmp(ps, c, pl) == 0) &&
-			    (c == end || is_delimiter(c[pl], delimiters)))
-				return PAT_MATCH;
-		} else {
-			if ((*c == *ps) &&
-			    (strncmp(ps, c, pl) == 0) &&
-			    (c == end || is_delimiter(c[pl], delimiters)))
-				return PAT_MATCH;
-		}
-		may_match = 0;
-	}
-	return PAT_NOMATCH;
-}
-
-/* Checks that the pattern is included inside the tested string, but enclosed
- * between the delimiters '?' or '/' or at the beginning or end of the string.
- * Delimiters at the beginning or end of the pattern are ignored.
- */
-enum pat_match_res pat_match_dir(struct sample *smp, struct pattern *pattern)
-{
-	return match_word(smp, pattern, make_4delim('/', '?', '?', '?'));
-}
-
-/* Checks that the pattern is included inside the tested string, but enclosed
- * between the delmiters '/', '?', '.' or ":" or at the beginning or end of
- * the string. Delimiters at the beginning or end of the pattern are ignored.
- */
-enum pat_match_res pat_match_dom(struct sample *smp, struct pattern *pattern)
-{
-	return match_word(smp, pattern, make_4delim('/', '?', '.', ':'));
-}
-
-/* Checks that the integer in <test> is included between min and max */
-enum pat_match_res pat_match_int(struct sample *smp, struct pattern *pattern)
-{
-	if ((!pattern->val.range.min_set || pattern->val.range.min <= smp->data.uint) &&
-	    (!pattern->val.range.max_set || smp->data.uint <= pattern->val.range.max))
-		return PAT_MATCH;
-	return PAT_NOMATCH;
-}
-
-/* Checks that the length of the pattern in <test> is included between min and max */
-enum pat_match_res pat_match_len(struct sample *smp, struct pattern *pattern)
-{
-	if ((!pattern->val.range.min_set || pattern->val.range.min <= smp->data.str.len) &&
-	    (!pattern->val.range.max_set || smp->data.str.len <= pattern->val.range.max))
-		return PAT_MATCH;
-	return PAT_NOMATCH;
-}
-
-enum pat_match_res pat_match_ip(struct sample *smp, struct pattern *pattern)
-{
-	unsigned int v4; /* in network byte order */
-	struct in6_addr *v6;
-	int bits, pos;
-	struct in6_addr tmp6;
-
-	if (pattern->type == SMP_T_IPV4) {
-		if (smp->type == SMP_T_IPV4) {
-			v4 = smp->data.ipv4.s_addr;
-		}
-		else if (smp->type == SMP_T_IPV6) {
-			/* v4 match on a V6 sample. We want to check at least for
-			 * the following forms :
-			 *   - ::ffff:ip:v4 (ipv4 mapped)
-			 *   - ::0000:ip:v4 (old ipv4 mapped)
-			 *   - 2002:ip:v4:: (6to4)
-			 */
-			if (*(uint32_t*)&smp->data.ipv6.s6_addr[0] == 0 &&
-			    *(uint32_t*)&smp->data.ipv6.s6_addr[4]  == 0 &&
-			    (*(uint32_t*)&smp->data.ipv6.s6_addr[8] == 0 ||
-			     *(uint32_t*)&smp->data.ipv6.s6_addr[8] == htonl(0xFFFF))) {
-				v4 = *(uint32_t*)&smp->data.ipv6.s6_addr[12];
-			}
-			else if (*(uint16_t*)&smp->data.ipv6.s6_addr[0] == htons(0x2002)) {
-				v4 = htonl((ntohs(*(uint16_t*)&smp->data.ipv6.s6_addr[2]) << 16) +
-				            ntohs(*(uint16_t*)&smp->data.ipv6.s6_addr[4]));
-			}
-			else
-				return PAT_NOMATCH;
-		}
-		else
-			return PAT_NOMATCH;
-
-		if (((v4 ^ pattern->val.ipv4.addr.s_addr) & pattern->val.ipv4.mask.s_addr) == 0)
-			return PAT_MATCH;
-		else
-			return PAT_NOMATCH;
-	}
-	else if (pattern->type == SMP_T_IPV6) {
-		if (smp->type == SMP_T_IPV4) {
-			/* Convert the IPv4 sample address to IPv4 with the
-			 * mapping method using the ::ffff: prefix.
-			 */
-			memset(&tmp6, 0, 10);
-			*(uint16_t*)&tmp6.s6_addr[10] = htons(0xffff);
-			*(uint32_t*)&tmp6.s6_addr[12] = smp->data.ipv4.s_addr;
-			v6 = &tmp6;
-		}
-		else if (smp->type == SMP_T_IPV6) {
-			v6 = &smp->data.ipv6;
-		}
-		else {
-			return PAT_NOMATCH;
-		}
-
-		bits = pattern->val.ipv6.mask;
-		for (pos = 0; bits > 0; pos += 4, bits -= 32) {
-			v4 = *(uint32_t*)&v6->s6_addr[pos] ^ *(uint32_t*)&pattern->val.ipv6.addr.s6_addr[pos];
-			if (bits < 32)
-				v4 &= htonl((~0U) << (32-bits));
-			if (v4)
-				return PAT_NOMATCH;
-		}
-		return PAT_MATCH;
-	}
-	return PAT_NOMATCH;
-}
-
-/* Lookup an IPv4 address in the expression's pattern tree using the longest
- * match method. The node is returned if it exists, otherwise NULL.
- */
-static void *pat_lookup_ip(struct sample *smp, struct pattern_expr *expr)
-{
-	struct in_addr *s;
-
-	if (smp->type != SMP_T_IPV4)
-		return PAT_NOMATCH;
-
-	s = &smp->data.ipv4;
-	return ebmb_lookup_longest(&expr->pattern_tree, &s->s_addr);
+	return 1;
 }
 
 /* Parse a string. It is allocated and duplicated. */
@@ -446,7 +229,7 @@ int pat_parse_bin(const char **text, struct pattern *pattern, enum pat_usage usa
 
 	if (usage == PAT_U_COMPILE)
 		/* If the parse_binary fails, it returns 0. In succes case, it returns
-		 * the length of the arsed binary content. The function pat_parse_* 
+		 * the length of the arsed binary content. The functions pat_parse_* 
 		 * must return 0 if fail and the number of elements eated from **text
 		 * if not fail. In succes case, this function eat always 1 elements.
 		 * The double operator "!" converts the range "1-n" to "1".
@@ -496,12 +279,6 @@ pat_parse_strcat(const char **text, struct pattern *pattern, enum pat_usage usag
 	pattern->len = len;
 
 	return i;
-}
-
-/* Free data allocated by pat_parse_reg */
-static void pat_free_reg(void *ptr)
-{
-	regex_free(ptr);
 }
 
 /* Parse a regex. It is allocated. */
@@ -766,6 +543,280 @@ int pat_parse_ip(const char **text, struct pattern *pattern, enum pat_usage usag
 		memprintf(err, "'%s' is not a valid IPv4 or IPv6 address", *text);
 		return 0;
 	}
+}
+
+/*
+ *
+ * These functions are exported and may be used by any other component.
+ *
+ * This fucntion just take a sample <smp> and check if this sample match
+ * with the pattern <pattern>. This fucntion return just PAT_MATCH or
+ * PAT_NOMATCH.
+ *
+ */
+
+/* always return false */
+enum pat_match_res pat_match_nothing(struct sample *smp, struct pattern *pattern)
+{
+	return PAT_NOMATCH;
+}
+
+
+/* NB: For two strings to be identical, it is required that their lengths match */
+enum pat_match_res pat_match_str(struct sample *smp, struct pattern *pattern)
+{
+	int icase;
+
+	if (pattern->len != smp->data.str.len)
+		return PAT_NOMATCH;
+
+	icase = pattern->flags & PAT_F_IGNORE_CASE;
+	if ((icase && strncasecmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) == 0) ||
+	    (!icase && strncmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) == 0))
+		return PAT_MATCH;
+	return PAT_NOMATCH;
+}
+
+/* NB: For two binaries buf to be identical, it is required that their lengths match */
+enum pat_match_res pat_match_bin(struct sample *smp, struct pattern *pattern)
+{
+	if (pattern->len != smp->data.str.len)
+		return PAT_NOMATCH;
+
+	if (memcmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) == 0)
+		return PAT_MATCH;
+	return PAT_NOMATCH;
+}
+
+/* Executes a regex. It temporarily changes the data to add a trailing zero,
+ * and restores the previous character when leaving.
+ */
+enum pat_match_res pat_match_reg(struct sample *smp, struct pattern *pattern)
+{
+	if (regex_exec(pattern->ptr.reg, smp->data.str.str, smp->data.str.len) == 0)
+		return PAT_MATCH;
+	return PAT_NOMATCH;
+}
+
+/* Checks that the pattern matches the beginning of the tested string. */
+enum pat_match_res pat_match_beg(struct sample *smp, struct pattern *pattern)
+{
+	int icase;
+
+	if (pattern->len > smp->data.str.len)
+		return PAT_NOMATCH;
+
+	icase = pattern->flags & PAT_F_IGNORE_CASE;
+	if ((icase && strncasecmp(pattern->ptr.str, smp->data.str.str, pattern->len) != 0) ||
+	    (!icase && strncmp(pattern->ptr.str, smp->data.str.str, pattern->len) != 0))
+		return PAT_NOMATCH;
+	return PAT_MATCH;
+}
+
+/* Checks that the pattern matches the end of the tested string. */
+enum pat_match_res pat_match_end(struct sample *smp, struct pattern *pattern)
+{
+	int icase;
+
+	if (pattern->len > smp->data.str.len)
+		return PAT_NOMATCH;
+	icase = pattern->flags & PAT_F_IGNORE_CASE;
+	if ((icase && strncasecmp(pattern->ptr.str, smp->data.str.str + smp->data.str.len - pattern->len, pattern->len) != 0) ||
+	    (!icase && strncmp(pattern->ptr.str, smp->data.str.str + smp->data.str.len - pattern->len, pattern->len) != 0))
+		return PAT_NOMATCH;
+	return PAT_MATCH;
+}
+
+/* Checks that the pattern is included inside the tested string.
+ * NB: Suboptimal, should be rewritten using a Boyer-Moore method.
+ */
+enum pat_match_res pat_match_sub(struct sample *smp, struct pattern *pattern)
+{
+	int icase;
+	char *end;
+	char *c;
+
+	if (pattern->len > smp->data.str.len)
+		return PAT_NOMATCH;
+
+	end = smp->data.str.str + smp->data.str.len - pattern->len;
+	icase = pattern->flags & PAT_F_IGNORE_CASE;
+	if (icase) {
+		for (c = smp->data.str.str; c <= end; c++) {
+			if (tolower(*c) != tolower(*pattern->ptr.str))
+				continue;
+			if (strncasecmp(pattern->ptr.str, c, pattern->len) == 0)
+				return PAT_MATCH;
+		}
+	} else {
+		for (c = smp->data.str.str; c <= end; c++) {
+			if (*c != *pattern->ptr.str)
+				continue;
+			if (strncmp(pattern->ptr.str, c, pattern->len) == 0)
+				return PAT_MATCH;
+		}
+	}
+	return PAT_NOMATCH;
+}
+
+/* This one is used by other real functions. It checks that the pattern is
+ * included inside the tested string, but enclosed between the specified
+ * delimiters or at the beginning or end of the string. The delimiters are
+ * provided as an unsigned int made by make_4delim() and match up to 4 different
+ * delimiters. Delimiters are stripped at the beginning and end of the pattern.
+ */
+static int match_word(struct sample *smp, struct pattern *pattern, unsigned int delimiters)
+{
+	int may_match, icase;
+	char *c, *end;
+	char *ps;
+	int pl;
+
+	pl = pattern->len;
+	ps = pattern->ptr.str;
+
+	while (pl > 0 && is_delimiter(*ps, delimiters)) {
+		pl--;
+		ps++;
+	}
+
+	while (pl > 0 && is_delimiter(ps[pl - 1], delimiters))
+		pl--;
+
+	if (pl > smp->data.str.len)
+		return PAT_NOMATCH;
+
+	may_match = 1;
+	icase = pattern->flags & PAT_F_IGNORE_CASE;
+	end = smp->data.str.str + smp->data.str.len - pl;
+	for (c = smp->data.str.str; c <= end; c++) {
+		if (is_delimiter(*c, delimiters)) {
+			may_match = 1;
+			continue;
+		}
+
+		if (!may_match)
+			continue;
+
+		if (icase) {
+			if ((tolower(*c) == tolower(*ps)) &&
+			    (strncasecmp(ps, c, pl) == 0) &&
+			    (c == end || is_delimiter(c[pl], delimiters)))
+				return PAT_MATCH;
+		} else {
+			if ((*c == *ps) &&
+			    (strncmp(ps, c, pl) == 0) &&
+			    (c == end || is_delimiter(c[pl], delimiters)))
+				return PAT_MATCH;
+		}
+		may_match = 0;
+	}
+	return PAT_NOMATCH;
+}
+
+/* Checks that the pattern is included inside the tested string, but enclosed
+ * between the delimiters '?' or '/' or at the beginning or end of the string.
+ * Delimiters at the beginning or end of the pattern are ignored.
+ */
+enum pat_match_res pat_match_dir(struct sample *smp, struct pattern *pattern)
+{
+	return match_word(smp, pattern, make_4delim('/', '?', '?', '?'));
+}
+
+/* Checks that the pattern is included inside the tested string, but enclosed
+ * between the delmiters '/', '?', '.' or ":" or at the beginning or end of
+ * the string. Delimiters at the beginning or end of the pattern are ignored.
+ */
+enum pat_match_res pat_match_dom(struct sample *smp, struct pattern *pattern)
+{
+	return match_word(smp, pattern, make_4delim('/', '?', '.', ':'));
+}
+
+/* Checks that the integer in <test> is included between min and max */
+enum pat_match_res pat_match_int(struct sample *smp, struct pattern *pattern)
+{
+	if ((!pattern->val.range.min_set || pattern->val.range.min <= smp->data.uint) &&
+	    (!pattern->val.range.max_set || smp->data.uint <= pattern->val.range.max))
+		return PAT_MATCH;
+	return PAT_NOMATCH;
+}
+
+/* Checks that the length of the pattern in <test> is included between min and max */
+enum pat_match_res pat_match_len(struct sample *smp, struct pattern *pattern)
+{
+	if ((!pattern->val.range.min_set || pattern->val.range.min <= smp->data.str.len) &&
+	    (!pattern->val.range.max_set || smp->data.str.len <= pattern->val.range.max))
+		return PAT_MATCH;
+	return PAT_NOMATCH;
+}
+
+enum pat_match_res pat_match_ip(struct sample *smp, struct pattern *pattern)
+{
+	unsigned int v4; /* in network byte order */
+	struct in6_addr *v6;
+	int bits, pos;
+	struct in6_addr tmp6;
+
+	if (pattern->type == SMP_T_IPV4) {
+		if (smp->type == SMP_T_IPV4) {
+			v4 = smp->data.ipv4.s_addr;
+		}
+		else if (smp->type == SMP_T_IPV6) {
+			/* v4 match on a V6 sample. We want to check at least for
+			 * the following forms :
+			 *   - ::ffff:ip:v4 (ipv4 mapped)
+			 *   - ::0000:ip:v4 (old ipv4 mapped)
+			 *   - 2002:ip:v4:: (6to4)
+			 */
+			if (*(uint32_t*)&smp->data.ipv6.s6_addr[0] == 0 &&
+			    *(uint32_t*)&smp->data.ipv6.s6_addr[4]  == 0 &&
+			    (*(uint32_t*)&smp->data.ipv6.s6_addr[8] == 0 ||
+			     *(uint32_t*)&smp->data.ipv6.s6_addr[8] == htonl(0xFFFF))) {
+				v4 = *(uint32_t*)&smp->data.ipv6.s6_addr[12];
+			}
+			else if (*(uint16_t*)&smp->data.ipv6.s6_addr[0] == htons(0x2002)) {
+				v4 = htonl((ntohs(*(uint16_t*)&smp->data.ipv6.s6_addr[2]) << 16) +
+				            ntohs(*(uint16_t*)&smp->data.ipv6.s6_addr[4]));
+			}
+			else
+				return PAT_NOMATCH;
+		}
+		else
+			return PAT_NOMATCH;
+
+		if (((v4 ^ pattern->val.ipv4.addr.s_addr) & pattern->val.ipv4.mask.s_addr) == 0)
+			return PAT_MATCH;
+		else
+			return PAT_NOMATCH;
+	}
+	else if (pattern->type == SMP_T_IPV6) {
+		if (smp->type == SMP_T_IPV4) {
+			/* Convert the IPv4 sample address to IPv4 with the
+			 * mapping method using the ::ffff: prefix.
+			 */
+			memset(&tmp6, 0, 10);
+			*(uint16_t*)&tmp6.s6_addr[10] = htons(0xffff);
+			*(uint32_t*)&tmp6.s6_addr[12] = smp->data.ipv4.s_addr;
+			v6 = &tmp6;
+		}
+		else if (smp->type == SMP_T_IPV6) {
+			v6 = &smp->data.ipv6;
+		}
+		else {
+			return PAT_NOMATCH;
+		}
+
+		bits = pattern->val.ipv6.mask;
+		for (pos = 0; bits > 0; pos += 4, bits -= 32) {
+			v4 = *(uint32_t*)&v6->s6_addr[pos] ^ *(uint32_t*)&pattern->val.ipv6.addr.s6_addr[pos];
+			if (bits < 32)
+				v4 &= htonl((~0U) << (32-bits));
+			if (v4)
+				return PAT_NOMATCH;
+		}
+		return PAT_MATCH;
+	}
+	return PAT_NOMATCH;
 }
 
 /* NB: does nothing if <pat> is NULL */
