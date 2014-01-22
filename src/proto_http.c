@@ -1361,6 +1361,9 @@ const char *http_parse_reqline(struct http_msg *msg,
  * have the credentials overwritten by another session in parallel.
  */
 
+/* This bufffer is initialized in the file 'src/haproxy.c'. This length is
+ * set according to global.tune.bufsize.
+ */
 char *get_http_auth_buff;
 
 int
@@ -9630,7 +9633,7 @@ smp_fetch_http_auth(struct proxy *px, struct session *l4, void *l7, unsigned int
 		return 0;
 
 	smp->type = SMP_T_BOOL;
-	smp->data.uint = check_user(args->data.usr, 0, l4->txn.auth.user, l4->txn.auth.pass);
+	smp->data.uint = check_user(args->data.usr, l4->txn.auth.user, l4->txn.auth.pass);
 	return 1;
 }
 
@@ -9648,20 +9651,19 @@ smp_fetch_http_auth_grp(struct proxy *px, struct session *l4, void *l7, unsigned
 	if (!get_http_auth(l4))
 		return 0;
 
-	/* pat_match_auth() will need several information at once */
-	smp->ctx.a[0] = args->data.usr;      /* user list */
-	smp->ctx.a[1] = l4->txn.auth.user;   /* user name */
-	smp->ctx.a[2] = l4->txn.auth.pass;   /* password */
-
 	/* if the user does not belong to the userlist or has a wrong password,
 	 * report that it unconditionally does not match. Otherwise we return
-	 * a non-zero integer which will be ignored anyway since all the params
-	 * that pat_match_auth() will use are in test->ctx.a[0,1,2].
+	 * a string containing the username.
 	 */
-	smp->type = SMP_T_BOOL;
-	smp->data.uint = check_user(args->data.usr, 0, l4->txn.auth.user, l4->txn.auth.pass);
-	if (smp->data.uint)
-		smp->type = SMP_T_UINT;
+	if (!check_user(args->data.usr, l4->txn.auth.user, l4->txn.auth.pass))
+		return 0;
+
+	/* pat_match_auth() will need the user list */
+	smp->ctx.a[0] = args->data.usr;
+
+	smp->type = SMP_T_CSTR;
+	smp->data.str.str = l4->txn.auth.user;
+	smp->data.str.len = strlen(l4->txn.auth.user);
 
 	return 1;
 }
@@ -10371,7 +10373,7 @@ static struct acl_kw_list acl_kws = {ILH, {
 	{ "hdr_reg",         "req.hdr",       pat_parse_reg,     pat_match_reg     },
 	{ "hdr_sub",         "req.hdr",       pat_parse_str,     pat_match_sub     },
 
-	{ "http_auth_group", NULL,            pat_parse_strcat,  pat_match_auth    },
+	{ "http_auth_group", NULL,            pat_parse_str,     pat_match_auth    },
 
 	{ "method",          NULL,            pat_parse_meth,    pat_match_meth    },
 
@@ -10461,7 +10463,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "hdr_val",         smp_fetch_hdr_val,        ARG2(0,STR,SINT), val_hdr, SMP_T_UINT, SMP_USE_HRQHV },
 
 	{ "http_auth",       smp_fetch_http_auth,      ARG1(1,USR),      NULL,    SMP_T_BOOL, SMP_USE_HRQHV },
-	{ "http_auth_group", smp_fetch_http_auth_grp,  ARG1(1,USR),      NULL,    SMP_T_BOOL, SMP_USE_HRQHV },
+	{ "http_auth_group", smp_fetch_http_auth_grp,  ARG1(1,USR),      NULL,    SMP_T_CSTR, SMP_USE_HRQHV },
 	{ "http_first_req",  smp_fetch_http_first_req, 0,                NULL,    SMP_T_BOOL, SMP_USE_HRQHP },
 	{ "method",          smp_fetch_meth,           0,                NULL,    SMP_T_UINT, SMP_USE_HRQHP },
 	{ "path",            smp_fetch_path,           0,                NULL,    SMP_T_CSTR, SMP_USE_HRQHV },

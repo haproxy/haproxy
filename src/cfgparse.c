@@ -6248,10 +6248,8 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		newul->groupusers = calloc(MAX_AUTH_GROUPS, sizeof(char *));
 		newul->name = strdup(args[1]);
-
-		if (!newul->groupusers | !newul->name) {
+		if (!newul->name) {
 			Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
@@ -6261,8 +6259,9 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 		userlist = newul;
 
 	} else if (!strcmp(args[0], "group")) {  	/* new group */
-		int cur_arg, i;
+		int cur_arg;
 		const char *err;
+		struct auth_groups *ag;
 
 		if (!*args[1]) {
 			Alert("parsing [%s:%d]: '%s' expects <name> as arguments.\n",
@@ -6279,18 +6278,25 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		for(i = 0; i < userlist->grpcnt; i++)
-			if (!strcmp(userlist->groups[i], args[1])) {
+		for (ag = userlist->groups; ag; ag = ag->next)
+			if (!strcmp(ag->name, args[1])) {
 				Warning("parsing [%s:%d]: ignoring duplicated group '%s' in userlist '%s'.\n",
 				      file, linenum, args[1], userlist->name);
 				err_code |= ERR_ALERT;
 				goto out;
 			}
 
-		if (userlist->grpcnt >= MAX_AUTH_GROUPS) {
-			Alert("parsing [%s:%d]: too many groups (%u) in in userlist '%s' while adding group '%s'.\n",
-			      file, linenum, MAX_AUTH_GROUPS, userlist->name, args[1]);
-			err_code |= ERR_ALERT | ERR_FATAL;
+		ag = calloc(1, sizeof(*ag));
+		if (!ag) {
+			Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		ag->name = strdup(args[1]);
+		if (!ag) {
+			Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
 
@@ -6298,7 +6304,7 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 
 		while (*args[cur_arg]) {
 			if (!strcmp(args[cur_arg], "users")) {
-				userlist->groupusers[userlist->grpcnt] = strdup(args[cur_arg + 1]);
+				ag->groupusers = strdup(args[cur_arg + 1]);
 				cur_arg += 2;
 				continue;
 			} else {
@@ -6309,7 +6315,9 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 
-		userlist->groups[userlist->grpcnt++] = strdup(args[1]);
+		ag->next = userlist->groups;
+		userlist->groups = ag;
+
 	} else if (!strcmp(args[0], "user")) {		/* new user */
 		struct auth_users *newuser;
 		int cur_arg;
@@ -6359,7 +6367,7 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 				cur_arg += 2;
 				continue;
 			} else if (!strcmp(args[cur_arg], "groups")) {
-				newuser->u.groups = strdup(args[cur_arg + 1]);
+				newuser->u.groups_names = strdup(args[cur_arg + 1]);
 				cur_arg += 2;
 				continue;
 			} else {
@@ -6602,7 +6610,6 @@ int check_config_validity()
 	int cfgerr = 0;
 	struct proxy *curproxy = NULL;
 	struct server *newsrv = NULL;
-	struct userlist *curuserlist = NULL;
 	int err_code = 0;
 	unsigned int next_pxid = 1;
 	struct bind_conf *bind_conf;
@@ -6622,6 +6629,11 @@ int check_config_validity()
 		global.tune.cookie_len = CAPTURE_LEN;
 
 	pool2_capture = create_pool("capture", global.tune.cookie_len, MEM_F_SHARED);
+
+	/* Post initialisation of the users and groups lists. */
+	err_code = userlist_postinit();
+	if (err_code != ERR_NONE)
+		goto out;
 
 	/* first, we will invert the proxy list order */
 	curproxy = NULL;
@@ -7091,7 +7103,9 @@ out_uri_auth_compat:
 			curproxy->conf.args.line = 0;
 		}
 
-		/* only now we can check if some args remain unresolved */
+		/* only now we can check if some args remain unresolved.
+		 * This must be done after the users and groups resolution.
+		 */
 		cfgerr += smp_resolve_args(curproxy);
 		if (!cfgerr)
 			cfgerr += acl_find_targets(curproxy);
@@ -7678,78 +7692,6 @@ out_uri_auth_compat:
 		if (global.stats_fe && !global.stats_fe->bind_proc) {
 			Warning("stats socket will not work as expected in multi-process mode (nbproc > 1), you should force process binding using 'stats bind-process'.\n");
 		}
-	}
-
-	for (curuserlist = userlist; curuserlist; curuserlist = curuserlist->next) {
-		struct auth_users *curuser;
-		int g;
-
-		for (curuser = curuserlist->users; curuser; curuser = curuser->next) {
-			unsigned int group_mask = 0;
-			char *group = NULL;
-
-			if (!curuser->u.groups)
-				continue;
-
-			while ((group = strtok(group?NULL:curuser->u.groups, ","))) {
-
-				for (g = 0; g < curuserlist->grpcnt; g++)
-					if (!strcmp(curuserlist->groups[g], group))
-						break;
-
-				if (g == curuserlist->grpcnt) {
-					Alert("userlist '%s': no such group '%s' specified in user '%s'\n",
-					      curuserlist->name, group, curuser->user);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				group_mask |= (1 << g);
-			}
-
-			free(curuser->u.groups);
-			curuser->u.group_mask = group_mask;
-		}
-
-		for (g = 0; g < curuserlist->grpcnt; g++) {
-			char *user = NULL;
-
-			if (!curuserlist->groupusers[g])
-				continue;
-
-			while ((user = strtok(user?NULL:curuserlist->groupusers[g], ","))) {
-				for (curuser = curuserlist->users; curuser; curuser = curuser->next)
-					if (!strcmp(curuser->user, user))
-						break;
-
-				if (!curuser) {
-					Alert("userlist '%s': no such user '%s' specified in group '%s'\n",
-					      curuserlist->name, user, curuserlist->groups[g]);
-					err_code |= ERR_ALERT | ERR_FATAL;
-					goto out;
-				}
-
-				curuser->u.group_mask |= (1 << g);
-			}
-
-			free(curuserlist->groupusers[g]);
-		}
-
-		free(curuserlist->groupusers);
-
-#ifdef DEBUG_AUTH
-		for (g = 0; g < curuserlist->grpcnt; g++) {
-			fprintf(stderr, "group %s, id %d, mask %08X, users:", curuserlist->groups[g], g , 1 << g);
-
-			for (curuser = curuserlist->users; curuser; curuser = curuser->next) {
-				if (curuser->u.group_mask & (1 << g))
-					fprintf(stderr, " %s", curuser->user);
-			}
-
-			fprintf(stderr, "\n");
-		}
-#endif
-
 	}
 
 	/* automatically compute fullconn if not set. We must not do it in the

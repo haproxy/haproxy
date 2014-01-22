@@ -242,45 +242,6 @@ int pat_parse_bin(const char **text, struct pattern *pattern, enum pat_usage usa
 	return !!parse_binary(*text, &pattern->ptr.str, &pattern->len, err);
 }
 
-/* Parse and concatenate all further strings into one. */
-int
-pat_parse_strcat(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err)
-{
-	int len = 0, i;
-	char *s;
-	struct chunk *trash;
-
-	for (i = 0; *text[i]; i++)
-		len += strlen(text[i])+1;
-
-	pattern->type = SMP_T_CSTR;
-	if (usage == PAT_U_COMPILE) {
-		pattern->ptr.str = calloc(1, len);
-		if (!pattern->ptr.str) {
-			memprintf(err, "out of memory while loading pattern");
-			return 0;
-		}
-	}
-	else {
-		trash = get_trash_chunk();
-		if (trash->size < len) {
-			memprintf(err, "no space avalaible in the buffer. expect %d, provides %d",
-			          len, trash->size);
-			return 0;
-		}
-		pattern->ptr.str = trash->str;
-	}
-
-	s = pattern->ptr.str;
-
-	for (i = 0; *text[i]; i++)
-		s += sprintf(s, i?" %s":"%s", text[i]);
-
-	pattern->len = len;
-
-	return i;
-}
-
 /* Parse a regex. It is allocated. */
 int pat_parse_reg(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err)
 {

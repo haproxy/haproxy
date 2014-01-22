@@ -1053,18 +1053,13 @@ int acl_find_targets(struct proxy *p)
 					continue;
 				}
 
+				/* For each pattern, check if the group exists. */
 				list_for_each_entry(pattern, &expr->pat.patterns, list) {
-					/* this keyword only has one argument */
-					pattern->val.group_mask = auth_resolve_groups(expr->smp->arg_p->data.usr, pattern->ptr.str);
-
-					if (!pattern->val.group_mask) {
+					if (!check_group(expr->smp->arg_p->data.usr, pattern->ptr.str)) {
 						Alert("proxy %s: acl %s %s(): invalid group '%s'.\n",
 						      p->id, acl->name, expr->kw, pattern->ptr.str);
 						cfgerr++;
 					}
-					free(pattern->ptr.str);
-					pattern->ptr.str = NULL;
-					pattern->len = 0;
 				}
 			}
 		}

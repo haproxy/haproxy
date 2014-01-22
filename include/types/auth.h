@@ -18,17 +18,26 @@
 
 #include <types/auth.h>
 
-#define MAX_AUTH_GROUPS (unsigned int)(sizeof(int)*8)
-
 #define AU_O_INSECURE	0x00000001		/* insecure, unencrypted password */
+
+struct auth_groups {
+	struct auth_groups *next;
+	char *name;
+	char *groupusers; /* Just used during the configuration parsing. */
+};
+
+struct auth_groups_list {
+	struct auth_groups_list *next;
+	struct auth_groups *group;
+};
 
 struct auth_users {
 	struct auth_users *next;
 	unsigned int flags;
 	char *user, *pass;
 	union {
-		char *groups;
-		unsigned int group_mask;
+		char *groups_names; /* Just used during the configuration parsing. */
+		struct auth_groups_list *groups;
 	} u;
 };
 
@@ -36,9 +45,7 @@ struct userlist {
 	struct userlist *next;
 	char *name;
 	struct auth_users *users;
-	int grpcnt;
-	char *groups[MAX_AUTH_GROUPS];
-	char **groupusers;
+	struct auth_groups *groups;
 };
 
 #endif /* _TYPES_AUTH_H */

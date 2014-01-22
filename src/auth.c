@@ -26,6 +26,7 @@
 #include <unistd.h>
 
 #include <common/config.h>
+#include <common/errors.h>
 
 #include <proto/acl.h>
 #include <proto/log.h>
@@ -54,36 +55,14 @@ auth_find_userlist(char *name)
 	return NULL;
 }
 
-/* find group_mask for selected gropus. The function returns 1 if OK or nothing to do,
- * 0 if case of unresolved groupname.
- * WARING: the function destroys the list (strtok), so it can only be used once.
- */
-
-unsigned int
-auth_resolve_groups(struct userlist *l, char *groups)
+int check_group(struct userlist *ul, char *name)
 {
+	struct auth_groups *ag;
 
-	char *group = NULL;
-	unsigned int g, group_mask = 0;
-
-	if (!groups || !*groups)
-		return 0;
-
-	while ((group = strtok(group?NULL:groups," "))) {
-		for (g = 0; g < l->grpcnt; g++)
-			if (!strcmp(l->groups[g], group))
-				break;
-
-		if (g == l->grpcnt) {
-			Alert("No such group '%s' in userlist '%s'.\n",
-				group, l->name);
-			return 0;
-		}
-
-		group_mask |= (1 << g);
-	}
-
-	return group_mask;
+	for (ag = ul->groups; ag; ag = ag->next)
+		if (strcmp(name, ag->name) == 0)
+			return 1;
+	return 0;
 }
 
 void
@@ -91,11 +70,21 @@ userlist_free(struct userlist *ul)
 {
 	struct userlist *tul;
 	struct auth_users *au, *tau;
-	int i;
+	struct auth_groups_list *agl, *tagl;
+	struct auth_groups *ag, *tag;
 
 	while (ul) {
+		/* Free users. */
 		au = ul->users;
 		while (au) {
+			/* Free groups that own current user. */
+			agl = au->u.groups;
+			while (agl) {
+				tagl = agl;
+				agl = agl->next;
+				free(tagl);
+			}
+
 			tau = au;
 			au = au->next;
 			free(tau->user);
@@ -103,30 +92,135 @@ userlist_free(struct userlist *ul)
 			free(tau);
 		}
 
+		/* Free grouplist. */
+		ag = ul->groups;
+		while (ag) {
+			tag = ag;
+			ag = ag->next;
+			free(tag->name);
+			free(tag);
+		}
+
 		tul = ul;
 		ul = ul->next;
-
-		for (i = 0; i < tul->grpcnt; i++)
-			free(tul->groups[i]);
-
 		free(tul->name);
 		free(tul);
 	};
+}
+
+int userlist_postinit()
+{
+	struct userlist *curuserlist = NULL;
+
+	/* Resolve usernames and groupnames. */
+	for (curuserlist = userlist; curuserlist; curuserlist = curuserlist->next) {
+		struct auth_groups *ag;
+		struct auth_users *curuser;
+		struct auth_groups_list *grl;
+
+		for (curuser = curuserlist->users; curuser; curuser = curuser->next) {
+			char *group = NULL;
+			struct auth_groups_list *groups = NULL;
+
+			if (!curuser->u.groups_names)
+				continue;
+
+			while ((group = strtok(group?NULL:curuser->u.groups_names, ","))) {
+				for (ag = curuserlist->groups; ag; ag = ag->next) {
+					if (!strcmp(ag->name, group))
+						break;
+				}
+
+				if (!ag) {
+					Alert("userlist '%s': no such group '%s' specified in user '%s'\n",
+					      curuserlist->name, group, curuser->user);
+					return ERR_ALERT | ERR_FATAL;
+				}
+
+				/* Add this group at the group userlist. */
+				grl = calloc(1, sizeof(*grl));
+				if (!grl) {
+					Alert("userlist '%s': no more memory when trying to allocate the user groups.\n",
+					      curuserlist->name);
+					return  ERR_ALERT | ERR_FATAL;
+				}
+
+				grl->group = ag;
+				grl->next = groups;
+				groups = grl;
+			}
+
+			free(curuser->u.groups);
+			curuser->u.groups = groups;
+		}
+
+		for (ag = curuserlist->groups; ag; ag = ag->next) {
+			char *user = NULL;
+
+			if (!ag->groupusers)
+				continue;
+
+			while ((user = strtok(user?NULL:ag->groupusers, ","))) {
+				for (curuser = curuserlist->users; curuser; curuser = curuser->next) {
+					if (!strcmp(curuser->user, user))
+						break;
+				}
+
+				if (!curuser) {
+					Alert("userlist '%s': no such user '%s' specified in group '%s'\n",
+					      curuserlist->name, user, ag->name);
+					return ERR_ALERT | ERR_FATAL;
+				}
+
+				/* Add this group at the group userlist. */
+				grl = calloc(1, sizeof(*grl));
+				if (!grl) {
+					Alert("userlist '%s': no more memory when trying to allocate the user groups.\n",
+					      curuserlist->name);
+					return  ERR_ALERT | ERR_FATAL;
+				}
+
+				grl->group = ag;
+				grl->next = curuser->u.groups;
+				curuser->u.groups = grl;
+			}
+
+			free(ag->groupusers);
+			ag->groupusers = NULL;
+		}
+
+#ifdef DEBUG_AUTH
+		for (ag = curuserlist->groups; ag; ag = ag->next) {
+			struct auth_groups_list *agl;
+
+			fprintf(stderr, "group %s, id %p, users:", ag->name, ag);
+			for (curuser = curuserlist->users; curuser; curuser = curuser->next) {
+				for (agl = curuser->u.groups; agl; agl = agl->next) {
+					if (agl->group == ag)
+						fprintf(stderr, " %s", curuser->user);
+				}
+			}
+			fprintf(stderr, "\n");
+		}
+#endif
+	}
+
+	return ERR_NONE;
 }
 
 /*
  * Authenticate and authorize user; return 1 if OK, 0 if case of error.
  */
 int
-check_user(struct userlist *ul, unsigned int group_mask, const char *user, const char *pass)
+check_user(struct userlist *ul, const char *user, const char *pass)
 {
 
 	struct auth_users *u;
 	const char *ep;
 
 #ifdef DEBUG_AUTH
-	fprintf(stderr, "req: userlist=%s, user=%s, pass=%s, group_mask=%u\n",
-		ul->name, user, pass, group_mask);
+	fprintf(stderr, "req: userlist=%s, user=%s, pass=%s, group=%s\n",
+		ul->name, user, pass, group);
 #endif
 
 	for (u = ul->users; u; u = u->next)
@@ -137,16 +231,11 @@ check_user(struct userlist *ul, unsigned int group_mask, const char *user, const
 		return 0;
 
 #ifdef DEBUG_AUTH
-	fprintf(stderr, "cfg: user=%s, pass=%s, group_mask=%u, flags=%X",
-		u->user, u->pass, u->u.group_mask, u->flags);
+	fprintf(stderr, "cfg: user=%s, pass=%s, flags=%X, groups=",
+		u->user, u->pass, u->flags);
+	for (agl = u->u.groups; agl; agl = agl->next)
+		fprintf(stderr, " %s", agl->group->name);
 #endif
-
-	/*
-	 * if user matches but group does not,
-	 * it makes no sens to check passwords
-	 */
-	if (group_mask && !(group_mask & u->u.group_mask))
-		return 0;
 
 	if (!(u->flags & AU_O_INSECURE)) {
 #ifdef CONFIG_HAP_CRYPT
@@ -170,14 +259,28 @@ check_user(struct userlist *ul, unsigned int group_mask, const char *user, const
 enum pat_match_res
 pat_match_auth(struct sample *smp, struct pattern *pattern)
 {
-
 	struct userlist *ul = smp->ctx.a[0];
-	char *user = smp->ctx.a[1];
-	char *pass = smp->ctx.a[2];
-	unsigned int group_mask = pattern->val.group_mask;
+	struct auth_users *u;
+	struct auth_groups_list *agl;
 
-	if (check_user(ul, group_mask, user, pass))
-		return PAT_MATCH;
-	else
+	/* Check if the userlist is present in the context data. */
+	if (!ul)
 		return PAT_NOMATCH;
+
+	/* Browse the userlist for searching user. */
+	for (u = ul->users; u; u = u->next) {
+		if (strcmp(smp->data.str.str, u->user) == 0)
+			break;
+	}
+	if (!u)
+		return 0;
+
+	/* Browse each group for searching group name that match the pattern. */
+	for (agl = u->u.groups; agl; agl = agl->next) {
+		if (strcmp(agl->group->name, pattern->ptr.str) == 0)
+			break;
+	}
+	if (!agl)
+		return PAT_NOMATCH;
+	return PAT_MATCH;
 }

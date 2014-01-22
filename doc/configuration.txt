@@ -10750,15 +10750,19 @@ http_auth(<userlist>) : boolean
   fetch function is not really useful outside of ACLs. Currently only http
   basic auth is supported.
 
-http_auth_group(<userlist>) : group
-  Returns a boolean indicating whether the authentication data received from
-  the client match a username & password stored in the specified userlist, and
-  whether that username belongs to one of the groups supplied in ACL patterns.
+http_auth_group(<userlist>) : string
+  Returns a string corresponding to the user name found in the authentication
+  data received from the client if both the user name and password are valid
+  according to the specified userlist. The main purpose is to use it in ACLs
+  where it is then checked whether the user belongs to any group within a list.
   This fetch function is not really useful outside of ACLs. Currently only http
   basic auth is supported.
 
   ACL derivatives :
-    http_auth_group(<userlist>) : user group match
+    http_auth_group(<userlist>) : group ...
+    Returns true when the user extracted from the request and whose password is
+    valid according to the specified userlist belongs to at least one of the
+    groups.
 
 http_first_req : boolean
   Returns true when the request being processed is the first one of the

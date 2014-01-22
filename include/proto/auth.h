@@ -20,9 +20,11 @@ extern struct userlist *userlist;
 
 struct userlist *auth_find_userlist(char *name);
 unsigned int auth_resolve_groups(struct userlist *l, char *groups);
+int userlist_postinit();
 void userlist_free(struct userlist *ul);
 enum pat_match_res pat_match_auth(struct sample *smp, struct pattern *pattern);
-int check_user(struct userlist *ul, unsigned int group_mask, const char *user, const char *pass);
+int check_user(struct userlist *ul, const char *user, const char *pass);
+int check_group(struct userlist *ul, char *name);
 
 #endif /* _PROTO_AUTH_H */
 

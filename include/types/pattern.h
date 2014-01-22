@@ -138,7 +138,6 @@ struct pattern {
 			unsigned char mask;     /* number of bits */
 		} ipv6;                         /* IPv6 address/mask */
 		struct pat_time time;           /* valid hours and days */
-		unsigned int group_mask;
 		struct eb_root *tree;           /* tree storing all values if any */
 	} val;                                  /* direct value */
 	union {
