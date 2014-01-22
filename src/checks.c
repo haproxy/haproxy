@@ -934,7 +934,7 @@ static void event_srv_chk_w(struct connection *conn)
 	if (unlikely(check->result == CHK_RES_FAILED))
 		goto out_wakeup;
 
-	if (conn->flags & (CO_FL_HANDSHAKE | CO_FL_WAIT_WR))
+	if (conn->flags & CO_FL_HANDSHAKE)
 		return;
 
 	if (retrieve_errno_from_socket(conn)) {
@@ -1011,7 +1011,7 @@ static void event_srv_chk_r(struct connection *conn)
 	if (unlikely(check->result == CHK_RES_FAILED))
 		goto out_wakeup;
 
-	if (conn->flags & (CO_FL_HANDSHAKE | CO_FL_WAIT_RD))
+	if (conn->flags & CO_FL_HANDSHAKE)
 		return;
 
 	if (check->type == PR_O2_TCPCHK_CHK) {
@@ -2006,8 +2006,7 @@ static void tcpcheck_main(struct connection *conn)
 		     check->current_step->action != TCPCHK_ACT_SEND ||
 		     check->current_step->string_len >= buffer_total_space(check->bo))) {
 
-			if ((conn->flags & CO_FL_WAIT_WR) ||
-			    conn->xprt->snd_buf(conn, check->bo, MSG_DONTWAIT | MSG_NOSIGNAL) <= 0) {
+			if (conn->xprt->snd_buf(conn, check->bo, MSG_DONTWAIT | MSG_NOSIGNAL) <= 0) {
 				if (conn->flags & CO_FL_ERROR) {
 					chk_report_conn_err(conn, errno, 0);
 					__conn_data_stop_both(conn);
@@ -2060,8 +2059,7 @@ static void tcpcheck_main(struct connection *conn)
 			if (unlikely(check->result == CHK_RES_FAILED))
 				goto out_end_tcpcheck;
 
-			if ((conn->flags & CO_FL_WAIT_RD) ||
-			    conn->xprt->rcv_buf(conn, check->bi, check->bi->size) <= 0) {
+			if (conn->xprt->rcv_buf(conn, check->bi, check->bi->size) <= 0) {
 				if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_DATA_RD_SH)) {
 					done = 1;
 					if ((conn->flags & CO_FL_ERROR) && !check->bi->i) {

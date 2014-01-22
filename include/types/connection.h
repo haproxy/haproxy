@@ -75,12 +75,12 @@ enum {
 	CO_FL_SOCK_RD_ENA   = 0x00000001,  /* receiving handshakes is allowed */
 	CO_FL_DATA_RD_ENA   = 0x00000002,  /* receiving data is allowed */
 	CO_FL_CURR_RD_ENA   = 0x00000004,  /* receiving is currently allowed */
-	CO_FL_WAIT_RD       = 0x00000008,  /* receiving needs to poll first */
+	/* unused : 0x00000008 */
 
 	CO_FL_SOCK_WR_ENA   = 0x00000010,  /* sending handshakes is desired */
 	CO_FL_DATA_WR_ENA   = 0x00000020,  /* sending data is desired */
 	CO_FL_CURR_WR_ENA   = 0x00000040,  /* sending is currently desired */
-	CO_FL_WAIT_WR       = 0x00000080,  /* sending needs to poll first */
+	/* unused : 0x00000080 */
 
 	/* These flags indicate whether the Control and Transport layers are initialized */
 	CO_FL_CTRL_READY    = 0x00000100, /* FD was registered, fd_delete() needed */
