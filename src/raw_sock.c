@@ -145,7 +145,7 @@ int raw_sock_to_pipe(struct connection *conn, struct pipe *pipe, unsigned int co
 #ifndef ASSUME_SPLICE_WORKS
 				if (splice_detects_close)
 #endif
-					__conn_data_poll_recv(conn); /* we know for sure that it's EAGAIN */
+					fd_cant_recv(conn->t.sock.fd); /* we know for sure that it's EAGAIN */
 				break;
 			}
 			else if (errno == ENOSYS || errno == EINVAL || errno == EBADF) {
@@ -203,7 +203,7 @@ int raw_sock_from_pipe(struct connection *conn, struct pipe *pipe)
 
 		if (ret <= 0) {
 			if (ret == 0 || errno == EAGAIN) {
-				__conn_data_poll_send(conn);
+				fd_cant_send(conn->t.sock.fd);
 				break;
 			}
 			else if (errno == EINTR)
@@ -298,7 +298,7 @@ static int raw_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 			goto read0;
 		}
 		else if (errno == EAGAIN) {
-			__conn_data_poll_recv(conn);
+			fd_cant_recv(conn->t.sock.fd);
 			break;
 		}
 		else if (errno != EINTR) {
@@ -376,7 +376,7 @@ static int raw_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 		}
 		else if (ret == 0 || errno == EAGAIN || errno == ENOTCONN) {
 			/* nothing written, we need to poll for write first */
-			__conn_data_poll_send(conn);
+			fd_cant_send(conn->t.sock.fd);
 			break;
 		}
 		else if (errno != EINTR) {

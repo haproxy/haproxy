@@ -657,7 +657,7 @@ int tcp_connect_probe(struct connection *conn)
 	if (connect(fd, (struct sockaddr *)&conn->addr.to, get_addr_len(&conn->addr.to)) < 0) {
 		if (errno == EALREADY || errno == EINPROGRESS) {
 			__conn_sock_stop_recv(conn);
-			__conn_sock_poll_send(conn);
+			fd_cant_send(fd);
 			return 0;
 		}
 

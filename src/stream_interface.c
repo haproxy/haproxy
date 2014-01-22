@@ -487,7 +487,7 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 
  out_wait:
 	__conn_sock_stop_recv(conn);
-	__conn_sock_poll_send(conn);
+	fd_cant_send(conn->t.sock.fd);
 	return 0;
 }
 

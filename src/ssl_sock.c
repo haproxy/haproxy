@@ -1191,7 +1191,8 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 			if (ret == SSL_ERROR_WANT_WRITE) {
 				/* SSL handshake needs to write, L4 connection may not be ready */
 				__conn_sock_stop_recv(conn);
-				__conn_sock_poll_send(conn);
+				__conn_sock_want_send(conn);
+				fd_cant_send(conn->t.sock.fd);
 				return 0;
 			}
 			else if (ret == SSL_ERROR_WANT_READ) {
@@ -1206,7 +1207,8 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 				if (conn->flags & CO_FL_WAIT_L4_CONN)
 					conn->flags &= ~CO_FL_WAIT_L4_CONN;
 				__conn_sock_stop_send(conn);
-				__conn_sock_poll_recv(conn);
+				__conn_sock_want_recv(conn);
+				fd_cant_recv(conn->t.sock.fd);
 				return 0;
 			}
 			else if (ret == SSL_ERROR_SYSCALL) {
@@ -1249,7 +1251,8 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 		if (ret == SSL_ERROR_WANT_WRITE) {
 			/* SSL handshake needs to write, L4 connection may not be ready */
 			__conn_sock_stop_recv(conn);
-			__conn_sock_poll_send(conn);
+			__conn_sock_want_send(conn);
+			fd_cant_send(conn->t.sock.fd);
 			return 0;
 		}
 		else if (ret == SSL_ERROR_WANT_READ) {
@@ -1257,7 +1260,8 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 			if (conn->flags & CO_FL_WAIT_L4_CONN)
 				conn->flags &= ~CO_FL_WAIT_L4_CONN;
 			__conn_sock_stop_send(conn);
-			__conn_sock_poll_recv(conn);
+			__conn_sock_want_recv(conn);
+			fd_cant_recv(conn->t.sock.fd);
 			return 0;
 		}
 		else if (ret == SSL_ERROR_SYSCALL) {
@@ -1404,7 +1408,7 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 					break;
 				}
 				/* we need to poll for retry a read later */
-				__conn_data_poll_recv(conn);
+				fd_cant_recv(conn->t.sock.fd);
 				break;
 			}
 			/* otherwise it's a real error */
@@ -1485,7 +1489,7 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 					break;
 				}
 				/* we need to poll to retry a write later */
-				__conn_data_poll_send(conn);
+				fd_cant_send(conn->t.sock.fd);
 				break;
 			}
 			else if (ret == SSL_ERROR_WANT_READ) {

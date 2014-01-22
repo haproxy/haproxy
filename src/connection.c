@@ -261,7 +261,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 			if (errno == EINTR)
 				continue;
 			if (errno == EAGAIN) {
-				__conn_sock_poll_recv(conn);
+				fd_cant_recv(conn->t.sock.fd);
 				return 0;
 			}
 			goto recv_abort;

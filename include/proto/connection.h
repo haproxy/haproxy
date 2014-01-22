@@ -282,12 +282,6 @@ static inline void __conn_data_stop_recv(struct connection *c)
 	c->flags &= ~CO_FL_DATA_RD_ENA;
 }
 
-static inline void __conn_data_poll_recv(struct connection *c)
-{
-	c->flags |= CO_FL_DATA_RD_ENA;
-	fd_cant_recv(c->t.sock.fd);
-}
-
 static inline void __conn_data_want_send(struct connection *c)
 {
 	c->flags |= CO_FL_DATA_WR_ENA;
@@ -296,12 +290,6 @@ static inline void __conn_data_want_send(struct connection *c)
 static inline void __conn_data_stop_send(struct connection *c)
 {
 	c->flags &= ~CO_FL_DATA_WR_ENA;
-}
-
-static inline void __conn_data_poll_send(struct connection *c)
-{
-	c->flags |= CO_FL_DATA_WR_ENA;
-	fd_cant_send(c->t.sock.fd);
 }
 
 static inline void __conn_data_stop_both(struct connection *c)
@@ -321,12 +309,6 @@ static inline void conn_data_stop_recv(struct connection *c)
 	conn_cond_update_data_polling(c);
 }
 
-static inline void conn_data_poll_recv(struct connection *c)
-{
-	__conn_data_poll_recv(c);
-	conn_cond_update_data_polling(c);
-}
-
 static inline void conn_data_want_send(struct connection *c)
 {
 	__conn_data_want_send(c);
@@ -336,12 +318,6 @@ static inline void conn_data_want_send(struct connection *c)
 static inline void conn_data_stop_send(struct connection *c)
 {
 	__conn_data_stop_send(c);
-	conn_cond_update_data_polling(c);
-}
-
-static inline void conn_data_poll_send(struct connection *c)
-{
-	__conn_data_poll_send(c);
 	conn_cond_update_data_polling(c);
 }
 
@@ -366,12 +342,6 @@ static inline void __conn_sock_stop_recv(struct connection *c)
 	c->flags &= ~CO_FL_SOCK_RD_ENA;
 }
 
-static inline void __conn_sock_poll_recv(struct connection *c)
-{
-	c->flags |= CO_FL_SOCK_RD_ENA;
-	fd_cant_recv(c->t.sock.fd);
-}
-
 static inline void __conn_sock_want_send(struct connection *c)
 {
 	c->flags |= CO_FL_SOCK_WR_ENA;
@@ -380,12 +350,6 @@ static inline void __conn_sock_want_send(struct connection *c)
 static inline void __conn_sock_stop_send(struct connection *c)
 {
 	c->flags &= ~CO_FL_SOCK_WR_ENA;
-}
-
-static inline void __conn_sock_poll_send(struct connection *c)
-{
-	c->flags |= CO_FL_SOCK_WR_ENA;
-	fd_cant_send(c->t.sock.fd);
 }
 
 static inline void __conn_sock_stop_both(struct connection *c)
@@ -405,12 +369,6 @@ static inline void conn_sock_stop_recv(struct connection *c)
 	conn_cond_update_sock_polling(c);
 }
 
-static inline void conn_sock_poll_recv(struct connection *c)
-{
-	__conn_sock_poll_recv(c);
-	conn_cond_update_sock_polling(c);
-}
-
 static inline void conn_sock_want_send(struct connection *c)
 {
 	__conn_sock_want_send(c);
@@ -420,12 +378,6 @@ static inline void conn_sock_want_send(struct connection *c)
 static inline void conn_sock_stop_send(struct connection *c)
 {
 	__conn_sock_stop_send(c);
-	conn_cond_update_sock_polling(c);
-}
-
-static inline void conn_sock_poll_send(struct connection *c)
-{
-	__conn_sock_poll_send(c);
 	conn_cond_update_sock_polling(c);
 }
 
@@ -574,8 +526,6 @@ static inline void conn_attach(struct connection *conn, void *owner, const struc
  */
 static inline int conn_drain(struct connection *conn)
 {
-	int ret;
-
 	if (!conn_ctrl_ready(conn))
 		return 1;
 
@@ -588,11 +538,7 @@ static inline int conn_drain(struct connection *conn)
 	if (!conn->ctrl->drain)
 		return 0;
 
-	ret = conn->ctrl->drain(conn->t.sock.fd);
-	if (ret < 0)
-		__conn_data_poll_recv(conn);
-
-	if (ret <= 0)
+	if (conn->ctrl->drain(conn->t.sock.fd) <= 0)
 		return 0;
 
 	conn->flags |= CO_FL_SOCK_RD_SH;
