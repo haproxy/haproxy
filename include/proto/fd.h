@@ -252,6 +252,17 @@ static inline void fd_may_recv(const int fd)
 	updt_fd(fd);
 }
 
+/* Disable readiness when polled. This is useful to interrupt reading when it
+ * is suspected that the end of data might have been reached (eg: short read).
+ * This can only be done using level-triggered pollers, so if any edge-triggered
+ * is ever implemented, a test will have to be added here.
+ */
+static inline void fd_done_recv(const int fd)
+{
+	if (fd_recv_polled(fd))
+		fd_cant_recv(fd);
+}
+
 /* Report that FD <fd> cannot send anymore without polling (EAGAIN detected). */
 static inline void fd_cant_send(const int fd)
 {

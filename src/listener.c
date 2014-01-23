@@ -356,7 +356,7 @@ void listener_accept(int fd)
 				return;
 			default:
 				/* unexpected result, let's give up and let other tasks run */
-				return;
+				goto stop;
 			}
 		}
 
@@ -414,6 +414,8 @@ void listener_accept(int fd)
 	} /* end of while (max_accept--) */
 
 	/* we've exhausted max_accept, so there is no need to poll again */
+ stop:
+	fd_done_recv(fd);
 	return;
 }
 

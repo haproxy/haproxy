@@ -176,6 +176,7 @@ int raw_sock_to_pipe(struct connection *conn, struct pipe *pipe, unsigned int co
 			 * being asked to poll.
 			 */
 			conn->flags |= CO_FL_WAIT_ROOM;
+			fd_done_recv(conn->t.sock.fd);
 			break;
 		}
 	} /* while */
@@ -299,6 +300,8 @@ static int raw_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 				 */
 				if (fdtab[conn->t.sock.fd].ev & FD_POLL_HUP)
 					goto read0;
+
+				fd_done_recv(conn->t.sock.fd);
 				break;
 			}
 			count -= ret;
