@@ -4286,7 +4286,7 @@ static void http_stats_io_handler(struct stream_interface *si)
 
 static inline const char *get_conn_ctrl_name(const struct connection *conn)
 {
-	if (!(conn->flags & CO_FL_CTRL_READY) || !conn->ctrl)
+	if (!conn_ctrl_ready(conn))
 		return "NONE";
 	return conn->ctrl->name;
 }

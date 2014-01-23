@@ -2502,7 +2502,7 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 		req->flags |= CF_READ_DONTWAIT; /* try to get back here ASAP */
 		s->rep->flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
 #ifdef TCP_QUICKACK
-		if (s->listener->options & LI_O_NOQUICKACK && req->buf->i && objt_conn(s->req->prod->end) && (__objt_conn(s->req->prod->end)->flags & CO_FL_CTRL_READY)) {
+		if (s->listener->options & LI_O_NOQUICKACK && req->buf->i && objt_conn(s->req->prod->end) && conn_ctrl_ready(__objt_conn(s->req->prod->end))) {
 			/* We need more data, we have to re-enable quick-ack in case we
 			 * previously disabled it, otherwise we might cause the client
 			 * to delay next data.
@@ -3031,13 +3031,13 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 			break;
 
 		case HTTP_REQ_ACT_SET_TOS:
-			if ((cli_conn = objt_conn(s->req->prod->end)) && (cli_conn->flags & CO_FL_CTRL_READY))
+			if ((cli_conn = objt_conn(s->req->prod->end)) && conn_ctrl_ready(cli_conn))
 				inet_set_tos(cli_conn->t.sock.fd, cli_conn->addr.from, rule->arg.tos);
 			break;
 
 		case HTTP_REQ_ACT_SET_MARK:
 #ifdef SO_MARK
-			if ((cli_conn = objt_conn(s->req->prod->end)) && (cli_conn->flags & CO_FL_CTRL_READY))
+			if ((cli_conn = objt_conn(s->req->prod->end)) && conn_ctrl_ready(cli_conn))
 				setsockopt(cli_conn->t.sock.fd, SOL_SOCKET, SO_MARK, &rule->arg.mark, sizeof(rule->arg.mark));
 #endif
 			break;
@@ -3117,13 +3117,13 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 			break;
 
 		case HTTP_RES_ACT_SET_TOS:
-			if ((cli_conn = objt_conn(s->req->prod->end)) && (cli_conn->flags & CO_FL_CTRL_READY))
+			if ((cli_conn = objt_conn(s->req->prod->end)) && conn_ctrl_ready(cli_conn))
 				inet_set_tos(cli_conn->t.sock.fd, cli_conn->addr.from, rule->arg.tos);
 			break;
 
 		case HTTP_RES_ACT_SET_MARK:
 #ifdef SO_MARK
-			if ((cli_conn = objt_conn(s->req->prod->end)) && (cli_conn->flags & CO_FL_CTRL_READY))
+			if ((cli_conn = objt_conn(s->req->prod->end)) && conn_ctrl_ready(cli_conn))
 				setsockopt(cli_conn->t.sock.fd, SOL_SOCKET, SO_MARK, &rule->arg.mark, sizeof(rule->arg.mark));
 #endif
 			break;
@@ -4004,7 +4004,7 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 		 * the client to delay further data.
 		 */
 		if ((s->listener->options & LI_O_NOQUICKACK) &&
-		    cli_conn && (cli_conn->flags & CO_FL_CTRL_READY) &&
+		    cli_conn && conn_ctrl_ready(cli_conn) &&
 		    ((msg->flags & HTTP_MSGF_TE_CHNK) ||
 		     (msg->body_len > req->buf->i - txn->req.eoh - 2)))
 			setsockopt(cli_conn->t.sock.fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));

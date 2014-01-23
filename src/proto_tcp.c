@@ -626,7 +626,7 @@ int tcp_connect_probe(struct connection *conn)
 	if (conn->flags & CO_FL_ERROR)
 		return 0;
 
-	if (!(conn->flags & CO_FL_CTRL_READY))
+	if (!conn_ctrl_ready(conn))
 		return 0;
 
 	if (!(conn->flags & CO_FL_WAIT_L4_CONN))

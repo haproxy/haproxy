@@ -50,7 +50,7 @@ static inline int conn_xprt_ready(struct connection *conn)
 }
 
 /* returns true is the control layer is ready */
-static inline int conn_ctrl_ready(struct connection *conn)
+static inline int conn_ctrl_ready(const struct connection *conn)
 {
 	return (conn->flags & CO_FL_CTRL_READY);
 }
@@ -88,11 +88,12 @@ static inline void conn_xprt_close(struct connection *conn)
 
 /* Initializes the connection's control layer which essentially consists in
  * registering the file descriptor for polling and setting the CO_FL_CTRL_READY
- * flag.
+ * flag. The caller is responsible for ensuring that the control layer is
+ * already assigned to the connection prior to the call.
  */
 static inline void conn_ctrl_init(struct connection *conn)
 {
-	if (!(conn->flags & CO_FL_CTRL_READY)) {
+	if (!conn_ctrl_ready(conn)) {
 		int fd = conn->t.sock.fd;
 
 		fd_insert(fd);
@@ -137,7 +138,7 @@ static inline void conn_force_close(struct connection *conn)
 	if ((conn->flags & CO_FL_XPRT_READY) && conn->xprt && conn->xprt->close)
 		conn->xprt->close(conn);
 
-	if (conn->flags & CO_FL_CTRL_READY)
+	if (conn_ctrl_ready(conn))
 		fd_delete(conn->t.sock.fd);
 
 	conn->flags &= ~(CO_FL_XPRT_READY|CO_FL_CTRL_READY);
@@ -166,7 +167,7 @@ static inline void conn_refresh_polling_flags(struct connection *conn)
 {
 	conn->flags &= ~(CO_FL_WAIT_ROOM | CO_FL_WAIT_DATA);
 
-	if ((conn->flags & CO_FL_CTRL_READY) && conn->ctrl) {
+	if (conn_ctrl_ready(conn)) {
 		unsigned int flags = conn->flags & ~(CO_FL_CURR_RD_ENA | CO_FL_CURR_WR_ENA);
 
 		if (fd_recv_active(conn->t.sock.fd))
@@ -395,7 +396,7 @@ static inline void conn_sock_read0(struct connection *c)
 	/* we don't risk keeping ports unusable if we found the
 	 * zero from the other side.
 	 */
-	if (c->flags & CO_FL_CTRL_READY)
+	if (conn_ctrl_ready(c))
 		fdtab[c->t.sock.fd].linger_risk = 0;
 }
 
@@ -484,7 +485,7 @@ static inline void conn_get_from_addr(struct connection *conn)
 	if (conn->flags & CO_FL_ADDR_FROM_SET)
 		return;
 
-	if (!(conn->flags & CO_FL_CTRL_READY) || !conn->ctrl || !conn->ctrl->get_src)
+	if (!conn_ctrl_ready(conn) || !conn->ctrl->get_src)
 		return;
 
 	if (conn->ctrl->get_src(conn->t.sock.fd, (struct sockaddr *)&conn->addr.from,
@@ -500,7 +501,7 @@ static inline void conn_get_to_addr(struct connection *conn)
 	if (conn->flags & CO_FL_ADDR_TO_SET)
 		return;
 
-	if (!(conn->flags & CO_FL_CTRL_READY) || !conn->ctrl || !conn->ctrl->get_dst)
+	if (!conn_ctrl_ready(conn) || !conn->ctrl->get_dst)
 		return;
 
 	if (conn->ctrl->get_dst(conn->t.sock.fd, (struct sockaddr *)&conn->addr.to,

@@ -1097,7 +1097,7 @@ static int ssl_sock_init(struct connection *conn)
 	if (conn->xprt_ctx)
 		return 0;
 
-	if (!(conn->flags & CO_FL_CTRL_READY))
+	if (!conn_ctrl_ready(conn))
 		return 0;
 
 	if (global.maxsslconn && sslconns >= global.maxsslconn) {
@@ -1169,7 +1169,7 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 {
 	int ret;
 
-	if (!(conn->flags & CO_FL_CTRL_READY))
+	if (!conn_ctrl_ready(conn))
 		return 0;
 
 	if (!conn->xprt_ctx)

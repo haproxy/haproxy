@@ -800,7 +800,7 @@ static int retrieve_errno_from_socket(struct connection *conn)
 	if (conn->flags & CO_FL_ERROR && ((errno && errno != EAGAIN) || !conn->ctrl))
 		return 1;
 
-	if (!(conn->flags & CO_FL_CTRL_READY) || !conn->ctrl)
+	if (!conn_ctrl_ready(conn))
 		return 0;
 
 	if (getsockopt(conn->t.sock.fd, SOL_SOCKET, SO_ERROR, &skerr, &lskerr) == 0)

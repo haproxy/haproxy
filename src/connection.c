@@ -157,7 +157,7 @@ void conn_update_data_polling(struct connection *c)
 {
 	unsigned int f = c->flags;
 
-	if (!(c->flags & CO_FL_CTRL_READY))
+	if (!conn_ctrl_ready(c))
 		return;
 
 	/* update read status if needed */
@@ -192,7 +192,7 @@ void conn_update_sock_polling(struct connection *c)
 {
 	unsigned int f = c->flags;
 
-	if (!(c->flags & CO_FL_CTRL_READY))
+	if (!conn_ctrl_ready(c))
 		return;
 
 	/* update read status if needed */
@@ -248,7 +248,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	if (conn->flags & CO_FL_SOCK_RD_SH)
 		goto fail;
 
-	if (!(conn->flags & CO_FL_CTRL_READY))
+	if (!conn_ctrl_ready(conn))
 		goto fail;
 
 	if (!fd_recv_ready(conn->t.sock.fd))
