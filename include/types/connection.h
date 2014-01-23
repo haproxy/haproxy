@@ -2,7 +2,7 @@
  * include/types/connection.h
  * This file describes the connection struct and associated constants.
  *
- * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2014 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -37,34 +37,17 @@ struct connection;
 struct buffer;
 struct pipe;
 
-/* Polling flags that are manipulated by I/O callbacks and handshake callbacks
- * indicate what they expect from a file descriptor at each layer. For each
- * direction, we have 2 bits, one stating whether any suspected activity on the
- * FD induce a call to the iocb, and another one indicating that the FD has
- * already returned EAGAIN and that polling on it is essential before calling
- * the iocb again :
- *   POL ENA  state
- *    0   0   STOPPED : any activity on this FD is ignored
- *    0   1   ENABLED : any (suspected) activity may call the iocb
- *    1   0   STOPPED : as above
- *    1   1   POLLED  : the FD is being polled for activity
+/* For each direction, we have a CO_FL_{SOCK,DATA}_<DIR>_ENA flag, which
+ * indicates if read or write is desired in that direction for the respective
+ * layers. The current status corresponding to the current layer being used is
+ * remembered in the CO_FL_CURR_<DIR>_ENA flag. The need to poll (ie receipt of
+ * EAGAIN) is remembered at the file descriptor level so that even when the
+ * activity is stopped and restarted, we still remember whether it was needed
+ * to poll before attempting the I/O.
  *
- * - Enabling an I/O event consists in ORing with 1.
- * - Stopping an I/O event consists in ANDing with ~1.
- * - Polling for an I/O event consists in ORing with ~3.
- *
- * The last ENA state is remembered in CO_FL_CURR_* so that differential
- * changes can be applied. After bits are applied, the POLL status bits are
- * cleared so that it is possible to detect when an EAGAIN was encountered. For
- * pollers that do not support speculative I/O, POLLED is the same as ENABLED
- * and the POL flag can safely be ignored. However it makes a difference for
- * the connection handler.
- *
- * The ENA flags are per-layer (one pair for SOCK, another one for DATA). The
- * POL flags are irrelevant to these layers and only reflect the fact that
- * EAGAIN was encountered, they're materialised by the CO_FL_WAIT_* connection
- * flags. POL flags always indicate a polling change because it is assumed that
- * the poller uses a cache and does not always poll.
+ * The CO_FL_CURR_<DIR>_ENA flag is set from the FD status in
+ * conn_refresh_polling_flags(). The FD state is updated according to these
+ * flags in conn_cond_update_polling().
  */
 
 /* flags for use in connection->flags */
