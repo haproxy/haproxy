@@ -4295,7 +4295,7 @@ static inline const char *get_conn_xprt_name(const struct connection *conn)
 {
 	static char ptr[17];
 
-	if (!(conn->flags & CO_FL_XPRT_READY) || !conn->xprt)
+	if (!conn_xprt_ready(conn))
 		return "NONE";
 
 	if (conn->xprt == &raw_sock)

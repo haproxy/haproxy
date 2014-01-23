@@ -44,9 +44,9 @@ int conn_recv_proxy(struct connection *conn, int flag);
 int make_proxy_line(char *buf, int buf_len, struct sockaddr_storage *src, struct sockaddr_storage *dst);
 
 /* returns true is the transport layer is ready */
-static inline int conn_xprt_ready(struct connection *conn)
+static inline int conn_xprt_ready(const struct connection *conn)
 {
-	return (conn->flags & CO_FL_XPRT_READY) && conn->xprt;
+	return (conn->flags & CO_FL_XPRT_READY);
 }
 
 /* returns true is the control layer is ready */
@@ -63,7 +63,7 @@ static inline int conn_xprt_init(struct connection *conn)
 {
 	int ret = 0;
 
-	if (!(conn->flags & CO_FL_XPRT_READY) && conn->xprt && conn->xprt->init)
+	if (!conn_xprt_ready(conn) && conn->xprt && conn->xprt->init)
 		ret = conn->xprt->init(conn);
 
 	if (ret >= 0)
@@ -80,7 +80,7 @@ static inline int conn_xprt_init(struct connection *conn)
 static inline void conn_xprt_close(struct connection *conn)
 {
 	if ((conn->flags & (CO_FL_XPRT_READY|CO_FL_XPRT_TRACKED)) == CO_FL_XPRT_READY) {
-		if (conn->xprt && conn->xprt->close)
+		if (conn->xprt->close)
 			conn->xprt->close(conn);
 		conn->flags &= ~CO_FL_XPRT_READY;
 	}
@@ -135,7 +135,7 @@ static inline void conn_full_close(struct connection *conn)
  */
 static inline void conn_force_close(struct connection *conn)
 {
-	if ((conn->flags & CO_FL_XPRT_READY) && conn->xprt && conn->xprt->close)
+	if (conn_xprt_ready(conn) && conn->xprt->close)
 		conn->xprt->close(conn);
 
 	if (conn_ctrl_ready(conn))
