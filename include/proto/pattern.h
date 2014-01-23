@@ -40,7 +40,7 @@
  * The function returns 1 if the processing is ok, return 0
  * if the parser fails, with <err> message filled.
  */
-int pattern_register(struct pattern_expr *expr, const char **args, struct sample_storage *smp, struct pattern **pattern, int patflags, char **err);
+int pattern_register(struct pattern_expr *expr, const char *arg, struct sample_storage *smp, struct pattern **pattern, int patflags, char **err);
 
 /* return the PAT_MATCH_* index for match name "name", or < 0 if not found */
 static inline int pat_find_match_name(const char *name)

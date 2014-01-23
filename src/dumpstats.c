@@ -1919,7 +1919,6 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 	}
 	else if (strcmp(args[0], "add") == 0) {
 		if (strcmp(args[1], "map") == 0) {
-			const char *params[2];
 			struct pattern *pat;
 			struct map_entry *ent;
 			struct sample_storage *smp;
@@ -1930,9 +1929,6 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
-
-			params[0] = args[3];
-			params[1] = "";
 
 			/* Lookup the reference in the maps. */
 			appctx->ctx.map.ref = map_get_reference(args[2]);
@@ -2012,7 +2008,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				else
 					pat = NULL;
 
-				if (!pattern_register(appctx->ctx.map.desc->pat, params, smp, &pat, 0, NULL)) {
+				if (!pattern_register(appctx->ctx.map.desc->pat, args[3], smp, &pat, 0, NULL)) {
 					free(smp);
 					continue;
 				}

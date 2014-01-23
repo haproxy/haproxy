@@ -152,7 +152,6 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	signed long long value, minor;
 	/* The following buffer contain two numbers, a ':' separator and the final \0. */
 	char buffer[NB_LLMAX_STR + 1 + NB_LLMAX_STR + 1];
-	const char *text[2];
 
 	/* First, we look for an ACL keyword. And if we don't find one, then
 	 * we look for a sample fetch expression starting with a sample fetch
@@ -570,9 +569,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			}
 		}
 
-		text[0] = arg;
-		text[1] = "";
-		if (!pattern_register(&expr->pat, text, NULL, &pattern, patflags, err))
+		if (!pattern_register(&expr->pat, arg, NULL, &pattern, patflags, err))
 			goto out_free_pattern;
 		args++;
 	}

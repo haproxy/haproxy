@@ -307,7 +307,6 @@ static int map_parse_and_index(struct map_descriptor *desc,
                                char **err)
 {
 	struct sample_storage *smp;
-	const char *args[2];
 
 	/* use new smp for storing value */
 	smp = calloc(1, sizeof(*smp));
@@ -322,9 +321,7 @@ static int map_parse_and_index(struct map_descriptor *desc,
 	}
 
 	/* register key */
-	args[0] = ent->key;
-	args[1] = "";
-	if (!pattern_register(desc->pat, args, smp, pattern, patflags, err))
+	if (!pattern_register(desc->pat, ent->key, smp, pattern, patflags, err))
 		return 0;
 
 	return 1;
