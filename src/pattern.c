@@ -292,80 +292,74 @@ int pat_parse_reg(const char **text, struct pattern *pattern, enum pat_usage usa
  * The operator is stored in the 'opaque' argument.
  *
  * If err is non-NULL, an error message will be returned there on errors and
- * the caller will have to free it.
+ * the caller will have to free it. The function returns zero on error, and
+ * non-zero on success.
  *
  */
 int pat_parse_int(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err)
 {
-	signed long long i;
-	unsigned int j, last, skip = 0;
 	const char *ptr = *text;
 
 	pattern->type = SMP_T_UINT;
 	pattern->expect_type = SMP_T_UINT;
 
-	while (!isdigit((unsigned char)*ptr)) {
-		switch (get_std_op(ptr)) {
-		case STD_OP_EQ: *opaque = 0; break;
-		case STD_OP_GT: *opaque = 1; break;
-		case STD_OP_GE: *opaque = 2; break;
-		case STD_OP_LT: *opaque = 3; break;
-		case STD_OP_LE: *opaque = 4; break;
-		default:
-			memprintf(err, "'%s' is neither a number nor a supported operator", ptr);
+	/* Empty string is not valid */
+	if (!**text)
+		goto not_valid_range;
+
+	/* Search ':' or '-' separator. */
+	while (*ptr != '\0' && *ptr != ':' && *ptr != '-')
+		ptr++;
+
+	/* If separator not found. */
+	if (!*ptr) {
+		if (strl2llrc(*text, ptr - *text, &pattern->val.range.min) != 0) {
+			memprintf(err, "'%s' is not a number", *text);
 			return 0;
 		}
-
-		skip++;
-		ptr = text[skip];
-	}
-
-	last = i = 0;
-	while (1) {
-                j = *ptr++;
-		if ((j == '-' || j == ':') && !last) {
-			last++;
-			pattern->val.range.min = i;
-			i = 0;
-			continue;
-		}
-		j -= '0';
-                if (j > 9)
-			// also catches the terminating zero
-                        break;
-                i *= 10;
-                i += j;
-        }
-
-	if (last && *opaque >= 1 && *opaque <= 4) {
-		/* having a range with a min or a max is absurd */
-		memprintf(err, "integer range '%s' specified with a comparison operator", text[skip]);
-		return 0;
-	}
-
-	if (!last)
-		pattern->val.range.min = i;
-	pattern->val.range.max = i;
-
-	switch (*opaque) {
-	case 0: /* eq */
+		pattern->val.range.max = pattern->val.range.min;
 		pattern->val.range.min_set = 1;
 		pattern->val.range.max_set = 1;
-		break;
-	case 1: /* gt */
-		pattern->val.range.min++; /* gt = ge + 1 */
-	case 2: /* ge */
-		pattern->val.range.min_set = 1;
-		pattern->val.range.max_set = 0;
-		break;
-	case 3: /* lt */
-		pattern->val.range.max--; /* lt = le - 1 */
-	case 4: /* le */
+		return 1;
+	}
+
+	/* If the separator is the first character. */
+	if (ptr == *text && *(ptr + 1) != '\0') {
+		if (strl2llrc(ptr + 1, strlen(ptr + 1), &pattern->val.range.max) != 0)
+			goto not_valid_range;
+
 		pattern->val.range.min_set = 0;
 		pattern->val.range.max_set = 1;
-		break;
+		return 1;
 	}
-	return skip + 1;
+
+	/* If separator is the last character. */
+	if (*(ptr + 1) == '\0') {
+		if (strl2llrc(*text, ptr - *text, &pattern->val.range.min) != 0)
+			goto not_valid_range;
+
+		pattern->val.range.min_set = 1;
+		pattern->val.range.max_set = 0;
+		return 1;
+	}
+
+	/* Else, parse two numbers. */
+	if (strl2llrc(*text, ptr - *text, &pattern->val.range.min) != 0)
+		goto not_valid_range;
+
+	if (strl2llrc(ptr + 1, strlen(ptr + 1), &pattern->val.range.max) != 0)
+		goto not_valid_range;
+
+	if (pattern->val.range.min > pattern->val.range.max)
+		goto not_valid_range;
+
+	pattern->val.range.min_set = 1;
+	pattern->val.range.max_set = 1;
+	return 1;
+
+ not_valid_range:
+	memprintf(err, "'%s' is not a valid number range", *text);
+	return 0;
 }
 
 int pat_parse_len(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err)
@@ -399,88 +393,65 @@ int pat_parse_len(const char **text, struct pattern *pattern, enum pat_usage usa
  */
 int pat_parse_dotted_ver(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err)
 {
-	signed long long i;
-	unsigned int j, last, skip = 0;
 	const char *ptr = *text;
 
-
-	while (!isdigit((unsigned char)*ptr)) {
-		switch (get_std_op(ptr)) {
-		case STD_OP_EQ: *opaque = 0; break;
-		case STD_OP_GT: *opaque = 1; break;
-		case STD_OP_GE: *opaque = 2; break;
-		case STD_OP_LT: *opaque = 3; break;
-		case STD_OP_LE: *opaque = 4; break;
-		default:
-			memprintf(err, "'%s' is neither a number nor a supported operator", ptr);
-			return 0;
-		}
-
-		skip++;
-		ptr = text[skip];
-	}
-
-	last = i = 0;
-	while (1) {
-                j = *ptr++;
-		if (j == '.') {
-			/* minor part */
-			if (i >= 65536)
-				return 0;
-			i <<= 16;
-			continue;
-		}
-		if ((j == '-' || j == ':') && !last) {
-			last++;
-			if (i < 65536)
-				i <<= 16;
-			pattern->val.range.min = i;
-			i = 0;
-			continue;
-		}
-		j -= '0';
-                if (j > 9)
-			// also catches the terminating zero
-                        break;
-                i = (i & 0xFFFF0000) + (i & 0xFFFF) * 10;
-                i += j;
-        }
-
-	/* if we only got a major version, let's shift it now */
-	if (i < 65536)
-		i <<= 16;
-
-	if (last && *opaque >= 1 && *opaque <= 4) {
-		/* having a range with a min or a max is absurd */
-		memprintf(err, "version range '%s' specified with a comparison operator", text[skip]);
-		return 0;
-	}
-
+	pattern->type = SMP_T_UINT;
 	pattern->expect_type = SMP_T_UINT;
 
-	if (!last)
-		pattern->val.range.min = i;
-	pattern->val.range.max = i;
+	/* Search ':' or '-' separator. */
+	while (*ptr != '\0' && *ptr != ':' && *ptr != '-')
+		ptr++;
 
-	switch (*opaque) {
-	case 0: /* eq */
+	/* If separator not found. */
+	if (*ptr == '\0' && ptr > *text) {
+		if (strl2llrc_dotted(*text, ptr-*text, &pattern->val.range.min) != 0) {
+			memprintf(err, "'%s' is not a dotted number", *text);
+			return 0;
+		}
+		pattern->val.range.max = pattern->val.range.min;
 		pattern->val.range.min_set = 1;
 		pattern->val.range.max_set = 1;
-		break;
-	case 1: /* gt */
-		pattern->val.range.min++; /* gt = ge + 1 */
-	case 2: /* ge */
-		pattern->val.range.min_set = 1;
-		pattern->val.range.max_set = 0;
-		break;
-	case 3: /* lt */
-		pattern->val.range.max--; /* lt = le - 1 */
-	case 4: /* le */
+		return 1;
+	}
+
+	/* If the separator is the first character. */
+	if (ptr == *text && *(ptr+1) != '\0') {
+		if (strl2llrc_dotted(ptr+1, strlen(ptr+1), &pattern->val.range.max) != 0) {
+			memprintf(err, "'%s' is not a valid dotted number range", *text);
+			return 0;
+		}
 		pattern->val.range.min_set = 0;
 		pattern->val.range.max_set = 1;
-		break;
+		return 1;
 	}
-	return skip + 1;
+
+	/* If separator is the last character. */
+	if (ptr == &(*text)[strlen(*text)-1]) {
+		if (strl2llrc_dotted(*text, ptr-*text, &pattern->val.range.min) != 0) {
+			memprintf(err, "'%s' is not a valid dotted number range", *text);
+			return 0;
+		}
+		pattern->val.range.min_set = 1;
+		pattern->val.range.max_set = 0;
+		return 1;
+	}
+
+	/* Else, parse two numbers. */
+	if (strl2llrc_dotted(*text, ptr-*text, &pattern->val.range.min) != 0) {
+		memprintf(err, "'%s' is not a valid dotted number range", *text);
+		return 0;
+	}
+	if (strl2llrc_dotted(ptr+1, strlen(ptr+1), &pattern->val.range.max) != 0) {
+		memprintf(err, "'%s' is not a valid dotted number range", *text);
+		return 0;
+	}
+	if (pattern->val.range.min > pattern->val.range.max) {
+		memprintf(err, "'%s' is not a valid dotted number range", *text);
+		return 0;
+	}
+	pattern->val.range.min_set = 1;
+	pattern->val.range.max_set = 1;
+	return 1;
 }
 
 /* Parse an IP address and an optional mask in the form addr[/mask].

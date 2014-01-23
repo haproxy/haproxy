@@ -145,6 +145,14 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	unsigned long prev_type;
 	int cur_type;
 	int nbargs;
+	int operator = STD_OP_EQ;
+	int op;
+	int contain_colon, have_dot;
+	const char *dot;
+	signed long long value, minor;
+	/* The following buffer contain two numbers, a ':' separator and the final \0. */
+	char buffer[NB_LLMAX_STR + 1 + NB_LLMAX_STR + 1];
+	const char *text[2];
 
 	/* First, we look for an ACL keyword. And if we don't find one, then
 	 * we look for a sample fetch expression starting with a sample fetch
@@ -441,8 +449,133 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 
 	/* now parse all patterns */
 	pattern = NULL;
-	if (!pattern_register(&expr->pat, args, NULL, &pattern, patflags, err))
-		goto out_free_pattern;
+	while (**args) {
+		arg = *args;
+
+		/* Compatibility layer. Each pattern can parse only one string per pattern,
+		 * but the pat_parser_int() and pat_parse_dotted_ver() parsers were need
+		 * optionnaly two operators. The first operator is the match method: eq,
+		 * le, lt, ge and gt. pat_parse_int() and pat_parse_dotted_ver() functions
+		 * can have a compatibility syntax based on ranges:
+		 *
+		 * pat_parse_int():
+		 *
+		 *   "eq x" -> "x" or "x:x"
+		 *   "le x" -> ":x"
+		 *   "lt x" -> ":y" (with y = x - 1)
+		 *   "ge x" -> "x:"
+		 *   "gt x" -> "y:" (with y = x + 1)
+		 *
+		 * pat_parse_dotted_ver():
+		 *
+		 *   "eq x.y" -> "x.y" or "x.y:x.y"
+		 *   "le x.y" -> ":x.y"
+		 *   "lt x.y" -> ":w.z" (with w.z = x.y - 1)
+		 *   "ge x.y" -> "x.y:"
+		 *   "gt x.y" -> "w.z:" (with w.z = x.y + 1)
+		 *
+		 * If y is not present, assume that is "0".
+		 *
+		 * The syntax eq, le, lt, ge and gt are proper to the acl syntax. The
+		 * following block of code detect the operator, and rewrite each value
+		 * in parsable string.
+		 */
+		if (expr->pat.parse == pat_parse_int ||
+		    expr->pat.parse == pat_parse_dotted_ver) {
+			/* Check for operator. If the argument is operator, memorise it and
+			 * continue to the next argument.
+			 */
+			op = get_std_op(arg);
+			if (op != -1) {
+				operator = op;
+				args++;
+				continue;
+			}
+
+			/* Check if the pattern contain ':' or '-' character. */
+			contain_colon = (strchr(arg, ':') || strchr(arg, '-'));
+
+			/* If the pattern contain ':' or '-' character, give it to the parser as is.
+			 * If no contain ':' and operator is STD_OP_EQ, give it to the parser as is.
+			 * In other case, try to convert the value according with the operator.
+			 */
+			if (!contain_colon && operator != STD_OP_EQ) {
+				/* Search '.' separator. */
+				dot = strchr(arg, '.');
+				if (!dot) {
+					have_dot = 0;
+					minor = 0;
+					dot = arg + strlen(arg);
+				}
+				else
+					have_dot = 1;
+
+				/* convert the integer minor part for the pat_parse_dotted_ver() function. */
+				if (expr->pat.parse == pat_parse_dotted_ver && have_dot) {
+					if (strl2llrc(dot+1, strlen(dot+1), &minor) != 0) {
+						memprintf(err, "'%s' is neither a number nor a supported operator", arg);
+						goto out_free_pattern;
+					}
+					if (minor >= 65536) {
+						memprintf(err, "'%s' contains too large a minor value", arg);
+						goto out_free_pattern;
+					}
+				}
+
+				/* convert the integer value for the pat_parse_int() function, and the
+				 * integer major part for the pat_parse_dotted_ver() function.
+				 */
+				if (strl2llrc(arg, dot - arg, &value) != 0) {
+					memprintf(err, "'%s' is neither a number nor a supported operator", arg);
+					goto out_free_pattern;
+				}
+				if (expr->pat.parse == pat_parse_dotted_ver)  {
+					if (value >= 65536) {
+						memprintf(err, "'%s' contains too large a major value", arg);
+						goto out_free_pattern;
+					}
+					value = (value << 16) | (minor & 0xffff);
+				}
+
+				switch (operator) {
+
+				case STD_OP_EQ: /* this case is not possible. */
+					memprintf(err, "internal error");
+					goto out_free_pattern;
+
+				case STD_OP_GT:
+					value++; /* gt = ge + 1 */
+
+				case STD_OP_GE:
+					if (expr->pat.parse == pat_parse_int)
+						snprintf(buffer, NB_LLMAX_STR+NB_LLMAX_STR+2, "%lld:", value);
+					else
+						snprintf(buffer, NB_LLMAX_STR+NB_LLMAX_STR+2, "%lld.%lld:",
+						         value >> 16, value & 0xffff);
+					arg = buffer;
+					break;
+
+				case STD_OP_LT:
+					value--; /* lt = le - 1 */
+
+				case STD_OP_LE:
+					if (expr->pat.parse == pat_parse_int)
+						snprintf(buffer, NB_LLMAX_STR+NB_LLMAX_STR+2, ":%lld", value);
+					else
+						snprintf(buffer, NB_LLMAX_STR+NB_LLMAX_STR+2, ":%lld.%lld",
+						         value >> 16, value & 0xffff);
+					arg = buffer;
+					break;
+				}
+			}
+		}
+
+		text[0] = arg;
+		text[1] = "";
+		if (!pattern_register(&expr->pat, text, NULL, &pattern, patflags, err))
+			goto out_free_pattern;
+		args++;
+	}
 
 	return expr;
 

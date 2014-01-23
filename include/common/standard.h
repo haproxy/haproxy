@@ -42,6 +42,9 @@
 # define ULLONG_MAX	(LLONG_MAX * 2ULL + 1)
 #endif
 
+/* size used for max length of decimal representation of long long int. */
+#define NB_LLMAX_STR (sizeof("-9223372036854775807")-1)
+
 /* number of itoa_str entries */
 #define NB_ITOA_STR	10
 
@@ -388,6 +391,7 @@ extern unsigned int strl2uic(const char *s, int len);
 extern int strl2ic(const char *s, int len);
 extern int strl2irc(const char *s, int len, int *ret);
 extern int strl2llrc(const char *s, int len, long long *ret);
+extern int strl2llrc_dotted(const char *text, int len, long long *ret);
 extern unsigned int read_uint(const char **s, const char *end);
 unsigned int inetaddr_host(const char *text);
 unsigned int inetaddr_host_lim(const char *text, const char *stop);

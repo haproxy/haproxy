@@ -1257,6 +1257,50 @@ int strl2llrc(const char *s, int len, long long *ret)
 	return 0;
 }
 
+/* This function is used with pat_parse_dotted_ver(). It converts a string
+ * composed by two number separated by a dot. Each part must contain in 16 bits
+ * because internally they will be represented as a 32-bit quantity stored in
+ * a 64-bit integer. It returns zero when the number has successfully been
+ * converted, non-zero otherwise. When an error is returned, the <ret> value
+ * is left untouched.
+ *
+ *    "1.3"         -> 0x0000000000010003
+ *    "65535.65535" -> 0x00000000ffffffff
+ */
+int strl2llrc_dotted(const char *text, int len, long long *ret)
+{
+	const char *end = &text[len];
+	const char *p;
+	long long major, minor;
+
+	/* Look for dot. */
+	for (p = text; p < end; p++)
+		if (*p == '.')
+			break;
+
+	/* Convert major. */
+	if (strl2llrc(text, p - text, &major) != 0)
+		return 1;
+
+	/* Check major. */
+	if (major >= 65536)
+		return 1;
+
+	/* Convert minor. */
+	minor = 0;
+	if (p < end)
+		if (strl2llrc(p + 1, end - (p + 1), &minor) != 0)
+			return 1;
+
+	/* Check minor. */
+	if (minor >= 65536)
+		return 1;
+
+	/* Compose value. */
+	*ret = (major << 16) | (minor & 0xffff);
+	return 0;
+}
+
 /* This function parses a time value optionally followed by a unit suffix among
  * "d", "h", "m", "s", "ms" or "us". It converts the value into the unit
  * expected by the caller. The computation does its best to avoid overflows.
