@@ -1606,12 +1606,14 @@ static struct task *process_chk(struct task *t)
 
 		case SN_ERR_SRVTO: /* ETIMEDOUT */
 		case SN_ERR_SRVCL: /* ECONNREFUSED, ENETUNREACH, ... */
-			set_server_check_status(check, HCHK_STATUS_L4CON, strerror(errno));
+			conn->flags |= CO_FL_ERROR;
+			chk_report_conn_err(conn, errno, 0);
 			break;
 		case SN_ERR_PRXCOND:
 		case SN_ERR_RESOURCE:
 		case SN_ERR_INTERNAL:
-			set_server_check_status(check, HCHK_STATUS_SOCKERR, NULL);
+			conn->flags |= CO_FL_ERROR;
+			chk_report_conn_err(conn, 0, 0);
 			break;
 		}
 
