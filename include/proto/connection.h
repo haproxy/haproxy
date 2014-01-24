@@ -601,6 +601,18 @@ static inline const char *conn_err_code_str(struct connection *c)
 {
 	switch (c->err_code) {
 	case CO_ER_NONE:          return "Success";
+
+	case CO_ER_CONF_FDLIM:    return "Reached configured maxconn value";
+	case CO_ER_PROC_FDLIM:    return "Too many sockets on the process";
+	case CO_ER_SYS_FDLIM:     return "Too many sockets on the system";
+	case CO_ER_SYS_MEMLIM:    return "Out of system buffers";
+	case CO_ER_NOPROTO:       return "Protocol or address family not supported";
+	case CO_ER_SOCK_ERR:      return "General socket error";
+	case CO_ER_PORT_RANGE:    return "Source port range exhausted";
+	case CO_ER_CANT_BIND:     return "Can't bind to source address";
+	case CO_ER_FREE_PORTS:    return "Out of local source ports on the system";
+	case CO_ER_ADDR_INUSE:    return "Local source address already in use";
+
 	case CO_ER_PRX_EMPTY:     return "Connection closed while waiting for PROXY protocol header";
 	case CO_ER_PRX_ABORT:     return "Connection error while waiting for PROXY protocol header";
 	case CO_ER_PRX_TIMEOUT:   return "Timeout while waiting for PROXY protocol header";

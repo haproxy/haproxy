@@ -149,6 +149,19 @@ enum {
 /* possible connection error codes */
 enum {
 	CO_ER_NONE,             /* no error */
+
+	CO_ER_CONF_FDLIM,       /* reached process' configured FD limitation */
+	CO_ER_PROC_FDLIM,       /* reached process' FD limitation */
+	CO_ER_SYS_FDLIM,        /* reached system's FD limitation */
+	CO_ER_SYS_MEMLIM,       /* reached system buffers limitation */
+	CO_ER_NOPROTO,          /* protocol not supported */
+	CO_ER_SOCK_ERR,         /* other socket error */
+
+	CO_ER_PORT_RANGE,       /* source port range exhausted */
+	CO_ER_CANT_BIND,        /* can't bind to source address */
+	CO_ER_FREE_PORTS,       /* no more free ports on the system */
+	CO_ER_ADDR_INUSE,       /* local address already in use */
+
 	CO_ER_PRX_EMPTY,        /* nothing received in PROXY protocol header */
 	CO_ER_PRX_ABORT,        /* client abort during PROXY protocol header */
 	CO_ER_PRX_TIMEOUT,      /* timeout while waiting for a PROXY header */
