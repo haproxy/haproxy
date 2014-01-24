@@ -687,6 +687,7 @@ static struct acl_kw_list acl_kws = {ILH, {
 	{ "req_rdp_cookie_cnt", "req.rdp_cookie_cnt", pat_parse_int,        pat_match_int     },
 	{ "req_ssl_sni",        "req.ssl_sni",        pat_parse_str,        pat_match_str     },
 	{ "req_ssl_ver",        "req.ssl_ver",        pat_parse_dotted_ver, pat_match_int     },
+	{ "req.ssl_ver",        "req.ssl_ver",        pat_parse_dotted_ver, pat_match_int     },
 	{ /* END */ },
 }};
 
