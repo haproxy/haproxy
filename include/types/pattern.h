@@ -159,14 +159,14 @@ struct pattern {
  * are grouped together in order to optimize caching.
  */
 struct pattern_expr {
-	int (*parse)(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err);
+	int (*parse)(const char *text, struct pattern *pattern, enum pat_usage usage, char **err);
 	enum pat_match_res (*match)(struct sample *smp, struct pattern *pattern);
 	struct list patterns;         /* list of acl_patterns */
 	struct eb_root pattern_tree;  /* may be used for lookup in large datasets */
 };
 
 extern char *pat_match_names[PAT_MATCH_NUM];
-extern int (*pat_parse_fcts[PAT_MATCH_NUM])(const char **, struct pattern *, enum pat_usage, int *, char **);
+extern int (*pat_parse_fcts[PAT_MATCH_NUM])(const char *, struct pattern *, enum pat_usage, char **);
 extern enum pat_match_res (*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern *);
 extern int pat_match_types[PAT_MATCH_NUM];
 

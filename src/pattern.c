@@ -40,7 +40,7 @@ char *pat_match_names[PAT_MATCH_NUM] = {
 	[PAT_MATCH_REG]   = "reg",
 };
 
-int (*pat_parse_fcts[PAT_MATCH_NUM])(const char **, struct pattern *, enum pat_usage, int *, char **) = {
+int (*pat_parse_fcts[PAT_MATCH_NUM])(const char *, struct pattern *, enum pat_usage, char **) = {
 	[PAT_MATCH_FOUND] = pat_parse_nothing,
 	[PAT_MATCH_BOOL]  = pat_parse_nothing,
 	[PAT_MATCH_INT]   = pat_parse_int,
@@ -163,64 +163,46 @@ static inline unsigned int make_4delim(unsigned char d1, unsigned char d2, unsig
  * These functions are exported and may be used by any other component.
  *
  * The following functions are used for parsing pattern matching
- * input value. The <text> contain a list of word. The last entry
- * must be one NULL character. the <text> contain the string to be
- * parsed. <pattern> must be a preallocated pattern. The pat_parse_*
- * functions fill this structure with the parsed value. <usage> can
- * be PAT_U_COMPILE or PAT_U_LOOKUP. If the value PAT_U_COMPILE is
- * used memory is allocated for filling the pattern. If the value
- * PAT_U_LOOKUP is set, the parser use "trash" or return pointers
- * to the input strings. In both cases, the caller must use the
- * value PAT_U_LOOKUP with caution. <opaque> is used to pass value
- * between two calls to the parser. the interger must ben initilized
- * to 0 (see note below). <err> is filled with an error message built
- * with memprintf() function.
+ * input value. The <text> contain the string to be parsed. <pattern>
+ * must be a preallocated pattern. The pat_parse_* functions fill this
+ * structure with the parsed value. <usage> can be PAT_U_COMPILE or
+ * PAT_U_LOOKUP. If the value PAT_U_COMPILE is used memory is allocated
+ * for filling the pattern. If the value PAT_U_LOOKUP is set, the parser
+ * use "trash" or return pointers to the input strings. In both cases,
+ * the caller must use the value PAT_U_LOOKUP with caution. <err> is
+ * filled with an error message built with memprintf() function.
  *
- * In succes case, the pat_parse_* function return the number of
- * <text> eated. If the function fail, it returns 0 and <err> is
- * filled.
- *
- * NOTE: <opaque>iIt is used with integer range parser. The following 
- * configuration line is processed with this method:
- *
- *    acl ... -m int eq 10 20
- *
- * The first call to the parser eat 2 elements: "eq" and "10". The
- * pattern is filled with "eq 10" content. The <opaque> contain
- * coded value value that represent "eq".
- *
- * The second call to the parser just eat 1 element: "20". The opaque
- * contain the value of the operator. The parser returns pattern filled
- * with "eq 20".
+ * In succes case, the pat_parse_* function return 1. If the function
+ * fail, it returns 0 and <err> is filled.
  *
  */
 
 /* ignore the current line */
-int pat_parse_nothing(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err)
+int pat_parse_nothing(const char *text, struct pattern *pattern, enum pat_usage usage, char **err)
 {
 	return 1;
 }
 
 /* Parse a string. It is allocated and duplicated. */
-int pat_parse_str(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err)
+int pat_parse_str(const char *text, struct pattern *pattern, enum pat_usage usage, char **err)
 {
 	pattern->type = SMP_T_CSTR;
 	pattern->expect_type = SMP_T_CSTR;
 	if (usage == PAT_U_COMPILE) {
-		pattern->ptr.str = strdup(*text);
+		pattern->ptr.str = strdup(text);
 		if (!pattern->ptr.str) {
 			memprintf(err, "out of memory while loading string pattern");
 			return 0;
 		}
 	}
 	else
-		pattern->ptr.str = (char *)*text;
-	pattern->len = strlen(*text);
+		pattern->ptr.str = (char *)text;
+	pattern->len = strlen(text);
 	return 1;
 }
 
 /* Parse a binary written in hexa. It is allocated. */
-int pat_parse_bin(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err)
+int pat_parse_bin(const char *text, struct pattern *pattern, enum pat_usage usage, char **err)
 {
 	struct chunk *trash;
 
@@ -234,16 +216,16 @@ int pat_parse_bin(const char **text, struct pattern *pattern, enum pat_usage usa
 		 * if not fail. In succes case, this function eat always 1 elements.
 		 * The double operator "!" converts the range "1-n" to "1".
 		 */
-		return !!parse_binary(*text, &pattern->ptr.str, &pattern->len, err);
+		return !!parse_binary(text, &pattern->ptr.str, &pattern->len, err);
 
 	trash = get_trash_chunk();
 	pattern->len = trash->size;
 	pattern->ptr.str = trash->str;
-	return !!parse_binary(*text, &pattern->ptr.str, &pattern->len, err);
+	return !!parse_binary(text, &pattern->ptr.str, &pattern->len, err);
 }
 
 /* Parse a regex. It is allocated. */
-int pat_parse_reg(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err)
+int pat_parse_reg(const char *text, struct pattern *pattern, enum pat_usage usage, char **err)
 {
 	struct my_regex *preg;
 	struct chunk *trash;
@@ -256,7 +238,7 @@ int pat_parse_reg(const char **text, struct pattern *pattern, enum pat_usage usa
 			return 0;
 		}
 
-		if (!regex_comp(*text, preg, !(pattern->flags & PAT_F_IGNORE_CASE), 0, err)) {
+		if (!regex_comp(text, preg, !(pattern->flags & PAT_F_IGNORE_CASE), 0, err)) {
 			free(preg);
 			return 0;
 		}
@@ -272,7 +254,7 @@ int pat_parse_reg(const char **text, struct pattern *pattern, enum pat_usage usa
 		}
 
 		preg = (struct my_regex *)trash->str;
-		preg->regstr = (char *)*text;
+		preg->regstr = (char *)text;
 		pattern->freeptrbuf = NULL;
 	}
 
@@ -296,15 +278,15 @@ int pat_parse_reg(const char **text, struct pattern *pattern, enum pat_usage usa
  * non-zero on success.
  *
  */
-int pat_parse_int(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err)
+int pat_parse_int(const char *text, struct pattern *pattern, enum pat_usage usage, char **err)
 {
-	const char *ptr = *text;
+	const char *ptr = text;
 
 	pattern->type = SMP_T_UINT;
 	pattern->expect_type = SMP_T_UINT;
 
 	/* Empty string is not valid */
-	if (!**text)
+	if (!*text)
 		goto not_valid_range;
 
 	/* Search ':' or '-' separator. */
@@ -313,8 +295,8 @@ int pat_parse_int(const char **text, struct pattern *pattern, enum pat_usage usa
 
 	/* If separator not found. */
 	if (!*ptr) {
-		if (strl2llrc(*text, ptr - *text, &pattern->val.range.min) != 0) {
-			memprintf(err, "'%s' is not a number", *text);
+		if (strl2llrc(text, ptr - text, &pattern->val.range.min) != 0) {
+			memprintf(err, "'%s' is not a number", text);
 			return 0;
 		}
 		pattern->val.range.max = pattern->val.range.min;
@@ -324,7 +306,7 @@ int pat_parse_int(const char **text, struct pattern *pattern, enum pat_usage usa
 	}
 
 	/* If the separator is the first character. */
-	if (ptr == *text && *(ptr + 1) != '\0') {
+	if (ptr == text && *(ptr + 1) != '\0') {
 		if (strl2llrc(ptr + 1, strlen(ptr + 1), &pattern->val.range.max) != 0)
 			goto not_valid_range;
 
@@ -335,7 +317,7 @@ int pat_parse_int(const char **text, struct pattern *pattern, enum pat_usage usa
 
 	/* If separator is the last character. */
 	if (*(ptr + 1) == '\0') {
-		if (strl2llrc(*text, ptr - *text, &pattern->val.range.min) != 0)
+		if (strl2llrc(text, ptr - text, &pattern->val.range.min) != 0)
 			goto not_valid_range;
 
 		pattern->val.range.min_set = 1;
@@ -344,7 +326,7 @@ int pat_parse_int(const char **text, struct pattern *pattern, enum pat_usage usa
 	}
 
 	/* Else, parse two numbers. */
-	if (strl2llrc(*text, ptr - *text, &pattern->val.range.min) != 0)
+	if (strl2llrc(text, ptr - text, &pattern->val.range.min) != 0)
 		goto not_valid_range;
 
 	if (strl2llrc(ptr + 1, strlen(ptr + 1), &pattern->val.range.max) != 0)
@@ -358,15 +340,15 @@ int pat_parse_int(const char **text, struct pattern *pattern, enum pat_usage usa
 	return 1;
 
  not_valid_range:
-	memprintf(err, "'%s' is not a valid number range", *text);
+	memprintf(err, "'%s' is not a valid number range", text);
 	return 0;
 }
 
-int pat_parse_len(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err)
+int pat_parse_len(const char *text, struct pattern *pattern, enum pat_usage usage, char **err)
 {
 	int ret;
 
-	ret = pat_parse_int(text, pattern, usage, opaque, err);
+	ret = pat_parse_int(text, pattern, usage, err);
 	pattern->expect_type = SMP_T_CSTR;
 	return ret;
 }
@@ -391,9 +373,9 @@ int pat_parse_len(const char **text, struct pattern *pattern, enum pat_usage usa
  *    acl valid_ssl       ssl_req_proto 3.0-3.1
  *
  */
-int pat_parse_dotted_ver(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err)
+int pat_parse_dotted_ver(const char *text, struct pattern *pattern, enum pat_usage usage, char **err)
 {
-	const char *ptr = *text;
+	const char *ptr = text;
 
 	pattern->type = SMP_T_UINT;
 	pattern->expect_type = SMP_T_UINT;
@@ -403,9 +385,9 @@ int pat_parse_dotted_ver(const char **text, struct pattern *pattern, enum pat_us
 		ptr++;
 
 	/* If separator not found. */
-	if (*ptr == '\0' && ptr > *text) {
-		if (strl2llrc_dotted(*text, ptr-*text, &pattern->val.range.min) != 0) {
-			memprintf(err, "'%s' is not a dotted number", *text);
+	if (*ptr == '\0' && ptr > text) {
+		if (strl2llrc_dotted(text, ptr-text, &pattern->val.range.min) != 0) {
+			memprintf(err, "'%s' is not a dotted number", text);
 			return 0;
 		}
 		pattern->val.range.max = pattern->val.range.min;
@@ -415,9 +397,9 @@ int pat_parse_dotted_ver(const char **text, struct pattern *pattern, enum pat_us
 	}
 
 	/* If the separator is the first character. */
-	if (ptr == *text && *(ptr+1) != '\0') {
+	if (ptr == text && *(ptr+1) != '\0') {
 		if (strl2llrc_dotted(ptr+1, strlen(ptr+1), &pattern->val.range.max) != 0) {
-			memprintf(err, "'%s' is not a valid dotted number range", *text);
+			memprintf(err, "'%s' is not a valid dotted number range", text);
 			return 0;
 		}
 		pattern->val.range.min_set = 0;
@@ -426,9 +408,9 @@ int pat_parse_dotted_ver(const char **text, struct pattern *pattern, enum pat_us
 	}
 
 	/* If separator is the last character. */
-	if (ptr == &(*text)[strlen(*text)-1]) {
-		if (strl2llrc_dotted(*text, ptr-*text, &pattern->val.range.min) != 0) {
-			memprintf(err, "'%s' is not a valid dotted number range", *text);
+	if (ptr == &text[strlen(text)-1]) {
+		if (strl2llrc_dotted(text, ptr-text, &pattern->val.range.min) != 0) {
+			memprintf(err, "'%s' is not a valid dotted number range", text);
 			return 0;
 		}
 		pattern->val.range.min_set = 1;
@@ -437,16 +419,16 @@ int pat_parse_dotted_ver(const char **text, struct pattern *pattern, enum pat_us
 	}
 
 	/* Else, parse two numbers. */
-	if (strl2llrc_dotted(*text, ptr-*text, &pattern->val.range.min) != 0) {
-		memprintf(err, "'%s' is not a valid dotted number range", *text);
+	if (strl2llrc_dotted(text, ptr-text, &pattern->val.range.min) != 0) {
+		memprintf(err, "'%s' is not a valid dotted number range", text);
 		return 0;
 	}
 	if (strl2llrc_dotted(ptr+1, strlen(ptr+1), &pattern->val.range.max) != 0) {
-		memprintf(err, "'%s' is not a valid dotted number range", *text);
+		memprintf(err, "'%s' is not a valid dotted number range", text);
 		return 0;
 	}
 	if (pattern->val.range.min > pattern->val.range.max) {
-		memprintf(err, "'%s' is not a valid dotted number range", *text);
+		memprintf(err, "'%s' is not a valid dotted number range", text);
 		return 0;
 	}
 	pattern->val.range.min_set = 1;
@@ -459,20 +441,20 @@ int pat_parse_dotted_ver(const char **text, struct pattern *pattern, enum pat_us
  * may either be a dotted mask or a number of bits. Returns 1 if OK,
  * otherwise 0. NOTE: IP address patterns are typed (IPV4/IPV6).
  */
-int pat_parse_ip(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err)
+int pat_parse_ip(const char *text, struct pattern *pattern, enum pat_usage usage, char **err)
 {
 	pattern->expect_type = SMP_T_ADDR;
-	if (str2net(*text, &pattern->val.ipv4.addr, &pattern->val.ipv4.mask)) {
+	if (str2net(text, &pattern->val.ipv4.addr, &pattern->val.ipv4.mask)) {
 		pattern->type = SMP_T_IPV4;
 		return 1;
 	}
-	else if (str62net(*text, &pattern->val.ipv6.addr, &pattern->val.ipv6.mask)) {
+	else if (str62net(text, &pattern->val.ipv6.addr, &pattern->val.ipv6.mask)) {
 		/* no tree support right now */
 		pattern->type = SMP_T_IPV6;
 		return 1;
 	}
 	else {
-		memprintf(err, "'%s' is not a valid IPv4 or IPv6 address", *text);
+		memprintf(err, "'%s' is not a valid IPv4 or IPv6 address", text);
 		return 0;
 	}
 }
@@ -813,7 +795,6 @@ int pattern_register(struct pattern_expr *expr, const char **args,
                          struct pattern **pattern,
                          int patflags, char **err)
 {
-	int opaque = 0;
 	unsigned int mask = 0;
 	struct pat_idx_elt *node;
 	int len;
@@ -833,7 +814,7 @@ int pattern_register(struct pattern_expr *expr, const char **args,
 		memset(*pattern, 0, sizeof(**pattern));
 		(*pattern)->flags = patflags;
 
-		ret = expr->parse(args, *pattern, PAT_U_COMPILE, &opaque, err);
+		ret = expr->parse(args[0], *pattern, PAT_U_COMPILE, err);
 		if (!ret)
 			return 0;
 
@@ -1105,8 +1086,6 @@ int pattern_lookup(const char *key, struct pattern_expr *expr,
 	struct pattern *pat;
 	struct ebmb_node *node;
 	struct pat_idx_elt *elt;
-	const char *args[2];
-	int opaque = 0;
 	unsigned int mask = 0;
 
 	/* no real pattern */
@@ -1114,9 +1093,7 @@ int pattern_lookup(const char *key, struct pattern_expr *expr,
 		return 0;
 
 	/* build lookup pattern */
-	args[0] = key;
-	args[1] = "";
-	if (!expr->parse(args, &pattern, PAT_U_LOOKUP, &opaque, NULL))
+	if (!expr->parse(key, &pattern, PAT_U_LOOKUP, NULL))
 		return 0;
 
 	pat = NULL;

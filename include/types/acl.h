@@ -92,7 +92,7 @@ struct acl_expr;
 struct acl_keyword {
 	const char *kw;
 	char *fetch_kw;
-	int (*parse)(const char **text, struct pattern *pattern, enum pat_usage usage, int *opaque, char **err);
+	int (*parse)(const char *text, struct pattern *pattern, enum pat_usage usage, char **err);
 	enum pat_match_res (*match)(struct sample *smp, struct pattern *pattern);
 	/* must be after the config params */
 	struct sample_fetch *smp; /* the sample fetch we depend on */
