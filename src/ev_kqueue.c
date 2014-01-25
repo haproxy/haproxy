@@ -47,28 +47,14 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	/* first, scan the update list to find changes */
 	for (updt_idx = 0; updt_idx < fd_nbupdt; updt_idx++) {
 		fd = fd_updt[updt_idx];
-		en = eo = fdtab[fd].state;
-
 		fdtab[fd].updated = 0;
 		fdtab[fd].new = 0;
 
 		if (!fdtab[fd].owner)
 			continue;
 
-		if (en & FD_EV_ACTIVE_R) {
-			if (!(en & FD_EV_READY_R))
-				en |= FD_EV_POLLED_R;
-		}
-		else
-			en &= ~FD_EV_POLLED_R;
-
-		if (en & FD_EV_ACTIVE_W) {
-			if (!(en & FD_EV_READY_W))
-				en |= FD_EV_POLLED_W;
-		}
-		else
-			en &= ~FD_EV_POLLED_W;
-
+		eo = fdtab[fd].state;
+		en = fd_compute_new_polled_status(eo);
 
 		if ((eo ^ en) & FD_EV_POLLED_RW) {
 			/* poll status changed */

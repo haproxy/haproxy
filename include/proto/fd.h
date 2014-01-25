@@ -135,6 +135,28 @@ static inline void fd_release_cache_entry(int fd)
 	}
 }
 
+/* Computes the new polled status based on the active and ready statuses, for
+ * each direction. This is meant to be used by pollers while processing updates.
+ */
+static inline int fd_compute_new_polled_status(int state)
+{
+	if (state & FD_EV_ACTIVE_R) {
+		if (!(state & FD_EV_READY_R))
+			state |= FD_EV_POLLED_R;
+	}
+	else
+		state &= ~FD_EV_POLLED_R;
+
+	if (state & FD_EV_ACTIVE_W) {
+		if (!(state & FD_EV_READY_W))
+			state |= FD_EV_POLLED_W;
+	}
+	else
+		state &= ~FD_EV_POLLED_W;
+
+	return state;
+}
+
 /* Automatically allocates or releases a cache entry for fd <fd> depending on
  * its new state. This is meant to be used by pollers while processing updates.
  */
