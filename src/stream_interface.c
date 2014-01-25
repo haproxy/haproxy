@@ -205,7 +205,10 @@ static void stream_int_update_embedded(struct stream_interface *si)
 	    /* changes on the consumption side */
 	    (si->ob->flags & (CF_WRITE_NULL|CF_WRITE_ERROR)) ||
 	    ((si->ob->flags & CF_WRITE_ACTIVITY) &&
-	     (si->ob->flags & (CF_SHUTW|CF_WAKE_WRITE)))) {
+	     ((si->ob->flags & CF_SHUTW) ||
+	      ((si->ob->flags & CF_WAKE_WRITE) &&
+	       (si->ob->prod->state != SI_ST_EST ||
+	        (channel_is_empty(si->ob) && !si->ob->to_forward)))))) {
 		if (!(si->flags & SI_FL_DONT_WAKE) && si->owner)
 			task_wakeup(si->owner, TASK_WOKEN_IO);
 	}
@@ -630,7 +633,10 @@ static int si_conn_wake_cb(struct connection *conn)
 	    /* changes on the consumption side */
 	    (si->ob->flags & (CF_WRITE_NULL|CF_WRITE_ERROR)) ||
 	    ((si->ob->flags & CF_WRITE_ACTIVITY) &&
-	     (si->ob->flags & (CF_SHUTW|CF_WAKE_WRITE)))) {
+	     ((si->ob->flags & CF_SHUTW) ||
+	      ((si->ob->flags & CF_WAKE_WRITE) &&
+	       (si->ob->prod->state != SI_ST_EST ||
+	        (channel_is_empty(si->ob) && !si->ob->to_forward)))))) {
 		task_wakeup(si->owner, TASK_WOKEN_IO);
 	}
 	if (si->ib->flags & CF_READ_ACTIVITY)
@@ -1043,7 +1049,10 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 	/* in case of special condition (error, shutdown, end of write...), we
 	 * have to notify the task.
 	 */
-	if (likely(ob->flags & (CF_WRITE_NULL|CF_WRITE_ERROR|CF_SHUTW|CF_WAKE_WRITE))) {
+	if (likely((ob->flags & (CF_WRITE_NULL|CF_WRITE_ERROR|CF_SHUTW)) ||
+	          ((ob->flags & CF_WAKE_WRITE) &&
+	           ((channel_is_empty(si->ob) && !ob->to_forward) ||
+	            si->state != SI_ST_EST)))) {
 	out_wakeup:
 		if (!(si->flags & SI_FL_DONT_WAKE) && si->owner)
 			task_wakeup(si->owner, TASK_WOKEN_IO);
