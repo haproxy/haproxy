@@ -11438,7 +11438,7 @@ Please refer to the table below for currently defined variables :
   |   | %pid | PID                                           | numeric     |
   | H | %r   | http_request                                  | string      |
   |   | %rc  | retries                                       | numeric     |
-  | H | %rt  | http_request_counter                          | numeric     |
+  |   | %rt  | request_counter (HTTP req or TCP session)     | numeric     |
   |   | %s   | server_name                                   | string      |
   |   | %sc  | srv_conn     (server concurrent connections)  | numeric     |
   |   | %si  | server_IP                   (target address)  | IP          |

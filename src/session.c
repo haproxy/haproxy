@@ -119,7 +119,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 
 	s->logs.accept_date = date; /* user-visible date for logging */
 	s->logs.tv_accept = now;  /* corrected date for internal use */
-	s->uniq_id = totalconn;
+	s->uniq_id = global.req_count++;
 	p->feconn++;
 	/* This session was accepted, count it now */
 	if (p->feconn > p->fe_counters.conn_max)

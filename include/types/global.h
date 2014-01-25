@@ -90,7 +90,7 @@ struct global {
 	int rlimit_memmax;	/* default ulimit-d in megs value : 0=unset */
 	long maxzlibmem;        /* max RAM for zlib in bytes */
 	int mode;
-	unsigned int req_count; /* HTTP request counter for logs and unique_id */
+	unsigned int req_count; /* request counter (HTTP or TCP session) for logs and unique_id */
 	int last_checks;
 	int spread_checks;
 	char *chroot;

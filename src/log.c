@@ -111,7 +111,7 @@ static const struct logformat_type logformat_keywords[] = {
 	{ "pid", LOG_FMT_PID, PR_MODE_TCP, LW_INIT, NULL }, /* log pid */
 	{ "r", LOG_FMT_REQ, PR_MODE_HTTP, LW_REQ, NULL },  /* request */
 	{ "rc", LOG_FMT_RETRIES, PR_MODE_TCP, LW_BYTES, NULL },  /* retries */
-	{ "rt", LOG_FMT_COUNTER, PR_MODE_HTTP, LW_REQ, NULL }, /* HTTP request counter */
+	{ "rt", LOG_FMT_COUNTER, PR_MODE_TCP, LW_REQ, NULL }, /* request counter (HTTP or TCP session) */
 	{ "s", LOG_FMT_SERVER, PR_MODE_TCP, LW_SVID, NULL },    /* server */
 	{ "sc", LOG_FMT_SRVCONN, PR_MODE_TCP, LW_BYTES, NULL },  /* srv_conn */
 	{ "si", LOG_FMT_SERVERIP, PR_MODE_TCP, LW_SVIP, NULL }, /* server destination ip */
@@ -1512,13 +1512,13 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 
 			case LOG_FMT_COUNTER: // %rt
 				if (tmp->options & LOG_OPT_HEXA) {
-					iret = snprintf(tmplog, dst + maxsize - tmplog, "%04X", global.req_count++);
+					iret = snprintf(tmplog, dst + maxsize - tmplog, "%04X", s->uniq_id);
 					if (iret < 0 || iret > dst + maxsize - tmplog)
 						goto out;
 					last_isspace = 0;
 					tmplog += iret;
 				} else {
-					ret = ltoa_o(global.req_count++, tmplog, dst + maxsize - tmplog);
+					ret = ltoa_o(s->uniq_id, tmplog, dst + maxsize - tmplog);
 					if (ret == NULL)
 						goto out;
 					tmplog = ret;
