@@ -111,7 +111,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 
 	/* compute the epoll_wait() timeout */
 
-	if (fd_nbspec || run_queue || signal_queue_len) {
+	if (fd_cache_num || run_queue || signal_queue_len) {
 		/* Maybe we still have events in the spec list, or there are
 		 * some tasks left pending in the run_queue, so we must not
 		 * wait in epoll() otherwise we would delay their delivery by

@@ -105,11 +105,10 @@ struct poller pollers[MAX_POLLERS];
 struct poller cur_poller;
 int nbpollers = 0;
 
-/* FD status is defined by the poller's status and by the speculative I/O list */
-int fd_nbspec = 0;             // number of speculative events in the list
-int fd_nbupdt = 0;             // number of updates in the list
-unsigned int *fd_spec = NULL;  // speculative I/O list
+unsigned int *fd_cache = NULL; // FD events cache
 unsigned int *fd_updt = NULL;  // FD updates list
+int fd_cache_num = 0;          // number of events in the cache
+int fd_nbupdt = 0;             // number of updates in the list
 
 /* Deletes an FD from the fdsets, and recomputes the maxfd limit.
  * The file descriptor is also closed.
@@ -146,8 +145,8 @@ void fd_process_spec_events()
 
 	/* now process speculative events if any */
 
-	for (spec_idx = 0; spec_idx < fd_nbspec; ) {
-		fd = fd_spec[spec_idx];
+	for (spec_idx = 0; spec_idx < fd_cache_num; ) {
+		fd = fd_cache[spec_idx];
 		e = fdtab[fd].state;
 
 		/*
@@ -176,7 +175,7 @@ void fd_process_spec_events()
 		/* if the fd was removed from the spec list, it has been
 		 * replaced by the next one that we don't want to skip !
 		 */
-		if (spec_idx < fd_nbspec && fd_spec[spec_idx] != fd)
+		if (spec_idx < fd_cache_num && fd_cache[spec_idx] != fd)
 			continue;
 
 		spec_idx++;
@@ -202,8 +201,8 @@ int init_pollers()
 	int p;
 	struct poller *bp;
 
-	if ((fd_spec = (uint32_t *)calloc(1, sizeof(uint32_t) * global.maxsock)) == NULL)
-		goto fail_spec;
+	if ((fd_cache = (uint32_t *)calloc(1, sizeof(uint32_t) * global.maxsock)) == NULL)
+		goto fail_cache;
 
 	if ((fd_updt = (uint32_t *)calloc(1, sizeof(uint32_t) * global.maxsock)) == NULL)
 		goto fail_updt;
@@ -225,8 +224,8 @@ int init_pollers()
 	return 0;
 
  fail_updt:
-	free(fd_spec);
- fail_spec:
+	free(fd_cache);
+ fail_cache:
 	return 0;
 }
 
@@ -246,9 +245,9 @@ void deinit_pollers() {
 	}
 
 	free(fd_updt);
-	free(fd_spec);
+	free(fd_cache);
 	fd_updt = NULL;
-	fd_spec = NULL;
+	fd_cache = NULL;
 }
 
 /*

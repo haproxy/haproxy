@@ -31,10 +31,10 @@
 #include <types/fd.h>
 
 /* public variables */
-extern int fd_nbspec;          // number of speculative events in the list
-extern int fd_nbupdt;          // number of updates in the list
-extern unsigned int *fd_spec;  // speculative I/O list
-extern unsigned int *fd_updt;  // FD updates list
+extern unsigned int *fd_cache;      // FD events cache
+extern unsigned int *fd_updt;       // FD updates list
+extern int fd_cache_num;            // number of events in the cache
+extern int fd_nbupdt;               // number of updates in the list
 
 /* Deletes an FD from the fdsets, and recomputes the maxfd limit.
  * The file descriptor is also closed.
@@ -100,9 +100,9 @@ static inline void alloc_spec_entry(const int fd)
 	if (fdtab[fd].cache)
 		/* FD already in speculative I/O list */
 		return;
-	fd_nbspec++;
-	fdtab[fd].cache = fd_nbspec;
-	fd_spec[fd_nbspec-1] = fd;
+	fd_cache_num++;
+	fdtab[fd].cache = fd_cache_num;
+	fd_cache[fd_cache_num-1] = fd;
 }
 
 /* Removes entry used by fd <fd> from the spec list and replaces it with the
@@ -117,11 +117,11 @@ static inline void release_spec_entry(int fd)
 	if (!pos)
 		return;
 	fdtab[fd].cache = 0;
-	fd_nbspec--;
-	if (likely(pos <= fd_nbspec)) {
+	fd_cache_num--;
+	if (likely(pos <= fd_cache_num)) {
 		/* was not the last entry */
-		fd = fd_spec[fd_nbspec];
-		fd_spec[pos - 1] = fd;
+		fd = fd_cache[fd_cache_num];
+		fd_cache[pos - 1] = fd;
 		fdtab[fd].cache = pos;
 	}
 }
