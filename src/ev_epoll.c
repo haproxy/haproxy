@@ -174,63 +174,8 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 		if (e & EPOLLRDHUP)
 			n |= FD_POLL_HUP;
 
-		if (!n)
-			continue;
-
 		fdtab[fd].ev |= n;
-
-		if (fdtab[fd].iocb) {
-			int new_updt, old_updt;
-
-			/* Mark the events as ready before processing */
-			if (fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
-				fd_may_recv(fd);
-
-			if (fdtab[fd].ev & (FD_POLL_OUT | FD_POLL_ERR))
-				fd_may_send(fd);
-
-			if (fdtab[fd].cache)
-				continue;
-
-			/* Save number of updates to detect creation of new FDs. */
-			old_updt = fd_nbupdt;
-			fdtab[fd].iocb(fd);
-
-			/* One or more fd might have been created during the iocb().
-			 * This mainly happens with new incoming connections that have
-			 * just been accepted, so we'd like to process them immediately
-			 * for better efficiency. Second benefit, if at the end the fds
-			 * are disabled again, we can safely destroy their update entry
-			 * to reduce the scope of later scans. This is the reason we
-			 * scan the new entries backwards.
-			 */
-
-			for (new_updt = fd_nbupdt; new_updt > old_updt; new_updt--) {
-				fd = fd_updt[new_updt - 1];
-				if (!fdtab[fd].new)
-					continue;
-
-				fdtab[fd].new = 0;
-				fdtab[fd].ev &= FD_POLL_STICKY;
-
-				if ((fdtab[fd].state & FD_EV_STATUS_R) == (FD_EV_READY_R | FD_EV_ACTIVE_R))
-					fdtab[fd].ev |= FD_POLL_IN;
-
-				if ((fdtab[fd].state & FD_EV_STATUS_W) == (FD_EV_READY_W | FD_EV_ACTIVE_W))
-					fdtab[fd].ev |= FD_POLL_OUT;
-
-				if (fdtab[fd].ev && fdtab[fd].iocb && fdtab[fd].owner)
-					fdtab[fd].iocb(fd);
-
-				/* we can remove this update entry if it's the last one and is
-				 * unused, otherwise we don't touch anything.
-				 */
-				if (new_updt == fd_nbupdt && !fd_recv_active(fd) && !fd_send_active(fd)) {
-					fdtab[fd].updated = 0;
-					fd_nbupdt--;
-				}
-			}
-		}
+		fd_process_polled_events(fd);
 	}
 	/* the caller will take care of cached events */
 }

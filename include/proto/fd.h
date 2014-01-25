@@ -81,6 +81,14 @@ void run_poller();
  */
 void fd_process_cached_events();
 
+/* Check the events attached to a file descriptor, update its cache
+ * accordingly, and call the associated I/O callback. If new updates are
+ * detected, the function tries to process them as well in order to save
+ * wakeups after accept().
+ */
+void fd_process_polled_events(int fd);
+
+
 /* Mark fd <fd> as updated and allocate an entry in the update list for this if
  * it was not already there. This can be done at any time.
  */

@@ -161,18 +161,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			if (FD_ISSET(fd, tmp_evts[DIR_WR]))
 				fdtab[fd].ev |= FD_POLL_OUT;
 
-			if (fdtab[fd].iocb && fdtab[fd].ev) {
-				if (fdtab[fd].ev & FD_POLL_IN)
-					fd_may_recv(fd);
-
-				if (fdtab[fd].ev & FD_POLL_OUT)
-					fd_may_send(fd);
-
-				if (fdtab[fd].cache)
-					continue;
-
-				fdtab[fd].iocb(fd);
-			}
+			fd_process_polled_events(fd);
 		}
 	}
 }
