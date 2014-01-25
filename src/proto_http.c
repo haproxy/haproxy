@@ -4864,8 +4864,10 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 
 		if (msg->msg_state == HTTP_MSG_DATA) {
 			/* must still forward */
-			if (req->to_forward)
+			if (req->to_forward) {
+				req->flags |= CF_WAKE_WRITE;
 				goto missing_data;
+			}
 
 			/* nothing left to forward */
 			if (msg->flags & HTTP_MSGF_TE_CHNK)
@@ -5986,8 +5988,10 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 
 	if (s->comp_algo != NULL) {
 		ret = http_compression_buffer_init(s, res->buf, tmpbuf); /* init a buffer with headers */
-		if (ret < 0)
+		if (ret < 0) {
+			res->flags |= CF_WAKE_WRITE;
 			goto missing_data; /* not enough spaces in buffers */
+		}
 		compressing = 1;
 	}
 
@@ -6012,8 +6016,10 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 					goto aborted_xfer;
 			}
 
-			if (res->to_forward || msg->chunk_len)
+			if (res->to_forward || msg->chunk_len) {
+				res->flags |= CF_WAKE_WRITE;
 				goto missing_data;
+			}
 
 			/* nothing left to forward */
 			if (msg->flags & HTTP_MSGF_TE_CHNK) {
