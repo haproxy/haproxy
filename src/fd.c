@@ -136,29 +136,23 @@ void fd_delete(int fd)
 		maxfd--;
 }
 
-/* Scan and process the speculative events. This should be called right after
+/* Scan and process the cached events. This should be called right after
  * the poller.
  */
-void fd_process_spec_events()
+void fd_process_cached_events()
 {
-	int fd, spec_idx, e;
+	int fd, entry, e;
 
-	/* now process speculative events if any */
-
-	for (spec_idx = 0; spec_idx < fd_cache_num; ) {
-		fd = fd_cache[spec_idx];
+	for (entry = 0; entry < fd_cache_num; ) {
+		fd = fd_cache[entry];
 		e = fdtab[fd].state;
 
-		/*
-		 * Process the speculative events.
-		 *
-		 * Principle: events which are marked FD_EV_ACTIVE are processed
+		/* Principle: events which are marked FD_EV_ACTIVE are processed
 		 * with their usual I/O callback. The callback may remove the
-		 * events from the list or tag them for polling. Changes will be
-		 * applied on next round. Speculative entries with no more activity
-		 * are automatically scheduled for removal.
+		 * events from the cache or tag them for polling. Changes will be
+		 * applied on next round. Cache entries with no more activity are
+		 * automatically scheduled for removal.
 		 */
-
 		fdtab[fd].ev &= FD_POLL_STICKY;
 
 		if (e & FD_EV_ACTIVE_R)
@@ -172,13 +166,12 @@ void fd_process_spec_events()
 		else
 			updt_fd(fd);
 
-		/* if the fd was removed from the spec list, it has been
+		/* If the fd was removed from the cache, it has been
 		 * replaced by the next one that we don't want to skip !
 		 */
-		if (spec_idx < fd_cache_num && fd_cache[spec_idx] != fd)
+		if (entry < fd_cache_num && fd_cache[entry] != fd)
 			continue;
-
-		spec_idx++;
+		entry++;
 	}
 }
 
