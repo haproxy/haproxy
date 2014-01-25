@@ -359,7 +359,7 @@ ifeq ($(SUBVERS),)
 SUBVERS := $(shell (grep -v '\$$Format' SUBVERS 2>/dev/null || touch SUBVERS) | head -n 1)
 endif
 ifeq ($(VERDATE),)
-VERDATE := $(shell (grep -v '^$$Format' VERDATE 2>/dev/null || touch VERDATE) | head -n 1 | cut -f1 -d' ' | tr '-' '/')
+VERDATE := $(shell (grep -v '^\$$Format' VERDATE 2>/dev/null || touch VERDATE) | head -n 1 | cut -f1 -d' ' | tr '-' '/')
 endif
 
 #### Build options
