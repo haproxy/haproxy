@@ -123,7 +123,7 @@ void fd_delete(int fd)
 	if (cur_poller.clo)
 		cur_poller.clo(fd);
 
-	release_spec_entry(fd);
+	fd_release_cache_entry(fd);
 	fdtab[fd].state &= ~(FD_EV_CURR_MASK | FD_EV_PREV_MASK);
 
 	port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);

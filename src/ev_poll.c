@@ -93,13 +93,12 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 				/* This fd doesn't use any active entry anymore, we can
 				 * kill its entry.
 				 */
-				release_spec_entry(fd);
+				fd_release_cache_entry(fd);
 			}
 			else if ((en & ~eo) & FD_EV_ACTIVE_RW) {
-				/* we need a new spec entry now */
-				alloc_spec_entry(fd);
+				/* we need a new cache entry now */
+				fd_alloc_cache_entry(fd);
 			}
-
 		}
 		fdtab[fd].updated = 0;
 		fdtab[fd].new = 0;

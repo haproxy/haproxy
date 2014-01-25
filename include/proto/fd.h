@@ -94,22 +94,23 @@ static inline void updt_fd(const int fd)
 }
 
 
-/* allocate an entry for a speculative event. This can be done at any time. */
-static inline void alloc_spec_entry(const int fd)
+/* Allocates a cache entry for a file descriptor if it does not yet have one.
+ * This can be done at any time.
+ */
+static inline void fd_alloc_cache_entry(const int fd)
 {
 	if (fdtab[fd].cache)
-		/* FD already in speculative I/O list */
 		return;
 	fd_cache_num++;
 	fdtab[fd].cache = fd_cache_num;
 	fd_cache[fd_cache_num-1] = fd;
 }
 
-/* Removes entry used by fd <fd> from the spec list and replaces it with the
- * last one. The fdtab.spec is adjusted to match the back reference if needed.
+/* Removes entry used by fd <fd> from the FD cache and replaces it with the
+ * last one. The fdtab.cache is adjusted to match the back reference if needed.
  * If the fd has no entry assigned, return immediately.
  */
-static inline void release_spec_entry(int fd)
+static inline void fd_release_cache_entry(int fd)
 {
 	unsigned int pos;
 
