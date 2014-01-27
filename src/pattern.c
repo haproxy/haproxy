@@ -495,7 +495,7 @@ int pat_parse_dotted_ver(const char **text, struct pattern *pattern, enum pat_us
 		return 0;
 	}
 
-	pattern->expect_type = SMP_T_CSTR;
+	pattern->expect_type = SMP_T_UINT;
 
 	if (!last)
 		pattern->val.range.min = i;
