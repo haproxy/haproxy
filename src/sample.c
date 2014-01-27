@@ -549,11 +549,17 @@ static int c_str2int(struct sample *smp)
 	int i;
 	uint32_t ret = 0;
 
+	if (smp->data.str.len == 0)
+		return 0;
+
 	for (i = 0; i < smp->data.str.len; i++) {
 		uint32_t val = smp->data.str.str[i] - '0';
 
-		if (val > 9)
+		if (val > 9) {
+			if (i == 0)
+				return 0;
 			break;
+		}
 
 		ret = ret * 10 + val;
 	}
