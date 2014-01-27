@@ -9002,13 +9002,11 @@ static int pat_parse_meth(const char *text, struct pattern *pattern, char **err)
 			return 0;
 		}
 		pattern->ptr.str = trash->str;
-		pattern->expect_type = SMP_T_STR;
 		pattern->len = len;
 	}
 	else {
 		pattern->ptr.str = NULL;
 		pattern->len = 0;
-		pattern->expect_type = SMP_T_UINT;
 	}
 	return 1;
 }

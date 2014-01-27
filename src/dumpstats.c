@@ -4823,7 +4823,8 @@ static int stats_map_lookup(struct stream_interface *si)
 			sample.flags |= SMP_F_CONST;
 			sample.data.str.len = appctx->ctx.map.chunk.len;
 			sample.data.str.str = appctx->ctx.map.chunk.str;
-			if (appctx->ctx.map.expr->pat_head->match)
+			if (appctx->ctx.map.expr->pat_head->match &&
+			    sample_convert(&sample, appctx->ctx.map.expr->pat_head->expect_type))
 				pat = appctx->ctx.map.expr->pat_head->match(&sample, appctx->ctx.map.expr, 1);
 			else
 				pat = NULL;

@@ -135,7 +135,6 @@ struct pattern_tree {
  */
 struct pattern {
 	int type;                               /* type of the ACL pattern (SMP_T_*) */
-	int expect_type;                        /* type of the expected sample (SMP_T_*) */
 	union {
 		int i;                          /* integer value */
 		struct {
@@ -209,6 +208,7 @@ struct pattern_head {
 	struct sample_storage **(*find_smp)(struct pattern_expr *, struct pattern *);
 	void (*prune)(struct pattern_expr *);
 	struct pattern *(*match)(struct sample *, struct pattern_expr *, int);
+	int expect_type; /* type of the expected sample (SMP_T_*) */
 
 	struct list head; /* This is a list of struct pattern_expr_list. */
 };
