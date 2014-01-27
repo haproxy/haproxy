@@ -28,19 +28,6 @@
 #include <common/standard.h>
 #include <types/pattern.h>
 
-/* parse the <args> with <expr> compliant parser. <pattern> is a context for
- * the current parsed acl. It must initialized at NULL:
- *
- *    struct pattern *pattern = NULL
- *    pattern_register(..., &pattern, ...);
- *
- * patflag are a lot of 'PAT_F_*' flags pattern compatible. see
- * <types/acl.h>.
- *
- * The function returns 1 if the processing is ok, return 0
- * if the parser fails, with <err> message filled.
- */
-int pattern_register(struct pattern_head *head, int unique_id, int refflags, const char *arg, struct sample_storage *smp, int patflags, char **err);
 void pattern_finalize_config(void);
 
 /* return the PAT_MATCH_* index for match name "name", or < 0 if not found */

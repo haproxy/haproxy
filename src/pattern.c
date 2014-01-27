@@ -2014,44 +2014,6 @@ struct pattern_expr *pattern_new_expr(struct pattern_head *head, struct pat_ref 
 	return expr;
 }
 
-/* return 1 if the process is ok
- * return -1 if the parser fail. The err message is filled.
- * return -2 if out of memory
- */
-int pattern_register(struct pattern_head *head,
-                     int unique_id, int refflags,
-                     const char *arg,
-                     struct sample_storage *smp,
-                     int patflags, char **err)
-{
-	struct pattern_expr *expr;
-	struct pat_ref *ref;
-
-	/* Look if the unique id already exists. If exists, abort the acl creation. */
-	if (unique_id >= 0) {
-		ref = pat_ref_lookupid(unique_id);
-		if (ref) {
-			memprintf(err, "The unique id \"%d\" is already used.", unique_id);
-			return 0;
-		}
-	}
-
-	/* Create new reference. */
-	ref = pat_ref_newid(unique_id, refflags);
-	if (!ref) {
-		memprintf(err, "out of memory");
-		return 0;
-	}
-
-	/* create new pattern_expr. */
-	expr = pattern_new_expr(head, ref, err);
-	if (!expr)
-		return 0;
-
-	/* Index value. */
-	return pattern_add(expr, arg, smp, patflags, err);
-}
-
 /* Reads patterns from a file. If <err_msg> is non-NULL, an error message will
  * be returned there on errors and the caller will have to free it.
  */
