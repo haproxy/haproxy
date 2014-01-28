@@ -125,6 +125,7 @@ struct pat_time {
  */
 struct pattern_tree {
 	struct sample_storage *smp;
+	struct pat_ref_elt *ref;
 	struct ebmb_node node;
 };
 
@@ -164,7 +165,7 @@ struct pattern {
 	int flags;                      /* expr or pattern flags. */
 	struct sample_storage *smp;     /* used to store a pointer to sample value associated
 	                                   with the match. It is used with maps */
-
+	struct pat_ref_elt *ref;
 };
 
 /* This struct is just used for chaining patterns */

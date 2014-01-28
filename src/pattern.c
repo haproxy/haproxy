@@ -478,6 +478,7 @@ struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int
 			if (fill) {
 				elt = ebmb_entry(node, struct pattern_tree, node);
 				static_pattern.smp = elt->smp;
+				static_pattern.ref = elt->ref;
 				static_pattern.flags = PAT_F_TREE;
 				static_pattern.type = SMP_T_STR;
 				static_pattern.ptr.str = (char *)elt->node.key;
@@ -764,6 +765,7 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 			if (fill) {
 				elt = ebmb_entry(node, struct pattern_tree, node);
 				static_pattern.smp = elt->smp;
+				static_pattern.ref = elt->ref;
 				static_pattern.flags = PAT_F_TREE;
 				static_pattern.type = SMP_T_IPV4;
 				memcpy(&static_pattern.val.ipv4.addr.s_addr, elt->node.key, 4);
@@ -785,6 +787,7 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 			if (fill) {
 				elt = ebmb_entry(node, struct pattern_tree, node);
 				static_pattern.smp = elt->smp;
+				static_pattern.ref = elt->ref;
 				static_pattern.flags = PAT_F_TREE;
 				static_pattern.type = SMP_T_IPV6;
 				memcpy(&static_pattern.val.ipv6.addr, elt->node.key, 16);
@@ -804,6 +807,7 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 			if (fill) {
 				elt = ebmb_entry(node, struct pattern_tree, node);
 				static_pattern.smp = elt->smp;
+				static_pattern.ref = elt->ref;
 				static_pattern.flags = PAT_F_TREE;
 				static_pattern.type = SMP_T_IPV6;
 				memcpy(&static_pattern.val.ipv6.addr, elt->node.key, 16);
@@ -837,6 +841,7 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 				if (fill) {
 					elt = ebmb_entry(node, struct pattern_tree, node);
 					static_pattern.smp = elt->smp;
+					static_pattern.ref = elt->ref;
 					static_pattern.flags = PAT_F_TREE;
 					static_pattern.type = SMP_T_IPV4;
 					memcpy(&static_pattern.val.ipv4.addr.s_addr, elt->node.key, 4);
@@ -1087,6 +1092,7 @@ int pat_idx_tree_ip(struct pattern_expr *expr, struct pattern *pat, char **err)
 
 			/* copy the pointer to sample associated to this node */
 			node->smp = pat->smp;
+			node->ref = pat->ref;
 
 			/* FIXME: insert <addr>/<mask> into the tree here */
 			memcpy(node->node.key, &pat->val.ipv4.addr, 4); /* network byte order */
@@ -1112,6 +1118,7 @@ int pat_idx_tree_ip(struct pattern_expr *expr, struct pattern *pat, char **err)
 
 		/* copy the pointer to sample associated to this node */
 		node->smp = pat->smp;
+		node->ref = pat->ref;
 
 		/* FIXME: insert <addr>/<mask> into the tree here */
 		memcpy(node->node.key, &pat->val.ipv6.addr, 16); /* network byte order */
@@ -1154,6 +1161,7 @@ int pat_idx_tree_str(struct pattern_expr *expr, struct pattern *pat, char **err)
 
 	/* copy the pointer to sample associated to this node */
 	node->smp = pat->smp;
+	node->ref = pat->ref;
 
 	/* copy the string */
 	memcpy(node->node.key, pat->ptr.str, len);
@@ -1819,6 +1827,7 @@ int pat_ref_push(struct pat_ref_elt *elt, struct pattern_expr *expr,
 	memset(&pattern, 0, sizeof(pattern));
 	pattern.flags = patflags;
 	pattern.smp = smp;
+	pattern.ref = elt;
 
 	/* parse pattern */
 	if (!expr->pat_head->parse(elt->pattern, &pattern, err)) {
@@ -2125,6 +2134,7 @@ struct pattern *pattern_exec_match(struct pattern_head *head, struct sample *smp
 	if (!head->match) {
 		if (fill) {
 			static_pattern.smp = NULL;
+			static_pattern.ref = NULL;
 			static_pattern.flags = 0;
 			static_pattern.type = SMP_T_UINT;
 			static_pattern.val.i = 1;
