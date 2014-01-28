@@ -3569,7 +3569,7 @@ static struct acl_kw_list acl_kws = {ILH, {
 #endif
 	{ "ssl_fc_protocol",        NULL,         pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_find_smp_tree_str, pat_prune_ptr, pat_match_str     },
 	{ "ssl_fc_sni",             "ssl_fc_sni", pat_parse_str, pat_idx_tree_str, pat_del_tree_str, pat_find_smp_tree_str, pat_prune_ptr, pat_match_str     },
-	{ "ssl_fc_sni_end",         "ssl_fc_sni", pat_parse_str, pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_end     },
+	{ "ssl_fc_sni_end",         "ssl_fc_sni", pat_parse_str, pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_end     },
 	{ "ssl_fc_sni_reg",         "ssl_fc_sni", pat_parse_reg, pat_idx_list_reg, pat_del_list_reg, pat_find_smp_list_reg, pat_prune_reg, pat_match_reg     },
 	{ /* END */ },
 }};

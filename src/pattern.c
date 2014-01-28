@@ -72,7 +72,7 @@ int (*pat_index_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *, ch
 	[PAT_MATCH_REG]   = pat_idx_list_reg,
 };
 
-void (*pat_delete_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *) = {
+void (*pat_delete_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pat_ref_elt *) = {
 	[PAT_MATCH_FOUND] = pat_del_list_val,
 	[PAT_MATCH_BOOL]  = pat_del_list_val,
 	[PAT_MATCH_INT]   = pat_del_list_val,
@@ -80,11 +80,11 @@ void (*pat_delete_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *) 
 	[PAT_MATCH_BIN]   = pat_del_list_ptr,
 	[PAT_MATCH_LEN]   = pat_del_list_val,
 	[PAT_MATCH_STR]   = pat_del_tree_str,
-	[PAT_MATCH_BEG]   = pat_del_list_str,
-	[PAT_MATCH_SUB]   = pat_del_list_str,
-	[PAT_MATCH_DIR]   = pat_del_list_str,
-	[PAT_MATCH_DOM]   = pat_del_list_str,
-	[PAT_MATCH_END]   = pat_del_list_str,
+	[PAT_MATCH_BEG]   = pat_del_list_ptr,
+	[PAT_MATCH_SUB]   = pat_del_list_ptr,
+	[PAT_MATCH_DIR]   = pat_del_list_ptr,
+	[PAT_MATCH_DOM]   = pat_del_list_ptr,
+	[PAT_MATCH_END]   = pat_del_list_ptr,
 	[PAT_MATCH_REG]   = pat_del_list_reg,
 };
 
@@ -1357,22 +1357,14 @@ struct sample_storage **pat_find_smp_list_reg(struct pattern_expr *expr, struct 
 	return NULL;
 }
 
-void pat_del_list_val(struct pattern_expr *expr, struct pattern *pattern)
+void pat_del_list_val(struct pattern_expr *expr, struct pat_ref_elt *ref)
 {
 	struct pattern_list *pat;
 	struct pattern_list *safe;
 
 	list_for_each_entry_safe(pat, safe, &expr->patterns, list) {
 		/* Check equality. */
-		if (pattern->val.range.min_set != pat->pat.val.range.min_set)
-			continue;
-		if (pattern->val.range.max_set != pat->pat.val.range.max_set)
-			continue;
-		if (pattern->val.range.min_set &&
-		    pattern->val.range.min != pat->pat.val.range.min)
-			continue;
-		if (pattern->val.range.max_set &&
-		    pattern->val.range.max != pat->pat.val.range.max)
+		if (pat->pat.ref != ref)
 			continue;
 
 		/* Delete and free entry. */
@@ -1382,94 +1374,57 @@ void pat_del_list_val(struct pattern_expr *expr, struct pattern *pattern)
 	}
 }
 
-void pat_del_tree_ip(struct pattern_expr *expr, struct pattern *pattern)
+void pat_del_tree_ip(struct pattern_expr *expr, struct pat_ref_elt *ref)
 {
 	struct ebmb_node *node, *next_node;
 	struct pattern_tree *elt;
-	struct pattern_list *pat;
-	struct pattern_list *safe;
-	unsigned int mask;
 
 	/* browse each node of the tree for IPv4 addresses. */
-	if (pattern->type == SMP_T_IPV4) {
-		/* Convert mask. If the mask is contiguous, browse each node
-		 * of the tree for IPv4 addresses.
-		 */
-		mask = ntohl(pattern->val.ipv4.mask.s_addr);
-		if (mask + (mask & -mask) == 0) {
-			mask = mask ? 33 - flsnz(mask & -mask) : 0; /* equals cidr value */
+	for (node = ebmb_first(&expr->pattern_tree), next_node = node ? ebmb_next(node) : NULL;
+	     node;
+	     node = next_node, next_node = node ? ebmb_next(node) : NULL) {
+		/* Extract container of the tree node. */
+		elt = container_of(node, struct pattern_tree, node);
 
-			for (node = ebmb_first(&expr->pattern_tree), next_node = node ? ebmb_next(node) : NULL;
-			     node;
-			     node = next_node, next_node = node ? ebmb_next(node) : NULL) {
-				/* Extract container of the tree node. */
-				elt = container_of(node, struct pattern_tree, node);
+		/* Check equality. */
+		if (elt->ref != ref)
+			continue;
 
-				/* Check equality. */
-				if (memcmp(&pattern->val.ipv4.addr, elt->node.key,
-				           sizeof(pattern->val.ipv4.addr)) != 0)
-					continue;
-				if (elt->node.node.pfx != mask)
-					continue;
-
-				/* Delete and free entry. */
-				ebmb_delete(node);
-				free(elt->smp);
-				free(elt);
-			}
-		}
-		else {
-			/* Browse each node of the list for IPv4 addresses. */
-			list_for_each_entry_safe(pat, safe, &expr->patterns, list) {
-				/* Check equality, addr then mask */
-				if (memcmp(&pattern->val.ipv4.addr, &pat->pat.val.ipv4.addr,
-				           sizeof(pat->pat.val.ipv4.addr)) != 0)
-					continue;
-
-				if (memcmp(&pattern->val.ipv4.mask, &pat->pat.val.ipv4.mask,
-				           sizeof(pat->pat.val.ipv4.addr)) != 0)
-					continue;
-
-				/* Delete and free entry. */
-				LIST_DEL(&pat->list);
-				free(pat->pat.smp);
-				free(pat);
-			}
-		}
+		/* Delete and free entry. */
+		ebmb_delete(node);
+		free(elt->smp);
+		free(elt);
 	}
-	else if (pattern->type == SMP_T_IPV6) {
-		/* browse each node of the tree for IPv6 addresses. */
-		for (node = ebmb_first(&expr->pattern_tree_2), next_node = node ? ebmb_next(node) : NULL;
-		     node;
-		     node = next_node, next_node = node ? ebmb_next(node) : NULL) {
-			/* Extract container of the tree node. */
-			elt = container_of(node, struct pattern_tree, node);
 
-			/* Check equality. */
-			if (memcmp(&pattern->val.ipv6.addr, elt->node.key,
-				   sizeof(pattern->val.ipv6.addr)) != 0)
-				continue;
-			if (elt->node.node.pfx != pattern->val.ipv6.mask)
-				continue;
+	/* Browse each node of the list for IPv4 addresses. */
+	pat_del_list_val(expr, ref);
 
-			/* Delete and free entry. */
-			ebmb_delete(node);
-			free(elt->smp);
-			free(elt);
-		}
+	/* browse each node of the tree for IPv6 addresses. */
+	for (node = ebmb_first(&expr->pattern_tree_2), next_node = node ? ebmb_next(node) : NULL;
+	     node;
+	     node = next_node, next_node = node ? ebmb_next(node) : NULL) {
+		/* Extract container of the tree node. */
+		elt = container_of(node, struct pattern_tree, node);
+
+		/* Check equality. */
+		if (elt->ref != ref)
+			continue;
+
+		/* Delete and free entry. */
+		ebmb_delete(node);
+		free(elt->smp);
+		free(elt);
 	}
 }
 
-void pat_del_list_ptr(struct pattern_expr *expr, struct pattern *pattern)
+void pat_del_list_ptr(struct pattern_expr *expr, struct pat_ref_elt *ref)
 {
 	struct pattern_list *pat;
 	struct pattern_list *safe;
 
 	list_for_each_entry_safe(pat, safe, &expr->patterns, list) {
 		/* Check equality. */
-		if (pattern->len != pat->pat.len)
-			continue;
-		if (memcmp(pattern->ptr.ptr, pat->pat.ptr.ptr, pat->pat.len) != 0)
+		if (pat->pat.ref != ref)
 			continue;
 
 		/* Delete and free entry. */
@@ -1480,7 +1435,7 @@ void pat_del_list_ptr(struct pattern_expr *expr, struct pattern *pattern)
 	}
 }
 
-void pat_del_tree_str(struct pattern_expr *expr, struct pattern *pattern)
+void pat_del_tree_str(struct pattern_expr *expr, struct pat_ref_elt *ref)
 {
 	struct ebmb_node *node, *next_node;
 	struct pattern_tree *elt;
@@ -1493,7 +1448,7 @@ void pat_del_tree_str(struct pattern_expr *expr, struct pattern *pattern)
 		elt = container_of(node, struct pattern_tree, node);
 
 		/* Check equality. */
-		if (strcmp(pattern->ptr.str, (char *)elt->node.key) != 0)
+		if (elt->ref != ref)
 			continue;
 
 		/* Delete and free entry. */
@@ -1503,47 +1458,15 @@ void pat_del_tree_str(struct pattern_expr *expr, struct pattern *pattern)
 	}
 }
 
-void pat_del_list_str(struct pattern_expr *expr, struct pattern *pattern)
+void pat_del_list_reg(struct pattern_expr *expr, struct pat_ref_elt *ref)
 {
 	struct pattern_list *pat;
 	struct pattern_list *safe;
 
 	list_for_each_entry_safe(pat, safe, &expr->patterns, list) {
 		/* Check equality. */
-		if (pattern->len != pat->pat.len)
+		if (pat->pat.ref != ref)
 			continue;
-		if (pat->pat.flags & PAT_F_IGNORE_CASE) {
-			if (strncasecmp(pattern->ptr.str, pat->pat.ptr.str, pat->pat.len) != 0)
-				continue;
-		}
-		else {
-			if (strncmp(pattern->ptr.str, pat->pat.ptr.str, pat->pat.len) != 0)
-				continue;
-		}
-
-		/* Delete and free entry. */
-		LIST_DEL(&pat->list);
-		free(pat->pat.ptr.str);
-		free(pat->pat.smp);
-		free(pat);
-	}
-}
-
-void pat_del_list_reg(struct pattern_expr *expr, struct pattern *pattern)
-{
-	struct pattern_list *pat;
-	struct pattern_list *safe;
-
-	list_for_each_entry_safe(pat, safe, &expr->patterns, list) {
-		/* Check equality. */
-		if (pat->pat.flags & PAT_F_IGNORE_CASE) {
-			if (strcasecmp(pattern->ptr.reg->regstr, pat->pat.ptr.reg->regstr) != 0)
-				continue;
-		}
-		else {
-			if (strcmp(pattern->ptr.reg->regstr, pat->pat.ptr.reg->regstr) != 0)
-				continue;
-		}
 
 		/* Delete and free entry. */
 		LIST_DEL(&pat->list);
@@ -1615,6 +1538,33 @@ struct pat_ref *pat_ref_lookupid(int unique_id)
 	return NULL;
 }
 
+/* This function remove all pattern matching the pointer <refelt> from
+ * the the reference and from each expr member of the reference. This
+ * function returns 1 if the deletion is done and return 0 is the entry
+ * is not found.
+ */
+int pat_ref_delete_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt)
+{
+	struct pattern_expr *expr;
+	struct pat_ref_elt *elt, *safe;
+
+	/* delete pattern from reference */
+	list_for_each_entry_safe(elt, safe, &ref->head, list) {
+		if (elt == refelt) {
+			LIST_DEL(&elt->list);
+			free(elt->sample);
+			free(elt->pattern);
+			free(elt);
+
+			list_for_each_entry(expr, &ref->pat, list)
+				pattern_delete(expr, elt);
+
+			return 1;
+		}
+	}
+	return 0;
+}
+
 /* This function remove all pattern match <key> from the the reference
  * and from each expr member of the reference. This fucntion returns 1
  * if the deletion is done and return 0 is the entry is not found.
@@ -1632,16 +1582,16 @@ int pat_ref_delete(struct pat_ref *ref, const char *key)
 			free(elt->sample);
 			free(elt->pattern);
 			free(elt);
+
+			list_for_each_entry(expr, &ref->pat, list)
+				pattern_delete(expr, elt);
+
 			found = 1;
 		}
 	}
 
 	if (!found)
 		return 0;
-
-	list_for_each_entry(expr, &ref->pat, list)
-		pattern_delete(key, expr, NULL);
-
 	return 1;
 }
 
@@ -1890,7 +1840,7 @@ int pat_ref_add(struct pat_ref *ref,
 	list_for_each_entry(expr, &ref->pat, list) {
 		if (!pat_ref_push(elt, expr, 0, err)) {
 			/* Try to delete all the added entries. */
-			pat_ref_delete(ref, pattern);
+			pat_ref_delete_by_id(ref, elt);
 			return 0;
 		}
 	}
@@ -2188,13 +2138,9 @@ struct sample_storage **pattern_find_smp(const char *key, struct pattern_expr *e
  * If the parsing of the input key fails, the function returns 0 and the
  * <err> is filled, else return 1;
  */
-int pattern_delete(const char *key, struct pattern_expr *expr, char **err)
+int pattern_delete(struct pattern_expr *expr, struct pat_ref_elt *ref)
 {
-	struct pattern pattern;
-
-	if (!expr->pat_head->parse(key, &pattern, err))
-		return 0;
-	expr->pat_head->delete(expr, &pattern);
+	expr->pat_head->delete(expr, ref);
 	return 1;
 }
 

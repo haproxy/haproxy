@@ -9073,36 +9073,6 @@ static struct pattern *pat_match_meth(struct sample *smp, struct pattern_expr *e
 	return NULL;
 }
 
-static
-void pat_del_meth(struct pattern_expr *expr, struct pattern *pattern)
-{
-	struct pattern_list *pat;
-	struct pattern_list *safe;
-
-	list_for_each_entry_safe(pat, safe, &expr->patterns, list) {
-		/* Check equality. */
-		if (pattern->val.i != pat->pat.val.i)
-			continue;
-		if (pattern->val.i == HTTP_METH_OTHER) {
-			if (pattern->len != pat->pat.len)
-				continue;
-			if (pat->pat.flags & PAT_F_IGNORE_CASE) {
-				if (strncasecmp(pattern->ptr.str, pat->pat.ptr.str, pat->pat.len) != 0)
-					continue;
-			}
-			else {
-				if (strncmp(pattern->ptr.str, pat->pat.ptr.str, pat->pat.len) != 0)
-					continue;
-			}
-		}
-
-		/* Delete and free entry. */
-		LIST_DEL(&pat->list);
-		free(pat->pat.ptr.str);
-		free(pat);
-	}
-}
-
 static int
 smp_fetch_rqver(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp, const char *kw)
@@ -10390,83 +10360,83 @@ static int sample_conv_http_date(const struct arg *args, struct sample *smp)
  */
 static struct acl_kw_list acl_kws = {ILH, {
 	{ "base",            "base",     pat_parse_str,  pat_idx_tree_str, pat_del_tree_str, pat_find_smp_tree_str, pat_prune_ptr, pat_match_str  },
-	{ "base_beg",        "base",     pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_beg  },
-	{ "base_dir",        "base",     pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_dir  },
-	{ "base_dom",        "base",     pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_dom  },
-	{ "base_end",        "base",     pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_end  },
+	{ "base_beg",        "base",     pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_beg  },
+	{ "base_dir",        "base",     pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_dir  },
+	{ "base_dom",        "base",     pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_dom  },
+	{ "base_end",        "base",     pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_end  },
 	{ "base_len",        "base",     pat_parse_int,  pat_idx_list_val, pat_del_list_val, pat_find_smp_list_val, pat_prune_val, pat_match_len  },
 	{ "base_reg",        "base",     pat_parse_reg,  pat_idx_list_reg, pat_del_list_reg, pat_find_smp_list_reg, pat_prune_reg, pat_match_reg  },
-	{ "base_sub",        "base",     pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_sub  },
+	{ "base_sub",        "base",     pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_sub  },
 
 	{ "cook",            "req.cook", pat_parse_str,  pat_idx_tree_str, pat_del_tree_str, pat_find_smp_tree_str, pat_prune_ptr, pat_match_str  },
-	{ "cook_beg",        "req.cook", pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_beg  },
-	{ "cook_dir",        "req.cook", pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_dir  },
-	{ "cook_dom",        "req.cook", pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_dom  },
-	{ "cook_end",        "req.cook", pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_end  },
+	{ "cook_beg",        "req.cook", pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_beg  },
+	{ "cook_dir",        "req.cook", pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_dir  },
+	{ "cook_dom",        "req.cook", pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_dom  },
+	{ "cook_end",        "req.cook", pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_end  },
 	{ "cook_len",        "req.cook", pat_parse_int,  pat_idx_list_val, pat_del_list_val, pat_find_smp_list_val, pat_prune_val, pat_match_len  },
 	{ "cook_reg",        "req.cook", pat_parse_reg,  pat_idx_list_reg, pat_del_list_reg, pat_find_smp_list_reg, pat_prune_reg, pat_match_reg  },
-	{ "cook_sub",        "req.cook", pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_sub  },
+	{ "cook_sub",        "req.cook", pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_sub  },
 
 	{ "hdr",             "req.hdr",  pat_parse_str,  pat_idx_tree_str, pat_del_tree_str, pat_find_smp_tree_str, pat_prune_ptr, pat_match_str  },
-	{ "hdr_beg",         "req.hdr",  pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_beg  },
-	{ "hdr_dir",         "req.hdr",  pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_dir  },
-	{ "hdr_dom",         "req.hdr",  pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_dom  },
-	{ "hdr_end",         "req.hdr",  pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_end  },
+	{ "hdr_beg",         "req.hdr",  pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_beg  },
+	{ "hdr_dir",         "req.hdr",  pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_dir  },
+	{ "hdr_dom",         "req.hdr",  pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_dom  },
+	{ "hdr_end",         "req.hdr",  pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_end  },
 	{ "hdr_len",         "req.hdr",  pat_parse_int,  pat_idx_list_val, pat_del_list_val, pat_find_smp_list_val, pat_prune_val, pat_match_len  },
 	{ "hdr_reg",         "req.hdr",  pat_parse_reg,  pat_idx_list_reg, pat_del_list_reg, pat_find_smp_list_reg, pat_prune_reg, pat_match_reg  },
-	{ "hdr_sub",         "req.hdr",  pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_sub  },
+	{ "hdr_sub",         "req.hdr",  pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_sub  },
 
-	{ "http_auth_group", NULL,       pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_auth },
+	{ "http_auth_group", NULL,       pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_auth },
 
-	{ "method",          NULL,       pat_parse_meth, pat_idx_list_str, pat_del_meth,   pat_find_smp_list_str, pat_prune_ptr, pat_match_meth },
+	{ "method",          NULL,       pat_parse_meth, pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_meth },
 
 	{ "path",            "path",     pat_parse_str,  pat_idx_tree_str, pat_del_tree_str, pat_find_smp_tree_str, pat_prune_ptr, pat_match_str  },
-	{ "path_beg",        "path",     pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_beg  },
-	{ "path_dir",        "path",     pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_dir  },
-	{ "path_dom",        "path",     pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_dom  },
-	{ "path_end",        "path",     pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_end  },
+	{ "path_beg",        "path",     pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_beg  },
+	{ "path_dir",        "path",     pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_dir  },
+	{ "path_dom",        "path",     pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_dom  },
+	{ "path_end",        "path",     pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_end  },
 	{ "path_len",        "path",     pat_parse_int,  pat_idx_list_val, pat_del_list_val, pat_find_smp_list_val, pat_prune_val, pat_match_len  },
 	{ "path_reg",        "path",     pat_parse_reg,  pat_idx_list_reg, pat_del_list_reg, pat_find_smp_list_reg, pat_prune_reg, pat_match_reg  },
-	{ "path_sub",        "path",     pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_sub  },
+	{ "path_sub",        "path",     pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_sub  },
 
 	{ "req_ver",         "req.ver",  pat_parse_str,  pat_idx_tree_str, pat_del_tree_str, pat_find_smp_tree_str, pat_prune_ptr, pat_match_str  },
 	{ "resp_ver",        "res.ver",  pat_parse_str,  pat_idx_tree_str, pat_del_tree_str, pat_find_smp_tree_str, pat_prune_ptr, pat_match_str  },
 
 	{ "scook",           "res.cook", pat_parse_str,  pat_idx_tree_str, pat_del_tree_str, pat_find_smp_tree_str, pat_prune_ptr, pat_match_str  },
-	{ "scook_beg",       "res.cook", pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_beg  },
-	{ "scook_dir",       "res.cook", pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_dir  },
-	{ "scook_dom",       "res.cook", pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_dom  },
-	{ "scook_end",       "res.cook", pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_end  },
+	{ "scook_beg",       "res.cook", pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_beg  },
+	{ "scook_dir",       "res.cook", pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_dir  },
+	{ "scook_dom",       "res.cook", pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_dom  },
+	{ "scook_end",       "res.cook", pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_end  },
 	{ "scook_len",       "res.cook", pat_parse_int,  pat_idx_list_val, pat_del_list_val, pat_find_smp_list_val, pat_prune_val, pat_match_len  },
 	{ "scook_reg",       "res.cook", pat_parse_reg,  pat_idx_list_reg, pat_del_list_reg, pat_find_smp_list_reg, pat_prune_reg, pat_match_reg  },
-	{ "scook_sub",       "res.cook", pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_sub  },
+	{ "scook_sub",       "res.cook", pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_sub  },
 
 	{ "shdr",            "res.hdr",  pat_parse_str,  pat_idx_tree_str, pat_del_tree_str, pat_find_smp_tree_str, pat_prune_ptr, pat_match_str  },
-	{ "shdr_beg",        "res.hdr",  pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_beg  },
-	{ "shdr_dir",        "res.hdr",  pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_dir  },
-	{ "shdr_dom",        "res.hdr",  pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_dom  },
-	{ "shdr_end",        "res.hdr",  pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_end  },
+	{ "shdr_beg",        "res.hdr",  pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_beg  },
+	{ "shdr_dir",        "res.hdr",  pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_dir  },
+	{ "shdr_dom",        "res.hdr",  pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_dom  },
+	{ "shdr_end",        "res.hdr",  pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_end  },
 	{ "shdr_len",        "res.hdr",  pat_parse_int,  pat_idx_list_val, pat_del_list_val, pat_find_smp_list_val, pat_prune_val, pat_match_len  },
 	{ "shdr_reg",        "res.hdr",  pat_parse_reg,  pat_idx_list_reg, pat_del_list_reg, pat_find_smp_list_reg, pat_prune_reg, pat_match_reg  },
-	{ "shdr_sub",        "res.hdr",  pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_sub  },
+	{ "shdr_sub",        "res.hdr",  pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_sub  },
 
 	{ "url",             "url",      pat_parse_str,  pat_idx_tree_str, pat_del_tree_str, pat_find_smp_tree_str, pat_prune_ptr, pat_match_str  },
-	{ "url_beg",         "url",      pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_beg  },
-	{ "url_dir",         "url",      pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_dir  },
-	{ "url_dom",         "url",      pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_dom  },
-	{ "url_end",         "url",      pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_end  },
+	{ "url_beg",         "url",      pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_beg  },
+	{ "url_dir",         "url",      pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_dir  },
+	{ "url_dom",         "url",      pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_dom  },
+	{ "url_end",         "url",      pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_end  },
 	{ "url_len",         "url",      pat_parse_int,  pat_idx_list_val, pat_del_list_val, pat_find_smp_list_val, pat_prune_val, pat_match_len  },
 	{ "url_reg",         "url",      pat_parse_reg,  pat_idx_list_reg, pat_del_list_reg, pat_find_smp_list_reg, pat_prune_reg, pat_match_reg  },
-	{ "url_sub",         "url",      pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_sub  },
+	{ "url_sub",         "url",      pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_sub  },
 
 	{ "urlp",            "urlp",     pat_parse_str,  pat_idx_tree_str, pat_del_tree_str, pat_find_smp_tree_str, pat_prune_ptr, pat_match_str  },
-	{ "urlp_beg",        "urlp",     pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_beg  },
-	{ "urlp_dir",        "urlp",     pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_dir  },
-	{ "urlp_dom",        "urlp",     pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_dom  },
-	{ "urlp_end",        "urlp",     pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_end  },
+	{ "urlp_beg",        "urlp",     pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_beg  },
+	{ "urlp_dir",        "urlp",     pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_dir  },
+	{ "urlp_dom",        "urlp",     pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_dom  },
+	{ "urlp_end",        "urlp",     pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_end  },
 	{ "urlp_len",        "urlp",     pat_parse_int,  pat_idx_list_val, pat_del_list_val, pat_find_smp_list_val, pat_prune_val, pat_match_len  },
 	{ "urlp_reg",        "urlp",     pat_parse_reg,  pat_idx_list_reg, pat_del_list_reg, pat_find_smp_list_reg, pat_prune_reg, pat_match_reg  },
-	{ "urlp_sub",        "urlp",     pat_parse_str,  pat_idx_list_str, pat_del_list_str, pat_find_smp_list_str, pat_prune_ptr, pat_match_sub  },
+	{ "urlp_sub",        "urlp",     pat_parse_str,  pat_idx_list_str, pat_del_list_ptr, pat_find_smp_list_str, pat_prune_ptr, pat_match_sub  },
 
 	{ /* END */ },
 }};
