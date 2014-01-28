@@ -63,6 +63,26 @@
 #include <proto/ssl_sock.h>
 #endif
 
+/* stats socket states */
+enum {
+	STAT_CLI_INIT = 0,   /* initial state, must leave to zero ! */
+	STAT_CLI_END,        /* final state, let's close */
+	STAT_CLI_GETREQ,     /* wait for a request */
+	STAT_CLI_OUTPUT,     /* all states after this one are responses */
+	STAT_CLI_PROMPT,     /* display the prompt (first output, same code) */
+	STAT_CLI_PRINT,      /* display message in cli->msg */
+	STAT_CLI_O_INFO,     /* dump info */
+	STAT_CLI_O_SESS,     /* dump sessions */
+	STAT_CLI_O_ERR,      /* dump errors */
+	STAT_CLI_O_TAB,      /* dump tables */
+	STAT_CLI_O_CLR,      /* clear tables */
+	STAT_CLI_O_SET,      /* set entries in tables */
+	STAT_CLI_O_STAT,     /* dump stats */
+	STAT_CLI_O_MAPS,     /* list all maps */
+	STAT_CLI_O_MAP,      /* list all map entries of a map */
+	STAT_CLI_O_MLOOK,    /* lookup a map entry */
+};
+
 static int stats_dump_info_to_buffer(struct stream_interface *si);
 static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct session *sess);
 static int stats_dump_sess_to_buffer(struct stream_interface *si);
