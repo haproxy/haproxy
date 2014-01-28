@@ -75,8 +75,8 @@
 #endif
 
 // max # of stick counters per session (at least 3 for sc0..sc2)
-// Some changes are needed in TCP_ACT_TRK_SC* and SN_BE_TRACK_SC* if more
-// values are required.
+// Some changes are needed in TCP_ACT_TRK_SC*, SN_BE_TRACK_SC*, and
+// SN_CT_TRACK_SC* if more values are required.
 #ifndef MAX_SESS_STKCTR
 #define MAX_SESS_STKCTR 3
 #endif

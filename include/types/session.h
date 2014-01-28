@@ -98,6 +98,11 @@
 #define SN_BE_TRACK_SC2 0x00800000	/* backend tracks stick-counter 2 */
 #define SN_BE_TRACK_ANY 0x00E00000      /* union of all SN_BE_TRACK_* above */
 
+#define SN_CT_TRACK_SC0 0x01000000      /* stick-counter 0 tracked at the content level */
+#define SN_CT_TRACK_SC1 0x02000000      /* stick-counter 1 tracked at the content level */
+#define SN_CT_TRACK_SC2 0x04000000      /* stick-counter 2 tracked at the content level */
+#define SN_CT_TRACK_ANY 0x07000000      /* union of all SN_CT_TRACK_* above */
+
 
 /* WARNING: if new fields are added, they must be initialized in session_accept()
  * and freed in session_free() !

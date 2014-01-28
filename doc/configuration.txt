@@ -6918,11 +6918,14 @@ tcp-request content <action> [{if | unless} <condition>]
   is that "tcp-request content" rules can make use of contents to take a
   decision. Most often, these decisions will consider a protocol recognition or
   validity. The second difference is that content-based rules can be used in
-  both frontends and backends. In frontends, they will be evaluated upon new
-  connections. In backends, they will be evaluated once a session is assigned
-  a backend. This means that a single frontend connection may be evaluated
-  several times by one or multiple backends when a session gets reassigned
-  (for instance after a client-side HTTP keep-alive request).
+  both frontends and backends. In case of HTTP keep-alive with the client, all
+  tcp-request content rules are evaluated again, so haproxy keeps a record of
+  what sticky counters were assigned by a "tcp-request connection" versus a
+  "tcp-request content" rule, and flushes all the content-related ones after
+  processing an HTTP request, so that they may be evaluated again by the rules
+  being evaluated again for the next request. This is of particular importance
+  when the rule tracks some L7 information or when it is conditionned by an
+  L7-based ACL, since tracking may change between requests.
 
   Content-based rules are evaluated in their exact declaration order. If no
   rule matches or if there is no rule, the default action is to accept the
@@ -6937,16 +6940,12 @@ tcp-request content <action> [{if | unless} <condition>]
   They have the same meaning as their counter-parts in "tcp-request connection"
   so please refer to that section for a complete description.
 
-  Also, it is worth noting that if sticky counters are tracked from a rule
-  defined in a backend, this tracking will automatically end when the session
-  releases the backend. That allows per-backend counter tracking even in case
-  of HTTP keep-alive requests when the backend changes. This makes a subtle
-  difference because tracking rules in "frontend" and "listen" section last for
-  all the session, as opposed to the backend rules. The difference appears when
-  some layer 7 information is tracked. While there is nothing mandatory about
-  it, it is recommended to use the track-sc0 pointer to track per-frontend
-  counters and track-sc1 to track per-backend counters, but this is just a
-  guideline and all counters may be used everywhere.
+  While there is nothing mandatory about it, it is recommended to use the
+  track-sc0 in "tcp-request connection" rules, track-sc1 for "tcp-request
+  content" rules in the frontend, and track-sc2 for "tcp-request content"
+  rules in the backend, because that makes the configuration more readable
+  and easier to troubleshoot, but this is just a guideline and all counters
+  may be used everywhere.
 
   Note that the "if/unless" condition is optional. If no condition is set on
   the action, it is simply performed unconditionally. That can be useful for
@@ -6957,7 +6956,9 @@ tcp-request content <action> [{if | unless} <condition>]
   contents of a buffer before extracting the required data. If the buffered
   contents do not parse as a valid HTTP message, then the ACL does not match.
   The parser which is involved there is exactly the same as for all other HTTP
-  processing, so there is no risk of parsing something differently.
+  processing, so there is no risk of parsing something differently. In an HTTP
+  backend connected to from an HTTP frontend, it is guaranteed that HTTP
+  contents will always be immediately present when the rule is evaluated first.
 
   Tracking layer7 information is also possible provided that the information
   are present when the rule is processed. The current solution for making the

@@ -1029,6 +1029,7 @@ int tcp_inspect_request(struct session *s, struct channel *req, int an_bit)
 
 				if (key && (ts = stktable_get_entry(t, key))) {
 					session_track_stkctr(&s->stkctr[tcp_trk_idx(rule->action)], t, ts);
+					s->flags |= SN_CT_TRACK_SC0 << tcp_trk_idx(rule->action);
 					if (s->fe != s->be)
 						s->flags |= SN_BE_TRACK_SC0 << tcp_trk_idx(rule->action);
 				}

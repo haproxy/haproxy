@@ -77,23 +77,23 @@ static inline void session_store_counters(struct session *s)
 	}
 }
 
-/* Remove the refcount from the session counters tracked only by the backend if
+/* Remove the refcount from the session counters tracked at the content level if
  * any, and clear the pointer to ensure this is only performed once. The caller
  * is responsible for ensuring that the pointer is valid first.
  */
-static inline void session_stop_backend_counters(struct session *s)
+static inline void session_stop_content_counters(struct session *s)
 {
 	void *ptr;
 	int i;
 
-	if (likely(!(s->flags & SN_BE_TRACK_ANY)))
+	if (likely(!(s->flags & SN_CT_TRACK_ANY)))
 		return;
 
 	for (i = 0; i < MAX_SESS_STKCTR; i++) {
 		if (!s->stkctr[i].entry)
 			continue;
 
-		if (!(s->flags & (SN_BE_TRACK_SC0 << i)))
+		if (!(s->flags & (SN_CT_TRACK_SC0 << i)))
 			continue;
 
 		ptr = stktable_data_ptr(s->stkctr[i].table, s->stkctr[i].entry, STKTABLE_DT_CONN_CUR);
@@ -103,7 +103,7 @@ static inline void session_stop_backend_counters(struct session *s)
 		stksess_kill_if_expired(s->stkctr[i].table, s->stkctr[i].entry);
 		s->stkctr[i].entry = NULL;
 	}
-	s->flags &= ~SN_BE_TRACK_ANY;
+	s->flags &= ~SN_CT_TRACK_ANY;
 }
 
 /* Increase total and concurrent connection count for stick entry <ts> of table
