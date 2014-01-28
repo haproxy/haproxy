@@ -9646,6 +9646,58 @@ extract_cookie_value(char *hdr, const char *hdr_end,
 	return NULL;
 }
 
+/* Fetch a captured HTTP request header. The index is the position of
+ * the "capture" option in the configuration file
+ */
+static int
+smp_fetch_capture_header_req(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                 const struct arg *args, struct sample *smp, const char *kw)
+{
+	struct proxy *fe = l4->fe;
+	struct http_txn *txn = l7;
+	int idx;
+
+	if (!args || args->type != ARGT_UINT)
+		return 0;
+
+	idx = args->data.uint;
+
+	if (idx > (fe->nb_req_cap - 1) || txn->req.cap == NULL || txn->req.cap[idx] == NULL)
+		return 0;
+
+	smp->type = SMP_T_CSTR;
+	smp->data.str.str = txn->req.cap[idx];
+	smp->data.str.len = strlen(txn->req.cap[idx]);
+
+	return 1;
+}
+
+/* Fetch a captured HTTP response header. The index is the position of
+ * the "capture" option in the configuration file
+ */
+static int
+smp_fetch_capture_header_res(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                 const struct arg *args, struct sample *smp, const char *kw)
+{
+	struct proxy *fe = l4->fe;
+	struct http_txn *txn = l7;
+	int idx;
+
+	if (!args || args->type != ARGT_UINT)
+		return 0;
+
+	idx = args->data.uint;
+
+	if (idx > (fe->nb_rsp_cap - 1) || txn->rsp.cap == NULL || txn->rsp.cap[idx] == NULL)
+		return 0;
+
+	smp->type = SMP_T_CSTR;
+	smp->data.str.str = txn->rsp.cap[idx];
+	smp->data.str.len = strlen(txn->rsp.cap[idx]);
+
+	return 1;
+}
+
 /* Iterate over all cookies present in a message. The context is stored in
  * smp->ctx.a[0] for the in-header position, smp->ctx.a[1] for the
  * end-of-header-value, and smp->ctx.a[2] for the hdr_ctx. Depending on
@@ -10203,6 +10255,10 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "base",            smp_fetch_base,           0,                NULL,    SMP_T_CSTR, SMP_USE_HRQHV },
 	{ "base32",          smp_fetch_base32,         0,                NULL,    SMP_T_UINT, SMP_USE_HRQHV },
 	{ "base32+src",      smp_fetch_base32_src,     0,                NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
+
+	/* capture are allocated and are permanent in the session */
+	{ "capture.req.hdr", smp_fetch_capture_header_req, ARG1(1, UINT), NULL, SMP_T_CSTR, SMP_USE_HRQHP },
+	{ "capture.res.hdr", smp_fetch_capture_header_res, ARG1(1, UINT), NULL, SMP_T_CSTR, SMP_USE_HRSHP },
 
 	/* cookie is valid in both directions (eg: for "stick ...") but cook*
 	 * are only here to match the ACL's name, are request-only and are used

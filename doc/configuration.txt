@@ -10456,6 +10456,16 @@ cookie([<name>]) : string (deprecated)
   ambiguously uses the direction based on the context where it is used.
   See also : "appsession".
 
+capture.req.hdr(<idx>) : string
+  This extracts the content of the header captured by the "capture request
+  header", idx is the position of the capture keyword in the configuration.
+  See also: "capture request header"
+
+capture.res.hdr(<idx>) : string
+  This extracts the content of the header captured by the "capture response
+  header", idx is the position of the capture keyword in the configuration.
+  See also: "capture response header"
+
 hdr([<name>[,<occ>]]) : string
   This is equivalent to req.hdr() when used on requests, and to res.hdr() when
   used on responses. Please refer to these respective fetches for more details.
