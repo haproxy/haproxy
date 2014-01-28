@@ -12725,6 +12725,12 @@ show map [<map>]
   Dump info about map converters. Without argument, the list of all available
   maps is returned. If a <map> is specified, its contents are dumped.
 
+show pools
+  Dump the status of internal memory pools. This is useful to track memory
+  usage when suspecting a memory leak for example. It does exactly the same
+  as the SIGQUIT when running in foreground except that it does not flush
+  the pools.
+
 show sess
   Dump all known sessions. Avoid doing this on slow connections as this can
   be huge. This command is restricted and can only be issued on sockets

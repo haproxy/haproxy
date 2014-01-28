@@ -81,9 +81,11 @@ enum {
 	STAT_CLI_O_MAPS,     /* list all maps */
 	STAT_CLI_O_MAP,      /* list all map entries of a map */
 	STAT_CLI_O_MLOOK,    /* lookup a map entry */
+	STAT_CLI_O_POOLS,    /* dump memory pools */
 };
 
 static int stats_dump_info_to_buffer(struct stream_interface *si);
+static int stats_dump_pools_to_buffer(struct stream_interface *si);
 static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct session *sess);
 static int stats_dump_sess_to_buffer(struct stream_interface *si);
 static int stats_dump_errors_to_buffer(struct stream_interface *si);
@@ -133,6 +135,7 @@ static const char stats_sock_usage_msg[] =
 	"  prompt         : toggle interactive mode with prompt\n"
 	"  quit           : disconnect\n"
 	"  show info      : report information about the running process\n"
+	"  show pools     : report information about the memory pools usage\n"
 	"  show stat      : report counters for each proxy and server\n"
 	"  show errors    : report last request and response errors for each proxy\n"
 	"  show sess [id] : report the list of current sessions or dump this session\n"
@@ -1052,6 +1055,10 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 		else if (strcmp(args[1], "info") == 0) {
 			appctx->st2 = STAT_ST_INIT;
 			appctx->st0 = STAT_CLI_O_INFO; // stats_dump_info_to_buffer
+		}
+		else if (strcmp(args[1], "pools") == 0) {
+			appctx->st2 = STAT_ST_INIT;
+			appctx->st0 = STAT_CLI_O_POOLS; // stats_dump_pools_to_buffer
 		}
 		else if (strcmp(args[1], "sess") == 0) {
 			appctx->st2 = STAT_ST_INIT;
@@ -2173,6 +2180,10 @@ static void cli_io_handler(struct stream_interface *si)
 			case STAT_CLI_O_MLOOK:
 				if (stats_map_lookup(si))
 					appctx->st0 = STAT_CLI_PROMPT;
+			case STAT_CLI_O_POOLS:
+				if (stats_dump_pools_to_buffer(si))
+					appctx->st0 = STAT_CLI_PROMPT;
+				break;
 			default: /* abnormal state */
 				appctx->st0 = STAT_CLI_PROMPT;
 				break;
@@ -2330,6 +2341,18 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 	if (bi_putchk(si->ib, &trash) == -1)
 		return 0;
 
+	return 1;
+}
+
+/* This function dumps memory usage information onto the stream interface's
+ * read buffer. It returns 0 as long as it does not complete, non-zero upon
+ * completion. No state is used.
+ */
+static int stats_dump_pools_to_buffer(struct stream_interface *si)
+{
+	dump_pools_to_trash();
+	if (bi_putchk(si->ib, &trash) == -1)
+		return 0;
 	return 1;
 }
 

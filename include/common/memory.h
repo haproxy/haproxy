@@ -145,6 +145,7 @@ struct pool_head *create_pool(char *name, unsigned int size, unsigned int flags)
 
 /* Dump statistics on pools usage.
  */
+void dump_pools_to_trash();
 void dump_pools(void);
 
 /*

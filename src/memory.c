@@ -10,6 +10,7 @@
  *
  */
 
+#include <types/global.h>
 #include <common/config.h>
 #include <common/debug.h>
 #include <common/memory.h>
@@ -176,18 +177,17 @@ void *pool_destroy2(struct pool_head *pool)
 	return NULL;
 }
 
-/* Dump statistics on pools usage.
- */
-void dump_pools(void)
+/* This function dumps memory usage information into the trash buffer. */
+void dump_pools_to_trash()
 {
 	struct pool_head *entry;
 	unsigned long allocated, used;
 	int nbpools;
 
 	allocated = used = nbpools = 0;
-	qfprintf(stderr, "Dumping pools usage.\n");
+	chunk_printf(&trash, "Dumping pools usage. Use SIGQUIT to flush them.\n");
 	list_for_each_entry(entry, &pools, list) {
-		qfprintf(stderr, "  - Pool %s (%d bytes) : %d allocated (%u bytes), %d used, %d users%s\n",
+		chunk_appendf(&trash, "  - Pool %s (%d bytes) : %d allocated (%u bytes), %d used, %d users%s\n",
 			 entry->name, entry->size, entry->allocated,
 			 entry->size * entry->allocated, entry->used,
 			 entry->users, (entry->flags & MEM_F_SHARED) ? " [SHARED]" : "");
@@ -196,8 +196,15 @@ void dump_pools(void)
 		used += entry->used * entry->size;
 		nbpools++;
 	}
-	qfprintf(stderr, "Total: %d pools, %lu bytes allocated, %lu used.\n",
+	chunk_appendf(&trash, "Total: %d pools, %lu bytes allocated, %lu used.\n",
 		 nbpools, allocated, used);
+}
+
+/* Dump statistics on pools usage. */
+void dump_pools(void)
+{
+	dump_pools_to_trash();
+	qfprintf(stderr, "%s", trash.str);
 }
 
 /*
