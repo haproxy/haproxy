@@ -29,6 +29,9 @@
 #include <types/stream_interface.h>
 
 extern struct xprt_ops ssl_sock;
+extern int sslconns;
+extern int totalsslconns;
+
 int ssl_sock_handshake(struct connection *conn, unsigned int flag);
 int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy *proxy);
 void ssl_sock_free_certs(struct bind_conf *bind_conf);

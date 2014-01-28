@@ -86,7 +86,8 @@
 #define SSL_SOCK_ST_TO_CAEDEPTH(s) ((s >> (6+16)) & 15)
 #define SSL_SOCK_ST_TO_CRTERROR(s) ((s >> (4+6+16)) & 63)
 
-static int sslconns = 0;
+int sslconns = 0;
+int totalsslconns = 0;
 
 void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
 {
@@ -1129,6 +1130,7 @@ static int ssl_sock_init(struct connection *conn)
 		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
 
 		sslconns++;
+		totalsslconns++;
 		return 0;
 	}
 	else if (objt_listener(conn->target)) {
@@ -1151,6 +1153,7 @@ static int ssl_sock_init(struct connection *conn)
 		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
 
 		sslconns++;
+		totalsslconns++;
 		return 0;
 	}
 	/* don't know how to handle such a target */

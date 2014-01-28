@@ -2168,8 +2168,15 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 	             "Maxsock: %d\n"
 	             "Maxconn: %d\n"
 	             "Hard_maxconn: %d\n"
-	             "Maxpipes: %d\n"
 	             "CurrConns: %d\n"
+		     "CumConns: %d\n"
+		     "CumReq: %d\n"
+#ifdef USE_OPENSSL
+		     "MaxSslConns: %d\n"
+	             "CurrSslConns: %d\n"
+		     "CumSslConns: %d\n"
+#endif
+	             "Maxpipes: %d\n"
 	             "PipesUsed: %d\n"
 	             "PipesFree: %d\n"
 	             "ConnRate: %d\n"
@@ -2195,8 +2202,12 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 	             up,
 	             global.rlimit_memmax,
 	             global.rlimit_nofile,
-	             global.maxsock, global.maxconn, global.hardmaxconn, global.maxpipes,
-	             actconn, pipes_used, pipes_free,
+	             global.maxsock, global.maxconn, global.hardmaxconn,
+	             actconn, totalconn, global.req_count,
+#ifdef USE_OPENSSL
+		     global.maxsslconn, sslconns, totalsslconns,
+#endif
+		     global.maxpipes, pipes_used, pipes_free,
 	             read_freq_ctr(&global.conn_per_sec), global.cps_lim, global.cps_max,
 	             read_freq_ctr(&global.comp_bps_in), read_freq_ctr(&global.comp_bps_out),
 	             global.comp_rate_lim,
