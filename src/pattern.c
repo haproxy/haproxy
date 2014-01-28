@@ -1764,35 +1764,6 @@ int pat_ref_append(struct pat_ref *ref, char *pattern, char *sample, int line)
 	return 1;
 }
 
-/* return 1 if the process is ok
- * return -1 if the parser fail. The err message is filled.
- * return -2 if out of memory
- */
-static inline
-int pattern_add(struct pattern_expr *expr, const char *arg,
-                struct sample_storage *smp,
-                int patflags, char **err)
-{
-	int ret;
-	struct pattern pattern;
-
-	/* initialise pattern */
-	memset(&pattern, 0, sizeof(pattern));
-	pattern.flags = patflags;
-	pattern.smp = smp;
-
-	/* parse pattern */
-	ret = expr->pat_head->parse(arg, &pattern, err);
-	if (!ret)
-		return 0;
-
-	/* index pattern */
-	if (!expr->pat_head->index(expr, &pattern, err))
-		return 0;
-
-	return 1;
-}
-
 /* This function create sample found in <elt>, parse the pattern also
  * found in <elt> and insert it in <expr>. The function copy <patflags>
  * in <expr>. If the function fails, it returns0 and <err> is filled.
@@ -1802,8 +1773,8 @@ static inline
 int pat_ref_push(struct pat_ref_elt *elt, struct pattern_expr *expr,
                  int patflags, char **err)
 {
-	int ret;
 	struct sample_storage *smp;
+	struct pattern pattern;
 
 	/* Create sample */
 	if (elt->sample && expr->pat_head->parse_smp) {
@@ -1823,12 +1794,20 @@ int pat_ref_push(struct pat_ref_elt *elt, struct pattern_expr *expr,
 	else
 		smp = NULL;
 
-	/* Index value */
-	ret = pattern_add(expr, elt->pattern, smp, patflags, err);
-	if (ret != 1) {
+	/* initialise pattern */
+	memset(&pattern, 0, sizeof(pattern));
+	pattern.flags = patflags;
+	pattern.smp = smp;
+
+	/* parse pattern */
+	if (!expr->pat_head->parse(elt->pattern, &pattern, err)) {
 		free(smp);
-		if (ret == -2)
-			memprintf(err, "out of memory");
+		return 0;
+	}
+
+	/* index pattern */
+	if (!expr->pat_head->index(expr, &pattern, err)) {
+		free(smp);
 		return 0;
 	}
 
