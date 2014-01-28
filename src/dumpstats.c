@@ -1633,11 +1633,46 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				return 1;
 			}
 
-			/* Update the value. */
-			if (!pat_ref_set(appctx->ctx.map.ref, args[3], args[4])) {
-				appctx->ctx.cli.msg = "Pattern not found.\n";
-				appctx->st0 = STAT_CLI_PRINT;
-				return 1;
+			/* If the entry identifier start with a '#', it is considered as
+			 * pointer id
+			 */
+			if (args[3][0] == '#' && args[3][1] == '0' && args[3][2] == 'x') {
+				struct pat_ref_elt *ref;
+				long long int conv;
+				char *error;
+
+				/* Convert argument to integer value. */
+				conv = strtoll(&args[3][1], &error, 16);
+				if (*error != '\0') {
+					appctx->ctx.cli.msg = "Malformed identifier. Please use #<id> or <name>.\n";
+					appctx->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
+
+				/* Convert and check integer to pointer. */
+				ref = (struct pat_ref_elt *)(long)conv;
+				if ((long long int)(long)ref != conv) {
+					appctx->ctx.cli.msg = "Malformed identifier. Please use #<id> or <name>.\n";
+					appctx->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
+
+				/* Try to delete the entry. */
+				if (!pat_ref_set_by_id(appctx->ctx.map.ref, ref, args[4])) {
+					appctx->ctx.cli.msg = "Pattern not found.\n";
+					appctx->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
+			}
+			else {
+				/* Else, use the entry identifier as pattern
+				 * string, and update the value.
+				 */
+				if (!pat_ref_set(appctx->ctx.map.ref, args[3], args[4])) {
+					appctx->ctx.cli.msg = "Pattern not found.\n";
+					appctx->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
 			}
 
 			/* The set is done, send message. */
@@ -1901,12 +1936,48 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				return 1;
 			}
 
-			/* Try to delete the entry. */
-			if (!pat_ref_delete(appctx->ctx.map.ref, args[3])) {
-				/* The entry is not found, send message. */
-				appctx->ctx.cli.msg = "Key not found.\n";
-				appctx->st0 = STAT_CLI_PRINT;
-				return 1;
+			/* If the entry identifier start with a '#', it is considered as
+			 * pointer id
+			 */
+			if (args[3][0] == '#' && args[3][1] == '0' && args[3][2] == 'x') {
+				struct pat_ref_elt *ref;
+				long long int conv;
+				char *error;
+
+				/* Convert argument to integer value. */
+				conv = strtoll(&args[3][1], &error, 16);
+				if (*error != '\0') {
+					appctx->ctx.cli.msg = "Malformed identifier. Please use #<id> or <name>.\n";
+					appctx->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
+
+				/* Convert and check integer to pointer. */
+				ref = (struct pat_ref_elt *)(long)conv;
+				if ((long long int)(long)ref != conv) {
+					appctx->ctx.cli.msg = "Malformed identifier. Please use #<id> or <name>.\n";
+					appctx->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
+
+				/* Try to delete the entry. */
+				if (!pat_ref_delete_by_id(appctx->ctx.map.ref, ref)) {
+					/* The entry is not found, send message. */
+					appctx->ctx.cli.msg = "Key not found.\n";
+					appctx->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
+			}
+			else {
+				/* Else, use the entry identifier as pattern
+				 * string and try to delete the entry.
+				 */
+				if (!pat_ref_delete(appctx->ctx.map.ref, args[3])) {
+					/* The entry is not found, send message. */
+					appctx->ctx.cli.msg = "Key not found.\n";
+					appctx->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
 			}
 
 			/* The deletion is done, send message. */
@@ -4965,10 +5036,12 @@ static int stats_pat_list(struct stream_interface *si)
 
 			/* build messages */
 			if (appctx->ctx.map.elt->sample)
-				chunk_appendf(&trash, "%s %s\n",
-				              appctx->ctx.map.elt->pattern, appctx->ctx.map.elt->sample);
+				chunk_appendf(&trash, "%p %s %s\n",
+				              appctx->ctx.map.elt, appctx->ctx.map.elt->pattern,
+				              appctx->ctx.map.elt->sample);
 			else
-				chunk_appendf(&trash, "%s\n", appctx->ctx.map.elt->pattern);
+				chunk_appendf(&trash, "%p %s\n",
+				              appctx->ctx.map.elt, appctx->ctx.map.elt->pattern);
 
 			if (bi_putchk(si->ib, &trash) == -1) {
 				/* let's try again later from this session. We add ourselves into
