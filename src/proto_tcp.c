@@ -1021,7 +1021,7 @@ int tcp_inspect_request(struct session *s, struct channel *req, int an_bit)
 				 */
 				struct stktable_key *key;
 
-				if (s->stkctr[tcp_trk_idx(rule->action)].entry)
+				if (stkctr_entry(&s->stkctr[tcp_trk_idx(rule->action)]))
 					continue;
 
 				t = rule->act_prm.trk_ctr.table.t;
@@ -1029,9 +1029,9 @@ int tcp_inspect_request(struct session *s, struct channel *req, int an_bit)
 
 				if (key && (ts = stktable_get_entry(t, key))) {
 					session_track_stkctr(&s->stkctr[tcp_trk_idx(rule->action)], t, ts);
-					s->flags |= SN_CT_TRACK_SC0 << tcp_trk_idx(rule->action);
+					stkctr_set_flags(&s->stkctr[tcp_trk_idx(rule->action)], STKCTR_TRACK_CONTENT);
 					if (s->fe != s->be)
-						s->flags |= SN_BE_TRACK_SC0 << tcp_trk_idx(rule->action);
+						stkctr_set_flags(&s->stkctr[tcp_trk_idx(rule->action)], STKCTR_TRACK_BACKEND);
 				}
 			}
 			else {
@@ -1188,7 +1188,7 @@ int tcp_exec_req_rules(struct session *s)
 				 */
 				struct stktable_key *key;
 
-				if (s->stkctr[tcp_trk_idx(rule->action)].entry)
+				if (stkctr_entry(&s->stkctr[tcp_trk_idx(rule->action)]))
 					continue;
 
 				t = rule->act_prm.trk_ctr.table.t;

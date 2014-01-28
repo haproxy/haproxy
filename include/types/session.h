@@ -90,27 +90,17 @@
 
 #define SN_COMP_READY   0x00100000	/* the compression is initialized */
 
-/* session tracking flags: these ones must absolutely be contiguous and cover
- * at least MAX_SESS_STKCTR flags.
- */
-#define SN_BE_TRACK_SC0 0x00200000	/* backend tracks stick-counter 0 */
-#define SN_BE_TRACK_SC1 0x00400000	/* backend tracks stick-counter 1 */
-#define SN_BE_TRACK_SC2 0x00800000	/* backend tracks stick-counter 2 */
-#define SN_BE_TRACK_ANY 0x00E00000      /* union of all SN_BE_TRACK_* above */
-
-#define SN_CT_TRACK_SC0 0x01000000      /* stick-counter 0 tracked at the content level */
-#define SN_CT_TRACK_SC1 0x02000000      /* stick-counter 1 tracked at the content level */
-#define SN_CT_TRACK_SC2 0x04000000      /* stick-counter 2 tracked at the content level */
-#define SN_CT_TRACK_ANY 0x07000000      /* union of all SN_CT_TRACK_* above */
-
-
 /* WARNING: if new fields are added, they must be initialized in session_accept()
  * and freed in session_free() !
  */
 
-/* stick counter */
+#define STKCTR_TRACK_BACKEND 1
+#define STKCTR_TRACK_CONTENT 2
+/* stick counter. The <entry> member is a composite address (caddr) made of a
+ * pointer to an stksess struct, and two flags among STKCTR_TRACK_* above.
+ */
 struct stkctr {
-	struct stksess *entry;          /* entry containing counters currently being tracked  by this session */
+	unsigned long   entry;          /* entry containing counters currently being tracked by this session  */
 	struct stktable *table;         /* table the counters above belong to (undefined if counters are null) */
 };
 

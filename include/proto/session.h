@@ -56,6 +56,36 @@ static inline struct session *session_from_task(struct task *t)
 	return (struct session *)t->context;
 }
 
+/* sets the stick counter's entry pointer */
+static inline void stkctr_set_entry(struct stkctr *stkctr, struct stksess *entry)
+{
+	stkctr->entry = caddr_from_ptr(entry, 0);
+}
+
+/* returns the entry pointer from a stick counter */
+static inline struct stksess *stkctr_entry(struct stkctr *stkctr)
+{
+	return caddr_to_ptr(stkctr->entry);
+}
+
+/* returns the two flags from a stick counter */
+static inline unsigned int stkctr_flags(struct stkctr *stkctr)
+{
+	return caddr_to_data(stkctr->entry);
+}
+
+/* sets up to two flags at a time on a composite address */
+static inline void stkctr_set_flags(struct stkctr *stkctr, unsigned int flags)
+{
+	stkctr->entry = caddr_set_flags(stkctr->entry, flags);
+}
+
+/* returns the two flags from a stick counter */
+static inline void stkctr_clr_flags(struct stkctr *stkctr, unsigned int flags)
+{
+	stkctr->entry = caddr_clr_flags(stkctr->entry, flags);
+}
+
 /* Remove the refcount from the session to the tracked counters, and clear the
  * pointer to ensure this is only performed once. The caller is responsible for
  * ensuring that the pointer is valid first.
@@ -66,14 +96,14 @@ static inline void session_store_counters(struct session *s)
 	int i;
 
 	for (i = 0; i < MAX_SESS_STKCTR; i++) {
-		if (!s->stkctr[i].entry)
+		if (!stkctr_entry(&s->stkctr[i]))
 			continue;
-		ptr = stktable_data_ptr(s->stkctr[i].table, s->stkctr[i].entry, STKTABLE_DT_CONN_CUR);
+		ptr = stktable_data_ptr(s->stkctr[i].table, stkctr_entry(&s->stkctr[i]), STKTABLE_DT_CONN_CUR);
 		if (ptr)
 			stktable_data_cast(ptr, conn_cur)--;
-		s->stkctr[i].entry->ref_cnt--;
-		stksess_kill_if_expired(s->stkctr[i].table, s->stkctr[i].entry);
-		s->stkctr[i].entry = NULL;
+		stkctr_entry(&s->stkctr[i])->ref_cnt--;
+		stksess_kill_if_expired(s->stkctr[i].table, stkctr_entry(&s->stkctr[i]));
+		stkctr_set_entry(&s->stkctr[i], NULL);
 	}
 }
 
@@ -86,24 +116,20 @@ static inline void session_stop_content_counters(struct session *s)
 	void *ptr;
 	int i;
 
-	if (likely(!(s->flags & SN_CT_TRACK_ANY)))
-		return;
-
 	for (i = 0; i < MAX_SESS_STKCTR; i++) {
-		if (!s->stkctr[i].entry)
+		if (!stkctr_entry(&s->stkctr[i]))
 			continue;
 
-		if (!(s->flags & (SN_CT_TRACK_SC0 << i)))
+		if (!(stkctr_flags(&s->stkctr[i]) & STKCTR_TRACK_CONTENT))
 			continue;
 
-		ptr = stktable_data_ptr(s->stkctr[i].table, s->stkctr[i].entry, STKTABLE_DT_CONN_CUR);
+		ptr = stktable_data_ptr(s->stkctr[i].table, stkctr_entry(&s->stkctr[i]), STKTABLE_DT_CONN_CUR);
 		if (ptr)
 			stktable_data_cast(ptr, conn_cur)--;
-		s->stkctr[i].entry->ref_cnt--;
-		stksess_kill_if_expired(s->stkctr[i].table, s->stkctr[i].entry);
-		s->stkctr[i].entry = NULL;
+		stkctr_entry(&s->stkctr[i])->ref_cnt--;
+		stksess_kill_if_expired(s->stkctr[i].table, stkctr_entry(&s->stkctr[i]));
+		stkctr_set_entry(&s->stkctr[i], NULL);
 	}
-	s->flags &= ~SN_CT_TRACK_ANY;
 }
 
 /* Increase total and concurrent connection count for stick entry <ts> of table
@@ -136,12 +162,12 @@ static inline void session_start_counters(struct stktable *t, struct stksess *ts
  */
 static inline void session_track_stkctr(struct stkctr *ctr, struct stktable *t, struct stksess *ts)
 {
-	if (ctr->entry)
+	if (stkctr_entry(ctr))
 		return;
 
 	ts->ref_cnt++;
 	ctr->table = t;
-	ctr->entry = ts;
+	stkctr_set_entry(ctr, ts);
 	session_start_counters(t, ts);
 }
 
@@ -152,14 +178,14 @@ static void inline session_inc_http_req_ctr(struct session *s)
 	int i;
 
 	for (i = 0; i < MAX_SESS_STKCTR; i++) {
-		if (!s->stkctr[i].entry)
+		if (!stkctr_entry(&s->stkctr[i]))
 			continue;
 
-		ptr = stktable_data_ptr(s->stkctr[i].table, s->stkctr[i].entry, STKTABLE_DT_HTTP_REQ_CNT);
+		ptr = stktable_data_ptr(s->stkctr[i].table, stkctr_entry(&s->stkctr[i]), STKTABLE_DT_HTTP_REQ_CNT);
 		if (ptr)
 			stktable_data_cast(ptr, http_req_cnt)++;
 
-		ptr = stktable_data_ptr(s->stkctr[i].table, s->stkctr[i].entry, STKTABLE_DT_HTTP_REQ_RATE);
+		ptr = stktable_data_ptr(s->stkctr[i].table, stkctr_entry(&s->stkctr[i]), STKTABLE_DT_HTTP_REQ_RATE);
 		if (ptr)
 			update_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
 					       s->stkctr[i].table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
@@ -172,21 +198,18 @@ static void inline session_inc_be_http_req_ctr(struct session *s)
 	void *ptr;
 	int i;
 
-	if (likely(!(s->flags & SN_BE_TRACK_ANY)))
-		return;
-
 	for (i = 0; i < MAX_SESS_STKCTR; i++) {
-		if (!s->stkctr[i].entry)
+		if (!stkctr_entry(&s->stkctr[i]))
 			continue;
 
-		if (!(s->flags & (SN_BE_TRACK_SC0 << i)))
+		if (!(stkctr_flags(&s->stkctr[i]) & STKCTR_TRACK_BACKEND))
 			continue;
 
-		ptr = stktable_data_ptr(s->stkctr[i].table, s->stkctr[i].entry, STKTABLE_DT_HTTP_REQ_CNT);
+		ptr = stktable_data_ptr(s->stkctr[i].table, stkctr_entry(&s->stkctr[i]), STKTABLE_DT_HTTP_REQ_CNT);
 		if (ptr)
 			stktable_data_cast(ptr, http_req_cnt)++;
 
-		ptr = stktable_data_ptr(s->stkctr[i].table, s->stkctr[i].entry, STKTABLE_DT_HTTP_REQ_RATE);
+		ptr = stktable_data_ptr(s->stkctr[i].table, stkctr_entry(&s->stkctr[i]), STKTABLE_DT_HTTP_REQ_RATE);
 		if (ptr)
 			update_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
 			                       s->stkctr[i].table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
@@ -205,14 +228,14 @@ static void inline session_inc_http_err_ctr(struct session *s)
 	int i;
 
 	for (i = 0; i < MAX_SESS_STKCTR; i++) {
-		if (!s->stkctr[i].entry)
+		if (!stkctr_entry(&s->stkctr[i]))
 			continue;
 
-		ptr = stktable_data_ptr(s->stkctr[i].table, s->stkctr[i].entry, STKTABLE_DT_HTTP_ERR_CNT);
+		ptr = stktable_data_ptr(s->stkctr[i].table, stkctr_entry(&s->stkctr[i]), STKTABLE_DT_HTTP_ERR_CNT);
 		if (ptr)
 			stktable_data_cast(ptr, http_err_cnt)++;
 
-		ptr = stktable_data_ptr(s->stkctr[i].table, s->stkctr[i].entry, STKTABLE_DT_HTTP_ERR_RATE);
+		ptr = stktable_data_ptr(s->stkctr[i].table, stkctr_entry(&s->stkctr[i]), STKTABLE_DT_HTTP_ERR_RATE);
 		if (ptr)
 			update_freq_ctr_period(&stktable_data_cast(ptr, http_err_rate),
 			                       s->stkctr[i].table->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u, 1);

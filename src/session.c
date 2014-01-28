@@ -435,14 +435,14 @@ int session_complete(struct session *s)
 	for (i = 0; i < MAX_SESS_STKCTR; i++) {
 		void *ptr;
 
-		if (!s->stkctr[i].entry)
+		if (!stkctr_entry(&s->stkctr[i]))
 			continue;
 
-		ptr = stktable_data_ptr(s->stkctr[i].table, s->stkctr[i].entry, STKTABLE_DT_SESS_CNT);
+		ptr = stktable_data_ptr(s->stkctr[i].table, stkctr_entry(&s->stkctr[i]), STKTABLE_DT_SESS_CNT);
 		if (ptr)
 			stktable_data_cast(ptr, sess_cnt)++;
 
-		ptr = stktable_data_ptr(s->stkctr[i].table, s->stkctr[i].entry, STKTABLE_DT_SESS_RATE);
+		ptr = stktable_data_ptr(s->stkctr[i].table, stkctr_entry(&s->stkctr[i]), STKTABLE_DT_SESS_RATE);
 		if (ptr)
 			update_freq_ctr_period(&stktable_data_cast(ptr, sess_rate),
 					       s->stkctr[i].table->data_arg[STKTABLE_DT_SESS_RATE].u, 1);
@@ -707,17 +707,17 @@ void session_process_counters(struct session *s)
 				s->listener->counters->bytes_in += bytes;
 
 			for (i = 0; i < MAX_SESS_STKCTR; i++) {
-				if (!s->stkctr[i].entry)
+				if (!stkctr_entry(&s->stkctr[i]))
 					continue;
 
 				ptr = stktable_data_ptr(s->stkctr[i].table,
-				                        s->stkctr[i].entry,
+				                        stkctr_entry(&s->stkctr[i]),
 				                        STKTABLE_DT_BYTES_IN_CNT);
 				if (ptr)
 					stktable_data_cast(ptr, bytes_in_cnt) += bytes;
 
 				ptr = stktable_data_ptr(s->stkctr[i].table,
-				                        s->stkctr[i].entry,
+				                        stkctr_entry(&s->stkctr[i]),
 				                        STKTABLE_DT_BYTES_IN_RATE);
 				if (ptr)
 					update_freq_ctr_period(&stktable_data_cast(ptr, bytes_in_rate),
@@ -741,17 +741,17 @@ void session_process_counters(struct session *s)
 				s->listener->counters->bytes_out += bytes;
 
 			for (i = 0; i < MAX_SESS_STKCTR; i++) {
-				if (!s->stkctr[i].entry)
+				if (!stkctr_entry(&s->stkctr[i]))
 					continue;
 
 				ptr = stktable_data_ptr(s->stkctr[i].table,
-				                        s->stkctr[i].entry,
+				                        stkctr_entry(&s->stkctr[i]),
 				                        STKTABLE_DT_BYTES_OUT_CNT);
 				if (ptr)
 					stktable_data_cast(ptr, bytes_out_cnt) += bytes;
 
 				ptr = stktable_data_ptr(s->stkctr[i].table,
-				                        s->stkctr[i].entry,
+				                        stkctr_entry(&s->stkctr[i]),
 				                        STKTABLE_DT_BYTES_OUT_RATE);
 				if (ptr)
 					update_freq_ctr_period(&stktable_data_cast(ptr, bytes_out_rate),
@@ -2651,7 +2651,7 @@ smp_fetch_sc_stkctr(struct session *l4, const struct arg *args, const char *kw)
 			return NULL;
 
 		stkctr.table = &args->data.prx->table;
-		stkctr.entry = stktable_lookup_key(stkctr.table, key);
+		stkctr_set_entry(&stkctr, stktable_lookup_key(stkctr.table, key));
 		return &stkctr;
 	}
 
@@ -2662,10 +2662,10 @@ smp_fetch_sc_stkctr(struct session *l4, const struct arg *args, const char *kw)
 	if (unlikely(args[arg].type == ARGT_TAB)) {
 		/* an alternate table was specified, let's look up the same key there */
 		stkctr.table = &args[arg].data.prx->table;
-		stkctr.entry = stktable_lookup(stkctr.table, l4->stkctr[num].entry);
+		stkctr_set_entry(&stkctr, stktable_lookup(stkctr.table, stkctr_entry(&l4->stkctr[num])));
 		return &stkctr;
 	}
-	return l4->stkctr[num].entry ? &l4->stkctr[num] : NULL;
+	return stkctr_entry(&l4->stkctr[num]) ? &l4->stkctr[num] : NULL;
 }
 
 /* set return a boolean indicating if the requested session counter is
@@ -2678,7 +2678,7 @@ smp_fetch_sc_tracked(struct proxy *px, struct session *l4, void *l7, unsigned in
 {
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_BOOL;
-	smp->data.uint = !!l4->stkctr[kw[2] - '0'].entry;
+	smp->data.uint = !!stkctr_entry(&l4->stkctr[kw[2] - '0']);
 	return 1;
 }
 
@@ -2700,8 +2700,8 @@ smp_fetch_sc_get_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned i
 	smp->type = SMP_T_UINT;
 	smp->data.uint = 0;
 
-	if (stkctr->entry != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr->entry, STKTABLE_DT_GPC0);
+	if (stkctr_entry(stkctr) != NULL) {
+		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0);
 		if (!ptr)
 			return 0; /* parameter not stored */
 		smp->data.uint = stktable_data_cast(ptr, gpc0);
@@ -2726,8 +2726,8 @@ smp_fetch_sc_gpc0_rate(struct proxy *px, struct session *l4, void *l7, unsigned 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
 	smp->data.uint = 0;
-	if (stkctr->entry != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr->entry, STKTABLE_DT_GPC0_RATE);
+	if (stkctr_entry(stkctr) != NULL) {
+		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0_RATE);
 		if (!ptr)
 			return 0; /* parameter not stored */
 		smp->data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, gpc0_rate),
@@ -2752,20 +2752,20 @@ smp_fetch_sc_inc_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned i
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
 	smp->data.uint = 0;
-	if (stkctr->entry != NULL) {
+	if (stkctr_entry(stkctr) != NULL) {
 		void *ptr;
 
 		/* First, update gpc0_rate if it's tracked. Second, update its
 		 * gpc0 if tracked. Returns gpc0's value otherwise the curr_ctr.
 		 */
-		ptr = stktable_data_ptr(stkctr->table, stkctr->entry, STKTABLE_DT_GPC0_RATE);
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0_RATE);
 		if (ptr) {
 			update_freq_ctr_period(&stktable_data_cast(ptr, gpc0_rate),
 					       stkctr->table->data_arg[STKTABLE_DT_GPC0_RATE].u, 1);
 			smp->data.uint = (&stktable_data_cast(ptr, gpc0_rate))->curr_ctr;
 		}
 
-		ptr = stktable_data_ptr(stkctr->table, stkctr->entry, STKTABLE_DT_GPC0);
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0);
 		if (ptr)
 			smp->data.uint = ++stktable_data_cast(ptr, gpc0);
 
@@ -2789,8 +2789,8 @@ smp_fetch_sc_clr_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned i
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
 	smp->data.uint = 0;
-	if (stkctr->entry != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr->entry, STKTABLE_DT_GPC0);
+	if (stkctr_entry(stkctr) != NULL) {
+		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_GPC0);
 		if (!ptr)
 			return 0; /* parameter not stored */
 		smp->data.uint = stktable_data_cast(ptr, gpc0);
@@ -2815,8 +2815,8 @@ smp_fetch_sc_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsigned i
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
 	smp->data.uint = 0;
-	if (stkctr->entry != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr->entry, STKTABLE_DT_CONN_CNT);
+	if (stkctr_entry(stkctr) != NULL) {
+		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_CONN_CNT);
 		if (!ptr)
 			return 0; /* parameter not stored */
 		smp->data.uint = stktable_data_cast(ptr, conn_cnt);
@@ -2840,8 +2840,8 @@ smp_fetch_sc_conn_rate(struct proxy *px, struct session *l4, void *l7, unsigned 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
 	smp->data.uint = 0;
-	if (stkctr->entry != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr->entry, STKTABLE_DT_CONN_RATE);
+	if (stkctr_entry(stkctr) != NULL) {
+		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_CONN_RATE);
 		if (!ptr)
 			return 0; /* parameter not stored */
 		smp->data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, conn_rate),
@@ -2902,8 +2902,8 @@ smp_fetch_sc_conn_cur(struct proxy *px, struct session *l4, void *l7, unsigned i
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
 	smp->data.uint = 0;
-	if (stkctr->entry != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr->entry, STKTABLE_DT_CONN_CUR);
+	if (stkctr_entry(stkctr) != NULL) {
+		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_CONN_CUR);
 		if (!ptr)
 			return 0; /* parameter not stored */
 		smp->data.uint = stktable_data_cast(ptr, conn_cur);
@@ -2927,8 +2927,8 @@ smp_fetch_sc_sess_cnt(struct proxy *px, struct session *l4, void *l7, unsigned i
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
 	smp->data.uint = 0;
-	if (stkctr->entry != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr->entry, STKTABLE_DT_SESS_CNT);
+	if (stkctr_entry(stkctr) != NULL) {
+		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_SESS_CNT);
 		if (!ptr)
 			return 0; /* parameter not stored */
 		smp->data.uint = stktable_data_cast(ptr, sess_cnt);
@@ -2951,8 +2951,8 @@ smp_fetch_sc_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
 	smp->data.uint = 0;
-	if (stkctr->entry != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr->entry, STKTABLE_DT_SESS_RATE);
+	if (stkctr_entry(stkctr) != NULL) {
+		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_SESS_RATE);
 		if (!ptr)
 			return 0; /* parameter not stored */
 		smp->data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, sess_rate),
@@ -2977,8 +2977,8 @@ smp_fetch_sc_http_req_cnt(struct proxy *px, struct session *l4, void *l7, unsign
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
 	smp->data.uint = 0;
-	if (stkctr->entry != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr->entry, STKTABLE_DT_HTTP_REQ_CNT);
+	if (stkctr_entry(stkctr) != NULL) {
+		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_REQ_CNT);
 		if (!ptr)
 			return 0; /* parameter not stored */
 		smp->data.uint = stktable_data_cast(ptr, http_req_cnt);
@@ -3002,8 +3002,8 @@ smp_fetch_sc_http_req_rate(struct proxy *px, struct session *l4, void *l7, unsig
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
 	smp->data.uint = 0;
-	if (stkctr->entry != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr->entry, STKTABLE_DT_HTTP_REQ_RATE);
+	if (stkctr_entry(stkctr) != NULL) {
+		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_REQ_RATE);
 		if (!ptr)
 			return 0; /* parameter not stored */
 		smp->data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
@@ -3028,8 +3028,8 @@ smp_fetch_sc_http_err_cnt(struct proxy *px, struct session *l4, void *l7, unsign
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
 	smp->data.uint = 0;
-	if (stkctr->entry != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr->entry, STKTABLE_DT_HTTP_ERR_CNT);
+	if (stkctr_entry(stkctr) != NULL) {
+		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_ERR_CNT);
 		if (!ptr)
 			return 0; /* parameter not stored */
 		smp->data.uint = stktable_data_cast(ptr, http_err_cnt);
@@ -3053,8 +3053,8 @@ smp_fetch_sc_http_err_rate(struct proxy *px, struct session *l4, void *l7, unsig
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
 	smp->data.uint = 0;
-	if (stkctr->entry != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr->entry, STKTABLE_DT_HTTP_ERR_RATE);
+	if (stkctr_entry(stkctr) != NULL) {
+		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_ERR_RATE);
 		if (!ptr)
 			return 0; /* parameter not stored */
 		smp->data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, http_err_rate),
@@ -3079,8 +3079,8 @@ smp_fetch_sc_kbytes_in(struct proxy *px, struct session *l4, void *l7, unsigned 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
 	smp->data.uint = 0;
-	if (stkctr->entry != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr->entry, STKTABLE_DT_BYTES_IN_CNT);
+	if (stkctr_entry(stkctr) != NULL) {
+		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_IN_CNT);
 		if (!ptr)
 			return 0; /* parameter not stored */
 		smp->data.uint = stktable_data_cast(ptr, bytes_in_cnt) >> 10;
@@ -3104,8 +3104,8 @@ smp_fetch_sc_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, unsig
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
 	smp->data.uint = 0;
-	if (stkctr->entry != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr->entry, STKTABLE_DT_BYTES_IN_RATE);
+	if (stkctr_entry(stkctr) != NULL) {
+		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_IN_RATE);
 		if (!ptr)
 			return 0; /* parameter not stored */
 		smp->data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, bytes_in_rate),
@@ -3130,8 +3130,8 @@ smp_fetch_sc_kbytes_out(struct proxy *px, struct session *l4, void *l7, unsigned
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
 	smp->data.uint = 0;
-	if (stkctr->entry != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr->entry, STKTABLE_DT_BYTES_OUT_CNT);
+	if (stkctr_entry(stkctr) != NULL) {
+		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_OUT_CNT);
 		if (!ptr)
 			return 0; /* parameter not stored */
 		smp->data.uint = stktable_data_cast(ptr, bytes_out_cnt) >> 10;
@@ -3155,8 +3155,8 @@ smp_fetch_sc_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, unsi
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
 	smp->data.uint = 0;
-	if (stkctr->entry != NULL) {
-		void *ptr = stktable_data_ptr(stkctr->table, stkctr->entry, STKTABLE_DT_BYTES_OUT_RATE);
+	if (stkctr_entry(stkctr) != NULL) {
+		void *ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_OUT_RATE);
 		if (!ptr)
 			return 0; /* parameter not stored */
 		smp->data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, bytes_out_rate),
@@ -3179,7 +3179,7 @@ smp_fetch_sc_trackers(struct proxy *px, struct session *l4, void *l7, unsigned i
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
-	smp->data.uint = stkctr->entry->ref_cnt;
+	smp->data.uint = stkctr_entry(stkctr)->ref_cnt;
 	return 1;
 }
 
