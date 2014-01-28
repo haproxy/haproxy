@@ -75,6 +75,7 @@
 #include <proto/task.h>
 
 #define SSL_SOCK_ST_FL_VERIFY_DONE  0x00000001
+#define SSL_SOCK_ST_FL_16K_WBFSIZE  0x00000002
 /* bits 0xFFFF0000 are reserved to store verify errors */
 
 /* Verify errors macros */
@@ -101,12 +102,28 @@ void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
 {
 	struct connection *conn = (struct connection *)SSL_get_app_data(ssl);
 	(void)ret; /* shut gcc stupid warning */
+	BIO *write_bio;
 
 	if (where & SSL_CB_HANDSHAKE_START) {
 		/* Disable renegotiation (CVE-2009-3555) */
 		if (conn->flags & CO_FL_CONNECTED) {
 			conn->flags |= CO_FL_ERROR;
 			conn->err_code = CO_ER_SSL_RENEG;
+		}
+	}
+
+	if ((where & SSL_CB_ACCEPT_LOOP) == SSL_CB_ACCEPT_LOOP) {
+		if (!(conn->xprt_st & SSL_SOCK_ST_FL_16K_WBFSIZE)) {
+			/* Long certificate chains optimz
+			   If write and read bios are differents, we
+			   consider that the buffering was activated,
+                           so we rise the output buffer size from 4k
+			   to 16k */
+			write_bio = SSL_get_wbio(ssl);
+			if (write_bio != SSL_get_rbio(ssl)) {
+				BIO_set_write_buffer_size(write_bio, 16384);
+				conn->xprt_st |= SSL_SOCK_ST_FL_16K_WBFSIZE;
+			}
 		}
 	}
 }
