@@ -230,8 +230,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	task_free(t);
  out_free_session:
 	p->feconn--;
-	if (s->stkctr[0].entry || s->stkctr[1].entry)
-		session_store_counters(s);
+	session_store_counters(s);
 	pool_free2(pool2_session, s);
  out_free_conn:
 	cli_conn->flags &= ~CO_FL_XPRT_TRACKED;
