@@ -259,7 +259,6 @@ static int sample_load_map(struct arg *arg, struct sample_conv *conv, char **err
 	desc->pat.index = pat_index_fcts[conv->private];
 	desc->pat.delete = pat_delete_fcts[conv->private];
 	desc->pat.prune = pat_prune_fcts[conv->private];
-	desc->pat.find_smp = pat_find_smp_fcts[conv->private];
 	desc->pat.expect_type = pat_match_types[conv->private];
 
 	/* Set the output parse method. */

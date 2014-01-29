@@ -208,7 +208,6 @@ struct pattern_head {
 	int (*parse_smp)(const char *text, struct sample_storage *smp);
 	int (*index)(struct pattern_expr *, struct pattern *, char **);
 	void (*delete)(struct pattern_expr *, struct pat_ref_elt *);
-	struct sample_storage **(*find_smp)(struct pattern_expr *, struct pattern *);
 	void (*prune)(struct pattern_expr *);
 	struct pattern *(*match)(struct sample *, struct pattern_expr *, int);
 	int expect_type; /* type of the expected sample (SMP_T_*) */
@@ -220,7 +219,6 @@ extern char *pat_match_names[PAT_MATCH_NUM];
 extern int (*pat_parse_fcts[PAT_MATCH_NUM])(const char *, struct pattern *, char **);
 extern int (*pat_index_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *, char **);
 extern void (*pat_delete_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pat_ref_elt *);
-extern struct sample_storage **(*pat_find_smp_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *);
 void (*pat_prune_fcts[PAT_MATCH_NUM])(struct pattern_expr *);
 extern struct pattern *(*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern_expr *, int);
 extern int pat_match_types[PAT_MATCH_NUM];

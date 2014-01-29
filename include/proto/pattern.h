@@ -76,20 +76,6 @@ void pat_del_list_reg(struct pattern_expr *expr, struct pat_ref_elt *ref);
 
 /*
  *
- * The following function lookup the pattern and return a pointer on the
- * pointer containing the sample expression. This is useful to replace
- * the sample.
- *
- */
-struct sample_storage **pat_find_smp_list_val(struct pattern_expr *expr, struct pattern *pattern);
-struct sample_storage **pat_find_smp_tree_ip(struct pattern_expr *expr, struct pattern *pattern);
-struct sample_storage **pat_find_smp_list_ptr(struct pattern_expr *expr, struct pattern *pattern);
-struct sample_storage **pat_find_smp_tree_str(struct pattern_expr *expr, struct pattern *pattern);
-struct sample_storage **pat_find_smp_list_str(struct pattern_expr *expr, struct pattern *pattern);
-struct sample_storage **pat_find_smp_list_reg(struct pattern_expr *expr, struct pattern *pattern);
-
-/*
- *
  * The following functions clean all entries of a pattern expression and
  * reset the tree and list root.
  *
@@ -189,6 +175,7 @@ struct pat_ref *pat_ref_newid(int unique_id, const char *display, unsigned int f
 int pat_ref_append(struct pat_ref *ref, char *pattern, char *sample, int line);
 int pat_ref_add(struct pat_ref *ref, const char *pattern, const char *sample, char **err);
 int pat_ref_set(struct pat_ref *ref, const char *pattern, const char *sample);
+int pat_ref_set_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt, const char *value);
 int pat_ref_delete(struct pat_ref *ref, const char *key);
 int pat_ref_delete_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt);
 void pat_ref_prune(struct pat_ref *ref);
@@ -207,7 +194,7 @@ int pattern_read_from_file(struct pattern_head *head, unsigned int refflags, con
 void pattern_init_expr(struct pattern_expr *expr);
 struct pattern_expr *pattern_lookup_expr(struct pattern_head *head, struct pat_ref *ref);
 struct pattern_expr *pattern_new_expr(struct pattern_head *head, struct pat_ref *ref, char **err);
-struct sample_storage **pattern_find_smp(const char *key, struct pattern_expr *expr, char **err);
+struct sample_storage **pattern_find_smp(struct pattern_expr *expr, struct pat_ref_elt *elt);
 int pattern_delete(struct pattern_expr *expr, struct pat_ref_elt *ref);
 
 

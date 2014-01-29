@@ -95,7 +95,6 @@ struct acl_keyword {
 	int (*parse)(const char *text, struct pattern *pattern, char **err);
 	int (*index)(struct pattern_expr *expr, struct pattern *pattern, char **err);
 	void (*delete)(struct pattern_expr *expr, struct pat_ref_elt *);
-	struct sample_storage **(*find_smp)(struct pattern_expr *, struct pattern *);
 	void (*prune)(struct pattern_expr *expr);
 	struct pattern *(*match)(struct sample *smp, struct pattern_expr *expr, int fill);
 	/* must be after the config params */
