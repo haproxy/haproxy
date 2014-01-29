@@ -2180,6 +2180,7 @@ static void cli_io_handler(struct stream_interface *si)
 			case STAT_CLI_O_MLOOK:
 				if (stats_map_lookup(si))
 					appctx->st0 = STAT_CLI_PROMPT;
+				break;
 			case STAT_CLI_O_POOLS:
 				if (stats_dump_pools_to_buffer(si))
 					appctx->st0 = STAT_CLI_PROMPT;
