@@ -12574,7 +12574,10 @@ clear table <table> [ data.<type> <operator> <value> ] | [ key <key> ]
         $ echo "show table http_proxy" | socat stdio /tmp/sock1
     >>> # table: http_proxy, type: ip, size:204800, used:1
 
-enable agent <backend>/<server>
+del map <map> <key>
+  Delete all the map entries from the map <map> corresponding to the key <key>.
+
+disable agent <backend>/<server>
   Mark the auxiliary agent check as temporarily stopped.
 
   In the case where an agent check is being run as a auxiliary check, due
@@ -12595,9 +12598,6 @@ enable agent <backend>/<server>
 
   This command is restricted and can only be issued on sockets configured for
   level "admin".
-
-del map <map> <key>
-  Delete all the map entries from the map <map> corresponding to the key <key>.
 
 disable frontend <frontend>
   Mark the frontend as temporarily stopped. This corresponds to the mode which
