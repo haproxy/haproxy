@@ -2041,6 +2041,17 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				return 1;
 			}
 
+			/* The command "add acl" is prohibited if the reference
+			 * use samples.
+			 */
+			if ((appctx->ctx.map.display_flags & PAT_REF_ACL) &&
+			    (appctx->ctx.map.ref->flags & PAT_REF_SMP)) {
+				appctx->ctx.cli.msg = "This ACL is shared with a map containing samples. "
+				                      "You must use the command 'add map' to add values.\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
 			/* Add value. */
 			err = NULL;
 			if (appctx->ctx.map.display_flags == PAT_REF_MAP)
