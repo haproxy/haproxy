@@ -160,6 +160,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	char *error;
 	struct pat_ref *ref;
 	struct pattern_expr *pattern_expr;
+	int load_as_map = 0;
 
 	/* First, we look for an ACL keyword. And if we don't find one, then
 	 * we look for a sample fetch expression starting with a sample fetch
@@ -417,6 +418,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	 *   -i : ignore case for all patterns by default
 	 *   -f : read patterns from those files
 	 *   -m : force matching method (must be used before -f)
+	 *   -M : load the file as map file
 	 *   -u : force the unique id of the acl
 	 *   -- : everything after this is not an option
 	 */
@@ -451,7 +453,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			snprintf(trash.str, trash.size, "acl(s) loaded from file '%s'", args[1]);
 			trash.str[trash.size - 1] = '\0';
 
-			if (!pattern_read_from_file(&expr->pat, PAT_REF_ACL, args[1], patflags | PAT_F_FROM_FILE, 0, err, trash.str))
+			if (!pattern_read_from_file(&expr->pat, PAT_REF_ACL, args[1], patflags | PAT_F_FROM_FILE, load_as_map, err, trash.str))
 				goto out_free_expr;
 			is_loaded = 1;
 			args++;
@@ -482,6 +484,9 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			expr->pat.prune = pat_prune_fcts[idx];
 			expr->pat.expect_type = pat_match_types[idx];
 			args++;
+		}
+		else if ((*args)[1] == 'M') {
+			load_as_map = 1;
 		}
 		else if ((*args)[1] == '-') {
 			args++;

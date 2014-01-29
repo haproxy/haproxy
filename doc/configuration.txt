@@ -8909,6 +8909,7 @@ The following ACL flags are currently supported :
    -i : ignore case during matching of all subsequent patterns.
    -f : load patterns from a file.
    -m : use a specific pattern matching method
+   -M : load the file pointed by -f like a map file.
    -u : force the unique id of the ACL
    -- : force end of flags. Useful when a string looks like one of the flags.
 
@@ -8921,6 +8922,12 @@ beginning with a sharp, just prefix it with a space so that it is not taken for
 a comment. Depending on the data type and match method, haproxy may load the
 lines into a binary tree, allowing very fast lookups. This is true for IPv4 and
 exact string matching. In this case, duplicates will automatically be removed.
+
+The "-M" flag allows an ACL to use a map file. If this flag is set, the file is
+parsed as two column file. The first column contains the patterns used by the
+ACL, and the second column contain the samples. The sample can be used later by
+a map. This can be useful in some rare cases where an ACL would just be used to
+check for the existence of a pattern in a map before a mapping is applied.
 
 The "-u" flag forces the unique id of the ACL. This unique id is used with the
 socket interface to identify ACL and dynamically change its values. Note that a
