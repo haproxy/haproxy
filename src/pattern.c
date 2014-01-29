@@ -1079,8 +1079,9 @@ int pat_idx_tree_ip(struct pattern_expr *expr, struct pattern *pat, char **err)
 			/* FIXME: insert <addr>/<mask> into the tree here */
 			memcpy(node->node.key, &pat->val.ipv4.addr, 4); /* network byte order */
 			node->node.node.pfx = mask;
-			if (ebmb_insert_prefix(&expr->pattern_tree, &node->node, 4) != &node->node)
-				free(node); /* was a duplicate */
+
+			/* Insert the entry. */
+			ebmb_insert_prefix(&expr->pattern_tree, &node->node, 4);
 
 			/* that's ok */
 			return 1;
@@ -1105,8 +1106,9 @@ int pat_idx_tree_ip(struct pattern_expr *expr, struct pattern *pat, char **err)
 		/* FIXME: insert <addr>/<mask> into the tree here */
 		memcpy(node->node.key, &pat->val.ipv6.addr, 16); /* network byte order */
 		node->node.node.pfx = pat->val.ipv6.mask;
-		if (ebmb_insert_prefix(&expr->pattern_tree_2, &node->node, 16) != &node->node)
-			free(node); /* was a duplicate */
+
+		/* Insert the entry. */
+		ebmb_insert_prefix(&expr->pattern_tree_2, &node->node, 16);
 
 		/* that's ok */
 		return 1;
@@ -1149,8 +1151,7 @@ int pat_idx_tree_str(struct pattern_expr *expr, struct pattern *pat, char **err)
 	memcpy(node->node.key, pat->ptr.str, len);
 
 	/* index the new node */
-	if (ebst_insert(&expr->pattern_tree, &node->node) != &node->node)
-		free(node); /* was a duplicate */
+	ebst_insert(&expr->pattern_tree, &node->node);
 
 	/* that's ok */
 	return 1;
@@ -1278,8 +1279,8 @@ void pat_del_list_reg(struct pattern_expr *expr, struct pat_ref_elt *ref)
 void pattern_init_expr(struct pattern_expr *expr)
 {
 	LIST_INIT(&expr->patterns);
-	expr->pattern_tree = EB_ROOT_UNIQUE;
-	expr->pattern_tree_2 = EB_ROOT_UNIQUE;
+	expr->pattern_tree = EB_ROOT;
+	expr->pattern_tree_2 = EB_ROOT;
 }
 
 void pattern_init_head(struct pattern_head *head)
@@ -1658,12 +1659,11 @@ int pat_ref_push(struct pat_ref_elt *elt, struct pattern_expr *expr,
 	return 1;
 }
 
-/* This function adds entry to <ref>. It can failed with memory error.
- * The new entry is added at all the pattern_expr registered in this
- * reference. The function stop on the first error encountered. It
- * returns 0 and err is filled.
- *
- * If an error is encountered, The complete add operation is cancelled.
+/* This function adds entry to <ref>. It can failed with memory error. The new
+ * entry is added at all the pattern_expr registered in this reference. The
+ * function stop on the first error encountered. It returns 0 and err is
+ * filled. If an error is encountered, the complete add operation is cancelled.
+ * If the insertion is a success the function returns 1.
  */
 int pat_ref_add(struct pat_ref *ref,
                 const char *pattern, const char *sample,
@@ -1703,12 +1703,11 @@ int pat_ref_add(struct pat_ref *ref,
 
 	list_for_each_entry(expr, &ref->pat, list) {
 		if (!pat_ref_push(elt, expr, 0, err)) {
-			/* Try to delete all the added entries. */
+			/* If the insertion fails, try to delete all the added entries. */
 			pat_ref_delete_by_id(ref, elt);
 			return 0;
 		}
 	}
-
 	return 1;
 }
 
