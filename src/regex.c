@@ -124,13 +124,6 @@ const char *chain_regex(struct hdr_exp **head, const regex_t *preg,
 
 int regex_comp(const char *str, struct my_regex *regex, int cs, int cap, char **err)
 {
-	/* copy the original regex format */
-	regex->regstr = strdup(str);
-	if (!regex->regstr) {
-		memprintf(err, "out of memory");
-		return 0;
-	}
-
 #ifdef USE_PCRE_JIT
 	int flags = 0;
 	const char *error;
@@ -143,14 +136,12 @@ int regex_comp(const char *str, struct my_regex *regex, int cs, int cap, char **
 
 	regex->reg = pcre_compile(str, flags, &error, &erroffset, NULL);
 	if (!regex->reg) {
-		free(regex->regstr);
 		memprintf(err, "regex '%s' is invalid (error=%s, erroffset=%d)", str, error, erroffset);
 		return 0;
 	}
 
 	regex->extra = pcre_study(regex->reg, PCRE_STUDY_JIT_COMPILE, &error);
 	if (!regex->extra) {
-		free(regex->regstr);
 		pcre_free(regex->reg);
 		memprintf(err, "failed to compile regex '%s' (error=%s)", str, error);
 		return 0;
@@ -164,7 +155,6 @@ int regex_comp(const char *str, struct my_regex *regex, int cs, int cap, char **
 		flags |= REG_NOSUB;
 
 	if (regcomp(&regex->regex, str, flags) != 0) {
-		free(regex->regstr);
 		memprintf(err, "regex '%s' is invalid", str);
 		return 0;
 	}

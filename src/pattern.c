@@ -231,8 +231,7 @@ int pat_parse_reg(const char *text, struct pattern *pattern, char **err)
 		return 0;
 	}
 
-	pattern->ptr.reg = (struct my_regex *)trash->str;
-	pattern->ptr.reg->regstr = (char *)text;
+	pattern->ptr.str = (char *)text;
 
 	return 1;
 }
@@ -1037,7 +1036,7 @@ int pat_idx_list_reg(struct pattern_expr *expr, struct pattern *pat, char **err)
 	}
 
 	/* compile regex */
-	if (!regex_comp(pat->ptr.reg->regstr, patl->pat.ptr.reg, !(patl->pat.flags & PAT_F_IGNORE_CASE), 0, err)) {
+	if (!regex_comp(pat->ptr.str, patl->pat.ptr.reg, !(patl->pat.flags & PAT_F_IGNORE_CASE), 0, err)) {
 		free(patl);
 		free(patl->pat.ptr.reg);
 		return 0;

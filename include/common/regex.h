@@ -47,7 +47,6 @@ struct my_regex {
 #else /* no PCRE */
 	regex_t regex;
 #endif
-	char *regstr; /* this contain the original string */
 };
 
 /* what to do when a header matches a regex */
@@ -109,8 +108,6 @@ static inline void regex_free(struct my_regex *preg) {
 #else
 	regfree(&preg->regex);
 #endif
-	free(preg->regstr);
-	preg->regstr = NULL;
 }
 
 #endif /* _COMMON_REGEX_H */
