@@ -451,7 +451,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			snprintf(trash.str, trash.size, "acl(s) loaded from file '%s'", args[1]);
 			trash.str[trash.size - 1] = '\0';
 
-			if (!pattern_read_from_file(&expr->pat, PAT_REF_ACL, args[1], patflags | PAT_F_FROM_FILE, err, trash.str))
+			if (!pattern_read_from_file(&expr->pat, PAT_REF_ACL, args[1], patflags | PAT_F_FROM_FILE, 0, err, trash.str))
 				goto out_free_expr;
 			is_loaded = 1;
 			args++;

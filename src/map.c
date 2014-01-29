@@ -108,107 +108,6 @@ static struct map_descriptor *map_create_descriptor(struct sample_conv *conv)
 	return desc;
 }
 
-/* Reads patterns from a file. If <err_msg> is non-NULL, an error message will
- * be returned there on errors and the caller will have to free it.
- *
- * The file contains one key + value per line. Lines which start with '#' are
- * ignored, just like empty lines. Leading tabs/spaces are stripped. The key is
- * then the first "word" (series of non-space/tabs characters), and the value is
- * what follows this series of space/tab till the end of the line excluding
- * trailing spaces/tabs.
- *
- * Example :
- *
- *     # this is a comment and is ignored
- *        62.212.114.60     1wt.eu      \n
- *     <-><-----------><---><----><---->
- *      |       |        |     |     `--- trailing spaces ignored
- *      |       |        |      `-------- value
- *      |       |        `--------------- middle spaces ignored
- *      |       `------------------------ key
- *      `-------------------------------- leading spaces ignored
- *
- * Return non-zero in case of succes, otherwise 0.
- */
-static int map_read_entries_from_file(const char *filename,
-                                      struct pat_ref *ref,
-                                      char **err)
-{
-	FILE *file;
-	char *c;
-	int ret = 0;
-	int line = 0;
-	char *key_beg;
-	char *key_end;
-	char *value_beg;
-	char *value_end;
-
-	file = fopen(filename, "r");
-	if (!file) {
-		memprintf(err, "failed to open pattern file <%s>", filename);
-		return 0;
-	}
-
-	/* now parse all patterns. The file may contain only one pattern
-	 * followed by one value per line. The start spaces, separator spaces
-	 * and and spaces are stripped. Each can contain comment started by '#'
-	 */
-	while (fgets(trash.str, trash.size, file) != NULL) {
-		line++;
-		c = trash.str;
-
-		/* ignore lines beginning with a dash */
-		if (*c == '#')
-			continue;
-
-		/* strip leading spaces and tabs */
-		while (*c == ' ' || *c == '\t')
-			c++;
-
-		/* empty lines are ignored too */
-		if (*c == '\0' || *c == '\r' || *c == '\n')
-			continue;
-
-		/* look for the end of the key */
-		key_beg = c;
-		while (*c && *c != ' ' && *c != '\t' && *c != '\n' && *c != '\r')
-			c++;
-
-		key_end = c;
-
-		/* strip middle spaces and tabs */
-		while (*c == ' ' || *c == '\t')
-			c++;
-
-		/* look for the end of the value, it is the end of the line */
-		value_beg = c;
-		while (*c && *c != '\n' && *c != '\r')
-			c++;
-		value_end = c;
-
-		/* trim possibly trailing spaces and tabs */
-		while (value_end > value_beg && (value_end[-1] == ' ' || value_end[-1] == '\t'))
-			value_end--;
-
-		/* set final \0 and check entries */
-		*key_end = '\0';
-		*value_end = '\0';
-
-		/* insert values */
-		if (!pat_ref_append(ref, key_beg, value_beg, line)) {
-			memprintf(err, "out of memory");
-			goto out_close;
-		}
-	}
-
-	/* succes */
-	ret = 1;
-
- out_close:
-	fclose(file);
-	return ret;
-}
-
 /* This function load the map file according with data type declared into
  * the "struct sample_conv".
  *
@@ -217,28 +116,7 @@ static int map_read_entries_from_file(const char *filename,
  */
 static int sample_load_map(struct arg *arg, struct sample_conv *conv, char **err)
 {
-	struct pat_ref *ref;
 	struct map_descriptor *desc;
-	struct pattern_expr *expr;
-
-	/* look for existing map reference. The reference is the
-	 * file encountered in the first argument. arg[0] with string
-	 * type is guaranteed by the parser.
-	 *
-	 * If the reference dosn't exists, create it and load file.
-	 */
-	ref = pat_ref_lookup(arg[0].data.str.str);
-	if (!ref) {
-		snprintf(trash.str, trash.size, "map(s) loaded from file '%s'", arg[0].data.str.str);
-		trash.str[trash.size - 1] = '\0';
-		ref = pat_ref_new(arg[0].data.str.str, trash.str, PAT_REF_MAP);
-		if (!ref) {
-			memprintf(err, "out of memory");
-			return 0;
-		}
-		if (!map_read_entries_from_file(arg[0].data.str.str, ref, err))
-			return 0;
-	}
 
 	/* create new map descriptor */
 	desc = map_create_descriptor(conv);
@@ -273,13 +151,13 @@ static int sample_load_map(struct arg *arg, struct sample_conv *conv, char **err
 		return 0;
 	}
 
-	/* Create new pattern expression for this reference. */
-	expr = pattern_new_expr(&desc->pat, ref, err);
-	if (!expr)
-		return 0;
+	/* Build displayed message. */
+	snprintf(trash.str, trash.size, "map(s) loaded from file '%s'", arg[0].data.str.str);
+	trash.str[trash.size - 1] = '\0';
 
-	/* Load the reference content in the pattern expression. */
-	if (!pat_ref_load(ref, expr, 0, 1, err))
+	/* Load map. */
+	if (!pattern_read_from_file(&desc->pat, PAT_REF_MAP, arg[0].data.str.str, 0,
+	                            1, err, trash.str))
 		return 0;
 
 	/* The second argument is the default value */

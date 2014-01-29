@@ -186,7 +186,7 @@ int pat_ref_load(struct pat_ref *ref, struct pattern_expr *expr, int patflags, i
  */
 void pattern_init_head(struct pattern_head *head);
 void pattern_prune(struct pattern_head *head);
-int pattern_read_from_file(struct pattern_head *head, unsigned int refflags, const char *filename, int patflags, char **err, const char *display);
+int pattern_read_from_file(struct pattern_head *head, unsigned int refflags, const char *filename, int patflags, int load_smp, char **err, const char *display);
 
 /*
  * pattern_expr manipulation.
