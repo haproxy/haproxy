@@ -12634,10 +12634,18 @@ If an unknown command is sent, haproxy displays the usage message which reminds
 all supported commands. Some commands support a more complex syntax, generally
 it will explain what part of the command is invalid when this happens.
 
+add acl <acl> <pattern>
+  Add an entry into the acl <acl>. This command does not verify if the entry
+  already exists. This command cannot be used if the reference <acl> is a file
+  also used with a map. In this case, you must use the command 'add map' in
+  place of 'add acl'.
+
 add map <map> <key> <value>
   Add an entry into the map <map> to associate the value <value> to the key
   <key>. This command does not verify if the entry already exists. It is
-  mainly used to fill a map after a clear operation.
+  mainly used to fill a map after a clear operation. Note that if the reference
+  <map> is a file and is shared with a map, this map will contain also a new
+  pattern entry.
 
 clear counters
   Clear the max values of the statistics counters in each proxy (frontend &
@@ -12651,8 +12659,13 @@ clear counters all
   server. This has the same effect as restarting. This command is restricted
   and can only be issued on sockets configured for level "admin".
 
+clear acl <acl>
+  Remove all entries from the acl <acl>. Note that if the reference <acl> is a
+  file and is shared with a map, this map will be also cleared.
+
 clear map <map>
-  Remove all entries from the map <map>.
+  Remove all entries from the map <map>. Note that if the reference <map> is a
+  file and is shared with a acl, this acl will be also cleared.
 
 clear table <table> [ data.<type> <operator> <value> ] | [ key <key> ]
   Remove entries from the stick-table <table>.
@@ -12702,8 +12715,19 @@ clear table <table> [ data.<type> <operator> <value> ] | [ key <key> ]
         $ echo "show table http_proxy" | socat stdio /tmp/sock1
     >>> # table: http_proxy, type: ip, size:204800, used:1
 
-del map <map> <key>
+del acl <acl> [<key>|#<ref>]
+  Delete all the acl entries from the acl <acl> corresponding to the key <key>.
+  If the <ref> is used, this command delete only the listed reference. The
+  reference can be found with listing the content of the acl. Note that if the
+  reference <acl> is a file and is shared with a map, the entry will be also
+  deleted in the map.
+
+del map <map> [<key>|#<ref>]
   Delete all the map entries from the map <map> corresponding to the key <key>.
+  If the <ref> is used, this command delete only the listed reference. The
+  reference can be found with listing the content of the map. Note that if the
+  reference <map> is a file and is shared with a acl, the entry will be also
+  deleted in the map.
 
 disable agent <backend>/<server>
   Mark the auxiliary agent check as temporarily stopped.
@@ -12815,9 +12839,10 @@ prompt
 quit
   Close the connection when in interactive mode.
 
-set map <map> <key> <value>
-  Modify the value corresponding to each key <key> in a map <map>. The new value
-  is <value>.
+set map <map> [<key>|#<ref>] <value>
+  Modify the value corresponding to each key <key> in a map <map>. If the <ref>
+  is used in place of <key>, only the entry pointed by <ref> is changed. The new
+  value is <value>.
 
 set maxconn frontend <frontend> <value>
   Dynamically change the specified frontend's maxconn setting. Any positive
@@ -12949,7 +12974,15 @@ show info
 
 show map [<map>]
   Dump info about map converters. Without argument, the list of all available
-  maps is returned. If a <map> is specified, its contents are dumped.
+  maps is returned. If a <map> is specified, its contents are dumped. The first
+  column is a unique identifier. It can be used as reference for the operation
+  "del map" and "set map". The second column is the pattern and the third column
+  is the sample if available.
+
+show acl [<acl>]
+  Dump info about acl converters. Without argument, the list of all available
+  acls is returned. If a <acl> is specified, its contents are dumped. The dump
+  format is the same than the map even for the sample value.
 
 show pools
   Dump the status of internal memory pools. This is useful to track memory
