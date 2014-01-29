@@ -8383,6 +8383,9 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		proxy->conf.args.ctx = ARGC_HRQ;
 		parse_logformat_string(args[cur_arg + 1], proxy, &rule->arg.hdr_add.fmt, 0,
 				       (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR);
+		free(proxy->conf.lfs_file);
+		proxy->conf.lfs_file = strdup(proxy->conf.args.file);
+		proxy->conf.lfs_line = proxy->conf.args.line;
 		cur_arg += 2;
 	} else if (strcmp(args[0], "redirect") == 0) {
 		struct redirect_rule *redir;
@@ -8551,6 +8554,9 @@ struct http_res_rule *parse_http_res_cond(const char **args, const char *file, i
 		proxy->conf.args.ctx = ARGC_HRS;
 		parse_logformat_string(args[cur_arg + 1], proxy, &rule->arg.hdr_add.fmt, 0,
 				       (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR);
+		free(proxy->conf.lfs_file);
+		proxy->conf.lfs_file = strdup(proxy->conf.args.file);
+		proxy->conf.lfs_line = proxy->conf.args.line;
 		cur_arg += 2;
 	} else {
 		Alert("parsing [%s:%d]: 'http-response' expects 'allow', 'deny', 'redirect', 'add-header', 'set-header', 'set-nice', 'set-tos', 'set-mark', 'set-log-level', but got '%s'%s.\n",
@@ -8704,6 +8710,9 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 		if (!(type == REDIRECT_TYPE_PREFIX && destination[0] == '/' && destination[1] == '\0')) {
 			parse_logformat_string(destination, curproxy, &rule->rdr_fmt, 0,
 			                       (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR);
+			free(curproxy->conf.lfs_file);
+			curproxy->conf.lfs_file = strdup(curproxy->conf.args.file);
+			curproxy->conf.lfs_line = curproxy->conf.args.line;
 		}
 	}
 

@@ -406,7 +406,7 @@ int proxy_cfg_ensure_no_http(struct proxy *curproxy)
 	}
 	if (curproxy->to_log & (LW_REQ | LW_RESP)) {
 		curproxy->to_log &= ~(LW_REQ | LW_RESP);
-		Warning("parsing [%s:%d] : 'option httplog' not usable with %s '%s' (needs 'mode http'). Falling back to 'option tcplog'.\n",
+		Warning("parsing [%s:%d] : HTTP log/header format not usable with %s '%s' (needs 'mode http').\n",
 			curproxy->conf.lfs_file, curproxy->conf.lfs_line,
 			proxy_type_str(curproxy), curproxy->id);
 	}
