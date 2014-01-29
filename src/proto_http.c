@@ -3551,17 +3551,27 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 	 */
 
 	if ((!(txn->flags & TX_HDR_CONN_PRS) &&
-	     (s->fe->options & (PR_O_KEEPALIVE|PR_O_SERVER_CLO|PR_O_HTTP_CLOSE|PR_O_FORCE_CLO))) ||
-	    ((s->fe->options & (PR_O_KEEPALIVE|PR_O_SERVER_CLO|PR_O_HTTP_CLOSE|PR_O_FORCE_CLO)) !=
-	     (s->be->options & (PR_O_KEEPALIVE|PR_O_SERVER_CLO|PR_O_HTTP_CLOSE|PR_O_FORCE_CLO)))) {
+	     ((s->fe->options & PR_O_HTTP_MODE) != PR_O_HTTP_TUN)) ||
+	    ((s->fe->options & PR_O_HTTP_MODE) != (s->be->options & PR_O_HTTP_MODE))) {
 		int tmp = TX_CON_WANT_TUN;
 
-		if ((s->fe->options|s->be->options) & PR_O_KEEPALIVE ||
+		if ((s->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_KAL ||
+		    (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_KAL ||
 		    ((s->fe->options2|s->be->options2) & PR_O2_FAKE_KA))
 			tmp = TX_CON_WANT_KAL;
-		if ((s->fe->options|s->be->options) & PR_O_SERVER_CLO)
+
+		if ((s->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_SCL ||
+		    (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_SCL)
 			tmp = TX_CON_WANT_SCL;
-		if ((s->fe->options|s->be->options) & PR_O_FORCE_CLO)
+
+		if ((s->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_FCL ||
+		    (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_FCL)
+			tmp = TX_CON_WANT_CLO;
+
+		/* option httpclose + anything other than tunnel => close */
+		if (tmp != TX_CON_WANT_TUN &&
+		    ((s->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
+		     (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL))
 			tmp = TX_CON_WANT_CLO;
 
 		if ((txn->flags & TX_CON_WANT_MSK) < tmp)
@@ -3584,7 +3594,6 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 		     (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL) &&
 		    ((txn->flags & TX_HDR_CONN_CLO) ||                         /* "connection: close" */
 		     (!(msg->flags & HTTP_MSGF_VER_11) && !(txn->flags & TX_HDR_CONN_KAL)) || /* no "connection: k-a" in 1.0 */
-		     ((s->fe->options|s->be->options) & PR_O_HTTP_CLOSE) ||    /* httpclose+any = forceclose */
 		     !(msg->flags & HTTP_MSGF_XFER_LEN) ||                     /* no length known => close */
 		     s->fe->state == PR_STSTOPPED))                            /* frontend is stopping */
 		    txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
@@ -3963,17 +3972,20 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 	 */
 	if (!(txn->flags & TX_HDR_CONN_UPG) &&
 	    (((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) ||
-	     ((s->fe->options|s->be->options) & PR_O_HTTP_CLOSE))) {
+	     ((s->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
+	      (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL))) {
 		unsigned int want_flags = 0;
 
 		if (msg->flags & HTTP_MSGF_VER_11) {
 			if (((txn->flags & TX_CON_WANT_MSK) >= TX_CON_WANT_SCL ||
-			    ((s->fe->options|s->be->options) & PR_O_HTTP_CLOSE)) &&
+			     ((s->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
+			      (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL)) &&
 			    !((s->fe->options2|s->be->options2) & PR_O2_FAKE_KA))
 				want_flags |= TX_CON_CLO_SET;
 		} else {
 			if (((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL &&
-			     !((s->fe->options|s->be->options) & PR_O_HTTP_CLOSE)) ||
+			     ((s->fe->options & PR_O_HTTP_MODE) != PR_O_HTTP_PCL &&
+			      (s->be->options & PR_O_HTTP_MODE) != PR_O_HTTP_PCL)) ||
 			    ((s->fe->options2|s->be->options2) & PR_O2_FAKE_KA))
 				want_flags |= TX_CON_KAL_SET;
 		}
@@ -5608,7 +5620,8 @@ int http_process_res_common(struct session *t, struct channel *rep, int an_bit, 
 	}
 	else if ((txn->status >= 200) && !(txn->flags & TX_HDR_CONN_PRS) &&
 		 ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN ||
-		  ((t->fe->options|t->be->options) & PR_O_HTTP_CLOSE))) {
+		  ((t->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
+		   (t->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL))) {
 		int to_del = 0;
 
 		/* on unknown transfer length, we must close */
@@ -5874,7 +5887,8 @@ int http_process_res_common(struct session *t, struct channel *rep, int an_bit, 
 		 */
 		if (!(txn->flags & TX_HDR_CONN_UPG) &&
 		    (((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) ||
-		     ((t->fe->options|t->be->options) & PR_O_HTTP_CLOSE))) {
+		     ((t->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
+		      (t->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL))) {
 			unsigned int want_flags = 0;
 
 			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||

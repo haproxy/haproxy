@@ -129,11 +129,7 @@ static const struct cfg_opt cfg_opts[] =
 	{ "clitcpka",     PR_O_TCP_CLI_KA, PR_CAP_FE, 0, 0 },
 	{ "contstats",    PR_O_CONTSTATS,  PR_CAP_FE, 0, 0 },
 	{ "dontlognull",  PR_O_NULLNOLOG,  PR_CAP_FE, 0, 0 },
-	{ "forceclose",   PR_O_FORCE_CLO,  PR_CAP_FE | PR_CAP_BE, 0, PR_MODE_HTTP },
 	{ "http_proxy",	  PR_O_HTTP_PROXY, PR_CAP_FE | PR_CAP_BE, 0, PR_MODE_HTTP },
-	{ "httpclose",    PR_O_HTTP_CLOSE, PR_CAP_FE | PR_CAP_BE, 0, PR_MODE_HTTP },
-	{ "http-keep-alive",   PR_O_KEEPALIVE,   PR_CAP_FE | PR_CAP_BE, 0, PR_MODE_HTTP },
-	{ "http-server-close", PR_O_SERVER_CLO,  PR_CAP_FE | PR_CAP_BE, 0, PR_MODE_HTTP },
 	{ "prefer-last-server", PR_O_PREF_LAST,  PR_CAP_BE, 0, PR_MODE_HTTP },
 	{ "logasap",      PR_O_LOGASAP,    PR_CAP_FE, 0, 0 },
 	{ "nolinger",     PR_O_TCP_NOLING, PR_CAP_FE | PR_CAP_BE, 0, 0 },
@@ -3501,6 +3497,72 @@ stats_error_parsing:
 				case KWM_DEF: /* already cleared */
 					break;
 				}
+				goto out;
+			}
+		}
+
+		/* HTTP options override each other. They can be cancelled using
+		 * "no option xxx" which only switches to default mode if the mode
+		 * was this one (useful for cancelling options set in defaults
+		 * sections).
+		 */
+		if (strcmp(args[1], "httpclose") == 0) {
+			if (kwm == KWM_STD) {
+				curproxy->options &= ~PR_O_HTTP_MODE;
+				curproxy->options |= PR_O_HTTP_PCL;
+				goto out;
+			}
+			else if (kwm == KWM_NO) {
+				if ((curproxy->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL)
+					curproxy->options &= ~PR_O_HTTP_MODE;
+				goto out;
+			}
+		}
+		else if (strcmp(args[1], "forceclose") == 0) {
+			if (kwm == KWM_STD) {
+				curproxy->options &= ~PR_O_HTTP_MODE;
+				curproxy->options |= PR_O_HTTP_FCL;
+				goto out;
+			}
+			else if (kwm == KWM_NO) {
+				if ((curproxy->options & PR_O_HTTP_MODE) == PR_O_HTTP_FCL)
+					curproxy->options &= ~PR_O_HTTP_MODE;
+				goto out;
+			}
+		}
+		else if (strcmp(args[1], "http-server-close") == 0) {
+			if (kwm == KWM_STD) {
+				curproxy->options &= ~PR_O_HTTP_MODE;
+				curproxy->options |= PR_O_HTTP_SCL;
+				goto out;
+			}
+			else if (kwm == KWM_NO) {
+				if ((curproxy->options & PR_O_HTTP_MODE) == PR_O_HTTP_SCL)
+					curproxy->options &= ~PR_O_HTTP_MODE;
+				goto out;
+			}
+		}
+		else if (strcmp(args[1], "http-keep-alive") == 0) {
+			if (kwm == KWM_STD) {
+				curproxy->options &= ~PR_O_HTTP_MODE;
+				curproxy->options |= PR_O_HTTP_KAL;
+				goto out;
+			}
+			else if (kwm == KWM_NO) {
+				if ((curproxy->options & PR_O_HTTP_MODE) == PR_O_HTTP_KAL)
+					curproxy->options &= ~PR_O_HTTP_MODE;
+				goto out;
+			}
+		}
+		else if (strcmp(args[1], "http-tunnel") == 0) {
+			if (kwm == KWM_STD) {
+				curproxy->options &= ~PR_O_HTTP_MODE;
+				curproxy->options |= PR_O_HTTP_TUN;
+				goto out;
+			}
+			else if (kwm == KWM_NO) {
+				if ((curproxy->options & PR_O_HTTP_MODE) == PR_O_HTTP_TUN)
+					curproxy->options &= ~PR_O_HTTP_MODE;
 				goto out;
 			}
 		}
