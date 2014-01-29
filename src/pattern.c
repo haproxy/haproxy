@@ -1956,6 +1956,7 @@ int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
 		}
 
 		if (load_smp) {
+			ref->flags |= PAT_REF_SMP;
 			if (!pat_ref_read_from_file_smp(ref, filename, err))
 				return 0;
 		}
@@ -1965,7 +1966,32 @@ int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
 		}
 	}
 	else {
-		/* The reference already exists, Merge flags. */
+		/* The reference already exists, check the map compatibility. */
+
+		/* If the load require samples and the flag PAT_REF_SMP is not set,
+		 * the reference doesn't contain sample, and cannot be used.
+		 */
+		if (load_smp) {
+			if (!(ref->flags & PAT_REF_SMP)) {
+				memprintf(err, "The file \"%s\" is already used as one column file "
+				               "and cannot be used by as two column file.",
+				               filename);
+				return 0;
+			}
+		}
+		else {
+			/* The load doesn't require samples. If the flag PAT_REF_SMP is
+			 * set, the reference contains a sample, and cannot be used.
+			 */
+			if (ref->flags & PAT_REF_SMP) {
+				memprintf(err, "The file \"%s\" is already used as two column file "
+				               "and cannot be used by as one column file.",
+				               filename);
+				return 0;
+			}
+		}
+
+		/* Merge flags. */
 		ref->flags |= refflags;
 	}
 

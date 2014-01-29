@@ -89,6 +89,7 @@ enum {
 
 #define PAT_REF_MAP 0x1 /* Set if the reference is used by at least one map. */
 #define PAT_REF_ACL 0x2 /* Set if the reference is used by at least one acl. */
+#define PAT_REF_SMP 0x4 /* Flag used if the reference contains a sample. */
 
 /* This struct contain a list of reference strings for dunamically
  * updatable patterns.
