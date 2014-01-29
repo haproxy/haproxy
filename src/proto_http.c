@@ -3568,8 +3568,8 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 		    (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_FCL)
 			tmp = TX_CON_WANT_CLO;
 
-		/* option httpclose + anything other than tunnel => close */
-		if (tmp != TX_CON_WANT_TUN &&
+		/* option httpclose + server_close => forceclose */
+		if (tmp == TX_CON_WANT_SCL &&
 		    ((s->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
 		     (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL))
 			tmp = TX_CON_WANT_CLO;
