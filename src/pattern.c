@@ -1402,7 +1402,18 @@ static inline int pat_ref_set_elt(struct pat_ref *ref, struct pat_ref_elt *elt,
 	struct pattern_expr *expr;
 	struct sample_storage **smp;
 	char *sample;
-	int ret = 1;
+	struct sample_storage test;
+
+	/* Try all needed converters. */
+	list_for_each_entry(expr, &ref->pat, list) {
+		if (!expr->pat_head->parse_smp)
+			continue;
+
+		if (!expr->pat_head->parse_smp(value, &test)) {
+			memprintf(err, "unable to parse '%s'", value);
+			return 0;
+		}
+	}
 
 	/* Modify pattern from reference. */
 	sample = strdup(value);
@@ -1413,22 +1424,19 @@ static inline int pat_ref_set_elt(struct pat_ref *ref, struct pat_ref_elt *elt,
 	free(elt->sample);
 	elt->sample = sample;
 
-	/* Load sample in each reference. */
+	/* Load sample in each reference. All the conversion are tested
+	 * below, normally these calls dosn't fail.
+	 */
 	list_for_each_entry(expr, &ref->pat, list) {
 		if (!expr->pat_head->parse_smp)
 			continue;
 
 		smp = pattern_find_smp(expr, elt);
-		if (smp && *smp) {
-			if (!expr->pat_head->parse_smp(sample, *smp)) {
-				memprintf(err, "failed to parse sample");
-				*smp = NULL;
-				ret = 0;
-			}
-		}
+		if (smp && *smp && !expr->pat_head->parse_smp(sample, *smp))
+			*smp = NULL;
 	}
 
-	return ret;
+	return 1;
 }
 
 /* This function modify the sample of the first pattern that match the <key>. */
