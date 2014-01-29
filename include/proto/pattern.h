@@ -174,8 +174,8 @@ struct pat_ref *pat_ref_new(const char *reference, const char *display, unsigned
 struct pat_ref *pat_ref_newid(int unique_id, const char *display, unsigned int flags);
 int pat_ref_append(struct pat_ref *ref, char *pattern, char *sample, int line);
 int pat_ref_add(struct pat_ref *ref, const char *pattern, const char *sample, char **err);
-int pat_ref_set(struct pat_ref *ref, const char *pattern, const char *sample);
-int pat_ref_set_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt, const char *value);
+int pat_ref_set(struct pat_ref *ref, const char *pattern, const char *sample, char **err);
+int pat_ref_set_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt, const char *value, char **err);
 int pat_ref_delete(struct pat_ref *ref, const char *key);
 int pat_ref_delete_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt);
 void pat_ref_prune(struct pat_ref *ref);

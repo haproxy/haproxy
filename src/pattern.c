@@ -1397,7 +1397,7 @@ int pat_ref_delete(struct pat_ref *ref, const char *key)
 
   /* This function modify the sample of the first pattern that match the <key>. */
 static inline int pat_ref_set_elt(struct pat_ref *ref, struct pat_ref_elt *elt,
-                                  const char *value)
+                                  const char *value, char **err)
 {
 	struct pattern_expr *expr;
 	struct sample_storage **smp;
@@ -1406,8 +1406,10 @@ static inline int pat_ref_set_elt(struct pat_ref *ref, struct pat_ref_elt *elt,
 
 	/* Modify pattern from reference. */
 	sample = strdup(value);
-	if (!sample)
+	if (!sample) {
+		memprintf(err, "out of memory error");
 		return 0;
+	}
 	free(elt->sample);
 	elt->sample = sample;
 
@@ -1419,6 +1421,7 @@ static inline int pat_ref_set_elt(struct pat_ref *ref, struct pat_ref_elt *elt,
 		smp = pattern_find_smp(expr, elt);
 		if (smp && *smp) {
 			if (!expr->pat_head->parse_smp(sample, *smp)) {
+				memprintf(err, "failed to parse sample");
 				*smp = NULL;
 				ret = 0;
 			}
@@ -1429,34 +1432,59 @@ static inline int pat_ref_set_elt(struct pat_ref *ref, struct pat_ref_elt *elt,
 }
 
 /* This function modify the sample of the first pattern that match the <key>. */
-int pat_ref_set_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt, const char *value)
+int pat_ref_set_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt, const char *value, char **err)
 {
 	struct pat_ref_elt *elt;
 
 	/* Look for pattern in the reference. */
 	list_for_each_entry(elt, &ref->head, list) {
 		if (elt == refelt) {
-			pat_ref_set_elt(ref, elt, value);
+			if (!pat_ref_set_elt(ref, elt, value, err))
+				return 0;
 			return 1;
 		}
 	}
+
+	memprintf(err, "key or pattern not found");
 	return 0;
 }
 
 /* This function modify the sample of the first pattern that match the <key>. */
-int pat_ref_set(struct pat_ref *ref, const char *key, const char *value)
+int pat_ref_set(struct pat_ref *ref, const char *key, const char *value, char **err)
 {
 	struct pat_ref_elt *elt;
-	int ret = 0;
+	int found = 0;
+	char *_merr;
+	char **merr;
+
+	if (err) {
+		merr = &_merr;
+		*merr = NULL;
+	}
+	else
+		merr = NULL;
 
 	/* Look for pattern in the reference. */
 	list_for_each_entry(elt, &ref->head, list) {
 		if (strcmp(key, elt->pattern) == 0) {
-			pat_ref_set_elt(ref, elt, value);
-			ret = 1;
+			if (!pat_ref_set_elt(ref, elt, value, merr)) {
+				if (!found)
+					*err = *merr;
+				else {
+					memprintf(err, "%s, %s", *err, *merr);
+					free(*merr);
+					*merr = NULL;
+				}
+			}
+			found = 1;
 		}
 	}
-	return ret;
+
+	if (!found) {
+		memprintf(err, "entry not found");
+		return 0;
+	}
+	return 1;
 }
 
 /* This function create new reference. <ref> is the reference name.

@@ -72,6 +72,7 @@ enum {
 	STAT_CLI_OUTPUT,     /* all states after this one are responses */
 	STAT_CLI_PROMPT,     /* display the prompt (first output, same code) */
 	STAT_CLI_PRINT,      /* display message in cli->msg */
+	STAT_CLI_PRINT_FREE, /* display message in cli->msg. After the display, free the pointer */
 	STAT_CLI_O_INFO,     /* dump info */
 	STAT_CLI_O_SESS,     /* dump sessions */
 	STAT_CLI_O_ERR,      /* dump errors */
@@ -1615,6 +1616,8 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			stats_sock_table_request(si, args, STAT_CLI_O_SET);
 		}
 		else if (strcmp(args[1], "map") == 0) {
+			char *err;
+
 			/* Set flags. */
 			appctx->ctx.map.display_flags = PAT_REF_MAP;
 
@@ -1658,9 +1661,12 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				}
 
 				/* Try to delete the entry. */
-				if (!pat_ref_set_by_id(appctx->ctx.map.ref, ref, args[4])) {
-					appctx->ctx.cli.msg = "Pattern not found.\n";
-					appctx->st0 = STAT_CLI_PRINT;
+				err = NULL;
+				if (!pat_ref_set_by_id(appctx->ctx.map.ref, ref, args[4], &err)) {
+					if (err)
+						memprintf(&err, "%s.\n", err);
+					appctx->ctx.cli.err = err;
+					appctx->st0 = STAT_CLI_PRINT_FREE;
 					return 1;
 				}
 			}
@@ -1668,9 +1674,12 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				/* Else, use the entry identifier as pattern
 				 * string, and update the value.
 				 */
-				if (!pat_ref_set(appctx->ctx.map.ref, args[3], args[4])) {
-					appctx->ctx.cli.msg = "Pattern not found.\n";
-					appctx->st0 = STAT_CLI_PRINT;
+				err = NULL;
+				if (!pat_ref_set(appctx->ctx.map.ref, args[3], args[4], &err)) {
+					if (err)
+						memprintf(&err, "%s.\n", err);
+					appctx->ctx.cli.err = err;
+					appctx->st0 = STAT_CLI_PRINT_FREE;
 					return 1;
 				}
 			}
@@ -1995,6 +2004,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 		if (strcmp(args[1], "map") == 0 ||
 		    strcmp(args[1], "acl") == 0) {
 			int ret;
+			char *err;
 
 			/* Set flags. */
 			if (args[1][0] == 'm')
@@ -2032,13 +2042,16 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			}
 
 			/* Add value. */
+			err = NULL;
 			if (appctx->ctx.map.display_flags == PAT_REF_MAP)
-				ret = pat_ref_add(appctx->ctx.map.ref, args[3], args[4], NULL);
+				ret = pat_ref_add(appctx->ctx.map.ref, args[3], args[4], &err);
 			else
-				ret = pat_ref_add(appctx->ctx.map.ref, args[3], NULL, NULL);
+				ret = pat_ref_add(appctx->ctx.map.ref, args[3], NULL, &err);
 			if (!ret) {
-				appctx->ctx.cli.msg = "Out of memory error.\n";
-				appctx->st0 = STAT_CLI_PRINT;
+				if (err)
+					memprintf(&err, "%s.\n", err);
+				appctx->ctx.cli.err = err;
+				appctx->st0 = STAT_CLI_PRINT_FREE;
 				return 1;
 			}
 
@@ -2173,6 +2186,12 @@ static void cli_io_handler(struct stream_interface *si)
 			case STAT_CLI_PRINT:
 				if (bi_putstr(si->ib, appctx->ctx.cli.msg) != -1)
 					appctx->st0 = STAT_CLI_PROMPT;
+				break;
+			case STAT_CLI_PRINT_FREE:
+				if (bi_putstr(si->ib, appctx->ctx.cli.err) != -1) {
+					free(appctx->ctx.cli.err);
+					appctx->st0 = STAT_CLI_PROMPT;
+				}
 				break;
 			case STAT_CLI_O_INFO:
 				if (stats_dump_info_to_buffer(si))
@@ -5294,6 +5313,9 @@ static void cli_release_handler(struct stream_interface *si)
 	if (appctx->st0 == STAT_CLI_O_SESS && appctx->st2 == STAT_ST_LIST) {
 		if (!LIST_ISEMPTY(&appctx->ctx.sess.bref.users))
 			LIST_DEL(&appctx->ctx.sess.bref.users);
+	}
+	else if (appctx->st0 == STAT_CLI_PRINT_FREE) {
+		free(appctx->ctx.cli.err);
 	}
 	else if (appctx->st0 == STAT_CLI_O_MLOOK) {
 		free(appctx->ctx.map.chunk.str);
