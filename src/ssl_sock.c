@@ -86,6 +86,14 @@
 #define SSL_SOCK_ST_TO_CAEDEPTH(s) ((s >> (6+16)) & 15)
 #define SSL_SOCK_ST_TO_CRTERROR(s) ((s >> (4+6+16)) & 63)
 
+/* server and bind verify method, it uses a global value as default */
+enum {
+	SSL_SOCK_VERIFY_DEFAULT  = 0,
+	SSL_SOCK_VERIFY_REQUIRED = 1,
+	SSL_SOCK_VERIFY_OPTIONAL = 2,
+	SSL_SOCK_VERIFY_NONE     = 3,
+};
+
 int sslconns = 0;
 int totalsslconns = 0;
 
@@ -651,6 +659,7 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy *curproxy)
 {
 	int cfgerr = 0;
+	int verify = SSL_VERIFY_NONE;
 	int ssloptions =
 		SSL_OP_ALL | /* all known workarounds for bugs */
 		SSL_OP_NO_SSLv2 |
@@ -695,8 +704,19 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 
 	SSL_CTX_set_options(ctx, ssloptions);
 	SSL_CTX_set_mode(ctx, sslmode);
-	SSL_CTX_set_verify(ctx, bind_conf->verify ? bind_conf->verify : SSL_VERIFY_NONE, ssl_sock_bind_verifycbk);
-	if (bind_conf->verify & SSL_VERIFY_PEER) {
+	switch (bind_conf->verify) {
+		case SSL_SOCK_VERIFY_NONE:
+			verify = SSL_VERIFY_NONE;
+			break;
+		case SSL_SOCK_VERIFY_OPTIONAL:
+			verify = SSL_VERIFY_PEER;
+			break;
+		case SSL_SOCK_VERIFY_REQUIRED:
+			verify = SSL_VERIFY_PEER|SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
+			break;
+	}
+	SSL_CTX_set_verify(ctx, verify, ssl_sock_bind_verifycbk);
+	if (verify & SSL_VERIFY_PEER) {
 		if (bind_conf->ca_file) {
 			/* load CAfile to verify */
 			if (!SSL_CTX_load_verify_locations(ctx, bind_conf->ca_file, NULL)) {
@@ -706,6 +726,11 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 			}
 			/* set CA names fo client cert request, function returns void */
 			SSL_CTX_set_client_CA_list(ctx, SSL_load_client_CA_file(bind_conf->ca_file));
+		}
+		else {
+			Alert("Proxy '%s': verify is enabled but no CA file specified for bind '%s' at [%s:%d].\n",
+			      curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+			cfgerr++;
 		}
 #ifdef X509_V_FLAG_CRL_CHECK
 		if (bind_conf->crl_file) {
@@ -906,6 +931,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv, struct proxy *curproxy)
 		SSL_MODE_ENABLE_PARTIAL_WRITE |
 		SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
 		SSL_MODE_RELEASE_BUFFERS;
+	int verify = SSL_VERIFY_NONE;
 
 	/* Make sure openssl opens /dev/urandom before the chroot */
 	if (!ssl_initialize_random()) {
@@ -974,10 +1000,22 @@ int ssl_sock_prepare_srv_ctx(struct server *srv, struct proxy *curproxy)
 
 	SSL_CTX_set_options(srv->ssl_ctx.ctx, options);
 	SSL_CTX_set_mode(srv->ssl_ctx.ctx, mode);
+
+	if (global.ssl_server_verify == SSL_SERVER_VERIFY_REQUIRED)
+		verify = SSL_VERIFY_PEER;
+
+	switch (srv->ssl_ctx.verify) {
+		case SSL_SOCK_VERIFY_NONE:
+			verify = SSL_VERIFY_NONE;
+			break;
+		case SSL_SOCK_VERIFY_REQUIRED:
+			verify = SSL_VERIFY_PEER;
+			break;
+	}
 	SSL_CTX_set_verify(srv->ssl_ctx.ctx,
-	                   srv->ssl_ctx.verify ? srv->ssl_ctx.verify : SSL_VERIFY_NONE,
+	                   verify,
 	                   srv->ssl_ctx.verify_host ? ssl_sock_srv_verifycbk : NULL);
-	if (srv->ssl_ctx.verify & SSL_VERIFY_PEER) {
+	if (verify & SSL_VERIFY_PEER) {
 		if (srv->ssl_ctx.ca_file) {
 			/* load CAfile to verify */
 			if (!SSL_CTX_load_verify_locations(srv->ssl_ctx.ctx, srv->ssl_ctx.ca_file, NULL)) {
@@ -986,6 +1024,17 @@ int ssl_sock_prepare_srv_ctx(struct server *srv, struct proxy *curproxy)
 				      srv->conf.file, srv->conf.line, srv->ssl_ctx.ca_file);
 				cfgerr++;
 			}
+		}
+		else {
+			if (global.ssl_server_verify == SSL_SERVER_VERIFY_REQUIRED)
+				Alert("Proxy '%s', server '%s' |%s:%d] verify is enabled by default but no CA file specified. If you're running on a LAN where you're certain to trust the server's certificate, please set an explicit 'verify none' statement on the 'server' line, or use 'ssl-server-verify none' in the global section to disable server-side verifications by default.\n",
+				      curproxy->id, srv->id,
+				      srv->conf.file, srv->conf.line);
+			else
+				Alert("Proxy '%s', server '%s' |%s:%d] verify is enabled but no CA file specified.\n",
+				      curproxy->id, srv->id,
+				      srv->conf.file, srv->conf.line);
+			cfgerr++;
 		}
 #ifdef X509_V_FLAG_CRL_CHECK
 		if (srv->ssl_ctx.crl_file) {
@@ -3190,11 +3239,11 @@ static int bind_parse_verify(char **args, int cur_arg, struct proxy *px, struct 
 	}
 
 	if (strcmp(args[cur_arg + 1], "none") == 0)
-		conf->verify = SSL_VERIFY_NONE;
+		conf->verify = SSL_SOCK_VERIFY_NONE;
 	else if (strcmp(args[cur_arg + 1], "optional") == 0)
-		conf->verify = SSL_VERIFY_PEER;
+		conf->verify = SSL_SOCK_VERIFY_OPTIONAL;
 	else if (strcmp(args[cur_arg + 1], "required") == 0)
-		conf->verify = SSL_VERIFY_PEER|SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
+		conf->verify = SSL_SOCK_VERIFY_REQUIRED;
 	else {
 		if (err)
 			memprintf(err, "'%s' : unknown verify method '%s', only 'none', 'optional', and 'required' are supported\n",
@@ -3380,9 +3429,9 @@ static int srv_parse_verify(char **args, int *cur_arg, struct proxy *px, struct 
 	}
 
 	if (strcmp(args[*cur_arg + 1], "none") == 0)
-		newsrv->ssl_ctx.verify = SSL_VERIFY_NONE;
+		newsrv->ssl_ctx.verify = SSL_SOCK_VERIFY_NONE;
 	else if (strcmp(args[*cur_arg + 1], "required") == 0)
-		newsrv->ssl_ctx.verify = SSL_VERIFY_PEER;
+		newsrv->ssl_ctx.verify = SSL_SOCK_VERIFY_REQUIRED;
 	else {
 		if (err)
 			memprintf(err, "'%s' : unknown verify method '%s', only 'none' and 'required' are supported\n",

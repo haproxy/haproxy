@@ -64,6 +64,12 @@
 #define ACCESS_LVL_OPER     2
 #define ACCESS_LVL_ADMIN    3
 
+/* SSL server verify mode */
+enum {
+	SSL_SERVER_VERIFY_NONE = 0,
+	SSL_SERVER_VERIFY_REQUIRED = 1,
+};
+
 /* FIXME : this will have to be redefined correctly */
 struct global {
 #ifdef USE_OPENSSL
@@ -79,6 +85,7 @@ struct global {
 	char *listen_default_ciphers;
 	char *connect_default_ciphers;
 #endif
+	unsigned int ssl_server_verify; /* default verify mode on servers side */
 	struct freq_ctr conn_per_sec;
 	struct freq_ctr sess_per_sec;
 	struct freq_ctr ssl_per_sec;

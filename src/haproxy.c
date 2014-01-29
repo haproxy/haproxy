@@ -128,6 +128,7 @@ struct global global = {
 	.maxzlibmem = 0,
 #endif
 	.comp_rate_lim = 0,
+	.ssl_server_verify = SSL_SERVER_VERIFY_REQUIRED,
 	.unix_bind = {
 		 .ux = {
 			 .uid = -1,
@@ -383,6 +384,7 @@ void usage(char *name)
 #if defined(CONFIG_HAP_LINUX_SPLICE)
 		"        -dS disables splice usage (broken on old kernels)\n"
 #endif
+		"        -dV disables SSL verify on servers side\n"
 		"        -sf/-st [pid ]* finishes/terminates old pids. Must be last arguments.\n"
 		"\n",
 		name, DEFAULT_MAXCONN, cfg_maxpconn);
@@ -587,6 +589,8 @@ void init(int argc, char **argv)
 			else if (*flag == 'd' && flag[1] == 'S')
 				global.tune.options &= ~GTUNE_USE_SPLICE;
 #endif
+			else if (*flag == 'd' && flag[1] == 'V')
+				global.ssl_server_verify = SSL_SERVER_VERIFY_NONE;
 			else if (*flag == 'V')
 				arg_mode |= MODE_VERBOSE;
 			else if (*flag == 'd' && flag[1] == 'b')

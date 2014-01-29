@@ -455,6 +455,7 @@ The following keywords are supported in the "global" section :
    - ulimit-n
    - user
    - stats
+   - ssl-server-verify
    - node
    - description
    - unix-bind
@@ -624,6 +625,11 @@ stats bind-process [ all | odd | even | <number 1-32>[-<number 1-32>] ] ...
   the stats socket to a specific set of processes, typically the first one. The
   warning will automatically be disabled when this setting is used, whatever
   the number of processes used.
+
+ssl-server-verify [none|required]
+  The default behavior for SSL verify on servers side. If specified to 'none',
+  servers certificates are not verified. The default is 'required' except if
+  forced using cmdline option '-dV'.
 
 stats socket [<address:port>|<path>] [param*]
   Binds a UNIX socket to <path> or a TCPv4/v6 address to <address:port>.
@@ -8519,9 +8525,10 @@ track [<proxy>/]<server>
 
 verify [none|required]
   This setting is only available when support for OpenSSL was built in. If set
-  to 'none', server certificate is not verified. This is the default. In the
-  other case, The certificate provided by the server is verified using CAs from
-  'ca-file' and optional CRLs from 'crl-file'. On verify failure the handshake
+  to 'none', server certificate is not verified. In the other case, The
+  certificate provided by the server is verified using CAs from 'ca-file'
+  and optional CRLs from 'crl-file'. If 'ssl_server_verify' is not specified
+  in global  section, this is the default. On verify failure the handshake
   is aborted. It is critically important to verify server certificates when
   using SSL to connect to servers, otherwise the communication is prone to
   trivial man-in-the-middle attacks rendering SSL totally useless.

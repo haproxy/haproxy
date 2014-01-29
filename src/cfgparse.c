@@ -862,6 +862,22 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		goto out;
 #endif
 	}
+	else if (!strcmp(args[0], "ssl-server-verify")) {
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (strcmp(args[1],"none") == 0)
+			global.ssl_server_verify = SSL_SERVER_VERIFY_NONE;
+		else if (strcmp(args[1],"required") == 0)
+			global.ssl_server_verify = SSL_SERVER_VERIFY_REQUIRED;
+		else {
+			Alert("parsing [%s:%d] : '%s' expects 'none' or 'required' as argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+	                goto out;
+		}
+	}
 	else if (!strcmp(args[0], "maxconnrate")) {
 		if (global.cps_lim != 0) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);
