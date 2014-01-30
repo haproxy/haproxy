@@ -97,11 +97,11 @@ enum pr_mode {
 #define PR_O_ABRT_CLOSE 0x00800000      /* immediately abort request when client closes */
 
 /* unused: 0x01000000, 0x02000000, 0x04000000, 0x08000000 */
-#define PR_O_HTTP_TUN   0x00000000      /* HTTP tunnel mode : no analysis past first request/response */
+#define PR_O_HTTP_KAL   0x00000000      /* HTTP keep-alive mode (http-keep-alive) */
 #define PR_O_HTTP_PCL   0x01000000      /* HTTP passive close mode (httpclose) = tunnel with Connection: close */
 #define PR_O_HTTP_FCL   0x02000000      /* HTTP forced close mode (forceclose) */
 #define PR_O_HTTP_SCL   0x03000000      /* HTTP server close mode (http-server-close) */
-#define PR_O_HTTP_KAL   0x04000000      /* HTTP keep-alive mode (http-keep-alive) */
+#define PR_O_HTTP_TUN   0x04000000      /* HTTP tunnel mode : no analysis past first request/response */
 /* unassigned values : 0x05000000, 0x06000000, 0x07000000 */
 #define PR_O_HTTP_MODE  0x07000000      /* MASK to retrieve the HTTP mode */
 

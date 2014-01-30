@@ -3539,39 +3539,44 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 		}
 	}
 
-	/* Until set to anything else, the connection mode is set as TUNNEL. It will
+	/* Until set to anything else, the connection mode is set as Keep-Alive. It will
 	 * only change if both the request and the config reference something else.
-	 * Option httpclose by itself does not set a mode, it remains a tunnel mode
-	 * in which headers are mangled. However, if another mode is set, it will
-	 * affect it (eg: server-close/keep-alive + httpclose = close). Note that we
-	 * avoid to redo the same work if FE and BE have the same settings (common).
-	 * The method consists in checking if options changed between the two calls
-	 * (implying that either one is non-null, or one of them is non-null and we
-	 * are there for the first time.
+	 * Option httpclose by itself sets tunnel mode where headers are mangled.
+	 * However, if another mode is set, it will affect it (eg: server-close/
+	 * keep-alive + httpclose = close). Note that we avoid to redo the same work
+	 * if FE and BE have the same settings (common). The method consists in
+	 * checking if options changed between the two calls (implying that either
+	 * one is non-null, or one of them is non-null and we are there for the first
+	 * time.
 	 */
 
 	if ((!(txn->flags & TX_HDR_CONN_PRS) &&
-	     ((s->fe->options & PR_O_HTTP_MODE) != PR_O_HTTP_TUN)) ||
+	     ((s->fe->options & PR_O_HTTP_MODE) != PR_O_HTTP_KAL)) ||
 	    ((s->fe->options & PR_O_HTTP_MODE) != (s->be->options & PR_O_HTTP_MODE))) {
-		int tmp = TX_CON_WANT_TUN;
+		int tmp = TX_CON_WANT_KAL;
 
-		if ((s->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_KAL ||
-		    (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_KAL ||
-		    ((s->fe->options2|s->be->options2) & PR_O2_FAKE_KA))
-			tmp = TX_CON_WANT_KAL;
+		if (!((s->fe->options2|s->be->options2) & PR_O2_FAKE_KA)) {
+			if ((s->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_TUN ||
+			    (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_TUN)
+				tmp = TX_CON_WANT_TUN;
+
+			if ((s->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
+			    (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL)
+				tmp = TX_CON_WANT_TUN;
+		}
 
 		if ((s->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_SCL ||
-		    (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_SCL)
-			tmp = TX_CON_WANT_SCL;
+		    (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_SCL) {
+			/* option httpclose + server_close => forceclose */
+			if ((s->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
+			    (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL)
+				tmp = TX_CON_WANT_CLO;
+			else
+				tmp = TX_CON_WANT_SCL;
+		}
 
 		if ((s->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_FCL ||
 		    (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_FCL)
-			tmp = TX_CON_WANT_CLO;
-
-		/* option httpclose + server_close => forceclose */
-		if (tmp == TX_CON_WANT_SCL &&
-		    ((s->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
-		     (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL))
 			tmp = TX_CON_WANT_CLO;
 
 		if ((txn->flags & TX_CON_WANT_MSK) < tmp)
@@ -5623,6 +5628,12 @@ int http_process_res_common(struct session *t, struct channel *rep, int an_bit, 
 		  ((t->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
 		   (t->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL))) {
 		int to_del = 0;
+
+		/* this situation happens when combining pretend-keepalive with httpclose. */
+		if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL &&
+		    ((t->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
+		     (t->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL))
+			txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
 
 		/* on unknown transfer length, we must close */
 		if (!(msg->flags & HTTP_MSGF_XFER_LEN) &&

@@ -155,16 +155,18 @@ correctly support pipelining since there is no way to associate a response with
 the corresponding request in HTTP. For this reason, it is mandatory for the
 server to reply in the exact same order as the requests were received.
 
-By default HAProxy operates in a tunnel-like mode with regards to persistent
-connections: for each connection it processes the first request and forwards
-everything else (including additional requests) to selected server. Once
-established, the connection is persisted both on the client and server
-sides. Use "option http-server-close" to preserve client persistent connections
-while handling every incoming request individually, dispatching them one after
-another to servers, in HTTP close mode. Use "option httpclose" to switch both
-sides to HTTP close mode. "option forceclose" and "option
-http-pretend-keepalive" help working around servers misbehaving in HTTP close
-mode.
+By default HAProxy operates in keep-alive mode with regards to persistent
+connections: for each connection it processes each request and response, and
+leaves the connection idle on both sides between the end of a response and the
+start of a new request.
+
+HAProxy supports 5 connection modes :
+  - keep alive    : all requests and responses are processed (default)
+  - tunnel        : only the first request and response are processed,
+                    everything else is forwarded with no analysis.
+  - passive close : tunnel with "Connection: close" added in both directions.
+  - server close  : the server-facing connection is closed after the response.
+  - forced close  : the connection is actively closed after end of response.
 
 
 1.2. HTTP request
@@ -1122,6 +1124,50 @@ bidirectional traffic between two sides. In layer 7 mode, HAProxy analyzes the
 protocol, and can interact with it by allowing, blocking, switching, adding,
 modifying, or removing arbitrary contents in requests or responses, based on
 arbitrary criteria.
+
+In HTTP mode, the processing applied to requests and responses flowing over
+a connection depends in the combination of the frontend's HTTP options and
+the backend's. HAProxy supports 5 connection modes :
+
+  - KAL : keep alive ("option http-keep-alive") which is the default mode : all
+    requests and responses are processed, and connections remain open but idle
+    between responses and new requests.
+
+  - TUN: tunnel ("option http-tunnel") : this was the default mode for versions
+    1.0 to 1.5-dev21 : only the first request and response are processed, and
+    everything else is forwarded with no analysis at all. This mode should not
+    be used as it creates lots of trouble with logging and HTTP processing.
+
+  - PCL: passive close ("option httpclose") : exactly the same as tunnel mode,
+    but with "Connection: close" appended in both directions to try to make
+    both ends close after the first request/response exchange.
+
+  - SCL: server close ("option http-server-close") : the server-facing
+    connection is closed after the end of the response is received, but the
+    client-facing connection remains open.
+
+  - FCL: forced close ("option forceclose") : the connection is actively closed
+    after the end of the response.
+
+The effective mode that will be applied to a connection passing through a
+frontend and a backend can be determined by both proxy modes according to the
+following matrix, but in short, the modes are symmetric, keep-alive is the
+weakest option and force close is the strongest.
+
+                          Backend mode
+
+                | KAL | TUN | PCL | SCL | FCL
+            ----+-----+-----+-----+-----+----
+            KAL | KAL | TUN | PCL | SCL | FCL
+            ----+-----+-----+-----+-----+----
+            TUN | TUN | TUN | PCL | SCL | FCL
+ Frontend   ----+-----+-----+-----+-----+----
+   mode     PCL | PCL | PCL | PCL | FCL | FCL
+            ----+-----+-----+-----+-----+----
+            SCL | SCL | SCL | FCL | SCL | FCL
+            ----+-----+-----+-----+-----+----
+            FCL | FCL | FCL | FCL | FCL | FCL
+
 
 
 4.1. Proxy keywords matrix
@@ -3718,8 +3764,7 @@ no option forceclose
   the connection to be closed once the whole response is received.
 
   This option disables and replaces any previous 'option httpclose', 'option
-  http-server-close' or 'option http-keep-alive'. When frontend and backend
-  options differ, 'option forceclose' has precedence over all other options.
+  http-server-close', 'option http-keep-alive', or "option http-tunnel".
 
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
@@ -3775,12 +3820,6 @@ option forwardfor [ except <network> ] [ header <name> ] [ if-none ]
   the frontend or the backend does not specify it, it wants the addition to be
   mandatory, so it wins.
 
-  It is important to note that by default, HAProxy works in tunnel mode and
-  only inspects the first request of a connection, meaning that only the first
-  request will have the header appended, which is certainly not what you want.
-  In order to fix this, ensure that any of the "httpclose", "forceclose" or
-  "http-server-close" options is set when using this option.
-
   Examples :
     # Public HTTP address also used by stunnel on the same machine
     frontend www
@@ -3793,7 +3832,7 @@ option forwardfor [ except <network> ] [ header <name> ] [ if-none ]
         option forwardfor header X-Client
 
   See also : "option httpclose", "option http-server-close",
-             "option forceclose"
+             "option forceclose", "option http-keep-alive"
 
 
 option http-keep-alive
@@ -3803,10 +3842,16 @@ no option http-keep-alive
                                  yes   |    yes   |   yes  |   yes
   Arguments : none
 
-  By default, when a client communicates with a server, HAProxy will only
-  analyze, log, and process the first request of each connection. Setting
-  "option http-keep-alive" enables HTTP keep-alive mode on the client- and
-  server- sides. This provides the lowest latency on the client side (slow
+  By default HAProxy operates in keep-alive mode with regards to persistent
+  connections: for each connection it processes each request and response, and
+  leaves the connection idle on both sides between the end of a response and the
+  start of a new request. This mode may be changed by several options such as
+  "option http-server-close", "option forceclose", "option httpclose" or
+  "option http-tunnel". This option allows to set back the keep-alive mode,
+  which can be useful when another mode was used in a defaults section.
+
+  Setting "option http-keep-alive" enables HTTP keep-alive mode on the client-
+  and server- sides. This provides the lowest latency on the client side (slow
   network) and the fastest session reuse on the server side at the expense
   of maintaining idle connections to the servers. In general, it is possible
   with this option to achieve approximately twice the request rate that the
@@ -3841,11 +3886,9 @@ no option http-keep-alive
   not set.
 
   This option disables and replaces any previous 'option httpclose', 'option
-  http-server-close' or 'option forceclose'. When frontend and backend options
-  differ, all of these 3 options have precedence over 'option http-keep-alive'.
-
-  If this option has been enabled in a "defaults" section, it can be disabled
-  in a specific instance by prepending the "no" keyword before it.
+  http-server-close', 'option forceclose' or "option http-tunnel". When backend
+  and frontend options differ, all of these 4 options have precedence over
+  'option http-keep-alive'.
 
   See also : "option forceclose", "option http-server-close",
              "option prefer-last-server", "option http-pretend-keepalive",
@@ -3935,18 +3978,22 @@ no option http-server-close
                                  yes   |    yes   |   yes  |   yes
   Arguments : none
 
-  By default, when a client communicates with a server, HAProxy will only
-  analyze, log, and process the first request of each connection. Setting
-  "option http-server-close" enables HTTP connection-close mode on the server
-  side while keeping the ability to support HTTP keep-alive and pipelining on
-  the client side.  This provides the lowest latency on the client side (slow
-  network) and the fastest session reuse on the server side to save server
-  resources, similarly to "option forceclose". It also permits non-keepalive
-  capable servers to be served in keep-alive mode to the clients if they
-  conform to the requirements of RFC2616. Please note that some servers do not
-  always conform to those requirements when they see "Connection: close" in the
-  request. The effect will be that keep-alive will never be used. A workaround
-  consists in enabling "option http-pretend-keepalive".
+  By default HAProxy operates in keep-alive mode with regards to persistent
+  connections: for each connection it processes each request and response, and
+  leaves the connection idle on both sides between the end of a response and
+  the start of a new request. This mode may be changed by several options such
+  as "option http-server-close", "option forceclose", "option httpclose" or
+  "option http-tunnel". Setting "option http-server-close" enables HTTP
+  connection-close mode on the server side while keeping the ability to support
+  HTTP keep-alive and pipelining on the client side.  This provides the lowest
+  latency on the client side (slow network) and the fastest session reuse on
+  the server side to save server resources, similarly to "option forceclose".
+  It also permits non-keepalive capable servers to be served in keep-alive mode
+  to the clients if they conform to the requirements of RFC2616. Please note
+  that some servers do not always conform to those requirements when they see
+  "Connection: close" in the request. The effect will be that keep-alive will
+  never be used. A workaround consists in enabling "option
+  http-pretend-keepalive".
 
   At the moment, logs will not indicate whether requests came from the same
   session or not. The accept date reported in the logs corresponds to the end
@@ -3957,11 +4004,10 @@ no option http-server-close
 
   This option may be set both in a frontend and in a backend. It is enabled if
   at least one of the frontend or backend holding a connection has it enabled.
-  It disables and replaces any previous 'option httpclose', 'option forceclose'
-  or 'option http-keep-alive'. When frontend and backend options differ, both
-  'option forceclose' and 'option httpclose' have precedence over
-  'option http-server-close' and both result in the same setup as if only
-  'option forceclose' was set.
+  It disables and replaces any previous 'option httpclose', 'option forceclose',
+  'option http-tunnel' or 'option http-keep-alive'. Please check section 4
+  ("Proxies") to see how this option combines with others when frontend and
+  backend options differ.
 
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
@@ -3978,15 +4024,22 @@ no option http-tunnel
                                  yes   |    yes   |   yes  |   yes
   Arguments : none
 
-  By default, when a client communicates with a server, HAProxy will only
-  analyze, log, and process the first request of each connection. Option
-  "http-tunnel" just does this and cancels any other option among
-  "option forceclose", "option httpclose", "option http-keep-alive",
-  and "option http-server-close". It is the mode with the lowest processing
-  overhead, which is normally not needed anymore unless in very specific
-  cases such as when using an in-house protocol that looks like HTTP but is
-  not compatible, or just to log one request per client in order to reduce
-  log size.
+  By default HAProxy operates in keep-alive mode with regards to persistent
+  connections: for each connection it processes each request and response, and
+  leaves the connection idle on both sides between the end of a response and
+  the start of a new request. This mode may be changed by several options such
+  as "option http-server-close", "option forceclose", "option httpclose" or
+  "option http-tunnel".
+
+  Option "http-tunnel" disables any HTTP processing past the first request and
+  the first respones. This is the mode which was used by default in versions
+  1.0 to 1.5-dev21. It is the mode with the lowest processing overhead, which
+  is normally not needed anymore unless in very specific cases such as when
+  using an in-house protocol that looks like HTTP but is not compatible, or
+  just to log one request per client in order to reduce log size. Note that
+  everything which works at the HTTP level, including header parsing/addition,
+  cookie processing or content switching will only work for the first request
+  and will be ignored after the first response.
 
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
@@ -4086,13 +4139,21 @@ no option httpclose
                                  yes   |    yes   |   yes  |   yes
   Arguments : none
 
-  By default, when a client communicates with a server, HAProxy will only
-  analyze, log, and process the first request of each connection. If "option
-  httpclose" is set, it will check if a "Connection: close" header is already
-  set in each direction, and will add one if missing. Each end should react to
-  this by actively closing the TCP connection after each transfer, thus
-  resulting in a switch to the HTTP close mode. Any "Connection" header
-  different from "close" will also be removed.
+  By default HAProxy operates in keep-alive mode with regards to persistent
+  connections: for each connection it processes each request and response, and
+  leaves the connection idle on both sides between the end of a response and
+  the start of a new request. This mode may be changed by several options such
+  as "option http-serve-close", "option forceclose", "option httpclose" or
+  "option http-tunnel".
+
+  If "option httpclose" is set, HAProxy will work in HTTP tunnel mode and check
+  if a "Connection: close" header is already set in each direction, and will
+  add one if missing. Each end should react to this by actively closing the TCP
+  connection after each transfer, thus resulting in a switch to the HTTP close
+  mode. Any "Connection" header different from "close" will also be removed.
+  Note that this option is deprecated since what it does is very cheap but not
+  reliable. Using "option http-server-close" or "option forceclose" is strongly
+  recommended instead.
 
   It seldom happens that some servers incorrectly ignore this header and do not
   close the connection even though they reply "Connection: close". For this
@@ -4105,9 +4166,9 @@ no option httpclose
   This option may be set both in a frontend and in a backend. It is enabled if
   at least one of the frontend or backend holding a connection has it enabled.
   It disables and replaces any previous 'option http-server-close',
-  'option forceclose' or 'option http-keep-alive'. When frontend and backend
-  options differ, 'option httpclose' has precedence over all other options and
-  results in the same setup as if only 'option forceclose' was set.
+  'option forceclose', 'option http-keep-alive' or "option http-tunnel". Please
+  check section 4 ("Proxies") to see how this option combines with others when
+  frontend and backend options differ.
 
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
@@ -4427,12 +4488,6 @@ option originalto [ except <network> ] [ header <name> ]
   least one of them uses it, the header will be added. Note that the backend's
   setting of the header subargument takes precedence over the frontend's if
   both are defined.
-
-  It is important to note that by default, HAProxy works in tunnel mode and
-  only inspects the first request of a connection, meaning that only the first
-  request will have the header appended, which is certainly not what you want.
-  In order to fix this, ensure that any of the "httpclose", "forceclose" or
-  "http-server-close" options is set when using this option.
 
   Examples :
     # Original Destination address
@@ -8595,20 +8650,16 @@ In HTTP mode, it is possible to rewrite, add or delete some of the request and
 response headers based on regular expressions. It is also possible to block a
 request or a response if a particular header matches a regular expression,
 which is enough to stop most elementary protocol attacks, and to protect
-against information leak from the internal network. But there is a limitation
-to this : since HAProxy's HTTP engine does not support keep-alive, only headers
-passed during the first request of a TCP session will be seen. All subsequent
-headers will be considered data only and not analyzed. Furthermore, HAProxy
-never touches data contents, it stops analysis at the end of headers.
+against information leak from the internal network.
 
-There is an exception though. If HAProxy encounters an "Informational Response"
-(status code 1xx), it is able to process all rsp* rules which can allow, deny,
-rewrite or delete a header, but it will refuse to add a header to any such
-messages as this is not HTTP-compliant. The reason for still processing headers
-in such responses is to stop and/or fix any possible information leak which may
-happen, for instance because another downstream equipment would unconditionally
-add a header, or if a server name appears there. When such messages are seen,
-normal processing still occurs on the next non-informational messages.
+If HAProxy encounters an "Informational Response" (status code 1xx), it is able
+to process all rsp* rules which can allow, deny, rewrite or delete a header,
+but it will refuse to add a header to any such messages as this is not
+HTTP-compliant. The reason for still processing headers in such responses is to
+stop and/or fix any possible information leak which may happen, for instance
+because another downstream equipment would unconditionally add a header, or if
+a server name appears there. When such messages are seen, normal processing
+still occurs on the next non-informational messages.
 
 This section covers common usage of the following keywords, described in detail
 in section 4.2 :
