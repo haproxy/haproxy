@@ -10556,6 +10556,28 @@ base32+src : binary
   depending on the source address family. This can be used to track per-IP,
   per-URL counters.
 
+capture.req.hdr(<idx>) : string
+  This extracts the content of the header captured by the "capture request
+  header", idx is the position of the capture keyword in the configuration.
+  The first entry is an index of 0. See also: "capture request header".
+
+capture.req.method : string
+  This extracts the METHOD of an HTTP request. It can be used in both request
+  and response. Unlike "method", it can be used in both request and response
+  because it's allocated.
+
+capture.req.uri : string
+  This extracts the request's URI, which starts at the first slash and ends
+  before the first space in the request (without the host part). Unlike "path"
+  and "url", it can be used in both request and response because it's
+  allocated.
+
+capture.res.hdr(<idx>) : string
+  This extracts the content of the header captured by the "capture response
+  header", idx is the position of the capture keyword in the configuration.
+  The first entry is an index of 0.
+  See also: "capture response header"
+
 req.cook([<name>]) : string
 cook([<name>]) : string (deprecated)
   This extracts the last occurrence of the cookie name <name> on a "Cookie"
@@ -10600,18 +10622,6 @@ cookie([<name>]) : string (deprecated)
   anymore and should be replaced by req.cook() or res.cook() instead as it
   ambiguously uses the direction based on the context where it is used.
   See also : "appsession".
-
-capture.req.hdr(<idx>) : string
-  This extracts the content of the header captured by the "capture request
-  header", idx is the position of the capture keyword in the configuration.
-  The first entry is an index of 0.
-  See also: "capture request header"
-
-capture.res.hdr(<idx>) : string
-  This extracts the content of the header captured by the "capture response
-  header", idx is the position of the capture keyword in the configuration.
-  The first entry is an index of 0.
-  See also: "capture response header"
 
 hdr([<name>[,<occ>]]) : string
   This is equivalent to req.hdr() when used on requests, and to res.hdr() when

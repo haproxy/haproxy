@@ -835,6 +835,46 @@ http_get_path(struct http_txn *txn)
 	return ptr;
 }
 
+/* Parse the URI from the given string and look for the "/" beginning the PATH.
+ * If not found, return NULL. It is returned otherwise.
+ */
+static char *
+http_get_path_from_string(char *str)
+{
+	char *ptr = str;
+
+	/* RFC2616, par. 5.1.2 :
+	 * Request-URI = "*" | absuri | abspath | authority
+	 */
+
+	if (*ptr == '*')
+		return NULL;
+
+	if (isalpha((unsigned char)*ptr)) {
+		/* this is a scheme as described by RFC3986, par. 3.1 */
+		ptr++;
+		while (isalnum((unsigned char)*ptr) || *ptr == '+' || *ptr == '-' || *ptr == '.')
+			ptr++;
+		/* skip '://' */
+		if (*ptr == '\0' || *ptr++ != ':')
+			return NULL;
+		if (*ptr == '\0' || *ptr++ != '/')
+			return NULL;
+		if (*ptr == '\0' || *ptr++ != '/')
+			return NULL;
+	}
+	/* skip [user[:passwd]@]host[:[port]] */
+
+	while (*ptr != '\0' && *ptr != ' ' && *ptr != '/')
+		ptr++;
+
+	if (*ptr == '\0' || *ptr == ' ')
+		return NULL;
+
+	/* OK, we got the '/' ! */
+	return ptr;
+}
+
 /* Returns a 302 for a redirectable request that reaches a server working in
  * in redirect mode. This may only be called just after the stream interface
  * has moved to SI_ST_ASS. Unprocessable requests are left unchanged and will
@@ -9731,6 +9771,78 @@ smp_fetch_capture_header_res(struct proxy *px, struct session *l4, void *l7, uns
 	return 1;
 }
 
+/* Extracts the METHOD in the HTTP request, the txn->uri should be filled before the call */
+static int
+smp_fetch_capture_req_method(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                             const struct arg *args, struct sample *smp, const char *kw)
+{
+	struct chunk *temp;
+	struct http_txn *txn = l7;
+	char *spc;
+	int len;
+
+	if (!txn->uri)
+		return 0;
+
+	spc = strchr(txn->uri, ' '); /* first space before URI */
+	if (likely(spc))
+		len = spc - txn->uri;
+	else
+		len = strlen(txn->uri);
+
+	temp = get_trash_chunk();
+	len = MIN(len, temp->size - 1);
+	strncpy(temp->str, txn->uri, len);
+	temp->str[len] = '\0';
+
+	smp->data.str = *temp;
+	smp->data.str.len = len;
+	smp->type = SMP_T_STR;
+
+	return 1;
+
+}
+
+/* Extracts the path in the HTTP request, the txn->uri should be filled before the call  */
+static int
+smp_fetch_capture_req_uri(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                             const struct arg *args, struct sample *smp, const char *kw)
+{
+	struct chunk *temp;
+	struct http_txn *txn = l7;
+	char *ptr;
+	char *ret;
+
+	if (!txn->uri)
+		return 0;
+	ptr = txn->uri;
+
+	while (*ptr != ' ' && *ptr != '\0')  /* find first space */
+		ptr++;
+	if (!*ptr)
+		return 0;
+
+	ptr++;  /* skip the space */
+
+	temp = get_trash_chunk();
+	ret = encode_string(temp->str, temp->str + temp->size, '#', url_encode_map, ptr);
+	if (ret == NULL || *ret != '\0')
+		return 0;
+	ptr = temp->str = http_get_path_from_string(temp->str);
+	if (!ptr)
+		return 0;
+	while (*ptr != ' ' && *ptr != '\0')  /* find space after URI */
+		ptr++;
+	*ptr = '\0';
+
+	smp->data.str = *temp;
+	smp->data.str.len = strlen(smp->data.str.str);
+	smp->type = SMP_T_STR;
+
+	return 1;
+}
+
+
 /* Iterate over all cookies present in a message. The context is stored in
  * smp->ctx.a[0] for the in-header position, smp->ctx.a[1] for the
  * end-of-header-value, and smp->ctx.a[2] for the hdr_ctx. Depending on
@@ -10288,6 +10400,9 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "base",            smp_fetch_base,           0,                NULL,    SMP_T_CSTR, SMP_USE_HRQHV },
 	{ "base32",          smp_fetch_base32,         0,                NULL,    SMP_T_UINT, SMP_USE_HRQHV },
 	{ "base32+src",      smp_fetch_base32_src,     0,                NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
+
+	{ "capture.req.uri",    smp_fetch_capture_req_uri,    0,          NULL,    SMP_T_CSTR, SMP_USE_HRQHP },
+	{ "capture.req.method", smp_fetch_capture_req_method, 0,          NULL,    SMP_T_CSTR, SMP_USE_HRQHP },
 
 	/* capture are allocated and are permanent in the session */
 	{ "capture.req.hdr", smp_fetch_capture_header_req, ARG1(1, UINT), NULL, SMP_T_CSTR, SMP_USE_HRQHP },

@@ -382,11 +382,12 @@ void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct pro
 	/* Note, we may also need to set curpx->to_log with certain fetches */
 	curpx->http_needed |= !!(expr->fetch->use & SMP_USE_HTTP_ANY);
 
-	/* FIXME: temporary workaround for missing LW_XPRT flag needed with some
-	 * sample fetches (eg: ssl*). We always set it for now on, but this will
-	 * leave with sample capabilities soon.
+	/* FIXME: temporary workaround for missing LW_XPRT and LW_REQ flags
+	 * needed with some sample fetches (eg: ssl*). We always set it for
+	 * now on, but this will leave with sample capabilities soon.
 	 */
 	curpx->to_log |= LW_XPRT;
+	curpx->to_log |= LW_REQ;
 	LIST_ADDQ(list_format, &node->list);
 }
 
