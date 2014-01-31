@@ -148,14 +148,6 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		goto out_free_session;
 	}
 
-#ifndef USE_ACCEPT4
-	/* Adjust some socket options if the connection was accepted by a plain
-	 * accept() syscall.
-	 */
-	if (unlikely(fcntl(cfd, F_SETFL, O_NONBLOCK) == -1))
-		goto out_free_session;
-#endif
-
 	/* monitor-net and health mode are processed immediately after TCP
 	 * connection rules. This way it's possible to block them, but they
 	 * never use the lower data layers, they send directly over the socket,

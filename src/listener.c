@@ -257,6 +257,9 @@ void listener_accept(int fd)
 	int max_accept = l->maxaccept ? l->maxaccept : 1;
 	int cfd;
 	int ret;
+#ifdef USE_ACCEPT4
+	static int accept4_broken;
+#endif
 
 	if (unlikely(l->nbconn >= l->maxconn)) {
 		listener_full(l);
@@ -346,15 +349,17 @@ void listener_accept(int fd)
 		}
 
 #ifdef USE_ACCEPT4
-		cfd = accept4(fd, (struct sockaddr *)&addr, &laddr, SOCK_NONBLOCK);
-		if (unlikely(cfd == -1 && errno == EINVAL)) {
-			/* unsupported syscall, fallback to normal accept()+fcntl() */
+		/* only call accept4() if it's known to be safe, otherwise
+		 * fallback to the legacy accept() + fcntl().
+		 */
+		if (unlikely(accept4_broken ||
+			((cfd = accept4(fd, (struct sockaddr *)&addr, &laddr, SOCK_NONBLOCK)) == -1 &&
+			(errno == ENOSYS || errno == EINVAL || errno == EBADF) &&
+			(accept4_broken = 1))))
+#endif
 			if ((cfd = accept(fd, (struct sockaddr *)&addr, &laddr)) != -1)
 				fcntl(cfd, F_SETFL, O_NONBLOCK);
-		}
-#else
-		cfd = accept(fd, (struct sockaddr *)&addr, &laddr);
-#endif
+
 		if (unlikely(cfd == -1)) {
 			switch (errno) {
 			case EAGAIN:
