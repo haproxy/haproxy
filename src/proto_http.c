@@ -3549,8 +3549,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 	 * time.
 	 */
 
-	if ((!(txn->flags & TX_HDR_CONN_PRS) &&
-	     ((s->fe->options & PR_O_HTTP_MODE) != PR_O_HTTP_KAL)) ||
+	if (!(txn->flags & TX_HDR_CONN_PRS) ||
 	    ((s->fe->options & PR_O_HTTP_MODE) != (s->be->options & PR_O_HTTP_MODE))) {
 		int tmp = TX_CON_WANT_KAL;
 
@@ -3581,7 +3580,8 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 		if ((txn->flags & TX_CON_WANT_MSK) < tmp)
 			txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | tmp;
 
-		if (!(txn->flags & TX_HDR_CONN_PRS)) {
+		if (!(txn->flags & TX_HDR_CONN_PRS) &&
+		    (txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) {
 			/* parse the Connection header and possibly clean it */
 			int to_del = 0;
 			if ((msg->flags & HTTP_MSGF_VER_11) ||
