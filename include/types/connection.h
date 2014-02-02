@@ -180,6 +180,7 @@ enum {
 /* flags that can be passed to xprt->snd_buf() */
 enum {
 	CO_SFL_MSG_MORE    = 0x0001,    /* More data to come afterwards */
+	CO_SFL_STREAMER    = 0x0002,    /* Producer is continuously streaming data */
 };
 
 /* xprt_ops describes transport-layer operations for a connection. They

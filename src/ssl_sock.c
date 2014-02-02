@@ -1528,7 +1528,8 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 	while (buf->o) {
 		try = bo_contig_data(buf);
 
-		if (global.tune.ssl_max_record && try > global.tune.ssl_max_record)
+		if (!(flags & CO_SFL_STREAMER) &&
+		    global.tune.ssl_max_record && try > global.tune.ssl_max_record)
 			try = global.tune.ssl_max_record;
 
 		ret = SSL_write(conn->xprt_ctx, bo_ptr(buf), try);

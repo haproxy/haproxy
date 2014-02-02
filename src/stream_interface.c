@@ -701,6 +701,9 @@ static void si_conn_send(struct connection *conn)
 		    ((chn->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW))
 			send_flag |= CO_SFL_MSG_MORE;
 
+		if (chn->flags & CF_STREAMER)
+			send_flag |= CO_SFL_STREAMER;
+
 		ret = conn->xprt->snd_buf(conn, chn->buf, send_flag);
 		if (ret > 0) {
 			chn->flags |= CF_WRITE_PARTIAL;
