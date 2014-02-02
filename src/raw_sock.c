@@ -373,7 +373,7 @@ static int raw_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 
 		send_flag = MSG_DONTWAIT | MSG_NOSIGNAL;
 		if (try < buf->o)
-			send_flag = MSG_MORE;
+			send_flag |= MSG_MORE;
 
 		ret = send(conn->t.sock.fd, bo_ptr(buf), try, send_flag | flags);
 
