@@ -177,6 +177,10 @@ enum {
 	CO_SRC_BIND        = 0x0008,    /* bind to a specific source address when connecting */
 };
 
+/* flags that can be passed to xprt->snd_buf() */
+enum {
+	CO_SFL_MSG_MORE    = 0x0001,    /* More data to come afterwards */
+};
 
 /* xprt_ops describes transport-layer operations for a connection. They
  * generally run over a socket-based control layer, but not always. Some

@@ -341,8 +341,8 @@ static int raw_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 
 
 /* Send all pending bytes from buffer <buf> to connection <conn>'s socket.
- * <flags> may contain MSG_MORE to make the system hold on without sending
- * data too fast.
+ * <flags> may contain some CO_SFL_* flags to hint the system about other
+ * pending data for example.
  * Only one call to send() is performed, unless the buffer wraps, in which case
  * a second call may be performed. The connection's flags are updated with
  * whatever special event is detected (error, empty). The caller is responsible
@@ -372,10 +372,10 @@ static int raw_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 			try = buf->data + try - buf->p;
 
 		send_flag = MSG_DONTWAIT | MSG_NOSIGNAL;
-		if (try < buf->o)
+		if (try < buf->o || flags & CO_SFL_MSG_MORE)
 			send_flag |= MSG_MORE;
 
-		ret = send(conn->t.sock.fd, bo_ptr(buf), try, send_flag | flags);
+		ret = send(conn->t.sock.fd, bo_ptr(buf), try, send_flag);
 
 		if (ret > 0) {
 			buf->o -= ret;

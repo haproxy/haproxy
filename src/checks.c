@@ -971,7 +971,7 @@ static void event_srv_chk_w(struct connection *conn)
 	}
 
 	if (check->bo->o) {
-		conn->xprt->snd_buf(conn, check->bo, MSG_DONTWAIT | MSG_NOSIGNAL);
+		conn->xprt->snd_buf(conn, check->bo, 0);
 		if (conn->flags & CO_FL_ERROR) {
 			chk_report_conn_err(conn, errno, 0);
 			__conn_data_stop_both(conn);
@@ -2037,7 +2037,7 @@ static void tcpcheck_main(struct connection *conn)
 		     check->current_step->action != TCPCHK_ACT_SEND ||
 		     check->current_step->string_len >= buffer_total_space(check->bo))) {
 
-			if (conn->xprt->snd_buf(conn, check->bo, MSG_DONTWAIT | MSG_NOSIGNAL) <= 0) {
+			if (conn->xprt->snd_buf(conn, check->bo, 0) <= 0) {
 				if (conn->flags & CO_FL_ERROR) {
 					chk_report_conn_err(conn, errno, 0);
 					__conn_data_stop_both(conn);

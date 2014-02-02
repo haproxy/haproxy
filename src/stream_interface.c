@@ -693,13 +693,13 @@ static void si_conn_send(struct connection *conn)
 		 * The test is arranged so that the most common case does only 2
 		 * tests.
 		 */
-		unsigned int send_flag = MSG_DONTWAIT | MSG_NOSIGNAL;
+		unsigned int send_flag = 0;
 
 		if ((!(chn->flags & (CF_NEVER_WAIT|CF_SEND_DONTWAIT)) &&
 		     ((chn->to_forward && chn->to_forward != CHN_INFINITE_FORWARD) ||
 		      (chn->flags & CF_EXPECT_MORE))) ||
 		    ((chn->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW))
-			send_flag |= MSG_MORE;
+			send_flag |= CO_SFL_MSG_MORE;
 
 		ret = conn->xprt->snd_buf(conn, chn->buf, send_flag);
 		if (ret > 0) {

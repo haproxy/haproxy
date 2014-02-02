@@ -1499,8 +1499,8 @@ static int ssl_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 
 
 /* Send all pending bytes from buffer <buf> to connection <conn>'s socket.
- * <flags> may contain MSG_MORE to make the system hold on without sending
- * data too fast, but this flag is ignored at the moment.
+ * <flags> may contain some CO_SFL_* flags to hint the system about other
+ * pending data for example, but this flag is ignored at the moment.
  * Only one call to send() is performed, unless the buffer wraps, in which case
  * a second call may be performed. The connection's flags are updated with
  * whatever special event is detected (error, empty). The caller is responsible
