@@ -1,6 +1,103 @@
 ChangeLog :
 ===========
 
+2014/02/03 : 1.5-dev22
+    - MEDIUM: tcp-check new feature: connect
+    - MEDIUM: ssl: Set verify 'required' as global default for servers side.
+    - MINOR: ssl: handshake optim for long certificate chains.
+    - BUG/MINOR: pattern: pattern comparison executed twice
+    - BUG/MEDIUM: map: segmentation fault with the stats's socket command "set map ..."
+    - BUG/MEDIUM: pattern: Segfault in binary parser
+    - MINOR: pattern: move functions for grouping pat_match_* and pat_parse_* and add documentation.
+    - MINOR: standard: The parse_binary() returns the length consumed and his documentation is updated
+    - BUG/MINOR: payload: the patterns of the acl "req.ssl_ver" are no parsed with the good function.
+    - BUG/MEDIUM: pattern: "pat_parse_dotted_ver()" set bad expect_type.
+    - BUG/MINOR: sample: The c_str2int converter does not fail if the entry is not an integer
+    - BUG/MEDIUM: http/auth: Sometimes the authentication credentials can be mix between two requests
+    - MINOR: doc: Bad cli function name.
+    - MINOR: http: smp_fetch_capture_header_* fetch captured headers
+    - BUILD: last release inadvertently prepended a "+" in front of the date
+    - BUG/MEDIUM: stream-int: fix the keep-alive idle connection handler
+    - BUG/MEDIUM: backend: do not re-initialize the connection's context upon reuse
+    - BUG: Revert "OPTIM/MEDIUM: epoll: fuse active events into polled ones during polling changes"
+    - BUG/MINOR: checks: successful check completion must not re-enable MAINT servers
+    - MINOR: http: try to stick to same server after status 401/407
+    - BUG/MINOR: http: always disable compression on HTTP/1.0
+    - OPTIM: poll: restore polling after a poll/stop/want sequence
+    - OPTIM: http: don't stop polling for read on the client side after a request
+    - BUG/MEDIUM: checks: unchecked servers could not be enabled anymore
+    - BUG/MEDIUM: stats: the web interface must check the tracked servers before enabling
+    - BUG/MINOR: channel: CHN_INFINITE_FORWARD must be unsigned
+    - BUG/MINOR: stream-int: do not clear the owner upon unregister
+    - MEDIUM: stats: add support for HTTP keep-alive on the stats page
+    - BUG/MEDIUM: stats: fix HTTP/1.0 breakage introduced in previous patch
+    - Revert "MEDIUM: stats: add support for HTTP keep-alive on the stats page"
+    - MAJOR: channel: add a new flag CF_WAKE_WRITE to notify the task of writes
+    - OPTIM: session: set the READ_DONTWAIT flag when connecting
+    - BUG/MINOR: http: don't clear the SI_FL_DONT_WAKE flag between requests
+    - MINOR: session: factor out the connect time measurement
+    - MEDIUM: session: prepare to support earlier transitions to the established state
+    - MEDIUM: stream-int: make si_connect() return an established state when possible
+    - MINOR: checks: use an inline function for health_adjust()
+    - OPTIM: session: put unlikely() around the freewheeling code
+    - MEDIUM: config: report a warning when multiple servers have the same name
+    - BUG: Revert "OPTIM: poll: restore polling after a poll/stop/want sequence"
+    - BUILD/MINOR: listener: remove a glibc warning on accept4()
+    - BUG/MAJOR: connection: fix mismatch between rcv_buf's API and usage
+    - BUILD: listener: fix recent accept4() again
+    - BUG/MAJOR: ssl: fix breakage caused by recent fix abf08d9
+    - BUG/MEDIUM: polling: ensure we update FD status when there's no more activity
+    - MEDIUM: listener: fix polling management in the accept loop
+    - MINOR: protocol: improve the proto->drain() API
+    - MINOR: connection: add a new conn_drain() function
+    - MEDIUM: tcp: report in tcp_drain() that lingering is already disabled on close
+    - MEDIUM: connection: update callers of ctrl->drain() to use conn_drain()
+    - MINOR: connection: add more error codes to report connection errors
+    - MEDIUM: tcp: report connection error at the connection level
+    - MEDIUM: checks: make use of chk_report_conn_err() for connection errors
+    - BUG/MEDIUM: unique_id: HTTP request counter is not stable
+    - DOC: fix misleading information about SIGQUIT
+    - BUG/MAJOR: fix freezes during compression
+    - BUG/MEDIUM: stream-interface: don't wake the task up before end of transfer
+    - BUILD: fix VERDATE exclusion regex
+    - CLEANUP: polling: rename "spec_e" to "state"
+    - DOC: add a diagram showing polling state transitions
+    - REORG: polling: rename "spec_e" to "state" and "spec_p" to "cache"
+    - REORG: polling: rename "fd_spec" to "fd_cache"
+    - REORG: polling: rename the cache allocation functions
+    - REORG: polling: rename "fd_process_spec_events()" to "fd_process_cached_events()"
+    - MAJOR: polling: rework the whole polling system
+    - MAJOR: connection: remove the CO_FL_WAIT_{RD,WR} flags
+    - MEDIUM: connection: remove conn_{data,sock}_poll_{recv,send}
+    - MEDIUM: connection: add check for readiness in I/O handlers
+    - MEDIUM: stream-interface: the polling flags must always be updated in chk_snd_conn
+    - MINOR: stream-interface: no need to call fd_stop_both() on error
+    - MEDIUM: connection: no need to recheck FD state
+    - CLEANUP: connection: use conn_ctrl_ready() instead of checking the flag
+    - CLEANUP: connection: use conn_xprt_ready() instead of checking the flag
+    - CLEANUP: connection: fix comments in connection.h to reflect new behaviour.
+    - OPTIM: raw-sock: don't speculate after a short read if polling is enabled
+    - MEDIUM: polling: centralize polled events processing
+    - MINOR: polling: create function fd_compute_new_polled_status()
+    - MINOR: cli: add more information to the "show info" output
+    - MEDIUM: listener: add support for limiting the session rate in addition to the connection rate
+    - MEDIUM: listener: apply a limit on the session rate submitted to SSL
+    - REORG: stats: move the stats socket states to dumpstats.c
+    - MINOR: cli: add the new "show pools" command
+    - BUG/MEDIUM: counters: flush content counters after each request
+    - BUG/MEDIUM: counters: fix stick-table entry leak when using track-sc2 in connection
+    - MINOR: tools: add very basic support for composite pointers
+    - MEDIUM: counters: stop relying on session flags at all
+    - BUG/MINOR: cli: fix missing break in command line parser
+    - BUG/MINOR: config: correctly report when log-format headers require HTTP mode
+    - MAJOR: http: update connection mode configuration
+    - MEDIUM: http: make keep-alive + httpclose be passive mode
+    - MAJOR: http: switch to keep-alive mode by default
+    - BUG/MEDIUM: http: fix regression caused by recent switch to keep-alive by default
+    - BUG/MEDIUM: listener: improve detection of non-working accept4()
+    - BUILD: listener: add fcntl.h and unistd.h
+    - BUG/MINOR: raw_sock: correctly set the MSG_MORE flag
+
 2013/12/17 : 1.5-dev21
     - MINOR: stats: don't use a monospace font to report numbers
     - MINOR: session: remove debugging code
