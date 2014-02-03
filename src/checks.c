@@ -1578,8 +1578,12 @@ static struct task *process_chk(struct task *t)
 		}
 
 		if (check->type == PR_O2_TCPCHK_CHK) {
-			tcpcheck_main(conn);
-			return t;
+			struct tcpcheck_rule *r = (struct tcpcheck_rule *) s->proxy->tcpcheck_rules.n;
+			/* if first step is a 'connect', then tcpcheck_main must run it */
+			if (r->action == TCPCHK_ACT_CONNECT) {
+				tcpcheck_main(conn);
+				return t;
+			}
 		}
 
 
