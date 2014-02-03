@@ -30,6 +30,14 @@ int srv_downtime(const struct server *s)
 	return now.tv_sec - s->last_change + s->down_time;
 }
 
+int srv_lastsession(const struct server *s)
+{
+	if (s->counters.last_sess)
+		return now.tv_sec - s->counters.last_sess;
+
+	return -1;
+}
+
 int srv_getinter(const struct check *check)
 {
 	const struct server *s = check->server;

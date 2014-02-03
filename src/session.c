@@ -974,6 +974,8 @@ static void sess_update_stream_int(struct session *s, struct stream_interface *s
 			/* state = SI_ST_CON or SI_ST_EST now */
 			if (srv)
 				srv_inc_sess_ctr(srv);
+			if (srv)
+				srv_set_sess_last(srv);
 			return;
 		}
 
@@ -987,6 +989,8 @@ static void sess_update_stream_int(struct session *s, struct stream_interface *s
 
 			if (srv)
 				srv_inc_sess_ctr(srv);
+			if (srv)
+				srv_set_sess_last(srv);
 			if (srv)
 				srv->counters.failed_conns++;
 			s->be->be_counters.failed_conns++;

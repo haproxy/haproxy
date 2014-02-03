@@ -433,7 +433,7 @@ static void stats_dump_csv_header()
 	chunk_appendf(&trash,
 	              "# pxname,svname,"
 	              "qcur,qmax,"
-	              "scur,smax,slim,stot,"
+	              "scur,smax,slim,stot,lastsess,"
 	              "bin,bout,"
 	              "dreq,dresp,"
 	              "ereq,econ,eresp,"
@@ -2467,8 +2467,8 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 
 		chunk_appendf(&trash,
 		              "</table></div></u></td>"
-		              /* sessions: lbtot */
-		              "<td></td>"
+		              /* sessions: lbtot, lastsess */
+		              "<td></td><td></td>"
 		              /* bytes : in */
 		              "<td>%s</td>"
 		              "",
@@ -2505,8 +2505,8 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 		chunk_appendf(&trash,
 		              /* pxid, name, queue cur, queue max, */
 		              "%s,FRONTEND,,,"
-		              /* sessions : current, max, limit, total */
-		              "%d,%d,%d,%lld,"
+		              /* sessions : current, max, limit, total, lastsess */
+		              "%d,%d,%d,%lld,,"
 		              /* bytes : in, out */
 		              "%lld,%lld,"
 		              /* denied: req, resp */
@@ -2625,9 +2625,9 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
 		              "%s</td><td colspan=3></td>"
 		              /* sessions rate: current, max, limit */
 		              "<td colspan=3>&nbsp;</td>"
-		              /* sessions: current, max, limit, total, lbtot */
+		              /* sessions: current, max, limit, total, lbtot, lastsess */
 		              "<td>%s</td><td>%s</td><td>%s</td>"
-		              "<td>%s</td><td>&nbsp;</td>"
+		              "<td>%s</td><td>&nbsp;</td><td>&nbsp;</td>"
 		              /* bytes: in, out */
 		              "<td>%s</td><td>%s</td>"
 		              "",
@@ -2655,8 +2655,8 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
 		chunk_appendf(&trash,
 		              /* pxid, name, queue cur, queue max, */
 		              "%s,%s,,,"
-		              /* sessions: current, max, limit, total */
-		              "%d,%d,%d,%lld,"
+		              /* sessions: current, max, limit, total, lastsess */
+		              "%d,%d,%d,%lld,,"
 		              /* bytes: in, out */
 		              "%lld,%lld,"
 		              /* denied: req, resp */
@@ -2829,9 +2829,10 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 
 		chunk_appendf(&trash,
 		              "</table></div></u></td>"
-		              /* sessions: lbtot */
-		              "<td>%s</td>",
-		              U2H(sv->counters.cum_lbconn));
+		              /* sessions: lbtot, last */
+		              "<td>%s</td><td>%s</td>",
+		              U2H(sv->counters.cum_lbconn),
+		              human_time(srv_lastsession(sv), 1));
 
 		chunk_appendf(&trash,
 		              /* bytes : in, out */
@@ -2957,8 +2958,8 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		              "%s,%s,"
 		              /* queue : current, max */
 		              "%d,%d,"
-		              /* sessions : current, max, limit, total */
-		              "%d,%d,%s,%lld,"
+		              /* sessions : current, max, limit, total, lastsess */
+		              "%d,%d,%s,%lld,%d,"
 		              /* bytes : in, out */
 		              "%lld,%lld,"
 		              /* denied: req, resp */
@@ -2971,6 +2972,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		              px->id, sv->id,
 		              sv->nbpend, sv->counters.nbpend_max,
 		              sv->cur_sess, sv->counters.cur_sess_max, LIM2A(sv->maxconn, ""), sv->counters.cum_sess,
+		              srv_lastsession(sv),
 		              sv->counters.bytes_in, sv->counters.bytes_out,
 		              sv->counters.failed_secu,
 		              sv->counters.failed_conns, sv->counters.failed_resp,
@@ -3177,12 +3179,13 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 
 		chunk_appendf(&trash,
 		              "</table></div></u></td>"
-		              /* sessions: lbtot */
-		              "<td>%s</td>"
+		              /* sessions: lbtot, last */
+		              "<td>%s</td><td>%s</td>"
 		              /* bytes: in */
 		              "<td>%s</td>"
 		              "",
 		              U2H(px->be_counters.cum_lbconn),
+		              human_time(be_lastsession(px), 1),
 		              U2H(px->be_counters.bytes_in));
 
 		chunk_appendf(&trash,
@@ -3238,8 +3241,8 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 		              "%s,BACKEND,"
 		              /* queue : current, max */
 		              "%d,%d,"
-		              /* sessions : current, max, limit, total */
-		              "%d,%d,%d,%lld,"
+		              /* sessions : current, max, limit, total, lastsess */
+		              "%d,%d,%d,%lld,%s,"
 		              /* bytes : in, out */
 		              "%lld,%lld,"
 		              /* denied: req, resp */
@@ -3265,6 +3268,7 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 		              px->id,
 		              px->nbpend /* or px->totpend ? */, px->be_counters.nbpend_max,
 		              px->beconn, px->be_counters.conn_max, px->fullconn, px->be_counters.cum_conn,
+		              human_time(be_lastsession(px), 1),
 		              px->be_counters.bytes_in, px->be_counters.bytes_out,
 		              px->be_counters.denied_req, px->be_counters.denied_resp,
 		              px->be_counters.failed_conns, px->be_counters.failed_resp,
@@ -3378,7 +3382,7 @@ static void stats_dump_html_px_hdr(struct stream_interface *si, struct proxy *px
 	chunk_appendf(&trash,
 	              "<th rowspan=2></th>"
 	              "<th colspan=3>Queue</th>"
-	              "<th colspan=3>Session rate</th><th colspan=5>Sessions</th>"
+	              "<th colspan=3>Session rate</th><th colspan=6>Sessions</th>"
 	              "<th colspan=2>Bytes</th><th colspan=2>Denied</th>"
 	              "<th colspan=3>Errors</th><th colspan=2>Warnings</th>"
 	              "<th colspan=9>Server</th>"
@@ -3386,7 +3390,7 @@ static void stats_dump_html_px_hdr(struct stream_interface *si, struct proxy *px
 	              "<tr class=\"titre\">"
 	              "<th>Cur</th><th>Max</th><th>Limit</th>"
 	              "<th>Cur</th><th>Max</th><th>Limit</th><th>Cur</th><th>Max</th>"
-	              "<th>Limit</th><th>Total</th><th>LbTot</th><th>In</th><th>Out</th>"
+	              "<th>Limit</th><th>Total</th><th>LbTot</th><th>Last</th><th>In</th><th>Out</th>"
 	              "<th>Req</th><th>Resp</th><th>Req</th><th>Conn</th>"
 	              "<th>Resp</th><th>Retr</th><th>Redis</th>"
 	              "<th>Status</th><th>LastChk</th><th>Wght</th><th>Act</th>"

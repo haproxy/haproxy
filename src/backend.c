@@ -52,6 +52,14 @@
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 
+int be_lastsession(const struct proxy *be)
+{
+	if (be->be_counters.last_sess)
+		return now.tv_sec - be->be_counters.last_sess;
+
+	return -1;
+}
+
 /* helper function to invoke the correct hash method */
 static unsigned long gen_hash(const struct proxy* px, const char* key, unsigned long len)
 {
@@ -668,6 +676,7 @@ int assign_server(struct session *s)
 			goto out;
 		}
 		else if (srv != prev_srv) {
+			be_set_sess_last(s->be);
 			s->be->be_counters.cum_lbconn++;
 			srv->counters.cum_lbconn++;
 		}
@@ -1164,6 +1173,8 @@ int srv_redispatch_connect(struct session *t)
 
 		if (srv)
 			srv_inc_sess_ctr(srv);
+		if (srv)
+			srv_set_sess_last(srv);
 		if (srv)
 			srv->counters.failed_conns++;
 		t->be->be_counters.failed_conns++;

@@ -23,6 +23,7 @@
 #define _PROTO_BACKEND_H
 
 #include <common/config.h>
+#include <common/time.h>
 
 #include <types/backend.h>
 #include <types/proxy.h>
@@ -43,6 +44,13 @@ void recount_servers(struct proxy *px);
 void update_backend_weight(struct proxy *px);
 struct server *get_server_sh(struct proxy *px, const char *addr, int len);
 struct server *get_server_uh(struct proxy *px, char *uri, int uri_len);
+int be_lastsession(const struct proxy *be);
+
+/* set the time of last session on the backend */
+static void inline be_set_sess_last(struct proxy *be)
+{
+	be->be_counters.last_sess = now.tv_sec;
+}
 
 /* This function returns non-zero if a server with the given weight and state
  * is usable for LB, otherwise zero.

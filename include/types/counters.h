@@ -29,6 +29,7 @@ struct pxcounters {
 	long long    cum_conn;                  /* cumulated number of received connections */
 	long long    cum_sess;                  /* cumulated number of accepted connections */
 	long long  cum_lbconn;                  /* cumulated number of sessions processed by load balancing (BE only) */
+	unsigned long last_sess;                /* last session time */
 
 	unsigned int cps_max;                   /* maximum of new connections received per second */
 	unsigned int sps_max;                   /* maximum of new connections accepted per second (sessions) */
@@ -85,6 +86,7 @@ struct srvcounters {
 
 	long long cum_sess;			/* cumulated number of sessions really sent to this server */
 	long long cum_lbconn;			/* cumulated number of sessions directed by load balancing */
+	unsigned long last_sess;                 /* last session time */
 
 	long long bytes_in;			/* number of bytes transferred from the client to the server */
 	long long bytes_out;			/* number of bytes transferred from the server to the client */
