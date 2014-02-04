@@ -10604,11 +10604,13 @@ cookie([<name>]) : string (deprecated)
 capture.req.hdr(<idx>) : string
   This extracts the content of the header captured by the "capture request
   header", idx is the position of the capture keyword in the configuration.
+  The first entry is an index of 0.
   See also: "capture request header"
 
 capture.res.hdr(<idx>) : string
   This extracts the content of the header captured by the "capture response
   header", idx is the position of the capture keyword in the configuration.
+  The first entry is an index of 0.
   See also: "capture response header"
 
 hdr([<name>[,<occ>]]) : string
