@@ -9778,26 +9778,21 @@ smp_fetch_capture_req_method(struct proxy *px, struct session *l4, void *l7, uns
 {
 	struct chunk *temp;
 	struct http_txn *txn = l7;
-	char *spc;
-	int len;
+	char *ptr;
 
 	if (!txn->uri)
 		return 0;
 
-	spc = strchr(txn->uri, ' '); /* first space before URI */
-	if (likely(spc))
-		len = spc - txn->uri;
-	else
-		len = strlen(txn->uri);
+	ptr = txn->uri;
+
+	while (*ptr != ' ' && *ptr != '\0')  /* find first space */
+		ptr++;
 
 	temp = get_trash_chunk();
-	len = MIN(len, temp->size - 1);
-	strncpy(temp->str, txn->uri, len);
-	temp->str[len] = '\0';
-
+	temp->str = txn->uri;
+	temp->len = ptr - txn->uri;
 	smp->data.str = *temp;
-	smp->data.str.len = len;
-	smp->type = SMP_T_STR;
+	smp->type = SMP_T_CSTR;
 
 	return 1;
 
@@ -9811,33 +9806,30 @@ smp_fetch_capture_req_uri(struct proxy *px, struct session *l4, void *l7, unsign
 	struct chunk *temp;
 	struct http_txn *txn = l7;
 	char *ptr;
-	char *ret;
 
 	if (!txn->uri)
 		return 0;
+
 	ptr = txn->uri;
 
 	while (*ptr != ' ' && *ptr != '\0')  /* find first space */
 		ptr++;
+
 	if (!*ptr)
 		return 0;
 
 	ptr++;  /* skip the space */
 
 	temp = get_trash_chunk();
-	ret = encode_string(temp->str, temp->str + temp->size, '#', url_encode_map, ptr);
-	if (ret == NULL || *ret != '\0')
-		return 0;
-	ptr = temp->str = http_get_path_from_string(temp->str);
+	ptr = temp->str = http_get_path_from_string(ptr);
 	if (!ptr)
 		return 0;
 	while (*ptr != ' ' && *ptr != '\0')  /* find space after URI */
 		ptr++;
-	*ptr = '\0';
 
 	smp->data.str = *temp;
-	smp->data.str.len = strlen(smp->data.str.str);
-	smp->type = SMP_T_STR;
+	smp->data.str.len = ptr - temp->str;
+	smp->type = SMP_T_CSTR;
 
 	return 1;
 }
