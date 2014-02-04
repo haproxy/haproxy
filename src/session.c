@@ -314,6 +314,7 @@ static void kill_mini_session(struct session *s)
 
 	/* kill the connection now */
 	conn_force_close(conn);
+	conn_free(conn);
 
 	s->fe->feconn--;
 	session_store_counters(s);
@@ -335,8 +336,6 @@ static void kill_mini_session(struct session *s)
 
 	task_delete(s->task);
 	task_free(s->task);
-
-	pool_free2(pool2_connection, conn);
 	pool_free2(pool2_session, s);
 }
 
