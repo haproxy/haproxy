@@ -1449,6 +1449,13 @@ static int wake_srv_chk(struct connection *conn)
 		__conn_data_stop_both(conn);
 		task_wakeup(check->task, TASK_WOKEN_IO);
 	}
+	else if (!(conn->flags & (CO_FL_DATA_RD_ENA|CO_FL_DATA_WR_ENA|CO_FL_HANDSHAKE))) {
+		/* we may get here if only a connection probe was required : we
+		 * don't have any data to send nor anything expected in response,
+		 * so the completion of the connection establishment is enough.
+		 */
+		task_wakeup(check->task, TASK_WOKEN_IO);
+	}
 
 	if (check->result != CHK_RES_UNKNOWN) {
 		/* We're here because nobody wants to handle the error, so we
