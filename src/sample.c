@@ -28,6 +28,20 @@
 #include <proto/sample.h>
 #include <proto/stick_table.h>
 
+/* sample type names */
+const char *smp_to_type[SMP_TYPES] = {
+	[SMP_T_BOOL] = "bool",
+	[SMP_T_UINT] = "uint",
+	[SMP_T_SINT] = "sint",
+	[SMP_T_ADDR] = "addr",
+	[SMP_T_IPV4] = "ipv4",
+	[SMP_T_IPV6] = "ipv6",
+	[SMP_T_STR]  = "str",
+	[SMP_T_BIN]  = "bin",
+	[SMP_T_CSTR] = "cstr",
+	[SMP_T_CBIN] = "cbin",
+};
+
 /* static sample used in sample_process() when <p> is NULL */
 static struct sample temp_smp;
 

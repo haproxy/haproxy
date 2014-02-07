@@ -53,6 +53,7 @@
 #include <proto/proto_http.h>
 #include <proto/proto_uxst.h>
 #include <proto/proxy.h>
+#include <proto/sample.h>
 #include <proto/session.h>
 #include <proto/server.h>
 #include <proto/raw_sock.h>
@@ -4835,19 +4836,6 @@ static int stats_maps_list(struct stream_interface *si)
 		return 1;
 	}
 }
-
-static const char *smp_to_type[SMP_TYPES] = {
-	[SMP_T_BOOL] = "bool",
-	[SMP_T_UINT] = "uint",
-	[SMP_T_SINT] = "sint",
-	[SMP_T_ADDR] = "addr",
-	[SMP_T_IPV4] = "ipv4",
-	[SMP_T_IPV6] = "ipv6",
-	[SMP_T_STR]  = "str",
-	[SMP_T_BIN]  = "bin",
-	[SMP_T_CSTR] = "cstr",
-	[SMP_T_CBIN] = "cbin",
-};
 
 static int stats_map_lookup(struct stream_interface *si)
 {
