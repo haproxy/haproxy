@@ -3242,7 +3242,7 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 		              /* queue : current, max */
 		              "%d,%d,"
 		              /* sessions : current, max, limit, total, lastsess */
-		              "%d,%d,%d,%lld,%s,"
+		              "%d,%d,%d,%lld,%d,"
 		              /* bytes : in, out */
 		              "%lld,%lld,"
 		              /* denied: req, resp */
@@ -3268,7 +3268,7 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 		              px->id,
 		              px->nbpend /* or px->totpend ? */, px->be_counters.nbpend_max,
 		              px->beconn, px->be_counters.conn_max, px->fullconn, px->be_counters.cum_conn,
-		              human_time(be_lastsession(px), 1),
+		              be_lastsession(px),
 		              px->be_counters.bytes_in, px->be_counters.bytes_out,
 		              px->be_counters.denied_req, px->be_counters.denied_resp,
 		              px->be_counters.failed_conns, px->be_counters.failed_resp,
