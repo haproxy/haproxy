@@ -172,6 +172,7 @@ struct channel {
 	struct stream_interface *prod;  /* producer attached to this channel */
 	struct pipe *pipe;		/* non-NULL only when data present */
 	unsigned int to_forward;        /* number of bytes to forward after out without a wake-up */
+	unsigned short last_read;       /* 16 lower bits of last read date (max pause=65s) */
 	unsigned char xfer_large;       /* number of consecutive large xfers */
 	unsigned char xfer_small;       /* number of consecutive small xfers */
 	unsigned long long total;       /* total data read */

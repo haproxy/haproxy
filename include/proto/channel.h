@@ -55,6 +55,7 @@ static inline void channel_init(struct channel *chn)
 	chn->buf->i = 0;
 	chn->buf->p = chn->buf->data;
 	chn->to_forward = 0;
+	chn->last_read = now_ms;
 	chn->xfer_small = chn->xfer_large = 0;
 	chn->total = 0;
 	chn->pipe = NULL;
