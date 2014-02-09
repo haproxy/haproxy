@@ -1096,6 +1096,17 @@ static void si_conn_recv_cb(struct connection *conn)
 
 	cur_read = 0;
 
+	if ((chn->flags & (CF_STREAMER | CF_STREAMER_FAST)) && !chn->buf->o &&
+	    (unsigned short)(now_ms - chn->last_read) >= 1000) {
+		/* The buffer was empty and nothing was transferred for more
+		 * than one second. This was caused by a pause and not by
+		 * congestion. Reset any streaming mode to reduce latency.
+		 */
+		chn->xfer_small = 0;
+		chn->xfer_large = 0;
+		chn->flags &= ~(CF_STREAMER | CF_STREAMER_FAST);
+	}
+
 	/* First, let's see if we may splice data across the channel without
 	 * using a buffer.
 	 */
@@ -1190,38 +1201,6 @@ static void si_conn_recv_cb(struct connection *conn)
 		chn->total += ret;
 
 		if (channel_full(chn)) {
-			/* The buffer is now full, there's no point in going through
-			 * the loop again.
-			 */
-			if (!(chn->flags & CF_STREAMER_FAST) && (cur_read == buffer_len(chn->buf))) {
-				chn->xfer_small = 0;
-				chn->xfer_large++;
-				if (chn->xfer_large >= 3) {
-					/* we call this buffer a fast streamer if it manages
-					 * to be filled in one call 3 consecutive times.
-					 */
-					chn->flags |= (CF_STREAMER | CF_STREAMER_FAST);
-					//fputc('+', stderr);
-				}
-			}
-			else if ((chn->flags & (CF_STREAMER | CF_STREAMER_FAST)) &&
-				 (cur_read <= chn->buf->size / 2)) {
-				chn->xfer_large = 0;
-				chn->xfer_small++;
-				if (chn->xfer_small >= 2) {
-					/* if the buffer has been at least half full twice,
-					 * we receive faster than we send, so at least it
-					 * is not a "fast streamer".
-					 */
-					chn->flags &= ~CF_STREAMER_FAST;
-					//fputc('-', stderr);
-				}
-			}
-			else {
-				chn->xfer_small = 0;
-				chn->xfer_large = 0;
-			}
-
 			si->flags |= SI_FL_WAIT_ROOM;
 			break;
 		}
@@ -1237,20 +1216,6 @@ static void si_conn_recv_cb(struct connection *conn)
 		 * not have them in buffers.
 		 */
 		if (ret < max) {
-			if ((chn->flags & (CF_STREAMER | CF_STREAMER_FAST)) &&
-			    (cur_read <= chn->buf->size / 2)) {
-				chn->xfer_large = 0;
-				chn->xfer_small++;
-				if (chn->xfer_small >= 3) {
-					/* we have read less than half of the buffer in
-					 * one pass, and this happened at least 3 times.
-					 * This is definitely not a streamer.
-					 */
-					chn->flags &= ~(CF_STREAMER | CF_STREAMER_FAST);
-					//fputc('!', stderr);
-				}
-			}
-
 			/* if a streamer has read few data, it may be because we
 			 * have exhausted system buffers. It's not worth trying
 			 * again.
@@ -1268,6 +1233,45 @@ static void si_conn_recv_cb(struct connection *conn)
 
 	if (conn->flags & CO_FL_ERROR)
 		return;
+
+	if (cur_read) {
+		if ((chn->flags & (CF_STREAMER | CF_STREAMER_FAST)) &&
+		    (cur_read <= chn->buf->size / 2)) {
+			chn->xfer_large = 0;
+			chn->xfer_small++;
+			if (chn->xfer_small >= 3) {
+				/* we have read less than half of the buffer in
+				 * one pass, and this happened at least 3 times.
+				 * This is definitely not a streamer.
+				 */
+				chn->flags &= ~(CF_STREAMER | CF_STREAMER_FAST);
+			}
+			else if (chn->xfer_small >= 2) {
+				/* if the buffer has been at least half full twice,
+				 * we receive faster than we send, so at least it
+				 * is not a "fast streamer".
+				 */
+				chn->flags &= ~CF_STREAMER_FAST;
+			}
+		}
+		else if (!(chn->flags & CF_STREAMER_FAST) &&
+			 (cur_read >= chn->buf->size - global.tune.maxrewrite)) {
+			/* we read a full buffer at once */
+			chn->xfer_small = 0;
+			chn->xfer_large++;
+			if (chn->xfer_large >= 3) {
+				/* we call this buffer a fast streamer if it manages
+				 * to be filled in one call 3 consecutive times.
+				 */
+				chn->flags |= (CF_STREAMER | CF_STREAMER_FAST);
+			}
+		}
+		else {
+			chn->xfer_small = 0;
+			chn->xfer_large = 0;
+		}
+		chn->last_read = now_ms;
+	}
 
 	if (conn_data_read0_pending(conn))
 		/* connection closed */
