@@ -12491,6 +12491,7 @@ page. Both means provide a CSV format whose fields follow.
  52. comp_out: number of HTTP response bytes emitted by the compressor
  53. comp_byp: number of bytes that bypassed the HTTP compressor (CPU/BW limit)
  54. comp_rsp: number of HTTP responses that were compressed
+ 55. lastsess: number of seconds since last session assigned to server/backend
 
 
 9.2. Unix Socket commands

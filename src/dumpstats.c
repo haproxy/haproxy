@@ -427,13 +427,15 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 
 /* Dumps the stats CSV header to the trash buffer which. The caller is responsible
  * for clearing it if needed.
+ * NOTE: Some tools happen to rely on the field position instead of its name,
+ *       so please only append new fields at the end, never in the middle.
  */
 static void stats_dump_csv_header()
 {
 	chunk_appendf(&trash,
 	              "# pxname,svname,"
 	              "qcur,qmax,"
-	              "scur,smax,slim,stot,lastsess,"
+	              "scur,smax,slim,stot,"
 	              "bin,bout,"
 	              "dreq,dresp,"
 	              "ereq,econ,eresp,"
@@ -446,7 +448,7 @@ static void stats_dump_csv_header()
 	              "hrsp_1xx,hrsp_2xx,hrsp_3xx,hrsp_4xx,hrsp_5xx,hrsp_other,hanafail,"
 	              "req_rate,req_rate_max,req_tot,"
 	              "cli_abrt,srv_abrt,"
-	              "comp_in,comp_out,comp_byp,comp_rsp,"
+	              "comp_in,comp_out,comp_byp,comp_rsp,lastsess,"
 	              "\n");
 }
 
@@ -2505,8 +2507,8 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 		chunk_appendf(&trash,
 		              /* pxid, name, queue cur, queue max, */
 		              "%s,FRONTEND,,,"
-		              /* sessions : current, max, limit, total, lastsess */
-		              "%d,%d,%d,%lld,,"
+		              /* sessions : current, max, limit, total */
+		              "%d,%d,%d,%lld,"
 		              /* bytes : in, out */
 		              "%lld,%lld,"
 		              /* denied: req, resp */
@@ -2563,6 +2565,9 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 		/* compression: comp_rsp */
 		chunk_appendf(&trash, "%lld,",
 		              px->fe_counters.p.http.comp_rsp);
+
+		/* lastsess */
+		chunk_appendf(&trash, ",");
 
 		/* finish with EOL */
 		chunk_appendf(&trash, "\n");
@@ -2655,8 +2660,8 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
 		chunk_appendf(&trash,
 		              /* pxid, name, queue cur, queue max, */
 		              "%s,%s,,,"
-		              /* sessions: current, max, limit, total, lastsess */
-		              "%d,%d,%d,%lld,,"
+		              /* sessions: current, max, limit, total */
+		              "%d,%d,%d,%lld,"
 		              /* bytes: in, out */
 		              "%lld,%lld,"
 		              /* denied: req, resp */
@@ -2685,6 +2690,8 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
 		              ",,"
 		              /* compression: in, out, bypassed, comp_rsp */
 		              ",,,,"
+			      /* lastsess */
+			      ","
 		              "\n",
 		              px->id, l->name,
 		              l->nbconn, l->counters->conn_max,
@@ -2958,8 +2965,8 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		              "%s,%s,"
 		              /* queue : current, max */
 		              "%d,%d,"
-		              /* sessions : current, max, limit, total, lastsess */
-		              "%d,%d,%s,%lld,%d,"
+		              /* sessions : current, max, limit, total */
+		              "%d,%d,%s,%lld,"
 		              /* bytes : in, out */
 		              "%lld,%lld,"
 		              /* denied: req, resp */
@@ -2972,7 +2979,6 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		              px->id, sv->id,
 		              sv->nbpend, sv->counters.nbpend_max,
 		              sv->cur_sess, sv->counters.cur_sess_max, LIM2A(sv->maxconn, ""), sv->counters.cum_sess,
-		              srv_lastsession(sv),
 		              sv->counters.bytes_in, sv->counters.bytes_out,
 		              sv->counters.failed_secu,
 		              sv->counters.failed_conns, sv->counters.failed_resp,
@@ -3077,6 +3083,9 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 
 		/* compression: in, out, bypassed, comp_rsp */
 		chunk_appendf(&trash, ",,,,");
+
+		/* lastsess */
+		chunk_appendf(&trash, "%d,", srv_lastsession(sv));
 
 		/* finish with EOL */
 		chunk_appendf(&trash, "\n");
@@ -3241,8 +3250,8 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 		              "%s,BACKEND,"
 		              /* queue : current, max */
 		              "%d,%d,"
-		              /* sessions : current, max, limit, total, lastsess */
-		              "%d,%d,%d,%lld,%d,"
+		              /* sessions : current, max, limit, total */
+		              "%d,%d,%d,%lld,"
 		              /* bytes : in, out */
 		              "%lld,%lld,"
 		              /* denied: req, resp */
@@ -3268,7 +3277,6 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 		              px->id,
 		              px->nbpend /* or px->totpend ? */, px->be_counters.nbpend_max,
 		              px->beconn, px->be_counters.conn_max, px->fullconn, px->be_counters.cum_conn,
-		              be_lastsession(px),
 		              px->be_counters.bytes_in, px->be_counters.bytes_out,
 		              px->be_counters.denied_req, px->be_counters.denied_resp,
 		              px->be_counters.failed_conns, px->be_counters.failed_resp,
@@ -3308,6 +3316,9 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 
 		/* compression: comp_rsp */
 		chunk_appendf(&trash, "%lld,", px->be_counters.p.http.comp_rsp);
+
+		/* lastsess */
+		chunk_appendf(&trash, "%d,", be_lastsession(px));
 
 		/* finish with EOL */
 		chunk_appendf(&trash, "\n");
