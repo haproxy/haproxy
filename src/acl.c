@@ -131,7 +131,8 @@ static struct acl_expr *prune_acl_expr(struct acl_expr *expr)
  * Right now, the only accepted syntax is :
  * <subject> [<value>...]
  */
-struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *al)
+struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *al,
+                                const char *file, int line)
 {
 	__label__ out_return, out_free_expr;
 	struct acl_expr *expr;
@@ -450,7 +451,11 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 				goto out_free_expr;
 			}
 
-			if (!pattern_read_from_file(&expr->pat, PAT_REF_ACL, args[1], patflags | PAT_F_FROM_FILE, err))
+			/* Create displayed reference */
+			snprintf(trash.str, trash.size, "acl(s) loaded from file '%s'", args[1]);
+			trash.str[trash.size - 1] = '\0';
+
+			if (!pattern_read_from_file(&expr->pat, PAT_REF_ACL, args[1], patflags | PAT_F_FROM_FILE, err, trash.str))
 				goto out_free_expr;
 			is_loaded = 1;
 			args++;
@@ -497,8 +502,12 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		goto out_free_expr;
 	}
 
+	/* Create displayed reference */
+	snprintf(trash.str, trash.size, "acl '%s' file '%s' line %d", expr->kw, file, line);
+	trash.str[trash.size - 1] = '\0';
+
 	/* Create new patern reference. */
-	ref = pat_ref_newid(unique_id, PAT_REF_ACL);
+	ref = pat_ref_newid(unique_id, trash.str, PAT_REF_ACL);
 	if (!ref) {
 		memprintf(err, "memory error");
 		goto out_free_expr;
@@ -677,7 +686,8 @@ struct acl *prune_acl(struct acl *acl) {
  *
  * args syntax: <aclname> <acl_expr>
  */
-struct acl *parse_acl(const char **args, struct list *known_acl, char **err, struct arg_list *al)
+struct acl *parse_acl(const char **args, struct list *known_acl, char **err, struct arg_list *al,
+                      const char *file, int line)
 {
 	__label__ out_return, out_free_acl_expr, out_free_name;
 	struct acl *cur_acl;
@@ -690,7 +700,7 @@ struct acl *parse_acl(const char **args, struct list *known_acl, char **err, str
 		goto out_return;
 	}
 
-	acl_expr = parse_acl_expr(args + 1, err, al);
+	acl_expr = parse_acl_expr(args + 1, err, al, file, line);
 	if (!acl_expr) {
 		/* parse_acl_expr will have filled <err> here */
 		goto out_return;
@@ -785,7 +795,8 @@ const struct {
  * to report missing dependencies.
  */
 static struct acl *find_acl_default(const char *acl_name, struct list *known_acl,
-                                    char **err, struct arg_list *al)
+                                    char **err, struct arg_list *al,
+                                    const char *file, int line)
 {
 	__label__ out_return, out_free_acl_expr, out_free_name;
 	struct acl *cur_acl;
@@ -803,7 +814,7 @@ static struct acl *find_acl_default(const char *acl_name, struct list *known_acl
 		return NULL;
 	}
 
-	acl_expr = parse_acl_expr((const char **)default_acl_list[index].expr, err, al);
+	acl_expr = parse_acl_expr((const char **)default_acl_list[index].expr, err, al, file, line);
 	if (!acl_expr) {
 		/* parse_acl_expr must have filled err here */
 		goto out_return;
@@ -864,7 +875,8 @@ struct acl_cond *prune_acl_cond(struct acl_cond *cond)
  * for unresolved dependencies.
  */
 struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl,
-                                enum acl_cond_pol pol, char **err, struct arg_list *al)
+                                enum acl_cond_pol pol, char **err, struct arg_list *al,
+                                const char *file, int line)
 {
 	__label__ out_return, out_free_suite, out_free_term;
 	int arg, neg;
@@ -937,7 +949,7 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl,
 			args_new[0] = "";
 			memcpy(args_new + 1, args + arg + 1, (arg_end - arg) * sizeof(*args_new));
 			args_new[arg_end - arg] = "";
-			cur_acl = parse_acl(args_new, known_acl, err, al);
+			cur_acl = parse_acl(args_new, known_acl, err, al, file, line);
 			free(args_new);
 
 			if (!cur_acl) {
@@ -955,7 +967,7 @@ struct acl_cond *parse_acl_cond(const char **args, struct list *known_acl,
 			 */
 			cur_acl = find_acl_by_name(word, known_acl);
 			if (cur_acl == NULL) {
-				cur_acl = find_acl_default(word, known_acl, err, al);
+				cur_acl = find_acl_default(word, known_acl, err, al, file, line);
 				if (cur_acl == NULL) {
 					/* note that find_acl_default() must have filled <err> here */
 					goto out_free_suite;
@@ -1039,7 +1051,7 @@ struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, co
 		return NULL;
 	}
 
-	cond = parse_acl_cond(args, &px->acl, pol, err, &px->conf.args);
+	cond = parse_acl_cond(args, &px->acl, pol, err, &px->conf.args, file, line);
 	if (!cond) {
 		/* note that parse_acl_cond must have filled <err> here */
 		return NULL;

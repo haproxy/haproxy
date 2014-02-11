@@ -4762,7 +4762,7 @@ static int stats_pats_list(struct stream_interface *si)
 		 * later and restart at the state "STAT_ST_INIT".
 		 */
 		chunk_reset(&trash);
-		chunk_appendf(&trash, "# id (name)\n");
+		chunk_appendf(&trash, "# id (name) description\n");
 		if (bi_putchk(si->ib, &trash) == -1)
 			return 0;
 
@@ -4784,8 +4784,9 @@ static int stats_pats_list(struct stream_interface *si)
 			/* Build messages. If the reference is used by another category than
 			 * the listed categorie, display the information in the massage.
 			 */
-			chunk_appendf(&trash, "%d (%s)", appctx->ctx.map.ref->unique_id,
-			              appctx->ctx.map.ref->reference ? appctx->ctx.map.ref->reference : "");
+			chunk_appendf(&trash, "%d (%s) %s", appctx->ctx.map.ref->unique_id,
+			              appctx->ctx.map.ref->reference ? appctx->ctx.map.ref->reference : "",
+			              appctx->ctx.map.ref->display);
 
 			if (appctx->ctx.map.display_flags & PAT_REF_MAP) {
 				if (appctx->ctx.map.ref->flags & PAT_REF_ACL)

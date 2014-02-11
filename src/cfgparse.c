@@ -2381,7 +2381,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 
-		if (parse_acl((const char **)args + 1, &curproxy->acl, &errmsg, &curproxy->conf.args) == NULL) {
+		if (parse_acl((const char **)args + 1, &curproxy->acl, &errmsg, &curproxy->conf.args, file, linenum) == NULL) {
 			Alert("parsing [%s:%d] : error detected while parsing ACL '%s' : %s.\n",
 			      file, linenum, args[1], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;

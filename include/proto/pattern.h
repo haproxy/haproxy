@@ -185,8 +185,8 @@ struct pattern *pat_match_reg(struct sample *smp, struct pattern_expr *expr, int
  */
 struct pat_ref *pat_ref_lookup(const char *reference);
 struct pat_ref *pat_ref_lookupid(int unique_id);
-struct pat_ref *pat_ref_new(const char *reference, unsigned int flags);
-struct pat_ref *pat_ref_newid(int unique_id, unsigned int flags);
+struct pat_ref *pat_ref_new(const char *reference, const char *display, unsigned int flags);
+struct pat_ref *pat_ref_newid(int unique_id, const char *display, unsigned int flags);
 int pat_ref_append(struct pat_ref *ref, char *pattern, char *sample, int line);
 int pat_ref_add(struct pat_ref *ref, const char *pattern, const char *sample, char **err);
 int pat_ref_set(struct pat_ref *ref, const char *pattern, const char *sample);
@@ -199,7 +199,7 @@ int pat_ref_load(struct pat_ref *ref, struct pattern_expr *expr, int patflags, i
  */
 void pattern_init_head(struct pattern_head *head);
 void pattern_prune(struct pattern_head *head);
-int pattern_read_from_file(struct pattern_head *head, unsigned int refflags, const char *filename, int patflags, char **err);
+int pattern_read_from_file(struct pattern_head *head, unsigned int refflags, const char *filename, int patflags, char **err, const char *display);
 
 /*
  * pattern_expr manipulation.

@@ -1678,7 +1678,7 @@ int pat_ref_set(struct pat_ref *ref, const char *key, const char *value)
  * before calling this function. If the fucntion fail, it return NULL,
  * else return new struct pat_ref.
  */
-struct pat_ref *pat_ref_new(const char *reference, unsigned int flags)
+struct pat_ref *pat_ref_new(const char *reference, const char *display, unsigned int flags)
 {
 	struct pat_ref *ref;
 
@@ -1686,8 +1686,19 @@ struct pat_ref *pat_ref_new(const char *reference, unsigned int flags)
 	if (!ref)
 		return NULL;
 
+	if (display) {
+		ref->display = strdup(display);
+		if (!ref->display) {
+			free(ref);
+			return NULL;
+		}
+	}
+	else
+		ref->display = NULL;
+
 	ref->reference = strdup(reference);
 	if (!ref->reference) {
+		free(ref->display);
 		free(ref);
 		return NULL;
 	}
@@ -1710,13 +1721,23 @@ struct pat_ref *pat_ref_new(const char *reference, unsigned int flags)
  * or pat_ref_lookupid before calling this function. If the function
  * fail, it return NULL, else return new struct pat_ref.
  */
-struct pat_ref *pat_ref_newid(int unique_id, unsigned int flags)
+struct pat_ref *pat_ref_newid(int unique_id, const char *display, unsigned int flags)
 {
 	struct pat_ref *ref;
 
 	ref = malloc(sizeof(*ref));
 	if (!ref)
 		return NULL;
+
+	if (display) {
+		ref->display = strdup(display);
+		if (!ref->display) {
+			free(ref);
+			return NULL;
+		}
+	}
+	else
+		ref->display = NULL;
 
 	ref->reference = NULL;
 	ref->flags = flags;
@@ -2051,7 +2072,7 @@ int pat_ref_read_from_file(struct pat_ref *ref, const char *filename, char **err
 
 int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
                            const char *filename, int patflags,
-                           char **err)
+                           char **err, const char *display)
 {
 	struct pat_ref *ref;
 	struct pattern_expr *expr;
@@ -2061,7 +2082,7 @@ int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
 
 	/* If the reference doesn't exists, create it and load associated file. */
 	if (!ref) {
-		ref = pat_ref_new(filename, refflags);
+		ref = pat_ref_new(filename, display, refflags);
 		if (!ref) {
 			memprintf(err, "out of memory");
 			return 0;

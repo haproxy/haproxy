@@ -229,7 +229,9 @@ static int sample_load_map(struct arg *arg, struct sample_conv *conv, char **err
 	 */
 	ref = pat_ref_lookup(arg[0].data.str.str);
 	if (!ref) {
-		ref = pat_ref_new(arg[0].data.str.str, PAT_REF_MAP);
+		snprintf(trash.str, trash.size, "map(s) loaded from file '%s'", arg[0].data.str.str);
+		trash.str[trash.size - 1] = '\0';
+		ref = pat_ref_new(arg[0].data.str.str, trash.str, PAT_REF_MAP);
 		if (!ref) {
 			memprintf(err, "out of memory");
 			return 0;

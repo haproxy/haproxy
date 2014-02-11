@@ -1218,9 +1218,10 @@ int tcp_exec_req_rules(struct session *s)
 
 /* Parse a tcp-response rule. Return a negative value in case of failure */
 static int tcp_parse_response_rule(char **args, int arg, int section_type,
-				  struct proxy *curpx, struct proxy *defpx,
-				  struct tcp_rule *rule, char **err,
-                                  unsigned int where)
+                                   struct proxy *curpx, struct proxy *defpx,
+                                   struct tcp_rule *rule, char **err,
+                                   unsigned int where,
+                                   const char *file, int line)
 {
 	if (curpx == defpx || !(curpx->cap & PR_CAP_BE)) {
 		memprintf(err, "%s %s is only allowed in 'backend' sections",
@@ -1248,7 +1249,7 @@ static int tcp_parse_response_rule(char **args, int arg, int section_type,
 	}
 
 	if (strcmp(args[arg], "if") == 0 || strcmp(args[arg], "unless") == 0) {
-		if ((rule->cond = build_acl_cond(NULL, 0, curpx, (const char **)args+arg, err)) == NULL) {
+		if ((rule->cond = build_acl_cond(file, line, curpx, (const char **)args+arg, err)) == NULL) {
 			memprintf(err,
 			          "'%s %s %s' : error detected in %s '%s' while parsing '%s' condition : %s",
 			          args[0], args[1], args[2], proxy_type_str(curpx), curpx->id, args[arg], *err);
@@ -1270,7 +1271,7 @@ static int tcp_parse_response_rule(char **args, int arg, int section_type,
 static int tcp_parse_request_rule(char **args, int arg, int section_type,
                                   struct proxy *curpx, struct proxy *defpx,
                                   struct tcp_rule *rule, char **err,
-                                  unsigned int where)
+                                  unsigned int where, const char *file, int line)
 {
 	if (curpx == defpx) {
 		memprintf(err, "%s %s is not allowed in 'defaults' sections",
@@ -1357,7 +1358,7 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 	}
 
 	if (strcmp(args[arg], "if") == 0 || strcmp(args[arg], "unless") == 0) {
-		if ((rule->cond = build_acl_cond(NULL, 0, curpx, (const char **)args+arg, err)) == NULL) {
+		if ((rule->cond = build_acl_cond(file, line, curpx, (const char **)args+arg, err)) == NULL) {
 			memprintf(err,
 			          "'%s %s %s' : error detected in %s '%s' while parsing '%s' condition : %s",
 			          args[0], args[1], args[2], proxy_type_str(curpx), curpx->id, args[arg], *err);
@@ -1433,7 +1434,7 @@ static int tcp_parse_tcp_rep(char **args, int section_type, struct proxy *curpx,
 		if (curpx->cap & PR_CAP_BE)
 			where |= SMP_VAL_BE_RES_CNT;
 
-		if (tcp_parse_response_rule(args, arg, section_type, curpx, defpx, rule, err, where) < 0)
+		if (tcp_parse_response_rule(args, arg, section_type, curpx, defpx, rule, err, where, file, line) < 0)
 			goto error;
 
 		acl = rule->cond ? acl_cond_conflicts(rule->cond, where) : NULL;
@@ -1542,7 +1543,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 		if (curpx->cap & PR_CAP_BE)
 			where |= SMP_VAL_BE_REQ_CNT;
 
-		if (tcp_parse_request_rule(args, arg, section_type, curpx, defpx, rule, err, where) < 0)
+		if (tcp_parse_request_rule(args, arg, section_type, curpx, defpx, rule, err, where, file, line) < 0)
 			goto error;
 
 		acl = rule->cond ? acl_cond_conflicts(rule->cond, where) : NULL;
@@ -1585,7 +1586,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 
 		where |= SMP_VAL_FE_CON_ACC;
 
-		if (tcp_parse_request_rule(args, arg, section_type, curpx, defpx, rule, err, where) < 0)
+		if (tcp_parse_request_rule(args, arg, section_type, curpx, defpx, rule, err, where, file, line) < 0)
 			goto error;
 
 		acl = rule->cond ? acl_cond_conflicts(rule->cond, where) : NULL;
