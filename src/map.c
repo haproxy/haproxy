@@ -152,13 +152,9 @@ static int sample_load_map(struct arg *arg, struct sample_conv *conv,
 		return 0;
 	}
 
-	/* Build displayed message. */
-	snprintf(trash.str, trash.size, "map(s) loaded from file '%s'", arg[0].data.str.str);
-	trash.str[trash.size - 1] = '\0';
-
 	/* Load map. */
 	if (!pattern_read_from_file(&desc->pat, PAT_REF_MAP, arg[0].data.str.str, 0,
-	                            1, err, trash.str, file, line))
+	                            1, err, file, line))
 		return 0;
 
 	/* The second argument is the default value */

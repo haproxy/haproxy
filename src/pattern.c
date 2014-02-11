@@ -1972,8 +1972,7 @@ int pat_ref_read_from_file(struct pat_ref *ref, const char *filename, char **err
 
 int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
                            const char *filename, int patflags, int load_smp,
-                           char **err, const char *display, const char *file,
-                           int line)
+                           char **err, const char *file, int line)
 {
 	struct pat_ref *ref;
 	struct pattern_expr *expr;
@@ -1984,7 +1983,11 @@ int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
 
 	/* If the reference doesn't exists, create it and load associated file. */
 	if (!ref) {
-		ref = pat_ref_new(filename, display, refflags);
+		chunk_printf(&trash,
+		             "pattern loaded from file '%s' used by %s at file '%s' line %d",
+		             filename, refflags & PAT_REF_MAP ? "map" : "acl", file, line);
+
+		ref = pat_ref_new(filename, trash.str, refflags);
 		if (!ref) {
 			memprintf(err, "out of memory");
 			return 0;
@@ -2024,6 +2027,17 @@ int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
 				               filename);
 				return 0;
 			}
+		}
+
+		/* Extends display */
+		chunk_printf(&trash, "%s", ref->display);
+		chunk_appendf(&trash, ", by %s at file '%s' line %d",
+		              refflags & PAT_REF_MAP ? "map" : "acl", file, line);
+		free(ref->display);
+		ref->display = strdup(trash.str);
+		if (!ref->display) {
+			memprintf(err, "out of memory");
+			return 0;
 		}
 
 		/* Merge flags. */
