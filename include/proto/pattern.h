@@ -40,7 +40,8 @@
  * The function returns 1 if the processing is ok, return 0
  * if the parser fails, with <err> message filled.
  */
-int pattern_register(struct pattern_expr *expr, const char *arg, struct sample_storage *smp, int patflags, char **err);
+int pattern_register(struct pattern_head *head, char *reference, int refflags, const char *arg, struct sample_storage *smp, int patflags, char **err);
+void pattern_finalize_config(void);
 
 /* return the PAT_MATCH_* index for match name "name", or < 0 if not found */
 static inline int pat_find_match_name(const char *name)
@@ -59,7 +60,7 @@ static inline int pat_find_match_name(const char *name)
  * function returns the matched pattern. In many cases, this pattern can be a
  * static buffer.
  */
-struct pattern *pattern_exec_match(struct pattern_expr *expr, struct sample *smp, int fill);
+struct pattern *pattern_exec_match(struct pattern_head *head, struct sample *smp, int fill);
 
 /*
  *
@@ -195,11 +196,33 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
  */
 struct pattern *pat_match_reg(struct sample *smp, struct pattern_expr *expr, int fill);
 
-int pattern_read_from_file(struct pattern_expr *expr, const char *filename, int patflags, char **err);
+/*
+ * pattern_ref manipulation.
+ */
+struct pat_ref *pat_ref_lookup(const char *reference);
+struct pat_ref *pat_ref_new(const char *reference, unsigned int flags);
+int pat_ref_append(struct pat_ref *ref, char *pattern, char *sample, int line);
+int pat_ref_add(struct pat_ref *ref, const char *pattern, const char *sample, char **err);
+int pat_ref_set(struct pat_ref *ref, const char *pattern, const char *sample);
+int pat_ref_delete(struct pat_ref *ref, const char *key);
+void pat_ref_prune(struct pat_ref *ref);
+int pat_ref_load(struct pat_ref *ref, struct pattern_expr *expr, int patflags, int soe, char **err);
+
+/*
+ * pattern_head manipulation.
+ */
+void pattern_init_head(struct pattern_head *head);
+void pattern_prune(struct pattern_head *head);
+int pattern_read_from_file(struct pattern_head *head, unsigned int refflags, const char *filename, int patflags, char **err);
+
+/*
+ * pattern_expr manipulation.
+ */
 void pattern_init_expr(struct pattern_expr *expr);
+struct pattern_expr *pattern_lookup_expr(struct pattern_head *head, struct pat_ref *ref);
+struct pattern_expr *pattern_new_expr(struct pattern_head *head, struct pat_ref *ref, char **err);
 struct sample_storage **pattern_find_smp(const char *key, struct pattern_expr *expr, char **err);
 int pattern_delete(const char *key, struct pattern_expr *expr, char **err);
-void pattern_prune(struct pattern_expr *expr);
 
 
 #endif

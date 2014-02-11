@@ -154,6 +154,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	signed long long value, minor;
 	/* The following buffer contain two numbers, a ':' separator and the final \0. */
 	char buffer[NB_LLMAX_STR + 1 + NB_LLMAX_STR + 1];
+	int is_loaded;
 
 	/* First, we look for an ACL keyword. And if we don't find one, then
 	 * we look for a sample fetch expression starting with a sample fetch
@@ -348,7 +349,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		goto out_return;
 	}
 
-	pattern_init_expr(&expr->pat);
+	pattern_init_head(&expr->pat);
 
 	expr->kw = aclkw ? aclkw->kw : smp->fetch->kw;
 	expr->pat.parse = aclkw ? aclkw->parse : NULL;
@@ -414,6 +415,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	 *   -- : everything after this is not an option
 	 */
 	patflags = 0;
+	is_loaded = 0;
 	while (**args == '-') {
 		if ((*args)[1] == 'i')
 			patflags |= PAT_F_IGNORE_CASE;
@@ -423,14 +425,15 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 				goto out_free_expr;
 			}
 
-			if (!pattern_read_from_file(&expr->pat, args[1], patflags | PAT_F_FROM_FILE, err))
+			if (!pattern_read_from_file(&expr->pat, PAT_REF_ACL, args[1], patflags | PAT_F_FROM_FILE, err))
 				goto out_free_expr;
+			is_loaded = 1;
 			args++;
 		}
 		else if ((*args)[1] == 'm') {
 			int idx;
 
-			if (!LIST_ISEMPTY(&expr->pat.patterns) || !eb_is_empty(&expr->pat.pattern_tree)) {
+			if (is_loaded) {
 				memprintf(err, "'-m' must only be specified before patterns and files in parsing ACL expression");
 				goto out_free_expr;
 			}
@@ -590,7 +593,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			}
 		}
 
-		if (!pattern_register(&expr->pat, arg, NULL, patflags, err))
+		if (!pattern_register(&expr->pat, NULL, PAT_REF_ACL, arg, NULL, patflags, err))
 			goto out_free_expr;
 		args++;
 	}
@@ -1181,6 +1184,7 @@ int acl_find_targets(struct proxy *p)
 	struct acl_expr *expr;
 	struct pattern_list *pattern;
 	int cfgerr = 0;
+	struct pattern_expr *pexp;
 
 	list_for_each_entry(acl, &p->acl, list) {
 		list_for_each_entry(expr, &acl->expr, list) {
@@ -1195,7 +1199,7 @@ int acl_find_targets(struct proxy *p)
 					continue;
 				}
 
-				if (LIST_ISEMPTY(&expr->pat.patterns)) {
+				if (LIST_ISEMPTY(&expr->pat.head)) {
 					Alert("proxy %s: acl %s %s(): no groups specified.\n",
 						p->id, acl->name, expr->kw);
 					cfgerr++;
@@ -1203,11 +1207,20 @@ int acl_find_targets(struct proxy *p)
 				}
 
 				/* For each pattern, check if the group exists. */
-				list_for_each_entry(pattern, &expr->pat.patterns, list) {
-					if (!check_group(expr->smp->arg_p->data.usr, pattern->pat.ptr.str)) {
-						Alert("proxy %s: acl %s %s(): invalid group '%s'.\n",
-						      p->id, acl->name, expr->kw, pattern->pat.ptr.str);
+				list_for_each_entry(pexp, &expr->pat.head, listh) {
+					if (LIST_ISEMPTY(&pexp->patterns)) {
+						Alert("proxy %s: acl %s %s(): no groups specified.\n",
+							p->id, acl->name, expr->kw);
 						cfgerr++;
+						continue;
+					}
+
+					list_for_each_entry(pattern, &pexp->patterns, list) {
+						if (!check_group(expr->smp->arg_p->data.usr, pattern->pat.ptr.str)) {
+							Alert("proxy %s: acl %s %s(): invalid group '%s'.\n",
+							      p->id, acl->name, expr->kw, pattern->pat.ptr.str);
+							cfgerr++;
+						}
 					}
 				}
 			}

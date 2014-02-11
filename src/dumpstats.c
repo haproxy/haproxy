@@ -79,8 +79,8 @@ enum {
 	STAT_CLI_O_CLR,      /* clear tables */
 	STAT_CLI_O_SET,      /* set entries in tables */
 	STAT_CLI_O_STAT,     /* dump stats */
-	STAT_CLI_O_MAPS,     /* list all maps */
-	STAT_CLI_O_MAP,      /* list all map entries of a map */
+	STAT_CLI_O_PATS,     /* list all pattern reference avalaible */
+	STAT_CLI_O_PAT,      /* list all entries of a pattern */
 	STAT_CLI_O_MLOOK,    /* lookup a map entry */
 	STAT_CLI_O_POOLS,    /* dump memory pools */
 };
@@ -93,8 +93,8 @@ static int stats_dump_errors_to_buffer(struct stream_interface *si);
 static int stats_table_request(struct stream_interface *si, int show);
 static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, struct uri_auth *uri);
 static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_auth *uri);
-static int stats_maps_list(struct stream_interface *si);
-static int stats_map_list(struct stream_interface *si);
+static int stats_pats_list(struct stream_interface *si);
+static int stats_pat_list(struct stream_interface *si);
 static int stats_map_lookup(struct stream_interface *si);
 
 /*
@@ -149,6 +149,11 @@ static const char stats_sock_usage_msg[] =
 	"  disable        : put a server or frontend in maintenance mode\n"
 	"  enable         : re-enable a server or frontend which is in maintenance mode\n"
 	"  shutdown       : kill a session or a frontend (eg:to release listening ports)\n"
+	"  show acl [id]  : report avalaible acls or dump an acl's contents\n"
+	"  get acl        : reports the patterns matching a sample for an ACL\n"
+	"  add acl        : add acl entry\n"
+	"  del acl        : delete acl entry\n"
+	"  clear acl <id> : clear the content of this acl\n"
 	"  show map [id]  : report avalaible maps or dump a map's contents\n"
 	"  get map        : reports the keys and values matching a sample for a map\n"
 	"  set map        : modify map entry\n"
@@ -951,40 +956,43 @@ static struct server *expect_server_admin(struct session *s, struct stream_inter
 	return sv;
 }
 
-/* This function is used with map management. It permits to browse each
- * really allocated descriptors of one map reference. The variable
- * <appctx->ctx.map.ref> must contain the map reference to browse.
- * The variable <appctx->ctx.map.desc> contain the descriptor of the
- * current allocated map descriptor. This variable must be initialized
- * to NULL.
+/* This function is used with map and acl management. It permits to browse
+ * each reference. The variable <getnext> must contain the current node,
+ * <end> point to the root node and the <flags> permit to filter required
+ * nodes.
  */
-static inline void stats_map_lookup_next(struct stream_interface *si)
+static inline
+struct pat_ref *pat_list_get_next(struct pat_ref *getnext, struct list *end,
+                                  unsigned int flags)
 {
-	struct appctx *appctx = __objt_appctx(si->end);
+	struct pat_ref *ref = getnext;
 
-	/* search the next allocated map */
 	while (1) {
-		/* get next descriptor */
-		if (!appctx->ctx.map.desc)
-			appctx->ctx.map.desc = LIST_NEXT(&appctx->ctx.map.ref->maps,
-			                                 struct map_descriptor *, list);
-		else
-			appctx->ctx.map.desc = LIST_NEXT(&appctx->ctx.map.desc->list,
-			                                 struct map_descriptor *, list);
 
-		/* detect end of list */
-		if (&appctx->ctx.map.desc->list == &appctx->ctx.map.ref->maps) {
-			appctx->ctx.map.desc = NULL;
-			return;
-		}
+		/* Get next list entry. */
+		ref = LIST_NEXT(&ref->list, struct pat_ref *, list);
 
-		/* do not lookup this entry */
-		if (!appctx->ctx.map.desc->do_free)
-			continue;
+		/* If the entry is the last of the list, return NULL. */
+		if (&ref->list == end)
+			return NULL;
 
-		/* avalaible descriptor */
-		return;
+		/* If the entry match the flag, return it. */
+		if (ref->flags & flags)
+			return ref;
 	}
+}
+
+/* This function is used with map and acl management. It permits to browse
+ * each reference.
+ */
+static inline
+struct pattern_expr *pat_expr_get_next(struct pattern_expr *getnext, struct list *end)
+{
+	struct pattern_expr *expr;
+	expr = LIST_NEXT(&getnext->listr, struct pattern_expr *, listr);
+	if (&expr->listr == end)
+		return NULL;
+	return expr;
 }
 
 /* Processes the stats interpreter on the statistics socket. This function is
@@ -1098,24 +1106,35 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 		else if (strcmp(args[1], "table") == 0) {
 			stats_sock_table_request(si, args, STAT_CLI_O_TAB);
 		}
-		else if (strcmp(args[1], "map") == 0) {
+		else if (strcmp(args[1], "map") == 0 ||
+		         strcmp(args[1], "acl") == 0) {
+
+			/* Set ACL or MAP flags. */
+			if (args[1][0] == 'm')
+				appctx->ctx.map.display_flags = PAT_REF_MAP;
+			else
+				appctx->ctx.map.display_flags = PAT_REF_ACL;
 
 			/* no parameter: display all map avalaible */
 			if (!*args[2]) {
 				appctx->st2 = STAT_ST_INIT;
-				appctx->st0 = STAT_CLI_O_MAPS;
+				appctx->st0 = STAT_CLI_O_PATS;
 				return 1;
 			}
 
-			/* lookup into the maps */
-			appctx->ctx.map.ref = map_get_reference(args[2]);
-			if (!appctx->ctx.map.ref) {
-				appctx->ctx.cli.msg = "Unknown map identifier. Please use <name>.\n";
+			/* lookup into the refs and check the map flag */
+			appctx->ctx.map.ref = pat_ref_lookup(args[2]);
+			if (!appctx->ctx.map.ref ||
+			    !(appctx->ctx.map.ref->flags & appctx->ctx.map.display_flags)) {
+				if (appctx->ctx.map.display_flags == PAT_REF_MAP)
+					appctx->ctx.cli.msg = "Unknown map identifier. Please use <name>.\n";
+				else
+					appctx->ctx.cli.msg = "Unknown ACL identifier. Please use <name>.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 			appctx->st2 = STAT_ST_INIT;
-			appctx->st0 = STAT_CLI_O_MAP;
+			appctx->st0 = STAT_CLI_O_PAT;
 		}
 		else { /* neither "stat" nor "info" nor "sess" nor "errors" nor "table" */
 			return 0;
@@ -1185,42 +1204,42 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			/* end of processing */
 			return 1;
 		}
-		else if (strcmp(args[1], "map") == 0) {
-			struct map_reference *mref;
-			struct map_descriptor *mdesc;
-			struct map_entry *ent, *nent;
+		else if (strcmp(args[1], "map") == 0 || strcmp(args[1], "acl") == 0) {
+			/* Set ACL or MAP flags. */
+			if (args[1][0] == 'm')
+				appctx->ctx.map.display_flags = PAT_REF_MAP;
+			else
+				appctx->ctx.map.display_flags = PAT_REF_ACL;
 
 			/* no parameter */
 			if (!*args[2]) {
-				appctx->ctx.cli.msg = "Missing map identifier.\n";
+				if (appctx->ctx.map.display_flags == PAT_REF_MAP)
+					appctx->ctx.cli.msg = "Missing map identifier.\n";
+				else
+					appctx->ctx.cli.msg = "Missing ACL identifier.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 
-			/* lookup into the maps */
-			mref = map_get_reference(args[2]);
-			if (!mref) {
-				appctx->ctx.cli.msg = "Unknown map identifier. Please use <name>.\n";
+			/* lookup into the refs and check the map flag */
+			appctx->ctx.map.ref = pat_ref_lookup(args[2]);
+			if (!appctx->ctx.map.ref ||
+			    !(appctx->ctx.map.ref->flags & appctx->ctx.map.display_flags)) {
+				if (appctx->ctx.map.display_flags == PAT_REF_MAP)
+					appctx->ctx.cli.msg = "Unknown map identifier. Please use <name>.\n";
+				else
+					appctx->ctx.cli.msg = "Unknown ACL identifier. Please use <name>.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 
-			/* clear all maps */
-			list_for_each_entry(mdesc, &mref->maps, list)
-				if (mdesc->do_free)
-					mdesc->pat->prune(mdesc->pat);
-
-			/* clear map reference */
-			list_for_each_entry_safe(ent, nent, &mref->entries, list) {
-				LIST_DEL(&ent->list);
-				free(ent->key);
-				free(ent->value);
-				free(ent);
-			}
+			/* Clear all. */
+			pat_ref_prune(appctx->ctx.map.ref);
 
 			/* return response */
 			appctx->ctx.cli.msg = "Done.\n";
 			appctx->st0 = STAT_CLI_PRINT;
+			return 1;
 		}
 		else {
 			/* unknown "clear" argument */
@@ -1256,24 +1275,38 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			bi_putstr(si->ib, trash.str);
 			return 1;
 		}
-		else if (strcmp(args[1], "map") == 0) {
+		else if (strcmp(args[1], "map") == 0 || strcmp(args[1], "acl") == 0) {
+			/* Set flags. */
+			if (args[1][0] == 'm')
+				appctx->ctx.map.display_flags = PAT_REF_MAP;
+			else
+				appctx->ctx.map.display_flags = PAT_REF_ACL;
 
-			/* no parameter */
+			/* No parameter. */
 			if (!*args[2] || !*args[3]) {
-				appctx->ctx.cli.msg = "Missing identifier and/or key.\n";
+				if (appctx->ctx.map.display_flags == PAT_REF_MAP)
+					appctx->ctx.cli.msg = "Missing map identifier and/or key.\n";
+				else
+					appctx->ctx.cli.msg = "Missing ACL identifier and/or key.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 
 			/* lookup into the maps */
-			appctx->ctx.map.ref = map_get_reference(args[2]);
+			appctx->ctx.map.ref = pat_ref_lookup(args[2]);
 			if (!appctx->ctx.map.ref) {
-				appctx->ctx.cli.msg = "Unknown map identifier. Please use #<id> or <name>.\n";
+				if (appctx->ctx.map.display_flags == PAT_REF_MAP)
+					appctx->ctx.cli.msg = "Unknown map identifier. Please use <name>.\n";
+				else
+					appctx->ctx.cli.msg = "Unknown ACL identifier. Please use <name>.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 
-			/* copy input string */
+			/* copy input string. The string must be allocated because
+			 * it may be used over multiple iterations. It's released
+			 * at the end and upon abort anyway.
+			 */
 			appctx->ctx.map.chunk.len = strlen(args[3]);
 			appctx->ctx.map.chunk.size = appctx->ctx.map.chunk.len + 1;
 			appctx->ctx.map.chunk.str = strdup(args[3]);
@@ -1561,8 +1594,8 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			stats_sock_table_request(si, args, STAT_CLI_O_SET);
 		}
 		else if (strcmp(args[1], "map") == 0) {
-			struct sample_storage **smp;
-			char *value = NULL;
+			/* Set flags. */
+			appctx->ctx.map.display_flags = PAT_REF_MAP;
 
 			/* Expect three parameters: map name, key and new value. */
 			if (!*args[2] || !*args[3] || !*args[4]) {
@@ -1572,48 +1605,18 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			}
 
 			/* Lookup the reference in the maps. */
-			appctx->ctx.map.ref = map_get_reference(args[2]);
+			appctx->ctx.map.ref = pat_ref_lookup(args[2]);
 			if (!appctx->ctx.map.ref) {
 				appctx->ctx.cli.msg = "Unknown map identifier. Please use <name>.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 
-			/* Lookup the entry in the reference values. */
-			list_for_each_entry(appctx->ctx.map.ent, &appctx->ctx.map.ref->entries, list)
-				if (strcmp(args[3], appctx->ctx.map.ent->key) == 0)
-					break;
-
-			if (&appctx->ctx.map.ent->list == &appctx->ctx.map.ref->entries) {
-				appctx->ctx.cli.msg = "\n";
+			/* Update the value. */
+			if (!pat_ref_set(appctx->ctx.map.ref, args[3], args[4])) {
+				appctx->ctx.cli.msg = "Pattern not found.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
-			}
-
-			/* Update each reference entries. */
-			list_for_each_entry(appctx->ctx.map.ent, &appctx->ctx.map.ref->entries, list) {
-				if (strcmp(args[3], appctx->ctx.map.ent->key) == 0) {
-					value = strdup(args[4]);
-					if (!value) {
-						appctx->ctx.cli.msg = "Out of memory error.\n";
-						appctx->st0 = STAT_CLI_PRINT;
-						return 1;
-					}
-					free(appctx->ctx.map.ent->value);
-					appctx->ctx.map.ent->value = value;
-				}
-			}
-
-			/* Change the sample. The lookup juste return the first entry, other
-			 * entries are not changed, but are never matched.
-			 */
-			appctx->ctx.map.desc = NULL;
-			for (stats_map_lookup_next(si);
-			     appctx->ctx.map.desc;
-			     stats_map_lookup_next(si)) {
-				smp = pattern_find_smp(args[3], appctx->ctx.map.desc->pat, NULL);
-				if (smp)
-					appctx->ctx.map.desc->pat->parse_smp(value, *smp);
 			}
 
 			/* The set is done, send message. */
@@ -1845,53 +1848,44 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 		}
 	}
 	else if (strcmp(args[0], "del") == 0) {
-		if (strcmp(args[1], "map") == 0) {
-			struct map_entry *ent;
+		if (strcmp(args[1], "map") == 0 || strcmp(args[1], "acl") == 0) {
+			if (args[1][0] == 'm')
+				appctx->ctx.map.display_flags = PAT_REF_MAP;
+			else
+				appctx->ctx.map.display_flags = PAT_REF_ACL;
 
 			/* Expect two parameters: map name and key. */
-			if (!*args[2] || !*args[3]) {
-				appctx->ctx.cli.msg = "This command expects two parameters: map identifier and key.\n";
-				appctx->st0 = STAT_CLI_PRINT;
-				return 1;
+			if (appctx->ctx.map.display_flags == PAT_REF_MAP) {
+				if (!*args[2] || !*args[3]) {
+					appctx->ctx.cli.msg = "This command expects two parameters: map identifier and key.\n";
+					appctx->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
+			}
+
+			else {
+				if (!*args[2] || !*args[3]) {
+					appctx->ctx.cli.msg = "This command expects two parameters: ACL identifier and key.\n";
+					appctx->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
 			}
 
 			/* Lookup the reference in the maps. */
-			appctx->ctx.map.ref = map_get_reference(args[2]);
-			if (!appctx->ctx.map.ref) {
+			appctx->ctx.map.ref = pat_ref_lookup(args[2]);
+			if (!appctx->ctx.map.ref ||
+			    !(appctx->ctx.map.ref->flags & appctx->ctx.map.display_flags)) {
 				appctx->ctx.cli.msg = "Unknown map identifier. Please use <name>.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 
-			/* Lookup the entry in the reference values.
-			 * If the entry is not found in the reference, return error message.
-			 */
-			list_for_each_entry(appctx->ctx.map.ent, &appctx->ctx.map.ref->entries, list)
-				if (strcmp(args[3], appctx->ctx.map.ent->key) == 0)
-					break;
-
-			if (&appctx->ctx.map.ent->list == &appctx->ctx.map.ref->entries) {
+			/* Try to delete the entry. */
+			if (!pat_ref_delete(appctx->ctx.map.ref, args[3])) {
+				/* The entry is not found, send message. */
 				appctx->ctx.cli.msg = "Key not found.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
-			}
-
-			/* Delete each enties from reference. */
-			list_for_each_entry_safe(appctx->ctx.map.ent, ent, &appctx->ctx.map.ref->entries, list) {
-				if (strcmp(args[3], appctx->ctx.map.ent->key) == 0) {
-					LIST_DEL(&appctx->ctx.map.ent->list);
-					free(appctx->ctx.map.ent->key);
-					free(appctx->ctx.map.ent->value);
-					free(appctx->ctx.map.ent);
-				}
-			}
-
-			/* Delete all matching entries for each map descritor. */
-			appctx->ctx.map.desc = NULL;
-			stats_map_lookup_next(si);
-			while (appctx->ctx.map.desc) {
-				pattern_delete(args[3], appctx->ctx.map.desc->pat, NULL);
-				stats_map_lookup_next(si);
 			}
 
 			/* The deletion is done, send message. */
@@ -1900,89 +1894,60 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			return 1;
 		}
 		else { /* unknown "del" parameter */
-			appctx->ctx.cli.msg = "'del' only supports 'map'.\n";
+			appctx->ctx.cli.msg = "'del' only supports 'map' or 'acl'.\n";
 			appctx->st0 = STAT_CLI_PRINT;
 			return 1;
 		}
 	}
 	else if (strcmp(args[0], "add") == 0) {
-		if (strcmp(args[1], "map") == 0) {
-			struct map_entry *ent;
-			struct sample_storage *smp;
+		if (strcmp(args[1], "map") == 0 ||
+		    strcmp(args[1], "acl") == 0) {
+			int ret;
 
-			/* Expect three parameters: map name, key and new value. */
-			if (!*args[2] || !*args[3] || !*args[4]) {
-				appctx->ctx.cli.msg = "'add map' expects three parameters: map identifier, key and value.\n";
-				appctx->st0 = STAT_CLI_PRINT;
-				return 1;
-			}
+			/* Set flags. */
+			if (args[1][0] == 'm')
+				appctx->ctx.map.display_flags = PAT_REF_MAP;
+			else
+				appctx->ctx.map.display_flags = PAT_REF_ACL;
 
-			/* Lookup the reference in the maps. */
-			appctx->ctx.map.ref = map_get_reference(args[2]);
-			if (!appctx->ctx.map.ref) {
-				appctx->ctx.cli.msg = "Unknown map identifier. Please use <name>.\n";
-				appctx->st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-
-			/* Prepare and link the new map_entry element. If out of memory
-			 * error the action is cancelled and the descriptor are left
-			 * coherents.
+			/* If the keywork is "map", we expect three parameters, if it
+			 * is "acl", we expect only two parameters
 			 */
-			ent = malloc(sizeof(*ent));
-			if (!ent) {
-				appctx->ctx.cli.msg = "Out of memory error.\n";
-				appctx->st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-			ent->key = strdup(args[3]);
-			if (!ent->key) {
-				free(ent);
-				appctx->ctx.cli.msg = "Out of memory error.\n";
-				appctx->st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-			ent->value = strdup(args[4]);
-			if (!ent->value) {
-				free(ent->key);
-				free(ent);
-				appctx->ctx.cli.msg = "Out of memory error.\n";
-				appctx->st0 = STAT_CLI_PRINT;
-				return 1;
-			}
-			LIST_ADDQ(&appctx->ctx.map.ref->entries, &ent->list);
-
-			/* Browse each map descritor and try to insert this new value. */
-			appctx->ctx.map.desc = NULL;
-			for (stats_map_lookup_next(si);
-			     appctx->ctx.map.desc;
-			     stats_map_lookup_next(si)) {
-
-				/* Create new sample. Return out of memory error
-				 * if the memory cannot be allocated. The 'add' process
-				 * is aborted, but the already inserted entries are not
-				 * deleted.
-				 */
-				smp = calloc(1, sizeof(*smp));
-				if (!smp) {
-					appctx->ctx.cli.msg = "Out of memory error. The value is not added in all maps.\n";
+			if (appctx->ctx.map.display_flags == PAT_REF_MAP) {
+				if (!*args[2] || !*args[3] || !*args[4]) {
+					appctx->ctx.cli.msg = "'add map' expects three parameters: map identifier, key and value.\n";
 					appctx->st0 = STAT_CLI_PRINT;
 					return 1;
 				}
-
-				/* Create sample. If this function fails, the insertion
-				 * is canceled for this 'descriptor', but continue, for
-				 * the other descriptors.
-				 */
-				if (!appctx->ctx.map.desc->pat->parse_smp(ent->value, smp)) {
-					free(smp);
-					continue;
+			}
+			else {
+				if (!*args[2] || !*args[3]) {
+					appctx->ctx.cli.msg = "'add acl' expects two parameters: ACL identifier and pattern.\n";
+					appctx->st0 = STAT_CLI_PRINT;
+					return 1;
 				}
+			}
 
-				if (!pattern_register(appctx->ctx.map.desc->pat, args[3], smp, 0, NULL)) {
-					free(smp);
-					continue;
-				}
+			/* Lookup for the reference. */
+			appctx->ctx.map.ref = pat_ref_lookup(args[2]);
+			if (!appctx->ctx.map.ref) {
+				if (appctx->ctx.map.display_flags == PAT_REF_MAP)
+					appctx->ctx.cli.msg = "Unknown map identifier. Please use <name>.\n";
+				else
+					appctx->ctx.cli.msg = "Unknown ACL identifier. Please use <name>.\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			/* Add value. */
+			if (appctx->ctx.map.display_flags == PAT_REF_MAP)
+				ret = pat_ref_add(appctx->ctx.map.ref, args[3], args[4], NULL);
+			else
+				ret = pat_ref_add(appctx->ctx.map.ref, args[3], NULL, NULL);
+			if (!ret) {
+				appctx->ctx.cli.msg = "Out of memory error.\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
 			}
 
 			/* The add is done, send message. */
@@ -2138,12 +2103,12 @@ static void cli_io_handler(struct stream_interface *si)
 				if (stats_table_request(si, appctx->st0))
 					appctx->st0 = STAT_CLI_PROMPT;
 				break;
-			case STAT_CLI_O_MAPS:
-				if (stats_maps_list(si))
+			case STAT_CLI_O_PATS:
+				if (stats_pats_list(si))
 					appctx->st0 = STAT_CLI_PROMPT;
 				break;
-			case STAT_CLI_O_MAP:
-				if (stats_map_list(si))
+			case STAT_CLI_O_PAT:
+				if (stats_pat_list(si))
 					appctx->st0 = STAT_CLI_PROMPT;
 				break;
 			case STAT_CLI_O_MLOOK:
@@ -4765,14 +4730,21 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 	return 1;
 }
 
-static int stats_maps_list(struct stream_interface *si)
+static int stats_pats_list(struct stream_interface *si)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
 
 	switch (appctx->st2) {
 	case STAT_ST_INIT:
-		/* Init to the first entry. The list cannot be change */
-		appctx->ctx.map.ref = LIST_NEXT(&maps, struct map_reference *, list);
+
+		/* Now, we start the browsing of the references lists.
+		 * Note that the following call to LIST_ELEM return bad pointer. The only
+		 * avalaible field of this pointer is <list>. It is used with the function
+		 * pat_list_get_next() for retruning the first avalaible entry
+		 */
+		appctx->ctx.map.ref = LIST_ELEM(&pattern_reference, struct pat_ref *, list);
+		appctx->ctx.map.ref = pat_list_get_next(appctx->ctx.map.ref, &pattern_reference,
+		                                        appctx->ctx.map.display_flags);
 		appctx->st2 = STAT_ST_LIST;
 		/* fall through */
 
@@ -4781,8 +4753,21 @@ static int stats_maps_list(struct stream_interface *si)
 
 			chunk_reset(&trash);
 
-			/* build messages */
-			chunk_appendf(&trash, "%s\n", appctx->ctx.map.ref->reference);
+			/* Build messages. If the reference is used by another category than
+			 * the listed categorie, display the information in the massage.
+			 */
+			if ((appctx->ctx.map.display_flags & PAT_REF_MAP) &&
+			    (appctx->ctx.map.ref->flags & PAT_REF_ACL)) {
+				chunk_appendf(&trash, "%s (also used by an ACL)\n",
+				              appctx->ctx.map.ref->reference);
+			}
+			else if ((appctx->ctx.map.display_flags & PAT_REF_ACL) &&
+			         (appctx->ctx.map.ref->flags & PAT_REF_MAP)) {
+				chunk_appendf(&trash, "%s (also used by a map)\n",
+				              appctx->ctx.map.ref->reference);
+			}
+			else
+				chunk_appendf(&trash, "%s\n", appctx->ctx.map.ref->reference);
 
 			if (bi_putchk(si->ib, &trash) == -1) {
 				/* let's try again later from this session. We add ourselves into
@@ -4792,10 +4777,8 @@ static int stats_maps_list(struct stream_interface *si)
 			}
 
 			/* get next list entry and check the end of the list */
-			appctx->ctx.map.ref = LIST_NEXT(&appctx->ctx.map.ref->list,
-			                                 struct map_reference *, list);
-			if (&appctx->ctx.map.ref->list == &maps)
-				break;
+			appctx->ctx.map.ref = pat_list_get_next(appctx->ctx.map.ref, &pattern_reference,
+			                                        appctx->ctx.map.display_flags);
 		}
 
 		appctx->st2 = STAT_ST_FIN;
@@ -4805,29 +4788,33 @@ static int stats_maps_list(struct stream_interface *si)
 		appctx->st2 = STAT_ST_FIN;
 		return 1;
 	}
+	return 0;
 }
 
 static int stats_map_lookup(struct stream_interface *si)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
-	struct sample_storage *smp;
 	struct sample sample;
 	struct pattern *pat;
+	int match_method;
+	struct sample_storage *smp;
 	struct sockaddr_storage addr;
 	char s_addr[INET_ADDRSTRLEN];
 	char s_mask[INET_ADDRSTRLEN];
 	char s_addr6[INET6_ADDRSTRLEN];
+	const char *keystr;
 
 	switch (appctx->st2) {
 	case STAT_ST_INIT:
-		appctx->ctx.map.desc = NULL;
-		stats_map_lookup_next(si);
+		/* Init to the first entry. The list cannot be change */
+		appctx->ctx.map.expr = LIST_ELEM(&appctx->ctx.map.ref->pat, struct pattern_expr *, listr);
+		appctx->ctx.map.expr = pat_expr_get_next(appctx->ctx.map.expr, &appctx->ctx.map.ref->pat);
 		appctx->st2 = STAT_ST_LIST;
 		/* fall through */
 
 	case STAT_ST_LIST:
 		/* for each lookup type */
-		while (appctx->ctx.map.desc) {
+		while (appctx->ctx.map.expr) {
 			/* initialise chunk to build new message */
 			chunk_reset(&trash);
 
@@ -4836,47 +4823,35 @@ static int stats_map_lookup(struct stream_interface *si)
 			sample.flags |= SMP_F_CONST;
 			sample.data.str.len = appctx->ctx.map.chunk.len;
 			sample.data.str.str = appctx->ctx.map.chunk.str;
-			pat = pattern_exec_match(appctx->ctx.map.desc->pat, &sample, 1);
+			if (appctx->ctx.map.expr->pat_head->match)
+				pat = appctx->ctx.map.expr->pat_head->match(&sample, appctx->ctx.map.expr, 1);
+			else
+				pat = NULL;
 
 			/* build return message: set type of match */
-			/**/ if (appctx->ctx.map.desc->pat->match == NULL)
-				chunk_appendf(&trash, "type=found");
-			else if (appctx->ctx.map.desc->pat->match == pat_match_nothing)
-				chunk_appendf(&trash, "type=bool");
-			else if (appctx->ctx.map.desc->pat->match == pat_match_int)
-				chunk_appendf(&trash, "type=int");
-			else if (appctx->ctx.map.desc->pat->match == pat_match_ip)
-				chunk_appendf(&trash, "type=ip");
-			else if (appctx->ctx.map.desc->pat->match == pat_match_bin)
-				chunk_appendf(&trash, "type=bin");
-			else if (appctx->ctx.map.desc->pat->match == pat_match_len)
-				chunk_appendf(&trash, "type=len");
-			else if (appctx->ctx.map.desc->pat->match == pat_match_str)
-				chunk_appendf(&trash, "type=str");
-			else if (appctx->ctx.map.desc->pat->match == pat_match_beg)
-				chunk_appendf(&trash, "type=beg");
-			else if (appctx->ctx.map.desc->pat->match == pat_match_sub)
-				chunk_appendf(&trash, "type=sub");
-			else if (appctx->ctx.map.desc->pat->match == pat_match_dir)
-				chunk_appendf(&trash, "type=dir");
-			else if (appctx->ctx.map.desc->pat->match == pat_match_dom)
-				chunk_appendf(&trash, "type=dom");
-			else if (appctx->ctx.map.desc->pat->match == pat_match_end)
-				chunk_appendf(&trash, "type=end");
-			else if (appctx->ctx.map.desc->pat->match == pat_match_reg)
-				chunk_appendf(&trash, "type=reg");
-			else /* The never appens case */
-				chunk_appendf(&trash, "type=unknown(%p)", appctx->ctx.map.desc->pat->match);
+			for (match_method=0; match_method<PAT_MATCH_NUM; match_method++)
+				if (appctx->ctx.map.expr->pat_head->match == pat_match_fcts[match_method])
+					break;
+			if (match_method >= PAT_MATCH_NUM)
+				chunk_appendf(&trash, "type=unknown(%p)", appctx->ctx.map.expr->pat_head->match);
+			else
+				chunk_appendf(&trash, "type=%s", pat_match_names[match_method]);
 
 			/* Display no match, and set default value */
 			if (!pat) {
-				chunk_appendf(&trash, ", match=no");
+				if (appctx->ctx.map.display_flags == PAT_REF_MAP)
+					chunk_appendf(&trash, ", found=no");
+				else
+					chunk_appendf(&trash, ", match=no");
 			}
 
 			/* Display match and match info */
 			else {
 				/* display match */
-				chunk_appendf(&trash, ", match=yes");
+				if (appctx->ctx.map.display_flags == PAT_REF_MAP)
+					chunk_appendf(&trash, ", found=yes");
+				else
+					chunk_appendf(&trash, ", match=yes");
 
 				/* display index mode */
 				if (pat->flags & PAT_F_TREE)
@@ -4896,17 +4871,23 @@ static int stats_map_lookup(struct stream_interface *si)
 				else
 					chunk_appendf(&trash, ", src=conf");
 
-				/* display string */
-				if (appctx->ctx.map.desc->pat->match == pat_match_str ||
-				    appctx->ctx.map.desc->pat->match == pat_match_str ||
-				    appctx->ctx.map.desc->pat->match == pat_match_beg ||
-				    appctx->ctx.map.desc->pat->match == pat_match_sub ||
-				    appctx->ctx.map.desc->pat->match == pat_match_dir ||
-				    appctx->ctx.map.desc->pat->match == pat_match_dom ||
-				    appctx->ctx.map.desc->pat->match == pat_match_end) {
-					chunk_appendf(&trash, ", key=\"%s\"", pat->ptr.str);
-				}
-				else if (appctx->ctx.map.desc->pat->match == pat_match_ip) {
+				if (appctx->ctx.map.display_flags == PAT_REF_MAP)
+					keystr = "key";
+				else
+					keystr = "pattern";
+
+				switch (match_method) {
+				case PAT_MATCH_STR:
+				case PAT_MATCH_BEG:
+				case PAT_MATCH_SUB:
+				case PAT_MATCH_DIR:
+				case PAT_MATCH_DOM:
+				case PAT_MATCH_END:
+					/* display string */
+					chunk_appendf(&trash, ", %s=\"%s\"", keystr, pat->ptr.str);
+					break;
+
+				case PAT_MATCH_IP:
 					/* display IPv4/v6 */
 					if (pat->type == SMP_T_IPV4) {
 						((struct sockaddr_in *)&addr)->sin_family = AF_INET;
@@ -4916,7 +4897,7 @@ static int stats_map_lookup(struct stream_interface *si)
 							memcpy(&((struct sockaddr_in *)&addr)->sin_addr, &pat->val.ipv4.mask,
 							       sizeof(pat->val.ipv4.mask));
 							if (addr_to_str(&addr, s_mask, INET_ADDRSTRLEN))
-								chunk_appendf(&trash, ", key=\"%s/%s\"", s_addr, s_mask);
+								chunk_appendf(&trash, ", %s=\"%s/%s\"", keystr, s_addr, s_mask);
 						}
 					}
 					else if (pat->type == SMP_T_IPV6) {
@@ -4924,12 +4905,13 @@ static int stats_map_lookup(struct stream_interface *si)
 						memcpy(&((struct sockaddr_in6 *)&addr)->sin6_addr, &pat->val.ipv6.addr,
 						       sizeof(pat->val.ipv6.addr));
 						if (addr_to_str(&addr, s_addr6, INET6_ADDRSTRLEN))
-							chunk_appendf(&trash, ", key=\"%s/%d\"", s_addr6, pat->val.ipv6.mask);
+							chunk_appendf(&trash, ", %s=\"%s/%d\"", keystr, s_addr6, pat->val.ipv6.mask);
 					}
-				}
-				else if (appctx->ctx.map.desc->pat->match == pat_match_int) {
+					break;
+
+				case PAT_MATCH_INT:
 					/* display int */
-					chunk_appendf(&trash, "match=\"");
+					chunk_appendf(&trash, ", %s=\"", keystr);
 					if (pat->val.range.min_set && pat->val.range.max_set &&
 					    pat->val.range.min == pat->val.range.max) {
 						chunk_appendf(&trash, "%lld", pat->val.range.min);
@@ -4942,25 +4924,32 @@ static int stats_map_lookup(struct stream_interface *si)
 						if (pat->val.range.max_set)
 							chunk_appendf(&trash, "is <= %lld", pat->val.range.max);
 					}
-					chunk_appendf(&trash, "\", ");
+					chunk_appendf(&trash, "\"");
+					break;
+
+				/* Dont display other types. */
+				default:
+					break;
 				}
 			}
 
 			/* display return value */
-			if (!pat || !pat->smp) {
-				chunk_appendf(&trash, ", value=nothing");
-			}
-			else {
-				smp = pat->smp;
-				memcpy(&sample.data, &smp->data, sizeof(sample.data));
-				sample.type = smp->type;
-				if (sample_casts[sample.type][SMP_T_STR] &&
-				    sample_casts[sample.type][SMP_T_STR](&sample))
-					chunk_appendf(&trash, ", value=\"%s\", type=\"%s\"",
-					              sample.data.str.str, smp_to_type[smp->type]);
-				else
-					chunk_appendf(&trash, ", value=cannot-display, type=\"%s\"",
-					              smp_to_type[smp->type]);
+			if (appctx->ctx.map.display_flags == PAT_REF_MAP) {
+				if (!pat || !pat->smp) {
+					chunk_appendf(&trash, ", value=nothing");
+				}
+				else {
+					smp = pat->smp;
+					memcpy(&sample.data, &smp->data, sizeof(sample.data));
+					sample.type = smp->type;
+					if (sample_casts[sample.type][SMP_T_STR] &&
+					    sample_casts[sample.type][SMP_T_STR](&sample))
+						chunk_appendf(&trash, ", value=\"%s\", type=\"%s\"",
+						              sample.data.str.str, smp_to_type[smp->type]);
+					else
+						chunk_appendf(&trash, ", value=cannot-display, type=\"%s\"",
+						              smp_to_type[smp->type]);
+				}
 			}
 
 			chunk_appendf(&trash, "\n");
@@ -4974,7 +4963,8 @@ static int stats_map_lookup(struct stream_interface *si)
 			}
 
 			/* get next entry */
-			stats_map_lookup_next(si);
+			appctx->ctx.map.expr = pat_expr_get_next(appctx->ctx.map.expr,
+			                                         &appctx->ctx.map.ref->pat);
 		}
 
 		appctx->st2 = STAT_ST_FIN;
@@ -4987,7 +4977,7 @@ static int stats_map_lookup(struct stream_interface *si)
 	}
 }
 
-static int stats_map_list(struct stream_interface *si)
+static int stats_pat_list(struct stream_interface *si)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
 
@@ -4995,19 +4985,23 @@ static int stats_map_list(struct stream_interface *si)
 
 	case STAT_ST_INIT:
 		/* Init to the first entry. The list cannot be change */
-		appctx->ctx.map.ent = LIST_NEXT(&appctx->ctx.map.ref->entries,
-		                                struct map_entry *, list);
-		if (&appctx->ctx.map.ent->list == &appctx->ctx.map.ref->entries)
-			appctx->ctx.map.ent = NULL;
+		appctx->ctx.map.elt = LIST_NEXT(&appctx->ctx.map.ref->head,
+		                                struct pat_ref_elt *, list);
+		if (&appctx->ctx.map.elt->list == &appctx->ctx.map.ref->head)
+			appctx->ctx.map.elt = NULL;
 		appctx->st2 = STAT_ST_LIST;
 		/* fall through */
 
 	case STAT_ST_LIST:
-		while (appctx->ctx.map.ent) {
+		while (appctx->ctx.map.elt) {
 			chunk_reset(&trash);
 
 			/* build messages */
-			chunk_appendf(&trash, "%s %s\n", appctx->ctx.map.ent->key, appctx->ctx.map.ent->value);
+			if (appctx->ctx.map.elt->sample)
+				chunk_appendf(&trash, "%s %s\n",
+				              appctx->ctx.map.elt->pattern, appctx->ctx.map.elt->sample);
+			else
+				chunk_appendf(&trash, "%s\n", appctx->ctx.map.elt->pattern);
 
 			if (bi_putchk(si->ib, &trash) == -1) {
 				/* let's try again later from this session. We add ourselves into
@@ -5017,9 +5011,9 @@ static int stats_map_list(struct stream_interface *si)
 			}
 
 			/* get next list entry and check the end of the list */
-			appctx->ctx.map.ent = LIST_NEXT(&appctx->ctx.map.ent->list,
-			                                struct map_entry *, list);
-			if (&appctx->ctx.map.ent->list == &appctx->ctx.map.ref->entries)
+			appctx->ctx.map.elt = LIST_NEXT(&appctx->ctx.map.elt->list,
+			                                struct pat_ref_elt *, list);
+			if (&appctx->ctx.map.elt->list == &appctx->ctx.map.ref->head)
 				break;
 		}
 
@@ -5260,6 +5254,9 @@ static void cli_release_handler(struct stream_interface *si)
 	if (appctx->st0 == STAT_CLI_O_SESS && appctx->st2 == STAT_ST_LIST) {
 		if (!LIST_ISEMPTY(&appctx->ctx.sess.bref.users))
 			LIST_DEL(&appctx->ctx.sess.bref.users);
+	}
+	else if (appctx->st0 == STAT_CLI_O_MLOOK) {
+		free(appctx->ctx.map.chunk.str);
 	}
 }
 

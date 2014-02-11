@@ -17,25 +17,12 @@
 
 #include <types/global.h>
 #include <types/map.h>
+#include <types/pattern.h>
 
 #include <proto/arg.h>
 #include <proto/map.h>
 #include <proto/pattern.h>
 #include <proto/sample.h>
-
-struct list maps = LIST_HEAD_INIT(maps); /* list of struct map_reference */
-
-/* This function return existing map reference or return NULL. */
-struct map_reference *map_get_reference(const char *reference)
-{
-	struct map_reference *ref;
-
-	/* process the lookup */
-	list_for_each_entry(ref, &maps, list)
-		if (strcmp(ref->reference, reference) == 0)
-			return ref;
-	return NULL;
-}
 
 /* Parse an IPv4 address and store it into the sample.
  * The output type is IPV4.
@@ -105,63 +92,10 @@ int map_parse_int(const char *text, struct sample_storage *smp)
 	return 1;
 }
 
-/* This function creates and initializes a new map_reference entry. This
- * function only fails in case of a memory allocation issue, in which case
- * it returns NULL. <reference> here is a unique identifier for the map's
- * contents, typically the name of the file used to build the map.
- */
-static struct map_reference *map_create_reference(const char *reference)
-{
-	struct map_reference *ref;
-
-	/* create new entry */
-	ref = calloc(1, sizeof(*ref));
-	if (!ref)
-		return NULL;
-
-	ref->reference = strdup(reference);
-	if (!ref->reference)
-		return NULL;
-
-	LIST_INIT(&ref->entries);
-	LIST_INIT(&ref->maps);
-	LIST_ADDQ(&maps, &ref->list);
-
-	return ref;
-}
-
-/* This function just create new entry */
-static struct map_entry *map_create_entry(int line, char *key, char *value)
-{
-	struct map_entry *ent;
-
-	ent = calloc(1, sizeof(*ent));
-	if (!ent)
-		return NULL;
-
-	ent->line = line;
-
-	ent->key = strdup(key);
-	if (!ent->key) {
-		free(ent);
-		return NULL;
-	}
-
-	ent->value = strdup(value);
-	if (!ent->value) {
-		free(ent->key);
-		free(ent);
-		return NULL;
-	}
-
-	return ent;
-}
-
 /* This crete and initialize map descriptor.
  * Return NULL if out of memory error
  */
-static struct map_descriptor *map_create_descriptor(struct map_reference *ref,
-                                                    struct sample_conv *conv)
+static struct map_descriptor *map_create_descriptor(struct sample_conv *conv)
 {
 	struct map_descriptor *desc;
 
@@ -170,25 +104,8 @@ static struct map_descriptor *map_create_descriptor(struct map_reference *ref,
 		return NULL;
 
 	desc->conv = conv;
-	desc->ref = ref;
-
-	LIST_ADDQ(&ref->maps, &desc->list);
 
 	return desc;
-}
-
-/* This function just add entry into the list of pattern.
- * It can return false only in memory problem case
- */
-static int map_add_entry(struct map_reference *map, int line, char *key, char *value)
-{
-	struct map_entry *ent;
-
-	ent = map_create_entry(line, key, value);
-	if (!ent)
-		return 0;
-	LIST_ADDQ(&map->entries, &ent->list);
-	return 1;
 }
 
 /* Reads patterns from a file. If <err_msg> is non-NULL, an error message will
@@ -214,7 +131,7 @@ static int map_add_entry(struct map_reference *map, int line, char *key, char *v
  * Return non-zero in case of succes, otherwise 0.
  */
 static int map_read_entries_from_file(const char *filename,
-                                      struct map_reference *ref,
+                                      struct pat_ref *ref,
                                       char **err)
 {
 	FILE *file;
@@ -278,7 +195,7 @@ static int map_read_entries_from_file(const char *filename,
 		*value_end = '\0';
 
 		/* insert values */
-		if (!map_add_entry(ref, line, key_beg, value_beg)) {
+		if (!pat_ref_append(ref, key_beg, value_beg, line)) {
 			memprintf(err, "out of memory");
 			goto out_close;
 		}
@@ -292,41 +209,6 @@ static int map_read_entries_from_file(const char *filename,
 	return ret;
 }
 
-/* This function read the string entries of <ent>, parse it with
- * the <desc> methods, and strore the result into <desc> dummy ACL.
- * return 1 in succes case, else return 0 and <err> is filled.
- *
- * The acm parser use <pattern> for creating new pattern (list
- * of values case) or using the same pattern (tree index case).
- *
- * <patflags> must be PAT_F_*.
- */
-static int map_parse_and_index(struct map_descriptor *desc,
-                               struct map_entry *ent,
-                               int patflags,
-                               char **err)
-{
-	struct sample_storage *smp;
-
-	/* use new smp for storing value */
-	smp = calloc(1, sizeof(*smp));
-	if (!smp)
-		return 0;
-
-	/* first read and convert value */
-	if (!desc->pat->parse_smp(ent->value, smp)) {
-		memprintf(err, "parse value failed at line %d of file <%s>",
-		          ent->line, desc->ref->reference);
-		return 0;
-	}
-
-	/* register key */
-	if (!pattern_register(desc->pat, ent->key, smp, patflags, err))
-		return 0;
-
-	return 1;
-}
-
 /* This function load the map file according with data type declared into
  * the "struct sample_conv".
  *
@@ -335,100 +217,68 @@ static int map_parse_and_index(struct map_descriptor *desc,
  */
 static int sample_load_map(struct arg *arg, struct sample_conv *conv, char **err)
 {
-	struct map_reference *ref;
+	struct pat_ref *ref;
 	struct map_descriptor *desc;
-	struct map_entry *ent;
-	struct pattern_expr *pat = NULL;
+	struct pattern_expr *expr;
 
 	/* look for existing map reference. The reference is the
 	 * file encountered in the first argument. arg[0] with string
 	 * type is guaranteed by the parser.
+	 *
+	 * If the reference dosn't exists, create it and load file.
 	 */
-	ref = map_get_reference(arg[0].data.str.str);
-
-	/* The reference doesn't exist */
+	ref = pat_ref_lookup(arg[0].data.str.str);
 	if (!ref) {
-
-		/* create new reference entry */
-		ref = map_create_reference(arg[0].data.str.str);
+		ref = pat_ref_new(arg[0].data.str.str, PAT_REF_MAP);
 		if (!ref) {
 			memprintf(err, "out of memory");
 			return 0;
 		}
-
-		/* load the file */
 		if (!map_read_entries_from_file(arg[0].data.str.str, ref, err))
 			return 0;
 	}
 
-	/* look for identical existing map. Two maps are identical if
-	 * their in_type and out_type are the same. If is not found, pat
-	 * is NULL.
-	 */
-	else {
-		list_for_each_entry(desc, &ref->maps, list)
-			if (desc->conv->in_type == conv->in_type &&
-			    desc->conv->out_type == conv->out_type &&
-			    desc->conv->private == conv->private)
-				break;
-		if (&desc->list !=  &ref->maps)
-			pat = desc->pat;
-	}
-
 	/* create new map descriptor */
-	desc = map_create_descriptor(ref, conv);
+	desc = map_create_descriptor(conv);
 	if (!desc) {
 		memprintf(err, "out of memory");
 		return 0;
 	}
 
-	/* check the output parse method */
+	/* Initialize pattern */
+	pattern_init_head(&desc->pat);
+
+	/* This is original pattern, must free */
+	desc->do_free = 1;
+
+	/* Set the match method. */
+	desc->pat.match = pat_match_fcts[conv->private];
+	desc->pat.parse = pat_parse_fcts[conv->private];
+	desc->pat.index = pat_index_fcts[conv->private];
+	desc->pat.delete = pat_delete_fcts[conv->private];
+	desc->pat.prune = pat_prune_fcts[conv->private];
+	desc->pat.find_smp = pat_find_smp_fcts[conv->private];
+
+	/* Set the output parse method. */
 	switch (desc->conv->out_type) {
-	case SMP_T_STR:  desc->pat->parse_smp = map_parse_str;  break;
-	case SMP_T_UINT: desc->pat->parse_smp = map_parse_int;  break;
-	case SMP_T_IPV4: desc->pat->parse_smp = map_parse_ip;   break;
-	case SMP_T_IPV6: desc->pat->parse_smp = map_parse_ip6;  break;
+	case SMP_T_STR:  desc->pat.parse_smp = map_parse_str;  break;
+	case SMP_T_UINT: desc->pat.parse_smp = map_parse_int;  break;
+	case SMP_T_IPV4: desc->pat.parse_smp = map_parse_ip;   break;
+	case SMP_T_IPV6: desc->pat.parse_smp = map_parse_ip6;  break;
 	default:
 		memprintf(err, "map: internal haproxy error: no default parse case for the input type <%d>.",
 		          conv->out_type);
 		return 0;
 	}
 
-	/* If identical pattern is not found, initialize his own pattern */
-	if (!pat) {
+	/* Create new pattern expression for this reference. */
+	expr = pattern_new_expr(&desc->pat, ref, err);
+	if (!expr)
+		return 0;
 
-		desc->pat = calloc(1, sizeof(*desc->pat));
-		if (!desc->pat) {
-			memprintf(err, "out of memory");
-			return 0;
-		}
-
-		pattern_init_expr(desc->pat);
-
-		/* This is original pattern, must free */
-		desc->do_free = 1;
-
-		/* set the match method */
-		desc->pat->match = pat_match_fcts[conv->private];
-		desc->pat->parse = pat_parse_fcts[conv->private];
-		desc->pat->index = pat_index_fcts[conv->private];
-		desc->pat->delete = pat_delete_fcts[conv->private];
-		desc->pat->prune = pat_prune_fcts[conv->private];
-		desc->pat->find_smp = pat_find_smp_fcts[conv->private];
-
-		/* parse each line of the file */
-		list_for_each_entry(ent, &ref->entries, list)
-			if (!map_parse_and_index(desc, ent, 0, err))
-				return 0;
-	}
-
-	/* identical pattern found. Use reference to this pattern, and mark
-	 * the map_descriptor pattern as non freeable
-	 */
-	else {
-		desc->pat = pat;
-		desc->do_free = 0;
-	}
+	/* Load the reference content in the pattern expression. */
+	if (!pat_ref_load(ref, expr, 0, 1, err))
+		return 0;
 
 	/* The second argument is the default value */
 	if (arg[1].type == ARGT_STR) {
@@ -442,7 +292,7 @@ static int sample_load_map(struct arg *arg, struct sample_conv *conv, char **err
 			memprintf(err, "out of memory");
 			return 0;
 		}
-		if (!desc->pat->parse_smp(desc->default_value, desc->def)) {
+		if (!desc->pat.parse_smp(desc->default_value, desc->def)) {
 			memprintf(err, "Cannot parse default value");
 			return 0;
 		}
@@ -466,7 +316,7 @@ static int sample_conv_map(const struct arg *arg_p, struct sample *smp)
 	desc = arg_p[0].data.map;
 
 	/* Execute the match function. */
-	pat = pattern_exec_match(desc->pat, smp, 1);
+	pat = pattern_exec_match(&desc->pat, smp, 1);
 
 	/* Match case. */
 	if (pat) {

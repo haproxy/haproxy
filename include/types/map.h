@@ -22,7 +22,8 @@
 #ifndef _TYPES_MAP_H
 #define _TYPES_MAP_H
 
-#include <types/acl.h>
+#include <types/pattern.h>
+#include <types/sample.h>
 
 /* These structs contains a string representation of the map. These struct is
  * sorted by file. Permit to hot-add and hot-remove entries.
@@ -31,33 +32,10 @@
  */
 extern struct list maps;
 
-struct map_reference {
-	struct list list;    /* used for listing */
-	char *reference;     /* contain the unique identifier used as map identifier.
-	                        in many cases this identifier is the filename that contain
-	                        the patterns */
-	struct list entries; /* the list of all the entries of the map. This
-	                        is a list of "struct map_entry" */
-	struct list maps;    /* the list of all maps associated with the file
-	                        name identifier. This is a list of struct map_descriptor */
-};
-
-struct map_entry {
-	struct list list; /* used for listing */
-	int line;         /* The original line into the file. It is used for log reference.
-	                     If the line is '> 0', this entry is from the original load,
-	                     If the line is '< 0', this entry is modify by dynamux process (CLI) */
-	char *key;        /* The string containing the key before conversion
-	                     and indexation */
-	char *value;      /* The string containing the value */
-};
-
-struct sample_storage;
 struct map_descriptor {
 	struct list list;              /* used for listing */
-	struct map_reference *ref;     /* the reference used for unindexed entries */
 	struct sample_conv *conv;      /* original converter descriptor */
-	struct pattern_expr *pat;      /* the pattern matching associated to the map */
+	struct pattern_head pat;       /* the pattern matching associated to the map */
 	int do_free;                   /* set if <pat> is the orignal pat and must be freed */
 	char *default_value;           /* a copy of default value. This copy is
 	                                  useful if the type is str */

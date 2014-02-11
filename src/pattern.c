@@ -157,6 +157,9 @@ int pat_match_types[PAT_MATCH_NUM] = {
 /* this struct is used to return information */
 static struct pattern static_pattern;
 
+/* This is the root of the list of all pattern_ref avalaibles. */
+struct list pattern_reference = LIST_HEAD_INIT(pattern_reference);
+
 /*
  *
  * The following functions are not exported and are used by internals process
@@ -1000,13 +1003,6 @@ void pat_prune_reg(struct pattern_expr *expr)
 	LIST_INIT(&expr->patterns);
 }
 
-void pattern_init_expr(struct pattern_expr *expr)
-{
-	LIST_INIT(&expr->patterns);
-	expr->pattern_tree = EB_ROOT_UNIQUE;
-	expr->pattern_tree_2 = EB_ROOT_UNIQUE;
-}
-
 /*
  *
  * The following functions are used for the pattern indexation
@@ -1608,13 +1604,175 @@ void pat_del_list_reg(struct pattern_expr *expr, struct pattern *pattern)
 	}
 }
 
+void pattern_init_expr(struct pattern_expr *expr)
+{
+	LIST_INIT(&expr->patterns);
+	expr->pattern_tree = EB_ROOT_UNIQUE;
+	expr->pattern_tree_2 = EB_ROOT_UNIQUE;
+}
+
+void pattern_init_head(struct pattern_head *head)
+{
+	LIST_INIT(&head->head);
+}
+
+/* The following functions are relative to the management of the reference
+ * lists. These lists are used to store the original pattern and associated
+ * value as string form.
+ *
+ * This is used with modifiable ACL and MAPS
+ */
+
+/* This function lookup for reference. If the reference is found, they return
+ * pointer to the struct pat_ref, else return NULL.
+ */
+struct pat_ref *pat_ref_lookup(const char *reference)
+{
+	struct pat_ref *ref;
+
+	list_for_each_entry(ref, &pattern_reference, list)
+		if (strcmp(reference, ref->reference) == 0)
+			return ref;
+	return NULL;
+}
+
+/* This function remove all pattern match <key> from the the reference
+ * and from each expr member of the reference. This fucntion returns 1
+ * if the deletion is done and return 0 is the entry is not found.
+ */
+int pat_ref_delete(struct pat_ref *ref, const char *key)
+{
+	struct pattern_expr *expr;
+	struct pat_ref_elt *elt, *safe;
+	int found = 0;
+
+	/* delete pattern from reference */
+	list_for_each_entry_safe(elt, safe, &ref->head, list) {
+		if (strcmp(key, elt->pattern) == 0) {
+			LIST_DEL(&elt->list);
+			free(elt->sample);
+			free(elt->pattern);
+			free(elt);
+			found = 1;
+		}
+	}
+
+	if (!found)
+		return 0;
+
+	list_for_each_entry(expr, &ref->pat, listr)
+		pattern_delete(key, expr, NULL);
+
+	return 1;
+}
+
+/* This function modify the sample of the first pattern that match the <key>. */
+int pat_ref_set(struct pat_ref *ref, const char *key, const char *value)
+{
+	struct pattern_expr *expr;
+	struct pat_ref_elt *elt;
+	struct sample_storage **smp;
+	char *sample;
+	int found = 0;
+
+	/* modify pattern from reference */
+	list_for_each_entry(elt, &ref->head, list) {
+		if (strcmp(key, elt->pattern) == 0) {
+			sample = strdup(value);
+			if (!sample)
+				return 0;
+			free(elt->sample);
+			elt->sample = sample;
+			found = 1;
+			break;
+		}
+	}
+
+	if (!found)
+		return 0;
+
+	list_for_each_entry(expr, &ref->pat, listr) {
+		smp = pattern_find_smp(key, expr, NULL);
+		if (smp && expr->pat_head->parse_smp)
+			if (!expr->pat_head->parse_smp(value, *smp))
+				*smp = NULL;
+	}
+
+	return 1;
+}
+
+/* This function create new reference. <ref> is the reference name.
+ * <flags> are PAT_REF_*. /!\ The reference is not checked, and must
+ * be unique. The user must check the reference with "pat_ref_lookup()"
+ * before calling this function. If the fucntion fail, it return NULL,
+ * else return new struct pat_ref.
+ */
+struct pat_ref *pat_ref_new(const char *reference, unsigned int flags)
+{
+	struct pat_ref *ref;
+
+	ref = malloc(sizeof(*ref));
+	if (!ref)
+		return NULL;
+
+	ref->reference = strdup(reference);
+	if (!ref->reference) {
+		free(ref);
+		return NULL;
+	}
+
+	ref->flags = flags;
+	LIST_INIT(&ref->head);
+	LIST_INIT(&ref->pat);
+
+	LIST_ADDQ(&pattern_reference, &ref->list);
+
+	return ref;
+}
+
+/* This function adds entry to <ref>. It can failed with memory error.
+ * If the function fails, it returns 0.
+ */
+int pat_ref_append(struct pat_ref *ref, char *pattern, char *sample, int line)
+{
+	struct pat_ref_elt *elt;
+
+	elt = malloc(sizeof(*elt));
+	if (!elt)
+		return 0;
+
+	elt->line = line;
+
+	elt->pattern = strdup(pattern);
+	if (!elt->pattern) {
+		free(elt);
+		return 0;
+	}
+
+	if (sample) {
+		elt->sample = strdup(sample);
+		if (!elt->sample) {
+			free(elt->pattern);
+			free(elt);
+			return 0;
+		}
+	}
+	else
+		elt->sample = NULL;
+
+	LIST_ADDQ(&ref->head, &elt->list);
+
+	return 1;
+}
+
 /* return 1 if the process is ok
  * return -1 if the parser fail. The err message is filled.
  * return -2 if out of memory
  */
-int pattern_register(struct pattern_expr *expr, const char *arg,
-                     struct sample_storage *smp,
-                     int patflags, char **err)
+static inline
+int pattern_add(struct pattern_expr *expr, const char *arg,
+                struct sample_storage *smp,
+                int patflags, char **err)
 {
 	int ret;
 	struct pattern pattern;
@@ -1625,30 +1783,247 @@ int pattern_register(struct pattern_expr *expr, const char *arg,
 	pattern.smp = smp;
 
 	/* parse pattern */
-	ret = expr->parse(arg, &pattern, err);
+	ret = expr->pat_head->parse(arg, &pattern, err);
 	if (!ret)
 		return 0;
 
 	/* index pattern */
-	if (!expr->index(expr, &pattern, err))
+	if (!expr->pat_head->index(expr, &pattern, err))
 		return 0;
 
 	return 1;
 }
 
+/* This function create sample found in <elt>, parse the pattern also
+ * found in <elt> and insert it in <expr>. The function copy <patflags>
+ * in <expr>. If the function fails, it returns0 and <err> is filled.
+ * In succes case, the function returns 1.
+ */
+static inline
+int pat_ref_push(struct pat_ref_elt *elt, struct pattern_expr *expr,
+                 int patflags, char **err)
+{
+	int ret;
+	struct sample_storage *smp;
+
+	/* Create sample */
+	if (elt->sample && expr->pat_head->parse_smp) {
+		/* New sample. */
+		smp = malloc(sizeof(*smp));
+		if (!smp)
+			return 0;
+
+		/* Parse value. */
+		if (!expr->pat_head->parse_smp(elt->sample, smp)) {
+			memprintf(err, "unable to parse '%s'", elt->sample);
+			free(smp);
+			return 0;
+		}
+
+	}
+	else
+		smp = NULL;
+
+	/* Index value */
+	ret = pattern_add(expr, elt->pattern, smp, patflags, err);
+	if (ret != 1) {
+		free(smp);
+		if (ret == -2)
+			memprintf(err, "out of memory");
+		return 0;
+	}
+
+	return 1;
+}
+
+/* This function adds entry to <ref>. It can failed with memory error.
+ * The new entry is added at all the pattern_expr registered in this
+ * reference. The function stop on the first error encountered. It
+ * returns 0 and err is filled.
+ *
+ * If an error is encountered, The complete add operation is cancelled.
+ */
+int pat_ref_add(struct pat_ref *ref,
+                const char *pattern, const char *sample,
+                char **err)
+{
+	struct pat_ref_elt *elt;
+	struct pattern_expr *expr;
+
+	elt = malloc(sizeof(*elt));
+	if (!elt) {
+		memprintf(err, "out of memory error");
+		return 0;
+	}
+
+	elt->line = -1;
+
+	elt->pattern = strdup(pattern);
+	if (!elt->pattern) {
+		free(elt);
+		memprintf(err, "out of memory error");
+		return 0;
+	}
+
+	if (sample) {
+		elt->sample = strdup(sample);
+		if (!elt->sample) {
+			free(elt->pattern);
+			free(elt);
+			memprintf(err, "out of memory error");
+			return 0;
+		}
+	}
+	else
+		elt->sample = NULL;
+
+	LIST_ADDQ(&ref->head, &elt->list);
+
+	list_for_each_entry(expr, &ref->pat, listr) {
+		if (!pat_ref_push(elt, expr, 0, err)) {
+			/* Try to delete all the added entries. */
+			pat_ref_delete(ref, pattern);
+			return 0;
+		}
+	}
+
+	return 1;
+}
+
+/* This function prune all entries of <ref>. This function
+ * prune the associated pattern_expr.
+ */
+void pat_ref_prune(struct pat_ref *ref)
+{
+	struct pat_ref_elt *elt, *safe;
+	struct pattern_expr *expr;
+
+	list_for_each_entry_safe(elt, safe, &ref->head, list) {
+		LIST_DEL(&elt->list);
+		free(elt->pattern);
+		free(elt->sample);
+		free(elt);
+	}
+
+	list_for_each_entry(expr, &ref->pat, listr)
+		expr->pat_head->prune(expr);
+}
+
+/* This function browse <ref> and try to index each entries in the <expr>.
+ * If the flag <soe> (stop on error) is set, this function stop on the first
+ * error, <err> is filled and return 0. If is not set, the function try to
+ * load each entries and 1 is always returned.
+ */
+int pat_ref_load(struct pat_ref *ref, struct pattern_expr *expr,
+                 int patflags, int soe, char **err)
+{
+	struct pat_ref_elt *elt;
+
+	list_for_each_entry(elt, &ref->head, list) {
+		if (soe && !pat_ref_push(elt, expr, patflags, err)) {
+			if (elt->line > 0)
+				memprintf(err, "%s at line %d of file '%s'",
+				          *err, elt->line, ref->reference);
+			return 0;
+		}
+	}
+	return 1;
+}
+
+/* This function lookup for existing reference <ref> in pattern_head <head>. */
+struct pattern_expr *pattern_lookup_expr(struct pattern_head *head, struct pat_ref *ref)
+{
+	struct pattern_expr *expr;
+
+	list_for_each_entry(expr, &head->head, listh)
+		if (expr->ref == ref)
+			return expr;
+	return NULL;
+}
+
+/* This function create new pattern_expr associated to the reference <ref>.
+ * <ref> can be NULL. If an error is occured, the function returns NULL and
+ * <err> is filled. Otherwise, the function returns new pattern_expr linked
+ * with <head> and <ref>.
+ */
+struct pattern_expr *pattern_new_expr(struct pattern_head *head, struct pat_ref *ref, char **err)
+{
+	struct pattern_expr *expr;
+
+	/* A lot of memory. */
+	expr = malloc(sizeof(*expr));
+	if (!expr) {
+		memprintf(err, "out of memory");
+		return NULL;
+	}
+
+	pattern_init_expr(expr);
+
+	/* Link with the pattern_head. */
+	LIST_ADDQ(&head->head, &expr->listh);
+	expr->pat_head = head;
+
+	/* Link with ref, or to self to facilitate LIST_DEL() */
+	if (ref)
+		LIST_ADDQ(&ref->pat, &expr->listr);
+	else
+		LIST_INIT(&expr->listr);
+
+	expr->ref = ref;
+	return expr;
+}
+
+/* return 1 if the process is ok
+ * return -1 if the parser fail. The err message is filled.
+ * return -2 if out of memory
+ */
+int pattern_register(struct pattern_head *head,
+                     char *reference, int refflags,
+                     const char *arg,
+                     struct sample_storage *smp,
+                     int patflags, char **err)
+{
+	struct pattern_expr *expr;
+	struct pat_ref *ref;
+
+	/* If reference is set, look up for existing reference. If the
+	 * reference is not found, create it.
+	 */
+	if (reference) {
+		ref = pat_ref_lookup(reference);
+		if (!ref) {
+			ref = pat_ref_new(reference, refflags);
+			if (!ref) {
+				memprintf(err, "out of memory");
+				return 0;
+			}
+		}
+	}
+	else
+		ref = NULL;
+
+	/* look for reference or create it */
+	expr = pattern_lookup_expr(head, ref);
+	if (!expr) {
+		expr = pattern_new_expr(head, ref, err);
+		if (!expr)
+			return 0;
+	}
+
+	/* Index value. */
+	return pattern_add(expr, arg, smp, patflags, err);
+}
+
 /* Reads patterns from a file. If <err_msg> is non-NULL, an error message will
  * be returned there on errors and the caller will have to free it.
  */
-int pattern_read_from_file(struct pattern_expr *expr,
-                                const char *filename, int patflags,
-                                char **err)
+int pat_ref_read_from_file(struct pat_ref *ref, const char *filename, char **err)
 {
 	FILE *file;
 	char *c;
 	char *arg;
 	int ret = 0;
 	int line = 0;
-	int code;
 
 	file = fopen(filename, "r");
 	if (!file) {
@@ -1682,13 +2057,8 @@ int pattern_read_from_file(struct pattern_expr *expr,
 		if (c == arg)
 			continue;
 
-		code = pattern_register(expr, arg, NULL, patflags, err);
-		if (code == -2) {
+		if (!pat_ref_append(ref, arg, NULL, line)) {
 			memprintf(err, "out of memory when loading patterns from file <%s>", filename);
-			goto out_close;
-		}
-		else if (code < 0) {
-			memprintf(err, "%s when loading patterns from file <%s>", *err, filename);
 			goto out_close;
 		}
 	}
@@ -1700,15 +2070,59 @@ int pattern_read_from_file(struct pattern_expr *expr,
 	return ret;
 }
 
+int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
+                           const char *filename, int patflags,
+                           char **err)
+{
+	struct pat_ref *ref;
+	struct pattern_expr *expr;
+
+	/* Look for existing reference. If the reference doesn't exists,
+	 * create it and load file.
+	 */
+	ref = pat_ref_lookup(filename);
+	if (!ref) {
+		ref = pat_ref_new(filename, refflags);
+		if (!ref) {
+			memprintf(err, "out of memory");
+			return 0;
+		}
+
+		if (!pat_ref_read_from_file(ref, filename, err))
+			return 0;
+	}
+
+	/* Now, we can loading patterns from the reference. */
+
+	/* Lookup for existing reference in the head. If the reference
+	 * doesn't exists, create it.
+	 */
+	expr = pattern_lookup_expr(head, ref);
+	if (!expr) {
+		expr = pattern_new_expr(head, ref, err);
+		if (!expr)
+			return 0;
+	}
+
+	/* Load reference content in expression. */
+	if (!pat_ref_load(ref, expr, patflags, 1, err))
+		return 0;
+
+	return 1;
+}
+
 /* This function executes a pattern match on a sample. It applies pattern <expr>
  * to sample <smp>. The function returns NULL if the sample dont match. It returns
  * non-null if the sample match. If <fill> is true and the sample match, the
  * function returns the matched pattern. In many cases, this pattern can be a
  * static buffer.
  */
-struct pattern *pattern_exec_match(struct pattern_expr *expr, struct sample *smp, int fill)
+struct pattern *pattern_exec_match(struct pattern_head *head, struct sample *smp, int fill)
 {
-	if (!expr->match) {
+	struct pattern_expr *expr;
+	struct pattern *pat;
+
+	if (!head->match) {
 		if (fill) {
 			static_pattern.smp = NULL;
 			static_pattern.flags = 0;
@@ -1717,13 +2131,26 @@ struct pattern *pattern_exec_match(struct pattern_expr *expr, struct sample *smp
 		}
 		return &static_pattern;
 	}
-	return expr->match(smp, expr, fill);
+
+	list_for_each_entry(expr, &head->head, listh) {
+		pat = head->match(smp, expr, fill);
+		if (pat)
+			return pat;
+	}
+	return NULL;
 }
 
 /* This function prune the pattern expression. */
-void pattern_prune(struct pattern_expr *expr)
+void pattern_prune(struct pattern_head *head)
 {
-	expr->prune(expr);
+	struct pattern_expr *expr, *safe;
+
+	list_for_each_entry_safe(expr, safe, &head->head, listh) {
+		LIST_DEL(&expr->listh);
+		LIST_DEL(&expr->listr);
+		head->prune(expr);
+		free(expr);
+	}
 }
 
 /* This function lookup for a pattern matching the <key> and return a
@@ -1735,9 +2162,9 @@ struct sample_storage **pattern_find_smp(const char *key, struct pattern_expr *e
 {
 	struct pattern pattern;
 
-	if (!expr->parse(key, &pattern, err))
+	if (!expr->pat_head->parse(key, &pattern, err))
 		return NULL;
-	return expr->find_smp(expr, &pattern);
+	return expr->pat_head->find_smp(expr, &pattern);
 }
 
 /* This function search all the pattern matching the <key> and delete it.
@@ -1748,8 +2175,8 @@ int pattern_delete(const char *key, struct pattern_expr *expr, char **err)
 {
 	struct pattern pattern;
 
-	if (!expr->parse(key, &pattern, err))
+	if (!expr->pat_head->parse(key, &pattern, err))
 		return 0;
-	expr->delete(expr, &pattern);
+	expr->pat_head->delete(expr, &pattern);
 	return 1;
 }

@@ -122,7 +122,7 @@ struct acl_kw_list {
  */
 struct acl_expr {
 	struct sample_expr *smp;      /* the sample expression we depend on */
-	struct pattern_expr pat;      /* the pattern matching expression */
+	struct pattern_head pat;      /* the pattern matching expression */
 	struct list list;             /* chaining */
 	const char *kw;               /* points to the ACL kw's name or fetch's name (must not free) */
 };
