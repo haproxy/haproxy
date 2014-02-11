@@ -678,7 +678,7 @@ sample_cast_fct sample_casts[SMP_TYPES][SMP_TYPES] = {
  * Returns a pointer on allocated sample expression structure.
  * The caller must have set al->ctx.
  */
-struct sample_expr *sample_parse_expr(char **str, int *idx, char **err_msg, struct arg_list *al)
+struct sample_expr *sample_parse_expr(char **str, int *idx, const char *file, int line, char **err_msg, struct arg_list *al)
 {
 	const char *begw; /* beginning of word */
 	const char *endw; /* end of word */
@@ -862,7 +862,7 @@ struct sample_expr *sample_parse_expr(char **str, int *idx, char **err_msg, stru
 			if (!conv_expr->arg_p)
 				conv_expr->arg_p = empty_arg_list;
 
-			if (conv->val_args && !conv->val_args(conv_expr->arg_p, conv, err_msg)) {
+			if (conv->val_args && !conv->val_args(conv_expr->arg_p, conv, file, line, err_msg)) {
 				memprintf(err_msg, "invalid args in conv method '%s' : %s", ckw, *err_msg);
 				goto out_error;
 			}

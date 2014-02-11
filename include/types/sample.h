@@ -265,6 +265,7 @@ struct sample_conv {
 	unsigned int arg_mask;                    /* arguments (ARG*()) */
 	int (*val_args)(struct arg *arg_p,
 	                struct sample_conv *smp_conv,
+	                const char *file, int line,
 			char **err_msg);          /* argument validation function */
 	unsigned int in_type;                     /* expected input sample type */
 	unsigned int out_type;                    /* output sample type */

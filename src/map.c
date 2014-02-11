@@ -114,7 +114,8 @@ static struct map_descriptor *map_create_descriptor(struct sample_conv *conv)
  * This function choose the indexation type (ebtree or list) according with
  * the type of match needed.
  */
-static int sample_load_map(struct arg *arg, struct sample_conv *conv, char **err)
+static int sample_load_map(struct arg *arg, struct sample_conv *conv,
+                           const char *file, int line, char **err)
 {
 	struct map_descriptor *desc;
 
@@ -157,7 +158,7 @@ static int sample_load_map(struct arg *arg, struct sample_conv *conv, char **err
 
 	/* Load map. */
 	if (!pattern_read_from_file(&desc->pat, PAT_REF_MAP, arg[0].data.str.str, 0,
-	                            1, err, trash.str))
+	                            1, err, trash.str, file, line))
 		return 0;
 
 	/* The second argument is the default value */

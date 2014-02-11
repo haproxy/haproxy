@@ -3212,7 +3212,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		curproxy->conf.args.ctx = ARGC_STK;
-		expr = sample_parse_expr(args, &myidx, &errmsg, &curproxy->conf.args);
+		expr = sample_parse_expr(args, &myidx, file, linenum, &errmsg, &curproxy->conf.args);
 		if (!expr) {
 			Alert("parsing [%s:%d] : '%s': %s\n", file, linenum, args[0], errmsg);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -7088,7 +7088,7 @@ out_uri_auth_compat:
 			curproxy->conf.args.file = curproxy->conf.lfs_file;
 			curproxy->conf.args.line = curproxy->conf.lfs_line;
 			parse_logformat_string(curproxy->conf.logformat_string, curproxy, &curproxy->logformat, LOG_OPT_MANDATORY,
-					       SMP_VAL_FE_LOG_END);
+					       SMP_VAL_FE_LOG_END, curproxy->conf.lfs_file, curproxy->conf.lfs_line);
 			curproxy->conf.args.file = NULL;
 			curproxy->conf.args.line = 0;
 		}
@@ -7098,7 +7098,8 @@ out_uri_auth_compat:
 			curproxy->conf.args.file = curproxy->conf.uif_file;
 			curproxy->conf.args.line = curproxy->conf.uif_line;
 			parse_logformat_string(curproxy->conf.uniqueid_format_string, curproxy, &curproxy->format_unique_id, LOG_OPT_HTTP,
-					       (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR);
+					       (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
+					       curproxy->conf.uif_file, curproxy->conf.uif_line);
 			curproxy->conf.args.file = NULL;
 			curproxy->conf.args.line = 0;
 		}

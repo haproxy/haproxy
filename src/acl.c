@@ -323,7 +323,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 				if (!conv_expr->arg_p)
 					conv_expr->arg_p = empty_arg_list;
 
-				if (conv->val_args && !conv->val_args(conv_expr->arg_p, conv, err)) {
+				if (conv->val_args && !conv->val_args(conv_expr->arg_p, conv, file, line, err)) {
 					memprintf(err, "ACL keyword '%s' : invalid args in conv method '%s' : %s.",
 						  aclkw->kw, ckw, *err);
 					goto out_free_smp;
@@ -342,7 +342,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		 * so, we retrieve a completely parsed expression with args and
 		 * convs already done.
 		 */
-		smp = sample_parse_expr((char **)args, &idx, err, al);
+		smp = sample_parse_expr((char **)args, &idx, file, line, err, al);
 		if (!smp) {
 			memprintf(err, "%s in ACL expression '%s'", *err, *args);
 			goto out_return;
@@ -453,7 +453,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			snprintf(trash.str, trash.size, "acl(s) loaded from file '%s'", args[1]);
 			trash.str[trash.size - 1] = '\0';
 
-			if (!pattern_read_from_file(&expr->pat, PAT_REF_ACL, args[1], patflags | PAT_F_FROM_FILE, load_as_map, err, trash.str))
+			if (!pattern_read_from_file(&expr->pat, PAT_REF_ACL, args[1], patflags | PAT_F_FROM_FILE, load_as_map, err, trash.str, file, line))
 				goto out_free_expr;
 			is_loaded = 1;
 			args++;

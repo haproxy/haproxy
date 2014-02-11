@@ -1972,7 +1972,8 @@ int pat_ref_read_from_file(struct pat_ref *ref, const char *filename, char **err
 
 int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
                            const char *filename, int patflags, int load_smp,
-                           char **err, const char *display)
+                           char **err, const char *display, const char *file,
+                           int line)
 {
 	struct pat_ref *ref;
 	struct pattern_expr *expr;

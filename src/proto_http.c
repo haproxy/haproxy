@@ -8503,7 +8503,8 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 
 		proxy->conf.args.ctx = ARGC_HRQ;
 		parse_logformat_string(args[cur_arg + 1], proxy, &rule->arg.hdr_add.fmt, LOG_OPT_HTTP,
-				       (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR);
+				       (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
+				       file, linenum);
 		free(proxy->conf.lfs_file);
 		proxy->conf.lfs_file = strdup(proxy->conf.args.file);
 		proxy->conf.lfs_line = proxy->conf.args.line;
@@ -8674,7 +8675,8 @@ struct http_res_rule *parse_http_res_cond(const char **args, const char *file, i
 
 		proxy->conf.args.ctx = ARGC_HRS;
 		parse_logformat_string(args[cur_arg + 1], proxy, &rule->arg.hdr_add.fmt, LOG_OPT_HTTP,
-				       (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR);
+				       (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR,
+				       file, linenum);
 		free(proxy->conf.lfs_file);
 		proxy->conf.lfs_file = strdup(proxy->conf.args.file);
 		proxy->conf.lfs_line = proxy->conf.args.line;
@@ -8830,7 +8832,8 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 		proxy->conf.args.ctx = ARGC_RDR;
 		if (!(type == REDIRECT_TYPE_PREFIX && destination[0] == '/' && destination[1] == '\0')) {
 			parse_logformat_string(destination, curproxy, &rule->rdr_fmt, LOG_OPT_HTTP,
-			                       (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR);
+			                       (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
+					       file, linenum);
 			free(curproxy->conf.lfs_file);
 			curproxy->conf.lfs_file = strdup(curproxy->conf.args.file);
 			curproxy->conf.lfs_line = curproxy->conf.args.line;

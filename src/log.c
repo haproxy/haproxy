@@ -338,7 +338,7 @@ void add_to_logformat_list(char *start, char *end, int type, struct list *list_f
  * success. At the moment, sample converters are not yet supported but fetch arguments
  * should work. The curpx->conf.args.ctx must be set by the caller.
  */
-void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct proxy *curpx, struct list *list_format, int options, int cap)
+void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct proxy *curpx, struct list *list_format, int options, int cap, const char *file, int line)
 {
 	char *cmd[2];
 	struct sample_expr *expr;
@@ -350,7 +350,7 @@ void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct pro
 	cmd[1] = "";
 	cmd_arg = 0;
 
-	expr = sample_parse_expr(cmd, &cmd_arg, &errmsg, &curpx->conf.args);
+	expr = sample_parse_expr(cmd, &cmd_arg, file, line, &errmsg, &curpx->conf.args);
 	if (!expr) {
 		Warning("parsing [%s:%d] : '%s' : sample fetch <%s> failed with : %s\n",
 		        curpx->conf.args.file, curpx->conf.args.line, fmt_directive(curpx),
@@ -403,7 +403,7 @@ void add_sample_to_logformat_list(char *text, char *arg, int arg_len, struct pro
  *  options: LOG_OPT_* to force on every node
  *  cap: all SMP_VAL_* flags supported by the consumer
  */
-void parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list *list_format, int options, int cap)
+void parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list *list_format, int options, int cap, const char *file, int line)
 {
 	char *sp, *str, *backfmt; /* start pointer for text parts */
 	char *arg = NULL; /* start pointer for args */
@@ -522,7 +522,7 @@ void parse_logformat_string(const char *fmt, struct proxy *curproxy, struct list
 				parse_logformat_var(arg, arg_len, var, var_len, curproxy, list_format, &options);
 				break;
 			case LF_STEXPR:
-				add_sample_to_logformat_list(var, arg, arg_len, curproxy, list_format, options, cap);
+				add_sample_to_logformat_list(var, arg, arg_len, curproxy, list_format, options, cap, file, line);
 				break;
 			case LF_TEXT:
 			case LF_SEPARATOR:
