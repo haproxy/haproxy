@@ -809,7 +809,7 @@ int cidr2dotted(int cidr, struct in_addr *mask) {
  * is optionnal and either in the dotted or CIDR notation.
  * Note: "addr" can also be a hostname. Returns 1 if OK, 0 if error.
  */
-int str2net(const char *str, struct in_addr *addr, struct in_addr *mask)
+int str2net(const char *str, int resolve, struct in_addr *addr, struct in_addr *mask)
 {
 	__label__ out_free, out_err;
 	char *c, *s;
@@ -833,6 +833,9 @@ int str2net(const char *str, struct in_addr *addr, struct in_addr *mask)
 	}
 	if (!inet_pton(AF_INET, s, addr)) {
 		struct hostent *he;
+
+		if (!resolve)
+			goto out_err;
 
 		if ((he = gethostbyname(s)) == NULL) {
 			goto out_err;

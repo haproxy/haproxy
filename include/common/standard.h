@@ -248,7 +248,7 @@ int cidr2dotted(int cidr, struct in_addr *mask);
  * is optionnal and either in the dotted or CIDR notation.
  * Note: "addr" can also be a hostname. Returns 1 if OK, 0 if error.
  */
-int str2net(const char *str, struct in_addr *addr, struct in_addr *mask);
+int str2net(const char *str, int resolve, struct in_addr *addr, struct in_addr *mask);
 
 /*
  * converts <str> to two struct in6_addr* which must be pre-allocated.

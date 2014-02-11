@@ -2198,7 +2198,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		goto out;
 	}
 	else if (!strcmp(args[0], "monitor-net")) {  /* set the range of IPs to ignore */
-		if (!*args[1] || !str2net(args[1], &curproxy->mon_net, &curproxy->mon_mask)) {
+		if (!*args[1] || !str2net(args[1], 1, &curproxy->mon_net, &curproxy->mon_mask)) {
 			Alert("parsing [%s:%d] : '%s' expects address[/mask].\n",
 			      file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
@@ -3928,7 +3928,7 @@ stats_error_parsing:
 			while (*(args[cur_arg])) {
 				if (!strcmp(args[cur_arg], "except")) {
 					/* suboption except - needs additional argument for it */
-					if (!*(args[cur_arg+1]) || !str2net(args[cur_arg+1], &curproxy->except_net, &curproxy->except_mask)) {
+					if (!*(args[cur_arg+1]) || !str2net(args[cur_arg+1], 1, &curproxy->except_net, &curproxy->except_mask)) {
 						Alert("parsing [%s:%d] : '%s %s %s' expects <address>[/mask] as argument.\n",
 						      file, linenum, args[0], args[1], args[cur_arg]);
 						err_code |= ERR_ALERT | ERR_FATAL;
@@ -3979,7 +3979,7 @@ stats_error_parsing:
 			while (*(args[cur_arg])) {
 				if (!strcmp(args[cur_arg], "except")) {
 					/* suboption except - needs additional argument for it */
-					if (!*(args[cur_arg+1]) || !str2net(args[cur_arg+1], &curproxy->except_to, &curproxy->except_mask_to)) {
+					if (!*(args[cur_arg+1]) || !str2net(args[cur_arg+1], 1, &curproxy->except_to, &curproxy->except_mask_to)) {
 						Alert("parsing [%s:%d] : '%s %s %s' expects <address>[/mask] as argument.\n",
 						      file, linenum, args[0], args[1], args[cur_arg]);
 						err_code |= ERR_ALERT | ERR_FATAL;
