@@ -4990,12 +4990,6 @@ static int stats_map_lookup(struct stream_interface *si)
 				else
 					chunk_appendf(&trash, ", case=sensitive");
 
-				/* display source */
-				if (pat->flags & PAT_F_FROM_FILE)
-					chunk_appendf(&trash, ", src=file");
-				else
-					chunk_appendf(&trash, ", src=conf");
-
 				/* display pattern */
 				if (appctx->ctx.map.display_flags == PAT_REF_MAP) {
 					if (pat->ref && pat->ref->pattern)

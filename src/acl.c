@@ -449,7 +449,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 				goto out_free_expr;
 			}
 
-			if (!pattern_read_from_file(&expr->pat, PAT_REF_ACL, args[1], patflags | PAT_F_FROM_FILE, load_as_map, err, file, line))
+			if (!pattern_read_from_file(&expr->pat, PAT_REF_ACL, args[1], patflags, load_as_map, err, file, line))
 				goto out_free_expr;
 			is_loaded = 1;
 			args++;

@@ -64,8 +64,7 @@ enum pat_match_res {
 /* possible flags for expressions or patterns */
 enum {
 	PAT_F_IGNORE_CASE = 1 << 0,       /* ignore case */
-	PAT_F_FROM_FILE   = 1 << 1,       /* pattern comes from a file */
-	PAT_F_TREE        = 1 << 2,       /* some patterns are arranged in a tree */
+	PAT_F_TREE        = 1 << 1,       /* some patterns are arranged in a tree */
 };
 
 /* ACL match methods */
