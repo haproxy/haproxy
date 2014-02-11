@@ -65,6 +65,7 @@ enum pat_match_res {
 enum {
 	PAT_F_IGNORE_CASE = 1 << 0,       /* ignore case */
 	PAT_F_TREE        = 1 << 1,       /* some patterns are arranged in a tree */
+	PAT_F_NO_DNS      = 1 << 2,       /* dont perform any DNS requests */
 };
 
 /* ACL match methods */

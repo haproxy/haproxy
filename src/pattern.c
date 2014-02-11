@@ -405,7 +405,7 @@ int pat_parse_dotted_ver(const char *text, struct pattern *pattern, char **err)
  */
 int pat_parse_ip(const char *text, struct pattern *pattern, char **err)
 {
-	if (str2net(text, global.mode & MODE_STARTING,
+	if (str2net(text, !(pattern->flags & PAT_F_NO_DNS) && (global.mode & MODE_STARTING),
 	            &pattern->val.ipv4.addr, &pattern->val.ipv4.mask)) {
 		pattern->type = SMP_T_IPV4;
 		return 1;

@@ -428,6 +428,8 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	while (**args == '-') {
 		if ((*args)[1] == 'i')
 			patflags |= PAT_F_IGNORE_CASE;
+		else if ((*args)[1] == 'n')
+			patflags |= PAT_F_NO_DNS;
 		else if ((*args)[1] == 'u') {
 			unique_id = strtol(args[1], &error, 10);
 			if (*error != '\0') {
