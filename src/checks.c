@@ -2091,7 +2091,6 @@ static void tcpcheck_main(struct connection *conn)
 #ifdef USE_OPENSSL
 			if (check->current_step->conn_opts & TCPCHK_OPT_SSL) {
 				xprt = &ssl_sock;
-				ssl_sock_prepare_srv_ctx(s, s->proxy);
 			}
 			else {
 				xprt = &raw_sock;
