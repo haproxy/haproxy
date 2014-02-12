@@ -151,8 +151,11 @@ struct global global = {
 		.zlibwindowsize = MAX_WBITS,
 #endif
 		.comp_maxlevel = 1,
-
-
+#ifdef DEFAULT_IDLE_TIMER
+		.idle_timer = DEFAULT_IDLE_TIMER,
+#else
+		.idle_timer = 1000, /* 1 second */
+#endif
 	},
 #ifdef USE_OPENSSL
 #ifdef DEFAULT_MAXSSLCONN

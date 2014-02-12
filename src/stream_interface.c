@@ -1097,7 +1097,8 @@ static void si_conn_recv_cb(struct connection *conn)
 	cur_read = 0;
 
 	if ((chn->flags & (CF_STREAMER | CF_STREAMER_FAST)) && !chn->buf->o &&
-	    (unsigned short)(now_ms - chn->last_read) >= 1000) {
+	    global.tune.idle_timer &&
+	    (unsigned short)(now_ms - chn->last_read) >= global.tune.idle_timer) {
 		/* The buffer was empty and nothing was transferred for more
 		 * than one second. This was caused by a pause and not by
 		 * congestion. Reset any streaming mode to reduce latency.

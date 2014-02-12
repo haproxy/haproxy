@@ -135,6 +135,7 @@ struct global {
 		int zlibwindowsize;  /* zlib window size */
 #endif
 		int comp_maxlevel;    /* max HTTP compression level */
+		unsigned short idle_timer; /* how long before an empty buffer is considered idle (ms) */
 	} tune;
 	struct {
 		char *prefix;           /* path prefix of unix bind socket */

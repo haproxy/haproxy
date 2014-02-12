@@ -618,6 +618,31 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		if (global.tune.maxrewrite >= global.tune.bufsize / 2)
 			global.tune.maxrewrite = global.tune.bufsize / 2;
 	}
+	else if (!strcmp(args[0], "tune.idletimer")) {
+		unsigned int idle;
+		const char *res;
+
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects a timer value between 0 and 65535 ms.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		res = parse_time_err(args[1], &idle, TIME_UNIT_MS);
+		if (res) {
+			Alert("parsing [%s:%d]: unexpected character '%c' in argument to <%s>.\n",
+			      file, linenum, *res, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if (idle > 65535) {
+			Alert("parsing [%s:%d] : '%s' expects a timer value between 0 and 65535 ms.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		global.tune.idle_timer = idle;
+	}
 	else if (!strcmp(args[0], "tune.rcvbuf.client")) {
 		if (global.tune.client_rcvbuf != 0) {
 			Alert("parsing [%s:%d] : '%s' already specified. Continuing.\n", file, linenum, args[0]);

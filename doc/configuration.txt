@@ -481,6 +481,7 @@ The following keywords are supported in the "global" section :
    - tune.comp.maxlevel
    - tune.http.cookielen
    - tune.http.maxhdr
+   - tune.idletimer
    - tune.maxaccept
    - tune.maxpollevents
    - tune.maxrewrite
@@ -863,6 +864,17 @@ tune.http.maxhdr <number>
   new header consumes 32bits of memory for each session, so don't push this
   limit too high.
 
+tune.idletimer <timeout>
+  Sets the duration after which haproxy will consider that an empty buffer is
+  probably associated with an idle stream. This is used to optimally adjust
+  some packet sizes while forwarding large and small data alternatively. The
+  decision to use splice() or to send large buffers in SSL is modulated by this
+  parameter. The value is in milliseconds between 0 and 65535. A value of zero
+  means that haproxy will not try to detect idle streams. The default is 1000,
+  which seems to correctly detect end user pauses (eg: read a page before
+  clicking). There should be not reason for changing this value. Please check
+  tune.ssl.maxrecord below.
+
 tune.maxaccept <number>
   Sets the maximum number of consecutive connections a process may accept in a
   row before switching to other work. In single process mode, higher numbers
@@ -957,7 +969,8 @@ tune.ssl.maxrecord <number>
   Ethernet with TCP timestamps enabled, or 1460 when timestamps are disabled),
   keeping in mind that SSL/TLS add some overhead. Typical values of 1419 and
   2859 gave good results during tests. Use "strace -e trace=write" to find the
-  best value.
+  best value. Haproxy will automatically switch to this setting after an idle
+  stream has been detected (see tune.idletimer above).
 
 tune.zlib.memlevel <number>
   Sets the memLevel parameter in zlib initialization for each session. It
