@@ -192,17 +192,21 @@ static int ssl_sock_advertise_npn_protos(SSL *s, const unsigned char **data,
 }
 #endif
 
-#ifdef OPENSSL_ALPN_NEGOTIATED
+#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
 /* This callback is used so that the server advertises the list of
  * negociable protocols for ALPN.
  */
-static int ssl_sock_advertise_alpn_protos(SSL *s, const unsigned char **data,
-                                          unsigned int *len, void *arg)
+static int ssl_sock_advertise_alpn_protos(SSL *s, const unsigned char **out,
+                                          unsigned char *outlen,
+                                          const unsigned char *server,
+                                          unsigned int server_len, void *arg)
 {
 	struct bind_conf *conf = arg;
 
-	*data = (const unsigned char *)conf->alpn_str;
-	*len = conf->alpn_len;
+	if (SSL_select_next_proto((unsigned char**) out, outlen, (const unsigned char *)conf->alpn_str,
+	                          conf->alpn_len, server, server_len) != OPENSSL_NPN_NEGOTIATED) {
+		return SSL_TLSEXT_ERR_NOACK;
+	}
 	return SSL_TLSEXT_ERR_OK;
 }
 #endif
@@ -782,9 +786,9 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 	if (bind_conf->npn_str)
 		SSL_CTX_set_next_protos_advertised_cb(ctx, ssl_sock_advertise_npn_protos, bind_conf);
 #endif
-#ifdef OPENSSL_ALPN_NEGOTIATED
+#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
 	if (bind_conf->alpn_str)
-		SSL_CTX_set_alpn_advertised_cb(ctx, ssl_sock_advertise_alpn_protos, bind_conf);
+		SSL_CTX_set_alpn_select_cb(ctx, ssl_sock_advertise_alpn_protos, bind_conf);
 #endif
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
@@ -2673,7 +2677,7 @@ smp_fetch_ssl_fc_npn(struct proxy *px, struct session *l4, void *l7, unsigned in
 }
 #endif
 
-#ifdef OPENSSL_ALPN_NEGOTIATED
+#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
 static int
 smp_fetch_ssl_fc_alpn(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                       const struct arg *args, struct sample *smp, const char *kw)
@@ -2691,7 +2695,7 @@ smp_fetch_ssl_fc_alpn(struct proxy *px, struct session *l4, void *l7, unsigned i
 		return 0;
 
 	smp->data.str.str = NULL;
-	SSL_get0_alpn_negotiated(conn->xprt_ctx,
+	SSL_get0_alpn_selected(conn->xprt_ctx,
 	                         (const unsigned char **)&smp->data.str.str, (unsigned *)&smp->data.str.len);
 
 	if (!smp->data.str.str)
@@ -3179,7 +3183,7 @@ static int bind_parse_npn(char **args, int cur_arg, struct proxy *px, struct bin
 /* parse the "alpn" bind keyword */
 static int bind_parse_alpn(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
-#ifdef OPENSSL_ALPN_NEGOTIATED
+#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
 	char *p1, *p2;
 
 	if (!*args[cur_arg + 1]) {
@@ -3508,7 +3512,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 #ifdef OPENSSL_NPN_NEGOTIATED
 	{ "ssl_fc_npn",             smp_fetch_ssl_fc_npn,         0,                   NULL,    SMP_T_CSTR, SMP_USE_L5CLI },
 #endif
-#ifdef OPENSSL_ALPN_NEGOTIATED
+#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
 	{ "ssl_fc_alpn",            smp_fetch_ssl_fc_alpn,        0,                   NULL,    SMP_T_CSTR, SMP_USE_L5CLI },
 #endif
 	{ "ssl_fc_protocol",        smp_fetch_ssl_fc_protocol,    0,                   NULL,    SMP_T_CSTR, SMP_USE_L5CLI },
@@ -3540,7 +3544,7 @@ static struct acl_kw_list acl_kws = {ILH, {
 #ifdef OPENSSL_NPN_NEGOTIATED
 	{ "ssl_fc_npn",             NULL,         pat_parse_str,     pat_match_str     },
 #endif
-#ifdef OPENSSL_ALPN_NEGOTIATED
+#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
 	{ "ssl_fc_alpn",            NULL,         pat_parse_str,     pat_match_str     },
 #endif
 	{ "ssl_fc_protocol",        NULL,         pat_parse_str,     pat_match_str     },
