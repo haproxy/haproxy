@@ -883,6 +883,36 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		goto out;
 #endif
 	}
+	else if (!strcmp(args[0], "ssl-default-bind-ciphers")) {
+#ifdef USE_OPENSSL
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects a cipher suite as an argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		free(global.listen_default_ciphers);
+		global.listen_default_ciphers = strdup(args[1]);
+#else
+		Alert("parsing [%s:%d] : '%s' is not implemented.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+#endif
+	}
+	else if (!strcmp(args[0], "ssl-default-server-ciphers")) {
+#ifdef USE_OPENSSL
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects a cipher suite as an argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		free(global.connect_default_ciphers);
+		global.connect_default_ciphers = strdup(args[1]);
+#else
+		Alert("parsing [%s:%d] : '%s' is not implemented.\n", file, linenum, args[0]);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+#endif
+	}
 	else if (!strcmp(args[0], "ssl-server-verify")) {
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);

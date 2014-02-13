@@ -629,6 +629,23 @@ stats bind-process [ all | odd | even | <number 1-32>[-<number 1-32>] ] ...
   warning will automatically be disabled when this setting is used, whatever
   the number of processes used.
 
+ssl-default-bind-ciphers <ciphers>
+  This setting is only available when support for OpenSSL was built in. It sets
+  the default string describing the list of cipher algorithms ("cipher suite")
+  that are negociated during the SSL/TLS handshake for all "bind" lines which
+  do not explicitly define theirs. The format of the string is defined in
+  "man 1 ciphers" from OpenSSL man pages, and can be for instance a string such
+  as "AES:ALL:!aNULL:!eNULL:+RC4:@STRENGTH" (without quotes). Please check the
+  "bind" keyword for more information.
+
+ssl-default-server-ciphers <ciphers>
+  This setting is only available when support for OpenSSL was built in. It
+  sets the default string describing the list of cipher algorithms that are
+  negociated during the SSL/TLS handshake with the server, for all "server"
+  lines which do not explicitly define theirs. The format of the string is
+  defined in "man 1 ciphers". Please check the "server" keyword for more
+  information.
+
 ssl-server-verify [none|required]
   The default behavior for SSL verify on servers side. If specified to 'none',
   servers certificates are not verified. The default is 'required' except if

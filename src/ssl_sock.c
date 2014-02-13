@@ -3628,6 +3628,17 @@ static void __ssl_sock_init(void)
 {
 	STACK_OF(SSL_COMP)* cm;
 
+#ifdef LISTEN_DEFAULT_CIPHERS
+	global.listen_default_ciphers = LISTEN_DEFAULT_CIPHERS;
+#endif
+#ifdef CONNECT_DEFAULT_CIPHERS
+	global.connect_default_ciphers = CONNECT_DEFAULT_CIPHERS;
+#endif
+	if (global.listen_default_ciphers)
+		global.listen_default_ciphers = strdup(global.listen_default_ciphers);
+	if (global.connect_default_ciphers)
+		global.connect_default_ciphers = strdup(global.connect_default_ciphers);
+
 	SSL_library_init();
 	cm = SSL_COMP_get_compression_methods();
 	sk_SSL_COMP_zero(cm);

@@ -161,12 +161,6 @@ struct global global = {
 #ifdef DEFAULT_MAXSSLCONN
 	.maxsslconn = DEFAULT_MAXSSLCONN,
 #endif
-#ifdef LISTEN_DEFAULT_CIPHERS
-	.listen_default_ciphers = LISTEN_DEFAULT_CIPHERS,
-#endif
-#ifdef CONNECT_DEFAULT_CIPHERS
-	.connect_default_ciphers = CONNECT_DEFAULT_CIPHERS,
-#endif
 #endif
 	/* others NULL OK */
 };
