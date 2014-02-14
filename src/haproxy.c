@@ -523,6 +523,8 @@ void init(int argc, char **argv)
 	tv_update_date(-1,-1);
 	start_date = now;
 
+	srandom(now_ms - getpid());
+
 	/* Get the numeric timezone. */
 	get_localtime(start_date.tv_sec, &curtime);
 	strftime(localtimezone, 6, "%z", &curtime);

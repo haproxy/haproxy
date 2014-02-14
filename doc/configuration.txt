@@ -9570,6 +9570,13 @@ queue([<backend>]) : integer
   possible action could be to reject new users but still accept old ones. See
   also the "avg_queue", "be_conn", and "be_sess_rate" fetches.
 
+rand([<range>]) : integer
+  Returns a random integer value within a range of <range> possible values,
+  starting at zero. If the range is not specified, it defaults to 2^32, which
+  gives numbers between 0 and 4294967295. It can be useful to pass some values
+  needed to take some routing decisions for example, or just for debugging
+  purposes. This random must not be used for security purposes.
+
 srv_conn([<backend>/]<server>) : integer
   Returns an integer value corresponding to the number of currently established
   connections on the designated server, possibly including the connection being

@@ -1189,6 +1189,24 @@ smp_fetch_date(struct proxy *px, struct session *s, void *l7, unsigned int opt,
 	return 1;
 }
 
+/* generate a random 32-bit integer for whatever purpose, with an optional
+ * range specified in argument.
+ */
+static int
+smp_fetch_rand(struct proxy *px, struct session *s, void *l7, unsigned int opt,
+               const struct arg *args, struct sample *smp, const char *kw)
+{
+	smp->data.uint = random();
+
+	/* reduce if needed. Don't do a modulo, use all bits! */
+	if (args && args[0].type == ARGT_UINT)
+		smp->data.uint = ((uint64_t)smp->data.uint * args[0].data.uint) >> 32;
+
+	smp->type = SMP_T_UINT;
+	smp->flags |= SMP_F_VOL_TEST | SMP_F_MAY_CHANGE;
+	return 1;
+}
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Note: fetches that may return multiple types must be declared as the lowest
  * common denominator, the type that can be casted into all other ones. For
@@ -1199,6 +1217,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 	{ "always_true",  smp_fetch_true,  0,            NULL, SMP_T_BOOL, SMP_USE_INTRN },
 	{ "env",          smp_fetch_env,   ARG1(1,STR),  NULL, SMP_T_CSTR, SMP_USE_INTRN },
 	{ "date",         smp_fetch_date,  ARG1(0,SINT), NULL, SMP_T_UINT, SMP_USE_INTRN },
+	{ "rand",         smp_fetch_rand,  ARG1(0,UINT), NULL, SMP_T_UINT, SMP_USE_INTRN },
 	{ /* END */ },
 }};
 
