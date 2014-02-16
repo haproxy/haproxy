@@ -1036,7 +1036,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv, struct proxy *curproxy)
 		if (srv->ssl_ctx.ca_file) {
 			/* load CAfile to verify */
 			if (!SSL_CTX_load_verify_locations(srv->ssl_ctx.ctx, srv->ssl_ctx.ca_file, NULL)) {
-				Alert("Proxy '%s', server '%s' |%s:%d] unable to load CA file '%s'.\n",
+				Alert("Proxy '%s', server '%s' [%s:%d] unable to load CA file '%s'.\n",
 				      curproxy->id, srv->id,
 				      srv->conf.file, srv->conf.line, srv->ssl_ctx.ca_file);
 				cfgerr++;
@@ -1044,11 +1044,11 @@ int ssl_sock_prepare_srv_ctx(struct server *srv, struct proxy *curproxy)
 		}
 		else {
 			if (global.ssl_server_verify == SSL_SERVER_VERIFY_REQUIRED)
-				Alert("Proxy '%s', server '%s' |%s:%d] verify is enabled by default but no CA file specified. If you're running on a LAN where you're certain to trust the server's certificate, please set an explicit 'verify none' statement on the 'server' line, or use 'ssl-server-verify none' in the global section to disable server-side verifications by default.\n",
+				Alert("Proxy '%s', server '%s' [%s:%d] verify is enabled by default but no CA file specified. If you're running on a LAN where you're certain to trust the server's certificate, please set an explicit 'verify none' statement on the 'server' line, or use 'ssl-server-verify none' in the global section to disable server-side verifications by default.\n",
 				      curproxy->id, srv->id,
 				      srv->conf.file, srv->conf.line);
 			else
-				Alert("Proxy '%s', server '%s' |%s:%d] verify is enabled but no CA file specified.\n",
+				Alert("Proxy '%s', server '%s' [%s:%d] verify is enabled but no CA file specified.\n",
 				      curproxy->id, srv->id,
 				      srv->conf.file, srv->conf.line);
 			cfgerr++;
@@ -1058,7 +1058,7 @@ int ssl_sock_prepare_srv_ctx(struct server *srv, struct proxy *curproxy)
 			X509_STORE *store = SSL_CTX_get_cert_store(srv->ssl_ctx.ctx);
 
 			if (!store || !X509_STORE_load_locations(store, srv->ssl_ctx.crl_file, NULL)) {
-				Alert("Proxy '%s', server '%s' |%s:%d] unable to configure CRL file '%s'.\n",
+				Alert("Proxy '%s', server '%s' [%s:%d] unable to configure CRL file '%s'.\n",
 				      curproxy->id, srv->id,
 				      srv->conf.file, srv->conf.line, srv->ssl_ctx.crl_file);
 				cfgerr++;
