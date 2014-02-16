@@ -676,10 +676,14 @@ switchstate:
 						}
 					}
 					else if (ps->table->table->type == STKTABLE_TYPE_INTEGER) {
-						newts = stksess_new(ps->table->table, NULL);
-						reql = bo_getblk(si->ob, newts ? (char *)newts->key.key : trash.str, sizeof(netinteger), totl);
+						reql = bo_getblk(si->ob, (char *)&netinteger, sizeof(netinteger), totl);
 						if (reql <= 0) /* closed or EOL not found */
 							goto incomplete;
+						newts = stksess_new(ps->table->table, NULL);
+						if (newts) {
+							netinteger = ntohl(netinteger);
+							memcpy(newts->key.key, &netinteger, sizeof(netinteger));
+						}
 						totl += reql;
 					}
 					else {
