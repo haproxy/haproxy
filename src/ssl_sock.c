@@ -74,8 +74,10 @@
 #include <proto/ssl_sock.h>
 #include <proto/task.h>
 
+/* Warning, these are bits, not integers! */
 #define SSL_SOCK_ST_FL_VERIFY_DONE  0x00000001
 #define SSL_SOCK_ST_FL_16K_WBFSIZE  0x00000002
+#define SSL_SOCK_SEND_UNLIMITED     0x00000004
 /* bits 0xFFFF0000 are reserved to store verify errors */
 
 /* Verify errors macros */
@@ -1533,15 +1535,27 @@ static int ssl_sock_from_buf(struct connection *conn, struct buffer *buf, int fl
 		try = bo_contig_data(buf);
 
 		if (!(flags & CO_SFL_STREAMER) &&
-		    global.tune.ssl_max_record && try > global.tune.ssl_max_record)
+		    !(conn->xprt_st & SSL_SOCK_SEND_UNLIMITED) &&
+		    global.tune.ssl_max_record && try > global.tune.ssl_max_record) {
 			try = global.tune.ssl_max_record;
+		}
+		else {
+			/* we need to keep the information about the fact that
+			 * we're not limiting the upcoming send(), because if it
+			 * fails, we'll have to retry with at least as many data.
+			 */
+			conn->xprt_st |= SSL_SOCK_SEND_UNLIMITED;
+		}
 
 		ret = SSL_write(conn->xprt_ctx, bo_ptr(buf), try);
+
 		if (conn->flags & CO_FL_ERROR) {
 			/* CO_FL_ERROR may be set by ssl_sock_infocbk */
 			goto out_error;
 		}
 		if (ret > 0) {
+			conn->xprt_st &= ~SSL_SOCK_SEND_UNLIMITED;
+
 			buf->o -= ret;
 			done += ret;
 
