@@ -4683,6 +4683,8 @@ stats_error_parsing:
 			newsrv->maxconn		= curproxy->defsrv.maxconn;
 			newsrv->slowstart	= curproxy->defsrv.slowstart;
 			newsrv->onerror		= curproxy->defsrv.onerror;
+			newsrv->onmarkeddown    = curproxy->defsrv.onmarkeddown;
+			newsrv->onmarkedup      = curproxy->defsrv.onmarkedup;
 			newsrv->consecutive_errors_limit
 						= curproxy->defsrv.consecutive_errors_limit;
 #ifdef OPENSSL
