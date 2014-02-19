@@ -543,6 +543,7 @@ int assign_server(struct session *s)
 	conn = objt_conn(s->req->cons->end);
 
 	if (conn &&
+	    (conn->flags & CO_FL_CONNECTED) &&
 	    ((s->be->options & PR_O_PREF_LAST) || (s->txn.flags & TX_PREFER_LAST)) &&
 	    objt_server(conn->target) && __objt_server(conn->target)->proxy == s->be &&
 	    srv_is_usable(__objt_server(conn->target)->state, __objt_server(conn->target)->eweight)) {
