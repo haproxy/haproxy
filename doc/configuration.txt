@@ -3844,14 +3844,14 @@ no option forceclose
 
   When this happens, it is possible to use "option forceclose". It will
   actively close the outgoing server channel as soon as the server has finished
-  to respond and release some resources earlier than with 'option httpclose'.
+  to respond and release some resources earlier than with "option httpclose".
 
   This option may also be combined with "option http-pretend-keepalive", which
   will disable sending of the "Connection: close" header, but will still cause
   the connection to be closed once the whole response is received.
 
-  This option disables and replaces any previous 'option httpclose', 'option
-  http-server-close', 'option http-keep-alive', or "option http-tunnel".
+  This option disables and replaces any previous "option httpclose", "option
+  http-server-close", "option http-keep-alive", or "option http-tunnel".
 
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
@@ -3972,10 +3972,10 @@ no option http-keep-alive
   timeout defined by "timeout http-keep-alive" or "timeout http-request" if
   not set.
 
-  This option disables and replaces any previous 'option httpclose', 'option
-  http-server-close', 'option forceclose' or "option http-tunnel". When backend
+  This option disables and replaces any previous "option httpclose", "option
+  http-server-close", "option forceclose" or "option http-tunnel". When backend
   and frontend options differ, all of these 4 options have precedence over
-  'option http-keep-alive'.
+  "option http-keep-alive".
 
   See also : "option forceclose", "option http-server-close",
              "option prefer-last-server", "option http-pretend-keepalive",
@@ -4091,8 +4091,8 @@ no option http-server-close
 
   This option may be set both in a frontend and in a backend. It is enabled if
   at least one of the frontend or backend holding a connection has it enabled.
-  It disables and replaces any previous 'option httpclose', 'option forceclose',
-  'option http-tunnel' or 'option http-keep-alive'. Please check section 4
+  It disables and replaces any previous "option httpclose", "option forceclose",
+  "option http-tunnel" or "option http-keep-alive". Please check section 4
   ("Proxies") to see how this option combines with others when frontend and
   backend options differ.
 
@@ -4230,7 +4230,7 @@ no option httpclose
   connections: for each connection it processes each request and response, and
   leaves the connection idle on both sides between the end of a response and
   the start of a new request. This mode may be changed by several options such
-  as "option http-serve-close", "option forceclose", "option httpclose" or
+  as "option http-server-close", "option forceclose", "option httpclose" or
   "option http-tunnel".
 
   If "option httpclose" is set, HAProxy will work in HTTP tunnel mode and check
@@ -4252,8 +4252,8 @@ no option httpclose
 
   This option may be set both in a frontend and in a backend. It is enabled if
   at least one of the frontend or backend holding a connection has it enabled.
-  It disables and replaces any previous 'option http-server-close',
-  'option forceclose', 'option http-keep-alive' or "option http-tunnel". Please
+  It disables and replaces any previous "option http-server-close",
+  "option forceclose", "option http-keep-alive" or "option http-tunnel". Please
   check section 4 ("Proxies") to see how this option combines with others when
   frontend and backend options differ.
 
