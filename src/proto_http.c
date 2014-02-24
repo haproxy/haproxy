@@ -980,7 +980,7 @@ void http_return_srv_error(struct session *s, struct stream_interface *si)
 				  http_error_message(s, HTTP_ERR_503));
 	else if (err_type & SI_ET_CONN_ERR)
 		http_server_error(s, si, SN_ERR_SRVCL, SN_FINST_C,
-				  503, (s->txn.flags & TX_NOT_FIRST) ? NULL :
+				  503, (s->flags & SN_SRV_REUSED) ? NULL :
 				  http_error_message(s, HTTP_ERR_503));
 	else if (err_type & SI_ET_CONN_RES)
 		http_server_error(s, si, SN_ERR_RESOURCE, SN_FINST_C,
@@ -4446,7 +4446,7 @@ void http_end_txn_clean_session(struct session *s)
 	s->req->flags &= ~(CF_SHUTW|CF_SHUTW_NOW|CF_AUTO_CONNECT|CF_WRITE_ERROR|CF_STREAMER|CF_STREAMER_FAST|CF_NEVER_WAIT);
 	s->rep->flags &= ~(CF_SHUTR|CF_SHUTR_NOW|CF_READ_ATTACHED|CF_READ_ERROR|CF_READ_NOEXP|CF_STREAMER|CF_STREAMER_FAST|CF_WRITE_PARTIAL|CF_NEVER_WAIT);
 	s->flags &= ~(SN_DIRECT|SN_ASSIGNED|SN_ADDR_SET|SN_BE_ASSIGNED|SN_FORCE_PRST|SN_IGNORE_PRST);
-	s->flags &= ~(SN_CURR_SESS|SN_REDIRECTABLE);
+	s->flags &= ~(SN_CURR_SESS|SN_REDIRECTABLE|SN_SRV_REUSED);
 
 	if (s->flags & SN_COMP_READY)
 		s->comp_algo->end(&s->comp_ctx);

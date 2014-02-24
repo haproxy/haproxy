@@ -89,6 +89,7 @@
 #define SN_IGNORE_PRST	0x00080000	/* ignore persistence */
 
 #define SN_COMP_READY   0x00100000	/* the compression is initialized */
+#define SN_SRV_REUSED   0x00200000	/* the server-side connection was reused */
 
 /* WARNING: if new fields are added, they must be initialized in session_accept()
  * and freed in session_free() !

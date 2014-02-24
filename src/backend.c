@@ -1073,6 +1073,7 @@ int connect_server(struct session *s)
 	else {
 		/* the connection is being reused, just re-attach it */
 		si_attach_conn(s->req->cons, srv_conn);
+		s->flags |= SN_SRV_REUSED;
 	}
 
 	/* flag for logging source ip/port */
