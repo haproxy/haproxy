@@ -7815,6 +7815,9 @@ out_uri_auth_compat:
 	 * other proxies.
 	 */
 	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
+		if (curproxy->state == PR_STSTOPPED)
+			continue;
+
 		if (!stktable_init(&curproxy->table)) {
 			Alert("Proxy '%s': failed to initialize stick-table.\n", curproxy->id);
 			cfgerr++;
