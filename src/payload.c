@@ -681,8 +681,8 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct acl_kw_list acl_kws = {ILH, {
-	{ "payload",            "req.payload",        pat_parse_str,        pat_match_str     },
-	{ "payload_lv",         "req.payload_lv",     pat_parse_str,        pat_match_str     },
+	{ "payload",            "req.payload",        pat_parse_bin,        pat_match_bin     },
+	{ "payload_lv",         "req.payload_lv",     pat_parse_bin,        pat_match_bin     },
 	{ "req_rdp_cookie",     "req.rdp_cookie",     pat_parse_str,        pat_match_str     },
 	{ "req_rdp_cookie_cnt", "req.rdp_cookie_cnt", pat_parse_int,        pat_match_int     },
 	{ "req_ssl_sni",        "req.ssl_sni",        pat_parse_str,        pat_match_str     },
