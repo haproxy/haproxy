@@ -12824,6 +12824,40 @@ enable server <backend>/<server>
   This command is restricted and can only be issued on sockets configured for
   level "admin".
 
+get map <map> <value>
+get acl <map> <value>
+  Lookup the value <value> in the map <map>. This command returns all the
+  matching patterns associated with this map. This is useful for debugging maps
+  and ACLs. The output format is composed by one line par matching type. Each
+  line is composed by space-delimited series of words.
+
+  The first two words are:
+
+     <match method>:   The match method applied. It can be "found", "bool",
+                       "int", "ip", "bin", "len", "str", "beg", "sub", "dir",
+                       "dom", "end" or "reg".
+
+     <match result>:   The result. Can be "match" or "no-match".
+
+  The following words are returned only if the pattern matches an entry.
+
+     <index type>:     "tree" or "list". The internal lookup algorithm.
+
+     <case>:           "case-insensitive" or "case-sensitive". The
+                       interpretation of the case.
+
+     <entry matched>:  match="<entry>". Return the matched pattern. It is
+                       useful with regular expressions.
+
+  The two last word are used to show the returned value and its type. With the
+  "acl" case, the pattern doesn't exist.
+
+     return=nothing:        No return because there are no "map".
+     return="<value>":      The value returned in the string format.
+     return=cannot-display: The value cannot be converted as string.
+
+     type="<type>":         The type of the returned sample.
+
 get weight <backend>/<server>
   Report the current weight and the initial weight of server <server> in
   backend <backend> or an error if either doesn't exist. The initial weight is
