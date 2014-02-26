@@ -248,7 +248,7 @@ static int map_read_entries_from_file(const char *filename,
 			c++;
 
 		/* empty lines are ignored too */
-		if (*c == '\0')
+		if (*c == '\0' || *c == '\r' || *c == '\n')
 			continue;
 
 		/* look for the end of the key */
