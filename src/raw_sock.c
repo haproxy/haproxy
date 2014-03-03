@@ -309,7 +309,7 @@ static int raw_sock_to_buf(struct connection *conn, struct buffer *buf, int coun
 		else if (ret == 0) {
 			goto read0;
 		}
-		else if (errno == EAGAIN) {
+		else if (errno == EAGAIN || errno == ENOTCONN) {
 			fd_cant_recv(conn->t.sock.fd);
 			break;
 		}
