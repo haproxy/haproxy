@@ -367,6 +367,24 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	expr->smp = smp;
 	smp = NULL;
 
+	/* Fill NULL pointers with values provided by the pattern.c arrays */
+	if (aclkw) {
+		if (!expr->pat.parse)
+			expr->pat.parse = pat_parse_fcts[aclkw->match_type];
+
+		if (!expr->pat.index)
+			expr->pat.index = pat_index_fcts[aclkw->match_type];
+
+		if (!expr->pat.match)
+			expr->pat.match = pat_match_fcts[aclkw->match_type];
+
+		if (!expr->pat.delete)
+			expr->pat.delete = pat_delete_fcts[aclkw->match_type];
+
+		if (!expr->pat.prune)
+			expr->pat.prune = pat_prune_fcts[aclkw->match_type];
+	}
+
 	if (!expr->pat.parse) {
 		/* some types can be automatically converted */
 
