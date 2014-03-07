@@ -7676,7 +7676,7 @@ unique-id-format <string>
 
   Example:
 
-        unique-id-format %{+X}o\ %Ci:%Cp_%Fi:%Fp_%Ts_%rt:%pid
+        unique-id-format %{+X}o\ %ci:%cp_%fi:%fp_%Ts_%rt:%pid
 
         will generate:
 
@@ -7696,7 +7696,7 @@ unique-id-header <name>
 
   Example:
 
-        unique-id-format %{+X}o\ %Ci:%Cp_%Fi:%Fp_%Ts_%rt:%pid
+        unique-id-format %{+X}o\ %ci:%cp_%fi:%fp_%Ts_%rt:%pid
         unique-id-header X-Unique-ID
 
         will generate:
