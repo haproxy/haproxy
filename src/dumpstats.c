@@ -1110,7 +1110,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			/* lookup into the maps */
 			appctx->ctx.map.ref = map_get_reference(args[2]);
 			if (!appctx->ctx.map.ref) {
-				appctx->ctx.cli.msg = "Unknown map reference.\n";
+				appctx->ctx.cli.msg = "Unknown map identifier. Please use <name>.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -1192,7 +1192,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 
 			/* no parameter */
 			if (!*args[2]) {
-				appctx->ctx.cli.msg = "Expect map reference.\n";
+				appctx->ctx.cli.msg = "Missing map identifier.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -1200,7 +1200,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			/* lookup into the maps */
 			mref = map_get_reference(args[2]);
 			if (!mref) {
-				appctx->ctx.cli.msg = "Unknown map reference.\n";
+				appctx->ctx.cli.msg = "Unknown map identifier. Please use <name>.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -1260,7 +1260,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 
 			/* no parameter */
 			if (!*args[2] || !*args[3]) {
-				appctx->ctx.cli.msg = "Expect map reference and required key.\n";
+				appctx->ctx.cli.msg = "Missing identifier and/or key.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -1268,7 +1268,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			/* lookup into the maps */
 			appctx->ctx.map.ref = map_get_reference(args[2]);
 			if (!appctx->ctx.map.ref) {
-				appctx->ctx.cli.msg = "Unknown map reference.\n";
+				appctx->ctx.cli.msg = "Unknown map identifier. Please use #<id> or <name>.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -1567,7 +1567,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 
 			/* Expect three parameters: map name, key and new value. */
 			if (!*args[2] || !*args[3] || !*args[4]) {
-				appctx->ctx.cli.msg = "'set map' expect three parameters: map name, key and value.\n";
+				appctx->ctx.cli.msg = "'set map' expects three parameters: map identifier, key and value.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -1575,7 +1575,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			/* Lookup the reference in the maps. */
 			appctx->ctx.map.ref = map_get_reference(args[2]);
 			if (!appctx->ctx.map.ref) {
-				appctx->ctx.cli.msg = "Unknown map reference.\n";
+				appctx->ctx.cli.msg = "Unknown map identifier. Please use <name>.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -1586,7 +1586,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 					break;
 
 			if (&appctx->ctx.map.ent->list == &appctx->ctx.map.ref->entries) {
-				appctx->ctx.cli.msg = "Entry not found.\n";
+				appctx->ctx.cli.msg = "\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -1855,7 +1855,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 
 			/* Expect two parameters: map name and key. */
 			if (!*args[2] || !*args[3]) {
-				appctx->ctx.cli.msg = "'del map' expect two parameters: map name and key.\n";
+				appctx->ctx.cli.msg = "This command expects two parameters: map identifier and key.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -1863,7 +1863,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			/* Lookup the reference in the maps. */
 			appctx->ctx.map.ref = map_get_reference(args[2]);
 			if (!appctx->ctx.map.ref) {
-				appctx->ctx.cli.msg = "Unknown map reference.\n";
+				appctx->ctx.cli.msg = "Unknown map identifier. Please use <name>.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -1876,7 +1876,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 					break;
 
 			if (&appctx->ctx.map.ent->list == &appctx->ctx.map.ref->entries) {
-				appctx->ctx.cli.msg = "Entry not found.\n";
+				appctx->ctx.cli.msg = "Key not found.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -1926,7 +1926,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 
 			/* Expect three parameters: map name, key and new value. */
 			if (!*args[2] || !*args[3] || !*args[4]) {
-				appctx->ctx.cli.msg = "'add map' expect three parameters: map name, key and value.\n";
+				appctx->ctx.cli.msg = "'add map' expects three parameters: map identifier, key and value.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -1934,7 +1934,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			/* Lookup the reference in the maps. */
 			appctx->ctx.map.ref = map_get_reference(args[2]);
 			if (!appctx->ctx.map.ref) {
-				appctx->ctx.cli.msg = "Unknown map reference.\n";
+				appctx->ctx.cli.msg = "Unknown map identifier. Please use <name>.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -4854,59 +4854,61 @@ static int stats_map_lookup(struct stream_interface *si)
 
 			/* build return message: set type of match */
 			/**/ if (appctx->ctx.map.desc->pat->match == NULL)
-				chunk_appendf(&trash, "found, ");
+				chunk_appendf(&trash, "type=found, ");
 			else if (appctx->ctx.map.desc->pat->match == pat_match_nothing)
-				chunk_appendf(&trash, "bool, ");
+				chunk_appendf(&trash, "type=bool, ");
 			else if (appctx->ctx.map.desc->pat->match == pat_match_int)
-				chunk_appendf(&trash, "int, ");
+				chunk_appendf(&trash, "type=int, ");
 			else if (appctx->ctx.map.desc->pat->match == pat_match_ip)
-				chunk_appendf(&trash, "ip, ");
+				chunk_appendf(&trash, "type=ip, ");
 			else if (appctx->ctx.map.desc->pat->match == pat_match_bin)
-				chunk_appendf(&trash, "bin, ");
+				chunk_appendf(&trash, "type=bin, ");
 			else if (appctx->ctx.map.desc->pat->match == pat_match_len)
-				chunk_appendf(&trash, "len, ");
+				chunk_appendf(&trash, "type=len, ");
 			else if (appctx->ctx.map.desc->pat->match == pat_match_str)
-				chunk_appendf(&trash, "str, ");
+				chunk_appendf(&trash, "type=str, ");
 			else if (appctx->ctx.map.desc->pat->match == pat_match_beg)
-				chunk_appendf(&trash, "beg, ");
+				chunk_appendf(&trash, "type=beg, ");
 			else if (appctx->ctx.map.desc->pat->match == pat_match_sub)
-				chunk_appendf(&trash, "sub, ");
+				chunk_appendf(&trash, "type=sub, ");
 			else if (appctx->ctx.map.desc->pat->match == pat_match_dir)
-				chunk_appendf(&trash, "dir, ");
+				chunk_appendf(&trash, "type=dir, ");
 			else if (appctx->ctx.map.desc->pat->match == pat_match_dom)
-				chunk_appendf(&trash, "dom, ");
+				chunk_appendf(&trash, "type=dom, ");
 			else if (appctx->ctx.map.desc->pat->match == pat_match_end)
-				chunk_appendf(&trash, "end, ");
+				chunk_appendf(&trash, "type=end, ");
 			else if (appctx->ctx.map.desc->pat->match == pat_match_reg)
-				chunk_appendf(&trash, "reg, ");
+				chunk_appendf(&trash, "type=reg, ");
 			else /* The never appens case */
-				chunk_appendf(&trash, "unknown(%p), ", appctx->ctx.map.desc->pat->match);
+				chunk_appendf(&trash, "type=unknown(%p), ", appctx->ctx.map.desc->pat->match);
 
 			/* Display no match, and set default value */
 			if (!pat) {
-				chunk_appendf(&trash, "no-match, ");
+				chunk_appendf(&trash, "match=no, ");
 			}
 
 			/* Display match and match info */
 			else {
 				/* display match */
-				chunk_appendf(&trash, "match, ");
+				chunk_appendf(&trash, "match=yes, ");
 
 				/* display index mode */
 				if (pat->flags & PAT_F_TREE)
-					chunk_appendf(&trash, "tree, ");
+					chunk_appendf(&trash, "idx=tree, ");
 				else
-					chunk_appendf(&trash, "list, ");
+					chunk_appendf(&trash, "idx=list, ");
 
 				/* case sensitive */
 				if (pat->flags & PAT_F_IGNORE_CASE)
-					chunk_appendf(&trash, "case-insensitive, ");
+					chunk_appendf(&trash, "case=insensitive, ");
 				else
-					chunk_appendf(&trash, "case-sensitive, ");
+					chunk_appendf(&trash, "case=sensitive, ");
 
 				/* display source */
 				if (pat->flags & PAT_F_FROM_FILE)
-					chunk_appendf(&trash, "from-file, ");
+					chunk_appendf(&trash, "src=file, ");
+				else
+					chunk_appendf(&trash, "src=conf, ");
 
 				/* display string */
 				if (appctx->ctx.map.desc->pat->match == pat_match_str ||
@@ -4916,7 +4918,7 @@ static int stats_map_lookup(struct stream_interface *si)
 				    appctx->ctx.map.desc->pat->match == pat_match_dir ||
 				    appctx->ctx.map.desc->pat->match == pat_match_dom ||
 				    appctx->ctx.map.desc->pat->match == pat_match_end) {
-					chunk_appendf(&trash, "match=\"%s\", ", pat->ptr.str);
+					chunk_appendf(&trash, "key=\"%s\", ", pat->ptr.str);
 				}
 				else if (appctx->ctx.map.desc->pat->match == pat_match_ip) {
 					/* display IPv4/v6 */
@@ -4928,7 +4930,7 @@ static int stats_map_lookup(struct stream_interface *si)
 							memcpy(&((struct sockaddr_in *)&addr)->sin_addr, &pat->val.ipv4.mask,
 							       sizeof(pat->val.ipv4.mask));
 							if (addr_to_str(&addr, s_mask, INET_ADDRSTRLEN))
-								chunk_appendf(&trash, "match=\"%s/%s\", ", s_addr, s_mask);
+								chunk_appendf(&trash, "key=\"%s/%s\", ", s_addr, s_mask);
 						}
 					}
 					else if (pat->type == SMP_T_IPV6) {
@@ -4936,14 +4938,14 @@ static int stats_map_lookup(struct stream_interface *si)
 						memcpy(&((struct sockaddr_in6 *)&addr)->sin6_addr, &pat->val.ipv6.addr,
 						       sizeof(pat->val.ipv6.addr));
 						if (addr_to_str(&addr, s_addr6, INET6_ADDRSTRLEN))
-							chunk_appendf(&trash, "match=\"%s/%d\", ", s_addr6, pat->val.ipv6.mask);
+							chunk_appendf(&trash, "key=\"%s/%d\", ", s_addr6, pat->val.ipv6.mask);
 					}
 				}
 			}
 
 			/* display return value */
 			if (!pat || !pat->smp) {
-				chunk_appendf(&trash, "return=nothing\n");
+				chunk_appendf(&trash, "value=nothing\n");
 			}
 			else {
 				smp = pat->smp;
@@ -4951,10 +4953,10 @@ static int stats_map_lookup(struct stream_interface *si)
 				sample.type = smp->type;
 				if (sample_casts[sample.type][SMP_T_STR] &&
 				    sample_casts[sample.type][SMP_T_STR](&sample))
-					chunk_appendf(&trash, "return=\"%s\", type=\"%s\"\n",
+					chunk_appendf(&trash, "value=\"%s\", type=\"%s\"\n",
 					              sample.data.str.str, smp_to_type[smp->type]);
 				else
-					chunk_appendf(&trash, "return=cannot-display, type=\"%s\"\n",
+					chunk_appendf(&trash, "value=cannot-display, type=\"%s\"\n",
 					              smp_to_type[smp->type]);
 			}
 
