@@ -4826,12 +4826,6 @@ static int stats_map_lookup(struct stream_interface *si)
 	struct sample sample;
 	struct pattern *pat;
 	int match_method;
-	struct sample_storage *smp;
-	struct sockaddr_storage addr;
-	char s_addr[INET_ADDRSTRLEN];
-	char s_mask[INET_ADDRSTRLEN];
-	char s_addr6[INET6_ADDRSTRLEN];
-	const char *keystr;
 
 	switch (appctx->st2) {
 	case STAT_ST_INIT:
@@ -4901,84 +4895,27 @@ static int stats_map_lookup(struct stream_interface *si)
 				else
 					chunk_appendf(&trash, ", src=conf");
 
-				if (appctx->ctx.map.display_flags == PAT_REF_MAP)
-					keystr = "key";
-				else
-					keystr = "pattern";
-
-				switch (match_method) {
-				case PAT_MATCH_STR:
-				case PAT_MATCH_BEG:
-				case PAT_MATCH_SUB:
-				case PAT_MATCH_DIR:
-				case PAT_MATCH_DOM:
-				case PAT_MATCH_END:
-					/* display string */
-					chunk_appendf(&trash, ", %s=\"%s\"", keystr, pat->ptr.str);
-					break;
-
-				case PAT_MATCH_IP:
-					/* display IPv4/v6 */
-					if (pat->type == SMP_T_IPV4) {
-						((struct sockaddr_in *)&addr)->sin_family = AF_INET;
-						memcpy(&((struct sockaddr_in *)&addr)->sin_addr, &pat->val.ipv4.addr,
-						       sizeof(pat->val.ipv4.addr));
-						if (addr_to_str(&addr, s_addr, INET_ADDRSTRLEN)) {
-							memcpy(&((struct sockaddr_in *)&addr)->sin_addr, &pat->val.ipv4.mask,
-							       sizeof(pat->val.ipv4.mask));
-							if (addr_to_str(&addr, s_mask, INET_ADDRSTRLEN))
-								chunk_appendf(&trash, ", %s=\"%s/%s\"", keystr, s_addr, s_mask);
-						}
-					}
-					else if (pat->type == SMP_T_IPV6) {
-						((struct sockaddr_in6 *)&addr)->sin6_family = AF_INET6;
-						memcpy(&((struct sockaddr_in6 *)&addr)->sin6_addr, &pat->val.ipv6.addr,
-						       sizeof(pat->val.ipv6.addr));
-						if (addr_to_str(&addr, s_addr6, INET6_ADDRSTRLEN))
-							chunk_appendf(&trash, ", %s=\"%s/%d\"", keystr, s_addr6, pat->val.ipv6.mask);
-					}
-					break;
-
-				case PAT_MATCH_INT:
-					/* display int */
-					chunk_appendf(&trash, ", %s=\"", keystr);
-					if (pat->val.range.min_set && pat->val.range.max_set &&
-					    pat->val.range.min == pat->val.range.max) {
-						chunk_appendf(&trash, "%lld", pat->val.range.min);
-					}
-					else {
-						if (pat->val.range.min_set)
-							chunk_appendf(&trash, "is >= %lld", pat->val.range.min);
-						if (pat->val.range.min_set && pat->val.range.max_set)
-							chunk_appendf(&trash, " and ");
-						if (pat->val.range.max_set)
-							chunk_appendf(&trash, "is <= %lld", pat->val.range.max);
-					}
-					chunk_appendf(&trash, "\"");
-					break;
-
-				/* Dont display other types. */
-				default:
-					break;
-				}
-			}
-
-			/* display return value */
-			if (appctx->ctx.map.display_flags == PAT_REF_MAP) {
-				if (!pat || !pat->smp) {
-					chunk_appendf(&trash, ", value=nothing");
+				/* display pattern */
+				if (appctx->ctx.map.display_flags == PAT_REF_MAP) {
+					if (pat->ref && pat->ref->pattern)
+						chunk_appendf(&trash, ", key=\"%s\"", pat->ref->pattern);
+					else
+						chunk_appendf(&trash, ", key=unknown");
 				}
 				else {
-					smp = pat->smp;
-					memcpy(&sample.data, &smp->data, sizeof(sample.data));
-					sample.type = smp->type;
-					if (sample_casts[sample.type][SMP_T_STR] &&
-					    sample_casts[sample.type][SMP_T_STR](&sample))
-						chunk_appendf(&trash, ", value=\"%s\", type=\"%s\"",
-						              sample.data.str.str, smp_to_type[smp->type]);
+					if (pat->ref && pat->ref->pattern)
+						chunk_appendf(&trash, ", pattern=\"%s\"", pat->ref->pattern);
 					else
-						chunk_appendf(&trash, ", value=cannot-display, type=\"%s\"",
-						              smp_to_type[smp->type]);
+						chunk_appendf(&trash, ", pattern=unknown");
+				}
+
+				/* display return value */
+				if (appctx->ctx.map.display_flags == PAT_REF_MAP) {
+					if (pat->smp && pat->ref && pat->ref->sample)
+						chunk_appendf(&trash, ", value=\"%s\", type=\"%s\"",
+						              pat->ref->sample, smp_to_type[pat->smp->type]);
+					else
+						chunk_appendf(&trash, ", value=none");
 				}
 			}
 
