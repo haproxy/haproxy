@@ -602,11 +602,6 @@ static void session_free(struct session *s)
 		sess_change_server(s, NULL);
 	}
 
-	if (s->flags & SN_COMP_READY)
-		s->comp_algo->end(&s->comp_ctx);
-	s->comp_algo = NULL;
-	s->flags &= ~SN_COMP_READY;
-
 	if (s->req->pipe)
 		put_pipe(s->req->pipe);
 

@@ -4448,11 +4448,6 @@ void http_end_txn_clean_session(struct session *s)
 	s->flags &= ~(SN_DIRECT|SN_ASSIGNED|SN_ADDR_SET|SN_BE_ASSIGNED|SN_FORCE_PRST|SN_IGNORE_PRST);
 	s->flags &= ~(SN_CURR_SESS|SN_REDIRECTABLE|SN_SRV_REUSED);
 
-	if (s->flags & SN_COMP_READY)
-		s->comp_algo->end(&s->comp_ctx);
-	s->comp_algo = NULL;
-	s->flags &= ~SN_COMP_READY;
-
 	s->txn.meth = 0;
 	http_reset_txn(s);
 	s->txn.flags |= TX_NOT_FIRST | TX_WAIT_NEXT_RQ;
@@ -8242,6 +8237,12 @@ void http_init_txn(struct session *s)
 void http_end_txn(struct session *s)
 {
 	struct http_txn *txn = &s->txn;
+
+	/* release any possible compression context */
+	if (s->flags & SN_COMP_READY)
+		s->comp_algo->end(&s->comp_ctx);
+	s->comp_algo = NULL;
+	s->flags &= ~SN_COMP_READY;
 
 	/* these ones will have been dynamically allocated */
 	pool_free2(pool2_requri, txn->uri);
