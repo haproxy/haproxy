@@ -1562,6 +1562,23 @@ void pattern_init_head(struct pattern_head *head)
  * value as string form.
  *
  * This is used with modifiable ACL and MAPS
+ *
+ * The pattern reference are stored with two identifiers: the unique_id and
+ * the reference.
+ *
+ * The reference identify a file. Each file with the same name point to the
+ * same reference. We can register many times one file. If the file is modified,
+ * all his dependencies are also modified. The reference can be used with map or
+ * acl.
+ *
+ * The unique_id identify inline acl. The unique id is unique for each acl.
+ * You cannot force the same id in the configuration file, because this repoort
+ * an error.
+ *
+ * A particular case appears if the filename is a number. In this case, the
+ * unique_id is set with the number represented by the filename and the
+ * reference is also set. This method prevent double unique_id.
+ *
  */
 
 /* This function lookup for reference. If the reference is found, they return
@@ -1572,7 +1589,20 @@ struct pat_ref *pat_ref_lookup(const char *reference)
 	struct pat_ref *ref;
 
 	list_for_each_entry(ref, &pattern_reference, list)
-		if (strcmp(reference, ref->reference) == 0)
+		if (ref->reference && strcmp(reference, ref->reference) == 0)
+			return ref;
+	return NULL;
+}
+
+/* This function lookup for unique id. If the reference is found, they return
+ * pointer to the struct pat_ref, else return NULL.
+ */
+struct pat_ref *pat_ref_lookupid(int unique_id)
+{
+	struct pat_ref *ref;
+
+	list_for_each_entry(ref, &pattern_reference, list)
+		if (ref->unique_id == unique_id)
 			return ref;
 	return NULL;
 }
@@ -1663,6 +1693,34 @@ struct pat_ref *pat_ref_new(const char *reference, unsigned int flags)
 	}
 
 	ref->flags = flags;
+	ref->unique_id = -1;
+
+	LIST_INIT(&ref->head);
+	LIST_INIT(&ref->pat);
+
+	LIST_ADDQ(&pattern_reference, &ref->list);
+
+	return ref;
+}
+
+/* This function create new reference. <unique_id> is the unique id. If
+ * the value of <unique_id> is -1, the unique id is calculated later.
+ * <flags> are PAT_REF_*. /!\ The reference is not checked, and must
+ * be unique. The user must check the reference with "pat_ref_lookup()"
+ * or pat_ref_lookupid before calling this function. If the function
+ * fail, it return NULL, else return new struct pat_ref.
+ */
+struct pat_ref *pat_ref_newid(int unique_id, unsigned int flags)
+{
+	struct pat_ref *ref;
+
+	ref = malloc(sizeof(*ref));
+	if (!ref)
+		return NULL;
+
+	ref->reference = NULL;
+	ref->flags = flags;
+	ref->unique_id = unique_id;
 	LIST_INIT(&ref->head);
 	LIST_INIT(&ref->pat);
 
@@ -1961,7 +2019,7 @@ struct pattern_expr *pattern_new_expr(struct pattern_head *head, struct pat_ref 
  * return -2 if out of memory
  */
 int pattern_register(struct pattern_head *head,
-                     char *reference, int refflags,
+                     int unique_id, int refflags,
                      const char *arg,
                      struct sample_storage *smp,
                      int patflags, char **err)
@@ -1969,29 +2027,26 @@ int pattern_register(struct pattern_head *head,
 	struct pattern_expr *expr;
 	struct pat_ref *ref;
 
-	/* If reference is set, look up for existing reference. If the
-	 * reference is not found, create it.
-	 */
-	if (reference) {
-		ref = pat_ref_lookup(reference);
-		if (!ref) {
-			ref = pat_ref_new(reference, refflags);
-			if (!ref) {
-				memprintf(err, "out of memory");
-				return 0;
-			}
+	/* Look if the unique id already exists. If exists, abort the acl creation. */
+	if (unique_id >= 0) {
+		ref = pat_ref_lookupid(unique_id);
+		if (ref) {
+			memprintf(err, "The unique id \"%d\" is already used.", unique_id);
+			return 0;
 		}
 	}
-	else
-		ref = NULL;
 
-	/* look for reference or create it */
-	expr = pattern_lookup_expr(head, ref);
-	if (!expr) {
-		expr = pattern_new_expr(head, ref, err);
-		if (!expr)
-			return 0;
+	/* Create new reference. */
+	ref = pat_ref_newid(unique_id, refflags);
+	if (!ref) {
+		memprintf(err, "out of memory");
+		return 0;
 	}
+
+	/* create new pattern_expr. */
+	expr = pattern_new_expr(head, ref, err);
+	if (!expr)
+		return 0;
 
 	/* Index value. */
 	return pattern_add(expr, arg, smp, patflags, err);
@@ -2060,10 +2115,10 @@ int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
 	struct pat_ref *ref;
 	struct pattern_expr *expr;
 
-	/* Look for existing reference. If the reference doesn't exists,
-	 * create it and load file.
-	 */
+	/* Lookup for the existing reference. */
 	ref = pat_ref_lookup(filename);
+
+	/* If the reference doesn't exists, create it and load associated file. */
 	if (!ref) {
 		ref = pat_ref_new(filename, refflags);
 		if (!ref) {
@@ -2169,4 +2224,51 @@ int pattern_delete(const char *key, struct pattern_expr *expr, char **err)
 		return 0;
 	expr->pat_head->delete(expr, &pattern);
 	return 1;
+}
+
+/* This function finalize the configuration parsing. Its set all the
+ * automatic ids
+ */
+void pattern_finalize_config(void)
+{
+	int i = 0;
+	struct pat_ref *ref, *ref2, *ref3;
+	struct list pr = LIST_HEAD_INIT(pr);
+
+	list_for_each_entry(ref, &pattern_reference, list) {
+		if (ref->unique_id == -1) {
+			/* Look for the first free id. */
+			while (1) {
+				list_for_each_entry(ref2, &pattern_reference, list) {
+					if (ref2->unique_id == i) {
+						i++;
+						break;
+					}
+				}
+				if (&ref2->list == &pattern_reference);
+					break;
+			}
+
+			/* Uses the unique id and increment it for the next entry. */
+			ref->unique_id = i;
+			i++;
+		}
+	}
+
+	/* This sort the reference list by id. */
+	list_for_each_entry_safe(ref, ref2, &pattern_reference, list) {
+		LIST_DEL(&ref->list);
+		list_for_each_entry(ref3, &pr, list) {
+			if (ref->unique_id < ref3->unique_id) {
+				LIST_ADDQ(&ref3->list, &ref->list);
+				break;
+			}
+		}
+		if (&ref3->list == &pr)
+			LIST_ADDQ(&pr, &ref->list);
+	}
+
+	/* swap root */
+	LIST_ADD(&pr, &pattern_reference);
+	LIST_DEL(&pr);
 }

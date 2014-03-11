@@ -982,6 +982,27 @@ struct pat_ref *pat_list_get_next(struct pat_ref *getnext, struct list *end,
 	}
 }
 
+static inline
+struct pat_ref *pat_ref_lookup_ref(const char *reference)
+{
+	int id;
+	char *error;
+
+	/* If the reference starts by a '#', this is numeric id. */
+	if (reference[0] == '#') {
+		/* Try to convert the numeric id. If the conversion fails, the lookup fails. */
+		id = strtol(reference + 1, &error, 10);
+		if (*error != '\0')
+			return NULL;
+
+		/* Perform the unique id lookup. */
+		return pat_ref_lookupid(id);
+	}
+
+	/* Perform the string lookup. */
+	return pat_ref_lookup(reference);
+}
+
 /* This function is used with map and acl management. It permits to browse
  * each reference.
  */
@@ -1123,13 +1144,13 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			}
 
 			/* lookup into the refs and check the map flag */
-			appctx->ctx.map.ref = pat_ref_lookup(args[2]);
+			appctx->ctx.map.ref = pat_ref_lookup_ref(args[2]);
 			if (!appctx->ctx.map.ref ||
 			    !(appctx->ctx.map.ref->flags & appctx->ctx.map.display_flags)) {
 				if (appctx->ctx.map.display_flags == PAT_REF_MAP)
-					appctx->ctx.cli.msg = "Unknown map identifier. Please use <name>.\n";
+					appctx->ctx.cli.msg = "Unknown map identifier. Please use #<id> or <name>.\n";
 				else
-					appctx->ctx.cli.msg = "Unknown ACL identifier. Please use <name>.\n";
+					appctx->ctx.cli.msg = "Unknown ACL identifier. Please use #<id> or <name>.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -1222,13 +1243,13 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			}
 
 			/* lookup into the refs and check the map flag */
-			appctx->ctx.map.ref = pat_ref_lookup(args[2]);
+			appctx->ctx.map.ref = pat_ref_lookup_ref(args[2]);
 			if (!appctx->ctx.map.ref ||
 			    !(appctx->ctx.map.ref->flags & appctx->ctx.map.display_flags)) {
 				if (appctx->ctx.map.display_flags == PAT_REF_MAP)
-					appctx->ctx.cli.msg = "Unknown map identifier. Please use <name>.\n";
+					appctx->ctx.cli.msg = "Unknown map identifier. Please use #<id> or <name>.\n";
 				else
-					appctx->ctx.cli.msg = "Unknown ACL identifier. Please use <name>.\n";
+					appctx->ctx.cli.msg = "Unknown ACL identifier. Please use #<id> or <name>.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -1293,12 +1314,12 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			}
 
 			/* lookup into the maps */
-			appctx->ctx.map.ref = pat_ref_lookup(args[2]);
+			appctx->ctx.map.ref = pat_ref_lookup_ref(args[2]);
 			if (!appctx->ctx.map.ref) {
 				if (appctx->ctx.map.display_flags == PAT_REF_MAP)
-					appctx->ctx.cli.msg = "Unknown map identifier. Please use <name>.\n";
+					appctx->ctx.cli.msg = "Unknown map identifier. Please use #<id> or <name>.\n";
 				else
-					appctx->ctx.cli.msg = "Unknown ACL identifier. Please use <name>.\n";
+					appctx->ctx.cli.msg = "Unknown ACL identifier. Please use #<id> or <name>.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -1605,9 +1626,9 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			}
 
 			/* Lookup the reference in the maps. */
-			appctx->ctx.map.ref = pat_ref_lookup(args[2]);
+			appctx->ctx.map.ref = pat_ref_lookup_ref(args[2]);
 			if (!appctx->ctx.map.ref) {
-				appctx->ctx.cli.msg = "Unknown map identifier. Please use <name>.\n";
+				appctx->ctx.cli.msg = "Unknown map identifier. Please use #<id> or <name>.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -1872,10 +1893,10 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			}
 
 			/* Lookup the reference in the maps. */
-			appctx->ctx.map.ref = pat_ref_lookup(args[2]);
+			appctx->ctx.map.ref = pat_ref_lookup_ref(args[2]);
 			if (!appctx->ctx.map.ref ||
 			    !(appctx->ctx.map.ref->flags & appctx->ctx.map.display_flags)) {
-				appctx->ctx.cli.msg = "Unknown map identifier. Please use <name>.\n";
+				appctx->ctx.cli.msg = "Unknown map identifier. Please use #<id> or <name>.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -1929,12 +1950,12 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			}
 
 			/* Lookup for the reference. */
-			appctx->ctx.map.ref = pat_ref_lookup(args[2]);
+			appctx->ctx.map.ref = pat_ref_lookup_ref(args[2]);
 			if (!appctx->ctx.map.ref) {
 				if (appctx->ctx.map.display_flags == PAT_REF_MAP)
-					appctx->ctx.cli.msg = "Unknown map identifier. Please use <name>.\n";
+					appctx->ctx.cli.msg = "Unknown map identifier. Please use #<id> or <name>.\n";
 				else
-					appctx->ctx.cli.msg = "Unknown ACL identifier. Please use <name>.\n";
+					appctx->ctx.cli.msg = "Unknown ACL identifier. Please use #<id> or <name>.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -4736,6 +4757,14 @@ static int stats_pats_list(struct stream_interface *si)
 
 	switch (appctx->st2) {
 	case STAT_ST_INIT:
+		/* Display the column headers. If the message cannot be sent,
+		 * quit the fucntion with returning 0. The function is called
+		 * later and restart at the state "STAT_ST_INIT".
+		 */
+		chunk_reset(&trash);
+		chunk_appendf(&trash, "# id (name)\n");
+		if (bi_putchk(si->ib, &trash) == -1)
+			return 0;
 
 		/* Now, we start the browsing of the references lists.
 		 * Note that the following call to LIST_ELEM return bad pointer. The only
@@ -4750,24 +4779,23 @@ static int stats_pats_list(struct stream_interface *si)
 
 	case STAT_ST_LIST:
 		while (appctx->ctx.map.ref) {
-
 			chunk_reset(&trash);
 
 			/* Build messages. If the reference is used by another category than
 			 * the listed categorie, display the information in the massage.
 			 */
-			if ((appctx->ctx.map.display_flags & PAT_REF_MAP) &&
-			    (appctx->ctx.map.ref->flags & PAT_REF_ACL)) {
-				chunk_appendf(&trash, "%s (also used by an ACL)\n",
-				              appctx->ctx.map.ref->reference);
+			chunk_appendf(&trash, "%d (%s)", appctx->ctx.map.ref->unique_id,
+			              appctx->ctx.map.ref->reference ? appctx->ctx.map.ref->reference : "");
+
+			if (appctx->ctx.map.display_flags & PAT_REF_MAP) {
+				if (appctx->ctx.map.ref->flags & PAT_REF_ACL)
+					chunk_appendf(&trash, " - also used by an ACL");
 			}
-			else if ((appctx->ctx.map.display_flags & PAT_REF_ACL) &&
-			         (appctx->ctx.map.ref->flags & PAT_REF_MAP)) {
-				chunk_appendf(&trash, "%s (also used by a map)\n",
-				              appctx->ctx.map.ref->reference);
+			else {
+				if (appctx->ctx.map.ref->flags & PAT_REF_MAP)
+					chunk_appendf(&trash, " - also used by a map");
 			}
-			else
-				chunk_appendf(&trash, "%s\n", appctx->ctx.map.ref->reference);
+			chunk_appendf(&trash, "\n");
 
 			if (bi_putchk(si->ib, &trash) == -1) {
 				/* let's try again later from this session. We add ourselves into

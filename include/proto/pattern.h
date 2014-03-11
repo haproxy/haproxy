@@ -40,7 +40,7 @@
  * The function returns 1 if the processing is ok, return 0
  * if the parser fails, with <err> message filled.
  */
-int pattern_register(struct pattern_head *head, char *reference, int refflags, const char *arg, struct sample_storage *smp, int patflags, char **err);
+int pattern_register(struct pattern_head *head, int unique_id, int refflags, const char *arg, struct sample_storage *smp, int patflags, char **err);
 void pattern_finalize_config(void);
 
 /* return the PAT_MATCH_* index for match name "name", or < 0 if not found */
@@ -197,7 +197,9 @@ struct pattern *pat_match_reg(struct sample *smp, struct pattern_expr *expr, int
  * pattern_ref manipulation.
  */
 struct pat_ref *pat_ref_lookup(const char *reference);
+struct pat_ref *pat_ref_lookupid(int unique_id);
 struct pat_ref *pat_ref_new(const char *reference, unsigned int flags);
+struct pat_ref *pat_ref_newid(int unique_id, unsigned int flags);
 int pat_ref_append(struct pat_ref *ref, char *pattern, char *sample, int line);
 int pat_ref_add(struct pat_ref *ref, const char *pattern, const char *sample, char **err);
 int pat_ref_set(struct pat_ref *ref, const char *pattern, const char *sample);

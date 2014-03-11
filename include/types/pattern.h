@@ -97,6 +97,7 @@ struct pat_ref {
 	struct list list; /* Used to chain refs. */
 	unsigned int flags; /* flags PAT_REF_*. */
 	char *reference; /* The reference name. */
+	int unique_id; /* Each pattern reference have unique id. */
 	struct list head; /* The head of the list of struct pat_ref_elt. */
 	struct list pat; /* The head of the list of struct pattern_expr. */
 };

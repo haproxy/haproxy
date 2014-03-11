@@ -598,7 +598,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			}
 		}
 
-		if (!pattern_register(&expr->pat, NULL, PAT_REF_ACL, arg, NULL, patflags, err))
+		if (!pattern_register(&expr->pat, -1, PAT_REF_ACL, arg, NULL, patflags, err))
 			goto out_free_expr;
 		args++;
 	}

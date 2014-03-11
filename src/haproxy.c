@@ -89,6 +89,7 @@
 #include <proto/hdr_idx.h>
 #include <proto/listener.h>
 #include <proto/log.h>
+#include <proto/pattern.h>
 #include <proto/protocol.h>
 #include <proto/proto_http.h>
 #include <proto/proxy.h>
@@ -692,6 +693,8 @@ void init(int argc, char **argv)
 		if (err_code & ERR_ABORT)
 			exit(1);
 	}
+
+	pattern_finalize_config();
 
 	err_code |= check_config_validity();
 	if (err_code & (ERR_ABORT|ERR_FATAL)) {
