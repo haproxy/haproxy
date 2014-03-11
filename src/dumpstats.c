@@ -4854,61 +4854,61 @@ static int stats_map_lookup(struct stream_interface *si)
 
 			/* build return message: set type of match */
 			/**/ if (appctx->ctx.map.desc->pat->match == NULL)
-				chunk_appendf(&trash, "type=found, ");
+				chunk_appendf(&trash, "type=found");
 			else if (appctx->ctx.map.desc->pat->match == pat_match_nothing)
-				chunk_appendf(&trash, "type=bool, ");
+				chunk_appendf(&trash, "type=bool");
 			else if (appctx->ctx.map.desc->pat->match == pat_match_int)
-				chunk_appendf(&trash, "type=int, ");
+				chunk_appendf(&trash, "type=int");
 			else if (appctx->ctx.map.desc->pat->match == pat_match_ip)
-				chunk_appendf(&trash, "type=ip, ");
+				chunk_appendf(&trash, "type=ip");
 			else if (appctx->ctx.map.desc->pat->match == pat_match_bin)
-				chunk_appendf(&trash, "type=bin, ");
+				chunk_appendf(&trash, "type=bin");
 			else if (appctx->ctx.map.desc->pat->match == pat_match_len)
-				chunk_appendf(&trash, "type=len, ");
+				chunk_appendf(&trash, "type=len");
 			else if (appctx->ctx.map.desc->pat->match == pat_match_str)
-				chunk_appendf(&trash, "type=str, ");
+				chunk_appendf(&trash, "type=str");
 			else if (appctx->ctx.map.desc->pat->match == pat_match_beg)
-				chunk_appendf(&trash, "type=beg, ");
+				chunk_appendf(&trash, "type=beg");
 			else if (appctx->ctx.map.desc->pat->match == pat_match_sub)
-				chunk_appendf(&trash, "type=sub, ");
+				chunk_appendf(&trash, "type=sub");
 			else if (appctx->ctx.map.desc->pat->match == pat_match_dir)
-				chunk_appendf(&trash, "type=dir, ");
+				chunk_appendf(&trash, "type=dir");
 			else if (appctx->ctx.map.desc->pat->match == pat_match_dom)
-				chunk_appendf(&trash, "type=dom, ");
+				chunk_appendf(&trash, "type=dom");
 			else if (appctx->ctx.map.desc->pat->match == pat_match_end)
-				chunk_appendf(&trash, "type=end, ");
+				chunk_appendf(&trash, "type=end");
 			else if (appctx->ctx.map.desc->pat->match == pat_match_reg)
-				chunk_appendf(&trash, "type=reg, ");
+				chunk_appendf(&trash, "type=reg");
 			else /* The never appens case */
-				chunk_appendf(&trash, "type=unknown(%p), ", appctx->ctx.map.desc->pat->match);
+				chunk_appendf(&trash, "type=unknown(%p)", appctx->ctx.map.desc->pat->match);
 
 			/* Display no match, and set default value */
 			if (!pat) {
-				chunk_appendf(&trash, "match=no, ");
+				chunk_appendf(&trash, ", match=no");
 			}
 
 			/* Display match and match info */
 			else {
 				/* display match */
-				chunk_appendf(&trash, "match=yes, ");
+				chunk_appendf(&trash, ", match=yes");
 
 				/* display index mode */
 				if (pat->flags & PAT_F_TREE)
-					chunk_appendf(&trash, "idx=tree, ");
+					chunk_appendf(&trash, ", idx=tree");
 				else
-					chunk_appendf(&trash, "idx=list, ");
+					chunk_appendf(&trash, ", idx=list");
 
 				/* case sensitive */
 				if (pat->flags & PAT_F_IGNORE_CASE)
-					chunk_appendf(&trash, "case=insensitive, ");
+					chunk_appendf(&trash, ", case=insensitive");
 				else
-					chunk_appendf(&trash, "case=sensitive, ");
+					chunk_appendf(&trash, ", case=sensitive");
 
 				/* display source */
 				if (pat->flags & PAT_F_FROM_FILE)
-					chunk_appendf(&trash, "src=file, ");
+					chunk_appendf(&trash, ", src=file");
 				else
-					chunk_appendf(&trash, "src=conf, ");
+					chunk_appendf(&trash, ", src=conf");
 
 				/* display string */
 				if (appctx->ctx.map.desc->pat->match == pat_match_str ||
@@ -4918,7 +4918,7 @@ static int stats_map_lookup(struct stream_interface *si)
 				    appctx->ctx.map.desc->pat->match == pat_match_dir ||
 				    appctx->ctx.map.desc->pat->match == pat_match_dom ||
 				    appctx->ctx.map.desc->pat->match == pat_match_end) {
-					chunk_appendf(&trash, "key=\"%s\", ", pat->ptr.str);
+					chunk_appendf(&trash, ", key=\"%s\"", pat->ptr.str);
 				}
 				else if (appctx->ctx.map.desc->pat->match == pat_match_ip) {
 					/* display IPv4/v6 */
@@ -4930,7 +4930,7 @@ static int stats_map_lookup(struct stream_interface *si)
 							memcpy(&((struct sockaddr_in *)&addr)->sin_addr, &pat->val.ipv4.mask,
 							       sizeof(pat->val.ipv4.mask));
 							if (addr_to_str(&addr, s_mask, INET_ADDRSTRLEN))
-								chunk_appendf(&trash, "key=\"%s/%s\", ", s_addr, s_mask);
+								chunk_appendf(&trash, ", key=\"%s/%s\"", s_addr, s_mask);
 						}
 					}
 					else if (pat->type == SMP_T_IPV6) {
@@ -4938,14 +4938,14 @@ static int stats_map_lookup(struct stream_interface *si)
 						memcpy(&((struct sockaddr_in6 *)&addr)->sin6_addr, &pat->val.ipv6.addr,
 						       sizeof(pat->val.ipv6.addr));
 						if (addr_to_str(&addr, s_addr6, INET6_ADDRSTRLEN))
-							chunk_appendf(&trash, "key=\"%s/%d\", ", s_addr6, pat->val.ipv6.mask);
+							chunk_appendf(&trash, ", key=\"%s/%d\"", s_addr6, pat->val.ipv6.mask);
 					}
 				}
 			}
 
 			/* display return value */
 			if (!pat || !pat->smp) {
-				chunk_appendf(&trash, "value=nothing\n");
+				chunk_appendf(&trash, ", value=nothing");
 			}
 			else {
 				smp = pat->smp;
@@ -4953,12 +4953,14 @@ static int stats_map_lookup(struct stream_interface *si)
 				sample.type = smp->type;
 				if (sample_casts[sample.type][SMP_T_STR] &&
 				    sample_casts[sample.type][SMP_T_STR](&sample))
-					chunk_appendf(&trash, "value=\"%s\", type=\"%s\"\n",
+					chunk_appendf(&trash, ", value=\"%s\", type=\"%s\"",
 					              sample.data.str.str, smp_to_type[smp->type]);
 				else
-					chunk_appendf(&trash, "value=cannot-display, type=\"%s\"\n",
+					chunk_appendf(&trash, ", value=cannot-display, type=\"%s\"",
 					              smp_to_type[smp->type]);
 			}
+
+			chunk_appendf(&trash, "\n");
 
 			/* display response */
 			if (bi_putchk(si->ib, &trash) == -1) {
