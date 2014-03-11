@@ -628,7 +628,7 @@ smp_fetch_res_comp_algo(struct proxy *px, struct session *l4, void *l7, unsigned
 	if (!l4->comp_algo)
 		return 0;
 
-	smp->type = SMP_T_STR;
+	smp->type = SMP_T_CSTR;
 	smp->data.str.str = l4->comp_algo->name;
 	smp->data.str.len = l4->comp_algo->name_len;
 	return 1;
