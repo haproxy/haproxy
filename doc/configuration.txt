@@ -9343,6 +9343,11 @@ The currently available list of transformation keywords include :
                  after a string sample fetch function or after a transformation
                  keyword returning a string type. The result is of type string.
 
+  hex            Converts a binary input sample to an hex string containing two
+                 hex digits per input byte. It is used to log or transfer hex
+                 dumps of some binary input data in a way that can be reliably
+                 transferred (eg: an SSL ID can be copied in a header).
+
   ipmask(<mask>) Apply a mask to an IPv4 address, and use the result for
                  lookups and storage. This can be used to make all hosts within
                  a certain mask to share the same table entries and as such use

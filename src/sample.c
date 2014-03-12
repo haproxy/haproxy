@@ -1089,6 +1089,23 @@ struct sample *sample_fetch_string(struct proxy *px, struct session *l4, void *l
 /*    These functions set the data type on return.               */
 /*****************************************************************/
 
+static int sample_conv_bin2hex(const struct arg *arg_p, struct sample *smp)
+{
+	struct chunk *trash = get_trash_chunk();
+	unsigned char c;
+	int ptr = 0;
+
+	trash->len = 0;
+	while (ptr < smp->data.str.len && trash->len <= trash->size - 2) {
+		c = smp->data.str.str[ptr++];
+		trash->str[trash->len++] = hextab[(c >> 4) & 0xF];
+		trash->str[trash->len++] = hextab[c & 0xF];
+	}
+	smp->data.str = *trash;
+	smp->type = SMP_T_STR;
+	return 1;
+}
+
 static int sample_conv_str2lower(const struct arg *arg_p, struct sample *smp)
 {
 	int i;
@@ -1225,6 +1242,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "upper",  sample_conv_str2upper, 0,            NULL, SMP_T_STR,  SMP_T_STR  },
 	{ "lower",  sample_conv_str2lower, 0,            NULL, SMP_T_STR,  SMP_T_STR  },
+	{ "hex",    sample_conv_bin2hex,   0,            NULL, SMP_T_BIN,  SMP_T_STR  },
 	{ "ipmask", sample_conv_ipmask,    ARG1(1,MSK4), NULL, SMP_T_IPV4, SMP_T_IPV4 },
 	{ NULL, NULL, 0, 0, 0 },
 }};
