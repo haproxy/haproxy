@@ -477,18 +477,24 @@ static int c_str2ipv6(struct sample *smp)
 	return 1;
 }
 
+/* The sample is always copied into a new one so that smp->size is always
+ * valid. The NULL char always enforces the end of string if it is met.
+ */
 static int c_bin2str(struct sample *smp)
 {
 	struct chunk *trash = get_trash_chunk();
 	unsigned char c;
 	int ptr = 0;
 
-	trash->len = 0;
-	while (ptr < smp->data.str.len && trash->len <= trash->size - 2) {
-		c = smp->data.str.str[ptr++];
-		trash->str[trash->len++] = hextab[(c >> 4) & 0xF];
-		trash->str[trash->len++] = hextab[c & 0xF];
+	while (ptr < smp->data.str.len) {
+		c = smp->data.str.str[ptr];
+		if (!c)
+			break;
+		trash->str[ptr] = c;
+		ptr++;
 	}
+	trash->len = ptr;
+	trash->str[ptr] = 0;
 	smp->data.str = *trash;
 	smp->type = SMP_T_STR;
 	return 1;
