@@ -863,6 +863,15 @@ int session_set_backend(struct session *s, struct proxy *be)
 		hdr_idx_init(&s->txn.hdr_idx);
 	}
 
+	/* If an LB algorithm needs to access some pre-parsed body contents,
+	 * we must not start to forward anything until the connection is
+	 * confirmed otherwise we'll lose the pointer to these data and
+	 * prevent the hash from being doable again after a redispatch.
+	 */
+	if (be->mode == PR_MODE_HTTP &&
+	    (be->lbprm.algo & (BE_LB_KIND | BE_LB_PARM)) == (BE_LB_KIND_HI | BE_LB_HASH_PRM))
+		s->txn.req.flags |= HTTP_MSGF_WAIT_CONN;
+
 	if (be->options2 & PR_O2_NODELAY) {
 		s->req->flags |= CF_NEVER_WAIT;
 		s->rep->flags |= CF_NEVER_WAIT;
