@@ -320,11 +320,22 @@ enum {
  *                             for states after START. When in HTTP_MSG_BODY,
  *                             eoh points to the first byte of the last CRLF
  *                             preceeding data. Relative to buffer's origin.
+ *                             This value then remains unchanged till the end
+ *                             so that we can rewind the buffer to change some
+ *                             headers if needed (eg: http-send-name-header).
+ *
  *  - sov                    : When in HTTP_MSG_BODY, will point to the first
  *                             byte of data (relative to buffer's origin).
  *  - sol (start of line)    : start of current line during parsing, or zero.
- *  - eol (End of Line)      : relative offset in the buffer of the first byte
- *                             which marks the end of the line (LF or CRLF).
+ *
+ *  - eol (End of Line)      : Before HTTP_MSG_BODY, relative offset in the
+ *                             buffer of the first byte which marks the end of
+ *                             the line current (LF or CRLF).
+ *                             From HTTP_MSG_BODY to the end, contains the
+ *                             length of the last CRLF (1 for a plain LF, or 2
+ *                             for a true CRLF). So eoh+eol always contain the
+ *                             exact size of the header size.
+ *
  * Note that all offsets are relative to the origin of the buffer (buf->p)
  * which always points to the beginning of the message (request or response).
  * Since a message may not wrap, pointer computations may be one without any

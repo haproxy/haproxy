@@ -1731,12 +1731,16 @@ void http_msg_analyzer(struct http_msg *msg, struct hdr_idx *idx)
 
 	case HTTP_MSG_LAST_LF:
 	http_msg_last_lf:
-		/* Assumes msg->sol points to the first of either CR or LF */
+		/* Assumes msg->sol points to the first of either CR or LF.
+		 * Sets ->sov and ->next to the total header length, ->eoh to
+		 * the last CRLF, and ->eol to the last CRLF length (1 or 2).
+		 */
 		EXPECT_LF_HERE(ptr, http_msg_invalid);
 		ptr++;
 		msg->sov = msg->next = ptr - buf->p;
 		msg->eoh = msg->sol;
 		msg->sol = 0;
+		msg->eol = msg->sov - msg->eoh;
 		msg->msg_state = HTTP_MSG_BODY;
 		return;
 
