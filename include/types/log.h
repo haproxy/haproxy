@@ -125,6 +125,7 @@ struct logformat_node {
 #define LOG_OPT_QUOTE		0x00000004
 #define LOG_OPT_REQ_CAP         0x00000008
 #define LOG_OPT_RES_CAP         0x00000010
+#define LOG_OPT_HTTP            0x00000020
 
 
 /* Fields that need to be extracted from the incoming connection or request for

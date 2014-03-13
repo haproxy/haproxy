@@ -7085,7 +7085,7 @@ out_uri_auth_compat:
 			curproxy->conf.args.ctx = ARGC_UIF;
 			curproxy->conf.args.file = curproxy->conf.uif_file;
 			curproxy->conf.args.line = curproxy->conf.uif_line;
-			parse_logformat_string(curproxy->conf.uniqueid_format_string, curproxy, &curproxy->format_unique_id, 0,
+			parse_logformat_string(curproxy->conf.uniqueid_format_string, curproxy, &curproxy->format_unique_id, LOG_OPT_HTTP,
 					       (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR);
 			curproxy->conf.args.file = NULL;
 			curproxy->conf.args.line = 0;

@@ -885,6 +885,7 @@ void __send_log(struct proxy *p, int level, char *message, size_t size)
 
 extern fd_set hdr_encode_map[];
 extern fd_set url_encode_map[];
+extern fd_set http_encode_map[];
 
 
 const char sess_cookie[8]     = "NIDVEOU7";	/* No cookie, Invalid cookie, cookie for a Down server, Valid cookie, Expired cookie, Old cookie, Unused, unknown */
@@ -940,6 +941,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 		struct connection *conn;
 		const char *src = NULL;
 		struct sample *key;
+		const struct chunk empty = { NULL, 0, 0 };
 
 		switch (tmp->type) {
 			case LOG_FMT_SEPARATOR:
@@ -964,7 +966,11 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 					key = sample_fetch_string(be, s, txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, tmp->expr);
 				if (!key && (tmp->options & LOG_OPT_RES_CAP))
 					key = sample_fetch_string(be, s, txn, SMP_OPT_DIR_RES|SMP_OPT_FINAL, tmp->expr);
-				ret = lf_text_len(tmplog, key ? key->data.str.str : NULL, key ? key->data.str.len : 0, dst + maxsize - tmplog, tmp);
+				if (tmp->options & LOG_OPT_HTTP)
+					ret = encode_chunk(tmplog, dst + maxsize,
+					                   '%', http_encode_map, key ? &key->data.str : &empty);
+				else
+					ret = lf_text_len(tmplog, key ? key->data.str.str : NULL, key ? key->data.str.len : 0, dst + maxsize - tmplog, tmp);
 				if (ret == 0)
 					goto out;
 				tmplog = ret;

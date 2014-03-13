@@ -235,6 +235,7 @@ static struct hdr_ctx static_hdr_ctx;
  */
 fd_set hdr_encode_map[(sizeof(fd_set) > (256/8)) ? 1 : ((256/8) / sizeof(fd_set))];
 fd_set url_encode_map[(sizeof(fd_set) > (256/8)) ? 1 : ((256/8) / sizeof(fd_set))];
+fd_set http_encode_map[(sizeof(fd_set) > (256/8)) ? 1 : ((256/8) / sizeof(fd_set))];
 
 #else
 #error "Check if your OS uses bitfields for fd_sets"
@@ -263,6 +264,7 @@ void init_proto_http()
 	 */
 	memset(hdr_encode_map, 0, sizeof(hdr_encode_map));
 	memset(url_encode_map, 0, sizeof(url_encode_map));
+	memset(http_encode_map, 0, sizeof(url_encode_map));
 	for (i = 0; i < 32; i++) {
 		FD_SET(i, hdr_encode_map);
 		FD_SET(i, url_encode_map);
@@ -283,6 +285,32 @@ void init_proto_http()
 		FD_SET(*tmp, url_encode_map);
 		tmp++;
 	}
+
+	/* initialize the http header encoding map. The draft httpbis define the
+	 * header content as:
+	 *
+	 *    HTTP-message   = start-line
+	 *                     *( header-field CRLF )
+	 *                     CRLF
+	 *                     [ message-body ]
+	 *    header-field   = field-name ":" OWS field-value OWS
+	 *    field-value    = *( field-content / obs-fold )
+	 *    field-content  = field-vchar [ 1*( SP / HTAB ) field-vchar ]
+	 *    obs-fold       = CRLF 1*( SP / HTAB )
+	 *    field-vchar    = VCHAR / obs-text
+	 *    VCHAR          = %x21-7E
+	 *    obs-text       = %x80-FF
+	 *
+	 * All the chars are encoded except "VCHAR", "obs-text", SP and HTAB.
+	 * The encoded chars are form 0x00 to 0x08, 0x0a to 0x1f and 0x7f. The
+	 * "obs-fold" is volontary forgotten because haproxy remove this.
+	 */
+	memset(http_encode_map, 0, sizeof(http_encode_map));
+	for (i = 0x00; i <= 0x08; i++)
+		FD_SET(i, http_encode_map);
+	for (i = 0x0a; i <= 0x1f; i++)
+		FD_SET(i, http_encode_map);
+	FD_SET(0x7f, http_encode_map);
 
 	/* memory allocations */
 	pool2_requri = create_pool("requri", REQURI_LEN, MEM_F_SHARED);
@@ -8459,7 +8487,7 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		LIST_INIT(&rule->arg.hdr_add.fmt);
 
 		proxy->conf.args.ctx = ARGC_HRQ;
-		parse_logformat_string(args[cur_arg + 1], proxy, &rule->arg.hdr_add.fmt, 0,
+		parse_logformat_string(args[cur_arg + 1], proxy, &rule->arg.hdr_add.fmt, LOG_OPT_HTTP,
 				       (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR);
 		free(proxy->conf.lfs_file);
 		proxy->conf.lfs_file = strdup(proxy->conf.args.file);
@@ -8630,7 +8658,7 @@ struct http_res_rule *parse_http_res_cond(const char **args, const char *file, i
 		LIST_INIT(&rule->arg.hdr_add.fmt);
 
 		proxy->conf.args.ctx = ARGC_HRS;
-		parse_logformat_string(args[cur_arg + 1], proxy, &rule->arg.hdr_add.fmt, 0,
+		parse_logformat_string(args[cur_arg + 1], proxy, &rule->arg.hdr_add.fmt, LOG_OPT_HTTP,
 				       (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR);
 		free(proxy->conf.lfs_file);
 		proxy->conf.lfs_file = strdup(proxy->conf.args.file);
@@ -8786,7 +8814,7 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 		 */
 		proxy->conf.args.ctx = ARGC_RDR;
 		if (!(type == REDIRECT_TYPE_PREFIX && destination[0] == '/' && destination[1] == '\0')) {
-			parse_logformat_string(destination, curproxy, &rule->rdr_fmt, 0,
+			parse_logformat_string(destination, curproxy, &rule->rdr_fmt, LOG_OPT_HTTP,
 			                       (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR);
 			free(curproxy->conf.lfs_file);
 			curproxy->conf.lfs_file = strdup(curproxy->conf.args.file);
