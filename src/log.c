@@ -1420,8 +1420,6 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 					if (tmp->options & LOG_OPT_QUOTE)
 						LOGCHAR('"');
 					last_isspace = 0;
-					if (tmp->options & LOG_OPT_QUOTE)
-						LOGCHAR('"');
 				}
 				break;
 
