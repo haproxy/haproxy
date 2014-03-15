@@ -25,6 +25,9 @@
 #include <common/memory.h>
 #include <common/time.h>
 
+#include <eb32tree.h>
+#include <ebistree.h>
+
 #include <types/global.h>
 #include <types/obj_type.h>
 #include <types/peers.h>
@@ -339,23 +342,44 @@ struct proxy *findproxy(const char *name, int cap) {
 	struct proxy *curproxy, *target = NULL;
 	int pid = -1;
 
-	if (*name == '#')
+	if (*name == '#') {
+		struct eb32_node *node;
+
 		pid = atoi(name + 1);
 
-	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
-		if ((curproxy->cap & cap) != cap ||
-		    (pid >= 0 && curproxy->uuid != pid) ||
-		    (pid < 0 && strcmp(curproxy->id, name)))
-			continue;
+		for (node = eb32_lookup(&used_proxy_id, pid); node; node = eb32_next(node)) {
+			curproxy = container_of(node, struct proxy, conf.id);
 
-		if (!target) {
+			if (curproxy->uuid != pid)
+				break;
+
+			if ((curproxy->cap & cap) != cap)
+				continue;
+
+			if (target)
+				return NULL;
+
 			target = curproxy;
-			continue;
 		}
-
-		return NULL;
 	}
+	else {
+		struct ebpt_node *node;
 
+		for (node = ebis_lookup(&proxy_by_name, name); node; node = ebpt_next(node)) {
+			curproxy = container_of(node, struct proxy, conf.by_name);
+
+			if (strcmp(curproxy->id, name) != 0)
+				break;
+
+			if ((curproxy->cap & cap) != cap)
+				continue;
+
+			if (target)
+				return NULL;
+
+			target = curproxy;
+		}
+	}
 	return target;
 }
 
