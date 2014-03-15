@@ -716,9 +716,15 @@ int stktable_get_data_type(char *name)
 struct proxy *find_stktable(const char *name)
 {
 	struct proxy *px;
+	struct ebpt_node *node;
 
-	for (px = proxy; px; px = px->next) {
-		if (px->table.size && strcmp(px->id, name) == 0)
+	for (node = ebis_lookup(&proxy_by_name, name); node; node = ebpt_next(node)) {
+		px = container_of(node, struct proxy, conf.by_name);
+
+		if (strcmp(px->id, name) != 0)
+			break;
+
+		if (px->table.size)
 			return px;
 	}
 	return NULL;
