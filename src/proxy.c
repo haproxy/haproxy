@@ -97,22 +97,15 @@ int get_backend_server(const char *bk_name, const char *sv_name,
 {
 	struct proxy *p;
 	struct server *s;
-	int pid, sid;
+	int sid;
 
 	*sv = NULL;
 
-	pid = -1;
-	if (*bk_name == '#')
-		pid = atoi(bk_name + 1);
 	sid = -1;
 	if (*sv_name == '#')
 		sid = atoi(sv_name + 1);
 
-	for (p = proxy; p; p = p->next)
-		if ((p->cap & PR_CAP_BE) &&
-		    ((pid >= 0 && p->uuid == pid) ||
-		     (pid < 0 && strcmp(p->id, bk_name) == 0)))
-			break;
+	p = findproxy(bk_name, PR_CAP_BE);
 	if (bk)
 		*bk = p;
 	if (!p)
