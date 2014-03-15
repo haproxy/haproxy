@@ -1775,6 +1775,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		rc = PR_CAP_NONE;
 
 	if (rc != PR_CAP_NONE) {  /* new proxy */
+		struct ebpt_node *node;
+
 		if (!*args[1]) {
 			Alert("parsing [%s:%d] : '%s' expects an <id> argument and\n"
 			      "  optionnally supports [addr1]:port1[-end1]{,[addr]:port[-end]}...\n",
@@ -1790,7 +1792,12 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 
-		for (curproxy = proxy; curproxy != NULL; curproxy = curproxy->next) {
+		for (node = ebis_lookup(&proxy_by_name, args[1]); node; node = ebpt_next(node)) {
+			curproxy = container_of(node, struct proxy, conf.by_name);
+
+			if (strcmp(curproxy->id, args[1]) != 0)
+				break;
+
 			/*
 			 * If there are two proxies with the same name only following
 			 * combinations are allowed:
@@ -1802,9 +1809,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			 *	ruleset            -      -       -        -
 			 */
 
-			if (!strcmp(curproxy->id, args[1]) &&
-				(rc!=(PR_CAP_FE|PR_CAP_RS) || curproxy->cap!=(PR_CAP_BE|PR_CAP_RS)) &&
-				(rc!=(PR_CAP_BE|PR_CAP_RS) || curproxy->cap!=(PR_CAP_FE|PR_CAP_RS))) {
+			if ((rc != (PR_CAP_FE|PR_CAP_RS) || curproxy->cap != (PR_CAP_BE|PR_CAP_RS)) &&
+			    (rc != (PR_CAP_BE|PR_CAP_RS) || curproxy->cap != (PR_CAP_FE|PR_CAP_RS))) {
 				Warning("Parsing [%s:%d]: %s '%s' has same name as another %s (declared at %s:%d).\n",
 					file, linenum, proxy_cap_str(rc), args[1], proxy_type_str(curproxy),
 					curproxy->conf.file, curproxy->conf.line);
