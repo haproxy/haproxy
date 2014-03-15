@@ -30,6 +30,11 @@
 #include <types/listener.h>
 #include <proto/freq_ctr.h>
 
+extern struct proxy *proxy;
+extern struct eb_root used_proxy_id;	/* list of proxy IDs in use */
+extern unsigned int error_snapshot_id;  /* global ID assigned to each error then incremented */
+extern struct eb_root proxy_by_name;    /* tree of proxies sorted by name */
+
 int start_proxies(int verbose);
 struct task *manage_proxy(struct task *t);
 void soft_stop(void);
@@ -42,6 +47,7 @@ int  session_set_backend(struct session *s, struct proxy *be);
 
 const char *proxy_cap_str(int cap);
 const char *proxy_mode_str(int mode);
+void proxy_store_name(struct proxy *px);
 struct proxy *findproxy_mode(const char *name, int mode, int cap);
 struct proxy *findproxy(const char *name, int cap);
 struct server *findserver(const struct proxy *px, const char *name);

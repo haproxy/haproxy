@@ -44,6 +44,7 @@
 int listeners;	/* # of proxy listeners, set by cfgparse */
 struct proxy *proxy  = NULL;	/* list of all existing proxies */
 struct eb_root used_proxy_id = EB_ROOT;	/* list of proxy IDs in use */
+struct eb_root proxy_by_name = EB_ROOT; /* tree of proxies sorted by name */
 unsigned int error_snapshot_id = 0;     /* global ID assigned to each error then incremented */
 
 /*
@@ -278,6 +279,15 @@ static int proxy_parse_rate_limit(char **args, int section, struct proxy *proxy,
 	return retval;
 }
 
+/* This function inserts proxy <px> into the tree of known proxies. The proxy's
+ * name is used as the storing key so it must already have been initialized.
+ */
+void proxy_store_name(struct proxy *px)
+{
+	px->conf.by_name.key = px->id;
+	ebis_insert(&proxy_by_name, &px->conf.by_name);
+}
+
 /*
  * This function finds a proxy with matching name, mode and with satisfying
  * capabilities. It also checks if there are more matching proxies with
@@ -287,9 +297,15 @@ static int proxy_parse_rate_limit(char **args, int section, struct proxy *proxy,
 struct proxy *findproxy_mode(const char *name, int mode, int cap) {
 
 	struct proxy *curproxy, *target = NULL;
+	struct ebpt_node *node;
 
-	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
-		if ((curproxy->cap & cap)!=cap || strcmp(curproxy->id, name))
+	for (node = ebis_lookup(&proxy_by_name, name); node; node = ebpt_next(node)) {
+		curproxy = container_of(node, struct proxy, conf.by_name);
+
+		if (strcmp(curproxy->id, name) != 0)
+			break;
+
+		if ((curproxy->cap & cap) != cap)
 			continue;
 
 		if (curproxy->mode != mode &&

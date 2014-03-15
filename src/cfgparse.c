@@ -1826,6 +1826,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		curproxy->last_change = now.tv_sec;
 		curproxy->id = strdup(args[1]);
 		curproxy->cap = rc;
+		proxy_store_name(curproxy);
 
 		/* parse the listener address if any */
 		if ((curproxy->cap & PR_CAP_FE) && *args[2]) {

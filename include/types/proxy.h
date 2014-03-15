@@ -35,6 +35,7 @@
 #include <common/sessionhash.h>
 #include <common/tools.h>
 #include <eb32tree.h>
+#include <ebistree.h>
 
 #include <types/acl.h>
 #include <types/backend.h>
@@ -363,6 +364,7 @@ struct proxy {
 		struct list bind;		/* list of bind settings */
 		struct list listeners;		/* list of listeners belonging to this frontend */
 		struct arg_list args;           /* sample arg list that need to be resolved */
+		struct ebpt_node by_name;       /* proxies are stored sorted by name here */
 		char *logformat_string;		/* log format string */
 		char *lfs_file;                 /* file name where the logformat string appears (strdup) */
 		int   lfs_line;                 /* file name where the logformat string appears */
@@ -422,10 +424,6 @@ struct redirect_rule {
 	int cookie_len;
 	char *cookie_str;
 };
-
-extern struct proxy *proxy;
-extern struct eb_root used_proxy_id;	/* list of proxy IDs in use */
-extern unsigned int error_snapshot_id;  /* global ID assigned to each error then incremented */
 
 #endif /* _TYPES_PROXY_H */
 
