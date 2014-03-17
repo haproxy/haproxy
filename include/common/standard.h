@@ -29,6 +29,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <netinet/in.h>
+#include <common/chunk.h>
 #include <common/config.h>
 #include <eb32tree.h>
 
@@ -281,6 +282,14 @@ extern const char hextab[];
 char *encode_string(char *start, char *stop,
 		    const char escape, const fd_set *map,
 		    const char *string);
+
+/*
+ * Same behavior, except that it encodes chunk <chunk> instead of a string.
+ */
+char *encode_chunk(char *start, char *stop,
+                   const char escape, const fd_set *map,
+                   const struct chunk *chunk);
+
 
 /* Decode an URL-encoded string in-place. The resulting string might
  * be shorter. If some forbidden characters are found, the conversion is

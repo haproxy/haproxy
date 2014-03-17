@@ -21,6 +21,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <common/chunk.h>
 #include <common/config.h>
 #include <common/standard.h>
 #include <eb32tree.h>
@@ -1039,6 +1040,36 @@ char *encode_string(char *start, char *stop,
 				*start++ = hextab[*string & 15];
 			}
 			string++;
+		}
+		*start = '\0';
+	}
+	return start;
+}
+
+/*
+ * Same behavior as encode_string() above, except that it encodes chunk
+ * <chunk> instead of a string.
+ */
+char *encode_chunk(char *start, char *stop,
+		    const char escape, const fd_set *map,
+		    const struct chunk *chunk)
+{
+	char *str = chunk->str;
+	char *end = chunk->str + chunk->len;
+
+	if (start < stop) {
+		stop--; /* reserve one byte for the final '\0' */
+		while (start < stop && str < end) {
+			if (!FD_ISSET((unsigned char)(*str), map))
+				*start++ = *str;
+			else {
+				if (start + 3 >= stop)
+					break;
+				*start++ = escape;
+				*start++ = hextab[(*str >> 4) & 15];
+				*start++ = hextab[*str & 15];
+			}
+			str++;
 		}
 		*start = '\0';
 	}
