@@ -156,7 +156,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	al->conv = NULL;
 
 	aclkw = find_acl_kw(args[0]);
-	if (aclkw && aclkw->parse) {
+	if (aclkw) {
 		/* OK we have a real ACL keyword */
 
 		/* build new sample expression for this ACL */
