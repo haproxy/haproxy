@@ -433,7 +433,18 @@ int pat_parse_ip(const char *text, struct pattern *pattern, char **err)
 /* always return false */
 struct pattern *pat_match_nothing(struct sample *smp, struct pattern_expr *expr, int fill)
 {
-	return NULL;
+	if (smp->data.uint) {
+		if (fill) {
+			static_pattern.smp = NULL;
+			static_pattern.ref = NULL;
+			static_pattern.flags = 0;
+			static_pattern.type = 0;
+			static_pattern.ptr.str = NULL;
+		}
+		return &static_pattern;
+	}
+	else
+		return NULL;
 }
 
 
