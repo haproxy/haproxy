@@ -111,6 +111,18 @@ enum kw_mod {
 	KWM_DEF,      /* "default" prefixed before the keyword */
 };
 
+/* permit to store configuration section */
+struct cfg_section {
+	struct list list;
+	char *section_name;
+	int (*section_parser)(const char *, int, char **, int);
+};
+
+/* Used to chain configuration sections definitions. This list
+ * stores struct cfg_section
+ */
+struct list sections = LIST_HEAD_INIT(sections);
+
 /* some of the most common options which are also the easiest to handle */
 struct cfg_opt {
 	const char *name;
@@ -6401,8 +6413,20 @@ int readcfgfile(const char *file)
 	char thisline[LINESIZE];
 	FILE *f;
 	int linenum = 0;
-	int confsect = CFG_NONE;
 	int err_code = 0;
+	struct cfg_section *cs = NULL;
+	struct cfg_section *ics;
+
+	/* Register internal sections */
+	if (!cfg_register_section("listen",   cfg_parse_listen) ||
+	    !cfg_register_section("frontend", cfg_parse_listen) ||
+	    !cfg_register_section("backend",  cfg_parse_listen) ||
+	    !cfg_register_section("ruleset",  cfg_parse_listen) ||
+	    !cfg_register_section("defaults", cfg_parse_listen) ||
+	    !cfg_register_section("global",   cfg_parse_global) ||
+	    !cfg_register_section("userlist", cfg_parse_users)  ||
+	    !cfg_register_section("peers",    cfg_parse_peers))
+		return -1;
 
 	if ((f=fopen(file,"r")) == NULL)
 		return -1;
@@ -6542,47 +6566,19 @@ int readcfgfile(const char *file)
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 
-		if (!strcmp(args[0], "listen") ||
-		    !strcmp(args[0], "frontend") ||
-		    !strcmp(args[0], "backend") ||
-		    !strcmp(args[0], "ruleset") ||
-		    !strcmp(args[0], "defaults")) { /* new proxy */
-			confsect = CFG_LISTEN;
-			free(cursection);
-			cursection = strdup(args[0]);
-		}
-		else if (!strcmp(args[0], "global")) { /* global config */
-			confsect = CFG_GLOBAL;
-			free(cursection);
-			cursection = strdup(args[0]);
-		}
-		else if (!strcmp(args[0], "userlist")) {
-			confsect = CFG_USERLIST;
-			free(cursection);
-			cursection = strdup(args[0]);
-		}
-		else if (!strcmp(args[0], "peers")) {
-			confsect = CFG_PEERS;
-			free(cursection);
-			cursection = strdup(args[0]);
+		/* detect section start */
+		list_for_each_entry(ics, &sections, list) {
+			if (strcmp(args[0], ics->section_name) == 0) {
+				cursection = ics->section_name;
+				cs = ics;
+				break;
+			}
 		}
 
 		/* else it's a section keyword */
-
-		switch (confsect) {
-		case CFG_LISTEN:
-			err_code |= cfg_parse_listen(file, linenum, args, kwm);
-			break;
-		case CFG_GLOBAL:
-			err_code |= cfg_parse_global(file, linenum, args, kwm);
-			break;
-		case CFG_USERLIST:
-			err_code |= cfg_parse_users(file, linenum, args, kwm);
-			break;
-		case CFG_PEERS:
-			err_code |= cfg_parse_peers(file, linenum, args, kwm);
-			break;
-		default:
+		if (cs)
+			err_code |= cs->section_parser(file, linenum, args, kwm);
+		else {
 			Alert("parsing [%s:%d]: unknown keyword '%s' out of section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
@@ -6590,7 +6586,6 @@ int readcfgfile(const char *file)
 		if (err_code & ERR_ABORT)
 			break;
 	}
-	free(cursection);
 	cursection = NULL;
 	fclose(f);
 	return err_code;
@@ -7854,6 +7849,30 @@ void cfg_unregister_keywords(struct cfg_kw_list *kwl)
 {
 	LIST_DEL(&kwl->list);
 	LIST_INIT(&kwl->list);
+}
+
+/* this function register new section in the haproxy configuration file.
+ * <section_name> is the name of this new section and <section_parser>
+ * is the called parser. If two section declaration have the same name,
+ * only the first declared is used.
+ */
+int cfg_register_section(char *section_name,
+                         int (*section_parser)(const char *, int, char **, int))
+{
+	struct cfg_section *cs;
+
+	cs = calloc(1, sizeof(*cs));
+	if (!cs) {
+		Alert("register section '%s': out of memory.\n", section_name);
+		return 0;
+	}
+
+	cs->section_name = section_name;
+	cs->section_parser = section_parser;
+
+	LIST_ADDQ(&sections, &cs->list);
+
+	return 1;
 }
 
 /*
