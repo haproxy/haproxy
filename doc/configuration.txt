@@ -12645,10 +12645,10 @@ all supported commands. Some commands support a more complex syntax, generally
 it will explain what part of the command is invalid when this happens.
 
 add acl <acl> <pattern>
-  Add an entry into the acl <acl>. This command does not verify if the entry
-  already exists. This command cannot be used if the reference <acl> is a file
-  also used with a map. In this case, you must use the command 'add map' in
-  place of 'add acl'.
+  Add an entry into the acl <acl>. <acl> is the #<id> or the <file> returned by
+  "show acl". This command does not verify if the entry already exists. This
+  command cannot be used if the reference <acl> is a file also used with a map.
+  In this case, you must use the command "add map" in place of "add acl".
 
 add map <map> <key> <value>
   Add an entry into the map <map> to associate the value <value> to the key
@@ -12670,12 +12670,14 @@ clear counters all
   and can only be issued on sockets configured for level "admin".
 
 clear acl <acl>
-  Remove all entries from the acl <acl>. Note that if the reference <acl> is a
-  file and is shared with a map, this map will be also cleared.
+  Remove all entries from the acl <acl>. <acl> is the #<id> or the <file>
+  returned by "show acl". Note that if the reference <acl> is a file and is
+  shared with a map, this map will be also cleared.
 
 clear map <map>
-  Remove all entries from the map <map>. Note that if the reference <map> is a
-  file and is shared with a acl, this acl will be also cleared.
+  Remove all entries from the map <map>. <map> is the #<id> or the <file>
+  returned by "show map". Note that if the reference <map> is a file and is
+  shared with a acl, this acl will be also cleared.
 
 clear table <table> [ data.<type> <operator> <value> ] | [ key <key> ]
   Remove entries from the stick-table <table>.
@@ -12727,17 +12729,17 @@ clear table <table> [ data.<type> <operator> <value> ] | [ key <key> ]
 
 del acl <acl> [<key>|#<ref>]
   Delete all the acl entries from the acl <acl> corresponding to the key <key>.
-  If the <ref> is used, this command delete only the listed reference. The
-  reference can be found with listing the content of the acl. Note that if the
-  reference <acl> is a file and is shared with a map, the entry will be also
-  deleted in the map.
+  <acl> is the #<id> or the <file> returned by "show acl". If the <ref> is used,
+  this command delete only the listed reference. The reference can be found with
+  listing the content of the acl. Note that if the reference <acl> is a file and
+  is shared with a map, the entry will be also deleted in the map.
 
 del map <map> [<key>|#<ref>]
   Delete all the map entries from the map <map> corresponding to the key <key>.
-  If the <ref> is used, this command delete only the listed reference. The
-  reference can be found with listing the content of the map. Note that if the
-  reference <map> is a file and is shared with a acl, the entry will be also
-  deleted in the map.
+  <map> is the #<id> or the <file> returned by "show map". If the <ref> is used,
+  this command delete only the listed reference. The reference can be found with
+  listing the content of the map. Note that if the reference <map> is a file and
+  is shared with a acl, the entry will be also deleted in the map.
 
 disable agent <backend>/<server>
   Mark the auxiliary agent check as temporarily stopped.
@@ -12825,11 +12827,12 @@ enable server <backend>/<server>
   level "admin".
 
 get map <map> <value>
-get acl <map> <value>
-  Lookup the value <value> in the map <map>. This command returns all the
-  matching patterns associated with this map. This is useful for debugging maps
-  and ACLs. The output format is composed by one line par matching type. Each
-  line is composed by space-delimited series of words.
+get acl <acl> <value>
+  Lookup the value <value> in the map <map> or in the ACL <acl>. <map> or <acl>
+  are the #<id> or the <file> returned by "show map" or "show acl". This command
+  returns all the matching patterns associated with this map. This is useful for
+  debugging maps and ACLs. The output format is composed by one line par
+  matching type. Each line is composed by space-delimited series of words.
 
   The first two words are:
 
@@ -12884,9 +12887,9 @@ quit
   Close the connection when in interactive mode.
 
 set map <map> [<key>|#<ref>] <value>
-  Modify the value corresponding to each key <key> in a map <map>. If the <ref>
-  is used in place of <key>, only the entry pointed by <ref> is changed. The new
-  value is <value>.
+  Modify the value corresponding to each key <key> in a map <map>. <map> is the
+  #<id> or <file> returned by "show map". If the <ref> is used in place of
+  <key>, only the entry pointed by <ref> is changed. The new value is <value>.
 
 set maxconn frontend <frontend> <value>
   Dynamically change the specified frontend's maxconn setting. Any positive
@@ -13018,15 +13021,20 @@ show info
 
 show map [<map>]
   Dump info about map converters. Without argument, the list of all available
-  maps is returned. If a <map> is specified, its contents are dumped. The first
-  column is a unique identifier. It can be used as reference for the operation
-  "del map" and "set map". The second column is the pattern and the third column
-  is the sample if available.
+  maps is returned. If a <map> is specified, its contents are dumped. <map> is
+  the #<id> or <file>. The first column is a unique identifier. It can be used
+  as reference for the operation "del map" and "set map". The second column is
+  the pattern and the third column is the sample if available. The data returned
+  are not directly a list of available maps, but are the list of all patterns
+  composing any map. Many of these patterns can be shared with ACL.
 
 show acl [<acl>]
   Dump info about acl converters. Without argument, the list of all available
-  acls is returned. If a <acl> is specified, its contents are dumped. The dump
-  format is the same than the map even for the sample value.
+  acls is returned. If a <acl> is specified, its contents are dumped. <acl> if
+  the #<id> or <file>. The dump format is the same than the map even for the
+  sample value. The data returned are not a list of available ACL, but are the
+  list of all patterns composing any ACL. Many of these patterns can be shared
+  with maps.
 
 show pools
   Dump the status of internal memory pools. This is useful to track memory

@@ -1149,9 +1149,9 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			if (!appctx->ctx.map.ref ||
 			    !(appctx->ctx.map.ref->flags & appctx->ctx.map.display_flags)) {
 				if (appctx->ctx.map.display_flags == PAT_REF_MAP)
-					appctx->ctx.cli.msg = "Unknown map identifier. Please use #<id> or <name>.\n";
+					appctx->ctx.cli.msg = "Unknown map identifier. Please use #<id> or <file>.\n";
 				else
-					appctx->ctx.cli.msg = "Unknown ACL identifier. Please use #<id> or <name>.\n";
+					appctx->ctx.cli.msg = "Unknown ACL identifier. Please use #<id> or <file>.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -1248,9 +1248,9 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			if (!appctx->ctx.map.ref ||
 			    !(appctx->ctx.map.ref->flags & appctx->ctx.map.display_flags)) {
 				if (appctx->ctx.map.display_flags == PAT_REF_MAP)
-					appctx->ctx.cli.msg = "Unknown map identifier. Please use #<id> or <name>.\n";
+					appctx->ctx.cli.msg = "Unknown map identifier. Please use #<id> or <file>.\n";
 				else
-					appctx->ctx.cli.msg = "Unknown ACL identifier. Please use #<id> or <name>.\n";
+					appctx->ctx.cli.msg = "Unknown ACL identifier. Please use #<id> or <file>.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -1318,9 +1318,9 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			appctx->ctx.map.ref = pat_ref_lookup_ref(args[2]);
 			if (!appctx->ctx.map.ref) {
 				if (appctx->ctx.map.display_flags == PAT_REF_MAP)
-					appctx->ctx.cli.msg = "Unknown map identifier. Please use #<id> or <name>.\n";
+					appctx->ctx.cli.msg = "Unknown map identifier. Please use #<id> or <file>.\n";
 				else
-					appctx->ctx.cli.msg = "Unknown ACL identifier. Please use #<id> or <name>.\n";
+					appctx->ctx.cli.msg = "Unknown ACL identifier. Please use #<id> or <file>.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -1631,7 +1631,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			/* Lookup the reference in the maps. */
 			appctx->ctx.map.ref = pat_ref_lookup_ref(args[2]);
 			if (!appctx->ctx.map.ref) {
-				appctx->ctx.cli.msg = "Unknown map identifier. Please use #<id> or <name>.\n";
+				appctx->ctx.cli.msg = "Unknown map identifier. Please use #<id> or <file>.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -1647,7 +1647,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				/* Convert argument to integer value. */
 				conv = strtoll(&args[3][1], &error, 16);
 				if (*error != '\0') {
-					appctx->ctx.cli.msg = "Malformed identifier. Please use #<id> or <name>.\n";
+					appctx->ctx.cli.msg = "Malformed identifier. Please use #<id> or <file>.\n";
 					appctx->st0 = STAT_CLI_PRINT;
 					return 1;
 				}
@@ -1655,7 +1655,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				/* Convert and check integer to pointer. */
 				ref = (struct pat_ref_elt *)(long)conv;
 				if ((long long int)(long)ref != conv) {
-					appctx->ctx.cli.msg = "Malformed identifier. Please use #<id> or <name>.\n";
+					appctx->ctx.cli.msg = "Malformed identifier. Please use #<id> or <file>.\n";
 					appctx->st0 = STAT_CLI_PRINT;
 					return 1;
 				}
@@ -1940,7 +1940,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			appctx->ctx.map.ref = pat_ref_lookup_ref(args[2]);
 			if (!appctx->ctx.map.ref ||
 			    !(appctx->ctx.map.ref->flags & appctx->ctx.map.display_flags)) {
-				appctx->ctx.cli.msg = "Unknown map identifier. Please use #<id> or <name>.\n";
+				appctx->ctx.cli.msg = "Unknown map identifier. Please use #<id> or <file>.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -1956,7 +1956,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				/* Convert argument to integer value. */
 				conv = strtoll(&args[3][1], &error, 16);
 				if (*error != '\0') {
-					appctx->ctx.cli.msg = "Malformed identifier. Please use #<id> or <name>.\n";
+					appctx->ctx.cli.msg = "Malformed identifier. Please use #<id> or <file>.\n";
 					appctx->st0 = STAT_CLI_PRINT;
 					return 1;
 				}
@@ -1964,7 +1964,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				/* Convert and check integer to pointer. */
 				ref = (struct pat_ref_elt *)(long)conv;
 				if ((long long int)(long)ref != conv) {
-					appctx->ctx.cli.msg = "Malformed identifier. Please use #<id> or <name>.\n";
+					appctx->ctx.cli.msg = "Malformed identifier. Please use #<id> or <file>.\n";
 					appctx->st0 = STAT_CLI_PRINT;
 					return 1;
 				}
@@ -2034,9 +2034,9 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			appctx->ctx.map.ref = pat_ref_lookup_ref(args[2]);
 			if (!appctx->ctx.map.ref) {
 				if (appctx->ctx.map.display_flags == PAT_REF_MAP)
-					appctx->ctx.cli.msg = "Unknown map identifier. Please use #<id> or <name>.\n";
+					appctx->ctx.cli.msg = "Unknown map identifier. Please use #<id> or <file>.\n";
 				else
-					appctx->ctx.cli.msg = "Unknown ACL identifier. Please use #<id> or <name>.\n";
+					appctx->ctx.cli.msg = "Unknown ACL identifier. Please use #<id> or <file>.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
@@ -4863,7 +4863,7 @@ static int stats_pats_list(struct stream_interface *si)
 		 * later and restart at the state "STAT_ST_INIT".
 		 */
 		chunk_reset(&trash);
-		chunk_appendf(&trash, "# id (name) description\n");
+		chunk_appendf(&trash, "# id (file) description\n");
 		if (bi_putchk(si->ib, &trash) == -1)
 			return 0;
 
