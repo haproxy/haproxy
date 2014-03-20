@@ -4885,19 +4885,9 @@ static int stats_pats_list(struct stream_interface *si)
 			/* Build messages. If the reference is used by another category than
 			 * the listed categorie, display the information in the massage.
 			 */
-			chunk_appendf(&trash, "%d (%s) %s", appctx->ctx.map.ref->unique_id,
+			chunk_appendf(&trash, "%d (%s) %s\n", appctx->ctx.map.ref->unique_id,
 			              appctx->ctx.map.ref->reference ? appctx->ctx.map.ref->reference : "",
 			              appctx->ctx.map.ref->display);
-
-			if (appctx->ctx.map.display_flags & PAT_REF_MAP) {
-				if (appctx->ctx.map.ref->flags & PAT_REF_ACL)
-					chunk_appendf(&trash, " - also used by an ACL");
-			}
-			else {
-				if (appctx->ctx.map.ref->flags & PAT_REF_MAP)
-					chunk_appendf(&trash, " - also used by a map");
-			}
-			chunk_appendf(&trash, "\n");
 
 			if (bi_putchk(si->ib, &trash) == -1) {
 				/* let's try again later from this session. We add ourselves into
