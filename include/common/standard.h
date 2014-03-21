@@ -68,6 +68,17 @@ enum {
 	STD_OP_GE = 4, STD_OP_LT = 5,
 };
 
+enum http_scheme {
+	SCH_HTTP,
+	SCH_HTTPS,
+};
+
+struct split_url {
+	enum http_scheme scheme;
+	const char *host;
+	int host_len;
+};
+
 extern int itoa_idx; /* index of next itoa_str to use */
 
 /*
@@ -266,7 +277,7 @@ int url2ipv4(const char *addr, struct in_addr *dst);
 /*
  * Resolve destination server from URL. Convert <str> to a sockaddr_storage*.
  */
-int url2sa(const char *url, int ulen, struct sockaddr_storage *addr);
+int url2sa(const char *url, int ulen, struct sockaddr_storage *addr, struct split_url *out);
 
 /* Tries to convert a sockaddr_storage address to text form. Upon success, the
  * address family is returned so that it's easy for the caller to adapt to the

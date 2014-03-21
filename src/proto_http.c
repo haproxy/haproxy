@@ -3943,7 +3943,7 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 		path = http_get_path(txn);
 		url2sa(req->buf->p + msg->sl.rq.u,
 		       path ? path - (req->buf->p + msg->sl.rq.u) : msg->sl.rq.u_l,
-		       &conn->addr.to);
+		       &conn->addr.to, NULL);
 		/* if the path was found, we have to remove everything between
 		 * req->buf->p + msg->sl.rq.u and path (excluded). If it was not
 		 * found, we need to replace from req->buf->p + msg->sl.rq.u for
@@ -9254,7 +9254,7 @@ smp_fetch_url_ip(struct proxy *px, struct session *l4, void *l7, unsigned int op
 
 	CHECK_HTTP_MESSAGE_FIRST();
 
-	url2sa(txn->req.chn->buf->p + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &addr);
+	url2sa(txn->req.chn->buf->p + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &addr, NULL);
 	if (((struct sockaddr_in *)&addr)->sin_family != AF_INET)
 		return 0;
 
@@ -9273,7 +9273,7 @@ smp_fetch_url_port(struct proxy *px, struct session *l4, void *l7, unsigned int 
 
 	CHECK_HTTP_MESSAGE_FIRST();
 
-	url2sa(txn->req.chn->buf->p + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &addr);
+	url2sa(txn->req.chn->buf->p + txn->req.sl.rq.u, txn->req.sl.rq.u_l, &addr, NULL);
 	if (((struct sockaddr_in *)&addr)->sin_family != AF_INET)
 		return 0;
 

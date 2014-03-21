@@ -24,6 +24,7 @@
 #include <common/chunk.h>
 #include <common/config.h>
 #include <common/standard.h>
+#include <types/global.h>
 #include <eb32tree.h>
 
 /* enough to store NB_ITOA_STR integers of :
@@ -939,20 +940,25 @@ int url2ipv4(const char *addr, struct in_addr *dst)
 }
 
 /*
- * Resolve destination server from URL. Convert <str> to a sockaddr_storage*.
+ * Resolve destination server from URL. Convert <str> to a sockaddr_storage.
+ * <out> contain the code of the dectected scheme, the start and length of
+ * the hostname. Actually only http and https are supported. <out> can be NULL.
+ * This function returns the consumed length. It is useful if you parse complete
+ * url like http://host:port/path, because the consumed length corresponds to
+ * the first character of the path. If the conversion fails, it returns -1.
+ *
+ * This function tries to resolve the DNS name if haproxy is in starting mode.
+ * So, this function may be used during the configuration parsing.
  */
-int url2sa(const char *url, int ulen, struct sockaddr_storage *addr)
+int url2sa(const char *url, int ulen, struct sockaddr_storage *addr, struct split_url *out)
 {
 	const char *curr = url, *cp = url;
+	const char *end;
 	int ret, url_code = 0;
-	unsigned int http_code = 0;
-
-	/* Cleanup the room */
-
-	/* FIXME: assume IPv4 only for now */
-	((struct sockaddr_in *)addr)->sin_family = AF_INET;
-	((struct sockaddr_in *)addr)->sin_addr.s_addr = 0;
-	((struct sockaddr_in *)addr)->sin_port = 0;
+	unsigned long long int http_code = 0;
+	int default_port;
+	struct hostent *he;
+	char *p;
 
 	/* Firstly, try to find :// pattern */
 	while (curr < url+ulen && url_code != 0x3a2f2f) {
@@ -966,28 +972,138 @@ int url2sa(const char *url, int ulen, struct sockaddr_storage *addr)
 	 * 
 	 * WARNING: Current code doesn't support dynamic async dns resolver.
 	 */
-	if (url_code == 0x3a2f2f) {
-		while (cp < curr - 3)
-			http_code = (http_code << 8) + *cp++;
-		http_code |= 0x20202020;			/* Turn everything to lower case */
-		
-		/* HTTP url matching */
-		if (http_code == 0x68747470) {
-			/* We are looking for IP address. If you want to parse and
-			 * resolve hostname found in url, you can use str2sa_range(), but
-			 * be warned this can slow down global daemon performances
-			 * while handling lagging dns responses.
-			 */
-			ret = url2ipv4(curr, &((struct sockaddr_in *)addr)->sin_addr);
-			if (!ret)
-				return -1;
-			curr += ret;
-			((struct sockaddr_in *)addr)->sin_port = (*curr == ':') ? str2uic(++curr) : 80;
-			((struct sockaddr_in *)addr)->sin_port = htons(((struct sockaddr_in *)addr)->sin_port);
-		}
-		return 0;
-	}
+	if (url_code != 0x3a2f2f)
+		return -1;
 
+	/* Copy scheme, and utrn to lower case. */
+	while (cp < curr - 3)
+		http_code = (http_code << 8) + *cp++;
+	http_code |= 0x2020202020202020ULL;			/* Turn everything to lower case */
+		
+	/* HTTP or HTTPS url matching */
+	if (http_code == 0x2020202068747470ULL) {
+		default_port = 80;
+		if (out)
+			out->scheme = SCH_HTTP;
+	}
+	else if (http_code == 0x2020206874747073ULL) {
+		default_port = 443;
+		if (out)
+			out->scheme = SCH_HTTPS;
+	}
+	else
+		return -1;
+
+	/* If the next char is '[', the host address is IPv6. */
+	if (*curr == '[') {
+		curr++;
+
+		/* Check trash size */
+		if (trash.size < ulen)
+			return -1;
+
+		/* Look for ']' and copy the address in a trash buffer. */
+		p = trash.str;
+		for (end = curr;
+		     end < url + ulen && *end != ']';
+		     end++, p++)
+			*p = *end;
+		if (*end != ']')
+			return -1;
+		*p = '\0';
+
+		/* Update out. */
+		if (out) {
+			out->host = curr;
+			out->host_len = end - curr;
+		}
+
+		/* Try IPv6 decoding. */
+		if (!inet_pton(AF_INET6, trash.str, &((struct sockaddr_in6 *)addr)->sin6_addr))
+			return -1;
+		end++;
+
+		/* Decode port. */
+		if (*end == ':') {
+			end++;
+			default_port = read_uint(&end, url + ulen);
+		}
+		((struct sockaddr_in6 *)addr)->sin6_port = htons(default_port);
+		((struct sockaddr_in6 *)addr)->sin6_family = AF_INET6;
+		return end - url;
+	}
+	else {
+		/* We are looking for IP address. If you want to parse and
+		 * resolve hostname found in url, you can use str2sa_range(), but
+		 * be warned this can slow down global daemon performances
+		 * while handling lagging dns responses.
+		 */
+		ret = url2ipv4(curr, &((struct sockaddr_in *)addr)->sin_addr);
+		if (ret) {
+			/* Update out. */
+			if (out) {
+				out->host = curr;
+				out->host_len = ret;
+			}
+
+			curr += ret;
+
+			/* Decode port. */
+			if (*curr == ':') {
+				curr++;
+				default_port = read_uint(&curr, url + ulen);
+			}
+			((struct sockaddr_in *)addr)->sin_port = htons(default_port);
+
+			/* Set family. */
+			((struct sockaddr_in *)addr)->sin_family = AF_INET;
+			return curr - url;
+		}
+		else if (global.mode & MODE_STARTING) {
+			/* The IPv4 and IPv6 decoding fails, maybe the url contain name. Try to execute
+			 * synchronous DNS request only if HAProxy is in the start state.
+			 */
+
+			/* look for : or / or end */
+			for (end = curr;
+			     end < url + ulen && *end != '/' && *end != ':';
+			     end++);
+			memcpy(trash.str, curr, end - curr);
+			trash.str[end - curr] = '\0';
+
+			/* try to resolve an IPv4/IPv6 hostname */
+			he = gethostbyname(trash.str);
+			if (!he)
+				return -1;
+
+			/* Update out. */
+			if (out) {
+				out->host = curr;
+				out->host_len = end - curr;
+			}
+
+			/* Decode port. */
+			if (*end == ':') {
+				end++;
+				default_port = read_uint(&end, url + ulen);
+			}
+
+			/* Copy IP address, set port and family. */
+			switch (he->h_addrtype) {
+			case AF_INET:
+				((struct sockaddr_in *)addr)->sin_addr = *(struct in_addr *) *(he->h_addr_list);
+				((struct sockaddr_in *)addr)->sin_port = htons(default_port);
+				((struct sockaddr_in *)addr)->sin_family = AF_INET;
+				return end - url;
+
+			case AF_INET6:
+				((struct sockaddr_in6 *)addr)->sin6_addr = *(struct in6_addr *) *(he->h_addr_list);
+				((struct sockaddr_in6 *)addr)->sin6_port = htons(default_port);
+				((struct sockaddr_in6 *)addr)->sin6_family = AF_INET6;
+				return end - url;
+			}
+		}
+	}
 	return -1;
 }
 
