@@ -19,6 +19,7 @@
 #include <types/global.h>
 #include <types/pattern.h>
 
+#include <proto/log.h>
 #include <proto/pattern.h>
 #include <proto/sample.h>
 
@@ -1721,6 +1722,34 @@ int pat_ref_add(struct pat_ref *ref,
 		}
 	}
 	return 1;
+}
+
+/* This function prune <ref>, replace all reference by the references
+ * of <replace>, and reindex all the news values.
+ *
+ * The pattern are loaded in best effort and the errors are ignored,
+ * but writed in the logs.
+ */
+void pat_ref_reload(struct pat_ref *ref, struct pat_ref *replace)
+{
+	struct pattern_expr *expr;
+	struct pat_ref_elt *elt;
+	char *err = NULL;
+
+	pat_ref_prune(ref);
+
+	LIST_ADD(&replace->head, &ref->head);
+	LIST_DEL(&replace->head);
+
+	list_for_each_entry(elt, &ref->head, list) {
+		list_for_each_entry(expr, &ref->pat, list) {
+			if (!pat_ref_push(elt, expr, 0, &err)) {
+				send_log(NULL, LOG_NOTICE, "%s", err);
+				free(err);
+				err = NULL;
+			}
+		}
+	}
 }
 
 /* This function prune all entries of <ref>. This function
