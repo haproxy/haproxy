@@ -26,7 +26,8 @@
 #include <common/config.h>
 #include <common/mini-clist.h>
 
-#include <types/proxy.h>
+#include <proto/log.h>
+#include <proto/proxy.h>
 
 /* configuration sections */
 #define CFG_NONE	0
@@ -72,6 +73,32 @@ int check_config_validity();
 int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf, const char *file, int line, char **err);
 int cfg_register_section(char *section_name,
                          int (*section_parser)(const char *, int, char **, int));
+
+/*
+ * Sends a warning if proxy <proxy> does not have at least one of the
+ * capabilities in <cap>. An optionnal <hint> may be added at the end
+ * of the warning to help the user. Returns 1 if a warning was emitted
+ * or 0 if the condition is valid.
+ */
+static inline int warnifnotcap(struct proxy *proxy, int cap, const char *file, int line, const char *arg, const char *hint)
+{
+	char *msg;
+
+	switch (cap) {
+	case PR_CAP_BE: msg = "no backend"; break;
+	case PR_CAP_FE: msg = "no frontend"; break;
+	case PR_CAP_RS: msg = "no ruleset"; break;
+	case PR_CAP_BE|PR_CAP_FE: msg = "neither frontend nor backend"; break;
+	default: msg = "not enough"; break;
+	}
+
+	if (!(proxy->cap & cap)) {
+		Warning("parsing [%s:%d] : '%s' ignored because %s '%s' has %s capability.%s\n",
+			file, line, arg, proxy_type_str(proxy), proxy->id, msg, hint ? hint : "");
+		return 1;
+	}
+	return 0;
+}
 
 #endif /* _COMMON_CFGPARSE_H */
 
