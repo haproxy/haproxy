@@ -86,7 +86,7 @@ DOCDIR = $(PREFIX)/doc/haproxy
 # Use TARGET=<target_name> to optimize for a specifc target OS among the
 # following list (use the default "generic" if uncertain) :
 #    generic, linux22, linux24, linux24e, linux26, solaris,
-#    freebsd, openbsd, cygwin, custom, aix52
+#    freebsd, openbsd, cygwin, custom, aix51, aix52
 TARGET =
 
 #### TARGET CPU
@@ -285,6 +285,13 @@ ifeq ($(TARGET),openbsd)
   USE_KQUEUE     = implicit
   USE_TPROXY     = implicit
 else
+ifeq ($(TARGET),aix51)
+  # This is for AIX 5.1
+  USE_POLL        = implicit
+  USE_LIBCRYPT    = implicit
+  TARGET_CFLAGS   = -Dss_family=__ss_family
+  DEBUG_CFLAGS    =
+else
 ifeq ($(TARGET),aix52)
   # This is for AIX 5.2 and later
   USE_POLL        = implicit
@@ -300,6 +307,7 @@ ifeq ($(TARGET),cygwin)
   TARGET_CFLAGS  = $(if $(filter 1.5.%, $(shell uname -r)), -DUSE_IPV6 -DAF_INET6=23 -DINET6_ADDRSTRLEN=46, )
 endif # cygwin
 endif # aix52
+endif # aix51
 endif # openbsd
 endif # osx
 endif # freebsd
