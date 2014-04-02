@@ -28,6 +28,15 @@
 #include <common/standard.h>
 #include <types/pattern.h>
 
+/* pattern management function arrays */
+extern char *pat_match_names[PAT_MATCH_NUM];
+extern int (*pat_parse_fcts[PAT_MATCH_NUM])(const char *, struct pattern *, char **);
+extern int (*pat_index_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *, char **);
+extern void (*pat_delete_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pat_ref_elt *);
+extern void (*pat_prune_fcts[PAT_MATCH_NUM])(struct pattern_expr *);
+extern struct pattern *(*pat_match_fcts[PAT_MATCH_NUM])(struct sample *, struct pattern_expr *, int);
+extern int pat_match_types[PAT_MATCH_NUM];
+
 void pattern_finalize_config(void);
 
 /* return the PAT_MATCH_* index for match name "name", or < 0 if not found */
