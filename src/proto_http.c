@@ -1777,14 +1777,16 @@ static int http_upgrade_v09_to_v10(struct http_txn *txn)
 	if (msg->sl.rq.v_l != 0)
 		return 1;
 
+	/* RFC 1945 allows only GET for HTTP/0.9 requests */
+	if (txn->meth != HTTP_METH_GET)
+		return 0;
+
 	cur_end = msg->chn->buf->p + msg->sl.rq.l;
 	delta = 0;
 
 	if (msg->sl.rq.u_l == 0) {
-		/* if no URI was set, add "/" */
-		delta = buffer_replace2(msg->chn->buf, cur_end, cur_end, " /", 2);
-		cur_end += delta;
-		http_msg_move_end(msg, delta);
+		/* HTTP/0.9 requests *must* have a request URI, per RFC 1945 */
+		return 0;
 	}
 	/* add HTTP version */
 	delta = buffer_replace2(msg->chn->buf, cur_end, cur_end, " HTTP/1.0\r\n", 11);
