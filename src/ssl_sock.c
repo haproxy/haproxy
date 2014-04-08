@@ -45,6 +45,7 @@
 #include <openssl/err.h>
 #include <openssl/rand.h>
 
+#include <common/base64.h>
 #include <common/buffer.h>
 #include <common/compat.h>
 #include <common/config.h>
@@ -2810,6 +2811,55 @@ smp_fetch_ssl_fc_sni(struct proxy *px, struct session *l4, void *l7, unsigned in
 #endif
 }
 
+static int
+smp_fetch_ssl_fc_unique_id(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                          const struct arg *args, struct sample *smp, const char *kw)
+{
+#if OPENSSL_VERSION_NUMBER > 0x0090800fL
+	struct connection *conn;
+	int finished_len;
+	int b64_len;
+	struct chunk *finished_trash;
+	struct chunk *smp_trash;
+
+	smp->flags = 0;
+
+	if (!l4)
+	        return 0;
+
+	conn = objt_conn(l4->si[0].end);
+	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
+		return 0;
+
+	if (!(conn->flags & CO_FL_CONNECTED)) {
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	finished_trash = get_trash_chunk();
+	if (!SSL_session_reused(conn->xprt_ctx))
+		finished_len = SSL_get_peer_finished(conn->xprt_ctx, finished_trash->str, finished_trash->size);
+	else
+		finished_len = SSL_get_finished(conn->xprt_ctx, finished_trash->str, finished_trash->size);
+
+	if (!finished_len)
+		return 0;
+
+	smp_trash = get_trash_chunk();
+	b64_len = a2base64(finished_trash->str, finished_len, smp_trash->str, smp_trash->size);
+	if (b64_len < 0)
+		return 0;
+
+	smp->data.str.str = smp_trash->str;
+	smp->type = SMP_T_CSTR;
+	smp->data.str.len = b64_len;
+
+	return 1;
+#else
+	return 0;
+#endif
+}
+
 /* integer, returns the first verify error in CA chain of client certificate chain. */
 static int
 smp_fetch_ssl_c_ca_err(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
@@ -3536,6 +3586,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_fc_alpn",            smp_fetch_ssl_fc_alpn,        0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 #endif
 	{ "ssl_fc_protocol",        smp_fetch_ssl_fc_protocol,    0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
+	{ "ssl_fc_unique_id",       smp_fetch_ssl_fc_unique_id,   0,                   NULL,    SMP_T_CSTR, SMP_USE_L5CLI },
 	{ "ssl_fc_use_keysize",     smp_fetch_ssl_fc_use_keysize, 0,                   NULL,    SMP_T_UINT, SMP_USE_L5CLI },
 	{ "ssl_fc_session_id",      smp_fetch_ssl_fc_session_id,  0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 	{ "ssl_fc_sni",             smp_fetch_ssl_fc_sni,         0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },

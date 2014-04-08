@@ -10335,6 +10335,11 @@ ssl_fc_protocol : string
   ACL derivatives :
     ssl_fc_protocol : exact string match
 
+ssl_fc_unique_id : string
+  When the incoming connection was made over an SSL/TLS transport layer,
+  returns a base64 encoded string containing the TLS unique ID as defined
+  in RFC5929 section 3.
+
 ssl_fc_session_id : binary
   Returns the SSL ID of the front connection when the incoming connection was
   made over an SSL/TLS transport layer. It is useful to stick a given client to
