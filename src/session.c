@@ -2639,6 +2639,7 @@ static struct stkctr *
 smp_fetch_sc_stkctr(struct session *l4, const struct arg *args, const char *kw)
 {
 	static struct stkctr stkctr;
+	struct stksess *stksess;
 	unsigned int num = kw[2] - '0';
 	int arg = 0;
 
@@ -2668,13 +2669,17 @@ smp_fetch_sc_stkctr(struct session *l4, const struct arg *args, const char *kw)
 	 * the sc[0-9]_ form, or even higher using sc_(num) if needed.
 	 * args[arg] is the first optional argument.
 	 */
+	stksess = stkctr_entry(&l4->stkctr[num]);
+	if (!stksess)
+		return NULL;
+
 	if (unlikely(args[arg].type == ARGT_TAB)) {
 		/* an alternate table was specified, let's look up the same key there */
 		stkctr.table = &args[arg].data.prx->table;
-		stkctr_set_entry(&stkctr, stktable_lookup(stkctr.table, stkctr_entry(&l4->stkctr[num])));
+		stkctr_set_entry(&stkctr, stktable_lookup(stkctr.table, stksess));
 		return &stkctr;
 	}
-	return stkctr_entry(&l4->stkctr[num]) ? &l4->stkctr[num] : NULL;
+	return &l4->stkctr[num];
 }
 
 /* set return a boolean indicating if the requested session counter is
