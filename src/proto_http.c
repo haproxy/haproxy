@@ -4298,26 +4298,27 @@ int http_wait_for_request_body(struct session *s, struct channel *req, int an_bi
 	 * related structures are ready.
 	 */
 
-	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
-		goto missing_data;
-
-	if (msg->msg_state < HTTP_MSG_100_SENT) {
-		/* If we have HTTP/1.1 and Expect: 100-continue, then we must
-		 * send an HTTP/1.1 100 Continue intermediate response.
-		 */
-		if (msg->flags & HTTP_MSGF_VER_11) {
-			struct hdr_ctx ctx;
-			ctx.idx = 0;
-			/* Expect is allowed in 1.1, look for it */
-			if (http_find_header2("Expect", 6, req->buf->p, &txn->hdr_idx, &ctx) &&
-			    unlikely(ctx.vlen == 12 && strncasecmp(ctx.line+ctx.val, "100-continue", 12) == 0)) {
-				bo_inject(s->rep, http_100_chunk.str, http_100_chunk.len);
-			}
-		}
-		msg->msg_state = HTTP_MSG_100_SENT;
-	}
-
 	if (msg->msg_state < HTTP_MSG_CHUNK_SIZE) {
+		/* This is the first call */
+		if (msg->msg_state < HTTP_MSG_BODY)
+			goto missing_data;
+
+		if (msg->msg_state < HTTP_MSG_100_SENT) {
+			/* If we have HTTP/1.1 and Expect: 100-continue, then we must
+			 * send an HTTP/1.1 100 Continue intermediate response.
+			 */
+			if (msg->flags & HTTP_MSGF_VER_11) {
+				struct hdr_ctx ctx;
+				ctx.idx = 0;
+				/* Expect is allowed in 1.1, look for it */
+				if (http_find_header2("Expect", 6, req->buf->p, &txn->hdr_idx, &ctx) &&
+				    unlikely(ctx.vlen == 12 && strncasecmp(ctx.line+ctx.val, "100-continue", 12) == 0)) {
+					bo_inject(s->rep, http_100_chunk.str, http_100_chunk.len);
+				}
+			}
+			msg->msg_state = HTTP_MSG_100_SENT;
+		}
+
 		/* we have msg->sov which points to the first byte of message body.
 		 * req->buf->p still points to the beginning of the message and msg->sol
 		 * is still null. We must save the body in msg->next because it
@@ -4330,6 +4331,17 @@ int http_wait_for_request_body(struct session *s, struct channel *req, int an_bi
 		else
 			msg->msg_state = HTTP_MSG_DATA;
 	}
+
+	if (!(msg->flags & HTTP_MSGF_TE_CHNK)) {
+		/* We're in content-length mode, we just have to wait for enough data. */
+		if (req->buf->i - msg->sov < msg->body_len)
+			goto missing_data;
+
+		/* OK we have everything we need now */
+		goto http_end;
+	}
+
+	/* OK here we're parsing a chunked-encoded message */
 
 	if (msg->msg_state == HTTP_MSG_CHUNK_SIZE) {
 		/* read the chunk size and assign it to ->chunk_len, then
@@ -4350,6 +4362,9 @@ int http_wait_for_request_body(struct session *s, struct channel *req, int an_bi
 	 * We have the first data byte is in msg->sov. We're waiting for at
 	 * least a whole chunk or the whole content length bytes after msg->sov.
 	 */
+	if (msg->msg_state == HTTP_MSG_TRAILERS)
+		goto http_end;
+
 	if (req->buf->i - msg->sov >= msg->body_len)   /* we have enough bytes now */
 		goto http_end;
 
