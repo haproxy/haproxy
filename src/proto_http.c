@@ -4278,13 +4278,16 @@ int http_process_tarpit(struct session *s, struct channel *req, int an_bit)
 	return 0;
 }
 
-/* This function is an analyser which processes the HTTP request body. It looks
- * for parameters to be used for the load balancing algorithm (url_param). It
- * must only be called after the standard HTTP request processing has occurred,
- * because it expects the request to be parsed. It returns zero if it needs to
- * read more data, or 1 once it has completed its analysis.
+/* This function is an analyser which waits for the HTTP request body. It waits
+ * for either the buffer to be full, or the full advertised contents to have
+ * reached the buffer. It must only be called after the standard HTTP request
+ * processing has occurred, because it expects the request to be parsed and will
+ * look for the Expect header. It may send a 100-Continue interim response. It
+ * takes in input any state starting from HTTP_MSG_BODY and leaves with one of
+ * HTTP_MSG_CHK_SIZE, HTTP_MSG_DATA or HTTP_MSG_TRAILERS. It returns zero if it
+ * needs to read more data, or 1 once it has completed its analysis.
  */
-int http_process_request_body(struct session *s, struct channel *req, int an_bit)
+int http_wait_for_request_body(struct session *s, struct channel *req, int an_bit)
 {
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &s->txn.req;

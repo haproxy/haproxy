@@ -1897,7 +1897,7 @@ struct task *process_session(struct task *t)
 				}
 
 				if (ana_list & AN_REQ_HTTP_BODY) {
-					if (!http_process_request_body(s, s->req, AN_REQ_HTTP_BODY))
+					if (!http_wait_for_request_body(s, s->req, AN_REQ_HTTP_BODY))
 						break;
 					UPDATE_ANALYSERS(s->req->analysers, ana_list, ana_back, AN_REQ_HTTP_BODY);
 				}
