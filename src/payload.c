@@ -285,10 +285,10 @@ smp_fetch_ssl_hello_sni(struct proxy *px, struct session *s, void *l7, unsigned 
 	if (*data != 0x16)
 		goto not_ssl_hello;
 
-	/* Check for TLSv1 or later (SSL version >= 3.1) */
+	/* Check for SSLv3 or later (SSL version >= 3.0) in the record layer*/
 	if (bleft < 3)
 		goto too_short;
-	if (data[1] < 0x03 || data[2] < 0x01)
+	if (data[1] < 0x03)
 		goto not_ssl_hello;
 
 	if (bleft < 5)
