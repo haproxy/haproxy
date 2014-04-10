@@ -4357,11 +4357,11 @@ int http_process_request_body(struct session *s, struct channel *req, int an_bit
 		goto http_end;
 
  missing_data:
-	/* we get here if we need to wait for more data */
-	if (buffer_full(req->buf, global.tune.maxrewrite)) {
-		session_inc_http_err_ctr(s);
-		goto return_bad_req;
-	}
+	/* we get here if we need to wait for more data. If the buffer is full,
+	 * we have the maximum we can expect.
+	 */
+	if (buffer_full(req->buf, global.tune.maxrewrite))
+		goto http_end;
 
 	if ((req->flags & CF_READ_TIMEOUT) || tick_is_expired(req->analyse_exp, now_ms)) {
 		txn->status = 408;
@@ -4375,7 +4375,7 @@ int http_process_request_body(struct session *s, struct channel *req, int an_bit
 	}
 
 	/* we get here if we need to wait for more data */
-	if (!(req->flags & (CF_SHUTR | CF_READ_ERROR)) && !buffer_full(req->buf, global.tune.maxrewrite)) {
+	if (!(req->flags & (CF_SHUTR | CF_READ_ERROR))) {
 		/* Not enough data. We'll re-use the http-request
 		 * timeout here. Ideally, we should set the timeout
 		 * relative to the accept() date. We just set the
