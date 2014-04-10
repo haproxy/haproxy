@@ -4176,7 +4176,6 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 	 */
 	if (!(s->flags & (SN_ASSIGNED|SN_DIRECT)) &&
 	    s->txn.meth == HTTP_METH_POST && s->be->url_param_name != NULL &&
-	    s->be->url_param_post_limit != 0 &&
 	    (msg->flags & (HTTP_MSGF_CNT_LEN|HTTP_MSGF_TE_CHNK))) {
 		channel_dont_connect(req);
 		req->analysers |= AN_REQ_HTTP_BODY;
@@ -4289,7 +4288,6 @@ int http_process_request_body(struct session *s, struct channel *req, int an_bit
 {
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &s->txn.req;
-	long long limit = s->be->url_param_post_limit;
 
 	/* We have to parse the HTTP request body to find any required data.
 	 * "balance url_param check_post" should have been the only way to get
@@ -4347,13 +4345,9 @@ int http_process_request_body(struct session *s, struct channel *req, int an_bit
 
 	/* Now we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state.
 	 * We have the first data byte is in msg->sov. We're waiting for at
-	 * least <url_param_post_limit> bytes after msg->sov.
+	 * least a whole chunk or the whole content length bytes after msg->sov.
 	 */
-
-	if (msg->body_len < limit)
-		limit = msg->body_len;
-
-	if (req->buf->i - msg->sov >= limit)    /* we have enough bytes now */
+	if (req->buf->i - msg->sov >= msg->body_len)   /* we have enough bytes now */
 		goto http_end;
 
  missing_data:

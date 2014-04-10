@@ -1382,15 +1382,6 @@ int backend_parse_balance(const char **args, char **err, struct proxy *curproxy)
 				memprintf(err, "%s only accepts 'check_post' modifier (got '%s').", args[0], args[2]);
 				return -1;
 			}
-			if (*args[3]) {
-				/* TODO: maybe issue a warning if there is no value, no digits or too long */
-				curproxy->url_param_post_limit = str2ui(args[3]);
-			}
-			/* if no limit, or faul value in args[3], then default to a moderate wordlen */
-			if (!curproxy->url_param_post_limit)
-				curproxy->url_param_post_limit = 48;
-			else if ( curproxy->url_param_post_limit < 3 )
-				curproxy->url_param_post_limit = 3; /* minimum example: S=3 or \r\nS=6& */
 		}
 	}
 	else if (!strncmp(args[0], "hdr(", 4)) {

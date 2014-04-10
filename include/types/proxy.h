@@ -256,7 +256,6 @@ struct proxy {
 	int  rdp_cookie_len;			/* strlen(rdp_cookie_name), computed only once */
 	char *url_param_name;			/* name of the URL parameter used for hashing */
 	int  url_param_len;			/* strlen(url_param_name), computed only once */
-	unsigned url_param_post_limit;		/* if checking POST body for URI parameter, max body to wait for */
 	int  uri_len_limit;			/* character limit for uri balancing algorithm */
 	int  uri_dirs_depth1;			/* directories+1 (slashes) limit for uri balancing algorithm */
 	int  uri_whole;				/* if != 0, calculates the hash from the whole uri. Still honors the len_limit and dirs_depth1 */

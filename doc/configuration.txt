@@ -1504,7 +1504,7 @@ backlog <conns>
 
 
 balance <algorithm> [ <arguments> ]
-balance url_param <param> [check_post [<max_wait>]]
+balance url_param <param> [check_post]
   Define the load balancing algorithm to be used in a backend.
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
@@ -1609,23 +1609,13 @@ balance url_param <param> [check_post [<max_wait>]]
                   If the modifier "check_post" is used, then an HTTP POST
                   request entity will be searched for the parameter argument,
                   when it is not found in a query string after a question mark
-                  ('?') in the URL. Optionally, specify a number of octets to
-                  wait for before attempting to search the message body. If the
-                  entity can not be searched, then round robin is used for each
-                  request. For instance, if your clients always send the LB
-                  parameter in the first 128 bytes, then specify that. The
-                  default is 48. The entity data will not be scanned until the
-                  required number of octets have arrived at the gateway, this
-                  is the minimum of: (default/max_wait, Content-Length or first
-                  chunk length). If Content-Length is missing or zero, it does
-                  not need to wait for more data than the client promised to
-                  send. When Content-Length is present and larger than
-                  <max_wait>, then waiting is limited to <max_wait> and it is
-                  assumed that this will be enough data to search for the
-                  presence of the parameter. In the unlikely event that
-                  Transfer-Encoding: chunked is used, only the first chunk is
+                  ('?') in the URL. The message body will only start to be
+                  analyzed once either the advertised amount of data has been
+                  received or the request buffer is full. In the unlikely event
+                  that chunked encoding is used, only the first chunk is
                   scanned. Parameter values separated by a chunk boundary, may
-                  be randomly balanced if at all.
+                  be randomly balanced if at all. This keyword used to support
+                  an optional <max_wait> parameter which is now ignored.
 
                   If the parameter is found followed by an equal sign ('=') and
                   a value, then the value is hashed and divided by the total
@@ -1681,9 +1671,6 @@ balance url_param <param> [check_post [<max_wait>]]
     <arguments> is an optional list of arguments which may be needed by some
                 algorithms. Right now, only "url_param" and "uri" support an
                 optional argument.
-
-                balance uri [len <len>] [depth <depth>]
-                balance url_param <param> [check_post [<max_wait>]]
 
   The load balancing algorithm of a backend is set to roundrobin when no other
   algorithm, mode nor option have been set. The algorithm may only be set once
