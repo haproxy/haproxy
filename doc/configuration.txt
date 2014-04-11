@@ -9409,6 +9409,37 @@ The currently available list of transformation keywords include :
                  with a positive offset, or Last-Modified values when the
                  offset is negative.
 
+  language(<value[;value[;value[;...]]]>[,<default>])
+                 Returns the value with the highest q-factor from a list as
+                 extracted from the "accept-language" header using "req.fhdr".
+                 Values with no q-factor have a q-factor of 1. Values with a
+                 q-factor of 0 are dropped. Only values which belong to the
+                 list of semi-colon delimited <values> will be considered. If
+                 no value matches the given list and a default value is
+                 provided, it is returned. Note that language names may have
+                 a variant after a dash ('-'). If this variant is present in
+                 the list, it will be matched, but if it is not, only the base
+                 language is checked. The match is case-sensitive, and the
+                 output string is always one of those provided in arguments.
+                 The ordering of arguments is meaningless, only the ordering
+                 of the values in the request counts, as the first value among
+                 multiple sharing the same q-factor is used.
+
+                 Example :
+
+                     # this configuration switches to the backend matching a
+                     # given language based on the request :
+
+                     acl de req.fhdr(accept-language),language(de;es;fr;en) de
+                     acl es req.fhdr(accept-language),language(de;es;fr;en) es
+                     acl fr req.fhdr(accept-language),language(de;es;fr;en) fr
+                     acl en req.fhdr(accept-language),language(de;es;fr;en) en
+                     use_backend german  if de
+                     use_backend spanish if es
+                     use_backend french  if fr
+                     use_backend english if en
+                     default_backend choose_your_language
+
   map(<map_file>[,<default_value>])
   map_<match_type>(<map_file>[,<default_value>])
   map_<match_type>_<output_type>(<map_file>[,<default_value>])
