@@ -475,6 +475,7 @@ The following keywords are supported in the "global" section :
    - nokqueue
    - nopoll
    - nosplice
+   - nogetaddrinfo
    - spread-checks
    - tune.bufsize
    - tune.chksize
@@ -632,7 +633,7 @@ stats bind-process [ all | odd | even | <number 1-32>[-<number 1-32>] ] ...
 ssl-default-bind-ciphers <ciphers>
   This setting is only available when support for OpenSSL was built in. It sets
   the default string describing the list of cipher algorithms ("cipher suite")
-  that are negociated during the SSL/TLS handshake for all "bind" lines which
+  that are negotiated during the SSL/TLS handshake for all "bind" lines which
   do not explicitly define theirs. The format of the string is defined in
   "man 1 ciphers" from OpenSSL man pages, and can be for instance a string such
   as "AES:ALL:!aNULL:!eNULL:+RC4:@STRENGTH" (without quotes). Please check the
@@ -641,7 +642,7 @@ ssl-default-bind-ciphers <ciphers>
 ssl-default-server-ciphers <ciphers>
   This setting is only available when support for OpenSSL was built in. It
   sets the default string describing the list of cipher algorithms that are
-  negociated during the SSL/TLS handshake with the server, for all "server"
+  negotiated during the SSL/TLS handshake with the server, for all "server"
   lines which do not explicitly define theirs. The format of the string is
   defined in "man 1 ciphers". Please check the "server" keyword for more
   information.
@@ -736,7 +737,7 @@ maxconnrate <number>
 
 maxcomprate <number>
   Sets the maximum per-process input compression rate to <number> kilobytes
-  pers second.  For each session, if the maximum is reached, the compression
+  per second.  For each session, if the maximum is reached, the compression
   level will be decreased during the session. If the maximum is reached at the
   beginning of a session, the session will not compress at all. If the maximum
   is not reached, the compression level will be increased up to
@@ -825,6 +826,10 @@ nosplice
   be used. This option makes it easier to globally disable kernel splicing in
   case of doubt. See also "option splice-auto", "option splice-request" and
   "option splice-response".
+
+nogetaddrinfo
+  Disables the use of getaddrinfo(3) for name resolving. It is equivalent to
+  the command line argument "-dG". Deprecated gethostbyname(3) will be used.
 
 spread-checks <0..50, in percent>
   Sometimes it is desirable to avoid sending agent and health checks to
@@ -958,7 +963,7 @@ tune.ssl.cachesize <number>
   Sets the size of the global SSL session cache, in a number of blocks. A block
   is large enough to contain an encoded session without peer certificate.
   An encoded session with peer certificate is stored in multiple blocks
-  depending on the size of the peer certificate. A block use approximatively
+  depending on the size of the peer certificate. A block uses approximately
   200 bytes of memory. The default value may be forced at build time, otherwise
   defaults to 20000.  When the cache is full, the most idle entries are purged
   and reassigned. Higher values reduce the occurrence of such a purge, hence
@@ -969,7 +974,7 @@ tune.ssl.cachesize <number>
 
 tune.ssl.lifetime <timeout>
   Sets how long a cached SSL session may remain valid. This time is expressed
-  in seconds and defaults to 300 (5 mn). It is important to understand that it
+  in seconds and defaults to 300 (5 min). It is important to understand that it
   does not guarantee that sessions will last that long, because if the cache is
   full, the longest idle sessions will be purged despite their configured
   lifetime. The real usefulness of this setting is to prevent sessions from
@@ -991,7 +996,7 @@ tune.ssl.maxrecord <number>
 
 tune.zlib.memlevel <number>
   Sets the memLevel parameter in zlib initialization for each session. It
-  defines how much memory should be allocated for the intenal compression
+  defines how much memory should be allocated for the internal compression
   state. A value of 1 uses minimum memory but is slow and reduces compression
   ratio, a value of 9 uses maximum memory for optimal speed.  Can be a value
   between 1 and 9. The default value is 8.
@@ -1038,7 +1043,7 @@ user <username> [password|insecure-password <password>]
   evaluated using the crypt(3) function so depending of the system's
   capabilities, different algorithms are supported. For example modern Glibc
   based Linux system supports MD5, SHA-256, SHA-512 and of course classic,
-  DES-based method of crypting passwords.
+  DES-based method of encrypting passwords.
 
 
   Example:
@@ -1541,7 +1546,7 @@ balance url_param <param> [check_post [<max_wait>]]
                   adjusted on the fly for slow starts for instance.
 
       first       The first server with available connection slots receives the
-                  connection. The servers are choosen from the lowest numeric
+                  connection. The servers are chosen from the lowest numeric
                   identifier to the highest (see server parameter "id"), which
                   defaults to the server's position in the farm. Once a server
                   reaches its maxconn value, the next server is used. It does
@@ -2650,7 +2655,7 @@ hash-type <method> <function> <modifier>
 
     <function> is the hash function to be used :
 
-       sdbm   this function was created intially for sdbm (a public-domain
+       sdbm   this function was created initially for sdbm (a public-domain
               reimplementation of ndbm) database library. It was found to do
               well in scrambling bits, causing better distribution of the keys
               and fewer splits. It also happens to be a good general hashing
@@ -2873,7 +2878,7 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
       when they're limited on the number of concurrent requests. It can be very
       efficient against very dumb robots, and will significantly reduce the
       load on firewalls compared to a "deny" rule. But when facing "correctly"
-      developped robots, it can make things worse by forcing haproxy and the
+      developed robots, it can make things worse by forcing haproxy and the
       front firewall to support insane number of concurrent connections.
 
     - "auth" : this stops the evaluation of the rules and immediately responds
@@ -3274,7 +3279,7 @@ ignore-persist { if | unless } <condition>
   The "ignore-persist" statement allows one to declare various ACL-based
   conditions which, when met, will cause a request to ignore persistence.
   This is sometimes useful to load balance requests for static files, which
-  oftenly don't require persistence. This can also be used to fully disable
+  often don't require persistence. This can also be used to fully disable
   persistence for a specific User-Agent (for example, some web crawler bots).
 
   Combined with "appsession", it can also help reduce HAProxy memory usage, as
@@ -4121,7 +4126,7 @@ no option http-tunnel
   "option http-tunnel".
 
   Option "http-tunnel" disables any HTTP processing past the first request and
-  the first respones. This is the mode which was used by default in versions
+  the first response. This is the mode which was used by default in versions
   1.0 to 1.5-dev21. It is the mode with the lowest processing overhead, which
   is normally not needed anymore unless in very specific cases such as when
   using an in-house protocol that looks like HTTP but is not compatible, or
@@ -4357,7 +4362,7 @@ no option independent-streams
   data sent to the server. Doing so will typically break large HTTP posts from
   slow lines, so use it with caution.
 
-  Note: older versions used to call this setting "option independant-streams"
+  Note: older versions used to call this setting "option independent-streams"
         with a spelling mistake. This spelling is still supported but
         deprecated.
 
@@ -4917,23 +4922,23 @@ option tcp-check
     - no "tcp-check" directive : the health check only consists in a connection
       attempt, which remains the default mode.
 
-    - "tcp-check send" or "tcp-check send-binary" only is mentionned : this is
+    - "tcp-check send" or "tcp-check send-binary" only is mentioned : this is
       used to send a string along with a connection opening. With some
       protocols, it helps sending a "QUIT" message for example that prevents
       the server from logging a connection error for each health check. The
       check result will still be based on the ability to open the connection
       only.
 
-    - "tcp-check expect" only is mentionned : this is used to test a banner.
+    - "tcp-check expect" only is mentioned : this is used to test a banner.
       The connection is opened and haproxy waits for the server to present some
       contents which must validate some rules. The check result will be based
       on the matching between the contents and the rules. This is suited for
       POP, IMAP, SMTP, FTP, SSH, TELNET.
 
-    - both "tcp-check send" and "tcp-check expect" are mentionned : this is
+    - both "tcp-check send" and "tcp-check expect" are mentioned : this is
       used to test a hello-type protocol. Haproxy sends a message, the server
       responds and its response is analysed. the check result will be based on
-      the maching between the response contents and the rules. This is often
+      the matching between the response contents and the rules. This is often
       suited for protocols which require a binding or a request/response model.
       LDAP, MySQL, Redis and SSL are example of such protocols, though they
       already all have their dedicated checks with a deeper understanding of
@@ -4952,7 +4957,7 @@ option tcp-check
 
          # look for the redis master server after ensuring it speaks well
          # redis protocol, then it exits properly.
-         # (send a command then analyse the response 3 tims)
+         # (send a command then analyse the response 3 times)
          option tcp-check
          tcp-check send PING\r\n
          tcp-check expect +PONG
@@ -5226,7 +5231,7 @@ redirect scheme   <sch> [code <code>] <option> [{if | unless} <condition>]
               unless the "drop-query" option is specified (see below). If no
               path is found or if the path is "*", then "/" is used instead. If
               no "Host" header is found, then an empty host component will be
-              returned, which most recent browsers interprete as redirecting to
+              returned, which most recent browsers interpret as redirecting to
               the same host. This directive is mostly used to redirect HTTP to
               HTTPS. When used in an "http-request" rule, <sch> value follows
               the log-format rules and can include some dynamic values (see
@@ -6331,7 +6336,7 @@ stats show-desc [ <desc> ]
 
 
 stats show-legends
-  Enable reporting additional informations on the statistics page :
+  Enable reporting additional information on the statistics page :
     - cap: capabilities (proxy)
     - mode: one of tcp, http or health (proxy)
     - id: SNMP ID (proxy, socket, server)
@@ -7103,7 +7108,7 @@ tcp-request content <action> [{if | unless} <condition>]
   "tcp-request content" rule, and flushes all the content-related ones after
   processing an HTTP request, so that they may be evaluated again by the rules
   being evaluated again for the next request. This is of particular importance
-  when the rule tracks some L7 information or when it is conditionned by an
+  when the rule tracks some L7 information or when it is conditioned by an
   L7-based ACL, since tracking may change between requests.
 
   Content-based rules are evaluated in their exact declaration order. If no
@@ -7283,7 +7288,7 @@ tcp-response content <action> [{if | unless} <condition>]
         this action is to force a connection to be finished between a client
         and a server after an exchange when the application protocol expects
         some long time outs to elapse first. The goal is to eliminate idle
-        connections which take signifiant resources on servers with certain
+        connections which take significant resources on servers with certain
         protocols.
 
     - reject :
@@ -7753,7 +7758,7 @@ use_backend <backend> unless <condition>
   that no other backend uses in order to ensure that an unauthorized backend
   cannot be forced from the request.
 
-  It is worth mentionning that "use_backend" rules with an explicit name are
+  It is worth mentioning that "use_backend" rules with an explicit name are
   used to detect the association between frontends and backends to compute the
   backend's "fullconn" setting. This cannot be done for dynamic names.
 
@@ -7812,7 +7817,7 @@ use-server <server> unless <condition>
      # all the rest is forwarded to this server
      server  default 192.168.0.2:443 check
 
-  See also: "use_backend", serction 5 about server and section 7 about ACLs.
+  See also: "use_backend", section 5 about server and section 7 about ACLs.
 
 
 5. Bind and Server options
@@ -7881,7 +7886,7 @@ ca-ignore-err [all|<errorID>,...]
 ciphers <ciphers>
   This setting is only available when support for OpenSSL was built in. It sets
   the string describing the list of cipher algorithms ("cipher suite") that are
-  negociated during the SSL/TLS handshake. The format of the string is defined
+  negotiated during the SSL/TLS handshake. The format of the string is defined
   in "man 1 ciphers" from OpenSSL man pages, and can be for instance a string
   such as "AES:ALL:!aNULL:!eNULL:+RC4:@STRENGTH" (without quotes).
 
@@ -7928,7 +7933,7 @@ crt <cert>
 crt-ignore-err <errors>
   This setting is only available when support for OpenSSL was built in. Sets a
   comma separated list of errorIDs to ignore during verify at depth == 0.  If
-  set to 'all', all errors are ignored. SSL handshake is not abored if an error
+  set to 'all', all errors are ignored. SSL handshake is not aborted if an error
   is ignored.
 
 crt-list <file>
@@ -7961,20 +7966,20 @@ defer-accept
   option is only supported on TCPv4/TCPv6 sockets and ignored by other ones.
 
 force-sslv3
-  This option enforces use of SSLv3 only on SSL connections instanciated from
+  This option enforces use of SSLv3 only on SSL connections instantiated from
   this listener. SSLv3 is generally less expensive than the TLS counterparts
   for high connection rates. See also "force-tls*", "no-sslv3", and "no-tls*".
 
 force-tlsv10
-  This option enforces use of TLSv1.0 only on SSL connections instanciated from
+  This option enforces use of TLSv1.0 only on SSL connections instantiated from
   this listener. See also "force-tls*", "no-sslv3", and "no-tls*".
 
 force-tlsv11
-  This option enforces use of TLSv1.1 only on SSL connections instanciated from
+  This option enforces use of TLSv1.1 only on SSL connections instantiated from
   this listener. See also "force-tls*", "no-sslv3", and "no-tls*".
 
 force-tlsv12
-  This option enforces use of TLSv1.2 only on SSL connections instanciated from
+  This option enforces use of TLSv1.2 only on SSL connections instantiated from
   this listener. See also "force-tls*", "no-sslv3", and "no-tls*".
 
 gid <gid>
@@ -8066,7 +8071,7 @@ nice <nice>
 
 no-sslv3
   This setting is only available when support for OpenSSL was built in. It
-  disables support for SSLv3 on any sockets instanciated from the listener when
+  disables support for SSLv3 on any sockets instantiated from the listener when
   SSL is supported. Note that SSLv2 is forced disabled in the code and cannot
   be enabled using any configuration option. See also "force-tls*",
   and "force-sslv3".
@@ -8079,21 +8084,21 @@ no-tls-tickets
 
 no-tlsv10
   This setting is only available when support for OpenSSL was built in. It
-  disables support for TLSv1.0 on any sockets instanciated from the listener
+  disables support for TLSv1.0 on any sockets instantiated from the listener
   when SSL is supported. Note that SSLv2 is forced disabled in the code and
   cannot be enabled using any configuration option. See also "force-tls*",
   and "force-sslv3".
 
 no-tlsv11
   This setting is only available when support for OpenSSL was built in. It
-  disables support for TLSv1.1 on any sockets instanciated from the listener
+  disables support for TLSv1.1 on any sockets instantiated from the listener
   when SSL is supported. Note that SSLv2 is forced disabled in the code and
   cannot be enabled using any configuration option. See also "force-tls*",
   and "force-sslv3".
 
 no-tlsv12
   This setting is only available when support for OpenSSL was built in. It
-  disables support for TLSv1.2 on any sockets instanciated from the listener
+  disables support for TLSv1.2 on any sockets instantiated from the listener
   when SSL is supported. Note that SSLv2 is forced disabled in the code and
   cannot be enabled using any configuration option. See also "force-tls*",
   and "force-sslv3".
@@ -8108,7 +8113,7 @@ npn <protocols>
 
 ssl
   This setting is only available when support for OpenSSL was built in. It
-  enables SSL deciphering on connections instanciated from this listener. A
+  enables SSL deciphering on connections instantiated from this listener. A
   certificate is necessary (see "crt" above). All contents in the buffers will
   appear in clear text, so that ACLs and HTTP processing will only have access
   to deciphered contents.
@@ -8149,7 +8154,7 @@ v4v6
   including Linux kernels >= 2.4.21. It is used to bind a socket to both IPv4
   and IPv6 when it uses the default address. Doing so is sometimes necessary
   on systems which bind to IPv6 only by default. It has no effect on non-IPv6
-  sockets, and is overriden by the "v6only" option.
+  sockets, and is overridden by the "v6only" option.
 
 v6only
   Is an optional keyword which is supported only on most recent systems
@@ -8320,7 +8325,7 @@ check-ssl
   whether the server uses SSL or not for the normal traffic. This is generally
   used when an explicit "port" or "addr" directive is specified and SSL health
   checks are not inherited. It is important to understand that this option
-  inserts an SSL transport layer below the ckecks, so that a simple TCP connect
+  inserts an SSL transport layer below the checks, so that a simple TCP connect
   check becomes an SSL connect, which replaces the old ssl-hello-chk. The most
   common use is to send HTTPS checks by combining "httpchk" with SSL checks.
   All SSL settings are common to health checks and traffic (eg: ciphers).
@@ -8330,7 +8335,7 @@ check-ssl
 
 ciphers <ciphers>
   This option sets the string describing the list of cipher algorithms that is
-  is negociated during the SSL/TLS handshake with the server. The format of the
+  is negotiated during the SSL/TLS handshake with the server. The format of the
   string is defined in "man 1 ciphers". When SSL is used to communicate with
   servers on the local network, it is common to see a weaker set of algorithms
   than what is used over the internet. Doing so reduces CPU usage on both the
@@ -8699,7 +8704,7 @@ ssl
   the-middle attacks rendering SSL useless. When this option is used, health
   checks are automatically sent in SSL too unless there is a "port" or an
   "addr" directive indicating the check should be sent to a different location.
-  See the "check-ssl" optino to force SSL health checks.
+  See the "check-ssl" option to force SSL health checks.
 
   Supported in default-server: No
 
@@ -9056,8 +9061,8 @@ criteria rely on a sample fetch method, it is always possible instead to use
 the original sample fetch method and the explicit matching method using "-m".
 
 If an alternate match is specified using "-m" on an ACL-specific criterion,
-the mathing method is simply applied to the underlying sample fetch method. For
-example, all ACLs below are exact equivalent :
+the matching method is simply applied to the underlying sample fetch method.
+For example, all ACLs below are exact equivalent :
 
     acl short_form  hdr_beg(host)        www.
     acl alternate1  hdr_beg(host) -m beg www.
@@ -9513,7 +9518,7 @@ be_sess_rate([<backend>]) : integer
 
 connslots([<backend>]) : integer
   Returns an integer value corresponding to the number of connection slots
-  still available in the backend, by totalizing the maximum amount of
+  still available in the backend, by totaling the maximum amount of
   connections on all servers and the maximum queue size. This is probably only
   used with ACLs.
 
@@ -9643,7 +9648,7 @@ srv_is_up([<backend>/]<server>) : boolean
 srv_sess_rate([<backend>/]<server>) : integer
   Returns an integer corresponding to the sessions creation rate on the
   designated server, in number of new sessions per second. If <backend> is
-  omitted, then the server is looked up in the current backend. This is mosly
+  omitted, then the server is looked up in the current backend. This is mostly
   used with ACLs but can make sense with logs too. This is used to switch to an
   alternate backend when an expensive or fragile one reaches too high a session
   rate, or to limit abuse of service (eg. prevent latent requests from
@@ -10086,7 +10091,7 @@ The layer 5 usually describes just the session layer which in haproxy is
 closest to the session once all the connection handshakes are finished, but
 when no content is yet made available. The fetch methods described here are
 usable as low as the "tcp-request content" rule sets unless they require some
-future information. Those generally include the results of SSL negociations.
+future information. Those generally include the results of SSL negotiations.
 
 ssl_c_ca_err : integer
   When the incoming connection was made over an SSL/TLS transport layer,
@@ -10280,7 +10285,7 @@ ssl_fc_alg_keysize : integer
   connection was made over an SSL/TLS transport layer.
 
 ssl_fc_alpn : string
-  This extracts the Application Layer Protocol Negociation field from an
+  This extracts the Application Layer Protocol Negotiation field from an
   incoming connection made via a TLS transport layer and locally deciphered by
   haproxy. The result is a string containing the protocol name advertised by
   the client. The SSL library must have been built with support for TLS
@@ -10316,7 +10321,7 @@ ssl_fc_has_sni : boolean
   haproxy -vv).
 
 ssl_fc_npn : string
-  This extracts the Next Protocol Negociation field from an incoming connection
+  This extracts the Next Protocol Negotiation field from an incoming connection
   made via a TLS transport layer and locally deciphered by haproxy. The result
   is a string containing the protocol name advertised by the client. The SSL
   library must have been built with support for TLS extensions enabled (check
@@ -10715,7 +10720,7 @@ hdr([<name>[,<occ>]]) : string
   used on responses. Please refer to these respective fetches for more details.
   In case of doubt about the fetch direction, please use the explicit ones.
   Note that contrary to the hdr() sample fetch method, the hdr_* ACL keywords
-  unambiguouslly apply to the request headers.
+  unambiguously apply to the request headers.
 
 req.fhdr(<name>[,<occ>]) : string
   This extracts the last occurrence of header <name> in an HTTP request. When
@@ -11294,7 +11299,7 @@ Detailed fields description :
     "Timers" below for more details.
 
   - "Tt" is the total time in milliseconds elapsed between the accept and the
-    last close. It covers all possible processings. There is one exception, if
+    last close. It covers all possible processing. There is one exception, if
     "option logasap" was specified, then the time counting stops at the moment
     the log is emitted. In this case, a '+' sign is prepended before the value,
     indicating that the final one will be larger. See "Timers" below for more
@@ -11490,7 +11495,7 @@ Detailed fields description :
     for more details.
 
   - "Tt" is the total time in milliseconds elapsed between the accept and the
-    last close. It covers all possible processings. There is one exception, if
+    last close. It covers all possible processing. There is one exception, if
     "option logasap" was specified, then the time counting stops at the moment
     the log is emitted. In this case, a '+' sign is prepended before the value,
     indicating that the final one will be larger. See "Timers" below for more
@@ -11649,7 +11654,7 @@ less common information such as the client's SSL certificate's DN, or to log
 the key that would be used to store an entry into a stick table.
 
 Note: spaces must be escaped. A space character is considered as a separator.
-In order to emit a verbatim '%', it must be preceeded by another '%' resulting
+In order to emit a verbatim '%', it must be preceded by another '%' resulting
 in '%%'. HAProxy will automatically merge consecutive separators.
 
 Flags are :
@@ -11789,7 +11794,7 @@ ask how to disable logging for those checks. There are three possibilities :
   - if the connection come from a known source network, use "monitor-net" to
     declare this network as monitoring only. Any host in this network will then
     only be able to perform health checks, and their requests will not be
-    logged. This is generally appropriate to designate a list of equipments
+    logged. This is generally appropriate to designate a list of equipment
     such as other load-balancers.
 
   - if the tests are performed on a known URI, use "monitor-uri" to declare
@@ -11884,7 +11889,7 @@ mode, 5 control points are reported under the form "Tq/Tw/Tc/Tr/Tt" :
     and the moment both ends were closed. The exception is when the "logasap"
     option is specified. In this case, it only equals (Tq+Tw+Tc+Tr), and is
     prefixed with a '+' sign. From this field, we can deduce "Td", the data
-    transmission time, by substracting other timers when valid :
+    transmission time, by subtracting other timers when valid :
 
         Td = Tt - (Tq + Tw + Tc + Tr)
 
@@ -11957,7 +11962,7 @@ Other noticeable HTTP log cases ('xx' means any value to be ignored) :
                    the client connection was maintained open.
 
   Tq/Tw/Tc/-1/Tt   The server has accepted the connection but did not return
-                   a complete response in time, or it closed its connexion
+                   a complete response in time, or it closed its connection
                    unexpectedly after Tt-(Tq+Tw+Tc) ms. Check the session
                    termination flags, then check the "timeout server" setting.
 
@@ -12093,7 +12098,7 @@ each of which has a special meaning :
 
         U : the proxy UPDATED the last date in the cookie that was presented by
             the client. This can only happen in insert mode with "maxidle". It
-            happens everytime there is activity at a different date than the
+            happens every time there is activity at a different date than the
             date indicated in the cookie. If any other change happens, such as
             a redispatch, then the cookie will be marked as inserted instead.
 
