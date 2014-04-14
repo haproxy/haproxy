@@ -3104,6 +3104,7 @@ static int bind_parse_ciphers(char **args, int cur_arg, struct proxy *px, struct
 static int bind_parse_crt(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	char path[MAXPATHLEN];
+
 	if (!*args[cur_arg + 1]) {
 		memprintf(err, "'%s' : missing certificate location", args[cur_arg]);
 		return ERR_ALERT | ERR_FATAL;
@@ -3114,7 +3115,7 @@ static int bind_parse_crt(char **args, int cur_arg, struct proxy *px, struct bin
 			memprintf(err, "'%s' : path too long", args[cur_arg]);
 			return ERR_ALERT | ERR_FATAL;
 		}
-		sprintf(path, "%s/%s",  global.crt_base, args[cur_arg + 1]);
+		snprintf(path, sizeof(path), "%s/%s",  global.crt_base, args[cur_arg + 1]);
 		if (ssl_sock_load_cert(path, conf, px, err) > 0)
 			return ERR_ALERT | ERR_FATAL;
 
