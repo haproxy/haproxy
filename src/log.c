@@ -1559,8 +1559,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 			case LOG_FMT_UNIQUEID: // %ID
 				ret = NULL;
 				src = s->unique_id;
-				if (src)
-					ret = lf_text(tmplog, src, maxsize - (tmplog - dst), tmp);
+				ret = lf_text(tmplog, src, maxsize - (tmplog - dst), tmp);
 				if (ret == NULL)
 					goto out;
 				tmplog = ret;
