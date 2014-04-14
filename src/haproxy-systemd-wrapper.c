@@ -24,13 +24,18 @@ static char **main_argv;
 
 static void locate_haproxy(char *buffer, size_t buffer_size)
 {
-	char* end = NULL;
+	char *end = NULL;
+
 	if (readlink("/proc/self/exe", buffer, buffer_size) > 0)
 		end = strrchr(buffer, '/');
-	if (end == NULL)
+
+	if (end == NULL) {
 		strncpy(buffer, "/usr/sbin/haproxy", buffer_size);
+		return;
+	}
 	end[1] = '\0';
-	strncat(buffer, "haproxy", buffer_size);
+	strncpy(end + 1, "haproxy", buffer + buffer_size - (end + 1));
+	buffer[buffer_size - 1] = '\0';
 }
 
 static void spawn_haproxy(char **pid_strv, int nb_pid)
