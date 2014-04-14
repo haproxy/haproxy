@@ -506,6 +506,9 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 	else if (!strcmp(args[0], "nosplice")) {
 		global.tune.options &= ~GTUNE_USE_SPLICE;
 	}
+	else if (!strcmp(args[0], "nogetaddrinfo")) {
+		global.tune.options &= ~GTUNE_USE_GAI;
+	}
 	else if (!strcmp(args[0], "quiet")) {
 		global.mode |= MODE_QUIET;
 	}

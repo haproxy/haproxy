@@ -57,6 +57,7 @@
 #define GTUNE_USE_KQUEUE         (1<<3)
 /* platform-specific options */
 #define GTUNE_USE_SPLICE         (1<<4)
+#define GTUNE_USE_GAI            (1<<5)
 
 /* Access level for a stats socket */
 #define ACCESS_LVL_NONE     0

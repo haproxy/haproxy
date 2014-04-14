@@ -552,25 +552,8 @@ static struct sockaddr_storage *str2ip(const char *str, struct sockaddr_storage 
 		return sa;
 	}
 
-	/* try to resolve an IPv4/IPv6 hostname */
-	he = gethostbyname(str);
-	if (he) {
-		if (!sa->ss_family || sa->ss_family == AF_UNSPEC)
-			sa->ss_family = he->h_addrtype;
-		else if (sa->ss_family != he->h_addrtype)
-			goto fail;
-
-		switch (sa->ss_family) {
-		case AF_INET:
-			((struct sockaddr_in *)sa)->sin_addr = *(struct in_addr *) *(he->h_addr_list);
-			return sa;
-		case AF_INET6:
-			((struct sockaddr_in6 *)sa)->sin6_addr = *(struct in6_addr *) *(he->h_addr_list);
-			return sa;
-		}
-	}
 #ifdef USE_GETADDRINFO
-	else {
+	if (global.tune.options & GTUNE_USE_GAI) {
 		struct addrinfo hints, *result;
 
 		memset(&result, 0, sizeof(result));
@@ -600,6 +583,24 @@ static struct sockaddr_storage *str2ip(const char *str, struct sockaddr_storage 
 			freeaddrinfo(result);
 	}
 #endif
+	/* try to resolve an IPv4/IPv6 hostname */
+	he = gethostbyname(str);
+	if (he) {
+		if (!sa->ss_family || sa->ss_family == AF_UNSPEC)
+			sa->ss_family = he->h_addrtype;
+		else if (sa->ss_family != he->h_addrtype)
+			goto fail;
+
+		switch (sa->ss_family) {
+		case AF_INET:
+			((struct sockaddr_in *)sa)->sin_addr = *(struct in_addr *) *(he->h_addr_list);
+			return sa;
+		case AF_INET6:
+			((struct sockaddr_in6 *)sa)->sin6_addr = *(struct in6_addr *) *(he->h_addr_list);
+			return sa;
+		}
+	}
+
 	/* unsupported address family */
  fail:
 	return NULL;

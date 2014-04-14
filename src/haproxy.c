@@ -385,6 +385,9 @@ void usage(char *name)
 #if defined(CONFIG_HAP_LINUX_SPLICE)
 		"        -dS disables splice usage (broken on old kernels)\n"
 #endif
+#if defined(USE_GETADDRINFO)
+		"        -dG disables getaddrinfo() usage\n"
+#endif
 		"        -dV disables SSL verify on servers side\n"
 		"        -sf/-st [pid ]* finishes/terminates old pids. Must be last arguments.\n"
 		"\n",
@@ -553,6 +556,9 @@ void init(int argc, char **argv)
 #if defined(CONFIG_HAP_LINUX_SPLICE)
 	global.tune.options |= GTUNE_USE_SPLICE;
 #endif
+#if defined(USE_GETADDRINFO)
+	global.tune.options |= GTUNE_USE_GAI;
+#endif
 
 	pid = getpid();
 	progname = *argv;
@@ -591,6 +597,10 @@ void init(int argc, char **argv)
 #if defined(CONFIG_HAP_LINUX_SPLICE)
 			else if (*flag == 'd' && flag[1] == 'S')
 				global.tune.options &= ~GTUNE_USE_SPLICE;
+#endif
+#if defined(USE_GETADDRINFO)
+			else if (*flag == 'd' && flag[1] == 'G')
+				global.tune.options &= ~GTUNE_USE_GAI;
 #endif
 			else if (*flag == 'd' && flag[1] == 'V')
 				global.ssl_server_verify = SSL_SERVER_VERIFY_NONE;
