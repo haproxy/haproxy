@@ -4053,7 +4053,7 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 					len = s->fe->fwdfor_hdr_len;
 					memcpy(trash.str, s->fe->fwdfor_hdr_name, len);
 				}
-				len += sprintf(trash.str + len, ": %d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
+				len += snprintf(trash.str + len, trash.size - len, ": %d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
 
 				if (unlikely(http_header_add_tail2(&txn->req, &txn->hdr_idx, trash.str, len) < 0))
 					goto return_bad_req;
@@ -4081,7 +4081,7 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 				len = s->fe->fwdfor_hdr_len;
 				memcpy(trash.str, s->fe->fwdfor_hdr_name, len);
 			}
-			len += sprintf(trash.str + len, ": %s", pn);
+			len += snprintf(trash.str + len, trash.size - len, ": %s", pn);
 
 			if (unlikely(http_header_add_tail2(&txn->req, &txn->hdr_idx, trash.str, len) < 0))
 				goto return_bad_req;
@@ -4124,7 +4124,7 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 					len = s->fe->orgto_hdr_len;
 					memcpy(trash.str, s->fe->orgto_hdr_name, len);
 				}
-				len += sprintf(trash.str + len, ": %d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
+				len += snprintf(trash.str + len, trash.size - len, ": %d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
 
 				if (unlikely(http_header_add_tail2(&txn->req, &txn->hdr_idx, trash.str, len) < 0))
 					goto return_bad_req;
