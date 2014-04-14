@@ -733,7 +733,7 @@ void __health_adjust(struct server *s, short status)
 	}
 }
 
-static int httpchk_build_status_header(struct server *s, char *buffer)
+static int httpchk_build_status_header(struct server *s, char *buffer, int size)
 {
 	int sv_state;
 	int ratio;
@@ -763,12 +763,12 @@ static int httpchk_build_status_header(struct server *s, char *buffer)
 			sv_state = 0; /* DOWN */
 	}
 
-	hlen += sprintf(buffer + hlen,
+	hlen += snprintf(buffer + hlen, size - hlen,
 			     srv_hlt_st[sv_state],
 			     (s->state & SRV_RUNNING) ? (s->check.health - s->check.rise + 1) : (s->check.health),
 			     (s->state & SRV_RUNNING) ? (s->check.fall) : (s->check.rise));
 
-	hlen += sprintf(buffer + hlen, "; name=%s/%s; node=%s; weight=%d/%d; scur=%d/%d; qcur=%d",
+	hlen += snprintf(buffer + hlen,  size - hlen, "; name=%s/%s; node=%s; weight=%d/%d; scur=%d/%d; qcur=%d",
 			     s->proxy->id, s->id,
 			     global.node,
 			     (s->eweight * s->proxy->lbprm.wmult + s->proxy->lbprm.wdiv - 1) / s->proxy->lbprm.wdiv,
@@ -780,7 +780,7 @@ static int httpchk_build_status_header(struct server *s, char *buffer)
 	    now.tv_sec < s->last_change + s->slowstart &&
 	    now.tv_sec >= s->last_change) {
 		ratio = MAX(1, 100 * (now.tv_sec - s->last_change) / s->slowstart);
-		hlen += sprintf(buffer + hlen, "; throttle=%d%%", ratio);
+		hlen += snprintf(buffer + hlen, size - hlen, "; throttle=%d%%", ratio);
 	}
 
 	buffer[hlen++] = '\r';
@@ -1558,7 +1558,7 @@ static struct task *process_chk(struct task *t)
 			}
 			else if ((check->type) == PR_O2_HTTP_CHK) {
 				if (s->proxy->options2 & PR_O2_CHK_SNDST)
-					bo_putblk(check->bo, trash.str, httpchk_build_status_header(s, trash.str));
+					bo_putblk(check->bo, trash.str, httpchk_build_status_header(s, trash.str, trash.size));
 				bo_putstr(check->bo, "\r\n");
 				*check->bo->p = '\0'; /* to make gdb output easier to read */
 			}
