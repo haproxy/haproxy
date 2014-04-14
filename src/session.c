@@ -2692,7 +2692,7 @@ smp_fetch_sc_tracked(struct proxy *px, struct session *l4, void *l7, unsigned in
 {
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_BOOL;
-	smp->data.uint = !!stkctr_entry(&l4->stkctr[kw[2] - '0']);
+	smp->data.uint = !!smp_fetch_sc_stkctr(l4, args, kw);
 	return 1;
 }
 
