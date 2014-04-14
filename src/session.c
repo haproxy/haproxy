@@ -2656,7 +2656,7 @@ smp_fetch_sc_stkctr(struct session *l4, const struct arg *args, const char *kw)
 		if (!conn)
 			return NULL;
 
-		key = addr_to_stktable_key(&conn->addr.from);
+		key = addr_to_stktable_key(&conn->addr.from, args->data.prx->table.type);
 		if (!key)
 			return NULL;
 
@@ -2880,7 +2880,7 @@ smp_fetch_src_updt_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsi
 	if (!conn)
 		return 0;
 
-	key = addr_to_stktable_key(&conn->addr.from);
+	key = addr_to_stktable_key(&conn->addr.from, px->table.type);
 	if (!key)
 		return 0;
 

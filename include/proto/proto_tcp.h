@@ -40,19 +40,43 @@ int tcp_inspect_response(struct session *s, struct channel *rep, int an_bit);
 int tcp_exec_req_rules(struct session *s);
 
 /* Converts the INET/INET6 source address to a stick_table key usable for table
- * lookups. Returns either NULL if the source cannot be converted (eg: not
- * IPv4) or a pointer to the converted result in static_table_key in the
- * appropriate format (IP).
+ * lookups. <type> can be STKTABLE_TYPE_IP or STKTABLE_TYPE_IPV6. The function
+ * try to convert the incoming IP to the type expected by the sticktable.
+ * Returns either NULL if the source cannot be converted (eg: not IPv4) or a
+ * pointer to the converted result in static_table_key in the appropriate format
+ * (IP).
  */
-static inline struct stktable_key *addr_to_stktable_key(struct sockaddr_storage *addr)
+static inline struct stktable_key *addr_to_stktable_key(struct sockaddr_storage *addr, long type)
 {
 	switch (addr->ss_family) {
 	case AF_INET:
-		static_table_key->key = (void *)&((struct sockaddr_in *)addr)->sin_addr;
-		break;
+		/* Convert IPv4 to IPv4 key. */
+		if (type == STKTABLE_TYPE_IP) {
+			static_table_key->key = (void *)&((struct sockaddr_in *)addr)->sin_addr;
+			break;
+		}
+		/* Convert IPv4 to IPv6 key. */
+		if (type == STKTABLE_TYPE_IPV6) {
+			v4tov6(&static_table_key->data.ipv6, &((struct sockaddr_in *)addr)->sin_addr);
+			static_table_key->key = &static_table_key->data.ipv6;
+			break;
+		}
+		return NULL;
+
 	case AF_INET6:
-		static_table_key->key = (void *)&((struct sockaddr_in6 *)addr)->sin6_addr;
-		break;
+		/* Convert IPv6 to IPv4 key. This conversion can be failed. */
+		if (type == STKTABLE_TYPE_IP) {
+			if (!v6tov4(&static_table_key->data.ip, &((struct sockaddr_in6 *)addr)->sin6_addr))
+				return NULL;
+			static_table_key->key = &static_table_key->data.ip;
+			break;
+		}
+		/* Convert IPv6 to IPv6 key. */
+		if (type == STKTABLE_TYPE_IPV6) {
+			static_table_key->key = (void *)&((struct sockaddr_in6 *)addr)->sin6_addr;
+			break;
+		}
+		return NULL;
 	default:
 		return NULL;
 	}
