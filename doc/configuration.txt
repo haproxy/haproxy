@@ -9427,18 +9427,16 @@ The currently available list of transformation keywords include :
 
                  Example :
 
-                     # this configuration switches to the backend matching a
-                     # given language based on the request :
+                   # this configuration switches to the backend matching a
+                   # given language based on the request :
 
-                     acl de req.fhdr(accept-language),language(de;es;fr;en) de
-                     acl es req.fhdr(accept-language),language(de;es;fr;en) es
-                     acl fr req.fhdr(accept-language),language(de;es;fr;en) fr
-                     acl en req.fhdr(accept-language),language(de;es;fr;en) en
-                     use_backend german  if de
-                     use_backend spanish if es
-                     use_backend french  if fr
-                     use_backend english if en
-                     default_backend choose_your_language
+                   acl es req.fhdr(accept-language),language(es;fr;en) -m str es
+                   acl fr req.fhdr(accept-language),language(es;fr;en) -m str fr
+                   acl en req.fhdr(accept-language),language(es;fr;en) -m str en
+                   use_backend spanish if es
+                   use_backend french  if fr
+                   use_backend english if en
+                   default_backend choose_your_language
 
   map(<map_file>[,<default_value>])
   map_<match_type>(<map_file>[,<default_value>])
