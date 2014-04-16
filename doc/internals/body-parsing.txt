@@ -1,0 +1,157 @@
+2014/04/16 - Pointer assignments during processing of the HTTP body
+
+In HAProxy, a struct http_msg is a descriptor for an HTTP message, which stores
+the state of an HTTP parser at any given instant, relative to a buffer which
+contains part of the message being inspected.
+
+Currently, an http_msg holds a few pointers and offsets to some important
+locations in a message depending on the state the parser is in. Some of these
+pointers and offsets may move when data are inserted into or removed from the
+buffer, others won't move.
+
+An important point is that the state of the parser only translates what the
+parser is reading, and not at all what is being done on the message (eg:
+forwarding).
+
+For an HTTP message <msg> and a buffer <buf>, we have the following elements
+to work with :
+
+
+Buffer :
+--------
+
+buf.size : the allocated size of the buffer. A message cannot be larger than
+           this size. In general, a message will even be smaller because the
+           size is almost always reduced by global.maxrewrite bytes.
+
+buf.data : memory area containing the part of the message being worked on. This
+           area is exactly <buf.size> bytes long. It should be seen as a sliding
+           window over the message, but in terms of implementation, it's closer
+           to a wrapping window. For ease of processing, new messages (requests
+           or responses) are aligned to the beginning of the buffer so that they
+           never wrap and common string processing functions can be used.
+
+buf.p    : memory pointer (char *) to the beginning of the buffer as the parser
+           understands it. It commonly refers to the first character of an HTTP
+           request or response, but during forwarding, it can point to other
+           locations. This pointer always points to a location in <buf.data>.
+
+buf.i    : number of bytes after <buf.p> that are available in the buffer. If
+           <buf.p + buf.i> exceeds <buf.data + buf.size>, then the pending data
+           wrap at the end of the buffer and continue at <buf.data>.
+
+buf.o    : number of bytes already processed before <buf.p> that are pending
+           for departure. These bytes may leave at any instant once a connection
+           is established. These ones may wrap before <buf.data> to start before
+           <buf.data + buf.size>.
+
+It's common to call the part between buf.p and buf.p+buf.i the input buffer, and
+the part between buf.p-buf.o and buf.p the output buffer. This design permits
+efficient forwarding without copies. As a result, forwarding one byte from the
+input buffer to the output buffer only consists in :
+        - incrementing buf.p
+        - incrementing buf.o
+        - decrementing buf.i
+
+
+Message :
+---------
+Unless stated otherwise, all values are relative to <buf.p>, and are always
+comprised between 0 and <buf.i>. These values are relative offsets and they do
+not need to take wrapping into account, they are used as if the buffer was an
+infinite length sliding window. The buffer management functions handle the
+wrapping automatically.
+
+msg.next : points to the next byte to inspect. This offset is automatically
+           adjusted when inserting/removing some headers. In data states, it is
+           automatically adjusted to the number of bytes already inspected.
+
+msg.sov  : start of value. First character of the header's value in the header
+           states, start of the body in the data states until headers are
+           forwarded. This offset is automatically adjusted when inserting or
+           removing some headers. In data states, it always constains the size
+           of the whole HTTP headers (including the trailing CRLF) that needs
+           to be forwarded before the first byte of body. Once the headers are
+           forwarded, this value drops to zero.
+
+msg.sol  : start of line. Points to the beginning of the current header line
+           while parsing headers. It is cleared to zero in the BODY state,
+           and contains exactly the number of bytes comprising the preceeding
+           chunk size in the DATA state (which can be zero), so that the sum of
+           msg.sov + msg.sol always points to the beginning of data for all
+           states starting with DATA. For chunked encoded messages, this sum
+           always corresponds to the beginning of the current chunk of data as
+           it appears in the buffer, or to be more precise, it corresponds to
+           the first of the remaining bytes of chunked data to be inspected.
+
+msg.eoh  : end of headers. Points to the CRLF (or LF) preceeding the body and
+           marking the end of headers. It is where new headers are appended.
+           This offset is automatically adjusted when inserting/removing some
+           headers. It always contains the size of the headers excluding the
+           trailing CRLF even after headers have been forwarded.
+
+msg.eol  : end of line. Points to the CRLF or LF of the current header line
+           being inspected during the various header states. In data states, it
+           holds the trailing CRLF length (1 or 2) so that  msg.eoh + msg.eol
+           always equals the exact header length. It is not affected during data
+           states nor by forwarding.
+
+The beginning of the message headers can always be found this way even after
+headers have been forwarded :
+
+            headers = buf.p + msg->sov - msg->eoh - msg->eol
+
+
+Message length :
+----------------
+msg.chunk_len : amount of bytes of the current chunk or total message body
+                remaining to be inspected after msg.next. It is automatically
+                incremented when parsing a chunk size, and decremented as data
+                are forwarded.
+
+msg.body_len  : total message body length, for logging. Equals Content-Length
+                when used, otherwise is the sum of all correctly parsed chunks.
+
+
+Message state :
+---------------
+msg.msg_state contains the current parser state, one of HTTP_MSG_*. The state
+indicates what byte is expected at msg->next.
+
+HTTP_MSG_BODY       : all headers have been parsed, parsing of body has not
+                      started yet.
+
+HTTP_MSG_100_SENT   : parsing of body has started. If a 100-Continue was needed
+                      it has already been sent.
+
+HTTP_MSG_DATA       : some bytes are remaining for either the whole body when
+                      the message size is determined by Content-Length, or for
+                      the current chunk in chunked-encoded mode.
+
+HTTP_MSG_CHUNK_CRLF : msg->next points to the CRLF after the current data chunk.
+
+HTTP_MSG_TRAILERS   : msg->next points to the beginning of a possibly empty
+                      trailer line after the final empty chunk.
+
+HTTP_MSG_DONE       : all the Content-Length data has been inspected, or the
+                      final CRLF after trailers has been met.
+
+
+Message forwarding :
+--------------------
+Forwarding part of a message consists in advancing buf.p up to the point where
+it points to the byte following the last one to be forwarded. This can be done
+inline if enough bytes are present in the buffer, or in multiple steps if more
+buffers need to be forwarded (possibly including splicing). Thus by definition,
+after a block has been scheduled for being forwarded, msg->next and msg->sov
+must be reset.
+
+The communication channel between the producer and the consumer holds a counter
+of extra bytes remaining to be forwarded directly without consulting analysers,
+after buf.p. This counter is called to_forward. It commonly holds the advertised
+chunk length or content-length that does not fit in the buffer. For example, if
+2000 bytes are to be forwarded, and 10 bytes are present after buf.p as reported
+by buf.i, then both buf.o and buf.p will advance by 10, buf.i will be reset, and
+to_forward will be set to 1990 so that in total, 2000 bytes will be forwarded.
+At the end of the forwarding, buf.p will point to the first byte to be inspected
+after the 2000 forwarded bytes.
