@@ -184,5 +184,5 @@ int main(int argc, char **argv)
 
 	fprintf(stderr, SD_NOTICE "haproxy-systemd-wrapper: exit, haproxy RC=%d\n",
 			status);
-	return EXIT_SUCCESS;
+	return status;
 }
