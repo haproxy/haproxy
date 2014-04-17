@@ -6207,7 +6207,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 		}
 	}
 
-	if (s->comp_algo != NULL) {
+	if (s->comp_algo != NULL && msg->msg_state < HTTP_MSG_TRAILERS) {
 		ret = http_compression_buffer_init(s, res->buf, tmpbuf); /* init a buffer with headers */
 		if (ret < 0) {
 			res->flags |= CF_WAKE_WRITE;
@@ -6247,10 +6247,6 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 				msg->msg_state = HTTP_MSG_CHUNK_CRLF;
 			} else {
 				msg->msg_state = HTTP_MSG_DONE;
-				if (compressing) {
-					http_compression_buffer_end(s, &res->buf, &tmpbuf, 1);
-					compressing = 0;
-				}
 				break;
 			}
 			/* fall through for HTTP_MSG_CHUNK_CRLF */
@@ -6282,14 +6278,16 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_CHUNK_SIZE, s->fe);
 				goto return_bad_res;
 			}
-			if (compressing && msg->msg_state == HTTP_MSG_TRAILERS) {
-				http_compression_buffer_end(s, &res->buf, &tmpbuf, 1);
-				compressing = 0;
-			}
 			/* otherwise we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state */
 			break;
 
 		case HTTP_MSG_TRAILERS - HTTP_MSG_DATA:
+			if (unlikely(compressing)) {
+				/* we need to flush output contents before syncing FSMs */
+				http_compression_buffer_end(s, &res->buf, &tmpbuf, 1);
+				compressing = 0;
+			}
+
 			ret = http_forward_trailers(msg);
 			if (ret == 0)
 				goto missing_data;
@@ -6298,19 +6296,20 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_TRAILERS, s->fe);
 				goto return_bad_res;
 			}
-			if (s->comp_algo != NULL) {
-				/* forwarding trailers */
-				channel_forward(res, msg->next);
-				msg->next = 0;
-				msg->sov  = 0;
-			}
-			/* we're in HTTP_MSG_DONE now, but we might still have
-			 * some data pending, so let's loop over once.
-			 */
-			break;
+			/* forwarding trailers */
+			channel_forward(res, msg->next);
+			msg->next = 0;
+			msg->sov  = 0;
+
+			/* we're in HTTP_MSG_DONE now, fall through */
 
 		default:
 			/* other states, DONE...TUNNEL */
+			if (unlikely(compressing)) {
+				/* we need to flush output contents before syncing FSMs */
+				http_compression_buffer_end(s, &res->buf, &tmpbuf, 1);
+				compressing = 0;
+			}
 
 			ret = msg->msg_state;
 			/* for keep-alive we don't want to forward closes on DONE */
@@ -6340,8 +6339,8 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	}
 
  missing_data:
-	if (compressing) {
-		http_compression_buffer_end(s, &res->buf, &tmpbuf, 0);
+	if (unlikely(compressing)) {
+		http_compression_buffer_end(s, &res->buf, &tmpbuf, msg->msg_state >= HTTP_MSG_TRAILERS);
 		compressing = 0;
 	}
 
@@ -6410,7 +6409,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 
  return_bad_res_stats_ok:
 	if (unlikely(compressing)) {
-		http_compression_buffer_end(s, &res->buf, &tmpbuf, 0);
+		http_compression_buffer_end(s, &res->buf, &tmpbuf, msg->msg_state >= HTTP_MSG_TRAILERS);
 		compressing = 0;
 	}
 
