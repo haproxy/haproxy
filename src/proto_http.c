@@ -5064,6 +5064,7 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 			msg->chunk_len += msg->next;
 			msg->chunk_len -= channel_forward(req, msg->chunk_len);
 			msg->next       = 0;
+			msg->sov        = 0;
 		}
 
 		if (msg->msg_state == HTTP_MSG_DATA) {
@@ -6188,6 +6189,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 		 */
 		channel_forward(res, msg->sov);
 		msg->next = 0;
+		msg->sov  = 0;
 
 		if (msg->flags & HTTP_MSGF_TE_CHNK)
 			msg->msg_state = HTTP_MSG_CHUNK_SIZE;
@@ -6213,6 +6215,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 				msg->chunk_len += msg->next;
 				msg->chunk_len -= channel_forward(res, msg->chunk_len);
 				msg->next       = 0;
+				msg->sov        = 0;
 			}
 		}
 
@@ -6302,6 +6305,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 				/* forwarding trailers */
 				channel_forward(res, msg->next);
 				msg->next = 0;
+				msg->sov  = 0;
 			}
 			/* we're in HTTP_MSG_DONE now, but we might still have
 			 * some data pending, so let's loop over once.
@@ -6373,6 +6377,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 			msg->chunk_len += msg->next;
 			msg->chunk_len -= channel_forward(res, msg->chunk_len);
 			msg->next       = 0;
+			msg->sov        = 0;
 		}
 	}
 

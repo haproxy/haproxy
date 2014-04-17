@@ -134,10 +134,13 @@ enum http_meth_t find_http_meth(const char *str, const int len);
 /* Return the amount of bytes that need to be rewound before buf->p to access
  * the current message's headers. The purpose is to be able to easily fetch
  * the message's beginning before headers are forwarded, as well as after.
+ * The principle is that msg->eoh and msg->eol are immutable while msg->sov
+ * equals the sum of the two before forwarding and is zero after forwarding,
+ * so the difference cancels the rewinding.
  */
 static inline int http_hdr_rewind(const struct http_msg *msg)
 {
-	return msg->chn->buf->o;
+	return msg->eoh + msg->eol - msg->sov;
 }
 
 /* Return the amount of bytes that need to be rewound before buf->p to access
@@ -179,7 +182,7 @@ static inline int http_body_bytes(const struct http_msg *msg)
 {
 	int len;
 
-	len = buffer_len(msg->chn->buf) - msg->sov - msg->sol;
+	len = msg->chn->buf->i - msg->sov - msg->sol;
 	if (len > msg->body_len)
 		len = msg->body_len;
 	return len;
