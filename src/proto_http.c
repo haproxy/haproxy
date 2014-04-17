@@ -2317,10 +2317,6 @@ int select_compression_response_header(struct session *s, struct buffer *res)
 	if (!(msg->flags & HTTP_MSGF_TE_CHNK) && msg->body_len == 0)
 		goto fail;
 
-	/* TEMPORARY WORKAROUND: do not compress if response is chunked !!!!!! */
-	if (msg->flags & HTTP_MSGF_TE_CHNK)
-		goto fail;
-
 	/* content is already compressed */
 	ctx.idx = 0;
 	if (http_find_header2("Content-Encoding", 16, res->p, &txn->hdr_idx, &ctx))
