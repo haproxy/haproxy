@@ -19,6 +19,8 @@
 #include <sys/wait.h>
 
 #define REEXEC_FLAG "HAPROXY_SYSTEMD_REEXEC"
+#define SD_DEBUG "<7>"
+#define SD_NOTICE "<5>"
 
 static char *pid_file = "/run/haproxy.pid";
 static int wrapper_argc;
@@ -68,10 +70,10 @@ static void spawn_haproxy(char **pid_strv, int nb_pid)
 		}
 		argv[argno] = NULL;
 
-		printf("%s", "haproxy-systemd-wrapper: executing ");
+		fprintf(stderr, SD_DEBUG "haproxy-systemd-wrapper: executing ");
 		for (i = 0; argv[i]; ++i)
-			printf("%s ", argv[i]);
-		puts("");
+			fprintf(stderr, "%s ", argv[i]);
+		fprintf(stderr, "\n");
 
 		execv(argv[0], argv);
 		exit(0);
@@ -104,7 +106,7 @@ static int read_pids(char ***pid_strv)
 static void sigusr2_handler(int signum __attribute__((unused)))
 {
 	setenv(REEXEC_FLAG, "1", 1);
-	printf("haproxy-systemd-wrapper: re-executing\n");
+	fprintf(stderr, SD_NOTICE "haproxy-systemd-wrapper: re-executing\n");
 
 	execv(wrapper_argv[0], wrapper_argv);
 }
@@ -117,7 +119,7 @@ static void sigint_handler(int signum __attribute__((unused)))
 	for (i = 0; i < nb_pid; ++i) {
 		pid = atoi(pid_strv[i]);
 		if (pid > 0) {
-			printf("haproxy-systemd-wrapper: SIGINT -> %d\n", pid);
+			fprintf(stderr, SD_DEBUG "haproxy-systemd-wrapper: SIGINT -> %d\n", pid);
 			kill(pid, SIGINT);
 			free(pid_strv[i]);
 		}
@@ -180,6 +182,7 @@ int main(int argc, char **argv)
 	while (-1 != wait(&status) || errno == EINTR)
 		;
 
-	printf("haproxy-systemd-wrapper: exit, haproxy RC=%d\n", status);
+	fprintf(stderr, SD_NOTICE "haproxy-systemd-wrapper: exit, haproxy RC=%d\n",
+			status);
 	return EXIT_SUCCESS;
 }
