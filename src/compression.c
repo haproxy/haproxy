@@ -141,7 +141,6 @@ int http_compression_buffer_init(struct session *s, struct buffer *in, struct bu
 	 */
 	b_adv(in, msg->next);
 	msg->next = 0;
-	msg->sov = 0;
 
 	out->size = global.tune.bufsize;
 	out->i = 0;
@@ -180,7 +179,6 @@ int http_compression_buffer_add_data(struct session *s, struct buffer *in, struc
 	 */
 	b_adv(in, msg->next);
 	msg->next = 0;
-	msg->sov = 0;
 
 	/*
 	 * select the smallest size between the announced chunk size, the input

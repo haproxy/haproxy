@@ -1923,9 +1923,11 @@ void http_change_connection_header(struct http_txn *txn, struct http_msg *msg, i
 	return;
 }
 
-/* Parse the chunk size at msg->next. Once done, it adjusts ->next to point to the
- * first byte of body, and increments msg->sov by the number of bytes parsed.
- * so that we know we can forward ->sov bytes.
+/* Parse the chunk size at msg->next. Once done, it adjusts ->next to point to
+ * the first byte of data after the chunk size, so that we know we can forward
+ * exactly msg->next bytes. msg->sol contains the exact number of bytes forming
+ * the chunk size. That way it is always possible to differentiate between the
+ * start of the body and the start of the data.
  * Return >0 on success, 0 when some data is missing, <0 on error.
  * Note: this function is designed to parse wrapped CRLF at the end of the buffer.
  */
@@ -2008,12 +2010,12 @@ static inline int http_parse_chunk_size(struct http_msg *msg)
 	}
 
 	/* OK we found our CRLF and now <ptr> points to the next byte,
-	 * which may or may not be present. We save that into ->next and
-	 * ->sov.
+	 * which may or may not be present. We save that into ->next,
+	 * and the number of bytes parsed into msg->sol.
 	 */
+	msg->sol = ptr - ptr_old;
 	if (unlikely(ptr < ptr_old))
-		msg->sov += buf->size;
-	msg->sov += ptr - ptr_old;
+		msg->sol += buf->size;
 	msg->next = buffer_count(buf, buf->p, ptr);
 	msg->chunk_len = chunk;
 	msg->body_len += chunk;
@@ -2029,14 +2031,14 @@ static inline int http_parse_chunk_size(struct http_msg *msg)
  * the trailers is found, it is automatically scheduled to be forwarded,
  * msg->msg_state switches to HTTP_MSG_DONE, and the function returns >0.
  * If not enough data are available, the function does not change anything
- * except maybe msg->next and msg->sov if it could parse some lines, and returns
- * zero. If a parse error is encountered, the function returns < 0 and does not
- * change anything except maybe msg->next and msg->sov. Note that the message
- * must already be in HTTP_MSG_TRAILERS state before calling this function,
+ * except maybe msg->next if it could parse some lines, and returns zero.
+ * If a parse error is encountered, the function returns < 0 and does not
+ * change anything except maybe msg->next. Note that the message must
+ * already be in HTTP_MSG_TRAILERS state before calling this function,
  * which implies that all non-trailers data have already been scheduled for
- * forwarding, and that msg->sov exactly matches the length of trailers already
- * parsed and not forwarded. It is also important to note that this function is
- * designed to be able to parse wrapped headers at end of buffer.
+ * forwarding, and that msg->next exactly matches the length of trailers
+ * already parsed and not forwarded. It is also important to note that this
+ * function is designed to be able to parse wrapped headers at end of buffer.
  */
 static int http_forward_trailers(struct http_msg *msg)
 {
@@ -2083,11 +2085,6 @@ static int http_forward_trailers(struct http_msg *msg)
 		if (bytes < 0)
 			bytes += buf->size;
 
-		/* schedule this line for forwarding */
-		msg->sov += bytes;
-		if (msg->sov >= buf->size)
-			msg->sov -= buf->size;
-
 		if (p1 == b_ptr(buf, msg->next)) {
 			/* LF/CRLF at beginning of line => end of trailers at p2.
 			 * Everything was scheduled for forwarding, there's nothing
@@ -2102,9 +2099,9 @@ static int http_forward_trailers(struct http_msg *msg)
 	}
 }
 
-/* This function may be called only in HTTP_MSG_CHUNK_CRLF. It reads the CRLF or
- * a possible LF alone at the end of a chunk. It automatically adjusts msg->sov,
- * and ->next in order to include this part into the next forwarding phase.
+/* This function may be called only in HTTP_MSG_CHUNK_CRLF. It reads the CRLF
+ * or a possible LF alone at the end of a chunk. It automatically adjusts
+ * msg->next in order to include this part into the next forwarding phase.
  * Note that the caller must ensure that ->p points to the first byte to parse.
  * It also sets msg_state to HTTP_MSG_CHUNK_SIZE and returns >0 on success. If
  * not enough data are available, the function does not change anything and
@@ -2142,8 +2139,7 @@ static inline int http_skip_chunk_crlf(struct http_msg *msg)
 	ptr++;
 	if (unlikely(ptr >= buf->data + buf->size))
 		ptr = buf->data;
-	/* prepare the CRLF to be forwarded (->sov) */
-	msg->sov  += bytes;
+	/* Advance ->next to allow the CRLF to be forwarded */
 	msg->next += bytes;
 	msg->msg_state = HTTP_MSG_CHUNK_SIZE;
 	return 1;
@@ -5005,8 +5001,7 @@ int http_resync_states(struct session *s)
  * be between MSG_BODY and MSG_DONE (inclusive). It returns zero if it needs to
  * read more data, or 1 once we can go on with next request or end the session.
  * When in MSG_DATA or MSG_TRAILERS, it will automatically forward chunk_len
- * bytes of pending data + the headers if not already done (between sol and sov).
- * It eventually adjusts sol to match sov after the data in between have been sent.
+ * bytes of pending data + the headers if not already done.
  */
 int http_request_forward_body(struct session *s, struct channel *req, int an_bit)
 {
@@ -5065,11 +5060,10 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 		http_silent_debug(__LINE__, s);
 
 		/* we may have some pending data starting at req->buf->p */
-		if (msg->chunk_len || msg->sov) {
-			msg->chunk_len += msg->sov;
+		if (msg->chunk_len || msg->next) {
+			msg->chunk_len += msg->next;
 			msg->chunk_len -= channel_forward(req, msg->chunk_len);
-			msg->next      -= msg->sov;
-			msg->sov        = 0;
+			msg->next       = 0;
 		}
 
 		if (msg->msg_state == HTTP_MSG_DATA) {
@@ -5087,7 +5081,7 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 		}
 		else if (msg->msg_state == HTTP_MSG_CHUNK_SIZE) {
 			/* read the chunk size and assign it to ->chunk_len, then
-			 * set ->sov and ->next to point to the body and switch to DATA or
+			 * set ->next to point to the body and switch to DATA or
 			 * TRAILERS state.
 			 */
 			int ret = http_parse_chunk_size(msg);
@@ -6153,8 +6147,7 @@ int http_process_res_common(struct session *t, struct channel *rep, int an_bit, 
  * be between MSG_BODY and MSG_DONE (inclusive). It returns zero if it needs to
  * read more data, or 1 once we can go on with next request or end the session.
  * When in MSG_DATA or MSG_TRAILERS, it will automatically forward chunk_len
- * bytes of pending data + the headers if not already done (between sol and sov).
- * It eventually adjusts sol to match sov after the data in between have been sent.
+ * bytes of pending data + the headers if not already done.
  */
 int http_response_forward_body(struct session *s, struct channel *res, int an_bit)
 {
@@ -6195,7 +6188,6 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 		 */
 		channel_forward(res, msg->sov);
 		msg->next = 0;
-		msg->sov = 0;
 
 		if (msg->flags & HTTP_MSGF_TE_CHNK)
 			msg->msg_state = HTTP_MSG_CHUNK_SIZE;
@@ -6217,11 +6209,10 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 
 		/* we may have some pending data starting at res->buf->p */
 		if (s->comp_algo == NULL) {
-			if (msg->chunk_len || msg->sov) {
-				msg->chunk_len += msg->sov;
+			if (msg->chunk_len || msg->next) {
+				msg->chunk_len += msg->next;
 				msg->chunk_len -= channel_forward(res, msg->chunk_len);
-				msg->next      -= msg->sov;
-				msg->sov        = 0;
+				msg->next       = 0;
 			}
 		}
 
@@ -6266,13 +6257,12 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 			if (compressing) {
 				b_adv(res->buf, msg->next);
 				msg->next = 0;
-				msg->sov = 0;
 			}
 			/* we're in MSG_CHUNK_SIZE now, fall through */
 
 		case HTTP_MSG_CHUNK_SIZE - HTTP_MSG_DATA:
 			/* read the chunk size and assign it to ->chunk_len, then
-			 * set ->sov and ->next to point to the body and switch to DATA or
+			 * set ->next to point to the body and switch to DATA or
 			 * TRAILERS state.
 			 */
 
@@ -6289,7 +6279,6 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 					/* skipping data if we are in compression mode */
 					b_adv(res->buf, msg->next);
 					msg->next = 0;
-					msg->sov = 0;
 				} else {
 					if (consumed_data) {
 						http_compression_buffer_end(s, &res->buf, &tmpbuf, 1);
@@ -6380,11 +6369,10 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 
 	/* forward any pending data starting at res->buf->p */
 	if (s->comp_algo == NULL) {
-		if (msg->chunk_len || msg->sov) {
-			msg->chunk_len += msg->sov;
+		if (msg->chunk_len || msg->next) {
+			msg->chunk_len += msg->next;
 			msg->chunk_len -= channel_forward(res, msg->chunk_len);
-			msg->next      -= msg->sov;
-			msg->sov        = 0;
+			msg->next       = 0;
 		}
 	}
 
