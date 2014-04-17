@@ -948,7 +948,7 @@ void http_perform_server_redirect(struct session *s, struct stream_interface *si
 	 * to temporarily rewind the buffer.
 	 */
 	txn = &s->txn;
-	b_rew(s->req->buf, rewind = s->req->buf->o);
+	b_rew(s->req->buf, rewind = http_hdr_rewind(&txn->req));
 
 	path = http_get_path(txn);
 	len = buffer_count(s->req->buf, path, b_ptr(s->req->buf, txn->req.sl.rq.u + txn->req.sl.rq.u_l));
@@ -4441,7 +4441,7 @@ int http_send_name_header(struct http_txn *txn, struct proxy* be, const char* sr
 
 	ctx.idx = 0;
 
-	old_o = chn->buf->o;
+	old_o = http_hdr_rewind(&txn->req);
 	if (old_o) {
 		/* The request was already skipped, let's restore it */
 		b_rew(chn->buf, old_o);

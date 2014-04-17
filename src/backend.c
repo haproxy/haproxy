@@ -299,7 +299,7 @@ struct server *get_server_ph_post(struct session *s)
 	struct proxy    *px   = s->be;
 	unsigned int     plen = px->url_param_len;
 	unsigned long    len  = http_body_bytes(msg);
-	const char      *params = b_ptr(req->buf, (int)(msg->sov + msg->sol - req->buf->o));
+	const char      *params = b_ptr(req->buf, (int)(msg->sov + msg->sol - http_hdr_rewind(msg)));
 	const char      *p    = params;
 	const char      *start, *end;
 
@@ -386,7 +386,7 @@ struct server *get_server_hh(struct session *s)
 	ctx.idx = 0;
 
 	/* if the message is chunked, we skip the chunk size, but use the value as len */
-	http_find_header2(px->hh_name, plen, b_ptr(s->req->buf, (int)-s->req->buf->o), &txn->hdr_idx, &ctx);
+	http_find_header2(px->hh_name, plen, b_ptr(s->req->buf, -http_hdr_rewind(&txn->req)), &txn->hdr_idx, &ctx);
 
 	/* if the header is not found or empty, let's fallback to round robin */
 	if (!ctx.idx || !ctx.vlen)
@@ -615,7 +615,7 @@ int assign_server(struct session *s)
 				if (s->txn.req.msg_state < HTTP_MSG_BODY)
 					break;
 				srv = get_server_uh(s->be,
-						    b_ptr(s->req->buf, (int)(s->txn.req.sl.rq.u - s->req->buf->o)),
+						    b_ptr(s->req->buf, (int)(s->txn.req.sl.rq.u - http_hdr_rewind(&s->txn.req))),
 						    s->txn.req.sl.rq.u_l);
 				break;
 
@@ -625,7 +625,7 @@ int assign_server(struct session *s)
 					break;
 
 				srv = get_server_ph(s->be,
-						    b_ptr(s->req->buf, (int)(s->txn.req.sl.rq.u - s->req->buf->o)),
+						    b_ptr(s->req->buf, (int)(s->txn.req.sl.rq.u - http_hdr_rewind(&s->txn.req))),
 						    s->txn.req.sl.rq.u_l);
 
 				if (!srv && s->txn.meth == HTTP_METH_POST)
@@ -967,7 +967,7 @@ static void assign_tproxy_address(struct session *s)
 			((struct sockaddr_in *)&srv_conn->addr.from)->sin_port = 0;
 			((struct sockaddr_in *)&srv_conn->addr.from)->sin_addr.s_addr = 0;
 
-			b_rew(s->req->buf, rewind = s->req->buf->o);
+			b_rew(s->req->buf, rewind = http_hdr_rewind(&s->txn.req));
 			if (http_get_hdr(&s->txn.req, src->bind_hdr_name, src->bind_hdr_len,
 					 &s->txn.hdr_idx, src->bind_hdr_occ, NULL, &vptr, &vlen)) {
 				((struct sockaddr_in *)&srv_conn->addr.from)->sin_addr.s_addr =

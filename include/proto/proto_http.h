@@ -131,6 +131,15 @@ enum http_meth_t find_http_meth(const char *str, const int len);
 	} while (0)
 
 
+/* Return the amount of bytes that need to be rewound before buf->p to access
+ * the current message's headers. The purpose is to be able to easily fetch
+ * the message's beginning before headers are forwarded, as well as after.
+ */
+static inline int http_hdr_rewind(const struct http_msg *msg)
+{
+	return msg->chn->buf->o;
+}
+
 /* Return the maximum amount of bytes that may be read after the beginning of
  * the message body, according to the advertised length. The function is safe
  * for use between HTTP_MSG_BODY and HTTP_MSG_DATA regardless of whether the
