@@ -2123,7 +2123,7 @@ static inline int http_skip_chunk_crlf(struct http_msg *msg)
 	 * against the correct length.
 	 */
 	bytes = 1;
-	ptr = buf->p;
+	ptr = b_ptr(buf, msg->next);
 	if (*ptr == '\r') {
 		bytes++;
 		ptr++;
@@ -2131,7 +2131,7 @@ static inline int http_skip_chunk_crlf(struct http_msg *msg)
 			ptr = buf->data;
 	}
 
-	if (bytes > buf->i)
+	if (msg->next + bytes > buf->i)
 		return 0;
 
 	if (*ptr != '\n') {
@@ -2143,7 +2143,8 @@ static inline int http_skip_chunk_crlf(struct http_msg *msg)
 	if (unlikely(ptr >= buf->data + buf->size))
 		ptr = buf->data;
 	/* prepare the CRLF to be forwarded (->sov) */
-	msg->sov = msg->next = bytes;
+	msg->sov  += bytes;
+	msg->next += bytes;
 	msg->msg_state = HTTP_MSG_CHUNK_SIZE;
 	return 1;
 }
