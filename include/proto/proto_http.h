@@ -130,6 +130,22 @@ enum http_meth_t find_http_meth(const char *str, const int len);
 		(msg)->eoh += (_bytes);		\
 	} while (0)
 
+
+/* Return the maximum amount of bytes that may be read after the beginning of
+ * the message body, according to the advertised length. The function is safe
+ * for use between HTTP_MSG_BODY and HTTP_MSG_DATA regardless of whether the
+ * headers were already forwarded or not.
+ */
+static inline int http_body_bytes(const struct http_msg *msg)
+{
+	int len;
+
+	len = buffer_len(msg->chn->buf) - msg->sov - msg->sol;
+	if (len > msg->body_len)
+		len = msg->body_len;
+	return len;
+}
+
 /* for debugging, reports the HTTP message state name */
 static inline const char *http_msg_state_str(int msg_state)
 {

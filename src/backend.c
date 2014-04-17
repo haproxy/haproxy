@@ -298,13 +298,10 @@ struct server *get_server_ph_post(struct session *s)
 	struct http_msg *msg  = &txn->req;
 	struct proxy    *px   = s->be;
 	unsigned int     plen = px->url_param_len;
-	unsigned long    len  = msg->body_len;
+	unsigned long    len  = http_body_bytes(msg);
 	const char      *params = b_ptr(req->buf, (int)(msg->sov + msg->sol - req->buf->o));
 	const char      *p    = params;
 	const char      *start, *end;
-
-	if (len > buffer_len(req->buf) - msg->sov - msg->sol)
-		len = buffer_len(req->buf) - msg->sov - msg->sol;
 
 	if (len == 0)
 		return NULL;
