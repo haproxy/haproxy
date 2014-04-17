@@ -299,7 +299,7 @@ struct server *get_server_ph_post(struct session *s)
 	struct proxy    *px   = s->be;
 	unsigned int     plen = px->url_param_len;
 	unsigned long    len  = http_body_bytes(msg);
-	const char      *params = b_ptr(req->buf, (int)(msg->sov + msg->sol - http_hdr_rewind(msg)));
+	const char      *params = b_ptr(req->buf, -http_data_rewind(msg));
 	const char      *p    = params;
 	const char      *start, *end;
 

@@ -149,6 +149,27 @@ static inline int http_uri_rewind(const struct http_msg *msg)
 	return http_hdr_rewind(msg) - msg->sl.rq.u;
 }
 
+/* Return the amount of bytes that need to be rewound before buf->p to access
+ * the current message's BODY. The purpose is to be able to easily fetch
+ * the message's beginning before headers are forwarded, as well as after.
+ */
+static inline int http_body_rewind(const struct http_msg *msg)
+{
+	return http_hdr_rewind(msg) - msg->eoh - msg->eol;
+}
+
+/* Return the amount of bytes that need to be rewound before buf->p to access
+ * the current message's DATA. The difference with the function above is that
+ * if a chunk is present and has already been parsed, its size is skipped so
+ * that the byte pointed to is the first byte of actual data. The function is
+ * safe for use in state HTTP_MSG_DATA regardless of whether the headers were
+ * already forwarded or not.
+ */
+static inline int http_data_rewind(const struct http_msg *msg)
+{
+	return http_body_rewind(msg) - msg->sol;
+}
+
 /* Return the maximum amount of bytes that may be read after the beginning of
  * the message body, according to the advertised length. The function is safe
  * for use between HTTP_MSG_BODY and HTTP_MSG_DATA regardless of whether the
