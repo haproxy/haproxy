@@ -18,9 +18,11 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
+#define REEXEC_FLAG "HAPROXY_SYSTEMD_REEXEC"
+
 static char *pid_file = "/run/haproxy.pid";
-static int main_argc;
-static char **main_argv;
+static int wrapper_argc;
+static char **wrapper_argv;
 
 static void locate_haproxy(char *buffer, size_t buffer_size)
 {
@@ -42,6 +44,11 @@ static void spawn_haproxy(char **pid_strv, int nb_pid)
 {
 	char haproxy_bin[512];
 	pid_t pid;
+	int main_argc;
+	char **main_argv;
+
+	main_argc = wrapper_argc - 1;
+	main_argv = wrapper_argv + 1;
 
 	pid = fork();
 	if (!pid) {
@@ -96,15 +103,10 @@ static int read_pids(char ***pid_strv)
 
 static void sigusr2_handler(int signum __attribute__((unused)))
 {
-	int i;
-	char **pid_strv = NULL;
-	int nb_pid = read_pids(&pid_strv);
+	setenv(REEXEC_FLAG, "1", 1);
+	printf("haproxy-systemd-wrapper: re-executing\n");
 
-	spawn_haproxy(pid_strv, nb_pid);
-
-	for (i = 0; i < nb_pid; ++i)
-		free(pid_strv[i]);
-	free(pid_strv);
+	execv(wrapper_argv[0], wrapper_argv);
 }
 
 static void sigint_handler(int signum __attribute__((unused)))
@@ -140,16 +142,40 @@ int main(int argc, char **argv)
 {
 	int status;
 
-	--argc; ++argv;
-	main_argc = argc;
-	main_argv = argv;
+	wrapper_argc = argc;
+	wrapper_argv = argv;
 
+	--argc; ++argv;
 	init(argc, argv);
 
 	signal(SIGINT, &sigint_handler);
 	signal(SIGUSR2, &sigusr2_handler);
 
-	spawn_haproxy(NULL, 0);
+	if (getenv(REEXEC_FLAG) != NULL) {
+		/* We are being re-executed: restart HAProxy gracefully */
+		int i;
+		char **pid_strv = NULL;
+		int nb_pid = read_pids(&pid_strv);
+		sigset_t sigs;
+
+		unsetenv(REEXEC_FLAG);
+		spawn_haproxy(pid_strv, nb_pid);
+
+		/* Unblock SIGUSR2 which was blocked by the signal handler
+		 * before re-exec */
+		sigprocmask(SIG_BLOCK, NULL, &sigs);
+		sigdelset(&sigs, SIGUSR2);
+		sigprocmask(SIG_SETMASK, &sigs, NULL);
+
+		for (i = 0; i < nb_pid; ++i)
+			free(pid_strv[i]);
+		free(pid_strv);
+	}
+	else {
+		/* Start a fresh copy of HAProxy */
+		spawn_haproxy(NULL, 0);
+	}
+
 	status = -1;
 	while (-1 != wait(&status) || errno == EINTR)
 		;
