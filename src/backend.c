@@ -615,7 +615,7 @@ int assign_server(struct session *s)
 				if (s->txn.req.msg_state < HTTP_MSG_BODY)
 					break;
 				srv = get_server_uh(s->be,
-						    b_ptr(s->req->buf, (int)(s->txn.req.sl.rq.u - http_hdr_rewind(&s->txn.req))),
+						    b_ptr(s->req->buf, -http_uri_rewind(&s->txn.req)),
 						    s->txn.req.sl.rq.u_l);
 				break;
 
@@ -625,7 +625,7 @@ int assign_server(struct session *s)
 					break;
 
 				srv = get_server_ph(s->be,
-						    b_ptr(s->req->buf, (int)(s->txn.req.sl.rq.u - http_hdr_rewind(&s->txn.req))),
+						    b_ptr(s->req->buf, -http_uri_rewind(&s->txn.req)),
 						    s->txn.req.sl.rq.u_l);
 
 				if (!srv && s->txn.meth == HTTP_METH_POST)
