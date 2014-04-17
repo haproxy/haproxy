@@ -5021,18 +5021,6 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 		return 1;
 	}
 
-	/* Some post-connect processing might want us to refrain from starting to
-	 * forward data. Currently, the only reason for this is "balance url_param"
-	 * whichs need to parse/process the request after we've enabled forwarding.
-	 */
-	if (unlikely(msg->flags & HTTP_MSGF_WAIT_CONN)) {
-		if (!(s->rep->flags & CF_READ_ATTACHED)) {
-			channel_auto_connect(req);
-			goto missing_data;
-		}
-		msg->flags &= ~HTTP_MSGF_WAIT_CONN;
-	}
-
 	/* Note that we don't have to send 100-continue back because we don't
 	 * need the data to complete our job, and it's up to the server to
 	 * decide whether to return 100, 417 or anything else in return of
@@ -5045,12 +5033,26 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 		 * must save the body in msg->next because it survives buffer
 		 * re-alignments.
 		 */
-		msg->next = msg->sov;
+		channel_forward(req, msg->sov);
+		msg->next = 0;
+		msg->sov  = 0;
 
 		if (msg->flags & HTTP_MSGF_TE_CHNK)
 			msg->msg_state = HTTP_MSG_CHUNK_SIZE;
 		else
 			msg->msg_state = HTTP_MSG_DATA;
+	}
+
+	/* Some post-connect processing might want us to refrain from starting to
+	 * forward data. Currently, the only reason for this is "balance url_param"
+	 * whichs need to parse/process the request after we've enabled forwarding.
+	 */
+	if (unlikely(msg->flags & HTTP_MSGF_WAIT_CONN)) {
+		if (!(s->rep->flags & CF_READ_ATTACHED)) {
+			channel_auto_connect(req);
+			goto missing_data;
+		}
+		msg->flags &= ~HTTP_MSGF_WAIT_CONN;
 	}
 
 	/* in most states, we should abort in case of early close */
