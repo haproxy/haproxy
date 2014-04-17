@@ -128,25 +128,21 @@ int http_emit_chunk_size(char *out, unsigned int chksz, int add_crlf)
  */
 int http_compression_buffer_init(struct session *s, struct buffer *in, struct buffer *out)
 {
-	struct http_msg *msg = &s->txn.rsp;
 	int left;
 
 	/* not enough space */
 	if (in->size - buffer_len(in) < 40)
 	    return -1;
 
-	/*
-	 * Skip data, we don't need them in the new buffer. They are results
-	 * of CHUNK_CRLF and CHUNK_SIZE parsing.
+	/* We start by copying the current buffer's pending outgoing data into
+	 * a new temporary buffer that we initialize with a new empty chunk.
 	 */
-	b_adv(in, msg->next);
-	msg->next = 0;
 
 	out->size = global.tune.bufsize;
 	out->i = 0;
 	out->o = 0;
 	out->p = out->data;
-	/* copy output data */
+
 	if (in->o > 0) {
 		left = in->o - bo_contig_data(in);
 		memcpy(out->data, bo_ptr(in), bo_contig_data(in));
@@ -170,41 +166,42 @@ int http_compression_buffer_add_data(struct session *s, struct buffer *in, struc
 	struct http_msg *msg = &s->txn.rsp;
 	int consumed_data = 0;
 	int data_process_len;
-	int left;
-	int ret;
+	int block1, block2;
 
 	/*
-	 * Skip data, we don't need them in the new buffer. They are results
-	 * of CHUNK_CRLF and CHUNK_SIZE parsing.
+	 * Temporarily skip already parsed data and chunks to jump to the
+	 * actual data block. It is fixed before leaving.
 	 */
 	b_adv(in, msg->next);
-	msg->next = 0;
 
 	/*
 	 * select the smallest size between the announced chunk size, the input
-	 * data, and the available output buffer size
+	 * data, and the available output buffer size. The compressors are
+	 * assumed to be able to process all the bytes we pass to them at once.
 	 */
 	data_process_len = MIN(in->i, msg->chunk_len);
 	data_process_len = MIN(out->size - buffer_len(out), data_process_len);
 
-	left = data_process_len - bi_contig_data(in);
-	if (left <= 0) {
-		consumed_data += ret = s->comp_algo->add_data(s->comp_ctx, bi_ptr(in), data_process_len, out);
-		if (ret < 0)
-			return -1;
+	block1 = data_process_len;
+	if (block1 > bi_contig_data(in))
+		block1 = bi_contig_data(in);
+	block2 = data_process_len - block1;
 
-	} else {
-		consumed_data += ret = s->comp_algo->add_data(s->comp_ctx, bi_ptr(in), bi_contig_data(in), out);
-		if (ret < 0)
-			return -1;
-		consumed_data += ret = s->comp_algo->add_data(s->comp_ctx, in->data, left, out);
-		if (ret < 0)
-			return -1;
+	/* compressors return < 0 upon error or the amount of bytes read */
+	consumed_data = s->comp_algo->add_data(s->comp_ctx, bi_ptr(in), block1, out);
+	if (consumed_data >= 0 && block2 > 0) {
+		consumed_data = s->comp_algo->add_data(s->comp_ctx, in->data, block2, out);
+		if (consumed_data >= 0)
+			consumed_data += block1;
 	}
 
-	b_adv(in, data_process_len);
-	msg->chunk_len -= data_process_len;
+	/* restore original buffer pointer */
+	b_rew(in, msg->next);
 
+	if (consumed_data > 0) {
+		msg->next += consumed_data;
+		msg->chunk_len -= consumed_data;
+	}
 	return consumed_data;
 }
 
@@ -245,12 +242,20 @@ int http_compression_buffer_end(struct session *s, struct buffer **in, struct bu
 		*tail++ = '\r';
 		*tail++ = '\n';
 
-		if (!(msg->flags & HTTP_MSGF_TE_CHNK) && msg->chunk_len == 0) {
-			/* End of data, 0<CRLF><CRLF> is needed but we're not
-			 * in chunked mode on input so we must add it ourselves.
-			 */
-			memcpy(tail, "0\r\n\r\n", 5);
-			tail += 5;
+		/* At the end of data, we must write the empty chunk 0<CRLF>,
+		 * and terminate the trailers section with a last <CRLF>. If
+		 * we're forwarding a chunked-encoded response, we'll have a
+		 * trailers section after the empty chunk which needs to be
+		 * forwarded and which will provide the last CRLF. Otherwise
+		 * we write it ourselves.
+		 */
+		if (msg->msg_state >= HTTP_MSG_TRAILERS) {
+			memcpy(tail, "0\r\n", 3);
+			tail += 3;
+			if (msg->msg_state >= HTTP_MSG_DONE) {
+				memcpy(tail, "\r\n", 2);
+				tail += 2;
+			}
 		}
 		ob->i = tail - ob->p;
 	} else {
@@ -272,6 +277,9 @@ int http_compression_buffer_end(struct session *s, struct buffer **in, struct bu
 	}
 
 	/* copy the remaining data in the tmp buffer. */
+	b_adv(ib, msg->next);
+	msg->next = 0;
+
 	if (ib->i > 0) {
 		left = ib->i - bi_contig_data(ib);
 		memcpy(bi_end(ob), bi_ptr(ib), bi_contig_data(ib));

@@ -6160,7 +6160,6 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	struct http_msg *msg = &s->txn.rsp;
 	static struct buffer *tmpbuf = NULL;
 	int compressing = 0;
-	int consumed_data = 0;
 	int ret;
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
@@ -6233,7 +6232,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 		switch (msg->msg_state - HTTP_MSG_DATA) {
 		case HTTP_MSG_DATA - HTTP_MSG_DATA:	/* must still forward */
 			if (compressing) {
-				consumed_data += ret = http_compression_buffer_add_data(s, res->buf, tmpbuf);
+				ret = http_compression_buffer_add_data(s, res->buf, tmpbuf);
 				if (ret < 0)
 					goto aborted_xfer;
 			}
@@ -6248,7 +6247,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 				msg->msg_state = HTTP_MSG_CHUNK_CRLF;
 			} else {
 				msg->msg_state = HTTP_MSG_DONE;
-				if (compressing && consumed_data) {
+				if (compressing) {
 					http_compression_buffer_end(s, &res->buf, &tmpbuf, 1);
 					compressing = 0;
 				}
@@ -6267,11 +6266,6 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_CHUNK_CRLF, s->fe);
 				goto return_bad_res;
 			}
-			/* skipping data in buffer for compression */
-			if (compressing) {
-				b_adv(res->buf, msg->next);
-				msg->next = 0;
-			}
 			/* we're in MSG_CHUNK_SIZE now, fall through */
 
 		case HTTP_MSG_CHUNK_SIZE - HTTP_MSG_DATA:
@@ -6288,17 +6282,9 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_CHUNK_SIZE, s->fe);
 				goto return_bad_res;
 			}
-			if (compressing) {
-				if (likely(msg->chunk_len > 0)) {
-					/* skipping data if we are in compression mode */
-					b_adv(res->buf, msg->next);
-					msg->next = 0;
-				} else {
-					if (consumed_data) {
-						http_compression_buffer_end(s, &res->buf, &tmpbuf, 1);
-						compressing = 0;
-					}
-				}
+			if (compressing && msg->msg_state == HTTP_MSG_TRAILERS) {
+				http_compression_buffer_end(s, &res->buf, &tmpbuf, 1);
+				compressing = 0;
 			}
 			/* otherwise we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state */
 			break;
@@ -6354,7 +6340,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	}
 
  missing_data:
-	if (compressing && consumed_data) {
+	if (compressing) {
 		http_compression_buffer_end(s, &res->buf, &tmpbuf, 0);
 		compressing = 0;
 	}
