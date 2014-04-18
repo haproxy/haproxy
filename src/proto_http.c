@@ -6219,27 +6219,27 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	while (1) {
 		http_silent_debug(__LINE__, s);
 
-		/* we may have some pending data starting at res->buf->p */
-		if (s->comp_algo == NULL) {
-			if (msg->chunk_len || msg->next) {
-				msg->chunk_len += msg->next;
-				msg->chunk_len -= channel_forward(res, msg->chunk_len);
-				msg->next       = 0;
-				msg->sov        = 0;
-			}
-		}
-
 		switch (msg->msg_state - HTTP_MSG_DATA) {
 		case HTTP_MSG_DATA - HTTP_MSG_DATA:	/* must still forward */
-			if (compressing) {
+			/* we may have some pending data starting at res->buf->p */
+			if (unlikely(s->comp_algo)) {
 				ret = http_compression_buffer_add_data(s, res->buf, tmpbuf);
 				if (ret < 0)
 					goto aborted_xfer;
+
+				if (res->to_forward || msg->chunk_len) {
+					res->flags |= CF_WAKE_WRITE;
+					goto missing_data;
+				}
 			}
 
-			if (res->to_forward || msg->chunk_len) {
+			if (msg->chunk_len > res->buf->i - msg->next) {
 				res->flags |= CF_WAKE_WRITE;
 				goto missing_data;
+			}
+			else {
+				msg->next += msg->chunk_len;
+				msg->chunk_len = 0;
 			}
 
 			/* nothing left to forward */
@@ -6296,11 +6296,6 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_TRAILERS, s->fe);
 				goto return_bad_res;
 			}
-			/* forwarding trailers */
-			channel_forward(res, msg->next);
-			msg->next = 0;
-			msg->sov  = 0;
-
 			/* we're in HTTP_MSG_DONE now, fall through */
 
 		default:
@@ -6310,6 +6305,12 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 				http_compression_buffer_end(s, &res->buf, &tmpbuf, 1);
 				compressing = 0;
 			}
+
+			/* we may have some pending data starting at res->buf->p
+			 * such as a last chunk of data or trailers.
+			 */
+			b_adv(res->buf, msg->next);
+			msg->next = 0;
 
 			ret = msg->msg_state;
 			/* for keep-alive we don't want to forward closes on DONE */
@@ -6339,9 +6340,16 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	}
 
  missing_data:
+	/* we may have some pending data starting at res->buf->p */
 	if (unlikely(compressing)) {
 		http_compression_buffer_end(s, &res->buf, &tmpbuf, msg->msg_state >= HTTP_MSG_TRAILERS);
 		compressing = 0;
+	}
+
+	if ((s->comp_algo == NULL || msg->msg_state >= HTTP_MSG_TRAILERS)) {
+		b_adv(res->buf, msg->next);
+		msg->next = 0;
+		msg->chunk_len -= channel_forward(res, msg->chunk_len);
 	}
 
 	if (res->flags & CF_SHUTW)
@@ -6366,16 +6374,6 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	/* we need to obey the req analyser, so if it leaves, we must too */
 	if (!s->req->analysers)
 		goto return_bad_res;
-
-	/* forward any pending data starting at res->buf->p */
-	if (s->comp_algo == NULL) {
-		if (msg->chunk_len || msg->next) {
-			msg->chunk_len += msg->next;
-			msg->chunk_len -= channel_forward(res, msg->chunk_len);
-			msg->next       = 0;
-			msg->sov        = 0;
-		}
-	}
 
 	/* When TE: chunked is used, we need to get there again to parse remaining
 	 * chunks even if the server has closed, so we don't want to set CF_DONTCLOSE.
@@ -6411,6 +6409,12 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	if (unlikely(compressing)) {
 		http_compression_buffer_end(s, &res->buf, &tmpbuf, msg->msg_state >= HTTP_MSG_TRAILERS);
 		compressing = 0;
+	}
+
+	/* we may have some pending data starting at res->buf->p */
+	if (s->comp_algo == NULL) {
+		b_adv(res->buf, msg->next);
+		msg->next = 0;
 	}
 
 	txn->rsp.msg_state = HTTP_MSG_ERROR;
