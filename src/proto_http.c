@@ -6179,12 +6179,6 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	/* in most states, we should abort in case of early close */
 	channel_auto_close(res);
 
-	/* this is the first time we need the compression buffer */
-	if (s->comp_algo != NULL && tmpbuf == NULL) {
-		if ((tmpbuf = pool_alloc2(pool2_buffer)) == NULL)
-			goto aborted_xfer; /* no memory */
-	}
-
 	if (msg->sov) {
 		/* we have msg->sov which points to the first byte of message
 		 * body, and res->buf.p still points to the beginning of the
@@ -6207,8 +6201,19 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 		}
 	}
 
-	if (s->comp_algo != NULL && msg->msg_state < HTTP_MSG_TRAILERS) {
-		ret = http_compression_buffer_init(s, res->buf, tmpbuf); /* init a buffer with headers */
+	if (unlikely(s->comp_algo != NULL) && msg->msg_state < HTTP_MSG_TRAILERS) {
+		/* We need a compression buffer in the DATA state to put the
+		 * output of compressed data, and in CRLF state to let the
+		 * TRAILERS state finish the job of removing the trailing CRLF.
+		 */
+		if (unlikely(tmpbuf == NULL)) {
+			/* this is the first time we need the compression buffer */
+			tmpbuf = pool_alloc2(pool2_buffer);
+			if (tmpbuf == NULL)
+				goto aborted_xfer; /* no memory */
+		}
+
+		ret = http_compression_buffer_init(s, res->buf, tmpbuf);
 		if (ret < 0) {
 			res->flags |= CF_WAKE_WRITE;
 			goto missing_data; /* not enough spaces in buffers */
