@@ -6227,17 +6227,19 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 				if (ret < 0)
 					goto aborted_xfer;
 
-				if (res->to_forward || msg->chunk_len) {
-					res->flags |= CF_WAKE_WRITE;
+				if (msg->chunk_len) {
+					/* input empty or output full */
+					if (res->buf->i > msg->next)
+						res->flags |= CF_WAKE_WRITE;
 					goto missing_data;
 				}
 			}
-
-			if (msg->chunk_len > res->buf->i - msg->next) {
-				res->flags |= CF_WAKE_WRITE;
-				goto missing_data;
-			}
 			else {
+				if (msg->chunk_len > res->buf->i - msg->next) {
+					/* output full */
+					res->flags |= CF_WAKE_WRITE;
+					goto missing_data;
+				}
 				msg->next += msg->chunk_len;
 				msg->chunk_len = 0;
 			}
