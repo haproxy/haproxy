@@ -7925,7 +7925,7 @@ crt <cert>
 
   Some CAs (such as Godaddy) offer a drop down list of server types that do not
   include HAProxy when obtaining a certificate. If this happens be sure to
-  choose a webserver that the CA believes requires a intermediate CA (for
+  choose a webserver that the CA believes requires an intermediate CA (for
   Godaddy, selection Apache Tomcat will get the correct bundle, but many
   others, e.g. nginx, result in a wrong bundle that will not work for some
   clients).
