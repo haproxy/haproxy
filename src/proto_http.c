@@ -6163,8 +6163,27 @@ int http_process_res_common(struct session *t, struct channel *rep, int an_bit, 
  * remaining data and to resync after end of body. It expects the msg_state to
  * be between MSG_BODY and MSG_DONE (inclusive). It returns zero if it needs to
  * read more data, or 1 once we can go on with next request or end the session.
- * When in MSG_DATA or MSG_TRAILERS, it will automatically forward chunk_len
- * bytes of pending data + the headers if not already done.
+ *
+ * It is capable of compressing response data both in content-length mode and
+ * in chunked mode. The state machines follows different flows depending on
+ * whether content-length and chunked modes are used, since there are no
+ * trailers in content-length :
+ *
+ *       chk-mode        cl-mode
+ *          ,----- BODY -----.
+ *         /                  \
+ *        V     size > 0       V    chk-mode
+ *  .--> SIZE -------------> DATA -------------> CRLF
+ *  |     | size == 0          | last byte         |
+ *  |     v      final crlf    v inspected         |
+ *  |  TRAILERS -----------> DONE                  |
+ *  |                                              |
+ *  `----------------------------------------------'
+ *
+ * Compression only happens in the DATA state, and must be flushed in final
+ * states (TRAILERS/DONE) or when leaving on missing data. Normal forwarding
+ * is performed at once on final states for all bytes parsed, or when leaving
+ * on missing data.
  */
 int http_response_forward_body(struct session *s, struct channel *res, int an_bit)
 {
