@@ -441,30 +441,6 @@ const char http_is_ver_token[256] = {
 
 
 /*
- * Silent debug that outputs only in strace, using fd #-1. Trash is modified.
- */
-#if defined(DEBUG_FSM)
-static void http_silent_debug(int line, struct session *s)
-{
-	chunk_printf(&trash,
-	             "[%04d] req: p=%d(%d) s=%d bf=%08x an=%08x data=%p size=%d l=%d w=%p r=%p o=%p sm=%d fw=%ld tf=%08x\n",
-	             line,
-	             s->si[0].state, s->si[0].fd, s->txn.req.msg_state, s->req->flags, s->req->analysers,
-	             s->req->buf->data, s->req->buf->size, s->req->l, s->req->w, s->req->r, s->req->buf->p, s->req->buf->o, s->req->to_forward, s->txn.flags);
-	write(-1, trash.str, trash.len);
-
-	chunk_printf(&trash,
-	             " %04d  rep: p=%d(%d) s=%d bf=%08x an=%08x data=%p size=%d l=%d w=%p r=%p o=%p sm=%d fw=%ld\n",
-                     line,
-	             s->si[1].state, s->si[1].fd, s->txn.rsp.msg_state, s->rep->flags, s->rep->analysers,
-	             s->rep->buf->data, s->rep->buf->size, s->rep->l, s->rep->w, s->rep->r, s->rep->buf->p, s->rep->buf->o, s->rep->to_forward);
-	write(-1, trash.str, trash.len);
-}
-#else
-#define http_silent_debug(l,s)  do { } while (0)
-#endif
-
-/*
  * Adds a header and its CRLF at the tail of the message's buffer, just before
  * the last CRLF. Text length is measured first, so it cannot be NULL.
  * The header is also automatically added to the index <hdr_idx>, and the end
@@ -4487,7 +4463,6 @@ void http_end_txn_clean_session(struct session *s)
 	 * flags. We also need a more accurate method for computing per-request
 	 * data.
 	 */
-	http_silent_debug(__LINE__, s);
 
 	/* unless we're doing keep-alive, we want to quickly close the connection
 	 * to the server.
@@ -4498,8 +4473,6 @@ void http_end_txn_clean_session(struct session *s)
 		si_shutr(s->req->cons);
 		si_shutw(s->req->cons);
 	}
-
-	http_silent_debug(__LINE__, s);
 
 	if (s->flags & SN_BE_ASSIGNED) {
 		s->be->beconn--;
@@ -4636,8 +4609,6 @@ void http_end_txn_clean_session(struct session *s)
 
 	s->req->analysers = s->listener->analysers;
 	s->rep->analysers = 0;
-
-	http_silent_debug(__LINE__, s);
 }
 
 
@@ -4655,7 +4626,6 @@ int http_sync_req_state(struct session *s)
 	unsigned int old_flags = chn->flags;
 	unsigned int old_state = txn->req.msg_state;
 
-	http_silent_debug(__LINE__, s);
 	if (unlikely(txn->req.msg_state < HTTP_MSG_BODY))
 		return 0;
 
@@ -4776,7 +4746,6 @@ int http_sync_req_state(struct session *s)
 	}
 
  wait_other_side:
-	http_silent_debug(__LINE__, s);
 	return txn->req.msg_state != old_state || chn->flags != old_flags;
 }
 
@@ -4795,7 +4764,6 @@ int http_sync_res_state(struct session *s)
 	unsigned int old_flags = chn->flags;
 	unsigned int old_state = txn->rsp.msg_state;
 
-	http_silent_debug(__LINE__, s);
 	if (unlikely(txn->rsp.msg_state < HTTP_MSG_BODY))
 		return 0;
 
@@ -4906,7 +4874,6 @@ int http_sync_res_state(struct session *s)
 	}
 
  wait_other_side:
-	http_silent_debug(__LINE__, s);
 	/* We force the response to leave immediately if we're waiting for the
 	 * other side, since there is no pending shutdown to push it out.
 	 */
@@ -4925,17 +4892,14 @@ int http_resync_states(struct session *s)
 	int old_req_state = txn->req.msg_state;
 	int old_res_state = txn->rsp.msg_state;
 
-	http_silent_debug(__LINE__, s);
 	http_sync_req_state(s);
 	while (1) {
-		http_silent_debug(__LINE__, s);
 		if (!http_sync_res_state(s))
 			break;
-		http_silent_debug(__LINE__, s);
 		if (!http_sync_req_state(s))
 			break;
 	}
-	http_silent_debug(__LINE__, s);
+
 	/* OK, both state machines agree on a compatible state.
 	 * There are a few cases we're interested in :
 	 *  - HTTP_MSG_TUNNEL on either means we have to disable both analysers
@@ -4984,7 +4948,6 @@ int http_resync_states(struct session *s)
 		http_end_txn_clean_session(s);
 	}
 
-	http_silent_debug(__LINE__, s);
 	return txn->req.msg_state != old_req_state ||
 		txn->rsp.msg_state != old_res_state;
 }
@@ -5061,8 +5024,6 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 	channel_auto_close(req);
 
 	while (1) {
-		http_silent_debug(__LINE__, s);
-
 		if (msg->msg_state == HTTP_MSG_DATA) {
 			/* must still forward */
 			/* we may have some pending data starting at req->buf->p */
@@ -5225,7 +5186,6 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 	if (msg->flags & HTTP_MSGF_TE_CHNK)
 		req->flags |= CF_EXPECT_MORE;
 
-	http_silent_debug(__LINE__, s);
 	return 0;
 
  return_bad_req: /* let's centralize all bad requests */
@@ -6253,8 +6213,6 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	}
 
 	while (1) {
-		http_silent_debug(__LINE__, s);
-
 		switch (msg->msg_state - HTTP_MSG_DATA) {
 		case HTTP_MSG_DATA - HTTP_MSG_DATA:	/* must still forward */
 			/* we may have some pending data starting at res->buf->p */
@@ -6355,8 +6313,8 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
 			    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL)
 				channel_dont_close(res);
+
 			if (http_resync_states(s)) {
-				http_silent_debug(__LINE__, s);
 				/* some state changes occurred, maybe the analyser
 				 * was disabled too.
 				 */
@@ -6435,7 +6393,6 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 		res->flags |= CF_EXPECT_MORE;
 
 	/* the session handler will take care of timeouts and errors */
-	http_silent_debug(__LINE__, s);
 	return 0;
 
  return_bad_res: /* let's centralize all bad responses */
