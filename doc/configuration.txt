@@ -9741,7 +9741,7 @@ fe_id : integer
   backends to check from which backend it was called, or to stick all users
   coming via a same frontend to the same server.
 
-sc_bytes_in_rate(<ctr>,[<table>]) : integer
+sc_bytes_in_rate(<ctr>[,<table>]) : integer
 sc0_bytes_in_rate([<table>]) : integer
 sc1_bytes_in_rate([<table>]) : integer
 sc2_bytes_in_rate([<table>]) : integer
@@ -9749,7 +9749,7 @@ sc2_bytes_in_rate([<table>]) : integer
   counters, measured in amount of bytes over the period configured in the
   table. See also src_bytes_in_rate.
 
-sc_bytes_out_rate(<ctr>,[<table>]) : integer
+sc_bytes_out_rate(<ctr>[,<table>]) : integer
 sc0_bytes_out_rate([<table>]) : integer
 sc1_bytes_out_rate([<table>]) : integer
 sc2_bytes_out_rate([<table>]) : integer
@@ -9757,7 +9757,7 @@ sc2_bytes_out_rate([<table>]) : integer
   counters, measured in amount of bytes over the period configured in the
   table. See also src_bytes_out_rate.
 
-sc_clr_gpc0(<ctr>,[<table>]) : integer
+sc_clr_gpc0(<ctr>[,<table>]) : integer
 sc0_clr_gpc0([<table>]) : integer
 sc1_clr_gpc0([<table>]) : integer
 sc2_clr_gpc0([<table>]) : integer
@@ -9775,14 +9775,14 @@ sc2_clr_gpc0([<table>]) : integer
         tcp-request connection accept if !abuse save
         tcp-request connection reject if abuse kill
 
-sc_conn_cnt(<ctr>,[<table>]) : integer
+sc_conn_cnt(<ctr>[,<table>]) : integer
 sc0_conn_cnt([<table>]) : integer
 sc1_conn_cnt([<table>]) : integer
 sc2_conn_cnt([<table>]) : integer
   Returns the cumulated number of incoming connections from currently tracked
   counters. See also src_conn_cnt.
 
-sc_conn_cur(<ctr>,[<table>]) : integer
+sc_conn_cur(<ctr>[,<table>]) : integer
 sc0_conn_cur([<table>]) : integer
 sc1_conn_cur([<table>]) : integer
 sc2_conn_cur([<table>]) : integer
@@ -9790,7 +9790,7 @@ sc2_conn_cur([<table>]) : integer
   tracked counters. This number is automatically incremented when tracking
   begins and decremented when tracking stops. See also src_conn_cur.
 
-sc_conn_rate(<ctr>,[<table>]) : integer
+sc_conn_rate(<ctr>[,<table>]) : integer
 sc0_conn_rate([<table>]) : integer
 sc1_conn_rate([<table>]) : integer
 sc2_conn_rate([<table>]) : integer
@@ -9798,14 +9798,14 @@ sc2_conn_rate([<table>]) : integer
   measured in amount of connections over the period configured in the table.
   See also src_conn_rate.
 
-sc_get_gpc0(<ctr>,[<table>]) : integer
+sc_get_gpc0(<ctr>[,<table>]) : integer
 sc0_get_gpc0([<table>]) : integer
 sc1_get_gpc0([<table>]) : integer
 sc2_get_gpc0([<table>]) : integer
   Returns the value of the first General Purpose Counter associated to the
   currently tracked counters. See also src_get_gpc0 and sc/sc0/sc1/sc2_inc_gpc0.
 
-sc_gpc0_rate(<ctr>,[<table>]) : integer
+sc_gpc0_rate(<ctr>[,<table>]) : integer
 sc0_gpc0_rate([<table>]) : integer
 sc1_gpc0_rate([<table>]) : integer
 sc2_gpc0_rate([<table>]) : integer
@@ -9816,7 +9816,7 @@ sc2_gpc0_rate([<table>]) : integer
   that the "gpc0_rate" counter must be stored in the stick-table for a value to
   be returned, as "gpc0" only holds the event count.
 
-sc_http_err_cnt(<ctr>,[<table>]) : integer
+sc_http_err_cnt(<ctr>[,<table>]) : integer
 sc0_http_err_cnt([<table>]) : integer
 sc1_http_err_cnt([<table>]) : integer
 sc2_http_err_cnt([<table>]) : integer
@@ -9824,7 +9824,7 @@ sc2_http_err_cnt([<table>]) : integer
   counters. This includes the both request errors and 4xx error responses.
   See also src_http_err_cnt.
 
-sc_http_err_rate(<ctr>,[<table>]) : integer
+sc_http_err_rate(<ctr>[,<table>]) : integer
 sc0_http_err_rate([<table>]) : integer
 sc1_http_err_rate([<table>]) : integer
 sc2_http_err_rate([<table>]) : integer
@@ -9833,7 +9833,7 @@ sc2_http_err_rate([<table>]) : integer
   includes the both request errors and 4xx error responses. See also
   src_http_err_rate.
 
-sc_http_req_cnt(<ctr>,[<table>]) : integer
+sc_http_req_cnt(<ctr>[,<table>]) : integer
 sc0_http_req_cnt([<table>]) : integer
 sc1_http_req_cnt([<table>]) : integer
 sc2_http_req_cnt([<table>]) : integer
@@ -9841,7 +9841,7 @@ sc2_http_req_cnt([<table>]) : integer
   counters. This includes every started request, valid or not. See also
   src_http_req_cnt.
 
-sc_http_req_rate(<ctr>,[<table>]) : integer
+sc_http_req_rate(<ctr>[,<table>]) : integer
 sc0_http_req_rate([<table>]) : integer
 sc1_http_req_rate([<table>]) : integer
 sc2_http_req_rate([<table>]) : integer
@@ -9850,7 +9850,7 @@ sc2_http_req_rate([<table>]) : integer
   the table. This includes every started request, valid or not. See also
   src_http_req_rate.
 
-sc_inc_gpc0(<ctr>,[<table>]) : integer
+sc_inc_gpc0(<ctr>[,<table>]) : integer
 sc0_inc_gpc0([<table>]) : integer
 sc1_inc_gpc0([<table>]) : integer
 sc2_inc_gpc0([<table>]) : integer
@@ -9864,7 +9864,7 @@ sc2_inc_gpc0([<table>]) : integer
         acl kill  sc0_inc_gpc0 gt 0
         tcp-request connection reject if abuse kill
 
-sc_kbytes_in(<ctr>,[<table>]) : integer
+sc_kbytes_in(<ctr>[,<table>]) : integer
 sc0_kbytes_in([<table>]) : integer
 sc1_kbytes_in([<table>]) : integer
 sc2_kbytes_in([<table>]) : integer
@@ -9873,7 +9873,7 @@ sc2_kbytes_in([<table>]) : integer
   test is currently performed on 32-bit integers, which limits values to 4
   terabytes. See also src_kbytes_in.
 
-sc_kbytes_out(<ctr>,[<table>]) : integer
+sc_kbytes_out(<ctr>[,<table>]) : integer
 sc0_kbytes_out([<table>]) : integer
 sc1_kbytes_out([<table>]) : integer
 sc2_kbytes_out([<table>]) : integer
@@ -9882,7 +9882,7 @@ sc2_kbytes_out([<table>]) : integer
   test is currently performed on 32-bit integers, which limits values to 4
   terabytes. See also src_kbytes_out.
 
-sc_sess_cnt(<ctr>,[<table>]) : integer
+sc_sess_cnt(<ctr>[,<table>]) : integer
 sc0_sess_cnt([<table>]) : integer
 sc1_sess_cnt([<table>]) : integer
 sc2_sess_cnt([<table>]) : integer
@@ -9893,7 +9893,7 @@ sc2_sess_cnt([<table>]) : integer
   backend sessions if some HTTP keep-alive is performed over the connection
   with the client. See also src_sess_cnt.
 
-sc_sess_rate(<ctr>,[<table>]) : integer
+sc_sess_rate(<ctr>[,<table>]) : integer
 sc0_sess_rate([<table>]) : integer
 sc1_sess_rate([<table>]) : integer
 sc2_sess_rate([<table>]) : integer
@@ -9904,7 +9904,7 @@ sc2_sess_rate([<table>]) : integer
   connection could result in many backend sessions if some HTTP keep-alive is
   performed over the connection with the client. See also src_sess_rate.
 
-sc_tracked(<ctr>,[<table>]) : boolean
+sc_tracked(<ctr>[,<table>]) : boolean
 sc0_tracked([<table>]) : boolean
 sc1_tracked([<table>]) : boolean
 sc2_tracked([<table>]) : boolean
@@ -9912,7 +9912,7 @@ sc2_tracked([<table>]) : boolean
   the current session. This can be useful when deciding whether or not we want
   to set some values in a header passed to the server.
 
-sc_trackers(<ctr>,[<table>]) : integer
+sc_trackers(<ctr>[,<table>]) : integer
 sc0_trackers([<table>]) : integer
 sc1_trackers([<table>]) : integer
 sc2_trackers([<table>]) : integer
