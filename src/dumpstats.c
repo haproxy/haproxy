@@ -4357,17 +4357,23 @@ static int stats_send_http_headers(struct stream_interface *si)
 	struct appctx *appctx = objt_appctx(si->end);
 
 	chunk_printf(&trash,
-		     "HTTP/1.0 200 OK\r\n"
+		     "HTTP/1.%c 200 OK\r\n"
 		     "Cache-Control: no-cache\r\n"
 		     "Connection: close\r\n"
 		     "Content-Type: %s\r\n",
+		     (appctx->ctx.stats.flags & STAT_CHUNKED) ? '1' : '0',
 		     (appctx->ctx.stats.flags & STAT_FMT_HTML) ? "text/html" : "text/plain");
 
 	if (uri->refresh > 0 && !(appctx->ctx.stats.flags & STAT_NO_REFRESH))
 		chunk_appendf(&trash, "Refresh: %d\r\n",
 			      uri->refresh);
 
-	chunk_appendf(&trash, "\r\n");
+	/* we don't send the CRLF in chunked mode, it will be sent with the first chunk's size */
+
+	if (appctx->ctx.stats.flags & STAT_CHUNKED)
+		chunk_appendf(&trash, "Transfer-Encoding: chunked\r\n");
+	else
+		chunk_appendf(&trash, "\r\n");
 
 	s->txn.status = 200;
 	s->logs.tv_request = now;
@@ -4453,8 +4459,53 @@ static void http_stats_io_handler(struct stream_interface *si)
 	}
 
 	if (appctx->st0 == STAT_HTTP_DUMP) {
+		unsigned int prev_len = si->ib->buf->i;
+		unsigned int data_len;
+		unsigned int last_len;
+		unsigned int last_fwd;
+
+		if (appctx->ctx.stats.flags & STAT_CHUNKED) {
+			/* One difficulty we're facing is that we must prevent
+			 * the input data from being automatically forwarded to
+			 * the output area. For this, we temporarily disable
+			 * forwarding on the channel.
+			 */
+			last_fwd = si->ib->to_forward;
+			si->ib->to_forward = 0;
+			chunk_printf(&trash, "\r\n000000\r\n");
+			if (bi_putchk(si->ib, &trash) == -1) {
+				si->ib->to_forward = last_fwd;
+				goto fail;
+			}
+		}
+
+		data_len = si->ib->buf->i;
 		if (stats_dump_stat_to_buffer(si, s->be->uri_auth))
 			appctx->st0 = STAT_HTTP_DONE;
+
+		last_len = si->ib->buf->i;
+
+		/* Now we must either adjust or remove the chunk size. This is
+		 * not easy because the chunk size might wrap at the end of the
+		 * buffer, so we pretend we have nothing in the buffer, we write
+		 * the size, then restore the buffer's contents. Note that we can
+		 * only do that because no forwarding is scheduled on the stats
+		 * applet.
+		 */
+		if (appctx->ctx.stats.flags & STAT_CHUNKED) {
+			si->ib->total  -= (last_len - prev_len);
+			si->ib->buf->i -= (last_len - prev_len);
+
+			if (last_len != data_len) {
+				chunk_printf(&trash, "\r\n%06x\r\n", (last_len - data_len));
+				bi_putchk(si->ib, &trash);
+
+				si->ib->total  += (last_len - data_len);
+				si->ib->buf->i += (last_len - data_len);
+			}
+			/* now re-enable forwarding */
+			channel_forward(si->ib, last_fwd);
+		}
 	}
 
 	if (appctx->st0 == STAT_HTTP_POST) {
@@ -4469,8 +4520,17 @@ static void http_stats_io_handler(struct stream_interface *si)
 			appctx->st0 = STAT_HTTP_DONE;
 	}
 
-	if (appctx->st0 == STAT_HTTP_DONE)
-		si_shutw(si);
+	if (appctx->st0 == STAT_HTTP_DONE) {
+		if (appctx->ctx.stats.flags & STAT_CHUNKED) {
+			chunk_printf(&trash, "\r\n0\r\n\r\n");
+			if (bi_putchk(si->ib, &trash) == -1)
+				goto fail;
+		}
+		/* eat the whole request */
+		bo_skip(si->ob, si->ob->buf->o);
+		res->flags |= CF_READ_NULL;
+		si_shutr(si);
+	}
 
 	if ((res->flags & CF_SHUTR) && (si->state == SI_ST_EST))
 		si_shutw(si);
@@ -4482,6 +4542,7 @@ static void http_stats_io_handler(struct stream_interface *si)
 		}
 	}
 
+ fail:
 	/* update all other flags and resync with the other side */
 	si_update(si);
 

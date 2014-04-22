@@ -2962,6 +2962,8 @@ int http_handle_stats(struct session *s, struct channel *req)
 	appctx->st1 = appctx->st2 = 0;
 	appctx->ctx.stats.st_code = STAT_STATUS_INIT;
 	appctx->ctx.stats.flags |= STAT_FMT_HTML; /* assume HTML mode by default */
+	if ((msg->flags & HTTP_MSGF_VER_11) && (s->txn.meth != HTTP_METH_HEAD))
+		appctx->ctx.stats.flags |= STAT_CHUNKED;
 
 	uri = msg->chn->buf->p + msg->sl.rq.u;
 	lookup = uri + uri_auth->uri_len;
@@ -3798,7 +3800,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 			s->flags |= SN_FINST_R;
 
 		req->analyse_exp = TICK_ETERNITY;
-		req->analysers = 0;
+		req->analysers = AN_REQ_HTTP_XFER_BODY;
 		return 1;
 	}
 
