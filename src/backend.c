@@ -674,7 +674,6 @@ int assign_server(struct session *s)
 			goto out;
 		}
 		else if (srv != prev_srv) {
-			be_set_sess_last(s->be);
 			s->be->be_counters.cum_lbconn++;
 			srv->counters.cum_lbconn++;
 		}

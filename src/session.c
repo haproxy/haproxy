@@ -1180,6 +1180,7 @@ static void sess_prepare_conn_req(struct session *s, struct stream_interface *si
 		s->logs.t_queue   = tv_ms_elapsed(&s->logs.tv_accept, &now);
 		si->state         = SI_ST_EST;
 		si->err_type      = SI_ET_NONE;
+		be_set_sess_last(s->be);
 		/* let sess_establish() finish the job */
 		return;
 	}
@@ -1207,6 +1208,7 @@ static void sess_prepare_conn_req(struct session *s, struct stream_interface *si
 	/* The server is assigned */
 	s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
 	si->state = SI_ST_ASS;
+	be_set_sess_last(s->be);
 }
 
 /* This stream analyser checks the switching rules and changes the backend
