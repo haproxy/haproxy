@@ -5063,20 +5063,15 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 	while (1) {
 		http_silent_debug(__LINE__, s);
 
-		/* we may have some pending data starting at req->buf->p */
-		if (msg->chunk_len || msg->next) {
-			msg->chunk_len += msg->next;
-			msg->chunk_len -= channel_forward(req, msg->chunk_len);
-			msg->next       = 0;
-			msg->sov        = 0;
-		}
-
 		if (msg->msg_state == HTTP_MSG_DATA) {
 			/* must still forward */
-			if (req->to_forward) {
+			/* we may have some pending data starting at req->buf->p */
+			if (msg->chunk_len > req->buf->i - msg->next) {
 				req->flags |= CF_WAKE_WRITE;
 				goto missing_data;
 			}
+			msg->next += msg->chunk_len;
+			msg->chunk_len = 0;
 
 			/* nothing left to forward */
 			if (msg->flags & HTTP_MSGF_TE_CHNK)
@@ -5132,6 +5127,13 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 			int old_state = msg->msg_state;
 
 			/* other states, DONE...TUNNEL */
+
+			/* we may have some pending data starting at req->buf->p
+			 * such as last chunk of data or trailers.
+			 */
+			b_adv(req->buf, msg->next);
+			msg->next = 0;
+
 			/* for keep-alive we don't want to forward closes on DONE */
 			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
 			    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL)
@@ -5178,6 +5180,11 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 	}
 
  missing_data:
+	/* we may have some pending data starting at req->buf->p */
+	b_adv(req->buf, msg->next);
+	msg->next = 0;
+	msg->chunk_len -= channel_forward(req, msg->chunk_len);
+
 	/* stop waiting for data if the input is closed before the end */
 	if (req->flags & CF_SHUTR) {
 		if (!(s->flags & SN_ERR_MASK))
@@ -5225,7 +5232,12 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 	s->fe->fe_counters.failed_req++;
 	if (s->listener->counters)
 		s->listener->counters->failed_req++;
+
  return_bad_req_stats_ok:
+	/* we may have some pending data starting at req->buf->p */
+	b_adv(req->buf, msg->next);
+	msg->next = 0;
+
 	txn->req.msg_state = HTTP_MSG_ERROR;
 	if (txn->status) {
 		/* Note: we don't send any error if some data were already sent */
