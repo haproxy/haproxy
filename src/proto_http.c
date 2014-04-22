@@ -6434,6 +6434,11 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	return 0;
 
  aborted_xfer:
+	if (unlikely(compressing)) {
+		http_compression_buffer_end(s, &res->buf, &tmpbuf, msg->msg_state >= HTTP_MSG_TRAILERS);
+		compressing = 0;
+	}
+
 	txn->rsp.msg_state = HTTP_MSG_ERROR;
 	/* don't send any error message as we're in the body */
 	stream_int_retnclose(res->cons, NULL);
