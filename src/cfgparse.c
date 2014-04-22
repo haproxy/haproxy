@@ -2866,21 +2866,16 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		if (strcmp(args[2], "if") != 0 && strcmp(args[2], "unless") != 0) {
-			Alert("parsing [%s:%d] : '%s' requires either 'if' or 'unless' followed by a condition.\n",
-			      file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
+		if (strcmp(args[2], "if") == 0 || strcmp(args[2], "unless") == 0) {
+			if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args + 2, &errmsg)) == NULL) {
+				Alert("parsing [%s:%d] : error detected while parsing switching rule : %s.\n",
+				      file, linenum, errmsg);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
 
-		if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args + 2, &errmsg)) == NULL) {
-			Alert("parsing [%s:%d] : error detected while parsing switching rule : %s.\n",
-			      file, linenum, errmsg);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
+			err_code |= warnif_cond_conflicts(cond, SMP_VAL_FE_SET_BCK, file, linenum);
 		}
-
-		err_code |= warnif_cond_conflicts(cond, SMP_VAL_FE_SET_BCK, file, linenum);
 
 		rule = (struct switching_rule *)calloc(1, sizeof(*rule));
 		rule->cond = cond;

@@ -1085,8 +1085,10 @@ void deinit(void)
 
 		list_for_each_entry_safe(rule, ruleb, &p->switching_rules, list) {
 			LIST_DEL(&rule->list);
-			prune_acl_cond(rule->cond);
-			free(rule->cond);
+			if (rule->cond) {
+				prune_acl_cond(rule->cond);
+				free(rule->cond);
+			}
 			free(rule);
 		}
 
