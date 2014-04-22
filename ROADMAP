@@ -1,4 +1,4 @@
-Medium-long term roadmap - 2013/06/17
+Medium-long term roadmap - 2014/04/23
 
 Legend: '+' = done, '-' = todo, '*' = done except doc
 
@@ -10,9 +10,6 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
   - return-raw  [ file "xxx" | text "xxx" ] if <acl>
 
   - avg connect time, response time, connect errors, response errors in stats
-
-  - add a last activity date for each server (req/resp) that will be
-    displayed in the stats. It will be useful with soft stop.
 
   - add the ability to only dump response errors to more easily detect
     anomalies without being polluted with attacks in requests.
@@ -51,8 +48,6 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
   - tcp-request session expect-proxy {L4|L5} if ...
 
   - http-request track-sc* to avoid having the ugly "if !HTTP" in tcp-request
-
-  - compression : to be fixed
 
 DONE:
   * server-side HTTP keepalive
@@ -147,6 +142,15 @@ DONE:
     flag in every session which preempts any other processing and wake the
     session up.
 
+  * add a last activity date for each server (req/resp) that will be
+    displayed in the stats. It will be useful with soft stop.
+
+  * compression : to be fixed
+
+  * ACL feeding via the UNIX socket
+
+  * lookup tables (eg: map IP to country)
+
 1.6 (will probably change anyway) :
   - wait on resource (time, mem, CPU, socket, buffers, server's conn, server's rate, ...)
 
@@ -194,11 +198,9 @@ Old, maybe obsolete points
 Unsorted :
   - outgoing log load-balancing (round-robin or hash among multiple servers)
   - internal socket for "server XXX frontend:name"
-  - ACL feeding via the UNIX socket
   - HTTP/2.0
   - DNS requests on health checks
   - XML inspection (content-switching for SOAP requests)
-  - lookup tables (eg: map IP to country)
   - sync all stick-tables data, not just serverid.
   - request, session and user variables
   - random cookie generator
