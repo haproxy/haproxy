@@ -184,7 +184,11 @@ There is some documentation in the doc/ directory :
       essential HTTP basic concepts, and details all the configuration file
       syntax (keywords, units). It also describes the log and stats format. It
       is normally always up to date. If you see that something is missing from
-      it, please report it as this is a bug.
+      it, please report it as this is a bug. Please note that this file is
+      huge and that it's generally more convenient to review Cyril Bonté's
+      HTML translation online here :
+
+           http://cbonte.github.io/haproxy-dconv/configuration-1.5.html
 
     - haproxy-en.txt / haproxy-fr.txt : these are the old outdated docs. You
       should never need them. If you do, then please report what you didn't
