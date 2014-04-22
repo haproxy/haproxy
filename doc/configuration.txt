@@ -2847,8 +2847,8 @@ http-check send-state
 
 http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
               add-header <name> <fmt> | set-header <name> <fmt> |
-              set-nice <nice> | set-log-level <level> | set-tos <tos> |
-              set-mark <mark> }
+              del-header <name> | set-nice <nice> | set-log-level <level> |
+              set-tos <tos> | set-mark <mark> }
              [ { if | unless } <condition> ]
   Access control for Layer 7 requests
 
@@ -2906,6 +2906,9 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
       is first removed if it existed. This is useful when passing security
       information to the server, where the header must not be manipulated by
       external users.
+
+    - "del-header" removes all HTTP header fields whose name is specified in
+      <name>.
 
     - "set-nice" sets the "nice" factor of the current request being processed.
       It only has effect against the other requests being processed at the same
@@ -2977,8 +2980,8 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
              about ACL usage.
 
 http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
-                set-header <name> <fmt> | set-log-level <level> |
-                set-mark <mark> | set-tos <tos> }
+                set-header <name> <fmt> | del-header <name> |
+                set-log-level <level> | set-mark <mark> | set-tos <tos> }
               [ { if | unless } <condition> ]
   Access control for Layer 7 responses
 
@@ -3013,6 +3016,9 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
       is first removed if it existed. This is useful when passing security
       information to the server, where the header must not be manipulated by
       external users.
+
+    - "del-header" removes all HTTP header fields whose name is specified in
+      <name>.
 
     - "set-nice" sets the "nice" factor of the current request being processed.
       It only has effect against the other requests being processed at the same

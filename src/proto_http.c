@@ -3210,6 +3210,7 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 			s->logs.level = rule->arg.loglevel;
 			break;
 
+		case HTTP_REQ_ACT_DEL_HDR:
 		case HTTP_REQ_ACT_SET_HDR:
 			ctx.idx = 0;
 			/* remove all occurrences of the header */
@@ -3217,6 +3218,8 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 						 txn->req.chn->buf->p, &txn->hdr_idx, &ctx)) {
 				http_remove_header2(&txn->req, &txn->hdr_idx, &ctx);
 			}
+			if (rule->action == HTTP_REQ_ACT_DEL_HDR)
+				break;
 			/* now fall through to header addition */
 
 		case HTTP_REQ_ACT_ADD_HDR:
@@ -3296,6 +3299,7 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 			s->logs.level = rule->arg.loglevel;
 			break;
 
+		case HTTP_RES_ACT_DEL_HDR:
 		case HTTP_RES_ACT_SET_HDR:
 			ctx.idx = 0;
 			/* remove all occurrences of the header */
@@ -3303,6 +3307,8 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 						 txn->rsp.chn->buf->p, &txn->hdr_idx, &ctx)) {
 				http_remove_header2(&txn->rsp, &txn->hdr_idx, &ctx);
 			}
+			if (rule->action == HTTP_RES_ACT_DEL_HDR)
+				break;
 			/* now fall through to header addition */
 
 		case HTTP_RES_ACT_ADD_HDR:
@@ -8590,6 +8596,25 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		proxy->conf.lfs_file = strdup(proxy->conf.args.file);
 		proxy->conf.lfs_line = proxy->conf.args.line;
 		cur_arg += 2;
+	} else if (strcmp(args[0], "del-header") == 0) {
+		rule->action = HTTP_REQ_ACT_DEL_HDR;
+		cur_arg = 1;
+
+		if (!*args[cur_arg] ||
+		    (*args[cur_arg+1] && strcmp(args[cur_arg+1], "if") != 0 && strcmp(args[cur_arg+1], "unless") != 0)) {
+			Alert("parsing [%s:%d]: 'http-request %s' expects exactly 1 argument.\n",
+			      file, linenum, args[0]);
+			goto out_err;
+		}
+
+		rule->arg.hdr_add.name = strdup(args[cur_arg]);
+		rule->arg.hdr_add.name_len = strlen(rule->arg.hdr_add.name);
+
+		proxy->conf.args.ctx = ARGC_HRQ;
+		free(proxy->conf.lfs_file);
+		proxy->conf.lfs_file = strdup(proxy->conf.args.file);
+		proxy->conf.lfs_line = proxy->conf.args.line;
+		cur_arg += 1;
 	} else if (strcmp(args[0], "redirect") == 0) {
 		struct redirect_rule *redir;
 		char *errmsg = NULL;
@@ -8762,6 +8787,25 @@ struct http_res_rule *parse_http_res_cond(const char **args, const char *file, i
 		proxy->conf.lfs_file = strdup(proxy->conf.args.file);
 		proxy->conf.lfs_line = proxy->conf.args.line;
 		cur_arg += 2;
+	} else if (strcmp(args[0], "del-header") == 0) {
+		rule->action = HTTP_RES_ACT_DEL_HDR;
+		cur_arg = 1;
+
+		if (!*args[cur_arg] ||
+		    (*args[cur_arg+1] && strcmp(args[cur_arg+1], "if") != 0 && strcmp(args[cur_arg+1], "unless") != 0)) {
+			Alert("parsing [%s:%d]: 'http-response %s' expects exactly 1 argument.\n",
+			      file, linenum, args[0]);
+			goto out_err;
+		}
+
+		rule->arg.hdr_add.name = strdup(args[cur_arg]);
+		rule->arg.hdr_add.name_len = strlen(rule->arg.hdr_add.name);
+
+		proxy->conf.args.ctx = ARGC_HRS;
+		free(proxy->conf.lfs_file);
+		proxy->conf.lfs_file = strdup(proxy->conf.args.file);
+		proxy->conf.lfs_line = proxy->conf.args.line;
+		cur_arg += 1;
 	} else {
 		Alert("parsing [%s:%d]: 'http-response' expects 'allow', 'deny', 'redirect', 'add-header', 'set-header', 'set-nice', 'set-tos', 'set-mark', 'set-log-level', but got '%s'%s.\n",
 		      file, linenum, args[0], *args[0] ? "" : " (missing argument)");
