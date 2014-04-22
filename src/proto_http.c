@@ -5027,20 +5027,26 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 	 * an "Expect: 100-continue" header.
 	 */
 
-	if (msg->msg_state < HTTP_MSG_CHUNK_SIZE) {
-		/* we have msg->sov which points to the first byte of message body.
-		 * req->buf->p still points to the beginning of the message. We
-		 * must save the body in msg->next because it survives buffer
-		 * re-alignments.
+	if (msg->sov) {
+		/* we have msg->sov which points to the first byte of message
+		 * body, and req->buf.p still points to the beginning of the
+		 * message. We forward the headers now, as we don't need them
+		 * anymore, and we want to flush them.
 		 */
-		channel_forward(req, msg->sov);
-		msg->next = 0;
-		msg->sov  = 0;
+		b_adv(req->buf, msg->sov);
+		msg->next -= msg->sov;
+		msg->sov = 0;
 
-		if (msg->flags & HTTP_MSGF_TE_CHNK)
-			msg->msg_state = HTTP_MSG_CHUNK_SIZE;
-		else
-			msg->msg_state = HTTP_MSG_DATA;
+		/* The previous analysers guarantee that the state is somewhere
+		 * between MSG_BODY and the first MSG_DATA. So msg->sol and
+		 * msg->next are always correct.
+		 */
+		if (msg->msg_state < HTTP_MSG_CHUNK_SIZE) {
+			if (msg->flags & HTTP_MSGF_TE_CHNK)
+				msg->msg_state = HTTP_MSG_CHUNK_SIZE;
+			else
+				msg->msg_state = HTTP_MSG_DATA;
+		}
 	}
 
 	/* Some post-connect processing might want us to refrain from starting to
@@ -6184,19 +6190,26 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 			goto aborted_xfer; /* no memory */
 	}
 
-	if (msg->msg_state < HTTP_MSG_CHUNK_SIZE) {
-		/* we have msg->sov which points to the first byte of message body.
-		 * res->buf.p still points to the beginning of the message. We
-		 * forward the headers, we don't need them.
+	if (msg->sov) {
+		/* we have msg->sov which points to the first byte of message
+		 * body, and res->buf.p still points to the beginning of the
+		 * message. We forward the headers now, as we don't need them
+		 * anymore, and we want to flush them.
 		 */
-		channel_forward(res, msg->sov);
-		msg->next = 0;
-		msg->sov  = 0;
+		b_adv(res->buf, msg->sov);
+		msg->next -= msg->sov;
+		msg->sov = 0;
 
-		if (msg->flags & HTTP_MSGF_TE_CHNK)
-			msg->msg_state = HTTP_MSG_CHUNK_SIZE;
-		else
-			msg->msg_state = HTTP_MSG_DATA;
+		/* The previous analysers guarantee that the state is somewhere
+		 * between MSG_BODY and the first MSG_DATA. So msg->sol and
+		 * msg->next are always correct.
+		 */
+		if (msg->msg_state < HTTP_MSG_CHUNK_SIZE) {
+			if (msg->flags & HTTP_MSGF_TE_CHNK)
+				msg->msg_state = HTTP_MSG_CHUNK_SIZE;
+			else
+				msg->msg_state = HTTP_MSG_DATA;
+		}
 	}
 
 	if (s->comp_algo != NULL) {
