@@ -2151,7 +2151,7 @@ int parse_qvalue(const char *qvalue, const char **end)
  out:
 	if (q > 1000)
 		q = 1000;
-	if (*end)
+	if (end)
 		*end = qvalue;
 	return q;
 }
