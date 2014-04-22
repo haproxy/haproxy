@@ -385,6 +385,19 @@ int warnif_rule_after_use_backend(struct proxy *proxy, const char *file, int lin
 	return 0;
 }
 
+/* Report a warning if a rule is placed after a 'use-server' rule.
+ * Return 1 if the warning has been emitted, otherwise 0.
+ */
+int warnif_rule_after_use_server(struct proxy *proxy, const char *file, int line, const char *arg)
+{
+	if (!LIST_ISEMPTY(&proxy->server_rules)) {
+		Warning("parsing [%s:%d] : a '%s' rule placed after a 'use-server' rule will still be processed before.\n",
+			file, line, arg);
+		return 1;
+	}
+	return 0;
+}
+
 /* report a warning if a block rule is dangerously placed */
 int warnif_misplaced_block(struct proxy *proxy, const char *file, int line, const char *arg)
 {
@@ -392,7 +405,8 @@ int warnif_misplaced_block(struct proxy *proxy, const char *file, int line, cons
 		warnif_rule_after_reqxxx(proxy, file, line, arg) ||
 		warnif_rule_after_reqadd(proxy, file, line, arg) ||
 		warnif_rule_after_redirect(proxy, file, line, arg) ||
-		warnif_rule_after_use_backend(proxy, file, line, arg);
+		warnif_rule_after_use_backend(proxy, file, line, arg) ||
+		warnif_rule_after_use_server(proxy, file, line, arg);
 }
 
 /* report a warning if an http-request rule is dangerously placed */
@@ -401,7 +415,8 @@ int warnif_misplaced_http_req(struct proxy *proxy, const char *file, int line, c
 	return	warnif_rule_after_reqxxx(proxy, file, line, arg) ||
 		warnif_rule_after_reqadd(proxy, file, line, arg) ||
 		warnif_rule_after_redirect(proxy, file, line, arg) ||
-		warnif_rule_after_use_backend(proxy, file, line, arg);
+		warnif_rule_after_use_backend(proxy, file, line, arg) ||
+		warnif_rule_after_use_server(proxy, file, line, arg);
 }
 
 /* report a warning if a reqxxx rule is dangerously placed */
@@ -409,14 +424,23 @@ int warnif_misplaced_reqxxx(struct proxy *proxy, const char *file, int line, con
 {
 	return	warnif_rule_after_reqadd(proxy, file, line, arg) ||
 		warnif_rule_after_redirect(proxy, file, line, arg) ||
-		warnif_rule_after_use_backend(proxy, file, line, arg);
+		warnif_rule_after_use_backend(proxy, file, line, arg) ||
+		warnif_rule_after_use_server(proxy, file, line, arg);
 }
 
 /* report a warning if a reqadd rule is dangerously placed */
 int warnif_misplaced_reqadd(struct proxy *proxy, const char *file, int line, const char *arg)
 {
 	return	warnif_rule_after_redirect(proxy, file, line, arg) ||
-		warnif_rule_after_use_backend(proxy, file, line, arg);
+		warnif_rule_after_use_backend(proxy, file, line, arg) ||
+		warnif_rule_after_use_server(proxy, file, line, arg);
+}
+
+/* report a warning if a redirect rule is dangerously placed */
+int warnif_misplaced_redirect(struct proxy *proxy, const char *file, int line, const char *arg)
+{
+	return	warnif_rule_after_use_backend(proxy, file, line, arg) ||
+		warnif_rule_after_use_server(proxy, file, line, arg);
 }
 
 /* Report it if a request ACL condition uses some keywords that are incompatible
@@ -2867,7 +2891,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		LIST_ADDQ(&curproxy->redirect_rules, &rule->list);
-		err_code |= warnif_rule_after_use_backend(curproxy, file, linenum, args[0]);
+		err_code |= warnif_misplaced_redirect(curproxy, file, linenum, args[0]);
 		err_code |= warnif_cond_conflicts(rule->cond,
 	                                          (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
 	                                          file, linenum);
