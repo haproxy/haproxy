@@ -1,6 +1,189 @@
 ChangeLog :
 ===========
 
+2014/04/23 : 1.5-dev23
+    - BUG/MINOR: reject malformed HTTP/0.9 requests
+    - MINOR: systemd wrapper: re-execute on SIGUSR2
+    - MINOR: systemd wrapper: improve logging
+    - MINOR: systemd wrapper: propagate exit status
+    - BUG/MINOR: tcpcheck connect wrong behavior
+    - MEDIUM: proxy: support use_backend with dynamic names
+    - MINOR: stats: Enhancement to stats page to provide information of last session time.
+    - BUG/MEDIUM: peers: fix key consistency for integer stick tables
+    - DOC: fix a typo on http-server-close and encapsulate options with double-quotes
+    - DOC: fix fetching samples syntax
+    - MINOR: ssl: add ssl_fc_unique_id to fetch TLS Unique ID
+    - MEDIUM: ssl: Use ALPN support as it will be available in OpenSSL 1.0.2
+    - DOC: fix typo
+    - CLEANUP: code style: use tabs to indent codes instead of spaces
+    - DOC: fix a few config typos.
+    - BUG/MINOR: raw_sock: also consider ENOTCONN in addition to EAGAIN for recv()
+    - DOC: lowercase format string in unique-id
+    - MINOR: set IP_FREEBIND on IPv6 sockets in transparent mode
+    - BUG/MINOR: acl: req_ssl_sni fails with SSLv3 record version
+    - BUG/MINOR: build: add missing objects in osx and bsd Makefiles
+    - BUG/MINOR: build: handle whitespaces in wc -l output
+    - BUG/MINOR: Fix name lookup ordering when compiled with USE_GETADDRINFO
+    - MEDIUM: ssl: Add standardized DH parameters >= 1024 bits
+    - BUG/MEDIUM: map: The map parser includes blank lines.
+    - BUG/MINOR: log: The log of quotted capture header has been terminated by 2 quotes.
+    - MINOR: standard: add function "encode_chunk"
+    - BUG/MINOR: http: fix encoding of samples used in http headers
+    - MINOR: sample: add hex converter
+    - MEDIUM: sample: change the behavior of the bin2str cast
+    - MAJOR: auth: Change the internal authentication system.
+    - MEDIUM: acl/pattern: standardisation "of pat_parse_int()" and "pat_parse_dotted_ver()"
+    - MEDIUM: pattern: The pattern parser no more uses <opaque> and just takes one string.
+    - MEDIUM: pattern: Change the prototype of the function pattern_register().
+    - CONTRIB: ip6range: add a network IPv6 range to mask converter
+    - MINOR: pattern: separe list element from the data part.
+    - MEDIUM: pattern: add indexation function.
+    - MEDIUM: pattern: The parse functions just return "struct pattern" without memory allocation
+    - MINOR: pattern: Rename "pat_idx_elt" to "pattern_tree"
+    - MINOR: sample: dont call the sample cast function "c_none"
+    - MINOR: standard: Add function for converting cidr to network mask.
+    - MEDIUM: sample: Remove types SMP_T_CSTR and SMP_T_CBIN, replace it by SMP_F_CONST flags
+    - MEDIUM: sample/http_proto: Add new type called method
+    - MINOR: dumpstats: Group map inline help
+    - MEDIUM: pattern: The function pattern_exec_match() returns "struct pattern" if the patten match.
+    - MINOR: dumpstats: change map inline sentences
+    - MINOR: dumpstats: change the "get map" display management
+    - MINOR: map/dumpstats: The cli cmd "get map ..." display the "int" format.
+    - MEDIUM: pattern: The match function browse itself the list or the tree.
+    - MEDIUM: pattern: Index IPv6 addresses in a tree.
+    - MEDIUM: pattern: add delete functions
+    - MEDIUM: pattern: add prune function
+    - MEDIUM: pattern: add sample lookup function.
+    - MEDIUM: pattern/dumpstats: The function pattern_lookup() is no longer used
+    - MINOR: map/pattern: The sample parser is stored in the pattern
+    - MAJOR: pattern/map: Extends the map edition system in the patterns
+    - MEDIUM: pattern: merge same pattern
+    - MEDIUM: pattern: The expected type is stored in the pattern head, and conversion is executed once.
+    - MINOR: pattern: Each pattern is identified by unique id.
+    - MINOR: pattern/acl: Each pattern of each acl can be load with specified id
+    - MINOR: pattern: The function "pattern_register()" is no longer used.
+    - MINOR: pattern: Merge function pattern_add() with pat_ref_push().
+    - MINOR: pattern: store configuration reference for each acl or map pattern.
+    - MINOR: pattern: Each pattern expression element store the reference struct.
+    - MINOR: dumpstats: display the reference for th key/pattern and value.
+    - MEDIUM: pattern: delete() function uses the pat_ref_elt to find the element to be removed
+    - MEDIUM: pattern_find_smp: functions find_smp uses the pat_ref_elt to find the element to be removed
+    - MEDIUM: dumpstats/pattern: display and use each pointer of each pattern dumped
+    - MINOR: pattern/map/acl: Centralization of the file parsers
+    - MINOR: pattern: Check if the file reference is not used with acl and map
+    - MINOR: acl/pattern: Acl "-M" option force to load file as map file with two columns
+    - MEDIUM: dumpstats: Display error message during add of values.
+    - MINOR: pattern: The function pat_ref_set() have now atomic behavior
+    - MINOR: regex: The pointer regstr in the struc regex is no longer used.
+    - MINOR: cli: Block the usage of the command "acl add" in many cases.
+    - MINOR: doc: Update the documentation about the map and acl
+    - MINOR: pattern: index duplicates
+    - MINOR: configuration: File and line propagation
+    - MINOR: dumpstat/conf: display all the configuration lines that using pattern reference
+    - MINOR: standard: Disable ip resolution during the runtime
+    - MINOR: pattern: Remove the flag "PAT_F_FROM_FILE".
+    - MINOR: pattern: forbid dns resolutions
+    - DOC: document "get map" / "get acl" on the CLI
+    - MEDIUM: acl: Change the acl register struct
+    - BUG/MEDIUM: acl: boolean only matches were broken by recent changes
+    - DOC: pattern: pattern organisation schematics
+    - MINOR: pattern/cli: Update used terms in documentation and cli
+    - MINOR: cli: remove information about acl or map owner.
+    - MINOR: session: don't always assume there's a listener
+    - MINOR: pattern: Add function to prune and reload pattern list.
+    - MINOR: standard: Add ipv6 support in the function url2sa().
+    - MEDIUM: config: Dynamic sections.
+    - BUG/MEDIUM: stick-table: fix IPv4-to-IPv6 conversion in src_* fetches
+    - MINOR: http: Add the "language" converter to for use with accept-language
+    - BUG/MINOR: log: Don't dump empty unique-id
+    - BUG/MAJOR: session: fix a possible crash with src_tracked
+    - DOC: Update "language" documentation
+    - MINOR: http: add the function "del-header" to the directives http-request and http-response
+    - DOC: add some information on capture.(req|res).hdr
+    - MINOR: http: capture.req.method and capture.req.uri
+    - MINOR: http: optimize capture.req.method and capture.req.uri
+    - MINOR: session: clean up the connection free code
+    - BUG/MEDIUM: checks: immediately report a connection success
+    - MEDIUM: connection: don't use real send() flags in snd_buf()
+    - OPTIM: ssl: implement dynamic record size adjustment
+    - MINOR: stats: report exact last session time in backend too
+    - BUG/MEDIUM: stats: the "lastsess" field must appear last in the CSV.
+    - BUG/MAJOR: check: fix memory leak in "tcp-check connect" over SSL
+    - BUG/MINOR: channel: initialize xfer_small/xfer_large on new buffers
+    - MINOR: channel: add the date of last read in the channel
+    - MEDIUM: stream-int: automatically disable CF_STREAMER flags after idle
+    - MINOR: ssl: add DEFAULT_SSL_MAX_RECORD to set the record size at build time
+    - MINOR: config: make the stream interface idle timer user-configurable
+    - MINOR: config: add global directives to set default SSL ciphers
+    - MINOR: sample: add a rand() sample fetch to return a sample.
+    - BUG/MEDIUM: config: immediately abort if peers section has no name
+    - BUG/MINOR: ssl: fix syntax in config error message
+    - BUG/MEDIUM: ssl: always send a full buffer after EAGAIN
+    - BUG/MINOR: config: server on-marked-* statement is ignored in default-server
+    - BUG/MEDIUM: backend: prefer-last-server breaks redispatch
+    - BUG/MEDIUM: http: continue to emit 503 on keep-alive to different server
+    - MEDIUM: acl: fix pattern type for payload / payload_lv
+    - BUG/MINOR: config: fix a crash on startup when a disabled backend references a peer
+    - BUG/MEDIUM: compression: fix the output type of the compressor name
+    - BUG/MEDIUM: http: don't start to forward request data before the connect
+    - MINOR: http: release compression context only in http_end_txn()
+    - MINOR: protect ebimtree/ebistree against multiple inclusions
+    - MEDIUM: proxy: create a tree to store proxies by name
+    - MEDIUM: proxy: make findproxy() use trees to look up proxies
+    - MEDIUM: proxy: make get_backend_server() use findproxy() to lookup proxies
+    - MEDIUM: stick-table: lookup table names using trees.
+    - MEDIUM: config: faster lookup for duplicated proxy name
+    - CLEANUP: acl: remove obsolete test in parse_acl_expr()
+    - MINOR: sample: move smp_to_type to sample.c
+    - MEDIUM: compression: consider the "q=" attribute in Accept-Encoding
+    - REORG: cfgparse: move server keyword parsing to server.c
+    - BUILD: adjust makefile for AIX 5.1
+    - BUG/MEDIUM: pattern: fix wrong definition of the pat_prune_fcts array
+    - CLEANUP: pattern: move array definitions to proto/ and not types/
+    - BUG/MAJOR: counters: check for null-deref when looking up an alternate table
+    - BUILD: ssl: previous patch failed
+    - BUILD/MEDIUM: standard: get rid of the last strcpy()
+    - BUILD/MEDIUM: standard: get rid of sprintf()
+    - BUILD/MEDIUM: cfgparse: get rid of sprintf()
+    - BUILD/MEDIUM: checks: get rid of sprintf()
+    - BUILD/MEDIUM: http: remove calls to sprintf()
+    - BUG/MEDIUM: systemd-wrapper: fix locating of haproxy binary
+    - BUILD/MINOR: ssl: remove one call to sprintf()
+    - MEDIUM: http: don't reject anymore message bodies not containing the url param
+    - MEDIUM: http: wait for the first chunk or message body length in http_process_body
+    - CLEANUP: http: rename http_process_request_body()
+    - CLEANUP: http: prepare dedicated processing for chunked encoded message bodies
+    - MINOR: http: make msg->eol carry the last CRLF length
+    - MAJOR: http: do not use msg->sol while processing messages or forwarding data
+    - MEDIUM: http: http_parse_chunk_crlf() must not advance the buffer pointer
+    - MAJOR: http: don't update msg->sov anymore while processing the body
+    - MINOR: http: add a small helper to compute the amount of body bytes present
+    - MEDIUM: http: add a small helper to compute how far to rewind to find headers
+    - MINOR: http: add a small helper to compute how far to rewind to find URI
+    - MEDIUM: http: small helpers to compute how far to rewind to find BODY and DATA
+    - MAJOR: http: reset msg->sov after headers are forwarded
+    - MEDIUM: http: forward headers again while waiting for connection to complete
+    - BUG/MINOR: http: deinitialize compression after a parsing error
+    - BUG/MINOR: http: deinitialize compression after a compression error
+    - MEDIUM: http: headers must be forwarded even if data was already inspected
+    - MAJOR: http: re-enable compression on chunked encoding
+    - MAJOR: http/compression: fix chunked-encoded response processing
+    - MEDIUM: http: cleanup: centralize a little bit HTTP compression end
+    - MEDIUM: http: start to centralize the forwarding code
+    - MINOR: http: further cleanups of response forwarding function
+    - MEDIUM: http: only allocate the temporary compression buffer when needed
+    - MAJOR: http: centralize data forwarding in the request path
+    - CLEANUP: http: document the response forwarding states
+    - CLEANUP: http: remove all calls to http_silent_debug()
+    - DOC: internal: add some reminders about HTTP parsing and pointer states
+    - BUG/MAJOR: http: fix bug in parse_qvalue() when selecting compression algo
+    - BUG/MINOR: stats: last session was not always set
+    - DOC: add pointer to the Cyril's HTML doc in the README
+    - MEDIUM: config: relax use_backend check to make the condition optional
+    - MEDIUM: config: report misplaced http-request rules
+    - MEDIUM: config: report misplaced use-server rules
+    - DOC: update roadmap with what was done.
+
 2014/02/03 : 1.5-dev22
     - MEDIUM: tcp-check new feature: connect
     - MEDIUM: ssl: Set verify 'required' as global default for servers side.
