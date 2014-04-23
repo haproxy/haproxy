@@ -6357,7 +6357,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	 * server abort.
 	 */
 	if (res->flags & CF_SHUTR) {
-		if ((res->flags & CF_SHUTW_NOW) || (s->req->flags & CF_SHUTR))
+		if ((s->req->flags & (CF_SHUTR|CF_SHUTW)) == (CF_SHUTR|CF_SHUTW))
 			goto aborted_xfer;
 		if (!(s->flags & SN_ERR_MASK))
 			s->flags |= SN_ERR_SRVCL;
