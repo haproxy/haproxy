@@ -5932,6 +5932,7 @@ int http_process_res_common(struct session *t, struct channel *rep, int an_bit, 
 			txn->status = 0;
 			t->logs.t_data = -1; /* was not a response yet */
 			rep->analysers |= AN_RES_WAIT_HTTP | an_bit;
+			rep->flags |= CF_WAKE_WRITE;
 			return 1;
 		}
 		else if (unlikely(txn->status < 200))
