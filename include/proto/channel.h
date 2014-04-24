@@ -280,14 +280,6 @@ static inline int buffer_max_len(const struct channel *chn)
 	return chn->buf->size - buffer_reserved(chn);
 }
 
-/* Return the amount of bytes that can be written into the buffer at once,
- * excluding reserved space, which is preserved.
- */
-static inline int buffer_contig_space_res(const struct channel *chn)
-{
-	return buffer_contig_space_with_res(chn->buf, buffer_reserved(chn));
-}
-
 /* Returns the amount of space available at the input of the buffer, taking the
  * reserved space into account if ->to_forward indicates that an end of transfer
  * is close to happen. The test is optimized to avoid as many operations as

@@ -228,29 +228,6 @@ static inline int buffer_contig_space(const struct buffer *buf)
 	return right - left;
 }
 
-/* Return the amount of bytes that can be written into the buffer at once,
- * excluding the amount of reserved space passed in <res>, which is
- * preserved.
- */
-static inline int buffer_contig_space_with_res(const struct buffer *buf, int res)
-{
-	/* Proceed differently if the buffer is full, partially used or empty.
-	 * The hard situation is when it's partially used and either data or
-	 * reserved space wraps at the end.
-	 */
-	int spare = buf->size - res;
-
-	if (buffer_len(buf) >= spare)
-		spare = 0;
-	else if (buffer_len(buf)) {
-		spare = buffer_contig_space(buf) - res;
-		if (spare < 0)
-			spare = 0;
-	}
-	return spare;
-}
-
-
 /* Normalizes a pointer which is supposed to be relative to the beginning of a
  * buffer, so that wrapping is correctly handled. The intent is to use this
  * when increasing a pointer. Note that the wrapping test is only performed
