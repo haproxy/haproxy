@@ -5296,6 +5296,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 	 *   msg->next          = first non-visited byte
 	 */
 
+ next_one:
 	/* There's a protected area at the end of the buffer for rewriting
 	 * purposes. We don't want to start to parse the request if the
 	 * protected area is affected, because we may have to move processed
@@ -5576,6 +5577,20 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 	 */
 
 	switch (txn->status) {
+	case 100:
+		/*
+		 * We may be facing a 100-continue response, in which case this
+		 * is not the right response, and we're waiting for the next one.
+		 * Let's allow this response to go to the client and wait for the
+		 * next one.
+		 */
+		hdr_idx_init(&txn->hdr_idx);
+		msg->next -= channel_forward(rep, msg->next);
+		msg->msg_state = HTTP_MSG_RPBEFORE;
+		txn->status = 0;
+		s->logs.t_data = -1; /* was not a response yet */
+		goto next_one;
+
 	case 200:
 	case 203:
 	case 206:
@@ -5919,23 +5934,7 @@ int http_process_res_common(struct session *t, struct channel *rep, int an_bit, 
 			cur_proxy = t->fe;
 		}
 
-		/*
-		 * We may be facing a 100-continue response, in which case this
-		 * is not the right response, and we're waiting for the next one.
-		 * Let's allow this response to go to the client and wait for the
-		 * next one.
-		 */
-		if (unlikely(txn->status == 100)) {
-			hdr_idx_init(&txn->hdr_idx);
-			msg->next -= channel_forward(rep, msg->next);
-			msg->msg_state = HTTP_MSG_RPBEFORE;
-			txn->status = 0;
-			t->logs.t_data = -1; /* was not a response yet */
-			rep->analysers |= AN_RES_WAIT_HTTP | an_bit;
-			rep->flags |= CF_WAKE_WRITE;
-			return 1;
-		}
-		else if (unlikely(txn->status < 200))
+		if (unlikely(txn->status < 200))
 			goto skip_header_mangling;
 
 		/* we don't have any 1xx status code now */
