@@ -2848,7 +2848,12 @@ http-check send-state
 http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
               add-header <name> <fmt> | set-header <name> <fmt> |
               del-header <name> | set-nice <nice> | set-log-level <level> |
-              set-tos <tos> | set-mark <mark> }
+              set-tos <tos> | set-mark <mark> |
+              add-acl(<file name>) <key fmt> |
+              del-acl(<file name>) <key fmt> |
+              del-map(<file name>) <key fmt> |
+              set-map(<file name>) <key fmt> <value fmt>
+             }
              [ { if | unless } <condition> ]
   Access control for Layer 7 requests
 
@@ -2944,6 +2949,39 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
       downloads). This works on Linux kernels 2.6.32 and above and requires
       admin privileges.
 
+    - "add-acl" is used to add a new entry into an ACL. The ACL must be loaded
+      from a file (even a dummy empty file). The file name of the ACL to be
+      updated is passed between parentheses. It takes one argument: <key fmt>,
+      which follows log-format rules, to collect content of the new entry. It
+      performs a lookup in the ACL before insertion, to avoid duplicated (or
+      more) values. This lookup is done by a linear search and can be expensive
+      with large lists! It is the equivalent of the "add acl" command from the
+      stats socket, but can be triggered by an HTTP request.
+
+    - "del-acl" is used to delete an entry from an ACL. The ACL must be loaded
+      from a file (even a dummy empty file). The file name of the ACL to be
+      updated is passed between parentheses. It takes one argument: <key fmt>,
+      which follows log-format rules, to collect content of the entry to delete.
+      It is the equivalent of the "del acl" command from the stats socket, but
+      can be triggered by an HTTP request.
+
+    - "del-map" is used to delete an entry from a MAP. The MAP must be loaded
+      from a file (even a dummy empty file). The file name of the MAP to be
+      updated is passed between parentheses. It takes one argument: <key fmt>,
+      which follows log-format rules, to collect content of the entry to delete.
+      It takes one argument: "file name" It is the equivalent of the "del map"
+      command from the stats socket, but can be triggered by an HTTP request.
+
+    - "set-map" is used to add a new entry into a MAP. The MAP must be loaded
+      from a file (even a dummy empty file). The file name of the MAP to be
+      updated is passed between parentheses. It takes 2 arguments: <key fmt>,
+      which follows log-format rules, used to collect MAP key, and <value fmt>,
+      which follows log-format rules, used to collect content for the new entry.
+      It performs a lookup in the MAP before insertion, to avoid duplicated (or
+      more) values. This lookup is done by a linear search and can be expensive
+      with large lists! It is the equivalent of the "set map" command from the
+      stats socket, but can be triggered by an HTTP request.
+
   There is no limit to the number of http-request statements per instance.
 
   It is important to know that http-request rules are processed very early in
@@ -2976,12 +3014,37 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
         http-request set-header X-SSL-Client-NotBefore %{+Q}[ssl_c_notbefore]
         http-request set-header X-SSL-Client-NotAfter  %{+Q}[ssl_c_notafter]
 
+  Example:
+        acl key req.hdr(X-Add-Acl-Key) -m found
+        acl add path /addacl
+        acl del path /delacl
+
+        acl myhost hdr(Host) -f myhost.lst
+
+        http-request add-acl(myhost.lst) %[req.hdr(X-Add-Acl-Key)] if key add
+        http-request del-acl(myhost.lst) %[req.hdr(X-Add-Acl-Key)] if key del
+
+  Example:
+        acl value  req.hdr(X-Value) -m found
+        acl setmap path /setmap
+        acl delmap path /delmap
+
+        use_backend bk_appli if { hdr(Host),map_str(map.lst) -m found }
+
+        http-request set-map(map.lst) %[src] %[req.hdr(X-Value)] if setmap value
+        http-request del-map(map.lst) %[src]                     if delmap
+
   See also : "stats http-request", section 3.4 about userlists and section 7
              about ACL usage.
 
 http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
                 set-header <name> <fmt> | del-header <name> |
-                set-log-level <level> | set-mark <mark> | set-tos <tos> }
+                set-log-level <level> | set-mark <mark> | set-tos <tos> |
+                add-acl(<file name>) <key fmt> |
+                del-acl(<file name>) <key fmt> |
+                del-map(<file name>) <key fmt> |
+                set-map(<file name>) <key fmt> <value fmt>
+              }
               [ { if | unless } <condition> ]
   Access control for Layer 7 responses
 
@@ -3054,12 +3117,61 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
       downloads). This works on Linux kernels 2.6.32 and above and requires
       admin privileges.
 
+    - "add-acl" is used to add a new entry into an ACL. The ACL must be loaded
+      from a file (even a dummy empty file). The file name of the ACL to be
+      updated is passed between parentheses. It takes one argument: <key fmt>,
+      which follows log-format rules, to collect content of the new entry. It
+      performs a lookup in the ACL before insertion, to avoid duplicated (or
+      more) values. This lookup is done by a linear search and can be expensive
+      with large lists! It is the equivalent of the "add acl" command from the
+      stats socket, but can be triggered by an HTTP response.
+
+    - "del-acl" is used to delete an entry from an ACL. The ACL must be loaded
+      from a file (even a dummy empty file). The file name of the ACL to be
+      updated is passed between parentheses. It takes one argument: <key fmt>,
+      which follows log-format rules, to collect content of the entry to delete.
+      It is the equivalent of the "del acl" command from the stats socket, but
+      can be triggered by an HTTP response.
+
+    - "del-map" is used to delete an entry from a MAP. The MAP must be loaded
+      from a file (even a dummy empty file). The file name of the MAP to be
+      updated is passed between parentheses. It takes one argument: <key fmt>,
+      which follows log-format rules, to collect content of the entry to delete.
+      It takes one argument: "file name" It is the equivalent of the "del map"
+      command from the stats socket, but can be triggered by an HTTP response.
+
+    - "set-map" is used to add a new entry into a MAP. The MAP must be loaded
+      from a file (even a dummy empty file). The file name of the MAP to be
+      updated is passed between parentheses. It takes 2 arguments: <key fmt>,
+      which follows log-format rules, used to collect MAP key, and <value fmt>,
+      which follows log-format rules, used to collect content for the new entry.
+      It performs a lookup in the MAP before insertion, to avoid duplicated (or
+      more) values. This lookup is done by a linear search and can be expensive
+      with large lists! It is the equivalent of the "set map" command from the
+      stats socket, but can be triggered by an HTTP response.
+
   There is no limit to the number of http-response statements per instance.
 
   It is important to know that http-response rules are processed very early in
   the HTTP processing, before "reqdel" or "reqrep" rules. That way, headers
   added by "add-header"/"set-header" are visible by almost all further ACL
   rules.
+
+  Example:
+         acl key_acl res.hdr(X-Acl-Key) -m found
+
+         acl myhost hdr(Host) -f myhost.lst
+
+         http-response add-acl(myhost.lst) %[res.hdr(X-Acl-Key)] if key_acl
+         http-response del-acl(myhost.lst) %[res.hdr(X-Acl-Key)] if key_acl
+
+  Example:
+         acl value  res.hdr(X-Value) -m found
+
+         use_backend bk_appli if { hdr(Host),map_str(map.lst) -m found }
+
+         http-response set-map(map.lst) %[src] %[res.hdr(X-Value)] if value
+         http-response del-map(map.lst) %[src]                     if ! value
 
   See also : "http-request", section 3.4 about userlists and section 7 about
              ACL usage.

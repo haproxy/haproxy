@@ -252,6 +252,10 @@ enum {
 	HTTP_REQ_ACT_SET_LOGL,
 	HTTP_REQ_ACT_SET_TOS,
 	HTTP_REQ_ACT_SET_MARK,
+	HTTP_REQ_ACT_ADD_ACL,
+	HTTP_REQ_ACT_DEL_ACL,
+	HTTP_REQ_ACT_DEL_MAP,
+	HTTP_REQ_ACT_SET_MAP,
 	HTTP_REQ_ACT_MAX /* must always be last */
 };
 
@@ -267,6 +271,10 @@ enum {
 	HTTP_RES_ACT_SET_LOGL,
 	HTTP_RES_ACT_SET_TOS,
 	HTTP_RES_ACT_SET_MARK,
+	HTTP_RES_ACT_ADD_ACL,
+	HTTP_RES_ACT_DEL_ACL,
+	HTTP_RES_ACT_DEL_MAP,
+	HTTP_RES_ACT_SET_MAP,
 	HTTP_RES_ACT_MAX /* must always be last */
 };
 
@@ -404,6 +412,11 @@ struct http_req_rule {
 		int loglevel;                  /* log-level value for HTTP_REQ_ACT_SET_LOGL */
 		int tos;                       /* tos value for HTTP_REQ_ACT_SET_TOS */
 		int mark;                      /* nfmark value for HTTP_REQ_ACT_SET_MARK */
+		struct {
+			char *ref;             /* MAP or ACL file name to update */
+			struct list key;       /* pattern to retrieve MAP or ACL key */
+			struct list value;     /* pattern to retrieve MAP value */
+		} map;
 	} arg;                                 /* arguments used by some actions */
 };
 
@@ -421,6 +434,11 @@ struct http_res_rule {
 		int loglevel;                  /* log-level value for HTTP_RES_ACT_SET_LOGL */
 		int tos;                       /* tos value for HTTP_RES_ACT_SET_TOS */
 		int mark;                      /* nfmark value for HTTP_RES_ACT_SET_MARK */
+		struct {
+			char *ref;             /* MAP or ACL file name to update */
+			struct list key;       /* pattern to retrieve MAP or ACL key */
+			struct list value;     /* pattern to retrieve MAP value */
+		} map;
 	} arg;                                 /* arguments used by some actions */
 };
 

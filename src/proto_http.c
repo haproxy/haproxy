@@ -64,6 +64,7 @@
 #include <proto/session.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
+#include <proto/pattern.h>
 
 const char HTTP_100[] =
 	"HTTP/1.1 100 Continue\r\n\r\n";
@@ -3204,6 +3205,90 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 			trash.len += build_logline(s, trash.str + trash.len, trash.size - trash.len, &rule->arg.hdr_add.fmt);
 			http_header_add_tail2(&txn->req, &txn->hdr_idx, trash.str, trash.len);
 			break;
+
+		case HTTP_REQ_ACT_DEL_ACL:
+		case HTTP_REQ_ACT_DEL_MAP: {
+			struct pat_ref *ref;
+			char *key;
+			int len;
+
+			/* collect reference */
+			ref = pat_ref_lookup(rule->arg.map.ref);
+			if (!ref)
+				continue;
+
+			/* collect key */
+			len = build_logline(s, trash.str, trash.size, &rule->arg.map.key);
+			key = trash.str;
+			key[len] = '\0';
+
+			/* perform update */
+			/* returned code: 1=ok, 0=ko */
+			pat_ref_delete(ref, key);
+
+			break;
+			}
+
+		case HTTP_REQ_ACT_ADD_ACL: {
+			struct pat_ref *ref;
+			char *key;
+			struct chunk *trash_key;
+			int len;
+
+			trash_key = get_trash_chunk();
+
+			/* collect reference */
+			ref = pat_ref_lookup(rule->arg.map.ref);
+			if (!ref)
+				continue;
+
+			/* collect key */
+			len = build_logline(s, trash_key->str, trash_key->size, &rule->arg.map.key);
+			key = trash_key->str;
+			key[len] = '\0';
+
+			/* perform update */
+			/* add entry only if it does not already exist */
+			if (pat_ref_find_elt(ref, key) == NULL)
+				pat_ref_add(ref, key, NULL, NULL);
+
+			break;
+			}
+
+		case HTTP_REQ_ACT_SET_MAP: {
+			struct pat_ref *ref;
+			char *key, *value;
+			struct chunk *trash_key, *trash_value;
+			int len;
+
+			trash_key = get_trash_chunk();
+			trash_value = get_trash_chunk();
+
+			/* collect reference */
+			ref = pat_ref_lookup(rule->arg.map.ref);
+			if (!ref)
+				continue;
+
+			/* collect key */
+			len = build_logline(s, trash_key->str, trash_key->size, &rule->arg.map.key);
+			key = trash_key->str;
+			key[len] = '\0';
+
+			/* collect value */
+			len = build_logline(s, trash_value->str, trash_value->size, &rule->arg.map.value);
+			value = trash_value->str;
+			value[len] = '\0';
+
+			/* perform update */
+			if (pat_ref_find_elt(ref, key) != NULL)
+				/* update entry if it exists */
+				pat_ref_set(ref, key, value, NULL);
+			else
+				/* insert a new entry */
+				pat_ref_add(ref, key, value, NULL);
+
+			break;
+			}
 		}
 	}
 
@@ -3293,6 +3378,90 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 			trash.len += build_logline(s, trash.str + trash.len, trash.size - trash.len, &rule->arg.hdr_add.fmt);
 			http_header_add_tail2(&txn->rsp, &txn->hdr_idx, trash.str, trash.len);
 			break;
+
+		case HTTP_RES_ACT_DEL_ACL:
+		case HTTP_RES_ACT_DEL_MAP: {
+			struct pat_ref *ref;
+			char *key;
+			int len;
+
+			/* collect reference */
+			ref = pat_ref_lookup(rule->arg.map.ref);
+			if (!ref)
+				continue;
+
+			/* collect key */
+			len = build_logline(s, trash.str, trash.size, &rule->arg.map.key);
+			key = trash.str;
+			key[len] = '\0';
+
+			/* perform update */
+			/* returned code: 1=ok, 0=ko */
+			pat_ref_delete(ref, key);
+
+			break;
+			}
+
+		case HTTP_RES_ACT_ADD_ACL: {
+			struct pat_ref *ref;
+			char *key;
+			struct chunk *trash_key;
+			int len;
+
+			trash_key = get_trash_chunk();
+
+			/* collect reference */
+			ref = pat_ref_lookup(rule->arg.map.ref);
+			if (!ref)
+				continue;
+
+			/* collect key */
+			len = build_logline(s, trash_key->str, trash_key->size, &rule->arg.map.key);
+			key = trash_key->str;
+			key[len] = '\0';
+
+			/* perform update */
+			/* check if the entry already exists */
+			if (pat_ref_find_elt(ref, key) == NULL)
+				pat_ref_add(ref, key, NULL, NULL);
+
+			break;
+			}
+
+		case HTTP_RES_ACT_SET_MAP: {
+			struct pat_ref *ref;
+			char *key, *value;
+			struct chunk *trash_key, *trash_value;
+			int len;
+
+			trash_key = get_trash_chunk();
+			trash_value = get_trash_chunk();
+
+			/* collect reference */
+			ref = pat_ref_lookup(rule->arg.map.ref);
+			if (!ref)
+				continue;
+
+			/* collect key */
+			len = build_logline(s, trash_key->str, trash_key->size, &rule->arg.map.key);
+			key = trash_key->str;
+			key[len] = '\0';
+
+			/* collect value */
+			len = build_logline(s, trash_value->str, trash_value->size, &rule->arg.map.value);
+			value = trash_value->str;
+			value[len] = '\0';
+
+			/* perform update */
+			if (pat_ref_find_elt(ref, key) != NULL)
+				/* update entry if it exists */
+				pat_ref_set(ref, key, value, NULL);
+			else
+				/* insert a new entry */
+				pat_ref_add(ref, key, value, NULL);
+
+			break;
+			}
 		}
 	}
 
@@ -8652,8 +8821,125 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		redir->cond = NULL;
 		cur_arg = 2;
 		return rule;
+	} else if (strncmp(args[0], "add-acl", 7) == 0) {
+		/* http-request add-acl(<reference (acl name)>) <key pattern> */
+		rule->action = HTTP_REQ_ACT_ADD_ACL;
+		/*
+		 * '+ 8' for 'add-acl('
+		 * '- 9' for 'add-acl(' + trailing ')'
+		 */
+		rule->arg.map.ref = strndup(args[0] + 8, strlen(args[0]) - 9);
+
+		cur_arg = 1;
+
+		if (!*args[cur_arg] ||
+		    (*args[cur_arg+1] && strcmp(args[cur_arg+1], "if") != 0 && strcmp(args[cur_arg+1], "unless") != 0)) {
+			Alert("parsing [%s:%d]: 'http-request %s' expects exactly 1 argument.\n",
+			      file, linenum, args[0]);
+			goto out_err;
+		}
+
+		LIST_INIT(&rule->arg.map.key);
+		proxy->conf.args.ctx = ARGC_HRQ;
+		parse_logformat_string(args[cur_arg], proxy, &rule->arg.map.key, LOG_OPT_HTTP,
+			(proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
+			file, linenum);
+		free(proxy->conf.lfs_file);
+		proxy->conf.lfs_file = strdup(proxy->conf.args.file);
+		proxy->conf.lfs_line = proxy->conf.args.line;
+		cur_arg += 1;
+	} else if (strncmp(args[0], "del-acl", 7) == 0) {
+		/* http-request del-acl(<reference (acl name)>) <key pattern> */
+		rule->action = HTTP_REQ_ACT_DEL_ACL;
+		/*
+		 * '+ 8' for 'del-acl('
+		 * '- 9' for 'del-acl(' + trailing ')'
+		 */
+		rule->arg.map.ref = strndup(args[0] + 8, strlen(args[0]) - 9);
+
+		cur_arg = 1;
+
+		if (!*args[cur_arg] ||
+		    (*args[cur_arg+1] && strcmp(args[cur_arg+1], "if") != 0 && strcmp(args[cur_arg+1], "unless") != 0)) {
+			Alert("parsing [%s:%d]: 'http-request %s' expects exactly 1 argument.\n",
+			      file, linenum, args[0]);
+			goto out_err;
+		}
+
+		LIST_INIT(&rule->arg.map.key);
+		proxy->conf.args.ctx = ARGC_HRQ;
+		parse_logformat_string(args[cur_arg], proxy, &rule->arg.map.key, LOG_OPT_HTTP,
+			(proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
+			file, linenum);
+		free(proxy->conf.lfs_file);
+		proxy->conf.lfs_file = strdup(proxy->conf.args.file);
+		proxy->conf.lfs_line = proxy->conf.args.line;
+		cur_arg += 1;
+	} else if (strncmp(args[0], "del-map", 7) == 0) {
+		/* http-request del-map(<reference (map name)>) <key pattern> */
+		rule->action = HTTP_REQ_ACT_DEL_MAP;
+		/*
+		 * '+ 8' for 'del-map('
+		 * '- 9' for 'del-map(' + trailing ')'
+		 */
+		rule->arg.map.ref = strndup(args[0] + 8, strlen(args[0]) - 9);
+
+		cur_arg = 1;
+
+		if (!*args[cur_arg] ||
+		    (*args[cur_arg+1] && strcmp(args[cur_arg+1], "if") != 0 && strcmp(args[cur_arg+1], "unless") != 0)) {
+			Alert("parsing [%s:%d]: 'http-request %s' expects exactly 1 argument.\n",
+			      file, linenum, args[0]);
+			goto out_err;
+		}
+
+		LIST_INIT(&rule->arg.map.key);
+		proxy->conf.args.ctx = ARGC_HRQ;
+		parse_logformat_string(args[cur_arg], proxy, &rule->arg.map.key, LOG_OPT_HTTP,
+			(proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
+			file, linenum);
+		free(proxy->conf.lfs_file);
+		proxy->conf.lfs_file = strdup(proxy->conf.args.file);
+		proxy->conf.lfs_line = proxy->conf.args.line;
+		cur_arg += 1;
+	} else if (strncmp(args[0], "set-map", 7) == 0) {
+		/* http-request set-map(<reference (map name)>) <key pattern> <value pattern> */
+		rule->action = HTTP_REQ_ACT_SET_MAP;
+		/*
+		 * '+ 8' for 'set-map('
+		 * '- 9' for 'set-map(' + trailing ')'
+		 */
+		rule->arg.map.ref = strndup(args[0] + 8, strlen(args[0]) - 9);
+
+		cur_arg = 1;
+
+		if (!*args[cur_arg] || !*args[cur_arg+1] ||
+		    (*args[cur_arg+2] && strcmp(args[cur_arg+2], "if") != 0 && strcmp(args[cur_arg+2], "unless") != 0)) {
+			Alert("parsing [%s:%d]: 'http-request %s' expects exactly 2 arguments.\n",
+			      file, linenum, args[0]);
+			goto out_err;
+		}
+
+		LIST_INIT(&rule->arg.map.key);
+		LIST_INIT(&rule->arg.map.value);
+		proxy->conf.args.ctx = ARGC_HRQ;
+
+		/* key pattern */
+		parse_logformat_string(args[cur_arg], proxy, &rule->arg.map.key, LOG_OPT_HTTP,
+			(proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
+			file, linenum);
+
+		/* value pattern */
+		parse_logformat_string(args[cur_arg + 1], proxy, &rule->arg.map.value, LOG_OPT_HTTP,
+			(proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
+			file, linenum);
+		free(proxy->conf.lfs_file);
+		proxy->conf.lfs_file = strdup(proxy->conf.args.file);
+		proxy->conf.lfs_line = proxy->conf.args.line;
+
+		cur_arg += 2;
 	} else {
-		Alert("parsing [%s:%d]: 'http-request' expects 'allow', 'deny', 'auth', 'redirect', 'tarpit', 'add-header', 'set-header', 'set-nice', 'set-tos', 'set-mark', 'set-log-level', but got '%s'%s.\n",
+		Alert("parsing [%s:%d]: 'http-request' expects 'allow', 'deny', 'auth', 'redirect', 'tarpit', 'add-header', 'set-header', 'set-nice', 'set-tos', 'set-mark', 'set-log-level', 'add-acl', 'del-acl', 'del-map', 'set-map', but got '%s'%s.\n",
 		      file, linenum, args[0], *args[0] ? "" : " (missing argument)");
 		goto out_err;
 	}
@@ -8824,8 +9110,128 @@ struct http_res_rule *parse_http_res_cond(const char **args, const char *file, i
 		proxy->conf.lfs_file = strdup(proxy->conf.args.file);
 		proxy->conf.lfs_line = proxy->conf.args.line;
 		cur_arg += 1;
+	} else if (strncmp(args[0], "add-acl", 7) == 0) {
+		/* http-request add-acl(<reference (acl name)>) <key pattern> */
+		rule->action = HTTP_RES_ACT_ADD_ACL;
+		/*
+		 * '+ 8' for 'add-acl('
+		 * '- 9' for 'add-acl(' + trailing ')'
+		 */
+		rule->arg.map.ref = strndup(args[0] + 8, strlen(args[0]) - 9);
+
+		cur_arg = 1;
+
+		if (!*args[cur_arg] ||
+		    (*args[cur_arg+1] && strcmp(args[cur_arg+1], "if") != 0 && strcmp(args[cur_arg+1], "unless") != 0)) {
+			Alert("parsing [%s:%d]: 'http-response %s' expects exactly 1 argument.\n",
+			      file, linenum, args[0]);
+			goto out_err;
+		}
+
+		LIST_INIT(&rule->arg.map.key);
+		proxy->conf.args.ctx = ARGC_HRS;
+		parse_logformat_string(args[cur_arg], proxy, &rule->arg.map.key, LOG_OPT_HTTP,
+			(proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR,
+			file, linenum);
+		free(proxy->conf.lfs_file);
+		proxy->conf.lfs_file = strdup(proxy->conf.args.file);
+		proxy->conf.lfs_line = proxy->conf.args.line;
+
+		cur_arg += 1;
+	} else if (strncmp(args[0], "del-acl", 7) == 0) {
+		/* http-response del-acl(<reference (acl name)>) <key pattern> */
+		rule->action = HTTP_RES_ACT_DEL_ACL;
+		/*
+		 * '+ 8' for 'del-acl('
+		 * '- 9' for 'del-acl(' + trailing ')'
+		 */
+		rule->arg.map.ref = strndup(args[0] + 8, strlen(args[0]) - 9);
+
+		cur_arg = 1;
+
+		if (!*args[cur_arg] ||
+		    (*args[cur_arg+1] && strcmp(args[cur_arg+1], "if") != 0 && strcmp(args[cur_arg+1], "unless") != 0)) {
+			Alert("parsing [%s:%d]: 'http-response %s' expects exactly 1 argument.\n",
+			      file, linenum, args[0]);
+			goto out_err;
+		}
+
+		LIST_INIT(&rule->arg.map.key);
+		proxy->conf.args.ctx = ARGC_HRS;
+		parse_logformat_string(args[cur_arg], proxy, &rule->arg.map.key, LOG_OPT_HTTP,
+			(proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR,
+			file, linenum);
+		free(proxy->conf.lfs_file);
+		proxy->conf.lfs_file = strdup(proxy->conf.args.file);
+		proxy->conf.lfs_line = proxy->conf.args.line;
+		cur_arg += 1;
+	} else if (strncmp(args[0], "del-map", 7) == 0) {
+		/* http-response del-map(<reference (map name)>) <key pattern> */
+		rule->action = HTTP_RES_ACT_DEL_MAP;
+		/*
+		 * '+ 8' for 'del-map('
+		 * '- 9' for 'del-map(' + trailing ')'
+		 */
+		rule->arg.map.ref = strndup(args[0] + 8, strlen(args[0]) - 9);
+
+		cur_arg = 1;
+
+		if (!*args[cur_arg] ||
+		    (*args[cur_arg+1] && strcmp(args[cur_arg+1], "if") != 0 && strcmp(args[cur_arg+1], "unless") != 0)) {
+			Alert("parsing [%s:%d]: 'http-response %s' expects exactly 1 argument.\n",
+			      file, linenum, args[0]);
+			goto out_err;
+		}
+
+		LIST_INIT(&rule->arg.map.key);
+		proxy->conf.args.ctx = ARGC_HRS;
+		parse_logformat_string(args[cur_arg], proxy, &rule->arg.map.key, LOG_OPT_HTTP,
+			(proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR,
+			file, linenum);
+		free(proxy->conf.lfs_file);
+		proxy->conf.lfs_file = strdup(proxy->conf.args.file);
+		proxy->conf.lfs_line = proxy->conf.args.line;
+		cur_arg += 1;
+	} else if (strncmp(args[0], "set-map", 7) == 0) {
+		/* http-response set-map(<reference (map name)>) <key pattern> <value pattern> */
+		rule->action = HTTP_RES_ACT_SET_MAP;
+		/*
+		 * '+ 8' for 'set-map('
+		 * '- 9' for 'set-map(' + trailing ')'
+		 */
+		rule->arg.map.ref = strndup(args[0] + 8, strlen(args[0]) - 9);
+
+		cur_arg = 1;
+
+		if (!*args[cur_arg] || !*args[cur_arg+1] ||
+		    (*args[cur_arg+2] && strcmp(args[cur_arg+2], "if") != 0 && strcmp(args[cur_arg+2], "unless") != 0)) {
+			Alert("parsing [%s:%d]: 'http-response %s' expects exactly 2 arguments.\n",
+			      file, linenum, args[0]);
+			goto out_err;
+		}
+
+		LIST_INIT(&rule->arg.map.key);
+		LIST_INIT(&rule->arg.map.value);
+
+		proxy->conf.args.ctx = ARGC_HRS;
+
+		/* key pattern */
+		parse_logformat_string(args[cur_arg], proxy, &rule->arg.map.key, LOG_OPT_HTTP,
+			(proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR,
+			file, linenum);
+
+		/* value pattern */
+		parse_logformat_string(args[cur_arg + 1], proxy, &rule->arg.map.value, LOG_OPT_HTTP,
+			(proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR,
+			file, linenum);
+
+		free(proxy->conf.lfs_file);
+		proxy->conf.lfs_file = strdup(proxy->conf.args.file);
+		proxy->conf.lfs_line = proxy->conf.args.line;
+
+		cur_arg += 2;
 	} else {
-		Alert("parsing [%s:%d]: 'http-response' expects 'allow', 'deny', 'redirect', 'add-header', 'set-header', 'set-nice', 'set-tos', 'set-mark', 'set-log-level', but got '%s'%s.\n",
+		Alert("parsing [%s:%d]: 'http-response' expects 'allow', 'deny', 'redirect', 'add-header', 'del-header', 'set-header', 'set-nice', 'set-tos', 'set-mark', 'set-log-level', 'del-acl', 'add-acl', 'del-map', 'set-map', but got '%s'%s.\n",
 		      file, linenum, args[0], *args[0] ? "" : " (missing argument)");
 		goto out_err;
 	}
