@@ -3800,7 +3800,13 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 			s->flags |= SN_FINST_R;
 
 		req->analyse_exp = TICK_ETERNITY;
-		req->analysers = AN_REQ_HTTP_XFER_BODY;
+
+		/* we may want to compress the stats page */
+		if (s->fe->comp || s->be->comp)
+			select_compression_request_header(s, req->buf);
+
+		/* enable the minimally required analyzers to handle keep-alive and compression on the HTTP response */
+		req->analysers = AN_REQ_HTTP_XFER_BODY | AN_RES_WAIT_HTTP | AN_RES_HTTP_PROCESS_BE | AN_RES_HTTP_XFER_BODY;
 		return 1;
 	}
 
@@ -5856,6 +5862,12 @@ int http_process_res_common(struct session *s, struct channel *rep, int an_bit, 
 	/* we want to have the response time before we start processing it */
 	s->logs.t_data = tv_ms_elapsed(&s->logs.tv_accept, &now);
 
+	/* The stats applet needs to adjust the Connection header but we don't
+	 * apply any filter there.
+	 */
+	if (unlikely(objt_applet(s->target) == &http_stats_applet))
+		goto skip_filters;
+
 	/*
 	 * We will have to evaluate the filters.
 	 * As opposed to version 1.2, now they will be evaluated in the
@@ -6058,6 +6070,7 @@ int http_process_res_common(struct session *s, struct channel *rep, int an_bit, 
 		goto return_srv_prx_502;
 	}
 
+ skip_filters:
 	/*
 	 * Adjust "Connection: close" or "Connection: keep-alive" if needed.
 	 * If an "Upgrade" token is found, the header is left untouched in order
