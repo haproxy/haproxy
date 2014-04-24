@@ -5730,62 +5730,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 	if (s->fe->comp || s->be->comp)
 		select_compression_response_header(s, rep->buf);
 
-	/* FIXME: we should also implement the multipart/byterange method.
-	 * For now on, we resort to close mode in this case (unknown length).
-	 */
 skip_content_length:
-
-	/* end of job, return OK */
-	rep->analysers &= ~an_bit;
-	rep->analyse_exp = TICK_ETERNITY;
-	channel_auto_close(rep);
-	return 1;
-
- abort_keep_alive:
-	/* A keep-alive request to the server failed on a network error.
-	 * The client is required to retry. We need to close without returning
-	 * any other information so that the client retries.
-	 */
-	txn->status = 0;
-	rep->analysers = 0;
-	s->req->analysers = 0;
-	channel_auto_close(rep);
-	s->logs.logwait = 0;
-	s->logs.level = 0;
-	s->rep->flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
-	bi_erase(rep);
-	stream_int_retnclose(rep->cons, NULL);
-	return 0;
-}
-
-/* This function performs all the processing enabled for the current response.
- * It normally returns 1 unless it wants to break. It relies on buffers flags,
- * and updates s->rep->analysers. It might make sense to explode it into several
- * other functions. It works like process_request (see indications above).
- */
-int http_process_res_common(struct session *s, struct channel *rep, int an_bit, struct proxy *px)
-{
-	struct http_txn *txn = &s->txn;
-	struct http_msg *msg = &txn->rsp;
-	struct proxy *cur_proxy;
-	struct cond_wordlist *wl;
-	struct http_res_rule *http_res_last_rule = NULL;
-
-	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
-		now_ms, __FUNCTION__,
-		s,
-		rep,
-		rep->rex, rep->wex,
-		rep->flags,
-		rep->buf->i,
-		rep->analysers);
-
-	if (unlikely(msg->msg_state < HTTP_MSG_BODY))	/* we need more data */
-		return 0;
-
-	rep->analysers &= ~an_bit;
-	rep->analyse_exp = TICK_ETERNITY;
-
 	/* Now we have to check if we need to modify the Connection header.
 	 * This is more difficult on the response than it is on the request,
 	 * because we can have two different HTTP versions and we don't know
@@ -5861,6 +5806,57 @@ int http_process_res_common(struct session *s, struct channel *rep, int an_bit, 
 
 	/* we want to have the response time before we start processing it */
 	s->logs.t_data = tv_ms_elapsed(&s->logs.tv_accept, &now);
+
+	/* end of job, return OK */
+	rep->analysers &= ~an_bit;
+	rep->analyse_exp = TICK_ETERNITY;
+	channel_auto_close(rep);
+	return 1;
+
+ abort_keep_alive:
+	/* A keep-alive request to the server failed on a network error.
+	 * The client is required to retry. We need to close without returning
+	 * any other information so that the client retries.
+	 */
+	txn->status = 0;
+	rep->analysers = 0;
+	s->req->analysers = 0;
+	channel_auto_close(rep);
+	s->logs.logwait = 0;
+	s->logs.level = 0;
+	s->rep->flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
+	bi_erase(rep);
+	stream_int_retnclose(rep->cons, NULL);
+	return 0;
+}
+
+/* This function performs all the processing enabled for the current response.
+ * It normally returns 1 unless it wants to break. It relies on buffers flags,
+ * and updates s->rep->analysers. It might make sense to explode it into several
+ * other functions. It works like process_request (see indications above).
+ */
+int http_process_res_common(struct session *s, struct channel *rep, int an_bit, struct proxy *px)
+{
+	struct http_txn *txn = &s->txn;
+	struct http_msg *msg = &txn->rsp;
+	struct proxy *cur_proxy;
+	struct cond_wordlist *wl;
+	struct http_res_rule *http_res_last_rule = NULL;
+
+	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
+		now_ms, __FUNCTION__,
+		s,
+		rep,
+		rep->rex, rep->wex,
+		rep->flags,
+		rep->buf->i,
+		rep->analysers);
+
+	if (unlikely(msg->msg_state < HTTP_MSG_BODY))	/* we need more data */
+		return 0;
+
+	rep->analysers &= ~an_bit;
+	rep->analyse_exp = TICK_ETERNITY;
 
 	/* The stats applet needs to adjust the Connection header but we don't
 	 * apply any filter there.
