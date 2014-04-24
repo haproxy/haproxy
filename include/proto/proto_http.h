@@ -122,6 +122,20 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 
 enum http_meth_t find_http_meth(const char *str, const int len);
 
+struct http_req_action_kw *action_http_req_custom(const char *kw);
+struct http_res_action_kw *action_http_res_custom(const char *kw);
+
+static inline void http_req_keywords_register(struct http_req_action_kw_list *kw_list)
+{
+	LIST_ADDQ(&http_req_keywords.list, &kw_list->list);
+}
+
+static inline void http_res_keywords_register(struct http_res_action_kw_list *kw_list)
+{
+	LIST_ADDQ(&http_res_keywords.list, &kw_list->list);
+}
+
+
 /* to be used when contents change in an HTTP message */
 #define http_msg_move_end(msg, bytes) do { \
 		unsigned int _bytes = (bytes);	\

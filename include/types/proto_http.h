@@ -256,6 +256,8 @@ enum {
 	HTTP_REQ_ACT_DEL_ACL,
 	HTTP_REQ_ACT_DEL_MAP,
 	HTTP_REQ_ACT_SET_MAP,
+	HTTP_REQ_ACT_CUSTOM_STOP,
+	HTTP_REQ_ACT_CUSTOM_CONT,
 	HTTP_REQ_ACT_MAX /* must always be last */
 };
 
@@ -275,6 +277,8 @@ enum {
 	HTTP_RES_ACT_DEL_ACL,
 	HTTP_RES_ACT_DEL_MAP,
 	HTTP_RES_ACT_SET_MAP,
+	HTTP_RES_ACT_CUSTOM_STOP,  /* used for module keywords */
+	HTTP_RES_ACT_CUSTOM_CONT,  /* used for module keywords */
 	HTTP_RES_ACT_MAX /* must always be last */
 };
 
@@ -394,10 +398,15 @@ struct http_auth_data {
 	char *user, *pass;                    /* extracted username & password */
 };
 
+struct proxy;
+struct http_txn;
+struct session;
+
 struct http_req_rule {
 	struct list list;
 	struct acl_cond *cond;                 /* acl condition to meet */
 	unsigned int action;                   /* HTTP_REQ_* */
+	int (*action_ptr)(struct http_req_rule *rule, struct proxy *px, struct session *s, struct http_txn *http_txn);  /* ptr to custom action */
 	union {
 		struct {
 			char *realm;
@@ -424,6 +433,7 @@ struct http_res_rule {
 	struct list list;
 	struct acl_cond *cond;                 /* acl condition to meet */
 	unsigned int action;                   /* HTTP_RES_* */
+	int (*action_ptr)(struct http_res_rule *rule, struct proxy *px, struct session *s, struct http_txn *http_txn);  /* ptr to custom action */
 	union {
 		struct {
 			char *name;            /* header name */
@@ -464,6 +474,7 @@ struct http_txn {
 	struct http_auth_data auth;	/* HTTP auth data */
 };
 
+
 /* This structure is used by http_find_header() to return values of headers.
  * The header starts at <line>, the value (excluding leading and trailing white
  * spaces) at <line>+<val> for <vlen> bytes, followed by optional <tws> trailing
@@ -485,6 +496,31 @@ struct http_method_name {
 	char *name;
 	int len;
 };
+
+struct http_req_action_kw {
+       const char *kw;
+       int (*parse)(const char **args, int *cur_arg, struct proxy *px, struct http_req_rule *rule, char **err);
+};
+
+struct http_res_action_kw {
+       const char *kw;
+       int (*parse)(const char **args, int *cur_arg, struct proxy *px, struct http_res_rule *rule, char **err);
+};
+
+struct http_req_action_kw_list {
+       const char *scope;
+       struct list list;
+       struct http_req_action_kw kw[VAR_ARRAY];
+};
+
+struct http_res_action_kw_list {
+       const char *scope;
+       struct list list;
+       struct http_res_action_kw kw[VAR_ARRAY];
+};
+
+extern struct http_req_action_kw_list http_req_keywords;
+extern struct http_res_action_kw_list http_res_keywords;
 
 extern const struct http_method_name http_known_methods[HTTP_METH_OTHER];
 

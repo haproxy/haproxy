@@ -217,6 +217,16 @@ const char *stat_status_codes[STAT_STATUS_SIZE] = {
 };
 
 
+/* List head of all known action keywords for "http-request" */
+struct http_req_action_kw_list http_req_keywords = {
+       .list = LIST_HEAD_INIT(http_req_keywords.list)
+};
+
+/* List head of all known action keywords for "http-response" */
+struct http_res_action_kw_list http_res_keywords = {
+       .list = LIST_HEAD_INIT(http_res_keywords.list)
+};
+
 /* We must put the messages here since GCC cannot initialize consts depending
  * on strlen().
  */
@@ -3289,6 +3299,14 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 
 			break;
 			}
+
+		case HTTP_REQ_ACT_CUSTOM_CONT:
+			rule->action_ptr(rule, px, s, txn);
+			break;
+
+		case HTTP_REQ_ACT_CUSTOM_STOP:
+			rule->action_ptr(rule, px, s, txn);
+			return rule;
 		}
 	}
 
@@ -3462,6 +3480,14 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 
 			break;
 			}
+
+		case HTTP_RES_ACT_CUSTOM_CONT:
+			rule->action_ptr(rule, px, s, txn);
+			break;
+
+		case HTTP_RES_ACT_CUSTOM_STOP:
+			rule->action_ptr(rule, px, s, txn);
+			return rule;
 		}
 	}
 
@@ -3955,6 +3981,11 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 	if (http_req_last_rule && http_req_last_rule->action == HTTP_REQ_ACT_REDIR) {
 		if (!http_apply_redirect_rule(http_req_last_rule->arg.redir, s, txn))
 			goto return_bad_req;
+		req->analyse_exp = TICK_ETERNITY;
+		return 1;
+	}
+
+	if (http_req_last_rule && http_req_last_rule->action == HTTP_REQ_ACT_CUSTOM_STOP) {
 		req->analyse_exp = TICK_ETERNITY;
 		return 1;
 	}
@@ -8650,6 +8681,7 @@ void free_http_req_rules(struct list *r) {
 struct http_req_rule *parse_http_req_cond(const char **args, const char *file, int linenum, struct proxy *proxy)
 {
 	struct http_req_rule *rule;
+	struct http_req_action_kw *custom = NULL;
 	int cur_arg;
 
 	rule = (struct http_req_rule*)calloc(1, sizeof(struct http_req_rule));
@@ -8938,6 +8970,16 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		proxy->conf.lfs_line = proxy->conf.args.line;
 
 		cur_arg += 2;
+	} else if (((custom = action_http_req_custom(args[0])) != NULL)) {
+		char *errmsg = NULL;
+		cur_arg = 1;
+		/* try in the module list */
+		if (custom->parse(args, &cur_arg, proxy, rule, &errmsg) < 0) {
+			Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-request %s' rule : %s.\n",
+			      file, linenum, proxy_type_str(proxy), proxy->id, args[0], errmsg);
+			free(errmsg);
+			goto out_err;
+		}
 	} else {
 		Alert("parsing [%s:%d]: 'http-request' expects 'allow', 'deny', 'auth', 'redirect', 'tarpit', 'add-header', 'set-header', 'set-nice', 'set-tos', 'set-mark', 'set-log-level', 'add-acl', 'del-acl', 'del-map', 'set-map', but got '%s'%s.\n",
 		      file, linenum, args[0], *args[0] ? "" : " (missing argument)");
@@ -8973,6 +9015,7 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 struct http_res_rule *parse_http_res_cond(const char **args, const char *file, int linenum, struct proxy *proxy)
 {
 	struct http_res_rule *rule;
+	struct http_res_action_kw *custom = NULL;
 	int cur_arg;
 
 	rule = calloc(1, sizeof(*rule));
@@ -9230,6 +9273,16 @@ struct http_res_rule *parse_http_res_cond(const char **args, const char *file, i
 		proxy->conf.lfs_line = proxy->conf.args.line;
 
 		cur_arg += 2;
+	} else if (((custom = action_http_res_custom(args[0])) != NULL)) {
+		char *errmsg = NULL;
+		cur_arg = 1;
+		/* try in the module list */
+		if (custom->parse(args, &cur_arg, proxy, rule, &errmsg) < 0) {
+			Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-response %s' rule : %s.\n",
+			      file, linenum, proxy_type_str(proxy), proxy->id, args[0], errmsg);
+			free(errmsg);
+			goto out_err;
+		}
 	} else {
 		Alert("parsing [%s:%d]: 'http-response' expects 'allow', 'deny', 'redirect', 'add-header', 'del-header', 'set-header', 'set-nice', 'set-tos', 'set-mark', 'set-log-level', 'del-acl', 'add-acl', 'del-map', 'set-map', but got '%s'%s.\n",
 		      file, linenum, args[0], *args[0] ? "" : " (missing argument)");
@@ -11120,6 +11173,44 @@ expect_comma:
 
 	/* Return true only if a matching language was found. */
 	return smp->data.str.len != 0;
+}
+
+/*
+ * Return the struct http_req_action_kw associated to a keyword.
+ */
+struct http_req_action_kw *action_http_req_custom(const char *kw)
+{
+	if (!LIST_ISEMPTY(&http_req_keywords.list)) {
+		struct http_req_action_kw_list *kw_list;
+		int i;
+
+		list_for_each_entry(kw_list, &http_req_keywords.list, list) {
+			for (i = 0; kw_list->kw[i].kw != NULL; i++) {
+				if (!strcmp(kw, kw_list->kw[i].kw))
+					return &kw_list->kw[i];
+			}
+		}
+	}
+	return NULL;
+}
+
+/*
+ * Return the struct http_res_action_kw associated to a keyword.
+ */
+struct http_res_action_kw *action_http_res_custom(const char *kw)
+{
+	if (!LIST_ISEMPTY(&http_res_keywords.list)) {
+		struct http_res_action_kw_list *kw_list;
+		int i;
+
+		list_for_each_entry(kw_list, &http_res_keywords.list, list) {
+			for (i = 0; kw_list->kw[i].kw != NULL; i++) {
+				if (!strcmp(kw, kw_list->kw[i].kw))
+					return &kw_list->kw[i];
+			}
+		}
+	}
+	return NULL;
 }
 
 /************************************************************************/
