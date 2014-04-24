@@ -5025,6 +5025,12 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 	/* in most states, we should abort in case of early close */
 	channel_auto_close(req);
 
+	if (req->to_forward) {
+		/* We can't process the buffer's contents yet */
+		req->flags |= CF_WAKE_WRITE;
+		goto missing_data;
+	}
+
 	while (1) {
 		if (msg->msg_state == HTTP_MSG_DATA) {
 			/* must still forward */
@@ -6192,6 +6198,12 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 			else
 				msg->msg_state = HTTP_MSG_DATA;
 		}
+	}
+
+	if (res->to_forward) {
+		/* We can't process the buffer's contents yet */
+		res->flags |= CF_WAKE_WRITE;
+		goto missing_data;
 	}
 
 	if (unlikely(s->comp_algo != NULL) && msg->msg_state < HTTP_MSG_TRAILERS) {
