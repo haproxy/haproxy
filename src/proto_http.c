@@ -10033,6 +10033,54 @@ smp_fetch_capture_req_uri(struct proxy *px, struct session *l4, void *l7, unsign
 	return 1;
 }
 
+/* Retrieves the HTTP version from the request (either 1.0 or 1.1) and emits it
+ * as a string (either "HTTP/1.0" or "HTTP/1.1").
+ */
+static int
+smp_fetch_capture_req_ver(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                          const struct arg *args, struct sample *smp, const char *kw)
+{
+	struct http_txn *txn = l7;
+
+	if (txn->req.msg_state < HTTP_MSG_HDR_FIRST)
+		return 0;
+
+	if (txn->req.flags & HTTP_MSGF_VER_11)
+		smp->data.str.str = "HTTP/1.1";
+	else
+		smp->data.str.str = "HTTP/1.0";
+
+	smp->data.str.len = 8;
+	smp->type  = SMP_T_STR;
+	smp->flags = SMP_F_CONST;
+	return 1;
+
+}
+
+/* Retrieves the HTTP version from the response (either 1.0 or 1.1) and emits it
+ * as a string (either "HTTP/1.0" or "HTTP/1.1").
+ */
+static int
+smp_fetch_capture_res_ver(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                          const struct arg *args, struct sample *smp, const char *kw)
+{
+	struct http_txn *txn = l7;
+
+	if (txn->rsp.msg_state < HTTP_MSG_HDR_FIRST)
+		return 0;
+
+	if (txn->rsp.flags & HTTP_MSGF_VER_11)
+		smp->data.str.str = "HTTP/1.1";
+	else
+		smp->data.str.str = "HTTP/1.0";
+
+	smp->data.str.len = 8;
+	smp->type  = SMP_T_STR;
+	smp->flags = SMP_F_CONST;
+	return 1;
+
+}
+
 
 /* Iterate over all cookies present in a message. The context is stored in
  * smp->ctx.a[0] for the in-header position, smp->ctx.a[1] for the
@@ -10771,12 +10819,16 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "base32",          smp_fetch_base32,         0,                NULL,    SMP_T_UINT, SMP_USE_HRQHV },
 	{ "base32+src",      smp_fetch_base32_src,     0,                NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
 
-	{ "capture.req.uri",    smp_fetch_capture_req_uri,    0,          NULL,    SMP_T_STR, SMP_USE_HRQHP },
-	{ "capture.req.method", smp_fetch_capture_req_method, 0,          NULL,    SMP_T_STR, SMP_USE_HRQHP },
-
 	/* capture are allocated and are permanent in the session */
 	{ "capture.req.hdr", smp_fetch_capture_header_req, ARG1(1, UINT), NULL,   SMP_T_STR,  SMP_USE_HRQHP },
+
+	/* retrieve these captures from the HTTP logs */
+	{ "capture.req.method", smp_fetch_capture_req_method, 0,          NULL,   SMP_T_STR,  SMP_USE_HRQHP },
+	{ "capture.req.uri",    smp_fetch_capture_req_uri,    0,          NULL,   SMP_T_STR,  SMP_USE_HRQHP },
+	{ "capture.req.ver",    smp_fetch_capture_req_ver,    0,          NULL,   SMP_T_STR,  SMP_USE_HRQHP },
+
 	{ "capture.res.hdr", smp_fetch_capture_header_res, ARG1(1, UINT), NULL,   SMP_T_STR,  SMP_USE_HRSHP },
+	{ "capture.res.ver", smp_fetch_capture_res_ver,       0,          NULL,   SMP_T_STR,  SMP_USE_HRQHP },
 
 	/* cookie is valid in both directions (eg: for "stick ...") but cook*
 	 * are only here to match the ACL's name, are request-only and are used

@@ -10698,11 +10698,21 @@ capture.req.uri : string
   and "url", it can be used in both request and response because it's
   allocated.
 
+capture.req.ver : string
+  This extracts the request's HTTP version and returns either "HTTP/1.0" or
+  "HTTP/1.1". Unlike "req.ver", it can be used in both request, response, and
+  logs because it relies on a persistent flag.
+
 capture.res.hdr(<idx>) : string
   This extracts the content of the header captured by the "capture response
   header", idx is the position of the capture keyword in the configuration.
   The first entry is an index of 0.
   See also: "capture response header"
+
+capture.res.ver : string
+  This extracts the response's HTTP version and returns either "HTTP/1.0" or
+  "HTTP/1.1". Unlike "res.ver", it can be used in logs because it relies on a
+  persistent flag.
 
 req.cook([<name>]) : string
 cook([<name>]) : string (deprecated)
