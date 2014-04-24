@@ -4462,7 +4462,7 @@ static void http_stats_io_handler(struct stream_interface *si)
 		unsigned int prev_len = si->ib->buf->i;
 		unsigned int data_len;
 		unsigned int last_len;
-		unsigned int last_fwd;
+		unsigned int last_fwd = 0;
 
 		if (appctx->ctx.stats.flags & STAT_CHUNKED) {
 			/* One difficulty we're facing is that we must prevent
