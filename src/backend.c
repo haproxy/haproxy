@@ -1110,7 +1110,7 @@ int connect_server(struct session *s)
  * that the connection is ready to use.
  */
 
-int srv_redispatch_connect(struct session *t)
+int srv_redispatch_connect(struct session *s)
 {
 	struct server *srv;
 	int conn_err;
@@ -1119,8 +1119,8 @@ int srv_redispatch_connect(struct session *t)
 	 * try to get a new one, and wait in this state if it's queued
 	 */
  redispatch:
-	conn_err = assign_server_and_queue(t);
-	srv = objt_server(t->target);
+	conn_err = assign_server_and_queue(s);
+	srv = objt_server(s->target);
 
 	switch (conn_err) {
 	case SRV_STATUS_OK:
@@ -1131,42 +1131,42 @@ int srv_redispatch_connect(struct session *t)
 		 * and we can redispatch to another server, or it is not and we return
 		 * 503. This only makes sense in DIRECT mode however, because normal LB
 		 * algorithms would never select such a server, and hash algorithms
-		 * would bring us on the same server again. Note that t->target is set
+		 * would bring us on the same server again. Note that s->target is set
 		 * in this case.
 		 */
-		if (((t->flags & (SN_DIRECT|SN_FORCE_PRST)) == SN_DIRECT) &&
-		    (t->be->options & PR_O_REDISP)) {
-			t->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
+		if (((s->flags & (SN_DIRECT|SN_FORCE_PRST)) == SN_DIRECT) &&
+		    (s->be->options & PR_O_REDISP)) {
+			s->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
 			goto redispatch;
 		}
 
-		if (!t->req->cons->err_type) {
-			t->req->cons->err_type = SI_ET_QUEUE_ERR;
+		if (!s->req->cons->err_type) {
+			s->req->cons->err_type = SI_ET_QUEUE_ERR;
 		}
 
 		srv->counters.failed_conns++;
-		t->be->be_counters.failed_conns++;
+		s->be->be_counters.failed_conns++;
 		return 1;
 
 	case SRV_STATUS_NOSRV:
 		/* note: it is guaranteed that srv == NULL here */
-		if (!t->req->cons->err_type) {
-			t->req->cons->err_type = SI_ET_CONN_ERR;
+		if (!s->req->cons->err_type) {
+			s->req->cons->err_type = SI_ET_CONN_ERR;
 		}
 
-		t->be->be_counters.failed_conns++;
+		s->be->be_counters.failed_conns++;
 		return 1;
 
 	case SRV_STATUS_QUEUED:
-		t->req->cons->exp = tick_add_ifset(now_ms, t->be->timeout.queue);
-		t->req->cons->state = SI_ST_QUE;
+		s->req->cons->exp = tick_add_ifset(now_ms, s->be->timeout.queue);
+		s->req->cons->state = SI_ST_QUE;
 		/* do nothing else and do not wake any other session up */
 		return 1;
 
 	case SRV_STATUS_INTERNAL:
 	default:
-		if (!t->req->cons->err_type) {
-			t->req->cons->err_type = SI_ET_CONN_OTHER;
+		if (!s->req->cons->err_type) {
+			s->req->cons->err_type = SI_ET_CONN_OTHER;
 		}
 
 		if (srv)
@@ -1175,10 +1175,10 @@ int srv_redispatch_connect(struct session *t)
 			srv_set_sess_last(srv);
 		if (srv)
 			srv->counters.failed_conns++;
-		t->be->be_counters.failed_conns++;
+		s->be->be_counters.failed_conns++;
 
 		/* release other sessions waiting for this server */
-		if (may_dequeue_tasks(srv, t->be))
+		if (may_dequeue_tasks(srv, s->be))
 			process_srv_queue(srv);
 		return 1;
 	}

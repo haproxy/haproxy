@@ -746,7 +746,7 @@ int http_remove_header2(struct http_msg *msg, struct hdr_idx *idx, struct hdr_ct
  * The error flags are set to the values in arguments. Any pending request
  * in this buffer will be lost.
  */
-static void http_server_error(struct session *t, struct stream_interface *si,
+static void http_server_error(struct session *s, struct stream_interface *si,
 			      int err, int finst, int status, const struct chunk *msg)
 {
 	channel_auto_read(si->ob);
@@ -756,13 +756,13 @@ static void http_server_error(struct session *t, struct stream_interface *si,
 	channel_auto_close(si->ib);
 	channel_auto_read(si->ib);
 	if (status > 0 && msg) {
-		t->txn.status = status;
+		s->txn.status = status;
 		bo_inject(si->ib, msg->str, msg->len);
 	}
-	if (!(t->flags & SN_ERR_MASK))
-		t->flags |= err;
-	if (!(t->flags & SN_FINST_MASK))
-		t->flags |= finst;
+	if (!(s->flags & SN_ERR_MASK))
+		s->flags |= err;
+	if (!(s->flags & SN_FINST_MASK))
+		s->flags |= finst;
 }
 
 /* This function returns the appropriate error location for the given session
@@ -5754,12 +5754,12 @@ skip_content_length:
 
 /* This function performs all the processing enabled for the current response.
  * It normally returns 1 unless it wants to break. It relies on buffers flags,
- * and updates t->rep->analysers. It might make sense to explode it into several
+ * and updates s->rep->analysers. It might make sense to explode it into several
  * other functions. It works like process_request (see indications above).
  */
-int http_process_res_common(struct session *t, struct channel *rep, int an_bit, struct proxy *px)
+int http_process_res_common(struct session *s, struct channel *rep, int an_bit, struct proxy *px)
 {
-	struct http_txn *txn = &t->txn;
+	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->rsp;
 	struct proxy *cur_proxy;
 	struct cond_wordlist *wl;
@@ -5767,7 +5767,7 @@ int http_process_res_common(struct session *t, struct channel *rep, int an_bit, 
 
 	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
-		t,
+		s,
 		rep,
 		rep->rex, rep->wex,
 		rep->flags,
@@ -5812,14 +5812,14 @@ int http_process_res_common(struct session *t, struct channel *rep, int an_bit, 
 	}
 	else if ((txn->status >= 200) && !(txn->flags & TX_HDR_CONN_PRS) &&
 		 ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN ||
-		  ((t->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
-		   (t->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL))) {
+		  ((s->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
+		   (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL))) {
 		int to_del = 0;
 
 		/* this situation happens when combining pretend-keepalive with httpclose. */
 		if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL &&
-		    ((t->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
-		     (t->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL))
+		    ((s->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
+		     (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL))
 			txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
 
 		/* on unknown transfer length, we must close */
@@ -5854,7 +5854,7 @@ int http_process_res_common(struct session *t, struct channel *rep, int an_bit, 
 	}
 
 	/* we want to have the response time before we start processing it */
-	t->logs.t_data = tv_ms_elapsed(&t->logs.tv_accept, &now);
+	s->logs.t_data = tv_ms_elapsed(&s->logs.tv_accept, &now);
 
 	if (1) {
 		/*
@@ -5867,47 +5867,47 @@ int http_process_res_common(struct session *t, struct channel *rep, int an_bit, 
 		 * different from ->be.
 		 */
 
-		cur_proxy = t->be;
+		cur_proxy = s->be;
 		while (1) {
 			struct proxy *rule_set = cur_proxy;
 
 			/* evaluate http-response rules */
 			if (!http_res_last_rule)
-				http_res_last_rule = http_res_get_intercept_rule(cur_proxy, &cur_proxy->http_res_rules, t, txn);
+				http_res_last_rule = http_res_get_intercept_rule(cur_proxy, &cur_proxy->http_res_rules, s, txn);
 
 			/* try headers filters */
 			if (rule_set->rsp_exp != NULL) {
-				if (apply_filters_to_response(t, rep, rule_set) < 0) {
+				if (apply_filters_to_response(s, rep, rule_set) < 0) {
 				return_bad_resp:
-					if (objt_server(t->target)) {
-						objt_server(t->target)->counters.failed_resp++;
-						health_adjust(objt_server(t->target), HANA_STATUS_HTTP_RSP);
+					if (objt_server(s->target)) {
+						objt_server(s->target)->counters.failed_resp++;
+						health_adjust(objt_server(s->target), HANA_STATUS_HTTP_RSP);
 					}
-					t->be->be_counters.failed_resp++;
+					s->be->be_counters.failed_resp++;
 				return_srv_prx_502:
 					rep->analysers = 0;
 					txn->status = 502;
-					t->logs.t_data = -1; /* was not a valid response */
+					s->logs.t_data = -1; /* was not a valid response */
 					rep->prod->flags |= SI_FL_NOLINGER;
 					bi_erase(rep);
-					stream_int_retnclose(rep->cons, http_error_message(t, HTTP_ERR_502));
-					if (!(t->flags & SN_ERR_MASK))
-						t->flags |= SN_ERR_PRXCOND;
-					if (!(t->flags & SN_FINST_MASK))
-						t->flags |= SN_FINST_H;
+					stream_int_retnclose(rep->cons, http_error_message(s, HTTP_ERR_502));
+					if (!(s->flags & SN_ERR_MASK))
+						s->flags |= SN_ERR_PRXCOND;
+					if (!(s->flags & SN_FINST_MASK))
+						s->flags |= SN_FINST_H;
 					return 0;
 				}
 			}
 
 			/* has the response been denied ? */
 			if (txn->flags & TX_SVDENY) {
-				if (objt_server(t->target))
-					objt_server(t->target)->counters.failed_secu++;
+				if (objt_server(s->target))
+					objt_server(s->target)->counters.failed_secu++;
 
-				t->be->be_counters.denied_resp++;
-				t->fe->fe_counters.denied_resp++;
-				if (t->listener->counters)
-					t->listener->counters->denied_resp++;
+				s->be->be_counters.denied_resp++;
+				s->fe->fe_counters.denied_resp++;
+				if (s->listener->counters)
+					s->listener->counters->denied_resp++;
 
 				goto return_srv_prx_502;
 			}
@@ -5917,7 +5917,7 @@ int http_process_res_common(struct session *t, struct channel *rep, int an_bit, 
 				if (txn->status < 200)
 					break;
 				if (wl->cond) {
-					int ret = acl_exec_cond(wl->cond, px, t, txn, SMP_OPT_DIR_RES|SMP_OPT_FINAL);
+					int ret = acl_exec_cond(wl->cond, px, s, txn, SMP_OPT_DIR_RES|SMP_OPT_FINAL);
 					ret = acl_pass(ret);
 					if (((struct acl_cond *)wl->cond)->pol == ACL_COND_UNLESS)
 						ret = !ret;
@@ -5929,9 +5929,9 @@ int http_process_res_common(struct session *t, struct channel *rep, int an_bit, 
 			}
 
 			/* check whether we're already working on the frontend */
-			if (cur_proxy == t->fe)
+			if (cur_proxy == s->fe)
 				break;
-			cur_proxy = t->fe;
+			cur_proxy = s->fe;
 		}
 
 		if (unlikely(txn->status < 200))
@@ -5942,50 +5942,50 @@ int http_process_res_common(struct session *t, struct channel *rep, int an_bit, 
 		/*
 		 * 4: check for server cookie.
 		 */
-		if (t->be->cookie_name || t->be->appsession_name || t->fe->capture_name ||
-		    (t->be->options & PR_O_CHK_CACHE))
-			manage_server_side_cookies(t, rep);
+		if (s->be->cookie_name || s->be->appsession_name || s->fe->capture_name ||
+		    (s->be->options & PR_O_CHK_CACHE))
+			manage_server_side_cookies(s, rep);
 
 
 		/*
 		 * 5: check for cache-control or pragma headers if required.
 		 */
-		if ((t->be->options & PR_O_CHK_CACHE) || (t->be->ck_opts & PR_CK_NOC))
-			check_response_for_cacheability(t, rep);
+		if ((s->be->options & PR_O_CHK_CACHE) || (s->be->ck_opts & PR_CK_NOC))
+			check_response_for_cacheability(s, rep);
 
 		/*
 		 * 6: add server cookie in the response if needed
 		 */
-		if (objt_server(t->target) && (t->be->ck_opts & PR_CK_INS) &&
-		    !((txn->flags & TX_SCK_FOUND) && (t->be->ck_opts & PR_CK_PSV)) &&
-		    (!(t->flags & SN_DIRECT) ||
-		     ((t->be->cookie_maxidle || txn->cookie_last_date) &&
+		if (objt_server(s->target) && (s->be->ck_opts & PR_CK_INS) &&
+		    !((txn->flags & TX_SCK_FOUND) && (s->be->ck_opts & PR_CK_PSV)) &&
+		    (!(s->flags & SN_DIRECT) ||
+		     ((s->be->cookie_maxidle || txn->cookie_last_date) &&
 		      (!txn->cookie_last_date || (txn->cookie_last_date - date.tv_sec) < 0)) ||
-		     (t->be->cookie_maxlife && !txn->cookie_first_date) ||  // set the first_date
-		     (!t->be->cookie_maxlife && txn->cookie_first_date)) && // remove the first_date
-		    (!(t->be->ck_opts & PR_CK_POST) || (txn->meth == HTTP_METH_POST)) &&
-		    !(t->flags & SN_IGNORE_PRST)) {
+		     (s->be->cookie_maxlife && !txn->cookie_first_date) ||  // set the first_date
+		     (!s->be->cookie_maxlife && txn->cookie_first_date)) && // remove the first_date
+		    (!(s->be->ck_opts & PR_CK_POST) || (txn->meth == HTTP_METH_POST)) &&
+		    !(s->flags & SN_IGNORE_PRST)) {
 			/* the server is known, it's not the one the client requested, or the
 			 * cookie's last seen date needs to be refreshed. We have to
 			 * insert a set-cookie here, except if we want to insert only on POST
 			 * requests and this one isn't. Note that servers which don't have cookies
 			 * (eg: some backup servers) will return a full cookie removal request.
 			 */
-			if (!objt_server(t->target)->cookie) {
+			if (!objt_server(s->target)->cookie) {
 				chunk_printf(&trash,
 					      "Set-Cookie: %s=; Expires=Thu, 01-Jan-1970 00:00:01 GMT; path=/",
-					      t->be->cookie_name);
+					      s->be->cookie_name);
 			}
 			else {
-				chunk_printf(&trash, "Set-Cookie: %s=%s", t->be->cookie_name, objt_server(t->target)->cookie);
+				chunk_printf(&trash, "Set-Cookie: %s=%s", s->be->cookie_name, objt_server(s->target)->cookie);
 
-				if (t->be->cookie_maxidle || t->be->cookie_maxlife) {
+				if (s->be->cookie_maxidle || s->be->cookie_maxlife) {
 					/* emit last_date, which is mandatory */
 					trash.str[trash.len++] = COOKIE_DELIM_DATE;
 					s30tob64((date.tv_sec+3) >> 2, trash.str + trash.len);
 					trash.len += 5;
 
-					if (t->be->cookie_maxlife) {
+					if (s->be->cookie_maxlife) {
 						/* emit first_date, which is either the original one or
 						 * the current date.
 						 */
@@ -5999,20 +5999,20 @@ int http_process_res_common(struct session *t, struct channel *rep, int an_bit, 
 				chunk_appendf(&trash, "; path=/");
 			}
 
-			if (t->be->cookie_domain)
-				chunk_appendf(&trash, "; domain=%s", t->be->cookie_domain);
+			if (s->be->cookie_domain)
+				chunk_appendf(&trash, "; domain=%s", s->be->cookie_domain);
 
-			if (t->be->ck_opts & PR_CK_HTTPONLY)
+			if (s->be->ck_opts & PR_CK_HTTPONLY)
 				chunk_appendf(&trash, "; HttpOnly");
 
-			if (t->be->ck_opts & PR_CK_SECURE)
+			if (s->be->ck_opts & PR_CK_SECURE)
 				chunk_appendf(&trash, "; Secure");
 
 			if (unlikely(http_header_add_tail2(&txn->rsp, &txn->hdr_idx, trash.str, trash.len) < 0))
 				goto return_bad_resp;
 
 			txn->flags &= ~TX_SCK_MASK;
-			if (objt_server(t->target)->cookie && (t->flags & SN_DIRECT))
+			if (objt_server(s->target)->cookie && (s->flags & SN_DIRECT))
 				/* the server did not change, only the date was updated */
 				txn->flags |= TX_SCK_UPDATED;
 			else
@@ -6023,7 +6023,7 @@ int http_process_res_common(struct session *t, struct channel *rep, int an_bit, 
 			 * Some caches understand the correct form: 'no-cache="set-cookie"', but
 			 * others don't (eg: apache <= 1.3.26). So we use 'private' instead.
 			 */
-			if ((t->be->ck_opts & PR_CK_NOC) && (txn->flags & TX_CACHEABLE)) {
+			if ((s->be->ck_opts & PR_CK_NOC) && (txn->flags & TX_CACHEABLE)) {
 
 				txn->flags &= ~TX_CACHEABLE & ~TX_CACHE_COOK;
 
@@ -6040,25 +6040,25 @@ int http_process_res_common(struct session *t, struct channel *rep, int an_bit, 
 		 */
 		if (((txn->flags & (TX_CACHEABLE | TX_CACHE_COOK | TX_SCK_PRESENT)) ==
 		     (TX_CACHEABLE | TX_CACHE_COOK | TX_SCK_PRESENT)) &&
-		    (t->be->options & PR_O_CHK_CACHE)) {
+		    (s->be->options & PR_O_CHK_CACHE)) {
 
 			/* we're in presence of a cacheable response containing
 			 * a set-cookie header. We'll block it as requested by
 			 * the 'checkcache' option, and send an alert.
 			 */
-			if (objt_server(t->target))
-				objt_server(t->target)->counters.failed_secu++;
+			if (objt_server(s->target))
+				objt_server(s->target)->counters.failed_secu++;
 
-			t->be->be_counters.denied_resp++;
-			t->fe->fe_counters.denied_resp++;
-			if (t->listener->counters)
-				t->listener->counters->denied_resp++;
+			s->be->be_counters.denied_resp++;
+			s->fe->fe_counters.denied_resp++;
+			if (s->listener->counters)
+				s->listener->counters->denied_resp++;
 
 			Alert("Blocking cacheable cookie in response from instance %s, server %s.\n",
-			      t->be->id, objt_server(t->target) ? objt_server(t->target)->id : "<dispatch>");
-			send_log(t->be, LOG_ALERT,
+			      s->be->id, objt_server(s->target) ? objt_server(s->target)->id : "<dispatch>");
+			send_log(s->be, LOG_ALERT,
 				 "Blocking cacheable cookie in response from instance %s, server %s.\n",
-				 t->be->id, objt_server(t->target) ? objt_server(t->target)->id : "<dispatch>");
+				 s->be->id, objt_server(s->target) ? objt_server(s->target)->id : "<dispatch>");
 			goto return_srv_prx_502;
 		}
 
@@ -6070,8 +6070,8 @@ int http_process_res_common(struct session *t, struct channel *rep, int an_bit, 
 		 */
 		if (!(txn->flags & TX_HDR_CONN_UPG) &&
 		    (((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) ||
-		     ((t->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
-		      (t->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL))) {
+		     ((s->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
+		      (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL))) {
 			unsigned int want_flags = 0;
 
 			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
@@ -6108,11 +6108,11 @@ int http_process_res_common(struct session *t, struct channel *rep, int an_bit, 
 		 * bytes from the server, then this is the right moment. We have
 		 * to temporarily assign bytes_out to log what we currently have.
 		 */
-		if (!LIST_ISEMPTY(&t->fe->logformat) && !(t->logs.logwait & LW_BYTES)) {
-			t->logs.t_close = t->logs.t_data; /* to get a valid end date */
-			t->logs.bytes_out = txn->rsp.eoh;
-			t->do_log(t);
-			t->logs.bytes_out = 0;
+		if (!LIST_ISEMPTY(&s->fe->logformat) && !(s->logs.logwait & LW_BYTES)) {
+			s->logs.t_close = s->logs.t_data; /* to get a valid end date */
+			s->logs.bytes_out = txn->rsp.eoh;
+			s->do_log(s);
+			s->logs.bytes_out = 0;
 		}
 
 		/* Note: we must not try to cheat by jumping directly to DATA,
@@ -6469,12 +6469,12 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
  * Since it can manage the switch to another backend, it updates the per-proxy
  * DENY stats.
  */
-int apply_filter_to_req_headers(struct session *t, struct channel *req, struct hdr_exp *exp)
+int apply_filter_to_req_headers(struct session *s, struct channel *req, struct hdr_exp *exp)
 {
 	char term;
 	char *cur_ptr, *cur_end, *cur_next;
 	int cur_idx, old_idx, last_hdr;
-	struct http_txn *txn = &t->txn;
+	struct http_txn *txn = &s->txn;
 	struct hdr_idx_elem *cur_hdr;
 	int delta;
 
@@ -6520,11 +6520,11 @@ int apply_filter_to_req_headers(struct session *t, struct channel *req, struct h
 				 * FIXME: should we return an HTTP/500 here so that
 				 * the admin knows there's a problem ?
 				 */
-				if (t->be != t->fe)
+				if (s->be != s->fe)
 					break;
 
 				/* Swithing Proxy */
-				session_set_backend(t, (struct proxy *)exp->replace);
+				session_set_backend(s, (struct proxy *)exp->replace);
 				last_hdr = 1;
 				break;
 
@@ -6589,12 +6589,12 @@ int apply_filter_to_req_headers(struct session *t, struct channel *req, struct h
  * Since it can manage the switch to another backend, it updates the per-proxy
  * DENY stats.
  */
-int apply_filter_to_req_line(struct session *t, struct channel *req, struct hdr_exp *exp)
+int apply_filter_to_req_line(struct session *s, struct channel *req, struct hdr_exp *exp)
 {
 	char term;
 	char *cur_ptr, *cur_end;
 	int done;
-	struct http_txn *txn = &t->txn;
+	struct http_txn *txn = &s->txn;
 	int delta;
 
 	if (unlikely(txn->flags & (TX_CLDENY | TX_CLTARPIT)))
@@ -6629,11 +6629,11 @@ int apply_filter_to_req_line(struct session *t, struct channel *req, struct hdr_
 			 * FIXME: should we return an HTTP/500 here so that
 			 * the admin knows there's a problem ?
 			 */
-			if (t->be != t->fe)
+			if (s->be != s->fe)
 				break;
 
 			/* Swithing Proxy */
-			session_set_backend(t, (struct proxy *)exp->replace);
+			session_set_backend(s, (struct proxy *)exp->replace);
 			done = 1;
 			break;
 
@@ -6747,16 +6747,16 @@ int apply_filters_to_request(struct session *s, struct channel *req, struct prox
  * Try to retrieve the server associated to the appsession.
  * If the server is found, it's assigned to the session.
  */
-void manage_client_side_appsession(struct session *t, const char *buf, int len) {
-	struct http_txn *txn = &t->txn;
+void manage_client_side_appsession(struct session *s, const char *buf, int len) {
+	struct http_txn *txn = &s->txn;
 	appsess *asession = NULL;
 	char *sessid_temp = NULL;
 
-	if (len > t->be->appsession_len) {
-		len = t->be->appsession_len;
+	if (len > s->be->appsession_len) {
+		len = s->be->appsession_len;
 	}
 
-	if (t->be->options2 & PR_O2_AS_REQL) {
+	if (s->be->options2 & PR_O2_AS_REQL) {
 		/* request-learn option is enabled : store the sessid in the session for future use */
 		if (txn->sessid != NULL) {
 			/* free previously allocated memory as we don't need the session id found in the URL anymore */
@@ -6765,7 +6765,7 @@ void manage_client_side_appsession(struct session *t, const char *buf, int len) 
 
 		if ((txn->sessid = pool_alloc2(apools.sessid)) == NULL) {
 			Alert("Not enough memory process_cli():asession->sessid:malloc().\n");
-			send_log(t->be, LOG_ALERT, "Not enough memory process_cli():asession->sessid:malloc().\n");
+			send_log(s->be, LOG_ALERT, "Not enough memory process_cli():asession->sessid:malloc().\n");
 			return;
 		}
 
@@ -6775,35 +6775,35 @@ void manage_client_side_appsession(struct session *t, const char *buf, int len) 
 
 	if ((sessid_temp = pool_alloc2(apools.sessid)) == NULL) {
 		Alert("Not enough memory process_cli():asession->sessid:malloc().\n");
-		send_log(t->be, LOG_ALERT, "Not enough memory process_cli():asession->sessid:malloc().\n");
+		send_log(s->be, LOG_ALERT, "Not enough memory process_cli():asession->sessid:malloc().\n");
 		return;
 	}
 
 	memcpy(sessid_temp, buf, len);
 	sessid_temp[len] = 0;
 
-	asession = appsession_hash_lookup(&(t->be->htbl_proxy), sessid_temp);
+	asession = appsession_hash_lookup(&(s->be->htbl_proxy), sessid_temp);
 	/* free previously allocated memory */
 	pool_free2(apools.sessid, sessid_temp);
 
 	if (asession != NULL) {
-		asession->expire = tick_add_ifset(now_ms, t->be->timeout.appsession);
-		if (!(t->be->options2 & PR_O2_AS_REQL))
+		asession->expire = tick_add_ifset(now_ms, s->be->timeout.appsession);
+		if (!(s->be->options2 & PR_O2_AS_REQL))
 			asession->request_count++;
 
 		if (asession->serverid != NULL) {
-			struct server *srv = t->be->srv;
+			struct server *srv = s->be->srv;
 
 			while (srv) {
 				if (strcmp(srv->id, asession->serverid) == 0) {
 					if ((srv->state & SRV_RUNNING) ||
-					    (t->be->options & PR_O_PERSIST) ||
-					    (t->flags & SN_FORCE_PRST)) {
+					    (s->be->options & PR_O_PERSIST) ||
+					    (s->flags & SN_FORCE_PRST)) {
 						/* we found the server and it's usable */
 						txn->flags &= ~TX_CK_MASK;
 						txn->flags |= (srv->state & SRV_RUNNING) ? TX_CK_VALID : TX_CK_DOWN;
-						t->flags |= SN_DIRECT | SN_ASSIGNED;
-						t->target = &srv->obj_type;
+						s->flags |= SN_DIRECT | SN_ASSIGNED;
+						s->target = &srv->obj_type;
 
 						break;
 					} else {
@@ -6898,9 +6898,9 @@ int del_hdr_value(struct buffer *buf, char **from, char *next)
  * of the multiple very crappy and ambiguous syntaxes we have to support. it
  * highly recommended not to touch this part without a good reason !
  */
-void manage_client_side_cookies(struct session *t, struct channel *req)
+void manage_client_side_cookies(struct session *s, struct channel *req)
 {
-	struct http_txn *txn = &t->txn;
+	struct http_txn *txn = &s->txn;
 	int preserve_hdr;
 	int cur_idx, old_idx;
 	char *hdr_beg, *hdr_end, *hdr_next, *del_from;
@@ -7084,16 +7084,16 @@ void manage_client_side_cookies(struct session *t, struct channel *req)
 			 * can only capture one. Also as an optimisation, we ignore
 			 * cookies shorter than the declared name.
 			 */
-			if (t->fe->capture_name != NULL && txn->cli_cookie == NULL &&
-			    (val_end - att_beg >= t->fe->capture_namelen) &&
-			    memcmp(att_beg, t->fe->capture_name, t->fe->capture_namelen) == 0) {
+			if (s->fe->capture_name != NULL && txn->cli_cookie == NULL &&
+			    (val_end - att_beg >= s->fe->capture_namelen) &&
+			    memcmp(att_beg, s->fe->capture_name, s->fe->capture_namelen) == 0) {
 				int log_len = val_end - att_beg;
 
 				if ((txn->cli_cookie = pool_alloc2(pool2_capture)) == NULL) {
 					Alert("HTTP logging : out of memory.\n");
 				} else {
-					if (log_len > t->fe->capture_len)
-						log_len = t->fe->capture_len;
+					if (log_len > s->fe->capture_len)
+						log_len = s->fe->capture_len;
 					memcpy(txn->cli_cookie, att_beg, log_len);
 					txn->cli_cookie[log_len] = 0;
 				}
@@ -7108,9 +7108,9 @@ void manage_client_side_cookies(struct session *t, struct channel *req)
 			 *
 			 *    Cookie: NAME=SRV~VALUE
 			 */
-			if ((att_end - att_beg == t->be->cookie_len) && (t->be->cookie_name != NULL) &&
-			    (memcmp(att_beg, t->be->cookie_name, att_end - att_beg) == 0)) {
-				struct server *srv = t->be->srv;
+			if ((att_end - att_beg == s->be->cookie_len) && (s->be->cookie_name != NULL) &&
+			    (memcmp(att_beg, s->be->cookie_name, att_end - att_beg) == 0)) {
+				struct server *srv = s->be->srv;
 				char *delim;
 
 				/* if we're in cookie prefix mode, we'll search the delimitor so that we
@@ -7129,7 +7129,7 @@ void manage_client_side_cookies(struct session *t, struct channel *req)
 				 * +-------------------------> hdr_beg
 				 */
 
-				if (t->be->ck_opts & PR_CK_PFX) {
+				if (s->be->ck_opts & PR_CK_PFX) {
 					for (delim = val_beg; delim < val_end; delim++)
 						if (*delim == COOKIE_DELIM)
 							break;
@@ -7173,8 +7173,8 @@ void manage_client_side_cookies(struct session *t, struct channel *req)
 				 * and at the same time avoids keeping unwanted side effects for too
 				 * long.
 				 */
-				if (txn->cookie_first_date && t->be->cookie_maxlife &&
-				    (((signed)(date.tv_sec - txn->cookie_first_date) > (signed)t->be->cookie_maxlife) ||
+				if (txn->cookie_first_date && s->be->cookie_maxlife &&
+				    (((signed)(date.tv_sec - txn->cookie_first_date) > (signed)s->be->cookie_maxlife) ||
 				     ((signed)(txn->cookie_first_date - date.tv_sec) > 86400))) {
 					txn->flags &= ~TX_CK_MASK;
 					txn->flags |= TX_CK_OLD;
@@ -7182,8 +7182,8 @@ void manage_client_side_cookies(struct session *t, struct channel *req)
 					txn->cookie_first_date = 0;
 					txn->cookie_last_date = 0;
 				}
-				else if (txn->cookie_last_date && t->be->cookie_maxidle &&
-					 (((signed)(date.tv_sec - txn->cookie_last_date) > (signed)t->be->cookie_maxidle) ||
+				else if (txn->cookie_last_date && s->be->cookie_maxidle &&
+					 (((signed)(date.tv_sec - txn->cookie_last_date) > (signed)s->be->cookie_maxidle) ||
 					  ((signed)(txn->cookie_last_date - date.tv_sec) > 86400))) {
 					txn->flags &= ~TX_CK_MASK;
 					txn->flags |= TX_CK_EXPIRED;
@@ -7200,20 +7200,20 @@ void manage_client_side_cookies(struct session *t, struct channel *req)
 				 * empty cookies and mark them as invalid.
 				 * The same behaviour is applied when persistence must be ignored.
 				 */
-				if ((delim == val_beg) || (t->flags & (SN_IGNORE_PRST | SN_ASSIGNED)))
+				if ((delim == val_beg) || (s->flags & (SN_IGNORE_PRST | SN_ASSIGNED)))
 					srv = NULL;
 
 				while (srv) {
 					if (srv->cookie && (srv->cklen == delim - val_beg) &&
 					    !memcmp(val_beg, srv->cookie, delim - val_beg)) {
 						if ((srv->state & SRV_RUNNING) ||
-						    (t->be->options & PR_O_PERSIST) ||
-						    (t->flags & SN_FORCE_PRST)) {
+						    (s->be->options & PR_O_PERSIST) ||
+						    (s->flags & SN_FORCE_PRST)) {
 							/* we found the server and we can use it */
 							txn->flags &= ~TX_CK_MASK;
 							txn->flags |= (srv->state & SRV_RUNNING) ? TX_CK_VALID : TX_CK_DOWN;
-							t->flags |= SN_DIRECT | SN_ASSIGNED;
-							t->target = &srv->obj_type;
+							s->flags |= SN_DIRECT | SN_ASSIGNED;
+							s->target = &srv->obj_type;
 							break;
 						} else {
 							/* we found a server, but it's down,
@@ -7230,7 +7230,7 @@ void manage_client_side_cookies(struct session *t, struct channel *req)
 				if (!srv && !(txn->flags & (TX_CK_DOWN|TX_CK_EXPIRED|TX_CK_OLD))) {
 					/* no server matched this cookie or we deliberately skipped it */
 					txn->flags &= ~TX_CK_MASK;
-					if ((t->flags & (SN_IGNORE_PRST | SN_ASSIGNED)))
+					if ((s->flags & (SN_IGNORE_PRST | SN_ASSIGNED)))
 						txn->flags |= TX_CK_UNUSED;
 					else
 						txn->flags |= TX_CK_INVALID;
@@ -7243,7 +7243,7 @@ void manage_client_side_cookies(struct session *t, struct channel *req)
 				 *   application cookie so that it does not get accidentely removed later,
 				 *   if we're in cookie prefix mode
 				 */
-				if ((t->be->ck_opts & PR_CK_PFX) && (delim != val_end)) {
+				if ((s->be->ck_opts & PR_CK_PFX) && (delim != val_end)) {
 					int delta; /* negative */
 
 					delta = buffer_replace2(req->buf, val_beg, delim + 1, NULL, 0);
@@ -7258,7 +7258,7 @@ void manage_client_side_cookies(struct session *t, struct channel *req)
 					preserve_hdr = 1; /* we want to keep this cookie */
 				}
 				else if (del_from == NULL &&
-					 (t->be->ck_opts & (PR_CK_INS | PR_CK_IND)) == (PR_CK_INS | PR_CK_IND)) {
+					 (s->be->ck_opts & (PR_CK_INS | PR_CK_IND)) == (PR_CK_INS | PR_CK_IND)) {
 					del_from = prev;
 				}
 			} else {
@@ -7287,14 +7287,14 @@ void manage_client_side_cookies(struct session *t, struct channel *req)
 			}
 
 			/* Look for the appsession cookie unless persistence must be ignored */
-			if (!(t->flags & SN_IGNORE_PRST) && (t->be->appsession_name != NULL)) {
+			if (!(s->flags & SN_IGNORE_PRST) && (s->be->appsession_name != NULL)) {
 				int cmp_len, value_len;
 				char *value_begin;
 
-				if (t->be->options2 & PR_O2_AS_PFX) {
-					cmp_len     = MIN(val_end - att_beg, t->be->appsession_name_len);
-					value_begin = att_beg + t->be->appsession_name_len;
-					value_len   = val_end - att_beg - t->be->appsession_name_len;
+				if (s->be->options2 & PR_O2_AS_PFX) {
+					cmp_len     = MIN(val_end - att_beg, s->be->appsession_name_len);
+					value_begin = att_beg + s->be->appsession_name_len;
+					value_len   = val_end - att_beg - s->be->appsession_name_len;
 				} else {
 					cmp_len     = att_end - att_beg;
 					value_begin = val_beg;
@@ -7302,9 +7302,9 @@ void manage_client_side_cookies(struct session *t, struct channel *req)
 				}
 
 				/* let's see if the cookie is our appcookie */
-				if (cmp_len == t->be->appsession_name_len &&
-				    memcmp(att_beg, t->be->appsession_name, cmp_len) == 0) {
-					manage_client_side_appsession(t, value_begin, value_len);
+				if (cmp_len == s->be->appsession_name_len &&
+				    memcmp(att_beg, s->be->appsession_name, cmp_len) == 0) {
+					manage_client_side_appsession(s, value_begin, value_len);
 				}
 			}
 
@@ -7347,12 +7347,12 @@ void manage_client_side_cookies(struct session *t, struct channel *req)
 /* Iterate the same filter through all response headers contained in <rtr>.
  * Returns 1 if this filter can be stopped upon return, otherwise 0.
  */
-int apply_filter_to_resp_headers(struct session *t, struct channel *rtr, struct hdr_exp *exp)
+int apply_filter_to_resp_headers(struct session *s, struct channel *rtr, struct hdr_exp *exp)
 {
 	char term;
 	char *cur_ptr, *cur_end, *cur_next;
 	int cur_idx, old_idx, last_hdr;
-	struct http_txn *txn = &t->txn;
+	struct http_txn *txn = &s->txn;
 	struct hdr_idx_elem *cur_hdr;
 	int delta;
 
@@ -7446,12 +7446,12 @@ int apply_filter_to_resp_headers(struct session *t, struct channel *rtr, struct 
  * Returns 0 if nothing has been done, 1 if the filter has been applied,
  * or -1 if a replacement resulted in an invalid status line.
  */
-int apply_filter_to_sts_line(struct session *t, struct channel *rtr, struct hdr_exp *exp)
+int apply_filter_to_sts_line(struct session *s, struct channel *rtr, struct hdr_exp *exp)
 {
 	char term;
 	char *cur_ptr, *cur_end;
 	int done;
-	struct http_txn *txn = &t->txn;
+	struct http_txn *txn = &s->txn;
 	int delta;
 
 
@@ -7586,9 +7586,9 @@ int apply_filters_to_response(struct session *s, struct channel *rtr, struct pro
  * desirable to call it only when needed. This function is also used when we
  * just need to know if there is a cookie (eg: for check-cache).
  */
-void manage_server_side_cookies(struct session *t, struct channel *res)
+void manage_server_side_cookies(struct session *s, struct channel *res)
 {
-	struct http_txn *txn = &t->txn;
+	struct http_txn *txn = &s->txn;
 	struct server *srv;
 	int is_cookie2;
 	int cur_idx, old_idx, delta;
@@ -7637,9 +7637,9 @@ void manage_server_side_cookies(struct session *t, struct channel *res)
 		 * check-cache is enabled) and we are not interested in checking
 		 * them. Warning, the cookie capture is declared in the frontend.
 		 */
-		if (t->be->cookie_name == NULL &&
-		    t->be->appsession_name == NULL &&
-		    t->fe->capture_name == NULL)
+		if (s->be->cookie_name == NULL &&
+		    s->be->appsession_name == NULL &&
+		    s->fe->capture_name == NULL)
 			return;
 
 		/* OK so now we know we have to process this response cookie.
@@ -7773,27 +7773,27 @@ void manage_server_side_cookies(struct session *t, struct channel *res)
 			 * can only capture one. Also as an optimisation, we ignore
 			 * cookies shorter than the declared name.
 			 */
-			if (t->fe->capture_name != NULL &&
+			if (s->fe->capture_name != NULL &&
 			    txn->srv_cookie == NULL &&
-			    (val_end - att_beg >= t->fe->capture_namelen) &&
-			    memcmp(att_beg, t->fe->capture_name, t->fe->capture_namelen) == 0) {
+			    (val_end - att_beg >= s->fe->capture_namelen) &&
+			    memcmp(att_beg, s->fe->capture_name, s->fe->capture_namelen) == 0) {
 				int log_len = val_end - att_beg;
 				if ((txn->srv_cookie = pool_alloc2(pool2_capture)) == NULL) {
 					Alert("HTTP logging : out of memory.\n");
 				}
 				else {
-					if (log_len > t->fe->capture_len)
-						log_len = t->fe->capture_len;
+					if (log_len > s->fe->capture_len)
+						log_len = s->fe->capture_len;
 					memcpy(txn->srv_cookie, att_beg, log_len);
 					txn->srv_cookie[log_len] = 0;
 				}
 			}
 
-			srv = objt_server(t->target);
+			srv = objt_server(s->target);
 			/* now check if we need to process it for persistence */
-			if (!(t->flags & SN_IGNORE_PRST) &&
-			    (att_end - att_beg == t->be->cookie_len) && (t->be->cookie_name != NULL) &&
-			    (memcmp(att_beg, t->be->cookie_name, att_end - att_beg) == 0)) {
+			if (!(s->flags & SN_IGNORE_PRST) &&
+			    (att_end - att_beg == s->be->cookie_len) && (s->be->cookie_name != NULL) &&
+			    (memcmp(att_beg, s->be->cookie_name, att_end - att_beg) == 0)) {
 				/* assume passive cookie by default */
 				txn->flags &= ~TX_SCK_MASK;
 				txn->flags |= TX_SCK_FOUND;
@@ -7803,13 +7803,13 @@ void manage_server_side_cookies(struct session *t, struct channel *res)
 				 * We'll delete it too if the "indirect" option is set and we're in
 				 * a direct access.
 				 */
-				if (t->be->ck_opts & PR_CK_PSV) {
+				if (s->be->ck_opts & PR_CK_PSV) {
 					/* The "preserve" flag was set, we don't want to touch the
 					 * server's cookie.
 					 */
 				}
-				else if ((srv && (t->be->ck_opts & PR_CK_INS)) ||
-				    ((t->flags & SN_DIRECT) && (t->be->ck_opts & PR_CK_IND))) {
+				else if ((srv && (s->be->ck_opts & PR_CK_INS)) ||
+				    ((s->flags & SN_DIRECT) && (s->be->ck_opts & PR_CK_IND))) {
 					/* this cookie must be deleted */
 					if (*prev == ':' && next == hdr_end) {
 						/* whole header */
@@ -7836,7 +7836,7 @@ void manage_server_side_cookies(struct session *t, struct channel *res)
 					txn->flags |= TX_SCK_DELETED;
 					/* and go on with next cookie */
 				}
-				else if (srv && srv->cookie && (t->be->ck_opts & PR_CK_RW)) {
+				else if (srv && srv->cookie && (s->be->ck_opts & PR_CK_RW)) {
 					/* replace bytes val_beg->val_end with the cookie name associated
 					 * with this server since we know it.
 					 */
@@ -7850,7 +7850,7 @@ void manage_server_side_cookies(struct session *t, struct channel *res)
 					txn->flags &= ~TX_SCK_MASK;
 					txn->flags |= TX_SCK_REPLACED;
 				}
-				else if (srv && srv->cookie && (t->be->ck_opts & PR_CK_PFX)) {
+				else if (srv && srv->cookie && (s->be->ck_opts & PR_CK_PFX)) {
 					/* insert the cookie name associated with this server
 					 * before existing cookie, and insert a delimiter between them..
 					 */
@@ -7867,29 +7867,29 @@ void manage_server_side_cookies(struct session *t, struct channel *res)
 				}
 			}
 			/* next, let's see if the cookie is our appcookie, unless persistence must be ignored */
-			else if (!(t->flags & SN_IGNORE_PRST) && (t->be->appsession_name != NULL)) {
+			else if (!(s->flags & SN_IGNORE_PRST) && (s->be->appsession_name != NULL)) {
 				int cmp_len, value_len;
 				char *value_begin;
 
-				if (t->be->options2 & PR_O2_AS_PFX) {
-					cmp_len = MIN(val_end - att_beg, t->be->appsession_name_len);
-					value_begin = att_beg + t->be->appsession_name_len;
-					value_len = MIN(t->be->appsession_len, val_end - att_beg - t->be->appsession_name_len);
+				if (s->be->options2 & PR_O2_AS_PFX) {
+					cmp_len = MIN(val_end - att_beg, s->be->appsession_name_len);
+					value_begin = att_beg + s->be->appsession_name_len;
+					value_len = MIN(s->be->appsession_len, val_end - att_beg - s->be->appsession_name_len);
 				} else {
 					cmp_len = att_end - att_beg;
 					value_begin = val_beg;
-					value_len = MIN(t->be->appsession_len, val_end - val_beg);
+					value_len = MIN(s->be->appsession_len, val_end - val_beg);
 				}
 
-				if ((cmp_len == t->be->appsession_name_len) &&
-				    (memcmp(att_beg, t->be->appsession_name, t->be->appsession_name_len) == 0)) {
+				if ((cmp_len == s->be->appsession_name_len) &&
+				    (memcmp(att_beg, s->be->appsession_name, s->be->appsession_name_len) == 0)) {
 					/* free a possibly previously allocated memory */
 					pool_free2(apools.sessid, txn->sessid);
 
 					/* Store the sessid in the session for future use */
 					if ((txn->sessid = pool_alloc2(apools.sessid)) == NULL) {
 						Alert("Not enough Memory process_srv():asession->sessid:malloc().\n");
-						send_log(t->be, LOG_ALERT, "Not enough Memory process_srv():asession->sessid:malloc().\n");
+						send_log(s->be, LOG_ALERT, "Not enough Memory process_srv():asession->sessid:malloc().\n");
 						return;
 					}
 					memcpy(txn->sessid, value_begin, value_len);
@@ -7907,51 +7907,51 @@ void manage_server_side_cookies(struct session *t, struct channel *res)
 	if (txn->sessid != NULL) {
 		appsess *asession = NULL;
 		/* only do insert, if lookup fails */
-		asession = appsession_hash_lookup(&(t->be->htbl_proxy), txn->sessid);
+		asession = appsession_hash_lookup(&(s->be->htbl_proxy), txn->sessid);
 		if (asession == NULL) {
 			size_t server_id_len;
 			if ((asession = pool_alloc2(pool2_appsess)) == NULL) {
 				Alert("Not enough Memory process_srv():asession:calloc().\n");
-				send_log(t->be, LOG_ALERT, "Not enough Memory process_srv():asession:calloc().\n");
+				send_log(s->be, LOG_ALERT, "Not enough Memory process_srv():asession:calloc().\n");
 				return;
 			}
 			asession->serverid = NULL; /* to avoid a double free in case of allocation error */
 
 			if ((asession->sessid = pool_alloc2(apools.sessid)) == NULL) {
 				Alert("Not enough Memory process_srv():asession->sessid:malloc().\n");
-				send_log(t->be, LOG_ALERT, "Not enough Memory process_srv():asession->sessid:malloc().\n");
-				t->be->htbl_proxy.destroy(asession);
+				send_log(s->be, LOG_ALERT, "Not enough Memory process_srv():asession->sessid:malloc().\n");
+				s->be->htbl_proxy.destroy(asession);
 				return;
 			}
-			memcpy(asession->sessid, txn->sessid, t->be->appsession_len);
-			asession->sessid[t->be->appsession_len] = 0;
+			memcpy(asession->sessid, txn->sessid, s->be->appsession_len);
+			asession->sessid[s->be->appsession_len] = 0;
 
-			server_id_len = strlen(objt_server(t->target)->id) + 1;
+			server_id_len = strlen(objt_server(s->target)->id) + 1;
 			if ((asession->serverid = pool_alloc2(apools.serverid)) == NULL) {
 				Alert("Not enough Memory process_srv():asession->serverid:malloc().\n");
-				send_log(t->be, LOG_ALERT, "Not enough Memory process_srv():asession->sessid:malloc().\n");
-				t->be->htbl_proxy.destroy(asession);
+				send_log(s->be, LOG_ALERT, "Not enough Memory process_srv():asession->sessid:malloc().\n");
+				s->be->htbl_proxy.destroy(asession);
 				return;
 			}
 			asession->serverid[0] = '\0';
-			memcpy(asession->serverid, objt_server(t->target)->id, server_id_len);
+			memcpy(asession->serverid, objt_server(s->target)->id, server_id_len);
 
 			asession->request_count = 0;
-			appsession_hash_insert(&(t->be->htbl_proxy), asession);
+			appsession_hash_insert(&(s->be->htbl_proxy), asession);
 		}
 
-		asession->expire = tick_add_ifset(now_ms, t->be->timeout.appsession);
+		asession->expire = tick_add_ifset(now_ms, s->be->timeout.appsession);
 		asession->request_count++;
 	}
 }
 
 
 /*
- * Check if response is cacheable or not. Updates t->flags.
+ * Check if response is cacheable or not. Updates s->flags.
  */
-void check_response_for_cacheability(struct session *t, struct channel *rtr)
+void check_response_for_cacheability(struct session *s, struct channel *rtr)
 {
-	struct http_txn *txn = &t->txn;
+	struct http_txn *txn = &s->txn;
 	char *p1, *p2;
 
 	char *cur_ptr, *cur_end, *cur_next;
@@ -8038,16 +8038,16 @@ void check_response_for_cacheability(struct session *t, struct channel *rtr)
  * Try to retrieve a known appsession in the URI, then the associated server.
  * If the server is found, it's assigned to the session.
  */
-void get_srv_from_appsession(struct session *t, const char *begin, int len)
+void get_srv_from_appsession(struct session *s, const char *begin, int len)
 {
 	char *end_params, *first_param, *cur_param, *next_param;
 	char separator;
 	int value_len;
 
-	int mode = t->be->options2 & PR_O2_AS_M_ANY;
+	int mode = s->be->options2 & PR_O2_AS_M_ANY;
 
-	if (t->be->appsession_name == NULL ||
-	    (t->txn.meth != HTTP_METH_GET && t->txn.meth != HTTP_METH_POST && t->txn.meth != HTTP_METH_HEAD)) {
+	if (s->be->appsession_name == NULL ||
+	    (s->txn.meth != HTTP_METH_GET && s->txn.meth != HTTP_METH_POST && s->txn.meth != HTTP_METH_HEAD)) {
 		return;
 	}
 
@@ -8086,14 +8086,14 @@ void get_srv_from_appsession(struct session *t, const char *begin, int len)
 		cur_param--;
 		if ((cur_param[0] == separator) || (cur_param == first_param)) {
 			/* let's see if this is the appsession parameter */
-			if ((cur_param + t->be->appsession_name_len + 1 < next_param) &&
-				((t->be->options2 & PR_O2_AS_PFX) || cur_param[t->be->appsession_name_len + 1] == '=') &&
-				(strncasecmp(cur_param + 1, t->be->appsession_name, t->be->appsession_name_len) == 0)) {
+			if ((cur_param + s->be->appsession_name_len + 1 < next_param) &&
+				((s->be->options2 & PR_O2_AS_PFX) || cur_param[s->be->appsession_name_len + 1] == '=') &&
+				(strncasecmp(cur_param + 1, s->be->appsession_name, s->be->appsession_name_len) == 0)) {
 				/* Cool... it's the right one */
-				cur_param += t->be->appsession_name_len + (t->be->options2 & PR_O2_AS_PFX ? 1 : 2);
-				value_len = MIN(t->be->appsession_len, next_param - cur_param);
+				cur_param += s->be->appsession_name_len + (s->be->options2 & PR_O2_AS_PFX ? 1 : 2);
+				value_len = MIN(s->be->appsession_len, next_param - cur_param);
 				if (value_len > 0) {
-					manage_client_side_appsession(t, cur_param, value_len);
+					manage_client_side_appsession(s, cur_param, value_len);
 				}
 				break;
 			}
@@ -8102,7 +8102,7 @@ void get_srv_from_appsession(struct session *t, const char *begin, int len)
 	}
 #if defined(DEBUG_HASH)
 	Alert("get_srv_from_appsession\n");
-	appsession_hash_dump(&(t->be->htbl_proxy));
+	appsession_hash_dump(&(s->be->htbl_proxy));
 #endif
 }
 
@@ -8322,13 +8322,13 @@ unsigned int http_get_fhdr(const struct http_msg *msg, const char *hname, int hl
  * so it is safe to pass it a full buffer if needed. If <err> is not NULL, an
  * arrow is printed after the line which contains the pointer.
  */
-void debug_hdr(const char *dir, struct session *t, const char *start, const char *end)
+void debug_hdr(const char *dir, struct session *s, const char *start, const char *end)
 {
 	int max;
-	chunk_printf(&trash, "%08x:%s.%s[%04x:%04x]: ", t->uniq_id, t->be->id,
+	chunk_printf(&trash, "%08x:%s.%s[%04x:%04x]: ", s->uniq_id, s->be->id,
 		      dir,
-		     objt_conn(t->req->prod->end) ? (unsigned short)objt_conn(t->req->prod->end)->t.sock.fd : -1,
-		     objt_conn(t->req->cons->end) ? (unsigned short)objt_conn(t->req->cons->end)->t.sock.fd : -1);
+		     objt_conn(s->req->prod->end) ? (unsigned short)objt_conn(s->req->prod->end)->t.sock.fd : -1,
+		     objt_conn(s->req->cons->end) ? (unsigned short)objt_conn(s->req->cons->end)->t.sock.fd : -1);
 
 	for (max = 0; start + max < end; max++)
 		if (start[max] == '\r' || start[max] == '\n')

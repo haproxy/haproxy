@@ -63,30 +63,30 @@ extern char *get_http_auth_buff;
 #define HTTP_IS_TOKEN(x) (http_is_token[(unsigned char)(x)])
 #define HTTP_IS_VER_TOKEN(x) (http_is_ver_token[(unsigned char)(x)])
 
-int process_cli(struct session *t);
-int process_srv_data(struct session *t);
-int process_srv_conn(struct session *t);
+int process_cli(struct session *s);
+int process_srv_data(struct session *s);
+int process_srv_conn(struct session *s);
 int http_wait_for_request(struct session *s, struct channel *req, int an_bit);
 int http_process_req_common(struct session *s, struct channel *req, int an_bit, struct proxy *px);
-int http_process_request(struct session *t, struct channel *req, int an_bit);
+int http_process_request(struct session *s, struct channel *req, int an_bit);
 int http_process_tarpit(struct session *s, struct channel *req, int an_bit);
 int http_wait_for_request_body(struct session *s, struct channel *req, int an_bit);
 int http_send_name_header(struct http_txn *txn, struct proxy* be, const char* svr_name);
 int http_wait_for_response(struct session *s, struct channel *rep, int an_bit);
-int http_process_res_common(struct session *t, struct channel *rep, int an_bit, struct proxy *px);
+int http_process_res_common(struct session *s, struct channel *rep, int an_bit, struct proxy *px);
 int http_request_forward_body(struct session *s, struct channel *req, int an_bit);
 int http_response_forward_body(struct session *s, struct channel *res, int an_bit);
 
-void debug_hdr(const char *dir, struct session *t, const char *start, const char *end);
-void get_srv_from_appsession(struct session *t, const char *begin, int len);
-int apply_filter_to_req_headers(struct session *t, struct channel *req, struct hdr_exp *exp);
-int apply_filter_to_req_line(struct session *t, struct channel *req, struct hdr_exp *exp);
+void debug_hdr(const char *dir, struct session *s, const char *start, const char *end);
+void get_srv_from_appsession(struct session *s, const char *begin, int len);
+int apply_filter_to_req_headers(struct session *s, struct channel *req, struct hdr_exp *exp);
+int apply_filter_to_req_line(struct session *s, struct channel *req, struct hdr_exp *exp);
 int apply_filters_to_request(struct session *s, struct channel *req, struct proxy *px);
-int apply_filters_to_response(struct session *t, struct channel *rtr, struct proxy *px);
-void manage_client_side_appsession(struct session *t, const char *buf, int len);
-void manage_client_side_cookies(struct session *t, struct channel *req);
-void manage_server_side_cookies(struct session *t, struct channel *rtr);
-void check_response_for_cacheability(struct session *t, struct channel *rtr);
+int apply_filters_to_response(struct session *s, struct channel *rtr, struct proxy *px);
+void manage_client_side_appsession(struct session *s, const char *buf, int len);
+void manage_client_side_cookies(struct session *s, struct channel *req);
+void manage_server_side_cookies(struct session *s, struct channel *rtr);
+void check_response_for_cacheability(struct session *s, struct channel *rtr);
 int stats_check_uri(struct stream_interface *si, struct http_txn *txn, struct proxy *backend);
 void init_proto_http();
 int http_find_full_header2(const char *name, int len,
