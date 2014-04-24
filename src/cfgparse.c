@@ -1971,7 +1971,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->timeout.tarpit = defproxy.timeout.tarpit;
 			curproxy->timeout.httpreq = defproxy.timeout.httpreq;
 			curproxy->timeout.httpka = defproxy.timeout.httpka;
-			curproxy->uri_auth  = defproxy.uri_auth;
 			curproxy->mon_net = defproxy.mon_net;
 			curproxy->mon_mask = defproxy.mon_mask;
 			if (defproxy.monitor_uri)
@@ -2007,6 +2006,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		}
 
 		curproxy->mode = defproxy.mode;
+		curproxy->uri_auth = defproxy.uri_auth; /* for stats */
 
 		/* copy default logsrvs to curproxy */
 		list_for_each_entry(tmplogsrv, &defproxy.logsrvs, list) {
@@ -3284,9 +3284,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			LIST_ADDQ(&curproxy->sticking_rules, &rule->list);
 	}
 	else if (!strcmp(args[0], "stats")) {
-		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
-			err_code |= ERR_WARN;
-
 		if (curproxy != &defproxy && curproxy->uri_auth == defproxy.uri_auth)
 			curproxy->uri_auth = NULL; /* we must detach from the default config */
 

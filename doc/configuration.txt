@@ -5983,7 +5983,7 @@ srvtimeout <timeout> (deprecated)
 stats admin { if | unless } <cond>
   Enable statistics admin level if/unless a condition is matched
   May be used in sections :   defaults | frontend | listen | backend
-                                 no    |    no    |   yes  |   yes
+                                 no    |    yes   |   yes  |   yes
 
   This statement enables the statistics admin level if/unless a condition is
   matched.
@@ -6036,7 +6036,7 @@ stats admin { if | unless } <cond>
 stats auth <user>:<passwd>
   Enable statistics with authentication and grant access to an account
   May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    no    |   yes  |   yes
+                                 yes   |    yes   |   yes  |   yes
   Arguments :
     <user>    is a user name to grant access to
 
@@ -6085,7 +6085,7 @@ stats auth <user>:<passwd>
 stats enable
   Enable statistics reporting with default settings
   May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    no    |   yes  |   yes
+                                 yes   |    yes   |   yes  |   yes
   Arguments : none
 
   This statement enables statistics reporting with default settings defined
@@ -6123,7 +6123,7 @@ stats enable
 stats hide-version
   Enable statistics and hide HAProxy version reporting
   May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    no    |   yes  |   yes
+                                 yes   |    yes   |   yes  |   yes
   Arguments : none
 
   By default, the stats page reports some useful status information along with
@@ -6182,7 +6182,7 @@ stats http-request { allow | deny | auth [realm <realm>] }
 stats realm <realm>
   Enable statistics and set authentication realm
   May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    no    |   yes  |   yes
+                                 yes   |    yes   |   yes  |   yes
   Arguments :
     <realm>   is the name of the HTTP Basic Authentication realm reported to
               the browser. The browser uses it to display it in the pop-up
@@ -6222,7 +6222,7 @@ stats realm <realm>
 stats refresh <delay>
   Enable statistics with automatic refresh
   May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    no    |   yes  |   yes
+                                 yes   |    yes   |   yes  |   yes
   Arguments :
     <delay>   is the suggested refresh delay, specified in seconds, which will
               be returned to the browser consulting the report page. While the
@@ -6264,7 +6264,7 @@ stats refresh <delay>
 stats scope { <name> | "." }
   Enable statistics and limit access scope
   May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    no    |   yes  |   yes
+                                 yes   |    yes   |   yes  |   yes
   Arguments :
     <name>    is the name of a listen, frontend or backend section to be
               reported. The special name "." (a single dot) designates the
@@ -6305,7 +6305,7 @@ stats scope { <name> | "." }
 stats show-desc [ <desc> ]
   Enable reporting of a description on the statistics page.
   May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    no    |   yes  |   yes
+                                 yes   |    yes   |   yes  |   yes
 
     <desc>    is an optional description to be reported. If unspecified, the
               description from global section is automatically used instead.
@@ -6330,6 +6330,11 @@ stats show-desc [ <desc> ]
 
 
 stats show-legends
+  Enable reporting additional information on the statistics page
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments : none
+
   Enable reporting additional information on the statistics page :
     - cap: capabilities (proxy)
     - mode: one of tcp, http or health (proxy)
@@ -6347,7 +6352,7 @@ stats show-legends
 stats show-node [ <name> ]
   Enable reporting of a host name on the statistics page.
   May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    no    |   yes  |   yes
+                                 yes   |    yes   |   yes  |   yes
   Arguments:
     <name>    is an optional name to be reported. If unspecified, the
               node name from global section is automatically used instead.
@@ -6375,7 +6380,7 @@ stats show-node [ <name> ]
 stats uri <prefix>
   Enable statistics and define the URI prefix to access them
   May be used in sections :   defaults | frontend | listen | backend
-                                 yes   |    no    |   yes  |   yes
+                                 yes   |    yes   |   yes  |   yes
   Arguments :
     <prefix>  is the prefix of any URI which will be redirected to stats. This
               prefix may contain a question mark ('?') to indicate part of a
