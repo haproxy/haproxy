@@ -4357,11 +4357,10 @@ static int stats_send_http_headers(struct stream_interface *si)
 	struct appctx *appctx = objt_appctx(si->end);
 
 	chunk_printf(&trash,
-		     "HTTP/1.%c 200 OK\r\n"
+		     "HTTP/1.1 200 OK\r\n"
 		     "Cache-Control: no-cache\r\n"
 		     "Connection: close\r\n"
 		     "Content-Type: %s\r\n",
-		     (appctx->ctx.stats.flags & STAT_CHUNKED) ? '1' : '0',
 		     (appctx->ctx.stats.flags & STAT_FMT_HTML) ? "text/html" : "text/plain");
 
 	if (uri->refresh > 0 && !(appctx->ctx.stats.flags & STAT_NO_REFRESH))
