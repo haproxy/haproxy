@@ -1,6 +1,40 @@
 ChangeLog :
 ===========
 
+2014/04/26 : 1.5-dev24
+    - MINOR: pattern: find element in a reference
+    - MEDIUM: http: ACL and MAP updates through http-(request|response) rules
+    - MEDIUM: ssl: explicitly log failed handshakes after a heartbeat
+    - DOC: Full section dedicated to the converters
+    - MEDIUM: http: register http-request and http-response keywords
+    - BUG/MINOR: compression: correctly report incoming byte count
+    - BUG/MINOR: http: don't report server aborts as client aborts
+    - BUG/MEDIUM: channel: bi_putblk() must not wrap before the end of buffer
+    - CLEANUP: buffers: remove unused function buffer_contig_space_with_res()
+    - MEDIUM: stats: reimplement HTTP keep-alive on the stats page
+    - BUG/MAJOR: http: fix timeouts during data forwarding
+    - BUG/MEDIUM: http: 100-continue responses must process the next part immediately
+    - MEDIUM: http: move skipping of 100-continue earlier
+    - BUILD: stats: let gcc know that last_fwd cannot be used uninitialized...
+    - CLEANUP: general: get rid of all old occurrences of "session *t"
+    - CLEANUP: http: remove the useless "if (1)" inherited from version 1.4
+    - BUG/MEDIUM: stats: mismatch between behaviour and doc about front/back
+    - MEDIUM: http: enable analysers to have keep-alive on stats
+    - REORG: http: move HTTP Connection response header parsing earlier
+    - MINOR: stats: always emit HTTP/1.1 in responses
+    - MINOR: http: add capture.req.ver and capture.res.ver
+    - MINOR: checks: add a new global max-spread-checks directive
+    - BUG/MAJOR: http: fix the 'next' pointer when performing a redirect
+    - MINOR: http: implement the max-keep-alive-queue setting
+    - DOC: fix alphabetic order of tcp-check
+    - MINOR: connection: add a new error code for SSL with heartbeat
+    - MEDIUM: ssl: implement a workaround for the OpenSSL heartbleed attack
+    - BUG/MEDIUM: Revert "MEDIUM: ssl: Add standardized DH parameters >= 1024 bits"
+    - BUILD: http: remove a warning on strndup
+    - BUILD: ssl: avoid a warning about conn not used with OpenSSL < 1.0.1
+    - BUG/MINOR: ssl: really block OpenSSL's response to heartbleed attack
+    - MINOR: ssl: finally catch the heartbeats missing the padding
+
 2014/04/23 : 1.5-dev23
     - BUG/MINOR: reject malformed HTTP/0.9 requests
     - MINOR: systemd wrapper: re-execute on SIGUSR2
