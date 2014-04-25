@@ -79,6 +79,8 @@
 #define SSL_SOCK_ST_FL_VERIFY_DONE  0x00000001
 #define SSL_SOCK_ST_FL_16K_WBFSIZE  0x00000002
 #define SSL_SOCK_SEND_UNLIMITED     0x00000004
+#define SSL_SOCK_RECV_HEARTBEAT     0x00000008
+
 /* bits 0xFFFF0000 are reserved to store verify errors */
 
 /* Verify errors macros */
@@ -178,6 +180,19 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 
 	conn->err_code = CO_ER_SSL_CRT_FAIL;
 	return 0;
+}
+
+/* Callback is called for ssl protocol analyse */
+void ssl_sock_msgcbk(int write_p, int version, int content_type, const void *buf, size_t len, SSL *ssl, void *arg)
+{
+	struct connection *conn = (struct connection *)SSL_get_app_data(ssl);
+
+#ifdef TLS1_RT_HEARTBEAT
+	/* test heartbeat received (write_p is set to 0
+	   for a received record) */
+	if ((content_type == TLS1_RT_HEARTBEAT) && (write_p == 0))
+		conn->xprt_st |= SSL_SOCK_RECV_HEARTBEAT;
+#endif
 }
 
 #ifdef OPENSSL_NPN_NEGOTIATED
@@ -887,6 +902,8 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 	}
 
 	SSL_CTX_set_info_callback(ctx, ssl_sock_infocbk);
+	SSL_CTX_set_msg_callback(ctx, ssl_sock_msgcbk);
+
 #ifdef OPENSSL_NPN_NEGOTIATED
 	if (bind_conf->npn_str)
 		SSL_CTX_set_next_protos_advertised_cb(ctx, ssl_sock_advertise_npn_protos, bind_conf);
@@ -1394,13 +1411,26 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 				if (!errno && conn->flags & CO_FL_WAIT_L4_CONN)
 					conn->flags &= ~CO_FL_WAIT_L4_CONN;
 				if (!conn->err_code) {
-					if (!((SSL *)conn->xprt_ctx)->packet_length)
-						if (!errno)
-							conn->err_code = CO_ER_SSL_EMPTY;
+					if (!((SSL *)conn->xprt_ctx)->packet_length) {
+						if (!errno) {
+							if (conn->xprt_st & SSL_SOCK_RECV_HEARTBEAT)
+								conn->err_code = CO_ER_SSL_HANDSHAKE_HB;
+							else
+								conn->err_code = CO_ER_SSL_EMPTY;
+						}
+						else {
+							if (conn->xprt_st & SSL_SOCK_RECV_HEARTBEAT)
+								conn->err_code = CO_ER_SSL_HANDSHAKE_HB;
+							else
+								conn->err_code = CO_ER_SSL_ABORT;
+						}
+					}
+					else {
+						if (conn->xprt_st & SSL_SOCK_RECV_HEARTBEAT)
+							conn->err_code = CO_ER_SSL_HANDSHAKE_HB;
 						else
-							conn->err_code = CO_ER_SSL_ABORT;
-					else
-						conn->err_code = CO_ER_SSL_HANDSHAKE;
+							conn->err_code = CO_ER_SSL_HANDSHAKE;
+					}
 				}
 				goto out_error;
 			}
@@ -1447,13 +1477,26 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 			if (!errno && conn->flags & CO_FL_WAIT_L4_CONN)
 				conn->flags &= ~CO_FL_WAIT_L4_CONN;
 
-			if (!((SSL *)conn->xprt_ctx)->packet_length)
-				if (!errno)
-					conn->err_code = CO_ER_SSL_EMPTY;
+			if (!((SSL *)conn->xprt_ctx)->packet_length) {
+				if (!errno) {
+					if (conn->xprt_st & SSL_SOCK_RECV_HEARTBEAT)
+						conn->err_code = CO_ER_SSL_HANDSHAKE_HB;
+					else
+						conn->err_code = CO_ER_SSL_EMPTY;
+				}
+				else {
+					if (conn->xprt_st & SSL_SOCK_RECV_HEARTBEAT)
+						conn->err_code = CO_ER_SSL_HANDSHAKE_HB;
+					else
+						conn->err_code = CO_ER_SSL_ABORT;
+				}
+			}
+			else {
+				if (conn->xprt_st & SSL_SOCK_RECV_HEARTBEAT)
+					conn->err_code = CO_ER_SSL_HANDSHAKE_HB;
 				else
-					conn->err_code = CO_ER_SSL_ABORT;
-			else
-				conn->err_code = CO_ER_SSL_HANDSHAKE;
+					conn->err_code = CO_ER_SSL_HANDSHAKE;
+			}
 			goto out_error;
 		}
 		else {
