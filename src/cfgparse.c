@@ -1341,6 +1341,28 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 	}
+	else if (!strcmp(args[0], "max-spread-checks")) {  /* maximum time between first and last check */
+		const char *err;
+		unsigned int val;
+
+
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d]: '%s' expects an integer argument (0..50).\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		err = parse_time_err(args[1], &val, TIME_UNIT_MS);
+		if (err) {
+			Alert("parsing [%s:%d]: unsupported character '%c' in '%s' (wants an integer delay).\n", file, linenum, *err, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+		}
+		global.max_spread_checks = val;
+		if (global.max_spread_checks < 0) {
+			Alert("parsing [%s:%d]: '%s' needs a positive delay in milliseconds.\n",file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+		}
+	}
 	else if (strcmp(args[0], "cpu-map") == 0) {  /* map a process list to a CPU set */
 #ifdef USE_CPU_AFFINITY
 		int cur_arg, i;

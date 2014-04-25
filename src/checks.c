@@ -1744,11 +1744,14 @@ static int start_check_task(struct check *check, int mininter,
 	t->process = process_chk;
 	t->context = check;
 
+	if (mininter < srv_getinter(check))
+		mininter = srv_getinter(check);
+
+	if (global.max_spread_checks && mininter > global.max_spread_checks)
+		mininter = global.max_spread_checks;
+
 	/* check this every ms */
-	t->expire = tick_add(now_ms,
-			     MS_TO_TICKS(((mininter &&
-					   mininter >= srv_getinter(check)) ?
-					  mininter : srv_getinter(check)) * srvpos / nbcheck));
+	t->expire = tick_add(now_ms, MS_TO_TICKS(mininter * srvpos / nbcheck));
 	check->start = now;
 	task_queue(t);
 

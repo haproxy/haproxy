@@ -105,6 +105,7 @@ struct global {
 	unsigned int req_count; /* request counter (HTTP or TCP session) for logs and unique_id */
 	int last_checks;
 	int spread_checks;
+	int max_spread_checks;
 	char *chroot;
 	char *pidfile;
 	char *node, *desc;		/* node name & description */

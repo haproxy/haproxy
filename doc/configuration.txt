@@ -464,6 +464,7 @@ The following keywords are supported in the "global" section :
    - unix-bind
 
  * Performance tuning
+   - max-spread-checks
    - maxconn
    - maxconnrate
    - maxcomprate
@@ -719,6 +720,16 @@ description <text>
 
 3.2. Performance tuning
 -----------------------
+
+max-spread-checks <delay in milliseconds>
+  By default, haproxy tries to spread the start of health checks across the
+  smallest health check interval of all the servers in a farm. The principle is
+  to avoid hammering services running on the same server. But when using large
+  check intervals (10 seconds or more), the last servers in the farm take some
+  time before starting to be tested, which can be a problem. This parameter is
+  used to enforce an upper bound on delay between the first and the last check,
+  even if the servers' check intervals are larger. When servers run with
+  shorter intervals, their intervals will be respected though.
 
 maxconn <number>
   Sets the maximum per-process number of concurrent connections to <number>. It
