@@ -1408,6 +1408,23 @@ int pat_ref_delete(struct pat_ref *ref, const char *key)
 	return 1;
 }
 
+/*
+ * find and return an element <elt> matching <key> in a reference <ref>
+ * return NULL if not found
+ */
+struct pat_ref_elt *pat_ref_find_elt(struct pat_ref *ref, const char *key)
+{
+	struct pat_ref_elt *elt;
+
+	list_for_each_entry(elt, &ref->head, list) {
+		if (strcmp(key, elt->pattern) == 0)
+			return elt;
+	}
+
+	return NULL;
+}
+
+
   /* This function modify the sample of the first pattern that match the <key>. */
 static inline int pat_ref_set_elt(struct pat_ref *ref, struct pat_ref_elt *elt,
                                   const char *value, char **err)
