@@ -310,149 +310,36 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, struct bind_conf *s)
 #endif /* SSL_CTRL_SET_TLSEXT_HOSTNAME */
 
 #ifndef OPENSSL_NO_DH
-
-static DH *ssl_get_dh_1024(void)
-{
-	DH *dh = DH_new();
-	if (dh) {
-		dh->p = get_rfc2409_prime_1024(NULL);
-		/* See RFC 2409, Section 6 "Oakley Groups"
-		   for the reason why we use 2 as a generator.
-		*/
-		BN_dec2bn(&dh->g, "2");
-		if (!dh->p || !dh->g) {
-			DH_free(dh);
-			dh = NULL;
-		}
-	}
-	return dh;
-}
-
-static DH *ssl_get_dh_2048(void)
-{
-	DH *dh = DH_new();
-	if (dh) {
-		dh->p = get_rfc3526_prime_2048(NULL);
-		/* See RFC 3526, Section 3 "2048-bit MODP Group"
-		   for the reason why we use 2 as a generator.
-		 */
-		BN_dec2bn(&dh->g, "2");
-		if (!dh->p || !dh->g) {
-			DH_free(dh);
-			dh = NULL;
-		}
-	}
-	return dh;
-}
-
-static DH *ssl_get_dh_3072(void)
-{
-	DH *dh = DH_new();
-	if (dh) {
-		dh->p = get_rfc3526_prime_3072(NULL);
-		/* See RFC 3526, Section 4 "3072-bit MODP Group"
-		   for the reason why we use 2 as a generator.
-		 */
-		BN_dec2bn(&dh->g, "2");
-		if (!dh->p || !dh->g) {
-			DH_free(dh);
-			dh = NULL;
-		}
-	}
-	return dh;
-}
-
-static DH *ssl_get_dh_4096(void)
-{
-	DH *dh = DH_new();
-	if (dh) {
-		dh->p = get_rfc3526_prime_4096(NULL);
-		/* See RFC 3526, Section 5 "4096-bit MODP Group"
-		   for the reason why we use 2 as a generator.
-		 */
-		BN_dec2bn(&dh->g, "2");
-		if (!dh->p || !dh->g) {
-			DH_free(dh);
-			dh = NULL;
-		}
-	}
-	return dh;
-}
-
-static DH *ssl_get_dh_6144(void)
-{
-	DH *dh = DH_new();
-	if (dh) {
-		dh->p = get_rfc3526_prime_6144(NULL);
-		/* See RFC 3526, Section 6 "6144-bit MODP Group"
-		   for the reason why we use 2 as a generator.
-		 */
-		BN_dec2bn(&dh->g, "2");
-		if (!dh->p || !dh->g) {
-			DH_free(dh);
-			dh = NULL;
-		}
-	}
-	return dh;
-}
-
-static DH *ssl_get_dh_8192(void)
-{
-	DH *dh = DH_new();
-	if (dh) {
-		dh->p = get_rfc3526_prime_8192(NULL);
-		/* See RFC 3526, Section 7 "8192-bit MODP Group"
-		   for the reason why we use 2 as a generator.
-		 */
-		BN_dec2bn(&dh->g, "2");
-		if (!dh->p || !dh->g) {
-			DH_free(dh);
-			dh = NULL;
-		}
-	}
-	return dh;
-}
-
-/* Returns Diffie-Hellman parameters matching the private key length */
-static DH *ssl_get_tmp_dh(SSL *ssl, int export, int keylen)
-{
-	DH *dh = NULL;
-	EVP_PKEY *pkey = SSL_get_privatekey(ssl);
-	int type = pkey ? EVP_PKEY_type(pkey->type) : EVP_PKEY_NONE;
-
-	if (type == EVP_PKEY_RSA || type == EVP_PKEY_DSA) {
-		keylen = EVP_PKEY_bits(pkey);
-	}
-
-	if (keylen >= 8192) {
-		dh = ssl_get_dh_8192();
-	}
-	else if (keylen >= 6144) {
-		dh = ssl_get_dh_6144();
-	}
-	else if (keylen >= 4096) {
-		dh = ssl_get_dh_4096();
-	}
-	else if (keylen >= 3072) {
-		dh = ssl_get_dh_3072();
-	}
-	else if (keylen >= 2048) {
-		dh = ssl_get_dh_2048();
-	}
-	else {
-		dh = ssl_get_dh_1024();
-	}
-
-	return dh;
-}
-
 /* Loads Diffie-Hellman parameter from a file. Returns 1 if loaded, else -1
    if an error occured, and 0 if parameter not found. */
-static int ssl_sock_load_dh_params(SSL_CTX *ctx, const char *file)
+int ssl_sock_load_dh_params(SSL_CTX *ctx, const char *file)
 {
 	int ret = -1;
 	BIO *in;
 	DH *dh = NULL;
+	/* If not present, use parameters generated using 'openssl dhparam 1024 -C':
+	 * -----BEGIN DH PARAMETERS-----
+	 * MIGHAoGBAJJAJDXDoS5E03MNjnjK36eOL1tRqVa/9NuOVlI+lpXmPjJQbP65EvKn
+	 * fSLnG7VMhoCJO4KtG88zf393ltP7loGB2bofcDSr+x+XsxBM8yA/Zj6BmQt+CQ9s
+	 * TF7hoOV+wXTT6ErZ5y5qx9pq6hLfKXwTGFT78hrE6HnCO7xgtPdTAgEC
+	 * -----END DH PARAMETERS-----
+	*/
+	static const unsigned char dh1024_p[] = {
+		0x92, 0x40, 0x24, 0x35, 0xC3, 0xA1, 0x2E, 0x44, 0xD3, 0x73, 0x0D, 0x8E,
+		0x78, 0xCA, 0xDF, 0xA7, 0x8E, 0x2F, 0x5B, 0x51, 0xA9, 0x56, 0xBF, 0xF4,
+		0xDB, 0x8E, 0x56, 0x52, 0x3E, 0x96, 0x95, 0xE6, 0x3E, 0x32, 0x50, 0x6C,
+		0xFE, 0xB9, 0x12, 0xF2, 0xA7, 0x7D, 0x22, 0xE7, 0x1B, 0xB5, 0x4C, 0x86,
+		0x80, 0x89, 0x3B, 0x82, 0xAD, 0x1B, 0xCF, 0x33, 0x7F, 0x7F, 0x77, 0x96,
+		0xD3, 0xFB, 0x96, 0x81, 0x81, 0xD9, 0xBA, 0x1F, 0x70, 0x34, 0xAB, 0xFB,
+		0x1F, 0x97, 0xB3, 0x10, 0x4C, 0xF3, 0x20, 0x3F, 0x66, 0x3E, 0x81, 0x99,
+		0x0B, 0x7E, 0x09, 0x0F, 0x6C, 0x4C, 0x5E, 0xE1, 0xA0, 0xE5, 0x7E, 0xC1,
+		0x74, 0xD3, 0xE8, 0x4A, 0xD9, 0xE7, 0x2E, 0x6A, 0xC7, 0xDA, 0x6A, 0xEA,
+		0x12, 0xDF, 0x29, 0x7C, 0x13, 0x18, 0x54, 0xFB, 0xF2, 0x1A, 0xC4, 0xE8,
+		0x79, 0xC2, 0x3B, 0xBC, 0x60, 0xB4, 0xF7, 0x53,
+	};
+	static const unsigned char dh1024_g[] = {
+		0x02,
+	};
 
 	in = BIO_new(BIO_s_file());
 	if (in == NULL)
@@ -462,17 +349,28 @@ static int ssl_sock_load_dh_params(SSL_CTX *ctx, const char *file)
 		goto end;
 
 	dh = PEM_read_bio_DHparams(in, NULL, ctx->default_passwd_callback, ctx->default_passwd_callback_userdata);
-	if (dh) {
-		ret = 1;
-		SSL_CTX_set_tmp_dh(ctx, dh);
-	}
-	else {
+	if (!dh) {
 		/* Clear openssl global errors stack */
 		ERR_clear_error();
 
-		SSL_CTX_set_tmp_dh_callback(ctx, ssl_get_tmp_dh);
+		dh = DH_new();
+		if (dh == NULL)
+			goto end;
+
+		dh->p = BN_bin2bn(dh1024_p, sizeof(dh1024_p), NULL);
+		if (dh->p == NULL)
+			goto end;
+
+		dh->g = BN_bin2bn(dh1024_g, sizeof(dh1024_g), NULL);
+		if (dh->g == NULL)
+			goto end;
+
 		ret = 0; /* DH params not found */
 	}
+	else
+		ret = 1;
+
+	SSL_CTX_set_tmp_dh(ctx, dh);
 
 end:
 	if (dh)
