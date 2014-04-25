@@ -1267,10 +1267,6 @@ http-check expect                         -          -         X         X
 http-check send-state                     X          -         X         X
 http-request                              -          X         X         X
 http-response                             -          X         X         X
-tcp-check connect                         -          -         X         X
-tcp-check expect                          -          -         X         X
-tcp-check send                            -          -         X         X
-tcp-check send-binary                     -          -         X         X
 http-send-name-header                     -          -         X         X
 id                                        -          X         X         X
 ignore-persist                            -          X         X         X
@@ -1379,6 +1375,10 @@ stick on                                  -          -         X         X
 stick store-request                       -          -         X         X
 stick store-response                      -          -         X         X
 stick-table                               -          -         X         X
+tcp-check connect                         -          -         X         X
+tcp-check expect                          -          -         X         X
+tcp-check send                            -          -         X         X
+tcp-check send-binary                     -          -         X         X
 tcp-request connection                    -          X         X         -
 tcp-request content                       -          X         X         X
 tcp-request inspect-delay                 -          X         X         X
@@ -3063,187 +3063,6 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
 
   See also : "http-request", section 3.4 about userlists and section 7 about
              ACL usage.
-
-
-tcp-check connect [params*]
-  Opens a new connection
-  May be used in sections:   defaults | frontend | listen | backend
-                               no     |    no    |   yes  |   yes
-
-  When an application lies on more than a single TCP port or when HAProxy
-  load-balance many services in a single backend, it makes sense to probe all
-  the services individually before considering a server as operational.
-
-  When there are no TCP port configured on the server line neither server port
-  directive, then the 'tcp-check connect port <port>' must be the first step
-  of the sequence.
-
-  In a tcp-check ruleset a 'connect' is required, it is also mandatory to start
-  the ruleset with a 'connect' rule. Purpose is to ensure admin know what they
-  do.
-
-  Parameters :
-    They are optional and can be used to describe how HAProxy should open and
-    use the TCP connection.
-
-    port      if not set, check port or server port is used.
-              It tells HAProxy where to open the connection to.
-              <port> must be a valid TCP port source integer, from 1 to 65535.
-
-    send-proxy   send a PROXY protocol string
-
-    ssl          opens a ciphered connection
-
-    Examples:
-         # check HTTP and HTTPs services on a server.
-         # first open port 80 thanks to server line port directive, then
-         # tcp-check opens port 443, ciphered and run a request on it:
-         option tcp-check
-         tcp-check connect
-         tcp-check send GET\ /\ HTTP/1.0\r\n
-         tcp-check send Host:\ haproxy.1wt.eu\r\n
-         tcp-check send \r\n
-         tcp-check expect rstring (2..|3..)
-         tcp-check connect port 443 ssl
-         tcp-check send GET\ /\ HTTP/1.0\r\n
-         tcp-check send Host:\ haproxy.1wt.eu\r\n
-         tcp-check send \r\n
-         tcp-check expect rstring (2..|3..)
-         server www 10.0.0.1 check port 80
-
-         # check both POP and IMAP from a single server:
-         option tcp-check
-         tcp-check connect port 110
-         tcp-check expect string +OK\ POP3\ ready
-         tcp-check connect port 143
-         tcp-check expect string *\ OK\ IMAP4\ ready
-         server mail 10.0.0.1 check
-
-  See also : "option tcp-check", "tcp-check send", "tcp-check expect"
-
-
-tcp-check expect [!] <match> <pattern>
-  Specify data to be collected and analysed during a generic health check
-  May be used in sections:   defaults | frontend | listen | backend
-                               no     |    no    |   yes  |   yes
-
-  Arguments :
-    <match>   is a keyword indicating how to look for a specific pattern in the
-              response. The keyword may be one of "string", "rstring" or
-              binary.
-              The keyword may be preceded by an exclamation mark ("!") to negate
-              the match. Spaces are allowed between the exclamation mark and the
-              keyword. See below for more details on the supported keywords.
-
-    <pattern> is the pattern to look for. It may be a string or a regular
-              expression. If the pattern contains spaces, they must be escaped
-              with the usual backslash ('\').
-              If the match is set to binary, then the pattern must be passed as
-              a serie of hexadecimal digits in an even number. Each sequence of
-              two digits will represent a byte. The hexadecimal digits may be
-              used upper or lower case.
-
-
-  The available matches are intentionally similar to their http-check cousins :
-
-    string <string> : test the exact string matches in the response buffer.
-                      A health check response will be considered valid if the
-                      response's buffer contains this exact string. If the
-                      "string" keyword is prefixed with "!", then the response
-                      will be considered invalid if the body contains this
-                      string. This can be used to look for a mandatory pattern
-                      in a protocol response, or to detect a failure when a
-                      specific error appears in a protocol banner.
-
-    rstring <regex> : test a regular expression on the response buffer.
-                      A health check response will be considered valid if the
-                      response's buffer matches this expression. If the
-                      "rstring" keyword is prefixed with "!", then the response
-                      will be considered invalid if the body matches the
-                      expression.
-
-    binary <hexstring> : test the exact string in its hexadecimal form matches
-                         in the response buffer. A health check response will
-                         be considered valid if the response's buffer contains
-                         this exact hexadecimal string.
-                         Purpose is to match data on binary protocols.
-
-  It is important to note that the responses will be limited to a certain size
-  defined by the global "tune.chksize" option, which defaults to 16384 bytes.
-  Thus, too large responses may not contain the mandatory pattern when using
-  "string", "rstring" or binary. If a large response is absolutely required, it
-  is possible to change the default max size by setting the global variable.
-  However, it is worth keeping in mind that parsing very large responses can
-  waste some CPU cycles, especially when regular expressions are used, and that
-  it is always better to focus the checks on smaller resources. Also, in its
-  current state, the check will not find any string nor regex past a null
-  character in the response. Similarly it is not possible to request matching
-  the null character.
-
-  Examples :
-         # perform a POP check
-         option tcp-check
-         tcp-check expect string +OK\ POP3\ ready
-
-         # perform an IMAP check
-         option tcp-check
-         tcp-check expect string *\ OK\ IMAP4\ ready
-
-         # look for the redis master server
-         option tcp-check
-         tcp-check send PING\r\n
-         tcp-check expect +PONG
-         tcp-check send info\ replication\r\n
-         tcp-check expect string role:master
-         tcp-check send QUIT\r\n
-         tcp-check expect string +OK
-
-
-  See also : "option tcp-check", "tcp-check connect", "tcp-check send",
-             "tcp-check send-binary", "http-check expect", tune.chksize
-
-
-tcp-check send <data>
-  Specify a string to be sent as a question during a generic health check
-  May be used in sections:   defaults | frontend | listen | backend
-                               no     |    no    |   yes  |   yes
-
-    <data> : the data to be sent as a question during a generic health check
-             session. For now, <data> must be a string.
-
-  Examples :
-         # look for the redis master server
-         option tcp-check
-         tcp-check send info\ replication\r\n
-         tcp-check expect string role:master
-
-  See also : "option tcp-check", "tcp-check connect", "tcp-check expect",
-             "tcp-check send-binary", tune.chksize
-
-
-tcp-check send-binary <hexastring>
-  Specify an hexa digits string to be sent as a binary question during a raw
-  tcp health check
-  May be used in sections:   defaults | frontend | listen | backend
-                               no     |    no    |   yes  |   yes
-
-    <data> : the data to be sent as a question during a generic health check
-             session. For now, <data> must be a string.
-    <hexastring> : test the exact string in its hexadecimal form matches in the
-                   response buffer. A health check response will be considered
-                   valid if the response's buffer contains this exact
-                   hexadecimal string.
-                   Purpose is to send binary data to ask on binary protocols.
-
-  Examples :
-         # redis check in binary
-         option tcp-check
-         tcp-check send-binary 50494e470d0a # PING\r\n
-         tcp-check expect binary 2b504F4e47 # +PONG
-
-
-  See also : "option tcp-check", "tcp-check connect", "tcp-check expect",
-             "tcp-check send", tune.chksize
 
 
 http-send-name-header [<header>]
@@ -6992,6 +6811,187 @@ stick store-response <pattern> [table <table>] [{if | unless} <condition>]
 
   See also : "stick-table", "stick on", and section 7 about ACLs and pattern
              extraction.
+
+
+tcp-check connect [params*]
+  Opens a new connection
+  May be used in sections:   defaults | frontend | listen | backend
+                               no     |    no    |   yes  |   yes
+
+  When an application lies on more than a single TCP port or when HAProxy
+  load-balance many services in a single backend, it makes sense to probe all
+  the services individually before considering a server as operational.
+
+  When there are no TCP port configured on the server line neither server port
+  directive, then the 'tcp-check connect port <port>' must be the first step
+  of the sequence.
+
+  In a tcp-check ruleset a 'connect' is required, it is also mandatory to start
+  the ruleset with a 'connect' rule. Purpose is to ensure admin know what they
+  do.
+
+  Parameters :
+    They are optional and can be used to describe how HAProxy should open and
+    use the TCP connection.
+
+    port      if not set, check port or server port is used.
+              It tells HAProxy where to open the connection to.
+              <port> must be a valid TCP port source integer, from 1 to 65535.
+
+    send-proxy   send a PROXY protocol string
+
+    ssl          opens a ciphered connection
+
+    Examples:
+         # check HTTP and HTTPs services on a server.
+         # first open port 80 thanks to server line port directive, then
+         # tcp-check opens port 443, ciphered and run a request on it:
+         option tcp-check
+         tcp-check connect
+         tcp-check send GET\ /\ HTTP/1.0\r\n
+         tcp-check send Host:\ haproxy.1wt.eu\r\n
+         tcp-check send \r\n
+         tcp-check expect rstring (2..|3..)
+         tcp-check connect port 443 ssl
+         tcp-check send GET\ /\ HTTP/1.0\r\n
+         tcp-check send Host:\ haproxy.1wt.eu\r\n
+         tcp-check send \r\n
+         tcp-check expect rstring (2..|3..)
+         server www 10.0.0.1 check port 80
+
+         # check both POP and IMAP from a single server:
+         option tcp-check
+         tcp-check connect port 110
+         tcp-check expect string +OK\ POP3\ ready
+         tcp-check connect port 143
+         tcp-check expect string *\ OK\ IMAP4\ ready
+         server mail 10.0.0.1 check
+
+  See also : "option tcp-check", "tcp-check send", "tcp-check expect"
+
+
+tcp-check expect [!] <match> <pattern>
+  Specify data to be collected and analysed during a generic health check
+  May be used in sections:   defaults | frontend | listen | backend
+                               no     |    no    |   yes  |   yes
+
+  Arguments :
+    <match>   is a keyword indicating how to look for a specific pattern in the
+              response. The keyword may be one of "string", "rstring" or
+              binary.
+              The keyword may be preceded by an exclamation mark ("!") to negate
+              the match. Spaces are allowed between the exclamation mark and the
+              keyword. See below for more details on the supported keywords.
+
+    <pattern> is the pattern to look for. It may be a string or a regular
+              expression. If the pattern contains spaces, they must be escaped
+              with the usual backslash ('\').
+              If the match is set to binary, then the pattern must be passed as
+              a serie of hexadecimal digits in an even number. Each sequence of
+              two digits will represent a byte. The hexadecimal digits may be
+              used upper or lower case.
+
+
+  The available matches are intentionally similar to their http-check cousins :
+
+    string <string> : test the exact string matches in the response buffer.
+                      A health check response will be considered valid if the
+                      response's buffer contains this exact string. If the
+                      "string" keyword is prefixed with "!", then the response
+                      will be considered invalid if the body contains this
+                      string. This can be used to look for a mandatory pattern
+                      in a protocol response, or to detect a failure when a
+                      specific error appears in a protocol banner.
+
+    rstring <regex> : test a regular expression on the response buffer.
+                      A health check response will be considered valid if the
+                      response's buffer matches this expression. If the
+                      "rstring" keyword is prefixed with "!", then the response
+                      will be considered invalid if the body matches the
+                      expression.
+
+    binary <hexstring> : test the exact string in its hexadecimal form matches
+                         in the response buffer. A health check response will
+                         be considered valid if the response's buffer contains
+                         this exact hexadecimal string.
+                         Purpose is to match data on binary protocols.
+
+  It is important to note that the responses will be limited to a certain size
+  defined by the global "tune.chksize" option, which defaults to 16384 bytes.
+  Thus, too large responses may not contain the mandatory pattern when using
+  "string", "rstring" or binary. If a large response is absolutely required, it
+  is possible to change the default max size by setting the global variable.
+  However, it is worth keeping in mind that parsing very large responses can
+  waste some CPU cycles, especially when regular expressions are used, and that
+  it is always better to focus the checks on smaller resources. Also, in its
+  current state, the check will not find any string nor regex past a null
+  character in the response. Similarly it is not possible to request matching
+  the null character.
+
+  Examples :
+         # perform a POP check
+         option tcp-check
+         tcp-check expect string +OK\ POP3\ ready
+
+         # perform an IMAP check
+         option tcp-check
+         tcp-check expect string *\ OK\ IMAP4\ ready
+
+         # look for the redis master server
+         option tcp-check
+         tcp-check send PING\r\n
+         tcp-check expect +PONG
+         tcp-check send info\ replication\r\n
+         tcp-check expect string role:master
+         tcp-check send QUIT\r\n
+         tcp-check expect string +OK
+
+
+  See also : "option tcp-check", "tcp-check connect", "tcp-check send",
+             "tcp-check send-binary", "http-check expect", tune.chksize
+
+
+tcp-check send <data>
+  Specify a string to be sent as a question during a generic health check
+  May be used in sections:   defaults | frontend | listen | backend
+                               no     |    no    |   yes  |   yes
+
+    <data> : the data to be sent as a question during a generic health check
+             session. For now, <data> must be a string.
+
+  Examples :
+         # look for the redis master server
+         option tcp-check
+         tcp-check send info\ replication\r\n
+         tcp-check expect string role:master
+
+  See also : "option tcp-check", "tcp-check connect", "tcp-check expect",
+             "tcp-check send-binary", tune.chksize
+
+
+tcp-check send-binary <hexastring>
+  Specify an hexa digits string to be sent as a binary question during a raw
+  tcp health check
+  May be used in sections:   defaults | frontend | listen | backend
+                               no     |    no    |   yes  |   yes
+
+    <data> : the data to be sent as a question during a generic health check
+             session. For now, <data> must be a string.
+    <hexastring> : test the exact string in its hexadecimal form matches in the
+                   response buffer. A health check response will be considered
+                   valid if the response's buffer contains this exact
+                   hexadecimal string.
+                   Purpose is to send binary data to ask on binary protocols.
+
+  Examples :
+         # redis check in binary
+         option tcp-check
+         tcp-check send-binary 50494e470d0a # PING\r\n
+         tcp-check expect binary 2b504F4e47 # +PONG
+
+
+  See also : "option tcp-check", "tcp-check connect", "tcp-check expect",
+             "tcp-check send", tune.chksize
 
 
 tcp-request connection <action> [{if | unless} <condition>]
