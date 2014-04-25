@@ -289,6 +289,7 @@ struct proxy {
 	struct list pendconns;			/* pending connections with no server assigned yet */
 	int nbpend;				/* number of pending connections with no server assigned yet */
 	int totpend;				/* total number of pending connections on this instance (for stats) */
+	int max_ka_queue;			/* 1+maximum requests in queue accepted for reusing a K-A conn (0=none) */
 	unsigned int feconn, beconn;		/* # of active frontend and backends sessions */
 	struct freq_ctr fe_req_per_sec;		/* HTTP requests per second on the frontend */
 	struct freq_ctr fe_conn_per_sec;	/* received connections per second on the frontend */

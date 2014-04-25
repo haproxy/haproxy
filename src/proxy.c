@@ -275,6 +275,45 @@ static int proxy_parse_rate_limit(char **args, int section, struct proxy *proxy,
 	return retval;
 }
 
+/* This function parses a "max-keep-alive-queue" statement in a proxy section.
+ * It returns -1 if there is any error, 1 for a warning, otherwise zero. If it
+ * does not return zero, it will write an error or warning message into a
+ * preallocated buffer returned at <err>. The function must be called with
+ * <args> pointing to the first command line word, with <proxy> pointing to
+ * the proxy being parsed, and <defpx> to the default proxy or NULL.
+ */
+static int proxy_parse_max_ka_queue(char **args, int section, struct proxy *proxy,
+                                    struct proxy *defpx, const char *file, int line,
+                                    char **err)
+{
+	int retval;
+	char *res;
+	unsigned int val;
+
+	retval = 0;
+
+	if (*args[1] == 0) {
+		memprintf(err, "'%s' expects expects an integer value (or -1 to disable)", args[0]);
+		return -1;
+	}
+
+	val = strtol(args[1], &res, 0);
+	if (*res) {
+		memprintf(err, "'%s' : unexpected character '%c' in integer value '%s'", args[0], *res, args[1]);
+		return -1;
+	}
+
+	if (!(proxy->cap & PR_CAP_BE)) {
+		memprintf(err, "%s will be ignored because %s '%s' has no backend capability",
+		          args[0], proxy_type_str(proxy), proxy->id);
+		retval = 1;
+	}
+
+	/* we store <val+1> so that a user-facing value of -1 is stored as zero (default) */
+	proxy->max_ka_queue = val + 1;
+	return retval;
+}
+
 /* This function inserts proxy <px> into the tree of known proxies. The proxy's
  * name is used as the storing key so it must already have been initialized.
  */
@@ -926,6 +965,7 @@ static struct cfg_kw_list cfg_kws = {ILH, {
 	{ CFG_LISTEN, "contimeout", proxy_parse_timeout },
 	{ CFG_LISTEN, "srvtimeout", proxy_parse_timeout },
 	{ CFG_LISTEN, "rate-limit", proxy_parse_rate_limit },
+	{ CFG_LISTEN, "max-keep-alive-queue", proxy_parse_max_ka_queue },
 	{ 0, NULL, NULL },
 }};
 

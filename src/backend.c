@@ -541,8 +541,12 @@ int assign_server(struct session *s)
 
 	if (conn &&
 	    (conn->flags & CO_FL_CONNECTED) &&
-	    ((s->be->options & PR_O_PREF_LAST) || (s->txn.flags & TX_PREFER_LAST)) &&
 	    objt_server(conn->target) && __objt_server(conn->target)->proxy == s->be &&
+	    ((s->txn.flags & TX_PREFER_LAST) ||
+	     ((s->be->options & PR_O_PREF_LAST) &&
+	      (!s->be->max_ka_queue ||
+	       server_has_room(__objt_server(conn->target)) ||
+	       (__objt_server(conn->target)->nbpend + 1) < s->be->max_ka_queue))) &&
 	    srv_is_usable(__objt_server(conn->target)->state, __objt_server(conn->target)->eweight)) {
 		/* This session was relying on a server in a previous request
 		 * and the proxy has "option prefer-current-server" set, so

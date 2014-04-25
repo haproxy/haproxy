@@ -1930,6 +1930,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		if (curproxy->cap & PR_CAP_BE) {
 			curproxy->fullconn = defproxy.fullconn;
 			curproxy->conn_retries = defproxy.conn_retries;
+			curproxy->max_ka_queue = defproxy.max_ka_queue;
 
 			if (defproxy.check_req) {
 				curproxy->check_req = calloc(1, defproxy.check_len);
