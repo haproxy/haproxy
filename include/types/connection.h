@@ -162,6 +162,7 @@ enum {
 	CO_ER_SSL_CA_FAIL,      /* client cert verification failed in the CA chain */
 	CO_ER_SSL_CRT_FAIL,     /* client cert verification failed on the certificate */
 	CO_ER_SSL_HANDSHAKE,    /* SSL error during handshake */
+	CO_ER_SSL_HANDSHAKE_HB, /* SSL error during handshake with heartbeat present */
 	CO_ER_SSL_NO_TARGET,    /* unkonwn target (not client nor server) */
 };
 

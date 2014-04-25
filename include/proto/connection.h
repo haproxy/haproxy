@@ -581,6 +581,7 @@ static inline const char *conn_err_code_str(struct connection *c)
 	case CO_ER_SSL_CA_FAIL:   return "SSL client CA chain cannot be verified";
 	case CO_ER_SSL_CRT_FAIL:  return "SSL client certificate not trusted";
 	case CO_ER_SSL_HANDSHAKE: return "SSL handshake failure";
+	case CO_ER_SSL_HANDSHAKE_HB: return "SSL handshake failure after heartbeat";
 	case CO_ER_SSL_NO_TARGET: return "Attempt to use SSL on an unknown target (internal error)";
 	}
 	return NULL;
