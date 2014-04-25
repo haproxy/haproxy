@@ -582,6 +582,7 @@ static inline const char *conn_err_code_str(struct connection *c)
 	case CO_ER_SSL_CRT_FAIL:  return "SSL client certificate not trusted";
 	case CO_ER_SSL_HANDSHAKE: return "SSL handshake failure";
 	case CO_ER_SSL_HANDSHAKE_HB: return "SSL handshake failure after heartbeat";
+	case CO_ER_SSL_KILLED_HB: return "Stopped a TLSv1 heartbeat attack (CVE-2014-0160)";
 	case CO_ER_SSL_NO_TARGET: return "Attempt to use SSL on an unknown target (internal error)";
 	}
 	return NULL;

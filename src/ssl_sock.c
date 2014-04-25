@@ -190,8 +190,33 @@ void ssl_sock_msgcbk(int write_p, int version, int content_type, const void *buf
 #ifdef TLS1_RT_HEARTBEAT
 	/* test heartbeat received (write_p is set to 0
 	   for a received record) */
-	if ((content_type == TLS1_RT_HEARTBEAT) && (write_p == 0))
+	if ((content_type == TLS1_RT_HEARTBEAT) && (write_p == 0)) {
+		const unsigned char *p = buf;
+		unsigned int payload;
+
 		conn->xprt_st |= SSL_SOCK_RECV_HEARTBEAT;
+
+		/* Check if this is a CVE-2014-0160 exploitation attempt. */
+		if (*p != TLS1_HB_REQUEST)
+			return;
+
+		if (len < 1 + 2 + 16)
+			goto kill_it;
+
+		payload = (p[1] * 256) + p[2];
+		if (1 + 2 + payload + 16 <= len)
+			return; /* OK no problem */
+	kill_it:
+		/* we have a clear heartbleed attack (CVE-2014-0160),
+		 * we can't know if the SSL stack is patched, so better
+		 * kill the connection before OpenSSL tries to send the
+		 * bytes back to the attacker. It will be reported above
+		 * as SSL_ERROR_SSL while an other handshake failure with
+		 * a heartbeat message will be reported as SSL_ERROR_SYSCALL.
+		 */
+		SSLerr(SSL_F_TLS1_HEARTBEAT, SSL_R_SSL_HANDSHAKE_FAILURE);
+		return;
+	}
 #endif
 }
 
@@ -1443,7 +1468,8 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 				 */
 				conn_drain(conn);
 				if (!conn->err_code)
-					conn->err_code = CO_ER_SSL_HANDSHAKE;
+					conn->err_code = (conn->xprt_st & SSL_SOCK_RECV_HEARTBEAT) ?
+						CO_ER_SSL_KILLED_HB : CO_ER_SSL_HANDSHAKE;
 				goto out_error;
 			}
 		}
@@ -1508,7 +1534,8 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 			 */
 			conn_drain(conn);
 			if (!conn->err_code)
-				conn->err_code = CO_ER_SSL_HANDSHAKE;
+				conn->err_code = (conn->xprt_st & SSL_SOCK_RECV_HEARTBEAT) ?
+					CO_ER_SSL_KILLED_HB : CO_ER_SSL_HANDSHAKE;
 			goto out_error;
 		}
 	}
