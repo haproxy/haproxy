@@ -199,13 +199,13 @@ void ssl_sock_msgcbk(int write_p, int version, int content_type, const void *buf
 		if (*p != TLS1_HB_REQUEST)
 			return;
 
-		if (len < 3)
+		if (len < 1 + 2 + 16) /* 1 type + 2 size + 0 payload + 16 padding */
 			goto kill_it;
 
 		payload = (p[1] * 256) + p[2];
 		if (3 + payload + 16 <= len)
 			return; /* OK no problem */
-
+	kill_it:
 		/* We have a clear heartbleed attack (CVE-2014-0160), the
 		 * advertised payload is larger than the advertised packet
 		 * length, so we have garbage in the buffer between the
@@ -218,7 +218,6 @@ void ssl_sock_msgcbk(int write_p, int version, int content_type, const void *buf
 		 * above as SSL_ERROR_SSL while an other handshake failure with
 		 * a heartbeat message will be reported as SSL_ERROR_SYSCALL.
 		 */
-	kill_it:
 		ssl->max_send_fragment = 0;
 		SSLerr(SSL_F_TLS1_HEARTBEAT, SSL_R_SSL_HANDSHAKE_FAILURE);
 		return;
