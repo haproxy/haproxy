@@ -185,12 +185,11 @@ int ssl_sock_bind_verifycbk(int ok, X509_STORE_CTX *x_store)
 /* Callback is called for ssl protocol analyse */
 void ssl_sock_msgcbk(int write_p, int version, int content_type, const void *buf, size_t len, SSL *ssl, void *arg)
 {
-	struct connection *conn = (struct connection *)SSL_get_app_data(ssl);
-
 #ifdef TLS1_RT_HEARTBEAT
 	/* test heartbeat received (write_p is set to 0
 	   for a received record) */
 	if ((content_type == TLS1_RT_HEARTBEAT) && (write_p == 0)) {
+		struct connection *conn = (struct connection *)SSL_get_app_data(ssl);
 		const unsigned char *p = buf;
 		unsigned int payload;
 
