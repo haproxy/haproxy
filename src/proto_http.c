@@ -3530,6 +3530,7 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct session *
 		bo_inject(txn->rsp.chn, trash.str, trash.len);
 		/* "eat" the request */
 		bi_fast_delete(txn->req.chn->buf, msg->sov);
+		msg->next -= msg->sov;
 		msg->sov = 0;
 		txn->req.chn->analysers = AN_REQ_HTTP_XFER_BODY;
 		s->rep->analysers = AN_RES_HTTP_XFER_BODY;
