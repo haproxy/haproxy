@@ -8860,7 +8860,7 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		 * '+ 8' for 'add-acl('
 		 * '- 9' for 'add-acl(' + trailing ')'
 		 */
-		rule->arg.map.ref = strndup(args[0] + 8, strlen(args[0]) - 9);
+		rule->arg.map.ref = my_strndup(args[0] + 8, strlen(args[0]) - 9);
 
 		cur_arg = 1;
 
@@ -8887,7 +8887,7 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		 * '+ 8' for 'del-acl('
 		 * '- 9' for 'del-acl(' + trailing ')'
 		 */
-		rule->arg.map.ref = strndup(args[0] + 8, strlen(args[0]) - 9);
+		rule->arg.map.ref = my_strndup(args[0] + 8, strlen(args[0]) - 9);
 
 		cur_arg = 1;
 
@@ -8914,7 +8914,7 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		 * '+ 8' for 'del-map('
 		 * '- 9' for 'del-map(' + trailing ')'
 		 */
-		rule->arg.map.ref = strndup(args[0] + 8, strlen(args[0]) - 9);
+		rule->arg.map.ref = my_strndup(args[0] + 8, strlen(args[0]) - 9);
 
 		cur_arg = 1;
 
@@ -8941,7 +8941,7 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		 * '+ 8' for 'set-map('
 		 * '- 9' for 'set-map(' + trailing ')'
 		 */
-		rule->arg.map.ref = strndup(args[0] + 8, strlen(args[0]) - 9);
+		rule->arg.map.ref = my_strndup(args[0] + 8, strlen(args[0]) - 9);
 
 		cur_arg = 1;
 
@@ -9160,7 +9160,7 @@ struct http_res_rule *parse_http_res_cond(const char **args, const char *file, i
 		 * '+ 8' for 'add-acl('
 		 * '- 9' for 'add-acl(' + trailing ')'
 		 */
-		rule->arg.map.ref = strndup(args[0] + 8, strlen(args[0]) - 9);
+		rule->arg.map.ref = my_strndup(args[0] + 8, strlen(args[0]) - 9);
 
 		cur_arg = 1;
 
@@ -9188,7 +9188,7 @@ struct http_res_rule *parse_http_res_cond(const char **args, const char *file, i
 		 * '+ 8' for 'del-acl('
 		 * '- 9' for 'del-acl(' + trailing ')'
 		 */
-		rule->arg.map.ref = strndup(args[0] + 8, strlen(args[0]) - 9);
+		rule->arg.map.ref = my_strndup(args[0] + 8, strlen(args[0]) - 9);
 
 		cur_arg = 1;
 
@@ -9215,7 +9215,7 @@ struct http_res_rule *parse_http_res_cond(const char **args, const char *file, i
 		 * '+ 8' for 'del-map('
 		 * '- 9' for 'del-map(' + trailing ')'
 		 */
-		rule->arg.map.ref = strndup(args[0] + 8, strlen(args[0]) - 9);
+		rule->arg.map.ref = my_strndup(args[0] + 8, strlen(args[0]) - 9);
 
 		cur_arg = 1;
 
@@ -9242,7 +9242,7 @@ struct http_res_rule *parse_http_res_cond(const char **args, const char *file, i
 		 * '+ 8' for 'set-map('
 		 * '- 9' for 'set-map(' + trailing ')'
 		 */
-		rule->arg.map.ref = strndup(args[0] + 8, strlen(args[0]) - 9);
+		rule->arg.map.ref = my_strndup(args[0] + 8, strlen(args[0]) - 9);
 
 		cur_arg = 1;
 
