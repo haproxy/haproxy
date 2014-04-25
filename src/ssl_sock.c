@@ -199,20 +199,27 @@ void ssl_sock_msgcbk(int write_p, int version, int content_type, const void *buf
 		if (*p != TLS1_HB_REQUEST)
 			return;
 
-		if (len < 1 + 2 + 16)
+		if (len < 3)
 			goto kill_it;
 
 		payload = (p[1] * 256) + p[2];
-		if (1 + 2 + payload + 16 <= len)
+		if (3 + payload + 16 <= len)
 			return; /* OK no problem */
-	kill_it:
-		/* we have a clear heartbleed attack (CVE-2014-0160),
-		 * we can't know if the SSL stack is patched, so better
-		 * kill the connection before OpenSSL tries to send the
-		 * bytes back to the attacker. It will be reported above
-		 * as SSL_ERROR_SSL while an other handshake failure with
+
+		/* We have a clear heartbleed attack (CVE-2014-0160), the
+		 * advertised payload is larger than the advertised packet
+		 * length, so we have garbage in the buffer between the
+		 * payload and the end of the buffer (p+len). We can't know
+		 * if the SSL stack is patched, and we don't know if we can
+		 * safely wipe out the area between p+3+len and payload.
+		 * So instead, we prevent the response from being sent by
+		 * setting the max_send_fragment to 0 and we report an SSL
+		 * error, which will kill this connection. It will be reported
+		 * above as SSL_ERROR_SSL while an other handshake failure with
 		 * a heartbeat message will be reported as SSL_ERROR_SYSCALL.
 		 */
+	kill_it:
+		ssl->max_send_fragment = 0;
 		SSLerr(SSL_F_TLS1_HEARTBEAT, SSL_R_SSL_HANDSHAKE_FAILURE);
 		return;
 	}
