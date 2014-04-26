@@ -3072,22 +3072,8 @@ int http_handle_stats(struct session *s, struct channel *req)
 	/* Was the status page requested with a POST ? */
 	if (unlikely(txn->meth == HTTP_METH_POST && txn->req.body_len > 0)) {
 		if (appctx->ctx.stats.flags & STAT_ADMIN) {
-			if (msg->msg_state < HTTP_MSG_100_SENT) {
-				/* If we have HTTP/1.1 and Expect: 100-continue, then we must
-				 * send an HTTP/1.1 100 Continue intermediate response.
-				 */
-				if (msg->flags & HTTP_MSGF_VER_11) {
-					struct hdr_ctx ctx;
-					ctx.idx = 0;
-					/* Expect is allowed in 1.1, look for it */
-					if (http_find_header2("Expect", 6, req->buf->p, &txn->hdr_idx, &ctx) &&
-					    unlikely(ctx.vlen == 12 && strncasecmp(ctx.line+ctx.val, "100-continue", 12) == 0)) {
-						bo_inject(s->rep, http_100_chunk.str, http_100_chunk.len);
-					}
-				}
-				msg->msg_state = HTTP_MSG_100_SENT;
-				s->logs.tv_request = now;  /* update the request timer to reflect full request */
-			}
+			/* we'll need the request body, possibly after sending 100-continue */
+			req->analysers |= AN_REQ_HTTP_BODY;
 			appctx->st0 = STAT_HTTP_POST;
 		}
 		else {
@@ -4007,7 +3993,8 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 			select_compression_request_header(s, req->buf);
 
 		/* enable the minimally required analyzers to handle keep-alive and compression on the HTTP response */
-		req->analysers = AN_REQ_HTTP_XFER_BODY | AN_RES_WAIT_HTTP | AN_RES_HTTP_PROCESS_BE | AN_RES_HTTP_XFER_BODY;
+		req->analysers = (req->analysers & AN_REQ_HTTP_BODY) |
+		                 AN_REQ_HTTP_XFER_BODY | AN_RES_WAIT_HTTP | AN_RES_HTTP_PROCESS_BE | AN_RES_HTTP_XFER_BODY;
 		return 1;
 	}
 
