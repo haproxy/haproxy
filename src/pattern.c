@@ -1697,7 +1697,7 @@ int pat_ref_push(struct pat_ref_elt *elt, struct pattern_expr *expr,
  */
 int pat_ref_add(struct pat_ref *ref,
                 const char *pattern, const char *sample,
-                char **err)
+                int patflags, char **err)
 {
 	struct pat_ref_elt *elt;
 	struct pattern_expr *expr;
@@ -1732,7 +1732,7 @@ int pat_ref_add(struct pat_ref *ref,
 	LIST_ADDQ(&ref->head, &elt->list);
 
 	list_for_each_entry(expr, &ref->pat, list) {
-		if (!pat_ref_push(elt, expr, 0, err)) {
+		if (!pat_ref_push(elt, expr, patflags, err)) {
 			/* If the insertion fails, try to delete all the added entries. */
 			pat_ref_delete_by_id(ref, elt);
 			return 0;

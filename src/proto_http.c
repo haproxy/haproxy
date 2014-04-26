@@ -3260,7 +3260,7 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 			/* perform update */
 			/* add entry only if it does not already exist */
 			if (pat_ref_find_elt(ref, key) == NULL)
-				pat_ref_add(ref, key, NULL, NULL);
+				pat_ref_add(ref, key, NULL, 0, NULL);
 
 			break;
 			}
@@ -3295,7 +3295,7 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 				pat_ref_set(ref, key, value, NULL);
 			else
 				/* insert a new entry */
-				pat_ref_add(ref, key, value, NULL);
+				pat_ref_add(ref, key, value, 0, NULL);
 
 			break;
 			}
@@ -3441,7 +3441,7 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 			/* perform update */
 			/* check if the entry already exists */
 			if (pat_ref_find_elt(ref, key) == NULL)
-				pat_ref_add(ref, key, NULL, NULL);
+				pat_ref_add(ref, key, NULL, 0, NULL);
 
 			break;
 			}
@@ -3476,7 +3476,7 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 				pat_ref_set(ref, key, value, NULL);
 			else
 				/* insert a new entry */
-				pat_ref_add(ref, key, value, NULL);
+				pat_ref_add(ref, key, value, 0, NULL);
 
 			break;
 			}

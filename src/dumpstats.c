@@ -2055,9 +2055,9 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			/* Add value. */
 			err = NULL;
 			if (appctx->ctx.map.display_flags == PAT_REF_MAP)
-				ret = pat_ref_add(appctx->ctx.map.ref, args[3], args[4], &err);
+				ret = pat_ref_add(appctx->ctx.map.ref, args[3], args[4], 0, &err);
 			else
-				ret = pat_ref_add(appctx->ctx.map.ref, args[3], NULL, &err);
+				ret = pat_ref_add(appctx->ctx.map.ref, args[3], NULL, 0, &err);
 			if (!ret) {
 				if (err)
 					memprintf(&err, "%s.\n", err);
