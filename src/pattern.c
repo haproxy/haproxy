@@ -2240,7 +2240,7 @@ void pattern_finalize_config(void)
 						break;
 					}
 				}
-				if (&ref2->list == &pattern_reference);
+				if (&ref2->list == &pattern_reference)
 					break;
 			}
 
