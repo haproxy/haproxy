@@ -134,6 +134,7 @@ int userlist_postinit()
 				if (!ag) {
 					Alert("userlist '%s': no such group '%s' specified in user '%s'\n",
 					      curuserlist->name, group, curuser->user);
+					free(groups);
 					return ERR_ALERT | ERR_FATAL;
 				}
 
@@ -142,7 +143,8 @@ int userlist_postinit()
 				if (!grl) {
 					Alert("userlist '%s': no more memory when trying to allocate the user groups.\n",
 					      curuserlist->name);
-					return  ERR_ALERT | ERR_FATAL;
+					free(groups);
+					return ERR_ALERT | ERR_FATAL;
 				}
 
 				grl->group = ag;

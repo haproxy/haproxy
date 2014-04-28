@@ -1076,8 +1076,8 @@ int pat_idx_list_reg(struct pattern_expr *expr, struct pattern *pat, char **err)
 
 	/* compile regex */
 	if (!regex_comp(pat->ptr.str, patl->pat.ptr.reg, !(expr->mflags & PAT_MF_IGNORE_CASE), 0, err)) {
-		free(patl);
 		free(patl->pat.ptr.reg);
+		free(patl);
 		return 0;
 	}
 
@@ -1458,13 +1458,13 @@ int pat_ref_delete(struct pat_ref *ref, const char *key)
 	/* delete pattern from reference */
 	list_for_each_entry_safe(elt, safe, &ref->head, list) {
 		if (strcmp(key, elt->pattern) == 0) {
+			list_for_each_entry(expr, &ref->pat, list)
+				pattern_delete(expr, elt);
+
 			LIST_DEL(&elt->list);
 			free(elt->sample);
 			free(elt->pattern);
 			free(elt);
-
-			list_for_each_entry(expr, &ref->pat, list)
-				pattern_delete(expr, elt);
 
 			found = 1;
 		}

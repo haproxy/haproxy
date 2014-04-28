@@ -1610,6 +1610,8 @@ int main(int argc, char **argv)
 			exit(0); /* parent must leave */
 		}
 
+		free(children);
+		children = NULL;
 		/* if we're NOT in QUIET mode, we should now close the 3 first FDs to ensure
 		 * that we can detach from the TTY. We MUST NOT do it in other cases since
 		 * it would have already be done, and 0-2 would have been affected to listening

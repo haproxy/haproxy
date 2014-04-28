@@ -1578,8 +1578,6 @@ static int create_cond_regex_rule(const char *file, int line,
 	if (dir == SMP_OPT_DIR_REQ && warnif_misplaced_reqxxx(px, file, line, cmd))
 		err_code |= ERR_WARN;
 
-	free(errmsg);
-	return err_code;
  err:
 	free(errmsg);
 	free(preg);
