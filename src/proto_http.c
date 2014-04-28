@@ -252,6 +252,8 @@ fd_set http_encode_map[(sizeof(fd_set) > (256/8)) ? 1 : ((256/8) / sizeof(fd_set
 #error "Check if your OS uses bitfields for fd_sets"
 #endif
 
+static int http_apply_redirect_rule(struct redirect_rule *rule, struct session *s, struct http_txn *txn);
+
 void init_proto_http()
 {
 	int i;
@@ -3175,12 +3177,13 @@ static inline void inet_set_tos(int fd, struct sockaddr_storage from, int tos)
 }
 
 /* Executes the http-request rules <rules> for session <s>, proxy <px> and
- * transaction <txn>. Returns the first rule that prevents further processing
- * of the request (auth, deny, ...) or NULL if it executed all rules or stopped
- * on an allow. It may set the TX_CLDENY on txn->flags if it encounters a deny
- * rule.
+ * transaction <txn>. Returns the verdict of the first rule that prevents
+ * further processing of the request (auth, deny, ...), and defaults to
+ * HTTP_RULE_RES_STOP if it executed all rules or stopped on an allow, or
+ * HTTP_RULE_RES_CONT if the last rule was reached. It may set the TX_CLTARPIT
+ * on txn->flags if it encounters a tarpit rule.
  */
-static struct http_req_rule *
+enum rule_result
 http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session *s, struct http_txn *txn)
 {
 	struct connection *cli_conn;
@@ -3209,15 +3212,14 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 
 		switch (rule->action) {
 		case HTTP_REQ_ACT_ALLOW:
-			return NULL; /* "allow" rules are OK */
+			return HTTP_RULE_RES_STOP;
 
 		case HTTP_REQ_ACT_DENY:
-			txn->flags |= TX_CLDENY;
-			return rule;
+			return HTTP_RULE_RES_DENY;
 
 		case HTTP_REQ_ACT_TARPIT:
 			txn->flags |= TX_CLTARPIT;
-			return rule;
+			return HTTP_RULE_RES_DENY;
 
 		case HTTP_REQ_ACT_AUTH:
 			/* Auth might be performed on regular http-req rules as well as on stats */
@@ -3236,10 +3238,12 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 			txn->status = (txn->flags & TX_USE_PX_CONN) ? 407 : 401;
 			stream_int_retnclose(&s->si[0], &trash);
 			session_inc_http_err_ctr(s);
-			return rule;
+			return HTTP_RULE_RES_ABRT;
 
 		case HTTP_REQ_ACT_REDIR:
-			return rule;
+			if (!http_apply_redirect_rule(rule->arg.redir, s, txn))
+				return HTTP_RULE_RES_BADREQ;
+			return HTTP_RULE_RES_DONE;
 
 		case HTTP_REQ_ACT_SET_NICE:
 			s->task->nice = rule->arg.nice;
@@ -3373,12 +3377,12 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 
 		case HTTP_REQ_ACT_CUSTOM_STOP:
 			rule->action_ptr(rule, px, s, txn);
-			return rule;
+			return HTTP_RULE_RES_DONE;
 		}
 	}
 
 	/* we reached the end of the rules, nothing to report */
-	return NULL;
+	return HTTP_RULE_RES_CONT;
 }
 
 
@@ -3830,9 +3834,9 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 {
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->req;
-	struct http_req_rule *http_req_last_rule = NULL;
 	struct redirect_rule *rule;
 	struct cond_wordlist *wl;
+	enum rule_result verdict;
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 		/* we need more data */
@@ -3853,28 +3857,28 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 	session_inc_be_http_req_ctr(s);
 
 	/* evaluate http-request rules */
-	http_req_last_rule = http_req_get_intercept_rule(px, &px->http_req_rules, s, txn);
+	if (!LIST_ISEMPTY(&px->http_req_rules)) {
+		verdict = http_req_get_intercept_rule(px, &px->http_req_rules, s, txn);
 
-	if (http_req_last_rule) {
-		/* one http-request rule interrupted the processing */
-		if (txn->flags & TX_CLDENY)
+		switch (verdict) {
+		case HTTP_RULE_RES_CONT:
+		case HTTP_RULE_RES_STOP: /* nothing to do */
+			break;
+
+		case HTTP_RULE_RES_DENY: /* deny or tarpit */
+			if (txn->flags & TX_CLTARPIT)
+				goto tarpit;
 			goto deny;
 
-		if (txn->flags & TX_CLTARPIT)
-			goto tarpit;
-
-		if (http_req_last_rule->action == HTTP_REQ_ACT_REDIR) {
-			if (!http_apply_redirect_rule(http_req_last_rule->arg.redir, s, txn))
-				goto return_bad_req;
-			goto done;
-		}
-
-		if (http_req_last_rule->action == HTTP_REQ_ACT_CUSTOM_STOP)
-			goto done;
-
-		/* we can be blocked here because the request needs to be authenticated. */
-		if (http_req_last_rule->action == HTTP_REQ_ACT_AUTH)
+		case HTTP_RULE_RES_ABRT: /* abort request, response already sent. Eg: auth */
 			goto return_prx_cond;
+
+		case HTTP_RULE_RES_DONE: /* OK, but terminate request processing (eg: redirect) */
+			goto done;
+
+		case HTTP_RULE_RES_BADREQ: /* failed with a bad request */
+			goto return_bad_req;
+		}
 	}
 
 	/* OK at this stage, we know that the request was accepted according to
@@ -3897,17 +3901,14 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 
 		/* parse the whole stats request and extract the relevant information */
 		http_handle_stats(s, req);
-		http_req_last_rule = http_req_get_intercept_rule(px, &px->uri_auth->http_req_rules, s, txn);
+		verdict = http_req_get_intercept_rule(px, &px->uri_auth->http_req_rules, s, txn);
+		/* not all actions implemented: deny, allow, auth */
 
-		if (http_req_last_rule) {
-			/* we can still get a deny on the stats page */
-			if (txn->flags & TX_CLDENY)
-				goto deny;
+		if (verdict == HTTP_RULE_RES_DENY) /* stats http-request deny */
+			goto deny;
 
-			/* stats auth / stats http-request auth ? */
-			if (http_req_last_rule->action == HTTP_REQ_ACT_AUTH)
-				goto return_prx_cond;
-		}
+		if (verdict == HTTP_RULE_RES_ABRT) /* stats auth / stats http-request auth */
+			goto return_prx_cond;
 	}
 
 	/* evaluate the req* rules except reqadd */
@@ -4018,6 +4019,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 	goto done;
 
  deny:	/* this request was blocked (denied) */
+	txn->flags |= TX_CLDENY;
 	txn->status = 403;
 	s->logs.tv_request = now;
 	stream_int_retnclose(req->prod, http_error_message(s, HTTP_ERR_403));

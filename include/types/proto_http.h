@@ -282,6 +282,16 @@ enum {
 	HTTP_RES_ACT_MAX /* must always be last */
 };
 
+/* final results for http-request rules */
+enum rule_result {
+	HTTP_RULE_RES_CONT = 0,  /* nothing special, continue rules evaluation */
+	HTTP_RULE_RES_STOP,      /* stopped processing on an accept */
+	HTTP_RULE_RES_DENY,      /* deny (or tarpit if TX_CLTARPIT)  */
+	HTTP_RULE_RES_ABRT,      /* abort request, msg already sent (eg: auth) */
+	HTTP_RULE_RES_DONE,      /* processing done, stop processing (eg: redirect) */
+	HTTP_RULE_RES_BADREQ,    /* bad request */
+};
+
 /*
  * All implemented return codes
  */
