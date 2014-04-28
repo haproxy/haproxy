@@ -4997,6 +4997,9 @@ stats_error_parsing:
 						   args[0], args[1], args[2], (const char **)args+3);
 		if (err_code & ERR_FATAL)
 			goto out;
+
+		if (!already_warned(WARN_REQSETBE_DEPRECATED))
+			Warning("parsing [%s:%d] : The '%s' directive is now deprecated in favor of the more efficient 'use_backend' which uses a different but more powerful syntax. Future versions will not support '%s' anymore, you should convert it now!\n", file, linenum, args[0], args[0]);
 	}
 	else if (!strcmp(args[0], "reqisetbe")) { /* switch the backend from a regex, ignoring case */
 		err_code |= create_cond_regex_rule(file, linenum, curproxy,
@@ -5004,6 +5007,9 @@ stats_error_parsing:
 						   args[0], args[1], args[2], (const char **)args+3);
 		if (err_code & ERR_FATAL)
 			goto out;
+
+		if (!already_warned(WARN_REQSETBE_DEPRECATED))
+			Warning("parsing [%s:%d] : The '%s' directive is now deprecated in favor of the more efficient 'use_backend' which uses a different but more powerful syntax. Future versions will not support '%s' anymore, you should convert it now!\n", file, linenum, args[0], args[0]);
 	}
 	else if (!strcmp(args[0], "reqirep")) {  /* replace request header from a regex, ignoring case */
 		if (*(args[2]) == 0) {
