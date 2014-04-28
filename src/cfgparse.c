@@ -2874,28 +2874,28 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		curproxy->server_id_hdr_len  = strlen(curproxy->server_id_hdr_name);
 	}
 	else if (!strcmp(args[0], "block")) {  /* early blocking based on ACLs */
+		struct http_req_rule *rule;
+
 		if (curproxy == &defproxy) {
 			Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, linenum, args[0]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
 
-		if (strcmp(args[1], "if") != 0 && strcmp(args[1], "unless") != 0) {
-			Alert("parsing [%s:%d] : '%s' requires either 'if' or 'unless' followed by a condition.\n",
-			      file, linenum, args[0]);
-			err_code |= ERR_ALERT | ERR_FATAL;
+		/* emulate "block" using "http-request block". Since these rules are supposed to
+		 * be processed before all http-request rules, we put them into their own list
+		 * and will insert them at the end.
+		 */
+		rule = parse_http_req_cond((const char **)args, file, linenum, curproxy);
+		if (!rule) {
+			err_code |= ERR_ALERT | ERR_ABORT;
 			goto out;
 		}
-
-		if ((cond = build_acl_cond(file, linenum, curproxy, (const char **)args + 1, &errmsg)) == NULL) {
-			Alert("parsing [%s:%d] : error detected while parsing blocking condition : %s.\n",
-			      file, linenum, errmsg);
-			err_code |= ERR_ALERT | ERR_FATAL;
-			goto out;
-		}
-
-		LIST_ADDQ(&curproxy->block_rules, &cond->list);
-		warnif_misplaced_block(curproxy, file, linenum, args[0]);
+		err_code |= warnif_misplaced_block(curproxy, file, linenum, args[0]);
+		err_code |= warnif_cond_conflicts(rule->cond,
+	                                          (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
+	                                          file, linenum);
+		LIST_ADDQ(&curproxy->block_rules, &rule->list);
 	}
 	else if (!strcmp(args[0], "redirect")) {
 		struct redirect_rule *rule;
@@ -6187,6 +6187,16 @@ int check_config_validity()
 				 * stktable_alloc_data_type().
 				 */
 			}
+		}
+
+		/* move any "block" rules at the beginning of the http-request rules */
+		if (!LIST_ISEMPTY(&curproxy->block_rules)) {
+			/* insert block_rules into http_req_rules at the beginning */
+			curproxy->block_rules.p->n    = curproxy->http_req_rules.n;
+			curproxy->http_req_rules.n->p = curproxy->block_rules.p;
+			curproxy->block_rules.n->p    = &curproxy->http_req_rules;
+			curproxy->http_req_rules.n    = curproxy->block_rules.n;
+			LIST_INIT(&curproxy->block_rules);
 		}
 
 		if (curproxy->table.peers.name) {
