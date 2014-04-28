@@ -4062,7 +4062,8 @@ stats_error_parsing:
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
-		Warning("parsing [%s:%d]: keyword '%s' is deprecated, please use 'option redispatch' instead.\n",
+		if (!already_warned(WARN_REDISPATCH_DEPRECATED))
+			Warning("parsing [%s:%d]: keyword '%s' is deprecated in favor of 'option redispatch', and will not be supported by future versions.\n",
 				file, linenum, args[0]);
 		err_code |= ERR_WARN;
 		/* enable reconnections to dispatch */
