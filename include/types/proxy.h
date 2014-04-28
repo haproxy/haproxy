@@ -228,7 +228,7 @@ struct proxy {
 	struct list acl;                        /* ACL declared on this proxy */
 	struct list http_req_rules;		/* HTTP request rules: allow/deny/... */
 	struct list http_res_rules;		/* HTTP response rules: allow/deny/... */
-	struct list block_cond;                 /* early blocking conditions (chained) */
+	struct list block_rules;                /* http-request block rules to be inserted before other ones */
 	struct list redirect_rules;             /* content redirecting rules (chained) */
 	struct list switching_rules;            /* content switching rules (chained) */
 	struct list persist_rules;		/* 'force-persist' and 'ignore-persist' rules (chained) */

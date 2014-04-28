@@ -3838,7 +3838,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 	session_inc_be_http_req_ctr(s);
 
 	/* first check whether we have some ACLs set to block this request */
-	list_for_each_entry(cond, &px->block_cond, list) {
+	list_for_each_entry(cond, &px->block_rules, list) {
 		int ret = acl_exec_cond(cond, px, s, txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
 
 		ret = acl_pass(ret);

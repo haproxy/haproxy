@@ -1016,7 +1016,7 @@ void deinit(void)
 			free(cwl);
 		}
 
-		list_for_each_entry_safe(cond, condb, &p->block_cond, list) {
+		list_for_each_entry_safe(cond, condb, &p->block_rules, list) {
 			LIST_DEL(&cond->list);
 			prune_acl_cond(cond);
 			free(cond);

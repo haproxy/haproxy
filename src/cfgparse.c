@@ -312,7 +312,7 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
  */
 int warnif_rule_after_block(struct proxy *proxy, const char *file, int line, const char *arg)
 {
-	if (!LIST_ISEMPTY(&proxy->block_cond)) {
+	if (!LIST_ISEMPTY(&proxy->block_rules)) {
 		Warning("parsing [%s:%d] : a '%s' rule placed after a 'block' rule will still be processed before.\n",
 			file, line, arg);
 		return 1;
@@ -2894,7 +2894,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
-		LIST_ADDQ(&curproxy->block_cond, &cond->list);
+		LIST_ADDQ(&curproxy->block_rules, &cond->list);
 		warnif_misplaced_block(curproxy, file, linenum, args[0]);
 	}
 	else if (!strcmp(args[0], "redirect")) {
