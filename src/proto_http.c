@@ -3777,14 +3777,8 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 		if (cond->pol == ACL_COND_UNLESS)
 			ret = !ret;
 
-		if (ret) {
-			txn->status = 403;
-			/* let's log the request time */
-			s->logs.tv_request = now;
-			stream_int_retnclose(req->prod, http_error_message(s, HTTP_ERR_403));
-			session_inc_http_err_ctr(s);
-			goto return_prx_cond;
-		}
+		if (ret)
+			goto deny;
 	}
 
 	/* just in case we have some per-backend tracking */
