@@ -3949,6 +3949,18 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 		goto return_prx_cond;
 	}
 
+	if (http_req_last_rule && http_req_last_rule->action == HTTP_REQ_ACT_REDIR) {
+		if (!http_apply_redirect_rule(http_req_last_rule->arg.redir, s, txn))
+			goto return_bad_req;
+		req->analyse_exp = TICK_ETERNITY;
+		return 1;
+	}
+
+	if (http_req_last_rule && http_req_last_rule->action == HTTP_REQ_ACT_CUSTOM_STOP) {
+		req->analyse_exp = TICK_ETERNITY;
+		return 1;
+	}
+
 	/* add request headers from the rule sets in the same order */
 	list_for_each_entry(wl, &px->req_add, list) {
 		if (wl->cond) {
@@ -3962,18 +3974,6 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 
 		if (unlikely(http_header_add_tail(&txn->req, &txn->hdr_idx, wl->s) < 0))
 			goto return_bad_req;
-	}
-
-	if (http_req_last_rule && http_req_last_rule->action == HTTP_REQ_ACT_REDIR) {
-		if (!http_apply_redirect_rule(http_req_last_rule->arg.redir, s, txn))
-			goto return_bad_req;
-		req->analyse_exp = TICK_ETERNITY;
-		return 1;
-	}
-
-	if (http_req_last_rule && http_req_last_rule->action == HTTP_REQ_ACT_CUSTOM_STOP) {
-		req->analyse_exp = TICK_ETERNITY;
-		return 1;
 	}
 
 	if (unlikely(objt_applet(s->target) == &http_stats_applet)) {
