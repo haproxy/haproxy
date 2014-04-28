@@ -3186,6 +3186,7 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 	struct connection *cli_conn;
 	struct http_req_rule *rule;
 	struct hdr_ctx ctx;
+	const char *auth_realm;
 
 	list_for_each_entry(rule, rules, list) {
 		if (rule->action >= HTTP_REQ_ACT_MAX)
@@ -3219,6 +3220,22 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 			return rule;
 
 		case HTTP_REQ_ACT_AUTH:
+			/* Auth might be performed on regular http-req rules as well as on stats */
+			auth_realm = rule->arg.auth.realm;
+			if (!auth_realm) {
+				if (px->uri_auth && rules == &px->uri_auth->http_req_rules)
+					auth_realm = STATS_DEFAULT_REALM;
+				else
+					auth_realm = px->id;
+			}
+			/* send 401/407 depending on whether we use a proxy or not. We still
+			 * count one error, because normal browsing won't significantly
+			 * increase the counter but brute force attempts will.
+			 */
+			chunk_printf(&trash, (txn->flags & TX_USE_PX_CONN) ? HTTP_407_fmt : HTTP_401_fmt, auth_realm);
+			txn->status = (txn->flags & TX_USE_PX_CONN) ? 407 : 401;
+			stream_int_retnclose(&s->si[0], &trash);
+			session_inc_http_err_ctr(s);
 			return rule;
 
 		case HTTP_REQ_ACT_REDIR:
@@ -3816,7 +3833,6 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 	struct http_req_rule *http_req_last_rule = NULL;
 	struct redirect_rule *rule;
 	struct cond_wordlist *wl;
-	const char *auth_realm = NULL;
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 		/* we need more data */
@@ -3857,12 +3873,8 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 			goto done;
 
 		/* we can be blocked here because the request needs to be authenticated. */
-		if (http_req_last_rule->action == HTTP_REQ_ACT_AUTH) {
-			auth_realm = http_req_last_rule->arg.auth.realm;
-			if (!auth_realm)
-				auth_realm = px->id;
-			goto auth;
-		}
+		if (http_req_last_rule->action == HTTP_REQ_ACT_AUTH)
+			goto return_prx_cond;
 	}
 
 	/* OK at this stage, we know that the request was accepted according to
@@ -3893,12 +3905,8 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 				goto deny;
 
 			/* stats auth / stats http-request auth ? */
-			if (http_req_last_rule->action == HTTP_REQ_ACT_AUTH) {
-				auth_realm = http_req_last_rule->arg.auth.realm;
-				if (!auth_realm)
-					auth_realm = STATS_DEFAULT_REALM;
-				goto auth;
-			}
+			if (http_req_last_rule->action == HTTP_REQ_ACT_AUTH)
+				goto return_prx_cond;
 		}
 	}
 
@@ -4008,16 +4016,6 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 	if (s->listener->counters)
 		s->listener->counters->denied_req++;
 	goto done;
-
- auth:	/* send 401/407 depending on whether we use a proxy or not. We still
-	 * count one error, because normal browsing won't significantly
-	 * increase the counter but brute force attempts will.
-	 */
-	chunk_printf(&trash, (txn->flags & TX_USE_PX_CONN) ? HTTP_407_fmt : HTTP_401_fmt, auth_realm);
-	txn->status = (txn->flags & TX_USE_PX_CONN) ? 407 : 401;
-	stream_int_retnclose(req->prod, &trash);
-	session_inc_http_err_ctr(s);
-	goto return_prx_cond;
 
  deny:	/* this request was blocked (denied) */
 	txn->status = 403;
