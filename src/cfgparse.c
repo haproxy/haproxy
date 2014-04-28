@@ -2896,6 +2896,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	                                          (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
 	                                          file, linenum);
 		LIST_ADDQ(&curproxy->block_rules, &rule->list);
+
+		if (!already_warned(WARN_BLOCK_DEPRECATED))
+			Warning("parsing [%s:%d] : The '%s' directive is now deprecated in favor of 'http-request deny' which uses the exact same syntax. The rules are translated but support might disappear in a future version.\n", file, linenum, args[0]);
+
 	}
 	else if (!strcmp(args[0], "redirect")) {
 		struct redirect_rule *rule;

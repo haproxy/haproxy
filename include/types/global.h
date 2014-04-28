@@ -173,7 +173,7 @@ extern struct task *global_listener_queue_task;
 extern unsigned int warned;     /* bitfield of a few warnings to emit just once */
 
 /* bit values to go with "warned" above */
-/* #define WARN_* */
+#define WARN_BLOCK_DEPRECATED       0x00000001
 
 /* to be used with warned and WARN_* */
 static inline int already_warned(unsigned int warning)
