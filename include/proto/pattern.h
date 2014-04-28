@@ -30,7 +30,7 @@
 
 /* pattern management function arrays */
 extern char *pat_match_names[PAT_MATCH_NUM];
-extern int (*pat_parse_fcts[PAT_MATCH_NUM])(const char *, struct pattern *, char **);
+extern int (*pat_parse_fcts[PAT_MATCH_NUM])(const char *, struct pattern *, int, char **);
 extern int (*pat_index_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *, char **);
 extern void (*pat_delete_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pat_ref_elt *);
 extern void (*pat_prune_fcts[PAT_MATCH_NUM])(struct pattern_expr *);
@@ -101,34 +101,34 @@ void pat_prune_reg(struct pattern_expr *expr);
 
 
 /* ignore the current line */
-int pat_parse_nothing(const char *text, struct pattern *pattern, char **err);
+int pat_parse_nothing(const char *text, struct pattern *pattern, int mflags, char **err);
 
 /* Parse an integer. It is put both in min and max. */
-int pat_parse_int(const char *text, struct pattern *pattern, char **err);
+int pat_parse_int(const char *text, struct pattern *pattern, int mflags, char **err);
 
 /* Parse an version. It is put both in min and max. */
-int pat_parse_dotted_ver(const char *text, struct pattern *pattern, char **err);
+int pat_parse_dotted_ver(const char *text, struct pattern *pattern, int mflags, char **err);
 
 /* Parse a range of integers delimited by either ':' or '-'. If only one
  * integer is read, it is set as both min and max.
  */
-int pat_parse_range(const char *text, struct pattern *pattern, char **err);
+int pat_parse_range(const char *text, struct pattern *pattern, int mflags, char **err);
 
 /* Parse a string. It is allocated and duplicated. */
-int pat_parse_str(const char *text, struct pattern *pattern, char **err);
+int pat_parse_str(const char *text, struct pattern *pattern, int mflags, char **err);
 
 /* Parse a hexa binary definition. It is allocated and duplicated. */
-int pat_parse_bin(const char *text, struct pattern *pattern, char **err);
+int pat_parse_bin(const char *text, struct pattern *pattern, int mflags, char **err);
 
 /* Parse a regex. It is allocated. */
-int pat_parse_reg(const char *text, struct pattern *pattern, char **err);
+int pat_parse_reg(const char *text, struct pattern *pattern, int mflags, char **err);
 
 /* Parse an IP address and an optional mask in the form addr[/mask].
  * The addr may either be an IPv4 address or a hostname. The mask
  * may either be a dotted mask or a number of bits. Returns 1 if OK,
  * otherwise 0.
  */
-int pat_parse_ip(const char *text, struct pattern *pattern, char **err);
+int pat_parse_ip(const char *text, struct pattern *pattern, int mflags, char **err);
 
 /* NB: For two strings to be identical, it is required that their lengths match */
 struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int fill);
@@ -183,7 +183,7 @@ struct pat_ref *pat_ref_new(const char *reference, const char *display, unsigned
 struct pat_ref *pat_ref_newid(int unique_id, const char *display, unsigned int flags);
 struct pat_ref_elt *pat_ref_find_elt(struct pat_ref *ref, const char *key);
 int pat_ref_append(struct pat_ref *ref, char *pattern, char *sample, int line);
-int pat_ref_add(struct pat_ref *ref, const char *pattern, const char *sample, int patflags, char **err);
+int pat_ref_add(struct pat_ref *ref, const char *pattern, const char *sample, char **err);
 int pat_ref_set(struct pat_ref *ref, const char *pattern, const char *sample, char **err);
 int pat_ref_set_by_id(struct pat_ref *ref, struct pat_ref_elt *refelt, const char *value, char **err);
 int pat_ref_delete(struct pat_ref *ref, const char *key);

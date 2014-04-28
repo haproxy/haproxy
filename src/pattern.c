@@ -41,7 +41,7 @@ char *pat_match_names[PAT_MATCH_NUM] = {
 	[PAT_MATCH_REG]   = "reg",
 };
 
-int (*pat_parse_fcts[PAT_MATCH_NUM])(const char *, struct pattern *, char **) = {
+int (*pat_parse_fcts[PAT_MATCH_NUM])(const char *, struct pattern *, int, char **) = {
 	[PAT_MATCH_FOUND] = pat_parse_nothing,
 	[PAT_MATCH_BOOL]  = pat_parse_nothing,
 	[PAT_MATCH_INT]   = pat_parse_int,
@@ -194,13 +194,13 @@ static inline unsigned int make_4delim(unsigned char d1, unsigned char d2, unsig
  */
 
 /* ignore the current line */
-int pat_parse_nothing(const char *text, struct pattern *pattern, char **err)
+int pat_parse_nothing(const char *text, struct pattern *pattern, int mflags, char **err)
 {
 	return 1;
 }
 
 /* Parse a string. It is allocated and duplicated. */
-int pat_parse_str(const char *text, struct pattern *pattern, char **err)
+int pat_parse_str(const char *text, struct pattern *pattern, int mflags, char **err)
 {
 	pattern->type = SMP_T_STR;
 	pattern->ptr.str = (char *)text;
@@ -209,7 +209,7 @@ int pat_parse_str(const char *text, struct pattern *pattern, char **err)
 }
 
 /* Parse a binary written in hexa. It is allocated. */
-int pat_parse_bin(const char *text, struct pattern *pattern, char **err)
+int pat_parse_bin(const char *text, struct pattern *pattern, int mflags, char **err)
 {
 	struct chunk *trash;
 
@@ -221,7 +221,7 @@ int pat_parse_bin(const char *text, struct pattern *pattern, char **err)
 }
 
 /* Parse a regex. It is allocated. */
-int pat_parse_reg(const char *text, struct pattern *pattern, char **err)
+int pat_parse_reg(const char *text, struct pattern *pattern, int mflags, char **err)
 {
 	struct chunk *trash;
 
@@ -252,7 +252,7 @@ int pat_parse_reg(const char *text, struct pattern *pattern, char **err)
  * non-zero on success.
  *
  */
-int pat_parse_int(const char *text, struct pattern *pattern, char **err)
+int pat_parse_int(const char *text, struct pattern *pattern, int mflags, char **err)
 {
 	const char *ptr = text;
 
@@ -337,7 +337,7 @@ int pat_parse_int(const char *text, struct pattern *pattern, char **err)
  *    acl valid_ssl       ssl_req_proto 3.0-3.1
  *
  */
-int pat_parse_dotted_ver(const char *text, struct pattern *pattern, char **err)
+int pat_parse_dotted_ver(const char *text, struct pattern *pattern, int mflags, char **err)
 {
 	const char *ptr = text;
 
@@ -404,9 +404,9 @@ int pat_parse_dotted_ver(const char *text, struct pattern *pattern, char **err)
  * may either be a dotted mask or a number of bits. Returns 1 if OK,
  * otherwise 0. NOTE: IP address patterns are typed (IPV4/IPV6).
  */
-int pat_parse_ip(const char *text, struct pattern *pattern, char **err)
+int pat_parse_ip(const char *text, struct pattern *pattern, int mflags, char **err)
 {
-	if (str2net(text, !(pattern->flags & PAT_F_NO_DNS) && (global.mode & MODE_STARTING),
+	if (str2net(text, !(mflags & PAT_MF_NO_DNS) && (global.mode & MODE_STARTING),
 	            &pattern->val.ipv4.addr, &pattern->val.ipv4.mask)) {
 		pattern->type = SMP_T_IPV4;
 		return 1;
@@ -438,7 +438,6 @@ struct pattern *pat_match_nothing(struct sample *smp, struct pattern_expr *expr,
 		if (fill) {
 			static_pattern.smp = NULL;
 			static_pattern.ref = NULL;
-			static_pattern.flags = 0;
 			static_pattern.type = 0;
 			static_pattern.ptr.str = NULL;
 		}
@@ -474,7 +473,7 @@ struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int
 				elt = ebmb_entry(node, struct pattern_tree, node);
 				static_pattern.smp = elt->smp;
 				static_pattern.ref = elt->ref;
-				static_pattern.flags = PAT_F_TREE;
+				static_pattern.sflags = PAT_SF_TREE;
 				static_pattern.type = SMP_T_STR;
 				static_pattern.ptr.str = (char *)elt->node.key;
 			}
@@ -489,7 +488,7 @@ struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int
 		if (pattern->len != smp->data.str.len)
 			continue;
 
-		icase = pattern->flags & PAT_F_IGNORE_CASE;
+		icase = expr->mflags & PAT_MF_IGNORE_CASE;
 		if ((icase && strncasecmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) == 0) ||
 		    (!icase && strncmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) == 0))
 			return pattern;
@@ -549,7 +548,7 @@ struct pattern *pat_match_beg(struct sample *smp, struct pattern_expr *expr, int
 		if (pattern->len > smp->data.str.len)
 			continue;
 
-		icase = pattern->flags & PAT_F_IGNORE_CASE;
+		icase = expr->mflags & PAT_MF_IGNORE_CASE;
 		if ((icase && strncasecmp(pattern->ptr.str, smp->data.str.str, pattern->len) != 0) ||
 		    (!icase && strncmp(pattern->ptr.str, smp->data.str.str, pattern->len) != 0))
 			continue;
@@ -572,7 +571,7 @@ struct pattern *pat_match_end(struct sample *smp, struct pattern_expr *expr, int
 		if (pattern->len > smp->data.str.len)
 			continue;
 
-		icase = pattern->flags & PAT_F_IGNORE_CASE;
+		icase = expr->mflags & PAT_MF_IGNORE_CASE;
 		if ((icase && strncasecmp(pattern->ptr.str, smp->data.str.str + smp->data.str.len - pattern->len, pattern->len) != 0) ||
 		    (!icase && strncmp(pattern->ptr.str, smp->data.str.str + smp->data.str.len - pattern->len, pattern->len) != 0))
 			continue;
@@ -600,7 +599,7 @@ struct pattern *pat_match_sub(struct sample *smp, struct pattern_expr *expr, int
 			continue;
 
 		end = smp->data.str.str + smp->data.str.len - pattern->len;
-		icase = pattern->flags & PAT_F_IGNORE_CASE;
+		icase = expr->mflags & PAT_MF_IGNORE_CASE;
 		if (icase) {
 			for (c = smp->data.str.str; c <= end; c++) {
 				if (tolower(*c) != tolower(*pattern->ptr.str))
@@ -626,7 +625,7 @@ struct pattern *pat_match_sub(struct sample *smp, struct pattern_expr *expr, int
  * provided as an unsigned int made by make_4delim() and match up to 4 different
  * delimiters. Delimiters are stripped at the beginning and end of the pattern.
  */
-static int match_word(struct sample *smp, struct pattern *pattern, unsigned int delimiters)
+static int match_word(struct sample *smp, struct pattern *pattern, int mflags, unsigned int delimiters)
 {
 	int may_match, icase;
 	char *c, *end;
@@ -648,7 +647,7 @@ static int match_word(struct sample *smp, struct pattern *pattern, unsigned int 
 		return PAT_NOMATCH;
 
 	may_match = 1;
-	icase = pattern->flags & PAT_F_IGNORE_CASE;
+	icase = mflags & PAT_MF_IGNORE_CASE;
 	end = smp->data.str.str + smp->data.str.len - pl;
 	for (c = smp->data.str.str; c <= end; c++) {
 		if (is_delimiter(*c, delimiters)) {
@@ -686,7 +685,7 @@ struct pattern *pat_match_dir(struct sample *smp, struct pattern_expr *expr, int
 
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
-		if (match_word(smp, pattern, make_4delim('/', '?', '?', '?')))
+		if (match_word(smp, pattern, expr->mflags, make_4delim('/', '?', '?', '?')))
 			return pattern;
 	}
 	return NULL;
@@ -703,7 +702,7 @@ struct pattern *pat_match_dom(struct sample *smp, struct pattern_expr *expr, int
 
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
-		if (match_word(smp, pattern, make_4delim('/', '?', '.', ':')))
+		if (match_word(smp, pattern, expr->mflags, make_4delim('/', '?', '.', ':')))
 			return pattern;
 	}
 	return NULL;
@@ -761,7 +760,7 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 				elt = ebmb_entry(node, struct pattern_tree, node);
 				static_pattern.smp = elt->smp;
 				static_pattern.ref = elt->ref;
-				static_pattern.flags = PAT_F_TREE;
+				static_pattern.sflags = PAT_SF_TREE;
 				static_pattern.type = SMP_T_IPV4;
 				memcpy(&static_pattern.val.ipv4.addr.s_addr, elt->node.key, 4);
 				if (!cidr2dotted(elt->node.node.pfx, &static_pattern.val.ipv4.mask))
@@ -783,7 +782,7 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 				elt = ebmb_entry(node, struct pattern_tree, node);
 				static_pattern.smp = elt->smp;
 				static_pattern.ref = elt->ref;
-				static_pattern.flags = PAT_F_TREE;
+				static_pattern.sflags = PAT_SF_TREE;
 				static_pattern.type = SMP_T_IPV6;
 				memcpy(&static_pattern.val.ipv6.addr, elt->node.key, 16);
 				static_pattern.val.ipv6.mask = elt->node.node.pfx;
@@ -803,7 +802,7 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 				elt = ebmb_entry(node, struct pattern_tree, node);
 				static_pattern.smp = elt->smp;
 				static_pattern.ref = elt->ref;
-				static_pattern.flags = PAT_F_TREE;
+				static_pattern.sflags = PAT_SF_TREE;
 				static_pattern.type = SMP_T_IPV6;
 				memcpy(&static_pattern.val.ipv6.addr, elt->node.key, 16);
 				static_pattern.val.ipv6.mask = elt->node.node.pfx;
@@ -837,7 +836,7 @@ struct pattern *pat_match_ip(struct sample *smp, struct pattern_expr *expr, int 
 					elt = ebmb_entry(node, struct pattern_tree, node);
 					static_pattern.smp = elt->smp;
 					static_pattern.ref = elt->ref;
-					static_pattern.flags = PAT_F_TREE;
+					static_pattern.sflags = PAT_SF_TREE;
 					static_pattern.type = SMP_T_IPV4;
 					memcpy(&static_pattern.val.ipv4.addr.s_addr, elt->node.key, 4);
 					if (!cidr2dotted(elt->node.node.pfx, &static_pattern.val.ipv4.mask))
@@ -1049,7 +1048,7 @@ int pat_idx_list_reg(struct pattern_expr *expr, struct pattern *pat, char **err)
 	}
 
 	/* compile regex */
-	if (!regex_comp(pat->ptr.str, patl->pat.ptr.reg, !(patl->pat.flags & PAT_F_IGNORE_CASE), 0, err)) {
+	if (!regex_comp(pat->ptr.str, patl->pat.ptr.reg, !(expr->mflags & PAT_MF_IGNORE_CASE), 0, err)) {
 		free(patl);
 		free(patl->pat.ptr.reg);
 		return 0;
@@ -1143,7 +1142,7 @@ int pat_idx_tree_str(struct pattern_expr *expr, struct pattern *pat, char **err)
 	}
 
 	/* If the flag PAT_F_IGNORE_CASE is set, we cannot use trees */
-	if (pat->flags & PAT_F_IGNORE_CASE)
+	if (expr->mflags & PAT_MF_IGNORE_CASE)
 		return pat_idx_list_str(expr, pat, err);
 
 	/* Process the key len */
@@ -1670,12 +1669,11 @@ int pat_ref_push(struct pat_ref_elt *elt, struct pattern_expr *expr,
 
 	/* initialise pattern */
 	memset(&pattern, 0, sizeof(pattern));
-	pattern.flags = patflags;
 	pattern.smp = smp;
 	pattern.ref = elt;
 
 	/* parse pattern */
-	if (!expr->pat_head->parse(elt->pattern, &pattern, err)) {
+	if (!expr->pat_head->parse(elt->pattern, &pattern, expr->mflags, err)) {
 		free(smp);
 		return 0;
 	}
@@ -1697,7 +1695,7 @@ int pat_ref_push(struct pat_ref_elt *elt, struct pattern_expr *expr,
  */
 int pat_ref_add(struct pat_ref *ref,
                 const char *pattern, const char *sample,
-                int patflags, char **err)
+                char **err)
 {
 	struct pat_ref_elt *elt;
 	struct pattern_expr *expr;
@@ -1732,7 +1730,7 @@ int pat_ref_add(struct pat_ref *ref,
 	LIST_ADDQ(&ref->head, &elt->list);
 
 	list_for_each_entry(expr, &ref->pat, list) {
-		if (!pat_ref_push(elt, expr, patflags, err)) {
+		if (!pat_ref_push(elt, expr, 0, err)) {
 			/* If the insertion fails, try to delete all the added entries. */
 			pat_ref_delete_by_id(ref, elt);
 			return 0;
@@ -2108,10 +2106,11 @@ int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
 	 * doesn't exists, create it.
 	 */
 	expr = pattern_lookup_expr(head, ref);
-	if (!expr) {
+	if (!expr || (expr->mflags != patflags)) {
 		expr = pattern_new_expr(head, ref, err);
 		if (!expr)
 			return 0;
+		expr->mflags = patflags;
 	}
 
 	/* Load reference content in the pattern expression. */
@@ -2142,7 +2141,7 @@ struct pattern *pattern_exec_match(struct pattern_head *head, struct sample *smp
 		if (fill) {
 			static_pattern.smp = NULL;
 			static_pattern.ref = NULL;
-			static_pattern.flags = 0;
+			static_pattern.sflags = 0;
 			static_pattern.type = SMP_T_UINT;
 			static_pattern.val.i = 1;
 		}

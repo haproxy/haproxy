@@ -3260,7 +3260,7 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 			/* perform update */
 			/* add entry only if it does not already exist */
 			if (pat_ref_find_elt(ref, key) == NULL)
-				pat_ref_add(ref, key, NULL, 0, NULL);
+				pat_ref_add(ref, key, NULL, NULL);
 
 			break;
 			}
@@ -3295,7 +3295,7 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 				pat_ref_set(ref, key, value, NULL);
 			else
 				/* insert a new entry */
-				pat_ref_add(ref, key, value, 0, NULL);
+				pat_ref_add(ref, key, value, NULL);
 
 			break;
 			}
@@ -3441,7 +3441,7 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 			/* perform update */
 			/* check if the entry already exists */
 			if (pat_ref_find_elt(ref, key) == NULL)
-				pat_ref_add(ref, key, NULL, 0, NULL);
+				pat_ref_add(ref, key, NULL, NULL);
 
 			break;
 			}
@@ -3476,7 +3476,7 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 				pat_ref_set(ref, key, value, NULL);
 			else
 				/* insert a new entry */
-				pat_ref_add(ref, key, value, 0, NULL);
+				pat_ref_add(ref, key, value, NULL);
 
 			break;
 			}
@@ -9590,7 +9590,7 @@ smp_prefetch_http(struct proxy *px, struct session *s, void *l7, unsigned int op
  * We use the pre-parsed method if it is known, and store its number as an
  * integer. If it is unknown, we use the pointer and the length.
  */
-static int pat_parse_meth(const char *text, struct pattern *pattern, char **err)
+static int pat_parse_meth(const char *text, struct pattern *pattern, int mflags, char **err)
 {
 	int len, meth;
 	struct chunk *trash;
@@ -9670,7 +9670,7 @@ static struct pattern *pat_match_meth(struct sample *smp, struct pattern_expr *e
 		if (pattern->len != smp->data.meth.str.len)
 			continue;
 
-		icase = pattern->flags & PAT_F_IGNORE_CASE;
+		icase = expr->mflags & PAT_MF_IGNORE_CASE;
 		if ((icase && strncasecmp(pattern->ptr.str, smp->data.meth.str.str, smp->data.meth.str.len) != 0) ||
 		    (!icase && strncmp(pattern->ptr.str, smp->data.meth.str.str, smp->data.meth.str.len) != 0))
 			return pattern;

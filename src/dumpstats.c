@@ -2055,9 +2055,9 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			/* Add value. */
 			err = NULL;
 			if (appctx->ctx.map.display_flags == PAT_REF_MAP)
-				ret = pat_ref_add(appctx->ctx.map.ref, args[3], args[4], 0, &err);
+				ret = pat_ref_add(appctx->ctx.map.ref, args[3], args[4], &err);
 			else
-				ret = pat_ref_add(appctx->ctx.map.ref, args[3], NULL, 0, &err);
+				ret = pat_ref_add(appctx->ctx.map.ref, args[3], NULL, &err);
 			if (!ret) {
 				if (err)
 					memprintf(&err, "%s.\n", err);
@@ -5012,6 +5012,12 @@ static int stats_map_lookup(struct stream_interface *si)
 			else
 				chunk_appendf(&trash, "type=%s", pat_match_names[match_method]);
 
+			/* case sensitive */
+			if (appctx->ctx.map.expr->mflags & PAT_MF_IGNORE_CASE)
+				chunk_appendf(&trash, ", case=insensitive");
+			else
+				chunk_appendf(&trash, ", case=sensitive");
+
 			/* Display no match, and set default value */
 			if (!pat) {
 				if (appctx->ctx.map.display_flags == PAT_REF_MAP)
@@ -5029,16 +5035,10 @@ static int stats_map_lookup(struct stream_interface *si)
 					chunk_appendf(&trash, ", match=yes");
 
 				/* display index mode */
-				if (pat->flags & PAT_F_TREE)
+				if (pat->sflags & PAT_SF_TREE)
 					chunk_appendf(&trash, ", idx=tree");
 				else
 					chunk_appendf(&trash, ", idx=list");
-
-				/* case sensitive */
-				if (pat->flags & PAT_F_IGNORE_CASE)
-					chunk_appendf(&trash, ", case=insensitive");
-				else
-					chunk_appendf(&trash, ", case=sensitive");
 
 				/* display pattern */
 				if (appctx->ctx.map.display_flags == PAT_REF_MAP) {

@@ -445,9 +445,9 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	unique_id = -1;
 	while (**args == '-') {
 		if ((*args)[1] == 'i')
-			patflags |= PAT_F_IGNORE_CASE;
+			patflags |= PAT_MF_IGNORE_CASE;
 		else if ((*args)[1] == 'n')
-			patflags |= PAT_F_NO_DNS;
+			patflags |= PAT_MF_NO_DNS;
 		else if ((*args)[1] == 'u') {
 			unique_id = strtol(args[1], &error, 10);
 			if (*error != '\0') {
@@ -533,6 +533,9 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	pattern_expr = pattern_new_expr(&expr->pat, ref, err);
 	if (!pattern_expr)
 		goto out_free_expr;
+
+	/* Copy the pattern matching and indexing flags. */
+	pattern_expr->mflags = patflags;
 
 	/* now parse all patterns */
 	while (**args) {
@@ -659,7 +662,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		/* Add sample to the reference, and try to compile it fior each pattern
 		 * using this value.
 		 */
-		if (!pat_ref_add(ref, arg, NULL, patflags, err))
+		if (!pat_ref_add(ref, arg, NULL, err))
 			goto out_free_expr;
 		args++;
 	}

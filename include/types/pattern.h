@@ -61,11 +61,15 @@ enum pat_match_res {
 	PAT_MATCH = 3,           /* sample matched at least one pattern */
 };
 
-/* possible flags for expressions or patterns */
+/* possible flags for patterns matching or parsing */
 enum {
-	PAT_F_IGNORE_CASE = 1 << 0,       /* ignore case */
-	PAT_F_TREE        = 1 << 1,       /* some patterns are arranged in a tree */
-	PAT_F_NO_DNS      = 1 << 2,       /* dont perform any DNS requests */
+	PAT_MF_IGNORE_CASE = 1 << 0,       /* ignore case */
+	PAT_MF_NO_DNS      = 1 << 1,       /* dont perform any DNS requests */
+};
+
+/* possible flags for patterns storage */
+enum {
+	PAT_SF_TREE        = 1 << 0,       /* some patterns are arranged in a tree */
 };
 
 /* ACL match methods */
@@ -163,7 +167,7 @@ struct pattern {
 		struct my_regex *reg;   /* a compiled regex */
 	} ptr;                          /* indirect values, allocated */
 	int len;                        /* data length when required  */
-	int flags;                      /* expr or pattern flags. */
+	int sflags;                     /* flags relative to the storage method. */
 	struct sample_storage *smp;     /* used to store a pointer to sample value associated
 	                                   with the match. It is used with maps */
 	struct pat_ref_elt *ref;
@@ -191,6 +195,7 @@ struct pattern_expr {
 	struct list patterns;         /* list of acl_patterns */
 	struct eb_root pattern_tree;  /* may be used for lookup in large datasets */
 	struct eb_root pattern_tree_2;  /* may be used for different types */
+	int mflags;                     /* flags relative to the parsing or matching method. */
 };
 
 /* This is a list of expression. A struct pattern_expr can be used by
@@ -205,7 +210,7 @@ struct pattern_expr_list {
 
 /* This struct contain a list of pattern expr */
 struct pattern_head {
-	int (*parse)(const char *text, struct pattern *pattern, char **err);
+	int (*parse)(const char *text, struct pattern *pattern, int flags, char **err);
 	int (*parse_smp)(const char *text, struct sample_storage *smp);
 	int (*index)(struct pattern_expr *, struct pattern *, char **);
 	void (*delete)(struct pattern_expr *, struct pat_ref_elt *);

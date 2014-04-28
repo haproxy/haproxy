@@ -153,7 +153,7 @@ static int sample_load_map(struct arg *arg, struct sample_conv *conv,
 	}
 
 	/* Load map. */
-	if (!pattern_read_from_file(&desc->pat, PAT_REF_MAP, arg[0].data.str.str, PAT_F_NO_DNS,
+	if (!pattern_read_from_file(&desc->pat, PAT_REF_MAP, arg[0].data.str.str, PAT_MF_NO_DNS,
 	                            1, err, file, line))
 		return 0;
 
