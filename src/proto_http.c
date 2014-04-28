@@ -3813,7 +3813,6 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 {
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->req;
-	struct acl_cond *cond;
 	struct http_req_rule *http_req_last_rule = NULL;
 	struct redirect_rule *rule;
 	struct cond_wordlist *wl;
@@ -3836,18 +3835,6 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 
 	/* just in case we have some per-backend tracking */
 	session_inc_be_http_req_ctr(s);
-
-	/* first check whether we have some ACLs set to block this request */
-	list_for_each_entry(cond, &px->block_rules, list) {
-		int ret = acl_exec_cond(cond, px, s, txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
-
-		ret = acl_pass(ret);
-		if (cond->pol == ACL_COND_UNLESS)
-			ret = !ret;
-
-		if (ret)
-			goto deny;
-	}
 
 	/* evaluate http-request rules */
 	http_req_last_rule = http_req_get_intercept_rule(px, &px->http_req_rules, s, txn);
