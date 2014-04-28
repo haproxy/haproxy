@@ -3760,9 +3760,6 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 		return 0;
 	}
 
-	req->analysers &= ~an_bit;
-	req->analyse_exp = TICK_ETERNITY;
-
 	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
@@ -3796,6 +3793,13 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 	/* evaluate http-request rules */
 	http_req_last_rule = http_req_get_intercept_rule(px, &px->http_req_rules, s, txn);
 
+	if (txn->flags & (TX_CLDENY|TX_CLTARPIT)) {
+		if (txn->flags & TX_CLDENY)
+			goto deny;
+		else
+			goto tarpit;
+	}
+
 	/* evaluate stats http-request rules only if http-request is OK */
 	if (!http_req_last_rule) {
 		if (stats_check_uri(s->rep->prod, txn, px)) {
@@ -3812,56 +3816,23 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 			/* parse the whole stats request and extract the relevant information */
 			http_handle_stats(s, req);
 			http_req_last_rule = http_req_get_intercept_rule(px, &px->uri_auth->http_req_rules, s, txn);
+
+			/* we can still get a deny on the stats page */
+			if (txn->flags & TX_CLDENY)
+				goto deny;
 		}
 	}
 
-	/* only apply req{,i}{rep/deny/tarpit} if the request was not yet
-	 * blocked by an http-request rule.
-	 */
-	if (!(txn->flags & (TX_CLDENY|TX_CLTARPIT)) && (px->req_exp != NULL)) {
+	/* evaluate the req* rules except reqadd */
+	if (px->req_exp != NULL) {
 		if (apply_filters_to_request(s, req, px) < 0)
 			goto return_bad_req;
-	}
 
-	/* return a 403 if either rule has blocked */
-	if (txn->flags & (TX_CLDENY|TX_CLTARPIT)) {
-		if (txn->flags & TX_CLDENY) {
-			txn->status = 403;
-			s->logs.tv_request = now;
-			stream_int_retnclose(req->prod, http_error_message(s, HTTP_ERR_403));
-			session_inc_http_err_ctr(s);
-			s->fe->fe_counters.denied_req++;
-			if (s->fe != s->be)
-				s->be->be_counters.denied_req++;
-			if (s->listener->counters)
-				s->listener->counters->denied_req++;
-			goto return_prx_cond;
-		}
+		if (txn->flags & TX_CLDENY)
+			goto deny;
 
-		/* When a connection is tarpitted, we use the tarpit timeout,
-		 * which may be the same as the connect timeout if unspecified.
-		 * If unset, then set it to zero because we really want it to
-		 * eventually expire. We build the tarpit as an analyser.
-		 */
-		if (txn->flags & TX_CLTARPIT) {
-			channel_erase(s->req);
-			/* wipe the request out so that we can drop the connection early
-			 * if the client closes first.
-			 */
-			channel_dont_connect(req);
-			req->analysers = 0; /* remove switching rules etc... */
-			req->analysers |= AN_REQ_HTTP_TARPIT;
-			req->analyse_exp = tick_add_ifset(now_ms,  s->be->timeout.tarpit);
-			if (!req->analyse_exp)
-				req->analyse_exp = tick_add(now_ms, 0);
-			session_inc_http_err_ctr(s);
-			s->fe->fe_counters.denied_req++;
-			if (s->fe != s->be)
-				s->be->be_counters.denied_req++;
-			if (s->listener->counters)
-				s->listener->counters->denied_req++;
-			return 1;
-		}
+		if (txn->flags & TX_CLTARPIT)
+			goto tarpit;
 	}
 
 	/* Until set to anything else, the connection mode is set as Keep-Alive. It will
@@ -3874,7 +3845,6 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 	 * one is non-null, or one of them is non-null and we are there for the first
 	 * time.
 	 */
-
 	if (!(txn->flags & TX_HDR_CONN_PRS) ||
 	    ((s->fe->options & PR_O_HTTP_MODE) != (s->be->options & PR_O_HTTP_MODE))) {
 		int tmp = TX_CON_WANT_KAL;
@@ -3952,14 +3922,11 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 	if (http_req_last_rule && http_req_last_rule->action == HTTP_REQ_ACT_REDIR) {
 		if (!http_apply_redirect_rule(http_req_last_rule->arg.redir, s, txn))
 			goto return_bad_req;
-		req->analyse_exp = TICK_ETERNITY;
-		return 1;
+		goto done;
 	}
 
-	if (http_req_last_rule && http_req_last_rule->action == HTTP_REQ_ACT_CUSTOM_STOP) {
-		req->analyse_exp = TICK_ETERNITY;
-		return 1;
-	}
+	if (http_req_last_rule && http_req_last_rule->action == HTTP_REQ_ACT_CUSTOM_STOP)
+		goto done;
 
 	/* add request headers from the rule sets in the same order */
 	list_for_each_entry(wl, &px->req_add, list) {
@@ -3986,8 +3953,6 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 		if (!(s->flags & SN_FINST_MASK))
 			s->flags |= SN_FINST_R;
 
-		req->analyse_exp = TICK_ETERNITY;
-
 		/* we may want to compress the stats page */
 		if (s->fe->comp || s->be->comp)
 			select_compression_request_header(s, req->buf);
@@ -3995,7 +3960,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 		/* enable the minimally required analyzers to handle keep-alive and compression on the HTTP response */
 		req->analysers = (req->analysers & AN_REQ_HTTP_BODY) |
 		                 AN_REQ_HTTP_XFER_BODY | AN_RES_WAIT_HTTP | AN_RES_HTTP_PROCESS_BE | AN_RES_HTTP_XFER_BODY;
-		return 1;
+		goto done;
 	}
 
 	/* check whether we have some ACLs set to redirect this request */
@@ -4012,9 +3977,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 		}
 		if (!http_apply_redirect_rule(rule, s, txn))
 			goto return_bad_req;
-
-		req->analyse_exp = TICK_ETERNITY;
-		return 1;
+		goto done;
 	}
 
 	/* POST requests may be accompanied with an "Expect: 100-Continue" header.
@@ -4026,8 +3989,49 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 	 */
 	req->flags |= CF_SEND_DONTWAIT;
 
-	/* that's OK for us now, let's move on to next analysers */
+ done:	/* done with this analyser, continue with next ones that the calling
+	 * points will have set, if any.
+	 */
+	req->analysers &= ~an_bit;
+	req->analyse_exp = TICK_ETERNITY;
 	return 1;
+
+ tarpit:
+	/* When a connection is tarpitted, we use the tarpit timeout,
+	 * which may be the same as the connect timeout if unspecified.
+	 * If unset, then set it to zero because we really want it to
+	 * eventually expire. We build the tarpit as an analyser.
+	 */
+	channel_erase(s->req);
+
+	/* wipe the request out so that we can drop the connection early
+	 * if the client closes first.
+	 */
+	channel_dont_connect(req);
+	req->analysers = 0; /* remove switching rules etc... */
+	req->analysers |= AN_REQ_HTTP_TARPIT;
+	req->analyse_exp = tick_add_ifset(now_ms,  s->be->timeout.tarpit);
+	if (!req->analyse_exp)
+		req->analyse_exp = tick_add(now_ms, 0);
+	session_inc_http_err_ctr(s);
+	s->fe->fe_counters.denied_req++;
+	if (s->fe != s->be)
+		s->be->be_counters.denied_req++;
+	if (s->listener->counters)
+		s->listener->counters->denied_req++;
+	goto done;
+
+ deny:	/* this request was blocked (denied) */
+	txn->status = 403;
+	s->logs.tv_request = now;
+	stream_int_retnclose(req->prod, http_error_message(s, HTTP_ERR_403));
+	session_inc_http_err_ctr(s);
+	s->fe->fe_counters.denied_req++;
+	if (s->fe != s->be)
+		s->be->be_counters.denied_req++;
+	if (s->listener->counters)
+		s->listener->counters->denied_req++;
+	goto return_prx_cond;
 
  return_bad_req:
 	/* We centralize bad requests processing here */
