@@ -8695,7 +8695,7 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 	if (!strcmp(args[0], "allow")) {
 		rule->action = HTTP_REQ_ACT_ALLOW;
 		cur_arg = 1;
-	} else if (!strcmp(args[0], "deny")) {
+	} else if (!strcmp(args[0], "deny") || !strcmp(args[0], "block")) {
 		rule->action = HTTP_REQ_ACT_DENY;
 		cur_arg = 1;
 	} else if (!strcmp(args[0], "tarpit")) {
