@@ -3953,7 +3953,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 			realm = (objt_applet(s->target) == &http_stats_applet) ? STATS_DEFAULT_REALM : px->id;
 
 		chunk_printf(&trash, (txn->flags & TX_USE_PX_CONN) ? HTTP_407_fmt : HTTP_401_fmt, realm);
-		txn->status = 401;
+		txn->status = (txn->flags & TX_USE_PX_CONN) ? 407 : 401;
 		stream_int_retnclose(req->prod, &trash);
 		/* on 401 we still count one error, because normal browsing
 		 * won't significantly increase the counter but brute force
