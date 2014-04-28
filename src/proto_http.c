@@ -3817,6 +3817,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 	struct http_req_rule *http_req_last_rule = NULL;
 	struct redirect_rule *rule;
 	struct cond_wordlist *wl;
+	const char *auth_realm = NULL;
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 		/* we need more data */
@@ -3851,33 +3852,66 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 	/* evaluate http-request rules */
 	http_req_last_rule = http_req_get_intercept_rule(px, &px->http_req_rules, s, txn);
 
-	if (txn->flags & (TX_CLDENY|TX_CLTARPIT)) {
+	if (http_req_last_rule) {
+		/* one http-request rule interrupted the processing */
 		if (txn->flags & TX_CLDENY)
 			goto deny;
-		else
+
+		if (txn->flags & TX_CLTARPIT)
 			goto tarpit;
+
+		if (http_req_last_rule->action == HTTP_REQ_ACT_REDIR) {
+			if (!http_apply_redirect_rule(http_req_last_rule->arg.redir, s, txn))
+				goto return_bad_req;
+			goto done;
+		}
+
+		if (http_req_last_rule->action == HTTP_REQ_ACT_CUSTOM_STOP)
+			goto done;
+
+		/* we can be blocked here because the request needs to be authenticated. */
+		if (http_req_last_rule->action == HTTP_REQ_ACT_AUTH) {
+			auth_realm = http_req_last_rule->arg.auth.realm;
+			if (!auth_realm)
+				auth_realm = px->id;
+			goto auth;
+		}
 	}
 
-	/* evaluate stats http-request rules only if http-request is OK */
-	if (!http_req_last_rule) {
-		if (stats_check_uri(s->rep->prod, txn, px)) {
-			s->target = &http_stats_applet.obj_type;
-			if (unlikely(!stream_int_register_handler(s->rep->prod, objt_applet(s->target)))) {
-				txn->status = 500;
-				s->logs.tv_request = now;
-				stream_int_retnclose(req->prod, http_error_message(s, HTTP_ERR_500));
+	/* OK at this stage, we know that the request was accepted according to
+	 * the http-request rules, we can check for the stats. Note that the
+	 * URI is detected *before* the req* rules in order not to be affected
+	 * by a possible reqrep, while they are processed *after* so that a
+	 * reqdeny can still block them. This clearly needs to change in 1.6!
+	 */
+	if (stats_check_uri(s->rep->prod, txn, px)) {
+		s->target = &http_stats_applet.obj_type;
+		if (unlikely(!stream_int_register_handler(s->rep->prod, objt_applet(s->target)))) {
+			txn->status = 500;
+			s->logs.tv_request = now;
+			stream_int_retnclose(req->prod, http_error_message(s, HTTP_ERR_500));
 
-				if (!(s->flags & SN_ERR_MASK))
-					s->flags |= SN_ERR_RESOURCE;
-				goto return_prx_cond;
-			}
-			/* parse the whole stats request and extract the relevant information */
-			http_handle_stats(s, req);
-			http_req_last_rule = http_req_get_intercept_rule(px, &px->uri_auth->http_req_rules, s, txn);
+			if (!(s->flags & SN_ERR_MASK))
+				s->flags |= SN_ERR_RESOURCE;
+			goto return_prx_cond;
+		}
 
+		/* parse the whole stats request and extract the relevant information */
+		http_handle_stats(s, req);
+		http_req_last_rule = http_req_get_intercept_rule(px, &px->uri_auth->http_req_rules, s, txn);
+
+		if (http_req_last_rule) {
 			/* we can still get a deny on the stats page */
 			if (txn->flags & TX_CLDENY)
 				goto deny;
+
+			/* stats auth / stats http-request auth ? */
+			if (http_req_last_rule->action == HTTP_REQ_ACT_AUTH) {
+				auth_realm = http_req_last_rule->arg.auth.realm;
+				if (!auth_realm)
+					auth_realm = STATS_DEFAULT_REALM;
+				goto auth;
+			}
 		}
 	}
 
@@ -3892,35 +3926,6 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 		if (txn->flags & TX_CLTARPIT)
 			goto tarpit;
 	}
-
-	/* we can be blocked here because the request needs to be authenticated,
-	 * either to pass or to access stats.
-	 */
-	if (http_req_last_rule && http_req_last_rule->action == HTTP_REQ_ACT_AUTH) {
-		char *realm = http_req_last_rule->arg.auth.realm;
-
-		if (!realm)
-			realm = (objt_applet(s->target) == &http_stats_applet) ? STATS_DEFAULT_REALM : px->id;
-
-		chunk_printf(&trash, (txn->flags & TX_USE_PX_CONN) ? HTTP_407_fmt : HTTP_401_fmt, realm);
-		txn->status = (txn->flags & TX_USE_PX_CONN) ? 407 : 401;
-		stream_int_retnclose(req->prod, &trash);
-		/* on 401 we still count one error, because normal browsing
-		 * won't significantly increase the counter but brute force
-		 * attempts will.
-		 */
-		session_inc_http_err_ctr(s);
-		goto return_prx_cond;
-	}
-
-	if (http_req_last_rule && http_req_last_rule->action == HTTP_REQ_ACT_REDIR) {
-		if (!http_apply_redirect_rule(http_req_last_rule->arg.redir, s, txn))
-			goto return_bad_req;
-		goto done;
-	}
-
-	if (http_req_last_rule && http_req_last_rule->action == HTTP_REQ_ACT_CUSTOM_STOP)
-		goto done;
 
 	/* add request headers from the rule sets in the same order */
 	list_for_each_entry(wl, &px->req_add, list) {
@@ -3937,6 +3942,8 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 			goto return_bad_req;
 	}
 
+
+	/* Proceed with the stats now. */
 	if (unlikely(objt_applet(s->target) == &http_stats_applet)) {
 		/* process the stats request now */
 		if (s->fe == s->be) /* report it if the request was intercepted by the frontend */
@@ -4014,6 +4021,16 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 	if (s->listener->counters)
 		s->listener->counters->denied_req++;
 	goto done;
+
+ auth:	/* send 401/407 depending on whether we use a proxy or not. We still
+	 * count one error, because normal browsing won't significantly
+	 * increase the counter but brute force attempts will.
+	 */
+	chunk_printf(&trash, (txn->flags & TX_USE_PX_CONN) ? HTTP_407_fmt : HTTP_401_fmt, auth_realm);
+	txn->status = (txn->flags & TX_USE_PX_CONN) ? 407 : 401;
+	stream_int_retnclose(req->prod, &trash);
+	session_inc_http_err_ctr(s);
+	goto return_prx_cond;
 
  deny:	/* this request was blocked (denied) */
 	txn->status = 403;
