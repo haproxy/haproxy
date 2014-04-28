@@ -925,14 +925,12 @@ int session_set_backend(struct session *s, struct proxy *be)
 	 * a struct hdr_idx for it if we did not have one.
 	 */
 	if (unlikely(!s->txn.hdr_idx.v && be->http_needed)) {
+		s->txn.hdr_idx.size = global.tune.max_http_hdr;
 		if ((s->txn.hdr_idx.v = pool_alloc2(pool2_hdr_idx)) == NULL)
 			return 0; /* not enough memory */
 
 		/* and now initialize the HTTP transaction state */
 		http_init_txn(s);
-
-		s->txn.hdr_idx.size = global.tune.max_http_hdr;
-		hdr_idx_init(&s->txn.hdr_idx);
 	}
 
 	/* If an LB algorithm needs to access some pre-parsed body contents,
