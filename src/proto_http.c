@@ -3769,6 +3769,9 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 		req->buf->i,
 		req->analysers);
 
+	/* just in case we have some per-backend tracking */
+	session_inc_be_http_req_ctr(s);
+
 	/* first check whether we have some ACLs set to block this request */
 	list_for_each_entry(cond, &px->block_cond, list) {
 		int ret = acl_exec_cond(cond, px, s, txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
@@ -3780,9 +3783,6 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 		if (ret)
 			goto deny;
 	}
-
-	/* just in case we have some per-backend tracking */
-	session_inc_be_http_req_ctr(s);
 
 	/* evaluate http-request rules */
 	http_req_last_rule = http_req_get_intercept_rule(px, &px->http_req_rules, s, txn);
