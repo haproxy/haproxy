@@ -139,6 +139,7 @@ static int proxy_parse_timeout(char **args, int section, struct proxy *proxy,
 	const char *res, *name;
 	int *tv = NULL;
 	int *td = NULL;
+	int warn = 0;
 
 	retval = 0;
 
@@ -147,7 +148,7 @@ static int proxy_parse_timeout(char **args, int section, struct proxy *proxy,
 		args++;
 
 	name = args[0];
-	if (!strcmp(args[0], "client") || !strcmp(args[0], "clitimeout")) {
+	if (!strcmp(args[0], "client") || (!strcmp(args[0], "clitimeout") && (warn = WARN_CLITO_DEPRECATED))) {
 		name = "client";
 		tv = &proxy->timeout.client;
 		td = &defpx->timeout.client;
@@ -164,12 +165,12 @@ static int proxy_parse_timeout(char **args, int section, struct proxy *proxy,
 		tv = &proxy->timeout.httpreq;
 		td = &defpx->timeout.httpreq;
 		cap = PR_CAP_FE | PR_CAP_BE;
-	} else if (!strcmp(args[0], "server") || !strcmp(args[0], "srvtimeout")) {
+	} else if (!strcmp(args[0], "server") || (!strcmp(args[0], "srvtimeout") && (warn = WARN_SRVTO_DEPRECATED))) {
 		name = "server";
 		tv = &proxy->timeout.server;
 		td = &defpx->timeout.server;
 		cap = PR_CAP_BE;
-	} else if (!strcmp(args[0], "connect") || !strcmp(args[0], "contimeout")) {
+	} else if (!strcmp(args[0], "connect") || (!strcmp(args[0], "contimeout") && (warn = WARN_CONTO_DEPRECATED))) {
 		name = "connect";
 		tv = &proxy->timeout.connect;
 		td = &defpx->timeout.connect;
@@ -214,6 +215,13 @@ static int proxy_parse_timeout(char **args, int section, struct proxy *proxy,
 	else if (defpx && *tv != *td) {
 		memprintf(err, "overwriting 'timeout %s' which was already specified", name);
 		retval = 1;
+	}
+	else if (warn) {
+		if (!already_warned(warn)) {
+			memprintf(err, "the '%s' directive is now deprecated in favor of 'timeout %s', and will not be supported in future versions.",
+				  args[0], name);
+			retval = 1;
+		}
 	}
 
 	*tv = MS_TO_TICKS(timeout);

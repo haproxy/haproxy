@@ -176,6 +176,9 @@ extern unsigned int warned;     /* bitfield of a few warnings to emit just once 
 #define WARN_BLOCK_DEPRECATED       0x00000001
 #define WARN_REQSETBE_DEPRECATED    0x00000002
 #define WARN_REDISPATCH_DEPRECATED  0x00000004
+#define WARN_CLITO_DEPRECATED       0x00000008
+#define WARN_SRVTO_DEPRECATED       0x00000010
+#define WARN_CONTO_DEPRECATED       0x00000020
 
 /* to be used with warned and WARN_* */
 static inline int already_warned(unsigned int warning)
