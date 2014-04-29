@@ -267,7 +267,7 @@ pat_match_auth(struct sample *smp, struct pattern_expr *expr, int fill)
 
 	/* Check if the userlist is present in the context data. */
 	if (!ul)
-		return PAT_NOMATCH;
+		return NULL;
 
 	/* Browse the userlist for searching user. */
 	for (u = ul->users; u; u = u->next) {
