@@ -3674,29 +3674,6 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct acl_kw_list acl_kws = {ILH, {
-	{ "ssl_c_i_dn",             NULL,         PAT_MATCH_STR },
-	{ "ssl_c_key_alg",          NULL,         PAT_MATCH_STR },
-	{ "ssl_c_notafter",         NULL,         PAT_MATCH_STR },
-	{ "ssl_c_notbefore",        NULL,         PAT_MATCH_STR },
-	{ "ssl_c_sig_alg",          NULL,         PAT_MATCH_STR },
-	{ "ssl_c_s_dn",             NULL,         PAT_MATCH_STR },
-	{ "ssl_c_serial",           NULL,         PAT_MATCH_BIN },
-	{ "ssl_f_i_dn",             NULL,         PAT_MATCH_STR },
-	{ "ssl_f_key_alg",          NULL,         PAT_MATCH_STR },
-	{ "ssl_f_notafter",         NULL,         PAT_MATCH_STR },
-	{ "ssl_f_notbefore",        NULL,         PAT_MATCH_STR },
-	{ "ssl_f_sig_alg",          NULL,         PAT_MATCH_STR },
-	{ "ssl_f_s_dn",             NULL,         PAT_MATCH_STR },
-	{ "ssl_f_serial",           NULL,         PAT_MATCH_BIN },
-	{ "ssl_fc_cipher",          NULL,         PAT_MATCH_STR },
-#ifdef OPENSSL_NPN_NEGOTIATED
-	{ "ssl_fc_npn",             NULL,         PAT_MATCH_STR },
-#endif
-#ifdef TLSEXT_TYPE_application_layer_protocol_negotiation
-	{ "ssl_fc_alpn",            NULL,         PAT_MATCH_STR },
-#endif
-	{ "ssl_fc_protocol",        NULL,         PAT_MATCH_STR },
-	{ "ssl_fc_sni",             "ssl_fc_sni", PAT_MATCH_STR },
 	{ "ssl_fc_sni_end",         "ssl_fc_sni", PAT_MATCH_END },
 	{ "ssl_fc_sni_reg",         "ssl_fc_sni", PAT_MATCH_REG },
 	{ /* END */ },

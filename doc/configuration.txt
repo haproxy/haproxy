@@ -10309,32 +10309,20 @@ ssl_c_i_dn([<entry>[,<occ>]]) : string
   For instance, "ssl_c_i_dn(OU,2)" the second organization unit, and
   "ssl_c_i_dn(CN)" retrieves the common name.
 
-  ACL derivatives :
-    ssl_c_i_dn([<entry>[,<occ>]]) : exact string match
-
 ssl_c_key_alg : string
   Returns the name of the algorithm used to generate the key of the certificate
   presented by the client when the incoming connection was made over an SSL/TLS
   transport layer.
-
-  ACL derivatives :
-    ssl_c_key_alg : exact string match
 
 ssl_c_notafter : string
   Returns the end date presented by the client as a formatted string
   YYMMDDhhmmss[Z] when the incoming connection was made over an SSL/TLS
   transport layer.
 
-  ACL derivatives :
-    ssl_c_notafter : exact string match
-
 ssl_c_notbefore : string
   Returns the start date presented by the client as a formatted string
   YYMMDDhhmmss[Z] when the incoming connection was made over an SSL/TLS
   transport layer.
-
-  ACL derivatives :
-    ssl_c_notbefore : exact string match
 
 ssl_c_s_dn([<entry>[,<occ>]]) : string
   When the incoming connection was made over an SSL/TLS transport layer,
@@ -10346,16 +10334,10 @@ ssl_c_s_dn([<entry>[,<occ>]]) : string
   For instance, "ssl_c_s_dn(OU,2)" the second organization unit, and
   "ssl_c_s_dn(CN)" retrieves the common name.
 
-  ACL derivatives :
-    ssl_c_s_dn([<entry>[,<occ>]]) : exact string match
-
 ssl_c_serial : binary
   Returns the serial of the certificate presented by the client when the
   incoming connection was made over an SSL/TLS transport layer. When used for
   an ACL, the value(s) to match against can be passed in hexadecimal form.
-
-  ACL derivatives :
-    ssl_c_serial : hex block match
 
 ssl_c_sha1 : binary
   Returns the SHA-1 fingerprint of the certificate presented by the client when
@@ -10366,9 +10348,6 @@ ssl_c_sig_alg : string
   Returns the name of the algorithm used to sign the certificate presented by
   the client when the incoming connection was made over an SSL/TLS transport
   layer.
-
-  ACL derivatives :
-    ssl_c_sig_alg : exact string match
 
 ssl_c_used : boolean
   Returns true if current SSL session uses a client certificate even if current
@@ -10394,32 +10373,20 @@ ssl_f_i_dn([<entry>[,<occ>]]) : string
   For instance, "ssl_f_i_dn(OU,2)" the second organization unit, and
   "ssl_f_i_dn(CN)" retrieves the common name.
 
-  ACL derivatives :
-    ssl_f_i_dn([<entry>[,<occ>]]) : exact string match
-
 ssl_f_key_alg : string
   Returns the name of the algorithm used to generate the key of the certificate
   presented by the frontend when the incoming connection was made over an
   SSL/TLS transport layer.
-
-  ACL derivatives :
-    ssl_f_key_alg : exact string match
 
 ssl_f_notafter : string
   Returns the end date presented by the frontend as a formatted string
   YYMMDDhhmmss[Z] when the incoming connection was made over an SSL/TLS
   transport layer.
 
-  ACL derivatives :
-    ssl_f_notafter : exact string match
-
 ssl_f_notbefore : string
   Returns the start date presented by the frontend as a formatted string
   YYMMDDhhmmss[Z] when the incoming connection was made over an SSL/TLS
   transport layer.
-
-  ACL derivatives :
-    ssl_f_notbefore : exact string match
 
 ssl_f_s_dn([<entry>[,<occ>]]) : string
   When the incoming connection was made over an SSL/TLS transport layer,
@@ -10431,24 +10398,15 @@ ssl_f_s_dn([<entry>[,<occ>]]) : string
   For instance, "ssl_f_s_dn(OU,2)" the second organization unit, and
   "ssl_f_s_dn(CN)" retrieves the common name.
 
-  ACL derivatives :
-    ssl_f_s_dn([<entry>[,<occ>]]) : exact string match
-
 ssl_f_serial : binary
   Returns the serial of the certificate presented by the frontend when the
   incoming connection was made over an SSL/TLS transport layer. When used for
   an ACL, the value(s) to match against can be passed in hexadecimal form.
 
-  ACL derivatives :
-    ssl_f_serial : hex block match
-
 ssl_f_sig_alg : string
   Returns the name of the algorithm used to sign the certificate presented by
   the frontend when the incoming connection was made over an SSL/TLS transport
   layer.
-
-  ACL derivatives :
-    ssl_f_sig_alg : exact string match
 
 ssl_f_version : integer
   Returns the version of the certificate presented by the frontend when the
@@ -10481,15 +10439,9 @@ ssl_fc_alpn : string
   list, any other one may be requested. The TLS ALPN extension is meant to
   replace the TLS NPN extension. See also "ssl_fc_npn".
 
-  ACL derivatives :
-    ssl_fc_alpn : exact string match
-
 ssl_fc_cipher : string
   Returns the name of the used cipher when the incoming connection was made
   over an SSL/TLS transport layer.
-
-  ACL derivatives :
-    ssl_fc_cipher : exact string match
 
 ssl_fc_has_crt : boolean
   Returns true if a client certificate is present in an incoming connection over
@@ -10516,15 +10468,9 @@ ssl_fc_npn : string
   forces the client to pick a protocol from this list, any other one may be
   requested. Please note that the TLS NPN extension was replaced with ALPN.
 
-  ACL derivatives :
-    ssl_fc_npn : exact string match
-
 ssl_fc_protocol : string
   Returns the name of the used protocol when the incoming connection was made
   over an SSL/TLS transport layer.
-
-  ACL derivatives :
-    ssl_fc_protocol : exact string match
 
 ssl_fc_unique_id : string
   When the incoming connection was made over an SSL/TLS transport layer,
@@ -10551,7 +10497,6 @@ ssl_fc_sni : string
   enabled (check haproxy -vv).
 
   ACL derivatives :
-    ssl_fc_sni     : exact string match
     ssl_fc_sni_end : suffix match
     ssl_fc_sni_reg : regex match
 
