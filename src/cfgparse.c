@@ -1405,7 +1405,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 					high = swap;
 				}
 
-				if (low < 0 || high >= sizeof(long) * 8) {
+				if (high >= sizeof(long) * 8) {
 					Alert("parsing [%s:%d]: %s supports CPU numbers from 0 to %d.\n",
 					      file, linenum, args[0], (int)(sizeof(long) * 8 - 1));
 					err_code |= ERR_ALERT | ERR_FATAL;
