@@ -59,7 +59,7 @@
 #define CF_READ_ERROR     0x00000008  /* unrecoverable error on producer side */
 #define CF_READ_ACTIVITY  (CF_READ_NULL|CF_READ_PARTIAL|CF_READ_ERROR)
 
-/* unused: 0x00000010 */
+#define CF_WAKE_CONNECT   0x00000010  /* wake the task up after connect succeeds */
 #define CF_SHUTR          0x00000020  /* producer has already shut down */
 #define CF_SHUTR_NOW      0x00000040  /* the producer must shut down for reads ASAP */
 #define CF_READ_NOEXP     0x00000080  /* producer should not expire */

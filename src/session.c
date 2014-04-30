@@ -932,6 +932,10 @@ static void sess_establish(struct session *s, struct stream_interface *si)
 
 	rep->analysers |= s->fe->fe_rsp_ana | s->be->be_rsp_ana;
 	rep->flags |= CF_READ_ATTACHED; /* producer is now attached */
+	if (req->flags & CF_WAKE_CONNECT) {
+		req->flags |= CF_WAKE_ONCE;
+		req->flags &= ~CF_WAKE_CONNECT;
+	}
 	if (objt_conn(si->end)) {
 		/* real connections have timeouts */
 		req->wto = s->be->timeout.server;

@@ -4754,7 +4754,7 @@ void http_end_txn_clean_session(struct session *s)
 	s->req->cons->conn_retries = 0;  /* used for logging too */
 	s->req->cons->exp       = TICK_ETERNITY;
 	s->req->cons->flags    &= SI_FL_DONT_WAKE; /* we're in the context of process_session */
-	s->req->flags &= ~(CF_SHUTW|CF_SHUTW_NOW|CF_AUTO_CONNECT|CF_WRITE_ERROR|CF_STREAMER|CF_STREAMER_FAST|CF_NEVER_WAIT);
+	s->req->flags &= ~(CF_SHUTW|CF_SHUTW_NOW|CF_AUTO_CONNECT|CF_WRITE_ERROR|CF_STREAMER|CF_STREAMER_FAST|CF_NEVER_WAIT|CF_WAKE_CONNECT);
 	s->rep->flags &= ~(CF_SHUTR|CF_SHUTR_NOW|CF_READ_ATTACHED|CF_READ_ERROR|CF_READ_NOEXP|CF_STREAMER|CF_STREAMER_FAST|CF_WRITE_PARTIAL|CF_NEVER_WAIT);
 	s->flags &= ~(SN_DIRECT|SN_ASSIGNED|SN_ADDR_SET|SN_BE_ASSIGNED|SN_FORCE_PRST|SN_IGNORE_PRST);
 	s->flags &= ~(SN_CURR_SESS|SN_REDIRECTABLE|SN_SRV_REUSED);
@@ -5213,6 +5213,7 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 	if (unlikely(msg->flags & HTTP_MSGF_WAIT_CONN)) {
 		if (!(s->rep->flags & CF_READ_ATTACHED)) {
 			channel_auto_connect(req);
+			req->flags |= CF_WAKE_CONNECT;
 			goto missing_data;
 		}
 		msg->flags &= ~HTTP_MSGF_WAIT_CONN;
