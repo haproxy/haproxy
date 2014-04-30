@@ -10279,6 +10279,37 @@ when no content is yet made available. The fetch methods described here are
 usable as low as the "tcp-request content" rule sets unless they require some
 future information. Those generally include the results of SSL negotiations.
 
+ssl_bc : boolean
+  Returns true when the back connection was made via an SSL/TLS transport
+  layer and is locally deciphered. This means the outgoing connection was made
+  other a server with the "ssl" option.
+
+ssl_bc_alg_keysize : integer
+  Returns the symmetric cipher key size supported in bits when the outgoing
+  connection was made over an SSL/TLS transport layer.
+
+ssl_bc_cipher : string
+  Returns the name of the used cipher when the outgoing connection was made
+  over an SSL/TLS transport layer.
+
+ssl_bc_protocol : string
+  Returns the name of the used protocol when the outgoing connection was made
+  over an SSL/TLS transport layer.
+
+ssl_bc_unique_id : string
+  When the outgoing connection was made over an SSL/TLS transport layer,
+  returns a base64 encoded string containing the TLS unique ID as defined
+  in RFC5929 section 3.
+
+ssl_bc_session_id : binary
+  Returns the SSL ID of the back connection when the outgoing connection was
+  made over an SSL/TLS transport layer. It is useful to log if we want to know
+  if session was reused or not.
+
+ssl_bc_use_keysize : integer
+  Returns the symmetric cipher key size used in bits when the outgoing
+  connection was made over an SSL/TLS transport layer.
+
 ssl_c_ca_err : integer
   When the incoming connection was made over an SSL/TLS transport layer,
   returns the ID of the first error detected during verification of the client

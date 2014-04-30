@@ -2318,12 +2318,16 @@ smp_fetch_ssl_c_key_alg(struct proxy *px, struct session *l4, void *l7, unsigned
 	return 1;
 }
 
-/* boolean, returns true if front conn. transport layer is SSL */
+/* boolean, returns true if front conn. transport layer is SSL.
+ * This function is also usable on backend conn if the fetch keyword 5th
+ * char is 'b'.
+ */
 static int
 smp_fetch_ssl_fc(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                  const struct arg *args, struct sample *smp, const char *kw)
 {
-	struct connection *conn = objt_conn(l4->si[0].end);
+	int back_conn = (kw[4] == 'b') ? 1 : 0;
+	struct connection *conn = objt_conn(l4->si[back_conn].end);
 
 	smp->type = SMP_T_BOOL;
 	smp->data.uint = (conn && conn->xprt == &ssl_sock);
@@ -2671,10 +2675,15 @@ out:
 	return ret;
 }
 
+/* string, returns the used cipher if front conn. transport layer is SSL.
+ * This function is also usable on backend conn if the fetch keyword 5th
+ * char is 'b'.
+ */
 static int
 smp_fetch_ssl_fc_cipher(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                         const struct arg *args, struct sample *smp, const char *kw)
 {
+	int back_conn = (kw[4] == 'b') ? 1 : 0;
 	struct connection *conn;
 
 	smp->flags = 0;
@@ -2682,7 +2691,7 @@ smp_fetch_ssl_fc_cipher(struct proxy *px, struct session *l4, void *l7, unsigned
 	if (!l4)
 		return 0;
 
-	conn = objt_conn(l4->si[0].end);
+	conn = objt_conn(l4->si[back_conn].end);
 	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
 		return 0;
 
@@ -2697,10 +2706,16 @@ smp_fetch_ssl_fc_cipher(struct proxy *px, struct session *l4, void *l7, unsigned
 	return 1;
 }
 
+/* integer, returns the algoritm's keysize if front conn. transport layer
+ * is SSL.
+ * This function is also usable on backend conn if the fetch keyword 5th
+ * char is 'b'.
+ */
 static int
 smp_fetch_ssl_fc_alg_keysize(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                              const struct arg *args, struct sample *smp, const char *kw)
 {
+	int back_conn = (kw[4] == 'b') ? 1 : 0;
 	struct connection *conn;
 
 	smp->flags = 0;
@@ -2708,7 +2723,7 @@ smp_fetch_ssl_fc_alg_keysize(struct proxy *px, struct session *l4, void *l7, uns
 	if (!l4)
 		return 0;
 
-	conn = objt_conn(l4->si[0].end);
+	conn = objt_conn(l4->si[back_conn].end);
 	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
 		return 0;
 
@@ -2720,10 +2735,15 @@ smp_fetch_ssl_fc_alg_keysize(struct proxy *px, struct session *l4, void *l7, uns
 	return 1;
 }
 
+/* integer, returns the used keysize if front conn. transport layer is SSL.
+ * This function is also usable on backend conn if the fetch keyword 5th
+ * char is 'b'.
+ */
 static int
 smp_fetch_ssl_fc_use_keysize(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                              const struct arg *args, struct sample *smp, const char *kw)
 {
+	int back_conn = (kw[4] == 'b') ? 1 : 0;
 	struct connection *conn;
 
 	smp->flags = 0;
@@ -2731,7 +2751,7 @@ smp_fetch_ssl_fc_use_keysize(struct proxy *px, struct session *l4, void *l7, uns
 	if (!l4)
 		return 0;
 
-	conn = objt_conn(l4->si[0].end);
+	conn = objt_conn(l4->si[back_conn].end);
 	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
 		return 0;
 
@@ -2800,10 +2820,15 @@ smp_fetch_ssl_fc_alpn(struct proxy *px, struct session *l4, void *l7, unsigned i
 }
 #endif
 
+/* string, returns the used protocol if front conn. transport layer is SSL.
+ * This function is also usable on backend conn if the fetch keyword 5th
+ * char is 'b'.
+ */
 static int
 smp_fetch_ssl_fc_protocol(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                           const struct arg *args, struct sample *smp, const char *kw)
 {
+	int back_conn = (kw[4] == 'b') ? 1 : 0;
 	struct connection *conn;
 
 	smp->flags = 0;
@@ -2811,7 +2836,7 @@ smp_fetch_ssl_fc_protocol(struct proxy *px, struct session *l4, void *l7, unsign
 	if (!l4)
 		return 0;
 
-	conn = objt_conn(l4->si[0].end);
+	conn = objt_conn(l4->si[back_conn].end);
 	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
 		return 0;
 
@@ -2826,11 +2851,16 @@ smp_fetch_ssl_fc_protocol(struct proxy *px, struct session *l4, void *l7, unsign
 	return 1;
 }
 
+/* binary, returns the SSL session id if front conn. transport layer is SSL.
+ * This function is also usable on backend conn if the fetch keyword 5th
+ * char is 'b'.
+ */
 static int
 smp_fetch_ssl_fc_session_id(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                             const struct arg *args, struct sample *smp, const char *kw)
 {
 #if OPENSSL_VERSION_NUMBER > 0x0090800fL
+	int back_conn = (kw[4] == 'b') ? 1 : 0;
 	SSL_SESSION *sess;
 	struct connection *conn;
 
@@ -2840,7 +2870,7 @@ smp_fetch_ssl_fc_session_id(struct proxy *px, struct session *l4, void *l7, unsi
 	if (!l4)
 		return 0;
 
-	conn = objt_conn(l4->si[0].end);
+	conn = objt_conn(l4->si[back_conn].end);
 	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
 		return 0;
 
@@ -2891,6 +2921,7 @@ smp_fetch_ssl_fc_unique_id(struct proxy *px, struct session *l4, void *l7, unsig
                           const struct arg *args, struct sample *smp, const char *kw)
 {
 #if OPENSSL_VERSION_NUMBER > 0x0090800fL
+	int back_conn = (kw[4] == 'b') ? 1 : 0;
 	struct connection *conn;
 	int finished_len;
 	int b64_len;
@@ -2902,7 +2933,7 @@ smp_fetch_ssl_fc_unique_id(struct proxy *px, struct session *l4, void *l7, unsig
 	if (!l4)
 	        return 0;
 
-	conn = objt_conn(l4->si[0].end);
+	conn = objt_conn(l4->si[back_conn].end);
 	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
 		return 0;
 
@@ -3629,6 +3660,13 @@ static int srv_parse_verifyhost(char **args, int *cur_arg, struct proxy *px, str
  * Please take care of keeping this list alphabetically sorted.
  */
 static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
+	{ "ssl_bc",                 smp_fetch_ssl_fc,             0,                   NULL,    SMP_T_BOOL, SMP_USE_L5SRV },
+	{ "ssl_bc_alg_keysize",     smp_fetch_ssl_fc_alg_keysize, 0,                   NULL,    SMP_T_UINT, SMP_USE_L5SRV },
+	{ "ssl_bc_cipher",          smp_fetch_ssl_fc_cipher,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5SRV },
+	{ "ssl_bc_protocol",        smp_fetch_ssl_fc_protocol,    0,                   NULL,    SMP_T_STR,  SMP_USE_L5SRV },
+	{ "ssl_bc_unique_id",       smp_fetch_ssl_fc_unique_id,   0,                   NULL,    SMP_T_STR,  SMP_USE_L5SRV },
+	{ "ssl_bc_use_keysize",     smp_fetch_ssl_fc_use_keysize, 0,                   NULL,    SMP_T_UINT, SMP_USE_L5SRV },
+	{ "ssl_bc_session_id",      smp_fetch_ssl_fc_session_id,  0,                   NULL,    SMP_T_BIN,  SMP_USE_L5SRV },
 	{ "ssl_c_ca_err",           smp_fetch_ssl_c_ca_err,       0,                   NULL,    SMP_T_UINT, SMP_USE_L5CLI },
 	{ "ssl_c_ca_err_depth",     smp_fetch_ssl_c_ca_err_depth, 0,                   NULL,    SMP_T_UINT, SMP_USE_L5CLI },
 	{ "ssl_c_err",              smp_fetch_ssl_c_err,          0,                   NULL,    SMP_T_UINT, SMP_USE_L5CLI },
