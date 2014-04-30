@@ -9535,6 +9535,11 @@ support some arguments (eg: a netmask) which must be passed in parenthesis.
 
 The currently available list of transformation keywords include :
 
+base64
+  Converts a binary input sample to a base64 string. It is used to log or
+  transfer binary content in a way that can be reliably transferred (eg:
+  an SSL ID can be copied in a header).
+
 lower
   Convert a string sample to lower case. This can only be placed after a string
   sample fetch function or after a transformation keyword returning a string

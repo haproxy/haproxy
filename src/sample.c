@@ -20,6 +20,7 @@
 #include <common/chunk.h>
 #include <common/standard.h>
 #include <common/uri_auth.h>
+#include <common/base64.h>
 
 #include <proto/arg.h>
 #include <proto/auth.h>
@@ -1172,6 +1173,23 @@ struct sample *sample_fetch_string(struct proxy *px, struct session *l4, void *l
 /*    These functions set the data type on return.               */
 /*****************************************************************/
 
+static int sample_conv_bin2base64(const struct arg *arg_p, struct sample *smp)
+{
+	struct chunk *trash = get_trash_chunk();
+	int b64_len;
+
+	trash->len = 0;
+	b64_len = a2base64(smp->data.str.str, smp->data.str.len, trash->str, trash->size);
+	if (b64_len < 0)
+		return 0;
+
+	trash->len = b64_len;
+	smp->data.str = *trash;
+	smp->type = SMP_T_STR;
+	smp->flags &= ~SMP_F_CONST;
+	return 1;
+}
+
 static int sample_conv_bin2hex(const struct arg *arg_p, struct sample *smp)
 {
 	struct chunk *trash = get_trash_chunk();
@@ -1329,6 +1347,7 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
+	{ "base64", sample_conv_bin2base64,0,            NULL, SMP_T_BIN,  SMP_T_STR  },
 	{ "upper",  sample_conv_str2upper, 0,            NULL, SMP_T_STR,  SMP_T_STR  },
 	{ "lower",  sample_conv_str2lower, 0,            NULL, SMP_T_STR,  SMP_T_STR  },
 	{ "hex",    sample_conv_bin2hex,   0,            NULL, SMP_T_BIN,  SMP_T_STR  },
