@@ -10434,6 +10434,11 @@ ssl_f_serial : binary
   incoming connection was made over an SSL/TLS transport layer. When used for
   an ACL, the value(s) to match against can be passed in hexadecimal form.
 
+ssl_f_sha1 : binary
+  Returns the SHA-1 fingerprint of the certificate presented by the frontend
+  when the incoming connection was made over an SSL/TLS transport layer. This
+  can be used to know which certificate was chosen using SNI.
+
 ssl_f_sig_alg : string
   Returns the name of the algorithm used to sign the certificate presented by
   the frontend when the incoming connection was made over an SSL/TLS transport
