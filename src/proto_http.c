@@ -10539,10 +10539,10 @@ smp_fetch_capture_res_ver(struct proxy *px, struct session *l4, void *l7, unsign
  * The cookie name is in args and the name length in args->data.str.len.
  * Accepts exactly 1 argument of type string. If the input options indicate
  * that no iterating is desired, then only last value is fetched if any.
- * The returned sample is of type CSTR.
+ * The returned sample is of type CSTR. Can be used to parse cookies in other
+ * files.
  */
-static int
-smp_fetch_cookie(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+int smp_fetch_cookie(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                  const struct arg *args, struct sample *smp, const char *kw)
 {
 	struct http_txn *txn = l7;
