@@ -5341,6 +5341,11 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 				channel_auto_read(req);
 			}
 
+			/* if we received everything, we don't want to expire anymore */
+			if (msg->msg_state == HTTP_MSG_DONE) {
+				req->flags |= CF_READ_NOEXP;
+				req->rex = TICK_ETERNITY;
+			}
 			return 0;
 		}
 	}
@@ -6528,6 +6533,12 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 					goto return_bad_res;
 				}
 				return 1;
+			}
+
+			/* if we received everything, we don't want to expire anymore */
+			if (msg->msg_state == HTTP_MSG_DONE) {
+				res->flags |= CF_READ_NOEXP;
+				res->rex = TICK_ETERNITY;
 			}
 			return 0;
 		}

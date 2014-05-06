@@ -2411,20 +2411,6 @@ struct task *process_session(struct task *t)
 		s->si[0].flags &= ~(SI_FL_ERR|SI_FL_EXP);
 		s->si[1].flags &= ~(SI_FL_ERR|SI_FL_EXP);
 
-		/* Trick: if a request is being waiting for the server to respond,
-		 * and if we know the server can timeout, we don't want the timeout
-		 * to expire on the client side first, but we're still interested
-		 * in passing data from the client to the server (eg: POST). Thus,
-		 * we can cancel the client's request timeout if the server's
-		 * request timeout is set and the server has not yet sent a response.
-		 */
-
-		if ((s->rep->flags & (CF_AUTO_CLOSE|CF_SHUTR)) == 0 &&
-		    (tick_isset(s->req->wex) || tick_isset(s->rep->rex))) {
-			s->req->flags |= CF_READ_NOEXP;
-			s->req->rex = TICK_ETERNITY;
-		}
-
 		/* When any of the stream interfaces is attached to an applet,
 		 * we have to call it here. Note that this one may wake the
 		 * task up again. If at least one applet was called, the current
