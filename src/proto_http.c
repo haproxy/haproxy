@@ -5175,6 +5175,13 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 		 */
 		msg->msg_state = HTTP_MSG_ERROR;
 		http_resync_states(s);
+
+		if (req->flags & CF_READ_TIMEOUT)
+			goto cli_timeout;
+
+		if (req->flags & CF_WRITE_TIMEOUT)
+			goto srv_timeout;
+
 		return 1;
 	}
 
@@ -5455,6 +5462,68 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 			s->flags |= SN_FINST_D;
 	}
 	return 0;
+
+ cli_timeout:
+	if (!(s->flags & SN_ERR_MASK))
+		s->flags |= SN_ERR_CLITO;
+
+	if (!(s->flags & SN_FINST_MASK)) {
+		if (txn->rsp.msg_state < HTTP_MSG_ERROR)
+			s->flags |= SN_FINST_H;
+		else
+			s->flags |= SN_FINST_D;
+	}
+
+	if (txn->status > 0) {
+		/* Don't send any error message if something was already sent */
+		stream_int_retnclose(req->prod, NULL);
+	}
+	else {
+		txn->status = 408;
+		stream_int_retnclose(req->prod, http_error_message(s, HTTP_ERR_408));
+	}
+
+	msg->msg_state = HTTP_MSG_ERROR;
+	req->analysers = 0;
+	s->rep->analysers = 0; /* we're in data phase, we want to abort both directions */
+
+	session_inc_http_err_ctr(s);
+	s->fe->fe_counters.failed_req++;
+	s->be->be_counters.failed_req++;
+	if (s->listener->counters)
+		s->listener->counters->failed_req++;
+	return 0;
+
+ srv_timeout:
+	if (!(s->flags & SN_ERR_MASK))
+		s->flags |= SN_ERR_SRVTO;
+
+	if (!(s->flags & SN_FINST_MASK)) {
+		if (txn->rsp.msg_state < HTTP_MSG_ERROR)
+			s->flags |= SN_FINST_H;
+		else
+			s->flags |= SN_FINST_D;
+	}
+
+	if (txn->status > 0) {
+		/* Don't send any error message if something was already sent */
+		stream_int_retnclose(req->prod, NULL);
+	}
+	else {
+		txn->status = 504;
+		stream_int_retnclose(req->prod, http_error_message(s, HTTP_ERR_504));
+	}
+
+	msg->msg_state = HTTP_MSG_ERROR;
+	req->analysers = 0;
+	s->rep->analysers = 0; /* we're in data phase, we want to abort both directions */
+
+	s->be->be_counters.failed_resp++;
+	if (objt_server(s->target)) {
+		objt_server(s->target)->counters.failed_resp++;
+		health_adjust(objt_server(s->target), HANA_STATUS_HTTP_READ_TIMEOUT);
+	}
+	return 0;
 }
 
 /* This stream analyser waits for a complete HTTP response. It returns 1 if the
@@ -5622,8 +5691,11 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 			return 0;
 		}
 
-		/* read timeout : return a 504 to the client. */
-		else if (rep->flags & CF_READ_TIMEOUT) {
+		/* read/write timeout : return a 504 to the client.
+		 * The write timeout may happen when we're uploading POST
+		 * data that the server is not consuming fast enough.
+		 */
+		else if (rep->flags & (CF_READ_TIMEOUT|CF_WRITE_TIMEOUT)) {
 			if (msg->err_pos >= 0)
 				http_capture_bad_message(&s->be->invalid_rep, s, msg, msg->msg_state, s->fe);
 			else if (txn->flags & TX_NOT_FIRST)
