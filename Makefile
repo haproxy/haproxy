@@ -17,6 +17,7 @@
 #   USE_PCRE_JIT         : enable JIT for faster regex on libpcre >= 8.32
 #   USE_POLL             : enable poll(). Automatic.
 #   USE_PRIVATE_CACHE    : disable shared memory cache of ssl sessions.
+#   USE_PTHREAD_PSHARED  : enable pthread process shared mutex on sslcache.
 #   USE_REGPARM          : enable regparm optimization. Recommended on x86.
 #   USE_STATIC_PCRE      : enable static libpcre. Recommended.
 #   USE_TPROXY           : enable transparent proxy. Automatic.
@@ -536,10 +537,13 @@ OPTIONS_OBJS  += src/ssl_sock.o src/shctx.o
 ifneq ($(USE_PRIVATE_CACHE),)
 OPTIONS_CFLAGS  += -DUSE_PRIVATE_CACHE
 else
+ifneq ($(USE_PTHREAD_PSHARED),)
+OPTIONS_CFLAGS  += -DUSE_PTHREAD_PSHARED
+OPTIONS_LDFLAGS += -lpthread
+else
 ifneq ($(USE_FUTEX),)
 OPTIONS_CFLAGS  += -DUSE_SYSCALL_FUTEX
-else
-OPTIONS_LDFLAGS += -lpthread
+endif
 endif
 endif
 endif

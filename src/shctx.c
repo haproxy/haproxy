@@ -13,6 +13,9 @@
 
 #include <sys/mman.h>
 #ifndef USE_PRIVATE_CACHE
+#ifdef USE_PTHREAD_PSHARED
+#include <pthread.h>
+#else
 #ifdef USE_SYSCALL_FUTEX
 #include <unistd.h>
 #ifndef u32
@@ -20,9 +23,8 @@
 #endif
 #include <linux/futex.h>
 #include <sys/syscall.h>
-#else /* USE_SYSCALL_FUTEX */
-#include <pthread.h>
-#endif /* USE_SYSCALL_FUTEX */
+#endif
+#endif
 #endif
 #include <arpa/inet.h>
 #include "ebmbtree.h"
@@ -60,10 +62,10 @@ struct shared_block {
 
 struct shared_context {
 #ifndef USE_PRIVATE_CACHE
-#ifdef USE_SYSCALL_FUTEX
-	unsigned int waiters;
-#else /* USE_SYSCALL_FUTEX */
+#ifdef USE_PTHREAD_PSHARED
 	pthread_mutex_t mutex;
+#else
+	unsigned int waiters;
 #endif
 #endif
 	struct shsess_packet_hdr upd;
@@ -75,17 +77,63 @@ struct shared_context {
 
 /* Static shared context */
 static struct shared_context *shctx = NULL;
-#ifndef USE_PRIVATE_CACHE
-static int use_shared_mem = 0;
-#endif
 
 /* Lock functions */
-#ifdef USE_PRIVATE_CACHE
+
+#if defined (USE_PRIVATE_CACHE)
+
 #define shared_context_lock()
 #define shared_context_unlock()
 
+#elif defined (USE_PTHREAD_PSHARED)
+static int use_shared_mem = 0;
+
+#define shared_context_lock()   if (use_shared_mem) pthread_mutex_lock(&shctx->mutex)
+#define shared_context_unlock() if (use_shared_mem) pthread_mutex_unlock(&shctx->mutex)
+
 #else
+static int use_shared_mem = 0;
+
 #ifdef USE_SYSCALL_FUTEX
+static inline void _shared_context_wait4lock(unsigned int *count, unsigned int *uaddr, int value)
+{
+	syscall(SYS_futex, uaddr, FUTEX_WAIT, value, NULL, 0, 0);
+}
+
+static inline void _shared_context_awakelocker(unsigned int *uaddr)
+{
+	syscall(SYS_futex, uaddr, FUTEX_WAKE, 1, NULL, 0, 0);
+}
+
+#else /* internal spin lock */
+
+#if defined (__i486__) || defined (__i586__) || defined (__i686__) || defined (__x86_64__)
+static inline void relax()
+{
+	__asm volatile("rep;nop\n" ::: "memory");
+}
+#else /* if no x86_64 or i586 arch: use less optimized but generic asm */
+static inline void relax()
+{
+	__asm volatile("" ::: "memory");
+}
+#endif
+
+static inline void _shared_context_wait4lock(unsigned int *count, unsigned int *uaddr, int value)
+{
+        int i;
+
+        for (i = 0; i < *count; i++) {
+                relax();
+                relax();
+        }
+        *count = *count << 1;
+}
+
+#define _shared_context_awakelocker(a)
+
+#endif
+
 #if defined (__i486__) || defined (__i586__) || defined (__i686__) || defined (__x86_64__)
 static inline unsigned int xchg(unsigned int *ptr, unsigned int x)
 {
@@ -139,6 +187,7 @@ static inline unsigned char atomic_dec(unsigned int *ptr)
 static inline void _shared_context_lock(void)
 {
 	unsigned int x;
+	unsigned int count = 4;
 
 	x = cmpxchg(&shctx->waiters, 0, 1);
 	if (x) {
@@ -146,7 +195,7 @@ static inline void _shared_context_lock(void)
 			x = xchg(&shctx->waiters, 2);
 
 		while (x) {
-			syscall(SYS_futex, &shctx->waiters, FUTEX_WAIT, 2, NULL, 0, 0);
+			_shared_context_wait4lock(&count, &shctx->waiters, 2);
 			x = xchg(&shctx->waiters, 2);
 		}
 	}
@@ -156,7 +205,7 @@ static inline void _shared_context_unlock(void)
 {
 	if (atomic_dec(&shctx->waiters)) {
 		shctx->waiters = 0;
-		syscall(SYS_futex, &shctx->waiters, FUTEX_WAKE, 1, NULL, 0, 0);
+		_shared_context_awakelocker(&shctx->waiters);
 	}
 }
 
@@ -164,13 +213,6 @@ static inline void _shared_context_unlock(void)
 
 #define shared_context_unlock() if (use_shared_mem) _shared_context_unlock()
 
-#else /* USE_SYSCALL_FUTEX */
-
-#define shared_context_lock()   if (use_shared_mem) pthread_mutex_lock(&shctx->mutex)
-
-#define shared_context_unlock() if (use_shared_mem) pthread_mutex_unlock(&shctx->mutex)
-
-#endif
 #endif
 
 /* List Macros */
@@ -508,9 +550,9 @@ int shared_context_init(int size, int shared)
 {
 	int i;
 #ifndef USE_PRIVATE_CACHE
-#ifndef USE_SYSCALL_FUTEX
+#ifdef USE_PTHREAD_PSHARED
 	pthread_mutexattr_t attr;
-#endif /* USE_SYSCALL_FUTEX */
+#endif
 #endif
 	struct shared_block *prev,*cur;
 	int maptype = MAP_PRIVATE;
@@ -537,9 +579,7 @@ int shared_context_init(int size, int shared)
 
 #ifndef USE_PRIVATE_CACHE
 	if (maptype == MAP_SHARED) {
-#ifdef USE_SYSCALL_FUTEX
-		shctx->waiters = 0;
-#else
+#ifdef USE_PTHREAD_PSHARED
 		if (pthread_mutexattr_init(&attr)) {
 			munmap(shctx, sizeof(struct shared_context)+(size*sizeof(struct shared_block)));
 			shctx = NULL;
@@ -559,6 +599,8 @@ int shared_context_init(int size, int shared)
 			shctx = NULL;
 			return SHCTX_E_INIT_LOCK;
 		}
+#else
+		shctx->waiters = 0;
 #endif
 		use_shared_mem = 1;
 	}
