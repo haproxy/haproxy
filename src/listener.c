@@ -257,6 +257,7 @@ void listener_accept(int fd)
 	struct listener *l = fdtab[fd].owner;
 	struct proxy *p = l->frontend;
 	int max_accept = l->maxaccept ? l->maxaccept : 1;
+	int expire;
 	int cfd;
 	int ret;
 #ifdef USE_ACCEPT4
@@ -270,14 +271,11 @@ void listener_accept(int fd)
 
 	if (!(l->options & LI_O_UNLIMITED) && global.sps_lim) {
 		int max = freq_ctr_remain(&global.sess_per_sec, global.sps_lim, 0);
-		int expire;
 
 		if (unlikely(!max)) {
 			/* frontend accept rate limit was reached */
-			limit_listener(l, &global_listener_queue);
 			expire = tick_add(now_ms, next_event_delay(&global.sess_per_sec, global.sps_lim, 0));
-			task_schedule(global_listener_queue_task, tick_first(expire, global_listener_queue_task->expire));
-			return;
+			goto wait_expire;
 		}
 
 		if (max_accept > max)
@@ -286,14 +284,11 @@ void listener_accept(int fd)
 
 	if (!(l->options & LI_O_UNLIMITED) && global.cps_lim) {
 		int max = freq_ctr_remain(&global.conn_per_sec, global.cps_lim, 0);
-		int expire;
 
 		if (unlikely(!max)) {
 			/* frontend accept rate limit was reached */
-			limit_listener(l, &global_listener_queue);
 			expire = tick_add(now_ms, next_event_delay(&global.conn_per_sec, global.cps_lim, 0));
-			task_schedule(global_listener_queue_task, tick_first(expire, global_listener_queue_task->expire));
-			return;
+			goto wait_expire;
 		}
 
 		if (max_accept > max)
@@ -302,14 +297,11 @@ void listener_accept(int fd)
 #ifdef USE_OPENSSL
 	if (!(l->options & LI_O_UNLIMITED) && global.ssl_lim && l->bind_conf && l->bind_conf->is_ssl) {
 		int max = freq_ctr_remain(&global.ssl_per_sec, global.ssl_lim, 0);
-		int expire;
 
 		if (unlikely(!max)) {
 			/* frontend accept rate limit was reached */
-			limit_listener(l, &global_listener_queue);
 			expire = tick_add(now_ms, next_event_delay(&global.ssl_per_sec, global.ssl_lim, 0));
-			task_schedule(global_listener_queue_task, tick_first(expire, global_listener_queue_task->expire));
-			return;
+			goto wait_expire;
 		}
 
 		if (max_accept > max)
@@ -365,8 +357,20 @@ void listener_accept(int fd)
 		if (unlikely(cfd == -1)) {
 			switch (errno) {
 			case EAGAIN:
+				if (fdtab[fd].ev & FD_POLL_HUP) {
+					/* the listening socket might have been disabled in a shared
+					 * process and we're a collateral victim. We'll just pause for
+					 * a while in case it comes back. In the mean time, we need to
+					 * clear this sticky flag.
+					 */
+					fdtab[fd].ev &= ~FD_POLL_HUP;
+					goto transient_error;
+				}
 				fd_cant_recv(fd);
 				return;   /* nothing more to accept */
+			case EINVAL:
+				/* might be trying to accept on a shut fd (eg: soft stop) */
+				goto transient_error;
 			case EINTR:
 			case ECONNABORTED:
 				continue;
@@ -375,26 +379,20 @@ void listener_accept(int fd)
 					send_log(p, LOG_EMERG,
 						 "Proxy %s reached system FD limit at %d. Please check system tunables.\n",
 						 p->id, maxfd);
-				limit_listener(l, &global_listener_queue);
-				task_schedule(global_listener_queue_task, tick_add(now_ms, 100)); /* try again in 100 ms */
-				return;
+				goto transient_error;
 			case EMFILE:
 				if (p)
 					send_log(p, LOG_EMERG,
 						 "Proxy %s reached process FD limit at %d. Please check 'ulimit-n' and restart.\n",
 						 p->id, maxfd);
-				limit_listener(l, &global_listener_queue);
-				task_schedule(global_listener_queue_task, tick_add(now_ms, 100)); /* try again in 100 ms */
-				return;
+				goto transient_error;
 			case ENOBUFS:
 			case ENOMEM:
 				if (p)
 					send_log(p, LOG_EMERG,
 						 "Proxy %s reached system memory limit at %d sockets. Please check system tunables.\n",
 						 p->id, maxfd);
-				limit_listener(l, &global_listener_queue);
-				task_schedule(global_listener_queue_task, tick_add(now_ms, 100)); /* try again in 100 ms */
-				return;
+				goto transient_error;
 			default:
 				/* unexpected result, let's give up and let other tasks run */
 				goto stop;
@@ -442,9 +440,7 @@ void listener_accept(int fd)
 			if (ret == 0) /* successful termination */
 				continue;
 
-			limit_listener(l, &global_listener_queue);
-			task_schedule(global_listener_queue_task, tick_add(now_ms, 100)); /* try again in 100 ms */
-			return;
+			goto transient_error;
 		}
 
 		if (l->nbconn >= l->maxconn) {
@@ -472,6 +468,15 @@ void listener_accept(int fd)
 	/* we've exhausted max_accept, so there is no need to poll again */
  stop:
 	fd_done_recv(fd);
+	return;
+
+ transient_error:
+	/* pause the listener and try again in 100 ms */
+	expire = tick_add(now_ms, 100);
+
+ wait_expire:
+	limit_listener(l, &global_listener_queue);
+	task_schedule(global_listener_queue_task, tick_first(expire, global_listener_queue_task->expire));
 	return;
 }
 
