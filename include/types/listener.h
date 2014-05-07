@@ -134,6 +134,7 @@ struct bind_conf {
 	struct eb_root sni_w_ctx;  /* sni_ctx tree of all known certs wildcards sorted by name */
 #endif
 	int is_ssl;                /* SSL is required for these listeners */
+	unsigned long bind_proc;   /* bitmask of processes allowed to use these listeners */
 	struct {                   /* UNIX socket permissions */
 		uid_t uid;         /* -1 to leave unchanged */
 		gid_t gid;         /* -1 to leave unchanged */

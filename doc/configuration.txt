@@ -1865,6 +1865,9 @@ bind-process [ all | odd | even | <number 1-64>[-<number 1-64>] ] ...
   Please note that 'all' really means all processes regardless of the machine's
   word size, and is not limited to the first 32 or 64.
 
+  Each "bind" line may further be limited to a subset of the proxy's processes,
+  please consult the "process" bind keyword in section 5.1.
+
   If some backends are referenced by frontends bound to other processes, the
   backend automatically inherits the frontend's processes.
 
@@ -1885,7 +1888,7 @@ bind-process [ all | odd | even | <number 1-64>[-<number 1-64>] ] ...
             bind 10.0.0.4:80
             bind-process 1-4
 
-  See also : "nbproc" in global section.
+  See also : "nbproc" in global section, and "process" in section 5.1.
 
 
 block { if | unless } <condition>
@@ -8272,6 +8275,17 @@ npn <protocols>
   This requires that the SSL library is build with support for TLS extensions
   enabled (check with haproxy -vv). Note that the NPN extension has been
   replaced with the ALPN extension (see the "alpn" keyword).
+
+process [ all | odd | even | <number 1-64>[-<number 1-64>] ]
+  This restricts the list of processes on which this listener is allowed to
+  run. It does not enforce any process but eliminates those which do not match.
+  If the frontend uses a "bind-process" setting, the intersection between the
+  two is applied. If in the end the listener is not allowed to run on any
+  remaining process, a warning is emitted, and the listener will either run on
+  the first process of the listener if a single process was specified, or on
+  all of its processes if multiple processes were specified. For the unlikely
+  case where several ranges are needed, this directive may be repeated. See
+  also "bind-process" and "nbproc".
 
 ssl
   This setting is only available when support for OpenSSL was built in. It
