@@ -532,19 +532,36 @@ int shared_context_init(int size, int shared)
 	                                      PROT_READ | PROT_WRITE, maptype | MAP_ANON, -1, 0);
 	if (!shctx || shctx == MAP_FAILED) {
 		shctx = NULL;
-		return -1;
+		return SHCTX_E_ALLOC_CACHE;
 	}
 
 #ifndef USE_PRIVATE_CACHE
+	if (maptype == MAP_SHARED) {
 #ifdef USE_SYSCALL_FUTEX
-	shctx->waiters = 0;
+		shctx->waiters = 0;
 #else
-	pthread_mutexattr_init(&attr);
-	pthread_mutexattr_setpshared(&attr, PTHREAD_PROCESS_SHARED);
-	pthread_mutex_init(&shctx->mutex, &attr);
+		if (pthread_mutexattr_init(&attr)) {
+			munmap(shctx, sizeof(struct shared_context)+(size*sizeof(struct shared_block)));
+			shctx = NULL;
+			return SHCTX_E_INIT_LOCK;
+		}
+
+		if (pthread_mutexattr_setpshared(&attr, PTHREAD_PROCESS_SHARED)) {
+			pthread_mutexattr_destroy(&attr);
+			munmap(shctx, sizeof(struct shared_context)+(size*sizeof(struct shared_block)));
+			shctx = NULL;
+			return SHCTX_E_INIT_LOCK;
+		}
+
+		if (pthread_mutex_init(&shctx->mutex, &attr)) {
+			pthread_mutexattr_destroy(&attr);
+			munmap(shctx, sizeof(struct shared_context)+(size*sizeof(struct shared_block)));
+			shctx = NULL;
+			return SHCTX_E_INIT_LOCK;
+		}
 #endif
-	if (maptype == MAP_SHARED)
 		use_shared_mem = 1;
+	}
 #endif
 
 	memset(&shctx->active.data.session.key, 0, sizeof(struct ebmb_node));

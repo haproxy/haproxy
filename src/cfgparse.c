@@ -6744,6 +6744,8 @@ out_uri_auth_compat:
 		 * remains NULL so that listeners can later detach.
 		 */
 		list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
+			int alloc_ctx;
+
 			if (!bind_conf->is_ssl) {
 				if (bind_conf->default_ctx) {
 					Warning("Proxy '%s': A certificate was specified but SSL was not enabled on bind '%s' at [%s:%d] (use 'ssl').\n",
@@ -6758,10 +6760,18 @@ out_uri_auth_compat:
 				continue;
 			}
 
-			if (shared_context_init(global.tune.sslcachesize, (global.nbproc > 1) ? 1 : 0) < 0) {
-				Alert("Unable to allocate SSL session cache.\n");
-				cfgerr++;
-				continue;
+			alloc_ctx = shared_context_init(global.tune.sslcachesize, (global.nbproc > 1) ? 1 : 0);
+			if (alloc_ctx < 0) {
+				if (alloc_ctx == SHCTX_E_INIT_LOCK) {
+					Warning("Unable to init lock for the shared SSL session cache. Falling back to private cache.\n");
+					alloc_ctx = shared_context_init(global.tune.sslcachesize, 0);
+				}
+
+				if (alloc_ctx < 0) {
+					Alert("Unable to allocate SSL session cache.\n");
+					cfgerr++;
+					continue;
+				}
 			}
 
 			/* initialize all certificate contexts */

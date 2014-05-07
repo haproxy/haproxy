@@ -28,6 +28,9 @@
 #define SHCTX_APPNAME "haproxy"
 #endif
 
+#define SHCTX_E_ALLOC_CACHE -1
+#define SHCTX_E_INIT_LOCK   -2
+
 /* Allocate shared memory context.
  * <size> is the number of allocated blocks into cache (default 128 bytes)
  * A block is large enough to contain a classic session (without client cert)
