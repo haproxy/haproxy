@@ -42,15 +42,27 @@ static struct bind_kw_list bind_keywords = {
 
 /* This function adds the specified listener's file descriptor to the polling
  * lists if it is in the LI_LISTEN state. The listener enters LI_READY or
- * LI_FULL state depending on its number of connections.
+ * LI_FULL state depending on its number of connections. In deamon mode, we
+ * also support binding only the relevant processes to their respective
+ * listeners. We don't do that in debug mode however.
  */
 void enable_listener(struct listener *listener)
 {
 	if (listener->state == LI_LISTEN) {
-		if (listener->nbconn < listener->maxconn) {
+		if ((global.mode & (MODE_DAEMON | MODE_SYSTEMD)) &&
+		    listener->bind_conf->bind_proc &&
+		    !(listener->bind_conf->bind_proc & (1UL << (relative_pid - 1)))) {
+			/* we don't want to enable this listener and don't
+			 * want any fd event to reach it.
+			 */
+			fd_stop_recv(listener->fd);
+			listener->state = LI_PAUSED;
+		}
+		else if (listener->nbconn < listener->maxconn) {
 			fd_want_recv(listener->fd);
 			listener->state = LI_READY;
-		} else {
+		}
+		else {
 			listener->state = LI_FULL;
 		}
 	}
@@ -106,10 +118,17 @@ int pause_listener(struct listener *l)
  * limited and disabled listeners are handled, which means that this function
  * may replace enable_listener(). The resulting state will either be LI_READY
  * or LI_FULL. 0 is returned in case of failure to resume (eg: dead socket).
+ * Listeners bound to a different process are not woken up unless we're in
+ * foreground mode.
  */
 int resume_listener(struct listener *l)
 {
 	if (l->state < LI_PAUSED)
+		return 0;
+
+	if ((global.mode & (MODE_DAEMON | MODE_SYSTEMD)) &&
+	    l->bind_conf->bind_proc &&
+	    !(l->bind_conf->bind_proc & (1UL << (relative_pid - 1))))
 		return 0;
 
 	if (l->proto->sock_prot == IPPROTO_TCP &&
