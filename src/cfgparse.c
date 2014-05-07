@@ -5851,8 +5851,38 @@ int check_config_validity()
 			continue;
 		}
 
-		/* number of processes this proxy is bound to */
-		nbproc = curproxy->bind_proc ? popcount(curproxy->bind_proc) : global.nbproc;
+		/* Check multi-process mode compatibility for the current proxy */
+
+		if (curproxy->bind_proc) {
+			/* an explicit bind-process was specified, let's check how many
+			 * processes remain.
+			 */
+			nbproc = popcount(curproxy->bind_proc);
+
+			curproxy->bind_proc &= nbits(global.nbproc);
+			if (!curproxy->bind_proc && nbproc == 1) {
+				Warning("Proxy '%s': the process specified on the 'bind-process' directive refers to a process number that is higher than global.nbproc. The proxy has been forced to run on process 1 only.\n", curproxy->id);
+				curproxy->bind_proc = 1;
+			}
+			else if (!curproxy->bind_proc && nbproc > 1) {
+				Warning("Proxy '%s': all processes specified on the 'bind-process' directive refer to numbers that are all higher than global.nbproc. The directive was ignored and the proxy will run on all processes.\n", curproxy->id);
+				curproxy->bind_proc = 0;
+			}
+		}
+
+		/* here, if bind_proc is null, it means no limit, otherwise it's explicit.
+		 * We now check how many processes the proxy will effectively run on.
+		 */
+
+		nbproc = global.nbproc;
+		if (curproxy->bind_proc)
+			nbproc = popcount(curproxy->bind_proc & nbits(global.nbproc));
+
+		if (global.nbproc > 1 && curproxy->table.peers.name) {
+			Alert("Proxy '%s': peers can't be used in multi-process mode (nbproc > 1).\n",
+			      curproxy->id);
+			cfgerr++;
+		}
 
 		switch (curproxy->mode) {
 		case PR_MODE_HEALTH:
@@ -6854,41 +6884,22 @@ out_uri_auth_compat:
 #endif /* USE_OPENSSL */
 		}
 
-		/* Check multi-process mode compatibility for the current proxy */
-		if (global.nbproc > 1) {
-			int nbproc = 0;
-			if (curproxy->bind_proc) {
-				int proc;
-				for (proc = 0; proc < global.nbproc; proc++) {
-					if (curproxy->bind_proc & (1UL << proc)) {
-						nbproc++;
-					}
+		if (nbproc > 1) {
+			if (curproxy->uri_auth) {
+				Warning("Proxy '%s': in multi-process mode, stats will be limited to process assigned to the current request.\n",
+				        curproxy->id);
+				if (!LIST_ISEMPTY(&curproxy->uri_auth->admin_rules)) {
+					Warning("Proxy '%s': stats admin will not work correctly in multi-process mode.\n",
+					        curproxy->id);
 				}
-			} else {
-				nbproc = global.nbproc;
 			}
-			if (curproxy->table.peers.name) {
-				Alert("Proxy '%s': peers can't be used in multi-process mode (nbproc > 1).\n",
-					curproxy->id);
-				cfgerr++;
+			if (curproxy->appsession_name) {
+				Warning("Proxy '%s': appsession will not work correctly in multi-process mode.\n",
+				        curproxy->id);
 			}
-			if (nbproc > 1) {
-				if (curproxy->uri_auth) {
-					Warning("Proxy '%s': in multi-process mode, stats will be limited to process assigned to the current request.\n",
-						curproxy->id);
-					if (!LIST_ISEMPTY(&curproxy->uri_auth->admin_rules)) {
-						Warning("Proxy '%s': stats admin will not work correctly in multi-process mode.\n",
-							curproxy->id);
-					}
-				}
-				if (curproxy->appsession_name) {
-					Warning("Proxy '%s': appsession will not work correctly in multi-process mode.\n",
-						curproxy->id);
-				}
-				if (!LIST_ISEMPTY(&curproxy->sticking_rules)) {
-					Warning("Proxy '%s': sticking rules will not work correctly in multi-process mode.\n",
-						curproxy->id);
-				}
+			if (!LIST_ISEMPTY(&curproxy->sticking_rules)) {
+				Warning("Proxy '%s': sticking rules will not work correctly in multi-process mode.\n",
+				        curproxy->id);
 			}
 		}
 

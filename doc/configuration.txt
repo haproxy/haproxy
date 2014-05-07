@@ -1849,9 +1849,10 @@ bind-process [ all | odd | even | <number 1-64>[-<number 1-64>] ] ...
 
     number        The instance will be enabled on this process number or range,
                   whose values must all be between 1 and 32 or 64 depending on
-                  the machine's word size. You must be careful not to reference
-                  a process number greater than the configured global.nbproc,
-                  otherwise some instances might be missing from all processes.
+                  the machine's word size. If a proxy is bound to process
+                  numbers greater than the configured global.nbproc, it will
+                  either be forced to process #1 if a single process was
+                  specified, or to all processes otherwise.
 
   This keyword limits binding of certain instances to certain processes. This
   is useful in order not to have too many processes listening to the same
