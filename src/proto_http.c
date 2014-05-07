@@ -5791,6 +5791,12 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 			return 0;
 		}
 
+		/* we don't want to expire on the server side first until the client
+		 * has sent all the expected message body.
+		 */
+		if (txn->req.msg_state >= HTTP_MSG_BODY && txn->req.msg_state < HTTP_MSG_DONE)
+			rep->flags |= CF_READ_NOEXP;
+
 		channel_dont_close(rep);
 		rep->flags |= CF_READ_DONTWAIT; /* try to get back here ASAP */
 		return 0;
