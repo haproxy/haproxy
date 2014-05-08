@@ -829,7 +829,9 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 	}
 
 	SSL_CTX_set_info_callback(ctx, ssl_sock_infocbk);
+#if OPENSSL_VERSION_NUMBER >= 0x00907000L
 	SSL_CTX_set_msg_callback(ctx, ssl_sock_msgcbk);
+#endif
 
 #ifdef OPENSSL_NPN_NEGOTIATED
 	if (bind_conf->npn_str)
