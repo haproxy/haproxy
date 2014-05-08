@@ -132,11 +132,46 @@ without support for compression but when OpenSSL requires ZLIB anyway :
 
     $ make TARGET=linux26 ARCH=i386 USE_OPENSSL=1 ADDLIB=-lz
 
+The SSL stack supports session cache synchronization between all running
+processes. This involves some atomic operations and synchronization operations
+which come in multiple flavors depending on the system and architecture :
+
+  Atomic operations :
+    - internal assembler versions for x86/x86_64 architectures
+
+    - gcc builtins for other architectures. Some architectures might not
+      be fully supported or might require a more recent version of gcc.
+      If your architecture is not supported, you willy have to either use
+      pthread if supported, or to disable the shared cache.
+
+    - pthread (posix threads). Pthreads are very common but inter-process
+      support is not that common, and some older operating systems did not
+      report an error when enabling multi-process mode, so they used to
+      silently fail, possibly causing crashes. Linux's implementation is
+      fine. OpenBSD doesn't support them and doesn't build. FreeBSD 9 builds
+      and reports an error at runtime, while certain older versions might
+      silently fail. Pthreads are enabled using USE_PTHREAD_PSHARED=1.
+
+  Synchronization operations :
+    - internal spinlock : this mode is OS-independant, light but will not
+      scale well to many processes. However, accesses to the session cache
+      are rare enough that this mode could certainly always be used. This
+      is the default mode.
+
+    - Futexes, which are Linux-specific highly scalable light weight mutexes
+      implemented in user-space with some limited assistance from the kernel.
+      This is the default on Linux 2.6 and above and is enabled by passing
+      USE_FUTEX=1
+
+    - pthread (posix threads). See above.
+
+If none of these mechanisms is supported by your platform, you may need to
+build with USE_PRIVATE_CACHE=1 to totally disable SSL cache sharing. Then
+it is better not to run SSL on multiple processes.
+
 The BSD and OSX makefiles do not support build options for OpenSSL nor zlib.
-Also, at least on OpenBSD, pthread_mutexattr_setpshared() does not exist so
-the SSL session cache cannot be shared between multiple processes. If you want
-to enable these options, you need to use GNU make with the default makefile as
-follows :
+If you want to enable these options, you need to use GNU make with the default
+makefile as follows :
 
     $ gmake TARGET=openbsd USE_OPENSSL=1 USE_ZLIB=1 USE_PRIVATE_CACHE=1
 
