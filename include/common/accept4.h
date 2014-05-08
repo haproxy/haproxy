@@ -58,7 +58,7 @@ static int accept4(int sockfd, struct sockaddr *addr, socklen_t *addrlen, int fl
 	return socketcall(SYS_ACCEPT4, args);
 }
 #else
-static _syscall4(int, accept4, int, sockfd, struct sockaddr *, addr, socklen_t *, addrlen, int, flags);
+static inline _syscall4(int, accept4, int, sockfd, struct sockaddr *, addr, socklen_t *, addrlen, int, flags);
 #endif /* VSYSCALL etc... */
 #endif /* USE_MY_ACCEPT4 */
 #endif /* __linux__ && USE_ACCEPT4 */

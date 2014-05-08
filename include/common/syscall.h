@@ -37,42 +37,42 @@
  */
 #ifndef _syscall1
 #define _syscall1(tr, nr, t1, n1)              \
-	inline tr nr(t1 n1) {		       \
+	tr nr(t1 n1) {	                       \
 		return syscall(__NR_##nr, n1); \
 	}
 #endif
 
 #ifndef _syscall2
 #define _syscall2(tr, nr, t1, n1, t2, n2)          \
-	inline tr nr(t1 n1, t2 n2) {               \
+	tr nr(t1 n1, t2 n2) {                      \
 		return syscall(__NR_##nr, n1, n2); \
 	}
 #endif
 
 #ifndef _syscall3
 #define _syscall3(tr, nr, t1, n1, t2, n2, t3, n3)      \
-	inline tr nr(t1 n1, t2 n2, t3 n3) {            \
+	tr nr(t1 n1, t2 n2, t3 n3) {                   \
 		return syscall(__NR_##nr, n1, n2, n3); \
 	}
 #endif
 
 #ifndef _syscall4
 #define _syscall4(tr, nr, t1, n1, t2, n2, t3, n3, t4, n4)  \
-	inline tr nr(t1 n1, t2 n2, t3 n3, t4 n4) {         \
+	tr nr(t1 n1, t2 n2, t3 n3, t4 n4) {                \
 		return syscall(__NR_##nr, n1, n2, n3, n4); \
 	}
 #endif
 
 #ifndef _syscall5
 #define _syscall5(tr, nr, t1, n1, t2, n2, t3, n3, t4, n4, t5, n5) \
-	inline tr nr(t1 n1, t2 n2, t3 n3, t4 n4, t5 n5) {         \
+	tr nr(t1 n1, t2 n2, t3 n3, t4 n4, t5 n5) {                \
 		return syscall(__NR_##nr, n1, n2, n3, n4, n5);    \
 	}
 #endif
 
 #ifndef _syscall6
 #define _syscall6(tr, nr, t1, n1, t2, n2, t3, n3, t4, n4, t5, n5, t6, n6) \
-	inline tr nr(t1 n1, t2 n2, t3 n3, t4 n4, t5 n5, t6 n6) {          \
+	tr nr(t1 n1, t2 n2, t3 n3, t4 n4, t5 n5, t6 n6) {                 \
 		return syscall(__NR_##nr, n1, n2, n3, n4, n5, n6);        \
 	}
 #endif

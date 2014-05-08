@@ -62,7 +62,7 @@ extern int splice(int fdin, loff_t *off_in, int fdout, loff_t *off_out, size_t l
 #define __NR_splice             313
 #endif /* __NR_splice */
 
-static _syscall6(int, splice, int, fdin, loff_t *, off_in, int, fdout, loff_t *, off_out, size_t, len, unsigned long, flags);
+static inline _syscall6(int, splice, int, fdin, loff_t *, off_in, int, fdout, loff_t *, off_out, size_t, len, unsigned long, flags);
 #endif /* VSYSCALL */
 
 #else
