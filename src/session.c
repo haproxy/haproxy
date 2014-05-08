@@ -246,7 +246,8 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 
 
 /* prepare the trash with a log prefix for session <s>. It only works with
- * embryonic sessions based on a real connection.
+ * embryonic sessions based on a real connection. This function requires that
+ * at s->target still points to the incoming connection.
  */
 static void prepare_mini_sess_log_prefix(struct session *s)
 {
@@ -275,7 +276,8 @@ static void prepare_mini_sess_log_prefix(struct session *s)
 
 /* This function kills an existing embryonic session. It stops the connection's
  * transport layer, releases assigned resources, resumes the listener if it was
- * disabled and finally kills the file descriptor.
+ * disabled and finally kills the file descriptor. This function requires that
+ * at s->target still points to the incoming connection.
  */
 static void kill_mini_session(struct session *s)
 {
@@ -387,7 +389,9 @@ static struct task *expire_mini_session(struct task *t)
  * be called with an embryonic session. It returns a positive value upon
  * success, 0 if the connection can be ignored, or a negative value upon
  * critical failure. The accepted file descriptor is closed if we return <= 0.
- * The client-side end point is assumed to be a connection.
+ * The client-side end point is assumed to be a connection, whose pointer is
+ * taken from s->target which is assumed to be valid. If the function fails,
+ * it restores s->target.
  */
 int session_complete(struct session *s)
 {
@@ -443,7 +447,11 @@ int session_complete(struct session *s)
 	si_reset(&s->si[0], t);
 	si_set_state(&s->si[0], SI_ST_EST);
 
-	/* attach the incoming connection to the stream interface now */
+	/* attach the incoming connection to the stream interface now.
+	 * We must do that *before* clearing ->target because we need
+	 * to keep a pointer to the connection in case we have to call
+	 * kill_mini_session().
+	 */
 	si_attach_conn(&s->si[0], conn);
 
 	if (likely(s->fe->options2 & PR_O2_INDEPSTR))
@@ -568,6 +576,10 @@ int session_complete(struct session *s)
  out_free_req:
 	pool_free2(pool2_channel, s->req);
  out_free_task:
+	/* and restore the connection pointer in case we destroyed it,
+	 * because kill_mini_session() will need it.
+	 */
+	s->target = &conn->obj_type;
 	return ret;
 }
 
