@@ -495,6 +495,7 @@ The following keywords are supported in the "global" section :
    - tune.sndbuf.server
    - tune.ssl.cachesize
    - tune.ssl.lifetime
+   - tune.ssl.force-private-cache
    - tune.ssl.maxrecord
    - tune.zlib.memlevel
    - tune.zlib.windowsize
@@ -983,6 +984,14 @@ tune.ssl.cachesize <number>
   their session as long as possible. All entries are pre-allocated upon startup
   and are shared between all processes if "nbproc" is greater than 1. Setting
   this value to 0 disables the SSL session cache.
+
+tune.ssl.force-private-cache
+  This boolean disables SSL session cache sharing between all processes. It
+  should normally not be used since it will force many renegotiations due to
+  clients hitting a random process. But it may be required on some operating
+  systems where none of the SSL cache synchronization method may be used. In
+  this case, adding a first layer of hash-based load balancing before the SSL
+  layer might limit the impact of the lack of session sharing.
 
 tune.ssl.lifetime <timeout>
   Sets how long a cached SSL session may remain valid. This time is expressed
