@@ -53,9 +53,14 @@
 #define SRV_WARMINGUP	0x0040	/* this server is warming up after a failure */
 #define SRV_MAINTAIN	0x0080	/* this server is in maintenance mode */
 #define SRV_DRAIN	0x0100	/* this server has been requested to drain its connections */
-/* unused: 0x0200, 0x0400 */
-#define SRV_SEND_PROXY	0x0800	/* this server talks the PROXY protocol */
+/* unused: 0x0200, 0x0400, 0x0800 */
 #define SRV_NON_STICK	0x1000	/* never add connections allocated to this server to a stick table */
+
+/* configured server options for send-proxy (server->pp_opts) */
+#define SRV_PP_V1          0x0001        /* proxy protocol version 1 */
+#define SRV_PP_V2          0x0002        /* proxy protocol version 2 */
+#define SRV_PP_V2_SSL      0x0004        /* proxy protocol version 2 with SSL*/
+#define SRV_PP_V2_SSL_CN   0x0008        /* proxy protocol version 2 with SSL and CN*/
 
 /* function which act on servers need to return various errors */
 #define SRV_STATUS_OK       0   /* everything is OK. */
@@ -106,6 +111,7 @@ struct server {
 	int rdr_len;				/* the length of the redirection prefix */
 	char *cookie;				/* the id set in the cookie */
 	char *rdr_pfx;				/* the redirection prefix */
+	int pp_opts;				/* proxy protocol options (SRV_PP_*) */
 
 	struct proxy *proxy;			/* the proxy this server belongs to */
 	int served;				/* # of active sessions currently being served (ie not pending) */

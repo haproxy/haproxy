@@ -267,6 +267,77 @@ struct connection {
 	} addr; /* addresses of the remote side, client for producer and server for consumer */
 };
 
+/* proxy protocol v2 definitions */
+#define PP2_SIGNATURE_LEN        12
+#define PP2_HEADER_LEN           16
+#define PP2_VERSION            0x20
+#define PP2_CMD_LOCAL          0x00
+#define PP2_CMD_PROXY          0x01
+#define PP2_FAM_UNSPEC         0x00
+#define PP2_FAM_INET           0x10
+#define PP2_FAM_INET6          0x20
+#define PP2_FAM_UNIX           0x30
+#define PP2_TRANS_UNSPEC       0x00
+#define PP2_TRANS_STREAM       0x01
+#define PP2_TRANS_DGRAM        0x02
+
+#define PP2_ADDR_LEN_UNSPEC       0
+#define PP2_ADDR_LEN_INET        12
+#define PP2_ADDR_LEN_INET6       36
+#define PP2_ADDR_LEN_UNIX       216
+
+#define PP2_HDR_LEN_UNSPEC  (PP2_HEADER_LEN + PP2_ADDR_LEN_UNSPEC)
+#define PP2_HDR_LEN_INET    (PP2_HEADER_LEN + PP2_ADDR_LEN_INET)
+#define PP2_HDR_LEN_INET6   (PP2_HEADER_LEN + PP2_ADDR_LEN_INET6)
+#define PP2_HDR_LEN_UNIX    (PP2_HEADER_LEN + PP2_ADDR_LEN_UNIX)
+
+struct proxy_hdr_v2 {
+	uint8_t sig[12];   /* hex 0D 0A 0D 0A 00 0D 0A 51 55 49 54 0A */
+	uint8_t cmd;       /* protocol version and command */
+	uint8_t fam;       /* protocol family and transport */
+	uint16_t len;      /* number of following bytes part of the header */
+};
+
+union proxy_addr {
+	struct {        /* for TCP/UDP over IPv4, len = 12 */
+		uint32_t src_addr;
+		uint32_t dst_addr;
+		uint16_t src_port;
+		uint16_t dst_port;
+	} ipv4_addr;
+	struct {        /* for TCP/UDP over IPv6, len = 36 */
+		uint8_t  src_addr[16];
+		uint8_t  dst_addr[16];
+		uint16_t src_port;
+		uint16_t dst_port;
+	} ipv6_addr;
+	struct {        /* for AF_UNIX sockets, len = 216 */
+		uint8_t src_addr[108];
+		uint8_t dst_addr[108];
+	} unix_addr;
+};
+
+#define PP2_TYPE_SSL           0x20
+#define PP2_TYPE_SSL_VERSION   0x21
+#define PP2_TYPE_SSL_CN        0x22
+
+struct tlv {
+	uint8_t type;
+	uint8_t length_hi;
+	uint8_t length_lo;
+	uint8_t value[0];
+}__attribute__((packed));
+
+struct tlv_ssl {
+	struct tlv tlv;
+	uint8_t client;
+	uint32_t verify;
+	uint8_t sub_tlv[0];
+}__attribute__((packed));
+
+#define PP2_CLIENT_SSL      0x01
+#define PP2_CLIENT_CERT     0x02
+
 #endif /* _TYPES_CONNECTION_H */
 
 /*

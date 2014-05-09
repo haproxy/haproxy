@@ -8808,6 +8808,42 @@ send-proxy
 
   Supported in default-server: No
 
+send-proxy-v2
+  The "send-proxy-v2" parameter enforces use of the PROXY protocol version 2
+  over any connection established to this server. The PROXY protocol informs
+  the other end about the layer 3/4 addresses of the incoming connection, so
+  that it can know the client's address or the public address it accessed to,
+  whatever the upper layer protocol. This setting must not be used if the
+  server isn't aware of this version of the protocol. See also the "send-proxy"
+  option of the "bind" keyword.
+
+  Supported in default-server: No
+
+send-proxy-v2-ssl
+  The "send-proxy-v2-ssl" parameter enforces use of the PROXY protocol version
+  2 over any connection established to this server. The PROXY protocol informs
+  the other end about the layer 3/4 addresses of the incoming connection, so
+  that it can know the client's address or the public address it accessed to,
+  whatever the upper layer protocol. In addition, the SSL information extension
+  of the PROXY protocol is added to the PROXY protocol header. This setting
+  must not be used if the server isn't aware of this version of the protocol.
+  See also the "send-proxy-v2" option of the "bind" keyword.
+
+  Supported in default-server: No
+
+send-proxy-v2-ssl-cn
+  The "send-proxy-v2-ssl" parameter enforces use of the PROXY protocol version
+  2 over any connection established to this server. The PROXY protocol informs
+  the other end about the layer 3/4 addresses of the incoming connection, so
+  that it can know the client's address or the public address it accessed to,
+  whatever the upper layer protocol. In addition, the SSL information extension
+  of the PROXY protocol, along along with the Common Name from the subject of
+  the client certificate (if any), is added to the PROXY protocol header. This
+  setting must not be used if the server isn't aware of this version of the
+  protocol. See also the "send-proxy-v2" option of the "bind" keyword.
+
+  Supported in default-server: No
+
 slowstart <start_time_in_ms>
   The "slowstart" parameter for a server accepts a value in milliseconds which
   indicates after how long a server which has just come back up will run at

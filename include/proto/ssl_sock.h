@@ -32,6 +32,16 @@ extern struct xprt_ops ssl_sock;
 extern int sslconns;
 extern int totalsslconns;
 
+/* boolean, returns true if connection is over SSL */
+static inline
+int ssl_sock_is_ssl(struct connection *conn)
+{
+	if (!conn || conn->xprt != &ssl_sock || !conn->xprt_ctx)
+		return 0;
+	else
+		return 1;
+}
+
 int ssl_sock_handshake(struct connection *conn, unsigned int flag);
 int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy *proxy);
 void ssl_sock_free_certs(struct bind_conf *bind_conf);
@@ -40,6 +50,10 @@ int ssl_sock_prepare_srv_ctx(struct server *srv, struct proxy *px);
 void ssl_sock_free_all_ctx(struct bind_conf *bind_conf);
 const char *ssl_sock_get_cipher_name(struct connection *conn);
 const char *ssl_sock_get_proto_version(struct connection *conn);
+char *ssl_sock_get_version(struct connection *conn);
+int ssl_sock_get_cert_used(struct connection *conn);
+char *ssl_sock_get_common_name(struct connection *conn);
+unsigned int ssl_sock_get_verify_result(struct connection *conn);
 
 #endif /* _PROTO_SSL_SOCK_H */
 

@@ -612,7 +612,11 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				cur_arg ++;
 			}
 			else if (!defsrv && !strcmp(args[cur_arg], "send-proxy")) {
-				newsrv->state |= SRV_SEND_PROXY;
+				newsrv->pp_opts |= SRV_PP_V1;
+				cur_arg ++;
+			}
+			else if (!defsrv && !strcmp(args[cur_arg], "send-proxy-v2")) {
+				newsrv->pp_opts |= SRV_PP_V2;
 				cur_arg ++;
 			}
 			else if (!defsrv && !strcmp(args[cur_arg], "check-send-proxy")) {
@@ -1043,7 +1047,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 #ifdef USE_OPENSSL
 				newsrv->check.use_ssl |= (newsrv->use_ssl || (newsrv->proxy->options & PR_O_TCPCHK_SSL));
 #endif
-				newsrv->check.send_proxy |= (newsrv->state & SRV_SEND_PROXY);
+				newsrv->check.send_proxy |= (newsrv->pp_opts);
 			}
 			/* try to get the port from check_core.addr if check.port not set */
 			if (!newsrv->check.port)

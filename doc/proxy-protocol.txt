@@ -18,6 +18,7 @@ Revision history
    2011/03/20 - update: implementation and security considerations
    2012/06/21 - add support for binary format
    2012/11/19 - final review and fixes
+   2014/05/18 - modify and extend PROXY protocol version 2
 
 
 1. Background
@@ -326,25 +327,27 @@ protocol signature :
 Note that this block contains a null byte at the 5th position, so it must not
 be handled as a null-terminated string.
 
-The next byte (the 13th one) is the protocol version. As of this specification,
-it must always be sent as \x02 and the receiver must only accept this value.
+The next byte (the 13th one) is the protocol version and command.
 
-The 14th byte represents the command :
-  - \x00 : LOCAL : the connection was established on purpose by the proxy
+The highest four bits contains the version. As of this specification, it must
+always be sent as \x2 and the receiver must only accept this value.
+
+The lowest four bits represents the command :
+  - \x0 : LOCAL : the connection was established on purpose by the proxy
     without being relayed. The connection endpoints are the sender and the
     receiver. Such connections exist when the proxy sends health-checks to the
     server. The receiver must accept this connection as valid and must use the
     real connection endpoints and discard the protocol block including the
     family which is ignored.
 
-  - \x01 : PROXY : the connection was established on behalf of another node,
+  - \x1 : PROXY : the connection was established on behalf of another node,
     and reflects the original connection endpoints. The receiver must then use
     the information provided in the protocol block to get original the address.
 
   - other values are unassigned and must not be emitted by senders. Receivers
     must drop connections presenting unexpected values here.
 
-The 15th byte contains the transport protocol and address family. The highest 4
+The 14th byte contains the transport protocol and address family. The highest 4
 bits contain the address family, the lowest 4 bits contain the protocol.
 
 The address family maps to the original socket family without necessarily
@@ -370,7 +373,7 @@ matching the values internally used by the system. It may be one of :
   - other values are unspecified and must not be emitted in version 2 of this
     protocol and must be rejected as invalid by receivers.
 
-The transport protocol is specified in the lowest 4 bits of the the 15th byte :
+The transport protocol is specified in the lowest 4 bits of the the 14th byte :
 
   - 0x0 : UNSPEC : the connection is forwarded for an unknown, unspecified
     or unsupported protocol. The sender should use this family when sending
@@ -424,11 +427,10 @@ Only the UNSPEC protocol byte (\x00) is mandatory. A receiver is not required
 to implement other ones, provided that it automatically falls back to the
 UNSPEC mode for the valid combinations above that it does not support.
 
-The 16th byte is the address length in bytes. It is used so that the receiver
-knows how many address bytes to skip even when it does not implement the
-presented protocol. Thus the length of the protocol header in bytes is always
-exactly 16 + this byte. This means that the largest protocol header may only
-be 16 + 255 = 271 bytes, which fits in a usual MSS. When a sender presents a
+The 15th and 16th bytes is the address length in bytes in network endien order.
+It is used so that the receiver knows how many address bytes to skip even when
+it does not implement the presented protocol. Thus the length of the protocol
+header in bytes is always exactly 16 + this value. When a sender presents a
 LOCAL connection, it should not present any address so it sets this field to
 zero. Receivers MUST always consider this field to skip the appropriate number
 of bytes and must not assume zero is presented for LOCAL connections. When a
@@ -439,10 +441,9 @@ So the 16-byte version 2 header can be described this way :
 
     struct proxy_hdr_v2 {
         uint8_t sig[12];  /* hex 0D 0A 0D 0A 00 0D 0A 51 55 49 54 0A */
-        uint8_t ver;      /* hex 02 */
-        uint8_t cmd;      /* hex 00 or 01 */
+        uint8_t ver;      /* protocol version and command */
         uint8_t fam;      /* protocol family and address */
-        uint8_t len;      /* number of following bytes part of the header */
+        uint16_t len;     /* number of following bytes part of the header */
     };
 
 Starting from the 17th byte, addresses are presented in network byte order.
@@ -499,6 +500,24 @@ protocol. Identifying the protocol version is easy :
     - otherwise the protocol is not covered by this specification and the
       connection must be dropped.
 
+If the length specified in the PROXY protocol header indicates that additional
+bytes are part of the header beyond the address information, a receiver may
+choose to skip over and ignore those bytes, or attempt to interpret those
+bytes.
+
+The information in those bytes will be arranged in Type-Length-Value (TLV
+vectors) in the following format.  The first byte is the Type of the vector.
+The second two bytes represent the length in bytes of the value (not included
+the Type and Length bytes), and following the length field is the number of
+bytes specified by the length.
+
+        struct {
+            uint8_t type;
+            uint8_t length_hi;
+            uint8_t length_lo;
+            uint8_t value[0];
+        } tlv;
+
 
 3. Implementations
 
@@ -515,6 +534,9 @@ Haproxy 1.5 implements version 1 of the PROXY protocol on both sides :
     ones behave differently. If the incoming connection was accepted with the
     "accept-proxy", then the relayed information is the one advertised in this
     connection's PROXY line.
+
+  - Haproxy 1.5 also implements version 2 of the PROXY protocol as a sender. In
+    addition, a TLV with limited, optional, SSL information has been added.
 
 Stunnel added support for version 1 of the protocol for outgoing connections in
 version 4.45.

@@ -41,7 +41,9 @@ int conn_fd_handler(int fd);
 
 /* receive a PROXY protocol header over a connection */
 int conn_recv_proxy(struct connection *conn, int flag);
-int make_proxy_line(char *buf, int buf_len, struct sockaddr_storage *src, struct sockaddr_storage *dst);
+int make_proxy_line(char *buf, int buf_len, struct server *srv, struct connection *remote);
+int make_proxy_line_v1(char *buf, int buf_len, struct sockaddr_storage *src, struct sockaddr_storage *dst);
+int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connection *remote);
 
 /* returns true is the transport layer is ready */
 static inline int conn_xprt_ready(const struct connection *conn)

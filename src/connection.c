@@ -437,6 +437,23 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	return 0;
 }
 
+int make_proxy_line(char *buf, int buf_len, struct server *srv, struct connection *remote)
+{
+	int ret = 0;
+
+	if (srv && (srv->pp_opts & SRV_PP_V2)) {
+		ret = make_proxy_line_v2(buf, buf_len, srv, remote);
+	}
+	else {
+		if (remote)
+			ret = make_proxy_line_v1(buf, buf_len, &remote->addr.from, &remote->addr.to);
+		else
+			ret = make_proxy_line_v1(buf, buf_len, NULL, NULL);
+	}
+
+	return ret;
+}
+
 /* Makes a PROXY protocol line from the two addresses. The output is sent to
  * buffer <buf> for a maximum size of <buf_len> (including the trailing zero).
  * It returns the number of bytes composing this line (including the trailing
@@ -444,7 +461,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
  * TCP6 and "UNKNOWN" formats. If any of <src> or <dst> is null, UNKNOWN is
  * emitted as well.
  */
-int make_proxy_line(char *buf, int buf_len, struct sockaddr_storage *src, struct sockaddr_storage *dst)
+int make_proxy_line_v1(char *buf, int buf_len, struct sockaddr_storage *src, struct sockaddr_storage *dst)
 {
 	int ret = 0;
 
@@ -514,5 +531,115 @@ int make_proxy_line(char *buf, int buf_len, struct sockaddr_storage *src, struct
 		if (ret >= buf_len)
 			return 0;
 	}
+	return ret;
+}
+
+#ifdef USE_OPENSSL
+static int make_tlv(char *dest, int dest_len, char type, uint16_t length, char *value)
+{
+	struct tlv *tlv;
+
+	if (!dest || (length + sizeof(*tlv) > dest_len))
+		return 0;
+
+	tlv = (struct tlv *)dest;
+
+	tlv->type = type;
+	tlv->length_hi = length >> 8;
+	tlv->length_lo = length & 0x00ff;
+	memcpy(tlv->value, value, length);
+	return length + sizeof(*tlv);
+}
+#endif
+
+int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connection *remote)
+{
+	const char pp2_signature[12] = {0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A};
+	int ret = 0;
+	struct proxy_hdr_v2 *hdr_p = (struct proxy_hdr_v2 *)buf;
+	union proxy_addr *addr_p = (union proxy_addr *)(buf + PP2_HEADER_LEN);
+	struct sockaddr_storage null_addr = {0};
+	struct sockaddr_storage *src = &null_addr;
+	struct sockaddr_storage *dst = &null_addr;
+#ifdef USE_OPENSSL
+	int tlv_len = 0;
+	char *value = NULL;
+	struct tlv_ssl *tlv;
+	int ssl_tlv_len = 0;
+#endif
+
+	if (buf_len < PP2_HEADER_LEN)
+		return 0;
+	memcpy(hdr_p->sig, pp2_signature, PP2_SIGNATURE_LEN);
+
+	if (remote) {
+		src = &remote->addr.from;
+		dst = &remote->addr.to;
+	}
+	if (src && dst && src->ss_family == dst->ss_family && src->ss_family == AF_INET) {
+		if (buf_len < PP2_HDR_LEN_INET)
+			return 0;
+		hdr_p->cmd = PP2_VERSION | PP2_CMD_PROXY;
+		hdr_p->fam = PP2_FAM_INET | PP2_TRANS_STREAM;
+		addr_p->ipv4_addr.src_addr = ((struct sockaddr_in *)src)->sin_addr.s_addr;
+		addr_p->ipv4_addr.dst_addr = ((struct sockaddr_in *)dst)->sin_addr.s_addr;
+		addr_p->ipv4_addr.src_port = ((struct sockaddr_in *)src)->sin_port;
+		addr_p->ipv4_addr.dst_port = ((struct sockaddr_in *)dst)->sin_port;
+		ret = PP2_HDR_LEN_INET;
+	}
+	else if (src && dst && src->ss_family == dst->ss_family && src->ss_family == AF_INET6) {
+		if (buf_len < PP2_HDR_LEN_INET6)
+			return 0;
+		hdr_p->cmd = PP2_VERSION | PP2_CMD_PROXY;
+		hdr_p->fam = PP2_FAM_INET6 | PP2_TRANS_STREAM;
+		memcpy(addr_p->ipv6_addr.src_addr, &((struct sockaddr_in6 *)src)->sin6_addr, 16);
+		memcpy(addr_p->ipv6_addr.dst_addr, &((struct sockaddr_in6 *)dst)->sin6_addr, 16);
+		addr_p->ipv6_addr.src_port = ((struct sockaddr_in6 *)src)->sin6_port;
+		addr_p->ipv6_addr.dst_port = ((struct sockaddr_in6 *)dst)->sin6_port;
+		ret = PP2_HDR_LEN_INET6;
+	}
+	else {
+		if (buf_len < PP2_HDR_LEN_UNSPEC)
+			return 0;
+		hdr_p->cmd = PP2_VERSION | PP2_CMD_LOCAL;
+		hdr_p->fam = PP2_FAM_UNSPEC | PP2_TRANS_UNSPEC;
+		ret = PP2_HDR_LEN_UNSPEC;
+	}
+
+#ifdef USE_OPENSSL
+	if (srv->pp_opts & SRV_PP_V2_SSL) {
+		if ((buf_len - ret) < sizeof(struct tlv_ssl))
+			return 0;
+		tlv = (struct tlv_ssl *)&buf[ret];
+		memset(tlv, 0, sizeof(struct tlv_ssl));
+		ssl_tlv_len += sizeof(struct tlv_ssl);
+		tlv->tlv.type = PP2_TYPE_SSL;
+		if (ssl_sock_is_ssl(remote)) {
+			tlv->client |= PP2_CLIENT_SSL;
+			value = ssl_sock_get_version(remote);
+			if (value) {
+				tlv_len = make_tlv(&buf[ret+ssl_tlv_len], (buf_len-ret-ssl_tlv_len), PP2_TYPE_SSL_VERSION, strlen(value), value);
+				ssl_tlv_len += tlv_len;
+			}
+			if (ssl_sock_get_cert_used(remote)) {
+				tlv->client |= PP2_CLIENT_CERT;
+				tlv->verify = htonl(ssl_sock_get_verify_result(remote));
+			}
+			if (srv->pp_opts & SRV_PP_V2_SSL_CN) {
+				value = ssl_sock_get_common_name(remote);
+				if (value) {
+					tlv_len = make_tlv(&buf[ret+ssl_tlv_len], (buf_len - ret - ssl_tlv_len), PP2_TYPE_SSL_CN, strlen(value), value);
+					ssl_tlv_len += tlv_len;
+				}
+			}
+		}
+		tlv->tlv.length_hi = (uint16_t)(ssl_tlv_len - sizeof(struct tlv)) >> 8;
+		tlv->tlv.length_lo = (uint16_t)(ssl_tlv_len - sizeof(struct tlv)) & 0x00ff;
+		ret += ssl_tlv_len;
+	}
+#endif
+
+	hdr_p->len = htons((uint16_t)(ret - PP2_HEADER_LEN));
+
 	return ret;
 }

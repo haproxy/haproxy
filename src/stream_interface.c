@@ -422,11 +422,7 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 		if (conn->data == &si_conn_cb) {
 			struct stream_interface *si = conn->owner;
 			struct connection *remote = objt_conn(si->ob->prod->end);
-
-			if (remote)
-				ret = make_proxy_line(trash.str, trash.size, &remote->addr.from, &remote->addr.to);
-			else
-				ret = make_proxy_line(trash.str, trash.size, NULL, NULL);
+			ret = make_proxy_line(trash.str, trash.size, objt_server(conn->target), remote);
 		}
 		else {
 			/* The target server expects a LOCAL line to be sent first. Retrieving
@@ -440,7 +436,7 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 			if (!(conn->flags & CO_FL_ADDR_TO_SET))
 				goto out_wait;
 
-			ret = make_proxy_line(trash.str, trash.size, &conn->addr.from, &conn->addr.to);
+			ret = make_proxy_line(trash.str, trash.size, objt_server(conn->target), conn);
 		}
 
 		if (!ret)

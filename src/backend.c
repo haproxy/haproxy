@@ -1059,7 +1059,7 @@ int connect_server(struct session *s)
 
 		/* process the case where the server requires the PROXY protocol to be sent */
 		srv_conn->send_proxy_ofs = 0;
-		if (objt_server(s->target) && (objt_server(s->target)->state & SRV_SEND_PROXY)) {
+		if (objt_server(s->target) && objt_server(s->target)->pp_opts) {
 			srv_conn->send_proxy_ofs = 1; /* must compute size */
 			cli_conn = objt_conn(s->req->prod->end);
 			if (cli_conn)

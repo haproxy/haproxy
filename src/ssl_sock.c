@@ -1871,6 +1871,70 @@ ssl_sock_get_dn_oneline(X509_NAME *a, struct chunk *out)
 	return 1;
 }
 
+char *ssl_sock_get_version(struct connection *conn)
+{
+	if (!ssl_sock_is_ssl(conn))
+		return NULL;
+
+	return (char *)SSL_get_version(conn->xprt_ctx);
+}
+
+/* returns common name, NULL terminated, from client certificate, or NULL if none */
+char *ssl_sock_get_common_name(struct connection *conn)
+{
+	X509 *crt = NULL;
+	X509_NAME *name;
+	struct chunk *cn_trash;
+	const char find_cn[] = "CN";
+	const struct chunk find_cn_chunk = {
+		.str = (char *)&find_cn,
+		.len = sizeof(find_cn)-1
+	};
+	char *result = NULL;
+
+	if (!ssl_sock_is_ssl(conn))
+		return NULL;
+
+	/* SSL_get_peer_certificate, it increase X509 * ref count */
+	crt = SSL_get_peer_certificate(conn->xprt_ctx);
+	if (!crt)
+		goto out;
+
+	name = X509_get_subject_name(crt);
+	if (!name)
+		goto out;
+
+	cn_trash = get_trash_chunk();
+	if (ssl_sock_get_dn_entry(name, &find_cn_chunk, 1, cn_trash) <= 0)
+		goto out;
+	cn_trash->str[cn_trash->len] = '\0';
+	result = cn_trash->str;
+
+	out:
+	if (crt)
+		X509_free(crt);
+
+	return result;
+}
+
+/* returns 1 if client passed a certificate, 0 if not */
+int ssl_sock_get_cert_used(struct connection *conn)
+{
+	if (!ssl_sock_is_ssl(conn))
+		return 0;
+
+	return SSL_SOCK_ST_FL_VERIFY_DONE & conn->xprt_st ? 1 : 0;
+}
+
+/* returns result from SSL verify */
+unsigned int ssl_sock_get_verify_result(struct connection *conn)
+{
+	if (!ssl_sock_is_ssl(conn))
+		return (unsigned int)X509_V_ERR_APPLICATION_VERIFICATION;
+
+	return (unsigned int)SSL_get_verify_result(conn->xprt_ctx);
+}
+
 /***** Below are some sample fetching functions for ACL/patterns *****/
 
 /* boolean, returns true if client cert was present */
@@ -3349,6 +3413,22 @@ static int srv_parse_no_tls_tickets(char **args, int *cur_arg, struct proxy *px,
 	newsrv->ssl_ctx.options |= SRV_SSL_O_NO_TLS_TICKETS;
 	return 0;
 }
+/* parse the "send-proxy-v2-ssl" server keyword */
+static int srv_parse_send_proxy_ssl(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	newsrv->pp_opts |= SRV_PP_V2;
+	newsrv->pp_opts |= SRV_PP_V2_SSL;
+	return 0;
+}
+
+/* parse the "send-proxy-v2-ssl-cn" server keyword */
+static int srv_parse_send_proxy_cn(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	newsrv->pp_opts |= SRV_PP_V2;
+	newsrv->pp_opts |= SRV_PP_V2_SSL;
+	newsrv->pp_opts |= SRV_PP_V2_SSL_CN;
+	return 0;
+}
 
 /* parse the "ssl" server keyword */
 static int srv_parse_ssl(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
@@ -3513,6 +3593,8 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "no-tlsv11",             srv_parse_no_tlsv11,      0, 0 }, /* disable TLSv11 */
 	{ "no-tlsv12",             srv_parse_no_tlsv12,      0, 0 }, /* disable TLSv12 */
 	{ "no-tls-tickets",        srv_parse_no_tls_tickets, 0, 0 }, /* disable session resumption tickets */
+	{ "send-proxy-v2-ssl",     srv_parse_send_proxy_ssl, 0, 0 }, /* send PROXY protocol header v2 with SSL info */
+	{ "send-proxy-v2-ssl-cn",  srv_parse_send_proxy_cn,  0, 0 }, /* send PROXY protocol header v2 with CN */
 	{ "ssl",                   srv_parse_ssl,            0, 0 }, /* enable SSL processing */
 	{ "verify",                srv_parse_verify,         1, 0 }, /* set SSL verify method */
 	{ "verifyhost",            srv_parse_verifyhost,     1, 0 }, /* require that SSL cert verifies for hostname */
