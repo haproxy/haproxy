@@ -6950,8 +6950,22 @@ out_uri_auth_compat:
 
 	/* Check multi-process mode compatibility */
 	if (global.nbproc > 1) {
-		if (global.stats_fe && !global.stats_fe->bind_proc) {
-			Warning("stats socket will not work as expected in multi-process mode (nbproc > 1), you should force process binding using 'stats bind-process'.\n");
+		list_for_each_entry(bind_conf, &global.stats_fe->conf.bind, by_fe) {
+			unsigned long mask;
+
+			mask = nbits(global.nbproc);
+			if (global.stats_fe->bind_proc)
+				mask &= global.stats_fe->bind_proc;
+
+			if (bind_conf->bind_proc)
+				mask &= bind_conf->bind_proc;
+
+			/* stop here if more than one process is used */
+			if (popcount(mask) > 1)
+				break;
+		}
+		if (&bind_conf->by_fe != &global.stats_fe->conf.bind) {
+			Warning("stats socket will not work as expected in multi-process mode (nbproc > 1), you should force process binding globally using 'stats bind-process' or per socket using the 'process' attribute.\n");
 		}
 	}
 
