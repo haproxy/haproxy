@@ -597,6 +597,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				}
 
 				newsrv->check_common.addr = *sk;
+				newsrv->check_common.proto = protocol_by_family(sk->ss_family);
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "port")) {

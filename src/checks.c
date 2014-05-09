@@ -1509,6 +1509,7 @@ static struct task *process_chk(struct task *t)
 	struct check *check = t->context;
 	struct server *s = check->server;
 	struct connection *conn = check->conn;
+	struct protocol *proto;
 	int rv;
 	int ret;
 	int expired = tick_is_expired(t->expire, now_ms);
@@ -1573,12 +1574,16 @@ static struct task *process_chk(struct task *t)
 		/* no client address */
 		clear_addr(&conn->addr.from);
 
-		if (is_addr(&s->check_common.addr))
+		if (is_addr(&s->check_common.addr)) {
 			/* we'll connect to the check addr specified on the server */
 			conn->addr.to = s->check_common.addr;
-		else
+			proto = s->check_common.proto;
+		}
+		else {
 			/* we'll connect to the addr on the server */
 			conn->addr.to = s->addr;
+			proto = s->proto;
+		}
 
 		if (check->port) {
 			set_host_port(&conn->addr.to, check->port);
@@ -1606,8 +1611,8 @@ static struct task *process_chk(struct task *t)
 		 * connect() when a pure TCP check is used (without PROXY protocol).
 		 */
 		ret = SN_ERR_INTERNAL;
-		if (s->check_common.proto->connect)
-			ret = s->check_common.proto->connect(conn, check->type, (check->type) ? 0 : 2);
+		if (proto->connect)
+			ret = proto->connect(conn, check->type, (check->type) ? 0 : 2);
 		conn->flags |= CO_FL_WAKE_DATA;
 		if (s->check.send_proxy) {
 			conn->send_proxy_ofs = 1;
@@ -2075,15 +2080,16 @@ static void tcpcheck_main(struct connection *conn)
 			/* no client address */
 			clear_addr(&conn->addr.from);
 
-			if (is_addr(&s->check_common.addr))
+			if (is_addr(&s->check_common.addr)) {
 				/* we'll connect to the check addr specified on the server */
 				conn->addr.to = s->check_common.addr;
-			else
+				proto = s->check_common.proto;
+			}
+			else {
 				/* we'll connect to the addr on the server */
 				conn->addr.to = s->addr;
-
-			/* protocol */
-			proto = protocol_by_family(conn->addr.to.ss_family);
+				proto = s->proto;
+			}
 
 			/* port */
 			if (check->current_step->port)
