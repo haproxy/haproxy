@@ -5870,6 +5870,33 @@ int check_config_validity()
 			}
 		}
 
+		/* check and reduce the bind-proc of each listener */
+		list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
+			unsigned long mask;
+
+			if (!bind_conf->bind_proc)
+				continue;
+
+			mask = nbits(global.nbproc);
+			if (curproxy->bind_proc)
+				mask &= curproxy->bind_proc;
+			/* mask cannot be null here thanks to the previous checks */
+
+			nbproc = popcount(bind_conf->bind_proc);
+			bind_conf->bind_proc &= mask;
+
+			if (!bind_conf->bind_proc && nbproc == 1) {
+				Warning("Proxy '%s': the process number specified on the 'process' directive of 'bind %s' at [%s:%d] refers to a process not covered by the proxy. This has been fixed by forcing it to run on the proxy's first process only.\n",
+					curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+				bind_conf->bind_proc = mask & ~(mask - 1);
+			}
+			else if (!bind_conf->bind_proc && nbproc > 1) {
+				Warning("Proxy '%s': the process range specified on the 'process' directive of 'bind %s' at [%s:%d] only refers to processes not covered by the proxy. The directive was ignored so that all of the proxy's processes are used.\n",
+					curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
+				bind_conf->bind_proc = 0;
+			}
+		}
+
 		/* here, if bind_proc is null, it means no limit, otherwise it's explicit.
 		 * We now check how many processes the proxy will effectively run on.
 		 */
