@@ -207,8 +207,10 @@ int chunk_strcmp(const struct chunk *chk, const char *str)
 	int diff = 0;
 
 	do {
-		if (--len < 0)
+		if (--len < 0) {
+			diff = (unsigned char)0 - (unsigned char)*str;
 			break;
+		}
 		diff = (unsigned char)*(s1++) - (unsigned char)*(str++);
 	} while (!diff);
 	return diff;
@@ -225,8 +227,10 @@ int chunk_strcasecmp(const struct chunk *chk, const char *str)
 	int diff = 0;
 
 	do {
-		if (--len < 0)
+		if (--len < 0) {
+			diff = (unsigned char)0 - (unsigned char)*str;
 			break;
+		}
 		diff = (unsigned char)*s1 - (unsigned char)*str;
 		if (unlikely(diff)) {
 			unsigned int l = (unsigned char)*s1;
