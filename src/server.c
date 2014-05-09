@@ -1072,9 +1072,11 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			}
 			/*
 			 * We need at least a service port, a check port or the first tcp-check rule must
-			 * be a 'connect' one
+			 * be a 'connect' one when checking an IPv4/IPv6 server.
 			 */
-			if (!newsrv->check.port) {
+			if (!newsrv->check.port &&
+			    (is_inet_addr(&newsrv->check_common.addr) ||
+			     (!is_addr(&newsrv->check_common.addr) && is_inet_addr(&newsrv->addr)))) {
 				struct tcpcheck_rule *n = NULL, *r = NULL;
 				struct list *l;
 
