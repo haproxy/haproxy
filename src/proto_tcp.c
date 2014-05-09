@@ -201,14 +201,14 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
 
 	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
 	if (foreign_ok) {
-		if (is_addr(&bind_addr)) {
+		if (is_inet_addr(&bind_addr)) {
 			ret = bind(fd, (struct sockaddr *)&bind_addr, get_addr_len(&bind_addr));
 			if (ret < 0)
 				return 2;
 		}
 	}
 	else {
-		if (is_addr(local)) {
+		if (is_inet_addr(local)) {
 			ret = bind(fd, (struct sockaddr *)local, get_addr_len(local));
 			if (ret < 0)
 				return 1;
@@ -367,7 +367,7 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 	if (src) {
 		int ret, flags = 0;
 
-		if (is_addr(&conn->addr.from)) {
+		if (is_inet_addr(&conn->addr.from)) {
 			switch (src->opts & CO_SRC_TPROXY_MASK) {
 			case CO_SRC_TPROXY_ADDR:
 			case CO_SRC_TPROXY_CLI:

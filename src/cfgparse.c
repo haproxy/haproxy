@@ -4813,7 +4813,7 @@ stats_error_parsing:
 			if (!strcmp(args[cur_arg], "usesrc")) {  /* address to use outside */
 #if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_TRANSPARENT)
 #if !defined(CONFIG_HAP_TRANSPARENT)
-				if (!is_addr(&curproxy->conn_src.source_addr)) {
+				if (!is_inet_addr(&curproxy->conn_src.source_addr)) {
 					Alert("parsing [%s:%d] : '%s' requires an explicit 'source' address.\n",
 					      file, linenum, "usesrc");
 					err_code |= ERR_ALERT | ERR_FATAL;

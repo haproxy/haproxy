@@ -753,7 +753,8 @@ int assign_server_address(struct session *s)
 		if (!is_addr(&srv_conn->addr.to) && cli_conn) {
 			/* if the server has no address, we use the same address
 			 * the client asked, which is handy for remapping ports
-			 * locally on multiple addresses at once.
+			 * locally on multiple addresses at once. Nothing is done
+			 * for AF_UNIX addresses.
 			 */
 			conn_get_to_addr(cli_conn);
 

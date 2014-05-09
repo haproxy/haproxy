@@ -829,7 +829,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					if (!strcmp(args[cur_arg], "usesrc")) {  /* address to use outside */
 #if defined(CONFIG_HAP_CTTPROXY) || defined(CONFIG_HAP_TRANSPARENT)
 #if !defined(CONFIG_HAP_TRANSPARENT)
-						if (!is_addr(&newsrv->conn_src.source_addr)) {
+						if (!is_inet_addr(&newsrv->conn_src.source_addr)) {
 							Alert("parsing [%s:%d] : '%s' requires an explicit '%s' address.\n",
 							      file, linenum, "usesrc", "source");
 							err_code |= ERR_ALERT | ERR_FATAL;
