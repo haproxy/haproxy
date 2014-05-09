@@ -188,45 +188,46 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	if (ext)
 		goto fd_ready;
 
-	/* 1. create socket names */
-	if (!path[0]) {
-		msg = "Invalid empty name for a UNIX socket";
-		goto err_return;
-	}
+	if (path[0]) {
+		ret = snprintf(tempname, MAXPATHLEN, "%s.%d.tmp", path, pid);
+		if (ret < 0 || ret >= MAXPATHLEN) {
+			msg = "name too long for UNIX socket";
+			goto err_return;
+		}
 
-	ret = snprintf(tempname, MAXPATHLEN, "%s.%d.tmp", path, pid);
-	if (ret < 0 || ret >= MAXPATHLEN) {
-		msg = "name too long for UNIX socket";
-		goto err_return;
-	}
+		ret = snprintf(backname, MAXPATHLEN, "%s.%d.bak", path, pid);
+		if (ret < 0 || ret >= MAXPATHLEN) {
+			msg = "name too long for UNIX socket";
+			goto err_return;
+		}
 
-	ret = snprintf(backname, MAXPATHLEN, "%s.%d.bak", path, pid);
-	if (ret < 0 || ret >= MAXPATHLEN) {
-		msg = "name too long for UNIX socket";
-		goto err_return;
-	}
+		/* 2. clean existing orphaned entries */
+		if (unlink(tempname) < 0 && errno != ENOENT) {
+			msg = "error when trying to unlink previous UNIX socket";
+			goto err_return;
+		}
 
-	/* 2. clean existing orphaned entries */
-	if (unlink(tempname) < 0 && errno != ENOENT) {
-		msg = "error when trying to unlink previous UNIX socket";
-		goto err_return;
-	}
+		if (unlink(backname) < 0 && errno != ENOENT) {
+			msg = "error when trying to unlink previous UNIX socket";
+			goto err_return;
+		}
 
-	if (unlink(backname) < 0 && errno != ENOENT) {
-		msg = "error when trying to unlink previous UNIX socket";
-		goto err_return;
-	}
+		/* 3. backup existing socket */
+		if (link(path, backname) < 0 && errno != ENOENT) {
+			msg = "error when trying to preserve previous UNIX socket";
+			goto err_return;
+		}
 
-	/* 3. backup existing socket */
-	if (link(path, backname) < 0 && errno != ENOENT) {
-		msg = "error when trying to preserve previous UNIX socket";
-		goto err_return;
+		strncpy(addr.sun_path, tempname, sizeof(addr.sun_path));
+		addr.sun_path[sizeof(addr.sun_path) - 1] = 0;
 	}
-
-	/* 4. prepare new socket */
+	else {
+		/* first char is zero, it's an abstract socket whose address
+		 * is defined by all the bytes past this zero.
+		 */
+		memcpy(addr.sun_path, path, sizeof(addr.sun_path));
+	}
 	addr.sun_family = AF_UNIX;
-	strncpy(addr.sun_path, tempname, sizeof(addr.sun_path));
-	addr.sun_path[sizeof(addr.sun_path) - 1] = 0;
 
 	fd = socket(PF_UNIX, SOCK_STREAM, 0);
 	if (fd < 0) {
@@ -254,9 +255,9 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	/* <uid> and <gid> different of -1 will be used to change the socket owner.
 	 * If <mode> is not 0, it will be used to restrict access to the socket.
 	 * While it is known not to be portable on every OS, it's still useful
-	 * where it works.
+	 * where it works. We also don't change permissions on abstract sockets.
 	 */
-	if (!ext &&
+	if (!ext && path[0] &&
 	    (((listener->bind_conf->ux.uid != -1 || listener->bind_conf->ux.gid != -1) &&
 	      (chown(tempname, listener->bind_conf->ux.uid, listener->bind_conf->ux.gid) == -1)) ||
 	     (listener->bind_conf->ux.mode != 0 && chmod(tempname, listener->bind_conf->ux.mode) == -1))) {
@@ -275,21 +276,21 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 		goto err_unlink_temp;
 	}
 
-	/* 5. install.
-	 * Point of no return: we are ready, we'll switch the sockets. We don't
+	/* Point of no return: we are ready, we'll switch the sockets. We don't
 	 * fear loosing the socket <path> because we have a copy of it in
-	 * backname.
+	 * backname. Abstract sockets are not renamed.
 	 */
-	if (!ext && rename(tempname, path) < 0) {
+	if (!ext && path[0] && rename(tempname, path) < 0) {
 		msg = "cannot switch final and temporary UNIX sockets";
 		goto err_rename;
 	}
 
-	/* 6. cleanup. If we're bound to an fd inherited from the parent, we
+	/* Cleanup: If we're bound to an fd inherited from the parent, we
 	 * want to ensure that destroy_uxst_socket() will never remove the
-	 * path, and for this we simply clear the path to the socket.
+	 * path, and for this we simply clear the path to the socket, which
+	 * under Linux corresponds to an abstract socket.
 	 */
-	if (!ext)
+	if (!ext && path[0])
 		unlink(backname);
 	else
 		((struct sockaddr_un *)&listener->addr)->sun_path[0] = 0;

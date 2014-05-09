@@ -635,6 +635,11 @@ static struct sockaddr_storage *str2ip(const char *str, struct sockaddr_storage 
  *    - "ipv6@"  => force address to resolve as IPv6 and fail if not possible.
  *    - "unix@"  => force address to be a path to a UNIX socket even if the
  *                  path does not start with a '/'
+ *    - 'abns@'  -> force address to belong to the abstract namespace (Linux
+ *                  only). These sockets are just like Unix sockets but without
+ *                  the need for an underlying file system. The address is a
+ *                  string. Technically it's like a Unix socket with a zero in
+ *                  the first byte of the address.
  *    - "fd@"    => an integer must follow, and is a file descriptor number.
  *
  * Also note that in order to avoid any ambiguity with IPv6 addresses, the ':'
@@ -655,6 +660,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char
 	char *back, *str2;
 	char *port1, *port2;
 	int portl, porth, porta;
+	int abstract = 0;
 
 	portl = porth = porta = 0;
 
@@ -668,6 +674,12 @@ struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char
 
 	if (strncmp(str2, "unix@", 5) == 0) {
 		str2 += 5;
+		abstract = 0;
+		ss.ss_family = AF_UNIX;
+	}
+	else if (strncmp(str2, "abns@", 5) == 0) {
+		str2 += 5;
+		abstract = 1;
 		ss.ss_family = AF_UNIX;
 	}
 	else if (strncmp(str2, "ipv4@", 5) == 0) {
@@ -706,7 +718,7 @@ struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char
 		/* complete unix socket path name during startup or soft-restart is
 		 * <unix_bind_prefix><path>.<pid>.<bak|tmp>
 		 */
-		prefix_path_len = pfx ? strlen(pfx) : 0;
+		prefix_path_len = (pfx && !abstract) ? strlen(pfx) : 0;
 		max_path_len = (sizeof(((struct sockaddr_un *)&ss)->sun_path) - 1) -
 			(prefix_path_len ? prefix_path_len + 1 + 5 + 1 + 3 : 0);
 
@@ -716,9 +728,11 @@ struct sockaddr_storage *str2sa_range(const char *str, int *low, int *high, char
 			goto out;
 		}
 
+		/* when abstract==1, we skip the first zero and copy all bytes except the trailing zero */
+		memset(((struct sockaddr_un *)&ss)->sun_path, 0, sizeof(((struct sockaddr_un *)&ss)->sun_path));
 		if (prefix_path_len)
 			memcpy(((struct sockaddr_un *)&ss)->sun_path, pfx, prefix_path_len);
-		memcpy(((struct sockaddr_un *)&ss)->sun_path + prefix_path_len, str2, adr_len + 1);
+		memcpy(((struct sockaddr_un *)&ss)->sun_path + prefix_path_len + abstract, str2, adr_len + 1 - abstract);
 	}
 	else { /* IPv4 and IPv6 */
 		port1 = strrchr(str2, ':');
