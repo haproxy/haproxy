@@ -1239,7 +1239,8 @@ int tcp_persist_rdp_cookie(struct session *s, struct channel *req, int an_bit)
 
 	s->target = NULL;
 	while (srv) {
-		if (memcmp(&addr, &(srv->addr), sizeof(addr)) == 0) {
+		if (srv->addr.ss_family == AF_INET &&
+		    memcmp(&addr, &(srv->addr), sizeof(addr)) == 0) {
 			if ((srv->state & SRV_RUNNING) || (px->options & PR_O_PERSIST)) {
 				/* we found the server and it is usable */
 				s->flags |= SN_DIRECT | SN_ASSIGNED;
