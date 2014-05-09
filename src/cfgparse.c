@@ -6765,16 +6765,12 @@ out_uri_auth_compat:
 
 			alloc_ctx = shared_context_init(global.tune.sslcachesize, (!global.tune.sslprivatecache && (global.nbproc > 1)) ? 1 : 0);
 			if (alloc_ctx < 0) {
-				if (alloc_ctx == SHCTX_E_INIT_LOCK) {
-					Warning("Unable to init lock for the shared SSL session cache. Falling back to private cache.\n");
-					alloc_ctx = shared_context_init(global.tune.sslcachesize, 0);
-				}
-
-				if (alloc_ctx < 0) {
+				if (alloc_ctx == SHCTX_E_INIT_LOCK)
+					Alert("Unable to initialize the lock for the shared SSL session cache. You can retry using the global statement 'tune.ssl.force-private-cache' but it could increase CPU usage due to renegotiations if nbproc > 1.\n");
+				else
 					Alert("Unable to allocate SSL session cache.\n");
-					cfgerr++;
-					continue;
-				}
+				cfgerr++;
+				continue;
 			}
 
 			/* initialize all certificate contexts */
