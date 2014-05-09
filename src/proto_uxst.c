@@ -37,6 +37,7 @@
 
 #include <types/global.h>
 
+#include <proto/connection.h>
 #include <proto/fd.h>
 #include <proto/listener.h>
 #include <proto/log.h>
@@ -47,6 +48,7 @@
 static int uxst_bind_listener(struct listener *listener, char *errmsg, int errlen);
 static int uxst_bind_listeners(struct protocol *proto, char *errmsg, int errlen);
 static int uxst_unbind_listeners(struct protocol *proto);
+static int uxst_connect_server(struct connection *conn, int data, int delack);
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct protocol proto_unix = {
@@ -58,6 +60,7 @@ static struct protocol proto_unix = {
 	.sock_addrlen = sizeof(struct sockaddr_un),
 	.l3_addrlen = sizeof(((struct sockaddr_un*)0)->sun_path),/* path len */
 	.accept = &listener_accept,
+	.connect = &uxst_connect_server,
 	.bind = uxst_bind_listener,
 	.bind_all = uxst_bind_listeners,
 	.unbind_all = uxst_unbind_listeners,
@@ -346,6 +349,168 @@ void uxst_add_listener(struct listener *listener)
 	LIST_ADDQ(&proto_unix.listeners, &listener->proto_list);
 	proto_unix.nb_listeners++;
 }
+
+
+/*
+ * This function initiates a UNIX connection establishment to the target assigned
+ * to connection <conn> using (si->{target,addr.to}). The source address is ignored
+ * and will be selected by the system. conn->target may point either to a valid
+ * server or to a backend, depending on conn->target. Only OBJ_TYPE_PROXY and
+ * OBJ_TYPE_SERVER are supported. The <data> parameter is a boolean indicating
+ * whether there are data waiting for being sent or not, in order to adjust data
+ * write polling and on some platforms. The <delack> argument is ignored.
+ *
+ * Note that a pending send_proxy message accounts for data.
+ *
+ * It can return one of :
+ *  - SN_ERR_NONE if everything's OK
+ *  - SN_ERR_SRVTO if there are no more servers
+ *  - SN_ERR_SRVCL if the connection was refused by the server
+ *  - SN_ERR_PRXCOND if the connection has been limited by the proxy (maxconn)
+ *  - SN_ERR_RESOURCE if a system resource is lacking (eg: fd limits, ports, ...)
+ *  - SN_ERR_INTERNAL for any other purely internal errors
+ * Additionnally, in the case of SN_ERR_RESOURCE, an emergency log will be emitted.
+ *
+ * The connection's fd is inserted only when SN_ERR_NONE is returned, otherwise
+ * it's invalid and the caller has nothing to do.
+ */
+int uxst_connect_server(struct connection *conn, int data, int delack)
+{
+	int fd;
+	struct server *srv;
+	struct proxy *be;
+
+	conn->flags = CO_FL_WAIT_L4_CONN; /* connection in progress */
+
+	switch (obj_type(conn->target)) {
+	case OBJ_TYPE_PROXY:
+		be = objt_proxy(conn->target);
+		srv = NULL;
+		break;
+	case OBJ_TYPE_SERVER:
+		srv = objt_server(conn->target);
+		be = srv->proxy;
+		break;
+	default:
+		conn->flags |= CO_FL_ERROR;
+		return SN_ERR_INTERNAL;
+	}
+
+	if ((fd = conn->t.sock.fd = socket(PF_UNIX, SOCK_STREAM, 0)) == -1) {
+		qfprintf(stderr, "Cannot get a server socket.\n");
+
+		if (errno == ENFILE) {
+			conn->err_code = CO_ER_SYS_FDLIM;
+			send_log(be, LOG_EMERG,
+				 "Proxy %s reached system FD limit at %d. Please check system tunables.\n",
+				 be->id, maxfd);
+		}
+		else if (errno == EMFILE) {
+			conn->err_code = CO_ER_PROC_FDLIM;
+			send_log(be, LOG_EMERG,
+				 "Proxy %s reached process FD limit at %d. Please check 'ulimit-n' and restart.\n",
+				 be->id, maxfd);
+		}
+		else if (errno == ENOBUFS || errno == ENOMEM) {
+			conn->err_code = CO_ER_SYS_MEMLIM;
+			send_log(be, LOG_EMERG,
+				 "Proxy %s reached system memory limit at %d sockets. Please check system tunables.\n",
+				 be->id, maxfd);
+		}
+		else if (errno == EAFNOSUPPORT || errno == EPROTONOSUPPORT) {
+			conn->err_code = CO_ER_NOPROTO;
+		}
+		else
+			conn->err_code = CO_ER_SOCK_ERR;
+
+		/* this is a resource error */
+		conn->flags |= CO_FL_ERROR;
+		return SN_ERR_RESOURCE;
+	}
+
+	if (fd >= global.maxsock) {
+		/* do not log anything there, it's a normal condition when this option
+		 * is used to serialize connections to a server !
+		 */
+		Alert("socket(): not enough free sockets. Raise -n argument. Giving up.\n");
+		close(fd);
+		conn->err_code = CO_ER_CONF_FDLIM;
+		conn->flags |= CO_FL_ERROR;
+		return SN_ERR_PRXCOND; /* it is a configuration limit */
+	}
+
+	if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1) {
+		qfprintf(stderr,"Cannot set client socket to non blocking mode.\n");
+		close(fd);
+		conn->err_code = CO_ER_SOCK_ERR;
+		conn->flags |= CO_FL_ERROR;
+		return SN_ERR_INTERNAL;
+	}
+
+	/* if a send_proxy is there, there are data */
+	data |= conn->send_proxy_ofs;
+
+	if (global.tune.server_sndbuf)
+                setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &global.tune.server_sndbuf, sizeof(global.tune.server_sndbuf));
+
+	if (global.tune.server_rcvbuf)
+                setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &global.tune.server_rcvbuf, sizeof(global.tune.server_rcvbuf));
+
+	if ((connect(fd, (struct sockaddr *)&conn->addr.to, get_addr_len(&conn->addr.to)) == -1) &&
+	    (errno != EINPROGRESS) && (errno != EALREADY) && (errno != EISCONN)) {
+		if (errno == EAGAIN || errno == EADDRINUSE || errno == EADDRNOTAVAIL) {
+			char *msg;
+			if (errno == EAGAIN || errno == EADDRNOTAVAIL) {
+				msg = "no free ports";
+				conn->err_code = CO_ER_FREE_PORTS;
+			}
+			else {
+				msg = "local address already in use";
+				conn->err_code = CO_ER_ADDR_INUSE;
+			}
+
+			qfprintf(stderr,"Connect() failed for backend %s: %s.\n", be->id, msg);
+			close(fd);
+			send_log(be, LOG_ERR, "Connect() failed for backend %s: %s.\n", be->id, msg);
+			conn->flags |= CO_FL_ERROR;
+			return SN_ERR_RESOURCE;
+		}
+		else if (errno == ETIMEDOUT) {
+			close(fd);
+			conn->err_code = CO_ER_SOCK_ERR;
+			conn->flags |= CO_FL_ERROR;
+			return SN_ERR_SRVTO;
+		}
+		else {	// (errno == ECONNREFUSED || errno == ENETUNREACH || errno == EACCES || errno == EPERM)
+			close(fd);
+			conn->err_code = CO_ER_SOCK_ERR;
+			conn->flags |= CO_FL_ERROR;
+			return SN_ERR_SRVCL;
+		}
+	}
+
+	conn->flags |= CO_FL_ADDR_TO_SET;
+
+	/* Prepare to send a few handshakes related to the on-wire protocol. */
+	if (conn->send_proxy_ofs)
+		conn->flags |= CO_FL_SEND_PROXY;
+
+	conn_ctrl_init(conn);       /* registers the FD */
+	fdtab[fd].linger_risk = 1;  /* close hard if needed */
+	conn_sock_want_send(conn);  /* for connect status */
+
+	if (conn_xprt_init(conn) < 0) {
+		conn_force_close(conn);
+		conn->flags |= CO_FL_ERROR;
+		return SN_ERR_RESOURCE;
+	}
+
+	if (data)
+		conn_data_want_send(conn);  /* prepare to send data if any */
+
+	return SN_ERR_NONE;  /* connection is OK */
+}
+
 
 /********************************
  * 3) protocol-oriented functions
