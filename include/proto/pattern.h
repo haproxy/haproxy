@@ -69,6 +69,7 @@ int pat_idx_list_str(struct pattern_expr *expr, struct pattern *pat, char **err)
 int pat_idx_list_reg(struct pattern_expr *expr, struct pattern *pat, char **err);
 int pat_idx_tree_ip(struct pattern_expr *expr, struct pattern *pat, char **err);
 int pat_idx_tree_str(struct pattern_expr *expr, struct pattern *pat, char **err);
+int pat_idx_tree_pfx(struct pattern_expr *expr, struct pattern *pat, char **err);
 
 /*
  *

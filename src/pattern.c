@@ -65,7 +65,7 @@ int (*pat_index_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pattern *, ch
 	[PAT_MATCH_BIN]   = pat_idx_list_ptr,
 	[PAT_MATCH_LEN]   = pat_idx_list_val,
 	[PAT_MATCH_STR]   = pat_idx_tree_str,
-	[PAT_MATCH_BEG]   = pat_idx_list_str,
+	[PAT_MATCH_BEG]   = pat_idx_tree_pfx,
 	[PAT_MATCH_SUB]   = pat_idx_list_str,
 	[PAT_MATCH_DIR]   = pat_idx_list_str,
 	[PAT_MATCH_DOM]   = pat_idx_list_str,
@@ -81,7 +81,7 @@ void (*pat_delete_fcts[PAT_MATCH_NUM])(struct pattern_expr *, struct pat_ref_elt
 	[PAT_MATCH_BIN]   = pat_del_list_ptr,
 	[PAT_MATCH_LEN]   = pat_del_list_val,
 	[PAT_MATCH_STR]   = pat_del_tree_str,
-	[PAT_MATCH_BEG]   = pat_del_list_ptr,
+	[PAT_MATCH_BEG]   = pat_del_tree_str,
 	[PAT_MATCH_SUB]   = pat_del_list_ptr,
 	[PAT_MATCH_DIR]   = pat_del_list_ptr,
 	[PAT_MATCH_DOM]   = pat_del_list_ptr,
@@ -539,9 +539,36 @@ struct pattern *pat_match_reg(struct sample *smp, struct pattern_expr *expr, int
 struct pattern *pat_match_beg(struct sample *smp, struct pattern_expr *expr, int fill)
 {
 	int icase;
+	struct ebmb_node *node;
+	char prev;
+	struct pattern_tree *elt;
 	struct pattern_list *lst;
 	struct pattern *pattern;
 
+	/* Lookup a string in the expression's pattern tree. */
+	if (!eb_is_empty(&expr->pattern_tree)) {
+		/* we may have to force a trailing zero on the test pattern */
+		prev = smp->data.str.str[smp->data.str.len];
+		if (prev)
+			smp->data.str.str[smp->data.str.len] = '\0';
+		node = ebmb_lookup_longest(&expr->pattern_tree, smp->data.str.str);
+		if (prev)
+			smp->data.str.str[smp->data.str.len] = prev;
+
+		if (node) {
+			if (fill) {
+				elt = ebmb_entry(node, struct pattern_tree, node);
+				static_pattern.smp = elt->smp;
+				static_pattern.ref = elt->ref;
+				static_pattern.sflags = PAT_SF_TREE;
+				static_pattern.type = SMP_T_STR;
+				static_pattern.ptr.str = (char *)elt->node.key;
+			}
+			return &static_pattern;
+		}
+	}
+
+	/* look in the list */
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
 
@@ -1164,6 +1191,47 @@ int pat_idx_tree_str(struct pattern_expr *expr, struct pattern *pat, char **err)
 
 	/* index the new node */
 	ebst_insert(&expr->pattern_tree, &node->node);
+
+	/* that's ok */
+	return 1;
+}
+
+int pat_idx_tree_pfx(struct pattern_expr *expr, struct pattern *pat, char **err)
+{
+	int len;
+	struct pattern_tree *node;
+
+	/* Only string can be indexed */
+	if (pat->type != SMP_T_STR) {
+		memprintf(err, "internal error: string expected, but the type is '%s'",
+		          smp_to_type[pat->type]);
+		return 0;
+	}
+
+	/* If the flag PAT_F_IGNORE_CASE is set, we cannot use trees */
+	if (expr->mflags & PAT_MF_IGNORE_CASE)
+		return pat_idx_list_str(expr, pat, err);
+
+	/* Process the key len */
+	len = strlen(pat->ptr.str);
+
+	/* node memory allocation */
+	node = calloc(1, sizeof(*node) + len + 1);
+	if (!node) {
+		memprintf(err, "out of memory while loading pattern");
+		return 0;
+	}
+
+	/* copy the pointer to sample associated to this node */
+	node->smp = pat->smp;
+	node->ref = pat->ref;
+
+	/* copy the string and the trailing zero */
+	memcpy(node->node.key, pat->ptr.str, len + 1);
+	node->node.node.pfx = len * 8;
+
+	/* index the new node */
+	ebmb_insert_prefix(&expr->pattern_tree, &node->node, len);
 
 	/* that's ok */
 	return 1;
