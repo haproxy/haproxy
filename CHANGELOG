@@ -1,6 +1,80 @@
 ChangeLog :
 ===========
 
+2014/05/10 : 1.5-dev25
+    - MEDIUM: connection: Implement and extented PROXY Protocol V2
+    - MINOR: ssl: clean unused ACLs declarations
+    - MINOR: ssl: adds fetchs and ACLs for ssl back connection.
+    - MINOR: ssl: merge client's and frontend's certificate functions.
+    - MINOR: ssl: adds ssl_f_sha1 fetch to return frontend's certificate fingerprint
+    - MINOR: ssl: adds sample converter base64 for binary type.
+    - MINOR: ssl: convert to binary ssl_fc_unique_id and ssl_bc_unique_id.
+    - BUG/MAJOR: ssl: Fallback to private session cache if current lock mode is not supported.
+    - MAJOR: ssl: Change default locks on ssl session cache.
+    - BUG/MINOR: chunk: Fix function chunk_strcmp and chunk_strcasecmp match a substring.
+    - MINOR: ssl: add global statement tune.ssl.force-private-cache.
+    - MINOR: ssl: remove fallback to SSL session private cache if lock init fails.
+    - BUG/MEDIUM: patterns: last fix was still not enough
+    - MINOR: http: export the smp_fetch_cookie function
+    - MINOR: http: generic pointer to rule argument
+    - BUG/MEDIUM: pattern: a typo breaks automatic acl/map numbering
+    - BUG/MAJOR: patterns: -i and -n are ignored for inlined patterns
+    - BUG/MINOR: proxy: unsafe initialization of HTTP transaction when switching from TCP frontend
+    - BUG/MINOR: http: log 407 in case of proxy auth
+    - MINOR: http: rely on the message body parser to send 100-continue
+    - MEDIUM: http: move reqadd after execution of http_request redirect
+    - MEDIUM: http: jump to dedicated labels after http-request processing
+    - BUG/MINOR: http: block rules forgot to increment the denied_req counter
+    - BUG/MINOR: http: block rules forgot to increment the session's request counter
+    - MEDIUM: http: move Connection header processing earlier
+    - MEDIUM: http: remove even more of the spaghetti in the request path
+    - MINOR: http: silently support the "block" action for http-request
+    - CLEANUP: proxy: rename "block_cond" to "block_rules"
+    - MEDIUM: http: emulate "block" rules using "http-request" rules
+    - MINOR: http: remove the now unused loop over "block" rules
+    - MEDIUM: http: factorize the "auth" action of http-request and stats
+    - MEDIUM: http: make http-request rules processing return a verdict instead of a rule
+    - MINOR: config: add minimum support for emitting warnings only once
+    - MEDIUM: config: inform the user about the deprecatedness of "block" rules
+    - MEDIUM: config: inform the user that "reqsetbe" is deprecated
+    - MEDIUM: config: inform the user only once that "redispatch" is deprecated
+    - MEDIUM: config: warn that '{cli,con,srv}timeout' are deprecated
+    - BUG/MINOR: auth: fix wrong return type in pat_match_auth()
+    - BUILD: config: remove a warning with clang
+    - BUG/MAJOR: http: connection setup may stall on balance url_param
+    - BUG/MEDIUM: http/session: disable client-side expiration only after body
+    - BUG/MEDIUM: http: correctly report request body timeouts
+    - BUG/MEDIUM: http: disable server-side expiration until client has sent the body
+    - MEDIUM: listener: make the accept function more robust against pauses
+    - BUILD: syscalls: remove improper inline statement in front of syscalls
+    - BUILD: ssl: SSL_CTX_set_msg_callback() needs openssl >= 0.9.7
+    - BUG/MAJOR: session: recover the correct connection pointer in half-initialized sessions
+    - DOC: add some explanation on the shared cache build options in the readme.
+    - MEDIUM: proxy: only adjust the backend's bind-process when already set
+    - MEDIUM: config: limit nbproc to the machine's word size
+    - MEDIUM: config: check the bind-process settings according to nbproc
+    - MEDIUM: listener: parse the new "process" bind keyword
+    - MEDIUM: listener: inherit the process mask from the proxy
+    - MAJOR: listener: only start listeners bound to the same processes
+    - MINOR: config: only report a warning when stats sockets are bound to more than 1 process
+    - CLEANUP: config: set the maxaccept value for peers listeners earlier
+    - BUG/MINOR: backend: only match IPv4 addresses with RDP cookies
+    - BUG/MINOR: checks: correctly configure the address family and protocol
+    - MINOR: tools: split is_addr() and is_inet_addr()
+    - MINOR: protocols: use is_inet_addr() when only INET addresses are desired
+    - MEDIUM: unix: add preliminary support for connecting to servers over UNIX sockets
+    - MEDIUM: checks: only complain about the missing port when the check uses TCP
+    - MEDIUM: unix: implement support for Linux abstract namespace sockets
+    - DOC: map_beg was missing from the table of map_* converters
+    - DOC: ebtree: indicate that prefix insertion/lookup may be used with strings
+    - MEDIUM: pattern: use ebtree's longest match to index/lookup string beginning
+    - BUILD: remove the obsolete BSD and OSX makefiles
+    - MEDIUM: unix: avoid a double connect probe when no data are sent
+    - DOC: stop referencing the slow git repository in the README
+    - BUILD: only build the systemd wrapper on Linux 2.6 and above
+    - DOC: update roadmap with completed tasks
+    - MEDIUM: session: implement half-closed timeouts (client-fin and server-fin)
+
 2014/04/26 : 1.5-dev24
     - MINOR: pattern: find element in a reference
     - MEDIUM: http: ACL and MAP updates through http-(request|response) rules

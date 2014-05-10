@@ -1,5 +1,5 @@
-2012/11/19                                                        Willy Tarreau
-                                                                     Exceliance
+2014/05/10                                                        Willy Tarreau
+                                                           HAProxy Technologies
                                The PROXY protocol
                                  Versions 1 & 2
 
