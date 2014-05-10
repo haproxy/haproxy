@@ -11,7 +11,8 @@
 
 To build haproxy, you will need :
   - GNU make. Neither Solaris nor OpenBSD's make work with the GNU Makefile.
-    However, specific Makefiles for BSD and OSX are provided.
+    If you get many syntax errors when running "make", you may want to retry
+    with "gmake" which is the name commonly used for GNU make on BSD systems.
   - GCC between 2.91 and 4.7. Others may work, but not tested.
   - GNU ld
 
@@ -85,11 +86,11 @@ it. This is the recommended option for most Linux distro packagers since it's
 working fine on all recent mainstream distros. It is automatically enabled on
 Solaris 8 and above, as it's known to work.
 
-It is possible to add native support for SSL using the GNU makefile only, and
-by passing "USE_OPENSSL=1" on the make commande line. The libssl and libcrypto
-will automatically be linked with haproxy. Some systems also require libz, so
-if the build fails due to missing symbols such as deflateInit(), then try again
-with "ADDLIB=-lz".
+It is possible to add native support for SSL using the GNU makefile, by passing
+"USE_OPENSSL=1" on the make command line. The libssl and libcrypto will
+automatically be linked with haproxy. Some systems also require libz, so if the
+build fails due to missing symbols such as deflateInit(), then try again with
+"ADDLIB=-lz".
 
 To link OpenSSL statically against haproxy, build OpenSSL with the no-shared
 keyword and install it to a local directory, so your system is not affected :
@@ -100,6 +101,7 @@ keyword and install it to a local directory, so your system is not affected :
 
 When building haproxy, pass that path via SSL_INC and SSL_LIB to make and
 include additional libs with ADDLIB if needed (in this case for example libdl):
+
     $ make TARGET=linux26 USE_OPENSSL=1 SSL_INC=$STATICLIBSSL/include SSL_LIB=$STATICLIBSSL/lib ADDLIB=-ldl
 
 It is also possible to include native support for ZLIB to benefit from HTTP
@@ -117,7 +119,7 @@ For example, I use this to build for Solaris 8 :
 
 And I build it this way on OpenBSD or FreeBSD :
 
-    $ make -f Makefile.bsd REGEX=pcre DEBUG= COPTS.generic="-Os -fomit-frame-pointer -mgnu"
+    $ gmake TARGET=freebsd USE_PCRE=1 USE_OPENSSL=1 USE_ZLIB=1
 
 And on a classic Linux with SSL and ZLIB support (eg: Red Hat 5.x) :
 
@@ -169,16 +171,9 @@ If none of these mechanisms is supported by your platform, you may need to
 build with USE_PRIVATE_CACHE=1 to totally disable SSL cache sharing. Then
 it is better not to run SSL on multiple processes.
 
-The BSD and OSX makefiles do not support build options for OpenSSL nor zlib.
-If you want to enable these options, you need to use GNU make with the default
-makefile as follows :
-
-    $ gmake TARGET=openbsd USE_OPENSSL=1 USE_ZLIB=1 USE_PRIVATE_CACHE=1
-
 If you need to pass other defines, includes, libraries, etc... then please
 check the Makefile to see which ones will be available in your case, and
-use the USE_* variables in the GNU Makefile, or ADDINC, ADDLIB, and DEFINE
-variables in the BSD makefiles.
+use the USE_* variables in the Makefile.
 
 AIX 5.3 is known to work with the generic target. However, for the binary to
 also run on 5.2 or earlier, you need to build with DEFINE="-D_MSGQSUPPORT",
