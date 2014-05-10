@@ -52,6 +52,8 @@
 #          by "haproxy -vv" in CFLAGS.
 #   SILENT_DEFINE may be used to specify other defines which will not be
 #     reported by "haproxy -vv".
+#   EXTRA   is used to force building or not building some extra tools. By
+#           default on Linux 2.6+, it contains "haproxy-systemd-wrapper".
 #   DESTDIR is not set by default and is used for installation only.
 #           It might be useful to set DESTDIR if you want to install haproxy
 #           in a sandbox.
@@ -157,6 +159,10 @@ ADDLIB =
 DEFINE =
 SILENT_DEFINE =
 
+#### extra programs to build (eg: haproxy-systemd-wrapper)
+# Force this to enable building extra programs or to disable them.
+# It's automatically appended depending on the targets.
+EXTRA =
 
 #### CPU dependant optimizations
 # Some CFLAGS are set by default depending on the target CPU. Those flags only
@@ -239,6 +245,7 @@ ifeq ($(TARGET),linux26)
   USE_TPROXY      = implicit
   USE_LIBCRYPT    = implicit
   USE_FUTEX       = implicit
+  EXTRA          += haproxy-systemd-wrapper
 else
 ifeq ($(TARGET),linux2628)
   # This is for standard Linux >= 2.6.28 with netfilter, epoll, tproxy and splice
@@ -254,6 +261,7 @@ ifeq ($(TARGET),linux2628)
   USE_FUTEX       = implicit
   USE_CPU_AFFINITY= implicit
   ASSUME_SPLICE_WORKS= implicit
+  EXTRA          += haproxy-systemd-wrapper
 else
 ifeq ($(TARGET),solaris)
   # This is for Solaris 8
@@ -635,7 +643,7 @@ all:
 	@echo
 	@exit 1
 else
-all: haproxy haproxy-systemd-wrapper
+all: haproxy $(EXTRA)
 endif
 
 OBJS = src/haproxy.o src/sessionhash.o src/base64.o src/protocol.o \
