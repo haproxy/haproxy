@@ -1,4 +1,4 @@
-Medium-long term roadmap - 2014/04/23
+Medium-long term roadmap - 2014/05/10
 
 Legend: '+' = done, '-' = todo, '*' = done except doc
 
@@ -14,8 +14,6 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
   - add the ability to only dump response errors to more easily detect
     anomalies without being polluted with attacks in requests.
 
-  - add support for server-side unix sockets
-
   - have multi-criteria analysers which subscribe to req flags, rsp flags, and
     stream interface changes. This would result in a single analyser to wait
     for the end of data transfer in HTTP.
@@ -28,17 +26,11 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
     based on request matching. Each session will have one ebtree node to be
     attached to whatever queue the session is waiting in.
 
-  - half-closed timeouts ?
-
   - add a flag in logs to indicate keep-alive requests ?
 
   - make it possible to condition a timeout on an ACL (dynamic timeouts)
 
   - forwardfor/originalto except with IPv6
-
-  - have a callback function which would be called after a server is selected,
-    for header post-processing. That would be mainly used to remove then add
-    the server's name or cookie in a header so that the server knows it.
 
   - remove lots of remaining Alert() calls or ensure that they forward to
     send_log() after the fork.
@@ -50,6 +42,10 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
   - http-request track-sc* to avoid having the ugly "if !HTTP" in tcp-request
 
 DONE:
+  * half-closed timeouts ?
+
+  * add support for server-side unix sockets
+
   * server-side HTTP keepalive
     => maybe with limitation to only reuse connections that don't depend
        on layer7 in a first time (just check the target).
@@ -194,6 +190,10 @@ Old, maybe obsolete points
  - new keyword 'check' : check http xxx, check smtp xxx, check ssl-hello
 
  - initcwnd parameter for bind sockets : needed in kernel first
+
+ - have a callback function which would be called after a server is selected,
+   for header post-processing. That would be mainly used to remove then add
+   the server's name or cookie in a header so that the server knows it.
 
 Unsorted :
   - outgoing log load-balancing (round-robin or hash among multiple servers)
