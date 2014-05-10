@@ -39,19 +39,19 @@
 #ifdef  CONFIG_PRODUCT_URL
 #define PRODUCT_URL    CONFIG_PRODUCT_URL
 #else
-#define PRODUCT_URL    "http://haproxy.1wt.eu/"
+#define PRODUCT_URL    "http://www.haproxy.org/"
 #endif
 
 #ifdef  CONFIG_PRODUCT_URL_UPD
 #define PRODUCT_URL_UPD  CONFIG_PRODUCT_URL_UPD
 #else
-#define PRODUCT_URL_UPD "http://haproxy.1wt.eu/#down"
+#define PRODUCT_URL_UPD "http://www.haproxy.org/#down"
 #endif
 
 #ifdef  CONFIG_PRODUCT_URL_DOC
 #define PRODUCT_URL_DOC  CONFIG_PRODUCT_URL_DOC
 #else
-#define PRODUCT_URL_DOC "http://haproxy.1wt.eu/#docs"
+#define PRODUCT_URL_DOC "http://www.haproxy.org/#docs"
 #endif
 
 #ifdef CONFIG_HAPROXY_VERSION

@@ -338,7 +338,7 @@ The list of past and regular contributors is available below. It lists not only
 significant code contributions (features, fixes), but also time or money
 donations :
 
-                        http://haproxy.1wt.eu/contrib.html
+                        http://www.haproxy.org/contrib.html
 
 Note to contributors: it's very handy when patches comes with a properly
 formated subject. There are 3 criteria of particular importance in any patch :
@@ -526,12 +526,8 @@ want, without making your mistakes visible to the rest of the world. It will
 definitely help you contribute quality code and take other people's feedback
 in consideration. In order to clone the HAProxy Git repository :
 
-    $ git clone http://git.1wt.eu/git/haproxy-1.4.git    (stable 1.4)
-    $ git clone http://git.1wt.eu/git/haproxy.git/       (development)
-
-The site above is slow, a faster mirror is maintained up to date here :
-
-    $ git clone http://master.formilux.org/git/people/willy/haproxy.git/
+    $ git clone http://git.haproxy.org/git/haproxy-1.4.git    (stable 1.4)
+    $ git clone http://git.haproxy.org/git/haproxy.git/       (development)
 
 If you decide to use Git for your developments, then your commit messages will
 have the subject line in the format described above, then the whole description
