@@ -373,7 +373,9 @@ __ebmb_insert(struct eb_root *root, struct ebmb_node *new, unsigned int len)
 
 /* Find the first occurence of the longest prefix matching a key <x> in the
  * tree <root>. It's the caller's responsibility to ensure that key <x> is at
- * least as long as the keys in the tree. If none can be found, return NULL.
+ * least as long as the keys in the tree. Note that this can be ensured by
+ * having a byte at the end of <x> which cannot be part of any prefix, typically
+ * the trailing zero for a string. If none can be found, return NULL.
  */
 static forceinline struct ebmb_node *__ebmb_lookup_longest(struct eb_root *root, const void *x)
 {
@@ -465,7 +467,9 @@ static forceinline struct ebmb_node *__ebmb_lookup_longest(struct eb_root *root,
 
 /* Find the first occurence of a prefix matching a key <x> of <pfx> BITS in the
  * tree <root>. It's the caller's responsibility to ensure that key <x> is at
- * least as long as the keys in the tree. If none can be found, return NULL.
+ * least as long as the keys in the tree. Note that this can be ensured by
+ * having a byte at the end of <x> which cannot be part of any prefix, typically
+ * the trailing zero for a string. If none can be found, return NULL.
  */
 static forceinline struct ebmb_node *__ebmb_lookup_prefix(struct eb_root *root, const void *x, unsigned int pfx)
 {
