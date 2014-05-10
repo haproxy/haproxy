@@ -284,6 +284,8 @@ struct proxy {
 		int httpka;                     /* maximum time for a new HTTP request when using keep-alive */
 		int check;                      /* maximum time for complete check */
 		int tunnel;                     /* I/O timeout to use in tunnel mode (in ticks) */
+		int clientfin;                  /* timeout to apply to client half-closed connections */
+		int serverfin;                  /* timeout to apply to server half-closed connections */
 	} timeout;
 	char *id, *desc;			/* proxy id (name) and description */
 	struct list pendconns;			/* pending connections with no server assigned yet */

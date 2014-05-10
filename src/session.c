@@ -2189,11 +2189,17 @@ struct task *process_session(struct task *t)
 
 	/* first, let's check if the request buffer needs to shutdown(write), which may
 	 * happen either because the input is closed or because we want to force a close
-	 * once the server has begun to respond.
+	 * once the server has begun to respond. If a half-closed timeout is set, we adjust
+	 * the other side's timeout as well.
 	 */
 	if (unlikely((s->req->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_AUTO_CLOSE|CF_SHUTR)) ==
-		     (CF_AUTO_CLOSE|CF_SHUTR)))
-			channel_shutw_now(s->req);
+		     (CF_AUTO_CLOSE|CF_SHUTR))) {
+		channel_shutw_now(s->req);
+		if (tick_isset(s->fe->timeout.clientfin)) {
+			s->rep->wto = s->fe->timeout.clientfin;
+			s->rep->wex = tick_add(now_ms, s->rep->wto);
+		}
+	}
 
 	/* shutdown(write) pending */
 	if (unlikely((s->req->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW &&
@@ -2201,6 +2207,10 @@ struct task *process_session(struct task *t)
 		if (s->req->flags & CF_READ_ERROR)
 			s->req->cons->flags |= SI_FL_NOLINGER;
 		si_shutw(s->req->cons);
+		if (tick_isset(s->be->timeout.serverfin)) {
+			s->rep->rto = s->be->timeout.serverfin;
+			s->rep->rex = tick_add(now_ms, s->rep->rto);
+		}
 	}
 
 	/* shutdown(write) done on server side, we must stop the client too */
@@ -2213,6 +2223,10 @@ struct task *process_session(struct task *t)
 		if (s->req->prod->flags & SI_FL_NOHALF)
 			s->req->prod->flags |= SI_FL_NOLINGER;
 		si_shutr(s->req->prod);
+		if (tick_isset(s->fe->timeout.clientfin)) {
+			s->rep->wto = s->fe->timeout.clientfin;
+			s->rep->wex = tick_add(now_ms, s->rep->wto);
+		}
 	}
 
 	/* it's possible that an upper layer has requested a connection setup or abort.
@@ -2308,13 +2322,26 @@ struct task *process_session(struct task *t)
 			channel_forward(s->rep, CHN_INFINITE_FORWARD);
 
 		/* if we have no analyser anymore in any direction and have a
-		 * tunnel timeout set, use it now.
+		 * tunnel timeout set, use it now. Note that we must respect
+		 * the half-closed timeouts as well.
 		 */
 		if (!s->req->analysers && s->be->timeout.tunnel) {
 			s->req->rto = s->req->wto = s->rep->rto = s->rep->wto =
 				s->be->timeout.tunnel;
-			s->req->rex = s->req->wex = s->rep->rex = s->rep->wex =
-				tick_add(now_ms, s->be->timeout.tunnel);
+
+			if ((s->req->flags & CF_SHUTR) && tick_isset(s->fe->timeout.clientfin))
+				s->rep->wto = s->fe->timeout.clientfin;
+			if ((s->req->flags & CF_SHUTW) && tick_isset(s->be->timeout.serverfin))
+				s->rep->rto = s->be->timeout.serverfin;
+			if ((s->rep->flags & CF_SHUTR) && tick_isset(s->be->timeout.serverfin))
+				s->req->wto = s->be->timeout.serverfin;
+			if ((s->rep->flags & CF_SHUTW) && tick_isset(s->fe->timeout.clientfin))
+				s->req->rto = s->fe->timeout.clientfin;
+
+			s->req->rex = tick_add(now_ms, s->req->rto);
+			s->req->wex = tick_add(now_ms, s->req->wto);
+			s->rep->rex = tick_add(now_ms, s->rep->rto);
+			s->rep->wex = tick_add(now_ms, s->rep->wto);
 		}
 	}
 
@@ -2344,13 +2371,23 @@ struct task *process_session(struct task *t)
 
 	/* first, let's check if the response buffer needs to shutdown(write) */
 	if (unlikely((s->rep->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_AUTO_CLOSE|CF_SHUTR)) ==
-		     (CF_AUTO_CLOSE|CF_SHUTR)))
+		     (CF_AUTO_CLOSE|CF_SHUTR))) {
 		channel_shutw_now(s->rep);
+		if (tick_isset(s->be->timeout.serverfin)) {
+			s->req->wto = s->be->timeout.serverfin;
+			s->req->wex = tick_add(now_ms, s->req->wto);
+		}
+	}
 
 	/* shutdown(write) pending */
 	if (unlikely((s->rep->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW &&
-		     channel_is_empty(s->rep)))
+		     channel_is_empty(s->rep))) {
 		si_shutw(s->rep->cons);
+		if (tick_isset(s->fe->timeout.clientfin)) {
+			s->req->rto = s->fe->timeout.clientfin;
+			s->req->rex = tick_add(now_ms, s->req->rto);
+		}
+	}
 
 	/* shutdown(write) done on the client side, we must stop the server too */
 	if (unlikely((s->rep->flags & (CF_SHUTW|CF_SHUTR|CF_SHUTR_NOW)) == CF_SHUTW) &&
@@ -2362,6 +2399,10 @@ struct task *process_session(struct task *t)
 		if (s->rep->prod->flags & SI_FL_NOHALF)
 			s->rep->prod->flags |= SI_FL_NOLINGER;
 		si_shutr(s->rep->prod);
+		if (tick_isset(s->be->timeout.serverfin)) {
+			s->req->wto = s->be->timeout.serverfin;
+			s->req->wex = tick_add(now_ms, s->req->wto);
+		}
 	}
 
 	if (s->req->prod->state == SI_ST_DIS || s->req->cons->state == SI_ST_DIS)

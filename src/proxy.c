@@ -187,10 +187,19 @@ static int proxy_parse_timeout(char **args, int section, struct proxy *proxy,
 		tv = &proxy->timeout.tunnel;
 		td = &defpx->timeout.tunnel;
 		cap = PR_CAP_BE;
+	} else if (!strcmp(args[0], "client-fin")) {
+		tv = &proxy->timeout.clientfin;
+		td = &defpx->timeout.clientfin;
+		cap = PR_CAP_FE;
+	} else if (!strcmp(args[0], "server-fin")) {
+		tv = &proxy->timeout.serverfin;
+		td = &defpx->timeout.serverfin;
+		cap = PR_CAP_BE;
 	} else {
 		memprintf(err,
 		          "'timeout' supports 'client', 'server', 'connect', 'check', "
-		          "'queue', 'http-keep-alive', 'http-request', 'tunnel' or 'tarpit', (got '%s')",
+		          "'queue', 'http-keep-alive', 'http-request', 'tunnel', 'tarpit', "
+			  "'client-fin' and 'server-fin' (got '%s')",
 		          args[0]);
 		return -1;
 	}
