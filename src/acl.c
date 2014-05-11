@@ -415,6 +415,14 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			expr->pat.prune = pat_prune_fcts[PAT_MATCH_IP];
 			expr->pat.expect_type = pat_match_types[PAT_MATCH_IP];
 			break;
+		case SMP_T_STR:
+			expr->pat.parse = pat_parse_fcts[PAT_MATCH_STR];
+			expr->pat.index = pat_index_fcts[PAT_MATCH_STR];
+			expr->pat.match = pat_match_fcts[PAT_MATCH_STR];
+			expr->pat.delete = pat_delete_fcts[PAT_MATCH_STR];
+			expr->pat.prune = pat_prune_fcts[PAT_MATCH_STR];
+			expr->pat.expect_type = pat_match_types[PAT_MATCH_STR];
+			break;
 		}
 	}
 
