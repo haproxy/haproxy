@@ -444,11 +444,11 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	is_loaded = 0;
 	unique_id = -1;
 	while (**args == '-') {
-		if ((*args)[1] == 'i')
+		if (strcmp(*args, "-i") == 0)
 			patflags |= PAT_MF_IGNORE_CASE;
-		else if ((*args)[1] == 'n')
+		else if (strcmp(*args, "-n") == 0)
 			patflags |= PAT_MF_NO_DNS;
-		else if ((*args)[1] == 'u') {
+		else if (strcmp(*args, "-u") == 0) {
 			unique_id = strtol(args[1], &error, 10);
 			if (*error != '\0') {
 				memprintf(err, "the argument of -u must be an integer");
@@ -463,7 +463,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 
 			args++;
 		}
-		else if ((*args)[1] == 'f') {
+		else if (strcmp(*args, "-f") == 0) {
 			if (!expr->pat.parse) {
 				memprintf(err, "matching method must be specified first (using '-m') when using a sample fetch of this type ('%s')", expr->kw);
 				goto out_free_expr;
@@ -474,7 +474,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			is_loaded = 1;
 			args++;
 		}
-		else if ((*args)[1] == 'm') {
+		else if (strcmp(*args, "-m") == 0) {
 			int idx;
 
 			if (is_loaded) {
@@ -501,15 +501,18 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			expr->pat.expect_type = pat_match_types[idx];
 			args++;
 		}
-		else if ((*args)[1] == 'M') {
+		else if (strcmp(*args, "-M") == 0) {
 			load_as_map = 1;
 		}
-		else if ((*args)[1] == '-') {
+		else if (strcmp(*args, "--") == 0) {
 			args++;
 			break;
 		}
-		else
+		else {
+			memprintf(err, "'%s' is not a valid ACL option. Please use '--' before any pattern beginning with a '-'", args[0]);
+			goto out_free_expr;
 			break;
+		}
 		args++;
 	}
 
