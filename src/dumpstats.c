@@ -2983,9 +2983,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		}
 		else if (sv != ref) {
 			if (sv->state & SRV_MAINTAIN)
-				chunk_appendf(&trash,
-					      "<td class=ac colspan=3><a class=lfsb href=\"#%s/%s\"></a></td>",
-					      ref->proxy->id, ref->id);
+				chunk_appendf(&trash, "<td class=ac colspan=3></td>");
 			else
 				chunk_appendf(&trash,
 					      "<td class=ac colspan=3><a class=lfsb href=\"#%s/%s\">via %s/%s</a></td>",
