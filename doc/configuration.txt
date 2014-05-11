@@ -9202,6 +9202,29 @@ would turn a string to an IPv4 address, or apply a netmask to an IP address.
 The resulting sample is of the type of the last converter applied to the list,
 which defaults to the type of the sample fetch method.
 
+Each sample or converter returns data of a specific type, specified with its
+keyword in this documentation. When an ACL is declared using a standard sample
+fetch method, certain types automatically involved a default matching method
+which are summarized in the table below :
+
+   +---------------------+-----------------+
+   | Sample or converter | Default         |
+   |    output type      | matching method |
+   +---------------------+-----------------+
+   | boolean             | bool            |
+   +---------------------+-----------------+
+   | integer             | int             |
+   +---------------------+-----------------+
+   | ip                  | ip              |
+   +---------------------+-----------------+
+   | string              | str             |
+   +---------------------+-----------------+
+   | binary              | none, use "-m"  |
+   +---------------------+-----------------+
+
+Note that in order to match a binary samples, it is mandatory to specify a
+matching method, see below.
+
 The ACL engine can match these types against patterns of the following types :
   - boolean
   - integer or integer range
@@ -9353,27 +9376,28 @@ For example, all ACLs below are exact equivalent :
     acl alternate3  hdr(host)     -m beg www.
 
 
-The table below summarizes the compatibility matrix between sample types
-and the pattern types to fetch against. It indicates for each compatible
-combination the name of the matching method to be used, prefixed with "*" when
-the method is implicit and will work by default without "-m".
+The table below summarizes the compatibility matrix between sample or converter
+types and the pattern types to fetch against. It indicates for each compatible
+combination the name of the matching method to be used, surrounded with angle
+brackets ">" and "<" when the method is the default one and will work by
+default without "-m".
 
                            +-------------------------------------------------+
                            |                Input sample type                |
     +----------------------+---------+---------+---------+---------+---------+
-    |     pattern type     | boolean | integer |   IP    | string  | binary  |
+    |     pattern type     | boolean | integer |   ip    | string  | binary  |
     +----------------------+---------+---------+---------+---------+---------+
     | none (presence only) |  found  |  found  |  found  |  found  |  found  |
     +----------------------+---------+---------+---------+---------+---------+
-    | none (boolean value) |  *bool  |   bool  |         |   bool  |         |
+    | none (boolean value) |>  bool <|   bool  |         |   bool  |         |
     +----------------------+---------+---------+---------+---------+---------+
-    | integer (value)      |   int   |   *int  |   int   |   int   |         |
+    | integer (value)      |   int   |>  int  <|   int   |   int   |         |
     +----------------------+---------+---------+---------+---------+---------+
     | integer (length)     |   len   |   len   |   len   |   len   |   len   |
     +----------------------+---------+---------+---------+---------+---------+
-    | IP address           |         |         |   *ip   |    ip   |    ip   |
+    | IP address           |         |         |>   ip  <|    ip   |    ip   |
     +----------------------+---------+---------+---------+---------+---------+
-    | exact string         |   str   |   str   |   str   |   str   |   str   |
+    | exact string         |   str   |   str   |   str   |>  str  <|   str   |
     +----------------------+---------+---------+---------+---------+---------+
     | prefix               |   beg   |   beg   |   beg   |   beg   |   beg   |
     +----------------------+---------+---------+---------+---------+---------+
