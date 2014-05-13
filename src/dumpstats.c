@@ -3846,7 +3846,6 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 	              "<td class=\"backup1\"></td><td class=\"noborder\">backup DOWN, going up </td>"
 	              "</tr><tr>\n"
 	              "<td class=\"active0\"></td><td class=\"noborder\">active or backup DOWN &nbsp;</td>"
-	              "</tr><tr>\n"
 	              "<td class=\"active8\"></td><td class=\"noborder\">not checked </td>"
 	              "</tr><tr>\n"
 	              "<td class=\"maintain\"></td><td class=\"noborder\" colspan=\"3\">active or backup DOWN for maintenance (MAINT) &nbsp;</td>"
