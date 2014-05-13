@@ -182,7 +182,7 @@ static void server_status_printf(struct chunk *msg, struct server *s, struct che
 	}
 
 	if (xferred >= 0) {
-		if (!(s->state & SRV_STF_RUNNING))
+		if (s->state == SRV_ST_STOPPED)
 			chunk_appendf(msg, ". %d active and %d backup servers left.%s"
 				" %d sessions active, %d requeued, %d remaining in queue",
 				s->proxy->srv_act, s->proxy->srv_bck,
@@ -264,7 +264,7 @@ static void set_server_check_status(struct check *check, short status, const cha
 				health--; /* still good */
 			} else {
 				if (health == rise)
-					state &= ~(SRV_STF_RUNNING | SRV_STF_GOINGDOWN);
+					state = SRV_ST_STOPPED;
 
 				health = 0;
 			}
@@ -276,7 +276,7 @@ static void set_server_check_status(struct check *check, short status, const cha
 				health++; /* was bad, stays for a while */
 
 				if (health == rise)
-					state |= SRV_STF_RUNNING;
+					state = SRV_ST_RUNNING;
 
 				if (health >= rise)
 					health = rise + fall - 1; /* OK now */
@@ -300,9 +300,9 @@ static void set_server_check_status(struct check *check, short status, const cha
 		server_status_printf(&trash, s, check, -1);
 
 		chunk_appendf(&trash, ", status: %d/%d %s",
-		             (state & SRV_STF_RUNNING) ? (health - rise + 1) : (health),
-		             (state & SRV_STF_RUNNING) ? (fall) : (rise),
-			     (state & SRV_STF_RUNNING) ? (s->uweight?"UP":"DRAIN"):"DOWN");
+		             (state != SRV_ST_STOPPED) ? (health - rise + 1) : (health),
+		             (state != SRV_ST_STOPPED) ? (fall) : (rise),
+			     (state != SRV_ST_STOPPED) ? (s->uweight?"UP":"DRAIN"):"DOWN");
 
 		Warning("%s.\n", trash.str);
 		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
@@ -416,12 +416,12 @@ void set_server_down(struct check *check)
 		check->health = check->rise;
 	}
 
-	if ((s->state & SRV_STF_RUNNING && check->health == check->rise) || s->track) {
-		int srv_was_paused = s->state & SRV_STF_GOINGDOWN;
+	if ((s->state != SRV_ST_STOPPED && check->health == check->rise) || s->track) {
+		int srv_was_stopping = (s->state == SRV_ST_STOPPING);
 		int prev_srv_count = s->proxy->srv_bck + s->proxy->srv_act;
 
 		s->last_change = now.tv_sec;
-		s->state &= ~(SRV_STF_RUNNING | SRV_STF_GOINGDOWN);
+		s->state = SRV_ST_STOPPED;
 		if (s->proxy->lbprm.set_server_status_down)
 			s->proxy->lbprm.set_server_status_down(s);
 
@@ -452,7 +452,7 @@ void set_server_down(struct check *check)
 		Warning("%s.\n", trash.str);
 
 		/* we don't send an alert if the server was previously paused */
-		if (srv_was_paused)
+		if (srv_was_stopping)
 			send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
 		else
 			send_log(s->proxy, LOG_ALERT, "%s.\n", trash.str);
@@ -498,14 +498,14 @@ void set_server_up(struct check *check) {
 			s->down_time += now.tv_sec - s->last_change;
 
 		s->last_change = now.tv_sec;
-		s->state |= SRV_STF_RUNNING;
 		s->admin &= ~SRV_ADMF_FMAINT;
 		s->check.state &= ~CHK_ST_PAUSED;
 
-		if (s->slowstart > 0) {
-			s->state |= SRV_STF_WARMINGUP;
+		s->state = SRV_ST_STARTING;
+		if (s->slowstart > 0)
 			task_schedule(s->warmup, tick_add(now_ms, MS_TO_TICKS(MAX(1000, s->slowstart / 20))));
-		}
+		else
+			s->state = SRV_ST_RUNNING;
 
 		server_recalc_eweight(s);
 
@@ -559,7 +559,7 @@ static void set_server_disabled(struct check *check) {
 	struct server *srv;
 	int xferred;
 
-	s->state |= SRV_STF_GOINGDOWN;
+	s->state = SRV_ST_STOPPING;
 	if (s->proxy->lbprm.set_server_status_down)
 		s->proxy->lbprm.set_server_status_down(s);
 
@@ -596,7 +596,11 @@ static void set_server_enabled(struct check *check) {
 	struct server *srv;
 	int xferred;
 
-	s->state &= ~SRV_STF_GOINGDOWN;
+	if (s->slowstart)
+		s->state = SRV_ST_STARTING;
+	else
+		s->state = SRV_ST_RUNNING;
+
 	if (s->proxy->lbprm.set_server_status_up)
 		s->proxy->lbprm.set_server_status_up(s);
 
@@ -745,13 +749,13 @@ static int httpchk_build_status_header(struct server *s, char *buffer, int size)
 
 	if (!(s->check.state & CHK_ST_ENABLED))
 		sv_state = 6;
-	else if (s->state & SRV_STF_RUNNING) {
+	else if (s->state != SRV_ST_STOPPED) {
 		if (s->check.health == s->check.rise + s->check.fall - 1)
 			sv_state = 3; /* UP */
 		else
 			sv_state = 2; /* going down */
 
-		if (s->state & SRV_STF_GOINGDOWN)
+		if (s->state == SRV_ST_STOPPING)
 			sv_state += 2;
 	} else {
 		if (s->check.health)
@@ -762,8 +766,8 @@ static int httpchk_build_status_header(struct server *s, char *buffer, int size)
 
 	hlen += snprintf(buffer + hlen, size - hlen,
 			     srv_hlt_st[sv_state],
-			     (s->state & SRV_STF_RUNNING) ? (s->check.health - s->check.rise + 1) : (s->check.health),
-			     (s->state & SRV_STF_RUNNING) ? (s->check.fall) : (s->check.rise));
+			     (s->state != SRV_ST_STOPPED) ? (s->check.health - s->check.rise + 1) : (s->check.health),
+			     (s->state != SRV_ST_STOPPED) ? (s->check.fall) : (s->check.rise));
 
 	hlen += snprintf(buffer + hlen,  size - hlen, "; name=%s/%s; node=%s; weight=%d/%d; scur=%d/%d; qcur=%d",
 			     s->proxy->id, s->id,
@@ -773,7 +777,7 @@ static int httpchk_build_status_header(struct server *s, char *buffer, int size)
 			     s->cur_sess, s->proxy->beconn - s->proxy->nbpend,
 			     s->nbpend);
 
-	if ((s->state & SRV_STF_WARMINGUP) &&
+	if ((s->state == SRV_ST_STARTING) &&
 	    now.tv_sec < s->last_change + s->slowstart &&
 	    now.tv_sec >= s->last_change) {
 		ratio = MAX(1, 100 * (now.tv_sec - s->last_change) / s->slowstart);
@@ -1084,7 +1088,7 @@ static void event_srv_chk_r(struct connection *conn)
 		desc = ltrim(check->bi->data + 12, ' ');
 		
 		if ((s->proxy->options & PR_O_DISABLE404) &&
-			 (s->state & SRV_STF_RUNNING) && (check->code == 404)) {
+			 (s->state != SRV_ST_STOPPED) && (check->code == 404)) {
 			/* 404 may be accepted as "stopping" only if the server was up */
 			cut_crlf(desc);
 			set_server_check_status(check, HCHK_STATUS_L7OKCD, desc);
@@ -1481,9 +1485,10 @@ static struct task *server_warmup(struct task *t)
 	/* by default, plan on stopping the task */
 	t->expire = TICK_ETERNITY;
 	if ((s->admin & SRV_ADMF_MAINT) ||
-	    (s->state & (SRV_STF_RUNNING|SRV_STF_WARMINGUP)) != (SRV_STF_RUNNING|SRV_STF_WARMINGUP))
+	    (s->state != SRV_ST_STARTING))
 		return t;
 
+	/* recalculate the weights and update the state */
 	server_recalc_eweight(s);
 
 	/* probably that we can refill this server with a bit more connections */
@@ -1492,7 +1497,7 @@ static struct task *server_warmup(struct task *t)
 	/* get back there in 1 second or 1/20th of the slowstart interval,
 	 * whichever is greater, resulting in small 5% steps.
 	 */
-	if (s->state & SRV_STF_WARMINGUP)
+	if (s->state == SRV_ST_STARTING)
 		t->expire = tick_add(now_ms, MS_TO_TICKS(MAX(1000, s->slowstart / 20)));
 	return t;
 }
@@ -1701,10 +1706,10 @@ static struct task *process_chk(struct task *t)
 			check_failed(check);
 		else {  /* check was OK */
 			/* we may have to add/remove this server from the LB group */
-			if ((s->state & SRV_STF_RUNNING) && (s->proxy->options & PR_O_DISABLE404)) {
-				if ((s->state & SRV_STF_GOINGDOWN) && (check->result != CHK_RES_CONDPASS))
+			if ((s->state != SRV_ST_STOPPED) && (s->proxy->options & PR_O_DISABLE404)) {
+				if ((s->state == SRV_ST_STOPPING) && (check->result != CHK_RES_CONDPASS))
 					set_server_enabled(check);
-				else if (!(s->state & SRV_STF_GOINGDOWN) && (check->result == CHK_RES_CONDPASS))
+				else if ((s->state != SRV_ST_STOPPING) && (check->result == CHK_RES_CONDPASS))
 					set_server_disabled(check);
 			}
 

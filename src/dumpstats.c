@@ -1716,7 +1716,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 					/* If this server tracks the status of another one,
 					* we must restore the good status.
 					*/
-					if (sv->track->state & SRV_STF_RUNNING) {
+					if (sv->track->state != SRV_ST_STOPPED) {
 						set_server_up(&sv->check);
 						sv->check.health = sv->check.rise;	/* up, but will fall down at first failure */
 					} else {
@@ -2923,8 +2923,8 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			chunk_appendf(&trash, "%s ", human_time(now.tv_sec - ref->last_change, 1));
 			chunk_appendf(&trash,
 			              srv_hlt_st[state],
-			              (ref->state & SRV_STF_RUNNING) ? (ref->check.health - ref->check.rise + 1) : (ref->check.health),
-			              (ref->state & SRV_STF_RUNNING) ? (ref->check.fall) : (ref->check.rise));
+			              (ref->state != SRV_ST_STOPPED) ? (ref->check.health - ref->check.rise + 1) : (ref->check.health),
+			              (ref->state != SRV_ST_STOPPED) ? (ref->check.fall) : (ref->check.rise));
 		}
 
 		if (sv->check.state & CHK_ST_ENABLED) {
@@ -2987,7 +2987,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			chunk_appendf(&trash, "<td colspan=3></td>");
 
 		/* throttle */
-		if ((sv->state & SRV_STF_WARMINGUP) && !server_is_draining(sv))
+		if (sv->state == SRV_ST_STARTING && !server_is_draining(sv))
 			chunk_appendf(&trash, "<td class=ac>%d %%</td></tr>\n", server_throttle_rate(sv));
 		else
 			chunk_appendf(&trash, "<td class=ac>-</td></tr>\n");
@@ -3037,8 +3037,8 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		else
 			chunk_appendf(&trash,
 			              srv_hlt_st[state],
-			              (ref->state & SRV_STF_RUNNING) ? (ref->check.health - ref->check.rise + 1) : (ref->check.health),
-			              (ref->state & SRV_STF_RUNNING) ? (ref->check.fall) : (ref->check.rise));
+			              (ref->state != SRV_ST_STOPPED) ? (ref->check.health - ref->check.rise + 1) : (ref->check.health),
+			              (ref->state != SRV_ST_STOPPED) ? (ref->check.fall) : (ref->check.rise));
 
 		chunk_appendf(&trash,
 		              /* weight, active, backup */
@@ -3065,7 +3065,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		              relative_pid, px->uuid, sv->puid);
 
 		/* throttle */
-		if ((sv->state & SRV_STF_WARMINGUP) && !server_is_draining(sv))
+		if (sv->state == SRV_ST_STARTING && !server_is_draining(sv))
 			chunk_appendf(&trash, "%d", server_throttle_rate(sv));
 
 		/* sessions: lbtot */
@@ -3621,7 +3621,7 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 			/* FIXME: produce some small strings for "UP/DOWN x/y &#xxxx;" */
 			if (!(svs->check.state & CHK_ST_ENABLED))
 				sv_state = 8;
-			else if (svs->state & SRV_STF_RUNNING) {
+			else if (svs->state != SRV_ST_STOPPED) {
 				if (svs->check.health == svs->check.rise + svs->check.fall - 1)
 					sv_state = 3; /* UP */
 				else
@@ -3629,7 +3629,7 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 
 				if (server_is_draining(sv))
 					sv_state += 4;
-				else if (svs->state & SRV_STF_GOINGDOWN)
+				else if (svs->state == SRV_ST_STOPPING)
 					sv_state += 2;
 			}
 			else
@@ -4264,7 +4264,7 @@ static int stats_process_http_post(struct stream_interface *si)
 							 * If this server tracks the status of another one,
 							 * we must restore the good status.
 							 */
-							if (!sv->track || (sv->track->state & SRV_STF_RUNNING)) {
+							if (!sv->track || (sv->track->state != SRV_ST_STOPPED)) {
 								set_server_up(&sv->check);
 								sv->check.health = sv->check.rise;	/* up, but will fall down at first failure */
 							}

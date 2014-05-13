@@ -101,7 +101,7 @@ void recalc_server_map(struct proxy *px)
 		for (cur = px->srv; cur; cur = cur->next) {
 			if (cur->eweight &&
 			    (cur->flags & SRV_F_BACKUP) == flag &&
-			    (cur->state & (SRV_STF_RUNNING | SRV_STF_GOINGDOWN)) == SRV_STF_RUNNING) {
+			    (cur->state == SRV_ST_STARTING || cur->state == SRV_ST_RUNNING)) {
 				int v;
 
 				/* If we are forced to return only one server, we don't want to

@@ -32,7 +32,7 @@ static struct srv_kw_list srv_keywords = {
 
 int srv_downtime(const struct server *s)
 {
-	if ((s->state & SRV_STF_RUNNING) && s->last_change < now.tv_sec)		// ignore negative time
+	if ((s->state != SRV_ST_STOPPED) && s->last_change < now.tv_sec)		// ignore negative time
 		return s->down_time;
 
 	return now.tv_sec - s->last_change + s->down_time;
@@ -53,7 +53,7 @@ int srv_getinter(const struct check *check)
 	if ((check->state & CHK_ST_CONFIGURED) && (check->health == check->rise + check->fall - 1))
 		return check->inter;
 
-	if (!(s->state & SRV_STF_RUNNING) && check->health == 0)
+	if ((s->state == SRV_ST_STOPPED) && check->health == 0)
 		return (check->downinter)?(check->downinter):(check->inter);
 
 	return (check->fastinter)?(check->fastinter):(check->inter);
@@ -185,13 +185,14 @@ void server_recalc_eweight(struct server *sv)
 
 	if (now.tv_sec < sv->last_change || now.tv_sec >= sv->last_change + sv->slowstart) {
 		/* go to full throttle if the slowstart interval is reached */
-		sv->state &= ~SRV_STF_WARMINGUP;
+		if (sv->state == SRV_ST_STARTING)
+			sv->state = SRV_ST_RUNNING;
 	}
 
 	/* We must take care of not pushing the server to full throttle during slow starts.
 	 * It must also start immediately, at least at the minimal step when leaving maintenance.
 	 */
-	if ((sv->state & SRV_STF_WARMINGUP) && (px->lbprm.algo & BE_LB_PROP_DYN))
+	if ((sv->state == SRV_ST_STARTING) && (px->lbprm.algo & BE_LB_PROP_DYN))
 		w = (px->lbprm.wdiv * (now.tv_sec - sv->last_change) + sv->slowstart) / sv->slowstart;
 	else
 		w = px->lbprm.wdiv;
@@ -347,7 +348,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			do_agent = 0;
 			newsrv->flags = 0;
 			newsrv->admin = 0;
-			newsrv->state = SRV_STF_RUNNING; /* early server setup */
+			newsrv->state = SRV_ST_RUNNING; /* early server setup */
 			newsrv->last_change = now.tv_sec;
 			newsrv->id = strdup(args[1]);
 
@@ -682,7 +683,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			}
 			else if (!defsrv && !strcmp(args[cur_arg], "disabled")) {
 				newsrv->admin |= SRV_ADMF_FMAINT;
-				newsrv->state &= ~SRV_STF_RUNNING;
+				newsrv->state = SRV_ST_STOPPED;
 				newsrv->check.state |= CHK_ST_PAUSED;
 				newsrv->check.health = 0;
 				newsrv->agent.health = 0;

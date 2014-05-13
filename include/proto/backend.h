@@ -63,11 +63,15 @@ static inline int srv_is_usable(const struct server *srv)
 		return 0;
 	if (srv->admin & SRV_ADMF_MAINT)
 		return 0;
-	if (state & SRV_STF_GOINGDOWN)
+	switch (state) {
+	case SRV_ST_STARTING:
+	case SRV_ST_RUNNING:
+		return 1;
+	case SRV_ST_STOPPING:
+	case SRV_ST_STOPPED:
 		return 0;
-	if (!(state & SRV_STF_RUNNING))
-		return 0;
-	return 1;
+	}
+	return 0;
 }
 
 /* This function returns non-zero if the designated server was usable for LB
@@ -81,11 +85,15 @@ static inline int srv_was_usable(const struct server *srv)
 		return 0;
 	if (srv->prev_admin & SRV_ADMF_MAINT)
 		return 0;
-	if (state & SRV_STF_GOINGDOWN)
+	switch (state) {
+	case SRV_ST_STARTING:
+	case SRV_ST_RUNNING:
+		return 1;
+	case SRV_ST_STOPPING:
+	case SRV_ST_STOPPED:
 		return 0;
-	if (!(state & SRV_STF_RUNNING))
-		return 0;
-	return 1;
+	}
+	return 0;
 }
 
 /* This function commits the current server state and weight onto the previous

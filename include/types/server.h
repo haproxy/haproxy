@@ -43,11 +43,12 @@
 #include <types/checks.h>
 
 
-/* server states, still used as cumulative flags */
+/* server states. Only SRV_ST_DOWN indicates a down server. */
 enum srv_state {
-	SRV_STF_RUNNING    = 0x1,        /* the server is UP */
-	SRV_STF_GOINGDOWN  = 0x2,        /* the server is going down (eg: 404) */
-	SRV_STF_WARMINGUP  = 0x4,        /* the server is warming up after a failure */
+	SRV_ST_STOPPED = 0,              /* the server is down. Please keep set to zero. */
+	SRV_ST_STARTING,                 /* the server is warming up (up but throttled) */
+	SRV_ST_RUNNING,                  /* the server is fully up */
+	SRV_ST_STOPPING,                 /* the server is up but soft-stopping (eg: 404) */
 };
 
 /* Maintenance mode : each server may be in maintenance by itself or may inherit
@@ -113,7 +114,7 @@ struct tree_occ {
 
 struct server {
 	enum obj_type obj_type;                 /* object type == OBJ_TYPE_SERVER */
-	enum srv_state state, prev_state;       /* server state among SRV_STF_* */
+	enum srv_state state, prev_state;       /* server state among SRV_ST_* */
 	enum srv_admin admin, prev_admin;       /* server maintenance status : SRV_ADMF_* */
 	unsigned char flags;                    /* server flags (SRV_F_*) */
 	struct server *next;
