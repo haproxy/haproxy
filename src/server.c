@@ -32,7 +32,7 @@ static struct srv_kw_list srv_keywords = {
 
 int srv_downtime(const struct server *s)
 {
-	if ((s->state & SRV_RUNNING) && s->last_change < now.tv_sec)		// ignore negative time
+	if ((s->state & SRV_STF_RUNNING) && s->last_change < now.tv_sec)		// ignore negative time
 		return s->down_time;
 
 	return now.tv_sec - s->last_change + s->down_time;
@@ -53,7 +53,7 @@ int srv_getinter(const struct check *check)
 	if ((check->state & CHK_ST_CONFIGURED) && (check->health == check->rise + check->fall - 1))
 		return check->inter;
 
-	if (!(s->state & SRV_RUNNING) && check->health == 0)
+	if (!(s->state & SRV_STF_RUNNING) && check->health == 0)
 		return (check->downinter)?(check->downinter):(check->inter);
 
 	return (check->fastinter)?(check->fastinter):(check->inter);
@@ -185,13 +185,13 @@ void server_recalc_eweight(struct server *sv)
 
 	if (now.tv_sec < sv->last_change || now.tv_sec >= sv->last_change + sv->slowstart) {
 		/* go to full throttle if the slowstart interval is reached */
-		sv->state &= ~SRV_WARMINGUP;
+		sv->state &= ~SRV_STF_WARMINGUP;
 	}
 
 	/* We must take care of not pushing the server to full throttle during slow starts.
 	 * It must also start immediately, at least at the minimal step when leaving maintenance.
 	 */
-	if ((sv->state & SRV_WARMINGUP) && (px->lbprm.algo & BE_LB_PROP_DYN))
+	if ((sv->state & SRV_STF_WARMINGUP) && (px->lbprm.algo & BE_LB_PROP_DYN))
 		w = (px->lbprm.wdiv * (now.tv_sec - sv->last_change) + sv->slowstart) / sv->slowstart;
 	else
 		w = px->lbprm.wdiv;
@@ -345,7 +345,8 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			LIST_INIT(&newsrv->pendconns);
 			do_check = 0;
 			do_agent = 0;
-			newsrv->state = SRV_RUNNING; /* early server setup */
+			newsrv->flags = 0;
+			newsrv->state = SRV_STF_RUNNING; /* early server setup */
 			newsrv->last_change = now.tv_sec;
 			newsrv->id = strdup(args[1]);
 
@@ -373,7 +374,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 
 			if (!port1 || !port2) {
 				/* no port specified, +offset, -offset */
-				newsrv->state |= SRV_MAPPORTS;
+				newsrv->flags |= SRV_F_MAPPORTS;
 			}
 			else if (port1 != port2) {
 				/* port range */
@@ -605,11 +606,11 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				cur_arg += 2;
 			}
 			else if (!defsrv && !strcmp(args[cur_arg], "backup")) {
-				newsrv->state |= SRV_BACKUP;
+				newsrv->flags |= SRV_F_BACKUP;
 				cur_arg ++;
 			}
 			else if (!defsrv && !strcmp(args[cur_arg], "non-stick")) {
-				newsrv->state |= SRV_NON_STICK;
+				newsrv->flags |= SRV_F_NON_STICK;
 				cur_arg ++;
 			}
 			else if (!defsrv && !strcmp(args[cur_arg], "send-proxy")) {
@@ -679,8 +680,8 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				cur_arg += 1;
 			}
 			else if (!defsrv && !strcmp(args[cur_arg], "disabled")) {
-				newsrv->state |= SRV_MAINTAIN;
-				newsrv->state &= ~SRV_RUNNING;
+				newsrv->state |= SRV_STF_MAINTAIN;
+				newsrv->state &= ~SRV_STF_RUNNING;
 				newsrv->check.state |= CHK_ST_PAUSED;
 				newsrv->check.health = 0;
 				newsrv->agent.health = 0;
@@ -1138,7 +1139,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 		}
 
 		if (!defsrv) {
-			if (newsrv->state & SRV_BACKUP)
+			if (newsrv->flags & SRV_F_BACKUP)
 				curproxy->srv_bck++;
 			else
 				curproxy->srv_act++;

@@ -79,7 +79,7 @@ static void fwlc_set_server_status_down(struct server *srv)
 		/* server was already down */
 		goto out_update_backend;
 
-	if (srv->state & SRV_BACKUP) {
+	if (srv->flags & SRV_F_BACKUP) {
 		p->lbprm.tot_wbck -= srv->prev_eweight;
 		p->srv_bck--;
 
@@ -91,7 +91,7 @@ static void fwlc_set_server_status_down(struct server *srv)
 			do {
 				srv2 = srv2->next;
 			} while (srv2 &&
-				 !((srv2->state & SRV_BACKUP) &&
+				 !((srv2->flags & SRV_F_BACKUP) &&
 				   srv_is_usable(srv2)));
 			p->lbprm.fbck = srv2;
 		}
@@ -131,7 +131,7 @@ static void fwlc_set_server_status_up(struct server *srv)
 		/* server was already up */
 		goto out_update_backend;
 
-	if (srv->state & SRV_BACKUP) {
+	if (srv->flags & SRV_F_BACKUP) {
 		srv->lb_tree = &p->lbprm.fwlc.bck;
 		p->lbprm.tot_wbck += srv->eweight;
 		p->srv_bck++;
@@ -206,7 +206,7 @@ static void fwlc_update_server_weight(struct server *srv)
 	if (srv->lb_tree)
 		fwlc_dequeue_srv(srv);
 
-	if (srv->state & SRV_BACKUP) {
+	if (srv->flags & SRV_F_BACKUP) {
 		p->lbprm.tot_wbck += srv->eweight - srv->prev_eweight;
 		srv->lb_tree = &p->lbprm.fwlc.bck;
 	} else {
@@ -251,7 +251,7 @@ void fwlc_init_server_tree(struct proxy *p)
 	for (srv = p->srv; srv; srv = srv->next) {
 		if (!srv_is_usable(srv))
 			continue;
-		srv->lb_tree = (srv->state & SRV_BACKUP) ? &p->lbprm.fwlc.bck : &p->lbprm.fwlc.act;
+		srv->lb_tree = (srv->flags & SRV_F_BACKUP) ? &p->lbprm.fwlc.bck : &p->lbprm.fwlc.act;
 		fwlc_queue_srv(srv);
 	}
 }

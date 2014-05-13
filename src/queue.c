@@ -50,7 +50,7 @@ unsigned int srv_dynamic_maxconn(const struct server *s)
 	else max = MAX(s->minconn,
 		       s->proxy->beconn * s->maxconn / s->proxy->fullconn);
 
-	if ((s->state & SRV_WARMINGUP) &&
+	if ((s->state & SRV_STF_WARMINGUP) &&
 	    now.tv_sec < s->last_change + s->slowstart &&
 	    now.tv_sec >= s->last_change) {
 		unsigned int ratio;

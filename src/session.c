@@ -1375,7 +1375,7 @@ static int process_server_rules(struct session *s, struct channel *req, int an_b
 			if (ret) {
 				struct server *srv = rule->srv.ptr;
 
-				if ((srv->state & SRV_RUNNING) ||
+				if ((srv->state & SRV_STF_RUNNING) ||
 				    (px->options & PR_O_PERSIST) ||
 				    (s->flags & SN_FORCE_PRST)) {
 					s->flags |= SN_DIRECT | SN_ASSIGNED;
@@ -1460,7 +1460,7 @@ static int process_sticking_rules(struct session *s, struct channel *req, int an
 							struct server *srv;
 
 							srv = container_of(node, struct server, conf.id);
-							if ((srv->state & SRV_RUNNING) ||
+							if ((srv->state & SRV_STF_RUNNING) ||
 							    (px->options & PR_O_PERSIST) ||
 							    (s->flags & SN_FORCE_PRST)) {
 								s->flags |= SN_DIRECT | SN_ASSIGNED;
@@ -1565,7 +1565,7 @@ static int process_store_rules(struct session *s, struct channel *rep, int an_bi
 		struct stksess *ts;
 		void *ptr;
 
-		if (objt_server(s->target) && objt_server(s->target)->state & SRV_NON_STICK) {
+		if (objt_server(s->target) && objt_server(s->target)->flags & SRV_F_NON_STICK) {
 			stksess_free(s->store[i].table, s->store[i].ts);
 			s->store[i].ts = NULL;
 			continue;

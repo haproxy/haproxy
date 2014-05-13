@@ -108,7 +108,7 @@ static void chash_set_server_status_down(struct server *srv)
 		/* server was already down */
 		goto out_update_backend;
 
-	if (srv->state & SRV_BACKUP) {
+	if (srv->flags & SRV_F_BACKUP) {
 		p->lbprm.tot_wbck -= srv->prev_eweight;
 		p->srv_bck--;
 
@@ -120,7 +120,7 @@ static void chash_set_server_status_down(struct server *srv)
 			do {
 				srv2 = srv2->next;
 			} while (srv2 &&
-				 !((srv2->state & SRV_BACKUP) &&
+				 !((srv2->flags & SRV_F_BACKUP) &&
 				   srv_is_usable(srv2)));
 			p->lbprm.fbck = srv2;
 		}
@@ -159,7 +159,7 @@ static void chash_set_server_status_up(struct server *srv)
 		/* server was already up */
 		goto out_update_backend;
 
-	if (srv->state & SRV_BACKUP) {
+	if (srv->flags & SRV_F_BACKUP) {
 		p->lbprm.tot_wbck += srv->eweight;
 		p->srv_bck++;
 
@@ -232,7 +232,7 @@ static void chash_update_server_weight(struct server *srv)
 	/* only adjust the server's presence in the tree */
 	chash_queue_dequeue_srv(srv);
 
-	if (srv->state & SRV_BACKUP)
+	if (srv->flags & SRV_F_BACKUP)
 		p->lbprm.tot_wbck += srv->eweight - srv->prev_eweight;
 	else
 		p->lbprm.tot_wact += srv->eweight - srv->prev_eweight;
@@ -388,7 +388,7 @@ void chash_init_server_tree(struct proxy *p)
 
 	/* queue active and backup servers in two distinct groups */
 	for (srv = p->srv; srv; srv = srv->next) {
-		srv->lb_tree = (srv->state & SRV_BACKUP) ? &p->lbprm.chash.bck : &p->lbprm.chash.act;
+		srv->lb_tree = (srv->flags & SRV_F_BACKUP) ? &p->lbprm.chash.bck : &p->lbprm.chash.act;
 		srv->lb_nodes_tot = srv->uweight * BE_WEIGHT_SCALE;
 		srv->lb_nodes_now = 0;
 		srv->lb_nodes = (struct tree_occ *)calloc(srv->lb_nodes_tot, sizeof(struct tree_occ));

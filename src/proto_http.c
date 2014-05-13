@@ -7069,12 +7069,12 @@ void manage_client_side_appsession(struct session *s, const char *buf, int len) 
 
 			while (srv) {
 				if (strcmp(srv->id, asession->serverid) == 0) {
-					if ((srv->state & SRV_RUNNING) ||
+					if ((srv->state & SRV_STF_RUNNING) ||
 					    (s->be->options & PR_O_PERSIST) ||
 					    (s->flags & SN_FORCE_PRST)) {
 						/* we found the server and it's usable */
 						txn->flags &= ~TX_CK_MASK;
-						txn->flags |= (srv->state & SRV_RUNNING) ? TX_CK_VALID : TX_CK_DOWN;
+						txn->flags |= (srv->state & SRV_STF_RUNNING) ? TX_CK_VALID : TX_CK_DOWN;
 						s->flags |= SN_DIRECT | SN_ASSIGNED;
 						s->target = &srv->obj_type;
 
@@ -7479,12 +7479,12 @@ void manage_client_side_cookies(struct session *s, struct channel *req)
 				while (srv) {
 					if (srv->cookie && (srv->cklen == delim - val_beg) &&
 					    !memcmp(val_beg, srv->cookie, delim - val_beg)) {
-						if ((srv->state & SRV_RUNNING) ||
+						if ((srv->state & SRV_STF_RUNNING) ||
 						    (s->be->options & PR_O_PERSIST) ||
 						    (s->flags & SN_FORCE_PRST)) {
 							/* we found the server and we can use it */
 							txn->flags &= ~TX_CK_MASK;
-							txn->flags |= (srv->state & SRV_RUNNING) ? TX_CK_VALID : TX_CK_DOWN;
+							txn->flags |= (srv->state & SRV_STF_RUNNING) ? TX_CK_VALID : TX_CK_DOWN;
 							s->flags |= SN_DIRECT | SN_ASSIGNED;
 							s->target = &srv->obj_type;
 							break;

@@ -82,9 +82,9 @@ void recalc_server_map(struct proxy *px)
 
 	/* here we *know* that we have some servers */
 	if (px->srv_act)
-		flag = SRV_RUNNING;
+		flag = 0;
 	else
-		flag = SRV_RUNNING | SRV_BACKUP;
+		flag = SRV_F_BACKUP;
 
 	/* this algorithm gives priority to the first server, which means that
 	 * it will respect the declaration order for equivalent weights, and
@@ -100,8 +100,8 @@ void recalc_server_map(struct proxy *px)
 		best = NULL;
 		for (cur = px->srv; cur; cur = cur->next) {
 			if (cur->eweight &&
-			    flag == (cur->state &
-				     (SRV_RUNNING | SRV_GOINGDOWN | SRV_BACKUP))) {
+			    (cur->flags & SRV_F_BACKUP) == flag &&
+			    (cur->state & (SRV_STF_RUNNING | SRV_STF_GOINGDOWN)) == SRV_STF_RUNNING) {
 				int v;
 
 				/* If we are forced to return only one server, we don't want to
@@ -179,7 +179,7 @@ void init_server_map(struct proxy *p)
 		srv->eweight = (srv->uweight * p->lbprm.wdiv + p->lbprm.wmult - 1) / p->lbprm.wmult;
 		srv_lb_commit_status(srv);
 
-		if (srv->state & SRV_BACKUP)
+		if (srv->flags & SRV_F_BACKUP)
 			bck += srv->eweight;
 		else
 			act += srv->eweight;

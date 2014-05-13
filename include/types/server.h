@@ -43,17 +43,18 @@
 #include <types/checks.h>
 
 
+/* server states, still used as cumulative flags */
+enum srv_state {
+	SRV_STF_RUNNING    = 0x1,        /* the server is UP */
+	SRV_STF_GOINGDOWN  = 0x2,        /* the server is going down (eg: 404) */
+	SRV_STF_WARMINGUP  = 0x4,        /* the server is warming up after a failure */
+	SRV_STF_MAINTAIN   = 0x8,        /* the server is in maintenance mode */
+};
+
 /* server flags */
-#define SRV_RUNNING	0x0001	/* the server is UP */
-#define SRV_BACKUP	0x0002	/* this server is a backup server */
-#define SRV_MAPPORTS	0x0004	/* this server uses mapped ports */
-/* unused: 0x0008 */
-/* unused: 0x0010 */
-#define SRV_GOINGDOWN	0x0020	/* this server says that it's going down (404) */
-#define SRV_WARMINGUP	0x0040	/* this server is warming up after a failure */
-#define SRV_MAINTAIN	0x0080	/* this server is in maintenance mode */
-/* unused: 0x0100, 0x0200, 0x0400, 0x0800 */
-#define SRV_NON_STICK	0x1000	/* never add connections allocated to this server to a stick table */
+#define SRV_F_BACKUP       0x0001        /* this server is a backup server */
+#define SRV_F_MAPPORTS     0x0002        /* this server uses mapped ports */
+#define SRV_F_NON_STICK    0x0004        /* never add connections allocated to this server to a stick table */
 
 /* configured server options for send-proxy (server->pp_opts) */
 #define SRV_PP_V1          0x0001        /* proxy protocol version 1 */
@@ -103,9 +104,9 @@ struct tree_occ {
 
 struct server {
 	enum obj_type obj_type;                 /* object type == OBJ_TYPE_SERVER */
+	enum srv_state state, prev_state;       /* server state among SRV_STF_* */
+	unsigned char flags;                    /* server flags (SRV_F_*) */
 	struct server *next;
-	int state;				/* server state (SRV_*) */
-	int prev_state;				/* server state before last change (SRV_*) */
 	int cklen;				/* the len of the cookie, to speed up checks */
 	int rdr_len;				/* the length of the redirection prefix */
 	char *cookie;				/* the id set in the cookie */

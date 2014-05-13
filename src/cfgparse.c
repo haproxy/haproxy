@@ -6617,8 +6617,8 @@ out_uri_auth_compat:
 				}
 
 				/* if the other server is forced disabled, we have to do the same here */
-				if (srv->state & SRV_MAINTAIN) {
-					newsrv->state &= ~SRV_RUNNING;
+				if (srv->state & SRV_STF_MAINTAIN) {
+					newsrv->state &= ~SRV_STF_RUNNING;
 					newsrv->check.health = 0;
 					newsrv->agent.health = 0;
 				}
@@ -6754,7 +6754,7 @@ out_uri_auth_compat:
 				err_code |= ERR_WARN;
 			}
 
-			if ((newsrv->state & SRV_MAPPORTS) && (curproxy->options2 & PR_O2_RDPC_PRST)) {
+			if ((newsrv->flags & SRV_F_MAPPORTS) && (curproxy->options2 & PR_O2_RDPC_PRST)) {
 				Warning("config : %s '%s' : RDP cookie persistence will not work for server '%s' because it lacks an explicit port number.\n",
 				        proxy_type_str(curproxy), curproxy->id, newsrv->id);
 				err_code |= ERR_WARN;

@@ -57,13 +57,13 @@ static void inline be_set_sess_last(struct proxy *be)
  */
 static inline int srv_is_usable(const struct server *srv)
 {
-	int state = srv->state;
+	enum srv_state state = srv->state;
 
 	if (!srv->eweight)
 		return 0;
-	if (state & (SRV_GOINGDOWN | SRV_MAINTAIN))
+	if (state & (SRV_STF_GOINGDOWN | SRV_STF_MAINTAIN))
 		return 0;
-	if (!(state & SRV_RUNNING))
+	if (!(state & SRV_STF_RUNNING))
 		return 0;
 	return 1;
 }
@@ -73,13 +73,13 @@ static inline int srv_is_usable(const struct server *srv)
  */
 static inline int srv_was_usable(const struct server *srv)
 {
-	int state = srv->prev_state;
+	enum srv_state state = srv->prev_state;
 
 	if (!srv->prev_eweight)
 		return 0;
-	if (state & (SRV_GOINGDOWN | SRV_MAINTAIN))
+	if (state & (SRV_STF_GOINGDOWN | SRV_STF_MAINTAIN))
 		return 0;
-	if (!(state & SRV_RUNNING))
+	if (!(state & SRV_STF_RUNNING))
 		return 0;
 	return 1;
 }

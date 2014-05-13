@@ -49,10 +49,10 @@ static void fwrr_set_server_status_down(struct server *srv)
 		/* server was already down */
 		goto out_update_backend;
 
-	grp = (srv->state & SRV_BACKUP) ? &p->lbprm.fwrr.bck : &p->lbprm.fwrr.act;
+	grp = (srv->flags & SRV_F_BACKUP) ? &p->lbprm.fwrr.bck : &p->lbprm.fwrr.act;
 	grp->next_weight -= srv->prev_eweight;
 
-	if (srv->state & SRV_BACKUP) {
+	if (srv->flags & SRV_F_BACKUP) {
 		p->lbprm.tot_wbck = p->lbprm.fwrr.bck.next_weight;
 		p->srv_bck--;
 
@@ -64,7 +64,7 @@ static void fwrr_set_server_status_down(struct server *srv)
 			do {
 				srv2 = srv2->next;
 			} while (srv2 &&
-				 !((srv2->state & SRV_BACKUP) &&
+				 !((srv2->flags & SRV_F_BACKUP) &&
 				   srv_is_usable(srv2)));
 			p->lbprm.fbck = srv2;
 		}
@@ -105,10 +105,10 @@ static void fwrr_set_server_status_up(struct server *srv)
 		/* server was already up */
 		goto out_update_backend;
 
-	grp = (srv->state & SRV_BACKUP) ? &p->lbprm.fwrr.bck : &p->lbprm.fwrr.act;
+	grp = (srv->flags & SRV_F_BACKUP) ? &p->lbprm.fwrr.bck : &p->lbprm.fwrr.act;
 	grp->next_weight += srv->eweight;
 
-	if (srv->state & SRV_BACKUP) {
+	if (srv->flags & SRV_F_BACKUP) {
 		p->lbprm.tot_wbck = p->lbprm.fwrr.bck.next_weight;
 		p->srv_bck++;
 
@@ -181,7 +181,7 @@ static void fwrr_update_server_weight(struct server *srv)
 		return;
 	}
 
-	grp = (srv->state & SRV_BACKUP) ? &p->lbprm.fwrr.bck : &p->lbprm.fwrr.act;
+	grp = (srv->flags & SRV_F_BACKUP) ? &p->lbprm.fwrr.bck : &p->lbprm.fwrr.act;
 	grp->next_weight = grp->next_weight - srv->prev_eweight + srv->eweight;
 
 	p->lbprm.tot_wact = p->lbprm.fwrr.act.next_weight;
@@ -292,7 +292,7 @@ void fwrr_init_server_groups(struct proxy *p)
 	for (srv = p->srv; srv; srv = srv->next) {
 		if (!srv_is_usable(srv))
 			continue;
-		fwrr_queue_by_weight((srv->state & SRV_BACKUP) ?
+		fwrr_queue_by_weight((srv->flags & SRV_F_BACKUP) ?
 				p->lbprm.fwrr.bck.init :
 				p->lbprm.fwrr.act.init,
 				srv);
@@ -314,7 +314,7 @@ static void fwrr_queue_srv(struct server *s)
 	struct proxy *p = s->proxy;
 	struct fwrr_group *grp;
 
-	grp = (s->state & SRV_BACKUP) ? &p->lbprm.fwrr.bck : &p->lbprm.fwrr.act;
+	grp = (s->flags & SRV_F_BACKUP) ? &p->lbprm.fwrr.bck : &p->lbprm.fwrr.act;
 	
 	/* Delay everything which does not fit into the window and everything
 	 * which does not fit into the theorical new window.
@@ -355,7 +355,7 @@ static inline void fwrr_get_srv_init(struct server *s)
 /* prepares a server when extracting it from the "next" tree */
 static inline void fwrr_get_srv_next(struct server *s)
 {
-	struct fwrr_group *grp = (s->state & SRV_BACKUP) ?
+	struct fwrr_group *grp = (s->flags & SRV_F_BACKUP) ?
 		&s->proxy->lbprm.fwrr.bck :
 		&s->proxy->lbprm.fwrr.act;
 
@@ -365,7 +365,7 @@ static inline void fwrr_get_srv_next(struct server *s)
 /* prepares a server when it was marked down */
 static inline void fwrr_get_srv_down(struct server *s)
 {
-	struct fwrr_group *grp = (s->state & SRV_BACKUP) ?
+	struct fwrr_group *grp = (s->flags & SRV_F_BACKUP) ?
 		&s->proxy->lbprm.fwrr.bck :
 		&s->proxy->lbprm.fwrr.act;
 
@@ -376,7 +376,7 @@ static inline void fwrr_get_srv_down(struct server *s)
 static void fwrr_get_srv(struct server *s)
 {
 	struct proxy *p = s->proxy;
-	struct fwrr_group *grp = (s->state & SRV_BACKUP) ?
+	struct fwrr_group *grp = (s->flags & SRV_F_BACKUP) ?
 		&p->lbprm.fwrr.bck :
 		&p->lbprm.fwrr.act;
 

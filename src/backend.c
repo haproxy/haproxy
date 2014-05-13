@@ -100,7 +100,7 @@ void recount_servers(struct proxy *px)
 		if (!srv_is_usable(srv))
 			continue;
 
-		if (srv->state & SRV_BACKUP) {
+		if (srv->flags & SRV_F_BACKUP) {
 			if (!px->srv_bck &&
 			    !(px->options & PR_O_USE_ALL_BK))
 				px->lbprm.fbck = srv;
@@ -767,7 +767,7 @@ int assign_server_address(struct session *s)
 
 		/* if this server remaps proxied ports, we'll use
 		 * the port the client connected to with an offset. */
-		if ((objt_server(s->target)->state & SRV_MAPPORTS) && cli_conn) {
+		if ((objt_server(s->target)->flags & SRV_F_MAPPORTS) && cli_conn) {
 			int base_port;
 
 			conn_get_to_addr(cli_conn);
@@ -1242,7 +1242,7 @@ int tcp_persist_rdp_cookie(struct session *s, struct channel *req, int an_bit)
 	while (srv) {
 		if (srv->addr.ss_family == AF_INET &&
 		    memcmp(&addr, &(srv->addr), sizeof(addr)) == 0) {
-			if ((srv->state & SRV_RUNNING) || (px->options & PR_O_PERSIST)) {
+			if ((srv->state & SRV_STF_RUNNING) || (px->options & PR_O_PERSIST)) {
 				/* we found the server and it is usable */
 				s->flags |= SN_DIRECT | SN_ASSIGNED;
 				s->target = &srv->obj_type;
@@ -1489,8 +1489,8 @@ smp_fetch_srv_is_up(struct proxy *px, struct session *l4, void *l7, unsigned int
 
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_BOOL;
-	if (!(srv->state & SRV_MAINTAIN) &&
-	    (!(srv->check.state & CHK_ST_CONFIGURED) || (srv->state & SRV_RUNNING)))
+	if (!(srv->state & SRV_STF_MAINTAIN) &&
+	    (!(srv->check.state & CHK_ST_CONFIGURED) || (srv->state & SRV_STF_RUNNING)))
 		smp->data.uint = 1;
 	else
 		smp->data.uint = 0;
@@ -1512,7 +1512,7 @@ smp_fetch_connslots(struct proxy *px, struct session *l4, void *l7, unsigned int
 	smp->data.uint = 0;
 
 	for (iterator = args->data.prx->srv; iterator; iterator = iterator->next) {
-		if ((iterator->state & SRV_RUNNING) == 0)
+		if ((iterator->state & SRV_STF_RUNNING) == 0)
 			continue;
 
 		if (iterator->maxconn == 0 || iterator->maxqueue == 0) {
