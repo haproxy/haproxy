@@ -1975,7 +1975,6 @@ static int tcpcheck_get_step_id(struct server *s)
 static void tcpcheck_main(struct connection *conn)
 {
 	char *contentptr;
-	unsigned int contentlen;
 	struct list *head = NULL;
 	struct tcpcheck_rule *cur = NULL;
 	int done = 0, ret = 0;
@@ -2253,10 +2252,9 @@ static void tcpcheck_main(struct connection *conn)
 			}
 
 			contentptr = check->bi->data;
-			contentlen = check->bi->i;
 
 			/* Check that response body is not empty... */
-			if (*contentptr == '\0') {
+			if (!check->bi->i) {
 				if (!done)
 					continue;
 
@@ -2273,7 +2271,7 @@ static void tcpcheck_main(struct connection *conn)
 
 		tcpcheck_expect:
 			if (cur->string != NULL)
-				ret = my_memmem(contentptr, contentlen, cur->string, cur->string_len) != NULL;
+				ret = my_memmem(contentptr, check->bi->i, cur->string, cur->string_len) != NULL;
 			else if (cur->expect_regex != NULL)
 				ret = regexec(cur->expect_regex, contentptr, MAX_MATCH, pmatch, 0) == 0;
 
