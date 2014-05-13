@@ -48,7 +48,16 @@ enum srv_state {
 	SRV_STF_RUNNING    = 0x1,        /* the server is UP */
 	SRV_STF_GOINGDOWN  = 0x2,        /* the server is going down (eg: 404) */
 	SRV_STF_WARMINGUP  = 0x4,        /* the server is warming up after a failure */
-	SRV_STF_MAINTAIN   = 0x8,        /* the server is in maintenance mode */
+};
+
+/* Maintenance mode : each server may be in maintenance by itself or may inherit
+ * this status from another server it tracks. Let's store these origins here as
+ * flags. If no maintenance origin is specified, the server is not in maintenance.
+ */
+enum srv_admin {
+	SRV_ADMF_FMAINT    = 0x1,        /* the server was explicitly forced into maintenance */
+	SRV_ADMF_IMAINT    = 0x2,        /* the server has inherited the maintenance status from a tracked server */
+	SRV_ADMF_MAINT     = 0x3,        /* mask to check if any maintenance flag is present */
 };
 
 /* server flags */
@@ -105,6 +114,7 @@ struct tree_occ {
 struct server {
 	enum obj_type obj_type;                 /* object type == OBJ_TYPE_SERVER */
 	enum srv_state state, prev_state;       /* server state among SRV_STF_* */
+	enum srv_admin admin, prev_admin;       /* server maintenance status : SRV_ADMF_* */
 	unsigned char flags;                    /* server flags (SRV_F_*) */
 	struct server *next;
 	int cklen;				/* the len of the cookie, to speed up checks */

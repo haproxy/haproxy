@@ -346,6 +346,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			do_check = 0;
 			do_agent = 0;
 			newsrv->flags = 0;
+			newsrv->admin = 0;
 			newsrv->state = SRV_STF_RUNNING; /* early server setup */
 			newsrv->last_change = now.tv_sec;
 			newsrv->id = strdup(args[1]);
@@ -680,7 +681,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				cur_arg += 1;
 			}
 			else if (!defsrv && !strcmp(args[cur_arg], "disabled")) {
-				newsrv->state |= SRV_STF_MAINTAIN;
+				newsrv->admin |= SRV_ADMF_FMAINT;
 				newsrv->state &= ~SRV_STF_RUNNING;
 				newsrv->check.state |= CHK_ST_PAUSED;
 				newsrv->check.health = 0;

@@ -61,7 +61,9 @@ static inline int srv_is_usable(const struct server *srv)
 
 	if (!srv->eweight)
 		return 0;
-	if (state & (SRV_STF_GOINGDOWN | SRV_STF_MAINTAIN))
+	if (srv->admin & SRV_ADMF_MAINT)
+		return 0;
+	if (state & SRV_STF_GOINGDOWN)
 		return 0;
 	if (!(state & SRV_STF_RUNNING))
 		return 0;
@@ -77,7 +79,9 @@ static inline int srv_was_usable(const struct server *srv)
 
 	if (!srv->prev_eweight)
 		return 0;
-	if (state & (SRV_STF_GOINGDOWN | SRV_STF_MAINTAIN))
+	if (srv->prev_admin & SRV_ADMF_MAINT)
+		return 0;
+	if (state & SRV_STF_GOINGDOWN)
 		return 0;
 	if (!(state & SRV_STF_RUNNING))
 		return 0;
@@ -90,6 +94,7 @@ static inline int srv_was_usable(const struct server *srv)
 static inline void srv_lb_commit_status(struct server *srv)
 {
 	srv->prev_state = srv->state;
+	srv->prev_admin = srv->admin;
 	srv->prev_eweight = srv->eweight;
 }
 
@@ -99,6 +104,7 @@ static inline void srv_lb_commit_status(struct server *srv)
 static inline int srv_lb_status_changed(const struct server *srv)
 {
 	return (srv->state != srv->prev_state ||
+		srv->admin != srv->prev_admin ||
 		srv->eweight != srv->prev_eweight);
 }
 

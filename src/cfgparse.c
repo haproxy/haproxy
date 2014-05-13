@@ -6617,7 +6617,7 @@ out_uri_auth_compat:
 				}
 
 				/* if the other server is forced disabled, we have to do the same here */
-				if (srv->state & SRV_STF_MAINTAIN) {
+				if (srv->admin & SRV_ADMF_MAINT) {
 					newsrv->state &= ~SRV_STF_RUNNING;
 					newsrv->check.health = 0;
 					newsrv->agent.health = 0;

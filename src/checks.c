@@ -412,7 +412,7 @@ void set_server_down(struct check *check)
 	struct server *srv;
 	int xferred;
 
-	if (s->state & SRV_STF_MAINTAIN) {
+	if (s->admin & SRV_ADMF_MAINT) {
 		check->health = check->rise;
 	}
 
@@ -436,7 +436,7 @@ void set_server_down(struct check *check)
 
 		chunk_reset(&trash);
 
-		if (s->state & SRV_STF_MAINTAIN) {
+		if (s->admin & SRV_ADMF_MAINT) {
 			chunk_appendf(&trash,
 			             "%sServer %s/%s is DOWN for maintenance", s->flags & SRV_F_BACKUP ? "Backup " : "",
 			             s->proxy->id, s->id);
@@ -463,7 +463,7 @@ void set_server_down(struct check *check)
 		s->counters.down_trans++;
 
 		for (srv = s->trackers; srv; srv = srv->tracknext)
-			if (!(srv->state & SRV_STF_MAINTAIN))
+			if (!(srv->admin & SRV_ADMF_MAINT))
 				/* Only notify tracking servers that are not already in maintenance. */
 				set_server_down(&srv->check);
 	}
@@ -476,9 +476,9 @@ void set_server_up(struct check *check) {
 	struct server *s = check->server;
 	struct server *srv;
 	int xferred;
-	enum srv_state old_state = s->state;
+	enum srv_admin old_admin = s->admin;
 
-	if (s->state & SRV_STF_MAINTAIN) {
+	if (s->admin & SRV_ADMF_MAINT) {
 		check->health = check->rise;
 	}
 
@@ -499,7 +499,7 @@ void set_server_up(struct check *check) {
 
 		s->last_change = now.tv_sec;
 		s->state |= SRV_STF_RUNNING;
-		s->state &= ~SRV_STF_MAINTAIN;
+		s->admin &= ~SRV_ADMF_FMAINT;
 		s->check.state &= ~CHK_ST_PAUSED;
 
 		if (s->slowstart > 0) {
@@ -525,7 +525,7 @@ void set_server_up(struct check *check) {
 
 		chunk_reset(&trash);
 
-		if (old_state & SRV_STF_MAINTAIN) {
+		if (old_admin) {
 			chunk_appendf(&trash,
 			             "%sServer %s/%s is UP (leaving maintenance)", s->flags & SRV_F_BACKUP ? "Backup " : "",
 			             s->proxy->id, s->id);
@@ -543,7 +543,7 @@ void set_server_up(struct check *check) {
 		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
 
 		for (srv = s->trackers; srv; srv = srv->tracknext)
-			if (!(srv->state & SRV_STF_MAINTAIN))
+			if (!(srv->admin & SRV_ADMF_MAINT))
 				/* Only notify tracking servers if they're not in maintenance. */
 				set_server_up(&srv->check);
 	}
@@ -1480,7 +1480,8 @@ static struct task *server_warmup(struct task *t)
 
 	/* by default, plan on stopping the task */
 	t->expire = TICK_ETERNITY;
-	if ((s->state & (SRV_STF_RUNNING|SRV_STF_WARMINGUP|SRV_STF_MAINTAIN)) != (SRV_STF_RUNNING|SRV_STF_WARMINGUP))
+	if ((s->admin & SRV_ADMF_MAINT) ||
+	    (s->state & (SRV_STF_RUNNING|SRV_STF_WARMINGUP)) != (SRV_STF_RUNNING|SRV_STF_WARMINGUP))
 		return t;
 
 	server_recalc_eweight(s);
@@ -1707,7 +1708,7 @@ static struct task *process_chk(struct task *t)
 					set_server_disabled(check);
 			}
 
-			if (!(s->state & SRV_STF_MAINTAIN) &&
+			if (!(s->admin & SRV_ADMF_MAINT) &&
 			    check->health < check->rise + check->fall - 1) {
 				check->health++; /* was bad, stays for a while */
 				set_server_up(check);

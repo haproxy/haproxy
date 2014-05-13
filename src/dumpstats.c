@@ -1710,7 +1710,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			if (!sv)
 				return 1;
 
-			if (sv->state & SRV_STF_MAINTAIN) {
+			if (sv->admin & SRV_ADMF_MAINT) {
 				/* The server is really in maintenance, we can change the server state */
 				if (sv->track) {
 					/* If this server tracks the status of another one,
@@ -1720,7 +1720,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 						set_server_up(&sv->check);
 						sv->check.health = sv->check.rise;	/* up, but will fall down at first failure */
 					} else {
-						sv->state &= ~SRV_STF_MAINTAIN;
+						sv->admin &= ~SRV_ADMF_FMAINT;
 						sv->check.state &= ~CHK_ST_PAUSED;
 						set_server_down(&sv->check);
 					}
@@ -1782,9 +1782,9 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			if (!sv)
 				return 1;
 
-			if (! (sv->state & SRV_STF_MAINTAIN)) {
+			if (!(sv->admin & SRV_ADMF_MAINT)) {
 				/* Not already in maintenance, we can change the server state */
-				sv->state |= SRV_STF_MAINTAIN;
+				sv->admin |= SRV_ADMF_FMAINT;
 				sv->check.state |= CHK_ST_PAUSED;
 				set_server_down(&sv->check);
 			}
@@ -2780,7 +2780,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			"<i>no check</i>"
 		};
 
-		if ((sv->state & SRV_STF_MAINTAIN) || (ref->state & SRV_STF_MAINTAIN))
+		if ((sv->admin | ref->admin) & SRV_ADMF_MAINT)
 			chunk_appendf(&trash, "<tr class=\"maintain\">");
 		else
 			chunk_appendf(&trash,
@@ -2911,11 +2911,11 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		/* status, lest check */
 		chunk_appendf(&trash, "<td class=ac>");
 
-		if (sv->state & SRV_STF_MAINTAIN) {
+		if (sv->admin & SRV_ADMF_MAINT) {
 			chunk_appendf(&trash, "%s ", human_time(now.tv_sec - sv->last_change, 1));
 			chunk_appendf(&trash, "MAINT");
 		}
-		else if (ref != sv && ref->state & SRV_STF_MAINTAIN) {
+		else if (ref != sv && (ref->admin & SRV_ADMF_MAINT)) {
 			chunk_appendf(&trash, "%s ", human_time(now.tv_sec - ref->last_change, 1));
 			chunk_appendf(&trash, "MAINT(via)");
 		}
@@ -2976,7 +2976,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			              ref->counters.down_trans, human_time(srv_downtime(sv), 1));
 		}
 		else if (sv != ref) {
-			if (sv->state & SRV_STF_MAINTAIN)
+			if (sv->admin & SRV_ADMF_MAINT)
 				chunk_appendf(&trash, "<td class=ac colspan=3></td>");
 			else
 				chunk_appendf(&trash,
@@ -3030,9 +3030,9 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		              sv->counters.retries, sv->counters.redispatches);
 
 		/* status */
-		if (sv->state & SRV_STF_MAINTAIN)
+		if (sv->admin & SRV_ADMF_MAINT)
 			chunk_appendf(&trash, "MAINT,");
-		else if (ref != sv && ref->state & SRV_STF_MAINTAIN)
+		else if (ref != sv && (ref->admin & SRV_ADMF_MAINT))
 			chunk_appendf(&trash, "MAINT(via),");
 		else
 			chunk_appendf(&trash,
@@ -3638,7 +3638,7 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 				else
 					sv_state = 0; /* DOWN */
 
-			if (((sv_state == 0) || (sv->state & SRV_STF_MAINTAIN)) && (appctx->ctx.stats.flags & STAT_HIDE_DOWN)) {
+			if (((sv_state == 0) || (sv->admin & SRV_ADMF_MAINT)) && (appctx->ctx.stats.flags & STAT_HIDE_DOWN)) {
 				/* do not report servers which are DOWN */
 				appctx->ctx.stats.sv = sv->next;
 				continue;
@@ -4249,9 +4249,9 @@ static int stats_process_http_post(struct stream_interface *si)
 				else if ((sv = findserver(px, value)) != NULL) {
 					switch (action) {
 					case ST_ADM_ACTION_DISABLE:
-						if ((px->state != PR_STSTOPPED) && !(sv->state & SRV_STF_MAINTAIN)) {
+						if ((px->state != PR_STSTOPPED) && !(sv->admin & SRV_ADMF_MAINT)) {
 							/* Not already in maintenance, we can change the server state */
-							sv->state |= SRV_STF_MAINTAIN;
+							sv->admin |= SRV_ADMF_FMAINT;
 							sv->check.state |= CHK_ST_PAUSED;
 							set_server_down(&sv->check);
 							altered_servers++;
@@ -4259,7 +4259,7 @@ static int stats_process_http_post(struct stream_interface *si)
 						}
 						break;
 					case ST_ADM_ACTION_ENABLE:
-						if ((px->state != PR_STSTOPPED) && (sv->state & SRV_STF_MAINTAIN)) {
+						if ((px->state != PR_STSTOPPED) && (sv->admin & SRV_ADMF_MAINT)) {
 							/* Already in maintenance, we can change the server state.
 							 * If this server tracks the status of another one,
 							 * we must restore the good status.
@@ -4269,7 +4269,7 @@ static int stats_process_http_post(struct stream_interface *si)
 								sv->check.health = sv->check.rise;	/* up, but will fall down at first failure */
 							}
 							else {
-								sv->state &= ~SRV_STF_MAINTAIN;
+								sv->admin &= ~SRV_ADMF_FMAINT;
 								sv->check.state &= ~CHK_ST_PAUSED;
 								set_server_down(&sv->check);
 							}
