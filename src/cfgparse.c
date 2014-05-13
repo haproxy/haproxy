@@ -6950,7 +6950,7 @@ out_uri_auth_compat:
 	}
 
 	/* Check multi-process mode compatibility */
-	if (global.nbproc > 1) {
+	if (global.nbproc > 1 && global.stats_fe) {
 		list_for_each_entry(bind_conf, &global.stats_fe->conf.bind, by_fe) {
 			unsigned long mask;
 
