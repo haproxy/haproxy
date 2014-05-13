@@ -77,8 +77,7 @@ static void fas_set_server_status_down(struct server *srv)
 {
 	struct proxy *p = srv->proxy;
 
-	if (srv->state == srv->prev_state &&
-	    srv->eweight == srv->prev_eweight)
+	if (!srv_lb_status_changed(srv))
 		return;
 
 	if (srv_is_usable(srv->state, srv->eweight))
@@ -116,8 +115,7 @@ out_update_backend:
 	/* check/update tot_used, tot_weight */
 	update_backend_weight(p);
  out_update_state:
-	srv->prev_state = srv->state;
-	srv->prev_eweight = srv->eweight;
+	srv_lb_commit_status(srv);
 }
 
 /* This function updates the server trees according to server <srv>'s new
@@ -131,8 +129,7 @@ static void fas_set_server_status_up(struct server *srv)
 {
 	struct proxy *p = srv->proxy;
 
-	if (srv->state == srv->prev_state &&
-	    srv->eweight == srv->prev_eweight)
+	if (!srv_lb_status_changed(srv))
 		return;
 
 	if (!srv_is_usable(srv->state, srv->eweight))
@@ -176,8 +173,7 @@ static void fas_set_server_status_up(struct server *srv)
 	/* check/update tot_used, tot_weight */
 	update_backend_weight(p);
  out_update_state:
-	srv->prev_state = srv->state;
-	srv->prev_eweight = srv->eweight;
+	srv_lb_commit_status(srv);
 }
 
 /* This function must be called after an update to server <srv>'s effective
@@ -188,8 +184,7 @@ static void fas_update_server_weight(struct server *srv)
 	int old_state, new_state;
 	struct proxy *p = srv->proxy;
 
-	if (srv->state == srv->prev_state &&
-	    srv->eweight == srv->prev_eweight)
+	if (!srv_lb_status_changed(srv))
 		return;
 
 	/* If changing the server's weight changes its state, we simply apply
@@ -204,8 +199,7 @@ static void fas_update_server_weight(struct server *srv)
 	new_state = srv_is_usable(srv->state, srv->eweight);
 
 	if (!old_state && !new_state) {
-		srv->prev_state = srv->state;
-		srv->prev_eweight = srv->eweight;
+		srv_lb_commit_status(srv);
 		return;
 	}
 	else if (!old_state && new_state) {
@@ -231,8 +225,7 @@ static void fas_update_server_weight(struct server *srv)
 	fas_queue_srv(srv);
 
 	update_backend_weight(p);
-	srv->prev_state = srv->state;
-	srv->prev_eweight = srv->eweight;
+	srv_lb_commit_status(srv);
 }
 
 /* This function is responsible for building the trees in case of fast
@@ -253,8 +246,7 @@ void fas_init_server_tree(struct proxy *p)
 	p->lbprm.wdiv = BE_WEIGHT_SCALE;
 	for (srv = p->srv; srv; srv = srv->next) {
 		srv->eweight = (srv->uweight * p->lbprm.wdiv + p->lbprm.wmult - 1) / p->lbprm.wmult;
-		srv->prev_eweight = srv->eweight;
-		srv->prev_state = srv->state;
+		srv_lb_commit_status(srv);
 	}
 
 	recount_servers(p);

@@ -28,8 +28,7 @@ static void map_set_server_status_down(struct server *srv)
 {
 	struct proxy *p = srv->proxy;
 
-	if (srv->state == srv->prev_state &&
-	    srv->eweight == srv->prev_eweight)
+	if (!srv_lb_status_changed(srv))
 		return;
 
 	if (srv_is_usable(srv->state, srv->eweight))
@@ -40,8 +39,7 @@ static void map_set_server_status_down(struct server *srv)
 	update_backend_weight(p);
 	p->lbprm.map.state |= LB_MAP_RECALC;
  out_update_state:
-	srv->prev_state = srv->state;
-	srv->prev_eweight = srv->eweight;
+	srv_lb_commit_status(srv);
 }
 
 /* This function updates the map according to server <srv>'s new state */
@@ -49,8 +47,7 @@ static void map_set_server_status_up(struct server *srv)
 {
 	struct proxy *p = srv->proxy;
 
-	if (srv->state == srv->prev_state &&
-	    srv->eweight == srv->prev_eweight)
+	if (!srv_lb_status_changed(srv))
 		return;
 
 	if (!srv_is_usable(srv->state, srv->eweight))
@@ -61,8 +58,7 @@ static void map_set_server_status_up(struct server *srv)
 	update_backend_weight(p);
 	p->lbprm.map.state |= LB_MAP_RECALC;
  out_update_state:
-	srv->prev_state = srv->state;
-	srv->prev_eweight = srv->eweight;
+	srv_lb_commit_status(srv);
 }
 
 /* This function recomputes the server map for proxy px. It relies on
@@ -181,8 +177,8 @@ void init_server_map(struct proxy *p)
 	act = bck = 0;
 	for (srv = p->srv; srv; srv = srv->next) {
 		srv->eweight = (srv->uweight * p->lbprm.wdiv + p->lbprm.wmult - 1) / p->lbprm.wmult;
-		srv->prev_eweight = srv->eweight;
-		srv->prev_state = srv->state;
+		srv_lb_commit_status(srv);
+
 		if (srv->state & SRV_BACKUP)
 			bck += srv->eweight;
 		else

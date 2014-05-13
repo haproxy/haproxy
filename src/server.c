@@ -1143,7 +1143,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			else
 				curproxy->srv_act++;
 
-			newsrv->prev_state = newsrv->state;
+			srv_lb_commit_status(newsrv);
 		}
 	}
 	return 0;

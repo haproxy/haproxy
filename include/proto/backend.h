@@ -66,6 +66,24 @@ static inline int srv_is_usable(int state, int weight)
 	return 1;
 }
 
+/* This function commits the current server state and weight onto the previous
+ * ones in order to detect future changes.
+ */
+static inline void srv_lb_commit_status(struct server *srv)
+{
+	srv->prev_state = srv->state;
+	srv->prev_eweight = srv->eweight;
+}
+
+/* This function returns true when a server has experienced a change since last
+ * commit on its state or weight, otherwise zero.
+ */
+static inline int srv_lb_status_changed(const struct server *srv)
+{
+	return (srv->state != srv->prev_state ||
+		srv->eweight != srv->prev_eweight);
+}
+
 #endif /* _PROTO_BACKEND_H */
 
 /*
