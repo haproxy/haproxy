@@ -2987,7 +2987,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			chunk_appendf(&trash, "<td colspan=3></td>");
 
 		/* throttle */
-		if (sv->state & SRV_WARMINGUP)
+		if ((sv->state & SRV_WARMINGUP) && !server_is_draining(sv))
 			chunk_appendf(&trash, "<td class=ac>%d %%</td></tr>\n", server_throttle_rate(sv));
 		else
 			chunk_appendf(&trash, "<td class=ac>-</td></tr>\n");
@@ -3065,7 +3065,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		              relative_pid, px->uuid, sv->puid);
 
 		/* throttle */
-		if (sv->state & SRV_WARMINGUP)
+		if ((sv->state & SRV_WARMINGUP) && !server_is_draining(sv))
 			chunk_appendf(&trash, "%d", server_throttle_rate(sv));
 
 		/* sessions: lbtot */
