@@ -1214,7 +1214,6 @@ static void event_srv_chk_r(struct connection *conn)
 		}
 
 		set_server_check_status(check, status, desc);
-		set_server_drain_state(check->server);
 		break;
 	}
 

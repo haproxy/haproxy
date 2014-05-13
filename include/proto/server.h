@@ -96,16 +96,12 @@ const char *server_parse_weight_change_request(struct server *sv,
 					       const char *weight_str);
 
 /*
- * Update the server's drain state to reflect its user-weight.  This is not
- * done immediately to allow a discrepancy between the server's user-weight
- * and drains state to control logging of changes in the drain state.
+ * Return true if the server has a zero user-weight, meaning it's in draining
+ * mode (ie: not taking new non-persistent connections).
  */
-static inline void set_server_drain_state(struct server *s)
+static inline int server_is_draining(const struct server *s)
 {
-	if (!s->uweight)
-		s->state |= SRV_DRAIN;
-	else
-		s->state &= ~SRV_DRAIN;
+	return !s->uweight;
 }
 /*
  * Local variables:

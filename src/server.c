@@ -1026,9 +1026,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			}
 		}
 
-		/* Set initial drain state using now-configured weight */
-		set_server_drain_state(newsrv);
-
 		if (do_check) {
 			int ret;
 

@@ -1355,12 +1355,6 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				return 1;
 
 			warning = server_parse_weight_change_request(sv, args[3]);
-			/*
-			 * The user-weight may now be zero and thus
-			 * the server considered to be draining.
-			 * Update the server's drain state as necessary.
-			 */
-			set_server_drain_state(sv);
 			if (warning) {
 				appctx->ctx.cli.msg = warning;
 				appctx->st0 = STAT_CLI_PRINT;
@@ -3633,7 +3627,7 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 				else
 					sv_state = 2; /* going down */
 
-				if (svs->state & SRV_DRAIN)
+				if (server_is_draining(svs))
 					sv_state += 4;
 				else if (svs->state & SRV_GOINGDOWN)
 					sv_state += 2;
@@ -4291,7 +4285,6 @@ static int stats_process_http_post(struct stream_interface *si)
 							sv->uweight = 0;
 
 						server_recalc_eweight(sv);
-						set_server_drain_state(sv);
 
 						altered_servers++;
 						total_servers++;
