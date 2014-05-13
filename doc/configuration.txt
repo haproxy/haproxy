@@ -4377,20 +4377,27 @@ option ldap-check
 
 option log-health-checks
 no option log-health-checks
-  Enable or disable logging of health checks
+  Enable or disable logging of health checks status updates
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |  yes
   Arguments : none
 
-  Enable health checks logging so it possible to check for example what
-  was happening before a server crash. Failed health check are logged if
-  server is UP and succeeded health checks if server is DOWN, so the amount
-  of additional information is limited.
+  By default, failed health check are logged if server is UP and successful
+  health checks are logged if server is DOWN, so the amount of additional
+  information is limited.
 
-  If health check logging is enabled no health check status is printed
-  when servers is set up UP/DOWN/ENABLED/DISABLED.
+  When this option is enabled, any change of the health check status or to
+  the server's health will be logged, so that it becomes possible to know
+  that a server was failing occasional checks before crashing, or exactly when
+  it failed to respond a valid HTTP status, then when the port started to
+  reject connections, then when the server stopped responding at all.
 
-  See also: "log" and section 8 about logging.
+  Note that status changes not caused by health checks (eg: enable/disable on
+  the CLI) are intentionally not logged by this option.
+
+  See also: "option httpchk", "option ldap-check", "option mysql-check",
+            "option pgsql-check", "option redis-check", "option smtpchk",
+            "option tcp-check", "log" and section 8 about logging.
 
 
 option log-separate-errors

@@ -207,6 +207,7 @@ static void server_status_printf(struct chunk *msg, struct server *s, struct che
 static void set_server_check_status(struct check *check, short status, const char *desc)
 {
 	struct server *s = check->server;
+	short prev_status = check->status;
 
 	if (status == HCHK_STATUS_START) {
 		check->result = CHK_RES_UNKNOWN;	/* no result yet */
@@ -243,13 +244,9 @@ static void set_server_check_status(struct check *check, short status, const cha
 		return;
 
 	if (s->proxy->options2 & PR_O2_LOGHCHKS &&
-	(((check->health != 0) && (check->result == CHK_RES_FAILED)) ||
-	    (((check->health != check->rise + check->fall - 1) ||
-	      (!s->uweight && !(s->state & SRV_DRAIN)) ||
-	      (s->uweight && (s->state & SRV_DRAIN))) &&
-	     (check->result >= CHK_RES_PASSED)) ||
-	    ((s->state & SRV_GOINGDOWN) && (check->result != CHK_RES_CONDPASS)) ||
-	    (!(s->state & SRV_GOINGDOWN) && (check->result == CHK_RES_CONDPASS)))) {
+	    ((status != prev_status) ||
+	    ((check->health != 0) && (check->result == CHK_RES_FAILED)) ||
+	    (((check->health != check->rise + check->fall - 1)) && (check->result >= CHK_RES_PASSED)))) {
 
 		int health, rise, fall, state;
 
@@ -305,7 +302,7 @@ static void set_server_check_status(struct check *check, short status, const cha
 		chunk_appendf(&trash, ", status: %d/%d %s",
 		             (state & SRV_RUNNING) ? (health - rise + 1) : (health),
 		             (state & SRV_RUNNING) ? (fall) : (rise),
-			     (state & SRV_RUNNING)?(s->eweight?"UP":"DRAIN"):"DOWN");
+			     (state & SRV_RUNNING) ? (s->uweight?"UP":"DRAIN"):"DOWN");
 
 		Warning("%s.\n", trash.str);
 		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
