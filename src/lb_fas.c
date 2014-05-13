@@ -80,10 +80,10 @@ static void fas_set_server_status_down(struct server *srv)
 	if (!srv_lb_status_changed(srv))
 		return;
 
-	if (srv_is_usable(srv->state, srv->eweight))
+	if (srv_is_usable(srv))
 		goto out_update_state;
 
-	if (!srv_is_usable(srv->prev_state, srv->prev_eweight))
+	if (!srv_was_usable(srv))
 		/* server was already down */
 		goto out_update_backend;
 
@@ -100,7 +100,7 @@ static void fas_set_server_status_down(struct server *srv)
 				srv2 = srv2->next;
 			} while (srv2 &&
 				 !((srv2->state & SRV_BACKUP) &&
-				   srv_is_usable(srv2->state, srv2->eweight)));
+				   srv_is_usable(srv2)));
 			p->lbprm.fbck = srv2;
 		}
 	} else {
@@ -132,10 +132,10 @@ static void fas_set_server_status_up(struct server *srv)
 	if (!srv_lb_status_changed(srv))
 		return;
 
-	if (!srv_is_usable(srv->state, srv->eweight))
+	if (!srv_is_usable(srv))
 		goto out_update_state;
 
-	if (srv_is_usable(srv->prev_state, srv->prev_eweight))
+	if (srv_was_usable(srv))
 		/* server was already up */
 		goto out_update_backend;
 
@@ -195,8 +195,8 @@ static void fas_update_server_weight(struct server *srv)
 	 * possibly a new tree for this server.
 	 */
 	 
-	old_state = srv_is_usable(srv->prev_state, srv->prev_eweight);
-	new_state = srv_is_usable(srv->state, srv->eweight);
+	old_state = srv_was_usable(srv);
+	new_state = srv_is_usable(srv);
 
 	if (!old_state && !new_state) {
 		srv_lb_commit_status(srv);
@@ -257,7 +257,7 @@ void fas_init_server_tree(struct proxy *p)
 
 	/* queue active and backup servers in two distinct groups */
 	for (srv = p->srv; srv; srv = srv->next) {
-		if (!srv_is_usable(srv->state, srv->eweight))
+		if (!srv_is_usable(srv))
 			continue;
 		srv->lb_tree = (srv->state & SRV_BACKUP) ? &p->lbprm.fas.bck : &p->lbprm.fas.act;
 		fas_queue_srv(srv);

@@ -42,10 +42,10 @@ static void fwrr_set_server_status_down(struct server *srv)
 	if (!srv_lb_status_changed(srv))
 		return;
 
-	if (srv_is_usable(srv->state, srv->eweight))
+	if (srv_is_usable(srv))
 		goto out_update_state;
 
-	if (!srv_is_usable(srv->prev_state, srv->prev_eweight))
+	if (!srv_was_usable(srv))
 		/* server was already down */
 		goto out_update_backend;
 
@@ -65,7 +65,7 @@ static void fwrr_set_server_status_down(struct server *srv)
 				srv2 = srv2->next;
 			} while (srv2 &&
 				 !((srv2->state & SRV_BACKUP) &&
-				   srv_is_usable(srv2->state, srv2->eweight)));
+				   srv_is_usable(srv2)));
 			p->lbprm.fbck = srv2;
 		}
 	} else {
@@ -98,10 +98,10 @@ static void fwrr_set_server_status_up(struct server *srv)
 	if (!srv_lb_status_changed(srv))
 		return;
 
-	if (!srv_is_usable(srv->state, srv->eweight))
+	if (!srv_is_usable(srv))
 		goto out_update_state;
 
-	if (srv_is_usable(srv->prev_state, srv->prev_eweight))
+	if (srv_was_usable(srv))
 		/* server was already up */
 		goto out_update_backend;
 
@@ -165,8 +165,8 @@ static void fwrr_update_server_weight(struct server *srv)
 	 * possibly a new tree for this server.
 	 */
 	 
-	old_state = srv_is_usable(srv->prev_state, srv->prev_eweight);
-	new_state = srv_is_usable(srv->state, srv->eweight);
+	old_state = srv_was_usable(srv);
+	new_state = srv_is_usable(srv);
 
 	if (!old_state && !new_state) {
 		srv_lb_commit_status(srv);
@@ -290,7 +290,7 @@ void fwrr_init_server_groups(struct proxy *p)
 
 	/* queue active and backup servers in two distinct groups */
 	for (srv = p->srv; srv; srv = srv->next) {
-		if (!srv_is_usable(srv->state, srv->eweight))
+		if (!srv_is_usable(srv))
 			continue;
 		fwrr_queue_by_weight((srv->state & SRV_BACKUP) ?
 				p->lbprm.fwrr.bck.init :
@@ -319,7 +319,7 @@ static void fwrr_queue_srv(struct server *s)
 	/* Delay everything which does not fit into the window and everything
 	 * which does not fit into the theorical new window.
 	 */
-	if (!srv_is_usable(s->state, s->eweight)) {
+	if (!srv_is_usable(s)) {
 		fwrr_remove_from_tree(s);
 	}
 	else if (s->eweight <= 0 ||

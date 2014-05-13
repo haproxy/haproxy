@@ -52,12 +52,30 @@ static void inline be_set_sess_last(struct proxy *be)
 	be->be_counters.last_sess = now.tv_sec;
 }
 
-/* This function returns non-zero if a server with the given weight and state
- * is usable for LB, otherwise zero.
+/* This function returns non-zero if the designated server is usable for LB
+ * according to its current weight and current state. Otherwise it returns 0.
  */
-static inline int srv_is_usable(int state, int weight)
+static inline int srv_is_usable(const struct server *srv)
 {
-	if (!weight)
+	int state = srv->state;
+
+	if (!srv->eweight)
+		return 0;
+	if (state & (SRV_GOINGDOWN | SRV_MAINTAIN))
+		return 0;
+	if (!(state & SRV_RUNNING))
+		return 0;
+	return 1;
+}
+
+/* This function returns non-zero if the designated server was usable for LB
+ * according to its current weight and previous state. Otherwise it returns 0.
+ */
+static inline int srv_was_usable(const struct server *srv)
+{
+	int state = srv->prev_state;
+
+	if (!srv->prev_eweight)
 		return 0;
 	if (state & (SRV_GOINGDOWN | SRV_MAINTAIN))
 		return 0;

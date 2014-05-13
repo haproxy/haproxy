@@ -109,7 +109,7 @@ struct session *pendconn_get_next_sess(struct server *srv, struct proxy *px)
 	ps = pendconn_from_srv(srv);
 	pp = pendconn_from_px(px);
 	/* we want to get the definitive pendconn in <ps> */
-	if (!pp || !srv_is_usable(rsrv->state, rsrv->eweight)) {
+	if (!pp || !srv_is_usable(rsrv)) {
 		if (!ps)
 			return NULL;
 	} else {

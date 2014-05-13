@@ -97,7 +97,7 @@ void recount_servers(struct proxy *px)
 	px->lbprm.tot_wact = px->lbprm.tot_wbck = 0;
 	px->lbprm.fbck = NULL;
 	for (srv = px->srv; srv != NULL; srv = srv->next) {
-		if (!srv_is_usable(srv->state, srv->eweight))
+		if (!srv_is_usable(srv))
 			continue;
 
 		if (srv->state & SRV_BACKUP) {
@@ -547,7 +547,7 @@ int assign_server(struct session *s)
 	      (!s->be->max_ka_queue ||
 	       server_has_room(__objt_server(conn->target)) ||
 	       (__objt_server(conn->target)->nbpend + 1) < s->be->max_ka_queue))) &&
-	    srv_is_usable(__objt_server(conn->target)->state, __objt_server(conn->target)->eweight)) {
+	    srv_is_usable(__objt_server(conn->target))) {
 		/* This session was relying on a server in a previous request
 		 * and the proxy has "option prefer-current-server" set, so
 		 * let's try to reuse the same server.
