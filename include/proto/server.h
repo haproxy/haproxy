@@ -116,6 +116,32 @@ void srv_shutdown_sessions(struct server *srv, int why);
  */
 void srv_shutdown_backup_sessions(struct proxy *px, int why);
 
+/* Appends some information to a message string related to a server going UP or DOWN.
+ * If <forced> is null and the server tracks another one, a "via" information will
+ * be provided to know where the status came from. If xferred is non-negative, some
+ * information about requeued sessions are provided.
+ */
+void srv_adm_append_status(struct chunk *msg, struct server *s, int xferred, int forced);
+
+/* Puts server <s> into maintenance mode, and propagate that status down to all
+ * tracking servers. This does the same action as the CLI's "disable server x".
+ * A log is emitted for all servers that were not yet in maintenance mode.
+ * Health checks are disabled but not agent checks. The server is marked as
+ * being either forced into maintenance by having <mode> set to SRV_ADMF_FMAINT,
+ * or as inheriting the maintenance status by having <mode> set to
+ * SRV_ADMF_IMAINT. Nothing is done if neither flag is set.
+ */
+void srv_adm_set_maint(struct server *s, enum srv_admin mode);
+
+/* Gets server <s> out of maintenance mode, and propagate that status down to
+ * all tracking servers. This does the same action as the CLI's "enable server x".
+ * A log is emitted for all servers that leave maintenance mode. Health checks
+ * are possibly enabled again. The server is marked as leaving forced maintenance
+ * when <mode> is set to SRV_ADMF_FMAINT, or as leaving inherited maintenance
+ * when <mode> set to SRV_ADMF_IMAINT. Nothing is done if neither flag is set.
+ */
+void srv_adm_set_ready(struct server *s, enum srv_admin mode);
+
 /*
  * Local variables:
  *  c-indent-level: 8

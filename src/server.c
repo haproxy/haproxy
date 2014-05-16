@@ -186,6 +186,242 @@ void srv_shutdown_backup_sessions(struct proxy *px, int why)
 			srv_shutdown_sessions(srv, why);
 }
 
+/* Appends some information to a message string related to a server going UP or DOWN.
+ * If <forced> is null and the server tracks another one, a "via" information will
+ * be provided to know where the status came from. If xferred is non-negative, some
+ * information about requeued sessions are provided.
+ */
+void srv_adm_append_status(struct chunk *msg, struct server *s, int xferred, int forced)
+{
+	if (!forced && s->track)
+		chunk_appendf(msg, " via %s/%s",
+			s->track->proxy->id, s->track->id);
+
+	if (xferred >= 0) {
+		if (s->state == SRV_ST_STOPPED)
+			chunk_appendf(msg, ". %d active and %d backup servers left.%s"
+				" %d sessions active, %d requeued, %d remaining in queue",
+				s->proxy->srv_act, s->proxy->srv_bck,
+				(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
+				s->cur_sess, xferred, s->nbpend);
+		else
+			chunk_appendf(msg, ". %d active and %d backup servers online.%s"
+				" %d sessions requeued, %d total in queue",
+				s->proxy->srv_act, s->proxy->srv_bck,
+				(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
+				xferred, s->nbpend);
+	}
+}
+
+/* Puts server <s> into maintenance mode, and propagate that status down to all
+ * tracking servers. This does the same action as the CLI's "disable server x".
+ * A log is emitted for all servers that were not yet in maintenance mode.
+ * Health checks are disabled but not agent checks. The server is marked as
+ * being either forced into maintenance by having <mode> set to SRV_ADMF_FMAINT,
+ * or as inheriting the maintenance status by having <mode> set to
+ * SRV_ADMF_IMAINT. Nothing is done if neither flag is set.
+ */
+void srv_adm_set_maint(struct server *s, enum srv_admin mode)
+{
+	struct check *check = &s->check;
+	struct server *srv;
+	int xferred;
+
+	if (!mode)
+		return;
+
+	/* stop going down as soon as we meet a server already in the same state */
+	if (s->admin & mode)
+		return;
+
+	s->admin |= mode;
+
+	if (s->check.state & CHK_ST_ENABLED) {
+		s->check.state |= CHK_ST_PAUSED;
+		check->health = 0;
+	}
+
+	if (s->state == SRV_ST_STOPPED) {	/* server was already down */
+		if (!(s->admin & ~mode & SRV_ADMF_MAINT)) {
+			chunk_printf(&trash,
+			             "%sServer %s/%s was DOWN and now enters maintenance",
+			             s->flags & SRV_F_BACKUP ? "Backup " : "", s->proxy->id, s->id);
+
+			srv_adm_append_status(&trash, s, -1, (mode & SRV_ADMF_FMAINT));
+
+			Warning("%s.\n", trash.str);
+			send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
+		}
+	}
+	else {	/* server was still running */
+		int srv_was_stopping = (s->state == SRV_ST_STOPPING);
+		int prev_srv_count = s->proxy->srv_bck + s->proxy->srv_act;
+
+		check->health = 0; /* failure */
+		s->last_change = now.tv_sec;
+		s->state = SRV_ST_STOPPED;
+		if (s->proxy->lbprm.set_server_status_down)
+			s->proxy->lbprm.set_server_status_down(s);
+
+		if (s->onmarkeddown & HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS)
+			srv_shutdown_sessions(s, SN_ERR_DOWN);
+
+		/* we might have sessions queued on this server and waiting for
+		 * a connection. Those which are redispatchable will be queued
+		 * to another server or to the proxy itself.
+		 */
+		xferred = pendconn_redistribute(s);
+
+		chunk_printf(&trash,
+		             "%sServer %s/%s is going DOWN for maintenance",
+		             s->flags & SRV_F_BACKUP ? "Backup " : "",
+		             s->proxy->id, s->id);
+
+		srv_adm_append_status(&trash, s, xferred, (mode & SRV_ADMF_FMAINT));
+
+		Warning("%s.\n", trash.str);
+		send_log(s->proxy, srv_was_stopping ? LOG_NOTICE : LOG_ALERT, "%s.\n", trash.str);
+
+		if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
+			set_backend_down(s->proxy);
+
+		s->counters.down_trans++;
+	}
+
+	for (srv = s->trackers; srv; srv = srv->tracknext)
+		srv_adm_set_maint(srv, SRV_ADMF_IMAINT);
+}
+
+/* Gets server <s> out of maintenance mode, and propagate that status down to
+ * all tracking servers. This does the same action as the CLI's "enable server x".
+ * A log is emitted for all servers that leave maintenance mode. Health checks
+ * are possibly enabled again. The server is marked as leaving forced maintenance
+ * when <mode> is set to SRV_ADMF_FMAINT, or as leaving inherited maintenance
+ * when <mode> set to SRV_ADMF_IMAINT. Nothing is done if neither flag is set.
+ */
+void srv_adm_set_ready(struct server *s, enum srv_admin mode)
+{
+	struct check *check = &s->check;
+	struct server *srv;
+	int xferred = -1;
+
+	if (!mode)
+		return;
+
+	/* stop going down as soon as we see the flag is not there anymore */
+	if (!(s->admin & mode))
+		return;
+
+	s->admin &= ~mode;
+
+	if (s->admin & SRV_ADMF_MAINT) {
+		/* remaining in maintenance mode, let's inform precisely about the
+		 * situation.
+		 */
+
+		if (s->admin & SRV_ADMF_FMAINT) {
+			chunk_printf(&trash,
+			             "%sServer %s/%s remains in forced maintenance",
+			             s->flags & SRV_F_BACKUP ? "Backup " : "",
+			             s->proxy->id, s->id);
+		}
+		else {
+			chunk_printf(&trash,
+			             "%sServer %s/%s is leaving forced maintenance but remains in maintenance",
+			             s->flags & SRV_F_BACKUP ? "Backup " : "",
+			             s->proxy->id, s->id);
+
+			if (s->track) /* normally it's mandatory here */
+				chunk_appendf(&trash, " via %s/%s",
+				              s->track->proxy->id, s->track->id);
+		}
+
+		Warning("%s.\n", trash.str);
+		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
+		return;
+	}
+
+	/* OK here we're leaving maintenance, we have many things to check,
+	 * because the server might possibly be coming back up depending on
+	 * its state. In practice, leaving maintenance means that we should
+	 * immediately turn to UP (more or less the slowstart) under the
+	 * following conditions :
+	 *   - server is neither checked nor tracked
+	 *   - server tracks another server which is not checked
+	 *   - server tracks another server which is already up
+	 * Which sums up as something simpler :
+	 * "either the server's or the tracked server's checks are disabled or up".
+	 * Otherwise we only re-enable health checks.
+	 */
+
+	if (s->check.state & CHK_ST_ENABLED) {
+		s->check.state &= ~CHK_ST_PAUSED;
+		check->health = check->rise; /* start OK but check immediately */
+	}
+
+	if ((!s->track &&
+	     (!(s->agent.state & CHK_ST_ENABLED) || (s->agent.health >= s->agent.rise)) &&
+	     (!(s->check.state & CHK_ST_ENABLED) || (s->check.health >= s->check.rise))) ||
+	    (s->track &&
+	     (!(s->track->agent.state & CHK_ST_ENABLED) || (s->track->agent.health >= s->track->agent.rise)) &&
+	     (!(s->track->check.state & CHK_ST_ENABLED) || (s->track->check.health >= s->track->check.rise)))) {
+
+		if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
+			if (s->proxy->last_change < now.tv_sec)		// ignore negative times
+				s->proxy->down_time += now.tv_sec - s->proxy->last_change;
+			s->proxy->last_change = now.tv_sec;
+		}
+
+		if (s->last_change < now.tv_sec)			// ignore negative times
+			s->down_time += now.tv_sec - s->last_change;
+		s->last_change = now.tv_sec;
+
+		s->state = SRV_ST_STARTING;
+		if (s->slowstart > 0)
+			task_schedule(s->warmup, tick_add(now_ms, MS_TO_TICKS(MAX(1000, s->slowstart / 20))));
+		else
+			s->state = SRV_ST_RUNNING;
+
+		server_recalc_eweight(s);
+
+		/* If the server is set with "on-marked-up shutdown-backup-sessions",
+		 * and it's not a backup server and its effective weight is > 0,
+		 * then it can accept new connections, so we shut down all sessions
+		 * on all backup servers.
+		 */
+		if ((s->onmarkedup & HANA_ONMARKEDUP_SHUTDOWNBACKUPSESSIONS) &&
+		    !(s->flags & SRV_F_BACKUP) && s->eweight)
+			srv_shutdown_backup_sessions(s->proxy, SN_ERR_UP);
+
+		/* check if we can handle some connections queued at the proxy. We
+		 * will take as many as we can handle.
+		 */
+		xferred = pendconn_grab_from_px(s);
+	}
+
+	if (mode & SRV_ADMF_FMAINT) {
+		chunk_printf(&trash,
+		             "%sServer %s/%s is %s (leaving forced maintenance)",
+		             s->flags & SRV_F_BACKUP ? "Backup " : "",
+		             s->proxy->id, s->id,
+		             (s->state == SRV_ST_STOPPED) ? "DOWN" : "UP");
+	}
+	else {
+		chunk_printf(&trash,
+		             "%sServer %s/%s is %s (leaving maintenance)",
+		             s->flags & SRV_F_BACKUP ? "Backup " : "",
+		             s->proxy->id, s->id,
+		             (s->state == SRV_ST_STOPPED) ? "DOWN" : "UP");
+		srv_adm_append_status(&trash, s, xferred, 0);
+	}
+
+	Warning("%s.\n", trash.str);
+	send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
+
+	for (srv = s->trackers; srv; srv = srv->tracknext)
+		srv_adm_set_ready(srv, SRV_ADMF_IMAINT);
+}
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted, doing so helps
  * all code contributors.
