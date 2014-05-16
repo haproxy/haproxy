@@ -167,6 +167,61 @@ struct pendconn *pendconn_add(struct session *sess)
 	return p;
 }
 
+/* Redistribute pending connections when a server goes down. The number of
+ * connections redistributed is returned.
+ */
+int pendconn_redistribute(struct server *s)
+{
+	struct pendconn *pc, *pc_bck;
+	int xferred = 0;
+
+	list_for_each_entry_safe(pc, pc_bck, &s->pendconns, list) {
+		struct session *sess = pc->sess;
+
+		if ((sess->be->options & (PR_O_REDISP|PR_O_PERSIST)) == PR_O_REDISP &&
+		    !(sess->flags & SN_FORCE_PRST)) {
+			/* The REDISP option was specified. We will ignore
+			 * cookie and force to balance or use the dispatcher.
+			 */
+
+			/* it's left to the dispatcher to choose a server */
+			sess->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
+
+			pendconn_free(pc);
+			task_wakeup(sess->task, TASK_WOKEN_RES);
+			xferred++;
+		}
+	}
+	return xferred;
+}
+
+/* Check for pending connections at the backend, and assign some of them to
+ * the server coming up. The server's weight is checked before being assigned
+ * connections it may not be able to handle. The total number of transferred
+ * connections is returned.
+ */
+int pendconn_grab_from_px(struct server *s)
+{
+	int xferred;
+
+	if (!s->eweight)
+		return 0;
+
+	for (xferred = 0; !s->maxconn || xferred < srv_dynamic_maxconn(s); xferred++) {
+		struct session *sess;
+		struct pendconn *p;
+
+		p = pendconn_from_px(s->proxy);
+		if (!p)
+			break;
+		p->sess->target = &s->obj_type;
+		sess = p->sess;
+		pendconn_free(p);
+		task_wakeup(sess->task, TASK_WOKEN_RES);
+	}
+	return xferred;
+}
+
 /*
  * Detaches pending connection <p>, decreases the pending count, and frees
  * the pending connection. The connection might have been queued to a specific

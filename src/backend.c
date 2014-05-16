@@ -39,11 +39,13 @@
 #include <proto/lb_fwlc.h>
 #include <proto/lb_fwrr.h>
 #include <proto/lb_map.h>
+#include <proto/log.h>
 #include <proto/obj_type.h>
 #include <proto/payload.h>
 #include <proto/protocol.h>
 #include <proto/proto_http.h>
 #include <proto/proto_tcp.h>
+#include <proto/proxy.h>
 #include <proto/queue.h>
 #include <proto/sample.h>
 #include <proto/server.h>
@@ -1191,6 +1193,18 @@ int srv_redispatch_connect(struct session *s)
 	 * means that the connection has not been queued.
 	 */
 	return 0;
+}
+
+/* sends a log message when a backend goes down, and also sets last
+ * change date.
+ */
+void set_backend_down(struct proxy *be)
+{
+	be->last_change = now.tv_sec;
+	be->down_trans++;
+
+	Alert("%s '%s' has no server available!\n", proxy_type_str(be), be->id);
+	send_log(be, LOG_EMERG, "%s %s has no server available!\n", proxy_type_str(be), be->id);
 }
 
 /* Apply RDP cookie persistence to the current session. For this, the function

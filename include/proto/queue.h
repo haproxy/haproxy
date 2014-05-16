@@ -42,7 +42,8 @@ struct pendconn *pendconn_add(struct session *sess);
 void pendconn_free(struct pendconn *p);
 void process_srv_queue(struct server *s);
 unsigned int srv_dynamic_maxconn(const struct server *s);
-
+int pendconn_redistribute(struct server *s);
+int pendconn_grab_from_px(struct server *s);
 
 
 /* Returns the first pending connection for server <s>, which may be NULL if

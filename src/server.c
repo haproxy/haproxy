@@ -22,8 +22,12 @@
 
 #include <proto/port_range.h>
 #include <proto/protocol.h>
+#include <proto/queue.h>
 #include <proto/raw_sock.h>
 #include <proto/server.h>
+#include <proto/session.h>
+#include <proto/task.h>
+
 
 /* List head of all known server keywords */
 static struct srv_kw_list srv_keywords = {
@@ -154,6 +158,32 @@ static int srv_parse_id(char **args, int *cur_arg, struct proxy *curproxy, struc
 
 	eb32_insert(&curproxy->conf.used_server_id, &newsrv->conf.id);
 	return 0;
+}
+
+/* Shutdown all connections of a server. The caller must pass a termination
+ * code in <why>, which must be one of SN_ERR_* indicating the reason for the
+ * shutdown.
+ */
+void srv_shutdown_sessions(struct server *srv, int why)
+{
+	struct session *session, *session_bck;
+
+	list_for_each_entry_safe(session, session_bck, &srv->actconns, by_srv)
+		if (session->srv_conn == srv)
+			session_shutdown(session, why);
+}
+
+/* Shutdown all connections of all backup servers of a proxy. The caller must
+ * pass a termination code in <why>, which must be one of SN_ERR_* indicating
+ * the reason for the shutdown.
+ */
+void srv_shutdown_backup_sessions(struct proxy *px, int why)
+{
+	struct server *srv;
+
+	for (srv = px->srv; srv != NULL; srv = srv->next)
+		if (srv->flags & SRV_F_BACKUP)
+			srv_shutdown_sessions(srv, why);
 }
 
 /* Note: must not be declared <const> as its list will be overwritten.

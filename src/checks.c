@@ -309,98 +309,6 @@ static void set_server_check_status(struct check *check, short status, const cha
 	}
 }
 
-/* sends a log message when a backend goes down, and also sets last
- * change date.
- */
-static void set_backend_down(struct proxy *be)
-{
-	be->last_change = now.tv_sec;
-	be->down_trans++;
-
-	Alert("%s '%s' has no server available!\n", proxy_type_str(be), be->id);
-	send_log(be, LOG_EMERG, "%s %s has no server available!\n", proxy_type_str(be), be->id);
-}
-
-/* Redistribute pending connections when a server goes down. The number of
- * connections redistributed is returned.
- */
-static int redistribute_pending(struct server *s)
-{
-	struct pendconn *pc, *pc_bck, *pc_end;
-	int xferred = 0;
-
-	FOREACH_ITEM_SAFE(pc, pc_bck, &s->pendconns, pc_end, struct pendconn *, list) {
-		struct session *sess = pc->sess;
-		if ((sess->be->options & (PR_O_REDISP|PR_O_PERSIST)) == PR_O_REDISP &&
-		    !(sess->flags & SN_FORCE_PRST)) {
-			/* The REDISP option was specified. We will ignore
-			 * cookie and force to balance or use the dispatcher.
-			 */
-
-			/* it's left to the dispatcher to choose a server */
-			sess->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
-
-			pendconn_free(pc);
-			task_wakeup(sess->task, TASK_WOKEN_RES);
-			xferred++;
-		}
-	}
-	return xferred;
-}
-
-/* Check for pending connections at the backend, and assign some of them to
- * the server coming up. The server's weight is checked before being assigned
- * connections it may not be able to handle. The total number of transferred
- * connections is returned.
- */
-static int check_for_pending(struct server *s)
-{
-	int xferred;
-
-	if (!s->eweight)
-		return 0;
-
-	for (xferred = 0; !s->maxconn || xferred < srv_dynamic_maxconn(s); xferred++) {
-		struct session *sess;
-		struct pendconn *p;
-
-		p = pendconn_from_px(s->proxy);
-		if (!p)
-			break;
-		p->sess->target = &s->obj_type;
-		sess = p->sess;
-		pendconn_free(p);
-		task_wakeup(sess->task, TASK_WOKEN_RES);
-	}
-	return xferred;
-}
-
-/* Shutdown all connections of a server. The caller must pass a termination
- * code in <why>, which must be one of SN_ERR_* indicating the reason for the
- * shutdown.
- */
-static void shutdown_sessions(struct server *srv, int why)
-{
-	struct session *session, *session_bck;
-
-	list_for_each_entry_safe(session, session_bck, &srv->actconns, by_srv)
-		if (session->srv_conn == srv)
-			session_shutdown(session, why);
-}
-
-/* Shutdown all connections of all backup servers of a proxy. The caller must
- * pass a termination code in <why>, which must be one of SN_ERR_* indicating
- * the reason for the shutdown.
- */
-static void shutdown_backup_sessions(struct proxy *px, int why)
-{
-	struct server *srv;
-
-	for (srv = px->srv; srv != NULL; srv = srv->next)
-		if (srv->flags & SRV_F_BACKUP)
-			shutdown_sessions(srv, why);
-}
-
 /* Sets server <s> down, notifies by all available means, recounts the
  * remaining servers on the proxy and transfers queued sessions whenever
  * possible to other servers. It automatically recomputes the number of
@@ -426,13 +334,13 @@ void set_server_down(struct check *check)
 			s->proxy->lbprm.set_server_status_down(s);
 
 		if (s->onmarkeddown & HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS)
-			shutdown_sessions(s, SN_ERR_DOWN);
+			srv_shutdown_sessions(s, SN_ERR_DOWN);
 
 		/* we might have sessions queued on this server and waiting for
 		 * a connection. Those which are redispatchable will be queued
 		 * to another server or to the proxy itself.
 		 */
-		xferred = redistribute_pending(s);
+		xferred = pendconn_redistribute(s);
 
 		chunk_reset(&trash);
 
@@ -516,12 +424,12 @@ void set_server_up(struct check *check) {
 		 */
 		if ((s->onmarkedup & HANA_ONMARKEDUP_SHUTDOWNBACKUPSESSIONS) &&
 		    !(s->flags & SRV_F_BACKUP) && s->eweight)
-			shutdown_backup_sessions(s->proxy, SN_ERR_UP);
+			srv_shutdown_backup_sessions(s->proxy, SN_ERR_UP);
 
 		/* check if we can handle some connections queued at the proxy. We
 		 * will take as many as we can handle.
 		 */
-		xferred = check_for_pending(s);
+		xferred = pendconn_grab_from_px(s);
 
 		chunk_reset(&trash);
 
@@ -567,7 +475,7 @@ static void set_server_disabled(struct check *check) {
 	 * a connection. Those which are redispatchable will be queued
 	 * to another server or to the proxy itself.
 	 */
-	xferred = redistribute_pending(s);
+	xferred = pendconn_redistribute(s);
 
 	chunk_reset(&trash);
 
@@ -607,7 +515,7 @@ static void set_server_enabled(struct check *check) {
 	/* check if we can handle some connections queued at the proxy. We
 	 * will take as many as we can handle.
 	 */
-	xferred = check_for_pending(s);
+	xferred = pendconn_grab_from_px(s);
 
 	chunk_reset(&trash);
 
@@ -1492,7 +1400,7 @@ static struct task *server_warmup(struct task *t)
 	server_recalc_eweight(s);
 
 	/* probably that we can refill this server with a bit more connections */
-	check_for_pending(s);
+	pendconn_grab_from_px(s);
 
 	/* get back there in 1 second or 1/20th of the slowstart interval,
 	 * whichever is greater, resulting in small 5% steps.

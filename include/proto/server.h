@@ -103,6 +103,19 @@ static inline int server_is_draining(const struct server *s)
 {
 	return !s->uweight;
 }
+
+/* Shutdown all connections of a server. The caller must pass a termination
+ * code in <why>, which must be one of SN_ERR_* indicating the reason for the
+ * shutdown.
+ */
+void srv_shutdown_sessions(struct server *srv, int why);
+
+/* Shutdown all connections of all backup servers of a proxy. The caller must
+ * pass a termination code in <why>, which must be one of SN_ERR_* indicating
+ * the reason for the shutdown.
+ */
+void srv_shutdown_backup_sessions(struct proxy *px, int why);
+
 /*
  * Local variables:
  *  c-indent-level: 8

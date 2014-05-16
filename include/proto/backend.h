@@ -116,6 +116,11 @@ static inline int srv_lb_status_changed(const struct server *srv)
 		srv->eweight != srv->prev_eweight);
 }
 
+/* sends a log message when a backend goes down, and also sets last
+ * change date.
+ */
+void set_backend_down(struct proxy *be);
+
 #endif /* _PROTO_BACKEND_H */
 
 /*
