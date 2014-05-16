@@ -316,163 +316,158 @@ static void set_server_check_status(struct check *check, short status, const cha
 	}
 }
 
-/* Sets server <s> down, notifies by all available means, recounts the
- * remaining servers on the proxy and transfers queued sessions whenever
- * possible to other servers. It automatically recomputes the number of
- * servers, but not the map.
+/* Marks the check <check>'s server down, notifies by all available means,
+ * recounts the remaining servers on the proxy and transfers queued sessions
+ * whenever possible to other servers. It automatically recomputes the number
+ * of servers, but not the map. Maintenance servers are ignored.
  */
-void set_server_down(struct check *check)
+static void check_set_server_down(struct check *check)
+{
+	struct server *s = check->server;
+	struct server *srv;
+	int prev_srv_count = s->proxy->srv_bck + s->proxy->srv_act;
+	int srv_was_stopping = (s->state == SRV_ST_STOPPING);
+	int xferred;
+
+	if ((s->admin & SRV_ADMF_MAINT) || s->state == SRV_ST_STOPPED)
+		return;
+
+	check->health = 0; /* failure */
+	s->last_change = now.tv_sec;
+	s->state = SRV_ST_STOPPED;
+	if (s->proxy->lbprm.set_server_status_down)
+		s->proxy->lbprm.set_server_status_down(s);
+
+	if (s->onmarkeddown & HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS)
+		srv_shutdown_sessions(s, SN_ERR_DOWN);
+
+	/* we might have sessions queued on this server and waiting for
+	 * a connection. Those which are redispatchable will be queued
+	 * to another server or to the proxy itself.
+	 */
+	xferred = pendconn_redistribute(s);
+
+	chunk_printf(&trash,
+	             "%sServer %s/%s is DOWN", s->flags & SRV_F_BACKUP ? "Backup " : "",
+	             s->proxy->id, s->id);
+
+	check_report_srv_status(&trash, s,
+	                        ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check : 0),
+	                        xferred);
+	Warning("%s.\n", trash.str);
+
+	/* we don't send an alert if the server was previously paused */
+	if (srv_was_stopping)
+		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
+	else
+		send_log(s->proxy, LOG_ALERT, "%s.\n", trash.str);
+
+	if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
+		set_backend_down(s->proxy);
+
+	s->counters.down_trans++;
+
+	for (srv = s->trackers; srv; srv = srv->tracknext)
+		check_set_server_down(&srv->check);
+}
+
+/* Marks the check <check> as valid and tries to set its server up, provided
+ * it isn't in maintenance and other checks comply. Notifies by all available
+ * means, recounts the remaining servers on the proxy and tries to grab requests
+ * from the proxy. It automatically recomputes the number of servers, but not the
+ * map. Maintenance servers are ignored. Those that were not in perfect health
+ * are simply refreshed.
+ */
+static void check_set_server_up(struct check *check)
 {
 	struct server *s = check->server;
 	struct server *srv;
 	int xferred;
 
-	if (s->admin & SRV_ADMF_MAINT) {
-		check->health = check->rise;
+	if (s->admin & SRV_ADMF_MAINT)
+		return;
+
+	srv = s;
+	while (srv->track)
+		srv = srv->track;
+
+	/* servers which remain down because of their checks and the tracked servers' checks
+	 * do not change nor propagate anything.
+	 */
+	if ((!s->track &&
+	     (((s->agent.state & CHK_ST_ENABLED) && (s->agent.health < s->agent.rise)) ||
+	      ((s->check.state & CHK_ST_ENABLED) && (s->check.health < s->check.rise)))) ||
+	    (s->track &&
+	     (((srv->agent.state & CHK_ST_ENABLED) && (srv->agent.health < srv->agent.rise)) ||
+	      ((srv->check.state & CHK_ST_ENABLED) && (srv->check.health < srv->check.rise)))))
+		return;
+
+	if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
+		if (s->proxy->last_change < now.tv_sec)		// ignore negative times
+			s->proxy->down_time += now.tv_sec - s->proxy->last_change;
+		s->proxy->last_change = now.tv_sec;
 	}
 
-	if ((s->state != SRV_ST_STOPPED && check->health == check->rise) || s->track) {
-		int srv_was_stopping = (s->state == SRV_ST_STOPPING);
-		int prev_srv_count = s->proxy->srv_bck + s->proxy->srv_act;
+	if (s->state == SRV_ST_STOPPED && s->last_change < now.tv_sec)	// ignore negative times
+		s->down_time += now.tv_sec - s->last_change;
 
-		s->last_change = now.tv_sec;
-		s->state = SRV_ST_STOPPED;
-		if (s->proxy->lbprm.set_server_status_down)
-			s->proxy->lbprm.set_server_status_down(s);
+	s->last_change = now.tv_sec;
 
-		if (s->onmarkeddown & HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS)
-			srv_shutdown_sessions(s, SN_ERR_DOWN);
+	s->state = SRV_ST_STARTING;
+	if (s->slowstart > 0)
+		task_schedule(s->warmup, tick_add(now_ms, MS_TO_TICKS(MAX(1000, s->slowstart / 20))));
+	else
+		s->state = SRV_ST_RUNNING;
 
-		/* we might have sessions queued on this server and waiting for
-		 * a connection. Those which are redispatchable will be queued
-		 * to another server or to the proxy itself.
-		 */
-		xferred = pendconn_redistribute(s);
+	server_recalc_eweight(s);
 
-		chunk_reset(&trash);
+	/* If the server is set with "on-marked-up shutdown-backup-sessions",
+	 * and it's not a backup server and its effective weight is > 0,
+	 * then it can accept new connections, so we shut down all sessions
+	 * on all backup servers.
+	 */
+	if ((s->onmarkedup & HANA_ONMARKEDUP_SHUTDOWNBACKUPSESSIONS) &&
+	    !(s->flags & SRV_F_BACKUP) && s->eweight)
+		srv_shutdown_backup_sessions(s->proxy, SN_ERR_UP);
 
-		if (s->admin & SRV_ADMF_MAINT) {
-			chunk_appendf(&trash,
-			             "%sServer %s/%s is DOWN for maintenance", s->flags & SRV_F_BACKUP ? "Backup " : "",
-			             s->proxy->id, s->id);
-		} else {
-			chunk_appendf(&trash,
-			             "%sServer %s/%s is DOWN", s->flags & SRV_F_BACKUP ? "Backup " : "",
-			             s->proxy->id, s->id);
+	/* check if we can handle some connections queued at the proxy. We
+	 * will take as many as we can handle.
+	 */
+	xferred = pendconn_grab_from_px(s);
 
-			check_report_srv_status(&trash, s,
-			                        ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check : 0),
-			                        xferred);
-		}
-		Warning("%s.\n", trash.str);
+	chunk_printf(&trash,
+	             "%sServer %s/%s is UP", s->flags & SRV_F_BACKUP ? "Backup " : "",
+	             s->proxy->id, s->id);
 
-		/* we don't send an alert if the server was previously paused */
-		if (srv_was_stopping)
-			send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
-		else
-			send_log(s->proxy, LOG_ALERT, "%s.\n", trash.str);
+	check_report_srv_status(&trash, s,
+	                        ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ?  check : NULL),
+	                        xferred);
 
-		if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
-			set_backend_down(s->proxy);
+	Warning("%s.\n", trash.str);
+	send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
 
-		s->counters.down_trans++;
-
-		for (srv = s->trackers; srv; srv = srv->tracknext)
-			if (!(srv->admin & SRV_ADMF_MAINT))
-				/* Only notify tracking servers that are not already in maintenance. */
-				set_server_down(&srv->check);
-	}
-
-	check->health = 0; /* failure */
-}
-
-void set_server_up(struct check *check) {
-
-	struct server *s = check->server;
-	struct server *srv;
-	int xferred;
-	enum srv_admin old_admin = s->admin;
-
-	if (s->admin & SRV_ADMF_MAINT) {
-		check->health = check->rise;
-	}
-
-	if (s->track ||
-	    ((s->check.state & CHK_ST_ENABLED) && (s->check.health == s->check.rise) &&
-	     (s->agent.health >= s->agent.rise || !(s->agent.state & CHK_ST_ENABLED))) ||
-	    ((s->agent.state & CHK_ST_ENABLED) && (s->agent.health == s->agent.rise) &&
-	     (s->check.health >= s->check.rise || !(s->check.state & CHK_ST_ENABLED))) ||
-	    (!(s->agent.state & CHK_ST_ENABLED) && !(s->check.state & CHK_ST_ENABLED))) {
-		if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
-			if (s->proxy->last_change < now.tv_sec)		// ignore negative times
-				s->proxy->down_time += now.tv_sec - s->proxy->last_change;
-			s->proxy->last_change = now.tv_sec;
-		}
-
-		if (s->last_change < now.tv_sec)			// ignore negative times
-			s->down_time += now.tv_sec - s->last_change;
-
-		s->last_change = now.tv_sec;
-		s->admin &= ~SRV_ADMF_FMAINT;
-		s->check.state &= ~CHK_ST_PAUSED;
-
-		s->state = SRV_ST_STARTING;
-		if (s->slowstart > 0)
-			task_schedule(s->warmup, tick_add(now_ms, MS_TO_TICKS(MAX(1000, s->slowstart / 20))));
-		else
-			s->state = SRV_ST_RUNNING;
-
-		server_recalc_eweight(s);
-
-		/* If the server is set with "on-marked-up shutdown-backup-sessions",
-		 * and it's not a backup server and its effective weight is > 0,
-		 * then it can accept new connections, so we shut down all sessions
-		 * on all backup servers.
-		 */
-		if ((s->onmarkedup & HANA_ONMARKEDUP_SHUTDOWNBACKUPSESSIONS) &&
-		    !(s->flags & SRV_F_BACKUP) && s->eweight)
-			srv_shutdown_backup_sessions(s->proxy, SN_ERR_UP);
-
-		/* check if we can handle some connections queued at the proxy. We
-		 * will take as many as we can handle.
-		 */
-		xferred = pendconn_grab_from_px(s);
-
-		chunk_reset(&trash);
-
-		if (old_admin) {
-			chunk_appendf(&trash,
-			             "%sServer %s/%s is UP (leaving maintenance)", s->flags & SRV_F_BACKUP ? "Backup " : "",
-			             s->proxy->id, s->id);
-		} else {
-			chunk_appendf(&trash,
-			             "%sServer %s/%s is UP", s->flags & SRV_F_BACKUP ? "Backup " : "",
-			             s->proxy->id, s->id);
-
-			check_report_srv_status(&trash, s,
-			                        ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ?  check : NULL),
-			                        xferred);
-		}
-
-		Warning("%s.\n", trash.str);
-		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
-
-		for (srv = s->trackers; srv; srv = srv->tracknext)
-			if (!(srv->admin & SRV_ADMF_MAINT))
-				/* Only notify tracking servers if they're not in maintenance. */
-				set_server_up(&srv->check);
-	}
+	for (srv = s->trackers; srv; srv = srv->tracknext)
+		check_set_server_up(&srv->check);
 
 	if (check->health >= check->rise)
 		check->health = check->rise + check->fall - 1; /* OK now */
-
 }
 
-static void set_server_disabled(struct check *check) {
-
+/* Marks the check <check> as valid and tries to set its server into drain mode,
+ * provided it isn't in maintenance and other checks comply. Notifies by all
+ * available means, recounts the remaining servers on the proxy and tries to
+ * grab requests from the proxy. It automatically recomputes the number of
+ * servers, but not the map. Maintenance servers are ignored. Those that were
+ * not in perfect health are simply refreshed.
+ */
+static void check_set_server_drain(struct check *check)
+{
 	struct server *s = check->server;
 	struct server *srv;
 	int xferred;
+
+	if (s->admin & SRV_ADMF_MAINT)
+		return;
 
 	s->state = SRV_ST_STOPPING;
 	if (s->proxy->lbprm.set_server_status_down)
@@ -484,11 +479,8 @@ static void set_server_disabled(struct check *check) {
 	 */
 	xferred = pendconn_redistribute(s);
 
-	chunk_reset(&trash);
-
-	chunk_appendf(&trash,
-	             "Load-balancing on %sServer %s/%s is disabled",
-	             s->flags & SRV_F_BACKUP ? "Backup " : "",
+	chunk_printf(&trash,
+	             "%sServer %s/%s is stopping", s->flags & SRV_F_BACKUP ? "Backup " : "",
 	             s->proxy->id, s->id);
 
 	check_report_srv_status(&trash, s,
@@ -502,44 +494,10 @@ static void set_server_disabled(struct check *check) {
 		set_backend_down(s->proxy);
 
 	for (srv = s->trackers; srv; srv = srv->tracknext)
-		set_server_disabled(&srv->check);
-}
+		check_set_server_drain(&srv->check);
 
-static void set_server_enabled(struct check *check) {
-
-	struct server *s = check->server;
-	struct server *srv;
-	int xferred;
-
-	if (s->slowstart)
-		s->state = SRV_ST_STARTING;
-	else
-		s->state = SRV_ST_RUNNING;
-
-	if (s->proxy->lbprm.set_server_status_up)
-		s->proxy->lbprm.set_server_status_up(s);
-
-	/* check if we can handle some connections queued at the proxy. We
-	 * will take as many as we can handle.
-	 */
-	xferred = pendconn_grab_from_px(s);
-
-	chunk_reset(&trash);
-
-	chunk_appendf(&trash,
-	             "Load-balancing on %sServer %s/%s is enabled again",
-	             s->flags & SRV_F_BACKUP ? "Backup " : "",
-	             s->proxy->id, s->id);
-
-	check_report_srv_status(&trash, s,
-	                        ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check : NULL),
-	                        xferred);
-
-	Warning("%s.\n", trash.str);
-	send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
-
-	for (srv = s->trackers; srv; srv = srv->tracknext)
-		set_server_enabled(&srv->check);
+	if (check->health >= check->rise)
+		check->health = check->rise + check->fall - 1; /* OK now */
 }
 
 static void check_failed(struct check *check)
@@ -560,7 +518,7 @@ static void check_failed(struct check *check)
 		s->counters.failed_checks++;
 	}
 	else
-		set_server_down(check);
+		check_set_server_down(check);
 }
 
 /* note: use health_adjust() only, which first checks that the observe mode is
@@ -627,7 +585,7 @@ void __health_adjust(struct server *s, short status)
 		/* mark server down */
 			s->check.health = s->check.rise;
 			set_server_check_status(&s->check, HCHK_STATUS_HANA, trash.str);
-			set_server_down(&s->check);
+			check_set_server_down(&s->check);
 
 			break;
 
@@ -1617,21 +1575,22 @@ static struct task *process_chk(struct task *t)
 			conn_force_close(conn);
 		}
 
-		if (check->result == CHK_RES_FAILED)  /* a failure or timeout detected */
+		if (check->result == CHK_RES_FAILED) {
+			/* a failure or timeout detected */
 			check_failed(check);
-		else {  /* check was OK */
-			/* we may have to add/remove this server from the LB group */
-			if ((s->state != SRV_ST_STOPPED) && (s->proxy->options & PR_O_DISABLE404)) {
-				if ((s->state == SRV_ST_STOPPING) && (check->result != CHK_RES_CONDPASS))
-					set_server_enabled(check);
-				else if ((s->state != SRV_ST_STOPPING) && (check->result == CHK_RES_CONDPASS))
-					set_server_disabled(check);
+		}
+		else if (check->result == CHK_RES_CONDPASS && s->state != SRV_ST_STOPPED && !(s->admin & SRV_ADMF_MAINT)) {
+			/* check is OK but asks for drain mode */
+			if (check->health < check->rise + check->fall - 1) {
+				check->health++;
+				check_set_server_drain(check);
 			}
-
-			if (!(s->admin & SRV_ADMF_MAINT) &&
-			    check->health < check->rise + check->fall - 1) {
-				check->health++; /* was bad, stays for a while */
-				set_server_up(check);
+		}
+		else if (check->result == CHK_RES_PASSED && !(s->admin & SRV_ADMF_MAINT)) {
+			/* check is OK */
+			if (check->health < check->rise + check->fall - 1) {
+				check->health++;
+				check_set_server_up(check);
 			}
 		}
 		check->state &= ~CHK_ST_INPROGRESS;

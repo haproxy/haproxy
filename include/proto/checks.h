@@ -27,8 +27,6 @@
 
 const char *get_check_status_description(short check_status);
 const char *get_check_status_info(short check_status);
-void set_server_down(struct check *check);
-void set_server_up(struct check *check);
 int start_checks();
 void __health_adjust(struct server *s, short status);
 
