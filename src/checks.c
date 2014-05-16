@@ -155,7 +155,14 @@ const char *get_analyze_status(short analyze_status) {
 		return analyze_statuses[HANA_STATUS_UNKNOWN].desc;
 }
 
-static void server_status_printf(struct chunk *msg, struct server *s, struct check *check, int xferred) {
+/* Appends some information to a message string related to a server going UP or DOWN.
+ * If the server tracks another one, a "via" information will be provided to know
+ * where the status came from. If <check> is non-null, some information from this
+ * check's result will be reported as well. If <xferred> is non-negative, some
+ * information about requeued sessions are provided.
+ */
+static void check_report_srv_status(struct chunk *msg, struct server *s, struct check *check, int xferred)
+{
 	if (s->track)
 		chunk_appendf(msg, " via %s/%s",
 			s->track->proxy->id, s->track->id);
@@ -297,7 +304,7 @@ static void set_server_check_status(struct check *check, short status, const cha
 		             (check->result == CHK_RES_CONDPASS) ? "conditionally ":"",
 		             (check->result >= CHK_RES_PASSED)   ? "succeeded":"failed");
 
-		server_status_printf(&trash, s, check, -1);
+		check_report_srv_status(&trash, s, check, -1);
 
 		chunk_appendf(&trash, ", status: %d/%d %s",
 		             (state != SRV_ST_STOPPED) ? (health - rise + 1) : (health),
@@ -353,9 +360,9 @@ void set_server_down(struct check *check)
 			             "%sServer %s/%s is DOWN", s->flags & SRV_F_BACKUP ? "Backup " : "",
 			             s->proxy->id, s->id);
 
-			server_status_printf(&trash, s,
-			                     ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check : 0),
-			                     xferred);
+			check_report_srv_status(&trash, s,
+			                        ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check : 0),
+			                        xferred);
 		}
 		Warning("%s.\n", trash.str);
 
@@ -442,9 +449,9 @@ void set_server_up(struct check *check) {
 			             "%sServer %s/%s is UP", s->flags & SRV_F_BACKUP ? "Backup " : "",
 			             s->proxy->id, s->id);
 
-			server_status_printf(&trash, s,
-			                     ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ?  check : NULL),
-			                     xferred);
+			check_report_srv_status(&trash, s,
+			                        ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ?  check : NULL),
+			                        xferred);
 		}
 
 		Warning("%s.\n", trash.str);
@@ -484,9 +491,9 @@ static void set_server_disabled(struct check *check) {
 	             s->flags & SRV_F_BACKUP ? "Backup " : "",
 	             s->proxy->id, s->id);
 
-	server_status_printf(&trash, s,
-	                     ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check : NULL),
-	                     xferred);
+	check_report_srv_status(&trash, s,
+	                        ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check : NULL),
+	                        xferred);
 
 	Warning("%s.\n", trash.str);
 	send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
@@ -524,9 +531,9 @@ static void set_server_enabled(struct check *check) {
 	             s->flags & SRV_F_BACKUP ? "Backup " : "",
 	             s->proxy->id, s->id);
 
-	server_status_printf(&trash, s,
-	                     ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check : NULL),
-	                     xferred);
+	check_report_srv_status(&trash, s,
+	                        ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check : NULL),
+	                        xferred);
 
 	Warning("%s.\n", trash.str);
 	send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
