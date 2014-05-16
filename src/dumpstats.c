@@ -2737,10 +2737,18 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
 static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, int flags, struct server *sv, int state)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
-	struct server *ref = sv->track ? sv->track : sv;
+	struct server *via, *ref;
 	char str[INET6_ADDRSTRLEN];
 	struct chunk src;
 	int i;
+
+	/* we have "via" which is the tracked server as described in the configuration,
+	 * and "ref" which is the checked server and the end of the chain.
+	 */
+	via = sv->track ? sv->track : sv;
+	ref = via;
+	while (ref->track)
+		ref = ref->track;
 
 	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
 		static char *srv_hlt_st[9] = {
@@ -2950,7 +2958,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			/* tracking a server */
 			chunk_appendf(&trash,
 			              "<td class=ac colspan=3><a class=lfsb href=\"#%s/%s\">via %s/%s</a></td>",
-			              ref->proxy->id, ref->id, ref->proxy->id, ref->id);
+			              via->proxy->id, via->id, via->proxy->id, via->id);
 		}
 		else
 			chunk_appendf(&trash, "<td colspan=3></td>");
@@ -3000,7 +3008,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 
 		/* status */
 		if (sv->admin & SRV_ADMF_IMAINT)
-			chunk_appendf(&trash, "MAINT (via %s/%s),", ref->proxy->id, ref->id);
+			chunk_appendf(&trash, "MAINT (via %s/%s),", via->proxy->id, via->id);
 		else if (sv->admin & SRV_ADMF_MAINT)
 			chunk_appendf(&trash, "MAINT,");
 		else
@@ -3582,10 +3590,9 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 					continue;
 			}
 
-			if (sv->track)
-				svs = sv->track;
-			else
-				svs = sv;
+			svs = sv;
+			while (svs->track)
+				svs = svs->track;
 
 			/* FIXME: produce some small strings for "UP/DOWN x/y &#xxxx;" */
 			if (!(svs->check.state & CHK_ST_ENABLED))

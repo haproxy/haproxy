@@ -359,12 +359,16 @@ void srv_adm_set_ready(struct server *s, enum srv_admin mode)
 		check->health = check->rise; /* start OK but check immediately */
 	}
 
+	srv = s;
+	while (srv->track)
+		srv = srv->track;
+
 	if ((!s->track &&
 	     (!(s->agent.state & CHK_ST_ENABLED) || (s->agent.health >= s->agent.rise)) &&
 	     (!(s->check.state & CHK_ST_ENABLED) || (s->check.health >= s->check.rise))) ||
 	    (s->track &&
-	     (!(s->track->agent.state & CHK_ST_ENABLED) || (s->track->agent.health >= s->track->agent.rise)) &&
-	     (!(s->track->check.state & CHK_ST_ENABLED) || (s->track->check.health >= s->track->check.rise)))) {
+	     (!(srv->agent.state & CHK_ST_ENABLED) || (srv->agent.health >= srv->agent.rise)) &&
+	     (!(srv->check.state & CHK_ST_ENABLED) || (srv->check.health >= srv->check.rise)))) {
 
 		if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
 			if (s->proxy->last_change < now.tv_sec)		// ignore negative times

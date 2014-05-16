@@ -6563,7 +6563,7 @@ out_uri_auth_compat:
 
 			if (newsrv->trackit) {
 				struct proxy *px;
-				struct server *srv;
+				struct server *srv, *loop;
 				char *pname, *sname;
 
 				pname = newsrv->trackit;
@@ -6597,11 +6597,24 @@ out_uri_auth_compat:
 					goto next_srv;
 				}
 
-				if (!(srv->check.state & CHK_ST_CONFIGURED)) {
+				if (!(srv->check.state & CHK_ST_CONFIGURED) &&
+				    !(srv->agent.state & CHK_ST_CONFIGURED) &&
+				    !srv->track && !srv->trackit) {
 					Alert("config : %s '%s', server '%s': unable to use %s/%s for "
-						"tracking as it does not have checks enabled.\n",
-						proxy_type_str(curproxy), curproxy->id,
-						newsrv->id, px->id, srv->id);
+					      "tracking as it does not have any check nor agent enabled.\n",
+					      proxy_type_str(curproxy), curproxy->id,
+					      newsrv->id, px->id, srv->id);
+					cfgerr++;
+					goto next_srv;
+				}
+
+				for (loop = srv->track; loop && loop != newsrv; loop = loop->track);
+
+				if (loop) {
+					Alert("config : %s '%s', server '%s': unable to track %s/%s as it "
+					      "belongs to a tracking chain looping back to %s/%s.\n",
+					      proxy_type_str(curproxy), curproxy->id,
+					      newsrv->id, px->id, srv->id, px->id, loop->id);
 					cfgerr++;
 					goto next_srv;
 				}

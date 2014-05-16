@@ -8999,10 +8999,10 @@ ssl
   Supported in default-server: No
 
 track [<proxy>/]<server>
-  This option enables ability to set the current state of the server by
-  tracking another one. Only a server with checks enabled can be tracked
-  so it is not possible for example to track a server that tracks another
-  one. If <proxy> is omitted the current one is used. If disable-on-404 is
+  This option enables ability to set the current state of the server by tracking
+  another one. It is possible to track a server which itself tracks another
+  server, provided that at the end of the chain, a server has health checks
+  enabled. If <proxy> is omitted the current one is used. If disable-on-404 is
   used, it has to be enabled on both proxies.
 
   Supported in default-server: No
