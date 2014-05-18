@@ -1505,6 +1505,10 @@ void init_default_instance()
 }
 
 
+/* This function createss a new req* or rsp* rule to the proxy. It compiles the
+ * regex and may return the ERR_WARN bit, and error bits such as ERR_ALERT and
+ * ERR_FATAL in case of error.
+ */
 static int create_cond_regex_rule(const char *file, int line,
 				  struct proxy *px, int dir, int action, int flags,
 				  const char *cmd, const char *reg, const char *repl,
@@ -1513,41 +1517,41 @@ static int create_cond_regex_rule(const char *file, int line,
 	regex_t *preg = NULL;
 	char *errmsg = NULL;
 	const char *err;
-	int err_code = 0;
+	int ret_code = 0;
 	struct acl_cond *cond = NULL;
 
 	if (px == &defproxy) {
 		Alert("parsing [%s:%d] : '%s' not allowed in 'defaults' section.\n", file, line, cmd);
-		err_code |= ERR_ALERT | ERR_FATAL;
+		ret_code |= ERR_ALERT | ERR_FATAL;
 		goto err;
 	}
 
 	if (*reg == 0) {
 		Alert("parsing [%s:%d] : '%s' expects <regex> as an argument.\n", file, line, cmd);
-		err_code |= ERR_ALERT | ERR_FATAL;
+		ret_code |= ERR_ALERT | ERR_FATAL;
 		goto err;
 	}
 
 	if (warnifnotcap(px, PR_CAP_RS, file, line, cmd, NULL))
-		err_code |= ERR_WARN;
+		ret_code |= ERR_WARN;
 
 	if (cond_start &&
 	    (strcmp(*cond_start, "if") == 0 || strcmp(*cond_start, "unless") == 0)) {
 		if ((cond = build_acl_cond(file, line, px, cond_start, &errmsg)) == NULL) {
 			Alert("parsing [%s:%d] : error detected while parsing a '%s' condition : %s.\n",
 			      file, line, cmd, errmsg);
-			err_code |= ERR_ALERT | ERR_FATAL;
+			ret_code |= ERR_ALERT | ERR_FATAL;
 			goto err;
 		}
 	}
 	else if (cond_start && **cond_start) {
 		Alert("parsing [%s:%d] : '%s' : Expecting nothing, 'if', or 'unless', got '%s'.\n",
 		      file, line, cmd, *cond_start);
-		err_code |= ERR_ALERT | ERR_FATAL;
+		ret_code |= ERR_ALERT | ERR_FATAL;
 		goto err;
 	}
 
-	err_code |= warnif_cond_conflicts(cond,
+	ret_code |= warnif_cond_conflicts(cond,
 	                                  (dir == SMP_OPT_DIR_REQ) ?
 	                                  ((px->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR) :
 	                                  ((px->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR),
@@ -1556,13 +1560,13 @@ static int create_cond_regex_rule(const char *file, int line,
 	preg = calloc(1, sizeof(regex_t));
 	if (!preg) {
 		Alert("parsing [%s:%d] : '%s' : not enough memory to build regex.\n", file, line, cmd);
-		err_code = ERR_ALERT | ERR_FATAL;
+		ret_code = ERR_ALERT | ERR_FATAL;
 		goto err;
 	}
 
 	if (regcomp(preg, reg, REG_EXTENDED | flags) != 0) {
 		Alert("parsing [%s:%d] : '%s' : bad regular expression '%s'.\n", file, line, cmd, reg);
-		err_code = ERR_ALERT | ERR_FATAL;
+		ret_code = ERR_ALERT | ERR_FATAL;
 		goto err;
 	}
 
@@ -1571,17 +1575,21 @@ static int create_cond_regex_rule(const char *file, int line,
 	if (repl && err) {
 		Alert("parsing [%s:%d] : '%s' : invalid character or unterminated sequence in replacement string near '%c'.\n",
 		      file, line, cmd, *err);
-		err_code |= ERR_ALERT | ERR_FATAL;
-		goto err;
+		ret_code |= ERR_ALERT | ERR_FATAL;
+		goto err_free;
 	}
 
 	if (dir == SMP_OPT_DIR_REQ && warnif_misplaced_reqxxx(px, file, line, cmd))
-		err_code |= ERR_WARN;
+		ret_code |= ERR_WARN;
 
+	return ret_code;
+
+ err_free:
+	regfree(preg);
  err:
-	free(errmsg);
 	free(preg);
-	return err_code;
+	free(errmsg);
+	return ret_code;
 }
 
 /*
