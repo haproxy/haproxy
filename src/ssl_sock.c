@@ -728,7 +728,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 {
 	int cfgerr = 0;
 	int verify = SSL_VERIFY_NONE;
-	int ssloptions =
+	long ssloptions =
 		SSL_OP_ALL | /* all known workarounds for bugs */
 		SSL_OP_NO_SSLv2 |
 		SSL_OP_NO_COMPRESSION |
@@ -736,7 +736,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 		SSL_OP_SINGLE_ECDH_USE |
 		SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION |
 		SSL_OP_CIPHER_SERVER_PREFERENCE;
-	int sslmode =
+	long sslmode =
 		SSL_MODE_ENABLE_PARTIAL_WRITE |
 		SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
 		SSL_MODE_RELEASE_BUFFERS;
@@ -995,11 +995,11 @@ static int ssl_sock_srv_verifycbk(int ok, X509_STORE_CTX *ctx)
 int ssl_sock_prepare_srv_ctx(struct server *srv, struct proxy *curproxy)
 {
 	int cfgerr = 0;
-	int options =
+	long options =
 		SSL_OP_ALL | /* all known workarounds for bugs */
 		SSL_OP_NO_SSLv2 |
 		SSL_OP_NO_COMPRESSION;
-	int mode =
+	long mode =
 		SSL_MODE_ENABLE_PARTIAL_WRITE |
 		SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
 		SSL_MODE_RELEASE_BUFFERS;
