@@ -206,7 +206,8 @@ static void check_report_srv_status(struct chunk *msg, struct server *s, struct 
 
 /*
  * Set check->status, update check->duration and fill check->result with
- * an adequate CHK_RES_* value.
+ * an adequate CHK_RES_* value. The new check->health is computed based
+ * on the result.
  *
  * Show information in logs about failed health check if server is UP
  * or succeeded health checks if server is DOWN.
@@ -215,6 +216,7 @@ static void set_server_check_status(struct check *check, short status, const cha
 {
 	struct server *s = check->server;
 	short prev_status = check->status;
+	int report = 0;
 
 	if (status == HCHK_STATUS_START) {
 		check->result = CHK_RES_UNKNOWN;	/* no result yet */
@@ -245,71 +247,59 @@ static void set_server_check_status(struct check *check, short status, const cha
 	}
 
 	/* Failure to connect to the agent as a secondary check should not
-	 * cause the server to be marked down. So only log status changes
-	 * for HCHK_STATUS_* statuses */
+	 * cause the server to be marked down.
+	 */
 	if ((check->state & CHK_ST_AGENT) && check->status < HCHK_STATUS_L7TOUT)
 		return;
 
-	if (s->proxy->options2 & PR_O2_LOGHCHKS &&
-	    ((status != prev_status) ||
-	    ((check->health != 0) && (check->result == CHK_RES_FAILED)) ||
-	    (((check->health != check->rise + check->fall - 1)) && (check->result >= CHK_RES_PASSED)))) {
-		int health, rise, fall;
-		enum srv_state state;
+	report = 0;
 
-		chunk_reset(&trash);
+	switch (check->result) {
+	case CHK_RES_FAILED:
+		if (check->health >= check->rise) {
+			s->counters.failed_checks++;
+			report = 1;
+			check->health--;
+			if (check->health < check->rise)
+				check->health = 0;
+		}
+		break;
 
-		/* FIXME begin: calculate local version of the health/rise/fall/state */
-		health = check->health;
-		rise   = check->rise;
-		fall   = check->fall;
-		state  = s->state;
+	case CHK_RES_PASSED:
+	case CHK_RES_CONDPASS:	/* "condpass" cannot make the first step but it OK after a "passed" */
+		if ((check->health < check->rise + check->fall - 1) &&
+		    (check->result == CHK_RES_PASSED || check->health > 0)) {
+			report = 1;
+			check->health++;
 
-		switch (check->result) {
-		case CHK_RES_FAILED:
-			if (health > rise) {
-				health--; /* still good */
-			} else {
-				if (health == rise)
-					state = SRV_ST_STOPPED;
-
-				health = 0;
-			}
-			break;
-
-		case CHK_RES_PASSED:
-		case CHK_RES_CONDPASS:
-			if (health < rise + fall - 1) {
-				health++; /* was bad, stays for a while */
-
-				if (health == rise)
-					state = SRV_ST_RUNNING;
-
-				if (health >= rise)
-					health = rise + fall - 1; /* OK now */
-			}
-
-			/* clear consecutive_errors if observing is enabled */
-			if (s->onerror)
-				s->consecutive_errors = 0;
-			break;
-		default:
-			break;
+			if (check->health >= check->rise)
+				check->health = check->rise + check->fall - 1; /* OK now */
 		}
 
-		chunk_appendf(&trash,
+		/* clear consecutive_errors if observing is enabled */
+		if (s->onerror)
+			s->consecutive_errors = 0;
+		break;
+
+	default:
+		break;
+	}
+
+	if (s->proxy->options2 & PR_O2_LOGHCHKS &&
+	    (status != prev_status || report)) {
+		chunk_printf(&trash,
 		             "Health check for %sserver %s/%s %s%s",
 		             s->flags & SRV_F_BACKUP ? "backup " : "",
 		             s->proxy->id, s->id,
 		             (check->result == CHK_RES_CONDPASS) ? "conditionally ":"",
-		             (check->result >= CHK_RES_PASSED)   ? "succeeded":"failed");
+		             (check->result >= CHK_RES_PASSED)   ? "succeeded" : "failed");
 
 		check_report_srv_status(&trash, s, check, -1);
 
 		chunk_appendf(&trash, ", status: %d/%d %s",
-		             (state != SRV_ST_STOPPED) ? (health - rise + 1) : (health),
-		             (state != SRV_ST_STOPPED) ? (fall) : (rise),
-			     (state != SRV_ST_STOPPED) ? (s->uweight?"UP":"DRAIN"):"DOWN");
+		             (check->health >= check->rise) ? check->health - check->rise + 1 : check->health,
+		             (check->health >= check->rise) ? check->fall : check->rise,
+			     (check->health >= check->rise) ? (s->uweight ? "UP" : "DRAIN") : "DOWN");
 
 		Warning("%s.\n", trash.str);
 		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
@@ -330,6 +320,15 @@ static void check_set_server_down(struct check *check)
 	int xferred;
 
 	if ((s->admin & SRV_ADMF_MAINT) || s->state == SRV_ST_STOPPED)
+		return;
+
+	/* The agent secondary check should only cause a server to be marked
+	 * as down if check->status is HCHK_STATUS_L7STS, which indicates
+	 * that the agent returned "fail", "stopped" or "down".
+	 * The implication here is that failure to connect to the agent
+	 * as a secondary check should not cause the server to be marked
+	 * down. */
+	if ((check->state & CHK_ST_AGENT) && check->status != HCHK_STATUS_L7STS)
 		return;
 
 	check->health = 0; /* failure */
@@ -500,27 +499,6 @@ static void check_set_server_drain(struct check *check)
 		check->health = check->rise + check->fall - 1; /* OK now */
 }
 
-static void check_failed(struct check *check)
-{
-	struct server *s = check->server;
-
-	/* The agent secondary check should only cause a server to be marked
-	 * as down if check->status is HCHK_STATUS_L7STS, which indicates
-	 * that the agent returned "fail", "stopped" or "down".
-	 * The implication here is that failure to connect to the agent
-	 * as a secondary check should not cause the server to be marked
-	 * down. */
-	if ((check->state & CHK_ST_AGENT) && check->status != HCHK_STATUS_L7STS)
-		return;
-
-	if (check->health > check->rise) {
-		check->health--; /* still good */
-		s->counters.failed_checks++;
-	}
-	else
-		check_set_server_down(check);
-}
-
 /* note: use health_adjust() only, which first checks that the observe mode is
  * enabled.
  */
@@ -577,7 +555,8 @@ void __health_adjust(struct server *s, short status)
 		case HANA_ONERR_FAILCHK:
 		/* simulate a failed health check */
 			set_server_check_status(&s->check, HCHK_STATUS_HANA, trash.str);
-			check_failed(&s->check);
+			if (!s->check.health)
+				check_set_server_down(&s->check);
 
 			break;
 
@@ -585,7 +564,8 @@ void __health_adjust(struct server *s, short status)
 		/* mark server down */
 			s->check.health = s->check.rise;
 			set_server_check_status(&s->check, HCHK_STATUS_HANA, trash.str);
-			check_set_server_down(&s->check);
+			if (!s->check.health)
+				check_set_server_down(&s->check);
 
 			break;
 
@@ -1528,7 +1508,8 @@ static struct task *process_chk(struct task *t)
 		/* here, we have seen a synchronous error, no fd was allocated */
 
 		check->state &= ~CHK_ST_INPROGRESS;
-		check_failed(check);
+		if (!check->health)
+			check_set_server_down(check);
 
 		/* we allow up to min(inter, timeout.connect) for a connection
 		 * to establish but only when timeout.check is set
@@ -1577,21 +1558,20 @@ static struct task *process_chk(struct task *t)
 
 		if (check->result == CHK_RES_FAILED) {
 			/* a failure or timeout detected */
-			check_failed(check);
+			if (!check->health && check->server->state != SRV_ST_STOPPED)
+				check_set_server_down(check);
 		}
 		else if (check->result == CHK_RES_CONDPASS && s->state != SRV_ST_STOPPED && !(s->admin & SRV_ADMF_MAINT)) {
 			/* check is OK but asks for drain mode */
-			if (check->health < check->rise + check->fall - 1) {
-				check->health++;
+			if (check->health >= check->rise && check->server->state != SRV_ST_STOPPING)
 				check_set_server_drain(check);
-			}
 		}
 		else if (check->result == CHK_RES_PASSED && !(s->admin & SRV_ADMF_MAINT)) {
 			/* check is OK */
-			if (check->health < check->rise + check->fall - 1) {
-				check->health++;
+			if (check->health >= check->rise &&
+			    (check->server->state == SRV_ST_STOPPING ||
+			     check->server->state == SRV_ST_STOPPED))
 				check_set_server_up(check);
-			}
 		}
 		check->state &= ~CHK_ST_INPROGRESS;
 
