@@ -186,16 +186,20 @@ void srv_shutdown_backup_sessions(struct proxy *px, int why)
 			srv_shutdown_sessions(srv, why);
 }
 
-/* Appends some information to a message string related to a server going UP or DOWN.
- * If <forced> is null and the server tracks another one, a "via" information will
- * be provided to know where the status came from. If xferred is non-negative, some
- * information about requeued sessions are provided.
+/* Appends some information to a message string related to a server going UP or
+ * DOWN.  If both <forced> and <reason> are null and the server tracks another
+ * one, a "via" information will be provided to know where the status came from.
+ * If <reason> is non-null, the entire string will be appended after a comma and
+ * a space (eg: to report some information from the check that changed the state).
+ * If <xferred> is non-negative, some information about requeued sessions are
+ * provided.
  */
-void srv_adm_append_status(struct chunk *msg, struct server *s, int xferred, int forced)
+void srv_append_status(struct chunk *msg, struct server *s, const char *reason, int xferred, int forced)
 {
-	if (!forced && s->track)
-		chunk_appendf(msg, " via %s/%s",
-			s->track->proxy->id, s->track->id);
+	if (reason)
+		chunk_appendf(msg, ", %s", reason);
+	else if (!forced && s->track)
+		chunk_appendf(msg, " via %s/%s", s->track->proxy->id, s->track->id);
 
 	if (xferred >= 0) {
 		if (s->state == SRV_ST_STOPPED)
@@ -247,7 +251,7 @@ void srv_adm_set_maint(struct server *s, enum srv_admin mode)
 			             "%sServer %s/%s was DOWN and now enters maintenance",
 			             s->flags & SRV_F_BACKUP ? "Backup " : "", s->proxy->id, s->id);
 
-			srv_adm_append_status(&trash, s, -1, (mode & SRV_ADMF_FMAINT));
+			srv_append_status(&trash, s, NULL, -1, (mode & SRV_ADMF_FMAINT));
 
 			Warning("%s.\n", trash.str);
 			send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
@@ -277,7 +281,7 @@ void srv_adm_set_maint(struct server *s, enum srv_admin mode)
 		             s->flags & SRV_F_BACKUP ? "Backup " : "",
 		             s->proxy->id, s->id);
 
-		srv_adm_append_status(&trash, s, xferred, (mode & SRV_ADMF_FMAINT));
+		srv_append_status(&trash, s, NULL, xferred, (mode & SRV_ADMF_FMAINT));
 
 		Warning("%s.\n", trash.str);
 		send_log(s->proxy, srv_was_stopping ? LOG_NOTICE : LOG_ALERT, "%s.\n", trash.str);
@@ -416,7 +420,7 @@ void srv_adm_set_ready(struct server *s, enum srv_admin mode)
 		             s->flags & SRV_F_BACKUP ? "Backup " : "",
 		             s->proxy->id, s->id,
 		             (s->state == SRV_ST_STOPPED) ? "DOWN" : "UP");
-		srv_adm_append_status(&trash, s, xferred, 0);
+		srv_append_status(&trash, s, NULL, xferred, 0);
 	}
 
 	Warning("%s.\n", trash.str);

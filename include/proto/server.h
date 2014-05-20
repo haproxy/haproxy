@@ -116,12 +116,15 @@ void srv_shutdown_sessions(struct server *srv, int why);
  */
 void srv_shutdown_backup_sessions(struct proxy *px, int why);
 
-/* Appends some information to a message string related to a server going UP or DOWN.
- * If <forced> is null and the server tracks another one, a "via" information will
- * be provided to know where the status came from. If xferred is non-negative, some
- * information about requeued sessions are provided.
+/* Appends some information to a message string related to a server going UP or
+ * DOWN.  If both <forced> and <reason> are null and the server tracks another
+ * one, a "via" information will be provided to know where the status came from.
+ * If <reason> is non-null, the entire string will be appended after a comma and
+ * a space (eg: to report some information from the check that changed the state).
+ * If <xferred> is non-negative, some information about requeued sessions are
+ * provided.
  */
-void srv_adm_append_status(struct chunk *msg, struct server *s, int xferred, int forced);
+void srv_append_status(struct chunk *msg, struct server *s, const char *reason, int xferred, int forced);
 
 /* Puts server <s> into maintenance mode, and propagate that status down to all
  * tracking servers. This does the same action as the CLI's "disable server x".
