@@ -66,6 +66,8 @@ static const struct check_status check_statuses[HCHK_STATUS_SIZE] = {
 	[HCHK_STATUS_INI]	= { CHK_RES_UNKNOWN,  "INI",     "Initializing" },
 	[HCHK_STATUS_START]	= { /* SPECIAL STATUS*/ },
 
+	/* Below we have finished checks */
+	[HCHK_STATUS_CHECKED]	= { CHK_RES_NEUTRAL,  "CHECKED", "No status change" },
 	[HCHK_STATUS_HANA]	= { CHK_RES_FAILED,   "HANA",    "Health analyze" },
 
 	[HCHK_STATUS_SOCKERR]	= { CHK_RES_FAILED,   "SOCKERR", "Socket error" },
@@ -231,6 +233,10 @@ static void set_server_check_status(struct check *check, short status, const cha
 		check->duration = tv_ms_elapsed(&check->start, &now);
 		tv_zero(&check->start);
 	}
+
+	/* no change is expected if no state change occurred */
+	if (check->result == CHK_RES_NEUTRAL)
+		return;
 
 	report = 0;
 

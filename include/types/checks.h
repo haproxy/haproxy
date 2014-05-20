@@ -29,6 +29,7 @@
  */
 enum chk_result {
 	CHK_RES_UNKNOWN = 0,            /* initialized to this by default */
+	CHK_RES_NEUTRAL,                /* valid check but no status information */
 	CHK_RES_FAILED,                 /* check failed */
 	CHK_RES_PASSED,                 /* check succeeded and server is fully up again */
 	CHK_RES_CONDPASS,               /* check reports the server doesn't want new sessions */
