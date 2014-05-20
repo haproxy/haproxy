@@ -292,21 +292,12 @@ static void set_server_check_status(struct check *check, short status, const cha
 	}
 }
 
-/* Marks the check <check>'s server down, notifies by all available means,
- * recounts the remaining servers on the proxy and transfers queued sessions
- * whenever possible to other servers. It automatically recomputes the number
- * of servers, but not the map. Maintenance servers are ignored.
+/* Marks the check <check>'s server down if the current check is already failed
+ * and the server is not down yet nor in maintenance.
  */
-static void check_set_server_down(struct check *check)
+static void check_notify_failure(struct check *check)
 {
 	struct server *s = check->server;
-	struct server *srv;
-	int prev_srv_count = s->proxy->srv_bck + s->proxy->srv_act;
-	int srv_was_stopping = (s->state == SRV_ST_STOPPING);
-	int xferred;
-
-	if ((s->admin & SRV_ADMF_MAINT) || s->state == SRV_ST_STOPPED)
-		return;
 
 	/* The agent secondary check should only cause a server to be marked
 	 * as down if check->status is HCHK_STATUS_L7STS, which indicates
@@ -317,44 +308,11 @@ static void check_set_server_down(struct check *check)
 	if ((check->state & CHK_ST_AGENT) && check->status != HCHK_STATUS_L7STS)
 		return;
 
-	check->health = 0; /* failure */
-	s->last_change = now.tv_sec;
-	s->state = SRV_ST_STOPPED;
-	if (s->proxy->lbprm.set_server_status_down)
-		s->proxy->lbprm.set_server_status_down(s);
+	if (check->health > 0)
+		return;
 
-	if (s->onmarkeddown & HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS)
-		srv_shutdown_sessions(s, SN_ERR_DOWN);
-
-	/* we might have sessions queued on this server and waiting for
-	 * a connection. Those which are redispatchable will be queued
-	 * to another server or to the proxy itself.
-	 */
-	xferred = pendconn_redistribute(s);
-
-	chunk_printf(&trash,
-	             "%sServer %s/%s is DOWN", s->flags & SRV_F_BACKUP ? "Backup " : "",
-	             s->proxy->id, s->id);
-
-	srv_append_status(&trash, s,
-			  ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check_reason_string(check) : NULL),
-			  xferred, 0);
-
-	Warning("%s.\n", trash.str);
-
-	/* we don't send an alert if the server was previously paused */
-	if (srv_was_stopping)
-		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
-	else
-		send_log(s->proxy, LOG_ALERT, "%s.\n", trash.str);
-
-	if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
-		set_backend_down(s->proxy);
-
-	s->counters.down_trans++;
-
-	for (srv = s->trackers; srv; srv = srv->tracknext)
-		check_set_server_down(&srv->check);
+	/* We only report a reason for the check if we did not do so previously */
+	srv_set_stopped(s, (!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check_reason_string(check) : NULL);
 }
 
 /* Marks the check <check> as valid and tries to set its server up, provided
@@ -542,18 +500,14 @@ void __health_adjust(struct server *s, short status)
 		case HANA_ONERR_FAILCHK:
 		/* simulate a failed health check */
 			set_server_check_status(&s->check, HCHK_STATUS_HANA, trash.str);
-			if (!s->check.health)
-				check_set_server_down(&s->check);
-
+			check_notify_failure(&s->check);
 			break;
 
 		case HANA_ONERR_MARKDWN:
 		/* mark server down */
 			s->check.health = s->check.rise;
 			set_server_check_status(&s->check, HCHK_STATUS_HANA, trash.str);
-			if (!s->check.health)
-				check_set_server_down(&s->check);
-
+			check_notify_failure(&s->check);
 			break;
 
 		default:
@@ -1495,8 +1449,7 @@ static struct task *process_chk(struct task *t)
 		/* here, we have seen a synchronous error, no fd was allocated */
 
 		check->state &= ~CHK_ST_INPROGRESS;
-		if (!check->health)
-			check_set_server_down(check);
+		check_notify_failure(check);
 
 		/* we allow up to min(inter, timeout.connect) for a connection
 		 * to establish but only when timeout.check is set
@@ -1545,8 +1498,7 @@ static struct task *process_chk(struct task *t)
 
 		if (check->result == CHK_RES_FAILED) {
 			/* a failure or timeout detected */
-			if (!check->health && check->server->state != SRV_ST_STOPPED)
-				check_set_server_down(check);
+			check_notify_failure(check);
 		}
 		else if (check->result == CHK_RES_CONDPASS && s->state != SRV_ST_STOPPED && !(s->admin & SRV_ADMF_MAINT)) {
 			/* check is OK but asks for drain mode */
