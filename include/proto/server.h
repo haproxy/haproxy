@@ -136,6 +136,16 @@ void srv_append_status(struct chunk *msg, struct server *s, const char *reason, 
  */
 void srv_set_stopped(struct server *s, const char *reason);
 
+/* Marks server <s> up regardless of its checks' statuses and provided it isn't
+ * in maintenance. Notifies by all available means, recounts the remaining
+ * servers on the proxy and tries to grab requests from the proxy. It
+ * automatically recomputes the number of servers, but not the map. Maintenance
+ * servers are ignored. It reports <reason> if non-null as the reason for going
+ * up. Note that it makes use of the trash to build the log strings, so <reason>
+ * must not be placed there.
+ */
+void srv_set_running(struct server *s, const char *reason);
+
 /* Puts server <s> into maintenance mode, and propagate that status down to all
  * tracking servers. This does the same action as the CLI's "disable server x".
  * A log is emitted for all servers that were not yet in maintenance mode.
