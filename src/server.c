@@ -217,6 +217,57 @@ void srv_append_status(struct chunk *msg, struct server *s, const char *reason, 
 	}
 }
 
+/* Marks server <s> down, regardless of its checks' statuses, notifies by all
+ * available means, recounts the remaining servers on the proxy and transfers
+ * queued sessions whenever possible to other servers. It automatically
+ * recomputes the number of servers, but not the map. Maintenance servers are
+ * ignored. It reports <reason> if non-null as the reason for going down. Note
+ * that it makes use of the trash to build the log strings, so <reason> must
+ * not be placed there.
+ */
+void srv_set_stopped(struct server *s, const char *reason)
+{
+	struct server *srv;
+	int prev_srv_count = s->proxy->srv_bck + s->proxy->srv_act;
+	int srv_was_stopping = (s->state == SRV_ST_STOPPING);
+	int xferred;
+
+	if ((s->admin & SRV_ADMF_MAINT) || s->state == SRV_ST_STOPPED)
+		return;
+
+	s->last_change = now.tv_sec;
+	s->state = SRV_ST_STOPPED;
+	if (s->proxy->lbprm.set_server_status_down)
+		s->proxy->lbprm.set_server_status_down(s);
+
+	if (s->onmarkeddown & HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS)
+		srv_shutdown_sessions(s, SN_ERR_DOWN);
+
+	/* we might have sessions queued on this server and waiting for
+	 * a connection. Those which are redispatchable will be queued
+	 * to another server or to the proxy itself.
+	 */
+	xferred = pendconn_redistribute(s);
+
+	chunk_printf(&trash,
+	             "%sServer %s/%s is DOWN", s->flags & SRV_F_BACKUP ? "Backup " : "",
+	             s->proxy->id, s->id);
+
+	srv_append_status(&trash, s, reason, xferred, 0);
+	Warning("%s.\n", trash.str);
+
+	/* we don't send an alert if the server was previously paused */
+	send_log(s->proxy, srv_was_stopping ? LOG_NOTICE : LOG_ALERT, "%s.\n", trash.str);
+
+	if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
+		set_backend_down(s->proxy);
+
+	s->counters.down_trans++;
+
+	for (srv = s->trackers; srv; srv = srv->tracknext)
+		srv_set_stopped(srv, NULL);
+}
+
 /* Puts server <s> into maintenance mode, and propagate that status down to all
  * tracking servers. This does the same action as the CLI's "disable server x".
  * A log is emitted for all servers that were not yet in maintenance mode.
