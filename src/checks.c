@@ -155,53 +155,39 @@ const char *get_analyze_status(short analyze_status) {
 		return analyze_statuses[HANA_STATUS_UNKNOWN].desc;
 }
 
-/* Appends some information to a message string related to a server going UP or DOWN.
- * If the server tracks another one, a "via" information will be provided to know
- * where the status came from. If <check> is non-null, some information from this
- * check's result will be reported as well. If <xferred> is non-negative, some
- * information about requeued sessions are provided.
+/* Builds a string containing some information about the health check's result.
+ * The output string is allocated from the trash chunks. If the check is NULL,
+ * NULL is returned. This is designed to be used when emitting logs about health
+ * checks.
  */
-static void check_report_srv_status(struct chunk *msg, struct server *s, struct check *check, int xferred)
+static const char *check_reason_string(struct check *check)
 {
-	if (s->track)
-		chunk_appendf(msg, " via %s/%s",
-			s->track->proxy->id, s->track->id);
+	struct chunk *msg;
 
-	if (check) {
-		chunk_appendf(msg, ", reason: %s", get_check_status_description(check->status));
+	if (!check)
+		return NULL;
 
-		if (check->status >= HCHK_STATUS_L57DATA)
-			chunk_appendf(msg, ", code: %d", check->code);
+	msg = get_trash_chunk();
+	chunk_printf(msg, "reason: %s", get_check_status_description(check->status));
 
-		if (*check->desc) {
-			struct chunk src;
+	if (check->status >= HCHK_STATUS_L57DATA)
+		chunk_appendf(msg, ", code: %d", check->code);
 
-			chunk_appendf(msg, ", info: \"");
+	if (*check->desc) {
+		struct chunk src;
 
-			chunk_initlen(&src, check->desc, 0, strlen(check->desc));
-			chunk_asciiencode(msg, &src, '"');
+		chunk_appendf(msg, ", info: \"");
 
-			chunk_appendf(msg, "\"");
-		}
+		chunk_initlen(&src, check->desc, 0, strlen(check->desc));
+		chunk_asciiencode(msg, &src, '"');
 
-		if (check->duration >= 0)
-			chunk_appendf(msg, ", check duration: %ldms", check->duration);
+		chunk_appendf(msg, "\"");
 	}
 
-	if (xferred >= 0) {
-		if (s->state == SRV_ST_STOPPED)
-			chunk_appendf(msg, ". %d active and %d backup servers left.%s"
-				" %d sessions active, %d requeued, %d remaining in queue",
-				s->proxy->srv_act, s->proxy->srv_bck,
-				(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
-				s->cur_sess, xferred, s->nbpend);
-		else 
-			chunk_appendf(msg, ". %d active and %d backup servers online.%s"
-				" %d sessions requeued, %d total in queue",
-				s->proxy->srv_act, s->proxy->srv_bck,
-				(s->proxy->srv_bck && !s->proxy->srv_act) ? " Running on backup." : "",
-				xferred, s->nbpend);
-	}
+	if (check->duration >= 0)
+		chunk_appendf(msg, ", check duration: %ldms", check->duration);
+
+	return msg->str;
 }
 
 /*
@@ -294,7 +280,7 @@ static void set_server_check_status(struct check *check, short status, const cha
 		             (check->result == CHK_RES_CONDPASS) ? "conditionally ":"",
 		             (check->result >= CHK_RES_PASSED)   ? "succeeded" : "failed");
 
-		check_report_srv_status(&trash, s, check, -1);
+		srv_append_status(&trash, s, check_reason_string(check), -1, 0);
 
 		chunk_appendf(&trash, ", status: %d/%d %s",
 		             (check->health >= check->rise) ? check->health - check->rise + 1 : check->health,
@@ -350,9 +336,10 @@ static void check_set_server_down(struct check *check)
 	             "%sServer %s/%s is DOWN", s->flags & SRV_F_BACKUP ? "Backup " : "",
 	             s->proxy->id, s->id);
 
-	check_report_srv_status(&trash, s,
-	                        ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check : 0),
-	                        xferred);
+	srv_append_status(&trash, s,
+			  ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check_reason_string(check) : NULL),
+			  xferred, 0);
+
 	Warning("%s.\n", trash.str);
 
 	/* we don't send an alert if the server was previously paused */
@@ -438,9 +425,9 @@ static void check_set_server_up(struct check *check)
 	             "%sServer %s/%s is UP", s->flags & SRV_F_BACKUP ? "Backup " : "",
 	             s->proxy->id, s->id);
 
-	check_report_srv_status(&trash, s,
-	                        ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ?  check : NULL),
-	                        xferred);
+	srv_append_status(&trash, s,
+			  ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check_reason_string(check) : NULL),
+			  xferred, 0);
 
 	Warning("%s.\n", trash.str);
 	send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
@@ -482,9 +469,9 @@ static void check_set_server_drain(struct check *check)
 	             "%sServer %s/%s is stopping", s->flags & SRV_F_BACKUP ? "Backup " : "",
 	             s->proxy->id, s->id);
 
-	check_report_srv_status(&trash, s,
-	                        ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check : NULL),
-	                        xferred);
+	srv_append_status(&trash, s,
+			  ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check_reason_string(check) : NULL),
+			  xferred, 0);
 
 	Warning("%s.\n", trash.str);
 	send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
