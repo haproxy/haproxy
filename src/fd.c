@@ -438,6 +438,13 @@ int list_pollers(FILE *out)
  */
 int fork_poller()
 {
+	int fd;
+	for (fd = 0; fd <= maxfd; fd++) {
+		if (fdtab[fd].owner) {
+			fdtab[fd].cloned = 1;
+		}
+	}
+
 	if (cur_poller.fork) {
 		if (cur_poller.fork(&cur_poller))
 			return 1;

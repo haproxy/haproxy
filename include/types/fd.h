@@ -86,6 +86,7 @@ struct fdtab {
 	unsigned char new:1;                 /* 1 if this fd has just been created */
 	unsigned char updated:1;             /* 1 if this fd is already in the update list */
 	unsigned char linger_risk:1;         /* 1 if we must kill lingering before closing */
+	unsigned char cloned:1;              /* 1 if a cloned socket, requires EPOLL_CTL_DEL on close */
 };
 
 /* less often used information */

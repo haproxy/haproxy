@@ -46,6 +46,19 @@ static struct epoll_event ev;
 #endif
 
 /*
+ * Immediately remove file descriptor from epoll set upon close.
+ * Since we forked, some fds share inodes with the other process, and epoll may
+ * send us events even though this process closed the fd (see man 7 epoll,
+ * "Questions and answers", Q 6).
+ */
+REGPRM1 static void __fd_clo(int fd)
+{
+	if (unlikely(fdtab[fd].cloned)) {
+		epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, &ev);
+	}
+}
+
+/*
  * Linux epoll() poller
  */
 REGPRM2 static void _do_poll(struct poller *p, int exp)
@@ -267,7 +280,7 @@ static void _do_register(void)
 	p->pref = 300;
 	p->private = NULL;
 
-	p->clo  = NULL;
+	p->clo  = __fd_clo;
 	p->test = _do_test;
 	p->init = _do_init;
 	p->term = _do_term;
