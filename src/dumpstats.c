@@ -3627,7 +3627,7 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 				else
 					sv_state = 2; /* going down */
 
-				if (server_is_draining(svs))
+				if (server_is_draining(sv))
 					sv_state += 4;
 				else if (svs->state & SRV_GOINGDOWN)
 					sv_state += 2;
