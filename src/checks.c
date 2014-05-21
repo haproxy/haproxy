@@ -348,51 +348,32 @@ static void check_notify_success(struct check *check)
 	srv_set_running(s, (!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check_reason_string(check) : NULL);
 }
 
-/* Marks the check <check> as valid and tries to set its server into drain mode,
- * provided it isn't in maintenance and other checks comply. Notifies by all
- * available means, recounts the remaining servers on the proxy and tries to
- * grab requests from the proxy. It automatically recomputes the number of
- * servers, but not the map. Maintenance servers are ignored. Those that were
- * not in perfect health are simply refreshed.
+/* Marks the check <check> as valid and tries to set its server into stopping mode
+ * if it was running or starting, and provided it isn't in maintenance and other
+ * checks comply. The conditions for the server to be marked in stopping mode are
+ * the same as for it to be turned up. Also, only the health checks support the
+ * nolb mode.
  */
-static void check_set_server_drain(struct check *check)
+static void check_notify_stopping(struct check *check)
 {
 	struct server *s = check->server;
-	struct server *srv;
-	int xferred;
 
 	if (s->admin & SRV_ADMF_MAINT)
 		return;
 
-	s->state = SRV_ST_STOPPING;
-	if (s->proxy->lbprm.set_server_status_down)
-		s->proxy->lbprm.set_server_status_down(s);
+	if (check->state & CHK_ST_AGENT)
+		return;
 
-	/* we might have sessions queued on this server and waiting for
-	 * a connection. Those which are redispatchable will be queued
-	 * to another server or to the proxy itself.
-	 */
-	xferred = pendconn_redistribute(s);
+	if (s->track && s->track->state == SRV_ST_STOPPED)
+		return;
 
-	chunk_printf(&trash,
-	             "%sServer %s/%s is stopping", s->flags & SRV_F_BACKUP ? "Backup " : "",
-	             s->proxy->id, s->id);
+	if ((s->check.state & CHK_ST_ENABLED) && (s->check.health < s->check.rise))
+		return;
 
-	srv_append_status(&trash, s,
-			  ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check_reason_string(check) : NULL),
-			  xferred, 0);
+	if ((s->agent.state & CHK_ST_ENABLED) && (s->agent.health < s->agent.rise))
+		return;
 
-	Warning("%s.\n", trash.str);
-	send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
-
-	if (!s->proxy->srv_bck && !s->proxy->srv_act)
-		set_backend_down(s->proxy);
-
-	for (srv = s->trackers; srv; srv = srv->tracknext)
-		check_set_server_drain(&srv->check);
-
-	if (check->health >= check->rise)
-		check->health = check->rise + check->fall - 1; /* OK now */
+	srv_set_stopping(s, (!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check_reason_string(check) : NULL);
 }
 
 /* note: use health_adjust() only, which first checks that the observe mode is
@@ -1451,10 +1432,9 @@ static struct task *process_chk(struct task *t)
 			/* a failure or timeout detected */
 			check_notify_failure(check);
 		}
-		else if (check->result == CHK_RES_CONDPASS && s->state != SRV_ST_STOPPED && !(s->admin & SRV_ADMF_MAINT)) {
-			/* check is OK but asks for drain mode */
-			if (check->health >= check->rise && check->server->state != SRV_ST_STOPPING)
-				check_set_server_drain(check);
+		else if (check->result == CHK_RES_CONDPASS) {
+			/* check is OK but asks for stopping mode */
+			check_notify_stopping(check);
 		}
 		else if (check->result == CHK_RES_PASSED) {
 			/* a success was detected */
