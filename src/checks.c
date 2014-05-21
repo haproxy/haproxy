@@ -316,85 +316,36 @@ static void check_notify_failure(struct check *check)
 }
 
 /* Marks the check <check> as valid and tries to set its server up, provided
- * it isn't in maintenance and other checks comply. Notifies by all available
- * means, recounts the remaining servers on the proxy and tries to grab requests
- * from the proxy. It automatically recomputes the number of servers, but not the
- * map. Maintenance servers are ignored. Those that were not in perfect health
- * are simply refreshed.
+ * it isn't in maintenance, it is not tracking a down server and other checks
+ * comply. The rule is simple : by default, a server is up, unless any of the
+ * following conditions is true :
+ *   - health check failed (check->health < rise)
+ *   - agent check failed (agent->health < rise)
+ *   - the server tracks a down server (track && track->state == STOPPED)
+ * Note that if the server has a slowstart, it will switch to STARTING instead
+ * of RUNNING. Also, only the health checks support the nolb mode, so the
+ * agent's success may not take the server out of this mode.
  */
-static void check_set_server_up(struct check *check)
+static void check_notify_success(struct check *check)
 {
 	struct server *s = check->server;
-	struct server *srv;
-	int xferred;
 
 	if (s->admin & SRV_ADMF_MAINT)
 		return;
 
-	srv = s;
-	while (srv->track)
-		srv = srv->track;
-
-	/* servers which remain down because of their checks and the tracked servers' checks
-	 * do not change nor propagate anything.
-	 */
-	if ((!s->track &&
-	     (((s->agent.state & CHK_ST_ENABLED) && (s->agent.health < s->agent.rise)) ||
-	      ((s->check.state & CHK_ST_ENABLED) && (s->check.health < s->check.rise)))) ||
-	    (s->track &&
-	     (((srv->agent.state & CHK_ST_ENABLED) && (srv->agent.health < srv->agent.rise)) ||
-	      ((srv->check.state & CHK_ST_ENABLED) && (srv->check.health < srv->check.rise)))))
+	if (s->track && s->track->state == SRV_ST_STOPPED)
 		return;
 
-	if (s->proxy->srv_bck == 0 && s->proxy->srv_act == 0) {
-		if (s->proxy->last_change < now.tv_sec)		// ignore negative times
-			s->proxy->down_time += now.tv_sec - s->proxy->last_change;
-		s->proxy->last_change = now.tv_sec;
-	}
+	if ((s->check.state & CHK_ST_ENABLED) && (s->check.health < s->check.rise))
+		return;
 
-	if (s->state == SRV_ST_STOPPED && s->last_change < now.tv_sec)	// ignore negative times
-		s->down_time += now.tv_sec - s->last_change;
+	if ((s->agent.state & CHK_ST_ENABLED) && (s->agent.health < s->agent.rise))
+		return;
 
-	s->last_change = now.tv_sec;
+	if ((check->state & CHK_ST_AGENT) && s->state == SRV_ST_STOPPING)
+		return;
 
-	s->state = SRV_ST_STARTING;
-	if (s->slowstart > 0)
-		task_schedule(s->warmup, tick_add(now_ms, MS_TO_TICKS(MAX(1000, s->slowstart / 20))));
-	else
-		s->state = SRV_ST_RUNNING;
-
-	server_recalc_eweight(s);
-
-	/* If the server is set with "on-marked-up shutdown-backup-sessions",
-	 * and it's not a backup server and its effective weight is > 0,
-	 * then it can accept new connections, so we shut down all sessions
-	 * on all backup servers.
-	 */
-	if ((s->onmarkedup & HANA_ONMARKEDUP_SHUTDOWNBACKUPSESSIONS) &&
-	    !(s->flags & SRV_F_BACKUP) && s->eweight)
-		srv_shutdown_backup_sessions(s->proxy, SN_ERR_UP);
-
-	/* check if we can handle some connections queued at the proxy. We
-	 * will take as many as we can handle.
-	 */
-	xferred = pendconn_grab_from_px(s);
-
-	chunk_printf(&trash,
-	             "%sServer %s/%s is UP", s->flags & SRV_F_BACKUP ? "Backup " : "",
-	             s->proxy->id, s->id);
-
-	srv_append_status(&trash, s,
-			  ((!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check_reason_string(check) : NULL),
-			  xferred, 0);
-
-	Warning("%s.\n", trash.str);
-	send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
-
-	for (srv = s->trackers; srv; srv = srv->tracknext)
-		check_set_server_up(&srv->check);
-
-	if (check->health >= check->rise)
-		check->health = check->rise + check->fall - 1; /* OK now */
+	srv_set_running(s, (!s->track && !(s->proxy->options2 & PR_O2_LOGHCHKS)) ? check_reason_string(check) : NULL);
 }
 
 /* Marks the check <check> as valid and tries to set its server into drain mode,
@@ -1505,12 +1456,9 @@ static struct task *process_chk(struct task *t)
 			if (check->health >= check->rise && check->server->state != SRV_ST_STOPPING)
 				check_set_server_drain(check);
 		}
-		else if (check->result == CHK_RES_PASSED && !(s->admin & SRV_ADMF_MAINT)) {
-			/* check is OK */
-			if (check->health >= check->rise &&
-			    (check->server->state == SRV_ST_STOPPING ||
-			     check->server->state == SRV_ST_STOPPED))
-				check_set_server_up(check);
+		else if (check->result == CHK_RES_PASSED) {
+			/* a success was detected */
+			check_notify_success(check);
 		}
 		check->state &= ~CHK_ST_INPROGRESS;
 
