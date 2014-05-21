@@ -332,6 +332,51 @@ void srv_set_running(struct server *s, const char *reason)
 		srv_set_running(srv, NULL);
 }
 
+/* Marks server <s> stopping regardless of its checks' statuses and provided it
+ * isn't in maintenance. Notifies by all available means, recounts the remaining
+ * servers on the proxy and tries to grab requests from the proxy. It
+ * automatically recomputes the number of servers, but not the map. Maintenance
+ * servers are ignored. It reports <reason> if non-null as the reason for going
+ * up. Note that it makes use of the trash to build the log strings, so <reason>
+ * must not be placed there.
+ */
+void srv_set_stopping(struct server *s, const char *reason)
+{
+	struct server *srv;
+	int xferred;
+
+	if (s->admin & SRV_ADMF_MAINT)
+		return;
+
+	if (s->state == SRV_ST_STOPPING)
+		return;
+
+	s->last_change = now.tv_sec;
+	s->state = SRV_ST_STOPPING;
+	if (s->proxy->lbprm.set_server_status_down)
+		s->proxy->lbprm.set_server_status_down(s);
+
+	/* we might have sessions queued on this server and waiting for
+	 * a connection. Those which are redispatchable will be queued
+	 * to another server or to the proxy itself.
+	 */
+	xferred = pendconn_redistribute(s);
+
+	chunk_printf(&trash,
+	             "%sServer %s/%s is stopping", s->flags & SRV_F_BACKUP ? "Backup " : "",
+	             s->proxy->id, s->id);
+
+	srv_append_status(&trash, s, reason, xferred, 0);
+
+	Warning("%s.\n", trash.str);
+	send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
+
+	if (!s->proxy->srv_bck && !s->proxy->srv_act)
+		set_backend_down(s->proxy);
+
+	for (srv = s->trackers; srv; srv = srv->tracknext)
+		srv_set_stopping(srv, NULL);
+}
 
 /* Puts server <s> into maintenance mode, and propagate that status down to all
  * tracking servers. This does the same action as the CLI's "disable server x".
