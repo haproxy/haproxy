@@ -3594,25 +3594,41 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 			while (svs->track)
 				svs = svs->track;
 
-			/* FIXME: produce some small strings for "UP/DOWN x/y &#xxxx;" */
-			if (!(svs->check.state & CHK_ST_ENABLED))
-				sv_state = 8;
-			else if (svs->state != SRV_ST_STOPPED) {
-				if (svs->check.health == svs->check.rise + svs->check.fall - 1)
-					sv_state = 3; /* UP */
+			if (sv->state == SRV_ST_RUNNING || sv->state == SRV_ST_STARTING) {
+				/* server is UP. The possibilities are :
+				 *   - UP, draining, going down    => state = 6
+				 *   - UP, going down              => state = 2
+				 *   - UP, draining                => state = 7
+				 *   - UP, checked                 => state = 3
+				 *   - UP, not checked nor tracked => state = 8
+				 */
+
+				if ((svs->check.state & CHK_ST_ENABLED) &&
+				    (svs->check.health < svs->check.rise + svs->check.fall - 1))
+					sv_state = 2;
 				else
-					sv_state = 2; /* going down */
+					sv_state = 3;
 
 				if (server_is_draining(sv))
 					sv_state += 4;
-				else if (svs->state == SRV_ST_STOPPING)
-					sv_state += 2;
+
+				if (sv_state == 3 && !(svs->check.state & CHK_ST_ENABLED))
+					sv_state = 8; /* unchecked UP */
 			}
-			else
-				if (svs->check.health)
-					sv_state = 1; /* going up */
+			else if (sv->state == SRV_ST_STOPPING) {
+				if ((!(sv->check.state & CHK_ST_ENABLED) && !sv->track) ||
+				    (svs->check.health == svs->check.rise + svs->check.fall - 1))
+					sv_state = 5; /* NOLB */
 				else
+					sv_state = 4; /* NOLB going down */
+			}
+			else {	/* stopped */
+				if ((svs->check.state & CHK_ST_ENABLED && !svs->check.health) ||
+				    (svs->agent.state & CHK_ST_ENABLED && !svs->agent.health))
 					sv_state = 0; /* DOWN */
+				else
+					sv_state = 1; /* going up */
+			}
 
 			if (((sv_state == 0) || (sv->admin & SRV_ADMF_MAINT)) && (appctx->ctx.stats.flags & STAT_HIDE_DOWN)) {
 				/* do not report servers which are DOWN */
