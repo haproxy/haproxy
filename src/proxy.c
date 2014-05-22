@@ -233,6 +233,11 @@ static int proxy_parse_timeout(char **args, int section, struct proxy *proxy,
 		}
 	}
 
+	if (*args[2] != 0) {
+		memprintf(err, "'timeout %s' : unexpected extra argument '%s' after value '%s'.", name, args[2], args[1]);
+		retval = -1;
+	}
+
 	*tv = MS_TO_TICKS(timeout);
 	return retval;
 }
