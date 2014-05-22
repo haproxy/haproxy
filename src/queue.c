@@ -204,7 +204,7 @@ int pendconn_grab_from_px(struct server *s)
 {
 	int xferred;
 
-	if (!s->eweight)
+	if (!srv_is_usable(s))
 		return 0;
 
 	for (xferred = 0; !s->maxconn || xferred < srv_dynamic_maxconn(s); xferred++) {

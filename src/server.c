@@ -637,7 +637,7 @@ void server_recalc_eweight(struct server *sv)
 	/* now propagate the status change to any LB algorithms */
 	if (px->lbprm.update_server_eweight)
 		px->lbprm.update_server_eweight(sv);
-	else if (sv->eweight) {
+	else if (srv_is_usable(sv)) {
 		if (px->lbprm.set_server_status_up)
 			px->lbprm.set_server_status_up(sv);
 	}
