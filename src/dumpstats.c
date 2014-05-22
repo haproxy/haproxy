@@ -157,6 +157,7 @@ static const char stats_sock_usage_msg[] =
 	"  show table [id]: report table usage stats or dump this table's contents\n"
 	"  get weight     : report a server's current weight\n"
 	"  set weight     : change a server's weight\n"
+	"  set server     : change a server's state or weight\n"
 	"  set table [id] : update or create a table entry's data\n"
 	"  set timeout    : change a timeout setting\n"
 	"  set maxconn    : change a maxconn setting\n"
@@ -1371,6 +1372,79 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			warning = server_parse_weight_change_request(sv, args[3]);
 			if (warning) {
 				appctx->ctx.cli.msg = warning;
+				appctx->st0 = STAT_CLI_PRINT;
+			}
+			return 1;
+		}
+		else if (strcmp(args[1], "server") == 0) {
+			struct server *sv;
+			const char *warning;
+
+			sv = expect_server_admin(s, si, args[2]);
+			if (!sv)
+				return 1;
+
+			if (strcmp(args[3], "weight") == 0) {
+				warning = server_parse_weight_change_request(sv, args[4]);
+				if (warning) {
+					appctx->ctx.cli.msg = warning;
+					appctx->st0 = STAT_CLI_PRINT;
+				}
+			}
+			else if (strcmp(args[3], "state") == 0) {
+				if (strcmp(args[4], "ready") == 0)
+					srv_adm_set_ready(sv);
+				else if (strcmp(args[4], "drain") == 0)
+					srv_adm_set_drain(sv);
+				else if (strcmp(args[4], "maint") == 0)
+					srv_adm_set_maint(sv);
+				else {
+					appctx->ctx.cli.msg = "'set server <srv> state' expects 'ready', 'drain' and 'maint'.\n";
+					appctx->st0 = STAT_CLI_PRINT;
+				}
+			}
+			else if (strcmp(args[3], "health") == 0) {
+				if (sv->track) {
+					appctx->ctx.cli.msg = "cannot change health on a tracking server.\n";
+					appctx->st0 = STAT_CLI_PRINT;
+				}
+				else if (strcmp(args[4], "up") == 0) {
+					sv->check.health = sv->check.rise + sv->check.fall - 1;
+					srv_set_running(sv, "changed from CLI");
+				}
+				else if (strcmp(args[4], "stopping") == 0) {
+					sv->check.health = sv->check.rise + sv->check.fall - 1;
+					srv_set_stopping(sv, "changed from CLI");
+				}
+				else if (strcmp(args[4], "down") == 0) {
+					sv->check.health = 0;
+					srv_set_stopped(sv, "changed from CLI");
+				}
+				else {
+					appctx->ctx.cli.msg = "'set server <srv> health' expects 'up', 'stopping', or 'down'.\n";
+					appctx->st0 = STAT_CLI_PRINT;
+				}
+			}
+			else if (strcmp(args[3], "agent") == 0) {
+				if (!(sv->agent.state & CHK_ST_ENABLED)) {
+					appctx->ctx.cli.msg = "agent checks are not enabled on this server.\n";
+					appctx->st0 = STAT_CLI_PRINT;
+				}
+				else if (strcmp(args[4], "up") == 0) {
+					sv->agent.health = sv->agent.rise + sv->agent.fall - 1;
+					srv_set_running(sv, "changed from CLI");
+				}
+				else if (strcmp(args[4], "down") == 0) {
+					sv->agent.health = 0;
+					srv_set_stopped(sv, "changed from CLI");
+				}
+				else {
+					appctx->ctx.cli.msg = "'set server <srv> agent' expects 'up' or 'down'.\n";
+					appctx->st0 = STAT_CLI_PRINT;
+				}
+			}
+			else {
+				appctx->ctx.cli.msg = "'set server <srv>' only supports 'agent', 'health', 'state' and 'weight'.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 			}
 			return 1;
