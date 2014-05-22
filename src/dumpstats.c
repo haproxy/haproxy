@@ -1710,7 +1710,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			if (!sv)
 				return 1;
 
-			srv_adm_set_ready(sv, SRV_ADMF_FMAINT);
+			srv_adm_set_ready(sv);
 			return 1;
 		}
 		else if (strcmp(args[1], "frontend") == 0) {
@@ -1763,7 +1763,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			if (!sv)
 				return 1;
 
-			srv_adm_set_maint(sv, SRV_ADMF_FMAINT);
+			srv_adm_set_maint(sv);
 			return 1;
 		}
 		else if (strcmp(args[1], "frontend") == 0) {
@@ -4244,14 +4244,14 @@ static int stats_process_http_post(struct stream_interface *si)
 						if ((px->state != PR_STSTOPPED) && !(sv->admin & SRV_ADMF_FMAINT)) {
 							altered_servers++;
 							total_servers++;
-							srv_adm_set_maint(sv, SRV_ADMF_FMAINT);
+							srv_adm_set_maint(sv);
 						}
 						break;
 					case ST_ADM_ACTION_ENABLE:
 						if ((px->state != PR_STSTOPPED) && (sv->admin & SRV_ADMF_FMAINT)) {
 							altered_servers++;
 							total_servers++;
-							srv_adm_set_ready(sv, SRV_ADMF_FMAINT);
+							srv_adm_set_ready(sv);
 						}
 						break;
 					case ST_ADM_ACTION_STOP:

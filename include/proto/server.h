@@ -101,7 +101,7 @@ const char *server_parse_weight_change_request(struct server *sv,
  */
 static inline int server_is_draining(const struct server *s)
 {
-	return !s->uweight;
+	return !s->uweight || (s->admin & SRV_ADMF_DRAIN);
 }
 
 /* Shutdown all connections of a server. The caller must pass a termination
@@ -156,24 +156,49 @@ void srv_set_running(struct server *s, const char *reason);
  */
 void srv_set_stopping(struct server *s, const char *reason);
 
-/* Puts server <s> into maintenance mode, and propagate that status down to all
- * tracking servers. This does the same action as the CLI's "disable server x".
- * A log is emitted for all servers that were not yet in maintenance mode.
- * Health checks are disabled but not agent checks. The server is marked as
- * being either forced into maintenance by having <mode> set to SRV_ADMF_FMAINT,
- * or as inheriting the maintenance status by having <mode> set to
- * SRV_ADMF_IMAINT. Nothing is done if neither flag is set.
+/* Enables admin flag <mode> (among SRV_ADMF_*) on server <s>. This is used to
+ * enforce either maint mode or drain mode. It is not allowed to set more than
+ * one flag at once. The equivalent "inherited" flag is propagated to all
+ * tracking servers. Maintenance mode disables health checks (but not agent
+ * checks). When either the flag is already set or no flag is passed, nothing
+ * is done.
  */
-void srv_adm_set_maint(struct server *s, enum srv_admin mode);
+void srv_set_admin_flag(struct server *s, enum srv_admin mode);
 
-/* Gets server <s> out of maintenance mode, and propagate that status down to
- * all tracking servers. This does the same action as the CLI's "enable server x".
- * A log is emitted for all servers that leave maintenance mode. Health checks
- * are possibly enabled again. The server is marked as leaving forced maintenance
- * when <mode> is set to SRV_ADMF_FMAINT, or as leaving inherited maintenance
- * when <mode> set to SRV_ADMF_IMAINT. Nothing is done if neither flag is set.
+/* Disables admin flag <mode> (among SRV_ADMF_*) on server <s>. This is used to
+ * stop enforcing either maint mode or drain mode. It is not allowed to set more
+ * than one flag at once. The equivalent "inherited" flag is propagated to all
+ * tracking servers. Leaving maintenance mode re-enables health checks. When
+ * either the flag is already cleared or no flag is passed, nothing is done.
  */
-void srv_adm_set_ready(struct server *s, enum srv_admin mode);
+void srv_clr_admin_flag(struct server *s, enum srv_admin mode);
+
+/* Puts server <s> into maintenance mode, and propagate that status down to all
+ * tracking servers.
+ */
+static inline void srv_adm_set_maint(struct server *s)
+{
+	srv_set_admin_flag(s, SRV_ADMF_FMAINT);
+	srv_clr_admin_flag(s, SRV_ADMF_FDRAIN);
+}
+
+/* Puts server <s> into drain mode, and propagate that status down to all
+ * tracking servers.
+ */
+static inline void srv_adm_set_drain(struct server *s)
+{
+	srv_set_admin_flag(s, SRV_ADMF_FDRAIN);
+	srv_clr_admin_flag(s, SRV_ADMF_FMAINT);
+}
+
+/* Puts server <s> into ready mode, and propagate that status down to all
+ * tracking servers.
+ */
+static inline void srv_adm_set_ready(struct server *s)
+{
+	srv_clr_admin_flag(s, SRV_ADMF_FDRAIN);
+	srv_clr_admin_flag(s, SRV_ADMF_FMAINT);
+}
 
 /*
  * Local variables:

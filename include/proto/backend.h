@@ -63,6 +63,8 @@ static inline int srv_is_usable(const struct server *srv)
 		return 0;
 	if (srv->admin & SRV_ADMF_MAINT)
 		return 0;
+	if (srv->admin & SRV_ADMF_DRAIN)
+		return 0;
 	switch (state) {
 	case SRV_ST_STARTING:
 	case SRV_ST_RUNNING:
@@ -84,6 +86,8 @@ static inline int srv_was_usable(const struct server *srv)
 	if (!srv->prev_eweight)
 		return 0;
 	if (srv->prev_admin & SRV_ADMF_MAINT)
+		return 0;
+	if (srv->prev_admin & SRV_ADMF_DRAIN)
 		return 0;
 	switch (state) {
 	case SRV_ST_STARTING:

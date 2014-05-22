@@ -51,14 +51,34 @@ enum srv_state {
 	SRV_ST_STOPPING,                 /* the server is up but soft-stopping (eg: 404) */
 };
 
-/* Maintenance mode : each server may be in maintenance by itself or may inherit
- * this status from another server it tracks. Let's store these origins here as
- * flags. If no maintenance origin is specified, the server is not in maintenance.
+/* Administrative status : a server runs in one of these 3 stats :
+ *   - READY : normal mode
+ *   - DRAIN : takes no new visitor, equivalent to weight == 0
+ *   - MAINT : maintenance mode, no more traffic nor health checks.
+ *
+ * Each server may be in maintenance by itself or may inherit this status from
+ * another server it tracks. It can also be in drain mode by itself or inherit
+ * it from another server. Let's store these origins here as flags. These flags
+ * are combined this way :
+ *
+ *      FMAINT  IMAINT  FDRAIN  IDRAIN  Resulting state
+ *         0       0       0       0    READY
+ *         0       0       0       1    DRAIN
+ *         0       0       1       x    DRAIN
+ *         0       1       x       x    MAINT
+ *         1       x       x       x    MAINT
+ *
+ * This can be simplified this way :
+ *
+ *   state_str = (state & MAINT) ? "MAINT" : (state & DRAIN) : "DRAIN" : "READY"
  */
 enum srv_admin {
 	SRV_ADMF_FMAINT    = 0x1,        /* the server was explicitly forced into maintenance */
 	SRV_ADMF_IMAINT    = 0x2,        /* the server has inherited the maintenance status from a tracked server */
 	SRV_ADMF_MAINT     = 0x3,        /* mask to check if any maintenance flag is present */
+	SRV_ADMF_FDRAIN    = 0x4,        /* the server was explicitly forced into drain state */
+	SRV_ADMF_IDRAIN    = 0x8,        /* the server has inherited the drain status from a tracked server */
+	SRV_ADMF_DRAIN     = 0xC,        /* mask to check if any drain flag is present */
 };
 
 /* server flags */
