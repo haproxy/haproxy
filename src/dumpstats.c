@@ -4241,30 +4241,32 @@ static int stats_process_http_post(struct stream_interface *si)
 				else if ((sv = findserver(px, value)) != NULL) {
 					switch (action) {
 					case ST_ADM_ACTION_DISABLE:
-						if ((px->state != PR_STSTOPPED) && !(sv->admin & SRV_ADMF_FMAINT)) {
+						if (!(sv->admin & SRV_ADMF_FMAINT)) {
 							altered_servers++;
 							total_servers++;
-							srv_adm_set_maint(sv);
+							srv_set_admin_flag(sv, SRV_ADMF_FMAINT);
 						}
 						break;
 					case ST_ADM_ACTION_ENABLE:
-						if ((px->state != PR_STSTOPPED) && (sv->admin & SRV_ADMF_FMAINT)) {
+						if (sv->admin & SRV_ADMF_FMAINT) {
 							altered_servers++;
 							total_servers++;
-							srv_adm_set_ready(sv);
+							srv_clr_admin_flag(sv, SRV_ADMF_FMAINT);
 						}
 						break;
 					case ST_ADM_ACTION_STOP:
+						if (!(sv->admin & SRV_ADMF_FDRAIN)) {
+							srv_set_admin_flag(sv, SRV_ADMF_FDRAIN);
+							altered_servers++;
+							total_servers++;
+						}
+						break;
 					case ST_ADM_ACTION_START:
-						if (action == ST_ADM_ACTION_START)
-							sv->uweight = sv->iweight;
-						else
-							sv->uweight = 0;
-
-						server_recalc_eweight(sv);
-
-						altered_servers++;
-						total_servers++;
+						if (sv->admin & SRV_ADMF_FDRAIN) {
+							srv_clr_admin_flag(sv, SRV_ADMF_FDRAIN);
+							altered_servers++;
+							total_servers++;
+						}
 						break;
 					case ST_ADM_ACTION_SHUTDOWN:
 						if (px->state != PR_STSTOPPED) {
