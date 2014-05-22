@@ -307,16 +307,6 @@ enum {
 	HTTP_ERR_SIZE
 };
 
-/* Actions available for the stats admin forms */
-enum {
-	ST_ADM_ACTION_NONE = 0,
-	ST_ADM_ACTION_DISABLE,
-	ST_ADM_ACTION_ENABLE,
-	ST_ADM_ACTION_STOP,
-	ST_ADM_ACTION_START,
-	ST_ADM_ACTION_SHUTDOWN,
-};
-
 /* status codes available for the stats admin page */
 enum {
 	STAT_STATUS_INIT = 0,

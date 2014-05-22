@@ -86,6 +86,20 @@ enum {
 	STAT_CLI_O_POOLS,    /* dump memory pools */
 };
 
+/* Actions available for the stats admin forms */
+enum {
+	ST_ADM_ACTION_NONE = 0,
+	ST_ADM_ACTION_READY,
+	ST_ADM_ACTION_DRAIN,
+	ST_ADM_ACTION_MAINT,
+	ST_ADM_ACTION_SHUTDOWN,
+	/* these are the ancient actions, still available for compatibility */
+	ST_ADM_ACTION_DISABLE,
+	ST_ADM_ACTION_ENABLE,
+	ST_ADM_ACTION_STOP,
+	ST_ADM_ACTION_START,
+};
+
 static int stats_dump_info_to_buffer(struct stream_interface *si);
 static int stats_dump_pools_to_buffer(struct stream_interface *si);
 static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct session *sess);
@@ -3446,10 +3460,9 @@ static void stats_dump_html_px_end(struct stream_interface *si, struct proxy *px
 			      "Choose the action to perform on the checked servers : "
 			      "<select name=action>"
 			      "<option value=\"\"></option>"
-			      "<option value=\"disable\">Disable</option>"
-			      "<option value=\"enable\">Enable</option>"
-			      "<option value=\"stop\">Soft Stop</option>"
-			      "<option value=\"start\">Soft Start</option>"
+			      "<option value=\"ready\">Set state to READY</option>"
+			      "<option value=\"drain\">Set state to DRAIN</option>"
+			      "<option value=\"maint\">set state to MAINT</option>"
 			      "<option value=\"shutdown\">Kill Sessions</option>"
 			      "</select>"
 			      "<input type=\"hidden\" name=\"b\" value=\"#%d\">"
@@ -4206,7 +4219,20 @@ static int stats_process_http_post(struct stream_interface *si)
 				}
 			}
 			else if (!action && (strcmp(key, "action") == 0)) {
-				if (strcmp(value, "disable") == 0) {
+				if (strcmp(value, "ready") == 0) {
+					action = ST_ADM_ACTION_READY;
+				}
+				else if (strcmp(value, "drain") == 0) {
+					action = ST_ADM_ACTION_DRAIN;
+				}
+				else if (strcmp(value, "maint") == 0) {
+					action = ST_ADM_ACTION_MAINT;
+				}
+				else if (strcmp(value, "shutdown") == 0) {
+					action = ST_ADM_ACTION_SHUTDOWN;
+				}
+				/* else these are the old supported methods */
+				else if (strcmp(value, "disable") == 0) {
 					action = ST_ADM_ACTION_DISABLE;
 				}
 				else if (strcmp(value, "enable") == 0) {
@@ -4217,9 +4243,6 @@ static int stats_process_http_post(struct stream_interface *si)
 				}
 				else if (strcmp(value, "start") == 0) {
 					action = ST_ADM_ACTION_START;
-				}
-				else if (strcmp(value, "shutdown") == 0) {
-					action = ST_ADM_ACTION_SHUTDOWN;
 				}
 				else {
 					appctx->ctx.stats.st_code = STAT_STATUS_ERRP;
@@ -4267,6 +4290,21 @@ static int stats_process_http_post(struct stream_interface *si)
 							altered_servers++;
 							total_servers++;
 						}
+						break;
+					case ST_ADM_ACTION_READY:
+						srv_adm_set_ready(sv);
+						altered_servers++;
+						total_servers++;
+						break;
+					case ST_ADM_ACTION_DRAIN:
+						srv_adm_set_drain(sv);
+						altered_servers++;
+						total_servers++;
+						break;
+					case ST_ADM_ACTION_MAINT:
+						srv_adm_set_maint(sv);
+						altered_servers++;
+						total_servers++;
 						break;
 					case ST_ADM_ACTION_SHUTDOWN:
 						if (px->state != PR_STSTOPPED) {
