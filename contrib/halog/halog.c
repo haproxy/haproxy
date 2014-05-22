@@ -18,6 +18,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <ctype.h>
+#include <time.h>
 
 #include <eb32tree.h>
 #include <eb64tree.h>
@@ -116,7 +117,10 @@ struct url_stat {
 #define FILT_COUNT_COOK_CODES 0x40000000
 #define FILT_COUNT_IP_COUNT   0x80000000
 
+#define FILT2_TIMESTAMP	0x01
+
 unsigned int filter = 0;
+unsigned int filter2 = 0;
 unsigned int filter_invert = 0;
 const char *line;
 int linenum = 0;
@@ -144,7 +148,7 @@ void usage(FILE *output, const char *msg)
 		"       halog [-q] [-c] [-m <lines>]\n"
 		"       {-cc|-gt|-pct|-st|-tc|-srv|-u|-uc|-ue|-ua|-ut|-uao|-uto|-uba|-ubt|-ic}\n"
 		"       [-s <skip>] [-e|-E] [-H] [-rt|-RT <time>] [-ad <delay>] [-ac <count>]\n"
-		"       [-v] [-Q|-QS] [-tcn|-TCN <termcode>] [ -hs|-HS [min][:[max]] ] < log\n"
+		"       [-v] [-Q|-QS] [-tcn|-TCN <termcode>] [ -hs|-HS [min][:[max]] ] [ -time [min][:[max]] ] < log\n"
 		"\n",
 		msg ? msg : ""
 		);
@@ -170,6 +174,8 @@ void help()
 	       " -hs|-HS <[min][:][max]> only match requests with HTTP status codes within/not\n"
 	       "                         within min..max. Any of them may be omitted. Exact\n"
 	       "                         code is checked for if no ':' is specified.\n"
+	       " -time <[min][:max]>     only match requests recorded between timestamps.\n"
+	       "                         Any of them may be omitted.\n"
 	       "Modifiers\n"
 	       " -v                      invert the input filtering condition\n"
 	       " -q                      don't report errors/warnings\n"
@@ -521,6 +527,145 @@ int convert_date(const char *field)
 	return -1;
 }
 
+/* Convert "[04/Dec/2008:09:49:40.555]" to an unix timestamp.
+ * It returns -1 for all unparsable values. The parser
+ * looks ugly but gcc emits far better code that way.
+ */
+int convert_date_to_timestamp(const char *field)
+{
+	unsigned int d, mo, y, h, m, s;
+	unsigned char c;
+	const char *b, *e;
+	time_t rawtime;
+	struct tm * timeinfo;
+
+	d = mo = y = h = m = s = 0;
+	e = field;
+
+	c = *(e++); // remove '['
+	/* day + '/' */
+	while (1) {
+		c = *(e++) - '0';
+		if (c > 9)
+			break;
+		d = d * 10 + c;
+		if (c == (unsigned char)(0 - '0'))
+			goto out_err;
+	}
+
+	/* month + '/' */
+	c = *(e++);
+	if (c =='F') {
+		mo = 2;
+		e = e+3;
+	} else if (c =='S') {
+		mo = 9;
+		e = e+3;
+	} else if (c =='O') {
+		mo = 10;
+		e = e+3;
+	} else if (c =='N') {
+		mo = 11;
+		e = e+3;
+	} else if (c == 'D') {
+		mo = 12;
+		e = e+3;
+	} else if (c == 'A') {
+		c = *(e++);
+		if (c == 'p') {
+			mo = 4;
+			e = e+2;
+		} else if (c == 'u') {
+			mo = 8;
+			e = e+2;
+		} else
+			goto out_err;
+	} else if (c == 'J') {
+		c = *(e++);
+		if (c == 'a') {
+			mo = 1;
+			e = e+2;
+		} else if (c == 'u') {
+			c = *(e++);
+			if (c == 'n') {
+				mo = 6;
+				e = e+1;
+			} else if (c == 'l') {
+				mo = 7;
+				e++;
+			}
+		} else
+			goto out_err;
+	} else if (c == 'M') {
+		e++;
+		c = *(e++);
+		if (c == 'r') {
+			mo = 3;
+			e = e+1;
+		} else if (c == 'y') {
+			mo = 5;
+			e = e+1;
+		} else
+			goto out_err;
+	} else
+		goto out_err;
+
+	/* year + ':' */
+	while (1) {
+		c = *(e++) - '0';
+		if (c > 9)
+			break;
+		y = y * 10 + c;
+		if (c == (unsigned char)(0 - '0'))
+			goto out_err;
+	}
+
+	/* hour + ':' */
+	b = e;
+	while (1) {
+		c = *(e++) - '0';
+		if (c > 9)
+			break;
+		h = h * 10 + c;
+	}
+	if (c == (unsigned char)(0 - '0'))
+		goto out_err;
+
+	/* minute + ':' */
+	b = e;
+	while (1) {
+		c = *(e++) - '0';
+		if (c > 9)
+			break;
+		m = m * 10 + c;
+	}
+	if (c == (unsigned char)(0 - '0'))
+		goto out_err;
+
+	/* second + '.' or ']' */
+	b = e;
+	while (1) {
+		c = *(e++) - '0';
+		if (c > 9)
+			break;
+		s = s * 10 + c;
+	}
+
+	time(&rawtime);
+	timeinfo = localtime(&rawtime);
+
+	timeinfo->tm_sec = s;
+	timeinfo->tm_min = m;
+	timeinfo->tm_hour = h;
+	timeinfo->tm_mday = d;
+	timeinfo->tm_mon = mo - 1;
+	timeinfo->tm_year = y - 1900;
+
+	return mktime(timeinfo);
+ out_err:
+	return -1;
+}
+
 void truncated_line(int linenum, const char *line)
 {
 	if (!(filter & FILT_QUIET))
@@ -537,9 +682,11 @@ int main(int argc, char **argv)
 	struct eb32_node *n;
 	struct url_stat *ustat = NULL;
 	int val, test;
+	uint uval;
 	int filter_acc_delay = 0, filter_acc_count = 0;
 	int filter_time_resp = 0;
 	int filt_http_status_low = 0, filt_http_status_high = 0;
+	int filt2_timestamp_low = 0, filt2_timestamp_high = 0;
 	int skip_fields = 1;
 
 	void (*line_filter)(const char *accept_field, const char *time_field, struct timer **tptr) = NULL;
@@ -641,6 +788,21 @@ int main(int argc, char **argv)
 			filt_http_status_low = *str ? atol(str) : 0;
 			filt_http_status_high = *sep ? atol(sep) : 65535;
 		}
+		else if (strcmp(argv[0], "-time") == 0) {
+			char *sep, *str;
+
+			if (argc < 2) die("missing option for -time ([min]:[max])");
+			filter2 |= FILT2_TIMESTAMP;
+
+			argc--; argv++;
+			str = *argv;
+			sep = strchr(str, ':');  /* [min]:[max] */
+			filt2_timestamp_low = *str ? atol(str) : 0;
+			if (!sep)
+				filt2_timestamp_high = 0xFFFFFFFF;
+			else
+				filt2_timestamp_high = atol(++sep);
+		}
 		else if (strcmp(argv[0], "-u") == 0)
 			filter |= FILT_COUNT_URL_ONLY;
 		else if (strcmp(argv[0], "-uc") == 0)
@@ -713,7 +875,8 @@ int main(int argc, char **argv)
 #endif
 
 	if (!line_filter && /* FILT_COUNT_ONLY ( see above), and no input filter (see below) */
-	    !(filter & (FILT_HTTP_ONLY|FILT_TIME_RESP|FILT_ERRORS_ONLY|FILT_HTTP_STATUS|FILT_QUEUE_ONLY|FILT_QUEUE_SRV_ONLY|FILT_TERM_CODE_NAME))) {
+	    !(filter & (FILT_HTTP_ONLY|FILT_TIME_RESP|FILT_ERRORS_ONLY|FILT_HTTP_STATUS|FILT_QUEUE_ONLY|FILT_QUEUE_SRV_ONLY|FILT_TERM_CODE_NAME)) &&
+		!(filter2 & (FILT2_TIMESTAMP))) {
 		/* read the whole file at once first, ignore it if inverted output */
 		if (!filter_invert)
 			while ((lines_max < 0 || lines_out < lines_max) && fgets2(stdin) != NULL)
@@ -749,6 +912,11 @@ int main(int argc, char **argv)
 		if (accept_field[1] < '0' || accept_field[1] > '3') {
 			parse_err++;
 			continue;
+		}
+
+		if (filter2 & FILT2_TIMESTAMP) {
+			uval = convert_date_to_timestamp(accept_field);
+			test &= (uval>=filt2_timestamp_low && uval<=filt2_timestamp_high) ;
 		}
 
 		if (filter & FILT_HTTP_ONLY) {
