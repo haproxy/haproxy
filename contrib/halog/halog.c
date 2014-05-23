@@ -537,7 +537,8 @@ int convert_date_to_timestamp(const char *field)
 	unsigned char c;
 	const char *b, *e;
 	time_t rawtime;
-	struct tm * timeinfo;
+	static struct tm * timeinfo;
+	static int last_res;
 
 	d = mo = y = h = m = s = 0;
 	e = field;
@@ -651,17 +652,28 @@ int convert_date_to_timestamp(const char *field)
 		s = s * 10 + c;
 	}
 
-	time(&rawtime);
-	timeinfo = localtime(&rawtime);
+	if (likely(timeinfo)) {
+		if (timeinfo->tm_min == m &&
+		    timeinfo->tm_hour == h &&
+		    timeinfo->tm_mday == d &&
+		    timeinfo->tm_mon == mo - 1 &&
+		    timeinfo->tm_year == y - 1900)
+			return last_res + s;
+	}
+	else {
+		time(&rawtime);
+		timeinfo = localtime(&rawtime);
+	}
 
-	timeinfo->tm_sec = s;
+	timeinfo->tm_sec = 0;
 	timeinfo->tm_min = m;
 	timeinfo->tm_hour = h;
 	timeinfo->tm_mday = d;
 	timeinfo->tm_mon = mo - 1;
 	timeinfo->tm_year = y - 1900;
+	last_res = mktime(timeinfo);
 
-	return mktime(timeinfo);
+	return last_res + s;
  out_err:
 	return -1;
 }
