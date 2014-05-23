@@ -89,6 +89,25 @@ enum {
 /* Actions available for the stats admin forms */
 enum {
 	ST_ADM_ACTION_NONE = 0,
+
+	/* enable/disable health checks */
+	ST_ADM_ACTION_DHLTH,
+	ST_ADM_ACTION_EHLTH,
+
+	/* force health check status */
+	ST_ADM_ACTION_HRUNN,
+	ST_ADM_ACTION_HNOLB,
+	ST_ADM_ACTION_HDOWN,
+
+	/* enable/disable agent checks */
+	ST_ADM_ACTION_DAGENT,
+	ST_ADM_ACTION_EAGENT,
+
+	/* force agent check status */
+	ST_ADM_ACTION_ARUNN,
+	ST_ADM_ACTION_ADOWN,
+
+	/* set admin state */
 	ST_ADM_ACTION_READY,
 	ST_ADM_ACTION_DRAIN,
 	ST_ADM_ACTION_MAINT,
@@ -3591,6 +3610,15 @@ static void stats_dump_html_px_end(struct stream_interface *si, struct proxy *px
 			      "<option value=\"ready\">Set state to READY</option>"
 			      "<option value=\"drain\">Set state to DRAIN</option>"
 			      "<option value=\"maint\">set state to MAINT</option>"
+			      "<option value=\"dhlth\">Health: disable checks</option>"
+			      "<option value=\"ehlth\">Health: enable checks</option>"
+			      "<option value=\"hrunn\">Health: force UP</option>"
+			      "<option value=\"hnolb\">Health: force NOLB</option>"
+			      "<option value=\"hdown\">Health: force DOWN</option>"
+			      "<option value=\"dagent\">Agent: disable checks</option>"
+			      "<option value=\"eagent\">Agent: enable checks</option>"
+			      "<option value=\"arunn\">Agent: force UP</option>"
+			      "<option value=\"adown\">Agent: force DOWN</option>"
 			      "<option value=\"shutdown\">Kill Sessions</option>"
 			      "</select>"
 			      "<input type=\"hidden\" name=\"b\" value=\"#%d\">"
@@ -4364,6 +4392,33 @@ static int stats_process_http_post(struct stream_interface *si)
 				else if (strcmp(value, "shutdown") == 0) {
 					action = ST_ADM_ACTION_SHUTDOWN;
 				}
+				else if (strcmp(value, "dhlth") == 0) {
+					action = ST_ADM_ACTION_DHLTH;
+				}
+				else if (strcmp(value, "ehlth") == 0) {
+					action = ST_ADM_ACTION_EHLTH;
+				}
+				else if (strcmp(value, "hrunn") == 0) {
+					action = ST_ADM_ACTION_HRUNN;
+				}
+				else if (strcmp(value, "hnolb") == 0) {
+					action = ST_ADM_ACTION_HNOLB;
+				}
+				else if (strcmp(value, "hdown") == 0) {
+					action = ST_ADM_ACTION_HDOWN;
+				}
+				else if (strcmp(value, "dagent") == 0) {
+					action = ST_ADM_ACTION_DAGENT;
+				}
+				else if (strcmp(value, "eagent") == 0) {
+					action = ST_ADM_ACTION_EAGENT;
+				}
+				else if (strcmp(value, "arunn") == 0) {
+					action = ST_ADM_ACTION_ARUNN;
+				}
+				else if (strcmp(value, "adown") == 0) {
+					action = ST_ADM_ACTION_ADOWN;
+				}
 				/* else these are the old supported methods */
 				else if (strcmp(value, "disable") == 0) {
 					action = ST_ADM_ACTION_DISABLE;
@@ -4420,6 +4475,74 @@ static int stats_process_http_post(struct stream_interface *si)
 					case ST_ADM_ACTION_START:
 						if (sv->admin & SRV_ADMF_FDRAIN) {
 							srv_clr_admin_flag(sv, SRV_ADMF_FDRAIN);
+							altered_servers++;
+							total_servers++;
+						}
+						break;
+					case ST_ADM_ACTION_DHLTH:
+						if (sv->check.state & CHK_ST_CONFIGURED) {
+							sv->check.state &= ~CHK_ST_ENABLED;
+							altered_servers++;
+							total_servers++;
+						}
+						break;
+					case ST_ADM_ACTION_EHLTH:
+						if (sv->check.state & CHK_ST_CONFIGURED) {
+							sv->check.state |= CHK_ST_ENABLED;
+							altered_servers++;
+							total_servers++;
+						}
+						break;
+					case ST_ADM_ACTION_HRUNN:
+						if (!(sv->track)) {
+							sv->check.health = sv->check.rise + sv->check.fall - 1;
+							srv_set_running(sv, "changed from Web interface");
+							altered_servers++;
+							total_servers++;
+						}
+						break;
+					case ST_ADM_ACTION_HNOLB:
+						if (!(sv->track)) {
+							sv->check.health = sv->check.rise + sv->check.fall - 1;
+							srv_set_stopping(sv, "changed from Web interface");
+							altered_servers++;
+							total_servers++;
+						}
+						break;
+					case ST_ADM_ACTION_HDOWN:
+						if (!(sv->track)) {
+							sv->check.health = 0;
+							srv_set_stopped(sv, "changed from Web interface");
+							altered_servers++;
+							total_servers++;
+						}
+						break;
+					case ST_ADM_ACTION_DAGENT:
+						if (sv->agent.state & CHK_ST_CONFIGURED) {
+							sv->agent.state &= ~CHK_ST_ENABLED;
+							altered_servers++;
+							total_servers++;
+						}
+						break;
+					case ST_ADM_ACTION_EAGENT:
+						if (sv->agent.state & CHK_ST_CONFIGURED) {
+							sv->agent.state |= CHK_ST_ENABLED;
+							altered_servers++;
+							total_servers++;
+						}
+						break;
+					case ST_ADM_ACTION_ARUNN:
+						if (sv->agent.state & CHK_ST_ENABLED) {
+							sv->agent.health = sv->agent.rise + sv->agent.fall - 1;
+							srv_set_running(sv, "changed from Web interface");
+							altered_servers++;
+							total_servers++;
+						}
+						break;
+					case ST_ADM_ACTION_ADOWN:
+						if (sv->agent.state & CHK_ST_ENABLED) {
+							sv->agent.health = 0;
+							srv_set_stopped(sv, "changed from Web interface");
 							altered_servers++;
 							total_servers++;
 						}
