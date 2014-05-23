@@ -1791,7 +1791,23 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			sv->agent.state |= CHK_ST_ENABLED;
 			return 1;
 		}
-		if (strcmp(args[1], "server") == 0) {
+		else if (strcmp(args[1], "health") == 0) {
+			struct server *sv;
+
+			sv = expect_server_admin(s, si, args[2]);
+			if (!sv)
+				return 1;
+
+			if (!(sv->check.state & CHK_ST_CONFIGURED)) {
+				appctx->ctx.cli.msg = "Health checks are not configured on this server, cannot enable.\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+
+			sv->check.state |= CHK_ST_ENABLED;
+			return 1;
+		}
+		else if (strcmp(args[1], "server") == 0) {
 			struct server *sv;
 
 			sv = expect_server_admin(s, si, args[2]);
@@ -1828,7 +1844,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			return 1;
 		}
 		else { /* unknown "enable" parameter */
-			appctx->ctx.cli.msg = "'enable' only supports 'agent', 'frontend' and 'server'.\n";
+			appctx->ctx.cli.msg = "'enable' only supports 'agent', 'frontend', 'health', and 'server'.\n";
 			appctx->st0 = STAT_CLI_PRINT;
 			return 1;
 		}
@@ -1842,6 +1858,16 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				return 1;
 
 			sv->agent.state &= ~CHK_ST_ENABLED;
+			return 1;
+		}
+		else if (strcmp(args[1], "health") == 0) {
+			struct server *sv;
+
+			sv = expect_server_admin(s, si, args[2]);
+			if (!sv)
+				return 1;
+
+			sv->check.state &= ~CHK_ST_ENABLED;
 			return 1;
 		}
 		else if (strcmp(args[1], "server") == 0) {
@@ -1881,7 +1907,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			return 1;
 		}
 		else { /* unknown "disable" parameter */
-			appctx->ctx.cli.msg = "'disable' only supports 'agent', 'frontend' and 'server'.\n";
+			appctx->ctx.cli.msg = "'disable' only supports 'agent', 'frontend', 'health', and 'server'.\n";
 			appctx->st0 = STAT_CLI_PRINT;
 			return 1;
 		}

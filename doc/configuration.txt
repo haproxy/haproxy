@@ -13154,6 +13154,15 @@ disable frontend <frontend>
   This command is restricted and can only be issued on sockets configured for
   level "admin".
 
+disable health <backend>/<server>
+  Mark the primary health check as temporarily stopped. This will disable
+  sending of health checks, and the last health check result will be ignored.
+  The server will be in unchecked state and considered UP unless an auxiliary
+  agent check forces it down.
+
+  This command is restricted and can only be issued on sockets configured for
+  level "admin".
+
 disable server <backend>/<server>
   Mark the server DOWN for maintenance. In this mode, no more checks will be
   performed on the server until it leaves maintenance.
@@ -13187,6 +13196,13 @@ enable frontend <frontend>
 
   The frontend may be specified either by its name or by its numeric ID,
   prefixed with a sharp ('#').
+
+  This command is restricted and can only be issued on sockets configured for
+  level "admin".
+
+enable health <backend>/<server>
+  Resume a primary health check that was temporarily stopped. This will enable
+  sending of health checks again. Please see "disable health" for details.
 
   This command is restricted and can only be issued on sockets configured for
   level "admin".
