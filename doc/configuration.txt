@@ -2487,6 +2487,7 @@ errorfile <code> <file>
 
   Example :
         errorfile 400 /etc/haproxy/errorfiles/400badreq.http
+        errorfile 408 /dev/null  # workaround Chrome pre-connect bug
         errorfile 403 /etc/haproxy/errorfiles/403forbid.http
         errorfile 503 /etc/haproxy/errorfiles/503sorry.http
 
@@ -7688,7 +7689,13 @@ timeout http-request <timeout>
   this abuse because it is an inactivity timeout, which means that if the
   attacker sends one character every now and then, the timeout will not
   trigger. With the HTTP request timeout, no matter what speed the client
-  types, the request will be aborted if it does not complete in time.
+  types, the request will be aborted if it does not complete in time. When the
+  timeout expires, an HTTP 408 response is sent to the client to inform it
+  about the problem, and the connection is closed. The logs will report
+  termination codes "cR". Some recent browsers are having problems with this
+  standard, well-documented behaviour, so it might be needed to hide the 408
+  code using "errorfile 408 /dev/null". See more details in the explanations of
+  the "cR" termination code in section 8.5.
 
   Note that this timeout only applies to the header part of the request, and
   not to any data. As soon as the empty line is received, this timeout is not
@@ -7706,7 +7713,7 @@ timeout http-request <timeout>
   effect, unless the frontend is in TCP mode, in which case the HTTP backend's
   timeout will be used.
 
-  See also : "timeout http-keep-alive", "timeout client".
+  See also : "errorfile", "timeout http-keep-alive", "timeout client".
 
 
 timeout queue <timeout>
@@ -12529,7 +12536,20 @@ easier finding and understanding.
           client side for PPPoE networks which cannot transport full-sized
           packets, or by clients sending requests by hand and not typing fast
           enough, or forgetting to enter the empty line at the end of the
-          request. The HTTP status code is likely a 408 here.
+          request. The HTTP status code is likely a 408 here. Note: recently,
+          some browsers such as Google Chrome started to break the deployed Web
+          infrastructure by aggressively implementing a new "pre-connect"
+          feature, consisting in sending connections to sites recently visited
+          without sending any request on them until the user starts to browse
+          the site. This mechanism causes massive disruption among resource-
+          limited servers, and causes a lot of 408 errors in HAProxy logs.
+          Worse, some people report that sometimes the browser displays the 408
+          error when the user expects to see the actual content (Mozilla fixed
+          this bug in 2004, while Chrome users continue to report it in 2014),
+          so in this case, using "errorfile 408 /dev/null" can be used as a
+          workaround. More information on the subject is available here :
+              https://bugzilla.mozilla.org/show_bug.cgi?id=248827
+              https://code.google.com/p/chromium/issues/detail?id=85229
 
      CT   The client aborted while its session was tarpitted. It is important to
           check if this happens on valid requests, in order to be sure that no
