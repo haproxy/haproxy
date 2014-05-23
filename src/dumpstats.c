@@ -1828,7 +1828,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			return 1;
 		}
 		else { /* unknown "enable" parameter */
-			appctx->ctx.cli.msg = "'enable' only supports 'frontend' and 'server'.\n";
+			appctx->ctx.cli.msg = "'enable' only supports 'agent', 'frontend' and 'server'.\n";
 			appctx->st0 = STAT_CLI_PRINT;
 			return 1;
 		}
@@ -1881,7 +1881,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			return 1;
 		}
 		else { /* unknown "disable" parameter */
-			appctx->ctx.cli.msg = "'disable' only supports 'frontend' and 'server'.\n";
+			appctx->ctx.cli.msg = "'disable' only supports 'agent', 'frontend' and 'server'.\n";
 			appctx->st0 = STAT_CLI_PRINT;
 			return 1;
 		}
