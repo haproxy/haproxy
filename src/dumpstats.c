@@ -3013,6 +3013,10 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			chunk_appendf(&trash, "%s ", human_time(now.tv_sec - sv->last_change, 1));
 			chunk_appendf(&trash, "MAINT");
 		}
+		else if ((ref->agent.state & CHK_ST_ENABLED) && (ref->state == SRV_ST_STOPPED)) {
+			chunk_appendf(&trash, "%s ", human_time(now.tv_sec - ref->last_change, 1));
+			chunk_appendf(&trash, srv_hlt_st[1]); /* DOWN (agent) */
+		}
 		else if (ref->check.state & CHK_ST_ENABLED) {
 			chunk_appendf(&trash, "%s ", human_time(now.tv_sec - ref->last_change, 1));
 			chunk_appendf(&trash,
@@ -3021,7 +3025,29 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			              (ref->state != SRV_ST_STOPPED) ? (ref->check.fall) : (ref->check.rise));
 		}
 
-		if (sv->check.state & CHK_ST_ENABLED) {
+		if ((sv->state == SRV_ST_STOPPED) &&
+		    ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) && !(sv->agent.health)) {
+			chunk_appendf(&trash,
+			              "</td><td class=ac><u> %s%s",
+			              (sv->agent.state & CHK_ST_INPROGRESS) ? "* " : "",
+			              get_check_status_info(sv->agent.status));
+
+			if (sv->agent.status >= HCHK_STATUS_L57DATA)
+				chunk_appendf(&trash, "/%d", sv->agent.code);
+
+			if (sv->agent.status >= HCHK_STATUS_CHECKED && sv->agent.duration >= 0)
+				chunk_appendf(&trash, " in %lums", sv->agent.duration);
+
+			chunk_appendf(&trash, "<div class=tips>%s",
+				      get_check_status_description(sv->agent.status));
+			if (*sv->agent.desc) {
+				chunk_appendf(&trash, ": ");
+				chunk_initlen(&src, sv->agent.desc, 0, strlen(sv->agent.desc));
+				chunk_htmlencode(&trash, &src);
+			}
+			chunk_appendf(&trash, "</div></u>");
+		}
+		else if ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) {
 			chunk_appendf(&trash,
 			              "</td><td class=ac><u> %s%s",
 			              (sv->check.state & CHK_ST_INPROGRESS) ? "* " : "",
