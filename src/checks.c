@@ -232,17 +232,16 @@ static void set_server_check_status(struct check *check, short status, const cha
 		tv_zero(&check->start);
 	}
 
-	/* Failure to connect to the agent as a secondary check should not
-	 * cause the server to be marked down.
-	 */
-	if ((check->state & CHK_ST_AGENT) && check->status < HCHK_STATUS_L7TOUT)
-		return;
-
 	report = 0;
 
 	switch (check->result) {
 	case CHK_RES_FAILED:
-		if (check->health >= check->rise) {
+		/* Failure to connect to the agent as a secondary check should not
+		 * cause the server to be marked down.
+		 */
+		if ((!(check->state & CHK_ST_AGENT) ||
+		    (check->status >= HCHK_STATUS_L7TOUT)) &&
+		    (check->health >= check->rise)) {
 			s->counters.failed_checks++;
 			report = 1;
 			check->health--;
@@ -274,7 +273,8 @@ static void set_server_check_status(struct check *check, short status, const cha
 	if (s->proxy->options2 & PR_O2_LOGHCHKS &&
 	    (status != prev_status || report)) {
 		chunk_printf(&trash,
-		             "Health check for %sserver %s/%s %s%s",
+		             "%s check for %sserver %s/%s %s%s",
+			     (check->state & CHK_ST_AGENT) ? "Agent" : "Health",
 		             s->flags & SRV_F_BACKUP ? "backup " : "",
 		             s->proxy->id, s->id,
 		             (check->result == CHK_RES_CONDPASS) ? "conditionally ":"",
