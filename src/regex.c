@@ -22,14 +22,17 @@
 /* regex trash buffer used by various regex tests */
 regmatch_t pmatch[MAX_MATCH];  /* rm_so, rm_eo for regular expressions */
 
-
-int exp_replace(char *dst, char *src, const char *str, const regmatch_t *matches)
+int exp_replace(char *dst, uint dst_size, char *src, const char *str, const regmatch_t *matches)
 {
 	char *old_dst = dst;
+	char* dst_end = dst + dst_size;
 
 	while (*str) {
 		if (*str == '\\') {
 			str++;
+			if (!*str)
+				return -1;
+
 			if (isdigit((unsigned char)*str)) {
 				int len, num;
 
@@ -38,6 +41,10 @@ int exp_replace(char *dst, char *src, const char *str, const regmatch_t *matches
 
 				if (matches[num].rm_eo > -1 && matches[num].rm_so > -1) {
 					len = matches[num].rm_eo - matches[num].rm_so;
+
+					if (dst + len >= dst_end)
+						return -1;
+
 					memcpy(dst, src + matches[num].rm_so, len);
 					dst += len;
 				}
@@ -46,19 +53,39 @@ int exp_replace(char *dst, char *src, const char *str, const regmatch_t *matches
 				unsigned char hex1, hex2;
 				str++;
 
+				if (!*str)
+					return -1;
+
 				hex1 = toupper(*str++) - '0';
+
+				if (!*str)
+					return -1;
+
 				hex2 = toupper(*str++) - '0';
 
 				if (hex1 > 9) hex1 -= 'A' - '9' - 1;
 				if (hex2 > 9) hex2 -= 'A' - '9' - 1;
+
+				if (dst >= dst_end)
+					return -1;
+
 				*dst++ = (hex1<<4) + hex2;
 			} else {
+				if (dst >= dst_end)
+					return -1;
+
 				*dst++ = *str++;
 			}
 		} else {
+			if (dst >= dst_end)
+				return -1;
+
 			*dst++ = *str++;
 		}
 	}
+	if (dst >= dst_end)
+		return -1;
+
 	*dst = '\0';
 	return dst - old_dst;
 }

@@ -79,7 +79,7 @@ extern regmatch_t pmatch[MAX_MATCH];
  * The function return 1 is succes case, else return 0 and err is filled.
  */
 int regex_comp(const char *str, struct my_regex *regex, int cs, int cap, char **err);
-int exp_replace(char *dst, char *src, const char *str,	const regmatch_t *matches);
+int exp_replace(char *dst, uint dst_size, char *src, const char *str, const regmatch_t *matches);
 const char *check_replace_string(const char *str);
 const char *chain_regex(struct hdr_exp **head, const regex_t *preg,
 			int action, const char *replace, void *cond);
