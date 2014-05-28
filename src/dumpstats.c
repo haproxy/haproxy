@@ -2420,6 +2420,17 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 {
 	unsigned int up = (now.tv_sec - start_date.tv_sec);
 
+#ifdef USE_OPENSSL
+	int ssl_sess_rate = read_freq_ctr(&global.ssl_per_sec);
+	int ssl_key_rate = read_freq_ctr(&global.ssl_fe_keys_per_sec);
+	int ssl_reuse = 0;
+
+	if (ssl_key_rate < ssl_sess_rate) {
+		/* count the ssl reuse ratio and avoid overflows in both directions */
+		ssl_reuse = 100 - (100 * ssl_key_rate + (ssl_sess_rate - 1) / 2) / ssl_sess_rate;
+	}
+#endif
+
 	chunk_printf(&trash,
 	             "Name: " PRODUCT_NAME "\n"
 	             "Version: " HAPROXY_VERSION "\n"
@@ -2455,6 +2466,11 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 	             "SslRate: %d\n"
 	             "SslRateLimit: %d\n"
 	             "MaxSslRate: %d\n"
+		     "SslFrontendKeyRate: %d\n"
+		     "SslFrontendMaxKeyRate: %d\n"
+		     "SslFrontendSessionReuse_pct: %d\n"
+		     "SslBackendKeyRate: %d\n"
+		     "SslBackendMaxKeyRate: %d\n"
 #endif
 	             "CompressBpsIn: %u\n"
 	             "CompressBpsOut: %u\n"
@@ -2485,7 +2501,10 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 	             read_freq_ctr(&global.conn_per_sec), global.cps_lim, global.cps_max,
 	             read_freq_ctr(&global.sess_per_sec), global.sps_lim, global.sps_max,
 #ifdef USE_OPENSSL
-	             read_freq_ctr(&global.ssl_per_sec), global.ssl_lim, global.ssl_max,
+	             ssl_sess_rate, global.ssl_lim, global.ssl_max,
+	             ssl_key_rate, global.ssl_fe_keys_max,
+	             ssl_reuse,
+	             read_freq_ctr(&global.ssl_be_keys_per_sec), global.ssl_be_keys_max,
 #endif
 	             read_freq_ctr(&global.comp_bps_in), read_freq_ctr(&global.comp_bps_out),
 	             global.comp_rate_lim,

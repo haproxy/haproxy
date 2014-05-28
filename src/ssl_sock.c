@@ -1447,13 +1447,22 @@ int ssl_sock_handshake(struct connection *conn, unsigned int flag)
 reneg_ok:
 
 	/* Handshake succeeded */
-	if (objt_server(conn->target)) {
-		if (!SSL_session_reused(conn->xprt_ctx)) {
+	if (!SSL_session_reused(conn->xprt_ctx)) {
+		if (objt_server(conn->target)) {
+			update_freq_ctr(&global.ssl_be_keys_per_sec, 1);
+			if (global.ssl_be_keys_per_sec.curr_ctr > global.ssl_be_keys_max)
+				global.ssl_be_keys_max = global.ssl_be_keys_per_sec.curr_ctr;
+
 			/* check if session was reused, if not store current session on server for reuse */
 			if (objt_server(conn->target)->ssl_ctx.reused_sess)
 				SSL_SESSION_free(objt_server(conn->target)->ssl_ctx.reused_sess);
 
 			objt_server(conn->target)->ssl_ctx.reused_sess = SSL_get1_session(conn->xprt_ctx);
+		}
+		else {
+			update_freq_ctr(&global.ssl_fe_keys_per_sec, 1);
+			if (global.ssl_fe_keys_per_sec.curr_ctr > global.ssl_fe_keys_max)
+				global.ssl_fe_keys_max = global.ssl_fe_keys_per_sec.curr_ctr;
 		}
 	}
 
