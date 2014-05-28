@@ -2416,8 +2416,8 @@ char *env_expand(char *in)
 const char *strnistr(const char *str1, int len_str1, const char *str2, int len_str2)
 {
 	char *pptr, *sptr, *start;
-	uint slen, plen;
-	uint tmp1, tmp2;
+	unsigned int slen, plen;
+	unsigned int tmp1, tmp2;
 
 	if (str1 == NULL || len_str1 == 0) // search pattern into an empty string => search is not found
 		return NULL;

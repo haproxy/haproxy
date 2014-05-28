@@ -22,7 +22,7 @@
 /* regex trash buffer used by various regex tests */
 regmatch_t pmatch[MAX_MATCH];  /* rm_so, rm_eo for regular expressions */
 
-int exp_replace(char *dst, uint dst_size, char *src, const char *str, const regmatch_t *matches)
+int exp_replace(char *dst, unsigned int dst_size, char *src, const char *str, const regmatch_t *matches)
 {
 	char *old_dst = dst;
 	char* dst_end = dst + dst_size;

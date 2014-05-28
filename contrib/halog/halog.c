@@ -694,7 +694,7 @@ int main(int argc, char **argv)
 	struct eb32_node *n;
 	struct url_stat *ustat = NULL;
 	int val, test;
-	uint uval;
+	unsigned int uval;
 	int filter_acc_delay = 0, filter_acc_count = 0;
 	int filter_time_resp = 0;
 	int filt_http_status_low = 0, filt_http_status_high = 0;
