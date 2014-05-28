@@ -98,6 +98,7 @@ struct global {
 	int sps_lim, sps_max;
 	int ssl_lim, ssl_max;
 	int ssl_fe_keys_max, ssl_be_keys_max;
+	unsigned int shctx_lookups, shctx_misses;
 	int comp_rate_lim;           /* HTTP compression rate limit */
 	int maxpipes;		/* max # of pipes */
 	int maxsock;		/* max # of sockets */

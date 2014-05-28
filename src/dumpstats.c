@@ -2471,6 +2471,8 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 		     "SslFrontendSessionReuse_pct: %d\n"
 		     "SslBackendKeyRate: %d\n"
 		     "SslBackendMaxKeyRate: %d\n"
+		     "SslCacheLookups: %u\n"
+		     "SslCacheMisses: %u\n"
 #endif
 	             "CompressBpsIn: %u\n"
 	             "CompressBpsOut: %u\n"
@@ -2505,6 +2507,7 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 	             ssl_key_rate, global.ssl_fe_keys_max,
 	             ssl_reuse,
 	             read_freq_ctr(&global.ssl_be_keys_per_sec), global.ssl_be_keys_max,
+		     global.shctx_lookups, global.shctx_misses,
 #endif
 	             read_freq_ctr(&global.comp_bps_in), read_freq_ctr(&global.comp_bps_out),
 	             global.comp_rate_lim,

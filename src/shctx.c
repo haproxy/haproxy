@@ -18,16 +18,14 @@
 #else
 #ifdef USE_SYSCALL_FUTEX
 #include <unistd.h>
-#ifndef u32
-#define u32 unsigned int
-#endif
 #include <linux/futex.h>
 #include <sys/syscall.h>
 #endif
 #endif
 #endif
 #include <arpa/inet.h>
-#include "ebmbtree.h"
+#include <ebmbtree.h>
+#include <types/global.h>
 #include "proto/shctx.h"
 
 struct shsess_packet_hdr {
@@ -440,6 +438,8 @@ SSL_SESSION *shctx_get_cb(SSL *ssl, unsigned char *key, int key_len, int *do_cop
 	int data_len;
 	SSL_SESSION *sess;
 
+	global.shctx_lookups++;
+
 	/* allow the session to be freed automatically by openssl */
 	*do_copy = 0;
 
@@ -458,6 +458,7 @@ SSL_SESSION *shctx_get_cb(SSL *ssl, unsigned char *key, int key_len, int *do_cop
 	if (!shsess) {
 		/* no session found: unlock cache and exit */
 		shared_context_unlock();
+		global.shctx_misses++;
 		return NULL;
 	}
 
