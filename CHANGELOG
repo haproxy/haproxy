@@ -1,6 +1,65 @@
 ChangeLog :
 ===========
 
+2014/05/28 : 1.5-dev26
+    - BUG/MEDIUM: polling: fix possible CPU hogging of worker processes after receiving SIGUSR1.
+    - BUG/MINOR: stats: fix a typo on a closing tag for a server tracking another one
+    - OPTIM: stats: avoid the calculation of a useless link on tracking servers in maintenance
+    - MINOR: fix a few memory usage errors
+    - CONTRIB: halog: Filter input lines by date and time through timestamp
+    - MINOR: ssl: SSL_CTX_set_options() and SSL_CTX_set_mode() take a long, not an int
+    - BUG/MEDIUM: regex: fix risk of buffer overrun in exp_replace()
+    - MINOR: acl: set "str" as default match for strings
+    - DOC: Add some precisions about acl default matching method
+    - MEDIUM: acl: strenghten the option parser to report invalid options
+    - BUG/MEDIUM: config: a stats-less config crashes in 1.5-dev25
+    - BUG/MINOR: checks: tcp-check must not stop on '\0' for binary checks
+    - MINOR: stats: improve alignment of color codes to save one line of header
+    - MINOR: checks: simplify and improve reporting of state changes when using log-health-checks
+    - MINOR: server: remove the SRV_DRAIN flag which can always be deduced
+    - MINOR: server: use functions to detect state changes and to update them
+    - MINOR: server: create srv_was_usable() from srv_is_usable() and use a pointer
+    - BUG/MINOR: stats: do not report "100%" in the thottle column when server is draining
+    - BUG/MAJOR: config: don't free valid regex memory
+    - BUG/MEDIUM: session: don't clear CF_READ_NOEXP if analysers are not called
+    - BUG/MINOR: stats: tracking servers may incorrectly report an inherited DRAIN status
+    - MEDIUM: proxy: make timeout parser a bit stricter
+    - REORG/MEDIUM: server: split server state and flags in two different variables
+    - REORG/MEDIUM: server: move the maintenance bits out of the server state
+    - MAJOR: server: use states instead of flags to store the server state
+    - REORG: checks: put the functions in the appropriate files !
+    - MEDIUM: server: properly support and propagate the maintenance status
+    - MEDIUM: server: allow multi-level server tracking
+    - CLEANUP: checks: rename the server_status_printf function
+    - MEDIUM: checks: simplify server up/down/nolb transitions
+    - MAJOR: checks: move health checks changes to set_server_check_status()
+    - MINOR: server: make the status reporting function support a reason
+    - MINOR: checks: simplify health check reporting functions
+    - MINOR: server: implement srv_set_stopped()
+    - MINOR: server: implement srv_set_running()
+    - MINOR: server: implement srv_set_stopping()
+    - MEDIUM: checks: simplify failure notification using srv_set_stopped()
+    - MEDIUM: checks: simplify success notification using srv_set_running()
+    - MEDIUM: checks: simplify stopping mode notification using srv_set_stopping()
+    - MEDIUM: stats: report a server's own state instead of the tracked one's
+    - MINOR: server: make use of srv_is_usable() instead of checking eweight
+    - MAJOR: checks: add support for a new "drain" administrative mode
+    - MINOR: stats: use the admin flags for soft enable/disable/stop/start on the web page
+    - MEDIUM: stats: introduce new actions to simplify admin status management
+    - MINOR: cli: introduce a new "set server" command
+    - MINOR: stats: report a distinct output for DOWN caused by agent
+    - MINOR: checks: support specific check reporting for the agent
+    - MINOR: checks: support a neutral check result
+    - BUG/MINOR: cli: "agent" was missing from the "enable"/"disable" help message
+    - MEDIUM: cli: add support for enabling/disabling health checks.
+    - MEDIUM: stats: report down caused by agent prior to reporting up
+    - MAJOR: agent: rework the response processing and support additional actions
+    - MINOR: stats: improve the stats web page to support more actions
+    - CONTRIB: halog: avoid calling time/localtime/mktime for each line
+    - DOC: document the workarouds for Google Chrome's bogus pre-connect
+    - MINOR: stats: report SSL key computations per second
+    - MINOR: stats: add counters for SSL cache lookups and misses
+
 2014/05/10 : 1.5-dev25
     - MEDIUM: connection: Implement and extented PROXY Protocol V2
     - MINOR: ssl: clean unused ACLs declarations
