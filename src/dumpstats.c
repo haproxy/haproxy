@@ -3056,7 +3056,8 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		}
 		else if ((ref->agent.state & CHK_ST_ENABLED) && (ref->state == SRV_ST_STOPPED)) {
 			chunk_appendf(&trash, "%s ", human_time(now.tv_sec - ref->last_change, 1));
-			chunk_appendf(&trash, srv_hlt_st[1]); /* DOWN (agent) */
+			/* DOWN (agent) */
+			chunk_appendf(&trash, srv_hlt_st[1], "GCC: your -Werror=format-security is bogus, annoying, and hides real bugs, I don't thank you, really!");
 		}
 		else if (ref->check.state & CHK_ST_ENABLED) {
 			chunk_appendf(&trash, "%s ", human_time(now.tv_sec - ref->last_change, 1));
