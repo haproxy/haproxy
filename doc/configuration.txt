@@ -4458,13 +4458,14 @@ no option logasap
              logging.
 
 
-option mysql-check [ user <username> ]
+option mysql-check [ user <username> [ post-41 ] ]
   Use MySQL health checks for server testing
   May be used in sections :   defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
   Arguments :
     <username> This is the username which will be used when connecting to MySQL
                server.
+    post-41    Send post v4.1 client compatible checks
 
   If you specify a username, the check consists of sending two MySQL packet,
   one Client Authentication packet, and one QUIT packet, to correctly close

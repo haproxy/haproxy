@@ -3869,7 +3869,7 @@ stats_error_parsing:
 			curproxy->options2 &= ~PR_O2_CHK_ANY;
 			curproxy->options2 |= PR_O2_MYSQL_CHK;
 
-			/* This is an exemple of an MySQL >=4.0 client Authentication packet kindly provided by Cyril Bonte.
+			/* This is an example of a MySQL >=4.0 client Authentication packet kindly provided by Cyril Bonte.
 			 * const char mysql40_client_auth_pkt[] = {
 			 * 	"\x0e\x00\x00"	// packet length
 			 * 	"\x01"		// packet number
@@ -3882,6 +3882,23 @@ stats_error_parsing:
 			 * 	"\x01"		// COM_QUIT command
 			 * };
 			 */
+
+			/* This is an example of a MySQL >=4.1  client Authentication packet provided by Nenad Merdanovic.
+			 * const char mysql41_client_auth_pkt[] = {
+			 * 	"\x0e\x00\x00\"		// packet length
+			 * 	"\x01"			// packet number
+			 * 	"\x00\x00\x00\x00"	// client capabilities
+			 * 	"\x00\x00\x00\x01"	// max packet
+			 *	"\x21"			// character set (UTF-8)
+			 *	char[23]		// All zeroes
+			 * 	"haproxy\x00"		// username (null terminated string)
+			 * 	"\x00"			// filler (always 0x00)
+			 * 	"\x01\x00\x00"		// packet length
+			 * 	"\x00"			// packet number
+			 * 	"\x01"			// COM_QUIT command
+			 * };
+			 */
+
 
 			if (*(args[2])) {
 				int cur_arg = 2;
@@ -3900,25 +3917,55 @@ stats_error_parsing:
 						}
 						mysqluser = args[cur_arg + 1];
 						userlen   = strlen(mysqluser);
-						packetlen = userlen + 7;
-						reqlen    = packetlen + 9;
 
-						free(curproxy->check_req);
-						curproxy->check_req = (char *)calloc(1, reqlen);
-						curproxy->check_len = reqlen;
+						if (*(args[cur_arg+2])) {
+							if (!strcmp(args[cur_arg+2], "post-41")) {
+		                                                packetlen = userlen + 7 + 27;
+								reqlen    = packetlen + 9;
 
-						snprintf(curproxy->check_req, 4, "%c%c%c",
-							((unsigned char) packetlen & 0xff),
-							((unsigned char) (packetlen >> 8) & 0xff),
-							((unsigned char) (packetlen >> 16) & 0xff));
+								free(curproxy->check_req);
+								curproxy->check_req = (char *)calloc(1, reqlen);
+								curproxy->check_len = reqlen;
 
-						curproxy->check_req[3] = 1;
-						curproxy->check_req[5] = 128;
-						curproxy->check_req[8] = 1;
-						memcpy(&curproxy->check_req[9], mysqluser, userlen);
-						curproxy->check_req[9 + userlen + 1 + 1]     = 1;
-						curproxy->check_req[9 + userlen + 1 + 1 + 4] = 1;
-						cur_arg += 2;
+								snprintf(curproxy->check_req, 4, "%c%c%c",
+									((unsigned char) packetlen & 0xff),
+									((unsigned char) (packetlen >> 8) & 0xff),
+									((unsigned char) (packetlen >> 16) & 0xff));
+
+								curproxy->check_req[3] = 1;
+								curproxy->check_req[5] = 130;
+								curproxy->check_req[11] = 1;
+								curproxy->check_req[12] = 33;
+								memcpy(&curproxy->check_req[36], mysqluser, userlen);
+								curproxy->check_req[36 + userlen + 1 + 1]     = 1;
+								curproxy->check_req[36 + userlen + 1 + 1 + 4] = 1;
+								cur_arg += 3;
+							} else {
+								Alert("parsing [%s:%d] : keyword '%s' only supports option 'post-41'.\n", file, linenum, args[cur_arg+2]);
+								err_code |= ERR_ALERT | ERR_FATAL;
+								goto out;
+							}
+						} else {
+							packetlen = userlen + 7;
+							reqlen    = packetlen + 9;
+
+							free(curproxy->check_req);
+							curproxy->check_req = (char *)calloc(1, reqlen);
+							curproxy->check_len = reqlen;
+
+							snprintf(curproxy->check_req, 4, "%c%c%c",
+								((unsigned char) packetlen & 0xff),
+								((unsigned char) (packetlen >> 8) & 0xff),
+								((unsigned char) (packetlen >> 16) & 0xff));
+
+							curproxy->check_req[3] = 1;
+							curproxy->check_req[5] = 128;
+							curproxy->check_req[8] = 1;
+							memcpy(&curproxy->check_req[9], mysqluser, userlen);
+							curproxy->check_req[9 + userlen + 1 + 1]     = 1;
+							curproxy->check_req[9 + userlen + 1 + 1 + 4] = 1;
+							cur_arg += 2;
+						}
 					} else {
 						/* unknown suboption - catchall */
 						Alert("parsing [%s:%d] : '%s %s' only supports optional values: 'user'.\n",
