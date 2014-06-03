@@ -552,6 +552,9 @@ incoming connections.
 
 Support for the protocol in the Varnish cache is being considered [6].
 
+Exim added support for version 1 and version 2 of the protocol for incoming
+connections on 2014/05/13, and will be released as part of version 4.83.
+
 The protocol is simple enough that it is expected that other implementations
 will appear, especially in environments such as SMTP, IMAP, FTP, RDP where the
 client's address is an important piece of information for the server and some
