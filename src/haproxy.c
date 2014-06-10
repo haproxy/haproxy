@@ -1604,6 +1604,7 @@ int main(int argc, char **argv)
 
 		if (proc == global.nbproc) {
 			if (global.mode & MODE_SYSTEMD) {
+				protocol_unbind_all();
 				for (proc = 0; proc < global.nbproc; proc++)
 					while (waitpid(children[proc], NULL, 0) == -1 && errno == EINTR);
 			}
