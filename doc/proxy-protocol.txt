@@ -441,7 +441,7 @@ So the 16-byte version 2 header can be described this way :
 
     struct proxy_hdr_v2 {
         uint8_t sig[12];  /* hex 0D 0A 0D 0A 00 0D 0A 51 55 49 54 0A */
-        uint8_t ver;      /* protocol version and command */
+        uint8_t ver_cmd;  /* protocol version and command */
         uint8_t fam;      /* protocol family and address */
         uint16_t len;     /* number of following bytes part of the header */
     };
@@ -762,10 +762,9 @@ side is even simpler and can easily be deduced from this sample code.
           } v1;
           struct {
               uint8_t sig[12];
-              uint8_t ver;
-              uint8_t cmd;
+              uint8_t ver_cmd;
               uint8_t fam;
-              uint8_t len;
+              uint16_t len;
               union {
                   struct {  /* for TCP/UDP over IPv4, len = 12 */
                       uint32_t src_addr;
@@ -801,7 +800,7 @@ side is even simpler and can easily be deduced from this sample code.
           if (ret < size)
               return -1; /* truncated or too large header */
 
-          switch (hdr.v2.cmd) {
+          switch (hdr.v2.ver_cmd & 0xF) {
           case 0x01: /* PROXY command */
               switch (hdr.v2.fam) {
               case 0x11:  /* TCPv4 */
