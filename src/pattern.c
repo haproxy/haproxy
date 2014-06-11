@@ -529,7 +529,7 @@ struct pattern *pat_match_reg(struct sample *smp, struct pattern_expr *expr, int
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
 
-		if (regex_exec(pattern->ptr.reg, smp->data.str.str, smp->data.str.len) == 0)
+		if (regex_exec2(pattern->ptr.reg, smp->data.str.str, smp->data.str.len))
 			return pattern;
 	}
 	return NULL;

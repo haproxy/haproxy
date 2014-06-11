@@ -84,22 +84,49 @@ const char *check_replace_string(const char *str);
 const char *chain_regex(struct hdr_exp **head, const regex_t *preg,
 			int action, const char *replace, void *cond);
 
+/* If the function doesn't match, it returns false, else it returns true.
+ */
+static inline int regex_exec(const struct my_regex *preg, char *subject) {
+#ifdef USE_PCRE_JIT
+	if (pcre_exec(preg->reg, preg->extra, subject, strlen(subject), 0, 0, NULL, 0) < 0)
+		return 0;
+	return 1;
+#else
+	int match;
+	match = regexec(&preg->regex, subject, 0, NULL, 0);
+	if (match == REG_NOMATCH)
+		return 0;
+	return 1;
+#endif
+}
+
 /* Note that <subject> MUST be at least <length+1> characters long and must
  * be writable because the function will temporarily force a zero past the
  * last character.
+ *
+ * If the function doesn't match, it returns false, else it returns true.
  */
-static inline int regex_exec(const struct my_regex *preg, char *subject, int length) {
+static inline int regex_exec2(const struct my_regex *preg, char *subject, int length) {
 #ifdef USE_PCRE_JIT
-	return pcre_exec(preg->reg, preg->extra, subject, length, 0, 0, NULL, 0);
+	if (pcre_exec(preg->reg, preg->extra, subject, length, 0, 0, NULL, 0) < 0)
+		return 0;
+	return 1;
 #else
 	int match;
 	char old_char = subject[length];
 	subject[length] = 0;
 	match = regexec(&preg->regex, subject, 0, NULL, 0);
 	subject[length] = old_char;
-	return match;
+	if (match == REG_NOMATCH)
+		return 0;
+	return 1;
 #endif
 }
+
+int regex_exec_match(const struct my_regex *preg, const char *subject,
+                     size_t nmatch, regmatch_t pmatch[]);
+int regex_exec_match2(const struct my_regex *preg, char *subject, int length,
+                      size_t nmatch, regmatch_t pmatch[]);
 
 static inline void regex_free(struct my_regex *preg) {
 #ifdef USE_PCRE_JIT

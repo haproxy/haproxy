@@ -15,6 +15,7 @@
 #include <string.h>
 
 #include <common/config.h>
+#include <common/defaults.h>
 #include <common/regex.h>
 #include <common/standard.h>
 #include <proto/log.h>
@@ -147,6 +148,126 @@ const char *chain_regex(struct hdr_exp **head, const regex_t *preg,
 	*head = exp;
 
 	return NULL;
+}
+
+/* This function apply regex. It take const null terminated char as input.
+ * If the function doesn't match, it returns false, else it returns true.
+ * When it is compiled with JIT, this function execute strlen on the subject.
+ */
+int regex_exec_match(const struct my_regex *preg, const char *subject,
+                     size_t nmatch, regmatch_t pmatch[]) {
+#ifdef USE_PCRE_JIT
+	int ret;
+	int matches[MAX_MATCH * 3];
+	int enmatch;
+	int i;
+
+	/* Silently limit the number of allowed matches. max
+	 * match i the maximum value for match, in fact this
+	 * limit is not applyied.
+	 */
+	enmatch = nmatch;
+	if (enmatch > MAX_MATCH)
+		enmatch = MAX_MATCH;
+
+	/* The value returned by pcre_exec() is one more than the highest numbered
+	 * pair that has been set. For example, if two substrings have been captured,
+	 * the returned value is 3. If there are no capturing subpatterns, the return
+	 * value from a successful match is 1, indicating that just the first pair of
+	 * offsets has been set.
+	 *
+	 * It seems that this function returns 0 if it detect more matches than avalaible
+	 * space in the matches array.
+	 */
+	ret = pcre_exec(preg->reg, preg->extra, subject, strlen(subject), 0, 0, matches, enmatch * 3);
+	if (ret < 0)
+		return 0;
+
+	if (ret == 0)
+		ret = enmatch;
+
+	for (i=0; i<nmatch; i++) {
+		/* Copy offset. */
+		if (i < ret) {
+			pmatch[i].rm_so = matches[(i*2)];
+			pmatch[i].rm_eo = matches[(i*2)+1];
+			continue;
+		}
+		/* Set the unmatvh flag (-1). */
+		pmatch[i].rm_so = -1;
+		pmatch[i].rm_eo = -1;
+	}
+	return 1;
+#else
+	int match;
+	match = regexec(&preg->regex, subject, nmatch, pmatch, 0);
+	if (match == REG_NOMATCH)
+		return 0;
+	return 1;
+#endif
+}
+
+/* This function apply regex. It take a "char *" ans length as input. The
+ * <subject> can be modified during the processing. If the function doesn't
+ * match, it returns false, else it returns true.
+ * When it is compiled with standard POSIX regex or PCRE, this function add
+ * a temporary null chracters at the end of the <subject>. The <subject> must
+ * have a real length of <length> + 1.
+ */
+int regex_exec_match2(const struct my_regex *preg, char *subject, int length,
+                      size_t nmatch, regmatch_t pmatch[]) {
+#ifdef USE_PCRE_JIT
+	int ret;
+	int matches[MAX_MATCH * 3];
+	int enmatch;
+	int i;
+
+	/* Silently limit the number of allowed matches. max
+	 * match i the maximum value for match, in fact this
+	 * limit is not applyied.
+	 */
+	enmatch = nmatch;
+	if (enmatch > MAX_MATCH)
+		enmatch = MAX_MATCH;
+
+	/* The value returned by pcre_exec() is one more than the highest numbered
+	 * pair that has been set. For example, if two substrings have been captured,
+	 * the returned value is 3. If there are no capturing subpatterns, the return
+	 * value from a successful match is 1, indicating that just the first pair of
+	 * offsets has been set.
+	 *
+	 * It seems that this function returns 0 if it detect more matches than avalaible
+	 * space in the matches array.
+	 */
+	ret = pcre_exec(preg->reg, preg->extra, subject, length, 0, 0, matches, enmatch * 3);
+	if (ret < 0)
+		return 0;
+
+	if (ret == 0)
+		ret = enmatch;
+
+	for (i=0; i<nmatch; i++) {
+		/* Copy offset. */
+		if (i < ret) {
+			pmatch[i].rm_so = matches[(i*2)];
+			pmatch[i].rm_eo = matches[(i*2)+1];
+			continue;
+		}
+		/* Set the unmatvh flag (-1). */
+		pmatch[i].rm_so = -1;
+		pmatch[i].rm_eo = -1;
+	}
+	return 1;
+#else
+	char old_char = subject[length];
+	int match;
+	subject[length] = 0;
+	match = regexec(&preg->regex, subject, nmatch, pmatch, 0);
+	subject[length] = old_char;
+	if (match == REG_NOMATCH)
+		return 0;
+	return 1;
+#endif
 }
 
 int regex_comp(const char *str, struct my_regex *regex, int cs, int cap, char **err)
