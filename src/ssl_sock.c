@@ -1022,10 +1022,12 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 		SSL_MODE_RELEASE_BUFFERS;
 	STACK_OF(SSL_CIPHER) * ciphers = NULL;
 	SSL_CIPHER * cipher = NULL;
-	const char * cipher_name = NULL;
-	/* The name of ciphers using an Ephemeral Diffie Hellman key exchange
-	   starts with "EDH". */
-	const char edh_name[] = "EDH";
+	char cipher_description[128];
+	/* The description of ciphers using an Ephemeral Diffie Hellman key exchange
+	   contains " Kx=DH " or " Kx=DH(". Beware of " Kx=DH/",
+	   which is not ephemeral DH. */
+	const char dhe_description[] = " Kx=DH ";
+	const char dhe_export_description[] = " Kx=DH(";
 	int idx = 0;
 	int dhe_found = 0;
 
@@ -1124,10 +1126,12 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 		if (ciphers) {
 			for (idx = 0; idx < sk_SSL_CIPHER_num(ciphers); idx++) {
 				cipher = sk_SSL_CIPHER_value(ciphers, idx);
-				cipher_name = SSL_CIPHER_get_name(cipher);
-				if (strncmp(cipher_name, edh_name, sizeof (edh_name)-1) == 0) {
-					dhe_found = 1;
-					break;
+				if (SSL_CIPHER_description(cipher, cipher_description, sizeof (cipher_description)) == cipher_description) {
+					if (strstr(cipher_description, dhe_description) != NULL ||
+					    strstr(cipher_description, dhe_export_description) != NULL) {
+						dhe_found = 1;
+						break;
+					}
 				}
 			}
 
