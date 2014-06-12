@@ -497,6 +497,7 @@ The following keywords are supported in the "global" section :
    - tune.ssl.lifetime
    - tune.ssl.force-private-cache
    - tune.ssl.maxrecord
+   - tune.ssl.default-dh-param
    - tune.zlib.memlevel
    - tune.zlib.windowsize
 
@@ -1016,6 +1017,16 @@ tune.ssl.maxrecord <number>
   2859 gave good results during tests. Use "strace -e trace=write" to find the
   best value. Haproxy will automatically switch to this setting after an idle
   stream has been detected (see tune.idletimer above).
+
+tune.ssl.default-dh-param <number>
+  Sets the maximum size of the Diffie-Hellman parameters used for generating
+  the ephemeral/temporary Diffie-Hellman key in case of DHE key exchange. The
+  final size will try to match the size of the server's RSA (or DSA) key (e.g,
+  a 2048 bits temporary DH key for a 2048 bits RSA key), but will not exceed
+  this maximum value. Default value if 1024. Only 1024 or higher values are
+  allowed. Higher values will increase the CPU load, and values greater than
+  1024 bits are not supported by Java 7 and earlier clients. This value is not
+  used if static Diffie-Hellman parameters are supplied via the certificate file.
 
 tune.zlib.memlevel <number>
   Sets the memLevel parameter in zlib initialization for each session. It

@@ -633,6 +633,19 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 		global.tune.ssl_max_record = atol(args[1]);
 	}
+	else if (!strcmp(args[0], "tune.ssl.default-dh-param")) {
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		global.tune.ssl_default_dh_param = atol(args[1]);
+		if (global.tune.ssl_default_dh_param < 1024) {
+			Alert("parsing [%s:%d] : '%s' expects a value >= 1024.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
 #endif
 	else if (!strcmp(args[0], "tune.bufsize")) {
 		if (*(args[1]) == 0) {

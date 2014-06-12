@@ -136,6 +136,7 @@ struct global {
 		int sslprivatecache; /* Force to use a private session cache even if nbproc > 1 */
 		unsigned int ssllifetime;   /* SSL session lifetime in seconds */
 		unsigned int ssl_max_record; /* SSL max record size */
+		unsigned int ssl_default_dh_param; /* SSL maximum DH parameter size */
 #endif
 #ifdef USE_ZLIB
 		int zlibmemlevel;    /* zlib memlevel */
