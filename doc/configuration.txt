@@ -6444,7 +6444,7 @@ stick match <pattern> [table <table>] [{if | unless} <cond>]
                                  no    |    no    |   yes  |   yes
 
   Arguments :
-    <pattern>  is a pattern extraction rule as described in section 7.3. It
+    <pattern>  is a sample expression rule as described in section 7.3. It
                describes what elements of the incoming request or connection
                will be analysed in the hope to find a matching entry in a
                stickiness table. This rule is mandatory.
@@ -6510,7 +6510,7 @@ stick match <pattern> [table <table>] [{if | unless} <cond>]
         server s2 192.168.1.1:25
 
   See also : "stick-table", "stick on", "nbproc", "bind-process" and section 7
-             about ACLs and pattern extraction.
+             about ACLs and samples fetching.
 
 
 stick on <pattern> [table <table>] [{if | unless} <condition>]
@@ -6563,7 +6563,7 @@ stick store-request <pattern> [table <table>] [{if | unless} <condition>]
                                  no    |    no    |   yes  |   yes
 
   Arguments :
-    <pattern>  is a pattern extraction rule as described in section 7.3. It
+    <pattern>  is a sample expression rule as described in section 7.3. It
                describes what elements of the incoming request or connection
                will be analysed, extracted and stored in the table once a
                server is selected.
@@ -6643,7 +6643,7 @@ stick store-request <pattern> [table <table>] [{if | unless} <condition>]
         server s2 192.168.1.1:25
 
   See also : "stick-table", "stick on", "nbproc", "bind-process" and section 7
-             about ACLs and pattern extraction.
+             about ACLs and sample fetching.
 
 
 stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
@@ -6679,7 +6679,7 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
     binary     a table declared with "type binary" will store binary blocks
                of <len> bytes. If the block provided by the pattern
                extractor is larger than <len>, it will be truncated before
-               being stored. If the block provided by the pattern extractor
+               being stored. If the block provided by the sample expression
                is shorter than <len>, it will be padded by 0. When not
                specified, the block is automatically limited to 32 bytes.
 
@@ -6875,7 +6875,7 @@ stick store-response <pattern> [table <table>] [{if | unless} <condition>]
                                  no    |    no    |   yes  |   yes
 
   Arguments :
-    <pattern>  is a pattern extraction rule as described in section 7.3. It
+    <pattern>  is a sample expression rule as described in section 7.3. It
                describes what elements of the response or connection will
                be analysed, extracted and stored in the table once a
                server is selected.
@@ -7214,7 +7214,7 @@ tcp-request connection <action> [{if | unless} <condition>]
         guideline, all may be used everywhere.
 
         These actions take one or two arguments :
-          <key>   is mandatory, and is a pattern extraction rule as described
+          <key>   is mandatory, and is a sample expression rule as described
                   in section 7.3. It describes what elements of the incoming
                   request or connection will be analysed, extracted, combined,
                   and used to select which table entry to update the counters.
@@ -12031,7 +12031,7 @@ variables on the same format string. This is particularly handy with quoted
 string formats ("Q").
 
 If a variable is named between square brackets ('[' .. ']') then it is used
-as a pattern extraction rule (see section 7.3). This it useful to add some
+as a sample expression rule (see section 7.3). This it useful to add some
 less common information such as the client's SSL certificate's DN, or to log
 the key that would be used to store an entry into a stick table.
 
