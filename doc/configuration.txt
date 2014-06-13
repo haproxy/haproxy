@@ -12099,10 +12099,10 @@ Please refer to the table below for currently defined variables :
   |   | %fi  | frontend_ip              (accepting address)  | IP          |
   |   | %fp  | frontend_port            (accepting address)  | numeric     |
   |   | %ft  | frontend_name_transport ('~' suffix for SSL)  | string      |
-  | H | %hr  | captured_request_headers default style        | string      |
-  | H | %hrl | captured_request_headers CLF style            | string list |
-  | H | %hs  | captured_response_headers default style       | string      |
-  | H | %hsl | captured_response_headers CLF style           | string list |
+  |   | %hr  | captured_request_headers default style        | string      |
+  |   | %hrl | captured_request_headers CLF style            | string list |
+  |   | %hs  | captured_response_headers default style       | string      |
+  |   | %hsl | captured_response_headers CLF style           | string list |
   |   | %ms  | accept date milliseconds                      | numeric     |
   |   | %pid | PID                                           | numeric     |
   | H | %r   | http_request                                  | string      |
@@ -12766,6 +12766,10 @@ and delimited with a vertical bar '|' without any space. Response headers
 follow the same representation, but are displayed after a space following the
 request headers block. These blocks are displayed just before the HTTP request
 in the logs.
+
+As a special case, it is possible to specify an HTTP header capture in a TCP
+frontend. The purpose is to enable logging of headers which will be parsed in
+an HTTP backend if the request is then switched to this HTTP backend.
 
   Example :
         # This instance chains to the outgoing proxy

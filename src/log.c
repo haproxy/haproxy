@@ -103,10 +103,10 @@ static const struct logformat_type logformat_keywords[] = {
 	{ "fi", LOG_FMT_FRONTENDIP, PR_MODE_TCP, LW_FRTIP, NULL }, /* frontend ip */
 	{ "fp", LOG_FMT_FRONTENDPORT, PR_MODE_TCP, LW_FRTIP, NULL }, /* frontend port */
 	{ "ft", LOG_FMT_FRONTEND_XPRT, PR_MODE_TCP, LW_INIT, NULL },  /* frontend with transport mode */
-	{ "hr", LOG_FMT_HDRREQUEST, PR_MODE_HTTP, LW_REQHDR, NULL }, /* header request */
-	{ "hrl", LOG_FMT_HDRREQUESTLIST, PR_MODE_HTTP, LW_REQHDR, NULL }, /* header request list */
-	{ "hs", LOG_FMT_HDRRESPONS, PR_MODE_HTTP, LW_RSPHDR, NULL },  /* header response */
-	{ "hsl", LOG_FMT_HDRRESPONSLIST, PR_MODE_HTTP, LW_RSPHDR, NULL },  /* header response list */
+	{ "hr", LOG_FMT_HDRREQUEST, PR_MODE_TCP, LW_REQHDR, NULL }, /* header request */
+	{ "hrl", LOG_FMT_HDRREQUESTLIST, PR_MODE_TCP, LW_REQHDR, NULL }, /* header request list */
+	{ "hs", LOG_FMT_HDRRESPONS, PR_MODE_TCP, LW_RSPHDR, NULL },  /* header response */
+	{ "hsl", LOG_FMT_HDRRESPONSLIST, PR_MODE_TCP, LW_RSPHDR, NULL },  /* header response list */
 	{ "ms", LOG_FMT_MS, PR_MODE_TCP, LW_INIT, NULL },       /* accept date millisecond */
 	{ "pid", LOG_FMT_PID, PR_MODE_TCP, LW_INIT, NULL }, /* log pid */
 	{ "r", LOG_FMT_REQ, PR_MODE_HTTP, LW_REQ, NULL },  /* request */
