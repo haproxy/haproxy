@@ -1351,6 +1351,104 @@ static struct task *server_warmup(struct task *t)
 }
 
 /*
+ * establish a server health-check.
+ *
+ * It can return one of :
+ *  - SN_ERR_NONE if everything's OK and tcpcheck_main() was not called
+ *  - SN_ERR_UP if if everything's OK and tcpcheck_main() was called
+ *  - SN_ERR_SRVTO if there are no more servers
+ *  - SN_ERR_SRVCL if the connection was refused by the server
+ *  - SN_ERR_PRXCOND if the connection has been limited by the proxy (maxconn)
+ *  - SN_ERR_RESOURCE if a system resource is lacking (eg: fd limits, ports, ...)
+ *  - SN_ERR_INTERNAL for any other purely internal errors
+ * Additionnally, in the case of SN_ERR_RESOURCE, an emergency log will be emitted.
+ * Note that we try to prevent the network stack from sending the ACK during the
+ * connect() when a pure TCP check is used (without PROXY protocol).
+ */
+static int connect_chk(struct task *t)
+{
+	struct check *check = t->context;
+	struct server *s = check->server;
+	struct connection *conn = check->conn;
+	struct protocol *proto;
+	int ret;
+
+	/* tcpcheck send/expect initialisation */
+	if (check->type == PR_O2_TCPCHK_CHK)
+		check->current_step = NULL;
+
+	/* prepare the check buffer.
+	 * This should not be used if check is the secondary agent check
+	 * of a server as s->proxy->check_req will relate to the
+	 * configuration of the primary check. Similarly, tcp-check uses
+	 * its own strings.
+	 */
+	if (check->type && check->type != PR_O2_TCPCHK_CHK && !(check->state & CHK_ST_AGENT)) {
+		bo_putblk(check->bo, s->proxy->check_req, s->proxy->check_len);
+
+		/* we want to check if this host replies to HTTP or SSLv3 requests
+		 * so we'll send the request, and won't wake the checker up now.
+		 */
+		if ((check->type) == PR_O2_SSL3_CHK) {
+			/* SSL requires that we put Unix time in the request */
+			int gmt_time = htonl(date.tv_sec);
+			memcpy(check->bo->data + 11, &gmt_time, 4);
+		}
+		else if ((check->type) == PR_O2_HTTP_CHK) {
+			if (s->proxy->options2 & PR_O2_CHK_SNDST)
+				bo_putblk(check->bo, trash.str, httpchk_build_status_header(s, trash.str, trash.size));
+			bo_putstr(check->bo, "\r\n");
+			*check->bo->p = '\0'; /* to make gdb output easier to read */
+		}
+	}
+
+	/* prepare a new connection */
+	conn_init(conn);
+	conn_prepare(conn, s->check_common.proto, s->check_common.xprt);
+	conn_attach(conn, check, &check_conn_cb);
+	conn->target = &s->obj_type;
+
+	/* no client address */
+	clear_addr(&conn->addr.from);
+
+	if (is_addr(&s->check_common.addr)) {
+
+		/* we'll connect to the check addr specified on the server */
+		conn->addr.to = s->check_common.addr;
+		proto = s->check_common.proto;
+	}
+	else {
+		/* we'll connect to the addr on the server */
+		conn->addr.to = s->addr;
+		proto = s->proto;
+	}
+
+	if (check->port) {
+		set_host_port(&conn->addr.to, check->port);
+	}
+
+	if (check->type == PR_O2_TCPCHK_CHK) {
+		struct tcpcheck_rule *r = (struct tcpcheck_rule *) s->proxy->tcpcheck_rules.n;
+		/* if first step is a 'connect', then tcpcheck_main must run it */
+		if (r->action == TCPCHK_ACT_CONNECT) {
+			tcpcheck_main(conn);
+			return SN_ERR_UP;
+		}
+	}
+
+	ret = SN_ERR_INTERNAL;
+	if (proto->connect)
+		ret = proto->connect(conn, check->type, (check->type) ? 0 : 2);
+	conn->flags |= CO_FL_WAKE_DATA;
+	if (s->check.send_proxy) {
+		conn->send_proxy_ofs = 1;
+		conn->flags |= CO_FL_SEND_PROXY;
+	}
+
+	return ret;
+}
+
+/*
  * manages a server health-check. Returns
  * the time the task accepts to wait, or TIME_ETERNITY for infinity.
  */
@@ -1359,7 +1457,6 @@ static struct task *process_chk(struct task *t)
 	struct check *check = t->context;
 	struct server *s = check->server;
 	struct connection *conn = check->conn;
-	struct protocol *proto;
 	int rv;
 	int ret;
 	int expired = tick_is_expired(t->expire, now_ms);
@@ -1386,90 +1483,10 @@ static struct task *process_chk(struct task *t)
 		check->bo->p = check->bo->data;
 		check->bo->o = 0;
 
-		/* tcpcheck send/expect initialisation */
-		if (check->type == PR_O2_TCPCHK_CHK)
-			check->current_step = NULL;
-
-		/* prepare the check buffer.
-		 * This should not be used if check is the secondary agent check
-		 * of a server as s->proxy->check_req will relate to the
-		 * configuration of the primary check. Similarly, tcp-check uses
-		 * its own strings.
-		 */
-		if (check->type && check->type != PR_O2_TCPCHK_CHK && !(check->state & CHK_ST_AGENT)) {
-			bo_putblk(check->bo, s->proxy->check_req, s->proxy->check_len);
-
-			/* we want to check if this host replies to HTTP or SSLv3 requests
-			 * so we'll send the request, and won't wake the checker up now.
-			 */
-			if ((check->type) == PR_O2_SSL3_CHK) {
-				/* SSL requires that we put Unix time in the request */
-				int gmt_time = htonl(date.tv_sec);
-				memcpy(check->bo->data + 11, &gmt_time, 4);
-			}
-			else if ((check->type) == PR_O2_HTTP_CHK) {
-				if (s->proxy->options2 & PR_O2_CHK_SNDST)
-					bo_putblk(check->bo, trash.str, httpchk_build_status_header(s, trash.str, trash.size));
-				bo_putstr(check->bo, "\r\n");
-				*check->bo->p = '\0'; /* to make gdb output easier to read */
-			}
-		}
-
-		/* prepare a new connection */
-		conn_init(conn);
-		conn_prepare(conn, s->check_common.proto, s->check_common.xprt);
-		conn_attach(conn, check, &check_conn_cb);
-		conn->target = &s->obj_type;
-
-		/* no client address */
-		clear_addr(&conn->addr.from);
-
-		if (is_addr(&s->check_common.addr)) {
-			/* we'll connect to the check addr specified on the server */
-			conn->addr.to = s->check_common.addr;
-			proto = s->check_common.proto;
-		}
-		else {
-			/* we'll connect to the addr on the server */
-			conn->addr.to = s->addr;
-			proto = s->proto;
-		}
-
-		if (check->port) {
-			set_host_port(&conn->addr.to, check->port);
-		}
-
-		if (check->type == PR_O2_TCPCHK_CHK) {
-			struct tcpcheck_rule *r = (struct tcpcheck_rule *) s->proxy->tcpcheck_rules.n;
-			/* if first step is a 'connect', then tcpcheck_main must run it */
-			if (r->action == TCPCHK_ACT_CONNECT) {
-				tcpcheck_main(conn);
-				return t;
-			}
-		}
-
-
-		/* It can return one of :
-		 *  - SN_ERR_NONE if everything's OK
-		 *  - SN_ERR_SRVTO if there are no more servers
-		 *  - SN_ERR_SRVCL if the connection was refused by the server
-		 *  - SN_ERR_PRXCOND if the connection has been limited by the proxy (maxconn)
-		 *  - SN_ERR_RESOURCE if a system resource is lacking (eg: fd limits, ports, ...)
-		 *  - SN_ERR_INTERNAL for any other purely internal errors
-		 * Additionnally, in the case of SN_ERR_RESOURCE, an emergency log will be emitted.
-		 * Note that we try to prevent the network stack from sending the ACK during the
-		 * connect() when a pure TCP check is used (without PROXY protocol).
-		 */
-		ret = SN_ERR_INTERNAL;
-		if (proto->connect)
-			ret = proto->connect(conn, check->type, (check->type) ? 0 : 2);
-		conn->flags |= CO_FL_WAKE_DATA;
-		if (s->check.send_proxy) {
-			conn->send_proxy_ofs = 1;
-			conn->flags |= CO_FL_SEND_PROXY;
-		}
-
+		ret = connect_chk(t);
 		switch (ret) {
+		case SN_ERR_UP:
+			return t;
 		case SN_ERR_NONE:
 			/* we allow up to min(inter, timeout.connect) for a connection
 			 * to establish but only when timeout.check is set
