@@ -1144,19 +1144,27 @@ int smp_resolve_args(struct proxy *p)
 }
 
 /*
- * Process a fetch + format conversion as defined by the sample expression <expr>
- * on request or response considering the <opt> parameter. The output is always of
- * type string. Returns either NULL if no sample could be extracted, or a pointer
- * to the converted result stored in static temp_smp in format string.
+ * Process a fetch + format conversion as defined by the sample expression
+ * <expr> on request or response considering the <opt> parameter. The output is
+ * always of type string. If a stable sample can be fetched, or an unstable one
+ * when <opt> contains SMP_OPT_FINAL, the sample is converted to a string and
+ * returned without the SMP_F_MAY_CHANGE flag. If an unstable sample is found
+ * and <opt> does not contain SMP_OPT_FINAL, then the sample is returned as-is
+ * with its SMP_F_MAY_CHANGE flag so that the caller can check it and decide to
+ * take actions (eg: wait longer). If a sample could not be found or could not
+ * be converted, NULL is returned.
  */
 struct sample *sample_fetch_string(struct proxy *px, struct session *l4, void *l7,
                                    unsigned int opt, struct sample_expr *expr)
 {
-	struct sample *smp;
+	struct sample *smp = &temp_smp;
 
-	smp = sample_process(px, l4, l7, opt, expr, NULL);
-	if (!smp)
+	smp->flags = 0;
+	if (!sample_process(px, l4, l7, opt, expr, smp)) {
+		if ((smp->flags & SMP_F_MAY_CHANGE) && !(opt & SMP_OPT_FINAL))
+			return smp;
 		return NULL;
+	}
 
 	if (!sample_casts[smp->type][SMP_T_STR])
 		return NULL;
@@ -1165,6 +1173,7 @@ struct sample *sample_fetch_string(struct proxy *px, struct session *l4, void *l
 		return NULL;
 
 	smp->type = SMP_T_STR;
+	smp->flags &= ~SMP_F_MAY_CHANGE;
 	return smp;
 }
 
