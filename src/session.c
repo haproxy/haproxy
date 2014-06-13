@@ -879,8 +879,15 @@ static int sess_update_st_cer(struct session *s, struct stream_interface *si)
 	 * we must mark the session unassigned, and eventually clear the DIRECT
 	 * bit to ignore any persistence cookie. We won't count a retry nor a
 	 * redispatch yet, because this will depend on what server is selected.
+	 * If the connection is not persistent, the balancing algorithm is not
+	 * determinist (round robin) and there is more than one active server,
+	 * we accept to perform an immediate redispatch without waiting since
+	 * we don't care about this particular server.
 	 */
-	if (objt_server(s->target) && si->conn_retries == 0 &&
+	if (objt_server(s->target) &&
+	    (si->conn_retries == 0 ||
+	     (!(s->flags & SN_DIRECT) && s->be->srv_act > 1 &&
+	      ((s->be->lbprm.algo & BE_LB_KIND) == BE_LB_KIND_RR))) &&
 	    s->be->options & PR_O_REDISP && !(s->flags & SN_FORCE_PRST)) {
 		sess_change_server(s, NULL);
 		if (may_dequeue_tasks(objt_server(s->target), s->be))
