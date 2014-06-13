@@ -6504,6 +6504,13 @@ out_uri_auth_compat:
 			memcpy(curproxy->check_req, sslv3_client_hello_pkt, curproxy->check_len);
 		}
 
+		if (!LIST_ISEMPTY(&curproxy->tcpcheck_rules) &&
+		    (curproxy->options2 & PR_O2_CHK_ANY) != PR_O2_TCPCHK_CHK) {
+			Warning("config : %s '%s' uses tcp-check rules without 'option tcp-check', so the rules are ignored.\n",
+				proxy_type_str(curproxy), curproxy->id);
+			err_code |= ERR_WARN;
+		}
+
 		/* ensure that cookie capture length is not too large */
 		if (curproxy->capture_len >= global.tune.cookie_len) {
 			Warning("config : truncating capture length to %d bytes for %s '%s'.\n",
