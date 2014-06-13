@@ -35,6 +35,7 @@
 #include <common/standard.h>
 
 #include <types/global.h>
+#include <types/capture.h>
 #include <types/server.h>
 
 #include <proto/acl.h>
@@ -990,13 +991,8 @@ int tcp_inspect_request(struct session *s, struct channel *req, int an_bit)
 
 		if (rule->cond) {
 			ret = acl_exec_cond(rule->cond, s->be, s, &s->txn, SMP_OPT_DIR_REQ | partial);
-			if (ret == ACL_TEST_MISS) {
-				channel_dont_connect(req);
-				/* just set the request timeout once at the beginning of the request */
-				if (!tick_isset(req->analyse_exp) && s->be->tcp_req.inspect_delay)
-					req->analyse_exp = tick_add(now_ms, s->be->tcp_req.inspect_delay);
-				return 0;
-			}
+			if (ret == ACL_TEST_MISS)
+				goto missing_data;
 
 			ret = acl_pass(ret);
 			if (rule->cond->pol == ACL_COND_UNLESS)
@@ -1040,6 +1036,32 @@ int tcp_inspect_request(struct session *s, struct channel *req, int an_bit)
 						stkctr_set_flags(&s->stkctr[tcp_trk_idx(rule->action)], STKCTR_TRACK_BACKEND);
 				}
 			}
+			else if (rule->action == TCP_ACT_CAPTURE) {
+				struct sample *key;
+				struct cap_hdr *h = rule->act_prm.cap.hdr;
+				char **cap = s->txn.req.cap;
+				int len;
+
+				key = sample_fetch_string(s->be, s, &s->txn, SMP_OPT_DIR_REQ | partial, rule->act_prm.cap.expr);
+				if (!key)
+					continue;
+
+				if (key->flags & SMP_F_MAY_CHANGE)
+					goto missing_data;
+
+				if (cap[h->index] == NULL)
+					cap[h->index] = pool_alloc2(h->pool);
+
+				if (cap[h->index] == NULL) /* no more capture memory */
+					continue;
+
+				len = key->data.str.len;
+				if (len > h->len)
+					len = h->len;
+
+				memcpy(cap[h->index], key->data.str.str, len);
+				cap[h->index][len] = 0;
+			}
 			else {
 				/* otherwise accept */
 				break;
@@ -1053,6 +1075,14 @@ int tcp_inspect_request(struct session *s, struct channel *req, int an_bit)
 	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
 	return 1;
+
+ missing_data:
+	channel_dont_connect(req);
+	/* just set the request timeout once at the beginning of the request */
+	if (!tick_isset(req->analyse_exp) && s->be->tcp_req.inspect_delay)
+		req->analyse_exp = tick_add(now_ms, s->be->tcp_req.inspect_delay);
+	return 0;
+
 }
 
 /* This function performs the TCP response analysis on the current response. It
@@ -1286,6 +1316,92 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 	else if (!strcmp(args[arg], "reject")) {
 		arg++;
 		rule->action = TCP_ACT_REJECT;
+	}
+	else if (strcmp(args[arg], "capture") == 0) {
+		struct sample_expr *expr;
+		struct cap_hdr *hdr;
+		int kw = arg;
+		int len = 0;
+
+		if (!(curpx->cap & PR_CAP_FE)) {
+			memprintf(err,
+			          "'%s %s %s' : proxy '%s' has no frontend capability",
+			          args[0], args[1], args[kw], curpx->id);
+			return -1;
+		}
+
+		if (!(where & SMP_VAL_FE_REQ_CNT)) {
+			memprintf(err,
+				  "'%s %s' is not allowed in '%s %s' rules in %s '%s'",
+				  args[arg], args[arg+1], args[0], args[1], proxy_type_str(curpx), curpx->id);
+			return -1;
+		}
+
+		arg++;
+
+		curpx->conf.args.ctx = ARGC_CAP;
+		expr = sample_parse_expr(args, &arg, file, line, err, &curpx->conf.args);
+		if (!expr) {
+			memprintf(err,
+			          "'%s %s %s' : %s",
+			          args[0], args[1], args[kw], *err);
+			return -1;
+		}
+
+		if (!(expr->fetch->val & where)) {
+			memprintf(err,
+			          "'%s %s %s' : fetch method '%s' extracts information from '%s', none of which is available here",
+			          args[0], args[1], args[kw], args[arg-1], sample_src_names(expr->fetch->use));
+			free(expr);
+			return -1;
+		}
+
+		if (strcmp(args[arg], "len") == 0) {
+			arg++;
+			if (!args[arg]) {
+				memprintf(err,
+					  "'%s %s %s' : missing length value",
+					  args[0], args[1], args[kw]);
+				free(expr);
+				return -1;
+			}
+			/* we copy the table name for now, it will be resolved later */
+			len = atoi(args[arg]);
+			if (len <= 0) {
+				memprintf(err,
+					  "'%s %s %s' : length must be > 0",
+					  args[0], args[1], args[kw]);
+				free(expr);
+				return -1;
+			}
+			arg++;
+		}
+
+		if (!len) {
+			memprintf(err,
+				  "'%s %s %s' : a positive 'len' argument is mandatory",
+				  args[0], args[1], args[kw]);
+			free(expr);
+			return -1;
+		}
+
+		hdr = calloc(sizeof(struct cap_hdr), 1);
+		hdr->next = curpx->req_cap;
+		hdr->name = NULL; /* not a header capture */
+		hdr->namelen = 0;
+		hdr->len = len;
+		hdr->pool = create_pool("caphdr", hdr->len + 1, MEM_F_SHARED);
+		hdr->index = curpx->nb_req_cap++;
+
+		curpx->req_cap = hdr;
+		curpx->to_log |= LW_REQHDR;
+
+		/* check if we need to allocate an hdr_idx struct for HTTP parsing */
+		curpx->http_needed |= !!(expr->fetch->use & SMP_USE_HTTP_ANY);
+
+		rule->act_prm.cap.expr = expr;
+		rule->act_prm.cap.hdr = hdr;
+		rule->action = TCP_ACT_CAPTURE;
 	}
 	else if (strncmp(args[arg], "track-sc", 8) == 0 &&
 		 args[arg][9] == '\0' && args[arg][8] >= '0' &&

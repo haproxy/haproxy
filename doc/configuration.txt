@@ -7171,7 +7171,7 @@ tcp-request connection <action> [{if | unless} <condition>]
   accept the incoming connection. There is no specific limit to the number of
   rules which may be inserted.
 
-  Three types of actions are supported :
+  Five types of actions are supported :
     - accept :
         accepts the connection if the condition is true (when used with "if")
         or false (when used with "unless"). The first such rule executed ends
@@ -7199,6 +7199,18 @@ tcp-request connection <action> [{if | unless} <condition>]
         IP address ranges using an ACL. This is convenient when multiple layers
         of load balancers are passed through by traffic coming from public
         hosts.
+
+    - capture <sample> len <length> :
+        This only applies to "tcp-request content" rules. It captures sample
+        expression <sample> from the request buffer, and converts it to a
+        string of at most <len> characters. The resulting string is stored into
+        the next request "capture" slot, so it will possibly appear next to
+        some captured HTTP headers. It will then automatically appear in the
+        logs, and it will be possible to extract it using sample fetch rules to
+        feed it into headers or anything. The length should be limited given
+        that this size will be allocated for each capture during the whole
+        session life. Since it applies to Please check section 7.3 (Fetching
+        samples) and "capture request header" for more information.
 
     - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>] :
         enables tracking of sticky counters from current connection. These
@@ -7278,8 +7290,8 @@ tcp-request content <action> [{if | unless} <condition>]
   Arguments :
     <action>    defines the action to perform if the condition applies. Valid
                 actions include : "accept", "reject", "track-sc0", "track-sc1",
-                and "track-sc2". See "tcp-request connection" above for their
-                signification.
+                "track-sc2" and "capture". See "tcp-request connection" above
+                for their signification.
 
     <condition> is a standard layer 4-7 ACL-based condition (see section 7).
 
@@ -7307,9 +7319,10 @@ tcp-request content <action> [{if | unless} <condition>]
   contents. There is no specific limit to the number of rules which may be
   inserted.
 
-  Three types of actions are supported :
-    - accept :
-    - reject :
+  Four types of actions are supported :
+    - accept : the request is accepted
+    - reject : the request is rejected and the connection is closed
+    - capture : the specified sample expression is captured
     - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>]
 
   They have the same meaning as their counter-parts in "tcp-request connection"
