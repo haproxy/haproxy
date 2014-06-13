@@ -899,14 +899,19 @@ static int sess_update_st_cer(struct session *s, struct stream_interface *si)
 		/* The error was an asynchronous connection error, and we will
 		 * likely have to retry connecting to the same server, most
 		 * likely leading to the same result. To avoid this, we wait
-		 * one second before retrying.
+		 * MIN(one second, connect timeout) before retrying.
 		 */
+
+		int delay = 1000;
+
+		if (s->be->timeout.connect && s->be->timeout.connect < delay)
+			delay = s->be->timeout.connect;
 
 		if (!si->err_type)
 			si->err_type = SI_ET_CONN_ERR;
 
 		si->state = SI_ST_TAR;
-		si->exp = tick_add(now_ms, MS_TO_TICKS(1000));
+		si->exp = tick_add(now_ms, MS_TO_TICKS(delay));
 		return 0;
 	}
 	return 0;
