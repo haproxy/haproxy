@@ -27,8 +27,8 @@
 
 struct cap_hdr {
     struct cap_hdr *next;
-    char *name;				/* header name, case insensitive */
-    int namelen;			/* length of the header name, to speed-up lookups */
+    char *name;				/* header name, case insensitive, NULL if not header */
+    int namelen;			/* length of the header name, to speed-up lookups, 0 if !name */
     int len;				/* capture length, not including terminal zero */
     int index;				/* index in the output array */
     struct pool_head *pool;		/* pool of pre-allocated memory area of (len+1) bytes */

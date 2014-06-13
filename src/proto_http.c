@@ -1029,7 +1029,7 @@ struct pool_head *pool2_uniqueid;
 
 /*
  * Capture headers from message starting at <som> according to header list
- * <cap_hdr>, and fill the <idx> structure appropriately.
+ * <cap_hdr>, and fill the <cap> pointers appropriately.
  */
 void capture_headers(char *som, struct hdr_idx *idx,
 		     char **cap, struct cap_hdr *cap_hdr)
@@ -1054,7 +1054,7 @@ void capture_headers(char *som, struct hdr_idx *idx,
 			sov++;
 				
 		for (h = cap_hdr; h; h = h->next) {
-			if ((h->namelen == col - sol) &&
+			if (h->namelen && (h->namelen == col - sol) &&
 			    (strncasecmp(sol, h->name, h->namelen) == 0)) {
 				if (cap[h->index] == NULL)
 					cap[h->index] =
