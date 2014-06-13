@@ -910,8 +910,13 @@ static int sess_update_st_cer(struct session *s, struct stream_interface *si)
 		if (!si->err_type)
 			si->err_type = SI_ET_CONN_ERR;
 
-		si->state = SI_ST_TAR;
-		si->exp = tick_add(now_ms, MS_TO_TICKS(delay));
+		/* only wait when we're retrying on the same server */
+		if (si->state == SI_ST_ASS ||
+		    (s->be->lbprm.algo & BE_LB_KIND) != BE_LB_KIND_RR ||
+		    (s->be->srv_act <= 1)) {
+			si->state = SI_ST_TAR;
+			si->exp = tick_add(now_ms, MS_TO_TICKS(delay));
+		}
 		return 0;
 	}
 	return 0;
