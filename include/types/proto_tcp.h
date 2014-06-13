@@ -38,6 +38,12 @@ enum {
 	TCP_ACT_TRK_SC2 = 6,
 	TCP_ACT_TRK_SCMAX = TCP_ACT_TRK_SC0 + MAX_SESS_STKCTR - 1,
 	TCP_ACT_CLOSE, /* close at the sender's */
+	TCP_ACT_CAPTURE, /* capture a fetched sample */
+};
+
+struct capture_prm {
+	struct sample_expr *expr;               /* expression used as the key */
+	struct cap_hdr *hdr;                    /* the capture storage */
 };
 
 struct tcp_rule {
@@ -46,6 +52,7 @@ struct tcp_rule {
 	int action;
 	union {
 		struct track_ctr_prm trk_ctr;
+		struct capture_prm cap;
 	} act_prm;
 };
 

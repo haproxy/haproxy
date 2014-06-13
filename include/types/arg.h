@@ -58,6 +58,7 @@ enum {
 	ARGC_HRS,      /* http-response */
 	ARGC_UIF,      /* unique-id-format */
 	ARGC_RDR,      /* redirect */
+	ARGC_CAP,      /* capture rule */
 };
 
 /* some types that are externally defined */
