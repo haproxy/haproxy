@@ -8114,7 +8114,8 @@ The currently supported settings are the following ones.
 
 accept-proxy
   Enforces the use of the PROXY protocol over any connection accepted by any of
-  the sockets declared on the same line. The PROXY protocol dictates the layer
+  the sockets declared on the same line. Versions 1 and 2 of the PROXY protocol
+  are supported and correctly detected. The PROXY protocol dictates the layer
   3/4 addresses of the incoming connection to be used everywhere an address is
   used, with the only exception of "tcp-request connection" rules which will
   only see the real connection address. Logs will reflect the addresses
