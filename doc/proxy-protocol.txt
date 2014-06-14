@@ -751,7 +751,7 @@ side is even simpler and can easily be deduced from this sample code.
 
   struct sockaddr_storage from; /* already filled by accept() */
   struct sockaddr_storage to;   /* already filled by getsockname() */
-  const char v2sig[13] = "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A\x02";
+  const char v2sig[12] = "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A";
 
   /* returns 0 if needs to poll, <0 upon error or >0 if it did the job */
   int read_evt(int fd)
@@ -795,7 +795,8 @@ side is even simpler and can easily be deduced from this sample code.
       if (ret == -1)
           return (errno == EAGAIN) ? 0 : -1;
 
-      if (ret >= 16 && memcmp(&hdr.v2, v2sig, 13) == 0) {
+      if (ret >= 16 && memcmp(&hdr.v2, v2sig, 12) == 0 &&
+          (hdr.v2.ver_cmd & 0xF0) == 0x20) {
           size = 16 + hdr.v2.len;
           if (ret < size)
               return -1; /* truncated or too large header */
