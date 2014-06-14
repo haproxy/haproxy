@@ -558,10 +558,9 @@ static int make_tlv(char *dest, int dest_len, char type, uint16_t length, char *
 
 int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connection *remote)
 {
-	const char pp2_signature[12] = {0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A};
+	const char pp2_signature[] = PP2_SIGNATURE;
 	int ret = 0;
-	struct proxy_hdr_v2 *hdr_p = (struct proxy_hdr_v2 *)buf;
-	union proxy_addr *addr_p = (union proxy_addr *)(buf + PP2_HEADER_LEN);
+	struct proxy_hdr_v2 *hdr = (struct proxy_hdr_v2 *)buf;
 	struct sockaddr_storage null_addr = {0};
 	struct sockaddr_storage *src = &null_addr;
 	struct sockaddr_storage *dst = &null_addr;
@@ -574,7 +573,7 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 
 	if (buf_len < PP2_HEADER_LEN)
 		return 0;
-	memcpy(hdr_p->sig, pp2_signature, PP2_SIGNATURE_LEN);
+	memcpy(hdr->sig, pp2_signature, PP2_SIGNATURE_LEN);
 
 	if (remote) {
 		src = &remote->addr.from;
@@ -583,30 +582,30 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 	if (src && dst && src->ss_family == dst->ss_family && src->ss_family == AF_INET) {
 		if (buf_len < PP2_HDR_LEN_INET)
 			return 0;
-		hdr_p->cmd = PP2_VERSION | PP2_CMD_PROXY;
-		hdr_p->fam = PP2_FAM_INET | PP2_TRANS_STREAM;
-		addr_p->ipv4_addr.src_addr = ((struct sockaddr_in *)src)->sin_addr.s_addr;
-		addr_p->ipv4_addr.dst_addr = ((struct sockaddr_in *)dst)->sin_addr.s_addr;
-		addr_p->ipv4_addr.src_port = ((struct sockaddr_in *)src)->sin_port;
-		addr_p->ipv4_addr.dst_port = ((struct sockaddr_in *)dst)->sin_port;
+		hdr->ver_cmd = PP2_VERSION | PP2_CMD_PROXY;
+		hdr->fam = PP2_FAM_INET | PP2_TRANS_STREAM;
+		hdr->addr.ip4.src_addr = ((struct sockaddr_in *)src)->sin_addr.s_addr;
+		hdr->addr.ip4.dst_addr = ((struct sockaddr_in *)dst)->sin_addr.s_addr;
+		hdr->addr.ip4.src_port = ((struct sockaddr_in *)src)->sin_port;
+		hdr->addr.ip4.dst_port = ((struct sockaddr_in *)dst)->sin_port;
 		ret = PP2_HDR_LEN_INET;
 	}
 	else if (src && dst && src->ss_family == dst->ss_family && src->ss_family == AF_INET6) {
 		if (buf_len < PP2_HDR_LEN_INET6)
 			return 0;
-		hdr_p->cmd = PP2_VERSION | PP2_CMD_PROXY;
-		hdr_p->fam = PP2_FAM_INET6 | PP2_TRANS_STREAM;
-		memcpy(addr_p->ipv6_addr.src_addr, &((struct sockaddr_in6 *)src)->sin6_addr, 16);
-		memcpy(addr_p->ipv6_addr.dst_addr, &((struct sockaddr_in6 *)dst)->sin6_addr, 16);
-		addr_p->ipv6_addr.src_port = ((struct sockaddr_in6 *)src)->sin6_port;
-		addr_p->ipv6_addr.dst_port = ((struct sockaddr_in6 *)dst)->sin6_port;
+		hdr->ver_cmd = PP2_VERSION | PP2_CMD_PROXY;
+		hdr->fam = PP2_FAM_INET6 | PP2_TRANS_STREAM;
+		memcpy(hdr->addr.ip6.src_addr, &((struct sockaddr_in6 *)src)->sin6_addr, 16);
+		memcpy(hdr->addr.ip6.dst_addr, &((struct sockaddr_in6 *)dst)->sin6_addr, 16);
+		hdr->addr.ip6.src_port = ((struct sockaddr_in6 *)src)->sin6_port;
+		hdr->addr.ip6.dst_port = ((struct sockaddr_in6 *)dst)->sin6_port;
 		ret = PP2_HDR_LEN_INET6;
 	}
 	else {
 		if (buf_len < PP2_HDR_LEN_UNSPEC)
 			return 0;
-		hdr_p->cmd = PP2_VERSION | PP2_CMD_LOCAL;
-		hdr_p->fam = PP2_FAM_UNSPEC | PP2_TRANS_UNSPEC;
+		hdr->ver_cmd = PP2_VERSION | PP2_CMD_LOCAL;
+		hdr->fam = PP2_FAM_UNSPEC | PP2_TRANS_UNSPEC;
 		ret = PP2_HDR_LEN_UNSPEC;
 	}
 
@@ -643,7 +642,7 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 	}
 #endif
 
-	hdr_p->len = htons((uint16_t)(ret - PP2_HEADER_LEN));
+	hdr->len = htons((uint16_t)(ret - PP2_HEADER_LEN));
 
 	return ret;
 }
