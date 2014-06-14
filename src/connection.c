@@ -286,7 +286,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	}
 
 	line += 6;
-	if (trash.len < 18) /* shortest possible line */
+	if (trash.len < 9) /* shortest possible line */
 		goto missing;
 
 	if (!memcmp(line, "TCP4 ", 5) != 0) {
@@ -391,8 +391,12 @@ int conn_recv_proxy(struct connection *conn, int flag)
 		((struct sockaddr_in6 *)&conn->addr.to)->sin6_port          = htons(dport);
 		conn->flags |= CO_FL_ADDR_FROM_SET | CO_FL_ADDR_TO_SET;
 	}
+	else if (memcmp(line, "UNKNOWN\r\n", 9) == 0) {
+		/* This can be a UNIX socket forwarded by an haproxy upstream */
+		line += 9;
+	}
 	else {
-		/* The protocol does not match something known (TCP4/TCP6) */
+		/* The protocol does not match something known (TCP4/TCP6/UNKNOWN) */
 		conn->err_code = CO_ER_PRX_BAD_PROTO;
 		goto fail;
 	}
