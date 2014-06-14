@@ -1,4 +1,4 @@
-2014/05/10                                                        Willy Tarreau
+2014/06/14                                                        Willy Tarreau
                                                            HAProxy Technologies
                                The PROXY protocol
                                  Versions 1 & 2
@@ -19,6 +19,8 @@ Revision history
    2012/06/21 - add support for binary format
    2012/11/19 - final review and fixes
    2014/05/18 - modify and extend PROXY protocol version 2
+   2014/06/11 - fix example code to consider ver+cmd merge
+   2014/06/14 - fix v2 header check in example code, and update Forwarded spec
 
 
 1. Background
@@ -27,11 +29,11 @@ Relaying TCP connections through proxies generally involves a loss of the
 original TCP connection parameters such as source and destination addresses,
 ports, and so on. Some protocols make it a little bit easier to transfer such
 information. For SMTP, Postfix authors have proposed the XCLIENT protocol [1]
-which received broad adoption and is particularly suited to mail exchanges. In
-HTTP, there is the "Forwarded-For" proposed standard [2]. This proposal aims at
-replacing the omnipresent "X-Forwarded-For" header which carries information
-about the original source address, and the less common X-Original-To which
-carries information about the destination address.
+which received broad adoption and is particularly suited to mail exchanges.
+For HTTP, there is the "Forwarded" extension [2], which aims at replacing the
+omnipresent "X-Forwarded-For" header which carries information about the
+original source address, and the less common X-Original-To which carries
+information about the destination address.
 
 However, both mechanisms require a knowledge of the underlying protocol to be
 implemented in intermediaries.
@@ -40,10 +42,11 @@ Then comes a new class of products which we'll call "dumb proxies", not because
 they don't do anything, but because they're processing protocol-agnostic data.
 Both Stunnel[3] and Stud[4] are examples of such "dumb proxies". They talk raw
 TCP on one side, and raw SSL on the other one, and do that reliably, without
-any knowledge of what protocol is transported on top of the connection.
+any knowledge of what protocol is transported on top of the connection. Haproxy
+running in pure TCP mode obviously falls into that category as well.
 
 The problem with such a proxy when it is combined with another one such as
-haproxy is to adapt it to talk the higher level protocol. A patch is available
+haproxy, is to adapt it to talk the higher level protocol. A patch is available
 for Stunnel to make it capable of inserting an X-Forwarded-For header in the
 first HTTP request of each incoming connection. Haproxy is able not to add
 another one when the connection comes from Stunnel, so that it's possible to
@@ -734,7 +737,7 @@ Please use w@1wt.eu to send any comments to the author.
 The following links were referenced in the document.
 
 [1] http://www.postfix.org/XCLIENT_README.html
-[2] http://tools.ietf.org/html/draft-ietf-appsawg-http-forwarded
+[2] http://tools.ietf.org/html/rfc7239
 [3] http://www.stunnel.org/
 [4] https://github.com/bumptech/stud
 [5] https://github.com/bumptech/stud/pull/81
