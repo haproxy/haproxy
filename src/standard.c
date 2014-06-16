@@ -1156,6 +1156,40 @@ int addr_to_str(struct sockaddr_storage *addr, char *str, int size)
 	return -1;
 }
 
+/* Tries to convert a sockaddr_storage port to text form. Upon success, the
+ * address family is returned so that it's easy for the caller to adapt to the
+ * output format. Zero is returned if the address family is not supported. -1
+ * is returned upon error, with errno set. AF_INET, AF_INET6 and AF_UNIX are
+ * supported.
+ */
+int port_to_str(struct sockaddr_storage *addr, char *str, int size)
+{
+
+	uint16_t port;
+
+
+	if (size < 5)
+		return 0;
+	*str = '\0';
+
+	switch (addr->ss_family) {
+	case AF_INET:
+		port = ((struct sockaddr_in *)addr)->sin_port;
+		break;
+	case AF_INET6:
+		port = ((struct sockaddr_in6 *)addr)->sin6_port;
+		break;
+	case AF_UNIX:
+		memcpy(str, "unix", 5);
+		return addr->ss_family;
+	default:
+		return 0;
+	}
+
+	snprintf(str, size, "%u", ntohs(port));
+	return addr->ss_family;
+}
+
 /* will try to encode the string <string> replacing all characters tagged in
  * <map> with the hexadecimal representation of their ASCII-code (2 digits)
  * prefixed by <escape>, and will store the result between <start> (included)
