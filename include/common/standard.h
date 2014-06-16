@@ -52,6 +52,10 @@
 /* number of itoa_str entries */
 #define NB_ITOA_STR	10
 
+/* maximum quoted string length (truncated above) */
+#define QSTR_SIZE 200
+#define NB_QSTR 10
+
 /****** string-specific macros and functions ******/
 /* if a > max, then bound <a> to <max>. The macro returns the new <a> */
 #define UBOUND(a, max)	({ typeof(a) b = (max); if ((a) > b) (a) = b; (a); })
@@ -193,6 +197,29 @@ static inline const char *LIM2A(unsigned long n, const char *alt)
 	if (++itoa_idx >= NB_ITOA_STR)
 		itoa_idx = 0;
 	return ret;
+}
+
+/* returns a locally allocated string containing the quoted encoding of the
+ * input string. The output may be truncated to QSTR_SIZE chars, but it is
+ * guaranteed that the string will always be properly terminated. Quotes are
+ * encoded by doubling them as is commonly done in CSV files. QSTR_SIZE must
+ * always be at least 4 chars.
+ */
+const char *qstr(const char *str);
+
+/* returns <str> or its quote-encoded equivalent if it contains at least one
+ * quote or a comma. This is aimed at build CSV-compatible strings.
+ */
+static inline const char *cstr(const char *str)
+{
+	const char *p = str;
+
+	while (*p) {
+		if (*p == ',' || *p == '"')
+			return qstr(str);
+		p++;
+	}
+	return str;
 }
 
 /*

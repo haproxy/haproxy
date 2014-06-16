@@ -38,6 +38,12 @@
 char itoa_str[NB_ITOA_STR][171];
 int itoa_idx = 0; /* index of next itoa_str to use */
 
+/* sometimes we'll need to quote strings (eg: in stats), and we don't expect
+ * to quote strings larger than a max configuration line.
+ */
+char quoted_str[NB_QSTR][QSTR_SIZE + 1];
+int quoted_idx = 0;
+
 /*
  * unsigned long long ASCII representation
  *
@@ -442,6 +448,39 @@ const char *ulltoh_r(unsigned long long n, char *buffer, int size)
 const char *limit_r(unsigned long n, char *buffer, int size, const char *alt)
 {
 	return (n) ? ultoa_r(n, buffer, size) : (alt ? alt : "");
+}
+
+/* returns a locally allocated string containing the quoted encoding of the
+ * input string. The output may be truncated to QSTR_SIZE chars, but it is
+ * guaranteed that the string will always be properly terminated. Quotes are
+ * encoded by doubling them as is commonly done in CSV files. QSTR_SIZE must
+ * always be at least 4 chars.
+ */
+const char *qstr(const char *str)
+{
+	char *ret = quoted_str[quoted_idx];
+	char *p, *end;
+
+	if (++quoted_idx >= NB_QSTR)
+		quoted_idx = 0;
+
+	p = ret;
+	end = ret + QSTR_SIZE;
+
+	*p++ = '"';
+
+	/* always keep 3 chars to support passing "" and the ending " */
+	while (*str && p < end - 3) {
+		if (*str == '"') {
+			*p++ = '"';
+			*p++ = '"';
+		}
+		else
+			*p++ = *str;
+		str++;
+	}
+	*p++ = '"';
+	return ret;
 }
 
 /*
