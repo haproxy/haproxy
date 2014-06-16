@@ -247,6 +247,8 @@ enum {
 	HTTP_REQ_ACT_ADD_HDR,
 	HTTP_REQ_ACT_SET_HDR,
 	HTTP_REQ_ACT_DEL_HDR,
+	HTTP_REQ_ACT_REPLACE_HDR,
+	HTTP_REQ_ACT_REPLACE_VAL,
 	HTTP_REQ_ACT_REDIR,
 	HTTP_REQ_ACT_SET_NICE,
 	HTTP_REQ_ACT_SET_LOGL,
@@ -267,6 +269,8 @@ enum {
 	HTTP_RES_ACT_ALLOW,
 	HTTP_RES_ACT_DENY,
 	HTTP_RES_ACT_ADD_HDR,
+	HTTP_RES_ACT_REPLACE_HDR,
+	HTTP_RES_ACT_REPLACE_VAL,
 	HTTP_RES_ACT_SET_HDR,
 	HTTP_RES_ACT_DEL_HDR,
 	HTTP_RES_ACT_SET_NICE,
@@ -415,6 +419,7 @@ struct http_req_rule {
 			char *name;            /* header name */
 			int name_len;          /* header name's length */
 			struct list fmt;       /* log-format compatible expression */
+			regex_t* re;           /* used by replace-header and replace-value */
 		} hdr_add;                     /* args used by "add-header" and "set-header" */
 		struct redirect_rule *redir;   /* redirect rule or "http-request redirect" */
 		int nice;                      /* nice value for HTTP_REQ_ACT_SET_NICE */
@@ -440,6 +445,7 @@ struct http_res_rule {
 			char *name;            /* header name */
 			int name_len;          /* header name's length */
 			struct list fmt;       /* log-format compatible expression */
+			regex_t* re;           /* used by replace-header and replace-value */
 		} hdr_add;                     /* args used by "add-header" and "set-header" */
 		int nice;                      /* nice value for HTTP_RES_ACT_SET_NICE */
 		int loglevel;                  /* log-level value for HTTP_RES_ACT_SET_LOGL */

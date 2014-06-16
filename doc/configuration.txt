@@ -2878,6 +2878,8 @@ http-check send-state
 http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
               add-header <name> <fmt> | set-header <name> <fmt> |
               del-header <name> | set-nice <nice> | set-log-level <level> |
+              replace-header <name> <match-regex> <replace-fmt> |
+              replace-value <name> <match-regex> <replace-fmt> |
               set-tos <tos> | set-mark <mark> |
               add-acl(<file name>) <key fmt> |
               del-acl(<file name>) <key fmt> |
@@ -2944,6 +2946,47 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
 
     - "del-header" removes all HTTP header fields whose name is specified in
       <name>.
+
+    - "replace-header" matches the regular expression in all occurrences of
+      header field <name> according to <match-regex>, and replaces them with
+      the <replace-fmt> argument. Format characters are allowed in replace-fmt
+      and work like in <fmt> arguments in "add-header". The match is only
+      case-sensitive. It is important to understand that this action only
+      considers whole header lines, regardless of the number of values they
+      may contain. This usage is suited to headers naturally containing commas
+      in their value, such as If-Modified-Since and so on.
+
+      Example:
+
+        http-request replace-header Cookie foo=([^;]*);(.*) foo=\1;ip=%bi;\2
+
+      applied to:
+
+        Cookie: foo=foobar; expires=Tue, 14-Jun-2016 01:40:45 GMT;
+
+      outputs:
+
+        Cookie: foo=foobar;ip=192.168.1.20; expires=Tue, 14-Jun-2016 01:40:45 GMT;
+
+      assuming the backend IP is 192.168.1.20
+
+    - "replace-value" works like "replace-header" except that it matches the
+      regex against every comma-delimited value of the header field <name>
+      instead of the entire header. This is suited for all headers which are
+      allowed to carry more than one value. An example could be the Accept
+      header.
+
+      Example:
+
+        http-request replace-value X-Forwarded-For ^192\.168\.(.*)$ 172.16.\1
+
+      applied to:
+
+        X-Forwarded-For: 192.168.10.1, 192.168.13.24, 10.0.0.37
+
+      outputs:
+
+        X-Forwarded-For: 172.16.10.1, 172.16.13.24, 10.0.0.37
 
     - "set-nice" sets the "nice" factor of the current request being processed.
       It only has effect against the other requests being processed at the same
@@ -3069,6 +3112,8 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
 
 http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
                 set-header <name> <fmt> | del-header <name> |
+                replace-header <name> <regex-match> <replace-fmt> |
+                replace-value <name> <regex-match> <replace-fmt> |
                 set-log-level <level> | set-mark <mark> | set-tos <tos> |
                 add-acl(<file name>) <key fmt> |
                 del-acl(<file name>) <key fmt> |
@@ -3112,6 +3157,47 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
 
     - "del-header" removes all HTTP header fields whose name is specified in
       <name>.
+
+    - "replace-header" matches the regular expression in all occurrences of
+      header field <name> according to <match-regex>, and replaces them with
+      the <replace-fmt> argument. Format characters are allowed in replace-fmt
+      and work like in <fmt> arguments in "add-header". The match is only
+      case-sensitive. It is important to understand that this action only
+      considers whole header lines, regardless of the number of values they
+      may contain. This usage is suited to headers naturally containing commas
+      in their value, such as Set-Cookie, Expires and so on.
+
+      Example:
+
+        http-response replace-header Set-Cookie (C=[^;]*);(.*) \1;ip=%bi;\2
+
+      applied to:
+
+        Set-Cookie: C=1; expires=Tue, 14-Jun-2016 01:40:45 GMT
+
+      outputs:
+
+        Set-Cookie: C=1;ip=192.168.1.20; expires=Tue, 14-Jun-2016 01:40:45 GMT
+
+      assuming the backend IP is 192.168.1.20.
+
+    - "replace-value" works like "replace-header" except that it matches the
+      regex against every comma-delimited value of the header field <name>
+      instead of the entire header. This is suited for all headers which are
+      allowed to carry more than one value. An example could be the Accept
+      header.
+
+      Example:
+
+        http-response replace-value Cache-control ^public$ private
+
+      applied to:
+
+        Cache-Control: max-age=3600, public
+
+      outputs:
+
+        Cache-Control: max-age=3600, private
 
     - "set-nice" sets the "nice" factor of the current request being processed.
       It only has effect against the other requests being processed at the same

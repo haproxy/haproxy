@@ -3176,6 +3176,126 @@ static inline void inet_set_tos(int fd, struct sockaddr_storage from, int tos)
 #endif
 }
 
+/* Returns the number of characters written to destination,
+ * -1 on internal error and -2 if no replacement took place.
+ */
+static int http_replace_header(regex_t* re, char* dst, uint dst_size, char* val,
+                               const char* rep_str)
+{
+	if (regexec(re, val, MAX_MATCH, pmatch, 0))
+		return -2;
+
+	return exp_replace(dst, dst_size, val, rep_str, pmatch);
+}
+
+/* Returns the number of characters written to destination,
+ * -1 on internal error and -2 if no replacement took place.
+ */
+static int http_replace_value(regex_t* re, char* dst, uint dst_size, char* val, char delim,
+                              const char* rep_str)
+{
+	char* p = val;
+	char* dst_end = dst + dst_size;
+	char* dst_p = dst;
+
+	for (;;) {
+		char *p_delim;
+		const char* tok_end;
+
+		if ((p_delim = (char*)strchr(p, delim))) {
+			*p_delim = 0;
+			tok_end = p_delim;
+		} else {
+			tok_end = p + strlen(p);
+		}
+
+		if (regexec(re, p, MAX_MATCH, pmatch, 0) == 0) {
+			int replace_n = exp_replace(dst_p, dst_end - dst_p, p, rep_str, pmatch);
+
+			if (replace_n < 0)
+				return -1;
+
+			dst_p += replace_n;
+		} else {
+			uint len = tok_end - p;
+
+			if (dst_p + len >= dst_end)
+				return -1;
+
+			memcpy(dst_p, p, len);
+			dst_p += len;
+		}
+
+		if (dst_p >= dst_end)
+			return -1;
+
+		if (p_delim) {
+			*p_delim = delim;
+			*dst_p++ = delim;
+			p = p_delim + 1;
+		} else {
+			*dst_p = 0;
+			break;
+		}
+	}
+
+	return dst_p - dst;
+}
+
+static int http_transform_header(struct session* s, struct http_msg *msg, const char* name, uint name_len,
+                                 char* buf, struct hdr_idx* idx, struct list *fmt, regex_t* re,
+                                 struct hdr_ctx* ctx, int action)
+{
+	ctx->idx = 0;
+
+	while (http_find_full_header2(name, name_len, buf, idx, ctx)) {
+		struct hdr_idx_elem *hdr = idx->v + ctx->idx;
+		int delta;
+		char* val = (char*)ctx->line + name_len + 2;
+		char* val_end = (char*)ctx->line + hdr->len;
+		char save_val_end = *val_end;
+		char* reg_dst_buf;
+		uint reg_dst_buf_size;
+		int n_replaced;
+
+		*val_end = 0;
+		trash.len = build_logline(s, trash.str, trash.size, fmt);
+
+		if (trash.len >= trash.size - 1)
+			return -1;
+
+		reg_dst_buf = trash.str + trash.len + 1;
+		reg_dst_buf_size = trash.size - trash.len - 1;
+
+		switch (action) {
+		case HTTP_REQ_ACT_REPLACE_VAL:
+		case HTTP_RES_ACT_REPLACE_VAL:
+			n_replaced = http_replace_value(re, reg_dst_buf, reg_dst_buf_size, val, ',', trash.str);
+			break;
+		case HTTP_REQ_ACT_REPLACE_HDR:
+		case HTTP_RES_ACT_REPLACE_HDR:
+			n_replaced = http_replace_header(re, reg_dst_buf, reg_dst_buf_size, val, trash.str);
+			break;
+		default: /* impossible */
+			return -1;
+		}
+
+		*val_end = save_val_end;
+
+		switch (n_replaced) {
+		case -1: return -1;
+		case -2: continue;
+		}
+
+		delta = buffer_replace2(msg->chn->buf, val, val_end, reg_dst_buf, n_replaced);
+
+		hdr->len += delta;
+		http_msg_move_end(msg, delta);
+	}
+
+	return 0;
+}
+
 /* Executes the http-request rules <rules> for session <s>, proxy <px> and
  * transaction <txn>. Returns the verdict of the first rule that prevents
  * further processing of the request (auth, deny, ...), and defaults to
@@ -3263,6 +3383,14 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 
 		case HTTP_REQ_ACT_SET_LOGL:
 			s->logs.level = rule->arg.loglevel;
+			break;
+
+		case HTTP_REQ_ACT_REPLACE_HDR:
+		case HTTP_REQ_ACT_REPLACE_VAL:
+			if (http_transform_header(s, &txn->req, rule->arg.hdr_add.name, rule->arg.hdr_add.name_len,
+			                          txn->req.chn->buf->p, &txn->hdr_idx, &rule->arg.hdr_add.fmt,
+			                          rule->arg.hdr_add.re, &ctx, rule->action))
+				return HTTP_RULE_RES_BADREQ;
 			break;
 
 		case HTTP_REQ_ACT_DEL_HDR:
@@ -3444,6 +3572,14 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 
 		case HTTP_RES_ACT_SET_LOGL:
 			s->logs.level = rule->arg.loglevel;
+			break;
+
+		case HTTP_RES_ACT_REPLACE_HDR:
+		case HTTP_RES_ACT_REPLACE_VAL:
+			if (http_transform_header(s, &txn->rsp, rule->arg.hdr_add.name, rule->arg.hdr_add.name_len,
+			                          txn->rsp.chn->buf->p, &txn->hdr_idx, &rule->arg.hdr_add.fmt,
+			                          rule->arg.hdr_add.re, &ctx, rule->action))
+				return NULL; /* note: we should report an error here */
 			break;
 
 		case HTTP_RES_ACT_DEL_HDR:
@@ -8759,7 +8895,27 @@ void http_reset_txn(struct session *s)
 	s->rep->analyse_exp = TICK_ETERNITY;
 }
 
-void free_http_req_rules(struct list *r) {
+static inline void free_regex(regex_t* re)
+{
+	if (re) {
+		regfree(re);
+		free(re);
+	}
+}
+
+void free_http_res_rules(struct list *r)
+{
+	struct http_res_rule *tr, *pr;
+
+	list_for_each_entry_safe(pr, tr, r, list) {
+		LIST_DEL(&pr->list);
+		free_regex(pr->arg.hdr_add.re);
+		free(pr);
+	}
+}
+
+void free_http_req_rules(struct list *r)
+{
 	struct http_req_rule *tr, *pr;
 
 	list_for_each_entry_safe(pr, tr, r, list) {
@@ -8767,6 +8923,7 @@ void free_http_req_rules(struct list *r) {
 		if (pr->action == HTTP_REQ_ACT_AUTH)
 			free(pr->arg.auth.realm);
 
+		free_regex(pr->arg.hdr_add.re);
 		free(pr);
 	}
 }
@@ -8909,6 +9066,41 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		proxy->conf.lfs_file = strdup(proxy->conf.args.file);
 		proxy->conf.lfs_line = proxy->conf.args.line;
 		cur_arg += 2;
+	} else if (strcmp(args[0], "replace-header") == 0 || strcmp(args[0], "replace-val") == 0) {
+		rule->action = *args[8] == 'h' ? HTTP_REQ_ACT_REPLACE_HDR : HTTP_REQ_ACT_REPLACE_VAL;
+		cur_arg = 1;
+
+		if (!*args[cur_arg] || !*args[cur_arg+1] || !*args[cur_arg+2] ||
+		    (*args[cur_arg+3] && strcmp(args[cur_arg+2], "if") != 0 && strcmp(args[cur_arg+2], "unless") != 0)) {
+			Alert("parsing [%s:%d]: 'http-request %s' expects exactly 3 arguments.\n",
+			      file, linenum, args[0]);
+			goto out_err;
+		}
+
+		rule->arg.hdr_add.name = strdup(args[cur_arg]);
+		rule->arg.hdr_add.name_len = strlen(rule->arg.hdr_add.name);
+		LIST_INIT(&rule->arg.hdr_add.fmt);
+
+		if (!(rule->arg.hdr_add.re = calloc(1, sizeof(*rule->arg.hdr_add.re)))) {
+			Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+			goto out_err;
+		}
+
+		if (regcomp(rule->arg.hdr_add.re, args[cur_arg + 1], REG_EXTENDED)) {
+			Alert("parsing [%s:%d] : '%s' : bad regular expression.\n", file, linenum,
+			      args[cur_arg + 1]);
+			goto out_err;
+		}
+
+		proxy->conf.args.ctx = ARGC_HRQ;
+		parse_logformat_string(args[cur_arg + 2], proxy, &rule->arg.hdr_add.fmt, LOG_OPT_HTTP,
+				       (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
+				       file, linenum);
+
+		free(proxy->conf.lfs_file);
+		proxy->conf.lfs_file = strdup(proxy->conf.args.file);
+		proxy->conf.lfs_line = proxy->conf.args.line;
+		cur_arg += 3;
 	} else if (strcmp(args[0], "del-header") == 0) {
 		rule->action = HTTP_REQ_ACT_DEL_HDR;
 		cur_arg = 1;
@@ -9075,7 +9267,7 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 			goto out_err;
 		}
 	} else {
-		Alert("parsing [%s:%d]: 'http-request' expects 'allow', 'deny', 'auth', 'redirect', 'tarpit', 'add-header', 'set-header', 'set-nice', 'set-tos', 'set-mark', 'set-log-level', 'add-acl', 'del-acl', 'del-map', 'set-map', but got '%s'%s.\n",
+		Alert("parsing [%s:%d]: 'http-request' expects 'allow', 'deny', 'auth', 'redirect', 'tarpit', 'add-header', 'set-header', 'replace-header', 'replace-value', 'set-nice', 'set-tos', 'set-mark', 'set-log-level', 'add-acl', 'del-acl', 'del-map', 'set-map', but got '%s'%s.\n",
 		      file, linenum, args[0], *args[0] ? "" : " (missing argument)");
 		goto out_err;
 	}
@@ -9228,6 +9420,41 @@ struct http_res_rule *parse_http_res_cond(const char **args, const char *file, i
 		proxy->conf.lfs_file = strdup(proxy->conf.args.file);
 		proxy->conf.lfs_line = proxy->conf.args.line;
 		cur_arg += 2;
+	} else if (strcmp(args[0], "replace-header") == 0 || strcmp(args[0], "replace-value") == 0) {
+		rule->action = *args[8] == 'h' ? HTTP_RES_ACT_REPLACE_HDR : HTTP_RES_ACT_REPLACE_VAL;
+		cur_arg = 1;
+
+		if (!*args[cur_arg] || !*args[cur_arg+1] || !*args[cur_arg+2] ||
+		    (*args[cur_arg+3] && strcmp(args[cur_arg+2], "if") != 0 && strcmp(args[cur_arg+2], "unless") != 0)) {
+			Alert("parsing [%s:%d]: 'http-request %s' expects exactly 3 arguments.\n",
+			      file, linenum, args[0]);
+			goto out_err;
+		}
+
+		rule->arg.hdr_add.name = strdup(args[cur_arg]);
+		rule->arg.hdr_add.name_len = strlen(rule->arg.hdr_add.name);
+		LIST_INIT(&rule->arg.hdr_add.fmt);
+
+		if (!(rule->arg.hdr_add.re = calloc(1, sizeof(*rule->arg.hdr_add.re)))) {
+			Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
+			goto out_err;
+		}
+
+		if (regcomp(rule->arg.hdr_add.re, args[cur_arg + 1], REG_EXTENDED)) {
+			Alert("parsing [%s:%d] : '%s' : bad regular expression.\n", file, linenum,
+			      args[cur_arg + 1]);
+			goto out_err;
+		}
+
+		proxy->conf.args.ctx = ARGC_HRQ;
+		parse_logformat_string(args[cur_arg + 2], proxy, &rule->arg.hdr_add.fmt, LOG_OPT_HTTP,
+				       (proxy->cap & PR_CAP_BE) ? SMP_VAL_BE_HRS_HDR : SMP_VAL_FE_HRS_HDR,
+				       file, linenum);
+
+		free(proxy->conf.lfs_file);
+		proxy->conf.lfs_file = strdup(proxy->conf.args.file);
+		proxy->conf.lfs_line = proxy->conf.args.line;
+		cur_arg += 3;
 	} else if (strcmp(args[0], "del-header") == 0) {
 		rule->action = HTTP_RES_ACT_DEL_HDR;
 		cur_arg = 1;
@@ -9378,7 +9605,7 @@ struct http_res_rule *parse_http_res_cond(const char **args, const char *file, i
 			goto out_err;
 		}
 	} else {
-		Alert("parsing [%s:%d]: 'http-response' expects 'allow', 'deny', 'redirect', 'add-header', 'del-header', 'set-header', 'set-nice', 'set-tos', 'set-mark', 'set-log-level', 'del-acl', 'add-acl', 'del-map', 'set-map', but got '%s'%s.\n",
+		Alert("parsing [%s:%d]: 'http-response' expects 'allow', 'deny', 'redirect', 'add-header', 'del-header', 'set-header', 'replace-header', 'replace-value', 'set-nice', 'set-tos', 'set-mark', 'set-log-level', 'del-acl', 'add-acl', 'del-map', 'set-map', but got '%s'%s.\n",
 		      file, linenum, args[0], *args[0] ? "" : " (missing argument)");
 		goto out_err;
 	}

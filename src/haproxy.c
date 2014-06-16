@@ -1203,6 +1203,7 @@ void deinit(void)
 		free(p->fwdfor_hdr_name);
 
 		free_http_req_rules(&p->http_req_rules);
+		free_http_res_rules(&p->http_res_rules);
 		free(p->task);
 
 		pool_destroy2(p->req_cap_pool);
