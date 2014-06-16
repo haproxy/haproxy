@@ -12926,7 +12926,15 @@ Unix socket.
 ---------------
 
 The statistics may be consulted either from the unix socket or from the HTTP
-page. Both means provide a CSV format whose fields follow.
+page. Both means provide a CSV format whose fields follow. The first line
+begins with a sharp ('#') and has one word per comma-delimited field which
+represents the title of the column. All other lines starting at the second one
+use a classical CSV format using a comma as the delimiter, and the double quote
+('"') as an optional text delimiter, but only if the enclosed text is ambiguous
+(if it contains a quote or a comma). The double-quote character ('"') in the
+text is doubled ('""'), which is the format that most tools recognize. Please
+do not insert any column before these ones in order not to break tools which
+use hard-coded column positions.
 
   0. pxname: proxy name
   1. svname: service name (FRONTEND for frontend, BACKEND for backend, any name
