@@ -13009,6 +13009,8 @@ use hard-coded column positions.
  53. comp_byp: number of bytes that bypassed the HTTP compressor (CPU/BW limit)
  54. comp_rsp: number of HTTP responses that were compressed
  55. lastsess: number of seconds since last session assigned to server/backend
+ 56. last_chk: last health check contents or textual error
+ 57. last_agt: last agent check contents or textual error
 
 
 9.2. Unix Socket commands

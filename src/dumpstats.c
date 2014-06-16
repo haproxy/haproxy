@@ -489,7 +489,7 @@ static void stats_dump_csv_header()
 	              "hrsp_1xx,hrsp_2xx,hrsp_3xx,hrsp_4xx,hrsp_5xx,hrsp_other,hanafail,"
 	              "req_rate,req_rate_max,req_tot,"
 	              "cli_abrt,srv_abrt,"
-	              "comp_in,comp_out,comp_byp,comp_rsp,lastsess,"
+	              "comp_in,comp_out,comp_byp,comp_rsp,lastsess,last_chk,last_agt,"
 	              "\n");
 }
 
@@ -2743,8 +2743,8 @@ static int stats_dump_fe_stats(struct stream_interface *si, struct proxy *px)
 		chunk_appendf(&trash, "%lld,",
 		              px->fe_counters.p.http.comp_rsp);
 
-		/* lastsess */
-		chunk_appendf(&trash, ",");
+		/* lastsess, last_chk, last_agt, */
+		chunk_appendf(&trash, ",,,");
 
 		/* finish with EOL */
 		chunk_appendf(&trash, "\n");
@@ -2867,8 +2867,8 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
 		              ",,"
 		              /* compression: in, out, bypassed, comp_rsp */
 		              ",,,,"
-			      /* lastsess */
-			      ","
+			      /* lastsess, last_chk, last_agt, */
+			      ",,,"
 		              "\n",
 		              px->id, l->name,
 		              l->nbconn, l->counters->conn_max,
@@ -3293,6 +3293,10 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		/* lastsess */
 		chunk_appendf(&trash, "%d,", srv_lastsession(sv));
 
+		/* capture of last check and agent statuses */
+		chunk_appendf(&trash, "%s,", ((sv->check.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) ? cstr(sv->check.desc) : "");
+		chunk_appendf(&trash, "%s,", ((sv->agent.state & (CHK_ST_ENABLED|CHK_ST_PAUSED)) == CHK_ST_ENABLED) ? cstr(sv->agent.desc) : "");
+
 		/* finish with EOL */
 		chunk_appendf(&trash, "\n");
 	}
@@ -3523,8 +3527,8 @@ static int stats_dump_be_stats(struct stream_interface *si, struct proxy *px, in
 		/* compression: comp_rsp */
 		chunk_appendf(&trash, "%lld,", px->be_counters.p.http.comp_rsp);
 
-		/* lastsess */
-		chunk_appendf(&trash, "%d,", be_lastsession(px));
+		/* lastsess, last_chk, last_agt, */
+		chunk_appendf(&trash, "%d,,,", be_lastsession(px));
 
 		/* finish with EOL */
 		chunk_appendf(&trash, "\n");
