@@ -44,6 +44,9 @@
 #include <openssl/x509.h>
 #include <openssl/err.h>
 #include <openssl/rand.h>
+#ifdef SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB
+#include <openssl/ocsp.h>
+#endif
 
 #include <common/buffer.h>
 #include <common/compat.h>
@@ -101,6 +104,350 @@ enum {
 
 int sslconns = 0;
 int totalsslconns = 0;
+
+#ifdef SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB
+struct certificate_ocsp {
+	struct ebmb_node key;
+	unsigned char key_data[OCSP_MAX_CERTID_ASN1_LENGTH];
+	struct chunk response;
+
+};
+
+static struct eb_root cert_ocsp_tree;
+
+/* This function starts to check if the OCSP response (in DER format) contained
+ * in chunk 'ocsp_response' is valid (else exits on error).
+ * If 'cid' is not NULL, it will be compared to the OCSP certificate ID
+ * contained in the OCSP Response and exits on error if no match.
+ * If it's a valid OCSP Response:
+ *  If 'ocsp' is not NULL, the chunk is copied in the OCSP response's container
+ * pointed by 'ocsp'.
+ *  If 'ocsp' is NULL, the function looks up into the OCSP response's
+ * containers tree (using as index the ASN1 form of the OCSP Certificate ID extracted
+ * from the response) and exits on error if not found. Finally, If an OCSP response is
+ * already present in the container, it will be overwritten.
+ *
+ * Note: OCSP response containing more than one OCSP Single response is not
+ * considered valid.
+ *
+ * Returns 0 on success, 1 in error case.
+ */
+static int ssl_sock_load_ocsp_response(struct chunk *ocsp_response, struct certificate_ocsp *ocsp, OCSP_CERTID *cid, char **err)
+{
+	OCSP_RESPONSE *resp;
+	OCSP_BASICRESP *bs = NULL;
+	OCSP_SINGLERESP *sr;
+	unsigned char *p = (unsigned char *)ocsp_response->str;
+	int rc , count_sr;
+	ASN1_GENERALIZEDTIME *revtime, *thisupd, *nextupd;
+	int reason;
+	int ret = 1;
+
+	resp = d2i_OCSP_RESPONSE(NULL, (const unsigned char **)&p, ocsp_response->len);
+	if (!resp) {
+		memprintf(err, "Unable to parse OCSP response");
+		goto out;
+	}
+
+	rc = OCSP_response_status(resp);
+	if (rc != OCSP_RESPONSE_STATUS_SUCCESSFUL) {
+		memprintf(err, "OCSP response status not successful");
+		goto out;
+	}
+
+	bs = OCSP_response_get1_basic(resp);
+	if (!bs) {
+		memprintf(err, "Failed to get basic response from OCSP Response");
+		goto out;
+	}
+
+	count_sr = OCSP_resp_count(bs);
+	if (count_sr > 1) {
+		memprintf(err, "OCSP response ignored because contains multiple single responses (%d)", count_sr);
+		goto out;
+	}
+
+	sr = OCSP_resp_get0(bs, 0);
+	if (!sr) {
+		memprintf(err, "Failed to get OCSP single response");
+		goto out;
+	}
+
+	rc = OCSP_single_get0_status(sr, &reason, &revtime, &thisupd, &nextupd);
+	if (rc != V_OCSP_CERTSTATUS_GOOD) {
+		memprintf(err, "OCSP single response: certificate status not good");
+		goto out;
+	}
+
+	rc = OCSP_check_validity(thisupd, nextupd, 0, -1);
+	if (!rc) {
+		memprintf(err, "OCSP single response: no longer valid.");
+		goto out;
+	}
+
+	if (cid) {
+		if (OCSP_id_cmp(sr->certId, cid)) {
+			memprintf(err, "OCSP single response: Certificate ID does not match certificate and issuer");
+			goto out;
+		}
+	}
+
+	if (!ocsp) {
+		unsigned char key[OCSP_MAX_CERTID_ASN1_LENGTH];
+		unsigned char *p;
+
+		rc = i2d_OCSP_CERTID(sr->certId, NULL);
+		if (!rc) {
+			memprintf(err, "OCSP single response: Unable to encode Certificate ID");
+			goto out;
+		}
+
+		if (rc > OCSP_MAX_CERTID_ASN1_LENGTH) {
+			memprintf(err, "OCSP single response: Certificate ID too long");
+			goto out;
+		}
+
+		p = key;
+		memset(key, 0, OCSP_MAX_CERTID_ASN1_LENGTH);
+		i2d_OCSP_CERTID(sr->certId, &p);
+		ocsp = (struct certificate_ocsp *)ebmb_lookup(&cert_ocsp_tree, key, OCSP_MAX_CERTID_ASN1_LENGTH);
+		if (!ocsp) {
+			memprintf(err, "OCSP single response: Certificate ID does not match any certificate or issuer");
+			goto out;
+		}
+	}
+
+	/* According to comments on "chunk_dup", the
+	   previous chunk buffer will be freed */
+	if (!chunk_dup(&ocsp->response, ocsp_response)) {
+		memprintf(err, "OCSP response: Memory allocation error");
+		goto out;
+	}
+
+	ret = 0;
+out:
+	if (bs)
+		 OCSP_BASICRESP_free(bs);
+
+	if (resp)
+		OCSP_RESPONSE_free(resp);
+
+	return ret;
+}
+/*
+ * External function use to update the OCSP response in the OCSP response's
+ * containers tree. The chunk 'ocsp_response' must contain the OCSP response
+ * to update in DER format.
+ *
+ * Returns 0 on success, 1 in error case.
+ */
+int ssl_sock_update_ocsp_response(struct chunk *ocsp_response, char **err)
+{
+	return ssl_sock_load_ocsp_response(ocsp_response, NULL, NULL, err);
+}
+
+/*
+ * This function load the OCSP Resonse in DER format contained in file at
+ * path 'ocsp_path' and call 'ssl_sock_load_ocsp_response'
+ *
+ * Returns 0 on success, 1 in error case.
+ */
+static int ssl_sock_load_ocsp_response_from_file(const char *ocsp_path, struct certificate_ocsp *ocsp, OCSP_CERTID *cid, char **err)
+{
+	int fd = -1;
+	int r = 0;
+	int ret = 1;
+
+	fd = open(ocsp_path, O_RDONLY);
+	if (fd == -1) {
+		memprintf(err, "Error opening OCSP response file");
+		goto end;
+	}
+
+	trash.len = 0;
+	while (trash.len < trash.size) {
+		r = read(fd, trash.str + trash.len, trash.size - trash.len);
+		if (r < 0) {
+			if (errno == EINTR)
+				continue;
+
+			memprintf(err, "Error reading OCSP response from file");
+			goto end;
+		}
+		else if (r == 0) {
+			break;
+		}
+		trash.len += r;
+	}
+
+	close(fd);
+	fd = -1;
+
+	ret = ssl_sock_load_ocsp_response(&trash, ocsp, cid, err);
+end:
+	if (fd != -1)
+		close(fd);
+
+	return ret;
+}
+
+/*
+ * Callback used to set OCSP status extension content in server hello.
+ */
+int ssl_sock_ocsp_stapling_cbk(SSL *ssl, void *arg)
+{
+	struct certificate_ocsp *ocsp = (struct certificate_ocsp *)arg;
+	char* ssl_buf;
+
+	if (!ocsp ||
+	    !ocsp->response.str ||
+            !ocsp->response.len)
+		return SSL_TLSEXT_ERR_NOACK;
+
+	ssl_buf = OPENSSL_malloc(ocsp->response.len);
+	if (!ssl_buf)
+		return SSL_TLSEXT_ERR_NOACK;
+
+	memcpy(ssl_buf, ocsp->response.str, ocsp->response.len);
+	SSL_set_tlsext_status_ocsp_resp(ssl, ssl_buf, ocsp->response.len);
+
+	return SSL_TLSEXT_ERR_OK;
+}
+
+/*
+ * This function enables the handling of OCSP status extension on 'ctx' if a
+ * file name 'cert_path' suffixed using ".ocsp" is present.
+ * To enable OCSP status extension, the issuer's certificate is mandatory.
+ * It should be present in the certificate's extra chain builded from file
+ * 'cert_path'. If not found, the issuer certificate is loaded from a file
+ * named 'cert_path' suffixed using '.issuer'.
+ *
+ * In addition, ".ocsp" file content is loaded as a DER format of an OCSP
+ * response. If file is empty or content is not a valid OCSP response,
+ * OCSP status extension is enabled but OCSP response is ignored (a warning
+ * is displayed).
+ *
+ * Returns 1 if no ".ocsp" file found, 0 if OCSP status extension is
+ * succesfully enabled, or -1 in other error case.
+ */
+static int ssl_sock_load_ocsp(SSL_CTX *ctx, const char *cert_path)
+{
+
+	BIO *in = NULL;
+	X509 *x, *xi = NULL, *issuer = NULL;
+	STACK_OF(X509) *chain = NULL;
+	OCSP_CERTID *cid = NULL;
+	SSL *ssl;
+	char ocsp_path[MAXPATHLEN+1];
+	int i, ret = -1;
+	struct stat st;
+	struct certificate_ocsp *ocsp = NULL, *iocsp;
+	char *warn = NULL;
+	unsigned char *p;
+
+	snprintf(ocsp_path, MAXPATHLEN+1, "%s.ocsp", cert_path);
+
+	if (stat(ocsp_path, &st))
+		return 1;
+
+	ssl = SSL_new(ctx);
+	if (!ssl)
+		goto out;
+
+	x = SSL_get_certificate(ssl);
+	if (!x)
+		goto out;
+
+	/* Try to lookup for issuer in certificate extra chain */
+#ifdef SSL_CTRL_GET_EXTRA_CHAIN_CERTS
+	SSL_CTX_get_extra_chain_certs(ctx, &chain);
+#else
+	chain = ctx->extra_certs;
+#endif
+	for (i = 0; i < sk_X509_num(chain); i++) {
+		issuer = sk_X509_value(chain, i);
+		if (X509_check_issued(issuer, x) == X509_V_OK)
+			break;
+		else
+			issuer = NULL;
+	}
+
+	/* If not found try to load issuer from a suffixed file */
+	if (!issuer) {
+		char issuer_path[MAXPATHLEN+1];
+
+		in = BIO_new(BIO_s_file());
+		if (!in)
+			goto out;
+
+		snprintf(issuer_path, MAXPATHLEN+1, "%s.issuer", cert_path);
+		if (BIO_read_filename(in, issuer_path) <= 0)
+			goto out;
+
+		xi = PEM_read_bio_X509_AUX(in, NULL, ctx->default_passwd_callback, ctx->default_passwd_callback_userdata);
+		if (!xi)
+			goto out;
+
+		if (X509_check_issued(xi, x) != X509_V_OK)
+			goto out;
+
+		issuer = xi;
+	}
+
+	cid = OCSP_cert_to_id(0, x, issuer);
+	if (!cid)
+		goto out;
+
+	i = i2d_OCSP_CERTID(cid, NULL);
+	if (!i || (i > OCSP_MAX_CERTID_ASN1_LENGTH))
+		goto out;
+
+	ocsp = calloc(1, sizeof(struct certificate_ocsp));
+	if (!ocsp)
+		goto out;
+
+	p = ocsp->key_data;
+	i2d_OCSP_CERTID(cid, &p);
+
+	iocsp = (struct certificate_ocsp *)ebmb_insert(&cert_ocsp_tree, &ocsp->key, OCSP_MAX_CERTID_ASN1_LENGTH);
+	if (iocsp == ocsp)
+		ocsp = NULL;
+
+	SSL_CTX_set_tlsext_status_cb(ctx, ssl_sock_ocsp_stapling_cbk);
+	SSL_CTX_set_tlsext_status_arg(ctx, iocsp);
+
+	ret = 0;
+
+	warn = NULL;
+	if (ssl_sock_load_ocsp_response_from_file(ocsp_path, iocsp, cid, &warn)) {
+		memprintf(&warn, "Loading '%s': %s. Content will be ignored", ocsp_path, warn ? warn : "failure");
+		Warning("%s.\n", warn);
+	}
+
+out:
+	if (ssl)
+		SSL_free(ssl);
+
+	if (in)
+		BIO_free(in);
+
+	if (xi)
+		X509_free(xi);
+
+	if (cid)
+		OCSP_CERTID_free(cid);
+
+	if (ocsp)
+		free(ocsp);
+
+	if (warn)
+		free(warn);
+
+
+	return ret;
+}
+
+#endif
 
 void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
 {
@@ -833,6 +1180,16 @@ static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf
 	if (ret < 0) {
 		if (err)
 			memprintf(err, "%sunable to load DH parameters from file '%s'.\n",
+				  *err ? *err : "", path);
+		return 1;
+	}
+#endif
+
+#ifdef SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB
+	ret = ssl_sock_load_ocsp(ctx, path);
+	if (ret < 0) {
+		if (err)
+			memprintf(err, "%s '%s.ocsp' is present and activates OCSP but it is impossible to compute the OCSP certificate ID (maybe the issuer could not be found)'.\n",
 				  *err ? *err : "", path);
 		return 1;
 	}

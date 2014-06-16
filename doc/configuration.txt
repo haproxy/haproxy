@@ -8264,7 +8264,8 @@ crt <cert>
   are loaded.
 
   If a directory name is used instead of a PEM file, then all files found in
-  that directory will be loaded. This directive may be specified multiple times
+  that directory will be loaded unless their name ends with '.issuer' or
+  '.ocsp' (reserved extensions). This directive may be specified multiple times
   in order to load certificates from multiple files or directories. The
   certificates will be presented to clients who provide a valid TLS Server Name
   Indication field matching one of their CN or alt subjects. Wildcards are
@@ -8286,6 +8287,20 @@ crt <cert>
   Godaddy, selection Apache Tomcat will get the correct bundle, but many
   others, e.g. nginx, result in a wrong bundle that will not work for some
   clients).
+
+  For each PEM file, haproxy checks for the presence of file at the same path
+  suffixed by ".ocsp". If such file is found, support for the TLS Certificate
+  Status Request extension (also known as "OCSP stapling") is automatically
+  enabled. The content of this file is optional. If not empty, it must contain
+  a valid OCSP Response in DER format. In order to be valid an OCSP Response
+  must comply with the following rules: it has to indicate a good status,
+  it has to be a single response for the certificate of the PEM file, and it
+  has to be valid at the moment of addition. If these rules are not respected
+  the OCSP Response is ignored and a warning is emitted. In order to  identify
+  which certificate an OCSP Response applies to, the issuer's certificate is
+  necessary. If the issuer's certificate is not found in the PEM file, it will
+  be loaded from a file at the same path as the PEM file suffixed by ".issuer"
+  if it exists otherwise it will fail with an error.
 
 crt-ignore-err <errors>
   This setting is only available when support for OpenSSL was built in. Sets a
@@ -13513,6 +13528,18 @@ set server <backend>/<server> state [ ready | drain | maint ]
 set server <backend>/<server> weight <weight>[%]
   Change a server's weight to the value passed in argument. This is the exact
   equivalent of the "set weight" command below.
+
+set ssl ocsp-response <response>
+  This command is used to update an OCSP Response for a certificate (see "crt"
+  on "bind" lines). Same controls are performed as during the initial loading of
+  the response. The <response> must be passed as a base64 encoded string of the
+  DER encoded response from the OCSP server.
+
+  Example:
+    openssl ocsp -issuer issuer.pem -cert server.pem \
+                 -host ocsp.issuer.com:80 -respout resp.der
+    echo "set ssl ocsp-response $(base64 -w 10000 resp.der)" | \
+                 socat stdio /var/run/haproxy.stat
 
 set table <table> key <key> [data.<data_type> <value>]*
   Create or update a stick-table entry in the table. If the key is not present,

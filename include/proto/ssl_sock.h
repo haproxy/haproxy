@@ -54,6 +54,9 @@ char *ssl_sock_get_version(struct connection *conn);
 int ssl_sock_get_cert_used(struct connection *conn);
 char *ssl_sock_get_common_name(struct connection *conn);
 unsigned int ssl_sock_get_verify_result(struct connection *conn);
+#ifdef SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB
+int ssl_sock_update_ocsp_response(struct chunk *ocsp_response, char **err);
+#endif
 
 #endif /* _PROTO_SSL_SOCK_H */
 

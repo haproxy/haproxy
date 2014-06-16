@@ -230,4 +230,9 @@
 #define TIME_STATS_SAMPLES 512
 #endif
 
+/* max ocsp cert id asn1 encoded length */
+#ifndef OCSP_MAX_CERTID_ASN1_LENGTH
+#define OCSP_MAX_CERTID_ASN1_LENGTH 128
+#endif
+
 #endif /* _COMMON_DEFAULTS_H */

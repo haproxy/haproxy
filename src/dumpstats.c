@@ -35,6 +35,7 @@
 #include <common/time.h>
 #include <common/uri_auth.h>
 #include <common/version.h>
+#include <common/base64.h>
 
 #include <types/global.h>
 
@@ -195,6 +196,7 @@ static const char stats_sock_usage_msg[] =
 	"  add map        : add map entry\n"
 	"  del map        : delete map entry\n"
 	"  clear map <id> : clear the content of this map\n"
+	"  set ssl <stmt> : set statement for ssl\n"
 	"";
 
 static const char stats_permission_denied_msg[] =
@@ -1789,6 +1791,50 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			appctx->st0 = STAT_CLI_PRINT;
 			return 1;
 		}
+#ifdef USE_OPENSSL
+		else if (strcmp(args[1], "ssl") == 0) {
+			if (strcmp(args[2], "ocsp-response") == 0) {
+#ifdef SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB
+				char *err = NULL;
+
+				/* Expect two parameters: certificate file name and the new response in base64 encoding */
+				if (!*args[3]) {
+					appctx->ctx.cli.msg = "'set ssl ocsp-response' expects response in base64 encoding.\n";
+					appctx->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
+
+				trash.len = base64dec(args[3], strlen(args[3]), trash.str, trash.size);
+				if (trash.len < 0) {
+					appctx->ctx.cli.msg = "'set ssl ocsp-response' received invalid base64 encoded response.\n";
+					appctx->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
+
+				if (ssl_sock_update_ocsp_response(&trash, &err)) {
+					if (err) {
+						memprintf(&err, "%s.\n", err);
+						appctx->ctx.cli.err = err;
+						appctx->st0 = STAT_CLI_PRINT_FREE;
+					}
+					return 1;
+				}
+				appctx->ctx.cli.msg = "OCSP Response updated!";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+#else
+				appctx->ctx.cli.msg = "HAProxy was compiled against a version of OpenSSL that doesn't support OCSP stapling.\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+#endif
+			}
+			else {
+				appctx->ctx.cli.msg = "'set ssl' only supports 'ocsp-response'.\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+			}
+		}
+#endif
 		else { /* unknown "set" parameter */
 			return 0;
 		}
