@@ -50,6 +50,9 @@ int parse_track_counters(char **args, int *arg,
 			 struct track_ctr_prm *prm,
 			 struct proxy *defpx, char **err);
 
+/* Update the session's backend and server time stats */
+void session_update_time_stats(struct session *s);
+
 /* returns the session from a void *owner */
 static inline struct session *session_from_task(struct task *t)
 {

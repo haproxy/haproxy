@@ -2600,11 +2600,56 @@ struct task *process_session(struct task *t)
 		s->do_log(s);
 	}
 
+	/* update time stats for this session */
+	session_update_time_stats(s);
+
 	/* the task MUST not be in the run queue anymore */
 	session_free(s);
 	task_delete(t);
 	task_free(t);
 	return NULL;
+}
+
+/* Update the session's backend and server time stats */
+void session_update_time_stats(struct session *s)
+{
+	int t_request;
+	int t_queue;
+	int t_connect;
+	int t_data;
+	int t_close;
+	struct server *srv;
+
+	t_request = 0;
+	t_queue   = s->logs.t_queue;
+	t_connect = s->logs.t_connect;
+	t_close   = s->logs.t_close;
+	t_data    = s->logs.t_data;
+
+	if (s->be->mode != PR_MODE_HTTP)
+		t_data = t_connect;
+
+	if (t_connect < 0 || t_data < 0)
+		return;
+
+	if (tv_isge(&s->logs.tv_request, &s->logs.tv_accept))
+		t_request = tv_ms_elapsed(&s->logs.tv_accept, &s->logs.tv_request);
+
+	t_data    -= t_connect;
+	t_connect -= t_queue;
+	t_queue   -= t_request;
+
+	srv = objt_server(s->target);
+	if (srv) {
+		swrate_add(&srv->counters.q_time, TIME_STATS_SAMPLES, t_queue);
+		swrate_add(&srv->counters.c_time, TIME_STATS_SAMPLES, t_connect);
+		swrate_add(&srv->counters.d_time, TIME_STATS_SAMPLES, t_data);
+		swrate_add(&srv->counters.t_time, TIME_STATS_SAMPLES, t_close);
+	}
+	swrate_add(&s->be->be_counters.q_time, TIME_STATS_SAMPLES, t_queue);
+	swrate_add(&s->be->be_counters.c_time, TIME_STATS_SAMPLES, t_connect);
+	swrate_add(&s->be->be_counters.d_time, TIME_STATS_SAMPLES, t_data);
+	swrate_add(&s->be->be_counters.t_time, TIME_STATS_SAMPLES, t_close);
 }
 
 /*

@@ -3,7 +3,7 @@
  * This file contains structure declarations for statistics counters.
  *
  * Copyright 2008-2009 Krzysztof Piotr Oledzki <ole@ans.pl>
- * Copyright 2011 Willy Tarreau <w@1wt.eu>
+ * Copyright 2011-2014 Willy Tarreau <w@1wt.eu>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -55,6 +55,8 @@ struct pxcounters {
 	long long redispatches;                 /* retried and redispatched connections (BE only) */
 	long long intercepted_req;              /* number of monitoring or stats requests intercepted by the frontend */
 
+	unsigned int q_time, c_time, d_time, t_time; /* sums of conn_time, queue_time, data_time, total_time */
+
 	union {
 		struct {
 			long long cum_req;      /* cumulated number of processed HTTP requests */
@@ -95,6 +97,8 @@ struct srvcounters {
 	long long cli_aborts, srv_aborts;	/* aborted responses during DATA phase due to client or server */
 	long long retries, redispatches;	/* retried and redispatched connections */
 	long long failed_secu;			/* blocked responses because of security concerns */
+
+	unsigned int q_time, c_time, d_time, t_time; /* sums of conn_time, queue_time, data_time, total_time */
 
 	union {
 		struct {

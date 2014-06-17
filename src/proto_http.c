@@ -4714,6 +4714,8 @@ void http_end_txn_clean_session(struct session *s)
 		s->do_log(s);
 	}
 
+	session_update_time_stats(s);
+
 	s->logs.accept_date = date; /* user-visible date for logging */
 	s->logs.tv_accept = now;  /* corrected date for internal use */
 	tv_zero(&s->logs.tv_request);
