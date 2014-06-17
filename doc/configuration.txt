@@ -13011,6 +13011,10 @@ use hard-coded column positions.
  55. lastsess: number of seconds since last session assigned to server/backend
  56. last_chk: last health check contents or textual error
  57. last_agt: last agent check contents or textual error
+ 58. qtime: the average queue time in ms over the 1024 last requests
+ 59. ctime: the average connect time in ms over the 1024 last requests
+ 60. rtime: the average response time in ms over the 1024 last requests (0 for TCP)
+ 61. ttime: the average total session time in ms over the 1024 last requests
 
 
 9.2. Unix Socket commands
