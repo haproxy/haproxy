@@ -3179,10 +3179,10 @@ static inline void inet_set_tos(int fd, struct sockaddr_storage from, int tos)
 /* Returns the number of characters written to destination,
  * -1 on internal error and -2 if no replacement took place.
  */
-static int http_replace_header(struct my_regex *re, char *dst, uint dst_size, char *val,
+static int http_replace_header(struct my_regex *re, char *dst, uint dst_size, char *val, int len,
                                const char *rep_str)
 {
-	if (!regex_exec_match(re, val, MAX_MATCH, pmatch))
+	if (!regex_exec_match2(re, val, len, MAX_MATCH, pmatch))
 		return -2;
 
 	return exp_replace(dst, dst_size, val, rep_str, pmatch);
@@ -3191,7 +3191,7 @@ static int http_replace_header(struct my_regex *re, char *dst, uint dst_size, ch
 /* Returns the number of characters written to destination,
  * -1 on internal error and -2 if no replacement took place.
  */
-static int http_replace_value(struct my_regex *re, char *dst, uint dst_size, char *val, char delim,
+static int http_replace_value(struct my_regex *re, char *dst, uint dst_size, char *val, int len, char delim,
                               const char *rep_str)
 {
 	char* p = val;
@@ -3200,16 +3200,13 @@ static int http_replace_value(struct my_regex *re, char *dst, uint dst_size, cha
 
 	for (;;) {
 		char *p_delim;
-		const char* tok_end;
 
-		if ((p_delim = (char*)strchr(p, delim))) {
-			*p_delim = 0;
-			tok_end = p_delim;
-		} else {
-			tok_end = p + strlen(p);
-		}
+		/* look for delim. */
+		p_delim = p;
+		while (p_delim < p + len && *p_delim != delim)
+			p_delim++;
 
-		if (regex_exec_match(re, p, MAX_MATCH, pmatch)) {
+		if (regex_exec_match2(re, p, p_delim-p, MAX_MATCH, pmatch)) {
 			int replace_n = exp_replace(dst_p, dst_end - dst_p, p, rep_str, pmatch);
 
 			if (replace_n < 0)
@@ -3217,7 +3214,7 @@ static int http_replace_value(struct my_regex *re, char *dst, uint dst_size, cha
 
 			dst_p += replace_n;
 		} else {
-			uint len = tok_end - p;
+			uint len = p_delim - p;
 
 			if (dst_p + len >= dst_end)
 				return -1;
@@ -3229,14 +3226,13 @@ static int http_replace_value(struct my_regex *re, char *dst, uint dst_size, cha
 		if (dst_p >= dst_end)
 			return -1;
 
-		if (p_delim) {
-			*p_delim = delim;
-			*dst_p++ = delim;
-			p = p_delim + 1;
-		} else {
-			*dst_p = 0;
+		/* end of the replacements. */
+		if (p_delim >= p + len)
 			break;
-		}
+
+		/* Next part. */
+		*dst_p++ = delim;
+		p = p_delim + 1;
 	}
 
 	return dst_p - dst;
@@ -3253,12 +3249,10 @@ static int http_transform_header(struct session* s, struct http_msg *msg, const 
 		int delta;
 		char* val = (char*)ctx->line + name_len + 2;
 		char* val_end = (char*)ctx->line + hdr->len;
-		char save_val_end = *val_end;
 		char* reg_dst_buf;
 		uint reg_dst_buf_size;
 		int n_replaced;
 
-		*val_end = 0;
 		trash.len = build_logline(s, trash.str, trash.size, fmt);
 
 		if (trash.len >= trash.size - 1)
@@ -3270,17 +3264,15 @@ static int http_transform_header(struct session* s, struct http_msg *msg, const 
 		switch (action) {
 		case HTTP_REQ_ACT_REPLACE_VAL:
 		case HTTP_RES_ACT_REPLACE_VAL:
-			n_replaced = http_replace_value(re, reg_dst_buf, reg_dst_buf_size, val, ',', trash.str);
+			n_replaced = http_replace_value(re, reg_dst_buf, reg_dst_buf_size, val, val_end-val, ',', trash.str);
 			break;
 		case HTTP_REQ_ACT_REPLACE_HDR:
 		case HTTP_RES_ACT_REPLACE_HDR:
-			n_replaced = http_replace_header(re, reg_dst_buf, reg_dst_buf_size, val, trash.str);
+			n_replaced = http_replace_header(re, reg_dst_buf, reg_dst_buf_size, val, val_end-val, trash.str);
 			break;
 		default: /* impossible */
 			return -1;
 		}
-
-		*val_end = save_val_end;
 
 		switch (n_replaced) {
 		case -1: return -1;
@@ -6882,7 +6874,6 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
  */
 int apply_filter_to_req_headers(struct session *s, struct channel *req, struct hdr_exp *exp)
 {
-	char term;
 	char *cur_ptr, *cur_end, *cur_next;
 	int cur_idx, old_idx, last_hdr;
 	struct http_txn *txn = &s->txn;
@@ -6916,15 +6907,7 @@ int apply_filter_to_req_headers(struct session *s, struct channel *req, struct h
 		 * and the next header starts at cur_next.
 		 */
 
-		/* The annoying part is that pattern matching needs
-		 * that we modify the contents to null-terminate all
-		 * strings before testing them.
-		 */
-
-		term = *cur_end;
-		*cur_end = '\0';
-
-		if (regex_exec_match(exp->preg, cur_ptr, MAX_MATCH, pmatch)) {
+		if (regex_exec_match2(exp->preg, cur_ptr, cur_end-cur_ptr, MAX_MATCH, pmatch)) {
 			switch (exp->action) {
 			case ACT_SETBE:
 				/* It is not possible to jump a second time.
@@ -6985,8 +6968,6 @@ int apply_filter_to_req_headers(struct session *s, struct channel *req, struct h
 
 			}
 		}
-		if (cur_end)
-			*cur_end = term; /* restore the string terminator */
 
 		/* keep the link from this header to next one in case of later
 		 * removal of next header.
@@ -7005,7 +6986,6 @@ int apply_filter_to_req_headers(struct session *s, struct channel *req, struct h
  */
 int apply_filter_to_req_line(struct session *s, struct channel *req, struct hdr_exp *exp)
 {
-	char term;
 	char *cur_ptr, *cur_end;
 	int done;
 	struct http_txn *txn = &s->txn;
@@ -7028,15 +7008,7 @@ int apply_filter_to_req_line(struct session *s, struct channel *req, struct hdr_
 
 	/* Now we have the request line between cur_ptr and cur_end */
 
-	/* The annoying part is that pattern matching needs
-	 * that we modify the contents to null-terminate all
-	 * strings before testing them.
-	 */
-
-	term = *cur_end;
-	*cur_end = '\0';
-
-	if (regex_exec_match(exp->preg, cur_ptr, MAX_MATCH, pmatch)) {
+	if (regex_exec_match2(exp->preg, cur_ptr, cur_end-cur_ptr, MAX_MATCH, pmatch)) {
 		switch (exp->action) {
 		case ACT_SETBE:
 			/* It is not possible to jump a second time.
@@ -7067,7 +7039,6 @@ int apply_filter_to_req_line(struct session *s, struct channel *req, struct hdr_
 			break;
 
 		case ACT_REPLACE:
-			*cur_end = term; /* restore the string terminator */
 			trash.len = exp_replace(trash.str, trash.size, cur_ptr, exp->replace, pmatch);
 			if (trash.len < 0)
 				return -1;
@@ -7096,7 +7067,6 @@ int apply_filter_to_req_line(struct session *s, struct channel *req, struct hdr_
 			return 1;
 		}
 	}
-	*cur_end = term; /* restore the string terminator */
 	return done;
 }
 
@@ -7766,7 +7736,6 @@ void manage_client_side_cookies(struct session *s, struct channel *req)
  */
 int apply_filter_to_resp_headers(struct session *s, struct channel *rtr, struct hdr_exp *exp)
 {
-	char term;
 	char *cur_ptr, *cur_end, *cur_next;
 	int cur_idx, old_idx, last_hdr;
 	struct http_txn *txn = &s->txn;
@@ -7799,15 +7768,7 @@ int apply_filter_to_resp_headers(struct session *s, struct channel *rtr, struct 
 		 * and the next header starts at cur_next.
 		 */
 
-		/* The annoying part is that pattern matching needs
-		 * that we modify the contents to null-terminate all
-		 * strings before testing them.
-		 */
-
-		term = *cur_end;
-		*cur_end = '\0';
-
-		if (regex_exec_match(exp->preg, cur_ptr, MAX_MATCH, pmatch)) {
+		if (regex_exec_match2(exp->preg, cur_ptr, cur_end-cur_ptr, MAX_MATCH, pmatch)) {
 			switch (exp->action) {
 			case ACT_ALLOW:
 				txn->flags |= TX_SVALLOW;
@@ -7850,8 +7811,6 @@ int apply_filter_to_resp_headers(struct session *s, struct channel *rtr, struct 
 
 			}
 		}
-		if (cur_end)
-			*cur_end = term; /* restore the string terminator */
 
 		/* keep the link from this header to next one in case of later
 		 * removal of next header.
@@ -7868,7 +7827,6 @@ int apply_filter_to_resp_headers(struct session *s, struct channel *rtr, struct 
  */
 int apply_filter_to_sts_line(struct session *s, struct channel *rtr, struct hdr_exp *exp)
 {
-	char term;
 	char *cur_ptr, *cur_end;
 	int done;
 	struct http_txn *txn = &s->txn;
@@ -7891,15 +7849,7 @@ int apply_filter_to_sts_line(struct session *s, struct channel *rtr, struct hdr_
 
 	/* Now we have the status line between cur_ptr and cur_end */
 
-	/* The annoying part is that pattern matching needs
-	 * that we modify the contents to null-terminate all
-	 * strings before testing them.
-	 */
-
-	term = *cur_end;
-	*cur_end = '\0';
-
-	if (regex_exec_match(exp->preg, cur_ptr, MAX_MATCH, pmatch)) {
+	if (regex_exec_match2(exp->preg, cur_ptr, cur_end-cur_ptr, MAX_MATCH, pmatch)) {
 		switch (exp->action) {
 		case ACT_ALLOW:
 			txn->flags |= TX_SVALLOW;
@@ -7912,7 +7862,6 @@ int apply_filter_to_sts_line(struct session *s, struct channel *rtr, struct hdr_
 			break;
 
 		case ACT_REPLACE:
-			*cur_end = term; /* restore the string terminator */
 			trash.len = exp_replace(trash.str, trash.size, cur_ptr, exp->replace, pmatch);
 			if (trash.len < 0)
 				return -1;
@@ -7941,7 +7890,6 @@ int apply_filter_to_sts_line(struct session *s, struct channel *rtr, struct hdr_
 			return 1;
 		}
 	}
-	*cur_end = term; /* restore the string terminator */
 	return done;
 }
 
