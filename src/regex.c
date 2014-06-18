@@ -156,7 +156,7 @@ const char *chain_regex(struct hdr_exp **head, struct my_regex *preg,
  */
 int regex_exec_match(const struct my_regex *preg, const char *subject,
                      size_t nmatch, regmatch_t pmatch[]) {
-#ifdef USE_PCRE_JIT
+#if defined(USE_PCRE) || defined(USE_PCRE_JIT)
 	int ret;
 	int matches[MAX_MATCH * 3];
 	int enmatch;
@@ -216,7 +216,7 @@ int regex_exec_match(const struct my_regex *preg, const char *subject,
  */
 int regex_exec_match2(const struct my_regex *preg, char *subject, int length,
                       size_t nmatch, regmatch_t pmatch[]) {
-#ifdef USE_PCRE_JIT
+#if defined(USE_PCRE) || defined(USE_PCRE_JIT)
 	int ret;
 	int matches[MAX_MATCH * 3];
 	int enmatch;
@@ -272,7 +272,7 @@ int regex_exec_match2(const struct my_regex *preg, char *subject, int length,
 
 int regex_comp(const char *str, struct my_regex *regex, int cs, int cap, char **err)
 {
-#ifdef USE_PCRE_JIT
+#if defined(USE_PCRE) || defined(USE_PCRE_JIT)
 	int flags = 0;
 	const char *error;
 	int erroffset;
@@ -288,12 +288,16 @@ int regex_comp(const char *str, struct my_regex *regex, int cs, int cap, char **
 		return 0;
 	}
 
+#ifdef USE_PCRE_JIT
 	regex->extra = pcre_study(regex->reg, PCRE_STUDY_JIT_COMPILE, &error);
 	if (!regex->extra) {
 		pcre_free(regex->reg);
 		memprintf(err, "failed to compile regex '%s' (error=%s)", str, error);
 		return 0;
 	}
+#else
+	regex->extra = NULL;
+#endif
 #else
 	int flags = REG_EXTENDED;
 

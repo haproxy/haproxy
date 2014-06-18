@@ -35,14 +35,12 @@
 
 struct my_regex {
 #ifdef USE_PCRE
+	pcre *reg;
+	pcre_extra *extra;
 #ifdef USE_PCRE_JIT
 #ifndef PCRE_CONFIG_JIT
 #error "The PCRE lib doesn't support JIT. Change your lib, or remove the option USE_PCRE_JIT."
 #endif
-	pcre *reg;
-	pcre_extra *extra;
-#else /* no PCRE_JIT */
-	regex_t regex;
 #endif
 #else /* no PCRE */
 	regex_t regex;
@@ -87,7 +85,7 @@ const char *chain_regex(struct hdr_exp **head, struct my_regex *preg,
 /* If the function doesn't match, it returns false, else it returns true.
  */
 static inline int regex_exec(const struct my_regex *preg, char *subject) {
-#ifdef USE_PCRE_JIT
+#if defined(USE_PCRE) || defined(USE_PCRE_JIT)
 	if (pcre_exec(preg->reg, preg->extra, subject, strlen(subject), 0, 0, NULL, 0) < 0)
 		return 0;
 	return 1;
@@ -107,7 +105,7 @@ static inline int regex_exec(const struct my_regex *preg, char *subject) {
  * If the function doesn't match, it returns false, else it returns true.
  */
 static inline int regex_exec2(const struct my_regex *preg, char *subject, int length) {
-#ifdef USE_PCRE_JIT
+#if defined(USE_PCRE) || defined(USE_PCRE_JIT)
 	if (pcre_exec(preg->reg, preg->extra, subject, length, 0, 0, NULL, 0) < 0)
 		return 0;
 	return 1;
@@ -129,9 +127,11 @@ int regex_exec_match2(const struct my_regex *preg, char *subject, int length,
                       size_t nmatch, regmatch_t pmatch[]);
 
 static inline void regex_free(struct my_regex *preg) {
+#if defined(USE_PCRE) || defined(USE_PCRE_JIT)
+	pcre_free(preg->reg);
 #ifdef USE_PCRE_JIT
 	pcre_free_study(preg->extra);
-	pcre_free(preg->reg);
+#endif
 #else
 	regfree(&preg->regex);
 #endif
