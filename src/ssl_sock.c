@@ -868,6 +868,10 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, struct proxy *cu
 		*end = 0;
 
 	while ((de = readdir(dir))) {
+		end = strrchr(de->d_name, '.');
+		if (end && (!strcmp(end, ".issuer") || !strcmp(end, ".ocsp")))
+			continue;
+
 		snprintf(fp, sizeof(fp), "%s/%s", path, de->d_name);
 		if (stat(fp, &buf) != 0) {
 			memprintf(err, "%sunable to stat SSL certificate from file '%s' : %s.\n",
