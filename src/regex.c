@@ -124,7 +124,7 @@ const char *check_replace_string(const char *str)
 
 
 /* returns the pointer to an error in the replacement string, or NULL if OK */
-const char *chain_regex(struct hdr_exp **head, const regex_t *preg,
+const char *chain_regex(struct hdr_exp **head, struct my_regex *preg,
 			int action, const char *replace, void *cond)
 {
 	struct hdr_exp *exp;

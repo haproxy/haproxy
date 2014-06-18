@@ -60,7 +60,7 @@ struct my_regex {
 
 struct hdr_exp {
     struct hdr_exp *next;
-    const regex_t *preg;		/* expression to look for */
+    struct my_regex *preg;		/* expression to look for */
     int action;				/* ACT_ALLOW, ACT_REPLACE, ACT_REMOVE, ACT_DENY */
     const char *replace;		/* expression to set instead */
     void *cond;				/* a possible condition or NULL */
@@ -81,7 +81,7 @@ extern regmatch_t pmatch[MAX_MATCH];
 int regex_comp(const char *str, struct my_regex *regex, int cs, int cap, char **err);
 int exp_replace(char *dst, unsigned int dst_size, char *src, const char *str, const regmatch_t *matches);
 const char *check_replace_string(const char *str);
-const char *chain_regex(struct hdr_exp **head, const regex_t *preg,
+const char *chain_regex(struct hdr_exp **head, struct my_regex *preg,
 			int action, const char *replace, void *cond);
 
 /* If the function doesn't match, it returns false, else it returns true.

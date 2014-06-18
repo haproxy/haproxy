@@ -3179,10 +3179,10 @@ static inline void inet_set_tos(int fd, struct sockaddr_storage from, int tos)
 /* Returns the number of characters written to destination,
  * -1 on internal error and -2 if no replacement took place.
  */
-static int http_replace_header(regex_t* re, char* dst, uint dst_size, char* val,
-                               const char* rep_str)
+static int http_replace_header(struct my_regex *re, char *dst, uint dst_size, char *val,
+                               const char *rep_str)
 {
-	if (regexec(re, val, MAX_MATCH, pmatch, 0))
+	if (!regex_exec_match(re, val, MAX_MATCH, pmatch))
 		return -2;
 
 	return exp_replace(dst, dst_size, val, rep_str, pmatch);
@@ -3191,8 +3191,8 @@ static int http_replace_header(regex_t* re, char* dst, uint dst_size, char* val,
 /* Returns the number of characters written to destination,
  * -1 on internal error and -2 if no replacement took place.
  */
-static int http_replace_value(regex_t* re, char* dst, uint dst_size, char* val, char delim,
-                              const char* rep_str)
+static int http_replace_value(struct my_regex *re, char *dst, uint dst_size, char *val, char delim,
+                              const char *rep_str)
 {
 	char* p = val;
 	char* dst_end = dst + dst_size;
@@ -3209,7 +3209,7 @@ static int http_replace_value(regex_t* re, char* dst, uint dst_size, char* val, 
 			tok_end = p + strlen(p);
 		}
 
-		if (regexec(re, p, MAX_MATCH, pmatch, 0) == 0) {
+		if (regex_exec_match(re, p, MAX_MATCH, pmatch)) {
 			int replace_n = exp_replace(dst_p, dst_end - dst_p, p, rep_str, pmatch);
 
 			if (replace_n < 0)
@@ -3243,7 +3243,7 @@ static int http_replace_value(regex_t* re, char* dst, uint dst_size, char* val, 
 }
 
 static int http_transform_header(struct session* s, struct http_msg *msg, const char* name, uint name_len,
-                                 char* buf, struct hdr_idx* idx, struct list *fmt, regex_t* re,
+                                 char* buf, struct hdr_idx* idx, struct list *fmt, struct my_regex *re,
                                  struct hdr_ctx* ctx, int action)
 {
 	ctx->idx = 0;
@@ -3389,7 +3389,7 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 		case HTTP_REQ_ACT_REPLACE_VAL:
 			if (http_transform_header(s, &txn->req, rule->arg.hdr_add.name, rule->arg.hdr_add.name_len,
 			                          txn->req.chn->buf->p, &txn->hdr_idx, &rule->arg.hdr_add.fmt,
-			                          rule->arg.hdr_add.re, &ctx, rule->action))
+			                          &rule->arg.hdr_add.re, &ctx, rule->action))
 				return HTTP_RULE_RES_BADREQ;
 			break;
 
@@ -3578,7 +3578,7 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 		case HTTP_RES_ACT_REPLACE_VAL:
 			if (http_transform_header(s, &txn->rsp, rule->arg.hdr_add.name, rule->arg.hdr_add.name_len,
 			                          txn->rsp.chn->buf->p, &txn->hdr_idx, &rule->arg.hdr_add.fmt,
-			                          rule->arg.hdr_add.re, &ctx, rule->action))
+			                          &rule->arg.hdr_add.re, &ctx, rule->action))
 				return NULL; /* note: we should report an error here */
 			break;
 
@@ -6924,7 +6924,7 @@ int apply_filter_to_req_headers(struct session *s, struct channel *req, struct h
 		term = *cur_end;
 		*cur_end = '\0';
 
-		if (regexec(exp->preg, cur_ptr, MAX_MATCH, pmatch, 0) == 0) {
+		if (regex_exec_match(exp->preg, cur_ptr, MAX_MATCH, pmatch)) {
 			switch (exp->action) {
 			case ACT_SETBE:
 				/* It is not possible to jump a second time.
@@ -7036,7 +7036,7 @@ int apply_filter_to_req_line(struct session *s, struct channel *req, struct hdr_
 	term = *cur_end;
 	*cur_end = '\0';
 
-	if (regexec(exp->preg, cur_ptr, MAX_MATCH, pmatch, 0) == 0) {
+	if (regex_exec_match(exp->preg, cur_ptr, MAX_MATCH, pmatch)) {
 		switch (exp->action) {
 		case ACT_SETBE:
 			/* It is not possible to jump a second time.
@@ -7807,7 +7807,7 @@ int apply_filter_to_resp_headers(struct session *s, struct channel *rtr, struct 
 		term = *cur_end;
 		*cur_end = '\0';
 
-		if (regexec(exp->preg, cur_ptr, MAX_MATCH, pmatch, 0) == 0) {
+		if (regex_exec_match(exp->preg, cur_ptr, MAX_MATCH, pmatch)) {
 			switch (exp->action) {
 			case ACT_ALLOW:
 				txn->flags |= TX_SVALLOW;
@@ -7899,7 +7899,7 @@ int apply_filter_to_sts_line(struct session *s, struct channel *rtr, struct hdr_
 	term = *cur_end;
 	*cur_end = '\0';
 
-	if (regexec(exp->preg, cur_ptr, MAX_MATCH, pmatch, 0) == 0) {
+	if (regex_exec_match(exp->preg, cur_ptr, MAX_MATCH, pmatch)) {
 		switch (exp->action) {
 		case ACT_ALLOW:
 			txn->flags |= TX_SVALLOW;
@@ -8895,21 +8895,13 @@ void http_reset_txn(struct session *s)
 	s->rep->analyse_exp = TICK_ETERNITY;
 }
 
-static inline void free_regex(regex_t* re)
-{
-	if (re) {
-		regfree(re);
-		free(re);
-	}
-}
-
 void free_http_res_rules(struct list *r)
 {
 	struct http_res_rule *tr, *pr;
 
 	list_for_each_entry_safe(pr, tr, r, list) {
 		LIST_DEL(&pr->list);
-		free_regex(pr->arg.hdr_add.re);
+		regex_free(&pr->arg.hdr_add.re);
 		free(pr);
 	}
 }
@@ -8923,7 +8915,7 @@ void free_http_req_rules(struct list *r)
 		if (pr->action == HTTP_REQ_ACT_AUTH)
 			free(pr->arg.auth.realm);
 
-		free_regex(pr->arg.hdr_add.re);
+		regex_free(&pr->arg.hdr_add.re);
 		free(pr);
 	}
 }
@@ -8934,6 +8926,7 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 	struct http_req_rule *rule;
 	struct http_req_action_kw *custom = NULL;
 	int cur_arg;
+	char *error;
 
 	rule = (struct http_req_rule*)calloc(1, sizeof(struct http_req_rule));
 	if (!rule) {
@@ -9081,14 +9074,11 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		rule->arg.hdr_add.name_len = strlen(rule->arg.hdr_add.name);
 		LIST_INIT(&rule->arg.hdr_add.fmt);
 
-		if (!(rule->arg.hdr_add.re = calloc(1, sizeof(*rule->arg.hdr_add.re)))) {
-			Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
-			goto out_err;
-		}
-
-		if (regcomp(rule->arg.hdr_add.re, args[cur_arg + 1], REG_EXTENDED)) {
-			Alert("parsing [%s:%d] : '%s' : bad regular expression.\n", file, linenum,
-			      args[cur_arg + 1]);
+		error = NULL;
+		if (!regex_comp(args[cur_arg + 1], &rule->arg.hdr_add.re, 1, 1, &error)) {
+			Alert("parsing [%s:%d] : '%s' : %s.\n", file, linenum,
+			      args[cur_arg + 1], error);
+			free(error);
 			goto out_err;
 		}
 
@@ -9303,6 +9293,7 @@ struct http_res_rule *parse_http_res_cond(const char **args, const char *file, i
 	struct http_res_rule *rule;
 	struct http_res_action_kw *custom = NULL;
 	int cur_arg;
+	char *error;
 
 	rule = calloc(1, sizeof(*rule));
 	if (!rule) {
@@ -9435,14 +9426,11 @@ struct http_res_rule *parse_http_res_cond(const char **args, const char *file, i
 		rule->arg.hdr_add.name_len = strlen(rule->arg.hdr_add.name);
 		LIST_INIT(&rule->arg.hdr_add.fmt);
 
-		if (!(rule->arg.hdr_add.re = calloc(1, sizeof(*rule->arg.hdr_add.re)))) {
-			Alert("parsing [%s:%d]: out of memory.\n", file, linenum);
-			goto out_err;
-		}
-
-		if (regcomp(rule->arg.hdr_add.re, args[cur_arg + 1], REG_EXTENDED)) {
-			Alert("parsing [%s:%d] : '%s' : bad regular expression.\n", file, linenum,
-			      args[cur_arg + 1]);
+		error = NULL;
+		if (!regex_comp(args[cur_arg + 1], &rule->arg.hdr_add.re, 1, 1, &error)) {
+			Alert("parsing [%s:%d] : '%s' : %s.\n", file, linenum,
+			      args[cur_arg + 1], error);
+			free(error);
 			goto out_err;
 		}
 

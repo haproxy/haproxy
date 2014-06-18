@@ -1730,7 +1730,7 @@ static int httpchk_expect(struct server *s, int done)
 		if ((s->proxy->options2 & PR_O2_EXP_TYPE) == PR_O2_EXP_STS)
 			ret = strncmp(s->proxy->expect_str, status_code, 3) == 0;
 		else
-			ret = regexec(s->proxy->expect_regex, status_code, MAX_MATCH, pmatch, 0) == 0;
+			ret = regex_exec(s->proxy->expect_regex, status_code);
 
 		/* we necessarily have the response, so there are no partial failures */
 		if (s->proxy->options2 & PR_O2_EXP_INV)
@@ -1782,7 +1782,7 @@ static int httpchk_expect(struct server *s, int done)
 		if ((s->proxy->options2 & PR_O2_EXP_TYPE) == PR_O2_EXP_STR)
 			ret = strstr(contentptr, s->proxy->expect_str) != NULL;
 		else
-			ret = regexec(s->proxy->expect_regex, contentptr, MAX_MATCH, pmatch, 0) == 0;
+			ret = regex_exec(s->proxy->expect_regex, contentptr);
 
 		/* if we don't match, we may need to wait more */
 		if (!ret && !done)
@@ -2135,7 +2135,7 @@ static void tcpcheck_main(struct connection *conn)
 			if (cur->string != NULL)
 				ret = my_memmem(contentptr, check->bi->i, cur->string, cur->string_len) != NULL;
 			else if (cur->expect_regex != NULL)
-				ret = regexec(cur->expect_regex, contentptr, MAX_MATCH, pmatch, 0) == 0;
+				ret = regex_exec(cur->expect_regex, contentptr);
 
 			if (!ret && !done)
 				continue; /* try to read more */

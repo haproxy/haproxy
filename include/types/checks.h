@@ -177,7 +177,7 @@ struct tcpcheck_rule {
 	/* sent string is string */
 	char *string;                           /* sent or expected string */
 	int string_len;                         /* string lenght */
-	regex_t *expect_regex;                  /* expected */
+	struct my_regex *expect_regex;          /* expected */
 	int inverse;                            /* 0 = regular match, 1 = inverse match */
 	unsigned short port;                    /* port to connect to */
 	unsigned short conn_opts;               /* options when setting up a new connection */
