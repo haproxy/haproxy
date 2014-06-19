@@ -1,8 +1,8 @@
-Medium-long term roadmap - 2014/05/10
+Medium-long term roadmap - 2014/06/19
 
 Legend: '+' = done, '-' = todo, '*' = done except doc
 
-1.5 (ETA 2013/12/31) :
+1.6 or later :
   - POST parameter extraction and size/speed measurement to use in ACLs
 
   - return-html code xxx [ file "xxx" | text "xxx" ] if <acl>
@@ -41,113 +41,6 @@ Legend: '+' = done, '-' = todo, '*' = done except doc
 
   - http-request track-sc* to avoid having the ugly "if !HTTP" in tcp-request
 
-DONE:
-  * half-closed timeouts ?
-
-  * add support for server-side unix sockets
-
-  * server-side HTTP keepalive
-    => maybe with limitation to only reuse connections that don't depend
-       on layer7 in a first time (just check the target).
-
-  * add support for complex pattern extraction rules :
-
-       pattern = <pattern_term>
-               | '{' pattern_expr '}'
-
-       pattern_expr = <pattern_term> [ <transform> ... ]
-    => changed to <sample>[,<conv>]*
-
-  * support loading data sets from files
-      * present/not present (eg: netmasks)
-      * pattern conversion per prefixes. Eg: convert src IP to country.
-      => maps
-
-  * what to do with data after a POST and how to detect some data were
-    received when responding ? In theory we should read everything because
-    the TCP stack does not notify us that the FIN was acked. In practice,
-    reading just before closing should be enough. Right now we simply read
-    whatever comes after the POST.
-    => switch the connection to a "drain" state, where it monitors its
-       output queue on each I/O and where it can be stolen if fds are
-       missing.
-
-  * tcp-request {connection|session} expect-proxy {L4|L5} if ...
-
-  * rename L4 acls as L6 ACLs when some content is involved
-
-  * add new L4 ACL checks immediately after accept, before even allocating the
-    buffers ("connection {accept|reject|delay|freeze} {if|unless}").
-
-  * make new patterns available based on stickiness matching :
-      * number of entries in table for the matched pattern
-      * same after having increased the match counter
-
-  * add support for concurrency match in tables
-      * just like stickiness, but counted per session (or request), increased
-        on first match and decreased at end of request or connection. This
-        requires that the session has a list of matched terms that must be
-        released at the end.
-
-  * http_req_first ACL
-
-  * expirable cookies + "preserve"
-
-  * ECV, LDAPv3 & MySQL checks
-
-  * configurable check buffer size
-
-  * stats + ON/OFF
-
-  * halog: sort by URL
-
-  * "PROXY" protocol
-
-  * add support for client-side unix sockets
-
-  * hash: rehash non-consistent hashes with chash() for more randomness.
-
-  * add an error ID in captures to ease new error detection for scripts.
-
-  * try to remove srv==NULL internally and assign a dummy server to each backend
-    for dispatch, http_proxy and transparent modes. => done differently with the
-    target descriptors. The dummy server code exists in the "dummysrv" branch
-    which will die since it does not make sense anymore.
-
-  * ACL to report number of used entries in a table
-
-  * automatically compute fullconn for backends : by default, set it to
-    10% of the sum of the maxconn of all unique frontends which reference
-    it via use_backend, default_backend or that are in the same listen.
-
-  * count number of monitor requests on frontends, that's the only way
-    to explain the possible huge difference between frontend and backend
-    sessions.
-
-  * assign a nice priority based on ACLs.
-
-  * set-log-level if <acl> (front/back)
-
-  * fix "PR--" flags when accessing stats
-
-  * merged ACL/fetches
-
-  * use_server ... if ...
-
-  * ability to kill an arbitrary session from the command line. Put a "kill now"
-    flag in every session which preempts any other processing and wake the
-    session up.
-
-  * add a last activity date for each server (req/resp) that will be
-    displayed in the stats. It will be useful with soft stop.
-
-  * compression : to be fixed
-
-  * ACL feeding via the UNIX socket
-
-  * lookup tables (eg: map IP to country)
-
-1.6 (will probably change anyway) :
   - wait on resource (time, mem, CPU, socket, buffers, server's conn, server's rate, ...)
 
   - bandwidth limits
@@ -174,43 +67,58 @@ DONE:
     to maintenance mode => requires a per-server session list and the change
     above.
 
-Old, maybe obsolete points
- - clarify licence by adding a 'MODULE_LICENCE("GPL")' or something equivalent.
+Old, maybe obsolete points :
+  - clarify licence by adding a 'MODULE_LICENCE("GPL")' or something equivalent.
 
- - 3 memory models : failsafe (prealloc), normal (current), optimal (alloc on
-   demand)
+  - 3 memory models : failsafe (prealloc), normal (current), optimal (alloc on
+    demand)
 
- - implement support for event-triggerred epoll()
+  - implement support for event-triggerred epoll()
 
- - verify if it would be worth implementing an epoll_ctl_batch() for Linux
+  - verify if it would be worth implementing an epoll_ctl_batch() for Linux
 
- - option minservers XXX : activates some spare servers when active servers
-   are insufficient
+  - option minservers XXX : activates some spare servers when active servers
+    are insufficient
 
- - new keyword 'check' : check http xxx, check smtp xxx, check ssl-hello
+  - new keyword 'check' : check http xxx, check smtp xxx, check ssl-hello
 
- - initcwnd parameter for bind sockets : needed in kernel first
+  - initcwnd parameter for bind sockets : needed in kernel first
 
- - have a callback function which would be called after a server is selected,
-   for header post-processing. That would be mainly used to remove then add
-   the server's name or cookie in a header so that the server knows it.
+  - have a callback function which would be called after a server is selected,
+    for header post-processing. That would be mainly used to remove then add
+    the server's name or cookie in a header so that the server knows it.
 
 Unsorted :
   - outgoing log load-balancing (round-robin or hash among multiple servers)
+
   - internal socket for "server XXX frontend:name"
+
   - HTTP/2.0
+
   - DNS requests on health checks
+
   - XML inspection (content-switching for SOAP requests)
+
   - sync all stick-tables data, not just serverid.
+
   - request, session and user variables
+
   - random cookie generator
+
   - external checker
+
   - fastcgi to servers
+
   - hot config reload
+
   - RAM-based cache for small files
+
   - RHI - BGP
+
   - telnet/SSH cli
+
   - dynamic memory allocation
+
   - dynamic weights based on check response headers and traffic response time
+
   - various kernel-level acceleration (multi-accept, ssplice, epoll2...)
-  - "show stats detail" with a different output format and encoding of quotes
