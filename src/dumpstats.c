@@ -1797,7 +1797,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 #ifdef SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB
 				char *err = NULL;
 
-				/* Expect two parameters: certificate file name and the new response in base64 encoding */
+				/* Expect one parameter: the new response in base64 encoding */
 				if (!*args[3]) {
 					appctx->ctx.cli.msg = "'set ssl ocsp-response' expects response in base64 encoding.\n";
 					appctx->st0 = STAT_CLI_PRINT;
