@@ -1,6 +1,60 @@
 ChangeLog :
 ===========
 
+2014/06/19 : 1.5.0
+    - MEDIUM: ssl: ignored file names ending as '.issuer' or '.ocsp'.
+    - MEDIUM: ssl: basic OCSP stapling support.
+    - MINOR: ssl/cli: Fix unapropriate comment in code on 'set ssl ocsp-response'
+    - MEDIUM: ssl: add 300s supported time skew on OCSP response update.
+    - MINOR: checks: mysql-check: Add support for v4.1+ authentication
+    - MEDIUM: ssl: Add the option to use standardized DH parameters >= 1024 bits
+    - MEDIUM: ssl: fix detection of ephemeral diffie-hellman key exchange by using the cipher description.
+    - MEDIUM: http: add actions "replace-header" and "replace-values" in http-req/resp
+    - MEDIUM: Break out check establishment into connect_chk()
+    - MEDIUM: Add port_to_str helper
+    - BUG/MEDIUM: fix ignored values for half-closed timeouts (client-fin and server-fin) in defaults section.
+    - BUG/MEDIUM: Fix unhandled connections problem with systemd daemon mode and SO_REUSEPORT.
+    - MINOR: regex: fix a little configuration memory leak.
+    - MINOR: regex: Create JIT compatible function that return match strings
+    - MEDIUM: regex: replace all standard regex function by own functions
+    - MEDIUM: regex: Remove null terminated strings.
+    - MINOR: regex: Use native PCRE API.
+    - MINOR: missing regex.h include
+    - DOC: Add Exim as Proxy Protocol implementer.
+    - BUILD: don't use type "uint" which is not portable
+    - BUILD: stats: workaround stupid and bogus -Werror=format-security behaviour
+    - BUG/MEDIUM: http: clear CF_READ_NOEXP when preparing a new transaction
+    - CLEANUP: http: don't clear CF_READ_NOEXP twice
+    - DOC: fix proxy protocol v2 decoder example
+    - DOC: fix remaining occurrences of "pattern extraction"
+    - MINOR: log: allow the HTTP status code to be logged even in TCP frontends
+    - MINOR: logs: don't limit HTTP header captures to HTTP frontends
+    - MINOR: sample: improve sample_fetch_string() to report partial contents
+    - MINOR: capture: extend the captures to support non-header keys
+    - MINOR: tcp: prepare support for the "capture" action
+    - MEDIUM: tcp: add a new tcp-request capture directive
+    - MEDIUM: session: allow shorter retry delay if timeout connect is small
+    - MEDIUM: session: don't apply the retry delay when redispatching
+    - MEDIUM: session: redispatch earlier when possible
+    - MINOR: config: warn when tcp-check rules are used without option tcp-check
+    - BUG/MINOR: connection: make proxy protocol v1 support the UNKNOWN protocol
+    - DOC: proxy protocol example parser was still wrong
+    - DOC: minor updates to the proxy protocol doc
+    - CLEANUP: connection: merge proxy proto v2 header and address block
+    - MEDIUM: connection: add support for proxy protocol v2 in accept-proxy
+    - MINOR: tools: add new functions to quote-encode strings
+    - DOC: clarify the CSV format
+    - MEDIUM: stats: report the last check and last agent's output on the CSV status
+    - MINOR: freq_ctr: introduce a new averaging method
+    - MEDIUM: session: maintain per-backend and per-server time statistics
+    - MEDIUM: stats: report per-backend and per-server time stats in HTML and CSV outputs
+    - BUG/MINOR: http: fix typos in previous patch
+    - DOC: remove the ultra-obsolete TODO file
+    - DOC: update roadmap
+    - DOC: minor updates to the README
+    - DOC: mention the maxconn limitations with the select poller
+    - DOC: commit a few old design thoughts files
+
 2014/05/28 : 1.5-dev26
     - BUG/MEDIUM: polling: fix possible CPU hogging of worker processes after receiving SIGUSR1.
     - BUG/MINOR: stats: fix a typo on a closing tag for a server tracking another one
