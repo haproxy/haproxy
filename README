@@ -1,7 +1,7 @@
                          ----------------------
                              HAProxy how-to
                          ----------------------
-                               version 1.5
+                             version 1.6-dev
                              willy tarreau
                                2014/06/19
 
@@ -9,12 +9,14 @@
 1) How to build it
 ------------------
 
-First, please note that this version is a stable version, so in general if you
-are not used to build from sources, it is recommended that instead you follow
-the packaged updates provided by your software vendor or Linux distribution.
-Most of them are taking this task seriously and are doing a good job. If for
-any reason you'd prefer a different version than the one packaged for your
-system, or to get some commercial support, other choices are available at :
+First, please note that this version is a development version, so in general if
+you are not used to build from sources or if you don't have the time to track
+very frequent updates, it is recommended that instead you switch to the stable
+version (1.5) or follow the packaged updates provided by your software vendor
+or Linux distribution. Most of them are taking this task seriously and are
+doing a good job. If for any reason you'd prefer a different version than the
+one packaged for your system, or to get some commercial support, other choices
+are available at :
 
                         http://www.haproxy.com/
 

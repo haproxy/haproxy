@@ -1,6 +1,9 @@
 ChangeLog :
 ===========
 
+2014/06/19 : 1.6-dev0
+    - exact copy of 1.5.0
+
 2014/06/19 : 1.5.0
     - MEDIUM: ssl: ignored file names ending as '.issuer' or '.ocsp'.
     - MEDIUM: ssl: basic OCSP stapling support.
