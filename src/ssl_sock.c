@@ -179,7 +179,7 @@ static int ssl_sock_load_ocsp_response(struct chunk *ocsp_response, struct certi
 		goto out;
 	}
 
-	rc = OCSP_check_validity(thisupd, nextupd, 0, -1);
+	rc = OCSP_check_validity(thisupd, nextupd, OCSP_MAX_RESPONSE_TIME_SKEW, -1);
 	if (!rc) {
 		memprintf(err, "OCSP single response: no longer valid.");
 		goto out;
