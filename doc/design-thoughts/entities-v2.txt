@@ -1,0 +1,276 @@
+2012/07/05 - Connection layering and sequencing
+
+
+An FD has a state :
+  - CLOSED
+  - READY
+  - ERROR (?)
+  - LISTEN (?)
+
+A connection has a state :
+  - CLOSED
+  - ACCEPTED
+  - CONNECTING
+  - ESTABLISHED
+  - ERROR
+
+A stream interface has a state :
+  - INI, REQ, QUE, TAR, ASS, CON, CER, EST, DIS, CLO
+
+Note that CON and CER might be replaced by EST if the connection state is used
+instead. CON might even be more suited than EST to indicate that a connection
+is known.
+
+
+si_shutw() must do :
+
+    data_shutw()
+    if (shutr) {
+        data_close()
+        ctrl_shutw()
+        ctrl_close()
+    }
+
+si_shutr() must do :
+    data_shutr()
+    if (shutw) {
+        data_close()
+        ctrl_shutr()
+        ctrl_close()
+    }
+
+Each of these steps may fail, in which case the step must be retained and the
+operations postponed in an asynchronous task.
+
+The first asynchronous data_shut() might already fail so it is mandatory to
+save the other side's status with the connection in order to let the async task
+know whether the 3 next steps must be performed.
+
+The connection (or perhaps the FD) needs to know :
+  - the desired close operations   : DSHR, DSHW, CSHR, CSHW
+  - the completed close operations : DSHR, DSHW, CSHR, CSHW
+
+
+On the accept() side, we probably need to know :
+  - if a header is expected (eg: accept-proxy)
+  - if this header is still being waited for
+    => maybe both info might be combined into one bit
+
+  - if a data-layer accept() is expected
+  - if a data-layer accept() has been started
+  - if a data-layer accept() has been performed
+    => possibly 2 bits, to indicate the need to free()
+
+On the connect() side, we need to konw :
+  - the desire to send a header (eg: send-proxy)
+  - if this header has been sent
+    => maybe both info might be combined
+
+  - if a data-layer connect() is expected
+  - if a data-layer connect() has been started
+  - if a data-layer connect() has been completed
+    => possibly 2 bits, to indicate the need to free()
+
+On the response side, we also need to know :
+  - the desire to send a header (eg: health check response for monitor-net)
+  - if this header was sent
+    => might be the same as sending a header over a new connection
+
+Note: monitor-net has precedence over proxy proto and data layers. Same for
+      health mode.
+
+For multi-step operations, use 2 bits :
+    00 = operation not desired, not performed
+    10 = operation desired, not started
+    11 = operation desired, started but not completed
+    01 = operation desired, started and completed
+
+    => X != 00 ==> operation desired
+       X  & 01 ==> operation at least started
+       X  & 10 ==> operation not completed
+
+Note: no way to store status information for error reporting.
+
+Note2: it would be nice if "tcp-request connection" rules could work at the
+connection level, just after headers ! This means support for tracking stick
+tables, possibly not too much complicated.
+
+
+Proposal for incoming connection sequence :
+
+- accept()
+- if monitor-net matches or if mode health => try to send response
+- if accept-proxy, wait for proxy request
+- if tcp-request connection, process tcp rules and possibly keep the
+  pointer to stick-table
+- if SSL is enabled, switch to SSL handshake
+- then switch to DATA state and instantiate a session
+
+We just need a map of handshake handlers on the connection. They all manage the
+FD status themselves and set the callbacks themselves. If their work succeeds,
+they remove themselves from the list. If it fails, they remain subscribed and
+enable the required polling until they are woken up again or the timeout strikes.
+
+Identified handshake handlers for incoming connections :
+  - HH_HEALTH (tries to send OK and dies)
+  - HH_MONITOR_IN (matches src IP and adds/removes HH_SEND_OK/HH_SEND_HTTP_OK)
+  - HH_SEND_OK (tries to send "OK" and dies)
+  - HH_SEND_HTTP_OK (tries to send "HTTP/1.0 200 OK" and dies)
+  - HH_ACCEPT_PROXY (waits for PROXY line and parses it)
+  - HH_TCP_RULES (processes TCP rules)
+  - HH_SSL_HS (starts SSL handshake)
+  - HH_ACCEPT_SESSION (instanciates a session)
+
+Identified handshake handlers for outgoing connections :
+  - HH_SEND_PROXY (tries to build and send the PROXY line)
+  - HH_SSL_HS (starts SSL handshake)
+
+For the pollers, we could check that handshake handlers are not 0 and decide to
+call a generic connection handshake handler instead of usual callbacks. Problem
+is that pollers don't know connections, they know fds. So entities which manage
+handlers should update change the FD callbacks accordingly.
+
+With a bit of care, we could have :
+  - HH_SEND_LAST_CHUNK (sends the chunk pointed to by a pointer and dies)
+    => merges HEALTH, SEND_OK and SEND_HTTP_OK
+
+It sounds like the ctrl vs data state for the connection are per-direction
+(eg: support an async ctrl shutw while still reading data).
+
+Also support shutr/shutw status at L4/L7.
+
+In practice, what we really need is :
+
+shutdown(conn) =
+      conn.data.shut()
+          conn.ctrl.shut()
+              conn.fd.shut()
+
+close(conn) =
+      conn.data.close()
+          conn.ctrl.close()
+              conn.fd.close()
+
+With SSL over Remote TCP (RTCP + RSSL) to reach the server, we would have :
+
+  HTTP -> RTCP+RSSL connection <-> RTCP+RRAW connection -> TCP+SSL connection
+
+The connection has to be closed at 3 places after a successful response :
+  - DATA (RSSL over RTCP)
+  - CTRL (RTCP to close connection to server)
+  - SOCK (FD to close connection to second process)
+
+Externally, the connection is seen with very few flags :
+  - SHR
+  - SHW
+  - ERR
+
+We don't need a CLOSED flag as a connection must always be detached when it's closed.
+
+The internal status doesn't need to be exposed :
+  - FD allocated       (Y/N)
+  - CTRL initialized   (Y/N)
+  - CTRL connected     (Y/N)
+  - CTRL handlers done (Y/N)
+  - CTRL failed        (Y/N)
+  - CTRL shutr         (Y/N)
+  - CTRL shutw         (Y/N)
+  - DATA initialized   (Y/N)
+  - DATA connected     (Y/N)
+  - DATA handlers done (Y/N)
+  - DATA failed        (Y/N)
+  - DATA shutr         (Y/N)
+  - DATA shutw         (Y/N)
+
+(note that having flags for operations needing to be completed might be easier)
+--------------
+
+Maybe we need to be able to call conn->fdset() and conn->fdclr() but it sounds
+very unlikely since the only functions manipulating this are in the code of
+the data/ctrl handlers.
+
+FDSET/FDCLR cannot be directly controlled by the stream interface since it also
+depends on the DATA layer (WANT_READ/WANT_WRITE).
+
+But FDSET/FDCLR is probably controlled by who owns the connection (eg: DATA).
+
+Example: an SSL conn relies on an FD. The buffer is full, and wants the conn to
+stop reading. It must not stop the FD itself. It is the read function which
+should notice that it has nothing to do with a read wake-up, which needs to
+disable reading.
+
+Conversely, when calling conn->chk_rcv(), the reader might get a WANT_READ or
+even WANT_WRITE and adjust the FDs accordingly.
+
+------------------------
+
+OK, the problem is simple : we don't manipulate the FD at the right level.
+We should have :
+  ->connect(), ->chk_snd(), ->chk_rcv(), ->shutw(), ->shutr() which are
+    called from the upper layer (buffer)
+  ->recv(), ->send(), called from the lower layer
+
+Note that the SHR is *reported* by lower layer but can be forced by upper
+layer. In this case it's like a delayed abort. The difficulty consists in
+knowing the output data were correctly read. Probably we'd need to drain
+incoming data past the active shutr().
+
+The only four purposes of the top-down shutr() call are :
+  - acknowledge a shut read report : could probably be done better
+  - read timeout => disable reading : it's a delayed abort. We want to
+    report that the buffer is SHR, maybe even the connection, but the
+    FD clearly isn't.
+  - read abort due to error on the other side or desire to close (eg:
+    http-server-close) : delayed abort
+  - complete abort
+
+The active shutr() is problematic as we can't disable reading if we expect some
+exchanges for data acknowledgement. We probably need to drain data only until
+the shutw() has been performed and ACKed.
+
+A connection shut down for read would behave like this :
+
+   1) bidir exchanges
+
+   2) shutr() => read_abort_pending=1
+
+   3) drain input, still send output
+
+   4) shutw()
+
+   5) drain input, wait for read0 or ack(shutw)
+
+   6) close()
+
+--------------------- 2012/07/05 -------------------
+
+Communications must be performed this way :
+
+  connection <-> channel <-> connection
+
+A channel is composed of flags and stats, and may store data in either a buffer
+or a pipe. We need low-layer operations between sockets and buffers or pipes.
+Right now we only support sockets, but later we might support remote sockets
+and maybe pipes or shared memory segments.
+
+So we need :
+
+    - raw_sock_to_buf()   => receive raw data from socket into buffer
+    - raw_sock_to_pipe    => receive raw data from socket into pipe (splice in)
+    - raw_sock_from_buf() => send raw data from buffer to socket
+    - raw_sock_from_pipe  => send raw data from pipe to socket (splice out)
+
+    - ssl_sock_to_buf()   => receive ssl data from socket into buffer
+    - ssl_sock_to_pipe    => receive ssl data from socket into a pipe (NULL)
+    - ssl_sock_from_buf() => send ssl data from buffer to socket
+    - ssl_sock_from_pipe  => send ssl data from pipe to socket (NULL)
+
+These functions should set such status flags :
+
+#define ERR_IN   0x01
+#define ERR_OUT  0x02
+#define SHUT_IN  0x04
+#define SHUT_OUT 0x08
+#define EMPTY_IN 0x10
+#define FULL_OUT 0x20
+

@@ -1,0 +1,167 @@
+2013/10/10 - possibilities for setting source and destination addresses
+
+
+When establishing a connection to a remote device, this device is designated
+as a target, which designates an entity defined in the configuration. A same
+target appears only once in a configuration, and multiple targets may share
+the same settings if needed.
+
+The following types of targets are currently supported :
+
+  - listener : all connections with this type of target come from clients ;
+  - server   : connections to such targets are for "server" lines ;
+  - peer     : connections to such target address "peer" lines in "peers"
+               sections ;
+  - proxy    : these targets are used by "dispatch", "option transparent"
+               or "option http_proxy" statements.
+
+A connection might not be reused between two different targets, even if all
+parameters seem similar. One of the reason is that some parameters are specific
+to the target and are not easy or not cheap to compare (eg: bind to interface,
+mss, ...).
+
+A number of source and destination addresses may be set for a given target.
+
+  - listener :
+     - the "from" address:port is set by accept()
+
+     - the "to" address:port is set if conn_get_to_addr() is called
+
+  - peer :
+     - the "from" address:port is not set
+
+     - the "to" address:port is static and dependent only on the peer
+
+  - server :
+     - the "from" address may be set alone when "source" is used with
+       a forced IP address, or when "usesrc clientip" is used.
+
+     - the "from" port may be set only combined with the address when
+       "source" is used with IP:port, IP:port-range or "usesrc client" is
+       used. Note that in this case, both the address and the port may be
+       0, meaning that the kernel will pick the address or port and that
+       the final value might not match the one explicitly set (eg:
+       important for logging).
+
+     - the "from" address may be forced from a header which implies it
+       may change between two consecutive requests on the same connection.
+
+     - the "to" address and port are set together when connecting to a
+       regular server, or by copying the client's IP address when
+       "server 0.0.0.0" is used. Note that the destination port may be
+       an offset applied to the original destination port.
+
+  - proxy :
+     - the "from" address may be set alone when "source" is used with a
+       forced IP address or when "usesrc clientip" is used.
+
+     - the "from" port may be set only combined with the address when
+       "source" is used with IP:port or with "usesrc client". There is
+       no ip:port range for a proxy as of now. Same comment applies as
+       above when port and/or address are 0.
+
+     - the "from" address may be forced from a header which implies it
+       may change between two consecutive requests on the same connection.
+
+     - the "to" address and port are set together, either by configuration
+       when "dispatch" is used, or dynamically when "transparent" is used
+       (1:1 with client connection) or "option http_proxy" is used, where
+       each client request may lead to a different destination address.
+
+
+At the moment, there are some limits in what might happen between multiple
+concurrent requests to a same target.
+
+  - peers parameter do not change, so no problem.
+
+  - server parameters may change in this way :
+     - a connection may require a source bound to an IP address found in a
+       header, which will fall back to the "source" settings if the address
+       is not found in this header. This means that the source address may
+       switch between a dynamically forced IP address and another forced
+       IP and/or port range.
+
+     - if the element is not found (eg: header), the remaining "forced"
+       source address might very well be empty (unset), so the connection
+       reuse is acceptable when switching in that direction.
+
+     - it is not possible to switch between client and clientip or any of
+       these and hdr_ip() because they're exclusive.
+
+     - using a source address/port belonging to a port range is compatible
+       with connection reuse because there is a single range per target, so
+       switching from a range to another range means we remain in the same
+       range.
+
+     - destination address may currently not change since the only possible
+       case for dynamic destination address setting is the transparent mode,
+       reproducing the client's destination address.
+
+  - proxy parameters may change in this way :
+     - a connection may require a source bound to an IP address found in a
+       header, which will fall back to the "source" settings if the address
+       is not found in this header. This means that the source address may
+       switch between a dynamically forced IP address and another forced
+       IP and/or port range.
+
+     - if the element is not found (eg: header), the remaining "forced"
+       source address might very well be empty (unset), so the connection
+       reuse is acceptable when switching in that direction.
+
+     - it is not possible to switch between client and clientip or any of
+       these and hdr_ip() because they're exclusive.
+
+     - proxies do not support port ranges at the moment.
+
+     - destination address might change in the case where "option http_proxy"
+       is used.
+
+So, for each source element (IP, port), we want to know :
+  - if the element was assigned by static configuration (eg: ":80")
+  - if the element was assigned from a connection-specific value (eg: usesrc clientip)
+  - if the element was assigned from a configuration-specific range (eg: 1024-65535)
+  - if the element was assigned from a request-specific value (eg: hdr_ip(xff))
+  - if the element was not assigned at all
+
+For the destination, we want to know :
+  - if the element was assigned by static configuration (eg: ":80")
+  - if the element was assigned from a connection-specific value (eg: transparent)
+  - if the element was assigned from a request-specific value (eg: http_proxy)
+
+We don't need to store the information about the origin of the dynamic value
+since we have the value itself. So in practice we have :
+  - default value, unknown (not yet checked with getsockname/getpeername)
+  - default value, known (check done)
+  - forced value (known)
+  - forced range (known)
+
+We can't do that on an ip:port basis because the port may be fixed regardless
+of the address and conversely.
+
+So that means :
+
+   enum {
+       CO_ADDR_NONE    = 0,  /* not set, unknown value */
+       CO_ADDR_KNOWN   = 1,  /* not set, known value */
+       CO_ADDR_FIXED   = 2,  /* fixed value, known */
+       CO_ADDR_RANGE   = 3,  /* from assigned range, known */
+   } conn_addr_values;
+
+   unsigned int new_l3_src_status:2;
+   unsigned int new_l4_src_status:2;
+   unsigned int new_l3_dst_status:2;
+   unsigned int new_l4_dst_status:2;
+
+   unsigned int cur_l3_src_status:2;
+   unsigned int cur_l4_src_status:2;
+   unsigned int cur_l3_dsp_status:2;
+   unsigned int cur_l4_dst_status:2;
+
+   unsigned int new_family:2;
+   unsigned int cur_family:2;
+
+Note: this obsoletes CO_FL_ADDR_FROM_SET and CO_FL_ADDR_TO_SET. These flags
+must be changed to individual l3+l4 checks ORed between old and new values,
+or better, set to cur only which will inherit new.
+
+In the connection, these values may be merged in the same word as err_code.

@@ -1,0 +1,139 @@
+2013/10/17 - server connection management and reuse
+
+Current state
+-------------
+
+At the moment, a connection entity is needed to carry any address
+information. This means in the following situations, we need a server
+connection :
+
+- server is elected and the server's destination address is set
+
+- transparent mode is elected and the destination address is set from
+  the incoming connection
+
+- proxy mode is enabled, and the destination's address is set during
+  the parsing of the HTTP request
+
+- connection to the server fails and must be retried on the same
+  server using the same parameters, especially the destination
+  address (SN_ADDR_SET not removed)
+
+
+On the accepting side, we have further requirements :
+
+- allocate a clean connection without a stream interface
+
+- incrementally set the accepted connection's parameters without
+  clearing it, and keep track of what is set (eg: getsockname).
+
+- initialize a stream interface in established mode
+
+- attach the accepted connection to a stream interface
+
+
+This means several things :
+
+- the connection has to be allocated on the fly the first time it is
+  needed to store the source or destination address ;
+
+- the connection has to be attached to the stream interface at this
+  moment ;
+
+- it must be possible to incrementally set some settings on the
+  connection's addresses regardless of the connection's current state
+
+- the connection must not be released across connection retries ;
+
+- it must be possible to clear a connection's parameters for a
+  redispatch without having to detach/attach the connection ;
+
+- we need to allocate a connection without an existing stream interface
+
+So on the accept() side, it looks like this :
+
+  fd = accept();
+  conn = new_conn();
+  get_some_addr_info(&conn->addr);
+  ...
+  si = new_si();
+  si_attach_conn(si, conn);
+  si_set_state(si, SI_ST_EST);
+  ...
+  get_more_addr_info(&conn->addr);
+
+On the connect() side, it looks like this :
+
+  si = new_si();
+  while (!properly_connected) {
+    if (!(conn = si->end)) {
+      conn = new_conn();
+      conn_clear(conn);
+      si_attach_conn(si, conn);
+    }
+    else {
+      if (connected) {
+        f = conn->flags & CO_FL_XPRT_TRACKED;
+        conn->flags &= ~CO_FL_XPRT_TRACKED;
+        conn_close(conn);
+        conn->flags |= f;
+      }
+      if (!correct_dest)
+        conn_clear(conn);
+    }
+    set_some_addr_info(&conn->addr);
+    si_set_state(si, SI_ST_CON);
+    ...
+    set_more_addr_info(&conn->addr);
+    conn->connect();
+    if (must_retry) {
+      close_conn(conn);
+    }
+  }
+
+Note: we need to be able to set the control and transport protocols.
+On outgoing connections, this is set once we know the destination address.
+On incoming connections, this is set the earliest possible (once we know
+the source address).
+
+The problem analysed below was solved on 2013/10/22
+
+| ==> the real requirement is to know whether a connection is still valid or not
+|     before deciding to close it. CO_FL_CONNECTED could be enough, though it
+|     will not indicate connections that are still waiting for a connect to occur.
+|     This combined with CO_FL_WAIT_L4_CONN and CO_FL_WAIT_L6_CONN should be OK.
+| 
+|     Alternatively, conn->xprt could be used for this, but needs some careful checks
+|     (it's used by conn_full_close at least).
+| 
+| Right now, conn_xprt_close() checks conn->xprt and sets it to NULL.
+| conn_full_close() also checks conn->xprt and sets it to NULL, except
+| that the check on ctrl is performed within xprt. So conn_xprt_close()
+| followed by conn_full_close() will not close the file descriptor.
+| Note that conn_xprt_close() is never called, maybe we should kill it ?
+| 
+| Note: at the moment, it's problematic to leave conn->xprt to NULL before doing
+|       xprt_init() because we might end up with a pending file descriptor. Or at
+|       least with some transport not de-initialized. We might thus need
+|       conn_xprt_close() when conn_xprt_init() fails.
+| 
+| The fd should be conditionned by ->ctrl only, and the transport layer by ->xprt.
+| 
+| - conn_prepare_ctrl(conn, ctrl) 
+| - conn_prepare_xprt(conn, xprt) 
+| - conn_prepare_data(conn, data) 
+| 
+| Note: conn_xprt_init() needs conn->xprt so it's not a problem to set it early.
+| 
+| One problem might be with conn_xprt_close() not being able to know if xprt_init()
+| was called or not. That's where it might make sense to only set ->xprt during init.
+| Except that it does not fly with outgoing connections (xprt_init is called after
+| connect()).
+| 
+| => currently conn_xprt_close() is only used by ssl_sock.c and decides whether
+|    to do something based on ->xprt_ctx which is set by ->init() from xprt_init().
+|    So there is nothing to worry about. We just need to restore conn_xprt_close()
+|    and rely on ->ctrl to close the fd instead of ->xprt.
+| 
+| => we have the same issue with conn_ctrl_close() : when is the fd supposed to be
+|    valid ? On outgoing connections, the control is set much before the fd...
