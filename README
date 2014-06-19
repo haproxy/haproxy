@@ -9,11 +9,20 @@
 1) How to build it
 ------------------
 
+First, please note that this version is a stable version, so in general if you
+are not used to build from sources, it is recommended that instead you follow
+the packaged updates provided by your software vendor or Linux distribution.
+Most of them are taking this task seriously and are doing a good job. If for
+any reason you'd prefer a different version than the one packaged for your
+system, or to get some commercial support, other choices are available at :
+
+                        http://www.haproxy.com/
+
 To build haproxy, you will need :
   - GNU make. Neither Solaris nor OpenBSD's make work with the GNU Makefile.
     If you get many syntax errors when running "make", you may want to retry
     with "gmake" which is the name commonly used for GNU make on BSD systems.
-  - GCC between 2.91 and 4.7. Others may work, but not tested.
+  - GCC between 2.95 and 4.8. Others may work, but not tested.
   - GNU ld
 
 Also, you might want to build with libpcre support, which will provide a very
@@ -26,15 +35,15 @@ and assign it to the TARGET variable :
   - linux24     for Linux 2.4 and above (default)
   - linux24e    for Linux 2.4 with support for a working epoll (> 0.21)
   - linux26     for Linux 2.6 and above
-  - linux2628   for Linux 2.6.28 and above (enables splice and tproxy)
+  - linux2628   for Linux 2.6.28, 3.x, and above (enables splice and tproxy)
   - solaris     for Solaris 8 or 10 (others untested)
-  - freebsd     for FreeBSD 5 to 8.0 (others untested)
+  - freebsd     for FreeBSD 5 to 10 (others untested)
   - osx         for Mac OS/X
   - openbsd     for OpenBSD 3.1 to 5.2 (others untested)
   - aix51       for AIX 5.1
   - aix52       for AIX 5.2
   - cygwin      for Cygwin
-  - generic     for any other OS.
+  - generic     for any other OS or version.
   - custom      to manually adjust every setting
 
 You may also choose your CPU to benefit from some optimizations. This is
@@ -177,9 +186,10 @@ use the USE_* variables in the Makefile.
 
 AIX 5.3 is known to work with the generic target. However, for the binary to
 also run on 5.2 or earlier, you need to build with DEFINE="-D_MSGQSUPPORT",
-otherwise __fd_select() will be used while not being present in the libc.
-If you get build errors because of strange symbols or section mismatches,
-simply remove -g from DEBUG_CFLAGS.
+otherwise __fd_select() will be used while not being present in the libc, but
+this is easily addressed using the "aix52" target. If you get build errors
+because of strange symbols or section mismatches, simply remove -g from
+DEBUG_CFLAGS.
 
 You can easily define your own target with the GNU Makefile. Unknown targets
 are processed with no default option except USE_POLL=default. So you can very
@@ -329,16 +339,7 @@ implement it yourself, you should follow these steps :
 
     2. if you really can't code it yourself after discussing it, then you may
        consider contacting someone to do the job for you. Some people on the
-       list might be OK with trying to do it. Otherwise, you can check the list
-       of contributors at the URL below, some of the regular contributors may
-       be able to do the work, probably not for free but their time is as much
-       valuable as yours after all, you can't eat the cake and have it too.
-
-The list of past and regular contributors is available below. It lists not only
-significant code contributions (features, fixes), but also time or money
-donations :
-
-                        http://www.haproxy.org/contrib.html
+       list might sometimes be OK with trying to do it.
 
 Note to contributors: it's very handy when patches comes with a properly
 formated subject. There are 3 criteria of particular importance in any patch :
@@ -526,7 +527,7 @@ want, without making your mistakes visible to the rest of the world. It will
 definitely help you contribute quality code and take other people's feedback
 in consideration. In order to clone the HAProxy Git repository :
 
-    $ git clone http://git.haproxy.org/git/haproxy-1.4.git    (stable 1.4)
+    $ git clone http://git.haproxy.org/git/haproxy-1.5.git    (stable 1.5)
     $ git clone http://git.haproxy.org/git/haproxy.git/       (development)
 
 If you decide to use Git for your developments, then your commit messages will
