@@ -139,7 +139,7 @@ static int ssl_sock_load_ocsp_response(struct chunk *ocsp_response, struct certi
 	OCSP_SINGLERESP *sr;
 	unsigned char *p = (unsigned char *)ocsp_response->str;
 	int rc , count_sr;
-	ASN1_GENERALIZEDTIME *revtime, *thisupd, *nextupd;
+	ASN1_GENERALIZEDTIME *revtime, *thisupd, *nextupd = NULL;
 	int reason;
 	int ret = 1;
 
@@ -176,6 +176,11 @@ static int ssl_sock_load_ocsp_response(struct chunk *ocsp_response, struct certi
 	rc = OCSP_single_get0_status(sr, &reason, &revtime, &thisupd, &nextupd);
 	if (rc != V_OCSP_CERTSTATUS_GOOD) {
 		memprintf(err, "OCSP single response: certificate status not good");
+		goto out;
+	}
+
+	if (!nextupd) {
+		memprintf(err, "OCSP single response: missing nextupdate");
 		goto out;
 	}
 
