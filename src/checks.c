@@ -1541,7 +1541,7 @@ static struct task *process_chk(struct task *t)
 		 * First, let's check whether there was an uncaught error,
 		 * which can happen on connect timeout or error.
 		 */
-		if (s->check.result == CHK_RES_UNKNOWN) {
+		if (check->result == CHK_RES_UNKNOWN) {
 			/* good connection is enough for pure TCP check */
 			if ((conn->flags & CO_FL_CONNECTED) && !check->type) {
 				if (check->use_ssl)
