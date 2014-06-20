@@ -164,7 +164,8 @@ enum pr_mode {
 #define PR_O2_SSL3_CHK  0x70000000      /* use SSLv3 CLIENT_HELLO packets for server health */
 #define PR_O2_LB_AGENT_CHK 0x80000000   /* use a TCP connection to obtain a metric of server health */
 #define PR_O2_TCPCHK_CHK 0x90000000     /* use TCPCHK check for server health */
-/* unused: 0xA0000000 to 0xF000000, reserved for health checks */
+#define PR_O2_EXT_CHK   0xA0000000      /* use external command for server health */
+/* unused: 0xB0000000 to 0xF000000, reserved for health checks */
 #define PR_O2_CHK_ANY   0xF0000000      /* Mask to cover any check */
 /* end of proxy->options2 */
 
@@ -342,6 +343,8 @@ struct proxy {
 	struct list tcpcheck_rules;		/* tcp-check send / expect rules */
 	char *check_req;			/* HTTP or SSL request to use for PR_O_HTTP_CHK|PR_O_SSL3_CHK */
 	int check_len;				/* Length of the HTTP or SSL3 request */
+	char *check_command;			/* Command to use for external agent checks */
+	char *check_path;			/* PATH environment to use for external agent checks */
 	char *expect_str;			/* http-check expected content : string or text version of the regex */
 	struct my_regex *expect_regex;		/* http-check expected content */
 	struct chunk errmsg[HTTP_ERR_SIZE];	/* default or customized error messages for known errors */

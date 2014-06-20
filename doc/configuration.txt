@@ -448,6 +448,7 @@ The following keywords are supported in the "global" section :
    - chroot
    - crt-base
    - daemon
+   - external-check
    - gid
    - group
    - log
@@ -546,6 +547,11 @@ daemon
   Makes the process fork into background. This is the recommended mode of
   operation. It is equivalent to the command line "-D" argument. It can be
   disabled by the command line "-db" argument.
+
+external-check
+  Allows the use of an external agent to perform health checks.
+  This is disabled by default as a security precaution.
+  See "option external-check".
 
 gid <number>
   Changes the process' group ID to <number>. It is recommended that the group
@@ -1327,6 +1333,7 @@ option httplog                            X          X         X         X
 option http_proxy                    (*)  X          X         X         X
 option independent-streams           (*)  X          X         X         X
 option ldap-check                         X          -         X         X
+option external-check                     X          -         X         X
 option log-health-checks             (*)  X          -         X         X
 option log-separate-errors           (*)  X          X         X         -
 option logasap                       (*)  X          X         X         -
@@ -1351,6 +1358,8 @@ option tcp-smart-connect             (*)  X          -         X         X
 option tcpka                              X          X         X         X
 option tcplog                             X          X         X         X
 option transparent                   (*)  X          -         X         X
+external-check command                    X          -         X         X
+external-check path                       X          -         X         X
 persist rdp-cookie                        X          -         X         X
 rate-limit sessions                       X          X         X         -
 redirect                                  -          X         X         X
@@ -4477,6 +4486,20 @@ option ldap-check
   See also : "option httpchk"
 
 
+option external-check
+  Use external processes for server health checks
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+
+  It is possible to test the health of a server using an external command.
+  This is achieved by running the executable set using "external-check
+  command".
+
+  Requires the "external-check" global to be set.
+
+  See also : "external-check", "external-check command", "external-check path"
+
+
 option log-health-checks
 no option log-health-checks
   Enable or disable logging of health checks status updates
@@ -5211,6 +5234,54 @@ no option transparent
 
   See also: the "usesrc" argument of the "source" keyword, and the
             "transparent" option of the "bind" keyword.
+
+
+external-check command <command>
+  Executable to run when performing an external-check
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+
+  Arguments :
+    <command> is the external command to run
+
+  The PATH environment variable used when executing the
+  command may be set using "external-check path".
+
+  The arguments passed to the to the command are:
+
+  proxy_address proxy_port server_address server_port
+
+  The proxy_address and proxy_port are derived from the first listener
+  that is either IPv4, IPv6 or a UNIX socket. It is an error for no such
+  listeners to exist. In the case of a UNIX socket listener the
+  proxy_address will be the path of the socket and the proxy_port will
+  be the string "NOT_USED".
+
+  If the command executed and exits with a zero status then the check is
+  considered to have passed, otherwise the check is considered to have
+  failed.
+
+  Example :
+        external-check command /bin/true
+
+  See also : "external-check", "option external-check", "external-check path"
+
+
+external-check path <path>
+  The value of the PATH environment variable used when running an external-check
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    no    |   yes  |   yes
+
+  Arguments :
+    <path> is the path used when executing external command to run
+
+  The default path is "".
+
+  Example :
+        external-check path "/usr/bin:/bin"
+
+  See also : "external-check", "option external-check",
+             "external-check command"
 
 
 persist rdp-cookie

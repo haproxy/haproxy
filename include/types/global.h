@@ -79,6 +79,7 @@ struct global {
 #endif
 	int uid;
 	int gid;
+	int external_check;
 	int nbproc;
 	int maxconn, hardmaxconn;
 #ifdef USE_OPENSSL

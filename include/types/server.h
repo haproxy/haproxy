@@ -123,6 +123,14 @@ enum srv_admin {
 #define SRV_SSL_O_NO_TLS_TICKETS 0x0100 /* disable session resumption tickets */
 #endif
 
+struct pid_list {
+	struct list list;
+	pid_t pid;
+	struct task *t;
+	int status;
+	int exited;
+};
+
 /* A tree occurrence is a descriptor of a place in a tree, with a pointer back
  * to the server itself.
  */
