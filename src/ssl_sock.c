@@ -195,7 +195,7 @@ nosec:
 	return -1;
 }
 
-static struct eb_root cert_ocsp_tree;
+static struct eb_root cert_ocsp_tree = EB_ROOT_UNIQUE;
 
 /* This function starts to check if the OCSP response (in DER format) contained
  * in chunk 'ocsp_response' is valid (else exits on error).
