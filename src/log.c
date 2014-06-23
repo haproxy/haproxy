@@ -813,37 +813,6 @@ void __send_log(struct proxy *p, int level, char *message, size_t size)
 
 	message[size - 1] = '\n';
 
-	/* Lazily set up syslog sockets for protocol families of configured
-	 * syslog servers. */
-	nblogger = 0;
-	list_for_each_entry(tmp, logsrvs, list) {
-		const struct logsrv *logsrv = tmp;
-		int proto, *plogfd;
-
-		if (logsrv->addr.ss_family == AF_UNIX) {
-			proto = 0;
-			plogfd = &logfdunix;
-		} else {
-			proto = IPPROTO_UDP;
-			plogfd = &logfdinet;
-		}
-		if (*plogfd >= 0) {
-			/* socket already created. */
-			continue;
-		}
-		if ((*plogfd = socket(logsrv->addr.ss_family, SOCK_DGRAM,
-				proto)) < 0) {
-			Alert("socket for logger #%d failed: %s (errno=%d)\n",
-				nblogger + 1, strerror(errno), errno);
-			return;
-		}
-		/* we don't want to receive anything on this socket */
-		setsockopt(*plogfd, SOL_SOCKET, SO_RCVBUF, &zero, sizeof(zero));
-		/* does nothing under Linux, maybe needed for others */
-		shutdown(*plogfd, SHUT_RD);
-		nblogger++;
-	}
-
 	/* Send log messages to syslog server. */
 	nblogger = 0;
 	list_for_each_entry(tmp, logsrvs, list) {
@@ -852,9 +821,26 @@ void __send_log(struct proxy *p, int level, char *message, size_t size)
 			&logfdunix : &logfdinet;
 		int sent;
 
+		nblogger++;
+
 		/* we can filter the level of the messages that are sent to each logger */
 		if (level > logsrv->level)
 			continue;
+
+		if (unlikely(*plogfd < 0)) {
+			/* socket not successfully initialized yet */
+			int proto = logsrv->addr.ss_family == AF_UNIX ? 0 : IPPROTO_UDP;
+
+			if ((*plogfd = socket(logsrv->addr.ss_family, SOCK_DGRAM, proto)) < 0) {
+				Alert("socket for logger #%d failed: %s (errno=%d)\n",
+				      nblogger, strerror(errno), errno);
+				continue;
+			}
+			/* we don't want to receive anything on this socket */
+			setsockopt(*plogfd, SOL_SOCKET, SO_RCVBUF, &zero, sizeof(zero));
+			/* does nothing under Linux, maybe needed for others */
+			shutdown(*plogfd, SHUT_RD);
+		}
 
 		/* For each target, we may have a different facility.
 		 * We can also have a different log level for each message.
@@ -879,7 +865,6 @@ void __send_log(struct proxy *p, int level, char *message, size_t size)
 			Alert("sendto logger #%d failed: %s (errno=%d)\n",
 				nblogger, strerror(errno), errno);
 		}
-		nblogger++;
 	}
 }
 
