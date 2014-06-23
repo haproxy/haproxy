@@ -1636,7 +1636,6 @@ struct task *process_session(struct task *t)
 	unsigned int rq_prod_last, rq_cons_last;
 	unsigned int rp_cons_last, rp_prod_last;
 	unsigned int req_ana_back;
-	unsigned int rq_oneshot, rp_oneshot;
 
 	//DPRINTF(stderr, "%s:%d: cs=%d ss=%d(%d) rqf=0x%08x rpf=0x%08x\n", __FUNCTION__, __LINE__,
 	//        s->si[0].state, s->si[1].state, s->si[1].err_type, s->req->flags, s->rep->flags);
@@ -1644,13 +1643,9 @@ struct task *process_session(struct task *t)
 	/* this data may be no longer valid, clear it */
 	memset(&s->txn.auth, 0, sizeof(s->txn.auth));
 
-	/* These flags must explicitly be set every time by the analysers who
-	 * need them, but we won't always call them (eg: during a connection
-	 * retry). So we need to keep them and only clear them if we're sure
-	 * to call the analysers.
-	 */
-	rq_oneshot = s->req->flags & (CF_READ_NOEXP | CF_WAKE_WRITE);
-	rp_oneshot = s->rep->flags & (CF_READ_NOEXP | CF_WAKE_WRITE);
+	/* This flag must explicitly be set every time */
+	s->req->flags &= ~(CF_READ_NOEXP|CF_WAKE_WRITE);
+	s->rep->flags &= ~(CF_READ_NOEXP|CF_WAKE_WRITE);
 
 	/* Keep a copy of req/rep flags so that we can detect shutdowns */
 	rqf_last = s->req->flags & ~CF_MASK_ANALYSER;
@@ -1831,8 +1826,6 @@ struct task *process_session(struct task *t)
 	    s->si[1].state != rq_cons_last) {
 		unsigned int flags = s->req->flags;
 
-		s->req->flags &= ~rq_oneshot;
-		rq_oneshot = 0;
 		if (s->req->prod->state >= SI_ST_EST) {
 			int max_loops = global.tune.maxpollevents;
 			unsigned int ana_list;
@@ -1986,13 +1979,11 @@ struct task *process_session(struct task *t)
 	/* Analyse response */
 
 	if (((s->rep->flags & ~rpf_last) & CF_MASK_ANALYSER) ||
-	    ((s->rep->flags ^ rpf_last) & CF_MASK_STATIC) ||
-	    s->si[0].state != rp_cons_last ||
-	    s->si[1].state != rp_prod_last) {
+		 (s->rep->flags ^ rpf_last) & CF_MASK_STATIC ||
+		 s->si[0].state != rp_cons_last ||
+		 s->si[1].state != rp_prod_last) {
 		unsigned int flags = s->rep->flags;
 
-		s->rep->flags &= ~rp_oneshot;
-		rp_oneshot = 0;
 		if ((s->rep->flags & CF_MASK_ANALYSER) &&
 		    (s->rep->analysers & AN_REQ_WAIT_HTTP)) {
 			/* Due to HTTP pipelining, the HTTP request analyser might be waiting
@@ -2186,9 +2177,6 @@ struct task *process_session(struct task *t)
 		channel_auto_close(s->req);
 		buffer_flush(s->req->buf);
 
-		s->req->flags &= ~rq_oneshot;
-		rq_oneshot = 0;
-
 		/* We'll let data flow between the producer (if still connected)
 		 * to the consumer (which might possibly not be connected yet).
 		 */
@@ -2344,9 +2332,6 @@ struct task *process_session(struct task *t)
 		channel_auto_close(s->rep);
 		buffer_flush(s->rep->buf);
 
-		s->rep->flags &= ~rp_oneshot;
-		rp_oneshot = 0;
-
 		/* We'll let data flow between the producer (if still connected)
 		 * to the consumer.
 		 */
@@ -2495,6 +2480,20 @@ struct task *process_session(struct task *t)
 		s->si[1].prev_state = s->si[1].state;
 		s->si[0].flags &= ~(SI_FL_ERR|SI_FL_EXP);
 		s->si[1].flags &= ~(SI_FL_ERR|SI_FL_EXP);
+
+		/* Trick: if a request is being waiting for the server to respond,
+		 * and if we know the server can timeout, we don't want the timeout
+		 * to expire on the client side first, but we're still interested
+		 * in passing data from the client to the server (eg: POST). Thus,
+		 * we can cancel the client's request timeout if the server's
+		 * request timeout is set and the server has not yet sent a response.
+		 */
+
+		if ((s->rep->flags & (CF_AUTO_CLOSE|CF_SHUTR)) == 0 &&
+		    (tick_isset(s->req->wex) || tick_isset(s->rep->rex))) {
+			s->req->flags |= CF_READ_NOEXP;
+			s->req->rex = TICK_ETERNITY;
+		}
 
 		/* When any of the stream interfaces is attached to an applet,
 		 * we have to call it here. Note that this one may wake the
