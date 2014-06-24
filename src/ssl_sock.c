@@ -2654,21 +2654,25 @@ char *ssl_sock_get_version(struct connection *conn)
 	return (char *)SSL_get_version(conn->xprt_ctx);
 }
 
-/* returns common name, NULL terminated, from client certificate, or NULL if none */
-char *ssl_sock_get_common_name(struct connection *conn)
+/* Extract peer certificate's common name into the chunk dest
+ * Returns
+ *  the len of the extracted common name
+ *  or 0 if no CN found in DN
+ *  or -1 on error case (i.e. no peer certificate)
+ */
+int ssl_sock_get_remote_common_name(struct connection *conn, struct chunk *dest)
 {
 	X509 *crt = NULL;
 	X509_NAME *name;
-	struct chunk *cn_trash;
 	const char find_cn[] = "CN";
 	const struct chunk find_cn_chunk = {
 		.str = (char *)&find_cn,
 		.len = sizeof(find_cn)-1
 	};
-	char *result = NULL;
+	int result = -1;
 
 	if (!ssl_sock_is_ssl(conn))
-		return NULL;
+		goto out;
 
 	/* SSL_get_peer_certificate, it increase X509 * ref count */
 	crt = SSL_get_peer_certificate(conn->xprt_ctx);
@@ -2679,13 +2683,8 @@ char *ssl_sock_get_common_name(struct connection *conn)
 	if (!name)
 		goto out;
 
-	cn_trash = get_trash_chunk();
-	if (ssl_sock_get_dn_entry(name, &find_cn_chunk, 1, cn_trash) <= 0)
-		goto out;
-	cn_trash->str[cn_trash->len] = '\0';
-	result = cn_trash->str;
-
-	out:
+	result = ssl_sock_get_dn_entry(name, &find_cn_chunk, 1, dest);
+out:
 	if (crt)
 		X509_free(crt);
 
