@@ -10247,6 +10247,7 @@ smp_fetch_base(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 	struct http_txn *txn = l7;
 	char *ptr, *end, *beg;
 	struct hdr_ctx ctx;
+	struct chunk *temp;
 
 	CHECK_HTTP_MESSAGE_FIRST();
 
@@ -10255,9 +10256,10 @@ smp_fetch_base(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 		return smp_fetch_path(px, l4, l7, opt, args, smp, kw);
 
 	/* OK we have the header value in ctx.line+ctx.val for ctx.vlen bytes */
-	memcpy(trash.str, ctx.line + ctx.val, ctx.vlen);
+	temp = get_trash_chunk();
+	memcpy(temp->str, ctx.line + ctx.val, ctx.vlen);
 	smp->type = SMP_T_STR;
-	smp->data.str.str = trash.str;
+	smp->data.str.str = temp->str;
 	smp->data.str.len = ctx.vlen;
 
 	/* now retrieve the path */
