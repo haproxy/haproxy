@@ -193,4 +193,27 @@ struct stktable_key {
 	union stktable_key_data data;   /* data, must always be last */
 };
 
+/* WARNING: if new fields are added, they must be initialized in session_accept()
+ * and freed in session_free() !
+ */
+#define STKCTR_TRACK_BACKEND 1
+#define STKCTR_TRACK_CONTENT 2
+
+/* stick counter. The <entry> member is a composite address (caddr) made of a
+ * pointer to an stksess struct, and two flags among STKCTR_TRACK_* above.
+ */
+struct stkctr {
+	unsigned long   entry;          /* entry containing counters currently being tracked by this session  */
+	struct stktable *table;         /* table the counters above belong to (undefined if counters are null) */
+};
+
+/* parameters to configure tracked counters */
+struct track_ctr_prm {
+	struct sample_expr *expr;		/* expression used as the key */
+	union {
+		struct stktable *t;		/* a pointer to the table */
+		char *n;			/* or its name during parsing. */
+	} table;
+};
+
 #endif /* _TYPES_STICK_TABLE_H */

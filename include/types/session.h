@@ -91,20 +91,6 @@
 #define SN_COMP_READY   0x00100000	/* the compression is initialized */
 #define SN_SRV_REUSED   0x00200000	/* the server-side connection was reused */
 
-/* WARNING: if new fields are added, they must be initialized in session_accept()
- * and freed in session_free() !
- */
-
-#define STKCTR_TRACK_BACKEND 1
-#define STKCTR_TRACK_CONTENT 2
-/* stick counter. The <entry> member is a composite address (caddr) made of a
- * pointer to an stksess struct, and two flags among STKCTR_TRACK_* above.
- */
-struct stkctr {
-	unsigned long   entry;          /* entry containing counters currently being tracked by this session  */
-	struct stktable *table;         /* table the counters above belong to (undefined if counters are null) */
-};
-
 /*
  * Note: some session flags have dependencies :
  *  - SN_DIRECT cannot exist without SN_ASSIGNED, because a server is
@@ -170,16 +156,6 @@ struct session {
 	struct comp_algo *comp_algo;		/* HTTP compression algorithm if not NULL */
 	char *unique_id;			/* custom unique ID */
 };
-
-/* parameters to configure tracked counters */
-struct track_ctr_prm {
-	struct sample_expr *expr;		/* expression used as the key */
-	union {
-		struct stktable *t;		/* a pointer to the table */
-		char *n;			/* or its name during parsing. */
-	} table;
-};
-
 
 #endif /* _TYPES_SESSION_H */
 
