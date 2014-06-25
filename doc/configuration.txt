@@ -3087,6 +3087,45 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
       with large lists! It is the equivalent of the "set map" command from the
       stats socket, but can be triggered by an HTTP request.
 
+    - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>] :
+      enables tracking of sticky counters from current request. These rules
+      do not stop evaluation and do not change default action. Three sets of
+      counters may be simultaneously tracked by the same connection. The first
+      "track-sc0" rule executed enables tracking of the counters of the
+      specified table as the first set. The first "track-sc1" rule executed
+      enables tracking of the counters of the specified table as the second
+      set. The first "track-sc2" rule executed enables tracking of the
+      counters of the specified table as the third set. It is a recommended
+      practice to use the first set of counters for the per-frontend counters
+      and the second set for the per-backend ones. But this is just a
+      guideline, all may be used everywhere.
+
+      These actions take one or two arguments :
+        <key>   is mandatory, and is a sample expression rule as described
+                in section 7.3. It describes what elements of the incoming
+                request or connection will be analysed, extracted, combined,
+                and used to select which table entry to update the counters.
+
+        <table> is an optional table to be used instead of the default one,
+                which is the stick-table declared in the current proxy. All
+                the counters for the matches and updates for the key will
+                then be performed in that table until the session ends.
+
+      Once a "track-sc*" rule is executed, the key is looked up in the table
+      and if it is not found, an entry is allocated for it. Then a pointer to
+      that entry is kept during all the session's life, and this entry's
+      counters are updated as often as possible, every time the session's
+      counters are updated, and also systematically when the session ends.
+      Counters are only updated for events that happen after the tracking has
+      been started. As an exception, connection counters and request counters
+      are systematically updated so that they reflect useful information.
+
+      If the entry tracks concurrent connection counters, one connection is
+      counted for as long as the entry is tracked, and the entry will not
+      expire during that time. Tracking counters also provides a performance
+      advantage over just checking the keys, because only one table lookup is
+      performed for all ACL checks that make use of it.
+
   There is no limit to the number of http-request statements per instance.
 
   It is important to know that http-request rules are processed very early in
@@ -7406,7 +7445,7 @@ tcp-request connection <action> [{if | unless} <condition>]
 
     - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>] :
         enables tracking of sticky counters from current connection. These
-        rules do not stop evaluation and do not change default action. Two sets
+        rules do not stop evaluation and do not change default action. 3 sets
         of counters may be simultaneously tracked by the same connection. The
         first "track-sc0" rule executed enables tracking of the counters of the
         specified table as the first set. The first "track-sc1" rule executed

@@ -6024,6 +6024,7 @@ int check_config_validity()
 		struct server_rule *srule;
 		struct sticking_rule *mrule;
 		struct tcp_rule *trule;
+		struct http_req_rule *hrqrule;
 		struct listener *listener;
 		unsigned int next_id;
 		int nbproc;
@@ -6493,6 +6494,45 @@ int check_config_validity()
 			else {
 				free(trule->act_prm.trk_ctr.table.n);
 				trule->act_prm.trk_ctr.table.t = &target->table;
+				/* Note: if we decide to enhance the track-sc syntax, we may be able
+				 * to pass a list of counters to track and allocate them right here using
+				 * stktable_alloc_data_type().
+				 */
+			}
+		}
+
+		/* find the target table for 'http-request' layer 7 rules */
+		list_for_each_entry(hrqrule, &curproxy->http_req_rules, list) {
+			struct proxy *target;
+
+			if (hrqrule->action < HTTP_REQ_ACT_TRK_SC0 || hrqrule->action > HTTP_REQ_ACT_TRK_SCMAX)
+				continue;
+
+			if (hrqrule->act_prm.trk_ctr.table.n)
+				target = findproxy(hrqrule->act_prm.trk_ctr.table.n, 0);
+			else
+				target = curproxy;
+
+			if (!target) {
+				Alert("Proxy '%s': unable to find table '%s' referenced by track-sc%d.\n",
+				      curproxy->id, hrqrule->act_prm.trk_ctr.table.n,
+				      http_req_trk_idx(hrqrule->action));
+				cfgerr++;
+			}
+			else if (target->table.size == 0) {
+				Alert("Proxy '%s': table '%s' used but not configured.\n",
+				      curproxy->id, hrqrule->act_prm.trk_ctr.table.n ? hrqrule->act_prm.trk_ctr.table.n : curproxy->id);
+				cfgerr++;
+			}
+			else if (!stktable_compatible_sample(hrqrule->act_prm.trk_ctr.expr,  target->table.type)) {
+				Alert("Proxy '%s': stick-table '%s' uses a type incompatible with the 'track-sc%d' rule.\n",
+				      curproxy->id, hrqrule->act_prm.trk_ctr.table.n ? hrqrule->act_prm.trk_ctr.table.n : curproxy->id,
+				      http_req_trk_idx(hrqrule->action));
+				cfgerr++;
+			}
+			else {
+				free(hrqrule->act_prm.trk_ctr.table.n);
+				hrqrule->act_prm.trk_ctr.table.t = &target->table;
 				/* Note: if we decide to enhance the track-sc syntax, we may be able
 				 * to pass a list of counters to track and allocate them right here using
 				 * stktable_alloc_data_type().

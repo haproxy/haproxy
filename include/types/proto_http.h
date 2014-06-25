@@ -28,6 +28,7 @@
 #include <common/regex.h>
 
 #include <types/hdr_idx.h>
+#include <types/stick_table.h>
 
 /* These are the flags that are found in txn->flags */
 
@@ -261,6 +262,9 @@ enum {
 	HTTP_REQ_ACT_SET_MAP,
 	HTTP_REQ_ACT_CUSTOM_STOP,
 	HTTP_REQ_ACT_CUSTOM_CONT,
+	HTTP_REQ_ACT_TRK_SC0,
+	/* SC1, SC2, ... SCn */
+	HTTP_REQ_ACT_TRK_SCMAX = HTTP_REQ_ACT_TRK_SC0 + MAX_SESS_STKCTR - 1,
 	HTTP_REQ_ACT_MAX /* must always be last */
 };
 
@@ -435,6 +439,10 @@ struct http_req_rule {
 			struct list value;     /* pattern to retrieve MAP value */
 		} map;
 	} arg;                                 /* arguments used by some actions */
+
+	union {
+		struct track_ctr_prm trk_ctr;
+	} act_prm;
 };
 
 struct http_res_rule {

@@ -208,6 +208,14 @@ static inline int http_body_bytes(const struct http_msg *msg)
 	return len;
 }
 
+/* for an http-request action HTTP_REQ_ACT_TRK_*, return a tracking index
+ * starting at zero for SC0. Unknown actions also return zero.
+ */
+static inline int http_req_trk_idx(int trk_action)
+{
+	return trk_action - HTTP_REQ_ACT_TRK_SC0;
+}
+
 /* for debugging, reports the HTTP message state name */
 static inline const char *http_msg_state_str(int msg_state)
 {

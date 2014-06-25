@@ -3498,6 +3498,39 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 		case HTTP_REQ_ACT_CUSTOM_STOP:
 			rule->action_ptr(rule, px, s, txn);
 			return HTTP_RULE_RES_DONE;
+
+		case HTTP_REQ_ACT_TRK_SC0 ... HTTP_REQ_ACT_TRK_SCMAX:
+			/* Note: only the first valid tracking parameter of each
+			 * applies.
+			 */
+
+			if (stkctr_entry(&s->stkctr[http_req_trk_idx(rule->action)]) == NULL) {
+				struct stktable *t;
+				struct stksess *ts;
+				struct stktable_key *key;
+				void *ptr;
+
+				t = rule->act_prm.trk_ctr.table.t;
+				key = stktable_fetch_key(t, s->be, s, &s->txn, SMP_OPT_DIR_REQ | SMP_OPT_FINAL, rule->act_prm.trk_ctr.expr, NULL);
+
+				if (key && (ts = stktable_get_entry(t, key))) {
+					session_track_stkctr(&s->stkctr[http_req_trk_idx(rule->action)], t, ts);
+
+					/* let's count a new HTTP request as it's the first time we do it */
+					ptr = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_REQ_CNT);
+					if (ptr)
+						stktable_data_cast(ptr, http_req_cnt)++;
+
+					ptr = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_REQ_RATE);
+					if (ptr)
+						update_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
+						                       t->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
+
+					stkctr_set_flags(&s->stkctr[http_req_trk_idx(rule->action)], STKCTR_TRACK_CONTENT);
+					if (s->fe != s->be)
+						stkctr_set_flags(&s->stkctr[http_req_trk_idx(rule->action)], STKCTR_TRACK_BACKEND);
+				}
+			}
 		}
 	}
 
@@ -8975,6 +9008,53 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		proxy->conf.lfs_file = strdup(proxy->conf.args.file);
 		proxy->conf.lfs_line = proxy->conf.args.line;
 		cur_arg += 1;
+	} else if (strncmp(args[0], "track-sc", 8) == 0 &&
+		 args[0][9] == '\0' && args[0][8] >= '0' &&
+		 args[0][8] <= '0' + MAX_SESS_STKCTR) { /* track-sc 0..9 */
+		struct sample_expr *expr;
+		unsigned int where;
+		char *err = NULL;
+
+		cur_arg = 1;
+		proxy->conf.args.ctx = ARGC_TRK;
+
+		expr = sample_parse_expr((char **)args, &cur_arg, file, linenum, &err, &proxy->conf.args);
+		if (!expr) {
+			Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-request %s' rule : %s.\n",
+			      file, linenum, proxy_type_str(proxy), proxy->id, args[0], err);
+			free(err);
+			goto out_err;
+		}
+
+		where = 0;
+		if (proxy->cap & PR_CAP_FE)
+			where |= SMP_VAL_FE_HRQ_HDR;
+		if (proxy->cap & PR_CAP_BE)
+			where |= SMP_VAL_BE_HRQ_HDR;
+
+		if (!(expr->fetch->val & where)) {
+			Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-request %s' rule :"
+			      " fetch method '%s' extracts information from '%s', none of which is available here.\n",
+			      file, linenum, proxy_type_str(proxy), proxy->id, args[0],
+			      args[cur_arg-1], sample_src_names(expr->fetch->use));
+			free(expr);
+			goto out_err;
+		}
+
+		if (strcmp(args[cur_arg], "table") == 0) {
+			cur_arg++;
+			if (!args[cur_arg]) {
+				Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-request %s' rule : missing table name.\n",
+				      file, linenum, proxy_type_str(proxy), proxy->id, args[0]);
+				free(expr);
+				goto out_err;
+			}
+			/* we copy the table name for now, it will be resolved later */
+			rule->act_prm.trk_ctr.table.n = strdup(args[cur_arg]);
+			cur_arg++;
+		}
+		rule->act_prm.trk_ctr.expr = expr;
+		rule->action = HTTP_REQ_ACT_TRK_SC0 + args[0][8] - '0';
 	} else if (strcmp(args[0], "redirect") == 0) {
 		struct redirect_rule *redir;
 		char *errmsg = NULL;
