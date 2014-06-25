@@ -9748,6 +9748,9 @@ smp_prefetch_http(struct proxy *px, struct session *s, void *l7, unsigned int op
 	return 1;
 }
 
+/* Note: these functinos *do* modify the sample. Even in case of success, at
+ * least the type and uint value are modified.
+ */
 #define CHECK_HTTP_MESSAGE_FIRST() \
 	do { int r = smp_prefetch_http(px, l4, l7, opt, args, smp, 1); if (r <= 0) return r; } while (0)
 

@@ -905,7 +905,7 @@ struct sample *sample_process(struct proxy *px, struct session *l4, void *l7,
 
 	if (p == NULL) {
 		p = &temp_smp;
-		p->flags = 0;
+		memset(p, 0, sizeof(*p));
 	}
 
 	if (!expr->fetch->process(px, l4, l7, opt, expr->arg_p, p, expr->fetch->kw))
@@ -1160,7 +1160,8 @@ struct sample *sample_fetch_string(struct proxy *px, struct session *l4, void *l
 {
 	struct sample *smp = &temp_smp;
 
-	smp->flags = 0;
+	memset(smp, 0, sizeof(*smp));
+
 	if (!sample_process(px, l4, l7, opt, expr, smp)) {
 		if ((smp->flags & SMP_F_MAY_CHANGE) && !(opt & SMP_OPT_FINAL))
 			return smp;
