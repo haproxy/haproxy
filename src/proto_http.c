@@ -4808,7 +4808,6 @@ void http_end_txn_clean_session(struct session *s)
 
 	s->logs.t_close = tv_ms_elapsed(&s->logs.tv_accept, &now);
 	session_process_counters(s);
-	session_stop_content_counters(s);
 
 	if (s->txn.status) {
 		int n;
@@ -4842,6 +4841,8 @@ void http_end_txn_clean_session(struct session *s)
 		s->do_log(s);
 	}
 
+	/* stop tracking content-based counters */
+	session_stop_content_counters(s);
 	session_update_time_stats(s);
 
 	s->logs.accept_date = date; /* user-visible date for logging */
