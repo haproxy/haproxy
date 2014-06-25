@@ -1458,7 +1458,7 @@ static int process_sticking_rules(struct session *s, struct channel *req, int an
 		if (ret) {
 			struct stktable_key *key;
 
-			key = stktable_fetch_key(rule->table.t, px, s, &s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->expr);
+			key = stktable_fetch_key(rule->table.t, px, s, &s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->expr, NULL);
 			if (!key)
 				continue;
 
@@ -1561,7 +1561,7 @@ static int process_store_rules(struct session *s, struct channel *rep, int an_bi
 		if (ret) {
 			struct stktable_key *key;
 
-			key = stktable_fetch_key(rule->table.t, px, s, &s->txn, SMP_OPT_DIR_RES|SMP_OPT_FINAL, rule->expr);
+			key = stktable_fetch_key(rule->table.t, px, s, &s->txn, SMP_OPT_DIR_RES|SMP_OPT_FINAL, rule->expr, NULL);
 			if (!key)
 				continue;
 

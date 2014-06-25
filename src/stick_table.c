@@ -601,15 +601,17 @@ static sample_to_key_fct sample_to_key[SMP_TYPES][STKTABLE_TYPES] = {
  * Process a fetch + format conversion as defined by the sample expression <expr>
  * on request or response considering the <opt> parameter. Returns either NULL if
  * no key could be extracted, or a pointer to the converted result stored in
- * static_table_key in format <table_type>.
+ * static_table_key in format <table_type>. If <smp> is not NULL, it will be reset
+ * and its flags will be initialized so that the caller gets a copy of the input
+ * sample, and knows why it was not accepted (eg: SMP_F_MAY_CHANGE is present).
  */
 struct stktable_key *stktable_fetch_key(struct stktable *t, struct proxy *px, struct session *l4, void *l7,
-					unsigned int opt,
-                                        struct sample_expr *expr)
+                                        unsigned int opt, struct sample_expr *expr, struct sample *smp)
 {
-	struct sample *smp;
+	if (smp)
+		memset(smp, 0, sizeof(*smp));
 
-	smp = sample_process(px, l4, l7, opt, expr, NULL);
+	smp = sample_process(px, l4, l7, opt, expr, smp);
 	if (!smp)
 		return NULL;
 
