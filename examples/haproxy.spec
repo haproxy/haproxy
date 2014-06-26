@@ -67,7 +67,7 @@ fi
 
 %files
 %defattr(-,root,root)
-%doc CHANGELOG TODO examples/*.cfg doc/haproxy-en.txt doc/haproxy-fr.txt doc/architecture.txt doc/configuration.txt
+%doc CHANGELOG README examples/*.cfg doc/haproxy-en.txt doc/haproxy-fr.txt doc/architecture.txt doc/configuration.txt doc/proxy-protocol.txt
 %doc %{_mandir}/man1/%{name}.1*
 
 %attr(0755,root,root) %{_sbindir}/%{name}
