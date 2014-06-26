@@ -309,11 +309,11 @@ static int uxst_bind_listener(struct listener *listener, char *errmsg, int errle
 	if (ret < 0 && errno == ENOENT)
 		unlink(path);
  err_unlink_temp:
-	if (!ext)
+	if (!ext && path[0])
 		unlink(tempname);
 	close(fd);
  err_unlink_back:
-	if (!ext)
+	if (!ext && path[0])
 		unlink(backname);
  err_return:
 	if (msg && errlen) {
