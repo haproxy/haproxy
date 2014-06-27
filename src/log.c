@@ -146,7 +146,7 @@ char *log_format = NULL;
 /* This is a global syslog line, common to all outgoing messages. It begins
  * with the syslog tag and the date that are updated by update_log_hdr().
  */
-static char logline[MAX_SYSLOG_LEN];
+char *logline = NULL;
 
 struct logformat_var_args {
 	char *name;
@@ -736,7 +736,7 @@ static char *update_log_hdr()
 		tvsec = date.tv_sec;
 		get_localtime(tvsec, &tm);
 
-		hdr_len = snprintf(logline, MAX_SYSLOG_LEN,
+		hdr_len = snprintf(logline, global.max_syslog_len,
 				   "<<<<>%s %2d %02d:%02d:%02d %s%s[%d]: ",
 				   monthname[tm.tm_mon],
 				   tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec,
@@ -746,8 +746,8 @@ static char *update_log_hdr()
 		 * either -1 or the number of bytes that would be needed to store
 		 * the total message. In both cases, we must adjust it.
 		 */
-		if (hdr_len < 0 || hdr_len > MAX_SYSLOG_LEN)
-			hdr_len = MAX_SYSLOG_LEN;
+		if (hdr_len < 0 || hdr_len > global.max_syslog_len)
+			hdr_len = global.max_syslog_len;
 
 		dataptr = logline + hdr_len;
 	}
@@ -772,9 +772,9 @@ void send_log(struct proxy *p, int level, const char *format, ...)
 	data_len = dataptr - logline;
 
 	va_start(argp, format);
-	data_len += vsnprintf(dataptr, logline + sizeof(logline) - dataptr, format, argp);
-	if (data_len < 0 || data_len > MAX_SYSLOG_LEN)
-		data_len =  MAX_SYSLOG_LEN;
+	data_len += vsnprintf(dataptr, logline + global.max_syslog_len - dataptr, format, argp);
+	if (data_len < 0 || data_len > global.max_syslog_len)
+		data_len = global.max_syslog_len;
 	va_end(argp);
 
 	__send_log(p, level, logline, data_len);
@@ -811,8 +811,6 @@ void __send_log(struct proxy *p, int level, char *message, size_t size)
 	if (!logsrvs)
 		return;
 
-	message[size - 1] = '\n';
-
 	/* Send log messages to syslog server. */
 	nblogger = 0;
 	list_for_each_entry(tmp, logsrvs, list) {
@@ -820,6 +818,8 @@ void __send_log(struct proxy *p, int level, char *message, size_t size)
 		int *plogfd = logsrv->addr.ss_family == AF_UNIX ?
 			&logfdunix : &logfdinet;
 		int sent;
+		int max;
+		char backup;
 
 		nblogger++;
 
@@ -858,9 +858,23 @@ void __send_log(struct proxy *p, int level, char *message, size_t size)
 		} while (fac_level && log_ptr > dataptr);
 		*log_ptr = '<';
 
-		sent = sendto(*plogfd, log_ptr, size - (log_ptr - dataptr),
+		max = size - (log_ptr - dataptr);
+		if (max > logsrv->maxlen)
+			max = logsrv->maxlen;
+
+		/* insert a \n at the end of the message, but save what was
+		 * there first because we could have different max lengths
+		 * for different log targets.
+		 */
+		backup = log_ptr[max - 1];
+		log_ptr[max - 1] = '\n';
+
+		sent = sendto(*plogfd, log_ptr, max,
 			      MSG_DONTWAIT | MSG_NOSIGNAL,
 			      (struct sockaddr *)&logsrv->addr, get_addr_len(&logsrv->addr));
+
+		log_ptr[max - 1] = backup;
+
 		if (sent < 0) {
 			Alert("sendto logger #%d failed: %s (errno=%d)\n",
 				nblogger, strerror(errno), errno);
@@ -1604,7 +1618,7 @@ void sess_log(struct session *s)
 
 	tmplog = update_log_hdr();
 	size = tmplog - logline;
-	size += build_logline(s, tmplog, sizeof(logline) - size, &s->fe->logformat);
+	size += build_logline(s, tmplog, global.max_syslog_len - size, &s->fe->logformat);
 	if (size > 0) {
 		__send_log(s->fe, level, logline, size + 1);
 		s->logs.logwait = 0;

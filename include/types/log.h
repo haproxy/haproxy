@@ -152,6 +152,7 @@ struct logsrv {
 	int facility;
 	int level;
 	int minlvl;
+	int maxlen;
 };
 
 #endif /* _TYPES_LOG_H */

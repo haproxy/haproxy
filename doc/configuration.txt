@@ -565,7 +565,7 @@ group <group name>
   Similar to "gid" but uses the GID of group name <group name> from /etc/group.
   See also "gid" and "user".
 
-log <address> <facility> [max level [min level]]
+log <address> [len <length>] <facility> [max level [min level]]
   Adds a global syslog server. Up to two global servers can be defined. They
   will receive logs for startups and exits, as well as all logs from proxies
   configured with "log global".
@@ -589,6 +589,18 @@ log <address> <facility> [max level [min level]]
         variables by preceding their name with a dollar sign ('$') and
         optionally enclosing them with braces ('{}'), similarly to what is done
         in Bourne shell.
+
+  <length> is an optional maximum line length. Log lines larger than this value
+           will be truncated before being sent. The reason is that syslog
+           servers act differently on log line length. All servers support the
+           default value of 1024, but some servers simply drop larger lines
+           while others do log them. If a server supports long lines, it may
+           make sense to set this value here in order to avoid truncating long
+           lines. Similarly, if a server drops long lines, it is preferable to
+           truncate them before sending them. Accepted values are 80 to 65535
+           inclusive. The default value of 1024 is generally fine for all
+           standard usages. Some specific cases of long captures or
+           JSON-formated logs may require larger values.
 
   <facility> must be one of the 24 standard syslog facilities :
 
@@ -3358,7 +3370,7 @@ ignore-persist { if | unless } <condition>
 
 
 log global
-log <address> <facility> [<level> [<minlevel>]]
+log <address> [len <length>] <facility> [<level> [<minlevel>]]
 no log
   Enable per-instance logging of events and traffic.
   May be used in sections :   defaults | frontend | listen | backend
@@ -3397,6 +3409,18 @@ no log
                environment variables by preceding their name with a dollar
                sign ('$') and optionally enclosing them with braces ('{}'),
                similarly to what is done in Bourne shell.
+
+    <length>   is an optional maximum line length. Log lines larger than this
+               value will be truncated before being sent. The reason is that
+               syslog servers act differently on log line length. All servers
+               support the default value of 1024, but some servers simply drop
+               larger lines while others do log them. If a server supports long
+               lines, it may make sense to set this value here in order to avoid
+               truncating long lines. Similarly, if a server drops long lines,
+               it is preferable to truncate them before sending them. Accepted
+               values are 80 to 65535 inclusive. The default value of 1024 is
+               generally fine for all standard usages. Some specific cases of
+               long captures or JSON-formated logs may require larger values.
 
     <facility> must be one of the 24 standard syslog facilities :
 

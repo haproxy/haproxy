@@ -1257,6 +1257,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		struct sockaddr_storage *sk;
 		int port1, port2;
 		struct logsrv *logsrv;
+		int arg = 0;
+		int len = 0;
 
 		if (*(args[1]) == 0 || *(args[2]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects <address> and <facility> as arguments.\n", file, linenum, args[0]);
@@ -1266,28 +1268,50 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 
 		logsrv = calloc(1, sizeof(struct logsrv));
 
-		logsrv->facility = get_log_facility(args[2]);
+		/* just after the address, a length may be specified */
+		if (strcmp(args[arg+2], "len") == 0) {
+			len = atoi(args[arg+3]);
+			if (len < 80 || len > 65535) {
+				Alert("parsing [%s:%d] : invalid log length '%s', must be between 80 and 65535.\n",
+				      file, linenum, args[arg+3]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			logsrv->maxlen = len;
+
+			/* skip these two args */
+			arg += 2;
+		}
+		else
+			logsrv->maxlen = MAX_SYSLOG_LEN;
+
+		if (logsrv->maxlen > global.max_syslog_len) {
+			global.max_syslog_len = logsrv->maxlen;
+			logline = realloc(logline, global.max_syslog_len + 1);
+		}
+
+		logsrv->facility = get_log_facility(args[arg+2]);
 		if (logsrv->facility < 0) {
-			Alert("parsing [%s:%d] : unknown log facility '%s'\n", file, linenum, args[2]);
+			Alert("parsing [%s:%d] : unknown log facility '%s'\n", file, linenum, args[arg+2]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			logsrv->facility = 0;
 		}
 
 		logsrv->level = 7; /* max syslog level = debug */
-		if (*(args[3])) {
-			logsrv->level = get_log_level(args[3]);
+		if (*(args[arg+3])) {
+			logsrv->level = get_log_level(args[arg+3]);
 			if (logsrv->level < 0) {
-				Alert("parsing [%s:%d] : unknown optional log level '%s'\n", file, linenum, args[3]);
+				Alert("parsing [%s:%d] : unknown optional log level '%s'\n", file, linenum, args[arg+3]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				logsrv->level = 0;
 			}
 		}
 
 		logsrv->minlvl = 0; /* limit syslog level to this level (emerg) */
-		if (*(args[4])) {
-			logsrv->minlvl = get_log_level(args[4]);
+		if (*(args[arg+4])) {
+			logsrv->minlvl = get_log_level(args[arg+4]);
 			if (logsrv->minlvl < 0) {
-				Alert("parsing [%s:%d] : unknown optional minimum log level '%s'\n", file, linenum, args[4]);
+				Alert("parsing [%s:%d] : unknown optional minimum log level '%s'\n", file, linenum, args[arg+4]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				logsrv->minlvl = 0;
 			}
@@ -4843,22 +4867,46 @@ stats_error_parsing:
 		else if (*(args[1]) && *(args[2])) {
 			struct sockaddr_storage *sk;
 			int port1, port2;
+			int arg = 0;
+			int len = 0;
 
 			logsrv = calloc(1, sizeof(struct logsrv));
 
-			logsrv->facility = get_log_facility(args[2]);
+			/* just after the address, a length may be specified */
+			if (strcmp(args[arg+2], "len") == 0) {
+				len = atoi(args[arg+3]);
+				if (len < 80 || len > 65535) {
+					Alert("parsing [%s:%d] : invalid log length '%s', must be between 80 and 65535.\n",
+					      file, linenum, args[arg+3]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+				logsrv->maxlen = len;
+
+				/* skip these two args */
+				arg += 2;
+			}
+			else
+				logsrv->maxlen = MAX_SYSLOG_LEN;
+
+			if (logsrv->maxlen > global.max_syslog_len) {
+				global.max_syslog_len = logsrv->maxlen;
+				logline = realloc(logline, global.max_syslog_len + 1);
+			}
+
+			logsrv->facility = get_log_facility(args[arg+2]);
 			if (logsrv->facility < 0) {
-				Alert("parsing [%s:%d] : unknown log facility '%s'\n", file, linenum, args[2]);
+				Alert("parsing [%s:%d] : unknown log facility '%s'\n", file, linenum, args[arg+2]);
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
 
 			}
 	    
 			logsrv->level = 7; /* max syslog level = debug */
-			if (*(args[3])) {
-				logsrv->level = get_log_level(args[3]);
+			if (*(args[arg+3])) {
+				logsrv->level = get_log_level(args[arg+3]);
 				if (logsrv->level < 0) {
-					Alert("parsing [%s:%d] : unknown optional log level '%s'\n", file, linenum, args[3]);
+					Alert("parsing [%s:%d] : unknown optional log level '%s'\n", file, linenum, args[arg+3]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 
@@ -4866,10 +4914,10 @@ stats_error_parsing:
 			}
 
 			logsrv->minlvl = 0; /* limit syslog level to this level (emerg) */
-			if (*(args[4])) {
-				logsrv->minlvl = get_log_level(args[4]);
+			if (*(args[arg+4])) {
+				logsrv->minlvl = get_log_level(args[arg+4]);
 				if (logsrv->minlvl < 0) {
-					Alert("parsing [%s:%d] : unknown optional minimum log level '%s'\n", file, linenum, args[4]);
+					Alert("parsing [%s:%d] : unknown optional minimum log level '%s'\n", file, linenum, args[arg+4]);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 

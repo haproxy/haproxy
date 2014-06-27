@@ -111,6 +111,7 @@ struct global {
 	int last_checks;
 	int spread_checks;
 	int max_spread_checks;
+	int max_syslog_len;
 	char *chroot;
 	char *pidfile;
 	char *node, *desc;		/* node name & description */
