@@ -10793,6 +10793,10 @@ ssl_c_sha1 : binary
   Returns the SHA-1 fingerprint of the certificate presented by the client when
   the incoming connection was made over an SSL/TLS transport layer. This can be
   used to stick a client to a server, or to pass this information to a server.
+  Note that the output is binary, so if you want to pass that signature to the
+  server, you need to encode it in hex or base64, such as in the example below:
+
+     http-request set-header X-SSL-Client-SHA1 %[ssl_c_sha1,hex]
 
 ssl_c_sig_alg : string
   Returns the name of the algorithm used to sign the certificate presented by
