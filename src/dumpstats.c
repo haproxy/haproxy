@@ -3710,7 +3710,7 @@ static void stats_dump_html_px_end(struct stream_interface *si, struct proxy *px
 			      "<option value=\"\"></option>"
 			      "<option value=\"ready\">Set state to READY</option>"
 			      "<option value=\"drain\">Set state to DRAIN</option>"
-			      "<option value=\"maint\">set state to MAINT</option>"
+			      "<option value=\"maint\">Set state to MAINT</option>"
 			      "<option value=\"dhlth\">Health: disable checks</option>"
 			      "<option value=\"ehlth\">Health: enable checks</option>"
 			      "<option value=\"hrunn\">Health: force UP</option>"
