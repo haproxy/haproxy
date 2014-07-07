@@ -95,15 +95,16 @@ int pause_listener(struct listener *l)
 	if (l->state <= LI_PAUSED)
 		return 1;
 
-	if (l->proto->sock_prot == IPPROTO_TCP) {
-		if (shutdown(l->fd, SHUT_WR) != 0)
-			return 0; /* Solaris dies here */
+	if (l->proto->pause) {
+		/* Returns < 0 in case of failure, 0 if the listener
+		 * was totally stopped, or > 0 if correctly paused.
+		 */
+		int ret = l->proto->pause(l);
 
-		if (listen(l->fd, l->backlog ? l->backlog : l->maxconn) != 0)
-			return 0; /* OpenBSD dies here */
-
-		if (shutdown(l->fd, SHUT_RD) != 0)
-			return 0; /* should always be OK */
+		if (ret < 0)
+			return 0;
+		else if (ret == 0)
+			return 1;
 	}
 
 	if (l->state == LI_LIMITED)
