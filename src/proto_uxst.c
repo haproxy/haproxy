@@ -68,6 +68,7 @@ static struct protocol proto_unix = {
 	.disable_all = disable_all_listeners,
 	.get_src = uxst_get_src,
 	.get_dst = uxst_get_dst,
+	.pause = uxst_pause_listener,
 	.listeners = LIST_HEAD_INIT(proto_unix.listeners),
 	.nb_listeners = 0,
 };
@@ -371,6 +372,20 @@ void uxst_add_listener(struct listener *listener)
 	listener->proto = &proto_unix;
 	LIST_ADDQ(&proto_unix.listeners, &listener->proto_list);
 	proto_unix.nb_listeners++;
+}
+
+/* Pause a listener. Returns < 0 in case of failure, 0 if the listener
+ * was totally stopped, or > 0 if correctly paused. Nothing is done for
+ * plain unix sockets since currently it's the new process which handles
+ * the renaming. Abstract sockets are completely unbound.
+ */
+int uxst_pause_listener(struct listener *l)
+{
+	if (((struct sockaddr_un *)&l->addr)->sun_path[0])
+		return 1;
+
+	unbind_listener(l);
+	return 0;
 }
 
 
