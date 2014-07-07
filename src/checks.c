@@ -1843,7 +1843,7 @@ static struct task *process_chk_proc(struct task *t)
 					status = HCHK_STATUS_PROCOK;
 			} else if (expired) {
 				status = HCHK_STATUS_PROCTOUT;
-				Warning("kill %d\n", elem->pid);
+				Warning("kill %d\n", (int)elem->pid);
 				kill(elem->pid, SIGTERM);
 			}
 			set_server_check_status(check, status, NULL);
