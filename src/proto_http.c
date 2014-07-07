@@ -2143,22 +2143,22 @@ int parse_qvalue(const char *qvalue, const char **end)
 {
 	int q = 1000;
 
-	if (!isdigit(*qvalue))
+	if (!isdigit((unsigned char)*qvalue))
 		goto out;
 	q = (*qvalue++ - '0') * 1000;
 
 	if (*qvalue++ != '.')
 		goto out;
 
-	if (!isdigit(*qvalue))
+	if (!isdigit((unsigned char)*qvalue))
 		goto out;
 	q += (*qvalue++ - '0') * 100;
 
-	if (!isdigit(*qvalue))
+	if (!isdigit((unsigned char)*qvalue))
 		goto out;
 	q += (*qvalue++ - '0') * 10;
 
-	if (!isdigit(*qvalue))
+	if (!isdigit((unsigned char)*qvalue))
 		goto out;
 	q += (*qvalue++ - '0') * 1;
  out:
@@ -11226,7 +11226,7 @@ static int sample_conv_q_prefered(const struct arg *args, struct sample *smp)
 	while (1) {
 
 		/* Jump spaces, quit if the end is detected. */
-		while (al < end && isspace(*al))
+		while (al < end && isspace((unsigned char)*al))
 			al++;
 		if (al >= end)
 			break;
@@ -11235,7 +11235,7 @@ static int sample_conv_q_prefered(const struct arg *args, struct sample *smp)
 		token = al;
 
 		/* Look for separator: isspace(), ',' or ';'. Next value if 0 length word. */
-		while (al < end && *al != ';' && *al != ',' && !isspace(*al))
+		while (al < end && *al != ';' && *al != ',' && !isspace((unsigned char)*al))
 			al++;
 		if (al == token)
 			goto expect_comma;
@@ -11264,7 +11264,7 @@ static int sample_conv_q_prefered(const struct arg *args, struct sample *smp)
 look_for_q:
 
 		/* Jump spaces, quit if the end is detected. */
-		while (al < end && isspace(*al))
+		while (al < end && isspace((unsigned char)*al))
 			al++;
 		if (al >= end)
 			goto process_value;
@@ -11283,7 +11283,7 @@ look_for_q:
 		al++;
 
 		/* Jump spaces, process value if the end is detected. */
-		while (al < end && isspace(*al))
+		while (al < end && isspace((unsigned char)*al))
 			al++;
 		if (al >= end)
 			goto process_value;
@@ -11294,7 +11294,7 @@ look_for_q:
 		al++;
 
 		/* Jump spaces, process value if the end is detected. */
-		while (al < end && isspace(*al))
+		while (al < end && isspace((unsigned char)*al))
 			al++;
 		if (al >= end)
 			goto process_value;
@@ -11305,7 +11305,7 @@ look_for_q:
 		al++;
 
 		/* Jump spaces, process value if the end is detected. */
-		while (al < end && isspace(*al))
+		while (al < end && isspace((unsigned char)*al))
 			al++;
 		if (al >= end)
 			goto process_value;
