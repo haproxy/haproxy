@@ -236,6 +236,7 @@ int unbind_listener(struct listener *listener)
 
 	if (listener->state >= LI_PAUSED) {
 		fd_delete(listener->fd);
+		listener->fd = -1;
 		listener->state = LI_ASSIGNED;
 	}
 	return ERR_NONE;
