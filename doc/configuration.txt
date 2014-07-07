@@ -1800,7 +1800,13 @@ bind /<path> [, ...] [param*]
                     - 'ipv4@'  -> address is always IPv4
                     - 'ipv6@'  -> address is always IPv6
                     - 'unix@'  -> address is a path to a local unix socket
-                    - 'abns@'  -> address is in abstract namespace (Linux only)
+                    - 'abns@'  -> address is in abstract namespace (Linux only).
+                      Note: since abstract sockets are not "rebindable", they
+                            do not cope well with multi-process mode during
+                            soft-restart, so it is better to avoid them if
+                            nbproc is greater than 1. The effect is that if the
+                            new process fails to start, only one of the old ones
+                            will be able to rebind to the socket.
                     - 'fd@<n>' -> use file descriptor <n> inherited from the
                       parent. The fd must be bound and may or may not already
                       be listening.
