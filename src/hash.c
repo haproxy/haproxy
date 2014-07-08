@@ -17,7 +17,7 @@
 #include <common/hash.h>
 
 
-unsigned long hash_wt6(const char *key, int len)
+unsigned int hash_wt6(const char *key, int len)
 {
 	unsigned h0 = 0xa53c965aUL;
 	unsigned h1 = 0x5ca6953aUL;
@@ -44,9 +44,9 @@ unsigned long hash_wt6(const char *key, int len)
 	return h0 ^ h1;
 }
 
-unsigned long hash_djb2(const char *key, int len)
+unsigned int hash_djb2(const char *key, int len)
 {
-	unsigned long hash = 5381;
+	unsigned int hash = 5381;
 
 	/* the hash unrolled eight times */
 	for (; len >= 8; len -= 8) {
@@ -72,9 +72,9 @@ unsigned long hash_djb2(const char *key, int len)
 	return hash;
 }
 
-unsigned long hash_sdbm(const char *key, int len)
+unsigned int hash_sdbm(const char *key, int len)
 {
-	unsigned long hash = 0;
+	unsigned int hash = 0;
 	int c;
 
 	while (len--) {
