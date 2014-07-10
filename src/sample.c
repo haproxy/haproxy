@@ -1261,6 +1261,46 @@ static int sample_conv_ipmask(const struct arg *arg_p, struct sample *smp)
 	return 1;
 }
 
+/* takes an UINT value on input supposed to represent the time since EPOCH,
+ * adds an optional offset found in args[1] and emits a string representing
+ * the local time in the format specified in args[1] using strftime().
+ */
+static int sample_conv_ltime(const struct arg *args, struct sample *smp)
+{
+	struct chunk *temp;
+	time_t curr_date = smp->data.uint;
+
+	/* add offset */
+	if (args[1].type == ARGT_SINT || args[1].type == ARGT_UINT)
+		curr_date += args[1].data.sint;
+
+	temp = get_trash_chunk();
+	temp->len = strftime(temp->str, temp->size, args[0].data.str.str, localtime(&curr_date));
+	smp->data.str = *temp;
+	smp->type = SMP_T_STR;
+	return 1;
+}
+
+/* takes an UINT value on input supposed to represent the time since EPOCH,
+ * adds an optional offset found in args[1] and emits a string representing
+ * the UTC date in the format specified in args[1] using strftime().
+ */
+static int sample_conv_utime(const struct arg *args, struct sample *smp)
+{
+	struct chunk *temp;
+	time_t curr_date = smp->data.uint;
+
+	/* add offset */
+	if (args[1].type == ARGT_SINT || args[1].type == ARGT_UINT)
+		curr_date += args[1].data.sint;
+
+	temp = get_trash_chunk();
+	temp->len = strftime(temp->str, temp->size, args[0].data.str.str, gmtime(&curr_date));
+	smp->data.str = *temp;
+	smp->type = SMP_T_STR;
+	return 1;
+}
+
 /************************************************************************/
 /*       All supported sample fetch functions must be declared here     */
 /************************************************************************/
@@ -1363,6 +1403,8 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "lower",  sample_conv_str2lower, 0,            NULL, SMP_T_STR,  SMP_T_STR  },
 	{ "hex",    sample_conv_bin2hex,   0,            NULL, SMP_T_BIN,  SMP_T_STR  },
 	{ "ipmask", sample_conv_ipmask,    ARG1(1,MSK4), NULL, SMP_T_IPV4, SMP_T_IPV4 },
+	{ "ltime",  sample_conv_ltime,     ARG2(1,STR,SINT), NULL, SMP_T_UINT, SMP_T_STR },
+	{ "utime",  sample_conv_utime,     ARG2(1,STR,SINT), NULL, SMP_T_UINT, SMP_T_STR },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 

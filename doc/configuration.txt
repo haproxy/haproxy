@@ -10017,6 +10017,20 @@ lower
   sample fetch function or after a transformation keyword returning a string
   type. The result is of type string.
 
+ltime(<format>[,<offset>])
+  Converts an integer supposed to contain a date since epoch to a string
+  representing this date in local time using a format defined by the <format>
+  string using strftime(3). The purpose is to allow any date format to be used
+  in logs. An optional <offset> in seconds may be applied to the input date
+  (positive or negative). See the strftime() man page for the format supported
+  by your operating system. See also the utime converter.
+
+  Example :
+
+      # Emit two colons, one with the local time and another with ip:port
+      # Eg:  20140710162350 127.0.0.1:57325
+      log-format %[date,ltime(%Y%m%d%H%M%S)]\ %ci:%cp
+
 map(<map_file>[,<default_value>])
 map_<match_type>(<map_file>[,<default_value>])
 map_<match_type>_<output_type>(<map_file>[,<default_value>])
@@ -10217,6 +10231,20 @@ upper
   Convert a string sample to upper case. This can only be placed after a string
   sample fetch function or after a transformation keyword returning a string
   type. The result is of type string.
+
+utime(<format>[,<offset>])
+  Converts an integer supposed to contain a date since epoch to a string
+  representing this date in UTC time using a format defined by the <format>
+  string using strftime(3). The purpose is to allow any date format to be used
+  in logs. An optional <offset> in seconds may be applied to the input date
+  (positive or negative). See the strftime() man page for the format supported
+  by your operating system. See also the ltime converter.
+
+  Example :
+
+      # Emit two colons, one with the UTC time and another with ip:port
+      # Eg:  20140710162350 127.0.0.1:57325
+      log-format %[date,utime(%Y%m%d%H%M%S)]\ %ci:%cp
 
 
 7.3.2. Fetching samples from internal states
