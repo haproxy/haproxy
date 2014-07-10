@@ -10457,19 +10457,17 @@ sc_kbytes_in(<ctr>[,<table>]) : integer
 sc0_kbytes_in([<table>]) : integer
 sc1_kbytes_in([<table>]) : integer
 sc2_kbytes_in([<table>]) : integer
-  Returns the amount of client-to-server data from the currently tracked
-  counters, measured in kilobytes over the period configured in the table. The
-  test is currently performed on 32-bit integers, which limits values to 4
-  terabytes. See also src_kbytes_in.
+  Returns the total amount of client-to-server data from the currently tracked
+  counters, measured in kilobytes. The test is currently performed on 32-bit
+  integers, which limits values to 4 terabytes. See also src_kbytes_in.
 
 sc_kbytes_out(<ctr>[,<table>]) : integer
 sc0_kbytes_out([<table>]) : integer
 sc1_kbytes_out([<table>]) : integer
 sc2_kbytes_out([<table>]) : integer
-  Returns the amount of server-to-client data from the currently tracked
-  counters, measured in kilobytes over the period configured in the table. The
-  test is currently performed on 32-bit integers, which limits values to 4
-  terabytes. See also src_kbytes_out.
+  Returns the total amount of server-to-client data from the currently tracked
+  counters, measured in kilobytes. The test is currently performed on 32-bit
+  integers, which limits values to 4 terabytes. See also src_kbytes_out.
 
 sc_sess_cnt(<ctr>[,<table>]) : integer
 sc0_sess_cnt([<table>]) : integer
@@ -10633,19 +10631,18 @@ src_inc_gpc0([<table>]) : integer
         tcp-request connection reject if abuse kill
 
 src_kbytes_in([<table>]) : integer
-  Returns the amount of data received from the incoming connection's source
-  address in the current proxy's stick-table or in the designated stick-table,
-  measured in kilobytes over the period configured in the table. If the address
-  is not found, zero is returned. The test is currently performed on 32-bit
-  integers, which limits values to 4 terabytes. See also
-  sc/sc0/sc1/sc2_kbytes_in.
+  Returns the total amount of data received from the incoming connection's
+  source address in the current proxy's stick-table or in the designated
+  stick-table, measured in kilobytes. If the address is not found, zero is
+  returned. The test is currently performed on 32-bit integers, which limits
+  values to 4 terabytes. See also sc/sc0/sc1/sc2_kbytes_in.
 
 src_kbytes_out([<table>]) : integer
-  Returns the amount of data sent to the incoming connection's source address
-  in the current proxy's stick-table or in the designated stick-table, measured
-  in kilobytes over the period configured in the table. If the address is not
-  found, zero is returned. The test is currently performed on 32-bit integers,
-  which limits values to 4 terabytes. See also sc/sc0/sc1/sc2_kbytes_out.
+  Returns the total amount of data sent to the incoming connection's source
+  address in the current proxy's stick-table or in the designated stick-table,
+  measured in kilobytes. If the address is not found, zero is returned. The
+  test is currently performed on 32-bit integers, which limits values to 4
+  terabytes. See also sc/sc0/sc1/sc2_kbytes_out.
 
 src_port : integer
   Returns an integer value corresponding to the TCP source port of the
