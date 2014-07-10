@@ -55,8 +55,9 @@ one of the following choices to the CPU variable :
   - i686 for intel PentiumPro, Pentium 2 and above, AMD Athlon
   - i586 for intel Pentium, AMD K6, VIA C3.
   - ultrasparc : Sun UltraSparc I/II/III/IV processor
-  - native : use the build machine's specific processor optimizations
-  - generic : any other processor or no specific optimization. (default)
+  - native : use the build machine's specific processor optimizations. Use with
+    extreme care, and never in virtualized environments (known to break).
+  - generic : any other processor or no CPU-specific optimization. (default)
 
 Alternatively, you may just set the CPU_CFLAGS value to the optimal GCC options
 for your platform.
@@ -134,11 +135,11 @@ And I build it this way on OpenBSD or FreeBSD :
 
 And on a classic Linux with SSL and ZLIB support (eg: Red Hat 5.x) :
 
-    $ make TARGET=linux26 CPU=native USE_PCRE=1 USE_OPENSSL=1 USE_ZLIB=1
+    $ make TARGET=linux26 USE_PCRE=1 USE_OPENSSL=1 USE_ZLIB=1
 
 And on a recent Linux >= 2.6.28 with SSL and ZLIB support :
 
-    $ make TARGET=linux2628 CPU=native USE_PCRE=1 USE_OPENSSL=1 USE_ZLIB=1
+    $ make TARGET=linux2628 USE_PCRE=1 USE_OPENSSL=1 USE_ZLIB=1
 
 In order to build a 32-bit binary on an x86_64 Linux system with SSL support
 without support for compression but when OpenSSL requires ZLIB anyway :
