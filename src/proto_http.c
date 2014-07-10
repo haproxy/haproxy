@@ -5315,7 +5315,7 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 	 * an "Expect: 100-continue" header.
 	 */
 
-	if (msg->sov) {
+	if (msg->sov > 0) {
 		/* we have msg->sov which points to the first byte of message
 		 * body, and req->buf.p still points to the beginning of the
 		 * message. We forward the headers now, as we don't need them
@@ -5429,6 +5429,8 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 			 * such as last chunk of data or trailers.
 			 */
 			b_adv(req->buf, msg->next);
+			if (unlikely(!(s->rep->flags & CF_READ_ATTACHED)))
+				msg->sov -= msg->next;
 			msg->next = 0;
 
 			/* for keep-alive we don't want to forward closes on DONE */
@@ -5479,6 +5481,9 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
  missing_data:
 	/* we may have some pending data starting at req->buf->p */
 	b_adv(req->buf, msg->next);
+	if (unlikely(!(s->rep->flags & CF_READ_ATTACHED)))
+		msg->sov -= msg->next + MIN(msg->chunk_len, req->buf->i);
+
 	msg->next = 0;
 	msg->chunk_len -= channel_forward(req, msg->chunk_len);
 
@@ -6493,7 +6498,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	/* in most states, we should abort in case of early close */
 	channel_auto_close(res);
 
-	if (msg->sov) {
+	if (msg->sov > 0) {
 		/* we have msg->sov which points to the first byte of message
 		 * body, and res->buf.p still points to the beginning of the
 		 * message. We forward the headers now, as we don't need them

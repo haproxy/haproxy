@@ -67,12 +67,17 @@ msg.next : points to the next byte to inspect. This offset is automatically
            automatically adjusted to the number of bytes already inspected.
 
 msg.sov  : start of value. First character of the header's value in the header
-           states, start of the body in the data states until headers are
-           forwarded. This offset is automatically adjusted when inserting or
-           removing some headers. In data states, it always constains the size
-           of the whole HTTP headers (including the trailing CRLF) that needs
-           to be forwarded before the first byte of body. Once the headers are
-           forwarded, this value drops to zero.
+           states, start of the body in the data states. Strictly positive
+           values indicate that headers were not forwarded yet (<buf.p> is
+           before the start of the body), and null or positive values are seen
+           after headers are forwarded (<buf.p> is at or past the start of the
+           body). The value stops changing when data start to leave the buffer
+           (in order to avoid integer overflows). So the maximum possible range
+           is -<buf.size> to +<buf.size>. This offset is automatically adjusted
+           when inserting or removing some headers. It is useful to rewind the
+           request buffer to the beginning of the body at any phase. The
+           response buffer does not really use it since it is immediately
+           forwarded to the client.
 
 msg.sol  : start of line. Points to the beginning of the current header line
            while parsing headers. It is cleared to zero in the BODY state,
@@ -97,7 +102,8 @@ msg.eol  : end of line. Points to the CRLF or LF of the current header line
            states nor by forwarding.
 
 The beginning of the message headers can always be found this way even after
-headers have been forwarded :
+headers or data have been forwarded, provided that everything is still present
+in the buffer :
 
             headers = buf.p + msg->sov - msg->eoh - msg->eol
 

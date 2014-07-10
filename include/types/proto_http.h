@@ -329,7 +329,8 @@ enum {
  * message or a response message.
  *
  * The values there are a little bit obscure, because their meaning can change
- * during the parsing :
+ * during the parsing. Please read carefully doc/internal/body-parsing.txt if
+ * you need to manipulate them. Quick reminder :
  *
  *  - eoh (End of Headers)   : relative offset in the buffer of first byte that
  *                             is not part of a completely processed header.
@@ -344,9 +345,9 @@ enum {
  *  - sov (start of value)   : Before HTTP_MSG_BODY, points to the value of
  *                             the header being parsed. Starting from
  *                             HTTP_MSG_BODY, will point to the start of the
- *                             body (relative to buffer's origin), or to data
- *                             following a chunk size. Thus <sov> bytes of
- *                             headers will have to be sent only once.
+ *                             body (relative to buffer's origin). It can be
+ *                             negative when forwarding data. It stops growing
+ *                             once data start to leave the buffer.
  *
  *  - next (parse pointer)   : next relative byte to be parsed. Always points
  *                             to a byte matching the current state.
@@ -372,7 +373,7 @@ struct http_msg {
 	/* 6 bytes unused here */
 	struct channel *chn;                   /* pointer to the channel transporting the message */
 	unsigned int next;                     /* pointer to next byte to parse, relative to buf->p */
-	unsigned int sov;                      /* current header: start of value */
+	int sov;                               /* current header: start of value ; data: start of body */
 	unsigned int eoh;                      /* End Of Headers, relative to buffer */
 	unsigned int sol;                      /* start of current line during parsing otherwise zero */
 	unsigned int eol;                      /* end of line */
