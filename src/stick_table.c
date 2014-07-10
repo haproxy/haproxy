@@ -22,6 +22,7 @@
 #include <ebmbtree.h>
 #include <ebsttree.h>
 
+#include <proto/arg.h>
 #include <proto/proxy.h>
 #include <proto/sample.h>
 #include <proto/session.h>
@@ -738,4 +739,658 @@ struct proxy *find_stktable(const char *name)
 			return px;
 	}
 	return NULL;
+}
+
+/* Casts sample <smp> to the type of the table specified in arg(0), and looks
+ * it up into this table. Returns true if found, false otherwise. The input
+ * type is STR so that input samples are converted to string (since all types
+ * can be converted to strings), then the function casts the string again into
+ * the table's type. This is a double conversion, but in the future we might
+ * support automatic input types to perform the cast on the fly.
+ */
+static int sample_conv_in_table(const struct arg *arg_p, struct sample *smp)
+{
+	struct stktable *t;
+	struct stktable_key *key;
+	struct stksess *ts;
+
+	t = &arg_p[0].data.prx->table;
+
+	key = smp_to_stkey(smp, t);
+	if (!key)
+		return 0;
+
+	ts = stktable_lookup_key(t, key);
+
+	smp->type = SMP_T_BOOL;
+	smp->data.uint = !!ts;
+	smp->flags = SMP_F_VOL_TEST;
+	return 1;
+}
+
+/* Casts sample <smp> to the type of the table specified in arg(0), and looks
+ * it up into this table. Returns the data rate received from clients in bytes/s
+ * if the key is present in the table, otherwise zero, so that comparisons can
+ * be easily performed. If the inspected parameter is not stored in the table,
+ * <not found> is returned.
+ */
+static int sample_conv_table_bytes_in_rate(const struct arg *arg_p, struct sample *smp)
+{
+	struct stktable *t;
+	struct stktable_key *key;
+	struct stksess *ts;
+	void *ptr;
+
+	t = &arg_p[0].data.prx->table;
+
+	key = smp_to_stkey(smp, t);
+	if (!key)
+		return 0;
+
+	smp->flags = SMP_F_VOL_TEST;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = 0;
+
+	ts = stktable_lookup_key(t, key);
+	if (!ts) /* key not present */
+		return 1;
+
+	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_BYTES_IN_RATE);
+	if (!ptr)
+		return 0; /* parameter not stored */
+
+	smp->data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, bytes_in_rate),
+					       t->data_arg[STKTABLE_DT_BYTES_IN_RATE].u);
+	return 1;
+}
+
+/* Casts sample <smp> to the type of the table specified in arg(0), and looks
+ * it up into this table. Returns the cumulated number of connections for the key
+ * if the key is present in the table, otherwise zero, so that comparisons can
+ * be easily performed. If the inspected parameter is not stored in the table,
+ * <not found> is returned.
+ */
+static int sample_conv_table_conn_cnt(const struct arg *arg_p, struct sample *smp)
+{
+	struct stktable *t;
+	struct stktable_key *key;
+	struct stksess *ts;
+	void *ptr;
+
+	t = &arg_p[0].data.prx->table;
+
+	key = smp_to_stkey(smp, t);
+	if (!key)
+		return 0;
+
+	smp->flags = SMP_F_VOL_TEST;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = 0;
+
+	ts = stktable_lookup_key(t, key);
+	if (!ts) /* key not present */
+		return 1;
+
+	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_CONN_CNT);
+	if (!ptr)
+		return 0; /* parameter not stored */
+
+	smp->data.uint = stktable_data_cast(ptr, conn_cnt);
+	return 1;
+}
+
+/* Casts sample <smp> to the type of the table specified in arg(0), and looks
+ * it up into this table. Returns the number of concurrent connections for the
+ * key if the key is present in the table, otherwise zero, so that comparisons
+ * can be easily performed. If the inspected parameter is not stored in the
+ * table, <not found> is returned.
+ */
+static int sample_conv_table_conn_cur(const struct arg *arg_p, struct sample *smp)
+{
+	struct stktable *t;
+	struct stktable_key *key;
+	struct stksess *ts;
+	void *ptr;
+
+	t = &arg_p[0].data.prx->table;
+
+	key = smp_to_stkey(smp, t);
+	if (!key)
+		return 0;
+
+	smp->flags = SMP_F_VOL_TEST;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = 0;
+
+	ts = stktable_lookup_key(t, key);
+	if (!ts) /* key not present */
+		return 1;
+
+	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_CONN_CUR);
+	if (!ptr)
+		return 0; /* parameter not stored */
+
+	smp->data.uint = stktable_data_cast(ptr, conn_cur);
+	return 1;
+}
+
+/* Casts sample <smp> to the type of the table specified in arg(0), and looks
+ * it up into this table. Returns the rate of incoming connections from the key
+ * if the key is present in the table, otherwise zero, so that comparisons can
+ * be easily performed. If the inspected parameter is not stored in the table,
+ * <not found> is returned.
+ */
+static int sample_conv_table_conn_rate(const struct arg *arg_p, struct sample *smp)
+{
+	struct stktable *t;
+	struct stktable_key *key;
+	struct stksess *ts;
+	void *ptr;
+
+	t = &arg_p[0].data.prx->table;
+
+	key = smp_to_stkey(smp, t);
+	if (!key)
+		return 0;
+
+	smp->flags = SMP_F_VOL_TEST;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = 0;
+
+	ts = stktable_lookup_key(t, key);
+	if (!ts) /* key not present */
+		return 1;
+
+	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_CONN_RATE);
+	if (!ptr)
+		return 0; /* parameter not stored */
+
+	smp->data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, conn_rate),
+					       t->data_arg[STKTABLE_DT_CONN_RATE].u);
+	return 1;
+}
+
+/* Casts sample <smp> to the type of the table specified in arg(0), and looks
+ * it up into this table. Returns the data rate sent to clients in bytes/s
+ * if the key is present in the table, otherwise zero, so that comparisons can
+ * be easily performed. If the inspected parameter is not stored in the table,
+ * <not found> is returned.
+ */
+static int sample_conv_table_bytes_out_rate(const struct arg *arg_p, struct sample *smp)
+{
+	struct stktable *t;
+	struct stktable_key *key;
+	struct stksess *ts;
+	void *ptr;
+
+	t = &arg_p[0].data.prx->table;
+
+	key = smp_to_stkey(smp, t);
+	if (!key)
+		return 0;
+
+	smp->flags = SMP_F_VOL_TEST;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = 0;
+
+	ts = stktable_lookup_key(t, key);
+	if (!ts) /* key not present */
+		return 1;
+
+	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_BYTES_OUT_RATE);
+	if (!ptr)
+		return 0; /* parameter not stored */
+
+	smp->data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, bytes_out_rate),
+					       t->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u);
+	return 1;
+}
+
+/* Casts sample <smp> to the type of the table specified in arg(0), and looks
+ * it up into this table. Returns the value of the GPC0 counter for the key
+ * if the key is present in the table, otherwise zero, so that comparisons can
+ * be easily performed. If the inspected parameter is not stored in the table,
+ * <not found> is returned.
+ */
+static int sample_conv_table_gpc0(const struct arg *arg_p, struct sample *smp)
+{
+	struct stktable *t;
+	struct stktable_key *key;
+	struct stksess *ts;
+	void *ptr;
+
+	t = &arg_p[0].data.prx->table;
+
+	key = smp_to_stkey(smp, t);
+	if (!key)
+		return 0;
+
+	smp->flags = SMP_F_VOL_TEST;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = 0;
+
+	ts = stktable_lookup_key(t, key);
+	if (!ts) /* key not present */
+		return 1;
+
+	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_GPC0);
+	if (!ptr)
+		return 0; /* parameter not stored */
+
+	smp->data.uint = stktable_data_cast(ptr, gpc0);
+	return 1;
+}
+
+/* Casts sample <smp> to the type of the table specified in arg(0), and looks
+ * it up into this table. Returns the event rate of the GPC0 counter for the key
+ * if the key is present in the table, otherwise zero, so that comparisons can
+ * be easily performed. If the inspected parameter is not stored in the table,
+ * <not found> is returned.
+ */
+static int sample_conv_table_gpc0_rate(const struct arg *arg_p, struct sample *smp)
+{
+	struct stktable *t;
+	struct stktable_key *key;
+	struct stksess *ts;
+	void *ptr;
+
+	t = &arg_p[0].data.prx->table;
+
+	key = smp_to_stkey(smp, t);
+	if (!key)
+		return 0;
+
+	smp->flags = SMP_F_VOL_TEST;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = 0;
+
+	ts = stktable_lookup_key(t, key);
+	if (!ts) /* key not present */
+		return 1;
+
+	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_GPC0_RATE);
+	if (!ptr)
+		return 0; /* parameter not stored */
+
+	smp->data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, gpc0_rate),
+	                                      t->data_arg[STKTABLE_DT_GPC0_RATE].u);
+	return 1;
+}
+
+/* Casts sample <smp> to the type of the table specified in arg(0), and looks
+ * it up into this table. Returns the cumulated number of HTTP request errors
+ * for the key if the key is present in the table, otherwise zero, so that
+ * comparisons can be easily performed. If the inspected parameter is not stored
+ * in the table, <not found> is returned.
+ */
+static int sample_conv_table_http_err_cnt(const struct arg *arg_p, struct sample *smp)
+{
+	struct stktable *t;
+	struct stktable_key *key;
+	struct stksess *ts;
+	void *ptr;
+
+	t = &arg_p[0].data.prx->table;
+
+	key = smp_to_stkey(smp, t);
+	if (!key)
+		return 0;
+
+	smp->flags = SMP_F_VOL_TEST;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = 0;
+
+	ts = stktable_lookup_key(t, key);
+	if (!ts) /* key not present */
+		return 1;
+
+	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_ERR_CNT);
+	if (!ptr)
+		return 0; /* parameter not stored */
+
+	smp->data.uint = stktable_data_cast(ptr, http_err_cnt);
+	return 1;
+}
+
+/* Casts sample <smp> to the type of the table specified in arg(0), and looks
+ * it up into this table. Returns the HTTP request error rate the key
+ * if the key is present in the table, otherwise zero, so that comparisons can
+ * be easily performed. If the inspected parameter is not stored in the table,
+ * <not found> is returned.
+ */
+static int sample_conv_table_http_err_rate(const struct arg *arg_p, struct sample *smp)
+{
+	struct stktable *t;
+	struct stktable_key *key;
+	struct stksess *ts;
+	void *ptr;
+
+	t = &arg_p[0].data.prx->table;
+
+	key = smp_to_stkey(smp, t);
+	if (!key)
+		return 0;
+
+	smp->flags = SMP_F_VOL_TEST;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = 0;
+
+	ts = stktable_lookup_key(t, key);
+	if (!ts) /* key not present */
+		return 1;
+
+	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_ERR_RATE);
+	if (!ptr)
+		return 0; /* parameter not stored */
+
+	smp->data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, http_err_rate),
+					       t->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u);
+	return 1;
+}
+
+/* Casts sample <smp> to the type of the table specified in arg(0), and looks
+ * it up into this table. Returns the cumulated number of HTTP request for the
+ * key if the key is present in the table, otherwise zero, so that comparisons
+ * can be easily performed. If the inspected parameter is not stored in the
+ * table, <not found> is returned.
+ */
+static int sample_conv_table_http_req_cnt(const struct arg *arg_p, struct sample *smp)
+{
+	struct stktable *t;
+	struct stktable_key *key;
+	struct stksess *ts;
+	void *ptr;
+
+	t = &arg_p[0].data.prx->table;
+
+	key = smp_to_stkey(smp, t);
+	if (!key)
+		return 0;
+
+	smp->flags = SMP_F_VOL_TEST;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = 0;
+
+	ts = stktable_lookup_key(t, key);
+	if (!ts) /* key not present */
+		return 1;
+
+	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_REQ_CNT);
+	if (!ptr)
+		return 0; /* parameter not stored */
+
+	smp->data.uint = stktable_data_cast(ptr, http_req_cnt);
+	return 1;
+}
+
+/* Casts sample <smp> to the type of the table specified in arg(0), and looks
+ * it up into this table. Returns the HTTP request rate the key if the key is
+ * present in the table, otherwise zero, so that comparisons can be easily
+ * performed. If the inspected parameter is not stored in the table, <not found>
+ * is returned.
+ */
+static int sample_conv_table_http_req_rate(const struct arg *arg_p, struct sample *smp)
+{
+	struct stktable *t;
+	struct stktable_key *key;
+	struct stksess *ts;
+	void *ptr;
+
+	t = &arg_p[0].data.prx->table;
+
+	key = smp_to_stkey(smp, t);
+	if (!key)
+		return 0;
+
+	smp->flags = SMP_F_VOL_TEST;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = 0;
+
+	ts = stktable_lookup_key(t, key);
+	if (!ts) /* key not present */
+		return 1;
+
+	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_REQ_RATE);
+	if (!ptr)
+		return 0; /* parameter not stored */
+
+	smp->data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
+					       t->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u);
+	return 1;
+}
+
+/* Casts sample <smp> to the type of the table specified in arg(0), and looks
+ * it up into this table. Returns the volume of datareceived from clients in kbytes
+ * if the key is present in the table, otherwise zero, so that comparisons can
+ * be easily performed. If the inspected parameter is not stored in the table,
+ * <not found> is returned.
+ */
+static int sample_conv_table_kbytes_in(const struct arg *arg_p, struct sample *smp)
+{
+	struct stktable *t;
+	struct stktable_key *key;
+	struct stksess *ts;
+	void *ptr;
+
+	t = &arg_p[0].data.prx->table;
+
+	key = smp_to_stkey(smp, t);
+	if (!key)
+		return 0;
+
+	smp->flags = SMP_F_VOL_TEST;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = 0;
+
+	ts = stktable_lookup_key(t, key);
+	if (!ts) /* key not present */
+		return 1;
+
+	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_BYTES_IN_CNT);
+	if (!ptr)
+		return 0; /* parameter not stored */
+
+	smp->data.uint = stktable_data_cast(ptr, bytes_in_cnt) >> 10;
+	return 1;
+}
+
+/* Casts sample <smp> to the type of the table specified in arg(0), and looks
+ * it up into this table. Returns the volume of data sent to clients in kbytes
+ * if the key is present in the table, otherwise zero, so that comparisons can
+ * be easily performed. If the inspected parameter is not stored in the table,
+ * <not found> is returned.
+ */
+static int sample_conv_table_kbytes_out(const struct arg *arg_p, struct sample *smp)
+{
+	struct stktable *t;
+	struct stktable_key *key;
+	struct stksess *ts;
+	void *ptr;
+
+	t = &arg_p[0].data.prx->table;
+
+	key = smp_to_stkey(smp, t);
+	if (!key)
+		return 0;
+
+	smp->flags = SMP_F_VOL_TEST;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = 0;
+
+	ts = stktable_lookup_key(t, key);
+	if (!ts) /* key not present */
+		return 1;
+
+	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_BYTES_OUT_CNT);
+	if (!ptr)
+		return 0; /* parameter not stored */
+
+	smp->data.uint = stktable_data_cast(ptr, bytes_out_cnt) >> 10;
+	return 1;
+}
+
+/* Casts sample <smp> to the type of the table specified in arg(0), and looks
+ * it up into this table. Returns the server ID associated with the key if the
+ * key is present in the table, otherwise zero, so that comparisons can be
+ * easily performed. If the inspected parameter is not stored in the table,
+ * <not found> is returned.
+ */
+static int sample_conv_table_server_id(const struct arg *arg_p, struct sample *smp)
+{
+	struct stktable *t;
+	struct stktable_key *key;
+	struct stksess *ts;
+	void *ptr;
+
+	t = &arg_p[0].data.prx->table;
+
+	key = smp_to_stkey(smp, t);
+	if (!key)
+		return 0;
+
+	smp->flags = SMP_F_VOL_TEST;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = 0;
+
+	ts = stktable_lookup_key(t, key);
+	if (!ts) /* key not present */
+		return 1;
+
+	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_SERVER_ID);
+	if (!ptr)
+		return 0; /* parameter not stored */
+
+	smp->data.uint = stktable_data_cast(ptr, server_id);
+	return 1;
+}
+
+/* Casts sample <smp> to the type of the table specified in arg(0), and looks
+ * it up into this table. Returns the cumulated number of sessions for the
+ * key if the key is present in the table, otherwise zero, so that comparisons
+ * can be easily performed. If the inspected parameter is not stored in the
+ * table, <not found> is returned.
+ */
+static int sample_conv_table_sess_cnt(const struct arg *arg_p, struct sample *smp)
+{
+	struct stktable *t;
+	struct stktable_key *key;
+	struct stksess *ts;
+	void *ptr;
+
+	t = &arg_p[0].data.prx->table;
+
+	key = smp_to_stkey(smp, t);
+	if (!key)
+		return 0;
+
+	smp->flags = SMP_F_VOL_TEST;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = 0;
+
+	ts = stktable_lookup_key(t, key);
+	if (!ts) /* key not present */
+		return 1;
+
+	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_SESS_CNT);
+	if (!ptr)
+		return 0; /* parameter not stored */
+
+	smp->data.uint = stktable_data_cast(ptr, sess_cnt);
+	return 1;
+}
+
+/* Casts sample <smp> to the type of the table specified in arg(0), and looks
+ * it up into this table. Returns the session rate the key if the key is
+ * present in the table, otherwise zero, so that comparisons can be easily
+ * performed. If the inspected parameter is not stored in the table, <not found>
+ * is returned.
+ */
+static int sample_conv_table_sess_rate(const struct arg *arg_p, struct sample *smp)
+{
+	struct stktable *t;
+	struct stktable_key *key;
+	struct stksess *ts;
+	void *ptr;
+
+	t = &arg_p[0].data.prx->table;
+
+	key = smp_to_stkey(smp, t);
+	if (!key)
+		return 0;
+
+	smp->flags = SMP_F_VOL_TEST;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = 0;
+
+	ts = stktable_lookup_key(t, key);
+	if (!ts) /* key not present */
+		return 1;
+
+	ptr = stktable_data_ptr(t, ts, STKTABLE_DT_SESS_RATE);
+	if (!ptr)
+		return 0; /* parameter not stored */
+
+	smp->data.uint = read_freq_ctr_period(&stktable_data_cast(ptr, sess_rate),
+					       t->data_arg[STKTABLE_DT_SESS_RATE].u);
+	return 1;
+}
+
+/* Casts sample <smp> to the type of the table specified in arg(0), and looks
+ * it up into this table. Returns the amount of concurrent connections tracking
+ * the same key if the key is present in the table, otherwise zero, so that
+ * comparisons can be easily performed. If the inspected parameter is not
+ * stored in the table, <not found> is returned.
+ */
+static int sample_conv_table_trackers(const struct arg *arg_p, struct sample *smp)
+{
+	struct stktable *t;
+	struct stktable_key *key;
+	struct stksess *ts;
+
+	t = &arg_p[0].data.prx->table;
+
+	key = smp_to_stkey(smp, t);
+	if (!key)
+		return 0;
+
+	smp->flags = SMP_F_VOL_TEST;
+	smp->type = SMP_T_UINT;
+	smp->data.uint = 0;
+
+	ts = stktable_lookup_key(t, key);
+	if (ts)
+		smp->data.uint = ts->ref_cnt;
+
+	return 1;
+}
+
+
+/* Note: must not be declared <const> as its list will be overwritten */
+static struct sample_conv_kw_list sample_conv_kws = {ILH, {
+	{ "in_table",             sample_conv_in_table,             ARG1(1,TAB),  NULL, SMP_T_STR,  SMP_T_BOOL  },
+	{ "table_bytes_in_rate",  sample_conv_table_bytes_in_rate,  ARG1(1,TAB),  NULL, SMP_T_STR,  SMP_T_UINT  },
+	{ "table_bytes_out_rate", sample_conv_table_bytes_out_rate, ARG1(1,TAB),  NULL, SMP_T_STR,  SMP_T_UINT  },
+	{ "table_conn_cnt",       sample_conv_table_conn_cnt,       ARG1(1,TAB),  NULL, SMP_T_STR,  SMP_T_UINT  },
+	{ "table_conn_cur",       sample_conv_table_conn_cur,       ARG1(1,TAB),  NULL, SMP_T_STR,  SMP_T_UINT  },
+	{ "table_conn_rate",      sample_conv_table_conn_rate,      ARG1(1,TAB),  NULL, SMP_T_STR,  SMP_T_UINT  },
+	{ "table_gpc0",           sample_conv_table_gpc0,           ARG1(1,TAB),  NULL, SMP_T_STR,  SMP_T_UINT  },
+	{ "table_gpc0_rate",      sample_conv_table_gpc0_rate,      ARG1(1,TAB),  NULL, SMP_T_STR,  SMP_T_UINT  },
+	{ "table_http_err_cnt",   sample_conv_table_http_err_cnt,   ARG1(1,TAB),  NULL, SMP_T_STR,  SMP_T_UINT  },
+	{ "table_http_err_rate",  sample_conv_table_http_err_rate,  ARG1(1,TAB),  NULL, SMP_T_STR,  SMP_T_UINT  },
+	{ "table_http_req_cnt",   sample_conv_table_http_req_cnt,   ARG1(1,TAB),  NULL, SMP_T_STR,  SMP_T_UINT  },
+	{ "table_http_req_rate",  sample_conv_table_http_req_rate,  ARG1(1,TAB),  NULL, SMP_T_STR,  SMP_T_UINT  },
+	{ "table_kbytes_in",      sample_conv_table_kbytes_in,      ARG1(1,TAB),  NULL, SMP_T_STR,  SMP_T_UINT  },
+	{ "table_kbytes_out",     sample_conv_table_kbytes_out,     ARG1(1,TAB),  NULL, SMP_T_STR,  SMP_T_UINT  },
+	{ "table_server_id",      sample_conv_table_server_id,      ARG1(1,TAB),  NULL, SMP_T_STR,  SMP_T_UINT  },
+	{ "table_sess_cnt",       sample_conv_table_sess_cnt,       ARG1(1,TAB),  NULL, SMP_T_STR,  SMP_T_UINT  },
+	{ "table_sess_rate",      sample_conv_table_sess_rate,      ARG1(1,TAB),  NULL, SMP_T_STR,  SMP_T_UINT  },
+	{ "table_trackers",       sample_conv_table_trackers,       ARG1(1,TAB),  NULL, SMP_T_STR,  SMP_T_UINT  },
+	{ /* END */ },
+}};
+
+__attribute__((constructor))
+static void __stick_table_init(void)
+{
+	/* register sample fetch and format conversion keywords */
+	sample_register_convs(&sample_conv_kws);
 }

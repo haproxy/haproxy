@@ -9972,6 +9972,13 @@ http_date([<offset>])
   emit Date header fields, Expires values in responses when combined with a
   positive offset, or Last-Modified values when the offset is negative.
 
+in_table(<table>)
+  Uses the string representation of the input sample to perform a look up in
+  the specified table. If the key is not found in the table, a boolean false
+  is returned. Otherwise a boolean true is returned. This can be used to verify
+  the presence of a certain key in a table tracking some elements (eg: whether
+  or not a source IP address or an Authorization header was already seen).
+
 ipmask(<mask>)
   Apply a mask to an IPv4 address, and use the result for lookups and storage.
   This can be used to make all hosts within a certain mask to share the same
@@ -10066,6 +10073,145 @@ map_<match_type>_<output_type>(<map_file>[,<default_value>])
       |       |       `-------------------- middle spaces ignored
       |       `---------------------------- key
       `------------------------------------ leading spaces ignored
+
+table_bytes_in_rate(<table>)
+  Uses the string representation of the input sample to perform a look up in
+  the specified table. If the key is not found in the table, integer value zero
+  is returned. Otherwise the converter returns the average client-to-server
+  bytes rate associated with the input sample in the designated table, measured
+  in amount of bytes over the period configured in the table. See also the
+  sc_bytes_in_rate sample fetch keyword.
+
+
+table_bytes_out_rate(<table>)
+  Uses the string representation of the input sample to perform a look up in
+  the specified table. If the key is not found in the table, integer value zero
+  is returned. Otherwise the converter returns the average server-to-client
+  bytes rate associated with the input sample in the designated table, measured
+  in amount of bytes over the period configured in the table. See also the
+  sc_bytes_out_rate sample fetch keyword.
+
+table_conn_cnt(<table>)
+  Uses the string representation of the input sample to perform a look up in
+  the specified table. If the key is not found in the table, integer value zero
+  is returned. Otherwise the converter returns the cumulated amount of incoming
+  connections associated with the input sample in the designated table. See
+  also the sc_conn_cnt sample fetch keyword.
+
+table_conn_cur(<table>)
+  Uses the string representation of the input sample to perform a look up in
+  the specified table. If the key is not found in the table, integer value zero
+  is returned. Otherwise the converter returns the current amount of concurrent
+  tracked connections associated with the input sample in the designated table.
+  See also the sc_conn_cur sample fetch keyword.
+
+table_conn_rate(<table>)
+  Uses the string representation of the input sample to perform a look up in
+  the specified table. If the key is not found in the table, integer value zero
+  is returned. Otherwise the converter returns the average incoming connection
+  rate associated with the input sample in the designated table. See also the
+  sc_conn_rate sample fetch keyword.
+
+table_gpc0(<table>)
+  Uses the string representation of the input sample to perform a look up in
+  the specified table. If the key is not found in the table, integer value zero
+  is returned. Otherwise the converter returns the current value of the first
+  general purpose counter associated with the input sample in the designated
+  table. See also the sc_get_gpc0 sample fetch keyword.
+
+table_gpc0_rate(<table>)
+  Uses the string representation of the input sample to perform a look up in
+  the specified table. If the key is not found in the table, integer value zero
+  is returned. Otherwise the converter returns the frequency which the gpc0
+  counter was incremented over the configured period in the table, associated
+  with the input sample in the designated table. See also the sc_get_gpc0_rate
+  sample fetch keyword.
+
+table_http_err_cnt(<table>)
+  Uses the string representation of the input sample to perform a look up in
+  the specified table. If the key is not found in the table, integer value zero
+  is returned. Otherwise the converter returns the cumulated amount of HTTP
+  errors associated with the input sample in the designated table. See also the
+  sc_http_err_cnt sample fetch keyword.
+
+table_http_err_rate(<table>)
+  Uses the string representation of the input sample to perform a look up in
+  the specified table. If the key is not found in the table, integer value zero
+  is returned. Otherwise the average rate of HTTP errors associated with the
+  input sample in the designated table, measured in amount of errors over the
+  period configured in the table. See also the sc_http_err_rate sample fetch
+  keyword.
+
+table_http_req_cnt(<table>)
+  Uses the string representation of the input sample to perform a look up in
+  the specified table. If the key is not found in the table, integer value zero
+  is returned. Otherwise the converter returns the cumulated amount of HTTP
+  requests associated with the input sample in the designated table. See also
+  the sc_http_req_cnt sample fetch keyword.
+
+table_http_req_rate(<table>)
+  Uses the string representation of the input sample to perform a look up in
+  the specified table. If the key is not found in the table, integer value zero
+  is returned. Otherwise the average rate of HTTP requests associated with the
+  input sample in the designated table, measured in amount of requests over the
+  period configured in the table. See also the sc_http_req_rate sample fetch
+  keyword.
+
+table_kbytes_in(<table>)
+  Uses the string representation of the input sample to perform a look up in
+  the specified table. If the key is not found in the table, integer value zero
+  is returned. Otherwise the converter returns the cumulated amount of client-
+  to-server data associated with the input sample in the designated table,
+  measured in kilobytes. The test is currently performed on 32-bit integers,
+  which limits values to 4 terabytes. See also the sc_kbytes_in sample fetch
+  keyword.
+
+table_kbytes_out(<table>)
+  Uses the string representation of the input sample to perform a look up in
+  the specified table. If the key is not found in the table, integer value zero
+  is returned. Otherwise the converter returns the cumulated amount of server-
+  to-client data associated with the input sample in the designated table,
+  measured in kilobytes. The test is currently performed on 32-bit integers,
+  which limits values to 4 terabytes. See also the sc_kbytes_out sample fetch
+  keyword.
+
+table_server_id(<table>)
+  Uses the string representation of the input sample to perform a look up in
+  the specified table. If the key is not found in the table, integer value zero
+  is returned. Otherwise the converter returns the server ID associated with
+  the input sample in the designated table. A server ID is associated to a
+  sample by a "stick" rule when a connection to a server succeeds. A server ID
+  zero means that no server is associated with this key.
+
+table_sess_cnt(<table>)
+  Uses the string representation of the input sample to perform a look up in
+  the specified table. If the key is not found in the table, integer value zero
+  is returned. Otherwise the converter returns the cumulated amount of incoming
+  sessions associated with the input sample in the designated table. Note that
+  a session here refers to an incoming connection being accepted by the
+  "tcp-request connection" rulesets. See also the sc_sess_cnt sample fetch
+  keyword.
+
+table_sess_rate(<table>)
+  Uses the string representation of the input sample to perform a look up in
+  the specified table. If the key is not found in the table, integer value zero
+  is returned. Otherwise the converter returns the average incoming session
+  rate associated with the input sample in the designated table. Note that a
+  session here refers to an incoming connection being accepted by the
+  "tcp-request connection" rulesets. See also the sc_sess_rate sample fetch
+  keyword.
+
+table_trackers(<table>)
+  Uses the string representation of the input sample to perform a look up in
+  the specified table. If the key is not found in the table, integer value zero
+  is returned. Otherwise the converter returns the current amount of concurrent
+  connections tracking the same key as the input sample in the designated
+  table. It differs from table_conn_cur in that it does not rely on any stored
+  information but on the table's reference count (the "use" value which is
+  returned by "show table" on the CLI). This may sometimes be more suited for
+  layer7 tracking. It can be used to tell a server how many concurrent
+  connections there are from a given address for example. See also the
+  sc_trackers sample fetch keyword.
 
 upper
   Convert a string sample to upper case. This can only be placed after a string
