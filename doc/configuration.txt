@@ -2158,7 +2158,8 @@ compression offload
   invalid payloads. In this case, simply removing the header in the
   configuration does not work because it applies before the header is parsed,
   so that prevents haproxy from compressing. The "offload" setting should
-  then be used for such scenarios.
+  then be used for such scenarios. Note: for now, the "offload" setting is
+  ignored when set in a defaults section.
 
   Compression is disabled when:
     * the request does not advertise a supported compression algorithm in the
