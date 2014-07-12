@@ -692,6 +692,7 @@ presented, even with minimal implementations :
     - thttpd 2.20c     : 400 Bad Request + abort => pass/optimal
     - mini-httpd-1.19  : 400 Bad Request + abort => pass/optimal
     - haproxy 1.4.21   : 400 Bad Request + abort => pass/optimal
+    - Squid 3          : 400 Bad Request + abort => pass/optimal
   - SSL :
     - stud 0.3.47      : connection abort        => pass/optimal
     - stunnel 4.45     : connection abort        => pass/optimal
