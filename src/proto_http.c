@@ -10296,7 +10296,7 @@ smp_fetch_base(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
  * 32-bit integer value. This fetch is useful for tracking per-path activity on
  * high-traffic sites without having to store whole paths.
  */
-static int
+int
 smp_fetch_base32(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                  const struct arg *args, struct sample *smp, const char *kw)
 {

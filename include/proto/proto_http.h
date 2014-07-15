@@ -122,6 +122,9 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
                                                const char **args, char **errmsg, int use_fmt);
 int smp_fetch_cookie(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                  const struct arg *args, struct sample *smp, const char *kw);
+int
+smp_fetch_base32(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                 const struct arg *args, struct sample *smp, const char *kw);
 
 enum http_meth_t find_http_meth(const char *str, const int len);
 
