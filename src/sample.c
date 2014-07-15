@@ -18,6 +18,7 @@
 #include <types/global.h>
 
 #include <common/chunk.h>
+#include <common/hash.h>
 #include <common/standard.h>
 #include <common/uri_auth.h>
 #include <common/base64.h>
@@ -1240,6 +1241,16 @@ static int sample_conv_bin2hex(const struct arg *arg_p, struct sample *smp)
 	return 1;
 }
 
+/* hashes the binary input into a 32-bit unsigned int */
+static int sample_conv_djb2(const struct arg *arg_p, struct sample *smp)
+{
+	smp->data.uint = hash_djb2(smp->data.str.str, smp->data.str.len);
+	if (arg_p && arg_p->data.uint)
+		smp->data.uint = full_hash(smp->data.uint);
+	smp->type = SMP_T_UINT;
+	return 1;
+}
+
 static int sample_conv_str2lower(const struct arg *arg_p, struct sample *smp)
 {
 	int i;
@@ -1302,6 +1313,16 @@ static int sample_conv_ltime(const struct arg *args, struct sample *smp)
 	return 1;
 }
 
+/* hashes the binary input into a 32-bit unsigned int */
+static int sample_conv_sdbm(const struct arg *arg_p, struct sample *smp)
+{
+	smp->data.uint = hash_sdbm(smp->data.str.str, smp->data.str.len);
+	if (arg_p && arg_p->data.uint)
+		smp->data.uint = full_hash(smp->data.uint);
+	smp->type = SMP_T_UINT;
+	return 1;
+}
+
 /* takes an UINT value on input supposed to represent the time since EPOCH,
  * adds an optional offset found in args[1] and emits a string representing
  * the UTC date in the format specified in args[1] using strftime().
@@ -1319,6 +1340,16 @@ static int sample_conv_utime(const struct arg *args, struct sample *smp)
 	temp->len = strftime(temp->str, temp->size, args[0].data.str.str, gmtime(&curr_date));
 	smp->data.str = *temp;
 	smp->type = SMP_T_STR;
+	return 1;
+}
+
+/* hashes the binary input into a 32-bit unsigned int */
+static int sample_conv_wt6(const struct arg *arg_p, struct sample *smp)
+{
+	smp->data.uint = hash_wt6(smp->data.str.str, smp->data.str.len);
+	if (arg_p && arg_p->data.uint)
+		smp->data.uint = full_hash(smp->data.uint);
+	smp->type = SMP_T_UINT;
 	return 1;
 }
 
@@ -1426,6 +1457,9 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "ipmask", sample_conv_ipmask,    ARG1(1,MSK4), NULL, SMP_T_IPV4, SMP_T_IPV4 },
 	{ "ltime",  sample_conv_ltime,     ARG2(1,STR,SINT), NULL, SMP_T_UINT, SMP_T_STR },
 	{ "utime",  sample_conv_utime,     ARG2(1,STR,SINT), NULL, SMP_T_UINT, SMP_T_STR },
+	{ "djb2",   sample_conv_djb2,      ARG1(0,UINT), NULL, SMP_T_BIN,  SMP_T_UINT },
+	{ "sdbm",   sample_conv_sdbm,      ARG1(0,UINT), NULL, SMP_T_BIN,  SMP_T_UINT },
+	{ "wt6",    sample_conv_wt6,       ARG1(0,UINT), NULL, SMP_T_BIN,  SMP_T_UINT },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 

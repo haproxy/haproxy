@@ -9959,6 +9959,17 @@ base64
   transfer binary content in a way that can be reliably transferred (eg:
   an SSL ID can be copied in a header).
 
+djb2([<avalanche>])
+  Hashes a binary input sample into an unsigned 32-bit quantity using the DJB2
+  hash function. Optionally, it is possible to apply a full avalanche hash
+  function to the output if the optional <avalanche> argument equals 1. This
+  converter uses the same functions as used by the various hash-based load
+  balancing algorithms, so it will provide exactly the same results. It is
+  mostly intended for debugging, but can be used as a stick-table entry to
+  collect rough statistics. It must not be used for security purposes as a
+  32-bit hash is trivial to break. See also "sdbm", "wt6" and the "hash-type"
+  directive.
+
 hex
   Converts a binary input sample to an hex string containing two hex digits per
   input byte. It is used to log or transfer hex dumps of some binary input data
@@ -10088,6 +10099,17 @@ map_<match_type>_<output_type>(<map_file>[,<default_value>])
       |       |       `-------------------- middle spaces ignored
       |       `---------------------------- key
       `------------------------------------ leading spaces ignored
+
+sdbm([<avalanche>])
+  Hashes a binary input sample into an unsigned 32-bit quantity using the SDBM
+  hash function. Optionally, it is possible to apply a full avalanche hash
+  function to the output if the optional <avalanche> argument equals 1. This
+  converter uses the same functions as used by the various hash-based load
+  balancing algorithms, so it will provide exactly the same results. It is
+  mostly intended for debugging, but can be used as a stick-table entry to
+  collect rough statistics. It must not be used for security purposes as a
+  32-bit hash is trivial to break. See also "djb2", "wt6" and the "hash-type"
+  directive.
 
 table_bytes_in_rate(<table>)
   Uses the string representation of the input sample to perform a look up in
@@ -10246,6 +10268,17 @@ utime(<format>[,<offset>])
       # Emit two colons, one with the UTC time and another with ip:port
       # Eg:  20140710162350 127.0.0.1:57325
       log-format %[date,utime(%Y%m%d%H%M%S)]\ %ci:%cp
+
+wt6([<avalanche>])
+  Hashes a binary input sample into an unsigned 32-bit quantity using the WT6
+  hash function. Optionally, it is possible to apply a full avalanche hash
+  function to the output if the optional <avalanche> argument equals 1. This
+  converter uses the same functions as used by the various hash-based load
+  balancing algorithms, so it will provide exactly the same results. It is
+  mostly intended for debugging, but can be used as a stick-table entry to
+  collect rough statistics. It must not be used for security purposes as a
+  32-bit hash is trivial to break. See also "djb2", "sdbm", and the "hash-type"
+  directive.
 
 
 7.3.2. Fetching samples from internal states
@@ -11408,7 +11441,9 @@ base32 : integer
   This returns a 32-bit hash of the value returned by the "base" fetch method
   above. This is useful to track per-URL activity on high traffic sites without
   having to store all URLs. Instead a shorter hash is stored, saving a lot of
-  memory. The output type is an unsigned integer.
+  memory. The output type is an unsigned integer. The hash function used is
+  SDBM with full avalanche on the output. Technically, base32 is exactly equal
+  to "base,sdbm(1)".
 
 base32+src : binary
   This returns the concatenation of the base32 fetch above and the src fetch
