@@ -654,6 +654,27 @@ static int c_meth2str(struct sample *smp)
 	return 1;
 }
 
+static int c_addr2bin(struct sample *smp)
+{
+	struct chunk *chk = get_trash_chunk();
+
+	if (smp->type == SMP_T_IPV4) {
+		chk->len = 4;
+		memcpy(chk->str, &smp->data.ipv4, chk->len);
+	}
+	else if (smp->type == SMP_T_IPV6) {
+		chk->len = 16;
+		memcpy(chk->str, &smp->data.ipv6, chk->len);
+	}
+	else
+		return 0;
+
+	smp->data.str = *chk;
+	smp->type = SMP_T_BIN;
+	return 1;
+}
+
+
 /*****************************************************************/
 /*      Sample casts matrix:                                     */
 /*           sample_casts[from type][to type]                    */
@@ -666,8 +687,8 @@ sample_cast_fct sample_casts[SMP_TYPES][SMP_TYPES] = {
 /*       UINT */ { c_none,    c_none,    c_none,    c_int2ip,   c_int2ip, NULL,       c_int2str,  NULL,       NULL,       },
 /*       SINT */ { c_none,    c_none,    c_none,    c_int2ip,   c_int2ip, NULL,       c_int2str,  NULL,       NULL,       },
 /*       ADDR */ { NULL,      NULL,      NULL,      NULL,       NULL,     NULL,       NULL,       NULL,       NULL,       },
-/*       IPV4 */ { NULL,      c_ip2int,  c_ip2int,  c_none,     c_none,   c_ip2ipv6,  c_ip2str,   NULL,       NULL,       },
-/*       IPV6 */ { NULL,      NULL,      NULL,      c_none,     NULL,     c_none,     c_ipv62str, NULL,       NULL,       },
+/*       IPV4 */ { NULL,      c_ip2int,  c_ip2int,  c_none,     c_none,   c_ip2ipv6,  c_ip2str,   c_addr2bin, NULL,       },
+/*       IPV6 */ { NULL,      NULL,      NULL,      c_none,     NULL,     c_none,     c_ipv62str, c_addr2bin, NULL,       },
 /*        STR */ { c_str2int, c_str2int, c_str2int, c_str2addr, c_str2ip, c_str2ipv6, c_none,     c_none,     c_str2meth, },
 /*        BIN */ { NULL,      NULL,      NULL,      NULL,       NULL,     NULL,       c_bin2str,  c_none,     c_str2meth, },
 /*       METH */ { NULL,      NULL,      NULL,      NULL,       NULL,     NULL,       c_meth2str, c_meth2str, c_none,     },

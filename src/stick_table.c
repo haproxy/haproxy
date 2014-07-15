@@ -518,6 +518,23 @@ static void *k_ip2str(struct sample *smp, union stktable_key_data *kdata, size_t
 	return (void *)kdata->buf;
 }
 
+static void *k_ip2bin(struct sample *smp, union stktable_key_data *kdata, size_t *len)
+{
+	if (smp->type == SMP_T_IPV4) {
+		if (*len > 4)
+			*len = 4;
+		memcpy(kdata->buf, &smp->data.ipv4, *len);
+	}
+	else if (smp->type == SMP_T_IPV6) {
+		if (*len > 16)
+			*len = 16;
+		memcpy(kdata->buf, &smp->data.ipv6, *len);
+	}
+	else
+		*len = 0;
+	return (void *)kdata->buf;
+}
+
 static void *k_bin2str(struct sample *smp, union stktable_key_data *kdata, size_t *len)
 {
 	unsigned char c;
@@ -591,8 +608,8 @@ static sample_to_key_fct sample_to_key[SMP_TYPES][STKTABLE_TYPES] = {
 /*             UINT */ { k_int2ip, NULL,        k_int2int, k_int2str,  NULL      },
 /*             SINT */ { k_int2ip, NULL,        k_int2int, k_int2str,  NULL      },
 /*             ADDR */ { k_ip2ip,  k_ip2ipv6,   k_ip2int,  k_ip2str,   NULL      },
-/*             IPV4 */ { k_ip2ip,  k_ip2ipv6,   k_ip2int,  k_ip2str,   NULL      },
-/*             IPV6 */ { k_ip2ip,  k_ip2ipv6,   k_ip2int,  k_ip2str,   NULL      },
+/*             IPV4 */ { k_ip2ip,  k_ip2ipv6,   k_ip2int,  k_ip2str,   k_ip2bin  },
+/*             IPV6 */ { k_ip2ip,  k_ip2ipv6,   k_ip2int,  k_ip2str,   k_ip2bin  },
 /*              STR */ { k_str2ip, k_str2ipv6,  k_str2int, k_str2str,  k_str2str },
 /*              BIN */ { NULL,     NULL,        NULL,      k_bin2str,  k_str2str },
 };
