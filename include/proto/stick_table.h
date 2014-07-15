@@ -51,6 +51,7 @@ struct stktable_key *stktable_fetch_key(struct stktable *t, struct proxy *px,
 				        struct session *l4, void *l7, unsigned int opt,
 				        struct sample_expr *expr, struct sample *smp);
 int stktable_compatible_sample(struct sample_expr *expr, unsigned long table_type);
+int stktable_register_data_store(int idx, const char *name, int std_type, int arg_type);
 int stktable_get_data_type(char *name);
 struct proxy *find_stktable(const char *name);
 int stktable_trash_oldest(struct stktable *t, int to_batch);

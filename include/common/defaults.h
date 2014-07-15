@@ -83,6 +83,11 @@
 #define MAX_SESS_STKCTR 3
 #endif
 
+// max # of extra stick-table data types that can be registred at runtime
+#ifndef STKTABLE_EXTRA_DATA_TYPES
+#define STKTABLE_EXTRA_DATA_TYPES 0
+#endif
+
 // max # of loops we can perform around a read() which succeeds.
 // It's very frequent that the system returns a few TCP segments at a time.
 #ifndef MAX_READ_POLL_LOOPS
