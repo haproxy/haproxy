@@ -45,6 +45,7 @@ void session_process_counters(struct session *s);
 void sess_change_server(struct session *sess, struct server *newsrv);
 struct task *process_session(struct task *t);
 void default_srv_error(struct session *s, struct stream_interface *si);
+struct stkctr *smp_fetch_sc_stkctr(struct session *l4, const struct arg *args, const char *kw);
 int parse_track_counters(char **args, int *arg,
 			 int section_type, struct proxy *curpx,
 			 struct track_ctr_prm *prm,

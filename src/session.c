@@ -2758,7 +2758,7 @@ void session_shutdown(struct session *session, int why)
  * to be able to convery multiple values per key (eg: have gpc0 from
  * multiple tables).
  */
-static struct stkctr *
+struct stkctr *
 smp_fetch_sc_stkctr(struct session *l4, const struct arg *args, const char *kw)
 {
 	static struct stkctr stkctr;
