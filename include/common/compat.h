@@ -27,8 +27,6 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include <common/config.h>
-#include <common/standard.h>
 
 #ifndef BITS_PER_INT
 #define BITS_PER_INT    (8*sizeof(int))
