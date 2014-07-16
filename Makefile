@@ -363,7 +363,7 @@ ifeq ($(IGNOREGIT),)
 VERSION := $(shell [ -d .git/. ] && ref=`(git describe --tags --match 'v*' --abbrev=0) 2>/dev/null` && ref=$${ref%-g*} && echo "$${ref\#v}")
 ifneq ($(VERSION),)
 # OK git is there and works.
-SUBVERS := $(shell comms=`git log --format=oneline --no-merges v$(VERSION).. 2>/dev/null | wc -l | tr -dc '0-9'`; [ $$comms -gt 0 ] && echo "-$$comms")
+SUBVERS := $(shell comms=`git log --format=oneline --no-merges v$(VERSION).. 2>/dev/null | wc -l | tr -dc '0-9'`; commit=`(git log -1 --pretty=%h --abbrev=6) 2>/dev/null`; [ $$comms -gt 0 ] && echo "-$$commit-$$comms")
 VERDATE := $(shell git log -1 --pretty=format:%ci | cut -f1 -d' ' | tr '-' '/')
 endif
 endif
