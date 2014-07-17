@@ -622,6 +622,7 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 	char *value = NULL;
 	struct tlv_ssl *tlv;
 	int ssl_tlv_len = 0;
+	struct chunk *cn_trash;
 #endif
 
 	if (buf_len < PP2_HEADER_LEN)
@@ -682,8 +683,9 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 				tlv->verify = htonl(ssl_sock_get_verify_result(remote));
 			}
 			if (srv->pp_opts & SRV_PP_V2_SSL_CN) {
-				if (ssl_sock_get_remote_common_name(remote, &trash) > 0) {
-					tlv_len = make_tlv(&buf[ret+ssl_tlv_len], (buf_len - ret - ssl_tlv_len), PP2_TYPE_SSL_CN, trash.len, trash.str);
+				cn_trash = get_trash_chunk();
+				if (ssl_sock_get_remote_common_name(remote, &cn_trash) > 0) {
+					tlv_len = make_tlv(&buf[ret+ssl_tlv_len], (buf_len - ret - ssl_tlv_len), PP2_TYPE_SSL_CN, cn_trash->len, cn_trash->str);
 					ssl_tlv_len += tlv_len;
 				}
 			}
