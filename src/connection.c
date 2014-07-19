@@ -684,7 +684,7 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 			}
 			if (srv->pp_opts & SRV_PP_V2_SSL_CN) {
 				cn_trash = get_trash_chunk();
-				if (ssl_sock_get_remote_common_name(remote, &cn_trash) > 0) {
+				if (ssl_sock_get_remote_common_name(remote, cn_trash) > 0) {
 					tlv_len = make_tlv(&buf[ret+ssl_tlv_len], (buf_len - ret - ssl_tlv_len), PP2_TYPE_SSL_CN, cn_trash->len, cn_trash->str);
 					ssl_tlv_len += tlv_len;
 				}
