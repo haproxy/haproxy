@@ -130,11 +130,8 @@ static void sigint_handler(int signum __attribute__((unused)))
 static void init(int argc, char **argv)
 {
 	while (argc > 1) {
-		if (**argv == '-') {
-			char *flag = *argv + 1;
-			--argc; ++argv;
-			if (*flag == 'p')
-				pid_file = *argv;
+		if ((*argv)[0] == '-' && (*argv)[1] == 'p') {
+			pid_file = *(argv + 1);
 		}
 		--argc; ++argv;
 	}
