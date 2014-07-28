@@ -54,8 +54,6 @@ static void inline srv_set_sess_last(struct server *s)
 	s->counters.last_sess = now.tv_sec;
 }
 
-#endif /* _PROTO_SERVER_H */
-
 /*
  * Registers the server keyword list <kwl> as a list of valid keywords for next
  * parsing sessions.
@@ -199,6 +197,8 @@ static inline void srv_adm_set_ready(struct server *s)
 	srv_clr_admin_flag(s, SRV_ADMF_FDRAIN);
 	srv_clr_admin_flag(s, SRV_ADMF_FMAINT);
 }
+
+#endif /* _PROTO_SERVER_H */
 
 /*
  * Local variables:
