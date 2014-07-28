@@ -22,6 +22,8 @@
 #define SD_DEBUG "<7>"
 #define SD_NOTICE "<5>"
 
+static volatile sig_atomic_t caught_signal;
+
 static char *pid_file = "/run/haproxy.pid";
 static int wrapper_argc;
 static char **wrapper_argv;
@@ -103,7 +105,12 @@ static int read_pids(char ***pid_strv)
 	return read;
 }
 
-static void sigusr2_handler(int signum __attribute__((unused)))
+static void signal_handler(int signum)
+{
+	caught_signal = signum;
+}
+
+static void do_restart(void)
 {
 	setenv(REEXEC_FLAG, "1", 1);
 	fprintf(stderr, SD_NOTICE "haproxy-systemd-wrapper: re-executing\n");
@@ -111,7 +118,7 @@ static void sigusr2_handler(int signum __attribute__((unused)))
 	execv(wrapper_argv[0], wrapper_argv);
 }
 
-static void sigint_handler(int signum __attribute__((unused)))
+static void do_shutdown(void)
 {
 	int i, pid;
 	char **pid_strv = NULL;
@@ -147,24 +154,20 @@ int main(int argc, char **argv)
 	--argc; ++argv;
 	init(argc, argv);
 
-	signal(SIGINT, &sigint_handler);
-	signal(SIGUSR2, &sigusr2_handler);
+	struct sigaction sa;
+	memset(&sa, 0, sizeof(struct sigaction));
+	sa.sa_handler = &signal_handler;
+	sigaction(SIGUSR2, &sa, NULL);
+	sigaction(SIGINT, &sa, NULL);
 
 	if (getenv(REEXEC_FLAG) != NULL) {
 		/* We are being re-executed: restart HAProxy gracefully */
 		int i;
 		char **pid_strv = NULL;
 		int nb_pid = read_pids(&pid_strv);
-		sigset_t sigs;
 
 		unsetenv(REEXEC_FLAG);
 		spawn_haproxy(pid_strv, nb_pid);
-
-		/* Unblock SIGUSR2 which was blocked by the signal handler
-		 * before re-exec */
-		sigprocmask(SIG_BLOCK, NULL, &sigs);
-		sigdelset(&sigs, SIGUSR2);
-		sigprocmask(SIG_SETMASK, &sigs, NULL);
 
 		for (i = 0; i < nb_pid; ++i)
 			free(pid_strv[i]);
@@ -176,8 +179,16 @@ int main(int argc, char **argv)
 	}
 
 	status = -1;
-	while (-1 != wait(&status) || errno == EINTR)
-		;
+	while (-1 != wait(&status) || errno == EINTR) {
+		if (caught_signal == SIGUSR2) {
+			caught_signal = 0;
+			do_restart();
+		}
+		else if (caught_signal == SIGINT) {
+			caught_signal = 0;
+			do_shutdown();
+		}
+	}
 
 	fprintf(stderr, SD_NOTICE "haproxy-systemd-wrapper: exit, haproxy RC=%d\n",
 			status);
