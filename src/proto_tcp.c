@@ -1048,8 +1048,8 @@ int tcp_inspect_request(struct session *s, struct channel *req, int an_bit)
 				t = rule->act_prm.trk_ctr.table.t;
 				key = stktable_fetch_key(t, s->be, s, &s->txn, SMP_OPT_DIR_REQ | partial, rule->act_prm.trk_ctr.expr, &smp);
 
-				if (smp.flags & SMP_F_MAY_CHANGE)
-					goto missing_data;
+				if ((smp.flags & SMP_F_MAY_CHANGE) && !(partial & SMP_OPT_FINAL))
+					goto missing_data; /* key might appear later */
 
 				if (key && (ts = stktable_get_entry(t, key))) {
 					session_track_stkctr(&s->stkctr[tcp_trk_idx(rule->action)], t, ts);

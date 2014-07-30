@@ -930,6 +930,18 @@ out_error:
  * Note: the fetch functions are required to properly set the return type. The
  * conversion functions must do so too. However the cast functions do not need
  * to since they're made to cast mutiple types according to what is required.
+ *
+ * The caller may indicate in <opt> if it considers the result final or not.
+ * The caller needs to check the SMP_F_MAY_CHANGE flag in p->flags to verify
+ * if the result is stable or not, according to the following table :
+ *
+ * return MAY_CHANGE FINAL   Meaning for the sample
+ *  NULL      0        *     Not present and will never be (eg: header)
+ *  NULL      1        0     Not present yet, could change (eg: POST param)
+ *  NULL      1        1     Not present yet, will not change anymore
+ *   smp      0        *     Present and will not change (eg: header)
+ *   smp      1        0     Present, may change (eg: request length)
+ *   smp      1        1     Present, last known value (eg: request length)
  */
 struct sample *sample_process(struct proxy *px, struct session *l4, void *l7,
                               unsigned int opt,
@@ -1187,7 +1199,16 @@ int smp_resolve_args(struct proxy *p)
  * and <opt> does not contain SMP_OPT_FINAL, then the sample is returned as-is
  * with its SMP_F_MAY_CHANGE flag so that the caller can check it and decide to
  * take actions (eg: wait longer). If a sample could not be found or could not
- * be converted, NULL is returned.
+ * be converted, NULL is returned. The caller MUST NOT use the sample if the
+ * SMP_F_MAY_CHANGE flag is present, as it is used only as a hint that there is
+ * still hope to get it after waiting longer, and is not converted to string.
+ * The possible output combinations are the following :
+ *
+ * return MAY_CHANGE FINAL   Meaning for the sample
+ *  NULL      *        *     Not present and will never be (eg: header)
+ *   smp      0        *     Final value converted (eg: header)
+ *   smp      1        0     Not present yet, may appear later (eg: header)
+ *   smp      1        1     never happens (either flag is cleared on output)
  */
 struct sample *sample_fetch_string(struct proxy *px, struct session *l4, void *l7,
                                    unsigned int opt, struct sample_expr *expr)
