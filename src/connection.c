@@ -678,9 +678,11 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 				tlv_len = make_tlv(&buf[ret+ssl_tlv_len], (buf_len-ret-ssl_tlv_len), PP2_TYPE_SSL_VERSION, strlen(value), value);
 				ssl_tlv_len += tlv_len;
 			}
-			if (ssl_sock_get_cert_used(remote)) {
-				tlv->client |= PP2_CLIENT_CERT;
+			if (ssl_sock_get_cert_used_sess(remote)) {
+				tlv->client |= PP2_CLIENT_CERT_SESS;
 				tlv->verify = htonl(ssl_sock_get_verify_result(remote));
+				if (ssl_sock_get_cert_used_conn(remote))
+					tlv->client |= PP2_CLIENT_CERT_CONN;
 			}
 			if (srv->pp_opts & SRV_PP_V2_SSL_CN) {
 				cn_trash = get_trash_chunk();

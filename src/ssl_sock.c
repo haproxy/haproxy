@@ -2728,8 +2728,25 @@ out:
 	return result;
 }
 
-/* returns 1 if client passed a certificate, 0 if not */
-int ssl_sock_get_cert_used(struct connection *conn)
+/* returns 1 if client passed a certificate for this session, 0 if not */
+int ssl_sock_get_cert_used_sess(struct connection *conn)
+{
+	X509 *crt = NULL;
+
+	if (!ssl_sock_is_ssl(conn))
+		return 0;
+
+	/* SSL_get_peer_certificate, it increase X509 * ref count */
+	crt = SSL_get_peer_certificate(conn->xprt_ctx);
+	if (!crt)
+		return 0;
+
+	X509_free(crt);
+	return 1;
+}
+
+/* returns 1 if client passed a certificate for this connection, 0 if not */
+int ssl_sock_get_cert_used_conn(struct connection *conn)
 {
 	if (!ssl_sock_is_ssl(conn))
 		return 0;

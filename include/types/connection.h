@@ -345,8 +345,9 @@ struct tlv_ssl {
 	uint8_t sub_tlv[0];
 }__attribute__((packed));
 
-#define PP2_CLIENT_SSL      0x01
-#define PP2_CLIENT_CERT     0x02
+#define PP2_CLIENT_SSL           0x01
+#define PP2_CLIENT_CERT_CONN     0x02
+#define PP2_CLIENT_CERT_SESS     0x04
 
 #endif /* _TYPES_CONNECTION_H */
 
