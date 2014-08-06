@@ -1627,7 +1627,7 @@ static int prepare_external_check(struct check *check)
 		if (!check->argv[i])
 			goto err;
 
-	return 0;
+	return 1;
 err:
 	if (check->envp) {
 		free(check->envp[1]);
@@ -1642,7 +1642,7 @@ err:
 		check->argv = NULL;
 	}
 	Alert(err_fmt, px->id, s->id);
-	return -1;
+	return 0;
 }
 
 /*
@@ -1666,12 +1666,6 @@ static int connect_proc_chk(struct task *t)
 	struct proxy *px = s->proxy;
 	int status;
 	pid_t pid;
-
-	if (!check->argv) {
-		status = prepare_external_check(check);
-		if (status < 0)
-			return SN_ERR_RESOURCE;
-	}
 
 	status = SN_ERR_RESOURCE;
 
@@ -2140,6 +2134,10 @@ int start_checks() {
 		for (s = px->srv; s; s = s->next) {
 			/* A task for the main check */
 			if (s->check.state & CHK_ST_CONFIGURED) {
+				if (s->check.type == PR_O2_EXT_CHK) {
+					if (!prepare_external_check(&s->check))
+						return -1;
+				}
 				if (!start_check_task(&s->check, mininter, nbcheck, srvpos))
 					return -1;
 				srvpos++;
