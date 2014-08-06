@@ -93,7 +93,7 @@ static const struct check_status check_statuses[HCHK_STATUS_SIZE] = {
 
 	[HCHK_STATUS_PROCERR]	= { CHK_RES_FAILED,   "PROCERR",  "External check error" },
 	[HCHK_STATUS_PROCTOUT]	= { CHK_RES_FAILED,   "PROCTOUT", "External check timeout" },
-	[HCHK_STATUS_PROCOK]	= { CHK_RES_FAILED,   "PROCOK",   "External check passed" },
+	[HCHK_STATUS_PROCOK]	= { CHK_RES_PASSED,   "PROCOK",   "External check passed" },
 };
 
 static const struct analyze_status analyze_statuses[HANA_STATUS_SIZE] = {		/* 0: ignore, 1: error, 2: OK */
