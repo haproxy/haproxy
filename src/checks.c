@@ -1519,6 +1519,7 @@ static void pid_list_expire(pid_t pid, int status)
 			elem->t->expire = now_ms;
 			elem->status = status;
 			elem->exited = 1;
+			task_wakeup(elem->t, TASK_WOKEN_IO);
 			return;
 		}
 	}
