@@ -9361,8 +9361,8 @@ struct http_res_rule *parse_http_res_cond(const char **args, const char *file, i
 		cur_arg = 1;
 
 		if (!*args[cur_arg] || !*args[cur_arg+1] || !*args[cur_arg+2] ||
-		    (*args[cur_arg+3] && strcmp(args[cur_arg+2], "if") != 0 && strcmp(args[cur_arg+2], "unless") != 0)) {
-			Alert("parsing [%s:%d]: 'http-request %s' expects exactly 3 arguments.\n",
+		    (*args[cur_arg+3] && strcmp(args[cur_arg+3], "if") != 0 && strcmp(args[cur_arg+3], "unless") != 0)) {
+			Alert("parsing [%s:%d]: 'http-response %s' expects exactly 3 arguments.\n",
 			      file, linenum, args[0]);
 			goto out_err;
 		}
