@@ -11,6 +11,7 @@
  *
  */
 
+#include <ctype.h>
 #include <string.h>
 #include <arpa/inet.h>
 #include <stdio.h>
@@ -1386,6 +1387,188 @@ static int sample_conv_wt6(const struct arg *arg_p, struct sample *smp)
 	return 1;
 }
 
+/* This function escape special json characters. The returned string can be
+ * safely set between two '"' and used as json string. The json string is
+ * defined like this:
+ *
+ *    any Unicode character except '"' or '\' or control character
+ *    \", \\, \/, \b, \f, \n, \r, \t, \u + four-hex-digits
+ *
+ * The enum input_type contain all the allowed mode for decoding the input
+ * string.
+ */
+enum input_type {
+	IT_ASCII = 0,
+	IT_UTF8,
+	IT_UTF8S,
+	IT_UTF8P,
+	IT_UTF8PS,
+};
+static int sample_conv_json_check(struct arg *arg, struct sample_conv *conv,
+                                  const char *file, int line, char **err)
+{
+	if (!arg) {
+		memprintf(err, "Unexpected empty arg list");
+		return 0;
+	}
+
+	if (arg->type != ARGT_STR) {
+		memprintf(err, "Unexpected arg type");
+		return 0;
+	}
+
+	if (strcmp(arg->data.str.str, "") == 0) {
+		arg->type = ARGT_UINT;
+		arg->data.uint = IT_ASCII;
+		return 1;
+	}
+
+	else if (strcmp(arg->data.str.str, "ascii") == 0) {
+		arg->type = ARGT_UINT;
+		arg->data.uint = IT_ASCII;
+		return 1;
+	}
+
+	else if (strcmp(arg->data.str.str, "utf8") == 0) {
+		arg->type = ARGT_UINT;
+		arg->data.uint = IT_UTF8;
+		return 1;
+	}
+
+	else if (strcmp(arg->data.str.str, "utf8s") == 0) {
+		arg->type = ARGT_UINT;
+		arg->data.uint = IT_UTF8S;
+		return 1;
+	}
+
+	else if (strcmp(arg->data.str.str, "utf8p") == 0) {
+		arg->type = ARGT_UINT;
+		arg->data.uint = IT_UTF8P;
+		return 1;
+	}
+
+	else if (strcmp(arg->data.str.str, "utf8ps") == 0) {
+		arg->type = ARGT_UINT;
+		arg->data.uint = IT_UTF8PS;
+		return 1;
+	}
+
+	memprintf(err, "Unexpected input code type at file '%s', line %d. "
+	               "Allowed value are 'ascii', 'utf8', 'utf8p' and 'utf8pp'", file, line);
+	return 0;
+}
+
+static int sample_conv_json(const struct arg *arg_p, struct sample *smp)
+{
+	struct chunk *temp;
+	char _str[7]; /* \u + 4 hex digit + null char for sprintf. */
+	const char *str;
+	int len;
+	enum input_type input_type = IT_ASCII;
+	unsigned int c;
+	unsigned int ret;
+	char *p;
+
+	if (arg_p)
+		input_type = arg_p->data.uint;
+
+	temp = get_trash_chunk();
+	temp->len = 0;
+
+	p = smp->data.str.str;
+	while (p < smp->data.str.str + smp->data.str.len) {
+
+		if (input_type == IT_ASCII) {
+			/* Read input as ASCII. */
+			c = *(unsigned char *)p;
+			p++;
+		}
+		else {
+			/* Read input as UTF8. */
+			ret = utf8_next(p, smp->data.str.len - ( p - smp->data.str.str ), &c);
+			p += utf8_return_length(ret);
+
+			if (input_type == IT_UTF8 && utf8_return_code(ret) != UTF8_CODE_OK)
+					return 0;
+			if (input_type == IT_UTF8S && utf8_return_code(ret) != UTF8_CODE_OK)
+					continue;
+			if (input_type == IT_UTF8P && utf8_return_code(ret) & (UTF8_CODE_INVRANGE|UTF8_CODE_BADSEQ))
+					return 0;
+			if (input_type == IT_UTF8PS && utf8_return_code(ret) & (UTF8_CODE_INVRANGE|UTF8_CODE_BADSEQ))
+					continue;
+
+			/* Check too big values. */
+			if ((unsigned int)c > 0xffff) {
+				if (input_type == IT_UTF8 || input_type == IT_UTF8P)
+					return 0;
+				continue;
+			}
+		}
+
+		/* Convert character. */
+		if (c == '"') {
+			len = 2;
+			str = "\\\"";
+		}
+		else if (c == '\\') {
+			len = 2;
+			str = "\\\\";
+		}
+		else if (c == '/') {
+			len = 2;
+			str = "\\/";
+		}
+		else if (c == '\b') {
+			len = 2;
+			str = "\\b";
+		}
+		else if (c == '\f') {
+			len = 2;
+			str = "\\f";
+		}
+		else if (c == '\r') {
+			len = 2;
+			str = "\\r";
+		}
+		else if (c == '\n') {
+			len = 2;
+			str = "\\n";
+		}
+		else if (c == '\t') {
+			len = 2;
+			str = "\\t";
+		}
+		else if (c > 0xff || !isprint(c)) {
+			/* isprint generate a segfault if c is too big. The man says that
+			 * c must have the value of an unsigned char or EOF.
+			 */
+			len = 6;
+			_str[0] = '\\';
+			_str[1] = 'u';
+			snprintf(&_str[2], 5, "%04x", (unsigned short)c);
+			str = _str;
+		}
+		else {
+			len = 1;
+			str = (char *)&c;
+		}
+
+		/* Check length */
+		if (temp->len + len > temp->size)
+			return 0;
+
+		/* Copy string. */
+		memcpy(temp->str + temp->len, str, len);
+		temp->len += len;
+	}
+
+	smp->flags &= ~SMP_F_CONST;
+	smp->data.str = *temp;
+	smp->type = SMP_T_STR;
+
+	return 1;
+}
+
 /************************************************************************/
 /*       All supported sample fetch functions must be declared here     */
 /************************************************************************/
@@ -1493,6 +1676,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "djb2",   sample_conv_djb2,      ARG1(0,UINT), NULL, SMP_T_BIN,  SMP_T_UINT },
 	{ "sdbm",   sample_conv_sdbm,      ARG1(0,UINT), NULL, SMP_T_BIN,  SMP_T_UINT },
 	{ "wt6",    sample_conv_wt6,       ARG1(0,UINT), NULL, SMP_T_BIN,  SMP_T_UINT },
+	{ "json",   sample_conv_json,      ARG1(1,STR),  sample_conv_json_check, SMP_T_STR,  SMP_T_STR },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 

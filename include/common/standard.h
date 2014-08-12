@@ -914,4 +914,22 @@ static inline unsigned long caddr_clr_flags(unsigned long caddr, unsigned int da
 	return caddr & ~(unsigned long)(data & 3);
 }
 
+/* UTF-8 decoder status */
+#define UTF8_CODE_OK       0x00
+#define UTF8_CODE_OVERLONG 0x10
+#define UTF8_CODE_INVRANGE 0x20
+#define UTF8_CODE_BADSEQ   0x40
+
+unsigned char utf8_next(const char *s, int len, unsigned int *c);
+
+static inline unsigned char utf8_return_code(unsigned int code)
+{
+	return code & 0xf0;
+}
+
+static inline unsigned char utf8_return_length(unsigned char code)
+{
+	return code & 0x0f;
+}
+
 #endif /* _COMMON_STANDARD_H */

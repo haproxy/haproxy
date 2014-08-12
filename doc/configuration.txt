@@ -10043,6 +10043,46 @@ ipmask(<mask>)
   table entries and as such use the same server. The mask can be passed in
   dotted form (eg: 255.255.255.0) or in CIDR form (eg: 24).
 
+json([<input-code>])
+  Escapes the input string and produces an ASCII ouput string ready to use as a
+  JSON string. The converter tries to decode the input string according to the
+  <input-code> parameter. It can be "ascii", "utf8", "utf8s", "utf8"" or
+  "utf8ps". The "ascii" decoder never fails. The "utf8" decoder detects 3 types
+  of errors:
+   - bad UTF-8 sequence (lone continuation byte, bad number of continuation
+     bytes, ...)
+   - invalid range (the decoded value is within a UTF-8 prohibited range),
+   - code overlong (the value is encoded with more bytes than necessary).
+
+  The UTF-8 JSON encoding can produce a "too long value" error when the UTF-8
+  character is greater than 0xffff because the JSON string escape specification
+  only authorizes 4 hex digits for the value encoding. The UTF-8 decoder exists
+  in 4 variants designated by a combination of two suffix letters : "p" for
+  "permissive" and "s" for "silently ignore". The behaviors of the decoders
+  are :
+   - "ascii"  : never fails ;
+   - "utf8"   : fails on any detected errors ;
+   - "utf8s"  : never fails, but removes characters corresponding to errors ;
+   - "utf8p"  : accepts and fixes the overlong errors, but fails on any other
+                error ;
+   - "utf8ps" : never fails, accepts and fixes the overlong errors, but removes
+                characters corresponding to the other errors.
+
+  This converter is particularly useful for building properly escaped JSON for
+  logging to servers which consume JSON-formated traffic logs.
+
+  Example:
+     capture request header user-agent len 150
+     capture request header Host len 15
+     log-format {"ip":"%[src]","user-agent":"%[capture.req.hdr(1),json]"}
+
+  Input request from client 127.0.0.1:
+     GET / HTTP/1.0
+     User-Agent: Very "Ugly" UA 1/2
+
+  Output log:
+     {"ip":"127.0.0.1","user-agent":"Very \"Ugly\" UA 1\/2"}
+
 language(<value>[,<default>])
   Returns the value with the highest q-factor from a list as extracted from the
   "accept-language" header using "req.fhdr". Values with no q-factor have a
