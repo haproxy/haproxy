@@ -69,7 +69,7 @@ msg.next : points to the next byte to inspect. This offset is automatically
 msg.sov  : start of value. First character of the header's value in the header
            states, start of the body in the data states. Strictly positive
            values indicate that headers were not forwarded yet (<buf.p> is
-           before the start of the body), and null or positive values are seen
+           before the start of the body), and null or negative values are seen
            after headers are forwarded (<buf.p> is at or past the start of the
            body). The value stops changing when data start to leave the buffer
            (in order to avoid integer overflows). So the maximum possible range
