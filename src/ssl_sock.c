@@ -1478,6 +1478,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 		SSL_MODE_ENABLE_PARTIAL_WRITE |
 		SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
 		SSL_MODE_RELEASE_BUFFERS;
+#ifndef OPENSSL_IS_BORINGSSL
 	STACK_OF(SSL_CIPHER) * ciphers = NULL;
 	SSL_CIPHER * cipher = NULL;
 	char cipher_description[128];
@@ -1488,6 +1489,10 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 	const char dhe_export_description[] = " Kx=DH(";
 	int idx = 0;
 	int dhe_found = 0;
+#else /* OPENSSL_IS_BORINGSSL */
+	/* assume dhe_found if boringssl is detected */
+	int dhe_found = 1;
+#endif
 
 	/* Make sure openssl opens /dev/urandom before the chroot */
 	if (!ssl_initialize_random()) {
@@ -1579,6 +1584,8 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 	/* If tune.ssl.default-dh-param has not been set and
 	   no static DH params were in the certificate file. */
 	if (global.tune.ssl_default_dh_param == 0) {
+
+#ifndef OPENSSL_IS_BORINGSSL
 		ciphers = ctx->cipher_list;
 
 		if (ciphers) {
@@ -1592,10 +1599,11 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 					}
 				}
 			}
+		}
+#endif /* OPENSSL_IS_BORINGSSL */
 
-			if (dhe_found) {
-				Warning("Setting tune.ssl.default-dh-param to 1024 by default, if your workload permits it you should set it to at least 2048. Please set a value >= 1024 to make this warning disappear.\n");
-			}
+		if (dhe_found) {
+			Warning("Setting tune.ssl.default-dh-param to 1024 by default, if your workload permits it you should set it to at least 2048. Please set a value >= 1024 to make this warning disappear.\n");
 		}
 
 		global.tune.ssl_default_dh_param = 1024;
