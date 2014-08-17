@@ -761,7 +761,7 @@ static int ssl_sock_switchctx_cbk(SSL *ssl, int *al, struct bind_conf *s)
 
 static DH * ssl_get_dh_1024(void)
 {
-#if OPENSSL_VERSION_NUMBER < 0x0090801fL
+#if (OPENSSL_VERSION_NUMBER < 0x0090801fL || defined OPENSSL_IS_BORINGSSL)
 	static const unsigned char rfc_2409_prime_1024[] = {
 		0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xC9,0x0F,0xDA,0xA2,
 		0x21,0x68,0xC2,0x34,0xC4,0xC6,0x62,0x8B,0x80,0xDC,0x1C,0xD1,
@@ -778,7 +778,7 @@ static DH * ssl_get_dh_1024(void)
 #endif
 	DH *dh = DH_new();
 	if (dh) {
-#if OPENSSL_VERSION_NUMBER >= 0x0090801fL
+#if (OPENSSL_VERSION_NUMBER >= 0x0090801fL && !defined OPENSSL_IS_BORINGSSL)
 		dh->p = get_rfc2409_prime_1024(NULL);
 #else
 		dh->p = BN_bin2bn(rfc_2409_prime_1024, sizeof rfc_2409_prime_1024, NULL);
@@ -797,7 +797,7 @@ static DH * ssl_get_dh_1024(void)
 
 static DH *ssl_get_dh_2048(void)
 {
-#if OPENSSL_VERSION_NUMBER < 0x0090801fL
+#if (OPENSSL_VERSION_NUMBER < 0x0090801fL || defined OPENSSL_IS_BORINGSSL)
 	static const unsigned char rfc_3526_prime_2048[] = {
 		0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xC9,0x0F,0xDA,0xA2,
 		0x21,0x68,0xC2,0x34,0xC4,0xC6,0x62,0x8B,0x80,0xDC,0x1C,0xD1,
@@ -825,7 +825,7 @@ static DH *ssl_get_dh_2048(void)
 #endif
 	DH *dh = DH_new();
 	if (dh) {
-#if OPENSSL_VERSION_NUMBER >= 0x0090801fL
+#if (OPENSSL_VERSION_NUMBER >= 0x0090801fL && !defined OPENSSL_IS_BORINGSSL)
 		dh->p = get_rfc3526_prime_2048(NULL);
 #else
 		dh->p = BN_bin2bn(rfc_3526_prime_2048, sizeof rfc_3526_prime_2048, NULL);
@@ -844,7 +844,7 @@ static DH *ssl_get_dh_2048(void)
 
 static DH *ssl_get_dh_4096(void)
 {
-#if OPENSSL_VERSION_NUMBER < 0x0090801fL
+#if (OPENSSL_VERSION_NUMBER < 0x0090801fL || defined OPENSSL_IS_BORINGSSL)
 	static const unsigned char rfc_3526_prime_4096[] = {
                 0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xC9,0x0F,0xDA,0xA2,
                 0x21,0x68,0xC2,0x34,0xC4,0xC6,0x62,0x8B,0x80,0xDC,0x1C,0xD1,
@@ -893,7 +893,7 @@ static DH *ssl_get_dh_4096(void)
 #endif
 	DH *dh = DH_new();
 	if (dh) {
-#if OPENSSL_VERSION_NUMBER >= 0x0090801fL
+#if (OPENSSL_VERSION_NUMBER >= 0x0090801fL && !defined OPENSSL_IS_BORINGSSL)
 		dh->p = get_rfc3526_prime_4096(NULL);
 #else
 		dh->p = BN_bin2bn(rfc_3526_prime_4096, sizeof rfc_3526_prime_4096, NULL);
@@ -912,7 +912,7 @@ static DH *ssl_get_dh_4096(void)
 
 static DH *ssl_get_dh_8192(void)
 {
-#if OPENSSL_VERSION_NUMBER < 0x0090801fL
+#if (OPENSSL_VERSION_NUMBER < 0x0090801fL || defined OPENSSL_IS_BORINGSSL)
 	static const unsigned char rfc_3526_prime_8192[] = {
                 0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0xC9,0x0F,0xDA,0xA2,
                 0x21,0x68,0xC2,0x34,0xC4,0xC6,0x62,0x8B,0x80,0xDC,0x1C,0xD1,
@@ -1004,7 +1004,7 @@ static DH *ssl_get_dh_8192(void)
 #endif
 	DH *dh = DH_new();
 	if (dh) {
-#if OPENSSL_VERSION_NUMBER >= 0x0090801fL
+#if (OPENSSL_VERSION_NUMBER >= 0x0090801fL && !defined OPENSSL_IS_BORINGSSL)
 		dh->p = get_rfc3526_prime_8192(NULL);
 #else
 		dh->p = BN_bin2bn(rfc_3526_prime_8192, sizeof rfc_3526_prime_8192, NULL);
