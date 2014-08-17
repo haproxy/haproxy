@@ -1794,7 +1794,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 #ifdef USE_OPENSSL
 		else if (strcmp(args[1], "ssl") == 0) {
 			if (strcmp(args[2], "ocsp-response") == 0) {
-#ifdef SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB
+#if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_IS_BORINGSSL)
 				char *err = NULL;
 
 				/* Expect one parameter: the new response in base64 encoding */
