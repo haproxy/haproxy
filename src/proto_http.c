@@ -4150,8 +4150,9 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
  done:	/* done with this analyser, continue with next ones that the calling
 	 * points will have set, if any.
 	 */
-	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
+ done_without_exp: /* done with this analyser, but dont reset the analyse_exp. */
+	req->analysers &= ~an_bit;
 	return 1;
 
  tarpit:
@@ -4177,7 +4178,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 		s->be->be_counters.denied_req++;
 	if (s->listener->counters)
 		s->listener->counters->denied_req++;
-	goto done;
+	goto done_without_exp;
 
  deny:	/* this request was blocked (denied) */
 	txn->flags |= TX_CLDENY;
