@@ -253,8 +253,8 @@ struct proxy {
 	int  cookie_len;			/* strlen(cookie_name), computed only once */
 	unsigned int cookie_maxidle;		/* max idle time for this cookie */
 	unsigned int cookie_maxlife;		/* max life time for this cookie */
-	char *rdp_cookie_name;			/* name of the RDP cookie to look for */
 	int  rdp_cookie_len;			/* strlen(rdp_cookie_name), computed only once */
+	char *rdp_cookie_name;			/* name of the RDP cookie to look for */
 	char *url_param_name;			/* name of the URL parameter used for hashing */
 	int  url_param_len;			/* strlen(url_param_name), computed only once */
 	int  uri_len_limit;			/* character limit for uri balancing algorithm */
@@ -271,8 +271,9 @@ struct proxy {
 	int  capture_namelen;			/* length of the cookie name to match */
 	int  capture_len;			/* length of the string to be captured */
 	struct uri_auth *uri_auth;		/* if non-NULL, the (list of) per-URI authentications */
-	char *monitor_uri;			/* a special URI to which we respond with HTTP/200 OK */
+	int max_ka_queue;			/* 1+maximum requests in queue accepted for reusing a K-A conn (0=none) */
 	int monitor_uri_len;			/* length of the string above. 0 if unused */
+	char *monitor_uri;			/* a special URI to which we respond with HTTP/200 OK */
 	struct list mon_fail_cond;              /* list of conditions to fail monitoring requests (chained) */
 	struct {				/* WARNING! check proxy_reset_timeouts() in proxy.h !!! */
 		int client;                     /* client I/O timeout (in ticks) */
@@ -292,7 +293,6 @@ struct proxy {
 	struct list pendconns;			/* pending connections with no server assigned yet */
 	int nbpend;				/* number of pending connections with no server assigned yet */
 	int totpend;				/* total number of pending connections on this instance (for stats) */
-	int max_ka_queue;			/* 1+maximum requests in queue accepted for reusing a K-A conn (0=none) */
 	unsigned int feconn, beconn;		/* # of active frontend and backends sessions */
 	struct freq_ctr fe_req_per_sec;		/* HTTP requests per second on the frontend */
 	struct freq_ctr fe_conn_per_sec;	/* received connections per second on the frontend */
@@ -304,17 +304,15 @@ struct proxy {
 	struct in_addr except_to;		/* don't x-original-to for this address. */
 	struct in_addr except_mask_to;		/* the netmask for except_to. */
 	char *fwdfor_hdr_name;			/* header to use - default: "x-forwarded-for" */
-	int fwdfor_hdr_len;			/* length of "x-forwarded-for" header */
 	char *orgto_hdr_name;			/* header to use - default: "x-original-to" */
+	int fwdfor_hdr_len;			/* length of "x-forwarded-for" header */
 	int orgto_hdr_len;			/* length of "x-original-to" header */
 	char *server_id_hdr_name;                   /* the header to use to send the server id (name) */
 	int server_id_hdr_len;                      /* the length of the id (name) header... name */
-
+	int conn_retries;			/* maximum number of connect retries */
 	unsigned down_trans;			/* up-down transitions */
 	unsigned down_time;			/* total time the proxy was down */
 	time_t last_change;			/* last time, when the state was changed */
-
-	int conn_retries;			/* maximum number of connect retries */
 	int (*accept)(struct session *s);       /* application layer's accept() */
 	struct conn_src conn_src;               /* connection source settings */
 	struct proxy *next;
@@ -339,10 +337,10 @@ struct proxy {
 	struct stktable table;			/* table for storing sticking sessions */
 
 	struct task *task;			/* the associated task, mandatory to manage rate limiting, stopping and resource shortage, NULL if disabled */
-	int grace;				/* grace time after stop request */
 	struct list tcpcheck_rules;		/* tcp-check send / expect rules */
-	char *check_req;			/* HTTP or SSL request to use for PR_O_HTTP_CHK|PR_O_SSL3_CHK */
+	int grace;				/* grace time after stop request */
 	int check_len;				/* Length of the HTTP or SSL3 request */
+	char *check_req;			/* HTTP or SSL request to use for PR_O_HTTP_CHK|PR_O_SSL3_CHK */
 	char *check_command;			/* Command to use for external agent checks */
 	char *check_path;			/* PATH environment to use for external agent checks */
 	char *expect_str;			/* http-check expected content : string or text version of the regex */
@@ -373,9 +371,9 @@ struct proxy {
 		char *logformat_string;		/* log format string */
 		char *lfs_file;                 /* file name where the logformat string appears (strdup) */
 		int   lfs_line;                 /* file name where the logformat string appears */
-		char *uniqueid_format_string;	/* unique-id format string */
-		char *uif_file;                 /* file name where the unique-id-format string appears (strdup) */
 		int   uif_line;                 /* file name where the unique-id-format string appears */
+		char *uif_file;                 /* file name where the unique-id-format string appears (strdup) */
+		char *uniqueid_format_string;	/* unique-id format string */
 	} conf;					/* config information */
 	void *parent;				/* parent of the proxy when applicable */
 	struct comp *comp;			/* http compression */
