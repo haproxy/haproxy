@@ -107,6 +107,7 @@ static const struct logformat_type logformat_keywords[] = {
 	{ "hrl", LOG_FMT_HDRREQUESTLIST, PR_MODE_TCP, LW_REQHDR, NULL }, /* header request list */
 	{ "hs", LOG_FMT_HDRRESPONS, PR_MODE_TCP, LW_RSPHDR, NULL },  /* header response */
 	{ "hsl", LOG_FMT_HDRRESPONSLIST, PR_MODE_TCP, LW_RSPHDR, NULL },  /* header response list */
+	{ "lc", LOG_FMT_LOGCNT, PR_MODE_TCP, LW_INIT, NULL }, /* log counter */
 	{ "ms", LOG_FMT_MS, PR_MODE_TCP, LW_INIT, NULL },       /* accept date millisecond */
 	{ "pid", LOG_FMT_PID, PR_MODE_TCP, LW_INIT, NULL }, /* log pid */
 	{ "r", LOG_FMT_REQ, PR_MODE_HTTP, LW_REQ, NULL },  /* request */
@@ -1530,6 +1531,22 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				}
 				break;
 
+			case LOG_FMT_LOGCNT: // %lc
+				if (tmp->options & LOG_OPT_HEXA) {
+					iret = snprintf(tmplog, dst + maxsize - tmplog, "%04X", s->fe->log_count);
+					if (iret < 0 || iret > dst + maxsize - tmplog)
+						goto out;
+					last_isspace = 0;
+					tmplog += iret;
+				} else {
+					ret = ultoa_o(s->fe->log_count, tmplog, dst + maxsize - tmplog);
+					if (ret == NULL)
+						goto out;
+					tmplog = ret;
+					last_isspace = 0;
+				}
+				break;
+
 			case LOG_FMT_HOSTNAME: // %H
 				src = hostname;
 				ret = lf_text(tmplog, src, dst + maxsize - tmplog, tmp);
@@ -1620,6 +1637,7 @@ void sess_log(struct session *s)
 	size = tmplog - logline;
 	size += build_logline(s, tmplog, global.max_syslog_len - size, &s->fe->logformat);
 	if (size > 0) {
+		s->fe->log_count++;
 		__send_log(s->fe, level, logline, size + 1);
 		s->logs.logwait = 0;
 	}

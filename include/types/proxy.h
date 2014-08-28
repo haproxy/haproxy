@@ -316,6 +316,8 @@ struct proxy {
 	int (*accept)(struct session *s);       /* application layer's accept() */
 	struct conn_src conn_src;               /* connection source settings */
 	struct proxy *next;
+
+	unsigned int log_count;			/* number of logs produced by the frontend */
 	struct list logsrvs;
 	struct list logformat; 			/* log_format linked list */
 	char *header_unique_id; 		/* unique-id header */

@@ -12569,6 +12569,7 @@ Please refer to the table below for currently defined variables :
   |   | %fi  | frontend_ip              (accepting address)  | IP          |
   |   | %fp  | frontend_port            (accepting address)  | numeric     |
   |   | %ft  | frontend_name_transport ('~' suffix for SSL)  | string      |
+  |   | %lc  | frontend_log_counter                          | numeric     |
   |   | %hr  | captured_request_headers default style        | string      |
   |   | %hrl | captured_request_headers CLF style            | string list |
   |   | %hs  | captured_response_headers default style       | string      |
