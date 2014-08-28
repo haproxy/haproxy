@@ -9929,8 +9929,8 @@ static struct pattern *pat_match_meth(struct sample *smp, struct pattern_expr *e
 			continue;
 
 		icase = expr->mflags & PAT_MF_IGNORE_CASE;
-		if ((icase && strncasecmp(pattern->ptr.str, smp->data.meth.str.str, smp->data.meth.str.len) != 0) ||
-		    (!icase && strncmp(pattern->ptr.str, smp->data.meth.str.str, smp->data.meth.str.len) != 0))
+		if ((icase && strncasecmp(pattern->ptr.str, smp->data.meth.str.str, smp->data.meth.str.len) == 0) ||
+		    (!icase && strncmp(pattern->ptr.str, smp->data.meth.str.str, smp->data.meth.str.len) == 0))
 			return pattern;
 	}
 	return NULL;
