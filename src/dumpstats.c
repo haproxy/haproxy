@@ -3630,11 +3630,7 @@ static void stats_dump_html_px_hdr(struct stream_interface *si, struct proxy *px
 		}
 
 		chunk_appendf(&trash,
-			      "<form action=\"%s%s%s%s\" method=\"post\">",
-			      uri->uri_prefix,
-			      (appctx->ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
-			      (appctx->ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
-			      scope_txt);
+			      "<form method=\"post\">");
 	}
 
 	/* print a new table */
@@ -4138,10 +4134,7 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 	scope_txt[appctx->ctx.stats.scope_len] = '\0';
 
 	chunk_appendf(&trash,
-		      "<li><form method=\"GET\" action=\"%s%s%s\">Scope : <input value=\"%s\" name=\"" STAT_SCOPE_INPUT_NAME "\" size=\"8\" maxlength=\"%d\" tabindex=\"1\"/></form>\n",
-		      uri->uri_prefix,
-		      (appctx->ctx.stats.flags & STAT_HIDE_DOWN) ? ";up" : "",
-		      (appctx->ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
+		      "<li><form method=\"GET\">Scope : <input value=\"%s\" name=\"" STAT_SCOPE_INPUT_NAME "\" size=\"8\" maxlength=\"%d\" tabindex=\"1\"/></form>\n",
 		      (appctx->ctx.stats.scope_len > 0) ? scope_txt : "",
 		      STAT_SCOPE_TXT_MAXLEN);
 
