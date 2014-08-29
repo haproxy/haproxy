@@ -145,7 +145,6 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	const char *begw;
 	const char *endw;
 	const char *endt;
-	unsigned long prev_type;
 	int cur_type;
 	int nbargs;
 	int operator = STD_OP_EQ;
@@ -231,11 +230,9 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 		/* look for the begining of the converters list. Those directly attached
 		 * to the ACL keyword are found just after <arg> which points to the comma.
 		 * If we find any converter, then we don't use the ACL keyword's match
-		 * anymore but the one related to the converter's output type, so we'll
-		 * kill the ACL kw to avoid any future reference to it (since in fact we'll
-		 * only be using it as a sample fetch function).
+		 * anymore but the one related to the converter's output type.
 		 */
-		prev_type = smp->fetch->out_type;
+		cur_type = smp->fetch->out_type;
 		while (*arg) {
 			struct sample_conv *conv;
 			struct sample_conv_expr *conv_expr;
@@ -294,13 +291,13 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			}
 
 			/* If impossible type conversion */
-			if (!sample_casts[prev_type][conv->in_type]) {
+			if (!sample_casts[cur_type][conv->in_type]) {
 				memprintf(err, "ACL keyword '%s' : conv method '%s' cannot be applied.",
 					  aclkw->kw, ckw);
 				goto out_free_smp;
 			}
 
-			prev_type = conv->out_type;
+			cur_type = conv->out_type;
 			conv_expr = calloc(1, sizeof(struct sample_conv_expr));
 			if (!conv_expr)
 				goto out_free_smp;
@@ -353,14 +350,8 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 			memprintf(err, "%s in ACL expression '%s'", *err, *args);
 			goto out_return;
 		}
-		prev_type = smp_expr_output_type(smp);
+		cur_type = smp_expr_output_type(smp);
 	}
-
-	/* From now on, prev_type is the expression's output type.
-	 * Stop relying on ACL keyword if a converter is used.
-	 */
-	if (acl_conv_found)
-		aclkw = NULL;
 
 	expr = (struct acl_expr *)calloc(1, sizeof(*expr));
 	if (!expr) {
@@ -370,38 +361,26 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 
 	pattern_init_head(&expr->pat);
 
-	expr->kw = aclkw ? aclkw->kw : smp->fetch->kw;
-	expr->pat.parse = aclkw ? aclkw->parse : NULL;
-	expr->pat.index = aclkw ? aclkw->index : NULL;
-	expr->pat.match = aclkw ? aclkw->match : NULL;
-	expr->pat.delete = aclkw ? aclkw->delete : NULL;
-	expr->pat.prune = aclkw ? aclkw->prune : NULL;
-	expr->pat.expect_type = prev_type;
-	expr->smp = smp;
-	smp = NULL;
+	expr->pat.expect_type = cur_type;
+	expr->smp             = smp;
+	expr->kw              = smp->fetch->kw;
+	smp = NULL; /* don't free it anymore */
 
-	/* Fill NULL pointers with values provided by the pattern.c arrays */
-	if (aclkw) {
-		if (!expr->pat.parse)
-			expr->pat.parse = pat_parse_fcts[aclkw->match_type];
-
-		if (!expr->pat.index)
-			expr->pat.index = pat_index_fcts[aclkw->match_type];
-
-		if (!expr->pat.match)
-			expr->pat.match = pat_match_fcts[aclkw->match_type];
-
-		if (!expr->pat.delete)
-			expr->pat.delete = pat_delete_fcts[aclkw->match_type];
-
-		if (!expr->pat.prune)
-			expr->pat.prune = pat_prune_fcts[aclkw->match_type];
+	if (aclkw && !acl_conv_found) {
+		expr->kw = aclkw->kw;
+		expr->pat.parse  = aclkw->parse  ? aclkw->parse  : pat_parse_fcts[aclkw->match_type];
+		expr->pat.index  = aclkw->index  ? aclkw->index  : pat_index_fcts[aclkw->match_type];
+		expr->pat.match  = aclkw->match  ? aclkw->match  : pat_match_fcts[aclkw->match_type];
+		expr->pat.delete = aclkw->delete ? aclkw->delete : pat_delete_fcts[aclkw->match_type];
+		expr->pat.prune  = aclkw->prune  ? aclkw->prune  : pat_prune_fcts[aclkw->match_type];
 	}
 
 	if (!expr->pat.parse) {
-		/* some types can be automatically converted */
-
-		switch (prev_type) {
+		/* Parse/index/match functions depend on the expression type,
+		 * so we have to map them now. Some types can be automatically
+		 * converted.
+		 */
+		switch (cur_type) {
 		case SMP_T_BOOL:
 			expr->pat.parse = pat_parse_fcts[PAT_MATCH_BOOL];
 			expr->pat.index = pat_index_fcts[PAT_MATCH_BOOL];
@@ -440,7 +419,6 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	}
 
 	/* Additional check to protect against common mistakes */
-	cur_type = smp_expr_output_type(expr->smp);
 	if (expr->pat.parse && cur_type != SMP_T_BOOL && !*args[1]) {
 		Warning("parsing acl keyword '%s' :\n"
 		        "  no pattern to match against were provided, so this ACL will never match.\n"
