@@ -10,6 +10,16 @@
  *
  */
 
+#ifdef CONFIG_HAP_CRYPT
+/* This is to have crypt() defined on Linux */
+#define _GNU_SOURCE
+
+#ifdef NEED_CRYPT_H
+/* some platforms such as Solaris need this */
+#include <crypt.h>
+#endif
+#endif /* CONFIG_HAP_CRYPT */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -5741,7 +5751,14 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 
 		while (*args[cur_arg]) {
 			if (!strcmp(args[cur_arg], "password")) {
-#ifndef CONFIG_HAP_CRYPT
+#ifdef CONFIG_HAP_CRYPT
+				if (!crypt("", args[cur_arg + 1])) {
+					Alert("parsing [%s:%d]: the encrypted password used for user '%s' is not supported by crypt(3).\n",
+						file, linenum, newuser->user);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
+#else
 				Warning("parsing [%s:%d]: no crypt(3) support compiled, encrypted passwords will not work.\n",
 					file, linenum);
 				err_code |= ERR_ALERT;
