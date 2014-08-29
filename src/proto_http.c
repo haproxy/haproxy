@@ -9851,20 +9851,13 @@ smp_prefetch_http(struct proxy *px, struct session *s, void *l7, unsigned int op
 static int pat_parse_meth(const char *text, struct pattern *pattern, int mflags, char **err)
 {
 	int len, meth;
-	struct chunk *trash;
 
 	len  = strlen(text);
 	meth = find_http_meth(text, len);
 
 	pattern->val.i = meth;
 	if (meth == HTTP_METH_OTHER) {
-		trash = get_trash_chunk();
-		if (trash->size < len) {
-			memprintf(err, "no space avalaible in the buffer. expect %d, provides %d",
-			          len, trash->size);
-			return 0;
-		}
-		pattern->ptr.str = trash->str;
+		pattern->ptr.str = (char *)text;
 		pattern->len = len;
 	}
 	else {
