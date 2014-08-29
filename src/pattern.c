@@ -178,19 +178,15 @@ static inline unsigned int make_4delim(unsigned char d1, unsigned char d2, unsig
  *
  * These functions are exported and may be used by any other component.
  *
- * The following functions are used for parsing pattern matching
- * input value. The <text> contain the string to be parsed. <pattern>
- * must be a preallocated pattern. The pat_parse_* functions fill this
- * structure with the parsed value. <usage> can be PAT_U_COMPILE or
- * PAT_U_LOOKUP. If the value PAT_U_COMPILE is used memory is allocated
- * for filling the pattern. If the value PAT_U_LOOKUP is set, the parser
- * use "trash" or return pointers to the input strings. In both cases,
- * the caller must use the value PAT_U_LOOKUP with caution. <err> is
- * filled with an error message built with memprintf() function.
+ * The following functions are used for parsing pattern matching input value.
+ * The <text> contain the string to be parsed. <pattern> must be a preallocated
+ * pattern. The pat_parse_* functions fill this structure with the parsed value.
+ * <err> is filled with an error message built with memprintf() function. It is
+ * allowed to use a trash as a temporary storage for the returned pattern, as
+ * the next call after these functions will be pat_idx_*.
  *
- * In succes case, the pat_parse_* function return 1. If the function
- * fail, it returns 0 and <err> is filled.
- *
+ * In success case, the pat_parse_* function returns 1. If the function
+ * fails, it returns 0 and <err> is filled.
  */
 
 /* ignore the current line */
@@ -223,17 +219,7 @@ int pat_parse_bin(const char *text, struct pattern *pattern, int mflags, char **
 /* Parse a regex. It is allocated. */
 int pat_parse_reg(const char *text, struct pattern *pattern, int mflags, char **err)
 {
-	struct chunk *trash;
-
-	trash = get_trash_chunk();
-	if (trash->size < sizeof(*pattern->ptr.reg)) {
-		memprintf(err, "no space avalaible in the buffer. expect %d, provides %d",
-		          (int)sizeof(*pattern->ptr.reg), trash->size);
-		return 0;
-	}
-
 	pattern->ptr.str = (char *)text;
-
 	return 1;
 }
 
