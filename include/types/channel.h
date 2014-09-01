@@ -105,7 +105,7 @@
 #define CF_STREAMER       0x00010000  /* the producer is identified as streaming data */
 #define CF_STREAMER_FAST  0x00020000  /* the consumer seems to eat the stream very fast */
 
-/* unused: 0x00040000 */
+#define CF_WROTE_DATA     0x00040000  /* some data were sent from this buffer */
 #define CF_ANA_TIMEOUT    0x00080000  /* the analyser timeout has expired */
 #define CF_READ_ATTACHED  0x00100000  /* the read side is attached for the first time */
 #define CF_KERN_SPLICING  0x00200000  /* kernel splicing desired for this channel */

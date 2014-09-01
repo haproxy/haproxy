@@ -658,7 +658,7 @@ static void si_conn_send(struct connection *conn)
 	if (chn->pipe && conn->xprt->snd_pipe) {
 		ret = conn->xprt->snd_pipe(conn, chn->pipe);
 		if (ret > 0)
-			chn->flags |= CF_WRITE_PARTIAL;
+			chn->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA;
 
 		if (!chn->pipe->data) {
 			put_pipe(chn->pipe);
@@ -702,7 +702,7 @@ static void si_conn_send(struct connection *conn)
 
 		ret = conn->xprt->snd_buf(conn, chn->buf, send_flag);
 		if (ret > 0) {
-			chn->flags |= CF_WRITE_PARTIAL;
+			chn->flags |= CF_WRITE_PARTIAL | CF_WROTE_DATA;
 
 			if (!chn->buf->o) {
 				/* Always clear both flags once everything has been sent, they're one-shot */
