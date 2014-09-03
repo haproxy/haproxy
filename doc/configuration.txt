@@ -2916,7 +2916,8 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
               add-acl(<file name>) <key fmt> |
               del-acl(<file name>) <key fmt> |
               del-map(<file name>) <key fmt> |
-              set-map(<file name>) <key fmt> <value fmt>
+              set-map(<file name>) <key fmt> <value fmt> |
+              { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>]
              }
              [ { if | unless } <condition> ]
   Access control for Layer 7 requests
