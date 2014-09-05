@@ -14054,9 +14054,11 @@ show sess <id>
   of "show sess" (it corresponds to the session pointer). Those information are
   useless to most users but may be used by haproxy developers to troubleshoot a
   complex bug. The output format is intentionally not documented so that it can
-  freely evolve depending on demands. The special id "all" dumps the states of
-  all sessions, which can be avoided as much as possible as it is highly CPU
-  intensive and can take a lot of time.
+  freely evolve depending on demands. You may find a description of all fields
+  returned in src/dumpstats.c
+
+  The special id "all" dumps the states of all sessions, which must be avoided
+  as much as possible as it is highly CPU intensive and can take a lot of time.
 
 show stat [<iid> <type> <sid>]
   Dump statistics in the CSV format. By passing <id>, <type> and <sid>, it is
