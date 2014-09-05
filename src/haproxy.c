@@ -1175,6 +1175,7 @@ void deinit(void)
 			free(s->check.bo);
 			free(s->agent.bi);
 			free(s->agent.bo);
+			free((char*)s->conf.file);
 			free(s);
 			s = s_next;
 		}/* end while(s) */
