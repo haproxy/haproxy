@@ -6045,7 +6045,7 @@ static int stats_dump_errors_to_buffer(struct stream_interface *si)
 				break;
 			case 1:
 				chunk_appendf(&trash,
-					     " backend %s (#%d) : invalid response\n"
+					     " backend %s (#%d): invalid response\n"
 					     "  frontend %s (#%d)",
 					     appctx->ctx.errors.px->id, appctx->ctx.errors.px->uuid,
 					     es->oe->id, es->oe->uuid);
