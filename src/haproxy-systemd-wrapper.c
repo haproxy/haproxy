@@ -158,7 +158,9 @@ int main(int argc, char **argv)
 	memset(&sa, 0, sizeof(struct sigaction));
 	sa.sa_handler = &signal_handler;
 	sigaction(SIGUSR2, &sa, NULL);
+	sigaction(SIGHUP, &sa, NULL);
 	sigaction(SIGINT, &sa, NULL);
+	sigaction(SIGTERM, &sa, NULL);
 
 	if (getenv(REEXEC_FLAG) != NULL) {
 		/* We are being re-executed: restart HAProxy gracefully */
@@ -180,11 +182,11 @@ int main(int argc, char **argv)
 
 	status = -1;
 	while (-1 != wait(&status) || errno == EINTR) {
-		if (caught_signal == SIGUSR2) {
+		if (caught_signal == SIGUSR2 || caught_signal == SIGHUP) {
 			caught_signal = 0;
 			do_restart();
 		}
-		else if (caught_signal == SIGINT) {
+		else if (caught_signal == SIGINT || caught_signal == SIGTERM) {
 			caught_signal = 0;
 			do_shutdown();
 		}
