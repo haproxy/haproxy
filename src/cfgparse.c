@@ -7309,9 +7309,45 @@ out_uri_auth_compat:
 	}
 
 	/* At this point, target names have already been resolved */
+
+	/* Make each frontend inherit bind-process from its listeners when not specified. */
+	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
+		if (curproxy->bind_proc)
+			continue;
+
+		list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
+			unsigned long mask;
+
+			mask = bind_conf->bind_proc ? bind_conf->bind_proc : ~0UL;
+			curproxy->bind_proc |= mask;
+		}
+
+		if (!curproxy->bind_proc)
+			curproxy->bind_proc = ~0UL;
+	}
+
+	if (global.stats_fe) {
+		list_for_each_entry(bind_conf, &global.stats_fe->conf.bind, by_fe) {
+			unsigned long mask;
+
+			mask = bind_conf->bind_proc ? bind_conf->bind_proc : ~0UL;
+			global.stats_fe->bind_proc |= mask;
+		}
+		if (!global.stats_fe->bind_proc)
+			global.stats_fe->bind_proc = ~0UL;
+	}
+
+	/* propagate bindings from frontends to backends */
 	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
 		if (curproxy->cap & PR_CAP_FE)
 			propagate_processes(curproxy, NULL);
+	}
+
+	/* Bind each unbound backend to all processes when not specified. */
+	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
+		if (curproxy->bind_proc)
+			continue;
+		curproxy->bind_proc = ~0UL;
 	}
 
 	/* automatically compute fullconn if not set. We must not do it in the

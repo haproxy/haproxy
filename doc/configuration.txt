@@ -1914,6 +1914,10 @@ bind-process [ all | odd | even | <number 1-64>[-<number 1-64>] ] ...
   Each "bind" line may further be limited to a subset of the proxy's processes,
   please consult the "process" bind keyword in section 5.1.
 
+  When a frontend has no explicit "bind-process" line, it tries to bind to all
+  the processes referenced by its "bind" lines. That means that frontends can
+  easily adapt to their listeners' processes.
+
   If some backends are referenced by frontends bound to other processes, the
   backend automatically inherits the frontend's processes.
 
