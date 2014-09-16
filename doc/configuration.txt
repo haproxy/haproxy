@@ -7585,9 +7585,9 @@ tcp-request content <action> [{if | unless} <condition>]
   contents will always be immediately present when the rule is evaluated first.
 
   Tracking layer7 information is also possible provided that the information
-  are present when the rule is processed. The current solution for making the
-  rule engine wait for such information is to set an inspect delay and to
-  condition its execution with an ACL relying on such information.
+  are present when the rule is processed. The rule processing engine is able to
+  wait until the inspect delay expires when the data to be tracked is not yet
+  available.
 
   Example:
         # Accept HTTP requests containing a Host header saying "example.com"
@@ -7612,12 +7612,12 @@ tcp-request content <action> [{if | unless} <condition>]
   Example:
         # Track the last IP from X-Forwarded-For
         tcp-request inspect-delay 10s
-        tcp-request content track-sc0 hdr(x-forwarded-for,-1) if HTTP
+        tcp-request content track-sc0 hdr(x-forwarded-for,-1)
 
   Example:
         # track request counts per "base" (concatenation of Host+URL)
         tcp-request inspect-delay 10s
-        tcp-request content track-sc0 base table req-rate if HTTP
+        tcp-request content track-sc0 base table req-rate
 
   Example: track per-frontend and per-backend counters, block abusers at the
            frontend when the backend detects abuse.
