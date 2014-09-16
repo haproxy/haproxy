@@ -317,6 +317,19 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 	return 0;
 }
 
+/* Report a warning if a rule is placed after a 'tcp-request content' rule.
+ * Return 1 if the warning has been emitted, otherwise 0.
+ */
+int warnif_rule_after_tcp_cont(struct proxy *proxy, const char *file, int line, const char *arg)
+{
+	if (!LIST_ISEMPTY(&proxy->tcp_req.inspect_rules)) {
+		Warning("parsing [%s:%d] : a '%s' rule placed after a 'tcp-request content' rule will still be processed before.\n",
+			file, line, arg);
+		return 1;
+	}
+	return 0;
+}
+
 /* Report a warning if a rule is placed after a 'block' rule.
  * Return 1 if the warning has been emitted, otherwise 0.
  */
@@ -406,6 +419,31 @@ int warnif_rule_after_use_server(struct proxy *proxy, const char *file, int line
 		return 1;
 	}
 	return 0;
+}
+
+/* report a warning if a "tcp request connection" rule is dangerously placed */
+int warnif_misplaced_tcp_conn(struct proxy *proxy, const char *file, int line, const char *arg)
+{
+	return	warnif_rule_after_tcp_cont(proxy, file, line, arg) ||
+		warnif_rule_after_block(proxy, file, line, arg) ||
+		warnif_rule_after_http_req(proxy, file, line, arg) ||
+		warnif_rule_after_reqxxx(proxy, file, line, arg) ||
+		warnif_rule_after_reqadd(proxy, file, line, arg) ||
+		warnif_rule_after_redirect(proxy, file, line, arg) ||
+		warnif_rule_after_use_backend(proxy, file, line, arg) ||
+		warnif_rule_after_use_server(proxy, file, line, arg);
+}
+
+/* report a warning if a "tcp request content" rule is dangerously placed */
+int warnif_misplaced_tcp_cont(struct proxy *proxy, const char *file, int line, const char *arg)
+{
+	return	warnif_rule_after_block(proxy, file, line, arg) ||
+		warnif_rule_after_http_req(proxy, file, line, arg) ||
+		warnif_rule_after_reqxxx(proxy, file, line, arg) ||
+		warnif_rule_after_reqadd(proxy, file, line, arg) ||
+		warnif_rule_after_redirect(proxy, file, line, arg) ||
+		warnif_rule_after_use_backend(proxy, file, line, arg) ||
+		warnif_rule_after_use_server(proxy, file, line, arg);
 }
 
 /* report a warning if a block rule is dangerously placed */

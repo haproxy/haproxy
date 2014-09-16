@@ -73,6 +73,8 @@ int check_config_validity();
 int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf, const char *file, int line, char **err);
 int cfg_register_section(char *section_name,
                          int (*section_parser)(const char *, int, char **, int));
+int warnif_misplaced_tcp_conn(struct proxy *proxy, const char *file, int line, const char *arg);
+int warnif_misplaced_tcp_cont(struct proxy *proxy, const char *file, int line, const char *arg);
 
 /*
  * Sends a warning if proxy <proxy> does not have at least one of the
