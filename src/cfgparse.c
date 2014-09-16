@@ -6094,13 +6094,12 @@ int check_config_validity()
 		proxy = next;
 	}
 
-	while (curproxy != NULL) {
+	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
 		struct switching_rule *rule;
 		struct server_rule *srule;
 		struct sticking_rule *mrule;
 		struct tcp_rule *trule;
 		struct http_req_rule *hrqrule;
-		struct listener *listener;
 		unsigned int next_id;
 		int nbproc;
 
@@ -6167,14 +6166,6 @@ int check_config_validity()
 				bind_conf->bind_proc = 0;
 			}
 		}
-
-		/* here, if bind_proc is null, it means no limit, otherwise it's explicit.
-		 * We now check how many processes the proxy will effectively run on.
-		 */
-
-		nbproc = global.nbproc;
-		if (curproxy->bind_proc)
-			nbproc = popcount(curproxy->bind_proc & nbits(global.nbproc));
 
 		if (global.nbproc > 1 && curproxy->table.peers.name) {
 			Alert("Proxy '%s': peers can't be used in multi-process mode (nbproc > 1).\n",
@@ -7139,6 +7130,86 @@ out_uri_auth_compat:
 			if (curproxy->options2 & PR_O2_RDPC_PRST)
 				curproxy->be_req_ana |= AN_REQ_PRST_RDP_COOKIE;
 		}
+	}
+
+	/***********************************************************/
+	/* At this point, target names have already been resolved. */
+	/***********************************************************/
+
+	/* Check multi-process mode compatibility */
+
+	if (global.nbproc > 1 && global.stats_fe) {
+		list_for_each_entry(bind_conf, &global.stats_fe->conf.bind, by_fe) {
+			unsigned long mask;
+
+			mask = nbits(global.nbproc);
+			if (global.stats_fe->bind_proc)
+				mask &= global.stats_fe->bind_proc;
+
+			if (bind_conf->bind_proc)
+				mask &= bind_conf->bind_proc;
+
+			/* stop here if more than one process is used */
+			if (popcount(mask) > 1)
+				break;
+		}
+		if (&bind_conf->by_fe != &global.stats_fe->conf.bind) {
+			Warning("stats socket will not work as expected in multi-process mode (nbproc > 1), you should force process binding globally using 'stats bind-process' or per socket using the 'process' attribute.\n");
+		}
+	}
+
+	/* Make each frontend inherit bind-process from its listeners when not specified. */
+	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
+		if (curproxy->bind_proc)
+			continue;
+
+		list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
+			unsigned long mask;
+
+			mask = bind_conf->bind_proc ? bind_conf->bind_proc : ~0UL;
+			curproxy->bind_proc |= mask;
+		}
+
+		if (!curproxy->bind_proc)
+			curproxy->bind_proc = ~0UL;
+	}
+
+	if (global.stats_fe) {
+		list_for_each_entry(bind_conf, &global.stats_fe->conf.bind, by_fe) {
+			unsigned long mask;
+
+			mask = bind_conf->bind_proc ? bind_conf->bind_proc : ~0UL;
+			global.stats_fe->bind_proc |= mask;
+		}
+		if (!global.stats_fe->bind_proc)
+			global.stats_fe->bind_proc = ~0UL;
+	}
+
+	/* propagate bindings from frontends to backends */
+	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
+		if (curproxy->cap & PR_CAP_FE)
+			propagate_processes(curproxy, NULL);
+	}
+
+	/* Bind each unbound backend to all processes when not specified. */
+	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
+		if (curproxy->bind_proc)
+			continue;
+		curproxy->bind_proc = ~0UL;
+	}
+
+	/*******************************************************/
+	/* At this step, all proxies have a non-null bind_proc */
+	/*******************************************************/
+
+	/* perform the final checks before creating tasks */
+
+	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
+		struct listener *listener;
+		unsigned int next_id;
+		int nbproc;
+
+		nbproc = popcount(curproxy->bind_proc & nbits(global.nbproc));
 
 #ifdef USE_OPENSSL
 		/* Configure SSL for each bind line.
@@ -7283,71 +7354,6 @@ out_uri_auth_compat:
 			      curproxy->id);
 			cfgerr++;
 		}
-
-		curproxy = curproxy->next;
-	}
-
-	/* Check multi-process mode compatibility */
-	if (global.nbproc > 1 && global.stats_fe) {
-		list_for_each_entry(bind_conf, &global.stats_fe->conf.bind, by_fe) {
-			unsigned long mask;
-
-			mask = nbits(global.nbproc);
-			if (global.stats_fe->bind_proc)
-				mask &= global.stats_fe->bind_proc;
-
-			if (bind_conf->bind_proc)
-				mask &= bind_conf->bind_proc;
-
-			/* stop here if more than one process is used */
-			if (popcount(mask) > 1)
-				break;
-		}
-		if (&bind_conf->by_fe != &global.stats_fe->conf.bind) {
-			Warning("stats socket will not work as expected in multi-process mode (nbproc > 1), you should force process binding globally using 'stats bind-process' or per socket using the 'process' attribute.\n");
-		}
-	}
-
-	/* At this point, target names have already been resolved */
-
-	/* Make each frontend inherit bind-process from its listeners when not specified. */
-	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
-		if (curproxy->bind_proc)
-			continue;
-
-		list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
-			unsigned long mask;
-
-			mask = bind_conf->bind_proc ? bind_conf->bind_proc : ~0UL;
-			curproxy->bind_proc |= mask;
-		}
-
-		if (!curproxy->bind_proc)
-			curproxy->bind_proc = ~0UL;
-	}
-
-	if (global.stats_fe) {
-		list_for_each_entry(bind_conf, &global.stats_fe->conf.bind, by_fe) {
-			unsigned long mask;
-
-			mask = bind_conf->bind_proc ? bind_conf->bind_proc : ~0UL;
-			global.stats_fe->bind_proc |= mask;
-		}
-		if (!global.stats_fe->bind_proc)
-			global.stats_fe->bind_proc = ~0UL;
-	}
-
-	/* propagate bindings from frontends to backends */
-	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
-		if (curproxy->cap & PR_CAP_FE)
-			propagate_processes(curproxy, NULL);
-	}
-
-	/* Bind each unbound backend to all processes when not specified. */
-	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
-		if (curproxy->bind_proc)
-			continue;
-		curproxy->bind_proc = ~0UL;
 	}
 
 	/* automatically compute fullconn if not set. We must not do it in the
