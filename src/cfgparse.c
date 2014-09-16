@@ -7323,8 +7323,19 @@ out_uri_auth_compat:
 
 		if (nbproc > 1) {
 			if (curproxy->uri_auth) {
-				Warning("Proxy '%s': in multi-process mode, stats will be limited to process assigned to the current request.\n",
-				        curproxy->id);
+				int count, maxproc = 0;
+
+				list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
+					count = popcount(bind_conf->bind_proc);
+					if (count > maxproc)
+						maxproc = count;
+				}
+				/* backends have 0, frontends have 1 or more */
+				if (maxproc != 1)
+					Warning("Proxy '%s': in multi-process mode, stats will be"
+					        " limited to process assigned to the current request.\n",
+					        curproxy->id);
+
 				if (!LIST_ISEMPTY(&curproxy->uri_auth->admin_rules)) {
 					Warning("Proxy '%s': stats admin will not work correctly in multi-process mode.\n",
 					        curproxy->id);
