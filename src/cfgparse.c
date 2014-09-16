@@ -7132,6 +7132,29 @@ out_uri_auth_compat:
 			newsrv = newsrv->next;
 		}
 
+		/* check if we have a frontend with "tcp-request content" looking at L7
+		 * with no inspect-delay
+		 */
+		if ((curproxy->cap & PR_CAP_FE) && !curproxy->tcp_req.inspect_delay) {
+			list_for_each_entry(trule, &curproxy->tcp_req.inspect_rules, list) {
+				if (trule->action == TCP_ACT_CAPTURE &&
+				    !(trule->act_prm.cap.expr->fetch->val & SMP_VAL_FE_SES_ACC))
+					break;
+				if  ((trule->action >= TCP_ACT_TRK_SC0 && trule->action <= TCP_ACT_TRK_SCMAX) &&
+				     !(trule->act_prm.trk_ctr.expr->fetch->val & SMP_VAL_FE_SES_ACC))
+					break;
+			}
+
+			if (&trule->list != &curproxy->tcp_req.inspect_rules) {
+				Warning("config : %s '%s' : some 'tcp-request content' rules explicitly depending on request"
+				        " contents were found in a frontend without any 'tcp-request inspect-delay' setting."
+				        " This means that these rules will randomly find their contents. This can be fixed by"
+					" setting the tcp-request inspect-delay.\n",
+				        proxy_type_str(curproxy), curproxy->id);
+				err_code |= ERR_WARN;
+			}
+		}
+
 		if (curproxy->cap & PR_CAP_FE) {
 			if (!curproxy->accept)
 				curproxy->accept = frontend_accept;
