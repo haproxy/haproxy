@@ -6282,7 +6282,7 @@ int http_process_res_common(struct session *s, struct channel *rep, int an_bit, 
 
 		/* add response headers from the rule sets in the same order */
 		list_for_each_entry(wl, &rule_set->rsp_add, list) {
-			if (txn->status < 200)
+			if (txn->status < 200 && txn->status != 101)
 				break;
 			if (wl->cond) {
 				int ret = acl_exec_cond(wl->cond, px, s, txn, SMP_OPT_DIR_RES|SMP_OPT_FINAL);
@@ -6303,7 +6303,7 @@ int http_process_res_common(struct session *s, struct channel *rep, int an_bit, 
 	}
 
 	/* OK that's all we can do for 1xx responses */
-	if (unlikely(txn->status < 200))
+	if (unlikely(txn->status < 200 && txn->status != 101))
 		goto skip_header_mangling;
 
 	/*
@@ -6316,7 +6316,7 @@ int http_process_res_common(struct session *s, struct channel *rep, int an_bit, 
 	/*
 	 * Check for cache-control or pragma headers if required.
 	 */
-	if ((s->be->options & PR_O_CHK_CACHE) || (s->be->ck_opts & PR_CK_NOC))
+	if (((s->be->options & PR_O_CHK_CACHE) || (s->be->ck_opts & PR_CK_NOC)) && txn->status != 101)
 		check_response_for_cacheability(s, rep);
 
 	/*
@@ -6432,9 +6432,11 @@ int http_process_res_common(struct session *s, struct channel *rep, int an_bit, 
 	 * Adjust "Connection: close" or "Connection: keep-alive" if needed.
 	 * If an "Upgrade" token is found, the header is left untouched in order
 	 * not to have to deal with some client bugs : some of them fail an upgrade
-	 * if anything but "Upgrade" is present in the Connection header.
+	 * if anything but "Upgrade" is present in the Connection header. We don't
+	 * want to touch any 101 response either since it's switching to another
+	 * protocol.
 	 */
-	if (!(txn->flags & TX_HDR_CONN_UPG) &&
+	if ((txn->status != 101) && !(txn->flags & TX_HDR_CONN_UPG) &&
 	    (((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) ||
 	     ((s->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
 	      (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL))) {
