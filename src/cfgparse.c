@@ -5984,6 +5984,64 @@ int readcfgfile(const char *file)
 	return err_code;
 }
 
+/* This function propagates processes from frontend <from> to backend <to> so
+ * that it is always guaranteed that a backend pointed to by a frontend is
+ * bound to all of its processes. After that, if the target is a "listen"
+ * instance, the function recursively descends the target's own targets along
+ * default_backend, use_backend rules, and reqsetbe rules. Since the bits are
+ * checked first to ensure that <to> is already bound to all processes of
+ * <from>, there is no risk of looping and we ensure to follow the shortest
+ * path to the destination.
+ *
+ * It is possible to set <to> to NULL for the first call so that the function
+ * takes care of visiting the initial frontend in <from>.
+ *
+ * It is important to note that the function relies on the fact that all names
+ * have already been resolved.
+ */
+void propagate_processes(struct proxy *from, struct proxy *to)
+{
+	struct switching_rule *rule;
+	struct hdr_exp *exp;
+
+	if (to) {
+		/* check whether we need to go down */
+		if (from->bind_proc &&
+		    (from->bind_proc & to->bind_proc) == from->bind_proc)
+			return;
+
+		if (!from->bind_proc && !to->bind_proc)
+			return;
+
+		to->bind_proc = from->bind_proc ?
+			(to->bind_proc | from->bind_proc) : 0;
+
+		/* now propagate down */
+		from = to;
+	}
+
+	if (!from->cap & PR_CAP_FE)
+		return;
+
+	/* default_backend */
+	if (from->defbe.be)
+		propagate_processes(from, from->defbe.be);
+
+	/* use_backend */
+	list_for_each_entry(rule, &from->switching_rules, list) {
+		to = rule->be.backend;
+		propagate_processes(from, to);
+	}
+
+	/* reqsetbe */
+	for (exp = from->req_exp; exp != NULL; exp = exp->next) {
+		if (exp->action != ACT_SETBE)
+			continue;
+		to = (struct proxy *)exp->replace;
+		propagate_processes(from, to);
+	}
+}
+
 /*
  * Returns the error code, 0 if OK, or any combination of :
  *  - ERR_ABORT: must abort ASAP
@@ -6257,11 +6315,6 @@ int check_config_validity()
 			} else {
 				free(curproxy->defbe.name);
 				curproxy->defbe.be = target;
-				/* we force the backend to be present on at least all of
-				 * the frontend's processes.
-				 */
-				target->bind_proc = curproxy->bind_proc ?
-					(target->bind_proc | curproxy->bind_proc) : 0;
 
 				/* Emit a warning if this proxy also has some servers */
 				if (curproxy->srv) {
@@ -6294,11 +6347,6 @@ int check_config_validity()
 				} else {
 					free((void *)exp->replace);
 					exp->replace = (const char *)target;
-					/* we force the backend to be present on at least all of
-					 * the frontend's processes.
-					 */
-					target->bind_proc = curproxy->bind_proc ?
-						(target->bind_proc | curproxy->bind_proc) : 0;
 				}
 			}
 		}
@@ -6347,15 +6395,10 @@ int check_config_validity()
 			} else {
 				free((void *)rule->be.name);
 				rule->be.backend = target;
-				/* we force the backend to be present on at least all of
-				 * the frontend's processes.
-				 */
-				target->bind_proc = curproxy->bind_proc ?
-					(target->bind_proc | curproxy->bind_proc) : 0;
 			}
 		}
 
-		/* find the target proxy for 'use_backend' rules */
+		/* find the target server for 'use_server' rules */
 		list_for_each_entry(srule, &curproxy->server_rules, list) {
 			struct server *target = findserver(curproxy, srule->srv.name);
 
@@ -7263,6 +7306,12 @@ out_uri_auth_compat:
 		if (&bind_conf->by_fe != &global.stats_fe->conf.bind) {
 			Warning("stats socket will not work as expected in multi-process mode (nbproc > 1), you should force process binding globally using 'stats bind-process' or per socket using the 'process' attribute.\n");
 		}
+	}
+
+	/* At this point, target names have already been resolved */
+	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
+		if (curproxy->cap & PR_CAP_FE)
+			propagate_processes(curproxy, NULL);
 	}
 
 	/* automatically compute fullconn if not set. We must not do it in the
