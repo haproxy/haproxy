@@ -28,20 +28,36 @@ static char *pid_file = "/run/haproxy.pid";
 static int wrapper_argc;
 static char **wrapper_argv;
 
+/* returns the path to the haproxy binary into <buffer>, whose size indicated
+ * in <buffer_size> must be at least 1 byte long.
+ */
 static void locate_haproxy(char *buffer, size_t buffer_size)
 {
 	char *end = NULL;
+	int len;
 
-	if (readlink("/proc/self/exe", buffer, buffer_size) > 0)
-		end = strrchr(buffer, '/');
+	len = readlink("/proc/self/exe", buffer, buffer_size - 1);
+	if (len == -1)
+		goto fail;
 
-	if (end == NULL) {
-		strncpy(buffer, "/usr/sbin/haproxy", buffer_size);
+	buffer[len] = 0;
+	end = strrchr(buffer, '/');
+	if (end == NULL)
+		goto fail;
+
+	if (strcmp(end + strlen(end) - 16, "-systemd-wrapper") == 0) {
+		end[strlen(end) - 16] = '\0';
 		return;
 	}
+
 	end[1] = '\0';
 	strncpy(end + 1, "haproxy", buffer + buffer_size - (end + 1));
 	buffer[buffer_size - 1] = '\0';
+	return;
+ fail:
+	strncpy(buffer, "/usr/sbin/haproxy", buffer_size);
+	buffer[buffer_size - 1] = '\0';
+	return;
 }
 
 static void spawn_haproxy(char **pid_strv, int nb_pid)
@@ -54,7 +70,8 @@ static void spawn_haproxy(char **pid_strv, int nb_pid)
 	main_argc = wrapper_argc - 1;
 	main_argv = wrapper_argv + 1;
 
-	pid = fork();
+	//pid = fork();
+	pid=0;
 	if (!pid) {
 		/* 3 for "haproxy -Ds -sf" */
 		char **argv = calloc(4 + main_argc + nb_pid + 1, sizeof(char *));
