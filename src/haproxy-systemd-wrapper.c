@@ -70,8 +70,7 @@ static void spawn_haproxy(char **pid_strv, int nb_pid)
 	main_argc = wrapper_argc - 1;
 	main_argv = wrapper_argv + 1;
 
-	//pid = fork();
-	pid=0;
+	pid = fork();
 	if (!pid) {
 		/* 3 for "haproxy -Ds -sf" */
 		char **argv = calloc(4 + main_argc + nb_pid + 1, sizeof(char *));
