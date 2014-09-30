@@ -112,6 +112,7 @@ unsigned int http_get_hdr(const struct http_msg *msg, const char *hname, int hle
 void http_init_txn(struct session *s);
 void http_end_txn(struct session *s);
 void http_reset_txn(struct session *s);
+void http_adjust_conn_mode(struct session *s, struct http_txn *txn, struct http_msg *msg);
 
 struct http_req_rule *parse_http_req_cond(const char **args, const char *file, int linenum, struct proxy *proxy);
 struct http_res_rule *parse_http_res_cond(const char **args, const char *file, int linenum, struct proxy *proxy);

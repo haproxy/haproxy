@@ -955,6 +955,14 @@ int session_set_backend(struct session *s, struct proxy *be)
 		http_init_txn(s);
 	}
 
+	/* If we chain to an HTTP backend running a different HTTP mode, we
+	 * have to re-adjust the desired keep-alive/close mode to accommodate
+	 * both the frontend's and the backend's modes.
+	 */
+	if (s->fe->mode == PR_MODE_HTTP && be->mode == PR_MODE_HTTP &&
+	    ((s->fe->options & PR_O_HTTP_MODE) != (be->options & PR_O_HTTP_MODE)))
+		http_adjust_conn_mode(s, &s->txn, &s->txn.req);
+
 	/* If an LB algorithm needs to access some pre-parsed body contents,
 	 * we must not start to forward anything until the connection is
 	 * confirmed otherwise we'll lose the pointer to these data and
