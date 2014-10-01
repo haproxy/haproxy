@@ -7246,10 +7246,14 @@ out_uri_auth_compat:
 			global.stats_fe->bind_proc = ~0UL;
 	}
 
-	/* propagate bindings from frontends to backends */
-	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
-		if (curproxy->cap & PR_CAP_FE)
-			propagate_processes(curproxy, NULL);
+	/* propagate bindings from frontends to backends. Don't do it if there
+	 * are any fatal errors as we must not call it with unresolved proxies.
+	 */
+	if (!cfgerr) {
+		for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
+			if (curproxy->cap & PR_CAP_FE)
+				propagate_processes(curproxy, NULL);
+		}
 	}
 
 	/* Bind each unbound backend to all processes when not specified. */
