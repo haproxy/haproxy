@@ -2287,20 +2287,34 @@ static int tcpcheck_get_step_id(struct server *s)
 static void tcpcheck_main(struct connection *conn)
 {
 	char *contentptr;
-	struct list *head = NULL;
 	struct tcpcheck_rule *cur = NULL;
 	int done = 0, ret = 0;
-
 	struct check *check = conn->owner;
 	struct server *s = check->server;
 	struct task *t = check->task;
+	struct list *head = &s->proxy->tcpcheck_rules;
 
-	/*
-	 * don't do anything until the connection is established but if we're running
-	 * first step which must be a connect
+	/* here, we know that the check is complete or that it failed */
+	if (check->result != CHK_RES_UNKNOWN)
+		goto out_end_tcpcheck;
+
+	/* We have 4 possibilities here :
+	 *   1. we've not yet attempted step 1, and step 1 is a connect, so no
+	 *      connection attempt was made yet ;
+	 *   2. we've not yet attempted step 1, and step 1 is a not connect or
+	 *      does not exist (no rule), so a connection attempt was made
+	 *      before coming here.
+	 *   3. we're coming back after having started with step 1, so we may
+	 *      be waiting for a connection attempt to complete.
+	 *   4. the connection + handshake are complete
+	 *
+	 * #2 and #3 are quite similar, we want both the connection and the
+	 * handshake to complete before going any further. Thus we must always
+	 * wait for a connection to complete unless we're before and existing
+	 * step 1.
 	 */
-	if (check->current_step && (!(conn->flags & CO_FL_CONNECTED))) {
-		/* update expire time, should be done by process_chk */
+	if ((!(conn->flags & CO_FL_CONNECTED) || (conn->flags & CO_FL_HANDSHAKE)) &&
+	    (check->current_step || LIST_ISEMPTY(head))) {
 		/* we allow up to min(inter, timeout.connect) for a connection
 		 * to establish but only when timeout.check is set
 		 * as it may be to short for a full check otherwise
@@ -2317,12 +2331,11 @@ static void tcpcheck_main(struct connection *conn)
 		return;
 	}
 
-	/* here, we know that the connection is established */
-	if (check->result != CHK_RES_UNKNOWN)
+	/* special case: option tcp-check with no rule, a connect is enough */
+	if (LIST_ISEMPTY(head)) {
+		set_server_check_status(check, HCHK_STATUS_L4OK, NULL);
 		goto out_end_tcpcheck;
-
-	/* head is be the first element of the double chained list */
-	head = &s->proxy->tcpcheck_rules;
+	}
 
 	/* no step means first step
 	 * initialisation */
@@ -2340,9 +2353,6 @@ static void tcpcheck_main(struct connection *conn)
 	else {
 		cur = check->current_step;
 	}
-
-	if (conn->flags & CO_FL_HANDSHAKE)
-		return;
 
 	/* It's only the rules which will enable send/recv */
 	__conn_data_stop_both(conn);
