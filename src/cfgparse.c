@@ -6067,6 +6067,8 @@ void propagate_processes(struct proxy *from, struct proxy *to)
 
 	/* use_backend */
 	list_for_each_entry(rule, &from->switching_rules, list) {
+		if (rule->dynamic)
+			continue;
 		to = rule->be.backend;
 		propagate_processes(from, to);
 	}
