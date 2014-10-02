@@ -586,6 +586,7 @@ static void chk_report_conn_err(struct connection *conn, int errno_bck, int expi
 	struct check *check = conn->owner;
 	const char *err_msg;
 	struct chunk *chk;
+	int step;
 
 	if (check->result != CHK_RES_UNKNOWN)
 		return;
@@ -605,19 +606,27 @@ static void chk_report_conn_err(struct connection *conn, int errno_bck, int expi
 	chk = get_trash_chunk();
 
 	if (check->type == PR_O2_TCPCHK_CHK) {
-		chunk_printf(chk, " at step %d of tcp-check", tcpcheck_get_step_id(check->server));
-		/* we were looking for a string */
-		if (check->current_step && check->current_step->action == TCPCHK_ACT_CONNECT) {
-			chunk_appendf(chk, " (connect)");
-		}
-		else if (check->current_step && check->current_step->action == TCPCHK_ACT_EXPECT) {
-			if (check->current_step->string)
-				chunk_appendf(chk, " (string '%s')", check->current_step->string);
-			else if (check->current_step->expect_regex)
-				chunk_appendf(chk, " (expect regex)");
-		}
-		else if (check->current_step && check->current_step->action == TCPCHK_ACT_SEND) {
-			chunk_appendf(chk, " (send)");
+		step = tcpcheck_get_step_id(check->server);
+		if (!step)
+			chunk_printf(chk, " at initial connection step of tcp-check");
+		else {
+			chunk_printf(chk, " at step %d of tcp-check", step);
+			/* we were looking for a string */
+			if (check->last_started_step && check->last_started_step->action == TCPCHK_ACT_CONNECT) {
+				if (check->last_started_step->port)
+					chunk_appendf(chk, " (connect port %d)" ,check->last_started_step->port);
+				else
+					chunk_appendf(chk, " (connect)");
+			}
+			else if (check->last_started_step && check->last_started_step->action == TCPCHK_ACT_EXPECT) {
+				if (check->last_started_step->string)
+					chunk_appendf(chk, " (string '%s')", check->last_started_step->string);
+				else if (check->last_started_step->expect_regex)
+					chunk_appendf(chk, " (expect regex)");
+			}
+			else if (check->last_started_step && check->last_started_step->action == TCPCHK_ACT_SEND) {
+				chunk_appendf(chk, " (send)");
+			}
 		}
 	}
 
@@ -2268,6 +2277,10 @@ static int tcpcheck_get_step_id(struct server *s)
 	struct tcpcheck_rule *cur = NULL, *next = NULL;
 	int i = 0;
 
+	/* not even started anything yet => step 0 = initial connect */
+	if (!s->check.current_step)
+		return 0;
+
 	cur = s->check.last_started_step;
 
 	/* no step => first step */
@@ -2337,9 +2350,9 @@ static void tcpcheck_main(struct connection *conn)
 		goto out_end_tcpcheck;
 	}
 
-	/* no step means first step
-	 * initialisation */
+	/* no step means first step initialisation */
 	if (check->current_step == NULL) {
+		check->last_started_step = NULL;
 		check->bo->p = check->bo->data;
 		check->bo->o = 0;
 		check->bi->p = check->bi->data;
