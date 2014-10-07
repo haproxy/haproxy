@@ -8760,7 +8760,9 @@ agent-check
 
   - An ASCII representation of a positive integer percentage, e.g. "75%".
     Values in this format will set the weight proportional to the initial
-    weight of a server as configured when haproxy starts.
+    weight of a server as configured when haproxy starts. Note that a zero
+    weight is reported on the stats page as "DRAIN" since it has the same
+    effect on the server (it's removed from the LB farm).
 
   - The word "ready". This will turn the server's administrative state to the
     READY mode, thus cancelling any DRAIN or MAINT state
