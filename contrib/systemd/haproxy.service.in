@@ -5,6 +5,7 @@ After=network.target
 [Service]
 ExecStart=@SBINDIR@/haproxy-systemd-wrapper -f /etc/haproxy/haproxy.cfg -p /run/haproxy.pid
 ExecReload=/bin/kill -USR2 $MAINPID
+KillMode=mixed
 Restart=always
 
 [Install]
