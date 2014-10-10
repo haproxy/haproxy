@@ -1478,9 +1478,8 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 		SSL_MODE_ENABLE_PARTIAL_WRITE |
 		SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
 		SSL_MODE_RELEASE_BUFFERS;
-#ifndef OPENSSL_IS_BORINGSSL
 	STACK_OF(SSL_CIPHER) * ciphers = NULL;
-	SSL_CIPHER * cipher = NULL;
+	SSL_CIPHER const * cipher = NULL;
 	char cipher_description[128];
 	/* The description of ciphers using an Ephemeral Diffie Hellman key exchange
 	   contains " Kx=DH " or " Kx=DH(". Beware of " Kx=DH/",
@@ -1489,10 +1488,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 	const char dhe_export_description[] = " Kx=DH(";
 	int idx = 0;
 	int dhe_found = 0;
-#else /* OPENSSL_IS_BORINGSSL */
-	/* assume dhe_found if boringssl is detected */
-	int dhe_found = 1;
-#endif
+	SSL *ssl = NULL;
 
 	/* Make sure openssl opens /dev/urandom before the chroot */
 	if (!ssl_initialize_random()) {
@@ -1585,22 +1581,26 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 	   no static DH params were in the certificate file. */
 	if (global.tune.ssl_default_dh_param == 0) {
 
-#ifndef OPENSSL_IS_BORINGSSL
-		ciphers = ctx->cipher_list;
+		ssl = SSL_new(ctx);
 
-		if (ciphers) {
-			for (idx = 0; idx < sk_SSL_CIPHER_num(ciphers); idx++) {
-				cipher = sk_SSL_CIPHER_value(ciphers, idx);
-				if (SSL_CIPHER_description(cipher, cipher_description, sizeof (cipher_description)) == cipher_description) {
-					if (strstr(cipher_description, dhe_description) != NULL ||
-					    strstr(cipher_description, dhe_export_description) != NULL) {
-						dhe_found = 1;
-						break;
+		if (ssl) {
+			ciphers = SSL_get_ciphers(ssl);
+
+			if (ciphers) {
+				for (idx = 0; idx < sk_SSL_CIPHER_num(ciphers); idx++) {
+					cipher = sk_SSL_CIPHER_value(ciphers, idx);
+					if (SSL_CIPHER_description(cipher, cipher_description, sizeof (cipher_description)) == cipher_description) {
+						if (strstr(cipher_description, dhe_description) != NULL ||
+						    strstr(cipher_description, dhe_export_description) != NULL) {
+							dhe_found = 1;
+							break;
+						}
 					}
 				}
 			}
+			SSL_free(ssl);
+			ssl = NULL;
 		}
-#endif /* OPENSSL_IS_BORINGSSL */
 
 		if (dhe_found) {
 			Warning("Setting tune.ssl.default-dh-param to 1024 by default, if your workload permits it you should set it to at least 2048. Please set a value >= 1024 to make this warning disappear.\n");
