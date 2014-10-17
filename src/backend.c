@@ -200,7 +200,7 @@ struct server *get_server_uh(struct proxy *px, char *uri, int uri_len)
 
 	start = end = uri;
 	while (uri_len--) {
-		c = *end++;
+		c = *end;
 		if (c == '/') {
 			slashes++;
 			if (slashes == px->uri_dirs_depth1) /* depth+1 */
@@ -208,6 +208,7 @@ struct server *get_server_uh(struct proxy *px, char *uri, int uri_len)
 		}
 		else if (c == '?' && !px->uri_whole)
 			break;
+		end++;
 	}
 
 	hash = gen_hash(px, start, (end - start));
