@@ -1427,7 +1427,7 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 	}
 	else if (strncmp(args[arg], "track-sc", 8) == 0 &&
 		 args[arg][9] == '\0' && args[arg][8] >= '0' &&
-		 args[arg][8] <= '0' + MAX_SESS_STKCTR) { /* track-sc 0..9 */
+		 args[arg][8] < '0' + MAX_SESS_STKCTR) { /* track-sc 0..9 */
 		struct sample_expr *expr;
 		int kw = arg;
 
@@ -1491,7 +1491,7 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 		memprintf(err,
 		          "'%s %s' expects 'accept', 'reject', 'track-sc0' ... 'track-sc%d' "
 		          " in %s '%s' (got '%s')",
-		          args[0], args[1], MAX_SESS_STKCTR, proxy_type_str(curpx), curpx->id, args[arg]);
+		          args[0], args[1], MAX_SESS_STKCTR-1, proxy_type_str(curpx), curpx->id, args[arg]);
 		return -1;
 	}
 

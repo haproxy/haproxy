@@ -9016,7 +9016,7 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		cur_arg += 1;
 	} else if (strncmp(args[0], "track-sc", 8) == 0 &&
 		 args[0][9] == '\0' && args[0][8] >= '0' &&
-		 args[0][8] <= '0' + MAX_SESS_STKCTR) { /* track-sc 0..9 */
+		 args[0][8] < '0' + MAX_SESS_STKCTR) { /* track-sc 0..9 */
 		struct sample_expr *expr;
 		unsigned int where;
 		char *err = NULL;
