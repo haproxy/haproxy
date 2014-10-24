@@ -450,15 +450,12 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 		}
 	}
 
-	/* if a send_proxy is there, there are data */
-	data |= conn->send_proxy_ofs;
-
 #if defined(TCP_QUICKACK)
 	/* disabling tcp quick ack now allows the first request to leave the
 	 * machine with the first ACK. We only do this if there are pending
 	 * data in the buffer.
 	 */
-	if (delack == 2 || ((delack || data) && (be->options2 & PR_O2_SMARTCON)))
+	if (delack == 2 || ((delack || data || conn->send_proxy_ofs) && (be->options2 & PR_O2_SMARTCON)))
                 setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, &zero, sizeof(zero));
 #endif
 
