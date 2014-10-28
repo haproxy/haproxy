@@ -1,0 +1,31 @@
+2014/10/28 - Server connection sharing
+
+For HTTP/2 we'll have to use multiplexed connections to the servers and to
+share them between multiple streams. We'll also have to do this for H/1, but
+with some variations since H1 doesn't offer connection status verification.
+
+In order to validate that an idle connection is still usable, it is desirable
+to periodically send health checks over it. Normally, idle connections are
+meant to be heavily used, so there is no reason for having them idle for a long
+time. Thus we have two possibilities :
+
+  - either we time them out after some inactivity, this saves server resources ;
+  - or we check them after some inactivity. For this we can send the server-
+    side HTTP health check (only when the server uses HTTP checks), and avoid
+    using that to mark the server down, and instead consider the connection as
+    dead.
+
+For HTTP/2 we'll have to send pings periodically over these connections, so
+it's worth considering a per-connection task to validate that the channel still
+works.
+
+In the current model, a connection necessarily belongs to a session, so it's
+not really possible to share them, at best they can be exchanged, but that
+doesn't make much sense as it means that it could disturb parallel traffic.
+
+Thus we need to have a per-server list of idle connections and a max-idle-conn
+setting to kill them when there are too many. In the case of H/1 it is also
+advisable to consider that if a connection was created to pass a first non-
+idempotent request while other idle connections were still existing, then a
+connection will have to be killed in order not to exceed the limit.
+
