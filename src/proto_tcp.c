@@ -555,12 +555,24 @@ int tcp_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir)
 {
 	if (dir)
 		return getpeername(fd, sa, &salen);
+	else {
+		int ret = getsockname(fd, sa, &salen);
+
+		if (ret < 0)
+			return ret;
+
 #if defined(TPROXY) && defined(SO_ORIGINAL_DST)
-	else if (getsockopt(fd, SOL_IP, SO_ORIGINAL_DST, sa, &salen) == 0)
-		return 0;
+		/* For TPROXY and Netfilter's NAT, we can retrieve the original
+		 * IPv4 address before DNAT/REDIRECT. We must not do that with
+		 * other families because v6-mapped IPv4 addresses are still
+		 * reported as v4.
+		 */
+		if (((struct sockaddr_storage *)sa)->ss_family == AF_INET
+		    && getsockopt(fd, SOL_IP, SO_ORIGINAL_DST, sa, &salen) == 0)
+			return 0;
 #endif
-	else
-		return getsockname(fd, sa, &salen);
+		return ret;
+	}
 }
 
 /* Tries to drain any pending incoming data from the socket to reach the
