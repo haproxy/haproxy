@@ -2551,6 +2551,28 @@ ssl_sock_get_serial(X509 *crt, struct chunk *out)
 	return 1;
 }
 
+/* Extract a cert to der, and copy it to a chunk.
+ * Returns 1 if cert is found and copied, 0 on der convertion failure and
+ * -1 if output is not large enough.
+ */
+static int
+ssl_sock_crt2der(X509 *crt, struct chunk *out)
+{
+	int len;
+	unsigned char *p = (unsigned char *)out->str;;
+
+	len =i2d_X509(crt, NULL);
+	if (len <= 0)
+		return 1;
+
+	if (out->size < len)
+		return -1;
+
+	i2d_X509(crt,&p);
+	out->len = len;
+	return 1;
+}
+
 
 /* Copy Date in ASN1_UTCTIME format in struct chunk out.
  * Returns 1 if serial is found and copied, 0 if no valid time found
@@ -2789,6 +2811,54 @@ smp_fetch_ssl_fc_has_crt(struct proxy *px, struct session *l4, void *l7, unsigne
 	smp->data.uint = SSL_SOCK_ST_FL_VERIFY_DONE & conn->xprt_st ? 1 : 0;
 
 	return 1;
+}
+
+/* binary, returns a certificate in a binary chunk (der/raw).
+ * The 5th keyword char is used to know if SSL_get_certificate or SSL_get_peer_certificate
+ * should be use.
+ */
+static int
+smp_fetch_ssl_x_der(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                    const struct arg *args, struct sample *smp, const char *kw)
+{
+	int cert_peer = (kw[4] == 'c') ? 1 : 0;
+	X509 *crt = NULL;
+	int ret = 0;
+	struct chunk *smp_trash;
+	struct connection *conn;
+
+	if (!l4)
+		return 0;
+
+	conn = objt_conn(l4->si[0].end);
+	if (!conn || conn->xprt != &ssl_sock)
+		return 0;
+
+	if (!(conn->flags & CO_FL_CONNECTED)) {
+		smp->flags |= SMP_F_MAY_CHANGE;
+		return 0;
+	}
+
+	if (cert_peer)
+		crt = SSL_get_peer_certificate(conn->xprt_ctx);
+	else
+		crt = SSL_get_certificate(conn->xprt_ctx);
+
+	if (!crt)
+		goto out;
+
+	smp_trash = get_trash_chunk();
+	if (ssl_sock_crt2der(crt, smp_trash) <= 0)
+		goto out;
+
+	smp->data.str = *smp_trash;
+	smp->type = SMP_T_BIN;
+	ret = 1;
+out:
+	/* SSL_get_peer_certificate, it increase X509 * ref count */
+	if (cert_peer && crt)
+		X509_free(crt);
+	return ret;
 }
 
 /* binary, returns serial of certificate in a binary chunk.
@@ -4317,6 +4387,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_bc_session_id",      smp_fetch_ssl_fc_session_id,  0,                   NULL,    SMP_T_BIN,  SMP_USE_L5SRV },
 	{ "ssl_c_ca_err",           smp_fetch_ssl_c_ca_err,       0,                   NULL,    SMP_T_UINT, SMP_USE_L5CLI },
 	{ "ssl_c_ca_err_depth",     smp_fetch_ssl_c_ca_err_depth, 0,                   NULL,    SMP_T_UINT, SMP_USE_L5CLI },
+	{ "ssl_c_der",              smp_fetch_ssl_x_der,          0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 	{ "ssl_c_err",              smp_fetch_ssl_c_err,          0,                   NULL,    SMP_T_UINT, SMP_USE_L5CLI },
 	{ "ssl_c_i_dn",             smp_fetch_ssl_x_i_dn,         ARG2(0,STR,SINT),    NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_c_key_alg",          smp_fetch_ssl_x_key_alg,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
@@ -4329,6 +4400,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "ssl_c_used",             smp_fetch_ssl_c_used,         0,                   NULL,    SMP_T_BOOL, SMP_USE_L5CLI },
 	{ "ssl_c_verify",           smp_fetch_ssl_c_verify,       0,                   NULL,    SMP_T_UINT, SMP_USE_L5CLI },
 	{ "ssl_c_version",          smp_fetch_ssl_x_version,      0,                   NULL,    SMP_T_UINT, SMP_USE_L5CLI },
+	{ "ssl_f_der",              smp_fetch_ssl_x_der,          0,                   NULL,    SMP_T_BIN,  SMP_USE_L5CLI },
 	{ "ssl_f_i_dn",             smp_fetch_ssl_x_i_dn,         ARG2(0,STR,SINT),    NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_f_key_alg",          smp_fetch_ssl_x_key_alg,      0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
 	{ "ssl_f_notafter",         smp_fetch_ssl_x_notafter,     0,                   NULL,    SMP_T_STR,  SMP_USE_L5CLI },
