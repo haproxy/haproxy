@@ -290,7 +290,7 @@ int regex_comp(const char *str, struct my_regex *regex, int cs, int cap, char **
 
 #ifdef USE_PCRE_JIT
 	regex->extra = pcre_study(regex->reg, PCRE_STUDY_JIT_COMPILE, &error);
-	if (!regex->extra) {
+	if (!regex->extra && error != NULL) {
 		pcre_free(regex->reg);
 		memprintf(err, "failed to compile regex '%s' (error=%s)", str, error);
 		return 0;
