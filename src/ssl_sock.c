@@ -1957,10 +1957,15 @@ int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf, struct proxy *px)
 	if (!bind_conf || !bind_conf->is_ssl)
 		return 0;
 
+	if (bind_conf->default_ctx)
+		err += ssl_sock_prepare_ctx(bind_conf, bind_conf->default_ctx, px);
+
 	node = ebmb_first(&bind_conf->sni_ctx);
 	while (node) {
 		sni = ebmb_entry(node, struct sni_ctx, name);
-		if (!sni->order) /* only initialize the CTX on its first occurrence */
+		if (!sni->order && sni->ctx != bind_conf->default_ctx)
+			/* only initialize the CTX on its first occurrence and
+			   if it is not the default_ctx */
 			err += ssl_sock_prepare_ctx(bind_conf, sni->ctx, px);
 		node = ebmb_next(node);
 	}
@@ -1968,7 +1973,9 @@ int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf, struct proxy *px)
 	node = ebmb_first(&bind_conf->sni_w_ctx);
 	while (node) {
 		sni = ebmb_entry(node, struct sni_ctx, name);
-		if (!sni->order) /* only initialize the CTX on its first occurrence */
+		if (!sni->order && sni->ctx != bind_conf->default_ctx)
+			/* only initialize the CTX on its first occurrence and
+			   if it is not the default_ctx */
 			err += ssl_sock_prepare_ctx(bind_conf, sni->ctx, px);
 		node = ebmb_next(node);
 	}
