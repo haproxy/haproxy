@@ -56,6 +56,7 @@
 #include <common/standard.h>
 #include <common/ticks.h>
 #include <common/time.h>
+#include <common/cfgparse.h>
 
 #include <ebsttree.h>
 
@@ -4117,6 +4118,7 @@ static int bind_parse_ssl(char **args, int cur_arg, struct proxy *px, struct bin
 
 	if (global.listen_default_ciphers && !conf->ciphers)
 		conf->ciphers = strdup(global.listen_default_ciphers);
+	conf->ssl_options |= global.listen_default_ssloptions;
 
 	list_for_each_entry(l, &conf->listeners, by_bind)
 		l->xprt = &ssl_sock;
@@ -4181,6 +4183,7 @@ static int srv_parse_check_ssl(char **args, int *cur_arg, struct proxy *px, stru
 	newsrv->check.use_ssl = 1;
 	if (global.connect_default_ciphers && !newsrv->ssl_ctx.ciphers)
 		newsrv->ssl_ctx.ciphers = strdup(global.connect_default_ciphers);
+	newsrv->ssl_ctx.options |= global.connect_default_ssloptions;
 	return 0;
 }
 
@@ -4374,6 +4377,106 @@ static int srv_parse_verifyhost(char **args, int *cur_arg, struct proxy *px, str
 	return 0;
 }
 
+/* parse the "ssl-default-bind-options" keyword in global section */
+static int ssl_parse_default_bind_options(char **args, int section_type, struct proxy *curpx,
+                                          struct proxy *defpx, const char *file, int line,
+                                          char **err) {
+	int i = 1;
+
+	if (*(args[i]) == 0) {
+		memprintf(err, "global statement '%s' expects an option as an argument.", args[0]);
+		return -1;
+	}
+	while (*(args[i])) {
+		if (!strcmp(args[i], "no-sslv3"))
+			global.listen_default_ssloptions |= BC_SSL_O_NO_SSLV3;
+		else if (!strcmp(args[i], "no-tlsv10"))
+			global.listen_default_ssloptions |= BC_SSL_O_NO_TLSV10;
+		else if (!strcmp(args[i], "no-tlsv11"))
+			global.listen_default_ssloptions |= BC_SSL_O_NO_TLSV11;
+		else if (!strcmp(args[i], "no-tlsv12"))
+			global.listen_default_ssloptions |= BC_SSL_O_NO_TLSV12;
+		else if (!strcmp(args[i], "force-sslv3"))
+			global.listen_default_ssloptions |= BC_SSL_O_USE_SSLV3;
+		else if (!strcmp(args[i], "force-tlsv10"))
+			global.listen_default_ssloptions |= BC_SSL_O_USE_TLSV10;
+		else if (!strcmp(args[i], "force-tlsv11")) {
+#if SSL_OP_NO_TLSv1_1
+			global.listen_default_ssloptions |= BC_SSL_O_USE_TLSV11;
+#else
+			memprintf(err, "'%s' '%s': library does not support protocol TLSv1.1", args[0], args[i]);
+			return -1;
+#endif
+		}
+		else if (!strcmp(args[i], "force-tlsv12")) {
+#if SSL_OP_NO_TLSv1_2
+			global.listen_default_ssloptions |= BC_SSL_O_USE_TLSV12;
+#else
+			memprintf(err, "'%s' '%s': library does not support protocol TLSv1.2", args[0], args[i]);
+			return -1;
+#endif
+		}
+		else if (!strcmp(args[i], "no-tls-tickets"))
+			global.listen_default_ssloptions |= BC_SSL_O_NO_TLS_TICKETS;
+		else {
+			memprintf(err, "unknown option '%s' on global statement '%s'.", args[i], args[0]);
+			return -1;
+		}
+		i++;
+	}
+	return 0;
+}
+
+/* parse the "ssl-default-server-options" keyword in global section */
+static int ssl_parse_default_server_options(char **args, int section_type, struct proxy *curpx,
+                                            struct proxy *defpx, const char *file, int line,
+                                            char **err) {
+	int i = 1;
+
+	if (*(args[i]) == 0) {
+		memprintf(err, "global statement '%s' expects an option as an argument.", args[0]);
+		return -1;
+	}
+	while (*(args[i])) {
+		if (!strcmp(args[i], "no-sslv3"))
+			global.connect_default_ssloptions |= SRV_SSL_O_NO_SSLV3;
+		else if (!strcmp(args[i], "no-tlsv10"))
+			global.connect_default_ssloptions |= SRV_SSL_O_NO_TLSV10;
+		else if (!strcmp(args[i], "no-tlsv11"))
+			global.connect_default_ssloptions |= SRV_SSL_O_NO_TLSV11;
+		else if (!strcmp(args[i], "no-tlsv12"))
+			global.connect_default_ssloptions |= SRV_SSL_O_NO_TLSV12;
+		else if (!strcmp(args[i], "force-sslv3"))
+			global.connect_default_ssloptions |= SRV_SSL_O_USE_SSLV3;
+		else if (!strcmp(args[i], "force-tlsv10"))
+			global.connect_default_ssloptions |= SRV_SSL_O_USE_TLSV10;
+		else if (!strcmp(args[i], "force-tlsv11")) {
+#if SSL_OP_NO_TLSv1_1
+			global.connect_default_ssloptions |= SRV_SSL_O_USE_TLSV11;
+#else
+			memprintf(err, "'%s' '%s': library does not support protocol TLSv1.1", args[0], args[i]);
+			return -1;
+#endif
+		}
+		else if (!strcmp(args[i], "force-tlsv12")) {
+#if SSL_OP_NO_TLSv1_2
+			global.connect_default_ssloptions |= SRV_SSL_O_USE_TLSV12;
+#else
+			memprintf(err, "'%s' '%s': library does not support protocol TLSv1.2", args[0], args[i]);
+			return -1;
+#endif
+		}
+		else if (!strcmp(args[i], "no-tls-tickets"))
+			global.connect_default_ssloptions |= SRV_SSL_O_NO_TLS_TICKETS;
+		else {
+			memprintf(err, "unknown option '%s' on global statement '%s'.", args[i], args[0]);
+			return -1;
+		}
+		i++;
+	}
+	return 0;
+}
+
 /* Note: must not be declared <const> as its list will be overwritten.
  * Please take care of keeping this list alphabetically sorted.
  */
@@ -4501,6 +4604,12 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ NULL, NULL, 0, 0 },
 }};
 
+static struct cfg_kw_list cfg_kws = {ILH, {
+	{ CFG_GLOBAL, "ssl-default-bind-options", ssl_parse_default_bind_options },
+	{ CFG_GLOBAL, "ssl-default-server-options", ssl_parse_default_server_options },
+	{ 0, NULL, NULL },
+}};
+
 /* transport-layer operations for SSL sockets */
 struct xprt_ops ssl_sock = {
 	.snd_buf  = ssl_sock_from_buf,
@@ -4528,6 +4637,8 @@ static void __ssl_sock_init(void)
 		global.listen_default_ciphers = strdup(global.listen_default_ciphers);
 	if (global.connect_default_ciphers)
 		global.connect_default_ciphers = strdup(global.connect_default_ciphers);
+	global.listen_default_ssloptions = BC_SSL_O_NONE;
+	global.connect_default_ssloptions = SRV_SSL_O_NONE;
 
 	SSL_library_init();
 	cm = SSL_COMP_get_compression_methods();
@@ -4536,6 +4647,7 @@ static void __ssl_sock_init(void)
 	acl_register_keywords(&acl_kws);
 	bind_register_keywords(&bind_kws);
 	srv_register_keywords(&srv_kws);
+	cfg_register_keywords(&cfg_kws);
 }
 
 /*

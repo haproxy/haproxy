@@ -87,6 +87,8 @@ struct global {
 	int maxsslconn;
 	char *listen_default_ciphers;
 	char *connect_default_ciphers;
+	int listen_default_ssloptions;
+	int connect_default_ssloptions;
 #endif
 	unsigned int ssl_server_verify; /* default verify mode on servers side */
 	struct freq_ctr conn_per_sec;
