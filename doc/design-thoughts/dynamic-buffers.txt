@@ -1,0 +1,41 @@
+2014/10/30 - dynamic buffer management
+
+Since HTTP/2 processing will significantly increase the need for buffering, it
+becomes mandatory to be able to support dynamic buffer allocation. This also
+means that at any moment some buffer allocation will fail and that a task or an
+I/O operation will have to be paused for the time needed to allocate a buffer.
+
+There are 3 places where buffers are needed :
+
+  - receive side of a stream interface. A connection notifies about a pending
+    recv() and the SI calls the receive function to put the data into a buffer.
+    Here the buffer will have to be picked from a pool first, and if the
+    allocation fails, the I/O will have to temporarily be disabled, the
+    connection will have to subscribe for buffer release notification to be
+    woken up once a buffer is available again. It's important to keep in mind
+    that buffer availability doesn't necessarily mean a desire to enable recv
+    again, just that recv is not paused anymore for resource reasons.
+
+  - receive side of a stream interface when the other end point is an applet.
+    The applet wants to write into the buffer and for this the buffer needs to
+    be allocated as well. It is the same as above except that it is the applet
+    which is put to a pause. Since the applet might be at the core of the task
+    itself, it could become tricky to handle the situation correctly. Stats and
+    peers are in this situation.
+
+  - Tx of a task : some tasks perform spontaneous writes to a buffer. Checks
+    are an example of this. The checks will have to be able to sleep while a
+    buffer is being awaited.
+
+One important point is that such pauses must not prevent the task from timing
+out. There it becomes difficult because in the case of a time out, we could
+want to emit a timeout error message and for this, require a buffer. So it is
+important to keep the ability not to send messages upon error processing, and
+to be able to give up and stop waiting for buffers.
+
+The refill mechanism needs to be designed in a thread-safe way because this
+will become one of the rare cases of inter-task activity. Thus it is important
+to ensure that checking the state of the task and passing of the freshly
+released buffer are performed atomically, and that in case the task doesn't
+want it anymore, it is responsible for passing it to the next one.
+
