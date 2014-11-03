@@ -10036,6 +10036,11 @@ base64
   transfer binary content in a way that can be reliably transferred (eg:
   an SSL ID can be copied in a header).
 
+bytes(<offset>[,<length>])
+  Extracts some bytes from an input binary sample. The result is a binary
+  sample starting at an offset (in bytes) of the original sample and
+  optionnaly truncated at the given length.
+
 djb2([<avalanche>])
   Hashes a binary input sample into an unsigned 32-bit quantity using the DJB2
   hash function. Optionally, it is possible to apply a full avalanche hash

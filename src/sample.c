@@ -1562,6 +1562,27 @@ static int sample_conv_json(const struct arg *arg_p, struct sample *smp)
 	return 1;
 }
 
+/* This sample function is designed to extract some bytes from an input buffer.
+ * First arg is the offset.
+ * Optional second arg is the length to truncate */
+static int sample_conv_bytes(const struct arg *arg_p, struct sample *smp)
+{
+	if (smp->data.str.len <= arg_p[0].data.uint) {
+		smp->data.str.len = 0;
+		return 1;
+	}
+
+	if (smp->data.str.size)
+			smp->data.str.size -= arg_p[0].data.uint;
+	smp->data.str.len -= arg_p[0].data.uint;
+	smp->data.str.str += arg_p[0].data.uint;
+
+	if ((arg_p[1].type == ARGT_UINT) && (arg_p[1].data.uint < smp->data.str.len))
+		smp->data.str.len = arg_p[1].data.uint;
+
+	return 1;
+}
+
 /************************************************************************/
 /*       All supported sample fetch functions must be declared here     */
 /************************************************************************/
@@ -1703,6 +1724,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "sdbm",   sample_conv_sdbm,      ARG1(0,UINT), NULL, SMP_T_BIN,  SMP_T_UINT },
 	{ "wt6",    sample_conv_wt6,       ARG1(0,UINT), NULL, SMP_T_BIN,  SMP_T_UINT },
 	{ "json",   sample_conv_json,      ARG1(1,STR),  sample_conv_json_check, SMP_T_STR,  SMP_T_STR },
+	{ "bytes",  sample_conv_bytes,     ARG2(1,UINT,UINT), NULL, SMP_T_BIN,  SMP_T_BIN },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 
