@@ -1583,6 +1583,92 @@ static int sample_conv_bytes(const struct arg *arg_p, struct sample *smp)
 	return 1;
 }
 
+static int sample_conv_field_check(struct arg *args, struct sample_conv *conv,
+                                  const char *file, int line, char **err)
+{
+	struct arg *arg = args;
+
+	if (!arg) {
+		memprintf(err, "Unexpected empty arg list");
+		return 0;
+	}
+
+	if (arg->type != ARGT_UINT) {
+		memprintf(err, "Unexpected arg type");
+		return 0;
+	}
+
+	if (!arg->data.uint) {
+		memprintf(err, "Unexpected value 0 for index");
+		return 0;
+	}
+
+	arg++;
+
+	if (arg->type != ARGT_STR) {
+		memprintf(err, "Unexpected arg type");
+		return 0;
+	}
+
+	if (!arg->data.str.len) {
+		memprintf(err, "Empty separators list");
+		return 0;
+	}
+
+	return 1;
+}
+
+/* This sample function is designed to a return selected part of a string (field).
+ * First arg is the index of the field (start at 1)
+ * Second arg is a char list of separators (type string)
+ */
+static int sample_conv_field(const struct arg *arg_p, struct sample *smp)
+{
+	unsigned int field;
+	char *start, *end;
+	int i;
+
+	if (!arg_p[0].data.uint)
+		return 0;
+
+	field = 1;
+	end = start = smp->data.str.str;
+	while (end - smp->data.str.str < smp->data.str.len) {
+
+		for (i = 0 ; i < arg_p[1].data.str.len ; i++) {
+			if (*end == arg_p[1].data.str.str[i]) {
+				if (field == arg_p[0].data.uint)
+					goto found;
+				start = end+1;
+				field++;
+				break;
+			}
+		}
+		end++;
+	}
+
+	/* Field not found */
+	if (field != arg_p[0].data.uint) {
+		smp->data.str.len = 0;
+		return 1;
+	}
+found:
+	smp->data.str.len = end - start;
+	/* If ret string is len 0, no need to
+           change pointers or to update size */
+	if (!smp->data.str.len)
+		return 1;
+
+	smp->data.str.str = start;
+
+	/* Compute remaining size if needed
+           Note: smp->data.str.size cannot be set to 0 */
+	if (smp->data.str.size)
+		smp->data.str.size -= start - smp->data.str.str;
+
+	return 1;
+}
+
 /************************************************************************/
 /*       All supported sample fetch functions must be declared here     */
 /************************************************************************/
@@ -1725,6 +1811,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "wt6",    sample_conv_wt6,       ARG1(0,UINT), NULL, SMP_T_BIN,  SMP_T_UINT },
 	{ "json",   sample_conv_json,      ARG1(1,STR),  sample_conv_json_check, SMP_T_STR,  SMP_T_STR },
 	{ "bytes",  sample_conv_bytes,     ARG2(1,UINT,UINT), NULL, SMP_T_BIN,  SMP_T_BIN },
+	{ "field",  sample_conv_field,     ARG2(2,UINT,STR), sample_conv_field_check, SMP_T_STR,  SMP_T_STR },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 

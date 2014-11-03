@@ -10052,6 +10052,11 @@ djb2([<avalanche>])
   32-bit hash is trivial to break. See also "sdbm", "wt6" and the "hash-type"
   directive.
 
+field(<index>,<delimiters>)
+  Extracts the substring at the given index considering given delimiters from
+  an input string. Indexes start at 1 and delimiters are a string formatted
+  list of chars.
+
 hex
   Converts a binary input sample to an hex string containing two hex digits per
   input byte. It is used to log or transfer hex dumps of some binary input data
