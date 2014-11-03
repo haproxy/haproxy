@@ -499,27 +499,20 @@ static int c_str2ipv6(struct sample *smp)
 	return 1;
 }
 
-/* The sample is always copied into a new one so that smp->size is always
- * valid. The NULL char always enforces the end of string if it is met.
+/*
+ * The NULL char always enforces the end of string if it is met.
+ * Data is never changed, so we can ignore the CONST case
  */
 static int c_bin2str(struct sample *smp)
 {
-	struct chunk *trash = get_trash_chunk();
-	unsigned char c;
-	int ptr = 0;
+	int i;
 
-	while (ptr < smp->data.str.len) {
-		c = smp->data.str.str[ptr];
-		if (!c)
+	for (i = 0; i < smp->data.str.len; i++) {
+		if (!smp->data.str.str[i]) {
+			smp->data.str.len = i;
 			break;
-		trash->str[ptr] = c;
-		ptr++;
+		}
 	}
-	trash->len = ptr;
-	trash->str[ptr] = 0;
-	smp->data.str = *trash;
-	smp->type = SMP_T_STR;
-	smp->flags &= ~SMP_F_CONST;
 	return 1;
 }
 
