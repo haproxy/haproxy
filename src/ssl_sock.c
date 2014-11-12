@@ -2048,15 +2048,29 @@ static int ssl_sock_init(struct connection *conn)
 			return -1;
 		}
 
-		SSL_set_connect_state(conn->xprt_ctx);
-		if (objt_server(conn->target)->ssl_ctx.reused_sess)
-			SSL_set_session(conn->xprt_ctx, objt_server(conn->target)->ssl_ctx.reused_sess);
-
 		/* set fd on SSL session context */
-		SSL_set_fd(conn->xprt_ctx, conn->t.sock.fd);
+		if (!SSL_set_fd(conn->xprt_ctx, conn->t.sock.fd)) {
+			SSL_free(conn->xprt_ctx);
+			conn->xprt_ctx = NULL;
+			conn->err_code = CO_ER_SSL_NO_MEM;
+			return -1;
+		}
 
 		/* set connection pointer */
-		SSL_set_app_data(conn->xprt_ctx, conn);
+		if (!SSL_set_app_data(conn->xprt_ctx, conn)) {
+			SSL_free(conn->xprt_ctx);
+			conn->xprt_ctx = NULL;
+			conn->err_code = CO_ER_SSL_NO_MEM;
+			return -1;
+		}
+
+		SSL_set_connect_state(conn->xprt_ctx);
+		if (objt_server(conn->target)->ssl_ctx.reused_sess) {
+			if(!SSL_set_session(conn->xprt_ctx, objt_server(conn->target)->ssl_ctx.reused_sess)) {
+				SSL_SESSION_free(objt_server(conn->target)->ssl_ctx.reused_sess);
+				objt_server(conn->target)->ssl_ctx.reused_sess = NULL;
+			}
+		}
 
 		/* leave init state and start handshake */
 		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
@@ -2073,13 +2087,23 @@ static int ssl_sock_init(struct connection *conn)
 			return -1;
 		}
 
-		SSL_set_accept_state(conn->xprt_ctx);
-
 		/* set fd on SSL session context */
-		SSL_set_fd(conn->xprt_ctx, conn->t.sock.fd);
+		if (!SSL_set_fd(conn->xprt_ctx, conn->t.sock.fd)) {
+			SSL_free(conn->xprt_ctx);
+			conn->xprt_ctx = NULL;
+			conn->err_code = CO_ER_SSL_NO_MEM;
+			return -1;
+		}
 
 		/* set connection pointer */
-		SSL_set_app_data(conn->xprt_ctx, conn);
+		if (!SSL_set_app_data(conn->xprt_ctx, conn)) {
+			SSL_free(conn->xprt_ctx);
+			conn->xprt_ctx = NULL;
+			conn->err_code = CO_ER_SSL_NO_MEM;
+			return -1;
+		}
+
+		SSL_set_accept_state(conn->xprt_ctx);
 
 		/* leave init state and start handshake */
 		conn->flags |= CO_FL_SSL_WAIT_HS | CO_FL_WAIT_L6_CONN;
