@@ -1224,7 +1224,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				newsrv->state = SRV_ST_STOPPED;
 				newsrv->check.state |= CHK_ST_PAUSED;
 				newsrv->check.health = 0;
-				newsrv->agent.health = 0;
 				cur_arg += 1;
 			}
 			else if (!defsrv && !strcmp(args[cur_arg], "observe")) {
