@@ -32,6 +32,7 @@
 #include <common/ticks.h>
 #include <eb32tree.h>
 
+#include <types/global.h>
 #include <types/task.h>
 
 /* Principle of the wait queue.
@@ -199,6 +200,8 @@ static inline struct task *task_new(void)
 static inline void task_free(struct task *t)
 {
 	pool_free2(pool2_task, t);
+	if (unlikely(stopping))
+		pool_flush2(pool2_task);
 	nb_tasks--;
 }
 
