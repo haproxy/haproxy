@@ -670,6 +670,8 @@ static void session_free(struct session *s)
 		pool_flush2(pool2_requri);
 		pool_flush2(pool2_capture);
 		pool_flush2(pool2_session);
+		pool_flush2(pool2_connection);
+		pool_flush2(pool2_pendconn);
 		pool_flush2(fe->req_cap_pool);
 		pool_flush2(fe->rsp_cap_pool);
 	}
