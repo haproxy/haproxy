@@ -1462,6 +1462,9 @@ int ssl_sock_load_cert_list_file(char *file, struct bind_conf *bind_conf, struct
 #ifndef SSL_MODE_RELEASE_BUFFERS                        /* needs OpenSSL >= 1.0.0 */
 #define SSL_MODE_RELEASE_BUFFERS 0
 #endif
+#ifndef SSL_MODE_SMALL_BUFFERS                          /* needs small_records.patch */
+#define SSL_MODE_SMALL_BUFFERS 0
+#endif
 
 int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy *curproxy)
 {
@@ -1478,7 +1481,8 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 	long sslmode =
 		SSL_MODE_ENABLE_PARTIAL_WRITE |
 		SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
-		SSL_MODE_RELEASE_BUFFERS;
+		SSL_MODE_RELEASE_BUFFERS |
+		SSL_MODE_SMALL_BUFFERS;
 	STACK_OF(SSL_CIPHER) * ciphers = NULL;
 	SSL_CIPHER * cipher = NULL;
 	char cipher_description[128];
@@ -1806,7 +1810,8 @@ int ssl_sock_prepare_srv_ctx(struct server *srv, struct proxy *curproxy)
 	long mode =
 		SSL_MODE_ENABLE_PARTIAL_WRITE |
 		SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
-		SSL_MODE_RELEASE_BUFFERS;
+		SSL_MODE_RELEASE_BUFFERS |
+		SSL_MODE_SMALL_BUFFERS;
 	int verify = SSL_VERIFY_NONE;
 
 	/* Make sure openssl opens /dev/urandom before the chroot */
