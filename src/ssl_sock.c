@@ -2041,9 +2041,16 @@ static int ssl_sock_init(struct connection *conn)
 	/* If it is in client mode initiate SSL session
 	   in connect state otherwise accept state */
 	if (objt_server(conn->target)) {
+		int may_retry = 1;
+
+	retry_connect:
 		/* Alloc a new SSL session ctx */
 		conn->xprt_ctx = SSL_new(objt_server(conn->target)->ssl_ctx.ctx);
 		if (!conn->xprt_ctx) {
+			if (may_retry--) {
+				pool_gc2();
+				goto retry_connect;
+			}
 			conn->err_code = CO_ER_SSL_NO_MEM;
 			return -1;
 		}
@@ -2052,6 +2059,10 @@ static int ssl_sock_init(struct connection *conn)
 		if (!SSL_set_fd(conn->xprt_ctx, conn->t.sock.fd)) {
 			SSL_free(conn->xprt_ctx);
 			conn->xprt_ctx = NULL;
+			if (may_retry--) {
+				pool_gc2();
+				goto retry_connect;
+			}
 			conn->err_code = CO_ER_SSL_NO_MEM;
 			return -1;
 		}
@@ -2060,6 +2071,10 @@ static int ssl_sock_init(struct connection *conn)
 		if (!SSL_set_app_data(conn->xprt_ctx, conn)) {
 			SSL_free(conn->xprt_ctx);
 			conn->xprt_ctx = NULL;
+			if (may_retry--) {
+				pool_gc2();
+				goto retry_connect;
+			}
 			conn->err_code = CO_ER_SSL_NO_MEM;
 			return -1;
 		}
@@ -2080,9 +2095,16 @@ static int ssl_sock_init(struct connection *conn)
 		return 0;
 	}
 	else if (objt_listener(conn->target)) {
+		int may_retry = 1;
+
+	retry_accept:
 		/* Alloc a new SSL session ctx */
 		conn->xprt_ctx = SSL_new(objt_listener(conn->target)->bind_conf->default_ctx);
 		if (!conn->xprt_ctx) {
+			if (may_retry--) {
+				pool_gc2();
+				goto retry_accept;
+			}
 			conn->err_code = CO_ER_SSL_NO_MEM;
 			return -1;
 		}
@@ -2091,6 +2113,10 @@ static int ssl_sock_init(struct connection *conn)
 		if (!SSL_set_fd(conn->xprt_ctx, conn->t.sock.fd)) {
 			SSL_free(conn->xprt_ctx);
 			conn->xprt_ctx = NULL;
+			if (may_retry--) {
+				pool_gc2();
+				goto retry_accept;
+			}
 			conn->err_code = CO_ER_SSL_NO_MEM;
 			return -1;
 		}
@@ -2099,6 +2125,10 @@ static int ssl_sock_init(struct connection *conn)
 		if (!SSL_set_app_data(conn->xprt_ctx, conn)) {
 			SSL_free(conn->xprt_ctx);
 			conn->xprt_ctx = NULL;
+			if (may_retry--) {
+				pool_gc2();
+				goto retry_accept;
+			}
 			conn->err_code = CO_ER_SSL_NO_MEM;
 			return -1;
 		}
