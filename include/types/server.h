@@ -202,7 +202,6 @@ struct server {
 
 	struct {                                /* configuration  used by health-check and agent-check */
 		struct protocol *proto;	        /* server address protocol for health checks */
-		struct xprt_ops *xprt;          /* transport layer operations for health checks */
 		struct sockaddr_storage addr;   /* the address to check, if different from <addr> */
 	} check_common;
 

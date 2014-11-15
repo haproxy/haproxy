@@ -129,6 +129,7 @@ enum {
 };
 
 struct check {
+	struct xprt_ops *xprt;			/* transport layer operations for health checks */
 	struct connection *conn;		/* connection state for health checks */
 	unsigned short port;			/* the port to use for the health checks */
 	struct buffer *bi, *bo;			/* input and output buffers to send/recv check */
@@ -136,7 +137,7 @@ struct check {
 	struct timeval start;			/* last health check start time */
 	long duration;				/* time in ms took to finish last health check */
 	short status, code;			/* check result, check code */
-	char desc[HCHK_DESC_LEN];		/* health check descritpion */
+	char desc[HCHK_DESC_LEN];		/* health check description */
 	int use_ssl;				/* use SSL for health checks */
 	int send_proxy;				/* send a PROXY protocol header with checks */
 	struct tcpcheck_rule *current_step;     /* current step when using tcpcheck */
