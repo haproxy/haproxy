@@ -1,0 +1,106 @@
+Linux network namespace support for HAProxy
+===========================================
+
+HAProxy supports proxying between Linux network namespaces. This
+feature can be used, for example, in a multi-tenant networking
+environment to proxy between different networks. HAProxy can also act
+as a front-end proxy for non namespace-aware services.
+
+The proxy protocol has been extended to support transferring the
+namespace information, so the originating namespace information can be
+kept. This is useful when chaining multiple proxies and services.
+
+To enable Linux namespace support, compile HAProxy with the `USE_NS=1`
+make option.
+
+
+## Setting up namespaces on Linux
+
+To create network namespaces, use the 'ip netns' command. See the
+manual page ip-netns(8) for details.
+
+Make sure that the file descriptors representing the network namespace
+are located under `/var/run/netns`.
+
+For example, you can create a network namespace and assign one of the
+networking interfaces to the new namespace:
+
+```
+$ ip netns add netns1
+$ ip link set eth7 netns netns1
+```
+
+
+## Listing namespaces in the configuration file
+
+HAProxy uses namespaces explicitly listed in its configuration file.
+If you are not using namespace information received through the proxy
+protocol, this usually means that you must specify namespaces for
+listeners and servers in the configuration file with the 'namespace'
+keyword.
+
+However, if you're using the namespace information received through
+the proxy protocol to determine the namespace of servers (see
+'namespace * below'), you have to explicitly list all allowed
+namespaces in the namespace_list section of your configuration file:
+
+```
+namespace_list
+    namespace netns1
+    namespace netns2
+```
+
+
+## Namespace information flow
+
+The haproxy process always runs in the namespace it was started on.
+This is the default namespace.
+
+The bind addresses of listeners can have their namespace specified in
+the configuration file. Unless specified, sockets associated with
+listener bind addresses are created in the default namespace. For
+example, this creates a listener in the netns2 namespace:
+
+```
+frontend f_example
+	bind 192.168.1.1:80 namespace netns2
+	default_backend http
+```
+
+Each client connection is associated with its source namespace. By
+default, this is the namespace of the bind socket it arrived on, but
+can be overridden by information received through the proxy protocol.
+Proxy protocol v2 supports transferring namespace information, so if
+it is enabled for the listener, it can override the associated
+namespace of the connection.
+
+Servers can have their namespaces specified in the configuration file
+with the 'namespace' keyword:
+
+```
+backend b_example
+	server s1 192.168.1.100:80 namespace netns2
+```
+
+If no namespace is set for a server, it is assumed that it is in the
+default namespace. When specified, outbound sockets to the server are
+created in the network namespace configured. To create the outbound
+(server) connection in the namespace associated with the client, use
+the '*' namespace. This is especially useful when using the
+destination address and namespace received from the proxy protocol.
+
+```
+frontend f_example
+	bind 192.168.1.1:9990 accept-proxy
+	default_backend b_example
+
+backend b_example
+	mode tcp
+	source 0.0.0.0 usesrc clientip
+	server snodes * namespace *
+```
+
+If HAProxy is configured to send proxy protocol v2 headers to the
+server, the outgoing header will always contain the namespace
+associated with the client connection, not the namespace configured
+for the server.

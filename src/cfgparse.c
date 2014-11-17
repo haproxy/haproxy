@@ -41,6 +41,7 @@
 #include <common/standard.h>
 #include <common/time.h>
 #include <common/uri_auth.h>
+#include <common/namespace.h>
 
 #include <types/capture.h>
 #include <types/compression.h>
@@ -5645,6 +5646,48 @@ stats_error_parsing:
 }
 
 int
+cfg_parse_netns(const char *file, int linenum, char **args, int kwm)
+{
+#ifdef CONFIG_HAP_NS
+	const char *err;
+	const char *item = args[0];
+
+	if (!strcmp(item, "namespace_list")) {
+		return 0;
+	}
+	else if (!strcmp(item, "namespace")) {
+		size_t idx = 1;
+		const char *current;
+		while (*(current = args[idx++])) {
+			err = invalid_char(current);
+			if (err) {
+				Alert("parsing [%s:%d]: character '%c' is not permitted in '%s' name '%s'.\n",
+				      file, linenum, *err, item, current);
+				return ERR_ALERT | ERR_FATAL;
+			}
+
+			if (netns_store_lookup(current, strlen(current))) {
+				Alert("parsing [%s:%d]: Namespace '%s' is already added.\n",
+				      file, linenum, current);
+				return ERR_ALERT | ERR_FATAL;
+			}
+			if (!netns_store_insert(current)) {
+				Alert("parsing [%s:%d]: Cannot open namespace '%s'.\n",
+				      file, linenum, current);
+				return ERR_ALERT | ERR_FATAL;
+			}
+		}
+	}
+
+	return 0;
+#else
+	Alert("parsing [%s:%d]: namespace support is not compiled in.",
+			file, linenum);
+	return ERR_ALERT | ERR_FATAL;
+#endif
+}
+
+int
 cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 {
 
@@ -5856,7 +5899,8 @@ int readcfgfile(const char *file)
 	    !cfg_register_section("defaults", cfg_parse_listen) ||
 	    !cfg_register_section("global",   cfg_parse_global) ||
 	    !cfg_register_section("userlist", cfg_parse_users)  ||
-	    !cfg_register_section("peers",    cfg_parse_peers))
+	    !cfg_register_section("peers",    cfg_parse_peers)  ||
+	    !cfg_register_section("namespace_list",    cfg_parse_netns))
 		return -1;
 
 	if ((f=fopen(file,"r")) == NULL)

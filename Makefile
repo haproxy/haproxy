@@ -34,6 +34,7 @@
 #   USE_ZLIB             : enable zlib library support.
 #   USE_CPU_AFFINITY     : enable pinning processes to CPU on Linux. Automatic.
 #   USE_TFO              : enable TCP fast open. Supported on Linux >= 3.7.
+#   USE_NS               : enable network namespace support. Supported on Linux >= 2.6.24.
 #
 # Options can be forced by specifying "USE_xxx=1" or can be disabled by using
 # "USE_xxx=" (empty string).
@@ -617,6 +618,11 @@ TRACE_COPTS := $(filter-out -O0 -O1 -O2 -pg -finstrument-functions,$(COPTS)) -O3
 COPTS += -finstrument-functions
 endif
 
+ifneq ($(USE_NS),)
+OPTIONS_CFLAGS += -DCONFIG_HAP_NS
+BUILD_OPTIONS  += $(call ignore_implicit,USE_NS)
+endif
+
 #### Global link options
 # These options are added at the end of the "ld" command line. Use LDFLAGS to
 # add options at the beginning of the "ld" command line if needed.
@@ -657,7 +663,8 @@ OBJS = src/haproxy.o src/sessionhash.o src/base64.o src/protocol.o \
        src/stream_interface.o src/dumpstats.o src/proto_tcp.o \
        src/session.o src/hdr_idx.o src/ev_select.o src/signal.o \
        src/acl.o src/sample.o src/memory.o src/freq_ctr.o src/auth.o \
-       src/compression.o src/payload.o src/hash.o src/pattern.o src/map.o
+       src/compression.o src/payload.o src/hash.o src/pattern.o src/map.o \
+       src/namespace.o
 
 EBTREE_OBJS = $(EBTREE_DIR)/ebtree.o \
               $(EBTREE_DIR)/eb32tree.o $(EBTREE_DIR)/eb64tree.o \

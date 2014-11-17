@@ -26,6 +26,7 @@
 #include <common/hash.h>
 #include <common/ticks.h>
 #include <common/time.h>
+#include <common/namespace.h>
 
 #include <types/global.h>
 
@@ -720,7 +721,6 @@ int assign_server(struct session *s)
 	return err;
 }
 
-
 /*
  * This function assigns a server address to a session, and sets SN_ADDR_SET.
  * The address is taken from the currently assigned server, or from the
@@ -803,10 +803,12 @@ int assign_server_address(struct session *s)
 		return SRV_STATUS_INTERNAL;
 	}
 
+	/* Copy network namespace from client connection */
+	srv_conn->proxy_netns = cli_conn->proxy_netns;
+
 	s->flags |= SN_ADDR_SET;
 	return SRV_STATUS_OK;
 }
-
 
 /* This function assigns a server to session <s> if required, and can add the
  * connection to either the assigned server's queue or to the proxy's queue.

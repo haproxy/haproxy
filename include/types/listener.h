@@ -177,6 +177,8 @@ struct listener {
 	int maxseg;			/* for TCP, advertised MSS */
 	char *interface;		/* interface name or NULL */
 
+	const struct netns_entry *netns; /* network namespace of the listener*/
+
 	struct list by_fe;              /* chaining in frontend's list of listeners */
 	struct list by_bind;            /* chaining in bind_conf's list of listeners */
 	struct bind_conf *bind_conf;	/* "bind" line settings, include SSL settings among other things */

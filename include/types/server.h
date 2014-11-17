@@ -85,6 +85,7 @@ enum srv_admin {
 #define SRV_F_BACKUP       0x0001        /* this server is a backup server */
 #define SRV_F_MAPPORTS     0x0002        /* this server uses mapped ports */
 #define SRV_F_NON_STICK    0x0004        /* never add connections allocated to this server to a stick table */
+#define SRV_F_USE_NS_FROM_PP 0x0008      /* use namespace associated with connection if present */
 
 /* configured server options for send-proxy (server->pp_opts) */
 #define SRV_PP_V1          0x0001        /* proxy protocol version 1 */
@@ -191,6 +192,7 @@ struct server {
 	unsigned lb_nodes_now;                  /* number of lb_nodes placed in the tree (C-HASH) */
 	struct tree_occ *lb_nodes;              /* lb_nodes_tot * struct tree_occ */
 
+	const struct netns_entry *netns;        /* contains network namespace name or NULL. Network namespace comes from configuration */
 	/* warning, these structs are huge, keep them at the bottom */
 	struct sockaddr_storage addr;		/* the address to connect to */
 	struct protocol *proto;	                /* server address protocol */

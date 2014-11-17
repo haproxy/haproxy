@@ -90,6 +90,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	cli_conn->addr.from = *addr;
 	cli_conn->flags |= CO_FL_ADDR_FROM_SET;
 	cli_conn->target = &l->obj_type;
+	cli_conn->proxy_netns = l->netns;
 
 	if (unlikely((s = pool_alloc2(pool2_session)) == NULL))
 		goto out_free_conn;

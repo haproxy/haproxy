@@ -14,6 +14,7 @@
 
 #include <common/compat.h>
 #include <common/config.h>
+#include <common/namespace.h>
 
 #include <proto/connection.h>
 #include <proto/fd.h>
@@ -217,6 +218,14 @@ void conn_update_sock_polling(struct connection *c)
 	c->flags = f;
 }
 
+/*
+ * Get data length from tlv
+ */
+static int get_tlv_length(const struct tlv *src)
+{
+	return (src->length_hi << 8) | src->length_lo;
+}
+
 /* This handshake handler waits a PROXY protocol header at the beginning of the
  * raw data stream. The header looks like this :
  *
@@ -245,6 +254,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	char *line, *end;
 	struct proxy_hdr_v2 *hdr_v2;
 	const char v2sig[] = PP2_SIGNATURE;
+	int tlv_length = 0;
 
 	/* we might have been called just after an asynchronous shutr */
 	if (conn->flags & CO_FL_SOCK_RD_SH)
@@ -434,6 +444,7 @@ int conn_recv_proxy(struct connection *conn, int flag)
 			((struct sockaddr_in *)&conn->addr.to)->sin_addr.s_addr = hdr_v2->addr.ip4.dst_addr;
 			((struct sockaddr_in *)&conn->addr.to)->sin_port = hdr_v2->addr.ip4.dst_port;
 			conn->flags |= CO_FL_ADDR_FROM_SET | CO_FL_ADDR_TO_SET;
+			tlv_length = ntohs(hdr_v2->len) - PP2_ADDR_LEN_INET;
 			break;
 		case 0x21:  /* TCPv6 */
 			if (ntohs(hdr_v2->len) < PP2_ADDR_LEN_INET6)
@@ -446,8 +457,35 @@ int conn_recv_proxy(struct connection *conn, int flag)
 			memcpy(&((struct sockaddr_in6 *)&conn->addr.to)->sin6_addr, hdr_v2->addr.ip6.dst_addr, 16);
 			((struct sockaddr_in6 *)&conn->addr.to)->sin6_port = hdr_v2->addr.ip6.dst_port;
 			conn->flags |= CO_FL_ADDR_FROM_SET | CO_FL_ADDR_TO_SET;
+			tlv_length = ntohs(hdr_v2->len) - PP2_ADDR_LEN_INET6;
 			break;
 		}
+
+		/* TLV parsing */
+		if (tlv_length > 0) {
+			int tlv_offset = trash.len - tlv_length;
+
+			while (tlv_offset + TLV_HEADER_SIZE <= trash.len) {
+				const struct tlv *tlv_packet = (struct tlv *) &trash.str[tlv_offset];
+				const int tlv_len = get_tlv_length(tlv_packet);
+				tlv_offset += tlv_len + TLV_HEADER_SIZE;
+
+				switch (tlv_packet->type) {
+#ifdef CONFIG_HAP_NS
+				case PP2_TYPE_NETNS: {
+					const struct netns_entry *ns;
+					ns = netns_store_lookup((char*)tlv_packet->value, tlv_len);
+					if (ns)
+						conn->proxy_netns = ns;
+					break;
+				}
+#endif
+				default:
+					break;
+				}
+			}
+		}
+
 		/* unsupported protocol, keep local connection address */
 		break;
 	case 0x00: /* LOCAL command */
@@ -597,8 +635,8 @@ int make_proxy_line_v1(char *buf, int buf_len, struct sockaddr_storage *src, str
 	return ret;
 }
 
-#ifdef USE_OPENSSL
-static int make_tlv(char *dest, int dest_len, char type, uint16_t length, char *value)
+#if defined(USE_OPENSSL) || defined(CONFIG_HAP_NS)
+static int make_tlv(char *dest, int dest_len, char type, uint16_t length, const char *value)
 {
 	struct tlv *tlv;
 
@@ -623,8 +661,8 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 	struct sockaddr_storage null_addr = {0};
 	struct sockaddr_storage *src = &null_addr;
 	struct sockaddr_storage *dst = &null_addr;
+
 #ifdef USE_OPENSSL
-	int tlv_len = 0;
 	char *value = NULL;
 	struct tlv_ssl *tlv;
 	int ssl_tlv_len = 0;
@@ -639,6 +677,7 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 		src = &remote->addr.from;
 		dst = &remote->addr.to;
 	}
+
 	if (src && dst && src->ss_family == dst->ss_family && src->ss_family == AF_INET) {
 		if (buf_len < PP2_HDR_LEN_INET)
 			return 0;
@@ -681,8 +720,7 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 			tlv->client |= PP2_CLIENT_SSL;
 			value = ssl_sock_get_version(remote);
 			if (value) {
-				tlv_len = make_tlv(&buf[ret+ssl_tlv_len], (buf_len-ret-ssl_tlv_len), PP2_TYPE_SSL_VERSION, strlen(value), value);
-				ssl_tlv_len += tlv_len;
+				ssl_tlv_len += make_tlv(&buf[ret+ssl_tlv_len], (buf_len-ret-ssl_tlv_len), PP2_TYPE_SSL_VERSION, strlen(value), value);
 			}
 			if (ssl_sock_get_cert_used_sess(remote)) {
 				tlv->client |= PP2_CLIENT_CERT_SESS;
@@ -693,14 +731,21 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 			if (srv->pp_opts & SRV_PP_V2_SSL_CN) {
 				cn_trash = get_trash_chunk();
 				if (ssl_sock_get_remote_common_name(remote, cn_trash) > 0) {
-					tlv_len = make_tlv(&buf[ret+ssl_tlv_len], (buf_len - ret - ssl_tlv_len), PP2_TYPE_SSL_CN, cn_trash->len, cn_trash->str);
-					ssl_tlv_len += tlv_len;
+					ssl_tlv_len += make_tlv(&buf[ret+ssl_tlv_len], (buf_len - ret - ssl_tlv_len), PP2_TYPE_SSL_CN, cn_trash->len, cn_trash->str);
 				}
 			}
 		}
 		tlv->tlv.length_hi = (uint16_t)(ssl_tlv_len - sizeof(struct tlv)) >> 8;
 		tlv->tlv.length_lo = (uint16_t)(ssl_tlv_len - sizeof(struct tlv)) & 0x00ff;
 		ret += ssl_tlv_len;
+	}
+#endif
+
+#ifdef CONFIG_HAP_NS
+	if (remote && (remote->proxy_netns)) {
+		if ((buf_len - ret) < sizeof(struct tlv))
+			return 0;
+		ret += make_tlv(&buf[ret], buf_len, PP2_TYPE_NETNS, remote->proxy_netns->name_len, remote->proxy_netns->node.key);
 	}
 #endif
 

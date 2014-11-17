@@ -458,6 +458,7 @@ static inline void conn_init(struct connection *conn)
 	conn->t.sock.fd = -1; /* just to help with debugging */
 	conn->err_code = CO_ER_NONE;
 	conn->target = NULL;
+	conn->proxy_netns = NULL;
 }
 
 /* Tries to allocate a new connection and initialized its main fields. The

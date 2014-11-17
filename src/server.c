@@ -16,6 +16,7 @@
 #include <common/cfgparse.h>
 #include <common/config.h>
 #include <common/errors.h>
+#include <common/namespace.h>
 #include <common/time.h>
 
 #include <types/global.h>
@@ -1500,6 +1501,31 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				      file, linenum, "usesrc", "source");
 				err_code |= ERR_ALERT | ERR_FATAL;
 				goto out;
+			}
+			else if (!defsrv && !strcmp(args[cur_arg], "namespace")) {
+#ifdef CONFIG_HAP_NS
+				char *arg = args[cur_arg + 1];
+				if (!strcmp(arg, "*")) {
+					newsrv->flags |= SRV_F_USE_NS_FROM_PP;
+				} else {
+					newsrv->netns = netns_store_lookup(arg, strlen(arg));
+
+					if (newsrv->netns == NULL)
+						newsrv->netns = netns_store_insert(arg);
+
+					if (newsrv->netns == NULL) {
+						Alert("Cannot open namespace '%s'.\n", args[cur_arg + 1]);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto out;
+					}
+				}
+#else
+				Alert("parsing [%s:%d] : '%s' : '%s' option not implemented.\n",
+				      file, linenum, args[0], args[cur_arg]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+#endif
+				cur_arg += 2;
 			}
 			else {
 				static int srv_dumped;

@@ -66,6 +66,7 @@
 #include <common/errors.h>
 #include <common/memory.h>
 #include <common/mini-clist.h>
+#include <common/namespace.h>
 #include <common/regex.h>
 #include <common/standard.h>
 #include <common/time.h>
@@ -353,6 +354,10 @@ void display_build_opts()
 	       " SO_BINDANY"
 #endif
 	       "\n");
+#endif
+
+#if defined(CONFIG_HAP_NS)
+	printf("Built with network namespace support\n");
 #endif
 	putchar('\n');
 
@@ -720,6 +725,14 @@ void init(int argc, char **argv)
 		Alert("Fatal errors found in configuration.\n");
 		exit(1);
 	}
+
+#ifdef CONFIG_HAP_NS
+        err_code |= netns_init();
+        if (err_code & (ERR_ABORT|ERR_FATAL)) {
+                Alert("Failed to initialize namespace support.\n");
+                exit(1);
+        }
+#endif
 
 	if (global.mode & MODE_CHECK) {
 		struct peers *pr;

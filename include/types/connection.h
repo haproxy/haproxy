@@ -261,6 +261,7 @@ struct connection {
 		} sock;
 	} t;
 	enum obj_type *target;        /* the target to connect to (server, proxy, applet, ...) */
+	const struct netns_entry *proxy_netns;
 	struct {
 		struct sockaddr_storage from;	/* client address, or address to spoof when connecting to the server */
 		struct sockaddr_storage to;	/* address reached by the client, or address to connect to */
@@ -330,7 +331,9 @@ struct proxy_hdr_v2 {
 #define PP2_TYPE_SSL           0x20
 #define PP2_TYPE_SSL_VERSION   0x21
 #define PP2_TYPE_SSL_CN        0x22
+#define PP2_TYPE_NETNS         0x30
 
+#define TLV_HEADER_SIZE      3
 struct tlv {
 	uint8_t type;
 	uint8_t length_hi;
