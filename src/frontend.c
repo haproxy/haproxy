@@ -106,11 +106,17 @@ int frontend_accept(struct session *s)
 	if (global.tune.client_rcvbuf)
 		setsockopt(cfd, SOL_SOCKET, SO_RCVBUF, &global.tune.client_rcvbuf, sizeof(global.tune.client_rcvbuf));
 
-	if (unlikely(s->fe->nb_req_cap > 0 && (s->txn.req.cap = pool_alloc2(s->fe->req_cap_pool)) == NULL))
-		goto out_return;	/* no memory */
+	if (unlikely(s->fe->nb_req_cap > 0)) {
+		if ((s->txn.req.cap = pool_alloc2(s->fe->req_cap_pool)) == NULL)
+			goto out_return;	/* no memory */
+		memset(s->txn.req.cap, 0, s->fe->nb_req_cap * sizeof(void *));
+	}
 
-	if (unlikely(s->fe->nb_rsp_cap > 0 && (s->txn.rsp.cap = pool_alloc2(s->fe->rsp_cap_pool)) == NULL))
-		goto out_free_reqcap;	/* no memory */
+	if (unlikely(s->fe->nb_rsp_cap > 0)) {
+		if ((s->txn.rsp.cap = pool_alloc2(s->fe->rsp_cap_pool)) == NULL)
+			goto out_free_reqcap;	/* no memory */
+		memset(s->txn.rsp.cap, 0, s->fe->nb_rsp_cap * sizeof(void *));
+	}
 
 	if (s->fe->http_needed) {
 		/* we have to allocate header indexes only if we know
