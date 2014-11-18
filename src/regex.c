@@ -288,16 +288,12 @@ int regex_comp(const char *str, struct my_regex *regex, int cs, int cap, char **
 		return 0;
 	}
 
-#ifdef USE_PCRE_JIT
 	regex->extra = pcre_study(regex->reg, PCRE_STUDY_JIT_COMPILE, &error);
 	if (!regex->extra && error != NULL) {
 		pcre_free(regex->reg);
 		memprintf(err, "failed to compile regex '%s' (error=%s)", str, error);
 		return 0;
 	}
-#else
-	regex->extra = NULL;
-#endif
 #else
 	int flags = REG_EXTENDED;
 

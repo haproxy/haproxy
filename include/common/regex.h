@@ -29,6 +29,12 @@
 #ifdef USE_PCRE
 #include <pcre.h>
 #include <pcreposix.h>
+
+/* For pre-8.20 PCRE compatibility */
+#ifndef PCRE_STUDY_JIT_COMPILE
+#define PCRE_STUDY_JIT_COMPILE 0
+#endif
+
 #else /* no PCRE */
 #include <regex.h>
 #endif
@@ -129,9 +135,14 @@ int regex_exec_match2(const struct my_regex *preg, char *subject, int length,
 static inline void regex_free(struct my_regex *preg) {
 #if defined(USE_PCRE) || defined(USE_PCRE_JIT)
 	pcre_free(preg->reg);
-#ifdef USE_PCRE_JIT
+/* PCRE < 8.20 requires pcre_free() while >= 8.20 requires pcre_study_free(),
+ * which is easily detected using PCRE_CONFIG_JIT.
+ */
+#ifdef PCRE_CONFIG_JIT
 	pcre_free_study(preg->extra);
-#endif
+#else /* PCRE_CONFIG_JIT */
+	pcre_free(preg->extra);
+#endif /* PCRE_CONFIG_JIT */
 #else
 	regfree(&preg->regex);
 #endif
