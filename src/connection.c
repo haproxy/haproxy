@@ -424,6 +424,9 @@ int conn_recv_proxy(struct connection *conn, int flag)
 	case 0x01: /* PROXY command */
 		switch (hdr_v2->fam) {
 		case 0x11:  /* TCPv4 */
+			if (ntohs(hdr_v2->len) < PP2_ADDR_LEN_INET)
+				goto bad_header;
+
 			((struct sockaddr_in *)&conn->addr.from)->sin_family = AF_INET;
 			((struct sockaddr_in *)&conn->addr.from)->sin_addr.s_addr = hdr_v2->addr.ip4.src_addr;
 			((struct sockaddr_in *)&conn->addr.from)->sin_port = hdr_v2->addr.ip4.src_port;
@@ -433,6 +436,9 @@ int conn_recv_proxy(struct connection *conn, int flag)
 			conn->flags |= CO_FL_ADDR_FROM_SET | CO_FL_ADDR_TO_SET;
 			break;
 		case 0x21:  /* TCPv6 */
+			if (ntohs(hdr_v2->len) < PP2_ADDR_LEN_INET6)
+				goto bad_header;
+
 			((struct sockaddr_in6 *)&conn->addr.from)->sin6_family = AF_INET6;
 			memcpy(&((struct sockaddr_in6 *)&conn->addr.from)->sin6_addr, hdr_v2->addr.ip6.src_addr, 16);
 			((struct sockaddr_in6 *)&conn->addr.from)->sin6_port = hdr_v2->addr.ip6.src_port;
