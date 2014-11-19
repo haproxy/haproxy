@@ -69,7 +69,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	int updt_idx;
 	int wait_time;
 
-	/* first, scan the update list to find changes */
+	/* first, scan the update list to find polling changes */
 	for (updt_idx = 0; updt_idx < fd_nbupdt; updt_idx++) {
 		fd = fd_updt[updt_idx];
 		fdtab[fd].updated = 0;
@@ -109,8 +109,6 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			ev.data.fd = fd;
 			epoll_ctl(epoll_fd, opcode, fd, &ev);
 		}
-
-		fd_alloc_or_release_cache_entry(fd, en);
 	}
 	fd_nbupdt = 0;
 
@@ -175,7 +173,11 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			n |= FD_POLL_HUP;
 
 		fdtab[fd].ev |= n;
-		fd_process_polled_events(fd);
+		if (n & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
+			fd_may_recv(fd);
+
+		if (n & (FD_POLL_OUT | FD_POLL_ERR))
+			fd_may_send(fd);
 	}
 	/* the caller will take care of cached events */
 }

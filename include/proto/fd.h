@@ -81,18 +81,10 @@ void run_poller();
  */
 void fd_process_cached_events();
 
-/* Check the events attached to a file descriptor, update its cache
- * accordingly, and call the associated I/O callback. If new updates are
- * detected, the function tries to process them as well in order to save
- * wakeups after accept().
+/* Mark fd <fd> as updated for polling and allocate an entry in the update list
+ * for this if it was not already there. This can be done at any time.
  */
-void fd_process_polled_events(int fd);
-
-
-/* Mark fd <fd> as updated and allocate an entry in the update list for this if
- * it was not already there. This can be done at any time.
- */
-static inline void updt_fd(const int fd)
+static inline void updt_fd_polling(const int fd)
 {
 	if (fdtab[fd].updated)
 		/* already scheduled for update */
@@ -157,15 +149,22 @@ static inline int fd_compute_new_polled_status(int state)
 	return state;
 }
 
-/* Automatically allocates or releases a cache entry for fd <fd> depending on
- * its new state. This is meant to be used by pollers while processing updates.
+/* This function automatically enables/disables caching for an entry depending
+ * on its state, and also possibly creates an update entry so that the poller
+ * does its job as well. It is only called on state changes.
  */
-static inline void fd_alloc_or_release_cache_entry(int fd, int new_state)
+static inline void fd_update_cache(int fd)
 {
-	/* READY and ACTIVE states (the two with both flags set) require a cache entry */
+	/* 3 states for each direction require a polling update */
+	if ((fdtab[fd].state & (FD_EV_POLLED_R |                 FD_EV_ACTIVE_R)) == FD_EV_POLLED_R ||
+	    (fdtab[fd].state & (FD_EV_POLLED_R | FD_EV_READY_R | FD_EV_ACTIVE_R)) == FD_EV_ACTIVE_R ||
+	    (fdtab[fd].state & (FD_EV_POLLED_W |                 FD_EV_ACTIVE_W)) == FD_EV_POLLED_W ||
+	    (fdtab[fd].state & (FD_EV_POLLED_W | FD_EV_READY_W | FD_EV_ACTIVE_W)) == FD_EV_ACTIVE_W)
+		updt_fd_polling(fd);
 
-	if (((new_state & (FD_EV_READY_R | FD_EV_ACTIVE_R)) == (FD_EV_READY_R | FD_EV_ACTIVE_R)) ||
-	    ((new_state & (FD_EV_READY_W | FD_EV_ACTIVE_W)) == (FD_EV_READY_W | FD_EV_ACTIVE_W))) {
+	/* only READY and ACTIVE states (the two with both flags set) require a cache entry */
+	if (((fdtab[fd].state & (FD_EV_READY_R | FD_EV_ACTIVE_R)) == (FD_EV_READY_R | FD_EV_ACTIVE_R)) ||
+	    ((fdtab[fd].state & (FD_EV_READY_W | FD_EV_ACTIVE_W)) == (FD_EV_READY_W | FD_EV_ACTIVE_W))) {
 		fd_alloc_cache_entry(fd);
 	}
 	else {
@@ -243,7 +242,7 @@ static inline void fd_stop_recv(int fd)
 	if (!((unsigned int)fdtab[fd].state & FD_EV_ACTIVE_R))
 		return; /* already disabled */
 	fdtab[fd].state &= ~FD_EV_ACTIVE_R;
-	updt_fd(fd); /* need an update entry to change the state */
+	fd_update_cache(fd); /* need an update entry to change the state */
 }
 
 /* Disable processing send events on fd <fd> */
@@ -252,7 +251,7 @@ static inline void fd_stop_send(int fd)
 	if (!((unsigned int)fdtab[fd].state & FD_EV_ACTIVE_W))
 		return; /* already disabled */
 	fdtab[fd].state &= ~FD_EV_ACTIVE_W;
-	updt_fd(fd); /* need an update entry to change the state */
+	fd_update_cache(fd); /* need an update entry to change the state */
 }
 
 /* Disable processing of events on fd <fd> for both directions. */
@@ -261,7 +260,7 @@ static inline void fd_stop_both(int fd)
 	if (!((unsigned int)fdtab[fd].state & FD_EV_ACTIVE_RW))
 		return; /* already disabled */
 	fdtab[fd].state &= ~FD_EV_ACTIVE_RW;
-	updt_fd(fd); /* need an update entry to change the state */
+	fd_update_cache(fd); /* need an update entry to change the state */
 }
 
 /* Report that FD <fd> cannot receive anymore without polling (EAGAIN detected). */
@@ -270,7 +269,7 @@ static inline void fd_cant_recv(const int fd)
 	if (!(((unsigned int)fdtab[fd].state) & FD_EV_READY_R))
 		return; /* already marked as blocked */
 	fdtab[fd].state &= ~FD_EV_READY_R;
-	updt_fd(fd);
+	fd_update_cache(fd);
 }
 
 /* Report that FD <fd> can receive anymore without polling. */
@@ -279,7 +278,7 @@ static inline void fd_may_recv(const int fd)
 	if (((unsigned int)fdtab[fd].state) & FD_EV_READY_R)
 		return; /* already marked as blocked */
 	fdtab[fd].state |= FD_EV_READY_R;
-	updt_fd(fd);
+	fd_update_cache(fd);
 }
 
 /* Disable readiness when polled. This is useful to interrupt reading when it
@@ -299,7 +298,7 @@ static inline void fd_cant_send(const int fd)
 	if (!(((unsigned int)fdtab[fd].state) & FD_EV_READY_W))
 		return; /* already marked as blocked */
 	fdtab[fd].state &= ~FD_EV_READY_W;
-	updt_fd(fd);
+	fd_update_cache(fd);
 }
 
 /* Report that FD <fd> can send anymore without polling (EAGAIN detected). */
@@ -308,7 +307,7 @@ static inline void fd_may_send(const int fd)
 	if (((unsigned int)fdtab[fd].state) & FD_EV_READY_W)
 		return; /* already marked as blocked */
 	fdtab[fd].state |= FD_EV_READY_W;
-	updt_fd(fd);
+	fd_update_cache(fd);
 }
 
 /* Prepare FD <fd> to try to receive */
@@ -317,7 +316,7 @@ static inline void fd_want_recv(int fd)
 	if (((unsigned int)fdtab[fd].state & FD_EV_ACTIVE_R))
 		return; /* already enabled */
 	fdtab[fd].state |= FD_EV_ACTIVE_R;
-	updt_fd(fd); /* need an update entry to change the state */
+	fd_update_cache(fd); /* need an update entry to change the state */
 }
 
 /* Prepare FD <fd> to try to send */
@@ -326,7 +325,7 @@ static inline void fd_want_send(int fd)
 	if (((unsigned int)fdtab[fd].state & FD_EV_ACTIVE_W))
 		return; /* already enabled */
 	fdtab[fd].state |= FD_EV_ACTIVE_W;
-	updt_fd(fd); /* need an update entry to change the state */
+	fd_update_cache(fd); /* need an update entry to change the state */
 }
 
 /* Prepares <fd> for being polled */

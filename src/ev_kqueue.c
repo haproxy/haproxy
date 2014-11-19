@@ -84,8 +84,6 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 				}
 			}
 		}
-
-		fd_alloc_or_release_cache_entry(fd, en);
 	}
 	if (changes)
 		kevent(kqueue_fd, kev, changes, NULL, 0, NULL);
@@ -138,7 +136,11 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 				fdtab[fd].ev |= FD_POLL_OUT;
 		}
 
-		fd_process_polled_events(fd);
+		if (fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
+			fd_may_recv(fd);
+
+		if (fdtab[fd].ev & (FD_POLL_OUT | FD_POLL_ERR))
+			fd_may_send(fd);
 	}
 }
 

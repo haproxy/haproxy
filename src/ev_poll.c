@@ -93,8 +93,6 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 			else if ((en & ~eo) & FD_EV_POLLED_W)
 				hap_fd_set(fd, fd_evts[DIR_WR]);
 		}
-
-		fd_alloc_or_release_cache_entry(fd, en);
 	}
 	fd_nbupdt = 0;
 
@@ -164,7 +162,11 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 				((e & POLLHUP) ? FD_POLL_HUP : 0);
 		}
 
-		fd_process_polled_events(fd);
+		if (fdtab[fd].ev & (FD_POLL_IN | FD_POLL_HUP | FD_POLL_ERR))
+			fd_may_recv(fd);
+
+		if (fdtab[fd].ev & (FD_POLL_OUT | FD_POLL_ERR))
+			fd_may_send(fd);
 	}
 
 }
