@@ -4119,8 +4119,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 			select_compression_request_header(s, req->buf);
 
 		/* enable the minimally required analyzers to handle keep-alive and compression on the HTTP response */
-		req->analysers = (req->analysers & AN_REQ_HTTP_BODY) |
-		                 AN_REQ_HTTP_XFER_BODY | AN_RES_WAIT_HTTP | AN_RES_HTTP_PROCESS_BE | AN_RES_HTTP_XFER_BODY;
+		req->analysers = (req->analysers & AN_REQ_HTTP_BODY) | AN_REQ_HTTP_XFER_BODY;
 		goto done;
 	}
 
