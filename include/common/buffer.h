@@ -40,6 +40,7 @@ struct buffer {
 };
 
 extern struct pool_head *pool2_buffer;
+extern struct buffer buf_empty;
 
 int init_buffer();
 int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int len);
@@ -409,11 +410,25 @@ static inline struct buffer *b_alloc(struct buffer **buf)
 	return *buf;
 }
 
-/* Releases buffer *buf.
- */
-static inline void b_free(struct buffer **buf)
+/* Releases buffer *buf (no check of emptiness) */
+static inline void __b_drop(struct buffer **buf)
 {
 	pool_free2(pool2_buffer, *buf);
+}
+
+/* Releases buffer *buf if allocated. */
+static inline void b_drop(struct buffer **buf)
+{
+	if (!(*buf)->size)
+		return;
+	__b_drop(buf);
+}
+
+/* Releases buffer *buf if allocated, and replaces it with &buf_empty. */
+static inline void b_free(struct buffer **buf)
+{
+	b_drop(buf);
+	*buf = &buf_empty;
 }
 
 #endif /* _COMMON_BUFFER_H */

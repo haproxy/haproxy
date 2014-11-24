@@ -22,6 +22,10 @@
 
 struct pool_head *pool2_buffer;
 
+/* this buffer is used to have a valid pointer to an empty buffer in channels
+ * which convey no more data.
+ */
+struct buffer buf_empty  = { .p = buf_empty.data };
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_buffer()

@@ -51,6 +51,7 @@ int bo_getblk(struct channel *chn, char *blk, int len, int offset);
 /* Initialize all fields in the channel. */
 static inline void channel_init(struct channel *chn)
 {
+	chn->buf = &buf_empty;
 	chn->to_forward = 0;
 	chn->last_read = now_ms;
 	chn->xfer_small = chn->xfer_large = 0;
