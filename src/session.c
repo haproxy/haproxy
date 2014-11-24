@@ -1939,7 +1939,8 @@ struct task *process_session(struct task *t)
 	if (((s->req->flags & ~rqf_last) & CF_MASK_ANALYSER) ||
 	    ((s->req->flags ^ rqf_last) & CF_MASK_STATIC) ||
 	    s->si[0].state != rq_prod_last ||
-	    s->si[1].state != rq_cons_last) {
+	    s->si[1].state != rq_cons_last ||
+	    s->task->state & TASK_WOKEN_MSG) {
 		unsigned int flags = s->req->flags;
 
 		if (s->req->prod->state >= SI_ST_EST) {
@@ -2097,7 +2098,8 @@ struct task *process_session(struct task *t)
 	if (((s->rep->flags & ~rpf_last) & CF_MASK_ANALYSER) ||
 		 (s->rep->flags ^ rpf_last) & CF_MASK_STATIC ||
 		 s->si[0].state != rp_cons_last ||
-		 s->si[1].state != rp_prod_last) {
+		 s->si[1].state != rp_prod_last ||
+		 s->task->state & TASK_WOKEN_MSG) {
 		unsigned int flags = s->rep->flags;
 
 		if ((s->rep->flags & CF_MASK_ANALYSER) &&
