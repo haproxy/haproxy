@@ -1240,7 +1240,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	if ((s->req->buf = pool_alloc2(pool2_buffer)) == NULL)
 		goto out_fail_req_buf; /* no memory */
 
-	s->req->buf->size = trash.size;
+	s->req->buf->size = global.tune.bufsize;
 	channel_init(s->req);
 	s->req->prod = &s->si[0];
 	s->req->cons = &s->si[1];
@@ -1266,7 +1266,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	if ((s->rep->buf = pool_alloc2(pool2_buffer)) == NULL)
 		goto out_fail_rep_buf; /* no memory */
 
-	s->rep->buf->size = trash.size;
+	s->rep->buf->size = global.tune.bufsize;
 	channel_init(s->rep);
 	s->rep->prod = &s->si[1];
 	s->rep->cons = &s->si[0];
