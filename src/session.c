@@ -477,18 +477,15 @@ int session_complete(struct session *s)
 	if (unlikely((s->req = pool_alloc2(pool2_channel)) == NULL))
 		goto out_free_task; /* no memory */
 
-	if (unlikely((s->req->buf = pool_alloc2(pool2_buffer)) == NULL))
+	if (unlikely(b_alloc(&s->req->buf) == NULL))
 		goto out_free_req; /* no memory */
 
 	if (unlikely((s->rep = pool_alloc2(pool2_channel)) == NULL))
 		goto out_free_req_buf; /* no memory */
 
-	if (unlikely((s->rep->buf = pool_alloc2(pool2_buffer)) == NULL))
+	if (unlikely(b_alloc(&s->rep->buf) == NULL))
 		goto out_free_rep; /* no memory */
 
-	/* initialize the request buffer */
-	s->req->buf->size = global.tune.bufsize;
-	b_reset(s->req->buf);
 	channel_init(s->req);
 	s->req->prod = &s->si[0];
 	s->req->cons = &s->si[1];
@@ -504,9 +501,6 @@ int session_complete(struct session *s)
 	s->req->wex = TICK_ETERNITY;
 	s->req->analyse_exp = TICK_ETERNITY;
 
-	/* initialize response buffer */
-	s->rep->buf->size = global.tune.bufsize;
-	b_reset(s->rep->buf);
 	channel_init(s->rep);
 	s->rep->prod = &s->si[1];
 	s->rep->cons = &s->si[0];

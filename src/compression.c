@@ -137,8 +137,6 @@ int http_compression_buffer_init(struct session *s, struct buffer *in, struct bu
 	/* We start by copying the current buffer's pending outgoing data into
 	 * a new temporary buffer that we initialize with a new empty chunk.
 	 */
-
-	out->size = global.tune.bufsize;
 	b_reset(out);
 
 	if (in->o > 0) {

@@ -395,6 +395,20 @@ static inline void b_reset(struct buffer *buf)
 	buf->p = buf->data;
 }
 
+/* Allocates a buffer and replaces *buf with this buffer. No control is made
+ * to check if *buf already pointed to another buffer. The allocated buffer
+ * is returned, or NULL in case no memory is available.
+ */
+static inline struct buffer *b_alloc(struct buffer **buf)
+{
+	*buf = pool_alloc_dirty(pool2_buffer);
+	if (likely(*buf)) {
+		(*buf)->size = pool2_buffer->size - sizeof(struct buffer);
+		b_reset(*buf);
+	}
+	return *buf;
+}
+
 #endif /* _COMMON_BUFFER_H */
 
 /*

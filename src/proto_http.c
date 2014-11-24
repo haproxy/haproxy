@@ -6572,8 +6572,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 		 */
 		if (unlikely(tmpbuf == NULL)) {
 			/* this is the first time we need the compression buffer */
-			tmpbuf = pool_alloc2(pool2_buffer);
-			if (tmpbuf == NULL)
+			if (b_alloc(&tmpbuf) == NULL)
 				goto aborted_xfer; /* no memory */
 		}
 
