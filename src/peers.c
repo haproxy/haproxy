@@ -1237,9 +1237,6 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	if ((s->req = pool_alloc2(pool2_channel)) == NULL)
 		goto out_fail_req; /* no memory */
 
-	if (unlikely(b_alloc(&s->req->buf) == NULL))
-		goto out_fail_req_buf; /* no memory */
-
 	channel_init(s->req);
 	s->req->prod = &s->si[0];
 	s->req->cons = &s->si[1];
@@ -1259,11 +1256,11 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->req->rto = s->fe->timeout.client;
 	s->req->wto = s->be->timeout.server;
 
+	if (unlikely(b_alloc(&s->req->buf) == NULL))
+		goto out_fail_req_buf; /* no memory */
+
 	if ((s->rep = pool_alloc2(pool2_channel)) == NULL)
 		goto out_fail_rep; /* no memory */
-
-	if (unlikely(b_alloc(&s->rep->buf) == NULL))
-		goto out_fail_rep_buf; /* no memory */
 
 	channel_init(s->rep);
 	s->rep->prod = &s->si[1];
@@ -1282,6 +1279,10 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	t->expire = TICK_ETERNITY;
 
 	s->rep->flags |= CF_READ_DONTWAIT;
+
+	if (unlikely(b_alloc(&s->rep->buf) == NULL))
+		goto out_fail_rep_buf; /* no memory */
+
 	/* it is important not to call the wakeup function directly but to
 	 * pass through task_wakeup(), because this one knows how to apply
 	 * priorities to tasks.

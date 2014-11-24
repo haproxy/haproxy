@@ -477,15 +477,6 @@ int session_complete(struct session *s)
 	if (unlikely((s->req = pool_alloc2(pool2_channel)) == NULL))
 		goto out_free_task; /* no memory */
 
-	if (unlikely(b_alloc(&s->req->buf) == NULL))
-		goto out_free_req; /* no memory */
-
-	if (unlikely((s->rep = pool_alloc2(pool2_channel)) == NULL))
-		goto out_free_req_buf; /* no memory */
-
-	if (unlikely(b_alloc(&s->rep->buf) == NULL))
-		goto out_free_rep; /* no memory */
-
 	channel_init(s->req);
 	s->req->prod = &s->si[0];
 	s->req->cons = &s->si[1];
@@ -500,6 +491,12 @@ int session_complete(struct session *s)
 	s->req->rex = TICK_ETERNITY;
 	s->req->wex = TICK_ETERNITY;
 	s->req->analyse_exp = TICK_ETERNITY;
+
+	if (unlikely(b_alloc(&s->req->buf) == NULL))
+		goto out_free_req; /* no memory */
+
+	if (unlikely((s->rep = pool_alloc2(pool2_channel)) == NULL))
+		goto out_free_req_buf; /* no memory */
 
 	channel_init(s->rep);
 	s->rep->prod = &s->si[1];
@@ -517,6 +514,9 @@ int session_complete(struct session *s)
 	s->rep->rex = TICK_ETERNITY;
 	s->rep->wex = TICK_ETERNITY;
 	s->rep->analyse_exp = TICK_ETERNITY;
+
+	if (unlikely(b_alloc(&s->rep->buf) == NULL))
+		goto out_free_rep; /* no memory */
 
 	txn = &s->txn;
 	/* Those variables will be checked and freed if non-NULL in
