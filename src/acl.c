@@ -532,7 +532,7 @@ struct acl_expr *parse_acl_expr(const char **args, char **err, struct arg_list *
 	}
 
 	/* Create new pattern expression associated to this reference. */
-	pattern_expr = pattern_new_expr(&expr->pat, ref, err);
+	pattern_expr = pattern_new_expr(&expr->pat, ref, err, NULL);
 	if (!pattern_expr)
 		goto out_free_expr;
 

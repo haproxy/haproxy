@@ -1855,11 +1855,18 @@ struct pattern_expr *pattern_lookup_expr(struct pattern_head *head, struct pat_r
  * <ref> can be NULL. If an error is occured, the function returns NULL and
  * <err> is filled. Otherwise, the function returns new pattern_expr linked
  * with <head> and <ref>.
+ *
+ * The returned value can be a alredy filled pattern list, in this case the
+ * flag <reuse> is set.
  */
-struct pattern_expr *pattern_new_expr(struct pattern_head *head, struct pat_ref *ref, char **err)
+struct pattern_expr *pattern_new_expr(struct pattern_head *head, struct pat_ref *ref,
+                                      char **err, int *reuse)
 {
 	struct pattern_expr *expr;
 	struct pattern_expr_list *list;
+
+	if (reuse)
+		*reuse = 0;
 
 	/* Memory and initialization of the chain element. */
 	list = malloc(sizeof(*list));
@@ -1915,6 +1922,8 @@ struct pattern_expr *pattern_new_expr(struct pattern_head *head, struct pat_ref 
 		 * with ref and we must not free it.
 		 */
 		list->do_free = 0;
+		if (reuse)
+			*reuse = 1;
 	}
 
 	/* The new list element reference the pattern_expr. */
@@ -2087,6 +2096,7 @@ int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
 	struct pat_ref *ref;
 	struct pattern_expr *expr;
 	struct pat_ref_elt *elt;
+	int reuse;
 
 	/* Lookup for the existing reference. */
 	ref = pat_ref_lookup(filename);
@@ -2161,11 +2171,19 @@ int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
 	 */
 	expr = pattern_lookup_expr(head, ref);
 	if (!expr || (expr->mflags != patflags)) {
-		expr = pattern_new_expr(head, ref, err);
+		expr = pattern_new_expr(head, ref, err, &reuse);
 		if (!expr)
 			return 0;
 		expr->mflags = patflags;
 	}
+
+	/* The returned expression may be not empty, because the function
+	 * "pattern_new_expr" lookup for similar pattern list and can
+	 * reuse a already filled pattern list. In this case, we can not
+	 * reload the patterns.
+	 */
+	if (reuse)
+		return 1;
 
 	/* Load reference content in the pattern expression. */
 	list_for_each_entry(elt, &ref->head, list) {
