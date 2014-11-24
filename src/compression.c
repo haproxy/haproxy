@@ -139,9 +139,7 @@ int http_compression_buffer_init(struct session *s, struct buffer *in, struct bu
 	 */
 
 	out->size = global.tune.bufsize;
-	out->i = 0;
-	out->o = 0;
-	out->p = out->data;
+	b_reset(out);
 
 	if (in->o > 0) {
 		left = in->o - bo_contig_data(in);

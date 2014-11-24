@@ -387,6 +387,14 @@ static inline void bo_putchk(struct buffer *b, const struct chunk *chk)
 	return bo_putblk(b, chk->str, chk->len);
 }
 
+/* Resets a buffer. The size is not touched. */
+static inline void b_reset(struct buffer *buf)
+{
+	buf->o = 0;
+	buf->i = 0;
+	buf->p = buf->data;
+}
+
 #endif /* _COMMON_BUFFER_H */
 
 /*

@@ -51,9 +51,6 @@ int bo_getblk(struct channel *chn, char *blk, int len, int offset);
 /* Initialize all fields in the channel. */
 static inline void channel_init(struct channel *chn)
 {
-	chn->buf->o = 0;
-	chn->buf->i = 0;
-	chn->buf->p = chn->buf->data;
 	chn->to_forward = 0;
 	chn->last_read = now_ms;
 	chn->xfer_small = chn->xfer_large = 0;
@@ -185,10 +182,8 @@ static inline void channel_check_timeouts(struct channel *chn)
  */
 static inline void channel_erase(struct channel *chn)
 {
-	chn->buf->o = 0;
-	chn->buf->i = 0;
 	chn->to_forward = 0;
-	chn->buf->p = chn->buf->data;
+	b_reset(chn->buf);
 }
 
 /* marks the channel as "shutdown" ASAP for reads */
