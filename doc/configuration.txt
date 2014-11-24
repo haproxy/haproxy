@@ -10538,6 +10538,11 @@ fe_sess_rate([<frontend>]) : integer
             tcp-request content accept if ! too_fast
             tcp-request content accept if WAIT_END
 
+nbproc : integer
+  Returns an integer value corresponding to the number of processes that were
+  started (it equals the global "nbproc" setting). This is useful for logging
+  and debugging purposes.
+
 nbsrv([<backend>]) : integer
   Returns an integer value corresponding to the number of usable servers of
   either the current backend or the named backend. This is mostly used with
@@ -10545,6 +10550,11 @@ nbsrv([<backend>]) : integer
   switch to an alternate backend when the number of servers is too low to
   to handle some load. It is useful to report a failure when combined with
   "monitor fail".
+
+proc : integer
+  Returns an integer value corresponding to the position of the process calling
+  the function, between 1 and global.nbproc. This is useful for logging and
+  debugging purposes.
 
 queue([<backend>]) : integer
   Returns the total number of queued connections of the designated backend,
@@ -10595,6 +10605,11 @@ srv_sess_rate([<backend>/]<server>) : integer
         acl srv1_full srv_sess_rate(be1/srv1) gt 50
         acl srv2_full srv_sess_rate(be1/srv2) gt 50
         use_backend be2 if srv1_full or srv2_full
+
+stopping : boolean
+  Returns TRUE if the process calling the function is currently stopping. This
+  can be useful for logging, or for relaxing certain checks or helping close
+  certain connections upon graceful shutdown.
 
 table_avl([<table>]) : integer
   Returns the total number of available entries in the current proxy's
