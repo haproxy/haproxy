@@ -41,6 +41,7 @@ struct buffer {
 
 extern struct pool_head *pool2_buffer;
 extern struct buffer buf_empty;
+extern struct buffer buf_wanted;
 
 int init_buffer();
 int buffer_replace2(struct buffer *b, char *pos, char *end, const char *str, int len);
@@ -396,18 +397,23 @@ static inline void b_reset(struct buffer *buf)
 	buf->p = buf->data;
 }
 
-/* Allocates a buffer and replaces *buf with this buffer. No control is made
- * to check if *buf already pointed to another buffer. The allocated buffer
- * is returned, or NULL in case no memory is available.
+/* Allocates a buffer and replaces *buf with this buffer. If no memory is
+ * available, &buf_wanted is used instead. No control is made to check if *buf
+ * already pointed to another buffer. The allocated buffer is returned, or
+ * NULL in case no memory is available.
  */
 static inline struct buffer *b_alloc(struct buffer **buf)
 {
-	*buf = pool_alloc_dirty(pool2_buffer);
-	if (likely(*buf)) {
-		(*buf)->size = pool2_buffer->size - sizeof(struct buffer);
-		b_reset(*buf);
+	struct buffer *b;
+
+	*buf = &buf_wanted;
+	b = pool_alloc_dirty(pool2_buffer);
+	if (likely(b)) {
+		b->size = pool2_buffer->size - sizeof(struct buffer);
+		b_reset(b);
+		*buf = b;
 	}
-	return *buf;
+	return b;
 }
 
 /* Releases buffer *buf (no check of emptiness) */

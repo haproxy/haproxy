@@ -22,10 +22,14 @@
 
 struct pool_head *pool2_buffer;
 
-/* this buffer is used to have a valid pointer to an empty buffer in channels
- * which convey no more data.
+/* These buffers are used to always have a valid pointer to an empty buffer in
+ * channels. The first buffer is set once a buffer is empty. The second one is
+ * set when a buffer is desired but no more are available. It helps knowing
+ * what channel wants a buffer. They can reliably be exchanged, the split
+ * between the two is only an optimization.
  */
 struct buffer buf_empty  = { .p = buf_empty.data };
+struct buffer buf_wanted = { .p = buf_wanted.data };
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_buffer()

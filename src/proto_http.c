@@ -6516,7 +6516,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 {
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &s->txn.rsp;
-	static struct buffer *tmpbuf = NULL;
+	static struct buffer *tmpbuf = &buf_empty;
 	int compressing = 0;
 	int ret;
 
@@ -6570,7 +6570,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 		 * output of compressed data, and in CRLF state to let the
 		 * TRAILERS state finish the job of removing the trailing CRLF.
 		 */
-		if (unlikely(tmpbuf == NULL)) {
+		if (unlikely(!tmpbuf->size)) {
 			/* this is the first time we need the compression buffer */
 			if (b_alloc(&tmpbuf) == NULL)
 				goto aborted_xfer; /* no memory */
