@@ -19,6 +19,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <common/buffer.h>
 #include <common/compat.h>
 #include <common/config.h>
 #include <common/debug.h>
@@ -30,6 +31,7 @@
 #include <proto/connection.h>
 #include <proto/fd.h>
 #include <proto/pipe.h>
+#include <proto/session.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 

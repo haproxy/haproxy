@@ -123,6 +123,7 @@ struct session {
 	struct list list;			/* position in global sessions list */
 	struct list by_srv;			/* position in server session list */
 	struct list back_refs;			/* list of users tracking this session */
+	struct list buffer_wait;		/* position in the list of sessions waiting for a buffer */
 
 	struct {
 		struct stksess *ts;
