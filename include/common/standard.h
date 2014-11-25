@@ -294,6 +294,31 @@ int cidr2dotted(int cidr, struct in_addr *mask);
  */
 int str2net(const char *str, int resolve, struct in_addr *addr, struct in_addr *mask);
 
+/* str2ip and str2ip2:
+ *
+ * converts <str> to a struct sockaddr_storage* provided by the caller. The
+ * caller must have zeroed <sa> first, and may have set sa->ss_family to force
+ * parse a specific address format. If the ss_family is 0 or AF_UNSPEC, then
+ * the function tries to guess the address family from the syntax. If the
+ * family is forced and the format doesn't match, an error is returned. The
+ * string is assumed to contain only an address, no port. The address can be a
+ * dotted IPv4 address, an IPv6 address, a host name, or empty or "*" to
+ * indicate INADDR_ANY. NULL is returned if the host part cannot be resolved.
+ * The return address will only have the address family and the address set,
+ * all other fields remain zero. The string is not supposed to be modified.
+ * The IPv6 '::' address is IN6ADDR_ANY.
+ *
+ * str2ip2:
+ *
+ * If <resolve> is set, this function try to resolve DNS, otherwise, it returns
+ * NULL result.
+ */
+struct sockaddr_storage *str2ip2(const char *str, struct sockaddr_storage *sa, int resolve);
+static inline struct sockaddr_storage *str2ip(const char *str, struct sockaddr_storage *sa)
+{
+	return str2ip2(str, sa, 1);
+}
+
 /*
  * converts <str> to two struct in6_addr* which must be pre-allocated.
  * The format is "addr[/mask]", where "addr" cannot be empty, and mask

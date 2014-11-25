@@ -567,9 +567,11 @@ const char *invalid_domainchar(const char *name) {
  * indicate INADDR_ANY. NULL is returned if the host part cannot be resolved.
  * The return address will only have the address family and the address set,
  * all other fields remain zero. The string is not supposed to be modified.
- * The IPv6 '::' address is IN6ADDR_ANY.
+ * The IPv6 '::' address is IN6ADDR_ANY. If <resolve> is non-zero, the hostname
+ * is resolved, otherwise only IP addresses are resolved, and anything else
+ * returns NULL.
  */
-static struct sockaddr_storage *str2ip(const char *str, struct sockaddr_storage *sa)
+struct sockaddr_storage *str2ip2(const char *str, struct sockaddr_storage *sa, int resolve)
 {
 	struct hostent *he;
 
@@ -602,6 +604,9 @@ static struct sockaddr_storage *str2ip(const char *str, struct sockaddr_storage 
 		sa->ss_family = AF_INET;
 		return sa;
 	}
+
+	if (!resolve)
+		return NULL;
 
 #ifdef USE_GETADDRINFO
 	if (global.tune.options & GTUNE_USE_GAI) {
