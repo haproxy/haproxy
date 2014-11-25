@@ -409,6 +409,13 @@ static inline struct buffer *b_alloc(struct buffer **buf)
 	return *buf;
 }
 
+/* Releases buffer *buf.
+ */
+static inline void b_free(struct buffer **buf)
+{
+	pool_free2(pool2_buffer, *buf);
+}
+
 #endif /* _COMMON_BUFFER_H */
 
 /*

@@ -1302,7 +1302,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
  out_fail_rep_buf:
 	pool_free2(pool2_channel, s->rep);
  out_fail_rep:
-	pool_free2(pool2_buffer, s->req->buf);
+	b_free(&s->req->buf);
  out_fail_req_buf:
 	pool_free2(pool2_channel, s->req);
  out_fail_req:

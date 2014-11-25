@@ -565,11 +565,11 @@ int session_complete(struct session *s)
 
 	/* Error unrolling */
  out_free_rep_buf:
-	pool_free2(pool2_buffer, s->rep->buf);
+	b_free(&s->rep->buf);
  out_free_rep:
 	pool_free2(pool2_channel, s->rep);
  out_free_req_buf:
-	pool_free2(pool2_buffer, s->req->buf);
+	b_free(&s->req->buf);
  out_free_req:
 	pool_free2(pool2_channel, s->req);
  out_free_task:
@@ -618,8 +618,8 @@ static void session_free(struct session *s)
 	if (s->rep->pipe)
 		put_pipe(s->rep->pipe);
 
-	pool_free2(pool2_buffer, s->req->buf);
-	pool_free2(pool2_buffer, s->rep->buf);
+	b_free(&s->req->buf);
+	b_free(&s->rep->buf);
 
 	pool_free2(pool2_channel, s->req);
 	pool_free2(pool2_channel, s->rep);
