@@ -1277,12 +1277,6 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 
 	s->rep->flags |= CF_READ_DONTWAIT;
 
-	if (unlikely(b_alloc(&s->req->buf) == NULL))
-		goto out_fail_req_buf; /* no memory */
-
-	if (unlikely(b_alloc(&s->rep->buf) == NULL))
-		goto out_fail_rep_buf; /* no memory */
-
 	/* it is important not to call the wakeup function directly but to
 	 * pass through task_wakeup(), because this one knows how to apply
 	 * priorities to tasks.
@@ -1299,10 +1293,6 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	return s;
 
 	/* Error unrolling */
- out_fail_rep_buf:
-	b_free(&s->req->buf);
- out_fail_req_buf:
-	pool_free2(pool2_channel, s->rep);
  out_fail_rep:
 	pool_free2(pool2_channel, s->req);
  out_fail_req:

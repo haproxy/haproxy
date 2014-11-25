@@ -642,6 +642,8 @@ static int si_conn_wake_cb(struct connection *conn)
 	}
 	if (si->ib->flags & CF_READ_ACTIVITY)
 		si->ib->flags &= ~CF_READ_DONTWAIT;
+
+	session_release_buffers(si_sess(si));
 	return 0;
 }
 
@@ -1166,6 +1168,12 @@ static void si_conn_recv_cb(struct connection *conn)
 		chn->pipe = NULL;
 	}
 
+	/* now we'll need a buffer */
+	if (!session_alloc_recv_buffer(si_sess(si), &chn->buf)) {
+		si->flags |= SI_FL_WAIT_ROOM;
+		goto end_recv;
+	}
+
 	/* Important note : if we're called with POLL_IN|POLL_HUP, it means the read polling
 	 * was enabled, which implies that the recv buffer was not full. So we have a guarantee
 	 * that if such an event is not handled above in splice, it will be handled here by
@@ -1230,9 +1238,6 @@ static void si_conn_recv_cb(struct connection *conn)
 		}
 	} /* while !flags */
 
-	if (conn->flags & CO_FL_ERROR)
-		return;
-
 	if (cur_read) {
 		if ((chn->flags & (CF_STREAMER | CF_STREAMER_FAST)) &&
 		    (cur_read <= chn->buf->size / 2)) {
@@ -1271,6 +1276,10 @@ static void si_conn_recv_cb(struct connection *conn)
 		}
 		chn->last_read = now_ms;
 	}
+
+ end_recv:
+	if (conn->flags & CO_FL_ERROR)
+		return;
 
 	if (conn_data_read0_pending(conn))
 		/* connection closed */

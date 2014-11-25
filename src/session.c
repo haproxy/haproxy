@@ -516,12 +516,6 @@ int session_complete(struct session *s)
 	s->rep->wex = TICK_ETERNITY;
 	s->rep->analyse_exp = TICK_ETERNITY;
 
-	if (unlikely(b_alloc(&s->req->buf) == NULL))
-		goto out_free_rep; /* no memory */
-
-	if (unlikely(b_alloc(&s->rep->buf) == NULL))
-		goto out_free_req_buf; /* no memory */
-
 	txn = &s->txn;
 	/* Those variables will be checked and freed if non-NULL in
 	 * session.c:session_free(). It is important that they are
@@ -550,7 +544,7 @@ int session_complete(struct session *s)
 		 * finished (=0, eg: monitoring), in both situations,
 		 * we can release everything and close.
 		 */
-		goto out_free_rep_buf;
+		goto out_free_rep;
 	}
 
 	/* if logs require transport layer information, note it on the connection */
@@ -568,10 +562,6 @@ int session_complete(struct session *s)
 	return 1;
 
 	/* Error unrolling */
- out_free_rep_buf:
-	b_free(&s->rep->buf);
- out_free_req_buf:
-	b_free(&s->req->buf);
  out_free_rep:
 	pool_free2(pool2_channel, s->rep);
  out_free_req:
@@ -1804,6 +1794,16 @@ struct task *process_session(struct task *t)
 			goto update_exp_and_leave;
 	}
 
+	/* below we may emit error messages so we have to ensure that we have
+	 * our buffers properly allocated.
+	 */
+	if (!session_alloc_buffers(s)) {
+		/* No buffer available, we've been subscribed to the list of
+		 * buffer waiters, let's wait for our turn.
+		 */
+		goto update_exp_and_leave;
+	}
+
 	/* 1b: check for low-level errors reported at the stream interface.
 	 * First we check if it's a retryable error (in which case we don't
 	 * want to tell the buffer). Otherwise we report the error one level
@@ -2602,6 +2602,7 @@ struct task *process_session(struct task *t)
 		if ((si_applet_call(s->req->cons) | si_applet_call(s->rep->cons)) != 0) {
 			if (task_in_rq(t)) {
 				t->expire = TICK_ETERNITY;
+				session_release_buffers(s);
 				return t;
 			}
 		}
@@ -2631,6 +2632,7 @@ struct task *process_session(struct task *t)
 		if (!tick_isset(t->expire))
 			ABORT_NOW();
 #endif
+		session_release_buffers(s);
 		return t; /* nothing more to do */
 	}
 
