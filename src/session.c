@@ -580,6 +580,7 @@ int session_complete(struct session *s)
 	/* and restore the connection pointer in case we destroyed it,
 	 * because kill_mini_session() will need it.
 	 */
+	LIST_DEL(&s->list);
 	s->target = &conn->obj_type;
 	return ret;
 }
