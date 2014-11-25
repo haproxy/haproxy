@@ -179,6 +179,8 @@ void *pool_destroy2(struct pool_head *pool);
         else {                                                  \
                 (pool)->free_list = *(void **)(pool)->free_list;\
 		(pool)->used++;					\
+		if (unlikely(mem_poison_byte))			\
+			memset(__p, mem_poison_byte, (pool)->size);	\
         }                                                       \
         __p;                                                    \
 })
