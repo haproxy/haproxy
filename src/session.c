@@ -675,6 +675,62 @@ static void session_free(struct session *s)
 	}
 }
 
+/* Allocates a single buffer for session <s>, but only if it's guaranteed that
+ * it's not the last available buffer. To be called at the beginning of recv()
+ * callbacks to ensure that the required buffers are properly allocated.
+ * Returns 0 in case of failure, non-zero otherwise.
+ */
+int session_alloc_recv_buffer(struct session *s, struct buffer **buf)
+{
+	struct buffer *b;
+
+	b = b_alloc_margin(buf, 2);
+	if (b)
+		return 1;
+
+	/* FIXME: normally we're supposed to subscribe to a list of waiters
+	 * for buffers. We release what we failed to allocate.
+	 */
+	return 0;
+}
+
+/* Allocates up to two buffers for session <s>. Only succeeds if both buffers
+ * are properly allocated. It is meant to be called inside process_session() so
+ * that both request and response buffers are allocated. Returns 0 incase of
+ * failure, non-zero otherwise.
+ */
+int session_alloc_buffers(struct session *s)
+{
+	if (!s->req->buf->size && !b_alloc(&s->req->buf))
+		return 0;
+
+	if (s->rep->buf->size || b_alloc(&s->rep->buf))
+		return 1;
+
+	if (buffer_empty(s->req->buf)) {
+		__b_drop(&s->req->buf);
+		s->req->buf = &buf_wanted;
+	}
+
+	/* FIXME: normally we're supposed to subscribe to a list of waiters
+	 * for buffers. We release what we failed to allocate.
+	 */
+	return 0;
+}
+
+/* releases unused buffers after processing. Typically used at the end of the
+ * update() functions.
+ */
+void session_release_buffers(struct session *s)
+{
+	if (s->req->buf->size && buffer_empty(s->req->buf))
+		b_free(&s->req->buf);
+
+	if (s->rep->buf->size && buffer_empty(s->rep->buf))
+		b_free(&s->rep->buf);
+
+	/* FIXME: normally we want to wake up pending tasks */
+}
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_session()

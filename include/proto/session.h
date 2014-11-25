@@ -53,6 +53,9 @@ int parse_track_counters(char **args, int *arg,
 
 /* Update the session's backend and server time stats */
 void session_update_time_stats(struct session *s);
+int session_alloc_buffers(struct session *s);
+void session_release_buffers(struct session *s);
+int session_alloc_recv_buffer(struct session *s, struct buffer **buf);
 
 /* returns the session from a void *owner */
 static inline struct session *session_from_task(struct task *t)
