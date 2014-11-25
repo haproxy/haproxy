@@ -1669,6 +1669,67 @@ found:
 	return 1;
 }
 
+/* This sample function is designed to return a word from a string.
+ * First arg is the index of the word (start at 1)
+ * Second arg is a char list of words separators (type string)
+ */
+static int sample_conv_word(const struct arg *arg_p, struct sample *smp)
+{
+	unsigned int word;
+	char *start, *end;
+	int i, issep, inword;
+
+	if (!arg_p[0].data.uint)
+		return 0;
+
+	word = 0;
+	inword = 0;
+	end = start = smp->data.str.str;
+	while (end - smp->data.str.str < smp->data.str.len) {
+		issep = 0;
+		for (i = 0 ; i < arg_p[1].data.str.len ; i++) {
+			if (*end == arg_p[1].data.str.str[i]) {
+				issep = 1;
+				break;
+			}
+		}
+		if (!inword) {
+			if (!issep) {
+				word++;
+				start = end;
+				inword = 1;
+			}
+		}
+		else if (issep) {
+			if (word == arg_p[0].data.uint)
+				goto found;
+			inword = 0;
+		}
+		end++;
+	}
+
+	/* Field not found */
+	if (word != arg_p[0].data.uint) {
+		smp->data.str.len = 0;
+		return 1;
+	}
+found:
+	smp->data.str.len = end - start;
+	/* If ret string is len 0, no need to
+           change pointers or to update size */
+	if (!smp->data.str.len)
+		return 1;
+
+	smp->data.str.str = start;
+
+	/* Compute remaining size if needed
+           Note: smp->data.str.size cannot be set to 0 */
+	if (smp->data.str.size)
+		smp->data.str.size -= start - smp->data.str.str;
+
+	return 1;
+}
+
 /************************************************************************/
 /*       All supported sample fetch functions must be declared here     */
 /************************************************************************/
@@ -1812,6 +1873,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "json",   sample_conv_json,      ARG1(1,STR),  sample_conv_json_check, SMP_T_STR,  SMP_T_STR },
 	{ "bytes",  sample_conv_bytes,     ARG2(1,UINT,UINT), NULL, SMP_T_BIN,  SMP_T_BIN },
 	{ "field",  sample_conv_field,     ARG2(2,UINT,STR), sample_conv_field_check, SMP_T_STR,  SMP_T_STR },
+	{ "word",   sample_conv_word,      ARG2(2,UINT,STR), sample_conv_field_check, SMP_T_STR,  SMP_T_STR },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 

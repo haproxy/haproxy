@@ -10396,6 +10396,10 @@ utime(<format>[,<offset>])
       # Eg:  20140710162350 127.0.0.1:57325
       log-format %[date,utime(%Y%m%d%H%M%S)]\ %ci:%cp
 
+word(<index>,<delimiters>)
+  Extracts the nth word considering given delimiters from an input string.
+  Indexes start at 1 and delimiters are a string formatted list of chars.
+
 wt6([<avalanche>])
   Hashes a binary input sample into an unsigned 32-bit quantity using the WT6
   hash function. Optionally, it is possible to apply a full avalanche hash
