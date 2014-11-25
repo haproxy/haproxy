@@ -1256,9 +1256,6 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->req->rto = s->fe->timeout.client;
 	s->req->wto = s->be->timeout.server;
 
-	if (unlikely(b_alloc(&s->req->buf) == NULL))
-		goto out_fail_req_buf; /* no memory */
-
 	if ((s->rep = pool_alloc2(pool2_channel)) == NULL)
 		goto out_fail_rep; /* no memory */
 
@@ -1280,6 +1277,9 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 
 	s->rep->flags |= CF_READ_DONTWAIT;
 
+	if (unlikely(b_alloc(&s->req->buf) == NULL))
+		goto out_fail_req_buf; /* no memory */
+
 	if (unlikely(b_alloc(&s->rep->buf) == NULL))
 		goto out_fail_rep_buf; /* no memory */
 
@@ -1300,10 +1300,10 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 
 	/* Error unrolling */
  out_fail_rep_buf:
-	pool_free2(pool2_channel, s->rep);
- out_fail_rep:
 	b_free(&s->req->buf);
  out_fail_req_buf:
+	pool_free2(pool2_channel, s->rep);
+ out_fail_rep:
 	pool_free2(pool2_channel, s->req);
  out_fail_req:
 	conn_free(conn);

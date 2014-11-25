@@ -492,11 +492,8 @@ int session_complete(struct session *s)
 	s->req->wex = TICK_ETERNITY;
 	s->req->analyse_exp = TICK_ETERNITY;
 
-	if (unlikely(b_alloc(&s->req->buf) == NULL))
-		goto out_free_req; /* no memory */
-
 	if (unlikely((s->rep = pool_alloc2(pool2_channel)) == NULL))
-		goto out_free_req_buf; /* no memory */
+		goto out_free_req; /* no memory */
 
 	channel_init(s->rep);
 	s->rep->prod = &s->si[1];
@@ -515,8 +512,11 @@ int session_complete(struct session *s)
 	s->rep->wex = TICK_ETERNITY;
 	s->rep->analyse_exp = TICK_ETERNITY;
 
-	if (unlikely(b_alloc(&s->rep->buf) == NULL))
+	if (unlikely(b_alloc(&s->req->buf) == NULL))
 		goto out_free_rep; /* no memory */
+
+	if (unlikely(b_alloc(&s->rep->buf) == NULL))
+		goto out_free_req_buf; /* no memory */
 
 	txn = &s->txn;
 	/* Those variables will be checked and freed if non-NULL in
@@ -566,10 +566,10 @@ int session_complete(struct session *s)
 	/* Error unrolling */
  out_free_rep_buf:
 	b_free(&s->rep->buf);
- out_free_rep:
-	pool_free2(pool2_channel, s->rep);
  out_free_req_buf:
 	b_free(&s->req->buf);
+ out_free_rep:
+	pool_free2(pool2_channel, s->rep);
  out_free_req:
 	pool_free2(pool2_channel, s->req);
  out_free_task:
