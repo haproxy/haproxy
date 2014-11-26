@@ -72,6 +72,9 @@ smp_fetch_ssl_hello_type(struct proxy *px, struct session *s, void *l7, unsigned
 
 	chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? s->rep : s->req;
 
+	if (!chn)
+		goto not_ssl_hello;
+
 	bleft = chn->buf->i;
 	data = (const unsigned char *)chn->buf->p;
 
@@ -275,6 +278,9 @@ smp_fetch_ssl_hello_sni(struct proxy *px, struct session *s, void *l7, unsigned 
 		goto not_ssl_hello;
 
 	chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? s->rep : s->req;
+
+	if (!chn)
+		goto not_ssl_hello;
 
 	bleft = chn->buf->i;
 	data = (unsigned char *)chn->buf->p;
