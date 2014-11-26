@@ -2096,7 +2096,7 @@ int pattern_read_from_file(struct pattern_head *head, unsigned int refflags,
 	struct pat_ref *ref;
 	struct pattern_expr *expr;
 	struct pat_ref_elt *elt;
-	int reuse;
+	int reuse = 0;
 
 	/* Lookup for the existing reference. */
 	ref = pat_ref_lookup(filename);
