@@ -189,16 +189,16 @@ int frontend_accept(struct session *s)
 	}
 
 	if (s->fe->mode == PR_MODE_HTTP)
-		s->req->flags |= CF_READ_DONTWAIT; /* one read is usually enough */
+		s->req.flags |= CF_READ_DONTWAIT; /* one read is usually enough */
 
 	/* note: this should not happen anymore since there's always at least the switching rules */
-	if (!s->req->analysers) {
-		channel_auto_connect(s->req);  /* don't wait to establish connection */
-		channel_auto_close(s->req);    /* let the producer forward close requests */
+	if (!s->req.analysers) {
+		channel_auto_connect(&s->req);  /* don't wait to establish connection */
+		channel_auto_close(&s->req);    /* let the producer forward close requests */
 	}
 
-	s->req->rto = s->fe->timeout.client;
-	s->rep->wto = s->fe->timeout.client;
+	s->req.rto = s->fe->timeout.client;
+	s->res.wto = s->fe->timeout.client;
 
 	/* everything's OK, let's go on */
 	return 1;

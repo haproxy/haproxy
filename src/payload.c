@@ -46,9 +46,13 @@ static int
 smp_fetch_len(struct proxy *px, struct session *s, void *l7, unsigned int opt,
                   const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct channel *chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? s->rep : s->req;
+	struct channel *chn;
 
-	if (!s || !chn)
+	if (!s)
+		return 0;
+
+	chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &s->res : &s->req;
+	if (!chn->buf)
 		return 0;
 
 	smp->type = SMP_T_UINT;
@@ -70,9 +74,8 @@ smp_fetch_ssl_hello_type(struct proxy *px, struct session *s, void *l7, unsigned
 	if (!s)
 		goto not_ssl_hello;
 
-	chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? s->rep : s->req;
-
-	if (!chn)
+	chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &s->res : &s->req;
+	if (!chn->buf)
 		goto not_ssl_hello;
 
 	bleft = chn->buf->i;
@@ -137,15 +140,15 @@ smp_fetch_req_ssl_ver(struct proxy *px, struct session *s, void *l7, unsigned in
 	int version, bleft, msg_len;
 	const unsigned char *data;
 
-	if (!s || !s->req)
+	if (!s || !s->req.buf)
 		return 0;
 
 	msg_len = 0;
-	bleft = s->req->buf->i;
+	bleft = s->req.buf->i;
 	if (!bleft)
 		goto too_short;
 
-	data = (const unsigned char *)s->req->buf->p;
+	data = (const unsigned char *)s->req.buf->p;
 	if ((*data >= 0x14 && *data <= 0x17) || (*data == 0xFF)) {
 		/* SSLv3 header format */
 		if (bleft < 5)
@@ -213,8 +216,8 @@ smp_fetch_req_ssl_ver(struct proxy *px, struct session *s, void *l7, unsigned in
 	 * all the part of the request which fits in a buffer is already
 	 * there.
 	 */
-	if (msg_len > channel_recv_limit(s->req) + s->req->buf->data - s->req->buf->p)
-		msg_len = channel_recv_limit(s->req) + s->req->buf->data - s->req->buf->p;
+	if (msg_len > channel_recv_limit(&s->req) + s->req.buf->data - s->req.buf->p)
+		msg_len = channel_recv_limit(&s->req) + s->req.buf->data - s->req.buf->p;
 
 	if (bleft < msg_len)
 		goto too_short;
@@ -277,9 +280,8 @@ smp_fetch_ssl_hello_sni(struct proxy *px, struct session *s, void *l7, unsigned 
 	if (!s)
 		goto not_ssl_hello;
 
-	chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? s->rep : s->req;
-
-	if (!chn)
+	chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &s->res : &s->req;
+	if (!chn->buf)
 		goto not_ssl_hello;
 
 	bleft = chn->buf->i;
@@ -413,17 +415,17 @@ fetch_rdp_cookie_name(struct session *s, struct sample *smp, const char *cname, 
 	int bleft;
 	const unsigned char *data;
 
-	if (!s || !s->req)
+	if (!s || !s->req.buf)
 		return 0;
 
 	smp->flags = SMP_F_CONST;
 	smp->type = SMP_T_STR;
 
-	bleft = s->req->buf->i;
+	bleft = s->req.buf->i;
 	if (bleft <= 11)
 		goto too_short;
 
-	data = (const unsigned char *)s->req->buf->p + 11;
+	data = (const unsigned char *)s->req.buf->p + 11;
 	bleft -= 11;
 
 	if (bleft <= 7)
@@ -543,9 +545,8 @@ smp_fetch_payload_lv(struct proxy *px, struct session *s, void *l7, unsigned int
 	if (!s)
 		return 0;
 
-	chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? s->rep : s->req;
-
-	if (!chn)
+	chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &s->res : &s->req;
+	if (!chn->buf)
 		return 0;
 
 	if (len_offset + len_size > chn->buf->i)
@@ -594,9 +595,8 @@ smp_fetch_payload(struct proxy *px, struct session *s, void *l7, unsigned int op
 	if (!s)
 		return 0;
 
-	chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? s->rep : s->req;
-
-	if (!chn)
+	chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &s->res : &s->req;
+	if (!chn->buf)
 		return 0;
 
 	if (buf_size > chn->buf->size || buf_offset + buf_size > chn->buf->size) {

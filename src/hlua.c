@@ -1424,7 +1424,7 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	sent = MAY_LJMP(luaL_checkinteger(L, 3));
 
 	/* Check for connection close. */
-	if (!socket->s || channel_output_closed(socket->s->req)) {
+	if (!socket->s || channel_output_closed(&socket->s->req)) {
 		lua_pushinteger(L, -1);
 		return 1;
 	}
@@ -1440,9 +1440,9 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	/* Check if the buffer is avalaible because HAProxy doesn't allocate
 	 * the request buffer if its not required.
 	 */
-	if (socket->s->req->buf->size == 0) {
-		if (!session_alloc_recv_buffer(socket->s, &socket->s->req->buf)) {
-			socket->s->req->prod->flags |= SI_FL_WAIT_ROOM;
+	if (socket->s->req.buf->size == 0) {
+		if (!session_alloc_recv_buffer(socket->s, &socket->s->req.buf)) {
+			socket->s->req.prod->flags |= SI_FL_WAIT_ROOM;
 			goto hlua_socket_write_yield_return;
 		}
 	}
@@ -1700,7 +1700,7 @@ __LJMP static int hlua_socket_connect_yield(struct lua_State *L, int status, lua
 	struct appctx *appctx;
 
 	/* Check for connection close. */
-	if (!hlua || !socket->s || channel_output_closed(socket->s->req)) {
+	if (!hlua || !socket->s || channel_output_closed(&socket->s->req)) {
 		lua_pushnil(L);
 		lua_pushstring(L, "Can't connect");
 		return 2;
@@ -1737,7 +1737,7 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	ip      = MAY_LJMP(luaL_checkstring(L, 2));
 	port    = MAY_LJMP(luaL_checkinteger(L, 3));
 
-	conn = si_alloc_conn(socket->s->req->cons, 0);
+	conn = si_alloc_conn(socket->s->req.cons, 0);
 	if (!conn)
 		WILL_LJMP(luaL_error(L, "connect: internal error"));
 
@@ -1794,10 +1794,10 @@ __LJMP static int hlua_socket_settimeout(struct lua_State *L)
 	socket = MAY_LJMP(hlua_checksocket(L, 1));
 	tmout = MAY_LJMP(luaL_checkinteger(L, 2)) * 1000;
 
-	socket->s->req->rto = tmout;
-	socket->s->req->wto = tmout;
-	socket->s->rep->rto = tmout;
-	socket->s->rep->wto = tmout;
+	socket->s->req.rto = tmout;
+	socket->s->req.wto = tmout;
+	socket->s->res.rto = tmout;
+	socket->s->res.wto = tmout;
 
 	return 0;
 }
@@ -1847,26 +1847,14 @@ __LJMP static int hlua_socket_new(lua_State *L)
 		goto out_free_session;
 	}
 
-	socket->s->req = pool_alloc2(pool2_channel);
-	if (!socket->s->req) {
-		hlua_pusherror(L, "socket: out of memory");
-		goto out_fail_req;
-	}
-
-	socket->s->req->buf = pool_alloc2(pool2_buffer);
-	if (!socket->s->req->buf) {
+	socket->s->req.buf = pool_alloc2(pool2_buffer);
+	if (!socket->s->req.buf) {
 		hlua_pusherror(L, "socket: out of memory");
 		goto out_fail_req_buf;
 	}
 
-	socket->s->rep = pool_alloc2(pool2_channel);
-	if (!socket->s->rep) {
-		hlua_pusherror(L, "socket: out of memory");
-		goto out_fail_rep;
-	}
-
-	socket->s->rep->buf = pool_alloc2(pool2_buffer);
-	if (!socket->s->rep->buf) {
+	socket->s->res.buf = pool_alloc2(pool2_buffer);
+	if (!socket->s->res.buf) {
 		hlua_pusherror(L, "socket: out of memory");
 		goto out_fail_rep_buf;
 	}
@@ -1909,8 +1897,8 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	 * Initialize the attached buffers
 	 *
 	 */
-	socket->s->req->buf->size = global.tune.bufsize;
-	socket->s->rep->buf->size = global.tune.bufsize;
+	socket->s->req.buf->size = global.tune.bufsize;
+	socket->s->res.buf->size = global.tune.bufsize;
 
 	/*
 	 *
@@ -1921,34 +1909,34 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	/* This function reset the struct. It must be called
 	 * before the configuration.
 	 */
-	channel_init(socket->s->req);
-	channel_init(socket->s->rep);
+	channel_init(&socket->s->req);
+	channel_init(&socket->s->res);
 
-	socket->s->req->prod = &socket->s->si[0];
-	socket->s->req->cons = &socket->s->si[1];
+	socket->s->req.prod = &socket->s->si[0];
+	socket->s->req.cons = &socket->s->si[1];
 
-	socket->s->rep->prod = &socket->s->si[1];
-	socket->s->rep->cons = &socket->s->si[0];
+	socket->s->res.prod = &socket->s->si[1];
+	socket->s->res.cons = &socket->s->si[0];
 
-	socket->s->si[0].ib = socket->s->req;
-	socket->s->si[0].ob = socket->s->rep;
+	socket->s->si[0].ib = &socket->s->req;
+	socket->s->si[0].ob = &socket->s->res;
 
-	socket->s->si[1].ib = socket->s->rep;
-	socket->s->si[1].ob = socket->s->req;
+	socket->s->si[1].ib = &socket->s->res;
+	socket->s->si[1].ob = &socket->s->req;
 
-	socket->s->req->analysers = 0;
-	socket->s->req->rto = socket_proxy.timeout.client;
-	socket->s->req->wto = socket_proxy.timeout.server;
-	socket->s->req->rex = TICK_ETERNITY;
-	socket->s->req->wex = TICK_ETERNITY;
-	socket->s->req->analyse_exp = TICK_ETERNITY;
+	socket->s->req.analysers = 0;
+	socket->s->req.rto = socket_proxy.timeout.client;
+	socket->s->req.wto = socket_proxy.timeout.server;
+	socket->s->req.rex = TICK_ETERNITY;
+	socket->s->req.wex = TICK_ETERNITY;
+	socket->s->req.analyse_exp = TICK_ETERNITY;
 
-	socket->s->rep->analysers = 0;
-	socket->s->rep->rto = socket_proxy.timeout.server;
-	socket->s->rep->wto = socket_proxy.timeout.client;
-	socket->s->rep->rex = TICK_ETERNITY;
-	socket->s->rep->wex = TICK_ETERNITY;
-	socket->s->rep->analyse_exp = TICK_ETERNITY;
+	socket->s->res.analysers = 0;
+	socket->s->res.rto = socket_proxy.timeout.server;
+	socket->s->res.wto = socket_proxy.timeout.client;
+	socket->s->res.rex = TICK_ETERNITY;
+	socket->s->res.wex = TICK_ETERNITY;
+	socket->s->res.analyse_exp = TICK_ETERNITY;
 
 	/*
 	 *
@@ -2009,10 +1997,10 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	 */
 
 	/* The data producer is already connected. It is the applet. */
-	socket->s->req->flags = CF_READ_ATTACHED;
+	socket->s->req.flags = CF_READ_ATTACHED;
 
-	channel_auto_connect(socket->s->req); /* don't wait to establish connection */
-	channel_auto_close(socket->s->req); /* let the producer forward close requests */
+	channel_auto_connect(&socket->s->req); /* don't wait to establish connection */
+	channel_auto_close(&socket->s->req); /* let the producer forward close requests */
 
 	si_reset(&socket->s->si[0], socket->s->task);
 	si_set_state(&socket->s->si[0], SI_ST_EST); /* connection established (resource exists) */
@@ -2052,14 +2040,10 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	return 1;
 
 out_fail_conn1:
-	pool_free2(pool2_buffer, socket->s->rep->buf);
+	pool_free2(pool2_buffer, socket->s->res.buf);
 out_fail_rep_buf:
-	pool_free2(pool2_channel, socket->s->rep);
-out_fail_rep:
-	pool_free2(pool2_buffer, socket->s->req->buf);
+	pool_free2(pool2_buffer, socket->s->req.buf);
 out_fail_req_buf:
-	pool_free2(pool2_channel, socket->s->req);
-out_fail_req:
 	task_free(socket->s->task);
 out_free_session:
 	pool_free2(pool2_session, socket->s);
@@ -2405,7 +2389,7 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 		 * must set the flag WAKERESWR. This flag required the task
 		 * wake up if any activity is detected on the response buffer.
 		 */
-		if (chn->chn == chn->s->rep)
+		if (chn->chn == &chn->s->res)
 			HLUA_SET_WAKERESWR(hlua);
 		else
 			HLUA_SET_WAKEREQWR(hlua);
@@ -2467,7 +2451,7 @@ __LJMP static int hlua_channel_forward_yield(lua_State *L, int status, lua_KCont
 		 * must set the flag WAKERESWR. This flag required the task
 		 * wake up if any activity is detected on the response buffer.
 		 */
-		if (chn->chn == chn->s->rep)
+		if (chn->chn == &chn->s->res)
 			HLUA_SET_WAKERESWR(hlua);
 		else
 			HLUA_SET_WAKEREQWR(hlua);
@@ -2849,13 +2833,13 @@ static int hlua_txn_new(lua_State *L, struct session *s, struct proxy *p, void *
 
 	/* Create the "req" field that contains the request channel object. */
 	lua_pushstring(L, "req");
-	if (!hlua_channel_new(L, s, s->req))
+	if (!hlua_channel_new(L, s, &s->req))
 		return 0;
 	lua_settable(L, -3);
 
 	/* Create the "res" field that contains the response channel object. */
 	lua_pushstring(L, "res");
-	if (!hlua_channel_new(L, s, s->rep))
+	if (!hlua_channel_new(L, s, &s->res))
 		return 0;
 	lua_settable(L, -3);
 
@@ -2904,7 +2888,7 @@ static int hlua_session_get_headers(lua_State *L)
 
 	/* Build array of headers. */
 	old_idx = 0;
-	cur_next = sess->req->buf->p + hdr_idx_first_pos(&sess->txn.hdr_idx);
+	cur_next = sess->req.buf->p + hdr_idx_first_pos(&sess->txn.hdr_idx);
 
 	while (1) {
 		cur_idx = sess->txn.hdr_idx.v[old_idx].next;
@@ -3606,21 +3590,21 @@ static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
 		/* Set timeout in the required channel. */
 		if (s->hlua.wake_time != TICK_ETERNITY) {
 			if (analyzer & (AN_REQ_INSPECT_FE|AN_REQ_HTTP_PROCESS_FE))
-				s->req->analyse_exp = s->hlua.wake_time;
+				s->req.analyse_exp = s->hlua.wake_time;
 			else if (analyzer & (AN_RES_INSPECT|AN_RES_HTTP_PROCESS_BE))
-				s->rep->analyse_exp = s->hlua.wake_time;
+				s->res.analyse_exp = s->hlua.wake_time;
 		}
 		/* Some actions can be wake up when a "write" event
 		 * is detected on a response channel. This is useful
 		 * only for actions targetted on the requests.
 		 */
 		if (HLUA_IS_WAKERESWR(&s->hlua)) {
-			s->rep->flags |= CF_WAKE_WRITE;
+			s->res.flags |= CF_WAKE_WRITE;
 			if ((analyzer & (AN_REQ_INSPECT_FE|AN_REQ_HTTP_PROCESS_FE)))
-				s->rep->analysers |= analyzer;
+				s->res.analysers |= analyzer;
 		}
 		if (HLUA_IS_WAKEREQWR(&s->hlua))
-			s->req->flags |= CF_WAKE_WRITE;
+			s->req.flags |= CF_WAKE_WRITE;
 		return 0;
 
 	/* finished with error. */

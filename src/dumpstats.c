@@ -246,11 +246,11 @@ static int stats_accept(struct session *s)
 	s->logs.prx_queue_size = 0;  /* we get the number of pending conns before us */
 	s->logs.srv_queue_size = 0; /* we will get this number soon */
 
-	s->req->flags |= CF_READ_DONTWAIT; /* we plan to read small requests */
+	s->req.flags |= CF_READ_DONTWAIT; /* we plan to read small requests */
 
 	if (s->listener->timeout) {
-		s->req->rto = *s->listener->timeout;
-		s->rep->wto = *s->listener->timeout;
+		s->req.rto = *s->listener->timeout;
+		s->res.wto = *s->listener->timeout;
 	}
 	return 1;
 }
@@ -1488,7 +1488,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 					return 1;
 				}
 
-				s->req->rto = s->rep->wto = 1 + MS_TO_TICKS(timeout*1000);
+				s->req.rto = s->res.wto = 1 + MS_TO_TICKS(timeout*1000);
 				return 1;
 			}
 			else {
@@ -5208,60 +5208,60 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 		chunk_appendf(&trash,
 			     "  req=%p (f=0x%06x an=0x%x pipe=%d tofwd=%d total=%lld)\n"
 			     "      an_exp=%s",
-			     sess->req,
-			     sess->req->flags, sess->req->analysers,
-			     sess->req->pipe ? sess->req->pipe->data : 0,
-			     sess->req->to_forward, sess->req->total,
-			     sess->req->analyse_exp ?
-			     human_time(TICKS_TO_MS(sess->req->analyse_exp - now_ms),
+			     &sess->req,
+			     sess->req.flags, sess->req.analysers,
+			     sess->req.pipe ? sess->req.pipe->data : 0,
+			     sess->req.to_forward, sess->req.total,
+			     sess->req.analyse_exp ?
+			     human_time(TICKS_TO_MS(sess->req.analyse_exp - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>");
 
 		chunk_appendf(&trash,
 			     " rex=%s",
-			     sess->req->rex ?
-			     human_time(TICKS_TO_MS(sess->req->rex - now_ms),
+			     sess->req.rex ?
+			     human_time(TICKS_TO_MS(sess->req.rex - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>");
 
 		chunk_appendf(&trash,
 			     " wex=%s\n"
 			     "      buf=%p data=%p o=%d p=%d req.next=%d i=%d size=%d\n",
-			     sess->req->wex ?
-			     human_time(TICKS_TO_MS(sess->req->wex - now_ms),
+			     sess->req.wex ?
+			     human_time(TICKS_TO_MS(sess->req.wex - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>",
-			     sess->req->buf,
-			     sess->req->buf->data, sess->req->buf->o,
-			     (int)(sess->req->buf->p - sess->req->buf->data),
-			     sess->txn.req.next, sess->req->buf->i,
-			     sess->req->buf->size);
+			     sess->req.buf,
+			     sess->req.buf->data, sess->req.buf->o,
+			     (int)(sess->req.buf->p - sess->req.buf->data),
+			     sess->txn.req.next, sess->req.buf->i,
+			     sess->req.buf->size);
 
 		chunk_appendf(&trash,
 			     "  res=%p (f=0x%06x an=0x%x pipe=%d tofwd=%d total=%lld)\n"
 			     "      an_exp=%s",
-			     sess->rep,
-			     sess->rep->flags, sess->rep->analysers,
-			     sess->rep->pipe ? sess->rep->pipe->data : 0,
-			     sess->rep->to_forward, sess->rep->total,
-			     sess->rep->analyse_exp ?
-			     human_time(TICKS_TO_MS(sess->rep->analyse_exp - now_ms),
+			     &sess->res,
+			     sess->res.flags, sess->res.analysers,
+			     sess->res.pipe ? sess->res.pipe->data : 0,
+			     sess->res.to_forward, sess->res.total,
+			     sess->res.analyse_exp ?
+			     human_time(TICKS_TO_MS(sess->res.analyse_exp - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>");
 
 		chunk_appendf(&trash,
 			     " rex=%s",
-			     sess->rep->rex ?
-			     human_time(TICKS_TO_MS(sess->rep->rex - now_ms),
+			     sess->res.rex ?
+			     human_time(TICKS_TO_MS(sess->res.rex - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>");
 
 		chunk_appendf(&trash,
 			     " wex=%s\n"
 			     "      buf=%p data=%p o=%d p=%d rsp.next=%d i=%d size=%d\n",
-			     sess->rep->wex ?
-			     human_time(TICKS_TO_MS(sess->rep->wex - now_ms),
+			     sess->res.wex ?
+			     human_time(TICKS_TO_MS(sess->res.wex - now_ms),
 					TICKS_TO_MS(1000)) : "<NEVER>",
-			     sess->rep->buf,
-			     sess->rep->buf->data, sess->rep->buf->o,
-			     (int)(sess->rep->buf->p - sess->rep->buf->data),
-			     sess->txn.rsp.next, sess->rep->buf->i,
-			     sess->rep->buf->size);
+			     sess->res.buf,
+			     sess->res.buf->data, sess->res.buf->o,
+			     (int)(sess->res.buf->p - sess->res.buf->data),
+			     sess->txn.rsp.next, sess->res.buf->i,
+			     sess->res.buf->size);
 
 		if (bi_putchk(si->ib, &trash) == -1)
 			return 0;
@@ -5613,44 +5613,44 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 
 			chunk_appendf(&trash,
 				     " rq[f=%06xh,i=%d,an=%02xh,rx=%s",
-				     curr_sess->req->flags,
-				     curr_sess->req->buf->i,
-				     curr_sess->req->analysers,
-				     curr_sess->req->rex ?
-				     human_time(TICKS_TO_MS(curr_sess->req->rex - now_ms),
+				     curr_sess->req.flags,
+				     curr_sess->req.buf->i,
+				     curr_sess->req.analysers,
+				     curr_sess->req.rex ?
+				     human_time(TICKS_TO_MS(curr_sess->req.rex - now_ms),
 						TICKS_TO_MS(1000)) : "");
 
 			chunk_appendf(&trash,
 				     ",wx=%s",
-				     curr_sess->req->wex ?
-				     human_time(TICKS_TO_MS(curr_sess->req->wex - now_ms),
+				     curr_sess->req.wex ?
+				     human_time(TICKS_TO_MS(curr_sess->req.wex - now_ms),
 						TICKS_TO_MS(1000)) : "");
 
 			chunk_appendf(&trash,
 				     ",ax=%s]",
-				     curr_sess->req->analyse_exp ?
-				     human_time(TICKS_TO_MS(curr_sess->req->analyse_exp - now_ms),
+				     curr_sess->req.analyse_exp ?
+				     human_time(TICKS_TO_MS(curr_sess->req.analyse_exp - now_ms),
 						TICKS_TO_MS(1000)) : "");
 
 			chunk_appendf(&trash,
 				     " rp[f=%06xh,i=%d,an=%02xh,rx=%s",
-				     curr_sess->rep->flags,
-				     curr_sess->rep->buf->i,
-				     curr_sess->rep->analysers,
-				     curr_sess->rep->rex ?
-				     human_time(TICKS_TO_MS(curr_sess->rep->rex - now_ms),
+				     curr_sess->res.flags,
+				     curr_sess->res.buf->i,
+				     curr_sess->res.analysers,
+				     curr_sess->res.rex ?
+				     human_time(TICKS_TO_MS(curr_sess->res.rex - now_ms),
 						TICKS_TO_MS(1000)) : "");
 
 			chunk_appendf(&trash,
 				     ",wx=%s",
-				     curr_sess->rep->wex ?
-				     human_time(TICKS_TO_MS(curr_sess->rep->wex - now_ms),
+				     curr_sess->res.wex ?
+				     human_time(TICKS_TO_MS(curr_sess->res.wex - now_ms),
 						TICKS_TO_MS(1000)) : "");
 
 			chunk_appendf(&trash,
 				     ",ax=%s]",
-				     curr_sess->rep->analyse_exp ?
-				     human_time(TICKS_TO_MS(curr_sess->rep->analyse_exp - now_ms),
+				     curr_sess->res.analyse_exp ?
+				     human_time(TICKS_TO_MS(curr_sess->res.analyse_exp - now_ms),
 						TICKS_TO_MS(1000)) : "");
 
 			conn = objt_conn(curr_sess->si[0].end);

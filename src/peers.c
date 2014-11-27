@@ -38,10 +38,10 @@
 #include <proto/proto_http.h>
 #include <proto/proxy.h>
 #include <proto/session.h>
+#include <proto/signal.h>
+#include <proto/stick_table.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
-#include <proto/stick_table.h>
-#include <proto/signal.h>
 
 
 /*******************************/
@@ -1105,11 +1105,11 @@ int peer_accept(struct session *s)
 	s->logs.prx_queue_size = 0;/* we get the number of pending conns before us */
 	s->logs.srv_queue_size = 0; /* we will get this number soon */
 
-	s->req->flags |= CF_READ_DONTWAIT; /* we plan to read small requests */
+	s->req.flags |= CF_READ_DONTWAIT; /* we plan to read small requests */
 
 	if (s->listener->timeout) {
-		s->req->rto = *s->listener->timeout;
-		s->rep->wto = *s->listener->timeout;
+		s->req.rto = *s->listener->timeout;
+		s->res.wto = *s->listener->timeout;
 	}
 	return 1;
 }
@@ -1161,8 +1161,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	 * when the default backend is assigned.
 	 */
 	s->be = s->fe = p;
-
-	s->req = s->rep = NULL; /* will be allocated later */
+	s->req.buf = s->res.buf = NULL;
 
 	si_reset(&s->si[0], t);
 	si_set_state(&s->si[0], SI_ST_EST);
@@ -1235,48 +1234,42 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	txn->hdr_idx.v = NULL;
 	txn->hdr_idx.size = txn->hdr_idx.used = 0;
 
-	if ((s->req = pool_alloc2(pool2_channel)) == NULL)
-		goto out_fail_req; /* no memory */
+	channel_init(&s->req);
+	s->req.prod = &s->si[0];
+	s->req.cons = &s->si[1];
+	s->si[0].ib = s->si[1].ob = &s->req;
 
-	channel_init(s->req);
-	s->req->prod = &s->si[0];
-	s->req->cons = &s->si[1];
-	s->si[0].ib = s->si[1].ob = s->req;
-
-	s->req->flags |= CF_READ_ATTACHED; /* the producer is already connected */
+	s->req.flags |= CF_READ_ATTACHED; /* the producer is already connected */
 
 	/* activate default analysers enabled for this listener */
-	s->req->analysers = l->analysers;
+	s->req.analysers = l->analysers;
 
 	/* note: this should not happen anymore since there's always at least the switching rules */
-	if (!s->req->analysers) {
-		channel_auto_connect(s->req);/* don't wait to establish connection */
-		channel_auto_close(s->req);/* let the producer forward close requests */
+	if (!s->req.analysers) {
+		channel_auto_connect(&s->req);/* don't wait to establish connection */
+		channel_auto_close(&s->req);/* let the producer forward close requests */
 	}
 
-	s->req->rto = s->fe->timeout.client;
-	s->req->wto = s->be->timeout.server;
+	s->req.rto = s->fe->timeout.client;
+	s->req.wto = s->be->timeout.server;
 
-	if ((s->rep = pool_alloc2(pool2_channel)) == NULL)
-		goto out_fail_rep; /* no memory */
+	channel_init(&s->res);
+	s->res.prod = &s->si[1];
+	s->res.cons = &s->si[0];
+	s->si[0].ob = s->si[1].ib = &s->res;
 
-	channel_init(s->rep);
-	s->rep->prod = &s->si[1];
-	s->rep->cons = &s->si[0];
-	s->si[0].ob = s->si[1].ib = s->rep;
+	s->res.rto = s->be->timeout.server;
+	s->res.wto = s->fe->timeout.client;
 
-	s->rep->rto = s->be->timeout.server;
-	s->rep->wto = s->fe->timeout.client;
-
-	s->req->rex = TICK_ETERNITY;
-	s->req->wex = TICK_ETERNITY;
-	s->req->analyse_exp = TICK_ETERNITY;
-	s->rep->rex = TICK_ETERNITY;
-	s->rep->wex = TICK_ETERNITY;
-	s->rep->analyse_exp = TICK_ETERNITY;
+	s->req.rex = TICK_ETERNITY;
+	s->req.wex = TICK_ETERNITY;
+	s->req.analyse_exp = TICK_ETERNITY;
+	s->res.rex = TICK_ETERNITY;
+	s->res.wex = TICK_ETERNITY;
+	s->res.analyse_exp = TICK_ETERNITY;
 	t->expire = TICK_ETERNITY;
 
-	s->rep->flags |= CF_READ_DONTWAIT;
+	s->res.flags |= CF_READ_DONTWAIT;
 
 	/* it is important not to call the wakeup function directly but to
 	 * pass through task_wakeup(), because this one knows how to apply
@@ -1294,10 +1287,6 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	return s;
 
 	/* Error unrolling */
- out_fail_rep:
-	pool_free2(pool2_channel, s->req);
- out_fail_req:
-	conn_free(conn);
  out_fail_conn1:
 	task_free(t);
  out_free_session:

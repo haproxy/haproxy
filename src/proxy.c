@@ -973,8 +973,8 @@ int session_set_backend(struct session *s, struct proxy *be)
 		s->txn.req.flags |= HTTP_MSGF_WAIT_CONN;
 
 	if (be->options2 & PR_O2_NODELAY) {
-		s->req->flags |= CF_NEVER_WAIT;
-		s->rep->flags |= CF_NEVER_WAIT;
+		s->req.flags |= CF_NEVER_WAIT;
+		s->res.flags |= CF_NEVER_WAIT;
 	}
 
 	/* We want to enable the backend-specific analysers except those which
@@ -982,7 +982,7 @@ int session_set_backend(struct session *s, struct proxy *be)
 	 * be more reliable to store the list of analysers that have been run,
 	 * but what we do here is OK for now.
 	 */
-	s->req->analysers |= be->be_req_ana & ~(s->listener->analysers);
+	s->req.analysers |= be->be_req_ana & ~(s->listener->analysers);
 
 	return 1;
 }

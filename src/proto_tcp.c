@@ -1149,7 +1149,7 @@ resume_execution:
 			/* we have a matching rule. */
 			if (rule->action == TCP_ACT_REJECT) {
 				channel_abort(req);
-				channel_abort(s->rep);
+				channel_abort(&s->res);
 				req->analysers = 0;
 
 				s->be->be_counters.denied_req++;
@@ -1310,7 +1310,7 @@ resume_execution:
 			/* we have a matching rule. */
 			if (rule->action == TCP_ACT_REJECT) {
 				channel_abort(rep);
-				channel_abort(s->req);
+				channel_abort(&s->req);
 				rep->analysers = 0;
 
 				s->be->be_counters.denied_resp++;

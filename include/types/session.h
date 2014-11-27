@@ -107,8 +107,8 @@ struct session {
 	unsigned int uniq_id;			/* unique ID used for the traces */
 	enum obj_type *target;			/* target to use for this session ; for mini-sess: incoming connection */
 
-	struct channel *req;			/* request buffer */
-	struct channel *rep;			/* response buffer */
+	struct channel req;			/* request channel */
+	struct channel res;			/* response channel */
 
 	struct proxy *fe;			/* the proxy this session depends on for the client side */
 	struct proxy *be;			/* the proxy this session depends on for the server side */

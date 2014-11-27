@@ -1001,12 +1001,12 @@ void http_perform_server_redirect(struct session *s, struct stream_interface *si
 	 * to temporarily rewind the buffer.
 	 */
 	txn = &s->txn;
-	b_rew(s->req->buf, rewind = http_hdr_rewind(&txn->req));
+	b_rew(s->req.buf, rewind = http_hdr_rewind(&txn->req));
 
 	path = http_get_path(txn);
-	len = buffer_count(s->req->buf, path, b_ptr(s->req->buf, txn->req.sl.rq.u + txn->req.sl.rq.u_l));
+	len = buffer_count(s->req.buf, path, b_ptr(s->req.buf, txn->req.sl.rq.u + txn->req.sl.rq.u_l));
 
-	b_adv(s->req->buf, rewind);
+	b_adv(s->req.buf, rewind);
 
 	if (!path)
 		return;
@@ -1460,7 +1460,7 @@ get_http_auth(struct session *s)
 		len = strlen(h);
 	}
 
-	if (!http_find_header2(h, len, s->req->buf->p, &txn->hdr_idx, &ctx))
+	if (!http_find_header2(h, len, s->req.buf->p, &txn->hdr_idx, &ctx))
 		return 0;
 
 	h = ctx.line + ctx.val;
@@ -2514,7 +2514,7 @@ void http_adjust_conn_mode(struct session *s, struct http_txn *txn, struct http_
 /* This stream analyser waits for a complete HTTP request. It returns 1 if the
  * processing can continue on next analysers, or zero if it either needs more
  * data or wants to immediately abort the request (eg: timeout, error, ...). It
- * is tied to AN_REQ_WAIT_HTTP and may may remove itself from s->req->analysers
+ * is tied to AN_REQ_WAIT_HTTP and may may remove itself from s->req.analysers
  * when it has nothing left to do, and may remove any analyser when it wants to
  * abort.
  */
@@ -2588,17 +2588,17 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 		 * keep-alive requests.
 		 */
 		if ((txn->flags & TX_NOT_FIRST) &&
-		    unlikely(!channel_is_rewritable(s->rep) ||
-			     bi_end(s->rep->buf) < b_ptr(s->rep->buf, txn->rsp.next) ||
-			     bi_end(s->rep->buf) > s->rep->buf->data + s->rep->buf->size - global.tune.maxrewrite)) {
-			if (s->rep->buf->o) {
-				if (s->rep->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_WRITE_ERROR|CF_WRITE_TIMEOUT))
+		    unlikely(!channel_is_rewritable(&s->res) ||
+			     bi_end(s->res.buf) < b_ptr(s->res.buf, txn->rsp.next) ||
+			     bi_end(s->res.buf) > s->res.buf->data + s->res.buf->size - global.tune.maxrewrite)) {
+			if (s->res.buf->o) {
+				if (s->res.flags & (CF_SHUTW|CF_SHUTW_NOW|CF_WRITE_ERROR|CF_WRITE_TIMEOUT))
 					goto failed_keep_alive;
 				/* don't let a connection request be initiated */
 				channel_dont_connect(req);
-				s->rep->flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
-				s->rep->flags |= CF_WAKE_WRITE;
-				s->rep->analysers |= an_bit; /* wake us up once it changes */
+				s->res.flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
+				s->res.flags |= CF_WAKE_WRITE;
+				s->res.analysers |= an_bit; /* wake us up once it changes */
 				return 0;
 			}
 		}
@@ -2765,14 +2765,14 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 
 		channel_dont_connect(req);
 		req->flags |= CF_READ_DONTWAIT; /* try to get back here ASAP */
-		s->rep->flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
+		s->res.flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
 #ifdef TCP_QUICKACK
-		if (s->listener->options & LI_O_NOQUICKACK && req->buf->i && objt_conn(s->req->prod->end) && conn_ctrl_ready(__objt_conn(s->req->prod->end))) {
+		if (s->listener->options & LI_O_NOQUICKACK && req->buf->i && objt_conn(s->req.prod->end) && conn_ctrl_ready(__objt_conn(s->req.prod->end))) {
 			/* We need more data, we have to re-enable quick-ack in case we
 			 * previously disabled it, otherwise we might cause the client
 			 * to delay next data.
 			 */
-			setsockopt(__objt_conn(s->req->prod->end)->t.sock.fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
+			setsockopt(__objt_conn(s->req.prod->end)->t.sock.fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
 		}
 #endif
 
@@ -2808,7 +2808,7 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 		req->analysers = 0;
 		s->logs.logwait = 0;
 		s->logs.level = 0;
-		s->rep->flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
+		s->res.flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
 		stream_int_retnclose(req->prod, NULL);
 		return 0;
 	}
@@ -3094,7 +3094,7 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 int http_handle_stats(struct session *s, struct channel *req)
 {
 	struct stats_admin_rule *stats_admin_rule;
-	struct stream_interface *si = s->rep->prod;
+	struct stream_interface *si = s->res.prod;
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->req;
 	struct uri_auth *uri_auth = s->be->uri_auth;
@@ -3440,13 +3440,13 @@ resume_execution:
 			break;
 
 		case HTTP_REQ_ACT_SET_TOS:
-			if ((cli_conn = objt_conn(s->req->prod->end)) && conn_ctrl_ready(cli_conn))
+			if ((cli_conn = objt_conn(s->req.prod->end)) && conn_ctrl_ready(cli_conn))
 				inet_set_tos(cli_conn->t.sock.fd, cli_conn->addr.from, rule->arg.tos);
 			break;
 
 		case HTTP_REQ_ACT_SET_MARK:
 #ifdef SO_MARK
-			if ((cli_conn = objt_conn(s->req->prod->end)) && conn_ctrl_ready(cli_conn))
+			if ((cli_conn = objt_conn(s->req.prod->end)) && conn_ctrl_ready(cli_conn))
 				setsockopt(cli_conn->t.sock.fd, SOL_SOCKET, SO_MARK, &rule->arg.mark, sizeof(rule->arg.mark));
 #endif
 			break;
@@ -3686,13 +3686,13 @@ resume_execution:
 			break;
 
 		case HTTP_RES_ACT_SET_TOS:
-			if ((cli_conn = objt_conn(s->req->prod->end)) && conn_ctrl_ready(cli_conn))
+			if ((cli_conn = objt_conn(s->req.prod->end)) && conn_ctrl_ready(cli_conn))
 				inet_set_tos(cli_conn->t.sock.fd, cli_conn->addr.from, rule->arg.tos);
 			break;
 
 		case HTTP_RES_ACT_SET_MARK:
 #ifdef SO_MARK
-			if ((cli_conn = objt_conn(s->req->prod->end)) && conn_ctrl_ready(cli_conn))
+			if ((cli_conn = objt_conn(s->req.prod->end)) && conn_ctrl_ready(cli_conn))
 				setsockopt(cli_conn->t.sock.fd, SOL_SOCKET, SO_MARK, &rule->arg.mark, sizeof(rule->arg.mark));
 #endif
 			break;
@@ -4072,7 +4072,7 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct session *
 		msg->next -= msg->sov;
 		msg->sov = 0;
 		txn->req.chn->analysers = AN_REQ_HTTP_XFER_BODY;
-		s->rep->analysers = AN_RES_HTTP_XFER_BODY;
+		s->res.analysers = AN_RES_HTTP_XFER_BODY;
 		txn->req.msg_state = HTTP_MSG_CLOSED;
 		txn->rsp.msg_state = HTTP_MSG_DONE;
 	} else {
@@ -4162,9 +4162,9 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 	 * by a possible reqrep, while they are processed *after* so that a
 	 * reqdeny can still block them. This clearly needs to change in 1.6!
 	 */
-	if (stats_check_uri(s->rep->prod, txn, px)) {
+	if (stats_check_uri(s->res.prod, txn, px)) {
 		s->target = &http_stats_applet.obj_type;
-		if (unlikely(!stream_int_register_handler(s->rep->prod, objt_applet(s->target)))) {
+		if (unlikely(!stream_int_register_handler(s->res.prod, objt_applet(s->target)))) {
 			txn->status = 500;
 			s->logs.tv_request = now;
 			stream_int_retnclose(req->prod, http_error_message(s, HTTP_ERR_500));
@@ -4274,7 +4274,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 	 * If unset, then set it to zero because we really want it to
 	 * eventually expire. We build the tarpit as an analyser.
 	 */
-	channel_erase(s->req);
+	channel_erase(&s->req);
 
 	/* wipe the request out so that we can drop the connection early
 	 * if the client closes first.
@@ -4341,7 +4341,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 /* This function performs all the processing enabled for the current request.
  * It returns 1 if the processing can continue on next analysers, or zero if it
  * needs more data, encounters an error, or wants to immediately abort the
- * request. It relies on buffers flags, and updates s->req->analysers.
+ * request. It relies on buffers flags, and updates s->req.analysers.
  */
 int http_process_request(struct session *s, struct channel *req, int an_bit)
 {
@@ -4761,7 +4761,7 @@ int http_wait_for_request_body(struct session *s, struct channel *req, int an_bi
 				/* Expect is allowed in 1.1, look for it */
 				if (http_find_header2("Expect", 6, req->buf->p, &txn->hdr_idx, &ctx) &&
 				    unlikely(ctx.vlen == 12 && strncasecmp(ctx.line+ctx.val, "100-continue", 12) == 0)) {
-					bo_inject(s->rep, http_100_chunk.str, http_100_chunk.len);
+					bo_inject(&s->res, http_100_chunk.str, http_100_chunk.len);
 				}
 			}
 			msg->msg_state = HTTP_MSG_100_SENT;
@@ -4945,10 +4945,10 @@ void http_end_txn_clean_session(struct session *s)
 	 * to the server.
 	 */
 	if (((s->txn.flags & TX_CON_WANT_MSK) != TX_CON_WANT_KAL) ||
-	    !si_conn_ready(s->req->cons)) {
-		s->req->cons->flags |= SI_FL_NOLINGER | SI_FL_NOHALF;
-		si_shutr(s->req->cons);
-		si_shutw(s->req->cons);
+	    !si_conn_ready(s->req.cons)) {
+		s->req.cons->flags |= SI_FL_NOLINGER | SI_FL_NOHALF;
+		si_shutr(s->req.cons);
+		si_shutw(s->req.cons);
 	}
 
 	if (s->flags & SN_BE_ASSIGNED) {
@@ -4982,13 +4982,13 @@ void http_end_txn_clean_session(struct session *s)
 	}
 
 	/* don't count other requests' data */
-	s->logs.bytes_in  -= s->req->buf->i;
-	s->logs.bytes_out -= s->rep->buf->i;
+	s->logs.bytes_in  -= s->req.buf->i;
+	s->logs.bytes_out -= s->res.buf->i;
 
 	/* let's do a final log if we need it */
 	if (!LIST_ISEMPTY(&s->fe->logformat) && s->logs.logwait &&
 	    !(s->flags & SN_MONITOR) &&
-	    (!(s->fe->options & PR_O_NULLNOLOG) || s->req->total)) {
+	    (!(s->fe->options & PR_O_NULLNOLOG) || s->req.total)) {
 		s->do_log(s);
 	}
 
@@ -5006,8 +5006,8 @@ void http_end_txn_clean_session(struct session *s)
 	s->logs.prx_queue_size = 0;  /* we get the number of pending conns before us */
 	s->logs.srv_queue_size = 0; /* we will get this number soon */
 
-	s->logs.bytes_in = s->req->total = s->req->buf->i;
-	s->logs.bytes_out = s->rep->total = s->rep->buf->i;
+	s->logs.bytes_in = s->req.total = s->req.buf->i;
+	s->logs.bytes_out = s->res.total = s->res.buf->i;
 
 	if (s->pend_pos)
 		pendconn_free(s->pend_pos);
@@ -5027,17 +5027,17 @@ void http_end_txn_clean_session(struct session *s)
 	 * connection.
 	 */
 	if (((s->txn.flags & TX_CON_WANT_MSK) != TX_CON_WANT_KAL) ||
-	    !si_conn_ready(s->req->cons)) {
-		si_release_endpoint(s->req->cons);
+	    !si_conn_ready(s->req.cons)) {
+		si_release_endpoint(s->req.cons);
 	}
 
-	s->req->cons->state     = s->req->cons->prev_state = SI_ST_INI;
-	s->req->cons->err_type  = SI_ET_NONE;
-	s->req->cons->conn_retries = 0;  /* used for logging too */
-	s->req->cons->exp       = TICK_ETERNITY;
-	s->req->cons->flags    &= SI_FL_DONT_WAKE; /* we're in the context of process_session */
-	s->req->flags &= ~(CF_SHUTW|CF_SHUTW_NOW|CF_AUTO_CONNECT|CF_WRITE_ERROR|CF_STREAMER|CF_STREAMER_FAST|CF_NEVER_WAIT|CF_WAKE_CONNECT|CF_WROTE_DATA);
-	s->rep->flags &= ~(CF_SHUTR|CF_SHUTR_NOW|CF_READ_ATTACHED|CF_READ_ERROR|CF_READ_NOEXP|CF_STREAMER|CF_STREAMER_FAST|CF_WRITE_PARTIAL|CF_NEVER_WAIT|CF_WROTE_DATA);
+	s->req.cons->state     = s->req.cons->prev_state = SI_ST_INI;
+	s->req.cons->err_type  = SI_ET_NONE;
+	s->req.cons->conn_retries = 0;  /* used for logging too */
+	s->req.cons->exp       = TICK_ETERNITY;
+	s->req.cons->flags    &= SI_FL_DONT_WAKE; /* we're in the context of process_session */
+	s->req.flags &= ~(CF_SHUTW|CF_SHUTW_NOW|CF_AUTO_CONNECT|CF_WRITE_ERROR|CF_STREAMER|CF_STREAMER_FAST|CF_NEVER_WAIT|CF_WAKE_CONNECT|CF_WROTE_DATA);
+	s->res.flags &= ~(CF_SHUTR|CF_SHUTR_NOW|CF_READ_ATTACHED|CF_READ_ERROR|CF_READ_NOEXP|CF_STREAMER|CF_STREAMER_FAST|CF_WRITE_PARTIAL|CF_NEVER_WAIT|CF_WROTE_DATA);
 	s->flags &= ~(SN_DIRECT|SN_ASSIGNED|SN_ADDR_SET|SN_BE_ASSIGNED|SN_FORCE_PRST|SN_IGNORE_PRST);
 	s->flags &= ~(SN_CURR_SESS|SN_REDIRECTABLE|SN_SRV_REUSED);
 	s->flags &= ~(SN_ERR_MASK|SN_FINST_MASK|SN_REDISP);
@@ -5058,11 +5058,11 @@ void http_end_txn_clean_session(struct session *s)
 	}
 
 	if (s->fe->options2 & PR_O2_INDEPSTR)
-		s->req->cons->flags |= SI_FL_INDEP_STR;
+		s->req.cons->flags |= SI_FL_INDEP_STR;
 
 	if (s->fe->options2 & PR_O2_NODELAY) {
-		s->req->flags |= CF_NEVER_WAIT;
-		s->rep->flags |= CF_NEVER_WAIT;
+		s->req.flags |= CF_NEVER_WAIT;
+		s->res.flags |= CF_NEVER_WAIT;
 	}
 
 	/* if the request buffer is not empty, it means we're
@@ -5072,24 +5072,24 @@ void http_end_txn_clean_session(struct session *s)
 	 * because the request will wait for it to flush a little
 	 * bit before proceeding.
 	 */
-	if (s->req->buf->i) {
-		if (s->rep->buf->o &&
-		    !buffer_full(s->rep->buf, global.tune.maxrewrite) &&
-		    bi_end(s->rep->buf) <= s->rep->buf->data + s->rep->buf->size - global.tune.maxrewrite)
-			s->rep->flags |= CF_EXPECT_MORE;
+	if (s->req.buf->i) {
+		if (s->res.buf->o &&
+		    !buffer_full(s->res.buf, global.tune.maxrewrite) &&
+		    bi_end(s->res.buf) <= s->res.buf->data + s->res.buf->size - global.tune.maxrewrite)
+			s->res.flags |= CF_EXPECT_MORE;
 	}
 
 	/* we're removing the analysers, we MUST re-enable events detection */
-	channel_auto_read(s->req);
-	channel_auto_close(s->req);
-	channel_auto_read(s->rep);
-	channel_auto_close(s->rep);
+	channel_auto_read(&s->req);
+	channel_auto_close(&s->req);
+	channel_auto_read(&s->res);
+	channel_auto_close(&s->res);
 
 	/* we're in keep-alive with an idle connection, monitor it */
-	si_idle_conn(s->req->cons);
+	si_idle_conn(s->req.cons);
 
-	s->req->analysers = s->listener->analysers;
-	s->rep->analysers = 0;
+	s->req.analysers = s->listener->analysers;
+	s->res.analysers = 0;
 }
 
 
@@ -5102,7 +5102,7 @@ void http_end_txn_clean_session(struct session *s)
  */
 int http_sync_req_state(struct session *s)
 {
-	struct channel *chn = s->req;
+	struct channel *chn = &s->req;
 	struct http_txn *txn = &s->txn;
 	unsigned int old_flags = chn->flags;
 	unsigned int old_state = txn->req.msg_state;
@@ -5240,7 +5240,7 @@ int http_sync_req_state(struct session *s)
  */
 int http_sync_res_state(struct session *s)
 {
-	struct channel *chn = s->rep;
+	struct channel *chn = &s->res;
 	struct http_txn *txn = &s->txn;
 	unsigned int old_flags = chn->flags;
 	unsigned int old_state = txn->rsp.msg_state;
@@ -5397,25 +5397,25 @@ int http_resync_states(struct session *s)
 	    txn->rsp.msg_state == HTTP_MSG_TUNNEL ||
 	    (txn->req.msg_state == HTTP_MSG_CLOSED &&
 	     txn->rsp.msg_state == HTTP_MSG_CLOSED)) {
-		s->req->analysers = 0;
-		channel_auto_close(s->req);
-		channel_auto_read(s->req);
-		s->rep->analysers = 0;
-		channel_auto_close(s->rep);
-		channel_auto_read(s->rep);
+		s->req.analysers = 0;
+		channel_auto_close(&s->req);
+		channel_auto_read(&s->req);
+		s->res.analysers = 0;
+		channel_auto_close(&s->res);
+		channel_auto_read(&s->res);
 	}
 	else if ((txn->req.msg_state >= HTTP_MSG_DONE &&
-		  (txn->rsp.msg_state == HTTP_MSG_CLOSED || (s->rep->flags & CF_SHUTW))) ||
+		  (txn->rsp.msg_state == HTTP_MSG_CLOSED || (s->res.flags & CF_SHUTW))) ||
 		 txn->rsp.msg_state == HTTP_MSG_ERROR ||
 		 txn->req.msg_state == HTTP_MSG_ERROR) {
-		s->rep->analysers = 0;
-		channel_auto_close(s->rep);
-		channel_auto_read(s->rep);
-		s->req->analysers = 0;
-		channel_abort(s->req);
-		channel_auto_close(s->req);
-		channel_auto_read(s->req);
-		channel_truncate(s->req);
+		s->res.analysers = 0;
+		channel_auto_close(&s->res);
+		channel_auto_read(&s->res);
+		s->req.analysers = 0;
+		channel_abort(&s->req);
+		channel_auto_close(&s->req);
+		channel_auto_read(&s->req);
+		channel_truncate(&s->req);
 	}
 	else if ((txn->req.msg_state == HTTP_MSG_DONE ||
 		  txn->req.msg_state == HTTP_MSG_CLOSED) &&
@@ -5494,7 +5494,7 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 	 * whichs need to parse/process the request after we've enabled forwarding.
 	 */
 	if (unlikely(msg->flags & HTTP_MSGF_WAIT_CONN)) {
-		if (!(s->rep->flags & CF_READ_ATTACHED)) {
+		if (!(s->res.flags & CF_READ_ATTACHED)) {
 			channel_auto_connect(req);
 			req->flags |= CF_WAKE_CONNECT;
 			goto missing_data;
@@ -5581,7 +5581,7 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 			 * such as last chunk of data or trailers.
 			 */
 			b_adv(req->buf, msg->next);
-			if (unlikely(!(s->req->flags & CF_WROTE_DATA)))
+			if (unlikely(!(s->req.flags & CF_WROTE_DATA)))
 				msg->sov -= msg->next;
 			msg->next = 0;
 
@@ -5633,7 +5633,7 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
  missing_data:
 	/* we may have some pending data starting at req->buf->p */
 	b_adv(req->buf, msg->next);
-	if (unlikely(!(s->req->flags & CF_WROTE_DATA)))
+	if (unlikely(!(s->req.flags & CF_WROTE_DATA)))
 		msg->sov -= msg->next + MIN(msg->chunk_len, req->buf->i);
 
 	msg->next = 0;
@@ -5700,7 +5700,7 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 		stream_int_retnclose(req->prod, http_error_message(s, HTTP_ERR_400));
 	}
 	req->analysers = 0;
-	s->rep->analysers = 0; /* we're in data phase, we want to abort both directions */
+	s->res.analysers = 0; /* we're in data phase, we want to abort both directions */
 
 	if (!(s->flags & SN_ERR_MASK))
 		s->flags |= SN_ERR_PRXCOND;
@@ -5722,7 +5722,7 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 		stream_int_retnclose(req->prod, http_error_message(s, HTTP_ERR_502));
 	}
 	req->analysers = 0;
-	s->rep->analysers = 0; /* we're in data phase, we want to abort both directions */
+	s->res.analysers = 0; /* we're in data phase, we want to abort both directions */
 
 	s->fe->fe_counters.srv_aborts++;
 	s->be->be_counters.srv_aborts++;
@@ -5743,7 +5743,7 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 /* This stream analyser waits for a complete HTTP response. It returns 1 if the
  * processing can continue on next analysers, or zero if it either needs more
  * data or wants to immediately abort the response (eg: timeout, error, ...). It
- * is tied to AN_RES_WAIT_HTTP and may may remove itself from s->rep->analysers
+ * is tied to AN_RES_WAIT_HTTP and may may remove itself from s->res.analysers
  * when it has nothing left to do, and may remove any analyser when it wants to
  * abort.
  */
@@ -5933,7 +5933,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 		}
 
 		/* client abort with an abortonclose */
-		else if ((rep->flags & CF_SHUTR) && ((s->req->flags & (CF_SHUTR|CF_SHUTW)) == (CF_SHUTR|CF_SHUTW))) {
+		else if ((rep->flags & CF_SHUTR) && ((s->req.flags & (CF_SHUTR|CF_SHUTW)) == (CF_SHUTR|CF_SHUTW))) {
 			s->fe->fe_counters.cli_aborts++;
 			s->be->be_counters.cli_aborts++;
 			if (objt_server(s->target))
@@ -6299,11 +6299,11 @@ skip_content_length:
 	 */
 	txn->status = 0;
 	rep->analysers = 0;
-	s->req->analysers = 0;
+	s->req.analysers = 0;
 	channel_auto_close(rep);
 	s->logs.logwait = 0;
 	s->logs.level = 0;
-	s->rep->flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
+	s->res.flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
 	channel_truncate(rep);
 	stream_int_retnclose(rep->cons, NULL);
 	return 0;
@@ -6311,7 +6311,7 @@ skip_content_length:
 
 /* This function performs all the processing enabled for the current response.
  * It normally returns 1 unless it wants to break. It relies on buffers flags,
- * and updates s->rep->analysers. It might make sense to explode it into several
+ * and updates s->res.analysers. It might make sense to explode it into several
  * other functions. It works like process_request (see indications above).
  */
 int http_process_res_common(struct session *s, struct channel *rep, int an_bit, struct proxy *px)
@@ -6666,7 +6666,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 
 	if ((res->flags & (CF_READ_ERROR|CF_READ_TIMEOUT|CF_WRITE_ERROR|CF_WRITE_TIMEOUT)) ||
 	    ((res->flags & CF_SHUTW) && (res->to_forward || res->buf->o)) ||
-	    !s->req->analysers) {
+	    !s->req.analysers) {
 		/* Output closed while we were sending data. We must abort and
 		 * wake the other side up.
 		 */
@@ -6870,7 +6870,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	 * server abort.
 	 */
 	if (res->flags & CF_SHUTR) {
-		if ((s->req->flags & (CF_SHUTR|CF_SHUTW)) == (CF_SHUTR|CF_SHUTW))
+		if ((s->req.flags & (CF_SHUTR|CF_SHUTW)) == (CF_SHUTR|CF_SHUTW))
 			goto aborted_xfer;
 		if (!(s->flags & SN_ERR_MASK))
 			s->flags |= SN_ERR_SRVCL;
@@ -6881,7 +6881,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	}
 
 	/* we need to obey the req analyser, so if it leaves, we must too */
-	if (!s->req->analysers)
+	if (!s->req.analysers)
 		goto return_bad_res;
 
 	/* When TE: chunked is used, we need to get there again to parse remaining
@@ -6929,7 +6929,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	/* don't send any error message as we're in the body */
 	stream_int_retnclose(res->cons, NULL);
 	res->analysers = 0;
-	s->req->analysers = 0; /* we're in data phase, we want to abort both directions */
+	s->req.analysers = 0; /* we're in data phase, we want to abort both directions */
 	if (objt_server(s->target))
 		health_adjust(objt_server(s->target), HANA_STATUS_HTTP_HDRRSP);
 
@@ -6949,7 +6949,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	/* don't send any error message as we're in the body */
 	stream_int_retnclose(res->cons, NULL);
 	res->analysers = 0;
-	s->req->analysers = 0; /* we're in data phase, we want to abort both directions */
+	s->req.analysers = 0; /* we're in data phase, we want to abort both directions */
 
 	s->fe->fe_counters.cli_aborts++;
 	s->be->be_counters.cli_aborts++;
@@ -8638,8 +8638,8 @@ void http_capture_bad_message(struct error_snapshot *es, struct session *s,
 	es->sid  = s->uniq_id;
 	es->srv  = objt_server(s->target);
 	es->oe   = other_end;
-	if (objt_conn(s->req->prod->end))
-		es->src  = __objt_conn(s->req->prod->end)->addr.from;
+	if (objt_conn(s->req.prod->end))
+		es->src  = __objt_conn(s->req.prod->end)->addr.from;
 	else
 		memset(&es->src, 0, sizeof(es->src));
 
@@ -8796,8 +8796,8 @@ void debug_hdr(const char *dir, struct session *s, const char *start, const char
 	int max;
 	chunk_printf(&trash, "%08x:%s.%s[%04x:%04x]: ", s->uniq_id, s->be->id,
 		      dir,
-		     objt_conn(s->req->prod->end) ? (unsigned short)objt_conn(s->req->prod->end)->t.sock.fd : -1,
-		     objt_conn(s->req->cons->end) ? (unsigned short)objt_conn(s->req->cons->end)->t.sock.fd : -1);
+		     objt_conn(s->req.prod->end) ? (unsigned short)objt_conn(s->req.prod->end)->t.sock.fd : -1,
+		     objt_conn(s->req.cons->end) ? (unsigned short)objt_conn(s->req.cons->end)->t.sock.fd : -1);
 
 	for (max = 0; start + max < end; max++)
 		if (start[max] == '\r' || start[max] == '\n')
@@ -8837,8 +8837,8 @@ void http_init_txn(struct session *s)
 	txn->rsp.body_len = 0LL;
 	txn->req.msg_state = HTTP_MSG_RQBEFORE; /* at the very beginning of the request */
 	txn->rsp.msg_state = HTTP_MSG_RPBEFORE; /* at the very beginning of the response */
-	txn->req.chn = s->req;
-	txn->rsp.chn = s->rep;
+	txn->req.chn = &s->req;
+	txn->rsp.chn = &s->res;
 
 	txn->auth.method = HTTP_AUTH_UNKNOWN;
 
@@ -8918,7 +8918,7 @@ void http_reset_txn(struct session *s)
 
 	s->pend_pos = NULL;
 
-	s->req->flags |= CF_READ_DONTWAIT; /* one read is usually enough */
+	s->req.flags |= CF_READ_DONTWAIT; /* one read is usually enough */
 
 	/* We must trim any excess data from the response buffer, because we
 	 * may have blocked an invalid response from a server that we don't
@@ -8928,21 +8928,21 @@ void http_reset_txn(struct session *s)
 	 * a HEAD with some data, or sending more than the advertised
 	 * content-length.
 	 */
-	if (unlikely(s->rep->buf->i))
-		s->rep->buf->i = 0;
+	if (unlikely(s->res.buf->i))
+		s->res.buf->i = 0;
 
-	s->req->rto = s->fe->timeout.client;
-	s->req->wto = TICK_ETERNITY;
+	s->req.rto = s->fe->timeout.client;
+	s->req.wto = TICK_ETERNITY;
 
-	s->rep->rto = TICK_ETERNITY;
-	s->rep->wto = s->fe->timeout.client;
+	s->res.rto = TICK_ETERNITY;
+	s->res.wto = s->fe->timeout.client;
 
-	s->req->rex = TICK_ETERNITY;
-	s->req->wex = TICK_ETERNITY;
-	s->req->analyse_exp = TICK_ETERNITY;
-	s->rep->rex = TICK_ETERNITY;
-	s->rep->wex = TICK_ETERNITY;
-	s->rep->analyse_exp = TICK_ETERNITY;
+	s->req.rex = TICK_ETERNITY;
+	s->req.wex = TICK_ETERNITY;
+	s->req.analyse_exp = TICK_ETERNITY;
+	s->res.rex = TICK_ETERNITY;
+	s->res.wex = TICK_ETERNITY;
+	s->res.analyse_exp = TICK_ETERNITY;
 }
 
 void free_http_res_rules(struct list *r)
@@ -9912,28 +9912,25 @@ smp_prefetch_http(struct proxy *px, struct session *s, void *l7, unsigned int op
 	smp->type = SMP_T_BOOL;
 
 	if ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) {
-		if (unlikely(!s->req))
-			return 0;
-
 		/* If the buffer does not leave enough free space at the end,
 		 * we must first realign it.
 		 */
-		if (s->req->buf->p > s->req->buf->data &&
-		    s->req->buf->i + s->req->buf->p > s->req->buf->data + s->req->buf->size - global.tune.maxrewrite)
-			buffer_slow_realign(s->req->buf);
+		if (s->req.buf->p > s->req.buf->data &&
+		    s->req.buf->i + s->req.buf->p > s->req.buf->data + s->req.buf->size - global.tune.maxrewrite)
+			buffer_slow_realign(s->req.buf);
 
 		if (unlikely(txn->req.msg_state < HTTP_MSG_BODY)) {
 			if (msg->msg_state == HTTP_MSG_ERROR)
 				return 0;
 
 			/* Try to decode HTTP request */
-			if (likely(msg->next < s->req->buf->i))
+			if (likely(msg->next < s->req.buf->i))
 				http_msg_analyzer(msg, &txn->hdr_idx);
 
 			/* Still no valid request ? */
 			if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 				if ((msg->msg_state == HTTP_MSG_ERROR) ||
-				    buffer_full(s->req->buf, global.tune.maxrewrite)) {
+				    buffer_full(s->req.buf, global.tune.maxrewrite)) {
 					return 0;
 				}
 				/* wait for final state */
@@ -9951,8 +9948,8 @@ smp_prefetch_http(struct proxy *px, struct session *s, void *l7, unsigned int op
 			 * cannot happen, but if the parsers are to change in the future,
 			 * we want this check to be maintained.
 			 */
-			if (unlikely(s->req->buf->i + s->req->buf->p >
-				     s->req->buf->data + s->req->buf->size - global.tune.maxrewrite)) {
+			if (unlikely(s->req.buf->i + s->req.buf->p >
+				     s->req.buf->data + s->req.buf->size - global.tune.maxrewrite)) {
 				msg->msg_state = HTTP_MSG_ERROR;
 				smp->data.uint = 1;
 				return 1;
@@ -11666,7 +11663,7 @@ int http_action_set_req_line(struct http_req_rule *rule, struct proxy *px, struc
 
 	switch (*(int *)&rule->arg.act.p[2]) {
 	case 0: // method
-		cur_ptr = s->req->buf->p;
+		cur_ptr = s->req.buf->p;
 		cur_end = cur_ptr + txn->req.sl.rq.m_l;
 
 		/* adjust req line offsets and lengths */
@@ -11679,10 +11676,10 @@ int http_action_set_req_line(struct http_req_rule *rule, struct proxy *px, struc
 	case 1: // path
 		cur_ptr = http_get_path(txn);
 		if (!cur_ptr)
-			cur_ptr = s->req->buf->p + txn->req.sl.rq.u;
+			cur_ptr = s->req.buf->p + txn->req.sl.rq.u;
 
 		cur_end = cur_ptr;
-		while (cur_end < s->req->buf->p + txn->req.sl.rq.u + txn->req.sl.rq.u_l && *cur_end != '?')
+		while (cur_end < s->req.buf->p + txn->req.sl.rq.u + txn->req.sl.rq.u_l && *cur_end != '?')
 			cur_end++;
 
 		/* adjust req line offsets and lengths */
@@ -11692,7 +11689,7 @@ int http_action_set_req_line(struct http_req_rule *rule, struct proxy *px, struc
 		break;
 
 	case 2: // query
-		cur_ptr = s->req->buf->p + txn->req.sl.rq.u;
+		cur_ptr = s->req.buf->p + txn->req.sl.rq.u;
 		cur_end = cur_ptr + txn->req.sl.rq.u_l;
 		while (cur_ptr < cur_end && *cur_ptr != '?')
 			cur_ptr++;
@@ -11712,7 +11709,7 @@ int http_action_set_req_line(struct http_req_rule *rule, struct proxy *px, struc
 		break;
 
 	case 3: // uri
-		cur_ptr = s->req->buf->p + txn->req.sl.rq.u;
+		cur_ptr = s->req.buf->p + txn->req.sl.rq.u;
 		cur_end = cur_ptr + txn->req.sl.rq.u_l;
 
 		/* adjust req line offsets and lengths */
@@ -11726,7 +11723,7 @@ int http_action_set_req_line(struct http_req_rule *rule, struct proxy *px, struc
 	}
 
 	/* commit changes and adjust end of message */
-	delta = buffer_replace2(s->req->buf, cur_ptr, cur_end, trash.str + offset, trash.len - offset);
+	delta = buffer_replace2(s->req.buf, cur_ptr, cur_end, trash.str + offset, trash.len - offset);
 	http_msg_move_end(&txn->req, delta);
 	return 0;
 }
