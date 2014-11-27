@@ -25,8 +25,10 @@
 #include <common/config.h>
 #include <common/memory.h>
 #include <types/session.h>
+#include <proto/fd.h>
 #include <proto/freq_ctr.h>
 #include <proto/stick_table.h>
+#include <proto/task.h>
 
 extern struct pool_head *pool2_session;
 extern struct list sessions;
@@ -54,8 +56,9 @@ int parse_track_counters(char **args, int *arg,
 
 /* Update the session's backend and server time stats */
 void session_update_time_stats(struct session *s);
-void session_offer_buffers(int count);
-int session_alloc_buffers(struct session *s);
+void __session_offer_buffers(int rqlimit);
+static inline void session_offer_buffers();
+int session_alloc_work_buffer(struct session *s);
 void session_release_buffers(struct session *s);
 int session_alloc_recv_buffer(struct session *s, struct buffer **buf);
 
@@ -270,6 +273,27 @@ static void inline session_init_srv_conn(struct session *sess)
 {
 	sess->srv_conn = NULL;
 	LIST_INIT(&sess->by_srv);
+}
+
+static inline void session_offer_buffers()
+{
+	int avail;
+
+	if (LIST_ISEMPTY(&buffer_wq))
+		return;
+
+	/* all sessions will need 1 buffer, so we can stop waking up sessions
+	 * once we have enough of them to eat all the buffers. Note that we
+	 * don't really know if they are sessions or just other tasks, but
+	 * that's a rough estimate. Similarly, for each cached event we'll need
+	 * 1 buffer. If no buffer is currently used, always wake up the number
+	 * of tasks we can offer a buffer based on what is allocated, and in
+	 * any case at least one task per two reserved buffers.
+	 */
+	avail = pool2_buffer->allocated - pool2_buffer->used - global.tune.reserved_bufs / 2;
+
+	if (avail > (int)run_queue)
+		__session_offer_buffers(avail);
 }
 
 #endif /* _PROTO_SESSION_H */

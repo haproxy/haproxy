@@ -621,7 +621,7 @@ static void session_free(struct session *s)
 	b_drop(&s->req->buf);
 	b_drop(&s->rep->buf);
 	if (!LIST_ISEMPTY(&buffer_wq))
-		session_offer_buffers(1);
+		session_offer_buffers();
 
 	pool_free2(pool2_channel, s->req);
 	pool_free2(pool2_channel, s->rep);
@@ -679,14 +679,22 @@ static void session_free(struct session *s)
 
 /* Allocates a single buffer for session <s>, but only if it's guaranteed that
  * it's not the last available buffer. To be called at the beginning of recv()
- * callbacks to ensure that the required buffers are properly allocated.
- * Returns 0 in case of failure, non-zero otherwise.
+ * callbacks to ensure that the required buffers are properly allocated. If the
+ * buffer is the session's request buffer, an extra control is made so that we
+ * always keep <tune.buffers.reserved> buffers available after this allocation.
+ * In all circumstances we leave at least 2 buffers so that any later call from
+ * process_session() has a chance to succeed. The response buffer is not bound
+ * to this control. Returns 0 in case of failure, non-zero otherwise.
  */
 int session_alloc_recv_buffer(struct session *s, struct buffer **buf)
 {
 	struct buffer *b;
+	int margin = 0;
 
-	b = b_alloc_margin(buf, 2);
+	if (buf == &s->req->buf)
+		margin = global.tune.reserved_bufs;
+
+	b = b_alloc_margin(buf, margin);
 	if (b)
 		return 1;
 
@@ -695,23 +703,39 @@ int session_alloc_recv_buffer(struct session *s, struct buffer **buf)
 	return 0;
 }
 
-/* Allocates up to two buffers for session <s>. Only succeeds if both buffers
- * are properly allocated. It is meant to be called inside process_session() so
- * that both request and response buffers are allocated. Returns 0 in case of
- * failure, non-zero otherwise.
+/* Allocates a work buffer for session <s>. It is meant to be called inside
+ * process_session(). It will only allocate the side needed for the function
+ * to work fine. For a regular connection, only the response is needed so that
+ * an error message may be built and returned. In case where the initiator is
+ * an applet (eg: peers), then we need to allocate the request buffer for the
+ * applet to be able to send its data (in this case a response is not needed).
+ * Request buffers are never picked from the reserved pool, but response
+ * buffers may be allocated from the reserve. This is critical to ensure that
+ * a response may always flow and will never block a server from releasing a
+ * connection. Returns 0 in case of failure, non-zero otherwise.
  */
-int session_alloc_buffers(struct session *s)
+int session_alloc_work_buffer(struct session *s)
 {
+	int margin;
+	struct buffer **buf;
+
+	if (objt_appctx(s->si[0].end)) {
+		buf = &s->req->buf;
+		margin = global.tune.reserved_bufs;
+	}
+	else {
+		buf = &s->rep->buf;
+		margin = 0;
+	}
+
 	if (!LIST_ISEMPTY(&s->buffer_wait)) {
 		LIST_DEL(&s->buffer_wait);
 		LIST_INIT(&s->buffer_wait);
 	}
 
-	if ((s->req->buf->size || b_alloc(&s->req->buf)) &&
-	    (s->rep->buf->size || b_alloc(&s->rep->buf)))
+	if (b_alloc_margin(buf, margin))
 		return 1;
 
-	session_release_buffers(s);
 	LIST_ADDQ(&buffer_wq, &s->buffer_wait);
 	return 0;
 }
@@ -724,10 +748,6 @@ int session_alloc_buffers(struct session *s)
  */
 void session_release_buffers(struct session *s)
 {
-	int release_count = 0;
-
-	release_count = !!s->req->buf->size + !!s->rep->buf->size;
-
 	if (s->req->buf->size && buffer_empty(s->req->buf))
 		b_free(&s->req->buf);
 
@@ -737,27 +757,28 @@ void session_release_buffers(struct session *s)
 	/* if we're certain to have at least 1 buffer available, and there is
 	 * someone waiting, we can wake up a waiter and offer them.
 	 */
-	if (release_count >= 1 && !LIST_ISEMPTY(&buffer_wq))
-		session_offer_buffers(release_count);
+	if (!LIST_ISEMPTY(&buffer_wq))
+		session_offer_buffers();
 }
 
-/* run across the list of pending sessions waiting for a buffer and wake
- * one up if buffers are available.
+/* Runs across the list of pending sessions waiting for a buffer and wakes one
+ * up if buffers are available. Will stop when the run queue reaches <rqlimit>.
+ * Should not be called directly, use session_offer_buffers() instead.
  */
-void session_offer_buffers(int count)
+void __session_offer_buffers(int rqlimit)
 {
 	struct session *sess, *bak;
 
 	list_for_each_entry_safe(sess, bak, &buffer_wq, buffer_wait) {
+		if (rqlimit <= run_queue)
+			break;
+
 		if (sess->task->state & TASK_RUNNING)
 			continue;
 
 		LIST_DEL(&sess->buffer_wait);
 		LIST_INIT(&sess->buffer_wait);
-
 		task_wakeup(sess->task, TASK_WOKEN_RES);
-		if (--count <= 0)
-			break;
 	}
 }
 
@@ -1797,7 +1818,7 @@ struct task *process_session(struct task *t)
 	/* below we may emit error messages so we have to ensure that we have
 	 * our buffers properly allocated.
 	 */
-	if (!session_alloc_buffers(s)) {
+	if (!session_alloc_work_buffer(s)) {
 		/* No buffer available, we've been subscribed to the list of
 		 * buffer waiters, let's wait for our turn.
 		 */

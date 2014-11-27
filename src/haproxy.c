@@ -142,6 +142,7 @@ struct global global = {
 		.bufsize = BUFSIZE,
 		.maxrewrite = MAXREWRITE,
 		.chksize = BUFSIZE,
+		.reserved_bufs = RESERVED_BUFS,
 #ifdef USE_OPENSSL
 		.sslcachesize = SSLCACHESIZE,
 		.ssl_default_dh_param = SSL_DEFAULT_DH_PARAM,

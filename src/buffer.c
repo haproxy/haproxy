@@ -34,8 +34,27 @@ struct buffer buf_wanted = { .p = buf_wanted.data };
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_buffer()
 {
+	void *buffer;
+
 	pool2_buffer = create_pool("buffer", sizeof (struct buffer) + global.tune.bufsize, MEM_F_SHARED);
-	return pool2_buffer != NULL;
+	if (!pool2_buffer)
+		return 0;
+
+	/* The reserved buffer is what we leave behind us. Thus we always need
+	 * at least one extra buffer in minavail otherwise we'll end up waking
+	 * up tasks with no memory available, causing a lot of useless wakeups.
+	 * That means that we always want to have at least 3 buffers available
+	 * (2 for current session, one for next session that might be needed to
+	 * release a server connection).
+	 */
+	pool2_buffer->minavail = MAX(global.tune.reserved_bufs, 3);
+
+	buffer = pool_refill_alloc(pool2_buffer, pool2_buffer->minavail - 1);
+	if (!buffer)
+		return 0;
+
+	pool_free2(pool2_buffer, buffer);
+	return 1;
 }
 
 /* This function writes the string <str> at position <pos> which must be in

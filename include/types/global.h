@@ -128,6 +128,7 @@ struct global {
 		int recv_enough;   /* how many input bytes at once are "enough" */
 		int bufsize;       /* buffer size in bytes, defaults to BUFSIZE */
 		int maxrewrite;    /* buffer max rewrite size in bytes, defaults to MAXREWRITE */
+		int reserved_bufs; /* how many buffers can only be allocated for response */
 		int client_sndbuf; /* set client sndbuf to this value if not null */
 		int client_rcvbuf; /* set client rcvbuf to this value if not null */
 		int server_sndbuf; /* set server sndbuf to this value if not null */
