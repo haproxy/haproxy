@@ -1,7 +1,7 @@
 /*
  * Channel management functions.
  *
- * Copyright 2000-2012 Willy Tarreau <w@1wt.eu>
+ * Copyright 2000-2014 Willy Tarreau <w@1wt.eu>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -16,20 +16,10 @@
 #include <string.h>
 
 #include <common/config.h>
-#include <common/memory.h>
 #include <common/buffer.h>
 
 #include <proto/channel.h>
 
-struct pool_head *pool2_channel;
-
-
-/* perform minimal intializations, report 0 in case of error, 1 if OK. */
-int init_channel()
-{
-	pool2_channel = create_pool("channel", sizeof(struct channel), MEM_F_SHARED);
-	return pool2_channel != NULL;
-}
 
 /* Schedule up to <bytes> more bytes to be forwarded via the channel without
  * notifying the owner task. Any data pending in the buffer are scheduled to be

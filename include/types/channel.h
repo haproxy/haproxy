@@ -2,7 +2,7 @@
  * include/types/channel.h
  * Channel management definitions, macros and inline functions.
  *
- * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2014 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -23,7 +23,6 @@
 #define _TYPES_CHANNEL_H
 
 #include <common/config.h>
-#include <common/chunk.h>
 #include <common/buffer.h>
 #include <types/stream_interface.h>
 
@@ -162,8 +161,6 @@
 /* Magic value to forward infinite size (TCP, ...), used with ->to_forward */
 #define CHN_INFINITE_FORWARD    MAX_RANGE(unsigned int)
 
-/* needed for a declaration below */
-struct session;
 
 struct channel {
 	unsigned int flags;             /* CF_* */

@@ -1820,7 +1820,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	memset(socket, 0, sizeof(*socket));
 
 	/* Check if the various memory pools are intialized. */
-	if (!pool2_session || !pool2_channel || !pool2_buffer) {
+	if (!pool2_session || !pool2_buffer) {
 		hlua_pusherror(L, "socket: uninitialized pools.");
 		goto out_fail_conf;
 	}

@@ -2,7 +2,7 @@
  * include/proto/channel.h
  * Channel management definitions, macros and inline functions.
  *
- * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2014 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -28,14 +28,11 @@
 
 #include <common/config.h>
 #include <common/chunk.h>
-#include <common/memory.h>
 #include <common/ticks.h>
 #include <common/time.h>
 
 #include <types/channel.h>
 #include <types/global.h>
-
-extern struct pool_head *pool2_channel;
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_channel();
