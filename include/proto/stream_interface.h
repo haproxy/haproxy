@@ -64,6 +64,15 @@ static inline struct channel *si_oc(struct stream_interface *si)
 		return &LIST_ELEM(si, struct session *, si[0])->res;
 }
 
+/* returns the session associated to a stream interface */
+static inline struct session *si_sess(struct stream_interface *si)
+{
+	if (si->flags & SI_FL_ISBACK)
+		return LIST_ELEM(si, struct session *, si[1]);
+	else
+		return LIST_ELEM(si, struct session *, si[0]);
+}
+
 /* Initializes all required fields for a new appctx. Note that it does the
  * minimum acceptable initialization for an appctx. This means only the
  * 3 integer states st0, st1, st2 are zeroed.
@@ -363,12 +372,6 @@ static inline int si_connect(struct stream_interface *si)
 		conn_get_from_addr(conn);
 
 	return ret;
-}
-
-/* finds the session which owns a stream interface */
-static inline struct session *si_sess(struct stream_interface *si)
-{
-	return (struct session *)((struct task *)si->owner)->context;
 }
 
 /* for debugging, reports the stream interface state name */
