@@ -33,6 +33,7 @@
 
 #include <types/channel.h>
 #include <types/global.h>
+#include <types/session.h>
 #include <types/stream_interface.h>
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
@@ -56,13 +57,19 @@ int bo_getblk_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int *
 /* returns a pointer to the stream interface feeding the channel (producer) */
 static inline struct stream_interface *chn_prod(const struct channel *chn)
 {
-	return chn->prod;
+	if (chn->flags & CF_ISRESP)
+		return &LIST_ELEM(chn, struct session *, res)->si[1];
+	else
+		return &LIST_ELEM(chn, struct session *, req)->si[0];
 }
 
 /* returns a pointer to the stream interface consuming the channel (producer) */
 static inline struct stream_interface *chn_cons(const struct channel *chn)
 {
-	return chn->cons;
+	if (chn->flags & CF_ISRESP)
+		return &LIST_ELEM(chn, struct session *, res)->si[0];
+	else
+		return &LIST_ELEM(chn, struct session *, req)->si[1];
 }
 
 /* Initialize all fields in the channel. */
