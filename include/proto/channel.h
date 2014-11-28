@@ -82,7 +82,6 @@ static inline void channel_init(struct channel *chn)
 	chn->total = 0;
 	chn->pipe = NULL;
 	chn->analysers = 0;
-	chn->cons = NULL;
 	chn->flags = 0;
 }
 

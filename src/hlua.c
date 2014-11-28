@@ -1910,12 +1910,6 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	channel_init(&socket->s->res);
 	socket->s->res.flags |= CF_ISRESP;
 
-	socket->s->req.prod = &socket->s->si[0];
-	socket->s->req.cons = &socket->s->si[1];
-
-	socket->s->res.prod = &socket->s->si[1];
-	socket->s->res.cons = &socket->s->si[0];
-
 	socket->s->req.analysers = 0;
 	socket->s->req.rto = socket_proxy.timeout.client;
 	socket->s->req.wto = socket_proxy.timeout.server;

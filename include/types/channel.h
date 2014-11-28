@@ -24,7 +24,6 @@
 
 #include <common/config.h>
 #include <common/buffer.h>
-#include <types/stream_interface.h>
 
 /* The CF_* macros designate Channel Flags, which may be ORed in the bit field
  * member 'flags' in struct channel. Here we have several types of flags :
@@ -167,8 +166,6 @@ struct channel {
 	unsigned int flags;             /* CF_* */
 	unsigned int analysers;         /* bit field indicating what to do on the channel */
 	struct buffer *buf;		/* buffer attached to the channel, always present but may move */
-	struct stream_interface *cons;  /* consumer attached to this channel */
-	struct stream_interface *prod;  /* producer attached to this channel */
 	struct pipe *pipe;		/* non-NULL only when data present */
 	unsigned int to_forward;        /* number of bytes to forward after out without a wake-up */
 	unsigned short last_read;       /* 16 lower bits of last read date (max pause=65s) */

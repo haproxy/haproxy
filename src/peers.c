@@ -1238,9 +1238,6 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	txn->hdr_idx.size = txn->hdr_idx.used = 0;
 
 	channel_init(&s->req);
-	s->req.prod = &s->si[0];
-	s->req.cons = &s->si[1];
-
 	s->req.flags |= CF_READ_ATTACHED; /* the producer is already connected */
 
 	/* activate default analysers enabled for this listener */
@@ -1257,9 +1254,6 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 
 	channel_init(&s->res);
 	s->res.flags |= CF_ISRESP;
-
-	s->res.prod = &s->si[1];
-	s->res.cons = &s->si[0];
 
 	s->res.rto = s->be->timeout.server;
 	s->res.wto = s->fe->timeout.client;

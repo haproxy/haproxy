@@ -488,8 +488,6 @@ int session_complete(struct session *s)
 	s->store_count = 0;
 
 	channel_init(&s->req);
-	s->req.prod = &s->si[0];
-	s->req.cons = &s->si[1];
 	s->req.flags |= CF_READ_ATTACHED; /* the producer is already connected */
 
 	/* activate default analysers enabled for this listener */
@@ -503,9 +501,6 @@ int session_complete(struct session *s)
 
 	channel_init(&s->res);
 	s->res.flags |= CF_ISRESP;
-
-	s->res.prod = &s->si[1];
-	s->res.cons = &s->si[0];
 	s->res.analysers = 0;
 
 	if (s->fe->options2 & PR_O2_NODELAY) {
