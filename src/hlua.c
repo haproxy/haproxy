@@ -1439,7 +1439,7 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	 */
 	if (socket->s->req.buf->size == 0) {
 		if (!session_alloc_recv_buffer(socket->s, &socket->s->req.buf)) {
-			chn_prod(&socket->s->req)->flags |= SI_FL_WAIT_ROOM;
+			socket->s->si[0].flags |= SI_FL_WAIT_ROOM;
 			goto hlua_socket_write_yield_return;
 		}
 	}
@@ -1734,7 +1734,7 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	ip      = MAY_LJMP(luaL_checkstring(L, 2));
 	port    = MAY_LJMP(luaL_checkinteger(L, 3));
 
-	conn = si_alloc_conn(chn_cons(&socket->s->req), 0);
+	conn = si_alloc_conn(&socket->s->si[1], 0);
 	if (!conn)
 		WILL_LJMP(luaL_error(L, "connect: internal error"));
 

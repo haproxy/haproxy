@@ -548,7 +548,7 @@ int assign_server(struct session *s)
 
 	srv = NULL;
 	s->target = NULL;
-	conn = objt_conn(chn_cons(&s->req)->end);
+	conn = objt_conn(s->si[1].end);
 
 	if (conn &&
 	    (conn->flags & CO_FL_CONNECTED) &&
@@ -607,7 +607,7 @@ int assign_server(struct session *s)
 
 			switch (s->be->lbprm.algo & BE_LB_PARM) {
 			case BE_LB_HASH_SRC:
-				conn = objt_conn(chn_prod(&s->req)->end);
+				conn = objt_conn(s->si[0].end);
 				if (conn && conn->addr.from.ss_family == AF_INET) {
 					srv = get_server_sh(s->be,
 							    (void *)&((struct sockaddr_in *)&conn->addr.from)->sin_addr,
@@ -698,7 +698,7 @@ int assign_server(struct session *s)
 		s->target = &s->be->obj_type;
 	}
 	else if ((s->be->options & PR_O_HTTP_PROXY) &&
-		 (conn = objt_conn(chn_cons(&s->req)->end)) &&
+		 (conn = objt_conn(s->si[1].end)) &&
 		 is_addr(&conn->addr.to)) {
 		/* in proxy mode, we need a valid destination address */
 		s->target = &s->be->obj_type;
@@ -746,8 +746,8 @@ int assign_server(struct session *s)
  */
 int assign_server_address(struct session *s)
 {
-	struct connection *cli_conn = objt_conn(chn_prod(&s->req)->end);
-	struct connection *srv_conn = objt_conn(chn_cons(&s->req)->end);
+	struct connection *cli_conn = objt_conn(s->si[0].end);
+	struct connection *srv_conn = objt_conn(s->si[1].end);
 
 #ifdef DEBUG_FULL
 	fprintf(stderr,"assign_server_address : s=%p\n",s);
@@ -942,7 +942,7 @@ int assign_server_and_queue(struct session *s)
 /* If an explicit source binding is specified on the server and/or backend, and
  * this source makes use of the transparent proxy, then it is extracted now and
  * assigned to the session's pending connection. This function assumes that an
- * outgoing connection has already been assigned to chn_cons(&s->req)->end.
+ * outgoing connection has already been assigned to s->si[1].end.
  */
 static void assign_tproxy_address(struct session *s)
 {
@@ -950,7 +950,7 @@ static void assign_tproxy_address(struct session *s)
 	struct server *srv = objt_server(s->target);
 	struct conn_src *src;
 	struct connection *cli_conn;
-	struct connection *srv_conn = objt_conn(chn_cons(&s->req)->end);
+	struct connection *srv_conn = objt_conn(s->si[1].end);
 
 	if (srv && srv->conn_src.opts & CO_SRC_BIND)
 		src = &srv->conn_src;
@@ -966,7 +966,7 @@ static void assign_tproxy_address(struct session *s)
 	case CO_SRC_TPROXY_CLI:
 	case CO_SRC_TPROXY_CIP:
 		/* FIXME: what can we do if the client connects in IPv6 or unix socket ? */
-		cli_conn = objt_conn(chn_prod(&s->req)->end);
+		cli_conn = objt_conn(s->si[0].end);
 		if (cli_conn)
 			srv_conn->addr.from = cli_conn->addr.from;
 		else
@@ -1001,7 +1001,7 @@ static void assign_tproxy_address(struct session *s)
 
 /*
  * This function initiates a connection to the server assigned to this session
- * (s->target, chn_cons(&s->req)->addr.to). It will assign a server if none
+ * (s->target, s->si[1].addr.to). It will assign a server if none
  * is assigned yet.
  * It can return one of :
  *  - SN_ERR_NONE if everything's OK
@@ -1012,7 +1012,7 @@ static void assign_tproxy_address(struct session *s)
  *  - SN_ERR_INTERNAL for any other purely internal errors
  * Additionnally, in the case of SN_ERR_RESOURCE, an emergency log will be emitted.
  * The server-facing stream interface is expected to hold a pre-allocated connection
- * in chn_cons(&s->req)->conn.
+ * in s->si[1].conn.
  */
 int connect_server(struct session *s)
 {
@@ -1022,7 +1022,7 @@ int connect_server(struct session *s)
 	int reuse = 0;
 	int err;
 
-	srv_conn = objt_conn(chn_cons(&s->req)->end);
+	srv_conn = objt_conn(s->si[1].end);
 	if (srv_conn)
 		reuse = s->target == srv_conn->target;
 
@@ -1043,7 +1043,7 @@ int connect_server(struct session *s)
 		}
 	}
 
-	srv_conn = si_alloc_conn(chn_cons(&s->req), reuse);
+	srv_conn = si_alloc_conn(&s->si[1], reuse);
 	if (!srv_conn)
 		return SN_ERR_RESOURCE;
 
@@ -1064,7 +1064,7 @@ int connect_server(struct session *s)
 		else if (obj_type(s->target) == OBJ_TYPE_PROXY) {
 			/* proxies exclusively run on raw_sock right now */
 			conn_prepare(srv_conn, protocol_by_family(srv_conn->addr.to.ss_family), &raw_sock);
-			if (!objt_conn(chn_cons(&s->req)->end) || !objt_conn(chn_cons(&s->req)->end)->ctrl)
+			if (!objt_conn(s->si[1].end) || !objt_conn(s->si[1].end)->ctrl)
 				return SN_ERR_INTERNAL;
 		}
 		else
@@ -1074,36 +1074,36 @@ int connect_server(struct session *s)
 		srv_conn->send_proxy_ofs = 0;
 		if (objt_server(s->target) && objt_server(s->target)->pp_opts) {
 			srv_conn->send_proxy_ofs = 1; /* must compute size */
-			cli_conn = objt_conn(chn_prod(&s->req)->end);
+			cli_conn = objt_conn(s->si[0].end);
 			if (cli_conn)
 				conn_get_to_addr(cli_conn);
 		}
 
-		si_attach_conn(chn_cons(&s->req), srv_conn);
+		si_attach_conn(&s->si[1], srv_conn);
 
 		assign_tproxy_address(s);
 	}
 	else {
 		/* the connection is being reused, just re-attach it */
-		si_attach_conn(chn_cons(&s->req), srv_conn);
+		si_attach_conn(&s->si[1], srv_conn);
 		s->flags |= SN_SRV_REUSED;
 	}
 
 	/* flag for logging source ip/port */
 	if (s->fe->options2 & PR_O2_SRC_ADDR)
-		chn_cons(&s->req)->flags |= SI_FL_SRC_ADDR;
+		s->si[1].flags |= SI_FL_SRC_ADDR;
 
 	/* disable lingering */
 	if (s->be->options & PR_O_TCP_NOLING)
-		chn_cons(&s->req)->flags |= SI_FL_NOLINGER;
+		s->si[1].flags |= SI_FL_NOLINGER;
 
-	err = si_connect(chn_cons(&s->req));
+	err = si_connect(&s->si[1]);
 
 	if (err != SN_ERR_NONE)
 		return err;
 
 	/* set connect timeout */
-	chn_cons(&s->req)->exp = tick_add_ifset(now_ms, s->be->timeout.connect);
+	s->si[1].exp = tick_add_ifset(now_ms, s->be->timeout.connect);
 
 	srv = objt_server(s->target);
 	if (srv) {
@@ -1157,8 +1157,8 @@ int srv_redispatch_connect(struct session *s)
 			goto redispatch;
 		}
 
-		if (!chn_cons(&s->req)->err_type) {
-			chn_cons(&s->req)->err_type = SI_ET_QUEUE_ERR;
+		if (!s->si[1].err_type) {
+			s->si[1].err_type = SI_ET_QUEUE_ERR;
 		}
 
 		srv->counters.failed_conns++;
@@ -1167,23 +1167,23 @@ int srv_redispatch_connect(struct session *s)
 
 	case SRV_STATUS_NOSRV:
 		/* note: it is guaranteed that srv == NULL here */
-		if (!chn_cons(&s->req)->err_type) {
-			chn_cons(&s->req)->err_type = SI_ET_CONN_ERR;
+		if (!s->si[1].err_type) {
+			s->si[1].err_type = SI_ET_CONN_ERR;
 		}
 
 		s->be->be_counters.failed_conns++;
 		return 1;
 
 	case SRV_STATUS_QUEUED:
-		chn_cons(&s->req)->exp = tick_add_ifset(now_ms, s->be->timeout.queue);
-		chn_cons(&s->req)->state = SI_ST_QUE;
+		s->si[1].exp = tick_add_ifset(now_ms, s->be->timeout.queue);
+		s->si[1].state = SI_ST_QUE;
 		/* do nothing else and do not wake any other session up */
 		return 1;
 
 	case SRV_STATUS_INTERNAL:
 	default:
-		if (!chn_cons(&s->req)->err_type) {
-			chn_cons(&s->req)->err_type = SI_ET_CONN_OTHER;
+		if (!s->si[1].err_type) {
+			s->si[1].err_type = SI_ET_CONN_OTHER;
 		}
 
 		if (srv)
