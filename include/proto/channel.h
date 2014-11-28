@@ -129,6 +129,9 @@ static inline int channel_full(const struct channel *chn)
 {
 	int rem = chn->buf->size;
 
+	if (chn->buf == &buf_empty)
+		return 0;
+
 	rem -= chn->buf->o;
 	rem -= chn->buf->i;
 	if (!rem)

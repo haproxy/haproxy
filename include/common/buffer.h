@@ -176,6 +176,9 @@ static inline int buffer_empty(const struct buffer *buf)
  */
 static inline int buffer_full(const struct buffer *b, unsigned int reserve)
 {
+	if (b == &buf_empty)
+		return 0;
+
 	return (b->i + reserve >= b->size);
 }
 
@@ -282,7 +285,10 @@ static inline int buffer_work_area(const struct buffer *buf, const char *end)
 /* Return 1 if the buffer has less than 1/4 of its capacity free, otherwise 0 */
 static inline int buffer_almost_full(const struct buffer *buf)
 {
-	if (buffer_total_space(buf) < buf->size / 4)
+	if (buf == &buf_empty)
+		return 0;
+
+	if (!buf->size || buffer_total_space(buf) < buf->size / 4)
 		return 1;
 	return 0;
 }
