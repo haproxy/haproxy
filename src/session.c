@@ -861,10 +861,11 @@ void session_process_counters(struct session *s)
  * SI_ST_CON (no change). The function returns 0 if it switches to SI_ST_CER,
  * otherwise 1. This only works with connection-based sessions.
  */
-static int sess_update_st_con_tcp(struct session *s, struct stream_interface *si)
+static int sess_update_st_con_tcp(struct session *s)
 {
-	struct channel *req = si_oc(si);
-	struct channel *rep = si_ic(si);
+	struct stream_interface *si = &s->si[1];
+	struct channel *req = &s->req;
+	struct channel *rep = &s->res;
 	struct connection *srv_conn = __objt_conn(si->end);
 
 	/* If we got an error, or if nothing happened and the connection timed
@@ -932,8 +933,10 @@ static int sess_update_st_con_tcp(struct session *s, struct stream_interface *si
  * and SI_ST_REQ when an immediate redispatch is wanted. The buffers are
  * marked as in error state. It returns 0.
  */
-static int sess_update_st_cer(struct session *s, struct stream_interface *si)
+static int sess_update_st_cer(struct session *s)
 {
+	struct stream_interface *si = &s->si[1];
+
 	/* we probably have to release last session from the server */
 	if (objt_server(s->target)) {
 		health_adjust(objt_server(s->target), HANA_STATUS_L4_ERR);
@@ -1029,10 +1032,11 @@ static int sess_update_st_cer(struct session *s, struct stream_interface *si)
  * SI_ST_EST state. It must only be called after switching from SI_ST_CON (or
  * SI_ST_INI) to SI_ST_EST, but only when a ->proto is defined.
  */
-static void sess_establish(struct session *s, struct stream_interface *si)
+static void sess_establish(struct session *s)
 {
-	struct channel *req = si_oc(si);
-	struct channel *rep = si_ic(si);
+	struct stream_interface *si = &s->si[1];
+	struct channel *req = &s->req;
+	struct channel *rep = &s->res;
 
 	/* First, centralize the timers information */
 	s->logs.t_connect = tv_ms_elapsed(&s->logs.tv_accept, &now);
@@ -1068,15 +1072,16 @@ static void sess_establish(struct session *s, struct stream_interface *si)
 	req->wex = TICK_ETERNITY;
 }
 
-/* Update stream interface status for input states SI_ST_ASS, SI_ST_QUE, SI_ST_TAR.
- * Other input states are simply ignored.
+/* Update back stream interface status for input states SI_ST_ASS, SI_ST_QUE,
+ * SI_ST_TAR. Other input states are simply ignored.
  * Possible output states are SI_ST_CLO, SI_ST_TAR, SI_ST_ASS, SI_ST_REQ, SI_ST_CON
  * and SI_ST_EST. Flags must have previously been updated for timeouts and other
  * conditions.
  */
-static void sess_update_stream_int(struct session *s, struct stream_interface *si)
+static void sess_update_stream_int(struct session *s)
 {
 	struct server *srv = objt_server(s->target);
+	struct stream_interface *si = &s->si[1];
 
 	DPRINTF(stderr,"[%u] %s: sess=%p rq=%p, rp=%p, exp(r,w)=%u,%u rqf=%08x rpf=%08x rqh=%d rqt=%d rph=%d rpt=%d cs=%d ss=%d\n",
 		now_ms, __FUNCTION__,
@@ -1143,7 +1148,7 @@ static void sess_update_stream_int(struct session *s, struct stream_interface *s
 		 */
 		si->state = SI_ST_CER;
 		si->flags &= ~SI_FL_ERR;
-		sess_update_st_cer(s, si);
+		sess_update_st_cer(s);
 		/* now si->state is one of SI_ST_CLO, SI_ST_TAR, SI_ST_ASS, SI_ST_REQ */
 		return;
 	}
@@ -1268,8 +1273,10 @@ static void sess_set_term_flags(struct session *s)
  * or SI_ST_EST for a successful connection to an applet. It may also return
  * SI_ST_QUE, or SI_ST_CLO upon error.
  */
-static void sess_prepare_conn_req(struct session *s, struct stream_interface *si)
+static void sess_prepare_conn_req(struct session *s)
 {
+	struct stream_interface *si = &s->si[1];
+
 	DPRINTF(stderr,"[%u] %s: sess=%p rq=%p, rp=%p, exp(r,w)=%u,%u rqf=%08x rpf=%08x rqh=%d rqt=%d rph=%d rpt=%d cs=%d ss=%d\n",
 		now_ms, __FUNCTION__,
 		s,
@@ -1872,10 +1879,10 @@ struct task *process_session(struct task *t)
 		/* we were trying to establish a connection on the server side,
 		 * maybe it succeeded, maybe it failed, maybe we timed out, ...
 		 */
-		if (unlikely(!sess_update_st_con_tcp(s, si_b)))
-			sess_update_st_cer(s, si_b);
+		if (unlikely(!sess_update_st_con_tcp(s)))
+			sess_update_st_cer(s);
 		else if (si_b->state == SI_ST_EST)
-			sess_establish(s, si_b);
+			sess_establish(s);
 
 		/* state is now one of SI_ST_CON (still in progress), SI_ST_EST
 		 * (established), SI_ST_DIS (abort), SI_ST_CLO (last error),
@@ -2392,16 +2399,16 @@ struct task *process_session(struct task *t)
 			 * to give a chance to step 2 to perform a redirect if needed.
 			 */
 			if (si_b->state != SI_ST_REQ)
-				sess_update_stream_int(s, si_b);
+				sess_update_stream_int(s);
 			if (si_b->state == SI_ST_REQ)
-				sess_prepare_conn_req(s, si_b);
+				sess_prepare_conn_req(s);
 
 			/* applets directly go to the ESTABLISHED state. Similarly,
 			 * servers experience the same fate when their connection
 			 * is reused.
 			 */
 			if (unlikely(si_b->state == SI_ST_EST))
-				sess_establish(s, si_b);
+				sess_establish(s);
 
 			/* Now we can add the server name to a header (if requested) */
 			/* check for HTTP mode and proxy server_name_hdr_name != NULL */
