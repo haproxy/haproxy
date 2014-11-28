@@ -1095,7 +1095,7 @@ __LJMP static struct hlua_socket *hlua_checksocket(lua_State *L, int ud)
 static void hlua_socket_handler(struct stream_interface *si)
 {
 	struct appctx *appctx = objt_appctx(si->end);
-	struct connection *c = objt_conn(si_ic(si)->cons->end);
+	struct connection *c = objt_conn(si_opposite(si)->end);
 
 	/* Wakeup the main session if the client connection is closed. */
 	if (!c || channel_output_closed(si_ic(si)) || channel_input_closed(si_oc(si))) {

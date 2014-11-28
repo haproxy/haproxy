@@ -94,6 +94,15 @@ static inline struct task *si_task(struct stream_interface *si)
 		return LIST_ELEM(si, struct session *, si[0])->task;
 }
 
+/* returns the stream interface on the other side. Used during forwarding. */
+static inline struct stream_interface *si_opposite(struct stream_interface *si)
+{
+	if (si->flags & SI_FL_ISBACK)
+		return &LIST_ELEM(si, struct session *, si[1])->si[0];
+	else
+		return &LIST_ELEM(si, struct session *, si[0])->si[1];
+}
+
 /* Initializes all required fields for a new appctx. Note that it does the
  * minimum acceptable initialization for an appctx. This means only the
  * 3 integer states st0, st1, st2 are zeroed.

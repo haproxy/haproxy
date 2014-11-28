@@ -176,13 +176,13 @@ static void stream_int_update_embedded(struct stream_interface *si)
 	old_flags = si->flags;
 	if (likely((si_oc(si)->flags & (CF_SHUTW|CF_WRITE_PARTIAL|CF_DONT_READ)) == CF_WRITE_PARTIAL &&
 		   channel_may_recv(si_oc(si)) &&
-		   (si_oc(si)->prod->flags & SI_FL_WAIT_ROOM)))
-		si_chk_rcv(si_oc(si)->prod);
+		   (si_opposite(si)->flags & SI_FL_WAIT_ROOM)))
+		si_chk_rcv(si_opposite(si));
 
 	if (((si_ic(si)->flags & CF_READ_PARTIAL) && !channel_is_empty(si_ic(si))) &&
 	    (si_ic(si)->pipe /* always try to send spliced data */ ||
-	     (si_ib(si)->i == 0 && (si_ic(si)->cons->flags & SI_FL_WAIT_DATA)))) {
-		si_chk_snd(si_ic(si)->cons);
+	     (si_ib(si)->i == 0 && (si_opposite(si)->flags & SI_FL_WAIT_DATA)))) {
+		si_chk_snd(si_opposite(si));
 		/* check if the consumer has freed some space */
 		if (channel_may_recv(si_ic(si)) && !si_ic(si)->pipe)
 			si->flags &= ~SI_FL_WAIT_ROOM;
@@ -203,14 +203,14 @@ static void stream_int_update_embedded(struct stream_interface *si)
 	    si->state != SI_ST_EST ||
 	    (si->flags & SI_FL_ERR) ||
 	    ((si_ic(si)->flags & CF_READ_PARTIAL) &&
-	     (!si_ic(si)->to_forward || si_ic(si)->cons->state != SI_ST_EST)) ||
+	     (!si_ic(si)->to_forward || si_opposite(si)->state != SI_ST_EST)) ||
 
 	    /* changes on the consumption side */
 	    (si_oc(si)->flags & (CF_WRITE_NULL|CF_WRITE_ERROR)) ||
 	    ((si_oc(si)->flags & CF_WRITE_ACTIVITY) &&
 	     ((si_oc(si)->flags & CF_SHUTW) ||
 	      ((si_oc(si)->flags & CF_WAKE_WRITE) &&
-	       (si_oc(si)->prod->state != SI_ST_EST ||
+	       (si_opposite(si)->state != SI_ST_EST ||
 	        (channel_is_empty(si_oc(si)) && !si_oc(si)->to_forward)))))) {
 		if (!(si->flags & SI_FL_DONT_WAKE))
 			task_wakeup(si_task(si), TASK_WOKEN_IO);
@@ -424,7 +424,7 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 		 */
 		if (conn->data == &si_conn_cb) {
 			struct stream_interface *si = conn->owner;
-			struct connection *remote = objt_conn(si_oc(si)->prod->end);
+			struct connection *remote = objt_conn(si_opposite(si)->end);
 			ret = make_proxy_line(trash.str, trash.size, objt_server(conn->target), remote);
 		}
 		else {
@@ -586,8 +586,8 @@ static int si_conn_wake_cb(struct connection *conn)
 
 		if (likely((si_oc(si)->flags & (CF_SHUTW|CF_WRITE_PARTIAL|CF_DONT_READ)) == CF_WRITE_PARTIAL &&
 			   channel_may_recv(si_oc(si)) &&
-			   (si_oc(si)->prod->flags & SI_FL_WAIT_ROOM)))
-			si_chk_rcv(si_oc(si)->prod);
+			   (si_opposite(si)->flags & SI_FL_WAIT_ROOM)))
+			si_chk_rcv(si_opposite(si));
 	}
 
 	/* process producer side.
@@ -599,10 +599,10 @@ static int si_conn_wake_cb(struct connection *conn)
 	 */
 	if (((si_ic(si)->flags & CF_READ_PARTIAL) && !channel_is_empty(si_ic(si))) &&
 	    (si_ic(si)->pipe /* always try to send spliced data */ ||
-	     (si_ib(si)->i == 0 && (si_ic(si)->cons->flags & SI_FL_WAIT_DATA)))) {
+	     (si_ib(si)->i == 0 && (si_opposite(si)->flags & SI_FL_WAIT_DATA)))) {
 		int last_len = si_ic(si)->pipe ? si_ic(si)->pipe->data : 0;
 
-		si_chk_snd(si_ic(si)->cons);
+		si_chk_snd(si_opposite(si));
 
 		/* check if the consumer has freed some space either in the
 		 * buffer or in the pipe.
@@ -630,14 +630,14 @@ static int si_conn_wake_cb(struct connection *conn)
 	    si->state != SI_ST_EST ||
 	    (si->flags & SI_FL_ERR) ||
 	    ((si_ic(si)->flags & CF_READ_PARTIAL) &&
-	     (!si_ic(si)->to_forward || si_ic(si)->cons->state != SI_ST_EST)) ||
+	     (!si_ic(si)->to_forward || si_opposite(si)->state != SI_ST_EST)) ||
 
 	    /* changes on the consumption side */
 	    (si_oc(si)->flags & (CF_WRITE_NULL|CF_WRITE_ERROR)) ||
 	    ((si_oc(si)->flags & CF_WRITE_ACTIVITY) &&
 	     ((si_oc(si)->flags & CF_SHUTW) ||
 	      ((si_oc(si)->flags & CF_WAKE_WRITE) &&
-	       (si_oc(si)->prod->state != SI_ST_EST ||
+	       (si_opposite(si)->state != SI_ST_EST ||
 	        (channel_is_empty(si_oc(si)) && !si_oc(si)->to_forward)))))) {
 		task_wakeup(si_task(si), TASK_WOKEN_IO);
 	}
