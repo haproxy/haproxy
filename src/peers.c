@@ -1166,7 +1166,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->si[0].flags = SI_FL_NONE;
 	s->si[1].flags = SI_FL_ISBACK;
 
-	si_reset(&s->si[0], t);
+	si_reset(&s->si[0]);
 	si_set_state(&s->si[0], SI_ST_EST);
 
 	if (s->fe->options2 & PR_O2_INDEPSTR)
@@ -1178,7 +1178,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	appctx->st0 = PEER_SESS_ST_CONNECT;
 	appctx->ctx.peers.ptr = (void *)ps;
 
-	si_reset(&s->si[1], t);
+	si_reset(&s->si[1]);
 
 	/* initiate an outgoing connection */
 	si_set_state(&s->si[1], SI_ST_ASS);

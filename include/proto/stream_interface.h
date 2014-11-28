@@ -124,11 +124,11 @@ static inline void appctx_free(struct appctx *appctx)
 }
 
 /* initializes a stream interface in the SI_ST_INI state. It's detached from
- * any endpoint and is only attached to an owner (generally a task).
+ * any endpoint and only keeps its side which is expected to have already been
+ * set.
  */
-static inline void si_reset(struct stream_interface *si, void *owner)
+static inline void si_reset(struct stream_interface *si)
 {
-	si->owner          = owner;
 	si->err_type       = SI_ET_NONE;
 	si->conn_retries   = 0;  /* used for logging too */
 	si->exp            = TICK_ETERNITY;

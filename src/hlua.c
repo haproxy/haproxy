@@ -1994,7 +1994,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	channel_auto_close(&socket->s->req); /* let the producer forward close requests */
 
 	socket->s->si[0].flags = SI_FL_NONE;
-	si_reset(&socket->s->si[0], socket->s->task);
+	si_reset(&socket->s->si[0]);
 	si_set_state(&socket->s->si[0], SI_ST_EST); /* connection established (resource exists) */
 
 	appctx = stream_int_register_handler(&socket->s->si[0], &update_applet);
@@ -2010,7 +2010,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	 * with the "struct server".
 	 */
 	socket->s->si[1].flags = SI_FL_ISBACK;
-	si_reset(&socket->s->si[1], socket->s->task);
+	si_reset(&socket->s->si[1]);
 	si_set_state(&socket->s->si[1], SI_ST_INI);
 	socket->s->si[1].conn_retries = socket_proxy.conn_retries;
 

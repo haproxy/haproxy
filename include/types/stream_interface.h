@@ -175,7 +175,6 @@ struct stream_interface {
 	enum si_state prev_state;/* SI_ST*, copy of previous state */
 	unsigned short flags;    /* SI_FL_* */
 	unsigned int exp;       /* wake up time for connect, queue, turn-around, ... */
-	void *owner;            /* generally a (struct task*) */
 	enum obj_type *end;     /* points to the end point (connection or appctx) */
 	struct si_ops *ops;     /* general operations at the stream interface layer */
 

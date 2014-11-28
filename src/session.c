@@ -458,7 +458,7 @@ int session_complete(struct session *s)
 	}
 
 	/* this part should be common with other protocols */
-	si_reset(&s->si[0], t);
+	si_reset(&s->si[0]);
 	si_set_state(&s->si[0], SI_ST_EST);
 
 	/* attach the incoming connection to the stream interface now.
@@ -474,7 +474,7 @@ int session_complete(struct session *s)
 	/* pre-initialize the other side's stream interface to an INIT state. The
 	 * callbacks will be initialized before attempting to connect.
 	 */
-	si_reset(&s->si[1], t);
+	si_reset(&s->si[1]);
 	si_detach(&s->si[1]);
 
 	if (likely(s->fe->options2 & PR_O2_INDEPSTR))
