@@ -2,7 +2,7 @@
  * include/types/stream_interface.h
  * This file describes the stream_interface struct and associated constants.
  *
- * Copyright (C) 2000-2011 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2014 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -25,8 +25,6 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 
-#include <types/channel.h>
-#include <types/connection.h>
 #include <types/hlua.h>
 #include <types/obj_type.h>
 #include <common/config.h>
@@ -177,7 +175,6 @@ struct stream_interface {
 	enum si_state prev_state;/* SI_ST*, copy of previous state */
 	unsigned short flags;    /* SI_FL_* */
 	unsigned int exp;       /* wake up time for connect, queue, turn-around, ... */
-	struct channel *ib, *ob; /* input and output buffers */
 	void *owner;            /* generally a (struct task*) */
 	enum obj_type *end;     /* points to the end point (connection or appctx) */
 	struct si_ops *ops;     /* general operations at the stream interface layer */

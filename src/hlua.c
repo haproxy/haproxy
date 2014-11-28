@@ -1915,12 +1915,6 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	socket->s->res.prod = &socket->s->si[1];
 	socket->s->res.cons = &socket->s->si[0];
 
-	socket->s->si[0].ib = &socket->s->req;
-	socket->s->si[0].ob = &socket->s->res;
-
-	socket->s->si[1].ib = &socket->s->res;
-	socket->s->si[1].ob = &socket->s->req;
-
 	socket->s->req.analysers = 0;
 	socket->s->req.rto = socket_proxy.timeout.client;
 	socket->s->req.wto = socket_proxy.timeout.server;

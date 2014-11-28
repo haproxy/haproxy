@@ -1240,7 +1240,6 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	channel_init(&s->req);
 	s->req.prod = &s->si[0];
 	s->req.cons = &s->si[1];
-	s->si[0].ib = s->si[1].ob = &s->req;
 
 	s->req.flags |= CF_READ_ATTACHED; /* the producer is already connected */
 
@@ -1259,7 +1258,6 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	channel_init(&s->res);
 	s->res.prod = &s->si[1];
 	s->res.cons = &s->si[0];
-	s->si[0].ob = s->si[1].ib = &s->res;
 
 	s->res.rto = s->be->timeout.server;
 	s->res.wto = s->fe->timeout.client;
