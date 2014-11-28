@@ -1999,6 +1999,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	channel_auto_connect(&socket->s->req); /* don't wait to establish connection */
 	channel_auto_close(&socket->s->req); /* let the producer forward close requests */
 
+	socket->s->si[0].flags = SI_FL_NONE;
 	si_reset(&socket->s->si[0], socket->s->task);
 	si_set_state(&socket->s->si[0], SI_ST_EST); /* connection established (resource exists) */
 
@@ -2014,6 +2015,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	 * and retrieve data from the server. The connection is initialized
 	 * with the "struct server".
 	 */
+	socket->s->si[1].flags = SI_FL_ISBACK;
 	si_reset(&socket->s->si[1], socket->s->task);
 	si_set_state(&socket->s->si[1], SI_ST_INI);
 	socket->s->si[1].conn_retries = socket_proxy.conn_retries;

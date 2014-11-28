@@ -72,7 +72,7 @@ enum {
 	SI_FL_ERR        = 0x0002,  /* a non-recoverable error has occurred */
 	SI_FL_WAIT_ROOM  = 0x0004,  /* waiting for space to store incoming data */
 	SI_FL_WAIT_DATA  = 0x0008,  /* waiting for more data to send */
-	/* unused          0x0010 */
+	SI_FL_ISBACK     = 0x0010,  /* 0 for front-side SI, 1 for back-side */
 	SI_FL_DONT_WAKE  = 0x0020,  /* resync in progress, don't wake up */
 	SI_FL_INDEP_STR  = 0x0040,  /* independent streams = don't update rex on write */
 	SI_FL_NOLINGER   = 0x0080,  /* may close without lingering. One-shot. */

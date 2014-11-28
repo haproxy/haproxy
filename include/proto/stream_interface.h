@@ -108,7 +108,7 @@ static inline void si_reset(struct stream_interface *si, void *owner)
 	si->err_type       = SI_ET_NONE;
 	si->conn_retries   = 0;  /* used for logging too */
 	si->exp            = TICK_ETERNITY;
-	si->flags          = SI_FL_NONE;
+	si->flags         &= SI_FL_ISBACK;
 	si->end            = NULL;
 	si->state          = si->prev_state = SI_ST_INI;
 }

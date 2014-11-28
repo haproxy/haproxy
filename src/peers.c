@@ -1163,6 +1163,9 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->be = s->fe = p;
 	s->req.buf = s->res.buf = NULL;
 
+	s->si[0].flags = SI_FL_NONE;
+	s->si[1].flags = SI_FL_ISBACK;
+
 	si_reset(&s->si[0], t);
 	si_set_state(&s->si[0], SI_ST_EST);
 

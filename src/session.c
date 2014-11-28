@@ -119,6 +119,9 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->listener = l;
 	s->fe  = p;
 
+	s->si[0].flags = SI_FL_NONE;
+	s->si[1].flags = SI_FL_ISBACK;
+
 	/* On a mini-session, the connection is directly attached to the
 	 * session's target so that we don't need to initialize the stream
 	 * interfaces. Another benefit is that it's easy to detect a mini-
