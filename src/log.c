@@ -984,7 +984,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_CLIENTIP:  // %ci
-				conn = objt_conn(s->req.prod->end);
+				conn = objt_conn(chn_prod(&s->req)->end);
 				if (conn)
 					ret = lf_ip(tmplog, (struct sockaddr *)&conn->addr.from, dst + maxsize - tmplog, tmp);
 				else
@@ -996,7 +996,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_CLIENTPORT:  // %cp
-				conn = objt_conn(s->req.prod->end);
+				conn = objt_conn(chn_prod(&s->req)->end);
 				if (conn) {
 					if (conn->addr.from.ss_family == AF_UNIX) {
 						ret = ltoa_o(s->listener->luid, tmplog, dst + maxsize - tmplog);
@@ -1015,7 +1015,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_FRONTENDIP: // %fi
-				conn = objt_conn(s->req.prod->end);
+				conn = objt_conn(chn_prod(&s->req)->end);
 				if (conn) {
 					conn_get_to_addr(conn);
 					ret = lf_ip(tmplog, (struct sockaddr *)&conn->addr.to, dst + maxsize - tmplog, tmp);
@@ -1030,7 +1030,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case  LOG_FMT_FRONTENDPORT: // %fp
-				conn = objt_conn(s->req.prod->end);
+				conn = objt_conn(chn_prod(&s->req)->end);
 				if (conn) {
 					conn_get_to_addr(conn);
 					if (conn->addr.to.ss_family == AF_UNIX)
@@ -1048,7 +1048,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_BACKENDIP:  // %bi
-				conn = objt_conn(s->req.cons->end);
+				conn = objt_conn(chn_cons(&s->req)->end);
 				if (conn)
 					ret = lf_ip(tmplog, (struct sockaddr *)&conn->addr.from, dst + maxsize - tmplog, tmp);
 				else
@@ -1061,7 +1061,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_BACKENDPORT:  // %bp
-				conn = objt_conn(s->req.cons->end);
+				conn = objt_conn(chn_cons(&s->req)->end);
 				if (conn)
 					ret = lf_port(tmplog, (struct sockaddr *)&conn->addr.from, dst + maxsize - tmplog, tmp);
 				else
@@ -1074,7 +1074,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_SERVERIP: // %si
-				conn = objt_conn(s->req.cons->end);
+				conn = objt_conn(chn_cons(&s->req)->end);
 				if (conn)
 					ret = lf_ip(tmplog, (struct sockaddr *)&conn->addr.to, dst + maxsize - tmplog, tmp);
 				else
@@ -1087,7 +1087,7 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 				break;
 
 			case LOG_FMT_SERVERPORT: // %sp
-				conn = objt_conn(s->req.cons->end);
+				conn = objt_conn(chn_cons(&s->req)->end);
 				if (conn)
 					ret = lf_port(tmplog, (struct sockaddr *)&conn->addr.to, dst + maxsize - tmplog, tmp);
 				else
@@ -1386,8 +1386,8 @@ int build_logline(struct session *s, char *dst, size_t maxsize, struct list *lis
 			case LOG_FMT_RETRIES:  // %rq
 				if (s->flags & SN_REDISP)
 					LOGCHAR('+');
-				ret = ltoa_o((s->req.cons->conn_retries>0) ?
-				                (be->conn_retries - s->req.cons->conn_retries) :
+				ret = ltoa_o((chn_cons(&s->req)->conn_retries>0) ?
+				                (be->conn_retries - chn_cons(&s->req)->conn_retries) :
 				                be->conn_retries, tmplog, dst + maxsize - tmplog);
 				if (ret == NULL)
 					goto out;
@@ -1611,7 +1611,7 @@ void sess_log(struct session *s)
 	err = (s->flags & SN_REDISP) ||
               ((s->flags & SN_ERR_MASK) > SN_ERR_LOCAL) ||
 	      (((s->flags & SN_ERR_MASK) == SN_ERR_NONE) &&
-	       (s->req.cons->conn_retries != s->be->conn_retries)) ||
+	       (chn_cons(&s->req)->conn_retries != s->be->conn_retries)) ||
 	      ((s->fe->mode == PR_MODE_HTTP) && s->txn.status >= 500);
 
 	if (!err && (s->fe->options2 & PR_O2_NOLOGNORM))

@@ -33,6 +33,7 @@
 
 #include <types/channel.h>
 #include <types/global.h>
+#include <types/stream_interface.h>
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_channel();
@@ -51,6 +52,18 @@ int bo_getblk(struct channel *chn, char *blk, int len, int offset);
 int bo_getline_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int *len2);
 int bo_getblk_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int *len2);
 
+
+/* returns a pointer to the stream interface feeding the channel (producer) */
+static inline struct stream_interface *chn_prod(const struct channel *chn)
+{
+	return chn->prod;
+}
+
+/* returns a pointer to the stream interface consuming the channel (producer) */
+static inline struct stream_interface *chn_cons(const struct channel *chn)
+{
+	return chn->cons;
+}
 
 /* Initialize all fields in the channel. */
 static inline void channel_init(struct channel *chn)
@@ -127,7 +140,7 @@ static inline int channel_is_rewritable(const struct channel *chn)
  */
 static inline int channel_may_send(const struct channel *chn)
 {
-	return chn->cons->state == SI_ST_EST;
+	return chn_cons(chn)->state == SI_ST_EST;
 }
 
 /* Returns the amount of bytes from the channel that are already scheduled for

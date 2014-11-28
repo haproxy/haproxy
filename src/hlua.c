@@ -1439,7 +1439,7 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	 */
 	if (socket->s->req.buf->size == 0) {
 		if (!session_alloc_recv_buffer(socket->s, &socket->s->req.buf)) {
-			socket->s->req.prod->flags |= SI_FL_WAIT_ROOM;
+			chn_prod(&socket->s->req)->flags |= SI_FL_WAIT_ROOM;
 			goto hlua_socket_write_yield_return;
 		}
 	}
@@ -1734,7 +1734,7 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	ip      = MAY_LJMP(luaL_checkstring(L, 2));
 	port    = MAY_LJMP(luaL_checkinteger(L, 3));
 
-	conn = si_alloc_conn(socket->s->req.cons, 0);
+	conn = si_alloc_conn(chn_cons(&socket->s->req), 0);
 	if (!conn)
 		WILL_LJMP(luaL_error(L, "connect: internal error"));
 
@@ -2328,7 +2328,7 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 	 */
 	if (chn->chn->buf->size == 0) {
 		if (!session_alloc_recv_buffer(chn->s, &chn->chn->buf)) {
-			chn->chn->prod->flags |= SI_FL_WAIT_ROOM;
+			chn_prod(chn->chn)->flags |= SI_FL_WAIT_ROOM;
 			WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_send_yield, TICK_ETERNITY, 0));
 		}
 	}
