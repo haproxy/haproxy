@@ -181,7 +181,7 @@ static void stream_int_update_embedded(struct stream_interface *si)
 
 	if (((si_ic(si)->flags & CF_READ_PARTIAL) && !channel_is_empty(si_ic(si))) &&
 	    (si_ic(si)->pipe /* always try to send spliced data */ ||
-	     (si_ic(si)->buf->i == 0 && (si_ic(si)->cons->flags & SI_FL_WAIT_DATA)))) {
+	     (si_ib(si)->i == 0 && (si_ic(si)->cons->flags & SI_FL_WAIT_DATA)))) {
 		si_chk_snd(si_ic(si)->cons);
 		/* check if the consumer has freed some space */
 		if (channel_may_recv(si_ic(si)) && !si_ic(si)->pipe)
@@ -599,7 +599,7 @@ static int si_conn_wake_cb(struct connection *conn)
 	 */
 	if (((si_ic(si)->flags & CF_READ_PARTIAL) && !channel_is_empty(si_ic(si))) &&
 	    (si_ic(si)->pipe /* always try to send spliced data */ ||
-	     (si_ic(si)->buf->i == 0 && (si_ic(si)->cons->flags & SI_FL_WAIT_DATA)))) {
+	     (si_ib(si)->i == 0 && (si_ic(si)->cons->flags & SI_FL_WAIT_DATA)))) {
 		int last_len = si_ic(si)->pipe ? si_ic(si)->pipe->data : 0;
 
 		si_chk_snd(si_ic(si)->cons);

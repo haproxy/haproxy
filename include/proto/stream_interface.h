@@ -64,6 +64,18 @@ static inline struct channel *si_oc(struct stream_interface *si)
 		return &LIST_ELEM(si, struct session *, si[0])->res;
 }
 
+/* returns the buffer which receives data from this stream interface (input channel's buffer) */
+static inline struct buffer *si_ib(struct stream_interface *si)
+{
+	return si_ic(si)->buf;
+}
+
+/* returns the buffer which feeds data to this stream interface (output channel's buffer) */
+static inline struct buffer *si_ob(struct stream_interface *si)
+{
+	return si_oc(si)->buf;
+}
+
 /* returns the session associated to a stream interface */
 static inline struct session *si_sess(struct stream_interface *si)
 {

@@ -1445,7 +1445,7 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	}
 
 	/* Check for avalaible space. */
-	len = buffer_total_space(si_ic(&socket->s->si[0])->buf);
+	len = buffer_total_space(si_ib(&socket->s->si[0]));
 	if (len <= 0)
 		goto hlua_socket_write_yield_return;
 

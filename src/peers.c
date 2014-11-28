@@ -647,7 +647,7 @@ switchstate:
 						to_store = 0;
 						to_read = ntohl(netinteger);
 
-						if (to_read + totl > si_oc(si)->buf->size) {
+						if (to_read + totl > si_ob(si)->size) {
 							/* impossible to read a key this large, abort */
 							reql = -1;
 							goto incomplete;

@@ -2263,7 +2263,7 @@ static void cli_io_handler(struct stream_interface *si)
 			/* ensure we have some output room left in the event we
 			 * would want to return some info right after parsing.
 			 */
-			if (buffer_almost_full(si_ic(si)->buf)) {
+			if (buffer_almost_full(si_ib(si))) {
 				si_ic(si)->flags |= CF_WAKE_WRITE;
 				break;
 			}
@@ -3625,7 +3625,7 @@ static void stats_dump_html_px_hdr(struct stream_interface *si, struct proxy *px
 		scope_txt[0] = 0;
 		if (appctx->ctx.stats.scope_len) {
 			strcpy(scope_txt, STAT_SCOPE_PATTERN);
-			memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), bo_ptr(si_oc(si)->buf) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
+			memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), bo_ptr(si_ob(si)) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
 			scope_txt[strlen(STAT_SCOPE_PATTERN) + appctx->ctx.stats.scope_len] = 0;
 		}
 
@@ -3778,7 +3778,7 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 		 * name does not match, skip it.
 		 */
 		if (appctx->ctx.stats.scope_len &&
-		    strnistr(px->id, strlen(px->id), bo_ptr(si_oc(si)->buf) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len) == NULL)
+		    strnistr(px->id, strlen(px->id), bo_ptr(si_ob(si)) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len) == NULL)
 			return 1;
 
 		if ((appctx->ctx.stats.flags & STAT_BOUND) &&
@@ -4134,7 +4134,7 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 	              );
 
 	/* scope_txt = search query, appctx->ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
-	memcpy(scope_txt, bo_ptr(si_oc(si)->buf) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
+	memcpy(scope_txt, bo_ptr(si_ob(si)) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
 	scope_txt[appctx->ctx.stats.scope_len] = '\0';
 
 	chunk_appendf(&trash,
@@ -4149,7 +4149,7 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 	scope_txt[0] = 0;
 	if (appctx->ctx.stats.scope_len) {
 		strcpy(scope_txt, STAT_SCOPE_PATTERN);
-		memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), bo_ptr(si_oc(si)->buf) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
+		memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), bo_ptr(si_ob(si)) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
 		scope_txt[strlen(STAT_SCOPE_PATTERN) + appctx->ctx.stats.scope_len] = 0;
 	}
 
@@ -4756,7 +4756,7 @@ static int stats_send_http_redirect(struct stream_interface *si)
 	scope_txt[0] = 0;
 	if (appctx->ctx.stats.scope_len) {
 		strcpy(scope_txt, STAT_SCOPE_PATTERN);
-		memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), bo_ptr(si_oc(si)->buf) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
+		memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), bo_ptr(si_ob(si)) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
 		scope_txt[strlen(STAT_SCOPE_PATTERN) + appctx->ctx.stats.scope_len] = 0;
 	}
 
@@ -4820,7 +4820,7 @@ static void http_stats_io_handler(struct stream_interface *si)
 	}
 
 	if (appctx->st0 == STAT_HTTP_DUMP) {
-		unsigned int prev_len = si_ic(si)->buf->i;
+		unsigned int prev_len = si_ib(si)->i;
 		unsigned int data_len;
 		unsigned int last_len;
 		unsigned int last_fwd = 0;
@@ -4840,11 +4840,11 @@ static void http_stats_io_handler(struct stream_interface *si)
 			}
 		}
 
-		data_len = si_ic(si)->buf->i;
+		data_len = si_ib(si)->i;
 		if (stats_dump_stat_to_buffer(si, s->be->uri_auth))
 			appctx->st0 = STAT_HTTP_DONE;
 
-		last_len = si_ic(si)->buf->i;
+		last_len = si_ib(si)->i;
 
 		/* Now we must either adjust or remove the chunk size. This is
 		 * not easy because the chunk size might wrap at the end of the
@@ -4854,15 +4854,15 @@ static void http_stats_io_handler(struct stream_interface *si)
 		 * applet.
 		 */
 		if (appctx->ctx.stats.flags & STAT_CHUNKED) {
-			si_ic(si)->total  -= (last_len - prev_len);
-			si_ic(si)->buf->i -= (last_len - prev_len);
+			si_ic(si)->total -= (last_len - prev_len);
+			si_ib(si)->i     -= (last_len - prev_len);
 
 			if (last_len != data_len) {
 				chunk_printf(&trash, "\r\n%06x\r\n", (last_len - data_len));
 				bi_putchk(si_ic(si), &trash);
 
-				si_ic(si)->total  += (last_len - data_len);
-				si_ic(si)->buf->i += (last_len - data_len);
+				si_ic(si)->total += (last_len - data_len);
+				si_ib(si)->i     += (last_len - data_len);
 			}
 			/* now re-enable forwarding */
 			channel_forward(si_ic(si), last_fwd);
@@ -4888,7 +4888,7 @@ static void http_stats_io_handler(struct stream_interface *si)
 				goto fail;
 		}
 		/* eat the whole request */
-		bo_skip(si_oc(si), si_oc(si)->buf->o);
+		bo_skip(si_oc(si), si_ob(si)->o);
 		res->flags |= CF_READ_NULL;
 		si_shutr(si);
 	}
