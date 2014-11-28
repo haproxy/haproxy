@@ -49,13 +49,19 @@ void stream_int_unregister_handler(struct stream_interface *si);
 /* returns the channel which receives data from this stream interface (input channel) */
 static inline struct channel *si_ic(struct stream_interface *si)
 {
-	return si->ib;
+	if (si->flags & SI_FL_ISBACK)
+		return &LIST_ELEM(si, struct session *, si[1])->res;
+	else
+		return &LIST_ELEM(si, struct session *, si[0])->req;
 }
 
 /* returns the channel which feeds data to this stream interface (output channel) */
 static inline struct channel *si_oc(struct stream_interface *si)
 {
-	return si->ob;
+	if (si->flags & SI_FL_ISBACK)
+		return &LIST_ELEM(si, struct session *, si[1])->req;
+	else
+		return &LIST_ELEM(si, struct session *, si[0])->res;
 }
 
 /* Initializes all required fields for a new appctx. Note that it does the
