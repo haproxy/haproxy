@@ -865,8 +865,8 @@ void session_process_counters(struct session *s)
  */
 static int sess_update_st_con_tcp(struct session *s, struct stream_interface *si)
 {
-	struct channel *req = si->ob;
-	struct channel *rep = si->ib;
+	struct channel *req = si_oc(si);
+	struct channel *rep = si_ic(si);
 	struct connection *srv_conn = __objt_conn(si->end);
 
 	/* If we got an error, or if nothing happened and the connection timed
@@ -874,14 +874,14 @@ static int sess_update_st_con_tcp(struct session *s, struct stream_interface *si
 	 * attempts and error reports.
 	 */
 	if (unlikely(si->flags & (SI_FL_EXP|SI_FL_ERR))) {
-		if (unlikely(si->ob->flags & CF_WRITE_PARTIAL)) {
+		if (unlikely(si_oc(si)->flags & CF_WRITE_PARTIAL)) {
 			/* Some data were sent past the connection establishment,
 			 * so we need to pretend we're established to log correctly
 			 * and let later states handle the failure.
 			 */
 			si->state    = SI_ST_EST;
 			si->err_type = SI_ET_DATA_ERR;
-			si->ib->flags |= CF_READ_ERROR | CF_WRITE_ERROR;
+			si_ic(si)->flags |= CF_READ_ERROR | CF_WRITE_ERROR;
 			return 1;
 		}
 		si->exp   = TICK_ETERNITY;
@@ -962,8 +962,8 @@ static int sess_update_st_cer(struct session *s, struct stream_interface *si)
 
 		/* shutw is enough so stop a connecting socket */
 		si_shutw(si);
-		si->ob->flags |= CF_WRITE_ERROR;
-		si->ib->flags |= CF_READ_ERROR;
+		si_oc(si)->flags |= CF_WRITE_ERROR;
+		si_ic(si)->flags |= CF_READ_ERROR;
 
 		si->state = SI_ST_CLO;
 		if (s->srv_error)
@@ -1033,8 +1033,8 @@ static int sess_update_st_cer(struct session *s, struct stream_interface *si)
  */
 static void sess_establish(struct session *s, struct stream_interface *si)
 {
-	struct channel *req = si->ob;
-	struct channel *rep = si->ib;
+	struct channel *req = si_oc(si);
+	struct channel *rep = si_ic(si);
 
 	/* First, centralize the timers information */
 	s->logs.t_connect = tv_ms_elapsed(&s->logs.tv_accept, &now);
@@ -1128,7 +1128,7 @@ static void sess_update_stream_int(struct session *s, struct stream_interface *s
 			/* Failed and not retryable. */
 			si_shutr(si);
 			si_shutw(si);
-			si->ob->flags |= CF_WRITE_ERROR;
+			si_oc(si)->flags |= CF_WRITE_ERROR;
 
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
 
@@ -1177,7 +1177,7 @@ static void sess_update_stream_int(struct session *s, struct stream_interface *s
 			s->be->be_counters.failed_conns++;
 			si_shutr(si);
 			si_shutw(si);
-			si->ob->flags |= CF_WRITE_TIMEOUT;
+			si_oc(si)->flags |= CF_WRITE_TIMEOUT;
 			if (!si->err_type)
 				si->err_type = SI_ET_QUEUE_TO;
 			si->state = SI_ST_CLO;
@@ -1187,9 +1187,9 @@ static void sess_update_stream_int(struct session *s, struct stream_interface *s
 		}
 
 		/* Connection remains in queue, check if we have to abort it */
-		if ((si->ob->flags & (CF_READ_ERROR)) ||
-		    ((si->ob->flags & CF_SHUTW_NOW) &&   /* empty and client aborted */
-		     (channel_is_empty(si->ob) || s->be->options & PR_O_ABRT_CLOSE))) {
+		if ((si_oc(si)->flags & (CF_READ_ERROR)) ||
+		    ((si_oc(si)->flags & CF_SHUTW_NOW) &&   /* empty and client aborted */
+		     (channel_is_empty(si_oc(si)) || s->be->options & PR_O_ABRT_CLOSE))) {
 			/* give up */
 			si->exp = TICK_ETERNITY;
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
@@ -1207,9 +1207,9 @@ static void sess_update_stream_int(struct session *s, struct stream_interface *s
 	}
 	else if (si->state == SI_ST_TAR) {
 		/* Connection request might be aborted */
-		if ((si->ob->flags & (CF_READ_ERROR)) ||
-		    ((si->ob->flags & CF_SHUTW_NOW) &&  /* empty and client aborted */
-		     (channel_is_empty(si->ob) || s->be->options & PR_O_ABRT_CLOSE))) {
+		if ((si_oc(si)->flags & (CF_READ_ERROR)) ||
+		    ((si_oc(si)->flags & CF_SHUTW_NOW) &&  /* empty and client aborted */
+		     (channel_is_empty(si_oc(si)) || s->be->options & PR_O_ABRT_CLOSE))) {
 			/* give up */
 			si->exp = TICK_ETERNITY;
 			si_shutr(si);
@@ -1299,7 +1299,7 @@ static void sess_prepare_conn_req(struct session *s, struct stream_interface *si
 
 			si_shutr(si);
 			si_shutw(si);
-			si->ob->flags |= CF_WRITE_ERROR;
+			si_oc(si)->flags |= CF_WRITE_ERROR;
 			si->err_type = SI_ET_CONN_RES;
 			si->state = SI_ST_CLO;
 			if (s->srv_error)
@@ -1326,7 +1326,7 @@ static void sess_prepare_conn_req(struct session *s, struct stream_interface *si
 		/* we did not get any server, let's check the cause */
 		si_shutr(si);
 		si_shutw(si);
-		si->ob->flags |= CF_WRITE_ERROR;
+		si_oc(si)->flags |= CF_WRITE_ERROR;
 		if (!si->err_type)
 			si->err_type = SI_ET_CONN_OTHER;
 		si->state = SI_ST_CLO;

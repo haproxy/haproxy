@@ -2,7 +2,7 @@
  * include/proto/stream_interface.h
  * This file contains stream_interface function prototypes
  *
- * Copyright (C) 2000-2012 Willy Tarreau - w@1wt.eu
+ * Copyright (C) 2000-2014 Willy Tarreau - w@1wt.eu
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -45,6 +45,18 @@ extern struct data_cb si_idle_conn_cb;
 
 struct appctx *stream_int_register_handler(struct stream_interface *si, struct si_applet *app);
 void stream_int_unregister_handler(struct stream_interface *si);
+
+/* returns the channel which receives data from this stream interface (input channel) */
+static inline struct channel *si_ic(struct stream_interface *si)
+{
+	return si->ib;
+}
+
+/* returns the channel which feeds data to this stream interface (output channel) */
+static inline struct channel *si_oc(struct stream_interface *si)
+{
+	return si->ob;
+}
 
 /* Initializes all required fields for a new appctx. Note that it does the
  * minimum acceptable initialization for an appctx. This means only the
@@ -320,7 +332,7 @@ static inline int si_connect(struct stream_interface *si)
 		return SN_ERR_INTERNAL;
 
 	if (!conn_ctrl_ready(conn) || !conn_xprt_ready(conn)) {
-		ret = conn->ctrl->connect(conn, !channel_is_empty(si->ob), 0);
+		ret = conn->ctrl->connect(conn, !channel_is_empty(si_oc(si)), 0);
 		if (ret != SN_ERR_NONE)
 			return ret;
 
@@ -330,7 +342,7 @@ static inline int si_connect(struct stream_interface *si)
 		/* we're in the process of establishing a connection */
 		si->state = SI_ST_CON;
 	}
-	else if (!channel_is_empty(si->ob)) {
+	else if (!channel_is_empty(si_oc(si))) {
 		/* reuse the existing connection, we'll have to send a
 		 * request there.
 		 */

@@ -579,7 +579,7 @@ static int stats_dump_table_head_to_buffer(struct chunk *msg, struct stream_inte
 	if (target && s->listener->bind_conf->level < ACCESS_LVL_OPER)
 		chunk_appendf(msg, "# contents not dumped due to insufficient privileges\n");
 
-	if (bi_putchk(si->ib, msg) == -1)
+	if (bi_putchk(si_ic(si), msg) == -1)
 		return 0;
 
 	return 1;
@@ -650,7 +650,7 @@ static int stats_dump_table_entry_to_buffer(struct chunk *msg, struct stream_int
 	}
 	chunk_appendf(msg, "\n");
 
-	if (bi_putchk(si->ib, msg) == -1)
+	if (bi_putchk(si_ic(si), msg) == -1)
 		return 0;
 
 	return 1;
@@ -1329,7 +1329,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 
 			/* return server's effective weight at the moment */
 			snprintf(trash.str, trash.size, "%d (initial %d)\n", sv->uweight, sv->iweight);
-			bi_putstr(si->ib, trash.str);
+			bi_putstr(si_ic(si), trash.str);
 			return 1;
 		}
 		else if (strcmp(args[1], "map") == 0 || strcmp(args[1], "acl") == 0) {
@@ -2238,8 +2238,8 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 static void cli_io_handler(struct stream_interface *si)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
-	struct channel *req = si->ob;
-	struct channel *res = si->ib;
+	struct channel *req = si_oc(si);
+	struct channel *res = si_ic(si);
 	int reql;
 	int len;
 
@@ -2263,12 +2263,12 @@ static void cli_io_handler(struct stream_interface *si)
 			/* ensure we have some output room left in the event we
 			 * would want to return some info right after parsing.
 			 */
-			if (buffer_almost_full(si->ib->buf)) {
-				si->ib->flags |= CF_WAKE_WRITE;
+			if (buffer_almost_full(si_ic(si)->buf)) {
+				si_ic(si)->flags |= CF_WAKE_WRITE;
 				break;
 			}
 
-			reql = bo_getline(si->ob, trash.str, trash.size);
+			reql = bo_getline(si_oc(si), trash.str, trash.size);
 			if (reql <= 0) { /* closed or EOL not found */
 				if (reql == 0)
 					break;
@@ -2328,7 +2328,7 @@ static void cli_io_handler(struct stream_interface *si)
 			}
 
 			/* re-adjust req buffer */
-			bo_skip(si->ob, reql);
+			bo_skip(si_oc(si), reql);
 			req->flags |= CF_READ_DONTWAIT; /* we plan to read small requests */
 		}
 		else {	/* output functions: first check if the output buffer is closed then abort */
@@ -2340,11 +2340,11 @@ static void cli_io_handler(struct stream_interface *si)
 
 			switch (appctx->st0) {
 			case STAT_CLI_PRINT:
-				if (bi_putstr(si->ib, appctx->ctx.cli.msg) != -1)
+				if (bi_putstr(si_ic(si), appctx->ctx.cli.msg) != -1)
 					appctx->st0 = STAT_CLI_PROMPT;
 				break;
 			case STAT_CLI_PRINT_FREE:
-				if (bi_putstr(si->ib, appctx->ctx.cli.err) != -1) {
+				if (bi_putstr(si_ic(si), appctx->ctx.cli.err) != -1) {
 					free(appctx->ctx.cli.err);
 					appctx->st0 = STAT_CLI_PROMPT;
 				}
@@ -2394,7 +2394,7 @@ static void cli_io_handler(struct stream_interface *si)
 
 			/* The post-command prompt is either LF alone or LF + '> ' in interactive mode */
 			if (appctx->st0 == STAT_CLI_PROMPT) {
-				if (bi_putstr(si->ib, appctx->st1 ? "\n> " : "\n") != -1)
+				if (bi_putstr(si_ic(si), appctx->st1 ? "\n> " : "\n") != -1)
 					appctx->st0 = STAT_CLI_GETREQ;
 			}
 
@@ -2443,8 +2443,8 @@ static void cli_io_handler(struct stream_interface *si)
 	si_update(si);
 
 	/* we don't want to expire timeouts while we're processing requests */
-	si->ib->rex = TICK_ETERNITY;
-	si->ob->wex = TICK_ETERNITY;
+	si_ic(si)->rex = TICK_ETERNITY;
+	si_oc(si)->wex = TICK_ETERNITY;
 
  out:
 	DPRINTF(stderr, "%s@%d: st=%d, rqf=%x, rpf=%x, rqh=%d, rqs=%d, rh=%d, rs=%d\n",
@@ -2563,7 +2563,7 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 	             global.node, global.desc ? global.desc : ""
 	             );
 
-	if (bi_putchk(si->ib, &trash) == -1)
+	if (bi_putchk(si_ic(si), &trash) == -1)
 		return 0;
 
 	return 1;
@@ -2576,7 +2576,7 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 static int stats_dump_pools_to_buffer(struct stream_interface *si)
 {
 	dump_pools_to_trash();
-	if (bi_putchk(si->ib, &trash) == -1)
+	if (bi_putchk(si_ic(si), &trash) == -1)
 		return 0;
 	return 1;
 }
@@ -3625,7 +3625,7 @@ static void stats_dump_html_px_hdr(struct stream_interface *si, struct proxy *px
 		scope_txt[0] = 0;
 		if (appctx->ctx.stats.scope_len) {
 			strcpy(scope_txt, STAT_SCOPE_PATTERN);
-			memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), bo_ptr(si->ob->buf) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
+			memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), bo_ptr(si_oc(si)->buf) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
 			scope_txt[strlen(STAT_SCOPE_PATTERN) + appctx->ctx.stats.scope_len] = 0;
 		}
 
@@ -3741,7 +3741,7 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 {
 	struct appctx *appctx = __objt_appctx(si->end);
 	struct session *s = si_sess(si);
-	struct channel *rep = si->ib;
+	struct channel *rep = si_ic(si);
 	struct server *sv, *svs;	/* server and server-state, server-state=server or server->track */
 	struct listener *l;
 
@@ -3778,7 +3778,7 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 		 * name does not match, skip it.
 		 */
 		if (appctx->ctx.stats.scope_len &&
-		    strnistr(px->id, strlen(px->id), bo_ptr(si->ob->buf) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len) == NULL)
+		    strnistr(px->id, strlen(px->id), bo_ptr(si_oc(si)->buf) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len) == NULL)
 			return 1;
 
 		if ((appctx->ctx.stats.flags & STAT_BOUND) &&
@@ -4134,7 +4134,7 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 	              );
 
 	/* scope_txt = search query, appctx->ctx.stats.scope_len is always <= STAT_SCOPE_TXT_MAXLEN */
-	memcpy(scope_txt, bo_ptr(si->ob->buf) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
+	memcpy(scope_txt, bo_ptr(si_oc(si)->buf) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
 	scope_txt[appctx->ctx.stats.scope_len] = '\0';
 
 	chunk_appendf(&trash,
@@ -4149,7 +4149,7 @@ static void stats_dump_html_info(struct stream_interface *si, struct uri_auth *u
 	scope_txt[0] = 0;
 	if (appctx->ctx.stats.scope_len) {
 		strcpy(scope_txt, STAT_SCOPE_PATTERN);
-		memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), bo_ptr(si->ob->buf) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
+		memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), bo_ptr(si_oc(si)->buf) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
 		scope_txt[strlen(STAT_SCOPE_PATTERN) + appctx->ctx.stats.scope_len] = 0;
 	}
 
@@ -4312,7 +4312,7 @@ static void stats_dump_html_end()
 static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_auth *uri)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
-	struct channel *rep = si->ib;
+	struct channel *rep = si_ic(si);
 	struct proxy *px;
 
 	chunk_reset(&trash);
@@ -4422,7 +4422,7 @@ static int stats_process_http_post(struct stream_interface *si)
 		goto out;
 	}
 
-	reql = bo_getblk(si->ob, temp->str, s->txn.req.body_len, s->txn.req.eoh + 2);
+	reql = bo_getblk(si_oc(si), temp->str, s->txn.req.body_len, s->txn.req.eoh + 2);
 	if (reql <= 0) {
 		/* we need more data */
 		appctx->ctx.stats.st_code = STAT_STATUS_NONE;
@@ -4739,7 +4739,7 @@ static int stats_send_http_headers(struct stream_interface *si)
 	s->txn.status = 200;
 	s->logs.tv_request = now;
 
-	if (bi_putchk(si->ib, &trash) == -1)
+	if (bi_putchk(si_ic(si), &trash) == -1)
 		return 0;
 
 	return 1;
@@ -4756,7 +4756,7 @@ static int stats_send_http_redirect(struct stream_interface *si)
 	scope_txt[0] = 0;
 	if (appctx->ctx.stats.scope_len) {
 		strcpy(scope_txt, STAT_SCOPE_PATTERN);
-		memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), bo_ptr(si->ob->buf) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
+		memcpy(scope_txt + strlen(STAT_SCOPE_PATTERN), bo_ptr(si_oc(si)->buf) + appctx->ctx.stats.scope_str, appctx->ctx.stats.scope_len);
 		scope_txt[strlen(STAT_SCOPE_PATTERN) + appctx->ctx.stats.scope_len] = 0;
 	}
 
@@ -4784,7 +4784,7 @@ static int stats_send_http_redirect(struct stream_interface *si)
 	s->txn.status = 303;
 	s->logs.tv_request = now;
 
-	if (bi_putchk(si->ib, &trash) == -1)
+	if (bi_putchk(si_ic(si), &trash) == -1)
 		return 0;
 
 	return 1;
@@ -4799,8 +4799,8 @@ static void http_stats_io_handler(struct stream_interface *si)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
 	struct session *s = si_sess(si);
-	struct channel *req = si->ob;
-	struct channel *res = si->ib;
+	struct channel *req = si_oc(si);
+	struct channel *res = si_ic(si);
 
 	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO))
 		goto out;
@@ -4820,7 +4820,7 @@ static void http_stats_io_handler(struct stream_interface *si)
 	}
 
 	if (appctx->st0 == STAT_HTTP_DUMP) {
-		unsigned int prev_len = si->ib->buf->i;
+		unsigned int prev_len = si_ic(si)->buf->i;
 		unsigned int data_len;
 		unsigned int last_len;
 		unsigned int last_fwd = 0;
@@ -4831,20 +4831,20 @@ static void http_stats_io_handler(struct stream_interface *si)
 			 * the output area. For this, we temporarily disable
 			 * forwarding on the channel.
 			 */
-			last_fwd = si->ib->to_forward;
-			si->ib->to_forward = 0;
+			last_fwd = si_ic(si)->to_forward;
+			si_ic(si)->to_forward = 0;
 			chunk_printf(&trash, "\r\n000000\r\n");
-			if (bi_putchk(si->ib, &trash) == -1) {
-				si->ib->to_forward = last_fwd;
+			if (bi_putchk(si_ic(si), &trash) == -1) {
+				si_ic(si)->to_forward = last_fwd;
 				goto fail;
 			}
 		}
 
-		data_len = si->ib->buf->i;
+		data_len = si_ic(si)->buf->i;
 		if (stats_dump_stat_to_buffer(si, s->be->uri_auth))
 			appctx->st0 = STAT_HTTP_DONE;
 
-		last_len = si->ib->buf->i;
+		last_len = si_ic(si)->buf->i;
 
 		/* Now we must either adjust or remove the chunk size. This is
 		 * not easy because the chunk size might wrap at the end of the
@@ -4854,25 +4854,25 @@ static void http_stats_io_handler(struct stream_interface *si)
 		 * applet.
 		 */
 		if (appctx->ctx.stats.flags & STAT_CHUNKED) {
-			si->ib->total  -= (last_len - prev_len);
-			si->ib->buf->i -= (last_len - prev_len);
+			si_ic(si)->total  -= (last_len - prev_len);
+			si_ic(si)->buf->i -= (last_len - prev_len);
 
 			if (last_len != data_len) {
 				chunk_printf(&trash, "\r\n%06x\r\n", (last_len - data_len));
-				bi_putchk(si->ib, &trash);
+				bi_putchk(si_ic(si), &trash);
 
-				si->ib->total  += (last_len - data_len);
-				si->ib->buf->i += (last_len - data_len);
+				si_ic(si)->total  += (last_len - data_len);
+				si_ic(si)->buf->i += (last_len - data_len);
 			}
 			/* now re-enable forwarding */
-			channel_forward(si->ib, last_fwd);
+			channel_forward(si_ic(si), last_fwd);
 		}
 	}
 
 	if (appctx->st0 == STAT_HTTP_POST) {
 		if (stats_process_http_post(si))
 			appctx->st0 = STAT_HTTP_LAST;
-		else if (si->ob->flags & CF_SHUTR)
+		else if (si_oc(si)->flags & CF_SHUTR)
 			appctx->st0 = STAT_HTTP_DONE;
 	}
 
@@ -4884,11 +4884,11 @@ static void http_stats_io_handler(struct stream_interface *si)
 	if (appctx->st0 == STAT_HTTP_DONE) {
 		if (appctx->ctx.stats.flags & STAT_CHUNKED) {
 			chunk_printf(&trash, "\r\n0\r\n\r\n");
-			if (bi_putchk(si->ib, &trash) == -1)
+			if (bi_putchk(si_ic(si), &trash) == -1)
 				goto fail;
 		}
 		/* eat the whole request */
-		bo_skip(si->ob, si->ob->buf->o);
+		bo_skip(si_oc(si), si_oc(si)->buf->o);
 		res->flags |= CF_READ_NULL;
 		si_shutr(si);
 	}
@@ -4908,8 +4908,8 @@ static void http_stats_io_handler(struct stream_interface *si)
 	si_update(si);
 
 	/* we don't want to expire timeouts while we're processing requests */
-	si->ib->rex = TICK_ETERNITY;
-	si->ob->wex = TICK_ETERNITY;
+	si_ic(si)->rex = TICK_ETERNITY;
+	si_oc(si)->wex = TICK_ETERNITY;
 
  out:
 	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO)) {
@@ -4983,7 +4983,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 	if (appctx->ctx.sess.section > 0 && appctx->ctx.sess.uid != sess->uniq_id) {
 		/* session changed, no need to go any further */
 		chunk_appendf(&trash, "  *** session terminated while we were watching it ***\n");
-		if (bi_putchk(si->ib, &trash) == -1)
+		if (bi_putchk(si_ic(si), &trash) == -1)
 			return 0;
 		appctx->ctx.sess.uid = 0;
 		appctx->ctx.sess.section = 0;
@@ -5263,7 +5263,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 			     sess->txn.rsp.next, sess->res.buf->i,
 			     sess->res.buf->size);
 
-		if (bi_putchk(si->ib, &trash) == -1)
+		if (bi_putchk(si_ic(si), &trash) == -1)
 			return 0;
 
 		/* use other states to dump the contents */
@@ -5286,7 +5286,7 @@ static int stats_pats_list(struct stream_interface *si)
 		 */
 		chunk_reset(&trash);
 		chunk_appendf(&trash, "# id (file) description\n");
-		if (bi_putchk(si->ib, &trash) == -1)
+		if (bi_putchk(si_ic(si), &trash) == -1)
 			return 0;
 
 		/* Now, we start the browsing of the references lists.
@@ -5311,7 +5311,7 @@ static int stats_pats_list(struct stream_interface *si)
 			              appctx->ctx.map.ref->reference ? appctx->ctx.map.ref->reference : "",
 			              appctx->ctx.map.ref->display);
 
-			if (bi_putchk(si->ib, &trash) == -1) {
+			if (bi_putchk(si_ic(si), &trash) == -1) {
 				/* let's try again later from this session. We add ourselves into
 				 * this session's users so that it can remove us upon termination.
 				 */
@@ -5429,7 +5429,7 @@ static int stats_map_lookup(struct stream_interface *si)
 			chunk_appendf(&trash, "\n");
 
 			/* display response */
-			if (bi_putchk(si->ib, &trash) == -1) {
+			if (bi_putchk(si_ic(si), &trash) == -1) {
 				/* let's try again later from this session. We add ourselves into
 				 * this session's users so that it can remove us upon termination.
 				 */
@@ -5479,7 +5479,7 @@ static int stats_pat_list(struct stream_interface *si)
 				chunk_appendf(&trash, "%p %s\n",
 				              appctx->ctx.map.elt, appctx->ctx.map.elt->pattern);
 
-			if (bi_putchk(si->ib, &trash) == -1) {
+			if (bi_putchk(si_ic(si), &trash) == -1) {
 				/* let's try again later from this session. We add ourselves into
 				 * this session's users so that it can remove us upon termination.
 				 */
@@ -5512,7 +5512,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 	struct appctx *appctx = __objt_appctx(si->end);
 	struct connection *conn;
 
-	if (unlikely(si->ib->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
+	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
 		/* If we're forced to shut down, we might have to remove our
 		 * reference to the last session being dumped.
 		 */
@@ -5683,7 +5683,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 
 			chunk_appendf(&trash, "\n");
 
-			if (bi_putchk(si->ib, &trash) == -1) {
+			if (bi_putchk(si_ic(si), &trash) == -1) {
 				/* let's try again later from this session. We add ourselves into
 				 * this session's users so that it can remove us upon termination.
 				 */
@@ -5702,7 +5702,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 			else
 				chunk_appendf(&trash, "Session not found.\n");
 
-			if (bi_putchk(si->ib, &trash) == -1)
+			if (bi_putchk(si_ic(si), &trash) == -1)
 				return 0;
 
 			appctx->ctx.sess.target = NULL;
@@ -5765,7 +5765,7 @@ static int stats_table_request(struct stream_interface *si, int action)
 	 *     data though.
 	 */
 
-	if (unlikely(si->ib->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
+	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
 		/* in case of abort, remove any refcount we might have set on an entry */
 		if (appctx->st2 == STAT_ST_LIST) {
 			appctx->ctx.table.entry->ref_cnt--;
@@ -5965,7 +5965,7 @@ static int stats_dump_errors_to_buffer(struct stream_interface *si)
 	struct appctx *appctx = __objt_appctx(si->end);
 	extern const char *monthname[12];
 
-	if (unlikely(si->ib->flags & (CF_WRITE_ERROR|CF_SHUTW)))
+	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW)))
 		return 1;
 
 	chunk_reset(&trash);
@@ -5982,7 +5982,7 @@ static int stats_dump_errors_to_buffer(struct stream_interface *si)
 			     tm.tm_hour, tm.tm_min, tm.tm_sec, (int)(date.tv_usec/1000),
 			     error_snapshot_id);
 
-		if (bi_putchk(si->ib, &trash) == -1) {
+		if (bi_putchk(si_ic(si), &trash) == -1) {
 			/* Socket buffer full. Let's try again later from the same point */
 			return 0;
 		}
@@ -6066,7 +6066,7 @@ static int stats_dump_errors_to_buffer(struct stream_interface *si)
 				     es->b_flags, es->b_out, es->b_tot,
 				     es->len, es->b_wrap, es->pos);
 
-			if (bi_putchk(si->ib, &trash) == -1) {
+			if (bi_putchk(si_ic(si), &trash) == -1) {
 				/* Socket buffer full. Let's try again later from the same point */
 				return 0;
 			}
@@ -6078,7 +6078,7 @@ static int stats_dump_errors_to_buffer(struct stream_interface *si)
 			/* the snapshot changed while we were dumping it */
 			chunk_appendf(&trash,
 				     "  WARNING! update detected on this snapshot, dump interrupted. Please re-check!\n");
-			if (bi_putchk(si->ib, &trash) == -1)
+			if (bi_putchk(si_ic(si), &trash) == -1)
 				return 0;
 			goto next;
 		}
@@ -6093,7 +6093,7 @@ static int stats_dump_errors_to_buffer(struct stream_interface *si)
 			if (newptr == appctx->ctx.errors.ptr)
 				return 0;
 
-			if (bi_putchk(si->ib, &trash) == -1) {
+			if (bi_putchk(si_ic(si), &trash) == -1) {
 				/* Socket buffer full. Let's try again later from the same point */
 				return 0;
 			}

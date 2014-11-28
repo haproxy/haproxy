@@ -1095,17 +1095,17 @@ __LJMP static struct hlua_socket *hlua_checksocket(lua_State *L, int ud)
 static void hlua_socket_handler(struct stream_interface *si)
 {
 	struct appctx *appctx = objt_appctx(si->end);
-	struct connection *c = objt_conn(si->ib->cons->end);
+	struct connection *c = objt_conn(si_ic(si)->cons->end);
 
 	/* Wakeup the main session if the client connection is closed. */
-	if (!c || channel_output_closed(si->ib) || channel_input_closed(si->ob)) {
+	if (!c || channel_output_closed(si_ic(si)) || channel_input_closed(si_oc(si))) {
 		if (appctx->ctx.hlua.socket) {
 			appctx->ctx.hlua.socket->s = NULL;
 			appctx->ctx.hlua.socket = NULL;
 		}
 		si_shutw(si);
 		si_shutr(si);
-		si->ib->flags |= CF_READ_NULL;
+		si_ic(si)->flags |= CF_READ_NULL;
 		hlua_com_wake(&appctx->ctx.hlua.wake_on_read);
 		hlua_com_wake(&appctx->ctx.hlua.wake_on_write);
 		return;
@@ -1118,11 +1118,11 @@ static void hlua_socket_handler(struct stream_interface *si)
 	appctx->ctx.hlua.connected = 1;
 
 	/* Wake the tasks which wants to write if the buffer have avalaible space. */
-	if (channel_may_recv(si->ob))
+	if (channel_may_recv(si_oc(si)))
 		hlua_com_wake(&appctx->ctx.hlua.wake_on_write);
 
 	/* Wake the tasks which wants to read if the buffer contains data. */
-	if (channel_is_empty(si->ib))
+	if (channel_is_empty(si_ic(si)))
 		hlua_com_wake(&appctx->ctx.hlua.wake_on_read);
 }
 
@@ -1227,9 +1227,8 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 		goto connection_closed;
 
 	if (wanted == HLSR_READ_LINE) {
-
 		/* Read line. */
-		nblk = bo_getline_nc(socket->s->si[0].ob, &blk1, &len1, &blk2, &len2);
+		nblk = bo_getline_nc(si_oc(&socket->s->si[0]), &blk1, &len1, &blk2, &len2);
 		if (nblk < 0) /* Connection close. */
 			goto connection_closed;
 		if (nblk == 0) /* No data avalaible. */
@@ -1259,9 +1258,8 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 	}
 
 	else if (wanted == HLSR_READ_ALL) {
-
 		/* Read all the available data. */
-		nblk = bo_getblk_nc(socket->s->si[0].ob, &blk1, &len1, &blk2, &len2);
+		nblk = bo_getblk_nc(si_oc(&socket->s->si[0]), &blk1, &len1, &blk2, &len2);
 		if (nblk < 0) /* Connection close. */
 			goto connection_closed;
 		if (nblk == 0) /* No data avalaible. */
@@ -1269,9 +1267,8 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 	}
 
 	else {
-
 		/* Read a block of data. */
-		nblk = bo_getblk_nc(socket->s->si[0].ob, &blk1, &len1, &blk2, &len2);
+		nblk = bo_getblk_nc(si_oc(&socket->s->si[0]), &blk1, &len1, &blk2, &len2);
 		if (nblk < 0) /* Connection close. */
 			goto connection_closed;
 		if (nblk == 0) /* No data avalaible. */
@@ -1293,7 +1290,7 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 	}
 
 	/* Consume data. */
-	bo_skip(socket->s->si[0].ob, len + skip_at_end);
+	bo_skip(si_oc(&socket->s->si[0]), len + skip_at_end);
 
 	/* Don't wait anything. */
 	si_update(&socket->s->si[0]);
@@ -1448,14 +1445,14 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	}
 
 	/* Check for avalaible space. */
-	len = buffer_total_space(socket->s->si[0].ib->buf);
+	len = buffer_total_space(si_ic(&socket->s->si[0])->buf);
 	if (len <= 0)
 		goto hlua_socket_write_yield_return;
 
 	/* send data */
 	if (len < send_len)
 		send_len = len;
-	len = bi_putblk(socket->s->si[0].ib, buf+sent, send_len);
+	len = bi_putblk(si_ic(&socket->s->si[0]), buf+sent, send_len);
 
 	/* "Not enough space" (-1), "Buffer too little to contain
 	 * the data" (-2) are not expected because the available length
@@ -1471,8 +1468,8 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 
 	/* update buffers. */
 	si_update(&socket->s->si[0]);
-	socket->s->si[0].ib->rex = TICK_ETERNITY;
-	socket->s->si[0].ob->wex = TICK_ETERNITY;
+	si_ic(&socket->s->si[0])->rex = TICK_ETERNITY;
+	si_oc(&socket->s->si[0])->wex = TICK_ETERNITY;
 
 	/* Update length sent. */
 	lua_pop(L, 1);
@@ -2860,12 +2857,12 @@ __LJMP static int hlua_txn_close(lua_State *L)
 	MAY_LJMP(check_args(L, 1, "close"));
 	s = MAY_LJMP(hlua_checktxn(L, 1));
 
-	channel_abort(s->s->si[0].ib);
-	channel_auto_close(s->s->si[0].ib);
-	channel_erase(s->s->si[0].ib);
-	channel_auto_read(s->s->si[0].ob);
-	channel_auto_close(s->s->si[0].ob);
-	channel_shutr_now(s->s->si[0].ob);
+	channel_abort(si_ic(&s->s->si[0]));
+	channel_auto_close(si_ic(&s->s->si[0]));
+	channel_erase(si_ic(&s->s->si[0]));
+	channel_auto_read(si_oc(&s->s->si[0]));
+	channel_auto_close(si_oc(&s->s->si[0]));
+	channel_shutr_now(si_oc(&s->s->si[0]));
 
 	return 0;
 }
