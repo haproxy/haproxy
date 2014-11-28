@@ -1256,6 +1256,8 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->req.wto = s->be->timeout.server;
 
 	channel_init(&s->res);
+	s->res.flags |= CF_ISRESP;
+
 	s->res.prod = &s->si[1];
 	s->res.cons = &s->si[0];
 

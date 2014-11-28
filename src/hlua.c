@@ -1908,6 +1908,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	 */
 	channel_init(&socket->s->req);
 	channel_init(&socket->s->res);
+	socket->s->res.flags |= CF_ISRESP;
 
 	socket->s->req.prod = &socket->s->si[0];
 	socket->s->req.cons = &socket->s->si[1];

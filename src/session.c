@@ -502,6 +502,8 @@ int session_complete(struct session *s)
 	s->req.analyse_exp = TICK_ETERNITY;
 
 	channel_init(&s->res);
+	s->res.flags |= CF_ISRESP;
+
 	s->res.prod = &s->si[1];
 	s->res.cons = &s->si[0];
 	s->res.analysers = 0;

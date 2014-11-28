@@ -117,7 +117,8 @@
 #define CF_NEVER_WAIT     0x08000000  /* never wait for sending data (permanent) */
 
 #define CF_WAKE_ONCE      0x10000000  /* pretend there is activity on this channel (one-shoot) */
-/* unused: 0x20000000, 0x40000000, 0x80000000 */
+/* unused: 0x20000000, 0x40000000 */
+#define CF_ISRESP         0x80000000  /* 0 = request channel, 1 = response channel */
 
 /* Masks which define input events for stream analysers */
 #define CF_MASK_ANALYSER  (CF_READ_ATTACHED|CF_READ_ACTIVITY|CF_READ_TIMEOUT|CF_ANA_TIMEOUT|CF_WRITE_ACTIVITY|CF_WAKE_ONCE)
