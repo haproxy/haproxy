@@ -212,8 +212,8 @@ static void stream_int_update_embedded(struct stream_interface *si)
 	      ((si_oc(si)->flags & CF_WAKE_WRITE) &&
 	       (si_oc(si)->prod->state != SI_ST_EST ||
 	        (channel_is_empty(si_oc(si)) && !si_oc(si)->to_forward)))))) {
-		if (!(si->flags & SI_FL_DONT_WAKE) && si->owner)
-			task_wakeup(si->owner, TASK_WOKEN_IO);
+		if (!(si->flags & SI_FL_DONT_WAKE))
+			task_wakeup(si_task(si), TASK_WOKEN_IO);
 	}
 	if (si_ic(si)->flags & CF_READ_ACTIVITY)
 		si_ic(si)->flags &= ~CF_READ_DONTWAIT;
@@ -250,8 +250,8 @@ static void stream_int_shutr(struct stream_interface *si)
 	}
 
 	/* note that if the task exists, it must unregister itself once it runs */
-	if (!(si->flags & SI_FL_DONT_WAKE) && si->owner)
-		task_wakeup(si->owner, TASK_WOKEN_IO);
+	if (!(si->flags & SI_FL_DONT_WAKE))
+		task_wakeup(si_task(si), TASK_WOKEN_IO);
 }
 
 /*
@@ -299,8 +299,8 @@ static void stream_int_shutw(struct stream_interface *si)
 	}
 
 	/* note that if the task exists, it must unregister itself once it runs */
-	if (!(si->flags & SI_FL_DONT_WAKE) && si->owner)
-		task_wakeup(si->owner, TASK_WOKEN_IO);
+	if (!(si->flags & SI_FL_DONT_WAKE))
+		task_wakeup(si_task(si), TASK_WOKEN_IO);
 }
 
 /* default chk_rcv function for scheduled tasks */
@@ -322,8 +322,8 @@ static void stream_int_chk_rcv(struct stream_interface *si)
 	else {
 		/* (re)start reading */
 		si->flags &= ~SI_FL_WAIT_ROOM;
-		if (!(si->flags & SI_FL_DONT_WAKE) && si->owner)
-			task_wakeup(si->owner, TASK_WOKEN_IO);
+		if (!(si->flags & SI_FL_DONT_WAKE))
+			task_wakeup(si_task(si), TASK_WOKEN_IO);
 	}
 }
 
@@ -350,8 +350,8 @@ static void stream_int_chk_snd(struct stream_interface *si)
 	if (!tick_isset(ob->wex))
 		ob->wex = tick_add_ifset(now_ms, ob->wto);
 
-	if (!(si->flags & SI_FL_DONT_WAKE) && si->owner)
-		task_wakeup(si->owner, TASK_WOKEN_IO);
+	if (!(si->flags & SI_FL_DONT_WAKE))
+		task_wakeup(si_task(si), TASK_WOKEN_IO);
 }
 
 /* Register an applet to handle a stream_interface as part of the
@@ -366,7 +366,7 @@ struct appctx *stream_int_register_handler(struct stream_interface *si, struct s
 {
 	struct appctx *appctx;
 
-	DPRINTF(stderr, "registering handler %p for si %p (was %p)\n", app, si, si->owner);
+	DPRINTF(stderr, "registering handler %p for si %p (was %p)\n", app, si, si_task(si));
 
 	appctx = si_alloc_appctx(si);
 	if (!appctx)
@@ -639,7 +639,7 @@ static int si_conn_wake_cb(struct connection *conn)
 	      ((si_oc(si)->flags & CF_WAKE_WRITE) &&
 	       (si_oc(si)->prod->state != SI_ST_EST ||
 	        (channel_is_empty(si_oc(si)) && !si_oc(si)->to_forward)))))) {
-		task_wakeup(si->owner, TASK_WOKEN_IO);
+		task_wakeup(si_task(si), TASK_WOKEN_IO);
 	}
 	if (si_ic(si)->flags & CF_READ_ACTIVITY)
 		si_ic(si)->flags &= ~CF_READ_DONTWAIT;
@@ -1058,8 +1058,8 @@ static void stream_int_chk_snd_conn(struct stream_interface *si)
 	           ((channel_is_empty(si_oc(si)) && !ob->to_forward) ||
 	            si->state != SI_ST_EST)))) {
 	out_wakeup:
-		if (!(si->flags & SI_FL_DONT_WAKE) && si->owner)
-			task_wakeup(si->owner, TASK_WOKEN_IO);
+		if (!(si->flags & SI_FL_DONT_WAKE))
+			task_wakeup(si_task(si), TASK_WOKEN_IO);
 	}
 
 	/* commit possible polling changes */

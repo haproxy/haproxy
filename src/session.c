@@ -1750,10 +1750,8 @@ struct task *process_session(struct task *t)
 	rpf_last = s->res.flags & ~CF_MASK_ANALYSER;
 
 	/* we don't want the stream interface functions to recursively wake us up */
-	if (s->req.prod->owner == t)
-		s->req.prod->flags |= SI_FL_DONT_WAKE;
-	if (s->req.cons->owner == t)
-		s->req.cons->flags |= SI_FL_DONT_WAKE;
+	s->req.prod->flags |= SI_FL_DONT_WAKE;
+	s->req.cons->flags |= SI_FL_DONT_WAKE;
 
 	/* 1a: Check for low level timeouts if needed. We just set a flag on
 	 * stream interfaces when their timeouts have expired.
