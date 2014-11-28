@@ -347,6 +347,12 @@ static inline int si_connect(struct stream_interface *si)
 	return ret;
 }
 
+/* finds the session which owns a stream interface */
+static inline struct session *si_sess(struct stream_interface *si)
+{
+	return (struct session *)((struct task *)si->owner)->context;
+}
+
 /* for debugging, reports the stream interface state name */
 static inline const char *si_state_str(int state)
 {
