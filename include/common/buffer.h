@@ -464,6 +464,34 @@ static inline void b_free(struct buffer **buf)
 	*buf = &buf_empty;
 }
 
+/* Ensures that <buf> is allocated. If an allocation is needed, it ensures that
+ * there are still at least <margin> buffers available in the pool after this
+ * allocation so that we don't leave the pool in a condition where a session or
+ * a response buffer could not be allocated anymore, resulting in a deadlock.
+ * This means that we sometimes need to try to allocate extra entries even if
+ * only one buffer is needed.
+ */
+static inline struct buffer *b_alloc_margin(struct buffer **buf, int margin)
+{
+	struct buffer *next;
+
+	if ((*buf)->size)
+		return *buf;
+
+	/* fast path */
+	if ((pool2_buffer->allocated - pool2_buffer->used) > margin)
+		return b_alloc_fast(buf);
+
+	next = pool_refill_alloc(pool2_buffer, margin);
+	if (!next)
+		return next;
+
+	next->size = pool2_buffer->size - sizeof(struct buffer);
+	b_reset(next);
+	*buf = next;
+	return next;
+}
+
 #endif /* _COMMON_BUFFER_H */
 
 /*
