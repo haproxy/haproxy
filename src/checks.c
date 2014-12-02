@@ -1568,6 +1568,52 @@ static int init_pid_list(void) {
 	return 0;
 }
 
+#define EXTCHECK_ARG_MAX 5
+#define EXTCHECK_ENV_ROOM 16
+
+#define EXTCHECK_ADD_ENV(check, envname, value, idx) { if (external_check_add_env(check, envname, value, idx)) goto err; }
+
+/*
+ * helper function to allocate enough space for new environment variables used
+ * by external checks.
+ */
+static int external_check_add_env(struct check *check, const char *envname, const char *value, int *idx)
+{
+	int len, ret;
+
+	if (*idx % EXTCHECK_ENV_ROOM == 0) {
+		/* Allocate enough space to store new environment variables */
+		char **tmp = realloc(check->envp, (EXTCHECK_ENV_ROOM * ((*idx / EXTCHECK_ENV_ROOM) + 1) + 1) * sizeof(check->envp));
+		if (tmp == NULL) {
+			Alert("Failed to allocate memory for new environment variables. Aborting\n");
+			return 1;
+		} else {
+			check->envp = tmp;
+		}
+	}
+	/* Instead of sending NOT_USED, sending an empty value is preferable */
+	if (strcmp(value, "NOT_USED") == 0) {
+		value = "";
+	}
+	len = strlen(envname) + strlen(value) + 1;
+	check->envp[*idx] = malloc(len + 1);
+	check->envp[*idx + 1] = NULL;
+	if (!check->envp[*idx]) {
+		Alert("Failed to allocate memory for the environment variable '%s'. Aborting.\n", envname);
+		return 1;
+	}
+	ret = snprintf(check->envp[*idx], len + 1, "%s=%s", envname, value);
+	if (ret < 0) {
+		Alert("Failed to store the environment variable '%s'. Reason : %s. Aborting.\n", envname, strerror(errno));
+		return 1;
+	}
+	else if (ret != len) {
+		Alert("Environment variable '%s' was truncated. Aborting.\n", envname);
+		return 1;
+	}
+	(*idx)++;
+	return 0;
+}
 
 static int prepare_external_check(struct check *check)
 {
@@ -1575,10 +1621,9 @@ static int prepare_external_check(struct check *check)
 	struct proxy *px = s->proxy;
 	struct listener *listener = NULL, *l;
 	int i;
-	const char *err_fmt = "Starting [%s:%s] check: out of memory.\n";
+	int envidx = 0;
 	const char *path = px->check_path ? px->check_path : DEF_CHECK_PATH;
-	char host[46];
-	char serv[6];
+	char buf[256];
 
 	list_for_each_entry(l, &px->conf.listeners, by_fe)
 		/* Use the first INET, INET6 or UNIX listener */
@@ -1590,18 +1635,9 @@ static int prepare_external_check(struct check *check)
 		}
 
 	check->curpid = NULL;
+	check->envp = NULL;
 
-	check->envp = calloc(2, sizeof(check->argv));
-	if (!check->envp)
-		goto err;
-	check->envp[0] = malloc(strlen("PATH=") + strlen(path) + 1);
-	if (!check->envp[0])
-		goto err;
-	strcpy(check->envp[0], "PATH=");
-	strcpy(check->envp[0] + strlen(check->envp[0]), path);
-	check->envp[1] = NULL;
-
-	check->argv = calloc(6, sizeof(check->argv));
+	check->argv = calloc(EXTCHECK_ARG_MAX + 1, sizeof(check->argv));
 	if (!check->argv)
 		goto err;
 
@@ -1613,10 +1649,10 @@ static int prepare_external_check(struct check *check)
 	}
 	else if (listener->addr.ss_family == AF_INET ||
 	    listener->addr.ss_family == AF_INET6) {
-		addr_to_str(&listener->addr, host, sizeof(host));
-		check->argv[1] = strdup(host);
-		port_to_str(&listener->addr, serv, sizeof(serv));
-		check->argv[2] = strdup(serv);
+		addr_to_str(&listener->addr, buf, sizeof(buf));
+		check->argv[1] = strdup(buf);
+		port_to_str(&listener->addr, buf, sizeof(buf));
+		check->argv[2] = strdup(buf);
 	}
 	else if (listener->addr.ss_family == AF_UNIX) {
 		const struct sockaddr_un *un;
@@ -1629,19 +1665,34 @@ static int prepare_external_check(struct check *check)
 		goto err;
 	}
 
-	addr_to_str(&s->addr, host, sizeof(host));
-	check->argv[3] = strdup(host);
-	port_to_str(&s->addr, serv, sizeof(serv));
-	check->argv[4] = strdup(serv);
+	addr_to_str(&s->addr, buf, sizeof(buf));
+	check->argv[3] = strdup(buf);
+	port_to_str(&s->addr, buf, sizeof(buf));
+	check->argv[4] = strdup(buf);
 
 	for (i = 0; i < 5; i++)
 		if (!check->argv[i])
 			goto err;
 
+	EXTCHECK_ADD_ENV(check, "PATH", path, &envidx);
+	/* Add proxy environment variables */
+	EXTCHECK_ADD_ENV(check, "HAPROXY_PROXY_NAME", px->id, &envidx);
+	EXTCHECK_ADD_ENV(check, "HAPROXY_PROXY_ID", ultoa_r(px->uuid, buf, sizeof(buf)), &envidx);
+	EXTCHECK_ADD_ENV(check, "HAPROXY_PROXY_ADDR", check->argv[1], &envidx);
+	EXTCHECK_ADD_ENV(check, "HAPROXY_PROXY_PORT", check->argv[2], &envidx);
+	/* Add server environment variables */
+	EXTCHECK_ADD_ENV(check, "HAPROXY_SERVER_NAME", s->id, &envidx);
+	EXTCHECK_ADD_ENV(check, "HAPROXY_SERVER_ID", ultoa_r(s->puid, buf, sizeof(buf)), &envidx);
+	EXTCHECK_ADD_ENV(check, "HAPROXY_SERVER_ADDR", check->argv[3], &envidx);
+	EXTCHECK_ADD_ENV(check, "HAPROXY_SERVER_PORT", check->argv[4], &envidx);
+	EXTCHECK_ADD_ENV(check, "HAPROXY_SERVER_MAXCONN", ultoa_r(s->maxconn, buf, sizeof(buf)), &envidx);
+	EXTCHECK_ADD_ENV(check, "HAPROXY_SERVER_CURCONN", ultoa_r(s->cur_sess, buf, sizeof(buf)), &envidx);
+
 	return 1;
 err:
 	if (check->envp) {
-		free(check->envp[1]);
+		for (i = 0; i < envidx; i++)
+			free(check->envp[i]);
 		free(check->envp);
 		check->envp = NULL;
 	}
@@ -1652,7 +1703,6 @@ err:
 		free(check->argv);
 		check->argv = NULL;
 	}
-	Alert(err_fmt, px->id, s->id);
 	return 0;
 }
 
