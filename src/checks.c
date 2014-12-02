@@ -1589,11 +1589,6 @@ static int prepare_external_check(struct check *check)
 			break;
 		}
 
-	if (!listener) {
-		err_fmt = "Starting [%s:%s] check: no listener.\n";
-		goto err;
-	}
-
 	check->curpid = NULL;
 
 	check->envp = calloc(2, sizeof(check->argv));
@@ -1612,19 +1607,25 @@ static int prepare_external_check(struct check *check)
 
 	check->argv[0] = px->check_command;
 
-	if (listener->addr.ss_family == AF_INET ||
+	if (!listener) {
+		check->argv[1] = strdup("NOT_USED");
+		check->argv[2] = strdup("NOT_USED");
+	}
+	else if (listener->addr.ss_family == AF_INET ||
 	    listener->addr.ss_family == AF_INET6) {
 		addr_to_str(&listener->addr, host, sizeof(host));
 		check->argv[1] = strdup(host);
 		port_to_str(&listener->addr, serv, sizeof(serv));
 		check->argv[2] = strdup(serv);
-	} else if (listener->addr.ss_family == AF_UNIX) {
+	}
+	else if (listener->addr.ss_family == AF_UNIX) {
 		const struct sockaddr_un *un;
 
 		un = (struct sockaddr_un *)&listener->addr;
 		check->argv[1] = strdup(un->sun_path);
 		check->argv[2] = strdup("NOT_USED");
-	} else {
+	}
+	else {
 		goto err;
 	}
 

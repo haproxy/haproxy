@@ -5338,13 +5338,14 @@ external-check command <command>
 
   The arguments passed to the to the command are:
 
-  proxy_address proxy_port server_address server_port
+  <proxy_address> <proxy_port> <server_address> <server_port>
 
-  The proxy_address and proxy_port are derived from the first listener
-  that is either IPv4, IPv6 or a UNIX socket. It is an error for no such
-  listeners to exist. In the case of a UNIX socket listener the
-  proxy_address will be the path of the socket and the proxy_port will
-  be the string "NOT_USED".
+  The <proxy_address> and <proxy_port> are derived from the first listener
+  that is either IPv4, IPv6 or a UNIX socket. In the case of a UNIX socket
+  listener the proxy_address will be the path of the socket and the
+  <proxy_port> will be the string "NOT_USED". In a backend section, it's not
+  possible to determine a listener, and both <proxy_address> and <proxy_port>
+  will have the string value "NOT_USED".
 
   If the command executed and exits with a zero status then the check is
   considered to have passed, otherwise the check is considered to have
