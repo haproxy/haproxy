@@ -61,10 +61,15 @@ static inline void pool_destroy(void **pool)
 	}
 }
 
-/* Allocate a new entry for pool <pool>, and return it for immediate use.
- * NULL is returned if no memory is available for a new creation.
+/* Allocates new entries for pool <pool> until there are at least <avail> + 1
+ * available, then returns the last one for immediate use, so that at least
+ * <avail> are left available in the pool upon return. NULL is returned if the
+ * last entry could not be allocated. It's important to note that at least one
+ * allocation is always performed even if there are enough entries in the pool.
+ * A call to the garbage collector is performed at most once in case malloc()
+ * returns an error, before returning NULL.
  */
-void *pool_refill_alloc(struct pool_head *pool);
+void *pool_refill_alloc(struct pool_head *pool, unsigned int avail);
 
 /* Try to find an existing shared pool with the same characteristics and
  * returns it, otherwise creates this one. NULL is returned if no memory
@@ -121,7 +126,7 @@ static inline void *pool_alloc_dirty(struct pool_head *pool)
 	void *p;
 
 	if ((p = pool_get_first(pool)) == NULL)
-		p = pool_refill_alloc(pool);
+		p = pool_refill_alloc(pool, 0);
 
 	return p;
 }
