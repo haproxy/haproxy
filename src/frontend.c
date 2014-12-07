@@ -219,7 +219,7 @@ int frontend_accept(struct session *s)
 /* set temp integer to the id of the frontend */
 static int
 smp_fetch_fe_id(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                const struct arg *args, struct sample *smp, const char *kw)
+                const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_SESS;
 	smp->type = SMP_T_UINT;
@@ -233,7 +233,7 @@ smp_fetch_fe_id(struct proxy *px, struct session *l4, void *l7, unsigned int opt
  */
 static int
 smp_fetch_fe_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp, const char *kw)
+                       const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
@@ -247,7 +247,7 @@ smp_fetch_fe_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned 
  */
 static int
 smp_fetch_fe_conn(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                  const struct arg *args, struct sample *smp, const char *kw)
+                  const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;

@@ -1825,7 +1825,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 /* fetch the connection's source IPv4/IPv6 address */
 static int
 smp_fetch_src(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-              const struct arg *args, struct sample *smp, const char *kw)
+              const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct connection *cli_conn = objt_conn(l4->si[0].end);
 
@@ -1852,7 +1852,7 @@ smp_fetch_src(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 /* set temp integer to the connection's source port */
 static int
 smp_fetch_sport(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                const struct arg *args, struct sample *smp, const char *kw)
+                const struct arg *args, struct sample *smp, const char *k, void *private)
 {
 	struct connection *cli_conn = objt_conn(l4->si[0].end);
 
@@ -1870,7 +1870,7 @@ smp_fetch_sport(struct proxy *px, struct session *l4, void *l7, unsigned int opt
 /* fetch the connection's destination IPv4/IPv6 address */
 static int
 smp_fetch_dst(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-              const struct arg *args, struct sample *smp, const char *kw)
+              const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct connection *cli_conn = objt_conn(l4->si[0].end);
 
@@ -1899,7 +1899,7 @@ smp_fetch_dst(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 /* set temp integer to the frontend connexion's destination port */
 static int
 smp_fetch_dport(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                const struct arg *args, struct sample *smp, const char *kw)
+                const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct connection *cli_conn = objt_conn(l4->si[0].end);
 

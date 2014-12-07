@@ -290,13 +290,15 @@ struct sample_fetch {
 		       unsigned int opt,          /* fetch options (SMP_OPT_*) */
 		       const struct arg *arg_p,
 	               struct sample *smp,
-	               const char *kw);           /* fetch processing function */
+	               const char *kw,            /* fetch processing function */
+	               void *private);            /* private value. */
 	unsigned int arg_mask;                    /* arguments (ARG*()) */
 	int (*val_args)(struct arg *arg_p,
 			char **err_msg);          /* argument validation function */
 	unsigned long out_type;                   /* output sample type */
 	unsigned int use;                         /* fetch source (SMP_USE_*) */
 	unsigned int val;                         /* fetch validity (SMP_VAL_*) */
+	void *private;                            /* private values. only used by Lua */
 };
 
 /* sample expression */

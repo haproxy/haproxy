@@ -2931,7 +2931,7 @@ smp_fetch_sc_stkctr(struct session *l4, const struct arg *args, const char *kw)
  */
 static int
 smp_fetch_sc_tracked(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                      const struct arg *args, struct sample *smp, const char *kw)
+                      const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_BOOL;
@@ -2946,7 +2946,7 @@ smp_fetch_sc_tracked(struct proxy *px, struct session *l4, void *l7, unsigned in
  */
 static int
 smp_fetch_sc_get_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                      const struct arg *args, struct sample *smp, const char *kw)
+                      const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
 
@@ -2973,7 +2973,7 @@ smp_fetch_sc_get_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned i
  */
 static int
 smp_fetch_sc_gpc0_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp, const char *kw)
+                       const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
 
@@ -2999,7 +2999,7 @@ smp_fetch_sc_gpc0_rate(struct proxy *px, struct session *l4, void *l7, unsigned 
  */
 static int
 smp_fetch_sc_inc_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                      const struct arg *args, struct sample *smp, const char *kw)
+                      const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
 
@@ -3036,7 +3036,7 @@ smp_fetch_sc_inc_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned i
  */
 static int
 smp_fetch_sc_clr_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                      const struct arg *args, struct sample *smp, const char *kw)
+                      const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
 
@@ -3062,7 +3062,7 @@ smp_fetch_sc_clr_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned i
  */
 static int
 smp_fetch_sc_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                      const struct arg *args, struct sample *smp, const char *kw)
+                      const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
 
@@ -3087,7 +3087,7 @@ smp_fetch_sc_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsigned i
  */
 static int
 smp_fetch_sc_conn_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp, const char *kw)
+                       const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
 
@@ -3113,7 +3113,7 @@ smp_fetch_sc_conn_rate(struct proxy *px, struct session *l4, void *l7, unsigned 
  */
 static int
 smp_fetch_src_updt_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                            const struct arg *args, struct sample *smp, const char *kw)
+                            const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct connection *conn = objt_conn(l4->si[0].end);
 	struct stksess *ts;
@@ -3149,7 +3149,7 @@ smp_fetch_src_updt_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsi
  */
 static int
 smp_fetch_sc_conn_cur(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                      const struct arg *args, struct sample *smp, const char *kw)
+                      const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
 
@@ -3174,7 +3174,7 @@ smp_fetch_sc_conn_cur(struct proxy *px, struct session *l4, void *l7, unsigned i
  */
 static int
 smp_fetch_sc_sess_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                      const struct arg *args, struct sample *smp, const char *kw)
+                      const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
 
@@ -3198,7 +3198,7 @@ smp_fetch_sc_sess_cnt(struct proxy *px, struct session *l4, void *l7, unsigned i
  */
 static int
 smp_fetch_sc_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp, const char *kw)
+                       const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
 
@@ -3224,7 +3224,7 @@ smp_fetch_sc_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned 
  */
 static int
 smp_fetch_sc_http_req_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                          const struct arg *args, struct sample *smp, const char *kw)
+                          const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
 
@@ -3249,7 +3249,7 @@ smp_fetch_sc_http_req_cnt(struct proxy *px, struct session *l4, void *l7, unsign
  */
 static int
 smp_fetch_sc_http_req_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                           const struct arg *args, struct sample *smp, const char *kw)
+                           const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
 
@@ -3275,7 +3275,7 @@ smp_fetch_sc_http_req_rate(struct proxy *px, struct session *l4, void *l7, unsig
  */
 static int
 smp_fetch_sc_http_err_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                          const struct arg *args, struct sample *smp, const char *kw)
+                          const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
 
@@ -3300,7 +3300,7 @@ smp_fetch_sc_http_err_cnt(struct proxy *px, struct session *l4, void *l7, unsign
  */
 static int
 smp_fetch_sc_http_err_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                           const struct arg *args, struct sample *smp, const char *kw)
+                           const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
 
@@ -3326,7 +3326,7 @@ smp_fetch_sc_http_err_rate(struct proxy *px, struct session *l4, void *l7, unsig
  */
 static int
 smp_fetch_sc_kbytes_in(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp, const char *kw)
+                       const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
 
@@ -3351,7 +3351,7 @@ smp_fetch_sc_kbytes_in(struct proxy *px, struct session *l4, void *l7, unsigned 
  */
 static int
 smp_fetch_sc_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                           const struct arg *args, struct sample *smp, const char *kw)
+                           const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
 
@@ -3377,7 +3377,7 @@ smp_fetch_sc_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, unsig
  */
 static int
 smp_fetch_sc_kbytes_out(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp, const char *kw)
+                       const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
 
@@ -3402,7 +3402,7 @@ smp_fetch_sc_kbytes_out(struct proxy *px, struct session *l4, void *l7, unsigned
  */
 static int
 smp_fetch_sc_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                            const struct arg *args, struct sample *smp, const char *kw)
+                            const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
 
@@ -3427,7 +3427,7 @@ smp_fetch_sc_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, unsi
  */
 static int
 smp_fetch_sc_trackers(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp, const char *kw)
+                       const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
 
@@ -3445,7 +3445,7 @@ smp_fetch_sc_trackers(struct proxy *px, struct session *l4, void *l7, unsigned i
  */
 static int
 smp_fetch_table_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                    const struct arg *args, struct sample *smp, const char *kw)
+                    const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_UINT;
@@ -3458,7 +3458,7 @@ smp_fetch_table_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int
  */
 static int
 smp_fetch_table_avl(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                    const struct arg *args, struct sample *smp, const char *kw)
+                    const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	px = args->data.prx;
 	smp->flags = SMP_F_VOL_TEST;

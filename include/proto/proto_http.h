@@ -122,10 +122,10 @@ struct chunk *http_error_message(struct session *s, int msgnum);
 struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, struct proxy *curproxy,
                                                const char **args, char **errmsg, int use_fmt);
 int smp_fetch_cookie(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                 const struct arg *args, struct sample *smp, const char *kw);
+                 const struct arg *args, struct sample *smp, const char *kw, void *private);
 int
 smp_fetch_base32(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                 const struct arg *args, struct sample *smp, const char *kw);
+                 const struct arg *args, struct sample *smp, const char *kw, void *private);
 
 enum http_meth_t find_http_meth(const char *str, const int len);
 

@@ -9961,7 +9961,7 @@ static int pat_parse_meth(const char *text, struct pattern *pattern, int mflags,
  */
 static int
 smp_fetch_meth(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-               const struct arg *args, struct sample *smp, const char *kw)
+               const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	int meth;
 	struct http_txn *txn = l7;
@@ -10015,7 +10015,7 @@ static struct pattern *pat_match_meth(struct sample *smp, struct pattern_expr *e
 
 static int
 smp_fetch_rqver(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                const struct arg *args, struct sample *smp, const char *kw)
+                const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
 	char *ptr;
@@ -10040,7 +10040,7 @@ smp_fetch_rqver(struct proxy *px, struct session *l4, void *l7, unsigned int opt
 
 static int
 smp_fetch_stver(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                const struct arg *args, struct sample *smp, const char *kw)
+                const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
 	char *ptr;
@@ -10069,7 +10069,7 @@ smp_fetch_stver(struct proxy *px, struct session *l4, void *l7, unsigned int opt
 /* 3. Check on Status Code. We manipulate integers here. */
 static int
 smp_fetch_stcode(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                 const struct arg *args, struct sample *smp, const char *kw)
+                 const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
 	char *ptr;
@@ -10092,7 +10092,7 @@ smp_fetch_stcode(struct proxy *px, struct session *l4, void *l7, unsigned int op
 /* 4. Check on URL/URI. A pointer to the URI is stored. */
 static int
 smp_fetch_url(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-              const struct arg *args, struct sample *smp, const char *kw)
+              const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
 
@@ -10107,7 +10107,7 @@ smp_fetch_url(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 
 static int
 smp_fetch_url_ip(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                 const struct arg *args, struct sample *smp, const char *kw)
+                 const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
 	struct sockaddr_storage addr;
@@ -10126,7 +10126,7 @@ smp_fetch_url_ip(struct proxy *px, struct session *l4, void *l7, unsigned int op
 
 static int
 smp_fetch_url_port(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                   const struct arg *args, struct sample *smp, const char *kw)
+                   const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
 	struct sockaddr_storage addr;
@@ -10152,7 +10152,7 @@ smp_fetch_url_port(struct proxy *px, struct session *l4, void *l7, unsigned int 
  */
 static int
 smp_fetch_fhdr(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-               const struct arg *args, struct sample *smp, const char *kw)
+               const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
 	struct hdr_idx *idx = &txn->hdr_idx;
@@ -10208,7 +10208,7 @@ smp_fetch_fhdr(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
  */
 static int
 smp_fetch_fhdr_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                  const struct arg *args, struct sample *smp, const char *kw)
+                  const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
 	struct hdr_idx *idx = &txn->hdr_idx;
@@ -10234,7 +10234,7 @@ smp_fetch_fhdr_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int 
 
 static int
 smp_fetch_hdr_names(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                    const struct arg *args, struct sample *smp, const char *kw)
+                    const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
 	struct hdr_idx *idx = &txn->hdr_idx;
@@ -10273,7 +10273,7 @@ smp_fetch_hdr_names(struct proxy *px, struct session *l4, void *l7, unsigned int
  */
 static int
 smp_fetch_hdr(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-              const struct arg *args, struct sample *smp, const char *kw)
+              const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
 	struct hdr_idx *idx = &txn->hdr_idx;
@@ -10328,7 +10328,7 @@ smp_fetch_hdr(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
  */
 static int
 smp_fetch_hdr_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                  const struct arg *args, struct sample *smp, const char *kw)
+                  const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
 	struct hdr_idx *idx = &txn->hdr_idx;
@@ -10359,9 +10359,9 @@ smp_fetch_hdr_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int o
  */
 static int
 smp_fetch_hdr_val(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                  const struct arg *args, struct sample *smp, const char *kw)
+                  const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	int ret = smp_fetch_hdr(px, l4, l7, opt, args, smp, kw);
+	int ret = smp_fetch_hdr(px, l4, l7, opt, args, smp, kw, private);
 
 	if (ret > 0) {
 		smp->type = SMP_T_UINT;
@@ -10377,11 +10377,11 @@ smp_fetch_hdr_val(struct proxy *px, struct session *l4, void *l7, unsigned int o
  */
 static int
 smp_fetch_hdr_ip(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                 const struct arg *args, struct sample *smp, const char *kw)
+                 const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	int ret;
 
-	while ((ret = smp_fetch_hdr(px, l4, l7, opt, args, smp, kw)) > 0) {
+	while ((ret = smp_fetch_hdr(px, l4, l7, opt, args, smp, kw, private)) > 0) {
 		if (url2ipv4((char *)smp->data.str.str, &smp->data.ipv4)) {
 			smp->type = SMP_T_IPV4;
 			break;
@@ -10409,7 +10409,7 @@ smp_fetch_hdr_ip(struct proxy *px, struct session *l4, void *l7, unsigned int op
  */
 static int
 smp_fetch_path(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-               const struct arg *args, struct sample *smp, const char *kw)
+               const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
 	char *ptr, *end;
@@ -10442,7 +10442,7 @@ smp_fetch_path(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
  */
 static int
 smp_fetch_base(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-               const struct arg *args, struct sample *smp, const char *kw)
+               const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
 	char *ptr, *end, *beg;
@@ -10453,7 +10453,7 @@ smp_fetch_base(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 
 	ctx.idx = 0;
 	if (!http_find_header2("Host", 4, txn->req.chn->buf->p, &txn->hdr_idx, &ctx) || !ctx.vlen)
-		return smp_fetch_path(px, l4, l7, opt, args, smp, kw);
+		return smp_fetch_path(px, l4, l7, opt, args, smp, kw, private);
 
 	/* OK we have the header value in ctx.line+ctx.val for ctx.vlen bytes */
 	temp = get_trash_chunk();
@@ -10489,7 +10489,7 @@ smp_fetch_base(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
  */
 int
 smp_fetch_base32(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                 const struct arg *args, struct sample *smp, const char *kw)
+                 const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
 	struct hdr_ctx ctx;
@@ -10537,7 +10537,7 @@ smp_fetch_base32(struct proxy *px, struct session *l4, void *l7, unsigned int op
  */
 static int
 smp_fetch_base32_src(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                     const struct arg *args, struct sample *smp, const char *kw)
+                     const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct chunk *temp;
 	struct connection *cli_conn = objt_conn(l4->si[0].end);
@@ -10545,7 +10545,7 @@ smp_fetch_base32_src(struct proxy *px, struct session *l4, void *l7, unsigned in
 	if (!cli_conn)
 		return 0;
 
-	if (!smp_fetch_base32(px, l4, l7, opt, args, smp, kw))
+	if (!smp_fetch_base32(px, l4, l7, opt, args, smp, kw, private))
 		return 0;
 
 	temp = get_trash_chunk();
@@ -10576,7 +10576,7 @@ smp_fetch_base32_src(struct proxy *px, struct session *l4, void *l7, unsigned in
  */
 static int
 smp_fetch_query(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-               const struct arg *args, struct sample *smp, const char *kw)
+               const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
 	char *ptr, *end;
@@ -10601,7 +10601,7 @@ smp_fetch_query(struct proxy *px, struct session *l4, void *l7, unsigned int opt
 
 static int
 smp_fetch_proto_http(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                     const struct arg *args, struct sample *smp, const char *kw)
+                     const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	/* Note: hdr_idx.v cannot be NULL in this ACL because the ACL is tagged
 	 * as a layer7 ACL, which involves automatic allocation of hdr_idx.
@@ -10617,7 +10617,7 @@ smp_fetch_proto_http(struct proxy *px, struct session *l4, void *l7, unsigned in
 /* return a valid test if the current request is the first one on the connection */
 static int
 smp_fetch_http_first_req(struct proxy *px, struct session *s, void *l7, unsigned int opt,
-                         const struct arg *args, struct sample *smp, const char *kw)
+                         const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	if (!s)
 		return 0;
@@ -10630,7 +10630,7 @@ smp_fetch_http_first_req(struct proxy *px, struct session *s, void *l7, unsigned
 /* Accepts exactly 1 argument of type userlist */
 static int
 smp_fetch_http_auth(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                    const struct arg *args, struct sample *smp, const char *kw)
+                    const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 
 	if (!args || args->type != ARGT_USR)
@@ -10649,7 +10649,7 @@ smp_fetch_http_auth(struct proxy *px, struct session *l4, void *l7, unsigned int
 /* Accepts exactly 1 argument of type userlist */
 static int
 smp_fetch_http_auth_grp(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                        const struct arg *args, struct sample *smp, const char *kw)
+                        const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 
 	if (!args || args->type != ARGT_USR)
@@ -10778,7 +10778,7 @@ extract_cookie_value(char *hdr, const char *hdr_end,
  */
 static int
 smp_fetch_capture_header_req(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                 const struct arg *args, struct sample *smp, const char *kw)
+                 const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct proxy *fe = l4->fe;
 	struct http_txn *txn = l7;
@@ -10805,7 +10805,7 @@ smp_fetch_capture_header_req(struct proxy *px, struct session *l4, void *l7, uns
  */
 static int
 smp_fetch_capture_header_res(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                 const struct arg *args, struct sample *smp, const char *kw)
+                 const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct proxy *fe = l4->fe;
 	struct http_txn *txn = l7;
@@ -10830,7 +10830,7 @@ smp_fetch_capture_header_res(struct proxy *px, struct session *l4, void *l7, uns
 /* Extracts the METHOD in the HTTP request, the txn->uri should be filled before the call */
 static int
 smp_fetch_capture_req_method(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                             const struct arg *args, struct sample *smp, const char *kw)
+                             const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct chunk *temp;
 	struct http_txn *txn = l7;
@@ -10858,7 +10858,7 @@ smp_fetch_capture_req_method(struct proxy *px, struct session *l4, void *l7, uns
 /* Extracts the path in the HTTP request, the txn->uri should be filled before the call  */
 static int
 smp_fetch_capture_req_uri(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                             const struct arg *args, struct sample *smp, const char *kw)
+                             const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct chunk *temp;
 	struct http_txn *txn = l7;
@@ -10897,7 +10897,7 @@ smp_fetch_capture_req_uri(struct proxy *px, struct session *l4, void *l7, unsign
  */
 static int
 smp_fetch_capture_req_ver(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                          const struct arg *args, struct sample *smp, const char *kw)
+                          const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
 
@@ -10921,7 +10921,7 @@ smp_fetch_capture_req_ver(struct proxy *px, struct session *l4, void *l7, unsign
  */
 static int
 smp_fetch_capture_res_ver(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                          const struct arg *args, struct sample *smp, const char *kw)
+                          const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
 
@@ -10952,7 +10952,7 @@ smp_fetch_capture_res_ver(struct proxy *px, struct session *l4, void *l7, unsign
  * files.
  */
 int smp_fetch_cookie(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                 const struct arg *args, struct sample *smp, const char *kw)
+                 const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
 	struct hdr_idx *idx = &txn->hdr_idx;
@@ -11051,7 +11051,7 @@ int smp_fetch_cookie(struct proxy *px, struct session *l4, void *l7, unsigned in
  */
 static int
 smp_fetch_cookie_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                     const struct arg *args, struct sample *smp, const char *kw)
+                     const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
 	struct hdr_idx *idx = &txn->hdr_idx;
@@ -11118,9 +11118,9 @@ smp_fetch_cookie_cnt(struct proxy *px, struct session *l4, void *l7, unsigned in
  */
 static int
 smp_fetch_cookie_val(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                     const struct arg *args, struct sample *smp, const char *kw)
+                     const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	int ret = smp_fetch_cookie(px, l4, l7, opt, args, smp, kw);
+	int ret = smp_fetch_cookie(px, l4, l7, opt, args, smp, kw, private);
 
 	if (ret > 0) {
 		smp->type = SMP_T_UINT;
@@ -11223,7 +11223,7 @@ find_url_param_value(char* path, size_t path_l,
 
 static int
 smp_fetch_url_param(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                    const struct arg *args, struct sample *smp, const char *kw)
+                    const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	char delim = '?';
 	struct http_txn *txn = l7;
@@ -11254,9 +11254,9 @@ smp_fetch_url_param(struct proxy *px, struct session *l4, void *l7, unsigned int
  */
 static int
 smp_fetch_url_param_val(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                     const struct arg *args, struct sample *smp, const char *kw)
+                     const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	int ret = smp_fetch_url_param(px, l4, l7, opt, args, smp, kw);
+	int ret = smp_fetch_url_param(px, l4, l7, opt, args, smp, kw, private);
 
 	if (ret > 0) {
 		smp->type = SMP_T_UINT;
@@ -11278,7 +11278,7 @@ smp_fetch_url_param_val(struct proxy *px, struct session *l4, void *l7, unsigned
  */
 static int
 smp_fetch_url32(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                 const struct arg *args, struct sample *smp, const char *kw)
+                 const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
 	struct hdr_ctx ctx;
@@ -11326,12 +11326,12 @@ smp_fetch_url32(struct proxy *px, struct session *l4, void *l7, unsigned int opt
  */
 static int
 smp_fetch_url32_src(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                     const struct arg *args, struct sample *smp, const char *kw)
+                     const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct chunk *temp;
 	struct connection *cli_conn = objt_conn(l4->si[0].end);
 
-	if (!smp_fetch_url32(px, l4, l7, opt, args, smp, kw))
+	if (!smp_fetch_url32(px, l4, l7, opt, args, smp, kw, private))
 		return 0;
 
 	temp = get_trash_chunk();

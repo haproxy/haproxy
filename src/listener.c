@@ -590,7 +590,7 @@ void bind_dump_kws(char **out)
 /* set temp integer to the number of connexions to the same listening socket */
 static int
 smp_fetch_dconn(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                const struct arg *args, struct sample *smp, const char *kw)
+                const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_UINT;
 	smp->data.uint = l4->listener->nbconn;
@@ -600,7 +600,7 @@ smp_fetch_dconn(struct proxy *px, struct session *l4, void *l7, unsigned int opt
 /* set temp integer to the id of the socket (listener) */
 static int
 smp_fetch_so_id(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
-                const struct arg *args, struct sample *smp, const char *kw)
+                const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_UINT;
 	smp->data.uint = l4->listener->luid;
