@@ -1387,6 +1387,7 @@ static int connect_conn_chk(struct task *t)
 	struct connection *conn = check->conn;
 	struct protocol *proto;
 	int ret;
+	int quickack;
 
 	/* tcpcheck send/expect initialisation */
 	if (check->type == PR_O2_TCPCHK_CHK)
@@ -1442,6 +1443,9 @@ static int connect_conn_chk(struct task *t)
 		set_host_port(&conn->addr.to, check->port);
 	}
 
+	/* only plain tcp-check supports quick ACK */
+	quickack = check->type == 0 || check->type == PR_O2_TCPCHK_CHK;
+
 	if (check->type == PR_O2_TCPCHK_CHK && !LIST_ISEMPTY(&s->proxy->tcpcheck_rules)) {
 		struct tcpcheck_rule *r = (struct tcpcheck_rule *) s->proxy->tcpcheck_rules.n;
 		/* if first step is a 'connect', then tcpcheck_main must run it */
@@ -1449,11 +1453,13 @@ static int connect_conn_chk(struct task *t)
 			tcpcheck_main(conn);
 			return SN_ERR_UP;
 		}
+		if (r->action == TCPCHK_ACT_EXPECT)
+			quickack = 0;
 	}
 
 	ret = SN_ERR_INTERNAL;
 	if (proto->connect)
-		ret = proto->connect(conn, check->type, (check->type) ? 0 : 2);
+		ret = proto->connect(conn, check->type, quickack ? 2 : 0);
 	conn->flags |= CO_FL_WAKE_DATA;
 	if (s->check.send_proxy) {
 		conn->send_proxy_ofs = 1;
@@ -2351,7 +2357,7 @@ static int tcpcheck_get_step_id(struct server *s)
 static void tcpcheck_main(struct connection *conn)
 {
 	char *contentptr;
-	struct tcpcheck_rule *cur = NULL;
+	struct tcpcheck_rule *cur, *next;
 	int done = 0, ret = 0;
 	struct check *check = conn->owner;
 	struct server *s = check->server;
@@ -2447,6 +2453,11 @@ static void tcpcheck_main(struct connection *conn)
 			break;
 		}
 
+		/* have 'next' point to the next rule or NULL if we're on the last one */
+		next = (struct tcpcheck_rule *)cur->list.n;
+		if (&next->list == head)
+			next = NULL;
+
 		if (check->current_step->action == TCPCHK_ACT_CONNECT) {
 			struct protocol *proto;
 			struct xprt_ops *xprt;
@@ -2496,7 +2507,9 @@ static void tcpcheck_main(struct connection *conn)
 
 			ret = SN_ERR_INTERNAL;
 			if (proto->connect)
-				ret = proto->connect(conn, 1, 0);
+				ret = proto->connect(conn,
+						     1 /* I/O polling is always needed */,
+						     (next && next->action == TCPCHK_ACT_EXPECT) ? 0 : 2);
 			conn->flags |= CO_FL_WAKE_DATA;
 			if (check->current_step->conn_opts & TCPCHK_OPT_SEND_PROXY) {
 				conn->send_proxy_ofs = 1;
