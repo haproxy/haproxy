@@ -1442,7 +1442,7 @@ static int connect_conn_chk(struct task *t)
 		set_host_port(&conn->addr.to, check->port);
 	}
 
-	if (check->type == PR_O2_TCPCHK_CHK) {
+	if (check->type == PR_O2_TCPCHK_CHK && !LIST_ISEMPTY(&s->proxy->tcpcheck_rules)) {
 		struct tcpcheck_rule *r = (struct tcpcheck_rule *) s->proxy->tcpcheck_rules.n;
 		/* if first step is a 'connect', then tcpcheck_main must run it */
 		if (r->action == TCPCHK_ACT_CONNECT) {
