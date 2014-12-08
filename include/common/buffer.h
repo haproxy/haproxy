@@ -422,6 +422,27 @@ static inline struct buffer *b_alloc(struct buffer **buf)
 	return b;
 }
 
+/* Allocates a buffer and replaces *buf with this buffer. If no memory is
+ * available, &buf_wanted is used instead. No control is made to check if *buf
+ * already pointed to another buffer. The allocated buffer is returned, or
+ * NULL in case no memory is available. The difference with b_alloc() is that
+ * this function only picks from the pool and never calls malloc(), so it can
+ * fail even if some memory is available.
+ */
+static inline struct buffer *b_alloc_fast(struct buffer **buf)
+{
+	struct buffer *b;
+
+	*buf = &buf_wanted;
+	b = pool_get_first(pool2_buffer);
+	if (likely(b)) {
+		b->size = pool2_buffer->size - sizeof(struct buffer);
+		b_reset(b);
+		*buf = b;
+	}
+	return b;
+}
+
 /* Releases buffer *buf (no check of emptiness) */
 static inline void __b_drop(struct buffer **buf)
 {
