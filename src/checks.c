@@ -2496,7 +2496,7 @@ static void tcpcheck_main(struct connection *conn)
 
 			ret = SN_ERR_INTERNAL;
 			if (proto->connect)
-				ret = proto->connect(conn, check->type, (check->type) ? 0 : 2);
+				ret = proto->connect(conn, 1, 0);
 			conn->flags |= CO_FL_WAKE_DATA;
 			if (check->current_step->conn_opts & TCPCHK_OPT_SEND_PROXY) {
 				conn->send_proxy_ofs = 1;
