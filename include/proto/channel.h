@@ -43,6 +43,7 @@ unsigned long long __channel_forward(struct channel *chn, unsigned long long byt
 
 /* SI-to-channel functions working with buffers */
 int bi_putblk(struct channel *chn, const char *str, int len);
+struct buffer *bi_swpbuf(struct channel *chn, struct buffer *buf);
 int bi_putchr(struct channel *chn, char c);
 int bo_inject(struct channel *chn, const char *msg, int len);
 int bo_getline(struct channel *chn, char *str, int len);
