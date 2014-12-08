@@ -131,6 +131,7 @@ enum http_meth_t find_http_meth(const char *str, const int len);
 
 struct http_req_action_kw *action_http_req_custom(const char *kw);
 struct http_res_action_kw *action_http_res_custom(const char *kw);
+int val_hdr(struct arg *arg, char **err_msg);
 
 static inline void http_req_keywords_register(struct http_req_action_kw_list *kw_list)
 {

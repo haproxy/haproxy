@@ -17,7 +17,7 @@
 #include <common/standard.h>
 #include <proto/arg.h>
 
-static const char *arg_type_names[ARGT_NBTYPES] = {
+const char *arg_type_names[ARGT_NBTYPES] = {
 	[ARGT_STOP] = "end of arguments",
 	[ARGT_UINT] = "unsigned integer",
 	[ARGT_SINT] = "signed integer",

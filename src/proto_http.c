@@ -11364,7 +11364,7 @@ smp_fetch_url32_src(struct proxy *px, struct session *l4, void *l7, unsigned int
  * error message in case of error, that the caller is responsible for freeing.
  * The initial location must either be freeable or NULL.
  */
-static int val_hdr(struct arg *arg, char **err_msg)
+int val_hdr(struct arg *arg, char **err_msg)
 {
 	if (arg && arg[1].type == ARGT_SINT && arg[1].data.sint < -MAX_HDR_HISTORY) {
 		memprintf(err_msg, "header occurrence must be >= %d", -MAX_HDR_HISTORY);

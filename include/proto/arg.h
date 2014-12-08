@@ -48,6 +48,9 @@
 #define ARG5(m, t1, t2, t3, t4, t5) \
 	(ARG4(m, t1, t2, t3, t4) + (ARGT_##t5 << (ARGM_BITS + ARGT_BITS * 4)))
 
+/* Mapping between argument number and literal description. */
+extern const char *arg_type_names[];
+
 /* This dummy arg list may be used by default when no arg is found, it helps
  * parsers by removing pointer checks.
  */

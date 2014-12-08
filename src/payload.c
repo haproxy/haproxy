@@ -631,7 +631,7 @@ smp_fetch_payload(struct proxy *px, struct session *s, void *l7, unsigned int op
  * error, that the caller is responsible for freeing. The initial location must
  * either be freeable or NULL.
  */
-static int val_payload_lv(struct arg *arg, char **err_msg)
+int val_payload_lv(struct arg *arg, char **err_msg)
 {
 	if (!arg[1].data.uint) {
 		memprintf(err_msg, "payload length must be > 0");
