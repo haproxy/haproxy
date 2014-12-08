@@ -384,6 +384,49 @@ struct sample_fetch *find_sample_fetch(const char *kw, int len)
 	return NULL;
 }
 
+/* This fucntion browse the list of available saple fetch. <current> is
+ * the last used sample fetch. If it is the first call, it must set to NULL.
+ * <idx> is the index of the next sampleèfetch entry. It is used as private
+ * value. It is useles to initiate it.
+ *
+ * It returns always the newt fetch_sample entry, and NULL when the end of
+ * the list is reached.
+ */
+struct sample_fetch *sample_fetch_getnext(struct sample_fetch *current, int *idx)
+{
+	struct sample_fetch_kw_list *kwl;
+	struct sample_fetch *base;
+
+	if (!current) {
+		/* Get first kwl entry. */
+		kwl = LIST_NEXT(&sample_fetches.list, struct sample_fetch_kw_list *, list);
+		(*idx) = 0;
+	} else {
+		/* Get kwl corresponding to the curret entry. */
+		base = current + 1 - (*idx);
+		kwl = container_of(base, struct sample_fetch_kw_list, kw);
+	}
+
+	while (1) {
+
+		/* Check if kwl is the last entry. */
+		if (&kwl->list == &sample_fetches.list)
+			return NULL;
+
+		/* idx contain the next keyword. If it is available, return it. */
+		if (kwl->kw[*idx].kw) {
+			(*idx)++;
+			return &kwl->kw[(*idx)-1];
+		}
+
+		/* get next entry in the main list, and return NULL if the end is reached. */
+		kwl = LIST_NEXT(&kwl->list, struct sample_fetch_kw_list *, list);
+
+		/* Set index to 0, ans do one other loop. */
+		(*idx) = 0;
+	}
+}
+
 /*
  * Returns the pointer on sample format conversion keyword structure identified by
  * string of <len> in buffer <kw>.
