@@ -96,8 +96,6 @@ void *pool_refill_alloc(struct pool_head *pool)
 		if (!ret)
 			return NULL;
 	}
-	if (mem_poison_byte)
-		memset(ret, mem_poison_byte, pool->size);
 	pool->allocated++;
 	pool->used++;
 	return ret;

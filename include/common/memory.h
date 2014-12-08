@@ -95,24 +95,49 @@ void pool_gc2();
 void *pool_destroy2(struct pool_head *pool);
 
 /*
- * Returns a pointer to type <type> taken from the
- * pool <pool_type> or dynamically allocated. In the
- * first case, <pool_type> is updated to point to the
- * next element in the list.
+ * Returns a pointer to type <type> taken from the pool <pool_type> if
+ * available, otherwise returns NULL. No malloc() is attempted, and poisonning
+ * is never performed. The purpose is to get the fastest possible allocation.
+ */
+static inline void *pool_get_first(struct pool_head *pool)
+{
+	void *p;
+
+	if ((p = pool->free_list) != NULL) {
+		pool->free_list = *(void **)pool->free_list;
+		pool->used++;
+	}
+	return p;
+}
+
+/*
+ * Returns a pointer to type <type> taken from the pool <pool_type> or
+ * dynamically allocated. In the first case, <pool_type> is updated to point to
+ * the next element in the list. No memory poisonning is ever performed on the
+ * returned area.
+ */
+static inline void *pool_alloc_dirty(struct pool_head *pool)
+{
+	void *p;
+
+	if ((p = pool_get_first(pool)) == NULL)
+		p = pool_refill_alloc(pool);
+
+	return p;
+}
+
+/*
+ * Returns a pointer to type <type> taken from the pool <pool_type> or
+ * dynamically allocated. In the first case, <pool_type> is updated to point to
+ * the next element in the list. Memory poisonning is performed if enabled.
  */
 static inline void *pool_alloc2(struct pool_head *pool)
 {
 	void *p;
 
-	if ((p = pool->free_list) == NULL) {
-		p = pool_refill_alloc(pool);
-	}
-	else {
-		pool->free_list = *(void **)pool->free_list;
-		pool->used++;
-		if (unlikely(mem_poison_byte))
-			memset(p, mem_poison_byte, pool->size);
-	}
+	p = pool_alloc_dirty(pool);
+	if (p && mem_poison_byte)
+		memset(p, mem_poison_byte, pool->size);
 	return p;
 }
 
