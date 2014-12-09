@@ -183,7 +183,7 @@ static void stream_int_update_embedded(struct stream_interface *si)
 	    (si->ib->cons->flags & SI_FL_WAIT_DATA)) {
 		si_chk_snd(si->ib->cons);
 		/* check if the consumer has freed some space */
-		if (!channel_full(si->ib))
+		if (!channel_full(si->ib) && !si->ib->pipe)
 			si->flags &= ~SI_FL_WAIT_ROOM;
 	}
 
@@ -314,7 +314,7 @@ static void stream_int_chk_rcv(struct stream_interface *si)
 	if (unlikely(si->state != SI_ST_EST || (ib->flags & (CF_SHUTR|CF_DONT_READ))))
 		return;
 
-	if (channel_full(ib)) {
+	if (channel_full(ib) || ib->pipe) {
 		/* stop reading */
 		si->flags |= SI_FL_WAIT_ROOM;
 	}
