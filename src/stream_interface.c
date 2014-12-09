@@ -180,7 +180,8 @@ static void stream_int_update_embedded(struct stream_interface *si)
 		si_chk_rcv(si->ob->prod);
 
 	if (((si->ib->flags & CF_READ_PARTIAL) && !channel_is_empty(si->ib)) &&
-	    (si->ib->cons->flags & SI_FL_WAIT_DATA)) {
+	    (si->ib->pipe /* always try to send spliced data */ ||
+	     (si->ib->buf->i == 0 && (si->ib->cons->flags & SI_FL_WAIT_DATA)))) {
 		si_chk_snd(si->ib->cons);
 		/* check if the consumer has freed some space */
 		if (!channel_full(si->ib) && !si->ib->pipe)
