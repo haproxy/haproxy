@@ -44,7 +44,7 @@
 #include <openssl/x509.h>
 #include <openssl/err.h>
 #include <openssl/rand.h>
-#if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_IS_BORINGSSL)
+#if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
 #include <openssl/ocsp.h>
 #endif
 
@@ -113,7 +113,7 @@ static DH *local_dh_4096 = NULL;
 static DH *local_dh_8192 = NULL;
 #endif /* OPENSSL_NO_DH */
 
-#if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_IS_BORINGSSL)
+#if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
 struct certificate_ocsp {
 	struct ebmb_node key;
 	unsigned char key_data[OCSP_MAX_CERTID_ASN1_LENGTH];
@@ -1283,7 +1283,7 @@ static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf
 	}
 #endif
 
-#if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_IS_BORINGSSL)
+#if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
 	ret = ssl_sock_load_ocsp(ctx, path);
 	if (ret < 0) {
 		if (err)

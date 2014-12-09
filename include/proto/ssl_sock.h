@@ -55,7 +55,7 @@ int ssl_sock_get_cert_used_sess(struct connection *conn);
 int ssl_sock_get_cert_used_conn(struct connection *conn);
 int ssl_sock_get_remote_common_name(struct connection *conn, struct chunk *out);
 unsigned int ssl_sock_get_verify_result(struct connection *conn);
-#if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_IS_BORINGSSL)
+#if (defined SSL_CTRL_SET_TLSEXT_STATUS_REQ_CB && !defined OPENSSL_NO_OCSP)
 int ssl_sock_update_ocsp_response(struct chunk *ocsp_response, char **err);
 #endif
 
