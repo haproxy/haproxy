@@ -43,7 +43,7 @@
 #include <types/checks.h>
 
 
-/* server states. Only SRV_ST_DOWN indicates a down server. */
+/* server states. Only SRV_ST_STOPPED indicates a down server. */
 enum srv_state {
 	SRV_ST_STOPPED = 0,              /* the server is down. Please keep set to zero. */
 	SRV_ST_STARTING,                 /* the server is warming up (up but throttled) */

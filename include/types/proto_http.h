@@ -71,7 +71,7 @@
 
 /* indicate how we *want* the connection to behave, regardless of what is in
  * the headers. We have 4 possible values right now :
- * - WANT_KAL : try to maintain keep-alive (default hwen nothing configured)
+ * - WANT_KAL : try to maintain keep-alive (default when nothing configured)
  * - WANT_TUN : will be a tunnel (CONNECT).
  * - WANT_SCL : enforce close on the server side
  * - WANT_CLO : enforce close on both sides

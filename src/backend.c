@@ -553,7 +553,7 @@ int assign_server(struct session *s)
 	       (__objt_server(conn->target)->nbpend + 1) < s->be->max_ka_queue))) &&
 	    srv_is_usable(__objt_server(conn->target))) {
 		/* This session was relying on a server in a previous request
-		 * and the proxy has "option prefer-current-server" set, so
+		 * and the proxy has "option prefer-last-server" set, so
 		 * let's try to reuse the same server.
 		 */
 		srv = __objt_server(conn->target);
