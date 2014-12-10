@@ -1824,7 +1824,7 @@ smp_fetch_rand(struct proxy *px, struct session *s, void *l7, unsigned int opt,
 
 	/* reduce if needed. Don't do a modulo, use all bits! */
 	if (args && args[0].type == ARGT_UINT)
-		smp->data.uint = ((uint64_t)smp->data.uint * args[0].data.uint) >> 32;
+		smp->data.uint = ((uint64_t)smp->data.uint * args[0].data.uint) / ((u64)RAND_MAX+1);
 
 	smp->type = SMP_T_UINT;
 	smp->flags |= SMP_F_VOL_TEST | SMP_F_MAY_CHANGE;
