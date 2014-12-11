@@ -4475,10 +4475,8 @@ option httplog [ clf ]
 
   This option may be set either in the frontend or the backend.
 
-  If this option has been enabled in a "defaults" section, it can be disabled
-  in a specific instance by prepending the "no" keyword before it. Specifying
-  only "option httplog" will automatically clear the 'clf' mode if it was set
-  by default.
+  Specifying only "option httplog" will automatically clear the 'clf' mode
+  if it was set by default.
 
   See also :  section 8 about logging.
 
