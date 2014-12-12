@@ -63,6 +63,11 @@
 static int tcp_bind_listeners(struct protocol *proto, char *errmsg, int errlen);
 static int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen);
 
+/* List head of all known action keywords for "tcp-request connection" */
+struct list tcp_req_conn_keywords = LIST_HEAD_INIT(tcp_req_conn_keywords);
+struct list tcp_req_cont_keywords = LIST_HEAD_INIT(tcp_req_cont_keywords);
+struct list tcp_res_cont_keywords = LIST_HEAD_INIT(tcp_res_cont_keywords);
+
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct protocol proto_tcpv4 = {
 	.name = "tcpv4",
@@ -109,6 +114,77 @@ static struct protocol proto_tcpv6 = {
 	.nb_listeners = 0,
 };
 
+/*
+ * Register keywords.
+ */
+void tcp_req_conn_keywords_register(struct tcp_action_kw_list *kw_list)
+{
+	LIST_ADDQ(&tcp_req_conn_keywords, &kw_list->list);
+}
+
+void tcp_req_cont_keywords_register(struct tcp_action_kw_list *kw_list)
+{
+	LIST_ADDQ(&tcp_req_cont_keywords, &kw_list->list);
+}
+
+void tcp_res_cont_keywords_register(struct tcp_action_kw_list *kw_list)
+{
+	LIST_ADDQ(&tcp_res_cont_keywords, &kw_list->list);
+}
+
+/*
+ * Return the struct http_req_action_kw associated to a keyword.
+ */
+static struct tcp_action_kw *tcp_req_conn_action(const char *kw)
+{
+	struct tcp_action_kw_list *kw_list;
+	int i;
+
+	if (LIST_ISEMPTY(&tcp_req_conn_keywords))
+		return NULL;
+
+	list_for_each_entry(kw_list, &tcp_req_conn_keywords, list) {
+		for (i = 0; kw_list->kw[i].kw != NULL; i++) {
+			if (!strcmp(kw, kw_list->kw[i].kw))
+				return &kw_list->kw[i];
+		}
+	}
+	return NULL;
+}
+
+static struct tcp_action_kw *tcp_req_cont_action(const char *kw)
+{
+	struct tcp_action_kw_list *kw_list;
+	int i;
+
+	if (LIST_ISEMPTY(&tcp_req_cont_keywords))
+		return NULL;
+
+	list_for_each_entry(kw_list, &tcp_req_cont_keywords, list) {
+		for (i = 0; kw_list->kw[i].kw != NULL; i++) {
+			if (!strcmp(kw, kw_list->kw[i].kw))
+				return &kw_list->kw[i];
+		}
+	}
+	return NULL;
+}
+
+static struct tcp_action_kw *tcp_res_cont_action(const char *kw)
+{
+	struct tcp_action_kw_list *kw_list;
+	int i;
+
+	if (LIST_ISEMPTY(&tcp_res_cont_keywords))
+		return NULL;
+
+	list_for_each_entry(kw_list, &tcp_res_cont_keywords, list) {
+		for (i = 0; kw_list->kw[i].kw != NULL; i++) {
+			if (!strcmp(kw, kw_list->kw[i].kw))
+				return &kw_list->kw[i];
+		}
+	}
+	return NULL;
+}
 
 /* Binds ipv4/ipv6 address <local> to socket <fd>, unless <flags> is set, in which
  * case we try to bind <remote>. <flags> is a 2-bit field consisting of :
@@ -1124,6 +1200,10 @@ int tcp_inspect_request(struct session *s, struct channel *req, int an_bit)
 				cap[h->index][len] = 0;
 			}
 			else {
+				/* Custom keywords. */
+				if (rule->action_ptr(rule, s->be, s) == 0)
+					goto missing_data;
+
 				/* otherwise accept */
 				break;
 			}
@@ -1223,6 +1303,9 @@ int tcp_inspect_response(struct session *s, struct channel *rep, int an_bit)
 				break;
 			}
 			else {
+				/* Custom keywords. */
+				rule->action_ptr(rule, s->be, s);
+
 				/* otherwise accept */
 				break;
 			}
@@ -1299,6 +1382,9 @@ int tcp_exec_req_rules(struct session *s)
 				conn_sock_want_recv(conn);
 			}
 			else {
+				/* Custom keywords. */
+				rule->action_ptr(rule, s->fe, s);
+
 				/* otherwise it's an accept */
 				break;
 			}
@@ -1333,10 +1419,18 @@ static int tcp_parse_response_rule(char **args, int arg, int section_type,
 		rule->action = TCP_ACT_CLOSE;
 	}
 	else {
-		memprintf(err,
-		          "'%s %s' expects 'accept', 'close' or 'reject' in %s '%s' (got '%s')",
-		          args[0], args[1], proxy_type_str(curpx), curpx->id, args[arg]);
-		return -1;
+		struct tcp_action_kw *kw;
+		kw = tcp_res_cont_action(args[arg]);
+		if (kw) {
+			arg++;
+			if (!kw->parse((const char **)args, &arg, curpx, rule, err))
+				return -1;
+		} else {
+			memprintf(err,
+			          "'%s %s' expects 'accept', 'close' or 'reject' in %s '%s' (got '%s')",
+			          args[0], args[1], proxy_type_str(curpx), curpx->id, args[arg]);
+			return -1;
+		}
 	}
 
 	if (strcmp(args[arg], "if") == 0 || strcmp(args[arg], "unless") == 0) {
@@ -1527,11 +1621,23 @@ static int tcp_parse_request_rule(char **args, int arg, int section_type,
 		rule->action = TCP_ACT_EXPECT_PX;
 	}
 	else {
-		memprintf(err,
-		          "'%s %s' expects 'accept', 'reject', 'track-sc0' ... 'track-sc%d' "
-		          " in %s '%s' (got '%s')",
-		          args[0], args[1], MAX_SESS_STKCTR-1, proxy_type_str(curpx), curpx->id, args[arg]);
-		return -1;
+		struct tcp_action_kw *kw;
+		if (where & SMP_VAL_FE_CON_ACC)
+			kw = tcp_req_conn_action(args[arg]);
+		else
+			kw = tcp_req_cont_action(args[arg]);
+		if (kw) {
+			arg++;
+			if (!kw->parse((const char **)args, &arg, curpx, rule, err))
+				return -1;
+		} else {
+			memprintf(err,
+			          "'%s %s' expects 'accept', 'reject', 'track-sc0' ... 'track-sc%d' "
+			          " in %s '%s' (got '%s')",
+			          args[0], args[1], MAX_SESS_STKCTR-1, proxy_type_str(curpx),
+			          curpx->id, args[arg]);
+			return -1;
+		}
 	}
 
 	if (strcmp(args[arg], "if") == 0 || strcmp(args[arg], "unless") == 0) {

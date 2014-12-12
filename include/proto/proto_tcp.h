@@ -40,6 +40,11 @@ int tcp_inspect_request(struct session *s, struct channel *req, int an_bit);
 int tcp_inspect_response(struct session *s, struct channel *rep, int an_bit);
 int tcp_exec_req_rules(struct session *s);
 
+/* TCP keywords. */
+void tcp_req_conn_keywords_register(struct tcp_action_kw_list *kw_list);
+void tcp_req_cont_keywords_register(struct tcp_action_kw_list *kw_list);
+void tcp_res_cont_keywords_register(struct tcp_action_kw_list *kw_list);
+
 /* Converts the INET/INET6 source address to a stick_table key usable for table
  * lookups. <type> can be STKTABLE_TYPE_IP or STKTABLE_TYPE_IPV6. The function
  * try to convert the incoming IP to the type expected by the sticktable.
