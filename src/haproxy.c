@@ -1459,14 +1459,14 @@ void run_poll_loop()
 
 	tv_update_date(0,1);
 	while (1) {
+		/* Process a few tasks */
+		process_runnable_tasks();
+
 		/* check if we caught some signals and process them */
 		signal_process_queue();
 
 		/* Check if we can expire some tasks */
-		wake_expired_tasks(&next);
-
-		/* Process a few tasks */
-		process_runnable_tasks(&next);
+		next = wake_expired_tasks();
 
 		/* stop when there's nothing left to do */
 		if (jobs == 0)

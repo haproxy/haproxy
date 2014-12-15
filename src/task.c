@@ -118,9 +118,9 @@ void __task_queue(struct task *task)
 
 /*
  * Extract all expired timers from the timer queue, and wakes up all
- * associated tasks. Returns the date of next event (or eternity) in <next>.
+ * associated tasks. Returns the date of next event (or eternity).
  */
-void wake_expired_tasks(int *next)
+int wake_expired_tasks()
 {
 	struct task *task;
 	struct eb32_node *eb;
@@ -139,8 +139,7 @@ void wake_expired_tasks(int *next)
 
 		if (likely(tick_is_lt(now_ms, eb->key))) {
 			/* timer not expired yet, revisit it later */
-			*next = eb->key;
-			return;
+			return eb->key;
 		}
 
 		/* timer looks expired, detach it from the queue */
@@ -172,9 +171,8 @@ void wake_expired_tasks(int *next)
 		task_wakeup(task, TASK_WOKEN_TIMER);
 	}
 
-	/* We have found no task to expire in any tree */
-	*next = TICK_ETERNITY;
-	return;
+	/* No task is expired */
+	return TICK_ETERNITY;
 }
 
 /* The run queue is chronologically sorted in a tree. An insertion counter is
@@ -187,11 +185,10 @@ void wake_expired_tasks(int *next)
  *
  * The function adjusts <next> if a new event is closer.
  */
-void process_runnable_tasks(int *next)
+void process_runnable_tasks()
 {
 	struct task *t;
 	unsigned int max_processed;
-	int expire;
 
 	run_queue_cur = run_queue; /* keep a copy for reporting */
 	nb_tasks_cur = nb_tasks;
@@ -205,8 +202,6 @@ void process_runnable_tasks(int *next)
 
 	if (likely(niced_tasks))
 		max_processed = (max_processed + 3) / 4;
-
-	expire = *next;
 
 	while (max_processed--) {
 		/* Note: this loop is one of the fastest code path in
@@ -245,13 +240,10 @@ void process_runnable_tasks(int *next)
 
 		if (likely(t != NULL)) {
 			t->state &= ~TASK_RUNNING;
-			if (t->expire) {
+			if (t->expire)
 				task_queue(t);
-				expire = tick_first_2nz(expire, t->expire);
-			}
 		}
 	}
-	*next = expire;
 }
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */

@@ -259,13 +259,13 @@ static inline void task_schedule(struct task *task, int when)
  *   - return the date of next event in <next> or eternity.
  */
 
-void process_runnable_tasks(int *next);
+void process_runnable_tasks();
 
 /*
  * Extract all expired timers from the timer queue, and wakes up all
  * associated tasks. Returns the date of next event (or eternity).
  */
-void wake_expired_tasks(int *next);
+int wake_expired_tasks();
 
 /* Perform minimal initializations, report 0 in case of error, 1 if OK. */
 int init_task();
