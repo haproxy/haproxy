@@ -967,7 +967,7 @@ struct sample *sample_process(struct proxy *px, struct session *l4, void *l7,
 
 		/* OK cast succeeded */
 
-		if (!conv_expr->conv->process(conv_expr->arg_p, p))
+		if (!conv_expr->conv->process(conv_expr->arg_p, p, conv_expr->conv->private))
 			return NULL;
 	}
 	return p;
@@ -1275,7 +1275,7 @@ struct sample *sample_fetch_string(struct proxy *px, struct session *l4, void *l
 /*    These functions set the data type on return.               */
 /*****************************************************************/
 
-static int sample_conv_bin2base64(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_bin2base64(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct chunk *trash = get_trash_chunk();
 	int b64_len;
@@ -1292,7 +1292,7 @@ static int sample_conv_bin2base64(const struct arg *arg_p, struct sample *smp)
 	return 1;
 }
 
-static int sample_conv_bin2hex(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_bin2hex(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct chunk *trash = get_trash_chunk();
 	unsigned char c;
@@ -1311,7 +1311,7 @@ static int sample_conv_bin2hex(const struct arg *arg_p, struct sample *smp)
 }
 
 /* hashes the binary input into a 32-bit unsigned int */
-static int sample_conv_djb2(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_djb2(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	smp->data.uint = hash_djb2(smp->data.str.str, smp->data.str.len);
 	if (arg_p && arg_p->data.uint)
@@ -1320,7 +1320,7 @@ static int sample_conv_djb2(const struct arg *arg_p, struct sample *smp)
 	return 1;
 }
 
-static int sample_conv_str2lower(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_str2lower(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	int i;
 
@@ -1337,7 +1337,7 @@ static int sample_conv_str2lower(const struct arg *arg_p, struct sample *smp)
 	return 1;
 }
 
-static int sample_conv_str2upper(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_str2upper(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	int i;
 
@@ -1355,7 +1355,7 @@ static int sample_conv_str2upper(const struct arg *arg_p, struct sample *smp)
 }
 
 /* takes the netmask in arg_p */
-static int sample_conv_ipmask(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_ipmask(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	smp->data.ipv4.s_addr &= arg_p->data.ipv4.s_addr;
 	smp->type = SMP_T_IPV4;
@@ -1366,7 +1366,7 @@ static int sample_conv_ipmask(const struct arg *arg_p, struct sample *smp)
  * adds an optional offset found in args[1] and emits a string representing
  * the local time in the format specified in args[1] using strftime().
  */
-static int sample_conv_ltime(const struct arg *args, struct sample *smp)
+static int sample_conv_ltime(const struct arg *args, struct sample *smp, void *private)
 {
 	struct chunk *temp;
 	time_t curr_date = smp->data.uint;
@@ -1383,7 +1383,7 @@ static int sample_conv_ltime(const struct arg *args, struct sample *smp)
 }
 
 /* hashes the binary input into a 32-bit unsigned int */
-static int sample_conv_sdbm(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_sdbm(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	smp->data.uint = hash_sdbm(smp->data.str.str, smp->data.str.len);
 	if (arg_p && arg_p->data.uint)
@@ -1396,7 +1396,7 @@ static int sample_conv_sdbm(const struct arg *arg_p, struct sample *smp)
  * adds an optional offset found in args[1] and emits a string representing
  * the UTC date in the format specified in args[1] using strftime().
  */
-static int sample_conv_utime(const struct arg *args, struct sample *smp)
+static int sample_conv_utime(const struct arg *args, struct sample *smp, void *private)
 {
 	struct chunk *temp;
 	time_t curr_date = smp->data.uint;
@@ -1413,7 +1413,7 @@ static int sample_conv_utime(const struct arg *args, struct sample *smp)
 }
 
 /* hashes the binary input into a 32-bit unsigned int */
-static int sample_conv_wt6(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_wt6(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	smp->data.uint = hash_wt6(smp->data.str.str, smp->data.str.len);
 	if (arg_p && arg_p->data.uint)
@@ -1423,7 +1423,7 @@ static int sample_conv_wt6(const struct arg *arg_p, struct sample *smp)
 }
 
 /* hashes the binary input into a 32-bit unsigned int */
-static int sample_conv_crc32(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_crc32(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	smp->data.uint = hash_crc32(smp->data.str.str, smp->data.str.len);
 	if (arg_p && arg_p->data.uint)
@@ -1503,7 +1503,7 @@ static int sample_conv_json_check(struct arg *arg, struct sample_conv *conv,
 	return 0;
 }
 
-static int sample_conv_json(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_json(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct chunk *temp;
 	char _str[7]; /* \u + 4 hex digit + null char for sprintf. */
@@ -1617,7 +1617,7 @@ static int sample_conv_json(const struct arg *arg_p, struct sample *smp)
 /* This sample function is designed to extract some bytes from an input buffer.
  * First arg is the offset.
  * Optional second arg is the length to truncate */
-static int sample_conv_bytes(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_bytes(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	if (smp->data.str.len <= arg_p[0].data.uint) {
 		smp->data.str.len = 0;
@@ -1674,7 +1674,7 @@ static int sample_conv_field_check(struct arg *args, struct sample_conv *conv,
  * First arg is the index of the field (start at 1)
  * Second arg is a char list of separators (type string)
  */
-static int sample_conv_field(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_field(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	unsigned int field;
 	char *start, *end;
@@ -1725,7 +1725,7 @@ found:
  * First arg is the index of the word (start at 1)
  * Second arg is a char list of words separators (type string)
  */
-static int sample_conv_word(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_word(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	unsigned int word;
 	char *start, *end;
@@ -1819,7 +1819,7 @@ static int sample_conv_regsub_check(struct arg *args, struct sample_conv *conv,
  * location until nothing matches anymore. First arg is the regex to apply to
  * the input string, second arg is the replacement expression.
  */
-static int sample_conv_regsub(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_regsub(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	char *start, *end;
 	struct my_regex *reg = arg_p[0].data.reg;
@@ -1891,7 +1891,7 @@ static int sample_conv_regsub(const struct arg *arg_p, struct sample *smp)
 /* Takes a UINT on input, applies a binary twos complement and returns the UINT
  * result.
  */
-static int sample_conv_binary_cpl(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_binary_cpl(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	smp->data.uint = ~smp->data.uint;
 	return 1;
@@ -1900,7 +1900,7 @@ static int sample_conv_binary_cpl(const struct arg *arg_p, struct sample *smp)
 /* Takes a UINT on input, applies a binary "and" with the UINT in arg_p, and
  * returns the UINT result.
  */
-static int sample_conv_binary_and(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_binary_and(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	smp->data.uint &= arg_p->data.uint;
 	return 1;
@@ -1909,7 +1909,7 @@ static int sample_conv_binary_and(const struct arg *arg_p, struct sample *smp)
 /* Takes a UINT on input, applies a binary "or" with the UINT in arg_p, and
  * returns the UINT result.
  */
-static int sample_conv_binary_or(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_binary_or(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	smp->data.uint |= arg_p->data.uint;
 	return 1;
@@ -1918,7 +1918,7 @@ static int sample_conv_binary_or(const struct arg *arg_p, struct sample *smp)
 /* Takes a UINT on input, applies a binary "xor" with the UINT in arg_p, and
  * returns the UINT result.
  */
-static int sample_conv_binary_xor(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_binary_xor(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	smp->data.uint ^= arg_p->data.uint;
 	return 1;
@@ -1927,7 +1927,7 @@ static int sample_conv_binary_xor(const struct arg *arg_p, struct sample *smp)
 /* Takes a UINT on input, applies an arithmetic "add" with the UINT in arg_p,
  * and returns the UINT result.
  */
-static int sample_conv_arith_add(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_arith_add(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	smp->data.uint += arg_p->data.uint;
 	return 1;
@@ -1936,7 +1936,7 @@ static int sample_conv_arith_add(const struct arg *arg_p, struct sample *smp)
 /* Takes a UINT on input, applies an arithmetic "sub" with the UINT in arg_p,
  * and returns the UINT result.
  */
-static int sample_conv_arith_sub(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_arith_sub(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	smp->data.uint -= arg_p->data.uint;
 	return 1;
@@ -1945,7 +1945,7 @@ static int sample_conv_arith_sub(const struct arg *arg_p, struct sample *smp)
 /* Takes a UINT on input, applies an arithmetic "mul" with the UINT in arg_p,
  * and returns the UINT result.
  */
-static int sample_conv_arith_mul(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_arith_mul(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	smp->data.uint *= arg_p->data.uint;
 	return 1;
@@ -1955,7 +1955,7 @@ static int sample_conv_arith_mul(const struct arg *arg_p, struct sample *smp)
  * and returns the UINT result. If arg_p makes the result overflow, then the
  * largest possible quantity is returned.
  */
-static int sample_conv_arith_div(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_arith_div(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	if (arg_p->data.uint)
 		smp->data.uint /= arg_p->data.uint;
@@ -1968,7 +1968,7 @@ static int sample_conv_arith_div(const struct arg *arg_p, struct sample *smp)
  * and returns the UINT result. If arg_p makes the result overflow, then zero
  * is returned.
  */
-static int sample_conv_arith_mod(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_arith_mod(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	if (arg_p->data.uint)
 		smp->data.uint %= arg_p->data.uint;
@@ -1980,7 +1980,7 @@ static int sample_conv_arith_mod(const struct arg *arg_p, struct sample *smp)
 /* Takes an UINT on input, applies an arithmetic "neg" and returns the UINT
  * result.
  */
-static int sample_conv_arith_neg(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_arith_neg(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	smp->data.uint = -smp->data.uint;
 	return 1;
@@ -1989,7 +1989,7 @@ static int sample_conv_arith_neg(const struct arg *arg_p, struct sample *smp)
 /* Takes a UINT on input, returns true is the value is non-null, otherwise
  * false. The output is a BOOL.
  */
-static int sample_conv_arith_bool(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_arith_bool(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	smp->data.uint = !!smp->data.uint;
 	smp->type = SMP_T_BOOL;
@@ -1999,7 +1999,7 @@ static int sample_conv_arith_bool(const struct arg *arg_p, struct sample *smp)
 /* Takes a UINT on input, returns false is the value is non-null, otherwise
  * truee. The output is a BOOL.
  */
-static int sample_conv_arith_not(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_arith_not(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	smp->data.uint = !smp->data.uint;
 	smp->type = SMP_T_BOOL;
@@ -2009,7 +2009,7 @@ static int sample_conv_arith_not(const struct arg *arg_p, struct sample *smp)
 /* Takes a UINT on input, returns true is the value is odd, otherwise false.
  * The output is a BOOL.
  */
-static int sample_conv_arith_odd(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_arith_odd(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	smp->data.uint = smp->data.uint & 1;
 	smp->type = SMP_T_BOOL;
@@ -2019,7 +2019,7 @@ static int sample_conv_arith_odd(const struct arg *arg_p, struct sample *smp)
 /* Takes a UINT on input, returns true is the value is even, otherwise false.
  * The output is a BOOL.
  */
-static int sample_conv_arith_even(const struct arg *arg_p, struct sample *smp)
+static int sample_conv_arith_even(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	smp->data.uint = !(smp->data.uint & 1);
 	smp->type = SMP_T_BOOL;

@@ -261,7 +261,8 @@ struct sample_storage {
 struct sample_conv {
 	const char *kw;                           /* configuration keyword  */
 	int (*process)(const struct arg *arg_p,
-		       struct sample *smp);       /* process function */
+		       struct sample *smp,
+	               void *private);            /* process function */
 	unsigned int arg_mask;                    /* arguments (ARG*()) */
 	int (*val_args)(struct arg *arg_p,
 	                struct sample_conv *smp_conv,
@@ -269,7 +270,7 @@ struct sample_conv {
 			char **err_msg);          /* argument validation function */
 	unsigned int in_type;                     /* expected input sample type */
 	unsigned int out_type;                    /* output sample type */
-	unsigned int private;                     /* private values. only used by maps */
+	void *private;                            /* private values. only used by maps and Lua */
 };
 
 /* sample conversion expression */
