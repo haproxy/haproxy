@@ -46,7 +46,6 @@
 #include <types/obj_type.h>
 #include <types/proto_http.h>
 #include <types/sample.h>
-#include <types/session.h>
 #include <types/server.h>
 #include <types/stick_table.h>
 
@@ -185,6 +184,8 @@ enum pr_mode {
 #define STK_IS_MATCH	0x00000001	/* match on request fetch */
 #define STK_IS_STORE	0x00000002	/* store on request fetch */
 #define STK_ON_RSP	0x00000004	/* store on response fetch */
+
+struct session;
 
 struct error_snapshot {
 	struct timeval when;		/* date of this event, (tv_sec == 0) means "never" */

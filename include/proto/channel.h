@@ -32,6 +32,7 @@
 #include <common/ticks.h>
 #include <common/time.h>
 
+#include <types/channel.h>
 #include <types/global.h>
 
 extern struct pool_head *pool2_channel;

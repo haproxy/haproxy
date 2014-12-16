@@ -31,7 +31,6 @@
 #include <types/pattern.h>
 #include <types/proxy.h>
 #include <types/server.h>
-#include <types/session.h>
 
 #include <ebmbtree.h>
 

@@ -26,7 +26,8 @@
 #include <common/mini-clist.h>
 
 #include <types/server.h>
-#include <types/session.h>
+
+struct session;
 
 struct pendconn {
 	struct list list;		/* chaining ... */
