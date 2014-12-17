@@ -29,7 +29,6 @@
 #include <proto/task.h>
 
 
-static int absmaxevents = 0;    // absolute maximum amounts of polled events
 
 /* private data */
 static struct epoll_event *epoll_events;
@@ -195,10 +194,8 @@ REGPRM1 static int _do_init(struct poller *p)
 	if (epoll_fd < 0)
 		goto fail_fd;
 
-	/* See comments at the top of the file about this formula. */
-	absmaxevents = MAX(global.tune.maxpollevents, global.maxsock);
 	epoll_events = (struct epoll_event*)
-		calloc(1, sizeof(struct epoll_event) * absmaxevents);
+		calloc(1, sizeof(struct epoll_event) * global.tune.maxpollevents);
 
 	if (epoll_events == NULL)
 		goto fail_ee;
