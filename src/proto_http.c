@@ -124,7 +124,7 @@ const char *HTTP_407_fmt =
 	"Content-Type: text/html\r\n"
 	"Proxy-Authenticate: Basic realm=\"%s\"\r\n"
 	"\r\n"
-	"<html><body><h1>401 Unauthorized</h1>\nYou need a valid user and password to access this content.\n</body></html>\n";
+	"<html><body><h1>407 Unauthorized</h1>\nYou need a valid user and password to access this content.\n</body></html>\n";
 
 
 const int http_err_codes[HTTP_ERR_SIZE] = {
