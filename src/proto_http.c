@@ -9691,7 +9691,7 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
 		 * if prefix == "/", we don't want to add anything, otherwise it
 		 * makes it hard for the user to configure a self-redirection.
 		 */
-		proxy->conf.args.ctx = ARGC_RDR;
+		curproxy->conf.args.ctx = ARGC_RDR;
 		if (!(type == REDIRECT_TYPE_PREFIX && destination[0] == '/' && destination[1] == '\0')) {
 			parse_logformat_string(destination, curproxy, &rule->rdr_fmt, LOG_OPT_HTTP,
 			                       (curproxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
