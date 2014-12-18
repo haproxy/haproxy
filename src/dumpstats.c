@@ -1295,8 +1295,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			pat_ref_prune(appctx->ctx.map.ref);
 
 			/* return response */
-			appctx->ctx.cli.msg = "Done.\n";
-			appctx->st0 = STAT_CLI_PRINT;
+			appctx->st0 = STAT_CLI_PROMPT;
 			return 1;
 		}
 		else {
@@ -1788,8 +1787,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			}
 
 			/* The set is done, send message. */
-			appctx->ctx.cli.msg = "Done.\n";
-			appctx->st0 = STAT_CLI_PRINT;
+			appctx->st0 = STAT_CLI_PROMPT;
 			return 1;
 		}
 #ifdef USE_OPENSSL
@@ -2138,8 +2136,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			}
 
 			/* The deletion is done, send message. */
-			appctx->ctx.cli.msg = "Done.\n";
-			appctx->st0 = STAT_CLI_PRINT;
+			appctx->st0 = STAT_CLI_PROMPT;
 			return 1;
 		}
 		else { /* unknown "del" parameter */
@@ -2215,8 +2212,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			}
 
 			/* The add is done, send message. */
-			appctx->ctx.cli.msg = "Done.\n";
-			appctx->st0 = STAT_CLI_PRINT;
+			appctx->st0 = STAT_CLI_PROMPT;
 			return 1;
 		}
 		else { /* unknown "del" parameter */
