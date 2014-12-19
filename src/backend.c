@@ -804,7 +804,7 @@ int assign_server_address(struct session *s)
 	}
 
 	/* Copy network namespace from client connection */
-	srv_conn->proxy_netns = cli_conn->proxy_netns;
+	srv_conn->proxy_netns = cli_conn ? cli_conn->proxy_netns : NULL;
 
 	s->flags |= SN_ADDR_SET;
 	return SRV_STATUS_OK;
