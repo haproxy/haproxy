@@ -142,8 +142,7 @@ void pool_gc2()
 		//qfprintf(stderr, "Flushing pool %s\n", entry->name);
 		next = entry->free_list;
 		while (next &&
-		       entry->allocated > entry->minavail &&
-		       entry->allocated > entry->used) {
+		       (int)(entry->allocated - entry->used) > (int)entry->minavail) {
 			temp = next;
 			next = *(void **)temp;
 			entry->allocated--;
