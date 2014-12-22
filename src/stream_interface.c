@@ -366,7 +366,7 @@ struct appctx *stream_int_register_handler(struct stream_interface *si, struct s
 	DPRINTF(stderr, "registering handler %p for si %p (was %p)\n", app, si, si->owner);
 
 	appctx = si_alloc_appctx(si);
-	if (!si)
+	if (!appctx)
 		return NULL;
 
 	appctx_set_applet(appctx, app);
