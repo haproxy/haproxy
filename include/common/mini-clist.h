@@ -1,7 +1,22 @@
 /*
- * list.h : list manipulation macros and structures.
- * Copyright 2002-2010 Willy Tarreau <w@1wt.eu>
+ * include/common/mini-clist.h
+ * Circular list manipulation macros and structures.
  *
+ * Copyright (C) 2002-2014 Willy Tarreau - w@1wt.eu
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation, version 2.1
+ * exclusively.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
 #ifndef _COMMON_MINI_CLIST_H
@@ -65,54 +80,6 @@ struct cond_wordlist {
 
 #define LIST_HEAD_INIT(l) { &l, &l }
 
-/* dual linked lists :
- * Start = (struct list *) pointer to the next elem's prev list entry
- * For each element :
- *   - prev = pointer to previous element's next (or start). Cannot be NULL
- *   - next = pointer to next element's prev. NULL = end.
- *
- */
-
-/* adds an element at the beginning of a dual-linked list ; returns the element */
-#define DLIST_ADD(lh, el) ({ typeof(el) __ret = (el); __ret->n = (void *)(lh); __ret->p = (void *)&(lh); if (likely(__ret->n != NULL)) __ret->n->p = __ret; (lh) = (typeof(lh))&__ret->n; __ret; })
-
-/* removes an element from a dual-linked list and returns it */
-#define DLIST_DEL(el) ({ typeof(el) __ret = (el); if (likely(__ret->n != NULL)) __ret->n->p = __ret->p; __ret->p->n = __ret->n; __ret; })
-
-/*
- * iterates through a list of items of type "<struct_type>" which are
- * linked via a "struct list" member named <struct_member>. The head of the
- * list is stored at a location designed by <list_head>, which should be a
- * "struct list *". A variable <end_item> of type "<struct_type>" will
- * be used as temporary end of list pointer. It can be derived from <list_head>
- * since this one is only used before. <list_head> will be modified except for
- * foreach_dlist_item_cst which is slightly slower.
- * Major difference between FOREACH_ITEM is that it stops at NULL.
- * Example: foreach_dlist_item(cur_node, args, struct node *, list) { ... };
- *          foreach_dlist_item_cst(cur_node, &node->args, struct node *, list) { ... };
- */
-#define foreach_dlist_item_cst(iterator, list_head, struct_type, struct_member)	\
-	for ((iterator) = LIST_ELEM(&(list_head), struct_type, struct_member.n);	\
-	     ((iterator)->struct_member.n != NULL) && \
-             (((iterator) = LIST_ELEM((iterator)->struct_member.n, struct_type, struct_member.n)), 1);\
-	     )
-
-#define foreach_dlist_item(iterator, var_list_head, struct_type, struct_member)	\
-	while ((var_list_head != NULL) &&			\
-	       ((var_list_head=((iterator)=LIST_ELEM(var_list_head, struct_type, struct_member.n))->struct_member.n), 1))
-
-/*
- * Like foreach_dlist_item, except that this one only operates on the head of
- * the list. It's to the inner instructions to iterate the list head. If not,
- * this will be an endless loop.
- */
-#define while_dlist_item(iterator, var_list_head, struct_type, struct_member)	\
-	while ((var_list_head != NULL) &&			\
-	       (((iterator)=LIST_ELEM(var_list_head, struct_type, struct_member.n)),1))
-
-
-/****** circular lists ********/
-
 /* adds an element at the beginning of a list ; returns the element */
 #define LIST_ADD(lh, el) ({ (el)->n = (lh)->n; (el)->n->p = (lh)->n = (el); (el)->p = (lh); (el); })
 
@@ -145,37 +112,6 @@ struct cond_wordlist {
  * struct pt.
  */
 #define LIST_PREV(lh, pt, el) (LIST_ELEM((lh)->p, pt, el))
-
-/*
- * DEPRECATED !!!  Use list_for_each_entry() below instead !
- *
- * iterates through a list of items of type "<struct_type>" which are
- * linked via a "struct list" member named <struct_member>. The head of the
- * list is stored at a location designed by <list_head>, which should be a
- * "struct list *". A variable <end_item> of type "<struct_type>" will
- * be used as temporary end of list pointer. It can be derived from <list_head>
- * since this one is only used before.
- * Example: FOREACH_ITEM(cur_node, &node->args, node, struct node *, neigh) { ... };
- */
-#define FOREACH_ITEM(iterator, list_head, end_item, struct_type, struct_member) \
-	iterator = end_item = LIST_ELEM(list_head, struct_type, struct_member); \
-	while (((iterator) = LIST_ELEM((iterator)->struct_member.n, 		\
-			     struct_type, struct_member)) != (end_item))
-
-/*
- * DEPRECATED !!!  Use list_for_each_entry_safe() below instead !
- *
- * idem except that this one is safe against deletion, but it needs a backup
- * pointer of the element after the iterator.
- * Example: FOREACH_ITEM_SAFE(cur_node, backup, &node->args, node, struct node *, neigh) { ... };
- */
-#define FOREACH_ITEM_SAFE(iterator, backup, list_head, end_item, struct_type, struct_member) \
-	end_item = LIST_ELEM(list_head, struct_type, struct_member); \
-	iterator = LIST_ELEM((end_item)->struct_member.n, struct_type, struct_member); \
-	if ((iterator) != (end_item)) \
-		backup = LIST_ELEM((iterator)->struct_member.n, struct_type, struct_member); \
-	for ( ; (iterator) != (end_item); (iterator) = (backup),   \
-		backup = LIST_ELEM((iterator)->struct_member.n, struct_type, struct_member))
 
 /*
  * Simpler FOREACH_ITEM macro inspired from Linux sources.
