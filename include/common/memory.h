@@ -23,6 +23,7 @@
 #define _COMMON_MEMORY_H
 
 #include <stdlib.h>
+#include <string.h>
 
 #include <common/config.h>
 #include <common/mini-clist.h>
@@ -99,19 +100,21 @@ void *pool_destroy2(struct pool_head *pool);
  * first case, <pool_type> is updated to point to the
  * next element in the list.
  */
-#define pool_alloc2(pool)                                       \
-({                                                              \
-        void *__p;                                              \
-        if ((__p = (pool)->free_list) == NULL)			\
-                __p = pool_refill_alloc(pool);                  \
-        else {                                                  \
-                (pool)->free_list = *(void **)(pool)->free_list;\
-		(pool)->used++;					\
-		if (unlikely(mem_poison_byte))			\
-			memset(__p, mem_poison_byte, (pool)->size);	\
-        }                                                       \
-        __p;                                                    \
-})
+static inline void *pool_alloc2(struct pool_head *pool)
+{
+	void *p;
+
+	if ((p = pool->free_list) == NULL) {
+		p = pool_refill_alloc(pool);
+	}
+	else {
+		pool->free_list = *(void **)pool->free_list;
+		pool->used++;
+		if (unlikely(mem_poison_byte))
+			memset(p, mem_poison_byte, pool->size);
+	}
+	return p;
+}
 
 /*
  * Puts a memory area back to the corresponding pool.
@@ -122,14 +125,14 @@ void *pool_destroy2(struct pool_head *pool);
  * pointer. Just like with the libc's free(), nothing
  * is done if <ptr> is NULL.
  */
-#define pool_free2(pool, ptr)                           \
-({                                                      \
-        if (likely((ptr) != NULL)) {                    \
-                *(void **)(ptr) = (void *)(pool)->free_list;	\
-                (pool)->free_list = (void *)(ptr);	\
-                (pool)->used--;				\
-        }                                               \
-})
+static inline void pool_free2(struct pool_head *pool, void *ptr)
+{
+        if (likely(ptr != NULL)) {
+                *(void **)ptr= (void *)pool->free_list;
+                pool->free_list = (void *)ptr;
+                pool->used--;
+	}
+}
 
 
 #endif /* _COMMON_MEMORY_H */
