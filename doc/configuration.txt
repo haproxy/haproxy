@@ -891,6 +891,23 @@ spread-checks <0..50, in percent>
   and +/- 50%. A value between 2 and 5 seems to show good results. The
   default value remains at 0.
 
+tune.buffers.limit <number>
+  Sets a hard limit on the number of buffers which may be allocated per process.
+  The default value is zero which means unlimited. The minimum non-zero value
+  will always be greater than "tune.buffers.reserve" and should ideally always
+  be about twice as large. Forcing this value can be particularly useful to
+  limit the amount of memory a process may take, while retaining a sane
+  behaviour. When this limit is reached, sessions which need a buffer wait for
+  another one to be released by another session. Since buffers are dynamically
+  allocated and released, the waiting time is very short and not perceptible
+  provided that limits remain reasonable. In fact sometimes reducing the limit
+  may even increase performance by increasing the CPU cache's efficiency. Tests
+  have shown good results on average HTTP traffic with a limit to 1/10 of the
+  expected global maxconn setting, which also significantly reduces memory
+  usage. The memory savings come from the fact that a number of connections
+  will not allocate 2*tune.bufsize. It is best not to touch this value unless
+  advised to do so by an haproxy core developer.
+
 tune.buffers.reserve <number>
   Sets the number of buffers which are pre-allocated and reserved for use only
   during memory shortage conditions resulting in failed memory allocations. The

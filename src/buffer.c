@@ -48,6 +48,8 @@ int init_buffer()
 	 * release a server connection).
 	 */
 	pool2_buffer->minavail = MAX(global.tune.reserved_bufs, 3);
+	if (global.tune.buf_limit)
+		pool2_buffer->limit = global.tune.buf_limit;
 
 	buffer = pool_refill_alloc(pool2_buffer, pool2_buffer->minavail - 1);
 	if (!buffer)

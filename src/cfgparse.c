@@ -696,6 +696,20 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		}
 	}
 #endif
+	else if (!strcmp(args[0], "tune.buffers.limit")) {
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		global.tune.buf_limit = atol(args[1]);
+		if (global.tune.buf_limit) {
+			if (global.tune.buf_limit < 3)
+				global.tune.buf_limit = 3;
+			if (global.tune.buf_limit <= global.tune.reserved_bufs)
+				global.tune.buf_limit = global.tune.reserved_bufs + 1;
+		}
+	}
 	else if (!strcmp(args[0], "tune.buffers.reserve")) {
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument.\n", file, linenum, args[0]);
@@ -705,6 +719,8 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		global.tune.reserved_bufs = atol(args[1]);
 		if (global.tune.reserved_bufs < 2)
 			global.tune.reserved_bufs = 2;
+		if (global.tune.buf_limit && global.tune.buf_limit <= global.tune.reserved_bufs)
+			global.tune.buf_limit = global.tune.reserved_bufs + 1;
 	}
 	else if (!strcmp(args[0], "tune.bufsize")) {
 		if (*(args[1]) == 0) {
