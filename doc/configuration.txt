@@ -891,6 +891,12 @@ spread-checks <0..50, in percent>
   and +/- 50%. A value between 2 and 5 seems to show good results. The
   default value remains at 0.
 
+tune.buffers.reserve <number>
+  Sets the number of buffers which are pre-allocated and reserved for use only
+  during memory shortage conditions resulting in failed memory allocations. The
+  minimum value is 2 and is also the default. There is no reason a user would
+  want to change this value, it's mostly aimed at haproxy core developers.
+
 tune.bufsize <number>
   Sets the buffer size to this size (in bytes). Lower values allow more
   sessions to coexist in the same amount of RAM, and higher values allow some
