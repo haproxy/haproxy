@@ -412,6 +412,7 @@ static void *alloc_zlib(void *opaque, unsigned int items, unsigned int size)
 	struct comp_ctx *ctx = opaque;
 	static char round = 0; /* order in deflateInit2 */
 	void *buf = NULL;
+	struct pool_head *pool = NULL;
 
 	if (global.maxzlibmem > 0 && (global.maxzlibmem - zlib_used_memory) < (long)(items * size))
 		goto end;
@@ -420,35 +421,40 @@ static void *alloc_zlib(void *opaque, unsigned int items, unsigned int size)
 		case 0:
 			if (zlib_pool_deflate_state == NULL)
 				zlib_pool_deflate_state = create_pool("zlib_state", size * items, MEM_F_SHARED);
-			ctx->zlib_deflate_state = buf = pool_alloc2(zlib_pool_deflate_state);
+			pool = zlib_pool_deflate_state;
+			ctx->zlib_deflate_state = buf = pool_alloc2(pool);
 		break;
 
 		case 1:
 			if (zlib_pool_window == NULL)
 				zlib_pool_window = create_pool("zlib_window", size * items, MEM_F_SHARED);
-			ctx->zlib_window = buf = pool_alloc2(zlib_pool_window);
+			pool = zlib_pool_window;
+			ctx->zlib_window = buf = pool_alloc2(pool);
 		break;
 
 		case 2:
 			if (zlib_pool_prev == NULL)
 				zlib_pool_prev = create_pool("zlib_prev", size * items, MEM_F_SHARED);
-			ctx->zlib_prev = buf = pool_alloc2(zlib_pool_prev);
+			pool = zlib_pool_prev;
+			ctx->zlib_prev = buf = pool_alloc2(pool);
 		break;
 
 		case 3:
 			if (zlib_pool_head == NULL)
 				zlib_pool_head = create_pool("zlib_head", size * items, MEM_F_SHARED);
-			ctx->zlib_head = buf = pool_alloc2(zlib_pool_head);
+			pool = zlib_pool_head;
+			ctx->zlib_head = buf = pool_alloc2(pool);
 		break;
 
 		case 4:
 			if (zlib_pool_pending_buf == NULL)
 				zlib_pool_pending_buf = create_pool("zlib_pending_buf", size * items, MEM_F_SHARED);
-			ctx->zlib_pending_buf = buf = pool_alloc2(zlib_pool_pending_buf);
+			pool = zlib_pool_pending_buf;
+			ctx->zlib_pending_buf = buf = pool_alloc2(pool);
 		break;
 	}
 	if (buf != NULL)
-		zlib_used_memory += items * size;
+		zlib_used_memory += pool->size;
 
 end:
 
