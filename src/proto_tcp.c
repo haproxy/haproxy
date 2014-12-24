@@ -250,11 +250,16 @@ int tcp_bind_socket(int fd, int flags, struct sockaddr_storage *local, struct so
 
 static int create_server_socket(struct connection *conn)
 {
-	const struct netns_entry *ns = objt_server(conn->target)->netns;
+	const struct netns_entry *ns = NULL;
 
-	if (objt_server(conn->target)->flags & SRV_F_USE_NS_FROM_PP)
-		ns = conn->proxy_netns;
-
+#ifdef CONFIG_HAP_NS
+	if (objt_server(conn->target)) {
+		if (__objt_server(conn->target)->flags & SRV_F_USE_NS_FROM_PP)
+			ns = conn->proxy_netns;
+		else
+			ns = __objt_server(conn->target)->netns;
+	}
+#endif
 	return my_socketat(ns, conn->addr.to.ss_family, SOCK_STREAM, IPPROTO_TCP);
 }
 
