@@ -5354,9 +5354,6 @@ external-check command <command>
   Arguments :
     <command> is the external command to run
 
-  The PATH environment variable used when executing the
-  command may be set using "external-check path".
-
   The arguments passed to the to the command are:
 
   <proxy_address> <proxy_port> <server_address> <server_port>
@@ -5367,6 +5364,36 @@ external-check command <command>
   <proxy_port> will be the string "NOT_USED". In a backend section, it's not
   possible to determine a listener, and both <proxy_address> and <proxy_port>
   will have the string value "NOT_USED".
+
+  Some values are also provided through environment variables.
+
+  Environment variables :
+    HAPROXY_PROXY_ADDR      The first bind address if available (or empty if not
+                            applicable, for example in a "backend" section).
+
+    HAPROXY_PROXY_ID        The backend id.
+
+    HAPROXY_PROXY_NAME      The backend name.
+
+    HAPROXY_PROXY_PORT      The first bind port if available (or empty if not
+                            applicable, for example in a "backend" section or
+                            for a UNIX socket).
+
+    HAPROXY_SERVER_ADDR     The server address.
+
+    HAPROXY_SERVER_CURCONN  The current number of connections on the server.
+
+    HAPROXY_SERVER_ID       The server id.
+
+    HAPROXY_SERVER_MAXCONN  The server max connections.
+
+    HAPROXY_SERVER_NAME     The server name.
+
+    HAPROXY_SERVER_PORT     The server port if available (or empty for a UNIX
+                            socket).
+
+    PATH                    The PATH environment variable used when executing
+                            the command may be set using "external-check path".
 
   If the command executed and exits with a zero status then the check is
   considered to have passed, otherwise the check is considered to have
