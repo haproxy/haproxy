@@ -60,7 +60,7 @@ void __session_offer_buffers(int rqlimit);
 static inline void session_offer_buffers();
 int session_alloc_work_buffer(struct session *s);
 void session_release_buffers(struct session *s);
-int session_alloc_recv_buffer(struct session *s, struct buffer **buf);
+int session_alloc_recv_buffer(struct channel *chn);
 
 /* sets the stick counter's entry pointer */
 static inline void stkctr_set_entry(struct stkctr *stkctr, struct stksess *entry)

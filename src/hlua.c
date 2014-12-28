@@ -1440,7 +1440,7 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	 * the request buffer if its not required.
 	 */
 	if (socket->s->req.buf->size == 0) {
-		if (!session_alloc_recv_buffer(socket->s, &socket->s->req.buf)) {
+		if (!session_alloc_recv_buffer(&socket->s->req)) {
 			socket->s->si[0].flags |= SI_FL_WAIT_ROOM;
 			goto hlua_socket_write_yield_return;
 		}
@@ -2324,7 +2324,7 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 	 * the request buffer if its not required.
 	 */
 	if (chn->chn->buf->size == 0) {
-		if (!session_alloc_recv_buffer(chn->s, &chn->chn->buf)) {
+		if (!session_alloc_recv_buffer(chn->chn)) {
 			chn_prod(chn->chn)->flags |= SI_FL_WAIT_ROOM;
 			WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_send_yield, TICK_ETERNITY, 0));
 		}

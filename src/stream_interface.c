@@ -1185,7 +1185,7 @@ static void si_conn_recv_cb(struct connection *conn)
 	}
 
 	/* now we'll need a buffer */
-	if (!session_alloc_recv_buffer(si_sess(si), &ic->buf)) {
+	if (!session_alloc_recv_buffer(ic)) {
 		si->flags |= SI_FL_WAIT_ROOM;
 		goto end_recv;
 	}

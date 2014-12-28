@@ -670,24 +670,26 @@ static void session_free(struct session *s)
 	}
 }
 
-/* Allocates a single buffer for session <s>, but only if it's guaranteed that
- * it's not the last available buffer. To be called at the beginning of recv()
- * callbacks to ensure that the required buffers are properly allocated. If the
- * buffer is the session's request buffer, an extra control is made so that we
- * always keep <tune.buffers.reserved> buffers available after this allocation.
- * In all circumstances we leave at least 2 buffers so that any later call from
- * process_session() has a chance to succeed. The response buffer is not bound
- * to this control. Returns 0 in case of failure, non-zero otherwise.
+/* Allocates a receive buffer for channel <chn>, but only if it's guaranteed
+ * that it's not the last available buffer or it's the response buffer. Unless
+ * the buffer is the response buffer, an extra control is made so that we always
+ * keep <tune.buffers.reserved> buffers available after this allocation. To be
+ * called at the beginning of recv() callbacks to ensure that the required
+ * buffers are properly allocated. Returns 0 in case of failure, non-zero
+ * otherwise.
  */
-int session_alloc_recv_buffer(struct session *s, struct buffer **buf)
+int session_alloc_recv_buffer(struct channel *chn)
 {
+	struct session *s;
 	struct buffer *b;
 	int margin = 0;
 
-	if (buf == &s->req.buf)
+	if (!(chn->flags & CF_ISRESP))
 		margin = global.tune.reserved_bufs;
 
-	b = b_alloc_margin(buf, margin);
+	s = chn_sess(chn);
+
+	b = b_alloc_margin(&chn->buf, margin);
 	if (b)
 		return 1;
 
