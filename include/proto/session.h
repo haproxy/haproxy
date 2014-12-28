@@ -62,12 +62,6 @@ int session_alloc_work_buffer(struct session *s);
 void session_release_buffers(struct session *s);
 int session_alloc_recv_buffer(struct session *s, struct buffer **buf);
 
-/* returns the session from a void *owner */
-static inline struct session *session_from_task(struct task *t)
-{
-	return (struct session *)t->context;
-}
-
 /* sets the stick counter's entry pointer */
 static inline void stkctr_set_entry(struct stkctr *stkctr, struct stksess *entry)
 {

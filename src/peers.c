@@ -178,7 +178,7 @@ static int peer_prepare_datamsg(struct stksess *ts, struct peer_session *ps, cha
  */
 static void peer_session_release(struct stream_interface *si)
 {
-	struct session *s = session_from_task(si->owner);
+	struct session *s = si_sess(si);
 	struct appctx *appctx = objt_appctx(si->end);
 	struct peer_session *ps = (struct peer_session *)appctx->ctx.peers.ptr;
 
@@ -212,7 +212,7 @@ static void peer_session_release(struct stream_interface *si)
  */
 static void peer_io_handler(struct stream_interface *si)
 {
-	struct session *s = session_from_task(si->owner);
+	struct session *s = si_sess(si);
 	struct peers *curpeers = (struct peers *)s->fe->parent;
 	struct appctx *appctx = objt_appctx(si->end);
 	int reql = 0;

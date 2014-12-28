@@ -569,7 +569,7 @@ static int dump_binary(struct chunk *out, const char *buf, int bsize)
 static int stats_dump_table_head_to_buffer(struct chunk *msg, struct stream_interface *si,
 					   struct proxy *proxy, struct proxy *target)
 {
-	struct session *s = session_from_task(si->owner);
+	struct session *s = si_sess(si);
 
 	chunk_appendf(msg, "# table: %s, type: %s, size:%d, used:%d\n",
 		     proxy->id, stktable_types[proxy->table.type].kw, proxy->table.size, proxy->table.current);
@@ -658,7 +658,7 @@ static int stats_dump_table_entry_to_buffer(struct chunk *msg, struct stream_int
 
 static void stats_sock_table_key_request(struct stream_interface *si, char **args, int action)
 {
-	struct session *s = session_from_task(si->owner);
+	struct session *s = si_sess(si);
 	struct appctx *appctx = __objt_appctx(si->end);
 	struct proxy *px = appctx->ctx.table.target;
 	struct stksess *ts;
@@ -1061,7 +1061,7 @@ struct pattern_expr *pat_expr_get_next(struct pattern_expr *getnext, struct list
  */
 static int stats_sock_parse_request(struct stream_interface *si, char *line)
 {
-	struct session *s = session_from_task(si->owner);
+	struct session *s = si_sess(si);
 	struct appctx *appctx = __objt_appctx(si->end);
 	char *args[MAX_STATS_ARGS + 1];
 	int arg;
@@ -3740,7 +3740,7 @@ static void stats_dump_html_px_end(struct stream_interface *si, struct proxy *px
 static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, struct uri_auth *uri)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
-	struct session *s = session_from_task(si->owner);
+	struct session *s = si_sess(si);
 	struct channel *rep = si->ib;
 	struct server *sv, *svs;	/* server and server-state, server-state=server or server->track */
 	struct listener *l;
@@ -4395,7 +4395,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
  */
 static int stats_process_http_post(struct stream_interface *si)
 {
-	struct session *s = session_from_task(si->owner);
+	struct session *s = si_sess(si);
 	struct appctx *appctx = objt_appctx(si->end);
 
 	struct proxy *px = NULL;
@@ -4714,7 +4714,7 @@ static int stats_process_http_post(struct stream_interface *si)
 
 static int stats_send_http_headers(struct stream_interface *si)
 {
-	struct session *s = session_from_task(si->owner);
+	struct session *s = si_sess(si);
 	struct uri_auth *uri = s->be->uri_auth;
 	struct appctx *appctx = objt_appctx(si->end);
 
@@ -4748,7 +4748,7 @@ static int stats_send_http_headers(struct stream_interface *si)
 static int stats_send_http_redirect(struct stream_interface *si)
 {
 	char scope_txt[STAT_SCOPE_TXT_MAXLEN + sizeof STAT_SCOPE_PATTERN];
-	struct session *s = session_from_task(si->owner);
+	struct session *s = si_sess(si);
 	struct uri_auth *uri = s->be->uri_auth;
 	struct appctx *appctx = objt_appctx(si->end);
 
@@ -4798,7 +4798,7 @@ static int stats_send_http_redirect(struct stream_interface *si)
 static void http_stats_io_handler(struct stream_interface *si)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
-	struct session *s = session_from_task(si->owner);
+	struct session *s = si_sess(si);
 	struct channel *req = si->ob;
 	struct channel *res = si->ib;
 
@@ -5747,7 +5747,7 @@ static void cli_release_handler(struct stream_interface *si)
 static int stats_table_request(struct stream_interface *si, int action)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
-	struct session *s = session_from_task(si->owner);
+	struct session *s = si_sess(si);
 	struct ebmb_node *eb;
 	int dt;
 	int skip_entry;
