@@ -409,29 +409,33 @@ struct server *get_server_hh(struct session *s)
 		hash = gen_hash(px, p, len);
 	} else {
 		int dohash = 0;
-		p += len - 1;
-		start = end = p;
+		p += len;
 		/* special computation, use only main domain name, not tld/host
 		 * going back from the end of string, start hashing at first
 		 * dot stop at next.
 		 * This is designed to work with the 'Host' header, and requires
 		 * a special option to activate this.
 		 */
+		end = p;
 		while (len) {
-			if (*p == '.') {
-				if (!dohash) {
-					dohash = 1;
-					start = end = p - 1;
-				}
-				else
+			if (dohash) {
+				/* Rewind the pointer until the previous char
+				 * is a dot, this will allow to set the start
+				 * position of the domain. */
+				if (*(p - 1) == '.')
 					break;
-			} else {
-				if (dohash)
-					start--;
 			}
-			len--;
+			else if (*p == '.') {
+				/* The pointer is rewinded to the dot before the
+				 * tld, we memorize the end of the domain and
+				 * can enter the domain processing. */
+				end = p;
+				dohash = 1;
+			}
 			p--;
+			len--;
 		}
+		start = p;
 		hash = gen_hash(px, start, (end - start));
 	}
 	if ((px->lbprm.algo & BE_LB_HASH_MOD) == BE_LB_HMOD_AVAL)
