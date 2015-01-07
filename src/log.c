@@ -724,10 +724,11 @@ char *lf_port(char *dst, struct sockaddr *sockaddr, size_t size, struct logforma
 /* Re-generate the syslog header at the beginning of logline once a second and
  * return the pointer to the first character after the header.
  */
-static char *update_log_hdr()
+static char *update_log_hdr(const char *log_tag)
 {
 	static long tvsec;
 	static char *dataptr = NULL; /* backup of last end of header, NULL first time */
+	int tag_len;
 
 	if (unlikely(date.tv_sec != tvsec || dataptr == NULL)) {
 		/* this string is rebuild only once a second */
@@ -738,11 +739,10 @@ static char *update_log_hdr()
 		get_localtime(tvsec, &tm);
 
 		hdr_len = snprintf(logline, global.max_syslog_len,
-				   "<<<<>%s %2d %02d:%02d:%02d %s%s[%d]: ",
+				   "<<<<>%s %2d %02d:%02d:%02d %s",
 				   monthname[tm.tm_mon],
 				   tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec,
-				   global.log_send_hostname ? global.log_send_hostname : "",
-				   global.log_tag, pid);
+				   global.log_send_hostname ? global.log_send_hostname : "");
 		/* WARNING: depending upon implementations, snprintf may return
 		 * either -1 or the number of bytes that would be needed to store
 		 * the total message. In both cases, we must adjust it.
@@ -753,7 +753,13 @@ static char *update_log_hdr()
 		dataptr = logline + hdr_len;
 	}
 
-	return dataptr;
+	dataptr[0] = 0; // ensure we get rid of any previous attempt
+
+	tag_len = snprintf(dataptr, logline + global.max_syslog_len - dataptr, "%s[%d]: ", log_tag, pid);
+	if (tag_len < 0 || tag_len > logline + global.max_syslog_len - dataptr)
+		tag_len = logline + global.max_syslog_len - dataptr;
+
+	return dataptr + tag_len;
 }
 
 /*
@@ -769,7 +775,7 @@ void send_log(struct proxy *p, int level, const char *format, ...)
 	if (level < 0 || format == NULL)
 		return;
 
-	dataptr = update_log_hdr(); /* update log header and skip it */
+	dataptr = update_log_hdr(p->log_tag ? p->log_tag : global.log_tag); /* update log header and skip it */
 	data_len = dataptr - logline;
 
 	va_start(argp, format);
@@ -1633,7 +1639,7 @@ void sess_log(struct session *s)
 			build_logline(s, s->unique_id, UNIQUEID_LEN, &s->fe->format_unique_id);
 	}
 
-	tmplog = update_log_hdr();
+	tmplog = update_log_hdr(s->fe->log_tag ? s->fe->log_tag : global.log_tag);
 	size = tmplog - logline;
 	size += build_logline(s, tmplog, global.max_syslog_len - size, &s->fe->logformat);
 	if (size > 0) {

@@ -2184,6 +2184,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		if (curproxy->conf.uniqueid_format_string)
 			curproxy->conf.uniqueid_format_string = strdup(curproxy->conf.uniqueid_format_string);
 
+		if (defproxy.log_tag)
+			curproxy->log_tag = strdup(defproxy.log_tag);
+
 		if (defproxy.conf.uif_file) {
 			curproxy->conf.uif_file = strdup(defproxy.conf.uif_file);
 			curproxy->conf.uif_line = defproxy.conf.uif_line;
@@ -2249,6 +2252,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		free(defproxy.conf.uniqueid_format_string);
 		free(defproxy.conf.lfs_file);
 		free(defproxy.conf.uif_file);
+		free(defproxy.log_tag);
 
 		for (rc = 0; rc < HTTP_ERR_SIZE; rc++)
 			chunk_destroy(&defproxy.errmsg[rc]);
@@ -4911,7 +4915,15 @@ stats_error_parsing:
 			err_code |= ERR_WARN;
 		}
 	}
-
+	else if (!strcmp(args[0], "log-tag")) {  /* tag to report to syslog */
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : '%s' expects a tag for use in syslog.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		free(curproxy->log_tag);
+		curproxy->log_tag = strdup(args[1]);
+	}
 	else if (!strcmp(args[0], "log") && kwm == KWM_NO) {
 		/* delete previous herited or defined syslog servers */
 		struct logsrv *back;

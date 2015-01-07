@@ -320,6 +320,7 @@ struct proxy {
 	unsigned int log_count;			/* number of logs produced by the frontend */
 	struct list logsrvs;
 	struct list logformat; 			/* log_format linked list */
+	char *log_tag;                          /* override default syslog tag */
 	char *header_unique_id; 		/* unique-id header */
 	struct list format_unique_id;		/* unique-id format */
 	int to_log;				/* things to be logged (LW_*) */
