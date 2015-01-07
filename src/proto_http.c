@@ -731,7 +731,7 @@ int http_remove_header2(struct http_msg *msg, struct hdr_idx *idx, struct hdr_ct
 		if (idx->tail == ctx->idx)
 			idx->tail = ctx->prev;
 		ctx->idx = ctx->prev;    /* walk back to the end of previous header */
-		ctx->line -= idx->v[ctx->idx].len + idx->v[cur_idx].cr + 1;
+		ctx->line -= idx->v[ctx->idx].len + idx->v[ctx->idx].cr + 1;
 		ctx->val = idx->v[ctx->idx].len; /* point to end of previous header */
 		ctx->tws = ctx->vlen = 0;
 		return ctx->idx;
