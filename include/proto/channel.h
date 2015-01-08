@@ -258,17 +258,22 @@ static inline void channel_dont_read(struct channel *chn)
  * buffer, which ensures that once all pending data are forwarded, the
  * buffer still has global.tune.maxrewrite bytes free. The result is
  * between 0 and global.tune.maxrewrite, which is itself smaller than
- * any chn->size.
+ * any chn->size. Special care is taken to avoid any possible integer
+ * overflow in the operations.
  */
 static inline int buffer_reserved(const struct channel *chn)
 {
-	int ret = global.tune.maxrewrite - chn->to_forward - chn->buf->o;
+	unsigned int reserved = global.tune.maxrewrite;
 
-	if (chn->to_forward == CHN_INFINITE_FORWARD)
-		return 0;
-	if (ret <= 0)
-		return 0;
-	return ret;
+	if (chn->to_forward == CHN_INFINITE_FORWARD ||
+	    chn->to_forward >= reserved ||
+	    chn->buf->o >= reserved ||
+	    chn->to_forward + chn->buf->o >= reserved)
+		reserved = 0;
+	else
+		reserved -= chn->to_forward + chn->buf->o;
+
+	return reserved;
 }
 
 /* Return the max number of bytes the buffer can contain so that once all the
