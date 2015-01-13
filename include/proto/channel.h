@@ -103,11 +103,12 @@ static inline unsigned int channel_is_empty(struct channel *c)
 	return !(c->buf->o | (long)c->pipe);
 }
 
-/* Returns non-zero if the buffer input has all of its reserve available. This
- * is used to decide when a request or response may be parsed when some data
- * from a previous exchange might still be present.
+/* Returns non-zero if the channel is rewritable, which means that the buffer
+ * it is attached to has at least <maxrewrite> bytes immediately available.
+ * This is used to decide when a request or response may be parsed when some
+ * data from a previous exchange might still be present.
  */
-static inline int channel_reserved(const struct channel *chn)
+static inline int channel_is_rewritable(const struct channel *chn)
 {
 	int rem = chn->buf->size;
 

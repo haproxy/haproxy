@@ -2502,7 +2502,7 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 	 */
 	if (buffer_not_empty(req->buf) && msg->msg_state < HTTP_MSG_ERROR) {
 		if (txn->flags & TX_NOT_FIRST) {
-			if (unlikely(!channel_reserved(req))) {
+			if (unlikely(!channel_is_rewritable(req))) {
 				if (req->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_WRITE_ERROR|CF_WRITE_TIMEOUT))
 					goto failed_keep_alive;
 				/* some data has still not left the buffer, wake us once that's done */
@@ -2524,7 +2524,7 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 		 * keep-alive requests.
 		 */
 		if ((txn->flags & TX_NOT_FIRST) &&
-		    unlikely(!channel_reserved(s->rep) ||
+		    unlikely(!channel_is_rewritable(s->rep) ||
 			     bi_end(s->rep->buf) < b_ptr(s->rep->buf, txn->rsp.next) ||
 			     bi_end(s->rep->buf) > s->rep->buf->data + s->rep->buf->size - global.tune.maxrewrite)) {
 			if (s->rep->buf->o) {
@@ -5673,7 +5673,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 	 * data later, which is much more complicated.
 	 */
 	if (buffer_not_empty(rep->buf) && msg->msg_state < HTTP_MSG_ERROR) {
-		if (unlikely(!channel_reserved(rep))) {
+		if (unlikely(!channel_is_rewritable(rep))) {
 			/* some data has still not left the buffer, wake us once that's done */
 			if (rep->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_WRITE_ERROR|CF_WRITE_TIMEOUT))
 				goto abort_response;
