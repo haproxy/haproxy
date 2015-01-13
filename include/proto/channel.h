@@ -138,10 +138,13 @@ static inline int channel_full(const struct channel *chn)
 	if (!rem)
 		return 1; /* buffer already full */
 
-	if (chn->to_forward >= chn->buf->size ||
-	    (CHN_INFINITE_FORWARD < MAX_RANGE(typeof(chn->buf->size)) && // just there to ensure gcc
-	     chn->to_forward == CHN_INFINITE_FORWARD))                  // avoids the useless second
-		return 0;                                               // test whenever possible
+	/* now we know there's some room left, verify if we're touching
+	 * the reserve with some permanent input data.
+	 */
+	if (chn->to_forward >= chn->buf->i ||
+	    (CHN_INFINITE_FORWARD < MAX_RANGE(typeof(chn->buf->i)) && // just there to ensure gcc
+	     chn->to_forward == CHN_INFINITE_FORWARD))                // avoids the useless second
+		return 0;                                             // test whenever possible
 
 	rem -= global.tune.maxrewrite;
 	rem += chn->buf->o;
@@ -300,8 +303,8 @@ static inline int bi_avail(const struct channel *chn)
 	if (!rem)
 		return rem; /* buffer already full */
 
-	if (chn->to_forward >= chn->buf->size ||
-	    (CHN_INFINITE_FORWARD < MAX_RANGE(typeof(chn->buf->size)) && // just there to ensure gcc
+	if (chn->to_forward >= chn->buf->i ||
+	    (CHN_INFINITE_FORWARD < MAX_RANGE(typeof(chn->buf->i)) &&   // just there to ensure gcc
 	     chn->to_forward == CHN_INFINITE_FORWARD))                  // avoids the useless second
 		return rem;                                             // test whenever possible
 
