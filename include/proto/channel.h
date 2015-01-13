@@ -153,7 +153,7 @@ static inline int channel_in_transit(const struct channel *chn)
 	return ret;
 }
 
-/* Returns non-zero if the buffer input is considered full. This is used to
+/* Returns non-zero if the channel can still receive data. This is used to
  * decide when to stop reading into a buffer when we want to ensure that we
  * leave the reserve untouched after all pending outgoing data are forwarded.
  * The reserved space is taken into account if ->to_forward indicates that an
@@ -162,17 +162,17 @@ static inline int channel_in_transit(const struct channel *chn)
  * test is optimized to avoid as many operations as possible for the fast case
  * and to be used as an "if" condition.
  */
-static inline int channel_full(const struct channel *chn)
+static inline int channel_may_recv(const struct channel *chn)
 {
 	int rem = chn->buf->size;
 
 	if (chn->buf == &buf_empty)
-		return 0;
+		return 1;
 
 	rem -= chn->buf->o;
 	rem -= chn->buf->i;
 	if (!rem)
-		return 1; /* buffer already full */
+		return 0; /* buffer already full */
 
 	/* now we know there's some room left, verify if we're touching
 	 * the reserve with some permanent input data.
@@ -180,12 +180,12 @@ static inline int channel_full(const struct channel *chn)
 	if (chn->to_forward >= chn->buf->i ||
 	    (CHN_INFINITE_FORWARD < MAX_RANGE(typeof(chn->buf->i)) && // just there to ensure gcc
 	     chn->to_forward == CHN_INFINITE_FORWARD))                // avoids the useless second
-		return 0;                                             // test whenever possible
+		return 1;                                             // test whenever possible
 
 	rem -= global.tune.maxrewrite;
 	rem += chn->buf->o;
 	rem += chn->to_forward;
-	return rem <= 0;
+	return rem > 0;
 }
 
 /* Returns true if the channel's input is already closed */

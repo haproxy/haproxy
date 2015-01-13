@@ -171,7 +171,7 @@ static inline int buffer_empty(const struct buffer *buf)
  * space, and that the reserved space is always considered as not usable. This
  * information alone cannot be used as a general purpose free space indicator.
  * However it accurately indicates that too many data were fed in the buffer
- * for an analyzer for instance. See the channel_full() function for a more
+ * for an analyzer for instance. See the channel_may_recv() function for a more
  * generic function taking everything into account.
  */
 static inline int buffer_full(const struct buffer *b, unsigned int reserve)

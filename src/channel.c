@@ -121,7 +121,7 @@ int bi_putchr(struct channel *chn, char c)
 	if (unlikely(channel_input_closed(chn)))
 		return -2;
 
-	if (channel_full(chn)) {
+	if (!channel_may_recv(chn)) {
 		chn->flags |= CF_WAKE_WRITE;
 		return -1;
 	}
@@ -282,7 +282,7 @@ int bo_getline(struct channel *chn, char *str, int len)
 		p = buffer_wrap_add(chn->buf, p + 1);
 	}
 	if (ret > 0 && ret < len &&
-	    (ret < chn->buf->o || !channel_full(chn)) &&
+	    (ret < chn->buf->o || channel_may_recv(chn)) &&
 	    *(str-1) != '\n' &&
 	    !(chn->flags & (CF_SHUTW|CF_SHUTW_NOW)))
 		ret = 0;

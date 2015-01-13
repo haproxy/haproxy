@@ -612,7 +612,7 @@ smp_fetch_payload(struct proxy *px, struct session *s, void *l7, unsigned int op
 	smp->type = SMP_T_BIN;
 	smp->flags = SMP_F_VOLATILE | SMP_F_CONST;
 	chunk_initlen(&smp->data.str, chn->buf->p + buf_offset, 0, buf_size ? buf_size : (chn->buf->i - buf_offset));
-	if (!buf_size && !channel_full(chn) && !channel_input_closed(chn))
+	if (!buf_size && channel_may_recv(chn) && !channel_input_closed(chn))
 		smp->flags |= SMP_F_MAY_CHANGE;
 
 	return 1;

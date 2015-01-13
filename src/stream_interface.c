@@ -152,7 +152,7 @@ static void stream_int_update_embedded(struct stream_interface *si)
 	    channel_is_empty(si->ob))
 		si_shutw(si);
 
-	if ((si->ob->flags & (CF_SHUTW|CF_SHUTW_NOW)) == 0 && !channel_full(si->ob))
+	if ((si->ob->flags & (CF_SHUTW|CF_SHUTW_NOW)) == 0 && channel_may_recv(si->ob))
 		si->flags |= SI_FL_WAIT_DATA;
 
 	/* we're almost sure that we need some space if the buffer is not
@@ -175,7 +175,7 @@ static void stream_int_update_embedded(struct stream_interface *si)
 	/* save flags to detect changes */
 	old_flags = si->flags;
 	if (likely((si->ob->flags & (CF_SHUTW|CF_WRITE_PARTIAL|CF_DONT_READ)) == CF_WRITE_PARTIAL &&
-		   !channel_full(si->ob) &&
+		   channel_may_recv(si->ob) &&
 		   (si->ob->prod->flags & SI_FL_WAIT_ROOM)))
 		si_chk_rcv(si->ob->prod);
 
@@ -184,7 +184,7 @@ static void stream_int_update_embedded(struct stream_interface *si)
 	     (si->ib->buf->i == 0 && (si->ib->cons->flags & SI_FL_WAIT_DATA)))) {
 		si_chk_snd(si->ib->cons);
 		/* check if the consumer has freed some space */
-		if (!channel_full(si->ib) && !si->ib->pipe)
+		if (channel_may_recv(si->ib) && !si->ib->pipe)
 			si->flags &= ~SI_FL_WAIT_ROOM;
 	}
 
@@ -315,7 +315,7 @@ static void stream_int_chk_rcv(struct stream_interface *si)
 	if (unlikely(si->state != SI_ST_EST || (ib->flags & (CF_SHUTR|CF_DONT_READ))))
 		return;
 
-	if (channel_full(ib) || ib->pipe) {
+	if (!channel_may_recv(ib) || ib->pipe) {
 		/* stop reading */
 		si->flags |= SI_FL_WAIT_ROOM;
 	}
@@ -570,7 +570,7 @@ static int si_conn_wake_cb(struct connection *conn)
 		si->ob->wex = TICK_ETERNITY;
 	}
 
-	if ((si->ob->flags & (CF_SHUTW|CF_SHUTW_NOW)) == 0 && !channel_full(si->ob))
+	if ((si->ob->flags & (CF_SHUTW|CF_SHUTW_NOW)) == 0 && channel_may_recv(si->ob))
 		si->flags |= SI_FL_WAIT_DATA;
 
 	if (si->ob->flags & CF_WRITE_ACTIVITY) {
@@ -585,7 +585,7 @@ static int si_conn_wake_cb(struct connection *conn)
 				si->ib->rex = tick_add_ifset(now_ms, si->ib->rto);
 
 		if (likely((si->ob->flags & (CF_SHUTW|CF_WRITE_PARTIAL|CF_DONT_READ)) == CF_WRITE_PARTIAL &&
-			   !channel_full(si->ob) &&
+			   channel_may_recv(si->ob) &&
 			   (si->ob->prod->flags & SI_FL_WAIT_ROOM)))
 			si_chk_rcv(si->ob->prod);
 	}
@@ -607,7 +607,7 @@ static int si_conn_wake_cb(struct connection *conn)
 		/* check if the consumer has freed some space either in the
 		 * buffer or in the pipe.
 		 */
-		if (!channel_full(si->ib) &&
+		if (channel_may_recv(si->ib) &&
 		    (!last_len || !si->ib->pipe || si->ib->pipe->data < last_len))
 			si->flags &= ~SI_FL_WAIT_ROOM;
 	}
@@ -617,7 +617,7 @@ static int si_conn_wake_cb(struct connection *conn)
 		si->ib->rex = TICK_ETERNITY;
 	}
 	else if ((si->ib->flags & (CF_SHUTR|CF_READ_PARTIAL|CF_DONT_READ)) == CF_READ_PARTIAL &&
-		 !channel_full(si->ib)) {
+		 channel_may_recv(si->ib)) {
 		/* we must re-enable reading if si_chk_snd() has freed some space */
 		__conn_data_want_recv(conn);
 		if (!(si->ib->flags & CF_READ_NOEXP) && tick_isset(si->ib->rex))
@@ -740,7 +740,7 @@ void stream_int_update_conn(struct stream_interface *si)
 	/* Check if we need to close the read side */
 	if (!(ib->flags & CF_SHUTR)) {
 		/* Read not closed, update FD status and timeout for reads */
-		if ((ib->flags & CF_DONT_READ) || channel_full(ib)) {
+		if ((ib->flags & CF_DONT_READ) || !channel_may_recv(ib)) {
 			/* stop reading */
 			if (!(si->flags & SI_FL_WAIT_ROOM)) {
 				if (!(ib->flags & CF_DONT_READ)) /* full */
@@ -941,7 +941,7 @@ static void stream_int_chk_rcv_conn(struct stream_interface *si)
 
 	conn_refresh_polling_flags(conn);
 
-	if ((ib->flags & CF_DONT_READ) || channel_full(ib)) {
+	if ((ib->flags & CF_DONT_READ) || !channel_may_recv(ib)) {
 		/* stop reading */
 		if (!(ib->flags & CF_DONT_READ)) /* full */
 			si->flags |= SI_FL_WAIT_ROOM;
@@ -1208,7 +1208,7 @@ static void si_conn_recv_cb(struct connection *conn)
 		chn->flags |= CF_READ_PARTIAL;
 		chn->total += ret;
 
-		if (channel_full(chn)) {
+		if (!channel_may_recv(chn)) {
 			si->flags |= SI_FL_WAIT_ROOM;
 			break;
 		}
