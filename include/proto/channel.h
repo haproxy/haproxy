@@ -117,6 +117,27 @@ static inline int channel_reserved(const struct channel *chn)
 	return rem >= 0;
 }
 
+/* Returns the amount of bytes from the channel that are already scheduled for
+ * leaving (buf->o) or that are still part of the input and expected to be sent
+ * soon as covered by to_forward. This is useful to know by how much we can
+ * shrink the rewrite reserve during forwards.
+ */
+static inline int channel_in_transit(const struct channel *chn)
+{
+	int ret;
+
+	/* below, this is min(i, to_forward) optimized for the fast case */
+	if (chn->to_forward >= chn->buf->i ||
+	    (CHN_INFINITE_FORWARD < MAX_RANGE(typeof(chn->buf->i)) &&
+	     chn->to_forward == CHN_INFINITE_FORWARD))
+		ret = chn->buf->i;
+	else
+		ret = chn->to_forward;
+
+	ret += chn->buf->o;
+	return ret;
+}
+
 /* Returns non-zero if the buffer input is considered full. This is used to
  * decide when to stop reading into a buffer when we want to ensure that we
  * leave the reserve untouched after all pending outgoing data are forwarded.
