@@ -210,8 +210,12 @@
 
 /* Maximum host name length */
 #ifndef MAX_HOSTNAME_LEN
-#define MAX_HOSTNAME_LEN	32
-#endif
+#if MAXHOSTNAMELEN
+#define MAX_HOSTNAME_LEN	MAXHOSTNAMELEN
+#else
+#define MAX_HOSTNAME_LEN	64
+#endif // MAXHOSTNAMELEN
+#endif // MAX_HOSTNAME_LEN
 
 /* Maximum health check description length */
 #ifndef HCHK_DESC_LEN
