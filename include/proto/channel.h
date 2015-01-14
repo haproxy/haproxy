@@ -117,14 +117,28 @@ static inline int channel_reserved(const struct channel *chn)
 	return rem >= 0;
 }
 
+/* Tells whether data are likely to leave the buffer. This is used to know when
+ * we can safely ignore the reserve since we know we cannot retry a connection.
+ * It returns zero if data are blocked, non-zero otherwise.
+ */
+static inline int channel_may_send(const struct channel *chn)
+{
+	return chn->cons->state == SI_ST_EST;
+}
+
 /* Returns the amount of bytes from the channel that are already scheduled for
  * leaving (buf->o) or that are still part of the input and expected to be sent
  * soon as covered by to_forward. This is useful to know by how much we can
- * shrink the rewrite reserve during forwards.
+ * shrink the rewrite reserve during forwards. Buffer data are not considered
+ * in transit until the channel is connected, so that the reserve remains
+ * protected.
  */
 static inline int channel_in_transit(const struct channel *chn)
 {
 	int ret;
+
+	if (!channel_may_send(chn))
+		return 0;
 
 	/* below, this is min(i, to_forward) optimized for the fast case */
 	if (chn->to_forward >= chn->buf->i ||
