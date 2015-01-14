@@ -904,10 +904,9 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			}
 
 			newsrv->addr = *sk;
-			newsrv->proto = newsrv->check.proto = newsrv->agent.proto = protocol_by_family(newsrv->addr.ss_family);
 			newsrv->xprt  = newsrv->check.xprt = newsrv->agent.xprt = &raw_sock;
 
-			if (!newsrv->proto) {
+			if (!protocol_by_family(newsrv->addr.ss_family)) {
 				Alert("parsing [%s:%d] : Unknown protocol family %d '%s'\n",
 				      file, linenum, newsrv->addr.ss_family, args[2]);
 				err_code |= ERR_ALERT | ERR_FATAL;
@@ -1114,7 +1113,6 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				}
 
 				newsrv->check.addr = newsrv->agent.addr = *sk;
-				newsrv->check.proto = newsrv->agent.proto = protocol_by_family(sk->ss_family);
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "port")) {

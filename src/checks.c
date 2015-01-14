@@ -1440,28 +1440,28 @@ static int connect_conn_chk(struct task *t)
 
 	/* prepare a new connection */
 	conn_init(conn);
-	conn_prepare(conn, check->proto, check->xprt);
-	conn_attach(conn, check, &check_conn_cb);
-	conn->target = &s->obj_type;
-
-	/* no client address */
-	clear_addr(&conn->addr.from);
 
 	if (is_addr(&check->addr)) {
-
 		/* we'll connect to the check addr specified on the server */
 		conn->addr.to = check->addr;
-		proto = check->proto;
 	}
 	else {
 		/* we'll connect to the addr on the server */
 		conn->addr.to = s->addr;
-		proto = s->proto;
 	}
 
 	if (check->port) {
 		set_host_port(&conn->addr.to, check->port);
 	}
+
+	proto = protocol_by_family(conn->addr.to.ss_family);
+
+	conn_prepare(conn, proto, check->xprt);
+	conn_attach(conn, check, &check_conn_cb);
+	conn->target = &s->obj_type;
+
+	/* no client address */
+	clear_addr(&conn->addr.from);
 
 	/* only plain tcp-check supports quick ACK */
 	quickack = check->type == 0 || check->type == PR_O2_TCPCHK_CHK;
@@ -2504,13 +2504,12 @@ static void tcpcheck_main(struct connection *conn)
 			if (is_addr(&check->addr)) {
 				/* we'll connect to the check addr specified on the server */
 				conn->addr.to = check->addr;
-				proto = check->proto;
 			}
 			else {
 				/* we'll connect to the addr on the server */
 				conn->addr.to = s->addr;
-				proto = s->proto;
 			}
+			proto = protocol_by_family(conn->addr.to.ss_family);
 
 			/* port */
 			if (check->current_step->port)
@@ -2908,7 +2907,6 @@ static int init_email_alert_checks(struct server *s)
 		if (!get_host_port(&mailer->addr))
 			/* Default to submission port */
 			check->port = 587;
-		check->proto = mailer->proto;
 		check->addr = mailer->addr;
 		check->server = s;
 	}

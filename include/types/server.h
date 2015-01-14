@@ -196,7 +196,6 @@ struct server {
 	const struct netns_entry *netns;        /* contains network namespace name or NULL. Network namespace comes from configuration */
 	/* warning, these structs are huge, keep them at the bottom */
 	struct sockaddr_storage addr;		/* the address to connect to */
-	struct protocol *proto;	                /* server address protocol */
 	struct xprt_ops *xprt;                  /* transport-layer operations */
 	unsigned down_time;			/* total time the server was down */
 	time_t last_change;			/* last time, when the state was changed */
