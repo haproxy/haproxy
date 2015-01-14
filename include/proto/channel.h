@@ -311,10 +311,10 @@ static inline int channel_reserved(const struct channel *chn)
 }
 
 /* Return the max number of bytes the buffer can contain so that once all the
- * pending bytes are forwarded, the buffer still has global.tune.maxrewrite
+ * data in transit are forwarded, the buffer still has global.tune.maxrewrite
  * bytes free. The result sits between chn->size - maxrewrite and chn->size.
  */
-static inline int buffer_max_len(const struct channel *chn)
+static inline int channel_recv_limit(const struct channel *chn)
 {
 	return chn->buf->size - channel_reserved(chn);
 }
@@ -328,7 +328,7 @@ static inline int bi_avail(const struct channel *chn)
 {
 	int ret;
 
-	ret = buffer_max_len(chn) - chn->buf->i - chn->buf->o;
+	ret = channel_recv_limit(chn) - chn->buf->i - chn->buf->o;
 	if (ret < 0)
 		ret = 0;
 	return ret;

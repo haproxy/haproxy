@@ -213,8 +213,8 @@ smp_fetch_req_ssl_ver(struct proxy *px, struct session *s, void *l7, unsigned in
 	 * all the part of the request which fits in a buffer is already
 	 * there.
 	 */
-	if (msg_len > buffer_max_len(s->req) + s->req->buf->data - s->req->buf->p)
-		msg_len = buffer_max_len(s->req) + s->req->buf->data - s->req->buf->p;
+	if (msg_len > channel_recv_limit(s->req) + s->req->buf->data - s->req->buf->p)
+		msg_len = channel_recv_limit(s->req) + s->req->buf->data - s->req->buf->p;
 
 	if (bleft < msg_len)
 		goto too_short;

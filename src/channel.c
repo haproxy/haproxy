@@ -157,7 +157,7 @@ int bi_putblk(struct channel *chn, const char *blk, int len)
 	if (unlikely(channel_input_closed(chn)))
 		return -2;
 
-	max = buffer_max_len(chn);
+	max = channel_recv_limit(chn);
 	if (unlikely(len > max - buffer_len(chn->buf))) {
 		/* we can't write this chunk right now because the buffer is
 		 * almost full or because the block is too large. Return the
