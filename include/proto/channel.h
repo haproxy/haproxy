@@ -287,16 +287,11 @@ static inline void channel_dont_read(struct channel *chn)
  */
 static inline int buffer_reserved(const struct channel *chn)
 {
-	unsigned int reserved = global.tune.maxrewrite;
+	int reserved;
 
-	if (chn->to_forward == CHN_INFINITE_FORWARD ||
-	    chn->to_forward >= reserved ||
-	    chn->buf->o >= reserved ||
-	    chn->to_forward + chn->buf->o >= reserved)
+	reserved = global.tune.maxrewrite - channel_in_transit(chn);
+	if (reserved < 0)
 		reserved = 0;
-	else
-		reserved -= chn->to_forward + chn->buf->o;
-
 	return reserved;
 }
 
