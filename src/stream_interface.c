@@ -125,8 +125,8 @@ void stream_int_retnclose(struct stream_interface *si, const struct chunk *msg)
 	channel_abort(si->ib);
 	channel_auto_close(si->ib);
 	channel_erase(si->ib);
+	channel_truncate(si->ob);
 
-	bi_erase(si->ob);
 	if (likely(msg && msg->len))
 		bo_inject(si->ob, msg->str, msg->len);
 

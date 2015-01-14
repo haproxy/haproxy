@@ -334,12 +334,11 @@ static inline int channel_recv_max(const struct channel *chn)
 	return ret;
 }
 
-/* Cut the "tail" of the channel's buffer, which means strip it to the length
- * of unsent data only, and kill any remaining unsent data. Any scheduled
- * forwarding is stopped. This is mainly to be used to send error messages
- * after existing data.
+/* Truncate any unread data in the channel's buffer, and disable forwarding.
+ * Outgoing data are left intact. This is mainly to be used to send error
+ * messages after existing data.
  */
-static inline void bi_erase(struct channel *chn)
+static inline void channel_truncate(struct channel *chn)
 {
 	if (!chn->buf->o)
 		return channel_erase(chn);

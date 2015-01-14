@@ -5233,7 +5233,7 @@ int http_sync_res_state(struct session *s)
 	if (txn->rsp.msg_state == HTTP_MSG_CLOSED) {
 	http_msg_closed:
 		/* drop any pending data */
-		bi_erase(chn);
+		channel_truncate(chn);
 		channel_auto_close(chn);
 		channel_auto_read(chn);
 		goto wait_other_side;
@@ -5300,7 +5300,7 @@ int http_resync_states(struct session *s)
 		channel_abort(s->req);
 		channel_auto_close(s->req);
 		channel_auto_read(s->req);
-		bi_erase(s->req);
+		channel_truncate(s->req);
 	}
 	else if ((txn->req.msg_state == HTTP_MSG_DONE ||
 		  txn->req.msg_state == HTTP_MSG_CLOSED) &&
@@ -5745,7 +5745,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 			rep->analysers = 0;
 			txn->status = 502;
 			rep->prod->flags |= SI_FL_NOLINGER;
-			bi_erase(rep);
+			channel_truncate(rep);
 			stream_int_retnclose(rep->cons, http_error_message(s, HTTP_ERR_502));
 
 			if (!(s->flags & SN_ERR_MASK))
@@ -5780,7 +5780,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 			rep->analysers = 0;
 			txn->status = 502;
 			rep->prod->flags |= SI_FL_NOLINGER;
-			bi_erase(rep);
+			channel_truncate(rep);
 			stream_int_retnclose(rep->cons, http_error_message(s, HTTP_ERR_502));
 
 			if (!(s->flags & SN_ERR_MASK))
@@ -5807,7 +5807,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 			rep->analysers = 0;
 			txn->status = 504;
 			rep->prod->flags |= SI_FL_NOLINGER;
-			bi_erase(rep);
+			channel_truncate(rep);
 			stream_int_retnclose(rep->cons, http_error_message(s, HTTP_ERR_504));
 
 			if (!(s->flags & SN_ERR_MASK))
@@ -5828,7 +5828,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 			channel_auto_close(rep);
 
 			txn->status = 400;
-			bi_erase(rep);
+			channel_truncate(rep);
 			stream_int_retnclose(rep->cons, http_error_message(s, HTTP_ERR_400));
 
 			if (!(s->flags & SN_ERR_MASK))
@@ -5857,7 +5857,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 			rep->analysers = 0;
 			txn->status = 502;
 			rep->prod->flags |= SI_FL_NOLINGER;
-			bi_erase(rep);
+			channel_truncate(rep);
 			stream_int_retnclose(rep->cons, http_error_message(s, HTTP_ERR_502));
 
 			if (!(s->flags & SN_ERR_MASK))
@@ -6189,7 +6189,7 @@ skip_content_length:
 	s->logs.logwait = 0;
 	s->logs.level = 0;
 	s->rep->flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
-	bi_erase(rep);
+	channel_truncate(rep);
 	stream_int_retnclose(rep->cons, NULL);
 	return 0;
 }
@@ -6260,7 +6260,7 @@ int http_process_res_common(struct session *s, struct channel *rep, int an_bit, 
 				txn->status = 502;
 				s->logs.t_data = -1; /* was not a valid response */
 				rep->prod->flags |= SI_FL_NOLINGER;
-				bi_erase(rep);
+				channel_truncate(rep);
 				stream_int_retnclose(rep->cons, http_error_message(s, HTTP_ERR_502));
 				if (!(s->flags & SN_ERR_MASK))
 					s->flags |= SN_ERR_PRXCOND;
