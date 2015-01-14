@@ -1181,7 +1181,7 @@ static void si_conn_recv_cb(struct connection *conn)
 	 * recv().
 	 */
 	while (!(conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH | CO_FL_DATA_RD_SH | CO_FL_WAIT_ROOM | CO_FL_HANDSHAKE))) {
-		max = bi_avail(chn);
+		max = channel_recv_max(chn);
 
 		if (!max) {
 			si->flags |= SI_FL_WAIT_ROOM;

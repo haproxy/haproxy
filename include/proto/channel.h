@@ -324,7 +324,7 @@ static inline int channel_recv_limit(const struct channel *chn)
  * is close to happen. The test is optimized to avoid as many operations as
  * possible for the fast case.
  */
-static inline int bi_avail(const struct channel *chn)
+static inline int channel_recv_max(const struct channel *chn)
 {
 	int ret;
 
