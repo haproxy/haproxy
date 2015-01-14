@@ -311,28 +311,12 @@ static inline int buffer_max_len(const struct channel *chn)
  */
 static inline int bi_avail(const struct channel *chn)
 {
-	int rem = chn->buf->size;
-	int rem2;
+	int ret;
 
-	rem -= chn->buf->o;
-	rem -= chn->buf->i;
-	if (!rem)
-		return rem; /* buffer already full */
-
-	if (chn->to_forward >= chn->buf->i ||
-	    (CHN_INFINITE_FORWARD < MAX_RANGE(typeof(chn->buf->i)) &&   // just there to ensure gcc
-	     chn->to_forward == CHN_INFINITE_FORWARD))                  // avoids the useless second
-		return rem;                                             // test whenever possible
-
-	rem2 = rem - global.tune.maxrewrite;
-	rem2 += chn->buf->o;
-	rem2 += chn->to_forward;
-
-	if (rem > rem2)
-		rem = rem2;
-	if (rem > 0)
-		return rem;
-	return 0;
+	ret = buffer_max_len(chn) - chn->buf->i - chn->buf->o;
+	if (ret < 0)
+		ret = 0;
+	return ret;
 }
 
 /* Cut the "tail" of the channel's buffer, which means strip it to the length
