@@ -300,7 +300,7 @@ static inline void channel_dont_read(struct channel *chn)
  * any chn->size. Special care is taken to avoid any possible integer
  * overflow in the operations.
  */
-static inline int buffer_reserved(const struct channel *chn)
+static inline int channel_reserved(const struct channel *chn)
 {
 	int reserved;
 
@@ -316,7 +316,7 @@ static inline int buffer_reserved(const struct channel *chn)
  */
 static inline int buffer_max_len(const struct channel *chn)
 {
-	return chn->buf->size - buffer_reserved(chn);
+	return chn->buf->size - channel_reserved(chn);
 }
 
 /* Returns the amount of space available at the input of the buffer, taking the
