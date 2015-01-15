@@ -775,7 +775,11 @@ maxconn <number>
   the "select" poller cannot reliably use more than 1024 file descriptors on
   some platforms. If your platform only supports select and reports "select
   FAILED" on startup, you need to reduce maxconn until it works (slightly
-  below 500 in general).
+  below 500 in general). If this value is not set, it will default to the value
+  set in DEFAULT_MAXCONN at build time (reported in haproxy -vv) if no memory
+  limit is enforced, or will be computed based on the memory limit, the buffer
+  size, memory allocated to compression, SSL cache size, and use or not of SSL
+  and the associated maxsslconn (which can also be automatic).
 
 maxconnrate <number>
   Sets the maximum per-process number of connections per second to <number>.
@@ -832,6 +836,13 @@ maxsslconn <number>
   (since it unfortunately does not reliably check for such conditions). Note
   that the limit applies both to incoming and outgoing connections, so one
   connection which is deciphered then ciphered accounts for 2 SSL connections.
+  If this value is not set, but a memory limit is enforced, this value will be
+  automatically computed based on the memory limit, maxconn,  the buffer size,
+  memory allocated to compression, SSL cache size, and use of SSL in either
+  frontends, backends or both. If neither maxconn nor maxsslconn are specified
+  when there is a memory limit, haproxy will automatically adjust these values
+  so that 100% of the connections can be made over SSL with no risk, and will
+  consider the sides where it is enabled (frontend, backend, both).
 
 maxsslrate <number>
   Sets the maximum per-process number of SSL sessions per second to <number>.

@@ -256,6 +256,19 @@
 #ifndef SSL_HANDSHAKE_MAX_COST
 #define SSL_HANDSHAKE_MAX_COST (76*1024)  // measured
 #endif
+
+/* approximate session size (for maxconn estimate) */
+#ifndef SESSION_MAX_COST
+#define SESSION_MAX_COST (sizeof(struct session) + \
+                          2 * sizeof(struct channel) + \
+                          2 * sizeof(struct connection) + \
+                          REQURI_LEN + \
+                          2 * global.tune.cookie_len)
+#endif
+
+/* available memory estimate : count about 3% of overhead in various structures */
+#ifndef MEM_USABLE_RATIO
+#define MEM_USABLE_RATIO 0.97
 #endif
 
 /* Number of samples used to compute the times reported in stats. A power of
