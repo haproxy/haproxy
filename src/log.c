@@ -772,7 +772,7 @@ void send_log(struct proxy *p, int level, const char *format, ...)
 	char *dataptr;
 	int  data_len;
 
-	if (level < 0 || format == NULL)
+	if (level < 0 || format == NULL || logline == NULL)
 		return;
 
 	dataptr = update_log_hdr(p->log_tag ? p->log_tag : global.log_tag); /* update log header and skip it */
