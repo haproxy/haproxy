@@ -1820,7 +1820,10 @@ int ssl_sock_prepare_srv_ctx(struct server *srv, struct proxy *curproxy)
 		cfgerr++;
 	}
 
-	 /* Initiate SSL context for current server */
+	/* Automatic memory computations need to know we use SSL there */
+	global.ssl_used_backend = 1;
+
+	/* Initiate SSL context for current server */
 	srv->ssl_ctx.reused_sess = NULL;
 	if (srv->use_ssl)
 		srv->xprt = &ssl_sock;
@@ -1961,6 +1964,9 @@ int ssl_sock_prepare_all_ctx(struct bind_conf *bind_conf, struct proxy *px)
 
 	if (!bind_conf || !bind_conf->is_ssl)
 		return 0;
+
+	/* Automatic memory computations need to know we use SSL there */
+	global.ssl_used_frontend = 1;
 
 	if (bind_conf->default_ctx)
 		err += ssl_sock_prepare_ctx(bind_conf, bind_conf->default_ctx, px);

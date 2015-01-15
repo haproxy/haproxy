@@ -83,8 +83,10 @@ struct global {
 	int external_check;
 	int nbproc;
 	int maxconn, hardmaxconn;
-#ifdef USE_OPENSSL
 	int maxsslconn;
+	int ssl_used_frontend;      /* non-zero if SSL is used in a frontend */
+	int ssl_used_backend;       /* non-zero if SSL is used in a backend */
+#ifdef USE_OPENSSL
 	char *listen_default_ciphers;
 	char *connect_default_ciphers;
 	int listen_default_ssloptions;
@@ -138,8 +140,8 @@ struct global {
 		int pipesize;      /* pipe size in bytes, system defaults if zero */
 		int max_http_hdr;  /* max number of HTTP headers, use MAX_HTTP_HDR if zero */
 		int cookie_len;    /* max length of cookie captures */
-#ifdef USE_OPENSSL
 		int sslcachesize;  /* SSL cache size in session, defaults to 20000 */
+#ifdef USE_OPENSSL
 		int sslprivatecache; /* Force to use a private session cache even if nbproc > 1 */
 		unsigned int ssllifetime;   /* SSL session lifetime in seconds */
 		unsigned int ssl_max_record; /* SSL max record size */
