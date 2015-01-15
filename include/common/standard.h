@@ -242,6 +242,8 @@ static inline int hex2i(int c)
 	return c;
 }
 
+/* rounds <i> down to the closest value having max 2 digits */
+unsigned int round_2dig(unsigned int i);
 
 /*
  * Checks <name> for invalid characters. Valid chars are [A-Za-z0-9_:.-]. If an

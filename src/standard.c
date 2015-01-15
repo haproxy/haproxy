@@ -504,6 +504,18 @@ int ishex(char s)
 	return 0;
 }
 
+/* rounds <i> down to the closest value having max 2 digits */
+unsigned int round_2dig(unsigned int i)
+{
+	unsigned int mul = 1;
+
+	while (i >= 100) {
+		i /= 10;
+		mul *= 10;
+	}
+	return i * mul;
+}
+
 /*
  * Checks <name> for invalid characters. Valid chars are [A-Za-z0-9_:.-]. If an
  * invalid character is found, a pointer to it is returned. If everything is
