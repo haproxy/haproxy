@@ -84,6 +84,8 @@ struct global {
 	int nbproc;
 	int maxconn, hardmaxconn;
 	int maxsslconn;
+	int ssl_session_max_cost;   /* how many bytes an SSL session may cost */
+	int ssl_handshake_max_cost; /* how many bytes an SSL handshake may use */
 	int ssl_used_frontend;      /* non-zero if SSL is used in a frontend */
 	int ssl_used_backend;       /* non-zero if SSL is used in a backend */
 #ifdef USE_OPENSSL

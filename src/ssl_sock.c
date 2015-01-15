@@ -4720,6 +4720,9 @@ static void __ssl_sock_init(void)
 	bind_register_keywords(&bind_kws);
 	srv_register_keywords(&srv_kws);
 	cfg_register_keywords(&cfg_kws);
+
+	global.ssl_session_max_cost   = SSL_SESSION_MAX_COST;
+	global.ssl_handshake_max_cost = SSL_HANDSHAKE_MAX_COST;
 }
 
 /*

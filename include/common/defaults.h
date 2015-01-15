@@ -247,6 +247,17 @@
 #define SSL_DEFAULT_DH_PARAM 0
 #endif
 
+/* max memory cost per SSL session */
+#ifndef SSL_SESSION_MAX_COST
+#define SSL_SESSION_MAX_COST (16*1024)    // measured
+#endif
+
+/* max memory cost per SSL handshake (on top of session) */
+#ifndef SSL_HANDSHAKE_MAX_COST
+#define SSL_HANDSHAKE_MAX_COST (76*1024)  // measured
+#endif
+#endif
+
 /* Number of samples used to compute the times reported in stats. A power of
  * two is highly recommended, and this value multiplied by the largest response
  * time must not overflow and unsigned int. See freq_ctr.h for more information.
