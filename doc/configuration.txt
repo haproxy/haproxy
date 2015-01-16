@@ -3109,6 +3109,14 @@ http-check send-state
   checks on the total number before transition, just as appears in the stats
   interface. Next headers are in the form "<variable>=<value>", indicating in
   no specific order some values available in the stats interface :
+    - a variable "address", containing the address of the backend server.
+      This corresponds to the <address> field in the server declaration. For
+      unix domain sockets, it will read "unix".
+
+    - a variable "port", containing the port of the backend server. This
+      corresponds to the <port> field in the server declaration. For unix
+      domain sockets, it will read "unix".
+
     - a variable "name", containing the name of the backend followed by a slash
       ("/") then the name of the server. This can be used when a server is
       checked in multiple backends.

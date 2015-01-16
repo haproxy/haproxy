@@ -494,6 +494,8 @@ static int httpchk_build_status_header(struct server *s, char *buffer, int size)
 	int sv_state;
 	int ratio;
 	int hlen = 0;
+	char addr[46];
+	char port[6];
 	const char *srv_hlt_st[7] = { "DOWN", "DOWN %d/%d",
 				      "UP %d/%d", "UP",
 				      "NOLB %d/%d", "NOLB",
@@ -524,8 +526,11 @@ static int httpchk_build_status_header(struct server *s, char *buffer, int size)
 			     (s->state != SRV_ST_STOPPED) ? (s->check.health - s->check.rise + 1) : (s->check.health),
 			     (s->state != SRV_ST_STOPPED) ? (s->check.fall) : (s->check.rise));
 
-	hlen += snprintf(buffer + hlen,  size - hlen, "; name=%s/%s; node=%s; weight=%d/%d; scur=%d/%d; qcur=%d",
-			     s->proxy->id, s->id,
+	addr_to_str(&s->addr, addr, sizeof(addr));
+	port_to_str(&s->addr, port, sizeof(port));
+
+	hlen += snprintf(buffer + hlen,  size - hlen, "; address=%s; port=%s; name=%s/%s; node=%s; weight=%d/%d; scur=%d/%d; qcur=%d",
+			     addr, port, s->proxy->id, s->id,
 			     global.node,
 			     (s->eweight * s->proxy->lbprm.wmult + s->proxy->lbprm.wdiv - 1) / s->proxy->lbprm.wdiv,
 			     (s->proxy->lbprm.tot_weight * s->proxy->lbprm.wmult + s->proxy->lbprm.wdiv - 1) / s->proxy->lbprm.wdiv,
