@@ -11907,6 +11907,14 @@ path : string
     path_reg : regex match
     path_sub : substring match
 
+query : string
+  This extracts the request's query string, which starts after the first
+  question mark. If no question mark is present, this fetch returns nothing. If
+  a question mark is present but nothing follows, it returns an empty string.
+  This means it's possible to easily know whether a query string is present
+  using the "found" matching method. This fetch is the completemnt of "path"
+  which stops before the question mark.
+
 req.ver : string
 req_ver : string (deprecated)
   Returns the version string from the HTTP request, for example "1.1". This can

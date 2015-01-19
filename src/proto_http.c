@@ -10457,6 +10457,35 @@ smp_fetch_base32_src(struct proxy *px, struct session *l4, void *l7, unsigned in
 	return 1;
 }
 
+/* Extracts the query string, which comes after the question mark '?'. If no
+ * question mark is found, nothing is returned. Otherwise it returns a sample
+ * of type string carrying the whole query string.
+ */
+static int
+smp_fetch_query(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+               const struct arg *args, struct sample *smp, const char *kw)
+{
+	struct http_txn *txn = l7;
+	char *ptr, *end;
+
+	CHECK_HTTP_MESSAGE_FIRST();
+
+	ptr = txn->req.chn->buf->p + txn->req.sl.rq.u;
+	end = ptr + txn->req.sl.rq.u_l;
+
+	/* look up the '?' */
+	do {
+		if (ptr == end)
+			return 0;
+	} while (*ptr++ != '?');
+
+	smp->type = SMP_T_STR;
+	smp->data.str.str = ptr;
+	smp->data.str.len = end - ptr;
+	smp->flags = SMP_F_VOL_1ST | SMP_F_CONST;
+	return 1;
+}
+
 static int
 smp_fetch_proto_http(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
                      const struct arg *args, struct sample *smp, const char *kw)
@@ -11608,6 +11637,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "http_first_req",  smp_fetch_http_first_req, 0,                NULL,    SMP_T_BOOL, SMP_USE_HRQHP },
 	{ "method",          smp_fetch_meth,           0,                NULL,    SMP_T_METH, SMP_USE_HRQHP },
 	{ "path",            smp_fetch_path,           0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
+	{ "query",           smp_fetch_query,          0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 
 	/* HTTP protocol on the request path */
 	{ "req.proto_http",  smp_fetch_proto_http,     0,                NULL,    SMP_T_BOOL, SMP_USE_HRQHP },
