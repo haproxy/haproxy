@@ -1086,6 +1086,13 @@ static void deinit_sample_arg(struct arg *p)
 			p->data.str.str = NULL;
 			p->unresolved = 0;
 		}
+		else if (p->type == ARGT_REG) {
+			if (p->data.reg) {
+				regex_free(p->data.reg);
+				free(p->data.reg);
+				p->data.reg = NULL;
+			}
+		}
 		p++;
 	}
 

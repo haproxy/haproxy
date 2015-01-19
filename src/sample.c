@@ -983,13 +983,16 @@ int smp_resolve_args(struct proxy *p)
 	const char *ctx, *where;
 	const char *conv_ctx, *conv_pre, *conv_pos;
 	struct userlist *ul;
+	struct my_regex *reg;
 	struct arg *arg;
 	int cfgerr = 0;
+	int rflags;
 
 	list_for_each_entry_safe(cur, bak, &p->conf.args.list, list) {
 		struct proxy *px;
 		struct server *srv;
 		char *pname, *sname;
+		char *err;
 
 		arg = cur->arg;
 
@@ -1004,7 +1007,7 @@ int smp_resolve_args(struct proxy *p)
 		where = "in";
 		ctx = "sample fetch keyword";
 		switch (cur->ctx) {
-		case ARGC_STK:where = "in stick rule in"; break;
+		case ARGC_STK: where = "in stick rule in"; break;
 		case ARGC_TRK: where = "in tracking rule in"; break;
 		case ARGC_LOG: where = "in log-format string in"; break;
 		case ARGC_HRQ: where = "in http-request header format string in"; break;
@@ -1175,6 +1178,45 @@ int smp_resolve_args(struct proxy *p)
 			arg->unresolved = 0;
 			arg->data.usr = ul;
 			break;
+
+		case ARGT_REG:
+			if (!arg->data.str.len) {
+				Alert("parsing [%s:%d] : missing regex in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
+				      cur->file, cur->line,
+				      cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
+				cfgerr++;
+				continue;
+			}
+
+			reg = calloc(1, sizeof(*reg));
+			if (!reg) {
+				Alert("parsing [%s:%d] : not enough memory to build regex in arg %d of %s%s%s%s '%s' %s proxy '%s'.\n",
+				      cur->file, cur->line,
+				      cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id);
+				cfgerr++;
+				continue;
+			}
+
+			rflags = 0;
+			rflags |= (arg->type_flags & ARGF_REG_ICASE) ? REG_ICASE : 0;
+			err = NULL;
+
+			if (!regex_comp(arg->data.str.str, reg, rflags, 1 /* capture substr */, &err)) {
+				Alert("parsing [%s:%d] : error in regex '%s' in arg %d of %s%s%s%s '%s' %s proxy '%s' : %s.\n",
+				      cur->file, cur->line,
+				      arg->data.str.str,
+				      cur->arg_pos + 1, conv_pre, conv_ctx, conv_pos, ctx, cur->kw, where, p->id, err);
+				cfgerr++;
+				continue;
+			}
+
+			free(arg->data.str.str);
+			arg->data.str.str = NULL;
+			arg->unresolved = 0;
+			arg->data.reg = reg;
+			break;
+
+
 		}
 
 		LIST_DEL(&cur->list);

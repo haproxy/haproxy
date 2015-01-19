@@ -34,6 +34,7 @@ static const char *arg_type_names[ARGT_NBTYPES] = {
 	[ARGT_SRV]  = "server",
 	[ARGT_USR]  = "user list",
 	[ARGT_MAP]  = "map",
+	[ARGT_REG]  = "regex",
 	/* Unassigned types must never happen. Better crash during parsing if they do. */
 };
 
@@ -173,6 +174,7 @@ int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
 		case ARGT_TAB:
 		case ARGT_SRV:
 		case ARGT_USR:
+		case ARGT_REG:
 			/* These argument types need to be stored as strings during
 			 * parsing then resolved later.
 			 */

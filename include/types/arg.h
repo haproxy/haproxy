@@ -57,6 +57,7 @@ enum {
 	ARGT_SRV,      /* a pointer to a server */
 	ARGT_USR,      /* a pointer to a user list */
 	ARGT_MAP,      /* a pointer to a map descriptor */
+	ARGT_REG,      /* a pointer to a regex */
 };
 
 /* context where arguments are used, in order to help error reporting */
@@ -72,10 +73,15 @@ enum {
 	ARGC_CAP,      /* capture rule */
 };
 
+/* flags used when compiling and executing regex */
+#define ARGF_REG_ICASE 1
+#define ARGF_REG_GLOB  2
+
 /* some types that are externally defined */
 struct proxy;
 struct server;
 struct userlist;
+struct my_regex;
 
 union arg_data {
 	unsigned int uint; /* used for uint, time, size */
@@ -87,6 +93,7 @@ union arg_data {
 	struct server *srv;
 	struct userlist *usr;
 	struct map_descriptor *map;
+	struct my_regex *reg;
 };
 
 struct arg {
