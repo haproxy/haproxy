@@ -40,7 +40,7 @@ static const char *arg_type_names[ARGT_NBTYPES] = {
 /* This dummy arg list may be used by default when no arg is found, it helps
  * parsers by removing pointer checks.
  */
-struct arg empty_arg_list[8] = { };
+struct arg empty_arg_list[ARGM_NBARGS] = { };
 
 /* This function clones a struct arg_list template into a new one which is
  * returned.
@@ -86,9 +86,9 @@ struct arg_list *arg_list_add(struct arg_list *orig, struct arg *arg, int pos)
  * type ARGT_STOP (0), unless the mask indicates that no argument is supported.
  * Unresolved arguments are appended to arg list <al>, which also serves as a
  * template to create new entries. The mask is composed of a number of
- * mandatory arguments in its lower 4 bits, and a concatenation of each
- * argument type in each subsequent 4-bit block. If <err_msg> is not NULL, it
- * must point to a freeable or NULL pointer.
+ * mandatory arguments in its lower ARGM_BITS bits, and a concatenation of each
+ * argument type in each subsequent ARGT_BITS-bit sblock. If <err_msg> is not
+ * NULL, it must point to a freeable or NULL pointer.
  */
 int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
                   char **err_msg, const char **err_ptr, int *err_arg,
@@ -104,12 +104,12 @@ int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
 
 	*argp = NULL;
 
-	min_arg = mask & 15;
-	mask >>= 4;
+	min_arg = mask & ARGM_MASK;
+	mask >>= ARGM_BITS;
 
 	pos = 0;
-	/* find between 0 and 8 the max number of args supported by the mask */
-	for (nbarg = 0; nbarg < 8 && ((mask >> (nbarg * 4)) & 0xF); nbarg++);
+	/* find between 0 and NBARGS the max number of args supported by the mask */
+	for (nbarg = 0; nbarg < ARGM_NBARGS && ((mask >> (nbarg * ARGT_BITS)) & ARGT_MASK); nbarg++);
 
 	if (!nbarg)
 		goto end_parse;
@@ -138,7 +138,7 @@ int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
 		free(word);
 		word = my_strndup(beg, in - beg);
 
-		arg->type = (mask >> (pos * 4)) & 15;
+		arg->type = (mask >> (pos * ARGT_BITS)) & ARGT_MASK;
 
 		switch (arg->type) {
 		case ARGT_SINT:
@@ -265,7 +265,7 @@ int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
 		/* not enough arguments */
 		memprintf(err_msg,
 		          "missing arguments (got %d/%d), type '%s' expected",
-		          pos, min_arg, arg_type_names[(mask >> (pos * 4)) & 15]);
+		          pos, min_arg, arg_type_names[(mask >> (pos * ARGT_BITS)) & ARGT_MASK]);
 		goto err;
 	}
 
@@ -303,16 +303,16 @@ int make_arg_list(const char *in, int len, unsigned int mask, struct arg **argp,
 
  empty_err:
 	memprintf(err_msg, "expected type '%s' at position %d, but got nothing",
-	          arg_type_names[(mask >> (pos * 4)) & 15], pos + 1);
+	          arg_type_names[(mask >> (pos * ARGT_BITS)) & ARGT_MASK], pos + 1);
 	goto err;
 
  parse_err:
 	memprintf(err_msg, "failed to parse '%s' as type '%s' at position %d",
-	          word, arg_type_names[(mask >> (pos * 4)) & 15], pos + 1);
+	          word, arg_type_names[(mask >> (pos * ARGT_BITS)) & ARGT_MASK], pos + 1);
 	goto err;
 
  not_impl:
 	memprintf(err_msg, "parsing for type '%s' was not implemented, please report this bug",
-	          arg_type_names[(mask >> (pos * 4)) & 15]);
+	          arg_type_names[(mask >> (pos * ARGT_BITS)) & ARGT_MASK]);
 	goto err;
 }

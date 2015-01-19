@@ -28,6 +28,16 @@
 #include <common/chunk.h>
 #include <common/mini-clist.h>
 
+/* encoding of each arg type */
+#define ARGT_BITS      4
+#define ARGT_NBTYPES   (1 << ARGT_BITS)
+#define ARGT_MASK      (ARGT_NBTYPES - 1)
+
+/* encoding of the arg count */
+#define ARGM_MASK      ((1 << ARGM_BITS) - 1)
+#define ARGM_BITS      4
+#define ARGM_NBARGS    (32 - ARGM_BITS) / sizeof(int)
+
 enum {
 	ARGT_STOP = 0, /* end of the arg list */
 	ARGT_UINT,     /* unsigned integer, which is a positive integer without any sign */
@@ -45,7 +55,6 @@ enum {
 	ARGT_SRV,      /* a pointer to a server */
 	ARGT_USR,      /* a pointer to a user list */
 	ARGT_MAP,      /* a pointer to a map descriptor */
-	ARGT_NBTYPES   /* no more values past 15 */
 };
 
 /* context where arguments are used, in order to help error reporting */

@@ -31,33 +31,33 @@
  * the number of mandatory arguments in a mask.
  */
 #define ARGM(m) \
-	(m & 15)
+	(m & ARGM_MASK)
 
 #define ARG1(m, t1) \
-	(ARGM(m) + (ARGT_##t1 << 4))
+	(ARGM(m) + (ARGT_##t1 << (ARGM_BITS)))
 
 #define ARG2(m, t1, t2) \
-	(ARG1(m, t1) + (ARGT_##t2 << 8))
+	(ARG1(m, t1) + (ARGT_##t2 << (ARGM_BITS + ARGT_BITS)))
 
 #define ARG3(m, t1, t2, t3) \
-	(ARG2(m, t1, t2) + (ARGT_##t3 << 12))
+	(ARG2(m, t1, t2) + (ARGT_##t3 << (ARGM_BITS + ARGT_BITS * 2)))
 
 #define ARG4(m, t1, t2, t3, t4) \
-	(ARG3(m, t1, t2, t3) + (ARGT_##t4 << 16))
+	(ARG3(m, t1, t2, t3) + (ARGT_##t4 << (ARGM_BITS + ARGT_BITS * 3)))
 
 #define ARG5(m, t1, t2, t3, t4, t5) \
-	(ARG4(m, t1, t2, t3, t4) + (ARGT_##t5 << 20))
+	(ARG4(m, t1, t2, t3, t4) + (ARGT_##t5 << (ARGM_BITS + ARGT_BITS * 4)))
 
 #define ARG6(m, t1, t2, t3, t4, t5, t6) \
-	(ARG5(m, t1, t2, t3, t4, t5) + (ARGT_##t6 << 24))
+	(ARG5(m, t1, t2, t3, t4, t5) + (ARGT_##t6 << (ARGM_BITS + ARGT_BITS * 5)))
 
 #define ARG7(m, t1, t2, t3, t4, t5, t6, t7) \
-	(ARG6(m, t1, t2, t3, t4, t5, t6) + (ARGT_##t7 << 28))
+	(ARG6(m, t1, t2, t3, t4, t5, t6) + (ARGT_##t7 << (ARGM_BITS + ARGT_BITS * 6)))
 
 /* This dummy arg list may be used by default when no arg is found, it helps
  * parsers by removing pointer checks.
  */
-extern struct arg empty_arg_list[8];
+extern struct arg empty_arg_list[ARGM_NBARGS];
 
 struct arg_list *arg_list_clone(const struct arg_list *orig);
 struct arg_list *arg_list_add(struct arg_list *orig, struct arg *arg, int pos);
