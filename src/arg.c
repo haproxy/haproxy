@@ -33,6 +33,7 @@ static const char *arg_type_names[ARGT_NBTYPES] = {
 	[ARGT_TAB]  = "table",
 	[ARGT_SRV]  = "server",
 	[ARGT_USR]  = "user list",
+	[ARGT_MAP]  = "map",
 	/* Unassigned types must never happen. Better crash during parsing if they do. */
 };
 
