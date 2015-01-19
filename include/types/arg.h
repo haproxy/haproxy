@@ -28,14 +28,16 @@
 #include <common/chunk.h>
 #include <common/mini-clist.h>
 
-/* encoding of each arg type */
-#define ARGT_BITS      4
+/* encoding of each arg type : up to 31 types are supported */
+#define ARGT_BITS      5
 #define ARGT_NBTYPES   (1 << ARGT_BITS)
 #define ARGT_MASK      (ARGT_NBTYPES - 1)
 
-/* encoding of the arg count */
+/* encoding of the arg count : up to 5 args are possible. 4 bits are left
+ * unused at the top.
+ */
 #define ARGM_MASK      ((1 << ARGM_BITS) - 1)
-#define ARGM_BITS      4
+#define ARGM_BITS      3
 #define ARGM_NBARGS    (32 - ARGM_BITS) / sizeof(int)
 
 enum {
