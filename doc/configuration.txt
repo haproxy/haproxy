@@ -10328,6 +10328,28 @@ map_<match_type>_<output_type>(<map_file>[,<default_value>])
       |       `---------------------------- key
       `------------------------------------ leading spaces ignored
 
+regsub(<regex>,<subst>[,<flags>)
+  Applies a regex-based substitution to the input string. It does the same
+  operation as the well-known "sed" utility with "s/<regex>/<subst>/". By
+  default it will replace in the input string the first occurrence of the
+  largest part matching the regular expression <regex> with the substitution
+  string <subst>. It is possible to replace all occurrences instead by adding
+  the flag "g" in the third argument <flags>. It is also possible to make the
+  regex case insensitive by adding the flag "i" in <flags>. Since <flags> is a
+  string, it is made up from the concatenation of all desired flags. Thus if
+  both "i" and "g" are desired, using "gi" or "ig" will have the same effect.
+  It is important to note that due to the current limitations of the
+  configuration parser, some characters such as closing parenthesis or comma
+  are not possible to use in the arguments. The first use of this converter is
+  to replace certain characters or sequence of characters with other ones.
+
+  Example :
+
+     # de-duplicate "/" in header "x-path".
+     # input:  x-path: /////a///b/c/xzxyz/
+     # output: x-path: /a/b/c/xzxyz/
+     http-request set-header x-path %[hdr(x-path),regsub(/+,/,g)]
+
 sdbm([<avalanche>])
   Hashes a binary input sample into an unsigned 32-bit quantity using the SDBM
   hash function. Optionally, it is possible to apply a full avalanche hash

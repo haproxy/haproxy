@@ -1782,6 +1782,112 @@ found:
 	return 1;
 }
 
+static int sample_conv_regsub_check(struct arg *args, struct sample_conv *conv,
+                                    const char *file, int line, char **err)
+{
+	struct arg *arg = args;
+	char *p;
+	int len;
+
+	/* arg0 is a regex, it uses type_flag for ICASE and global match */
+	arg[0].type_flags = 0;
+
+	if (arg[2].type != ARGT_STR)
+		return 1;
+
+	p = arg[2].data.str.str;
+	len = arg[2].data.str.len;
+	while (len) {
+		if (*p == 'i') {
+			arg[0].type_flags |= ARGF_REG_ICASE;
+		}
+		else if (*p == 'g') {
+			arg[0].type_flags |= ARGF_REG_GLOB;
+		}
+		else {
+			memprintf(err, "invalid regex flag '%c', only 'i' and 'g' are supported", *p);
+			return 0;
+		}
+		p++;
+		len--;
+	}
+	return 1;
+}
+
+/* This sample function is designed to do the equivalent of s/match/replace/ on
+ * the input string. It applies a regex and restarts from the last matched
+ * location until nothing matches anymore. First arg is the regex to apply to
+ * the input string, second arg is the replacement expression.
+ */
+static int sample_conv_regsub(const struct arg *arg_p, struct sample *smp)
+{
+	char *start, *end;
+	struct my_regex *reg = arg_p[0].data.reg;
+	regmatch_t pmatch[MAX_MATCH];
+	struct chunk *trash = get_trash_chunk();
+	int flag, max;
+	int found;
+
+	start = smp->data.str.str;
+	end = start + smp->data.str.len;
+
+	flag = 0;
+	while (1) {
+		/* check for last round which is used to copy remaining parts
+		 * when not running in global replacement mode.
+		 */
+		found = 0;
+		if ((arg_p[0].type_flags & ARGF_REG_GLOB) || !(flag & REG_NOTBOL)) {
+			/* Note: we can have start == end on empty strings or at the end */
+			found = regex_exec_match2(reg, start, end - start, MAX_MATCH, pmatch, flag);
+		}
+
+		if (!found)
+			pmatch[0].rm_so = end - start;
+
+		/* copy the heading non-matching part (which may also be the tail if nothing matches) */
+		max = trash->size - trash->len;
+		if (max && pmatch[0].rm_so > 0) {
+			if (max > pmatch[0].rm_so)
+				max = pmatch[0].rm_so;
+			memcpy(trash->str + trash->len, start, max);
+			trash->len += max;
+		}
+
+		if (!found)
+			break;
+
+		/* replace the matching part */
+		max = trash->size - trash->len;
+		if (max) {
+			if (max > arg_p[1].data.str.len)
+				max = arg_p[1].data.str.len;
+			memcpy(trash->str + trash->len, arg_p[1].data.str.str, max);
+			trash->len += max;
+		}
+
+		/* stop here if we're done with this string */
+		if (start >= end)
+			break;
+
+		/* We have a special case for matches of length 0 (eg: "x*y*").
+		 * These ones are considered to match in front of a character,
+		 * so we have to copy that character and skip to the next one.
+		 */
+		if (!pmatch[0].rm_eo) {
+			if (trash->len < trash->size)
+				trash->str[trash->len++] = start[pmatch[0].rm_eo];
+			pmatch[0].rm_eo++;
+		}
+
+		start += pmatch[0].rm_eo;
+		flag |= REG_NOTBOL;
+	}
+
+	smp->data.str = *trash;
+	return 1;
+}
+
 /************************************************************************/
 /*       All supported sample fetch functions must be declared here     */
 /************************************************************************/
@@ -1927,6 +2033,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "bytes",  sample_conv_bytes,     ARG2(1,UINT,UINT), NULL, SMP_T_BIN,  SMP_T_BIN },
 	{ "field",  sample_conv_field,     ARG2(2,UINT,STR), sample_conv_field_check, SMP_T_STR,  SMP_T_STR },
 	{ "word",   sample_conv_word,      ARG2(2,UINT,STR), sample_conv_field_check, SMP_T_STR,  SMP_T_STR },
+	{ "regsub", sample_conv_regsub,    ARG3(2,REG,STR,STR), sample_conv_regsub_check, SMP_T_STR, SMP_T_STR },
 	{ NULL, NULL, 0, 0, 0 },
 }};
 
