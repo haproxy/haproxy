@@ -10123,6 +10123,19 @@ bytes(<offset>[,<length>])
   sample starting at an offset (in bytes) of the original sample and
   optionnaly truncated at the given length.
 
+crc32([<avalanche>])
+  Hashes a binary input sample into an unsigned 32-bit quantity using the CRC32
+  hash function. Optionally, it is possible to apply a full avalanche hash
+  function to the output if the optional <avalanche> argument equals 1. This
+  converter uses the same functions as used by the various hash-based load
+  balancing algorithms, so it will provide exactly the same results. It is
+  provided for compatibility with other software which want a CRC32 to be
+  computed on some input keys, so it follows the most common implementation as
+  found in Ethernet, Gzip, PNG, etc... It is slower than the other algorithms
+  but may provide a better or at least less predictable distribution. It must
+  not be used for security purposes as a 32-bit hash is trivial to break. See
+  also "djb2", "sdbm", "wt6" and the "hash-type" directive.
+
 djb2([<avalanche>])
   Hashes a binary input sample into an unsigned 32-bit quantity using the DJB2
   hash function. Optionally, it is possible to apply a full avalanche hash
@@ -10131,8 +10144,8 @@ djb2([<avalanche>])
   balancing algorithms, so it will provide exactly the same results. It is
   mostly intended for debugging, but can be used as a stick-table entry to
   collect rough statistics. It must not be used for security purposes as a
-  32-bit hash is trivial to break. See also "sdbm", "wt6" and the "hash-type"
-  directive.
+  32-bit hash is trivial to break. See also "crc32", "sdbm", "wt6" and the
+  "hash-type" directive.
 
 field(<index>,<delimiters>)
   Extracts the substring at the given index considering given delimiters from
@@ -10317,8 +10330,8 @@ sdbm([<avalanche>])
   balancing algorithms, so it will provide exactly the same results. It is
   mostly intended for debugging, but can be used as a stick-table entry to
   collect rough statistics. It must not be used for security purposes as a
-  32-bit hash is trivial to break. See also "djb2", "wt6" and the "hash-type"
-  directive.
+  32-bit hash is trivial to break. See also "crc32", "djb2", "wt6" and the
+  "hash-type" directive.
 
 table_bytes_in_rate(<table>)
   Uses the string representation of the input sample to perform a look up in
@@ -10490,8 +10503,8 @@ wt6([<avalanche>])
   balancing algorithms, so it will provide exactly the same results. It is
   mostly intended for debugging, but can be used as a stick-table entry to
   collect rough statistics. It must not be used for security purposes as a
-  32-bit hash is trivial to break. See also "djb2", "sdbm", and the "hash-type"
-  directive.
+  32-bit hash is trivial to break. See also "crc32", "djb2", "sdbm", and the
+  "hash-type" directive.
 
 
 7.3.2. Fetching samples from internal states
