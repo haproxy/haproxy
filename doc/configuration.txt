@@ -2794,6 +2794,11 @@ hash-type <method> <function> <modifier>
               data such as a source IP address or a visitor identifier in a URL
               parameter.
 
+       crc32  this is the most common CRC32 implementation as used in Ethernet,
+              gzip, PNG, etc. It is slower than the other ones but may provide
+              a better distribution or less predictable results especially when
+              used on strings.
+
     <modifier> indicates an optional method applied after hashing the key :
 
        avalanche   This directive indicates that the result from the hash

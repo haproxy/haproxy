@@ -75,6 +75,9 @@ static unsigned int gen_hash(const struct proxy* px, const char* key, unsigned l
 	case BE_LB_HFCN_WT6:
 		hash = hash_wt6(key, len);
 		break;
+	case BE_LB_HFCN_CRC32:
+		hash = hash_crc32(key, len);
+		break;
 	case BE_LB_HFCN_SDBM:
 		/* this is the default hash function */
 	default:
