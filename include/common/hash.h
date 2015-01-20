@@ -25,5 +25,6 @@
 unsigned int hash_djb2(const char *key, int len);
 unsigned int hash_wt6(const char *key, int len);
 unsigned int hash_sdbm(const char *key, int len);
+unsigned int hash_crc32(const char *key, int len);
 
 #endif /* _COMMON_HASH_H_ */

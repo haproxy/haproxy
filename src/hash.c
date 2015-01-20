@@ -85,4 +85,23 @@ unsigned int hash_sdbm(const char *key, int len)
 	return hash;
 }
 
+/* Small yet efficient CRC32 calculation loosely inspired from crc32b found
+ * here : http://www.hackersdelight.org/hdcodetxt/crc.c.txt
+ * The magic value represents the polynom with one bit per exponent. Much
+ * faster table-based versions exist but are pointless for our usage here,
+ * this hash already sustains gigabit speed which is far faster than what
+ * we'd ever need. Better preserve the CPU's cache instead.
+ */
+unsigned int hash_crc32(const char *key, int len)
+{
+	unsigned int hash;
+	int bit;
 
+	hash = ~0;
+	while (len--) {
+		hash ^= *key++;
+		for (bit = 0; bit < 8; bit++)
+			hash = (hash >> 1) ^ ((hash & 1) ? 0xedb88320 : 0);
+	}
+	return ~hash;
+}
