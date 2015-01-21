@@ -128,9 +128,9 @@ static inline int regex_exec2(const struct my_regex *preg, char *subject, int le
 }
 
 int regex_exec_match(const struct my_regex *preg, const char *subject,
-                     size_t nmatch, regmatch_t pmatch[]);
+                     size_t nmatch, regmatch_t pmatch[], int flags);
 int regex_exec_match2(const struct my_regex *preg, char *subject, int length,
-                      size_t nmatch, regmatch_t pmatch[]);
+                      size_t nmatch, regmatch_t pmatch[], int flags);
 
 static inline void regex_free(struct my_regex *preg) {
 #if defined(USE_PCRE) || defined(USE_PCRE_JIT)

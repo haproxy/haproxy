@@ -3185,7 +3185,7 @@ static inline void inet_set_tos(int fd, struct sockaddr_storage from, int tos)
 static int http_replace_header(struct my_regex *re, char *dst, uint dst_size, char *val, int len,
                                const char *rep_str)
 {
-	if (!regex_exec_match2(re, val, len, MAX_MATCH, pmatch))
+	if (!regex_exec_match2(re, val, len, MAX_MATCH, pmatch, 0))
 		return -2;
 
 	return exp_replace(dst, dst_size, val, rep_str, pmatch);
@@ -3209,7 +3209,7 @@ static int http_replace_value(struct my_regex *re, char *dst, uint dst_size, cha
 		while (p_delim < p + len && *p_delim != delim)
 			p_delim++;
 
-		if (regex_exec_match2(re, p, p_delim-p, MAX_MATCH, pmatch)) {
+		if (regex_exec_match2(re, p, p_delim-p, MAX_MATCH, pmatch, 0)) {
 			int replace_n = exp_replace(dst_p, dst_end - dst_p, p, rep_str, pmatch);
 
 			if (replace_n < 0)
@@ -6877,7 +6877,7 @@ int apply_filter_to_req_headers(struct session *s, struct channel *req, struct h
 		 * and the next header starts at cur_next.
 		 */
 
-		if (regex_exec_match2(exp->preg, cur_ptr, cur_end-cur_ptr, MAX_MATCH, pmatch)) {
+		if (regex_exec_match2(exp->preg, cur_ptr, cur_end-cur_ptr, MAX_MATCH, pmatch, 0)) {
 			switch (exp->action) {
 			case ACT_SETBE:
 				/* It is not possible to jump a second time.
@@ -6978,7 +6978,7 @@ int apply_filter_to_req_line(struct session *s, struct channel *req, struct hdr_
 
 	/* Now we have the request line between cur_ptr and cur_end */
 
-	if (regex_exec_match2(exp->preg, cur_ptr, cur_end-cur_ptr, MAX_MATCH, pmatch)) {
+	if (regex_exec_match2(exp->preg, cur_ptr, cur_end-cur_ptr, MAX_MATCH, pmatch, 0)) {
 		switch (exp->action) {
 		case ACT_SETBE:
 			/* It is not possible to jump a second time.
@@ -7738,7 +7738,7 @@ int apply_filter_to_resp_headers(struct session *s, struct channel *rtr, struct 
 		 * and the next header starts at cur_next.
 		 */
 
-		if (regex_exec_match2(exp->preg, cur_ptr, cur_end-cur_ptr, MAX_MATCH, pmatch)) {
+		if (regex_exec_match2(exp->preg, cur_ptr, cur_end-cur_ptr, MAX_MATCH, pmatch, 0)) {
 			switch (exp->action) {
 			case ACT_ALLOW:
 				txn->flags |= TX_SVALLOW;
@@ -7819,7 +7819,7 @@ int apply_filter_to_sts_line(struct session *s, struct channel *rtr, struct hdr_
 
 	/* Now we have the status line between cur_ptr and cur_end */
 
-	if (regex_exec_match2(exp->preg, cur_ptr, cur_end-cur_ptr, MAX_MATCH, pmatch)) {
+	if (regex_exec_match2(exp->preg, cur_ptr, cur_end-cur_ptr, MAX_MATCH, pmatch, 0)) {
 		switch (exp->action) {
 		case ACT_ALLOW:
 			txn->flags |= TX_SVALLOW;
