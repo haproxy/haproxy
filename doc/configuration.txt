@@ -3034,7 +3034,8 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
     - "set-header" does the same as "add-header" except that the header name
       is first removed if it existed. This is useful when passing security
       information to the server, where the header must not be manipulated by
-      external users.
+      external users. Note that the new value is computed before the removal so
+      it is possible to concatenate a value to an existing header.
 
     - "del-header" removes all HTTP header fields whose name is specified in
       <name>.

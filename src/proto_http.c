@@ -3389,17 +3389,15 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 			break;
 
 		case HTTP_REQ_ACT_DEL_HDR:
-		case HTTP_REQ_ACT_SET_HDR:
 			ctx.idx = 0;
 			/* remove all occurrences of the header */
 			while (http_find_header2(rule->arg.hdr_add.name, rule->arg.hdr_add.name_len,
 						 txn->req.chn->buf->p, &txn->hdr_idx, &ctx)) {
 				http_remove_header2(&txn->req, &txn->hdr_idx, &ctx);
 			}
-			if (rule->action == HTTP_REQ_ACT_DEL_HDR)
-				break;
-			/* now fall through to header addition */
+			break;
 
+		case HTTP_REQ_ACT_SET_HDR:
 		case HTTP_REQ_ACT_ADD_HDR:
 			chunk_printf(&trash, "%s: ", rule->arg.hdr_add.name);
 			memcpy(trash.str, rule->arg.hdr_add.name, rule->arg.hdr_add.name_len);
@@ -3407,6 +3405,16 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 			trash.str[trash.len++] = ':';
 			trash.str[trash.len++] = ' ';
 			trash.len += build_logline(s, trash.str + trash.len, trash.size - trash.len, &rule->arg.hdr_add.fmt);
+
+			if (rule->action == HTTP_REQ_ACT_SET_HDR) {
+				/* remove all occurrences of the header */
+				ctx.idx = 0;
+				while (http_find_header2(rule->arg.hdr_add.name, rule->arg.hdr_add.name_len,
+							 txn->req.chn->buf->p, &txn->hdr_idx, &ctx)) {
+					http_remove_header2(&txn->req, &txn->hdr_idx, &ctx);
+				}
+			}
+
 			http_header_add_tail2(&txn->req, &txn->hdr_idx, trash.str, trash.len);
 			break;
 
@@ -3611,17 +3619,15 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 			break;
 
 		case HTTP_RES_ACT_DEL_HDR:
-		case HTTP_RES_ACT_SET_HDR:
 			ctx.idx = 0;
 			/* remove all occurrences of the header */
 			while (http_find_header2(rule->arg.hdr_add.name, rule->arg.hdr_add.name_len,
 						 txn->rsp.chn->buf->p, &txn->hdr_idx, &ctx)) {
 				http_remove_header2(&txn->rsp, &txn->hdr_idx, &ctx);
 			}
-			if (rule->action == HTTP_RES_ACT_DEL_HDR)
-				break;
-			/* now fall through to header addition */
+			break;
 
+		case HTTP_RES_ACT_SET_HDR:
 		case HTTP_RES_ACT_ADD_HDR:
 			chunk_printf(&trash, "%s: ", rule->arg.hdr_add.name);
 			memcpy(trash.str, rule->arg.hdr_add.name, rule->arg.hdr_add.name_len);
@@ -3629,6 +3635,15 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 			trash.str[trash.len++] = ':';
 			trash.str[trash.len++] = ' ';
 			trash.len += build_logline(s, trash.str + trash.len, trash.size - trash.len, &rule->arg.hdr_add.fmt);
+
+			if (rule->action == HTTP_RES_ACT_SET_HDR) {
+				/* remove all occurrences of the header */
+				ctx.idx = 0;
+				while (http_find_header2(rule->arg.hdr_add.name, rule->arg.hdr_add.name_len,
+							 txn->rsp.chn->buf->p, &txn->hdr_idx, &ctx)) {
+					http_remove_header2(&txn->rsp, &txn->hdr_idx, &ctx);
+				}
+			}
 			http_header_add_tail2(&txn->rsp, &txn->hdr_idx, trash.str, trash.len);
 			break;
 
