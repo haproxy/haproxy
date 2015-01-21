@@ -92,6 +92,7 @@ union arg_data {
 struct arg {
 	unsigned char type;       /* argument type, ARGT_* */
 	unsigned char unresolved; /* argument contains a string in <str> that must be resolved and freed */
+	unsigned char type_flags; /* type-specific extra flags (eg: case sensitivity for regex), ARGF_* */
 	union arg_data data;      /* argument data */
 };
 
