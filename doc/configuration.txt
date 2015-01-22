@@ -2971,7 +2971,8 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
               del-header <name> | set-nice <nice> | set-log-level <level> |
               replace-header <name> <match-regex> <replace-fmt> |
               replace-value <name> <match-regex> <replace-fmt> |
-              set-tos <tos> | set-mark <mark> |
+              set-method <fmt> | set-path <fmt> | set-query <fmt> |
+              set-uri <fmt> | set-tos <tos> | set-mark <mark> |
               add-acl(<file name>) <key fmt> |
               del-acl(<file name>) <key fmt> |
               del-map(<file name>) <key fmt> |
@@ -3080,6 +3081,42 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
       outputs:
 
         X-Forwarded-For: 172.16.10.1, 172.16.13.24, 10.0.0.37
+
+    - "set-method" rewrites the request method with the result of the
+      evaluation of format string <fmt>. There should be very few valid reasons
+      for having to do so as this is more likely to break something than to fix
+      it.
+
+    - "set-path" rewrites the request path with the result of the evaluation of
+      format string <fmt>. The query string, if any, is left intact. If a
+      scheme and authority is found before the path, they are left intact as
+      well. If the request doesn't have a path ("*"), this one is replaced with
+      the format. This can be used to prepend a directory component in front of
+      a path for example. See also "set-query" and "set-uri".
+
+      Example :
+          # prepend the host name before the path
+          http-request set-path /%[hdr(host)]%[path]
+
+    - "set-query" rewrites the request's query string which appears after the
+      first question mark ("?") with the result of the evaluation of format
+      string <fmt>. The part prior to the question mark is left intact. If the
+      request doesn't contain a question mark and the new value is not empty,
+      then one is added at the end of the URI, followed by the new value. If
+      a question mark was present, it will never be removed even if the value
+      is empty. This can be used to add or remove parameters from the query
+      string. See also "set-query" and "set-uri".
+
+      Example :
+          # replace "%3D" with "=" in the query string
+          http-request set-query %[query,regsub(%3D,=,g)]
+
+    - "set-uri" rewrites the request URI with the result of the evaluation of
+      format string <fmt>. The scheme, authority, path and query string are all
+      replaced at once. This can be used to rewrite hosts in front of proxies,
+      or to perform complex modifications to the URI such as moving parts
+      between the path and the query string. See also "set-path" and
+      "set-query".
 
     - "set-nice" sets the "nice" factor of the current request being processed.
       It only has effect against the other requests being processed at the same

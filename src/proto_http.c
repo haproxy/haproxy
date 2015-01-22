@@ -11476,6 +11476,149 @@ expect_comma:
 	return smp->data.str.len != 0;
 }
 
+/* This function executes one of the set-{method,path,query,uri} actions. It
+ * builds a string in the trash from the specified format string, then modifies
+ * the relevant part of the request line accordingly. Then it updates various
+ * pointers to the next elements which were moved, and the total buffer length.
+ * It finds the action to be performed in p[2], previously filled by function
+ * parse_set_req_line(). It returns 0 in case of success, -1 in case of internal
+ * error, though this can be revisited when this code is finally exploited.
+ */
+int http_action_set_req_line(struct http_req_rule *rule, struct proxy *px, struct session *s, struct http_txn *txn)
+{
+	char *cur_ptr, *cur_end;
+	int offset;
+	int delta;
+
+	chunk_reset(&trash);
+
+	/* prepare a '?' just in case we have to create a query string */
+	trash.str[trash.len++] = '?';
+	offset = 1;
+	trash.len += build_logline(s, trash.str + trash.len, trash.size - trash.len, (struct list *)&rule->arg.act.p[0]);
+
+	switch (*(int *)&rule->arg.act.p[2]) {
+	case 0: // method
+		cur_ptr = s->req->buf->p;
+		cur_end = cur_ptr + txn->req.sl.rq.m_l;
+
+		/* adjust req line offsets and lengths */
+		delta = trash.len - offset - (cur_end - cur_ptr);
+		txn->req.sl.rq.m_l += delta;
+		txn->req.sl.rq.u   += delta;
+		txn->req.sl.rq.v   += delta;
+		break;
+
+	case 1: // path
+		cur_ptr = http_get_path(txn);
+		if (!cur_ptr)
+			cur_ptr = s->req->buf->p + txn->req.sl.rq.u;
+
+		cur_end = cur_ptr;
+		while (cur_end < s->req->buf->p + txn->req.sl.rq.u + txn->req.sl.rq.u_l && *cur_end != '?')
+			cur_end++;
+
+		/* adjust req line offsets and lengths */
+		delta = trash.len - offset - (cur_end - cur_ptr);
+		txn->req.sl.rq.u_l += delta;
+		txn->req.sl.rq.v   += delta;
+		break;
+
+	case 2: // query
+		cur_ptr = s->req->buf->p + txn->req.sl.rq.u;
+		cur_end = cur_ptr + txn->req.sl.rq.u_l;
+		while (cur_ptr < cur_end && *cur_ptr != '?')
+			cur_ptr++;
+
+		/* skip the question mark or indicate that we must insert it
+		 * (but only if the format string is not empty then).
+		 */
+		if (cur_ptr < cur_end)
+			cur_ptr++;
+		else if (trash.len > 1)
+			offset = 0;
+
+		/* adjust req line offsets and lengths */
+		delta = trash.len - offset - (cur_end - cur_ptr);
+		txn->req.sl.rq.u_l += delta;
+		txn->req.sl.rq.v   += delta;
+		break;
+
+	case 3: // uri
+		cur_ptr = s->req->buf->p + txn->req.sl.rq.u;
+		cur_end = cur_ptr + txn->req.sl.rq.u_l;
+
+		/* adjust req line offsets and lengths */
+		delta = trash.len - offset - (cur_end - cur_ptr);
+		txn->req.sl.rq.u_l += delta;
+		txn->req.sl.rq.v   += delta;
+		break;
+
+	default:
+		return -1;
+	}
+
+	/* commit changes and adjust end of message */
+	delta = buffer_replace2(s->req->buf, cur_ptr, cur_end, trash.str + offset, trash.len - offset);
+	http_msg_move_end(&txn->req, delta);
+	return 0;
+}
+
+/* parse an http-request action among :
+ *   set-method
+ *   set-path
+ *   set-query
+ *   set-uri
+ *
+ * All of them accept a single argument of type string representing a log-format.
+ * The resulting rule makes use of arg->act.p[0..1] to store the log-format list
+ * head, and p[2] to store the action as an int (0=method, 1=path, 2=query, 3=uri).
+ * It returns 0 on success, < 0 on error.
+ */
+int parse_set_req_line(const char **args, int *orig_arg, struct proxy *px, struct http_req_rule *rule, char **err)
+{
+	int cur_arg = *orig_arg;
+
+	rule->action = HTTP_REQ_ACT_CUSTOM_CONT;
+
+	switch (args[0][4]) {
+	case 'm' :
+		*(int *)&rule->arg.act.p[2] = 0;
+		rule->action_ptr = http_action_set_req_line;
+		break;
+	case 'p' :
+		*(int *)&rule->arg.act.p[2] = 1;
+		rule->action_ptr = http_action_set_req_line;
+		break;
+	case 'q' :
+		*(int *)&rule->arg.act.p[2] = 2;
+		rule->action_ptr = http_action_set_req_line;
+		break;
+	case 'u' :
+		*(int *)&rule->arg.act.p[2] = 3;
+		rule->action_ptr = http_action_set_req_line;
+		break;
+	default:
+		memprintf(err, "internal error: unhandled action '%s'", args[0]);
+		return -1;
+	}
+
+	if (!*args[cur_arg] ||
+	    (*args[cur_arg + 1] && strcmp(args[cur_arg + 1], "if") != 0 && strcmp(args[cur_arg + 1], "unless") != 0)) {
+		memprintf(err, "expects exactly 1 argument <format>");
+		return -1;
+	}
+
+	LIST_INIT((struct list *)&rule->arg.act.p[0]);
+	proxy->conf.args.ctx = ARGC_HRQ;
+	parse_logformat_string(args[cur_arg], proxy, (struct list *)&rule->arg.act.p[0], LOG_OPT_HTTP,
+			       (proxy->cap & PR_CAP_FE) ? SMP_VAL_FE_HRQ_HDR : SMP_VAL_BE_HRQ_HDR,
+			       proxy->conf.args.file, proxy->conf.args.line);
+
+	(*orig_arg)++;
+	return 0;
+}
+
 /*
  * Return the struct http_req_action_kw associated to a keyword.
  */
@@ -11715,6 +11858,9 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 }};
 
 
+/************************************************************************/
+/*        All supported converter keywords must be declared here.       */
+/************************************************************************/
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "http_date", sample_conv_http_date,  ARG1(0,SINT),     NULL, SMP_T_UINT, SMP_T_STR},
@@ -11722,12 +11868,26 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ NULL, NULL, 0, 0, 0 },
 }};
 
+/************************************************************************/
+/*   All supported http-request action keywords must be declared here.  */
+/************************************************************************/
+struct http_req_action_kw_list http_req_actions = {
+	.scope = "http",
+	.kw = {
+		{ "set-method", parse_set_req_line },
+		{ "set-path",   parse_set_req_line },
+		{ "set-query",  parse_set_req_line },
+		{ "set-uri",    parse_set_req_line },
+	}
+};
+
 __attribute__((constructor))
 static void __http_protocol_init(void)
 {
 	acl_register_keywords(&acl_kws);
 	sample_register_fetches(&sample_fetch_keywords);
 	sample_register_convs(&sample_conv_kws);
+	http_req_keywords_register(&http_req_actions);
 }
 
 

@@ -438,6 +438,9 @@ struct http_req_rule {
 			struct list key;       /* pattern to retrieve MAP or ACL key */
 			struct list value;     /* pattern to retrieve MAP value */
 		} map;
+		struct {
+			void *p[4];
+		} act;                         /* generic pointers to be used by custom actions */
 	} arg;                                 /* arguments used by some actions */
 
 	union {
