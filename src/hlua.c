@@ -2,6 +2,13 @@
 #include <lua.h>
 #include <lualib.h>
 
+#include <ebpttree.h>
+
+#include <common/cfgparse.h>
+
+#include <types/hlua.h>
+#include <types/proxy.h>
+
 /* Lua uses longjmp to perform yield or throwing errors. This
  * macro is used only for identifying the function that can
  * not return because a longjmp is executed.
@@ -12,6 +19,15 @@
 #define __LJMP
 #define WILL_LJMP(func) func
 #define MAY_LJMP(func) func
+
+/* The main Lua execution context. */
+struct hlua gL;
+
+/* Store the fast lua context for coroutines. This tree uses the
+ * Lua stack pointer value as indexed entry, and store the associated
+ * hlua context.
+ */
+struct eb_root hlua_ctx = EB_ROOT_UNIQUE;
 
 /* Used to check an Lua function type in the stack. It creates and
  * returns a reference of the function. This function throws an
@@ -118,6 +134,246 @@ static int hlua_pusherror(lua_State *L, const char *fmt, ...)
 	return 1;
 }
 
+/*
+ * The following functions are used to make correspondance between the the
+ * executed lua pointer and the "struct hlua *" that contain the context.
+ * They run with the tree head "hlua_ctx", they just perform lookup in the
+ * tree.
+ *
+ *  - hlua_gethlua : return the hlua context associated with an lua_State.
+ *  - hlua_delhlua : remove the association between hlua context and lua_state.
+ *  - hlua_sethlua : create the association between hlua context and lua_state.
+ */
+static inline struct hlua *hlua_gethlua(lua_State *L)
+{
+	struct ebpt_node *node;
+
+	node = ebpt_lookup(&hlua_ctx, L);
+	if (!node)
+		return NULL;
+	return ebpt_entry(node, struct hlua, node);
+}
+static inline void hlua_delhlua(struct hlua *hlua)
+{
+	if (hlua->node.key)
+		ebpt_delete(&hlua->node);
+}
+static inline void hlua_sethlua(struct hlua *hlua)
+{
+	hlua->node.key = hlua->T;
+	ebpt_insert(&hlua_ctx, &hlua->node);
+}
+
+/* This function initialises the Lua environment stored in the session.
+ * It must be called at the start of the session. This function creates
+ * an LUA coroutine. It can not be use to crete the main LUA context.
+ */
+int hlua_ctx_init(struct hlua *lua, struct task *task)
+{
+	lua->Mref = LUA_REFNIL;
+	lua->state = HLUA_STOP;
+	lua->T = lua_newthread(gL.T);
+	if (!lua->T) {
+		lua->Tref = LUA_REFNIL;
+		return 0;
+	}
+	hlua_sethlua(lua);
+	lua->Tref = luaL_ref(gL.T, LUA_REGISTRYINDEX);
+	lua->task = task;
+	return 1;
+}
+
+/* Used to destroy the Lua coroutine when the attached session or task
+ * is destroyed. The destroy also the memory context. The struct "lua"
+ * is not freed.
+ */
+void hlua_ctx_destroy(struct hlua *lua)
+{
+	/* Remove context. */
+	hlua_delhlua(lua);
+
+	/* The thread is garbage collected by Lua. */
+	luaL_unref(lua->T, LUA_REGISTRYINDEX, lua->Mref);
+	luaL_unref(gL.T, LUA_REGISTRYINDEX, lua->Tref);
+}
+
+/* This function is used to restore the Lua context when a coroutine
+ * fails. This function copy the common memory between old coroutine
+ * and the new coroutine. The old coroutine is destroyed, and its
+ * replaced by the new coroutine.
+ * If the flag "keep_msg" is set, the last entry of the old is assumed
+ * as string error message and it is copied in the new stack.
+ */
+static int hlua_ctx_renew(struct hlua *lua, int keep_msg)
+{
+	lua_State *T;
+	int new_ref;
+
+	/* Renew the main LUA stack doesn't have sense. */
+	if (lua == &gL)
+		return 0;
+
+	/* Remove context. */
+	hlua_delhlua(lua);
+
+	/* New Lua coroutine. */
+	T = lua_newthread(gL.T);
+	if (!T)
+		return 0;
+
+	/* Copy last error message. */
+	if (keep_msg)
+		lua_xmove(lua->T, T, 1);
+
+	/* Copy data between the coroutines. */
+	lua_rawgeti(lua->T, LUA_REGISTRYINDEX, lua->Mref);
+	lua_xmove(lua->T, T, 1);
+	new_ref = luaL_ref(T, LUA_REGISTRYINDEX); /* Valur poped. */
+
+	/* Destroy old data. */
+	luaL_unref(lua->T, LUA_REGISTRYINDEX, lua->Mref);
+
+	/* The thread is garbage collected by Lua. */
+	luaL_unref(gL.T, LUA_REGISTRYINDEX, lua->Tref);
+
+	/* Fill the struct with the new coroutine values. */
+	lua->Mref = new_ref;
+	lua->T = T;
+	lua->Tref = luaL_ref(gL.T, LUA_REGISTRYINDEX);
+
+	/* Set context. */
+	hlua_sethlua(lua);
+
+	return 1;
+}
+
+/* This function start or resumes the Lua stack execution. If the flag
+ * "yield_allowed" if no set and the  LUA stack execution returns a yield
+ * The function return an error.
+ *
+ * The function can returns 4 values:
+ *  - HLUA_E_OK     : The execution is terminated without any errors.
+ *  - HLUA_E_AGAIN  : The execution must continue at the next associated
+ *                    task wakeup.
+ *  - HLUA_E_ERRMSG : An error has occured, an error message is set in
+ *                    the top of the stack.
+ *  - HLUA_E_ERR    : An error has occured without error message.
+ *
+ * If an error occured, the stack is renewed and it is ready to run new
+ * LUA code.
+ */
+static enum hlua_exec hlua_ctx_resume(struct hlua *lua, int yield_allowed)
+{
+	int ret;
+	const char *msg;
+
+	lua->state = HLUA_RUN;
+
+	/* Call the function. */
+	ret = lua_resume(lua->T, gL.T, lua->nargs);
+	switch (ret) {
+
+	case LUA_OK:
+		ret = HLUA_E_OK;
+		break;
+
+	case LUA_YIELD:
+		if (!yield_allowed) {
+			lua_settop(lua->T, 0); /* Empty the stack. */
+			if (!lua_checkstack(lua->T, 1)) {
+				ret = HLUA_E_ERR;
+				break;
+			}
+			lua_pushfstring(lua->T, "yield not allowed");
+			ret = HLUA_E_ERRMSG;
+			break;
+		}
+		ret = HLUA_E_AGAIN;
+		break;
+
+	case LUA_ERRRUN:
+		if (!lua_checkstack(lua->T, 1)) {
+			ret = HLUA_E_ERR;
+			break;
+		}
+		msg = lua_tostring(lua->T, -1);
+		lua_settop(lua->T, 0); /* Empty the stack. */
+		lua_pop(lua->T, 1);
+		if (msg)
+			lua_pushfstring(lua->T, "runtime error: %s", msg);
+		else
+			lua_pushfstring(lua->T, "unknown runtime error");
+		ret = HLUA_E_ERRMSG;
+		break;
+
+	case LUA_ERRMEM:
+		lua_settop(lua->T, 0); /* Empty the stack. */
+		if (!lua_checkstack(lua->T, 1)) {
+			ret = HLUA_E_ERR;
+			break;
+		}
+		lua_pushfstring(lua->T, "out of memory error");
+		ret = HLUA_E_ERRMSG;
+		break;
+
+	case LUA_ERRERR:
+		if (!lua_checkstack(lua->T, 1)) {
+			ret = HLUA_E_ERR;
+			break;
+		}
+		msg = lua_tostring(lua->T, -1);
+		lua_settop(lua->T, 0); /* Empty the stack. */
+		lua_pop(lua->T, 1);
+		if (msg)
+			lua_pushfstring(lua->T, "message handler error: %s", msg);
+		else
+			lua_pushfstring(lua->T, "message handler error");
+		ret = HLUA_E_ERRMSG;
+		break;
+
+	default:
+		lua_settop(lua->T, 0); /* Empty the stack. */
+		if (!lua_checkstack(lua->T, 1)) {
+			ret = HLUA_E_ERR;
+			break;
+		}
+		lua_pushfstring(lua->T, "unknonwn error");
+		ret = HLUA_E_ERRMSG;
+		break;
+	}
+
+	switch (ret) {
+	case HLUA_E_AGAIN:
+		break;
+
+	case HLUA_E_ERRMSG:
+		hlua_ctx_renew(lua, 1);
+		lua->state = HLUA_STOP;
+		break;
+
+	case HLUA_E_ERR:
+		lua->state = HLUA_STOP;
+		hlua_ctx_renew(lua, 0);
+		break;
+
+	case HLUA_E_OK:
+		lua->state = HLUA_STOP;
+		break;
+	}
+
+	return ret;
+}
+
 void hlua_init(void)
 {
+	/* Init main lua stack. */
+	gL.Mref = LUA_REFNIL;
+	gL.state = HLUA_STOP;
+	gL.T = luaL_newstate();
+	hlua_sethlua(&gL);
+	gL.Tref = LUA_REFNIL;
+	gL.task = NULL;
+
+	/* Initialise lua. */
+	luaL_openlibs(gL.T);
 }
