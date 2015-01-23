@@ -438,6 +438,59 @@ static enum hlua_exec hlua_ctx_resume(struct hlua *lua, int yield_allowed)
 	return ret;
 }
 
+/* This function is used as a calback of a task. It is called by the
+ * HAProxy task subsystem when the task is awaked. The LUA runtime can
+ * return an E_AGAIN signal, the emmiter of this signal must set a
+ * signal to wake the task.
+ */
+static struct task *hlua_process_task(struct task *task)
+{
+	struct hlua *hlua = task->context;
+	enum hlua_exec status;
+
+	/* We need to remove the task from the wait queue before executing
+	 * the Lua code because we don't know if it needs to wait for
+	 * another timer or not in the case of E_AGAIN.
+	 */
+	task_delete(task);
+
+	/* Execute the Lua code. */
+	status = hlua_ctx_resume(hlua, 1);
+
+	switch (status) {
+	/* finished or yield */
+	case HLUA_E_OK:
+		hlua_ctx_destroy(hlua);
+		task_delete(task);
+		task_free(task);
+		break;
+
+	case HLUA_E_AGAIN: /* co process wake me later. */
+		break;
+
+	/* finished with error. */
+	case HLUA_E_ERRMSG:
+		send_log(NULL, LOG_ERR, "Lua task: %s.", lua_tostring(hlua->T, -1));
+		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+			Alert("Lua task: %s.\n", lua_tostring(hlua->T, -1));
+		hlua_ctx_destroy(hlua);
+		task_delete(task);
+		task_free(task);
+		break;
+
+	case HLUA_E_ERR:
+	default:
+		send_log(NULL, LOG_ERR, "Lua task: unknown error.");
+		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+			Alert("Lua task: unknown error.\n");
+		hlua_ctx_destroy(hlua);
+		task_delete(task);
+		task_free(task);
+		break;
+	}
+	return NULL;
+}
+
 /* This function is an LUA binding that register LUA function to be
  * executed after the HAProxy configuration parsing and before the
  * HAProxy scheduler starts. This function expect only one LUA
@@ -459,6 +512,46 @@ __LJMP static int hlua_register_init(lua_State *L)
 
 	init->function_ref = ref;
 	LIST_ADDQ(&hlua_init_functions, &init->l);
+	return 0;
+}
+
+/* This functio is an LUA binding. It permits to register a task
+ * executed in parallel of the main HAroxy activity. The task is
+ * created and it is set in the HAProxy scheduler. It can be called
+ * from the "init" section, "post init" or during the runtime.
+ *
+ * Lua prototype:
+ *
+ *   <none> core.register_task(<function>)
+ */
+static int hlua_register_task(lua_State *L)
+{
+	struct hlua *hlua;
+	struct task *task;
+	int ref;
+
+	MAY_LJMP(check_args(L, 1, "register_task"));
+
+	ref = MAY_LJMP(hlua_checkfunction(L, 1));
+
+	hlua = malloc(sizeof(*hlua));
+	if (!hlua)
+		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+
+	task = task_new();
+	task->context = hlua;
+	task->process = hlua_process_task;
+
+	if (!hlua_ctx_init(hlua, task))
+		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+
+	/* Restore the function in the stack. */
+	lua_rawgeti(hlua->T, LUA_REGISTRYINDEX, ref);
+	hlua->nargs = 0;
+
+	/* Schedule task. */
+	task_schedule(task, now_ms);
+
 	return 0;
 }
 
@@ -594,6 +687,7 @@ void hlua_init(void)
 
 	/* Register special functions. */
 	hlua_class_function(gL.T, "register_init", hlua_register_init);
+	hlua_class_function(gL.T, "register_task", hlua_register_task);
 
 	/* Store the table __index in the metable. */
 	lua_settable(gL.T, -3);
