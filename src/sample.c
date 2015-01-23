@@ -1201,7 +1201,7 @@ int smp_resolve_args(struct proxy *p)
 			rflags |= (arg->type_flags & ARGF_REG_ICASE) ? REG_ICASE : 0;
 			err = NULL;
 
-			if (!regex_comp(arg->data.str.str, reg, rflags, 1 /* capture substr */, &err)) {
+			if (!regex_comp(arg->data.str.str, reg, !(rflags & REG_ICASE), 1 /* capture substr */, &err)) {
 				Alert("parsing [%s:%d] : error in regex '%s' in arg %d of %s%s%s%s '%s' %s proxy '%s' : %s.\n",
 				      cur->file, cur->line,
 				      arg->data.str.str,
