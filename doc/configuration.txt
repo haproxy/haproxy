@@ -10365,7 +10365,7 @@ map_<match_type>_<output_type>(<map_file>[,<default_value>])
       |       `---------------------------- key
       `------------------------------------ leading spaces ignored
 
-regsub(<regex>,<subst>[,<flags>)
+regsub(<regex>,<subst>[,<flags>])
   Applies a regex-based substitution to the input string. It does the same
   operation as the well-known "sed" utility with "s/<regex>/<subst>/". By
   default it will replace in the input string the first occurrence of the
