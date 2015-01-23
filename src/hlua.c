@@ -429,10 +429,72 @@ static enum hlua_exec hlua_ctx_resume(struct hlua *lua, int yield_allowed)
 	return ret;
 }
 
+/* This function is called by the main configuration key "lua-load". It loads and
+ * execute an lua file during the parsing of the HAProxy configuration file. It is
+ * the main lua entry point.
+ *
+ * This funtion runs with the HAProxy keywords API. It returns -1 if an error is
+ * occured, otherwise it returns 0.
+ *
+ * In some error case, LUA set an error message in top of the stack. This function
+ * returns this error message in the HAProxy logs and pop it from the stack.
+ */
+static int hlua_load(char **args, int section_type, struct proxy *curpx,
+                     struct proxy *defpx, const char *file, int line,
+                     char **err)
+{
+	int error;
+
+	/* Just load and compile the file. */
+	error = luaL_loadfile(gL.T, args[1]);
+	if (error) {
+		memprintf(err, "error in lua file '%s': %s", args[1], lua_tostring(gL.T, -1));
+		lua_pop(gL.T, 1);
+		return -1;
+	}
+
+	/* If no syntax error where detected, execute the code. */
+	error = lua_pcall(gL.T, 0, LUA_MULTRET, 0);
+	switch (error) {
+	case LUA_OK:
+		break;
+	case LUA_ERRRUN:
+		memprintf(err, "lua runtime error: %s\n", lua_tostring(gL.T, -1));
+		lua_pop(gL.T, 1);
+		return -1;
+	case LUA_ERRMEM:
+		memprintf(err, "lua out of memory error\n");
+		return -1;
+	case LUA_ERRERR:
+		memprintf(err, "lua message handler error: %s\n", lua_tostring(gL.T, -1));
+		lua_pop(gL.T, 1);
+		return -1;
+	case LUA_ERRGCMM:
+		memprintf(err, "lua garbage collector error: %s\n", lua_tostring(gL.T, -1));
+		lua_pop(gL.T, 1);
+		return -1;
+	default:
+		memprintf(err, "lua unknonwn error: %s\n", lua_tostring(gL.T, -1));
+		lua_pop(gL.T, 1);
+		return -1;
+	}
+
+	return 0;
+}
+
+/* configuration keywords declaration */
+static struct cfg_kw_list cfg_kws = {{ },{
+	{ CFG_GLOBAL, "lua-load",  hlua_load },
+	{ 0, NULL, NULL },
+}};
+
 void hlua_init(void)
 {
 	/* Initialise com signals pool session. */
 	pool2_hlua_com = create_pool("hlua_com", sizeof(struct hlua_com), MEM_F_SHARED);
+
+	/* Register configuration keywords. */
+	cfg_register_keywords(&cfg_kws);
 
 	/* Init main lua stack. */
 	gL.Mref = LUA_REFNIL;
