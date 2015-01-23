@@ -1058,6 +1058,10 @@ void init(int argc, char **argv)
 	if (!global.node)
 		global.node = strdup(hostname);
 
+#ifdef USE_LUA
+	if (!hlua_post_init())
+		exit(1);
+#endif
 }
 
 static void deinit_acl_cond(struct acl_cond *cond)

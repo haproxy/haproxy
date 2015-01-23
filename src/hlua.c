@@ -30,6 +30,9 @@ struct hlua gL;
  */
 struct pool_head *pool2_hlua_com;
 
+/* List head of the function called at the initialisation time. */
+struct list hlua_init_functions = LIST_HEAD_INIT(hlua_init_functions);
+
 /* Store the fast lua context for coroutines. This tree uses the
  * Lua stack pointer value as indexed entry, and store the associated
  * hlua context.
@@ -435,6 +438,30 @@ static enum hlua_exec hlua_ctx_resume(struct hlua *lua, int yield_allowed)
 	return ret;
 }
 
+/* This function is an LUA binding that register LUA function to be
+ * executed after the HAProxy configuration parsing and before the
+ * HAProxy scheduler starts. This function expect only one LUA
+ * argument that is a function. This function returns nothing, but
+ * throws if an error is encountered.
+ */
+__LJMP static int hlua_register_init(lua_State *L)
+{
+	struct hlua_init_function *init;
+	int ref;
+
+	MAY_LJMP(check_args(L, 1, "register_init"));
+
+	ref = MAY_LJMP(hlua_checkfunction(L, 1));
+
+	init = malloc(sizeof(*init));
+	if (!init)
+		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+
+	init->function_ref = ref;
+	LIST_ADDQ(&hlua_init_functions, &init->l);
+	return 0;
+}
+
 /* This function is called by the main configuration key "lua-load". It loads and
  * execute an lua file during the parsing of the HAProxy configuration file. It is
  * the main lua entry point.
@@ -494,6 +521,35 @@ static struct cfg_kw_list cfg_kws = {{ },{
 	{ 0, NULL, NULL },
 }};
 
+int hlua_post_init()
+{
+	struct hlua_init_function *init;
+	const char *msg;
+	enum hlua_exec ret;
+
+	list_for_each_entry(init, &hlua_init_functions, l) {
+		lua_rawgeti(gL.T, LUA_REGISTRYINDEX, init->function_ref);
+		ret = hlua_ctx_resume(&gL, 0);
+		switch (ret) {
+		case HLUA_E_OK:
+			lua_pop(gL.T, -1);
+			return 1;
+		case HLUA_E_AGAIN:
+			Alert("lua init: yield not allowed.\n");
+			return 0;
+		case HLUA_E_ERRMSG:
+			msg = lua_tostring(gL.T, -1);
+			Alert("lua init: %s.\n", msg);
+			return 0;
+		case HLUA_E_ERR:
+		default:
+			Alert("lua init: unknown runtime error.\n");
+			return 0;
+		}
+	}
+	return 1;
+}
+
 void hlua_init(void)
 {
 	int i;
@@ -535,6 +591,9 @@ void hlua_init(void)
 	/* Push the loglevel constants. */
 	for (i=0; i<NB_LOG_LEVELS; i++)
 		hlua_class_const_int(gL.T, log_levels[i], i);
+
+	/* Register special functions. */
+	hlua_class_function(gL.T, "register_init", hlua_register_init);
 
 	/* Store the table __index in the metable. */
 	lua_settable(gL.T, -3);

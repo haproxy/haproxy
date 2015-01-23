@@ -41,4 +41,12 @@ struct hlua_com {
 	struct task *task; /* The task to be wake if an event occurs. */
 };
 
+/* This is a part of the list containing references to functions
+ * called at the initialisation time.
+ */
+struct hlua_init_function {
+	struct list l;
+	int function_ref;
+};
+
 #endif /* _TYPES_HLUA_H */
