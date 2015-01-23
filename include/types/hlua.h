@@ -27,7 +27,16 @@ struct hlua {
 	enum hlua_state state; /* The current execution state. */
 	struct task *task; /* The task associated with the lua stack execution.
 	                      We must wake this task to continue the task execution */
+	struct list com; /* The list head of the signals attached to this task. */
 	struct ebpt_node node;
+};
+
+struct hlua_com {
+	struct list purge_me; /* Part of the list of signals to be purged in the
+	                         case of the LUA execution stack crash. */
+	struct list wake_me; /* Part of list of signals to be targeted if an
+	                        event occurs. */
+	struct task *task; /* The task to be wake if an event occurs. */
 };
 
 #endif /* _TYPES_HLUA_H */

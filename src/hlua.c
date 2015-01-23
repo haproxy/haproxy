@@ -9,6 +9,8 @@
 #include <types/hlua.h>
 #include <types/proxy.h>
 
+#include <proto/task.h>
+
 /* Lua uses longjmp to perform yield or throwing errors. This
  * macro is used only for identifying the function that can
  * not return because a longjmp is executed.
@@ -22,6 +24,11 @@
 
 /* The main Lua execution context. */
 struct hlua gL;
+
+/* This is the memory pool containing all the signal structs. These
+ * struct are used to store each requiered signal between two tasks.
+ */
+struct pool_head *pool2_hlua_com;
 
 /* Store the fast lua context for coroutines. This tree uses the
  * Lua stack pointer value as indexed entry, and store the associated
@@ -134,6 +141,57 @@ static int hlua_pusherror(lua_State *L, const char *fmt, ...)
 	return 1;
 }
 
+/* This function register a new signal. "lua" is the current lua
+ * execution context. It contains a pointer to the associated task.
+ * "link" is a list head attached to an other task that must be wake
+ * the lua task if an event occurs. This is useful with external
+ * events like TCP I/O or sleep functions. This funcion allocate
+ * memory for the signal.
+ */
+static int hlua_com_new(struct hlua *lua, struct list *link)
+{
+	struct hlua_com *com = pool_alloc2(pool2_hlua_com);
+	if (!com)
+		return 0;
+	LIST_ADDQ(&lua->com, &com->purge_me);
+	LIST_ADDQ(link, &com->wake_me);
+	com->task = lua->task;
+	return 1;
+}
+
+/* This function purge all the pending signals when the LUA execution
+ * is finished. This prevent than a coprocess try to wake a deleted
+ * task. This function remove the memory associated to the signal.
+ */
+static void hlua_com_purge(struct hlua *lua)
+{
+	struct hlua_com *com, *back;
+
+	/* Delete all pending communication signals. */
+	list_for_each_entry_safe(com, back, &lua->com, purge_me) {
+		LIST_DEL(&com->purge_me);
+		LIST_DEL(&com->wake_me);
+		pool_free2(pool2_hlua_com, com);
+	}
+}
+
+/* This function sends signals. It wakes all the tasks attached
+ * to a list head, and remove the signal, and free the used
+ * memory.
+ */
+static void hlua_com_wake(struct list *wake)
+{
+	struct hlua_com *com, *back;
+
+	/* Wake task and delete all pending communication signals. */
+	list_for_each_entry_safe(com, back, wake, wake_me) {
+		LIST_DEL(&com->purge_me);
+		LIST_DEL(&com->wake_me);
+		task_wakeup(com->task, TASK_WOKEN_MSG);
+		pool_free2(pool2_hlua_com, com);
+	}
+}
+
 /*
  * The following functions are used to make correspondance between the the
  * executed lua pointer and the "struct hlua *" that contain the context.
@@ -172,6 +230,7 @@ int hlua_ctx_init(struct hlua *lua, struct task *task)
 {
 	lua->Mref = LUA_REFNIL;
 	lua->state = HLUA_STOP;
+	LIST_INIT(&lua->com);
 	lua->T = lua_newthread(gL.T);
 	if (!lua->T) {
 		lua->Tref = LUA_REFNIL;
@@ -191,6 +250,9 @@ void hlua_ctx_destroy(struct hlua *lua)
 {
 	/* Remove context. */
 	hlua_delhlua(lua);
+
+	/* Purge all the pending signals. */
+	hlua_com_purge(lua);
 
 	/* The thread is garbage collected by Lua. */
 	luaL_unref(lua->T, LUA_REGISTRYINDEX, lua->Mref);
@@ -347,17 +409,20 @@ static enum hlua_exec hlua_ctx_resume(struct hlua *lua, int yield_allowed)
 		break;
 
 	case HLUA_E_ERRMSG:
+		hlua_com_purge(lua);
 		hlua_ctx_renew(lua, 1);
 		lua->state = HLUA_STOP;
 		break;
 
 	case HLUA_E_ERR:
 		lua->state = HLUA_STOP;
+		hlua_com_purge(lua);
 		hlua_ctx_renew(lua, 0);
 		break;
 
 	case HLUA_E_OK:
 		lua->state = HLUA_STOP;
+		hlua_com_purge(lua);
 		break;
 	}
 
@@ -366,9 +431,13 @@ static enum hlua_exec hlua_ctx_resume(struct hlua *lua, int yield_allowed)
 
 void hlua_init(void)
 {
+	/* Initialise com signals pool session. */
+	pool2_hlua_com = create_pool("hlua_com", sizeof(struct hlua_com), MEM_F_SHARED);
+
 	/* Init main lua stack. */
 	gL.Mref = LUA_REFNIL;
 	gL.state = HLUA_STOP;
+	LIST_INIT(&gL.com);
 	gL.T = luaL_newstate();
 	hlua_sethlua(&gL);
 	gL.Tref = LUA_REFNIL;
