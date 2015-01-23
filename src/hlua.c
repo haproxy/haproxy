@@ -36,6 +36,12 @@ struct pool_head *pool2_hlua_com;
  */
 struct eb_root hlua_ctx = EB_ROOT_UNIQUE;
 
+/* The following variables contains the reference of the different
+ * Lua classes. These references are useful for identify metadata
+ * associated with an object.
+ */
+static int class_core_ref;
+
 /* Used to check an Lua function type in the stack. It creates and
  * returns a reference of the function. This function throws an
  * error if the rgument is not a "function".
@@ -490,6 +496,8 @@ static struct cfg_kw_list cfg_kws = {{ },{
 
 void hlua_init(void)
 {
+	int i;
+
 	/* Initialise com signals pool session. */
 	pool2_hlua_com = create_pool("hlua_com", sizeof(struct hlua_com), MEM_F_SHARED);
 
@@ -507,4 +515,39 @@ void hlua_init(void)
 
 	/* Initialise lua. */
 	luaL_openlibs(gL.T);
+
+	/*
+	 *
+	 * Create "core" object.
+	 *
+	 */
+
+	/* This integer entry is just used as base value for the object "core". */
+	lua_pushinteger(gL.T, 0);
+
+	/* Create and fill the metatable. */
+	lua_newtable(gL.T);
+
+	/* Create and fill the __index entry. */
+	lua_pushstring(gL.T, "__index");
+	lua_newtable(gL.T);
+
+	/* Push the loglevel constants. */
+	for (i=0; i<NB_LOG_LEVELS; i++)
+		hlua_class_const_int(gL.T, log_levels[i], i);
+
+	/* Store the table __index in the metable. */
+	lua_settable(gL.T, -3);
+
+	/* Register previous table in the registry with named entry. */
+	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
+	lua_setfield(gL.T, LUA_REGISTRYINDEX, CLASS_CORE); /* register class session. */
+
+	/* Register previous table in the registry with reference. */
+	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
+	class_core_ref = luaL_ref(gL.T, LUA_REGISTRYINDEX); /* reference class session. */
+
+	/* Create new object with class Core. */
+	lua_setmetatable(gL.T, -2);
+	lua_setglobal(gL.T, "core");
 }

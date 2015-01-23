@@ -33,6 +33,8 @@
 #define SYSLOG_PORT             514
 #define UNIQUEID_LEN            128
 
+/* The array containing the names of the log levels. */
+extern const char *log_levels[];
 
 /* lists of fields that can be logged */
 enum {

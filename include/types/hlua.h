@@ -3,6 +3,8 @@
 
 #include <lua.h>
 
+#define CLASS_CORE     "Core"
+
 enum hlua_state {
 	HLUA_STOP = 0,
 	HLUA_RUN,
