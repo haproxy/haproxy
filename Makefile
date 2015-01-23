@@ -28,6 +28,7 @@
 #   USE_VSYSCALL         : enable vsyscall on Linux x86, bypassing libc
 #   USE_GETADDRINFO      : use getaddrinfo() to resolve IPv6 host names.
 #   USE_OPENSSL          : enable use of OpenSSL. Recommended, but see below.
+#   USE_LUA              : enable Lua support.
 #   USE_FUTEX            : enable use of futex on kernel 2.6. Automatic.
 #   USE_ACCEPT4          : enable use of accept4() on linux. Automatic.
 #   USE_MY_ACCEPT4       : use own implemention of accept4() if glibc < 2.10.
@@ -74,6 +75,8 @@
 #   PCRE_INC       : force the include path to libpcre ($PCREDIR/inc)
 #   SSL_LIB        : force the lib path to libssl/libcrypto
 #   SSL_INC        : force the include path to libssl/libcrypto
+#   LUA_LIB        : force the lib path to lua
+#   LUA_INC        : force the include path to lua
 #   IGNOREGIT      : ignore GIT commit versions if set.
 #   VERSION        : force haproxy version reporting.
 #   SUBVERS        : add a sub-version (eg: platform, model, ...).
@@ -555,6 +558,12 @@ OPTIONS_CFLAGS  += -DUSE_SYSCALL_FUTEX
 endif
 endif
 endif
+endif
+
+ifneq ($(USE_LUA),)
+OPTIONS_CFLAGS  += -DUSE_LUA $(if $(LUA_INC),-I$(LUA_INC))
+OPTIONS_LDFLAGS += $(if $(LUA_LIB),-L$(LUA_LIB)) -llua -lm
+OPTIONS_OBJS    += src/hlua.o
 endif
 
 ifneq ($(USE_PCRE)$(USE_STATIC_PCRE)$(USE_PCRE_JIT),)
