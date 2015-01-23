@@ -9,6 +9,7 @@
 #include <types/hlua.h>
 #include <types/proxy.h>
 
+#include <proto/arg.h>
 #include <proto/task.h>
 
 /* Lua uses longjmp to perform yield or throwing errors. This
@@ -44,6 +45,17 @@ struct eb_root hlua_ctx = EB_ROOT_UNIQUE;
  * associated with an object.
  */
 static int class_core_ref;
+
+/* These functions converts types between HAProxy internal args or
+ * sample and LUA types. Another function permits to check if the
+ * LUA stack contains arguments according with an required ARG_T
+ * format.
+ */
+static int hlua_arg2lua(lua_State *L, const struct arg *arg);
+static int hlua_lua2arg(lua_State *L, int ud, struct arg *arg);
+__LJMP static int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp, unsigned int mask);
+static int hlua_smp2lua(lua_State *L, const struct sample *smp);
+static int hlua_lua2smp(lua_State *L, int ud, struct sample *smp);
 
 /* Used to check an Lua function type in the stack. It creates and
  * returns a reference of the function. This function throws an
@@ -198,6 +210,231 @@ static void hlua_com_wake(struct list *wake)
 		LIST_DEL(&com->wake_me);
 		task_wakeup(com->task, TASK_WOKEN_MSG);
 		pool_free2(pool2_hlua_com, com);
+	}
+}
+
+/* This functions is used with sample fetch and converters. It
+ * converts the HAProxy configuration argument in a lua stack
+ * values.
+ *
+ * It takes an array of "arg", and each entry of the array is
+ * converted and pushed in the LUA stack.
+ */
+static int hlua_arg2lua(lua_State *L, const struct arg *arg)
+{
+	switch (arg->type) {
+	case ARGT_SINT:
+		lua_pushinteger(L, arg->data.sint);
+		break;
+
+	case ARGT_UINT:
+	case ARGT_TIME:
+	case ARGT_SIZE:
+		lua_pushunsigned(L, arg->data.sint);
+		break;
+
+	case ARGT_STR:
+		lua_pushlstring(L, arg->data.str.str, arg->data.str.len);
+		break;
+
+	case ARGT_IPV4:
+	case ARGT_IPV6:
+	case ARGT_MSK4:
+	case ARGT_MSK6:
+	case ARGT_FE:
+	case ARGT_BE:
+	case ARGT_TAB:
+	case ARGT_SRV:
+	case ARGT_USR:
+	case ARGT_MAP:
+	default:
+		lua_pushnil(L);
+		break;
+	}
+	return 1;
+}
+
+/* This function take one entrie in an LUA stack at the index "ud",
+ * and try to convert it in an HAProxy argument entry. This is useful
+ * with sample fetch wrappers. The input arguments are gived to the
+ * lua wrapper and converted as arg list by thi function.
+ */
+static int hlua_lua2arg(lua_State *L, int ud, struct arg *arg)
+{
+	switch (lua_type(L, ud)) {
+
+	case LUA_TNUMBER:
+	case LUA_TBOOLEAN:
+		arg->type = ARGT_SINT;
+		arg->data.sint = lua_tointeger(L, ud);
+		break;
+
+	case LUA_TSTRING:
+		arg->type = ARGT_STR;
+		arg->data.str.str = (char *)lua_tolstring(L, ud, (size_t *)&arg->data.str.len);
+		break;
+
+	case LUA_TUSERDATA:
+	case LUA_TNIL:
+	case LUA_TTABLE:
+	case LUA_TFUNCTION:
+	case LUA_TTHREAD:
+	case LUA_TLIGHTUSERDATA:
+		arg->type = ARGT_SINT;
+		arg->data.uint = 0;
+		break;
+	}
+	return 1;
+}
+
+/* the following functions are used to convert a struct sample
+ * in Lua type. This useful to convert the return of the
+ * fetchs or converters.
+ */
+static int hlua_smp2lua(lua_State *L, const struct sample *smp)
+{
+	switch (smp->type) {
+	case SMP_T_SINT:
+		lua_pushinteger(L, smp->data.sint);
+		break;
+
+	case SMP_T_BOOL:
+	case SMP_T_UINT:
+		lua_pushunsigned(L, smp->data.uint);
+		break;
+
+	case SMP_T_BIN:
+	case SMP_T_STR:
+		lua_pushlstring(L, smp->data.str.str, smp->data.str.len);
+		break;
+
+	case SMP_T_METH:
+		switch (smp->data.meth.meth) {
+		case HTTP_METH_OPTIONS: lua_pushstring(L, "OPTIONS"); break;
+		case HTTP_METH_GET:     lua_pushstring(L, "GET");     break;
+		case HTTP_METH_HEAD:    lua_pushstring(L, "HEAD");    break;
+		case HTTP_METH_POST:    lua_pushstring(L, "POST");    break;
+		case HTTP_METH_PUT:     lua_pushstring(L, "PUT");     break;
+		case HTTP_METH_DELETE:  lua_pushstring(L, "DELETE");  break;
+		case HTTP_METH_TRACE:   lua_pushstring(L, "TRACE");   break;
+		case HTTP_METH_CONNECT: lua_pushstring(L, "CONNECT"); break;
+		case HTTP_METH_OTHER:
+			lua_pushlstring(L, smp->data.meth.str.str, smp->data.meth.str.len);
+			break;
+		default:
+			lua_pushnil(L);
+			break;
+		}
+		break;
+
+	case SMP_T_IPV4:
+	case SMP_T_IPV6:
+	case SMP_T_ADDR: /* This type is never used to qualify a sample. */
+	default:
+		lua_pushnil(L);
+		break;
+	}
+	return 1;
+}
+
+/* the following functions are used to convert an Lua type in a
+ * struct sample. This is useful to provide data from a converter
+ * to the LUA code.
+ */
+static int hlua_lua2smp(lua_State *L, int ud, struct sample *smp)
+{
+	switch (lua_type(L, ud)) {
+
+	case LUA_TNUMBER:
+		smp->type = SMP_T_SINT;
+		smp->data.sint = lua_tointeger(L, ud);
+		break;
+
+
+	case LUA_TBOOLEAN:
+		smp->type = SMP_T_BOOL;
+		smp->data.uint = lua_toboolean(L, ud);
+		break;
+
+	case LUA_TSTRING:
+		smp->type = SMP_T_STR;
+		smp->flags |= SMP_F_CONST;
+		smp->data.str.str = (char *)lua_tolstring(L, ud, (size_t *)&smp->data.str.len);
+		break;
+
+	case LUA_TUSERDATA:
+	case LUA_TNIL:
+	case LUA_TTABLE:
+	case LUA_TFUNCTION:
+	case LUA_TTHREAD:
+	case LUA_TLIGHTUSERDATA:
+		smp->type = SMP_T_BOOL;
+		smp->data.uint = 0;
+		break;
+	}
+	return 1;
+}
+
+/* This function check the "argp" builded by another conversion function
+ * is in accord with the expected argp defined by the "mask". The fucntion
+ * returns true or false. It can be adjust the types if there compatibles.
+ */
+__LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp, unsigned int mask)
+{
+	int min_arg;
+	int idx;
+
+	idx = 0;
+	min_arg = ARGM(mask);
+	mask >>= ARGM_BITS;
+
+	while (1) {
+
+		/* Check oversize. */
+		if (idx >= ARGM_NBARGS && argp[idx].type != ARGT_STOP) {
+			WILL_LJMP(luaL_argerror(L, first + idx, "Malformad argument mask"));
+		}
+
+		/* Check for mandatory arguments. */
+		if (argp[idx].type == ARGT_STOP) {
+			if (idx + 1 < min_arg)
+				WILL_LJMP(luaL_argerror(L, first + idx, "Mandatory argument expected"));
+			return 0;
+		}
+
+		/* Check for exceed the number of requiered argument. */
+		if ((mask & ARGT_MASK) == ARGT_STOP &&
+		    argp[idx].type != ARGT_STOP) {
+			WILL_LJMP(luaL_argerror(L, first + idx, "Last argument expected"));
+		}
+
+		if ((mask & ARGT_MASK) == ARGT_STOP &&
+		    argp[idx].type == ARGT_STOP) {
+			return 0;
+		}
+
+		/* Compatibility mask. */
+		switch (argp[idx].type) {
+		case ARGT_SINT:
+			switch (mask & ARGT_MASK) {
+			case ARGT_UINT: argp[idx].type = mask & ARGT_MASK; break;
+			case ARGT_TIME: argp[idx].type = mask & ARGT_MASK; break;
+			case ARGT_SIZE: argp[idx].type = mask & ARGT_MASK; break;
+			}
+			break;
+		}
+
+		/* Check for type of argument. */
+		if ((mask & ARGT_MASK) != argp[idx].type) {
+			const char *msg = lua_pushfstring(L, "'%s' expected, got '%s'",
+			                                  arg_type_names[(mask & ARGT_MASK)],
+			                                  arg_type_names[argp[idx].type & ARGT_MASK]);
+			WILL_LJMP(luaL_argerror(L, first + idx, msg));
+		}
+
+		/* Next argument. */
+		mask >>= ARGT_BITS;
+		idx++;
 	}
 }
 
