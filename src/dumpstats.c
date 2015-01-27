@@ -2492,7 +2492,7 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 	             "Hard_maxconn: %d\n"
 	             "CurrConns: %d\n"
 		     "CumConns: %d\n"
-		     "CumReq: %d\n"
+		     "CumReq: %u\n"
 #ifdef USE_OPENSSL
 		     "MaxSslConns: %d\n"
 	             "CurrSslConns: %d\n"
