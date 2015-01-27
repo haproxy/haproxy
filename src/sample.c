@@ -1888,6 +1888,144 @@ static int sample_conv_regsub(const struct arg *arg_p, struct sample *smp)
 	return 1;
 }
 
+/* Takes a UINT on input, applies a binary twos complement and returns the UINT
+ * result.
+ */
+static int sample_conv_binary_cpl(const struct arg *arg_p, struct sample *smp)
+{
+	smp->data.uint = ~smp->data.uint;
+	return 1;
+}
+
+/* Takes a UINT on input, applies a binary "and" with the UINT in arg_p, and
+ * returns the UINT result.
+ */
+static int sample_conv_binary_and(const struct arg *arg_p, struct sample *smp)
+{
+	smp->data.uint &= arg_p->data.uint;
+	return 1;
+}
+
+/* Takes a UINT on input, applies a binary "or" with the UINT in arg_p, and
+ * returns the UINT result.
+ */
+static int sample_conv_binary_or(const struct arg *arg_p, struct sample *smp)
+{
+	smp->data.uint |= arg_p->data.uint;
+	return 1;
+}
+
+/* Takes a UINT on input, applies a binary "xor" with the UINT in arg_p, and
+ * returns the UINT result.
+ */
+static int sample_conv_binary_xor(const struct arg *arg_p, struct sample *smp)
+{
+	smp->data.uint ^= arg_p->data.uint;
+	return 1;
+}
+
+/* Takes a UINT on input, applies an arithmetic "add" with the UINT in arg_p,
+ * and returns the UINT result.
+ */
+static int sample_conv_arith_add(const struct arg *arg_p, struct sample *smp)
+{
+	smp->data.uint += arg_p->data.uint;
+	return 1;
+}
+
+/* Takes a UINT on input, applies an arithmetic "sub" with the UINT in arg_p,
+ * and returns the UINT result.
+ */
+static int sample_conv_arith_sub(const struct arg *arg_p, struct sample *smp)
+{
+	smp->data.uint -= arg_p->data.uint;
+	return 1;
+}
+
+/* Takes a UINT on input, applies an arithmetic "mul" with the UINT in arg_p,
+ * and returns the UINT result.
+ */
+static int sample_conv_arith_mul(const struct arg *arg_p, struct sample *smp)
+{
+	smp->data.uint *= arg_p->data.uint;
+	return 1;
+}
+
+/* Takes a UINT on input, applies an arithmetic "div" with the UINT in arg_p,
+ * and returns the UINT result. If arg_p makes the result overflow, then the
+ * largest possible quantity is returned.
+ */
+static int sample_conv_arith_div(const struct arg *arg_p, struct sample *smp)
+{
+	if (arg_p->data.uint)
+		smp->data.uint /= arg_p->data.uint;
+	else
+		smp->data.uint = ~0;
+	return 1;
+}
+
+/* Takes a UINT on input, applies an arithmetic "mod" with the UINT in arg_p,
+ * and returns the UINT result. If arg_p makes the result overflow, then zero
+ * is returned.
+ */
+static int sample_conv_arith_mod(const struct arg *arg_p, struct sample *smp)
+{
+	if (arg_p->data.uint)
+		smp->data.uint %= arg_p->data.uint;
+	else
+		smp->data.uint = 0;
+	return 1;
+}
+
+/* Takes an UINT on input, applies an arithmetic "neg" and returns the UINT
+ * result.
+ */
+static int sample_conv_arith_neg(const struct arg *arg_p, struct sample *smp)
+{
+	smp->data.uint = -smp->data.uint;
+	return 1;
+}
+
+/* Takes a UINT on input, returns true is the value is non-null, otherwise
+ * false. The output is a BOOL.
+ */
+static int sample_conv_arith_bool(const struct arg *arg_p, struct sample *smp)
+{
+	smp->data.uint = !!smp->data.uint;
+	smp->type = SMP_T_BOOL;
+	return 1;
+}
+
+/* Takes a UINT on input, returns false is the value is non-null, otherwise
+ * truee. The output is a BOOL.
+ */
+static int sample_conv_arith_not(const struct arg *arg_p, struct sample *smp)
+{
+	smp->data.uint = !smp->data.uint;
+	smp->type = SMP_T_BOOL;
+	return 1;
+}
+
+/* Takes a UINT on input, returns true is the value is odd, otherwise false.
+ * The output is a BOOL.
+ */
+static int sample_conv_arith_odd(const struct arg *arg_p, struct sample *smp)
+{
+	smp->data.uint = smp->data.uint & 1;
+	smp->type = SMP_T_BOOL;
+	return 1;
+}
+
+/* Takes a UINT on input, returns true is the value is even, otherwise false.
+ * The output is a BOOL.
+ */
+static int sample_conv_arith_even(const struct arg *arg_p, struct sample *smp)
+{
+	smp->data.uint = !(smp->data.uint & 1);
+	smp->type = SMP_T_BOOL;
+	return 1;
+}
+
 /************************************************************************/
 /*       All supported sample fetch functions must be declared here     */
 /************************************************************************/
@@ -2034,6 +2172,22 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "field",  sample_conv_field,     ARG2(2,UINT,STR), sample_conv_field_check, SMP_T_STR,  SMP_T_STR },
 	{ "word",   sample_conv_word,      ARG2(2,UINT,STR), sample_conv_field_check, SMP_T_STR,  SMP_T_STR },
 	{ "regsub", sample_conv_regsub,    ARG3(2,REG,STR,STR), sample_conv_regsub_check, SMP_T_STR, SMP_T_STR },
+
+	{ "and",    sample_conv_binary_and, ARG1(1,UINT), NULL, SMP_T_UINT, SMP_T_UINT },
+	{ "or",     sample_conv_binary_or,  ARG1(1,UINT), NULL, SMP_T_UINT, SMP_T_UINT },
+	{ "xor",    sample_conv_binary_xor, ARG1(1,UINT), NULL, SMP_T_UINT, SMP_T_UINT },
+	{ "cpl",    sample_conv_binary_cpl,            0, NULL, SMP_T_UINT, SMP_T_UINT },
+	{ "bool",   sample_conv_arith_bool,            0, NULL, SMP_T_UINT, SMP_T_BOOL },
+	{ "not",    sample_conv_arith_not,             0, NULL, SMP_T_UINT, SMP_T_BOOL },
+	{ "odd",    sample_conv_arith_odd,             0, NULL, SMP_T_UINT, SMP_T_BOOL },
+	{ "even",   sample_conv_arith_even,            0, NULL, SMP_T_UINT, SMP_T_BOOL },
+	{ "add",    sample_conv_arith_add,  ARG1(1,UINT), NULL, SMP_T_UINT, SMP_T_UINT },
+	{ "sub",    sample_conv_arith_sub,  ARG1(1,UINT), NULL, SMP_T_UINT, SMP_T_UINT },
+	{ "mul",    sample_conv_arith_mul,  ARG1(1,UINT), NULL, SMP_T_UINT, SMP_T_UINT },
+	{ "div",    sample_conv_arith_div,  ARG1(1,UINT), NULL, SMP_T_UINT, SMP_T_UINT },
+	{ "mod",    sample_conv_arith_mod,  ARG1(1,UINT), NULL, SMP_T_UINT, SMP_T_UINT },
+	{ "neg",    sample_conv_arith_neg,             0, NULL, SMP_T_UINT, SMP_T_UINT },
+
 	{ NULL, NULL, 0, 0, 0 },
 }};
 

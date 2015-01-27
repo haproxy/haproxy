@@ -10155,17 +10155,41 @@ sample fetch method. These keywords may equally be appended immediately after
 the fetch keyword's argument, delimited by a comma. These keywords can also
 support some arguments (eg: a netmask) which must be passed in parenthesis.
 
+A certain category of converters are bitwise and arithmetic operators which
+support performing basic operations on integers. Some bitwise operations are
+supported (and, or, xor, cpl) and some arithmetic operations are supported
+(add, sub, mul, div, mod, neg). Some comparators are provided (odd, even, not,
+bool) which make it possible to report a match without having to write an ACL.
+
 The currently available list of transformation keywords include :
+
+add(<value>)
+  Adds <value> to the input value of type unsigned integer, and returns the
+  result as an unsigned integer.
+
+and(<value>)
+  Performs a bitwise "AND" between <value> and the input value of type unsigned
+  integer, and returns the result as an unsigned integer.
 
 base64
   Converts a binary input sample to a base64 string. It is used to log or
   transfer binary content in a way that can be reliably transferred (eg:
   an SSL ID can be copied in a header).
 
+bool
+  Returns a boolean TRUE if the input value of type unsigned integer is
+  non-null, otherwise returns FALSE. Used in conjunction with and(), it can be
+  used to report true/false for bit testing on input values (eg: verify the
+  presence of a flag).
+
 bytes(<offset>[,<length>])
   Extracts some bytes from an input binary sample. The result is a binary
   sample starting at an offset (in bytes) of the original sample and
   optionnaly truncated at the given length.
+
+cpl
+  Takes the input value of type unsigned integer, applies a twos-complement
+  (flips all bits) and returns the result as an unsigned integer.
 
 crc32([<avalanche>])
   Hashes a binary input sample into an unsigned 32-bit quantity using the CRC32
@@ -10180,6 +10204,11 @@ crc32([<avalanche>])
   not be used for security purposes as a 32-bit hash is trivial to break. See
   also "djb2", "sdbm", "wt6" and the "hash-type" directive.
 
+div(<value>)
+  Divides the input value of type unsigned integer by <value>, and returns the
+  result as an unsigned integer. If <value> is null, the largest unsigned
+  integer is returned (typically 2^32-1).
+
 djb2([<avalanche>])
   Hashes a binary input sample into an unsigned 32-bit quantity using the DJB2
   hash function. Optionally, it is possible to apply a full avalanche hash
@@ -10190,6 +10219,10 @@ djb2([<avalanche>])
   collect rough statistics. It must not be used for security purposes as a
   32-bit hash is trivial to break. See also "crc32", "sdbm", "wt6" and the
   "hash-type" directive.
+
+even
+  Returns a boolean TRUE if the input value of type unsigned integer is even
+  otherwise returns FALSE. It is functionally equivalent to "not,and(1),bool".
 
 field(<index>,<delimiters>)
   Extracts the substring at the given index considering given delimiters from
@@ -10366,6 +10399,35 @@ map_<match_type>_<output_type>(<map_file>[,<default_value>])
       |       `---------------------------- key
       `------------------------------------ leading spaces ignored
 
+mod(<value>)
+  Divides the input value of type unsigned integer by <value>, and returns the
+  remainder as an unsigned integer. If <value> is null, then zero is returned.
+
+mul(<value>)
+  Multiplies the input value of type unsigned integer by <value>, and returns
+  the product as an unsigned integer. In case of overflow, the higher bits are
+  lost, leading to seemingly strange values.
+
+neg
+  Takes the input value of type unsigned integer, computes the opposite value,
+  and returns the remainder as an unsigned integer. 0 is identity. This
+  operator is provided for reversed subtracts : in order to subtract the input
+  from a constant, simply perform a "neg,add(value)".
+
+not
+  Returns a boolean FALSE if the input value of type unsigned integer is
+  non-null, otherwise returns TRUE. Used in conjunction with and(), it can be
+  used to report true/false for bit testing on input values (eg: verify the
+  absence of a flag).
+
+odd
+  Returns a boolean TRUE if the input value of type unsigned integer is odd
+  otherwise returns FALSE. It is functionally equivalent to "and(1),bool".
+
+or(<value>)
+  Performs a bitwise "OR" between <value> and the input value of type unsigned
+  integer, and returns the result as an unsigned integer.
+
 regsub(<regex>,<subst>[,<flags>])
   Applies a regex-based substitution to the input string. It does the same
   operation as the well-known "sed" utility with "s/<regex>/<subst>/". By
@@ -10398,6 +10460,11 @@ sdbm([<avalanche>])
   collect rough statistics. It must not be used for security purposes as a
   32-bit hash is trivial to break. See also "crc32", "djb2", "wt6" and the
   "hash-type" directive.
+
+sub(<value>)
+  Subtracts <value> from the input value of type unsigned integer, and returns
+  the result as an unsigned integer. Note: in order to subtract the input from
+  a constant, simply perform a "neg,add(value)".
 
 table_bytes_in_rate(<table>)
   Uses the string representation of the input sample to perform a look up in
@@ -10571,6 +10638,10 @@ wt6([<avalanche>])
   collect rough statistics. It must not be used for security purposes as a
   32-bit hash is trivial to break. See also "crc32", "djb2", "sdbm", and the
   "hash-type" directive.
+
+xor(<value>)
+  Performs a bitwise "XOR" (exclusive OR) between <value> and the input value
+  of type unsigned integer, and returns the result as an unsigned integer.
 
 
 7.3.2. Fetching samples from internal states
