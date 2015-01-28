@@ -1656,6 +1656,9 @@ const char *parse_size_err(const char *text, unsigned *ret) {
 		return text;
 	}
 
+	if (*text != '\0' && *++text != '\0')
+		return text;
+
 	*ret = value;
 	return NULL;
 }
