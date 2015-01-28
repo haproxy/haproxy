@@ -801,7 +801,9 @@ void init(int argc, char **argv)
 	 * handshake once since it is not performed on the two sides at the
 	 * same time (frontend-side is terminated before backend-side begins).
 	 * The SSL stack is supposed to have filled ssl_session_cost and
-	 * ssl_handshake_cost during its initialization.
+	 * ssl_handshake_cost during its initialization. In any case, if
+	 * SYSTEM_MAXCONN is set, we still enforce it as an upper limit for
+	 * maxconn in order to protect the system.
 	 */
 	if (!global.rlimit_memmax) {
 		if (global.maxconn == 0) {
@@ -834,6 +836,10 @@ void init(int argc, char **argv)
 			 global.ssl_handshake_max_cost);       // 1 handshake per connection max
 
 		global.maxconn = round_2dig(global.maxconn);
+#ifdef SYSTEM_MAXCONN
+		if (global.maxconn > DEFAULT_MAXCONN)
+			global.maxconn = DEFAULT_MAXCONN;
+#endif /* SYSTEM_MAXCONN */
 		global.maxsslconn = sides * global.maxconn;
 		if (global.mode & (MODE_VERBOSE|MODE_DEBUG))
 			fprintf(stderr, "Note: setting global.maxconn to %d and global.maxsslconn to %d.\n",
@@ -894,6 +900,10 @@ void init(int argc, char **argv)
 
 		global.maxconn = clearmem / (SESSION_MAX_COST + 2 * global.tune.bufsize);
 		global.maxconn = round_2dig(global.maxconn);
+#ifdef SYSTEM_MAXCONN
+		if (global.maxconn > DEFAULT_MAXCONN)
+			global.maxconn = DEFAULT_MAXCONN;
+#endif /* SYSTEM_MAXCONN */
 
 		if (clearmem <= 0 || !global.maxconn) {
 			Alert("Cannot compute the automatic maxconn because global.maxsslconn is already too "
