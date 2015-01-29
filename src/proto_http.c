@@ -3250,7 +3250,7 @@ static int http_transform_header(struct session* s, struct http_msg *msg, const 
 	while (http_find_full_header2(name, name_len, buf, idx, ctx)) {
 		struct hdr_idx_elem *hdr = idx->v + ctx->idx;
 		int delta;
-		char* val = (char*)ctx->line + name_len + 2;
+		char* val = (char*)ctx->line + ctx->val;
 		char* val_end = (char*)ctx->line + hdr->len;
 		char* reg_dst_buf;
 		uint reg_dst_buf_size;
