@@ -2905,6 +2905,10 @@ http-check expect [!] <match> <pattern>
   waste some CPU cycles, especially when regular expressions are used, and that
   it is always better to focus the checks on smaller resources.
 
+  Also "http-check expect" doesn't support HTTP keep-alive. Keep in mind that it
+  will automatically append a "Connection: close" header, meaning that this
+  header should not be present in the request provided by "option httpchk".
+
   Last, if "http-check expect" is combined with "http-check disable-on-404",
   then this last one has precedence when the server responds with 404.
 
