@@ -1824,27 +1824,6 @@ out:
 }
 
 /*
- * establish a server health-check.
- *
- * It can return one of :
- *  - SN_ERR_NONE if everything's OK
- *  - SN_ERR_SRVTO if there are no more servers
- *  - SN_ERR_SRVCL if the connection was refused by the server
- *  - SN_ERR_PRXCOND if the connection has been limited by the proxy (maxconn)
- *  - SN_ERR_RESOURCE if a system resource is lacking (eg: fd limits, ports, ...)
- *  - SN_ERR_INTERNAL for any other purely internal errors
- * Additionnally, in the case of SN_ERR_RESOURCE, an emergency log will be emitted.
- */
-static int connect_chk(struct task *t)
-{
-	struct check *check = t->context;
-
-	if (check->type == PR_O2_EXT_CHK)
-		return connect_proc_chk(t);
-	return connect_conn_chk(t);
-}
-
-/*
  * manages a server health-check that uses a process. Returns
  * the time the task accepts to wait, or TIME_ETERNITY for infinity.
  */
@@ -1875,7 +1854,7 @@ static struct task *process_chk_proc(struct task *t)
 
 		check->state |= CHK_ST_INPROGRESS;
 
-		ret = connect_chk(t);
+		ret = connect_proc_chk(t);
 		switch (ret) {
 		case SN_ERR_UP:
 			return t;
@@ -2018,7 +1997,7 @@ static struct task *process_chk_conn(struct task *t)
 		check->bo->p = check->bo->data;
 		check->bo->o = 0;
 
-		ret = connect_chk(t);
+		ret = connect_conn_chk(t);
 		switch (ret) {
 		case SN_ERR_UP:
 			return t;
