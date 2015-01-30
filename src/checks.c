@@ -2781,6 +2781,32 @@ static void tcpcheck_main(struct connection *conn)
 	return;
 }
 
+const char *init_check(struct check *check, int type)
+{
+	check->type = type;
+
+	/* Allocate buffer for requests... */
+	if ((check->bi = calloc(sizeof(struct buffer) + global.tune.chksize, sizeof(char))) == NULL) {
+		return "out of memory while allocating check buffer";
+	}
+	check->bi->size = global.tune.chksize;
+
+	/* Allocate buffer for responses... */
+	if ((check->bo = calloc(sizeof(struct buffer) + global.tune.chksize, sizeof(char))) == NULL) {
+		return "out of memory while allocating check buffer";
+	}
+	check->bo->size = global.tune.chksize;
+
+	/* Allocate buffer for partial results... */
+	if ((check->conn = calloc(1, sizeof(struct connection))) == NULL) {
+		return "out of memory while allocating check connection";
+	}
+
+	check->conn->t.sock.fd = -1; /* no agent in progress yet */
+
+	return NULL;
+}
+
 
 /*
  * Local variables:

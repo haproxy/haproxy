@@ -44,6 +44,8 @@ static inline void health_adjust(struct server *s, short status)
 	return __health_adjust(s, status);
 }
 
+const char *init_check(struct check *check, int type);
+
 #endif /* _PROTO_CHECKS_H */
 
 /*

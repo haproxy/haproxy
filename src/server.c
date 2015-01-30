@@ -21,6 +21,7 @@
 
 #include <types/global.h>
 
+#include <proto/checks.h>
 #include <proto/port_range.h>
 #include <proto/protocol.h>
 #include <proto/queue.h>
@@ -796,35 +797,6 @@ const char *server_parse_weight_change_request(struct server *sv,
 	return NULL;
 }
 
-static int init_check(struct check *check, int type, const char * file, int linenum)
-{
-	check->type = type;
-
-	/* Allocate buffer for requests... */
-	if ((check->bi = calloc(sizeof(struct buffer) + global.tune.chksize, sizeof(char))) == NULL) {
-		Alert("parsing [%s:%d] : out of memory while allocating check buffer.\n", file, linenum);
-		return ERR_ALERT | ERR_ABORT;
-	}
-	check->bi->size = global.tune.chksize;
-
-	/* Allocate buffer for responses... */
-	if ((check->bo = calloc(sizeof(struct buffer) + global.tune.chksize, sizeof(char))) == NULL) {
-		Alert("parsing [%s:%d] : out of memory while allocating check buffer.\n", file, linenum);
-		return ERR_ALERT | ERR_ABORT;
-	}
-	check->bo->size = global.tune.chksize;
-
-	/* Allocate buffer for partial results... */
-	if ((check->conn = calloc(1, sizeof(struct connection))) == NULL) {
-		Alert("parsing [%s:%d] : out of memory while allocating check connection.\n", file, linenum);
-		return ERR_ALERT | ERR_ABORT;
-	}
-
-	check->conn->t.sock.fd = -1; /* no agent in progress yet */
-
-	return 0;
-}
-
 int parse_server(const char *file, int linenum, char **args, struct proxy *curproxy, struct proxy *defproxy)
 {
 	struct server *newsrv = NULL;
@@ -1592,7 +1564,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 		}
 
 		if (do_check) {
-			int ret;
+			const char *ret;
 
 			if (newsrv->trackit) {
 				Alert("parsing [%s:%d]: unable to enable checks and tracking at the same time!\n",
@@ -1671,9 +1643,10 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			}
 
 			/* note: check type will be set during the config review phase */
-			ret = init_check(&newsrv->check, 0, file, linenum);
+			ret = init_check(&newsrv->check, 0);
 			if (ret) {
-				err_code |= ret;
+				Alert("parsing [%s:%d] : %s.\n", file, linenum, ret);
+				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
 
@@ -1681,7 +1654,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 		}
 
 		if (do_agent) {
-			int ret;
+			const char *ret;
 
 			if (!newsrv->agent.port) {
 				Alert("parsing [%s:%d] : server %s does not have agent port. Agent check has been disabled.\n",
@@ -1693,9 +1666,10 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			if (!newsrv->agent.inter)
 				newsrv->agent.inter = newsrv->check.inter;
 
-			ret = init_check(&newsrv->agent, PR_O2_LB_AGENT_CHK, file, linenum);
+			ret = init_check(&newsrv->agent, PR_O2_LB_AGENT_CHK);
 			if (ret) {
-				err_code |= ret;
+				Alert("parsing [%s:%d] : %s.\n", file, linenum, ret);
+				err_code |= ERR_ALERT | ERR_ABORT;
 				goto out;
 			}
 
