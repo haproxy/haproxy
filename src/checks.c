@@ -16,6 +16,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -36,6 +37,7 @@
 #include <common/time.h>
 
 #include <types/global.h>
+#include <types/mailers.h>
 
 #ifdef USE_OPENSSL
 #include <types/ssl_sock.h>
@@ -315,6 +317,7 @@ static void set_server_check_status(struct check *check, short status, const cha
 
 		Warning("%s.\n", trash.str);
 		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
+		send_email_alert(s, "%s", trash.str);
 	}
 }
 
@@ -2812,6 +2815,324 @@ void free_check(struct check *check)
 	free(check->bi);
 	free(check->bo);
 	free(check->conn);
+}
+
+void email_alert_free(struct email_alert *alert)
+{
+	struct tcpcheck_rule *rule, *back;
+
+	if (!alert)
+		return;
+
+	list_for_each_entry_safe(rule, back, &alert->tcpcheck_rules, list)
+		free(rule);
+	free(alert);
+}
+
+static struct task *process_email_alert(struct task *t)
+{
+	struct check *check = t->context;
+	struct email_alertq *q;
+
+	q = container_of(check, typeof(*q), check);
+
+	if (!(check->state & CHK_ST_ENABLED)) {
+		if (LIST_ISEMPTY(&q->email_alerts)) {
+			/* All alerts processed, delete check */
+			task_delete(t);
+			task_free(t);
+			check->task = NULL;
+			return NULL;
+		} else {
+			struct email_alert *alert;
+
+			alert = LIST_NEXT(&q->email_alerts, typeof(alert), list);
+			check->tcpcheck_rules = &alert->tcpcheck_rules;
+			LIST_DEL(&alert->list);
+
+			check->state |= CHK_ST_ENABLED;
+		}
+
+	}
+
+	process_chk(t);
+
+	if (!(check->state & CHK_ST_INPROGRESS) && check->tcpcheck_rules) {
+		struct email_alert *alert;
+
+		alert = container_of(check->tcpcheck_rules, typeof(*alert), tcpcheck_rules);
+		email_alert_free(alert);
+
+		check->tcpcheck_rules = NULL;
+		check->state &= ~CHK_ST_ENABLED;
+	}
+	return t;
+}
+
+static int init_email_alert_checks(struct server *s)
+{
+	int i;
+	struct mailer *mailer;
+	const char *err_str;
+	struct proxy *p = s->proxy;
+
+	if (p->email_alert.queues)
+		/* Already initialised, nothing to do */
+		return 1;
+
+	p->email_alert.queues = calloc(p->email_alert.mailers.m->count, sizeof *p->email_alert.queues);
+	if (!p->email_alert.queues) {
+		err_str = "out of memory while allocating checks array";
+		goto error_alert;
+	}
+
+	for (i = 0, mailer = p->email_alert.mailers.m->mailer_list;
+	     i < p->email_alert.mailers.m->count; i++, mailer = mailer->next) {
+		struct email_alertq *q = &p->email_alert.queues[i];
+		struct check *check = &q->check;
+
+
+		LIST_INIT(&q->email_alerts);
+
+		check->inter = DEF_CHKINTR; /* XXX: Would like to Skip to the next alert, if any, ASAP.
+					     * But need enough time so that timeouts don't occur
+					     * during tcp check procssing. For now just us an arbitrary default. */
+		check->rise = DEF_AGENT_RISETIME;
+		check->fall = DEF_AGENT_FALLTIME;
+		err_str = init_check(check, PR_O2_TCPCHK_CHK);
+		if (err_str) {
+			goto error_free;
+		}
+
+		check->xprt = mailer->xprt;
+		if (!get_host_port(&mailer->addr))
+			/* Default to submission port */
+			check->port = 587;
+		check->proto = mailer->proto;
+		check->addr = mailer->addr;
+		check->server = s;
+	}
+
+	return 1;
+
+error_free:
+	while (i-- > 1)
+		task_free(p->email_alert.queues[i].check.task);
+	free(p->email_alert.queues);
+	p->email_alert.queues = NULL;
+error_alert:
+	Alert("Email alert [%s] could not be initialised: %s\n", p->id, err_str);
+	return 0;
+}
+
+
+static int add_tcpcheck_expect_str(struct list *list, const char *str)
+{
+	struct tcpcheck_rule *tcpcheck;
+
+	tcpcheck = calloc(1, sizeof *tcpcheck);
+	if (!tcpcheck)
+		return 0;
+
+	tcpcheck->action = TCPCHK_ACT_EXPECT;
+	tcpcheck->string = strdup(str);
+	if (!tcpcheck->string) {
+		free(tcpcheck);
+		return 0;
+	}
+
+	LIST_ADDQ(list, &tcpcheck->list);
+	return 1;
+}
+
+static int add_tcpcheck_send_strs(struct list *list, const char * const *strs)
+{
+	struct tcpcheck_rule *tcpcheck;
+	int i;
+
+	tcpcheck = calloc(1, sizeof *tcpcheck);
+	if (!tcpcheck)
+		return 0;
+
+	tcpcheck->action = TCPCHK_ACT_SEND;
+
+	tcpcheck->string_len = 0;
+	for (i = 0; strs[i]; i++)
+		tcpcheck->string_len += strlen(strs[i]);
+
+	tcpcheck->string = malloc(tcpcheck->string_len + 1);
+	if (!tcpcheck->string) {
+		free(tcpcheck);
+		return 0;
+	}
+	tcpcheck->string[0] = '\0';
+
+	for (i = 0; strs[i]; i++)
+		strcat(tcpcheck->string, strs[i]);
+
+	LIST_ADDQ(list, &tcpcheck->list);
+	return 1;
+}
+
+static int enqueue_one_email_alert(struct email_alertq *q, const char *msg)
+{
+	struct email_alert *alert = NULL;
+	struct tcpcheck_rule *tcpcheck;
+	struct check *check = &q->check;
+	struct proxy *p = check->server->proxy;
+
+	alert = calloc(1, sizeof *alert);
+	if (!alert) {
+		goto error;
+	}
+	LIST_INIT(&alert->tcpcheck_rules);
+
+	tcpcheck = calloc(1, sizeof *tcpcheck);
+	if (!tcpcheck)
+		goto error;
+	tcpcheck->action = TCPCHK_ACT_CONNECT;
+	LIST_ADDQ(&alert->tcpcheck_rules, &tcpcheck->list);
+
+	if (!add_tcpcheck_expect_str(&alert->tcpcheck_rules, "220 "))
+		goto error;
+
+	{
+		const char * const strs[4] = { "EHLO ", p->email_alert.myhostname, "\r\n" };
+		if (!add_tcpcheck_send_strs(&alert->tcpcheck_rules, strs))
+			goto error;
+	}
+
+	if (!add_tcpcheck_expect_str(&alert->tcpcheck_rules, "250 "))
+		goto error;
+
+	{
+		const char * const strs[4] = { "MAIL FROM:<", p->email_alert.from, ">\r\n" };
+		if (!add_tcpcheck_send_strs(&alert->tcpcheck_rules, strs))
+			goto error;
+	}
+
+	if (!add_tcpcheck_expect_str(&alert->tcpcheck_rules, "250 "))
+		goto error;
+
+	{
+		const char * const strs[4] = { "RCPT TO:<", p->email_alert.to, ">\r\n" };
+		if (!add_tcpcheck_send_strs(&alert->tcpcheck_rules, strs))
+			goto error;
+	}
+
+	if (!add_tcpcheck_expect_str(&alert->tcpcheck_rules, "250 "))
+		goto error;
+
+	{
+		const char * const strs[2] = { "DATA\r\n" };
+		if (!add_tcpcheck_send_strs(&alert->tcpcheck_rules, strs))
+			goto error;
+	}
+
+	if (!add_tcpcheck_expect_str(&alert->tcpcheck_rules, "354 "))
+		goto error;
+
+	{
+		struct tm tm;
+		char datestr[48];
+		const char * const strs[18] = {
+			"From: ", p->email_alert.from, "\n",
+			"To: ", p->email_alert.to, "\n",
+			"Date: ", datestr, "\n",
+			"Subject: [HAproxy Alert] ", msg, "\n",
+			"\n",
+			msg, "\n",
+			".\r\n",
+			"\r\n",
+			NULL
+		};
+
+		get_localtime(date.tv_sec, &tm);
+
+		if (strftime(datestr, sizeof(datestr), "%a, %d %b %Y %T %z (%Z)", &tm) == 0) {
+			goto error;
+		}
+
+		if (!add_tcpcheck_send_strs(&alert->tcpcheck_rules, strs))
+			goto error;
+	}
+
+	if (!add_tcpcheck_expect_str(&alert->tcpcheck_rules, "250 "))
+		goto error;
+
+	{
+		const char * const strs[2] = { "QUIT\r\n" };
+		if (!add_tcpcheck_send_strs(&alert->tcpcheck_rules, strs))
+			goto error;
+	}
+
+	if (!add_tcpcheck_expect_str(&alert->tcpcheck_rules, "221 "))
+		goto error;
+
+	if (!check->task) {
+		struct task *t;
+
+		if ((t = task_new()) == NULL)
+			goto error;
+
+		check->task = t;
+		t->process = process_email_alert;
+		t->context = check;
+
+		/* check this in one ms */
+		t->expire = tick_add(now_ms, MS_TO_TICKS(1));
+		check->start = now;
+		task_queue(t);
+	}
+
+	LIST_ADDQ(&q->email_alerts, &alert->list);
+
+	return 1;
+
+error:
+	email_alert_free(alert);
+	return 0;
+}
+
+static void enqueue_email_alert(struct proxy *p, const char *msg)
+{
+	int i;
+	struct mailer *mailer;
+
+	for (i = 0, mailer = p->email_alert.mailers.m->mailer_list;
+	     i < p->email_alert.mailers.m->count; i++, mailer = mailer->next) {
+		if (!enqueue_one_email_alert(&p->email_alert.queues[i], msg)) {
+			Alert("Email alert [%s] could not be enqueued: out of memory\n", p->id);
+			return;
+		}
+	}
+
+	return;
+}
+
+/*
+ * Send email alert if configured.
+ */
+void send_email_alert(struct server *s, const char *format, ...)
+{
+	va_list argp;
+	char buf[1024];
+	int len;
+	struct proxy *p = s->proxy;
+
+	if (!p->email_alert.mailers.m || format == NULL || !init_email_alert_checks(s))
+		return;
+
+	va_start(argp, format);
+	len = vsnprintf(buf, sizeof(buf), format, argp);
+	va_end(argp);
+
+	if (len < 0) {
+		Alert("Email alert [%s] could format message\n", p->id);
+		return;
+	}
+
+	enqueue_email_alert(p, buf);
 }
 
 

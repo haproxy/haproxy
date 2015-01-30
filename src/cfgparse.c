@@ -2019,8 +2019,8 @@ int cfg_parse_mailers(const char *file, int linenum, char **args, int kwm)
 		}
 
 		proto = protocol_by_family(sk->ss_family);
-		if (!proto || !proto->connect) {
-			Alert("parsing [%s:%d] : '%s %s' : connect() not supported for this address family.\n",
+		if (!proto || !proto->connect || proto->sock_prot != IPPROTO_TCP) {
+			Alert("parsing [%s:%d] : '%s %s' : TCP not supported for this address family.\n",
 			      file, linenum, args[0], args[1]);
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
@@ -6607,15 +6607,19 @@ int check_config_validity()
 			}
 		}
 
-		if (
-		    (curproxy->email_alert.mailers.name || curproxy->email_alert.from || curproxy->email_alert.myhostname || curproxy->email_alert.to) &&
-		    !(curproxy->email_alert.mailers.name && curproxy->email_alert.from && curproxy->email_alert.to)) {
-			Warning("config : 'email-alert' will be ignored for %s '%s' (the presence any of "
-				"'email-alert from', 'email-alert mailer', 'email-alert hostname' or 'email-alert to' requrires each of"
-				"'email-alert from', 'email-alert mailer' and 'email-alert to'  to be present).\n",
-				proxy_type_str(curproxy), curproxy->id);
-			err_code |= ERR_WARN;
-			free_email_alert(curproxy);
+		if ((curproxy->email_alert.mailers.name || curproxy->email_alert.from ||
+		     curproxy->email_alert.myhostname || curproxy->email_alert.to)) {
+		    if (!(curproxy->email_alert.mailers.name && curproxy->email_alert.from && curproxy->email_alert.to)) {
+			    Warning("config : 'email-alert' will be ignored for %s '%s' (the presence any of "
+				    "'email-alert from', 'email-alert mailer', 'email-alert hostname' or 'email-alert to' "
+				    "requrires each of 'email-alert from', 'email-alert mailer' and 'email-alert' "
+				    "to be present).\n",
+				    proxy_type_str(curproxy), curproxy->id);
+			    err_code |= ERR_WARN;
+			    free_email_alert(curproxy);
+		    }
+		    if (!curproxy->email_alert.myhostname)
+			    curproxy->email_alert.myhostname = hostname;
 		}
 
 		if (curproxy->check_command) {

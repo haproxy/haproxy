@@ -255,6 +255,7 @@ void srv_set_stopped(struct server *s, const char *reason)
 	             "%sServer %s/%s is DOWN", s->flags & SRV_F_BACKUP ? "Backup " : "",
 	             s->proxy->id, s->id);
 
+	send_email_alert(s, "%s.", trash.str);
 	srv_append_status(&trash, s, reason, xferred, 0);
 	Warning("%s.\n", trash.str);
 

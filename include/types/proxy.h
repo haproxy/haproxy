@@ -208,6 +208,19 @@ struct error_snapshot {
 	char buf[BUFSIZE];		/* copy of the beginning of the message */
 };
 
+struct email_alert {
+	struct list list;
+	struct list tcpcheck_rules;
+};
+
+struct email_alertq {
+	struct list email_alerts;
+	struct check check;		/* Email alerts are implemented using existing check
+					 * code even though they are not checks. This structure
+					 * is as a parameter to the check code.
+					 * Each check corresponds to a mailer */
+};
+
 struct proxy {
 	enum obj_type obj_type;                 /* object type == OBJ_TYPE_PROXY */
 	enum pr_state state;                    /* proxy state, one of PR_* */
@@ -386,9 +399,10 @@ struct proxy {
 			struct mailers *m;	/* Mailer to send email alerts via */
 			char *name;
 		} mailers;
-		char *from;			/* Address to send email allerts from */
-		char *to;			/* Address(es) to send email allerts to */
+		char *from;			/* Address to send email alerts from */
+		char *to;			/* Address(es) to send email alerts to */
 		char *myhostname;		/* Identity to use in HELO command sent to mailer */
+		struct email_alertq *queues;	/* per-mailer alerts queues */
 	} email_alert;
 };
 

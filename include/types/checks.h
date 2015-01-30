@@ -181,7 +181,7 @@ struct check {
 	char **envp;				/* the environment to use if running a process-based check */
 	struct pid_list *curpid;		/* entry in pid_list used for current process-based test, or -1 if not in test */
 	struct protocol *proto;	        	/* server address protocol for health checks */
-	struct sockaddr_storage addr;   	/* the address to check, if different from <addr> */
+	struct sockaddr_storage addr;   	/* the address to check */
 };
 
 struct check_status {
