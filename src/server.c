@@ -941,6 +941,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			newsrv->check.fall	= curproxy->defsrv.check.fall;
 			newsrv->check.health	= newsrv->check.rise;	/* up, but will fall down at first failure */
 			newsrv->check.server	= newsrv;
+			newsrv->check.tcpcheck_rules	= &curproxy->tcpcheck_rules;
 
 			newsrv->agent.status	= HCHK_STATUS_INI;
 			newsrv->agent.rise	= curproxy->defsrv.agent.rise;

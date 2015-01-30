@@ -166,6 +166,7 @@ struct check {
 	char desc[HCHK_DESC_LEN];		/* health check description */
 	int use_ssl;				/* use SSL for health checks */
 	int send_proxy;				/* send a PROXY protocol header with checks */
+	struct list *tcpcheck_rules;		/* tcp-check send / expect rules */
 	struct tcpcheck_rule *current_step;     /* current step when using tcpcheck */
 	struct tcpcheck_rule *last_started_step;/* pointer to latest tcpcheck rule started */
 	int inter, fastinter, downinter;        /* checks: time in milliseconds */

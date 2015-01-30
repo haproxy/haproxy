@@ -60,7 +60,7 @@
 #include <proto/task.h>
 
 static int httpchk_expect(struct server *s, int done);
-static int tcpcheck_get_step_id(struct server *);
+static int tcpcheck_get_step_id(struct check *);
 static void tcpcheck_main(struct connection *);
 
 static const struct check_status check_statuses[HCHK_STATUS_SIZE] = {
@@ -620,7 +620,7 @@ static void chk_report_conn_err(struct connection *conn, int errno_bck, int expi
 	chk = get_trash_chunk();
 
 	if (check->type == PR_O2_TCPCHK_CHK) {
-		step = tcpcheck_get_step_id(check->server);
+		step = tcpcheck_get_step_id(check);
 		if (!step)
 			chunk_printf(chk, " at initial connection step of tcp-check");
 		else {
@@ -1463,8 +1463,8 @@ static int connect_conn_chk(struct task *t)
 	/* only plain tcp-check supports quick ACK */
 	quickack = check->type == 0 || check->type == PR_O2_TCPCHK_CHK;
 
-	if (check->type == PR_O2_TCPCHK_CHK && !LIST_ISEMPTY(&s->proxy->tcpcheck_rules)) {
-		struct tcpcheck_rule *r = (struct tcpcheck_rule *) s->proxy->tcpcheck_rules.n;
+	if (check->type == PR_O2_TCPCHK_CHK && !LIST_ISEMPTY(check->tcpcheck_rules)) {
+		struct tcpcheck_rule *r = (struct tcpcheck_rule *) check->tcpcheck_rules->n;
 		/* if first step is a 'connect', then tcpcheck_main must run it */
 		if (r->action == TCPCHK_ACT_CONNECT) {
 			tcpcheck_main(conn);
@@ -2351,23 +2351,23 @@ static int httpchk_expect(struct server *s, int done)
 /*
  * return the id of a step in a send/expect session
  */
-static int tcpcheck_get_step_id(struct server *s)
+static int tcpcheck_get_step_id(struct check *check)
 {
 	struct tcpcheck_rule *cur = NULL, *next = NULL;
 	int i = 0;
 
 	/* not even started anything yet => step 0 = initial connect */
-	if (!s->check.current_step)
+	if (check->current_step)
 		return 0;
 
-	cur = s->check.last_started_step;
+	cur = check->last_started_step;
 
 	/* no step => first step */
 	if (cur == NULL)
 		return 1;
 
 	/* increment i until current step */
-	list_for_each_entry(next, &s->proxy->tcpcheck_rules, list) {
+	list_for_each_entry(next, check->tcpcheck_rules, list) {
 		if (next->list.p == &cur->list)
 			break;
 		++i;
@@ -2384,7 +2384,7 @@ static void tcpcheck_main(struct connection *conn)
 	struct check *check = conn->owner;
 	struct server *s = check->server;
 	struct task *t = check->task;
-	struct list *head = &s->proxy->tcpcheck_rules;
+	struct list *head = check->tcpcheck_rules;
 
 	/* here, we know that the check is complete or that it failed */
 	if (check->result != CHK_RES_UNKNOWN)
@@ -2565,14 +2565,14 @@ static void tcpcheck_main(struct connection *conn)
 			case SN_ERR_SRVTO: /* ETIMEDOUT */
 			case SN_ERR_SRVCL: /* ECONNREFUSED, ENETUNREACH, ... */
 				chunk_printf(&trash, "TCPCHK error establishing connection at step %d: %s",
-						tcpcheck_get_step_id(s), strerror(errno));
+						tcpcheck_get_step_id(check), strerror(errno));
 				set_server_check_status(check, HCHK_STATUS_L4CON, trash.str);
 				goto out_end_tcpcheck;
 			case SN_ERR_PRXCOND:
 			case SN_ERR_RESOURCE:
 			case SN_ERR_INTERNAL:
 				chunk_printf(&trash, "TCPCHK error establishing connection at step %d",
-						tcpcheck_get_step_id(s));
+						tcpcheck_get_step_id(check));
 				set_server_check_status(check, HCHK_STATUS_SOCKERR, trash.str);
 				goto out_end_tcpcheck;
 			}
@@ -2620,7 +2620,7 @@ static void tcpcheck_main(struct connection *conn)
 			if (check->current_step->string_len >= check->bo->size) {
 				chunk_printf(&trash, "tcp-check send : string too large (%d) for buffer size (%d) at step %d",
 					     check->current_step->string_len, check->bo->size,
-					     tcpcheck_get_step_id(s));
+					     tcpcheck_get_step_id(check));
 				set_server_check_status(check, HCHK_STATUS_L7RSP, trash.str);
 				goto out_end_tcpcheck;
 			}
@@ -2681,7 +2681,7 @@ static void tcpcheck_main(struct connection *conn)
 
 				/* empty response */
 				chunk_printf(&trash, "TCPCHK got an empty response at step %d",
-						tcpcheck_get_step_id(s));
+						tcpcheck_get_step_id(check));
 				set_server_check_status(check, HCHK_STATUS_L7RSP, trash.str);
 
 				goto out_end_tcpcheck;
@@ -2706,12 +2706,12 @@ static void tcpcheck_main(struct connection *conn)
 					/* we were looking for a string */
 					if (cur->string != NULL) {
 						chunk_printf(&trash, "TCPCHK matched unwanted content '%s' at step %d",
-								cur->string, tcpcheck_get_step_id(s));
+								cur->string, tcpcheck_get_step_id(check));
 					}
 					else {
 					/* we were looking for a regex */
 						chunk_printf(&trash, "TCPCHK matched unwanted content (regex) at step %d",
-								tcpcheck_get_step_id(s));
+								tcpcheck_get_step_id(check));
 					}
 					set_server_check_status(check, HCHK_STATUS_L7RSP, trash.str);
 					goto out_end_tcpcheck;
@@ -2740,12 +2740,12 @@ static void tcpcheck_main(struct connection *conn)
 					/* we were looking for a string */
 					if (cur->string != NULL) {
 						chunk_printf(&trash, "TCPCHK did not match content '%s' at step %d",
-								cur->string, tcpcheck_get_step_id(s));
+								cur->string, tcpcheck_get_step_id(check));
 					}
 					else {
 					/* we were looking for a regex */
 						chunk_printf(&trash, "TCPCHK did not match content (regex) at step %d",
-								tcpcheck_get_step_id(s));
+								tcpcheck_get_step_id(check));
 					}
 					set_server_check_status(check, HCHK_STATUS_L7RSP, trash.str);
 					goto out_end_tcpcheck;
