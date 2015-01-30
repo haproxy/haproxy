@@ -2807,6 +2807,13 @@ const char *init_check(struct check *check, int type)
 	return NULL;
 }
 
+void free_check(struct check *check)
+{
+	free(check->bi);
+	free(check->bo);
+	free(check->conn);
+}
+
 
 /*
  * Local variables:
