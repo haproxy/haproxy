@@ -48,6 +48,7 @@
 #include <types/global.h>
 #include <types/obj_type.h>
 #include <types/peers.h>
+#include <types/mailers.h>
 
 #include <proto/acl.h>
 #include <proto/auth.h>
@@ -1905,6 +1906,145 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 	} /* neither "peer" nor "peers" */
+	else if (*args[0] != 0) {
+		Alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], cursection);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+out:
+	free(errmsg);
+	return err_code;
+}
+
+
+/*
+ * Parse a line in a <listen>, <frontend>, <backend> or <ruleset> section.
+ * Returns the error code, 0 if OK, or any combination of :
+ *  - ERR_ABORT: must abort ASAP
+ *  - ERR_FATAL: we can continue parsing but not start the service
+ *  - ERR_WARN: a warning has been emitted
+ *  - ERR_ALERT: an alert has been emitted
+ * Only the two first ones can stop processing, the two others are just
+ * indicators.
+ */
+int cfg_parse_mailers(const char *file, int linenum, char **args, int kwm)
+{
+	static struct mailers *curmailers = NULL;
+	struct mailer *newmailer = NULL;
+	const char *err;
+	int err_code = 0;
+	char *errmsg = NULL;
+
+	if (strcmp(args[0], "mailers") == 0) { /* new mailers section */
+		if (!*args[1]) {
+			Alert("parsing [%s:%d] : missing name for mailers section.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		err = invalid_char(args[1]);
+		if (err) {
+			Alert("parsing [%s:%d] : character '%c' is not permitted in '%s' name '%s'.\n",
+			      file, linenum, *err, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		for (curmailers = mailers; curmailers != NULL; curmailers = curmailers->next) {
+			/*
+			 * If there are two proxies with the same name only following
+			 * combinations are allowed:
+			 */
+			if (strcmp(curmailers->id, args[1]) == 0) {
+				Warning("Parsing [%s:%d]: mailers '%s' has same name as another mailers (declared at %s:%d).\n",
+					file, linenum, args[1], curmailers->conf.file, curmailers->conf.line);
+				err_code |= ERR_WARN;
+			}
+		}
+
+		if ((curmailers = (struct mailers *)calloc(1, sizeof(struct mailers))) == NULL) {
+			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		curmailers->next = mailers;
+		mailers = curmailers;
+		curmailers->conf.file = strdup(file);
+		curmailers->conf.line = linenum;
+		curmailers->id = strdup(args[1]);
+	}
+	else if (strcmp(args[0], "mailer") == 0) { /* mailer definition */
+		struct sockaddr_storage *sk;
+		int port1, port2;
+		struct protocol *proto;
+
+		if (!*args[2]) {
+			Alert("parsing [%s:%d] : '%s' expects <name> and <addr>[:<port>] as arguments.\n",
+			      file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		err = invalid_char(args[1]);
+		if (err) {
+			Alert("parsing [%s:%d] : character '%c' is not permitted in server name '%s'.\n",
+			      file, linenum, *err, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if ((newmailer = (struct mailer *)calloc(1, sizeof(struct mailer))) == NULL) {
+			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		/* the mailers are linked backwards first */
+		curmailers->count++;
+		newmailer->next = curmailers->mailer_list;
+		curmailers->mailer_list = newmailer;
+		newmailer->mailers = curmailers;
+		newmailer->conf.file = strdup(file);
+		newmailer->conf.line = linenum;
+
+		newmailer->id = strdup(args[1]);
+
+		sk = str2sa_range(args[2], &port1, &port2, &errmsg, NULL);
+		if (!sk) {
+			Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		proto = protocol_by_family(sk->ss_family);
+		if (!proto || !proto->connect) {
+			Alert("parsing [%s:%d] : '%s %s' : connect() not supported for this address family.\n",
+			      file, linenum, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if (port1 != port2) {
+			Alert("parsing [%s:%d] : '%s %s' : port ranges and offsets are not allowed in '%s'\n",
+			      file, linenum, args[0], args[1], args[2]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if (!port1) {
+			Alert("parsing [%s:%d] : '%s %s' : missing or invalid port in '%s'\n",
+			      file, linenum, args[0], args[1], args[2]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		newmailer->addr = *sk;
+		newmailer->proto = proto;
+		newmailer->xprt  = &raw_sock;
+		newmailer->sock_init_arg = NULL;
+	} /* neither "mailer" nor "mailers" */
 	else if (*args[0] != 0) {
 		Alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], cursection);
 		err_code |= ERR_ALERT | ERR_FATAL;
@@ -5942,6 +6082,7 @@ int readcfgfile(const char *file)
 	    !cfg_register_section("global",   cfg_parse_global) ||
 	    !cfg_register_section("userlist", cfg_parse_users)  ||
 	    !cfg_register_section("peers",    cfg_parse_peers)  ||
+	    !cfg_register_section("mailers",  cfg_parse_mailers) ||
 	    !cfg_register_section("namespace_list",    cfg_parse_netns))
 		return -1;
 
@@ -7650,6 +7791,42 @@ out_uri_auth_compat:
 			curpeers = curpeers->next;
 			free(*last);
 			*last = curpeers;
+		}
+	}
+
+	if (mailers) {
+		struct mailers *curmailers = mailers, **last;
+		struct mailer *m, *mb;
+
+		/* Remove all mailers sections which don't have a valid listener.
+		 * This can happen when a mailers section is never referenced.
+		 */
+		last = &mailers;
+		while (*last) {
+			curmailers = *last;
+			if (curmailers->users) {
+				last = &curmailers->next;
+				continue;
+			}
+
+			Warning("Removing incomplete section 'mailers %s'.\n",
+				curmailers->id);
+
+			m = curmailers->mailer_list;
+			while (m) {
+				mb = m->next;
+				free(m->id);
+				free(m);
+				m = mb;
+			}
+
+			/* Destroy and unlink this curmailers section.
+			 * Note: curmailers is backed up into *last.
+			 */
+			free(curmailers->id);
+			curmailers = curmailers->next;
+			free(*last);
+			*last = curmailers;
 		}
 	}
 
