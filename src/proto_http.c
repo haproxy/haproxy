@@ -7092,7 +7092,8 @@ int apply_filters_to_request(struct session *s, struct channel *req, struct prox
 			/* The filter did not match the request, it can be
 			 * iterated through all headers.
 			 */
-			apply_filter_to_req_headers(s, req, exp);
+			if (unlikely(apply_filter_to_req_headers(s, req, exp) < 0))
+				return -1;
 		}
 	}
 	return 0;
