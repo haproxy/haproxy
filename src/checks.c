@@ -1437,18 +1437,18 @@ static int connect_conn_chk(struct task *t)
 
 	/* prepare a new connection */
 	conn_init(conn);
-	conn_prepare(conn, s->check_common.proto, check->xprt);
+	conn_prepare(conn, check->proto, check->xprt);
 	conn_attach(conn, check, &check_conn_cb);
 	conn->target = &s->obj_type;
 
 	/* no client address */
 	clear_addr(&conn->addr.from);
 
-	if (is_addr(&s->check_common.addr)) {
+	if (is_addr(&check->addr)) {
 
 		/* we'll connect to the check addr specified on the server */
-		conn->addr.to = s->check_common.addr;
-		proto = s->check_common.proto;
+		conn->addr.to = check->addr;
+		proto = check->proto;
 	}
 	else {
 		/* we'll connect to the addr on the server */
@@ -2498,10 +2498,10 @@ static void tcpcheck_main(struct connection *conn)
 			/* no client address */
 			clear_addr(&conn->addr.from);
 
-			if (is_addr(&s->check_common.addr)) {
+			if (is_addr(&check->addr)) {
 				/* we'll connect to the check addr specified on the server */
-				conn->addr.to = s->check_common.addr;
-				proto = s->check_common.proto;
+				conn->addr.to = check->addr;
+				proto = check->proto;
 			}
 			else {
 				/* we'll connect to the addr on the server */

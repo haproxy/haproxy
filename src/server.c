@@ -901,7 +901,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			}
 
 			newsrv->addr = *sk;
-			newsrv->proto = newsrv->check_common.proto = protocol_by_family(newsrv->addr.ss_family);
+			newsrv->proto = newsrv->check.proto = newsrv->agent.proto = protocol_by_family(newsrv->addr.ss_family);
 			newsrv->xprt  = newsrv->check.xprt = newsrv->agent.xprt = &raw_sock;
 
 			if (!newsrv->proto) {
@@ -1109,8 +1109,8 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 					goto out;
 				}
 
-				newsrv->check_common.addr = *sk;
-				newsrv->check_common.proto = protocol_by_family(sk->ss_family);
+				newsrv->check.addr = newsrv->agent.addr = *sk;
+				newsrv->check.proto = newsrv->agent.proto = protocol_by_family(sk->ss_family);
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "port")) {
@@ -1578,7 +1578,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			 * same as for the production traffic. Otherwise we use raw_sock by
 			 * default, unless one is specified.
 			 */
-			if (!newsrv->check.port && !is_addr(&newsrv->check_common.addr)) {
+			if (!newsrv->check.port && !is_addr(&newsrv->check.addr)) {
 #ifdef USE_OPENSSL
 				newsrv->check.use_ssl |= (newsrv->use_ssl || (newsrv->proxy->options & PR_O_TCPCHK_SSL));
 #endif
@@ -1586,7 +1586,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			}
 			/* try to get the port from check_core.addr if check.port not set */
 			if (!newsrv->check.port)
-				newsrv->check.port = get_host_port(&newsrv->check_common.addr);
+				newsrv->check.port = get_host_port(&newsrv->check.addr);
 
 			if (!newsrv->check.port)
 				newsrv->check.port = realport; /* by default */
@@ -1609,8 +1609,8 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			 * be a 'connect' one when checking an IPv4/IPv6 server.
 			 */
 			if (!newsrv->check.port &&
-			    (is_inet_addr(&newsrv->check_common.addr) ||
-			     (!is_addr(&newsrv->check_common.addr) && is_inet_addr(&newsrv->addr)))) {
+			    (is_inet_addr(&newsrv->check.addr) ||
+			     (!is_addr(&newsrv->check.addr) && is_inet_addr(&newsrv->addr)))) {
 				struct tcpcheck_rule *n = NULL, *r = NULL;
 				struct list *l;
 
