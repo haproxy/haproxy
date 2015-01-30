@@ -2056,6 +2056,18 @@ out:
 	return err_code;
 }
 
+static void free_email_alert(struct proxy *p)
+{
+	free(p->email_alert.mailers.name);
+	p->email_alert.mailers.name = NULL;
+	free(p->email_alert.from);
+	p->email_alert.from = NULL;
+	free(p->email_alert.to);
+	p->email_alert.to = NULL;
+	free(p->email_alert.myhostname);
+	p->email_alert.myhostname = NULL;
+}
+
 int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 {
 	static struct proxy *curproxy = NULL;
@@ -2352,6 +2364,15 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		if (defproxy.check_command)
 			curproxy->check_command = strdup(defproxy.check_command);
 
+		if (defproxy.email_alert.mailers.name)
+			curproxy->email_alert.mailers.name = strdup(defproxy.email_alert.mailers.name);
+		if (defproxy.email_alert.from)
+			curproxy->email_alert.from = strdup(defproxy.email_alert.from);
+		if (defproxy.email_alert.to)
+			curproxy->email_alert.to = strdup(defproxy.email_alert.to);
+		if (defproxy.email_alert.myhostname)
+			curproxy->email_alert.myhostname = strdup(defproxy.email_alert.myhostname);
+
 		goto out;
 	}
 	else if (!strcmp(args[0], "defaults")) {  /* use this one to assign default values */
@@ -2393,6 +2414,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		free(defproxy.conf.lfs_file);
 		free(defproxy.conf.uif_file);
 		free(defproxy.log_tag);
+		free_email_alert(&defproxy);
 
 		for (rc = 0; rc < HTTP_ERR_SIZE; rc++)
 			chunk_destroy(&defproxy.errmsg[rc]);
@@ -2870,6 +2892,61 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 	}/* end else if (!strcmp(args[0], "cookie"))  */
+	else if (!strcmp(args[0], "email-alert")) {
+		if (*(args[1]) == 0) {
+			Alert("parsing [%s:%d] : missing argument after '%s'.\n",
+			      file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+                }
+
+		if (!strcmp(args[1], "from")) {
+			if (*(args[1]) == 0) {
+				Alert("parsing [%s:%d] : missing argument after '%s'.\n",
+				      file, linenum, args[1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			free(curproxy->email_alert.from);
+			curproxy->email_alert.from = strdup(args[2]);
+		}
+		else if (!strcmp(args[1], "mailers")) {
+			if (*(args[1]) == 0) {
+				Alert("parsing [%s:%d] : missing argument after '%s'.\n",
+				      file, linenum, args[1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			free(curproxy->email_alert.mailers.name);
+			curproxy->email_alert.mailers.name = strdup(args[2]);
+		}
+		else if (!strcmp(args[1], "myhostname")) {
+			if (*(args[1]) == 0) {
+				Alert("parsing [%s:%d] : missing argument after '%s'.\n",
+				      file, linenum, args[1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			free(curproxy->email_alert.myhostname);
+			curproxy->email_alert.myhostname = strdup(args[2]);
+		}
+		else if (!strcmp(args[1], "to")) {
+			if (*(args[1]) == 0) {
+				Alert("parsing [%s:%d] : missing argument after '%s'.\n",
+				      file, linenum, args[1]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+			free(curproxy->email_alert.to);
+			curproxy->email_alert.to = strdup(args[2]);
+		}
+		else {
+			Alert("parsing [%s:%d] : email-alert: unknown argument '%s'.\n",
+			      file, linenum, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}/* end else if (!strcmp(args[0], "email-alert"))  */
 	else if (!strcmp(args[0], "external-check")) {
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : missing argument after '%s'.\n",
@@ -6530,6 +6607,17 @@ int check_config_validity()
 			}
 		}
 
+		if (
+		    (curproxy->email_alert.mailers.name || curproxy->email_alert.from || curproxy->email_alert.myhostname || curproxy->email_alert.to) &&
+		    !(curproxy->email_alert.mailers.name && curproxy->email_alert.from && curproxy->email_alert.to)) {
+			Warning("config : 'email-alert' will be ignored for %s '%s' (the presence any of "
+				"'email-alert from', 'email-alert mailer', 'email-alert hostname' or 'email-alert to' requrires each of"
+				"'email-alert from', 'email-alert mailer' and 'email-alert to'  to be present).\n",
+				proxy_type_str(curproxy), curproxy->id);
+			err_code |= ERR_WARN;
+			free_email_alert(curproxy);
+		}
+
 		if (curproxy->check_command) {
 			int clear = 0;
 			if ((curproxy->options2 & PR_O2_CHK_ANY) != PR_O2_EXT_CHK) {
@@ -6889,6 +6977,27 @@ int check_config_validity()
 				Alert("Proxy '%s': unable to find local peer '%s' in peers section '%s'.\n",
 				      curproxy->id, localpeer, curpeers->id);
 				curproxy->table.peers.p = NULL;
+				cfgerr++;
+			}
+		}
+
+
+		if (curproxy->email_alert.mailers.name) {
+			struct mailers *curmailers = mailers;
+
+			for (curmailers = mailers; curmailers; curmailers = curmailers->next) {
+				if (strcmp(curmailers->id, curproxy->email_alert.mailers.name) == 0) {
+					free(curproxy->email_alert.mailers.name);
+					curproxy->email_alert.mailers.m = curmailers;
+					curmailers->users++;
+					break;
+				}
+			}
+
+			if (!curmailers) {
+				Alert("Proxy '%s': unable to find mailers '%s'.\n",
+				      curproxy->id, curproxy->email_alert.mailers.name);
+				free_email_alert(curproxy);
 				cfgerr++;
 			}
 		}

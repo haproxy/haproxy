@@ -380,6 +380,16 @@ struct proxy {
 	} conf;					/* config information */
 	void *parent;				/* parent of the proxy when applicable */
 	struct comp *comp;			/* http compression */
+
+	struct {
+		union {
+			struct mailers *m;	/* Mailer to send email alerts via */
+			char *name;
+		} mailers;
+		char *from;			/* Address to send email allerts from */
+		char *to;			/* Address(es) to send email allerts to */
+		char *myhostname;		/* Identity to use in HELO command sent to mailer */
+	} email_alert;
 };
 
 struct switching_rule {

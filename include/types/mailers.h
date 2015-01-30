@@ -23,8 +23,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef _TYPES_EMAIL_ALERT_H
-#define _TYPES_EMAIL_ALERT_H
+#ifndef _TYPES_MAILERS_H
+#define _TYPES_MAILERS_H
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -61,5 +61,5 @@ struct mailers {
 
 extern struct mailers *mailers;
 
-#endif /* _TYPES_EMAIL_ALERT_H */
+#endif /* _TYPES_MAILERS_H */
 
