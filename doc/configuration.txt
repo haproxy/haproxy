@@ -1224,6 +1224,36 @@ peer <peername> <ip>:<port>
         server srv2 192.168.0.31:80
 
 
+3.6. Mailers
+------------
+It is possible to send email alerts when the state of servers changes.
+If configured email alerts are sent to each mailer that is configured
+in a mailers section. Email is sent to mailers using SMTP.
+
+mailer <mailersect>
+  Creates a new mailer list with the name <mailersect>. It is an
+  independent section which is referenced by one or more proxies.
+
+mailer <mailername> <ip>:<port>
+  Defines a mailer inside a mailers section.
+
+  Example:
+    mailers mymailers
+        mailer smtp1 192.168.0.1:587
+        mailer smtp2 192.168.0.2:587
+
+    backend mybackend
+        mode tcp
+        balance roundrobin
+
+        email-alert mailers mymailers
+        email-alert from test1@horms.org
+        email-alert to test2@horms.org
+
+        server srv1 192.168.0.30:80
+        server srv2 192.168.0.31:80
+
+
 4. Proxies
 ----------
 
@@ -1344,6 +1374,10 @@ default_backend                           X          X         X         -
 description                               -          X         X         X
 disabled                                  X          X         X         X
 dispatch                                  -          -         X         X
+email-alert from                          X          X         X         X
+email-alert mailers                       X          X         X         X
+email-alert myhostname                    X          X         X         X
+email-alert to                            X          X         X         X
 enabled                                   X          X         X         X
 errorfile                                 X          X         X         X
 errorloc                                  X          X         X         X
@@ -2648,6 +2682,76 @@ errorloc303 <code> <url>
   it, but no such problem has been reported till now.
 
   See also : "errorfile", "errorloc", "errorloc302"
+
+
+email-alert from <emailaddr>
+  Declare the from email address to be used in both the envelope and header
+  of email alerts.  This is the address that email alerts are sent from.
+  May be used in sections:    defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+
+  Arguments :
+
+    <emailaddr> is the from email address to use when sending email alerts
+
+  Also requires "email-alert mailers" and "email-alert to" to be set
+  and if so sending email alerts is enabled for the proxy.
+
+  See also : "email-alert mailers", "email-alert myhostname", "email-alert to",
+             section 3.6 about mailers.
+
+
+email-alert mailers <mailersect>
+  Declare the mailers to be used when sending email alerts
+  May be used in sections:    defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+
+  Arguments :
+
+    <mailersect> is the name of the mailers section to send email alerts.
+
+  Also requires "email-alert from" and "email-alert to" to be set
+  and if so sending email alerts is enabled for the proxy.
+
+  See also : "email-alert from", "email-alert myhostname", "email-alert to",
+             section 3.6 about mailers.
+
+
+email-alert myhostname <hostname>
+  Declare the to hostname address to be used when communicating with
+  mailers.
+  May be used in sections:    defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+
+  Arguments :
+
+    <emailaddr> is the to email address to use when sending email alerts
+
+  By default the systems hostname is used.
+
+  Also requires "email-alert from", "email-alert mailers" and
+  "email-alert to" to be set and if so sending email alerts is enabled
+  for the proxy.
+
+  See also : "email-alert from", "email-alert mailers", "email-alert to",
+             section 3.6 about mailers.
+
+
+email-alert to <emailaddr>
+  Declare both the recipent address in the envelope and to address in the
+  header of email alerts. This is the address that email alerts are sent to.
+  May be used in sections:    defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+
+  Arguments :
+
+    <emailaddr> is the to email address to use when sending email alerts
+
+  Also requires "email-alert mailers" and "email-alert to" to be set
+  and if so sending email alerts is enabled for the proxy.
+
+  See also : "email-alert from", "email-alert mailers",
+             "email-alert myhostname", section 3.6 about mailers.
 
 
 force-persist { if | unless } <condition>
