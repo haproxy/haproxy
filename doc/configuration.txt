@@ -8919,6 +8919,19 @@ strict-sni
   a certificate. The default certificate is not used.
   See the "crt" option for more information.
 
+tcp-ut <delay>
+  Sets the TCP User Timeout for all incoming connections instanciated from this
+  listening socket. This option is available on Linux since version 2.6.37. It
+  allows haproxy to configure a timeout for sockets which contain data not
+  receiving an acknoledgement for the configured delay. This is especially
+  useful on long-lived connections experiencing long idle periods such as
+  remote terminals or database connection pools, where the client and server
+  timeouts must remain high to allow a long period of idle, but where it is
+  important to detect that the client has disappeared in order to release all
+  resources associated with its connection (and the server's session). The
+  argument is a delay expressed in milliseconds by default. This only works
+  for regular TCP connections, and is ignored for other protocols.
+
 tfo
   Is an optional keyword which is supported only on Linux kernels >= 3.7. It
   enables TCP Fast Open on the listening socket, which means that clients which

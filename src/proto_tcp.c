@@ -859,6 +859,15 @@ int tcp_bind_listener(struct listener *listener, char *errmsg, int errlen)
 		}
 	}
 #endif
+#if defined(TCP_USER_TIMEOUT)
+	if (listener->tcp_ut) {
+		if (setsockopt(fd, IPPROTO_TCP, TCP_USER_TIMEOUT,
+			       &listener->tcp_ut, sizeof(listener->tcp_ut)) == -1) {
+			msg = "cannot set TCP User Timeout";
+			err |= ERR_WARN;
+		}
+	}
+#endif
 #if defined(TCP_DEFER_ACCEPT)
 	if (listener->options & LI_O_DEF_ACCEPT) {
 		/* defer accept by up to one second */
@@ -2007,8 +2016,36 @@ static int bind_parse_mss(char **args, int cur_arg, struct proxy *px, struct bin
 }
 #endif
 
+#ifdef TCP_USER_TIMEOUT
+/* parse the "tcp-ut" bind keyword */
+static int bind_parse_tcp_ut(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
+{
+	const char *ptr = NULL;
+	struct listener *l;
+	unsigned int timeout;
+
+	if (!*args[cur_arg + 1]) {
+		memprintf(err, "'%s' : missing TCP User Timeout value", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	ptr = parse_time_err(args[cur_arg + 1], &timeout, TIME_UNIT_MS);
+	if (ptr) {
+		memprintf(err, "'%s' : expects a positive delay in milliseconds", args[cur_arg]);
+		return ERR_ALERT | ERR_FATAL;
+	}
+
+	list_for_each_entry(l, &conf->listeners, by_bind) {
+		if (l->addr.ss_family == AF_INET || l->addr.ss_family == AF_INET6)
+			l->tcp_ut = timeout;
+	}
+
+	return 0;
+}
+#endif
+
 #ifdef SO_BINDTODEVICE
-/* parse the "mss" bind keyword */
+/* parse the "interface" bind keyword */
 static int bind_parse_interface(char **args, int cur_arg, struct proxy *px, struct bind_conf *conf, char **err)
 {
 	struct listener *l;
@@ -2104,6 +2141,9 @@ static struct bind_kw_list bind_kws = { "TCP", { }, {
 #endif
 #ifdef TCP_MAXSEG
 	{ "mss",           bind_parse_mss,          1 }, /* set MSS of listening socket */
+#endif
+#ifdef TCP_USER_TIMEOUT
+	{ "tcp-ut",        bind_parse_tcp_ut,       1 }, /* set User Timeout on listening socket */
 #endif
 #ifdef TCP_FASTOPEN
 	{ "tfo",           bind_parse_tfo,          0 }, /* enable TCP_FASTOPEN of listening socket */

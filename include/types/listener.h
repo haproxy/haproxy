@@ -175,6 +175,7 @@ struct listener {
 	struct list wait_queue;		/* link element to make the listener wait for something (LI_LIMITED)  */
 	unsigned int analysers;		/* bitmap of required protocol analysers */
 	int maxseg;			/* for TCP, advertised MSS */
+	int tcp_ut;                     /* for TCP, user timeout */
 	char *interface;		/* interface name or NULL */
 
 	const struct netns_entry *netns; /* network namespace of the listener*/
