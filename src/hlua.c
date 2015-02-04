@@ -17,6 +17,7 @@
 #include <proto/channel.h>
 #include <proto/hdr_idx.h>
 #include <proto/obj_type.h>
+#include <proto/pattern.h>
 #include <proto/payload.h>
 #include <proto/proto_http.h>
 #include <proto/proto_tcp.h>
@@ -699,6 +700,101 @@ static enum hlua_exec hlua_ctx_resume(struct hlua *lua, int yield_allowed)
 	}
 
 	return ret;
+}
+
+/* This function is an LUA binding. It provides a function
+ * for deleting ACL from a referenced ACL file.
+ */
+__LJMP static int hlua_del_acl(lua_State *L)
+{
+	const char *name;
+	const char *key;
+	struct pat_ref *ref;
+
+	MAY_LJMP(check_args(L, 2, "del_acl"));
+
+	name = MAY_LJMP(luaL_checkstring(L, 1));
+	key = MAY_LJMP(luaL_checkstring(L, 2));
+
+	ref = pat_ref_lookup(name);
+	if (!ref)
+		WILL_LJMP(luaL_error(L, "'del_acl': unkown acl file '%s'", name));
+
+	pat_ref_delete(ref, key);
+	return 0;
+}
+
+/* This function is an LUA binding. It provides a function
+ * for deleting map entry from a referenced map file.
+ */
+static int hlua_del_map(lua_State *L)
+{
+	const char *name;
+	const char *key;
+	struct pat_ref *ref;
+
+	MAY_LJMP(check_args(L, 2, "del_map"));
+
+	name = MAY_LJMP(luaL_checkstring(L, 1));
+	key = MAY_LJMP(luaL_checkstring(L, 2));
+
+	ref = pat_ref_lookup(name);
+	if (!ref)
+		WILL_LJMP(luaL_error(L, "'del_map': unkown acl file '%s'", name));
+
+	pat_ref_delete(ref, key);
+	return 0;
+}
+
+/* This function is an LUA binding. It provides a function
+ * for adding ACL pattern from a referenced ACL file.
+ */
+static int hlua_add_acl(lua_State *L)
+{
+	const char *name;
+	const char *key;
+	struct pat_ref *ref;
+
+	MAY_LJMP(check_args(L, 2, "add_acl"));
+
+	name = MAY_LJMP(luaL_checkstring(L, 1));
+	key = MAY_LJMP(luaL_checkstring(L, 2));
+
+	ref = pat_ref_lookup(name);
+	if (!ref)
+		WILL_LJMP(luaL_error(L, "'add_acl': unkown acl file '%s'", name));
+
+	if (pat_ref_find_elt(ref, key) == NULL)
+		pat_ref_add(ref, key, NULL, NULL);
+	return 0;
+}
+
+/* This function is an LUA binding. It provides a function
+ * for setting map pattern and sample from a referenced map
+ * file.
+ */
+static int hlua_set_map(lua_State *L)
+{
+	const char *name;
+	const char *key;
+	const char *value;
+	struct pat_ref *ref;
+
+	MAY_LJMP(check_args(L, 3, "set_map"));
+
+	name = MAY_LJMP(luaL_checkstring(L, 1));
+	key = MAY_LJMP(luaL_checkstring(L, 2));
+	value = MAY_LJMP(luaL_checkstring(L, 3));
+
+	ref = pat_ref_lookup(name);
+	if (!ref)
+		WILL_LJMP(luaL_error(L, "'set_map': unkown map file '%s'", name));
+
+	if (pat_ref_find_elt(ref, key) != NULL)
+		pat_ref_set(ref, key, value, NULL);
+	else
+		pat_ref_add(ref, key, value, NULL);
+	return 0;
 }
 
 /* A class is a lot of memory that contain data. This data can be a table,
@@ -2822,6 +2918,10 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "register_converters", hlua_register_converters);
 	hlua_class_function(gL.T, "sleep", hlua_sleep);
 	hlua_class_function(gL.T, "msleep", hlua_msleep);
+	hlua_class_function(gL.T, "add_acl", hlua_add_acl);
+	hlua_class_function(gL.T, "del_acl", hlua_del_acl);
+	hlua_class_function(gL.T, "set_map", hlua_set_map);
+	hlua_class_function(gL.T, "del_map", hlua_del_map);
 	hlua_class_function(gL.T, "tcp", hlua_socket_new);
 
 	/* Store the table __index in the metable. */
