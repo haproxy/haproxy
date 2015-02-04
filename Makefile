@@ -733,6 +733,15 @@ install-bin: haproxy haproxy-systemd-wrapper
 
 install: install-bin install-man install-doc
 
+uninstall:
+	rm -f "$(DESTDIR)$(MANDIR)"/man1/haproxy.1
+	for x in configuration architecture haproxy-en haproxy-fr; do \
+		rm -f "$(DESTDIR)$(DOCDIR)"/$$x.txt ; \
+	done
+	-rmdir "$(DESTDIR)$(DOCDIR)"
+	rm -f "$(DESTDIR)$(SBINDIR)"/haproxy
+	rm -f "$(DESTDIR)$(SBINDIR)"/haproxy-systemd-wrapper
+
 clean:
 	rm -f *.[oas] src/*.[oas] ebtree/*.[oas] haproxy test
 	for dir in . src include/* doc ebtree; do rm -f $$dir/*~ $$dir/*.rej $$dir/core; done
