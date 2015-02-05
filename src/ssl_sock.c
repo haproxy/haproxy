@@ -2347,7 +2347,8 @@ reneg_ok:
 			if (objt_server(conn->target)->ssl_ctx.reused_sess)
 				SSL_SESSION_free(objt_server(conn->target)->ssl_ctx.reused_sess);
 
-			objt_server(conn->target)->ssl_ctx.reused_sess = SSL_get1_session(conn->xprt_ctx);
+			if (!(objt_server(conn->target)->ssl_ctx.options & SRV_SSL_O_NO_REUSE))
+				objt_server(conn->target)->ssl_ctx.reused_sess = SSL_get1_session(conn->xprt_ctx);
 		}
 		else {
 			update_freq_ctr(&global.ssl_fe_keys_per_sec, 1);
@@ -4366,6 +4367,13 @@ static int srv_parse_force_tlsv12(char **args, int *cur_arg, struct proxy *px, s
 #endif
 }
 
+/* parse the "no-ssl-reuse" server keyword */
+static int srv_parse_no_ssl_reuse(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
+{
+	newsrv->ssl_ctx.options |= SRV_SSL_O_NO_REUSE;
+	return 0;
+}
+
 /* parse the "no-sslv3" server keyword */
 static int srv_parse_no_sslv3(char **args, int *cur_arg, struct proxy *px, struct server *newsrv, char **err)
 {
@@ -4677,6 +4685,7 @@ static struct srv_kw_list srv_kws = { "SSL", { }, {
 	{ "force-tlsv10",          srv_parse_force_tlsv10,   0, 0 }, /* force TLSv10 */
 	{ "force-tlsv11",          srv_parse_force_tlsv11,   0, 0 }, /* force TLSv11 */
 	{ "force-tlsv12",          srv_parse_force_tlsv12,   0, 0 }, /* force TLSv12 */
+	{ "no-ssl-reuse",          srv_parse_no_ssl_reuse,   0, 0 }, /* disable session reuse */
 	{ "no-sslv3",              srv_parse_no_sslv3,       0, 0 }, /* disable SSLv3 */
 	{ "no-tlsv10",             srv_parse_no_tlsv10,      0, 0 }, /* disable TLSv10 */
 	{ "no-tlsv11",             srv_parse_no_tlsv11,      0, 0 }, /* disable TLSv11 */

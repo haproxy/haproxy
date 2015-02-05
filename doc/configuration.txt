@@ -9349,6 +9349,14 @@ minconn <minconn>
 
   Supported in default-server: Yes
 
+no-ssl-reuse
+  This option disables SSL session reuse when SSL is used to communicate with
+  the server. It will force the server to perform a full handshake for every
+  new connection. It's probably only useful for benchmarking, troubleshooting,
+  and for paranoid users.
+
+  Supported in default-server: No
+
 no-sslv3
   This option disables support for SSLv3 when SSL is used to communicate with
   the server. Note that SSLv2 is disabled in the code and cannot be enabled
