@@ -354,9 +354,10 @@ static inline void bo_putchr(struct buffer *b, char c)
 }
 
 /* Tries to copy block <blk> into output data at buffer <b>. Supports wrapping.
- * Data are truncated if buffer is too short.
+ * Data are truncated if buffer is too short. It returns the number of bytes
+ * copied.
  */
-static inline void bo_putblk(struct buffer *b, const char *blk, int len)
+static inline int bo_putblk(struct buffer *b, const char *blk, int len)
 {
 	int cur_len = buffer_len(b);
 	int half;
@@ -364,7 +365,7 @@ static inline void bo_putblk(struct buffer *b, const char *blk, int len)
 	if (len > b->size - cur_len)
 		len = (b->size - cur_len);
 	if (!len)
-		return;
+		return 0;
 
 	half = buffer_contig_space(b);
 	if (half > len)
@@ -377,20 +378,23 @@ static inline void bo_putblk(struct buffer *b, const char *blk, int len)
 		b->p = b_ptr(b, half);
 	}
 	b->o += len;
+	return len;
 }
 
 /* Tries to copy string <str> into output data at buffer <b>. Supports wrapping.
- * Data are truncated if buffer is too short.
+ * Data are truncated if buffer is too short. It returns the number of bytes
+ * copied.
  */
-static inline void bo_putstr(struct buffer *b, const char *str)
+static inline int bo_putstr(struct buffer *b, const char *str)
 {
 	return bo_putblk(b, str, strlen(str));
 }
 
 /* Tries to copy chunk <chk> into output data at buffer <b>. Supports wrapping.
- * Data are truncated if buffer is too short.
+ * Data are truncated if buffer is too short. It returns the number of bytes
+ * copied.
  */
-static inline void bo_putchk(struct buffer *b, const struct chunk *chk)
+static inline int bo_putchk(struct buffer *b, const struct chunk *chk)
 {
 	return bo_putblk(b, chk->str, chk->len);
 }
