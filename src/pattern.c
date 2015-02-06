@@ -989,8 +989,10 @@ int pat_idx_list_ptr(struct pattern_expr *expr, struct pattern *pat, char **err)
 
 	/* allocate pattern */
 	patl = calloc(1, sizeof(*patl));
-	if (!patl)
+	if (!patl) {
+		memprintf(err, "out of memory while indexing pattern");
 		return 0;
+	}
 
 	/* duplicate pattern */
 	memcpy(&patl->pat, pat, sizeof(*pat));
