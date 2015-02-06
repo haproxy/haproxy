@@ -1375,6 +1375,7 @@ description                               -          X         X         X
 disabled                                  X          X         X         X
 dispatch                                  -          -         X         X
 email-alert from                          X          X         X         X
+email-alert level                         X          X         X         X
 email-alert mailers                       X          X         X         X
 email-alert myhostname                    X          X         X         X
 email-alert to                            X          X         X         X
@@ -2697,7 +2698,30 @@ email-alert from <emailaddr>
   Also requires "email-alert mailers" and "email-alert to" to be set
   and if so sending email alerts is enabled for the proxy.
 
-  See also : "email-alert mailers", "email-alert myhostname", "email-alert to",
+  See also : "email-alert level", "email-alert mailers",
+             "email-alert myhostname", "email-alert to", section 3.6 about mailers.
+
+
+email-alert level <level>
+  Declare the maximum log level of messages for which email alerts will be
+  sent. This acts as a filter on the sending of email alerts.
+  May be used in sections:    defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+
+  Arguments :
+
+    <level> One of the 8 syslog levels:
+              emerg alert crit err warning notice info  debug
+            The above syslog levels are ordered from lowest to highest.
+
+  By default level is alert
+
+  Also requires "email-alert from", "email-alert mailers" and
+  "email-alert to" to be set and if so sending email alerts is enabled
+  for the proxy.
+
+  See also : "email-alert from", "email-alert mailers",
+             "email-alert myhostname", "email-alert to",
              section 3.6 about mailers.
 
 
@@ -2713,8 +2737,8 @@ email-alert mailers <mailersect>
   Also requires "email-alert from" and "email-alert to" to be set
   and if so sending email alerts is enabled for the proxy.
 
-  See also : "email-alert from", "email-alert myhostname", "email-alert to",
-             section 3.6 about mailers.
+  See also : "email-alert from", "email-alert level", "email-alert myhostname",
+             "email-alert to", section 3.6 about mailers.
 
 
 email-alert myhostname <hostname>
@@ -2733,8 +2757,8 @@ email-alert myhostname <hostname>
   "email-alert to" to be set and if so sending email alerts is enabled
   for the proxy.
 
-  See also : "email-alert from", "email-alert mailers", "email-alert to",
-             section 3.6 about mailers.
+  See also : "email-alert from", "email-alert level", "email-alert mailers",
+             "email-alert to", section 3.6 about mailers.
 
 
 email-alert to <emailaddr>
@@ -2750,7 +2774,7 @@ email-alert to <emailaddr>
   Also requires "email-alert mailers" and "email-alert to" to be set
   and if so sending email alerts is enabled for the proxy.
 
-  See also : "email-alert from", "email-alert mailers",
+  See also : "email-alert from", "email-alert level", "email-alert mailers",
              "email-alert myhostname", section 3.6 about mailers.
 
 

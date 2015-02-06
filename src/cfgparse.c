@@ -1618,6 +1618,8 @@ void init_default_instance()
 	defproxy.defsrv.onerror = DEF_HANA_ONERR;
 	defproxy.defsrv.consecutive_errors_limit = DEF_HANA_ERRLIMIT;
 	defproxy.defsrv.uweight = defproxy.defsrv.iweight = 1;
+
+	defproxy.email_alert.level = LOG_ALERT;
 }
 
 
@@ -2372,6 +2374,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->email_alert.to = strdup(defproxy.email_alert.to);
 		if (defproxy.email_alert.myhostname)
 			curproxy->email_alert.myhostname = strdup(defproxy.email_alert.myhostname);
+		curproxy->email_alert.level = defproxy.email_alert.level;
 
 		goto out;
 	}
@@ -2930,6 +2933,15 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			free(curproxy->email_alert.myhostname);
 			curproxy->email_alert.myhostname = strdup(args[2]);
 		}
+		else if (!strcmp(args[1], "level")) {
+			curproxy->email_alert.level = get_log_level(args[2]);
+			if (curproxy->email_alert.level < 0) {
+				Alert("parsing [%s:%d] : unknown log level '%s' after '%s'\n",
+				      file, linenum, args[1], args[2]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+		}
 		else if (!strcmp(args[1], "to")) {
 			if (*(args[1]) == 0) {
 				Alert("parsing [%s:%d] : missing argument after '%s'.\n",
@@ -2946,6 +2958,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
+		/* Indicate that the email_alert is at least partially configured */
+		curproxy->email_alert.set = 1;
 	}/* end else if (!strcmp(args[0], "email-alert"))  */
 	else if (!strcmp(args[0], "external-check")) {
 		if (*(args[1]) == 0) {
@@ -6607,11 +6621,11 @@ int check_config_validity()
 			}
 		}
 
-		if ((curproxy->email_alert.mailers.name || curproxy->email_alert.from ||
-		     curproxy->email_alert.myhostname || curproxy->email_alert.to)) {
+		if (curproxy->email_alert.set) {
 		    if (!(curproxy->email_alert.mailers.name && curproxy->email_alert.from && curproxy->email_alert.to)) {
 			    Warning("config : 'email-alert' will be ignored for %s '%s' (the presence any of "
-				    "'email-alert from', 'email-alert mailer', 'email-alert hostname' or 'email-alert to' "
+				    "'email-alert from', 'email-alert level' 'email-alert mailer', "
+				    "'email-alert hostname', or 'email-alert to' "
 				    "requrires each of 'email-alert from', 'email-alert mailer' and 'email-alert' "
 				    "to be present).\n",
 				    proxy_type_str(curproxy), curproxy->id);

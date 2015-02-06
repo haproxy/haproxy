@@ -47,8 +47,8 @@ static inline void health_adjust(struct server *s, short status)
 const char *init_check(struct check *check, int type);
 void free_check(struct check *check);
 
-void send_email_alert(struct server *s, const char *format, ...)
-	__attribute__ ((format(printf, 2, 3)));
+void send_email_alert(struct server *s, int priority, const char *format, ...)
+	__attribute__ ((format(printf, 3, 4)));
 #endif /* _PROTO_CHECKS_H */
 
 /*

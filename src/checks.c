@@ -317,7 +317,7 @@ static void set_server_check_status(struct check *check, short status, const cha
 
 		Warning("%s.\n", trash.str);
 		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
-		send_email_alert(s, "%s", trash.str);
+		send_email_alert(s, LOG_NOTICE, "%s", trash.str);
 	}
 }
 
@@ -3113,14 +3113,15 @@ static void enqueue_email_alert(struct proxy *p, const char *msg)
 /*
  * Send email alert if configured.
  */
-void send_email_alert(struct server *s, const char *format, ...)
+void send_email_alert(struct server *s, int level, const char *format, ...)
 {
 	va_list argp;
 	char buf[1024];
 	int len;
 	struct proxy *p = s->proxy;
 
-	if (!p->email_alert.mailers.m || format == NULL || !init_email_alert_checks(s))
+	if (!p->email_alert.mailers.m || level > p->email_alert.level ||
+	    format == NULL || !init_email_alert_checks(s))
 		return;
 
 	va_start(argp, format);

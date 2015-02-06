@@ -232,6 +232,7 @@ void srv_set_stopped(struct server *s, const char *reason)
 	struct server *srv;
 	int prev_srv_count = s->proxy->srv_bck + s->proxy->srv_act;
 	int srv_was_stopping = (s->state == SRV_ST_STOPPING);
+	int log_level;
 	int xferred;
 
 	if ((s->admin & SRV_ADMF_MAINT) || s->state == SRV_ST_STOPPED)
@@ -255,12 +256,13 @@ void srv_set_stopped(struct server *s, const char *reason)
 	             "%sServer %s/%s is DOWN", s->flags & SRV_F_BACKUP ? "Backup " : "",
 	             s->proxy->id, s->id);
 
-	send_email_alert(s, "%s", trash.str);
 	srv_append_status(&trash, s, reason, xferred, 0);
 	Warning("%s.\n", trash.str);
 
 	/* we don't send an alert if the server was previously paused */
-	send_log(s->proxy, srv_was_stopping ? LOG_NOTICE : LOG_ALERT, "%s.\n", trash.str);
+	log_level = srv_was_stopping ? LOG_NOTICE : LOG_ALERT;
+	send_log(s->proxy, log_level, "%s.\n", trash.str);
+	send_email_alert(s, log_level, "%s", trash.str);
 
 	if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
 		set_backend_down(s->proxy);
