@@ -10,6 +10,7 @@
 #define CLASS_CORE     "Core"
 #define CLASS_TXN      "TXN"
 #define CLASS_SOCKET   "Socket"
+#define CLASS_CHANNEL  "Channel"
 
 struct session;
 
@@ -111,6 +112,13 @@ struct hlua_sleep {
 struct hlua_socket {
 	struct session *s; /* Session used for socket I/O. */
 	luaL_Buffer b; /* buffer used to prepare strings. */
+};
+
+/* This struct is used join to the class "channel". It
+ * just contains a pointer to the manipulated channel.
+ */
+struct hlua_channel {
+	struct channel *chn;
 };
 
 #endif /* _TYPES_HLUA_H */

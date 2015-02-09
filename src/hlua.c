@@ -72,6 +72,7 @@ struct eb_root hlua_ctx = EB_ROOT_UNIQUE;
 static int class_core_ref;
 static int class_txn_ref;
 static int class_socket_ref;
+static int class_channel_ref;
 
 /* These functions converts types between HAProxy internal args or
  * sample and LUA types. Another function permits to check if the
@@ -1822,6 +1823,358 @@ out_fail_conf:
 /*
  *
  *
+ * Class Channel
+ *
+ *
+ */
+
+/* Returns the struct hlua_channel join to the class channel in the
+ * stack entry "ud" or throws an argument error.
+ */
+__LJMP static struct hlua_channel *hlua_checkchannel(lua_State *L, int ud)
+{
+	return (struct hlua_channel *)MAY_LJMP(hlua_checkudata(L, ud, class_channel_ref));
+}
+
+/* Creates new channel object and put it on the top of the stack.
+ * If the stask does not have a free slots, the function fails
+ * and returns 0;
+ */
+static int hlua_channel_new(lua_State *L, struct channel *channel)
+{
+	struct hlua_channel *chn;
+
+	/* Check stack size. */
+	if (!lua_checkstack(L, 2))
+		return 0;
+
+	/* NOTE: The allocation never fails. The failure
+	 * throw an error, and the function never returns.
+	 */
+	chn = lua_newuserdata(L, sizeof(*chn));
+	chn->chn = channel;
+
+	/* Pop a class sesison metatable and affect it to the userdata. */
+	lua_rawgeti(L, LUA_REGISTRYINDEX, class_channel_ref);
+	lua_setmetatable(L, -2);
+
+	return 1;
+}
+
+/* Duplicate all the data present in the input channel and put it
+ * in a string LUA variables. Returns -1 and push a nil value in
+ * the stack if the channel is closed and all the data are consumed,
+ * returns 0 if no data are available, otherwise it returns the length
+ * of the builded string.
+ */
+static inline int _hlua_channel_dup(struct hlua_channel *chn, lua_State *L)
+{
+	char *blk1;
+	char *blk2;
+	int len1;
+	int len2;
+	int ret;
+	luaL_Buffer b;
+
+	ret = bi_getblk_nc(chn->chn, &blk1, &len1, &blk2, &len2);
+	if (unlikely(ret == 0))
+		return 0;
+
+	if (unlikely(ret < 0)) {
+		lua_pushnil(L);
+		return -1;
+	}
+
+	luaL_buffinit(L, &b);
+	luaL_addlstring(&b, blk1, len1);
+	if (unlikely(ret == 2))
+		luaL_addlstring(&b, blk2, len2);
+	luaL_pushresult(&b);
+
+	if (unlikely(ret == 2))
+		return len1 + len2;
+	return len1;
+}
+
+/* "_hlua_channel_dup" wrapper. If no data are available, it returns
+ * a yield. This function keep the data in the buffer.
+ */
+__LJMP static int hlua_channel_dup(lua_State *L)
+{
+	MAY_LJMP(check_args(L, 1, "dup"));
+	struct hlua_channel *chn = MAY_LJMP(hlua_checkchannel(L, 1));
+	if (_hlua_channel_dup(chn, L) == 0)
+		WILL_LJMP(lua_yieldk(L, 0, 0, hlua_channel_dup));
+	return 1;
+}
+
+/* "_hlua_channel_dup" wrapper. If no data are available, it returns
+ * a yield. This function consumes the data in the buffer. It returns
+ * a string containing the data or a nil pointer if no data are available
+ * and the channel is closed.
+ */
+__LJMP static int hlua_channel_get(lua_State *L)
+{
+	MAY_LJMP(check_args(L, 1, "get"));
+	struct hlua_channel *chn = MAY_LJMP(hlua_checkchannel(L, 1));
+	int ret = _hlua_channel_dup(chn, L);
+	if (unlikely(ret == 0))
+		WILL_LJMP(lua_yieldk(L, 0, 0, hlua_channel_get));
+	if (unlikely(ret == -1))
+		return 1;
+	chn->chn->buf->i -= ret;
+
+	return 1;
+}
+
+/* This functions consumes and returns one line. If the channel is closed,
+ * and the last data does not contains a final '\n', the data are returned
+ * without the final '\n'. When no more data are avalaible, it returns nil
+ * value.
+ */
+__LJMP static int hlua_channel_getline(lua_State *L)
+{
+	MAY_LJMP(check_args(L, 1, "getline"));
+	char *blk1;
+	char *blk2;
+	int len1;
+	int len2;
+	int len;
+	struct hlua_channel *chn = MAY_LJMP(hlua_checkchannel(L, 1));
+	int ret;
+	luaL_Buffer b;
+	ret = bi_getline_nc(chn->chn, &blk1, &len1, &blk2, &len2);
+	if (ret == 0)
+		WILL_LJMP(lua_yieldk(L, 0, 0, hlua_channel_getline));
+	if (ret == -1) {
+		lua_pushnil(L);
+		return 1;
+	}
+
+	luaL_buffinit(L, &b);
+	luaL_addlstring(&b, blk1, len1);
+	len = len1;
+	if (unlikely(ret == 2)) {
+		luaL_addlstring(&b, blk2, len2);
+		len += len2;
+	}
+	luaL_pushresult(&b);
+	buffer_replace2(chn->chn->buf, chn->chn->buf->p, chn->chn->buf->p + len,  NULL, 0);
+	return 1;
+}
+
+/* This function takes a string as input, and append it at the
+ * input side of channel. If the data is too big, but a space
+ * is probably available after sending some data, the function
+ * yield. If the data is bigger than the buffer, or if the
+ * channel is closed, it returns -1. otherwise, it returns the
+ * amount of data writed.
+ */
+__LJMP static int _hlua_channel_append(lua_State *L)
+{
+	struct hlua_channel *chn = MAY_LJMP(hlua_checkchannel(L, 1));
+	size_t len;
+	const char *str = MAY_LJMP(luaL_checklstring(L, 2, &len));
+	int l = MAY_LJMP(luaL_checkinteger(L, 3));
+	int ret;
+	int max;
+
+	max = channel_recv_limit(chn->chn) - buffer_len(chn->chn->buf);
+	if (max > len - l)
+		max = len - l;
+
+	ret = bi_putblk(chn->chn, str+l, max);
+	if (ret == -2 || ret == -3) {
+		lua_pushinteger(L, -1);
+		return 1;
+	}
+	if (ret == -1)
+		WILL_LJMP(lua_yieldk(L, 0, 0, _hlua_channel_append));
+	l += ret;
+	lua_pop(L, 1);
+	lua_pushinteger(L, l);
+
+	max = channel_recv_limit(chn->chn) - buffer_len(chn->chn->buf);
+	if (max == 0 && chn->chn->buf->o == 0) {
+		/* There are no space avalaible, and the output buffer is empty.
+		 * in this case, we cannot add more data, so we cannot yield,
+		 * we return the amount of copyied data.
+		 */
+		return 1;
+	}
+	if (l < len)
+		WILL_LJMP(lua_yieldk(L, 0, 0, _hlua_channel_append));
+	return 1;
+}
+
+/* just a wrapper of "_hlua_channel_append". It returns the length
+ * of the writed string, or -1 if the channel is closed or if the
+ * buffer size is too little for the data.
+ */
+__LJMP static int hlua_channel_append(lua_State *L)
+{
+	MAY_LJMP(check_args(L, 2, "append"));
+	lua_pushinteger(L, 0);
+
+	return MAY_LJMP(_hlua_channel_append(L));
+}
+
+/* just a wrapper of "_hlua_channel_append". This wrapper starts
+ * his process by cleaning the buffer. The result is a replacement
+ * of the current data. It returns the length of the writed string,
+ * or -1 if the channel is closed or if the buffer size is too
+ * little for the data.
+ */
+__LJMP static int hlua_channel_set(lua_State *L)
+{
+	MAY_LJMP(check_args(L, 2, "set"));
+	struct hlua_channel *chn = MAY_LJMP(hlua_checkchannel(L, 1));
+	lua_pushinteger(L, 0);
+
+	chn->chn->buf->i = 0;
+
+	return MAY_LJMP(_hlua_channel_append(L));
+}
+
+/* Append data in the output side of the buffer. This data is immediatly
+ * sent. The fcuntion returns the ammount of data writed. If the buffer
+ * cannot contains the data, the function yield. The function returns -1
+ * if the channel is closed.
+ */
+__LJMP static int _hlua_channel_send(lua_State *L)
+{
+	struct hlua_channel *chn = MAY_LJMP(hlua_checkchannel(L, 1));
+	size_t len;
+	const char *str = MAY_LJMP(luaL_checklstring(L, 2, &len));
+	int l = MAY_LJMP(luaL_checkinteger(L, 3));
+	int max;
+
+	if (unlikely(channel_output_closed(chn->chn))) {
+		lua_pushinteger(L, -1);
+		return 1;
+	}
+
+	max = channel_recv_limit(chn->chn) - buffer_len(chn->chn->buf);
+	if (max > len - l)
+		max = len - l;
+
+	buffer_replace2(chn->chn->buf, chn->chn->buf->p, chn->chn->buf->p, str+l, max);
+	/* buffer replace considers that the input part is filled.
+	 * so, I must forward these new data in the output part.
+	 */
+	b_adv(chn->chn->buf, max);
+
+	l += max;
+	lua_pop(L, 1);
+	lua_pushinteger(L, l);
+
+	max = channel_recv_limit(chn->chn) - buffer_len(chn->chn->buf);
+	if (max == 0 && chn->chn->buf->o == 0) {
+		/* There are no space avalaible, and the output buffer is empty.
+		 * in this case, we cannot add more data, so we cannot yield,
+		 * we return the amount of copyied data.
+		 */
+		return 1;
+	}
+	if (l < len)
+		WILL_LJMP(lua_yieldk(L, 0, 0, _hlua_channel_send));
+
+	return 1;
+}
+
+/* Just a wraper of "_hlua_channel_send". This wrapper permits
+ * yield the LUA process, and resume it without checking the
+ * input arguments.
+ */
+__LJMP static int hlua_channel_send(lua_State *L)
+{
+	MAY_LJMP(check_args(L, 2, "send"));
+	lua_pushinteger(L, 0);
+
+	return MAY_LJMP(_hlua_channel_send(L));
+}
+
+/* This function forward and amount of butes. The data pass from
+ * the input side of the buffer to the output side, and can be
+ * forwarded. This function never fails.
+ *
+ * The Lua function takes an amount of bytes to be forwarded in
+ * imput. It returns the number of bytes forwarded.
+ */
+__LJMP static int hlua_channel_forward_yield(lua_State *L)
+{
+	struct hlua_channel *chn;
+	int len;
+	int l;
+	int max;
+
+	chn = MAY_LJMP(hlua_checkchannel(L, 1));
+	len = MAY_LJMP(luaL_checkinteger(L, 2));
+	l = MAY_LJMP(luaL_checkinteger(L, -1));
+
+	max = len - l;
+	if (max > chn->chn->buf->i)
+		max = chn->chn->buf->i;
+	channel_forward(chn->chn, max);
+	l += max;
+
+	lua_pop(L, 1);
+	lua_pushinteger(L, l);
+
+	/* Check if it miss bytes to forward. */
+	if (l < len) {
+		/* The the input channel or the output channel are closed, we
+		 * must return the amount of data forwarded.
+		 */
+		if (channel_input_closed(chn->chn) || channel_output_closed(chn->chn))
+			return 1;
+
+		/* Otherwise, we can yield waiting for new data in the inpout side. */
+		WILL_LJMP(lua_yieldk(L, 0, 0, hlua_channel_forward_yield));
+	}
+
+	return 1;
+}
+
+/* Just check the input and prepare the stack for the previous
+ * function "hlua_channel_forward_yield"
+ */
+__LJMP static int hlua_channel_forward(lua_State *L)
+{
+	MAY_LJMP(check_args(L, 2, "forward"));
+	MAY_LJMP(hlua_checkchannel(L, 1));
+	MAY_LJMP(luaL_checkinteger(L, 2));
+
+	lua_pushinteger(L, 0);
+	return MAY_LJMP(hlua_channel_forward_yield(L));
+}
+
+/* Just returns the number of bytes available in the input
+ * side of the buffer. This function never fails.
+ */
+__LJMP static int hlua_channel_get_in_len(lua_State *L)
+{
+	MAY_LJMP(check_args(L, 1, "get_in_len"));
+	struct hlua_channel *chn = MAY_LJMP(hlua_checkchannel(L, 1));
+	lua_pushinteger(L, chn->chn->buf->i);
+	return 1;
+}
+
+/* Just returns the number of bytes available in the output
+ * side of the buffer. This function never fails.
+ */
+__LJMP static int hlua_channel_get_out_len(lua_State *L)
+{
+	MAY_LJMP(check_args(L, 1, "get_out_len"));
+	struct hlua_channel *chn = MAY_LJMP(hlua_checkchannel(L, 1));
+	lua_pushinteger(L, chn->chn->buf->o);
+	return 1;
+}
+
+
+/*
+ *
+ *
  * Class TXN
  *
  *
@@ -2938,6 +3291,37 @@ void hlua_init(void)
 	/* Create new object with class Core. */
 	lua_setmetatable(gL.T, -2);
 	lua_setglobal(gL.T, "core");
+
+	/*
+	 *
+	 * Register class Channel
+	 *
+	 */
+
+	/* Create and fill the metatable. */
+	lua_newtable(gL.T);
+
+	/* Create and fille the __index entry. */
+	lua_pushstring(gL.T, "__index");
+	lua_newtable(gL.T);
+
+	/* Register . */
+	hlua_class_function(gL.T, "get",         hlua_channel_get);
+	hlua_class_function(gL.T, "dup",         hlua_channel_dup);
+	hlua_class_function(gL.T, "getline",     hlua_channel_getline);
+	hlua_class_function(gL.T, "set",         hlua_channel_set);
+	hlua_class_function(gL.T, "append",      hlua_channel_append);
+	hlua_class_function(gL.T, "send",        hlua_channel_send);
+	hlua_class_function(gL.T, "forward",     hlua_channel_forward);
+	hlua_class_function(gL.T, "get_in_len",  hlua_channel_get_in_len);
+	hlua_class_function(gL.T, "get_out_len", hlua_channel_get_out_len);
+
+	lua_settable(gL.T, -3);
+
+	/* Register previous table in the registry with reference and named entry. */
+	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
+	lua_setfield(gL.T, LUA_REGISTRYINDEX, CLASS_CHANNEL); /* register class session. */
+	class_channel_ref = luaL_ref(gL.T, LUA_REGISTRYINDEX); /* reference class session. */
 
 	/*
 	 *
