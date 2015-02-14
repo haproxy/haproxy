@@ -1134,6 +1134,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 
 	LIST_ADDQ(&sessions, &s->list);
 	LIST_INIT(&s->back_refs);
+	LIST_INIT(&s->buffer_wait);
 
 	s->flags = SN_ASSIGNED|SN_ADDR_SET;
 
