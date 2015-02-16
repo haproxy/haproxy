@@ -329,6 +329,157 @@ int bo_getblk(struct channel *chn, char *blk, int len, int offset)
 	return len;
 }
 
+/* Gets one or two blocks of data at once from a channel's output buffer.
+ * Return values :
+ *   >0 : number of blocks filled (1 or 2). blk1 is always filled before blk2.
+ *   =0 : not enough data available. <blk*> are left undefined.
+ *   <0 : no more bytes readable because output is shut.
+ * The channel status is not changed. The caller must call bo_skip() to
+ * update it. Unused buffers are left in an undefined state.
+ */
+int bo_getblk_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int *len2)
+{
+	if (unlikely(chn->buf->o == 0)) {
+		if (chn->flags & CF_SHUTW)
+			return -1;
+		return 0;
+	}
+
+	if (unlikely(chn->buf->p - chn->buf->o < chn->buf->data)) {
+		*blk1 = chn->buf->p - chn->buf->o + chn->buf->size;
+		*len1 = chn->buf->data + chn->buf->size - *blk1;
+		*blk2 = chn->buf->data;
+		*len2 = chn->buf->p - chn->buf->data;
+		return 2;
+	}
+
+	*blk1 = chn->buf->p - chn->buf->o;
+	*len1 = chn->buf->o;
+	return 1;
+}
+
+/* Gets one text line out of a channel's output buffer from a stream interface.
+ * Return values :
+ *   >0 : number of blocks returned (1 or 2). blk1 is always filled before blk2.
+ *   =0 : not enough data available.
+ *   <0 : no more bytes readable because output is shut.
+ * The '\n' is waited for as long as neither the buffer nor the output are
+ * full. If either of them is full, the string may be returned as is, without
+ * the '\n'. Unused buffers are left in an undefined state.
+ */
+int bo_getline_nc(struct channel *chn,
+                  char **blk1, int *len1,
+                  char **blk2, int *len2)
+{
+	int retcode;
+	int l;
+
+	retcode = bo_getblk_nc(chn, blk1, len1, blk2, len2);
+	if (unlikely(retcode) <= 0)
+		return retcode;
+
+	for (l = 0; l < *len1 && (*blk1)[l] != '\n'; l++);
+	if (l < *len1 && (*blk1)[l] == '\n') {
+		*len1 = l + 1;
+		return 1;
+	}
+
+	if (retcode >= 2) {
+		for (l = 0; l < *len2 && (*blk2)[l] != '\n'; l++);
+		if (l < *len2 && (*blk2)[l] == '\n') {
+			*len2 = l + 1;
+			return 2;
+		}
+	}
+
+	if (chn->flags & CF_SHUTW) {
+		/* If we have found no LF and the buffer is shut, then
+		 * the resulting string is made of the concatenation of
+		 * the pending blocks (1 or 2).
+		 */
+		return retcode;
+	}
+
+	/* No LF yet and not shut yet */
+	return 0;
+}
+
+/* Gets one full block of data at once from a channel's input buffer.
+ * This function can return the data slitted in one or two blocks.
+ * Return values :
+ *   >0 : number of blocks returned (1 or 2). blk1 is always filled before blk2.
+ *   =0 : not enough data available.
+ *   <0 : no more bytes readable because input is shut.
+ */
+int bi_getblk_nc(struct channel *chn,
+                 char **blk1, int *len1,
+                 char **blk2, int *len2)
+{
+	if (unlikely(chn->buf->i == 0)) {
+		if (chn->flags & CF_SHUTR)
+			return -1;
+		return 0;
+	}
+
+	if (unlikely(chn->buf->p + chn->buf->i > chn->buf->data + chn->buf->size)) {
+		*blk1 = chn->buf->p;
+		*len1 = chn->buf->data + chn->buf->size - chn->buf->p;
+		*blk2 = chn->buf->data;
+		*len2 = chn->buf->i - *len1;
+		return 2;
+	}
+
+	*blk1 = chn->buf->p;
+	*len1 = chn->buf->i;
+	return 1;
+}
+
+/* Gets one text line out of a channel's input buffer from a stream interface.
+ * Return values :
+ *   >0 : number of blocks returned (1 or 2). blk1 is always filled before blk2.
+ *   =0 : not enough data available.
+ *   <0 : no more bytes readable because output is shut.
+ * The '\n' is waited for as long as neither the buffer nor the input are
+ * full. If either of them is full, the string may be returned as is, without
+ * the '\n'. Unused buffers are left in an undefined state.
+ */
+int bi_getline_nc(struct channel *chn,
+                  char **blk1, int *len1,
+                  char **blk2, int *len2)
+{
+	int retcode;
+	int l;
+
+	retcode = bi_getblk_nc(chn, blk1, len1, blk2, len2);
+	if (unlikely(retcode) <= 0)
+		return retcode;
+
+	for (l = 0; l < *len1 && (*blk1)[l] != '\n'; l++);
+	if (l < *len1 && (*blk1)[l] == '\n') {
+		*len1 = l + 1;
+		return 1;
+	}
+
+	if (retcode >= 2) {
+		for (l = 0; l < *len2 && (*blk2)[l] != '\n'; l++);
+		if (l < *len2 && (*blk2)[l] == '\n') {
+			*len2 = l + 1;
+			return 2;
+		}
+	}
+
+	if (chn->flags & CF_SHUTW) {
+		/* If we have found no LF and the buffer is shut, then
+		 * the resulting string is made of the concatenation of
+		 * the pending blocks (1 or 2).
+		 */
+		return retcode;
+	}
+
+	/* No LF yet and not shut yet */
+	return 0;
+}
+
 /*
  * Local variables:
  *  c-indent-level: 8

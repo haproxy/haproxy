@@ -46,9 +46,14 @@ unsigned long long __channel_forward(struct channel *chn, unsigned long long byt
 int bi_putblk(struct channel *chn, const char *str, int len);
 struct buffer *bi_swpbuf(struct channel *chn, struct buffer *buf);
 int bi_putchr(struct channel *chn, char c);
+int bi_getline_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int *len2);
+int bi_getblk_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int *len2);
 int bo_inject(struct channel *chn, const char *msg, int len);
 int bo_getline(struct channel *chn, char *str, int len);
 int bo_getblk(struct channel *chn, char *blk, int len, int offset);
+int bo_getline_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int *len2);
+int bo_getblk_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int *len2);
+
 
 /* Initialize all fields in the channel. */
 static inline void channel_init(struct channel *chn)
