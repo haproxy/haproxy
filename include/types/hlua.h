@@ -63,4 +63,14 @@ struct hlua_txn {
 	void *l7;
 };
 
+/* This struct is used as a closure argument associated
+ * with dynamic sample-fetch created fucntions. This contains
+ * a pointer to the original sample_fetch struct. It is used
+ * to identify the function to execute with the sample fetch
+ * wrapper.
+ */
+struct hlua_sample_fetch {
+	struct sample_fetch *f;
+};
+
 #endif /* _TYPES_HLUA_H */

@@ -11,6 +11,9 @@
 #include <types/proxy.h>
 
 #include <proto/arg.h>
+#include <proto/payload.h>
+#include <proto/proto_http.h>
+#include <proto/sample.h>
 #include <proto/task.h>
 
 /* Lua uses longjmp to perform yield or throwing errors. This
@@ -849,6 +852,57 @@ static int hlua_txn_new(lua_State *L, struct session *s, struct proxy *p, void *
 	return 1;
 }
 
+/* This function is an LUA binding. It is called with each sample-fetch.
+ * It uses closure argument to store the associated sample-fetch. It
+ * returns only one argument or throws an error. An error is throwed
+ * only if an error is encoutered during the argument parsing. If
+ * the "sample-fetch" function fails, nil is returned.
+ */
+__LJMP static int hlua_run_sample_fetch(lua_State *L)
+{
+	struct hlua_txn *s;
+	struct hlua_sample_fetch *f;
+	struct arg args[ARGM_NBARGS];
+	int i;
+	struct sample smp;
+
+	/* Get closure arguments. */
+	f = (struct hlua_sample_fetch *)lua_touserdata(L, lua_upvalueindex(1));
+
+	/* Get traditionnal arguments. */
+	s = MAY_LJMP(hlua_checktxn(L, 1));
+
+	/* Get extra arguments. */
+	for (i = 0; i <= lua_gettop(L); i++) {
+		if (i >= ARGM_NBARGS)
+			break;
+		hlua_lua2arg(L, i + 2, &args[i]);
+	}
+	args[i].type = ARGT_STOP;
+
+	/* Check arguments. */
+	MAY_LJMP(hlua_lua2arg_check(L, 1, args, f->f->arg_mask));
+
+	/* Run the special args cehcker. */
+	if (!f->f->val_args(args, NULL)) {
+		lua_pushfstring(L, "error in arguments");
+		WILL_LJMP(lua_error(L));
+	}
+
+	/* Initialise the sample. */
+	memset(&smp, 0, sizeof(smp));
+
+	/* Run the sample fetch process. */
+	if (!f->f->process(s->p, s->s, s->l7, 0, args, &smp, f->f->kw, f->f->private)) {
+		lua_pushnil(L);
+		return 1;
+	}
+
+	/* Convert the returned sample in lua value. */
+	hlua_smp2lua(L, &smp);
+	return 1;
+}
+
 /* This function is used as a calback of a task. It is called by the
  * HAProxy task subsystem when the task is awaked. The LUA runtime can
  * return an E_AGAIN signal, the emmiter of this signal must set a
@@ -1057,6 +1111,10 @@ int hlua_post_init()
 void hlua_init(void)
 {
 	int i;
+	int idx;
+	struct sample_fetch *sf;
+	struct hlua_sample_fetch *hsf;
+	char *p;
 
 	/* Initialise com signals pool session. */
 	pool2_hlua_com = create_pool("hlua_com", sizeof(struct hlua_com), MEM_F_SHARED);
@@ -1127,6 +1185,37 @@ void hlua_init(void)
 	/* Create and fille the __index entry. */
 	lua_pushstring(gL.T, "__index");
 	lua_newtable(gL.T);
+
+	/* Browse existing fetches and create the associated
+	 * object method.
+	 */
+	sf = NULL;
+	while ((sf = sample_fetch_getnext(sf, &idx)) != NULL) {
+
+		/* Dont register the keywork if the arguments check function are
+		 * not safe during the runtime.
+		 */
+		if ((sf->val_args != NULL) &&
+		    (sf->val_args != val_payload_lv) &&
+			 (sf->val_args != val_hdr))
+			continue;
+
+		/* gL.Tua doesn't support '.' and '-' in the function names, replace it
+		 * by an underscore.
+		 */
+		strncpy(trash.str, sf->kw, trash.size);
+		trash.str[trash.size - 1] = '\0';
+		for (p = trash.str; *p; p++)
+			if (*p == '.' || *p == '-' || *p == '+')
+				*p = '_';
+
+		/* Register the function. */
+		lua_pushstring(gL.T, trash.str);
+		hsf = lua_newuserdata(gL.T, sizeof(struct hlua_sample_fetch));
+		hsf->f = sf;
+		lua_pushcclosure(gL.T, hlua_run_sample_fetch, 1);
+		lua_settable(gL.T, -3);
+	}
 
 	/* Register Lua functions. */
 	hlua_class_function(gL.T, "set_priv",    hlua_setpriv);
