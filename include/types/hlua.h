@@ -61,6 +61,17 @@ struct hlua_function {
 	int function_ref;
 };
 
+/* This struct is used with the structs:
+ *  - http_req_rule
+ *  - http_res_rule
+ *  - tcp_rule
+ * It contains the lua execution configuration.
+ */
+struct hlua_rule {
+	struct hlua_function fcn;
+	char **args;
+};
+
 /* This struct contains the pointer provided on the most
  * of internal HAProxy calls during the processing of
  * rules, converters and sample-fetches. This struct is

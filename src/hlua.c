@@ -14,6 +14,7 @@
 #include <proto/hdr_idx.h>
 #include <proto/payload.h>
 #include <proto/proto_http.h>
+#include <proto/proto_tcp.h>
 #include <proto/sample.h>
 #include <proto/task.h>
 
@@ -1383,6 +1384,228 @@ __LJMP static int hlua_register_fetches(lua_State *L)
 	return 0;
 }
 
+/* global {tcp|http}-request parser. Return 1 in succes case, else return 0. */
+static int hlua_parse_rule(const char **args, int *cur_arg, struct proxy *px,
+                           struct hlua_rule **rule_p, char **err)
+{
+	struct hlua_rule *rule;
+
+	/* Memory for the rule. */
+	rule = malloc(sizeof(*rule));
+	if (!rule) {
+		memprintf(err, "out of memory error");
+		return 0;
+	}
+	*rule_p = rule;
+
+	/* The requiered arg is a function name. */
+	if (!args[*cur_arg]) {
+		memprintf(err, "expect Lua function name");
+		return 0;
+	}
+
+	/* Lookup for the symbol, and check if it is a function. */
+	lua_getglobal(gL.T, args[*cur_arg]);
+	if (lua_isnil(gL.T, -1)) {
+		lua_pop(gL.T, 1);
+		memprintf(err, "Lua function '%s' not found", args[*cur_arg]);
+		return 0;
+	}
+	if (!lua_isfunction(gL.T, -1)) {
+		lua_pop(gL.T, 1);
+		memprintf(err, "'%s' is not a function",  args[*cur_arg]);
+		return 0;
+	}
+
+	/* Reference the Lua function and store the reference. */
+	rule->fcn.function_ref = luaL_ref(gL.T, LUA_REGISTRYINDEX);
+	rule->fcn.name = strdup(args[*cur_arg]);
+	if (!rule->fcn.name) {
+		memprintf(err, "out of memory error.");
+		return 0;
+	}
+	(*cur_arg)++;
+
+	/* TODO: later accept arguments. */
+	rule->args = NULL;
+
+	return 1;
+}
+
+/* This function is a wrapper to execute each LUA function declared
+ * as an action wrapper during the initialisation period. This function
+ * return 1 if the processing is finished (with oe without error) and
+ * return 0 if the function must be called again because the LUA
+ * returns a yield.
+ */
+static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
+                                    struct session *s, struct http_txn *http_txn,
+                                    unsigned int analyzer)
+{
+	char **arg;
+
+	/* If it is the first run, initialize the data for the call. */
+	if (s->hlua.state == HLUA_STOP) {
+		/* Check stack available size. */
+		if (!lua_checkstack(s->hlua.T, 1)) {
+			send_log(px, LOG_ERR, "Lua function '%s': full stack.", rule->fcn.name);
+			if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+				Alert("Lua function '%s': full stack.\n", rule->fcn.name);
+			return 0;
+		}
+
+		/* Restore the function in the stack. */
+		lua_rawgeti(s->hlua.T, LUA_REGISTRYINDEX, rule->fcn.function_ref);
+
+		/* Create and and push object session in the stack. */
+		if (!hlua_txn_new(s->hlua.T, s, px, http_txn)) {
+			send_log(px, LOG_ERR, "Lua function '%s': full stack.", rule->fcn.name);
+			if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+				Alert("Lua function '%s': full stack.\n", rule->fcn.name);
+			return 0;
+		}
+		s->hlua.nargs = 1;
+
+		/* push keywords in the stack. */
+		for (arg = rule->args; arg && *arg; arg++) {
+			if (!lua_checkstack(s->hlua.T, 1)) {
+				send_log(px, LOG_ERR, "Lua function '%s': full stack.", rule->fcn.name);
+				if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+					Alert("Lua function '%s': full stack.\n", rule->fcn.name);
+				return 0;
+			}
+			lua_pushstring(s->hlua.T, *arg);
+			s->hlua.nargs++;
+		}
+
+		/* Set the currently running flag. */
+		s->hlua.state = HLUA_RUN;
+	}
+
+	/* Execute the function. */
+	switch (hlua_ctx_resume(&s->hlua, 1)) {
+	/* finished. */
+	case HLUA_E_OK:
+		return 1;
+
+	/* yield. */
+	case HLUA_E_AGAIN:
+		/* Some actions can be wake up when a "write" event
+		 * is detected on a response channel. This is useful
+		 * only for actions targetted on the requests.
+		 */
+		if (analyzer & (AN_REQ_INSPECT_FE|AN_REQ_HTTP_PROCESS_FE)) {
+			s->rep->flags |= CF_WAKE_WRITE;
+			s->rep->analysers |= analyzer;
+		}
+		return 0;
+
+	/* finished with error. */
+	case HLUA_E_ERRMSG:
+		/* Display log. */
+		send_log(px, LOG_ERR, "Lua function '%s': %s.", rule->fcn.name, lua_tostring(s->hlua.T, -1));
+		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+			Alert("Lua function '%s': %s.\n", rule->fcn.name, lua_tostring(s->hlua.T, -1));
+		lua_pop(s->hlua.T, 1);
+		return 1;
+
+	case HLUA_E_ERR:
+		/* Display log. */
+		send_log(px, LOG_ERR, "Lua function '%s' return an unknown error.", rule->fcn.name);
+		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+			Alert("Lua function '%s' return an unknown error.\n", rule->fcn.name);
+
+	default:
+		return 1;
+	}
+}
+
+/* Lua execution wrapper for "tcp-request". This function uses
+ * "hlua_request_act_wrapper" for executing the LUA code.
+ */
+int hlua_tcp_req_act_wrapper(struct tcp_rule *tcp_rule, struct proxy *px,
+                             struct session *s)
+{
+	return hlua_request_act_wrapper((struct hlua_rule *)tcp_rule->act_prm.data,
+	                                px, s, NULL, AN_REQ_INSPECT_FE);
+}
+
+/* Lua execution wrapper for "tcp-response". This function uses
+ * "hlua_request_act_wrapper" for executing the LUA code.
+ */
+int hlua_tcp_res_act_wrapper(struct tcp_rule *tcp_rule, struct proxy *px,
+                             struct session *s)
+{
+	return hlua_request_act_wrapper((struct hlua_rule *)tcp_rule->act_prm.data,
+	                                px, s, NULL, AN_RES_INSPECT);
+}
+
+/* Lua execution wrapper for http-request.
+ * This function uses "hlua_request_act_wrapper" for executing
+ * the LUA code.
+ */
+int hlua_http_req_act_wrapper(struct http_req_rule *rule, struct proxy *px,
+                              struct session *s, struct http_txn *http_txn)
+{
+	return hlua_request_act_wrapper((struct hlua_rule *)rule->arg.data, px,
+	                                s, http_txn, AN_REQ_HTTP_PROCESS_FE);
+}
+
+/* Lua execution wrapper for http-response.
+ * This function uses "hlua_request_act_wrapper" for executing
+ * the LUA code.
+ */
+int hlua_http_res_act_wrapper(struct http_res_rule *rule, struct proxy *px,
+                              struct session *s, struct http_txn *http_txn)
+{
+	return hlua_request_act_wrapper((struct hlua_rule *)rule->arg.data, px,
+	                                s, http_txn, AN_RES_HTTP_PROCESS_BE);
+}
+
+/* tcp-request <*> configuration wrapper. */
+static int tcp_req_action_register_lua(const char **args, int *cur_arg, struct proxy *px,
+                                       struct tcp_rule *rule, char **err)
+{
+	if (!hlua_parse_rule(args, cur_arg, px, (struct hlua_rule **)&rule->act_prm.data, err))
+		return -1;
+	rule->action = TCP_ACT_CUSTOM;
+	rule->action_ptr = hlua_tcp_req_act_wrapper;
+	return 1;
+}
+
+/* tcp-response <*> configuration wrapper. */
+static int tcp_res_action_register_lua(const char **args, int *cur_arg, struct proxy *px,
+                                       struct tcp_rule *rule, char **err)
+{
+	if (!hlua_parse_rule(args, cur_arg, px, (struct hlua_rule **)&rule->act_prm.data, err))
+		return -1;
+	rule->action = TCP_ACT_CUSTOM;
+	rule->action_ptr = hlua_tcp_res_act_wrapper;
+	return 1;
+}
+
+/* http-request <*> configuration wrapper. */
+static int http_req_action_register_lua(const char **args, int *cur_arg, struct proxy *px,
+                                        struct http_req_rule *rule, char **err)
+{
+	if (!hlua_parse_rule(args, cur_arg, px, (struct hlua_rule **)&rule->arg.data, err))
+		return -1;
+	rule->action = HTTP_REQ_ACT_CUSTOM_CONT;
+	rule->action_ptr = hlua_http_req_act_wrapper;
+	return 1;
+}
+
+/* http-response <*> configuration wrapper. */
+static int http_res_action_register_lua(const char **args, int *cur_arg, struct proxy *px,
+                                        struct http_res_rule *rule, char **err)
+{
+	if (!hlua_parse_rule(args, cur_arg, px, (struct hlua_rule **)&rule->arg.data, err))
+		return -1;
+	rule->action = HTTP_RES_ACT_CUSTOM_CONT;
+	rule->action_ptr = hlua_http_res_act_wrapper;
+	return 1;
+}
+
 /* This function is called by the main configuration key "lua-load". It loads and
  * execute an lua file during the parsing of the HAProxy configuration file. It is
  * the main lua entry point.
@@ -1442,6 +1665,26 @@ static struct cfg_kw_list cfg_kws = {{ },{
 	{ 0, NULL, NULL },
 }};
 
+static struct http_req_action_kw_list http_req_kws = {"lua", { }, {
+	{ "lua", http_req_action_register_lua },
+	{ NULL, NULL }
+}};
+
+static struct http_res_action_kw_list http_res_kws = {"lua", { }, {
+	{ "lua", http_res_action_register_lua },
+	{ NULL, NULL }
+}};
+
+static struct tcp_action_kw_list tcp_req_cont_kws = {"lua", { }, {
+	{ "lua", tcp_req_action_register_lua },
+	{ NULL, NULL }
+}};
+
+static struct tcp_action_kw_list tcp_res_cont_kws = {"lua", { }, {
+	{ "lua", tcp_res_action_register_lua },
+	{ NULL, NULL }
+}};
+
 int hlua_post_init()
 {
 	struct hlua_init_function *init;
@@ -1484,6 +1727,12 @@ void hlua_init(void)
 
 	/* Register configuration keywords. */
 	cfg_register_keywords(&cfg_kws);
+
+	/* Register custom HTTP rules. */
+	http_req_keywords_register(&http_req_kws);
+	http_res_keywords_register(&http_res_kws);
+	tcp_req_cont_keywords_register(&tcp_req_cont_kws);
+	tcp_res_cont_keywords_register(&tcp_res_cont_kws);
 
 	/* Init main lua stack. */
 	gL.Mref = LUA_REFNIL;
