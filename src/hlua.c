@@ -2491,6 +2491,30 @@ static int hlua_msleep(lua_State *L)
 	return MAY_LJMP(_hlua_sleep(L, delay));
 }
 
+/* This function change the nice of the currently executed
+ * task. It is used set low or high priority at the current
+ * task.
+ */
+__LJMP static int hlua_setnice(lua_State *L)
+{
+	MAY_LJMP(check_args(L, 1, "set_nice"));
+
+	struct hlua *hlua = hlua_gethlua(L);
+	int nice = MAY_LJMP(luaL_checkinteger(L, 1));
+
+	/* If he task is not set, I'm in a start mode. */
+	if (!hlua || !hlua->task)
+		return 0;
+
+	if (nice < -1024)
+		nice = -1024;
+	if (nice > 1024)
+		nice = 1024;
+
+	hlua->task->nice = nice;
+	return 0;
+}
+
 /* This function is used as a calback of a task. It is called by the
  * HAProxy task subsystem when the task is awaked. The LUA runtime can
  * return an E_AGAIN signal, the emmiter of this signal must set a
@@ -3301,6 +3325,7 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "register_task", hlua_register_task);
 	hlua_class_function(gL.T, "register_fetches", hlua_register_fetches);
 	hlua_class_function(gL.T, "register_converters", hlua_register_converters);
+	hlua_class_function(gL.T, "set_nice", hlua_setnice);
 	hlua_class_function(gL.T, "sleep", hlua_sleep);
 	hlua_class_function(gL.T, "msleep", hlua_msleep);
 	hlua_class_function(gL.T, "add_acl", hlua_add_acl);
