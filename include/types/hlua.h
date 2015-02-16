@@ -4,6 +4,9 @@
 #include <lua.h>
 
 #define CLASS_CORE     "Core"
+#define CLASS_TXN      "TXN"
+
+struct session;
 
 enum hlua_state {
 	HLUA_STOP = 0,
@@ -47,6 +50,17 @@ struct hlua_com {
 struct hlua_init_function {
 	struct list l;
 	int function_ref;
+};
+
+/* This struct contains the pointer provided on the most
+ * of internal HAProxy calls during the processing of
+ * rules, converters and sample-fetches. This struct is
+ * associated with the lua object called "TXN".
+ */
+struct hlua_txn {
+	struct session *s;
+	struct proxy *p;
+	void *l7;
 };
 
 #endif /* _TYPES_HLUA_H */

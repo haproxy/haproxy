@@ -33,6 +33,9 @@
 #include <proto/freq_ctr.h>
 #include <proto/frontend.h>
 #include <proto/hdr_idx.h>
+#ifdef USE_LUA
+#include <proto/hlua.h>
+#endif
 #include <proto/listener.h>
 #include <proto/log.h>
 #include <proto/raw_sock.h>
@@ -541,6 +544,11 @@ int session_complete(struct session *s)
 	txn->req.chn = s->req;
 	txn->rsp.chn = s->rep;
 
+#ifdef USE_LUA
+	if (!hlua_ctx_init(&s->hlua, s->task))
+		goto out_free_rep;
+#endif
+
 	/* finish initialization of the accepted file descriptor */
 	conn_data_want_recv(conn);
 
@@ -549,7 +557,7 @@ int session_complete(struct session *s)
 		 * finished (=0, eg: monitoring), in both situations,
 		 * we can release everything and close.
 		 */
-		goto out_free_rep;
+		goto out_free_lua;
 	}
 
 	/* if logs require transport layer information, note it on the connection */
@@ -567,6 +575,11 @@ int session_complete(struct session *s)
 	return 1;
 
 	/* Error unrolling */
+ out_free_lua:
+#ifdef USE_LUA
+	hlua_ctx_destroy(&s->hlua);
+#endif
+
  out_free_rep:
 	pool_free2(pool2_channel, s->rep);
  out_free_req:
@@ -627,6 +640,10 @@ static void session_free(struct session *s)
 	b_drop(&s->rep->buf);
 	if (!LIST_ISEMPTY(&buffer_wq))
 		session_offer_buffers();
+
+#ifdef USE_LUA
+	hlua_ctx_destroy(&s->hlua);
+#endif
 
 	pool_free2(pool2_channel, s->req);
 	pool_free2(pool2_channel, s->rep);

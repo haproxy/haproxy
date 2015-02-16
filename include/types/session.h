@@ -34,6 +34,9 @@
 #include <types/channel.h>
 #include <types/compression.h>
 
+#ifdef USE_LUA
+#include <types/hlua.h>
+#endif
 #include <types/obj_type.h>
 #include <types/proto_http.h>
 #include <types/proxy.h>
@@ -160,6 +163,10 @@ struct session {
 	/* These two pointers are used to resume the execution of the rule lists. */
 	struct list *current_rule_list;		/* this is used to store the current executed rule list. */
 	struct list *current_rule;		/* this is used to store the current rule to be resumed. */
+
+#ifdef USE_LUA
+	struct hlua hlua;			/* lua runtime context */
+#endif
 };
 
 #endif /* _TYPES_SESSION_H */

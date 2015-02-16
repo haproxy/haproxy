@@ -7,6 +7,7 @@
 #include <common/cfgparse.h>
 
 #include <types/hlua.h>
+#include <types/proto_tcp.h>
 #include <types/proxy.h>
 
 #include <proto/arg.h>
@@ -45,6 +46,7 @@ struct eb_root hlua_ctx = EB_ROOT_UNIQUE;
  * associated with an object.
  */
 static int class_core_ref;
+static int class_txn_ref;
 
 /* These functions converts types between HAProxy internal args or
  * sample and LUA types. Another function permits to check if the
@@ -675,6 +677,141 @@ static enum hlua_exec hlua_ctx_resume(struct hlua *lua, int yield_allowed)
 	return ret;
 }
 
+/* A class is a lot of memory that contain data. This data can be a table,
+ * an integer or user data. This data is associated with a metatable. This
+ * metatable have an original version registred in the global context with
+ * the name of the object (_G[<name>] = <metable> ).
+ *
+ * A metable is a table that modify the standard behavior of a standard
+ * access to the associated data. The entries of this new metatable are
+ * defined as is:
+ *
+ * http://lua-users.org/wiki/MetatableEvents
+ *
+ *    __index
+ *
+ * we access an absent field in a table, the result is nil. This is
+ * true, but it is not the whole truth. Actually, such access triggers
+ * the interpreter to look for an __index metamethod: If there is no
+ * such method, as usually happens, then the access results in nil;
+ * otherwise, the metamethod will provide the result.
+ *
+ * Control 'prototype' inheritance. When accessing "myTable[key]" and
+ * the key does not appear in the table, but the metatable has an __index
+ * property:
+ *
+ * - if the value is a function, the function is called, passing in the
+ *   table and the key; the return value of that function is returned as
+ *   the result.
+ *
+ * - if the value is another table, the value of the key in that table is
+ *   asked for and returned (and if it doesn't exist in that table, but that
+ *   table's metatable has an __index property, then it continues on up)
+ *
+ * - Use "rawget(myTable,key)" to skip this metamethod.
+ *
+ * http://www.lua.org/pil/13.4.1.html
+ *
+ *    __newindex
+ *
+ * Like __index, but control property assignment.
+ *
+ *    __mode - Control weak references. A string value with one or both
+ *             of the characters 'k' and 'v' which specifies that the the
+ *             keys and/or values in the table are weak references.
+ *
+ *    __call - Treat a table like a function. When a table is followed by
+ *             parenthesis such as "myTable( 'foo' )" and the metatable has
+ *             a __call key pointing to a function, that function is invoked
+ *             (passing any specified arguments) and the return value is
+ *             returned.
+ *
+ *    __metatable - Hide the metatable. When "getmetatable( myTable )" is
+ *                  called, if the metatable for myTable has a __metatable
+ *                  key, the value of that key is returned instead of the
+ *                  actual metatable.
+ *
+ *    __tostring - Control string representation. When the builtin
+ *                 "tostring( myTable )" function is called, if the metatable
+ *                 for myTable has a __tostring property set to a function,
+ *                 that function is invoked (passing myTable to it) and the
+ *                 return value is used as the string representation.
+ *
+ *    __len - Control table length. When the table length is requested using
+ *            the length operator ( '#' ), if the metatable for myTable has
+ *            a __len key pointing to a function, that function is invoked
+ *            (passing myTable to it) and the return value used as the value
+ *            of "#myTable".
+ *
+ *    __gc - Userdata finalizer code. When userdata is set to be garbage
+ *           collected, if the metatable has a __gc field pointing to a
+ *           function, that function is first invoked, passing the userdata
+ *           to it. The __gc metamethod is not called for tables.
+ *           (See http://lua-users.org/lists/lua-l/2006-11/msg00508.html)
+ *
+ * Special metamethods for redefining standard operators:
+ * http://www.lua.org/pil/13.1.html
+ *
+ *    __add    "+"
+ *    __sub    "-"
+ *    __mul    "*"
+ *    __div    "/"
+ *    __unm    "!"
+ *    __pow    "^"
+ *    __concat ".."
+ *
+ * Special methods for redfining standar relations
+ * http://www.lua.org/pil/13.2.html
+ *
+ *    __eq "=="
+ *    __lt "<"
+ *    __le "<="
+ */
+
+/*
+ *
+ *
+ * Class TXN
+ *
+ *
+ */
+
+/* Returns a struct hlua_session if the stack entry "ud" is
+ * a class session, otherwise it throws an error.
+ */
+__LJMP static struct hlua_txn *hlua_checktxn(lua_State *L, int ud)
+{
+	return (struct hlua_txn *)MAY_LJMP(hlua_checkudata(L, ud, class_txn_ref));
+}
+
+/* Create stack entry containing a class TXN. This function
+ * return 0 if the stack does not contains free slots,
+ * otherwise it returns 1.
+ */
+static int hlua_txn_new(lua_State *L, struct session *s, struct proxy *p, void *l7)
+{
+	struct hlua_txn *hs;
+
+	/* Check stack size. */
+	if (!lua_checkstack(L, 2))
+		return 0;
+
+	/* NOTE: The allocation never fails. The failure
+	 * throw an error, and the function never returns.
+	 * if the throw is not avalaible, the process is aborted.
+	 */
+	hs = lua_newuserdata(L, sizeof(struct hlua_txn));
+	hs->s = s;
+	hs->p = p;
+	hs->l7 = l7;
+
+	/* Pop a class sesison metatable and affect it to the userdata. */
+	lua_rawgeti(L, LUA_REGISTRYINDEX, class_txn_ref);
+	lua_setmetatable(L, -2);
+
+	return 1;
+}
+
 /* This function is used as a calback of a task. It is called by the
  * HAProxy task subsystem when the task is awaked. The LUA runtime can
  * return an E_AGAIN signal, the emmiter of this signal must set a
@@ -940,4 +1077,24 @@ void hlua_init(void)
 	/* Create new object with class Core. */
 	lua_setmetatable(gL.T, -2);
 	lua_setglobal(gL.T, "core");
+
+	/*
+	 *
+	 * Register class TXN
+	 *
+	 */
+
+	/* Create and fill the metatable. */
+	lua_newtable(gL.T);
+
+	/* Create and fille the __index entry. */
+	lua_pushstring(gL.T, "__index");
+	lua_newtable(gL.T);
+
+	lua_settable(gL.T, -3);
+
+	/* Register previous table in the registry with reference and named entry. */
+	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
+	lua_setfield(gL.T, LUA_REGISTRYINDEX, CLASS_TXN); /* register class session. */
+	class_txn_ref = luaL_ref(gL.T, LUA_REGISTRYINDEX); /* reference class session. */
 }
