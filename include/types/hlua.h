@@ -52,6 +52,15 @@ struct hlua_init_function {
 	int function_ref;
 };
 
+/* This struct contains the lua data used to bind
+ * Lua function on HAProxy hook like sample-fetches
+ * or actions.
+ */
+struct hlua_function {
+	char *name;
+	int function_ref;
+};
+
 /* This struct contains the pointer provided on the most
  * of internal HAProxy calls during the processing of
  * rules, converters and sample-fetches. This struct is

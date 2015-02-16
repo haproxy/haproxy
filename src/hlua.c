@@ -1080,6 +1080,162 @@ static int hlua_register_task(lua_State *L)
 	return 0;
 }
 
+/* Wrapper called by HAProxy to execute a sample-fetch. this wrapper
+ * doesn't allow "yield" functions because the HAProxy engine cannot
+ * resume sample-fetches.
+ */
+static int hlua_sample_fetch_wrapper(struct proxy *px, struct session *s, void *l7,
+                                     unsigned int opt, const struct arg *arg_p,
+                                     struct sample *smp, const char *kw, void *private)
+{
+	struct hlua_function *fcn = (struct hlua_function *)private;
+
+	/* If it is the first run, initialize the data for the call. */
+	if (s->hlua.state == HLUA_STOP) {
+		/* Check stack available size. */
+		if (!lua_checkstack(s->hlua.T, 2)) {
+			send_log(px, LOG_ERR, "Lua sample-fetch '%s': full stack.", fcn->name);
+			if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+				Alert("Lua sample-fetch '%s': full stack.\n", fcn->name);
+			return 0;
+		}
+
+		/* Restore the function in the stack. */
+		lua_rawgeti(s->hlua.T, LUA_REGISTRYINDEX, fcn->function_ref);
+
+		/* push arguments in the stack. */
+		if (!hlua_txn_new(s->hlua.T, s, px, l7)) {
+			send_log(px, LOG_ERR, "Lua sample-fetch '%s': full stack.", fcn->name);
+			if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+				Alert("Lua sample-fetch '%s': full stack.\n", fcn->name);
+			return 0;
+		}
+		s->hlua.nargs = 1;
+
+		/* push keywords in the stack. */
+		for (; arg_p && arg_p->type != ARGT_STOP; arg_p++) {
+			/* Check stack available size. */
+			if (!lua_checkstack(s->hlua.T, 1)) {
+				send_log(px, LOG_ERR, "Lua sample-fetch '%s': full stack.", fcn->name);
+				if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+					Alert("Lua sample-fetch '%s': full stack.\n", fcn->name);
+				return 0;
+			}
+			if (!lua_checkstack(s->hlua.T, 1)) {
+				send_log(px, LOG_ERR, "Lua sample-fetch '%s': full stack.", fcn->name);
+				if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+					Alert("Lua sample-fetch '%s': full stack.\n", fcn->name);
+				return 0;
+			}
+			hlua_arg2lua(s->hlua.T, arg_p);
+			s->hlua.nargs++;
+		}
+
+		/* Set the currently running flag. */
+		s->hlua.state = HLUA_RUN;
+	}
+
+	/* Execute the function. */
+	switch (hlua_ctx_resume(&s->hlua, 0)) {
+	/* finished. */
+	case HLUA_E_OK:
+		/* Convert the returned value in sample. */
+		hlua_lua2smp(s->hlua.T, -1, smp);
+		lua_pop(s->hlua.T, 1);
+
+		/* Set the end of execution flag. */
+		smp->flags &= ~SMP_F_MAY_CHANGE;
+		return 1;
+
+	/* yield. */
+	case HLUA_E_AGAIN:
+		send_log(px, LOG_ERR, "Lua sample-fetch '%s': cannot use yielded functions.", fcn->name);
+		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+			Alert("Lua sample-fetch '%s': cannot use yielded functions.\n", fcn->name);
+		return 0;
+
+	/* finished with error. */
+	case HLUA_E_ERRMSG:
+		/* Display log. */
+		send_log(px, LOG_ERR, "Lua sample-fetch '%s': %s.", fcn->name, lua_tostring(s->hlua.T, -1));
+		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+			Alert("Lua sample-fetch '%s': %s.\n", fcn->name, lua_tostring(s->hlua.T, -1));
+		lua_pop(s->hlua.T, 1);
+		return 0;
+
+	case HLUA_E_ERR:
+		/* Display log. */
+		send_log(px, LOG_ERR, "Lua sample-fetch '%s' returns an unknown error.", fcn->name);
+		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+			Alert("Lua sample-fetch '%s': returns an unknown error.\n", fcn->name);
+
+	default:
+		return 0;
+	}
+}
+
+/* This fucntion is an LUA binding used for registering
+ * "sample-fetch" functions. It expects a converter name used
+ * in the haproxy configuration file, and an LUA function.
+ */
+__LJMP static int hlua_register_fetches(lua_State *L)
+{
+	const char *name;
+	int ref;
+	int len;
+	struct sample_fetch_kw_list *sfk;
+	struct hlua_function *fcn;
+
+	MAY_LJMP(check_args(L, 2, "register_fetches"));
+
+	/* First argument : sample-fetch name. */
+	name = MAY_LJMP(luaL_checkstring(L, 1));
+
+	/* Second argument : lua function. */
+	ref = MAY_LJMP(hlua_checkfunction(L, 2));
+
+	/* Allocate and fill the sample fetch keyword struct. */
+	sfk = malloc(sizeof(struct sample_fetch_kw_list) +
+	             sizeof(struct sample_fetch) * 2);
+	if (!sfk)
+		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+	fcn = malloc(sizeof(*fcn));
+	if (!fcn)
+		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+
+	/* Fill fcn. */
+	fcn->name = strdup(name);
+	if (!fcn->name)
+		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+	fcn->function_ref = ref;
+
+	/* List head */
+	sfk->list.n = sfk->list.p = NULL;
+
+	/* sample-fetch keyword. */
+	len = strlen("lua.") + strlen(name) + 1;
+	sfk->kw[0].kw = malloc(len);
+	if (!sfk->kw[0].kw)
+		return luaL_error(L, "lua out of memory error.");
+
+	snprintf((char *)sfk->kw[0].kw, len, "lua.%s", name);
+	sfk->kw[0].process = hlua_sample_fetch_wrapper;
+	sfk->kw[0].arg_mask = ARG5(0,STR,STR,STR,STR,STR);
+	sfk->kw[0].val_args = NULL;
+	sfk->kw[0].out_type = SMP_T_STR;
+	sfk->kw[0].use = SMP_USE_HTTP_ANY;
+	sfk->kw[0].val = 0;
+	sfk->kw[0].private = fcn;
+
+	/* End of array. */
+	memset(&sfk->kw[1], 0, sizeof(struct sample_fetch));
+
+	/* Register this new fetch. */
+	sample_register_fetches(sfk);
+
+	return 0;
+}
+
 /* This function is called by the main configuration key "lua-load". It loads and
  * execute an lua file during the parsing of the HAProxy configuration file. It is
  * the main lua entry point.
@@ -1217,6 +1373,7 @@ void hlua_init(void)
 	/* Register special functions. */
 	hlua_class_function(gL.T, "register_init", hlua_register_init);
 	hlua_class_function(gL.T, "register_task", hlua_register_task);
+	hlua_class_function(gL.T, "register_fetches", hlua_register_fetches);
 
 	/* Store the table __index in the metable. */
 	lua_settable(gL.T, -3);
