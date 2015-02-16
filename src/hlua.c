@@ -11,6 +11,7 @@
 #include <types/proxy.h>
 
 #include <proto/arg.h>
+#include <proto/hdr_idx.h>
 #include <proto/payload.h>
 #include <proto/proto_http.h>
 #include <proto/sample.h>
@@ -903,6 +904,65 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 	return 1;
 }
 
+/* This function is an LUA binding. It creates ans returns
+ * an array of HTTP headers. This function does not fails.
+ */
+static int hlua_session_getheaders(lua_State *L)
+{
+	struct hlua_txn *s = MAY_LJMP(hlua_checktxn(L, 1));
+	struct session *sess = s->s;
+	const char *cur_ptr, *cur_next, *p;
+	int old_idx, cur_idx;
+	struct hdr_idx_elem *cur_hdr;
+	const char *hn, *hv;
+	int hnl, hvl;
+
+	/* Create the table. */
+	lua_newtable(L);
+
+	/* Build array of headers. */
+	old_idx = 0;
+	cur_next = sess->req->buf->p + hdr_idx_first_pos(&sess->txn.hdr_idx);
+
+	while (1) {
+		cur_idx = sess->txn.hdr_idx.v[old_idx].next;
+		if (!cur_idx)
+			break;
+		old_idx = cur_idx;
+
+		cur_hdr  = &sess->txn.hdr_idx.v[cur_idx];
+		cur_ptr  = cur_next;
+		cur_next = cur_ptr + cur_hdr->len + cur_hdr->cr + 1;
+
+		/* Now we have one full header at cur_ptr of len cur_hdr->len,
+		 * and the next header starts at cur_next. We'll check
+		 * this header in the list as well as against the default
+		 * rule.
+		 */
+
+		/* look for ': *'. */
+		hn = cur_ptr;
+		for (p = cur_ptr; p < cur_ptr + cur_hdr->len && *p != ':'; p++);
+		if (p >= cur_ptr+cur_hdr->len)
+			continue;
+		hnl = p - hn;
+		p++;
+		while (p < cur_ptr+cur_hdr->len && ( *p == ' ' || *p == '\t' ))
+			p++;
+		if (p >= cur_ptr+cur_hdr->len)
+			continue;
+		hv = p;
+		hvl = cur_ptr+cur_hdr->len-p;
+
+		/* Push values in the table. */
+		lua_pushlstring(L, hn, hnl);
+		lua_pushlstring(L, hv, hvl);
+		lua_settable(L, -3);
+	}
+
+	return 1;
+}
+
 /* This function is used as a calback of a task. It is called by the
  * HAProxy task subsystem when the task is awaked. The LUA runtime can
  * return an E_AGAIN signal, the emmiter of this signal must set a
@@ -1218,6 +1278,7 @@ void hlua_init(void)
 	}
 
 	/* Register Lua functions. */
+	hlua_class_function(gL.T, "get_headers", hlua_session_getheaders);
 	hlua_class_function(gL.T, "set_priv",    hlua_setpriv);
 	hlua_class_function(gL.T, "get_priv",    hlua_getpriv);
 
