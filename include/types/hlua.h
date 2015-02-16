@@ -93,4 +93,11 @@ struct hlua_sample_fetch {
 	struct sample_fetch *f;
 };
 
+/* This struct contains data used with sleep functions. */
+struct hlua_sleep {
+	struct task *task; /* task associated with sleep. */
+	struct list com; /* list of signal to wake at the end of sleep. */
+	unsigned int wakeup_ms; /* hour to wakeup. */
+};
+
 #endif /* _TYPES_HLUA_H */

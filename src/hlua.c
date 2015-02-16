@@ -36,6 +36,7 @@ struct hlua gL;
  * struct are used to store each requiered signal between two tasks.
  */
 struct pool_head *pool2_hlua_com;
+struct pool_head *pool2_hlua_sleep;
 
 /* List head of the function called at the initialisation time. */
 struct list hlua_init_functions = LIST_HEAD_INIT(hlua_init_functions);
@@ -964,6 +965,102 @@ static int hlua_session_getheaders(lua_State *L)
 	return 1;
 }
 
+static struct task *hlua_sleep_process_task(struct task *task)
+{
+	struct hlua_sleep *t = task->context;
+
+	/* Check time and got to sleep a little bit more if the
+	 * expires is not come.
+	 */
+	if (now_ms < t->wakeup_ms) {
+		task_schedule(t->task, t->wakeup_ms);
+		return NULL;
+	}
+
+	/* Wake associated signals. */
+	hlua_com_wake(&t->com);
+
+	/* Delete task. */
+	task_delete(task); /* The task may remain in the wait queue. */
+	task_free(task);
+	pool_free2(pool2_hlua_sleep, t);
+
+	return NULL;
+}
+
+__LJMP static int hlua_sleep_yield(lua_State *L)
+{
+	int wakeup_ms = lua_tointeger(L, -1);
+	if (now_ms < wakeup_ms)
+		WILL_LJMP(lua_yieldk(L, 0, 0, hlua_sleep_yield));
+	return 0;
+}
+
+__LJMP static inline int _hlua_sleep(lua_State *L, int delay)
+{
+	struct hlua_sleep *t;
+	struct hlua *hlua = hlua_gethlua(L);
+
+	/* If hlua is not set, I'm in start mode. I can run
+	 * a blocking sleep.
+	 */
+	if (!hlua || !hlua->task) {
+		usleep(delay * 1000);
+		return 0;
+	}
+
+	/* Reserve memory. */
+	t = pool_alloc2(pool2_hlua_sleep);
+	if (!t)
+		WILL_LJMP(luaL_error(L, "lua: out of memory"));
+	t->task = task_new();
+	if (!t->task)
+		WILL_LJMP(luaL_error(L, "lua: out of memory"));
+
+	/* Init and schedule the sleep process. */
+	t->task->process = hlua_sleep_process_task;
+	t->task->context = t;
+	t->wakeup_ms = tick_add(now_ms, delay);
+	task_schedule(t->task, t->wakeup_ms);
+
+	/* Init the signal between the sleep task and the current lua task. */
+	LIST_INIT(&t->com);
+	if (!hlua_com_new(hlua, &t->com))
+		WILL_LJMP(luaL_error(L, "out of memory error"));
+
+	/* Store the wakeup time in the lua stack. */
+	lua_pushinteger(L, t->wakeup_ms);
+
+	WILL_LJMP(lua_yieldk(L, 0, 0, hlua_sleep_yield));
+	return 0;
+}
+
+__LJMP static int hlua_sleep(lua_State *L)
+{
+	unsigned int delay;
+
+	/* Check number of arguments. */
+	if (lua_gettop(L) != 1)
+		WILL_LJMP(luaL_error(L, "sleep: needs 1 argument"));
+
+	delay = MAY_LJMP(luaL_checkunsigned(L, 1)) * 1000;
+
+	return MAY_LJMP(_hlua_sleep(L, delay));
+}
+
+static int hlua_msleep(lua_State *L)
+{
+	unsigned int delay;
+
+	/* Check number of arguments. */
+	if (lua_gettop(L) != 1)
+		WILL_LJMP(luaL_error(L, "sleep: needs 1 argument"));
+
+	delay = MAY_LJMP(luaL_checkunsigned(L, 1));
+
+	return MAY_LJMP(_hlua_sleep(L, delay));
+}
+
 /* This function is used as a calback of a task. It is called by the
  * HAProxy task subsystem when the task is awaked. The LUA runtime can
  * return an E_AGAIN signal, the emmiter of this signal must set a
@@ -1725,6 +1822,9 @@ void hlua_init(void)
 	/* Initialise com signals pool session. */
 	pool2_hlua_com = create_pool("hlua_com", sizeof(struct hlua_com), MEM_F_SHARED);
 
+	/* Initialise sleep pool. */
+	pool2_hlua_sleep = create_pool("hlua_sleep", sizeof(struct hlua_sleep), MEM_F_SHARED);
+
 	/* Register configuration keywords. */
 	cfg_register_keywords(&cfg_kws);
 
@@ -1771,6 +1871,8 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "register_task", hlua_register_task);
 	hlua_class_function(gL.T, "register_fetches", hlua_register_fetches);
 	hlua_class_function(gL.T, "register_converters", hlua_register_converters);
+	hlua_class_function(gL.T, "sleep", hlua_sleep);
+	hlua_class_function(gL.T, "msleep", hlua_msleep);
 
 	/* Store the table __index in the metable. */
 	lua_settable(gL.T, -3);
