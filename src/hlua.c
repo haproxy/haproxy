@@ -1080,6 +1080,92 @@ static int hlua_register_task(lua_State *L)
 	return 0;
 }
 
+/* Wrapper called by HAProxy to execute an LUA converter. This wrapper
+ * doesn't allow "yield" functions because the HAProxy engine cannot
+ * resume converters.
+ */
+static int hlua_sample_conv_wrapper(struct session *session, const struct arg *arg_p,
+                                    struct sample *smp, void *private)
+{
+	struct hlua_function *fcn = (struct hlua_function *)private;
+
+	/* If it is the first run, initialize the data for the call. */
+	if (session->hlua.state == HLUA_STOP) {
+		/* Check stack available size. */
+		if (!lua_checkstack(session->hlua.T, 1)) {
+			send_log(session->be, LOG_ERR, "Lua converter '%s': full stack.", fcn->name);
+			if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+				Alert("Lua converter '%s': full stack.\n", fcn->name);
+			return 0;
+		}
+
+		/* Restore the function in the stack. */
+		lua_rawgeti(session->hlua.T, LUA_REGISTRYINDEX, fcn->function_ref);
+
+		/* convert input sample and pust-it in the stack. */
+		if (!lua_checkstack(session->hlua.T, 1)) {
+			send_log(session->be, LOG_ERR, "Lua converter '%s': full stack.", fcn->name);
+			if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+				Alert("Lua converter '%s': full stack.\n", fcn->name);
+			return 0;
+		}
+		hlua_smp2lua(session->hlua.T, smp);
+		session->hlua.nargs = 2;
+
+		/* push keywords in the stack. */
+		if (arg_p) {
+			for (; arg_p->type != ARGT_STOP; arg_p++) {
+				if (!lua_checkstack(session->hlua.T, 1)) {
+					send_log(session->be, LOG_ERR, "Lua converter '%s': full stack.", fcn->name);
+					if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+						Alert("Lua converter '%s': full stack.\n", fcn->name);
+					return 0;
+				}
+				hlua_arg2lua(session->hlua.T, arg_p);
+				session->hlua.nargs++;
+			}
+		}
+
+		/* Set the currently running flag. */
+		session->hlua.state = HLUA_RUN;
+	}
+
+	/* Execute the function. */
+	switch (hlua_ctx_resume(&session->hlua, 0)) {
+	/* finished. */
+	case HLUA_E_OK:
+		/* Convert the returned value in sample. */
+		hlua_lua2smp(session->hlua.T, -1, smp);
+		lua_pop(session->hlua.T, 1);
+		return 1;
+
+	/* yield. */
+	case HLUA_E_AGAIN:
+		send_log(session->be, LOG_ERR, "Lua converter '%s': cannot use yielded functions.", fcn->name);
+		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+			Alert("Lua converter '%s': cannot use yielded functions.\n", fcn->name);
+		return 0;
+
+	/* finished with error. */
+	case HLUA_E_ERRMSG:
+		/* Display log. */
+		send_log(session->be, LOG_ERR, "Lua converter '%s': %s.", fcn->name, lua_tostring(session->hlua.T, -1));
+		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+			Alert("Lua converter '%s': %s.\n", fcn->name, lua_tostring(session->hlua.T, -1));
+		lua_pop(session->hlua.T, 1);
+		return 0;
+
+	case HLUA_E_ERR:
+		/* Display log. */
+		send_log(session->be, LOG_ERR, "Lua converter '%s' returns an unknown error.", fcn->name);
+		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+			Alert("Lua converter '%s' returns an unknown error.\n", fcn->name);
+
+	default:
+		return 0;
+	}
+}
+
 /* Wrapper called by HAProxy to execute a sample-fetch. this wrapper
  * doesn't allow "yield" functions because the HAProxy engine cannot
  * resume sample-fetches.
@@ -1172,6 +1258,67 @@ static int hlua_sample_fetch_wrapper(struct proxy *px, struct session *s, void *
 	default:
 		return 0;
 	}
+}
+
+/* This function is an LUA binding used for registering
+ * "sample-conv" functions. It expects a converter name used
+ * in the haproxy configuration file, and an LUA function.
+ */
+__LJMP static int hlua_register_converters(lua_State *L)
+{
+	struct sample_conv_kw_list *sck;
+	const char *name;
+	int ref;
+	int len;
+	struct hlua_function *fcn;
+
+	MAY_LJMP(check_args(L, 2, "register_converters"));
+
+	/* First argument : converter name. */
+	name = MAY_LJMP(luaL_checkstring(L, 1));
+
+	/* Second argument : lua function. */
+	ref = MAY_LJMP(hlua_checkfunction(L, 2));
+
+	/* Allocate and fill the sample fetch keyword struct. */
+	sck = malloc(sizeof(struct sample_conv_kw_list) +
+	             sizeof(struct sample_conv) * 2);
+	if (!sck)
+		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+	fcn = malloc(sizeof(*fcn));
+	if (!fcn)
+		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+
+	/* Fill fcn. */
+	fcn->name = strdup(name);
+	if (!fcn->name)
+		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+	fcn->function_ref = ref;
+
+	/* List head */
+	sck->list.n = sck->list.p = NULL;
+
+	/* converter keyword. */
+	len = strlen("lua.") + strlen(name) + 1;
+	sck->kw[0].kw = malloc(len);
+	if (!sck->kw[0].kw)
+		WILL_LJMP(luaL_error(L, "lua out of memory error."));
+
+	snprintf((char *)sck->kw[0].kw, len, "lua.%s", name);
+	sck->kw[0].process = hlua_sample_conv_wrapper;
+	sck->kw[0].arg_mask = ARG5(0,STR,STR,STR,STR,STR);
+	sck->kw[0].val_args = NULL;
+	sck->kw[0].in_type = SMP_T_STR;
+	sck->kw[0].out_type = SMP_T_STR;
+	sck->kw[0].private = fcn;
+
+	/* End of array. */
+	memset(&sck->kw[1], 0, sizeof(struct sample_conv));
+
+	/* Register this new converter */
+	sample_register_convs(sck);
+
+	return 0;
 }
 
 /* This fucntion is an LUA binding used for registering
@@ -1374,6 +1521,7 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "register_init", hlua_register_init);
 	hlua_class_function(gL.T, "register_task", hlua_register_task);
 	hlua_class_function(gL.T, "register_fetches", hlua_register_fetches);
+	hlua_class_function(gL.T, "register_converters", hlua_register_converters);
 
 	/* Store the table __index in the metable. */
 	lua_settable(gL.T, -3);
