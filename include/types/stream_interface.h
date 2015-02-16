@@ -27,6 +27,9 @@
 
 #include <types/channel.h>
 #include <types/connection.h>
+#ifdef USE_LUA
+#include <types/hlua.h>
+#endif
 #include <types/obj_type.h>
 #include <common/config.h>
 
@@ -150,6 +153,14 @@ struct appctx {
 			struct pattern_expr *expr;
 			struct chunk chunk;
 		} map;
+#ifdef USE_LUA
+		struct {
+			int connected;
+			struct hlua_socket *socket;
+			struct list wake_on_read;
+			struct list wake_on_write;
+		} hlua;
+#endif
 	} ctx;					/* used by stats I/O handlers to dump the stats */
 };
 

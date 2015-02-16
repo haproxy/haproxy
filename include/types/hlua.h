@@ -2,9 +2,14 @@
 #define _TYPES_HLUA_H
 
 #include <lua.h>
+#include <lauxlib.h>
+
+#include <types/proxy.h>
+#include <types/server.h>
 
 #define CLASS_CORE     "Core"
 #define CLASS_TXN      "TXN"
+#define CLASS_SOCKET   "Socket"
 
 struct session;
 
@@ -98,6 +103,14 @@ struct hlua_sleep {
 	struct task *task; /* task associated with sleep. */
 	struct list com; /* list of signal to wake at the end of sleep. */
 	unsigned int wakeup_ms; /* hour to wakeup. */
+};
+
+/* This struct is used to create coprocess doing TCP or
+ * SSL I/O. It uses a fake session.
+ */
+struct hlua_socket {
+	struct session *s; /* Session used for socket I/O. */
+	luaL_Buffer b; /* buffer used to prepare strings. */
 };
 
 #endif /* _TYPES_HLUA_H */
