@@ -2491,6 +2491,15 @@ static int hlua_msleep(lua_State *L)
 	return MAY_LJMP(_hlua_sleep(L, delay));
 }
 
+/* This functionis an LUA binding. it permits to give back
+ * the hand at the HAProxy scheduler. It is used when the
+ * LUA processing consumes a lot of time.
+ */
+__LJMP static int hlua_yield(lua_State *L)
+{
+	return MAY_LJMP(_hlua_sleep(L, 0));
+}
+
 /* This function change the nice of the currently executed
  * task. It is used set low or high priority at the current
  * task.
@@ -3325,6 +3334,7 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "register_task", hlua_register_task);
 	hlua_class_function(gL.T, "register_fetches", hlua_register_fetches);
 	hlua_class_function(gL.T, "register_converters", hlua_register_converters);
+	hlua_class_function(gL.T, "yield", hlua_yield);
 	hlua_class_function(gL.T, "set_nice", hlua_setnice);
 	hlua_class_function(gL.T, "sleep", hlua_sleep);
 	hlua_class_function(gL.T, "msleep", hlua_msleep);
