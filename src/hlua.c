@@ -2285,6 +2285,25 @@ __LJMP static int hlua_txn_res_channel(lua_State *L)
 	return 1;
 }
 
+/* This function is an Lua binding that send pending data
+ * to the client, and close the stream interface.
+ */
+__LJMP static int hlua_txn_close(lua_State *L)
+{
+	MAY_LJMP(check_args(L, 1, "close"));
+
+	struct hlua_txn *s = MAY_LJMP(hlua_checktxn(L, 1));
+
+	channel_abort(s->s->si[0].ib);
+	channel_auto_close(s->s->si[0].ib);
+	channel_erase(s->s->si[0].ib);
+	channel_auto_read(s->s->si[0].ob);
+	channel_auto_close(s->s->si[0].ob);
+	channel_shutr_now(s->s->si[0].ob);
+
+	return 0;
+}
+
 /* This function is an LUA binding. It is called with each sample-fetch.
  * It uses closure argument to store the associated sample-fetch. It
  * returns only one argument or throws an error. An error is throwed
@@ -3127,7 +3146,7 @@ static int tcp_req_action_register_lua(const char **args, int *cur_arg, struct p
                                        struct tcp_rule *rule, char **err)
 {
 	if (!hlua_parse_rule(args, cur_arg, px, (struct hlua_rule **)&rule->act_prm.data, err))
-		return -1;
+		return 0;
 	rule->action = TCP_ACT_CUSTOM;
 	rule->action_ptr = hlua_tcp_req_act_wrapper;
 	return 1;
@@ -3138,7 +3157,7 @@ static int tcp_res_action_register_lua(const char **args, int *cur_arg, struct p
                                        struct tcp_rule *rule, char **err)
 {
 	if (!hlua_parse_rule(args, cur_arg, px, (struct hlua_rule **)&rule->act_prm.data, err))
-		return -1;
+		return 0;
 	rule->action = TCP_ACT_CUSTOM;
 	rule->action_ptr = hlua_tcp_res_act_wrapper;
 	return 1;
@@ -3440,6 +3459,7 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "get_priv",    hlua_getpriv);
 	hlua_class_function(gL.T, "req_channel", hlua_txn_req_channel);
 	hlua_class_function(gL.T, "res_channel", hlua_txn_res_channel);
+	hlua_class_function(gL.T, "close",       hlua_txn_close);
 
 	lua_settable(gL.T, -3);
 
