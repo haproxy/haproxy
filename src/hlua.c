@@ -2253,6 +2253,38 @@ static int hlua_txn_new(lua_State *L, struct session *s, struct proxy *p, void *
 	return 1;
 }
 
+/* This function returns a channel object associated
+ * with the request channel. This function never fails,
+ * however if the stack is full, it throws an error.
+ */
+__LJMP static int hlua_txn_req_channel(lua_State *L)
+{
+	MAY_LJMP(check_args(L, 1, "req_channel"));
+
+	struct hlua_txn *s = MAY_LJMP(hlua_checktxn(L, 1));
+
+	if (!hlua_channel_new(L, s->s->req))
+		WILL_LJMP(luaL_error(L, "full stack"));
+
+	return 1;
+}
+
+/* This function returns a channel object associated
+ * with the response channel. This function never fails,
+ * however if the stack is full, it throws an error.
+ */
+__LJMP static int hlua_txn_res_channel(lua_State *L)
+{
+	MAY_LJMP(check_args(L, 1, "req_channel"));
+
+	struct hlua_txn *s = MAY_LJMP(hlua_checktxn(L, 1));
+
+	if (!hlua_channel_new(L, s->s->rep))
+		WILL_LJMP(luaL_error(L, "full stack"));
+
+	return 1;
+}
+
 /* This function is an LUA binding. It is called with each sample-fetch.
  * It uses closure argument to store the associated sample-fetch. It
  * returns only one argument or throws an error. An error is throwed
@@ -3371,6 +3403,8 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "get_headers", hlua_session_getheaders);
 	hlua_class_function(gL.T, "set_priv",    hlua_setpriv);
 	hlua_class_function(gL.T, "get_priv",    hlua_getpriv);
+	hlua_class_function(gL.T, "req_channel", hlua_txn_req_channel);
+	hlua_class_function(gL.T, "res_channel", hlua_txn_res_channel);
 
 	lua_settable(gL.T, -3);
 
