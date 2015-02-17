@@ -48,12 +48,6 @@
 #define ARG5(m, t1, t2, t3, t4, t5) \
 	(ARG4(m, t1, t2, t3, t4) + (ARGT_##t5 << (ARGM_BITS + ARGT_BITS * 4)))
 
-#define ARG6(m, t1, t2, t3, t4, t5, t6) \
-	(ARG5(m, t1, t2, t3, t4, t5) + (ARGT_##t6 << (ARGM_BITS + ARGT_BITS * 5)))
-
-#define ARG7(m, t1, t2, t3, t4, t5, t6, t7) \
-	(ARG6(m, t1, t2, t3, t4, t5, t6) + (ARGT_##t7 << (ARGM_BITS + ARGT_BITS * 6)))
-
 /* This dummy arg list may be used by default when no arg is found, it helps
  * parsers by removing pointer checks.
  */
