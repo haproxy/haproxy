@@ -587,6 +587,70 @@ int http_find_full_header2(const char *name, int len,
 	return 0;
 }
 
+/* Find the first or next header field in message buffer <sol> using headers
+ * index <idx>, and return it in the <ctx> structure. This structure holds
+ * everything necessary to use the header and find next occurrence. If its
+ * <idx> member is 0, the first header is retrieved. Otherwise, the next
+ * occurrence is returned. The function returns 1 when it finds a value, and
+ * 0 when there is no more. It is equivalent to http_find_full_header2() with
+ * no header name.
+ */
+int http_find_next_header(char *sol, struct hdr_idx *idx, struct hdr_ctx *ctx)
+{
+	char *eol, *sov;
+	int cur_idx, old_idx;
+	int len;
+
+	cur_idx = ctx->idx;
+	if (cur_idx) {
+		/* We have previously returned a header, let's search another one */
+		sol = ctx->line;
+		eol = sol + idx->v[cur_idx].len;
+		goto next_hdr;
+	}
+
+	/* first request for this header */
+	sol += hdr_idx_first_pos(idx);
+	old_idx = 0;
+	cur_idx = hdr_idx_first_idx(idx);
+	while (cur_idx) {
+		eol = sol + idx->v[cur_idx].len;
+
+		len = 0;
+		while (1) {
+			if (len >= eol - sol)
+				goto next_hdr;
+			if (sol[len] == ':')
+				break;
+			len++;
+		}
+
+		ctx->del = len;
+		sov = sol + len + 1;
+		while (sov < eol && http_is_lws[(unsigned char)*sov])
+			sov++;
+
+		ctx->line = sol;
+		ctx->prev = old_idx;
+		ctx->idx  = cur_idx;
+		ctx->val  = sov - sol;
+		ctx->tws = 0;
+
+		while (eol > sov && http_is_lws[(unsigned char)*(eol - 1)]) {
+			eol--;
+			ctx->tws++;
+		}
+		ctx->vlen = eol - sov;
+		return 1;
+
+	next_hdr:
+		sol = eol + idx->v[cur_idx].cr + 1;
+		old_idx = cur_idx;
+		cur_idx = idx->v[cur_idx].next;
+	}
+	return 0;
+}
+
 /* Find the end of the header value contained between <s> and <e>. See RFC2616,
  * par 2.2 for more information. Note that it requires a valid header to return
  * a valid result. This works for headers defined as comma-separated lists.
