@@ -10,6 +10,8 @@
  *
  */
 
+#include <sys/socket.h>
+
 #include <common/config.h>
 #include <common/errors.h>
 #include <common/mini-clist.h>
@@ -19,11 +21,14 @@
 
 /* List head of all registered protocols */
 static struct list protocols = LIST_HEAD_INIT(protocols);
+struct protocol *__protocol_by_family[AF_MAX] = { };
 
 /* Registers the protocol <proto> */
 void protocol_register(struct protocol *proto)
 {
 	LIST_ADDQ(&protocols, &proto->list);
+	if (proto->sock_domain >= 0 && proto->sock_domain < AF_MAX)
+		__protocol_by_family[proto->sock_domain] = proto;
 }
 
 /* Unregisters the protocol <proto>. Note that all listeners must have
@@ -107,18 +112,6 @@ int protocol_disable_all(void)
 		}
 	}
 	return err;
-}
-
-/* Returns the protocol handler for socket family <family> or NULL if not found */
-struct protocol *protocol_by_family(int family)
-{
-	struct protocol *proto;
-
-	list_for_each_entry(proto, &protocols, list) {
-		if (proto->sock_domain == family)
-			return proto;
-	}
-	return NULL;
 }
 
 /*
