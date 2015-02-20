@@ -10232,6 +10232,39 @@ smp_fetch_fhdr_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int 
 	return 1;
 }
 
+static int
+smp_fetch_hdr_names(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+                    const struct arg *args, struct sample *smp, const char *kw)
+{
+	struct http_txn *txn = l7;
+	struct hdr_idx *idx = &txn->hdr_idx;
+	struct hdr_ctx ctx;
+	const struct http_msg *msg = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) ? &txn->req : &txn->rsp;
+	struct chunk *temp;
+	char del = ',';
+
+	if (args && args->type == ARGT_STR)
+		del = *args[0].data.str.str;
+
+	CHECK_HTTP_MESSAGE_FIRST();
+
+	temp = get_trash_chunk();
+
+	ctx.idx = 0;
+	while (http_find_next_header(msg->chn->buf->p, idx, &ctx)) {
+		if (temp->len)
+			temp->str[temp->len++] = del;
+		memcpy(temp->str + temp->len, ctx.line, ctx.del);
+		temp->len += ctx.del;
+	}
+
+	smp->type = SMP_T_STR;
+	smp->data.str.str = temp->str;
+	smp->data.str.len = temp->len;
+	smp->flags = SMP_F_VOL_HDR;
+	return 1;
+}
+
 /* Fetch an HTTP header. A pointer to the beginning of the value is returned.
  * Accepts an optional argument of type string containing the header field name,
  * and an optional argument of type signed or unsigned integer to request an
@@ -11884,6 +11917,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "req.hdr",         smp_fetch_hdr,            ARG2(0,STR,SINT), val_hdr, SMP_T_STR,  SMP_USE_HRQHV },
 	{ "req.hdr_cnt",     smp_fetch_hdr_cnt,        ARG1(0,STR),      NULL,    SMP_T_UINT, SMP_USE_HRQHV },
 	{ "req.hdr_ip",      smp_fetch_hdr_ip,         ARG2(0,STR,SINT), val_hdr, SMP_T_IPV4, SMP_USE_HRQHV },
+	{ "req.hdr_names",   smp_fetch_hdr_names,      ARG1(0,STR),      NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 	{ "req.hdr_val",     smp_fetch_hdr_val,        ARG2(0,STR,SINT), val_hdr, SMP_T_UINT, SMP_USE_HRQHV },
 
 	/* explicit req.{cook,hdr} are used to force the fetch direction to be response-only */
@@ -11896,6 +11930,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "res.hdr",         smp_fetch_hdr,            ARG2(0,STR,SINT), val_hdr, SMP_T_STR,  SMP_USE_HRSHV },
 	{ "res.hdr_cnt",     smp_fetch_hdr_cnt,        ARG1(0,STR),      NULL,    SMP_T_UINT, SMP_USE_HRSHV },
 	{ "res.hdr_ip",      smp_fetch_hdr_ip,         ARG2(0,STR,SINT), val_hdr, SMP_T_IPV4, SMP_USE_HRSHV },
+	{ "res.hdr_names",   smp_fetch_hdr_names,      ARG1(0,STR),      NULL,    SMP_T_STR,  SMP_USE_HRSHV },
 	{ "res.hdr_val",     smp_fetch_hdr_val,        ARG2(0,STR,SINT), val_hdr, SMP_T_UINT, SMP_USE_HRSHV },
 
 	/* scook is valid only on the response and is used for ACL compatibility */

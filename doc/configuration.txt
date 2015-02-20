@@ -12218,6 +12218,12 @@ query : string
   using the "found" matching method. This fetch is the completemnt of "path"
   which stops before the question mark.
 
+req.hdr_names([<delim>]) : string
+  This builds a string made from the concatenation of all header names as they
+  appear in the request when the rule is evaluated. The default delimiter is
+  the comma (',') but it may be overridden as an optional argument <delim>. In
+  this case, only the first character of <delim> is considered.
+
 req.ver : string
 req_ver : string (deprecated)
   Returns the version string from the HTTP request, for example "1.1". This can
@@ -12313,6 +12319,12 @@ shdr_ip([<name>[,<occ>]]) : ip (deprecated)
   indicate a position from the first occurrence, with 1 being the first one.
   Negative values indicate positions relative to the last one, with -1 being
   the last one. This can be useful to learn some data into a stick table.
+
+res.hdr_names([<delim>]) : string
+  This builds a string made from the concatenation of all header names as they
+  appear in the response when the rule is evaluated. The default delimiter is
+  the comma (',') but it may be overridden as an optional argument <delim>. In
+  this case, only the first character of <delim> is considered.
 
 res.hdr_val([<name>[,<occ>]]) : integer
 shdr_val([<name>[,<occ>]]) : integer (deprecated)
