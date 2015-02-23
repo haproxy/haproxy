@@ -260,8 +260,9 @@ struct sample_storage {
 /* Descriptor for a sample conversion */
 struct sample_conv {
 	const char *kw;                           /* configuration keyword  */
-	int (*process)(const struct arg *arg_p,
-		       struct sample *smp,
+	int (*process)(struct session *session,
+	               const struct arg *arg_p,
+	               struct sample *smp,
 	               void *private);            /* process function */
 	unsigned int arg_mask;                    /* arguments (ARG*()) */
 	int (*val_args)(struct arg *arg_p,

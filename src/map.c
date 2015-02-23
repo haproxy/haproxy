@@ -184,7 +184,8 @@ static int sample_load_map(struct arg *arg, struct sample_conv *conv,
 	return 1;
 }
 
-static int sample_conv_map(const struct arg *arg_p, struct sample *smp, void *private)
+static int sample_conv_map(struct session *session, const struct arg *arg_p,
+                           struct sample *smp, void *private)
 {
 	struct map_descriptor *desc;
 	struct pattern *pat;
