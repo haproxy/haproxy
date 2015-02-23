@@ -78,6 +78,10 @@ restart() {
 }
 
 reload() {
+  if ! [ -s $PIDFILE ]; then
+    return 0
+  fi
+
   quiet_check
   if [ $? -ne 0 ]; then
     echo "Errors found in configuration file, check it with '$BASENAME check'."
