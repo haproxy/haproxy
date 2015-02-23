@@ -38,6 +38,7 @@ CFG=/etc/$BASENAME/$BASENAME.cfg
 [ -f $CFG ] || exit 1
 
 PIDFILE=/var/run/$BASENAME.pid
+LOCKFILE=/var/lock/subsys/$BASENAME
 
 RETVAL=0
 
@@ -52,7 +53,7 @@ start() {
   daemon $BIN -D -f $CFG -p $PIDFILE
   RETVAL=$?
   echo
-  [ $RETVAL -eq 0 ] && touch /var/lock/subsys/$BASENAME
+  [ $RETVAL -eq 0 ] && touch $LOCKFILE
   return $RETVAL
 }
 
@@ -61,7 +62,7 @@ stop() {
   killproc $BASENAME -USR1
   RETVAL=$?
   echo
-  [ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/$BASENAME
+  [ $RETVAL -eq 0 ] && rm -f $LOCKFILE
   [ $RETVAL -eq 0 ] && rm -f $PIDFILE
   return $RETVAL
 }
@@ -94,7 +95,7 @@ rhstatus() {
 }
 
 condrestart() {
-  [ -e /var/lock/subsys/$BASENAME ] && restart || :
+  [ -e $LOCKFILE ] && restart || :
 }
 
 # See how we were called.
