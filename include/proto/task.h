@@ -86,6 +86,7 @@ extern unsigned int nb_tasks_cur;
 extern unsigned int niced_tasks;  /* number of niced tasks in the run queue */
 extern struct pool_head *pool2_task;
 extern struct eb32_node *last_timer;   /* optimization: last queued timer */
+extern struct eb32_node *rq_next;    /* optimization: next task except if delete/insert */
 
 /* return 0 if task is in run queue, otherwise non-zero */
 static inline int task_in_rq(struct task *t)
@@ -133,8 +134,9 @@ static inline struct task *task_unlink_wq(struct task *t)
 /*
  * Unlink the task from the run queue. The run_queue size and number of niced
  * tasks are updated too. A pointer to the task itself is returned. The task
- * *must* already be in the wait queue before calling this function. If unsure,
- * use the safer task_unlink_rq() function.
+ * *must* already be in the run queue before calling this function. If unsure,
+ * use the safer task_unlink_rq() function. Note that the pointer to the next
+ * run queue entry is neither checked nor updated.
  */
 static inline struct task *__task_unlink_rq(struct task *t)
 {
@@ -145,10 +147,16 @@ static inline struct task *__task_unlink_rq(struct task *t)
 	return t;
 }
 
+/* This function unlinks task <t> from the run queue if it is in it. It also
+ * takes care of updating the next run queue task if it was this task.
+ */
 static inline struct task *task_unlink_rq(struct task *t)
 {
-	if (likely(task_in_rq(t)))
+	if (likely(task_in_rq(t))) {
+		if (&t->rq == rq_next)
+			rq_next = eb32_next(rq_next);
 		__task_unlink_rq(t);
+	}
 	return t;
 }
 

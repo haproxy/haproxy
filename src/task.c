@@ -31,6 +31,7 @@ unsigned int run_queue_cur = 0;    /* copy of the run queue size */
 unsigned int nb_tasks_cur = 0;     /* copy of the tasks count */
 unsigned int niced_tasks = 0;      /* number of niced tasks in the run queue */
 struct eb32_node *last_timer = NULL;  /* optimization: last queued timer */
+struct eb32_node *rq_next    = NULL;  /* optimization: next task except if delete/insert */
 
 static struct eb_root timers;      /* sorted timers tree */
 static struct eb_root rqueue;      /* tree constituting the run queue */
@@ -189,7 +190,6 @@ void wake_expired_tasks(int *next)
 void process_runnable_tasks(int *next)
 {
 	struct task *t;
-	struct eb32_node *eb;
 	unsigned int max_processed;
 	int expire;
 
@@ -207,26 +207,30 @@ void process_runnable_tasks(int *next)
 		max_processed = (max_processed + 3) / 4;
 
 	expire = *next;
-	eb = eb32_lookup_ge(&rqueue, rqueue_ticks - TIMER_LOOK_BACK);
+
 	while (max_processed--) {
 		/* Note: this loop is one of the fastest code path in
 		 * the whole program. It should not be re-arranged
 		 * without a good reason.
 		 */
-
-		if (unlikely(!eb)) {
-			/* we might have reached the end of the tree, typically because
-			* <rqueue_ticks> is in the first half and we're first scanning
-			* the last half. Let's loop back to the beginning of the tree now.
-			*/
-			eb = eb32_first(&rqueue);
-			if (likely(!eb))
-				break;
+		if (unlikely(!rq_next)) {
+			rq_next = eb32_lookup_ge(&rqueue, rqueue_ticks - TIMER_LOOK_BACK);
+			if (!rq_next) {
+				/* we might have reached the end of the tree, typically because
+				 * <rqueue_ticks> is in the first half and we're first scanning
+				 * the last half. Let's loop back to the beginning of the tree now.
+				 */
+				rq_next = eb32_first(&rqueue);
+				if (!rq_next)
+					break;
+			}
 		}
 
-		/* detach the task from the queue */
-		t = eb32_entry(eb, struct task, rq);
-		eb = eb32_next(eb);
+		/* detach the task from the queue after updating the pointer to
+		 * the next entry.
+		 */
+		t = eb32_entry(rq_next, struct task, rq);
+		rq_next = eb32_next(rq_next);
 		__task_unlink_rq(t);
 
 		t->state |= TASK_RUNNING;
@@ -244,13 +248,6 @@ void process_runnable_tasks(int *next)
 			if (t->expire) {
 				task_queue(t);
 				expire = tick_first_2nz(expire, t->expire);
-			}
-
-			/* if the task has put itself back into the run queue, we want to ensure
-			 * it will be served at the proper time, especially if it's reniced.
-			 */
-			if (unlikely(task_in_rq(t)) && (!eb || tick_is_lt(t->rq.key, eb->key))) {
-				eb = eb32_lookup_ge(&rqueue, rqueue_ticks - TIMER_LOOK_BACK);
 			}
 		}
 	}
