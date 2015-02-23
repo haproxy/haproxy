@@ -32,20 +32,22 @@ if [ -L $0 ]; then
   BASENAME=`basename $BASENAME`
 fi
 
+BIN=/usr/sbin/$BASENAME
+
 CFG=/etc/$BASENAME/$BASENAME.cfg
 [ -f $CFG ] || exit 1
 
 RETVAL=0
 
 start() {
-  /usr/sbin/$BASENAME -c -q -f $CFG
+  $BIN -c -q -f $CFG
   if [ $? -ne 0 ]; then
     echo "Errors found in configuration file, check it with '$BASENAME check'."
     return 1
   fi
 
   echo -n "Starting $BASENAME: "
-  daemon /usr/sbin/$BASENAME -D -f $CFG -p /var/run/$BASENAME.pid
+  daemon $BIN -D -f $CFG -p /var/run/$BASENAME.pid
   RETVAL=$?
   echo
   [ $RETVAL -eq 0 ] && touch /var/lock/subsys/$BASENAME
@@ -63,7 +65,7 @@ stop() {
 }
 
 restart() {
-  /usr/sbin/$BASENAME -c -q -f $CFG
+  $BIN -c -q -f $CFG
   if [ $? -ne 0 ]; then
     echo "Errors found in configuration file, check it with '$BASENAME check'."
     return 1
@@ -73,16 +75,16 @@ restart() {
 }
 
 reload() {
-  /usr/sbin/$BASENAME -c -q -f $CFG
+  $BIN -c -q -f $CFG
   if [ $? -ne 0 ]; then
     echo "Errors found in configuration file, check it with '$BASENAME check'."
     return 1
   fi
-  /usr/sbin/$BASENAME -D -f $CFG -p /var/run/$BASENAME.pid -sf $(cat /var/run/$BASENAME.pid)
+  $BIN -D -f $CFG -p /var/run/$BASENAME.pid -sf $(cat /var/run/$BASENAME.pid)
 }
 
 check() {
-  /usr/sbin/$BASENAME -c -q -V -f $CFG
+  $BIN -c -q -V -f $CFG
 }
 
 rhstatus() {
