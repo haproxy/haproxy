@@ -43,7 +43,7 @@ LOCKFILE=/var/lock/subsys/$BASENAME
 RETVAL=0
 
 start() {
-  $BIN -c -q -f $CFG
+  quiet_check
   if [ $? -ne 0 ]; then
     echo "Errors found in configuration file, check it with '$BASENAME check'."
     return 1
@@ -68,7 +68,7 @@ stop() {
 }
 
 restart() {
-  $BIN -c -q -f $CFG
+  quiet_check
   if [ $? -ne 0 ]; then
     echo "Errors found in configuration file, check it with '$BASENAME check'."
     return 1
@@ -78,7 +78,7 @@ restart() {
 }
 
 reload() {
-  $BIN -c -q -f $CFG
+  quiet_check
   if [ $? -ne 0 ]; then
     echo "Errors found in configuration file, check it with '$BASENAME check'."
     return 1
@@ -88,6 +88,10 @@ reload() {
 
 check() {
   $BIN -c -q -V -f $CFG
+}
+
+quiet_check()
+  $BIN -c -q -f $CFG
 }
 
 rhstatus() {
