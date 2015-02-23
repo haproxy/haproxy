@@ -37,6 +37,8 @@ BIN=/usr/sbin/$BASENAME
 CFG=/etc/$BASENAME/$BASENAME.cfg
 [ -f $CFG ] || exit 1
 
+PIDFILE=/var/run/$BASENAME.pid
+
 RETVAL=0
 
 start() {
@@ -47,7 +49,7 @@ start() {
   fi
 
   echo -n "Starting $BASENAME: "
-  daemon $BIN -D -f $CFG -p /var/run/$BASENAME.pid
+  daemon $BIN -D -f $CFG -p $PIDFILE
   RETVAL=$?
   echo
   [ $RETVAL -eq 0 ] && touch /var/lock/subsys/$BASENAME
@@ -60,7 +62,7 @@ stop() {
   RETVAL=$?
   echo
   [ $RETVAL -eq 0 ] && rm -f /var/lock/subsys/$BASENAME
-  [ $RETVAL -eq 0 ] && rm -f /var/run/$BASENAME.pid
+  [ $RETVAL -eq 0 ] && rm -f $PIDFILE
   return $RETVAL
 }
 
@@ -80,7 +82,7 @@ reload() {
     echo "Errors found in configuration file, check it with '$BASENAME check'."
     return 1
   fi
-  $BIN -D -f $CFG -p /var/run/$BASENAME.pid -sf $(cat /var/run/$BASENAME.pid)
+  $BIN -D -f $CFG -p $PIDFILE -sf $(cat $PIDFILE)
 }
 
 check() {
