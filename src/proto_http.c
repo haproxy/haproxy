@@ -3370,6 +3370,16 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 	struct hdr_ctx ctx;
 	const char *auth_realm;
 
+	/* If "the current_rule_list" match the executed rule list, we are in
+	 * resume condition. If a resume is needed it is always in the action
+	 * and never in the ACL or converters. In this case, we initialise the
+	 * current rule, and go to the action execution point.
+	 */
+	if (s->current_rule_list == rules) {
+		rule = LIST_ELEM(s->current_rule, typeof(rule), list);
+		goto resume_execution;
+	}
+	s->current_rule_list = rules;
 	list_for_each_entry(rule, rules, list) {
 		if (rule->action >= HTTP_REQ_ACT_MAX)
 			continue;
@@ -3388,6 +3398,7 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 				continue;
 		}
 
+resume_execution:
 
 		switch (rule->action) {
 		case HTTP_REQ_ACT_ALLOW:
@@ -3567,7 +3578,10 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 			}
 
 		case HTTP_REQ_ACT_CUSTOM_CONT:
-			rule->action_ptr(rule, px, s, txn);
+			if (!rule->action_ptr(rule, px, s, txn)) {
+				s->current_rule = &rule->list;
+				return HTTP_RULE_RES_YIELD;
+			}
 			break;
 
 		case HTTP_REQ_ACT_CUSTOM_STOP:
@@ -3629,6 +3643,16 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 	struct http_res_rule *rule;
 	struct hdr_ctx ctx;
 
+	/* If "the current_rule_list" match the executed rule list, we are in
+	 * resume condition. If a resume is needed it is always in the action
+	 * and never in the ACL or converters. In this case, we initialise the
+	 * current rule, and go to the action execution point.
+	 */
+	if (s->current_rule_list == rules) {
+		rule = LIST_ELEM(s->current_rule, typeof(rule), list);
+		goto resume_execution;
+	}
+	s->current_rule_list = rules;
 	list_for_each_entry(rule, rules, list) {
 		if (rule->action >= HTTP_RES_ACT_MAX)
 			continue;
@@ -3647,6 +3671,7 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 				continue;
 		}
 
+resume_execution:
 
 		switch (rule->action) {
 		case HTTP_RES_ACT_ALLOW:
@@ -3798,7 +3823,10 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 			}
 
 		case HTTP_RES_ACT_CUSTOM_CONT:
-			rule->action_ptr(rule, px, s, txn);
+			if (!rule->action_ptr(rule, px, s, txn)) {
+				s->current_rule = &rule->list;
+				return HTTP_RULE_RES_YIELD;
+			}
 			break;
 
 		case HTTP_RES_ACT_CUSTOM_STOP:
@@ -4085,8 +4113,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 		/* we need more data */
-		channel_dont_connect(req);
-		return 0;
+		goto return_prx_yield;
 	}
 
 	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
@@ -4106,6 +4133,9 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 		verdict = http_req_get_intercept_rule(px, &px->http_req_rules, s, txn);
 
 		switch (verdict) {
+		case HTTP_RULE_RES_YIELD: /* some data miss, call the function later. */
+			goto return_prx_yield;
+
 		case HTTP_RULE_RES_CONT:
 		case HTTP_RULE_RES_STOP: /* nothing to do */
 			break;
@@ -4301,6 +4331,10 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 
 	req->analysers = 0;
 	req->analyse_exp = TICK_ETERNITY;
+	return 0;
+
+ return_prx_yield:
+	channel_dont_connect(req);
 	return 0;
 }
 
@@ -6300,9 +6334,6 @@ int http_process_res_common(struct session *s, struct channel *rep, int an_bit, 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY))	/* we need more data */
 		return 0;
 
-	rep->analysers &= ~an_bit;
-	rep->analyse_exp = TICK_ETERNITY;
-
 	/* The stats applet needs to adjust the Connection header but we don't
 	 * apply any filter there.
 	 */
@@ -6317,15 +6348,32 @@ int http_process_res_common(struct session *s, struct channel *rep, int an_bit, 
 	 *
 	 * Filters are tried with ->be first, then with ->fe if it is
 	 * different from ->be.
+	 *
+	 * Maybe we are in resume condiion. In this case I choose the
+	 * "struct proxy" which contains the rule list matching the resume
+	 * pointer. If none of theses "struct proxy" match, I initialise
+	 * the process with the first one.
+	 *
+	 * In fact, I check only correspondance betwwen the current list
+	 * pointer and the ->fe rule list. If it doesn't match, I initialize
+	 * the loop with the ->be.
 	 */
-
-	cur_proxy = s->be;
+	if (s->current_rule_list == &s->fe->http_res_rules)
+		cur_proxy = s->fe;
+	else
+		cur_proxy = s->be;
 	while (1) {
 		struct proxy *rule_set = cur_proxy;
 
 		/* evaluate http-response rules */
 		if (ret == HTTP_RULE_RES_CONT)
 			ret = http_res_get_intercept_rule(cur_proxy, &cur_proxy->http_res_rules, s, txn);
+
+		/* we need to be called again. */
+		if (ret == HTTP_RULE_RES_YIELD) {
+			channel_dont_close(rep);
+			return 0;
+		}
 
 		/* try headers filters */
 		if (rule_set->rsp_exp != NULL) {
@@ -6385,6 +6433,15 @@ int http_process_res_common(struct session *s, struct channel *rep, int an_bit, 
 			break;
 		cur_proxy = s->fe;
 	}
+
+	/* After this point, this anayzer can't return yield, so we can
+	 * remove the bit corresponding to this analyzer from the list.
+	 *
+	 * Note that the intermediate returns and goto found previously
+	 * reset the analyzers.
+	 */
+	rep->analysers &= ~an_bit;
+	rep->analyse_exp = TICK_ETERNITY;
 
 	/* OK that's all we can do for 1xx responses */
 	if (unlikely(txn->status < 200 && txn->status != 101))
@@ -8841,6 +8898,11 @@ void http_reset_txn(struct session *s)
 {
 	http_end_txn(s);
 	http_init_txn(s);
+
+	/* reinitialise the current rule list pointer to NULL. We are sure that
+	 * any rulelist match the NULL pointer.
+	 */
+	s->current_rule_list = NULL;
 
 	s->be = s->fe;
 	s->logs.logwait = s->fe->to_log;

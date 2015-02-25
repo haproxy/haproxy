@@ -108,6 +108,11 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->logs.logwait = p->to_log;
 	s->logs.level = 0;
 
+	/* Initialise the current rule list pointer to NULL. We are sure that
+	 * any rulelist match the NULL pointer.
+	 */
+	s->current_rule_list = NULL;
+
 	memset(s->stkctr, 0, sizeof(s->stkctr));
 
 	s->listener = l;
