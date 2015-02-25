@@ -784,6 +784,43 @@ __LJMP static struct hlua_txn *hlua_checktxn(lua_State *L, int ud)
 	return (struct hlua_txn *)MAY_LJMP(hlua_checkudata(L, ud, class_txn_ref));
 }
 
+__LJMP static int hlua_setpriv(lua_State *L)
+{
+	MAY_LJMP(check_args(L, 2, "set_priv"));
+
+	/* It is useles to retrieve the session, but this function
+	 * runs only in a session context.
+	 */
+	MAY_LJMP(hlua_checktxn(L, 1));
+	struct hlua *hlua = hlua_gethlua(L);
+
+	/* Remove previous value. */
+	if (hlua->Mref != -1)
+		luaL_unref(L, hlua->Mref, LUA_REGISTRYINDEX);
+
+	/* Get and store new value. */
+	lua_pushvalue(L, 2); /* Copy the element 2 at the top of the stack. */
+	hlua->Mref = luaL_ref(L, LUA_REGISTRYINDEX); /* pop the previously pushed value. */
+
+	return 0;
+}
+
+__LJMP static int hlua_getpriv(lua_State *L)
+{
+	MAY_LJMP(check_args(L, 1, "get_priv"));
+
+	/* It is useles to retrieve the session, but this function
+	 * runs only in a session context.
+	 */
+	MAY_LJMP(hlua_checktxn(L, 1));
+	struct hlua *hlua = hlua_gethlua(L);
+
+	/* Push configuration index in the stack. */
+	lua_rawgeti(L, LUA_REGISTRYINDEX, hlua->Mref);
+
+	return 1;
+}
+
 /* Create stack entry containing a class TXN. This function
  * return 0 if the stack does not contains free slots,
  * otherwise it returns 1.
@@ -1090,6 +1127,10 @@ void hlua_init(void)
 	/* Create and fille the __index entry. */
 	lua_pushstring(gL.T, "__index");
 	lua_newtable(gL.T);
+
+	/* Register Lua functions. */
+	hlua_class_function(gL.T, "set_priv",    hlua_setpriv);
+	hlua_class_function(gL.T, "get_priv",    hlua_getpriv);
 
 	lua_settable(gL.T, -3);
 
