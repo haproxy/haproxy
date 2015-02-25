@@ -3615,12 +3615,14 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 
 
 /* Executes the http-response rules <rules> for session <s>, proxy <px> and
- * transaction <txn>. Returns the first rule that prevents further processing
- * of the response (deny, ...) or NULL if it executed all rules or stopped
- * on an allow. It may set the TX_SVDENY on txn->flags if it encounters a deny
- * rule.
+ * transaction <txn>. Returns 3 states: HTTP_RULE_RES_CONT, HTTP_RULE_RES_YIELD
+ * or HTTP_RULE_RES_STOP. If *CONT is returned, the process can continue the
+ * evaluation of next rule list. If *STOP is returned, the process must stop
+ * the evaluation. It may set the TX_SVDENY on txn->flags if it encounters a deny
+ * rule. If *YIELD is returned, the czller must call again the function with
+ * the same context.
  */
-static struct http_res_rule *
+static enum rule_result
 http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session *s, struct http_txn *txn)
 {
 	struct connection *cli_conn;
@@ -3648,11 +3650,11 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 
 		switch (rule->action) {
 		case HTTP_RES_ACT_ALLOW:
-			return NULL; /* "allow" rules are OK */
+			return HTTP_RULE_RES_STOP; /* "allow" rules are OK */
 
 		case HTTP_RES_ACT_DENY:
 			txn->flags |= TX_SVDENY;
-			return rule;
+			return HTTP_RULE_RES_STOP;
 
 		case HTTP_RES_ACT_SET_NICE:
 			s->task->nice = rule->arg.nice;
@@ -3679,7 +3681,7 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 			if (http_transform_header(s, &txn->rsp, rule->arg.hdr_add.name, rule->arg.hdr_add.name_len,
 			                          txn->rsp.chn->buf->p, &txn->hdr_idx, &rule->arg.hdr_add.fmt,
 			                          &rule->arg.hdr_add.re, &ctx, rule->action))
-				return NULL; /* note: we should report an error here */
+				return HTTP_RULE_RES_STOP; /* note: we should report an error here */
 			break;
 
 		case HTTP_RES_ACT_DEL_HDR:
@@ -3801,12 +3803,12 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session
 
 		case HTTP_RES_ACT_CUSTOM_STOP:
 			rule->action_ptr(rule, px, s, txn);
-			return rule;
+			return HTTP_RULE_RES_STOP;
 		}
 	}
 
 	/* we reached the end of the rules, nothing to report */
-	return NULL;
+	return HTTP_RULE_RES_CONT;
 }
 
 
@@ -6284,7 +6286,7 @@ int http_process_res_common(struct session *s, struct channel *rep, int an_bit, 
 	struct http_msg *msg = &txn->rsp;
 	struct proxy *cur_proxy;
 	struct cond_wordlist *wl;
-	struct http_res_rule *http_res_last_rule = NULL;
+	enum rule_result ret = HTTP_RULE_RES_CONT;
 
 	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
@@ -6322,8 +6324,8 @@ int http_process_res_common(struct session *s, struct channel *rep, int an_bit, 
 		struct proxy *rule_set = cur_proxy;
 
 		/* evaluate http-response rules */
-		if (!http_res_last_rule)
-			http_res_last_rule = http_res_get_intercept_rule(cur_proxy, &cur_proxy->http_res_rules, s, txn);
+		if (ret == HTTP_RULE_RES_CONT)
+			ret = http_res_get_intercept_rule(cur_proxy, &cur_proxy->http_res_rules, s, txn);
 
 		/* try headers filters */
 		if (rule_set->rsp_exp != NULL) {
