@@ -2103,14 +2103,14 @@ struct task *process_session(struct task *t)
 		unsigned int flags = s->rep->flags;
 
 		if ((s->rep->flags & CF_MASK_ANALYSER) &&
-		    (s->rep->analysers & AN_REQ_WAIT_HTTP)) {
+		    (s->rep->analysers & AN_REQ_ALL)) {
 			/* Due to HTTP pipelining, the HTTP request analyser might be waiting
 			 * for some free space in the response buffer, so we might need to call
 			 * it when something changes in the response buffer, but still we pass
 			 * it the request buffer. Note that the SI state might very well still
 			 * be zero due to us returning a flow of redirects!
 			 */
-			s->rep->analysers &= ~AN_REQ_WAIT_HTTP;
+			s->rep->analysers &= ~AN_REQ_ALL;
 			s->req->flags |= CF_WAKE_ONCE;
 		}
 

@@ -148,6 +148,7 @@
 #define AN_REQ_STICKING_RULES   0x00000800  /* table persistence matching */
 #define AN_REQ_PRST_RDP_COOKIE  0x00001000  /* persistence on rdp cookie */
 #define AN_REQ_HTTP_XFER_BODY   0x00002000  /* forward request body */
+#define AN_REQ_ALL              0x00003ffe  /* all of the request analysers */
 
 /* response analysers */
 #define AN_RES_INSPECT          0x00010000  /* content inspection */
