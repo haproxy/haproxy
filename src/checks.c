@@ -268,7 +268,7 @@ static void set_server_check_status(struct check *check, short status, const cha
 		 * cause the server to be marked down.
 		 */
 		if ((!(check->state & CHK_ST_AGENT) ||
-		    (check->status >= HCHK_STATUS_L7TOUT)) &&
+		    (check->status >= HCHK_STATUS_L57DATA)) &&
 		    (check->health >= check->rise)) {
 			s->counters.failed_checks++;
 			report = 1;
