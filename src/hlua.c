@@ -965,11 +965,12 @@ static void hlua_socket_release(struct stream_interface *si)
  */
 __LJMP static int hlua_socket_gc(lua_State *L)
 {
-	MAY_LJMP(check_args(L, 1, "__gc"));
-
-	struct hlua_socket *socket = MAY_LJMP(hlua_checksocket(L, 1));
+	struct hlua_socket *socket;
 	struct appctx *appctx;
 
+	MAY_LJMP(check_args(L, 1, "__gc"));
+
+	socket = MAY_LJMP(hlua_checksocket(L, 1));
 	if (!socket->s)
 		return 0;
 
@@ -987,11 +988,12 @@ __LJMP static int hlua_socket_gc(lua_State *L)
  */
 __LJMP static int hlua_socket_close(lua_State *L)
 {
-	MAY_LJMP(check_args(L, 1, "close"));
-
-	struct hlua_socket *socket = MAY_LJMP(hlua_checksocket(L, 1));
+	struct hlua_socket *socket;
 	struct appctx *appctx;
 
+	MAY_LJMP(check_args(L, 1, "close"));
+
+	socket = MAY_LJMP(hlua_checksocket(L, 1));
 	if (!socket->s)
 		return 0;
 
@@ -1141,11 +1143,12 @@ __LJMP static int hlua_socket_receive(struct lua_State *L)
 	int type;
 	char *error;
 	size_t len;
+	struct hlua_socket *socket;
 
 	if (lua_gettop(L) < 1 || lua_gettop(L) > 3)
 		WILL_LJMP(luaL_error(L, "The 'receive' function requires between 1 and 3 arguments."));
 
-	struct hlua_socket *socket = MAY_LJMP(hlua_checksocket(L, 1));
+	socket = MAY_LJMP(hlua_checksocket(L, 1));
 
 	/* check for pattern. */
 	if (lua_gettop(L) >= 2) {
@@ -1398,9 +1401,12 @@ __LJMP static inline int hlua_socket_info(struct lua_State *L, struct sockaddr_s
 /* Returns information about the peer of the connection. */
 __LJMP static int hlua_socket_getpeername(struct lua_State *L)
 {
+	struct hlua_socket *socket;
+	struct connection *conn;
+
 	MAY_LJMP(check_args(L, 1, "getpeername"));
 
-	struct hlua_socket *socket = MAY_LJMP(hlua_checksocket(L, 1));
+	socket = MAY_LJMP(hlua_checksocket(L, 1));
 
 	/* Check if the tcp object is avalaible. */
 	if (!socket->s) {
@@ -1408,7 +1414,7 @@ __LJMP static int hlua_socket_getpeername(struct lua_State *L)
 		return 1;
 	}
 
-	struct connection *conn = objt_conn(socket->s->si[1].end);
+	conn = objt_conn(socket->s->si[1].end);
 	if (!conn) {
 		lua_pushnil(L);
 		return 1;
@@ -1429,9 +1435,12 @@ __LJMP static int hlua_socket_getpeername(struct lua_State *L)
 /* Returns information about my connection side. */
 static int hlua_socket_getsockname(struct lua_State *L)
 {
+	struct hlua_socket *socket;
+	struct connection *conn;
+
 	MAY_LJMP(check_args(L, 1, "getsockname"));
 
-	struct hlua_socket *socket = MAY_LJMP(hlua_checksocket(L, 1));
+	socket = MAY_LJMP(hlua_checksocket(L, 1));
 
 	/* Check if the tcp object is avalaible. */
 	if (!socket->s) {
@@ -1439,7 +1448,7 @@ static int hlua_socket_getsockname(struct lua_State *L)
 		return 1;
 	}
 
-	struct connection *conn = objt_conn(socket->s->si[1].end);
+	conn = objt_conn(socket->s->si[1].end);
 	if (!conn) {
 		lua_pushnil(L);
 		return 1;
@@ -1550,10 +1559,13 @@ __LJMP static int hlua_socket_setoption(struct lua_State *L)
 
 __LJMP static int hlua_socket_settimeout(struct lua_State *L)
 {
+	struct hlua_socket *socket;
+	unsigned int tmout;
+
 	MAY_LJMP(check_args(L, 2, "settimeout"));
 
-	struct hlua_socket *socket = MAY_LJMP(hlua_checksocket(L, 1));
-	unsigned int tmout = MAY_LJMP(luaL_checkunsigned(L, 2)) * 1000;
+	socket = MAY_LJMP(hlua_checksocket(L, 1));
+	tmout = MAY_LJMP(luaL_checkunsigned(L, 2)) * 1000;
 
 	socket->s->req->rto = tmout;
 	socket->s->req->wto = tmout;
@@ -1901,8 +1913,12 @@ static inline int _hlua_channel_dup(struct hlua_channel *chn, lua_State *L)
  */
 __LJMP static int hlua_channel_dup(lua_State *L)
 {
+	struct hlua_channel *chn;
+
 	MAY_LJMP(check_args(L, 1, "dup"));
-	struct hlua_channel *chn = MAY_LJMP(hlua_checkchannel(L, 1));
+
+	chn = MAY_LJMP(hlua_checkchannel(L, 1));
+
 	if (_hlua_channel_dup(chn, L) == 0)
 		WILL_LJMP(lua_yieldk(L, 0, 0, hlua_channel_dup));
 	return 1;
@@ -1915,15 +1931,20 @@ __LJMP static int hlua_channel_dup(lua_State *L)
  */
 __LJMP static int hlua_channel_get(lua_State *L)
 {
+	struct hlua_channel *chn;
+	int ret;
+
 	MAY_LJMP(check_args(L, 1, "get"));
-	struct hlua_channel *chn = MAY_LJMP(hlua_checkchannel(L, 1));
-	int ret = _hlua_channel_dup(chn, L);
+
+	chn = MAY_LJMP(hlua_checkchannel(L, 1));
+	ret = _hlua_channel_dup(chn, L);
 	if (unlikely(ret == 0))
 		WILL_LJMP(lua_yieldk(L, 0, 0, hlua_channel_get));
+
 	if (unlikely(ret == -1))
 		return 1;
-	chn->chn->buf->i -= ret;
 
+	chn->chn->buf->i -= ret;
 	return 1;
 }
 
@@ -1934,18 +1955,22 @@ __LJMP static int hlua_channel_get(lua_State *L)
  */
 __LJMP static int hlua_channel_getline(lua_State *L)
 {
-	MAY_LJMP(check_args(L, 1, "getline"));
 	char *blk1;
 	char *blk2;
 	int len1;
 	int len2;
 	int len;
-	struct hlua_channel *chn = MAY_LJMP(hlua_checkchannel(L, 1));
+	struct hlua_channel *chn;
 	int ret;
 	luaL_Buffer b;
+
+	MAY_LJMP(check_args(L, 1, "getline"));
+	chn = MAY_LJMP(hlua_checkchannel(L, 1));
+
 	ret = bi_getline_nc(chn->chn, &blk1, &len1, &blk2, &len2);
 	if (ret == 0)
 		WILL_LJMP(lua_yieldk(L, 0, 0, hlua_channel_getline));
+
 	if (ret == -1) {
 		lua_pushnil(L);
 		return 1;
@@ -2027,8 +2052,10 @@ __LJMP static int hlua_channel_append(lua_State *L)
  */
 __LJMP static int hlua_channel_set(lua_State *L)
 {
+	struct hlua_channel *chn;
+
 	MAY_LJMP(check_args(L, 2, "set"));
-	struct hlua_channel *chn = MAY_LJMP(hlua_checkchannel(L, 1));
+	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 	lua_pushinteger(L, 0);
 
 	chn->chn->buf->i = 0;
@@ -2154,8 +2181,10 @@ __LJMP static int hlua_channel_forward(lua_State *L)
  */
 __LJMP static int hlua_channel_get_in_len(lua_State *L)
 {
+	struct hlua_channel *chn;
+
 	MAY_LJMP(check_args(L, 1, "get_in_len"));
-	struct hlua_channel *chn = MAY_LJMP(hlua_checkchannel(L, 1));
+	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 	lua_pushinteger(L, chn->chn->buf->i);
 	return 1;
 }
@@ -2165,8 +2194,10 @@ __LJMP static int hlua_channel_get_in_len(lua_State *L)
  */
 __LJMP static int hlua_channel_get_out_len(lua_State *L)
 {
+	struct hlua_channel *chn;
+
 	MAY_LJMP(check_args(L, 1, "get_out_len"));
-	struct hlua_channel *chn = MAY_LJMP(hlua_checkchannel(L, 1));
+	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 	lua_pushinteger(L, chn->chn->buf->o);
 	return 1;
 }
@@ -2190,13 +2221,15 @@ __LJMP static struct hlua_txn *hlua_checktxn(lua_State *L, int ud)
 
 __LJMP static int hlua_setpriv(lua_State *L)
 {
+	struct hlua *hlua;
+
 	MAY_LJMP(check_args(L, 2, "set_priv"));
 
 	/* It is useles to retrieve the session, but this function
 	 * runs only in a session context.
 	 */
 	MAY_LJMP(hlua_checktxn(L, 1));
-	struct hlua *hlua = hlua_gethlua(L);
+	hlua = hlua_gethlua(L);
 
 	/* Remove previous value. */
 	if (hlua->Mref != -1)
@@ -2211,13 +2244,15 @@ __LJMP static int hlua_setpriv(lua_State *L)
 
 __LJMP static int hlua_getpriv(lua_State *L)
 {
+	struct hlua *hlua;
+
 	MAY_LJMP(check_args(L, 1, "get_priv"));
 
 	/* It is useles to retrieve the session, but this function
 	 * runs only in a session context.
 	 */
 	MAY_LJMP(hlua_checktxn(L, 1));
-	struct hlua *hlua = hlua_gethlua(L);
+	hlua = hlua_gethlua(L);
 
 	/* Push configuration index in the stack. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, hlua->Mref);
@@ -2259,9 +2294,10 @@ static int hlua_txn_new(lua_State *L, struct session *s, struct proxy *p, void *
  */
 __LJMP static int hlua_txn_req_channel(lua_State *L)
 {
-	MAY_LJMP(check_args(L, 1, "req_channel"));
+	struct hlua_txn *s;
 
-	struct hlua_txn *s = MAY_LJMP(hlua_checktxn(L, 1));
+	MAY_LJMP(check_args(L, 1, "req_channel"));
+	s = MAY_LJMP(hlua_checktxn(L, 1));
 
 	if (!hlua_channel_new(L, s->s->req))
 		WILL_LJMP(luaL_error(L, "full stack"));
@@ -2275,9 +2311,10 @@ __LJMP static int hlua_txn_req_channel(lua_State *L)
  */
 __LJMP static int hlua_txn_res_channel(lua_State *L)
 {
-	MAY_LJMP(check_args(L, 1, "req_channel"));
+	struct hlua_txn *s;
 
-	struct hlua_txn *s = MAY_LJMP(hlua_checktxn(L, 1));
+	MAY_LJMP(check_args(L, 1, "req_channel"));
+	s = MAY_LJMP(hlua_checktxn(L, 1));
 
 	if (!hlua_channel_new(L, s->s->rep))
 		WILL_LJMP(luaL_error(L, "full stack"));
@@ -2290,9 +2327,10 @@ __LJMP static int hlua_txn_res_channel(lua_State *L)
  */
 __LJMP static int hlua_txn_close(lua_State *L)
 {
-	MAY_LJMP(check_args(L, 1, "close"));
+	struct hlua_txn *s;
 
-	struct hlua_txn *s = MAY_LJMP(hlua_checktxn(L, 1));
+	MAY_LJMP(check_args(L, 1, "close"));
+	s = MAY_LJMP(hlua_checktxn(L, 1));
 
 	channel_abort(s->s->si[0].ib);
 	channel_auto_close(s->s->si[0].ib);
@@ -2525,10 +2563,12 @@ __LJMP static int hlua_yield(lua_State *L)
  */
 __LJMP static int hlua_setnice(lua_State *L)
 {
-	MAY_LJMP(check_args(L, 1, "set_nice"));
+	struct hlua *hlua;
+	int nice;
 
-	struct hlua *hlua = hlua_gethlua(L);
-	int nice = MAY_LJMP(luaL_checkinteger(L, 1));
+	MAY_LJMP(check_args(L, 1, "set_nice"));
+	hlua = hlua_gethlua(L);
+	nice = MAY_LJMP(luaL_checkinteger(L, 1));
 
 	/* If he task is not set, I'm in a start mode. */
 	if (!hlua || !hlua->task)
@@ -2536,7 +2576,7 @@ __LJMP static int hlua_setnice(lua_State *L)
 
 	if (nice < -1024)
 		nice = -1024;
-	if (nice > 1024)
+	else if (nice > 1024)
 		nice = 1024;
 
 	hlua->task->nice = nice;
@@ -3300,6 +3340,12 @@ void hlua_init(void)
 	struct sample_fetch *sf;
 	struct hlua_sample_fetch *hsf;
 	char *p;
+#ifdef USE_OPENSSL
+	char *args[4];
+	struct srv_kw *kw;
+	int tmp_error;
+	char *error;
+#endif
 
 	/* Initialise com signals pool session. */
 	pool2_hlua_com = create_pool("hlua_com", sizeof(struct hlua_com), MEM_F_SHARED);
@@ -3345,7 +3391,7 @@ void hlua_init(void)
 	lua_newtable(gL.T);
 
 	/* Push the loglevel constants. */
-	for (i=0; i<NB_LOG_LEVELS; i++)
+	for (i = 0; i < NB_LOG_LEVELS; i++)
 		hlua_class_const_int(gL.T, log_levels[i], i);
 
 	/* Register special functions. */
@@ -3561,12 +3607,6 @@ void hlua_init(void)
 	socket_tcp.xprt = &raw_sock;
 
 #ifdef USE_OPENSSL
-
-	char *args[4];
-	struct srv_kw *kw;
-	int tmp_error;
-	char *error;
-
 	/* Init TCP server: unchanged parameters */
 	memset(&socket_ssl, 0, sizeof(socket_ssl));
 	socket_ssl.next = NULL;
@@ -3614,7 +3654,7 @@ void hlua_init(void)
 	args[2] = "none";
 	args[3] = NULL;
 
-	for (idx=0; idx<3; idx++) {
+	for (idx = 0; idx < 3; idx++) {
 		if ((kw = srv_find_kw(args[idx])) != NULL) { /* Maybe it's registered server keyword */
 			/*
 			 *
