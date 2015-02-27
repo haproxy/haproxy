@@ -7740,6 +7740,7 @@ out_uri_auth_compat:
 			free(bind_conf->ciphers);
 			free(bind_conf->ecdhe);
 			free(bind_conf->crl_file);
+			free(bind_conf->tls_ticket_keys);
 #endif /* USE_OPENSSL */
 		}
 

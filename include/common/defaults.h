@@ -290,4 +290,9 @@
 #ifndef OCSP_MAX_RESPONSE_TIME_SKEW
 #define OCSP_MAX_RESPONSE_TIME_SKEW 300
 #endif
+
+/* Number of TLS tickets to check, used for rotation */
+#ifndef TLS_TICKETS_NO
+#define TLS_TICKETS_NO 3
+#endif
 #endif /* _COMMON_DEFAULTS_H */

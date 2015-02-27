@@ -32,4 +32,10 @@ struct sni_ctx {
 	struct ebmb_node name;    /* node holding the servername value */
 };
 
+struct tls_sess_key {
+	unsigned char name[16];
+	unsigned char aes_key[16];
+	unsigned char hmac_key[16];
+} __attribute__((packed));
+
 #endif /* _TYPES_SSL_SOCK_H */

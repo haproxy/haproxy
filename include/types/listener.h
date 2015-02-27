@@ -132,6 +132,8 @@ struct bind_conf {
 	int strict_sni;            /* refuse negotiation if sni doesn't match a certificate */
 	struct eb_root sni_ctx;    /* sni_ctx tree of all known certs full-names sorted by name */
 	struct eb_root sni_w_ctx;  /* sni_ctx tree of all known certs wildcards sorted by name */
+	struct tls_sess_key *tls_ticket_keys; /* TLS ticket keys */
+	int tls_ticket_enc_index;  /* array index of the key to use for encryption */
 #endif
 	int is_ssl;                /* SSL is required for these listeners */
 	unsigned long bind_proc;   /* bitmask of processes allowed to use these listeners */
