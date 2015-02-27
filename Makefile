@@ -118,7 +118,7 @@ DEBUG_CFLAGS = -g
 #### Compiler-specific flags that may be used to disable some negative over-
 # optimization or to silence some warnings. -fno-strict-aliasing is needed with
 # gcc >= 4.4.
-SPEC_CFLAGS = -fno-strict-aliasing
+SPEC_CFLAGS = -fno-strict-aliasing -Wdeclaration-after-statement
 
 #### Memory usage tuning
 # If small memory footprint is required, you can reduce the buffer size. There
