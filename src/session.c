@@ -545,8 +545,7 @@ int session_complete(struct session *s)
 	txn->rsp.chn = s->rep;
 
 #ifdef USE_LUA
-	if (!hlua_ctx_init(&s->hlua, s->task))
-		goto out_free_rep;
+	s->hlua.T = NULL;
 #endif
 
 	/* finish initialization of the accepted file descriptor */
@@ -557,7 +556,7 @@ int session_complete(struct session *s)
 		 * finished (=0, eg: monitoring), in both situations,
 		 * we can release everything and close.
 		 */
-		goto out_free_lua;
+		goto out_free_rep;
 	}
 
 	/* if logs require transport layer information, note it on the connection */
@@ -575,11 +574,6 @@ int session_complete(struct session *s)
 	return 1;
 
 	/* Error unrolling */
- out_free_lua:
-#ifdef USE_LUA
-	hlua_ctx_destroy(&s->hlua);
-#endif
-
  out_free_rep:
 	pool_free2(pool2_channel, s->rep);
  out_free_req:
@@ -642,7 +636,8 @@ static void session_free(struct session *s)
 		session_offer_buffers();
 
 #ifdef USE_LUA
-	hlua_ctx_destroy(&s->hlua);
+	if (s->hlua.T)
+		hlua_ctx_destroy(&s->hlua);
 #endif
 
 	pool_free2(pool2_channel, s->req);

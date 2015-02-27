@@ -2709,6 +2709,18 @@ static int hlua_sample_conv_wrapper(struct session *session, const struct arg *a
 {
 	struct hlua_function *fcn = (struct hlua_function *)private;
 
+	/* In the execution wrappers linked with a session, the
+	 * Lua context can be not initialized. This behavior
+	 * permits to save performances because a systematic
+	 * Lua initialization cause 5% performances loss.
+	 */
+	if (!session->hlua.T && !hlua_ctx_init(&session->hlua, session->task)) {
+		send_log(session->be, LOG_ERR, "Lua converter '%s': can't initialize Lua context.", fcn->name);
+		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+			Alert("Lua converter '%s': can't initialize Lua context.\n", fcn->name);
+		return 0;
+	}
+
 	/* If it is the first run, initialize the data for the call. */
 	if (session->hlua.state == HLUA_STOP) {
 		/* Check stack available size. */
@@ -2795,6 +2807,18 @@ static int hlua_sample_fetch_wrapper(struct proxy *px, struct session *s, void *
                                      struct sample *smp, const char *kw, void *private)
 {
 	struct hlua_function *fcn = (struct hlua_function *)private;
+
+	/* In the execution wrappers linked with a session, the
+	 * Lua context can be not initialized. This behavior
+	 * permits to save performances because a systematic
+	 * Lua initialization cause 5% performances loss.
+	 */
+	if (!s->hlua.T && !hlua_ctx_init(&s->hlua, s->task)) {
+		send_log(s->be, LOG_ERR, "Lua sample-fetch '%s': can't initialize Lua context.", fcn->name);
+		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+			Alert("Lua sample-fetch '%s': can't initialize Lua context.\n", fcn->name);
+		return 0;
+	}
 
 	/* If it is the first run, initialize the data for the call. */
 	if (s->hlua.state == HLUA_STOP) {
@@ -3062,6 +3086,18 @@ static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
                                     unsigned int analyzer)
 {
 	char **arg;
+
+	/* In the execution wrappers linked with a session, the
+	 * Lua context can be not initialized. This behavior
+	 * permits to save performances because a systematic
+	 * Lua initialization cause 5% performances loss.
+	 */
+	if (!s->hlua.T && !hlua_ctx_init(&s->hlua, s->task)) {
+		send_log(px, LOG_ERR, "Lua action '%s': can't initialize Lua context.", rule->fcn.name);
+		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
+			Alert("Lua action '%s': can't initialize Lua context.\n", rule->fcn.name);
+		return 0;
+	}
 
 	/* If it is the first run, initialize the data for the call. */
 	if (s->hlua.state == HLUA_STOP) {
