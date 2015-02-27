@@ -4798,14 +4798,15 @@ stats_error_parsing:
 			 * exclamation mark, and cur_arg is the argument which holds this word.
 			 */
 			if (strcmp(ptr_arg, "binary") == 0) {
+				struct tcpcheck_rule *tcpcheck;
+				char *err = NULL;
+
 				if (!*(args[cur_arg + 1])) {
 					Alert("parsing [%s:%d] : '%s %s %s' expects <binary string> as an argument.\n",
 					      file, linenum, args[0], args[1], ptr_arg);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
-				struct tcpcheck_rule *tcpcheck;
-				char *err = NULL;
 
 				tcpcheck = (struct tcpcheck_rule *)calloc(1, sizeof(*tcpcheck));
 
@@ -4822,13 +4823,14 @@ stats_error_parsing:
 				LIST_ADDQ(&curproxy->tcpcheck_rules, &tcpcheck->list);
 			}
 			else if (strcmp(ptr_arg, "string") == 0) {
+				struct tcpcheck_rule *tcpcheck;
+
 				if (!*(args[cur_arg + 1])) {
 					Alert("parsing [%s:%d] : '%s %s %s' expects <string> as an argument.\n",
 					      file, linenum, args[0], args[1], ptr_arg);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
-				struct tcpcheck_rule *tcpcheck;
 
 				tcpcheck = (struct tcpcheck_rule *)calloc(1, sizeof(*tcpcheck));
 
@@ -4841,13 +4843,14 @@ stats_error_parsing:
 				LIST_ADDQ(&curproxy->tcpcheck_rules, &tcpcheck->list);
 			}
 			else if (strcmp(ptr_arg, "rstring") == 0) {
+				struct tcpcheck_rule *tcpcheck;
+
 				if (!*(args[cur_arg + 1])) {
 					Alert("parsing [%s:%d] : '%s %s %s' expects <regex> as an argument.\n",
 					      file, linenum, args[0], args[1], ptr_arg);
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
-				struct tcpcheck_rule *tcpcheck;
 
 				tcpcheck = (struct tcpcheck_rule *)calloc(1, sizeof(*tcpcheck));
 
