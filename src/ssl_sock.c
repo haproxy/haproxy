@@ -599,8 +599,8 @@ out:
 void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
 {
 	struct connection *conn = (struct connection *)SSL_get_app_data(ssl);
-	(void)ret; /* shut gcc stupid warning */
 	BIO *write_bio;
+	(void)ret; /* shut gcc stupid warning */
 
 	if (where & SSL_CB_HANDSHAKE_START) {
 		/* Disable renegotiation (CVE-2009-3555) */
