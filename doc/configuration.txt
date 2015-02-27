@@ -8969,6 +8969,18 @@ tfo
   need to build HAProxy with USE_TFO=1 if your libc doesn't define
   TCP_FASTOPEN.
 
+tls-ticket-keys <keyfile>
+  Sets the TLS ticket keys file to load the keys from. The keys need to be 48
+  bytes long, encoded with base64 (ex. openssl rand -base64 48). Number of keys
+  is specified by the TLS_TICKETS_NO build option (default 3) and at least as
+  many keys need to be present in the file. Last TLS_TICKETS_NO keys will be
+  used for decryption and the penultimate one for encryption. This enables easy
+  key rotation by just appending new key to the file and reloading the process.
+  Keys must be periodically rotated (ex. every 12h) or Perfect Forward Secrecy
+  is compromised. It is also a good idea to keep the keys off any permanent
+  storage such as hard drives (hint: use tmpfs and don't swap those files).
+  Lifetime hint can be changed using tune.ssl.timeout.
+
 transparent
   Is an optional keyword which is supported only on certain Linux kernels. It
   indicates that the addresses will be bound even if they do not belong to the
