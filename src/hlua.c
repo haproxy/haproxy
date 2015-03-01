@@ -420,7 +420,7 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp, unsigne
 
 		/* Check oversize. */
 		if (idx >= ARGM_NBARGS && argp[idx].type != ARGT_STOP) {
-			WILL_LJMP(luaL_argerror(L, first + idx, "Malformad argument mask"));
+			WILL_LJMP(luaL_argerror(L, first + idx, "Malformed argument mask"));
 		}
 
 		/* Check for mandatory arguments. */
