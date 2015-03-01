@@ -334,6 +334,12 @@ void display_build_opts()
 	printf("Built without PCRE support (using libc's regex instead)\n");
 #endif
 
+#ifdef USE_LUA
+	printf("Built with Lua version : %s\n", LUA_RELEASE);
+#else
+	printf("Built without Lua support\n");
+#endif
+
 #if defined(CONFIG_HAP_TRANSPARENT) || defined(CONFIG_HAP_CTTPROXY)
 	printf("Built with transparent proxy support using:"
 #if defined(CONFIG_HAP_CTTPROXY)
