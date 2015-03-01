@@ -2348,15 +2348,15 @@ __LJMP static int hlua_txn_close(lua_State *L)
 
 /* This function is an LUA binding. It is called with each sample-fetch.
  * It uses closure argument to store the associated sample-fetch. It
- * returns only one argument or throws an error. An error is throwed
- * only if an error is encoutered during the argument parsing. If
+ * returns only one argument or throws an error. An error is thrown
+ * only if an error is encountered during the argument parsing. If
  * the "sample-fetch" function fails, nil is returned.
  */
 __LJMP static int hlua_run_sample_fetch(lua_State *L)
 {
 	struct hlua_txn *s;
 	struct hlua_sample_fetch *f;
-	struct arg args[ARGM_NBARGS];
+	struct arg args[ARGM_NBARGS + 1];
 	int i;
 	struct sample smp;
 
@@ -2367,7 +2367,7 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 	s = MAY_LJMP(hlua_checktxn(L, 1));
 
 	/* Get extra arguments. */
-	for (i = 0; i <= lua_gettop(L); i++) {
+	for (i = 0; i < lua_gettop(L) - 1; i++) {
 		if (i >= ARGM_NBARGS)
 			break;
 		hlua_lua2arg(L, i + 2, &args[i]);
@@ -2377,8 +2377,8 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 	/* Check arguments. */
 	MAY_LJMP(hlua_lua2arg_check(L, 1, args, f->f->arg_mask));
 
-	/* Run the special args cehcker. */
-	if (!f->f->val_args(args, NULL)) {
+	/* Run the special args checker. */
+	if (f->f->val_args && !f->f->val_args(args, NULL)) {
 		lua_pushfstring(L, "error in arguments");
 		WILL_LJMP(lua_error(L));
 	}
