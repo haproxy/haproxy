@@ -1546,6 +1546,7 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	return 0;
 }
 
+#ifdef USE_OPENSSL
 __LJMP static int hlua_socket_connect_ssl(struct lua_State *L)
 {
 	struct hlua_socket *socket;
@@ -1555,6 +1556,7 @@ __LJMP static int hlua_socket_connect_ssl(struct lua_State *L)
 	socket->s->target = &socket_ssl.obj_type;
 	return MAY_LJMP(hlua_socket_connect(L));
 }
+#endif
 
 __LJMP static int hlua_socket_setoption(struct lua_State *L)
 {
@@ -3567,7 +3569,9 @@ void hlua_init(void)
 	lua_pushstring(gL.T, "__index");
 	lua_newtable(gL.T);
 
+#ifdef USE_OPENSSL
 	hlua_class_function(gL.T, "connect_ssl", hlua_socket_connect_ssl);
+#endif
 	hlua_class_function(gL.T, "connect",     hlua_socket_connect);
 	hlua_class_function(gL.T, "send",        hlua_socket_send);
 	hlua_class_function(gL.T, "receive",     hlua_socket_receive);
