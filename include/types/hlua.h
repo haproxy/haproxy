@@ -16,10 +16,7 @@
 
 struct session;
 
-enum hlua_state {
-	HLUA_STOP = 0,
-	HLUA_RUN,
-};
+#define HLUA_RUN       0x00000001
 
 enum hlua_exec {
 	HLUA_E_OK = 0,
@@ -37,7 +34,7 @@ struct hlua {
 	int Mref; /* The reference of the memory context in coroutine case.
 	             -1 if the memory context is not used. */
 	int nargs; /* The number of arguments in the stack at the start of execution. */
-	enum hlua_state state; /* The current execution state. */
+	unsigned int flags; /* The current execution flags. */
 	struct task *task; /* The task associated with the lua stack execution.
 	                      We must wake this task to continue the task execution */
 	struct list com; /* The list head of the signals attached to this task. */

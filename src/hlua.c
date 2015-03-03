@@ -20,6 +20,7 @@
 #include <proto/arg.h>
 #include <proto/channel.h>
 #include <proto/hdr_idx.h>
+#include <proto/hlua.h>
 #include <proto/obj_type.h>
 #include <proto/pattern.h>
 #include <proto/payload.h>
@@ -507,7 +508,7 @@ static inline void hlua_sethlua(struct hlua *hlua)
 int hlua_ctx_init(struct hlua *lua, struct task *task)
 {
 	lua->Mref = LUA_REFNIL;
-	lua->state = HLUA_STOP;
+	lua->flags = 0;
 	LIST_INIT(&lua->com);
 	lua->T = lua_newthread(gL.T);
 	if (!lua->T) {
@@ -610,7 +611,7 @@ static enum hlua_exec hlua_ctx_resume(struct hlua *lua, int yield_allowed)
 	int ret;
 	const char *msg;
 
-	lua->state = HLUA_RUN;
+	HLUA_SET_RUN(lua);
 
 	/* Call the function. */
 	ret = lua_resume(lua->T, gL.T, lua->nargs);
@@ -692,17 +693,17 @@ static enum hlua_exec hlua_ctx_resume(struct hlua *lua, int yield_allowed)
 	case HLUA_E_ERRMSG:
 		hlua_com_purge(lua);
 		hlua_ctx_renew(lua, 1);
-		lua->state = HLUA_STOP;
+		HLUA_CLR_RUN(lua);
 		break;
 
 	case HLUA_E_ERR:
-		lua->state = HLUA_STOP;
+		HLUA_CLR_RUN(lua);
 		hlua_com_purge(lua);
 		hlua_ctx_renew(lua, 0);
 		break;
 
 	case HLUA_E_OK:
-		lua->state = HLUA_STOP;
+		HLUA_CLR_RUN(lua);
 		hlua_com_purge(lua);
 		break;
 	}
@@ -1649,7 +1650,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	socket->s->hlua.Tref = LUA_REFNIL;
 	socket->s->hlua.Mref = LUA_REFNIL;
 	socket->s->hlua.nargs = 0;
-	socket->s->hlua.state = HLUA_STOP;
+	socket->s->hlua.flags = 0;
 	LIST_INIT(&socket->s->hlua.com);
 
 	/* session initialisation. */
@@ -2731,7 +2732,7 @@ static int hlua_sample_conv_wrapper(struct session *session, const struct arg *a
 	}
 
 	/* If it is the first run, initialize the data for the call. */
-	if (session->hlua.state == HLUA_STOP) {
+	if (!HLUA_IS_RUNNING(&session->hlua)) {
 		/* Check stack available size. */
 		if (!lua_checkstack(session->hlua.T, 1)) {
 			send_log(session->be, LOG_ERR, "Lua converter '%s': full stack.", fcn->name);
@@ -2768,7 +2769,7 @@ static int hlua_sample_conv_wrapper(struct session *session, const struct arg *a
 		}
 
 		/* Set the currently running flag. */
-		session->hlua.state = HLUA_RUN;
+		HLUA_SET_RUN(&session->hlua);
 	}
 
 	/* Execute the function. */
@@ -2830,7 +2831,7 @@ static int hlua_sample_fetch_wrapper(struct proxy *px, struct session *s, void *
 	}
 
 	/* If it is the first run, initialize the data for the call. */
-	if (s->hlua.state == HLUA_STOP) {
+	if (!HLUA_IS_RUNNING(&s->hlua)) {
 		/* Check stack available size. */
 		if (!lua_checkstack(s->hlua.T, 2)) {
 			send_log(px, LOG_ERR, "Lua sample-fetch '%s': full stack.", fcn->name);
@@ -2871,7 +2872,7 @@ static int hlua_sample_fetch_wrapper(struct proxy *px, struct session *s, void *
 		}
 
 		/* Set the currently running flag. */
-		s->hlua.state = HLUA_RUN;
+		HLUA_SET_RUN(&s->hlua);
 	}
 
 	/* Execute the function. */
@@ -3109,7 +3110,7 @@ static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
 	}
 
 	/* If it is the first run, initialize the data for the call. */
-	if (s->hlua.state == HLUA_STOP) {
+	if (!HLUA_IS_RUNNING(&s->hlua)) {
 		/* Check stack available size. */
 		if (!lua_checkstack(s->hlua.T, 1)) {
 			send_log(px, LOG_ERR, "Lua function '%s': full stack.", rule->fcn.name);
@@ -3143,7 +3144,7 @@ static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
 		}
 
 		/* Set the currently running flag. */
-		s->hlua.state = HLUA_RUN;
+		HLUA_SET_RUN(&s->hlua);
 	}
 
 	/* Execute the function. */
@@ -3409,7 +3410,7 @@ void hlua_init(void)
 
 	/* Init main lua stack. */
 	gL.Mref = LUA_REFNIL;
-	gL.state = HLUA_STOP;
+	gL.flags = 0;
 	LIST_INIT(&gL.com);
 	gL.T = luaL_newstate();
 	hlua_sethlua(&gL);

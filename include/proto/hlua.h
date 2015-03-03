@@ -7,6 +7,11 @@
 
 #include <types/hlua.h>
 
+/* The following macros are used to set flags. */
+#define HLUA_SET_RUN(__hlua)         do {(__hlua)->flags |= HLUA_RUN;} while(0)
+#define HLUA_CLR_RUN(__hlua)         do {(__hlua)->flags &= ~HLUA_RUN;} while(0)
+#define HLUA_IS_RUNNING(__hlua)      ((__hlua)->flags & HLUA_RUN)
+
 #define HLUA_INIT(__hlua) do { (__hlua)->T = 0; } while(0)
 
 /* Lua HAProxy integration functions. */
@@ -15,6 +20,8 @@ void hlua_init();
 int hlua_post_init();
 
 #else /* USE_LUA */
+
+#define HLUA_IS_RUNNING(__hlua) 0
 
 #define HLUA_INIT(__hlua)
 
