@@ -513,7 +513,7 @@ static inline void hlua_sethlua(struct hlua *hlua)
  * returned with a timeout and permit to set some flags
  */
 __LJMP void hlua_yieldk(lua_State *L, int nresults, int ctx,
-                        lua_CFunction k, int timeout)
+                        lua_CFunction k, int timeout, unsigned int flags)
 {
 	struct hlua *hlua = hlua_gethlua(L);
 
@@ -523,6 +523,8 @@ __LJMP void hlua_yieldk(lua_State *L, int nresults, int ctx,
 	hlua->wake_time = timeout;
 	if (hlua->wake_time == TICK_ETERNITY)
 		hlua->wake_time = hlua->expire;
+
+	hlua->flags |= flags;
 
 	/* Process the yield. */
 	WILL_LJMP(lua_yieldk(L, nresults, ctx, k));
@@ -1156,7 +1158,7 @@ connection_empty:
 	appctx = objt_appctx(socket->s->si[0].end);
 	if (!hlua_com_new(hlua, &appctx->ctx.hlua.wake_on_read))
 		WILL_LJMP(luaL_error(L, "out of memory"));
-	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_socket_receive_yield, TICK_ETERNITY));
+	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_socket_receive_yield, TICK_ETERNITY, 0));
 	return 0;
 }
 
@@ -1306,7 +1308,7 @@ hlua_socket_write_yield_return:
 	appctx = objt_appctx(socket->s->si[0].end);
 	if (!hlua_com_new(hlua, &appctx->ctx.hlua.wake_on_write))
 		WILL_LJMP(luaL_error(L, "out of memory"));
-	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_socket_write_yield, TICK_ETERNITY));
+	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_socket_write_yield, TICK_ETERNITY, 0));
 	return 0;
 }
 
@@ -1536,7 +1538,7 @@ __LJMP static int hlua_socket_connect_yield(struct lua_State *L)
 
 	if (!hlua_com_new(hlua, &appctx->ctx.hlua.wake_on_write))
 		WILL_LJMP(luaL_error(L, "out of memory error"));
-	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_socket_connect_yield, TICK_ETERNITY));
+	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_socket_connect_yield, TICK_ETERNITY, 0));
 	return 0;
 }
 
@@ -1576,7 +1578,7 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	 */
 	task_wakeup(socket->s->task, TASK_WOKEN_INIT);
 
-	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_socket_connect_yield, TICK_ETERNITY));
+	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_socket_connect_yield, TICK_ETERNITY, 0));
 
 	return 0;
 }
@@ -1961,7 +1963,7 @@ __LJMP static int hlua_channel_dup(lua_State *L)
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 
 	if (_hlua_channel_dup(chn, L) == 0)
-		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_dup, TICK_ETERNITY));
+		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_dup, TICK_ETERNITY, 0));
 	return 1;
 }
 
@@ -1980,7 +1982,7 @@ __LJMP static int hlua_channel_get(lua_State *L)
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 	ret = _hlua_channel_dup(chn, L);
 	if (unlikely(ret == 0))
-		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_get, TICK_ETERNITY));
+		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_get, TICK_ETERNITY, 0));
 
 	if (unlikely(ret == -1))
 		return 1;
@@ -2010,7 +2012,7 @@ __LJMP static int hlua_channel_getline(lua_State *L)
 
 	ret = bi_getline_nc(chn->chn, &blk1, &len1, &blk2, &len2);
 	if (ret == 0)
-		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_getline, TICK_ETERNITY));
+		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_getline, TICK_ETERNITY, 0));
 
 	if (ret == -1) {
 		lua_pushnil(L);
@@ -2055,7 +2057,7 @@ __LJMP static int _hlua_channel_append(lua_State *L)
 		return 1;
 	}
 	if (ret == -1)
-		WILL_LJMP(hlua_yieldk(L, 0, 0, _hlua_channel_append, TICK_ETERNITY));
+		WILL_LJMP(hlua_yieldk(L, 0, 0, _hlua_channel_append, TICK_ETERNITY, 0));
 	l += ret;
 	lua_pop(L, 1);
 	lua_pushinteger(L, l);
@@ -2069,7 +2071,7 @@ __LJMP static int _hlua_channel_append(lua_State *L)
 		return 1;
 	}
 	if (l < len)
-		WILL_LJMP(hlua_yieldk(L, 0, 0, _hlua_channel_append, TICK_ETERNITY));
+		WILL_LJMP(hlua_yieldk(L, 0, 0, _hlua_channel_append, TICK_ETERNITY, 0));
 	return 1;
 }
 
@@ -2145,7 +2147,7 @@ __LJMP static int _hlua_channel_send(lua_State *L)
 		return 1;
 	}
 	if (l < len)
-		WILL_LJMP(hlua_yieldk(L, 0, 0, _hlua_channel_send, TICK_ETERNITY));
+		WILL_LJMP(hlua_yieldk(L, 0, 0, _hlua_channel_send, TICK_ETERNITY, 0));
 
 	return 1;
 }
@@ -2198,7 +2200,7 @@ __LJMP static int hlua_channel_forward_yield(lua_State *L)
 			return 1;
 
 		/* Otherwise, we can yield waiting for new data in the inpout side. */
-		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_forward_yield, TICK_ETERNITY));
+		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_forward_yield, TICK_ETERNITY, 0));
 	}
 
 	return 1;
@@ -2520,7 +2522,7 @@ __LJMP static int hlua_sleep_yield(lua_State *L)
 {
 	int wakeup_ms = lua_tointeger(L, -1);
 	if (now_ms < wakeup_ms)
-		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_sleep_yield, TICK_ETERNITY));
+		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_sleep_yield, TICK_ETERNITY, 0));
 	return 0;
 }
 
@@ -2559,7 +2561,7 @@ __LJMP static inline int _hlua_sleep(lua_State *L, int delay)
 	/* Store the wakeup time in the lua stack. */
 	lua_pushinteger(L, t->wakeup_ms);
 
-	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_sleep_yield, TICK_ETERNITY));
+	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_sleep_yield, TICK_ETERNITY, 0));
 	return 0;
 }
 
