@@ -35,6 +35,7 @@ struct hlua {
 	             -1 if the memory context is not used. */
 	int nargs; /* The number of arguments in the stack at the start of execution. */
 	unsigned int flags; /* The current execution flags. */
+	int expire; /* Lua execution must be stopped over this time. */
 	struct task *task; /* The task associated with the lua stack execution.
 	                      We must wake this task to continue the task execution */
 	struct list com; /* The list head of the signals attached to this task. */

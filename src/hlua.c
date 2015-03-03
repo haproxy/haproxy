@@ -79,6 +79,14 @@ static int class_txn_ref;
 static int class_socket_ref;
 static int class_channel_ref;
 
+/* Global Lua execution timeout. By default Lua, execution linked
+ * with session (actions, sample-fetches and converters) have a
+ * short timeout. Lua linked with tasks doesn't have a timeout
+ * because a task may remain alive during all the haproxy execution.
+ */
+static unsigned int hlua_timeout_session = 4000; /* session timeout. */
+static unsigned int hlua_timeout_task = TICK_ETERNITY; /* task timeout. */
+
 /* These functions converts types between HAProxy internal args or
  * sample and LUA types. Another function permits to check if the
  * LUA stack contains arguments according with an required ARG_T
@@ -2609,6 +2617,12 @@ static struct task *hlua_process_task(struct task *task)
 	 */
 	task_delete(task);
 
+	/* If it is the first call to the task, we must initialize the
+	 * execution timeouts.
+	 */
+	if (!HLUA_IS_RUNNING(hlua))
+		hlua->expire = tick_add(now_ms, hlua_timeout_task);
+
 	/* Execute the Lua code. */
 	status = hlua_ctx_resume(hlua, 1);
 
@@ -2768,6 +2782,9 @@ static int hlua_sample_conv_wrapper(struct session *session, const struct arg *a
 			}
 		}
 
+		/* We must initialize the execution timeouts. */
+		session->hlua.expire = tick_add(now_ms, hlua_timeout_session);
+
 		/* Set the currently running flag. */
 		HLUA_SET_RUN(&session->hlua);
 	}
@@ -2870,6 +2887,9 @@ static int hlua_sample_fetch_wrapper(struct proxy *px, struct session *s, void *
 			hlua_arg2lua(s->hlua.T, arg_p);
 			s->hlua.nargs++;
 		}
+
+		/* We must initialize the execution timeouts. */
+		s->hlua.expire = tick_add(now_ms, hlua_timeout_session);
 
 		/* Set the currently running flag. */
 		HLUA_SET_RUN(&s->hlua);
@@ -3143,6 +3163,9 @@ static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
 			s->hlua.nargs++;
 		}
 
+		/* We must initialize the execution timeouts. */
+		s->hlua.expire = tick_add(now_ms, hlua_timeout_session);
+
 		/* Set the currently running flag. */
 		HLUA_SET_RUN(&s->hlua);
 	}
@@ -3271,6 +3294,36 @@ static int http_res_action_register_lua(const char **args, int *cur_arg, struct 
 	return 1;
 }
 
+static int hlua_read_timeout(char **args, int section_type, struct proxy *curpx,
+                             struct proxy *defpx, const char *file, int line,
+                             char **err, unsigned int *timeout)
+{
+	const char *error;
+
+	error = parse_time_err(args[1], timeout, TIME_UNIT_MS);
+	if (error && *error != '\0') {
+		memprintf(err, "%s: invalid timeout", args[0]);
+		return -1;
+	}
+	return 0;
+}
+
+static int hlua_session_timeout(char **args, int section_type, struct proxy *curpx,
+                                struct proxy *defpx, const char *file, int line,
+                                char **err)
+{
+	return hlua_read_timeout(args, section_type, curpx, defpx,
+	                         file, line, err, &hlua_timeout_session);
+}
+
+static int hlua_task_timeout(char **args, int section_type, struct proxy *curpx,
+                             struct proxy *defpx, const char *file, int line,
+                             char **err)
+{
+	return hlua_read_timeout(args, section_type, curpx, defpx,
+	                         file, line, err, &hlua_timeout_task);
+}
+
 /* This function is called by the main configuration key "lua-load". It loads and
  * execute an lua file during the parsing of the HAProxy configuration file. It is
  * the main lua entry point.
@@ -3326,7 +3379,9 @@ static int hlua_load(char **args, int section_type, struct proxy *curpx,
 
 /* configuration keywords declaration */
 static struct cfg_kw_list cfg_kws = {{ },{
-	{ CFG_GLOBAL, "lua-load",  hlua_load },
+	{ CFG_GLOBAL, "lua-load",                 hlua_load },
+	{ CFG_GLOBAL, "tune.lua.session-timeout", hlua_session_timeout },
+	{ CFG_GLOBAL, "tune.lua.task-timeout",    hlua_task_timeout },
 	{ 0, NULL, NULL },
 }};
 
