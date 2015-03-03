@@ -87,6 +87,33 @@ static int class_channel_ref;
 static unsigned int hlua_timeout_session = 4000; /* session timeout. */
 static unsigned int hlua_timeout_task = TICK_ETERNITY; /* task timeout. */
 
+/* Interrupts the Lua processing each "hlua_nb_instruction" instructions.
+ * it is used for preventing infinite loops.
+ *
+ * I test the scheer with an infinite loop containing one incrementation
+ * and one test. I run this loop between 10 seconds, I raise a ceil of
+ * 710M loops from one interrupt each 9000 instructions, so I fix the value
+ * to one interrupt each 10 000 instructions.
+ *
+ *  configured    | Number of
+ *  instructions  | loops executed
+ *  between two   | in milions
+ *  forced yields |
+ * ---------------+---------------
+ *  10            | 160
+ *  500           | 670
+ *  1000          | 680
+ *  5000          | 700
+ *  7000          | 700
+ *  8000          | 700
+ *  9000          | 710 <- ceil
+ *  10000         | 710
+ *  100000        | 710
+ *  1000000       | 710
+ *
+ */
+static unsigned int hlua_nb_instruction = 10000;
+
 /* These functions converts types between HAProxy internal args or
  * sample and LUA types. Another function permits to check if the
  * LUA stack contains arguments according with an required ARG_T
@@ -620,6 +647,11 @@ static int hlua_ctx_renew(struct hlua *lua, int keep_msg)
 	return 1;
 }
 
+void hlua_hook(lua_State *L, lua_Debug *ar)
+{
+	hlua_yieldk(L, 0, 0, NULL, TICK_ETERNITY, HLUA_CTRLYIELD);
+}
+
 /* This function start or resumes the Lua stack execution. If the flag
  * "yield_allowed" if no set and the  LUA stack execution returns a yield
  * The function return an error.
@@ -642,6 +674,13 @@ static enum hlua_exec hlua_ctx_resume(struct hlua *lua, int yield_allowed)
 
 	HLUA_SET_RUN(lua);
 
+resume_execution:
+
+	/* This hook interrupts the Lua processing each 'hlua_nb_instruction'
+	 * instructions. it is used for preventing infinite loops.
+	 */
+	lua_sethook(lua->T, hlua_hook, LUA_MASKCOUNT, hlua_nb_instruction);
+
 	/* Call the function. */
 	ret = lua_resume(lua->T, gL.T, lua->nargs);
 	switch (ret) {
@@ -651,6 +690,31 @@ static enum hlua_exec hlua_ctx_resume(struct hlua *lua, int yield_allowed)
 		break;
 
 	case LUA_YIELD:
+		/* If the yield id received join  to the flag HLUA_CTRLYIELD,
+		 * we check the Lua timeout execution.
+		 */
+		if (HLUA_IS_CTRLYIELDING(lua)) {
+			/* If the timeout is expired, we break the Lua execution. */
+			if (tick_is_expired(lua->expire, now_ms)) {
+				lua_settop(lua->T, 0); /* Empty the stack. */
+				if (!lua_checkstack(lua->T, 1)) {
+					ret = HLUA_E_ERR;
+					break;
+				}
+				lua_pushfstring(lua->T, "execution timeout");
+				ret = HLUA_E_ERRMSG;
+				break;
+			}
+			/* if the general yield is not allowed or if no task were
+			 * associated this the current Lua execution coroutine, we
+			 * resume the execution.
+			 */
+			if (!yield_allowed || !lua->task)
+				goto resume_execution;
+			/* Re-schedule the task. */
+			task_wakeup(lua->task, TASK_WOKEN_MSG);
+
+		}
 		if (!yield_allowed) {
 			lua_settop(lua->T, 0); /* Empty the stack. */
 			if (!lua_checkstack(lua->T, 1)) {
@@ -3358,6 +3422,20 @@ static int hlua_task_timeout(char **args, int section_type, struct proxy *curpx,
 	                         file, line, err, &hlua_timeout_task);
 }
 
+static int hlua_forced_yield(char **args, int section_type, struct proxy *curpx,
+                             struct proxy *defpx, const char *file, int line,
+                             char **err)
+{
+	char *error;
+
+	hlua_nb_instruction = strtoll(args[1], &error, 10);
+	if (*error != '\0') {
+		memprintf(err, "%s: invalid number", args[0]);
+		return -1;
+	}
+	return 0;
+}
+
 /* This function is called by the main configuration key "lua-load". It loads and
  * execute an lua file during the parsing of the HAProxy configuration file. It is
  * the main lua entry point.
@@ -3416,6 +3494,7 @@ static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_GLOBAL, "lua-load",                 hlua_load },
 	{ CFG_GLOBAL, "tune.lua.session-timeout", hlua_session_timeout },
 	{ CFG_GLOBAL, "tune.lua.task-timeout",    hlua_task_timeout },
+	{ CFG_GLOBAL, "tune.lua.forced-yield",    hlua_forced_yield },
 	{ 0, NULL, NULL },
 }};
 
