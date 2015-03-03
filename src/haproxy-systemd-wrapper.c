@@ -163,6 +163,7 @@ static void init(int argc, char **argv)
 int main(int argc, char **argv)
 {
 	int status;
+	struct sigaction sa;
 
 	wrapper_argc = argc;
 	wrapper_argv = argv;
@@ -170,7 +171,6 @@ int main(int argc, char **argv)
 	--argc; ++argv;
 	init(argc, argv);
 
-	struct sigaction sa;
 	memset(&sa, 0, sizeof(struct sigaction));
 	sa.sa_handler = &signal_handler;
 	sigaction(SIGUSR2, &sa, NULL);
