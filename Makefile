@@ -77,6 +77,8 @@
 #   SSL_INC        : force the include path to libssl/libcrypto
 #   LUA_LIB        : force the lib path to lua
 #   LUA_INC        : force the include path to lua
+#   LUA_LIB_NAME   : force the lib name (or automatically evaluated, by order of
+#                                        priority : lua5.2, lua52, lua).
 #   IGNOREGIT      : ignore GIT commit versions if set.
 #   VERSION        : force haproxy version reporting.
 #   SUBVERS        : add a sub-version (eg: platform, model, ...).
@@ -561,8 +563,19 @@ endif
 endif
 
 ifneq ($(USE_LUA),)
+check_lua_lib = $(shell echo "int main(){}" | $(CC) -o /dev/null -x c - $(2) -l$(1) 2>/dev/null && echo $(1))
+
 OPTIONS_CFLAGS  += -DUSE_LUA $(if $(LUA_INC),-I$(LUA_INC))
-OPTIONS_LDFLAGS += $(if $(LUA_LIB),-L$(LUA_LIB)) -llua -lm
+LUA_LD_FLAGS := $(if $(LUA_LIB),-L$(LUA_LIB))
+ifeq ($(LUA_LIB_NAME),)
+# Try to automatically detect the Lua library
+LUA_LIB_NAME := $(firstword $(foreach lib,lua5.2 lua52 lua,$(call check_lua_lib,$(lib),$(LUA_LD_FLAGS))))
+ifeq ($(LUA_LIB_NAME),)
+$(error unable to automatically detect the Lua library name, you can enforce its name with LUA_LIB_NAME=<name> (where <name> can be lua5.2, lua52, lua, ...))
+endif
+endif
+
+OPTIONS_LDFLAGS += $(LUA_LD_FLAGS) -l$(LUA_LIB_NAME) -lm
 OPTIONS_OBJS    += src/hlua.o
 endif
 
