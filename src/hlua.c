@@ -509,6 +509,25 @@ static inline void hlua_sethlua(struct hlua *hlua)
 	ebpt_insert(&hlua_ctx, &hlua->node);
 }
 
+/* This function just ensure that the yield will be always
+ * returned with a timeout and permit to set some flags
+ */
+__LJMP void hlua_yieldk(lua_State *L, int nresults, int ctx,
+                        lua_CFunction k, int timeout)
+{
+	struct hlua *hlua = hlua_gethlua(L);
+
+	/* Set the wake timeout. If timeout is required, we set
+	 * the expiration time.
+	 */
+	hlua->wake_time = timeout;
+	if (hlua->wake_time == TICK_ETERNITY)
+		hlua->wake_time = hlua->expire;
+
+	/* Process the yield. */
+	WILL_LJMP(lua_yieldk(L, nresults, ctx, k));
+}
+
 /* This function initialises the Lua environment stored in the session.
  * It must be called at the start of the session. This function creates
  * an LUA coroutine. It can not be use to crete the main LUA context.
@@ -644,6 +663,7 @@ static enum hlua_exec hlua_ctx_resume(struct hlua *lua, int yield_allowed)
 		break;
 
 	case LUA_ERRRUN:
+		lua->wake_time = TICK_ETERNITY;
 		if (!lua_checkstack(lua->T, 1)) {
 			ret = HLUA_E_ERR;
 			break;
@@ -659,6 +679,7 @@ static enum hlua_exec hlua_ctx_resume(struct hlua *lua, int yield_allowed)
 		break;
 
 	case LUA_ERRMEM:
+		lua->wake_time = TICK_ETERNITY;
 		lua_settop(lua->T, 0); /* Empty the stack. */
 		if (!lua_checkstack(lua->T, 1)) {
 			ret = HLUA_E_ERR;
@@ -669,6 +690,7 @@ static enum hlua_exec hlua_ctx_resume(struct hlua *lua, int yield_allowed)
 		break;
 
 	case LUA_ERRERR:
+		lua->wake_time = TICK_ETERNITY;
 		if (!lua_checkstack(lua->T, 1)) {
 			ret = HLUA_E_ERR;
 			break;
@@ -684,6 +706,7 @@ static enum hlua_exec hlua_ctx_resume(struct hlua *lua, int yield_allowed)
 		break;
 
 	default:
+		lua->wake_time = TICK_ETERNITY;
 		lua_settop(lua->T, 0); /* Empty the stack. */
 		if (!lua_checkstack(lua->T, 1)) {
 			ret = HLUA_E_ERR;
@@ -1133,7 +1156,7 @@ connection_empty:
 	appctx = objt_appctx(socket->s->si[0].end);
 	if (!hlua_com_new(hlua, &appctx->ctx.hlua.wake_on_read))
 		WILL_LJMP(luaL_error(L, "out of memory"));
-	WILL_LJMP(lua_yieldk(L, 0, 0, hlua_socket_receive_yield));
+	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_socket_receive_yield, TICK_ETERNITY));
 	return 0;
 }
 
@@ -1283,7 +1306,7 @@ hlua_socket_write_yield_return:
 	appctx = objt_appctx(socket->s->si[0].end);
 	if (!hlua_com_new(hlua, &appctx->ctx.hlua.wake_on_write))
 		WILL_LJMP(luaL_error(L, "out of memory"));
-	WILL_LJMP(lua_yieldk(L, 0, 0, hlua_socket_write_yield));
+	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_socket_write_yield, TICK_ETERNITY));
 	return 0;
 }
 
@@ -1513,7 +1536,7 @@ __LJMP static int hlua_socket_connect_yield(struct lua_State *L)
 
 	if (!hlua_com_new(hlua, &appctx->ctx.hlua.wake_on_write))
 		WILL_LJMP(luaL_error(L, "out of memory error"));
-	WILL_LJMP(lua_yieldk(L, 0, 0, hlua_socket_connect_yield));
+	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_socket_connect_yield, TICK_ETERNITY));
 	return 0;
 }
 
@@ -1553,7 +1576,7 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	 */
 	task_wakeup(socket->s->task, TASK_WOKEN_INIT);
 
-	WILL_LJMP(lua_yieldk(L, 0, 0, hlua_socket_connect_yield));
+	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_socket_connect_yield, TICK_ETERNITY));
 
 	return 0;
 }
@@ -1938,7 +1961,7 @@ __LJMP static int hlua_channel_dup(lua_State *L)
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 
 	if (_hlua_channel_dup(chn, L) == 0)
-		WILL_LJMP(lua_yieldk(L, 0, 0, hlua_channel_dup));
+		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_dup, TICK_ETERNITY));
 	return 1;
 }
 
@@ -1957,7 +1980,7 @@ __LJMP static int hlua_channel_get(lua_State *L)
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 	ret = _hlua_channel_dup(chn, L);
 	if (unlikely(ret == 0))
-		WILL_LJMP(lua_yieldk(L, 0, 0, hlua_channel_get));
+		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_get, TICK_ETERNITY));
 
 	if (unlikely(ret == -1))
 		return 1;
@@ -1987,7 +2010,7 @@ __LJMP static int hlua_channel_getline(lua_State *L)
 
 	ret = bi_getline_nc(chn->chn, &blk1, &len1, &blk2, &len2);
 	if (ret == 0)
-		WILL_LJMP(lua_yieldk(L, 0, 0, hlua_channel_getline));
+		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_getline, TICK_ETERNITY));
 
 	if (ret == -1) {
 		lua_pushnil(L);
@@ -2032,7 +2055,7 @@ __LJMP static int _hlua_channel_append(lua_State *L)
 		return 1;
 	}
 	if (ret == -1)
-		WILL_LJMP(lua_yieldk(L, 0, 0, _hlua_channel_append));
+		WILL_LJMP(hlua_yieldk(L, 0, 0, _hlua_channel_append, TICK_ETERNITY));
 	l += ret;
 	lua_pop(L, 1);
 	lua_pushinteger(L, l);
@@ -2046,7 +2069,7 @@ __LJMP static int _hlua_channel_append(lua_State *L)
 		return 1;
 	}
 	if (l < len)
-		WILL_LJMP(lua_yieldk(L, 0, 0, _hlua_channel_append));
+		WILL_LJMP(hlua_yieldk(L, 0, 0, _hlua_channel_append, TICK_ETERNITY));
 	return 1;
 }
 
@@ -2122,7 +2145,7 @@ __LJMP static int _hlua_channel_send(lua_State *L)
 		return 1;
 	}
 	if (l < len)
-		WILL_LJMP(lua_yieldk(L, 0, 0, _hlua_channel_send));
+		WILL_LJMP(hlua_yieldk(L, 0, 0, _hlua_channel_send, TICK_ETERNITY));
 
 	return 1;
 }
@@ -2175,7 +2198,7 @@ __LJMP static int hlua_channel_forward_yield(lua_State *L)
 			return 1;
 
 		/* Otherwise, we can yield waiting for new data in the inpout side. */
-		WILL_LJMP(lua_yieldk(L, 0, 0, hlua_channel_forward_yield));
+		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_forward_yield, TICK_ETERNITY));
 	}
 
 	return 1;
@@ -2497,7 +2520,7 @@ __LJMP static int hlua_sleep_yield(lua_State *L)
 {
 	int wakeup_ms = lua_tointeger(L, -1);
 	if (now_ms < wakeup_ms)
-		WILL_LJMP(lua_yieldk(L, 0, 0, hlua_sleep_yield));
+		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_sleep_yield, TICK_ETERNITY));
 	return 0;
 }
 
@@ -2536,7 +2559,7 @@ __LJMP static inline int _hlua_sleep(lua_State *L, int delay)
 	/* Store the wakeup time in the lua stack. */
 	lua_pushinteger(L, t->wakeup_ms);
 
-	WILL_LJMP(lua_yieldk(L, 0, 0, hlua_sleep_yield));
+	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_sleep_yield, TICK_ETERNITY));
 	return 0;
 }
 
@@ -2634,7 +2657,9 @@ static struct task *hlua_process_task(struct task *task)
 		task_free(task);
 		break;
 
-	case HLUA_E_AGAIN: /* co process wake me later. */
+	case HLUA_E_AGAIN: /* co process or timeout wake me later. */
+		if (hlua->wake_time != TICK_ETERNITY)
+			task_schedule(task, hlua->wake_time);
 		break;
 
 	/* finished with error. */
@@ -3178,6 +3203,13 @@ static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
 
 	/* yield. */
 	case HLUA_E_AGAIN:
+		/* Set timeout in the required channel. */
+		if (s->hlua.wake_time != TICK_ETERNITY) {
+			if (analyzer & (AN_REQ_INSPECT_FE|AN_REQ_HTTP_PROCESS_FE))
+				s->req->analyse_exp = s->hlua.wake_time;
+			else if (analyzer & (AN_RES_INSPECT|AN_RES_HTTP_PROCESS_BE))
+				s->rep->analyse_exp = s->hlua.wake_time;
+		}
 		/* Some actions can be wake up when a "write" event
 		 * is detected on a response channel. This is useful
 		 * only for actions targetted on the requests.
