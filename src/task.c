@@ -65,6 +65,7 @@ struct task *__task_wakeup(struct task *t)
 	t->state &= ~TASK_WOKEN_ANY;
 
 	eb32_insert(&rqueue, &t->rq);
+	rq_next = NULL;
 	return t;
 }
 
