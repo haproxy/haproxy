@@ -1,6 +1,8 @@
 #ifndef _TYPES_HLUA_H
 #define _TYPES_HLUA_H
 
+#ifdef USE_LUA
+
 #include <lua.h>
 #include <lauxlib.h>
 
@@ -120,5 +122,13 @@ struct hlua_socket {
 struct hlua_channel {
 	struct channel *chn;
 };
+
+#else /* USE_LUA */
+
+/* Empty struct for compilation compatibility */
+struct hlua { };
+struct hlua_socket { };
+
+#endif /* USE_LUA */
 
 #endif /* _TYPES_HLUA_H */

@@ -526,6 +526,9 @@ int hlua_ctx_init(struct hlua *lua, struct task *task)
  */
 void hlua_ctx_destroy(struct hlua *lua)
 {
+	if (!lua->T)
+		return;
+
 	/* Remove context. */
 	hlua_delhlua(lua);
 

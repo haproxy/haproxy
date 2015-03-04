@@ -33,9 +33,7 @@
 #include <proto/freq_ctr.h>
 #include <proto/frontend.h>
 #include <proto/hdr_idx.h>
-#ifdef USE_LUA
 #include <proto/hlua.h>
-#endif
 #include <proto/listener.h>
 #include <proto/log.h>
 #include <proto/raw_sock.h>
@@ -544,9 +542,7 @@ int session_complete(struct session *s)
 	txn->req.chn = s->req;
 	txn->rsp.chn = s->rep;
 
-#ifdef USE_LUA
-	s->hlua.T = NULL;
-#endif
+	HLUA_INIT(&s->hlua);
 
 	/* finish initialization of the accepted file descriptor */
 	conn_data_want_recv(conn);
@@ -635,10 +631,7 @@ static void session_free(struct session *s)
 	if (!LIST_ISEMPTY(&buffer_wq))
 		session_offer_buffers();
 
-#ifdef USE_LUA
-	if (s->hlua.T)
-		hlua_ctx_destroy(&s->hlua);
-#endif
+	hlua_ctx_destroy(&s->hlua);
 
 	pool_free2(pool2_channel, s->req);
 	pool_free2(pool2_channel, s->rep);

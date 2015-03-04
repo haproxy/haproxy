@@ -88,9 +88,7 @@
 #include <proto/connection.h>
 #include <proto/fd.h>
 #include <proto/hdr_idx.h>
-#ifdef USE_LUA
 #include <proto/hlua.h>
-#endif
 #include <proto/listener.h>
 #include <proto/log.h>
 #include <proto/pattern.h>
@@ -567,10 +565,8 @@ void init(int argc, char **argv)
 	init_pendconn();
 	init_proto_http();
 
-#ifdef USE_LUA
 	/* Initialise lua. */
 	hlua_init();
-#endif
 
 	global.tune.options |= GTUNE_USE_SELECT;  /* select() is always available */
 #if defined(ENABLE_POLL)
@@ -1064,10 +1060,8 @@ void init(int argc, char **argv)
 	if (!global.node)
 		global.node = strdup(hostname);
 
-#ifdef USE_LUA
 	if (!hlua_post_init())
 		exit(1);
-#endif
 }
 
 static void deinit_acl_cond(struct acl_cond *cond)
