@@ -2091,7 +2091,7 @@ __LJMP static int _hlua_channel_send(lua_State *L)
 	if (max > len - l)
 		max = len - l;
 
-	buffer_replace2(chn->chn->buf, chn->chn->buf->p, chn->chn->buf->p, str+l, max);
+	max = buffer_replace2(chn->chn->buf, chn->chn->buf->p, chn->chn->buf->p, str+l, max);
 	/* buffer replace considers that the input part is filled.
 	 * so, I must forward these new data in the output part.
 	 */
