@@ -2559,109 +2559,57 @@ static int hlua_session_getheaders(lua_State *L)
 	return 1;
 }
 
-static struct task *hlua_sleep_process_task(struct task *task)
-{
-	struct hlua_sleep *t = task->context;
-
-	/* Check time and got to sleep a little bit more if the
-	 * expires is not come.
-	 */
-	if (now_ms < t->wakeup_ms) {
-		task_schedule(t->task, t->wakeup_ms);
-		return NULL;
-	}
-
-	/* Wake associated signals. */
-	hlua_com_wake(&t->com);
-
-	/* Delete task. */
-	task_delete(task); /* The task may remain in the wait queue. */
-	task_free(task);
-	pool_free2(pool2_hlua_sleep, t);
-
-	return NULL;
-}
-
 __LJMP static int hlua_sleep_yield(lua_State *L)
 {
 	int wakeup_ms = lua_tointeger(L, -1);
 	if (now_ms < wakeup_ms)
-		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_sleep_yield, TICK_ETERNITY, 0));
-	return 0;
-}
-
-__LJMP static inline int _hlua_sleep(lua_State *L, int delay)
-{
-	struct hlua_sleep *t;
-	struct hlua *hlua = hlua_gethlua(L);
-
-	/* If hlua is not set, I'm in start mode. I can run
-	 * a blocking sleep.
-	 */
-	if (!hlua || !hlua->task) {
-		usleep(delay * 1000);
-		return 0;
-	}
-
-	/* Reserve memory. */
-	t = pool_alloc2(pool2_hlua_sleep);
-	if (!t)
-		WILL_LJMP(luaL_error(L, "lua: out of memory"));
-	t->task = task_new();
-	if (!t->task)
-		WILL_LJMP(luaL_error(L, "lua: out of memory"));
-
-	/* Init and schedule the sleep process. */
-	t->task->process = hlua_sleep_process_task;
-	t->task->context = t;
-	t->wakeup_ms = tick_add(now_ms, delay);
-	task_schedule(t->task, t->wakeup_ms);
-
-	/* Init the signal between the sleep task and the current lua task. */
-	LIST_INIT(&t->com);
-	if (!hlua_com_new(hlua, &t->com))
-		WILL_LJMP(luaL_error(L, "out of memory error"));
-
-	/* Store the wakeup time in the lua stack. */
-	lua_pushinteger(L, t->wakeup_ms);
-
-	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_sleep_yield, TICK_ETERNITY, 0));
+		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_sleep_yield, wakeup_ms, 0));
 	return 0;
 }
 
 __LJMP static int hlua_sleep(lua_State *L)
 {
 	unsigned int delay;
+	unsigned int wakeup_ms;
 
-	/* Check number of arguments. */
-	if (lua_gettop(L) != 1)
-		WILL_LJMP(luaL_error(L, "sleep: needs 1 argument"));
+	MAY_LJMP(check_args(L, 1, "sleep"));
 
 	delay = MAY_LJMP(luaL_checkunsigned(L, 1)) * 1000;
+	wakeup_ms = tick_add(now_ms, delay);
+	lua_pushinteger(L, wakeup_ms);
 
-	return MAY_LJMP(_hlua_sleep(L, delay));
+	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_sleep_yield, wakeup_ms, 0));
+	return 0;
 }
 
-static int hlua_msleep(lua_State *L)
+__LJMP static int hlua_msleep(lua_State *L)
 {
 	unsigned int delay;
+	unsigned int wakeup_ms;
 
-	/* Check number of arguments. */
-	if (lua_gettop(L) != 1)
-		WILL_LJMP(luaL_error(L, "sleep: needs 1 argument"));
+	MAY_LJMP(check_args(L, 1, "msleep"));
 
 	delay = MAY_LJMP(luaL_checkunsigned(L, 1));
+	wakeup_ms = tick_add(now_ms, delay);
+	lua_pushinteger(L, wakeup_ms);
 
-	return MAY_LJMP(_hlua_sleep(L, delay));
+	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_sleep_yield, wakeup_ms, 0));
+	return 0;
 }
 
 /* This functionis an LUA binding. it permits to give back
  * the hand at the HAProxy scheduler. It is used when the
  * LUA processing consumes a lot of time.
  */
+__LJMP static int hlua_yield_yield(lua_State *L)
+{
+	return 0;
+}
+
 __LJMP static int hlua_yield(lua_State *L)
 {
-	return MAY_LJMP(_hlua_sleep(L, 0));
+	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_yield_yield, TICK_ETERNITY, HLUA_CTRLYIELD));
+	return 0;
 }
 
 /* This function change the nice of the currently executed
