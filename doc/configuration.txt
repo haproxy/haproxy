@@ -486,6 +486,9 @@ The following keywords are supported in the "global" section :
    - tune.http.cookielen
    - tune.http.maxhdr
    - tune.idletimer
+   - tune.lua.forced-yield
+   - tune.lua.session-timeout
+   - tune.lua.task-timeout
    - tune.maxaccept
    - tune.maxpollevents
    - tune.maxrewrite
@@ -630,6 +633,10 @@ log-tag <string>
   program name as launched from the command line, which usually is "haproxy".
   Sometimes it can be useful to differentiate between multiple processes
   running on the same host. See also the per-proxy "log-tag" directive.
+
+lua-load <file>
+  This global directive loads and executes a Lua file. This directive can be
+  used multiple times.
 
 nbproc <number>
   Creates <number> processes when going daemon. This requires the "daemon"
@@ -982,6 +989,28 @@ tune.idletimer <timeout>
   which seems to correctly detect end user pauses (eg: read a page before
   clicking). There should be not reason for changing this value. Please check
   tune.ssl.maxrecord below.
+
+tune.lua.forced-yield <number>
+  This directive forces the Lua engine to execute a yield each <number> of
+  instructions executed. This permits interruptng a long script and allows the
+  HAProxy scheduler to process other tasks like accepting connections or
+  forwarding traffic. The default value is 10000 instructions. If HAProxy often
+  executes some Lua code but more reactivity is required, this value can be
+  lowered. If the Lua code is quite long and its result is absolutely required
+  to process the data, the <number> can be increased.
+
+tune.lua.session-timeout <timeout>
+  This is the execution timeout for the Lua sessions. This is useful for
+  preventing infinite loops or spending too much time in Lua. This timeout has a
+  priority over other timeouts. For example, if this timeout is set to 4s and
+  you run a 5s sleep, the code will be interrupted with an error after waiting
+  4s.
+
+tune.lua.task-timeout <timeout>
+  Purpose is the same as "tune.lua.session-timeout", but this timeout is
+  dedicated to the tasks. By default, this timeout isn't set because a task may
+  remain alive during of the lifetime of HAProxy. For example, a task used to
+  check servers.
 
 tune.maxaccept <number>
   Sets the maximum number of consecutive connections a process may accept in a
@@ -3109,7 +3138,8 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
               del-acl(<file name>) <key fmt> |
               del-map(<file name>) <key fmt> |
               set-map(<file name>) <key fmt> <value fmt> |
-              { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>]
+              { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>] |
+              lua <function name>
              }
              [ { if | unless } <condition> ]
   Access control for Layer 7 requests
@@ -3356,6 +3386,10 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
       advantage over just checking the keys, because only one table lookup is
       performed for all ACL checks that make use of it.
 
+    - "lua" is used to run a Lua function if the action is executed. The single
+      parameter is the name of the function to run. The prototype of the
+      function is documented in the API documentation.
+
   There is no limit to the number of http-request statements per instance.
 
   It is important to know that http-request rules are processed very early in
@@ -3419,7 +3453,8 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
                 add-acl(<file name>) <key fmt> |
                 del-acl(<file name>) <key fmt> |
                 del-map(<file name>) <key fmt> |
-                set-map(<file name>) <key fmt> <value fmt>
+                set-map(<file name>) <key fmt> <value fmt> |
+                lua <function name>
               }
               [ { if | unless } <condition> ]
   Access control for Layer 7 responses
@@ -3566,6 +3601,10 @@ http-response { allow | deny | add-header <name> <fmt> | set-nice <nice> |
       more) values. This lookup is done by a linear search and can be expensive
       with large lists! It is the equivalent of the "set map" command from the
       stats socket, but can be triggered by an HTTP response.
+
+    - "lua" is used to run a Lua function if the action is executed. The single
+      parameter is the name of the function to run. The prototype of the
+      function is documented in the API documentation.
 
   There is no limit to the number of http-response statements per instance.
 
@@ -7797,8 +7836,8 @@ tcp-request content <action> [{if | unless} <condition>]
   Arguments :
     <action>    defines the action to perform if the condition applies. Valid
                 actions include : "accept", "reject", "track-sc0", "track-sc1",
-                "track-sc2" and "capture". See "tcp-request connection" above
-                for their signification.
+                "track-sc2", "capture" and "lua". See "tcp-request connection"
+                above for their signification.
 
     <condition> is a standard layer 4-7 ACL-based condition (see section 7).
 
@@ -7859,6 +7898,11 @@ tcp-request content <action> [{if | unless} <condition>]
   are present when the rule is processed. The rule processing engine is able to
   wait until the inspect delay expires when the data to be tracked is not yet
   available.
+
+  The "lua" keyword is followed by a Lua function name. It is used to run a Lua
+  function if the action is executed. The single parameter is the name of the
+  function to run. The prototype of the function is documented in the API
+  documentation.
 
   Example:
         # Accept HTTP requests containing a Host header saying "example.com"
@@ -7969,7 +8013,7 @@ tcp-response content <action> [{if | unless} <condition>]
                                  no    |    no    |   yes  |   yes
   Arguments :
     <action>    defines the action to perform if the condition applies. Valid
-                actions include : "accept", "close", "reject".
+                actions include : "accept", "close", "reject", "lua".
 
     <condition> is a standard layer 4-7 ACL-based condition (see section 7).
 
@@ -8016,6 +8060,11 @@ tcp-response content <action> [{if | unless} <condition>]
   been buffered, otherwise no contents will match. In order to achieve this,
   the best solution involves detecting the HTTP protocol during the inspection
   period.
+
+  The "lua" keyword is followed by a Lua function name. It is used to run a Lua
+  function if the action is executed. The single parameter is the name of the
+  function to run. The prototype of the function is documented in the API
+  documentation.
 
   See section 7 about ACL usage.
 
