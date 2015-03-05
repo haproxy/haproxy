@@ -2192,6 +2192,7 @@ __LJMP static int _hlua_channel_send(lua_State *L)
 	const char *str = MAY_LJMP(luaL_checklstring(L, 2, &len));
 	int l = MAY_LJMP(luaL_checkinteger(L, 3));
 	int max;
+	struct hlua *hlua = hlua_gethlua(L);
 
 	if (unlikely(channel_output_closed(chn->chn))) {
 		lua_pushinteger(L, -1);
@@ -2230,8 +2231,15 @@ __LJMP static int _hlua_channel_send(lua_State *L)
 		 */
 		return 1;
 	}
-	if (l < len)
+	if (l < len) {
+		/* If we are waiting for space in the response buffer, we
+		 * must set the flag WAKERESWR. This flag required the task
+		 * wake up if any activity is detected on the response buffer.
+		 */
+		if (chn->chn == chn->s->rep)
+			HLUA_SET_WAKERESWR(hlua);
 		WILL_LJMP(hlua_yieldk(L, 0, 0, _hlua_channel_send, TICK_ETERNITY, 0));
+	}
 
 	return 1;
 }
@@ -2261,6 +2269,7 @@ __LJMP static int hlua_channel_forward_yield(lua_State *L)
 	int len;
 	int l;
 	int max;
+	struct hlua *hlua = hlua_gethlua(L);
 
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 	len = MAY_LJMP(luaL_checkinteger(L, 2));
@@ -2282,6 +2291,13 @@ __LJMP static int hlua_channel_forward_yield(lua_State *L)
 		 */
 		if (channel_input_closed(chn->chn) || channel_output_closed(chn->chn))
 			return 1;
+
+		/* If we are waiting for space data in the response buffer, we
+		 * must set the flag WAKERESWR. This flag required the task
+		 * wake up if any activity is detected on the response buffer.
+		 */
+		if (chn->chn == chn->s->rep)
+			HLUA_SET_WAKERESWR(hlua);
 
 		/* Otherwise, we can yield waiting for new data in the inpout side. */
 		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_forward_yield, TICK_ETERNITY, 0));
@@ -3248,9 +3264,10 @@ static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
 		 * is detected on a response channel. This is useful
 		 * only for actions targetted on the requests.
 		 */
-		if (analyzer & (AN_REQ_INSPECT_FE|AN_REQ_HTTP_PROCESS_FE)) {
+		if (HLUA_IS_WAKERESWR(&s->hlua)) {
 			s->rep->flags |= CF_WAKE_WRITE;
-			s->rep->analysers |= analyzer;
+			if ((analyzer & (AN_REQ_INSPECT_FE|AN_REQ_HTTP_PROCESS_FE)))
+				s->rep->analysers |= analyzer;
 		}
 		return 0;
 

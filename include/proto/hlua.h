@@ -14,6 +14,9 @@
 #define HLUA_SET_CTRLYIELD(__hlua)   do {(__hlua)->flags |= HLUA_CTRLYIELD;} while(0)
 #define HLUA_CLR_CTRLYIELD(__hlua)   do {(__hlua)->flags &= ~HLUA_CTRLYIELD;} while(0)
 #define HLUA_IS_CTRLYIELDING(__hlua) ((__hlua)->flags & HLUA_CTRLYIELD)
+#define HLUA_SET_WAKERESWR(__hlua)   do {(__hlua)->flags |= HLUA_WAKERESWR;} while(0)
+#define HLUA_CLR_WAKERESWR(__hlua)   do {(__hlua)->flags &= ~HLUA_WAKERESWR;} while(0)
+#define HLUA_IS_WAKERESWR(__hlua)    ((__hlua)->flags & HLUA_WAKERESWR)
 
 #define HLUA_INIT(__hlua) do { (__hlua)->T = 0; } while(0)
 
