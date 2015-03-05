@@ -19,6 +19,7 @@ struct session;
 #define HLUA_RUN       0x00000001
 #define HLUA_CTRLYIELD 0x00000002
 #define HLUA_WAKERESWR 0x00000004
+#define HLUA_WAKEREQWR 0x00000008
 
 enum hlua_exec {
 	HLUA_E_OK = 0,
