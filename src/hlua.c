@@ -547,9 +547,7 @@ __LJMP void hlua_yieldk(lua_State *L, int nresults, int ctx,
 	/* Set the wake timeout. If timeout is required, we set
 	 * the expiration time.
 	 */
-	hlua->wake_time = timeout;
-	if (hlua->wake_time == TICK_ETERNITY)
-		hlua->wake_time = hlua->expire;
+	hlua->wake_time = tick_first(timeout, hlua->expire);
 
 	hlua->flags |= flags;
 
@@ -674,6 +672,12 @@ static enum hlua_exec hlua_ctx_resume(struct hlua *lua, int yield_allowed)
 
 	HLUA_SET_RUN(lua);
 
+	/* If we want to resume the task, then check first the execution timeout.
+	 * if it is reached, we can interrupt the Lua processing.
+	 */
+	if (tick_is_expired(lua->expire, now_ms))
+		goto timeout_reached;
+
 resume_execution:
 
 	/* This hook interrupts the Lua processing each 'hlua_nb_instruction'
@@ -690,30 +694,32 @@ resume_execution:
 		break;
 
 	case LUA_YIELD:
-		/* If the yield id received join  to the flag HLUA_CTRLYIELD,
-		 * we check the Lua timeout execution.
+		/* Check if the execution timeout is expired. It it is the case, we
+		 * break the Lua execution.
 		 */
-		if (HLUA_IS_CTRLYIELDING(lua)) {
-			/* If the timeout is expired, we break the Lua execution. */
-			if (tick_is_expired(lua->expire, now_ms)) {
-				lua_settop(lua->T, 0); /* Empty the stack. */
-				if (!lua_checkstack(lua->T, 1)) {
-					ret = HLUA_E_ERR;
-					break;
-				}
-				lua_pushfstring(lua->T, "execution timeout");
-				ret = HLUA_E_ERRMSG;
+		if (tick_is_expired(lua->expire, now_ms)) {
+
+timeout_reached:
+
+			lua_settop(lua->T, 0); /* Empty the stack. */
+			if (!lua_checkstack(lua->T, 1)) {
+				ret = HLUA_E_ERR;
 				break;
 			}
-			/* if the general yield is not allowed or if no task were
-			 * associated this the current Lua execution coroutine, we
-			 * resume the execution.
-			 */
+			lua_pushfstring(lua->T, "execution timeout");
+			ret = HLUA_E_ERRMSG;
+			break;
+		}
+		/* Process the forced yield. if the general yield is not allowed or
+		 * if no task were associated this the current Lua execution
+		 * coroutine, we resume the execution. Else we want to return in the
+		 * scheduler and we want to be waked up again, to continue the
+		 * current Lua execution. So we schedule our own task.
+		 */
+		if (HLUA_IS_CTRLYIELDING(lua)) {
 			if (!yield_allowed || !lua->task)
 				goto resume_execution;
-			/* Re-schedule the task. */
 			task_wakeup(lua->task, TASK_WOKEN_MSG);
-
 		}
 		if (!yield_allowed) {
 			lua_settop(lua->T, 0); /* Empty the stack. */
