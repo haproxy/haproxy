@@ -121,6 +121,7 @@ struct hlua_socket {
  */
 struct hlua_channel {
 	struct channel *chn;
+	struct session *s;
 };
 
 #else /* USE_LUA */

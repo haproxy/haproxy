@@ -1965,7 +1965,7 @@ __LJMP static struct hlua_channel *hlua_checkchannel(lua_State *L, int ud)
  * If the stask does not have a free slots, the function fails
  * and returns 0;
  */
-static int hlua_channel_new(lua_State *L, struct channel *channel)
+static int hlua_channel_new(lua_State *L, struct session *s, struct channel *channel)
 {
 	struct hlua_channel *chn;
 
@@ -1978,6 +1978,7 @@ static int hlua_channel_new(lua_State *L, struct channel *channel)
 	 */
 	chn = lua_newuserdata(L, sizeof(*chn));
 	chn->chn = channel;
+	chn->s = s;
 
 	/* Pop a class sesison metatable and affect it to the userdata. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, class_channel_ref);
@@ -2412,7 +2413,7 @@ __LJMP static int hlua_txn_req_channel(lua_State *L)
 	MAY_LJMP(check_args(L, 1, "req_channel"));
 	s = MAY_LJMP(hlua_checktxn(L, 1));
 
-	if (!hlua_channel_new(L, s->s->req))
+	if (!hlua_channel_new(L, s->s, s->s->req))
 		WILL_LJMP(luaL_error(L, "full stack"));
 
 	return 1;
@@ -2429,7 +2430,7 @@ __LJMP static int hlua_txn_res_channel(lua_State *L)
 	MAY_LJMP(check_args(L, 1, "req_channel"));
 	s = MAY_LJMP(hlua_checktxn(L, 1));
 
-	if (!hlua_channel_new(L, s->s->rep))
+	if (!hlua_channel_new(L, s->s, s->s->rep))
 		WILL_LJMP(luaL_error(L, "full stack"));
 
 	return 1;
