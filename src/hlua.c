@@ -2195,6 +2195,16 @@ __LJMP static int _hlua_channel_send(lua_State *L)
 		return 1;
 	}
 
+	/* Check if the buffer is avalaible because HAProxy doesn't allocate
+	 * the request buffer if its not required.
+	 */
+	if (chn->chn->buf->size == 0) {
+		if (!session_alloc_recv_buffer(chn->s, &chn->chn->buf)) {
+			chn->chn->prod->flags |= SI_FL_WAIT_ROOM;
+			WILL_LJMP(hlua_yieldk(L, 0, 0, _hlua_channel_send, TICK_ETERNITY, 0));
+		}
+	}
+
 	max = channel_recv_limit(chn->chn) - buffer_len(chn->chn->buf);
 	if (max > len - l)
 		max = len - l;
