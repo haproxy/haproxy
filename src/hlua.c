@@ -685,6 +685,9 @@ resume_execution:
 	 */
 	lua_sethook(lua->T, hlua_hook, LUA_MASKCOUNT, hlua_nb_instruction);
 
+	/* Remove all flags except the running flags. */
+	lua->flags = HLUA_RUN;
+
 	/* Call the function. */
 	ret = lua_resume(lua->T, gL.T, lua->nargs);
 	switch (ret) {
