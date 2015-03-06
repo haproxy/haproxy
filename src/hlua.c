@@ -644,7 +644,36 @@ static int hlua_ctx_renew(struct hlua *lua, int keep_msg)
 
 void hlua_hook(lua_State *L, lua_Debug *ar)
 {
-	hlua_yieldk(L, 0, 0, NULL, TICK_ETERNITY, HLUA_CTRLYIELD);
+	struct hlua *hlua = hlua_gethlua(L);
+
+	/* Lua cannot yield when its returning from a function,
+	 * so, we can fix the interrupt hook to 1 instruction,
+	 * expecting that the function is finnished.
+	 */
+	if (lua_gethookmask(L) & LUA_MASKRET) {
+		lua_sethook(hlua->T, hlua_hook, LUA_MASKCOUNT, 1);
+		return;
+	}
+
+	/* restore the interrupt condition. */
+	lua_sethook(hlua->T, hlua_hook, LUA_MASKCOUNT, hlua_nb_instruction);
+
+	/* If we interrupt the Lua processing in yieldable state, we yield.
+	 * If the state is not yieldable, trying yield causes an error.
+	 */
+	if (lua_isyieldable(L))
+		WILL_LJMP(hlua_yieldk(L, 0, 0, NULL, TICK_ETERNITY, HLUA_CTRLYIELD));
+
+	/* If we cannot yield, check the timeout. */
+	if (tick_is_expired(hlua->expire, now_ms)) {
+		lua_pushfstring(L, "execution timeout");
+		WILL_LJMP(lua_error(L));
+	}
+
+	/* Try to interrupt the process at the end of the current
+	 * unyieldable function.
+	 */
+	lua_sethook(hlua->T, hlua_hook, LUA_MASKRET|LUA_MASKCOUNT, hlua_nb_instruction);
 }
 
 /* This function start or resumes the Lua stack execution. If the flag
