@@ -2362,8 +2362,11 @@ int select_compression_response_header(struct session *s, struct buffer *res)
 	if (!(msg->flags & HTTP_MSGF_VER_11) || !(txn->req.flags & HTTP_MSGF_VER_11))
 		goto fail;
 
-	/* 200 only */
-	if (txn->status != 200)
+	/* compress 200,201,202,203 responses only */
+	if ((txn->status != 200) &&
+		(txn->status != 201) &&
+		(txn->status != 202) &&
+		(txn->status != 203))
 		goto fail;
 
 	/* Content-Length is null */
