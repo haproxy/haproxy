@@ -2209,11 +2209,33 @@ __LJMP static int _hlua_channel_send(lua_State *L)
 		}
 	}
 
-	max = channel_recv_limit(chn->chn) - buffer_len(chn->chn->buf);
+	/* the writed data will be immediatly sent, so we can check
+	 * the avalaible space without taking in account the reserve.
+	 * The reserve is guaranted for the processing of incoming
+	 * data, because the buffer will be flushed.
+	 */
+	max = chn->chn->buf->size - buffer_len(chn->chn->buf);
+
+	/* If there are no space avalaible, and the output buffer is empty.
+	 * in this case, we cannot add more data, so we cannot yield,
+	 * we return the amount of copyied data.
+	 */
+	if (max == 0 && chn->chn->buf->o == 0)
+		return 1;
+
+	/* Adjust the real required length. */
 	if (max > len - l)
 		max = len - l;
 
+	/* The buffer avalaible size may be not contiguous. This test
+	 * detects a non contiguous buffer and realign it.
+	 */
+	if (buffer_contig_space(chn->chn->buf) < max)
+		buffer_slow_realign(chn->chn->buf);
+
+	/* Copy input data in the buffer. */
 	max = buffer_replace2(chn->chn->buf, chn->chn->buf->p, chn->chn->buf->p, str+l, max);
+
 	/* buffer replace considers that the input part is filled.
 	 * so, I must forward these new data in the output part.
 	 */
@@ -2223,14 +2245,14 @@ __LJMP static int _hlua_channel_send(lua_State *L)
 	lua_pop(L, 1);
 	lua_pushinteger(L, l);
 
-	max = channel_recv_limit(chn->chn) - buffer_len(chn->chn->buf);
-	if (max == 0 && chn->chn->buf->o == 0) {
-		/* There are no space avalaible, and the output buffer is empty.
-		 * in this case, we cannot add more data, so we cannot yield,
-		 * we return the amount of copyied data.
-		 */
+	/* If there are no space avalaible, and the output buffer is empty.
+	 * in this case, we cannot add more data, so we cannot yield,
+	 * we return the amount of copyied data.
+	 */
+	max = chn->chn->buf->size - buffer_len(chn->chn->buf);
+	if (max == 0 && chn->chn->buf->o == 0)
 		return 1;
-	}
+
 	if (l < len) {
 		/* If we are waiting for space in the response buffer, we
 		 * must set the flag WAKERESWR. This flag required the task
