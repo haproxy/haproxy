@@ -148,12 +148,12 @@ __LJMP unsigned int hlua_checkfunction(lua_State *L, int argno)
  * available.
  */
 __LJMP static inline void hlua_class_const_int(lua_State *L, const char *name,
-                                        unsigned int value)
+                                               int value)
 {
 	if (!lua_checkstack(L, 2))
 	WILL_LJMP(luaL_error(L, "full stack"));
 	lua_pushstring(L, name);
-	lua_pushunsigned(L, value);
+	lua_pushinteger(L, value);
 	lua_settable(L, -3);
 }
 __LJMP static inline void hlua_class_const_str(lua_State *L, const char *name,
@@ -298,7 +298,7 @@ static int hlua_arg2lua(lua_State *L, const struct arg *arg)
 	case ARGT_UINT:
 	case ARGT_TIME:
 	case ARGT_SIZE:
-		lua_pushunsigned(L, arg->data.sint);
+		lua_pushinteger(L, arg->data.sint);
 		break;
 
 	case ARGT_STR:
@@ -363,12 +363,9 @@ static int hlua_smp2lua(lua_State *L, const struct sample *smp)
 {
 	switch (smp->type) {
 	case SMP_T_SINT:
-		lua_pushinteger(L, smp->data.sint);
-		break;
-
 	case SMP_T_BOOL:
 	case SMP_T_UINT:
-		lua_pushunsigned(L, smp->data.uint);
+		lua_pushinteger(L, smp->data.sint);
 		break;
 
 	case SMP_T_BIN:
@@ -540,7 +537,7 @@ static inline void hlua_sethlua(struct hlua *hlua)
  * returned with a timeout and permit to set some flags
  */
 __LJMP void hlua_yieldk(lua_State *L, int nresults, int ctx,
-                        lua_CFunction k, int timeout, unsigned int flags)
+                        lua_KFunction k, int timeout, unsigned int flags)
 {
 	struct hlua *hlua = hlua_gethlua(L);
 
@@ -1131,7 +1128,7 @@ __LJMP static int hlua_socket_close(lua_State *L)
  */
 #define HLSR_READ_LINE (-1)
 #define HLSR_READ_ALL (-2)
-__LJMP static int hlua_socket_receive_yield(struct lua_State *L)
+__LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_socket *socket = MAY_LJMP(hlua_checksocket(L, 1));
 	int wanted = lua_tointeger(L, 2);
@@ -1301,13 +1298,13 @@ __LJMP static int hlua_socket_receive(struct lua_State *L)
 		luaL_addlstring(&socket->b, pattern, len);
 	}
 
-	return __LJMP(hlua_socket_receive_yield(L));
+	return __LJMP(hlua_socket_receive_yield(L, 0, 0));
 }
 
 /* Write the Lua input string in the output buffer.
  * This fucntion returns a yield if no space are available.
  */
-static int hlua_socket_write_yield(struct lua_State *L)
+static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext ctx)
 {
 	struct hlua_socket *socket;
 	struct hlua *hlua = hlua_gethlua(L);
@@ -1326,7 +1323,7 @@ static int hlua_socket_write_yield(struct lua_State *L)
 	/* Get object */
 	socket = MAY_LJMP(hlua_checksocket(L, 1));
 	buf = MAY_LJMP(luaL_checklstring(L, 2, &buf_len));
-	sent = MAY_LJMP(luaL_checkunsigned(L, 3));
+	sent = MAY_LJMP(luaL_checkinteger(L, 3));
 
 	/* Check for connection close. */
 	if (!socket->s || channel_output_closed(socket->s->req)) {
@@ -1360,7 +1357,7 @@ static int hlua_socket_write_yield(struct lua_State *L)
 	if (len <= 0) {
 		MAY_LJMP(hlua_socket_close(L));
 		lua_pop(L, 1);
-		lua_pushunsigned(L, -1);
+		lua_pushinteger(L, -1);
 		return 1;
 	}
 
@@ -1371,7 +1368,7 @@ static int hlua_socket_write_yield(struct lua_State *L)
 
 	/* Update length sent. */
 	lua_pop(L, 1);
-	lua_pushunsigned(L, sent + len);
+	lua_pushinteger(L, sent + len);
 
 	/* All the data buffer is sent ? */
 	if (sent + len >= buf_len)
@@ -1437,11 +1434,11 @@ static int hlua_socket_send(struct lua_State *L)
 
 	/* Check bth i and j. */
 	if (i > j) {
-		lua_pushunsigned(L, 0);
+		lua_pushinteger(L, 0);
 		return 1;
 	}
 	if (i == 0 && j == 0) {
-		lua_pushunsigned(L, 0);
+		lua_pushinteger(L, 0);
 		return 1;
 	}
 	if (i == 0)
@@ -1458,9 +1455,9 @@ static int hlua_socket_send(struct lua_State *L)
 	lua_pushlstring(L, buf, buf_len);
 
 	/* This unsigned is used to remember the amount of sent data. */
-	lua_pushunsigned(L, 0);
+	lua_pushinteger(L, 0);
 
-	return MAY_LJMP(hlua_socket_write_yield(L));
+	return MAY_LJMP(hlua_socket_write_yield(L, 0, 0));
 }
 
 #define SOCKET_INFO_EXPANDED_FORM "[0000:0000:0000:0000:0000:0000:0000:0000]:12345"
@@ -1588,7 +1585,7 @@ static struct si_applet update_applet = {
 	.release = hlua_socket_release,
 };
 
-__LJMP static int hlua_socket_connect_yield(struct lua_State *L)
+__LJMP static int hlua_socket_connect_yield(struct lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_socket *socket = MAY_LJMP(hlua_checksocket(L, 1));
 	struct hlua *hlua = hlua_gethlua(L);
@@ -1619,7 +1616,7 @@ __LJMP static int hlua_socket_connect_yield(struct lua_State *L)
 __LJMP static int hlua_socket_connect(struct lua_State *L)
 {
 	struct hlua_socket *socket;
-	unsigned int port;
+	int port;
 	const char *ip;
 	struct connection *conn;
 
@@ -1628,7 +1625,7 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	/* Get args. */
 	socket  = MAY_LJMP(hlua_checksocket(L, 1));
 	ip      = MAY_LJMP(luaL_checkstring(L, 2));
-	port    = MAY_LJMP(luaL_checkunsigned(L, 3));
+	port    = MAY_LJMP(luaL_checkinteger(L, 3));
 
 	conn = si_alloc_conn(socket->s->req->cons, 0);
 	if (!conn)
@@ -1676,12 +1673,12 @@ __LJMP static int hlua_socket_setoption(struct lua_State *L)
 __LJMP static int hlua_socket_settimeout(struct lua_State *L)
 {
 	struct hlua_socket *socket;
-	unsigned int tmout;
+	int tmout;
 
 	MAY_LJMP(check_args(L, 2, "settimeout"));
 
 	socket = MAY_LJMP(hlua_checksocket(L, 1));
-	tmout = MAY_LJMP(luaL_checkunsigned(L, 2)) * 1000;
+	tmout = MAY_LJMP(luaL_checkinteger(L, 2)) * 1000;
 
 	socket->s->req->rto = tmout;
 	socket->s->req->wto = tmout;
@@ -2028,17 +2025,23 @@ static inline int _hlua_channel_dup(struct hlua_channel *chn, lua_State *L)
 /* "_hlua_channel_dup" wrapper. If no data are available, it returns
  * a yield. This function keep the data in the buffer.
  */
-__LJMP static int hlua_channel_dup(lua_State *L)
+__LJMP static int hlua_channel_dup_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_channel *chn;
-
-	MAY_LJMP(check_args(L, 1, "dup"));
 
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 
 	if (_hlua_channel_dup(chn, L) == 0)
-		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_dup, TICK_ETERNITY, 0));
+		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_dup_yield, TICK_ETERNITY, 0));
 	return 1;
+}
+
+/* Check arguments for the function "hlua_channel_dup_yield". */
+__LJMP static int hlua_channel_dup(lua_State *L)
+{
+	MAY_LJMP(check_args(L, 1, "dup"));
+	MAY_LJMP(hlua_checkchannel(L, 1));
+	return MAY_LJMP(hlua_channel_dup_yield(L, 0, 0));
 }
 
 /* "_hlua_channel_dup" wrapper. If no data are available, it returns
@@ -2046,17 +2049,16 @@ __LJMP static int hlua_channel_dup(lua_State *L)
  * a string containing the data or a nil pointer if no data are available
  * and the channel is closed.
  */
-__LJMP static int hlua_channel_get(lua_State *L)
+__LJMP static int hlua_channel_get_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_channel *chn;
 	int ret;
 
-	MAY_LJMP(check_args(L, 1, "get"));
-
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
+
 	ret = _hlua_channel_dup(chn, L);
 	if (unlikely(ret == 0))
-		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_get, TICK_ETERNITY, 0));
+		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_get_yield, TICK_ETERNITY, 0));
 
 	if (unlikely(ret == -1))
 		return 1;
@@ -2065,12 +2067,20 @@ __LJMP static int hlua_channel_get(lua_State *L)
 	return 1;
 }
 
+/* Check arguments for the fucntion "hlua_channel_get_yield". */
+__LJMP static int hlua_channel_get(lua_State *L)
+{
+	MAY_LJMP(check_args(L, 1, "get"));
+	MAY_LJMP(hlua_checkchannel(L, 1));
+	return MAY_LJMP(hlua_channel_get_yield(L, 0, 0));
+}
+
 /* This functions consumes and returns one line. If the channel is closed,
  * and the last data does not contains a final '\n', the data are returned
  * without the final '\n'. When no more data are avalaible, it returns nil
  * value.
  */
-__LJMP static int hlua_channel_getline(lua_State *L)
+__LJMP static int hlua_channel_getline_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	char *blk1;
 	char *blk2;
@@ -2081,12 +2091,11 @@ __LJMP static int hlua_channel_getline(lua_State *L)
 	int ret;
 	luaL_Buffer b;
 
-	MAY_LJMP(check_args(L, 1, "getline"));
 	chn = MAY_LJMP(hlua_checkchannel(L, 1));
 
 	ret = bi_getline_nc(chn->chn, &blk1, &len1, &blk2, &len2);
 	if (ret == 0)
-		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_getline, TICK_ETERNITY, 0));
+		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_getline_yield, TICK_ETERNITY, 0));
 
 	if (ret == -1) {
 		lua_pushnil(L);
@@ -2105,6 +2114,14 @@ __LJMP static int hlua_channel_getline(lua_State *L)
 	return 1;
 }
 
+/* Check arguments for the fucntion "hlua_channel_getline_yield". */
+__LJMP static int hlua_channel_getline(lua_State *L)
+{
+	MAY_LJMP(check_args(L, 1, "getline"));
+	MAY_LJMP(hlua_checkchannel(L, 1));
+	return MAY_LJMP(hlua_channel_getline_yield(L, 0, 0));
+}
+
 /* This function takes a string as input, and append it at the
  * input side of channel. If the data is too big, but a space
  * is probably available after sending some data, the function
@@ -2112,7 +2129,7 @@ __LJMP static int hlua_channel_getline(lua_State *L)
  * channel is closed, it returns -1. otherwise, it returns the
  * amount of data writed.
  */
-__LJMP static int _hlua_channel_append(lua_State *L)
+__LJMP static int hlua_channel_append_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_channel *chn = MAY_LJMP(hlua_checkchannel(L, 1));
 	size_t len;
@@ -2131,7 +2148,7 @@ __LJMP static int _hlua_channel_append(lua_State *L)
 		return 1;
 	}
 	if (ret == -1)
-		WILL_LJMP(hlua_yieldk(L, 0, 0, _hlua_channel_append, TICK_ETERNITY, 0));
+		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_append_yield, TICK_ETERNITY, 0));
 	l += ret;
 	lua_pop(L, 1);
 	lua_pushinteger(L, l);
@@ -2145,23 +2162,28 @@ __LJMP static int _hlua_channel_append(lua_State *L)
 		return 1;
 	}
 	if (l < len)
-		WILL_LJMP(hlua_yieldk(L, 0, 0, _hlua_channel_append, TICK_ETERNITY, 0));
+		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_append_yield, TICK_ETERNITY, 0));
 	return 1;
 }
 
-/* just a wrapper of "_hlua_channel_append". It returns the length
+/* just a wrapper of "hlua_channel_append_yield". It returns the length
  * of the writed string, or -1 if the channel is closed or if the
  * buffer size is too little for the data.
  */
 __LJMP static int hlua_channel_append(lua_State *L)
 {
+	size_t len;
+
 	MAY_LJMP(check_args(L, 2, "append"));
+	MAY_LJMP(hlua_checkchannel(L, 1));
+	MAY_LJMP(luaL_checklstring(L, 2, &len));
+	MAY_LJMP(luaL_checkinteger(L, 3));
 	lua_pushinteger(L, 0);
 
-	return MAY_LJMP(_hlua_channel_append(L));
+	return MAY_LJMP(hlua_channel_append_yield(L, 0, 0));
 }
 
-/* just a wrapper of "_hlua_channel_append". This wrapper starts
+/* just a wrapper of "hlua_channel_append_yield". This wrapper starts
  * his process by cleaning the buffer. The result is a replacement
  * of the current data. It returns the length of the writed string,
  * or -1 if the channel is closed or if the buffer size is too
@@ -2177,7 +2199,7 @@ __LJMP static int hlua_channel_set(lua_State *L)
 
 	chn->chn->buf->i = 0;
 
-	return MAY_LJMP(_hlua_channel_append(L));
+	return MAY_LJMP(hlua_channel_append_yield(L, 0, 0));
 }
 
 /* Append data in the output side of the buffer. This data is immediatly
@@ -2185,7 +2207,7 @@ __LJMP static int hlua_channel_set(lua_State *L)
  * cannot contains the data, the function yield. The function returns -1
  * if the channel is closed.
  */
-__LJMP static int _hlua_channel_send(lua_State *L)
+__LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_channel *chn = MAY_LJMP(hlua_checkchannel(L, 1));
 	size_t len;
@@ -2205,7 +2227,7 @@ __LJMP static int _hlua_channel_send(lua_State *L)
 	if (chn->chn->buf->size == 0) {
 		if (!session_alloc_recv_buffer(chn->s, &chn->chn->buf)) {
 			chn->chn->prod->flags |= SI_FL_WAIT_ROOM;
-			WILL_LJMP(hlua_yieldk(L, 0, 0, _hlua_channel_send, TICK_ETERNITY, 0));
+			WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_send_yield, TICK_ETERNITY, 0));
 		}
 	}
 
@@ -2277,7 +2299,7 @@ __LJMP static int hlua_channel_send(lua_State *L)
 	MAY_LJMP(check_args(L, 2, "send"));
 	lua_pushinteger(L, 0);
 
-	return MAY_LJMP(_hlua_channel_send(L));
+	return MAY_LJMP(hlua_channel_send_yield(L, 0, 0));
 }
 
 /* This function forward and amount of butes. The data pass from
@@ -2287,7 +2309,7 @@ __LJMP static int hlua_channel_send(lua_State *L)
  * The Lua function takes an amount of bytes to be forwarded in
  * imput. It returns the number of bytes forwarded.
  */
-__LJMP static int hlua_channel_forward_yield(lua_State *L)
+__LJMP static int hlua_channel_forward_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	struct hlua_channel *chn;
 	int len;
@@ -2342,7 +2364,7 @@ __LJMP static int hlua_channel_forward(lua_State *L)
 	MAY_LJMP(luaL_checkinteger(L, 2));
 
 	lua_pushinteger(L, 0);
-	return MAY_LJMP(hlua_channel_forward_yield(L));
+	return MAY_LJMP(hlua_channel_forward_yield(L, 0, 0));
 }
 
 /* Just returns the number of bytes available in the input
@@ -2621,7 +2643,7 @@ static int hlua_session_getheaders(lua_State *L)
 	return 1;
 }
 
-__LJMP static int hlua_sleep_yield(lua_State *L)
+__LJMP static int hlua_sleep_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	int wakeup_ms = lua_tointeger(L, -1);
 	if (now_ms < wakeup_ms)
@@ -2636,7 +2658,7 @@ __LJMP static int hlua_sleep(lua_State *L)
 
 	MAY_LJMP(check_args(L, 1, "sleep"));
 
-	delay = MAY_LJMP(luaL_checkunsigned(L, 1)) * 1000;
+	delay = MAY_LJMP(luaL_checkinteger(L, 1)) * 1000;
 	wakeup_ms = tick_add(now_ms, delay);
 	lua_pushinteger(L, wakeup_ms);
 
@@ -2651,7 +2673,7 @@ __LJMP static int hlua_msleep(lua_State *L)
 
 	MAY_LJMP(check_args(L, 1, "msleep"));
 
-	delay = MAY_LJMP(luaL_checkunsigned(L, 1));
+	delay = MAY_LJMP(luaL_checkinteger(L, 1));
 	wakeup_ms = tick_add(now_ms, delay);
 	lua_pushinteger(L, wakeup_ms);
 
@@ -2663,7 +2685,7 @@ __LJMP static int hlua_msleep(lua_State *L)
  * the hand at the HAProxy scheduler. It is used when the
  * LUA processing consumes a lot of time.
  */
-__LJMP static int hlua_yield_yield(lua_State *L)
+__LJMP static int hlua_yield_yield(lua_State *L, int status, lua_KContext ctx)
 {
 	return 0;
 }
