@@ -596,6 +596,141 @@ out:
 
 #endif
 
+#if (OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL)
+
+#define CT_EXTENSION_TYPE 18
+
+static int sctl_ex_index = -1;
+
+/*
+ * Try to parse Signed Certificate Timestamp List structure. This function
+ * makes only basic test if the data seems like SCTL. No signature validation
+ * is performed.
+ */
+static int ssl_sock_parse_sctl(struct chunk *sctl)
+{
+	int ret = 1;
+	int len, pos, sct_len;
+	unsigned char *data;
+
+	if (sctl->len < 2)
+		goto out;
+
+	data = (unsigned char *)sctl->str;
+	len = (data[0] << 8) | data[1];
+
+	if (len + 2 != sctl->len)
+		goto out;
+
+	data = data + 2;
+	pos = 0;
+	while (pos < len) {
+		if (len - pos < 2)
+			goto out;
+
+		sct_len = (data[pos] << 8) | data[pos + 1];
+		if (pos + sct_len + 2 > len)
+			goto out;
+
+		pos += sct_len + 2;
+	}
+
+	ret = 0;
+
+out:
+	return ret;
+}
+
+static int ssl_sock_load_sctl_from_file(const char *sctl_path, struct chunk **sctl)
+{
+	int fd = -1;
+	int r = 0;
+	int ret = 1;
+
+	*sctl = NULL;
+
+	fd = open(sctl_path, O_RDONLY);
+	if (fd == -1)
+		goto end;
+
+	trash.len = 0;
+	while (trash.len < trash.size) {
+		r = read(fd, trash.str + trash.len, trash.size - trash.len);
+		if (r < 0) {
+			if (errno == EINTR)
+				continue;
+
+			goto end;
+		}
+		else if (r == 0) {
+			break;
+		}
+		trash.len += r;
+	}
+
+	ret = ssl_sock_parse_sctl(&trash);
+	if (ret)
+		goto end;
+
+	*sctl = calloc(1, sizeof(struct chunk));
+	if (!chunk_dup(*sctl, &trash)) {
+		free(*sctl);
+		*sctl = NULL;
+		goto end;
+	}
+
+end:
+	if (fd != -1)
+		close(fd);
+
+	return ret;
+}
+
+int ssl_sock_sctl_add_cbk(SSL *ssl, unsigned ext_type, const unsigned char **out, size_t *outlen, int *al, void *add_arg)
+{
+	struct chunk *sctl = (struct chunk *)add_arg;
+
+	*out = (unsigned char *)sctl->str;
+	*outlen = sctl->len;
+
+	return 1;
+}
+
+int ssl_sock_sctl_parse_cbk(SSL *s, unsigned int ext_type, const unsigned char *in, size_t inlen, int *al, void *parse_arg)
+{
+	return 1;
+}
+
+static int ssl_sock_load_sctl(SSL_CTX *ctx, const char *cert_path)
+{
+	char sctl_path[MAXPATHLEN+1];
+	int ret = -1;
+	struct stat st;
+	struct chunk *sctl = NULL;
+
+	snprintf(sctl_path, MAXPATHLEN+1, "%s.sctl", cert_path);
+
+	if (stat(sctl_path, &st))
+		return 1;
+
+	if (ssl_sock_load_sctl_from_file(sctl_path, &sctl))
+		goto out;
+
+	if (!SSL_CTX_add_server_custom_ext(ctx, CT_EXTENSION_TYPE, ssl_sock_sctl_add_cbk, NULL, sctl, ssl_sock_sctl_parse_cbk, NULL)) {
+		free(sctl);
+		goto out;
+	}
+
+	SSL_CTX_set_ex_data(ctx, sctl_ex_index, sctl);
+
+	ret = 0;
+
+out:
+	return ret;
+}
+
+#endif
+
 void ssl_sock_infocbk(const SSL *ssl, int where, int ret)
 {
 	struct connection *conn = (struct connection *)SSL_get_app_data(ssl);
@@ -1342,6 +1477,18 @@ static int ssl_sock_load_cert_file(const char *path, struct bind_conf *bind_conf
 	}
 #endif
 
+#if (OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL)
+	if (sctl_ex_index >= 0) {
+		ret = ssl_sock_load_sctl(ctx, path);
+		if (ret < 0) {
+			if (err)
+				memprintf(err, "%s '%s.sctl' is present but cannot be read or parsed'.\n",
+					  *err ? *err : "", path);
+			return 1;
+		}
+	}
+#endif
+
 #ifndef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	if (bind_conf->default_ctx) {
 		memprintf(err, "%sthis version of openssl cannot load multiple SSL certificates.\n",
@@ -1383,7 +1530,7 @@ int ssl_sock_load_cert(char *path, struct bind_conf *bind_conf, struct proxy *cu
 			struct dirent *de = de_list[i];
 
 			end = strrchr(de->d_name, '.');
-			if (end && (!strcmp(end, ".issuer") || !strcmp(end, ".ocsp")))
+			if (end && (!strcmp(end, ".issuer") || !strcmp(end, ".ocsp") || !strcmp(end, ".sctl")))
 				goto ignore_entry;
 
 			snprintf(fp, sizeof(fp), "%s/%s", path, de->d_name);
@@ -4836,6 +4983,18 @@ struct xprt_ops ssl_sock = {
 	.init     = ssl_sock_init,
 };
 
+#if (OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL)
+
+static void ssl_sock_sctl_free_func(void *parent, void *ptr, CRYPTO_EX_DATA *ad, int idx, long argl, void *argp)
+{
+	if (ptr) {
+		chunk_destroy(ptr);
+		free(ptr);
+	}
+}
+
+#endif
+
 __attribute__((constructor))
 static void __ssl_sock_init(void)
 {
@@ -4857,6 +5016,9 @@ static void __ssl_sock_init(void)
 	SSL_library_init();
 	cm = SSL_COMP_get_compression_methods();
 	sk_SSL_COMP_zero(cm);
+#if (OPENSSL_VERSION_NUMBER >= 0x1000200fL && !defined OPENSSL_NO_TLSEXT && !defined OPENSSL_IS_BORINGSSL)
+	sctl_ex_index = SSL_CTX_get_ex_new_index(0, NULL, NULL, NULL, ssl_sock_sctl_free_func);
+#endif
 	sample_register_fetches(&sample_fetch_keywords);
 	acl_register_keywords(&acl_kws);
 	bind_register_keywords(&bind_kws);
