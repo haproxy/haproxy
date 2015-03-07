@@ -233,6 +233,32 @@ static inline int buffer_contig_space(const struct buffer *buf)
 	return right - left;
 }
 
+/* Returns the amount of byte that can be written starting from <p> into the
+ * input buffer at once, including reserved space which may be overwritten.
+ * This is used by Lua to insert data in the input side just before the other
+ * data using buffer_replace(). The goal is to transfer these new data in the
+ * output buffer.
+ */
+static inline int bi_space_for_replace(const struct buffer *buf)
+{
+	const char *end;
+
+	/* If the input side data overflows, we cannot insert data contiguously. */
+	if (buf->p + buf->i >= buf->data + buf->size)
+		return 0;
+
+	/* Check the last byte used in the buffer, it may be a byte of the output
+	 * side if the buffer wraps, or its the end of the buffer.
+	 */
+	end = buffer_wrap_sub(buf, buf->p - buf->o);
+	if (end <= buf->p)
+		end = buf->data + buf->size;
+
+	/* Compute the amount of bytes which can be written. */
+	return end - (buf->p + buf->i);
+}
+
+
 /* Normalizes a pointer which is supposed to be relative to the beginning of a
  * buffer, so that wrapping is correctly handled. The intent is to use this
  * when increasing a pointer. Note that the wrapping test is only performed
