@@ -1368,6 +1368,16 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	if (sent >= buf_len)
 		return 1; /* Implicitly return the length sent. */
 
+	/* Check if the buffer is avalaible because HAProxy doesn't allocate
+	 * the request buffer if its not required.
+	 */
+	if (socket->s->req->buf->size == 0) {
+		if (!session_alloc_recv_buffer(socket->s, &socket->s->req->buf)) {
+			socket->s->req->prod->flags |= SI_FL_WAIT_ROOM;
+			goto hlua_socket_write_yield_return;
+		}
+	}
+
 	/* Check for avalaible space. */
 	len = buffer_total_space(socket->s->si[0].ib->buf);
 	if (len <= 0)
