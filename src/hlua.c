@@ -1658,6 +1658,8 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	int port;
 	const char *ip;
 	struct connection *conn;
+	struct hlua *hlua;
+	struct appctx *appctx;
 
 	MAY_LJMP(check_args(L, 3, "connect"));
 
@@ -1687,6 +1689,10 @@ __LJMP static int hlua_socket_connect(struct lua_State *L)
 	 */
 	task_wakeup(socket->s->task, TASK_WOKEN_INIT);
 
+	hlua = hlua_gethlua(L);
+	appctx = objt_appctx(socket->s->si[0].end);
+	if (!hlua_com_new(hlua, &appctx->ctx.hlua.wake_on_write))
+		WILL_LJMP(luaL_error(L, "out of memory"));
 	WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_socket_connect_yield, TICK_ETERNITY, 0));
 
 	return 0;
