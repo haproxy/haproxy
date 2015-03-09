@@ -1731,6 +1731,12 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	socket = MAY_LJMP(lua_newuserdata(L, sizeof(*socket)));
 	memset(socket, 0, sizeof(*socket));
 
+	/* Check if the various memory pools are intialized. */
+	if (!pool2_session || !pool2_channel || !pool2_buffer) {
+		hlua_pusherror(L, "socket: uninitialized pools.");
+		goto out_fail_conf;
+	}
+
 	/* Pop a class session metatable and affect it to the userdata. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, class_socket_ref);
 	lua_setmetatable(L, -2);
