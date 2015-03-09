@@ -1169,6 +1169,7 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 	int len1;
 	char *blk2;
 	int len2;
+	int skip_at_end = 0;
 
 	/* Check if this lua stack is schedulable. */
 	if (!hlua || !hlua->task)
@@ -1187,6 +1188,28 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 			goto connection_closed;
 		if (nblk == 0) /* No data avalaible. */
 			goto connection_empty;
+
+		/* remove final \r\n. */
+		if (nblk == 1) {
+			if (blk1[len1-1] == '\n') {
+				len1--;
+				skip_at_end++;
+				if (blk1[len1-1] == '\r') {
+					len1--;
+					skip_at_end++;
+				}
+			}
+		}
+		else {
+			if (blk2[len2-1] == '\n') {
+				len2--;
+				skip_at_end++;
+				if (blk2[len2-1] == '\r') {
+					len2--;
+					skip_at_end++;
+				}
+			}
+		}
 	}
 
 	else if (wanted == HLSR_READ_ALL) {
@@ -1224,7 +1247,7 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 	}
 
 	/* Consume data. */
-	bo_skip(socket->s->si[0].ob, len);
+	bo_skip(socket->s->si[0].ob, len + skip_at_end);
 
 	/* Don't wait anything. */
 	si_update(&socket->s->si[0]);
