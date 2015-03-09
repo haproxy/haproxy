@@ -4,8 +4,8 @@
 #include <lua.h>
 #include <lualib.h>
 
-#if !defined(LUA_VERSION_NUM) || LUA_VERSION_NUM < 502
-#error "Requires Lua 5.2 or later."
+#if !defined(LUA_VERSION_NUM) || LUA_VERSION_NUM < 503
+#error "Requires Lua 5.3 or later."
 #endif
 
 #include <ebpttree.h>

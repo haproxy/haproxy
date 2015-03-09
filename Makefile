@@ -569,9 +569,9 @@ OPTIONS_CFLAGS  += -DUSE_LUA $(if $(LUA_INC),-I$(LUA_INC))
 LUA_LD_FLAGS := $(if $(LUA_LIB),-L$(LUA_LIB))
 ifeq ($(LUA_LIB_NAME),)
 # Try to automatically detect the Lua library
-LUA_LIB_NAME := $(firstword $(foreach lib,lua5.2 lua52 lua,$(call check_lua_lib,$(lib),$(LUA_LD_FLAGS))))
+LUA_LIB_NAME := $(firstword $(foreach lib,lua5.3 lua53 lua,$(call check_lua_lib,$(lib),$(LUA_LD_FLAGS))))
 ifeq ($(LUA_LIB_NAME),)
-$(error unable to automatically detect the Lua library name, you can enforce its name with LUA_LIB_NAME=<name> (where <name> can be lua5.2, lua52, lua, ...))
+$(error unable to automatically detect the Lua library name, you can enforce its name with LUA_LIB_NAME=<name> (where <name> can be lua5.3, lua53, lua, ...))
 endif
 endif
 
