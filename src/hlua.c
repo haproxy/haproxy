@@ -64,12 +64,6 @@ static struct server socket_ssl;
 /* List head of the function called at the initialisation time. */
 struct list hlua_init_functions = LIST_HEAD_INIT(hlua_init_functions);
 
-/* Store the fast lua context for coroutines. This tree uses the
- * Lua stack pointer value as indexed entry, and store the associated
- * hlua context.
- */
-struct eb_root hlua_ctx = EB_ROOT_UNIQUE;
-
 /* The following variables contains the reference of the different
  * Lua classes. These references are useful for identify metadata
  * associated with an object.
@@ -506,31 +500,19 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp, unsigne
 /*
  * The following functions are used to make correspondance between the the
  * executed lua pointer and the "struct hlua *" that contain the context.
- * They run with the tree head "hlua_ctx", they just perform lookup in the
- * tree.
  *
  *  - hlua_gethlua : return the hlua context associated with an lua_State.
- *  - hlua_delhlua : remove the association between hlua context and lua_state.
  *  - hlua_sethlua : create the association between hlua context and lua_state.
  */
 static inline struct hlua *hlua_gethlua(lua_State *L)
 {
-	struct ebpt_node *node;
-
-	node = ebpt_lookup(&hlua_ctx, L);
-	if (!node)
-		return NULL;
-	return ebpt_entry(node, struct hlua, node);
-}
-static inline void hlua_delhlua(struct hlua *hlua)
-{
-	if (hlua->node.key)
-		ebpt_delete(&hlua->node);
+	struct hlua **hlua = lua_getextraspace(L);
+	return *hlua;
 }
 static inline void hlua_sethlua(struct hlua *hlua)
 {
-	hlua->node.key = hlua->T;
-	ebpt_insert(&hlua_ctx, &hlua->node);
+	struct hlua **hlua_store = lua_getextraspace(hlua->T);
+	*hlua_store = hlua;
 }
 
 /* This function just ensure that the yield will be always
@@ -581,9 +563,6 @@ void hlua_ctx_destroy(struct hlua *lua)
 	if (!lua->T)
 		return;
 
-	/* Remove context. */
-	hlua_delhlua(lua);
-
 	/* Purge all the pending signals. */
 	hlua_com_purge(lua);
 
@@ -607,9 +586,6 @@ static int hlua_ctx_renew(struct hlua *lua, int keep_msg)
 	/* Renew the main LUA stack doesn't have sense. */
 	if (lua == &gL)
 		return 0;
-
-	/* Remove context. */
-	hlua_delhlua(lua);
 
 	/* New Lua coroutine. */
 	T = lua_newthread(gL.T);
