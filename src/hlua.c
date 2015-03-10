@@ -2379,7 +2379,7 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 		 * must set the flag WAKERESWR. This flag required the task
 		 * wake up if any activity is detected on the response buffer.
 		 */
-		if (chn->chn == &chn->s->res)
+		if (chn->chn->flags & CF_ISRESP)
 			HLUA_SET_WAKERESWR(hlua);
 		else
 			HLUA_SET_WAKEREQWR(hlua);
@@ -2441,7 +2441,7 @@ __LJMP static int hlua_channel_forward_yield(lua_State *L, int status, lua_KCont
 		 * must set the flag WAKERESWR. This flag required the task
 		 * wake up if any activity is detected on the response buffer.
 		 */
-		if (chn->chn == &chn->s->res)
+		if (chn->chn->flags & CF_ISRESP)
 			HLUA_SET_WAKERESWR(hlua);
 		else
 			HLUA_SET_WAKEREQWR(hlua);
