@@ -2466,7 +2466,7 @@ __LJMP static struct hlua_txn *hlua_checktxn(lua_State *L, int ud)
 	return (struct hlua_txn *)MAY_LJMP(hlua_checkudata(L, ud, class_txn_ref));
 }
 
-__LJMP static int hlua_setpriv(lua_State *L)
+__LJMP static int hlua_set_priv(lua_State *L)
 {
 	struct hlua *hlua;
 
@@ -2489,7 +2489,7 @@ __LJMP static int hlua_setpriv(lua_State *L)
 	return 0;
 }
 
-__LJMP static int hlua_getpriv(lua_State *L)
+__LJMP static int hlua_get_priv(lua_State *L)
 {
 	struct hlua *hlua;
 
@@ -2643,7 +2643,7 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 /* This function is an LUA binding. It creates ans returns
  * an array of HTTP headers. This function does not fails.
  */
-static int hlua_session_getheaders(lua_State *L)
+static int hlua_session_get_headers(lua_State *L)
 {
 	struct hlua_txn *s = MAY_LJMP(hlua_checktxn(L, 1));
 	struct session *sess = s->s;
@@ -2756,7 +2756,7 @@ __LJMP static int hlua_yield(lua_State *L)
  * task. It is used set low or high priority at the current
  * task.
  */
-__LJMP static int hlua_setnice(lua_State *L)
+__LJMP static int hlua_set_nice(lua_State *L)
 {
 	struct hlua *hlua;
 	int nice;
@@ -3705,7 +3705,7 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "register_fetches", hlua_register_fetches);
 	hlua_class_function(gL.T, "register_converters", hlua_register_converters);
 	hlua_class_function(gL.T, "yield", hlua_yield);
-	hlua_class_function(gL.T, "set_nice", hlua_setnice);
+	hlua_class_function(gL.T, "set_nice", hlua_set_nice);
 	hlua_class_function(gL.T, "sleep", hlua_sleep);
 	hlua_class_function(gL.T, "msleep", hlua_msleep);
 	hlua_class_function(gL.T, "add_acl", hlua_add_acl);
@@ -3805,9 +3805,9 @@ void hlua_init(void)
 	}
 
 	/* Register Lua functions. */
-	hlua_class_function(gL.T, "get_headers", hlua_session_getheaders);
-	hlua_class_function(gL.T, "set_priv",    hlua_setpriv);
-	hlua_class_function(gL.T, "get_priv",    hlua_getpriv);
+	hlua_class_function(gL.T, "get_headers", hlua_session_get_headers);
+	hlua_class_function(gL.T, "set_priv",    hlua_set_priv);
+	hlua_class_function(gL.T, "get_priv",    hlua_get_priv);
 	hlua_class_function(gL.T, "req_channel", hlua_txn_req_channel);
 	hlua_class_function(gL.T, "res_channel", hlua_txn_res_channel);
 	hlua_class_function(gL.T, "close",       hlua_txn_close);
