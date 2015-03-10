@@ -2578,7 +2578,7 @@ __LJMP static int hlua_txn_res_channel(lua_State *L)
 {
 	struct hlua_txn *s;
 
-	MAY_LJMP(check_args(L, 1, "req_channel"));
+	MAY_LJMP(check_args(L, 1, "res_channel"));
 	s = MAY_LJMP(hlua_checktxn(L, 1));
 
 	if (!hlua_channel_new(L, s->s, s->s->rep))
