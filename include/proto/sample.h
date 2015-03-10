@@ -41,6 +41,7 @@ const char *sample_src_names(unsigned int use);
 const char *sample_ckp_names(unsigned int use);
 struct sample_fetch *find_sample_fetch(const char *kw, int len);
 struct sample_fetch *sample_fetch_getnext(struct sample_fetch *current, int *idx);
+struct sample_conv *sample_conv_getnext(struct sample_conv *current, int *idx);
 int smp_resolve_args(struct proxy *p);
 int smp_expr_output_type(struct sample_expr *expr);
 int c_none(struct sample *smp);

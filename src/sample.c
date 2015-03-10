@@ -427,6 +427,48 @@ struct sample_fetch *sample_fetch_getnext(struct sample_fetch *current, int *idx
 	}
 }
 
+/* This function browses the list of available converters. <current> is
+ * the last used converter. If it is the first call, it must set to NULL.
+ * <idx> is the index of the next converter entry. It is used as private
+ * value. It is useless to initiate it.
+ *
+ * It returns always the next sample_conv entry, and NULL when the end of
+ * the list is reached.
+ */
+struct sample_conv *sample_conv_getnext(struct sample_conv *current, int *idx)
+{
+	struct sample_conv_kw_list *kwl;
+	struct sample_conv *base;
+
+	if (!current) {
+		/* Get first kwl entry. */
+		kwl = LIST_NEXT(&sample_convs.list, struct sample_conv_kw_list *, list);
+		(*idx) = 0;
+	} else {
+		/* Get kwl corresponding to the curret entry. */
+		base = current + 1 - (*idx);
+		kwl = container_of(base, struct sample_conv_kw_list, kw);
+	}
+
+	while (1) {
+		/* Check if kwl is the last entry. */
+		if (&kwl->list == &sample_convs.list)
+			return NULL;
+
+		/* idx contain the next keyword. If it is available, return it. */
+		if (kwl->kw[*idx].kw) {
+			(*idx)++;
+			return &kwl->kw[(*idx)-1];
+		}
+
+		/* get next entry in the main list, and return NULL if the end is reached. */
+		kwl = LIST_NEXT(&kwl->list, struct sample_conv_kw_list *, list);
+
+		/* Set index to 0, ans do one other loop. */
+		(*idx) = 0;
+	}
+}
+
 /*
  * Returns the pointer on sample format conversion keyword structure identified by
  * string of <len> in buffer <kw>.
