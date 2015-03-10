@@ -128,13 +128,6 @@ struct hlua_socket {
 	luaL_Buffer b; /* buffer used to prepare strings. */
 };
 
-/* This struct is used join to the class "channel". It
- * just contains a pointer to the manipulated channel.
- */
-struct hlua_channel {
-	struct channel *chn;
-};
-
 #else /* USE_LUA */
 
 /* Empty struct for compilation compatibility */
