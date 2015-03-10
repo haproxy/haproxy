@@ -2539,13 +2539,13 @@ static int hlua_fetches_new(lua_State *L, struct hlua_txn *txn, int stringsafe)
 __LJMP static int hlua_run_sample_fetch(lua_State *L)
 {
 	struct hlua_smp *s;
-	struct hlua_sample_fetch *f;
+	struct sample_fetch *f;
 	struct arg args[ARGM_NBARGS + 1];
 	int i;
 	struct sample smp;
 
 	/* Get closure arguments. */
-	f = (struct hlua_sample_fetch *)lua_touserdata(L, lua_upvalueindex(1));
+	f = (struct sample_fetch *)lua_touserdata(L, lua_upvalueindex(1));
 
 	/* Get traditionnal arguments. */
 	s = MAY_LJMP(hlua_checkfetches(L, 1));
@@ -2559,10 +2559,10 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 	args[i].type = ARGT_STOP;
 
 	/* Check arguments. */
-	MAY_LJMP(hlua_lua2arg_check(L, 1, args, f->f->arg_mask));
+	MAY_LJMP(hlua_lua2arg_check(L, 1, args, f->arg_mask));
 
 	/* Run the special args checker. */
-	if (f->f->val_args && !f->f->val_args(args, NULL)) {
+	if (f->val_args && !f->val_args(args, NULL)) {
 		lua_pushfstring(L, "error in arguments");
 		WILL_LJMP(lua_error(L));
 	}
@@ -2571,7 +2571,7 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 	memset(&smp, 0, sizeof(smp));
 
 	/* Run the sample fetch process. */
-	if (!f->f->process(s->p, s->s, s->l7, 0, args, &smp, f->f->kw, f->f->private)) {
+	if (!f->process(s->p, s->s, s->l7, 0, args, &smp, f->kw, f->private)) {
 		if (s->stringsafe)
 			lua_pushstring(L, "");
 		else
@@ -3858,7 +3858,6 @@ void hlua_init(void)
 	int i;
 	int idx;
 	struct sample_fetch *sf;
-	struct hlua_sample_fetch *hsf;
 	struct sample_conv *sc;
 	char *p;
 #ifdef USE_OPENSSL
@@ -3994,8 +3993,7 @@ void hlua_init(void)
 
 		/* Register the function. */
 		lua_pushstring(gL.T, trash.str);
-		hsf = lua_newuserdata(gL.T, sizeof(struct hlua_sample_fetch));
-		hsf->f = sf;
+		lua_pushlightuserdata(gL.T, sf);
 		lua_pushcclosure(gL.T, hlua_run_sample_fetch, 1);
 		lua_settable(gL.T, -3);
 	}

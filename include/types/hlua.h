@@ -103,16 +103,6 @@ struct hlua_smp {
 	int stringsafe;
 };
 
-/* This struct is used as a closure argument associated
- * with dynamic sample-fetch created fucntions. This contains
- * a pointer to the original sample_fetch struct. It is used
- * to identify the function to execute with the sample fetch
- * wrapper.
- */
-struct hlua_sample_fetch {
-	struct sample_fetch *f;
-};
-
 /* This struct contains data used with sleep functions. */
 struct hlua_sleep {
 	struct task *task; /* task associated with sleep. */
