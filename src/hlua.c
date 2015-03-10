@@ -1216,6 +1216,7 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 	char *blk2;
 	int len2;
 	int skip_at_end = 0;
+	struct channel *oc;
 
 	/* Check if this lua stack is schedulable. */
 	if (!hlua || !hlua->task)
@@ -1226,9 +1227,10 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 	if (!socket->s)
 		goto connection_closed;
 
+	oc = si_oc(&socket->s->si[0]);
 	if (wanted == HLSR_READ_LINE) {
 		/* Read line. */
-		nblk = bo_getline_nc(si_oc(&socket->s->si[0]), &blk1, &len1, &blk2, &len2);
+		nblk = bo_getline_nc(oc, &blk1, &len1, &blk2, &len2);
 		if (nblk < 0) /* Connection close. */
 			goto connection_closed;
 		if (nblk == 0) /* No data avalaible. */
@@ -1259,7 +1261,7 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 
 	else if (wanted == HLSR_READ_ALL) {
 		/* Read all the available data. */
-		nblk = bo_getblk_nc(si_oc(&socket->s->si[0]), &blk1, &len1, &blk2, &len2);
+		nblk = bo_getblk_nc(oc, &blk1, &len1, &blk2, &len2);
 		if (nblk < 0) /* Connection close. */
 			goto connection_closed;
 		if (nblk == 0) /* No data avalaible. */
@@ -1268,7 +1270,7 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 
 	else {
 		/* Read a block of data. */
-		nblk = bo_getblk_nc(si_oc(&socket->s->si[0]), &blk1, &len1, &blk2, &len2);
+		nblk = bo_getblk_nc(oc, &blk1, &len1, &blk2, &len2);
 		if (nblk < 0) /* Connection close. */
 			goto connection_closed;
 		if (nblk == 0) /* No data avalaible. */
@@ -1290,7 +1292,7 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 	}
 
 	/* Consume data. */
-	bo_skip(si_oc(&socket->s->si[0]), len + skip_at_end);
+	bo_skip(oc, len + skip_at_end);
 
 	/* Don't wait anything. */
 	si_update(&socket->s->si[0]);
@@ -2844,16 +2846,20 @@ static int hlua_txn_new(lua_State *L, struct session *s, struct proxy *p, void *
 __LJMP static int hlua_txn_close(lua_State *L)
 {
 	struct hlua_txn *s;
+	struct channel *ic, *oc;
 
 	MAY_LJMP(check_args(L, 1, "close"));
 	s = MAY_LJMP(hlua_checktxn(L, 1));
 
-	channel_abort(si_ic(&s->s->si[0]));
-	channel_auto_close(si_ic(&s->s->si[0]));
-	channel_erase(si_ic(&s->s->si[0]));
-	channel_auto_read(si_oc(&s->s->si[0]));
-	channel_auto_close(si_oc(&s->s->si[0]));
-	channel_shutr_now(si_oc(&s->s->si[0]));
+	ic = si_ic(&s->s->si[0]);
+	oc = si_oc(&s->s->si[0]);
+
+	channel_abort(ic);
+	channel_auto_close(ic);
+	channel_erase(ic);
+	channel_auto_read(oc);
+	channel_auto_close(oc);
+	channel_shutr_now(oc);
 
 	return 0;
 }
