@@ -116,7 +116,7 @@ static unsigned int hlua_nb_instruction = 10000;
 static int hlua_arg2lua(lua_State *L, const struct arg *arg);
 static int hlua_lua2arg(lua_State *L, int ud, struct arg *arg);
 __LJMP static int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp, unsigned int mask);
-static int hlua_smp2lua(lua_State *L, const struct sample *smp);
+static int hlua_smp2lua(lua_State *L, struct sample *smp);
 static int hlua_lua2smp(lua_State *L, int ud, struct sample *smp);
 
 /* Used to check an Lua function type in the stack. It creates and
@@ -353,7 +353,7 @@ static int hlua_lua2arg(lua_State *L, int ud, struct arg *arg)
  * in Lua type. This useful to convert the return of the
  * fetchs or converters.
  */
-static int hlua_smp2lua(lua_State *L, const struct sample *smp)
+static int hlua_smp2lua(lua_State *L, struct sample *smp)
 {
 	switch (smp->type) {
 	case SMP_T_SINT:
@@ -389,6 +389,12 @@ static int hlua_smp2lua(lua_State *L, const struct sample *smp)
 	case SMP_T_IPV4:
 	case SMP_T_IPV6:
 	case SMP_T_ADDR: /* This type is never used to qualify a sample. */
+		if (sample_casts[smp->type][SMP_T_STR] &&
+		    sample_casts[smp->type][SMP_T_STR](smp))
+			lua_pushlstring(L, smp->data.str.str, smp->data.str.len);
+		else
+			lua_pushnil(L);
+		break;
 	default:
 		lua_pushnil(L);
 		break;
