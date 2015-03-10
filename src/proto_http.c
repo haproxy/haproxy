@@ -6337,8 +6337,11 @@ int http_process_res_common(struct session *s, struct channel *rep, int an_bit, 
 	/* The stats applet needs to adjust the Connection header but we don't
 	 * apply any filter there.
 	 */
-	if (unlikely(objt_applet(s->target) == &http_stats_applet))
+	if (unlikely(objt_applet(s->target) == &http_stats_applet)) {
+		rep->analysers &= ~an_bit;
+		rep->analyse_exp = TICK_ETERNITY;
 		goto skip_filters;
+	}
 
 	/*
 	 * We will have to evaluate the filters.
