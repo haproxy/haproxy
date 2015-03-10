@@ -2077,7 +2077,6 @@ static int hlua_channel_new(lua_State *L, struct session *s, struct channel *cha
 	chn = MAY_LJMP(lua_newuserdata(L, sizeof(*chn)));
 	lua_rawseti(L, -2, 0);
 	chn->chn = channel;
-	chn->s = s;
 
 	/* Pop a class sesison metatable and affect it to the userdata. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, class_channel_ref);
