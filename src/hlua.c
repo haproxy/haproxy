@@ -2062,7 +2062,7 @@ __LJMP static struct hlua_channel *hlua_checkchannel(lua_State *L, int ud)
  * If the stask does not have a free slots, the function fails
  * and returns 0;
  */
-static int hlua_channel_new(lua_State *L, struct session *s, struct channel *channel)
+static int hlua_channel_new(lua_State *L, struct channel *channel)
 {
 	struct hlua_channel *chn;
 
@@ -2822,13 +2822,13 @@ static int hlua_txn_new(lua_State *L, struct session *s, struct proxy *p, void *
 
 	/* Create the "req" field that contains the request channel object. */
 	lua_pushstring(L, "req");
-	if (!hlua_channel_new(L, s, &s->req))
+	if (!hlua_channel_new(L, &s->req))
 		return 0;
 	lua_settable(L, -3);
 
 	/* Create the "res" field that contains the response channel object. */
 	lua_pushstring(L, "res");
-	if (!hlua_channel_new(L, s, &s->res))
+	if (!hlua_channel_new(L, &s->res))
 		return 0;
 	lua_settable(L, -3);
 
