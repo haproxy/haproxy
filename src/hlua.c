@@ -3388,9 +3388,9 @@ static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
 		 */
 		if (HLUA_IS_WAKERESWR(&s->hlua)) {
 			s->rep->flags |= CF_WAKE_WRITE;
+			if ((analyzer & (AN_REQ_INSPECT_FE|AN_REQ_HTTP_PROCESS_FE)))
+				s->rep->analysers |= analyzer;
 		}
-		if ((analyzer & (AN_REQ_INSPECT_FE|AN_REQ_HTTP_PROCESS_FE)))
-			s->rep->analysers |= analyzer;
 		if (HLUA_IS_WAKEREQWR(&s->hlua))
 			s->req->flags |= CF_WAKE_WRITE;
 		return 0;
