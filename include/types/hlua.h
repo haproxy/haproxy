@@ -12,6 +12,7 @@
 #define CLASS_CORE     "Core"
 #define CLASS_TXN      "TXN"
 #define CLASS_FETCHES  "Fetches"
+#define CLASS_CONVERTERS "Converters"
 #define CLASS_SOCKET   "Socket"
 #define CLASS_CHANNEL  "Channel"
 

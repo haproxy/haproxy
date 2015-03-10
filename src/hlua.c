@@ -72,6 +72,7 @@ static int class_txn_ref;
 static int class_socket_ref;
 static int class_channel_ref;
 static int class_fetches_ref;
+static int class_converters_ref;
 
 /* Global Lua execution timeout. By default Lua, execution linked
  * with session (actions, sample-fetches and converters) have a
@@ -2565,6 +2566,118 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 /*
  *
  *
+ * Class Converters
+ *
+ *
+ */
+
+/* Returns a struct hlua_session if the stack entry "ud" is
+ * a class session, otherwise it throws an error.
+ */
+__LJMP static struct hlua_txn *hlua_checkconverters(lua_State *L, int ud)
+{
+	return (struct hlua_txn *)MAY_LJMP(hlua_checkudata(L, ud, class_converters_ref));
+}
+
+/* This function creates and push in the stack a Converters object
+ * according with a current TXN.
+ */
+static int hlua_converters_new(lua_State *L, struct hlua_txn *txn)
+{
+	struct hlua_txn *hs;
+
+	/* Check stack size. */
+	if (!lua_checkstack(L, 3))
+		return 0;
+
+	/* Create the object: obj[0] = userdata.
+	 * Note that the base of the Converters object is the
+	 * same than the TXN object.
+	 */
+	lua_newtable(L);
+	hs = lua_newuserdata(L, sizeof(struct hlua_txn));
+	lua_rawseti(L, -2, 0);
+
+	hs->s = txn->s;
+	hs->p = txn->p;
+	hs->l7 = txn->l7;
+
+	/* Pop a class session metatable and affect it to the table. */
+	lua_rawgeti(L, LUA_REGISTRYINDEX, class_converters_ref);
+	lua_setmetatable(L, -2);
+
+	return 1;
+}
+
+/* This function is an LUA binding. It is called with each converter.
+ * It uses closure argument to store the associated converter. It
+ * returns only one argument or throws an error. An error is thrown
+ * only if an error is encountered during the argument parsing. If
+ * the converter function function fails, nil is returned.
+ */
+__LJMP static int hlua_run_sample_conv(lua_State *L)
+{
+	struct hlua_txn *txn;
+	struct sample_conv *conv;
+	struct arg args[ARGM_NBARGS + 1];
+	int i;
+	struct sample smp;
+
+	/* Get closure arguments. */
+	conv = (struct sample_conv *)lua_touserdata(L, lua_upvalueindex(1));
+
+	/* Get traditionnal arguments. */
+	txn = MAY_LJMP(hlua_checkconverters(L, 1));
+
+	/* Get extra arguments. */
+	for (i = 0; i < lua_gettop(L) - 2; i++) {
+		if (i >= ARGM_NBARGS)
+			break;
+		hlua_lua2arg(L, i + 3, &args[i]);
+	}
+	args[i].type = ARGT_STOP;
+
+	/* Check arguments. */
+	MAY_LJMP(hlua_lua2arg_check(L, 1, args, conv->arg_mask));
+
+	/* Run the special args checker. */
+	if (conv->val_args && !conv->val_args(args, conv, "", 0, NULL)) {
+		hlua_pusherror(L, "error in arguments");
+		WILL_LJMP(lua_error(L));
+	}
+
+	/* Initialise the sample. */
+	if (!hlua_lua2smp(L, 2, &smp)) {
+		hlua_pusherror(L, "error in the input argument");
+		WILL_LJMP(lua_error(L));
+	}
+
+	/* Apply expected cast. */
+	if (!sample_casts[smp.type][conv->in_type]) {
+		hlua_pusherror(L, "invalid input argument: cannot cast '%s' to '%s'",
+		               smp_to_type[smp.type], smp_to_type[conv->in_type]);
+		WILL_LJMP(lua_error(L));
+	}
+	if (sample_casts[smp.type][conv->in_type] != c_none &&
+	    !sample_casts[smp.type][conv->in_type](&smp)) {
+		hlua_pusherror(L, "error during the input argument casting");
+		WILL_LJMP(lua_error(L));
+	}
+
+	/* Run the sample conversion process. */
+	if (!conv->process(txn->s, args, &smp, conv->private)) {
+		lua_pushnil(L);
+		return 1;
+	}
+
+	/* Convert the returned sample in lua value. */
+	hlua_smp2lua(L, &smp);
+	return 1;
+}
+
+/*
+ *
+ *
  * Class TXN
  *
  *
@@ -2647,6 +2760,12 @@ static int hlua_txn_new(lua_State *L, struct session *s, struct proxy *p, void *
 	/* Create the "f" field that contains a list of fetches. */
 	lua_pushstring(L, "f");
 	if (!hlua_fetches_new(L, hs))
+		return 0;
+	lua_settable(L, -3);
+
+	/* Create the "c" field that contains a list of converters. */
+	lua_pushstring(L, "c");
+	if (!hlua_converters_new(L, hs))
 		return 0;
 	lua_settable(L, -3);
 
@@ -3715,6 +3834,7 @@ void hlua_init(void)
 	int idx;
 	struct sample_fetch *sf;
 	struct hlua_sample_fetch *hsf;
+	struct sample_conv *sc;
 	char *p;
 #ifdef USE_OPENSSL
 	char *args[4];
@@ -3861,6 +3981,53 @@ void hlua_init(void)
 	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
 	lua_setfield(gL.T, LUA_REGISTRYINDEX, CLASS_FETCHES); /* register class session. */
 	class_fetches_ref = luaL_ref(gL.T, LUA_REGISTRYINDEX); /* reference class session. */
+
+	/*
+	 *
+	 * Register class Converters
+	 *
+	 */
+
+	/* Create and fill the metatable. */
+	lua_newtable(gL.T);
+
+	/* Create and fill the __index entry. */
+	lua_pushstring(gL.T, "__index");
+	lua_newtable(gL.T);
+
+	/* Browse existing converters and create the associated
+	 * object method.
+	 */
+	sc = NULL;
+	while ((sc = sample_conv_getnext(sc, &idx)) != NULL) {
+		/* Dont register the keywork if the arguments check function are
+		 * not safe during the runtime.
+		 */
+		if (sc->val_args != NULL)
+			continue;
+
+		/* gL.Tua doesn't support '.' and '-' in the function names, replace it
+		 * by an underscore.
+		 */
+		strncpy(trash.str, sc->kw, trash.size);
+		trash.str[trash.size - 1] = '\0';
+		for (p = trash.str; *p; p++)
+			if (*p == '.' || *p == '-' || *p == '+')
+				*p = '_';
+
+		/* Register the function. */
+		lua_pushstring(gL.T, trash.str);
+		lua_pushlightuserdata(gL.T, sc);
+		lua_pushcclosure(gL.T, hlua_run_sample_conv, 1);
+		lua_settable(gL.T, -3);
+	}
+
+	lua_settable(gL.T, -3);
+
+	/* Register previous table in the registry with reference and named entry. */
+	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
+	lua_setfield(gL.T, LUA_REGISTRYINDEX, CLASS_CONVERTERS); /* register class session. */
+	class_converters_ref = luaL_ref(gL.T, LUA_REGISTRYINDEX); /* reference class session. */
 
 	/*
 	 *
