@@ -68,7 +68,6 @@ struct list hlua_init_functions = LIST_HEAD_INIT(hlua_init_functions);
  * Lua classes. These references are useful for identify metadata
  * associated with an object.
  */
-static int class_core_ref;
 static int class_txn_ref;
 static int class_socket_ref;
 static int class_channel_ref;
@@ -3685,14 +3684,7 @@ void hlua_init(void)
 	 *
 	 */
 
-	/* This integer entry is just used as base value for the object "core". */
-	lua_pushinteger(gL.T, 0);
-
-	/* Create and fill the metatable. */
-	lua_newtable(gL.T);
-
-	/* Create and fill the __index entry. */
-	lua_pushstring(gL.T, "__index");
+	/* This table entry is the object "core" base. */
 	lua_newtable(gL.T);
 
 	/* Push the loglevel constants. */
@@ -3714,19 +3706,6 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "del_map", hlua_del_map);
 	hlua_class_function(gL.T, "tcp", hlua_socket_new);
 
-	/* Store the table __index in the metable. */
-	lua_settable(gL.T, -3);
-
-	/* Register previous table in the registry with named entry. */
-	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
-	lua_setfield(gL.T, LUA_REGISTRYINDEX, CLASS_CORE); /* register class session. */
-
-	/* Register previous table in the registry with reference. */
-	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
-	class_core_ref = luaL_ref(gL.T, LUA_REGISTRYINDEX); /* reference class session. */
-
-	/* Create new object with class Core. */
-	lua_setmetatable(gL.T, -2);
 	lua_setglobal(gL.T, "core");
 
 	/*
