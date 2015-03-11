@@ -95,6 +95,14 @@ struct hlua_txn {
 	void *l7;
 };
 
+/* This struc is used with sample fetches and sample converters. */
+struct hlua_smp {
+	struct session *s;
+	struct proxy *p;
+	void *l7;
+	int stringsafe;
+};
+
 /* This struct is used as a closure argument associated
  * with dynamic sample-fetch created fucntions. This contains
  * a pointer to the original sample_fetch struct. It is used

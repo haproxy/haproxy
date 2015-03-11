@@ -118,6 +118,7 @@ static int hlua_arg2lua(lua_State *L, const struct arg *arg);
 static int hlua_lua2arg(lua_State *L, int ud, struct arg *arg);
 __LJMP static int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp, unsigned int mask);
 static int hlua_smp2lua(lua_State *L, struct sample *smp);
+static int hlua_smp2lua_str(lua_State *L, struct sample *smp);
 static int hlua_lua2smp(lua_State *L, int ud, struct sample *smp);
 
 /* Used to check an Lua function type in the stack. It creates and
@@ -409,6 +410,57 @@ static int hlua_smp2lua(lua_State *L, struct sample *smp)
 		break;
 	default:
 		lua_pushnil(L);
+		break;
+	}
+	return 1;
+}
+
+/* the following functions are used to convert a struct sample
+ * in Lua strings. This is useful to convert the return of the
+ * fetchs or converters.
+ */
+static int hlua_smp2lua_str(lua_State *L, struct sample *smp)
+{
+	switch (smp->type) {
+
+	case SMP_T_BIN:
+	case SMP_T_STR:
+		lua_pushlstring(L, smp->data.str.str, smp->data.str.len);
+		break;
+
+	case SMP_T_METH:
+		switch (smp->data.meth.meth) {
+		case HTTP_METH_OPTIONS: lua_pushstring(L, "OPTIONS"); break;
+		case HTTP_METH_GET:     lua_pushstring(L, "GET");     break;
+		case HTTP_METH_HEAD:    lua_pushstring(L, "HEAD");    break;
+		case HTTP_METH_POST:    lua_pushstring(L, "POST");    break;
+		case HTTP_METH_PUT:     lua_pushstring(L, "PUT");     break;
+		case HTTP_METH_DELETE:  lua_pushstring(L, "DELETE");  break;
+		case HTTP_METH_TRACE:   lua_pushstring(L, "TRACE");   break;
+		case HTTP_METH_CONNECT: lua_pushstring(L, "CONNECT"); break;
+		case HTTP_METH_OTHER:
+			lua_pushlstring(L, smp->data.meth.str.str, smp->data.meth.str.len);
+			break;
+		default:
+			lua_pushstring(L, "");
+			break;
+		}
+		break;
+
+	case SMP_T_SINT:
+	case SMP_T_BOOL:
+	case SMP_T_UINT:
+	case SMP_T_IPV4:
+	case SMP_T_IPV6:
+	case SMP_T_ADDR: /* This type is never used to qualify a sample. */
+		if (sample_casts[smp->type][SMP_T_STR] &&
+		    sample_casts[smp->type][SMP_T_STR](smp))
+			lua_pushlstring(L, smp->data.str.str, smp->data.str.len);
+		else
+			lua_pushstring(L, "");
+		break;
+	default:
+		lua_pushstring(L, "");
 		break;
 	}
 	return 1;
@@ -2477,17 +2529,17 @@ __LJMP static int hlua_channel_get_out_len(lua_State *L)
 /* Returns a struct hlua_session if the stack entry "ud" is
  * a class session, otherwise it throws an error.
  */
-__LJMP static struct hlua_txn *hlua_checkfetches(lua_State *L, int ud)
+__LJMP static struct hlua_smp *hlua_checkfetches(lua_State *L, int ud)
 {
-	return (struct hlua_txn *)MAY_LJMP(hlua_checkudata(L, ud, class_fetches_ref));
+	return (struct hlua_smp *)MAY_LJMP(hlua_checkudata(L, ud, class_fetches_ref));
 }
 
 /* This function creates and push in the stack a fetch object according
  * with a current TXN.
  */
-static int hlua_fetches_new(lua_State *L, struct hlua_txn *txn)
+static int hlua_fetches_new(lua_State *L, struct hlua_txn *txn, int stringsafe)
 {
-	struct hlua_txn *hs;
+	struct hlua_smp *hs;
 
 	/* Check stack size. */
 	if (!lua_checkstack(L, 3))
@@ -2498,12 +2550,13 @@ static int hlua_fetches_new(lua_State *L, struct hlua_txn *txn)
 	 * transaction object.
 	 */
 	lua_newtable(L);
-	hs = lua_newuserdata(L, sizeof(struct hlua_txn));
+	hs = lua_newuserdata(L, sizeof(struct hlua_smp));
 	lua_rawseti(L, -2, 0);
 
 	hs->s = txn->s;
 	hs->p = txn->p;
 	hs->l7 = txn->l7;
+	hs->stringsafe = stringsafe;
 
 	/* Pop a class sesison metatable and affect it to the userdata. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, class_fetches_ref);
@@ -2520,7 +2573,7 @@ static int hlua_fetches_new(lua_State *L, struct hlua_txn *txn)
  */
 __LJMP static int hlua_run_sample_fetch(lua_State *L)
 {
-	struct hlua_txn *s;
+	struct hlua_smp *s;
 	struct hlua_sample_fetch *f;
 	struct arg args[ARGM_NBARGS + 1];
 	int i;
@@ -2554,12 +2607,18 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 
 	/* Run the sample fetch process. */
 	if (!f->f->process(s->p, s->s, s->l7, 0, args, &smp, f->f->kw, f->f->private)) {
-		lua_pushnil(L);
+		if (s->stringsafe)
+			lua_pushstring(L, "");
+		else
+			lua_pushnil(L);
 		return 1;
 	}
 
 	/* Convert the returned sample in lua value. */
-	hlua_smp2lua(L, &smp);
+	if (s->stringsafe)
+		hlua_smp2lua_str(L, &smp);
+	else
+		hlua_smp2lua(L, &smp);
 	return 1;
 }
 
@@ -2574,17 +2633,17 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 /* Returns a struct hlua_session if the stack entry "ud" is
  * a class session, otherwise it throws an error.
  */
-__LJMP static struct hlua_txn *hlua_checkconverters(lua_State *L, int ud)
+__LJMP static struct hlua_smp *hlua_checkconverters(lua_State *L, int ud)
 {
-	return (struct hlua_txn *)MAY_LJMP(hlua_checkudata(L, ud, class_converters_ref));
+	return (struct hlua_smp *)MAY_LJMP(hlua_checkudata(L, ud, class_converters_ref));
 }
 
 /* This function creates and push in the stack a Converters object
  * according with a current TXN.
  */
-static int hlua_converters_new(lua_State *L, struct hlua_txn *txn)
+static int hlua_converters_new(lua_State *L, struct hlua_txn *txn, int stringsafe)
 {
-	struct hlua_txn *hs;
+	struct hlua_smp *hs;
 
 	/* Check stack size. */
 	if (!lua_checkstack(L, 3))
@@ -2601,6 +2660,7 @@ static int hlua_converters_new(lua_State *L, struct hlua_txn *txn)
 	hs->s = txn->s;
 	hs->p = txn->p;
 	hs->l7 = txn->l7;
+	hs->stringsafe = stringsafe;
 
 	/* Pop a class session metatable and affect it to the table. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, class_converters_ref);
@@ -2617,7 +2677,7 @@ static int hlua_converters_new(lua_State *L, struct hlua_txn *txn)
  */
 __LJMP static int hlua_run_sample_conv(lua_State *L)
 {
-	struct hlua_txn *txn;
+	struct hlua_smp *sc;
 	struct sample_conv *conv;
 	struct arg args[ARGM_NBARGS + 1];
 	int i;
@@ -2627,7 +2687,7 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 	conv = (struct sample_conv *)lua_touserdata(L, lua_upvalueindex(1));
 
 	/* Get traditionnal arguments. */
-	txn = MAY_LJMP(hlua_checkconverters(L, 1));
+	sc = MAY_LJMP(hlua_checkconverters(L, 1));
 
 	/* Get extra arguments. */
 	for (i = 0; i < lua_gettop(L) - 2; i++) {
@@ -2665,14 +2725,20 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 	}
 
 	/* Run the sample conversion process. */
-	if (!conv->process(txn->s, args, &smp, conv->private)) {
-		lua_pushnil(L);
+	if (!conv->process(sc->s, args, &smp, conv->private)) {
+		if (sc->stringsafe)
+			lua_pushstring(L, "");
+		else
+                       lua_pushnil(L);
 		return 1;
 	}
 
 	/* Convert the returned sample in lua value. */
-	hlua_smp2lua(L, &smp);
-	return 1;
+	if (sc->stringsafe)
+		hlua_smp2lua_str(L, &smp);
+	else
+		hlua_smp2lua(L, &smp);
+        return 1;
 }
 
 /*
@@ -2759,13 +2825,25 @@ static int hlua_txn_new(lua_State *L, struct session *s, struct proxy *p, void *
 
 	/* Create the "f" field that contains a list of fetches. */
 	lua_pushstring(L, "f");
-	if (!hlua_fetches_new(L, hs))
+	if (!hlua_fetches_new(L, hs, 0))
+		return 0;
+	lua_settable(L, -3);
+
+	/* Create the "sf" field that contains a list of stringsafe fetches. */
+	lua_pushstring(L, "sf");
+	if (!hlua_fetches_new(L, hs, 1))
 		return 0;
 	lua_settable(L, -3);
 
 	/* Create the "c" field that contains a list of converters. */
 	lua_pushstring(L, "c");
-	if (!hlua_converters_new(L, hs))
+	if (!hlua_converters_new(L, hs, 0))
+		return 0;
+	lua_settable(L, -3);
+
+	/* Create the "sc" field that contains a list of stringsafe converters. */
+	lua_pushstring(L, "sc");
+	if (!hlua_converters_new(L, hs, 1))
 		return 0;
 	lua_settable(L, -3);
 
