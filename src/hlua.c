@@ -71,6 +71,7 @@ struct list hlua_init_functions = LIST_HEAD_INIT(hlua_init_functions);
 static int class_txn_ref;
 static int class_socket_ref;
 static int class_channel_ref;
+static int class_fetches_ref;
 
 /* Global Lua execution timeout. By default Lua, execution linked
  * with session (actions, sample-fetches and converters) have a
@@ -2464,6 +2465,102 @@ __LJMP static int hlua_channel_get_out_len(lua_State *L)
 	return 1;
 }
 
+/*
+ *
+ *
+ * Class Fetches
+ *
+ *
+ */
+
+/* Returns a struct hlua_session if the stack entry "ud" is
+ * a class session, otherwise it throws an error.
+ */
+__LJMP static struct hlua_txn *hlua_checkfetches(lua_State *L, int ud)
+{
+	return (struct hlua_txn *)MAY_LJMP(hlua_checkudata(L, ud, class_fetches_ref));
+}
+
+/* This function creates and push in the stack a fetch object according
+ * with a current TXN.
+ */
+static int hlua_fetches_new(lua_State *L, struct hlua_txn *txn)
+{
+	struct hlua_txn *hs;
+
+	/* Check stack size. */
+	if (!lua_checkstack(L, 3))
+		return 0;
+
+	/* Create the object: obj[0] = userdata.
+	 * Note that the base of the Fetches object is the
+	 * transaction object.
+	 */
+	lua_newtable(L);
+	hs = lua_newuserdata(L, sizeof(struct hlua_txn));
+	lua_rawseti(L, -2, 0);
+
+	hs->s = txn->s;
+	hs->p = txn->p;
+	hs->l7 = txn->l7;
+
+	/* Pop a class sesison metatable and affect it to the userdata. */
+	lua_rawgeti(L, LUA_REGISTRYINDEX, class_fetches_ref);
+	lua_setmetatable(L, -2);
+
+	return 1;
+}
+
+/* This function is an LUA binding. It is called with each sample-fetch.
+ * It uses closure argument to store the associated sample-fetch. It
+ * returns only one argument or throws an error. An error is thrown
+ * only if an error is encountered during the argument parsing. If
+ * the "sample-fetch" function fails, nil is returned.
+ */
+__LJMP static int hlua_run_sample_fetch(lua_State *L)
+{
+	struct hlua_txn *s;
+	struct hlua_sample_fetch *f;
+	struct arg args[ARGM_NBARGS + 1];
+	int i;
+	struct sample smp;
+
+	/* Get closure arguments. */
+	f = (struct hlua_sample_fetch *)lua_touserdata(L, lua_upvalueindex(1));
+
+	/* Get traditionnal arguments. */
+	s = MAY_LJMP(hlua_checkfetches(L, 1));
+
+	/* Get extra arguments. */
+	for (i = 0; i < lua_gettop(L) - 1; i++) {
+		if (i >= ARGM_NBARGS)
+			break;
+		hlua_lua2arg(L, i + 2, &args[i]);
+	}
+	args[i].type = ARGT_STOP;
+
+	/* Check arguments. */
+	MAY_LJMP(hlua_lua2arg_check(L, 1, args, f->f->arg_mask));
+
+	/* Run the special args checker. */
+	if (f->f->val_args && !f->f->val_args(args, NULL)) {
+		lua_pushfstring(L, "error in arguments");
+		WILL_LJMP(lua_error(L));
+	}
+
+	/* Initialise the sample. */
+	memset(&smp, 0, sizeof(smp));
+
+	/* Run the sample fetch process. */
+	if (!f->f->process(s->p, s->s, s->l7, 0, args, &smp, f->f->kw, f->f->private)) {
+		lua_pushnil(L);
+		return 1;
+	}
+
+	/* Convert the returned sample in lua value. */
+	hlua_smp2lua(L, &smp);
+	return 1;
+}
 
 /*
  *
@@ -2547,6 +2644,12 @@ static int hlua_txn_new(lua_State *L, struct session *s, struct proxy *p, void *
 	hs->p = p;
 	hs->l7 = l7;
 
+	/* Create the "f" field that contains a list of fetches. */
+	lua_pushstring(L, "f");
+	if (!hlua_fetches_new(L, hs))
+		return 0;
+	lua_settable(L, -3);
+
 	/* Pop a class sesison metatable and affect it to the userdata. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, class_txn_ref);
 	lua_setmetatable(L, -2);
@@ -2606,57 +2709,6 @@ __LJMP static int hlua_txn_close(lua_State *L)
 	channel_shutr_now(s->s->si[0].ob);
 
 	return 0;
-}
-
-/* This function is an LUA binding. It is called with each sample-fetch.
- * It uses closure argument to store the associated sample-fetch. It
- * returns only one argument or throws an error. An error is thrown
- * only if an error is encountered during the argument parsing. If
- * the "sample-fetch" function fails, nil is returned.
- */
-__LJMP static int hlua_run_sample_fetch(lua_State *L)
-{
-	struct hlua_txn *s;
-	struct hlua_sample_fetch *f;
-	struct arg args[ARGM_NBARGS + 1];
-	int i;
-	struct sample smp;
-
-	/* Get closure arguments. */
-	f = (struct hlua_sample_fetch *)lua_touserdata(L, lua_upvalueindex(1));
-
-	/* Get traditionnal arguments. */
-	s = MAY_LJMP(hlua_checktxn(L, 1));
-
-	/* Get extra arguments. */
-	for (i = 0; i < lua_gettop(L) - 1; i++) {
-		if (i >= ARGM_NBARGS)
-			break;
-		hlua_lua2arg(L, i + 2, &args[i]);
-	}
-	args[i].type = ARGT_STOP;
-
-	/* Check arguments. */
-	MAY_LJMP(hlua_lua2arg_check(L, 1, args, f->f->arg_mask));
-
-	/* Run the special args checker. */
-	if (f->f->val_args && !f->f->val_args(args, NULL)) {
-		lua_pushfstring(L, "error in arguments");
-		WILL_LJMP(lua_error(L));
-	}
-
-	/* Initialise the sample. */
-	memset(&smp, 0, sizeof(smp));
-
-	/* Run the sample fetch process. */
-	if (!f->f->process(s->p, s->s, s->l7, 0, args, &smp, f->f->kw, f->f->private)) {
-		lua_pushnil(L);
-		return 1;
-	}
-
-	/* Convert the returned sample in lua value. */
-	hlua_smp2lua(L, &smp);
-	return 1;
 }
 
 /* This function is an LUA binding. It creates ans returns
@@ -3761,7 +3813,7 @@ void hlua_init(void)
 
 	/*
 	 *
-	 * Register class TXN
+	 * Register class Fetches
 	 *
 	 */
 
@@ -3802,6 +3854,26 @@ void hlua_init(void)
 		lua_pushcclosure(gL.T, hlua_run_sample_fetch, 1);
 		lua_settable(gL.T, -3);
 	}
+
+	lua_settable(gL.T, -3);
+
+	/* Register previous table in the registry with reference and named entry. */
+	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
+	lua_setfield(gL.T, LUA_REGISTRYINDEX, CLASS_FETCHES); /* register class session. */
+	class_fetches_ref = luaL_ref(gL.T, LUA_REGISTRYINDEX); /* reference class session. */
+
+	/*
+	 *
+	 * Register class TXN
+	 *
+	 */
+
+	/* Create and fill the metatable. */
+	lua_newtable(gL.T);
+
+	/* Create and fille the __index entry. */
+	lua_pushstring(gL.T, "__index");
+	lua_newtable(gL.T);
 
 	/* Register Lua functions. */
 	hlua_class_function(gL.T, "get_headers", hlua_session_get_headers);
