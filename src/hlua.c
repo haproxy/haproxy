@@ -2769,43 +2769,21 @@ static int hlua_txn_new(lua_State *L, struct session *s, struct proxy *p, void *
 		return 0;
 	lua_settable(L, -3);
 
+	/* Create the "req" field that contains the request channel object. */
+	lua_pushstring(L, "req");
+	if (!hlua_channel_new(L, s, s->req))
+		return 0;
+	lua_settable(L, -3);
+
+	/* Create the "res" field that contains the response channel object. */
+	lua_pushstring(L, "res");
+	if (!hlua_channel_new(L, s, s->rep))
+		return 0;
+	lua_settable(L, -3);
+
 	/* Pop a class sesison metatable and affect it to the userdata. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, class_txn_ref);
 	lua_setmetatable(L, -2);
-
-	return 1;
-}
-
-/* This function returns a channel object associated
- * with the request channel. This function never fails,
- * however if the stack is full, it throws an error.
- */
-__LJMP static int hlua_txn_req_channel(lua_State *L)
-{
-	struct hlua_txn *s;
-
-	MAY_LJMP(check_args(L, 1, "req_channel"));
-	s = MAY_LJMP(hlua_checktxn(L, 1));
-
-	if (!hlua_channel_new(L, s->s, s->s->req))
-		WILL_LJMP(luaL_error(L, "full stack"));
-
-	return 1;
-}
-
-/* This function returns a channel object associated
- * with the response channel. This function never fails,
- * however if the stack is full, it throws an error.
- */
-__LJMP static int hlua_txn_res_channel(lua_State *L)
-{
-	struct hlua_txn *s;
-
-	MAY_LJMP(check_args(L, 1, "res_channel"));
-	s = MAY_LJMP(hlua_checktxn(L, 1));
-
-	if (!hlua_channel_new(L, s->s, s->s->rep))
-		WILL_LJMP(luaL_error(L, "full stack"));
 
 	return 1;
 }
@@ -4046,8 +4024,6 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "get_headers", hlua_session_get_headers);
 	hlua_class_function(gL.T, "set_priv",    hlua_set_priv);
 	hlua_class_function(gL.T, "get_priv",    hlua_get_priv);
-	hlua_class_function(gL.T, "req_channel", hlua_txn_req_channel);
-	hlua_class_function(gL.T, "res_channel", hlua_txn_res_channel);
 	hlua_class_function(gL.T, "close",       hlua_txn_close);
 
 	lua_settable(gL.T, -3);
