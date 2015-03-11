@@ -182,12 +182,8 @@ __LJMP static inline void check_args(lua_State *L, int nb, char *fcn)
 /* Return true if the data in stack[<ud>] is an object of
  * type <class_ref>.
  */
-static int hlua_udataistype(lua_State *L, int ud, int class_ref)
+static int hlua_metaistype(lua_State *L, int ud, int class_ref)
 {
-	void *p = lua_touserdata(L, ud);
-	if (!p)
-		return 0;
-
 	if (!lua_getmetatable(L, ud))
 		return 0;
 
@@ -204,9 +200,24 @@ static int hlua_udataistype(lua_State *L, int ud, int class_ref)
 /* Return an object of the expected type, or throws an error. */
 __LJMP static void *hlua_checkudata(lua_State *L, int ud, int class_ref)
 {
-	if (!hlua_udataistype(L, ud, class_ref))
-		WILL_LJMP(luaL_argerror(L, 1, NULL));
-	return lua_touserdata(L, ud);
+	void *p;
+
+	/* Check if the stack entry is an array. */
+	if (!lua_istable(L, ud))
+		WILL_LJMP(luaL_argerror(L, ud, NULL));
+	/* Check if the metadata have the expected type. */
+	if (!hlua_metaistype(L, ud, class_ref))
+		WILL_LJMP(luaL_argerror(L, ud, NULL));
+	/* Push on the stack at the entry [0] of the table. */
+	lua_rawgeti(L, ud, 0);
+	/* Check if this entry is userdata. */
+	p = lua_touserdata(L, -1);
+	if (!p)
+		WILL_LJMP(luaL_argerror(L, ud, NULL));
+	/* Remove the entry returned by lua_rawgeti(). */
+	lua_pop(L, 1);
+	/* Return the associated struct. */
+	return p;
 }
 
 /* This fucntion push an error string prefixed by the file name
@@ -1743,12 +1754,15 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	struct appctx *appctx;
 
 	/* Check stack size. */
-	if (!lua_checkstack(L, 2)) {
+	if (!lua_checkstack(L, 3)) {
 		hlua_pusherror(L, "socket: full stack");
 		goto out_fail_conf;
 	}
 
+	/* Create the object: obj[0] = userdata. */
+	lua_newtable(L);
 	socket = MAY_LJMP(lua_newuserdata(L, sizeof(*socket)));
+	lua_rawseti(L, -2, 0);
 	memset(socket, 0, sizeof(*socket));
 
 	/* Check if the various memory pools are intialized. */
@@ -2025,13 +2039,15 @@ static int hlua_channel_new(lua_State *L, struct session *s, struct channel *cha
 	struct hlua_channel *chn;
 
 	/* Check stack size. */
-	if (!lua_checkstack(L, 2))
+	if (!lua_checkstack(L, 3))
 		return 0;
 
 	/* NOTE: The allocation never fails. The failure
 	 * throw an error, and the function never returns.
 	 */
-	chn = lua_newuserdata(L, sizeof(*chn));
+	lua_newtable(L);
+	chn = MAY_LJMP(lua_newuserdata(L, sizeof(*chn)));
+	lua_rawseti(L, -2, 0);
 	chn->chn = channel;
 	chn->s = s;
 
@@ -2515,14 +2531,18 @@ static int hlua_txn_new(lua_State *L, struct session *s, struct proxy *p, void *
 	struct hlua_txn *hs;
 
 	/* Check stack size. */
-	if (!lua_checkstack(L, 2))
+	if (!lua_checkstack(L, 3))
 		return 0;
 
 	/* NOTE: The allocation never fails. The failure
 	 * throw an error, and the function never returns.
 	 * if the throw is not avalaible, the process is aborted.
 	 */
+	/* Create the object: obj[0] = userdata. */
+	lua_newtable(L);
 	hs = lua_newuserdata(L, sizeof(struct hlua_txn));
+	lua_rawseti(L, -2, 0);
+
 	hs->s = s;
 	hs->p = p;
 	hs->l7 = l7;
