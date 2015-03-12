@@ -1293,14 +1293,13 @@ static void event_srv_chk_r(struct connection *conn)
 	 * To avoid sending RSTs all the time, we first try to drain pending
 	 * data.
 	 */
-	if (conn->xprt && conn->xprt->shutw)
-		conn->xprt->shutw(conn, 0);
+	__conn_data_stop_both(conn);
+	conn_data_shutw_hard(conn);
 
 	/* OK, let's not stay here forever */
 	if (check->result == CHK_RES_FAILED)
 		conn->flags |= CO_FL_ERROR;
 
-	__conn_data_stop_both(conn);
 	task_wakeup(t, TASK_WOKEN_IO);
 	return;
 
