@@ -552,17 +552,25 @@ static inline int conn_drain(struct connection *conn)
 	if (!conn_ctrl_ready(conn))
 		return 1;
 
-	if (conn->flags & CO_FL_SOCK_RD_SH)
+	if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH))
 		return 1;
 
-	if (!fd_recv_ready(conn->t.sock.fd))
-		return 0;
+	if (fdtab[conn->t.sock.fd].ev & (FD_POLL_ERR|FD_POLL_HUP)) {
+		fdtab[conn->t.sock.fd].linger_risk = 0;
+	}
+	else {
+		if (!fd_recv_ready(conn->t.sock.fd))
+			return 0;
 
-	if (!conn->ctrl->drain)
-		return 0;
+		/* disable draining if we were called and have no drain function */
+		if (!conn->ctrl->drain) {
+			__conn_data_stop_recv(conn);
+			return 0;
+		}
 
-	if (conn->ctrl->drain(conn->t.sock.fd) <= 0)
-		return 0;
+		if (conn->ctrl->drain(conn->t.sock.fd) <= 0)
+			return 0;
+	}
 
 	conn->flags |= CO_FL_SOCK_RD_SH;
 	return 1;
