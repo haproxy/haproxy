@@ -420,6 +420,20 @@ static inline void conn_data_shutw(struct connection *c)
 {
 	c->flags |= CO_FL_DATA_WR_SH;
 	__conn_data_stop_send(c);
+
+	/* clean data-layer shutdown */
+	if (c->xprt && c->xprt->shutw)
+		c->xprt->shutw(c, 1);
+}
+
+static inline void conn_data_shutw_hard(struct connection *c)
+{
+	c->flags |= CO_FL_DATA_WR_SH;
+	__conn_data_stop_send(c);
+
+	/* unclean data-layer shutdown */
+	if (c->xprt && c->xprt->shutw)
+		c->xprt->shutw(c, 0);
 }
 
 /* detect sock->data read0 transition */
