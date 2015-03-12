@@ -412,6 +412,8 @@ static inline void conn_sock_shutw(struct connection *c)
 {
 	c->flags |= CO_FL_SOCK_WR_SH;
 	__conn_sock_stop_send(c);
+	if (conn_ctrl_ready(c))
+		shutdown(c->t.sock.fd, SHUT_WR);
 }
 
 static inline void conn_data_shutw(struct connection *c)
