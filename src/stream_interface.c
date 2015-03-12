@@ -1343,9 +1343,7 @@ static void si_conn_send_cb(struct connection *conn)
 /*
  * This function propagates a null read received on a socket-based connection.
  * It updates the stream interface. If the stream interface has SI_FL_NOHALF,
- * the close is also forwarded to the write side as an abort. This function is
- * still socket-specific as it handles a setsockopt() call to set the SO_LINGER
- * state on the socket.
+ * the close is also forwarded to the write side as an abort.
  */
 void stream_sock_read0(struct stream_interface *si)
 {
@@ -1375,8 +1373,6 @@ void stream_sock_read0(struct stream_interface *si)
 	}
 
 	/* otherwise that's just a normal read shutdown */
-	if (conn_ctrl_ready(conn))
-		fdtab[conn->t.sock.fd].linger_risk = 0;
 	__conn_data_stop_recv(conn);
 	return;
 
