@@ -497,7 +497,7 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
  */
 static void si_idle_conn_null_cb(struct connection *conn)
 {
-	conn_drain(conn);
+	conn_sock_drain(conn);
 }
 
 /* Callback to be used by connection I/O handlers when some activity is detected

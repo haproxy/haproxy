@@ -1340,7 +1340,7 @@ static int wake_srv_chk(struct connection *conn)
 		/* We're here because nobody wants to handle the error, so we
 		 * sure want to abort the hard way.
 		 */
-		conn_drain(conn);
+		conn_sock_drain(conn);
 		conn_force_close(conn);
 	}
 	return 0;
@@ -2079,7 +2079,7 @@ static struct task *process_chk_conn(struct task *t)
 			 * as a failed response coupled with "observe layer7" caused the
 			 * server state to be suddenly changed.
 			 */
-			conn_drain(conn);
+			conn_sock_drain(conn);
 			conn_force_close(conn);
 		}
 

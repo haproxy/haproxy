@@ -48,6 +48,9 @@ int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connec
 /* raw send() directly on the socket */
 int conn_sock_send(struct connection *conn, const void *buf, int len, int flags);
 
+/* drains any pending bytes from the socket */
+int conn_sock_drain(struct connection *conn);
+
 /* returns true is the transport layer is ready */
 static inline int conn_xprt_ready(const struct connection *conn)
 {
@@ -538,42 +541,6 @@ static inline void conn_attach(struct connection *conn, void *owner, const struc
 {
 	conn->data = data;
 	conn->owner = owner;
-}
-
-/* Drains possibly pending incoming data on the file descriptor attached to the
- * connection and update the connection's flags accordingly. This is used to
- * know whether we need to disable lingering on close. Returns non-zero if it
- * is safe to close without disabling lingering, otherwise zero. The SOCK_RD_SH
- * flag may also be updated if the incoming shutdown was reported by the drain()
- * function.
- */
-static inline int conn_drain(struct connection *conn)
-{
-	if (!conn_ctrl_ready(conn))
-		return 1;
-
-	if (conn->flags & (CO_FL_ERROR | CO_FL_SOCK_RD_SH))
-		return 1;
-
-	if (fdtab[conn->t.sock.fd].ev & (FD_POLL_ERR|FD_POLL_HUP)) {
-		fdtab[conn->t.sock.fd].linger_risk = 0;
-	}
-	else {
-		if (!fd_recv_ready(conn->t.sock.fd))
-			return 0;
-
-		/* disable draining if we were called and have no drain function */
-		if (!conn->ctrl->drain) {
-			__conn_data_stop_recv(conn);
-			return 0;
-		}
-
-		if (conn->ctrl->drain(conn->t.sock.fd) <= 0)
-			return 0;
-	}
-
-	conn->flags |= CO_FL_SOCK_RD_SH;
-	return 1;
 }
 
 /* returns a human-readable error code for conn->err_code, or NULL if the code
