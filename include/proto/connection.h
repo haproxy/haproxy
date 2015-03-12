@@ -45,6 +45,9 @@ int make_proxy_line(char *buf, int buf_len, struct server *srv, struct connectio
 int make_proxy_line_v1(char *buf, int buf_len, struct sockaddr_storage *src, struct sockaddr_storage *dst);
 int make_proxy_line_v2(char *buf, int buf_len, struct server *srv, struct connection *remote);
 
+/* raw send() directly on the socket */
+int conn_sock_send(struct connection *conn, const void *buf, int len, int flags);
+
 /* returns true is the transport layer is ready */
 static inline int conn_xprt_ready(const struct connection *conn)
 {

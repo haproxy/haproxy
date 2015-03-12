@@ -218,6 +218,56 @@ void conn_update_sock_polling(struct connection *c)
 	c->flags = f;
 }
 
+/* Send a message over an established connection. It makes use of send() and
+ * returns the same return code and errno. If the socket layer is not ready yet
+ * then -1 is returned and ENOTSOCK is set into errno. If the fd is not marked
+ * as ready, or if EAGAIN or ENOTCONN is returned, then we return 0. It returns
+ * EMSGSIZE if called with a zero length message. The purpose is to simplify
+ * some rare attempts to directly write on the socket from above the connection
+ * (typically send_proxy). In case of EAGAIN, the fd is marked as "cant_send".
+ * It automatically retries on EINTR. Other errors cause the connection to be
+ * marked as in error state. It takes similar arguments as send() except the
+ * first one which is the connection instead of the file descriptor. Note,
+ * MSG_DONTWAIT and MSG_NOSIGNAL are forced on the flags.
+ */
+int conn_sock_send(struct connection *conn, const void *buf, int len, int flags)
+{
+	int ret;
+
+	ret = -1;
+	errno = ENOTSOCK;
+
+	if (conn->flags & CO_FL_SOCK_WR_SH)
+		goto fail;
+
+	if (!conn_ctrl_ready(conn))
+		goto fail;
+
+	errno = EMSGSIZE;
+	if (!len)
+		goto fail;
+
+	if (!fd_send_ready(conn->t.sock.fd))
+		goto wait;
+
+	do {
+		ret = send(conn->t.sock.fd, buf, len, flags | MSG_DONTWAIT | MSG_NOSIGNAL);
+	} while (ret < 0 && errno == EINTR);
+
+
+	if (ret > 0)
+		return ret;
+
+	if (ret == 0 || errno == EAGAIN || errno == ENOTCONN) {
+	wait:
+		fd_cant_send(conn->t.sock.fd);
+		return 0;
+	}
+ fail:
+	conn->flags |= CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH | CO_FL_ERROR;
+	return ret;
+}
+
 /*
  * Get data length from tlv
  */
