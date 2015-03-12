@@ -37,9 +37,6 @@ struct map_descriptor {
 	struct sample_conv *conv;      /* original converter descriptor */
 	struct pattern_head pat;       /* the pattern matching associated to the map */
 	int do_free;                   /* set if <pat> is the orignal pat and must be freed */
-	char *default_value;           /* a copy of default value. This copy is
-	                                  useful if the type is str */
-	struct sample_storage *def;    /* contain the default value */
 };
 
 #endif /* _TYPES_MAP_H */
