@@ -854,12 +854,7 @@ static void stream_int_shutr_conn(struct stream_interface *si)
  * states). It either shuts the write side or marks itself as closed. The
  * buffer flags are updated to reflect the new state.  It does also close
  * everything if the SI was marked as being in error state. If there is a
- * data-layer shutdown, it is called. If a control layer is defined, then it is
- * supposed to be a socket layer and file descriptors are then shutdown or
- * closed accordingly. The function automatically disables polling if needed.
- * Note: at the moment, we continue to check conn->ctrl eventhough we *know* it
- * is valid. This will help selecting the proper shutdown() and setsockopt()
- * calls if/when we implement remote sockets later.
+ * data-layer shutdown, it is called.
  */
 static void stream_int_shutw_conn(struct stream_interface *si)
 {
@@ -887,13 +882,11 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 		}
 		else if (si->flags & SI_FL_NOLINGER) {
 			/* unclean data-layer shutdown */
-			if (conn->xprt && conn->xprt->shutw)
-				conn->xprt->shutw(conn, 0);
+			conn_data_shutw_hard(conn);
 		}
 		else {
 			/* clean data-layer shutdown */
-			if (conn->xprt && conn->xprt->shutw)
-				conn->xprt->shutw(conn, 1);
+			conn_data_shutw(conn);
 
 			/* If the stream interface is configured to disable half-open
 			 * connections, we'll skip the shutdown(), but only if the
@@ -909,8 +902,7 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 					/* OK just a shutw, but we want the caller
 					 * to disable polling on this FD if exists.
 					 */
-					if (conn->ctrl)
-						conn_data_stop_send(conn);
+					conn_cond_update_polling(conn);
 					return;
 				}
 			}
@@ -1366,8 +1358,7 @@ void stream_sock_read0(struct stream_interface *si)
 	if (si->flags & SI_FL_NOHALF) {
 		/* we want to immediately forward this close to the write side */
 		/* force flag on ssl to keep session in cache */
-		if (conn->xprt->shutw)
-			conn->xprt->shutw(conn, 0);
+		conn_data_shutw_hard(conn);
 		goto do_close;
 	}
 
