@@ -413,9 +413,6 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 	if (!conn_ctrl_ready(conn))
 		goto out_error;
 
-	if (!fd_send_ready(conn->t.sock.fd))
-		goto out_wait;
-
 	/* If we have a PROXY line to send, we'll use this to validate the
 	 * connection, in which case the connection is validated only once
 	 * we've sent the whole proxy line. Otherwise we use connect().
@@ -461,20 +458,11 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 		/* we have to send trash from (ret+sp for -sp bytes). If the
 		 * data layer has a pending write, we'll also set MSG_MORE.
 		 */
-		ret = send(conn->t.sock.fd, trash.str + ret + conn->send_proxy_ofs, -conn->send_proxy_ofs,
-			   (conn->flags & CO_FL_DATA_WR_ENA) ? MSG_MORE : 0);
+		ret = conn_sock_send(conn, trash.str + ret + conn->send_proxy_ofs, -conn->send_proxy_ofs,
+		                     (conn->flags & CO_FL_DATA_WR_ENA) ? MSG_MORE : 0);
 
-		if (ret == 0)
-			goto out_wait;
-
-		if (ret < 0) {
-			if (errno == EAGAIN || errno == ENOTCONN)
-				goto out_wait;
-			if (errno == EINTR)
-				continue;
-			conn->flags |= CO_FL_SOCK_RD_SH | CO_FL_SOCK_WR_SH;
+		if (ret < 0)
 			goto out_error;
-		}
 
 		conn->send_proxy_ofs += ret; /* becomes zero once complete */
 		if (conn->send_proxy_ofs != 0)
@@ -499,7 +487,6 @@ int conn_si_send_proxy(struct connection *conn, unsigned int flag)
 
  out_wait:
 	__conn_sock_stop_recv(conn);
-	fd_cant_send(conn->t.sock.fd);
 	return 0;
 }
 
