@@ -116,7 +116,8 @@ static unsigned int hlua_nb_instruction = 10000;
  */
 static int hlua_arg2lua(lua_State *L, const struct arg *arg);
 static int hlua_lua2arg(lua_State *L, int ud, struct arg *arg);
-__LJMP static int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp, unsigned int mask);
+__LJMP static int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
+                                     unsigned int mask, struct proxy *p);
 static int hlua_smp2lua(lua_State *L, struct sample *smp);
 static int hlua_smp2lua_str(lua_State *L, struct sample *smp);
 static int hlua_lua2smp(lua_State *L, int ud, struct sample *smp);
@@ -508,10 +509,13 @@ static int hlua_lua2smp(lua_State *L, int ud, struct sample *smp)
  * is in accord with the expected argp defined by the "mask". The fucntion
  * returns true or false. It can be adjust the types if there compatibles.
  */
-__LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp, unsigned int mask)
+__LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
+                              unsigned int mask, struct proxy *p)
 {
 	int min_arg;
 	int idx;
+	struct proxy *px;
+	char *sname, *pname;
 
 	idx = 0;
 	min_arg = ARGM(mask);
@@ -542,14 +546,117 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp, unsigne
 			return 0;
 		}
 
-		/* Compatibility mask. */
-		switch (argp[idx].type) {
+		/* Convert some argument types. */
+		switch (mask & ARGT_MASK) {
 		case ARGT_SINT:
-			switch (mask & ARGT_MASK) {
-			case ARGT_UINT: argp[idx].type = mask & ARGT_MASK; break;
-			case ARGT_TIME: argp[idx].type = mask & ARGT_MASK; break;
-			case ARGT_SIZE: argp[idx].type = mask & ARGT_MASK; break;
+			if (argp[idx].type != ARGT_SINT)
+				WILL_LJMP(luaL_argerror(L, first + idx, "integer expected"));
+			argp[idx].type = ARGT_SINT;
+			break;
+
+		case ARGT_UINT:
+			if (argp[idx].type != ARGT_SINT)
+				WILL_LJMP(luaL_argerror(L, first + idx, "integer expected"));
+			argp[idx].type = ARGT_SINT;
+			break;
+
+		case ARGT_TIME:
+			if (argp[idx].type != ARGT_SINT)
+				WILL_LJMP(luaL_argerror(L, first + idx, "integer expected"));
+			argp[idx].type = ARGT_SINT;
+			break;
+
+		case ARGT_SIZE:
+			if (argp[idx].type != ARGT_SINT)
+				WILL_LJMP(luaL_argerror(L, first + idx, "integer expected"));
+			argp[idx].type = ARGT_SINT;
+			break;
+
+		case ARGT_FE:
+			if (argp[idx].type != ARGT_STR)
+				WILL_LJMP(luaL_argerror(L, first + idx, "string expected"));
+			memcpy(trash.str, argp[idx].data.str.str, argp[idx].data.str.len);
+			trash.str[argp[idx].data.str.len] = 0;
+			argp[idx].data.prx = findproxy(trash.str, PR_CAP_FE);
+			if (!argp[idx].data.prx)
+				WILL_LJMP(luaL_argerror(L, first + idx, "frontend doesn't exist"));
+			argp[idx].type = ARGT_FE;
+			break;
+
+		case ARGT_BE:
+			if (argp[idx].type != ARGT_STR)
+				WILL_LJMP(luaL_argerror(L, first + idx, "string expected"));
+			memcpy(trash.str, argp[idx].data.str.str, argp[idx].data.str.len);
+			trash.str[argp[idx].data.str.len] = 0;
+			argp[idx].data.prx = findproxy(trash.str, PR_CAP_BE);
+			if (!argp[idx].data.prx)
+				WILL_LJMP(luaL_argerror(L, first + idx, "backend doesn't exist"));
+			argp[idx].type = ARGT_BE;
+			break;
+
+		case ARGT_TAB:
+			if (argp[idx].type != ARGT_STR)
+				WILL_LJMP(luaL_argerror(L, first + idx, "string expected"));
+			memcpy(trash.str, argp[idx].data.str.str, argp[idx].data.str.len);
+			trash.str[argp[idx].data.str.len] = 0;
+			argp[idx].data.prx = find_stktable(trash.str);
+			if (!argp[idx].data.prx)
+				WILL_LJMP(luaL_argerror(L, first + idx, "table doesn't exist"));
+			argp[idx].type = ARGT_TAB;
+			break;
+
+		case ARGT_SRV:
+			if (argp[idx].type != ARGT_STR)
+				WILL_LJMP(luaL_argerror(L, first + idx, "string expected"));
+			memcpy(trash.str, argp[idx].data.str.str, argp[idx].data.str.len);
+			trash.str[argp[idx].data.str.len] = 0;
+			sname = strrchr(trash.str, '/');
+			if (sname) {
+				*sname++ = '\0';
+				pname = trash.str;
+				px = findproxy(pname, PR_CAP_BE);
+				if (!px)
+					WILL_LJMP(luaL_argerror(L, first + idx, "backend doesn't exist"));
 			}
+			else {
+				sname = trash.str;
+				px = p;
+			}
+			argp[idx].data.srv = findserver(px, sname);
+			if (!argp[idx].data.srv)
+				WILL_LJMP(luaL_argerror(L, first + idx, "server doesn't exist"));
+			argp[idx].type = ARGT_SRV;
+			break;
+
+		case ARGT_IPV4:
+			memcpy(trash.str, argp[idx].data.str.str, argp[idx].data.str.len);
+			trash.str[argp[idx].data.str.len] = 0;
+			if (inet_pton(AF_INET, trash.str, &argp[idx].data.ipv4))
+				WILL_LJMP(luaL_argerror(L, first + idx, "invalid IPv4 address"));
+			argp[idx].type = ARGT_IPV4;
+			break;
+
+		case ARGT_MSK4:
+			memcpy(trash.str, argp[idx].data.str.str, argp[idx].data.str.len);
+			trash.str[argp[idx].data.str.len] = 0;
+			if (!str2mask(trash.str, &argp[idx].data.ipv4))
+				WILL_LJMP(luaL_argerror(L, first + idx, "invalid IPv4 mask"));
+			argp[idx].type = ARGT_MSK4;
+			break;
+
+		case ARGT_IPV6:
+			memcpy(trash.str, argp[idx].data.str.str, argp[idx].data.str.len);
+			trash.str[argp[idx].data.str.len] = 0;
+			if (inet_pton(AF_INET6, trash.str, &argp[idx].data.ipv6))
+				WILL_LJMP(luaL_argerror(L, first + idx, "invalid IPv6 address"));
+			argp[idx].type = ARGT_IPV6;
+			break;
+
+		case ARGT_MSK6:
+		case ARGT_MAP:
+		case ARGT_REG:
+		case ARGT_USR:
+			WILL_LJMP(luaL_argerror(L, first + idx, "type not yet supported"));
 			break;
 		}
 
