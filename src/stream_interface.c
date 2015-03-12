@@ -903,8 +903,7 @@ static void stream_int_shutw_conn(struct stream_interface *si)
 			 */
 			if (!(si->flags & SI_FL_NOHALF) || !(ic->flags & (CF_SHUTR|CF_DONT_READ))) {
 				/* We shutdown transport layer */
-				if (conn_ctrl_ready(conn))
-					shutdown(conn->t.sock.fd, SHUT_WR);
+				conn_sock_shutw(conn);
 
 				if (!(ic->flags & (CF_SHUTR|CF_DONT_READ))) {
 					/* OK just a shutw, but we want the caller
