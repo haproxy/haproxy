@@ -2659,7 +2659,7 @@ unsigned char utf8_next(const char *s, int len, unsigned int *c)
 	 * 2 bytes : 4 + 6 + 6     : 16 : 0x800   ... 0xffff
 	 * 3 bytes : 3 + 6 + 6 + 6 : 21 : 0x10000 ... 0x1fffff
 	 */
-	if ((*c >= 0x00    && *c <= 0x7f     && (p-(unsigned char *)s) > 1) ||
+	if ((                 *c <= 0x7f     && (p-(unsigned char *)s) > 1) ||
 	    (*c >= 0x80    && *c <= 0x7ff    && (p-(unsigned char *)s) > 2) ||
 	    (*c >= 0x800   && *c <= 0xffff   && (p-(unsigned char *)s) > 3) ||
 	    (*c >= 0x10000 && *c <= 0x1fffff && (p-(unsigned char *)s) > 4))
