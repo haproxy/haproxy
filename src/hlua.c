@@ -508,6 +508,9 @@ static int hlua_lua2smp(lua_State *L, int ud, struct sample *smp)
 /* This function check the "argp" builded by another conversion function
  * is in accord with the expected argp defined by the "mask". The fucntion
  * returns true or false. It can be adjust the types if there compatibles.
+ *
+ * This function assumes thant the argp argument contains ARGM_NBARGS + 1
+ * entries.
  */
 __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
                               unsigned int mask, struct proxy *p)
@@ -530,8 +533,44 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 
 		/* Check for mandatory arguments. */
 		if (argp[idx].type == ARGT_STOP) {
-			if (idx < min_arg)
-				WILL_LJMP(luaL_argerror(L, first + idx, "Mandatory argument expected"));
+			if (idx < min_arg) {
+
+				/* If miss other argument than the first one, we return an error. */
+				if (idx > 0)
+					WILL_LJMP(luaL_argerror(L, first + idx, "Mandatory argument expected"));
+
+				/* If first argument have a certain type, some default values
+				 * may be used. See the function smp_resolve_args().
+				 */
+				switch (mask & ARGT_MASK) {
+
+				case ARGT_FE:
+					if (!(p->cap & PR_CAP_FE))
+						WILL_LJMP(luaL_argerror(L, first + idx, "Mandatory argument expected"));
+					argp[idx].data.prx = p;
+					argp[idx].type = ARGT_FE;
+					argp[idx+1].type = ARGT_STOP;
+					break;
+
+				case ARGT_BE:
+					if (!(p->cap & PR_CAP_BE))
+						WILL_LJMP(luaL_argerror(L, first + idx, "Mandatory argument expected"));
+					argp[idx].data.prx = p;
+					argp[idx].type = ARGT_BE;
+					argp[idx+1].type = ARGT_STOP;
+					break;
+
+				case ARGT_TAB:
+					argp[idx].data.prx = p;
+					argp[idx].type = ARGT_TAB;
+					argp[idx+1].type = ARGT_STOP;
+					break;
+
+				default:
+					WILL_LJMP(luaL_argerror(L, first + idx, "Mandatory argument expected"));
+					break;
+				}
+			}
 			return 0;
 		}
 
