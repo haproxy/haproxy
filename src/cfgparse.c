@@ -1867,7 +1867,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 				curpeers->peers_fe->cap = PR_CAP_FE;
 				curpeers->peers_fe->maxconn = 0;
 				curpeers->peers_fe->conn_retries = CONN_RETRIES;
-				curpeers->peers_fe->timeout.connect = 5000;
+				curpeers->peers_fe->timeout.client = MS_TO_TICKS(5000);
 				curpeers->peers_fe->accept = peer_accept;
 				curpeers->peers_fe->options2 |= PR_O2_INDEPSTR | PR_O2_SMARTCON | PR_O2_SMARTACC;
 				curpeers->peers_fe->conf.args.file = curpeers->peers_fe->conf.file = strdup(file);
