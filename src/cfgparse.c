@@ -1884,7 +1884,6 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 					l->maxaccept = 1;
 					l->maxconn = ((struct proxy *)curpeers->peers_fe)->maxconn;
 					l->backlog = ((struct proxy *)curpeers->peers_fe)->backlog;
-					l->timeout = &((struct proxy *)curpeers->peers_fe)->timeout.client;
 					l->accept = session_accept;
 					l->handler = process_session;
 					l->analysers |=  ((struct proxy *)curpeers->peers_fe)->fe_req_ana;
@@ -7708,7 +7707,6 @@ out_uri_auth_compat:
 				listener->maxaccept = (listener->maxaccept + nbproc - 1) / nbproc;
 			}
 
-			listener->timeout = &curproxy->timeout.client;
 			listener->accept = session_accept;
 			listener->handler = process_session;
 			listener->analysers |= curproxy->fe_req_ana;

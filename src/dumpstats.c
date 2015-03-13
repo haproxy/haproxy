@@ -337,7 +337,6 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		list_for_each_entry(l, &bind_conf->listeners, by_bind) {
 			l->maxconn = global.stats_fe->maxconn;
 			l->backlog = global.stats_fe->backlog;
-			l->timeout = &global.stats_fe->timeout.client;
 			l->accept = session_accept;
 			l->handler = process_session;
 			l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
