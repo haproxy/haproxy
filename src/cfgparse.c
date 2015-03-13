@@ -1861,17 +1861,10 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 
 				init_new_proxy(curpeers->peers_fe);
 				curpeers->peers_fe->parent = curpeers;
-
-				curpeers->peers_fe->last_change = now.tv_sec;
 				curpeers->peers_fe->id = strdup(args[1]);
-				curpeers->peers_fe->cap = PR_CAP_FE;
-				curpeers->peers_fe->maxconn = 0;
-				curpeers->peers_fe->conn_retries = CONN_RETRIES;
-				curpeers->peers_fe->timeout.client = MS_TO_TICKS(5000);
-				curpeers->peers_fe->accept = peer_accept;
-				curpeers->peers_fe->options2 |= PR_O2_INDEPSTR | PR_O2_SMARTCON | PR_O2_SMARTACC;
 				curpeers->peers_fe->conf.args.file = curpeers->peers_fe->conf.file = strdup(file);
 				curpeers->peers_fe->conf.args.line = curpeers->peers_fe->conf.line = linenum;
+				peers_setup_frontend(curpeers->peers_fe);
 
 				bind_conf = bind_conf_alloc(&curpeers->peers_fe->conf.bind, file, linenum, args[2]);
 

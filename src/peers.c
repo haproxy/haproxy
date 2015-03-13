@@ -1094,7 +1094,7 @@ static void peer_session_forceshutdown(struct session * session)
  * value in case of success, or zero if it is a success but the session must be
  * closed ASAP and ignored.
  */
-int peer_accept(struct session *s)
+static int peer_accept(struct session *s)
 {
 	s->target = &peer_applet.obj_type;
 	/* no need to initialize the applet, it will start with st0=st1 = 0 */
@@ -1115,6 +1115,18 @@ int peer_accept(struct session *s)
 		s->res.wto = *s->listener->timeout;
 	}
 	return 1;
+}
+
+/* Pre-configures a peers frontend to accept incoming connections */
+void peers_setup_frontend(struct proxy *fe)
+{
+	fe->last_change = now.tv_sec;
+	fe->cap = PR_CAP_FE;
+	fe->maxconn = 0;
+	fe->conn_retries = CONN_RETRIES;
+	fe->timeout.client = MS_TO_TICKS(5000);
+	fe->accept = peer_accept;
+	fe->options2 |= PR_O2_INDEPSTR | PR_O2_SMARTCON | PR_O2_SMARTACC;
 }
 
 /*

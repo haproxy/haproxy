@@ -29,8 +29,7 @@
 #include <types/peers.h>
 
 void peers_register_table(struct peers *, struct stktable *table);
-
-int peer_accept(struct session *);
+void peers_setup_frontend(struct proxy *fe);
 
 #endif /* _PROTO_PEERS_H */
 
