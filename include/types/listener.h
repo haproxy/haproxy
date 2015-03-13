@@ -173,6 +173,7 @@ struct listener {
 	int (*accept)(struct listener *l, int fd, struct sockaddr_storage *addr); /* upper layer's accept() */
 	struct task * (*handler)(struct task *t); /* protocol handler. It is a task */
 	struct proxy *frontend;		/* the frontend this listener belongs to, or NULL */
+	enum obj_type *default_target;  /* default target to use for accepted sessions or NULL */
 	struct list wait_queue;		/* link element to make the listener wait for something (LI_LIMITED)  */
 	unsigned int analysers;		/* bitmap of required protocol analysers */
 	int maxseg;			/* for TCP, advertised MSS */

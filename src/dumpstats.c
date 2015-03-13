@@ -339,6 +339,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 			l->backlog = global.stats_fe->backlog;
 			l->accept = session_accept;
 			l->handler = process_session;
+			l->default_target = global.stats_fe->default_target;
 			l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
 			l->nice = -64;  /* we want to boost priority for local stats */
 			global.maxsock += l->maxconn;

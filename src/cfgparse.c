@@ -1887,6 +1887,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 					l->accept = session_accept;
 					l->handler = process_session;
 					l->analysers |=  ((struct proxy *)curpeers->peers_fe)->fe_req_ana;
+					l->default_target = ((struct proxy *)curpeers->peers_fe)->default_target;
 					l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
 					global.maxsock += l->maxconn;
 				}
@@ -7710,6 +7711,7 @@ out_uri_auth_compat:
 			listener->accept = session_accept;
 			listener->handler = process_session;
 			listener->analysers |= curproxy->fe_req_ana;
+			listener->default_target = curproxy->default_target;
 
 			if (!LIST_ISEMPTY(&curproxy->tcp_req.l4_rules))
 				listener->options |= LI_O_TCP_RULES;
