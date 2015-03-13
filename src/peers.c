@@ -450,7 +450,7 @@ switchstate:
 				repl = bi_putblk(si_ic(si), trash.str, repl);
 				if (repl <= 0) {
 					if (repl == -1)
-						goto out;
+						goto full;
 					appctx->st0 = PEER_SESS_ST_END;
 					goto switchstate;
 				}
@@ -514,7 +514,7 @@ switchstate:
 				repl = bi_putblk(si_ic(si), trash.str, repl);
 				if (repl <= 0) {
 					if (repl == -1)
-						goto out;
+						goto full;
 					appctx->st0 = PEER_SESS_ST_END;
 					goto switchstate;
 				}
@@ -848,7 +848,7 @@ incomplete:
 					if (repl <= 0) {
 						/* no more write possible */
 						if (repl == -1)
-							goto out;
+							goto full;
 						appctx->st0 = PEER_SESS_ST_END;
 						goto switchstate;
 					}
@@ -865,7 +865,7 @@ incomplete:
 					if (repl <= 0) {
 						/* no more write possible */
 						if (repl == -1)
-							goto out;
+							goto full;
 						appctx->st0 = PEER_SESS_ST_END;
 						goto switchstate;
 					}
@@ -884,7 +884,7 @@ incomplete:
 					if (repl <= 0) {
 						/* no more write possible */
 						if (repl == -1)
-							goto out;
+							goto full;
 						appctx->st0 = PEER_SESS_ST_END;
 						goto switchstate;
 					}
@@ -920,7 +920,7 @@ incomplete:
 								if (repl <= 0) {
 									/* no more write possible */
 									if (repl == -1)
-										goto out;
+										goto full;
 									appctx->st0 = PEER_SESS_ST_END;
 									goto switchstate;
 								}
@@ -954,7 +954,7 @@ incomplete:
 								if (repl <= 0) {
 									/* no more write possible */
 									if (repl == -1)
-										goto out;
+										goto full;
 									appctx->st0 = PEER_SESS_ST_END;
 									goto switchstate;
 								}
@@ -970,7 +970,7 @@ incomplete:
 						if (repl <= 0) {
 							/* no more write possible */
 							if (repl == -1)
-								goto out;
+								goto full;
 							appctx->st0 = PEER_SESS_ST_END;
 							goto switchstate;
 						}
@@ -1012,7 +1012,7 @@ incomplete:
 							if (repl <= 0) {
 								/* no more write possible */
 								if (repl == -1)
-									goto out;
+									goto full;
 								appctx->st0 = PEER_SESS_ST_END;
 								goto switchstate;
 							}
@@ -1028,7 +1028,7 @@ incomplete:
 				repl = snprintf(trash.str, trash.size, "%d\n", appctx->st1);
 
 				if (bi_putblk(si_ic(si), trash.str, repl) == -1)
-					goto out;
+					goto full;
 				appctx->st0 = PEER_SESS_ST_END;
 				/* fall through */
 			case PEER_SESS_ST_END: {
@@ -1047,6 +1047,9 @@ out:
 	si_oc(si)->wex = TICK_ETERNITY;
 quit:
 	return;
+full:
+	si->flags |= SI_FL_WAIT_ROOM;
+	goto out;
 }
 
 static struct si_applet peer_applet = {

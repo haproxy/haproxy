@@ -1462,6 +1462,9 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	 * Other unknown error are also not expected.
 	 */
 	if (len <= 0) {
+		if (len == -1)
+			si_ic(&socket->s->si[0])->flags |= CF_WAKE_WRITE;
+
 		MAY_LJMP(hlua_socket_close(L));
 		lua_pop(L, 1);
 		lua_pushinteger(L, -1);
@@ -2237,8 +2240,10 @@ __LJMP static int hlua_channel_append_yield(lua_State *L, int status, lua_KConte
 		lua_pushinteger(L, -1);
 		return 1;
 	}
-	if (ret == -1)
+	if (ret == -1) {
+		chn->flags |= CF_WAKE_WRITE;
 		WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_append_yield, TICK_ETERNITY, 0));
+	}
 	l += ret;
 	lua_pop(L, 1);
 	lua_pushinteger(L, l);
