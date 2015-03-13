@@ -1373,7 +1373,7 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 	if (!socket->s)
 		goto connection_closed;
 
-	oc = si_oc(&socket->s->si[0]);
+	oc = &socket->s->res;
 	if (wanted == HLSR_READ_LINE) {
 		/* Read line. */
 		nblk = bo_getline_nc(oc, &blk1, &len1, &blk2, &len2);
@@ -1593,14 +1593,14 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	}
 
 	/* Check for avalaible space. */
-	len = buffer_total_space(si_ib(&socket->s->si[0]));
+	len = buffer_total_space(socket->s->req.buf);
 	if (len <= 0)
 		goto hlua_socket_write_yield_return;
 
 	/* send data */
 	if (len < send_len)
 		send_len = len;
-	len = bi_putblk(si_ic(&socket->s->si[0]), buf+sent, send_len);
+	len = bi_putblk(&socket->s->req, buf+sent, send_len);
 
 	/* "Not enough space" (-1), "Buffer too little to contain
 	 * the data" (-2) are not expected because the available length
@@ -1609,7 +1609,7 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	 */
 	if (len <= 0) {
 		if (len == -1)
-			si_ic(&socket->s->si[0])->flags |= CF_WAKE_WRITE;
+			socket->s->req.flags |= CF_WAKE_WRITE;
 
 		MAY_LJMP(hlua_socket_close(L));
 		lua_pop(L, 1);
@@ -1619,8 +1619,8 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 
 	/* update buffers. */
 	si_update(&socket->s->si[0]);
-	si_ic(&socket->s->si[0])->rex = TICK_ETERNITY;
-	si_oc(&socket->s->si[0])->wex = TICK_ETERNITY;
+	socket->s->req.rex = TICK_ETERNITY;
+	socket->s->res.wex = TICK_ETERNITY;
 
 	/* Update length sent. */
 	lua_pop(L, 1);
@@ -2993,8 +2993,8 @@ __LJMP static int hlua_txn_close(lua_State *L)
 	MAY_LJMP(check_args(L, 1, "close"));
 	s = MAY_LJMP(hlua_checktxn(L, 1));
 
-	ic = si_ic(&s->s->si[0]);
-	oc = si_oc(&s->s->si[0]);
+	ic = &s->s->req;
+	oc = &s->s->res;
 
 	channel_abort(ic);
 	channel_auto_close(ic);
