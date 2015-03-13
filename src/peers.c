@@ -32,6 +32,7 @@
 #include <proto/acl.h>
 #include <proto/channel.h>
 #include <proto/fd.h>
+#include <proto/frontend.h>
 #include <proto/log.h>
 #include <proto/hdr_idx.h>
 #include <proto/proto_tcp.h>
@@ -1089,33 +1090,6 @@ static void peer_session_forceshutdown(struct session * session)
 	task_wakeup(session->task, TASK_WOKEN_MSG);
 }
 
-/* Finish a session accept() for a peer. It returns a negative value in case of
- * a critical failure which must cause the listener to be disabled, a positive
- * value in case of success, or zero if it is a success but the session must be
- * closed ASAP and ignored.
- */
-static int peer_accept(struct session *s)
-{
-	/* no need to initialize the applet, it will start with st0=st1 = 0 */
-
-	tv_zero(&s->logs.tv_request);
-	s->logs.t_queue = 0;
-	s->logs.t_connect = 0;
-	s->logs.t_data = 0;
-	s->logs.t_close = 0;
-	s->logs.bytes_in = s->logs.bytes_out = 0;
-	s->logs.prx_queue_size = 0;/* we get the number of pending conns before us */
-	s->logs.srv_queue_size = 0; /* we will get this number soon */
-
-	s->req.flags |= CF_READ_DONTWAIT; /* we plan to read small requests */
-
-	if (s->listener->timeout) {
-		s->req.rto = *s->listener->timeout;
-		s->res.wto = *s->listener->timeout;
-	}
-	return 1;
-}
-
 /* Pre-configures a peers frontend to accept incoming connections */
 void peers_setup_frontend(struct proxy *fe)
 {
@@ -1124,7 +1098,7 @@ void peers_setup_frontend(struct proxy *fe)
 	fe->maxconn = 0;
 	fe->conn_retries = CONN_RETRIES;
 	fe->timeout.client = MS_TO_TICKS(5000);
-	fe->accept = peer_accept;
+	fe->accept = frontend_accept;
 	fe->default_target = &peer_applet.obj_type;
 	fe->options2 |= PR_O2_INDEPSTR | PR_O2_SMARTCON | PR_O2_SMARTACC;
 }
