@@ -1096,7 +1096,6 @@ static void peer_session_forceshutdown(struct session * session)
  */
 static int peer_accept(struct session *s)
 {
-	s->target = &peer_applet.obj_type;
 	/* no need to initialize the applet, it will start with st0=st1 = 0 */
 
 	tv_zero(&s->logs.tv_request);
@@ -1126,6 +1125,7 @@ void peers_setup_frontend(struct proxy *fe)
 	fe->conn_retries = CONN_RETRIES;
 	fe->timeout.client = MS_TO_TICKS(5000);
 	fe->accept = peer_accept;
+	fe->default_target = &peer_applet.obj_type;
 	fe->options2 |= PR_O2_INDEPSTR | PR_O2_SMARTCON | PR_O2_SMARTACC;
 }
 

@@ -481,7 +481,7 @@ int session_complete(struct session *s)
 		s->si[1].flags |= SI_FL_INDEP_STR;
 
 	session_init_srv_conn(s);
-	s->target = NULL;
+	s->target = p->default_target; /* used by peers and CLI */
 	s->pend_pos = NULL;
 
 	/* init store persistence */

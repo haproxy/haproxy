@@ -329,6 +329,7 @@ struct proxy {
 	time_t last_change;			/* last time, when the state was changed */
 	int (*accept)(struct session *s);       /* application layer's accept() */
 	struct conn_src conn_src;               /* connection source settings */
+	enum obj_type *default_target;		/* default target to use for accepted sessions or NULL */
 	struct proxy *next;
 
 	unsigned int log_count;			/* number of logs produced by the frontend */

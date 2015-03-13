@@ -234,7 +234,6 @@ extern const char *stat_status_codes[];
  */
 static int stats_accept(struct session *s)
 {
-	s->target = &cli_applet.obj_type;
 	/* no need to initialize the applet, it will start with st0=st1 = 0 */
 
 	tv_zero(&s->logs.tv_request);
@@ -277,6 +276,7 @@ static struct proxy *alloc_stats_fe(const char *name, const char *file, int line
 	fe->conf.file = strdup(file);
 	fe->conf.line = line;
 	fe->accept = stats_accept;
+	fe->default_target = &cli_applet.obj_type;
 
 	/* the stats frontend is the only one able to assign ID #0 */
 	fe->conf.id.key = fe->uuid = 0;
