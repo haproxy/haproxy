@@ -530,7 +530,7 @@ __LJMP int hlua_lua2arg_check(lua_State *L, int first, struct arg *argp,
 
 		/* Check for mandatory arguments. */
 		if (argp[idx].type == ARGT_STOP) {
-			if (idx + 1 < min_arg)
+			if (idx < min_arg)
 				WILL_LJMP(luaL_argerror(L, first + idx, "Mandatory argument expected"));
 			return 0;
 		}
