@@ -856,7 +856,8 @@ void hlua_hook(lua_State *L, lua_Debug *ar)
 	if (lua_isyieldable(L))
 		WILL_LJMP(hlua_yieldk(L, 0, 0, NULL, TICK_ETERNITY, HLUA_CTRLYIELD));
 
-	/* If we cannot yield, check the timeout. */
+	/* If we cannot yield, update the clock and check the timeout. */
+	tv_update_date(0, 1);
 	if (tick_is_expired(hlua->expire, now_ms)) {
 		lua_pushfstring(L, "execution timeout");
 		WILL_LJMP(lua_error(L));
