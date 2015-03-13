@@ -46,6 +46,7 @@
 #include <proto/dumpstats.h>
 #include <proto/fd.h>
 #include <proto/freq_ctr.h>
+#include <proto/frontend.h>
 #include <proto/log.h>
 #include <proto/pattern.h>
 #include <proto/pipe.h>
@@ -228,32 +229,6 @@ enum {
 
 extern const char *stat_status_codes[];
 
-/* This function is called from the session-level accept() in order to instanciate
- * a new stats socket. It returns a positive value upon success, 0 if the session
- * needs to be closed and ignored, or a negative value upon critical failure.
- */
-static int stats_accept(struct session *s)
-{
-	/* no need to initialize the applet, it will start with st0=st1 = 0 */
-
-	tv_zero(&s->logs.tv_request);
-	s->logs.t_queue = 0;
-	s->logs.t_connect = 0;
-	s->logs.t_data = 0;
-	s->logs.t_close = 0;
-	s->logs.bytes_in = s->logs.bytes_out = 0;
-	s->logs.prx_queue_size = 0;  /* we get the number of pending conns before us */
-	s->logs.srv_queue_size = 0; /* we will get this number soon */
-
-	s->req.flags |= CF_READ_DONTWAIT; /* we plan to read small requests */
-
-	if (s->listener->timeout) {
-		s->req.rto = *s->listener->timeout;
-		s->res.wto = *s->listener->timeout;
-	}
-	return 1;
-}
-
 /* allocate a new stats frontend named <name>, and return it
  * (or NULL in case of lack of memory).
  */
@@ -275,7 +250,7 @@ static struct proxy *alloc_stats_fe(const char *name, const char *file, int line
 	fe->timeout.client = MS_TO_TICKS(10000); /* default timeout of 10 seconds */
 	fe->conf.file = strdup(file);
 	fe->conf.line = line;
-	fe->accept = stats_accept;
+	fe->accept = frontend_accept;
 	fe->default_target = &cli_applet.obj_type;
 
 	/* the stats frontend is the only one able to assign ID #0 */
