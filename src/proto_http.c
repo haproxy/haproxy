@@ -11592,33 +11592,33 @@ expect_comma:
 }
 
 /* This function executes one of the set-{method,path,query,uri} actions. It
- * builds a string in the trash from the specified format string, then modifies
+ * takes the string from the variable 'replace' with length 'len', then modifies
  * the relevant part of the request line accordingly. Then it updates various
  * pointers to the next elements which were moved, and the total buffer length.
  * It finds the action to be performed in p[2], previously filled by function
- * parse_set_req_line(). It always returns 1. If an error occurs the action
- * is canceled, but the rule processing continue.
+ * parse_set_req_line(). It returns 0 in case of success, -1 in case of internal
+ * error, though this can be revisited when this code is finally exploited.
+ *
+ * 'action' can be '0' to replace method, '1' to replace path, '2' to replace
+ * query string and 3 to replace uri.
+ *
+ * In query string case, the mark question '?' must be set at the start of the
+ * string by the caller, event if the replacement query string is empty.
  */
-int http_action_set_req_line(struct http_req_rule *rule, struct proxy *px, struct session *s, struct http_txn *txn)
+int http_replace_req_line(int action, const char *replace, int len,
+                          struct proxy *px, struct session *s, struct http_txn *txn)
 {
 	char *cur_ptr, *cur_end;
-	int offset;
+	int offset = 0;
 	int delta;
 
-	chunk_reset(&trash);
-
-	/* prepare a '?' just in case we have to create a query string */
-	trash.str[trash.len++] = '?';
-	offset = 1;
-	trash.len += build_logline(s, trash.str + trash.len, trash.size - trash.len, (struct list *)&rule->arg.act.p[0]);
-
-	switch (*(int *)&rule->arg.act.p[2]) {
+	switch (action) {
 	case 0: // method
 		cur_ptr = s->req.buf->p;
 		cur_end = cur_ptr + txn->req.sl.rq.m_l;
 
 		/* adjust req line offsets and lengths */
-		delta = trash.len - offset - (cur_end - cur_ptr);
+		delta = len - offset - (cur_end - cur_ptr);
 		txn->req.sl.rq.m_l += delta;
 		txn->req.sl.rq.u   += delta;
 		txn->req.sl.rq.v   += delta;
@@ -11634,12 +11634,13 @@ int http_action_set_req_line(struct http_req_rule *rule, struct proxy *px, struc
 			cur_end++;
 
 		/* adjust req line offsets and lengths */
-		delta = trash.len - offset - (cur_end - cur_ptr);
+		delta = len - offset - (cur_end - cur_ptr);
 		txn->req.sl.rq.u_l += delta;
 		txn->req.sl.rq.v   += delta;
 		break;
 
 	case 2: // query
+		offset = 1;
 		cur_ptr = s->req.buf->p + txn->req.sl.rq.u;
 		cur_end = cur_ptr + txn->req.sl.rq.u_l;
 		while (cur_ptr < cur_end && *cur_ptr != '?')
@@ -11650,11 +11651,11 @@ int http_action_set_req_line(struct http_req_rule *rule, struct proxy *px, struc
 		 */
 		if (cur_ptr < cur_end)
 			cur_ptr++;
-		else if (trash.len > 1)
+		else if (len > 1)
 			offset = 0;
 
 		/* adjust req line offsets and lengths */
-		delta = trash.len - offset - (cur_end - cur_ptr);
+		delta = len - offset - (cur_end - cur_ptr);
 		txn->req.sl.rq.u_l += delta;
 		txn->req.sl.rq.v   += delta;
 		break;
@@ -11664,18 +11665,38 @@ int http_action_set_req_line(struct http_req_rule *rule, struct proxy *px, struc
 		cur_end = cur_ptr + txn->req.sl.rq.u_l;
 
 		/* adjust req line offsets and lengths */
-		delta = trash.len - offset - (cur_end - cur_ptr);
+		delta = len - offset - (cur_end - cur_ptr);
 		txn->req.sl.rq.u_l += delta;
 		txn->req.sl.rq.v   += delta;
 		break;
 
 	default:
-		return 1;
+		return -1;
 	}
 
 	/* commit changes and adjust end of message */
-	delta = buffer_replace2(s->req.buf, cur_ptr, cur_end, trash.str + offset, trash.len - offset);
+	delta = buffer_replace2(s->req.buf, cur_ptr, cur_end, replace + offset, len - offset);
 	http_msg_move_end(&txn->req, delta);
+	return 0;
+}
+
+/* This function executes one of the set-{method,path,query,uri} actions. It
+ * builds a string in the trash from the specified format string. It finds
+ * the action to be performed in p[2], previously filled by function
+ * parse_set_req_line(). The replacement action is excuted by the function
+ * http_action_set_req_line_exec(). It always returns 1. If an error occurs
+ * the action is canceled, but the rule processing continue.
+ */
+int http_action_set_req_line(struct http_req_rule *rule, struct proxy *px, struct session *s, struct http_txn *txn)
+{
+	chunk_reset(&trash);
+
+	/* If we have to create a query string, prepare a '?'. */
+	if (*(int *)&rule->arg.act.p[2] == 2)
+		trash.str[trash.len++] = '?';
+	trash.len += build_logline(s, trash.str + trash.len, trash.size - trash.len, (struct list *)&rule->arg.act.p[0]);
+
+	http_replace_req_line(*(int *)&rule->arg.act.p[2], trash.str, trash.len, px, s, txn);
 	return 1;
 }
 
