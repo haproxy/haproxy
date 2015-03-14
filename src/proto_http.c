@@ -11648,8 +11648,8 @@ expect_comma:
  * the relevant part of the request line accordingly. Then it updates various
  * pointers to the next elements which were moved, and the total buffer length.
  * It finds the action to be performed in p[2], previously filled by function
- * parse_set_req_line(). It returns 0 in case of success, -1 in case of internal
- * error, though this can be revisited when this code is finally exploited.
+ * parse_set_req_line(). It always returns 1. If an error occurs the action
+ * is canceled, but the rule processing continue.
  */
 int http_action_set_req_line(struct http_req_rule *rule, struct proxy *px, struct session *s, struct http_txn *txn)
 {
@@ -11722,13 +11722,13 @@ int http_action_set_req_line(struct http_req_rule *rule, struct proxy *px, struc
 		break;
 
 	default:
-		return -1;
+		return 1;
 	}
 
 	/* commit changes and adjust end of message */
 	delta = buffer_replace2(s->req.buf, cur_ptr, cur_end, trash.str + offset, trash.len - offset);
 	http_msg_move_end(&txn->req, delta);
-	return 0;
+	return 1;
 }
 
 /* parse an http-request action among :
