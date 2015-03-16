@@ -2983,6 +2983,55 @@ static int hlua_txn_new(lua_State *L, struct session *s, struct proxy *p, void *
 	return 1;
 }
 
+__LJMP static int hlua_txn_set_loglevel(lua_State *L)
+{
+	struct hlua_txn *htxn;
+	int ll;
+
+	MAY_LJMP(check_args(L, 2, "set_loglevel"));
+	htxn = MAY_LJMP(hlua_checktxn(L, 1));
+	ll = MAY_LJMP(luaL_checkinteger(L, 2));
+
+	if (ll < 0 || ll > 7)
+		WILL_LJMP(luaL_argerror(L, 2, "Bad log level. It must be between 0 and 7"));
+
+	htxn->s->logs.level = ll;
+	return 0;
+}
+
+__LJMP static int hlua_txn_set_tos(lua_State *L)
+{
+	struct hlua_txn *htxn;
+	struct connection *cli_conn;
+	int tos;
+
+	MAY_LJMP(check_args(L, 2, "set_tos"));
+	htxn = MAY_LJMP(hlua_checktxn(L, 1));
+	tos = MAY_LJMP(luaL_checkinteger(L, 2));
+
+	if ((cli_conn = objt_conn(htxn->s->si[0].end)) && conn_ctrl_ready(cli_conn))
+		inet_set_tos(cli_conn->t.sock.fd, cli_conn->addr.from, tos);
+
+	return 0;
+}
+
+__LJMP static int hlua_txn_set_mark(lua_State *L)
+{
+#ifdef SO_MARK
+	struct hlua_txn *htxn;
+	struct connection *cli_conn;
+	int mark;
+
+	MAY_LJMP(check_args(L, 2, "set_mark"));
+	htxn = MAY_LJMP(hlua_checktxn(L, 1));
+	mark = MAY_LJMP(luaL_checkinteger(L, 2));
+
+	if ((cli_conn = objt_conn(htxn->s->si[0].end)) && conn_ctrl_ready(cli_conn))
+		setsockopt(cli_conn->t.sock.fd, SOL_SOCKET, SO_MARK, &mark, sizeof(int));
+#endif
+	return 0;
+}
+
 /* This function is an Lua binding that send pending data
  * to the client, and close the stream interface.
  */
@@ -4222,6 +4271,9 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "set_priv",    hlua_set_priv);
 	hlua_class_function(gL.T, "get_priv",    hlua_get_priv);
 	hlua_class_function(gL.T, "close",       hlua_txn_close);
+	hlua_class_function(gL.T, "set_loglevel",hlua_txn_set_loglevel);
+	hlua_class_function(gL.T, "set_tos",     hlua_txn_set_tos);
+	hlua_class_function(gL.T, "set_mark",    hlua_txn_set_mark);
 
 	lua_settable(gL.T, -3);
 

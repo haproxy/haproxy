@@ -553,6 +553,31 @@ TXN class
 
   Not yet avalaible.
 
+.. js:function:: txn.set_loglevel(txn, loglevel)
+
+  Is used to change the log level of the current request. The "loglevel" must
+  be an integer between 0 and 7.
+
+  :param class_txn txn: The class txn object containing the data.
+  :param integer loglevel: The required log level. This variable can be one of
+  :see: core.<loglevel>
+
+.. js:function:: txn.set_tos(txn, tos)
+
+  Is used to set the TOS or DSCP field value of packets sent to the client to
+  the value passed in "tos" on platforms which support this.
+
+  :param class_txn txn: The class txn object containing the data.
+  :param integer tos: The new TOS os DSCP.
+
+.. js:function:: txn.set_mark(txn, mark)
+
+  Is used to set the Netfilter MARK on all packets sent to the client to the
+  value passed in "mark" on platforms which support it.
+
+  :param class_txn txn: The class txn object containing the data.
+  :param integer mark: The mark value.
+
 Socket class
 ============
 
