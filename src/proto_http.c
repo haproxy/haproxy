@@ -3246,12 +3246,16 @@ static inline void inet_set_tos(int fd, struct sockaddr_storage from, int tos)
 #endif
 }
 
-static int http_transform_header(struct session* s, struct http_msg *msg, const char* name, uint name_len,
-                                 char* buf, struct hdr_idx* idx, struct list *fmt, struct my_regex *re,
-                                 struct hdr_ctx* ctx, int action)
+static int http_transform_header(struct session* s, struct http_msg *msg,
+                                 const char* name, unsigned int name_len,
+                                 struct list *fmt, struct my_regex *re,
+                                 int action)
 {
 	int (*http_find_hdr_func)(const char *name, int len, char *sol,
 	                          struct hdr_idx *idx, struct hdr_ctx *ctx);
+	struct hdr_ctx ctx;
+	char *buf = msg->chn->buf->p;
+	struct hdr_idx *idx = &s->txn.hdr_idx;
 	struct chunk *replace = get_trash_chunk();
 	struct chunk *output = get_trash_chunk();
 
@@ -3259,7 +3263,7 @@ static int http_transform_header(struct session* s, struct http_msg *msg, const 
 	if (replace->len >= replace->size - 1)
 		return -1;
 
-	ctx->idx = 0;
+	ctx.idx = 0;
 
 	/* Choose the header browsing function. */
 	switch (action) {
@@ -3275,11 +3279,11 @@ static int http_transform_header(struct session* s, struct http_msg *msg, const 
 		return -1;
 	}
 
-	while (http_find_hdr_func(name, name_len, buf, idx, ctx)) {
-		struct hdr_idx_elem *hdr = idx->v + ctx->idx;
+	while (http_find_hdr_func(name, name_len, buf, idx, &ctx)) {
+		struct hdr_idx_elem *hdr = idx->v + ctx.idx;
 		int delta;
-		char *val = ctx->line + ctx->val;
-		char* val_end = val + ctx->vlen;
+		char *val = ctx.line + ctx.val;
+		char* val_end = val + ctx.vlen;
 
 		if (!regex_exec_match2(re, val, val_end-val, MAX_MATCH, pmatch, 0))
 			continue;
@@ -3294,7 +3298,7 @@ static int http_transform_header(struct session* s, struct http_msg *msg, const 
 		http_msg_move_end(msg, delta);
 
 		/* Adjust the length of the current value of the index. */
-		ctx->vlen += delta;
+		ctx.vlen += delta;
 	}
 
 	return 0;
@@ -3402,9 +3406,10 @@ resume_execution:
 
 		case HTTP_REQ_ACT_REPLACE_HDR:
 		case HTTP_REQ_ACT_REPLACE_VAL:
-			if (http_transform_header(s, &txn->req, rule->arg.hdr_add.name, rule->arg.hdr_add.name_len,
-			                          txn->req.chn->buf->p, &txn->hdr_idx, &rule->arg.hdr_add.fmt,
-			                          &rule->arg.hdr_add.re, &ctx, rule->action))
+			if (http_transform_header(s, &txn->req, rule->arg.hdr_add.name,
+			                          rule->arg.hdr_add.name_len,
+			                          &rule->arg.hdr_add.fmt,
+			                          &rule->arg.hdr_add.re, rule->action))
 				return HTTP_RULE_RES_BADREQ;
 			break;
 
@@ -3648,9 +3653,10 @@ resume_execution:
 
 		case HTTP_RES_ACT_REPLACE_HDR:
 		case HTTP_RES_ACT_REPLACE_VAL:
-			if (http_transform_header(s, &txn->rsp, rule->arg.hdr_add.name, rule->arg.hdr_add.name_len,
-			                          txn->rsp.chn->buf->p, &txn->hdr_idx, &rule->arg.hdr_add.fmt,
-			                          &rule->arg.hdr_add.re, &ctx, rule->action))
+			if (http_transform_header(s, &txn->rsp, rule->arg.hdr_add.name,
+			                          rule->arg.hdr_add.name_len,
+			                          &rule->arg.hdr_add.fmt,
+			                          &rule->arg.hdr_add.re, rule->action))
 				return HTTP_RULE_RES_STOP; /* note: we should report an error here */
 			break;
 
