@@ -15,6 +15,7 @@
 #define CLASS_CONVERTERS "Converters"
 #define CLASS_SOCKET   "Socket"
 #define CLASS_CHANNEL  "Channel"
+#define CLASS_HTTP     "HTTP"
 
 struct session;
 

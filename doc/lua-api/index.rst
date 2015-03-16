@@ -425,6 +425,179 @@ Channel class
   :param class_channel channel: The manipulated channel.
   :param integer int: The amount of data which will be forwarded.
 
+
+HTTP class
+==========
+
+.. js:class:: HTTP
+
+   This class contain all the HTTP manipulation functions.
+
+.. js:function:: http.req_get_header(http)
+
+  Returns an array containing all the request headers.
+
+  :param class_http http: The related http object.
+  :returns: array of headers.
+  :see: http.res_get_header()
+
+.. js:function:: http.res_get_header(http)
+
+  Returns an array containing all the response headers.
+
+  :param class_http http: The related http object.
+  :returns: array of headers.
+  :see: http.req_get_header()
+
+.. js:function:: http.req_add_header(http, name, value)
+
+  Appends an HTTP header field in the request whose name is
+  specified in "name" and whose value is defined in "value".
+
+  :param class_http http: The related http object.
+  :param string name: The header name.
+  :param string value: The header value.
+  :see: http.res_add_header()
+
+.. js:function:: http.res_add_header(http, name, value)
+
+  appends an HTTP header field in the response whose name is
+  specified in "name" and whose value is defined in "value".
+
+  :param class_http http: The related http object.
+  :param string name: The header name.
+  :param string value: The header value.
+  :see: http.req_add_header()
+
+.. js:function:: http.req_del_header(http, name)
+
+  Removes all HTTP header fields in the request whose name is
+  specified in "name".
+
+  :param class_http http: The related http object.
+  :param string name: The header name.
+  :see: http.res_del_header()
+
+.. js:function:: http.res_del_header(http, name)
+
+  Removes all HTTP header fields in the response whose name is
+  specified in "name".
+
+  :param class_http http: The related http object.
+  :param string name: The header name.
+  :see: http.req_del_header()
+
+.. js:function:: http.req_set_header(http, name, value)
+
+  This variable replace all occurence of all header "name", by only
+  one containing the "value".
+
+  :param class_http http: The related http object.
+  :param string name: The header name.
+  :param string value: The header value.
+  :see: http.res_set_header()
+
+  This function does the same work as the folowwing code:
+
+.. code-block:: lua
+
+   function fcn(txn)
+      txn.http:req_del_header("header")
+      txn.http:req_add_header("header", "value")
+   end
+..
+
+.. js:function:: http.res_set_header(http, name, value)
+
+  This variable replace all occurence of all header "name", by only
+  one containing the "value".
+
+  :param class_http http: The related http object.
+  :param string name: The header name.
+  :param string value: The header value.
+  :see: http.req_set_header()
+
+.. js:function:: http.req_replace_header(http, name, regex, replace)
+
+  Matches the regular expression in all occurrences of header field "name"
+  according to "regex", and replaces them with the "replace" argument. The
+  replacement value can contain back references like \1, \2, ... This
+  function works with the request.
+
+  :param class_http http: The related http object.
+  :param string name: The header name.
+  :param string regex: The match regular expression.
+  :param string replace: The replacement value.
+  :see: http.res_replace_header()
+
+.. js:function:: http.res_replace_header(http, name, regex, string)
+
+  Matches the regular expression in all occurrences of header field "name"
+  according to "regex", and replaces them with the "replace" argument. The
+  replacement value can contain back references like \1, \2, ... This
+  function works with the request.
+
+  :param class_http http: The related http object.
+  :param string name: The header name.
+  :param string regex: The match regular expression.
+  :param string replace: The replacement value.
+  :see: http.req_replace_header()
+
+.. js:function:: http.req_replace_value(http, name, regex, replace)
+
+  Works like "http.req_replace_header()" except that it matches the regex
+  against every comma-delimited value of the header field "name" instead of the
+  entire header.
+
+  :param class_http http: The related http object.
+  :param string name: The header name.
+  :param string regex: The match regular expression.
+  :param string replace: The replacement value.
+  :see: http.req_replace_header()
+  :see: http.res_replace_value()
+
+.. js:function:: http.res_replace_value(http, name, regex, replace)
+
+  Works like "http.res_replace_header()" except that it matches the regex
+  against every comma-delimited value of the header field "name" instead of the
+  entire header.
+
+  :param class_http http: The related http object.
+  :param string name: The header name.
+  :param string regex: The match regular expression.
+  :param string replace: The replacement value.
+  :see: http.res_replace_header()
+  :see: http.req_replace_value()
+
+.. js:function:: http.req_set_method(http, method)
+
+  Rewrites the request method with the parameter "method".
+
+  :param class_http http: The related http object.
+  :param string method: The new method.
+
+.. js:function:: http.req_set_path(http, path)
+
+  Rewrites the request path with the "path" parameter.
+
+  :param class_http http: The related http object.
+  :param string path: The new path.
+
+.. js:function:: http.req_set_query(http, query)
+
+  Rewrites the request's query string which appears after the first question
+  mark ("?") with the parameter "query".
+
+  :param class_http http: The related http object.
+  :param string query: The new query.
+
+.. js:function:: http.req.set_uri(http, uri)
+
+  Rewrites the request URI with the parameter "uri".
+
+  :param class_http http: The related http object.
+  :param string uri: The new uri.
+
 TXN class
 =========
 
@@ -466,6 +639,11 @@ TXN class
 
   This attribute contains a channel class object for the response buffer.
 
+.. js:attribute:: txn.http
+
+  This attribute contains an HTTP class object. It is avalaible only if the
+  proxy has the "mode http" enabled.
+
 .. js:function:: txn.get_priv(txn)
 
   Return Lua data stored in the current transaction (with the `txn.set_priv()`)
@@ -497,61 +675,11 @@ TXN class
 
   :param class_txn txn: The class txn object containing the data.
 
-.. js:function:: txn.http.redirect(txn, location)
 
-  Not yet avalaible.
 
-.. js:function:: txn.http.req.add_header(txn, name, value)
 
-  Not yet avalaible.
 
-.. js:function:: txn.http.req.set_method(txn, string)
 
-  Not yet avalaible.
-
-.. js:function:: txn.http.req.set_path(txn, string)
-
-  Not yet avalaible.
-
-.. js:function:: txn.http.req.set_query(txn, string)
-
-  Not yet avalaible.
-
-.. js:function:: txn.http.req.set_uri(txn, string)
-
-  Not yet avalaible.
-
-.. js:function:: txn.http.req.set_header(txn, name, value)
-
-  Not yet avalaible.
-
-.. js:function:: txn.http.req.del_header(txn, name)
-
-  Not yet avalaible.
-
-.. js:function:: txn.http.req.replace_header(txn, name, regex, string)
-
-  Not yet avalaible.
-
-.. js:function:: txn.http.req.replace_value(txn, name, regex, string)
-
-  Not yet avalaible.
-
-.. js:function:: txn.http.res.set_header(txn, name, value)
-
-  Not yet avalaible.
-
-.. js:function:: txn.http.res.del_header(txn, name)
-
-  Not yet avalaible.
-
-.. js:function:: txn.http.res.replace_header(txn, name, regex, string)
-
-  Not yet avalaible.
-
-.. js:function:: txn.http.res.replace_value(txn, name, regex, string)
-
-  Not yet avalaible.
 
 .. js:function:: txn.set_loglevel(txn, loglevel)
 

@@ -73,6 +73,7 @@ static int class_socket_ref;
 static int class_channel_ref;
 static int class_fetches_ref;
 static int class_converters_ref;
+static int class_http_ref;
 
 /* Global Lua execution timeout. By default Lua, execution linked
  * with session (actions, sample-fetches and converters) have a
@@ -2861,6 +2862,361 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 /*
  *
  *
+ * Class HTTP
+ *
+ *
+ */
+
+/* Returns a struct hlua_txn if the stack entry "ud" is
+ * a class session, otherwise it throws an error.
+ */
+__LJMP static struct hlua_txn *hlua_checkhttp(lua_State *L, int ud)
+{
+	return (struct hlua_txn *)MAY_LJMP(hlua_checkudata(L, ud, class_http_ref));
+}
+
+/* This function creates and push in the stack a HTTP object
+ * according with a current TXN.
+ */
+static int hlua_http_new(lua_State *L, struct hlua_txn *txn)
+{
+	struct hlua_txn *ht;
+
+	/* Check stack size. */
+	if (!lua_checkstack(L, 3))
+		return 0;
+
+	/* Create the object: obj[0] = userdata.
+	 * Note that the base of the Converters object is the
+	 * same than the TXN object.
+	 */
+	lua_newtable(L);
+	ht = lua_newuserdata(L, sizeof(struct hlua_txn));
+	lua_rawseti(L, -2, 0);
+
+	ht->s = txn->s;
+	ht->p = txn->p;
+	ht->l7 = txn->l7;
+
+	/* Pop a class session metatable and affect it to the table. */
+	lua_rawgeti(L, LUA_REGISTRYINDEX, class_http_ref);
+	lua_setmetatable(L, -2);
+
+	return 1;
+}
+
+/* This function creates ans returns an array of HTTP headers.
+ * This function does not fails. It is used as wrapper with the
+ * 2 following functions.
+ */
+__LJMP static int hlua_http_get_headers(lua_State *L, struct hlua_txn *htxn, struct http_msg *msg)
+{
+	const char *cur_ptr, *cur_next, *p;
+	int old_idx, cur_idx;
+	struct hdr_idx_elem *cur_hdr;
+	const char *hn, *hv;
+	int hnl, hvl;
+
+	/* Create the table. */
+	lua_newtable(L);
+
+	/* Build array of headers. */
+	old_idx = 0;
+	cur_next = msg->chn->buf->p + hdr_idx_first_pos(&htxn->s->txn.hdr_idx);
+
+	while (1) {
+		cur_idx = htxn->s->txn.hdr_idx.v[old_idx].next;
+		if (!cur_idx)
+			break;
+		old_idx = cur_idx;
+
+		cur_hdr  = &htxn->s->txn.hdr_idx.v[cur_idx];
+		cur_ptr  = cur_next;
+		cur_next = cur_ptr + cur_hdr->len + cur_hdr->cr + 1;
+
+		/* Now we have one full header at cur_ptr of len cur_hdr->len,
+		 * and the next header starts at cur_next. We'll check
+		 * this header in the list as well as against the default
+		 * rule.
+		 */
+
+		/* look for ': *'. */
+		hn = cur_ptr;
+		for (p = cur_ptr; p < cur_ptr + cur_hdr->len && *p != ':'; p++);
+		if (p >= cur_ptr+cur_hdr->len)
+			continue;
+		hnl = p - hn;
+		p++;
+		while (p < cur_ptr+cur_hdr->len && ( *p == ' ' || *p == '\t' ))
+			p++;
+		if (p >= cur_ptr+cur_hdr->len)
+			continue;
+		hv = p;
+		hvl = cur_ptr+cur_hdr->len-p;
+
+		/* Push values in the table. */
+		lua_pushlstring(L, hn, hnl);
+		lua_pushlstring(L, hv, hvl);
+		lua_settable(L, -3);
+	}
+
+	return 1;
+}
+
+__LJMP static int hlua_http_req_get_headers(lua_State *L)
+{
+	struct hlua_txn *htxn;
+
+	MAY_LJMP(check_args(L, 1, "req_get_headers"));
+	htxn = MAY_LJMP(hlua_checkhttp(L, 1));
+
+	return hlua_http_get_headers(L, htxn, &htxn->s->txn.req);
+}
+
+__LJMP static int hlua_http_res_get_headers(lua_State *L)
+{
+	struct hlua_txn *htxn;
+
+	MAY_LJMP(check_args(L, 1, "res_get_headers"));
+	htxn = MAY_LJMP(hlua_checkhttp(L, 1));
+
+	return hlua_http_get_headers(L, htxn, &htxn->s->txn.rsp);
+}
+
+/* This function replace full header, or just a value in
+ * the request or in the response. It is a wrapper fir the
+ * 4 following functions.
+ */
+__LJMP static inline int hlua_http_rep_hdr(lua_State *L, struct hlua_txn *htxn,
+                                           struct http_msg *msg, int action)
+{
+	size_t name_len;
+	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &name_len));
+	const char *reg = MAY_LJMP(luaL_checkstring(L, 3));
+	const char *value = MAY_LJMP(luaL_checkstring(L, 4));
+	struct my_regex re;
+
+	if (!regex_comp(reg, &re, 1, 1, NULL))
+		WILL_LJMP(luaL_argerror(L, 3, "invalid regex"));
+
+	http_transform_header_str(htxn->s, msg, name, name_len, value, &re, action);
+	regex_free(&re);
+	return 0;
+}
+
+__LJMP static int hlua_http_req_rep_hdr(lua_State *L)
+{
+	struct hlua_txn *htxn;
+
+	MAY_LJMP(check_args(L, 4, "req_rep_hdr"));
+	htxn = MAY_LJMP(hlua_checkhttp(L, 1));
+
+	return MAY_LJMP(hlua_http_rep_hdr(L, htxn, &htxn->s->txn.req, HTTP_REQ_ACT_REPLACE_HDR));
+}
+
+__LJMP static int hlua_http_res_rep_hdr(lua_State *L)
+{
+	struct hlua_txn *htxn;
+
+	MAY_LJMP(check_args(L, 4, "res_rep_hdr"));
+	htxn = MAY_LJMP(hlua_checkhttp(L, 1));
+
+	return MAY_LJMP(hlua_http_rep_hdr(L, htxn, &htxn->s->txn.rsp, HTTP_RES_ACT_REPLACE_HDR));
+}
+
+__LJMP static int hlua_http_req_rep_val(lua_State *L)
+{
+	struct hlua_txn *htxn;
+
+	MAY_LJMP(check_args(L, 4, "req_rep_hdr"));
+	htxn = MAY_LJMP(hlua_checkhttp(L, 1));
+
+	return MAY_LJMP(hlua_http_rep_hdr(L, htxn, &htxn->s->txn.req, HTTP_REQ_ACT_REPLACE_VAL));
+}
+
+__LJMP static int hlua_http_res_rep_val(lua_State *L)
+{
+	struct hlua_txn *htxn;
+
+	MAY_LJMP(check_args(L, 4, "res_rep_val"));
+	htxn = MAY_LJMP(hlua_checkhttp(L, 1));
+
+	return MAY_LJMP(hlua_http_rep_hdr(L, htxn, &htxn->s->txn.rsp, HTTP_RES_ACT_REPLACE_VAL));
+}
+
+/* This function deletes all the occurences of an header.
+ * It is a wrapper for the 2 following functions.
+ */
+__LJMP static inline int hlua_http_del_hdr(lua_State *L, struct hlua_txn *htxn, struct http_msg *msg)
+{
+	size_t len;
+	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &len));
+	struct hdr_ctx ctx;
+	struct http_txn *txn = &htxn->s->txn;
+
+	ctx.idx = 0;
+	while (http_find_header2(name, len, msg->chn->buf->p, &txn->hdr_idx, &ctx))
+		http_remove_header2(msg, &txn->hdr_idx, &ctx);
+	return 0;
+}
+
+__LJMP static int hlua_http_req_del_hdr(lua_State *L)
+{
+	struct hlua_txn *htxn;
+
+	MAY_LJMP(check_args(L, 2, "req_del_hdr"));
+	htxn = MAY_LJMP(hlua_checkhttp(L, 1));
+
+	return hlua_http_del_hdr(L, htxn, &htxn->s->txn.req);
+}
+
+__LJMP static int hlua_http_res_del_hdr(lua_State *L)
+{
+	struct hlua_txn *htxn;
+
+	MAY_LJMP(check_args(L, 2, "req_del_hdr"));
+	htxn = MAY_LJMP(hlua_checkhttp(L, 1));
+
+	return hlua_http_del_hdr(L, htxn, &htxn->s->txn.rsp);
+}
+
+/* This function adds an header. It is a wrapper used by
+ * the 2 following functions.
+ */
+__LJMP static inline int hlua_http_add_hdr(lua_State *L, struct hlua_txn *htxn, struct http_msg *msg)
+{
+	size_t name_len;
+	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &name_len));
+	size_t value_len;
+	const char *value = MAY_LJMP(luaL_checklstring(L, 3, &value_len));
+	char *p;
+
+	/* Check length. */
+	trash.len = value_len + name_len + 2;
+	if (trash.len > trash.size)
+		return 0;
+
+	/* Creates the header string. */
+	p = trash.str;
+	memcpy(p, name, name_len);
+	p += name_len;
+	*p = ':';
+	p++;
+	*p = ' ';
+	p++;
+	memcpy(p, value, value_len);
+
+	lua_pushboolean(L, http_header_add_tail2(msg, &htxn->s->txn.hdr_idx,
+	                                         trash.str, trash.len) != 0);
+
+	return 0;
+}
+
+__LJMP static int hlua_http_req_add_hdr(lua_State *L)
+{
+	struct hlua_txn *htxn;
+
+	MAY_LJMP(check_args(L, 3, "req_add_hdr"));
+	htxn = MAY_LJMP(hlua_checkhttp(L, 1));
+
+	return hlua_http_add_hdr(L, htxn, &htxn->s->txn.req);
+}
+
+__LJMP static int hlua_http_res_add_hdr(lua_State *L)
+{
+	struct hlua_txn *htxn;
+
+	MAY_LJMP(check_args(L, 3, "res_add_hdr"));
+	htxn = MAY_LJMP(hlua_checkhttp(L, 1));
+
+	return hlua_http_add_hdr(L, htxn, &htxn->s->txn.rsp);
+}
+
+static int hlua_http_req_set_hdr(lua_State *L)
+{
+	struct hlua_txn *htxn;
+
+	MAY_LJMP(check_args(L, 3, "req_set_hdr"));
+	htxn = MAY_LJMP(hlua_checkhttp(L, 1));
+
+	hlua_http_del_hdr(L, htxn, &htxn->s->txn.req);
+	return hlua_http_add_hdr(L, htxn, &htxn->s->txn.req);
+}
+
+static int hlua_http_res_set_hdr(lua_State *L)
+{
+	struct hlua_txn *htxn;
+
+	MAY_LJMP(check_args(L, 3, "res_set_hdr"));
+	htxn = MAY_LJMP(hlua_checkhttp(L, 1));
+
+	hlua_http_del_hdr(L, htxn, &htxn->s->txn.rsp);
+	return hlua_http_add_hdr(L, htxn, &htxn->s->txn.rsp);
+}
+
+/* This function set the method. */
+static int hlua_http_req_set_meth(lua_State *L)
+{
+	struct hlua_txn *s = MAY_LJMP(hlua_checkhttp(L, 1));
+	size_t name_len;
+	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &name_len));
+	struct http_txn *txn = &s->s->txn;
+
+	lua_pushboolean(L, http_replace_req_line(0, name, name_len, s->p, s->s, txn) != -1);
+	return 1;
+}
+
+/* This function set the method. */
+static int hlua_http_req_set_path(lua_State *L)
+{
+	struct hlua_txn *s = MAY_LJMP(hlua_checkhttp(L, 1));
+	size_t name_len;
+	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &name_len));
+	struct http_txn *txn = &s->s->txn;
+
+	lua_pushboolean(L, http_replace_req_line(1, name, name_len, s->p, s->s, txn) != -1);
+	return 1;
+}
+
+/* This function set the query-string. */
+static int hlua_http_req_set_query(lua_State *L)
+{
+	struct hlua_txn *s = MAY_LJMP(hlua_checkhttp(L, 1));
+	size_t name_len;
+	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &name_len));
+	struct http_txn *txn = &s->s->txn;
+
+	/* Check length. */
+	if (name_len > trash.size - 1) {
+		lua_pushboolean(L, 0);
+		return 1;
+	}
+
+	/* Add the mark question as prefix. */
+	chunk_reset(&trash);
+	trash.str[trash.len++] = '?';
+	memcpy(trash.str + trash.len, name, name_len);
+	trash.len += name_len;
+
+	lua_pushboolean(L, http_replace_req_line(2, trash.str, trash.len, s->p, s->s, txn) != -1);
+	return 1;
+}
+
+/* This function set the uri. */
+static int hlua_http_req_set_uri(lua_State *L)
+{
+	struct hlua_txn *s = MAY_LJMP(hlua_checkhttp(L, 1));
+	size_t name_len;
+	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &name_len));
+	struct http_txn *txn = &s->s->txn;
+
+	lua_pushboolean(L, http_replace_req_line(3, name, name_len, s->p, s->s, txn) != -1);
+	return 1;
+}
+
+/*
+ *
+ *
  * Class TXN
  *
  *
@@ -2976,6 +3332,16 @@ static int hlua_txn_new(lua_State *L, struct session *s, struct proxy *p, void *
 		return 0;
 	lua_settable(L, -3);
 
+	/* Creates the HTTP object is the current proxy allows http. */
+	lua_pushstring(L, "http");
+	if (p->mode == PR_MODE_HTTP) {
+		if (!hlua_http_new(L, hs))
+			return 0;
+	}
+	else
+		lua_pushnil(L);
+	lua_settable(L, -3);
+
 	/* Pop a class sesison metatable and affect it to the userdata. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, class_txn_ref);
 	lua_setmetatable(L, -2);
@@ -3054,65 +3420,6 @@ __LJMP static int hlua_txn_close(lua_State *L)
 	channel_shutr_now(oc);
 
 	return 0;
-}
-
-/* This function is an LUA binding. It creates ans returns
- * an array of HTTP headers. This function does not fails.
- */
-static int hlua_session_get_headers(lua_State *L)
-{
-	struct hlua_txn *s = MAY_LJMP(hlua_checktxn(L, 1));
-	struct session *sess = s->s;
-	const char *cur_ptr, *cur_next, *p;
-	int old_idx, cur_idx;
-	struct hdr_idx_elem *cur_hdr;
-	const char *hn, *hv;
-	int hnl, hvl;
-
-	/* Create the table. */
-	lua_newtable(L);
-
-	/* Build array of headers. */
-	old_idx = 0;
-	cur_next = sess->req.buf->p + hdr_idx_first_pos(&sess->txn.hdr_idx);
-
-	while (1) {
-		cur_idx = sess->txn.hdr_idx.v[old_idx].next;
-		if (!cur_idx)
-			break;
-		old_idx = cur_idx;
-
-		cur_hdr  = &sess->txn.hdr_idx.v[cur_idx];
-		cur_ptr  = cur_next;
-		cur_next = cur_ptr + cur_hdr->len + cur_hdr->cr + 1;
-
-		/* Now we have one full header at cur_ptr of len cur_hdr->len,
-		 * and the next header starts at cur_next. We'll check
-		 * this header in the list as well as against the default
-		 * rule.
-		 */
-
-		/* look for ': *'. */
-		hn = cur_ptr;
-		for (p = cur_ptr; p < cur_ptr + cur_hdr->len && *p != ':'; p++);
-		if (p >= cur_ptr+cur_hdr->len)
-			continue;
-		hnl = p - hn;
-		p++;
-		while (p < cur_ptr+cur_hdr->len && ( *p == ' ' || *p == '\t' ))
-			p++;
-		if (p >= cur_ptr+cur_hdr->len)
-			continue;
-		hv = p;
-		hvl = cur_ptr+cur_hdr->len-p;
-
-		/* Push values in the table. */
-		lua_pushlstring(L, hn, hnl);
-		lua_pushlstring(L, hv, hvl);
-		lua_settable(L, -3);
-	}
-
-	return 1;
 }
 
 __LJMP static int hlua_sleep_yield(lua_State *L, int status, lua_KContext ctx)
@@ -4255,6 +4562,45 @@ void hlua_init(void)
 
 	/*
 	 *
+	 * Register class HTTP
+	 *
+	 */
+
+	/* Create and fill the metatable. */
+	lua_newtable(gL.T);
+
+	/* Create and fille the __index entry. */
+	lua_pushstring(gL.T, "__index");
+	lua_newtable(gL.T);
+
+	/* Register Lua functions. */
+	hlua_class_function(gL.T, "req_get_headers",hlua_http_req_get_headers);
+	hlua_class_function(gL.T, "req_del_header", hlua_http_req_del_hdr);
+	hlua_class_function(gL.T, "req_rep_header", hlua_http_req_rep_hdr);
+	hlua_class_function(gL.T, "req_rep_value",  hlua_http_req_rep_val);
+	hlua_class_function(gL.T, "req_add_header", hlua_http_req_add_hdr);
+	hlua_class_function(gL.T, "req_set_header", hlua_http_req_set_hdr);
+	hlua_class_function(gL.T, "req_set_method", hlua_http_req_set_meth);
+	hlua_class_function(gL.T, "req_set_path",   hlua_http_req_set_path);
+	hlua_class_function(gL.T, "req_set_query",  hlua_http_req_set_query);
+	hlua_class_function(gL.T, "req_set_uri",    hlua_http_req_set_uri);
+
+	hlua_class_function(gL.T, "res_get_headers",hlua_http_res_get_headers);
+	hlua_class_function(gL.T, "res_del_header", hlua_http_res_del_hdr);
+	hlua_class_function(gL.T, "res_rep_header", hlua_http_res_rep_hdr);
+	hlua_class_function(gL.T, "res_rep_value",  hlua_http_res_rep_val);
+	hlua_class_function(gL.T, "res_add_header", hlua_http_res_add_hdr);
+	hlua_class_function(gL.T, "res_set_header", hlua_http_res_set_hdr);
+
+	lua_settable(gL.T, -3);
+
+	/* Register previous table in the registry with reference and named entry. */
+	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
+	lua_setfield(gL.T, LUA_REGISTRYINDEX, CLASS_HTTP); /* register class session. */
+	class_http_ref = luaL_ref(gL.T, LUA_REGISTRYINDEX); /* reference class session. */
+
+	/*
+	 *
 	 * Register class TXN
 	 *
 	 */
@@ -4267,7 +4613,6 @@ void hlua_init(void)
 	lua_newtable(gL.T);
 
 	/* Register Lua functions. */
-	hlua_class_function(gL.T, "get_headers", hlua_session_get_headers);
 	hlua_class_function(gL.T, "set_priv",    hlua_set_priv);
 	hlua_class_function(gL.T, "get_priv",    hlua_get_priv);
 	hlua_class_function(gL.T, "close",       hlua_txn_close);
