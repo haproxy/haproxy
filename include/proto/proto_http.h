@@ -105,6 +105,7 @@ int http_transform_header_str(struct session* s, struct http_msg *msg, const cha
                               unsigned int name_len, const char *str, struct my_regex *re,
                               int action);
 void http_sess_log(struct session *s);
+void inet_set_tos(int fd, struct sockaddr_storage from, int tos);
 void http_perform_server_redirect(struct session *s, struct stream_interface *si);
 void http_return_srv_error(struct session *s, struct stream_interface *si);
 void http_capture_bad_message(struct error_snapshot *es, struct session *s,

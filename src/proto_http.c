@@ -3229,7 +3229,7 @@ int http_handle_stats(struct session *s, struct channel *req)
 /* Sets the TOS header in IPv4 and the traffic class header in IPv6 packets
  * (as per RFC3260 #4 and BCP37 #4.2 and #5.2).
  */
-static inline void inet_set_tos(int fd, struct sockaddr_storage from, int tos)
+void inet_set_tos(int fd, struct sockaddr_storage from, int tos)
 {
 #ifdef IP_TOS
 	if (from.ss_family == AF_INET)
