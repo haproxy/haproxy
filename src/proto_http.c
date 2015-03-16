@@ -3246,113 +3246,55 @@ static inline void inet_set_tos(int fd, struct sockaddr_storage from, int tos)
 #endif
 }
 
-/* Returns the number of characters written to destination,
- * -1 on internal error and -2 if no replacement took place.
- */
-static int http_replace_header(struct my_regex *re, char *dst, uint dst_size, char *val, int len,
-                               const char *rep_str)
-{
-	if (!regex_exec_match2(re, val, len, MAX_MATCH, pmatch, 0))
-		return -2;
-
-	return exp_replace(dst, dst_size, val, rep_str, pmatch);
-}
-
-/* Returns the number of characters written to destination,
- * -1 on internal error and -2 if no replacement took place.
- */
-static int http_replace_value(struct my_regex *re, char *dst, uint dst_size, char *val, int len, char delim,
-                              const char *rep_str)
-{
-	char* p = val;
-	char* dst_end = dst + dst_size;
-	char* dst_p = dst;
-
-	for (;;) {
-		char *p_delim;
-
-		/* look for delim. */
-		p_delim = p;
-		while (p_delim < val + len && *p_delim != delim)
-			p_delim++;
-
-		if (regex_exec_match2(re, p, p_delim-p, MAX_MATCH, pmatch, 0)) {
-			int replace_n = exp_replace(dst_p, dst_end - dst_p, p, rep_str, pmatch);
-
-			if (replace_n < 0)
-				return -1;
-
-			dst_p += replace_n;
-		} else {
-			uint len = p_delim - p;
-
-			if (dst_p + len >= dst_end)
-				return -1;
-
-			memcpy(dst_p, p, len);
-			dst_p += len;
-		}
-
-		if (dst_p >= dst_end)
-			return -1;
-
-		/* end of the replacements. */
-		if (p_delim >= val + len)
-			break;
-
-		/* Next part. */
-		*dst_p++ = delim;
-		p = p_delim + 1;
-	}
-
-	return dst_p - dst;
-}
-
 static int http_transform_header(struct session* s, struct http_msg *msg, const char* name, uint name_len,
                                  char* buf, struct hdr_idx* idx, struct list *fmt, struct my_regex *re,
                                  struct hdr_ctx* ctx, int action)
 {
+	int (*http_find_hdr_func)(const char *name, int len, char *sol,
+	                          struct hdr_idx *idx, struct hdr_ctx *ctx);
+	struct chunk *replace = get_trash_chunk();
+	struct chunk *output = get_trash_chunk();
+
+	replace->len = build_logline(s, replace->str, replace->size, fmt);
+	if (replace->len >= replace->size - 1)
+		return -1;
+
 	ctx->idx = 0;
 
-	while (http_find_full_header2(name, name_len, buf, idx, ctx)) {
+	/* Choose the header browsing function. */
+	switch (action) {
+	case HTTP_REQ_ACT_REPLACE_VAL:
+	case HTTP_RES_ACT_REPLACE_VAL:
+		http_find_hdr_func = http_find_header2;
+		break;
+	case HTTP_REQ_ACT_REPLACE_HDR:
+	case HTTP_RES_ACT_REPLACE_HDR:
+		http_find_hdr_func = http_find_full_header2;
+		break;
+	default: /* impossible */
+		return -1;
+	}
+
+	while (http_find_hdr_func(name, name_len, buf, idx, ctx)) {
 		struct hdr_idx_elem *hdr = idx->v + ctx->idx;
 		int delta;
-		char* val = (char*)ctx->line + ctx->val;
-		char* val_end = (char*)ctx->line + hdr->len;
-		char* reg_dst_buf;
-		uint reg_dst_buf_size;
-		int n_replaced;
+		char *val = ctx->line + ctx->val;
+		char* val_end = val + ctx->vlen;
 
-		trash.len = build_logline(s, trash.str, trash.size, fmt);
+		if (!regex_exec_match2(re, val, val_end-val, MAX_MATCH, pmatch, 0))
+			continue;
 
-		if (trash.len >= trash.size - 1)
+		output->len = exp_replace(output->str, output->size, val, replace->str, pmatch);
+		if (output->len == -1)
 			return -1;
 
-		reg_dst_buf = trash.str + trash.len + 1;
-		reg_dst_buf_size = trash.size - trash.len - 1;
-
-		switch (action) {
-		case HTTP_REQ_ACT_REPLACE_VAL:
-		case HTTP_RES_ACT_REPLACE_VAL:
-			n_replaced = http_replace_value(re, reg_dst_buf, reg_dst_buf_size, val, val_end-val, ',', trash.str);
-			break;
-		case HTTP_REQ_ACT_REPLACE_HDR:
-		case HTTP_RES_ACT_REPLACE_HDR:
-			n_replaced = http_replace_header(re, reg_dst_buf, reg_dst_buf_size, val, val_end-val, trash.str);
-			break;
-		default: /* impossible */
-			return -1;
-		}
-
-		switch (n_replaced) {
-		case -1: return -1;
-		case -2: continue;
-		}
-
-		delta = buffer_replace2(msg->chn->buf, val, val_end, reg_dst_buf, n_replaced);
+		delta = buffer_replace2(msg->chn->buf, val, val_end, output->str, output->len);
 
 		hdr->len += delta;
 		http_msg_move_end(msg, delta);
+
+		/* Adjust the length of the current value of the index. */
+		ctx->vlen += delta;
 	}
 
 	return 0;
