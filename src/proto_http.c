@@ -3246,22 +3246,17 @@ static inline void inet_set_tos(int fd, struct sockaddr_storage from, int tos)
 #endif
 }
 
-static int http_transform_header(struct session* s, struct http_msg *msg,
-                                 const char* name, unsigned int name_len,
-                                 struct list *fmt, struct my_regex *re,
-                                 int action)
+int http_transform_header_str(struct session* s, struct http_msg *msg,
+                              const char* name, unsigned int name_len,
+                              const char *str, struct my_regex *re,
+                              int action)
 {
-	int (*http_find_hdr_func)(const char *name, int len, char *sol,
-	                          struct hdr_idx *idx, struct hdr_ctx *ctx);
 	struct hdr_ctx ctx;
 	char *buf = msg->chn->buf->p;
 	struct hdr_idx *idx = &s->txn.hdr_idx;
-	struct chunk *replace = get_trash_chunk();
+	int (*http_find_hdr_func)(const char *name, int len, char *sol,
+	                          struct hdr_idx *idx, struct hdr_ctx *ctx);
 	struct chunk *output = get_trash_chunk();
-
-	replace->len = build_logline(s, replace->str, replace->size, fmt);
-	if (replace->len >= replace->size - 1)
-		return -1;
 
 	ctx.idx = 0;
 
@@ -3288,7 +3283,7 @@ static int http_transform_header(struct session* s, struct http_msg *msg,
 		if (!regex_exec_match2(re, val, val_end-val, MAX_MATCH, pmatch, 0))
 			continue;
 
-		output->len = exp_replace(output->str, output->size, val, replace->str, pmatch);
+		output->len = exp_replace(output->str, output->size, val, str, pmatch);
 		if (output->len == -1)
 			return -1;
 
@@ -3302,6 +3297,20 @@ static int http_transform_header(struct session* s, struct http_msg *msg,
 	}
 
 	return 0;
+}
+
+static int http_transform_header(struct session* s, struct http_msg *msg,
+                                 const char* name, unsigned int name_len,
+                                 struct list *fmt, struct my_regex *re,
+                                 int action)
+{
+	struct chunk *replace = get_trash_chunk();
+
+	replace->len = build_logline(s, replace->str, replace->size, fmt);
+	if (replace->len >= replace->size - 1)
+		return -1;
+
+	return http_transform_header_str(s, msg, name, name_len, replace->str, re, action);
 }
 
 /* Executes the http-request rules <rules> for session <s>, proxy <px> and

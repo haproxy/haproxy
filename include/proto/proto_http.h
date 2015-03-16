@@ -101,6 +101,9 @@ int http_remove_header2(struct http_msg *msg, struct hdr_idx *idx, struct hdr_ct
 int http_header_add_tail2(struct http_msg *msg, struct hdr_idx *hdr_idx, const char *text, int len);
 int http_replace_req_line(int action, const char *replace, int len,
                           struct proxy *px, struct session *s, struct http_txn *txn);
+int http_transform_header_str(struct session* s, struct http_msg *msg, const char* name,
+                              unsigned int name_len, const char *str, struct my_regex *re,
+                              int action);
 void http_sess_log(struct session *s);
 void http_perform_server_redirect(struct session *s, struct stream_interface *si);
 void http_return_srv_error(struct session *s, struct stream_interface *si);
