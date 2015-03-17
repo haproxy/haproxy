@@ -575,7 +575,7 @@ $(error unable to automatically detect the Lua library name, you can enforce its
 endif
 endif
 
-OPTIONS_LDFLAGS += $(LUA_LD_FLAGS) -l$(LUA_LIB_NAME) -lm
+OPTIONS_LDFLAGS += $(LUA_LD_FLAGS) -l$(LUA_LIB_NAME) -lm -ldl
 OPTIONS_OBJS    += src/hlua.o
 endif
 
