@@ -1,5 +1,7 @@
 #include <sys/socket.h>
 
+#include <ctype.h>
+
 #include <lauxlib.h>
 #include <lua.h>
 #include <lualib.h>
@@ -730,6 +732,36 @@ static inline void hlua_sethlua(struct hlua *hlua)
 {
 	struct hlua **hlua_store = lua_getextraspace(hlua->T);
 	*hlua_store = hlua;
+}
+
+/* This function is used to send logs. It try to send on screen (stderr)
+ * and on the default syslog server.
+ */
+static inline void hlua_sendlog(struct proxy *px, int level, const char *msg)
+{
+	struct tm tm;
+	char *p;
+
+	/* Cleanup the log message. */
+	p = trash.str;
+	for (; *msg != '\0'; msg++, p++) {
+		if (p >= trash.str + trash.size - 1)
+			return;
+		if (isprint(*msg))
+			*p = *msg;
+		else
+			*p = '.';
+	}
+	*p = '\0';
+
+	send_log(px, level, "%s", trash.str);
+	if (!(global.mode & MODE_QUIET) || (global.mode & (MODE_VERBOSE | MODE_STARTING))) {
+      get_localtime(date.tv_sec, &tm);
+      fprintf(stderr, "[%s] %03d/%02d%02d%02d (%d) : %s\n",
+		        log_levels[level], tm.tm_yday, tm.tm_hour, tm.tm_min, tm.tm_sec,
+		        (int)getpid(), trash.str);
+		fflush(stderr);
+	}
 }
 
 /* This function just ensure that the yield will be always
@@ -3349,6 +3381,85 @@ static int hlua_txn_new(lua_State *L, struct session *s, struct proxy *p, void *
 	return 1;
 }
 
+__LJMP static int hlua_txn_deflog(lua_State *L)
+{
+	const char *msg;
+	struct hlua_txn *htxn;
+
+	MAY_LJMP(check_args(L, 2, "deflog"));
+	htxn = MAY_LJMP(hlua_checktxn(L, 1));
+	msg = MAY_LJMP(luaL_checkstring(L, 2));
+
+	hlua_sendlog(htxn->s->be, htxn->s->logs.level, msg);
+	return 0;
+}
+
+__LJMP static int hlua_txn_log(lua_State *L)
+{
+	int level;
+	const char *msg;
+	struct hlua_txn *htxn;
+
+	MAY_LJMP(check_args(L, 3, "log"));
+	htxn = MAY_LJMP(hlua_checktxn(L, 1));
+	level = MAY_LJMP(luaL_checkinteger(L, 2));
+	msg = MAY_LJMP(luaL_checkstring(L, 3));
+
+	if (level < 0 || level >= NB_LOG_LEVELS)
+		WILL_LJMP(luaL_argerror(L, 1, "Invalid loglevel."));
+
+	hlua_sendlog(htxn->s->be, level, msg);
+	return 0;
+}
+
+__LJMP static int hlua_txn_log_debug(lua_State *L)
+{
+	const char *msg;
+	struct hlua_txn *htxn;
+
+	MAY_LJMP(check_args(L, 2, "Debug"));
+	htxn = MAY_LJMP(hlua_checktxn(L, 1));
+	msg = MAY_LJMP(luaL_checkstring(L, 2));
+	hlua_sendlog(htxn->s->be, LOG_DEBUG, msg);
+	return 0;
+}
+
+__LJMP static int hlua_txn_log_info(lua_State *L)
+{
+	const char *msg;
+	struct hlua_txn *htxn;
+
+	MAY_LJMP(check_args(L, 2, "Info"));
+	htxn = MAY_LJMP(hlua_checktxn(L, 1));
+	msg = MAY_LJMP(luaL_checkstring(L, 2));
+	hlua_sendlog(htxn->s->be, LOG_INFO, msg);
+	return 0;
+}
+
+__LJMP static int hlua_txn_log_warning(lua_State *L)
+{
+	const char *msg;
+	struct hlua_txn *htxn;
+
+	MAY_LJMP(check_args(L, 2, "Warning"));
+	htxn = MAY_LJMP(hlua_checktxn(L, 1));
+	msg = MAY_LJMP(luaL_checkstring(L, 2));
+	hlua_sendlog(htxn->s->be, LOG_WARNING, msg);
+	return 0;
+}
+
+__LJMP static int hlua_txn_log_alert(lua_State *L)
+{
+	const char *msg;
+	struct hlua_txn *htxn;
+
+	MAY_LJMP(check_args(L, 2, "Alert"));
+	htxn = MAY_LJMP(hlua_checktxn(L, 1));
+	msg = MAY_LJMP(luaL_checkstring(L, 2));
+	hlua_sendlog(htxn->s->be, LOG_ALERT, msg);
+	return 0;
+}
+
 __LJMP static int hlua_txn_set_loglevel(lua_State *L)
 {
 	struct hlua_txn *htxn;
@@ -3419,6 +3530,62 @@ __LJMP static int hlua_txn_close(lua_State *L)
 	channel_auto_close(oc);
 	channel_shutr_now(oc);
 
+	return 0;
+}
+
+__LJMP static int hlua_log(lua_State *L)
+{
+	int level;
+	const char *msg;
+
+	MAY_LJMP(check_args(L, 2, "log"));
+	level = MAY_LJMP(luaL_checkinteger(L, 1));
+	msg = MAY_LJMP(luaL_checkstring(L, 2));
+
+	if (level < 0 || level >= NB_LOG_LEVELS)
+		WILL_LJMP(luaL_argerror(L, 1, "Invalid loglevel."));
+
+	hlua_sendlog(NULL, level, msg);
+	return 0;
+}
+
+__LJMP static int hlua_log_debug(lua_State *L)
+{
+	const char *msg;
+
+	MAY_LJMP(check_args(L, 1, "debug"));
+	msg = MAY_LJMP(luaL_checkstring(L, 1));
+	hlua_sendlog(NULL, LOG_DEBUG, msg);
+	return 0;
+}
+
+__LJMP static int hlua_log_info(lua_State *L)
+{
+	const char *msg;
+
+	MAY_LJMP(check_args(L, 1, "info"));
+	msg = MAY_LJMP(luaL_checkstring(L, 1));
+	hlua_sendlog(NULL, LOG_INFO, msg);
+	return 0;
+}
+
+__LJMP static int hlua_log_warning(lua_State *L)
+{
+	const char *msg;
+
+	MAY_LJMP(check_args(L, 1, "warning"));
+	msg = MAY_LJMP(luaL_checkstring(L, 1));
+	hlua_sendlog(NULL, LOG_WARNING, msg);
+	return 0;
+}
+
+__LJMP static int hlua_log_alert(lua_State *L)
+{
+	const char *msg;
+
+	MAY_LJMP(check_args(L, 1, "alert"));
+	msg = MAY_LJMP(luaL_checkstring(L, 1));
+	hlua_sendlog(NULL, LOG_ALERT, msg);
 	return 0;
 }
 
@@ -4429,6 +4596,11 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "set_map", hlua_set_map);
 	hlua_class_function(gL.T, "del_map", hlua_del_map);
 	hlua_class_function(gL.T, "tcp", hlua_socket_new);
+	hlua_class_function(gL.T, "log", hlua_log);
+	hlua_class_function(gL.T, "Debug", hlua_log_debug);
+	hlua_class_function(gL.T, "Info", hlua_log_info);
+	hlua_class_function(gL.T, "Warning", hlua_log_warning);
+	hlua_class_function(gL.T, "Alert", hlua_log_alert);
 
 	lua_setglobal(gL.T, "core");
 
@@ -4619,6 +4791,12 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "set_loglevel",hlua_txn_set_loglevel);
 	hlua_class_function(gL.T, "set_tos",     hlua_txn_set_tos);
 	hlua_class_function(gL.T, "set_mark",    hlua_txn_set_mark);
+	hlua_class_function(gL.T, "deflog",      hlua_txn_deflog);
+	hlua_class_function(gL.T, "log",         hlua_txn_log);
+	hlua_class_function(gL.T, "Debug",       hlua_txn_log_debug);
+	hlua_class_function(gL.T, "Info",        hlua_txn_log_info);
+	hlua_class_function(gL.T, "Warning",     hlua_txn_log_warning);
+	hlua_class_function(gL.T, "Alert",       hlua_txn_log_alert);
 
 	lua_settable(gL.T, -3);
 

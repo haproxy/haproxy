@@ -119,6 +119,114 @@ Core class
    The "core" class is static, t is not possible to create a new object of this
    type.
 
+.. js:attribute:: core.emerg
+
+  This attribute is an integer, it contains the value of the loglevel "emergency" (0).
+
+.. js:attribute:: core.alert
+
+  This attribute is an integer, it contains the value of the loglevel "alert" (1).
+
+.. js:attribute:: core.crit
+
+  This attribute is an integer, it contains the value of the loglevel "critical" (2).
+
+.. js:attribute:: core.err
+
+  This attribute is an integer, it contains the value of the loglevel "error" (3).
+
+.. js:attribute:: core.warning
+
+  This attribute is an integer, it contains the value of the loglevel "warning" (4).
+
+.. js:attribute:: core.notice
+
+  This attribute is an integer, it contains the value of the loglevel "notice" (5).
+
+.. js:attribute:: core.info
+
+  This attribute is an integer, it contains the value of the loglevel "info" (6).
+
+.. js:attribute:: core.debug
+
+  This attribute is an integer, it contains the value of the loglevel "debug" (7).
+
+.. js:function:: core.log(loglevel, msg)
+
+  **context**: body, init, task, action, sample-fetch, converter
+
+  This fucntion sends a log. The log is sent, according with the HAProxy
+  configuration file, on the default syslog server if it is configured and on
+  the stderr if it is allowed.
+
+  :param integer loglevel: Is the log level asociated with the message. It is a
+    number between 0 and 7.
+  :param string msg: The log content.
+  :see: core.emerg, core.alert, core.crit, core.err, core.warning, core.notice,
+    core.info, core.debug (log level definitions)
+  :see: code.Debug
+  :see: core.Info
+  :see: core.Warning
+  :see: core.Alert
+
+.. js:function:: core.Debug(msg)
+
+  **context**: body, init, task, action, sample-fetch, converter
+
+  :param string msg: The log content.
+  :see: log
+
+  Does the same job than:
+
+.. code-block:: lua
+
+	function Debug(msg)
+		core.log(core.debug, msg)
+	end
+..
+
+.. js:function:: core.Info(msg)
+
+  **context**: body, init, task, action, sample-fetch, converter
+
+  :param string msg: The log content.
+  :see: log
+
+.. code-block:: lua
+
+	function Info(msg)
+		core.log(core.info, msg)
+	end
+..
+
+.. js:function:: core.Warning(msg)
+
+  **context**: body, init, task, action, sample-fetch, converter
+
+  :param string msg: The log content.
+  :see: log
+
+.. code-block:: lua
+
+	function Warning(msg)
+		core.log(core.warning, msg)
+	end
+..
+
+.. js:function:: core.Alert(msg)
+
+  **context**: body, init, task, action, sample-fetch, converter
+
+  :param string msg: The log content.
+  :see: log
+
+.. code-block:: lua
+
+	function Alert(msg)
+		core.log(core.alert, msg)
+	end
+..
+
 .. js:function:: core.add_acl(filename, key)
 
   **context**: init, task, action, sample-fetch, converter
@@ -643,6 +751,87 @@ TXN class
 
   This attribute contains an HTTP class object. It is avalaible only if the
   proxy has the "mode http" enabled.
+
+.. js:function:: TXN.log(TXN, loglevel, msg)
+
+  This function sends a log. The log is sent, according with the HAProxy
+  configuration file, on the default syslog server if it is configured and on
+  the stderr if it is allowed.
+
+  :param class_txn txn: The class txn object containing the data.
+  :param integer loglevel: Is the log level asociated with the message. It is a
+    number between 0 and 7.
+  :param string msg: The log content.
+  :see: core.emerg, core.alert, core.crit, core.err, core.warning, core.notice,
+    core.info, core.debug (log level definitions)
+  :see: TXN.deflog
+  :see: TXN.Debug
+  :see: TXN.Info
+  :see: TXN.Warning
+  :see: TXN.Alert
+
+.. js:function:: TXN.deflog(TXN, msg)
+
+  Sends a log line with the default loglevel for the proxy ssociated with the
+  transaction.
+
+  :param class_txn txn: The class txn object containing the data.
+  :param string msg: The log content.
+  :see: TXN.log
+
+.. js:function:: TXN.Debug(txn, msg)
+
+  :param class_txn txn: The class txn object containing the data.
+  :param string msg: The log content.
+  :see: TXN.log
+
+  Does the same job than:
+
+.. code-block:: lua
+
+	function Debug(txn, msg)
+		TXN.log(txn, core.debug, msg)
+	end
+..
+
+.. js:function:: TXN.Info(txn, msg)
+
+  :param class_txn txn: The class txn object containing the data.
+  :param string msg: The log content.
+  :see: TXN.log
+
+.. code-block:: lua
+
+	function Debug(txn, msg)
+		TXN.log(txn, core.info, msg)
+	end
+..
+
+.. js:function:: TXN.Warning(txn, msg)
+
+  :param class_txn txn: The class txn object containing the data.
+  :param string msg: The log content.
+  :see: TXN.log
+
+.. code-block:: lua
+
+	function Debug(txn, msg)
+		TXN.log(txn, core.warning, msg)
+	end
+..
+
+.. js:function:: TXN.Alert(txn, msg)
+
+  :param class_txn txn: The class txn object containing the data.
+  :param string msg: The log content.
+  :see: TXN.log
+
+.. code-block:: lua
+
+	function Debug(txn, msg)
+		TXN.log(txn, core.alert, msg)
+	end
+..
 
 .. js:function:: TXN.get_priv(txn)
 
