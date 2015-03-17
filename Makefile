@@ -36,6 +36,7 @@
 #   USE_CPU_AFFINITY     : enable pinning processes to CPU on Linux. Automatic.
 #   USE_TFO              : enable TCP fast open. Supported on Linux >= 3.7.
 #   USE_NS               : enable network namespace support. Supported on Linux >= 2.6.24.
+#   USE_DL               : enable it if your system requires -ldl. Automatic on Linux.
 #
 # Options can be forced by specifying "USE_xxx=1" or can be disabled by using
 # "USE_xxx=" (empty string).
@@ -223,6 +224,7 @@ ifeq ($(TARGET),linux22)
   USE_POLL        = implicit
   USE_TPROXY      = implicit
   USE_LIBCRYPT    = implicit
+  USE_DL          = implicit
 else
 ifeq ($(TARGET),linux24)
   # This is for standard Linux 2.4 with netfilter but without epoll()
@@ -231,6 +233,7 @@ ifeq ($(TARGET),linux24)
   USE_POLL        = implicit
   USE_TPROXY      = implicit
   USE_LIBCRYPT    = implicit
+  USE_DL          = implicit
 else
 ifeq ($(TARGET),linux24e)
   # This is for enhanced Linux 2.4 with netfilter and epoll() patch > 0.21
@@ -241,6 +244,7 @@ ifeq ($(TARGET),linux24e)
   USE_MY_EPOLL    = implicit
   USE_TPROXY      = implicit
   USE_LIBCRYPT    = implicit
+  USE_DL          = implicit
 else
 ifeq ($(TARGET),linux26)
   # This is for standard Linux 2.6 with netfilter and standard epoll()
@@ -252,6 +256,7 @@ ifeq ($(TARGET),linux26)
   USE_LIBCRYPT    = implicit
   USE_FUTEX       = implicit
   EXTRA          += haproxy-systemd-wrapper
+  USE_DL          = implicit
 else
 ifeq ($(TARGET),linux2628)
   # This is for standard Linux >= 2.6.28 with netfilter, epoll, tproxy and splice
@@ -268,6 +273,7 @@ ifeq ($(TARGET),linux2628)
   USE_CPU_AFFINITY= implicit
   ASSUME_SPLICE_WORKS= implicit
   EXTRA          += haproxy-systemd-wrapper
+  USE_DL          = implicit
 else
 ifeq ($(TARGET),solaris)
   # This is for Solaris 8
@@ -520,6 +526,11 @@ OPTIONS_CFLAGS += -DCONFIG_REGPARM=3
 BUILD_OPTIONS  += $(call ignore_implicit,USE_REGPARM)
 endif
 
+ifneq ($(USE_DL),)
+BUILD_OPTIONS   += $(call ignore_implicit,USE_DL)
+OPTIONS_LDFLAGS += -ldl
+endif
+
 # report DLMALLOC_SRC only if explicitly specified
 ifneq ($(DLMALLOC_SRC),)
 BUILD_OPTIONS += DLMALLOC_SRC=$(DLMALLOC_SRC)
@@ -575,7 +586,7 @@ $(error unable to automatically detect the Lua library name, you can enforce its
 endif
 endif
 
-OPTIONS_LDFLAGS += $(LUA_LD_FLAGS) -l$(LUA_LIB_NAME) -lm -ldl
+OPTIONS_LDFLAGS += $(LUA_LD_FLAGS) -l$(LUA_LIB_NAME) -lm
 OPTIONS_OBJS    += src/hlua.o
 endif
 
