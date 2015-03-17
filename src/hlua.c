@@ -4536,10 +4536,16 @@ void hlua_init(void)
 	struct sample_conv *sc;
 	char *p;
 #ifdef USE_OPENSSL
-	char *args[4];
 	struct srv_kw *kw;
 	int tmp_error;
 	char *error;
+	char *args[] = { /* SSL client configuration. */
+		"ssl",
+		"verify",
+		"none",
+		"force-sslv3",
+		NULL
+	};
 #endif
 
 	/* Initialise com signals pool session. */
@@ -4940,14 +4946,10 @@ void hlua_init(void)
 	socket_ssl.agent.health = socket_ssl.agent.rise;   /* socket, but will fall down at first failure */
 	socket_ssl.agent.server = &socket_ssl;
 
-	socket_ssl.xprt = &raw_sock;
+	socket_ssl.use_ssl = 1;
+	socket_ssl.xprt = &ssl_sock;
 
-	args[0] = "ssl";
-	args[1] = "verify";
-	args[2] = "none";
-	args[3] = NULL;
-
-	for (idx = 0; idx < 3; idx++) {
+	for (idx = 0; args[idx] != NULL; idx++) {
 		if ((kw = srv_find_kw(args[idx])) != NULL) { /* Maybe it's registered server keyword */
 			/*
 			 *
@@ -4967,9 +4969,6 @@ void hlua_init(void)
 	}
 
 	/* Initialize SSL server. */
-	if (socket_ssl.xprt == &ssl_sock) {
-		socket_ssl.use_ssl = 1;
-		ssl_sock_prepare_srv_ctx(&socket_ssl, &socket_proxy);
-	}
+	ssl_sock_prepare_srv_ctx(&socket_ssl, &socket_proxy);
 #endif
 }
