@@ -2814,6 +2814,10 @@ __LJMP static int hlua_http_get_headers(lua_State *L, struct hlua_txn *htxn, str
 	struct hdr_idx_elem *cur_hdr;
 	const char *hn, *hv;
 	int hnl, hvl;
+	int type;
+	const char *in;
+	char *out;
+	int len;
 
 	/* Create the table. */
 	lua_newtable(L);
@@ -2855,10 +2859,48 @@ __LJMP static int hlua_http_get_headers(lua_State *L, struct hlua_txn *htxn, str
 		hv = p;
 		hvl = cur_ptr+cur_hdr->len-p;
 
-		/* Push values in the table. */
-		lua_pushlstring(L, hn, hnl);
-		lua_pushlstring(L, hv, hvl);
-		lua_settable(L, -3);
+		/* Lowercase the key. Don't check the size of trash, it have
+		 * the size of one buffer and the input data contains in one
+		 * buffer.
+		 */
+		out = trash.str;
+		for (in=hn; in<hn+hnl; in++, out++)
+			*out = tolower(*in);
+		*out = '\0';
+
+		/* Check for existing entry:
+		 * assume that the table is on the top of the stack, and
+		 * push the key in the stack, the function lua_gettable()
+		 * perform the lookup.
+		 */
+		lua_pushlstring(L, trash.str, hnl);
+		lua_gettable(L, -2);
+		type = lua_type(L, -1);
+
+		switch (type) {
+		case LUA_TNIL:
+			/* Table not found, create it. */
+			lua_pop(L, 1); /* remove the nil value. */
+			lua_pushlstring(L, trash.str, hnl);  /* push the header name as key. */
+			lua_newtable(L); /* create and push empty table. */
+			lua_pushlstring(L, hv, hvl); /* push header value. */
+			lua_rawseti(L, -2, 0); /* index header value (pop it). */
+			lua_rawset(L, -3); /* index new table with header name (pop the values). */
+			break;
+
+		case LUA_TTABLE:
+			/* Entry found: push the value in the table. */
+			len = lua_rawlen(L, -1);
+			lua_pushlstring(L, hv, hvl); /* push header value. */
+			lua_rawseti(L, -2, len+1); /* index header value (pop it). */
+			lua_pop(L, 1); /* remove the table (it is stored in the main table). */
+			break;
+
+		default:
+			/* Other cases are errors. */
+			hlua_pusherror(L, "internal error during the parsing of headers.");
+			WILL_LJMP(lua_error(L));
+		}
 	}
 
 	return 1;
