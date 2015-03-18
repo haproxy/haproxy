@@ -358,7 +358,7 @@ Core class
 
   Register and start independent task. The task is started when the HAProxy
   main scheduler starts. For example this type of tasks can be executed to
-  perform complex health checks. 
+  perform complex health checks.
 
   :param fuction func: is the Lua function called to work as initializer.
 
@@ -376,7 +376,7 @@ Core class
   **context**: task, action, sample-fetch, converter
 
   Change the nice of the current task or current session.
-  
+
   :param integer nice: the nice value, it must be between -1024 and 1024.
 
 .. js:function:: core.set_map(filename, key, value)
@@ -415,7 +415,31 @@ Fetches class
 .. js:class:: Fetches
 
   This class contains a lot of internal HAProxy sample fetches. See the
-  HAProxy documentation for more information about her usage.
+  HAProxy "configuration.txt" documentation for more information about her
+  usage. they are the chapters 7.3.2 to 7.3.6.
+
+  :see: TXN.f
+  :see: TXN.sf
+
+  Fetches are useful for:
+
+  * get system time,
+  * get environment variable,
+  * get random numbers,
+  * known backend status like the number of users in queue or the number of
+    connections established,
+  * client information like ip source or destination,
+  * deal with stick tables,
+  * Established SSL informations,
+  * HTTP information like headers or method.
+
+.. code-block:: lua
+
+	function action(txn)
+		-- Get source IP
+		local clientip = txn.f:src()
+	end
+..
 
 Converters class
 ================
@@ -423,7 +447,21 @@ Converters class
 .. js:class:: Converters
 
   This class contains a lot of internal HAProxy sample converters. See the
-  HAProxy documentation for more information about her usage.
+  HAProxy documentation "configuration.txt" for more information about her
+  usage. Its the chapter 7.3.1.
+
+  :see: TXN.c
+  :see: TXN.sc
+
+  Converters provides statefull transformation. They are useful for:
+
+  * converting input to base64,
+  * applying hash on input string (djb2, crc32, sdbm, wt6),
+  * format date,
+  * json escape,
+  * extracting prefered language comparing two lists,
+  * turn to lower or upper chars,
+  * deal with stick tables.
 
 Channel class
 =============
@@ -445,7 +483,7 @@ Channel class
   **Warning**: It is not possible to read from the response in request action,
   and it is not possible to read for the request channel in response action.
 
-.. image:: _static/Channel.png
+.. image:: _static/channel.png
 
 .. js:function:: Channel.dup(channel)
 
@@ -1098,4 +1136,4 @@ OpenSSL:
 
 * `https://github.com/brunoos/luasec/wiki
   <https://github.com/brunoos/luasec/wiki>`_
-   
+
