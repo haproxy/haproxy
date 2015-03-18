@@ -112,6 +112,16 @@ static unsigned int hlua_timeout_task = TICK_ETERNITY; /* task timeout. */
  */
 static unsigned int hlua_nb_instruction = 10000;
 
+/* Descriptor for the memory allocation state. If limit is not null, it will
+ * be enforced on any memory allocation.
+ */
+struct hlua_mem_allocator {
+	size_t allocated;
+	size_t limit;
+};
+
+static struct hlua_mem_allocator hlua_global_allocator;
+
 /* These functions converts types between HAProxy internal args or
  * sample and LUA types. Another function permits to check if the
  * LUA stack contains arguments according with an required ARG_T
@@ -4417,6 +4427,25 @@ static int hlua_forced_yield(char **args, int section_type, struct proxy *curpx,
 	return 0;
 }
 
+static int hlua_parse_maxmem(char **args, int section_type, struct proxy *curpx,
+                             struct proxy *defpx, const char *file, int line,
+                             char **err)
+{
+	char *error;
+
+	if (*(args[1]) == 0) {
+		memprintf(err, "'%s' expects an integer argument (Lua memory size in MB).\n", args[0]);
+		return -1;
+	}
+	hlua_global_allocator.limit = strtoll(args[1], &error, 10) * 1024L * 1024L;
+	if (*error != '\0') {
+		memprintf(err, "%s: invalid number %s (error at '%c')", args[0], args[1], *error);
+		return -1;
+	}
+	return 0;
+}
+
+
 /* This function is called by the main configuration key "lua-load". It loads and
  * execute an lua file during the parsing of the HAProxy configuration file. It is
  * the main lua entry point.
@@ -4476,6 +4505,7 @@ static struct cfg_kw_list cfg_kws = {{ },{
 	{ CFG_GLOBAL, "tune.lua.session-timeout", hlua_session_timeout },
 	{ CFG_GLOBAL, "tune.lua.task-timeout",    hlua_task_timeout },
 	{ CFG_GLOBAL, "tune.lua.forced-yield",    hlua_forced_yield },
+	{ CFG_GLOBAL, "tune.lua.maxmem",          hlua_parse_maxmem },
 	{ 0, NULL, NULL },
 }};
 
@@ -4528,6 +4558,44 @@ int hlua_post_init()
 	return 1;
 }
 
+/* The memory allocator used by the Lua stack. <ud> is a pointer to the
+ * allocator's context. <ptr> is the pointer to alloc/free/realloc. <osize>
+ * is the previously allocated size or the kind of object in case of a new
+ * allocation. <nsize> is the requested new size.
+ */
+static void *hlua_alloc(void *ud, void *ptr, size_t osize, size_t nsize)
+{
+	struct hlua_mem_allocator *zone = ud;
+
+	if (nsize == 0) {
+		/* it's a free */
+		if (ptr)
+			zone->allocated -= osize;
+		free(ptr);
+		return NULL;
+	}
+
+	if (!ptr) {
+		/* it's a new allocation */
+		if (zone->limit && zone->allocated + nsize > zone->limit)
+			return NULL;
+
+		ptr = malloc(nsize);
+		if (ptr)
+			zone->allocated += nsize;
+		return ptr;
+	}
+
+	/* it's a realloc */
+	if (zone->limit && zone->allocated + nsize - osize > zone->limit)
+		return NULL;
+
+	ptr = realloc(ptr, nsize);
+	if (ptr)
+		zone->allocated += nsize - osize;
+	return ptr;
+}
+
 void hlua_init(void)
 {
 	int i;
@@ -4571,6 +4639,9 @@ void hlua_init(void)
 	hlua_sethlua(&gL);
 	gL.Tref = LUA_REFNIL;
 	gL.task = NULL;
+
+	/* change the memory allocators to track memory usage */
+	lua_setallocf(gL.T, hlua_alloc, &hlua_global_allocator);
 
 	/* Initialise lua. */
 	luaL_openlibs(gL.T);

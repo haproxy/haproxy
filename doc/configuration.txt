@@ -487,6 +487,7 @@ The following keywords are supported in the "global" section :
    - tune.http.maxhdr
    - tune.idletimer
    - tune.lua.forced-yield
+   - tune.lua.maxmem
    - tune.lua.session-timeout
    - tune.lua.task-timeout
    - tune.maxaccept
@@ -998,6 +999,12 @@ tune.lua.forced-yield <number>
   executes some Lua code but more reactivity is required, this value can be
   lowered. If the Lua code is quite long and its result is absolutely required
   to process the data, the <number> can be increased.
+
+tune.lua.maxmem
+  Sets the maximum amount of RAM in megabytes per process usable by Lua. By
+  default it is zero which means unlimited. It is important to set a limit to
+  ensure that a bug in a script will not result in the system running out of
+  memory.
 
 tune.lua.session-timeout <timeout>
   This is the execution timeout for the Lua sessions. This is useful for
