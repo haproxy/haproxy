@@ -30,7 +30,7 @@ extern unsigned int compress_min_idle;
 int comp_append_type(struct comp *comp, const char *type);
 int comp_append_algo(struct comp *comp, const char *algo);
 
-int http_emit_chunk_size(char *out, unsigned int chksz, int add_crlf);
+int http_emit_chunk_size(char *end, unsigned int chksz);
 int http_compression_buffer_init(struct session *s, struct buffer *in, struct buffer *out);
 int http_compression_buffer_add_data(struct session *s, struct buffer *in, struct buffer *out);
 int http_compression_buffer_end(struct session *s, struct buffer **in, struct buffer **out, int end);

@@ -102,25 +102,21 @@ int comp_append_algo(struct comp *comp, const char *algo)
 }
 
 /* emit the chunksize followed by a CRLF on the output and return the number of
- * bytes written. Appends <add_crlf> additional CRLF after the first one. Chunk
- * sizes are truncated to 6 hex digits (16 MB) and padded left. The caller is
- * responsible for ensuring there is enough room left in the output buffer for
- * the string (8 bytes + add_crlf*2).
+ * bytes written. It goes backwards and starts with the byte before <end>. It
+ * returns the number of bytes written which will not exceed 10 (8 digits, CR,
+ * and LF). The caller is responsible for ensuring there is enough room left in
+ * the output buffer for the string.
  */
-int http_emit_chunk_size(char *out, unsigned int chksz, int add_crlf)
+int http_emit_chunk_size(char *end, unsigned int chksz)
 {
-	int shift;
-	int pos = 0;
+	char *beg = end;
 
-	for (shift = 20; shift >= 0; shift -= 4)
-		out[pos++] = hextab[(chksz >> shift) & 0xF];
-
+	*--beg = '\n';
+	*--beg = '\r';
 	do {
-		out[pos++] = '\r';
-		out[pos++] = '\n';
-	} while (--add_crlf >= 0);
-
-	return pos;
+		*--beg = hextab[chksz & 0xF];
+	} while (chksz >>= 4);
+	return end - beg;
 }
 
 /*
@@ -129,19 +125,18 @@ int http_emit_chunk_size(char *out, unsigned int chksz, int add_crlf)
 int http_compression_buffer_init(struct session *s, struct buffer *in, struct buffer *out)
 {
 	/* not enough space */
-	if (in->size - buffer_len(in) < 40)
+	if (in->size - buffer_len(in) < 42)
 		return -1;
 
 	/* prepare an empty output buffer in which we reserve enough room for
-	 * copying the output bytes from <in>, plus 8 extra bytes to write
+	 * copying the output bytes from <in>, plus 10 extra bytes to write
 	 * the chunk size. We don't copy the bytes yet so that if we have to
 	 * cancel the operation later, it's cheap.
 	 */
 	b_reset(out);
 	out->o = in->o;
 	out->p += out->o;
-	out->i = 8;
-
+	out->i = 10;
 	return 0;
 }
 
@@ -219,7 +214,7 @@ int http_compression_buffer_end(struct session *s, struct buffer **in, struct bu
 
 #endif /* USE_ZLIB */
 
-	if (ob->i == 8) {
+	if (ob->i == 10) {
 		/* No data were appended, let's drop the output buffer and
 		 * keep the input buffer unchanged.
 		 */
@@ -236,17 +231,19 @@ int http_compression_buffer_end(struct session *s, struct buffer **in, struct bu
 	 *
 	 * <out> is the room reserved to copy ib->o. It starts at ob->data and
 	 * has not yet been filled. <c> is the room reserved to write the chunk
-	 * size (8 bytes). <comp_in> is the compressed equivalent of the data
+	 * size (10 bytes). <comp_in> is the compressed equivalent of the data
 	 * part of ib->i. <empty> is the amount of empty bytes at the end of
 	 * the buffer, into which we may have to copy the remaining bytes from
 	 * ib->i after the data (chunk size, trailers, ...).
 	 */
 
 	/* Write real size at the begining of the chunk, no need of wrapping.
-	 * Ideally we should write the chunk using a dynamic length and adjust
-	 * ob->p and ob->i accordingly afterwards. That's not done yet.
+	 * We write the chunk using a dynamic length and adjust ob->p and ob->i
+	 * accordingly afterwards. That will move <out> away from <data>.
 	 */
-	http_emit_chunk_size(ob->p, ob->i - 8, 0);
+	left = 10 - http_emit_chunk_size(ob->p + 10, ob->i - 10);
+	ob->p += left;
+	ob->i -= left;
 
 	/* Copy previous data from ib->o into ob->o */
 	if (ib->o > 0) {
