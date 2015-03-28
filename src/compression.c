@@ -105,7 +105,7 @@ int comp_append_algo(struct comp *comp, const char *algo)
  * bytes written. Appends <add_crlf> additional CRLF after the first one. Chunk
  * sizes are truncated to 6 hex digits (16 MB) and padded left. The caller is
  * responsible for ensuring there is enough room left in the output buffer for
- * the string (8 bytes * add_crlf*2).
+ * the string (8 bytes + add_crlf*2).
  */
 int http_emit_chunk_size(char *out, unsigned int chksz, int add_crlf)
 {
@@ -128,28 +128,19 @@ int http_emit_chunk_size(char *out, unsigned int chksz, int add_crlf)
  */
 int http_compression_buffer_init(struct session *s, struct buffer *in, struct buffer *out)
 {
-	int left;
-
 	/* not enough space */
 	if (in->size - buffer_len(in) < 40)
-	    return -1;
+		return -1;
 
-	/* We start by copying the current buffer's pending outgoing data into
-	 * a new temporary buffer that we initialize with a new empty chunk.
+	/* prepare an empty output buffer in which we reserve enough room for
+	 * copying the output bytes from <in>, plus 8 extra bytes to write
+	 * the chunk size. We don't copy the bytes yet so that if we have to
+	 * cancel the operation later, it's cheap.
 	 */
 	b_reset(out);
-
-	if (in->o > 0) {
-		left = in->o - bo_contig_data(in);
-		memcpy(out->data, bo_ptr(in), bo_contig_data(in));
-		out->p += bo_contig_data(in);
-		if (left > 0) { /* second part of the buffer */
-			memcpy(out->p, in->data, left);
-			out->p += left;
-		}
-		out->o = in->o;
-	}
-	out->i += http_emit_chunk_size(out->p, 0, 0);
+	out->o = in->o;
+	out->p += out->o;
+	out->i = 8;
 
 	return 0;
 }
@@ -211,6 +202,7 @@ int http_compression_buffer_end(struct session *s, struct buffer **in, struct bu
 	int left;
 	struct http_msg *msg = &s->txn.rsp;
 	struct buffer *ib = *in, *ob = *out;
+	char *tail;
 
 #ifdef USE_ZLIB
 	int ret;
@@ -227,37 +219,64 @@ int http_compression_buffer_end(struct session *s, struct buffer **in, struct bu
 
 #endif /* USE_ZLIB */
 
-	if (ob->i > 8) {
-		/* more than a chunk size => some data were emitted */
-		char *tail = ob->p + ob->i;
-
-		/* write real size at the begining of the chunk, no need of wrapping */
-		http_emit_chunk_size(ob->p, ob->i - 8, 0);
-
-		/* chunked encoding requires CRLF after data */
-		*tail++ = '\r';
-		*tail++ = '\n';
-
-		/* At the end of data, we must write the empty chunk 0<CRLF>,
-		 * and terminate the trailers section with a last <CRLF>. If
-		 * we're forwarding a chunked-encoded response, we'll have a
-		 * trailers section after the empty chunk which needs to be
-		 * forwarded and which will provide the last CRLF. Otherwise
-		 * we write it ourselves.
+	if (ob->i == 8) {
+		/* No data were appended, let's drop the output buffer and
+		 * keep the input buffer unchanged.
 		 */
-		if (msg->msg_state >= HTTP_MSG_TRAILERS) {
-			memcpy(tail, "0\r\n", 3);
-			tail += 3;
-			if (msg->msg_state >= HTTP_MSG_DONE) {
-				memcpy(tail, "\r\n", 2);
-				tail += 2;
-			}
-		}
-		ob->i = tail - ob->p;
-	} else {
-		/* no data were sent, cancel the chunk size */
-		ob->i = 0;
+		return 0;
 	}
+
+	/* OK so at this stage, we have an output buffer <ob> looking like this :
+	 *
+	 *        <-- o --> <------ i ----->
+	 *       +---------+---+------------+-----------+
+	 *       |   out   | c |  comp_in   |   empty   |
+	 *       +---------+---+------------+-----------+
+	 *     data        p                           size
+	 *
+	 * <out> is the room reserved to copy ib->o. It starts at ob->data and
+	 * has not yet been filled. <c> is the room reserved to write the chunk
+	 * size (8 bytes). <comp_in> is the compressed equivalent of the data
+	 * part of ib->i. <empty> is the amount of empty bytes at the end of
+	 * the buffer, into which we may have to copy the remaining bytes from
+	 * ib->i after the data (chunk size, trailers, ...).
+	 */
+
+	/* Write real size at the begining of the chunk, no need of wrapping.
+	 * Ideally we should write the chunk using a dynamic length and adjust
+	 * ob->p and ob->i accordingly afterwards. That's not done yet.
+	 */
+	http_emit_chunk_size(ob->p, ob->i - 8, 0);
+
+	/* Copy previous data from ib->o into ob->o */
+	if (ib->o > 0) {
+		left = bo_contig_data(ib);
+		memcpy(ob->p - ob->o, bo_ptr(ib), left);
+		if (ib->o - left) /* second part of the buffer */
+			memcpy(ob->p - ob->o + left, ib->data, ib->o - left);
+	}
+
+	/* chunked encoding requires CRLF after data */
+	tail = ob->p + ob->i;
+	*tail++ = '\r';
+	*tail++ = '\n';
+
+	/* At the end of data, we must write the empty chunk 0<CRLF>,
+	 * and terminate the trailers section with a last <CRLF>. If
+	 * we're forwarding a chunked-encoded response, we'll have a
+	 * trailers section after the empty chunk which needs to be
+	 * forwarded and which will provide the last CRLF. Otherwise
+	 * we write it ourselves.
+	 */
+	if (msg->msg_state >= HTTP_MSG_TRAILERS) {
+		memcpy(tail, "0\r\n", 3);
+		tail += 3;
+		if (msg->msg_state >= HTTP_MSG_DONE) {
+			memcpy(tail, "\r\n", 2);
+			tail += 2;
+		}
+	}
+	ob->i = tail - ob->p;
 
 	to_forward = ob->i;
 
@@ -276,12 +295,12 @@ int http_compression_buffer_end(struct session *s, struct buffer **in, struct bu
 	msg->next = 0;
 
 	if (ib->i > 0) {
-		left = ib->i - bi_contig_data(ib);
-		memcpy(bi_end(ob), bi_ptr(ib), bi_contig_data(ib));
-		ob->i += bi_contig_data(ib);
-		if (left > 0) {
-			memcpy(bi_end(ob), ib->data, left);
-			ob->i += left;
+		left = bi_contig_data(ib);
+		memcpy(ob->p + ob->i, bi_ptr(ib), left);
+		ob->i += left;
+		if (ib->i - left) {
+			memcpy(ob->p + ob->i, ib->data, ib->i - left);
+			ob->i += ib->i - left;
 		}
 	}
 
