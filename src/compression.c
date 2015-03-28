@@ -55,6 +55,21 @@ long zlib_used_memory = 0;
 unsigned int compress_min_idle = 0;
 static struct pool_head *pool_comp_ctx = NULL;
 
+static int identity_init(struct comp_ctx **comp_ctx, int level);
+static int identity_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out);
+static int identity_flush(struct comp_ctx *comp_ctx, struct buffer *out, int flag);
+static int identity_reset(struct comp_ctx *comp_ctx);
+static int identity_end(struct comp_ctx **comp_ctx);
+
+#ifdef USE_ZLIB
+static int gzip_init(struct comp_ctx **comp_ctx, int level);
+static int deflate_init(struct comp_ctx **comp_ctx, int level);
+static int deflate_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out);
+static int deflate_flush(struct comp_ctx *comp_ctx, struct buffer *out, int flag);
+static int deflate_reset(struct comp_ctx *comp_ctx);
+static int deflate_end(struct comp_ctx **comp_ctx);
+#endif /* USE_ZLIB */
+
 
 const struct comp_algo comp_algos[] =
 {
@@ -374,7 +389,7 @@ static inline int deinit_comp_ctx(struct comp_ctx **comp_ctx)
 /*
  * Init the identity algorithm
  */
-int identity_init(struct comp_ctx **comp_ctx, int level)
+static int identity_init(struct comp_ctx **comp_ctx, int level)
 {
 	return 0;
 }
@@ -383,7 +398,7 @@ int identity_init(struct comp_ctx **comp_ctx, int level)
  * Process data
  *   Return size of consumed data or -1 on error
  */
-int identity_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out)
+static int identity_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out)
 {
 	char *out_data = bi_end(out);
 	int out_len = out->size - buffer_len(out);
@@ -398,12 +413,12 @@ int identity_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len
 	return in_len;
 }
 
-int identity_flush(struct comp_ctx *comp_ctx, struct buffer *out, int flag)
+static int identity_flush(struct comp_ctx *comp_ctx, struct buffer *out, int flag)
 {
 	return 0;
 }
 
-int identity_reset(struct comp_ctx *comp_ctx)
+static int identity_reset(struct comp_ctx *comp_ctx)
 {
 	return 0;
 }
@@ -411,7 +426,7 @@ int identity_reset(struct comp_ctx *comp_ctx)
 /*
  * Deinit the algorithm
  */
-int identity_end(struct comp_ctx **comp_ctx)
+static int identity_end(struct comp_ctx **comp_ctx)
 {
 	return 0;
 }
@@ -506,7 +521,7 @@ static void free_zlib(void *opaque, void *ptr)
 /**************************
 ****  gzip algorithm   ****
 ***************************/
-int gzip_init(struct comp_ctx **comp_ctx, int level)
+static int gzip_init(struct comp_ctx **comp_ctx, int level)
 {
 	z_stream *strm;
 
@@ -528,7 +543,7 @@ int gzip_init(struct comp_ctx **comp_ctx, int level)
 **** Deflate algorithm ****
 ***************************/
 
-int deflate_init(struct comp_ctx **comp_ctx, int level)
+static int deflate_init(struct comp_ctx **comp_ctx, int level)
 {
 	z_stream *strm;
 
@@ -548,7 +563,7 @@ int deflate_init(struct comp_ctx **comp_ctx, int level)
 }
 
 /* Return the size of consumed data or -1 */
-int deflate_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out)
+static int deflate_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out)
 {
 	int ret;
 	z_stream *strm = &comp_ctx->strm;
@@ -577,7 +592,7 @@ int deflate_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len,
 	return in_len - strm->avail_in;
 }
 
-int deflate_flush(struct comp_ctx *comp_ctx, struct buffer *out, int flag)
+static int deflate_flush(struct comp_ctx *comp_ctx, struct buffer *out, int flag)
 {
 	int ret;
 	int out_len = 0;
@@ -611,7 +626,7 @@ int deflate_flush(struct comp_ctx *comp_ctx, struct buffer *out, int flag)
 	return out_len;
 }
 
-int deflate_reset(struct comp_ctx *comp_ctx)
+static int deflate_reset(struct comp_ctx *comp_ctx)
 {
 	z_stream *strm = &comp_ctx->strm;
 
@@ -620,7 +635,7 @@ int deflate_reset(struct comp_ctx *comp_ctx)
 	return -1;
 }
 
-int deflate_end(struct comp_ctx **comp_ctx)
+static int deflate_end(struct comp_ctx **comp_ctx)
 {
 	z_stream *strm = &(*comp_ctx)->strm;
 	int ret;
