@@ -2333,7 +2333,7 @@ int select_compression_request_header(struct session *s, struct buffer *req)
 	/* identity is implicit does not require headers */
 	if ((s->be->comp && (comp_algo_back = s->be->comp->algos)) || (s->fe->comp && (comp_algo_back = s->fe->comp->algos))) {
 		for (comp_algo = comp_algo_back; comp_algo; comp_algo = comp_algo->next) {
-			if (comp_algo->add_data == identity_add_data) {
+			if (comp_algo->name_len == 8 && memcmp(comp_algo->name, "identity", 8) == 0) {
 				s->comp_algo = comp_algo;
 				return 1;
 			}
@@ -2445,7 +2445,7 @@ int select_compression_response_header(struct session *s, struct buffer *res)
 	 * Accept-Encoding header, and SHOULD NOT be used in the Content-Encoding
 	 * header.
 	 */
-	if (s->comp_algo->add_data != identity_add_data) {
+	if (s->comp_algo->name_len != 8 || memcmp(s->comp_algo->name, "identity", 8) != 0) {
 		trash.len = 18;
 		memcpy(trash.str, "Content-Encoding: ", trash.len);
 		memcpy(trash.str + trash.len, s->comp_algo->name, s->comp_algo->name_len);
