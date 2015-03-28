@@ -59,28 +59,28 @@ static int identity_init(struct comp_ctx **comp_ctx, int level);
 static int identity_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out);
 static int identity_flush(struct comp_ctx *comp_ctx, struct buffer *out);
 static int identity_finish(struct comp_ctx *comp_ctx, struct buffer *out);
-static int identity_reset(struct comp_ctx *comp_ctx);
 static int identity_end(struct comp_ctx **comp_ctx);
 
 #ifdef USE_ZLIB
+
 static int gzip_init(struct comp_ctx **comp_ctx, int level);
 static int raw_def_init(struct comp_ctx **comp_ctx, int level);
 static int deflate_init(struct comp_ctx **comp_ctx, int level);
 static int deflate_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out);
 static int deflate_flush(struct comp_ctx *comp_ctx, struct buffer *out);
 static int deflate_finish(struct comp_ctx *comp_ctx, struct buffer *out);
-static int deflate_reset(struct comp_ctx *comp_ctx);
 static int deflate_end(struct comp_ctx **comp_ctx);
+
 #endif /* USE_ZLIB */
 
 
 const struct comp_algo comp_algos[] =
 {
-	{ "identity",     8, "identity", 8, identity_init, identity_add_data, identity_flush, identity_finish, identity_reset, identity_end },
+	{ "identity",     8, "identity", 8, identity_init, identity_add_data, identity_flush, identity_finish, identity_end },
 #ifdef USE_ZLIB
-	{ "deflate",      7, "deflate",  7, deflate_init,  deflate_add_data,  deflate_flush,  deflate_finish,  deflate_reset,  deflate_end },
-	{ "raw-deflate", 11, "deflate",  7, raw_def_init,  deflate_add_data,  deflate_flush,  deflate_finish,  deflate_reset,  deflate_end },
-	{ "gzip",         4, "gzip",     4, gzip_init,     deflate_add_data,  deflate_flush,  deflate_finish,  deflate_reset,  deflate_end },
+	{ "deflate",      7, "deflate",  7, deflate_init,  deflate_add_data,  deflate_flush,  deflate_finish,  deflate_end },
+	{ "raw-deflate", 11, "deflate",  7, raw_def_init,  deflate_add_data,  deflate_flush,  deflate_finish,  deflate_end },
+	{ "gzip",         4, "gzip",     4, gzip_init,     deflate_add_data,  deflate_flush,  deflate_finish,  deflate_end },
 #endif /* USE_ZLIB */
 	{ NULL,       0, NULL,          0, NULL ,         NULL,              NULL,           NULL,           NULL }
 };
@@ -663,15 +663,6 @@ static int deflate_flush(struct comp_ctx *comp_ctx, struct buffer *out)
 static int deflate_finish(struct comp_ctx *comp_ctx, struct buffer *out)
 {
 	return deflate_flush_or_finish(comp_ctx, out, Z_FINISH);
-}
-
-static int deflate_reset(struct comp_ctx *comp_ctx)
-{
-	z_stream *strm = &comp_ctx->strm;
-
-	if (deflateReset(strm) == Z_OK)
-		return 0;
-	return -1;
 }
 
 static int deflate_end(struct comp_ctx **comp_ctx)

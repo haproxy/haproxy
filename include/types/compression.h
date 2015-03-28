@@ -64,7 +64,6 @@ struct comp_algo {
 	int (*add_data)(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out);
 	int (*flush)(struct comp_ctx *comp_ctx, struct buffer *out);
 	int (*finish)(struct comp_ctx *comp_ctx, struct buffer *out);
-	int (*reset)(struct comp_ctx *comp_ctx);
 	int (*end)(struct comp_ctx **comp_ctx);
 	struct comp_algo *next;
 };
