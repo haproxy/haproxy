@@ -63,6 +63,7 @@ static int identity_end(struct comp_ctx **comp_ctx);
 
 #ifdef USE_ZLIB
 static int gzip_init(struct comp_ctx **comp_ctx, int level);
+static int raw_def_init(struct comp_ctx **comp_ctx, int level);
 static int deflate_init(struct comp_ctx **comp_ctx, int level);
 static int deflate_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out);
 static int deflate_flush(struct comp_ctx *comp_ctx, struct buffer *out, int flag);
@@ -76,6 +77,7 @@ const struct comp_algo comp_algos[] =
 	{ "identity",     8, "identity", 8, identity_init, identity_add_data, identity_flush, identity_reset, identity_end },
 #ifdef USE_ZLIB
 	{ "deflate",      7, "deflate",  7, deflate_init,  deflate_add_data,  deflate_flush,  deflate_reset,  deflate_end },
+	{ "raw-deflate", 11, "deflate",  7, raw_def_init,  deflate_add_data,  deflate_flush,  deflate_reset,  deflate_end },
 	{ "gzip",         4, "gzip",     4, gzip_init,     deflate_add_data,  deflate_flush,  deflate_reset,  deflate_end },
 #endif /* USE_ZLIB */
 	{ NULL,       0, NULL,          0, NULL ,         NULL,              NULL,           NULL,           NULL }
@@ -539,6 +541,26 @@ static int gzip_init(struct comp_ctx **comp_ctx, int level)
 
 	return 0;
 }
+
+/* Raw deflate algorithm */
+static int raw_def_init(struct comp_ctx **comp_ctx, int level)
+{
+	z_stream *strm;
+
+	if (init_comp_ctx(comp_ctx) < 0)
+		return -1;
+
+	strm = &(*comp_ctx)->strm;
+
+	if (deflateInit2(strm, level, Z_DEFLATED, -global.tune.zlibwindowsize, global.tune.zlibmemlevel, Z_DEFAULT_STRATEGY) != Z_OK) {
+		deinit_comp_ctx(comp_ctx);
+		return -1;
+	}
+
+	(*comp_ctx)->cur_lvl = level;
+	return 0;
+}
+
 /**************************
 **** Deflate algorithm ****
 ***************************/

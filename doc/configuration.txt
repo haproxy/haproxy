@@ -2251,19 +2251,28 @@ compression offload
     offload  makes haproxy work as a compression offloader only (see notes).
 
   The currently supported algorithms are :
-    identity  this is mostly for debugging, and it was useful for developing
-              the compression feature. Identity does not apply any change on
-              data.
+    identity     this is mostly for debugging, and it was useful for developing
+                 the compression feature. Identity does not apply any change on
+                 data.
 
-    gzip      applies gzip compression. This setting is only available when
-              support for zlib was built in.
+    gzip         applies gzip compression. This setting is only available when
+                 support for zlib was built in.
 
-    deflate   same as gzip, but with deflate algorithm and zlib format.
-              Note that this algorithm has ambiguous support on many browsers
-              and no support at all from recent ones. It is strongly
-              recommended not to use it for anything else than experimentation.
-              This setting is only available when support for zlib was built
-              in.
+    deflate      same as "gzip", but with deflate algorithm and zlib format.
+                 Note that this algorithm has ambiguous support on many
+                 browsers and no support at all from recent ones. It is
+                 strongly recommended not to use it for anything else than
+                 experimentation. This setting is only available when support
+                 for zlib was built in.
+
+    raw-deflate  same as "deflate" without the zlib wrapper, and used as an
+                 alternative when the browser wants "deflate". All major
+                 browsers understand it and despite violating the standards,
+                 it is known to work better than "deflate", at least on MSIE
+                 and some versions of Safari. Do not use it in conjunction
+                 with "deflate", use either one or the other since both react
+                 to the same Accept-Encoding token. This setting is only
+                 available when support for zlib was built in.
 
   Compression will be activated depending on the Accept-Encoding request
   header. With identity, it does not take care of that header.
