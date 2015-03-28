@@ -124,8 +124,11 @@ int http_emit_chunk_size(char *end, unsigned int chksz)
  */
 int http_compression_buffer_init(struct session *s, struct buffer *in, struct buffer *out)
 {
-	/* not enough space */
-	if (in->size - buffer_len(in) < 42)
+	/* output stream requires at least 10 bytes for the gzip header, plus
+	 * at least 8 bytes for the gzip trailer (crc+len), plus a possible
+	 * plus at most 5 bytes per 32kB block and 2 bytes to close the stream.
+	 */
+	if (in->size - buffer_len(in) < 20 + 5 * ((in->i + 32767) >> 15))
 		return -1;
 
 	/* prepare an empty output buffer in which we reserve enough room for
