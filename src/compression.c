@@ -73,12 +73,12 @@ static int deflate_end(struct comp_ctx **comp_ctx);
 
 const struct comp_algo comp_algos[] =
 {
-	{ "identity", 8, identity_init, identity_add_data, identity_flush, identity_reset, identity_end },
+	{ "identity",     8, "identity", 8, identity_init, identity_add_data, identity_flush, identity_reset, identity_end },
 #ifdef USE_ZLIB
-	{ "deflate",  7, deflate_init,  deflate_add_data,  deflate_flush,  deflate_reset,  deflate_end },
-	{ "gzip",     4, gzip_init,     deflate_add_data,  deflate_flush,  deflate_reset,  deflate_end },
+	{ "deflate",      7, "deflate",  7, deflate_init,  deflate_add_data,  deflate_flush,  deflate_reset,  deflate_end },
+	{ "gzip",         4, "gzip",     4, gzip_init,     deflate_add_data,  deflate_flush,  deflate_reset,  deflate_end },
 #endif /* USE_ZLIB */
-	{ NULL,       0, NULL ,         NULL,              NULL,           NULL,           NULL }
+	{ NULL,       0, NULL,          0, NULL ,         NULL,              NULL,           NULL,           NULL }
 };
 
 /*
@@ -104,8 +104,8 @@ int comp_append_algo(struct comp *comp, const char *algo)
 	struct comp_algo *comp_algo;
 	int i;
 
-	for (i = 0; comp_algos[i].name; i++) {
-		if (!strcmp(algo, comp_algos[i].name)) {
+	for (i = 0; comp_algos[i].cfg_name; i++) {
+		if (!strcmp(algo, comp_algos[i].cfg_name)) {
 			comp_algo = calloc(1, sizeof(struct comp_algo));
 			memmove(comp_algo, &comp_algos[i], sizeof(struct comp_algo));
 			comp_algo->next = comp->algos;
@@ -669,8 +669,8 @@ smp_fetch_res_comp_algo(struct proxy *px, struct session *l4, void *l7, unsigned
 
 	smp->type = SMP_T_STR;
 	smp->flags = SMP_F_CONST;
-	smp->data.str.str = l4->comp_algo->name;
-	smp->data.str.len = l4->comp_algo->name_len;
+	smp->data.str.str = l4->comp_algo->cfg_name;
+	smp->data.str.len = l4->comp_algo->cfg_name_len;
 	return 1;
 }
 

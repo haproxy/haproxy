@@ -47,9 +47,19 @@ struct comp_ctx {
 	int cur_lvl;
 };
 
+/* Thanks to MSIE/IIS, the "deflate" name is ambigous, as according to the RFC
+ * it's a zlib-wrapped deflate stream, but MSIE only understands a raw deflate
+ * stream. For this reason some people prefer to emit a raw deflate stream on
+ * "deflate" and we'll need two algos for the same name, they are distinguished
+ * with the config name.
+ */
 struct comp_algo {
-	char *name;
-	int name_len;
+	char *cfg_name;  /* config name */
+	int cfg_name_len;
+
+	char *ua_name;  /* name for the user-agent */
+	int ua_name_len;
+
 	int (*init)(struct comp_ctx **comp_ctx, int level);
 	int (*add_data)(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out);
 	int (*flush)(struct comp_ctx *comp_ctx, struct buffer *out, int flag);

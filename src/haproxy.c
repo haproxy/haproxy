@@ -262,8 +262,8 @@ void display_build_opts()
 	{
 		int i;
 
-		for (i = 0; comp_algos[i].name; i++) {
-			printf("%s %s", (i == 0 ? "" : ","), comp_algos[i].name);
+		for (i = 0; comp_algos[i].cfg_name; i++) {
+			printf("%s %s(\"%s\")", (i == 0 ? "" : ","), comp_algos[i].cfg_name, comp_algos[i].ua_name);
 		}
 		if (i == 0) {
 			printf("none");
