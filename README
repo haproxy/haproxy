@@ -118,7 +118,9 @@ include additional libs with ADDLIB if needed (in this case for example libdl):
 
 It is also possible to include native support for ZLIB to benefit from HTTP
 compression. For this, pass "USE_ZLIB=1" on the "make" command line and ensure
-that zlib is present on the system.
+that zlib is present on the system. Alternatively it is possible to use libslz
+for a faster, memory less, but slightly less efficient compression, by passing
+"USE_SLZ=1".
 
 By default, the DEBUG variable is set to '-g' to enable debug symbols. It is
 not wise to disable it on uncommon systems, because it's often the only way to

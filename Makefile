@@ -33,6 +33,7 @@
 #   USE_ACCEPT4          : enable use of accept4() on linux. Automatic.
 #   USE_MY_ACCEPT4       : use own implemention of accept4() if glibc < 2.10.
 #   USE_ZLIB             : enable zlib library support.
+#   USE_SLZ              : enable slz library instead of zlib (pick at most one).
 #   USE_CPU_AFFINITY     : enable pinning processes to CPU on Linux. Automatic.
 #   USE_TFO              : enable TCP fast open. Supported on Linux >= 3.7.
 #   USE_NS               : enable network namespace support. Supported on Linux >= 2.6.24.
@@ -446,6 +447,15 @@ endif
 ifneq ($(USE_GETADDRINFO),)
 OPTIONS_CFLAGS  += -DUSE_GETADDRINFO
 BUILD_OPTIONS   += $(call ignore_implicit,USE_GETADDRINFO)
+endif
+
+ifneq ($(USE_SLZ),)
+# Use SLZ_INC and SLZ_LIB to force path to zlib.h and libz.{a,so} if needed.
+SLZ_INC =
+SLZ_LIB =
+OPTIONS_CFLAGS  += -DUSE_SLZ $(if $(SLZ_INC),-I$(SLZ_INC))
+BUILD_OPTIONS   += $(call ignore_implicit,USE_SLZ)
+OPTIONS_LDFLAGS += $(if $(SLZ_LIB),-L$(SLZ_LIB)) -lslz
 endif
 
 ifneq ($(USE_ZLIB),)

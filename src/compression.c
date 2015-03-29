@@ -13,7 +13,9 @@
 
 #include <stdio.h>
 
-#ifdef USE_ZLIB
+#if defined(USE_SLZ)
+#include <slz.h>
+#elif defined(USE_ZLIB)
 /* Note: the crappy zlib and openssl libs both define the "free_func" type.
  * That's a very clever idea to use such a generic name in general purpose
  * libraries, really... The zlib one is easier to redefine than openssl's,
@@ -61,7 +63,17 @@ static int identity_flush(struct comp_ctx *comp_ctx, struct buffer *out);
 static int identity_finish(struct comp_ctx *comp_ctx, struct buffer *out);
 static int identity_end(struct comp_ctx **comp_ctx);
 
-#ifdef USE_ZLIB
+#if defined(USE_SLZ)
+
+static int rfc1950_init(struct comp_ctx **comp_ctx, int level);
+static int rfc1951_init(struct comp_ctx **comp_ctx, int level);
+static int rfc1952_init(struct comp_ctx **comp_ctx, int level);
+static int rfc195x_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out);
+static int rfc195x_flush(struct comp_ctx *comp_ctx, struct buffer *out);
+static int rfc195x_finish(struct comp_ctx *comp_ctx, struct buffer *out);
+static int rfc195x_end(struct comp_ctx **comp_ctx);
+
+#elif defined(USE_ZLIB)
 
 static int gzip_init(struct comp_ctx **comp_ctx, int level);
 static int raw_def_init(struct comp_ctx **comp_ctx, int level);
@@ -77,7 +89,11 @@ static int deflate_end(struct comp_ctx **comp_ctx);
 const struct comp_algo comp_algos[] =
 {
 	{ "identity",     8, "identity", 8, identity_init, identity_add_data, identity_flush, identity_finish, identity_end },
-#ifdef USE_ZLIB
+#if defined(USE_SLZ)
+	{ "deflate",      7, "deflate",  7, rfc1950_init,  rfc195x_add_data,  rfc195x_flush,  rfc195x_finish,  rfc195x_end },
+	{ "raw-deflate", 11, "deflate",  7, rfc1951_init,  rfc195x_add_data,  rfc195x_flush,  rfc195x_finish,  rfc195x_end },
+	{ "gzip",         4, "gzip",     4, rfc1952_init,  rfc195x_add_data,  rfc195x_flush,  rfc195x_finish,  rfc195x_end },
+#elif defined(USE_ZLIB)
 	{ "deflate",      7, "deflate",  7, deflate_init,  deflate_add_data,  deflate_flush,  deflate_finish,  deflate_end },
 	{ "raw-deflate", 11, "deflate",  7, raw_def_init,  deflate_add_data,  deflate_flush,  deflate_finish,  deflate_end },
 	{ "gzip",         4, "gzip",     4, gzip_init,     deflate_add_data,  deflate_flush,  deflate_finish,  deflate_end },
@@ -221,7 +237,7 @@ int http_compression_buffer_end(struct session *s, struct buffer **in, struct bu
 	struct buffer *ib = *in, *ob = *out;
 	char *tail;
 
-#ifdef USE_ZLIB
+#if defined(USE_SLZ) || defined(USE_ZLIB)
 	int ret;
 
 	/* flush data here */
@@ -357,7 +373,11 @@ static inline int init_comp_ctx(struct comp_ctx **comp_ctx)
 	*comp_ctx = pool_alloc2(pool_comp_ctx);
 	if (*comp_ctx == NULL)
 		return -1;
-#ifdef USE_ZLIB
+#if defined(USE_SLZ)
+	(*comp_ctx)->direct_ptr = NULL;
+	(*comp_ctx)->direct_len = 0;
+	(*comp_ctx)->queued = NULL;
+#elif defined(USE_ZLIB)
 	zlib_used_memory += sizeof(struct comp_ctx);
 
 	strm = &(*comp_ctx)->strm;
@@ -427,11 +447,6 @@ static int identity_finish(struct comp_ctx *comp_ctx, struct buffer *out)
 	return 0;
 }
 
-static int identity_reset(struct comp_ctx *comp_ctx)
-{
-	return 0;
-}
-
 /*
  * Deinit the algorithm
  */
@@ -441,7 +456,148 @@ static int identity_end(struct comp_ctx **comp_ctx)
 }
 
 
-#ifdef USE_ZLIB
+#ifdef USE_SLZ
+
+/* SLZ's gzip format (RFC1952). Returns < 0 on error. */
+static int rfc1952_init(struct comp_ctx **comp_ctx, int level)
+{
+	if (init_comp_ctx(comp_ctx) < 0)
+		return -1;
+
+	(*comp_ctx)->cur_lvl = !!level;
+	return slz_rfc1952_init(&(*comp_ctx)->strm, !!level);
+}
+
+/* SLZ's raw deflate format (RFC1951). Returns < 0 on error. */
+static int rfc1951_init(struct comp_ctx **comp_ctx, int level)
+{
+	if (init_comp_ctx(comp_ctx) < 0)
+		return -1;
+
+	(*comp_ctx)->cur_lvl = !!level;
+	return slz_rfc1951_init(&(*comp_ctx)->strm, !!level);
+}
+
+/* SLZ's zlib format (RFC1950). Returns < 0 on error. */
+static int rfc1950_init(struct comp_ctx **comp_ctx, int level)
+{
+	if (init_comp_ctx(comp_ctx) < 0)
+		return -1;
+
+	(*comp_ctx)->cur_lvl = !!level;
+	return slz_rfc1950_init(&(*comp_ctx)->strm, !!level);
+}
+
+/* Return the size of consumed data or -1. The output buffer is unused at this
+ * point, we only keep a reference to the input data or a copy of them if the
+ * reference is already used.
+ */
+static int rfc195x_add_data(struct comp_ctx *comp_ctx, const char *in_data, int in_len, struct buffer *out)
+{
+	static struct buffer *tmpbuf = &buf_empty;
+
+	if (in_len <= 0)
+		return 0;
+
+	if (comp_ctx->direct_ptr && !comp_ctx->queued) {
+		/* data already being pointed to, we're in front of fragmented
+		 * data and need a buffer now. We reuse the same buffer, as it's
+		 * not used out of the scope of a series of add_data()*, end().
+		 */
+		if (unlikely(!tmpbuf->size)) {
+			/* this is the first time we need the compression buffer */
+			if (b_alloc(&tmpbuf) == NULL)
+				return -1; /* no memory */
+		}
+		b_reset(tmpbuf);
+		memcpy(bi_end(tmpbuf), comp_ctx->direct_ptr, comp_ctx->direct_len);
+		tmpbuf->i += comp_ctx->direct_len;
+		comp_ctx->direct_ptr = NULL;
+		comp_ctx->direct_len = 0;
+		comp_ctx->queued = tmpbuf;
+		/* fall through buffer copy */
+	}
+
+	if (comp_ctx->queued) {
+		/* data already pending */
+		memcpy(bi_end(comp_ctx->queued), in_data, in_len);
+		comp_ctx->queued->i += in_len;
+		return in_len;
+	}
+
+	comp_ctx->direct_ptr = in_data;
+	comp_ctx->direct_len = in_len;
+	return in_len;
+}
+
+/* Compresses the data accumulated using add_data(), and optionally sends the
+ * format-specific trailer if <finish> is non-null. <out> is expected to have a
+ * large enough free non-wrapping space as verified by http_comp_buffer_init().
+ * The number of bytes emitted is reported.
+ */
+static int rfc195x_flush_or_finish(struct comp_ctx *comp_ctx, struct buffer *out, int finish)
+{
+	struct slz_stream *strm = &comp_ctx->strm;
+	const char *in_ptr;
+	int in_len;
+	int out_len;
+
+	in_ptr = comp_ctx->direct_ptr;
+	in_len = comp_ctx->direct_len;
+
+	if (comp_ctx->queued) {
+		in_ptr = comp_ctx->queued->p;
+		in_len = comp_ctx->queued->i;
+	}
+
+	out_len = out->i;
+
+	if (in_ptr)
+		out->i += slz_encode(strm, bi_end(out), in_ptr, in_len, !finish);
+
+	if (finish)
+		out->i += slz_finish(strm, bi_end(out));
+
+	out_len = out->i - out_len;
+
+	/* very important, we must wipe the data we've just flushed */
+	comp_ctx->direct_len = 0;
+	comp_ctx->direct_ptr = NULL;
+	comp_ctx->queued     = NULL;
+
+	/* Verify compression rate limiting and CPU usage */
+	if ((global.comp_rate_lim > 0 && (read_freq_ctr(&global.comp_bps_out) > global.comp_rate_lim)) ||    /* rate */
+	   (idle_pct < compress_min_idle)) {                                                                 /* idle */
+		if (comp_ctx->cur_lvl > 0)
+			strm->level = --comp_ctx->cur_lvl;
+	}
+	else if (comp_ctx->cur_lvl < global.tune.comp_maxlevel && comp_ctx->cur_lvl < 1) {
+		strm->level = ++comp_ctx->cur_lvl;
+	}
+
+	/* and that's all */
+	return out_len;
+}
+
+static int rfc195x_flush(struct comp_ctx *comp_ctx, struct buffer *out)
+{
+	return rfc195x_flush_or_finish(comp_ctx, out, 0);
+}
+
+static int rfc195x_finish(struct comp_ctx *comp_ctx, struct buffer *out)
+{
+	return rfc195x_flush_or_finish(comp_ctx, out, 1);
+}
+
+/* we just need to free the comp_ctx here, nothing was allocated */
+static int rfc195x_end(struct comp_ctx **comp_ctx)
+{
+	deinit_comp_ctx(comp_ctx);
+	return 0;
+}
+
+#elif defined(USE_ZLIB)  /* ! USE_SLZ */
+
 /*
  * This is a tricky allocation function using the zlib.
  * This is based on the allocation order in deflateInit2.
@@ -719,6 +875,10 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 __attribute__((constructor))
 static void __comp_fetch_init(void)
 {
+#ifdef USE_SLZ
+	slz_make_crc_table();
+	slz_prepare_dist_table();
+#endif
 	acl_register_keywords(&acl_kws);
 	sample_register_fetches(&sample_fetch_keywords);
 }

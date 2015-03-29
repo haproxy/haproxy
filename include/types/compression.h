@@ -23,11 +23,11 @@
 #ifndef _TYPES_COMP_H
 #define _TYPES_COMP_H
 
-#ifdef USE_ZLIB
-
+#if defined(USE_SLZ)
+#include <slz.h>
+#elif defined(USE_ZLIB)
 #include <zlib.h>
-
-#endif /* USE_ZLIB */
+#endif
 
 struct comp {
 	struct comp_algo *algos;
@@ -36,14 +36,19 @@ struct comp {
 };
 
 struct comp_ctx {
-#ifdef USE_ZLIB
+#if defined(USE_SLZ)
+	struct slz_stream strm;
+	const void *direct_ptr; /* NULL or pointer to beginning of data */
+	int direct_len;         /* length of direct_ptr if not NULL */
+	struct buffer *queued;  /* if not NULL, data already queued */
+#elif defined(USE_ZLIB)
 	z_stream strm; /* zlib stream */
 	void *zlib_deflate_state;
 	void *zlib_window;
 	void *zlib_prev;
 	void *zlib_pending_buf;
 	void *zlib_head;
-#endif /* USE_ZLIB */
+#endif
 	int cur_lvl;
 };
 
