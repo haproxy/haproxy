@@ -1125,7 +1125,7 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	LIST_INIT(&s->back_refs);
 	LIST_INIT(&s->buffer_wait);
 
-	s->flags = SN_ASSIGNED|SN_ADDR_SET;
+	s->flags = SF_ASSIGNED|SF_ADDR_SET;
 
 	/* if this session comes from a known monitoring system, we want to ignore
 	 * it as soon as possible, which means closing it immediately for TCP.

@@ -423,7 +423,7 @@ int stream_complete(struct stream *s)
 	LIST_INIT(&s->back_refs);
 	LIST_INIT(&s->buffer_wait);
 
-	s->flags |= SN_INITIALIZED;
+	s->flags |= SF_INITIALIZED;
 	s->unique_id = NULL;
 
 	t->process = l->handler;
@@ -586,8 +586,8 @@ static void stream_free(struct stream *s)
 		pendconn_free(s->pend_pos);
 
 	if (objt_server(s->target)) { /* there may be requests left pending in queue */
-		if (s->flags & SN_CURR_SESS) {
-			s->flags &= ~SN_CURR_SESS;
+		if (s->flags & SF_CURR_SESS) {
+			s->flags &= ~SF_CURR_SESS;
 			objt_server(s->target)->cur_sess--;
 		}
 		if (may_dequeue_tasks(objt_server(s->target), s->be))
@@ -943,8 +943,8 @@ static int sess_update_st_cer(struct stream *s)
 	if (objt_server(s->target)) {
 		health_adjust(objt_server(s->target), HANA_STATUS_L4_ERR);
 
-		if (s->flags & SN_CURR_SESS) {
-			s->flags &= ~SN_CURR_SESS;
+		if (s->flags & SF_CURR_SESS) {
+			s->flags &= ~SF_CURR_SESS;
 			objt_server(s->target)->cur_sess--;
 		}
 	}
@@ -986,14 +986,14 @@ static int sess_update_st_cer(struct stream *s)
 	 */
 	if (objt_server(s->target) &&
 	    (si->conn_retries == 0 ||
-	     (!(s->flags & SN_DIRECT) && s->be->srv_act > 1 &&
+	     (!(s->flags & SF_DIRECT) && s->be->srv_act > 1 &&
 	      ((s->be->lbprm.algo & BE_LB_KIND) == BE_LB_KIND_RR))) &&
-	    s->be->options & PR_O_REDISP && !(s->flags & SN_FORCE_PRST)) {
+	    s->be->options & PR_O_REDISP && !(s->flags & SF_FORCE_PRST)) {
 		sess_change_server(s, NULL);
 		if (may_dequeue_tasks(objt_server(s->target), s->be))
 			process_srv_queue(objt_server(s->target));
 
-		s->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
+		s->flags &= ~(SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET);
 		si->state = SI_ST_REQ;
 	} else {
 		if (objt_server(s->target))
@@ -1101,7 +1101,7 @@ static void sess_update_stream_int(struct stream *s)
 		conn_err = connect_server(s);
 		srv = objt_server(s->target);
 
-		if (conn_err == SN_ERR_NONE) {
+		if (conn_err == SF_ERR_NONE) {
 			/* state = SI_ST_CON or SI_ST_EST now */
 			if (srv)
 				srv_inc_sess_ctr(srv);
@@ -1113,7 +1113,7 @@ static void sess_update_stream_int(struct stream *s)
 		/* We have received a synchronous error. We might have to
 		 * abort, retry immediately or redispatch.
 		 */
-		if (conn_err == SN_ERR_INTERNAL) {
+		if (conn_err == SF_ERR_INTERNAL) {
 			if (!si->err_type) {
 				si->err_type = SI_ET_CONN_OTHER;
 			}
@@ -1164,7 +1164,7 @@ static void sess_update_stream_int(struct stream *s)
 			 * load-balance first and go to the INI state.
 			 */
 			si->exp = TICK_ETERNITY;
-			if (unlikely(!(s->flags & SN_ASSIGNED)))
+			if (unlikely(!(s->flags & SF_ASSIGNED)))
 				si->state = SI_ST_REQ;
 			else {
 				s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
@@ -1236,7 +1236,7 @@ static void sess_update_stream_int(struct stream *s)
 		 * marked "assigned".
 		 * FIXME: Should we force a redispatch attempt when the server is down ?
 		 */
-		if (s->flags & SN_ASSIGNED)
+		if (s->flags & SF_ASSIGNED)
 			si->state = SI_ST_ASS;
 		else
 			si->state = SI_ST_REQ;
@@ -1250,23 +1250,23 @@ static void sess_update_stream_int(struct stream *s)
  */
 static void sess_set_term_flags(struct stream *s)
 {
-	if (!(s->flags & SN_FINST_MASK)) {
+	if (!(s->flags & SF_FINST_MASK)) {
 		if (s->si[1].state < SI_ST_REQ) {
 
 			s->fe->fe_counters.failed_req++;
 			if (s->listener->counters)
 				s->listener->counters->failed_req++;
 
-			s->flags |= SN_FINST_R;
+			s->flags |= SF_FINST_R;
 		}
 		else if (s->si[1].state == SI_ST_QUE)
-			s->flags |= SN_FINST_Q;
+			s->flags |= SF_FINST_Q;
 		else if (s->si[1].state < SI_ST_EST)
-			s->flags |= SN_FINST_C;
+			s->flags |= SF_FINST_C;
 		else if (s->si[1].state == SI_ST_EST || s->si[1].prev_state == SI_ST_EST)
-			s->flags |= SN_FINST_D;
+			s->flags |= SF_FINST_D;
 		else
-			s->flags |= SN_FINST_L;
+			s->flags |= SF_FINST_L;
 	}
 }
 
@@ -1303,7 +1303,7 @@ static void sess_prepare_conn_req(struct stream *s)
 			 * error code to ignore the ERR_LOCAL which is not a
 			 * real error.
 			 */
-			s->flags &= ~(SN_ERR_MASK | SN_FINST_MASK);
+			s->flags &= ~(SF_ERR_MASK | SF_FINST_MASK);
 
 			si_shutr(si);
 			si_shutw(si);
@@ -1372,7 +1372,7 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 		req->analysers);
 
 	/* now check whether we have some switching rules for this request */
-	if (!(s->flags & SN_BE_ASSIGNED)) {
+	if (!(s->flags & SF_BE_ASSIGNED)) {
 		struct switching_rule *rule;
 
 		list_for_each_entry(rule, &s->fe->switching_rules, list) {
@@ -1414,7 +1414,7 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 		 * measure also takes care of correctly setting the default
 		 * backend if any.
 		 */
-		if (!(s->flags & SN_BE_ASSIGNED))
+		if (!(s->flags & SF_BE_ASSIGNED))
 			if (!stream_set_backend(s, s->fe->defbe.be ? s->fe->defbe.be : s->be))
 				goto sw_failed;
 	}
@@ -1441,9 +1441,9 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 		if (ret) {
 			/* no rule, or the rule matches */
 			if (prst_rule->type == PERSIST_TYPE_FORCE) {
-				s->flags |= SN_FORCE_PRST;
+				s->flags |= SF_FORCE_PRST;
 			} else {
-				s->flags |= SN_IGNORE_PRST;
+				s->flags |= SF_IGNORE_PRST;
 			}
 			break;
 		}
@@ -1456,10 +1456,10 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 	channel_abort(&s->req);
 	channel_abort(&s->res);
 
-	if (!(s->flags & SN_ERR_MASK))
-		s->flags |= SN_ERR_RESOURCE;
-	if (!(s->flags & SN_FINST_MASK))
-		s->flags |= SN_FINST_R;
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_RESOURCE;
+	if (!(s->flags & SF_FINST_MASK))
+		s->flags |= SF_FINST_R;
 
 	s->txn.status = 500;
 	s->req.analysers = 0;
@@ -1485,7 +1485,7 @@ static int process_server_rules(struct stream *s, struct channel *req, int an_bi
 		req->buf->i + req->buf->o,
 		req->analysers);
 
-	if (!(s->flags & SN_ASSIGNED)) {
+	if (!(s->flags & SF_ASSIGNED)) {
 		list_for_each_entry(rule, &px->server_rules, list) {
 			int ret;
 
@@ -1499,8 +1499,8 @@ static int process_server_rules(struct stream *s, struct channel *req, int an_bi
 
 				if ((srv->state != SRV_ST_STOPPED) ||
 				    (px->options & PR_O_PERSIST) ||
-				    (s->flags & SN_FORCE_PRST)) {
-					s->flags |= SN_DIRECT | SN_ASSIGNED;
+				    (s->flags & SF_FORCE_PRST)) {
+					s->flags |= SF_DIRECT | SF_ASSIGNED;
 					s->target = &srv->obj_type;
 					break;
 				}
@@ -1571,7 +1571,7 @@ static int process_sticking_rules(struct stream *s, struct channel *req, int an_
 				struct stksess *ts;
 
 				if ((ts = stktable_lookup_key(rule->table.t, key)) != NULL) {
-					if (!(s->flags & SN_ASSIGNED)) {
+					if (!(s->flags & SF_ASSIGNED)) {
 						struct eb32_node *node;
 						void *ptr;
 
@@ -1584,8 +1584,8 @@ static int process_sticking_rules(struct stream *s, struct channel *req, int an_
 							srv = container_of(node, struct server, conf.id);
 							if ((srv->state != SRV_ST_STOPPED) ||
 							    (px->options & PR_O_PERSIST) ||
-							    (s->flags & SN_FORCE_PRST)) {
-								s->flags |= SN_DIRECT | SN_ASSIGNED;
+							    (s->flags & SF_FORCE_PRST)) {
+								s->flags |= SF_DIRECT | SF_ASSIGNED;
 								s->target = &srv->obj_type;
 							}
 						}
@@ -1848,10 +1848,10 @@ struct task *process_stream(struct task *t)
 				s->fe->fe_counters.cli_aborts++;
 				if (srv)
 					srv->counters.cli_aborts++;
-				if (!(s->flags & SN_ERR_MASK))
-					s->flags |= SN_ERR_CLICL;
-				if (!(s->flags & SN_FINST_MASK))
-					s->flags |= SN_FINST_D;
+				if (!(s->flags & SF_ERR_MASK))
+					s->flags |= SF_ERR_CLICL;
+				if (!(s->flags & SF_FINST_MASK))
+					s->flags |= SF_FINST_D;
 			}
 		}
 	}
@@ -1869,10 +1869,10 @@ struct task *process_stream(struct task *t)
 				s->fe->fe_counters.srv_aborts++;
 				if (srv)
 					srv->counters.srv_aborts++;
-				if (!(s->flags & SN_ERR_MASK))
-					s->flags |= SN_ERR_SRVCL;
-				if (!(s->flags & SN_FINST_MASK))
-					s->flags |= SN_FINST_D;
+				if (!(s->flags & SF_ERR_MASK))
+					s->flags |= SF_ERR_SRVCL;
+				if (!(s->flags & SF_FINST_MASK))
+					s->flags |= SF_FINST_D;
 			}
 		}
 		/* note: maybe we should process connection errors here ? */
@@ -1924,8 +1924,8 @@ struct task *process_stream(struct task *t)
 		si_b->state = SI_ST_CLO;
 		srv = objt_server(s->target);
 		if (srv) {
-			if (s->flags & SN_CURR_SESS) {
-				s->flags &= ~SN_CURR_SESS;
+			if (s->flags & SF_CURR_SESS) {
+				s->flags &= ~SF_CURR_SESS;
 				srv->cur_sess--;
 			}
 			sess_change_server(s, NULL);
@@ -2207,7 +2207,7 @@ struct task *process_stream(struct task *t)
 	 * seen any analyser who could set an error status.
 	 */
 	srv = objt_server(s->target);
-	if (unlikely(!(s->flags & SN_ERR_MASK))) {
+	if (unlikely(!(s->flags & SF_ERR_MASK))) {
 		if (req->flags & (CF_READ_ERROR|CF_READ_TIMEOUT|CF_WRITE_ERROR|CF_WRITE_TIMEOUT)) {
 			/* Report it if the client got an error or a read timeout expired */
 			req->analysers = 0;
@@ -2216,28 +2216,28 @@ struct task *process_stream(struct task *t)
 				s->fe->fe_counters.cli_aborts++;
 				if (srv)
 					srv->counters.cli_aborts++;
-				s->flags |= SN_ERR_CLICL;
+				s->flags |= SF_ERR_CLICL;
 			}
 			else if (req->flags & CF_READ_TIMEOUT) {
 				s->be->be_counters.cli_aborts++;
 				s->fe->fe_counters.cli_aborts++;
 				if (srv)
 					srv->counters.cli_aborts++;
-				s->flags |= SN_ERR_CLITO;
+				s->flags |= SF_ERR_CLITO;
 			}
 			else if (req->flags & CF_WRITE_ERROR) {
 				s->be->be_counters.srv_aborts++;
 				s->fe->fe_counters.srv_aborts++;
 				if (srv)
 					srv->counters.srv_aborts++;
-				s->flags |= SN_ERR_SRVCL;
+				s->flags |= SF_ERR_SRVCL;
 			}
 			else {
 				s->be->be_counters.srv_aborts++;
 				s->fe->fe_counters.srv_aborts++;
 				if (srv)
 					srv->counters.srv_aborts++;
-				s->flags |= SN_ERR_SRVTO;
+				s->flags |= SF_ERR_SRVTO;
 			}
 			sess_set_term_flags(s);
 		}
@@ -2249,28 +2249,28 @@ struct task *process_stream(struct task *t)
 				s->fe->fe_counters.srv_aborts++;
 				if (srv)
 					srv->counters.srv_aborts++;
-				s->flags |= SN_ERR_SRVCL;
+				s->flags |= SF_ERR_SRVCL;
 			}
 			else if (res->flags & CF_READ_TIMEOUT) {
 				s->be->be_counters.srv_aborts++;
 				s->fe->fe_counters.srv_aborts++;
 				if (srv)
 					srv->counters.srv_aborts++;
-				s->flags |= SN_ERR_SRVTO;
+				s->flags |= SF_ERR_SRVTO;
 			}
 			else if (res->flags & CF_WRITE_ERROR) {
 				s->be->be_counters.cli_aborts++;
 				s->fe->fe_counters.cli_aborts++;
 				if (srv)
 					srv->counters.cli_aborts++;
-				s->flags |= SN_ERR_CLICL;
+				s->flags |= SF_ERR_CLICL;
 			}
 			else {
 				s->be->be_counters.cli_aborts++;
 				s->fe->fe_counters.cli_aborts++;
 				if (srv)
 					srv->counters.cli_aborts++;
-				s->flags |= SN_ERR_CLITO;
+				s->flags |= SF_ERR_CLITO;
 			}
 			sess_set_term_flags(s);
 		}
@@ -2423,7 +2423,7 @@ struct task *process_stream(struct task *t)
 			}
 
 			srv = objt_server(s->target);
-			if (si_b->state == SI_ST_ASS && srv && srv->rdr_len && (s->flags & SN_REDIRECTABLE))
+			if (si_b->state == SI_ST_ASS && srv && srv->rdr_len && (s->flags & SF_REDIRECTABLE))
 				http_perform_server_redirect(s, si_b);
 		} while (si_b->state == SI_ST_ASS);
 	}
@@ -2588,7 +2588,7 @@ struct task *process_stream(struct task *t)
 	if (likely((si_f->state != SI_ST_CLO) ||
 		   (si_b->state > SI_ST_INI && si_b->state < SI_ST_CLO))) {
 
-		if ((s->fe->options & PR_O_CONTSTATS) && (s->flags & SN_BE_ASSIGNED))
+		if ((s->fe->options & PR_O_CONTSTATS) && (s->flags & SF_BE_ASSIGNED))
 			stream_process_counters(s);
 
 		if (si_f->state == SI_ST_EST && obj_type(si_f->end) != OBJ_TYPE_APPCTX)
@@ -2665,7 +2665,7 @@ struct task *process_stream(struct task *t)
 	}
 
 	s->fe->feconn--;
-	if (s->flags & SN_BE_ASSIGNED)
+	if (s->flags & SF_BE_ASSIGNED)
 		s->be->beconn--;
 	jobs--;
 	if (s->listener) {
@@ -2705,21 +2705,21 @@ struct task *process_stream(struct task *t)
 
 		if (s->fe->mode == PR_MODE_HTTP) {
 			s->fe->fe_counters.p.http.rsp[n]++;
-			if (s->comp_algo && (s->flags & SN_COMP_READY))
+			if (s->comp_algo && (s->flags & SF_COMP_READY))
 				s->fe->fe_counters.p.http.comp_rsp++;
 		}
-		if ((s->flags & SN_BE_ASSIGNED) &&
+		if ((s->flags & SF_BE_ASSIGNED) &&
 		    (s->be->mode == PR_MODE_HTTP)) {
 			s->be->be_counters.p.http.rsp[n]++;
 			s->be->be_counters.p.http.cum_req++;
-			if (s->comp_algo && (s->flags & SN_COMP_READY))
+			if (s->comp_algo && (s->flags & SF_COMP_READY))
 				s->be->be_counters.p.http.comp_rsp++;
 		}
 	}
 
 	/* let's do a final log if we need it */
 	if (!LIST_ISEMPTY(&s->fe->logformat) && s->logs.logwait &&
-	    !(s->flags & SN_MONITOR) &&
+	    !(s->flags & SF_MONITOR) &&
 	    (!(s->fe->options & PR_O_NULLNOLOG) || req->total)) {
 		s->do_log(s);
 	}
@@ -2814,45 +2814,45 @@ void default_srv_error(struct stream *s, struct stream_interface *si)
 	int err = 0, fin = 0;
 
 	if (err_type & SI_ET_QUEUE_ABRT) {
-		err = SN_ERR_CLICL;
-		fin = SN_FINST_Q;
+		err = SF_ERR_CLICL;
+		fin = SF_FINST_Q;
 	}
 	else if (err_type & SI_ET_CONN_ABRT) {
-		err = SN_ERR_CLICL;
-		fin = SN_FINST_C;
+		err = SF_ERR_CLICL;
+		fin = SF_FINST_C;
 	}
 	else if (err_type & SI_ET_QUEUE_TO) {
-		err = SN_ERR_SRVTO;
-		fin = SN_FINST_Q;
+		err = SF_ERR_SRVTO;
+		fin = SF_FINST_Q;
 	}
 	else if (err_type & SI_ET_QUEUE_ERR) {
-		err = SN_ERR_SRVCL;
-		fin = SN_FINST_Q;
+		err = SF_ERR_SRVCL;
+		fin = SF_FINST_Q;
 	}
 	else if (err_type & SI_ET_CONN_TO) {
-		err = SN_ERR_SRVTO;
-		fin = SN_FINST_C;
+		err = SF_ERR_SRVTO;
+		fin = SF_FINST_C;
 	}
 	else if (err_type & SI_ET_CONN_ERR) {
-		err = SN_ERR_SRVCL;
-		fin = SN_FINST_C;
+		err = SF_ERR_SRVCL;
+		fin = SF_FINST_C;
 	}
 	else if (err_type & SI_ET_CONN_RES) {
-		err = SN_ERR_RESOURCE;
-		fin = SN_FINST_C;
+		err = SF_ERR_RESOURCE;
+		fin = SF_FINST_C;
 	}
 	else /* SI_ET_CONN_OTHER and others */ {
-		err = SN_ERR_INTERNAL;
-		fin = SN_FINST_C;
+		err = SF_ERR_INTERNAL;
+		fin = SF_FINST_C;
 	}
 
-	if (!(s->flags & SN_ERR_MASK))
+	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= err;
-	if (!(s->flags & SN_FINST_MASK))
+	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= fin;
 }
 
-/* kill a stream and set the termination flags to <why> (one of SN_ERR_*) */
+/* kill a stream and set the termination flags to <why> (one of SF_ERR_*) */
 void stream_shutdown(struct stream *stream, int why)
 {
 	if (stream->req.flags & (CF_SHUTW|CF_SHUTW_NOW))
@@ -2861,7 +2861,7 @@ void stream_shutdown(struct stream *stream, int why)
 	channel_shutw_now(&stream->req);
 	channel_shutr_now(&stream->res);
 	stream->task->nice = 1024;
-	if (!(stream->flags & SN_ERR_MASK))
+	if (!(stream->flags & SF_ERR_MASK))
 		stream->flags |= why;
 	task_wakeup(stream->task, TASK_WOKEN_OTHER);
 }

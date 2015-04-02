@@ -41,7 +41,7 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr);
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_stream();
 
-/* kill a stream and set the termination flags to <why> (one of SN_ERR_*) */
+/* kill a stream and set the termination flags to <why> (one of SF_ERR_*) */
 void stream_shutdown(struct stream *stream, int why);
 
 void stream_process_counters(struct stream *s);

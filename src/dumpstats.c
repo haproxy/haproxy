@@ -2008,7 +2008,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				return 1;
 			}
 
-			stream_shutdown(sess, SN_ERR_KILLED);
+			stream_shutdown(sess, SF_ERR_KILLED);
 			return 1;
 		}
 		else if (strcmp(args[1], "sessions") == 0) {
@@ -2023,7 +2023,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				/* kill all the stream that are on this server */
 				list_for_each_entry_safe(sess, sess_bck, &sv->actconns, by_srv)
 					if (sess->srv_conn == sv)
-						stream_shutdown(sess, SN_ERR_KILLED);
+						stream_shutdown(sess, SF_ERR_KILLED);
 
 				return 1;
 			}
@@ -4674,7 +4674,7 @@ static int stats_process_http_post(struct stream_interface *si)
 
 							list_for_each_entry_safe(sess, sess_bck, &sv->actconns, by_srv)
 								if (sess->srv_conn == sv)
-									stream_shutdown(sess, SN_ERR_KILLED);
+									stream_shutdown(sess, SF_ERR_KILLED);
 
 							altered_servers++;
 							total_servers++;

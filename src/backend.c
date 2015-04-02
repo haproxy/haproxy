@@ -499,7 +499,7 @@ struct server *get_server_rch(struct stream *s)
  * defined by the backend it is assigned to. The stream is then marked as
  * 'assigned'.
  *
- * This function MAY NOT be called with SN_ASSIGNED already set. If the stream
+ * This function MAY NOT be called with SF_ASSIGNED already set. If the stream
  * had a server previously assigned, it is rebalanced, trying to avoid the same
  * server, which should still be present in target_srv(&s->target) before the call.
  * The function tries to keep the original connection slot if it reconnects to
@@ -513,7 +513,7 @@ struct server *get_server_rch(struct stream *s)
  *   SRV_STATUS_FULL     if all servers are saturated. Stream is not ASSIGNED
  *   SRV_STATUS_INTERNAL for other unrecoverable errors.
  *
- * Upon successful return, the stream flag SN_ASSIGNED is set to indicate that
+ * Upon successful return, the stream flag SF_ASSIGNED is set to indicate that
  * it does not need to be called anymore. This means that target_srv(&s->target)
  * can be trusted in balance and direct modes.
  *
@@ -529,7 +529,7 @@ int assign_server(struct stream *s)
 	DPRINTF(stderr,"assign_server : s=%p\n",s);
 
 	err = SRV_STATUS_INTERNAL;
-	if (unlikely(s->pend_pos || s->flags & SN_ASSIGNED))
+	if (unlikely(s->pend_pos || s->flags & SF_ASSIGNED))
 		goto out_err;
 
 	prev_srv  = objt_server(s->target);
@@ -708,7 +708,7 @@ int assign_server(struct stream *s)
 		goto out;
 	}
 
-	s->flags |= SN_ASSIGNED;
+	s->flags |= SF_ASSIGNED;
 	err = SRV_STATUS_OK;
  out:
 
@@ -729,7 +729,7 @@ int assign_server(struct stream *s)
 }
 
 /*
- * This function assigns a server address to a stream, and sets SN_ADDR_SET.
+ * This function assigns a server address to a stream, and sets SF_ADDR_SET.
  * The address is taken from the currently assigned server, or from the
  * dispatch or transparent address.
  *
@@ -737,7 +737,7 @@ int assign_server(struct stream *s)
  *   SRV_STATUS_OK       if everything is OK.
  *   SRV_STATUS_INTERNAL for other unrecoverable errors.
  *
- * Upon successful return, the stream flag SN_ADDR_SET is set. This flag is
+ * Upon successful return, the stream flag SF_ADDR_SET is set. This flag is
  * not cleared, so it's to the caller to clear it if required.
  *
  * The caller is responsible for having already assigned a connection
@@ -753,9 +753,9 @@ int assign_server_address(struct stream *s)
 	fprintf(stderr,"assign_server_address : s=%p\n",s);
 #endif
 
-	if ((s->flags & SN_DIRECT) || (s->be->lbprm.algo & BE_LB_KIND)) {
+	if ((s->flags & SF_DIRECT) || (s->be->lbprm.algo & BE_LB_KIND)) {
 		/* A server is necessarily known for this stream */
-		if (!(s->flags & SN_ASSIGNED))
+		if (!(s->flags & SF_ASSIGNED))
 			return SRV_STATUS_INTERNAL;
 
 		srv_conn->addr.to = objt_server(s->target)->addr;
@@ -813,14 +813,14 @@ int assign_server_address(struct stream *s)
 	/* Copy network namespace from client connection */
 	srv_conn->proxy_netns = cli_conn ? cli_conn->proxy_netns : NULL;
 
-	s->flags |= SN_ADDR_SET;
+	s->flags |= SF_ADDR_SET;
 	return SRV_STATUS_OK;
 }
 
 /* This function assigns a server to stream <s> if required, and can add the
  * connection to either the assigned server's queue or to the proxy's queue.
  * If ->srv_conn is set, the stream is first released from the server.
- * It may also be called with SN_DIRECT and/or SN_ASSIGNED though. It will
+ * It may also be called with SF_DIRECT and/or SF_ASSIGNED though. It will
  * be called before any connection and after any retry or redispatch occurs.
  *
  * It is not allowed to call this function with a stream in a queue.
@@ -846,7 +846,7 @@ int assign_server_and_queue(struct stream *s)
 		return SRV_STATUS_INTERNAL;
 
 	err = SRV_STATUS_OK;
-	if (!(s->flags & SN_ASSIGNED)) {
+	if (!(s->flags & SF_ASSIGNED)) {
 		struct server *prev_srv = objt_server(s->target);
 
 		err = assign_server(s);
@@ -855,7 +855,7 @@ int assign_server_and_queue(struct stream *s)
 			 * update the stream's and the server's stats :
 			 *  - if the server changed :
 			 *    - set TX_CK_DOWN if txn.flags was TX_CK_VALID
-			 *    - set SN_REDISP if it was successfully redispatched
+			 *    - set SF_REDISP if it was successfully redispatched
 			 *    - increment srv->redispatches and be->redispatches
 			 *  - if the server remained the same : update retries.
 			 */
@@ -865,7 +865,7 @@ int assign_server_and_queue(struct stream *s)
 					s->txn.flags &= ~TX_CK_MASK;
 					s->txn.flags |= TX_CK_DOWN;
 				}
-				s->flags |= SN_REDISP;
+				s->flags |= SF_REDISP;
 				prev_srv->counters.redispatches++;
 				s->be->be_counters.redispatches++;
 			} else {
@@ -877,7 +877,7 @@ int assign_server_and_queue(struct stream *s)
 
 	switch (err) {
 	case SRV_STATUS_OK:
-		/* we have SN_ASSIGNED set */
+		/* we have SF_ASSIGNED set */
 		srv = objt_server(s->target);
 		if (!srv)
 			return SRV_STATUS_OK;   /* dispatch or proxy mode */
@@ -890,7 +890,7 @@ int assign_server_and_queue(struct stream *s)
 		 * connection slot yet. Either it is a redispatch, or it was
 		 * assigned from persistence information (direct mode).
 		 */
-		if ((s->flags & SN_REDIRECTABLE) && srv->rdr_len) {
+		if ((s->flags & SF_REDIRECTABLE) && srv->rdr_len) {
 			/* server scheduled for redirection, and already assigned. We
 			 * don't want to go further nor check the queue.
 			 */
@@ -1004,13 +1004,13 @@ static void assign_tproxy_address(struct stream *s)
  * (s->target, s->si[1].addr.to). It will assign a server if none
  * is assigned yet.
  * It can return one of :
- *  - SN_ERR_NONE if everything's OK
- *  - SN_ERR_SRVTO if there are no more servers
- *  - SN_ERR_SRVCL if the connection was refused by the server
- *  - SN_ERR_PRXCOND if the connection has been limited by the proxy (maxconn)
- *  - SN_ERR_RESOURCE if a system resource is lacking (eg: fd limits, ports, ...)
- *  - SN_ERR_INTERNAL for any other purely internal errors
- * Additionnally, in the case of SN_ERR_RESOURCE, an emergency log will be emitted.
+ *  - SF_ERR_NONE if everything's OK
+ *  - SF_ERR_SRVTO if there are no more servers
+ *  - SF_ERR_SRVCL if the connection was refused by the server
+ *  - SF_ERR_PRXCOND if the connection has been limited by the proxy (maxconn)
+ *  - SF_ERR_RESOURCE if a system resource is lacking (eg: fd limits, ports, ...)
+ *  - SF_ERR_INTERNAL for any other purely internal errors
+ * Additionnally, in the case of SF_ERR_RESOURCE, an emergency log will be emitted.
  * The server-facing stream interface is expected to hold a pre-allocated connection
  * in s->si[1].conn.
  */
@@ -1045,12 +1045,12 @@ int connect_server(struct stream *s)
 
 	srv_conn = si_alloc_conn(&s->si[1], reuse);
 	if (!srv_conn)
-		return SN_ERR_RESOURCE;
+		return SF_ERR_RESOURCE;
 
-	if (!(s->flags & SN_ADDR_SET)) {
+	if (!(s->flags & SF_ADDR_SET)) {
 		err = assign_server_address(s);
 		if (err != SRV_STATUS_OK)
-			return SN_ERR_INTERNAL;
+			return SF_ERR_INTERNAL;
 	}
 
 	if (!conn_xprt_ready(srv_conn)) {
@@ -1065,10 +1065,10 @@ int connect_server(struct stream *s)
 			/* proxies exclusively run on raw_sock right now */
 			conn_prepare(srv_conn, protocol_by_family(srv_conn->addr.to.ss_family), &raw_sock);
 			if (!objt_conn(s->si[1].end) || !objt_conn(s->si[1].end)->ctrl)
-				return SN_ERR_INTERNAL;
+				return SF_ERR_INTERNAL;
 		}
 		else
-			return SN_ERR_INTERNAL;  /* how did we get there ? */
+			return SF_ERR_INTERNAL;  /* how did we get there ? */
 
 		/* process the case where the server requires the PROXY protocol to be sent */
 		srv_conn->send_proxy_ofs = 0;
@@ -1086,7 +1086,7 @@ int connect_server(struct stream *s)
 	else {
 		/* the connection is being reused, just re-attach it */
 		si_attach_conn(&s->si[1], srv_conn);
-		s->flags |= SN_SRV_REUSED;
+		s->flags |= SF_SRV_REUSED;
 	}
 
 	/* flag for logging source ip/port */
@@ -1099,7 +1099,7 @@ int connect_server(struct stream *s)
 
 	err = si_connect(&s->si[1]);
 
-	if (err != SN_ERR_NONE)
+	if (err != SF_ERR_NONE)
 		return err;
 
 	/* set connect timeout */
@@ -1107,7 +1107,7 @@ int connect_server(struct stream *s)
 
 	srv = objt_server(s->target);
 	if (srv) {
-		s->flags |= SN_CURR_SESS;
+		s->flags |= SF_CURR_SESS;
 		srv->cur_sess++;
 		if (srv->cur_sess > srv->counters.cur_sess_max)
 			srv->counters.cur_sess_max = srv->cur_sess;
@@ -1115,7 +1115,7 @@ int connect_server(struct stream *s)
 			s->be->lbprm.server_take_conn(srv);
 	}
 
-	return SN_ERR_NONE;  /* connection is OK */
+	return SF_ERR_NONE;  /* connection is OK */
 }
 
 
@@ -1151,9 +1151,9 @@ int srv_redispatch_connect(struct stream *s)
 		 * would bring us on the same server again. Note that s->target is set
 		 * in this case.
 		 */
-		if (((s->flags & (SN_DIRECT|SN_FORCE_PRST)) == SN_DIRECT) &&
+		if (((s->flags & (SF_DIRECT|SF_FORCE_PRST)) == SF_DIRECT) &&
 		    (s->be->options & PR_O_REDISP)) {
-			s->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
+			s->flags &= ~(SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET);
 			goto redispatch;
 		}
 
@@ -1241,7 +1241,7 @@ int tcp_persist_rdp_cookie(struct stream *s, struct channel *req, int an_bit)
 		req->buf->i,
 		req->analysers);
 
-	if (s->flags & SN_ASSIGNED)
+	if (s->flags & SF_ASSIGNED)
 		goto no_cookie;
 
 	memset(&smp, 0, sizeof(smp));
@@ -1268,7 +1268,7 @@ int tcp_persist_rdp_cookie(struct stream *s, struct channel *req, int an_bit)
 		    memcmp(&addr, &(srv->addr), sizeof(addr)) == 0) {
 			if ((srv->state != SRV_ST_STOPPED) || (px->options & PR_O_PERSIST)) {
 				/* we found the server and it is usable */
-				s->flags |= SN_DIRECT | SN_ASSIGNED;
+				s->flags |= SF_DIRECT | SF_ASSIGNED;
 				s->target = &srv->obj_type;
 				break;
 			}

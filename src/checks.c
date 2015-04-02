@@ -1389,14 +1389,14 @@ static struct task *server_warmup(struct task *t)
  * establish a server health-check that makes use of a connection.
  *
  * It can return one of :
- *  - SN_ERR_NONE if everything's OK and tcpcheck_main() was not called
- *  - SN_ERR_UP if if everything's OK and tcpcheck_main() was called
- *  - SN_ERR_SRVTO if there are no more servers
- *  - SN_ERR_SRVCL if the connection was refused by the server
- *  - SN_ERR_PRXCOND if the connection has been limited by the proxy (maxconn)
- *  - SN_ERR_RESOURCE if a system resource is lacking (eg: fd limits, ports, ...)
- *  - SN_ERR_INTERNAL for any other purely internal errors
- * Additionnally, in the case of SN_ERR_RESOURCE, an emergency log will be emitted.
+ *  - SF_ERR_NONE if everything's OK and tcpcheck_main() was not called
+ *  - SF_ERR_UP if if everything's OK and tcpcheck_main() was called
+ *  - SF_ERR_SRVTO if there are no more servers
+ *  - SF_ERR_SRVCL if the connection was refused by the server
+ *  - SF_ERR_PRXCOND if the connection has been limited by the proxy (maxconn)
+ *  - SF_ERR_RESOURCE if a system resource is lacking (eg: fd limits, ports, ...)
+ *  - SF_ERR_INTERNAL for any other purely internal errors
+ * Additionnally, in the case of SF_ERR_RESOURCE, an emergency log will be emitted.
  * Note that we try to prevent the network stack from sending the ACK during the
  * connect() when a pure TCP check is used (without PROXY protocol).
  */
@@ -1474,13 +1474,13 @@ static int connect_conn_chk(struct task *t)
 		/* if first step is a 'connect', then tcpcheck_main must run it */
 		if (r->action == TCPCHK_ACT_CONNECT) {
 			tcpcheck_main(conn);
-			return SN_ERR_UP;
+			return SF_ERR_UP;
 		}
 		if (r->action == TCPCHK_ACT_EXPECT)
 			quickack = 0;
 	}
 
-	ret = SN_ERR_INTERNAL;
+	ret = SF_ERR_INTERNAL;
 	if (proto->connect)
 		ret = proto->connect(conn, check->type, quickack ? 2 : 0);
 	conn->flags |= CO_FL_WAKE_DATA;
@@ -1763,13 +1763,13 @@ err:
  * establish a server health-check that makes use of a process.
  *
  * It can return one of :
- *  - SN_ERR_NONE if everything's OK
- *  - SN_ERR_SRVTO if there are no more servers
- *  - SN_ERR_SRVCL if the connection was refused by the server
- *  - SN_ERR_PRXCOND if the connection has been limited by the proxy (maxconn)
- *  - SN_ERR_RESOURCE if a system resource is lacking (eg: fd limits, ports, ...)
- *  - SN_ERR_INTERNAL for any other purely internal errors
- * Additionnally, in the case of SN_ERR_RESOURCE, an emergency log will be emitted.
+ *  - SF_ERR_NONE if everything's OK
+ *  - SF_ERR_SRVTO if there are no more servers
+ *  - SF_ERR_SRVCL if the connection was refused by the server
+ *  - SF_ERR_PRXCOND if the connection has been limited by the proxy (maxconn)
+ *  - SF_ERR_RESOURCE if a system resource is lacking (eg: fd limits, ports, ...)
+ *  - SF_ERR_INTERNAL for any other purely internal errors
+ * Additionnally, in the case of SF_ERR_RESOURCE, an emergency log will be emitted.
  *
  * Blocks and then unblocks SIGCHLD
  */
@@ -1782,7 +1782,7 @@ static int connect_proc_chk(struct task *t)
 	int status;
 	pid_t pid;
 
-	status = SN_ERR_RESOURCE;
+	status = SF_ERR_RESOURCE;
 
 	block_sigchld();
 
@@ -1813,7 +1813,7 @@ static int connect_proc_chk(struct task *t)
 				int t_con = tick_add(now_ms, px->timeout.connect);
 				t->expire = tick_first(t->expire, t_con);
 			}
-			status = SN_ERR_NONE;
+			status = SF_ERR_NONE;
 			goto out;
 		}
 		else {
@@ -1862,9 +1862,9 @@ static struct task *process_chk_proc(struct task *t)
 
 		ret = connect_proc_chk(t);
 		switch (ret) {
-		case SN_ERR_UP:
+		case SF_ERR_UP:
 			return t;
-		case SN_ERR_NONE:
+		case SF_ERR_NONE:
 			/* we allow up to min(inter, timeout.connect) for a connection
 			 * to establish but only when timeout.check is set
 			 * as it may be to short for a full check otherwise
@@ -1878,14 +1878,14 @@ static struct task *process_chk_proc(struct task *t)
 
 			goto reschedule;
 
-		case SN_ERR_SRVTO: /* ETIMEDOUT */
-		case SN_ERR_SRVCL: /* ECONNREFUSED, ENETUNREACH, ... */
+		case SF_ERR_SRVTO: /* ETIMEDOUT */
+		case SF_ERR_SRVCL: /* ECONNREFUSED, ENETUNREACH, ... */
 			conn->flags |= CO_FL_ERROR;
 			chk_report_conn_err(conn, errno, 0);
 			break;
-		case SN_ERR_PRXCOND:
-		case SN_ERR_RESOURCE:
-		case SN_ERR_INTERNAL:
+		case SF_ERR_PRXCOND:
+		case SF_ERR_RESOURCE:
+		case SF_ERR_INTERNAL:
 			conn->flags |= CO_FL_ERROR;
 			chk_report_conn_err(conn, 0, 0);
 			break;
@@ -2005,9 +2005,9 @@ static struct task *process_chk_conn(struct task *t)
 
 		ret = connect_conn_chk(t);
 		switch (ret) {
-		case SN_ERR_UP:
+		case SF_ERR_UP:
 			return t;
-		case SN_ERR_NONE:
+		case SF_ERR_NONE:
 			/* we allow up to min(inter, timeout.connect) for a connection
 			 * to establish but only when timeout.check is set
 			 * as it may be to short for a full check otherwise
@@ -2024,14 +2024,14 @@ static struct task *process_chk_conn(struct task *t)
 
 			goto reschedule;
 
-		case SN_ERR_SRVTO: /* ETIMEDOUT */
-		case SN_ERR_SRVCL: /* ECONNREFUSED, ENETUNREACH, ... */
+		case SF_ERR_SRVTO: /* ETIMEDOUT */
+		case SF_ERR_SRVCL: /* ECONNREFUSED, ENETUNREACH, ... */
 			conn->flags |= CO_FL_ERROR;
 			chk_report_conn_err(conn, errno, 0);
 			break;
-		case SN_ERR_PRXCOND:
-		case SN_ERR_RESOURCE:
-		case SN_ERR_INTERNAL:
+		case SF_ERR_PRXCOND:
+		case SF_ERR_RESOURCE:
+		case SF_ERR_INTERNAL:
 			conn->flags |= CO_FL_ERROR;
 			chk_report_conn_err(conn, 0, 0);
 			break;
@@ -2532,7 +2532,7 @@ static void tcpcheck_main(struct connection *conn)
 #endif /* USE_OPENSSL */
 			conn_prepare(conn, proto, xprt);
 
-			ret = SN_ERR_INTERNAL;
+			ret = SF_ERR_INTERNAL;
 			if (proto->connect)
 				ret = proto->connect(conn,
 						     1 /* I/O polling is always needed */,
@@ -2544,18 +2544,18 @@ static void tcpcheck_main(struct connection *conn)
 			}
 
 			/* It can return one of :
-			 *  - SN_ERR_NONE if everything's OK
-			 *  - SN_ERR_SRVTO if there are no more servers
-			 *  - SN_ERR_SRVCL if the connection was refused by the server
-			 *  - SN_ERR_PRXCOND if the connection has been limited by the proxy (maxconn)
-			 *  - SN_ERR_RESOURCE if a system resource is lacking (eg: fd limits, ports, ...)
-			 *  - SN_ERR_INTERNAL for any other purely internal errors
-			 * Additionnally, in the case of SN_ERR_RESOURCE, an emergency log will be emitted.
+			 *  - SF_ERR_NONE if everything's OK
+			 *  - SF_ERR_SRVTO if there are no more servers
+			 *  - SF_ERR_SRVCL if the connection was refused by the server
+			 *  - SF_ERR_PRXCOND if the connection has been limited by the proxy (maxconn)
+			 *  - SF_ERR_RESOURCE if a system resource is lacking (eg: fd limits, ports, ...)
+			 *  - SF_ERR_INTERNAL for any other purely internal errors
+			 * Additionnally, in the case of SF_ERR_RESOURCE, an emergency log will be emitted.
 			 * Note that we try to prevent the network stack from sending the ACK during the
 			 * connect() when a pure TCP check is used (without PROXY protocol).
 			 */
 			switch (ret) {
-			case SN_ERR_NONE:
+			case SF_ERR_NONE:
 				/* we allow up to min(inter, timeout.connect) for a connection
 				 * to establish but only when timeout.check is set
 				 * as it may be to short for a full check otherwise
@@ -2567,15 +2567,15 @@ static void tcpcheck_main(struct connection *conn)
 					t->expire = tick_first(t->expire, t_con);
 				}
 				break;
-			case SN_ERR_SRVTO: /* ETIMEDOUT */
-			case SN_ERR_SRVCL: /* ECONNREFUSED, ENETUNREACH, ... */
+			case SF_ERR_SRVTO: /* ETIMEDOUT */
+			case SF_ERR_SRVCL: /* ECONNREFUSED, ENETUNREACH, ... */
 				chunk_printf(&trash, "TCPCHK error establishing connection at step %d: %s",
 						tcpcheck_get_step_id(check), strerror(errno));
 				set_server_check_status(check, HCHK_STATUS_L4CON, trash.str);
 				goto out_end_tcpcheck;
-			case SN_ERR_PRXCOND:
-			case SN_ERR_RESOURCE:
-			case SN_ERR_INTERNAL:
+			case SF_ERR_PRXCOND:
+			case SF_ERR_RESOURCE:
+			case SF_ERR_INTERNAL:
 				chunk_printf(&trash, "TCPCHK error establishing connection at step %d",
 						tcpcheck_get_step_id(check));
 				set_server_check_status(check, HCHK_STATUS_SOCKERR, trash.str);

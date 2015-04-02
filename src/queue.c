@@ -122,7 +122,7 @@ struct stream *pendconn_get_next_strm(struct server *srv, struct proxy *px)
 	pendconn_free(ps);
 
 	/* we want to note that the stream has now been assigned a server */
-	strm->flags |= SN_ASSIGNED;
+	strm->flags |= SF_ASSIGNED;
 	strm->target = &srv->obj_type;
 	stream_add_srv_conn(strm, srv);
 	srv->served++;
@@ -151,7 +151,7 @@ struct pendconn *pendconn_add(struct stream *strm)
 	p->strm = strm;
 	p->srv = srv = objt_server(strm->target);
 
-	if (strm->flags & SN_ASSIGNED && srv) {
+	if (strm->flags & SF_ASSIGNED && srv) {
 		LIST_ADDQ(&srv->pendconns, &p->list);
 		srv->nbpend++;
 		strm->logs.srv_queue_size += srv->nbpend;
@@ -180,13 +180,13 @@ int pendconn_redistribute(struct server *s)
 		struct stream *strm = pc->strm;
 
 		if ((strm->be->options & (PR_O_REDISP|PR_O_PERSIST)) == PR_O_REDISP &&
-		    !(strm->flags & SN_FORCE_PRST)) {
+		    !(strm->flags & SF_FORCE_PRST)) {
 			/* The REDISP option was specified. We will ignore
 			 * cookie and force to balance or use the dispatcher.
 			 */
 
 			/* it's left to the dispatcher to choose a server */
-			strm->flags &= ~(SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET);
+			strm->flags &= ~(SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET);
 
 			pendconn_free(pc);
 			task_wakeup(strm->task, TASK_WOKEN_RES);

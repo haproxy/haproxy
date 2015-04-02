@@ -920,13 +920,13 @@ void resume_proxies(void)
 
 /* Set current stream's backend to <be>. Nothing is done if the
  * stream already had a backend assigned, which is indicated by
- * s->flags & SN_BE_ASSIGNED.
+ * s->flags & SF_BE_ASSIGNED.
  * All flags, stats and counters which need be updated are updated.
  * Returns 1 if done, 0 in case of internal error, eg: lack of resource.
  */
 int stream_set_backend(struct stream *s, struct proxy *be)
 {
-	if (s->flags & SN_BE_ASSIGNED)
+	if (s->flags & SF_BE_ASSIGNED)
 		return 1;
 	s->be = be;
 	be->beconn++;
@@ -941,7 +941,7 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 
 	if (be->options2 & PR_O2_RSPBUG_OK)
 		s->txn.rsp.err_pos = -1; /* let buggy responses pass */
-	s->flags |= SN_BE_ASSIGNED;
+	s->flags |= SF_BE_ASSIGNED;
 
 	/* If the target backend requires HTTP processing, we have to allocate
 	 * a struct hdr_idx for it if we did not have one.

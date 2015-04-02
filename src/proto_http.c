@@ -836,9 +836,9 @@ static void http_server_error(struct stream *s, struct stream_interface *si,
 		s->txn.status = status;
 		bo_inject(si_ic(si), msg->str, msg->len);
 	}
-	if (!(s->flags & SN_ERR_MASK))
+	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= err;
-	if (!(s->flags & SN_FINST_MASK))
+	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= finst;
 }
 
@@ -1032,7 +1032,7 @@ void http_perform_server_redirect(struct stream *s, struct stream_interface *si)
 	si->state    = SI_ST_CLO;
 
 	/* send the message */
-	http_server_error(s, si, SN_ERR_LOCAL, SN_FINST_C, 302, &trash);
+	http_server_error(s, si, SF_ERR_LOCAL, SF_FINST_C, 302, &trash);
 
 	/* FIXME: we should increase a counter of redirects per server and per backend. */
 	srv_inc_sess_ctr(srv);
@@ -1055,32 +1055,32 @@ void http_return_srv_error(struct stream *s, struct stream_interface *si)
 	int err_type = si->err_type;
 
 	if (err_type & SI_ET_QUEUE_ABRT)
-		http_server_error(s, si, SN_ERR_CLICL, SN_FINST_Q,
+		http_server_error(s, si, SF_ERR_CLICL, SF_FINST_Q,
 				  503, http_error_message(s, HTTP_ERR_503));
 	else if (err_type & SI_ET_CONN_ABRT)
-		http_server_error(s, si, SN_ERR_CLICL, SN_FINST_C,
+		http_server_error(s, si, SF_ERR_CLICL, SF_FINST_C,
 				  503, (s->txn.flags & TX_NOT_FIRST) ? NULL :
 				  http_error_message(s, HTTP_ERR_503));
 	else if (err_type & SI_ET_QUEUE_TO)
-		http_server_error(s, si, SN_ERR_SRVTO, SN_FINST_Q,
+		http_server_error(s, si, SF_ERR_SRVTO, SF_FINST_Q,
 				  503, http_error_message(s, HTTP_ERR_503));
 	else if (err_type & SI_ET_QUEUE_ERR)
-		http_server_error(s, si, SN_ERR_SRVCL, SN_FINST_Q,
+		http_server_error(s, si, SF_ERR_SRVCL, SF_FINST_Q,
 				  503, http_error_message(s, HTTP_ERR_503));
 	else if (err_type & SI_ET_CONN_TO)
-		http_server_error(s, si, SN_ERR_SRVTO, SN_FINST_C,
+		http_server_error(s, si, SF_ERR_SRVTO, SF_FINST_C,
 				  503, (s->txn.flags & TX_NOT_FIRST) ? NULL :
 				  http_error_message(s, HTTP_ERR_503));
 	else if (err_type & SI_ET_CONN_ERR)
-		http_server_error(s, si, SN_ERR_SRVCL, SN_FINST_C,
-				  503, (s->flags & SN_SRV_REUSED) ? NULL :
+		http_server_error(s, si, SF_ERR_SRVCL, SF_FINST_C,
+				  503, (s->flags & SF_SRV_REUSED) ? NULL :
 				  http_error_message(s, HTTP_ERR_503));
 	else if (err_type & SI_ET_CONN_RES)
-		http_server_error(s, si, SN_ERR_RESOURCE, SN_FINST_C,
+		http_server_error(s, si, SF_ERR_RESOURCE, SF_FINST_C,
 				  503, (s->txn.flags & TX_NOT_FIRST) ? NULL :
 				  http_error_message(s, HTTP_ERR_503));
 	else /* SI_ET_CONN_OTHER and others */
-		http_server_error(s, si, SN_ERR_INTERNAL, SN_FINST_C,
+		http_server_error(s, si, SF_ERR_INTERNAL, SF_FINST_C,
 				  500, http_error_message(s, HTTP_ERR_500));
 }
 
@@ -2428,7 +2428,7 @@ int select_compression_response_header(struct stream *s, struct buffer *res)
 	if (s->comp_algo->init(&s->comp_ctx, global.tune.comp_maxlevel) < 0)
 		goto fail;
 
-	s->flags |= SN_COMP_READY;
+	s->flags |= SF_COMP_READY;
 
 	/* remove Content-Length header */
 	ctx.idx = 0;
@@ -2539,7 +2539,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	 *   msg->next          = first non-visited byte
 	 *
 	 * At end of parsing, we may perform a capture of the error (if any), and
-	 * we will set a few fields (txn->meth, sn->flags/SN_REDIRECTABLE).
+	 * we will set a few fields (txn->meth, sn->flags/SF_REDIRECTABLE).
 	 * We also check for monitor-uri, logging, HTTP/0.9 to 1.0 conversion, and
 	 * finally headers capture.
 	 */
@@ -2682,8 +2682,8 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
 		/* 2: have we encountered a read error ? */
 		else if (req->flags & CF_READ_ERROR) {
-			if (!(s->flags & SN_ERR_MASK))
-				s->flags |= SN_ERR_CLICL;
+			if (!(s->flags & SF_ERR_MASK))
+				s->flags |= SF_ERR_CLICL;
 
 			if (txn->flags & TX_WAIT_NEXT_RQ)
 				goto failed_keep_alive;
@@ -2705,15 +2705,15 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			if (s->listener->counters)
 				s->listener->counters->failed_req++;
 
-			if (!(s->flags & SN_FINST_MASK))
-				s->flags |= SN_FINST_R;
+			if (!(s->flags & SF_FINST_MASK))
+				s->flags |= SF_FINST_R;
 			return 0;
 		}
 
 		/* 3: has the read timeout expired ? */
 		else if (req->flags & CF_READ_TIMEOUT || tick_is_expired(req->analyse_exp, now_ms)) {
-			if (!(s->flags & SN_ERR_MASK))
-				s->flags |= SN_ERR_CLITO;
+			if (!(s->flags & SF_ERR_MASK))
+				s->flags |= SF_ERR_CLITO;
 
 			if (txn->flags & TX_WAIT_NEXT_RQ)
 				goto failed_keep_alive;
@@ -2734,15 +2734,15 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			if (s->listener->counters)
 				s->listener->counters->failed_req++;
 
-			if (!(s->flags & SN_FINST_MASK))
-				s->flags |= SN_FINST_R;
+			if (!(s->flags & SF_FINST_MASK))
+				s->flags |= SF_FINST_R;
 			return 0;
 		}
 
 		/* 4: have we encountered a close ? */
 		else if (req->flags & CF_SHUTR) {
-			if (!(s->flags & SN_ERR_MASK))
-				s->flags |= SN_ERR_CLICL;
+			if (!(s->flags & SF_ERR_MASK))
+				s->flags |= SF_ERR_CLICL;
 
 			if (txn->flags & TX_WAIT_NEXT_RQ)
 				goto failed_keep_alive;
@@ -2761,8 +2761,8 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			if (s->listener->counters)
 				s->listener->counters->failed_req++;
 
-			if (!(s->flags & SN_FINST_MASK))
-				s->flags |= SN_FINST_R;
+			if (!(s->flags & SF_FINST_MASK))
+				s->flags |= SF_FINST_R;
 			return 0;
 		}
 
@@ -2849,7 +2849,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
 	/* we can make use of server redirect on GET and HEAD */
 	if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
-		s->flags |= SN_REDIRECTABLE;
+		s->flags |= SF_REDIRECTABLE;
 
 	/*
 	 * 2: check if the URI matches the monitor_uri.
@@ -2866,7 +2866,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 		 */
 		struct acl_cond *cond;
 
-		s->flags |= SN_MONITOR;
+		s->flags |= SF_MONITOR;
 		s->fe->fe_counters.intercepted_req++;
 
 		/* Check if we want to fail this monitor request or not */
@@ -2881,8 +2881,8 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 				/* we fail this request, let's return 503 service unavail */
 				txn->status = 503;
 				stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_503));
-				if (!(s->flags & SN_ERR_MASK))
-					s->flags |= SN_ERR_LOCAL; /* we don't want a real error here */
+				if (!(s->flags & SF_ERR_MASK))
+					s->flags |= SF_ERR_LOCAL; /* we don't want a real error here */
 				goto return_prx_cond;
 			}
 		}
@@ -2890,8 +2890,8 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 		/* nothing to fail, let's reply normaly */
 		txn->status = 200;
 		stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_200));
-		if (!(s->flags & SN_ERR_MASK))
-			s->flags |= SN_ERR_LOCAL; /* we don't want a real error here */
+		if (!(s->flags & SF_ERR_MASK))
+			s->flags |= SF_ERR_LOCAL; /* we don't want a real error here */
 		goto return_prx_cond;
 	}
 
@@ -3075,10 +3075,10 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 		s->listener->counters->failed_req++;
 
  return_prx_cond:
-	if (!(s->flags & SN_ERR_MASK))
-		s->flags |= SN_ERR_PRXCOND;
-	if (!(s->flags & SN_FINST_MASK))
-		s->flags |= SN_FINST_R;
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_PRXCOND;
+	if (!(s->flags & SF_FINST_MASK))
+		s->flags |= SF_FINST_R;
 
 	req->analysers = 0;
 	req->analyse_exp = TICK_ETERNITY;
@@ -4048,10 +4048,10 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 		txn->req.chn->analysers = 0;
 	}
 
-	if (!(s->flags & SN_ERR_MASK))
-		s->flags |= SN_ERR_LOCAL;
-	if (!(s->flags & SN_FINST_MASK))
-		s->flags |= SN_FINST_R;
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_LOCAL;
+	if (!(s->flags & SF_FINST_MASK))
+		s->flags |= SF_FINST_R;
 
 	return 1;
 }
@@ -4129,8 +4129,8 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 			s->logs.tv_request = now;
 			stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_500));
 
-			if (!(s->flags & SN_ERR_MASK))
-				s->flags |= SN_ERR_RESOURCE;
+			if (!(s->flags & SF_ERR_MASK))
+				s->flags |= SF_ERR_RESOURCE;
 			goto return_prx_cond;
 		}
 
@@ -4180,10 +4180,10 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		if (s->fe == s->be) /* report it if the request was intercepted by the frontend */
 			s->fe->fe_counters.intercepted_req++;
 
-		if (!(s->flags & SN_ERR_MASK))      // this is not really an error but it is
-			s->flags |= SN_ERR_LOCAL;   // to mark that it comes from the proxy
-		if (!(s->flags & SN_FINST_MASK))
-			s->flags |= SN_FINST_R;
+		if (!(s->flags & SF_ERR_MASK))      // this is not really an error but it is
+			s->flags |= SF_ERR_LOCAL;   // to mark that it comes from the proxy
+		if (!(s->flags & SF_FINST_MASK))
+			s->flags |= SF_FINST_R;
 
 		/* we may want to compress the stats page */
 		if (s->fe->comp || s->be->comp)
@@ -4284,10 +4284,10 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		s->listener->counters->failed_req++;
 
  return_prx_cond:
-	if (!(s->flags & SN_ERR_MASK))
-		s->flags |= SN_ERR_PRXCOND;
-	if (!(s->flags & SN_FINST_MASK))
-		s->flags |= SN_FINST_R;
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_PRXCOND;
+	if (!(s->flags & SF_FINST_MASK))
+		s->flags |= SF_FINST_R;
 
 	req->analysers = 0;
 	req->analyse_exp = TICK_ETERNITY;
@@ -4339,7 +4339,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	 * incoming request. Note that this requires that a connection is
 	 * allocated on the server side.
 	 */
-	if ((s->be->options & PR_O_HTTP_PROXY) && !(s->flags & SN_ADDR_SET)) {
+	if ((s->be->options & PR_O_HTTP_PROXY) && !(s->flags & SF_ADDR_SET)) {
 		struct connection *conn;
 		char *path;
 
@@ -4350,10 +4350,10 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 			req->analysers = 0;
 			stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_500));
 
-			if (!(s->flags & SN_ERR_MASK))
-				s->flags |= SN_ERR_RESOURCE;
-			if (!(s->flags & SN_FINST_MASK))
-				s->flags |= SN_FINST_R;
+			if (!(s->flags & SF_ERR_MASK))
+				s->flags |= SF_ERR_RESOURCE;
+			if (!(s->flags & SF_FINST_MASK))
+				s->flags |= SF_FINST_R;
 
 			return 0;
 		}
@@ -4408,7 +4408,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	 */
 
 	/* It needs to look into the URI unless persistence must be ignored */
-	if ((txn->sessid == NULL) && s->be->appsession_name && !(s->flags & SN_IGNORE_PRST)) {
+	if ((txn->sessid == NULL) && s->be->appsession_name && !(s->flags & SF_IGNORE_PRST)) {
 		get_srv_from_appsession(s, req->buf->p + msg->sl.rq.u, msg->sl.rq.u_l);
 	}
 
@@ -4582,7 +4582,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	 * with a POST request, we may be interested in checking the body for
 	 * that parameter. This will be done in another analyser.
 	 */
-	if (!(s->flags & (SN_ASSIGNED|SN_DIRECT)) &&
+	if (!(s->flags & (SF_ASSIGNED|SF_DIRECT)) &&
 	    s->txn.meth == HTTP_METH_POST && s->be->url_param_name != NULL &&
 	    (msg->flags & (HTTP_MSGF_CNT_LEN|HTTP_MSGF_TE_CHNK))) {
 		channel_dont_connect(req);
@@ -4639,10 +4639,10 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	if (s->listener->counters)
 		s->listener->counters->failed_req++;
 
-	if (!(s->flags & SN_ERR_MASK))
-		s->flags |= SN_ERR_PRXCOND;
-	if (!(s->flags & SN_FINST_MASK))
-		s->flags |= SN_FINST_R;
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_PRXCOND;
+	if (!(s->flags & SF_FINST_MASK))
+		s->flags |= SF_FINST_R;
 	return 0;
 }
 
@@ -4679,10 +4679,10 @@ int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 	req->analysers = 0;
 	req->analyse_exp = TICK_ETERNITY;
 
-	if (!(s->flags & SN_ERR_MASK))
-		s->flags |= SN_ERR_PRXCOND;
-	if (!(s->flags & SN_FINST_MASK))
-		s->flags |= SN_FINST_T;
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_PRXCOND;
+	if (!(s->flags & SF_FINST_MASK))
+		s->flags |= SF_FINST_T;
 	return 0;
 }
 
@@ -4787,10 +4787,10 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 		txn->status = 408;
 		stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_408));
 
-		if (!(s->flags & SN_ERR_MASK))
-			s->flags |= SN_ERR_CLITO;
-		if (!(s->flags & SN_FINST_MASK))
-			s->flags |= SN_FINST_D;
+		if (!(s->flags & SF_ERR_MASK))
+			s->flags |= SF_ERR_CLITO;
+		if (!(s->flags & SF_FINST_MASK))
+			s->flags |= SF_FINST_D;
 		goto return_err_msg;
 	}
 
@@ -4820,10 +4820,10 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 	txn->status = 400;
 	stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_400));
 
-	if (!(s->flags & SN_ERR_MASK))
-		s->flags |= SN_ERR_PRXCOND;
-	if (!(s->flags & SN_FINST_MASK))
-		s->flags |= SN_FINST_R;
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_PRXCOND;
+	if (!(s->flags & SF_FINST_MASK))
+		s->flags |= SF_FINST_R;
 
  return_err_msg:
 	req->analysers = 0;
@@ -4911,7 +4911,7 @@ void http_end_txn_clean_session(struct stream *s)
 		si_shutw(&s->si[1]);
 	}
 
-	if (s->flags & SN_BE_ASSIGNED) {
+	if (s->flags & SF_BE_ASSIGNED) {
 		s->be->beconn--;
 		if (unlikely(s->srv_conn))
 			sess_change_server(s, NULL);
@@ -4929,14 +4929,14 @@ void http_end_txn_clean_session(struct stream *s)
 
 		if (s->fe->mode == PR_MODE_HTTP) {
 			s->fe->fe_counters.p.http.rsp[n]++;
-			if (s->comp_algo && (s->flags & SN_COMP_READY))
+			if (s->comp_algo && (s->flags & SF_COMP_READY))
 				s->fe->fe_counters.p.http.comp_rsp++;
 		}
-		if ((s->flags & SN_BE_ASSIGNED) &&
+		if ((s->flags & SF_BE_ASSIGNED) &&
 		    (s->be->mode == PR_MODE_HTTP)) {
 			s->be->be_counters.p.http.rsp[n]++;
 			s->be->be_counters.p.http.cum_req++;
-			if (s->comp_algo && (s->flags & SN_COMP_READY))
+			if (s->comp_algo && (s->flags & SF_COMP_READY))
 				s->be->be_counters.p.http.comp_rsp++;
 		}
 	}
@@ -4947,7 +4947,7 @@ void http_end_txn_clean_session(struct stream *s)
 
 	/* let's do a final log if we need it */
 	if (!LIST_ISEMPTY(&s->fe->logformat) && s->logs.logwait &&
-	    !(s->flags & SN_MONITOR) &&
+	    !(s->flags & SF_MONITOR) &&
 	    (!(s->fe->options & PR_O_NULLNOLOG) || s->req.total)) {
 		s->do_log(s);
 	}
@@ -4973,8 +4973,8 @@ void http_end_txn_clean_session(struct stream *s)
 		pendconn_free(s->pend_pos);
 
 	if (objt_server(s->target)) {
-		if (s->flags & SN_CURR_SESS) {
-			s->flags &= ~SN_CURR_SESS;
+		if (s->flags & SF_CURR_SESS) {
+			s->flags &= ~SF_CURR_SESS;
 			objt_server(s->target)->cur_sess--;
 		}
 		if (may_dequeue_tasks(objt_server(s->target), s->be))
@@ -4998,9 +4998,9 @@ void http_end_txn_clean_session(struct stream *s)
 	s->si[1].flags    &= SI_FL_ISBACK | SI_FL_DONT_WAKE; /* we're in the context of process_stream */
 	s->req.flags &= ~(CF_SHUTW|CF_SHUTW_NOW|CF_AUTO_CONNECT|CF_WRITE_ERROR|CF_STREAMER|CF_STREAMER_FAST|CF_NEVER_WAIT|CF_WAKE_CONNECT|CF_WROTE_DATA);
 	s->res.flags &= ~(CF_SHUTR|CF_SHUTR_NOW|CF_READ_ATTACHED|CF_READ_ERROR|CF_READ_NOEXP|CF_STREAMER|CF_STREAMER_FAST|CF_WRITE_PARTIAL|CF_NEVER_WAIT|CF_WROTE_DATA);
-	s->flags &= ~(SN_DIRECT|SN_ASSIGNED|SN_ADDR_SET|SN_BE_ASSIGNED|SN_FORCE_PRST|SN_IGNORE_PRST);
-	s->flags &= ~(SN_CURR_SESS|SN_REDIRECTABLE|SN_SRV_REUSED);
-	s->flags &= ~(SN_ERR_MASK|SN_FINST_MASK|SN_REDISP);
+	s->flags &= ~(SF_DIRECT|SF_ASSIGNED|SF_ADDR_SET|SF_BE_ASSIGNED|SF_FORCE_PRST|SF_IGNORE_PRST);
+	s->flags &= ~(SF_CURR_SESS|SF_REDIRECTABLE|SF_SRV_REUSED);
+	s->flags &= ~(SF_ERR_MASK|SF_FINST_MASK|SF_REDISP);
 
 	s->txn.meth = 0;
 	http_reset_txn(s);
@@ -5601,13 +5601,13 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 
 	/* stop waiting for data if the input is closed before the end */
 	if (req->flags & CF_SHUTR) {
-		if (!(s->flags & SN_ERR_MASK))
-			s->flags |= SN_ERR_CLICL;
-		if (!(s->flags & SN_FINST_MASK)) {
+		if (!(s->flags & SF_ERR_MASK))
+			s->flags |= SF_ERR_CLICL;
+		if (!(s->flags & SF_FINST_MASK)) {
 			if (txn->rsp.msg_state < HTTP_MSG_ERROR)
-				s->flags |= SN_FINST_H;
+				s->flags |= SF_FINST_H;
 			else
-				s->flags |= SN_FINST_D;
+				s->flags |= SF_FINST_D;
 		}
 
 		s->fe->fe_counters.cli_aborts++;
@@ -5662,13 +5662,13 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	req->analysers = 0;
 	s->res.analysers = 0; /* we're in data phase, we want to abort both directions */
 
-	if (!(s->flags & SN_ERR_MASK))
-		s->flags |= SN_ERR_PRXCOND;
-	if (!(s->flags & SN_FINST_MASK)) {
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_PRXCOND;
+	if (!(s->flags & SF_FINST_MASK)) {
 		if (txn->rsp.msg_state < HTTP_MSG_ERROR)
-			s->flags |= SN_FINST_H;
+			s->flags |= SF_FINST_H;
 		else
-			s->flags |= SN_FINST_D;
+			s->flags |= SF_FINST_D;
 	}
 	return 0;
 
@@ -5689,13 +5689,13 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	if (objt_server(s->target))
 		objt_server(s->target)->counters.srv_aborts++;
 
-	if (!(s->flags & SN_ERR_MASK))
-		s->flags |= SN_ERR_SRVCL;
-	if (!(s->flags & SN_FINST_MASK)) {
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_SRVCL;
+	if (!(s->flags & SF_FINST_MASK)) {
 		if (txn->rsp.msg_state < HTTP_MSG_ERROR)
-			s->flags |= SN_FINST_H;
+			s->flags |= SF_FINST_H;
 		else
-			s->flags |= SN_FINST_D;
+			s->flags |= SF_FINST_D;
 	}
 	return 0;
 }
@@ -5823,10 +5823,10 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			channel_truncate(rep);
 			stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_502));
 
-			if (!(s->flags & SN_ERR_MASK))
-				s->flags |= SN_ERR_PRXCOND;
-			if (!(s->flags & SN_FINST_MASK))
-				s->flags |= SN_FINST_H;
+			if (!(s->flags & SF_ERR_MASK))
+				s->flags |= SF_ERR_PRXCOND;
+			if (!(s->flags & SF_FINST_MASK))
+				s->flags |= SF_FINST_H;
 
 			return 0;
 		}
@@ -5858,10 +5858,10 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			channel_truncate(rep);
 			stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_502));
 
-			if (!(s->flags & SN_ERR_MASK))
-				s->flags |= SN_ERR_SRVCL;
-			if (!(s->flags & SN_FINST_MASK))
-				s->flags |= SN_FINST_H;
+			if (!(s->flags & SF_ERR_MASK))
+				s->flags |= SF_ERR_SRVCL;
+			if (!(s->flags & SF_FINST_MASK))
+				s->flags |= SF_FINST_H;
 			return 0;
 		}
 
@@ -5885,10 +5885,10 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			channel_truncate(rep);
 			stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_504));
 
-			if (!(s->flags & SN_ERR_MASK))
-				s->flags |= SN_ERR_SRVTO;
-			if (!(s->flags & SN_FINST_MASK))
-				s->flags |= SN_FINST_H;
+			if (!(s->flags & SF_ERR_MASK))
+				s->flags |= SF_ERR_SRVTO;
+			if (!(s->flags & SF_FINST_MASK))
+				s->flags |= SF_FINST_H;
 			return 0;
 		}
 
@@ -5906,10 +5906,10 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			channel_truncate(rep);
 			stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_400));
 
-			if (!(s->flags & SN_ERR_MASK))
-				s->flags |= SN_ERR_CLICL;
-			if (!(s->flags & SN_FINST_MASK))
-				s->flags |= SN_FINST_H;
+			if (!(s->flags & SF_ERR_MASK))
+				s->flags |= SF_ERR_CLICL;
+			if (!(s->flags & SF_FINST_MASK))
+				s->flags |= SF_FINST_H;
 
 			/* process_stream() will take care of the error */
 			return 0;
@@ -5935,10 +5935,10 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			channel_truncate(rep);
 			stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_502));
 
-			if (!(s->flags & SN_ERR_MASK))
-				s->flags |= SN_ERR_SRVCL;
-			if (!(s->flags & SN_FINST_MASK))
-				s->flags |= SN_FINST_H;
+			if (!(s->flags & SF_ERR_MASK))
+				s->flags |= SF_ERR_SRVCL;
+			if (!(s->flags & SF_FINST_MASK))
+				s->flags |= SF_FINST_H;
 			return 0;
 		}
 
@@ -5953,10 +5953,10 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			rep->analysers = 0;
 			channel_auto_close(rep);
 
-			if (!(s->flags & SN_ERR_MASK))
-				s->flags |= SN_ERR_CLICL;
-			if (!(s->flags & SN_FINST_MASK))
-				s->flags |= SN_FINST_H;
+			if (!(s->flags & SF_ERR_MASK))
+				s->flags |= SF_ERR_CLICL;
+			if (!(s->flags & SF_FINST_MASK))
+				s->flags |= SF_FINST_H;
 
 			/* process_stream() will take care of the error */
 			return 0;
@@ -6354,10 +6354,10 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 				s->si[1].flags |= SI_FL_NOLINGER;
 				channel_truncate(rep);
 				stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_502));
-				if (!(s->flags & SN_ERR_MASK))
-					s->flags |= SN_ERR_PRXCOND;
-				if (!(s->flags & SN_FINST_MASK))
-					s->flags |= SN_FINST_H;
+				if (!(s->flags & SF_ERR_MASK))
+					s->flags |= SF_ERR_PRXCOND;
+				if (!(s->flags & SF_FINST_MASK))
+					s->flags |= SF_FINST_H;
 				return 0;
 			}
 		}
@@ -6428,13 +6428,13 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	 */
 	if (objt_server(s->target) && (s->be->ck_opts & PR_CK_INS) &&
 	    !((txn->flags & TX_SCK_FOUND) && (s->be->ck_opts & PR_CK_PSV)) &&
-	    (!(s->flags & SN_DIRECT) ||
+	    (!(s->flags & SF_DIRECT) ||
 	     ((s->be->cookie_maxidle || txn->cookie_last_date) &&
 	      (!txn->cookie_last_date || (txn->cookie_last_date - date.tv_sec) < 0)) ||
 	     (s->be->cookie_maxlife && !txn->cookie_first_date) ||  // set the first_date
 	     (!s->be->cookie_maxlife && txn->cookie_first_date)) && // remove the first_date
 	    (!(s->be->ck_opts & PR_CK_POST) || (txn->meth == HTTP_METH_POST)) &&
-	    !(s->flags & SN_IGNORE_PRST)) {
+	    !(s->flags & SF_IGNORE_PRST)) {
 		/* the server is known, it's not the one the client requested, or the
 		 * cookie's last seen date needs to be refreshed. We have to
 		 * insert a set-cookie here, except if we want to insert only on POST
@@ -6482,7 +6482,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 			goto return_bad_resp;
 
 		txn->flags &= ~TX_SCK_MASK;
-		if (objt_server(s->target)->cookie && (s->flags & SN_DIRECT))
+		if (objt_server(s->target)->cookie && (s->flags & SF_DIRECT))
 			/* the server did not change, only the date was updated */
 			txn->flags |= TX_SCK_UPDATED;
 		else
@@ -6832,8 +6832,8 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	if (res->flags & CF_SHUTR) {
 		if ((s->req.flags & (CF_SHUTR|CF_SHUTW)) == (CF_SHUTR|CF_SHUTW))
 			goto aborted_xfer;
-		if (!(s->flags & SN_ERR_MASK))
-			s->flags |= SN_ERR_SRVCL;
+		if (!(s->flags & SF_ERR_MASK))
+			s->flags |= SF_ERR_SRVCL;
 		s->be->be_counters.srv_aborts++;
 		if (objt_server(s->target))
 			objt_server(s->target)->counters.srv_aborts++;
@@ -6893,10 +6893,10 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	if (objt_server(s->target))
 		health_adjust(objt_server(s->target), HANA_STATUS_HTTP_HDRRSP);
 
-	if (!(s->flags & SN_ERR_MASK))
-		s->flags |= SN_ERR_PRXCOND;
-	if (!(s->flags & SN_FINST_MASK))
-		s->flags |= SN_FINST_D;
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_PRXCOND;
+	if (!(s->flags & SF_FINST_MASK))
+		s->flags |= SF_FINST_D;
 	return 0;
 
  aborted_xfer:
@@ -6916,10 +6916,10 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	if (objt_server(s->target))
 		objt_server(s->target)->counters.cli_aborts++;
 
-	if (!(s->flags & SN_ERR_MASK))
-		s->flags |= SN_ERR_CLICL;
-	if (!(s->flags & SN_FINST_MASK))
-		s->flags |= SN_FINST_D;
+	if (!(s->flags & SF_ERR_MASK))
+		s->flags |= SF_ERR_CLICL;
+	if (!(s->flags & SF_FINST_MASK))
+		s->flags |= SF_FINST_D;
 	return 0;
 }
 
@@ -7242,11 +7242,11 @@ void manage_client_side_appsession(struct stream *s, const char *buf, int len) {
 				if (strcmp(srv->id, asession->serverid) == 0) {
 					if ((srv->state != SRV_ST_STOPPED) ||
 					    (s->be->options & PR_O_PERSIST) ||
-					    (s->flags & SN_FORCE_PRST)) {
+					    (s->flags & SF_FORCE_PRST)) {
 						/* we found the server and it's usable */
 						txn->flags &= ~TX_CK_MASK;
 						txn->flags |= (srv->state != SRV_ST_STOPPED) ? TX_CK_VALID : TX_CK_DOWN;
-						s->flags |= SN_DIRECT | SN_ASSIGNED;
+						s->flags |= SF_DIRECT | SF_ASSIGNED;
 						s->target = &srv->obj_type;
 
 						break;
@@ -7644,7 +7644,7 @@ void manage_client_side_cookies(struct stream *s, struct channel *req)
 				 * empty cookies and mark them as invalid.
 				 * The same behaviour is applied when persistence must be ignored.
 				 */
-				if ((delim == val_beg) || (s->flags & (SN_IGNORE_PRST | SN_ASSIGNED)))
+				if ((delim == val_beg) || (s->flags & (SF_IGNORE_PRST | SF_ASSIGNED)))
 					srv = NULL;
 
 				while (srv) {
@@ -7652,11 +7652,11 @@ void manage_client_side_cookies(struct stream *s, struct channel *req)
 					    !memcmp(val_beg, srv->cookie, delim - val_beg)) {
 						if ((srv->state != SRV_ST_STOPPED) ||
 						    (s->be->options & PR_O_PERSIST) ||
-						    (s->flags & SN_FORCE_PRST)) {
+						    (s->flags & SF_FORCE_PRST)) {
 							/* we found the server and we can use it */
 							txn->flags &= ~TX_CK_MASK;
 							txn->flags |= (srv->state != SRV_ST_STOPPED) ? TX_CK_VALID : TX_CK_DOWN;
-							s->flags |= SN_DIRECT | SN_ASSIGNED;
+							s->flags |= SF_DIRECT | SF_ASSIGNED;
 							s->target = &srv->obj_type;
 							break;
 						} else {
@@ -7674,7 +7674,7 @@ void manage_client_side_cookies(struct stream *s, struct channel *req)
 				if (!srv && !(txn->flags & (TX_CK_DOWN|TX_CK_EXPIRED|TX_CK_OLD))) {
 					/* no server matched this cookie or we deliberately skipped it */
 					txn->flags &= ~TX_CK_MASK;
-					if ((s->flags & (SN_IGNORE_PRST | SN_ASSIGNED)))
+					if ((s->flags & (SF_IGNORE_PRST | SF_ASSIGNED)))
 						txn->flags |= TX_CK_UNUSED;
 					else
 						txn->flags |= TX_CK_INVALID;
@@ -7731,7 +7731,7 @@ void manage_client_side_cookies(struct stream *s, struct channel *req)
 			}
 
 			/* Look for the appsession cookie unless persistence must be ignored */
-			if (!(s->flags & SN_IGNORE_PRST) && (s->be->appsession_name != NULL)) {
+			if (!(s->flags & SF_IGNORE_PRST) && (s->be->appsession_name != NULL)) {
 				int cmp_len, value_len;
 				char *value_begin;
 
@@ -8220,7 +8220,7 @@ void manage_server_side_cookies(struct stream *s, struct channel *res)
 
 			srv = objt_server(s->target);
 			/* now check if we need to process it for persistence */
-			if (!(s->flags & SN_IGNORE_PRST) &&
+			if (!(s->flags & SF_IGNORE_PRST) &&
 			    (att_end - att_beg == s->be->cookie_len) && (s->be->cookie_name != NULL) &&
 			    (memcmp(att_beg, s->be->cookie_name, att_end - att_beg) == 0)) {
 				/* assume passive cookie by default */
@@ -8238,7 +8238,7 @@ void manage_server_side_cookies(struct stream *s, struct channel *res)
 					 */
 				}
 				else if ((srv && (s->be->ck_opts & PR_CK_INS)) ||
-				    ((s->flags & SN_DIRECT) && (s->be->ck_opts & PR_CK_IND))) {
+				    ((s->flags & SF_DIRECT) && (s->be->ck_opts & PR_CK_IND))) {
 					/* this cookie must be deleted */
 					if (*prev == ':' && next == hdr_end) {
 						/* whole header */
@@ -8296,7 +8296,7 @@ void manage_server_side_cookies(struct stream *s, struct channel *res)
 				}
 			}
 			/* next, let's see if the cookie is our appcookie, unless persistence must be ignored */
-			else if (!(s->flags & SN_IGNORE_PRST) && (s->be->appsession_name != NULL)) {
+			else if (!(s->flags & SF_IGNORE_PRST) && (s->be->appsession_name != NULL)) {
 				int cmp_len, value_len;
 				char *value_begin;
 
@@ -8822,10 +8822,10 @@ void http_end_txn(struct stream *s)
 	struct http_txn *txn = &s->txn;
 
 	/* release any possible compression context */
-	if (s->flags & SN_COMP_READY)
+	if (s->flags & SF_COMP_READY)
 		s->comp_algo->end(&s->comp_ctx);
 	s->comp_algo = NULL;
-	s->flags &= ~SN_COMP_READY;
+	s->flags &= ~SF_COMP_READY;
 
 	/* these ones will have been dynamically allocated */
 	pool_free2(pool2_requri, txn->uri);
@@ -9917,7 +9917,7 @@ smp_prefetch_http(struct proxy *px, struct stream *s, void *l7, unsigned int opt
 
 			txn->meth = find_http_meth(msg->chn->buf->p, msg->sl.rq.m_l);
 			if (txn->meth == HTTP_METH_GET || txn->meth == HTTP_METH_HEAD)
-				s->flags |= SN_REDIRECTABLE;
+				s->flags |= SF_REDIRECTABLE;
 
 			if (unlikely(msg->sl.rq.v_l == 0) && !http_upgrade_v09_to_v10(txn))
 				return 0;

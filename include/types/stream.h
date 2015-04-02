@@ -44,52 +44,52 @@
 #include <types/stick_table.h>
 
 
-/* various stream flags, bits values 0x01 to 0x100 (shift 0) */
-#define SN_DIRECT	0x00000001	/* connection made on the server matching the client cookie */
-#define SN_ASSIGNED	0x00000002	/* no need to assign a server to this stream */
-#define SN_ADDR_SET	0x00000004	/* this stream's server address has been set */
-#define SN_BE_ASSIGNED	0x00000008	/* a backend was assigned. Conns are accounted. */
+/* Various Stream Flags, bits values 0x01 to 0x100 (shift 0) */
+#define SF_DIRECT	0x00000001	/* connection made on the server matching the client cookie */
+#define SF_ASSIGNED	0x00000002	/* no need to assign a server to this stream */
+#define SF_ADDR_SET	0x00000004	/* this stream's server address has been set */
+#define SF_BE_ASSIGNED	0x00000008	/* a backend was assigned. Conns are accounted. */
 
-#define SN_FORCE_PRST	0x00000010	/* force persistence here, even if server is down */
-#define SN_MONITOR	0x00000020	/* this stream comes from a monitoring system */
-#define SN_CURR_SESS	0x00000040	/* a connection is currently being counted on the server */
-#define SN_INITIALIZED	0x00000080	/* the stream was fully initialized */
-#define SN_REDISP	0x00000100	/* set if this stream was redispatched from one server to another */
-#define SN_CONN_TAR	0x00000200	/* set if this stream is turning around before reconnecting */
-#define SN_REDIRECTABLE	0x00000400	/* set if this stream is redirectable (GET or HEAD) */
-#define SN_TUNNEL	0x00000800	/* tunnel-mode stream, nothing to catch after data */
+#define SF_FORCE_PRST	0x00000010	/* force persistence here, even if server is down */
+#define SF_MONITOR	0x00000020	/* this stream comes from a monitoring system */
+#define SF_CURR_SESS	0x00000040	/* a connection is currently being counted on the server */
+#define SF_INITIALIZED	0x00000080	/* the stream was fully initialized */
+#define SF_REDISP	0x00000100	/* set if this stream was redispatched from one server to another */
+#define SF_CONN_TAR	0x00000200	/* set if this stream is turning around before reconnecting */
+#define SF_REDIRECTABLE	0x00000400	/* set if this stream is redirectable (GET or HEAD) */
+#define SF_TUNNEL	0x00000800	/* tunnel-mode stream, nothing to catch after data */
 
 /* stream termination conditions, bits values 0x1000 to 0x7000 (0-9 shift 12) */
-#define SN_ERR_NONE     0x00000000	/* normal end of request */
-#define SN_ERR_LOCAL    0x00001000	/* the proxy locally processed this request => not an error */
-#define SN_ERR_CLITO    0x00002000	/* client time-out */
-#define SN_ERR_CLICL    0x00003000	/* client closed (read/write error) */
-#define SN_ERR_SRVTO    0x00004000	/* server time-out, connect time-out */
-#define SN_ERR_SRVCL    0x00005000	/* server closed (connect/read/write error) */
-#define SN_ERR_PRXCOND  0x00006000	/* the proxy decided to close (deny...) */
-#define SN_ERR_RESOURCE 0x00007000	/* the proxy encountered a lack of a local resources (fd, mem, ...) */
-#define SN_ERR_INTERNAL 0x00008000	/* the proxy encountered an internal error */
-#define SN_ERR_DOWN     0x00009000	/* the proxy killed a stream because the backend became unavailable */
-#define SN_ERR_KILLED   0x0000a000	/* the proxy killed a stream because it was asked to do so */
-#define SN_ERR_UP       0x0000b000	/* the proxy killed a stream because a preferred backend became available */
-#define SN_ERR_MASK     0x0000f000	/* mask to get only stream error flags */
-#define SN_ERR_SHIFT    12		/* bit shift */
+#define SF_ERR_NONE     0x00000000	/* normal end of request */
+#define SF_ERR_LOCAL    0x00001000	/* the proxy locally processed this request => not an error */
+#define SF_ERR_CLITO    0x00002000	/* client time-out */
+#define SF_ERR_CLICL    0x00003000	/* client closed (read/write error) */
+#define SF_ERR_SRVTO    0x00004000	/* server time-out, connect time-out */
+#define SF_ERR_SRVCL    0x00005000	/* server closed (connect/read/write error) */
+#define SF_ERR_PRXCOND  0x00006000	/* the proxy decided to close (deny...) */
+#define SF_ERR_RESOURCE 0x00007000	/* the proxy encountered a lack of a local resources (fd, mem, ...) */
+#define SF_ERR_INTERNAL 0x00008000	/* the proxy encountered an internal error */
+#define SF_ERR_DOWN     0x00009000	/* the proxy killed a stream because the backend became unavailable */
+#define SF_ERR_KILLED   0x0000a000	/* the proxy killed a stream because it was asked to do so */
+#define SF_ERR_UP       0x0000b000	/* the proxy killed a stream because a preferred backend became available */
+#define SF_ERR_MASK     0x0000f000	/* mask to get only stream error flags */
+#define SF_ERR_SHIFT    12		/* bit shift */
 
 /* stream state at termination, bits values 0x10000 to 0x70000 (0-7 shift 16) */
-#define SN_FINST_R	0x00010000	/* stream ended during client request */
-#define SN_FINST_C	0x00020000	/* stream ended during server connect */
-#define SN_FINST_H	0x00030000	/* stream ended during server headers */
-#define SN_FINST_D	0x00040000	/* stream ended during data phase */
-#define SN_FINST_L	0x00050000	/* stream ended while pushing last data to client */
-#define SN_FINST_Q	0x00060000	/* stream ended while waiting in queue for a server slot */
-#define SN_FINST_T	0x00070000	/* stream ended tarpitted */
-#define SN_FINST_MASK	0x00070000	/* mask to get only final stream state flags */
-#define	SN_FINST_SHIFT	16		/* bit shift */
+#define SF_FINST_R	0x00010000	/* stream ended during client request */
+#define SF_FINST_C	0x00020000	/* stream ended during server connect */
+#define SF_FINST_H	0x00030000	/* stream ended during server headers */
+#define SF_FINST_D	0x00040000	/* stream ended during data phase */
+#define SF_FINST_L	0x00050000	/* stream ended while pushing last data to client */
+#define SF_FINST_Q	0x00060000	/* stream ended while waiting in queue for a server slot */
+#define SF_FINST_T	0x00070000	/* stream ended tarpitted */
+#define SF_FINST_MASK	0x00070000	/* mask to get only final stream state flags */
+#define	SF_FINST_SHIFT	16		/* bit shift */
 
-#define SN_IGNORE_PRST	0x00080000	/* ignore persistence */
+#define SF_IGNORE_PRST	0x00080000	/* ignore persistence */
 
-#define SN_COMP_READY   0x00100000	/* the compression is initialized */
-#define SN_SRV_REUSED   0x00200000	/* the server-side connection was reused */
+#define SF_COMP_READY   0x00100000	/* the compression is initialized */
+#define SF_SRV_REUSED   0x00200000	/* the server-side connection was reused */
 
 /* some external definitions */
 struct strm_logs {

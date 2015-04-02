@@ -1351,7 +1351,7 @@ __LJMP static int hlua_socket_gc(lua_State *L)
 
 	/* Remove all reference between the Lua stack and the coroutine stream. */
 	appctx = objt_appctx(socket->s->si[0].end);
-	stream_shutdown(socket->s, SN_ERR_KILLED);
+	stream_shutdown(socket->s, SF_ERR_KILLED);
 	socket->s = NULL;
 	appctx->ctx.hlua.socket = NULL;
 
@@ -1373,7 +1373,7 @@ __LJMP static int hlua_socket_close(lua_State *L)
 		return 0;
 
 	/* Close the stream and remove the associated stop task. */
-	stream_shutdown(socket->s, SN_ERR_KILLED);
+	stream_shutdown(socket->s, SF_ERR_KILLED);
 	appctx = objt_appctx(socket->s->si[0].end);
 	appctx->ctx.hlua.socket = NULL;
 	socket->s = NULL;
@@ -2204,7 +2204,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	socket->s->si[1].conn_retries = socket_proxy.conn_retries;
 
 	/* Force destination server. */
-	socket->s->flags |= SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET | SN_BE_ASSIGNED;
+	socket->s->flags |= SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET | SF_BE_ASSIGNED;
 	socket->s->target = &socket_tcp.obj_type;
 
 	/* This stream is added to te lists of alive streams. */

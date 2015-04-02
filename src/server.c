@@ -163,7 +163,7 @@ static int srv_parse_id(char **args, int *cur_arg, struct proxy *curproxy, struc
 }
 
 /* Shutdown all connections of a server. The caller must pass a termination
- * code in <why>, which must be one of SN_ERR_* indicating the reason for the
+ * code in <why>, which must be one of SF_ERR_* indicating the reason for the
  * shutdown.
  */
 void srv_shutdown_streams(struct server *srv, int why)
@@ -176,7 +176,7 @@ void srv_shutdown_streams(struct server *srv, int why)
 }
 
 /* Shutdown all connections of all backup servers of a proxy. The caller must
- * pass a termination code in <why>, which must be one of SN_ERR_* indicating
+ * pass a termination code in <why>, which must be one of SF_ERR_* indicating
  * the reason for the shutdown.
  */
 void srv_shutdown_backup_streams(struct proxy *px, int why)
@@ -244,7 +244,7 @@ void srv_set_stopped(struct server *s, const char *reason)
 		s->proxy->lbprm.set_server_status_down(s);
 
 	if (s->onmarkeddown & HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS)
-		srv_shutdown_streams(s, SN_ERR_DOWN);
+		srv_shutdown_streams(s, SF_ERR_DOWN);
 
 	/* we might have streams queued on this server and waiting for
 	 * a connection. Those which are redispatchable will be queued
@@ -318,7 +318,7 @@ void srv_set_running(struct server *s, const char *reason)
 	 */
 	if ((s->onmarkedup & HANA_ONMARKEDUP_SHUTDOWNBACKUPSESSIONS) &&
 	    !(s->flags & SRV_F_BACKUP) && s->eweight)
-		srv_shutdown_backup_streams(s->proxy, SN_ERR_UP);
+		srv_shutdown_backup_streams(s->proxy, SF_ERR_UP);
 
 	/* check if we can handle some connections queued at the proxy. We
 	 * will take as many as we can handle.
@@ -438,7 +438,7 @@ void srv_set_admin_flag(struct server *s, enum srv_admin mode)
 				s->proxy->lbprm.set_server_status_down(s);
 
 			if (s->onmarkeddown & HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS)
-				srv_shutdown_streams(s, SN_ERR_DOWN);
+				srv_shutdown_streams(s, SF_ERR_DOWN);
 
 			/* we might have streams queued on this server and waiting for
 			 * a connection. Those which are redispatchable will be queued
@@ -600,7 +600,7 @@ void srv_clr_admin_flag(struct server *s, enum srv_admin mode)
 			 */
 			if ((s->onmarkedup & HANA_ONMARKEDUP_SHUTDOWNBACKUPSESSIONS) &&
 			    !(s->flags & SRV_F_BACKUP) && s->eweight)
-				srv_shutdown_backup_streams(s->proxy, SN_ERR_UP);
+				srv_shutdown_backup_streams(s->proxy, SF_ERR_UP);
 
 			/* check if we can handle some connections queued at the proxy. We
 			 * will take as many as we can handle.

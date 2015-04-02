@@ -357,15 +357,15 @@ static int create_server_socket(struct connection *conn)
  * Note that a pending send_proxy message accounts for data.
  *
  * It can return one of :
- *  - SN_ERR_NONE if everything's OK
- *  - SN_ERR_SRVTO if there are no more servers
- *  - SN_ERR_SRVCL if the connection was refused by the server
- *  - SN_ERR_PRXCOND if the connection has been limited by the proxy (maxconn)
- *  - SN_ERR_RESOURCE if a system resource is lacking (eg: fd limits, ports, ...)
- *  - SN_ERR_INTERNAL for any other purely internal errors
- * Additionnally, in the case of SN_ERR_RESOURCE, an emergency log will be emitted.
+ *  - SF_ERR_NONE if everything's OK
+ *  - SF_ERR_SRVTO if there are no more servers
+ *  - SF_ERR_SRVCL if the connection was refused by the server
+ *  - SF_ERR_PRXCOND if the connection has been limited by the proxy (maxconn)
+ *  - SF_ERR_RESOURCE if a system resource is lacking (eg: fd limits, ports, ...)
+ *  - SF_ERR_INTERNAL for any other purely internal errors
+ * Additionnally, in the case of SF_ERR_RESOURCE, an emergency log will be emitted.
  *
- * The connection's fd is inserted only when SN_ERR_NONE is returned, otherwise
+ * The connection's fd is inserted only when SF_ERR_NONE is returned, otherwise
  * it's invalid and the caller has nothing to do.
  */
 
@@ -389,7 +389,7 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 		break;
 	default:
 		conn->flags |= CO_FL_ERROR;
-		return SN_ERR_INTERNAL;
+		return SF_ERR_INTERNAL;
 	}
 
 	fd = conn->t.sock.fd = create_server_socket(conn);
@@ -423,7 +423,7 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 
 		/* this is a resource error */
 		conn->flags |= CO_FL_ERROR;
-		return SN_ERR_RESOURCE;
+		return SF_ERR_RESOURCE;
 	}
 
 	if (fd >= global.maxsock) {
@@ -434,7 +434,7 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 		close(fd);
 		conn->err_code = CO_ER_CONF_FDLIM;
 		conn->flags |= CO_FL_ERROR;
-		return SN_ERR_PRXCOND; /* it is a configuration limit */
+		return SF_ERR_PRXCOND; /* it is a configuration limit */
 	}
 
 	if ((fcntl(fd, F_SETFL, O_NONBLOCK)==-1) ||
@@ -443,7 +443,7 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 		close(fd);
 		conn->err_code = CO_ER_SOCK_ERR;
 		conn->flags |= CO_FL_ERROR;
-		return SN_ERR_INTERNAL;
+		return SF_ERR_INTERNAL;
 	}
 
 	if (be->options & PR_O_TCP_SRV_KA)
@@ -539,7 +539,7 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 					 be->id);
 			}
 			conn->flags |= CO_FL_ERROR;
-			return SN_ERR_RESOURCE;
+			return SF_ERR_RESOURCE;
 		}
 	}
 
@@ -578,7 +578,7 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 			close(fd);
 			send_log(be, LOG_ERR, "Connect() failed for backend %s: %s.\n", be->id, msg);
 			conn->flags |= CO_FL_ERROR;
-			return SN_ERR_RESOURCE;
+			return SF_ERR_RESOURCE;
 		} else if (errno == ETIMEDOUT) {
 			//qfprintf(stderr,"Connect(): ETIMEDOUT");
 			port_range_release_port(fdinfo[fd].port_range, fdinfo[fd].local_port);
@@ -586,7 +586,7 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 			close(fd);
 			conn->err_code = CO_ER_SOCK_ERR;
 			conn->flags |= CO_FL_ERROR;
-			return SN_ERR_SRVTO;
+			return SF_ERR_SRVTO;
 		} else {
 			// (errno == ECONNREFUSED || errno == ENETUNREACH || errno == EACCES || errno == EPERM)
 			//qfprintf(stderr,"Connect(): %d", errno);
@@ -595,7 +595,7 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 			close(fd);
 			conn->err_code = CO_ER_SOCK_ERR;
 			conn->flags |= CO_FL_ERROR;
-			return SN_ERR_SRVCL;
+			return SF_ERR_SRVCL;
 		}
 	}
 
@@ -612,13 +612,13 @@ int tcp_connect_server(struct connection *conn, int data, int delack)
 	if (conn_xprt_init(conn) < 0) {
 		conn_force_close(conn);
 		conn->flags |= CO_FL_ERROR;
-		return SN_ERR_RESOURCE;
+		return SF_ERR_RESOURCE;
 	}
 
 	if (data)
 		conn_data_want_send(conn);  /* prepare to send data if any */
 
-	return SN_ERR_NONE;  /* connection is OK */
+	return SF_ERR_NONE;  /* connection is OK */
 }
 
 
@@ -1157,10 +1157,10 @@ resume_execution:
 				if (s->listener->counters)
 					s->listener->counters->denied_req++;
 
-				if (!(s->flags & SN_ERR_MASK))
-					s->flags |= SN_ERR_PRXCOND;
-				if (!(s->flags & SN_FINST_MASK))
-					s->flags |= SN_FINST_R;
+				if (!(s->flags & SF_ERR_MASK))
+					s->flags |= SF_ERR_PRXCOND;
+				if (!(s->flags & SF_FINST_MASK))
+					s->flags |= SF_FINST_R;
 				return 0;
 			}
 			else if (rule->action >= TCP_ACT_TRK_SC0 && rule->action <= TCP_ACT_TRK_SCMAX) {
@@ -1318,10 +1318,10 @@ resume_execution:
 				if (s->listener->counters)
 					s->listener->counters->denied_resp++;
 
-				if (!(s->flags & SN_ERR_MASK))
-					s->flags |= SN_ERR_PRXCOND;
-				if (!(s->flags & SN_FINST_MASK))
-					s->flags |= SN_FINST_D;
+				if (!(s->flags & SF_ERR_MASK))
+					s->flags |= SF_ERR_PRXCOND;
+				if (!(s->flags & SF_FINST_MASK))
+					s->flags |= SF_FINST_D;
 				return 0;
 			}
 			else if (rule->action == TCP_ACT_CLOSE) {
@@ -1387,10 +1387,10 @@ int tcp_exec_req_rules(struct stream *s)
 				if (s->listener->counters)
 					s->listener->counters->denied_conn++;
 
-				if (!(s->flags & SN_ERR_MASK))
-					s->flags |= SN_ERR_PRXCOND;
-				if (!(s->flags & SN_FINST_MASK))
-					s->flags |= SN_FINST_R;
+				if (!(s->flags & SF_ERR_MASK))
+					s->flags |= SF_ERR_PRXCOND;
+				if (!(s->flags & SF_FINST_MASK))
+					s->flags |= SF_FINST_R;
 				result = 0;
 				break;
 			}

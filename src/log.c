@@ -1335,15 +1335,15 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				break;
 
 			case LOG_FMT_TERMSTATE: // %ts
-				LOGCHAR(sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT]);
-				LOGCHAR(sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT]);
+				LOGCHAR(sess_term_cond[(s->flags & SF_ERR_MASK) >> SF_ERR_SHIFT]);
+				LOGCHAR(sess_fin_state[(s->flags & SF_FINST_MASK) >> SF_FINST_SHIFT]);
 				*tmplog = '\0';
 				last_isspace = 0;
 				break;
 
 			case LOG_FMT_TERMSTATE_CK: // %tsc, same as TS with cookie state (for mode HTTP)
-				LOGCHAR(sess_term_cond[(s->flags & SN_ERR_MASK) >> SN_ERR_SHIFT]);
-				LOGCHAR(sess_fin_state[(s->flags & SN_FINST_MASK) >> SN_FINST_SHIFT]);
+				LOGCHAR(sess_term_cond[(s->flags & SF_ERR_MASK) >> SF_ERR_SHIFT]);
+				LOGCHAR(sess_fin_state[(s->flags & SF_FINST_MASK) >> SF_FINST_SHIFT]);
 				LOGCHAR((be->ck_opts & PR_CK_ANY) ? sess_cookie[(txn->flags & TX_CK_MASK) >> TX_CK_SHIFT] : '-');
 				LOGCHAR((be->ck_opts & PR_CK_ANY) ? sess_set_cookie[(txn->flags & TX_SCK_MASK) >> TX_SCK_SHIFT] : '-');
 				last_isspace = 0;
@@ -1384,7 +1384,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				break;
 
 			case LOG_FMT_RETRIES:  // %rq
-				if (s->flags & SN_REDISP)
+				if (s->flags & SF_REDISP)
 					LOGCHAR('+');
 				ret = ltoa_o((s->si[1].conn_retries>0) ?
 				                (be->conn_retries - s->si[1].conn_retries) :
@@ -1608,9 +1608,9 @@ void strm_log(struct stream *s)
 	int size, err, level;
 
 	/* if we don't want to log normal traffic, return now */
-	err = (s->flags & SN_REDISP) ||
-              ((s->flags & SN_ERR_MASK) > SN_ERR_LOCAL) ||
-	      (((s->flags & SN_ERR_MASK) == SN_ERR_NONE) &&
+	err = (s->flags & SF_REDISP) ||
+              ((s->flags & SF_ERR_MASK) > SF_ERR_LOCAL) ||
+	      (((s->flags & SF_ERR_MASK) == SF_ERR_NONE) &&
 	       (s->si[1].conn_retries != s->be->conn_retries)) ||
 	      ((s->fe->mode == PR_MODE_HTTP) && s->txn.status >= 500);
 
