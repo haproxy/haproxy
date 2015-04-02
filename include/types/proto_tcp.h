@@ -26,7 +26,7 @@
 #include <common/mini-clist.h>
 
 #include <types/acl.h>
-#include <types/session.h>
+#include <types/stream.h>
 
 /* Layer4 accept/reject rules */
 enum {
@@ -52,7 +52,7 @@ struct tcp_rule {
 	struct acl_cond *cond;
 	int action;
 	int (*action_ptr)(struct tcp_rule *rule, struct proxy *px,
-	                  struct session *s);
+	                  struct stream *s);
 	union {
 		struct track_ctr_prm trk_ctr;
 		struct capture_prm cap;

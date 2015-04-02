@@ -20,7 +20,7 @@
 #include <eb32tree.h>
 
 #include <proto/proxy.h>
-#include <proto/session.h>
+#include <proto/stream.h>
 #include <proto/task.h>
 
 struct pool_head *pool2_task;
@@ -234,8 +234,8 @@ void process_runnable_tasks()
 		 * predictor take this most common call.
 		 */
 		t->calls++;
-		if (likely(t->process == process_session))
-			t = process_session(t);
+		if (likely(t->process == process_stream))
+			t = process_stream(t);
 		else
 			t = t->process(t);
 

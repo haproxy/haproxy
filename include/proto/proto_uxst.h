@@ -23,7 +23,7 @@
 #define _PROTO_PROTO_UXST_H
 
 #include <common/config.h>
-#include <types/session.h>
+#include <types/stream.h>
 #include <types/task.h>
 
 void uxst_add_listener(struct listener *listener);

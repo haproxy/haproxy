@@ -169,7 +169,7 @@ int resume_listener(struct listener *l)
 	return 1;
 }
 
-/* Marks a ready listener as full so that the session code tries to re-enable
+/* Marks a ready listener as full so that the stream code tries to re-enable
  * it upon next close() using resume_listener().
  */
 void listener_full(struct listener *l)
@@ -466,7 +466,7 @@ void listener_accept(int fd)
 
 		ret = l->accept(l, cfd, &addr);
 		if (unlikely(ret <= 0)) {
-			/* The connection was closed by session_accept(). Either
+			/* The connection was closed by stream_accept(). Either
 			 * we just have to ignore it (ret == 0) or it's a critical
 			 * error due to a resource shortage, and we must stop the
 			 * listener (ret < 0).
@@ -589,7 +589,7 @@ void bind_dump_kws(char **out)
 
 /* set temp integer to the number of connexions to the same listening socket */
 static int
-smp_fetch_dconn(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_dconn(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_UINT;
@@ -599,7 +599,7 @@ smp_fetch_dconn(struct proxy *px, struct session *l4, void *l7, unsigned int opt
 
 /* set temp integer to the id of the socket (listener) */
 static int
-smp_fetch_so_id(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_so_id(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_UINT;

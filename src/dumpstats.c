@@ -56,7 +56,7 @@
 #include <proto/proto_uxst.h>
 #include <proto/proxy.h>
 #include <proto/sample.h>
-#include <proto/session.h>
+#include <proto/stream.h>
 #include <proto/server.h>
 #include <proto/raw_sock.h>
 #include <proto/stream_interface.h>
@@ -76,7 +76,7 @@ enum {
 	STAT_CLI_PRINT,      /* display message in cli->msg */
 	STAT_CLI_PRINT_FREE, /* display message in cli->msg. After the display, free the pointer */
 	STAT_CLI_O_INFO,     /* dump info */
-	STAT_CLI_O_SESS,     /* dump sessions */
+	STAT_CLI_O_SESS,     /* dump streams */
 	STAT_CLI_O_ERR,      /* dump errors */
 	STAT_CLI_O_TAB,      /* dump tables */
 	STAT_CLI_O_CLR,      /* clear tables */
@@ -123,7 +123,7 @@ enum {
 
 static int stats_dump_info_to_buffer(struct stream_interface *si);
 static int stats_dump_pools_to_buffer(struct stream_interface *si);
-static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct session *sess);
+static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct stream *sess);
 static int stats_dump_sess_to_buffer(struct stream_interface *si);
 static int stats_dump_errors_to_buffer(struct stream_interface *si);
 static int stats_table_request(struct stream_interface *si, int show);
@@ -337,8 +337,8 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		list_for_each_entry(l, &bind_conf->listeners, by_bind) {
 			l->maxconn = global.stats_fe->maxconn;
 			l->backlog = global.stats_fe->backlog;
-			l->accept = session_accept;
-			l->handler = process_session;
+			l->accept = stream_accept;
+			l->handler = process_stream;
 			l->default_target = global.stats_fe->default_target;
 			l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
 			l->nice = -64;  /* we want to boost priority for local stats */
@@ -544,7 +544,7 @@ static int dump_binary(struct chunk *out, const char *buf, int bsize)
 static int stats_dump_table_head_to_buffer(struct chunk *msg, struct stream_interface *si,
 					   struct proxy *proxy, struct proxy *target)
 {
-	struct session *s = si_sess(si);
+	struct stream *s = si_strm(si);
 
 	chunk_appendf(msg, "# table: %s, type: %s, size:%d, used:%d\n",
 		     proxy->id, stktable_types[proxy->table.type].kw, proxy->table.size, proxy->table.current);
@@ -637,7 +637,7 @@ static int stats_dump_table_entry_to_buffer(struct chunk *msg, struct stream_int
 
 static void stats_sock_table_key_request(struct stream_interface *si, char **args, int action)
 {
-	struct session *s = si_sess(si);
+	struct stream *s = si_strm(si);
 	struct appctx *appctx = __objt_appctx(si->end);
 	struct proxy *px = appctx->ctx.table.target;
 	struct stksess *ts;
@@ -897,10 +897,10 @@ err_args:
 }
 
 /* Expects to find a frontend named <arg> and returns it, otherwise displays various
- * adequate error messages and returns NULL. This function also expects the session
+ * adequate error messages and returns NULL. This function also expects the stream
  * level to be admin.
  */
-static struct proxy *expect_frontend_admin(struct session *s, struct stream_interface *si, const char *arg)
+static struct proxy *expect_frontend_admin(struct stream *s, struct stream_interface *si, const char *arg)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
 	struct proxy *px;
@@ -928,10 +928,10 @@ static struct proxy *expect_frontend_admin(struct session *s, struct stream_inte
 
 /* Expects to find a backend and a server in <arg> under the form <backend>/<server>,
  * and returns the pointer to the server. Otherwise, display adequate error messages
- * and returns NULL. This function also expects the session level to be admin. Note:
+ * and returns NULL. This function also expects the stream level to be admin. Note:
  * the <arg> is modified to remove the '/'.
  */
-static struct server *expect_server_admin(struct session *s, struct stream_interface *si, char *arg)
+static struct server *expect_server_admin(struct stream *s, struct stream_interface *si, char *arg)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
 	struct proxy *px;
@@ -1040,7 +1040,7 @@ struct pattern_expr *pat_expr_get_next(struct pattern_expr *getnext, struct list
  */
 static int stats_sock_parse_request(struct stream_interface *si, char *line)
 {
-	struct session *s = si_sess(si);
+	struct stream *s = si_strm(si);
 	struct appctx *appctx = __objt_appctx(si->end);
 	char *args[MAX_STATS_ARGS + 1];
 	int arg;
@@ -1122,7 +1122,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				appctx->ctx.sess.target = (void *)strtoul(args[2], NULL, 0);
 			else
 				appctx->ctx.sess.target = NULL;
-			appctx->ctx.sess.section = 0; /* start with session status */
+			appctx->ctx.sess.section = 0; /* start with stream status */
 			appctx->ctx.sess.pos = 0;
 			appctx->st0 = STAT_CLI_O_SESS; // stats_dump_sess_to_buffer
 		}
@@ -1979,7 +1979,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			return 1;
 		}
 		else if (strcmp(args[1], "session") == 0) {
-			struct session *sess, *ptr;
+			struct stream *sess, *ptr;
 
 			if (s->listener->bind_conf->level < ACCESS_LVL_ADMIN) {
 				appctx->ctx.cli.msg = stats_permission_denied_msg;
@@ -1995,35 +1995,35 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 
 			ptr = (void *)strtoul(args[2], NULL, 0);
 
-			/* first, look for the requested session in the session table */
-			list_for_each_entry(sess, &sessions, list) {
+			/* first, look for the requested stream in the stream table */
+			list_for_each_entry(sess, &streams, list) {
 				if (sess == ptr)
 					break;
 			}
 
-			/* do we have the session ? */
+			/* do we have the stream ? */
 			if (sess != ptr) {
 				appctx->ctx.cli.msg = "No such session (use 'show sess').\n";
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
 			}
 
-			session_shutdown(sess, SN_ERR_KILLED);
+			stream_shutdown(sess, SN_ERR_KILLED);
 			return 1;
 		}
 		else if (strcmp(args[1], "sessions") == 0) {
 			if (strcmp(args[2], "server") == 0) {
 				struct server *sv;
-				struct session *sess, *sess_bck;
+				struct stream *sess, *sess_bck;
 
 				sv = expect_server_admin(s, si, args[3]);
 				if (!sv)
 					return 1;
 
-				/* kill all the session that are on this server */
+				/* kill all the stream that are on this server */
 				list_for_each_entry_safe(sess, sess_bck, &sv->actconns, by_srv)
 					if (sess->srv_conn == sv)
-						session_shutdown(sess, SN_ERR_KILLED);
+						stream_shutdown(sess, SN_ERR_KILLED);
 
 				return 1;
 			}
@@ -3727,7 +3727,7 @@ static void stats_dump_html_px_end(struct stream_interface *si, struct proxy *px
 static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy *px, struct uri_auth *uri)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
-	struct session *s = si_sess(si);
+	struct stream *s = si_strm(si);
 	struct channel *rep = si_ic(si);
 	struct server *sv, *svs;	/* server and server-state, server-state=server or server->track */
 	struct listener *l;
@@ -4306,7 +4306,7 @@ static void stats_dump_html_end()
  * either CSV or HTML format. <uri> contains some HTML-specific parameters that
  * are ignored for CSV format (hence <uri> may be NULL there). It returns 0 if
  * it had to stop writing data and an I/O is needed, 1 if the dump is finished
- * and the session must be closed, or -1 in case of any error. This function is
+ * and the stream must be closed, or -1 in case of any error. This function is
  * used by both the CLI and the HTTP handlers.
  */
 static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_auth *uri)
@@ -4401,7 +4401,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
  */
 static int stats_process_http_post(struct stream_interface *si)
 {
-	struct session *s = si_sess(si);
+	struct stream *s = si_strm(si);
 	struct appctx *appctx = objt_appctx(si->end);
 
 	struct proxy *px = NULL;
@@ -4670,11 +4670,11 @@ static int stats_process_http_post(struct stream_interface *si)
 						break;
 					case ST_ADM_ACTION_SHUTDOWN:
 						if (px->state != PR_STSTOPPED) {
-							struct session *sess, *sess_bck;
+							struct stream *sess, *sess_bck;
 
 							list_for_each_entry_safe(sess, sess_bck, &sv->actconns, by_srv)
 								if (sess->srv_conn == sv)
-									session_shutdown(sess, SN_ERR_KILLED);
+									stream_shutdown(sess, SN_ERR_KILLED);
 
 							altered_servers++;
 							total_servers++;
@@ -4720,7 +4720,7 @@ static int stats_process_http_post(struct stream_interface *si)
 
 static int stats_send_http_headers(struct stream_interface *si)
 {
-	struct session *s = si_sess(si);
+	struct stream *s = si_strm(si);
 	struct uri_auth *uri = s->be->uri_auth;
 	struct appctx *appctx = objt_appctx(si->end);
 
@@ -4756,7 +4756,7 @@ static int stats_send_http_headers(struct stream_interface *si)
 static int stats_send_http_redirect(struct stream_interface *si)
 {
 	char scope_txt[STAT_SCOPE_TXT_MAXLEN + sizeof STAT_SCOPE_PATTERN];
-	struct session *s = si_sess(si);
+	struct stream *s = si_strm(si);
 	struct uri_auth *uri = s->be->uri_auth;
 	struct appctx *appctx = objt_appctx(si->end);
 
@@ -4808,7 +4808,7 @@ static int stats_send_http_redirect(struct stream_interface *si)
 static void http_stats_io_handler(struct stream_interface *si)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
-	struct session *s = si_sess(si);
+	struct stream *s = si_strm(si);
 	struct channel *req = si_oc(si);
 	struct channel *res = si_ic(si);
 
@@ -4978,12 +4978,12 @@ static inline const char *get_conn_data_name(const struct connection *conn)
 	return ptr;
 }
 
-/* This function dumps a complete session state onto the stream interface's
- * read buffer. The session has to be set in sess->target. It returns
+/* This function dumps a complete stream state onto the stream interface's
+ * read buffer. The stream has to be set in sess->target. It returns
  * 0 if the output buffer is full and it needs to be called again, otherwise
  * non-zero. It is designed to be called from stats_dump_sess_to_buffer() below.
  */
-static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct session *sess)
+static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct stream *sess)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
 	struct tm tm;
@@ -4995,7 +4995,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 	chunk_reset(&trash);
 
 	if (appctx->ctx.sess.section > 0 && appctx->ctx.sess.uid != sess->uniq_id) {
-		/* session changed, no need to go any further */
+		/* stream changed, no need to go any further */
 		chunk_appendf(&trash, "  *** session terminated while we were watching it ***\n");
 		if (bi_putchk(si_ic(si), &trash) == -1) {
 			si->flags |= SI_FL_WAIT_ROOM;
@@ -5007,7 +5007,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct se
 	}
 
 	switch (appctx->ctx.sess.section) {
-	case 0: /* main status of the session */
+	case 0: /* main status of the stream */
 		appctx->ctx.sess.uid = sess->uniq_id;
 		appctx->ctx.sess.section = 1;
 		/* fall through */
@@ -5332,8 +5332,8 @@ static int stats_pats_list(struct stream_interface *si)
 			              appctx->ctx.map.ref->display);
 
 			if (bi_putchk(si_ic(si), &trash) == -1) {
-				/* let's try again later from this session. We add ourselves into
-				 * this session's users so that it can remove us upon termination.
+				/* let's try again later from this stream. We add ourselves into
+				 * this stream's users so that it can remove us upon termination.
 				 */
 				si->flags |= SI_FL_WAIT_ROOM;
 				return 0;
@@ -5451,8 +5451,8 @@ static int stats_map_lookup(struct stream_interface *si)
 
 			/* display response */
 			if (bi_putchk(si_ic(si), &trash) == -1) {
-				/* let's try again later from this session. We add ourselves into
-				 * this session's users so that it can remove us upon termination.
+				/* let's try again later from this stream. We add ourselves into
+				 * this stream's users so that it can remove us upon termination.
 				 */
 				si->flags |= SI_FL_WAIT_ROOM;
 				return 0;
@@ -5502,8 +5502,8 @@ static int stats_pat_list(struct stream_interface *si)
 				              appctx->ctx.map.elt, appctx->ctx.map.elt->pattern);
 
 			if (bi_putchk(si_ic(si), &trash) == -1) {
-				/* let's try again later from this session. We add ourselves into
-				 * this session's users so that it can remove us upon termination.
+				/* let's try again later from this stream. We add ourselves into
+				 * this stream's users so that it can remove us upon termination.
 				 */
 				si->flags |= SI_FL_WAIT_ROOM;
 				return 0;
@@ -5525,7 +5525,7 @@ static int stats_pat_list(struct stream_interface *si)
 	}
 }
 
-/* This function dumps all sessions' states onto the stream interface's
+/* This function dumps all streams' states onto the stream interface's
  * read buffer. It returns 0 if the output buffer is full and it needs
  * to be called again, otherwise non-zero. It is designed to be called
  * from stats_dump_sess_to_buffer() below.
@@ -5537,7 +5537,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 
 	if (unlikely(si_ic(si)->flags & (CF_WRITE_ERROR|CF_SHUTW))) {
 		/* If we're forced to shut down, we might have to remove our
-		 * reference to the last session being dumped.
+		 * reference to the last stream being dumped.
 		 */
 		if (appctx->st2 == STAT_ST_LIST) {
 			if (!LIST_ISEMPTY(&appctx->ctx.sess.bref.users)) {
@@ -5553,30 +5553,30 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 	switch (appctx->st2) {
 	case STAT_ST_INIT:
 		/* the function had not been called yet, let's prepare the
-		 * buffer for a response. We initialize the current session
+		 * buffer for a response. We initialize the current stream
 		 * pointer to the first in the global list. When a target
-		 * session is being destroyed, it is responsible for updating
+		 * stream is being destroyed, it is responsible for updating
 		 * this pointer. We know we have reached the end when this
-		 * pointer points back to the head of the sessions list.
+		 * pointer points back to the head of the streams list.
 		 */
 		LIST_INIT(&appctx->ctx.sess.bref.users);
-		appctx->ctx.sess.bref.ref = sessions.n;
+		appctx->ctx.sess.bref.ref = streams.n;
 		appctx->st2 = STAT_ST_LIST;
 		/* fall through */
 
 	case STAT_ST_LIST:
-		/* first, let's detach the back-ref from a possible previous session */
+		/* first, let's detach the back-ref from a possible previous stream */
 		if (!LIST_ISEMPTY(&appctx->ctx.sess.bref.users)) {
 			LIST_DEL(&appctx->ctx.sess.bref.users);
 			LIST_INIT(&appctx->ctx.sess.bref.users);
 		}
 
 		/* and start from where we stopped */
-		while (appctx->ctx.sess.bref.ref != &sessions) {
+		while (appctx->ctx.sess.bref.ref != &streams) {
 			char pn[INET6_ADDRSTRLEN];
-			struct session *curr_sess;
+			struct stream *curr_sess;
 
-			curr_sess = LIST_ELEM(appctx->ctx.sess.bref.ref, struct session *, list);
+			curr_sess = LIST_ELEM(appctx->ctx.sess.bref.ref, struct stream *, list);
 
 			if (appctx->ctx.sess.target) {
 				if (appctx->ctx.sess.target != (void *)-1 && appctx->ctx.sess.target != curr_sess)
@@ -5587,7 +5587,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 				if (!stats_dump_full_sess_to_buffer(si, curr_sess))
 					return 0;
 
-				/* session dump complete */
+				/* stream dump complete */
 				LIST_DEL(&appctx->ctx.sess.bref.users);
 				LIST_INIT(&appctx->ctx.sess.bref.users);
 				if (appctx->ctx.sess.target != (void *)-1) {
@@ -5707,8 +5707,8 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 			chunk_appendf(&trash, "\n");
 
 			if (bi_putchk(si_ic(si), &trash) == -1) {
-				/* let's try again later from this session. We add ourselves into
-				 * this session's users so that it can remove us upon termination.
+				/* let's try again later from this stream. We add ourselves into
+				 * this stream's users so that it can remove us upon termination.
 				 */
 				si->flags |= SI_FL_WAIT_ROOM;
 				LIST_ADDQ(&curr_sess->back_refs, &appctx->ctx.sess.bref.users);
@@ -5720,7 +5720,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 		}
 
 		if (appctx->ctx.sess.target && appctx->ctx.sess.target != (void *)-1) {
-			/* specified session not found */
+			/* specified stream not found */
 			if (appctx->ctx.sess.section > 0)
 				chunk_appendf(&trash, "  *** session terminated while we were watching it ***\n");
 			else
@@ -5747,7 +5747,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 
 /* This is called when the stream interface is closed. For instance, upon an
  * external abort, we won't call the i/o handler anymore so we may need to
- * remove back references to the session currently being dumped.
+ * remove back references to the stream currently being dumped.
  */
 static void cli_release_handler(struct stream_interface *si)
 {
@@ -5773,7 +5773,7 @@ static void cli_release_handler(struct stream_interface *si)
 static int stats_table_request(struct stream_interface *si, int action)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
-	struct session *s = si_sess(si);
+	struct stream *s = si_strm(si);
 	struct ebmb_node *eb;
 	int dt;
 	int skip_entry;

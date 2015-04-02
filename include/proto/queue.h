@@ -28,7 +28,7 @@
 
 #include <types/proxy.h>
 #include <types/queue.h>
-#include <types/session.h>
+#include <types/stream.h>
 #include <types/server.h>
 #include <types/task.h>
 
@@ -37,8 +37,8 @@
 extern struct pool_head *pool2_pendconn;
 
 int init_pendconn();
-struct session *pendconn_get_next_sess(struct server *srv, struct proxy *px);
-struct pendconn *pendconn_add(struct session *sess);
+struct stream *pendconn_get_next_strm(struct server *srv, struct proxy *px);
+struct pendconn *pendconn_add(struct stream *strm);
 void pendconn_free(struct pendconn *p);
 void process_srv_queue(struct server *s);
 unsigned int srv_dynamic_maxconn(const struct server *s);

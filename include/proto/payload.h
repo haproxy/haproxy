@@ -24,9 +24,9 @@
 
 #include <common/config.h>
 #include <types/sample.h>
-#include <types/session.h>
+#include <types/stream.h>
 
-int fetch_rdp_cookie_name(struct session *s, struct sample *smp, const char *cname, int clen);
+int fetch_rdp_cookie_name(struct stream *s, struct sample *smp, const char *cname, int clen);
 int val_payload_lv(struct arg *arg, char **err_msg);
 
 #endif /* _PROTO_PROTO_PAYLOAD_H */

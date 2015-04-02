@@ -44,7 +44,7 @@ enum {
 
 /* The types of extra data we can store in a stick table */
 enum {
-	STKTABLE_DT_SERVER_ID,    /* the server ID to use with this session if > 0 */
+	STKTABLE_DT_SERVER_ID,    /* the server ID to use with this stream if > 0 */
 	STKTABLE_DT_GPC0,         /* General Purpose Counter 0 (unsigned 32-bit integer) */
 	STKTABLE_DT_GPC0_RATE,    /* General Purpose Counter 0's event rate */
 	STKTABLE_DT_CONN_CNT,     /* cumulated number of connections */
@@ -193,8 +193,8 @@ struct stktable_key {
 	union stktable_key_data data;   /* data, must always be last */
 };
 
-/* WARNING: if new fields are added, they must be initialized in session_accept()
- * and freed in session_free() !
+/* WARNING: if new fields are added, they must be initialized in stream_accept()
+ * and freed in stream_free() !
  */
 #define STKCTR_TRACK_BACKEND 1
 #define STKCTR_TRACK_CONTENT 2
@@ -203,7 +203,7 @@ struct stktable_key {
  * pointer to an stksess struct, and two flags among STKCTR_TRACK_* above.
  */
 struct stkctr {
-	unsigned long   entry;          /* entry containing counters currently being tracked by this session  */
+	unsigned long   entry;          /* entry containing counters currently being tracked by this stream  */
 	struct stktable *table;         /* table the counters above belong to (undefined if counters are null) */
 };
 

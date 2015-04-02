@@ -17,7 +17,7 @@
 #define CLASS_CHANNEL  "Channel"
 #define CLASS_HTTP     "HTTP"
 
-struct session;
+struct stream;
 
 #define HLUA_RUN       0x00000001
 #define HLUA_CTRLYIELD 0x00000002
@@ -91,14 +91,14 @@ struct hlua_rule {
  * associated with the lua object called "TXN".
  */
 struct hlua_txn {
-	struct session *s;
+	struct stream *s;
 	struct proxy *p;
 	void *l7;
 };
 
 /* This struc is used with sample fetches and sample converters. */
 struct hlua_smp {
-	struct session *s;
+	struct stream *s;
 	struct proxy *p;
 	void *l7;
 	int stringsafe;
@@ -112,10 +112,10 @@ struct hlua_sleep {
 };
 
 /* This struct is used to create coprocess doing TCP or
- * SSL I/O. It uses a fake session.
+ * SSL I/O. It uses a fake stream.
  */
 struct hlua_socket {
-	struct session *s; /* Session used for socket I/O. */
+	struct stream *s; /* Stream used for socket I/O. */
 	luaL_Buffer b; /* buffer used to prepare strings. */
 };
 

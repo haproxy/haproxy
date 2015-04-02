@@ -27,7 +27,7 @@
 #include <proto/queue.h>
 #include <proto/raw_sock.h>
 #include <proto/server.h>
-#include <proto/session.h>
+#include <proto/stream.h>
 #include <proto/task.h>
 
 
@@ -166,26 +166,26 @@ static int srv_parse_id(char **args, int *cur_arg, struct proxy *curproxy, struc
  * code in <why>, which must be one of SN_ERR_* indicating the reason for the
  * shutdown.
  */
-void srv_shutdown_sessions(struct server *srv, int why)
+void srv_shutdown_streams(struct server *srv, int why)
 {
-	struct session *session, *session_bck;
+	struct stream *stream, *stream_bck;
 
-	list_for_each_entry_safe(session, session_bck, &srv->actconns, by_srv)
-		if (session->srv_conn == srv)
-			session_shutdown(session, why);
+	list_for_each_entry_safe(stream, stream_bck, &srv->actconns, by_srv)
+		if (stream->srv_conn == srv)
+			stream_shutdown(stream, why);
 }
 
 /* Shutdown all connections of all backup servers of a proxy. The caller must
  * pass a termination code in <why>, which must be one of SN_ERR_* indicating
  * the reason for the shutdown.
  */
-void srv_shutdown_backup_sessions(struct proxy *px, int why)
+void srv_shutdown_backup_streams(struct proxy *px, int why)
 {
 	struct server *srv;
 
 	for (srv = px->srv; srv != NULL; srv = srv->next)
 		if (srv->flags & SRV_F_BACKUP)
-			srv_shutdown_sessions(srv, why);
+			srv_shutdown_streams(srv, why);
 }
 
 /* Appends some information to a message string related to a server going UP or
@@ -193,7 +193,7 @@ void srv_shutdown_backup_sessions(struct proxy *px, int why)
  * one, a "via" information will be provided to know where the status came from.
  * If <reason> is non-null, the entire string will be appended after a comma and
  * a space (eg: to report some information from the check that changed the state).
- * If <xferred> is non-negative, some information about requeued sessions are
+ * If <xferred> is non-negative, some information about requeued streams are
  * provided.
  */
 void srv_append_status(struct chunk *msg, struct server *s, const char *reason, int xferred, int forced)
@@ -221,7 +221,7 @@ void srv_append_status(struct chunk *msg, struct server *s, const char *reason, 
 
 /* Marks server <s> down, regardless of its checks' statuses, notifies by all
  * available means, recounts the remaining servers on the proxy and transfers
- * queued sessions whenever possible to other servers. It automatically
+ * queued streams whenever possible to other servers. It automatically
  * recomputes the number of servers, but not the map. Maintenance servers are
  * ignored. It reports <reason> if non-null as the reason for going down. Note
  * that it makes use of the trash to build the log strings, so <reason> must
@@ -244,9 +244,9 @@ void srv_set_stopped(struct server *s, const char *reason)
 		s->proxy->lbprm.set_server_status_down(s);
 
 	if (s->onmarkeddown & HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS)
-		srv_shutdown_sessions(s, SN_ERR_DOWN);
+		srv_shutdown_streams(s, SN_ERR_DOWN);
 
-	/* we might have sessions queued on this server and waiting for
+	/* we might have streams queued on this server and waiting for
 	 * a connection. Those which are redispatchable will be queued
 	 * to another server or to the proxy itself.
 	 */
@@ -313,12 +313,12 @@ void srv_set_running(struct server *s, const char *reason)
 
 	/* If the server is set with "on-marked-up shutdown-backup-sessions",
 	 * and it's not a backup server and its effective weight is > 0,
-	 * then it can accept new connections, so we shut down all sessions
+	 * then it can accept new connections, so we shut down all streams
 	 * on all backup servers.
 	 */
 	if ((s->onmarkedup & HANA_ONMARKEDUP_SHUTDOWNBACKUPSESSIONS) &&
 	    !(s->flags & SRV_F_BACKUP) && s->eweight)
-		srv_shutdown_backup_sessions(s->proxy, SN_ERR_UP);
+		srv_shutdown_backup_streams(s->proxy, SN_ERR_UP);
 
 	/* check if we can handle some connections queued at the proxy. We
 	 * will take as many as we can handle.
@@ -361,7 +361,7 @@ void srv_set_stopping(struct server *s, const char *reason)
 	if (s->proxy->lbprm.set_server_status_down)
 		s->proxy->lbprm.set_server_status_down(s);
 
-	/* we might have sessions queued on this server and waiting for
+	/* we might have streams queued on this server and waiting for
 	 * a connection. Those which are redispatchable will be queued
 	 * to another server or to the proxy itself.
 	 */
@@ -438,9 +438,9 @@ void srv_set_admin_flag(struct server *s, enum srv_admin mode)
 				s->proxy->lbprm.set_server_status_down(s);
 
 			if (s->onmarkeddown & HANA_ONMARKEDDOWN_SHUTDOWNSESSIONS)
-				srv_shutdown_sessions(s, SN_ERR_DOWN);
+				srv_shutdown_streams(s, SN_ERR_DOWN);
 
-			/* we might have sessions queued on this server and waiting for
+			/* we might have streams queued on this server and waiting for
 			 * a connection. Those which are redispatchable will be queued
 			 * to another server or to the proxy itself.
 			 */
@@ -471,7 +471,7 @@ void srv_set_admin_flag(struct server *s, enum srv_admin mode)
 		if (s->proxy->lbprm.set_server_status_down)
 			s->proxy->lbprm.set_server_status_down(s);
 
-		/* we might have sessions queued on this server and waiting for
+		/* we might have streams queued on this server and waiting for
 		 * a connection. Those which are redispatchable will be queued
 		 * to another server or to the proxy itself.
 		 */
@@ -595,12 +595,12 @@ void srv_clr_admin_flag(struct server *s, enum srv_admin mode)
 
 			/* If the server is set with "on-marked-up shutdown-backup-sessions",
 			 * and it's not a backup server and its effective weight is > 0,
-			 * then it can accept new connections, so we shut down all sessions
+			 * then it can accept new connections, so we shut down all streams
 			 * on all backup servers.
 			 */
 			if ((s->onmarkedup & HANA_ONMARKEDUP_SHUTDOWNBACKUPSESSIONS) &&
 			    !(s->flags & SRV_F_BACKUP) && s->eweight)
-				srv_shutdown_backup_sessions(s->proxy, SN_ERR_UP);
+				srv_shutdown_backup_streams(s->proxy, SN_ERR_UP);
 
 			/* check if we can handle some connections queued at the proxy. We
 			 * will take as many as we can handle.

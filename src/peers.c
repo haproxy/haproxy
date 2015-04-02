@@ -38,7 +38,7 @@
 #include <proto/proto_tcp.h>
 #include <proto/proto_http.h>
 #include <proto/proxy.h>
-#include <proto/session.h>
+#include <proto/stream.h>
 #include <proto/signal.h>
 #include <proto/stick_table.h>
 #include <proto/stream_interface.h>
@@ -120,7 +120,7 @@ enum {
 #define PEER_SESSION_PROTO_NAME         "HAProxyS"
 
 struct peers *peers = NULL;
-static void peer_session_forceshutdown(struct session * session);
+static void peer_session_forceshutdown(struct stream * stream);
 
 
 /*
@@ -179,7 +179,7 @@ static int peer_prepare_datamsg(struct stksess *ts, struct peer_session *ps, cha
  */
 static void peer_session_release(struct stream_interface *si)
 {
-	struct session *s = si_sess(si);
+	struct stream *s = si_strm(si);
 	struct appctx *appctx = objt_appctx(si->end);
 	struct peer_session *ps = (struct peer_session *)appctx->ctx.peers.ptr;
 
@@ -189,8 +189,8 @@ static void peer_session_release(struct stream_interface *si)
 
 	/* peer session identified */
 	if (ps) {
-		if (ps->session == s) {
-			ps->session = NULL;
+		if (ps->stream == s) {
+			ps->stream = NULL;
 			if (ps->flags & PEER_F_LEARN_ASSIGN) {
 				/* unassign current peer for learning */
 				ps->flags &= ~(PEER_F_LEARN_ASSIGN);
@@ -213,7 +213,7 @@ static void peer_session_release(struct stream_interface *si)
  */
 static void peer_io_handler(struct stream_interface *si)
 {
-	struct session *s = si_sess(si);
+	struct stream *s = si_strm(si);
 	struct peers *curpeers = (struct peers *)s->fe->parent;
 	struct appctx *appctx = objt_appctx(si->end);
 	int reql = 0;
@@ -405,20 +405,20 @@ switchstate:
 							goto switchstate;
 						}
 
-						/* lookup peer session of current peer */
+						/* lookup peer stream of current peer */
 						for (ps = st->sessions; ps; ps = ps->next) {
 							if (ps->peer == curpeer) {
-								/* If session already active, replaced by new one */
-								if (ps->session && ps->session != s) {
+								/* If stream already active, replaced by new one */
+								if (ps->stream && ps->stream != s) {
 									if (ps->peer->local) {
 										/* Local connection, reply a retry */
 										appctx->st0 = PEER_SESS_ST_EXIT;
 										appctx->st1 = PEER_SESS_SC_TRYAGAIN;
 										goto switchstate;
 									}
-									peer_session_forceshutdown(ps->session);
+									peer_session_forceshutdown(ps->stream);
 								}
-								ps->session = s;
+								ps->stream = s;
 								break;
 							}
 						}
@@ -1063,20 +1063,20 @@ static struct si_applet peer_applet = {
 /*
  * Use this function to force a close of a peer session
  */
-static void peer_session_forceshutdown(struct session * session)
+static void peer_session_forceshutdown(struct stream * stream)
 {
 	struct stream_interface *oldsi = NULL;
 	struct appctx *appctx = NULL;
 	int i;
 
 	for (i = 0; i <= 1; i++) {
-		appctx = objt_appctx(session->si[i].end);
+		appctx = objt_appctx(stream->si[i].end);
 		if (!appctx)
 			continue;
 		if (appctx->applet != &peer_applet)
 			continue;
 
-		oldsi = &session->si[i];
+		oldsi = &stream->si[i];
 		break;
 	}
 
@@ -1087,7 +1087,7 @@ static void peer_session_forceshutdown(struct session * session)
 	peer_session_release(oldsi);
 	appctx->st0 = PEER_SESS_ST_END;
 	appctx->ctx.peers.ptr = NULL;
-	task_wakeup(session->task, TASK_WOKEN_MSG);
+	task_wakeup(stream->task, TASK_WOKEN_MSG);
 }
 
 /* Pre-configures a peers frontend to accept incoming connections */
@@ -1106,22 +1106,22 @@ void peers_setup_frontend(struct proxy *fe)
 /*
  * Create a new peer session in assigned state (connect will start automatically)
  */
-static struct session *peer_session_create(struct peer *peer, struct peer_session *ps)
+static struct stream *peer_session_create(struct peer *peer, struct peer_session *ps)
 {
 	struct listener *l = LIST_NEXT(&peer->peers->peers_fe->conf.listeners, struct listener *, by_fe);
 	struct proxy *p = (struct proxy *)l->frontend; /* attached frontend */
 	struct appctx *appctx;
-	struct session *s;
+	struct stream *s;
 	struct http_txn *txn;
 	struct task *t;
 	struct connection *conn;
 
-	if ((s = pool_alloc2(pool2_session)) == NULL) { /* disable this proxy for a while */
+	if ((s = pool_alloc2(pool2_stream)) == NULL) { /* disable this proxy for a while */
 		Alert("out of memory in peer_session_create().\n");
 		goto out_close;
 	}
 
-	LIST_ADDQ(&sessions, &s->list);
+	LIST_ADDQ(&streams, &s->list);
 	LIST_INIT(&s->back_refs);
 	LIST_INIT(&s->buffer_wait);
 
@@ -1145,7 +1145,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	s->task = t;
 	s->listener = l;
 
-	/* Note: initially, the session's backend points to the frontend.
+	/* Note: initially, the stream's backend points to the frontend.
 	 * This changes later when switching rules are executed or
 	 * when the default backend is assigned.
 	 */
@@ -1188,7 +1188,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	conn->target = s->target = &s->be->obj_type;
 	memcpy(&conn->addr.to, &peer->addr, sizeof(conn->addr.to));
 
-	session_init_srv_conn(s);
+	stream_init_srv_conn(s);
 	s->pend_pos = NULL;
 
 	/* init store persistence */
@@ -1214,7 +1214,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 
 	txn = &s->txn;
 	/* Those variables will be checked and freed if non-NULL in
-	 * session.c:session_free(). It is important that they are
+	 * stream.c:stream_free(). It is important that they are
 	 * properly initialized.
 	 */
 	txn->sessid = NULL;
@@ -1277,7 +1277,7 @@ static struct session *peer_session_create(struct peer *peer, struct peer_sessio
 	task_free(t);
  out_free_session:
 	LIST_DEL(&s->list);
-	pool_free2(pool2_session, s);
+	pool_free2(pool2_stream, s);
  out_close:
 	return s;
 }
@@ -1314,20 +1314,20 @@ static struct task *process_peer_sync(struct task * task)
 		for (ps = st->sessions; ps; ps = ps->next) {
 			/* For each remote peers */
 			if (!ps->peer->local) {
-				if (!ps->session) {
-					/* no active session */
+				if (!ps->stream) {
+					/* no active stream */
 					if (ps->statuscode == 0 ||
 					    ps->statuscode == PEER_SESS_SC_SUCCESSCODE ||
 					    ((ps->statuscode == PEER_SESS_SC_CONNECTCODE ||
 					      ps->statuscode == PEER_SESS_SC_CONNECTEDCODE) &&
 					     tick_is_expired(ps->reconnect, now_ms))) {
 						/* connection never tried
-						 * or previous session established with success
-						 * or previous session failed during connection
+						 * or previous stream established with success
+						 * or previous stream failed during connection
 						 * and reconnection timer is expired */
 
 						/* retry a connect */
-						ps->session = peer_session_create(ps->peer, ps);
+						ps->stream = peer_session_create(ps->peer, ps);
 					}
 					else if (ps->statuscode == PEER_SESS_SC_CONNECTCODE ||
 						 ps->statuscode == PEER_SESS_SC_CONNECTEDCODE) {
@@ -1338,9 +1338,9 @@ static struct task *process_peer_sync(struct task * task)
 						task->expire = tick_first(task->expire, ps->reconnect);
 					}
 					/* else do nothing */
-				} /* !ps->session */
+				} /* !ps->stream */
 				else if (ps->statuscode == PEER_SESS_SC_SUCCESSCODE) {
-					/* current session is active and established */
+					/* current stream is active and established */
 					if (((st->flags & SHTABLE_RESYNC_STATEMASK) == SHTABLE_RESYNC_FROMREMOTE) &&
 					    !(st->flags & SHTABLE_F_RESYNC_ASSIGN) &&
 					    !(ps->flags & PEER_F_LEARN_NOTUP2DATE)) {
@@ -1352,12 +1352,12 @@ static struct task *process_peer_sync(struct task * task)
 						ps->flags |= PEER_F_LEARN_ASSIGN;
 						st->flags |= SHTABLE_F_RESYNC_ASSIGN;
 
-						/* awake peer session task to handle a request of resync */
-						task_wakeup(ps->session->task, TASK_WOKEN_MSG);
+						/* awake peer stream task to handle a request of resync */
+						task_wakeup(ps->stream->task, TASK_WOKEN_MSG);
 					}
 					else if ((int)(ps->pushed - ps->table->table->localupdate) < 0) {
-						/* awake peer session task to push local updates */
-						task_wakeup(ps->session->task, TASK_WOKEN_MSG);
+						/* awake peer stream task to push local updates */
+						task_wakeup(ps->stream->task, TASK_WOKEN_MSG);
 					}
 					/* else do nothing */
 				} /* SUCCESSCODE */
@@ -1395,9 +1395,9 @@ static struct task *process_peer_sync(struct task * task)
 
 			/* disconnect all connected peers */
 			for (ps = st->sessions; ps; ps = ps->next) {
-				if (ps->session) {
-					peer_session_forceshutdown(ps->session);
-					ps->session = NULL;
+				if (ps->stream) {
+					peer_session_forceshutdown(ps->stream);
+					ps->stream = NULL;
 				}
 			}
 		}
@@ -1411,19 +1411,19 @@ static struct task *process_peer_sync(struct task * task)
 				st->table->syncing--;
 			}
 		}
-		else if (!ps->session) {
-			/* If session is not active */
+		else if (!ps->stream) {
+			/* If stream is not active */
 			if (ps->statuscode == 0 ||
 			    ps->statuscode == PEER_SESS_SC_SUCCESSCODE ||
 			    ps->statuscode == PEER_SESS_SC_CONNECTEDCODE ||
 			    ps->statuscode == PEER_SESS_SC_TRYAGAIN) {
 				/* connection never tried
-				 * or previous session was successfully established
-				 * or previous session tcp connect success but init state incomplete
+				 * or previous stream was successfully established
+				 * or previous stream tcp connect success but init state incomplete
 				 * or during previous connect, peer replies a try again statuscode */
 
 				/* connect to the peer */
-				ps->session = peer_session_create(ps->peer, ps);
+				ps->stream = peer_session_create(ps->peer, ps);
 			}
 			else {
 				/* Other error cases */
@@ -1437,9 +1437,9 @@ static struct task *process_peer_sync(struct task * task)
 		}
 		else if (ps->statuscode == PEER_SESS_SC_SUCCESSCODE &&
 		         (int)(ps->pushed - ps->table->table->localupdate) < 0) {
-			/* current session active and established
-			   awake session to push remaining local updates */
-			task_wakeup(ps->session->task, TASK_WOKEN_MSG);
+			/* current stream active and established
+			   awake stream to push remaining local updates */
+			task_wakeup(ps->stream->task, TASK_WOKEN_MSG);
 		}
 	} /* stopping */
 	/* Wakeup for re-connect */

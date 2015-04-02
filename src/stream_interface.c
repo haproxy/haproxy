@@ -30,7 +30,7 @@
 #include <proto/channel.h>
 #include <proto/connection.h>
 #include <proto/pipe.h>
-#include <proto/session.h>
+#include <proto/stream.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 
@@ -629,7 +629,7 @@ static int si_conn_wake_cb(struct connection *conn)
 	if (ic->flags & CF_READ_ACTIVITY)
 		ic->flags &= ~CF_READ_DONTWAIT;
 
-	session_release_buffers(si_sess(si));
+	stream_release_buffers(si_strm(si));
 	return 0;
 }
 
@@ -1149,7 +1149,7 @@ static void si_conn_recv_cb(struct connection *conn)
 	}
 
 	/* now we'll need a buffer */
-	if (!session_alloc_recv_buffer(ic)) {
+	if (!stream_alloc_recv_buffer(ic)) {
 		si->flags |= SI_FL_WAIT_ROOM;
 		goto end_recv;
 	}
@@ -1330,7 +1330,7 @@ void stream_sock_read0(struct stream_interface *si)
 
 	if (si->flags & SI_FL_NOHALF) {
 		/* we want to immediately forward this close to the write side */
-		/* force flag on ssl to keep session in cache */
+		/* force flag on ssl to keep stream in cache */
 		conn_data_shutw_hard(conn);
 		goto do_close;
 	}

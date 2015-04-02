@@ -97,7 +97,7 @@
 #include <proto/proxy.h>
 #include <proto/queue.h>
 #include <proto/server.h>
-#include <proto/session.h>
+#include <proto/stream.h>
 #include <proto/signal.h>
 #include <proto/task.h>
 
@@ -559,7 +559,7 @@ void init(int argc, char **argv)
 	if (init_acl() != 0)
 		exit(1);
 	init_task();
-	init_session();
+	init_stream();
 	init_connection();
 	/* warning, we init buffers later */
 	init_pendconn();
@@ -840,7 +840,7 @@ void init(int argc, char **argv)
 		mem = mem * MEM_USABLE_RATIO;
 
 		global.maxconn = mem /
-			((SESSION_MAX_COST + 2 * global.tune.bufsize) +    // session + 2 buffers per session
+			((STREAM_MAX_COST + 2 * global.tune.bufsize) +    // stream + 2 buffers per stream
 			 sides * global.ssl_session_max_cost + // SSL buffers, one per side
 			 global.ssl_handshake_max_cost);       // 1 handshake per connection max
 
@@ -870,7 +870,7 @@ void init(int argc, char **argv)
 		mem -= global.maxzlibmem;
 		mem = mem * MEM_USABLE_RATIO;
 
-		sslmem = mem - global.maxconn * (int64_t)(SESSION_MAX_COST + 2 * global.tune.bufsize);
+		sslmem = mem - global.maxconn * (int64_t)(STREAM_MAX_COST + 2 * global.tune.bufsize);
 		global.maxsslconn = sslmem / (global.ssl_session_max_cost + global.ssl_handshake_max_cost);
 		global.maxsslconn = round_2dig(global.maxsslconn);
 
@@ -879,7 +879,7 @@ void init(int argc, char **argv)
 			      "high for the global.memmax value (%d MB). The absolute maximum possible value "
 			      "without SSL is %d, but %d was found and SSL is in use.\n",
 			      global.rlimit_memmax,
-			      (int)(mem / (SESSION_MAX_COST + 2 * global.tune.bufsize)),
+			      (int)(mem / (STREAM_MAX_COST + 2 * global.tune.bufsize)),
 			      global.maxconn);
 			exit(1);
 		}
@@ -907,7 +907,7 @@ void init(int argc, char **argv)
 		if (sides)
 			clearmem -= (global.ssl_session_max_cost + global.ssl_handshake_max_cost) * (int64_t)global.maxsslconn;
 
-		global.maxconn = clearmem / (SESSION_MAX_COST + 2 * global.tune.bufsize);
+		global.maxconn = clearmem / (STREAM_MAX_COST + 2 * global.tune.bufsize);
 		global.maxconn = round_2dig(global.maxconn);
 #ifdef SYSTEM_MAXCONN
 		if (global.maxconn > DEFAULT_MAXCONN)
@@ -1430,7 +1430,7 @@ void deinit(void)
 		free(wl);
 	}
 
-	pool_destroy2(pool2_session);
+	pool_destroy2(pool2_stream);
 	pool_destroy2(pool2_connection);
 	pool_destroy2(pool2_buffer);
 	pool_destroy2(pool2_requri);

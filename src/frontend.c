@@ -42,17 +42,17 @@
 #include <proto/proto_http.h>
 #include <proto/proxy.h>
 #include <proto/sample.h>
-#include <proto/session.h>
+#include <proto/stream.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 
-/* Finish a session accept() for a proxy (TCP or HTTP). It returns a negative
+/* Finish a stream accept() for a proxy (TCP or HTTP). It returns a negative
  * value in case of a critical failure which must cause the listener to be
  * disabled, a positive value in case of success, or zero if it is a success
- * but the session must be closed ASAP (eg: monitoring). It only supports
- * sessions with a connection in si[0].
+ * but the stream must be closed ASAP (eg: monitoring). It only supports
+ * streams with a connection in si[0].
  */
-int frontend_accept(struct session *s)
+int frontend_accept(struct stream *s)
 {
 	struct connection *conn = __objt_conn(s->si[0].end);
 	int cfd = conn->t.sock.fd;
@@ -69,7 +69,7 @@ int frontend_accept(struct session *s)
 	/* FIXME: the logs are horribly complicated now, because they are
 	 * defined in <p>, <p>, and later <be> and <be>.
 	 */
-	s->do_log = sess_log;
+	s->do_log = strm_log;
 
 	/* default error reporting function, may be changed by analysers */
 	s->srv_error = default_srv_error;
@@ -218,7 +218,7 @@ int frontend_accept(struct session *s)
 
 /* set temp integer to the id of the frontend */
 static int
-smp_fetch_fe_id(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_fe_id(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_SESS;
@@ -232,7 +232,7 @@ smp_fetch_fe_id(struct proxy *px, struct session *l4, void *l7, unsigned int opt
  * an undefined behaviour.
  */
 static int
-smp_fetch_fe_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_fe_sess_rate(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TEST;
@@ -246,7 +246,7 @@ smp_fetch_fe_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned 
  * an undefined behaviour.
  */
 static int
-smp_fetch_fe_conn(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_fe_conn(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                   const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TEST;

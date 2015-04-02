@@ -31,7 +31,7 @@
 #include <proto/raw_sock.h>
 #include <proto/sample.h>
 #include <proto/server.h>
-#include <proto/session.h>
+#include <proto/stream.h>
 #include <proto/ssl_sock.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
@@ -77,7 +77,7 @@ static int class_converters_ref;
 static int class_http_ref;
 
 /* Global Lua execution timeout. By default Lua, execution linked
- * with session (actions, sample-fetches and converters) have a
+ * with stream (actions, sample-fetches and converters) have a
  * short timeout. Lua linked with tasks doesn't have a timeout
  * because a task may remain alive during all the haproxy execution.
  */
@@ -792,8 +792,8 @@ __LJMP void hlua_yieldk(lua_State *L, int nresults, int ctx,
 	WILL_LJMP(lua_yieldk(L, nresults, ctx, k));
 }
 
-/* This function initialises the Lua environment stored in the session.
- * It must be called at the start of the session. This function creates
+/* This function initialises the Lua environment stored in the stream.
+ * It must be called at the start of the stream. This function creates
  * an LUA coroutine. It can not be use to crete the main LUA context.
  */
 int hlua_ctx_init(struct hlua *lua, struct task *task)
@@ -812,7 +812,7 @@ int hlua_ctx_init(struct hlua *lua, struct task *task)
 	return 1;
 }
 
-/* Used to destroy the Lua coroutine when the attached session or task
+/* Used to destroy the Lua coroutine when the attached stream or task
  * is destroyed. The destroy also the memory context. The struct "lua"
  * is not freed.
  */
@@ -1286,7 +1286,7 @@ static void hlua_socket_handler(struct stream_interface *si)
 	struct appctx *appctx = objt_appctx(si->end);
 	struct connection *c = objt_conn(si_opposite(si)->end);
 
-	/* Wakeup the main session if the client connection is closed. */
+	/* Wakeup the main stream if the client connection is closed. */
 	if (!c || channel_output_closed(si_ic(si)) || channel_input_closed(si_oc(si))) {
 		if (appctx->ctx.hlua.socket) {
 			appctx->ctx.hlua.socket->s = NULL;
@@ -1315,8 +1315,8 @@ static void hlua_socket_handler(struct stream_interface *si)
 		hlua_com_wake(&appctx->ctx.hlua.wake_on_read);
 }
 
-/* This function is called when the "struct session" is destroyed.
- * Remove the link from the object to this session.
+/* This function is called when the "struct stream" is destroyed.
+ * Remove the link from the object to this stream.
  * Wake all the pending signals.
  */
 static void hlua_socket_release(struct stream_interface *si)
@@ -1333,8 +1333,8 @@ static void hlua_socket_release(struct stream_interface *si)
 }
 
 /* If the garbage collectio of the object is launch, nobody
- * uses this object. If the session does not exists, just quit.
- * Send the shutdown signal to the session. In some cases,
+ * uses this object. If the stream does not exists, just quit.
+ * Send the shutdown signal to the stream. In some cases,
  * pending signal can rest in the read and write lists. destroy
  * it.
  */
@@ -1349,9 +1349,9 @@ __LJMP static int hlua_socket_gc(lua_State *L)
 	if (!socket->s)
 		return 0;
 
-	/* Remove all reference between the Lua stack and the coroutine session. */
+	/* Remove all reference between the Lua stack and the coroutine stream. */
 	appctx = objt_appctx(socket->s->si[0].end);
-	session_shutdown(socket->s, SN_ERR_KILLED);
+	stream_shutdown(socket->s, SN_ERR_KILLED);
 	socket->s = NULL;
 	appctx->ctx.hlua.socket = NULL;
 
@@ -1359,7 +1359,7 @@ __LJMP static int hlua_socket_gc(lua_State *L)
 }
 
 /* The close function send shutdown signal and break the
- * links between the session and the object.
+ * links between the stream and the object.
  */
 __LJMP static int hlua_socket_close(lua_State *L)
 {
@@ -1372,8 +1372,8 @@ __LJMP static int hlua_socket_close(lua_State *L)
 	if (!socket->s)
 		return 0;
 
-	/* Close the session and remove the associated stop task. */
-	session_shutdown(socket->s, SN_ERR_KILLED);
+	/* Close the stream and remove the associated stop task. */
+	stream_shutdown(socket->s, SN_ERR_KILLED);
 	appctx = objt_appctx(socket->s->si[0].end);
 	appctx->ctx.hlua.socket = NULL;
 	socket->s = NULL;
@@ -1629,7 +1629,7 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	 * the request buffer if its not required.
 	 */
 	if (socket->s->req.buf->size == 0) {
-		if (!session_alloc_recv_buffer(&socket->s->req)) {
+		if (!stream_alloc_recv_buffer(&socket->s->req)) {
 			socket->s->si[0].flags |= SI_FL_WAIT_ROOM;
 			goto hlua_socket_write_yield_return;
 		}
@@ -2011,12 +2011,12 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	memset(socket, 0, sizeof(*socket));
 
 	/* Check if the various memory pools are intialized. */
-	if (!pool2_session || !pool2_buffer) {
+	if (!pool2_stream || !pool2_buffer) {
 		hlua_pusherror(L, "socket: uninitialized pools.");
 		goto out_fail_conf;
 	}
 
-	/* Pop a class session metatable and affect it to the userdata. */
+	/* Pop a class stream metatable and affect it to the userdata. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, class_socket_ref);
 	lua_setmetatable(L, -2);
 
@@ -2026,7 +2026,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	 *
 	 */
 
-	socket->s = pool_alloc2(pool2_session);
+	socket->s = pool_alloc2(pool2_stream);
 	if (!socket->s) {
 		hlua_pusherror(L, "socket: out of memory");
 		goto out_fail_conf;
@@ -2050,7 +2050,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 		goto out_fail_rep_buf;
 	}
 
-	/* Configura empty Lua for the session. */
+	/* Configura empty Lua for the stream. */
 	socket->s->hlua.T = NULL;
 	socket->s->hlua.Tref = LUA_REFNIL;
 	socket->s->hlua.Mref = LUA_REFNIL;
@@ -2058,8 +2058,8 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	socket->s->hlua.flags = 0;
 	LIST_INIT(&socket->s->hlua.com);
 
-	/* session initialisation. */
-	session_init_srv_conn(socket->s);
+	/* stream initialisation. */
+	stream_init_srv_conn(socket->s);
 
 	/*
 	 *
@@ -2067,12 +2067,12 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	 *
 	 */
 
-	/* This is the dedicated function to process the session. This function
+	/* This is the dedicated function to process the stream. This function
 	 * is able to establish the conection, process the timeouts, etc ...
 	 */
-	socket->s->task->process = process_session;
+	socket->s->task->process = process_stream;
 
-	/* Back reference to session. This is used by process_session(). */
+	/* Back reference to stream. This is used by process_stream(). */
 	socket->s->task->context = socket->s;
 
 	/* The priority of the task is normal. */
@@ -2120,11 +2120,11 @@ __LJMP static int hlua_socket_new(lua_State *L)
 
 	/*
 	 *
-	 * Configure the session.
+	 * Configure the stream.
 	 *
 	 */
 
-	/* The session dont have listener. The listener is used with real
+	/* The stream dont have listener. The listener is used with real
 	 * proxies.
 	 */
 	socket->s->listener = NULL;
@@ -2132,7 +2132,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	/* The flags are initialized to 0. Values are setted later. */
 	socket->s->flags = 0;
 
-	/* Assign the configured proxy to the new session. */
+	/* Assign the configured proxy to the new stream. */
 	socket->s->be = &socket_proxy;
 	socket->s->fe = &socket_proxy;
 
@@ -2207,8 +2207,8 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	socket->s->flags |= SN_DIRECT | SN_ASSIGNED | SN_ADDR_SET | SN_BE_ASSIGNED;
 	socket->s->target = &socket_tcp.obj_type;
 
-	/* This session is added to te lists of alive sessions. */
-	LIST_ADDQ(&sessions, &socket->s->list);
+	/* This stream is added to te lists of alive streams. */
+	LIST_ADDQ(&streams, &socket->s->list);
 
 	/* XXX: I think that this list is used by stats. */
 	LIST_INIT(&socket->s->back_refs);
@@ -2228,7 +2228,7 @@ out_fail_rep_buf:
 out_fail_req_buf:
 	task_free(socket->s->task);
 out_free_session:
-	pool_free2(pool2_session, socket->s);
+	pool_free2(pool2_stream, socket->s);
 out_fail_conf:
 	WILL_LJMP(lua_error(L));
 	return 0;
@@ -2509,7 +2509,7 @@ __LJMP static int hlua_channel_send_yield(lua_State *L, int status, lua_KContext
 	 * the request buffer if its not required.
 	 */
 	if (chn->buf->size == 0) {
-		if (!session_alloc_recv_buffer(chn)) {
+		if (!stream_alloc_recv_buffer(chn)) {
 			chn_prod(chn)->flags |= SI_FL_WAIT_ROOM;
 			WILL_LJMP(hlua_yieldk(L, 0, 0, hlua_channel_send_yield, TICK_ETERNITY, 0));
 		}
@@ -2686,7 +2686,7 @@ __LJMP static int hlua_channel_get_out_len(lua_State *L)
  */
 
 /* Returns a struct hlua_session if the stack entry "ud" is
- * a class session, otherwise it throws an error.
+ * a class stream, otherwise it throws an error.
  */
 __LJMP static struct hlua_smp *hlua_checkfetches(lua_State *L, int ud)
 {
@@ -2790,7 +2790,7 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
  */
 
 /* Returns a struct hlua_session if the stack entry "ud" is
- * a class session, otherwise it throws an error.
+ * a class stream, otherwise it throws an error.
  */
 __LJMP static struct hlua_smp *hlua_checkconverters(lua_State *L, int ud)
 {
@@ -2821,7 +2821,7 @@ static int hlua_converters_new(lua_State *L, struct hlua_txn *txn, int stringsaf
 	hsmp->l7 = txn->l7;
 	hsmp->stringsafe = stringsafe;
 
-	/* Pop a class session metatable and affect it to the table. */
+	/* Pop a class stream metatable and affect it to the table. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, class_converters_ref);
 	lua_setmetatable(L, -2);
 
@@ -2909,7 +2909,7 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
  */
 
 /* Returns a struct hlua_txn if the stack entry "ud" is
- * a class session, otherwise it throws an error.
+ * a class stream, otherwise it throws an error.
  */
 __LJMP static struct hlua_txn *hlua_checkhttp(lua_State *L, int ud)
 {
@@ -2939,7 +2939,7 @@ static int hlua_http_new(lua_State *L, struct hlua_txn *txn)
 	htxn->p = txn->p;
 	htxn->l7 = txn->l7;
 
-	/* Pop a class session metatable and affect it to the table. */
+	/* Pop a class stream metatable and affect it to the table. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, class_http_ref);
 	lua_setmetatable(L, -2);
 
@@ -3264,7 +3264,7 @@ static int hlua_http_req_set_uri(lua_State *L)
  */
 
 /* Returns a struct hlua_session if the stack entry "ud" is
- * a class session, otherwise it throws an error.
+ * a class stream, otherwise it throws an error.
  */
 __LJMP static struct hlua_txn *hlua_checktxn(lua_State *L, int ud)
 {
@@ -3277,8 +3277,8 @@ __LJMP static int hlua_set_priv(lua_State *L)
 
 	MAY_LJMP(check_args(L, 2, "set_priv"));
 
-	/* It is useles to retrieve the session, but this function
-	 * runs only in a session context.
+	/* It is useles to retrieve the stream, but this function
+	 * runs only in a stream context.
 	 */
 	MAY_LJMP(hlua_checktxn(L, 1));
 	hlua = hlua_gethlua(L);
@@ -3300,8 +3300,8 @@ __LJMP static int hlua_get_priv(lua_State *L)
 
 	MAY_LJMP(check_args(L, 1, "get_priv"));
 
-	/* It is useles to retrieve the session, but this function
-	 * runs only in a session context.
+	/* It is useles to retrieve the stream, but this function
+	 * runs only in a stream context.
 	 */
 	MAY_LJMP(hlua_checktxn(L, 1));
 	hlua = hlua_gethlua(L);
@@ -3316,7 +3316,7 @@ __LJMP static int hlua_get_priv(lua_State *L)
  * return 0 if the stack does not contains free slots,
  * otherwise it returns 1.
  */
-static int hlua_txn_new(lua_State *L, struct session *s, struct proxy *p, void *l7)
+static int hlua_txn_new(lua_State *L, struct stream *s, struct proxy *p, void *l7)
 {
 	struct hlua_txn *htxn;
 
@@ -3806,79 +3806,79 @@ static int hlua_register_task(lua_State *L)
  * doesn't allow "yield" functions because the HAProxy engine cannot
  * resume converters.
  */
-static int hlua_sample_conv_wrapper(struct session *session, const struct arg *arg_p,
+static int hlua_sample_conv_wrapper(struct stream *stream, const struct arg *arg_p,
                                     struct sample *smp, void *private)
 {
 	struct hlua_function *fcn = (struct hlua_function *)private;
 
-	/* In the execution wrappers linked with a session, the
+	/* In the execution wrappers linked with a stream, the
 	 * Lua context can be not initialized. This behavior
 	 * permits to save performances because a systematic
 	 * Lua initialization cause 5% performances loss.
 	 */
-	if (!session->hlua.T && !hlua_ctx_init(&session->hlua, session->task)) {
-		send_log(session->be, LOG_ERR, "Lua converter '%s': can't initialize Lua context.", fcn->name);
+	if (!stream->hlua.T && !hlua_ctx_init(&stream->hlua, stream->task)) {
+		send_log(stream->be, LOG_ERR, "Lua converter '%s': can't initialize Lua context.", fcn->name);
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 			Alert("Lua converter '%s': can't initialize Lua context.\n", fcn->name);
 		return 0;
 	}
 
 	/* If it is the first run, initialize the data for the call. */
-	if (!HLUA_IS_RUNNING(&session->hlua)) {
+	if (!HLUA_IS_RUNNING(&stream->hlua)) {
 		/* Check stack available size. */
-		if (!lua_checkstack(session->hlua.T, 1)) {
-			send_log(session->be, LOG_ERR, "Lua converter '%s': full stack.", fcn->name);
+		if (!lua_checkstack(stream->hlua.T, 1)) {
+			send_log(stream->be, LOG_ERR, "Lua converter '%s': full stack.", fcn->name);
 			if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 				Alert("Lua converter '%s': full stack.\n", fcn->name);
 			return 0;
 		}
 
 		/* Restore the function in the stack. */
-		lua_rawgeti(session->hlua.T, LUA_REGISTRYINDEX, fcn->function_ref);
+		lua_rawgeti(stream->hlua.T, LUA_REGISTRYINDEX, fcn->function_ref);
 
 		/* convert input sample and pust-it in the stack. */
-		if (!lua_checkstack(session->hlua.T, 1)) {
-			send_log(session->be, LOG_ERR, "Lua converter '%s': full stack.", fcn->name);
+		if (!lua_checkstack(stream->hlua.T, 1)) {
+			send_log(stream->be, LOG_ERR, "Lua converter '%s': full stack.", fcn->name);
 			if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 				Alert("Lua converter '%s': full stack.\n", fcn->name);
 			return 0;
 		}
-		hlua_smp2lua(session->hlua.T, smp);
-		session->hlua.nargs = 2;
+		hlua_smp2lua(stream->hlua.T, smp);
+		stream->hlua.nargs = 2;
 
 		/* push keywords in the stack. */
 		if (arg_p) {
 			for (; arg_p->type != ARGT_STOP; arg_p++) {
-				if (!lua_checkstack(session->hlua.T, 1)) {
-					send_log(session->be, LOG_ERR, "Lua converter '%s': full stack.", fcn->name);
+				if (!lua_checkstack(stream->hlua.T, 1)) {
+					send_log(stream->be, LOG_ERR, "Lua converter '%s': full stack.", fcn->name);
 					if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 						Alert("Lua converter '%s': full stack.\n", fcn->name);
 					return 0;
 				}
-				hlua_arg2lua(session->hlua.T, arg_p);
-				session->hlua.nargs++;
+				hlua_arg2lua(stream->hlua.T, arg_p);
+				stream->hlua.nargs++;
 			}
 		}
 
 		/* We must initialize the execution timeouts. */
-		session->hlua.expire = tick_add(now_ms, hlua_timeout_session);
+		stream->hlua.expire = tick_add(now_ms, hlua_timeout_session);
 
 		/* Set the currently running flag. */
-		HLUA_SET_RUN(&session->hlua);
+		HLUA_SET_RUN(&stream->hlua);
 	}
 
 	/* Execute the function. */
-	switch (hlua_ctx_resume(&session->hlua, 0)) {
+	switch (hlua_ctx_resume(&stream->hlua, 0)) {
 	/* finished. */
 	case HLUA_E_OK:
 		/* Convert the returned value in sample. */
-		hlua_lua2smp(session->hlua.T, -1, smp);
-		lua_pop(session->hlua.T, 1);
+		hlua_lua2smp(stream->hlua.T, -1, smp);
+		lua_pop(stream->hlua.T, 1);
 		return 1;
 
 	/* yield. */
 	case HLUA_E_AGAIN:
-		send_log(session->be, LOG_ERR, "Lua converter '%s': cannot use yielded functions.", fcn->name);
+		send_log(stream->be, LOG_ERR, "Lua converter '%s': cannot use yielded functions.", fcn->name);
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 			Alert("Lua converter '%s': cannot use yielded functions.\n", fcn->name);
 		return 0;
@@ -3886,15 +3886,15 @@ static int hlua_sample_conv_wrapper(struct session *session, const struct arg *a
 	/* finished with error. */
 	case HLUA_E_ERRMSG:
 		/* Display log. */
-		send_log(session->be, LOG_ERR, "Lua converter '%s': %s.", fcn->name, lua_tostring(session->hlua.T, -1));
+		send_log(stream->be, LOG_ERR, "Lua converter '%s': %s.", fcn->name, lua_tostring(stream->hlua.T, -1));
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
-			Alert("Lua converter '%s': %s.\n", fcn->name, lua_tostring(session->hlua.T, -1));
-		lua_pop(session->hlua.T, 1);
+			Alert("Lua converter '%s': %s.\n", fcn->name, lua_tostring(stream->hlua.T, -1));
+		lua_pop(stream->hlua.T, 1);
 		return 0;
 
 	case HLUA_E_ERR:
 		/* Display log. */
-		send_log(session->be, LOG_ERR, "Lua converter '%s' returns an unknown error.", fcn->name);
+		send_log(stream->be, LOG_ERR, "Lua converter '%s' returns an unknown error.", fcn->name);
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 			Alert("Lua converter '%s' returns an unknown error.\n", fcn->name);
 
@@ -3907,13 +3907,13 @@ static int hlua_sample_conv_wrapper(struct session *session, const struct arg *a
  * doesn't allow "yield" functions because the HAProxy engine cannot
  * resume sample-fetches.
  */
-static int hlua_sample_fetch_wrapper(struct proxy *px, struct session *s, void *l7,
+static int hlua_sample_fetch_wrapper(struct proxy *px, struct stream *s, void *l7,
                                      unsigned int opt, const struct arg *arg_p,
                                      struct sample *smp, const char *kw, void *private)
 {
 	struct hlua_function *fcn = (struct hlua_function *)private;
 
-	/* In the execution wrappers linked with a session, the
+	/* In the execution wrappers linked with a stream, the
 	 * Lua context can be not initialized. This behavior
 	 * permits to save performances because a systematic
 	 * Lua initialization cause 5% performances loss.
@@ -4188,12 +4188,12 @@ static int hlua_parse_rule(const char **args, int *cur_arg, struct proxy *px,
  * returns a yield.
  */
 static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
-                                    struct session *s, struct http_txn *http_txn,
+                                    struct stream *s, struct http_txn *http_txn,
                                     unsigned int analyzer)
 {
 	char **arg;
 
-	/* In the execution wrappers linked with a session, the
+	/* In the execution wrappers linked with a stream, the
 	 * Lua context can be not initialized. This behavior
 	 * permits to save performances because a systematic
 	 * Lua initialization cause 5% performances loss.
@@ -4218,7 +4218,7 @@ static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
 		/* Restore the function in the stack. */
 		lua_rawgeti(s->hlua.T, LUA_REGISTRYINDEX, rule->fcn.function_ref);
 
-		/* Create and and push object session in the stack. */
+		/* Create and and push object stream in the stack. */
 		if (!hlua_txn_new(s->hlua.T, s, px, http_txn)) {
 			send_log(px, LOG_ERR, "Lua function '%s': full stack.", rule->fcn.name);
 			if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
@@ -4298,7 +4298,7 @@ static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
  * "hlua_request_act_wrapper" for executing the LUA code.
  */
 int hlua_tcp_req_act_wrapper(struct tcp_rule *tcp_rule, struct proxy *px,
-                             struct session *s)
+                             struct stream *s)
 {
 	return hlua_request_act_wrapper((struct hlua_rule *)tcp_rule->act_prm.data,
 	                                px, s, NULL, AN_REQ_INSPECT_FE);
@@ -4308,7 +4308,7 @@ int hlua_tcp_req_act_wrapper(struct tcp_rule *tcp_rule, struct proxy *px,
  * "hlua_request_act_wrapper" for executing the LUA code.
  */
 int hlua_tcp_res_act_wrapper(struct tcp_rule *tcp_rule, struct proxy *px,
-                             struct session *s)
+                             struct stream *s)
 {
 	return hlua_request_act_wrapper((struct hlua_rule *)tcp_rule->act_prm.data,
 	                                px, s, NULL, AN_RES_INSPECT);
@@ -4319,7 +4319,7 @@ int hlua_tcp_res_act_wrapper(struct tcp_rule *tcp_rule, struct proxy *px,
  * the LUA code.
  */
 int hlua_http_req_act_wrapper(struct http_req_rule *rule, struct proxy *px,
-                              struct session *s, struct http_txn *http_txn)
+                              struct stream *s, struct http_txn *http_txn)
 {
 	return hlua_request_act_wrapper((struct hlua_rule *)rule->arg.data, px,
 	                                s, http_txn, AN_REQ_HTTP_PROCESS_FE);
@@ -4330,7 +4330,7 @@ int hlua_http_req_act_wrapper(struct http_req_rule *rule, struct proxy *px,
  * the LUA code.
  */
 int hlua_http_res_act_wrapper(struct http_res_rule *rule, struct proxy *px,
-                              struct session *s, struct http_txn *http_txn)
+                              struct stream *s, struct http_txn *http_txn)
 {
 	return hlua_request_act_wrapper((struct hlua_rule *)rule->arg.data, px,
 	                                s, http_txn, AN_RES_HTTP_PROCESS_BE);
@@ -4613,7 +4613,7 @@ void hlua_init(void)
 	};
 #endif
 
-	/* Initialise com signals pool session. */
+	/* Initialise com signals pool */
 	pool2_hlua_com = create_pool("hlua_com", sizeof(struct hlua_com), MEM_F_SHARED);
 
 	/* Register configuration keywords. */

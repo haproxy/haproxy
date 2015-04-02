@@ -61,7 +61,7 @@
 #include <proto/queue.h>
 #include <proto/sample.h>
 #include <proto/server.h>
-#include <proto/session.h>
+#include <proto/stream.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 #include <proto/pattern.h>
@@ -252,7 +252,7 @@ fd_set http_encode_map[(sizeof(fd_set) > (256/8)) ? 1 : ((256/8) / sizeof(fd_set
 #error "Check if your OS uses bitfields for fd_sets"
 #endif
 
-static int http_apply_redirect_rule(struct redirect_rule *rule, struct session *s, struct http_txn *txn);
+static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct http_txn *txn);
 
 void init_proto_http()
 {
@@ -823,7 +823,7 @@ int http_remove_header2(struct http_msg *msg, struct hdr_idx *idx, struct hdr_ct
  * The error flags are set to the values in arguments. Any pending request
  * in this buffer will be lost.
  */
-static void http_server_error(struct session *s, struct stream_interface *si,
+static void http_server_error(struct stream *s, struct stream_interface *si,
 			      int err, int finst, int status, const struct chunk *msg)
 {
 	channel_auto_read(si_oc(si));
@@ -842,11 +842,11 @@ static void http_server_error(struct session *s, struct stream_interface *si,
 		s->flags |= finst;
 }
 
-/* This function returns the appropriate error location for the given session
+/* This function returns the appropriate error location for the given stream
  * and message.
  */
 
-struct chunk *http_error_message(struct session *s, int msgnum)
+struct chunk *http_error_message(struct stream *s, int msgnum)
 {
 	if (s->be->errmsg[msgnum].str)
 		return &s->be->errmsg[msgnum];
@@ -974,7 +974,7 @@ http_get_path_from_string(char *str)
  * follow normal proxy processing. NOTE: this function is designed to support
  * being called once data are scheduled for forwarding.
  */
-void http_perform_server_redirect(struct session *s, struct stream_interface *si)
+void http_perform_server_redirect(struct stream *s, struct stream_interface *si)
 {
 	struct http_txn *txn;
 	struct server *srv;
@@ -1050,7 +1050,7 @@ void http_perform_server_redirect(struct session *s, struct stream_interface *si
  * Note that connection errors appearing on the second request of a keep-alive
  * connection are not reported since this allows the client to retry.
  */
-void http_return_srv_error(struct session *s, struct stream_interface *si)
+void http_return_srv_error(struct stream *s, struct stream_interface *si)
 {
 	int err_type = si->err_type;
 
@@ -1423,7 +1423,7 @@ const char *http_parse_reqline(struct http_msg *msg,
  * or auth method is unknown auth_method is set to HTTP_AUTH_WRONG to avoid
  * searching again for something we are unable to find anyway. However, if
  * the result if valid, the cache is not reused because we would risk to
- * have the credentials overwritten by another session in parallel.
+ * have the credentials overwritten by another stream in parallel.
  */
 
 /* This bufffer is initialized in the file 'src/haproxy.c'. This length is
@@ -1432,7 +1432,7 @@ const char *http_parse_reqline(struct http_msg *msg,
 char *get_http_auth_buff;
 
 int
-get_http_auth(struct session *s)
+get_http_auth(struct stream *s)
 {
 
 	struct http_txn *txn = &s->txn;
@@ -1442,7 +1442,7 @@ get_http_auth(struct session *s)
 	int len;
 
 #ifdef DEBUG_AUTH
-	printf("Auth for session %p: %d\n", s, txn->auth.method);
+	printf("Auth for stream %p: %d\n", s, txn->auth.method);
 #endif
 
 	if (txn->auth.method == HTTP_AUTH_WRONG)
@@ -2236,7 +2236,7 @@ int parse_qvalue(const char *qvalue, const char **end)
 /*
  * Selects a compression algorithm depending on the client request.
  */
-int select_compression_request_header(struct session *s, struct buffer *req)
+int select_compression_request_header(struct stream *s, struct buffer *req)
 {
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->req;
@@ -2347,7 +2347,7 @@ int select_compression_request_header(struct session *s, struct buffer *req)
 /*
  * Selects a comression algorithm depending of the server response.
  */
-int select_compression_response_header(struct session *s, struct buffer *res)
+int select_compression_response_header(struct stream *s, struct buffer *res)
 {
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->rsp;
@@ -2460,7 +2460,7 @@ fail:
 	return 0;
 }
 
-void http_adjust_conn_mode(struct session *s, struct http_txn *txn, struct http_msg *msg)
+void http_adjust_conn_mode(struct stream *s, struct http_txn *txn, struct http_msg *msg)
 {
 	int tmp = TX_CON_WANT_KAL;
 
@@ -2521,7 +2521,7 @@ void http_adjust_conn_mode(struct session *s, struct http_txn *txn, struct http_
  * when it has nothing left to do, and may remove any analyser when it wants to
  * abort.
  */
-int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
+int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 {
 	/*
 	 * We will parse the partial (or complete) lines.
@@ -2550,7 +2550,7 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 	struct http_msg *msg = &txn->req;
 	struct hdr_ctx ctx;
 
-	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		req,
@@ -2642,10 +2642,10 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 	 * A full request is indicated by the fact that we have seen
 	 * the double LF/CRLF, so the state is >= HTTP_MSG_BODY. Invalid
 	 * requests are checked first. When waiting for a second request
-	 * on a keep-alive session, if we encounter and error, close, t/o,
-	 * we note the error in the session flags but don't set any state.
+	 * on a keep-alive stream, if we encounter and error, close, t/o,
+	 * we note the error in the stream flags but don't set any state.
 	 * Since the error will be noted there, it will not be counted by
-	 * process_session() as a frontend error.
+	 * process_stream() as a frontend error.
 	 * Last, we may increase some tracked counters' http request errors on
 	 * the cases that are deliberately the client's fault. For instance,
 	 * a timeout or connection reset is not counted as an error. However
@@ -2657,23 +2657,23 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 		 * First, let's catch bad requests.
 		 */
 		if (unlikely(msg->msg_state == HTTP_MSG_ERROR)) {
-			session_inc_http_req_ctr(s);
-			session_inc_http_err_ctr(s);
+			stream_inc_http_req_ctr(s);
+			stream_inc_http_err_ctr(s);
 			proxy_inc_fe_req_ctr(s->fe);
 			goto return_bad_req;
 		}
 
 		/* 1: Since we are in header mode, if there's no space
 		 *    left for headers, we won't be able to free more
-		 *    later, so the session will never terminate. We
+		 *    later, so the stream will never terminate. We
 		 *    must terminate it now.
 		 */
 		if (unlikely(buffer_full(req->buf, global.tune.maxrewrite))) {
 			/* FIXME: check if URI is set and return Status
 			 * 414 Request URI too long instead.
 			 */
-			session_inc_http_req_ctr(s);
-			session_inc_http_err_ctr(s);
+			stream_inc_http_req_ctr(s);
+			stream_inc_http_err_ctr(s);
 			proxy_inc_fe_req_ctr(s->fe);
 			if (msg->err_pos < 0)
 				msg->err_pos = req->buf->i;
@@ -2691,7 +2691,7 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 			/* we cannot return any message on error */
 			if (msg->err_pos >= 0) {
 				http_capture_bad_message(&s->fe->invalid_req, s, msg, msg->msg_state, s->fe);
-				session_inc_http_err_ctr(s);
+				stream_inc_http_err_ctr(s);
 			}
 
 			txn->status = 400;
@@ -2699,7 +2699,7 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 			msg->msg_state = HTTP_MSG_ERROR;
 			req->analysers = 0;
 
-			session_inc_http_req_ctr(s);
+			stream_inc_http_req_ctr(s);
 			proxy_inc_fe_req_ctr(s->fe);
 			s->fe->fe_counters.failed_req++;
 			if (s->listener->counters)
@@ -2721,14 +2721,14 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 			/* read timeout : give up with an error message. */
 			if (msg->err_pos >= 0) {
 				http_capture_bad_message(&s->fe->invalid_req, s, msg, msg->msg_state, s->fe);
-				session_inc_http_err_ctr(s);
+				stream_inc_http_err_ctr(s);
 			}
 			txn->status = 408;
 			stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_408));
 			msg->msg_state = HTTP_MSG_ERROR;
 			req->analysers = 0;
 
-			session_inc_http_req_ctr(s);
+			stream_inc_http_req_ctr(s);
 			proxy_inc_fe_req_ctr(s->fe);
 			s->fe->fe_counters.failed_req++;
 			if (s->listener->counters)
@@ -2754,8 +2754,8 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 			msg->msg_state = HTTP_MSG_ERROR;
 			req->analysers = 0;
 
-			session_inc_http_err_ctr(s);
-			session_inc_http_req_ctr(s);
+			stream_inc_http_err_ctr(s);
+			stream_inc_http_req_ctr(s);
 			proxy_inc_fe_req_ctr(s->fe);
 			s->fe->fe_counters.failed_req++;
 			if (s->listener->counters)
@@ -2826,7 +2826,7 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
 	 * (for instance in the absence of headers).
 	 */
 
-	session_inc_http_req_ctr(s);
+	stream_inc_http_req_ctr(s);
 	proxy_inc_fe_req_ctr(s->fe); /* one more valid request for this FE */
 
 	if (txn->flags & TX_WAIT_NEXT_RQ) {
@@ -3092,9 +3092,9 @@ int http_wait_for_request(struct session *s, struct channel *req, int an_bit)
  * and always relies on the stats applet to complete the job. It does not touch
  * analysers nor counters, which are left to the caller. It does not touch
  * s->target which is supposed to already point to the stats applet. The caller
- * is expected to have already assigned an appctx to the session.
+ * is expected to have already assigned an appctx to the stream.
  */
-int http_handle_stats(struct session *s, struct channel *req)
+int http_handle_stats(struct stream *s, struct channel *req)
 {
 	struct stats_admin_rule *stats_admin_rule;
 	struct stream_interface *si = &s->si[1];
@@ -3246,7 +3246,7 @@ void inet_set_tos(int fd, struct sockaddr_storage from, int tos)
 #endif
 }
 
-int http_transform_header_str(struct session* s, struct http_msg *msg,
+int http_transform_header_str(struct stream* s, struct http_msg *msg,
                               const char* name, unsigned int name_len,
                               const char *str, struct my_regex *re,
                               int action)
@@ -3299,7 +3299,7 @@ int http_transform_header_str(struct session* s, struct http_msg *msg,
 	return 0;
 }
 
-static int http_transform_header(struct session* s, struct http_msg *msg,
+static int http_transform_header(struct stream* s, struct http_msg *msg,
                                  const char* name, unsigned int name_len,
                                  struct list *fmt, struct my_regex *re,
                                  int action)
@@ -3313,7 +3313,7 @@ static int http_transform_header(struct session* s, struct http_msg *msg,
 	return http_transform_header_str(s, msg, name, name_len, replace->str, re, action);
 }
 
-/* Executes the http-request rules <rules> for session <s>, proxy <px> and
+/* Executes the http-request rules <rules> for stream <s>, proxy <px> and
  * transaction <txn>. Returns the verdict of the first rule that prevents
  * further processing of the request (auth, deny, ...), and defaults to
  * HTTP_RULE_RES_STOP if it executed all rules or stopped on an allow, or
@@ -3321,7 +3321,7 @@ static int http_transform_header(struct session* s, struct http_msg *msg,
  * on txn->flags if it encounters a tarpit rule.
  */
 enum rule_result
-http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct session *s, struct http_txn *txn)
+http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct stream *s, struct http_txn *txn)
 {
 	struct connection *cli_conn;
 	struct http_req_rule *rule;
@@ -3385,7 +3385,7 @@ resume_execution:
 			chunk_printf(&trash, (txn->flags & TX_USE_PX_CONN) ? HTTP_407_fmt : HTTP_401_fmt, auth_realm);
 			txn->status = (txn->flags & TX_USE_PX_CONN) ? 407 : 401;
 			stream_int_retnclose(&s->si[0], &trash);
-			session_inc_http_err_ctr(s);
+			stream_inc_http_err_ctr(s);
 			return HTTP_RULE_RES_ABRT;
 
 		case HTTP_REQ_ACT_REDIR:
@@ -3562,7 +3562,7 @@ resume_execution:
 				key = stktable_fetch_key(t, s->be, s, &s->txn, SMP_OPT_DIR_REQ | SMP_OPT_FINAL, rule->act_prm.trk_ctr.expr, NULL);
 
 				if (key && (ts = stktable_get_entry(t, key))) {
-					session_track_stkctr(&s->stkctr[http_req_trk_idx(rule->action)], t, ts);
+					stream_track_stkctr(&s->stkctr[http_req_trk_idx(rule->action)], t, ts);
 
 					/* let's count a new HTTP request as it's the first time we do it */
 					ptr = stktable_data_ptr(t, ts, STKTABLE_DT_HTTP_REQ_CNT);
@@ -3587,7 +3587,7 @@ resume_execution:
 }
 
 
-/* Executes the http-response rules <rules> for session <s>, proxy <px> and
+/* Executes the http-response rules <rules> for stream <s>, proxy <px> and
  * transaction <txn>. Returns 3 states: HTTP_RULE_RES_CONT, HTTP_RULE_RES_YIELD
  * or HTTP_RULE_RES_STOP. If *CONT is returned, the process can continue the
  * evaluation of next rule list. If *STOP is returned, the process must stop
@@ -3596,7 +3596,7 @@ resume_execution:
  * the same context.
  */
 static enum rule_result
-http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct session *s, struct http_txn *txn)
+http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct stream *s, struct http_txn *txn)
 {
 	struct connection *cli_conn;
 	struct http_res_rule *rule;
@@ -3804,7 +3804,7 @@ resume_execution:
  * returns non-zero on success, or zero in case of a, irrecoverable error such
  * as too large a request to build a valid response.
  */
-static int http_apply_redirect_rule(struct redirect_rule *rule, struct session *s, struct http_txn *txn)
+static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s, struct http_txn *txn)
 {
 	struct http_msg *msg = &txn->req;
 	const char *msg_fmt;
@@ -4063,7 +4063,7 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct session *
  * either needs more data or wants to immediately abort the request (eg: deny,
  * error, ...).
  */
-int http_process_req_common(struct session *s, struct channel *req, int an_bit, struct proxy *px)
+int http_process_req_common(struct stream *s, struct channel *req, int an_bit, struct proxy *px)
 {
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->req;
@@ -4076,7 +4076,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 		goto return_prx_yield;
 	}
 
-	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		req,
@@ -4086,7 +4086,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 		req->analysers);
 
 	/* just in case we have some per-backend tracking */
-	session_inc_be_http_req_ctr(s);
+	stream_inc_be_http_req_ctr(s);
 
 	/* evaluate http-request rules */
 	if (!LIST_ISEMPTY(&px->http_req_rules)) {
@@ -4245,7 +4245,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 	req->analyse_exp = tick_add_ifset(now_ms,  s->be->timeout.tarpit);
 	if (!req->analyse_exp)
 		req->analyse_exp = tick_add(now_ms, 0);
-	session_inc_http_err_ctr(s);
+	stream_inc_http_err_ctr(s);
 	s->fe->fe_counters.denied_req++;
 	if (s->fe != s->be)
 		s->be->be_counters.denied_req++;
@@ -4258,7 +4258,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
 	txn->status = 403;
 	s->logs.tv_request = now;
 	stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_403));
-	session_inc_http_err_ctr(s);
+	stream_inc_http_err_ctr(s);
 	s->fe->fe_counters.denied_req++;
 	if (s->fe != s->be)
 		s->be->be_counters.denied_req++;
@@ -4303,7 +4303,7 @@ int http_process_req_common(struct session *s, struct channel *req, int an_bit, 
  * needs more data, encounters an error, or wants to immediately abort the
  * request. It relies on buffers flags, and updates s->req.analysers.
  */
-int http_process_request(struct session *s, struct channel *req, int an_bit)
+int http_process_request(struct stream *s, struct channel *req, int an_bit)
 {
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->req;
@@ -4315,7 +4315,7 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
 		return 0;
 	}
 
-	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		req,
@@ -4650,7 +4650,7 @@ int http_process_request(struct session *s, struct channel *req, int an_bit)
  * returns zero, at the beginning because it prevents any other processing
  * from occurring, and at the end because it terminates the request.
  */
-int http_process_tarpit(struct session *s, struct channel *req, int an_bit)
+int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 {
 	struct http_txn *txn = &s->txn;
 
@@ -4695,7 +4695,7 @@ int http_process_tarpit(struct session *s, struct channel *req, int an_bit)
  * HTTP_MSG_CHK_SIZE, HTTP_MSG_DATA or HTTP_MSG_TRAILERS. It returns zero if it
  * needs to read more data, or 1 once it has completed its analysis.
  */
-int http_wait_for_request_body(struct session *s, struct channel *req, int an_bit)
+int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit)
 {
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &s->txn.req;
@@ -4761,7 +4761,7 @@ int http_wait_for_request_body(struct session *s, struct channel *req, int an_bi
 		if (!ret)
 			goto missing_data;
 		else if (ret < 0) {
-			session_inc_http_err_ctr(s);
+			stream_inc_http_err_ctr(s);
 			goto return_bad_req;
 		}
 	}
@@ -4891,7 +4891,7 @@ int http_send_name_header(struct http_txn *txn, struct proxy* be, const char* sr
 /* Terminate current transaction and prepare a new one. This is very tricky
  * right now but it works.
  */
-void http_end_txn_clean_session(struct session *s)
+void http_end_txn_clean_session(struct stream *s)
 {
 	int prev_status = s->txn.status;
 
@@ -4918,7 +4918,7 @@ void http_end_txn_clean_session(struct session *s)
 	}
 
 	s->logs.t_close = tv_ms_elapsed(&s->logs.tv_accept, &now);
-	session_process_counters(s);
+	stream_process_counters(s);
 
 	if (s->txn.status) {
 		int n;
@@ -4953,8 +4953,8 @@ void http_end_txn_clean_session(struct session *s)
 	}
 
 	/* stop tracking content-based counters */
-	session_stop_content_counters(s);
-	session_update_time_stats(s);
+	stream_stop_content_counters(s);
+	stream_update_time_stats(s);
 
 	s->logs.accept_date = date; /* user-visible date for logging */
 	s->logs.tv_accept = now;  /* corrected date for internal use */
@@ -4995,7 +4995,7 @@ void http_end_txn_clean_session(struct session *s)
 	s->si[1].err_type  = SI_ET_NONE;
 	s->si[1].conn_retries = 0;  /* used for logging too */
 	s->si[1].exp       = TICK_ETERNITY;
-	s->si[1].flags    &= SI_FL_ISBACK | SI_FL_DONT_WAKE; /* we're in the context of process_session */
+	s->si[1].flags    &= SI_FL_ISBACK | SI_FL_DONT_WAKE; /* we're in the context of process_stream */
 	s->req.flags &= ~(CF_SHUTW|CF_SHUTW_NOW|CF_AUTO_CONNECT|CF_WRITE_ERROR|CF_STREAMER|CF_STREAMER_FAST|CF_NEVER_WAIT|CF_WAKE_CONNECT|CF_WROTE_DATA);
 	s->res.flags &= ~(CF_SHUTR|CF_SHUTR_NOW|CF_READ_ATTACHED|CF_READ_ERROR|CF_READ_NOEXP|CF_STREAMER|CF_STREAMER_FAST|CF_WRITE_PARTIAL|CF_NEVER_WAIT|CF_WROTE_DATA);
 	s->flags &= ~(SN_DIRECT|SN_ASSIGNED|SN_ADDR_SET|SN_BE_ASSIGNED|SN_FORCE_PRST|SN_IGNORE_PRST);
@@ -5060,7 +5060,7 @@ void http_end_txn_clean_session(struct session *s)
  * this function and its equivalent should loop until both return zero. It
  * can set its own state to DONE, CLOSING, CLOSED, TUNNEL, ERROR.
  */
-int http_sync_req_state(struct session *s)
+int http_sync_req_state(struct stream *s)
 {
 	struct channel *chn = &s->req;
 	struct http_txn *txn = &s->txn;
@@ -5080,7 +5080,7 @@ int http_sync_req_state(struct session *s)
 		 * (eg: Linux).
 		 * Note that if we're using keep-alive on the client side, we'd
 		 * rather poll now and keep the polling enabled for the whole
-		 * session's life than enabling/disabling it between each
+		 * stream's life than enabling/disabling it between each
 		 * response and next request.
 		 */
 		if (((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_SCL) &&
@@ -5126,7 +5126,7 @@ int http_sync_req_state(struct session *s)
 		else if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_CLO) {
 			/* Option forceclose is set, or either side wants to close,
 			 * let's enforce it now that we're not expecting any new
-			 * data to come. The caller knows the session is complete
+			 * data to come. The caller knows the stream is complete
 			 * once both states are CLOSED.
 			 */
 			if (!(chn->flags & (CF_SHUTW|CF_SHUTW_NOW))) {
@@ -5198,7 +5198,7 @@ int http_sync_req_state(struct session *s)
  * this function and its equivalent should loop until both return zero. It
  * can set its own state to DONE, CLOSING, CLOSED, TUNNEL, ERROR.
  */
-int http_sync_res_state(struct session *s)
+int http_sync_res_state(struct stream *s)
 {
 	struct channel *chn = &s->res;
 	struct http_txn *txn = &s->txn;
@@ -5254,7 +5254,7 @@ int http_sync_res_state(struct session *s)
 		else if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_CLO) {
 			/* Option forceclose is set, or either side wants to close,
 			 * let's enforce it now that we're not expecting any new
-			 * data to come. The caller knows the session is complete
+			 * data to come. The caller knows the stream is complete
 			 * once both states are CLOSED.
 			 */
 			if (!(chn->flags & (CF_SHUTW|CF_SHUTW_NOW))) {
@@ -5327,7 +5327,7 @@ int http_sync_res_state(struct session *s)
 /* Resync the request and response state machines. Return 1 if either state
  * changes.
  */
-int http_resync_states(struct session *s)
+int http_resync_states(struct stream *s)
 {
 	struct http_txn *txn = &s->txn;
 	int old_req_state = txn->req.msg_state;
@@ -5399,11 +5399,11 @@ int http_resync_states(struct session *s)
  * tunnel mode and we want to forward till the close. It's used both to forward
  * remaining data and to resync after end of body. It expects the msg_state to
  * be between MSG_BODY and MSG_DONE (inclusive). It returns zero if it needs to
- * read more data, or 1 once we can go on with next request or end the session.
+ * read more data, or 1 once we can go on with next request or end the stream.
  * When in MSG_DATA or MSG_TRAILERS, it will automatically forward chunk_len
  * bytes of pending data + the headers if not already done.
  */
-int http_request_forward_body(struct session *s, struct channel *req, int an_bit)
+int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 {
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &s->txn.req;
@@ -5498,7 +5498,7 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 			if (ret == 0)
 				goto missing_data;
 			else if (ret < 0) {
-				session_inc_http_err_ctr(s);
+				stream_inc_http_err_ctr(s);
 				if (msg->err_pos >= 0)
 					http_capture_bad_message(&s->fe->invalid_req, s, msg, HTTP_MSG_CHUNK_SIZE, s->be);
 				goto return_bad_req;
@@ -5512,7 +5512,7 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 			if (ret == 0)
 				goto missing_data;
 			else if (ret < 0) {
-				session_inc_http_err_ctr(s);
+				stream_inc_http_err_ctr(s);
 				if (msg->err_pos >= 0)
 					http_capture_bad_message(&s->fe->invalid_req, s, msg, HTTP_MSG_CHUNK_CRLF, s->be);
 				goto return_bad_req;
@@ -5525,7 +5525,7 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
 			if (ret == 0)
 				goto missing_data;
 			else if (ret < 0) {
-				session_inc_http_err_ctr(s);
+				stream_inc_http_err_ctr(s);
 				if (msg->err_pos >= 0)
 					http_capture_bad_message(&s->fe->invalid_req, s, msg, HTTP_MSG_TRAILERS, s->be);
 				goto return_bad_req;
@@ -5707,7 +5707,7 @@ int http_request_forward_body(struct session *s, struct channel *req, int an_bit
  * when it has nothing left to do, and may remove any analyser when it wants to
  * abort.
  */
-int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
+int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 {
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->rsp;
@@ -5716,7 +5716,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 	int cur_idx;
 	int n;
 
-	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		rep,
@@ -5911,7 +5911,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 			if (!(s->flags & SN_FINST_MASK))
 				s->flags |= SN_FINST_H;
 
-			/* process_session() will take care of the error */
+			/* process_stream() will take care of the error */
 			return 0;
 		}
 
@@ -5958,7 +5958,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 			if (!(s->flags & SN_FINST_MASK))
 				s->flags |= SN_FINST_H;
 
-			/* process_session() will take care of the error */
+			/* process_stream() will take care of the error */
 			return 0;
 		}
 
@@ -5987,7 +5987,7 @@ int http_wait_for_response(struct session *s, struct channel *rep, int an_bit)
 	 * vulnerability scan.
 	 */
 	if (n == 4)
-		session_inc_http_err_ctr(s);
+		stream_inc_http_err_ctr(s);
 
 	if (objt_server(s->target))
 		objt_server(s->target)->counters.p.http.rsp[n]++;
@@ -6274,7 +6274,7 @@ skip_content_length:
  * and updates s->res.analysers. It might make sense to explode it into several
  * other functions. It works like process_request (see indications above).
  */
-int http_process_res_common(struct session *s, struct channel *rep, int an_bit, struct proxy *px)
+int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, struct proxy *px)
 {
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->rsp;
@@ -6282,7 +6282,7 @@ int http_process_res_common(struct session *s, struct channel *rep, int an_bit, 
 	struct cond_wordlist *wl;
 	enum rule_result ret = HTTP_RULE_RES_CONT;
 
-	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		rep,
@@ -6590,7 +6590,7 @@ int http_process_res_common(struct session *s, struct channel *rep, int an_bit, 
  * tunnel mode and we want to forward till the close. It's used both to forward
  * remaining data and to resync after end of body. It expects the msg_state to
  * be between MSG_BODY and MSG_DONE (inclusive). It returns zero if it needs to
- * read more data, or 1 once we can go on with next request or end the session.
+ * read more data, or 1 once we can go on with next request or end the stream.
  *
  * It is capable of compressing response data both in content-length mode and
  * in chunked mode. The state machines follows different flows depending on
@@ -6613,7 +6613,7 @@ int http_process_res_common(struct session *s, struct channel *rep, int an_bit, 
  * is performed at once on final states for all bytes parsed, or when leaving
  * on missing data.
  */
-int http_response_forward_body(struct session *s, struct channel *res, int an_bit)
+int http_response_forward_body(struct stream *s, struct channel *res, int an_bit)
 {
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &s->txn.rsp;
@@ -6865,7 +6865,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
 	if ((msg->flags & HTTP_MSGF_TE_CHNK) || s->comp_algo)
 		res->flags |= CF_EXPECT_MORE;
 
-	/* the session handler will take care of timeouts and errors */
+	/* the stream handler will take care of timeouts and errors */
 	return 0;
 
  return_bad_res: /* let's centralize all bad responses */
@@ -6928,7 +6928,7 @@ int http_response_forward_body(struct session *s, struct channel *res, int an_bi
  * Since it can manage the switch to another backend, it updates the per-proxy
  * DENY stats.
  */
-int apply_filter_to_req_headers(struct session *s, struct channel *req, struct hdr_exp *exp)
+int apply_filter_to_req_headers(struct stream *s, struct channel *req, struct hdr_exp *exp)
 {
 	char *cur_ptr, *cur_end, *cur_next;
 	int cur_idx, old_idx, last_hdr;
@@ -6974,7 +6974,7 @@ int apply_filter_to_req_headers(struct session *s, struct channel *req, struct h
 					break;
 
 				/* Swithing Proxy */
-				session_set_backend(s, (struct proxy *)exp->replace);
+				stream_set_backend(s, (struct proxy *)exp->replace);
 				last_hdr = 1;
 				break;
 
@@ -7040,7 +7040,7 @@ int apply_filter_to_req_headers(struct session *s, struct channel *req, struct h
  * Since it can manage the switch to another backend, it updates the per-proxy
  * DENY stats.
  */
-int apply_filter_to_req_line(struct session *s, struct channel *req, struct hdr_exp *exp)
+int apply_filter_to_req_line(struct stream *s, struct channel *req, struct hdr_exp *exp)
 {
 	char *cur_ptr, *cur_end;
 	int done;
@@ -7075,7 +7075,7 @@ int apply_filter_to_req_line(struct session *s, struct channel *req, struct hdr_
 				break;
 
 			/* Swithing Proxy */
-			session_set_backend(s, (struct proxy *)exp->replace);
+			stream_set_backend(s, (struct proxy *)exp->replace);
 			done = 1;
 			break;
 
@@ -7129,12 +7129,12 @@ int apply_filter_to_req_line(struct session *s, struct channel *req, struct hdr_
 
 
 /*
- * Apply all the req filters of proxy <px> to all headers in buffer <req> of session <s>.
+ * Apply all the req filters of proxy <px> to all headers in buffer <req> of stream <s>.
  * Returns 0 if everything is alright, or -1 in case a replacement lead to an
  * unparsable request. Since it can manage the switch to another backend, it
  * updates the per-proxy DENY stats.
  */
-int apply_filters_to_request(struct session *s, struct channel *req, struct proxy *px)
+int apply_filters_to_request(struct stream *s, struct channel *req, struct proxy *px)
 {
 	struct http_txn *txn = &s->txn;
 	struct hdr_exp *exp;
@@ -7189,9 +7189,9 @@ int apply_filters_to_request(struct session *s, struct channel *req, struct prox
 
 /*
  * Try to retrieve the server associated to the appsession.
- * If the server is found, it's assigned to the session.
+ * If the server is found, it's assigned to the stream.
  */
-void manage_client_side_appsession(struct session *s, const char *buf, int len) {
+void manage_client_side_appsession(struct stream *s, const char *buf, int len) {
 	struct http_txn *txn = &s->txn;
 	appsess *asession = NULL;
 	char *sessid_temp = NULL;
@@ -7201,9 +7201,9 @@ void manage_client_side_appsession(struct session *s, const char *buf, int len) 
 	}
 
 	if (s->be->options2 & PR_O2_AS_REQL) {
-		/* request-learn option is enabled : store the sessid in the session for future use */
+		/* request-learn option is enabled : store the sessid in the stream for future use */
 		if (txn->sessid != NULL) {
-			/* free previously allocated memory as we don't need the session id found in the URL anymore */
+			/* free previously allocated memory as we don't need the stream id found in the URL anymore */
 			pool_free2(apools.sessid, txn->sessid);
 		}
 
@@ -7342,7 +7342,7 @@ int del_hdr_value(struct buffer *buf, char **from, char *next)
  * of the multiple very crappy and ambiguous syntaxes we have to support. it
  * highly recommended not to touch this part without a good reason !
  */
-void manage_client_side_cookies(struct session *s, struct channel *req)
+void manage_client_side_cookies(struct stream *s, struct channel *req)
 {
 	struct http_txn *txn = &s->txn;
 	int preserve_hdr;
@@ -7791,7 +7791,7 @@ void manage_client_side_cookies(struct session *s, struct channel *req)
 /* Iterate the same filter through all response headers contained in <rtr>.
  * Returns 1 if this filter can be stopped upon return, otherwise 0.
  */
-int apply_filter_to_resp_headers(struct session *s, struct channel *rtr, struct hdr_exp *exp)
+int apply_filter_to_resp_headers(struct stream *s, struct channel *rtr, struct hdr_exp *exp)
 {
 	char *cur_ptr, *cur_end, *cur_next;
 	int cur_idx, old_idx, last_hdr;
@@ -7882,7 +7882,7 @@ int apply_filter_to_resp_headers(struct session *s, struct channel *rtr, struct 
  * Returns 0 if nothing has been done, 1 if the filter has been applied,
  * or -1 if a replacement resulted in an invalid status line.
  */
-int apply_filter_to_sts_line(struct session *s, struct channel *rtr, struct hdr_exp *exp)
+int apply_filter_to_sts_line(struct stream *s, struct channel *rtr, struct hdr_exp *exp)
 {
 	char *cur_ptr, *cur_end;
 	int done;
@@ -7953,11 +7953,11 @@ int apply_filter_to_sts_line(struct session *s, struct channel *rtr, struct hdr_
 
 
 /*
- * Apply all the resp filters of proxy <px> to all headers in buffer <rtr> of session <s>.
+ * Apply all the resp filters of proxy <px> to all headers in buffer <rtr> of stream <s>.
  * Returns 0 if everything is alright, or -1 in case a replacement lead to an
  * unparsable response.
  */
-int apply_filters_to_response(struct session *s, struct channel *rtr, struct proxy *px)
+int apply_filters_to_response(struct stream *s, struct channel *rtr, struct proxy *px)
 {
 	struct http_txn *txn = &s->txn;
 	struct hdr_exp *exp;
@@ -8015,7 +8015,7 @@ int apply_filters_to_response(struct session *s, struct channel *rtr, struct pro
  * desirable to call it only when needed. This function is also used when we
  * just need to know if there is a cookie (eg: for check-cache).
  */
-void manage_server_side_cookies(struct session *s, struct channel *res)
+void manage_server_side_cookies(struct stream *s, struct channel *res)
 {
 	struct http_txn *txn = &s->txn;
 	struct server *srv;
@@ -8315,7 +8315,7 @@ void manage_server_side_cookies(struct session *s, struct channel *res)
 					/* free a possibly previously allocated memory */
 					pool_free2(apools.sessid, txn->sessid);
 
-					/* Store the sessid in the session for future use */
+					/* Store the sessid in the stream for future use */
 					if ((txn->sessid = pool_alloc2(apools.sessid)) == NULL) {
 						Alert("Not enough Memory process_srv():asession->sessid:malloc().\n");
 						send_log(s->be, LOG_ALERT, "Not enough Memory process_srv():asession->sessid:malloc().\n");
@@ -8378,7 +8378,7 @@ void manage_server_side_cookies(struct session *s, struct channel *res)
 /*
  * Check if response is cacheable or not. Updates s->flags.
  */
-void check_response_for_cacheability(struct session *s, struct channel *rtr)
+void check_response_for_cacheability(struct stream *s, struct channel *rtr)
 {
 	struct http_txn *txn = &s->txn;
 	char *p1, *p2;
@@ -8465,9 +8465,9 @@ void check_response_for_cacheability(struct session *s, struct channel *rtr)
 
 /*
  * Try to retrieve a known appsession in the URI, then the associated server.
- * If the server is found, it's assigned to the session.
+ * If the server is found, it's assigned to the stream.
  */
-void get_srv_from_appsession(struct session *s, const char *begin, int len)
+void get_srv_from_appsession(struct stream *s, const char *begin, int len)
 {
 	char *end_params, *first_param, *cur_param, *next_param;
 	char separator;
@@ -8573,7 +8573,7 @@ int stats_check_uri(struct stream_interface *si, struct http_txn *txn, struct pr
  * parsing point. The function is able to deal with wrapping buffers. It always
  * displays buffers as a contiguous area starting at buf->p.
  */
-void http_capture_bad_message(struct error_snapshot *es, struct session *s,
+void http_capture_bad_message(struct error_snapshot *es, struct stream *s,
                               struct http_msg *msg,
 			      enum ht_state state, struct proxy *other_end)
 {
@@ -8751,7 +8751,7 @@ unsigned int http_get_fhdr(const struct http_msg *msg, const char *hname, int hl
  * so it is safe to pass it a full buffer if needed. If <err> is not NULL, an
  * arrow is printed after the line which contains the pointer.
  */
-void debug_hdr(const char *dir, struct session *s, const char *start, const char *end)
+void debug_hdr(const char *dir, struct stream *s, const char *start, const char *end)
 {
 	int max;
 	chunk_printf(&trash, "%08x:%s.%s[%04x:%04x]: ", s->uniq_id, s->be->id,
@@ -8770,11 +8770,11 @@ void debug_hdr(const char *dir, struct session *s, const char *start, const char
 }
 
 /*
- * Initialize a new HTTP transaction for session <s>. It is assumed that all
+ * Initialize a new HTTP transaction for stream <s>. It is assumed that all
  * the required fields are properly allocated and that we only need to (re)init
  * them. This should be used before processing any new request.
  */
-void http_init_txn(struct session *s)
+void http_init_txn(struct stream *s)
 {
 	struct http_txn *txn = &s->txn;
 	struct proxy *fe = s->fe;
@@ -8817,7 +8817,7 @@ void http_init_txn(struct session *s)
 }
 
 /* to be used at the end of a transaction */
-void http_end_txn(struct session *s)
+void http_end_txn(struct stream *s)
 {
 	struct http_txn *txn = &s->txn;
 
@@ -8857,7 +8857,7 @@ void http_end_txn(struct session *s)
 }
 
 /* to be used at the end of a transaction to prepare a new one */
-void http_reset_txn(struct session *s)
+void http_reset_txn(struct stream *s)
 {
 	http_end_txn(s);
 	http_init_txn(s);
@@ -8870,7 +8870,7 @@ void http_reset_txn(struct session *s)
 	s->be = s->fe;
 	s->logs.logwait = s->fe->to_log;
 	s->logs.level = 0;
-	session_del_srv_conn(s);
+	stream_del_srv_conn(s);
 	s->target = NULL;
 	/* re-init store persistence */
 	s->store_count = 0;
@@ -9855,7 +9855,7 @@ struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, st
  *   1 if an HTTP message is ready
  */
 static int
-smp_prefetch_http(struct proxy *px, struct session *s, void *l7, unsigned int opt,
+smp_prefetch_http(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
                   const struct arg *args, struct sample *smp, int req_vol)
 {
 	struct http_txn *txn = l7;
@@ -9984,7 +9984,7 @@ static int pat_parse_meth(const char *text, struct pattern *pattern, int mflags,
  * This is intended to be used with pat_match_meth() only.
  */
 static int
-smp_fetch_meth(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_meth(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	int meth;
@@ -10038,7 +10038,7 @@ static struct pattern *pat_match_meth(struct sample *smp, struct pattern_expr *e
 }
 
 static int
-smp_fetch_rqver(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_rqver(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
@@ -10063,7 +10063,7 @@ smp_fetch_rqver(struct proxy *px, struct session *l4, void *l7, unsigned int opt
 }
 
 static int
-smp_fetch_stver(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_stver(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
@@ -10092,7 +10092,7 @@ smp_fetch_stver(struct proxy *px, struct session *l4, void *l7, unsigned int opt
 
 /* 3. Check on Status Code. We manipulate integers here. */
 static int
-smp_fetch_stcode(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_stcode(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                  const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
@@ -10115,7 +10115,7 @@ smp_fetch_stcode(struct proxy *px, struct session *l4, void *l7, unsigned int op
 
 /* 4. Check on URL/URI. A pointer to the URI is stored. */
 static int
-smp_fetch_url(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_url(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
               const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
@@ -10130,7 +10130,7 @@ smp_fetch_url(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 }
 
 static int
-smp_fetch_url_ip(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_url_ip(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                  const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
@@ -10149,7 +10149,7 @@ smp_fetch_url_ip(struct proxy *px, struct session *l4, void *l7, unsigned int op
 }
 
 static int
-smp_fetch_url_port(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_url_port(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                    const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
@@ -10175,7 +10175,7 @@ smp_fetch_url_port(struct proxy *px, struct session *l4, void *l7, unsigned int 
  * returns full lines instead (useful for User-Agent or Date for example).
  */
 static int
-smp_fetch_fhdr(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_fhdr(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
@@ -10231,7 +10231,7 @@ smp_fetch_fhdr(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
  * returns full lines instead (useful for User-Agent or Date for example).
  */
 static int
-smp_fetch_fhdr_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_fhdr_cnt(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                   const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
@@ -10261,7 +10261,7 @@ smp_fetch_fhdr_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int 
 }
 
 static int
-smp_fetch_hdr_names(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_hdr_names(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                     const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
@@ -10300,7 +10300,7 @@ smp_fetch_hdr_names(struct proxy *px, struct session *l4, void *l7, unsigned int
  * headers are considered from the first one.
  */
 static int
-smp_fetch_hdr(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_hdr(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
               const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
@@ -10355,7 +10355,7 @@ smp_fetch_hdr(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
  * Accepts exactly 1 argument of type string.
  */
 static int
-smp_fetch_hdr_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_hdr_cnt(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                   const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
@@ -10390,7 +10390,7 @@ smp_fetch_hdr_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int o
  * may or may not be appropriate for everything.
  */
 static int
-smp_fetch_hdr_val(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_hdr_val(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                   const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	int ret = smp_fetch_hdr(px, l4, l7, opt, args, smp, kw, private);
@@ -10408,7 +10408,7 @@ smp_fetch_hdr_val(struct proxy *px, struct session *l4, void *l7, unsigned int o
  * It returns an IPv4 or IPv6 address.
  */
 static int
-smp_fetch_hdr_ip(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_hdr_ip(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                  const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	int ret;
@@ -10440,7 +10440,7 @@ smp_fetch_hdr_ip(struct proxy *px, struct session *l4, void *l7, unsigned int op
  * the first '/' after the possible hostname, and ends before the possible '?'.
  */
 static int
-smp_fetch_path(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_path(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
@@ -10473,7 +10473,7 @@ smp_fetch_path(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
  * The returned sample is of type string.
  */
 static int
-smp_fetch_base(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_base(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
@@ -10520,7 +10520,7 @@ smp_fetch_base(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
  * high-traffic sites without having to store whole paths.
  */
 int
-smp_fetch_base32(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_base32(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                  const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
@@ -10568,7 +10568,7 @@ smp_fetch_base32(struct proxy *px, struct session *l4, void *l7, unsigned int op
  * 8 bytes would still work.
  */
 static int
-smp_fetch_base32_src(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_base32_src(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                      const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct chunk *temp;
@@ -10607,7 +10607,7 @@ smp_fetch_base32_src(struct proxy *px, struct session *l4, void *l7, unsigned in
  * of type string carrying the whole query string.
  */
 static int
-smp_fetch_query(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_query(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
@@ -10632,7 +10632,7 @@ smp_fetch_query(struct proxy *px, struct session *l4, void *l7, unsigned int opt
 }
 
 static int
-smp_fetch_proto_http(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_proto_http(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                      const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	/* Note: hdr_idx.v cannot be NULL in this ACL because the ACL is tagged
@@ -10648,7 +10648,7 @@ smp_fetch_proto_http(struct proxy *px, struct session *l4, void *l7, unsigned in
 
 /* return a valid test if the current request is the first one on the connection */
 static int
-smp_fetch_http_first_req(struct proxy *px, struct session *s, void *l7, unsigned int opt,
+smp_fetch_http_first_req(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
                          const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	if (!s)
@@ -10661,7 +10661,7 @@ smp_fetch_http_first_req(struct proxy *px, struct session *s, void *l7, unsigned
 
 /* Accepts exactly 1 argument of type userlist */
 static int
-smp_fetch_http_auth(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_http_auth(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                     const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 
@@ -10680,7 +10680,7 @@ smp_fetch_http_auth(struct proxy *px, struct session *l4, void *l7, unsigned int
 
 /* Accepts exactly 1 argument of type userlist */
 static int
-smp_fetch_http_auth_grp(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_http_auth_grp(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                         const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 
@@ -10809,7 +10809,7 @@ extract_cookie_value(char *hdr, const char *hdr_end,
  * the "capture" option in the configuration file
  */
 static int
-smp_fetch_capture_header_req(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_capture_header_req(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                  const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct proxy *fe = l4->fe;
@@ -10836,7 +10836,7 @@ smp_fetch_capture_header_req(struct proxy *px, struct session *l4, void *l7, uns
  * the "capture" option in the configuration file
  */
 static int
-smp_fetch_capture_header_res(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_capture_header_res(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                  const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct proxy *fe = l4->fe;
@@ -10861,7 +10861,7 @@ smp_fetch_capture_header_res(struct proxy *px, struct session *l4, void *l7, uns
 
 /* Extracts the METHOD in the HTTP request, the txn->uri should be filled before the call */
 static int
-smp_fetch_capture_req_method(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_capture_req_method(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                              const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct chunk *temp;
@@ -10889,7 +10889,7 @@ smp_fetch_capture_req_method(struct proxy *px, struct session *l4, void *l7, uns
 
 /* Extracts the path in the HTTP request, the txn->uri should be filled before the call  */
 static int
-smp_fetch_capture_req_uri(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_capture_req_uri(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                              const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct chunk *temp;
@@ -10928,7 +10928,7 @@ smp_fetch_capture_req_uri(struct proxy *px, struct session *l4, void *l7, unsign
  * as a string (either "HTTP/1.0" or "HTTP/1.1").
  */
 static int
-smp_fetch_capture_req_ver(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_capture_req_ver(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                           const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
@@ -10952,7 +10952,7 @@ smp_fetch_capture_req_ver(struct proxy *px, struct session *l4, void *l7, unsign
  * as a string (either "HTTP/1.0" or "HTTP/1.1").
  */
 static int
-smp_fetch_capture_res_ver(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_capture_res_ver(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                           const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
@@ -10983,7 +10983,7 @@ smp_fetch_capture_res_ver(struct proxy *px, struct session *l4, void *l7, unsign
  * The returned sample is of type CSTR. Can be used to parse cookies in other
  * files.
  */
-int smp_fetch_cookie(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+int smp_fetch_cookie(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                  const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
@@ -11082,7 +11082,7 @@ int smp_fetch_cookie(struct proxy *px, struct session *l4, void *l7, unsigned in
  * type UINT. Accepts exactly 1 argument of type string.
  */
 static int
-smp_fetch_cookie_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_cookie_cnt(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                      const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
@@ -11149,7 +11149,7 @@ smp_fetch_cookie_cnt(struct proxy *px, struct session *l4, void *l7, unsigned in
  * takes a mandatory argument of type string. It relies on smp_fetch_cookie().
  */
 static int
-smp_fetch_cookie_val(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_cookie_val(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                      const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	int ret = smp_fetch_cookie(px, l4, l7, opt, args, smp, kw, private);
@@ -11254,7 +11254,7 @@ find_url_param_value(char* path, size_t path_l,
 }
 
 static int
-smp_fetch_url_param(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_url_param(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                     const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	char delim = '?';
@@ -11285,7 +11285,7 @@ smp_fetch_url_param(struct proxy *px, struct session *l4, void *l7, unsigned int
  * above).
  */
 static int
-smp_fetch_url_param_val(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_url_param_val(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                      const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	int ret = smp_fetch_url_param(px, l4, l7, opt, args, smp, kw, private);
@@ -11309,7 +11309,7 @@ smp_fetch_url_param_val(struct proxy *px, struct session *l4, void *l7, unsigned
  * as well as the path
  */
 static int
-smp_fetch_url32(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_url32(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                  const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = l7;
@@ -11357,7 +11357,7 @@ smp_fetch_url32(struct proxy *px, struct session *l4, void *l7, unsigned int opt
  * 8 bytes would still work.
  */
 static int
-smp_fetch_url32_src(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_url32_src(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                      const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct chunk *temp;
@@ -11409,7 +11409,7 @@ int val_hdr(struct arg *arg, char **err_msg)
  * adds an optional offset found in args[0] and emits a string representing
  * the date in RFC-1123/5322 format.
  */
-static int sample_conv_http_date(struct session *session, const struct arg *args,
+static int sample_conv_http_date(struct stream *stream, const struct arg *args,
                                  struct sample *smp, void *private)
 {
 	const char day[7][4] = { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
@@ -11461,7 +11461,7 @@ static inline int language_range_match(const char *range, int range_len,
 }
 
 /* Arguments: The list of expected value, the number of parts returned and the separator */
-static int sample_conv_q_prefered(struct session *session, const struct arg *args,
+static int sample_conv_q_prefered(struct stream *stream, const struct arg *args,
                                   struct sample *smp, void *private)
 {
 	const char *al = smp->data.str.str;
@@ -11623,7 +11623,7 @@ expect_comma:
  * string by the caller, event if the replacement query string is empty.
  */
 int http_replace_req_line(int action, const char *replace, int len,
-                          struct proxy *px, struct session *s, struct http_txn *txn)
+                          struct proxy *px, struct stream *s, struct http_txn *txn)
 {
 	char *cur_ptr, *cur_end;
 	int offset = 0;
@@ -11704,7 +11704,7 @@ int http_replace_req_line(int action, const char *replace, int len,
  * http_action_set_req_line_exec(). It always returns 1. If an error occurs
  * the action is canceled, but the rule processing continue.
  */
-int http_action_set_req_line(struct http_req_rule *rule, struct proxy *px, struct session *s, struct http_txn *txn)
+int http_action_set_req_line(struct http_req_rule *rule, struct proxy *px, struct stream *s, struct http_txn *txn)
 {
 	chunk_reset(&trash);
 
@@ -11914,7 +11914,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "base32",          smp_fetch_base32,         0,                NULL,    SMP_T_UINT, SMP_USE_HRQHV },
 	{ "base32+src",      smp_fetch_base32_src,     0,                NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
 
-	/* capture are allocated and are permanent in the session */
+	/* capture are allocated and are permanent in the stream */
 	{ "capture.req.hdr", smp_fetch_capture_header_req, ARG1(1, UINT), NULL,   SMP_T_STR,  SMP_USE_HRQHP },
 
 	/* retrieve these captures from the HTTP logs */

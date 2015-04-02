@@ -30,7 +30,7 @@
 #include <common/memory.h>
 #include <types/log.h>
 #include <types/proxy.h>
-#include <types/session.h>
+#include <types/stream.h>
 
 extern struct pool_head *pool2_requri;
 extern struct pool_head *pool2_uniqueid;
@@ -42,13 +42,13 @@ extern char clf_http_log_format[];
 extern char *logline;
 
 
-int build_logline(struct session *s, char *dst, size_t maxsize, struct list *list_format);
+int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list_format);
 
 /*
- * send a log for the session when we have enough info about it.
+ * send a log for the stream when we have enough info about it.
  * Will not log if the frontend has no log defined.
  */
-void sess_log(struct session *s);
+void strm_log(struct stream *s);
 
 /*
  * Parse args in a logformat_var

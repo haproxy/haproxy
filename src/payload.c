@@ -29,7 +29,7 @@
  * used with content inspection.
  */
 static int
-smp_fetch_wait_end(struct proxy *px, struct session *s, void *l7, unsigned int opt,
+smp_fetch_wait_end(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
                    const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	if (!(opt & SMP_OPT_FINAL)) {
@@ -43,7 +43,7 @@ smp_fetch_wait_end(struct proxy *px, struct session *s, void *l7, unsigned int o
 
 /* return the number of bytes in the request buffer */
 static int
-smp_fetch_len(struct proxy *px, struct session *s, void *l7, unsigned int opt,
+smp_fetch_len(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
                   const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct channel *chn;
@@ -63,7 +63,7 @@ smp_fetch_len(struct proxy *px, struct session *s, void *l7, unsigned int opt,
 
 /* returns the type of SSL hello message (mainly used to detect an SSL hello) */
 static int
-smp_fetch_ssl_hello_type(struct proxy *px, struct session *s, void *l7, unsigned int opt,
+smp_fetch_ssl_hello_type(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
                          const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	int hs_len;
@@ -134,7 +134,7 @@ smp_fetch_ssl_hello_type(struct proxy *px, struct session *s, void *l7, unsigned
  * Note: this decoder only works with non-wrapping data.
  */
 static int
-smp_fetch_req_ssl_ver(struct proxy *px, struct session *s, void *l7, unsigned int opt,
+smp_fetch_req_ssl_ver(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
                       const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	int version, bleft, msg_len;
@@ -270,7 +270,7 @@ smp_fetch_req_ssl_ver(struct proxy *px, struct session *s, void *l7, unsigned in
  *             - opaque hostname[name_len bytes]
  */
 static int
-smp_fetch_ssl_hello_sni(struct proxy *px, struct session *s, void *l7, unsigned int opt,
+smp_fetch_ssl_hello_sni(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
                         const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	int hs_len, ext_len, bleft;
@@ -410,7 +410,7 @@ smp_fetch_ssl_hello_sni(struct proxy *px, struct session *s, void *l7, unsigned 
  * of type SMP_T_CSTR. Note: this decoder only works with non-wrapping data.
  */
 int
-fetch_rdp_cookie_name(struct session *s, struct sample *smp, const char *cname, int clen)
+fetch_rdp_cookie_name(struct stream *s, struct sample *smp, const char *cname, int clen)
 {
 	int bleft;
 	const unsigned char *data;
@@ -502,7 +502,7 @@ fetch_rdp_cookie_name(struct session *s, struct sample *smp, const char *cname, 
  * returned sample has type SMP_T_CSTR.
  */
 int
-smp_fetch_rdp_cookie(struct proxy *px, struct session *s, void *l7, unsigned int opt,
+smp_fetch_rdp_cookie(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
                      const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	return fetch_rdp_cookie_name(s, smp, args ? args->data.str.str : NULL, args ? args->data.str.len : 0);
@@ -510,7 +510,7 @@ smp_fetch_rdp_cookie(struct proxy *px, struct session *s, void *l7, unsigned int
 
 /* returns either 1 or 0 depending on whether an RDP cookie is found or not */
 static int
-smp_fetch_rdp_cookie_cnt(struct proxy *px, struct session *s, void *l7, unsigned int opt,
+smp_fetch_rdp_cookie_cnt(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
                          const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	int ret;
@@ -528,7 +528,7 @@ smp_fetch_rdp_cookie_cnt(struct proxy *px, struct session *s, void *l7, unsigned
 
 /* extracts part of a payload with offset and length at a given position */
 static int
-smp_fetch_payload_lv(struct proxy *px, struct session *s, void *l7, unsigned int opt,
+smp_fetch_payload_lv(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
                      const struct arg *arg_p, struct sample *smp, const char *kw, void *private)
 {
 	unsigned int len_offset = arg_p[0].data.uint;
@@ -585,7 +585,7 @@ smp_fetch_payload_lv(struct proxy *px, struct session *s, void *l7, unsigned int
 
 /* extracts some payload at a fixed position and length */
 static int
-smp_fetch_payload(struct proxy *px, struct session *s, void *l7, unsigned int opt,
+smp_fetch_payload(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
                   const struct arg *arg_p, struct sample *smp, const char *kw, void *private)
 {
 	unsigned int buf_offset = arg_p[0].data.uint;

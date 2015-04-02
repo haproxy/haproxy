@@ -24,7 +24,7 @@
 
 #include <common/config.h>
 #include <types/proto_http.h>
-#include <types/session.h>
+#include <types/stream.h>
 #include <types/task.h>
 
 /*
@@ -63,30 +63,30 @@ extern char *get_http_auth_buff;
 #define HTTP_IS_TOKEN(x) (http_is_token[(unsigned char)(x)])
 #define HTTP_IS_VER_TOKEN(x) (http_is_ver_token[(unsigned char)(x)])
 
-int process_cli(struct session *s);
-int process_srv_data(struct session *s);
-int process_srv_conn(struct session *s);
-int http_wait_for_request(struct session *s, struct channel *req, int an_bit);
-int http_process_req_common(struct session *s, struct channel *req, int an_bit, struct proxy *px);
-int http_process_request(struct session *s, struct channel *req, int an_bit);
-int http_process_tarpit(struct session *s, struct channel *req, int an_bit);
-int http_wait_for_request_body(struct session *s, struct channel *req, int an_bit);
+int process_cli(struct stream *s);
+int process_srv_data(struct stream *s);
+int process_srv_conn(struct stream *s);
+int http_wait_for_request(struct stream *s, struct channel *req, int an_bit);
+int http_process_req_common(struct stream *s, struct channel *req, int an_bit, struct proxy *px);
+int http_process_request(struct stream *s, struct channel *req, int an_bit);
+int http_process_tarpit(struct stream *s, struct channel *req, int an_bit);
+int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit);
 int http_send_name_header(struct http_txn *txn, struct proxy* be, const char* svr_name);
-int http_wait_for_response(struct session *s, struct channel *rep, int an_bit);
-int http_process_res_common(struct session *s, struct channel *rep, int an_bit, struct proxy *px);
-int http_request_forward_body(struct session *s, struct channel *req, int an_bit);
-int http_response_forward_body(struct session *s, struct channel *res, int an_bit);
+int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit);
+int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, struct proxy *px);
+int http_request_forward_body(struct stream *s, struct channel *req, int an_bit);
+int http_response_forward_body(struct stream *s, struct channel *res, int an_bit);
 
-void debug_hdr(const char *dir, struct session *s, const char *start, const char *end);
-void get_srv_from_appsession(struct session *s, const char *begin, int len);
-int apply_filter_to_req_headers(struct session *s, struct channel *req, struct hdr_exp *exp);
-int apply_filter_to_req_line(struct session *s, struct channel *req, struct hdr_exp *exp);
-int apply_filters_to_request(struct session *s, struct channel *req, struct proxy *px);
-int apply_filters_to_response(struct session *s, struct channel *rtr, struct proxy *px);
-void manage_client_side_appsession(struct session *s, const char *buf, int len);
-void manage_client_side_cookies(struct session *s, struct channel *req);
-void manage_server_side_cookies(struct session *s, struct channel *rtr);
-void check_response_for_cacheability(struct session *s, struct channel *rtr);
+void debug_hdr(const char *dir, struct stream *s, const char *start, const char *end);
+void get_srv_from_appsession(struct stream *s, const char *begin, int len);
+int apply_filter_to_req_headers(struct stream *s, struct channel *req, struct hdr_exp *exp);
+int apply_filter_to_req_line(struct stream *s, struct channel *req, struct hdr_exp *exp);
+int apply_filters_to_request(struct stream *s, struct channel *req, struct proxy *px);
+int apply_filters_to_response(struct stream *s, struct channel *rtr, struct proxy *px);
+void manage_client_side_appsession(struct stream *s, const char *buf, int len);
+void manage_client_side_cookies(struct stream *s, struct channel *req);
+void manage_server_side_cookies(struct stream *s, struct channel *rtr);
+void check_response_for_cacheability(struct stream *s, struct channel *rtr);
 int stats_check_uri(struct stream_interface *si, struct http_txn *txn, struct proxy *backend);
 void init_proto_http();
 int http_find_full_header2(const char *name, int len,
@@ -100,37 +100,36 @@ int http_header_match2(const char *hdr, const char *end, const char *name, int l
 int http_remove_header2(struct http_msg *msg, struct hdr_idx *idx, struct hdr_ctx *ctx);
 int http_header_add_tail2(struct http_msg *msg, struct hdr_idx *hdr_idx, const char *text, int len);
 int http_replace_req_line(int action, const char *replace, int len,
-                          struct proxy *px, struct session *s, struct http_txn *txn);
-int http_transform_header_str(struct session* s, struct http_msg *msg, const char* name,
+                          struct proxy *px, struct stream *s, struct http_txn *txn);
+int http_transform_header_str(struct stream* s, struct http_msg *msg, const char* name,
                               unsigned int name_len, const char *str, struct my_regex *re,
                               int action);
-void http_sess_log(struct session *s);
 void inet_set_tos(int fd, struct sockaddr_storage from, int tos);
-void http_perform_server_redirect(struct session *s, struct stream_interface *si);
-void http_return_srv_error(struct session *s, struct stream_interface *si);
-void http_capture_bad_message(struct error_snapshot *es, struct session *s,
+void http_perform_server_redirect(struct stream *s, struct stream_interface *si);
+void http_return_srv_error(struct stream *s, struct stream_interface *si);
+void http_capture_bad_message(struct error_snapshot *es, struct stream *s,
                               struct http_msg *msg,
 			      enum ht_state state, struct proxy *other_end);
 unsigned int http_get_hdr(const struct http_msg *msg, const char *hname, int hlen,
 			  struct hdr_idx *idx, int occ,
 			  struct hdr_ctx *ctx, char **vptr, int *vlen);
 
-void http_init_txn(struct session *s);
-void http_end_txn(struct session *s);
-void http_reset_txn(struct session *s);
-void http_adjust_conn_mode(struct session *s, struct http_txn *txn, struct http_msg *msg);
+void http_init_txn(struct stream *s);
+void http_end_txn(struct stream *s);
+void http_reset_txn(struct stream *s);
+void http_adjust_conn_mode(struct stream *s, struct http_txn *txn, struct http_msg *msg);
 
 struct http_req_rule *parse_http_req_cond(const char **args, const char *file, int linenum, struct proxy *proxy);
 struct http_res_rule *parse_http_res_cond(const char **args, const char *file, int linenum, struct proxy *proxy);
 void free_http_req_rules(struct list *r);
 void free_http_res_rules(struct list *r);
-struct chunk *http_error_message(struct session *s, int msgnum);
+struct chunk *http_error_message(struct stream *s, int msgnum);
 struct redirect_rule *http_parse_redirect_rule(const char *file, int linenum, struct proxy *curproxy,
                                                const char **args, char **errmsg, int use_fmt);
-int smp_fetch_cookie(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+int smp_fetch_cookie(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                  const struct arg *args, struct sample *smp, const char *kw, void *private);
 int
-smp_fetch_base32(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_base32(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                  const struct arg *args, struct sample *smp, const char *kw, void *private);
 
 enum http_meth_t find_http_meth(const char *str, const int len);

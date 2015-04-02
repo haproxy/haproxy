@@ -24,7 +24,7 @@
 
 /*
  * BUFSIZE defines the size of a read and write buffer. It is the maximum
- * amount of bytes which can be stored by the proxy for each session. However,
+ * amount of bytes which can be stored by the proxy for each stream. However,
  * when reading HTTP headers, the proxy needs some spare space to add or rewrite
  * headers if needed. The size of this spare is defined with MAXREWRITE. So it
  * is not possible to process headers longer than BUFSIZE-MAXREWRITE bytes. By
@@ -257,9 +257,9 @@
 #define SSL_HANDSHAKE_MAX_COST (76*1024)  // measured
 #endif
 
-/* approximate session size (for maxconn estimate) */
-#ifndef SESSION_MAX_COST
-#define SESSION_MAX_COST (sizeof(struct session) + \
+/* approximate stream size (for maxconn estimate) */
+#ifndef STREAM_MAX_COST
+#define STREAM_MAX_COST (sizeof(struct stream) + \
                           2 * sizeof(struct channel) + \
                           2 * sizeof(struct connection) + \
                           REQURI_LEN + \

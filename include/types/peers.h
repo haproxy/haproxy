@@ -38,7 +38,7 @@
 struct peer_session {
 	struct shared_table *table;   /* shared table */
 	struct peer *peer;	      /* current peer */
-	struct session *session;      /* current transport session */
+	struct stream *stream;        /* current transport stream */
 	unsigned int flags; 	      /* peer session flags */
 	unsigned int statuscode;      /* current/last session status code */
 	unsigned int update;	      /* current peer acked update */

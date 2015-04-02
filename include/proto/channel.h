@@ -33,7 +33,7 @@
 
 #include <types/channel.h>
 #include <types/global.h>
-#include <types/session.h>
+#include <types/stream.h>
 #include <types/stream_interface.h>
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
@@ -54,31 +54,31 @@ int bo_getline_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int 
 int bo_getblk_nc(struct channel *chn, char **blk1, int *len1, char **blk2, int *len2);
 
 
-/* returns a pointer to the session the channel belongs to */
-static inline struct session *chn_sess(const struct channel *chn)
+/* returns a pointer to the stream the channel belongs to */
+static inline struct stream *chn_sess(const struct channel *chn)
 {
 	if (chn->flags & CF_ISRESP)
-		return LIST_ELEM(chn, struct session *, res);
+		return LIST_ELEM(chn, struct stream *, res);
 	else
-		return LIST_ELEM(chn, struct session *, req);
+		return LIST_ELEM(chn, struct stream *, req);
 }
 
 /* returns a pointer to the stream interface feeding the channel (producer) */
 static inline struct stream_interface *chn_prod(const struct channel *chn)
 {
 	if (chn->flags & CF_ISRESP)
-		return &LIST_ELEM(chn, struct session *, res)->si[1];
+		return &LIST_ELEM(chn, struct stream *, res)->si[1];
 	else
-		return &LIST_ELEM(chn, struct session *, req)->si[0];
+		return &LIST_ELEM(chn, struct stream *, req)->si[0];
 }
 
 /* returns a pointer to the stream interface consuming the channel (producer) */
 static inline struct stream_interface *chn_cons(const struct channel *chn)
 {
 	if (chn->flags & CF_ISRESP)
-		return &LIST_ELEM(chn, struct session *, res)->si[0];
+		return &LIST_ELEM(chn, struct stream *, res)->si[0];
 	else
-		return &LIST_ELEM(chn, struct session *, req)->si[1];
+		return &LIST_ELEM(chn, struct stream *, req)->si[1];
 }
 
 /* Initialize all fields in the channel. */

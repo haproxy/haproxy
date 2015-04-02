@@ -51,7 +51,7 @@
 #include <proto/proto_tcp.h>
 #include <proto/proxy.h>
 #include <proto/sample.h>
-#include <proto/session.h>
+#include <proto/stream.h>
 #include <proto/stick_table.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
@@ -1087,14 +1087,14 @@ int tcp_pause_listener(struct listener *l)
  * function may be called for frontend rules and backend rules. It only relies
  * on the backend pointer so this works for both cases.
  */
-int tcp_inspect_request(struct session *s, struct channel *req, int an_bit)
+int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 {
 	struct tcp_rule *rule;
 	struct stksess *ts;
 	struct stktable *t;
 	int partial;
 
-	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		req,
@@ -1180,7 +1180,7 @@ resume_execution:
 					goto missing_data; /* key might appear later */
 
 				if (key && (ts = stktable_get_entry(t, key))) {
-					session_track_stkctr(&s->stkctr[tcp_trk_idx(rule->action)], t, ts);
+					stream_track_stkctr(&s->stkctr[tcp_trk_idx(rule->action)], t, ts);
 					stkctr_set_flags(&s->stkctr[tcp_trk_idx(rule->action)], STKCTR_TRACK_CONTENT);
 					if (s->fe != s->be)
 						stkctr_set_flags(&s->stkctr[tcp_trk_idx(rule->action)], STKCTR_TRACK_BACKEND);
@@ -1247,12 +1247,12 @@ resume_execution:
  * response. It relies on buffers flags, and updates s->rep->analysers. The
  * function may be called for backend rules.
  */
-int tcp_inspect_response(struct session *s, struct channel *rep, int an_bit)
+int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 {
 	struct tcp_rule *rule;
 	int partial;
 
-	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		rep,
@@ -1358,7 +1358,7 @@ resume_execution:
  * matches or if no more rule matches. It can only use rules which don't need
  * any data. This only works on connection-based client-facing stream interfaces.
  */
-int tcp_exec_req_rules(struct session *s)
+int tcp_exec_req_rules(struct stream *s)
 {
 	struct tcp_rule *rule;
 	struct stksess *ts;
@@ -1407,7 +1407,7 @@ int tcp_exec_req_rules(struct session *s)
 				key = stktable_fetch_key(t, s->be, s, &s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->act_prm.trk_ctr.expr, NULL);
 
 				if (key && (ts = stktable_get_entry(t, key)))
-					session_track_stkctr(&s->stkctr[tcp_trk_idx(rule->action)], t, ts);
+					stream_track_stkctr(&s->stkctr[tcp_trk_idx(rule->action)], t, ts);
 			}
 			else if (rule->action == TCP_ACT_EXPECT_PX) {
 				conn->flags |= CO_FL_ACCEPT_PROXY;
@@ -1962,7 +1962,7 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 
 /* fetch the connection's source IPv4/IPv6 address */
 static int
-smp_fetch_src(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_src(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
               const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct connection *cli_conn = objt_conn(l4->si[0].end);
@@ -1989,7 +1989,7 @@ smp_fetch_src(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 
 /* set temp integer to the connection's source port */
 static int
-smp_fetch_sport(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_sport(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp, const char *k, void *private)
 {
 	struct connection *cli_conn = objt_conn(l4->si[0].end);
@@ -2007,7 +2007,7 @@ smp_fetch_sport(struct proxy *px, struct session *l4, void *l7, unsigned int opt
 
 /* fetch the connection's destination IPv4/IPv6 address */
 static int
-smp_fetch_dst(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_dst(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
               const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct connection *cli_conn = objt_conn(l4->si[0].end);
@@ -2036,7 +2036,7 @@ smp_fetch_dst(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
 
 /* set temp integer to the frontend connexion's destination port */
 static int
-smp_fetch_dport(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_dport(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct connection *cli_conn = objt_conn(l4->si[0].end);

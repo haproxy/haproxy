@@ -25,7 +25,7 @@
 #include <common/config.h>
 #include <common/ticks.h>
 #include <common/time.h>
-#include <types/session.h>
+#include <types/stream.h>
 #include <types/peers.h>
 
 void peers_register_table(struct peers *, struct stktable *table);

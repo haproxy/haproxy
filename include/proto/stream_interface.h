@@ -25,7 +25,7 @@
 #include <stdlib.h>
 
 #include <common/config.h>
-#include <types/session.h>
+#include <types/stream.h>
 #include <types/stream_interface.h>
 #include <proto/channel.h>
 #include <proto/connection.h>
@@ -50,18 +50,18 @@ void stream_int_unregister_handler(struct stream_interface *si);
 static inline struct channel *si_ic(struct stream_interface *si)
 {
 	if (si->flags & SI_FL_ISBACK)
-		return &LIST_ELEM(si, struct session *, si[1])->res;
+		return &LIST_ELEM(si, struct stream *, si[1])->res;
 	else
-		return &LIST_ELEM(si, struct session *, si[0])->req;
+		return &LIST_ELEM(si, struct stream *, si[0])->req;
 }
 
 /* returns the channel which feeds data to this stream interface (output channel) */
 static inline struct channel *si_oc(struct stream_interface *si)
 {
 	if (si->flags & SI_FL_ISBACK)
-		return &LIST_ELEM(si, struct session *, si[1])->req;
+		return &LIST_ELEM(si, struct stream *, si[1])->req;
 	else
-		return &LIST_ELEM(si, struct session *, si[0])->res;
+		return &LIST_ELEM(si, struct stream *, si[0])->res;
 }
 
 /* returns the buffer which receives data from this stream interface (input channel's buffer) */
@@ -76,31 +76,31 @@ static inline struct buffer *si_ob(struct stream_interface *si)
 	return si_oc(si)->buf;
 }
 
-/* returns the session associated to a stream interface */
-static inline struct session *si_sess(struct stream_interface *si)
+/* returns the stream associated to a stream interface */
+static inline struct stream *si_strm(struct stream_interface *si)
 {
 	if (si->flags & SI_FL_ISBACK)
-		return LIST_ELEM(si, struct session *, si[1]);
+		return LIST_ELEM(si, struct stream *, si[1]);
 	else
-		return LIST_ELEM(si, struct session *, si[0]);
+		return LIST_ELEM(si, struct stream *, si[0]);
 }
 
 /* returns the task associated to this stream interface */
 static inline struct task *si_task(struct stream_interface *si)
 {
 	if (si->flags & SI_FL_ISBACK)
-		return LIST_ELEM(si, struct session *, si[1])->task;
+		return LIST_ELEM(si, struct stream *, si[1])->task;
 	else
-		return LIST_ELEM(si, struct session *, si[0])->task;
+		return LIST_ELEM(si, struct stream *, si[0])->task;
 }
 
 /* returns the stream interface on the other side. Used during forwarding. */
 static inline struct stream_interface *si_opposite(struct stream_interface *si)
 {
 	if (si->flags & SI_FL_ISBACK)
-		return &LIST_ELEM(si, struct session *, si[1])->si[0];
+		return &LIST_ELEM(si, struct stream *, si[1])->si[0];
 	else
-		return &LIST_ELEM(si, struct session *, si[0])->si[1];
+		return &LIST_ELEM(si, struct stream *, si[0])->si[1];
 }
 
 /* Initializes all required fields for a new appctx. Note that it does the

@@ -37,17 +37,17 @@
 #define TX_CLALLOW	0x00000002	/* a client header matches an allow regex */
 #define TX_SVDENY	0x00000004	/* a server header matches a deny regex */
 #define TX_SVALLOW	0x00000008	/* a server header matches an allow regex */
-#define TX_CLTARPIT	0x00000010	/* the session is tarpitted (anti-dos) */
+#define TX_CLTARPIT	0x00000010	/* the transaction is tarpitted (anti-dos) */
 
 /* transaction flags dedicated to cookies : bits values 0x20 to 0x80 (0-7 shift 5) */
-#define TX_CK_NONE	0x00000000	/* this session had no cookie */
-#define TX_CK_INVALID	0x00000020	/* this session had a cookie which matches no server */
-#define TX_CK_DOWN	0x00000040	/* this session had cookie matching a down server */
-#define TX_CK_VALID	0x00000060	/* this session had cookie matching a valid server */
-#define TX_CK_EXPIRED	0x00000080	/* this session had an expired cookie (idle for too long) */
-#define TX_CK_OLD	0x000000A0	/* this session had too old a cookie (offered too long ago) */
-#define TX_CK_UNUSED	0x000000C0	/* this session had a cookie but it was not used (eg: use-server was preferred) */
-#define TX_CK_MASK	0x000000E0	/* mask to get this session's cookie flags */
+#define TX_CK_NONE	0x00000000	/* this transaction had no cookie */
+#define TX_CK_INVALID	0x00000020	/* this transaction had a cookie which matches no server */
+#define TX_CK_DOWN	0x00000040	/* this transaction had cookie matching a down server */
+#define TX_CK_VALID	0x00000060	/* this transaction had cookie matching a valid server */
+#define TX_CK_EXPIRED	0x00000080	/* this transaction had an expired cookie (idle for too long) */
+#define TX_CK_OLD	0x000000A0	/* this transaction had too old a cookie (offered too long ago) */
+#define TX_CK_UNUSED	0x000000C0	/* this transaction had a cookie but it was not used (eg: use-server was preferred) */
+#define TX_CK_MASK	0x000000E0	/* mask to get this transaction's cookie flags */
 #define TX_CK_SHIFT	5		/* bit shift */
 
 /* response cookie information, bits values 0x100 to 0x700 (0-7 shift 8) */
@@ -411,13 +411,13 @@ struct http_auth_data {
 
 struct proxy;
 struct http_txn;
-struct session;
+struct stream;
 
 struct http_req_rule {
 	struct list list;
 	struct acl_cond *cond;                 /* acl condition to meet */
 	unsigned int action;                   /* HTTP_REQ_* */
-	int (*action_ptr)(struct http_req_rule *rule, struct proxy *px, struct session *s, struct http_txn *http_txn);  /* ptr to custom action */
+	int (*action_ptr)(struct http_req_rule *rule, struct proxy *px, struct stream *s, struct http_txn *http_txn);  /* ptr to custom action */
 	union {
 		struct {
 			char *realm;
@@ -453,7 +453,7 @@ struct http_res_rule {
 	struct list list;
 	struct acl_cond *cond;                 /* acl condition to meet */
 	unsigned int action;                   /* HTTP_RES_* */
-	int (*action_ptr)(struct http_res_rule *rule, struct proxy *px, struct session *s, struct http_txn *http_txn);  /* ptr to custom action */
+	int (*action_ptr)(struct http_res_rule *rule, struct proxy *px, struct stream *s, struct http_txn *http_txn);  /* ptr to custom action */
 	union {
 		struct {
 			char *name;            /* header name */

@@ -20,7 +20,6 @@
 #include <proto/fd.h>
 #include <proto/frontend.h>
 #include <proto/proto_tcp.h>
-#include <proto/session.h>
 #include <proto/stream_interface.h>
 
 #ifdef USE_OPENSSL

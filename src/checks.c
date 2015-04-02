@@ -57,7 +57,6 @@
 #include <proto/proxy.h>
 #include <proto/raw_sock.h>
 #include <proto/server.h>
-#include <proto/session.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 

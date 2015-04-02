@@ -916,7 +916,7 @@ const char sess_set_cookie[8] = "NPDIRU67";	/* No set-cookie, Set-cookie found a
  * not counting the trailing zero which is always added if the resulting size
  * is not zero.
  */
-int build_logline(struct session *s, char *dst, size_t maxsize, struct list *list_format)
+int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list_format)
 {
 	struct proxy *fe = s->fe;
 	struct proxy *be = s->be;
@@ -1599,10 +1599,10 @@ out:
 }
 
 /*
- * send a log for the session when we have enough info about it.
+ * send a log for the stream when we have enough info about it.
  * Will not log if the frontend has no log defined.
  */
-void sess_log(struct session *s)
+void strm_log(struct stream *s)
 {
 	char *tmplog;
 	int size, err, level;

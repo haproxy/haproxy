@@ -1097,7 +1097,7 @@ struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, co
  *     if (cond->pol == ACL_COND_UNLESS)
  *         res = !res;
  */
-enum acl_test_res acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *l4, void *l7, unsigned int opt)
+enum acl_test_res acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct stream *l4, void *l7, unsigned int opt)
 {
 	__label__ fetch_next;
 	struct acl_term_suite *suite;

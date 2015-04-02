@@ -1,5 +1,5 @@
 /*
- * Session management functions.
+ * Stream management functions.
  *
  * Copyright 2000-2012 Willy Tarreau <w@1wt.eu>
  *
@@ -37,7 +37,7 @@
 #include <proto/listener.h>
 #include <proto/log.h>
 #include <proto/raw_sock.h>
-#include <proto/session.h>
+#include <proto/stream.h>
 #include <proto/pipe.h>
 #include <proto/proto_http.h>
 #include <proto/proto_tcp.h>
@@ -49,36 +49,36 @@
 #include <proto/stream_interface.h>
 #include <proto/task.h>
 
-struct pool_head *pool2_session;
-struct list sessions;
+struct pool_head *pool2_stream;
+struct list streams;
 
-/* list of sessions waiting for at least one buffer */
+/* list of streams waiting for at least one buffer */
 struct list buffer_wq = LIST_HEAD_INIT(buffer_wq);
 
-static int conn_session_complete(struct connection *conn);
-static int conn_session_update(struct connection *conn);
+static int conn_stream_complete(struct connection *conn);
+static int conn_stream_update(struct connection *conn);
 static struct task *expire_mini_session(struct task *t);
-int session_complete(struct session *s);
+int stream_complete(struct stream *s);
 
-/* data layer callbacks for an embryonic session */
+/* data layer callbacks for an embryonic stream */
 struct data_cb sess_conn_cb = {
 	.recv = NULL,
 	.send = NULL,
-	.wake = conn_session_update,
-	.init = conn_session_complete,
+	.wake = conn_stream_update,
+	.init = conn_stream_complete,
 };
 
 /* This function is called from the protocol layer accept() in order to
- * instanciate a new embryonic session on behalf of a given listener and
+ * instanciate a new embryonic stream on behalf of a given listener and
  * frontend. It returns a positive value upon success, 0 if the connection
  * can be ignored, or a negative value upon critical failure. The accepted
  * file descriptor is closed if we return <= 0.
  */
-int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
+int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 {
 	struct connection *cli_conn;
 	struct proxy *p = l->frontend;
-	struct session *s;
+	struct stream *s;
 	struct task *t;
 	int ret;
 
@@ -96,10 +96,10 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	cli_conn->target = &l->obj_type;
 	cli_conn->proxy_netns = l->netns;
 
-	if (unlikely((s = pool_alloc2(pool2_session)) == NULL))
+	if (unlikely((s = pool_alloc2(pool2_stream)) == NULL))
 		goto out_free_conn;
 
-	/* minimum session initialization required for an embryonic session is
+	/* minimum stream initialization required for an embryonic stream is
 	 * fairly low. We need very little to execute L4 ACLs, then we need a
 	 * task to make the client-side connection live on its own.
 	 *  - flags
@@ -123,9 +123,9 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[1].flags = SI_FL_ISBACK;
 
 	/* On a mini-session, the connection is directly attached to the
-	 * session's target so that we don't need to initialize the stream
+	 * stream's target so that we don't need to initialize the stream
 	 * interfaces. Another benefit is that it's easy to detect a mini-
-	 * session in dumps using this : it's the only one which has a
+	 * stream in dumps using this : it's the only one which has a
 	 * connection in s->target.
 	 */
 	s->target = &cli_conn->obj_type;
@@ -134,7 +134,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->logs.tv_accept = now;  /* corrected date for internal use */
 	s->uniq_id = global.req_count++;
 	p->feconn++;
-	/* This session was accepted, count it now */
+	/* This stream was accepted, count it now */
 	if (p->feconn > p->fe_counters.conn_max)
 		p->fe_counters.conn_max = p->feconn;
 
@@ -212,7 +212,7 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 
 	/* OK, now either we have a pending handshake to execute with and
 	 * then we must return to the I/O layer, or we can proceed with the
-	 * end of the session initialization. In case of handshake, we also
+	 * end of the stream initialization. In case of handshake, we also
 	 * set the I/O timeout to the frontend's client timeout.
 	 */
 
@@ -224,9 +224,9 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		return 1;
 	}
 
-	/* OK let's complete session initialization since there is no handshake */
+	/* OK let's complete stream initialization since there is no handshake */
 	cli_conn->flags |= CO_FL_CONNECTED;
-	ret = session_complete(s);
+	ret = stream_complete(s);
 	if (ret > 0)
 		return ret;
 
@@ -235,8 +235,8 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	task_free(t);
  out_free_session:
 	p->feconn--;
-	session_store_counters(s);
-	pool_free2(pool2_session, s);
+	stream_store_counters(s);
+	pool_free2(pool2_stream, s);
  out_free_conn:
 	cli_conn->flags &= ~CO_FL_XPRT_TRACKED;
 	conn_xprt_close(cli_conn);
@@ -258,11 +258,11 @@ int session_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 }
 
 
-/* prepare the trash with a log prefix for session <s>. It only works with
- * embryonic sessions based on a real connection. This function requires that
+/* prepare the trash with a log prefix for stream <s>. It only works with
+ * embryonic streams based on a real connection. This function requires that
  * at s->target still points to the incoming connection.
  */
-static void prepare_mini_sess_log_prefix(struct session *s)
+static void prepare_mini_sess_log_prefix(struct stream *s)
 {
 	struct tm tm;
 	char pn[INET6_ADDRSTRLEN];
@@ -287,12 +287,12 @@ static void prepare_mini_sess_log_prefix(struct session *s)
 		chunk_appendf(&trash, "] %s/%d", s->fe->id, s->listener->luid);
 }
 
-/* This function kills an existing embryonic session. It stops the connection's
+/* This function kills an existing embryonic stream. It stops the connection's
  * transport layer, releases assigned resources, resumes the listener if it was
  * disabled and finally kills the file descriptor. This function requires that
  * at s->target still points to the incoming connection.
  */
-static void kill_mini_session(struct session *s)
+static void kill_mini_session(struct stream *s)
 {
 	int level = LOG_INFO;
 	struct connection *conn = __objt_conn(s->target);
@@ -332,7 +332,7 @@ static void kill_mini_session(struct session *s)
 	conn_free(conn);
 
 	s->fe->feconn--;
-	session_store_counters(s);
+	stream_store_counters(s);
 
 	if (!(s->listener->options & LI_O_UNLIMITED))
 		actconn--;
@@ -351,17 +351,17 @@ static void kill_mini_session(struct session *s)
 
 	task_delete(s->task);
 	task_free(s->task);
-	pool_free2(pool2_session, s);
+	pool_free2(pool2_stream, s);
 }
 
-/* Finish initializing a session from a connection, or kills it if the
+/* Finish initializing a stream from a connection, or kills it if the
  * connection shows and error. Returns <0 if the connection was killed.
  */
-static int conn_session_complete(struct connection *conn)
+static int conn_stream_complete(struct connection *conn)
 {
-	struct session *s = conn->owner;
+	struct stream *s = conn->owner;
 
-	if (!(conn->flags & CO_FL_ERROR) && (session_complete(s) > 0)) {
+	if (!(conn->flags & CO_FL_ERROR) && (stream_complete(s) > 0)) {
 		conn->flags &= ~CO_FL_INIT_DATA;
 		return 0;
 	}
@@ -371,10 +371,10 @@ static int conn_session_complete(struct connection *conn)
 	return -1;
 }
 
-/* Update an embryonic session status. The connection is killed in case of
+/* Update an embryonic stream status. The connection is killed in case of
  * error, and <0 will be returned. Otherwise it does nothing.
  */
-static int conn_session_update(struct connection *conn)
+static int conn_stream_update(struct connection *conn)
 {
 	if (conn->flags & CO_FL_ERROR) {
 		kill_mini_session(conn->owner);
@@ -383,12 +383,12 @@ static int conn_session_update(struct connection *conn)
 	return 0;
 }
 
-/* Manages embryonic sessions timeout. It is only called when the timeout
+/* Manages embryonic streams timeout. It is only called when the timeout
  * strikes and performs the required cleanup.
  */
 static struct task *expire_mini_session(struct task *t)
 {
-	struct session *s = t->context;
+	struct stream *s = t->context;
 
 	if (!(t->state & TASK_WOKEN_TIMER))
 		return t;
@@ -398,15 +398,15 @@ static struct task *expire_mini_session(struct task *t)
 }
 
 /* This function is called from the I/O handler which detects the end of
- * handshake, in order to complete initialization of a valid session. It must
- * be called with an embryonic session. It returns a positive value upon
+ * handshake, in order to complete initialization of a valid stream. It must
+ * be called with an embryonic stream. It returns a positive value upon
  * success, 0 if the connection can be ignored, or a negative value upon
  * critical failure. The accepted file descriptor is closed if we return <= 0.
  * The client-side end point is assumed to be a connection, whose pointer is
  * taken from s->target which is assumed to be valid. If the function fails,
  * it restores s->target.
  */
-int session_complete(struct session *s)
+int stream_complete(struct stream *s)
 {
 	struct listener *l = s->listener;
 	struct proxy *p = s->fe;
@@ -418,8 +418,8 @@ int session_complete(struct session *s)
 
 	ret = -1; /* assume unrecoverable error by default */
 
-	/* OK, we're keeping the session, so let's properly initialize the session */
-	LIST_ADDQ(&sessions, &s->list);
+	/* OK, we're keeping the stream, so let's properly initialize the stream */
+	LIST_ADDQ(&streams, &s->list);
 	LIST_INIT(&s->back_refs);
 	LIST_INIT(&s->buffer_wait);
 
@@ -430,7 +430,7 @@ int session_complete(struct session *s)
 	t->context = s;
 	t->expire = TICK_ETERNITY;
 
-	/* Note: initially, the session's backend points to the frontend.
+	/* Note: initially, the stream's backend points to the frontend.
 	 * This changes later when switching rules are executed or
 	 * when the default backend is assigned.
 	 */
@@ -438,7 +438,7 @@ int session_complete(struct session *s)
 	s->comp_algo = NULL;
 	s->req.buf = s->res.buf = NULL;
 
-	/* Let's count a session now */
+	/* Let's count a stream now */
 	proxy_inc_fe_sess_ctr(l, p);
 
 	for (i = 0; i < MAX_SESS_STKCTR; i++) {
@@ -480,7 +480,7 @@ int session_complete(struct session *s)
 	if (likely(s->fe->options2 & PR_O2_INDEPSTR))
 		s->si[1].flags |= SI_FL_INDEP_STR;
 
-	session_init_srv_conn(s);
+	stream_init_srv_conn(s);
 	s->target = l->default_target; /* used by peers and CLI */
 	s->pend_pos = NULL;
 
@@ -516,7 +516,7 @@ int session_complete(struct session *s)
 
 	txn = &s->txn;
 	/* Those variables will be checked and freed if non-NULL in
-	 * session.c:session_free(). It is important that they are
+	 * stream.c:stream_free(). It is important that they are
 	 * properly initialized.
 	 */
 	txn->sessid = NULL;
@@ -572,9 +572,9 @@ int session_complete(struct session *s)
 }
 
 /*
- * frees  the context associated to a session. It must have been removed first.
+ * frees  the context associated to a stream. It must have been removed first.
  */
-static void session_free(struct session *s)
+static void stream_free(struct stream *s)
 {
 	struct http_txn *txn = &s->txn;
 	struct proxy *fe = s->fe;
@@ -595,7 +595,7 @@ static void session_free(struct session *s)
 	}
 
 	if (unlikely(s->srv_conn)) {
-		/* the session still has a reserved slot on a server, but
+		/* the stream still has a reserved slot on a server, but
 		 * it should normally be only the same as the one above,
 		 * so this should not happen in fact.
 		 */
@@ -617,7 +617,7 @@ static void session_free(struct session *s)
 	b_drop(&s->req.buf);
 	b_drop(&s->res.buf);
 	if (!LIST_ISEMPTY(&buffer_wq))
-		session_offer_buffers();
+		stream_offer_buffers();
 
 	hlua_ctx_destroy(&s->hlua);
 	http_end_txn(s);
@@ -639,22 +639,22 @@ static void session_free(struct session *s)
 		pool_free2(fe->req_cap_pool, txn->req.cap);
 	}
 
-	session_store_counters(s);
+	stream_store_counters(s);
 
 	list_for_each_entry_safe(bref, back, &s->back_refs, users) {
 		/* we have to unlink all watchers. We must not relink them if
-		 * this session was the last one in the list.
+		 * this stream was the last one in the list.
 		 */
 		LIST_DEL(&bref->users);
 		LIST_INIT(&bref->users);
-		if (s->list.n != &sessions)
-			LIST_ADDQ(&LIST_ELEM(s->list.n, struct session *, list)->back_refs, &bref->users);
+		if (s->list.n != &streams)
+			LIST_ADDQ(&LIST_ELEM(s->list.n, struct stream *, list)->back_refs, &bref->users);
 		bref->ref = s->list.n;
 	}
 	LIST_DEL(&s->list);
 	si_release_endpoint(&s->si[1]);
 	si_release_endpoint(&s->si[0]);
-	pool_free2(pool2_session, s);
+	pool_free2(pool2_stream, s);
 
 	/* We may want to free the maximum amount of pools if the proxy is stopping */
 	if (fe && unlikely(fe->state == PR_STSTOPPED)) {
@@ -662,7 +662,7 @@ static void session_free(struct session *s)
 		pool_flush2(pool2_hdr_idx);
 		pool_flush2(pool2_requri);
 		pool_flush2(pool2_capture);
-		pool_flush2(pool2_session);
+		pool_flush2(pool2_stream);
 		pool_flush2(pool2_connection);
 		pool_flush2(pool2_pendconn);
 		pool_flush2(fe->req_cap_pool);
@@ -678,9 +678,9 @@ static void session_free(struct session *s)
  * buffers are properly allocated. Returns 0 in case of failure, non-zero
  * otherwise.
  */
-int session_alloc_recv_buffer(struct channel *chn)
+int stream_alloc_recv_buffer(struct channel *chn)
 {
-	struct session *s;
+	struct stream *s;
 	struct buffer *b;
 	int margin = 0;
 
@@ -698,8 +698,8 @@ int session_alloc_recv_buffer(struct channel *chn)
 	return 0;
 }
 
-/* Allocates a work buffer for session <s>. It is meant to be called inside
- * process_session(). It will only allocate the side needed for the function
+/* Allocates a work buffer for stream <s>. It is meant to be called inside
+ * process_stream(). It will only allocate the side needed for the function
  * to work fine. For a regular connection, only the response is needed so that
  * an error message may be built and returned. In case where the initiator is
  * an applet (eg: peers), then we need to allocate the request buffer for the
@@ -709,7 +709,7 @@ int session_alloc_recv_buffer(struct channel *chn)
  * a response may always flow and will never block a server from releasing a
  * connection. Returns 0 in case of failure, non-zero otherwise.
  */
-int session_alloc_work_buffer(struct session *s)
+int stream_alloc_work_buffer(struct stream *s)
 {
 	int margin;
 	struct buffer **buf;
@@ -737,11 +737,11 @@ int session_alloc_work_buffer(struct session *s)
 
 /* releases unused buffers after processing. Typically used at the end of the
  * update() functions. It will try to wake up as many tasks as the number of
- * buffers that it releases. In practice, most often sessions are blocked on
+ * buffers that it releases. In practice, most often streams are blocked on
  * a single buffer, so it makes sense to try to wake two up when two buffers
  * are released at once.
  */
-void session_release_buffers(struct session *s)
+void stream_release_buffers(struct stream *s)
 {
 	if (s->req.buf->size && buffer_empty(s->req.buf))
 		b_free(&s->req.buf);
@@ -753,16 +753,16 @@ void session_release_buffers(struct session *s)
 	 * someone waiting, we can wake up a waiter and offer them.
 	 */
 	if (!LIST_ISEMPTY(&buffer_wq))
-		session_offer_buffers();
+		stream_offer_buffers();
 }
 
-/* Runs across the list of pending sessions waiting for a buffer and wakes one
+/* Runs across the list of pending streams waiting for a buffer and wakes one
  * up if buffers are available. Will stop when the run queue reaches <rqlimit>.
- * Should not be called directly, use session_offer_buffers() instead.
+ * Should not be called directly, use stream_offer_buffers() instead.
  */
-void __session_offer_buffers(int rqlimit)
+void __stream_offer_buffers(int rqlimit)
 {
-	struct session *sess, *bak;
+	struct stream *sess, *bak;
 
 	list_for_each_entry_safe(sess, bak, &buffer_wq, buffer_wait) {
 		if (rqlimit <= run_queue)
@@ -778,14 +778,14 @@ void __session_offer_buffers(int rqlimit)
 }
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
-int init_session()
+int init_stream()
 {
-	LIST_INIT(&sessions);
-	pool2_session = create_pool("session", sizeof(struct session), MEM_F_SHARED);
-	return pool2_session != NULL;
+	LIST_INIT(&streams);
+	pool2_stream = create_pool("stream", sizeof(struct stream), MEM_F_SHARED);
+	return pool2_stream != NULL;
 }
 
-void session_process_counters(struct session *s)
+void stream_process_counters(struct stream *s)
 {
 	unsigned long long bytes;
 	void *ptr;
@@ -861,9 +861,9 @@ void session_process_counters(struct session *s)
  * We must check for establishment, error and abort. Possible output states
  * are SI_ST_EST (established), SI_ST_CER (error), SI_ST_DIS (abort), and
  * SI_ST_CON (no change). The function returns 0 if it switches to SI_ST_CER,
- * otherwise 1. This only works with connection-based sessions.
+ * otherwise 1. This only works with connection-based streams.
  */
-static int sess_update_st_con_tcp(struct session *s)
+static int sess_update_st_con_tcp(struct stream *s)
 {
 	struct stream_interface *si = &s->si[1];
 	struct channel *req = &s->req;
@@ -935,11 +935,11 @@ static int sess_update_st_con_tcp(struct session *s)
  * and SI_ST_REQ when an immediate redispatch is wanted. The buffers are
  * marked as in error state. It returns 0.
  */
-static int sess_update_st_cer(struct session *s)
+static int sess_update_st_cer(struct stream *s)
 {
 	struct stream_interface *si = &s->si[1];
 
-	/* we probably have to release last session from the server */
+	/* we probably have to release last stream from the server */
 	if (objt_server(s->target)) {
 		health_adjust(objt_server(s->target), HANA_STATUS_L4_ERR);
 
@@ -976,7 +976,7 @@ static int sess_update_st_cer(struct session *s)
 
 	/* If the "redispatch" option is set on the backend, we are allowed to
 	 * retry on another server for the last retry. In order to achieve this,
-	 * we must mark the session unassigned, and eventually clear the DIRECT
+	 * we must mark the stream unassigned, and eventually clear the DIRECT
 	 * bit to ignore any persistence cookie. We won't count a retry nor a
 	 * redispatch yet, because this will depend on what server is selected.
 	 * If the connection is not persistent, the balancing algorithm is not
@@ -1034,7 +1034,7 @@ static int sess_update_st_cer(struct session *s)
  * SI_ST_EST state. It must only be called after switching from SI_ST_CON (or
  * SI_ST_INI) to SI_ST_EST, but only when a ->proto is defined.
  */
-static void sess_establish(struct session *s)
+static void sess_establish(struct stream *s)
 {
 	struct stream_interface *si = &s->si[1];
 	struct channel *req = &s->req;
@@ -1080,7 +1080,7 @@ static void sess_establish(struct session *s)
  * and SI_ST_EST. Flags must have previously been updated for timeouts and other
  * conditions.
  */
-static void sess_update_stream_int(struct session *s)
+static void sess_update_stream_int(struct stream *s)
 {
 	struct server *srv = objt_server(s->target);
 	struct stream_interface *si = &s->si[1];
@@ -1126,7 +1126,7 @@ static void sess_update_stream_int(struct session *s)
 				srv->counters.failed_conns++;
 			s->be->be_counters.failed_conns++;
 
-			/* release other sessions waiting for this server */
+			/* release other streams waiting for this server */
 			sess_change_server(s, NULL);
 			if (may_dequeue_tasks(srv, s->be))
 				process_srv_queue(srv);
@@ -1138,7 +1138,7 @@ static void sess_update_stream_int(struct session *s)
 
 			s->logs.t_queue = tv_ms_elapsed(&s->logs.tv_accept, &now);
 
-			/* no session was ever accounted for this server */
+			/* no stream was ever accounted for this server */
 			si->state = SI_ST_CLO;
 			if (s->srv_error)
 				s->srv_error(s, si);
@@ -1232,7 +1232,7 @@ static void sess_update_stream_int(struct session *s)
 
 		si->exp = TICK_ETERNITY;
 
-		/* we keep trying on the same server as long as the session is
+		/* we keep trying on the same server as long as the stream is
 		 * marked "assigned".
 		 * FIXME: Should we force a redispatch attempt when the server is down ?
 		 */
@@ -1244,11 +1244,11 @@ static void sess_update_stream_int(struct session *s)
 	}
 }
 
-/* Set correct session termination flags in case no analyser has done it. It
+/* Set correct stream termination flags in case no analyser has done it. It
  * also counts a failed request if the server state has not reached the request
  * stage.
  */
-static void sess_set_term_flags(struct session *s)
+static void sess_set_term_flags(struct stream *s)
 {
 	if (!(s->flags & SN_FINST_MASK)) {
 		if (s->si[1].state < SI_ST_REQ) {
@@ -1276,7 +1276,7 @@ static void sess_set_term_flags(struct session *s)
  * or SI_ST_EST for a successful connection to an applet. It may also return
  * SI_ST_QUE, or SI_ST_CLO upon error.
  */
-static void sess_prepare_conn_req(struct session *s)
+static void sess_prepare_conn_req(struct stream *s)
 {
 	struct stream_interface *si = &s->si[1];
 
@@ -1355,14 +1355,14 @@ static void sess_prepare_conn_req(struct session *s)
  * It returns 1 if the processing can continue on next analysers, or zero if it
  * either needs more data or wants to immediately abort the request.
  */
-static int process_switching_rules(struct session *s, struct channel *req, int an_bit)
+static int process_switching_rules(struct stream *s, struct channel *req, int an_bit)
 {
 	struct persist_rule *prst_rule;
 
 	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
 
-	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		req,
@@ -1403,7 +1403,7 @@ static int process_switching_rules(struct session *s, struct channel *req, int a
 				else
 					backend = rule->be.backend;
 
-				if (!session_set_backend(s, backend))
+				if (!stream_set_backend(s, backend))
 					goto sw_failed;
 				break;
 			}
@@ -1415,7 +1415,7 @@ static int process_switching_rules(struct session *s, struct channel *req, int a
 		 * backend if any.
 		 */
 		if (!(s->flags & SN_BE_ASSIGNED))
-			if (!session_set_backend(s, s->fe->defbe.be ? s->fe->defbe.be : s->be))
+			if (!stream_set_backend(s, s->fe->defbe.be ? s->fe->defbe.be : s->be))
 				goto sw_failed;
 	}
 
@@ -1426,7 +1426,7 @@ static int process_switching_rules(struct session *s, struct channel *req, int a
 	}
 
 	/* as soon as we know the backend, we must check if we have a matching forced or ignored
-	 * persistence rule, and report that in the session.
+	 * persistence rule, and report that in the stream.
 	 */
 	list_for_each_entry(prst_rule, &s->be->persist_rules, list) {
 		int ret = 1;
@@ -1471,12 +1471,12 @@ static int process_switching_rules(struct session *s, struct channel *req, int a
  * it then returns 1. The data must already be present in the buffer otherwise
  * they won't match. It always returns 1.
  */
-static int process_server_rules(struct session *s, struct channel *req, int an_bit)
+static int process_server_rules(struct stream *s, struct channel *req, int an_bit)
 {
 	struct proxy *px = s->be;
 	struct server_rule *rule;
 
-	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bl=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		req,
@@ -1520,12 +1520,12 @@ static int process_server_rules(struct session *s, struct channel *req, int an_b
  * it then returns 1. The data must already be present in the buffer otherwise
  * they won't match. It always returns 1.
  */
-static int process_sticking_rules(struct session *s, struct channel *req, int an_bit)
+static int process_sticking_rules(struct stream *s, struct channel *req, int an_bit)
 {
 	struct proxy    *px   = s->be;
 	struct sticking_rule  *rule;
 
-	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		req,
@@ -1616,14 +1616,14 @@ static int process_sticking_rules(struct session *s, struct channel *req, int an
  * then returns 1. The data must already be present in the buffer otherwise
  * they won't match. It always returns 1.
  */
-static int process_store_rules(struct session *s, struct channel *rep, int an_bit)
+static int process_store_rules(struct stream *s, struct channel *rep, int an_bit)
 {
 	struct proxy    *px   = s->be;
 	struct sticking_rule  *rule;
 	int i;
 	int nbreq = s->store_count;
 
-	DPRINTF(stderr,"[%u] %s: session=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
+	DPRINTF(stderr,"[%u] %s: stream=%p b=%p, exp(r,w)=%u,%u bf=%08x bh=%d analysers=%02x\n",
 		now_ms, __FUNCTION__,
 		s,
 		rep,
@@ -1714,7 +1714,7 @@ static int process_store_rules(struct session *s, struct channel *rep, int an_bi
 }
 
 /* This macro is very specific to the function below. See the comments in
- * process_session() below to understand the logic and the tests.
+ * process_stream() below to understand the logic and the tests.
  */
 #define UPDATE_ANALYSERS(real, list, back, flag) {			\
 		list = (((list) & ~(flag)) | ~(back)) & (real);		\
@@ -1725,7 +1725,7 @@ static int process_store_rules(struct session *s, struct channel *rep, int an_bi
 			continue;					\
 }
 
-/* Processes the client, server, request and response jobs of a session task,
+/* Processes the client, server, request and response jobs of a stream task,
  * then puts it back to the wait queue in a clean state, or cleans up its
  * resources if it must be deleted. Returns in <next> the date the task wants
  * to be woken up, or TICK_ETERNITY. In order not to call all functions for
@@ -1733,10 +1733,10 @@ static int process_store_rules(struct session *s, struct channel *rep, int an_bi
  * and each function is called only if at least another function has changed at
  * least one flag it is interested in.
  */
-struct task *process_session(struct task *t)
+struct task *process_stream(struct task *t)
 {
 	struct server *srv;
-	struct session *s = t->context;
+	struct stream *s = t->context;
 	unsigned int rqf_last, rpf_last;
 	unsigned int rq_prod_last, rq_cons_last;
 	unsigned int rp_cons_last, rp_prod_last;
@@ -1809,7 +1809,7 @@ struct task *process_session(struct task *t)
 
 		/* Once in a while we're woken up because the task expires. But
 		 * this does not necessarily mean that a timeout has been reached.
-		 * So let's not run a whole session processing if only an expiration
+		 * So let's not run a whole stream processing if only an expiration
 		 * timeout needs to be refreshed.
 		 */
 		if (!((req->flags | res->flags) &
@@ -1823,7 +1823,7 @@ struct task *process_session(struct task *t)
 	/* below we may emit error messages so we have to ensure that we have
 	 * our buffers properly allocated.
 	 */
-	if (!session_alloc_work_buffer(s)) {
+	if (!stream_alloc_work_buffer(s)) {
 		/* No buffer available, we've been subscribed to the list of
 		 * buffer waiters, let's wait for our turn.
 		 */
@@ -1969,7 +1969,7 @@ struct task *process_session(struct task *t)
 			 * the list when not needed. Any analyser may return 0
 			 * to break out of the loop, either because of missing
 			 * data to take a decision, or because it decides to
-			 * kill the session. We loop at least once through each
+			 * kill the stream. We loop at least once through each
 			 * analyser, and we may loop again if other analysers
 			 * are added in the middle.
 			 *
@@ -2139,7 +2139,7 @@ struct task *process_session(struct task *t)
 			 * the list when not needed. Any analyser may return 0
 			 * to break out of the loop, either because of missing
 			 * data to take a decision, or because it decides to
-			 * kill the session. We loop at least once through each
+			 * kill the stream. We loop at least once through each
 			 * analyser, and we may loop again if other analysers
 			 * are added in the middle.
 			 */
@@ -2202,7 +2202,7 @@ struct task *process_session(struct task *t)
 
 
 	/*
-	 * Now we propagate unhandled errors to the session. Normally
+	 * Now we propagate unhandled errors to the stream. Normally
 	 * we're just in a data phase here since it means we have not
 	 * seen any analyser who could set an error status.
 	 */
@@ -2589,7 +2589,7 @@ struct task *process_session(struct task *t)
 		   (si_b->state > SI_ST_INI && si_b->state < SI_ST_CLO))) {
 
 		if ((s->fe->options & PR_O_CONTSTATS) && (s->flags & SN_BE_ASSIGNED))
-			session_process_counters(s);
+			stream_process_counters(s);
 
 		if (si_f->state == SI_ST_EST && obj_type(si_f->end) != OBJ_TYPE_APPCTX)
 			si_update(si_f);
@@ -2630,7 +2630,7 @@ struct task *process_session(struct task *t)
 		if ((si_applet_call(si_b) | si_applet_call(si_f)) != 0) {
 			if (task_in_rq(t)) {
 				t->expire = TICK_ETERNITY;
-				session_release_buffers(s);
+				stream_release_buffers(s);
 				return t;
 			}
 		}
@@ -2660,7 +2660,7 @@ struct task *process_session(struct task *t)
 		if (!tick_isset(t->expire))
 			ABORT_NOW();
 #endif
-		session_release_buffers(s);
+		stream_release_buffers(s);
 		return t; /* nothing more to do */
 	}
 
@@ -2694,7 +2694,7 @@ struct task *process_session(struct task *t)
 	}
 
 	s->logs.t_close = tv_ms_elapsed(&s->logs.tv_accept, &now);
-	session_process_counters(s);
+	stream_process_counters(s);
 
 	if (s->txn.status) {
 		int n;
@@ -2724,18 +2724,18 @@ struct task *process_session(struct task *t)
 		s->do_log(s);
 	}
 
-	/* update time stats for this session */
-	session_update_time_stats(s);
+	/* update time stats for this stream */
+	stream_update_time_stats(s);
 
 	/* the task MUST not be in the run queue anymore */
-	session_free(s);
+	stream_free(s);
 	task_delete(t);
 	task_free(t);
 	return NULL;
 }
 
-/* Update the session's backend and server time stats */
-void session_update_time_stats(struct session *s)
+/* Update the stream's backend and server time stats */
+void stream_update_time_stats(struct stream *s)
 {
 	int t_request;
 	int t_queue;
@@ -2778,12 +2778,12 @@ void session_update_time_stats(struct session *s)
 
 /*
  * This function adjusts sess->srv_conn and maintains the previous and new
- * server's served session counts. Setting newsrv to NULL is enough to release
+ * server's served stream counts. Setting newsrv to NULL is enough to release
  * current connection slot. This function also notifies any LB algo which might
- * expect to be informed about any change in the number of active sessions on a
+ * expect to be informed about any change in the number of active streams on a
  * server.
  */
-void sess_change_server(struct session *sess, struct server *newsrv)
+void sess_change_server(struct stream *sess, struct server *newsrv)
 {
 	if (sess->srv_conn == newsrv)
 		return;
@@ -2792,23 +2792,23 @@ void sess_change_server(struct session *sess, struct server *newsrv)
 		sess->srv_conn->served--;
 		if (sess->srv_conn->proxy->lbprm.server_drop_conn)
 			sess->srv_conn->proxy->lbprm.server_drop_conn(sess->srv_conn);
-		session_del_srv_conn(sess);
+		stream_del_srv_conn(sess);
 	}
 
 	if (newsrv) {
 		newsrv->served++;
 		if (newsrv->proxy->lbprm.server_take_conn)
 			newsrv->proxy->lbprm.server_take_conn(newsrv);
-		session_add_srv_conn(sess, newsrv);
+		stream_add_srv_conn(sess, newsrv);
 	}
 }
 
 /* Handle server-side errors for default protocols. It is called whenever a a
  * connection setup is aborted or a request is aborted in queue. It sets the
- * session termination flags so that the caller does not have to worry about
+ * stream termination flags so that the caller does not have to worry about
  * them. It's installed as ->srv_error for the server-side stream_interface.
  */
-void default_srv_error(struct session *s, struct stream_interface *si)
+void default_srv_error(struct stream *s, struct stream_interface *si)
 {
 	int err_type = si->err_type;
 	int err = 0, fin = 0;
@@ -2852,18 +2852,18 @@ void default_srv_error(struct session *s, struct stream_interface *si)
 		s->flags |= fin;
 }
 
-/* kill a session and set the termination flags to <why> (one of SN_ERR_*) */
-void session_shutdown(struct session *session, int why)
+/* kill a stream and set the termination flags to <why> (one of SN_ERR_*) */
+void stream_shutdown(struct stream *stream, int why)
 {
-	if (session->req.flags & (CF_SHUTW|CF_SHUTW_NOW))
+	if (stream->req.flags & (CF_SHUTW|CF_SHUTW_NOW))
 		return;
 
-	channel_shutw_now(&session->req);
-	channel_shutr_now(&session->res);
-	session->task->nice = 1024;
-	if (!(session->flags & SN_ERR_MASK))
-		session->flags |= why;
-	task_wakeup(session->task, TASK_WOKEN_OTHER);
+	channel_shutw_now(&stream->req);
+	channel_shutr_now(&stream->res);
+	stream->task->nice = 1024;
+	if (!(stream->flags & SN_ERR_MASK))
+		stream->flags |= why;
+	task_wakeup(stream->task, TASK_WOKEN_OTHER);
 }
 
 /************************************************************************/
@@ -2873,7 +2873,7 @@ void session_shutdown(struct session *session, int why)
 /* Returns a pointer to a stkctr depending on the fetch keyword name.
  * It is designed to be called as sc[0-9]_* sc_* or src_* exclusively.
  * sc[0-9]_* will return a pointer to the respective field in the
- * session <l4>. sc_* requires an UINT argument specifying the stick
+ * stream <l4>. sc_* requires an UINT argument specifying the stick
  * counter number. src_* will fill a locally allocated structure with
  * the table and entry corresponding to what is specified with src_*.
  * NULL may be returned if the designated stkctr is not tracked. For
@@ -2884,7 +2884,7 @@ void session_shutdown(struct session *session, int why)
  * multiple tables).
  */
 struct stkctr *
-smp_fetch_sc_stkctr(struct session *l4, const struct arg *args, const char *kw)
+smp_fetch_sc_stkctr(struct stream *l4, const struct arg *args, const char *kw)
 {
 	static struct stkctr stkctr;
 	struct stksess *stksess;
@@ -2930,12 +2930,12 @@ smp_fetch_sc_stkctr(struct session *l4, const struct arg *args, const char *kw)
 	return &l4->stkctr[num];
 }
 
-/* set return a boolean indicating if the requested session counter is
+/* set return a boolean indicating if the requested stream counter is
  * currently being tracked or not.
  * Supports being called as "sc[0-9]_tracked" only.
  */
 static int
-smp_fetch_sc_tracked(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_sc_tracked(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                       const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TEST;
@@ -2944,13 +2944,13 @@ smp_fetch_sc_tracked(struct proxy *px, struct session *l4, void *l7, unsigned in
 	return 1;
 }
 
-/* set <smp> to the General Purpose Counter 0 value from the session's tracked
+/* set <smp> to the General Purpose Counter 0 value from the stream's tracked
  * frontend counters or from the src.
  * Supports being called as "sc[0-9]_get_gpc0" or "src_get_gpc0" only. Value
  * zero is returned if the key is new.
  */
 static int
-smp_fetch_sc_get_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_sc_get_gpc0(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                       const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
@@ -2971,13 +2971,13 @@ smp_fetch_sc_get_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned i
 	return 1;
 }
 
-/* set <smp> to the General Purpose Counter 0's event rate from the session's
+/* set <smp> to the General Purpose Counter 0's event rate from the stream's
  * tracked frontend counters or from the src.
  * Supports being called as "sc[0-9]_gpc0_rate" or "src_gpc0_rate" only.
  * Value zero is returned if the key is new.
  */
 static int
-smp_fetch_sc_gpc0_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_sc_gpc0_rate(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
@@ -2998,12 +2998,12 @@ smp_fetch_sc_gpc0_rate(struct proxy *px, struct session *l4, void *l7, unsigned 
 	return 1;
 }
 
-/* Increment the General Purpose Counter 0 value from the session's tracked
+/* Increment the General Purpose Counter 0 value from the stream's tracked
  * frontend counters and return it into temp integer.
  * Supports being called as "sc[0-9]_inc_gpc0" or "src_inc_gpc0" only.
  */
 static int
-smp_fetch_sc_inc_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_sc_inc_gpc0(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                       const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
@@ -3035,12 +3035,12 @@ smp_fetch_sc_inc_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned i
 	return 1;
 }
 
-/* Clear the General Purpose Counter 0 value from the session's tracked
+/* Clear the General Purpose Counter 0 value from the stream's tracked
  * frontend counters and return its previous value into temp integer.
  * Supports being called as "sc[0-9]_clr_gpc0" or "src_clr_gpc0" only.
  */
 static int
-smp_fetch_sc_clr_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_sc_clr_gpc0(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                       const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
@@ -3061,12 +3061,12 @@ smp_fetch_sc_clr_gpc0(struct proxy *px, struct session *l4, void *l7, unsigned i
 	return 1;
 }
 
-/* set <smp> to the cumulated number of connections from the session's tracked
+/* set <smp> to the cumulated number of connections from the stream's tracked
  * frontend counters. Supports being called as "sc[0-9]_conn_cnt" or
  * "src_conn_cnt" only.
  */
 static int
-smp_fetch_sc_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_sc_conn_cnt(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                       const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
@@ -3086,12 +3086,12 @@ smp_fetch_sc_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsigned i
 	return 1;
 }
 
-/* set <smp> to the connection rate from the session's tracked frontend
+/* set <smp> to the connection rate from the stream's tracked frontend
  * counters. Supports being called as "sc[0-9]_conn_rate" or "src_conn_rate"
  * only.
  */
 static int
-smp_fetch_sc_conn_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_sc_conn_rate(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
@@ -3112,12 +3112,12 @@ smp_fetch_sc_conn_rate(struct proxy *px, struct session *l4, void *l7, unsigned 
 	return 1;
 }
 
-/* set temp integer to the number of connections from the session's source address
+/* set temp integer to the number of connections from the stream's source address
  * in the table pointed to by expr, after updating it.
  * Accepts exactly 1 argument of type table.
  */
 static int
-smp_fetch_src_updt_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_src_updt_conn_cnt(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                             const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct connection *conn = objt_conn(l4->si[0].end);
@@ -3148,12 +3148,12 @@ smp_fetch_src_updt_conn_cnt(struct proxy *px, struct session *l4, void *l7, unsi
 	return 1;
 }
 
-/* set <smp> to the number of concurrent connections from the session's tracked
+/* set <smp> to the number of concurrent connections from the stream's tracked
  * frontend counters. Supports being called as "sc[0-9]_conn_cur" or
  * "src_conn_cur" only.
  */
 static int
-smp_fetch_sc_conn_cur(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_sc_conn_cur(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                       const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
@@ -3173,12 +3173,12 @@ smp_fetch_sc_conn_cur(struct proxy *px, struct session *l4, void *l7, unsigned i
 	return 1;
 }
 
-/* set <smp> to the cumulated number of sessions from the session's tracked
+/* set <smp> to the cumulated number of streams from the stream's tracked
  * frontend counters. Supports being called as "sc[0-9]_sess_cnt" or
  * "src_sess_cnt" only.
  */
 static int
-smp_fetch_sc_sess_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_sc_sess_cnt(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                       const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
@@ -3198,11 +3198,11 @@ smp_fetch_sc_sess_cnt(struct proxy *px, struct session *l4, void *l7, unsigned i
 	return 1;
 }
 
-/* set <smp> to the session rate from the session's tracked frontend counters.
+/* set <smp> to the stream rate from the stream's tracked frontend counters.
  * Supports being called as "sc[0-9]_sess_rate" or "src_sess_rate" only.
  */
 static int
-smp_fetch_sc_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_sc_sess_rate(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
@@ -3223,12 +3223,12 @@ smp_fetch_sc_sess_rate(struct proxy *px, struct session *l4, void *l7, unsigned 
 	return 1;
 }
 
-/* set <smp> to the cumulated number of HTTP requests from the session's tracked
+/* set <smp> to the cumulated number of HTTP requests from the stream's tracked
  * frontend counters. Supports being called as "sc[0-9]_http_req_cnt" or
  * "src_http_req_cnt" only.
  */
 static int
-smp_fetch_sc_http_req_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_sc_http_req_cnt(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                           const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
@@ -3248,12 +3248,12 @@ smp_fetch_sc_http_req_cnt(struct proxy *px, struct session *l4, void *l7, unsign
 	return 1;
 }
 
-/* set <smp> to the HTTP request rate from the session's tracked frontend
+/* set <smp> to the HTTP request rate from the stream's tracked frontend
  * counters. Supports being called as "sc[0-9]_http_req_rate" or
  * "src_http_req_rate" only.
  */
 static int
-smp_fetch_sc_http_req_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_sc_http_req_rate(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                            const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
@@ -3274,12 +3274,12 @@ smp_fetch_sc_http_req_rate(struct proxy *px, struct session *l4, void *l7, unsig
 	return 1;
 }
 
-/* set <smp> to the cumulated number of HTTP requests errors from the session's
+/* set <smp> to the cumulated number of HTTP requests errors from the stream's
  * tracked frontend counters. Supports being called as "sc[0-9]_http_err_cnt" or
  * "src_http_err_cnt" only.
  */
 static int
-smp_fetch_sc_http_err_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_sc_http_err_cnt(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                           const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
@@ -3299,12 +3299,12 @@ smp_fetch_sc_http_err_cnt(struct proxy *px, struct session *l4, void *l7, unsign
 	return 1;
 }
 
-/* set <smp> to the HTTP request error rate from the session's tracked frontend
+/* set <smp> to the HTTP request error rate from the stream's tracked frontend
  * counters. Supports being called as "sc[0-9]_http_err_rate" or
  * "src_http_err_rate" only.
  */
 static int
-smp_fetch_sc_http_err_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_sc_http_err_rate(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                            const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
@@ -3326,11 +3326,11 @@ smp_fetch_sc_http_err_rate(struct proxy *px, struct session *l4, void *l7, unsig
 }
 
 /* set <smp> to the number of kbytes received from clients, as found in the
- * session's tracked frontend counters. Supports being called as
+ * stream's tracked frontend counters. Supports being called as
  * "sc[0-9]_kbytes_in" or "src_kbytes_in" only.
  */
 static int
-smp_fetch_sc_kbytes_in(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_sc_kbytes_in(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
@@ -3351,11 +3351,11 @@ smp_fetch_sc_kbytes_in(struct proxy *px, struct session *l4, void *l7, unsigned 
 }
 
 /* set <smp> to the data rate received from clients in bytes/s, as found
- * in the session's tracked frontend counters. Supports being called as
+ * in the stream's tracked frontend counters. Supports being called as
  * "sc[0-9]_bytes_in_rate" or "src_bytes_in_rate" only.
  */
 static int
-smp_fetch_sc_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_sc_bytes_in_rate(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                            const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
@@ -3377,11 +3377,11 @@ smp_fetch_sc_bytes_in_rate(struct proxy *px, struct session *l4, void *l7, unsig
 }
 
 /* set <smp> to the number of kbytes sent to clients, as found in the
- * session's tracked frontend counters. Supports being called as
+ * stream's tracked frontend counters. Supports being called as
  * "sc[0-9]_kbytes_out" or "src_kbytes_out" only.
  */
 static int
-smp_fetch_sc_kbytes_out(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_sc_kbytes_out(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
@@ -3402,11 +3402,11 @@ smp_fetch_sc_kbytes_out(struct proxy *px, struct session *l4, void *l7, unsigned
 }
 
 /* set <smp> to the data rate sent to clients in bytes/s, as found in the
- * session's tracked frontend counters. Supports being called as
+ * stream's tracked frontend counters. Supports being called as
  * "sc[0-9]_bytes_out_rate" or "src_bytes_out_rate" only.
  */
 static int
-smp_fetch_sc_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_sc_bytes_out_rate(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                             const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
@@ -3427,11 +3427,11 @@ smp_fetch_sc_bytes_out_rate(struct proxy *px, struct session *l4, void *l7, unsi
 	return 1;
 }
 
-/* set <smp> to the number of active trackers on the SC entry in the session's
+/* set <smp> to the number of active trackers on the SC entry in the stream's
  * tracked frontend counters. Supports being called as "sc[0-9]_trackers" only.
  */
 static int
-smp_fetch_sc_trackers(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_sc_trackers(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                        const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
@@ -3449,7 +3449,7 @@ smp_fetch_sc_trackers(struct proxy *px, struct session *l4, void *l7, unsigned i
  * Accepts exactly 1 argument of type table.
  */
 static int
-smp_fetch_table_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_table_cnt(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                     const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TEST;
@@ -3462,7 +3462,7 @@ smp_fetch_table_cnt(struct proxy *px, struct session *l4, void *l7, unsigned int
  * Accepts exactly 1 argument of type table.
  */
 static int
-smp_fetch_table_avl(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_table_avl(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                     const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	px = args->data.prx;
@@ -3583,7 +3583,7 @@ static struct sample_fetch_kw_list smp_fetch_keywords = {ILH, {
 }};
 
 __attribute__((constructor))
-static void __session_init(void)
+static void __stream_init(void)
 {
 	sample_register_fetches(&smp_fetch_keywords);
 	acl_register_keywords(&acl_kws);

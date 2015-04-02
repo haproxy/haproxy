@@ -157,7 +157,7 @@ int http_emit_chunk_size(char *end, unsigned int chksz)
 /*
  * Init HTTP compression
  */
-int http_compression_buffer_init(struct session *s, struct buffer *in, struct buffer *out)
+int http_compression_buffer_init(struct stream *s, struct buffer *in, struct buffer *out)
 {
 	/* output stream requires at least 10 bytes for the gzip header, plus
 	 * at least 8 bytes for the gzip trailer (crc+len), plus a possible
@@ -181,7 +181,7 @@ int http_compression_buffer_init(struct session *s, struct buffer *in, struct bu
 /*
  * Add data to compress
  */
-int http_compression_buffer_add_data(struct session *s, struct buffer *in, struct buffer *out)
+int http_compression_buffer_add_data(struct stream *s, struct buffer *in, struct buffer *out)
 {
 	struct http_msg *msg = &s->txn.rsp;
 	int consumed_data = 0;
@@ -229,7 +229,7 @@ int http_compression_buffer_add_data(struct session *s, struct buffer *in, struc
  * Flush data in process, and write the header and footer of the chunk. Upon
  * success, in and out buffers are swapped to avoid a copy.
  */
-int http_compression_buffer_end(struct session *s, struct buffer **in, struct buffer **out, int end)
+int http_compression_buffer_end(struct stream *s, struct buffer **in, struct buffer **out, int end)
 {
 	int to_forward;
 	int left;
@@ -837,7 +837,7 @@ static int deflate_end(struct comp_ctx **comp_ctx)
 
 /* boolean, returns true if compression is used (either gzip or deflate) in the response */
 static int
-smp_fetch_res_comp(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_res_comp(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                  const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_BOOL;
@@ -847,7 +847,7 @@ smp_fetch_res_comp(struct proxy *px, struct session *l4, void *l7, unsigned int 
 
 /* string, returns algo */
 static int
-smp_fetch_res_comp_algo(struct proxy *px, struct session *l4, void *l7, unsigned int opt,
+smp_fetch_res_comp_algo(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                  const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	if (!l4->comp_algo)

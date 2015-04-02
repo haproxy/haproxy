@@ -623,7 +623,7 @@ int start_proxies(int verbose)
 
 /*
  * This is the proxy management task. It enables proxies when there are enough
- * free sessions, or stops them when the table is full. It is designed to be
+ * free streams, or stops them when the table is full. It is designed to be
  * called as a task which is woken up upon stopping or when rate limiting must
  * be enforced.
  */
@@ -658,7 +658,7 @@ struct task *manage_proxy(struct task *t)
 	/* If the proxy holds a stick table, we need to purge all unused
 	 * entries. These are all the ones in the table with ref_cnt == 0
 	 * and all the ones in the pool used to allocate new entries. Any
-	 * entry attached to an existing session waiting for a store will
+	 * entry attached to an existing stream waiting for a store will
 	 * be in neither list. Any entry being dumped will have ref_cnt > 0.
 	 * However we protect tables that are being synced to peers.
 	 */
@@ -918,13 +918,13 @@ void resume_proxies(void)
 	}
 }
 
-/* Set current session's backend to <be>. Nothing is done if the
- * session already had a backend assigned, which is indicated by
+/* Set current stream's backend to <be>. Nothing is done if the
+ * stream already had a backend assigned, which is indicated by
  * s->flags & SN_BE_ASSIGNED.
  * All flags, stats and counters which need be updated are updated.
  * Returns 1 if done, 0 in case of internal error, eg: lack of resource.
  */
-int session_set_backend(struct session *s, struct proxy *be)
+int stream_set_backend(struct stream *s, struct proxy *be)
 {
 	if (s->flags & SN_BE_ASSIGNED)
 		return 1;
@@ -934,7 +934,7 @@ int session_set_backend(struct session *s, struct proxy *be)
 		be->be_counters.conn_max = be->beconn;
 	proxy_inc_be_ctr(be);
 
-	/* assign new parameters to the session from the new backend */
+	/* assign new parameters to the stream from the new backend */
 	s->si[1].flags &= ~SI_FL_INDEP_STR;
 	if (be->options2 & PR_O2_INDEPSTR)
 		s->si[1].flags |= SI_FL_INDEP_STR;

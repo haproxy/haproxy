@@ -1022,7 +1022,7 @@ out_error:
  *   smp      1        0     Present, may change (eg: request length)
  *   smp      1        1     Present, last known value (eg: request length)
  */
-struct sample *sample_process(struct proxy *px, struct session *l4, void *l7,
+struct sample *sample_process(struct proxy *px, struct stream *l4, void *l7,
                               unsigned int opt,
                               struct sample_expr *expr, struct sample *p)
 {
@@ -1331,7 +1331,7 @@ int smp_resolve_args(struct proxy *p)
  *   smp      1        0     Not present yet, may appear later (eg: header)
  *   smp      1        1     never happens (either flag is cleared on output)
  */
-struct sample *sample_fetch_string(struct proxy *px, struct session *l4, void *l7,
+struct sample *sample_fetch_string(struct proxy *px, struct stream *l4, void *l7,
                                    unsigned int opt, struct sample_expr *expr)
 {
 	struct sample *smp = &temp_smp;
@@ -1360,7 +1360,7 @@ struct sample *sample_fetch_string(struct proxy *px, struct session *l4, void *l
 /*    These functions set the data type on return.               */
 /*****************************************************************/
 
-static int sample_conv_bin2base64(struct session *session, const struct arg *arg_p,
+static int sample_conv_bin2base64(struct stream *stream, const struct arg *arg_p,
                                   struct sample *smp, void *private)
 {
 	struct chunk *trash = get_trash_chunk();
@@ -1378,7 +1378,7 @@ static int sample_conv_bin2base64(struct session *session, const struct arg *arg
 	return 1;
 }
 
-static int sample_conv_bin2hex(struct session *session, const struct arg *arg_p,
+static int sample_conv_bin2hex(struct stream *stream, const struct arg *arg_p,
                                struct sample *smp, void *private)
 {
 	struct chunk *trash = get_trash_chunk();
@@ -1398,7 +1398,7 @@ static int sample_conv_bin2hex(struct session *session, const struct arg *arg_p,
 }
 
 /* hashes the binary input into a 32-bit unsigned int */
-static int sample_conv_djb2(struct session *session, const struct arg *arg_p,
+static int sample_conv_djb2(struct stream *stream, const struct arg *arg_p,
                             struct sample *smp, void *private)
 {
 	smp->data.uint = hash_djb2(smp->data.str.str, smp->data.str.len);
@@ -1408,7 +1408,7 @@ static int sample_conv_djb2(struct session *session, const struct arg *arg_p,
 	return 1;
 }
 
-static int sample_conv_str2lower(struct session *session, const struct arg *arg_p,
+static int sample_conv_str2lower(struct stream *stream, const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
 	int i;
@@ -1426,7 +1426,7 @@ static int sample_conv_str2lower(struct session *session, const struct arg *arg_
 	return 1;
 }
 
-static int sample_conv_str2upper(struct session *session, const struct arg *arg_p,
+static int sample_conv_str2upper(struct stream *stream, const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
 	int i;
@@ -1445,7 +1445,7 @@ static int sample_conv_str2upper(struct session *session, const struct arg *arg_
 }
 
 /* takes the netmask in arg_p */
-static int sample_conv_ipmask(struct session *session, const struct arg *arg_p,
+static int sample_conv_ipmask(struct stream *stream, const struct arg *arg_p,
                               struct sample *smp, void *private)
 {
 	smp->data.ipv4.s_addr &= arg_p->data.ipv4.s_addr;
@@ -1457,7 +1457,7 @@ static int sample_conv_ipmask(struct session *session, const struct arg *arg_p,
  * adds an optional offset found in args[1] and emits a string representing
  * the local time in the format specified in args[1] using strftime().
  */
-static int sample_conv_ltime(struct session *session, const struct arg *args,
+static int sample_conv_ltime(struct stream *stream, const struct arg *args,
                              struct sample *smp, void *private)
 {
 	struct chunk *temp;
@@ -1475,7 +1475,7 @@ static int sample_conv_ltime(struct session *session, const struct arg *args,
 }
 
 /* hashes the binary input into a 32-bit unsigned int */
-static int sample_conv_sdbm(struct session *session, const struct arg *arg_p,
+static int sample_conv_sdbm(struct stream *stream, const struct arg *arg_p,
                             struct sample *smp, void *private)
 {
 	smp->data.uint = hash_sdbm(smp->data.str.str, smp->data.str.len);
@@ -1489,7 +1489,7 @@ static int sample_conv_sdbm(struct session *session, const struct arg *arg_p,
  * adds an optional offset found in args[1] and emits a string representing
  * the UTC date in the format specified in args[1] using strftime().
  */
-static int sample_conv_utime(struct session *session, const struct arg *args,
+static int sample_conv_utime(struct stream *stream, const struct arg *args,
                              struct sample *smp, void *private)
 {
 	struct chunk *temp;
@@ -1507,7 +1507,7 @@ static int sample_conv_utime(struct session *session, const struct arg *args,
 }
 
 /* hashes the binary input into a 32-bit unsigned int */
-static int sample_conv_wt6(struct session *session, const struct arg *arg_p,
+static int sample_conv_wt6(struct stream *stream, const struct arg *arg_p,
                            struct sample *smp, void *private)
 {
 	smp->data.uint = hash_wt6(smp->data.str.str, smp->data.str.len);
@@ -1518,7 +1518,7 @@ static int sample_conv_wt6(struct session *session, const struct arg *arg_p,
 }
 
 /* hashes the binary input into a 32-bit unsigned int */
-static int sample_conv_crc32(struct session *session, const struct arg *arg_p,
+static int sample_conv_crc32(struct stream *stream, const struct arg *arg_p,
                              struct sample *smp, void *private)
 {
 	smp->data.uint = hash_crc32(smp->data.str.str, smp->data.str.len);
@@ -1599,7 +1599,7 @@ static int sample_conv_json_check(struct arg *arg, struct sample_conv *conv,
 	return 0;
 }
 
-static int sample_conv_json(struct session *session, const struct arg *arg_p,
+static int sample_conv_json(struct stream *stream, const struct arg *arg_p,
                             struct sample *smp, void *private)
 {
 	struct chunk *temp;
@@ -1714,7 +1714,7 @@ static int sample_conv_json(struct session *session, const struct arg *arg_p,
 /* This sample function is designed to extract some bytes from an input buffer.
  * First arg is the offset.
  * Optional second arg is the length to truncate */
-static int sample_conv_bytes(struct session *session, const struct arg *arg_p,
+static int sample_conv_bytes(struct stream *stream, const struct arg *arg_p,
                              struct sample *smp, void *private)
 {
 	if (smp->data.str.len <= arg_p[0].data.uint) {
@@ -1772,7 +1772,7 @@ static int sample_conv_field_check(struct arg *args, struct sample_conv *conv,
  * First arg is the index of the field (start at 1)
  * Second arg is a char list of separators (type string)
  */
-static int sample_conv_field(struct session *session, const struct arg *arg_p,
+static int sample_conv_field(struct stream *stream, const struct arg *arg_p,
                              struct sample *smp, void *private)
 {
 	unsigned int field;
@@ -1824,7 +1824,7 @@ found:
  * First arg is the index of the word (start at 1)
  * Second arg is a char list of words separators (type string)
  */
-static int sample_conv_word(struct session *session, const struct arg *arg_p,
+static int sample_conv_word(struct stream *stream, const struct arg *arg_p,
                             struct sample *smp, void *private)
 {
 	unsigned int word;
@@ -1919,7 +1919,7 @@ static int sample_conv_regsub_check(struct arg *args, struct sample_conv *conv,
  * location until nothing matches anymore. First arg is the regex to apply to
  * the input string, second arg is the replacement expression.
  */
-static int sample_conv_regsub(struct session *session, const struct arg *arg_p,
+static int sample_conv_regsub(struct stream *stream, const struct arg *arg_p,
                               struct sample *smp, void *private)
 {
 	char *start, *end;
@@ -1992,7 +1992,7 @@ static int sample_conv_regsub(struct session *session, const struct arg *arg_p,
 /* Takes a UINT on input, applies a binary twos complement and returns the UINT
  * result.
  */
-static int sample_conv_binary_cpl(struct session *session, const struct arg *arg_p,
+static int sample_conv_binary_cpl(struct stream *stream, const struct arg *arg_p,
                                   struct sample *smp, void *private)
 {
 	smp->data.uint = ~smp->data.uint;
@@ -2002,7 +2002,7 @@ static int sample_conv_binary_cpl(struct session *session, const struct arg *arg
 /* Takes a UINT on input, applies a binary "and" with the UINT in arg_p, and
  * returns the UINT result.
  */
-static int sample_conv_binary_and(struct session *session, const struct arg *arg_p,
+static int sample_conv_binary_and(struct stream *stream, const struct arg *arg_p,
                                   struct sample *smp, void *private)
 {
 	smp->data.uint &= arg_p->data.uint;
@@ -2012,7 +2012,7 @@ static int sample_conv_binary_and(struct session *session, const struct arg *arg
 /* Takes a UINT on input, applies a binary "or" with the UINT in arg_p, and
  * returns the UINT result.
  */
-static int sample_conv_binary_or(struct session *session, const struct arg *arg_p,
+static int sample_conv_binary_or(struct stream *stream, const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
 	smp->data.uint |= arg_p->data.uint;
@@ -2022,7 +2022,7 @@ static int sample_conv_binary_or(struct session *session, const struct arg *arg_
 /* Takes a UINT on input, applies a binary "xor" with the UINT in arg_p, and
  * returns the UINT result.
  */
-static int sample_conv_binary_xor(struct session *session, const struct arg *arg_p,
+static int sample_conv_binary_xor(struct stream *stream, const struct arg *arg_p,
                                   struct sample *smp, void *private)
 {
 	smp->data.uint ^= arg_p->data.uint;
@@ -2032,7 +2032,7 @@ static int sample_conv_binary_xor(struct session *session, const struct arg *arg
 /* Takes a UINT on input, applies an arithmetic "add" with the UINT in arg_p,
  * and returns the UINT result.
  */
-static int sample_conv_arith_add(struct session *session, const struct arg *arg_p,
+static int sample_conv_arith_add(struct stream *stream, const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
 	smp->data.uint += arg_p->data.uint;
@@ -2042,7 +2042,7 @@ static int sample_conv_arith_add(struct session *session, const struct arg *arg_
 /* Takes a UINT on input, applies an arithmetic "sub" with the UINT in arg_p,
  * and returns the UINT result.
  */
-static int sample_conv_arith_sub(struct session *session, const struct arg *arg_p,
+static int sample_conv_arith_sub(struct stream *stream, const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
 	smp->data.uint -= arg_p->data.uint;
@@ -2052,7 +2052,7 @@ static int sample_conv_arith_sub(struct session *session, const struct arg *arg_
 /* Takes a UINT on input, applies an arithmetic "mul" with the UINT in arg_p,
  * and returns the UINT result.
  */
-static int sample_conv_arith_mul(struct session *session, const struct arg *arg_p,
+static int sample_conv_arith_mul(struct stream *stream, const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
 	smp->data.uint *= arg_p->data.uint;
@@ -2063,7 +2063,7 @@ static int sample_conv_arith_mul(struct session *session, const struct arg *arg_
  * and returns the UINT result. If arg_p makes the result overflow, then the
  * largest possible quantity is returned.
  */
-static int sample_conv_arith_div(struct session *session, const struct arg *arg_p,
+static int sample_conv_arith_div(struct stream *stream, const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
 	if (arg_p->data.uint)
@@ -2077,7 +2077,7 @@ static int sample_conv_arith_div(struct session *session, const struct arg *arg_
  * and returns the UINT result. If arg_p makes the result overflow, then zero
  * is returned.
  */
-static int sample_conv_arith_mod(struct session *session, const struct arg *arg_p,
+static int sample_conv_arith_mod(struct stream *stream, const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
 	if (arg_p->data.uint)
@@ -2090,7 +2090,7 @@ static int sample_conv_arith_mod(struct session *session, const struct arg *arg_
 /* Takes an UINT on input, applies an arithmetic "neg" and returns the UINT
  * result.
  */
-static int sample_conv_arith_neg(struct session *session, const struct arg *arg_p,
+static int sample_conv_arith_neg(struct stream *stream, const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
 	smp->data.uint = -smp->data.uint;
@@ -2100,7 +2100,7 @@ static int sample_conv_arith_neg(struct session *session, const struct arg *arg_
 /* Takes a UINT on input, returns true is the value is non-null, otherwise
  * false. The output is a BOOL.
  */
-static int sample_conv_arith_bool(struct session *session, const struct arg *arg_p,
+static int sample_conv_arith_bool(struct stream *stream, const struct arg *arg_p,
                                   struct sample *smp, void *private)
 {
 	smp->data.uint = !!smp->data.uint;
@@ -2111,7 +2111,7 @@ static int sample_conv_arith_bool(struct session *session, const struct arg *arg
 /* Takes a UINT on input, returns false is the value is non-null, otherwise
  * truee. The output is a BOOL.
  */
-static int sample_conv_arith_not(struct session *session, const struct arg *arg_p,
+static int sample_conv_arith_not(struct stream *stream, const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
 	smp->data.uint = !smp->data.uint;
@@ -2122,7 +2122,7 @@ static int sample_conv_arith_not(struct session *session, const struct arg *arg_
 /* Takes a UINT on input, returns true is the value is odd, otherwise false.
  * The output is a BOOL.
  */
-static int sample_conv_arith_odd(struct session *session, const struct arg *arg_p,
+static int sample_conv_arith_odd(struct stream *stream, const struct arg *arg_p,
                                  struct sample *smp, void *private)
 {
 	smp->data.uint = smp->data.uint & 1;
@@ -2133,7 +2133,7 @@ static int sample_conv_arith_odd(struct session *session, const struct arg *arg_
 /* Takes a UINT on input, returns true is the value is even, otherwise false.
  * The output is a BOOL.
  */
-static int sample_conv_arith_even(struct session *session, const struct arg *arg_p,
+static int sample_conv_arith_even(struct stream *stream, const struct arg *arg_p,
                                   struct sample *smp, void *private)
 {
 	smp->data.uint = !(smp->data.uint & 1);
@@ -2147,7 +2147,7 @@ static int sample_conv_arith_even(struct session *session, const struct arg *arg
 
 /* force TRUE to be returned at the fetch level */
 static int
-smp_fetch_true(struct proxy *px, struct session *s, void *l7, unsigned int opt,
+smp_fetch_true(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
                const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_BOOL;
@@ -2157,7 +2157,7 @@ smp_fetch_true(struct proxy *px, struct session *s, void *l7, unsigned int opt,
 
 /* force FALSE to be returned at the fetch level */
 static int
-smp_fetch_false(struct proxy *px, struct session *s, void *l7, unsigned int opt,
+smp_fetch_false(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_BOOL;
@@ -2167,7 +2167,7 @@ smp_fetch_false(struct proxy *px, struct session *s, void *l7, unsigned int opt,
 
 /* retrieve environment variable $1 as a string */
 static int
-smp_fetch_env(struct proxy *px, struct session *s, void *l7, unsigned int opt,
+smp_fetch_env(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
               const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	char *env;
@@ -2190,7 +2190,7 @@ smp_fetch_env(struct proxy *px, struct session *s, void *l7, unsigned int opt,
  * of args[0] seconds.
  */
 static int
-smp_fetch_date(struct proxy *px, struct session *s, void *l7, unsigned int opt,
+smp_fetch_date(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
                const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->data.uint = date.tv_sec;
@@ -2206,7 +2206,7 @@ smp_fetch_date(struct proxy *px, struct session *s, void *l7, unsigned int opt,
 
 /* returns the number of processes */
 static int
-smp_fetch_nbproc(struct proxy *px, struct session *s, void *l7, unsigned int opt,
+smp_fetch_nbproc(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
                  const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_UINT;
@@ -2216,7 +2216,7 @@ smp_fetch_nbproc(struct proxy *px, struct session *s, void *l7, unsigned int opt
 
 /* returns the number of the current process (between 1 and nbproc */
 static int
-smp_fetch_proc(struct proxy *px, struct session *s, void *l7, unsigned int opt,
+smp_fetch_proc(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
                const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_UINT;
@@ -2228,7 +2228,7 @@ smp_fetch_proc(struct proxy *px, struct session *s, void *l7, unsigned int opt,
  * range specified in argument.
  */
 static int
-smp_fetch_rand(struct proxy *px, struct session *s, void *l7, unsigned int opt,
+smp_fetch_rand(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
                const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->data.uint = random();
@@ -2244,7 +2244,7 @@ smp_fetch_rand(struct proxy *px, struct session *s, void *l7, unsigned int opt,
 
 /* returns true if the current process is stopping */
 static int
-smp_fetch_stopping(struct proxy *px, struct session *s, void *l7, unsigned int opt,
+smp_fetch_stopping(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
                    const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_BOOL;

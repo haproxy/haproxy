@@ -86,11 +86,11 @@ enum pr_mode {
 /* unused: 0x0800, 0x1000 */
 #define PR_O_FF_ALWAYS  0x00002000      /* always set x-forwarded-for */
 #define PR_O_PERSIST    0x00004000      /* server persistence stays effective even when server is down */
-#define PR_O_LOGASAP    0x00008000      /* log as soon as possible, without waiting for the session to complete */
+#define PR_O_LOGASAP    0x00008000      /* log as soon as possible, without waiting for the stream to complete */
 /* unused: 0x00010000 */
 #define PR_O_CHK_CACHE  0x00020000      /* require examination of cacheability of the 'set-cookie' field */
-#define PR_O_TCP_CLI_KA 0x00040000      /* enable TCP keep-alive on client-side sessions */
-#define PR_O_TCP_SRV_KA 0x00080000      /* enable TCP keep-alive on server-side sessions */
+#define PR_O_TCP_CLI_KA 0x00040000      /* enable TCP keep-alive on client-side streams */
+#define PR_O_TCP_SRV_KA 0x00080000      /* enable TCP keep-alive on server-side streams */
 #define PR_O_USE_ALL_BK 0x00100000      /* load-balance between backup servers */
 /* unused: 0x00020000 */
 #define PR_O_TCP_NOLING 0x00400000      /* disable lingering on client and server connections */
@@ -106,7 +106,7 @@ enum pr_mode {
 #define PR_O_HTTP_MODE  0x07000000      /* MASK to retrieve the HTTP mode */
 #define PR_O_TCPCHK_SSL 0x08000000	/* at least one TCPCHECK connect rule requires SSL */
 #define PR_O_CONTSTATS	0x10000000	/* continous counters */
-#define PR_O_HTTP_PROXY 0x20000000	/* Enable session to use HTTP proxy operations */
+#define PR_O_HTTP_PROXY 0x20000000	/* Enable stream to use HTTP proxy operations */
 #define PR_O_DISABLE404 0x40000000      /* Disable a server on a 404 response to a health-check */
 #define PR_O_ORGTO      0x80000000      /* insert x-original-to with destination address */
 
@@ -185,17 +185,17 @@ enum pr_mode {
 #define STK_IS_STORE	0x00000002	/* store on request fetch */
 #define STK_ON_RSP	0x00000004	/* store on response fetch */
 
-struct session;
+struct stream;
 
 struct error_snapshot {
 	struct timeval when;		/* date of this event, (tv_sec == 0) means "never" */
 	unsigned int len;		/* original length of the last invalid request/response */
 	unsigned int pos;		/* position of the first invalid character */
-	unsigned int sid;		/* ID of the faulty session */
+	unsigned int sid;		/* ID of the faulty stream */
 	unsigned int ev_id;		/* event number (counter incremented for each capture) */
 	unsigned int state;		/* message state before the error (when saved) */
 	unsigned int b_flags;		/* buffer flags */
-	unsigned int s_flags;		/* session flags */
+	unsigned int s_flags;		/* stream flags */
 	unsigned int t_flags;		/* transaction flags */
 	unsigned int m_flags;		/* message flags */
 	unsigned int b_out;		/* pending output bytes */
@@ -227,7 +227,7 @@ struct proxy {
 	enum pr_state state;                    /* proxy state, one of PR_* */
 	enum pr_mode mode;                      /* mode = PR_MODE_TCP, PR_MODE_HTTP or PR_MODE_HEALTH */
 	char cap;                               /* supported capabilities (PR_CAP_*) */
-	unsigned int maxconn;                   /* max # of active sessions on the frontend */
+	unsigned int maxconn;                   /* max # of active streams on the frontend */
 
 	int options;				/* PR_O_REDISP, PR_O_TRANSP, ... */
 	int options2;				/* PR_O2_* */
@@ -307,7 +307,7 @@ struct proxy {
 	struct list pendconns;			/* pending connections with no server assigned yet */
 	int nbpend;				/* number of pending connections with no server assigned yet */
 	int totpend;				/* total number of pending connections on this instance (for stats) */
-	unsigned int feconn, beconn;		/* # of active frontend and backends sessions */
+	unsigned int feconn, beconn;		/* # of active frontend and backends streams */
 	struct freq_ctr fe_req_per_sec;		/* HTTP requests per second on the frontend */
 	struct freq_ctr fe_conn_per_sec;	/* received connections per second on the frontend */
 	struct freq_ctr fe_sess_per_sec;	/* accepted sessions per second on the frontend (after tcp rules) */
@@ -327,9 +327,9 @@ struct proxy {
 	unsigned down_trans;			/* up-down transitions */
 	unsigned down_time;			/* total time the proxy was down */
 	time_t last_change;			/* last time, when the state was changed */
-	int (*accept)(struct session *s);       /* application layer's accept() */
+	int (*accept)(struct stream *s);       /* application layer's accept() */
 	struct conn_src conn_src;               /* connection source settings */
-	enum obj_type *default_target;		/* default target to use for accepted sessions or NULL */
+	enum obj_type *default_target;		/* default target to use for accepted streams or NULL */
 	struct proxy *next;
 
 	unsigned int log_count;			/* number of logs produced by the frontend */
@@ -345,14 +345,14 @@ struct proxy {
 	int nb_req_cap, nb_rsp_cap;		/* # of headers to be captured */
 	struct cap_hdr *req_cap;		/* chained list of request headers to be captured */
 	struct cap_hdr *rsp_cap;		/* chained list of response headers to be captured */
-	struct pool_head *req_cap_pool,		/* pools of pre-allocated char ** used to build the sessions */
+	struct pool_head *req_cap_pool,		/* pools of pre-allocated char ** used to build the streams */
 	                 *rsp_cap_pool;
 	struct list req_add, rsp_add;           /* headers to be added */
 	struct pxcounters be_counters;		/* backend statistics counters */
 	struct pxcounters fe_counters;		/* frontend statistics counters */
 
 	struct list listener_queue;		/* list of the temporarily limited listeners because of lack of a proxy resource */
-	struct stktable table;			/* table for storing sticking sessions */
+	struct stktable table;			/* table for storing sticking streams */
 
 	struct task *task;			/* the associated task, mandatory to manage rate limiting, stopping and resource shortage, NULL if disabled */
 	struct list tcpcheck_rules;		/* tcp-check send / expect rules */

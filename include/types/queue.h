@@ -27,11 +27,11 @@
 
 #include <types/server.h>
 
-struct session;
+struct stream;
 
 struct pendconn {
 	struct list list;		/* chaining ... */
-	struct session *sess;		/* the session waiting for a connection */
+	struct stream *strm;		/* the stream waiting for a connection */
 	struct server *srv;		/* the server we are waiting for */
 };
 

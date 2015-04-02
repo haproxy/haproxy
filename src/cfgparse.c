@@ -74,7 +74,7 @@
 #include <proto/peers.h>
 #include <proto/sample.h>
 #include <proto/server.h>
-#include <proto/session.h>
+#include <proto/stream.h>
 #include <proto/raw_sock.h>
 #include <proto/task.h>
 #include <proto/stick_table.h>
@@ -1884,8 +1884,8 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 					l->maxaccept = 1;
 					l->maxconn = ((struct proxy *)curpeers->peers_fe)->maxconn;
 					l->backlog = ((struct proxy *)curpeers->peers_fe)->backlog;
-					l->accept = session_accept;
-					l->handler = process_session;
+					l->accept = stream_accept;
+					l->handler = process_stream;
 					l->analysers |=  ((struct proxy *)curpeers->peers_fe)->fe_req_ana;
 					l->default_target = ((struct proxy *)curpeers->peers_fe)->default_target;
 					l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */
@@ -4112,7 +4112,7 @@ stats_error_parsing:
 			curproxy->conf.lfs_line = curproxy->conf.args.line;
 		}
 		else if (!strcmp(args[1], "tcpka")) {
-			/* enable TCP keep-alives on client and server sessions */
+			/* enable TCP keep-alives on client and server streams */
 			if (warnifnotcap(curproxy, PR_CAP_BE | PR_CAP_FE, file, linenum, args[1], NULL))
 				err_code |= ERR_WARN;
 
@@ -7708,8 +7708,8 @@ out_uri_auth_compat:
 				listener->maxaccept = (listener->maxaccept + nbproc - 1) / nbproc;
 			}
 
-			listener->accept = session_accept;
-			listener->handler = process_session;
+			listener->accept = stream_accept;
+			listener->handler = process_stream;
 			listener->analysers |= curproxy->fe_req_ana;
 			listener->default_target = curproxy->default_target;
 
