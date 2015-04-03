@@ -4186,8 +4186,7 @@ static int hlua_parse_rule(const char **args, int *cur_arg, struct proxy *px,
  * returns a yield.
  */
 static int hlua_request_act_wrapper(struct hlua_rule *rule, struct proxy *px,
-                                    struct stream *s, struct http_txn *http_txn,
-                                    unsigned int analyzer)
+                                    struct stream *s, unsigned int analyzer)
 {
 	char **arg;
 
@@ -4299,7 +4298,7 @@ int hlua_tcp_req_act_wrapper(struct tcp_rule *tcp_rule, struct proxy *px,
                              struct stream *s)
 {
 	return hlua_request_act_wrapper((struct hlua_rule *)tcp_rule->act_prm.data,
-	                                px, s, NULL, AN_REQ_INSPECT_FE);
+	                                px, s, AN_REQ_INSPECT_FE);
 }
 
 /* Lua execution wrapper for "tcp-response". This function uses
@@ -4309,7 +4308,7 @@ int hlua_tcp_res_act_wrapper(struct tcp_rule *tcp_rule, struct proxy *px,
                              struct stream *s)
 {
 	return hlua_request_act_wrapper((struct hlua_rule *)tcp_rule->act_prm.data,
-	                                px, s, NULL, AN_RES_INSPECT);
+	                                px, s, AN_RES_INSPECT);
 }
 
 /* Lua execution wrapper for http-request.
@@ -4320,7 +4319,7 @@ int hlua_http_req_act_wrapper(struct http_req_rule *rule, struct proxy *px,
                               struct stream *s)
 {
 	return hlua_request_act_wrapper((struct hlua_rule *)rule->arg.data, px,
-	                                s, s->txn, AN_REQ_HTTP_PROCESS_FE);
+	                                s, AN_REQ_HTTP_PROCESS_FE);
 }
 
 /* Lua execution wrapper for http-response.
@@ -4331,7 +4330,7 @@ int hlua_http_res_act_wrapper(struct http_res_rule *rule, struct proxy *px,
                               struct stream *s)
 {
 	return hlua_request_act_wrapper((struct hlua_rule *)rule->arg.data, px,
-	                                s, s->txn, AN_RES_HTTP_PROCESS_BE);
+	                                s, AN_RES_HTTP_PROCESS_BE);
 }
 
 /* tcp-request <*> configuration wrapper. */
