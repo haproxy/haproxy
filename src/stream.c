@@ -425,7 +425,6 @@ int stream_complete(struct stream *s)
 	struct session *sess = s->sess;
 	struct listener *l = sess->listener;
 	struct proxy *p = sess->fe;
-	struct http_txn *txn;
 	struct task *t = s->task;
 	struct connection *conn = __objt_conn(s->target);
 	int ret;
@@ -531,23 +530,7 @@ int stream_complete(struct stream *s)
 	s->res.wex = TICK_ETERNITY;
 	s->res.analyse_exp = TICK_ETERNITY;
 
-	txn = &s->txn;
-	/* Those variables will be checked and freed if non-NULL in
-	 * stream.c:stream_free(). It is important that they are
-	 * properly initialized.
-	 */
-	txn->sessid = NULL;
-	txn->srv_cookie = NULL;
-	txn->cli_cookie = NULL;
-	txn->uri = NULL;
-	txn->hdr_idx.v = NULL;
-	txn->hdr_idx.size = txn->hdr_idx.used = 0;
-	txn->flags = 0;
-	txn->req.flags = 0;
-	txn->rsp.flags = 0;
-	/* the HTTP messages need to know what buffer they're associated with */
-	txn->req.chn = &s->req;
-	txn->rsp.chn = &s->res;
+	s->txn = NULL;
 
 	HLUA_INIT(&s->hlua);
 
@@ -591,7 +574,6 @@ int stream_complete(struct stream *s)
  */
 static void stream_free(struct stream *s)
 {
-	struct http_txn *txn = &s->txn;
 	struct session *sess = strm_sess(s);
 	struct proxy *fe = sess->fe;
 	struct bref *bref, *back;
@@ -636,7 +618,8 @@ static void stream_free(struct stream *s)
 		stream_offer_buffers();
 
 	hlua_ctx_destroy(&s->hlua);
-	http_end_txn(s);
+	if (s->txn)
+		http_end_txn(s);
 
 	/* ensure the client-side transport layer is destroyed */
 	if (cli_conn)
@@ -649,7 +632,12 @@ static void stream_free(struct stream *s)
 		s->store[i].ts = NULL;
 	}
 
-	pool_free2(pool2_hdr_idx, txn->hdr_idx.v);
+	if (s->txn) {
+		pool_free2(pool2_hdr_idx, s->txn->hdr_idx.v);
+		pool_free2(pool2_http_txn, s->txn);
+		s->txn = NULL;
+	}
+
 	if (fe) {
 		pool_free2(fe->rsp_cap_pool, s->res_cap);
 		pool_free2(fe->req_cap_pool, s->req_cap);
@@ -1080,7 +1068,6 @@ static void sess_establish(struct stream *s)
 		}
 	}
 	else {
-		s->txn.rsp.msg_state = HTTP_MSG_RPBEFORE;
 		rep->flags |= CF_READ_DONTWAIT; /* a single read is enough to get response headers */
 	}
 
@@ -1404,7 +1391,7 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 			int ret = 1;
 
 			if (rule->cond) {
-				ret = acl_exec_cond(rule->cond, fe, s, &s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
+				ret = acl_exec_cond(rule->cond, fe, s, s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
 				ret = acl_pass(ret);
 				if (rule->cond->pol == ACL_COND_UNLESS)
 					ret = !ret;
@@ -1457,7 +1444,7 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 		int ret = 1;
 
 		if (prst_rule->cond) {
-	                ret = acl_exec_cond(prst_rule->cond, s->be, s, &s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
+	                ret = acl_exec_cond(prst_rule->cond, s->be, s, s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
 			ret = acl_pass(ret);
 			if (prst_rule->cond->pol == ACL_COND_UNLESS)
 				ret = !ret;
@@ -1486,7 +1473,8 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= SF_FINST_R;
 
-	s->txn.status = 500;
+	if (s->txn)
+		s->txn->status = 500;
 	s->req.analysers = 0;
 	s->req.analyse_exp = TICK_ETERNITY;
 	return 0;
@@ -1514,7 +1502,7 @@ static int process_server_rules(struct stream *s, struct channel *req, int an_bi
 		list_for_each_entry(rule, &px->server_rules, list) {
 			int ret;
 
-			ret = acl_exec_cond(rule->cond, s->be, s, &s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
+			ret = acl_exec_cond(rule->cond, s->be, s, s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
 			ret = acl_pass(ret);
 			if (rule->cond->pol == ACL_COND_UNLESS)
 				ret = !ret;
@@ -1579,7 +1567,7 @@ static int process_sticking_rules(struct stream *s, struct channel *req, int an_
 			continue;
 
 		if (rule->cond) {
-	                ret = acl_exec_cond(rule->cond, px, s, &s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
+	                ret = acl_exec_cond(rule->cond, px, s, s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
 			ret = acl_pass(ret);
 			if (rule->cond->pol == ACL_COND_UNLESS)
 				ret = !ret;
@@ -1588,7 +1576,7 @@ static int process_sticking_rules(struct stream *s, struct channel *req, int an_
 		if (ret) {
 			struct stktable_key *key;
 
-			key = stktable_fetch_key(rule->table.t, px, s, &s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->expr, NULL);
+			key = stktable_fetch_key(rule->table.t, px, s, s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->expr, NULL);
 			if (!key)
 				continue;
 
@@ -1682,7 +1670,7 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
 			continue;
 
 		if (rule->cond) {
-	                ret = acl_exec_cond(rule->cond, px, s, &s->txn, SMP_OPT_DIR_RES|SMP_OPT_FINAL);
+	                ret = acl_exec_cond(rule->cond, px, s, s->txn, SMP_OPT_DIR_RES|SMP_OPT_FINAL);
 	                ret = acl_pass(ret);
 			if (rule->cond->pol == ACL_COND_UNLESS)
 				ret = !ret;
@@ -1691,7 +1679,7 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
 		if (ret) {
 			struct stktable_key *key;
 
-			key = stktable_fetch_key(rule->table.t, px, s, &s->txn, SMP_OPT_DIR_RES|SMP_OPT_FINAL, rule->expr, NULL);
+			key = stktable_fetch_key(rule->table.t, px, s, s->txn, SMP_OPT_DIR_RES|SMP_OPT_FINAL, rule->expr, NULL);
 			if (!key)
 				continue;
 
@@ -1780,7 +1768,8 @@ struct task *process_stream(struct task *t)
 	//        si_f->state, si_b->state, si_b->err_type, req->flags, res->flags);
 
 	/* this data may be no longer valid, clear it */
-	memset(&s->txn.auth, 0, sizeof(s->txn.auth));
+	if (s->txn)
+		memset(&s->txn->auth, 0, sizeof(s->txn->auth));
 
 	/* This flag must explicitly be set every time */
 	req->flags &= ~(CF_READ_NOEXP|CF_WAKE_WRITE);
@@ -2445,7 +2434,7 @@ struct task *process_stream(struct task *t)
 			    (s->be->server_id_hdr_name != NULL) &&
 			    (s->be->mode == PR_MODE_HTTP) &&
 			    objt_server(s->target)) {
-				http_send_name_header(&s->txn, s->be, objt_server(s->target)->id);
+				http_send_name_header(s->txn, s->be, objt_server(s->target)->id);
 			}
 
 			srv = objt_server(s->target);
@@ -2722,10 +2711,10 @@ struct task *process_stream(struct task *t)
 	s->logs.t_close = tv_ms_elapsed(&s->logs.tv_accept, &now);
 	stream_process_counters(s);
 
-	if (s->txn.status) {
+	if (s->txn && s->txn->status) {
 		int n;
 
-		n = s->txn.status / 100;
+		n = s->txn->status / 100;
 		if (n < 1 || n > 5)
 			n = 0;
 

@@ -545,6 +545,8 @@ extern struct http_res_action_kw_list http_res_keywords;
 
 extern const struct http_method_name http_known_methods[HTTP_METH_OTHER];
 
+extern struct pool_head *pool2_http_txn;
+
 #endif /* _TYPES_PROTO_HTTP_H */
 
 /*

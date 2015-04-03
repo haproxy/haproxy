@@ -1113,7 +1113,6 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	struct proxy *p = (struct proxy *)l->frontend; /* attached frontend */
 	struct appctx *appctx;
 	struct stream *s;
-	struct http_txn *txn;
 	struct task *t;
 	struct connection *conn;
 
@@ -1218,17 +1217,7 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	s->uniq_id = 0;
 	s->unique_id = NULL;
 
-	txn = &s->txn;
-	/* Those variables will be checked and freed if non-NULL in
-	 * stream.c:stream_free(). It is important that they are
-	 * properly initialized.
-	 */
-	txn->sessid = NULL;
-	txn->srv_cookie = NULL;
-	txn->cli_cookie = NULL;
-	txn->uri = NULL;
-	txn->hdr_idx.v = NULL;
-	txn->hdr_idx.size = txn->hdr_idx.used = 0;
+	s->txn = NULL;
 
 	channel_init(&s->req);
 	s->req.flags |= CF_READ_ATTACHED; /* the producer is already connected */

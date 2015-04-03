@@ -300,7 +300,7 @@ struct server *get_server_ph(struct proxy *px, const char *uri, int uri_len)
 struct server *get_server_ph_post(struct stream *s)
 {
 	unsigned int hash = 0;
-	struct http_txn *txn  = &s->txn;
+	struct http_txn *txn  = s->txn;
 	struct channel  *req  = &s->req;
 	struct http_msg *msg  = &txn->req;
 	struct proxy    *px   = s->be;
@@ -378,7 +378,7 @@ struct server *get_server_ph_post(struct stream *s)
 struct server *get_server_hh(struct stream *s)
 {
 	unsigned int hash = 0;
-	struct http_txn *txn  = &s->txn;
+	struct http_txn *txn  = s->txn;
 	struct proxy    *px   = s->be;
 	unsigned int     plen = px->hh_len;
 	unsigned long    len;
@@ -553,7 +553,7 @@ int assign_server(struct stream *s)
 	if (conn &&
 	    (conn->flags & CO_FL_CONNECTED) &&
 	    objt_server(conn->target) && __objt_server(conn->target)->proxy == s->be &&
-	    ((s->txn.flags & TX_PREFER_LAST) ||
+	    ((s->txn && s->txn->flags & TX_PREFER_LAST) ||
 	     ((s->be->options & PR_O_PREF_LAST) &&
 	      (!s->be->max_ka_queue ||
 	       server_has_room(__objt_server(conn->target)) ||
@@ -627,29 +627,29 @@ int assign_server(struct stream *s)
 
 			case BE_LB_HASH_URI:
 				/* URI hashing */
-				if (s->txn.req.msg_state < HTTP_MSG_BODY)
+				if (!s->txn || s->txn->req.msg_state < HTTP_MSG_BODY)
 					break;
 				srv = get_server_uh(s->be,
-						    b_ptr(s->req.buf, -http_uri_rewind(&s->txn.req)),
-						    s->txn.req.sl.rq.u_l);
+						    b_ptr(s->req.buf, -http_uri_rewind(&s->txn->req)),
+						    s->txn->req.sl.rq.u_l);
 				break;
 
 			case BE_LB_HASH_PRM:
 				/* URL Parameter hashing */
-				if (s->txn.req.msg_state < HTTP_MSG_BODY)
+				if (!s->txn || s->txn->req.msg_state < HTTP_MSG_BODY)
 					break;
 
 				srv = get_server_ph(s->be,
-						    b_ptr(s->req.buf, -http_uri_rewind(&s->txn.req)),
-						    s->txn.req.sl.rq.u_l);
+						    b_ptr(s->req.buf, -http_uri_rewind(&s->txn->req)),
+						    s->txn->req.sl.rq.u_l);
 
-				if (!srv && s->txn.meth == HTTP_METH_POST)
+				if (!srv && s->txn->meth == HTTP_METH_POST)
 					srv = get_server_ph_post(s);
 				break;
 
 			case BE_LB_HASH_HDR:
 				/* Header Parameter hashing */
-				if (s->txn.req.msg_state < HTTP_MSG_BODY)
+				if (!s->txn || s->txn->req.msg_state < HTTP_MSG_BODY)
 					break;
 				srv = get_server_hh(s);
 				break;
@@ -861,9 +861,9 @@ int assign_server_and_queue(struct stream *s)
 			 */
 
 			if (prev_srv != objt_server(s->target)) {
-				if ((s->txn.flags & TX_CK_MASK) == TX_CK_VALID) {
-					s->txn.flags &= ~TX_CK_MASK;
-					s->txn.flags |= TX_CK_DOWN;
+				if (s->txn && (s->txn->flags & TX_CK_MASK) == TX_CK_VALID) {
+					s->txn->flags &= ~TX_CK_MASK;
+					s->txn->flags |= TX_CK_DOWN;
 				}
 				s->flags |= SF_REDISP;
 				prev_srv->counters.redispatches++;
@@ -973,7 +973,7 @@ static void assign_tproxy_address(struct stream *s)
 			memset(&srv_conn->addr.from, 0, sizeof(srv_conn->addr.from));
 		break;
 	case CO_SRC_TPROXY_DYN:
-		if (src->bind_hdr_occ) {
+		if (src->bind_hdr_occ && s->txn) {
 			char *vptr;
 			int vlen;
 			int rewind;
@@ -983,9 +983,9 @@ static void assign_tproxy_address(struct stream *s)
 			((struct sockaddr_in *)&srv_conn->addr.from)->sin_port = 0;
 			((struct sockaddr_in *)&srv_conn->addr.from)->sin_addr.s_addr = 0;
 
-			b_rew(s->req.buf, rewind = http_hdr_rewind(&s->txn.req));
-			if (http_get_hdr(&s->txn.req, src->bind_hdr_name, src->bind_hdr_len,
-					 &s->txn.hdr_idx, src->bind_hdr_occ, NULL, &vptr, &vlen)) {
+			b_rew(s->req.buf, rewind = http_hdr_rewind(&s->txn->req));
+			if (http_get_hdr(&s->txn->req, src->bind_hdr_name, src->bind_hdr_len,
+					 &s->txn->hdr_idx, src->bind_hdr_occ, NULL, &vptr, &vlen)) {
 				((struct sockaddr_in *)&srv_conn->addr.from)->sin_addr.s_addr =
 					htonl(inetaddr_host_lim(vptr, vptr + vlen));
 			}

@@ -922,7 +922,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 	struct session *sess = strm_sess(s);
 	struct proxy *fe = sess->fe;
 	struct proxy *be = s->be;
-	struct http_txn *txn = &s->txn;
+	struct http_txn *txn = s->txn;
 	char *uri;
 	struct tm tm;
 	int t_request;
@@ -1615,7 +1615,7 @@ void strm_log(struct stream *s)
               ((s->flags & SF_ERR_MASK) > SF_ERR_LOCAL) ||
 	      (((s->flags & SF_ERR_MASK) == SF_ERR_NONE) &&
 	       (s->si[1].conn_retries != s->be->conn_retries)) ||
-	      ((sess->fe->mode == PR_MODE_HTTP) && s->txn.status >= 500);
+	      ((sess->fe->mode == PR_MODE_HTTP) && s->txn && s->txn->status >= 500);
 
 	if (!err && (sess->fe->options2 & PR_O2_NOLOGNORM))
 		return;

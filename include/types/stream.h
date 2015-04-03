@@ -124,7 +124,7 @@ struct stream {
 	struct server *srv_conn;        /* stream already has a slot on a server and is not in queue */
 	struct pendconn *pend_pos;      /* if not NULL, points to the position in the pending queue */
 
-	struct http_txn txn;            /* current HTTP transaction being processed. Should become a list. */
+	struct http_txn *txn;           /* current HTTP transaction being processed. Should become a list. */
 
 	struct task *task;              /* the task associated with this stream */
 	struct list list;               /* position in global streams list */

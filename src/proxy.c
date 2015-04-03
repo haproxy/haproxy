@@ -940,39 +940,40 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 	if (be->options2 & PR_O2_INDEPSTR)
 		s->si[1].flags |= SI_FL_INDEP_STR;
 
-	if (be->options2 & PR_O2_RSPBUG_OK)
-		s->txn.rsp.err_pos = -1; /* let buggy responses pass */
-	s->flags |= SF_BE_ASSIGNED;
-
 	/* If the target backend requires HTTP processing, we have to allocate
-	 * a struct hdr_idx for it if we did not have one.
+	 * the HTTP transaction and hdr_idx if we did not have one.
 	 */
-	if (unlikely(!s->txn.hdr_idx.v && be->http_needed)) {
-		s->txn.hdr_idx.size = global.tune.max_http_hdr;
-		if ((s->txn.hdr_idx.v = pool_alloc2(pool2_hdr_idx)) == NULL)
+	if (unlikely(!s->txn && be->http_needed)) {
+		if (unlikely(!http_alloc_txn(s)))
 			return 0; /* not enough memory */
 
 		/* and now initialize the HTTP transaction state */
 		http_init_txn(s);
 	}
 
-	/* If we chain to an HTTP backend running a different HTTP mode, we
-	 * have to re-adjust the desired keep-alive/close mode to accommodate
-	 * both the frontend's and the backend's modes.
-	 */
-	if (strm_sess(s)->fe->mode == PR_MODE_HTTP && be->mode == PR_MODE_HTTP &&
-	    ((strm_sess(s)->fe->options & PR_O_HTTP_MODE) != (be->options & PR_O_HTTP_MODE)))
-		http_adjust_conn_mode(s, &s->txn, &s->txn.req);
+	if (s->txn) {
+		if (be->options2 & PR_O2_RSPBUG_OK)
+			s->txn->rsp.err_pos = -1; /* let buggy responses pass */
 
-	/* If an LB algorithm needs to access some pre-parsed body contents,
-	 * we must not start to forward anything until the connection is
-	 * confirmed otherwise we'll lose the pointer to these data and
-	 * prevent the hash from being doable again after a redispatch.
-	 */
-	if (be->mode == PR_MODE_HTTP &&
-	    (be->lbprm.algo & (BE_LB_KIND | BE_LB_PARM)) == (BE_LB_KIND_HI | BE_LB_HASH_PRM))
-		s->txn.req.flags |= HTTP_MSGF_WAIT_CONN;
+		/* If we chain to an HTTP backend running a different HTTP mode, we
+		 * have to re-adjust the desired keep-alive/close mode to accommodate
+		 * both the frontend's and the backend's modes.
+		 */
+		if (strm_sess(s)->fe->mode == PR_MODE_HTTP && be->mode == PR_MODE_HTTP &&
+		    ((strm_sess(s)->fe->options & PR_O_HTTP_MODE) != (be->options & PR_O_HTTP_MODE)))
+			http_adjust_conn_mode(s, s->txn, &s->txn->req);
 
+		/* If an LB algorithm needs to access some pre-parsed body contents,
+		 * we must not start to forward anything until the connection is
+		 * confirmed otherwise we'll lose the pointer to these data and
+		 * prevent the hash from being doable again after a redispatch.
+		 */
+		if (be->mode == PR_MODE_HTTP &&
+		    (be->lbprm.algo & (BE_LB_KIND | BE_LB_PARM)) == (BE_LB_KIND_HI | BE_LB_HASH_PRM))
+			s->txn->req.flags |= HTTP_MSGF_WAIT_CONN;
+	}
+
+	s->flags |= SF_BE_ASSIGNED;
 	if (be->options2 & PR_O2_NODELAY) {
 		s->req.flags |= CF_NEVER_WAIT;
 		s->res.flags |= CF_NEVER_WAIT;

@@ -184,7 +184,7 @@ int http_compression_buffer_init(struct stream *s, struct buffer *in, struct buf
  */
 int http_compression_buffer_add_data(struct stream *s, struct buffer *in, struct buffer *out)
 {
-	struct http_msg *msg = &s->txn.rsp;
+	struct http_msg *msg = &s->txn->rsp;
 	int consumed_data = 0;
 	int data_process_len;
 	int block1, block2;
@@ -234,7 +234,7 @@ int http_compression_buffer_end(struct stream *s, struct buffer **in, struct buf
 {
 	int to_forward;
 	int left;
-	struct http_msg *msg = &s->txn.rsp;
+	struct http_msg *msg = &s->txn->rsp;
 	struct buffer *ib = *in, *ob = *out;
 	char *tail;
 

@@ -1134,7 +1134,7 @@ int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 		enum acl_test_res ret = ACL_TEST_PASS;
 
 		if (rule->cond) {
-			ret = acl_exec_cond(rule->cond, s->be, s, &s->txn, SMP_OPT_DIR_REQ | partial);
+			ret = acl_exec_cond(rule->cond, s->be, s, s->txn, SMP_OPT_DIR_REQ | partial);
 			if (ret == ACL_TEST_MISS)
 				goto missing_data;
 
@@ -1175,7 +1175,7 @@ resume_execution:
 					continue;
 
 				t = rule->act_prm.trk_ctr.table.t;
-				key = stktable_fetch_key(t, s->be, s, &s->txn, SMP_OPT_DIR_REQ | partial, rule->act_prm.trk_ctr.expr, &smp);
+				key = stktable_fetch_key(t, s->be, s, s->txn, SMP_OPT_DIR_REQ | partial, rule->act_prm.trk_ctr.expr, &smp);
 
 				if ((smp.flags & SMP_F_MAY_CHANGE) && !(partial & SMP_OPT_FINAL))
 					goto missing_data; /* key might appear later */
@@ -1193,7 +1193,7 @@ resume_execution:
 				char **cap = s->req_cap;
 				int len;
 
-				key = sample_fetch_string(s->be, s, &s->txn, SMP_OPT_DIR_REQ | partial, rule->act_prm.cap.expr);
+				key = sample_fetch_string(s->be, s, s->txn, SMP_OPT_DIR_REQ | partial, rule->act_prm.cap.expr);
 				if (!key)
 					continue;
 
@@ -1292,7 +1292,7 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 		enum acl_test_res ret = ACL_TEST_PASS;
 
 		if (rule->cond) {
-			ret = acl_exec_cond(rule->cond, s->be, s, &s->txn, SMP_OPT_DIR_RES | partial);
+			ret = acl_exec_cond(rule->cond, s->be, s, s->txn, SMP_OPT_DIR_RES | partial);
 			if (ret == ACL_TEST_MISS) {
 				/* just set the analyser timeout once at the beginning of the response */
 				if (!tick_isset(rep->analyse_exp) && s->be->tcp_rep.inspect_delay)
@@ -1407,7 +1407,7 @@ int tcp_exec_req_rules(struct stream *s)
 					continue;
 
 				t = rule->act_prm.trk_ctr.table.t;
-				key = stktable_fetch_key(t, s->be, s, &s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->act_prm.trk_ctr.expr, NULL);
+				key = stktable_fetch_key(t, s->be, s, s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->act_prm.trk_ctr.expr, NULL);
 
 				if (key && (ts = stktable_get_entry(t, key)))
 					stream_track_stkctr(&s->stkctr[tcp_trk_idx(rule->action)], t, ts);

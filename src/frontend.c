@@ -127,9 +127,7 @@ int frontend_accept(struct stream *s)
 		 * that we may make use of them. This of course includes
 		 * (mode == PR_MODE_HTTP).
 		 */
-		s->txn.hdr_idx.size = global.tune.max_http_hdr;
-
-		if (unlikely((s->txn.hdr_idx.v = pool_alloc2(pool2_hdr_idx)) == NULL))
+		if (unlikely(!http_alloc_txn(s)))
 			goto out_free_rspcap; /* no memory */
 
 		/* and now initialize the HTTP transaction state */

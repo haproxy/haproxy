@@ -114,6 +114,7 @@ unsigned int http_get_hdr(const struct http_msg *msg, const char *hname, int hle
 			  struct hdr_idx *idx, int occ,
 			  struct hdr_ctx *ctx, char **vptr, int *vlen);
 
+struct http_txn *http_alloc_txn(struct stream *s);
 void http_init_txn(struct stream *s);
 void http_end_txn(struct stream *s);
 void http_reset_txn(struct stream *s);

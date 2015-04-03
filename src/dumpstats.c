@@ -4422,13 +4422,13 @@ static int stats_process_http_post(struct stream_interface *si)
 	int reql;
 
 	temp = get_trash_chunk();
-	if (temp->size < s->txn.req.body_len) {
+	if (temp->size < s->txn->req.body_len) {
 		/* too large request */
 		appctx->ctx.stats.st_code = STAT_STATUS_EXCD;
 		goto out;
 	}
 
-	reql = bo_getblk(si_oc(si), temp->str, s->txn.req.body_len, s->txn.req.eoh + 2);
+	reql = bo_getblk(si_oc(si), temp->str, s->txn->req.body_len, s->txn->req.eoh + 2);
 	if (reql <= 0) {
 		/* we need more data */
 		appctx->ctx.stats.st_code = STAT_STATUS_NONE;
@@ -4742,7 +4742,7 @@ static int stats_send_http_headers(struct stream_interface *si)
 	else
 		chunk_appendf(&trash, "\r\n");
 
-	s->txn.status = 200;
+	s->txn->status = 200;
 	s->logs.tv_request = now;
 
 	if (bi_putchk(si_ic(si), &trash) == -1) {
@@ -4789,7 +4789,7 @@ static int stats_send_http_redirect(struct stream_interface *si)
 		     (appctx->ctx.stats.flags & STAT_NO_REFRESH) ? ";norefresh" : "",
 		     scope_txt);
 
-	s->txn.status = 303;
+	s->txn->status = 303;
 	s->logs.tv_request = now;
 
 	if (bi_putchk(si_ic(si), &trash) == -1) {
@@ -4822,7 +4822,7 @@ static void http_stats_io_handler(struct stream_interface *si)
 	/* all states are processed in sequence */
 	if (appctx->st0 == STAT_HTTP_HEAD) {
 		if (stats_send_http_headers(si)) {
-			if (s->txn.meth == HTTP_METH_HEAD)
+			if (s->txn->meth == HTTP_METH_HEAD)
 				appctx->st0 = STAT_HTTP_DONE;
 			else
 				appctx->st0 = STAT_HTTP_DUMP;
@@ -5134,10 +5134,11 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct st
 			     " age=%s)\n",
 			     human_time(now.tv_sec - sess->logs.accept_date.tv_sec, 1));
 
-		chunk_appendf(&trash,
+		if (sess->txn)
+			chunk_appendf(&trash,
 			     "  txn=%p flags=0x%x meth=%d status=%d req.st=%s rsp.st=%s waiting=%d\n",
-			     &sess->txn, sess->txn.flags, sess->txn.meth, sess->txn.status,
-			      http_msg_state_str(sess->txn.req.msg_state), http_msg_state_str(sess->txn.rsp.msg_state), !LIST_ISEMPTY(&sess->buffer_wait));
+			      sess->txn, sess->txn->flags, sess->txn->meth, sess->txn->status,
+			      http_msg_state_str(sess->txn->req.msg_state), http_msg_state_str(sess->txn->rsp.msg_state), !LIST_ISEMPTY(&sess->buffer_wait));
 
 		chunk_appendf(&trash,
 			     "  si[0]=%p (state=%s flags=0x%02x endp0=%s:%p exp=%s, et=0x%03x)\n",
@@ -5247,7 +5248,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct st
 			     sess->req.buf,
 			     sess->req.buf->data, sess->req.buf->o,
 			     (int)(sess->req.buf->p - sess->req.buf->data),
-			     sess->txn.req.next, sess->req.buf->i,
+			     sess->txn ? sess->txn->req.next : 0, sess->req.buf->i,
 			     sess->req.buf->size);
 
 		chunk_appendf(&trash,
@@ -5276,7 +5277,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct st
 			     sess->res.buf,
 			     sess->res.buf->data, sess->res.buf->o,
 			     (int)(sess->res.buf->p - sess->res.buf->data),
-			     sess->txn.rsp.next, sess->res.buf->i,
+			     sess->txn ? sess->txn->rsp.next : 0, sess->res.buf->i,
 			     sess->res.buf->size);
 
 		if (bi_putchk(si_ic(si), &trash) == -1) {
