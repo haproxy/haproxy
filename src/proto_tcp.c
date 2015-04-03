@@ -1366,7 +1366,7 @@ int tcp_exec_req_rules(struct stream *s)
 	struct tcp_rule *rule;
 	struct stksess *ts;
 	struct stktable *t = NULL;
-	struct connection *conn = objt_conn(s->si[0].end);
+	struct connection *conn = objt_conn(sess->origin);
 	int result = 1;
 	enum acl_test_res ret;
 
@@ -1968,7 +1968,8 @@ static int
 smp_fetch_src(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
               const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *cli_conn = objt_conn(l4->si[0].end);
+	struct session *sess = strm_sess(l4);
+	struct connection *cli_conn = objt_conn(sess->origin);
 
 	if (!cli_conn)
 		return 0;
@@ -1995,7 +1996,8 @@ static int
 smp_fetch_sport(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp, const char *k, void *private)
 {
-	struct connection *cli_conn = objt_conn(l4->si[0].end);
+	struct session *sess = strm_sess(l4);
+	struct connection *cli_conn = objt_conn(sess->origin);
 
 	if (!cli_conn)
 		return 0;
@@ -2013,7 +2015,8 @@ static int
 smp_fetch_dst(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
               const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *cli_conn = objt_conn(l4->si[0].end);
+	struct session *sess = strm_sess(l4);
+	struct connection *cli_conn = objt_conn(sess->origin);
 
 	if (!cli_conn)
 		return 0;
@@ -2042,7 +2045,8 @@ static int
 smp_fetch_dport(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *cli_conn = objt_conn(l4->si[0].end);
+	struct session *sess = strm_sess(l4);
+	struct connection *cli_conn = objt_conn(sess->origin);
 
 	if (!cli_conn)
 		return 0;

@@ -2772,12 +2772,13 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 		req->flags |= CF_READ_DONTWAIT; /* try to get back here ASAP */
 		s->res.flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
 #ifdef TCP_QUICKACK
-		if (sess->listener->options & LI_O_NOQUICKACK && req->buf->i && objt_conn(s->si[0].end) && conn_ctrl_ready(__objt_conn(s->si[0].end))) {
+		if (sess->listener->options & LI_O_NOQUICKACK && req->buf->i &&
+		    objt_conn(sess->origin) && conn_ctrl_ready(__objt_conn(sess->origin))) {
 			/* We need more data, we have to re-enable quick-ack in case we
 			 * previously disabled it, otherwise we might cause the client
 			 * to delay next data.
 			 */
-			setsockopt(__objt_conn(s->si[0].end)->t.sock.fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
+			setsockopt(__objt_conn(sess->origin)->t.sock.fd, IPPROTO_TCP, TCP_QUICKACK, &one, sizeof(one));
 		}
 #endif
 
@@ -3325,6 +3326,7 @@ static int http_transform_header(struct stream* s, struct http_msg *msg,
 enum rule_result
 http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct stream *s, struct http_txn *txn)
 {
+	struct session *sess = strm_sess(s);
 	struct connection *cli_conn;
 	struct http_req_rule *rule;
 	struct hdr_ctx ctx;
@@ -3400,13 +3402,13 @@ resume_execution:
 			break;
 
 		case HTTP_REQ_ACT_SET_TOS:
-			if ((cli_conn = objt_conn(s->si[0].end)) && conn_ctrl_ready(cli_conn))
+			if ((cli_conn = objt_conn(sess->origin)) && conn_ctrl_ready(cli_conn))
 				inet_set_tos(cli_conn->t.sock.fd, cli_conn->addr.from, rule->arg.tos);
 			break;
 
 		case HTTP_REQ_ACT_SET_MARK:
 #ifdef SO_MARK
-			if ((cli_conn = objt_conn(s->si[0].end)) && conn_ctrl_ready(cli_conn))
+			if ((cli_conn = objt_conn(sess->origin)) && conn_ctrl_ready(cli_conn))
 				setsockopt(cli_conn->t.sock.fd, SOL_SOCKET, SO_MARK, &rule->arg.mark, sizeof(rule->arg.mark));
 #endif
 			break;
@@ -3577,7 +3579,7 @@ resume_execution:
 						                       t->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
 
 					stkctr_set_flags(&s->stkctr[http_req_trk_idx(rule->action)], STKCTR_TRACK_CONTENT);
-					if (strm_sess(s)->fe != s->be)
+					if (sess->fe != s->be)
 						stkctr_set_flags(&s->stkctr[http_req_trk_idx(rule->action)], STKCTR_TRACK_BACKEND);
 				}
 			}
@@ -3600,6 +3602,7 @@ resume_execution:
 static enum rule_result
 http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct stream *s, struct http_txn *txn)
 {
+	struct session *sess = strm_sess(s);
 	struct connection *cli_conn;
 	struct http_res_rule *rule;
 	struct hdr_ctx ctx;
@@ -3647,13 +3650,13 @@ resume_execution:
 			break;
 
 		case HTTP_RES_ACT_SET_TOS:
-			if ((cli_conn = objt_conn(s->si[0].end)) && conn_ctrl_ready(cli_conn))
+			if ((cli_conn = objt_conn(sess->origin)) && conn_ctrl_ready(cli_conn))
 				inet_set_tos(cli_conn->t.sock.fd, cli_conn->addr.from, rule->arg.tos);
 			break;
 
 		case HTTP_RES_ACT_SET_MARK:
 #ifdef SO_MARK
-			if ((cli_conn = objt_conn(s->si[0].end)) && conn_ctrl_ready(cli_conn))
+			if ((cli_conn = objt_conn(sess->origin)) && conn_ctrl_ready(cli_conn))
 				setsockopt(cli_conn->t.sock.fd, SOL_SOCKET, SO_MARK, &rule->arg.mark, sizeof(rule->arg.mark));
 #endif
 			break;
@@ -8589,6 +8592,7 @@ void http_capture_bad_message(struct error_snapshot *es, struct stream *s,
                               struct http_msg *msg,
 			      enum ht_state state, struct proxy *other_end)
 {
+	struct session *sess = strm_sess(s);
 	struct channel *chn = msg->chn;
 	int len1, len2;
 
@@ -8610,8 +8614,8 @@ void http_capture_bad_message(struct error_snapshot *es, struct stream *s,
 	es->sid  = s->uniq_id;
 	es->srv  = objt_server(s->target);
 	es->oe   = other_end;
-	if (objt_conn(s->si[0].end))
-		es->src  = __objt_conn(s->si[0].end)->addr.from;
+	if (objt_conn(sess->origin))
+		es->src  = __objt_conn(sess->origin)->addr.from;
 	else
 		memset(&es->src, 0, sizeof(es->src));
 
@@ -8765,10 +8769,12 @@ unsigned int http_get_fhdr(const struct http_msg *msg, const char *hname, int hl
  */
 void debug_hdr(const char *dir, struct stream *s, const char *start, const char *end)
 {
+	struct session *sess = strm_sess(s);
 	int max;
+
 	chunk_printf(&trash, "%08x:%s.%s[%04x:%04x]: ", s->uniq_id, s->be->id,
 		      dir,
-		     objt_conn(s->si[0].end) ? (unsigned short)objt_conn(s->si[0].end)->t.sock.fd : -1,
+		     objt_conn(sess->origin) ? (unsigned short)objt_conn(sess->origin)->t.sock.fd : -1,
 		     objt_conn(s->si[1].end) ? (unsigned short)objt_conn(s->si[1].end)->t.sock.fd : -1);
 
 	for (max = 0; start + max < end; max++)
@@ -10585,7 +10591,8 @@ smp_fetch_base32_src(struct proxy *px, struct stream *l4, void *l7, unsigned int
                      const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct chunk *temp;
-	struct connection *cli_conn = objt_conn(l4->si[0].end);
+	struct session *sess = strm_sess(l4);
+	struct connection *cli_conn = objt_conn(sess->origin);
 
 	if (!cli_conn)
 		return 0;
@@ -11374,7 +11381,8 @@ smp_fetch_url32_src(struct proxy *px, struct stream *l4, void *l7, unsigned int 
                      const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct chunk *temp;
-	struct connection *cli_conn = objt_conn(l4->si[0].end);
+	struct session *sess = strm_sess(l4);
+	struct connection *cli_conn = objt_conn(sess->origin);
 
 	if (!smp_fetch_url32(px, l4, l7, opt, args, smp, kw, private))
 		return 0;

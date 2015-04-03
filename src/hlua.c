@@ -3505,7 +3505,7 @@ __LJMP static int hlua_txn_set_tos(lua_State *L)
 	htxn = MAY_LJMP(hlua_checktxn(L, 1));
 	tos = MAY_LJMP(luaL_checkinteger(L, 2));
 
-	if ((cli_conn = objt_conn(htxn->s->si[0].end)) && conn_ctrl_ready(cli_conn))
+	if ((cli_conn = objt_conn(htxn->s->sess->origin)) && conn_ctrl_ready(cli_conn))
 		inet_set_tos(cli_conn->t.sock.fd, cli_conn->addr.from, tos);
 
 	return 0;
@@ -3522,7 +3522,7 @@ __LJMP static int hlua_txn_set_mark(lua_State *L)
 	htxn = MAY_LJMP(hlua_checktxn(L, 1));
 	mark = MAY_LJMP(luaL_checkinteger(L, 2));
 
-	if ((cli_conn = objt_conn(htxn->s->si[0].end)) && conn_ctrl_ready(cli_conn))
+	if ((cli_conn = objt_conn(htxn->s->sess->origin)) && conn_ctrl_ready(cli_conn))
 		setsockopt(cli_conn->t.sock.fd, SOL_SOCKET, SO_MARK, &mark, sizeof(mark));
 #endif
 	return 0;

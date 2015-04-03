@@ -986,7 +986,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				break;
 
 			case LOG_FMT_CLIENTIP:  // %ci
-				conn = objt_conn(s->si[0].end);
+				conn = objt_conn(sess->origin);
 				if (conn)
 					ret = lf_ip(tmplog, (struct sockaddr *)&conn->addr.from, dst + maxsize - tmplog, tmp);
 				else
@@ -998,7 +998,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				break;
 
 			case LOG_FMT_CLIENTPORT:  // %cp
-				conn = objt_conn(s->si[0].end);
+				conn = objt_conn(sess->origin);
 				if (conn) {
 					if (conn->addr.from.ss_family == AF_UNIX) {
 						ret = ltoa_o(sess->listener->luid, tmplog, dst + maxsize - tmplog);
@@ -1017,7 +1017,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				break;
 
 			case LOG_FMT_FRONTENDIP: // %fi
-				conn = objt_conn(s->si[0].end);
+				conn = objt_conn(sess->origin);
 				if (conn) {
 					conn_get_to_addr(conn);
 					ret = lf_ip(tmplog, (struct sockaddr *)&conn->addr.to, dst + maxsize - tmplog, tmp);
@@ -1032,7 +1032,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				break;
 
 			case  LOG_FMT_FRONTENDPORT: // %fp
-				conn = objt_conn(s->si[0].end);
+				conn = objt_conn(sess->origin);
 				if (conn) {
 					conn_get_to_addr(conn);
 					if (conn->addr.to.ss_family == AF_UNIX)
@@ -1193,7 +1193,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 #ifdef USE_OPENSSL
 			case LOG_FMT_SSL_CIPHER: // %sslc
 				src = NULL;
-				conn = objt_conn(s->si[0].end);
+				conn = objt_conn(sess->origin);
 				if (conn) {
 					if (sess->listener->xprt == &ssl_sock)
 						src = ssl_sock_get_cipher_name(conn);
@@ -1207,7 +1207,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 
 			case LOG_FMT_SSL_VERSION: // %sslv
 				src = NULL;
-				conn = objt_conn(s->si[0].end);
+				conn = objt_conn(sess->origin);
 				if (conn) {
 					if (sess->listener->xprt == &ssl_sock)
 						src = ssl_sock_get_proto_version(conn);

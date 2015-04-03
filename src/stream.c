@@ -592,9 +592,10 @@ int stream_complete(struct stream *s)
 static void stream_free(struct stream *s)
 {
 	struct http_txn *txn = &s->txn;
-	struct proxy *fe = strm_sess(s)->fe;
+	struct session *sess = strm_sess(s);
+	struct proxy *fe = sess->fe;
 	struct bref *bref, *back;
-	struct connection *cli_conn = objt_conn(s->si[0].end);
+	struct connection *cli_conn = objt_conn(sess->origin);
 	int i;
 
 	if (s->pend_pos)
@@ -2910,6 +2911,7 @@ void stream_shutdown(struct stream *stream, int why)
 struct stkctr *
 smp_fetch_sc_stkctr(struct stream *l4, const struct arg *args, const char *kw)
 {
+	struct session *sess = strm_sess(l4);
 	static struct stkctr stkctr;
 	struct stksess *stksess;
 	unsigned int num = kw[2] - '0';
@@ -2923,7 +2925,7 @@ smp_fetch_sc_stkctr(struct stream *l4, const struct arg *args, const char *kw)
 	}
 	else if (num > 9) { /* src_* variant, args[0] = table */
 		struct stktable_key *key;
-		struct connection *conn = objt_conn(l4->si[0].end);
+		struct connection *conn = objt_conn(sess->origin);
 
 		if (!conn)
 			return NULL;
@@ -3144,7 +3146,8 @@ static int
 smp_fetch_src_updt_conn_cnt(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                             const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct connection *conn = objt_conn(l4->si[0].end);
+	struct session *sess = strm_sess(l4);
+	struct connection *conn = objt_conn(sess->origin);
 	struct stksess *ts;
 	struct stktable_key *key;
 	void *ptr;

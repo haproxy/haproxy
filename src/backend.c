@@ -607,7 +607,7 @@ int assign_server(struct stream *s)
 
 			switch (s->be->lbprm.algo & BE_LB_PARM) {
 			case BE_LB_HASH_SRC:
-				conn = objt_conn(s->si[0].end);
+				conn = objt_conn(strm_sess(s)->origin);
 				if (conn && conn->addr.from.ss_family == AF_INET) {
 					srv = get_server_sh(s->be,
 							    (void *)&((struct sockaddr_in *)&conn->addr.from)->sin_addr,
@@ -746,7 +746,7 @@ int assign_server(struct stream *s)
  */
 int assign_server_address(struct stream *s)
 {
-	struct connection *cli_conn = objt_conn(s->si[0].end);
+	struct connection *cli_conn = objt_conn(strm_sess(s)->origin);
 	struct connection *srv_conn = objt_conn(s->si[1].end);
 
 #ifdef DEBUG_FULL
@@ -966,7 +966,7 @@ static void assign_tproxy_address(struct stream *s)
 	case CO_SRC_TPROXY_CLI:
 	case CO_SRC_TPROXY_CIP:
 		/* FIXME: what can we do if the client connects in IPv6 or unix socket ? */
-		cli_conn = objt_conn(s->si[0].end);
+		cli_conn = objt_conn(strm_sess(s)->origin);
 		if (cli_conn)
 			srv_conn->addr.from = cli_conn->addr.from;
 		else
@@ -1074,7 +1074,7 @@ int connect_server(struct stream *s)
 		srv_conn->send_proxy_ofs = 0;
 		if (objt_server(s->target) && objt_server(s->target)->pp_opts) {
 			srv_conn->send_proxy_ofs = 1; /* must compute size */
-			cli_conn = objt_conn(s->si[0].end);
+			cli_conn = objt_conn(strm_sess(s)->origin);
 			if (cli_conn)
 				conn_get_to_addr(cli_conn);
 		}

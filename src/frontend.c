@@ -55,7 +55,7 @@
 int frontend_accept(struct stream *s)
 {
 	struct session *sess = s->sess;
-	struct connection *conn = __objt_conn(s->si[0].end);
+	struct connection *conn = __objt_conn(sess->origin);
 	struct listener *l = sess->listener;
 	struct proxy *fe = sess->fe;
 

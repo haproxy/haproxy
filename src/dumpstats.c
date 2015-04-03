@@ -5022,7 +5022,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct st
 			     sess->uniq_id,
 			     strm_sess(sess)->listener && strm_sess(sess)->listener->proto->name ? strm_sess(sess)->listener->proto->name : "?");
 
-		conn = objt_conn(sess->si[0].end);
+		conn = objt_conn(strm_sess(sess)->origin);
 		switch (conn ? addr_to_str(&conn->addr.from, pn, sizeof(pn)) : AF_UNSPEC) {
 		case AF_INET:
 		case AF_INET6:
@@ -5604,7 +5604,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 				     strm_sess(curr_sess)->listener->proto->name);
 
 
-			conn = objt_conn(curr_sess->si[0].end);
+			conn = objt_conn(strm_sess(curr_sess)->origin);
 			switch (conn ? addr_to_str(&conn->addr.from, pn, sizeof(pn)) : AF_UNSPEC) {
 			case AF_INET:
 			case AF_INET6:
