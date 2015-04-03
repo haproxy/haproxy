@@ -3326,9 +3326,10 @@ static int http_transform_header(struct stream* s, struct http_msg *msg,
  * on txn->flags if it encounters a tarpit rule.
  */
 enum rule_result
-http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct stream *s, struct http_txn *txn)
+http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct stream *s)
 {
 	struct session *sess = strm_sess(s);
+	struct http_txn *txn = s->txn;
 	struct connection *cli_conn;
 	struct http_req_rule *rule;
 	struct hdr_ctx ctx;
@@ -3543,14 +3544,14 @@ resume_execution:
 			}
 
 		case HTTP_REQ_ACT_CUSTOM_CONT:
-			if (!rule->action_ptr(rule, px, s, txn)) {
+			if (!rule->action_ptr(rule, px, s)) {
 				s->current_rule = &rule->list;
 				return HTTP_RULE_RES_YIELD;
 			}
 			break;
 
 		case HTTP_REQ_ACT_CUSTOM_STOP:
-			rule->action_ptr(rule, px, s, txn);
+			rule->action_ptr(rule, px, s);
 			return HTTP_RULE_RES_DONE;
 
 		case HTTP_REQ_ACT_TRK_SC0 ... HTTP_REQ_ACT_TRK_SCMAX:
@@ -3602,9 +3603,10 @@ resume_execution:
  * the same context.
  */
 static enum rule_result
-http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct stream *s, struct http_txn *txn)
+http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct stream *s)
 {
 	struct session *sess = strm_sess(s);
+	struct http_txn *txn = s->txn;
 	struct connection *cli_conn;
 	struct http_res_rule *rule;
 	struct hdr_ctx ctx;
@@ -3790,14 +3792,14 @@ resume_execution:
 			}
 
 		case HTTP_RES_ACT_CUSTOM_CONT:
-			if (!rule->action_ptr(rule, px, s, txn)) {
+			if (!rule->action_ptr(rule, px, s)) {
 				s->current_rule = &rule->list;
 				return HTTP_RULE_RES_YIELD;
 			}
 			break;
 
 		case HTTP_RES_ACT_CUSTOM_STOP:
-			rule->action_ptr(rule, px, s, txn);
+			rule->action_ptr(rule, px, s);
 			return HTTP_RULE_RES_STOP;
 		}
 	}
@@ -4098,7 +4100,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 
 	/* evaluate http-request rules */
 	if (!LIST_ISEMPTY(&px->http_req_rules)) {
-		verdict = http_req_get_intercept_rule(px, &px->http_req_rules, s, txn);
+		verdict = http_req_get_intercept_rule(px, &px->http_req_rules, s);
 
 		switch (verdict) {
 		case HTTP_RULE_RES_YIELD: /* some data miss, call the function later. */
@@ -4144,7 +4146,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 
 		/* parse the whole stats request and extract the relevant information */
 		http_handle_stats(s, req);
-		verdict = http_req_get_intercept_rule(px, &px->uri_auth->http_req_rules, s, txn);
+		verdict = http_req_get_intercept_rule(px, &px->uri_auth->http_req_rules, s);
 		/* not all actions implemented: deny, allow, auth */
 
 		if (verdict == HTTP_RULE_RES_DENY) /* stats http-request deny */
@@ -6344,7 +6346,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 
 		/* evaluate http-response rules */
 		if (ret == HTTP_RULE_RES_CONT)
-			ret = http_res_get_intercept_rule(cur_proxy, &cur_proxy->http_res_rules, s, txn);
+			ret = http_res_get_intercept_rule(cur_proxy, &cur_proxy->http_res_rules, s);
 
 		/* we need to be called again. */
 		if (ret == HTTP_RULE_RES_YIELD) {
@@ -11696,8 +11698,9 @@ expect_comma:
  * string by the caller, event if the replacement query string is empty.
  */
 int http_replace_req_line(int action, const char *replace, int len,
-                          struct proxy *px, struct stream *s, struct http_txn *txn)
+                          struct proxy *px, struct stream *s)
 {
+	struct http_txn *txn = s->txn;
 	char *cur_ptr, *cur_end;
 	int offset = 0;
 	int delta;
@@ -11777,7 +11780,7 @@ int http_replace_req_line(int action, const char *replace, int len,
  * http_action_set_req_line_exec(). It always returns 1. If an error occurs
  * the action is canceled, but the rule processing continue.
  */
-int http_action_set_req_line(struct http_req_rule *rule, struct proxy *px, struct stream *s, struct http_txn *txn)
+int http_action_set_req_line(struct http_req_rule *rule, struct proxy *px, struct stream *s)
 {
 	chunk_reset(&trash);
 
@@ -11786,7 +11789,7 @@ int http_action_set_req_line(struct http_req_rule *rule, struct proxy *px, struc
 		trash.str[trash.len++] = '?';
 	trash.len += build_logline(s, trash.str + trash.len, trash.size - trash.len, (struct list *)&rule->arg.act.p[0]);
 
-	http_replace_req_line(*(int *)&rule->arg.act.p[2], trash.str, trash.len, px, s, txn);
+	http_replace_req_line(*(int *)&rule->arg.act.p[2], trash.str, trash.len, px, s);
 	return 1;
 }
 

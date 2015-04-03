@@ -3205,9 +3205,8 @@ static int hlua_http_req_set_meth(lua_State *L)
 	struct hlua_txn *htxn = MAY_LJMP(hlua_checkhttp(L, 1));
 	size_t name_len;
 	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &name_len));
-	struct http_txn *txn = htxn->s->txn;
 
-	lua_pushboolean(L, http_replace_req_line(0, name, name_len, htxn->p, htxn->s, txn) != -1);
+	lua_pushboolean(L, http_replace_req_line(0, name, name_len, htxn->p, htxn->s) != -1);
 	return 1;
 }
 
@@ -3217,9 +3216,7 @@ static int hlua_http_req_set_path(lua_State *L)
 	struct hlua_txn *htxn = MAY_LJMP(hlua_checkhttp(L, 1));
 	size_t name_len;
 	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &name_len));
-	struct http_txn *txn = htxn->s->txn;
-
-	lua_pushboolean(L, http_replace_req_line(1, name, name_len, htxn->p, htxn->s, txn) != -1);
+	lua_pushboolean(L, http_replace_req_line(1, name, name_len, htxn->p, htxn->s) != -1);
 	return 1;
 }
 
@@ -3229,7 +3226,6 @@ static int hlua_http_req_set_query(lua_State *L)
 	struct hlua_txn *htxn = MAY_LJMP(hlua_checkhttp(L, 1));
 	size_t name_len;
 	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &name_len));
-	struct http_txn *txn = htxn->s->txn;
 
 	/* Check length. */
 	if (name_len > trash.size - 1) {
@@ -3243,7 +3239,7 @@ static int hlua_http_req_set_query(lua_State *L)
 	memcpy(trash.str + trash.len, name, name_len);
 	trash.len += name_len;
 
-	lua_pushboolean(L, http_replace_req_line(2, trash.str, trash.len, htxn->p, htxn->s, txn) != -1);
+	lua_pushboolean(L, http_replace_req_line(2, trash.str, trash.len, htxn->p, htxn->s) != -1);
 	return 1;
 }
 
@@ -3253,9 +3249,8 @@ static int hlua_http_req_set_uri(lua_State *L)
 	struct hlua_txn *htxn = MAY_LJMP(hlua_checkhttp(L, 1));
 	size_t name_len;
 	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &name_len));
-	struct http_txn *txn = htxn->s->txn;
 
-	lua_pushboolean(L, http_replace_req_line(3, name, name_len, htxn->p, htxn->s, txn) != -1);
+	lua_pushboolean(L, http_replace_req_line(3, name, name_len, htxn->p, htxn->s) != -1);
 	return 1;
 }
 
@@ -4322,10 +4317,10 @@ int hlua_tcp_res_act_wrapper(struct tcp_rule *tcp_rule, struct proxy *px,
  * the LUA code.
  */
 int hlua_http_req_act_wrapper(struct http_req_rule *rule, struct proxy *px,
-                              struct stream *s, struct http_txn *http_txn)
+                              struct stream *s)
 {
 	return hlua_request_act_wrapper((struct hlua_rule *)rule->arg.data, px,
-	                                s, http_txn, AN_REQ_HTTP_PROCESS_FE);
+	                                s, s->txn, AN_REQ_HTTP_PROCESS_FE);
 }
 
 /* Lua execution wrapper for http-response.
@@ -4333,10 +4328,10 @@ int hlua_http_req_act_wrapper(struct http_req_rule *rule, struct proxy *px,
  * the LUA code.
  */
 int hlua_http_res_act_wrapper(struct http_res_rule *rule, struct proxy *px,
-                              struct stream *s, struct http_txn *http_txn)
+                              struct stream *s)
 {
 	return hlua_request_act_wrapper((struct hlua_rule *)rule->arg.data, px,
-	                                s, http_txn, AN_RES_HTTP_PROCESS_BE);
+	                                s, s->txn, AN_RES_HTTP_PROCESS_BE);
 }
 
 /* tcp-request <*> configuration wrapper. */

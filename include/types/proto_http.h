@@ -416,7 +416,7 @@ struct http_req_rule {
 	struct list list;
 	struct acl_cond *cond;                 /* acl condition to meet */
 	unsigned int action;                   /* HTTP_REQ_* */
-	int (*action_ptr)(struct http_req_rule *rule, struct proxy *px, struct stream *s, struct http_txn *http_txn);  /* ptr to custom action */
+	int (*action_ptr)(struct http_req_rule *rule, struct proxy *px, struct stream *s);  /* ptr to custom action */
 	union {
 		struct {
 			char *realm;
@@ -452,7 +452,7 @@ struct http_res_rule {
 	struct list list;
 	struct acl_cond *cond;                 /* acl condition to meet */
 	unsigned int action;                   /* HTTP_RES_* */
-	int (*action_ptr)(struct http_res_rule *rule, struct proxy *px, struct stream *s, struct http_txn *http_txn);  /* ptr to custom action */
+	int (*action_ptr)(struct http_res_rule *rule, struct proxy *px, struct stream *s);  /* ptr to custom action */
 	union {
 		struct {
 			char *name;            /* header name */

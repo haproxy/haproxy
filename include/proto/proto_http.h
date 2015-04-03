@@ -99,8 +99,7 @@ char *find_hdr_value_end(char *s, const char *e);
 int http_header_match2(const char *hdr, const char *end, const char *name, int len);
 int http_remove_header2(struct http_msg *msg, struct hdr_idx *idx, struct hdr_ctx *ctx);
 int http_header_add_tail2(struct http_msg *msg, struct hdr_idx *hdr_idx, const char *text, int len);
-int http_replace_req_line(int action, const char *replace, int len,
-                          struct proxy *px, struct stream *s, struct http_txn *txn);
+int http_replace_req_line(int action, const char *replace, int len, struct proxy *px, struct stream *s);
 int http_transform_header_str(struct stream* s, struct http_msg *msg, const char* name,
                               unsigned int name_len, const char *str, struct my_regex *re,
                               int action);
