@@ -38,6 +38,7 @@
 #include <proto/proto_tcp.h>
 #include <proto/proto_http.h>
 #include <proto/proxy.h>
+#include <proto/session.h>
 #include <proto/stream.h>
 #include <proto/signal.h>
 #include <proto/stick_table.h>
@@ -1132,7 +1133,7 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	 */
 	if ((t = task_new()) == NULL) { /* disable this proxy for a while */
 		Alert("out of memory in peer_session_create().\n");
-		goto out_free_session;
+		goto out_free_stream;
 	}
 
 	ps->reconnect = tick_add(now_ms, MS_TO_TICKS(5000));
@@ -1144,7 +1145,11 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 
 	s->task = t;
 	s->listener = l;
-	s->sess = NULL;
+	s->sess = pool_alloc2(pool2_session);
+	if (!s->sess) {
+		Alert("out of memory in peer_session_create().\n");
+		goto out_free_task;
+	}
 
 	/* Note: initially, the stream's backend points to the frontend.
 	 * This changes later when switching rules are executed or
@@ -1275,8 +1280,10 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 
 	/* Error unrolling */
  out_fail_conn1:
+	pool_free2(pool2_session, s->sess);
+ out_free_task:
 	task_free(t);
- out_free_session:
+ out_free_stream:
 	LIST_DEL(&s->list);
 	pool_free2(pool2_stream, s);
  out_close:

@@ -1433,6 +1433,7 @@ void deinit(void)
 	}
 
 	pool_destroy2(pool2_stream);
+	pool_destroy2(pool2_session);
 	pool_destroy2(pool2_connection);
 	pool_destroy2(pool2_buffer);
 	pool_destroy2(pool2_requri);

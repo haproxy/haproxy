@@ -31,6 +31,7 @@
 #include <proto/raw_sock.h>
 #include <proto/sample.h>
 #include <proto/server.h>
+#include <proto/session.h>
 #include <proto/stream.h>
 #include <proto/ssl_sock.h>
 #include <proto/stream_interface.h>
@@ -2025,17 +2026,22 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	 * Get memory for the request.
 	 *
 	 */
+	socket->s->sess = pool_alloc2(pool2_session);
+	if (!socket->s->sess) {
+		hlua_pusherror(L, "socket: out of memory");
+		goto out_fail_conf;
+	}
 
 	socket->s = pool_alloc2(pool2_stream);
 	if (!socket->s) {
 		hlua_pusherror(L, "socket: out of memory");
-		goto out_fail_conf;
+		goto out_fail_stream;
 	}
 
 	socket->s->task = task_new();
 	if (!socket->s->task) {
 		hlua_pusherror(L, "socket: out of memory");
-		goto out_free_session;
+		goto out_fail_task;
 	}
 
 	socket->s->req.buf = pool_alloc2(pool2_buffer);
@@ -2127,7 +2133,6 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	/* The stream dont have listener. The listener is used with real
 	 * proxies.
 	 */
-	socket->s->sess = NULL;
 	socket->s->listener = NULL;
 
 	/* The flags are initialized to 0. Values are setted later. */
@@ -2228,8 +2233,10 @@ out_fail_rep_buf:
 	pool_free2(pool2_buffer, socket->s->req.buf);
 out_fail_req_buf:
 	task_free(socket->s->task);
-out_free_session:
+out_fail_task:
 	pool_free2(pool2_stream, socket->s);
+out_fail_stream:
+	pool_free2(pool2_session, socket->s->sess);
 out_fail_conf:
 	WILL_LJMP(lua_error(L));
 	return 0;

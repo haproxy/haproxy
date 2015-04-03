@@ -37,6 +37,7 @@
 #include <proto/listener.h>
 #include <proto/log.h>
 #include <proto/raw_sock.h>
+#include <proto/session.h>
 #include <proto/stream.h>
 #include <proto/pipe.h>
 #include <proto/proto_http.h>
@@ -116,7 +117,10 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 
 	memset(s->stkctr, 0, sizeof(s->stkctr));
 
-	s->sess = NULL;
+	s->sess = pool_alloc2(pool2_session);
+	if (!s->sess)
+		goto out_free_stream;
+
 	s->listener = l;
 	s->fe  = p;
 
@@ -235,6 +239,8 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
  out_free_task:
 	task_free(t);
  out_free_session:
+	pool_free2(pool2_session, s->sess);
+ out_free_stream:
 	p->feconn--;
 	stream_store_counters(s);
 	pool_free2(pool2_stream, s);
@@ -352,6 +358,10 @@ static void kill_mini_session(struct stream *s)
 
 	task_delete(s->task);
 	task_free(s->task);
+	/* FIXME: for now we have a 1:1 relation between stream and session so
+	 * the stream must free the session.
+	 */
+	pool_free2(pool2_session, s->sess);
 	pool_free2(pool2_stream, s);
 }
 
@@ -655,6 +665,11 @@ static void stream_free(struct stream *s)
 	LIST_DEL(&s->list);
 	si_release_endpoint(&s->si[1]);
 	si_release_endpoint(&s->si[0]);
+
+	/* FIXME: for now we have a 1:1 relation between stream and session so
+	 * the stream must free the session.
+	 */
+	pool_free2(pool2_session, s->sess);
 	pool_free2(pool2_stream, s);
 
 	/* We may want to free the maximum amount of pools if the proxy is stopping */
@@ -664,6 +679,7 @@ static void stream_free(struct stream *s)
 		pool_flush2(pool2_requri);
 		pool_flush2(pool2_capture);
 		pool_flush2(pool2_stream);
+		pool_flush2(pool2_session);
 		pool_flush2(pool2_connection);
 		pool_flush2(pool2_pendconn);
 		pool_flush2(fe->req_cap_pool);
