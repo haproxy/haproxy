@@ -48,9 +48,6 @@ smp_fetch_len(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
 {
 	struct channel *chn;
 
-	if (!s)
-		return 0;
-
 	chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &s->res : &s->req;
 	if (!chn->buf)
 		return 0;
@@ -70,9 +67,6 @@ smp_fetch_ssl_hello_type(struct proxy *px, struct stream *s, void *l7, unsigned 
 	int hs_type, bleft;
 	struct channel *chn;
 	const unsigned char *data;
-
-	if (!s)
-		goto not_ssl_hello;
 
 	chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &s->res : &s->req;
 	if (!chn->buf)
@@ -140,7 +134,7 @@ smp_fetch_req_ssl_ver(struct proxy *px, struct stream *s, void *l7, unsigned int
 	int version, bleft, msg_len;
 	const unsigned char *data;
 
-	if (!s || !s->req.buf)
+	if (!s->req.buf)
 		return 0;
 
 	msg_len = 0;
@@ -277,9 +271,6 @@ smp_fetch_ssl_hello_sni(struct proxy *px, struct stream *s, void *l7, unsigned i
 	struct channel *chn;
 	unsigned char *data;
 
-	if (!s)
-		goto not_ssl_hello;
-
 	chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &s->res : &s->req;
 	if (!chn->buf)
 		goto not_ssl_hello;
@@ -415,7 +406,7 @@ fetch_rdp_cookie_name(struct stream *s, struct sample *smp, const char *cname, i
 	int bleft;
 	const unsigned char *data;
 
-	if (!s || !s->req.buf)
+	if (!s->req.buf)
 		return 0;
 
 	smp->flags = SMP_F_CONST;
@@ -542,9 +533,6 @@ smp_fetch_payload_lv(struct proxy *px, struct stream *s, void *l7, unsigned int 
 	/* by default buf offset == len offset + len size */
 	/* buf offset could be absolute or relative to len offset + len size if prefixed by + or - */
 
-	if (!s)
-		return 0;
-
 	chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &s->res : &s->req;
 	if (!chn->buf)
 		return 0;
@@ -591,9 +579,6 @@ smp_fetch_payload(struct proxy *px, struct stream *s, void *l7, unsigned int opt
 	unsigned int buf_offset = arg_p[0].data.uint;
 	unsigned int buf_size = arg_p[1].data.uint;
 	struct channel *chn;
-
-	if (!s)
-		return 0;
 
 	chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &s->res : &s->req;
 	if (!chn->buf)
