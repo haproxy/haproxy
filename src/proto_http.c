@@ -12033,6 +12033,7 @@ struct http_req_action_kw_list http_req_actions = {
 		{ "set-path",   parse_set_req_line },
 		{ "set-query",  parse_set_req_line },
 		{ "set-uri",    parse_set_req_line },
+		{ NULL, NULL }
 	}
 };
 
