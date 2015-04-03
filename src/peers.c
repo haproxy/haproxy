@@ -1169,6 +1169,7 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 		goto out_fail_conn1;
 	appctx->st0 = PEER_SESS_ST_CONNECT;
 	appctx->ctx.peers.ptr = (void *)ps;
+	s->sess->origin = &appctx->obj_type;
 
 	si_reset(&s->si[1]);
 

@@ -123,6 +123,7 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 
 	s->sess->listener = l;
 	s->sess->fe  = p;
+	s->sess->origin = &cli_conn->obj_type;
 
 	s->si[0].flags = SI_FL_NONE;
 	s->si[1].flags = SI_FL_ISBACK;

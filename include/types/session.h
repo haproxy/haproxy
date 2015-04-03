@@ -38,6 +38,7 @@
 struct session {
 	struct proxy *fe;               /* the proxy this session depends on for the client side */
 	struct listener *listener;      /* the listener by which the request arrived */
+	enum obj_type *origin;          /* the connection / applet which initiated this session */
 };
 
 #endif /* _TYPES_SESSION_H */

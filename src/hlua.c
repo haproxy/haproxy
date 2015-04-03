@@ -2197,6 +2197,8 @@ __LJMP static int hlua_socket_new(lua_State *L)
 		goto out_fail_conn1;
 	appctx->ctx.hlua.socket = socket;
 	appctx->ctx.hlua.connected = 0;
+	socket->s->sess->origin = &appctx->obj_type;
+
 	LIST_INIT(&appctx->ctx.hlua.wake_on_write);
 	LIST_INIT(&appctx->ctx.hlua.wake_on_read);
 
