@@ -111,15 +111,15 @@ int frontend_accept(struct stream *s)
 		setsockopt(cfd, SOL_SOCKET, SO_RCVBUF, &global.tune.client_rcvbuf, sizeof(global.tune.client_rcvbuf));
 
 	if (unlikely(fe->nb_req_cap > 0)) {
-		if ((s->txn.req.cap = pool_alloc2(fe->req_cap_pool)) == NULL)
+		if ((s->req_cap = pool_alloc2(fe->req_cap_pool)) == NULL)
 			goto out_return;	/* no memory */
-		memset(s->txn.req.cap, 0, fe->nb_req_cap * sizeof(void *));
+		memset(s->req_cap, 0, fe->nb_req_cap * sizeof(void *));
 	}
 
 	if (unlikely(fe->nb_rsp_cap > 0)) {
-		if ((s->txn.rsp.cap = pool_alloc2(fe->rsp_cap_pool)) == NULL)
+		if ((s->res_cap = pool_alloc2(fe->rsp_cap_pool)) == NULL)
 			goto out_free_reqcap;	/* no memory */
-		memset(s->txn.rsp.cap, 0, fe->nb_rsp_cap * sizeof(void *));
+		memset(s->res_cap, 0, fe->nb_rsp_cap * sizeof(void *));
 	}
 
 	if (fe->http_needed) {
@@ -209,9 +209,9 @@ int frontend_accept(struct stream *s)
 
 	/* Error unrolling */
  out_free_rspcap:
-	pool_free2(fe->rsp_cap_pool, s->txn.rsp.cap);
+	pool_free2(fe->rsp_cap_pool, s->res_cap);
  out_free_reqcap:
-	pool_free2(fe->req_cap_pool, s->txn.req.cap);
+	pool_free2(fe->req_cap_pool, s->req_cap);
  out_return:
 	return -1;
 }

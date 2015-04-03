@@ -1415,16 +1415,16 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 
 			case LOG_FMT_HDRREQUEST: // %hr
 				/* request header */
-				if (fe->nb_req_cap && txn->req.cap) {
+				if (fe->nb_req_cap && s->req_cap) {
 					if (tmp->options & LOG_OPT_QUOTE)
 						LOGCHAR('"');
 					LOGCHAR('{');
 					for (hdr = 0; hdr < fe->nb_req_cap; hdr++) {
 						if (hdr)
 							LOGCHAR('|');
-						if (txn->req.cap[hdr] != NULL) {
+						if (s->req_cap[hdr] != NULL) {
 							ret = encode_string(tmplog, dst + maxsize,
-									       '#', hdr_encode_map, txn->req.cap[hdr]);
+									       '#', hdr_encode_map, s->req_cap[hdr]);
 							if (ret == NULL || *ret != '\0')
 								goto out;
 							tmplog = ret;
@@ -1439,15 +1439,15 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 
 			case LOG_FMT_HDRREQUESTLIST: // %hrl
 				/* request header list */
-				if (fe->nb_req_cap && txn->req.cap) {
+				if (fe->nb_req_cap && s->req_cap) {
 					for (hdr = 0; hdr < fe->nb_req_cap; hdr++) {
 						if (hdr > 0)
 							LOGCHAR(' ');
 						if (tmp->options & LOG_OPT_QUOTE)
 							LOGCHAR('"');
-						if (txn->req.cap[hdr] != NULL) {
+						if (s->req_cap[hdr] != NULL) {
 							ret = encode_string(tmplog, dst + maxsize,
-									       '#', hdr_encode_map, txn->req.cap[hdr]);
+									       '#', hdr_encode_map, s->req_cap[hdr]);
 							if (ret == NULL || *ret != '\0')
 								goto out;
 							tmplog = ret;
@@ -1463,16 +1463,16 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 
 			case LOG_FMT_HDRRESPONS: // %hs
 				/* response header */
-				if (fe->nb_rsp_cap && txn->rsp.cap) {
+				if (fe->nb_rsp_cap && s->res_cap) {
 					if (tmp->options & LOG_OPT_QUOTE)
 						LOGCHAR('"');
 					LOGCHAR('{');
 					for (hdr = 0; hdr < fe->nb_rsp_cap; hdr++) {
 						if (hdr)
 							LOGCHAR('|');
-						if (txn->rsp.cap[hdr] != NULL) {
+						if (s->res_cap[hdr] != NULL) {
 							ret = encode_string(tmplog, dst + maxsize,
-							                    '#', hdr_encode_map, txn->rsp.cap[hdr]);
+							                    '#', hdr_encode_map, s->res_cap[hdr]);
 							if (ret == NULL || *ret != '\0')
 								goto out;
 							tmplog = ret;
@@ -1487,15 +1487,15 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 
 			case LOG_FMT_HDRRESPONSLIST: // %hsl
 				/* response header list */
-				if (fe->nb_rsp_cap && txn->rsp.cap) {
+				if (fe->nb_rsp_cap && s->res_cap) {
 					for (hdr = 0; hdr < fe->nb_rsp_cap; hdr++) {
 						if (hdr > 0)
 							LOGCHAR(' ');
 						if (tmp->options & LOG_OPT_QUOTE)
 							LOGCHAR('"');
-						if (txn->rsp.cap[hdr] != NULL) {
+						if (s->res_cap[hdr] != NULL) {
 							ret = encode_string(tmplog, dst + maxsize,
-							                    '#', hdr_encode_map, txn->rsp.cap[hdr]);
+							                    '#', hdr_encode_map, s->res_cap[hdr]);
 							if (ret == NULL || *ret != '\0')
 								goto out;
 							tmplog = ret;

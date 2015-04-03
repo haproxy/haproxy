@@ -1154,6 +1154,8 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	s->sess->fe = p;
 	s->be = s->sess->fe;
 	s->req.buf = s->res.buf = NULL;
+	s->req_cap = NULL;
+	s->res_cap = NULL;
 
 	s->si[0].flags = SI_FL_NONE;
 	s->si[1].flags = SI_FL_ISBACK;
@@ -1225,8 +1227,6 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	txn->srv_cookie = NULL;
 	txn->cli_cookie = NULL;
 	txn->uri = NULL;
-	txn->req.cap = NULL;
-	txn->rsp.cap = NULL;
 	txn->hdr_idx.v = NULL;
 	txn->hdr_idx.size = txn->hdr_idx.used = 0;
 

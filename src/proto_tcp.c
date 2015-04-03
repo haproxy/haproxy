@@ -1190,7 +1190,7 @@ resume_execution:
 			else if (rule->action == TCP_ACT_CAPTURE) {
 				struct sample *key;
 				struct cap_hdr *h = rule->act_prm.cap.hdr;
-				char **cap = s->txn.req.cap;
+				char **cap = s->req_cap;
 				int len;
 
 				key = sample_fetch_string(s->be, s, &s->txn, SMP_OPT_DIR_REQ | partial, rule->act_prm.cap.expr);

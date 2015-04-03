@@ -452,6 +452,8 @@ int stream_complete(struct stream *s)
 	s->be  = sess->fe;
 	s->comp_algo = NULL;
 	s->req.buf = s->res.buf = NULL;
+	s->req_cap = NULL;
+	s->res_cap = NULL;
 
 	/* Let's count a stream now */
 	proxy_inc_fe_sess_ctr(l, p);
@@ -538,8 +540,6 @@ int stream_complete(struct stream *s)
 	txn->srv_cookie = NULL;
 	txn->cli_cookie = NULL;
 	txn->uri = NULL;
-	txn->req.cap = NULL;
-	txn->rsp.cap = NULL;
 	txn->hdr_idx.v = NULL;
 	txn->hdr_idx.size = txn->hdr_idx.used = 0;
 	txn->flags = 0;
@@ -651,8 +651,8 @@ static void stream_free(struct stream *s)
 
 	pool_free2(pool2_hdr_idx, txn->hdr_idx.v);
 	if (fe) {
-		pool_free2(fe->rsp_cap_pool, txn->rsp.cap);
-		pool_free2(fe->req_cap_pool, txn->req.cap);
+		pool_free2(fe->rsp_cap_pool, s->res_cap);
+		pool_free2(fe->req_cap_pool, s->req_cap);
 	}
 
 	stream_store_counters(s);

@@ -2951,9 +2951,9 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	msg->flags &= ~HTTP_MSGF_XFER_LEN;
 
 	/* 5: we may need to capture headers */
-	if (unlikely((s->logs.logwait & LW_REQHDR) && txn->req.cap))
+	if (unlikely((s->logs.logwait & LW_REQHDR) && s->req_cap))
 		capture_headers(req->buf->p, &txn->hdr_idx,
-				txn->req.cap, sess->fe->req_cap);
+				s->req_cap, sess->fe->req_cap);
 
 	/* 6: determine the transfer-length.
 	 * According to RFC2616 #4.4, amended by the HTTPbis working group,
@@ -6076,9 +6076,9 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	 * 3: we may need to capture headers
 	 */
 	s->logs.logwait &= ~LW_RESP;
-	if (unlikely((s->logs.logwait & LW_RSPHDR) && txn->rsp.cap))
+	if (unlikely((s->logs.logwait & LW_RSPHDR) && s->res_cap))
 		capture_headers(rep->buf->p, &txn->hdr_idx,
-				txn->rsp.cap, sess->fe->rsp_cap);
+				s->res_cap, sess->fe->rsp_cap);
 
 	/* 4: determine the transfer-length.
 	 * According to RFC2616 #4.4, amended by the HTTPbis working group,
@@ -8824,12 +8824,6 @@ void http_init_txn(struct stream *s)
 	if (fe->options2 & PR_O2_REQBUG_OK)
 		txn->req.err_pos = -1;            /* let buggy requests pass */
 
-	if (txn->req.cap)
-		memset(txn->req.cap, 0, fe->nb_req_cap * sizeof(void *));
-
-	if (txn->rsp.cap)
-		memset(txn->rsp.cap, 0, fe->nb_rsp_cap * sizeof(void *));
-
 	if (txn->hdr_idx.v)
 		hdr_idx_init(&txn->hdr_idx);
 }
@@ -8859,18 +8853,18 @@ void http_end_txn(struct stream *s)
 	txn->srv_cookie = NULL;
 	txn->cli_cookie = NULL;
 
-	if (txn->req.cap) {
+	if (s->req_cap) {
 		struct cap_hdr *h;
 		for (h = fe->req_cap; h; h = h->next)
-			pool_free2(h->pool, txn->req.cap[h->index]);
-		memset(txn->req.cap, 0, fe->nb_req_cap * sizeof(void *));
+			pool_free2(h->pool, s->req_cap[h->index]);
+		memset(s->req_cap, 0, fe->nb_req_cap * sizeof(void *));
 	}
 
-	if (txn->rsp.cap) {
+	if (s->res_cap) {
 		struct cap_hdr *h;
 		for (h = fe->rsp_cap; h; h = h->next)
-			pool_free2(h->pool, txn->rsp.cap[h->index]);
-		memset(txn->rsp.cap, 0, fe->nb_rsp_cap * sizeof(void *));
+			pool_free2(h->pool, s->res_cap[h->index]);
+		memset(s->res_cap, 0, fe->nb_rsp_cap * sizeof(void *));
 	}
 
 }
@@ -10830,7 +10824,6 @@ smp_fetch_capture_header_req(struct proxy *px, struct stream *l4, void *l7, unsi
                  const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct proxy *fe = strm_sess(l4)->fe;
-	struct http_txn *txn = l7;
 	int idx;
 
 	if (!args || args->type != ARGT_UINT)
@@ -10838,13 +10831,13 @@ smp_fetch_capture_header_req(struct proxy *px, struct stream *l4, void *l7, unsi
 
 	idx = args->data.uint;
 
-	if (idx > (fe->nb_req_cap - 1) || txn->req.cap == NULL || txn->req.cap[idx] == NULL)
+	if (idx > (fe->nb_req_cap - 1) || l4->req_cap == NULL || l4->req_cap[idx] == NULL)
 		return 0;
 
 	smp->type = SMP_T_STR;
 	smp->flags |= SMP_F_CONST;
-	smp->data.str.str = txn->req.cap[idx];
-	smp->data.str.len = strlen(txn->req.cap[idx]);
+	smp->data.str.str = l4->req_cap[idx];
+	smp->data.str.len = strlen(l4->req_cap[idx]);
 
 	return 1;
 }
@@ -10857,7 +10850,6 @@ smp_fetch_capture_header_res(struct proxy *px, struct stream *l4, void *l7, unsi
                  const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct proxy *fe = strm_sess(l4)->fe;
-	struct http_txn *txn = l7;
 	int idx;
 
 	if (!args || args->type != ARGT_UINT)
@@ -10865,13 +10857,13 @@ smp_fetch_capture_header_res(struct proxy *px, struct stream *l4, void *l7, unsi
 
 	idx = args->data.uint;
 
-	if (idx > (fe->nb_rsp_cap - 1) || txn->rsp.cap == NULL || txn->rsp.cap[idx] == NULL)
+	if (idx > (fe->nb_rsp_cap - 1) || l4->res_cap == NULL || l4->res_cap[idx] == NULL)
 		return 0;
 
 	smp->type = SMP_T_STR;
 	smp->flags |= SMP_F_CONST;
-	smp->data.str.str = txn->rsp.cap[idx];
-	smp->data.str.len = strlen(txn->rsp.cap[idx]);
+	smp->data.str.str = l4->res_cap[idx];
+	smp->data.str.len = strlen(l4->res_cap[idx]);
 
 	return 1;
 }

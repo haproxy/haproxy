@@ -2165,14 +2165,14 @@ __LJMP static int hlua_socket_new(lua_State *L)
 
 	/* XXX: ? */
 	socket->s->pend_pos = NULL;
+	socket->s->req_cap = NULL;
+	socket->s->res_cap = NULL;
 
 	/* XXX: See later. */
 	socket->s->txn.sessid = NULL;
 	socket->s->txn.srv_cookie = NULL;
 	socket->s->txn.cli_cookie = NULL;
 	socket->s->txn.uri = NULL;
-	socket->s->txn.req.cap = NULL;
-	socket->s->txn.rsp.cap = NULL;
 	socket->s->txn.hdr_idx.v = NULL;
 	socket->s->txn.hdr_idx.size = 0;
 	socket->s->txn.hdr_idx.used = 0;

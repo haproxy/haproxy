@@ -141,6 +141,9 @@ struct stream {
 
 	struct stkctr stkctr[MAX_SESS_STKCTR];  /* stick counters */
 
+	char **req_cap;                         /* array of captures from the request (may be NULL) */
+	char **res_cap;                         /* array of captures from the response (may be NULL) */
+
 	struct stream_interface si[2];          /* client and server stream interfaces */
 	struct strm_logs logs;                  /* logs for this stream */
 
