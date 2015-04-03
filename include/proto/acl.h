@@ -99,7 +99,7 @@ struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, co
  * function only computes the condition, it does not apply the polarity required
  * by IF/UNLESS, it's up to the caller to do this.
  */
-enum acl_test_res acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct stream *l4, void *l7, unsigned int opt);
+enum acl_test_res acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct stream *strm, unsigned int opt);
 
 /* Returns a pointer to the first ACL conflicting with usage at place <where>
  * which is one of the SMP_VAL_* bits indicating a check place, or NULL if

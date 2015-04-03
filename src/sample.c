@@ -1022,8 +1022,7 @@ out_error:
  *   smp      1        0     Present, may change (eg: request length)
  *   smp      1        1     Present, last known value (eg: request length)
  */
-struct sample *sample_process(struct proxy *px, struct stream *l4, void *l7,
-                              unsigned int opt,
+struct sample *sample_process(struct proxy *px, struct stream *strm, unsigned int opt,
                               struct sample_expr *expr, struct sample *p)
 {
 	struct sample_conv_expr *conv_expr;
@@ -1033,7 +1032,7 @@ struct sample *sample_process(struct proxy *px, struct stream *l4, void *l7,
 		memset(p, 0, sizeof(*p));
 	}
 
-	if (!expr->fetch->process(px, l4, l7, opt, expr->arg_p, p, expr->fetch->kw, expr->fetch->private))
+	if (!expr->fetch->process(px, strm, opt, expr->arg_p, p, expr->fetch->kw, expr->fetch->private))
 		return NULL;
 
 	list_for_each_entry(conv_expr, &expr->conv_exprs, list) {
@@ -1052,7 +1051,7 @@ struct sample *sample_process(struct proxy *px, struct stream *l4, void *l7,
 
 		/* OK cast succeeded */
 
-		if (!conv_expr->conv->process(l4, conv_expr->arg_p, p, conv_expr->conv->private))
+		if (!conv_expr->conv->process(strm, conv_expr->arg_p, p, conv_expr->conv->private))
 			return NULL;
 	}
 	return p;
@@ -1331,14 +1330,14 @@ int smp_resolve_args(struct proxy *p)
  *   smp      1        0     Not present yet, may appear later (eg: header)
  *   smp      1        1     never happens (either flag is cleared on output)
  */
-struct sample *sample_fetch_string(struct proxy *px, struct stream *l4, void *l7,
+struct sample *sample_fetch_string(struct proxy *px, struct stream *strm,
                                    unsigned int opt, struct sample_expr *expr)
 {
 	struct sample *smp = &temp_smp;
 
 	memset(smp, 0, sizeof(*smp));
 
-	if (!sample_process(px, l4, l7, opt, expr, smp)) {
+	if (!sample_process(px, strm, opt, expr, smp)) {
 		if ((smp->flags & SMP_F_MAY_CHANGE) && !(opt & SMP_OPT_FINAL))
 			return smp;
 		return NULL;
@@ -2147,7 +2146,7 @@ static int sample_conv_arith_even(struct stream *stream, const struct arg *arg_p
 
 /* force TRUE to be returned at the fetch level */
 static int
-smp_fetch_true(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
+smp_fetch_true(struct proxy *px, struct stream *strm, unsigned int opt,
                const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_BOOL;
@@ -2157,7 +2156,7 @@ smp_fetch_true(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
 
 /* force FALSE to be returned at the fetch level */
 static int
-smp_fetch_false(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
+smp_fetch_false(struct proxy *px, struct stream *strm, unsigned int opt,
                 const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_BOOL;
@@ -2167,7 +2166,7 @@ smp_fetch_false(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
 
 /* retrieve environment variable $1 as a string */
 static int
-smp_fetch_env(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
+smp_fetch_env(struct proxy *px, struct stream *strm, unsigned int opt,
               const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	char *env;
@@ -2190,7 +2189,7 @@ smp_fetch_env(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
  * of args[0] seconds.
  */
 static int
-smp_fetch_date(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
+smp_fetch_date(struct proxy *px, struct stream *strm, unsigned int opt,
                const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->data.uint = date.tv_sec;
@@ -2206,7 +2205,7 @@ smp_fetch_date(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
 
 /* returns the number of processes */
 static int
-smp_fetch_nbproc(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
+smp_fetch_nbproc(struct proxy *px, struct stream *strm, unsigned int opt,
                  const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_UINT;
@@ -2216,7 +2215,7 @@ smp_fetch_nbproc(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
 
 /* returns the number of the current process (between 1 and nbproc */
 static int
-smp_fetch_proc(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
+smp_fetch_proc(struct proxy *px, struct stream *strm, unsigned int opt,
                const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_UINT;
@@ -2228,7 +2227,7 @@ smp_fetch_proc(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
  * range specified in argument.
  */
 static int
-smp_fetch_rand(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
+smp_fetch_rand(struct proxy *px, struct stream *strm, unsigned int opt,
                const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->data.uint = random();
@@ -2244,7 +2243,7 @@ smp_fetch_rand(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
 
 /* returns true if the current process is stopping */
 static int
-smp_fetch_stopping(struct proxy *px, struct stream *s, void *l7, unsigned int opt,
+smp_fetch_stopping(struct proxy *px, struct stream *strm, unsigned int opt,
                    const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_BOOL;

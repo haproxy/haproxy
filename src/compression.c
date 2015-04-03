@@ -838,26 +838,26 @@ static int deflate_end(struct comp_ctx **comp_ctx)
 
 /* boolean, returns true if compression is used (either gzip or deflate) in the response */
 static int
-smp_fetch_res_comp(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
-                 const struct arg *args, struct sample *smp, const char *kw, void *private)
+smp_fetch_res_comp(struct proxy *px, struct stream *strm, unsigned int opt,
+                   const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_BOOL;
-	smp->data.uint = (l4->comp_algo != NULL);
+	smp->data.uint = (strm->comp_algo != NULL);
 	return 1;
 }
 
 /* string, returns algo */
 static int
-smp_fetch_res_comp_algo(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
-                 const struct arg *args, struct sample *smp, const char *kw, void *private)
+smp_fetch_res_comp_algo(struct proxy *px, struct stream *strm, unsigned int opt,
+                        const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	if (!l4->comp_algo)
+	if (!strm->comp_algo)
 		return 0;
 
 	smp->type = SMP_T_STR;
 	smp->flags = SMP_F_CONST;
-	smp->data.str.str = l4->comp_algo->cfg_name;
-	smp->data.str.len = l4->comp_algo->cfg_name_len;
+	smp->data.str.str = strm->comp_algo->cfg_name;
+	smp->data.str.len = strm->comp_algo->cfg_name_len;
 	return 1;
 }
 

@@ -285,8 +285,7 @@ struct sample_conv_expr {
 struct sample_fetch {
 	const char *kw;                           /* configuration keyword */
 	int (*process)(struct proxy *px,
-	               struct stream *l4,
-	               void *l7,
+	               struct stream *strm,
 		       unsigned int opt,          /* fetch options (SMP_OPT_*) */
 		       const struct arg *arg_p,
 	               struct sample *smp,

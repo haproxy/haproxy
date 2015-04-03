@@ -1391,7 +1391,7 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 			int ret = 1;
 
 			if (rule->cond) {
-				ret = acl_exec_cond(rule->cond, fe, s, s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
+				ret = acl_exec_cond(rule->cond, fe, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
 				ret = acl_pass(ret);
 				if (rule->cond->pol == ACL_COND_UNLESS)
 					ret = !ret;
@@ -1444,7 +1444,7 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 		int ret = 1;
 
 		if (prst_rule->cond) {
-	                ret = acl_exec_cond(prst_rule->cond, s->be, s, s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
+	                ret = acl_exec_cond(prst_rule->cond, s->be, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
 			ret = acl_pass(ret);
 			if (prst_rule->cond->pol == ACL_COND_UNLESS)
 				ret = !ret;
@@ -1502,7 +1502,7 @@ static int process_server_rules(struct stream *s, struct channel *req, int an_bi
 		list_for_each_entry(rule, &px->server_rules, list) {
 			int ret;
 
-			ret = acl_exec_cond(rule->cond, s->be, s, s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
+			ret = acl_exec_cond(rule->cond, s->be, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
 			ret = acl_pass(ret);
 			if (rule->cond->pol == ACL_COND_UNLESS)
 				ret = !ret;
@@ -1567,7 +1567,7 @@ static int process_sticking_rules(struct stream *s, struct channel *req, int an_
 			continue;
 
 		if (rule->cond) {
-	                ret = acl_exec_cond(rule->cond, px, s, s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
+	                ret = acl_exec_cond(rule->cond, px, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
 			ret = acl_pass(ret);
 			if (rule->cond->pol == ACL_COND_UNLESS)
 				ret = !ret;
@@ -1576,7 +1576,7 @@ static int process_sticking_rules(struct stream *s, struct channel *req, int an_
 		if (ret) {
 			struct stktable_key *key;
 
-			key = stktable_fetch_key(rule->table.t, px, s, s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->expr, NULL);
+			key = stktable_fetch_key(rule->table.t, px, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->expr, NULL);
 			if (!key)
 				continue;
 
@@ -1670,7 +1670,7 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
 			continue;
 
 		if (rule->cond) {
-	                ret = acl_exec_cond(rule->cond, px, s, s->txn, SMP_OPT_DIR_RES|SMP_OPT_FINAL);
+	                ret = acl_exec_cond(rule->cond, px, s, SMP_OPT_DIR_RES|SMP_OPT_FINAL);
 	                ret = acl_pass(ret);
 			if (rule->cond->pol == ACL_COND_UNLESS)
 				ret = !ret;
@@ -1679,7 +1679,7 @@ static int process_store_rules(struct stream *s, struct channel *rep, int an_bit
 		if (ret) {
 			struct stktable_key *key;
 
-			key = stktable_fetch_key(rule->table.t, px, s, s->txn, SMP_OPT_DIR_RES|SMP_OPT_FINAL, rule->expr, NULL);
+			key = stktable_fetch_key(rule->table.t, px, s, SMP_OPT_DIR_RES|SMP_OPT_FINAL, rule->expr, NULL);
 			if (!key)
 				continue;
 
@@ -2951,12 +2951,12 @@ smp_fetch_sc_stkctr(struct stream *l4, const struct arg *args, const char *kw)
  * Supports being called as "sc[0-9]_tracked" only.
  */
 static int
-smp_fetch_sc_tracked(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
-                      const struct arg *args, struct sample *smp, const char *kw, void *private)
+smp_fetch_sc_tracked(struct proxy *px, struct stream *strm, unsigned int opt,
+                     const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TEST;
 	smp->type = SMP_T_BOOL;
-	smp->data.uint = !!smp_fetch_sc_stkctr(l4, args, kw);
+	smp->data.uint = !!smp_fetch_sc_stkctr(strm, args, kw);
 	return 1;
 }
 
@@ -2966,10 +2966,10 @@ smp_fetch_sc_tracked(struct proxy *px, struct stream *l4, void *l7, unsigned int
  * zero is returned if the key is new.
  */
 static int
-smp_fetch_sc_get_gpc0(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
+smp_fetch_sc_get_gpc0(struct proxy *px, struct stream *strm, unsigned int opt,
                       const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
+	struct stkctr *stkctr = smp_fetch_sc_stkctr(strm, args, kw);
 
 	if (!stkctr)
 		return 0;
@@ -2993,10 +2993,10 @@ smp_fetch_sc_get_gpc0(struct proxy *px, struct stream *l4, void *l7, unsigned in
  * Value zero is returned if the key is new.
  */
 static int
-smp_fetch_sc_gpc0_rate(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
+smp_fetch_sc_gpc0_rate(struct proxy *px, struct stream *strm, unsigned int opt,
                        const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
+	struct stkctr *stkctr = smp_fetch_sc_stkctr(strm, args, kw);
 
 	if (!stkctr)
 		return 0;
@@ -3019,10 +3019,10 @@ smp_fetch_sc_gpc0_rate(struct proxy *px, struct stream *l4, void *l7, unsigned i
  * Supports being called as "sc[0-9]_inc_gpc0" or "src_inc_gpc0" only.
  */
 static int
-smp_fetch_sc_inc_gpc0(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
+smp_fetch_sc_inc_gpc0(struct proxy *px, struct stream *strm, unsigned int opt,
                       const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
+	struct stkctr *stkctr = smp_fetch_sc_stkctr(strm, args, kw);
 
 	if (!stkctr)
 		return 0;
@@ -3056,10 +3056,10 @@ smp_fetch_sc_inc_gpc0(struct proxy *px, struct stream *l4, void *l7, unsigned in
  * Supports being called as "sc[0-9]_clr_gpc0" or "src_clr_gpc0" only.
  */
 static int
-smp_fetch_sc_clr_gpc0(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
+smp_fetch_sc_clr_gpc0(struct proxy *px, struct stream *strm, unsigned int opt,
                       const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
+	struct stkctr *stkctr = smp_fetch_sc_stkctr(strm, args, kw);
 
 	if (!stkctr)
 		return 0;
@@ -3082,10 +3082,10 @@ smp_fetch_sc_clr_gpc0(struct proxy *px, struct stream *l4, void *l7, unsigned in
  * "src_conn_cnt" only.
  */
 static int
-smp_fetch_sc_conn_cnt(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
+smp_fetch_sc_conn_cnt(struct proxy *px, struct stream *strm, unsigned int opt,
                       const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
+	struct stkctr *stkctr = smp_fetch_sc_stkctr(strm, args, kw);
 
 	if (!stkctr)
 		return 0;
@@ -3107,10 +3107,10 @@ smp_fetch_sc_conn_cnt(struct proxy *px, struct stream *l4, void *l7, unsigned in
  * only.
  */
 static int
-smp_fetch_sc_conn_rate(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
+smp_fetch_sc_conn_rate(struct proxy *px, struct stream *strm, unsigned int opt,
                        const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
+	struct stkctr *stkctr = smp_fetch_sc_stkctr(strm, args, kw);
 
 	if (!stkctr)
 		return 0;
@@ -3133,10 +3133,10 @@ smp_fetch_sc_conn_rate(struct proxy *px, struct stream *l4, void *l7, unsigned i
  * Accepts exactly 1 argument of type table.
  */
 static int
-smp_fetch_src_updt_conn_cnt(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
+smp_fetch_src_updt_conn_cnt(struct proxy *px, struct stream *strm, unsigned int opt,
                             const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct session *sess = strm_sess(l4);
+	struct session *sess = strm_sess(strm);
 	struct connection *conn = objt_conn(sess->origin);
 	struct stksess *ts;
 	struct stktable_key *key;
@@ -3170,10 +3170,10 @@ smp_fetch_src_updt_conn_cnt(struct proxy *px, struct stream *l4, void *l7, unsig
  * "src_conn_cur" only.
  */
 static int
-smp_fetch_sc_conn_cur(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
+smp_fetch_sc_conn_cur(struct proxy *px, struct stream *strm, unsigned int opt,
                       const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
+	struct stkctr *stkctr = smp_fetch_sc_stkctr(strm, args, kw);
 
 	if (!stkctr)
 		return 0;
@@ -3195,10 +3195,10 @@ smp_fetch_sc_conn_cur(struct proxy *px, struct stream *l4, void *l7, unsigned in
  * "src_sess_cnt" only.
  */
 static int
-smp_fetch_sc_sess_cnt(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
+smp_fetch_sc_sess_cnt(struct proxy *px, struct stream *strm, unsigned int opt,
                       const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
+	struct stkctr *stkctr = smp_fetch_sc_stkctr(strm, args, kw);
 
 	if (!stkctr)
 		return 0;
@@ -3219,10 +3219,10 @@ smp_fetch_sc_sess_cnt(struct proxy *px, struct stream *l4, void *l7, unsigned in
  * Supports being called as "sc[0-9]_sess_rate" or "src_sess_rate" only.
  */
 static int
-smp_fetch_sc_sess_rate(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
+smp_fetch_sc_sess_rate(struct proxy *px, struct stream *strm, unsigned int opt,
                        const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
+	struct stkctr *stkctr = smp_fetch_sc_stkctr(strm, args, kw);
 
 	if (!stkctr)
 		return 0;
@@ -3245,10 +3245,10 @@ smp_fetch_sc_sess_rate(struct proxy *px, struct stream *l4, void *l7, unsigned i
  * "src_http_req_cnt" only.
  */
 static int
-smp_fetch_sc_http_req_cnt(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
+smp_fetch_sc_http_req_cnt(struct proxy *px, struct stream *strm, unsigned int opt,
                           const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
+	struct stkctr *stkctr = smp_fetch_sc_stkctr(strm, args, kw);
 
 	if (!stkctr)
 		return 0;
@@ -3270,10 +3270,10 @@ smp_fetch_sc_http_req_cnt(struct proxy *px, struct stream *l4, void *l7, unsigne
  * "src_http_req_rate" only.
  */
 static int
-smp_fetch_sc_http_req_rate(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
+smp_fetch_sc_http_req_rate(struct proxy *px, struct stream *strm, unsigned int opt,
                            const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
+	struct stkctr *stkctr = smp_fetch_sc_stkctr(strm, args, kw);
 
 	if (!stkctr)
 		return 0;
@@ -3296,10 +3296,10 @@ smp_fetch_sc_http_req_rate(struct proxy *px, struct stream *l4, void *l7, unsign
  * "src_http_err_cnt" only.
  */
 static int
-smp_fetch_sc_http_err_cnt(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
+smp_fetch_sc_http_err_cnt(struct proxy *px, struct stream *strm, unsigned int opt,
                           const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
+	struct stkctr *stkctr = smp_fetch_sc_stkctr(strm, args, kw);
 
 	if (!stkctr)
 		return 0;
@@ -3321,10 +3321,10 @@ smp_fetch_sc_http_err_cnt(struct proxy *px, struct stream *l4, void *l7, unsigne
  * "src_http_err_rate" only.
  */
 static int
-smp_fetch_sc_http_err_rate(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
+smp_fetch_sc_http_err_rate(struct proxy *px, struct stream *strm, unsigned int opt,
                            const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
+	struct stkctr *stkctr = smp_fetch_sc_stkctr(strm, args, kw);
 
 	if (!stkctr)
 		return 0;
@@ -3347,10 +3347,10 @@ smp_fetch_sc_http_err_rate(struct proxy *px, struct stream *l4, void *l7, unsign
  * "sc[0-9]_kbytes_in" or "src_kbytes_in" only.
  */
 static int
-smp_fetch_sc_kbytes_in(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
+smp_fetch_sc_kbytes_in(struct proxy *px, struct stream *strm, unsigned int opt,
                        const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
+	struct stkctr *stkctr = smp_fetch_sc_stkctr(strm, args, kw);
 
 	if (!stkctr)
 		return 0;
@@ -3372,10 +3372,10 @@ smp_fetch_sc_kbytes_in(struct proxy *px, struct stream *l4, void *l7, unsigned i
  * "sc[0-9]_bytes_in_rate" or "src_bytes_in_rate" only.
  */
 static int
-smp_fetch_sc_bytes_in_rate(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
+smp_fetch_sc_bytes_in_rate(struct proxy *px, struct stream *strm, unsigned int opt,
                            const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
+	struct stkctr *stkctr = smp_fetch_sc_stkctr(strm, args, kw);
 
 	if (!stkctr)
 		return 0;
@@ -3398,10 +3398,10 @@ smp_fetch_sc_bytes_in_rate(struct proxy *px, struct stream *l4, void *l7, unsign
  * "sc[0-9]_kbytes_out" or "src_kbytes_out" only.
  */
 static int
-smp_fetch_sc_kbytes_out(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
-                       const struct arg *args, struct sample *smp, const char *kw, void *private)
+smp_fetch_sc_kbytes_out(struct proxy *px, struct stream *strm, unsigned int opt,
+                        const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
+	struct stkctr *stkctr = smp_fetch_sc_stkctr(strm, args, kw);
 
 	if (!stkctr)
 		return 0;
@@ -3423,10 +3423,10 @@ smp_fetch_sc_kbytes_out(struct proxy *px, struct stream *l4, void *l7, unsigned 
  * "sc[0-9]_bytes_out_rate" or "src_bytes_out_rate" only.
  */
 static int
-smp_fetch_sc_bytes_out_rate(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
+smp_fetch_sc_bytes_out_rate(struct proxy *px, struct stream *strm, unsigned int opt,
                             const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
+	struct stkctr *stkctr = smp_fetch_sc_stkctr(strm, args, kw);
 
 	if (!stkctr)
 		return 0;
@@ -3448,10 +3448,10 @@ smp_fetch_sc_bytes_out_rate(struct proxy *px, struct stream *l4, void *l7, unsig
  * tracked frontend counters. Supports being called as "sc[0-9]_trackers" only.
  */
 static int
-smp_fetch_sc_trackers(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
+smp_fetch_sc_trackers(struct proxy *px, struct stream *strm, unsigned int opt,
                        const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct stkctr *stkctr = smp_fetch_sc_stkctr(l4, args, kw);
+	struct stkctr *stkctr = smp_fetch_sc_stkctr(strm, args, kw);
 
 	if (!stkctr)
 		return 0;
@@ -3466,7 +3466,7 @@ smp_fetch_sc_trackers(struct proxy *px, struct stream *l4, void *l7, unsigned in
  * Accepts exactly 1 argument of type table.
  */
 static int
-smp_fetch_table_cnt(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
+smp_fetch_table_cnt(struct proxy *px, struct stream *strm, unsigned int opt,
                     const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TEST;
@@ -3479,7 +3479,7 @@ smp_fetch_table_cnt(struct proxy *px, struct stream *l4, void *l7, unsigned int 
  * Accepts exactly 1 argument of type table.
  */
 static int
-smp_fetch_table_avl(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
+smp_fetch_table_avl(struct proxy *px, struct stream *strm, unsigned int opt,
                     const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	px = args->data.prx;

@@ -680,13 +680,13 @@ struct stktable_key *smp_to_stkey(struct sample *smp, struct stktable *t)
  *   smp      1        0     not possible
  *   smp      1        1     Present, last known value (eg: request length)
  */
-struct stktable_key *stktable_fetch_key(struct stktable *t, struct proxy *px, struct stream *l4, void *l7,
+struct stktable_key *stktable_fetch_key(struct stktable *t, struct proxy *px, struct stream *strm,
                                         unsigned int opt, struct sample_expr *expr, struct sample *smp)
 {
 	if (smp)
 		memset(smp, 0, sizeof(*smp));
 
-	smp = sample_process(px, l4, l7, opt, expr, smp);
+	smp = sample_process(px, strm, opt, expr, smp);
 	if (!smp)
 		return NULL;
 
