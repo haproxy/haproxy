@@ -62,6 +62,12 @@ int stream_alloc_work_buffer(struct stream *s);
 void stream_release_buffers(struct stream *s);
 int stream_alloc_recv_buffer(struct channel *chn);
 
+/* returns the session this stream belongs to */
+static inline struct session *strm_sess(const struct stream *strm)
+{
+	return strm->sess;
+}
+
 /* sets the stick counter's entry pointer */
 static inline void stkctr_set_entry(struct stkctr *stkctr, struct stksess *entry)
 {

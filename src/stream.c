@@ -116,6 +116,7 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 
 	memset(s->stkctr, 0, sizeof(s->stkctr));
 
+	s->sess = NULL;
 	s->listener = l;
 	s->fe  = p;
 

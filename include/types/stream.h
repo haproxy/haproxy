@@ -39,6 +39,7 @@
 #include <types/proxy.h>
 #include <types/queue.h>
 #include <types/server.h>
+#include <types/session.h>
 #include <types/stream_interface.h>
 #include <types/task.h>
 #include <types/stick_table.h>
@@ -118,6 +119,8 @@ struct stream {
 
 	struct proxy *fe;               /* the proxy this stream depends on for the client side */
 	struct proxy *be;               /* the proxy this stream depends on for the server side */
+
+	struct session *sess;           /* the session this stream is attached to */
 
 	struct listener *listener;      /* the listener by which the request arrived */
 	struct server *srv_conn;        /* stream already has a slot on a server and is not in queue */

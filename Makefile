@@ -704,7 +704,7 @@ OBJS = src/haproxy.o src/sessionhash.o src/base64.o src/protocol.o \
        src/proto_http.o src/raw_sock.o src/appsession.o src/backend.o \
        src/lb_chash.o src/lb_fwlc.o src/lb_fwrr.o src/lb_map.o src/lb_fas.o \
        src/stream_interface.o src/dumpstats.o src/proto_tcp.o \
-       src/stream.o src/hdr_idx.o src/ev_select.o src/signal.o \
+       src/session.o src/stream.o src/hdr_idx.o src/ev_select.o src/signal.o \
        src/acl.o src/sample.o src/memory.o src/freq_ctr.o src/auth.o \
        src/compression.o src/payload.o src/hash.o src/pattern.o src/map.o \
        src/namespace.o src/mailers.o

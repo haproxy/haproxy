@@ -1144,6 +1144,7 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 
 	s->task = t;
 	s->listener = l;
+	s->sess = NULL;
 
 	/* Note: initially, the stream's backend points to the frontend.
 	 * This changes later when switching rules are executed or

@@ -97,6 +97,7 @@
 #include <proto/proxy.h>
 #include <proto/queue.h>
 #include <proto/server.h>
+#include <proto/session.h>
 #include <proto/stream.h>
 #include <proto/signal.h>
 #include <proto/task.h>
@@ -560,6 +561,7 @@ void init(int argc, char **argv)
 		exit(1);
 	init_task();
 	init_stream();
+	init_session();
 	init_connection();
 	/* warning, we init buffers later */
 	init_pendconn();
