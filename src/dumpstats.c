@@ -551,7 +551,7 @@ static int stats_dump_table_head_to_buffer(struct chunk *msg, struct stream_inte
 
 	/* any other information should be dumped here */
 
-	if (target && s->listener->bind_conf->level < ACCESS_LVL_OPER)
+	if (target && strm_sess(s)->listener->bind_conf->level < ACCESS_LVL_OPER)
 		chunk_appendf(msg, "# contents not dumped due to insufficient privileges\n");
 
 	if (bi_putchk(si_ic(si), msg) == -1) {
@@ -705,7 +705,7 @@ static void stats_sock_table_key_request(struct stream_interface *si, char **arg
 	}
 
 	/* check permissions */
-	if (s->listener->bind_conf->level < ACCESS_LVL_OPER) {
+	if (strm_sess(s)->listener->bind_conf->level < ACCESS_LVL_OPER) {
 		appctx->ctx.cli.msg = stats_permission_denied_msg;
 		appctx->st0 = STAT_CLI_PRINT;
 		return;
@@ -905,7 +905,7 @@ static struct proxy *expect_frontend_admin(struct stream *s, struct stream_inter
 	struct appctx *appctx = __objt_appctx(si->end);
 	struct proxy *px;
 
-	if (s->listener->bind_conf->level < ACCESS_LVL_ADMIN) {
+	if (strm_sess(s)->listener->bind_conf->level < ACCESS_LVL_ADMIN) {
 		appctx->ctx.cli.msg = stats_permission_denied_msg;
 		appctx->st0 = STAT_CLI_PRINT;
 		return NULL;
@@ -938,7 +938,7 @@ static struct server *expect_server_admin(struct stream *s, struct stream_interf
 	struct server *sv;
 	char *line;
 
-	if (s->listener->bind_conf->level < ACCESS_LVL_ADMIN) {
+	if (strm_sess(s)->listener->bind_conf->level < ACCESS_LVL_ADMIN) {
 		appctx->ctx.cli.msg = stats_permission_denied_msg;
 		appctx->st0 = STAT_CLI_PRINT;
 		return NULL;
@@ -1111,7 +1111,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 		}
 		else if (strcmp(args[1], "sess") == 0) {
 			appctx->st2 = STAT_ST_INIT;
-			if (s->listener->bind_conf->level < ACCESS_LVL_OPER) {
+			if (strm_sess(s)->listener->bind_conf->level < ACCESS_LVL_OPER) {
 				appctx->ctx.cli.msg = stats_permission_denied_msg;
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
@@ -1127,7 +1127,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			appctx->st0 = STAT_CLI_O_SESS; // stats_dump_sess_to_buffer
 		}
 		else if (strcmp(args[1], "errors") == 0) {
-			if (s->listener->bind_conf->level < ACCESS_LVL_OPER) {
+			if (strm_sess(s)->listener->bind_conf->level < ACCESS_LVL_OPER) {
 				appctx->ctx.cli.msg = stats_permission_denied_msg;
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
@@ -1188,8 +1188,8 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				clrall = 1;
 
 			/* check permissions */
-			if (s->listener->bind_conf->level < ACCESS_LVL_OPER ||
-			    (clrall && s->listener->bind_conf->level < ACCESS_LVL_ADMIN)) {
+			if (strm_sess(s)->listener->bind_conf->level < ACCESS_LVL_OPER ||
+			    (clrall && strm_sess(s)->listener->bind_conf->level < ACCESS_LVL_ADMIN)) {
 				appctx->ctx.cli.msg = stats_permission_denied_msg;
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
@@ -1519,7 +1519,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			else if (strcmp(args[2], "global") == 0) {
 				int v;
 
-				if (s->listener->bind_conf->level < ACCESS_LVL_ADMIN) {
+				if (strm_sess(s)->listener->bind_conf->level < ACCESS_LVL_ADMIN) {
 					appctx->ctx.cli.msg = stats_permission_denied_msg;
 					appctx->st0 = STAT_CLI_PRINT;
 					return 1;
@@ -1561,7 +1561,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				if (strcmp(args[3], "global") == 0) {
 					int v;
 
-					if (s->listener->bind_conf->level < ACCESS_LVL_ADMIN) {
+					if (strm_sess(s)->listener->bind_conf->level < ACCESS_LVL_ADMIN) {
 						appctx->ctx.cli.msg = stats_permission_denied_msg;
 						appctx->st0 = STAT_CLI_PRINT;
 						return 1;
@@ -1598,7 +1598,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				if (strcmp(args[3], "global") == 0) {
 					int v;
 
-					if (s->listener->bind_conf->level < ACCESS_LVL_ADMIN) {
+					if (strm_sess(s)->listener->bind_conf->level < ACCESS_LVL_ADMIN) {
 						appctx->ctx.cli.msg = stats_permission_denied_msg;
 						appctx->st0 = STAT_CLI_PRINT;
 						return 1;
@@ -1636,7 +1636,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				if (strcmp(args[3], "global") == 0) {
 					int v;
 
-					if (s->listener->bind_conf->level < ACCESS_LVL_ADMIN) {
+					if (strm_sess(s)->listener->bind_conf->level < ACCESS_LVL_ADMIN) {
 						appctx->ctx.cli.msg = stats_permission_denied_msg;
 						appctx->st0 = STAT_CLI_PRINT;
 						return 1;
@@ -1981,7 +1981,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 		else if (strcmp(args[1], "session") == 0) {
 			struct stream *sess, *ptr;
 
-			if (s->listener->bind_conf->level < ACCESS_LVL_ADMIN) {
+			if (strm_sess(s)->listener->bind_conf->level < ACCESS_LVL_ADMIN) {
 				appctx->ctx.cli.msg = stats_permission_denied_msg;
 				appctx->st0 = STAT_CLI_PRINT;
 				return 1;
@@ -5020,7 +5020,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct st
 			     tm.tm_mday, monthname[tm.tm_mon], tm.tm_year+1900,
 			     tm.tm_hour, tm.tm_min, tm.tm_sec, (int)(sess->logs.accept_date.tv_usec),
 			     sess->uniq_id,
-			     sess->listener && sess->listener->proto->name ? sess->listener->proto->name : "?");
+			     strm_sess(sess)->listener && strm_sess(sess)->listener->proto->name ? strm_sess(sess)->listener->proto->name : "?");
 
 		conn = objt_conn(sess->si[0].end);
 		switch (conn ? addr_to_str(&conn->addr.from, pn, sizeof(pn)) : AF_UNSPEC) {
@@ -5030,7 +5030,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct st
 			              pn, get_host_port(&conn->addr.from));
 			break;
 		case AF_UNIX:
-			chunk_appendf(&trash, " source=unix:%d\n", sess->listener->luid);
+			chunk_appendf(&trash, " source=unix:%d\n", strm_sess(sess)->listener->luid);
 			break;
 		default:
 			/* no more information to print right now */
@@ -5045,8 +5045,8 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct st
 		chunk_appendf(&trash,
 			     "  frontend=%s (id=%u mode=%s), listener=%s (id=%u)",
 			     sess->fe->id, sess->fe->uuid, sess->fe->mode ? "http" : "tcp",
-			     sess->listener ? sess->listener->name ? sess->listener->name : "?" : "?",
-			     sess->listener ? sess->listener->luid : 0);
+			     strm_sess(sess)->listener ? strm_sess(sess)->listener->name ? strm_sess(sess)->listener->name : "?" : "?",
+			     strm_sess(sess)->listener ? strm_sess(sess)->listener->luid : 0);
 
 		if (conn)
 			conn_get_to_addr(conn);
@@ -5058,7 +5058,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct st
 				     pn, get_host_port(&conn->addr.to));
 			break;
 		case AF_UNIX:
-			chunk_appendf(&trash, " addr=unix:%d\n", sess->listener->luid);
+			chunk_appendf(&trash, " addr=unix:%d\n", strm_sess(sess)->listener->luid);
 			break;
 		default:
 			/* no more information to print right now */
@@ -5601,7 +5601,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 			chunk_appendf(&trash,
 				     "%p: proto=%s",
 				     curr_sess,
-				     curr_sess->listener->proto->name);
+				     strm_sess(curr_sess)->listener->proto->name);
 
 
 			conn = objt_conn(curr_sess->si[0].end);
@@ -5620,7 +5620,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 			case AF_UNIX:
 				chunk_appendf(&trash,
 					     " src=unix:%d fe=%s be=%s srv=%s",
-					     curr_sess->listener->luid,
+					     strm_sess(curr_sess)->listener->luid,
 					     curr_sess->fe->id,
 					     (curr_sess->be->cap & PR_CAP_BE) ? curr_sess->be->id : "<NONE>",
 					     objt_server(curr_sess->target) ? objt_server(curr_sess->target)->id : "<none>"
@@ -5827,7 +5827,7 @@ static int stats_table_request(struct stream_interface *si, int action)
 					return 0;
 
 				if (appctx->ctx.table.target &&
-				    s->listener->bind_conf->level >= ACCESS_LVL_OPER) {
+				    strm_sess(s)->listener->bind_conf->level >= ACCESS_LVL_OPER) {
 					/* dump entries only if table explicitly requested */
 					eb = ebmb_first(&appctx->ctx.table.proxy->table.keys);
 					if (eb) {

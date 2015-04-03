@@ -55,6 +55,8 @@
 int frontend_accept(struct stream *s)
 {
 	struct connection *conn = __objt_conn(s->si[0].end);
+	struct listener *l = strm_sess(s)->listener;
+
 	int cfd = conn->t.sock.fd;
 
 	tv_zero(&s->logs.tv_request);
@@ -75,7 +77,7 @@ int frontend_accept(struct stream *s)
 	s->srv_error = default_srv_error;
 
 	/* Adjust some socket options */
-	if (s->listener->addr.ss_family == AF_INET || s->listener->addr.ss_family == AF_INET6) {
+	if (l->addr.ss_family == AF_INET || l->addr.ss_family == AF_INET6) {
 		if (setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY,
 			       (char *) &one, sizeof(one)) == -1)
 			goto out_return;
@@ -88,12 +90,12 @@ int frontend_accept(struct stream *s)
 			fdtab[cfd].linger_risk = 1;
 
 #if defined(TCP_MAXSEG)
-		if (s->listener->maxseg < 0) {
+		if (l->maxseg < 0) {
 			/* we just want to reduce the current MSS by that value */
 			int mss;
 			socklen_t mss_len = sizeof(mss);
 			if (getsockopt(cfd, IPPROTO_TCP, TCP_MAXSEG, &mss, &mss_len) == 0) {
-				mss += s->listener->maxseg; /* remember, it's < 0 */
+				mss += l->maxseg; /* remember, it's < 0 */
 				setsockopt(cfd, IPPROTO_TCP, TCP_MAXSEG, &mss, sizeof(mss));
 			}
 		}
@@ -158,7 +160,7 @@ int frontend_accept(struct stream *s)
 			case AF_UNIX:
 				/* UNIX socket, only the destination is known */
 				send_log(s->fe, LOG_INFO, "Connect to unix:%d (%s/%s)\n",
-					 s->listener->luid,
+					 l->luid,
 					 s->fe->id, (s->fe->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
 				break;
 			}
@@ -174,14 +176,14 @@ int frontend_accept(struct stream *s)
 		case AF_INET:
 		case AF_INET6:
 			chunk_printf(&trash, "%08x:%s.accept(%04x)=%04x from [%s:%d]\n",
-			             s->uniq_id, s->fe->id, (unsigned short)s->listener->fd, (unsigned short)cfd,
+			             s->uniq_id, s->fe->id, (unsigned short)l->fd, (unsigned short)cfd,
 			             pn, get_host_port(&conn->addr.from));
 			break;
 		case AF_UNIX:
 			/* UNIX socket, only the destination is known */
 			chunk_printf(&trash, "%08x:%s.accept(%04x)=%04x from [unix:%d]\n",
-			             s->uniq_id, s->fe->id, (unsigned short)s->listener->fd, (unsigned short)cfd,
-			             s->listener->luid);
+			             s->uniq_id, s->fe->id, (unsigned short)l->fd, (unsigned short)cfd,
+			             l->luid);
 			break;
 		}
 

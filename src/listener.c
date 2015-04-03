@@ -33,6 +33,7 @@
 #include <proto/freq_ctr.h>
 #include <proto/log.h>
 #include <proto/sample.h>
+#include <proto/stream.h>
 #include <proto/task.h>
 
 /* List head of all known bind keywords */
@@ -593,7 +594,7 @@ smp_fetch_dconn(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_UINT;
-	smp->data.uint = l4->listener->nbconn;
+	smp->data.uint = strm_sess(l4)->listener->nbconn;
 	return 1;
 }
 
@@ -603,7 +604,7 @@ smp_fetch_so_id(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                 const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_UINT;
-	smp->data.uint = l4->listener->luid;
+	smp->data.uint = strm_sess(l4)->listener->luid;
 	return 1;
 }
 

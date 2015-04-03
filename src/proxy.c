@@ -41,6 +41,7 @@
 #include <proto/proto_http.h>
 #include <proto/proxy.h>
 #include <proto/signal.h>
+#include <proto/stream.h>
 #include <proto/task.h>
 
 
@@ -982,7 +983,7 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 	 * be more reliable to store the list of analysers that have been run,
 	 * but what we do here is OK for now.
 	 */
-	s->req.analysers |= be->be_req_ana & ~(s->listener->analysers);
+	s->req.analysers |= be->be_req_ana & ~strm_sess(s)->listener->analysers;
 
 	return 1;
 }

@@ -34,6 +34,7 @@
 #include <proto/frontend.h>
 #include <proto/log.h>
 #include <proto/sample.h>
+#include <proto/stream.h>
 #include <proto/stream_interface.h>
 #ifdef USE_OPENSSL
 #include <proto/ssl_sock.h>
@@ -918,6 +919,7 @@ const char sess_set_cookie[8] = "NPDIRU67";	/* No set-cookie, Set-cookie found a
  */
 int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list_format)
 {
+	struct session *sess = strm_sess(s);
 	struct proxy *fe = s->fe;
 	struct proxy *be = s->be;
 	struct http_txn *txn = &s->txn;
@@ -999,7 +1001,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				conn = objt_conn(s->si[0].end);
 				if (conn) {
 					if (conn->addr.from.ss_family == AF_UNIX) {
-						ret = ltoa_o(s->listener->luid, tmplog, dst + maxsize - tmplog);
+						ret = ltoa_o(sess->listener->luid, tmplog, dst + maxsize - tmplog);
 					} else {
 						ret = lf_port(tmplog, (struct sockaddr *)&conn->addr.from,
 						              dst + maxsize - tmplog, tmp);
@@ -1034,7 +1036,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				if (conn) {
 					conn_get_to_addr(conn);
 					if (conn->addr.to.ss_family == AF_UNIX)
-						ret = ltoa_o(s->listener->luid, tmplog, dst + maxsize - tmplog);
+						ret = ltoa_o(sess->listener->luid, tmplog, dst + maxsize - tmplog);
 					else
 						ret = lf_port(tmplog, (struct sockaddr *)&conn->addr.to, dst + maxsize - tmplog, tmp);
 				}
@@ -1181,7 +1183,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 					goto out;
 				tmplog += iret;
 #ifdef USE_OPENSSL
-				if (s->listener->xprt == &ssl_sock)
+				if (sess->listener->xprt == &ssl_sock)
 					LOGCHAR('~');
 #endif
 				if (tmp->options & LOG_OPT_QUOTE)
@@ -1193,7 +1195,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				src = NULL;
 				conn = objt_conn(s->si[0].end);
 				if (conn) {
-					if (s->listener->xprt == &ssl_sock)
+					if (sess->listener->xprt == &ssl_sock)
 						src = ssl_sock_get_cipher_name(conn);
 				}
 				ret = lf_text(tmplog, src, dst + maxsize - tmplog, tmp);
@@ -1207,7 +1209,7 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				src = NULL;
 				conn = objt_conn(s->si[0].end);
 				if (conn) {
-					if (s->listener->xprt == &ssl_sock)
+					if (sess->listener->xprt == &ssl_sock)
 						src = ssl_sock_get_proto_version(conn);
 				}
 				ret = lf_text(tmplog, src, dst + maxsize - tmplog, tmp);

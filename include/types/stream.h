@@ -122,7 +122,6 @@ struct stream {
 
 	struct session *sess;           /* the session this stream is attached to */
 
-	struct listener *listener;      /* the listener by which the request arrived */
 	struct server *srv_conn;        /* stream already has a slot on a server and is not in queue */
 	struct pendconn *pend_pos;      /* if not NULL, points to the position in the pending queue */
 

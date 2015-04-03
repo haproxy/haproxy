@@ -121,7 +121,7 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	if (!s->sess)
 		goto out_free_stream;
 
-	s->listener = l;
+	s->sess->listener = l;
 	s->fe  = p;
 
 	s->si[0].flags = SI_FL_NONE;
@@ -275,23 +275,24 @@ static void prepare_mini_sess_log_prefix(struct stream *s)
 	char pn[INET6_ADDRSTRLEN];
 	int ret;
 	char *end;
+	struct session *sess = s->sess;
 	struct connection *cli_conn = __objt_conn(s->target);
 
 	ret = addr_to_str(&cli_conn->addr.from, pn, sizeof(pn));
 	if (ret <= 0)
 		chunk_printf(&trash, "unknown [");
 	else if (ret == AF_UNIX)
-		chunk_printf(&trash, "%s:%d [", pn, s->listener->luid);
+		chunk_printf(&trash, "%s:%d [", pn, sess->listener->luid);
 	else
 		chunk_printf(&trash, "%s:%d [", pn, get_host_port(&cli_conn->addr.from));
 
 	get_localtime(s->logs.accept_date.tv_sec, &tm);
 	end = date2str_log(trash.str + trash.len, &tm, &(s->logs.accept_date), trash.size - trash.len);
 	trash.len = end - trash.str;
-	if (s->listener->name)
-		chunk_appendf(&trash, "] %s/%s", s->fe->id, s->listener->name);
+	if (sess->listener->name)
+		chunk_appendf(&trash, "] %s/%s", s->fe->id, sess->listener->name);
 	else
-		chunk_appendf(&trash, "] %s/%d", s->fe->id, s->listener->luid);
+		chunk_appendf(&trash, "] %s/%d", s->fe->id, sess->listener->luid);
 }
 
 /* This function kills an existing embryonic stream. It stops the connection's
@@ -302,6 +303,7 @@ static void prepare_mini_sess_log_prefix(struct stream *s)
 static void kill_mini_session(struct stream *s)
 {
 	int level = LOG_INFO;
+	struct session *sess = s->sess;
 	struct connection *conn = __objt_conn(s->target);
 	unsigned int log = s->logs.logwait;
 	const char *err_msg;
@@ -341,12 +343,12 @@ static void kill_mini_session(struct stream *s)
 	s->fe->feconn--;
 	stream_store_counters(s);
 
-	if (!(s->listener->options & LI_O_UNLIMITED))
+	if (!(sess->listener->options & LI_O_UNLIMITED))
 		actconn--;
 	jobs--;
-	s->listener->nbconn--;
-	if (s->listener->state == LI_FULL)
-		resume_listener(s->listener);
+	sess->listener->nbconn--;
+	if (sess->listener->state == LI_FULL)
+		resume_listener(sess->listener);
 
 	/* Dequeues all of the listeners waiting for a resource */
 	if (!LIST_ISEMPTY(&global_listener_queue))
@@ -419,7 +421,8 @@ static struct task *expire_mini_session(struct task *t)
  */
 int stream_complete(struct stream *s)
 {
-	struct listener *l = s->listener;
+	struct session *sess = s->sess;
+	struct listener *l = sess->listener;
 	struct proxy *p = s->fe;
 	struct http_txn *txn;
 	struct task *t = s->task;
@@ -804,6 +807,7 @@ int init_stream()
 
 void stream_process_counters(struct stream *s)
 {
+	struct session *sess = s->sess;
 	unsigned long long bytes;
 	void *ptr;
 	int i;
@@ -818,8 +822,8 @@ void stream_process_counters(struct stream *s)
 		if (objt_server(s->target))
 			objt_server(s->target)->counters.bytes_in += bytes;
 
-		if (s->listener && s->listener->counters)
-			s->listener->counters->bytes_in += bytes;
+		if (sess->listener && sess->listener->counters)
+			sess->listener->counters->bytes_in += bytes;
 
 		for (i = 0; i < MAX_SESS_STKCTR; i++) {
 			if (!stkctr_entry(&s->stkctr[i]))
@@ -850,8 +854,8 @@ void stream_process_counters(struct stream *s)
 		if (objt_server(s->target))
 			objt_server(s->target)->counters.bytes_out += bytes;
 
-		if (s->listener && s->listener->counters)
-			s->listener->counters->bytes_out += bytes;
+		if (sess->listener && sess->listener->counters)
+			sess->listener->counters->bytes_out += bytes;
 
 		for (i = 0; i < MAX_SESS_STKCTR; i++) {
 			if (!stkctr_entry(&s->stkctr[i]))
@@ -1271,8 +1275,8 @@ static void sess_set_term_flags(struct stream *s)
 		if (s->si[1].state < SI_ST_REQ) {
 
 			s->fe->fe_counters.failed_req++;
-			if (s->listener->counters)
-				s->listener->counters->failed_req++;
+			if (strm_sess(s)->listener->counters)
+				strm_sess(s)->listener->counters->failed_req++;
 
 			s->flags |= SF_FINST_R;
 		}
@@ -1754,6 +1758,7 @@ struct task *process_stream(struct task *t)
 {
 	struct server *srv;
 	struct stream *s = t->context;
+	struct session *sess = s->sess;
 	unsigned int rqf_last, rpf_last;
 	unsigned int rq_prod_last, rq_cons_last;
 	unsigned int rp_cons_last, rp_prod_last;
@@ -2685,12 +2690,12 @@ struct task *process_stream(struct task *t)
 	if (s->flags & SF_BE_ASSIGNED)
 		s->be->beconn--;
 	jobs--;
-	if (s->listener) {
-		if (!(s->listener->options & LI_O_UNLIMITED))
+	if (sess->listener) {
+		if (!(sess->listener->options & LI_O_UNLIMITED))
 			actconn--;
-		s->listener->nbconn--;
-		if (s->listener->state == LI_FULL)
-			resume_listener(s->listener);
+		sess->listener->nbconn--;
+		if (sess->listener->state == LI_FULL)
+			resume_listener(sess->listener);
 
 		/* Dequeues all of the listeners waiting for a resource */
 		if (!LIST_ISEMPTY(&global_listener_queue))

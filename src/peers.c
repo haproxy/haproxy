@@ -1144,12 +1144,13 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	t->nice = l->nice;
 
 	s->task = t;
-	s->listener = l;
 	s->sess = pool_alloc2(pool2_session);
 	if (!s->sess) {
 		Alert("out of memory in peer_session_create().\n");
 		goto out_free_task;
 	}
+
+	s->sess->listener = l;
 
 	/* Note: initially, the stream's backend points to the frontend.
 	 * This changes later when switching rules are executed or
@@ -1272,7 +1273,7 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	l->nbconn++; /* warning! right now, it's up to the handler to decrease this */
 	p->feconn++;/* beconn will be increased later */
 	jobs++;
-	if (!(s->listener->options & LI_O_UNLIMITED))
+	if (!(s->sess->listener->options & LI_O_UNLIMITED))
 		actconn++;
 	totalconn++;
 

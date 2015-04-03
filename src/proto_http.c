@@ -2546,6 +2546,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
 	int cur_idx;
 	int use_close_only;
+	struct session *sess = s->sess;
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->req;
 	struct hdr_ctx ctx;
@@ -2702,8 +2703,8 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			stream_inc_http_req_ctr(s);
 			proxy_inc_fe_req_ctr(s->fe);
 			s->fe->fe_counters.failed_req++;
-			if (s->listener->counters)
-				s->listener->counters->failed_req++;
+			if (sess->listener->counters)
+				sess->listener->counters->failed_req++;
 
 			if (!(s->flags & SF_FINST_MASK))
 				s->flags |= SF_FINST_R;
@@ -2731,8 +2732,8 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			stream_inc_http_req_ctr(s);
 			proxy_inc_fe_req_ctr(s->fe);
 			s->fe->fe_counters.failed_req++;
-			if (s->listener->counters)
-				s->listener->counters->failed_req++;
+			if (sess->listener->counters)
+				sess->listener->counters->failed_req++;
 
 			if (!(s->flags & SF_FINST_MASK))
 				s->flags |= SF_FINST_R;
@@ -2758,8 +2759,8 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			stream_inc_http_req_ctr(s);
 			proxy_inc_fe_req_ctr(s->fe);
 			s->fe->fe_counters.failed_req++;
-			if (s->listener->counters)
-				s->listener->counters->failed_req++;
+			if (sess->listener->counters)
+				sess->listener->counters->failed_req++;
 
 			if (!(s->flags & SF_FINST_MASK))
 				s->flags |= SF_FINST_R;
@@ -2770,7 +2771,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 		req->flags |= CF_READ_DONTWAIT; /* try to get back here ASAP */
 		s->res.flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
 #ifdef TCP_QUICKACK
-		if (s->listener->options & LI_O_NOQUICKACK && req->buf->i && objt_conn(s->si[0].end) && conn_ctrl_ready(__objt_conn(s->si[0].end))) {
+		if (sess->listener->options & LI_O_NOQUICKACK && req->buf->i && objt_conn(s->si[0].end) && conn_ctrl_ready(__objt_conn(s->si[0].end))) {
 			/* We need more data, we have to re-enable quick-ack in case we
 			 * previously disabled it, otherwise we might cause the client
 			 * to delay next data.
@@ -3071,8 +3072,8 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_400));
 
 	s->fe->fe_counters.failed_req++;
-	if (s->listener->counters)
-		s->listener->counters->failed_req++;
+	if (sess->listener->counters)
+		sess->listener->counters->failed_req++;
 
  return_prx_cond:
 	if (!(s->flags & SF_ERR_MASK))
@@ -4065,6 +4066,7 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
  */
 int http_process_req_common(struct stream *s, struct channel *req, int an_bit, struct proxy *px)
 {
+	struct session *sess = s->sess;
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->req;
 	struct redirect_rule *rule;
@@ -4249,8 +4251,8 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	s->fe->fe_counters.denied_req++;
 	if (s->fe != s->be)
 		s->be->be_counters.denied_req++;
-	if (s->listener->counters)
-		s->listener->counters->denied_req++;
+	if (sess->listener->counters)
+		sess->listener->counters->denied_req++;
 	goto done_without_exp;
 
  deny:	/* this request was blocked (denied) */
@@ -4262,8 +4264,8 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	s->fe->fe_counters.denied_req++;
 	if (s->fe != s->be)
 		s->be->be_counters.denied_req++;
-	if (s->listener->counters)
-		s->listener->counters->denied_req++;
+	if (sess->listener->counters)
+		sess->listener->counters->denied_req++;
 	goto return_prx_cond;
 
  return_bad_req:
@@ -4280,8 +4282,8 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_400));
 
 	s->fe->fe_counters.failed_req++;
-	if (s->listener->counters)
-		s->listener->counters->failed_req++;
+	if (sess->listener->counters)
+		sess->listener->counters->failed_req++;
 
  return_prx_cond:
 	if (!(s->flags & SF_ERR_MASK))
@@ -4305,6 +4307,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
  */
 int http_process_request(struct stream *s, struct channel *req, int an_bit)
 {
+	struct session *sess = s->sess;
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->req;
 	struct connection *cli_conn = objt_conn(s->si[1].end);
@@ -4597,7 +4600,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		 * in case we previously disabled it, otherwise we might cause
 		 * the client to delay further data.
 		 */
-		if ((s->listener->options & LI_O_NOQUICKACK) &&
+		if ((sess->listener->options & LI_O_NOQUICKACK) &&
 		    cli_conn && conn_ctrl_ready(cli_conn) &&
 		    ((msg->flags & HTTP_MSGF_TE_CHNK) ||
 		     (msg->body_len > req->buf->i - txn->req.eoh - 2)))
@@ -4636,8 +4639,8 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_400));
 
 	s->fe->fe_counters.failed_req++;
-	if (s->listener->counters)
-		s->listener->counters->failed_req++;
+	if (sess->listener->counters)
+		sess->listener->counters->failed_req++;
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_PRXCOND;
@@ -4697,6 +4700,7 @@ int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
  */
 int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit)
 {
+	struct session *sess = s->sess;
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &s->txn.req;
 
@@ -4828,8 +4832,8 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
  return_err_msg:
 	req->analysers = 0;
 	s->fe->fe_counters.failed_req++;
-	if (s->listener->counters)
-		s->listener->counters->failed_req++;
+	if (sess->listener->counters)
+		sess->listener->counters->failed_req++;
 	return 0;
 }
 
@@ -5048,7 +5052,7 @@ void http_end_txn_clean_session(struct stream *s)
 	/* we're in keep-alive with an idle connection, monitor it */
 	si_idle_conn(&s->si[1]);
 
-	s->req.analysers = s->listener->analysers;
+	s->req.analysers = strm_sess(s)->listener->analysers;
 	s->res.analysers = 0;
 }
 
@@ -5405,6 +5409,7 @@ int http_resync_states(struct stream *s)
  */
 int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 {
+	struct session *sess = s->sess;
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &s->txn.req;
 
@@ -5643,8 +5648,8 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 
  return_bad_req: /* let's centralize all bad requests */
 	s->fe->fe_counters.failed_req++;
-	if (s->listener->counters)
-		s->listener->counters->failed_req++;
+	if (sess->listener->counters)
+		sess->listener->counters->failed_req++;
 
  return_bad_req_stats_ok:
 	/* we may have some pending data starting at req->buf->p */
@@ -6276,6 +6281,7 @@ skip_content_length:
  */
 int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, struct proxy *px)
 {
+	struct session *sess = s->sess;
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->rsp;
 	struct proxy *cur_proxy;
@@ -6369,8 +6375,8 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 
 			s->be->be_counters.denied_resp++;
 			s->fe->fe_counters.denied_resp++;
-			if (s->listener->counters)
-				s->listener->counters->denied_resp++;
+			if (sess->listener->counters)
+				sess->listener->counters->denied_resp++;
 
 			goto return_srv_prx_502;
 		}
@@ -6520,8 +6526,8 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 
 		s->be->be_counters.denied_resp++;
 		s->fe->fe_counters.denied_resp++;
-		if (s->listener->counters)
-			s->listener->counters->denied_resp++;
+		if (sess->listener->counters)
+			sess->listener->counters->denied_resp++;
 
 		Alert("Blocking cacheable cookie in response from instance %s, server %s.\n",
 		      s->be->id, objt_server(s->target) ? objt_server(s->target)->id : "<dispatch>");

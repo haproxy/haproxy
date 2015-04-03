@@ -1089,6 +1089,7 @@ int tcp_pause_listener(struct listener *l)
  */
 int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 {
+	struct session *sess = s->sess;
 	struct tcp_rule *rule;
 	struct stksess *ts;
 	struct stktable *t;
@@ -1154,8 +1155,8 @@ resume_execution:
 
 				s->be->be_counters.denied_req++;
 				s->fe->fe_counters.denied_req++;
-				if (s->listener->counters)
-					s->listener->counters->denied_req++;
+				if (sess->listener->counters)
+					sess->listener->counters->denied_req++;
 
 				if (!(s->flags & SF_ERR_MASK))
 					s->flags |= SF_ERR_PRXCOND;
@@ -1249,6 +1250,7 @@ resume_execution:
  */
 int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 {
+	struct session *sess = s->sess;
 	struct tcp_rule *rule;
 	int partial;
 
@@ -1315,8 +1317,8 @@ resume_execution:
 
 				s->be->be_counters.denied_resp++;
 				s->fe->fe_counters.denied_resp++;
-				if (s->listener->counters)
-					s->listener->counters->denied_resp++;
+				if (sess->listener->counters)
+					sess->listener->counters->denied_resp++;
 
 				if (!(s->flags & SF_ERR_MASK))
 					s->flags |= SF_ERR_PRXCOND;
@@ -1360,6 +1362,7 @@ resume_execution:
  */
 int tcp_exec_req_rules(struct stream *s)
 {
+	struct session *sess = s->sess;
 	struct tcp_rule *rule;
 	struct stksess *ts;
 	struct stktable *t = NULL;
@@ -1384,8 +1387,8 @@ int tcp_exec_req_rules(struct stream *s)
 			/* we have a matching rule. */
 			if (rule->action == TCP_ACT_REJECT) {
 				s->fe->fe_counters.denied_conn++;
-				if (s->listener->counters)
-					s->listener->counters->denied_conn++;
+				if (sess->listener->counters)
+					sess->listener->counters->denied_conn++;
 
 				if (!(s->flags & SF_ERR_MASK))
 					s->flags |= SF_ERR_PRXCOND;

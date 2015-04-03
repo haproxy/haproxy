@@ -2133,7 +2133,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	/* The stream dont have listener. The listener is used with real
 	 * proxies.
 	 */
-	socket->s->listener = NULL;
+	socket->s->sess->listener = NULL;
 
 	/* The flags are initialized to 0. Values are setted later. */
 	socket->s->flags = 0;

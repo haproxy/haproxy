@@ -36,6 +36,7 @@
 #include <types/stick_table.h>
 
 struct session {
+	struct listener *listener;      /* the listener by which the request arrived */
 };
 
 #endif /* _TYPES_SESSION_H */
