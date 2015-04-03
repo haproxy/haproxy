@@ -2718,7 +2718,6 @@ static int hlua_fetches_new(lua_State *L, struct hlua_txn *txn, int stringsafe)
 
 	hsmp->s = txn->s;
 	hsmp->p = txn->p;
-	hsmp->l7 = txn->l7;
 	hsmp->stringsafe = stringsafe;
 
 	/* Pop a class sesison metatable and affect it to the userdata. */
@@ -2822,7 +2821,6 @@ static int hlua_converters_new(lua_State *L, struct hlua_txn *txn, int stringsaf
 
 	hsmp->s = txn->s;
 	hsmp->p = txn->p;
-	hsmp->l7 = txn->l7;
 	hsmp->stringsafe = stringsafe;
 
 	/* Pop a class stream metatable and affect it to the table. */
@@ -2941,7 +2939,6 @@ static int hlua_http_new(lua_State *L, struct hlua_txn *txn)
 
 	htxn->s = txn->s;
 	htxn->p = txn->p;
-	htxn->l7 = txn->l7;
 
 	/* Pop a class stream metatable and affect it to the table. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, class_http_ref);
@@ -3342,7 +3339,6 @@ static int hlua_txn_new(lua_State *L, struct stream *s, struct proxy *p)
 
 	htxn->s = s;
 	htxn->p = p;
-	htxn->l7 = s->txn;
 
 	/* Create the "f" field that contains a list of fetches. */
 	lua_pushstring(L, "f");

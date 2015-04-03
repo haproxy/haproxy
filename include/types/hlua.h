@@ -93,14 +93,12 @@ struct hlua_rule {
 struct hlua_txn {
 	struct stream *s;
 	struct proxy *p;
-	void *l7;
 };
 
 /* This struc is used with sample fetches and sample converters. */
 struct hlua_smp {
 	struct stream *s;
 	struct proxy *p;
-	void *l7;
 	int stringsafe;
 };
 
