@@ -207,6 +207,7 @@ enum {
 };
 
 /* needed below */
+struct session;
 struct stream;
 
 /* a sample context might be used by any sample fetch function in order to
@@ -285,6 +286,7 @@ struct sample_conv_expr {
 struct sample_fetch {
 	const char *kw;                           /* configuration keyword */
 	int (*process)(struct proxy *px,
+	               struct session *sess,
 	               struct stream *strm,
 		       unsigned int opt,          /* fetch options (SMP_OPT_*) */
 		       const struct arg *arg_p,

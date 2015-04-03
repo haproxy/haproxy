@@ -971,9 +971,9 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 			case LOG_FMT_EXPR: // sample expression, may be request or response
 				key = NULL;
 				if (tmp->options & LOG_OPT_REQ_CAP)
-					key = sample_fetch_string(be, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, tmp->expr);
+					key = sample_fetch_string(be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, tmp->expr);
 				if (!key && (tmp->options & LOG_OPT_RES_CAP))
-					key = sample_fetch_string(be, s, SMP_OPT_DIR_RES|SMP_OPT_FINAL, tmp->expr);
+					key = sample_fetch_string(be, sess, s, SMP_OPT_DIR_RES|SMP_OPT_FINAL, tmp->expr);
 				if (tmp->options & LOG_OPT_HTTP)
 					ret = encode_chunk(tmplog, dst + maxsize,
 					                   '%', http_encode_map, key ? &key->data.str : &empty);

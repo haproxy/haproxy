@@ -47,7 +47,7 @@ struct stksess *stktable_lookup(struct stktable *t, struct stksess *ts);
 struct stksess *stktable_lookup_key(struct stktable *t, struct stktable_key *key);
 struct stksess *stktable_update_key(struct stktable *table, struct stktable_key *key);
 struct stktable_key *smp_to_stkey(struct sample *smp, struct stktable *t);
-struct stktable_key *stktable_fetch_key(struct stktable *t, struct proxy *px,
+struct stktable_key *stktable_fetch_key(struct stktable *t, struct proxy *px, struct session *sess,
                                         struct stream *strm, unsigned int opt,
                                         struct sample_expr *expr, struct sample *smp);
 int stktable_compatible_sample(struct sample_expr *expr, unsigned long table_type);

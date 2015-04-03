@@ -1097,7 +1097,7 @@ struct acl_cond *build_acl_cond(const char *file, int line, struct proxy *px, co
  *     if (cond->pol == ACL_COND_UNLESS)
  *         res = !res;
  */
-enum acl_test_res acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct stream *strm, unsigned int opt)
+enum acl_test_res acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct session *sess, struct stream *strm, unsigned int opt)
 {
 	__label__ fetch_next;
 	struct acl_term_suite *suite;
@@ -1141,7 +1141,7 @@ enum acl_test_res acl_exec_cond(struct acl_cond *cond, struct proxy *px, struct 
 				/* we need to reset context and flags */
 				memset(&smp, 0, sizeof(smp));
 			fetch_next:
-				if (!sample_process(px, strm, opt, expr->smp, &smp)) {
+				if (!sample_process(px, sess, strm, opt, expr->smp, &smp)) {
 					/* maybe we could not fetch because of missing data */
 					if (smp.flags & SMP_F_MAY_CHANGE && !(opt & SMP_OPT_FINAL))
 						acl_res |= ACL_TEST_MISS;

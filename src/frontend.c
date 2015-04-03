@@ -220,12 +220,12 @@ int frontend_accept(struct stream *s)
 
 /* set temp integer to the id of the frontend */
 static int
-smp_fetch_fe_id(struct proxy *px, struct stream *strm, unsigned int opt,
+smp_fetch_fe_id(struct proxy *px, struct session *sess, struct stream *strm, unsigned int opt,
                 const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_SESS;
 	smp->type = SMP_T_UINT;
-	smp->data.uint = strm_sess(strm)->fe->uuid;
+	smp->data.uint = sess->fe->uuid;
 	return 1;
 }
 
@@ -234,7 +234,7 @@ smp_fetch_fe_id(struct proxy *px, struct stream *strm, unsigned int opt,
  * an undefined behaviour.
  */
 static int
-smp_fetch_fe_sess_rate(struct proxy *px, struct stream *strm, unsigned int opt,
+smp_fetch_fe_sess_rate(struct proxy *px, struct session *sess, struct stream *strm, unsigned int opt,
                        const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TEST;
@@ -248,7 +248,7 @@ smp_fetch_fe_sess_rate(struct proxy *px, struct stream *strm, unsigned int opt,
  * an undefined behaviour.
  */
 static int
-smp_fetch_fe_conn(struct proxy *px, struct stream *strm, unsigned int opt,
+smp_fetch_fe_conn(struct proxy *px, struct session *sess, struct stream *strm, unsigned int opt,
                   const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->flags = SMP_F_VOL_TEST;

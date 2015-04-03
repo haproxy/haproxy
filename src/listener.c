@@ -590,21 +590,21 @@ void bind_dump_kws(char **out)
 
 /* set temp integer to the number of connexions to the same listening socket */
 static int
-smp_fetch_dconn(struct proxy *px, struct stream *strm, unsigned int opt,
+smp_fetch_dconn(struct proxy *px, struct session *sess, struct stream *strm, unsigned int opt,
                 const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_UINT;
-	smp->data.uint = strm_sess(strm)->listener->nbconn;
+	smp->data.uint = sess->listener->nbconn;
 	return 1;
 }
 
 /* set temp integer to the id of the socket (listener) */
 static int
-smp_fetch_so_id(struct proxy *px, struct stream *strm, unsigned int opt,
+smp_fetch_so_id(struct proxy *px, struct session *sess, struct stream *strm, unsigned int opt,
                 const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_UINT;
-	smp->data.uint = strm_sess(strm)->listener->luid;
+	smp->data.uint = sess->listener->luid;
 	return 1;
 }
 
