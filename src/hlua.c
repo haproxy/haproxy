@@ -2139,8 +2139,8 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	socket->s->flags = 0;
 
 	/* Assign the configured proxy to the new stream. */
+	socket->s->sess->fe = &socket_proxy;
 	socket->s->be = &socket_proxy;
-	socket->s->fe = &socket_proxy;
 
 	/* XXX: Set namy variables */
 	socket->s->store_count = 0;

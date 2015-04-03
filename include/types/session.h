@@ -36,6 +36,7 @@
 #include <types/stick_table.h>
 
 struct session {
+	struct proxy *fe;               /* the proxy this session depends on for the client side */
 	struct listener *listener;      /* the listener by which the request arrived */
 };
 

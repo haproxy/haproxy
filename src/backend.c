@@ -1090,7 +1090,7 @@ int connect_server(struct stream *s)
 	}
 
 	/* flag for logging source ip/port */
-	if (s->fe->options2 & PR_O2_SRC_ADDR)
+	if (strm_sess(s)->fe->options2 & PR_O2_SRC_ADDR)
 		s->si[1].flags |= SI_FL_SRC_ADDR;
 
 	/* disable lingering */

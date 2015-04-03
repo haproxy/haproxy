@@ -920,7 +920,7 @@ const char sess_set_cookie[8] = "NPDIRU67";	/* No set-cookie, Set-cookie found a
 int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list_format)
 {
 	struct session *sess = strm_sess(s);
-	struct proxy *fe = s->fe;
+	struct proxy *fe = sess->fe;
 	struct proxy *be = s->be;
 	struct http_txn *txn = &s->txn;
 	char *uri;
@@ -1541,13 +1541,13 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 
 			case LOG_FMT_LOGCNT: // %lc
 				if (tmp->options & LOG_OPT_HEXA) {
-					iret = snprintf(tmplog, dst + maxsize - tmplog, "%04X", s->fe->log_count);
+					iret = snprintf(tmplog, dst + maxsize - tmplog, "%04X", fe->log_count);
 					if (iret < 0 || iret > dst + maxsize - tmplog)
 						goto out;
 					last_isspace = 0;
 					tmplog += iret;
 				} else {
-					ret = ultoa_o(s->fe->log_count, tmplog, dst + maxsize - tmplog);
+					ret = ultoa_o(fe->log_count, tmplog, dst + maxsize - tmplog);
 					if (ret == NULL)
 						goto out;
 					tmplog = ret;
@@ -1606,6 +1606,7 @@ out:
  */
 void strm_log(struct stream *s)
 {
+	struct session *sess = s->sess;
 	char *tmplog;
 	int size, err, level;
 
@@ -1614,12 +1615,12 @@ void strm_log(struct stream *s)
               ((s->flags & SF_ERR_MASK) > SF_ERR_LOCAL) ||
 	      (((s->flags & SF_ERR_MASK) == SF_ERR_NONE) &&
 	       (s->si[1].conn_retries != s->be->conn_retries)) ||
-	      ((s->fe->mode == PR_MODE_HTTP) && s->txn.status >= 500);
+	      ((sess->fe->mode == PR_MODE_HTTP) && s->txn.status >= 500);
 
-	if (!err && (s->fe->options2 & PR_O2_NOLOGNORM))
+	if (!err && (sess->fe->options2 & PR_O2_NOLOGNORM))
 		return;
 
-	if (LIST_ISEMPTY(&s->fe->logsrvs))
+	if (LIST_ISEMPTY(&sess->fe->logsrvs))
 		return;
 
 	if (s->logs.level) { /* loglevel was overridden */
@@ -1631,22 +1632,22 @@ void strm_log(struct stream *s)
 	}
 	else {
 		level = LOG_INFO;
-		if (err && (s->fe->options2 & PR_O2_LOGERRORS))
+		if (err && (sess->fe->options2 & PR_O2_LOGERRORS))
 			level = LOG_ERR;
 	}
 
 	/* if unique-id was not generated */
-	if (!s->unique_id && !LIST_ISEMPTY(&s->fe->format_unique_id)) {
+	if (!s->unique_id && !LIST_ISEMPTY(&sess->fe->format_unique_id)) {
 		if ((s->unique_id = pool_alloc2(pool2_uniqueid)) != NULL)
-			build_logline(s, s->unique_id, UNIQUEID_LEN, &s->fe->format_unique_id);
+			build_logline(s, s->unique_id, UNIQUEID_LEN, &sess->fe->format_unique_id);
 	}
 
-	tmplog = update_log_hdr(s->fe->log_tag ? s->fe->log_tag : global.log_tag);
+	tmplog = update_log_hdr(sess->fe->log_tag ? sess->fe->log_tag : global.log_tag);
 	size = tmplog - logline;
-	size += build_logline(s, tmplog, global.max_syslog_len - size, &s->fe->logformat);
+	size += build_logline(s, tmplog, global.max_syslog_len - size, &sess->fe->logformat);
 	if (size > 0) {
-		s->fe->log_count++;
-		__send_log(s->fe, level, logline, size + 1);
+		sess->fe->log_count++;
+		__send_log(sess->fe, level, logline, size + 1);
 		s->logs.logwait = 0;
 	}
 }

@@ -122,7 +122,7 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		goto out_free_stream;
 
 	s->sess->listener = l;
-	s->fe  = p;
+	s->sess->fe  = p;
 
 	s->si[0].flags = SI_FL_NONE;
 	s->si[1].flags = SI_FL_ISBACK;
@@ -290,9 +290,9 @@ static void prepare_mini_sess_log_prefix(struct stream *s)
 	end = date2str_log(trash.str + trash.len, &tm, &(s->logs.accept_date), trash.size - trash.len);
 	trash.len = end - trash.str;
 	if (sess->listener->name)
-		chunk_appendf(&trash, "] %s/%s", s->fe->id, sess->listener->name);
+		chunk_appendf(&trash, "] %s/%s", sess->fe->id, sess->listener->name);
 	else
-		chunk_appendf(&trash, "] %s/%d", s->fe->id, sess->listener->luid);
+		chunk_appendf(&trash, "] %s/%d", sess->fe->id, sess->listener->luid);
 }
 
 /* This function kills an existing embryonic stream. It stops the connection's
@@ -308,10 +308,10 @@ static void kill_mini_session(struct stream *s)
 	unsigned int log = s->logs.logwait;
 	const char *err_msg;
 
-	if (s->fe->options2 & PR_O2_LOGERRORS)
+	if (sess->fe->options2 & PR_O2_LOGERRORS)
 		level = LOG_ERR;
 
-	if (log && (s->fe->options & PR_O_NULLNOLOG)) {
+	if (log && (sess->fe->options & PR_O_NULLNOLOG)) {
 		/* with "option dontlognull", we don't log connections with no transfer */
 		if (!conn->err_code ||
 		    conn->err_code == CO_ER_PRX_EMPTY || conn->err_code == CO_ER_PRX_ABORT ||
@@ -330,9 +330,9 @@ static void kill_mini_session(struct stream *s)
 		prepare_mini_sess_log_prefix(s);
 		err_msg = conn_err_code_str(conn);
 		if (err_msg)
-			send_log(s->fe, level, "%s: %s\n", trash.str, err_msg);
+			send_log(sess->fe, level, "%s: %s\n", trash.str, err_msg);
 		else
-			send_log(s->fe, level, "%s: unknown connection error (code=%d flags=%08x)\n",
+			send_log(sess->fe, level, "%s: unknown connection error (code=%d flags=%08x)\n",
 				 trash.str, conn->err_code, conn->flags);
 	}
 
@@ -340,7 +340,7 @@ static void kill_mini_session(struct stream *s)
 	conn_force_close(conn);
 	conn_free(conn);
 
-	s->fe->feconn--;
+	sess->fe->feconn--;
 	stream_store_counters(s);
 
 	if (!(sess->listener->options & LI_O_UNLIMITED))
@@ -354,9 +354,9 @@ static void kill_mini_session(struct stream *s)
 	if (!LIST_ISEMPTY(&global_listener_queue))
 		dequeue_all_listeners(&global_listener_queue);
 
-	if (!LIST_ISEMPTY(&s->fe->listener_queue) &&
-	    (!s->fe->fe_sps_lim || freq_ctr_remain(&s->fe->fe_sess_per_sec, s->fe->fe_sps_lim, 0) > 0))
-		dequeue_all_listeners(&s->fe->listener_queue);
+	if (!LIST_ISEMPTY(&sess->fe->listener_queue) &&
+	    (!sess->fe->fe_sps_lim || freq_ctr_remain(&sess->fe->fe_sess_per_sec, sess->fe->fe_sps_lim, 0) > 0))
+		dequeue_all_listeners(&sess->fe->listener_queue);
 
 	task_delete(s->task);
 	task_free(s->task);
@@ -423,7 +423,7 @@ int stream_complete(struct stream *s)
 {
 	struct session *sess = s->sess;
 	struct listener *l = sess->listener;
-	struct proxy *p = s->fe;
+	struct proxy *p = sess->fe;
 	struct http_txn *txn;
 	struct task *t = s->task;
 	struct connection *conn = __objt_conn(s->target);
@@ -448,7 +448,7 @@ int stream_complete(struct stream *s)
 	 * This changes later when switching rules are executed or
 	 * when the default backend is assigned.
 	 */
-	s->be  = s->fe;
+	s->be  = sess->fe;
 	s->comp_algo = NULL;
 	s->req.buf = s->res.buf = NULL;
 
@@ -482,7 +482,7 @@ int stream_complete(struct stream *s)
 	 */
 	si_attach_conn(&s->si[0], conn);
 
-	if (likely(s->fe->options2 & PR_O2_INDEPSTR))
+	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
 		s->si[0].flags |= SI_FL_INDEP_STR;
 
 	/* pre-initialize the other side's stream interface to an INIT state. The
@@ -491,7 +491,7 @@ int stream_complete(struct stream *s)
 	si_reset(&s->si[1]);
 	si_detach(&s->si[1]);
 
-	if (likely(s->fe->options2 & PR_O2_INDEPSTR))
+	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
 		s->si[1].flags |= SI_FL_INDEP_STR;
 
 	stream_init_srv_conn(s);
@@ -517,7 +517,7 @@ int stream_complete(struct stream *s)
 	s->res.flags |= CF_ISRESP;
 	s->res.analysers = 0;
 
-	if (s->fe->options2 & PR_O2_NODELAY) {
+	if (sess->fe->options2 & PR_O2_NODELAY) {
 		s->req.flags |= CF_NEVER_WAIT;
 		s->res.flags |= CF_NEVER_WAIT;
 	}
@@ -591,7 +591,7 @@ int stream_complete(struct stream *s)
 static void stream_free(struct stream *s)
 {
 	struct http_txn *txn = &s->txn;
-	struct proxy *fe = s->fe;
+	struct proxy *fe = strm_sess(s)->fe;
 	struct bref *bref, *back;
 	struct connection *cli_conn = objt_conn(s->si[0].end);
 	int i;
@@ -815,7 +815,7 @@ void stream_process_counters(struct stream *s)
 	bytes = s->req.total - s->logs.bytes_in;
 	s->logs.bytes_in = s->req.total;
 	if (bytes) {
-		s->fe->fe_counters.bytes_in += bytes;
+		sess->fe->fe_counters.bytes_in += bytes;
 
 		s->be->be_counters.bytes_in += bytes;
 
@@ -847,7 +847,7 @@ void stream_process_counters(struct stream *s)
 	bytes = s->res.total - s->logs.bytes_out;
 	s->logs.bytes_out = s->res.total;
 	if (bytes) {
-		s->fe->fe_counters.bytes_out += bytes;
+		sess->fe->fe_counters.bytes_out += bytes;
 
 		s->be->be_counters.bytes_out += bytes;
 
@@ -1071,7 +1071,7 @@ static void sess_establish(struct stream *s)
 	if (s->be->mode == PR_MODE_TCP) { /* let's allow immediate data connection in this case */
 		/* if the user wants to log as soon as possible, without counting
 		 * bytes from the server, then this is the right moment. */
-		if (!LIST_ISEMPTY(&s->fe->logformat) && !(s->logs.logwait & LW_BYTES)) {
+		if (!LIST_ISEMPTY(&strm_sess(s)->fe->logformat) && !(s->logs.logwait & LW_BYTES)) {
 			s->logs.t_close = s->logs.t_connect; /* to get a valid end date */
 			s->do_log(s);
 		}
@@ -1081,7 +1081,7 @@ static void sess_establish(struct stream *s)
 		rep->flags |= CF_READ_DONTWAIT; /* a single read is enough to get response headers */
 	}
 
-	rep->analysers |= s->fe->fe_rsp_ana | s->be->be_rsp_ana;
+	rep->analysers |= strm_sess(s)->fe->fe_rsp_ana | s->be->be_rsp_ana;
 	rep->flags |= CF_READ_ATTACHED; /* producer is now attached */
 	if (req->flags & CF_WAKE_CONNECT) {
 		req->flags |= CF_WAKE_ONCE;
@@ -1274,7 +1274,7 @@ static void sess_set_term_flags(struct stream *s)
 	if (!(s->flags & SF_FINST_MASK)) {
 		if (s->si[1].state < SI_ST_REQ) {
 
-			s->fe->fe_counters.failed_req++;
+			strm_sess(s)->fe->fe_counters.failed_req++;
 			if (strm_sess(s)->listener->counters)
 				strm_sess(s)->listener->counters->failed_req++;
 
@@ -1379,6 +1379,7 @@ static void sess_prepare_conn_req(struct stream *s)
 static int process_switching_rules(struct stream *s, struct channel *req, int an_bit)
 {
 	struct persist_rule *prst_rule;
+	struct proxy *fe = strm_sess(s)->fe;
 
 	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
@@ -1396,11 +1397,11 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 	if (!(s->flags & SF_BE_ASSIGNED)) {
 		struct switching_rule *rule;
 
-		list_for_each_entry(rule, &s->fe->switching_rules, list) {
+		list_for_each_entry(rule, &fe->switching_rules, list) {
 			int ret = 1;
 
 			if (rule->cond) {
-				ret = acl_exec_cond(rule->cond, s->fe, s, &s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
+				ret = acl_exec_cond(rule->cond, fe, s, &s->txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
 				ret = acl_pass(ret);
 				if (rule->cond->pol == ACL_COND_UNLESS)
 					ret = !ret;
@@ -1436,12 +1437,12 @@ static int process_switching_rules(struct stream *s, struct channel *req, int an
 		 * backend if any.
 		 */
 		if (!(s->flags & SF_BE_ASSIGNED))
-			if (!stream_set_backend(s, s->fe->defbe.be ? s->fe->defbe.be : s->be))
+			if (!stream_set_backend(s, fe->defbe.be ? fe->defbe.be : s->be))
 				goto sw_failed;
 	}
 
 	/* we don't want to run the TCP or HTTP filters again if the backend has not changed */
-	if (s->fe == s->be) {
+	if (fe == s->be) {
 		s->req.analysers &= ~AN_REQ_INSPECT_BE;
 		s->req.analysers &= ~AN_REQ_HTTP_PROCESS_BE;
 	}
@@ -1867,7 +1868,7 @@ struct task *process_stream(struct task *t)
 			stream_int_report_error(si_f);
 			if (!(req->analysers) && !(res->analysers)) {
 				s->be->be_counters.cli_aborts++;
-				s->fe->fe_counters.cli_aborts++;
+				sess->fe->fe_counters.cli_aborts++;
 				if (srv)
 					srv->counters.cli_aborts++;
 				if (!(s->flags & SF_ERR_MASK))
@@ -1888,7 +1889,7 @@ struct task *process_stream(struct task *t)
 				srv->counters.failed_resp++;
 			if (!(req->analysers) && !(res->analysers)) {
 				s->be->be_counters.srv_aborts++;
-				s->fe->fe_counters.srv_aborts++;
+				sess->fe->fe_counters.srv_aborts++;
 				if (srv)
 					srv->counters.srv_aborts++;
 				if (!(s->flags & SF_ERR_MASK))
@@ -2036,7 +2037,7 @@ struct task *process_stream(struct task *t)
 				}
 
 				if (ana_list & AN_REQ_HTTP_PROCESS_FE) {
-					if (!http_process_req_common(s, req, AN_REQ_HTTP_PROCESS_FE, s->fe))
+					if (!http_process_req_common(s, req, AN_REQ_HTTP_PROCESS_FE, sess->fe))
 						break;
 					UPDATE_ANALYSERS(req->analysers, ana_list, ana_back, AN_REQ_HTTP_PROCESS_FE);
 				}
@@ -2235,28 +2236,28 @@ struct task *process_stream(struct task *t)
 			req->analysers = 0;
 			if (req->flags & CF_READ_ERROR) {
 				s->be->be_counters.cli_aborts++;
-				s->fe->fe_counters.cli_aborts++;
+				sess->fe->fe_counters.cli_aborts++;
 				if (srv)
 					srv->counters.cli_aborts++;
 				s->flags |= SF_ERR_CLICL;
 			}
 			else if (req->flags & CF_READ_TIMEOUT) {
 				s->be->be_counters.cli_aborts++;
-				s->fe->fe_counters.cli_aborts++;
+				sess->fe->fe_counters.cli_aborts++;
 				if (srv)
 					srv->counters.cli_aborts++;
 				s->flags |= SF_ERR_CLITO;
 			}
 			else if (req->flags & CF_WRITE_ERROR) {
 				s->be->be_counters.srv_aborts++;
-				s->fe->fe_counters.srv_aborts++;
+				sess->fe->fe_counters.srv_aborts++;
 				if (srv)
 					srv->counters.srv_aborts++;
 				s->flags |= SF_ERR_SRVCL;
 			}
 			else {
 				s->be->be_counters.srv_aborts++;
-				s->fe->fe_counters.srv_aborts++;
+				sess->fe->fe_counters.srv_aborts++;
 				if (srv)
 					srv->counters.srv_aborts++;
 				s->flags |= SF_ERR_SRVTO;
@@ -2268,28 +2269,28 @@ struct task *process_stream(struct task *t)
 			res->analysers = 0;
 			if (res->flags & CF_READ_ERROR) {
 				s->be->be_counters.srv_aborts++;
-				s->fe->fe_counters.srv_aborts++;
+				sess->fe->fe_counters.srv_aborts++;
 				if (srv)
 					srv->counters.srv_aborts++;
 				s->flags |= SF_ERR_SRVCL;
 			}
 			else if (res->flags & CF_READ_TIMEOUT) {
 				s->be->be_counters.srv_aborts++;
-				s->fe->fe_counters.srv_aborts++;
+				sess->fe->fe_counters.srv_aborts++;
 				if (srv)
 					srv->counters.srv_aborts++;
 				s->flags |= SF_ERR_SRVTO;
 			}
 			else if (res->flags & CF_WRITE_ERROR) {
 				s->be->be_counters.cli_aborts++;
-				s->fe->fe_counters.cli_aborts++;
+				sess->fe->fe_counters.cli_aborts++;
 				if (srv)
 					srv->counters.cli_aborts++;
 				s->flags |= SF_ERR_CLICL;
 			}
 			else {
 				s->be->be_counters.cli_aborts++;
-				s->fe->fe_counters.cli_aborts++;
+				sess->fe->fe_counters.cli_aborts++;
 				if (srv)
 					srv->counters.cli_aborts++;
 				s->flags |= SF_ERR_CLITO;
@@ -2336,8 +2337,8 @@ struct task *process_stream(struct task *t)
 	    (objt_conn(si_f->end) && __objt_conn(si_f->end)->xprt && __objt_conn(si_f->end)->xprt->rcv_pipe) &&
 	    (objt_conn(si_b->end) && __objt_conn(si_b->end)->xprt && __objt_conn(si_b->end)->xprt->snd_pipe) &&
 	    (pipes_used < global.maxpipes) &&
-	    (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_REQ) ||
-	     (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
+	    (((sess->fe->options2|s->be->options2) & PR_O2_SPLIC_REQ) ||
+	     (((sess->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
 	      (req->flags & CF_STREAMER_FAST)))) {
 		req->flags |= CF_KERN_SPLICING;
 	}
@@ -2357,8 +2358,8 @@ struct task *process_stream(struct task *t)
 	if (unlikely((req->flags & (CF_SHUTW|CF_SHUTW_NOW|CF_AUTO_CLOSE|CF_SHUTR)) ==
 		     (CF_AUTO_CLOSE|CF_SHUTR))) {
 		channel_shutw_now(req);
-		if (tick_isset(s->fe->timeout.clientfin)) {
-			res->wto = s->fe->timeout.clientfin;
+		if (tick_isset(sess->fe->timeout.clientfin)) {
+			res->wto = sess->fe->timeout.clientfin;
 			res->wex = tick_add(now_ms, res->wto);
 		}
 	}
@@ -2385,8 +2386,8 @@ struct task *process_stream(struct task *t)
 		if (si_f->flags & SI_FL_NOHALF)
 			si_f->flags |= SI_FL_NOLINGER;
 		si_shutr(si_f);
-		if (tick_isset(s->fe->timeout.clientfin)) {
-			res->wto = s->fe->timeout.clientfin;
+		if (tick_isset(sess->fe->timeout.clientfin)) {
+			res->wto = sess->fe->timeout.clientfin;
 			res->wex = tick_add(now_ms, res->wto);
 		}
 	}
@@ -2491,14 +2492,14 @@ struct task *process_stream(struct task *t)
 			req->rto = req->wto = res->rto = res->wto =
 				s->be->timeout.tunnel;
 
-			if ((req->flags & CF_SHUTR) && tick_isset(s->fe->timeout.clientfin))
-				res->wto = s->fe->timeout.clientfin;
+			if ((req->flags & CF_SHUTR) && tick_isset(sess->fe->timeout.clientfin))
+				res->wto = sess->fe->timeout.clientfin;
 			if ((req->flags & CF_SHUTW) && tick_isset(s->be->timeout.serverfin))
 				res->rto = s->be->timeout.serverfin;
 			if ((res->flags & CF_SHUTR) && tick_isset(s->be->timeout.serverfin))
 				req->wto = s->be->timeout.serverfin;
-			if ((res->flags & CF_SHUTW) && tick_isset(s->fe->timeout.clientfin))
-				req->rto = s->fe->timeout.clientfin;
+			if ((res->flags & CF_SHUTW) && tick_isset(sess->fe->timeout.clientfin))
+				req->rto = sess->fe->timeout.clientfin;
 
 			req->rex = tick_add(now_ms, req->rto);
 			req->wex = tick_add(now_ms, req->wto);
@@ -2514,8 +2515,8 @@ struct task *process_stream(struct task *t)
 	    (objt_conn(si_f->end) && __objt_conn(si_f->end)->xprt && __objt_conn(si_f->end)->xprt->snd_pipe) &&
 	    (objt_conn(si_b->end) && __objt_conn(si_b->end)->xprt && __objt_conn(si_b->end)->xprt->rcv_pipe) &&
 	    (pipes_used < global.maxpipes) &&
-	    (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_RTR) ||
-	     (((s->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
+	    (((sess->fe->options2|s->be->options2) & PR_O2_SPLIC_RTR) ||
+	     (((sess->fe->options2|s->be->options2) & PR_O2_SPLIC_AUT) &&
 	      (res->flags & CF_STREAMER_FAST)))) {
 		res->flags |= CF_KERN_SPLICING;
 	}
@@ -2545,8 +2546,8 @@ struct task *process_stream(struct task *t)
 	if (unlikely((res->flags & (CF_SHUTW|CF_SHUTW_NOW)) == CF_SHUTW_NOW &&
 		     channel_is_empty(res))) {
 		si_shutw(si_f);
-		if (tick_isset(s->fe->timeout.clientfin)) {
-			req->rto = s->fe->timeout.clientfin;
+		if (tick_isset(sess->fe->timeout.clientfin)) {
+			req->rto = sess->fe->timeout.clientfin;
 			req->rex = tick_add(now_ms, req->rto);
 		}
 	}
@@ -2610,7 +2611,7 @@ struct task *process_stream(struct task *t)
 	if (likely((si_f->state != SI_ST_CLO) ||
 		   (si_b->state > SI_ST_INI && si_b->state < SI_ST_CLO))) {
 
-		if ((s->fe->options & PR_O_CONTSTATS) && (s->flags & SF_BE_ASSIGNED))
+		if ((sess->fe->options & PR_O_CONTSTATS) && (s->flags & SF_BE_ASSIGNED))
 			stream_process_counters(s);
 
 		if (si_f->state == SI_ST_EST && obj_type(si_f->end) != OBJ_TYPE_APPCTX)
@@ -2686,7 +2687,7 @@ struct task *process_stream(struct task *t)
 		return t; /* nothing more to do */
 	}
 
-	s->fe->feconn--;
+	sess->fe->feconn--;
 	if (s->flags & SF_BE_ASSIGNED)
 		s->be->beconn--;
 	jobs--;
@@ -2701,9 +2702,9 @@ struct task *process_stream(struct task *t)
 		if (!LIST_ISEMPTY(&global_listener_queue))
 			dequeue_all_listeners(&global_listener_queue);
 
-		if (!LIST_ISEMPTY(&s->fe->listener_queue) &&
-		    (!s->fe->fe_sps_lim || freq_ctr_remain(&s->fe->fe_sess_per_sec, s->fe->fe_sps_lim, 0) > 0))
-			dequeue_all_listeners(&s->fe->listener_queue);
+		if (!LIST_ISEMPTY(&sess->fe->listener_queue) &&
+		    (!sess->fe->fe_sps_lim || freq_ctr_remain(&sess->fe->fe_sess_per_sec, sess->fe->fe_sps_lim, 0) > 0))
+			dequeue_all_listeners(&sess->fe->listener_queue);
 	}
 
 	if (unlikely((global.mode & MODE_DEBUG) &&
@@ -2725,10 +2726,10 @@ struct task *process_stream(struct task *t)
 		if (n < 1 || n > 5)
 			n = 0;
 
-		if (s->fe->mode == PR_MODE_HTTP) {
-			s->fe->fe_counters.p.http.rsp[n]++;
+		if (sess->fe->mode == PR_MODE_HTTP) {
+			sess->fe->fe_counters.p.http.rsp[n]++;
 			if (s->comp_algo && (s->flags & SF_COMP_READY))
-				s->fe->fe_counters.p.http.comp_rsp++;
+				sess->fe->fe_counters.p.http.comp_rsp++;
 		}
 		if ((s->flags & SF_BE_ASSIGNED) &&
 		    (s->be->mode == PR_MODE_HTTP)) {
@@ -2740,9 +2741,9 @@ struct task *process_stream(struct task *t)
 	}
 
 	/* let's do a final log if we need it */
-	if (!LIST_ISEMPTY(&s->fe->logformat) && s->logs.logwait &&
+	if (!LIST_ISEMPTY(&sess->fe->logformat) && s->logs.logwait &&
 	    !(s->flags & SF_MONITOR) &&
-	    (!(s->fe->options & PR_O_NULLNOLOG) || req->total)) {
+	    (!(sess->fe->options & PR_O_NULLNOLOG) || req->total)) {
 		s->do_log(s);
 	}
 

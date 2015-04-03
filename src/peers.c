@@ -215,7 +215,7 @@ static void peer_session_release(struct stream_interface *si)
 static void peer_io_handler(struct stream_interface *si)
 {
 	struct stream *s = si_strm(si);
-	struct peers *curpeers = (struct peers *)s->fe->parent;
+	struct peers *curpeers = (struct peers *)strm_sess(s)->fe->parent;
 	struct appctx *appctx = objt_appctx(si->end);
 	int reql = 0;
 	int repl = 0;
@@ -1151,12 +1151,8 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	}
 
 	s->sess->listener = l;
-
-	/* Note: initially, the stream's backend points to the frontend.
-	 * This changes later when switching rules are executed or
-	 * when the default backend is assigned.
-	 */
-	s->be = s->fe = p;
+	s->sess->fe = p;
+	s->be = s->sess->fe;
 	s->req.buf = s->res.buf = NULL;
 
 	s->si[0].flags = SI_FL_NONE;
@@ -1165,7 +1161,7 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	si_reset(&s->si[0]);
 	si_set_state(&s->si[0], SI_ST_EST);
 
-	if (s->fe->options2 & PR_O2_INDEPSTR)
+	if (s->sess->fe->options2 & PR_O2_INDEPSTR)
 		s->si[0].flags |= SI_FL_INDEP_STR;
 
 	appctx = stream_int_register_handler(&s->si[0], &peer_applet);
@@ -1245,14 +1241,14 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 		channel_auto_close(&s->req);/* let the producer forward close requests */
 	}
 
-	s->req.rto = s->fe->timeout.client;
+	s->req.rto = s->sess->fe->timeout.client;
 	s->req.wto = s->be->timeout.server;
 
 	channel_init(&s->res);
 	s->res.flags |= CF_ISRESP;
 
 	s->res.rto = s->be->timeout.server;
-	s->res.wto = s->fe->timeout.client;
+	s->res.wto = s->sess->fe->timeout.client;
 
 	s->req.rex = TICK_ETERNITY;
 	s->req.wex = TICK_ETERNITY;

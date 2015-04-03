@@ -54,8 +54,10 @@
  */
 int frontend_accept(struct stream *s)
 {
+	struct session *sess = s->sess;
 	struct connection *conn = __objt_conn(s->si[0].end);
-	struct listener *l = strm_sess(s)->listener;
+	struct listener *l = sess->listener;
+	struct proxy *fe = sess->fe;
 
 	int cfd = conn->t.sock.fd;
 
@@ -82,11 +84,11 @@ int frontend_accept(struct stream *s)
 			       (char *) &one, sizeof(one)) == -1)
 			goto out_return;
 
-		if (s->fe->options & PR_O_TCP_CLI_KA)
+		if (fe->options & PR_O_TCP_CLI_KA)
 			setsockopt(cfd, SOL_SOCKET, SO_KEEPALIVE,
 				   (char *) &one, sizeof(one));
 
-		if (s->fe->options & PR_O_TCP_NOLING)
+		if (fe->options & PR_O_TCP_NOLING)
 			fdtab[cfd].linger_risk = 1;
 
 #if defined(TCP_MAXSEG)
@@ -108,19 +110,19 @@ int frontend_accept(struct stream *s)
 	if (global.tune.client_rcvbuf)
 		setsockopt(cfd, SOL_SOCKET, SO_RCVBUF, &global.tune.client_rcvbuf, sizeof(global.tune.client_rcvbuf));
 
-	if (unlikely(s->fe->nb_req_cap > 0)) {
-		if ((s->txn.req.cap = pool_alloc2(s->fe->req_cap_pool)) == NULL)
+	if (unlikely(fe->nb_req_cap > 0)) {
+		if ((s->txn.req.cap = pool_alloc2(fe->req_cap_pool)) == NULL)
 			goto out_return;	/* no memory */
-		memset(s->txn.req.cap, 0, s->fe->nb_req_cap * sizeof(void *));
+		memset(s->txn.req.cap, 0, fe->nb_req_cap * sizeof(void *));
 	}
 
-	if (unlikely(s->fe->nb_rsp_cap > 0)) {
-		if ((s->txn.rsp.cap = pool_alloc2(s->fe->rsp_cap_pool)) == NULL)
+	if (unlikely(fe->nb_rsp_cap > 0)) {
+		if ((s->txn.rsp.cap = pool_alloc2(fe->rsp_cap_pool)) == NULL)
 			goto out_free_reqcap;	/* no memory */
-		memset(s->txn.rsp.cap, 0, s->fe->nb_rsp_cap * sizeof(void *));
+		memset(s->txn.rsp.cap, 0, fe->nb_rsp_cap * sizeof(void *));
 	}
 
-	if (s->fe->http_needed) {
+	if (fe->http_needed) {
 		/* we have to allocate header indexes only if we know
 		 * that we may make use of them. This of course includes
 		 * (mode == PR_MODE_HTTP).
@@ -134,9 +136,9 @@ int frontend_accept(struct stream *s)
 		http_init_txn(s);
 	}
 
-	if ((s->fe->mode == PR_MODE_TCP || s->fe->mode == PR_MODE_HTTP)
-	    && (!LIST_ISEMPTY(&s->fe->logsrvs))) {
-		if (likely(!LIST_ISEMPTY(&s->fe->logformat))) {
+	if ((fe->mode == PR_MODE_TCP || fe->mode == PR_MODE_HTTP)
+	    && (!LIST_ISEMPTY(&fe->logsrvs))) {
+		if (likely(!LIST_ISEMPTY(&fe->logformat))) {
 			/* we have the client ip */
 			if (s->logs.logwait & LW_CLIP)
 				if (!(s->logs.logwait &= ~(LW_CLIP|LW_INIT)))
@@ -152,16 +154,16 @@ int frontend_accept(struct stream *s)
 			case AF_INET:
 			case AF_INET6:
 				addr_to_str(&conn->addr.to, sn, sizeof(sn));
-				send_log(s->fe, LOG_INFO, "Connect from %s:%d to %s:%d (%s/%s)\n",
+				send_log(fe, LOG_INFO, "Connect from %s:%d to %s:%d (%s/%s)\n",
 					 pn, get_host_port(&conn->addr.from),
 					 sn, get_host_port(&conn->addr.to),
-					 s->fe->id, (s->fe->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
+					 fe->id, (fe->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
 				break;
 			case AF_UNIX:
 				/* UNIX socket, only the destination is known */
-				send_log(s->fe, LOG_INFO, "Connect to unix:%d (%s/%s)\n",
+				send_log(fe, LOG_INFO, "Connect to unix:%d (%s/%s)\n",
 					 l->luid,
-					 s->fe->id, (s->fe->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
+					 fe->id, (fe->mode == PR_MODE_HTTP) ? "HTTP" : "TCP");
 				break;
 			}
 		}
@@ -176,13 +178,13 @@ int frontend_accept(struct stream *s)
 		case AF_INET:
 		case AF_INET6:
 			chunk_printf(&trash, "%08x:%s.accept(%04x)=%04x from [%s:%d]\n",
-			             s->uniq_id, s->fe->id, (unsigned short)l->fd, (unsigned short)cfd,
+			             s->uniq_id, fe->id, (unsigned short)l->fd, (unsigned short)cfd,
 			             pn, get_host_port(&conn->addr.from));
 			break;
 		case AF_UNIX:
 			/* UNIX socket, only the destination is known */
 			chunk_printf(&trash, "%08x:%s.accept(%04x)=%04x from [unix:%d]\n",
-			             s->uniq_id, s->fe->id, (unsigned short)l->fd, (unsigned short)cfd,
+			             s->uniq_id, fe->id, (unsigned short)l->fd, (unsigned short)cfd,
 			             l->luid);
 			break;
 		}
@@ -190,7 +192,7 @@ int frontend_accept(struct stream *s)
 		shut_your_big_mouth_gcc(write(1, trash.str, trash.len));
 	}
 
-	if (s->fe->mode == PR_MODE_HTTP)
+	if (fe->mode == PR_MODE_HTTP)
 		s->req.flags |= CF_READ_DONTWAIT; /* one read is usually enough */
 
 	/* note: this should not happen anymore since there's always at least the switching rules */
@@ -199,17 +201,17 @@ int frontend_accept(struct stream *s)
 		channel_auto_close(&s->req);    /* let the producer forward close requests */
 	}
 
-	s->req.rto = s->fe->timeout.client;
-	s->res.wto = s->fe->timeout.client;
+	s->req.rto = fe->timeout.client;
+	s->res.wto = fe->timeout.client;
 
 	/* everything's OK, let's go on */
 	return 1;
 
 	/* Error unrolling */
  out_free_rspcap:
-	pool_free2(s->fe->rsp_cap_pool, s->txn.rsp.cap);
+	pool_free2(fe->rsp_cap_pool, s->txn.rsp.cap);
  out_free_reqcap:
-	pool_free2(s->fe->req_cap_pool, s->txn.req.cap);
+	pool_free2(fe->req_cap_pool, s->txn.req.cap);
  out_return:
 	return -1;
 }
@@ -225,7 +227,7 @@ smp_fetch_fe_id(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
 {
 	smp->flags = SMP_F_VOL_SESS;
 	smp->type = SMP_T_UINT;
-	smp->data.uint = l4->fe->uuid;
+	smp->data.uint = strm_sess(l4)->fe->uuid;
 	return 1;
 }
 

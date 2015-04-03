@@ -1511,8 +1511,8 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 						resume_listener(l);
 				}
 
-				if (px->maxconn > px->feconn && !LIST_ISEMPTY(&s->fe->listener_queue))
-					dequeue_all_listeners(&s->fe->listener_queue);
+				if (px->maxconn > px->feconn && !LIST_ISEMPTY(&strm_sess(s)->fe->listener_queue))
+					dequeue_all_listeners(&strm_sess(s)->fe->listener_queue);
 
 				return 1;
 			}
@@ -5044,7 +5044,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct st
 
 		chunk_appendf(&trash,
 			     "  frontend=%s (id=%u mode=%s), listener=%s (id=%u)",
-			     sess->fe->id, sess->fe->uuid, sess->fe->mode ? "http" : "tcp",
+			     strm_sess(sess)->fe->id, strm_sess(sess)->fe->uuid, strm_sess(sess)->fe->mode ? "http" : "tcp",
 			     strm_sess(sess)->listener ? strm_sess(sess)->listener->name ? strm_sess(sess)->listener->name : "?" : "?",
 			     strm_sess(sess)->listener ? strm_sess(sess)->listener->luid : 0);
 
@@ -5612,7 +5612,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 					     " src=%s:%d fe=%s be=%s srv=%s",
 					     pn,
 					     get_host_port(&conn->addr.from),
-					     curr_sess->fe->id,
+					     strm_sess(curr_sess)->fe->id,
 					     (curr_sess->be->cap & PR_CAP_BE) ? curr_sess->be->id : "<NONE>",
 					     objt_server(curr_sess->target) ? objt_server(curr_sess->target)->id : "<none>"
 					     );
@@ -5621,7 +5621,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 				chunk_appendf(&trash,
 					     " src=unix:%d fe=%s be=%s srv=%s",
 					     strm_sess(curr_sess)->listener->luid,
-					     curr_sess->fe->id,
+					     strm_sess(curr_sess)->fe->id,
 					     (curr_sess->be->cap & PR_CAP_BE) ? curr_sess->be->id : "<NONE>",
 					     objt_server(curr_sess->target) ? objt_server(curr_sess->target)->id : "<none>"
 					     );

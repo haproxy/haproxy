@@ -117,7 +117,6 @@ struct stream {
 	struct channel req;             /* request channel */
 	struct channel res;             /* response channel */
 
-	struct proxy *fe;               /* the proxy this stream depends on for the client side */
 	struct proxy *be;               /* the proxy this stream depends on for the server side */
 
 	struct session *sess;           /* the session this stream is attached to */

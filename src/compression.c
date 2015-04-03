@@ -36,6 +36,7 @@
 #include <proto/compression.h>
 #include <proto/freq_ctr.h>
 #include <proto/proto_http.h>
+#include <proto/stream.h>
 
 
 #ifdef USE_ZLIB
@@ -318,10 +319,10 @@ int http_compression_buffer_end(struct stream *s, struct buffer **in, struct buf
 	/* update input rate */
 	if (s->comp_ctx && s->comp_ctx->cur_lvl > 0) {
 		update_freq_ctr(&global.comp_bps_in, msg->next);
-		s->fe->fe_counters.comp_in += msg->next;
+		strm_sess(s)->fe->fe_counters.comp_in += msg->next;
 		s->be->be_counters.comp_in += msg->next;
 	} else {
-		s->fe->fe_counters.comp_byp += msg->next;
+		strm_sess(s)->fe->fe_counters.comp_byp += msg->next;
 		s->be->be_counters.comp_byp += msg->next;
 	}
 
@@ -345,7 +346,7 @@ int http_compression_buffer_end(struct stream *s, struct buffer **in, struct buf
 
 	if (s->comp_ctx && s->comp_ctx->cur_lvl > 0) {
 		update_freq_ctr(&global.comp_bps_out, to_forward);
-		s->fe->fe_counters.comp_out += to_forward;
+		strm_sess(s)->fe->fe_counters.comp_out += to_forward;
 		s->be->be_counters.comp_out += to_forward;
 	}
 

@@ -850,8 +850,8 @@ struct chunk *http_error_message(struct stream *s, int msgnum)
 {
 	if (s->be->errmsg[msgnum].str)
 		return &s->be->errmsg[msgnum];
-	else if (s->fe->errmsg[msgnum].str)
-		return &s->fe->errmsg[msgnum];
+	else if (strm_sess(s)->fe->errmsg[msgnum].str)
+		return &strm_sess(s)->fe->errmsg[msgnum];
 	else
 		return &http_err_chunks[msgnum];
 }
@@ -2262,7 +2262,7 @@ int select_compression_request_header(struct stream *s, struct buffer *req)
 	}
 
 	/* search for the algo in the backend in priority or the frontend */
-	if ((s->be->comp && (comp_algo_back = s->be->comp->algos)) || (s->fe->comp && (comp_algo_back = s->fe->comp->algos))) {
+	if ((s->be->comp && (comp_algo_back = s->be->comp->algos)) || (strm_sess(s)->fe->comp && (comp_algo_back = strm_sess(s)->fe->comp->algos))) {
 		int best_q = 0;
 
 		ctx.idx = 0;
@@ -2320,7 +2320,7 @@ int select_compression_request_header(struct stream *s, struct buffer *req)
 
 	/* remove all occurrences of the header when "compression offload" is set */
 	if (s->comp_algo) {
-		if ((s->be->comp && s->be->comp->offload) || (s->fe->comp && s->fe->comp->offload)) {
+		if ((s->be->comp && s->be->comp->offload) || (strm_sess(s)->fe->comp && strm_sess(s)->fe->comp->offload)) {
 			http_remove_header2(msg, &txn->hdr_idx, &ctx);
 			ctx.idx = 0;
 			while (http_find_header2("Accept-Encoding", 15, req->p, &txn->hdr_idx, &ctx)) {
@@ -2331,7 +2331,7 @@ int select_compression_request_header(struct stream *s, struct buffer *req)
 	}
 
 	/* identity is implicit does not require headers */
-	if ((s->be->comp && (comp_algo_back = s->be->comp->algos)) || (s->fe->comp && (comp_algo_back = s->fe->comp->algos))) {
+	if ((s->be->comp && (comp_algo_back = s->be->comp->algos)) || (strm_sess(s)->fe->comp && (comp_algo_back = strm_sess(s)->fe->comp->algos))) {
 		for (comp_algo = comp_algo_back; comp_algo; comp_algo = comp_algo->next) {
 			if (comp_algo->cfg_name_len == 8 && memcmp(comp_algo->cfg_name, "identity", 8) == 0) {
 				s->comp_algo = comp_algo;
@@ -2398,7 +2398,7 @@ int select_compression_response_header(struct stream *s, struct buffer *res)
 			goto fail;
 
 		if ((s->be->comp && (comp_type = s->be->comp->types)) ||
-		    (s->fe->comp && (comp_type = s->fe->comp->types))) {
+		    (strm_sess(s)->fe->comp && (comp_type = strm_sess(s)->fe->comp->types))) {
 			for (; comp_type; comp_type = comp_type->next) {
 				if (ctx.vlen >= comp_type->name_len &&
 				    strncasecmp(ctx.line+ctx.val, comp_type->name, comp_type->name_len) == 0)
@@ -2411,7 +2411,7 @@ int select_compression_response_header(struct stream *s, struct buffer *res)
 		}
 	}
 	else { /* no content-type header */
-		if ((s->be->comp && s->be->comp->types) || (s->fe->comp && s->fe->comp->types))
+		if ((s->be->comp && s->be->comp->types) || (strm_sess(s)->fe->comp && strm_sess(s)->fe->comp->types))
 			goto fail; /* a content-type was required */
 	}
 
@@ -2462,29 +2462,30 @@ fail:
 
 void http_adjust_conn_mode(struct stream *s, struct http_txn *txn, struct http_msg *msg)
 {
+	struct proxy *fe = strm_sess(s)->fe;
 	int tmp = TX_CON_WANT_KAL;
 
-	if (!((s->fe->options2|s->be->options2) & PR_O2_FAKE_KA)) {
-		if ((s->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_TUN ||
+	if (!((fe->options2|s->be->options2) & PR_O2_FAKE_KA)) {
+		if ((fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_TUN ||
 		    (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_TUN)
 			tmp = TX_CON_WANT_TUN;
 
-		if ((s->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
+		if ((fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
 		    (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL)
 			tmp = TX_CON_WANT_TUN;
 	}
 
-	if ((s->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_SCL ||
+	if ((fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_SCL ||
 	    (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_SCL) {
 		/* option httpclose + server_close => forceclose */
-		if ((s->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
+		if ((fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
 		    (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL)
 			tmp = TX_CON_WANT_CLO;
 		else
 			tmp = TX_CON_WANT_SCL;
 	}
 
-	if ((s->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_FCL ||
+	if ((fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_FCL ||
 	    (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_FCL)
 		tmp = TX_CON_WANT_CLO;
 
@@ -2497,7 +2498,7 @@ void http_adjust_conn_mode(struct stream *s, struct http_txn *txn, struct http_m
 		int to_del = 0;
 		if ((msg->flags & HTTP_MSGF_VER_11) ||
 		    ((txn->flags & TX_CON_WANT_MSK) >= TX_CON_WANT_SCL &&
-		     !((s->fe->options2|s->be->options2) & PR_O2_FAKE_KA)))
+		     !((fe->options2|s->be->options2) & PR_O2_FAKE_KA)))
 			to_del |= 2; /* remove "keep-alive" */
 		if (!(msg->flags & HTTP_MSGF_VER_11))
 			to_del |= 1; /* remove "close" */
@@ -2510,7 +2511,7 @@ void http_adjust_conn_mode(struct stream *s, struct http_txn *txn, struct http_m
 	    ((txn->flags & TX_HDR_CONN_CLO) ||                         /* "connection: close" */
 	     (!(msg->flags & HTTP_MSGF_VER_11) && !(txn->flags & TX_HDR_CONN_KAL)) || /* no "connection: k-a" in 1.0 */
 	     !(msg->flags & HTTP_MSGF_XFER_LEN) ||                     /* no length known => close */
-	     s->fe->state == PR_STSTOPPED))                            /* frontend is stopping */
+	     fe->state == PR_STSTOPPED))                            /* frontend is stopping */
 		txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
 }
 
@@ -2660,7 +2661,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 		if (unlikely(msg->msg_state == HTTP_MSG_ERROR)) {
 			stream_inc_http_req_ctr(s);
 			stream_inc_http_err_ctr(s);
-			proxy_inc_fe_req_ctr(s->fe);
+			proxy_inc_fe_req_ctr(sess->fe);
 			goto return_bad_req;
 		}
 
@@ -2675,7 +2676,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			 */
 			stream_inc_http_req_ctr(s);
 			stream_inc_http_err_ctr(s);
-			proxy_inc_fe_req_ctr(s->fe);
+			proxy_inc_fe_req_ctr(sess->fe);
 			if (msg->err_pos < 0)
 				msg->err_pos = req->buf->i;
 			goto return_bad_req;
@@ -2691,7 +2692,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
 			/* we cannot return any message on error */
 			if (msg->err_pos >= 0) {
-				http_capture_bad_message(&s->fe->invalid_req, s, msg, msg->msg_state, s->fe);
+				http_capture_bad_message(&sess->fe->invalid_req, s, msg, msg->msg_state, sess->fe);
 				stream_inc_http_err_ctr(s);
 			}
 
@@ -2701,8 +2702,8 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			req->analysers = 0;
 
 			stream_inc_http_req_ctr(s);
-			proxy_inc_fe_req_ctr(s->fe);
-			s->fe->fe_counters.failed_req++;
+			proxy_inc_fe_req_ctr(sess->fe);
+			sess->fe->fe_counters.failed_req++;
 			if (sess->listener->counters)
 				sess->listener->counters->failed_req++;
 
@@ -2721,7 +2722,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
 			/* read timeout : give up with an error message. */
 			if (msg->err_pos >= 0) {
-				http_capture_bad_message(&s->fe->invalid_req, s, msg, msg->msg_state, s->fe);
+				http_capture_bad_message(&sess->fe->invalid_req, s, msg, msg->msg_state, sess->fe);
 				stream_inc_http_err_ctr(s);
 			}
 			txn->status = 408;
@@ -2730,8 +2731,8 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			req->analysers = 0;
 
 			stream_inc_http_req_ctr(s);
-			proxy_inc_fe_req_ctr(s->fe);
-			s->fe->fe_counters.failed_req++;
+			proxy_inc_fe_req_ctr(sess->fe);
+			sess->fe->fe_counters.failed_req++;
 			if (sess->listener->counters)
 				sess->listener->counters->failed_req++;
 
@@ -2749,7 +2750,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 				goto failed_keep_alive;
 
 			if (msg->err_pos >= 0)
-				http_capture_bad_message(&s->fe->invalid_req, s, msg, msg->msg_state, s->fe);
+				http_capture_bad_message(&sess->fe->invalid_req, s, msg, msg->msg_state, sess->fe);
 			txn->status = 400;
 			stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_400));
 			msg->msg_state = HTTP_MSG_ERROR;
@@ -2757,8 +2758,8 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 
 			stream_inc_http_err_ctr(s);
 			stream_inc_http_req_ctr(s);
-			proxy_inc_fe_req_ctr(s->fe);
-			s->fe->fe_counters.failed_req++;
+			proxy_inc_fe_req_ctr(sess->fe);
+			sess->fe->fe_counters.failed_req++;
 			if (sess->listener->counters)
 				sess->listener->counters->failed_req++;
 
@@ -2828,7 +2829,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	 */
 
 	stream_inc_http_req_ctr(s);
-	proxy_inc_fe_req_ctr(s->fe); /* one more valid request for this FE */
+	proxy_inc_fe_req_ctr(sess->fe); /* one more valid request for this FE */
 
 	if (txn->flags & TX_WAIT_NEXT_RQ) {
 		/* kill the pending keep-alive timeout */
@@ -2841,7 +2842,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	 * to block on that, so we have to capture it now.
 	 */
 	if (unlikely(msg->err_pos >= 0))
-		http_capture_bad_message(&s->fe->invalid_req, s, msg, msg->msg_state, s->fe);
+		http_capture_bad_message(&sess->fe->invalid_req, s, msg, msg->msg_state, sess->fe);
 
 	/*
 	 * 1: identify the method
@@ -2857,22 +2858,22 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	 * We have to do this for every request which gets in, because
 	 * the monitor-uri is defined by the frontend.
 	 */
-	if (unlikely((s->fe->monitor_uri_len != 0) &&
-		     (s->fe->monitor_uri_len == msg->sl.rq.u_l) &&
+	if (unlikely((sess->fe->monitor_uri_len != 0) &&
+		     (sess->fe->monitor_uri_len == msg->sl.rq.u_l) &&
 		     !memcmp(req->buf->p + msg->sl.rq.u,
-			     s->fe->monitor_uri,
-			     s->fe->monitor_uri_len))) {
+			     sess->fe->monitor_uri,
+			     sess->fe->monitor_uri_len))) {
 		/*
 		 * We have found the monitor URI
 		 */
 		struct acl_cond *cond;
 
 		s->flags |= SF_MONITOR;
-		s->fe->fe_counters.intercepted_req++;
+		sess->fe->fe_counters.intercepted_req++;
 
 		/* Check if we want to fail this monitor request or not */
-		list_for_each_entry(cond, &s->fe->mon_fail_cond, list) {
-			int ret = acl_exec_cond(cond, s->fe, s, txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
+		list_for_each_entry(cond, &sess->fe->mon_fail_cond, list) {
+			int ret = acl_exec_cond(cond, sess->fe, s, txn, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
 
 			ret = acl_pass(ret);
 			if (cond->pol == ACL_COND_UNLESS)
@@ -2941,7 +2942,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	 * a proxied connection, which covers both "scheme://location" and
 	 * CONNECT ip:port.
 	 */
-	if ((s->fe->options2 & PR_O2_USE_PXHDR) &&
+	if ((sess->fe->options2 & PR_O2_USE_PXHDR) &&
 	    req->buf->p[msg->sl.rq.u] != '/' && req->buf->p[msg->sl.rq.u] != '*')
 		txn->flags |= TX_USE_PX_CONN;
 
@@ -2951,7 +2952,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	/* 5: we may need to capture headers */
 	if (unlikely((s->logs.logwait & LW_REQHDR) && txn->req.cap))
 		capture_headers(req->buf->p, &txn->hdr_idx,
-				txn->req.cap, s->fe->req_cap);
+				txn->req.cap, sess->fe->req_cap);
 
 	/* 6: determine the transfer-length.
 	 * According to RFC2616 #4.4, amended by the HTTPbis working group,
@@ -3050,7 +3051,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	 * time.
 	 */
 	if (!(txn->flags & TX_HDR_CONN_PRS) ||
-	    ((s->fe->options & PR_O_HTTP_MODE) != (s->be->options & PR_O_HTTP_MODE)))
+	    ((sess->fe->options & PR_O_HTTP_MODE) != (s->be->options & PR_O_HTTP_MODE)))
 		http_adjust_conn_mode(s, txn, msg);
 
 	/* end of job, return OK */
@@ -3064,14 +3065,14 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 		/* we detected a parsing error. We want to archive this request
 		 * in the dedicated proxy area for later troubleshooting.
 		 */
-		http_capture_bad_message(&s->fe->invalid_req, s, msg, msg->msg_state, s->fe);
+		http_capture_bad_message(&sess->fe->invalid_req, s, msg, msg->msg_state, sess->fe);
 	}
 
 	txn->req.msg_state = HTTP_MSG_ERROR;
 	txn->status = 400;
 	stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_400));
 
-	s->fe->fe_counters.failed_req++;
+	sess->fe->fe_counters.failed_req++;
 	if (sess->listener->counters)
 		sess->listener->counters->failed_req++;
 
@@ -3576,7 +3577,7 @@ resume_execution:
 						                       t->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
 
 					stkctr_set_flags(&s->stkctr[http_req_trk_idx(rule->action)], STKCTR_TRACK_CONTENT);
-					if (s->fe != s->be)
+					if (strm_sess(s)->fe != s->be)
 						stkctr_set_flags(&s->stkctr[http_req_trk_idx(rule->action)], STKCTR_TRACK_BACKEND);
 				}
 			}
@@ -4179,8 +4180,8 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	/* Proceed with the stats now. */
 	if (unlikely(objt_applet(s->target) == &http_stats_applet)) {
 		/* process the stats request now */
-		if (s->fe == s->be) /* report it if the request was intercepted by the frontend */
-			s->fe->fe_counters.intercepted_req++;
+		if (sess->fe == s->be) /* report it if the request was intercepted by the frontend */
+			sess->fe->fe_counters.intercepted_req++;
 
 		if (!(s->flags & SF_ERR_MASK))      // this is not really an error but it is
 			s->flags |= SF_ERR_LOCAL;   // to mark that it comes from the proxy
@@ -4188,7 +4189,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 			s->flags |= SF_FINST_R;
 
 		/* we may want to compress the stats page */
-		if (s->fe->comp || s->be->comp)
+		if (sess->fe->comp || s->be->comp)
 			select_compression_request_header(s, req->buf);
 
 		/* enable the minimally required analyzers to handle keep-alive and compression on the HTTP response */
@@ -4248,8 +4249,8 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	if (!req->analyse_exp)
 		req->analyse_exp = tick_add(now_ms, 0);
 	stream_inc_http_err_ctr(s);
-	s->fe->fe_counters.denied_req++;
-	if (s->fe != s->be)
+	sess->fe->fe_counters.denied_req++;
+	if (sess->fe != s->be)
 		s->be->be_counters.denied_req++;
 	if (sess->listener->counters)
 		sess->listener->counters->denied_req++;
@@ -4261,8 +4262,8 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	s->logs.tv_request = now;
 	stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_403));
 	stream_inc_http_err_ctr(s);
-	s->fe->fe_counters.denied_req++;
-	if (s->fe != s->be)
+	sess->fe->fe_counters.denied_req++;
+	if (sess->fe != s->be)
 		s->be->be_counters.denied_req++;
 	if (sess->listener->counters)
 		sess->listener->counters->denied_req++;
@@ -4274,14 +4275,14 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 		/* we detected a parsing error. We want to archive this request
 		 * in the dedicated proxy area for later troubleshooting.
 		 */
-		http_capture_bad_message(&s->fe->invalid_req, s, msg, msg->msg_state, s->fe);
+		http_capture_bad_message(&sess->fe->invalid_req, s, msg, msg->msg_state, sess->fe);
 	}
 
 	txn->req.msg_state = HTTP_MSG_ERROR;
 	txn->status = 400;
 	stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_400));
 
-	s->fe->fe_counters.failed_req++;
+	sess->fe->fe_counters.failed_req++;
 	if (sess->listener->counters)
 		sess->listener->counters->failed_req++;
 
@@ -4327,7 +4328,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		req->buf->i,
 		req->analysers);
 
-	if (s->fe->comp || s->be->comp)
+	if (sess->fe->comp || s->be->comp)
 		select_compression_request_header(s, req->buf);
 
 	/*
@@ -4401,7 +4402,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	 * the fields will stay coherent and the URI will not move.
 	 * This should only be performed in the backend.
 	 */
-	if ((s->be->cookie_name || s->be->appsession_name || s->fe->capture_name)
+	if ((s->be->cookie_name || s->be->appsession_name || sess->fe->capture_name)
 	    && !(txn->flags & (TX_CLDENY|TX_CLTARPIT)))
 		manage_client_side_cookies(s, req);
 
@@ -4417,15 +4418,15 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 
 	/* add unique-id if "header-unique-id" is specified */
 
-	if (!LIST_ISEMPTY(&s->fe->format_unique_id)) {
+	if (!LIST_ISEMPTY(&sess->fe->format_unique_id)) {
 		if ((s->unique_id = pool_alloc2(pool2_uniqueid)) == NULL)
 			goto return_bad_req;
 		s->unique_id[0] = '\0';
-		build_logline(s, s->unique_id, UNIQUEID_LEN, &s->fe->format_unique_id);
+		build_logline(s, s->unique_id, UNIQUEID_LEN, &sess->fe->format_unique_id);
 	}
 
-	if (s->fe->header_unique_id && s->unique_id) {
-		chunk_printf(&trash, "%s: %s", s->fe->header_unique_id, s->unique_id);
+	if (sess->fe->header_unique_id && s->unique_id) {
+		chunk_printf(&trash, "%s: %s", sess->fe->header_unique_id, s->unique_id);
 		if (trash.len < 0)
 			goto return_bad_req;
 		if (unlikely(http_header_add_tail2(&txn->req, &txn->hdr_idx, trash.str, trash.len) < 0))
@@ -4436,11 +4437,11 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	 * 9: add X-Forwarded-For if either the frontend or the backend
 	 * asks for it.
 	 */
-	if ((s->fe->options | s->be->options) & PR_O_FWDFOR) {
+	if ((sess->fe->options | s->be->options) & PR_O_FWDFOR) {
 		struct hdr_ctx ctx = { .idx = 0 };
-		if (!((s->fe->options | s->be->options) & PR_O_FF_ALWAYS) &&
-			http_find_header2(s->be->fwdfor_hdr_len ? s->be->fwdfor_hdr_name : s->fe->fwdfor_hdr_name,
-			                  s->be->fwdfor_hdr_len ? s->be->fwdfor_hdr_len : s->fe->fwdfor_hdr_len,
+		if (!((sess->fe->options | s->be->options) & PR_O_FF_ALWAYS) &&
+			http_find_header2(s->be->fwdfor_hdr_len ? s->be->fwdfor_hdr_name : sess->fe->fwdfor_hdr_name,
+			                  s->be->fwdfor_hdr_len ? s->be->fwdfor_hdr_len : sess->fe->fwdfor_hdr_len,
 			                  req->buf->p, &txn->hdr_idx, &ctx)) {
 			/* The header is set to be added only if none is present
 			 * and we found it, so don't do anything.
@@ -4450,9 +4451,9 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 			/* Add an X-Forwarded-For header unless the source IP is
 			 * in the 'except' network range.
 			 */
-			if ((!s->fe->except_mask.s_addr ||
-			     (((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr.s_addr & s->fe->except_mask.s_addr)
-			     != s->fe->except_net.s_addr) &&
+			if ((!sess->fe->except_mask.s_addr ||
+			     (((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr.s_addr & sess->fe->except_mask.s_addr)
+			     != sess->fe->except_net.s_addr) &&
 			    (!s->be->except_mask.s_addr ||
 			     (((struct sockaddr_in *)&cli_conn->addr.from)->sin_addr.s_addr & s->be->except_mask.s_addr)
 			     != s->be->except_net.s_addr)) {
@@ -4469,8 +4470,8 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 					len = s->be->fwdfor_hdr_len;
 					memcpy(trash.str, s->be->fwdfor_hdr_name, len);
 				} else {
-					len = s->fe->fwdfor_hdr_len;
-					memcpy(trash.str, s->fe->fwdfor_hdr_name, len);
+					len = sess->fe->fwdfor_hdr_len;
+					memcpy(trash.str, sess->fe->fwdfor_hdr_name, len);
 				}
 				len += snprintf(trash.str + len, trash.size - len, ": %d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
 
@@ -4497,8 +4498,8 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 				len = s->be->fwdfor_hdr_len;
 				memcpy(trash.str, s->be->fwdfor_hdr_name, len);
 			} else {
-				len = s->fe->fwdfor_hdr_len;
-				memcpy(trash.str, s->fe->fwdfor_hdr_name, len);
+				len = sess->fe->fwdfor_hdr_len;
+				memcpy(trash.str, sess->fe->fwdfor_hdr_name, len);
 			}
 			len += snprintf(trash.str + len, trash.size - len, ": %s", pn);
 
@@ -4511,7 +4512,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	 * 10: add X-Original-To if either the frontend or the backend
 	 * asks for it.
 	 */
-	if ((s->fe->options | s->be->options) & PR_O_ORGTO) {
+	if ((sess->fe->options | s->be->options) & PR_O_ORGTO) {
 
 		/* FIXME: don't know if IPv6 can handle that case too. */
 		if (cli_conn && cli_conn->addr.from.ss_family == AF_INET) {
@@ -4521,9 +4522,9 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 			conn_get_to_addr(cli_conn);
 
 			if (cli_conn->addr.to.ss_family == AF_INET &&
-			    ((!s->fe->except_mask_to.s_addr ||
-			      (((struct sockaddr_in *)&cli_conn->addr.to)->sin_addr.s_addr & s->fe->except_mask_to.s_addr)
-			      != s->fe->except_to.s_addr) &&
+			    ((!sess->fe->except_mask_to.s_addr ||
+			      (((struct sockaddr_in *)&cli_conn->addr.to)->sin_addr.s_addr & sess->fe->except_mask_to.s_addr)
+			      != sess->fe->except_to.s_addr) &&
 			     (!s->be->except_mask_to.s_addr ||
 			      (((struct sockaddr_in *)&cli_conn->addr.to)->sin_addr.s_addr & s->be->except_mask_to.s_addr)
 			      != s->be->except_to.s_addr))) {
@@ -4540,8 +4541,8 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 					len = s->be->orgto_hdr_len;
 					memcpy(trash.str, s->be->orgto_hdr_name, len);
 				} else {
-					len = s->fe->orgto_hdr_len;
-					memcpy(trash.str, s->fe->orgto_hdr_name, len);
+					len = sess->fe->orgto_hdr_len;
+					memcpy(trash.str, sess->fe->orgto_hdr_name, len);
 				}
 				len += snprintf(trash.str + len, trash.size - len, ": %d.%d.%d.%d", pn[0], pn[1], pn[2], pn[3]);
 
@@ -4558,21 +4559,21 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	 */
 	if (!(txn->flags & TX_HDR_CONN_UPG) &&
 	    (((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) ||
-	     ((s->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
+	     ((sess->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
 	      (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL))) {
 		unsigned int want_flags = 0;
 
 		if (msg->flags & HTTP_MSGF_VER_11) {
 			if (((txn->flags & TX_CON_WANT_MSK) >= TX_CON_WANT_SCL ||
-			     ((s->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
+			     ((sess->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
 			      (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL)) &&
-			    !((s->fe->options2|s->be->options2) & PR_O2_FAKE_KA))
+			    !((sess->fe->options2|s->be->options2) & PR_O2_FAKE_KA))
 				want_flags |= TX_CON_CLO_SET;
 		} else {
 			if (((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL &&
-			     ((s->fe->options & PR_O_HTTP_MODE) != PR_O_HTTP_PCL &&
+			     ((sess->fe->options & PR_O_HTTP_MODE) != PR_O_HTTP_PCL &&
 			      (s->be->options & PR_O_HTTP_MODE) != PR_O_HTTP_PCL)) ||
-			    ((s->fe->options2|s->be->options2) & PR_O2_FAKE_KA))
+			    ((sess->fe->options2|s->be->options2) & PR_O2_FAKE_KA))
 				want_flags |= TX_CON_KAL_SET;
 		}
 
@@ -4630,7 +4631,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		/* we detected a parsing error. We want to archive this request
 		 * in the dedicated proxy area for later troubleshooting.
 		 */
-		http_capture_bad_message(&s->fe->invalid_req, s, msg, msg->msg_state, s->fe);
+		http_capture_bad_message(&sess->fe->invalid_req, s, msg, msg->msg_state, sess->fe);
 	}
 
 	txn->req.msg_state = HTTP_MSG_ERROR;
@@ -4638,7 +4639,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	req->analysers = 0;
 	stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_400));
 
-	s->fe->fe_counters.failed_req++;
+	sess->fe->fe_counters.failed_req++;
 	if (sess->listener->counters)
 		sess->listener->counters->failed_req++;
 
@@ -4831,7 +4832,7 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 
  return_err_msg:
 	req->analysers = 0;
-	s->fe->fe_counters.failed_req++;
+	sess->fe->fe_counters.failed_req++;
 	if (sess->listener->counters)
 		sess->listener->counters->failed_req++;
 	return 0;
@@ -4898,6 +4899,7 @@ int http_send_name_header(struct http_txn *txn, struct proxy* be, const char* sr
 void http_end_txn_clean_session(struct stream *s)
 {
 	int prev_status = s->txn.status;
+	struct proxy *fe = strm_sess(s)->fe;
 
 	/* FIXME: We need a more portable way of releasing a backend's and a
 	 * server's connections. We need a safer way to reinitialize buffer
@@ -4931,10 +4933,10 @@ void http_end_txn_clean_session(struct stream *s)
 		if (n < 1 || n > 5)
 			n = 0;
 
-		if (s->fe->mode == PR_MODE_HTTP) {
-			s->fe->fe_counters.p.http.rsp[n]++;
+		if (fe->mode == PR_MODE_HTTP) {
+			fe->fe_counters.p.http.rsp[n]++;
 			if (s->comp_algo && (s->flags & SF_COMP_READY))
-				s->fe->fe_counters.p.http.comp_rsp++;
+				fe->fe_counters.p.http.comp_rsp++;
 		}
 		if ((s->flags & SF_BE_ASSIGNED) &&
 		    (s->be->mode == PR_MODE_HTTP)) {
@@ -4950,9 +4952,9 @@ void http_end_txn_clean_session(struct stream *s)
 	s->logs.bytes_out -= s->res.buf->i;
 
 	/* let's do a final log if we need it */
-	if (!LIST_ISEMPTY(&s->fe->logformat) && s->logs.logwait &&
+	if (!LIST_ISEMPTY(&fe->logformat) && s->logs.logwait &&
 	    !(s->flags & SF_MONITOR) &&
-	    (!(s->fe->options & PR_O_NULLNOLOG) || s->req.total)) {
+	    (!(fe->options & PR_O_NULLNOLOG) || s->req.total)) {
 		s->do_log(s);
 	}
 
@@ -5021,10 +5023,10 @@ void http_end_txn_clean_session(struct stream *s)
 		s->txn.flags |= TX_PREFER_LAST;
 	}
 
-	if (s->fe->options2 & PR_O2_INDEPSTR)
+	if (fe->options2 & PR_O2_INDEPSTR)
 		s->si[1].flags |= SI_FL_INDEP_STR;
 
-	if (s->fe->options2 & PR_O2_NODELAY) {
+	if (fe->options2 & PR_O2_NODELAY) {
 		s->req.flags |= CF_NEVER_WAIT;
 		s->res.flags |= CF_NEVER_WAIT;
 	}
@@ -5505,7 +5507,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 			else if (ret < 0) {
 				stream_inc_http_err_ctr(s);
 				if (msg->err_pos >= 0)
-					http_capture_bad_message(&s->fe->invalid_req, s, msg, HTTP_MSG_CHUNK_SIZE, s->be);
+					http_capture_bad_message(&sess->fe->invalid_req, s, msg, HTTP_MSG_CHUNK_SIZE, s->be);
 				goto return_bad_req;
 			}
 			/* otherwise we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state */
@@ -5519,7 +5521,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 			else if (ret < 0) {
 				stream_inc_http_err_ctr(s);
 				if (msg->err_pos >= 0)
-					http_capture_bad_message(&s->fe->invalid_req, s, msg, HTTP_MSG_CHUNK_CRLF, s->be);
+					http_capture_bad_message(&sess->fe->invalid_req, s, msg, HTTP_MSG_CHUNK_CRLF, s->be);
 				goto return_bad_req;
 			}
 			/* we're in MSG_CHUNK_SIZE now */
@@ -5532,7 +5534,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 			else if (ret < 0) {
 				stream_inc_http_err_ctr(s);
 				if (msg->err_pos >= 0)
-					http_capture_bad_message(&s->fe->invalid_req, s, msg, HTTP_MSG_TRAILERS, s->be);
+					http_capture_bad_message(&sess->fe->invalid_req, s, msg, HTTP_MSG_TRAILERS, s->be);
 				goto return_bad_req;
 			}
 			/* we're in HTTP_MSG_DONE now */
@@ -5566,7 +5568,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 						goto aborted_xfer;
 					}
 					if (msg->err_pos >= 0)
-						http_capture_bad_message(&s->fe->invalid_req, s, msg, old_state, s->be);
+						http_capture_bad_message(&sess->fe->invalid_req, s, msg, old_state, s->be);
 					goto return_bad_req;
 				}
 				return 1;
@@ -5615,7 +5617,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 				s->flags |= SF_FINST_D;
 		}
 
-		s->fe->fe_counters.cli_aborts++;
+		sess->fe->fe_counters.cli_aborts++;
 		s->be->be_counters.cli_aborts++;
 		if (objt_server(s->target))
 			objt_server(s->target)->counters.cli_aborts++;
@@ -5647,7 +5649,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	return 0;
 
  return_bad_req: /* let's centralize all bad requests */
-	s->fe->fe_counters.failed_req++;
+	sess->fe->fe_counters.failed_req++;
 	if (sess->listener->counters)
 		sess->listener->counters->failed_req++;
 
@@ -5689,7 +5691,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	req->analysers = 0;
 	s->res.analysers = 0; /* we're in data phase, we want to abort both directions */
 
-	s->fe->fe_counters.srv_aborts++;
+	sess->fe->fe_counters.srv_aborts++;
 	s->be->be_counters.srv_aborts++;
 	if (objt_server(s->target))
 		objt_server(s->target)->counters.srv_aborts++;
@@ -5714,6 +5716,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
  */
 int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 {
+	struct session *sess = s->sess;
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &txn->rsp;
 	struct hdr_ctx ctx;
@@ -5813,7 +5816,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			 */
 		hdr_response_bad:
 			if (msg->msg_state == HTTP_MSG_ERROR || msg->err_pos >= 0)
-				http_capture_bad_message(&s->be->invalid_rep, s, msg, msg->msg_state, s->fe);
+				http_capture_bad_message(&s->be->invalid_rep, s, msg, msg->msg_state, sess->fe);
 
 			s->be->be_counters.failed_resp++;
 			if (objt_server(s->target)) {
@@ -5846,7 +5849,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		/* read error */
 		else if (rep->flags & CF_READ_ERROR) {
 			if (msg->err_pos >= 0)
-				http_capture_bad_message(&s->be->invalid_rep, s, msg, msg->msg_state, s->fe);
+				http_capture_bad_message(&s->be->invalid_rep, s, msg, msg->msg_state, sess->fe);
 			else if (txn->flags & TX_NOT_FIRST)
 				goto abort_keep_alive;
 
@@ -5873,7 +5876,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		/* read timeout : return a 504 to the client. */
 		else if (rep->flags & CF_READ_TIMEOUT) {
 			if (msg->err_pos >= 0)
-				http_capture_bad_message(&s->be->invalid_rep, s, msg, msg->msg_state, s->fe);
+				http_capture_bad_message(&s->be->invalid_rep, s, msg, msg->msg_state, sess->fe);
 			else if (txn->flags & TX_NOT_FIRST)
 				goto abort_keep_alive;
 
@@ -5899,7 +5902,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 		/* client abort with an abortonclose */
 		else if ((rep->flags & CF_SHUTR) && ((s->req.flags & (CF_SHUTR|CF_SHUTW)) == (CF_SHUTR|CF_SHUTW))) {
-			s->fe->fe_counters.cli_aborts++;
+			sess->fe->fe_counters.cli_aborts++;
 			s->be->be_counters.cli_aborts++;
 			if (objt_server(s->target))
 				objt_server(s->target)->counters.cli_aborts++;
@@ -5923,7 +5926,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		/* close from server, capture the response if the server has started to respond */
 		else if (rep->flags & CF_SHUTR) {
 			if (msg->msg_state >= HTTP_MSG_RPVER || msg->err_pos >= 0)
-				http_capture_bad_message(&s->be->invalid_rep, s, msg, msg->msg_state, s->fe);
+				http_capture_bad_message(&s->be->invalid_rep, s, msg, msg->msg_state, sess->fe);
 			else if (txn->flags & TX_NOT_FIRST)
 				goto abort_keep_alive;
 
@@ -5950,7 +5953,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		/* write error to client (we don't send any message then) */
 		else if (rep->flags & CF_WRITE_ERROR) {
 			if (msg->err_pos >= 0)
-				http_capture_bad_message(&s->be->invalid_rep, s, msg, msg->msg_state, s->fe);
+				http_capture_bad_message(&s->be->invalid_rep, s, msg, msg->msg_state, sess->fe);
 			else if (txn->flags & TX_NOT_FIRST)
 				goto abort_keep_alive;
 
@@ -5978,7 +5981,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	 */
 
 	if (unlikely(msg->err_pos >= 0))
-		http_capture_bad_message(&s->be->invalid_rep, s, msg, msg->msg_state, s->fe);
+		http_capture_bad_message(&s->be->invalid_rep, s, msg, msg->msg_state, sess->fe);
 
 	/*
 	 * 1: get the status code
@@ -6072,7 +6075,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 	s->logs.logwait &= ~LW_RESP;
 	if (unlikely((s->logs.logwait & LW_RSPHDR) && txn->rsp.cap))
 		capture_headers(rep->buf->p, &txn->hdr_idx,
-				txn->rsp.cap, s->fe->rsp_cap);
+				txn->rsp.cap, sess->fe->rsp_cap);
 
 	/* 4: determine the transfer-length.
 	 * According to RFC2616 #4.4, amended by the HTTPbis working group,
@@ -6171,7 +6174,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		msg->body_len = msg->chunk_len = cl;
 	}
 
-	if (s->fe->comp || s->be->comp)
+	if (sess->fe->comp || s->be->comp)
 		select_compression_response_header(s, rep->buf);
 
 skip_content_length:
@@ -6207,13 +6210,13 @@ skip_content_length:
 	}
 	else if ((txn->status >= 200) && !(txn->flags & TX_HDR_CONN_PRS) &&
 		 ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN ||
-		  ((s->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
+		  ((sess->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
 		   (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL))) {
 		int to_del = 0;
 
 		/* this situation happens when combining pretend-keepalive with httpclose. */
 		if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL &&
-		    ((s->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
+		    ((sess->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
 		     (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL))
 			txn->flags = (txn->flags & ~TX_CON_WANT_MSK) | TX_CON_WANT_CLO;
 
@@ -6327,8 +6330,8 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	 * pointer and the ->fe rule list. If it doesn't match, I initialize
 	 * the loop with the ->be.
 	 */
-	if (s->current_rule_list == &s->fe->http_res_rules)
-		cur_proxy = s->fe;
+	if (s->current_rule_list == &sess->fe->http_res_rules)
+		cur_proxy = sess->fe;
 	else
 		cur_proxy = s->be;
 	while (1) {
@@ -6374,7 +6377,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 				objt_server(s->target)->counters.failed_secu++;
 
 			s->be->be_counters.denied_resp++;
-			s->fe->fe_counters.denied_resp++;
+			sess->fe->fe_counters.denied_resp++;
 			if (sess->listener->counters)
 				sess->listener->counters->denied_resp++;
 
@@ -6398,9 +6401,9 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 		}
 
 		/* check whether we're already working on the frontend */
-		if (cur_proxy == s->fe)
+		if (cur_proxy == sess->fe)
 			break;
-		cur_proxy = s->fe;
+		cur_proxy = sess->fe;
 	}
 
 	/* After this point, this anayzer can't return yield, so we can
@@ -6419,7 +6422,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	/*
 	 * Now check for a server cookie.
 	 */
-	if (s->be->cookie_name || s->be->appsession_name || s->fe->capture_name ||
+	if (s->be->cookie_name || s->be->appsession_name || sess->fe->capture_name ||
 	    (s->be->options & PR_O_CHK_CACHE))
 		manage_server_side_cookies(s, rep);
 
@@ -6525,7 +6528,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 			objt_server(s->target)->counters.failed_secu++;
 
 		s->be->be_counters.denied_resp++;
-		s->fe->fe_counters.denied_resp++;
+		sess->fe->fe_counters.denied_resp++;
 		if (sess->listener->counters)
 			sess->listener->counters->denied_resp++;
 
@@ -6548,7 +6551,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	 */
 	if ((txn->status != 101) && !(txn->flags & TX_HDR_CONN_UPG) &&
 	    (((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN) ||
-	     ((s->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
+	     ((sess->fe->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL ||
 	      (s->be->options & PR_O_HTTP_MODE) == PR_O_HTTP_PCL))) {
 		unsigned int want_flags = 0;
 
@@ -6581,7 +6584,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 	 * bytes from the server, then this is the right moment. We have
 	 * to temporarily assign bytes_out to log what we currently have.
 	 */
-	if (!LIST_ISEMPTY(&s->fe->logformat) && !(s->logs.logwait & LW_BYTES)) {
+	if (!LIST_ISEMPTY(&sess->fe->logformat) && !(s->logs.logwait & LW_BYTES)) {
 		s->logs.t_close = s->logs.t_data; /* to get a valid end date */
 		s->logs.bytes_out = txn->rsp.eoh;
 		s->do_log(s);
@@ -6621,6 +6624,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
  */
 int http_response_forward_body(struct stream *s, struct channel *res, int an_bit)
 {
+	struct session *sess = s->sess;
 	struct http_txn *txn = &s->txn;
 	struct http_msg *msg = &s->txn.rsp;
 	static struct buffer *tmpbuf = &buf_empty;
@@ -6734,7 +6738,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 				goto missing_data;
 			else if (ret < 0) {
 				if (msg->err_pos >= 0)
-					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_CHUNK_CRLF, s->fe);
+					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_CHUNK_CRLF, sess->fe);
 				goto return_bad_res;
 			}
 			/* we're in MSG_CHUNK_SIZE now, fall through */
@@ -6750,7 +6754,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 				goto missing_data;
 			else if (ret < 0) {
 				if (msg->err_pos >= 0)
-					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_CHUNK_SIZE, s->fe);
+					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_CHUNK_SIZE, sess->fe);
 				goto return_bad_res;
 			}
 			/* otherwise we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state */
@@ -6768,7 +6772,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 				goto missing_data;
 			else if (ret < 0) {
 				if (msg->err_pos >= 0)
-					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_TRAILERS, s->fe);
+					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_TRAILERS, sess->fe);
 				goto return_bad_res;
 			}
 			/* we're in HTTP_MSG_DONE now, fall through */
@@ -6805,7 +6809,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 						goto aborted_xfer;
 					}
 					if (msg->err_pos >= 0)
-						http_capture_bad_message(&s->be->invalid_rep, s, msg, ret, s->fe);
+						http_capture_bad_message(&s->be->invalid_rep, s, msg, ret, sess->fe);
 					goto return_bad_res;
 				}
 				return 1;
@@ -6917,7 +6921,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	res->analysers = 0;
 	s->req.analysers = 0; /* we're in data phase, we want to abort both directions */
 
-	s->fe->fe_counters.cli_aborts++;
+	sess->fe->fe_counters.cli_aborts++;
 	s->be->be_counters.cli_aborts++;
 	if (objt_server(s->target))
 		objt_server(s->target)->counters.cli_aborts++;
@@ -6976,7 +6980,7 @@ int apply_filter_to_req_headers(struct stream *s, struct channel *req, struct hd
 				 * FIXME: should we return an HTTP/500 here so that
 				 * the admin knows there's a problem ?
 				 */
-				if (s->be != s->fe)
+				if (s->be != strm_sess(s)->fe)
 					break;
 
 				/* Swithing Proxy */
@@ -7077,7 +7081,7 @@ int apply_filter_to_req_line(struct stream *s, struct channel *req, struct hdr_e
 			 * FIXME: should we return an HTTP/500 here so that
 			 * the admin knows there's a problem ?
 			 */
-			if (s->be != s->fe)
+			if (s->be != strm_sess(s)->fe)
 				break;
 
 			/* Swithing Proxy */
@@ -7351,6 +7355,7 @@ int del_hdr_value(struct buffer *buf, char **from, char *next)
 void manage_client_side_cookies(struct stream *s, struct channel *req)
 {
 	struct http_txn *txn = &s->txn;
+	struct session *sess = s->sess;
 	int preserve_hdr;
 	int cur_idx, old_idx;
 	char *hdr_beg, *hdr_end, *hdr_next, *del_from;
@@ -7534,16 +7539,16 @@ void manage_client_side_cookies(struct stream *s, struct channel *req)
 			 * can only capture one. Also as an optimisation, we ignore
 			 * cookies shorter than the declared name.
 			 */
-			if (s->fe->capture_name != NULL && txn->cli_cookie == NULL &&
-			    (val_end - att_beg >= s->fe->capture_namelen) &&
-			    memcmp(att_beg, s->fe->capture_name, s->fe->capture_namelen) == 0) {
+			if (sess->fe->capture_name != NULL && txn->cli_cookie == NULL &&
+			    (val_end - att_beg >= sess->fe->capture_namelen) &&
+			    memcmp(att_beg, sess->fe->capture_name, sess->fe->capture_namelen) == 0) {
 				int log_len = val_end - att_beg;
 
 				if ((txn->cli_cookie = pool_alloc2(pool2_capture)) == NULL) {
 					Alert("HTTP logging : out of memory.\n");
 				} else {
-					if (log_len > s->fe->capture_len)
-						log_len = s->fe->capture_len;
+					if (log_len > sess->fe->capture_len)
+						log_len = sess->fe->capture_len;
 					memcpy(txn->cli_cookie, att_beg, log_len);
 					txn->cli_cookie[log_len] = 0;
 				}
@@ -8024,6 +8029,7 @@ int apply_filters_to_response(struct stream *s, struct channel *rtr, struct prox
 void manage_server_side_cookies(struct stream *s, struct channel *res)
 {
 	struct http_txn *txn = &s->txn;
+	struct session *sess = s->sess;
 	struct server *srv;
 	int is_cookie2;
 	int cur_idx, old_idx, delta;
@@ -8074,7 +8080,7 @@ void manage_server_side_cookies(struct stream *s, struct channel *res)
 		 */
 		if (s->be->cookie_name == NULL &&
 		    s->be->appsession_name == NULL &&
-		    s->fe->capture_name == NULL)
+		    sess->fe->capture_name == NULL)
 			return;
 
 		/* OK so now we know we have to process this response cookie.
@@ -8208,17 +8214,17 @@ void manage_server_side_cookies(struct stream *s, struct channel *res)
 			 * can only capture one. Also as an optimisation, we ignore
 			 * cookies shorter than the declared name.
 			 */
-			if (s->fe->capture_name != NULL &&
+			if (sess->fe->capture_name != NULL &&
 			    txn->srv_cookie == NULL &&
-			    (val_end - att_beg >= s->fe->capture_namelen) &&
-			    memcmp(att_beg, s->fe->capture_name, s->fe->capture_namelen) == 0) {
+			    (val_end - att_beg >= sess->fe->capture_namelen) &&
+			    memcmp(att_beg, sess->fe->capture_name, sess->fe->capture_namelen) == 0) {
 				int log_len = val_end - att_beg;
 				if ((txn->srv_cookie = pool_alloc2(pool2_capture)) == NULL) {
 					Alert("HTTP logging : out of memory.\n");
 				}
 				else {
-					if (log_len > s->fe->capture_len)
-						log_len = s->fe->capture_len;
+					if (log_len > sess->fe->capture_len)
+						log_len = sess->fe->capture_len;
 					memcpy(txn->srv_cookie, att_beg, log_len);
 					txn->srv_cookie[log_len] = 0;
 				}
@@ -8783,7 +8789,7 @@ void debug_hdr(const char *dir, struct stream *s, const char *start, const char 
 void http_init_txn(struct stream *s)
 {
 	struct http_txn *txn = &s->txn;
-	struct proxy *fe = s->fe;
+	struct proxy *fe = strm_sess(s)->fe;
 
 	txn->flags = 0;
 	txn->status = -1;
@@ -8826,6 +8832,7 @@ void http_init_txn(struct stream *s)
 void http_end_txn(struct stream *s)
 {
 	struct http_txn *txn = &s->txn;
+	struct proxy *fe = strm_sess(s)->fe;
 
 	/* release any possible compression context */
 	if (s->flags & SF_COMP_READY)
@@ -8848,16 +8855,16 @@ void http_end_txn(struct stream *s)
 
 	if (txn->req.cap) {
 		struct cap_hdr *h;
-		for (h = s->fe->req_cap; h; h = h->next)
+		for (h = fe->req_cap; h; h = h->next)
 			pool_free2(h->pool, txn->req.cap[h->index]);
-		memset(txn->req.cap, 0, s->fe->nb_req_cap * sizeof(void *));
+		memset(txn->req.cap, 0, fe->nb_req_cap * sizeof(void *));
 	}
 
 	if (txn->rsp.cap) {
 		struct cap_hdr *h;
-		for (h = s->fe->rsp_cap; h; h = h->next)
+		for (h = fe->rsp_cap; h; h = h->next)
 			pool_free2(h->pool, txn->rsp.cap[h->index]);
-		memset(txn->rsp.cap, 0, s->fe->nb_rsp_cap * sizeof(void *));
+		memset(txn->rsp.cap, 0, fe->nb_rsp_cap * sizeof(void *));
 	}
 
 }
@@ -8873,8 +8880,8 @@ void http_reset_txn(struct stream *s)
 	 */
 	s->current_rule_list = NULL;
 
-	s->be = s->fe;
-	s->logs.logwait = s->fe->to_log;
+	s->be = strm_sess(s)->fe;
+	s->logs.logwait = strm_sess(s)->fe->to_log;
 	s->logs.level = 0;
 	stream_del_srv_conn(s);
 	s->target = NULL;
@@ -8897,11 +8904,11 @@ void http_reset_txn(struct stream *s)
 	if (unlikely(s->res.buf->i))
 		s->res.buf->i = 0;
 
-	s->req.rto = s->fe->timeout.client;
+	s->req.rto = strm_sess(s)->fe->timeout.client;
 	s->req.wto = TICK_ETERNITY;
 
 	s->res.rto = TICK_ETERNITY;
-	s->res.wto = s->fe->timeout.client;
+	s->res.wto = strm_sess(s)->fe->timeout.client;
 
 	s->req.rex = TICK_ETERNITY;
 	s->req.wex = TICK_ETERNITY;
@@ -10818,7 +10825,7 @@ static int
 smp_fetch_capture_header_req(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                  const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct proxy *fe = l4->fe;
+	struct proxy *fe = strm_sess(l4)->fe;
 	struct http_txn *txn = l7;
 	int idx;
 
@@ -10845,7 +10852,7 @@ static int
 smp_fetch_capture_header_res(struct proxy *px, struct stream *l4, void *l7, unsigned int opt,
                  const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct proxy *fe = l4->fe;
+	struct proxy *fe = strm_sess(l4)->fe;
 	struct http_txn *txn = l7;
 	int idx;
 

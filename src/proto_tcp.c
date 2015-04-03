@@ -1154,7 +1154,7 @@ resume_execution:
 				req->analysers = 0;
 
 				s->be->be_counters.denied_req++;
-				s->fe->fe_counters.denied_req++;
+				sess->fe->fe_counters.denied_req++;
 				if (sess->listener->counters)
 					sess->listener->counters->denied_req++;
 
@@ -1183,7 +1183,7 @@ resume_execution:
 				if (key && (ts = stktable_get_entry(t, key))) {
 					stream_track_stkctr(&s->stkctr[tcp_trk_idx(rule->action)], t, ts);
 					stkctr_set_flags(&s->stkctr[tcp_trk_idx(rule->action)], STKCTR_TRACK_CONTENT);
-					if (s->fe != s->be)
+					if (sess->fe != s->be)
 						stkctr_set_flags(&s->stkctr[tcp_trk_idx(rule->action)], STKCTR_TRACK_BACKEND);
 				}
 			}
@@ -1316,7 +1316,7 @@ resume_execution:
 				rep->analysers = 0;
 
 				s->be->be_counters.denied_resp++;
-				s->fe->fe_counters.denied_resp++;
+				sess->fe->fe_counters.denied_resp++;
 				if (sess->listener->counters)
 					sess->listener->counters->denied_resp++;
 
@@ -1373,11 +1373,11 @@ int tcp_exec_req_rules(struct stream *s)
 	if (!conn)
 		return result;
 
-	list_for_each_entry(rule, &s->fe->tcp_req.l4_rules, list) {
+	list_for_each_entry(rule, &sess->fe->tcp_req.l4_rules, list) {
 		ret = ACL_TEST_PASS;
 
 		if (rule->cond) {
-			ret = acl_exec_cond(rule->cond, s->fe, s, NULL, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
+			ret = acl_exec_cond(rule->cond, sess->fe, s, NULL, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
 			ret = acl_pass(ret);
 			if (rule->cond->pol == ACL_COND_UNLESS)
 				ret = !ret;
@@ -1386,7 +1386,7 @@ int tcp_exec_req_rules(struct stream *s)
 		if (ret) {
 			/* we have a matching rule. */
 			if (rule->action == TCP_ACT_REJECT) {
-				s->fe->fe_counters.denied_conn++;
+				sess->fe->fe_counters.denied_conn++;
 				if (sess->listener->counters)
 					sess->listener->counters->denied_conn++;
 
@@ -1418,7 +1418,7 @@ int tcp_exec_req_rules(struct stream *s)
 			}
 			else {
 				/* Custom keywords. */
-				rule->action_ptr(rule, s->fe, s);
+				rule->action_ptr(rule, sess->fe, s);
 
 				/* otherwise it's an accept */
 				break;
