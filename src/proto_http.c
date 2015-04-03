@@ -326,6 +326,7 @@ void init_proto_http()
 	FD_SET(0x7f, http_encode_map);
 
 	/* memory allocations */
+	pool2_http_txn = create_pool("http_txn", sizeof(struct http_txn), MEM_F_SHARED);
 	pool2_requri = create_pool("requri", REQURI_LEN, MEM_F_SHARED);
 	pool2_uniqueid = create_pool("uniqueid", UNIQUEID_LEN, MEM_F_SHARED);
 }
@@ -1087,6 +1088,7 @@ void http_return_srv_error(struct stream *s, struct stream_interface *si)
 extern const char sess_term_cond[8];
 extern const char sess_fin_state[8];
 extern const char *monthname[12];
+struct pool_head *pool2_http_txn;
 struct pool_head *pool2_requri;
 struct pool_head *pool2_capture = NULL;
 struct pool_head *pool2_uniqueid;

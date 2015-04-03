@@ -1443,6 +1443,7 @@ void deinit(void)
 	pool_destroy2(pool2_pendconn);
 	pool_destroy2(pool2_sig_handlers);
 	pool_destroy2(pool2_hdr_idx);
+	pool_destroy2(pool2_http_txn);
     
 	if (have_appsession) {
 		pool_destroy2(apools.serverid);

@@ -680,6 +680,7 @@ static void stream_free(struct stream *s)
 	/* We may want to free the maximum amount of pools if the proxy is stopping */
 	if (fe && unlikely(fe->state == PR_STSTOPPED)) {
 		pool_flush2(pool2_buffer);
+		pool_flush2(pool2_http_txn);
 		pool_flush2(pool2_hdr_idx);
 		pool_flush2(pool2_requri);
 		pool_flush2(pool2_capture);
