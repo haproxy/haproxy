@@ -454,18 +454,19 @@ int stream_complete(struct stream *s)
 
 	for (i = 0; i < MAX_SESS_STKCTR; i++) {
 		void *ptr;
+		struct stkctr *stkctr = &sess->stkctr[i];
 
-		if (!stkctr_entry(&s->stkctr[i]))
+		if (!stkctr_entry(stkctr))
 			continue;
 
-		ptr = stktable_data_ptr(s->stkctr[i].table, stkctr_entry(&s->stkctr[i]), STKTABLE_DT_SESS_CNT);
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_SESS_CNT);
 		if (ptr)
 			stktable_data_cast(ptr, sess_cnt)++;
 
-		ptr = stktable_data_ptr(s->stkctr[i].table, stkctr_entry(&s->stkctr[i]), STKTABLE_DT_SESS_RATE);
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_SESS_RATE);
 		if (ptr)
 			update_freq_ctr_period(&stktable_data_cast(ptr, sess_rate),
-					       s->stkctr[i].table->data_arg[STKTABLE_DT_SESS_RATE].u, 1);
+					       stkctr->table->data_arg[STKTABLE_DT_SESS_RATE].u, 1);
 	}
 
 	/* this part should be common with other protocols */
@@ -807,21 +808,22 @@ void stream_process_counters(struct stream *s)
 			sess->listener->counters->bytes_in += bytes;
 
 		for (i = 0; i < MAX_SESS_STKCTR; i++) {
-			if (!stkctr_entry(&s->stkctr[i]))
-				continue;
+			struct stkctr *stkctr = &s->stkctr[i];
 
-			ptr = stktable_data_ptr(s->stkctr[i].table,
-						stkctr_entry(&s->stkctr[i]),
-						STKTABLE_DT_BYTES_IN_CNT);
+			if (!stkctr_entry(stkctr)) {
+				stkctr = &sess->stkctr[i];
+				if (!stkctr_entry(stkctr))
+					continue;
+			}
+
+			ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_IN_CNT);
 			if (ptr)
 				stktable_data_cast(ptr, bytes_in_cnt) += bytes;
 
-			ptr = stktable_data_ptr(s->stkctr[i].table,
-						stkctr_entry(&s->stkctr[i]),
-						STKTABLE_DT_BYTES_IN_RATE);
+			ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_IN_RATE);
 			if (ptr)
 				update_freq_ctr_period(&stktable_data_cast(ptr, bytes_in_rate),
-						       s->stkctr[i].table->data_arg[STKTABLE_DT_BYTES_IN_RATE].u, bytes);
+						       stkctr->table->data_arg[STKTABLE_DT_BYTES_IN_RATE].u, bytes);
 		}
 	}
 
@@ -839,21 +841,22 @@ void stream_process_counters(struct stream *s)
 			sess->listener->counters->bytes_out += bytes;
 
 		for (i = 0; i < MAX_SESS_STKCTR; i++) {
-			if (!stkctr_entry(&s->stkctr[i]))
-				continue;
+			struct stkctr *stkctr = &s->stkctr[i];
 
-			ptr = stktable_data_ptr(s->stkctr[i].table,
-						stkctr_entry(&s->stkctr[i]),
-						STKTABLE_DT_BYTES_OUT_CNT);
+			if (!stkctr_entry(stkctr)) {
+				stkctr = &sess->stkctr[i];
+				if (!stkctr_entry(stkctr))
+					continue;
+			}
+
+			ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_OUT_CNT);
 			if (ptr)
 				stktable_data_cast(ptr, bytes_out_cnt) += bytes;
 
-			ptr = stktable_data_ptr(s->stkctr[i].table,
-						stkctr_entry(&s->stkctr[i]),
-						STKTABLE_DT_BYTES_OUT_RATE);
+			ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_BYTES_OUT_RATE);
 			if (ptr)
 				update_freq_ctr_period(&stktable_data_cast(ptr, bytes_out_rate),
-						       s->stkctr[i].table->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u, bytes);
+						       stkctr->table->data_arg[STKTABLE_DT_BYTES_OUT_RATE].u, bytes);
 		}
 	}
 }
@@ -2890,12 +2893,14 @@ void stream_shutdown(struct stream *stream, int why)
  * passed. When present, the currently tracked key is then looked up
  * in the specified table instead of the current table. The purpose is
  * to be able to convery multiple values per key (eg: have gpc0 from
- * multiple tables).
+ * multiple tables). <strm> is allowed to be NULL, in which case only
+ * the session will be consulted.
  */
 struct stkctr *
 smp_fetch_sc_stkctr(struct session *sess, struct stream *strm, const struct arg *args, const char *kw)
 {
 	static struct stkctr stkctr;
+	struct stkctr *stkptr;
 	struct stksess *stksess;
 	unsigned int num = kw[2] - '0';
 	int arg = 0;
@@ -2924,9 +2929,18 @@ smp_fetch_sc_stkctr(struct session *sess, struct stream *strm, const struct arg 
 
 	/* Here, <num> contains the counter number from 0 to 9 for
 	 * the sc[0-9]_ form, or even higher using sc_(num) if needed.
-	 * args[arg] is the first optional argument.
+	 * args[arg] is the first optional argument. We first lookup the
+	 * ctr form the stream, then from the session if it was not there.
 	 */
-	stksess = stkctr_entry(&strm->stkctr[num]);
+
+	stkptr = &strm->stkctr[num];
+	if (!strm || !stkctr_entry(stkptr)) {
+		stkptr = &sess->stkctr[num];
+		if (!stkctr_entry(stkptr))
+			return NULL;
+	}
+
+	stksess = stkctr_entry(stkptr);
 	if (!stksess)
 		return NULL;
 
@@ -2936,7 +2950,7 @@ smp_fetch_sc_stkctr(struct session *sess, struct stream *strm, const struct arg 
 		stkctr_set_entry(&stkctr, stktable_lookup(stkctr.table, stksess));
 		return &stkctr;
 	}
-	return &strm->stkctr[num];
+	return stkptr;
 }
 
 /* set return a boolean indicating if the requested stream counter is

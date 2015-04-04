@@ -178,41 +178,50 @@ static void inline stream_inc_http_req_ctr(struct stream *s)
 	int i;
 
 	for (i = 0; i < MAX_SESS_STKCTR; i++) {
-		if (!stkctr_entry(&s->stkctr[i]))
-			continue;
+		struct stkctr *stkctr = &s->stkctr[i];
 
-		ptr = stktable_data_ptr(s->stkctr[i].table, stkctr_entry(&s->stkctr[i]), STKTABLE_DT_HTTP_REQ_CNT);
+		if (!stkctr_entry(stkctr)) {
+			stkctr = &s->sess->stkctr[i];
+			if (!stkctr_entry(stkctr))
+				continue;
+		}
+
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_REQ_CNT);
 		if (ptr)
 			stktable_data_cast(ptr, http_req_cnt)++;
 
-		ptr = stktable_data_ptr(s->stkctr[i].table, stkctr_entry(&s->stkctr[i]), STKTABLE_DT_HTTP_REQ_RATE);
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_REQ_RATE);
 		if (ptr)
 			update_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
-					       s->stkctr[i].table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
+					       stkctr->table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
 	}
 }
 
-/* Increase the number of cumulated HTTP requests in the backend's tracked counters */
+/* Increase the number of cumulated HTTP requests in the backend's tracked
+ * counters. We don't look up the session since it cannot happen in the bakcend.
+ */
 static void inline stream_inc_be_http_req_ctr(struct stream *s)
 {
 	void *ptr;
 	int i;
 
 	for (i = 0; i < MAX_SESS_STKCTR; i++) {
-		if (!stkctr_entry(&s->stkctr[i]))
+		struct stkctr *stkctr = &s->stkctr[i];
+
+		if (!stkctr_entry(stkctr))
 			continue;
 
 		if (!(stkctr_flags(&s->stkctr[i]) & STKCTR_TRACK_BACKEND))
 			continue;
 
-		ptr = stktable_data_ptr(s->stkctr[i].table, stkctr_entry(&s->stkctr[i]), STKTABLE_DT_HTTP_REQ_CNT);
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_REQ_CNT);
 		if (ptr)
 			stktable_data_cast(ptr, http_req_cnt)++;
 
-		ptr = stktable_data_ptr(s->stkctr[i].table, stkctr_entry(&s->stkctr[i]), STKTABLE_DT_HTTP_REQ_RATE);
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_REQ_RATE);
 		if (ptr)
 			update_freq_ctr_period(&stktable_data_cast(ptr, http_req_rate),
-			                       s->stkctr[i].table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
+			                       stkctr->table->data_arg[STKTABLE_DT_HTTP_REQ_RATE].u, 1);
 	}
 }
 
@@ -228,17 +237,22 @@ static void inline stream_inc_http_err_ctr(struct stream *s)
 	int i;
 
 	for (i = 0; i < MAX_SESS_STKCTR; i++) {
-		if (!stkctr_entry(&s->stkctr[i]))
-			continue;
+		struct stkctr *stkctr = &s->stkctr[i];
 
-		ptr = stktable_data_ptr(s->stkctr[i].table, stkctr_entry(&s->stkctr[i]), STKTABLE_DT_HTTP_ERR_CNT);
+		if (!stkctr_entry(stkctr)) {
+			stkctr = &s->sess->stkctr[i];
+			if (!stkctr_entry(stkctr))
+				continue;
+		}
+
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_ERR_CNT);
 		if (ptr)
 			stktable_data_cast(ptr, http_err_cnt)++;
 
-		ptr = stktable_data_ptr(s->stkctr[i].table, stkctr_entry(&s->stkctr[i]), STKTABLE_DT_HTTP_ERR_RATE);
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_HTTP_ERR_RATE);
 		if (ptr)
 			update_freq_ctr_period(&stktable_data_cast(ptr, http_err_rate),
-			                       s->stkctr[i].table->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u, 1);
+			                       stkctr->table->data_arg[STKTABLE_DT_HTTP_ERR_RATE].u, 1);
 	}
 }
 
