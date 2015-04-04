@@ -34,6 +34,7 @@
 #include <types/obj_type.h>
 #include <types/proxy.h>
 #include <types/stick_table.h>
+#include <types/task.h>
 
 struct session {
 	struct proxy *fe;               /* the proxy this session depends on for the client side */
@@ -42,6 +43,7 @@ struct session {
 	struct timeval accept_date;     /* date of the session's accept() in user date */
 	struct timeval tv_accept;       /* date of the session's accept() in internal date (monotonic) */
 	struct stkctr stkctr[MAX_SESS_STKCTR];  /* stick counters for tcp-connection */
+	struct task *task;              /* temporary, for embryonic sessions */
 };
 
 #endif /* _TYPES_SESSION_H */
