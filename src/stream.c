@@ -70,6 +70,7 @@ int stream_accept_session(struct session *sess, struct task *t)
 	struct listener *l = sess->listener;
 	struct proxy *p = sess->fe;
 	struct connection *conn = objt_conn(sess->origin);
+	struct appctx *appctx   = objt_appctx(sess->origin);
 	int ret;
 	int i;
 
@@ -153,6 +154,8 @@ int stream_accept_session(struct session *sess, struct task *t)
 	/* attach the incoming connection to the stream interface now. */
 	if (conn)
 		si_attach_conn(&s->si[0], conn);
+	else if (appctx)
+		si_attach_appctx(&s->si[0], appctx);
 
 	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
 		s->si[0].flags |= SI_FL_INDEP_STR;
@@ -207,6 +210,8 @@ int stream_accept_session(struct session *sess, struct task *t)
 	/* finish initialization of the accepted file descriptor */
 	if (conn)
 		conn_data_want_recv(conn);
+	else if (appctx)
+		s->si[0].flags |= SI_FL_WAIT_DATA;
 
 	/* FIXME: we shouldn't restrict ourselves to connections but for now
 	 * the only ->accept() only works with sessions.
