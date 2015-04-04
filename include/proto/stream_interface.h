@@ -112,25 +112,19 @@ static inline void appctx_init(struct appctx *appctx)
 	appctx->st0 = appctx->st1 = appctx->st2 = 0;
 }
 
-/* sets <appctx>'s applet to point to <applet> */
-static inline void appctx_set_applet(struct appctx *appctx, struct si_applet *applet)
-{
-	appctx->applet = applet;
-}
-
-/* Tries to allocate a new appctx and initialize its main fields. The
- * appctx is returned on success, NULL on failure. The appctx must be
- * released using pool_free2(connection) or appctx_free(), since it's
- * allocated from the connection pool.
+/* Tries to allocate a new appctx and initialize its main fields. The appctx
+ * is returned on success, NULL on failure. The appctx must be released using
+ * pool_free2(connection) or appctx_free(), since it's allocated from the
+ * connection pool. <applet> is assigned as the applet, but it can be NULL.
  */
-static inline struct appctx *appctx_new()
+static inline struct appctx *appctx_new(struct si_applet *applet)
 {
 	struct appctx *appctx;
 
 	appctx = pool_alloc2(pool2_connection);
 	if (likely(appctx != NULL)) {
 		appctx->obj_type = OBJ_TYPE_APPCTX;
-		appctx->applet = NULL;
+		appctx->applet = applet;
 		appctx_init(appctx);
 	}
 	return appctx;
@@ -233,13 +227,11 @@ static inline int si_conn_ready(struct stream_interface *si)
 }
 
 /* Attach appctx <appctx> to the stream interface <si>. The stream interface
- * is configured to work with an applet context. It is left to the caller to
- * call appctx_set_applet() to assign an applet to this context.
+ * is configured to work with an applet context.
  */
 static inline void si_attach_appctx(struct stream_interface *si, struct appctx *appctx)
 {
 	si->ops = &si_embedded_ops;
-	appctx->obj_type = OBJ_TYPE_APPCTX;
 	si->end = &appctx->obj_type;
 }
 
@@ -322,15 +314,15 @@ static inline struct connection *si_alloc_conn(struct stream_interface *si, int 
 
 /* Release the interface's existing endpoint (connection or appctx) and
  * allocate then initialize a new appctx which is assigned to the interface
- * and returned. NULL may be returned upon memory shortage. It is left to the
- * caller to call appctx_set_applet() to assign an applet to this context.
+ * and returned. NULL may be returned upon memory shortage. Applet <applet>
+ * is assigned to the appctx, but it may be NULL.
  */
-static inline struct appctx *si_alloc_appctx(struct stream_interface *si)
+static inline struct appctx *si_alloc_appctx(struct stream_interface *si, struct si_applet *applet)
 {
 	struct appctx *appctx;
 
 	si_release_endpoint(si);
-	appctx = appctx_new();
+	appctx = appctx_new(applet);
 	if (appctx)
 		si_attach_appctx(si, appctx);
 

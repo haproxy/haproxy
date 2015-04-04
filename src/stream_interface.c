@@ -377,11 +377,10 @@ struct appctx *stream_int_register_handler(struct stream_interface *si, struct s
 
 	DPRINTF(stderr, "registering handler %p for si %p (was %p)\n", app, si, si_task(si));
 
-	appctx = si_alloc_appctx(si);
+	appctx = si_alloc_appctx(si, app);
 	if (!appctx)
 		return NULL;
 
-	appctx_set_applet(appctx, app);
 	si->flags |= SI_FL_WAIT_DATA;
 	return si_appctx(si);
 }
