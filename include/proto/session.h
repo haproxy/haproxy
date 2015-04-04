@@ -30,9 +30,36 @@
 #include <types/global.h>
 #include <types/session.h>
 
+#include <proto/stick_table.h>
+
 extern struct pool_head *pool2_session;
 void session_free(struct session *sess);
 int init_session();
+
+/* Remove the refcount from the session to the tracked counters, and clear the
+ * pointer to ensure this is only performed once. The caller is responsible for
+ * ensuring that the pointer is valid first.
+ */
+static inline void session_store_counters(struct session *sess)
+{
+	void *ptr;
+	int i;
+
+	for (i = 0; i < MAX_SESS_STKCTR; i++) {
+		struct stkctr *stkctr = &sess->stkctr[i];
+
+		if (!stkctr_entry(stkctr))
+			continue;
+
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_CONN_CUR);
+		if (ptr)
+			stktable_data_cast(ptr, conn_cur)--;
+		stkctr_entry(stkctr)->ref_cnt--;
+		stksess_kill_if_expired(stkctr->table, stkctr_entry(stkctr));
+		stkctr_set_entry(stkctr, NULL);
+	}
+}
+
 
 #endif /* _PROTO_SESSION_H */
 

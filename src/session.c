@@ -18,10 +18,13 @@
 #include <types/global.h>
 #include <types/session.h>
 
+#include <proto/session.h>
+
 struct pool_head *pool2_session;
 
 void session_free(struct session *sess)
 {
+	session_store_counters(sess);
 	pool_free2(pool2_session, sess);
 }
 
