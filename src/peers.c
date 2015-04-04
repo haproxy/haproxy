@@ -1138,50 +1138,22 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 		Alert("out of memory in peer_session_create().\n");
 		goto out_free_sess;
 	}
-
-	t->process = l->handler;
-	t->context = sess;
 	t->nice = l->nice;
 
-	if ((s = pool_alloc2(pool2_stream)) == NULL) { /* disable this proxy for a while */
-		Alert("out of memory in peer_session_create().\n");
+	if (stream_accept_session(sess, t) <= 0) {
+		Alert("Failed to initialize stream in peer_session_create().\n");
 		goto out_free_task;
 	}
 
-	LIST_ADDQ(&streams, &s->list);
-	LIST_INIT(&s->back_refs);
-	LIST_INIT(&s->buffer_wait);
-
+	/* The tasks below are normally what is supposed to be done by
+	 * fe->accept().
+	 */
+	s = t->context;   // For now the session is not stored anywhere else :-/
 	s->flags = SF_ASSIGNED|SF_ADDR_SET;
-
-	s->task = t;
-	t->context = s;
-	s->sess = sess;
-	s->be = s->sess->fe;
-	s->req.buf = s->res.buf = NULL;
-	s->req_cap = NULL;
-	s->res_cap = NULL;
-
-	s->si[0].flags = SI_FL_NONE;
-	s->si[1].flags = SI_FL_ISBACK;
-
-	si_reset(&s->si[0]);
-	si_set_state(&s->si[0], SI_ST_EST);
-
-	if (s->sess->fe->options2 & PR_O2_INDEPSTR)
-		s->si[0].flags |= SI_FL_INDEP_STR;
-
-	si_attach_appctx(&s->si[0], appctx);
-	s->si[0].flags |= SI_FL_WAIT_DATA;
-
-	si_reset(&s->si[1]);
 
 	/* initiate an outgoing connection */
 	si_set_state(&s->si[1], SI_ST_ASS);
 	s->si[1].conn_retries = p->conn_retries;
-
-	if (s->be->options2 & PR_O2_INDEPSTR)
-		s->si[1].flags |= SI_FL_INDEP_STR;
 
 	/* automatically prepare the stream interface to connect to the
 	 * pre-initialized connection in si->conn.
@@ -1194,69 +1166,24 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 
 	conn->target = s->target = &s->be->obj_type;
 	memcpy(&conn->addr.to, &peer->addr, sizeof(conn->addr.to));
-
-	stream_init_srv_conn(s);
-	s->pend_pos = NULL;
-
-	/* init store persistence */
-	s->store_count = 0;
-	memset(s->stkctr, 0, sizeof(s->stkctr));
-
-	/* FIXME: the logs are horribly complicated now, because they are
-	 * defined in <p>, <p>, and later <be> and <be>. We still initialize
-	 * a few of them to help troubleshooting (eg: show sess shows them).
-	 */
-
-	s->logs.logwait = 0;
-	s->logs.level = 0;
-	s->logs.accept_date = sess->accept_date; /* user-visible date for logging */
-	s->logs.tv_accept = sess->tv_accept;   /* corrected date for internal use */
 	s->do_log = NULL;
 
 	/* default error reporting function, may be changed by analysers */
 	s->srv_error = default_srv_error;
-
 	s->uniq_id = 0;
-	s->unique_id = NULL;
-
-	s->txn = NULL;
-
-	channel_init(&s->req);
-	s->req.flags |= CF_READ_ATTACHED; /* the producer is already connected */
-
-	/* activate default analysers enabled for this listener */
-	s->req.analysers = l->analysers;
 
 	/* note: this should not happen anymore since there's always at least the switching rules */
 	if (!s->req.analysers) {
 		channel_auto_connect(&s->req);/* don't wait to establish connection */
-		channel_auto_close(&s->req);/* let the producer forward close requests */
+		channel_auto_close(&s->req);  /* let the producer forward close requests */
 	}
 
 	s->req.rto = s->sess->fe->timeout.client;
 	s->req.wto = s->be->timeout.server;
-
-	channel_init(&s->res);
-	s->res.flags |= CF_ISRESP;
-
 	s->res.rto = s->be->timeout.server;
 	s->res.wto = s->sess->fe->timeout.client;
 
-	s->req.rex = TICK_ETERNITY;
-	s->req.wex = TICK_ETERNITY;
-	s->req.analyse_exp = TICK_ETERNITY;
-	s->res.rex = TICK_ETERNITY;
-	s->res.wex = TICK_ETERNITY;
-	s->res.analyse_exp = TICK_ETERNITY;
-	t->expire = TICK_ETERNITY;
-
 	s->res.flags |= CF_READ_DONTWAIT;
-
-	/* it is important not to call the wakeup function directly but to
-	 * pass through task_wakeup(), because this one knows how to apply
-	 * priorities to tasks.
-	 */
-	task_wakeup(t, TASK_WOKEN_INIT);
 
 	l->nbconn++; /* warning! right now, it's up to the handler to decrease this */
 	p->feconn++;/* beconn will be increased later */
