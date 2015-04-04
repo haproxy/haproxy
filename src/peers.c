@@ -1112,13 +1112,23 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	struct listener *l = LIST_NEXT(&peer->peers->peers_fe->conf.listeners, struct listener *, by_fe);
 	struct proxy *p = (struct proxy *)l->frontend; /* attached frontend */
 	struct appctx *appctx;
+	struct session *sess;
 	struct stream *s;
 	struct task *t;
 	struct connection *conn;
 
-	if ((s = pool_alloc2(pool2_stream)) == NULL) { /* disable this proxy for a while */
+	sess = pool_alloc2(pool2_session);
+	if (!sess) {
 		Alert("out of memory in peer_session_create().\n");
 		goto out_close;
+	}
+
+	sess->listener = l;
+	sess->fe = p;
+
+	if ((s = pool_alloc2(pool2_stream)) == NULL) { /* disable this proxy for a while */
+		Alert("out of memory in peer_session_create().\n");
+		goto out_free_sess;
 	}
 
 	LIST_ADDQ(&streams, &s->list);
@@ -1132,7 +1142,7 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	 */
 	if ((t = task_new()) == NULL) { /* disable this proxy for a while */
 		Alert("out of memory in peer_session_create().\n");
-		goto out_free_stream;
+		goto out_free_strm;
 	}
 
 	ps->reconnect = tick_add(now_ms, MS_TO_TICKS(5000));
@@ -1143,14 +1153,7 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	t->nice = l->nice;
 
 	s->task = t;
-	s->sess = pool_alloc2(pool2_session);
-	if (!s->sess) {
-		Alert("out of memory in peer_session_create().\n");
-		goto out_free_task;
-	}
-
-	s->sess->listener = l;
-	s->sess->fe = p;
+	s->sess = sess;
 	s->be = s->sess->fe;
 	s->req.buf = s->res.buf = NULL;
 	s->req_cap = NULL;
@@ -1167,7 +1170,8 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 
 	appctx = stream_int_register_handler(&s->si[0], &peer_applet);
 	if (!appctx)
-		goto out_fail_conn1;
+		goto out_free_task;
+
 	appctx->st0 = PEER_SESS_ST_CONNECT;
 	appctx->ctx.peers.ptr = (void *)ps;
 	s->sess->origin = &appctx->obj_type;
@@ -1185,7 +1189,7 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	 * pre-initialized connection in si->conn.
 	 */
 	if (unlikely((conn = conn_new()) == NULL))
-		goto out_fail_conn1;
+		goto out_free_strm;
 
 	conn_prepare(conn, peer->proto, peer->xprt);
 	si_attach_conn(&s->si[1], conn);
@@ -1266,13 +1270,13 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	return s;
 
 	/* Error unrolling */
- out_fail_conn1:
-	pool_free2(pool2_session, s->sess);
  out_free_task:
 	task_free(t);
- out_free_stream:
+ out_free_strm:
 	LIST_DEL(&s->list);
 	pool_free2(pool2_stream, s);
+ out_free_sess:
+	pool_free2(pool2_session, sess);
  out_close:
 	return s;
 }

@@ -79,6 +79,7 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 {
 	struct connection *cli_conn;
 	struct proxy *p = l->frontend;
+	struct session *sess;
 	struct stream *s;
 	struct task *t;
 	int ret;
@@ -97,8 +98,16 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	cli_conn->target = &l->obj_type;
 	cli_conn->proxy_netns = l->netns;
 
-	if (unlikely((s = pool_alloc2(pool2_stream)) == NULL))
+	sess = pool_alloc2(pool2_session);
+	if (!sess)
 		goto out_free_conn;
+
+	sess->listener = l;
+	sess->fe  = p;
+	sess->origin = &cli_conn->obj_type;
+
+	if (unlikely((s = pool_alloc2(pool2_stream)) == NULL))
+		goto out_free_sess;
 
 	/* minimum stream initialization required for an embryonic stream is
 	 * fairly low. We need very little to execute L4 ACLs, then we need a
@@ -117,14 +126,7 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 
 	memset(s->stkctr, 0, sizeof(s->stkctr));
 
-	s->sess = pool_alloc2(pool2_session);
-	if (!s->sess)
-		goto out_free_stream;
-
-	s->sess->listener = l;
-	s->sess->fe  = p;
-	s->sess->origin = &cli_conn->obj_type;
-
+	s->sess = sess;
 	s->si[0].flags = SI_FL_NONE;
 	s->si[1].flags = SI_FL_ISBACK;
 
@@ -156,7 +158,7 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		/* let's do a no-linger now to close with a single RST. */
 		setsockopt(cfd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
 		ret = 0; /* successful termination */
-		goto out_free_session;
+		goto out_free_strm;
 	}
 
 	/* monitor-net and health mode are processed immediately after TCP
@@ -184,7 +186,7 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		else if (p->mode == PR_MODE_HEALTH)
 			send(cfd, "OK\n", 3, MSG_DONTWAIT|MSG_NOSIGNAL|MSG_MORE);
 		ret = 0;
-		goto out_free_session;
+		goto out_free_strm;
 	}
 
 	/* wait for a PROXY protocol header */
@@ -194,7 +196,7 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	}
 
 	if (unlikely((t = task_new()) == NULL))
-		goto out_free_session;
+		goto out_free_strm;
 
 	t->context = s;
 	t->nice = l->nice;
@@ -231,12 +233,12 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	/* Error unrolling */
  out_free_task:
 	task_free(t);
- out_free_session:
-	pool_free2(pool2_session, s->sess);
- out_free_stream:
+ out_free_strm:
 	p->feconn--;
 	stream_store_counters(s);
 	pool_free2(pool2_stream, s);
+ out_free_sess:
+	pool_free2(pool2_session, sess);
  out_free_conn:
 	cli_conn->flags &= ~CO_FL_XPRT_TRACKED;
 	conn_xprt_close(cli_conn);
