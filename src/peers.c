@@ -1117,14 +1117,26 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	struct task *t;
 	struct connection *conn;
 
+	ps->reconnect = tick_add(now_ms, MS_TO_TICKS(5000));
+	ps->statuscode = PEER_SESS_SC_CONNECTCODE;
+	s = NULL;
+
+	appctx = appctx_new(&peer_applet);
+	if (!appctx)
+		goto out_close;
+
+	appctx->st0 = PEER_SESS_ST_CONNECT;
+	appctx->ctx.peers.ptr = (void *)ps;
+
 	sess = pool_alloc2(pool2_session);
 	if (!sess) {
 		Alert("out of memory in peer_session_create().\n");
-		goto out_close;
+		goto out_free_appctx;
 	}
 
 	sess->listener = l;
 	sess->fe = p;
+	sess->origin = &appctx->obj_type;
 	sess->accept_date = date; /* user-visible date for logging */
 	sess->tv_accept = now;  /* corrected date for internal use */
 	memset(sess->stkctr, 0, sizeof(sess->stkctr));
@@ -1148,9 +1160,6 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 		goto out_free_strm;
 	}
 
-	ps->reconnect = tick_add(now_ms, MS_TO_TICKS(5000));
-	ps->statuscode = PEER_SESS_SC_CONNECTCODE;
-
 	t->process = l->handler;
 	t->context = s;
 	t->nice = l->nice;
@@ -1171,13 +1180,8 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	if (s->sess->fe->options2 & PR_O2_INDEPSTR)
 		s->si[0].flags |= SI_FL_INDEP_STR;
 
-	appctx = stream_int_register_handler(&s->si[0], &peer_applet);
-	if (!appctx)
-		goto out_free_task;
-
-	appctx->st0 = PEER_SESS_ST_CONNECT;
-	appctx->ctx.peers.ptr = (void *)ps;
-	s->sess->origin = &appctx->obj_type;
+	si_attach_appctx(&s->si[0], appctx);
+	s->si[0].flags |= SI_FL_WAIT_DATA;
 
 	si_reset(&s->si[1]);
 
@@ -1192,7 +1196,7 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	 * pre-initialized connection in si->conn.
 	 */
 	if (unlikely((conn = conn_new()) == NULL))
-		goto out_free_strm;
+		goto out_free_task;
 
 	conn_prepare(conn, peer->proto, peer->xprt);
 	si_attach_conn(&s->si[1], conn);
@@ -1280,6 +1284,8 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	pool_free2(pool2_stream, s);
  out_free_sess:
 	session_free(sess);
+ out_free_appctx:
+	appctx_free(appctx);
  out_close:
 	return s;
 }
