@@ -157,7 +157,7 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	 * to abort right here as soon as possible, we check the rules before
 	 * even initializing the stream interfaces.
 	 */
-	if ((l->options & LI_O_TCP_RULES) && !tcp_exec_req_rules(s)) {
+	if ((l->options & LI_O_TCP_RULES) && !tcp_exec_req_rules(sess)) {
 		/* let's do a no-linger now to close with a single RST. */
 		setsockopt(cfd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
 		ret = 0; /* successful termination */

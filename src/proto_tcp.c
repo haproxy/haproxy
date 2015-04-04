@@ -1360,9 +1360,8 @@ resume_execution:
  * matches or if no more rule matches. It can only use rules which don't need
  * any data. This only works on connection-based client-facing stream interfaces.
  */
-int tcp_exec_req_rules(struct stream *s)
+int tcp_exec_req_rules(struct session *sess)
 {
-	struct session *sess = s->sess;
 	struct tcp_rule *rule;
 	struct stksess *ts;
 	struct stktable *t = NULL;
@@ -1377,7 +1376,7 @@ int tcp_exec_req_rules(struct stream *s)
 		ret = ACL_TEST_PASS;
 
 		if (rule->cond) {
-			ret = acl_exec_cond(rule->cond, sess->fe, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
+			ret = acl_exec_cond(rule->cond, sess->fe, sess, NULL, SMP_OPT_DIR_REQ|SMP_OPT_FINAL);
 			ret = acl_pass(ret);
 			if (rule->cond->pol == ACL_COND_UNLESS)
 				ret = !ret;
@@ -1390,10 +1389,6 @@ int tcp_exec_req_rules(struct stream *s)
 				if (sess->listener->counters)
 					sess->listener->counters->denied_conn++;
 
-				if (!(s->flags & SF_ERR_MASK))
-					s->flags |= SF_ERR_PRXCOND;
-				if (!(s->flags & SF_FINST_MASK))
-					s->flags |= SF_FINST_R;
 				result = 0;
 				break;
 			}
@@ -1407,7 +1402,7 @@ int tcp_exec_req_rules(struct stream *s)
 					continue;
 
 				t = rule->act_prm.trk_ctr.table.t;
-				key = stktable_fetch_key(t, s->be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->act_prm.trk_ctr.expr, NULL);
+				key = stktable_fetch_key(t, sess->fe, sess, NULL, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->act_prm.trk_ctr.expr, NULL);
 
 				if (key && (ts = stktable_get_entry(t, key)))
 					stream_track_stkctr(&sess->stkctr[tcp_trk_idx(rule->action)], t, ts);
@@ -1418,7 +1413,7 @@ int tcp_exec_req_rules(struct stream *s)
 			}
 			else {
 				/* Custom keywords. */
-				rule->action_ptr(rule, sess->fe, s);
+				rule->action_ptr(rule, sess->fe, NULL);
 
 				/* otherwise it's an accept */
 				break;

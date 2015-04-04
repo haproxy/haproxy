@@ -38,7 +38,7 @@ int tcp_get_dst(int fd, struct sockaddr *sa, socklen_t salen, int dir);
 int tcp_drain(int fd);
 int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit);
 int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit);
-int tcp_exec_req_rules(struct stream *s);
+int tcp_exec_req_rules(struct session *sess);
 
 /* TCP keywords. */
 void tcp_req_conn_keywords_register(struct tcp_action_kw_list *kw_list);
