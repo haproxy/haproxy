@@ -959,8 +959,8 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 		 * have to re-adjust the desired keep-alive/close mode to accommodate
 		 * both the frontend's and the backend's modes.
 		 */
-		if (strm_sess(s)->fe->mode == PR_MODE_HTTP && be->mode == PR_MODE_HTTP &&
-		    ((strm_sess(s)->fe->options & PR_O_HTTP_MODE) != (be->options & PR_O_HTTP_MODE)))
+		if (strm_fe(s)->mode == PR_MODE_HTTP && be->mode == PR_MODE_HTTP &&
+		    ((strm_fe(s)->options & PR_O_HTTP_MODE) != (be->options & PR_O_HTTP_MODE)))
 			http_adjust_conn_mode(s, s->txn, &s->txn->req);
 
 		/* If an LB algorithm needs to access some pre-parsed body contents,
@@ -984,7 +984,7 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 	 * be more reliable to store the list of analysers that have been run,
 	 * but what we do here is OK for now.
 	 */
-	s->req.analysers |= be->be_req_ana & ~strm_sess(s)->listener->analysers;
+	s->req.analysers |= be->be_req_ana & ~strm_li(s)->analysers;
 
 	return 1;
 }

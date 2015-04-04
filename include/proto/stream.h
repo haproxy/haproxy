@@ -68,6 +68,24 @@ static inline struct session *strm_sess(const struct stream *strm)
 	return strm->sess;
 }
 
+/* returns the frontend this stream was initiated from */
+static inline struct proxy *strm_fe(const struct stream *strm)
+{
+	return strm->sess->fe;
+}
+
+/* returns the listener this stream was initiated from */
+static inline struct listener *strm_li(const struct stream *strm)
+{
+	return strm->sess->listener;
+}
+
+/* returns a pointer to the origin of the session which created this stream */
+static inline enum obj_type *strm_orig(const struct stream *strm)
+{
+	return strm->sess->origin;
+}
+
 /* sets the stick counter's entry pointer */
 static inline void stkctr_set_entry(struct stkctr *stkctr, struct stksess *entry)
 {

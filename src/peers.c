@@ -215,7 +215,7 @@ static void peer_session_release(struct stream_interface *si)
 static void peer_io_handler(struct stream_interface *si)
 {
 	struct stream *s = si_strm(si);
-	struct peers *curpeers = (struct peers *)strm_sess(s)->fe->parent;
+	struct peers *curpeers = (struct peers *)strm_fe(s)->parent;
 	struct appctx *appctx = objt_appctx(si->end);
 	int reql = 0;
 	int repl = 0;

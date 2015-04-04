@@ -1062,7 +1062,7 @@ static void sess_establish(struct stream *s)
 	if (s->be->mode == PR_MODE_TCP) { /* let's allow immediate data connection in this case */
 		/* if the user wants to log as soon as possible, without counting
 		 * bytes from the server, then this is the right moment. */
-		if (!LIST_ISEMPTY(&strm_sess(s)->fe->logformat) && !(s->logs.logwait & LW_BYTES)) {
+		if (!LIST_ISEMPTY(&strm_fe(s)->logformat) && !(s->logs.logwait & LW_BYTES)) {
 			s->logs.t_close = s->logs.t_connect; /* to get a valid end date */
 			s->do_log(s);
 		}
@@ -1071,7 +1071,7 @@ static void sess_establish(struct stream *s)
 		rep->flags |= CF_READ_DONTWAIT; /* a single read is enough to get response headers */
 	}
 
-	rep->analysers |= strm_sess(s)->fe->fe_rsp_ana | s->be->be_rsp_ana;
+	rep->analysers |= strm_fe(s)->fe_rsp_ana | s->be->be_rsp_ana;
 	rep->flags |= CF_READ_ATTACHED; /* producer is now attached */
 	if (req->flags & CF_WAKE_CONNECT) {
 		req->flags |= CF_WAKE_ONCE;
@@ -1264,9 +1264,9 @@ static void sess_set_term_flags(struct stream *s)
 	if (!(s->flags & SF_FINST_MASK)) {
 		if (s->si[1].state < SI_ST_REQ) {
 
-			strm_sess(s)->fe->fe_counters.failed_req++;
-			if (strm_sess(s)->listener->counters)
-				strm_sess(s)->listener->counters->failed_req++;
+			strm_fe(s)->fe_counters.failed_req++;
+			if (strm_li(s)->counters)
+				strm_li(s)->counters->failed_req++;
 
 			s->flags |= SF_FINST_R;
 		}

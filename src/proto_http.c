@@ -851,8 +851,8 @@ struct chunk *http_error_message(struct stream *s, int msgnum)
 {
 	if (s->be->errmsg[msgnum].str)
 		return &s->be->errmsg[msgnum];
-	else if (strm_sess(s)->fe->errmsg[msgnum].str)
-		return &strm_sess(s)->fe->errmsg[msgnum];
+	else if (strm_fe(s)->errmsg[msgnum].str)
+		return &strm_fe(s)->errmsg[msgnum];
 	else
 		return &http_err_chunks[msgnum];
 }
@@ -2264,7 +2264,7 @@ int select_compression_request_header(struct stream *s, struct buffer *req)
 	}
 
 	/* search for the algo in the backend in priority or the frontend */
-	if ((s->be->comp && (comp_algo_back = s->be->comp->algos)) || (strm_sess(s)->fe->comp && (comp_algo_back = strm_sess(s)->fe->comp->algos))) {
+	if ((s->be->comp && (comp_algo_back = s->be->comp->algos)) || (strm_fe(s)->comp && (comp_algo_back = strm_fe(s)->comp->algos))) {
 		int best_q = 0;
 
 		ctx.idx = 0;
@@ -2322,7 +2322,7 @@ int select_compression_request_header(struct stream *s, struct buffer *req)
 
 	/* remove all occurrences of the header when "compression offload" is set */
 	if (s->comp_algo) {
-		if ((s->be->comp && s->be->comp->offload) || (strm_sess(s)->fe->comp && strm_sess(s)->fe->comp->offload)) {
+		if ((s->be->comp && s->be->comp->offload) || (strm_fe(s)->comp && strm_fe(s)->comp->offload)) {
 			http_remove_header2(msg, &txn->hdr_idx, &ctx);
 			ctx.idx = 0;
 			while (http_find_header2("Accept-Encoding", 15, req->p, &txn->hdr_idx, &ctx)) {
@@ -2333,7 +2333,7 @@ int select_compression_request_header(struct stream *s, struct buffer *req)
 	}
 
 	/* identity is implicit does not require headers */
-	if ((s->be->comp && (comp_algo_back = s->be->comp->algos)) || (strm_sess(s)->fe->comp && (comp_algo_back = strm_sess(s)->fe->comp->algos))) {
+	if ((s->be->comp && (comp_algo_back = s->be->comp->algos)) || (strm_fe(s)->comp && (comp_algo_back = strm_fe(s)->comp->algos))) {
 		for (comp_algo = comp_algo_back; comp_algo; comp_algo = comp_algo->next) {
 			if (comp_algo->cfg_name_len == 8 && memcmp(comp_algo->cfg_name, "identity", 8) == 0) {
 				s->comp_algo = comp_algo;
@@ -2400,7 +2400,7 @@ int select_compression_response_header(struct stream *s, struct buffer *res)
 			goto fail;
 
 		if ((s->be->comp && (comp_type = s->be->comp->types)) ||
-		    (strm_sess(s)->fe->comp && (comp_type = strm_sess(s)->fe->comp->types))) {
+		    (strm_fe(s)->comp && (comp_type = strm_fe(s)->comp->types))) {
 			for (; comp_type; comp_type = comp_type->next) {
 				if (ctx.vlen >= comp_type->name_len &&
 				    strncasecmp(ctx.line+ctx.val, comp_type->name, comp_type->name_len) == 0)
@@ -2413,7 +2413,7 @@ int select_compression_response_header(struct stream *s, struct buffer *res)
 		}
 	}
 	else { /* no content-type header */
-		if ((s->be->comp && s->be->comp->types) || (strm_sess(s)->fe->comp && strm_sess(s)->fe->comp->types))
+		if ((s->be->comp && s->be->comp->types) || (strm_fe(s)->comp && strm_fe(s)->comp->types))
 			goto fail; /* a content-type was required */
 	}
 
@@ -2464,7 +2464,7 @@ fail:
 
 void http_adjust_conn_mode(struct stream *s, struct http_txn *txn, struct http_msg *msg)
 {
-	struct proxy *fe = strm_sess(s)->fe;
+	struct proxy *fe = strm_fe(s);
 	int tmp = TX_CON_WANT_KAL;
 
 	if (!((fe->options2|s->be->options2) & PR_O2_FAKE_KA)) {
@@ -4907,7 +4907,7 @@ int http_send_name_header(struct http_txn *txn, struct proxy* be, const char* sr
 void http_end_txn_clean_session(struct stream *s)
 {
 	int prev_status = s->txn->status;
-	struct proxy *fe = strm_sess(s)->fe;
+	struct proxy *fe = strm_fe(s);
 
 	/* FIXME: We need a more portable way of releasing a backend's and a
 	 * server's connections. We need a safer way to reinitialize buffer
@@ -5062,7 +5062,7 @@ void http_end_txn_clean_session(struct stream *s)
 	/* we're in keep-alive with an idle connection, monitor it */
 	si_idle_conn(&s->si[1]);
 
-	s->req.analysers = strm_sess(s)->listener->analysers;
+	s->req.analysers = strm_li(s)->analysers;
 	s->res.analysers = 0;
 }
 
@@ -6988,7 +6988,7 @@ int apply_filter_to_req_headers(struct stream *s, struct channel *req, struct hd
 				 * FIXME: should we return an HTTP/500 here so that
 				 * the admin knows there's a problem ?
 				 */
-				if (s->be != strm_sess(s)->fe)
+				if (s->be != strm_fe(s))
 					break;
 
 				/* Swithing Proxy */
@@ -7089,7 +7089,7 @@ int apply_filter_to_req_line(struct stream *s, struct channel *req, struct hdr_e
 			 * FIXME: should we return an HTTP/500 here so that
 			 * the admin knows there's a problem ?
 			 */
-			if (s->be != strm_sess(s)->fe)
+			if (s->be != strm_fe(s))
 				break;
 
 			/* Swithing Proxy */
@@ -8830,7 +8830,7 @@ struct http_txn *http_alloc_txn(struct stream *s)
 void http_init_txn(struct stream *s)
 {
 	struct http_txn *txn = s->txn;
-	struct proxy *fe = strm_sess(s)->fe;
+	struct proxy *fe = strm_fe(s);
 
 	txn->flags = 0;
 	txn->status = -1;
@@ -8872,7 +8872,7 @@ void http_init_txn(struct stream *s)
 void http_end_txn(struct stream *s)
 {
 	struct http_txn *txn = s->txn;
-	struct proxy *fe = strm_sess(s)->fe;
+	struct proxy *fe = strm_fe(s);
 
 	/* release any possible compression context */
 	if (s->flags & SF_COMP_READY)
@@ -8920,8 +8920,8 @@ void http_reset_txn(struct stream *s)
 	 */
 	s->current_rule_list = NULL;
 
-	s->be = strm_sess(s)->fe;
-	s->logs.logwait = strm_sess(s)->fe->to_log;
+	s->be = strm_fe(s);
+	s->logs.logwait = strm_fe(s)->to_log;
 	s->logs.level = 0;
 	stream_del_srv_conn(s);
 	s->target = NULL;
@@ -8944,11 +8944,11 @@ void http_reset_txn(struct stream *s)
 	if (unlikely(s->res.buf->i))
 		s->res.buf->i = 0;
 
-	s->req.rto = strm_sess(s)->fe->timeout.client;
+	s->req.rto = strm_fe(s)->timeout.client;
 	s->req.wto = TICK_ETERNITY;
 
 	s->res.rto = TICK_ETERNITY;
-	s->res.wto = strm_sess(s)->fe->timeout.client;
+	s->res.wto = strm_fe(s)->timeout.client;
 
 	s->req.rex = TICK_ETERNITY;
 	s->req.wex = TICK_ETERNITY;
@@ -10887,7 +10887,7 @@ static int
 smp_fetch_capture_header_req(struct proxy *px, struct session *sess, struct stream *strm, unsigned int opt,
                              const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct proxy *fe = strm_sess(strm)->fe;
+	struct proxy *fe = strm_fe(strm);
 	int idx;
 
 	if (!args || args->type != ARGT_UINT)
@@ -10913,7 +10913,7 @@ static int
 smp_fetch_capture_header_res(struct proxy *px, struct session *sess, struct stream *strm, unsigned int opt,
                              const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	struct proxy *fe = strm_sess(strm)->fe;
+	struct proxy *fe = strm_fe(strm);
 	int idx;
 
 	if (!args || args->type != ARGT_UINT)
