@@ -43,7 +43,6 @@ struct session {
 	struct timeval accept_date;     /* date of the session's accept() in user date */
 	struct timeval tv_accept;       /* date of the session's accept() in internal date (monotonic) */
 	struct stkctr stkctr[MAX_SESS_STKCTR];  /* stick counters for tcp-connection */
-	struct task *task;              /* temporary, for embryonic sessions */
 };
 
 #endif /* _TYPES_SESSION_H */

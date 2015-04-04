@@ -59,7 +59,7 @@ struct list buffer_wq = LIST_HEAD_INIT(buffer_wq);
 static int conn_stream_complete(struct connection *conn);
 static int conn_stream_update(struct connection *conn);
 static struct task *expire_mini_session(struct task *t);
-int stream_complete(struct session *s);
+int stream_complete(struct session *s, struct task *t);
 
 /* data layer callbacks for an embryonic stream */
 struct data_cb sess_conn_cb = {
@@ -175,7 +175,6 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 
 	t->context = sess;
 	t->nice = l->nice;
-	sess->task = t;
 
 	/* OK, now either we have a pending handshake to execute with and
 	 * then we must return to the I/O layer, or we can proceed with the
@@ -184,13 +183,13 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	 *
 	 * At this point we set the relation between sess/task/conn this way :
 	 *
-	 *          orig -- sess  <-- context
-	 *           |       ^ +- task -+  |
-	 *           v       |          v  |
-	 *          conn -- owner       task
+	 *          orig -- sess <-- context
+	 *           |                   |
+	 *           v                   |
+	 *          conn -- owner ---> task
 	 */
 	if (cli_conn->flags & CO_FL_HANDSHAKE) {
-		conn_attach(cli_conn, sess, &sess_conn_cb);
+		conn_attach(cli_conn, t, &sess_conn_cb);
 		t->process = expire_mini_session;
 		t->expire = tick_add_ifset(now_ms, p->timeout.client);
 		task_queue(t);
@@ -198,7 +197,7 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 		return 1;
 	}
 
-	ret = stream_complete(sess);
+	ret = stream_complete(sess, t);
 	if (ret > 0)
 		return ret;
 
@@ -265,6 +264,7 @@ static void kill_mini_session(struct session *sess)
 {
 	int level = LOG_INFO;
 	struct connection *conn = __objt_conn(sess->origin);
+	struct task *task = conn->owner;
 	unsigned int log = sess->fe->to_log;
 	const char *err_msg;
 
@@ -280,7 +280,7 @@ static void kill_mini_session(struct session *sess)
 	}
 
 	if (log) {
-		if (!conn->err_code && (sess->task->state & TASK_WOKEN_TIMER)) {
+		if (!conn->err_code && (task->state & TASK_WOKEN_TIMER)) {
 			if (conn->flags & CO_FL_ACCEPT_PROXY)
 				conn->err_code = CO_ER_PRX_TIMEOUT;
 			else if (conn->flags & CO_FL_SSL_WAIT_HS)
@@ -317,8 +317,8 @@ static void kill_mini_session(struct session *sess)
 	    (!sess->fe->fe_sps_lim || freq_ctr_remain(&sess->fe->fe_sess_per_sec, sess->fe->fe_sps_lim, 0) > 0))
 		dequeue_all_listeners(&sess->fe->listener_queue);
 
-	task_delete(sess->task);
-	task_free(sess->task);
+	task_delete(task);
+	task_free(task);
 	session_free(sess);
 }
 
@@ -327,9 +327,10 @@ static void kill_mini_session(struct session *sess)
  */
 static int conn_stream_complete(struct connection *conn)
 {
-	struct session *sess = conn->owner;
+	struct task *task = conn->owner;
+	struct session *sess = task->context;
 
-	if (!(conn->flags & CO_FL_ERROR) && (stream_complete(sess) > 0)) {
+	if (!(conn->flags & CO_FL_ERROR) && (stream_complete(sess, task) > 0)) {
 		conn->flags &= ~CO_FL_INIT_DATA;
 		return 0;
 	}
@@ -344,8 +345,11 @@ static int conn_stream_complete(struct connection *conn)
  */
 static int conn_stream_update(struct connection *conn)
 {
+	struct task *task = conn->owner;
+	struct session *sess = task->context;
+
 	if (conn->flags & CO_FL_ERROR) {
-		kill_mini_session(conn->owner);
+		kill_mini_session(sess);
 		return -1;
 	}
 	return 0;
@@ -373,12 +377,11 @@ static struct task *expire_mini_session(struct task *t)
  * The client-side end point is assumed to be a connection, whose pointer is
  * taken from sess->origin which is assumed to be valid.
  */
-int stream_complete(struct session *sess)
+int stream_complete(struct session *sess, struct task *t)
 {
 	struct stream *s;
 	struct listener *l = sess->listener;
 	struct proxy *p = sess->fe;
-	struct task *t = sess->task;
 	struct connection *conn = __objt_conn(sess->origin);
 	int ret;
 	int i;
