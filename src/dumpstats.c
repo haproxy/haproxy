@@ -56,6 +56,7 @@
 #include <proto/proto_uxst.h>
 #include <proto/proxy.h>
 #include <proto/sample.h>
+#include <proto/session.h>
 #include <proto/stream.h>
 #include <proto/server.h>
 #include <proto/raw_sock.h>
@@ -337,7 +338,7 @@ static int stats_parse_global(char **args, int section_type, struct proxy *curpx
 		list_for_each_entry(l, &bind_conf->listeners, by_bind) {
 			l->maxconn = global.stats_fe->maxconn;
 			l->backlog = global.stats_fe->backlog;
-			l->accept = stream_accept;
+			l->accept = session_accept_fd;
 			l->handler = process_stream;
 			l->default_target = global.stats_fe->default_target;
 			l->options |= LI_O_UNLIMITED; /* don't make the peers subject to global limits */

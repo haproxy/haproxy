@@ -35,6 +35,7 @@
 extern struct pool_head *pool2_session;
 void session_free(struct session *sess);
 int init_session();
+int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr);
 
 /* Remove the refcount from the session to the tracked counters, and clear the
  * pointer to ensure this is only performed once. The caller is responsible for

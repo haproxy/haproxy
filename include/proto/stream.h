@@ -36,7 +36,7 @@ extern struct list buffer_wq;
 
 extern struct data_cb sess_conn_cb;
 
-int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr);
+int stream_accept_session(struct session *sess, struct task *t);
 
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_stream();

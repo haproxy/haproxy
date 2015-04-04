@@ -73,6 +73,7 @@
 #include <proto/proxy.h>
 #include <proto/peers.h>
 #include <proto/sample.h>
+#include <proto/session.h>
 #include <proto/server.h>
 #include <proto/stream.h>
 #include <proto/raw_sock.h>
@@ -1884,7 +1885,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 					l->maxaccept = 1;
 					l->maxconn = ((struct proxy *)curpeers->peers_fe)->maxconn;
 					l->backlog = ((struct proxy *)curpeers->peers_fe)->backlog;
-					l->accept = stream_accept;
+					l->accept = session_accept_fd;
 					l->handler = process_stream;
 					l->analysers |=  ((struct proxy *)curpeers->peers_fe)->fe_req_ana;
 					l->default_target = ((struct proxy *)curpeers->peers_fe)->default_target;
@@ -7708,7 +7709,7 @@ out_uri_auth_compat:
 				listener->maxaccept = (listener->maxaccept + nbproc - 1) / nbproc;
 			}
 
-			listener->accept = stream_accept;
+			listener->accept = session_accept_fd;
 			listener->handler = process_stream;
 			listener->analysers |= curproxy->fe_req_ana;
 			listener->default_target = curproxy->default_target;
