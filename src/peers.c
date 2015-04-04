@@ -1134,9 +1134,18 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 		goto out_free_appctx;
 	}
 
-	if ((s = pool_alloc2(pool2_stream)) == NULL) { /* disable this proxy for a while */
+	if ((t = task_new()) == NULL) {
 		Alert("out of memory in peer_session_create().\n");
 		goto out_free_sess;
+	}
+
+	t->process = l->handler;
+	t->context = sess;
+	t->nice = l->nice;
+
+	if ((s = pool_alloc2(pool2_stream)) == NULL) { /* disable this proxy for a while */
+		Alert("out of memory in peer_session_create().\n");
+		goto out_free_task;
 	}
 
 	LIST_ADDQ(&streams, &s->list);
@@ -1145,19 +1154,8 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 
 	s->flags = SF_ASSIGNED|SF_ADDR_SET;
 
-	/* if this session comes from a known monitoring system, we want to ignore
-	 * it as soon as possible, which means closing it immediately for TCP.
-	 */
-	if ((t = task_new()) == NULL) { /* disable this proxy for a while */
-		Alert("out of memory in peer_session_create().\n");
-		goto out_free_strm;
-	}
-
-	t->process = l->handler;
-	t->context = s;
-	t->nice = l->nice;
-
 	s->task = t;
+	t->context = s;
 	s->sess = sess;
 	s->be = s->sess->fe;
 	s->req.buf = s->res.buf = NULL;
@@ -1189,7 +1187,7 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	 * pre-initialized connection in si->conn.
 	 */
 	if (unlikely((conn = conn_new()) == NULL))
-		goto out_free_task;
+		goto out_free_strm;
 
 	conn_prepare(conn, peer->proto, peer->xprt);
 	si_attach_conn(&s->si[1], conn);
@@ -1270,11 +1268,11 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	return s;
 
 	/* Error unrolling */
- out_free_task:
-	task_free(t);
  out_free_strm:
 	LIST_DEL(&s->list);
 	pool_free2(pool2_stream, s);
+ out_free_task:
+	task_free(t);
  out_free_sess:
 	session_free(sess);
  out_free_appctx:
