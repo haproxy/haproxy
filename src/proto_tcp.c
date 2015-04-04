@@ -1403,14 +1403,14 @@ int tcp_exec_req_rules(struct stream *s)
 				 */
 				struct stktable_key *key;
 
-				if (stkctr_entry(&s->stkctr[tcp_trk_idx(rule->action)]))
+				if (stkctr_entry(&sess->stkctr[tcp_trk_idx(rule->action)]))
 					continue;
 
 				t = rule->act_prm.trk_ctr.table.t;
 				key = stktable_fetch_key(t, s->be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, rule->act_prm.trk_ctr.expr, NULL);
 
 				if (key && (ts = stktable_get_entry(t, key)))
-					stream_track_stkctr(&s->stkctr[tcp_trk_idx(rule->action)], t, ts);
+					stream_track_stkctr(&sess->stkctr[tcp_trk_idx(rule->action)], t, ts);
 			}
 			else if (rule->action == TCP_ACT_EXPECT_PX) {
 				conn->flags |= CO_FL_ACCEPT_PROXY;
