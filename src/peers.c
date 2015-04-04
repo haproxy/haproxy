@@ -1128,18 +1128,11 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	appctx->st0 = PEER_SESS_ST_CONNECT;
 	appctx->ctx.peers.ptr = (void *)ps;
 
-	sess = pool_alloc2(pool2_session);
+	sess = session_new(p, l, &appctx->obj_type);
 	if (!sess) {
 		Alert("out of memory in peer_session_create().\n");
 		goto out_free_appctx;
 	}
-
-	sess->listener = l;
-	sess->fe = p;
-	sess->origin = &appctx->obj_type;
-	sess->accept_date = date; /* user-visible date for logging */
-	sess->tv_accept = now;  /* corrected date for internal use */
-	memset(sess->stkctr, 0, sizeof(sess->stkctr));
 
 	if ((s = pool_alloc2(pool2_stream)) == NULL) { /* disable this proxy for a while */
 		Alert("out of memory in peer_session_create().\n");
