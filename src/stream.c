@@ -98,9 +98,24 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	cli_conn->target = &l->obj_type;
 	cli_conn->proxy_netns = l->netns;
 
+	conn_ctrl_init(cli_conn);
+
+	/* wait for a PROXY protocol header */
+	if (l->options & LI_O_ACC_PROXY) {
+		cli_conn->flags |= CO_FL_ACCEPT_PROXY;
+		conn_sock_want_recv(cli_conn);
+	}
+
 	sess = pool_alloc2(pool2_session);
 	if (!sess)
 		goto out_free_conn;
+
+	p->feconn++;
+	/* This session was accepted, count it now */
+	if (p->feconn > p->fe_counters.conn_max)
+		p->fe_counters.conn_max = p->feconn;
+
+	proxy_inc_fe_conn_ctr(l, p);
 
 	sess->listener = l;
 	sess->fe  = p;
@@ -108,6 +123,45 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	sess->accept_date = date; /* user-visible date for logging */
 	sess->tv_accept   = now;  /* corrected date for internal use */
 	memset(sess->stkctr, 0, sizeof(sess->stkctr));
+
+	/* now evaluate the tcp-request layer4 rules. Since we expect to be able
+	 * to abort right here as soon as possible, we check the rules before
+	 * even initializing the stream interfaces.
+	 */
+	if ((l->options & LI_O_TCP_RULES) && !tcp_exec_req_rules(sess)) {
+		/* let's do a no-linger now to close with a single RST. */
+		setsockopt(cfd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
+		ret = 0; /* successful termination */
+		goto out_free_sess;
+	}
+
+	/* monitor-net and health mode are processed immediately after TCP
+	 * connection rules. This way it's possible to block them, but they
+	 * never use the lower data layers, they send directly over the socket,
+	 * as they were designed for. We first flush the socket receive buffer
+	 * in order to avoid emission of an RST by the system. We ignore any
+	 * error.
+	 */
+	if (unlikely((p->mode == PR_MODE_HEALTH) ||
+		     ((l->options & LI_O_CHK_MONNET) &&
+		      addr->ss_family == AF_INET &&
+		      (((struct sockaddr_in *)addr)->sin_addr.s_addr & p->mon_mask.s_addr) == p->mon_net.s_addr))) {
+		/* we have 4 possibilities here :
+		 *  - HTTP mode, from monitoring address => send "HTTP/1.0 200 OK"
+		 *  - HEALTH mode with HTTP check => send "HTTP/1.0 200 OK"
+		 *  - HEALTH mode without HTTP check => just send "OK"
+		 *  - TCP mode from monitoring address => just close
+		 */
+		if (l->proto->drain)
+			l->proto->drain(cfd);
+		if (p->mode == PR_MODE_HTTP ||
+		    (p->mode == PR_MODE_HEALTH && (p->options2 & PR_O2_CHK_ANY) == PR_O2_HTTP_CHK))
+			send(cfd, "HTTP/1.0 200 OK\r\n\r\n", 19, MSG_DONTWAIT|MSG_NOSIGNAL|MSG_MORE);
+		else if (p->mode == PR_MODE_HEALTH)
+			send(cfd, "OK\n", 3, MSG_DONTWAIT|MSG_NOSIGNAL|MSG_MORE);
+		ret = 0;
+		goto out_free_sess;
+	}
 
 	if (unlikely((s = pool_alloc2(pool2_stream)) == NULL))
 		goto out_free_sess;
@@ -136,12 +190,6 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->logs.accept_date = sess->accept_date; /* user-visible date for logging */
 	s->logs.tv_accept = sess->tv_accept;   /* corrected date for internal use */
 	s->uniq_id = global.req_count++;
-	p->feconn++;
-	/* This stream was accepted, count it now */
-	if (p->feconn > p->fe_counters.conn_max)
-		p->fe_counters.conn_max = p->feconn;
-
-	proxy_inc_fe_conn_ctr(l, p);
 
 	/* Add the minimum callbacks to prepare the connection's control layer.
 	 * We need this so that we can safely execute the ACLs used by the
@@ -151,52 +199,6 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	 */
 	si_attach_conn(&s->si[0], cli_conn);
 	conn_attach(cli_conn, s, &sess_conn_cb);
-	conn_ctrl_init(cli_conn);
-
-	/* now evaluate the tcp-request layer4 rules. Since we expect to be able
-	 * to abort right here as soon as possible, we check the rules before
-	 * even initializing the stream interfaces.
-	 */
-	if ((l->options & LI_O_TCP_RULES) && !tcp_exec_req_rules(sess)) {
-		/* let's do a no-linger now to close with a single RST. */
-		setsockopt(cfd, SOL_SOCKET, SO_LINGER, (struct linger *) &nolinger, sizeof(struct linger));
-		ret = 0; /* successful termination */
-		goto out_free_strm;
-	}
-
-	/* monitor-net and health mode are processed immediately after TCP
-	 * connection rules. This way it's possible to block them, but they
-	 * never use the lower data layers, they send directly over the socket,
-	 * as they were designed for. We first flush the socket receive buffer
-	 * in order to avoid emission of an RST by the system. We ignore any
-	 * error.
-	 */
-	if (unlikely((p->mode == PR_MODE_HEALTH) ||
-		     ((l->options & LI_O_CHK_MONNET) &&
-		      addr->ss_family == AF_INET &&
-		      (((struct sockaddr_in *)addr)->sin_addr.s_addr & p->mon_mask.s_addr) == p->mon_net.s_addr))) {
-		/* we have 4 possibilities here :
-		 *  - HTTP mode, from monitoring address => send "HTTP/1.0 200 OK"
-		 *  - HEALTH mode with HTTP check => send "HTTP/1.0 200 OK"
-		 *  - HEALTH mode without HTTP check => just send "OK"
-		 *  - TCP mode from monitoring address => just close
-		 */
-		if (l->proto->drain)
-			l->proto->drain(cfd);
-		if (p->mode == PR_MODE_HTTP ||
-		    (p->mode == PR_MODE_HEALTH && (p->options2 & PR_O2_CHK_ANY) == PR_O2_HTTP_CHK))
-			send(cfd, "HTTP/1.0 200 OK\r\n\r\n", 19, MSG_DONTWAIT|MSG_NOSIGNAL|MSG_MORE);
-		else if (p->mode == PR_MODE_HEALTH)
-			send(cfd, "OK\n", 3, MSG_DONTWAIT|MSG_NOSIGNAL|MSG_MORE);
-		ret = 0;
-		goto out_free_strm;
-	}
-
-	/* wait for a PROXY protocol header */
-	if (l->options & LI_O_ACC_PROXY) {
-		cli_conn->flags |= CO_FL_ACCEPT_PROXY;
-		conn_sock_want_recv(cli_conn);
-	}
 
 	if (unlikely((t = task_new()) == NULL))
 		goto out_free_strm;
@@ -237,9 +239,9 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
  out_free_task:
 	task_free(t);
  out_free_strm:
-	p->feconn--;
 	pool_free2(pool2_stream, s);
  out_free_sess:
+	p->feconn--;
 	session_free(sess);
  out_free_conn:
 	cli_conn->flags &= ~CO_FL_XPRT_TRACKED;
