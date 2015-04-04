@@ -86,36 +86,6 @@ static inline enum obj_type *strm_orig(const struct stream *strm)
 	return strm->sess->origin;
 }
 
-/* sets the stick counter's entry pointer */
-static inline void stkctr_set_entry(struct stkctr *stkctr, struct stksess *entry)
-{
-	stkctr->entry = caddr_from_ptr(entry, 0);
-}
-
-/* returns the entry pointer from a stick counter */
-static inline struct stksess *stkctr_entry(struct stkctr *stkctr)
-{
-	return caddr_to_ptr(stkctr->entry);
-}
-
-/* returns the two flags from a stick counter */
-static inline unsigned int stkctr_flags(struct stkctr *stkctr)
-{
-	return caddr_to_data(stkctr->entry);
-}
-
-/* sets up to two flags at a time on a composite address */
-static inline void stkctr_set_flags(struct stkctr *stkctr, unsigned int flags)
-{
-	stkctr->entry = caddr_set_flags(stkctr->entry, flags);
-}
-
-/* returns the two flags from a stick counter */
-static inline void stkctr_clr_flags(struct stkctr *stkctr, unsigned int flags)
-{
-	stkctr->entry = caddr_clr_flags(stkctr->entry, flags);
-}
-
 /* Remove the refcount from the stream to the tracked counters, and clear the
  * pointer to ensure this is only performed once. The caller is responsible for
  * ensuring that the pointer is valid first.

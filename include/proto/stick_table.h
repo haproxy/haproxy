@@ -135,4 +135,34 @@ static inline void stksess_kill_if_expired(struct stktable *t, struct stksess *t
 		stksess_kill(t, ts);
 }
 
+/* sets the stick counter's entry pointer */
+static inline void stkctr_set_entry(struct stkctr *stkctr, struct stksess *entry)
+{
+	stkctr->entry = caddr_from_ptr(entry, 0);
+}
+
+/* returns the entry pointer from a stick counter */
+static inline struct stksess *stkctr_entry(struct stkctr *stkctr)
+{
+	return caddr_to_ptr(stkctr->entry);
+}
+
+/* returns the two flags from a stick counter */
+static inline unsigned int stkctr_flags(struct stkctr *stkctr)
+{
+	return caddr_to_data(stkctr->entry);
+}
+
+/* sets up to two flags at a time on a composite address */
+static inline void stkctr_set_flags(struct stkctr *stkctr, unsigned int flags)
+{
+	stkctr->entry = caddr_set_flags(stkctr->entry, flags);
+}
+
+/* returns the two flags from a stick counter */
+static inline void stkctr_clr_flags(struct stkctr *stkctr, unsigned int flags)
+{
+	stkctr->entry = caddr_clr_flags(stkctr->entry, flags);
+}
+
 #endif /* _PROTO_STICK_TABLE_H */
