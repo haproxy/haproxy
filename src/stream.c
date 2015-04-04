@@ -69,7 +69,7 @@ int stream_accept_session(struct session *sess, struct task *t)
 	struct stream *s;
 	struct listener *l = sess->listener;
 	struct proxy *p = sess->fe;
-	struct connection *conn = __objt_conn(sess->origin);
+	struct connection *conn = objt_conn(sess->origin);
 	int ret;
 	int i;
 
@@ -151,7 +151,8 @@ int stream_accept_session(struct session *sess, struct task *t)
 	si_set_state(&s->si[0], SI_ST_EST);
 
 	/* attach the incoming connection to the stream interface now. */
-	si_attach_conn(&s->si[0], conn);
+	if (conn)
+		si_attach_conn(&s->si[0], conn);
 
 	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
 		s->si[0].flags |= SI_FL_INDEP_STR;
@@ -204,9 +205,13 @@ int stream_accept_session(struct session *sess, struct task *t)
 	HLUA_INIT(&s->hlua);
 
 	/* finish initialization of the accepted file descriptor */
-	conn_data_want_recv(conn);
+	if (conn)
+		conn_data_want_recv(conn);
 
-	if (p->accept && (ret = p->accept(s)) <= 0) {
+	/* FIXME: we shouldn't restrict ourselves to connections but for now
+	 * the only ->accept() only works with sessions.
+	 */
+	if (conn && p->accept && (ret = p->accept(s)) <= 0) {
 		/* Either we had an unrecoverable error (<0) or work is
 		 * finished (=0, eg: monitoring), in both situations,
 		 * we can release everything and close.
@@ -214,12 +219,14 @@ int stream_accept_session(struct session *sess, struct task *t)
 		goto out_free_strm;
 	}
 
-	/* if logs require transport layer information, note it on the connection */
-	if (s->logs.logwait & LW_XPRT)
-		conn->flags |= CO_FL_XPRT_TRACKED;
+	if (conn) {
+		/* if logs require transport layer information, note it on the connection */
+		if (s->logs.logwait & LW_XPRT)
+			conn->flags |= CO_FL_XPRT_TRACKED;
 
-	/* we want the connection handler to notify the stream interface about updates. */
-	conn->flags |= CO_FL_WAKE_DATA;
+		/* we want the connection handler to notify the stream interface about updates. */
+		conn->flags |= CO_FL_WAKE_DATA;
+	}
 
 	/* it is important not to call the wakeup function directly but to
 	 * pass through task_wakeup(), because this one knows how to apply
