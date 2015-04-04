@@ -1125,6 +1125,8 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 
 	sess->listener = l;
 	sess->fe = p;
+	sess->accept_date = date; /* user-visible date for logging */
+	sess->tv_accept = now;  /* corrected date for internal use */
 
 	if ((s = pool_alloc2(pool2_stream)) == NULL) { /* disable this proxy for a while */
 		Alert("out of memory in peer_session_create().\n");
@@ -1211,8 +1213,8 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 
 	s->logs.logwait = 0;
 	s->logs.level = 0;
-	s->logs.accept_date = date; /* user-visible date for logging */
-	s->logs.tv_accept = now;  /* corrected date for internal use */
+	s->logs.accept_date = sess->accept_date; /* user-visible date for logging */
+	s->logs.tv_accept = sess->tv_accept;   /* corrected date for internal use */
 	s->do_log = NULL;
 
 	/* default error reporting function, may be changed by analysers */

@@ -2033,6 +2033,8 @@ __LJMP static int hlua_socket_new(lua_State *L)
 		goto out_fail_conf;
 	}
 
+	sess->accept_date = date; /* user-visible date for logging */
+	sess->tv_accept   = now;  /* corrected date for internal use */
 	socket->s = pool_alloc2(pool2_stream);
 	if (!socket->s) {
 		hlua_pusherror(L, "socket: out of memory");
@@ -2151,8 +2153,9 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	/* Configure logs. */
 	socket->s->logs.logwait = 0;
 	socket->s->logs.level = 0;
-	socket->s->logs.accept_date = date; /* user-visible date for logging */
-	socket->s->logs.tv_accept = now;  /* corrected date for internal use */
+
+	socket->s->logs.accept_date = sess->accept_date; /* user-visible date for logging */
+	socket->s->logs.tv_accept = sess->tv_accept;   /* corrected date for internal use */
 	socket->s->do_log = NULL;
 
 	/* Function used if an error is occured. */

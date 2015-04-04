@@ -105,6 +105,8 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	sess->listener = l;
 	sess->fe  = p;
 	sess->origin = &cli_conn->obj_type;
+	sess->accept_date = date; /* user-visible date for logging */
+	sess->tv_accept   = now;  /* corrected date for internal use */
 
 	if (unlikely((s = pool_alloc2(pool2_stream)) == NULL))
 		goto out_free_sess;
@@ -130,8 +132,8 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[0].flags = SI_FL_NONE;
 	s->si[1].flags = SI_FL_ISBACK;
 
-	s->logs.accept_date = date; /* user-visible date for logging */
-	s->logs.tv_accept = now;  /* corrected date for internal use */
+	s->logs.accept_date = sess->accept_date; /* user-visible date for logging */
+	s->logs.tv_accept = sess->tv_accept;   /* corrected date for internal use */
 	s->uniq_id = global.req_count++;
 	p->feconn++;
 	/* This stream was accepted, count it now */
@@ -260,17 +262,16 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 }
 
 
-/* prepare the trash with a log prefix for stream <s>. It only works with
+/* prepare the trash with a log prefix for session <sess>. It only works with
  * embryonic streams based on a real connection. This function requires that
  * at sess->origin points to the incoming connection.
  */
-static void prepare_mini_sess_log_prefix(struct stream *s)
+static void prepare_mini_sess_log_prefix(struct session *sess)
 {
 	struct tm tm;
 	char pn[INET6_ADDRSTRLEN];
 	int ret;
 	char *end;
-	struct session *sess = s->sess;
 	struct connection *cli_conn = __objt_conn(sess->origin);
 
 	ret = addr_to_str(&cli_conn->addr.from, pn, sizeof(pn));
@@ -281,8 +282,8 @@ static void prepare_mini_sess_log_prefix(struct stream *s)
 	else
 		chunk_printf(&trash, "%s:%d [", pn, get_host_port(&cli_conn->addr.from));
 
-	get_localtime(s->logs.accept_date.tv_sec, &tm);
-	end = date2str_log(trash.str + trash.len, &tm, &(s->logs.accept_date), trash.size - trash.len);
+	get_localtime(sess->accept_date.tv_sec, &tm);
+	end = date2str_log(trash.str + trash.len, &tm, &(sess->accept_date), trash.size - trash.len);
 	trash.len = end - trash.str;
 	if (sess->listener->name)
 		chunk_appendf(&trash, "] %s/%s", sess->fe->id, sess->listener->name);
@@ -322,7 +323,7 @@ static void kill_mini_session(struct stream *s)
 				conn->err_code = CO_ER_SSL_TIMEOUT;
 		}
 
-		prepare_mini_sess_log_prefix(s);
+		prepare_mini_sess_log_prefix(sess);
 		err_msg = conn_err_code_str(conn);
 		if (err_msg)
 			send_log(sess->fe, level, "%s: %s\n", trash.str, err_msg);
