@@ -301,7 +301,7 @@ static void kill_mini_session(struct stream *s)
 	int level = LOG_INFO;
 	struct session *sess = s->sess;
 	struct connection *conn = __objt_conn(sess->origin);
-	unsigned int log = s->logs.logwait;
+	unsigned int log = sess->fe->to_log;
 	const char *err_msg;
 
 	if (sess->fe->options2 & PR_O2_LOGERRORS)
@@ -359,7 +359,7 @@ static void kill_mini_session(struct stream *s)
 	/* FIXME: for now we have a 1:1 relation between stream and session so
 	 * the stream must free the session.
 	 */
-	pool_free2(pool2_session, s->sess);
+	pool_free2(pool2_session, sess);
 	pool_free2(pool2_stream, s);
 }
 
