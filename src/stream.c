@@ -103,18 +103,6 @@ int stream_accept_session(struct session *sess, struct task *t)
 	s->logs.tv_accept = sess->tv_accept;   /* corrected date for internal use */
 	s->uniq_id = global.req_count++;
 
-	/* Add the minimum callbacks to prepare the connection's control layer.
-	 * We need this so that we can safely execute the ACLs used by the
-	 * "tcp-request connection" ruleset. We also carefully attach the
-	 * connection to the stream interface without initializing the rest,
-	 * so that ACLs can use si[0]->end.
-	 */
-	si_attach_conn(&s->si[0], conn);
-	conn_attach(conn, s, &sess_conn_cb);
-
-	/* OK let's complete stream initialization since there is no handshake */
-	conn->flags |= CO_FL_CONNECTED;
-
 	/* OK, we're keeping the stream, so let's properly initialize the stream */
 	LIST_ADDQ(&streams, &s->list);
 	LIST_INIT(&s->back_refs);
