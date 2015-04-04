@@ -193,6 +193,8 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 		return 1;
 	}
 
+	/* OK let's complete stream initialization since there is no handshake */
+	cli_conn->flags |= CO_FL_CONNECTED;
 	ret = stream_accept_session(sess, t);
 	if (ret > 0)
 		return ret;
