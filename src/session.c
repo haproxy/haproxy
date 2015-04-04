@@ -42,6 +42,27 @@ struct data_cb sess_conn_cb = {
 	.init = conn_complete_session,
 };
 
+/* Create a a new session and assign it to frontend <fe>, listener <li>,
+ * origin <origin>, set the current date and clear the stick counters pointers.
+ * Returns the session upon success or NULL. The session may be released using
+ * session_free().
+ */
+struct session *session_new(struct proxy *fe, struct listener *li, enum obj_type *origin)
+{
+	struct session *sess;
+
+	sess = pool_alloc2(pool2_session);
+	if (sess) {
+		sess->listener = li;
+		sess->fe = fe;
+		sess->origin = origin;
+		sess->accept_date = date; /* user-visible date for logging */
+		sess->tv_accept   = now;  /* corrected date for internal use */
+		memset(sess->stkctr, 0, sizeof(sess->stkctr));
+	}
+	return sess;
+}
+
 void session_free(struct session *sess)
 {
 	session_store_counters(sess);
