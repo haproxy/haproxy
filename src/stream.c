@@ -128,14 +128,6 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	s->si[0].flags = SI_FL_NONE;
 	s->si[1].flags = SI_FL_ISBACK;
 
-	/* On a mini-session, the connection is directly attached to the
-	 * stream's target so that we don't need to initialize the stream
-	 * interfaces. Another benefit is that it's easy to detect a mini-
-	 * stream in dumps using this : it's the only one which has a
-	 * connection in s->target.
-	 */
-	s->target = &cli_conn->obj_type;
-
 	s->logs.accept_date = date; /* user-visible date for logging */
 	s->logs.tv_accept = now;  /* corrected date for internal use */
 	s->uniq_id = global.req_count++;
@@ -268,7 +260,7 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 
 /* prepare the trash with a log prefix for stream <s>. It only works with
  * embryonic streams based on a real connection. This function requires that
- * at s->target still points to the incoming connection.
+ * at sess->origin points to the incoming connection.
  */
 static void prepare_mini_sess_log_prefix(struct stream *s)
 {
@@ -277,7 +269,7 @@ static void prepare_mini_sess_log_prefix(struct stream *s)
 	int ret;
 	char *end;
 	struct session *sess = s->sess;
-	struct connection *cli_conn = __objt_conn(s->target);
+	struct connection *cli_conn = __objt_conn(sess->origin);
 
 	ret = addr_to_str(&cli_conn->addr.from, pn, sizeof(pn));
 	if (ret <= 0)
@@ -299,13 +291,13 @@ static void prepare_mini_sess_log_prefix(struct stream *s)
 /* This function kills an existing embryonic stream. It stops the connection's
  * transport layer, releases assigned resources, resumes the listener if it was
  * disabled and finally kills the file descriptor. This function requires that
- * at s->target still points to the incoming connection.
+ * at sess->origin points to the incoming connection.
  */
 static void kill_mini_session(struct stream *s)
 {
 	int level = LOG_INFO;
 	struct session *sess = s->sess;
-	struct connection *conn = __objt_conn(s->target);
+	struct connection *conn = __objt_conn(sess->origin);
 	unsigned int log = s->logs.logwait;
 	const char *err_msg;
 
@@ -417,8 +409,7 @@ static struct task *expire_mini_session(struct task *t)
  * success, 0 if the connection can be ignored, or a negative value upon
  * critical failure. The accepted file descriptor is closed if we return <= 0.
  * The client-side end point is assumed to be a connection, whose pointer is
- * taken from s->target which is assumed to be valid. If the function fails,
- * it restores s->target.
+ * taken from sess->origin which is assumed to be valid.
  */
 int stream_complete(struct stream *s)
 {
@@ -426,7 +417,7 @@ int stream_complete(struct stream *s)
 	struct listener *l = sess->listener;
 	struct proxy *p = sess->fe;
 	struct task *t = s->task;
-	struct connection *conn = __objt_conn(s->target);
+	struct connection *conn = __objt_conn(sess->origin);
 	int ret;
 	int i;
 
@@ -477,11 +468,7 @@ int stream_complete(struct stream *s)
 	si_reset(&s->si[0]);
 	si_set_state(&s->si[0], SI_ST_EST);
 
-	/* attach the incoming connection to the stream interface now.
-	 * We must do that *before* clearing ->target because we need
-	 * to keep a pointer to the connection in case we have to call
-	 * kill_mini_session().
-	 */
+	/* attach the incoming connection to the stream interface now. */
 	si_attach_conn(&s->si[0], conn);
 
 	if (likely(sess->fe->options2 & PR_O2_INDEPSTR))
@@ -565,7 +552,6 @@ int stream_complete(struct stream *s)
 	 * because kill_mini_session() will need it.
 	 */
 	LIST_DEL(&s->list);
-	s->target = &conn->obj_type;
 	return ret;
 }
 

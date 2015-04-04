@@ -112,7 +112,7 @@ struct strm_logs {
 struct stream {
 	int flags;                      /* some flags describing the stream */
 	unsigned int uniq_id;           /* unique ID used for the traces */
-	enum obj_type *target;          /* target to use for this stream ; for mini-sess: incoming connection */
+	enum obj_type *target;          /* target to use for this stream */
 
 	struct channel req;             /* request channel */
 	struct channel res;             /* response channel */
