@@ -117,7 +117,7 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	if (conn_xprt_init(cli_conn) < 0)
 		goto out_free_conn;
 
-	sess = pool_alloc2(pool2_session);
+	sess = session_new(p, l, &cli_conn->obj_type);
 	if (!sess)
 		goto out_free_conn;
 
@@ -127,13 +127,6 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 		p->fe_counters.conn_max = p->feconn;
 
 	proxy_inc_fe_conn_ctr(l, p);
-
-	sess->listener = l;
-	sess->fe  = p;
-	sess->origin = &cli_conn->obj_type;
-	sess->accept_date = date; /* user-visible date for logging */
-	sess->tv_accept   = now;  /* corrected date for internal use */
-	memset(sess->stkctr, 0, sizeof(sess->stkctr));
 
 	/* now evaluate the tcp-request layer4 rules. We only need a session
 	 * and no stream for these rules.
