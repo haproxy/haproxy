@@ -240,7 +240,7 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	stream_store_counters(s);
 	pool_free2(pool2_stream, s);
  out_free_sess:
-	pool_free2(pool2_session, sess);
+	session_free(sess);
  out_free_conn:
 	cli_conn->flags &= ~CO_FL_XPRT_TRACKED;
 	conn_xprt_close(cli_conn);
@@ -359,8 +359,8 @@ static void kill_mini_session(struct stream *s)
 	/* FIXME: for now we have a 1:1 relation between stream and session so
 	 * the stream must free the session.
 	 */
-	pool_free2(pool2_session, sess);
 	pool_free2(pool2_stream, s);
+	session_free(sess);
 }
 
 /* Finish initializing a stream from a connection, or kills it if the
@@ -651,8 +651,8 @@ static void stream_free(struct stream *s)
 	/* FIXME: for now we have a 1:1 relation between stream and session so
 	 * the stream must free the session.
 	 */
-	pool_free2(pool2_session, s->sess);
 	pool_free2(pool2_stream, s);
+	session_free(sess);
 
 	/* We may want to free the maximum amount of pools if the proxy is stopping */
 	if (fe && unlikely(fe->state == PR_STSTOPPED)) {

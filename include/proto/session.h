@@ -31,6 +31,7 @@
 #include <types/session.h>
 
 extern struct pool_head *pool2_session;
+void session_free(struct session *sess);
 int init_session();
 
 #endif /* _PROTO_SESSION_H */

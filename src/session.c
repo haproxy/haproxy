@@ -20,6 +20,11 @@
 
 struct pool_head *pool2_session;
 
+void session_free(struct session *sess)
+{
+	pool_free2(pool2_session, sess);
+}
+
 /* perform minimal intializations, report 0 in case of error, 1 if OK. */
 int init_session()
 {

@@ -2237,7 +2237,7 @@ out_fail_req_buf:
 out_fail_task:
 	pool_free2(pool2_stream, socket->s);
 out_fail_stream:
-	pool_free2(pool2_session, sess);
+	session_free(sess);
 out_fail_conf:
 	WILL_LJMP(lua_error(L));
 	return 0;

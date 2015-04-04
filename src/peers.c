@@ -1278,7 +1278,7 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	LIST_DEL(&s->list);
 	pool_free2(pool2_stream, s);
  out_free_sess:
-	pool_free2(pool2_session, sess);
+	session_free(sess);
  out_close:
 	return s;
 }
