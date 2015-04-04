@@ -238,7 +238,6 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	task_free(t);
  out_free_strm:
 	p->feconn--;
-	stream_store_counters(s);
 	pool_free2(pool2_stream, s);
  out_free_sess:
 	session_free(sess);
@@ -338,7 +337,6 @@ static void kill_mini_session(struct stream *s)
 	conn_free(conn);
 
 	sess->fe->feconn--;
-	stream_store_counters(s);
 
 	if (!(sess->listener->options & LI_O_UNLIMITED))
 		actconn--;
