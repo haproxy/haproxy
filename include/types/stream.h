@@ -139,7 +139,7 @@ struct stream {
 	int store_count;
 	/* 4 unused bytes here */
 
-	struct stkctr stkctr[MAX_SESS_STKCTR];  /* stick counters */
+	struct stkctr stkctr[MAX_SESS_STKCTR];  /* content-aware stick counters */
 
 	char **req_cap;                         /* array of captures from the request (may be NULL) */
 	char **res_cap;                         /* array of captures from the response (may be NULL) */

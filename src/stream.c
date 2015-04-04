@@ -107,6 +107,7 @@ int stream_accept(struct listener *l, int cfd, struct sockaddr_storage *addr)
 	sess->origin = &cli_conn->obj_type;
 	sess->accept_date = date; /* user-visible date for logging */
 	sess->tv_accept   = now;  /* corrected date for internal use */
+	memset(sess->stkctr, 0, sizeof(sess->stkctr));
 
 	if (unlikely((s = pool_alloc2(pool2_stream)) == NULL))
 		goto out_free_sess;

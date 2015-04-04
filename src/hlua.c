@@ -2035,6 +2035,8 @@ __LJMP static int hlua_socket_new(lua_State *L)
 
 	sess->accept_date = date; /* user-visible date for logging */
 	sess->tv_accept   = now;  /* corrected date for internal use */
+	memset(sess->stkctr, 0, sizeof(sess->stkctr));
+
 	socket->s = pool_alloc2(pool2_stream);
 	if (!socket->s) {
 		hlua_pusherror(L, "socket: out of memory");
