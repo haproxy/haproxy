@@ -1152,7 +1152,6 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 
 	/* initiate an outgoing connection */
 	si_set_state(&s->si[1], SI_ST_ASS);
-	s->si[1].conn_retries = p->conn_retries;
 
 	/* automatically prepare the stream interface to connect to the
 	 * pre-initialized connection in si->conn.
@@ -1167,11 +1166,6 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	memcpy(&conn->addr.to, &peer->addr, sizeof(conn->addr.to));
 	s->do_log = NULL;
 	s->uniq_id = 0;
-
-	s->req.rto = s->sess->fe->timeout.client;
-	s->req.wto = s->be->timeout.server;
-	s->res.rto = s->be->timeout.server;
-	s->res.wto = s->sess->fe->timeout.client;
 
 	s->res.flags |= CF_READ_DONTWAIT;
 
