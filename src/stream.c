@@ -83,6 +83,22 @@ struct stream *stream_new(struct session *sess, struct task *t)
 	s->flags = 0;
 	s->logs.logwait = p->to_log;
 	s->logs.level = 0;
+	s->logs.accept_date = sess->accept_date; /* user-visible date for logging */
+	s->logs.tv_accept = sess->tv_accept;   /* corrected date for internal use */
+	tv_zero(&s->logs.tv_request);
+	s->logs.t_queue = -1;
+	s->logs.t_connect = -1;
+	s->logs.t_data = -1;
+	s->logs.t_close = 0;
+	s->logs.bytes_in = s->logs.bytes_out = 0;
+	s->logs.prx_queue_size = 0;  /* we get the number of pending conns before us */
+	s->logs.srv_queue_size = 0; /* we will get this number soon */
+
+	/* default logging function */
+	s->do_log = strm_log;
+
+	/* default error reporting function, may be changed by analysers */
+	s->srv_error = default_srv_error;
 
 	/* Initialise the current rule list pointer to NULL. We are sure that
 	 * any rulelist match the NULL pointer.
@@ -95,8 +111,6 @@ struct stream *stream_new(struct session *sess, struct task *t)
 	s->si[0].flags = SI_FL_NONE;
 	s->si[1].flags = SI_FL_ISBACK;
 
-	s->logs.accept_date = sess->accept_date; /* user-visible date for logging */
-	s->logs.tv_accept = sess->tv_accept;   /* corrected date for internal use */
 	s->uniq_id = global.req_count++;
 
 	/* OK, we're keeping the stream, so let's properly initialize the stream */

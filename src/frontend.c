@@ -60,23 +60,6 @@ int frontend_accept(struct stream *s)
 
 	int cfd = conn->t.sock.fd;
 
-	tv_zero(&s->logs.tv_request);
-	s->logs.t_queue = -1;
-	s->logs.t_connect = -1;
-	s->logs.t_data = -1;
-	s->logs.t_close = 0;
-	s->logs.bytes_in = s->logs.bytes_out = 0;
-	s->logs.prx_queue_size = 0;  /* we get the number of pending conns before us */
-	s->logs.srv_queue_size = 0; /* we will get this number soon */
-
-	/* FIXME: the logs are horribly complicated now, because they are
-	 * defined in <p>, <p>, and later <be> and <be>.
-	 */
-	s->do_log = strm_log;
-
-	/* default error reporting function, may be changed by analysers */
-	s->srv_error = default_srv_error;
-
 	/* Adjust some socket options */
 	if (l->addr.ss_family == AF_INET || l->addr.ss_family == AF_INET6) {
 		if (setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY,
