@@ -141,15 +141,6 @@ int frontend_accept(struct stream *s)
 	if (fe->mode == PR_MODE_HTTP)
 		s->req.flags |= CF_READ_DONTWAIT; /* one read is usually enough */
 
-	/* note: this should not happen anymore since there's always at least the switching rules */
-	if (!s->req.analysers) {
-		channel_auto_connect(&s->req);  /* don't wait to establish connection */
-		channel_auto_close(&s->req);    /* let the producer forward close requests */
-	}
-
-	s->req.rto = fe->timeout.client;
-	s->res.wto = fe->timeout.client;
-
 	/* everything's OK, let's go on */
 	return 1;
 

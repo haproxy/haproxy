@@ -191,8 +191,13 @@ struct stream *stream_new(struct session *sess, struct task *t)
 	/* activate default analysers enabled for this listener */
 	s->req.analysers = l->analysers;
 
+	if (!s->req.analysers) {
+		channel_auto_connect(&s->req);  /* don't wait to establish connection */
+		channel_auto_close(&s->req);    /* let the producer forward close requests */
+	}
+
+	s->req.rto = sess->fe->timeout.client;
 	s->req.wto = TICK_ETERNITY;
-	s->req.rto = TICK_ETERNITY;
 	s->req.rex = TICK_ETERNITY;
 	s->req.wex = TICK_ETERNITY;
 	s->req.analyse_exp = TICK_ETERNITY;
@@ -206,8 +211,8 @@ struct stream *stream_new(struct session *sess, struct task *t)
 		s->res.flags |= CF_NEVER_WAIT;
 	}
 
+	s->res.wto = sess->fe->timeout.client;
 	s->res.rto = TICK_ETERNITY;
-	s->res.wto = TICK_ETERNITY;
 	s->res.rex = TICK_ETERNITY;
 	s->res.wex = TICK_ETERNITY;
 	s->res.analyse_exp = TICK_ETERNITY;
