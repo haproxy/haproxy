@@ -61,11 +61,12 @@ struct list buffer_wq = LIST_HEAD_INIT(buffer_wq);
  * be called with an embryonic session. It returns the pointer to the newly
  * created stream, or NULL in case of fatal error. For now the client-side
  * end point is taken from the session's origin, which must be valid.
+ * The task's context is set to the new stream, and its function is set to
+ * process_stream(). Target and analysers are null.
  */
 struct stream *stream_new(struct session *sess, struct task *t)
 {
 	struct stream *s;
-	struct listener *l = sess->listener;
 	struct connection *conn = objt_conn(sess->origin);
 	struct appctx *appctx   = objt_appctx(sess->origin);
 	int i;
@@ -121,7 +122,7 @@ struct stream *stream_new(struct session *sess, struct task *t)
 	s->unique_id = NULL;
 
 	s->task = t;
-	t->process = l->handler;
+	t->process = process_stream;
 	t->context = s;
 	t->expire = TICK_ETERNITY;
 
@@ -136,7 +137,8 @@ struct stream *stream_new(struct session *sess, struct task *t)
 	s->res_cap = NULL;
 
 	/* Let's count a stream now */
-	proxy_inc_fe_sess_ctr(l, sess->fe);
+	if (conn)
+		proxy_inc_fe_sess_ctr(sess->listener, sess->fe);
 
 	for (i = 0; i < MAX_SESS_STKCTR; i++) {
 		void *ptr;
@@ -178,7 +180,7 @@ struct stream *stream_new(struct session *sess, struct task *t)
 		s->si[1].flags |= SI_FL_INDEP_STR;
 
 	stream_init_srv_conn(s);
-	s->target = l->default_target; /* used by peers and CLI */
+	s->target = NULL;
 	s->pend_pos = NULL;
 
 	/* init store persistence */
@@ -186,14 +188,9 @@ struct stream *stream_new(struct session *sess, struct task *t)
 
 	channel_init(&s->req);
 	s->req.flags |= CF_READ_ATTACHED; /* the producer is already connected */
-
-	/* activate default analysers enabled for this listener */
-	s->req.analysers = l->analysers;
-
-	if (!s->req.analysers) {
-		channel_auto_connect(&s->req);  /* don't wait to establish connection */
-		channel_auto_close(&s->req);    /* let the producer forward close requests */
-	}
+	s->req.analysers = 0;
+	channel_auto_connect(&s->req);  /* don't wait to establish connection */
+	channel_auto_close(&s->req);    /* let the producer forward close requests */
 
 	s->req.rto = sess->fe->timeout.client;
 	s->req.wto = TICK_ETERNITY;

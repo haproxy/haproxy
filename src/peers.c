@@ -1166,16 +1166,7 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	conn->target = s->target = &s->be->obj_type;
 	memcpy(&conn->addr.to, &peer->addr, sizeof(conn->addr.to));
 	s->do_log = NULL;
-
-	/* default error reporting function, may be changed by analysers */
-	s->srv_error = default_srv_error;
 	s->uniq_id = 0;
-
-	/* note: this should not happen anymore since there's always at least the switching rules */
-	if (!s->req.analysers) {
-		channel_auto_connect(&s->req);/* don't wait to establish connection */
-		channel_auto_close(&s->req);  /* let the producer forward close requests */
-	}
 
 	s->req.rto = s->sess->fe->timeout.client;
 	s->req.wto = s->be->timeout.server;

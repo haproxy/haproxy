@@ -88,6 +88,7 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	struct connection *cli_conn;
 	struct proxy *p = l->frontend;
 	struct session *sess;
+	struct stream *strm;
 	struct task *t;
 	int ret;
 
@@ -224,9 +225,15 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 
 	/* OK let's complete stream initialization since there is no handshake */
 	cli_conn->flags |= CO_FL_CONNECTED;
-	if (stream_new(sess, t))
-		return 1;
+	strm = stream_new(sess, t);
+	if (!strm)
+		goto out_free_task;
 
+	strm->target        = sess->listener->default_target;
+	strm->req.analysers = sess->listener->analysers;
+	return 1;
+
+ out_free_task:
 	task_free(t);
  out_free_sess:
 	p->feconn--;
@@ -369,12 +376,22 @@ static int conn_complete_session(struct connection *conn)
 {
 	struct task *task = conn->owner;
 	struct session *sess = task->context;
+	struct stream *strm;
 
-	if (!(conn->flags & CO_FL_ERROR) && (stream_new(sess, task) != NULL)) {
-		conn->flags &= ~CO_FL_INIT_DATA;
-		return 0;
-	}
+	if (conn->flags & CO_FL_ERROR)
+		goto fail;
 
+	task->process = sess->listener->handler;
+	strm = stream_new(sess, task);
+	if (!strm)
+		goto fail;
+
+	strm->target        = sess->listener->default_target;
+	strm->req.analysers = sess->listener->analysers;
+	conn->flags &= ~CO_FL_INIT_DATA;
+	return 0;
+
+ fail:
 	session_kill_embryonic(sess);
 	return -1;
 }
