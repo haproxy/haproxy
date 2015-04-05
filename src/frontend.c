@@ -48,8 +48,7 @@
 
 /* Finish a stream accept() for a proxy (TCP or HTTP). It returns a negative
  * value in case of a critical failure which must cause the listener to be
- * disabled, a positive value in case of success, or zero if it is a success
- * but the stream must be closed ASAP (eg: monitoring). It only supports
+ * disabled, a positive or null value in case of success. It only supports
  * streams with a connection in si[0].
  */
 int frontend_accept(struct stream *s)

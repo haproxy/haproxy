@@ -213,16 +213,8 @@ int stream_accept_session(struct session *sess, struct task *t)
 	else if (appctx)
 		s->si[0].flags |= SI_FL_WAIT_DATA;
 
-	/* FIXME: we shouldn't restrict ourselves to connections but for now
-	 * the only ->accept() only works with sessions.
-	 */
-	if (conn && p->accept && (ret = p->accept(s)) <= 0) {
-		/* Either we had an unrecoverable error (<0) or work is
-		 * finished (=0, eg: monitoring), in both situations,
-		 * we can release everything and close.
-		 */
-		goto out_free_strm;
-	}
+	if (conn && p->accept && p->accept(s) < 0)
+		goto out_fail_accept;
 
 	if (conn) {
 		/* if logs require transport layer information, note it on the connection */
@@ -241,7 +233,7 @@ int stream_accept_session(struct session *sess, struct task *t)
 	return 1;
 
 	/* Error unrolling */
- out_free_strm:
+ out_fail_accept:
 	LIST_DEL(&s->list);
 	pool_free2(pool2_stream, s);
  out_return:
