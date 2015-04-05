@@ -66,7 +66,6 @@ struct stream *stream_new(struct session *sess, struct task *t)
 {
 	struct stream *s;
 	struct listener *l = sess->listener;
-	struct proxy *p = sess->fe;
 	struct connection *conn = objt_conn(sess->origin);
 	struct appctx *appctx   = objt_appctx(sess->origin);
 	int i;
@@ -81,7 +80,7 @@ struct stream *stream_new(struct session *sess, struct task *t)
 	 *  - stick-entry tracking
 	 */
 	s->flags = 0;
-	s->logs.logwait = p->to_log;
+	s->logs.logwait = sess->fe->to_log;
 	s->logs.level = 0;
 	s->logs.accept_date = sess->accept_date; /* user-visible date for logging */
 	s->logs.tv_accept = sess->tv_accept;   /* corrected date for internal use */
@@ -137,7 +136,7 @@ struct stream *stream_new(struct session *sess, struct task *t)
 	s->res_cap = NULL;
 
 	/* Let's count a stream now */
-	proxy_inc_fe_sess_ctr(l, p);
+	proxy_inc_fe_sess_ctr(l, sess->fe);
 
 	for (i = 0; i < MAX_SESS_STKCTR; i++) {
 		void *ptr;
@@ -227,7 +226,7 @@ struct stream *stream_new(struct session *sess, struct task *t)
 	else if (appctx)
 		s->si[0].flags |= SI_FL_WAIT_DATA;
 
-	if (p->accept && p->accept(s) < 0)
+	if (sess->fe->accept && sess->fe->accept(s) < 0)
 		goto out_fail_accept;
 
 	if (conn) {
