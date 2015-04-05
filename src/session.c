@@ -166,6 +166,35 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 		goto out_free_sess;
 	}
 
+	/* Adjust some socket options */
+	if (l->addr.ss_family == AF_INET || l->addr.ss_family == AF_INET6) {
+		setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one));
+
+		if (p->options & PR_O_TCP_CLI_KA)
+			setsockopt(cfd, SOL_SOCKET, SO_KEEPALIVE, (char *) &one, sizeof(one));
+
+		if (p->options & PR_O_TCP_NOLING)
+			fdtab[cfd].linger_risk = 1;
+
+#if defined(TCP_MAXSEG)
+		if (l->maxseg < 0) {
+			/* we just want to reduce the current MSS by that value */
+			int mss;
+			socklen_t mss_len = sizeof(mss);
+			if (getsockopt(cfd, IPPROTO_TCP, TCP_MAXSEG, &mss, &mss_len) == 0) {
+				mss += l->maxseg; /* remember, it's < 0 */
+				setsockopt(cfd, IPPROTO_TCP, TCP_MAXSEG, &mss, sizeof(mss));
+			}
+		}
+#endif
+	}
+
+	if (global.tune.client_sndbuf)
+		setsockopt(cfd, SOL_SOCKET, SO_SNDBUF, &global.tune.client_sndbuf, sizeof(global.tune.client_sndbuf));
+
+	if (global.tune.client_rcvbuf)
+		setsockopt(cfd, SOL_SOCKET, SO_RCVBUF, &global.tune.client_rcvbuf, sizeof(global.tune.client_rcvbuf));
+
 	if (unlikely((t = task_new()) == NULL))
 		goto out_free_sess;
 
