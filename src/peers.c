@@ -1140,7 +1140,7 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	}
 	t->nice = l->nice;
 
-	if (stream_accept_session(sess, t) <= 0) {
+	if ((s = stream_new(sess, t)) == NULL) {
 		Alert("Failed to initialize stream in peer_session_create().\n");
 		goto out_free_task;
 	}
@@ -1148,7 +1148,6 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	/* The tasks below are normally what is supposed to be done by
 	 * fe->accept().
 	 */
-	s = t->context;   // For now the session is not stored anywhere else :-/
 	s->flags = SF_ASSIGNED|SF_ADDR_SET;
 
 	/* initiate an outgoing connection */

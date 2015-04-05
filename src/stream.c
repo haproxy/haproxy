@@ -58,26 +58,21 @@ struct list buffer_wq = LIST_HEAD_INIT(buffer_wq);
 
 /* This function is called from the session handler which detects the end of
  * handshake, in order to complete initialization of a valid stream. It must
- * be called with an embryonic session. It returns a positive value upon
- * success, 0 if the connection can be ignored, or a negative value upon
- * critical failure. The accepted file descriptor is closed if we return <= 0.
- * The client-side end point is assumed to be a connection, whose pointer is
- * taken from sess->origin which is assumed to be valid.
+ * be called with an embryonic session. It returns the pointer to the newly
+ * created stream, or NULL in case of fatal error. For now the client-side
+ * end point is taken from the session's origin, which must be valid.
  */
-int stream_accept_session(struct session *sess, struct task *t)
+struct stream *stream_new(struct session *sess, struct task *t)
 {
 	struct stream *s;
 	struct listener *l = sess->listener;
 	struct proxy *p = sess->fe;
 	struct connection *conn = objt_conn(sess->origin);
 	struct appctx *appctx   = objt_appctx(sess->origin);
-	int ret;
 	int i;
 
-	ret = -1; /* assume unrecoverable error by default */
-
 	if (unlikely((s = pool_alloc2(pool2_stream)) == NULL))
-		goto out_return;
+		return s;
 
 	/* minimum stream initialization required for an embryonic stream is
 	 * fairly low. We need very little to execute L4 ACLs, then we need a
@@ -230,14 +225,13 @@ int stream_accept_session(struct session *sess, struct task *t)
 	 * priorities to tasks.
 	 */
 	task_wakeup(t, TASK_WOKEN_INIT);
-	return 1;
+	return s;
 
 	/* Error unrolling */
  out_fail_accept:
 	LIST_DEL(&s->list);
 	pool_free2(pool2_stream, s);
- out_return:
-	return ret;
+	return NULL;
 }
 
 /*

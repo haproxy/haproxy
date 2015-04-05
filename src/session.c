@@ -195,9 +195,8 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 
 	/* OK let's complete stream initialization since there is no handshake */
 	cli_conn->flags |= CO_FL_CONNECTED;
-	ret = stream_accept_session(sess, t);
-	if (ret > 0)
-		return ret;
+	if (stream_new(sess, t))
+		return 1;
 
 	task_free(t);
  out_free_sess:
@@ -342,7 +341,7 @@ static int conn_complete_session(struct connection *conn)
 	struct task *task = conn->owner;
 	struct session *sess = task->context;
 
-	if (!(conn->flags & CO_FL_ERROR) && (stream_accept_session(sess, task) > 0)) {
+	if (!(conn->flags & CO_FL_ERROR) && (stream_new(sess, task) != NULL)) {
 		conn->flags &= ~CO_FL_INIT_DATA;
 		return 0;
 	}
