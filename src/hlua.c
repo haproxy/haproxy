@@ -2065,18 +2065,11 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	strm->hlua.flags = 0;
 	LIST_INIT(&strm->hlua.com);
 
-	/* Adjust the stream's timeouts */
-	strm->req.rto = socket_proxy.timeout.client;
-	strm->req.wto = socket_proxy.timeout.server;
-	strm->res.rto = socket_proxy.timeout.server;
-	strm->res.wto = socket_proxy.timeout.client;
-
 	/* Configure "right" stream interface. this "si" is used to connect
 	 * and retrieve data from the server. The connection is initialized
 	 * with the "struct server".
 	 */
 	si_set_state(&strm->si[1], SI_ST_ASS);
-	strm->si[1].conn_retries = socket_proxy.conn_retries;
 
 	/* Force destination server. */
 	strm->flags |= SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET | SF_BE_ASSIGNED;
