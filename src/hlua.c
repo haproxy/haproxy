@@ -1999,6 +1999,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	struct hlua_socket *socket;
 	struct appctx *appctx;
 	struct session *sess;
+	struct stream *strm;
 	struct task *task;
 
 	/* Check stack size. */
@@ -2025,8 +2026,10 @@ __LJMP static int hlua_socket_new(lua_State *L)
 
 	/* Create the applet context */
 	appctx = appctx_new(&update_applet);
-	if (!appctx)
+	if (!appctx) {
+		hlua_pusherror(L, "socket: out of memory");
 		goto out_fail_conf;
+	}
 
 	appctx->ctx.hlua.socket = socket;
 	appctx->ctx.hlua.connected = 0;
@@ -2040,41 +2043,44 @@ __LJMP static int hlua_socket_new(lua_State *L)
 		goto out_fail_sess;
 	}
 
-	if ((task = task_new()) == NULL) {
+	task = task_new();
+	if (!task) {
 		hlua_pusherror(L, "socket: out of memory");
 		goto out_fail_task;
 	}
 	task->nice = 0;
 
-	if ((socket->s = stream_new(sess, task)) == NULL) {
+	strm = stream_new(sess, task);
+	if (!strm) {
 		hlua_pusherror(L, "socket: out of memory");
 		goto out_fail_stream;
 	}
 
 	/* Configure an empty Lua for the stream. */
-	socket->s->hlua.T = NULL;
-	socket->s->hlua.Tref = LUA_REFNIL;
-	socket->s->hlua.Mref = LUA_REFNIL;
-	socket->s->hlua.nargs = 0;
-	socket->s->hlua.flags = 0;
-	LIST_INIT(&socket->s->hlua.com);
+	socket->s = strm;
+	strm->hlua.T = NULL;
+	strm->hlua.Tref = LUA_REFNIL;
+	strm->hlua.Mref = LUA_REFNIL;
+	strm->hlua.nargs = 0;
+	strm->hlua.flags = 0;
+	LIST_INIT(&strm->hlua.com);
 
 	/* Adjust the stream's timeouts */
-	socket->s->req.rto = socket_proxy.timeout.client;
-	socket->s->req.wto = socket_proxy.timeout.server;
-	socket->s->res.rto = socket_proxy.timeout.server;
-	socket->s->res.wto = socket_proxy.timeout.client;
+	strm->req.rto = socket_proxy.timeout.client;
+	strm->req.wto = socket_proxy.timeout.server;
+	strm->res.rto = socket_proxy.timeout.server;
+	strm->res.wto = socket_proxy.timeout.client;
 
 	/* Configure "right" stream interface. this "si" is used to connect
 	 * and retrieve data from the server. The connection is initialized
 	 * with the "struct server".
 	 */
-	si_set_state(&socket->s->si[1], SI_ST_ASS);
-	socket->s->si[1].conn_retries = socket_proxy.conn_retries;
+	si_set_state(&strm->si[1], SI_ST_ASS);
+	strm->si[1].conn_retries = socket_proxy.conn_retries;
 
 	/* Force destination server. */
-	socket->s->flags |= SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET | SF_BE_ASSIGNED;
-	socket->s->target = &socket_tcp.obj_type;
+	strm->flags |= SF_DIRECT | SF_ASSIGNED | SF_ADDR_SET | SF_BE_ASSIGNED;
+	strm->target = &socket_tcp.obj_type;
 
 	/* Update statistics counters. */
 	socket_proxy.feconn++; /* beconn will be increased later */
