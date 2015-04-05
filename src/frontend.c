@@ -48,17 +48,14 @@
 
 /* Finish a stream accept() for a proxy (TCP or HTTP). It returns a negative
  * value in case of a critical failure which must cause the listener to be
- * disabled, a positive or null value in case of success. It only supports
- * streams with a connection in si[0].
+ * disabled, a positive or null value in case of success.
  */
 int frontend_accept(struct stream *s)
 {
 	struct session *sess = s->sess;
-	struct connection *conn = __objt_conn(sess->origin);
+	struct connection *conn = objt_conn(sess->origin);
 	struct listener *l = sess->listener;
 	struct proxy *fe = sess->fe;
-
-	int cfd = conn->t.sock.fd;
 
 	if (unlikely(fe->nb_req_cap > 0)) {
 		if ((s->req_cap = pool_alloc2(fe->req_cap_pool)) == NULL)
@@ -92,7 +89,7 @@ int frontend_accept(struct stream *s)
 				if (!(s->logs.logwait &= ~(LW_CLIP|LW_INIT)))
 					s->do_log(s);
 		}
-		else {
+		else if (conn) {
 			char pn[INET6_ADDRSTRLEN], sn[INET6_ADDRSTRLEN];
 
 			conn_get_from_addr(conn);
@@ -117,7 +114,8 @@ int frontend_accept(struct stream *s)
 		}
 	}
 
-	if (unlikely((global.mode & MODE_DEBUG) && (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
+	if (unlikely((global.mode & MODE_DEBUG) && conn &&
+		     (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE)))) {
 		char pn[INET6_ADDRSTRLEN];
 
 		conn_get_from_addr(conn);
@@ -126,13 +124,13 @@ int frontend_accept(struct stream *s)
 		case AF_INET:
 		case AF_INET6:
 			chunk_printf(&trash, "%08x:%s.accept(%04x)=%04x from [%s:%d]\n",
-			             s->uniq_id, fe->id, (unsigned short)l->fd, (unsigned short)cfd,
+			             s->uniq_id, fe->id, (unsigned short)l->fd, (unsigned short)conn->t.sock.fd,
 			             pn, get_host_port(&conn->addr.from));
 			break;
 		case AF_UNIX:
 			/* UNIX socket, only the destination is known */
 			chunk_printf(&trash, "%08x:%s.accept(%04x)=%04x from [unix:%d]\n",
-			             s->uniq_id, fe->id, (unsigned short)l->fd, (unsigned short)cfd,
+			             s->uniq_id, fe->id, (unsigned short)l->fd, (unsigned short)conn->t.sock.fd,
 			             l->luid);
 			break;
 		}

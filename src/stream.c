@@ -222,7 +222,7 @@ struct stream *stream_new(struct session *sess, struct task *t)
 	else if (appctx)
 		s->si[0].flags |= SI_FL_WAIT_DATA;
 
-	if (conn && p->accept && p->accept(s) < 0)
+	if (p->accept && p->accept(s) < 0)
 		goto out_fail_accept;
 
 	if (conn) {
