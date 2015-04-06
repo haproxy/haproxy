@@ -3198,34 +3198,34 @@ static int hlua_http_res_set_hdr(lua_State *L)
 /* This function set the method. */
 static int hlua_http_req_set_meth(lua_State *L)
 {
-	struct hlua_txn *s = MAY_LJMP(hlua_checkhttp(L, 1));
+	struct hlua_txn *htxn = MAY_LJMP(hlua_checkhttp(L, 1));
 	size_t name_len;
 	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &name_len));
-	struct http_txn *txn = &s->s->txn;
+	struct http_txn *txn = &htxn->s->txn;
 
-	lua_pushboolean(L, http_replace_req_line(0, name, name_len, s->p, s->s, txn) != -1);
+	lua_pushboolean(L, http_replace_req_line(0, name, name_len, htxn->p, htxn->s, txn) != -1);
 	return 1;
 }
 
 /* This function set the method. */
 static int hlua_http_req_set_path(lua_State *L)
 {
-	struct hlua_txn *s = MAY_LJMP(hlua_checkhttp(L, 1));
+	struct hlua_txn *htxn = MAY_LJMP(hlua_checkhttp(L, 1));
 	size_t name_len;
 	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &name_len));
-	struct http_txn *txn = &s->s->txn;
+	struct http_txn *txn = &htxn->s->txn;
 
-	lua_pushboolean(L, http_replace_req_line(1, name, name_len, s->p, s->s, txn) != -1);
+	lua_pushboolean(L, http_replace_req_line(1, name, name_len, htxn->p, htxn->s, txn) != -1);
 	return 1;
 }
 
 /* This function set the query-string. */
 static int hlua_http_req_set_query(lua_State *L)
 {
-	struct hlua_txn *s = MAY_LJMP(hlua_checkhttp(L, 1));
+	struct hlua_txn *htxn = MAY_LJMP(hlua_checkhttp(L, 1));
 	size_t name_len;
 	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &name_len));
-	struct http_txn *txn = &s->s->txn;
+	struct http_txn *txn = &htxn->s->txn;
 
 	/* Check length. */
 	if (name_len > trash.size - 1) {
@@ -3239,19 +3239,19 @@ static int hlua_http_req_set_query(lua_State *L)
 	memcpy(trash.str + trash.len, name, name_len);
 	trash.len += name_len;
 
-	lua_pushboolean(L, http_replace_req_line(2, trash.str, trash.len, s->p, s->s, txn) != -1);
+	lua_pushboolean(L, http_replace_req_line(2, trash.str, trash.len, htxn->p, htxn->s, txn) != -1);
 	return 1;
 }
 
 /* This function set the uri. */
 static int hlua_http_req_set_uri(lua_State *L)
 {
-	struct hlua_txn *s = MAY_LJMP(hlua_checkhttp(L, 1));
+	struct hlua_txn *htxn = MAY_LJMP(hlua_checkhttp(L, 1));
 	size_t name_len;
 	const char *name = MAY_LJMP(luaL_checklstring(L, 2, &name_len));
-	struct http_txn *txn = &s->s->txn;
+	struct http_txn *txn = &htxn->s->txn;
 
-	lua_pushboolean(L, http_replace_req_line(3, name, name_len, s->p, s->s, txn) != -1);
+	lua_pushboolean(L, http_replace_req_line(3, name, name_len, htxn->p, htxn->s, txn) != -1);
 	return 1;
 }
 
