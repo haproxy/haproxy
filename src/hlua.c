@@ -3318,7 +3318,7 @@ __LJMP static int hlua_get_priv(lua_State *L)
  */
 static int hlua_txn_new(lua_State *L, struct session *s, struct proxy *p, void *l7)
 {
-	struct hlua_txn *hs;
+	struct hlua_txn *htxn;
 
 	/* Check stack size. */
 	if (!lua_checkstack(L, 3))
@@ -3330,34 +3330,34 @@ static int hlua_txn_new(lua_State *L, struct session *s, struct proxy *p, void *
 	 */
 	/* Create the object: obj[0] = userdata. */
 	lua_newtable(L);
-	hs = lua_newuserdata(L, sizeof(*hs));
+	htxn = lua_newuserdata(L, sizeof(*htxn));
 	lua_rawseti(L, -2, 0);
 
-	hs->s = s;
-	hs->p = p;
-	hs->l7 = l7;
+	htxn->s = s;
+	htxn->p = p;
+	htxn->l7 = l7;
 
 	/* Create the "f" field that contains a list of fetches. */
 	lua_pushstring(L, "f");
-	if (!hlua_fetches_new(L, hs, 0))
+	if (!hlua_fetches_new(L, htxn, 0))
 		return 0;
 	lua_settable(L, -3);
 
 	/* Create the "sf" field that contains a list of stringsafe fetches. */
 	lua_pushstring(L, "sf");
-	if (!hlua_fetches_new(L, hs, 1))
+	if (!hlua_fetches_new(L, htxn, 1))
 		return 0;
 	lua_settable(L, -3);
 
 	/* Create the "c" field that contains a list of converters. */
 	lua_pushstring(L, "c");
-	if (!hlua_converters_new(L, hs, 0))
+	if (!hlua_converters_new(L, htxn, 0))
 		return 0;
 	lua_settable(L, -3);
 
 	/* Create the "sc" field that contains a list of stringsafe converters. */
 	lua_pushstring(L, "sc");
-	if (!hlua_converters_new(L, hs, 1))
+	if (!hlua_converters_new(L, htxn, 1))
 		return 0;
 	lua_settable(L, -3);
 
@@ -3376,7 +3376,7 @@ static int hlua_txn_new(lua_State *L, struct session *s, struct proxy *p, void *
 	/* Creates the HTTP object is the current proxy allows http. */
 	lua_pushstring(L, "http");
 	if (p->mode == PR_MODE_HTTP) {
-		if (!hlua_http_new(L, hs))
+		if (!hlua_http_new(L, htxn))
 			return 0;
 	}
 	else
