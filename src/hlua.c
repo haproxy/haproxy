@@ -2732,7 +2732,7 @@ static int hlua_fetches_new(lua_State *L, struct hlua_txn *txn, int stringsafe)
  */
 __LJMP static int hlua_run_sample_fetch(lua_State *L)
 {
-	struct hlua_smp *s;
+	struct hlua_smp *hsmp;
 	struct sample_fetch *f;
 	struct arg args[ARGM_NBARGS + 1];
 	int i;
@@ -2742,7 +2742,7 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 	f = (struct sample_fetch *)lua_touserdata(L, lua_upvalueindex(1));
 
 	/* Get traditionnal arguments. */
-	s = MAY_LJMP(hlua_checkfetches(L, 1));
+	hsmp = MAY_LJMP(hlua_checkfetches(L, 1));
 
 	/* Get extra arguments. */
 	for (i = 0; i < lua_gettop(L) - 1; i++) {
@@ -2753,7 +2753,7 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 	args[i].type = ARGT_STOP;
 
 	/* Check arguments. */
-	MAY_LJMP(hlua_lua2arg_check(L, 2, args, f->arg_mask, s->p));
+	MAY_LJMP(hlua_lua2arg_check(L, 2, args, f->arg_mask, hsmp->p));
 
 	/* Run the special args checker. */
 	if (f->val_args && !f->val_args(args, NULL)) {
@@ -2765,8 +2765,8 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 	memset(&smp, 0, sizeof(smp));
 
 	/* Run the sample fetch process. */
-	if (!f->process(s->p, s->s, s->l7, 0, args, &smp, f->kw, f->private)) {
-		if (s->stringsafe)
+	if (!f->process(hsmp->p, hsmp->s, hsmp->l7, 0, args, &smp, f->kw, f->private)) {
+		if (hsmp->stringsafe)
 			lua_pushstring(L, "");
 		else
 			lua_pushnil(L);
@@ -2774,7 +2774,7 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 	}
 
 	/* Convert the returned sample in lua value. */
-	if (s->stringsafe)
+	if (hsmp->stringsafe)
 		hlua_smp2lua_str(L, &smp);
 	else
 		hlua_smp2lua(L, &smp);
@@ -3523,14 +3523,14 @@ __LJMP static int hlua_txn_set_mark(lua_State *L)
  */
 __LJMP static int hlua_txn_close(lua_State *L)
 {
-	struct hlua_txn *s;
+	struct hlua_txn *htxn;
 	struct channel *ic, *oc;
 
 	MAY_LJMP(check_args(L, 1, "close"));
-	s = MAY_LJMP(hlua_checktxn(L, 1));
+	htxn = MAY_LJMP(hlua_checktxn(L, 1));
 
-	ic = &s->s->req;
-	oc = &s->s->res;
+	ic = &htxn->s->req;
+	oc = &htxn->s->res;
 
 	channel_abort(ic);
 	channel_auto_close(ic);
