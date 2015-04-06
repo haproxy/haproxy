@@ -54,7 +54,6 @@ struct hlua gL;
  * struct are used to store each requiered signal between two tasks.
  */
 struct pool_head *pool2_hlua_com;
-struct pool_head *pool2_hlua_sleep;
 
 /* Used for Socket connection. */
 static struct proxy socket_proxy;
@@ -4618,9 +4617,6 @@ void hlua_init(void)
 
 	/* Initialise com signals pool session. */
 	pool2_hlua_com = create_pool("hlua_com", sizeof(struct hlua_com), MEM_F_SHARED);
-
-	/* Initialise sleep pool. */
-	pool2_hlua_sleep = create_pool("hlua_sleep", sizeof(struct hlua_sleep), MEM_F_SHARED);
 
 	/* Register configuration keywords. */
 	cfg_register_keywords(&cfg_kws);
