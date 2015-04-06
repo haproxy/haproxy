@@ -2836,7 +2836,7 @@ static int hlua_converters_new(lua_State *L, struct hlua_txn *txn, int stringsaf
  */
 __LJMP static int hlua_run_sample_conv(lua_State *L)
 {
-	struct hlua_smp *sc;
+	struct hlua_smp *hsmp;
 	struct sample_conv *conv;
 	struct arg args[ARGM_NBARGS + 1];
 	int i;
@@ -2846,7 +2846,7 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 	conv = (struct sample_conv *)lua_touserdata(L, lua_upvalueindex(1));
 
 	/* Get traditionnal arguments. */
-	sc = MAY_LJMP(hlua_checkconverters(L, 1));
+	hsmp = MAY_LJMP(hlua_checkconverters(L, 1));
 
 	/* Get extra arguments. */
 	for (i = 0; i < lua_gettop(L) - 2; i++) {
@@ -2857,7 +2857,7 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 	args[i].type = ARGT_STOP;
 
 	/* Check arguments. */
-	MAY_LJMP(hlua_lua2arg_check(L, 3, args, conv->arg_mask, sc->p));
+	MAY_LJMP(hlua_lua2arg_check(L, 3, args, conv->arg_mask, hsmp->p));
 
 	/* Run the special args checker. */
 	if (conv->val_args && !conv->val_args(args, conv, "", 0, NULL)) {
@@ -2884,8 +2884,8 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 	}
 
 	/* Run the sample conversion process. */
-	if (!conv->process(sc->s, args, &smp, conv->private)) {
-		if (sc->stringsafe)
+	if (!conv->process(hsmp->s, args, &smp, conv->private)) {
+		if (hsmp->stringsafe)
 			lua_pushstring(L, "");
 		else
                        lua_pushnil(L);
@@ -2893,7 +2893,7 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 	}
 
 	/* Convert the returned sample in lua value. */
-	if (sc->stringsafe)
+	if (hsmp->stringsafe)
 		hlua_smp2lua_str(L, &smp);
 	else
 		hlua_smp2lua(L, &smp);
