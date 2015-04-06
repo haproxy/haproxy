@@ -2921,7 +2921,7 @@ __LJMP static struct hlua_txn *hlua_checkhttp(lua_State *L, int ud)
  */
 static int hlua_http_new(lua_State *L, struct hlua_txn *txn)
 {
-	struct hlua_txn *ht;
+	struct hlua_txn *htxn;
 
 	/* Check stack size. */
 	if (!lua_checkstack(L, 3))
@@ -2932,12 +2932,12 @@ static int hlua_http_new(lua_State *L, struct hlua_txn *txn)
 	 * same than the TXN object.
 	 */
 	lua_newtable(L);
-	ht = lua_newuserdata(L, sizeof(*ht));
+	htxn = lua_newuserdata(L, sizeof(*htxn));
 	lua_rawseti(L, -2, 0);
 
-	ht->s = txn->s;
-	ht->p = txn->p;
-	ht->l7 = txn->l7;
+	htxn->s = txn->s;
+	htxn->p = txn->p;
+	htxn->l7 = txn->l7;
 
 	/* Pop a class session metatable and affect it to the table. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, class_http_ref);
