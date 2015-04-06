@@ -78,8 +78,39 @@ enum {
 	SI_FL_SRC_ADDR   = 0x1000,  /* get the source ip/port with getsockname */
 };
 
-struct stream_interface;
-struct si_applet;
+/* A stream interface has 3 parts :
+ *  - the buffer side, which interfaces to the buffers.
+ *  - the remote side, which describes the state and address of the other side.
+ *  - the functions, which are used by the buffer side to communicate with the
+ *    remote side from the buffer side.
+ */
+
+/* Note that if an applet is registered, the update function will not be called
+ * by the session handler, so it may be used to resync flags at the end of the
+ * applet handler. See stream_int_update_embedded() for reference.
+ */
+struct stream_interface {
+	/* struct members used by the "buffer" side */
+	enum si_state state;     /* SI_ST* */
+	enum si_state prev_state;/* SI_ST*, copy of previous state */
+	unsigned short flags;    /* SI_FL_* */
+	unsigned int exp;       /* wake up time for connect, queue, turn-around, ... */
+	enum obj_type *end;     /* points to the end point (connection or appctx) */
+	struct si_ops *ops;     /* general operations at the stream interface layer */
+
+	/* struct members below are the "remote" part, as seen from the buffer side */
+	unsigned int err_type;  /* first error detected, one of SI_ET_* */
+	int conn_retries;	/* number of connect retries left */
+};
+
+/* An applet designed to run in a stream interface */
+struct si_applet {
+	enum obj_type obj_type;                      /* object type = OBJ_TYPE_APPLET */
+	/* 3 unused bytes here */
+	char *name;                                  /* applet's name to report in logs */
+	void (*fct)(struct stream_interface *);      /* internal I/O handler, may never be NULL */
+	void (*release)(struct stream_interface *);  /* callback to release resources, may be NULL */
+};
 
 /* operations available on a stream-interface */
 struct si_ops {
@@ -156,40 +187,6 @@ struct appctx {
 			struct list wake_on_write;
 		} hlua;
 	} ctx;					/* used by stats I/O handlers to dump the stats */
-};
-
-/* A stream interface has 3 parts :
- *  - the buffer side, which interfaces to the buffers.
- *  - the remote side, which describes the state and address of the other side.
- *  - the functions, which are used by the buffer side to communicate with the
- *    remote side from the buffer side.
- */
-
-/* Note that if an applet is registered, the update function will not be called
- * by the session handler, so it may be used to resync flags at the end of the
- * applet handler. See stream_int_update_embedded() for reference.
- */
-struct stream_interface {
-	/* struct members used by the "buffer" side */
-	enum si_state state;     /* SI_ST* */
-	enum si_state prev_state;/* SI_ST*, copy of previous state */
-	unsigned short flags;    /* SI_FL_* */
-	unsigned int exp;       /* wake up time for connect, queue, turn-around, ... */
-	enum obj_type *end;     /* points to the end point (connection or appctx) */
-	struct si_ops *ops;     /* general operations at the stream interface layer */
-
-	/* struct members below are the "remote" part, as seen from the buffer side */
-	unsigned int err_type;  /* first error detected, one of SI_ET_* */
-	int conn_retries;	/* number of connect retries left */
-};
-
-/* An applet designed to run in a stream interface */
-struct si_applet {
-	enum obj_type obj_type;                      /* object type = OBJ_TYPE_APPLET */
-	/* 3 unused bytes here */
-	char *name;                                  /* applet's name to report in logs */
-	void (*fct)(struct stream_interface *);      /* internal I/O handler, may never be NULL */
-	void (*release)(struct stream_interface *);  /* callback to release resources, may be NULL */
 };
 
 #endif /* _TYPES_STREAM_INTERFACE_H */
