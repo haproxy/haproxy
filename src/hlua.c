@@ -2813,7 +2813,7 @@ static int hlua_converters_new(lua_State *L, struct hlua_txn *txn, int stringsaf
 	 * same than the TXN object.
 	 */
 	lua_newtable(L);
-	hs = lua_newuserdata(L, sizeof(struct hlua_txn));
+	hs = lua_newuserdata(L, sizeof(struct hlua_smp));
 	lua_rawseti(L, -2, 0);
 
 	hs->s = txn->s;
