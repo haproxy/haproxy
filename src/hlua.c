@@ -2698,7 +2698,7 @@ __LJMP static struct hlua_smp *hlua_checkfetches(lua_State *L, int ud)
  */
 static int hlua_fetches_new(lua_State *L, struct hlua_txn *txn, int stringsafe)
 {
-	struct hlua_smp *hs;
+	struct hlua_smp *hsmp;
 
 	/* Check stack size. */
 	if (!lua_checkstack(L, 3))
@@ -2709,13 +2709,13 @@ static int hlua_fetches_new(lua_State *L, struct hlua_txn *txn, int stringsafe)
 	 * transaction object.
 	 */
 	lua_newtable(L);
-	hs = lua_newuserdata(L, sizeof(*hs));
+	hsmp = lua_newuserdata(L, sizeof(*hsmp));
 	lua_rawseti(L, -2, 0);
 
-	hs->s = txn->s;
-	hs->p = txn->p;
-	hs->l7 = txn->l7;
-	hs->stringsafe = stringsafe;
+	hsmp->s = txn->s;
+	hsmp->p = txn->p;
+	hsmp->l7 = txn->l7;
+	hsmp->stringsafe = stringsafe;
 
 	/* Pop a class sesison metatable and affect it to the userdata. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, class_fetches_ref);
@@ -2802,7 +2802,7 @@ __LJMP static struct hlua_smp *hlua_checkconverters(lua_State *L, int ud)
  */
 static int hlua_converters_new(lua_State *L, struct hlua_txn *txn, int stringsafe)
 {
-	struct hlua_smp *hs;
+	struct hlua_smp *hsmp;
 
 	/* Check stack size. */
 	if (!lua_checkstack(L, 3))
@@ -2813,13 +2813,13 @@ static int hlua_converters_new(lua_State *L, struct hlua_txn *txn, int stringsaf
 	 * same than the TXN object.
 	 */
 	lua_newtable(L);
-	hs = lua_newuserdata(L, sizeof(*hs));
+	hsmp = lua_newuserdata(L, sizeof(*hsmp));
 	lua_rawseti(L, -2, 0);
 
-	hs->s = txn->s;
-	hs->p = txn->p;
-	hs->l7 = txn->l7;
-	hs->stringsafe = stringsafe;
+	hsmp->s = txn->s;
+	hsmp->p = txn->p;
+	hsmp->l7 = txn->l7;
+	hsmp->stringsafe = stringsafe;
 
 	/* Pop a class session metatable and affect it to the table. */
 	lua_rawgeti(L, LUA_REGISTRYINDEX, class_converters_ref);
