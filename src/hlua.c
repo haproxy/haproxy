@@ -2709,7 +2709,7 @@ static int hlua_fetches_new(lua_State *L, struct hlua_txn *txn, int stringsafe)
 	 * transaction object.
 	 */
 	lua_newtable(L);
-	hs = lua_newuserdata(L, sizeof(struct hlua_smp));
+	hs = lua_newuserdata(L, sizeof(*hs));
 	lua_rawseti(L, -2, 0);
 
 	hs->s = txn->s;
@@ -2813,7 +2813,7 @@ static int hlua_converters_new(lua_State *L, struct hlua_txn *txn, int stringsaf
 	 * same than the TXN object.
 	 */
 	lua_newtable(L);
-	hs = lua_newuserdata(L, sizeof(struct hlua_smp));
+	hs = lua_newuserdata(L, sizeof(*hs));
 	lua_rawseti(L, -2, 0);
 
 	hs->s = txn->s;
@@ -2932,7 +2932,7 @@ static int hlua_http_new(lua_State *L, struct hlua_txn *txn)
 	 * same than the TXN object.
 	 */
 	lua_newtable(L);
-	ht = lua_newuserdata(L, sizeof(struct hlua_txn));
+	ht = lua_newuserdata(L, sizeof(*ht));
 	lua_rawseti(L, -2, 0);
 
 	ht->s = txn->s;
@@ -3330,7 +3330,7 @@ static int hlua_txn_new(lua_State *L, struct session *s, struct proxy *p, void *
 	 */
 	/* Create the object: obj[0] = userdata. */
 	lua_newtable(L);
-	hs = lua_newuserdata(L, sizeof(struct hlua_txn));
+	hs = lua_newuserdata(L, sizeof(*hs));
 	lua_rawseti(L, -2, 0);
 
 	hs->s = s;
@@ -3513,7 +3513,7 @@ __LJMP static int hlua_txn_set_mark(lua_State *L)
 	mark = MAY_LJMP(luaL_checkinteger(L, 2));
 
 	if ((cli_conn = objt_conn(htxn->s->si[0].end)) && conn_ctrl_ready(cli_conn))
-		setsockopt(cli_conn->t.sock.fd, SOL_SOCKET, SO_MARK, &mark, sizeof(int));
+		setsockopt(cli_conn->t.sock.fd, SOL_SOCKET, SO_MARK, &mark, sizeof(mark));
 #endif
 	return 0;
 }
@@ -4033,8 +4033,7 @@ __LJMP static int hlua_register_converters(lua_State *L)
 	ref = MAY_LJMP(hlua_checkfunction(L, 2));
 
 	/* Allocate and fill the sample fetch keyword struct. */
-	sck = malloc(sizeof(struct sample_conv_kw_list) +
-	             sizeof(struct sample_conv) * 2);
+	sck = malloc(sizeof(*sck) + sizeof(struct sample_conv) * 2);
 	if (!sck)
 		WILL_LJMP(luaL_error(L, "lua out of memory error."));
 	fcn = malloc(sizeof(*fcn));
@@ -4094,8 +4093,7 @@ __LJMP static int hlua_register_fetches(lua_State *L)
 	ref = MAY_LJMP(hlua_checkfunction(L, 2));
 
 	/* Allocate and fill the sample fetch keyword struct. */
-	sfk = malloc(sizeof(struct sample_fetch_kw_list) +
-	             sizeof(struct sample_fetch) * 2);
+	sfk = malloc(sizeof(*sfk) + sizeof(struct sample_fetch) * 2);
 	if (!sfk)
 		WILL_LJMP(luaL_error(L, "lua out of memory error."));
 	fcn = malloc(sizeof(*fcn));
