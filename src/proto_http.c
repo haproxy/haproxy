@@ -131,7 +131,9 @@ const int http_err_codes[HTTP_ERR_SIZE] = {
 	[HTTP_ERR_200] = 200,  /* used by "monitor-uri" */
 	[HTTP_ERR_400] = 400,
 	[HTTP_ERR_403] = 403,
+	[HTTP_ERR_405] = 405,
 	[HTTP_ERR_408] = 408,
+	[HTTP_ERR_429] = 429,
 	[HTTP_ERR_500] = 500,
 	[HTTP_ERR_502] = 502,
 	[HTTP_ERR_503] = 503,
@@ -163,6 +165,14 @@ static const char *http_err_msgs[HTTP_ERR_SIZE] = {
 	"\r\n"
 	"<html><body><h1>403 Forbidden</h1>\nRequest forbidden by administrative rules.\n</body></html>\n",
 
+	[HTTP_ERR_405] =
+	"HTTP/1.0 405 Method Not Allowed\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>405 Method Not Allowed</h1>\nA request was made of a resource using a request method not supported by that resource\n</body></html>\n",
+
 	[HTTP_ERR_408] =
 	"HTTP/1.0 408 Request Time-out\r\n"
 	"Cache-Control: no-cache\r\n"
@@ -170,6 +180,14 @@ static const char *http_err_msgs[HTTP_ERR_SIZE] = {
 	"Content-Type: text/html\r\n"
 	"\r\n"
 	"<html><body><h1>408 Request Time-out</h1>\nYour browser didn't send a complete request in time.\n</body></html>\n",
+
+	[HTTP_ERR_429] =
+	"HTTP/1.0 429 Too Many Requests\r\n"
+	"Cache-Control: no-cache\r\n"
+	"Connection: close\r\n"
+	"Content-Type: text/html\r\n"
+	"\r\n"
+	"<html><body><h1>429 Too Many Requests</h1>\nYou have sent too many requests in a given amount of time.\n</body></html>\n",
 
 	[HTTP_ERR_500] =
 	"HTTP/1.0 500 Server Error\r\n"
@@ -3371,10 +3389,12 @@ resume_execution:
 			return HTTP_RULE_RES_STOP;
 
 		case HTTP_REQ_ACT_DENY:
+			txn->rule_deny_status = rule->deny_status;
 			return HTTP_RULE_RES_DENY;
 
 		case HTTP_REQ_ACT_TARPIT:
 			txn->flags |= TX_CLTARPIT;
+			txn->rule_deny_status = rule->deny_status;
 			return HTTP_RULE_RES_DENY;
 
 		case HTTP_REQ_ACT_AUTH:
@@ -4266,9 +4286,9 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 
  deny:	/* this request was blocked (denied) */
 	txn->flags |= TX_CLDENY;
-	txn->status = 403;
+	txn->status = http_err_codes[txn->rule_deny_status];
 	s->logs.tv_request = now;
-	stream_int_retnclose(&s->si[0], http_error_message(s, HTTP_ERR_403));
+	stream_int_retnclose(&s->si[0], http_error_message(s, txn->rule_deny_status));
 	stream_inc_http_err_ctr(s);
 	sess->fe->fe_counters.denied_req++;
 	if (sess->fe != s->be)
@@ -8997,12 +9017,38 @@ struct http_req_rule *parse_http_req_cond(const char **args, const char *file, i
 		goto out_err;
 	}
 
+	rule->deny_status = HTTP_ERR_403;
 	if (!strcmp(args[0], "allow")) {
 		rule->action = HTTP_REQ_ACT_ALLOW;
 		cur_arg = 1;
 	} else if (!strcmp(args[0], "deny") || !strcmp(args[0], "block")) {
+		int code;
+		int hc;
+
 		rule->action = HTTP_REQ_ACT_DENY;
 		cur_arg = 1;
+                if (strcmp(args[cur_arg], "deny_status") == 0) {
+                        cur_arg++;
+                        if (!args[cur_arg]) {
+                                Alert("parsing [%s:%d] : error detected in %s '%s' while parsing 'http-request %s' rule : missing status code.\n",
+                                      file, linenum, proxy_type_str(proxy), proxy->id, args[0]);
+                                goto out_err;
+                        }
+
+                        code = atol(args[cur_arg]);
+                        cur_arg++;
+                        for (hc = 0; hc < HTTP_ERR_SIZE; hc++) {
+                                if (http_err_codes[hc] == code) {
+                                        rule->deny_status = hc;
+                                        break;
+                                }
+                        }
+
+                        if (hc >= HTTP_ERR_SIZE) {
+                                Warning("parsing [%s:%d] : status code %d not handled, using default code 403.\n",
+                                        file, linenum, code);
+                        }
+                }
 	} else if (!strcmp(args[0], "tarpit")) {
 		rule->action = HTTP_REQ_ACT_TARPIT;
 		cur_arg = 1;

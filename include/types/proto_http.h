@@ -309,7 +309,9 @@ enum {
 	HTTP_ERR_200 = 0,
 	HTTP_ERR_400,
 	HTTP_ERR_403,
+	HTTP_ERR_405,
 	HTTP_ERR_408,
+	HTTP_ERR_429,
 	HTTP_ERR_500,
 	HTTP_ERR_502,
 	HTTP_ERR_503,
@@ -416,6 +418,7 @@ struct http_req_rule {
 	struct list list;
 	struct acl_cond *cond;                 /* acl condition to meet */
 	unsigned int action;                   /* HTTP_REQ_* */
+	short deny_status;                     /* HTTP status to return to user when denying */
 	int (*action_ptr)(struct http_req_rule *rule, struct proxy *px, struct stream *s);  /* ptr to custom action */
 	union {
 		struct {
@@ -483,6 +486,7 @@ struct http_txn {
 	unsigned int flags;             /* transaction flags */
 	enum http_meth_t meth;          /* HTTP method */
 	/* 1 unused byte here */
+	short rule_deny_status;         /* HTTP status from rule when denying */
 	short status;                   /* HTTP status from the server, negative if from proxy */
 
 	char *uri;                      /* first line if log needed, NULL otherwise */
