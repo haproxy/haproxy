@@ -1,4 +1,5 @@
-#ifndef NAMESPACE_H
+#ifndef _NAMESPACE_H
+#define _NAMESPACE_H
 
 #include <stdlib.h>
 #include <ebistree.h>
@@ -21,4 +22,4 @@ const struct netns_entry* netns_store_lookup(const char *ns_name, size_t ns_name
 int netns_init(void);
 #endif /* CONFIG_HAP_NS */
 
-#endif /* NAMESPACE_H */
+#endif /* _NAMESPACE_H */
