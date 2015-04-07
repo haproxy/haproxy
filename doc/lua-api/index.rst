@@ -1096,6 +1096,125 @@ Socket class
   :param class_socket socket: Is the manipulated Socket.
   :param integer value: The timeout value.
 
+Map class
+=========
+
+.. js:class:: Map
+
+  This class permits to do some lookup in HAProxy maps. The declared maps can
+  be modified during the runtime throught the HAProxy management socket.
+
+.. code-block:: lua
+
+	default = "usa"
+
+	-- Create and load map
+	geo = Map.new("geo.map", Map.ip);
+
+	-- Create new fetch that returns the user country
+	core.register_fetches("country", function(txn)
+		local src;
+		local loc;
+
+		src = txn.f:fhdr("x-forwarded-for");
+		if (src == nil) then
+			src = txn.f:src()
+			if (src == nil) then
+				return default;
+			end
+		end
+
+		-- Perform lookup
+		loc = geo:lookup(src);
+
+		if (loc == nil) then
+			return default;
+		end
+
+		return loc;
+	end);
+
+.. js:attribute:: Map.int
+
+  See the HAProxy configuration.txt file, chapter "Using ACLs and fetching
+  samples" ans subchapter "ACL basics" to understand this pattern matching
+  method.
+
+.. js:attribute:: Map.ip
+
+  See the HAProxy configuration.txt file, chapter "Using ACLs and fetching
+  samples" ans subchapter "ACL basics" to understand this pattern matching
+  method.
+
+.. js:attribute:: Map.str
+
+  See the HAProxy configuration.txt file, chapter "Using ACLs and fetching
+  samples" ans subchapter "ACL basics" to understand this pattern matching
+  method.
+
+.. js:attribute:: Map.beg
+
+  See the HAProxy configuration.txt file, chapter "Using ACLs and fetching
+  samples" ans subchapter "ACL basics" to understand this pattern matching
+  method.
+
+.. js:attribute:: Map.sub
+
+  See the HAProxy configuration.txt file, chapter "Using ACLs and fetching
+  samples" ans subchapter "ACL basics" to understand this pattern matching
+  method.
+
+.. js:attribute:: Map.dir
+
+  See the HAProxy configuration.txt file, chapter "Using ACLs and fetching
+  samples" ans subchapter "ACL basics" to understand this pattern matching
+  method.
+
+.. js:attribute:: Map.dom
+
+  See the HAProxy configuration.txt file, chapter "Using ACLs and fetching
+  samples" ans subchapter "ACL basics" to understand this pattern matching
+  method.
+
+.. js:attribute:: Map.end
+
+  See the HAProxy configuration.txt file, chapter "Using ACLs and fetching
+  samples" ans subchapter "ACL basics" to understand this pattern matching
+  method.
+
+.. js:attribute:: Map.reg
+
+  See the HAProxy configuration.txt file, chapter "Using ACLs and fetching
+  samples" ans subchapter "ACL basics" to understand this pattern matching
+  method.
+
+
+.. js:function:: Map.new(file, method)
+
+  Creates and load a map.
+
+  :param string file: Is the file containing the map.
+  :param integer method: Is the map pattern matching method. See the attributes
+    of the Map class.
+  :returns: a class Map object.
+  :see: The Map attributes.
+
+.. js:function:: Map.lookup(map, str)
+
+  Perform a lookup in a map.
+
+  :param class_map map: Is the class Map object.
+  :param string str: Is the string used as key.
+  :returns: a string containing the result or nil if no match.
+
+.. js:function:: Map.slookup(map, str)
+
+  Perform a lookup in a map.
+
+  :param class_map map: Is the class Map object.
+  :param string str: Is the string used as key.
+  :returns: a string containing the result or empty string if no match.
+
 External Lua libraries
 ======================
 

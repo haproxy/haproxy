@@ -32,4 +32,7 @@ int map_parse_int(const char *text, struct sample_storage *smp);
 
 struct map_reference *map_get_reference(const char *reference);
 
+int sample_load_map(struct arg *arg, struct sample_conv *conv,
+                    const char *file, int line, char **err);
+
 #endif /* _PROTO_PATTERN_H */

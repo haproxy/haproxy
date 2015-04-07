@@ -23,6 +23,7 @@
 #include <proto/channel.h>
 #include <proto/hdr_idx.h>
 #include <proto/hlua.h>
+#include <proto/map.h>
 #include <proto/obj_type.h>
 #include <proto/pattern.h>
 #include <proto/payload.h>
@@ -76,6 +77,7 @@ static int class_channel_ref;
 static int class_fetches_ref;
 static int class_converters_ref;
 static int class_http_ref;
+static int class_map_ref;
 
 /* Global Lua execution timeout. By default Lua, execution linked
  * with stream (actions, sample-fetches and converters) have a
@@ -1264,6 +1266,151 @@ static int hlua_set_map(lua_State *L)
  *    __lt "<"
  *    __le "<="
  */
+
+/*
+ *
+ *
+ * Class Map
+ *
+ *
+ */
+
+/* Returns a struct hlua_map if the stack entry "ud" is
+ * a class session, otherwise it throws an error.
+ */
+__LJMP static struct map_descriptor *hlua_checkmap(lua_State *L, int ud)
+{
+	return (struct map_descriptor *)MAY_LJMP(hlua_checkudata(L, ud, class_map_ref));
+}
+
+/* This function is the map constructor. It don't need
+ * the class Map object. It creates and return a new Map
+ * object. It must be called only during "body" or "init"
+ * context because it process some filesystem accesses.
+ */
+__LJMP static int hlua_map_new(struct lua_State *L)
+{
+	const char *fn;
+	int match = PAT_MATCH_STR;
+	struct sample_conv conv;
+	const char *file = "";
+	int line = 0;
+	lua_Debug ar;
+	char *err = NULL;
+	struct arg args[2];
+
+	if (lua_gettop(L) < 1 || lua_gettop(L) > 2)
+		WILL_LJMP(luaL_error(L, "'new' needs at least 1 argument."));
+
+	fn = MAY_LJMP(luaL_checkstring(L, 1));
+
+	if (lua_gettop(L) >= 2) {
+		match = MAY_LJMP(luaL_checkinteger(L, 2));
+		if (match < 0 || match >= PAT_MATCH_NUM)
+			WILL_LJMP(luaL_error(L, "'new' needs a valid match method."));
+	}
+
+	/* Get Lua filename and line number. */
+	if (lua_getstack(L, 1, &ar)) {  /* check function at level */
+		lua_getinfo(L, "Sl", &ar);  /* get info about it */
+		if (ar.currentline > 0) {  /* is there info? */
+			file = ar.short_src;
+			line = ar.currentline;
+		}
+	}
+
+	/* fill fake sample_conv struct. */
+	conv.kw = ""; /* unused. */
+	conv.process = NULL; /* unused. */
+	conv.arg_mask = 0; /* unused. */
+	conv.val_args = NULL; /* unused. */
+	conv.out_type = SMP_T_STR;
+	conv.private = (void *)(long)match;
+	switch (match) {
+	case PAT_MATCH_STR: conv.in_type = SMP_T_STR;  break;
+	case PAT_MATCH_BEG: conv.in_type = SMP_T_STR;  break;
+	case PAT_MATCH_SUB: conv.in_type = SMP_T_STR;  break;
+	case PAT_MATCH_DIR: conv.in_type = SMP_T_STR;  break;
+	case PAT_MATCH_DOM: conv.in_type = SMP_T_STR;  break;
+	case PAT_MATCH_END: conv.in_type = SMP_T_STR;  break;
+	case PAT_MATCH_REG: conv.in_type = SMP_T_STR;  break;
+	case PAT_MATCH_INT: conv.in_type = SMP_T_UINT; break;
+	case PAT_MATCH_IP:  conv.in_type = SMP_T_ADDR; break;
+	default:
+		WILL_LJMP(luaL_error(L, "'new' doesn't support this match mode."));
+	}
+
+	/* fill fake args. */
+	args[0].type = ARGT_STR;
+	args[0].data.str.str = (char *)fn;
+	args[1].type = ARGT_STOP;
+
+	/* load the map. */
+	if (!sample_load_map(args, &conv, file, line, &err)) {
+		/* error case: we cant use luaL_error because we must
+		 * free the err variable.
+		 */
+		luaL_where(L, 1);
+		lua_pushfstring(L, "'new': %s.", err);
+		lua_concat(L, 2);
+		free(err);
+		WILL_LJMP(lua_error(L));
+	}
+
+	/* create the lua object. */
+	lua_newtable(L);
+	lua_pushlightuserdata(L, args[0].data.map);
+	lua_rawseti(L, -2, 0);
+
+	/* Pop a class Map metatable and affect it to the userdata. */
+	lua_rawgeti(L, LUA_REGISTRYINDEX, class_map_ref);
+	lua_setmetatable(L, -2);
+
+
+	return 1;
+}
+
+__LJMP static inline int _hlua_map_lookup(struct lua_State *L, int str)
+{
+	struct map_descriptor *desc;
+	struct pattern *pat;
+	struct sample smp;
+
+	MAY_LJMP(check_args(L, 2, "lookup"));
+	desc = MAY_LJMP(hlua_checkmap(L, 1));
+	if (desc->pat.expect_type == SMP_T_UINT) {
+		smp.type = SMP_T_UINT;
+		smp.data.uint = MAY_LJMP(luaL_checkinteger(L, 2));
+	}
+	else {
+		smp.type = SMP_T_STR;
+		smp.flags = SMP_F_CONST;
+		smp.data.str.str = (char *)MAY_LJMP(luaL_checklstring(L, 2, (size_t *)&smp.data.str.len));
+	}
+
+	pat = pattern_exec_match(&desc->pat, &smp, 1);
+	if (!pat || !pat->smp) {
+		if (str)
+			lua_pushstring(L, "");
+		else
+			lua_pushnil(L);
+		return 1;
+	}
+
+	/* The Lua pattern must return a string, so we can't check the returned type */
+	lua_pushlstring(L, pat->smp->data.str.str, pat->smp->data.str.len);
+	return 1;
+}
+
+__LJMP static int hlua_map_lookup(struct lua_State *L)
+{
+	return _hlua_map_lookup(L, 0);
+}
+
+__LJMP static int hlua_map_slookup(struct lua_State *L)
+{
+	return _hlua_map_lookup(L, 1);
+}
 
 /*
  *
@@ -4570,6 +4717,47 @@ void hlua_init(void)
 	hlua_class_function(gL.T, "Alert", hlua_log_alert);
 
 	lua_setglobal(gL.T, "core");
+
+	/*
+	 *
+	 * Register class Map
+	 *
+	 */
+
+	/* This table entry is the object "Map" base. */
+	lua_newtable(gL.T);
+
+	/* register pattern types. */
+	for (i=0; i<PAT_MATCH_NUM; i++)
+		hlua_class_const_int(gL.T, pat_match_names[i], i);
+
+	/* register constructor. */
+	hlua_class_function(gL.T, "new", hlua_map_new);
+
+	/* Create and fill the metatable. */
+	lua_newtable(gL.T);
+
+	/* Create and fille the __index entry. */
+	lua_pushstring(gL.T, "__index");
+	lua_newtable(gL.T);
+
+	/* Register . */
+	hlua_class_function(gL.T, "lookup", hlua_map_lookup);
+	hlua_class_function(gL.T, "slookup", hlua_map_slookup);
+
+	lua_settable(gL.T, -3);
+
+	/* Register previous table in the registry with reference and named entry. */
+	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
+	lua_pushvalue(gL.T, -1); /* Copy the -1 entry and push it on the stack. */
+	lua_setfield(gL.T, LUA_REGISTRYINDEX, CLASS_MAP); /* register class session. */
+	class_map_ref = luaL_ref(gL.T, LUA_REGISTRYINDEX); /* reference class session. */
+
+	/* Assign the metatable to the mai Map object. */
+	lua_setmetatable(gL.T, -2);
+
+	/* Set a name to the table. */
+	lua_setglobal(gL.T, "Map");
 
 	/*
 	 *

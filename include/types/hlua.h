@@ -16,6 +16,7 @@
 #define CLASS_SOCKET   "Socket"
 #define CLASS_CHANNEL  "Channel"
 #define CLASS_HTTP     "HTTP"
+#define CLASS_MAP      "Map"
 
 struct stream;
 
