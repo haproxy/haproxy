@@ -57,18 +57,18 @@ struct list streams;
 struct list buffer_wq = LIST_HEAD_INIT(buffer_wq);
 
 /* This function is called from the session handler which detects the end of
- * handshake, in order to complete initialization of a valid stream. It must
- * be called with an embryonic session. It returns the pointer to the newly
- * created stream, or NULL in case of fatal error. For now the client-side
- * end point is taken from the session's origin, which must be valid.
- * The task's context is set to the new stream, and its function is set to
- * process_stream(). Target and analysers are null.
+ * handshake, in order to complete initialization of a valid stream. It must be
+ * called with a session (which may be embryonic). It returns the pointer to
+ * the newly created stream, or NULL in case of fatal error. The client-facing
+ * end point is assigned to <origin>, which must be valid. The task's context
+ * is set to the new stream, and its function is set to process_stream().
+ * Target and analysers are null.
  */
-struct stream *stream_new(struct session *sess, struct task *t)
+struct stream *stream_new(struct session *sess, struct task *t, enum obj_type *origin)
 {
 	struct stream *s;
-	struct connection *conn = objt_conn(sess->origin);
-	struct appctx *appctx   = objt_appctx(sess->origin);
+	struct connection *conn = objt_conn(origin);
+	struct appctx *appctx   = objt_appctx(origin);
 
 	if (unlikely((s = pool_alloc2(pool2_stream)) == NULL))
 		return s;

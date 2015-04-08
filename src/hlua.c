@@ -2197,7 +2197,7 @@ __LJMP static int hlua_socket_new(lua_State *L)
 	}
 	task->nice = 0;
 
-	strm = stream_new(sess, task);
+	strm = stream_new(sess, task, &appctx->obj_type);
 	if (!strm) {
 		hlua_pusherror(L, "socket: out of memory");
 		goto out_fail_stream;

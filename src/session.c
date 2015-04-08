@@ -259,7 +259,7 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 		cli_conn->flags |= CO_FL_XPRT_TRACKED;
 
 	session_count_new(sess);
-	strm = stream_new(sess, t);
+	strm = stream_new(sess, t, &cli_conn->obj_type);
 	if (!strm)
 		goto out_free_task;
 
@@ -424,7 +424,7 @@ static int conn_complete_session(struct connection *conn)
 
 	session_count_new(sess);
 	task->process = sess->listener->handler;
-	strm = stream_new(sess, task);
+	strm = stream_new(sess, task, &conn->obj_type);
 	if (!strm)
 		goto fail;
 

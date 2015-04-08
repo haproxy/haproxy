@@ -1140,7 +1140,7 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	}
 	t->nice = l->nice;
 
-	if ((s = stream_new(sess, t)) == NULL) {
+	if ((s = stream_new(sess, t, &appctx->obj_type)) == NULL) {
 		Alert("Failed to initialize stream in peer_session_create().\n");
 		goto out_free_task;
 	}
