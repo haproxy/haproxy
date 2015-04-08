@@ -69,7 +69,6 @@ struct stream *stream_new(struct session *sess, struct task *t)
 	struct stream *s;
 	struct connection *conn = objt_conn(sess->origin);
 	struct appctx *appctx   = objt_appctx(sess->origin);
-	int i;
 
 	if (unlikely((s = pool_alloc2(pool2_stream)) == NULL))
 		return s;
@@ -135,27 +134,6 @@ struct stream *stream_new(struct session *sess, struct task *t)
 	s->req.buf = s->res.buf = NULL;
 	s->req_cap = NULL;
 	s->res_cap = NULL;
-
-	/* Let's count a stream now */
-	if (conn)
-		proxy_inc_fe_sess_ctr(sess->listener, sess->fe);
-
-	for (i = 0; i < MAX_SESS_STKCTR; i++) {
-		void *ptr;
-		struct stkctr *stkctr = &sess->stkctr[i];
-
-		if (!stkctr_entry(stkctr))
-			continue;
-
-		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_SESS_CNT);
-		if (ptr)
-			stktable_data_cast(ptr, sess_cnt)++;
-
-		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_SESS_RATE);
-		if (ptr)
-			update_freq_ctr_period(&stktable_data_cast(ptr, sess_rate),
-					       stkctr->table->data_arg[STKTABLE_DT_SESS_RATE].u, 1);
-	}
 
 	/* this part should be common with other protocols */
 	si_reset(&s->si[0]);

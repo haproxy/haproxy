@@ -76,6 +76,31 @@ int init_session()
 	return pool2_session != NULL;
 }
 
+/* count a new session to keep frontend, listener and track stats up to date */
+static void session_count_new(struct session *sess)
+{
+	struct stkctr *stkctr;
+	void *ptr;
+	int i;
+
+	proxy_inc_fe_sess_ctr(sess->listener, sess->fe);
+
+	for (i = 0; i < MAX_SESS_STKCTR; i++) {
+		stkctr = &sess->stkctr[i];
+		if (!stkctr_entry(stkctr))
+			continue;
+
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_SESS_CNT);
+		if (ptr)
+			stktable_data_cast(ptr, sess_cnt)++;
+
+		ptr = stktable_data_ptr(stkctr->table, stkctr_entry(stkctr), STKTABLE_DT_SESS_RATE);
+		if (ptr)
+			update_freq_ctr_period(&stktable_data_cast(ptr, sess_rate),
+					       stkctr->table->data_arg[STKTABLE_DT_SESS_RATE].u, 1);
+	}
+}
+
 /* This function is called from the protocol layer accept() in order to
  * instanciate a new session on behalf of a given listener and frontend. It
  * returns a positive value upon success, 0 if the connection can be ignored,
@@ -225,6 +250,8 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 
 	/* OK let's complete stream initialization since there is no handshake */
 	cli_conn->flags |= CO_FL_CONNECTED;
+
+	session_count_new(sess);
 	strm = stream_new(sess, t);
 	if (!strm)
 		goto out_free_task;
@@ -381,6 +408,7 @@ static int conn_complete_session(struct connection *conn)
 	if (conn->flags & CO_FL_ERROR)
 		goto fail;
 
+	session_count_new(sess);
 	task->process = sess->listener->handler;
 	strm = stream_new(sess, task);
 	if (!strm)
