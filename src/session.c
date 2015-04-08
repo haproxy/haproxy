@@ -251,6 +251,13 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	/* OK let's complete stream initialization since there is no handshake */
 	cli_conn->flags |= CO_FL_CONNECTED;
 
+	/* we want the connection handler to notify the stream interface about updates. */
+	cli_conn->flags |= CO_FL_WAKE_DATA;
+
+	/* if logs require transport layer information, note it on the connection */
+	if (sess->fe->to_log & LW_XPRT)
+		cli_conn->flags |= CO_FL_XPRT_TRACKED;
+
 	session_count_new(sess);
 	strm = stream_new(sess, t);
 	if (!strm)
@@ -408,6 +415,13 @@ static int conn_complete_session(struct connection *conn)
 	if (conn->flags & CO_FL_ERROR)
 		goto fail;
 
+	/* we want the connection handler to notify the stream interface about updates. */
+	conn->flags |= CO_FL_WAKE_DATA;
+
+	/* if logs require transport layer information, note it on the connection */
+	if (sess->fe->to_log & LW_XPRT)
+		conn->flags |= CO_FL_XPRT_TRACKED;
+
 	session_count_new(sess);
 	task->process = sess->listener->handler;
 	strm = stream_new(sess, task);
@@ -417,6 +431,7 @@ static int conn_complete_session(struct connection *conn)
 	strm->target        = sess->listener->default_target;
 	strm->req.analysers = sess->listener->analysers;
 	conn->flags &= ~CO_FL_INIT_DATA;
+
 	return 0;
 
  fail:

@@ -204,15 +204,6 @@ struct stream *stream_new(struct session *sess, struct task *t)
 	if (sess->fe->accept && sess->fe->accept(s) < 0)
 		goto out_fail_accept;
 
-	if (conn) {
-		/* if logs require transport layer information, note it on the connection */
-		if (s->logs.logwait & LW_XPRT)
-			conn->flags |= CO_FL_XPRT_TRACKED;
-
-		/* we want the connection handler to notify the stream interface about updates. */
-		conn->flags |= CO_FL_WAKE_DATA;
-	}
-
 	/* it is important not to call the wakeup function directly but to
 	 * pass through task_wakeup(), because this one knows how to apply
 	 * priorities to tasks.
