@@ -38,6 +38,7 @@ int srv_downtime(const struct server *s);
 int srv_lastsession(const struct server *s);
 int srv_getinter(const struct check *check);
 int parse_server(const char *file, int linenum, char **args, struct proxy *curproxy, struct proxy *defproxy);
+int update_server_addr(struct server *s, void *ip, int ip_sin_family, char *updater);
 
 /* increase the number of cumulated connections on the designated server */
 static void inline srv_inc_sess_ctr(struct server *s)

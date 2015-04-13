@@ -1697,6 +1697,72 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 }
 
 /*
+ * update a server's current IP address.
+ * ip is a pointer to the new IP address, whose address family is ip_sin_family.
+ * ip is in network format.
+ * updater is a string which contains an information about the requester of the update.
+ * updater is used if not NULL.
+ *
+ * A log line and a stderr warning message is generated based on server's backend options.
+ */
+int update_server_addr(struct server *s, void *ip, int ip_sin_family, char *updater)
+{
+	/* generates a log line and a warning on stderr */
+	if (1) {
+		/* book enough space for both IPv4 and IPv6 */
+		char oldip[INET6_ADDRSTRLEN];
+		char newip[INET6_ADDRSTRLEN];
+
+		memset(oldip, '\0', INET6_ADDRSTRLEN);
+		memset(newip, '\0', INET6_ADDRSTRLEN);
+
+		/* copy old IP address in a string */
+		switch (s->addr.ss_family) {
+		case AF_INET:
+			inet_ntop(s->addr.ss_family, &((struct sockaddr_in *)&s->addr)->sin_addr, oldip, INET_ADDRSTRLEN);
+			break;
+		case AF_INET6:
+			inet_ntop(s->addr.ss_family, &((struct sockaddr_in6 *)&s->addr)->sin6_addr, oldip, INET6_ADDRSTRLEN);
+			break;
+		};
+
+		/* copy new IP address in a string */
+		switch (ip_sin_family) {
+		case AF_INET:
+			inet_ntop(ip_sin_family, ip, newip, INET_ADDRSTRLEN);
+			break;
+		case AF_INET6:
+			inet_ntop(ip_sin_family, ip, newip, INET6_ADDRSTRLEN);
+			break;
+		};
+
+		/* save log line into a buffer */
+		chunk_printf(&trash, "%s/%s changed its IP from %s to %s by %s",
+				s->proxy->id, s->id, oldip, newip, updater);
+
+		/* write the buffer on stderr */
+		Warning("%s.\n", trash.str);
+
+		/* send a log */
+		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
+	}
+
+	/* save the new IP family */
+	s->addr.ss_family = ip_sin_family;
+	/* save the new IP address */
+	switch (ip_sin_family) {
+	case AF_INET:
+		((struct sockaddr_in *)&s->addr)->sin_addr.s_addr = *(uint32_t *)ip;
+		break;
+	case AF_INET6:
+		memcpy(((struct sockaddr_in6 *)&s->addr)->sin6_addr.s6_addr, ip, 16);
+		break;
+	};
+
+	return 0;
+}
+
+/*
  * Local variables:
  *  c-indent-level: 8
  *  c-basic-offset: 8
