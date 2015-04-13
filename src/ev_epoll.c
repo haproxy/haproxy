@@ -25,9 +25,6 @@
 #include <types/global.h>
 
 #include <proto/fd.h>
-#include <proto/signal.h>
-#include <proto/task.h>
-
 
 
 /* private data */
@@ -112,25 +109,14 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	fd_nbupdt = 0;
 
 	/* compute the epoll_wait() timeout */
-
-	if (fd_cache_num || run_queue || signal_queue_len) {
-		/* Maybe we still have events in the spec list, or there are
-		 * some tasks left pending in the run_queue, so we must not
-		 * wait in epoll() otherwise we would delay their delivery by
-		 * the next timeout.
-		 */
+	if (!exp)
+		wait_time = MAX_DELAY_MS;
+	else if (tick_is_expired(exp, now_ms))
 		wait_time = 0;
-	}
 	else {
-		if (!exp)
+		wait_time = TICKS_TO_MS(tick_remain(now_ms, exp)) + 1;
+		if (wait_time > MAX_DELAY_MS)
 			wait_time = MAX_DELAY_MS;
-		else if (tick_is_expired(exp, now_ms))
-			wait_time = 0;
-		else {
-			wait_time = TICKS_TO_MS(tick_remain(now_ms, exp)) + 1;
-			if (wait_time > MAX_DELAY_MS)
-				wait_time = MAX_DELAY_MS;
-		}
 	}
 
 	/* now let's wait for polled events */

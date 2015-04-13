@@ -1486,6 +1486,10 @@ void run_poll_loop()
 		if (jobs == 0)
 			break;
 
+		/* expire immediately if events are pending */
+		if (fd_cache_num || run_queue || signal_queue_len)
+			next = now_ms;
+
 		/* The poller will ensure it returns around <next> */
 		cur_poller.poll(&cur_poller, next);
 		fd_process_cached_events();

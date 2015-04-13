@@ -22,8 +22,6 @@
 #include <types/global.h>
 
 #include <proto/fd.h>
-#include <proto/signal.h>
-#include <proto/task.h>
 
 
 static fd_set *fd_evts[2];
@@ -83,19 +81,17 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	delta.tv_sec  = 0;
 	delta.tv_usec = 0;
 
-	if (!fd_cache_num && !run_queue && !signal_queue_len) {
-		if (!exp) {
-			delta_ms      = MAX_DELAY_MS;
-			delta.tv_sec  = (MAX_DELAY_MS / 1000);
-			delta.tv_usec = (MAX_DELAY_MS % 1000) * 1000;
-		}
-		else if (!tick_is_expired(exp, now_ms)) {
-			delta_ms = TICKS_TO_MS(tick_remain(now_ms, exp)) + SCHEDULER_RESOLUTION;
-			if (delta_ms > MAX_DELAY_MS)
-				delta_ms = MAX_DELAY_MS;
-			delta.tv_sec  = (delta_ms / 1000);
-			delta.tv_usec = (delta_ms % 1000) * 1000;
-		}
+	if (!exp) {
+		delta_ms      = MAX_DELAY_MS;
+		delta.tv_sec  = (MAX_DELAY_MS / 1000);
+		delta.tv_usec = (MAX_DELAY_MS % 1000) * 1000;
+	}
+	else if (!tick_is_expired(exp, now_ms)) {
+		delta_ms = TICKS_TO_MS(tick_remain(now_ms, exp)) + SCHEDULER_RESOLUTION;
+		if (delta_ms > MAX_DELAY_MS)
+			delta_ms = MAX_DELAY_MS;
+		delta.tv_sec  = (delta_ms / 1000);
+		delta.tv_usec = (delta_ms % 1000) * 1000;
 	}
 
 	/* let's restore fdset state */

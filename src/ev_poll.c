@@ -23,8 +23,6 @@
 #include <types/global.h>
 
 #include <proto/fd.h>
-#include <proto/signal.h>
-#include <proto/task.h>
 
 
 static unsigned int *fd_evts[2];
@@ -116,9 +114,7 @@ REGPRM2 static void _do_poll(struct poller *p, int exp)
 	}
       
 	/* now let's wait for events */
-	if (fd_cache_num || run_queue || signal_queue_len)
-		wait_time = 0;
-	else if (!exp)
+	if (!exp)
 		wait_time = MAX_DELAY_MS;
 	else if (tick_is_expired(exp, now_ms))
 		wait_time = 0;
