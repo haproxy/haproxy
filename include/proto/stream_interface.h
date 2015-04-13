@@ -234,6 +234,7 @@ static inline void si_attach_appctx(struct stream_interface *si, struct appctx *
 {
 	si->ops = &si_embedded_ops;
 	si->end = &appctx->obj_type;
+	appctx->owner = si;
 }
 
 /* returns a pointer to the appctx being run in the SI or NULL if none */
