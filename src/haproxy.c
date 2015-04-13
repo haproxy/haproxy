@@ -102,6 +102,7 @@
 #include <proto/stream.h>
 #include <proto/signal.h>
 #include <proto/task.h>
+#include <proto/dns.h>
 
 #ifdef CONFIG_HAP_CTTPROXY
 #include <proto/cttproxy.h>
@@ -1100,6 +1101,10 @@ void init(int argc, char **argv)
 		global.node = strdup(hostname);
 
 	if (!hlua_post_init())
+		exit(1);
+
+	/* initialize structures for name resolution */
+	if (!dns_init_resolvers())
 		exit(1);
 
 #ifdef USE_51DEGREES

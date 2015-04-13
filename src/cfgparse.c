@@ -49,6 +49,7 @@
 #include <types/obj_type.h>
 #include <types/peers.h>
 #include <types/mailers.h>
+#include <types/dns.h>
 
 #include <proto/acl.h>
 #include <proto/auth.h>
@@ -2173,6 +2174,191 @@ out:
 	return err_code;
 }
 
+/*
+ * Parse a <resolvers> section.
+ * Returns the error code, 0 if OK, or any combination of :
+ *  - ERR_ABORT: must abort ASAP
+ *  - ERR_FATAL: we can continue parsing but not start the service
+ *  - ERR_WARN: a warning has been emitted
+ *  - ERR_ALERT: an alert has been emitted
+ * Only the two first ones can stop processing, the two others are just
+ * indicators.
+ */
+int cfg_parse_resolvers(const char *file, int linenum, char **args, int kwm)
+{
+	static struct dns_resolvers *curr_resolvers = NULL;
+	struct dns_nameserver *newnameserver = NULL;
+	const char *err;
+	int err_code = 0;
+	char *errmsg = NULL;
+
+	if (strcmp(args[0], "resolvers") == 0) { /* new resolvers section */
+		if (!*args[1]) {
+			Alert("parsing [%s:%d] : missing name for resolvers section.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		err = invalid_char(args[1]);
+		if (err) {
+			Alert("parsing [%s:%d] : character '%c' is not permitted in '%s' name '%s'.\n",
+				file, linenum, *err, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		list_for_each_entry(curr_resolvers, &dns_resolvers, list) {
+			/* Error if two resolvers owns the same name */
+			if (strcmp(curr_resolvers->id, args[1]) == 0) {
+				Alert("Parsing [%s:%d]: resolvers '%s' has same name as another resolvers (declared at %s:%d).\n",
+					file, linenum, args[1], curr_resolvers->conf.file, curr_resolvers->conf.line);
+				err_code |= ERR_ALERT | ERR_ABORT;
+			}
+		}
+
+		if ((curr_resolvers = (struct dns_resolvers *)calloc(1, sizeof(struct dns_resolvers))) == NULL) {
+			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		/* default values */
+		LIST_ADDQ(&dns_resolvers, &curr_resolvers->list);
+		curr_resolvers->conf.file = strdup(file);
+		curr_resolvers->conf.line = linenum;
+		curr_resolvers->id = strdup(args[1]);
+		curr_resolvers->query_ids = EB_ROOT;
+		/* default hold period for valid is 10s */
+		curr_resolvers->hold.valid = 10;
+		curr_resolvers->timeout.retry = 1;
+		curr_resolvers->resolve_retries = 3;
+		LIST_INIT(&curr_resolvers->nameserver_list);
+		LIST_INIT(&curr_resolvers->curr_resolution);
+	}
+	else if (strcmp(args[0], "nameserver") == 0) { /* nameserver definition */
+		struct sockaddr_storage *sk;
+		int port1, port2;
+		struct protocol *proto;
+
+		if (!*args[2]) {
+			Alert("parsing [%s:%d] : '%s' expects <name> and <addr>[:<port>] as arguments.\n",
+				file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		err = invalid_char(args[1]);
+		if (err) {
+			Alert("parsing [%s:%d] : character '%c' is not permitted in server name '%s'.\n",
+				file, linenum, *err, args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if ((newnameserver = (struct dns_nameserver *)calloc(1, sizeof(struct dns_nameserver))) == NULL) {
+			Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_ABORT;
+			goto out;
+		}
+
+		/* the nameservers are linked backward first */
+		LIST_ADDQ(&curr_resolvers->nameserver_list, &newnameserver->list);
+		curr_resolvers->count_nameservers++;
+		newnameserver->resolvers = curr_resolvers;
+		newnameserver->conf.file = strdup(file);
+		newnameserver->conf.line = linenum;
+		newnameserver->id = strdup(args[1]);
+
+		sk = str2sa_range(args[2], &port1, &port2, &errmsg, NULL);
+		if (!sk) {
+			Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		proto = protocol_by_family(sk->ss_family);
+		if (!proto || !proto->connect) {
+			Alert("parsing [%s:%d] : '%s %s' : connect() not supported for this address family.\n",
+				file, linenum, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		if (port1 != port2) {
+			Alert("parsing [%s:%d] : '%s %s' : port ranges and offsets are not allowed in '%s'\n",
+				file, linenum, args[0], args[1], args[2]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		newnameserver->addr = *sk;
+	}
+	else if (strcmp(args[0], "hold") == 0) { /* hold periods */
+		const char *res;
+		unsigned int time;
+
+		if (!*args[2]) {
+			Alert("parsing [%s:%d] : '%s' expects an <event> and a <time> as arguments.\n",
+				file, linenum, args[0]);
+			Alert("<event> can be either 'valid', 'nx', 'refused', 'timeout', or 'other'\n");
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		res = parse_time_err(args[2], &time, TIME_UNIT_MS);
+		if (res) {
+			Alert("parsing [%s:%d]: unexpected character '%c' in argument to <%s>.\n",
+				file, linenum, *res, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (strcmp(args[1], "valid") == 0)
+			curr_resolvers->hold.valid = time;
+		else {
+			Alert("parsing [%s:%d] : '%s' unknown <event>: '%s', expects 'valid'\n",
+			file, linenum, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+	}
+	else if (strcmp(args[0], "resolve_retries") == 0) {
+		if (!*args[1]) {
+			Alert("parsing [%s:%d] : '%s' expects <nb> as argument.\n",
+				file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		curr_resolvers->resolve_retries = atoi(args[1]);
+	}
+	else if (strcmp(args[0], "timeout") == 0) {
+		const char *res;
+		unsigned int timeout_retry;
+
+		if (!*args[2]) {
+			Alert("parsing [%s:%d] : '%s' expects 'retry' and <time> as arguments.\n",
+				file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		res = parse_time_err(args[2], &timeout_retry, TIME_UNIT_MS);
+		if (res) {
+			Alert("parsing [%s:%d]: unexpected character '%c' in argument to <%s>.\n",
+				file, linenum, *res, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		curr_resolvers->timeout.retry = timeout_retry;
+	} /* neither "nameserver" nor "resolvers" */
+	else if (*args[0] != 0) {
+		Alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], cursection);
+		err_code |= ERR_ALERT | ERR_FATAL;
+		goto out;
+	}
+
+ out:
+	free(errmsg);
+	return err_code;
+}
 
 /*
  * Parse a line in a <listen>, <frontend> or <backend> section.
@@ -6623,7 +6809,8 @@ int readcfgfile(const char *file)
 	    !cfg_register_section("userlist", cfg_parse_users)  ||
 	    !cfg_register_section("peers",    cfg_parse_peers)  ||
 	    !cfg_register_section("mailers",  cfg_parse_mailers) ||
-	    !cfg_register_section("namespace_list",    cfg_parse_netns))
+	    !cfg_register_section("namespace_list",    cfg_parse_netns) ||
+	    !cfg_register_section("resolvers", cfg_parse_resolvers))
 		return -1;
 
 	if ((f=fopen(file,"r")) == NULL)
