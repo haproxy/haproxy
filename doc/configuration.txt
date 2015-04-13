@@ -58,6 +58,9 @@ Summary
 5.    Bind and Server options
 5.1.      Bind options
 5.2.      Server and default-server options
+5.3.      Server DNS resolution
+5.3.1.      Global overview
+5.3.2.      The resolvers section
 
 6.    HTTP header manipulation
 
@@ -9939,6 +9942,24 @@ rise <count>
 
   Supported in default-server: Yes
 
+resolve-prefer <family>
+  When DNS resolution is enabled for a server and multiple IP addresses from
+  different families are returned, HAProxy will prefer using an IP address
+  from the family mentioned in the "resolve-prefer" parameter.
+  Available families: "ipv4" and "ipv6"
+
+  Default value: ipv4
+
+  Example: server s1 app1.domain.com:80 resolvers mydns resolve-prefer ipv6
+
+resolvers <id>
+  Points to an existing "resolvers" section to resolve current server's
+  hostname.
+
+  Example: server s1 app1.domain.com:80 resolvers mydns
+
+  See also chapter 5.3
+
 send-proxy
   The "send-proxy" parameter enforces use of the PROXY protocol over any
   connection established to this server. The PROXY protocol informs the other
@@ -10087,6 +10108,106 @@ weight <weight>
   room above and below for later adjustments.
 
   Supported in default-server: Yes
+
+
+5.3 Server IP address resolution using DNS
+------------------------------------------
+
+HAProxy allows using a host name to be resolved to find out what is the server
+IP address. By default, HAProxy resolves the name when parsing the
+configuration, at startup.
+This is not sufficient in some cases, such as in Amazon where a server's IP
+can change after a reboot or an ELB Virtual IP can change based on current
+workload.
+This chapter describes how HAProxy can be configured to process server's name
+resolution at run time.
+Whether run time server name resolution has been enable or not, HAProxy will
+carry on doing the first resolution when parsing the configuration.
+
+
+5.3.1 Global overview
+---------------------
+
+As we've seen in introduction, name resolution in HAProxy occurs at two
+different steps of the process life:
+
+  1. when starting up, HAProxy parses the server line definition and matches a
+     host name. It uses libc functions to get the host name resolved. This
+     resolution relies on /etc/resolv.conf file.
+
+  2. at run time, when HAProxy gets prepared to run a health check on a server,
+     it verifies if the current name resolution is still considered as valid.
+     If not, it processes a new resolution, in parallel of the health check.
+
+A few other events can trigger a name resolution at run time:
+  - when a server's health check ends up in a connection timeout: this may be
+    because the server has a new IP address. So we need to trigger a name
+    resolution to know this new IP.
+
+A few things important to notice:
+  - all the name servers are queried in the mean time. HAProxy will process the
+    first valid response.
+
+  - a resolution is considered as invalid (NX, timeout, refused), when all the
+    servers return an error.
+
+
+5.3.2 The resolvers section
+---------------------------
+
+This section is dedicated to host information related to name resolution in
+HAProxy.
+There can be as many as resolvers section as needed. Each section can contain
+many name servers.
+
+resolvers <resolvers id>
+  Creates a new name server list labelled <resolvers id>
+
+A resolvers section accept the following parameters:
+
+nameserver <id> <ip>:<port>
+  DNS server description:
+    <id>   : label of the server, should be unique
+    <ip>   : IP address of the server
+    <port> : port where the DNS service actually runs
+
+hold <status> <period>
+  Defines <period> during which the last name resolution should be kept based
+  on last resolution <status>
+    <status> : last name resolution status. Only "valid" is accepted for now.
+    <period> : interval between two successive name resolution when the last
+               answer was in <status>. It follows the HAProxy time format.
+               <period> is in milliseconds by default.
+
+  Default value is 10s for "valid".
+
+  Note: since the name resolution is triggered by the health checks, a new
+        resolution is triggered after <period> modulo the <inter> parameter of
+        the healch check.
+
+resolve_retries <nb>
+  Defines the number <nb> of queries to send to resolve a server name before
+  giving up.
+  Default value: 3
+
+timeout <event> <time>
+  Defines timeouts related to name resolution
+     <event> : the event on which the <time> timeout period applies to.
+               events available are:
+               - retry: time between two DNS queries, when no response have
+                        been received.
+                        Default value: 1s
+     <time>  : time related to the event. It follows the HAProxy time format.
+               <time> is expressed in milliseconds.
+
+Example of a resolvers section (with default values):
+
+   resolvers mydns
+     nameserver dns1 10.0.0.1:53
+     nameserver dns2 10.0.0.2:53
+     resolve_retries       3
+     timeout retry         1s
+     hold valid           10s
 
 
 6. HTTP header manipulation
