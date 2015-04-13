@@ -178,10 +178,10 @@ static int peer_prepare_datamsg(struct stksess *ts, struct peer_session *ps, cha
 /*
  * Callback to release a session with a peer
  */
-static void peer_session_release(struct stream_interface *si)
+static void peer_session_release(struct appctx *appctx)
 {
+	struct stream_interface *si = appctx->owner;
 	struct stream *s = si_strm(si);
-	struct appctx *appctx = objt_appctx(si->end);
 	struct peer_session *ps = (struct peer_session *)appctx->ctx.peers.ptr;
 
 	/* appctx->ctx.peers.ptr is not a peer session */
@@ -212,11 +212,11 @@ static void peer_session_release(struct stream_interface *si)
 /*
  * IO Handler to handle message exchance with a peer
  */
-static void peer_io_handler(struct stream_interface *si)
+static void peer_io_handler(struct appctx *appctx)
 {
+	struct stream_interface *si = appctx->owner;
 	struct stream *s = si_strm(si);
 	struct peers *curpeers = (struct peers *)strm_fe(s)->parent;
-	struct appctx *appctx = objt_appctx(si->end);
 	int reql = 0;
 	int repl = 0;
 
@@ -1066,7 +1066,6 @@ static struct si_applet peer_applet = {
  */
 static void peer_session_forceshutdown(struct stream * stream)
 {
-	struct stream_interface *oldsi = NULL;
 	struct appctx *appctx = NULL;
 	int i;
 
@@ -1076,8 +1075,6 @@ static void peer_session_forceshutdown(struct stream * stream)
 			continue;
 		if (appctx->applet != &peer_applet)
 			continue;
-
-		oldsi = &stream->si[i];
 		break;
 	}
 
@@ -1085,7 +1082,7 @@ static void peer_session_forceshutdown(struct stream * stream)
 		return;
 
 	/* call release to reinit resync states if needed */
-	peer_session_release(oldsi);
+	peer_session_release(appctx);
 	appctx->st0 = PEER_SESS_ST_END;
 	appctx->ctx.peers.ptr = NULL;
 	task_wakeup(stream->task, TASK_WOKEN_MSG);

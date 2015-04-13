@@ -133,7 +133,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 static int stats_pats_list(struct stream_interface *si);
 static int stats_pat_list(struct stream_interface *si);
 static int stats_map_lookup(struct stream_interface *si);
-static void cli_release_handler(struct stream_interface *si);
+static void cli_release_handler(struct appctx *appctx);
 
 /*
  * cli_io_handler()
@@ -2217,9 +2217,9 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
  * STAT_CLI_* constants. appctx->st1 is used to indicate whether prompt is enabled
  * or not.
  */
-static void cli_io_handler(struct stream_interface *si)
+static void cli_io_handler(struct appctx *appctx)
 {
-	struct appctx *appctx = __objt_appctx(si->end);
+	struct stream_interface *si = appctx->owner;
 	struct channel *req = si_oc(si);
 	struct channel *res = si_ic(si);
 	int reql;
@@ -2315,7 +2315,7 @@ static void cli_io_handler(struct stream_interface *si)
 		}
 		else {	/* output functions: first check if the output buffer is closed then abort */
 			if (res->flags & (CF_SHUTR_NOW|CF_SHUTR)) {
-				cli_release_handler(si);
+				cli_release_handler(appctx);
 				appctx->st0 = STAT_CLI_END;
 				continue;
 			}
@@ -2373,7 +2373,7 @@ static void cli_io_handler(struct stream_interface *si)
 					appctx->st0 = STAT_CLI_PROMPT;
 				break;
 			default: /* abnormal state */
-				cli_release_handler(si);
+				cli_release_handler(appctx);
 				appctx->st0 = STAT_CLI_PROMPT;
 				break;
 			}
@@ -4854,9 +4854,9 @@ static int stats_send_http_redirect(struct stream_interface *si)
  * appctx->st0 contains the operation in progress (dump, done). The handler
  * automatically unregisters itself once transfer is complete.
  */
-static void http_stats_io_handler(struct stream_interface *si)
+static void http_stats_io_handler(struct appctx *appctx)
 {
-	struct appctx *appctx = __objt_appctx(si->end);
+	struct stream_interface *si = appctx->owner;
 	struct stream *s = si_strm(si);
 	struct channel *req = si_oc(si);
 	struct channel *res = si_ic(si);
@@ -5799,10 +5799,8 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
  * external abort, we won't call the i/o handler anymore so we may need to
  * remove back references to the stream currently being dumped.
  */
-static void cli_release_handler(struct stream_interface *si)
+static void cli_release_handler(struct appctx *appctx)
 {
-	struct appctx *appctx = __objt_appctx(si->end);
-
 	if (appctx->st0 == STAT_CLI_O_SESS && appctx->st2 == STAT_ST_LIST) {
 		if (!LIST_ISEMPTY(&appctx->ctx.sess.bref.users))
 			LIST_DEL(&appctx->ctx.sess.bref.users);

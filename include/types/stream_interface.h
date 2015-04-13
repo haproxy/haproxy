@@ -103,13 +103,15 @@ struct stream_interface {
 	int conn_retries;	/* number of connect retries left */
 };
 
+struct appctx;
+
 /* An applet designed to run in a stream interface */
 struct si_applet {
 	enum obj_type obj_type;                      /* object type = OBJ_TYPE_APPLET */
 	/* 3 unused bytes here */
 	char *name;                                  /* applet's name to report in logs */
-	void (*fct)(struct stream_interface *);      /* internal I/O handler, may never be NULL */
-	void (*release)(struct stream_interface *);  /* callback to release resources, may be NULL */
+	void (*fct)(struct appctx *);      /* internal I/O handler, may never be NULL */
+	void (*release)(struct appctx *);  /* callback to release resources, may be NULL */
 };
 
 /* operations available on a stream-interface */

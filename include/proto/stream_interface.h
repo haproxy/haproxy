@@ -179,7 +179,7 @@ static inline void si_release_endpoint(struct stream_interface *si)
 	}
 	else if ((appctx = objt_appctx(si->end))) {
 		if (appctx->applet->release)
-			appctx->applet->release(si);
+			appctx->applet->release(appctx);
 		appctx_free(appctx); /* we share the connection pool */
 	}
 	si->end = NULL;
@@ -243,27 +243,16 @@ static inline struct appctx *si_appctx(struct stream_interface *si)
 	return objt_appctx(si->end);
 }
 
-/* returns a pointer to the applet being run in the SI or NULL if none */
-static inline const struct si_applet *si_applet(struct stream_interface *si)
-{
-	const struct appctx *appctx;
-
-	appctx = si_appctx(si);
-	if (appctx)
-		return appctx->applet;
-	return NULL;
-}
-
 /* Call the applet's main function when an appctx is attached to the stream
  * interface. Returns zero if no call was made, or non-zero if a call was made.
  */
 static inline int si_applet_call(struct stream_interface *si)
 {
-	const struct si_applet *applet;
+	struct appctx *appctx;
 
-	applet = si_applet(si);
-	if (applet) {
-		applet->fct(si);
+	appctx = si_appctx(si);
+	if (appctx) {
+		appctx->applet->fct(appctx);
 		return 1;
 	}
 	return 0;
@@ -272,11 +261,11 @@ static inline int si_applet_call(struct stream_interface *si)
 /* call the applet's release function if any. Needs to be called upon close() */
 static inline void si_applet_release(struct stream_interface *si)
 {
-	const struct si_applet *applet;
+	struct appctx *appctx;
 
-	applet = si_applet(si);
-	if (applet && applet->release)
-		applet->release(si);
+	appctx = si_appctx(si);
+	if (appctx && appctx->applet->release)
+		appctx->applet->release(appctx);
 }
 
 /* Try to allocate a new connection and assign it to the interface. If

@@ -1429,9 +1429,9 @@ __LJMP static struct hlua_socket *hlua_checksocket(lua_State *L, int ud)
  * connection. It is used for notify space avalaible to send or data
  * received.
  */
-static void hlua_socket_handler(struct stream_interface *si)
+static void hlua_socket_handler(struct appctx *appctx)
 {
-	struct appctx *appctx = objt_appctx(si->end);
+	struct stream_interface *si = appctx->owner;
 	struct connection *c = objt_conn(si_opposite(si)->end);
 
 	/* Wakeup the main stream if the client connection is closed. */
@@ -1467,10 +1467,8 @@ static void hlua_socket_handler(struct stream_interface *si)
  * Remove the link from the object to this stream.
  * Wake all the pending signals.
  */
-static void hlua_socket_release(struct stream_interface *si)
+static void hlua_socket_release(struct appctx *appctx)
 {
-	struct appctx *appctx = objt_appctx(si->end);
-
 	/* Remove my link in the original object. */
 	if (appctx->ctx.hlua.socket)
 		appctx->ctx.hlua.socket->s = NULL;
