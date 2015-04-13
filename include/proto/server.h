@@ -26,6 +26,7 @@
 
 #include <common/config.h>
 #include <common/time.h>
+#include <types/dns.h>
 #include <types/proxy.h>
 #include <types/queue.h>
 #include <types/server.h>
@@ -39,6 +40,11 @@ int srv_lastsession(const struct server *s);
 int srv_getinter(const struct check *check);
 int parse_server(const char *file, int linenum, char **args, struct proxy *curproxy, struct proxy *defproxy);
 int update_server_addr(struct server *s, void *ip, int ip_sin_family, char *updater);
+
+/* functions related to server name resolution */
+int snr_update_srv_status(struct server *s);
+int snr_resolution_cb(struct dns_resolution *resolution, struct dns_nameserver *nameserver, unsigned char *response, int response_len);
+int snr_resolution_error_cb(struct dns_resolution *resolution, int error_code);
 
 /* increase the number of cumulated connections on the designated server */
 static void inline srv_inc_sess_ctr(struct server *s)

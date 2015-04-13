@@ -205,6 +205,11 @@ struct server {
 	struct check check;                     /* health-check specific configuration */
 	struct check agent;                     /* agent specific configuration */
 
+	char *resolvers_id;			/* resolvers section used by this server */
+	char *hostname;				/* server hostname */
+	struct dns_resolution *resolution;	/* server name resolution */
+	int resolver_family_priority;		/* which IP family should the resolver use when both are returned */
+
 #ifdef USE_OPENSSL
 	int use_ssl;				/* ssl enabled */
 	struct {

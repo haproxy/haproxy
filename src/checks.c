@@ -38,6 +38,7 @@
 
 #include <types/global.h>
 #include <types/mailers.h>
+#include <types/dns.h>
 
 #ifdef USE_OPENSSL
 #include <types/ssl_sock.h>
@@ -59,6 +60,9 @@
 #include <proto/server.h>
 #include <proto/stream_interface.h>
 #include <proto/task.h>
+#include <proto/log.h>
+#include <proto/dns.h>
+#include <proto/proto_udp.h>
 
 static int httpchk_expect(struct server *s, int done);
 static int tcpcheck_get_step_id(struct check *);
@@ -680,6 +684,14 @@ static void chk_report_conn_err(struct connection *conn, int errno_bck, int expi
 			set_server_check_status(check, HCHK_STATUS_L4CON, err_msg);
 		else if (expired)
 			set_server_check_status(check, HCHK_STATUS_L4TOUT, err_msg);
+
+		/*
+		 * might be due to a server IP change.
+		 * Let's trigger a DNS resolution if none are currently running.
+		 */
+		if ((check->server->resolution)	&& (check->server->resolution->step == RSLV_STEP_NONE))
+			trigger_resolution(check->server);
+
 	}
 	else if ((conn->flags & (CO_FL_CONNECTED|CO_FL_WAIT_L6_CONN)) == CO_FL_WAIT_L6_CONN) {
 		/* L6 not established (yet) */
@@ -2132,10 +2144,93 @@ static struct task *process_chk_conn(struct task *t)
 static struct task *process_chk(struct task *t)
 {
 	struct check *check = t->context;
+	struct server *s = check->server;
+	struct dns_resolution *resolution = s->resolution;
+
+	/* trigger name resolution */
+	if ((s->check.state & CHK_ST_ENABLED) && (resolution)) {
+		/* check if a no resolution is running for this server */
+		if (resolution->step == RSLV_STEP_NONE) {
+			/*
+			 * if there has not been any name resolution for a longer period than
+			 * hold.valid, let's trigger a new one.
+			 */
+			if (tick_is_expired(tick_add(resolution->last_resolution, resolution->resolvers->hold.valid), now_ms)) {
+				trigger_resolution(s);
+			}
+		}
+	}
 
 	if (check->type == PR_O2_EXT_CHK)
 		return process_chk_proc(t);
 	return process_chk_conn(t);
+
+}
+
+/*
+ * Initiates a new name resolution:
+ *  - generates a query id
+ *  - configure the resolution structure
+ *  - startup the resolvers task if required
+ *
+ * returns:
+ *  - 0 in case of error or if resolution already running
+ *  - 1 if everything started properly
+ */
+int trigger_resolution(struct server *s)
+{
+	struct dns_resolution *resolution;
+	struct dns_resolvers *resolvers;
+	int query_id;
+	int i;
+
+	resolution = s->resolution;
+	resolvers = resolution->resolvers;
+
+	/*
+	 * check if a resolution has already been started for this server
+	 * return directly to avoid resolution pill up
+	 */
+	if (resolution->step != RSLV_STEP_NONE)
+		return 0;
+
+	/* generates a query id */
+	i = 0;
+	do {
+		query_id = dns_rnd16();
+		/* we do try only 100 times to find a free query id */
+		if (i++ > 100) {
+			chunk_printf(&trash, "could not generate a query id for %s/%s, in resolvers %s",
+						s->proxy->id, s->id, resolvers->id);
+
+			send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
+			return 0;
+		}
+	} while (eb32_lookup(&resolvers->query_ids, query_id));
+
+	LIST_ADDQ(&resolvers->curr_resolution, &resolution->list);
+
+	/* now update resolution parameters */
+	resolution->query_id = query_id;
+	resolution->qid.key = query_id;
+	resolution->step = RSLV_STEP_RUNNING;
+	resolution->query_type = DNS_RTYPE_ANY;
+	resolution->try = 0;
+	resolution->try_cname = 0;
+	resolution->nb_responses = 0;
+	resolution->resolver_family_priority = s->resolver_family_priority;
+	eb32_insert(&resolvers->query_ids, &resolution->qid);
+
+	dns_send_query(resolution);
+
+	/* update wakeup date if this resolution is the only one in the FIFO list */
+	if (dns_check_resolution_queue(resolvers) == 1) {
+		/* update task timeout */
+		dns_update_resolvers_timeout(resolvers);
+		task_queue(resolvers->t);
+	}
+
+	return 1;
 }
 
 static int start_check_task(struct check *check, int mininter,

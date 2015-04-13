@@ -8103,6 +8103,47 @@ out_uri_auth_compat:
 				free(newsrv->trackit);
 				newsrv->trackit = NULL;
 			}
+
+			/*
+			 * resolve server's resolvers name and update the resolvers pointer
+			 * accordingly
+			 */
+			if (newsrv->resolvers_id) {
+				struct dns_resolvers *curr_resolvers;
+				int found;
+
+				found = 0;
+				list_for_each_entry(curr_resolvers, &dns_resolvers, list) {
+					if (!strcmp(curr_resolvers->id, newsrv->resolvers_id)) {
+						found = 1;
+						break;
+					}
+				}
+
+				if (!found) {
+					Alert("config : %s '%s', server '%s': unable to find required resolvers '%s'\n",
+					proxy_type_str(curproxy), curproxy->id,
+					newsrv->id, newsrv->resolvers_id);
+					cfgerr++;
+				} else {
+					free(newsrv->resolvers_id);
+					newsrv->resolvers_id = NULL;
+					if (newsrv->resolution)
+						newsrv->resolution->resolvers = curr_resolvers;
+				}
+			}
+			else {
+				/* if no resolvers section associated to this server
+				 * we can clean up the associated resolution structure
+				 */
+				if (newsrv->resolution) {
+					free(newsrv->resolution->hostname_dn);
+					newsrv->resolution->hostname_dn = NULL;
+					free(newsrv->resolution);
+					newsrv->resolution = NULL;
+				}
+			}
+
 		next_srv:
 			newsrv = newsrv->next;
 		}

@@ -20,6 +20,7 @@
 #include <common/time.h>
 
 #include <types/global.h>
+#include <types/dns.h>
 
 #include <proto/checks.h>
 #include <proto/port_range.h>
@@ -29,6 +30,7 @@
 #include <proto/server.h>
 #include <proto/stream.h>
 #include <proto/task.h>
+#include <proto/dns.h>
 
 
 /* List head of all known server keywords */
@@ -865,6 +867,7 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			struct sockaddr_storage *sk;
 			int port1, port2;
 			struct protocol *proto;
+			struct dns_resolution *curr_resolution;
 
 			if ((newsrv = (struct server *)calloc(1, sizeof(struct server))) == NULL) {
 				Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
@@ -928,6 +931,53 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				realport = port1;
 			}
 
+			/* save hostname and create associated name resolution */
+			switch (sk->ss_family) {
+			case AF_INET: {
+				/* remove the port if any */
+				char *c;
+				if ((c = rindex(args[2], ':')) != NULL) {
+					newsrv->hostname = my_strndup(args[2], c - args[2]);
+				}
+				else {
+					newsrv->hostname = strdup(args[2]);
+				}
+			}
+				break;
+			case AF_INET6:
+				newsrv->hostname = strdup(args[2]);
+				break;
+			default:
+				goto skip_name_resolution;
+			}
+
+			/* no name resolution if an IP has been provided */
+			if (inet_pton(sk->ss_family, newsrv->hostname, trash.str) == 1)
+				goto skip_name_resolution;
+
+			if ((curr_resolution = calloc(1, sizeof(struct dns_resolution))) == NULL)
+				goto skip_name_resolution;
+
+			curr_resolution->hostname_dn_len = dns_str_to_dn_label_len(newsrv->hostname);
+			if ((curr_resolution->hostname_dn = calloc(curr_resolution->hostname_dn_len + 1, sizeof(char))) == NULL)
+				goto skip_name_resolution;
+			if ((dns_str_to_dn_label(newsrv->hostname, curr_resolution->hostname_dn, curr_resolution->hostname_dn_len + 1)) == NULL) {
+				Alert("parsing [%s:%d] : Invalid hostname '%s'\n",
+				      file, linenum, args[2]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+
+			curr_resolution->requester = newsrv;
+			curr_resolution->requester_cb = snr_resolution_cb;
+			curr_resolution->requester_error_cb = snr_resolution_error_cb;
+			curr_resolution->status = RSLV_STATUS_NONE;
+			curr_resolution->step = RSLV_STEP_NONE;
+			/* a first resolution has been done by the configuration parser */
+			curr_resolution->last_resolution = now_ms;
+			newsrv->resolution = curr_resolution;
+
+ skip_name_resolution:
 			newsrv->addr = *sk;
 			newsrv->xprt  = newsrv->check.xprt = newsrv->agent.xprt = &raw_sock;
 
@@ -975,11 +1025,15 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			newsrv->agent.fall	= curproxy->defsrv.agent.fall;
 			newsrv->agent.health	= newsrv->agent.rise;	/* up, but will fall down at first failure */
 			newsrv->agent.server	= newsrv;
+			newsrv->resolver_family_priority = curproxy->defsrv.resolver_family_priority;
+			if (newsrv->resolver_family_priority == AF_UNSPEC)
+				newsrv->resolver_family_priority = AF_INET6;
 
 			cur_arg = 3;
 		} else {
 			newsrv = &curproxy->defsrv;
 			cur_arg = 1;
+			newsrv->resolver_family_priority = AF_INET6;
 		}
 
 		while (*args[cur_arg]) {
@@ -1017,6 +1071,23 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 			else if (!defsrv && !strcmp(args[cur_arg], "redir")) {
 				newsrv->rdr_pfx = strdup(args[cur_arg + 1]);
 				newsrv->rdr_len = strlen(args[cur_arg + 1]);
+				cur_arg += 2;
+			}
+			else if (!strcmp(args[cur_arg], "resolvers")) {
+				newsrv->resolvers_id = strdup(args[cur_arg + 1]);
+				cur_arg += 2;
+			}
+			else if (!strcmp(args[cur_arg], "resolve-prefer")) {
+				if (!strcmp(args[cur_arg + 1], "ipv4"))
+					newsrv->resolver_family_priority = AF_INET;
+				else if (!strcmp(args[cur_arg + 1], "ipv6"))
+					newsrv->resolver_family_priority = AF_INET6;
+				else {
+					Alert("parsing [%s:%d]: '%s' expects either ipv4 or ipv6 as argument.\n",
+						file, linenum, args[cur_arg]);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto out;
+				}
 				cur_arg += 2;
 			}
 			else if (!strcmp(args[cur_arg], "rise")) {
@@ -1677,6 +1748,9 @@ int parse_server(const char *file, int linenum, char **args, struct proxy *curpr
 				goto out;
 			}
 
+			if (newsrv->resolution)
+				newsrv->resolution->resolver_family_priority = newsrv->resolver_family_priority;
+
 			newsrv->check.state |= CHK_ST_CONFIGURED | CHK_ST_ENABLED;
 		}
 
@@ -1783,6 +1857,238 @@ int update_server_addr(struct server *s, void *ip, int ip_sin_family, char *upda
 	};
 
 	return 0;
+}
+
+/*
+ * update server status based on result of name resolution
+ * returns:
+ *  0 if server status is updated
+ *  1 if server status has not changed
+ */
+int snr_update_srv_status(struct server *s)
+{
+	struct dns_resolution *resolution = s->resolution;
+
+	switch (resolution->status) {
+		case RSLV_STATUS_NONE:
+			/* status when HAProxy has just (re)started */
+			trigger_resolution(s);
+			break;
+
+		default:
+			break;
+	}
+
+	return 1;
+}
+
+/*
+ * Server Name Resolution valid response callback
+ * It expects:
+ *  - <nameserver>: the name server which answered the valid response
+ *  - <response>: buffer containing a valid DNS response
+ *  - <response_len>: size of <response>
+ * It performs the following actions:
+ *  - ignore response if current ip found and server family not met
+ *  - update with first new ip found if family is met and current IP is not found
+ * returns:
+ *  0 on error
+ *  1 when no error or safe ignore
+ */
+int snr_resolution_cb(struct dns_resolution *resolution, struct dns_nameserver *nameserver, unsigned char *response, int response_len)
+{
+	struct server *s;
+	void *serverip, *firstip;
+	short server_sin_family, firstip_sin_family;
+	unsigned char *response_end;
+	int ret;
+	struct chunk *chk = get_trash_chunk();
+
+	/* initializing variables */
+	response_end = response + response_len;	/* pointer to mark the end of the response */
+	firstip = NULL;		/* pointer to the first valid response found */
+				/* it will be used as the new IP if a change is required */
+	firstip_sin_family = AF_UNSPEC;
+	serverip = NULL;	/* current server IP address */
+
+	/* shortcut to the server whose name is being resolved */
+	s = (struct server *)resolution->requester;
+
+	/* initializing server IP pointer */
+	server_sin_family = s->addr.ss_family;
+	switch (server_sin_family) {
+		case AF_INET:
+			serverip = &((struct sockaddr_in *)&s->addr)->sin_addr.s_addr;
+			break;
+
+		case AF_INET6:
+			serverip = &((struct sockaddr_in6 *)&s->addr)->sin6_addr.s6_addr;
+			break;
+
+		default:
+			goto invalid;
+	}
+
+	ret = dns_get_ip_from_response(response, response_end, resolution->hostname_dn, resolution->hostname_dn_len,
+			serverip, server_sin_family, resolution->resolver_family_priority, &firstip,
+			&firstip_sin_family);
+
+	switch (ret) {
+		case DNS_UPD_NO:
+			if (resolution->status != RSLV_STATUS_VALID) {
+				resolution->status = RSLV_STATUS_VALID;
+				resolution->last_status_change = now_ms;
+			}
+			goto stop_resolution;
+
+		case DNS_UPD_SRVIP_NOT_FOUND:
+			goto save_ip;
+
+		case DNS_UPD_CNAME:
+			if (resolution->status != RSLV_STATUS_VALID) {
+				resolution->status = RSLV_STATUS_VALID;
+				resolution->last_status_change = now_ms;
+			}
+			goto invalid;
+
+		default:
+			goto invalid;
+
+	}
+
+ save_ip:
+	nameserver->counters.update += 1;
+	if (resolution->status != RSLV_STATUS_VALID) {
+		resolution->status = RSLV_STATUS_VALID;
+		resolution->last_status_change = now_ms;
+	}
+
+	/* save the first ip we found */
+	chunk_printf(chk, "%s/%s", nameserver->resolvers->id, nameserver->id);
+	update_server_addr(s, firstip, firstip_sin_family, (char *)chk->str);
+
+ stop_resolution:
+	/* update last resolution date and time */
+	resolution->last_resolution = now_ms;
+	/* reset current status flag */
+	resolution->step = RSLV_STEP_NONE;
+	/* reset values */
+	dns_reset_resolution(resolution);
+
+	LIST_DEL(&resolution->list);
+	dns_update_resolvers_timeout(nameserver->resolvers);
+
+	snr_update_srv_status(s);
+	return 0;
+
+ invalid:
+	nameserver->counters.invalid += 1;
+	if (resolution->nb_responses >= nameserver->resolvers->count_nameservers)
+		goto stop_resolution;
+
+	snr_update_srv_status(s);
+	return 0;
+}
+
+/*
+ * Server Name Resolution error management callback
+ * returns:
+ *  0 on error
+ *  1 when no error or safe ignore
+ */
+int snr_resolution_error_cb(struct dns_resolution *resolution, int error_code)
+{
+	struct server *s;
+	struct dns_resolvers *resolvers;
+
+	/* shortcut to the server whose name is being resolved */
+	s = (struct server *)resolution->requester;
+	resolvers = resolution->resolvers;
+
+	/* can be ignored if this is not the last response */
+	if ((error_code != DNS_RESP_TIMEOUT) && (resolution->nb_responses < resolvers->count_nameservers)) {
+		return 1;
+	}
+
+	switch (error_code) {
+		case DNS_RESP_INVALID:
+		case DNS_RESP_WRONG_NAME:
+			if (resolution->status != RSLV_STATUS_INVALID) {
+				resolution->status = RSLV_STATUS_INVALID;
+				resolution->last_status_change = now_ms;
+			}
+			break;
+
+		case DNS_RESP_ANCOUNT_ZERO:
+		case DNS_RESP_ERROR:
+			if (resolution->query_type == DNS_RTYPE_ANY) {
+				/* let's change the query type */
+				if (resolution->resolver_family_priority == AF_INET6)
+					resolution->query_type = DNS_RTYPE_AAAA;
+				else
+					resolution->query_type = DNS_RTYPE_A;
+
+				dns_send_query(resolution);
+
+				/*
+				 * move the resolution to the last element of the FIFO queue
+				 * and update timeout wakeup based on the new first entry
+				 */
+				if (dns_check_resolution_queue(resolvers) > 1) {
+					/* second resolution becomes first one */
+					LIST_DEL(&resolvers->curr_resolution);
+					/* ex first resolution goes to the end of the queue */
+					LIST_ADDQ(&resolvers->curr_resolution, &resolution->list);
+				}
+				dns_update_resolvers_timeout(resolvers);
+				goto leave;
+			}
+			else {
+				if (resolution->status != RSLV_STATUS_OTHER) {
+					resolution->status = RSLV_STATUS_OTHER;
+					resolution->last_status_change = now_ms;
+				}
+			}
+			break;
+
+		case DNS_RESP_NX_DOMAIN:
+			if (resolution->status != RSLV_STATUS_NX) {
+				resolution->status = RSLV_STATUS_NX;
+				resolution->last_status_change = now_ms;
+			}
+			break;
+
+		case DNS_RESP_REFUSED:
+			if (resolution->status != RSLV_STATUS_REFUSED) {
+				resolution->status = RSLV_STATUS_REFUSED;
+				resolution->last_status_change = now_ms;
+			}
+			break;
+
+		case DNS_RESP_CNAME_ERROR:
+			break;
+
+		case DNS_RESP_TIMEOUT:
+			if (resolution->status != RSLV_STATUS_TIMEOUT) {
+				resolution->status = RSLV_STATUS_TIMEOUT;
+				resolution->last_status_change = now_ms;
+			}
+			break;
+	}
+
+	/* update last resolution date and time */
+	resolution->last_resolution = now_ms;
+	/* reset current status flag */
+	resolution->step = RSLV_STEP_NONE;
+	/* reset values */
+	dns_reset_resolution(resolution);
+
+	LIST_DEL(&resolution->list);
+	dns_update_resolvers_timeout(resolvers);
+
+ leave:
+	snr_update_srv_status(s);
+	return 1;
 }
 
 /*
