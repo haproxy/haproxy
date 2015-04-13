@@ -27,6 +27,7 @@
 #include <common/ticks.h>
 #include <common/time.h>
 
+#include <proto/applet.h>
 #include <proto/channel.h>
 #include <proto/connection.h>
 #include <proto/pipe.h>

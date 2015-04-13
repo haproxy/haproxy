@@ -37,6 +37,7 @@
 #include <common/version.h>
 #include <common/base64.h>
 
+#include <types/applet.h>
 #include <types/global.h>
 
 #include <proto/backend.h>

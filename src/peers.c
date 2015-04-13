@@ -30,6 +30,7 @@
 #include <types/peers.h>
 
 #include <proto/acl.h>
+#include <proto/applet.h>
 #include <proto/channel.h>
 #include <proto/fd.h>
 #include <proto/frontend.h>

@@ -27,6 +27,7 @@
 #include <common/config.h>
 #include <types/stream.h>
 #include <types/stream_interface.h>
+#include <proto/applet.h>
 #include <proto/channel.h>
 #include <proto/connection.h>
 
@@ -101,41 +102,6 @@ static inline struct stream_interface *si_opposite(struct stream_interface *si)
 		return &LIST_ELEM(si, struct stream *, si[1])->si[0];
 	else
 		return &LIST_ELEM(si, struct stream *, si[0])->si[1];
-}
-
-/* Initializes all required fields for a new appctx. Note that it does the
- * minimum acceptable initialization for an appctx. This means only the
- * 3 integer states st0, st1, st2 are zeroed.
- */
-static inline void appctx_init(struct appctx *appctx)
-{
-	appctx->st0 = appctx->st1 = appctx->st2 = 0;
-}
-
-/* Tries to allocate a new appctx and initialize its main fields. The appctx
- * is returned on success, NULL on failure. The appctx must be released using
- * pool_free2(connection) or appctx_free(), since it's allocated from the
- * connection pool. <applet> is assigned as the applet, but it can be NULL.
- */
-static inline struct appctx *appctx_new(struct si_applet *applet)
-{
-	struct appctx *appctx;
-
-	appctx = pool_alloc2(pool2_connection);
-	if (likely(appctx != NULL)) {
-		appctx->obj_type = OBJ_TYPE_APPCTX;
-		appctx->applet = applet;
-		appctx_init(appctx);
-	}
-	return appctx;
-}
-
-/* Releases an appctx previously allocated by appctx_new(). Note that
- * we share the connection pool.
- */
-static inline void appctx_free(struct appctx *appctx)
-{
-	pool_free2(pool2_connection, appctx);
 }
 
 /* initializes a stream interface in the SI_ST_INI state. It's detached from

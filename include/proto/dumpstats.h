@@ -24,6 +24,7 @@
 #define _PROTO_DUMPSTATS_H
 
 #include <common/config.h>
+#include <types/applet.h>
 #include <types/stream_interface.h>
 
 /* Flags for applet.ctx.stats.flags */

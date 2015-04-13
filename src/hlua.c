@@ -20,6 +20,7 @@
 #include <types/proxy.h>
 
 #include <proto/arg.h>
+#include <proto/applet.h>
 #include <proto/channel.h>
 #include <proto/hdr_idx.h>
 #include <proto/hlua.h>

@@ -22,10 +22,6 @@
 #ifndef _TYPES_STREAM_INTERFACE_H
 #define _TYPES_STREAM_INTERFACE_H
 
-#include <stdlib.h>
-#include <sys/socket.h>
-
-#include <types/hlua.h>
 #include <types/obj_type.h>
 #include <common/config.h>
 
@@ -103,17 +99,6 @@ struct stream_interface {
 	int conn_retries;	/* number of connect retries left */
 };
 
-struct appctx;
-
-/* An applet designed to run in a stream interface */
-struct si_applet {
-	enum obj_type obj_type;                      /* object type = OBJ_TYPE_APPLET */
-	/* 3 unused bytes here */
-	char *name;                                  /* applet's name to report in logs */
-	void (*fct)(struct appctx *);      /* internal I/O handler, may never be NULL */
-	void (*release)(struct appctx *);  /* callback to release resources, may be NULL */
-};
-
 /* operations available on a stream-interface */
 struct si_ops {
 	void (*update)(struct stream_interface *);  /* I/O update function */
@@ -121,75 +106,6 @@ struct si_ops {
 	void (*chk_snd)(struct stream_interface *); /* chk_snd function */
 	void (*shutr)(struct stream_interface *);   /* shut read function */
 	void (*shutw)(struct stream_interface *);   /* shut write function */
-};
-
-/* Context of a running applet. */
-struct appctx {
-	enum obj_type obj_type;    /* OBJ_TYPE_APPCTX */
-	/* 3 unused bytes here */
-	unsigned int st0;          /* CLI state for stats, session state for peers */
-	unsigned int st1;          /* prompt for stats, session error for peers */
-	unsigned int st2;          /* output state for stats, unused by peers  */
-	struct si_applet *applet;  /* applet this context refers to */
-	void *owner;               /* pointer to upper layer's entity (eg: stream interface) */
-
-	union {
-		struct {
-			struct proxy *px;
-			struct server *sv;
-			void *l;
-			int scope_str;		/* limit scope to a frontend/backend substring */
-			int scope_len;		/* length of the string above in the buffer */
-			int px_st;		/* STAT_PX_ST* */
-			unsigned int flags;	/* STAT_* */
-			int iid, type, sid;	/* proxy id, type and service id if bounding of stats is enabled */
-			int st_code;		/* the status code returned by an action */
-		} stats;
-		struct {
-			struct bref bref;	/* back-reference from the session being dumped */
-			void *target;		/* session we want to dump, or NULL for all */
-			unsigned int uid;	/* if non-null, the uniq_id of the session being dumped */
-			int section;		/* section of the session being dumped */
-			int pos;		/* last position of the current session's buffer */
-		} sess;
-		struct {
-			int iid;		/* if >= 0, ID of the proxy to filter on */
-			struct proxy *px;	/* current proxy being dumped, NULL = not started yet. */
-			unsigned int buf;	/* buffer being dumped, 0 = req, 1 = rep */
-			unsigned int sid;	/* session ID of error being dumped */
-			int ptr;		/* <0: headers, >=0 : text pointer to restart from */
-			int bol;		/* pointer to beginning of current line */
-		} errors;
-		struct {
-			void *target;		/* table we want to dump, or NULL for all */
-			struct proxy *proxy;	/* table being currently dumped (first if NULL) */
-			struct stksess *entry;	/* last entry we were trying to dump (or first if NULL) */
-			long long value;	/* value to compare against */
-			signed char data_type;	/* type of data to compare, or -1 if none */
-			signed char data_op;	/* operator (STD_OP_*) when data_type set */
-		} table;
-		struct {
-			const char *msg;	/* pointer to a persistent message to be returned in PRINT state */
-			char *err;        /* pointer to a 'must free' message to be returned in PRINT_FREE state */
-		} cli;
-		struct {
-			void *ptr;              /* multi-purpose pointer for peers */
-		} peers;
-		struct {
-			unsigned int display_flags;
-			struct pat_ref *ref;
-			struct pat_ref_elt *elt;
-			struct map_descriptor *desc;
-			struct pattern_expr *expr;
-			struct chunk chunk;
-		} map;
-		struct {
-			int connected;
-			struct hlua_socket *socket;
-			struct list wake_on_read;
-			struct list wake_on_write;
-		} hlua;
-	} ctx;					/* used by stats I/O handlers to dump the stats */
 };
 
 #endif /* _TYPES_STREAM_INTERFACE_H */

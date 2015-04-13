@@ -19,6 +19,7 @@
 #include <common/debug.h>
 #include <common/memory.h>
 
+#include <types/applet.h>
 #include <types/capture.h>
 #include <types/global.h>
 

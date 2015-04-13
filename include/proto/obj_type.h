@@ -24,6 +24,7 @@
 
 #include <common/config.h>
 #include <common/memory.h>
+#include <types/applet.h>
 #include <types/connection.h>
 #include <types/listener.h>
 #include <types/obj_type.h>
