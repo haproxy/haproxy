@@ -95,6 +95,13 @@ const char *server_parse_weight_change_request(struct server *sv,
 					       const char *weight_str);
 
 /*
+ * Parses addr_str and configures sv accordingly.
+ * Returns NULL on success, error message string otherwise.
+ */
+const char *server_parse_addr_change_request(struct server *sv,
+                                             const char *addr_str);
+
+/*
  * Return true if the server has a zero user-weight, meaning it's in draining
  * mode (ie: not taking new non-persistent connections).
  */

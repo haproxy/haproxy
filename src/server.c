@@ -802,6 +802,29 @@ const char *server_parse_weight_change_request(struct server *sv,
 	return NULL;
 }
 
+/*
+ * Parses <addr_str> and configures <sv> accordingly.
+ * Returns:
+ *  - error string on error
+ *  - NULL on success
+ */
+const char *server_parse_addr_change_request(struct server *sv,
+                                             const char *addr_str)
+{
+	unsigned char ip[INET6_ADDRSTRLEN];
+
+	if (inet_pton(AF_INET6, addr_str, ip)) {
+		update_server_addr(sv, ip, AF_INET6, "stats command\n");
+		return NULL;
+	}
+	if (inet_pton(AF_INET, addr_str, ip)) {
+		update_server_addr(sv, ip, AF_INET, "stats command\n");
+		return NULL;
+	}
+
+	return "Could not understand IP address format.\n";
+}
+
 int parse_server(const char *file, int linenum, char **args, struct proxy *curproxy, struct proxy *defproxy)
 {
 	struct server *newsrv = NULL;

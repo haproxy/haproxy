@@ -186,7 +186,7 @@ static const char stats_sock_usage_msg[] =
 	"  show table [id]: report table usage stats or dump this table's contents\n"
 	"  get weight     : report a server's current weight\n"
 	"  set weight     : change a server's weight\n"
-	"  set server     : change a server's state or weight\n"
+	"  set server     : change a server's state, weight or address\n"
 	"  set table [id] : update or create a table entry's data\n"
 	"  set timeout    : change a timeout setting\n"
 	"  set maxconn    : change a maxconn setting\n"
@@ -1510,8 +1510,15 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 					appctx->st0 = STAT_CLI_PRINT;
 				}
 			}
+			else if (strcmp(args[3], "addr") == 0) {
+				warning = server_parse_addr_change_request(sv, args[4]);
+				if (warning) {
+					appctx->ctx.cli.msg = warning;
+					appctx->st0 = STAT_CLI_PRINT;
+				}
+			}
 			else {
-				appctx->ctx.cli.msg = "'set server <srv>' only supports 'agent', 'health', 'state' and 'weight'.\n";
+				appctx->ctx.cli.msg = "'set server <srv>' only supports 'agent', 'health', 'state', 'weight' and 'addr'.\n";
 				appctx->st0 = STAT_CLI_PRINT;
 			}
 			return 1;
