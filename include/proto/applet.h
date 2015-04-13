@@ -25,8 +25,11 @@
 #include <stdlib.h>
 
 #include <common/config.h>
+#include <common/mini-clist.h>
 #include <types/applet.h>
 #include <proto/connection.h>
+
+extern struct list applet_runq;
 
 /* Initializes all required fields for a new appctx. Note that it does the
  * minimum acceptable initialization for an appctx. This means only the
@@ -51,6 +54,7 @@ static inline struct appctx *appctx_new(struct applet *applet)
 		appctx->obj_type = OBJ_TYPE_APPCTX;
 		appctx->applet = applet;
 		appctx_init(appctx);
+		LIST_INIT(&appctx->runq);
 	}
 	return appctx;
 }
@@ -60,7 +64,16 @@ static inline struct appctx *appctx_new(struct applet *applet)
  */
 static inline void appctx_free(struct appctx *appctx)
 {
+	if (!LIST_ISEMPTY(&appctx->runq))
+		LIST_DEL(&appctx->runq);
 	pool_free2(pool2_connection, appctx);
+}
+
+/* wakes up an applet when conditions have changed */
+static inline void appctx_wakeup(struct appctx *appctx)
+{
+	if (LIST_ISEMPTY(&appctx->runq))
+		LIST_ADDQ(&applet_runq, &appctx->runq);
 }
 
 #endif /* _PROTO_APPLET_H */

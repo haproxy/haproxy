@@ -40,6 +40,7 @@ struct applet {
 
 /* Context of a running applet. */
 struct appctx {
+	struct list runq;          /* chaining in the applet run queue */
 	enum obj_type obj_type;    /* OBJ_TYPE_APPCTX */
 	/* 3 unused bytes here */
 	unsigned int st0;          /* CLI state for stats, session state for peers */
