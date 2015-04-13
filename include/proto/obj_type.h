@@ -95,12 +95,12 @@ static inline struct server *objt_server(enum obj_type *t)
 	return __objt_server(t);
 }
 
-static inline struct si_applet *__objt_applet(enum obj_type *t)
+static inline struct applet *__objt_applet(enum obj_type *t)
 {
-	return container_of(t, struct si_applet, obj_type);
+	return container_of(t, struct applet, obj_type);
 }
 
-static inline struct si_applet *objt_applet(enum obj_type *t)
+static inline struct applet *objt_applet(enum obj_type *t)
 {
 	if (!t || *t != OBJ_TYPE_APPLET)
 		return NULL;

@@ -1055,7 +1055,7 @@ full:
 	goto out;
 }
 
-static struct si_applet peer_applet = {
+static struct applet peer_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
 	.name = "<PEER>", /* used for logging */
 	.fct = peer_io_handler,

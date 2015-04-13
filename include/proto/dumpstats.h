@@ -54,7 +54,7 @@ enum {
 #define STAT_SCOPE_INPUT_NAME "scope" /* pattern form scope name <input> in html form */
 #define STAT_SCOPE_PATTERN    "?" STAT_SCOPE_INPUT_NAME "="
 
-extern struct si_applet http_stats_applet;
+extern struct applet http_stats_applet;
 
 void stats_io_handler(struct stream_interface *si);
 

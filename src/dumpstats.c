@@ -164,7 +164,7 @@ static void cli_release_handler(struct appctx *appctx);
  *        -> stats_dump_html_end()       // emits HTML trailer
  */
 
-static struct si_applet cli_applet;
+static struct applet cli_applet;
 
 static const char stats_sock_usage_msg[] =
 	"Unknown command. Please enter one of the following commands only :\n"
@@ -6217,14 +6217,14 @@ static int bind_parse_level(char **args, int cur_arg, struct proxy *px, struct b
 	return 0;
 }
 
-struct si_applet http_stats_applet = {
+struct applet http_stats_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
 	.name = "<STATS>", /* used for logging */
 	.fct = http_stats_io_handler,
 	.release = NULL,
 };
 
-static struct si_applet cli_applet = {
+static struct applet cli_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
 	.name = "<CLI>", /* used for logging */
 	.fct = cli_io_handler,

@@ -30,7 +30,7 @@
 struct appctx;
 
 /* Applet descriptor */
-struct si_applet {
+struct applet {
 	enum obj_type obj_type;            /* object type = OBJ_TYPE_APPLET */
 	/* 3 unused bytes here */
 	char *name;                        /* applet's name to report in logs */
@@ -45,7 +45,7 @@ struct appctx {
 	unsigned int st0;          /* CLI state for stats, session state for peers */
 	unsigned int st1;          /* prompt for stats, session error for peers */
 	unsigned int st2;          /* output state for stats, unused by peers  */
-	struct si_applet *applet;  /* applet this context refers to */
+	struct applet *applet;     /* applet this context refers to */
 	void *owner;               /* pointer to upper layer's entity (eg: stream interface) */
 
 	union {

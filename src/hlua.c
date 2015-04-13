@@ -2024,7 +2024,7 @@ static int hlua_socket_getsockname(struct lua_State *L)
 }
 
 /* This struct define the applet. */
-static struct si_applet update_applet = {
+static struct applet update_applet = {
 	.obj_type = OBJ_TYPE_APPLET,
 	.name = "<LUA_TCP>",
 	.fct = hlua_socket_handler,

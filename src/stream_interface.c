@@ -372,7 +372,7 @@ static void stream_int_chk_snd(struct stream_interface *si)
  * function itself. It also pre-initializes the applet's context and
  * returns it (or NULL in case it could not be allocated).
  */
-struct appctx *stream_int_register_handler(struct stream_interface *si, struct si_applet *app)
+struct appctx *stream_int_register_handler(struct stream_interface *si, struct applet *app)
 {
 	struct appctx *appctx;
 

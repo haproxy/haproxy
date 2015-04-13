@@ -42,7 +42,7 @@ static inline void appctx_init(struct appctx *appctx)
  * pool_free2(connection) or appctx_free(), since it's allocated from the
  * connection pool. <applet> is assigned as the applet, but it can be NULL.
  */
-static inline struct appctx *appctx_new(struct si_applet *applet)
+static inline struct appctx *appctx_new(struct applet *applet)
 {
 	struct appctx *appctx;
 

@@ -44,7 +44,7 @@ extern struct si_ops si_conn_ops;
 extern struct data_cb si_conn_cb;
 extern struct data_cb si_idle_conn_cb;
 
-struct appctx *stream_int_register_handler(struct stream_interface *si, struct si_applet *app);
+struct appctx *stream_int_register_handler(struct stream_interface *si, struct applet *app);
 void stream_int_unregister_handler(struct stream_interface *si);
 
 /* returns the channel which receives data from this stream interface (input channel) */
@@ -274,7 +274,7 @@ static inline struct connection *si_alloc_conn(struct stream_interface *si, int 
  * and returned. NULL may be returned upon memory shortage. Applet <applet>
  * is assigned to the appctx, but it may be NULL.
  */
-static inline struct appctx *si_alloc_appctx(struct stream_interface *si, struct si_applet *applet)
+static inline struct appctx *si_alloc_appctx(struct stream_interface *si, struct applet *applet)
 {
 	struct appctx *appctx;
 
