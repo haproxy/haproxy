@@ -41,6 +41,7 @@ void stream_sock_read0(struct stream_interface *si);
 
 extern struct si_ops si_embedded_ops;
 extern struct si_ops si_conn_ops;
+extern struct si_ops si_applet_ops;
 extern struct data_cb si_conn_cb;
 extern struct data_cb si_idle_conn_cb;
 
@@ -198,7 +199,7 @@ static inline int si_conn_ready(struct stream_interface *si)
  */
 static inline void si_attach_appctx(struct stream_interface *si, struct appctx *appctx)
 {
-	si->ops = &si_embedded_ops;
+	si->ops = &si_applet_ops;
 	si->end = &appctx->obj_type;
 	appctx->owner = si;
 }
