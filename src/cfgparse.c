@@ -1737,7 +1737,7 @@ static int create_cond_regex_rule(const char *file, int line,
 }
 
 /*
- * Parse a line in a <listen>, <frontend>, <backend> or <ruleset> section.
+ * Parse a line in a <listen>, <frontend> or <backend> section.
  * Returns the error code, 0 if OK, or any combination of :
  *  - ERR_ABORT: must abort ASAP
  *  - ERR_FATAL: we can continue parsing but not start the service
@@ -1940,7 +1940,7 @@ out:
 
 
 /*
- * Parse a line in a <listen>, <frontend>, <backend> or <ruleset> section.
+ * Parse a line in a <listen>, <frontend> or <backend> section.
  * Returns the error code, 0 if OK, or any combination of :
  *  - ERR_ABORT: must abort ASAP
  *  - ERR_FATAL: we can continue parsing but not start the service
@@ -2108,8 +2108,6 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		rc = PR_CAP_FE | PR_CAP_RS;
 	else if (!strcmp(args[0], "backend"))
 		rc = PR_CAP_BE | PR_CAP_RS;
- 	else if (!strcmp(args[0], "ruleset"))
-		rc = PR_CAP_RS;
 	else
 		rc = PR_CAP_NONE;
 
@@ -6294,7 +6292,6 @@ int readcfgfile(const char *file)
 	if (!cfg_register_section("listen",   cfg_parse_listen) ||
 	    !cfg_register_section("frontend", cfg_parse_listen) ||
 	    !cfg_register_section("backend",  cfg_parse_listen) ||
-	    !cfg_register_section("ruleset",  cfg_parse_listen) ||
 	    !cfg_register_section("defaults", cfg_parse_listen) ||
 	    !cfg_register_section("global",   cfg_parse_global) ||
 	    !cfg_register_section("userlist", cfg_parse_users)  ||
