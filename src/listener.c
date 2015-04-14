@@ -121,9 +121,10 @@ int pause_listener(struct listener *l)
  * may replace enable_listener(). The resulting state will either be LI_READY
  * or LI_FULL. 0 is returned in case of failure to resume (eg: dead socket).
  * Listeners bound to a different process are not woken up unless we're in
- * foreground mode. If the listener was only in the assigned state, it's totally
- * rebound. This can happen if a pause() has completely stopped it. If the
- * resume fails, 0 is returned and an error might be displayed.
+ * foreground mode, and are ignored. If the listener was only in the assigned
+ * state, it's totally rebound. This can happen if a pause() has completely
+ * stopped it. If the resume fails, 0 is returned and an error might be
+ * displayed.
  */
 int resume_listener(struct listener *l)
 {
@@ -147,7 +148,7 @@ int resume_listener(struct listener *l)
 	if ((global.mode & (MODE_DAEMON | MODE_SYSTEMD)) &&
 	    l->bind_conf->bind_proc &&
 	    !(l->bind_conf->bind_proc & (1UL << (relative_pid - 1))))
-		return 0;
+		return 1;
 
 	if (l->proto->sock_prot == IPPROTO_TCP &&
 	    l->state == LI_PAUSED &&
