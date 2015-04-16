@@ -14081,7 +14081,7 @@ S (Servers).
         INI     -> initializing
         SOCKERR -> socket error
         L4OK    -> check passed on layer 4, no upper layers testing enabled
-        L4TMOUT -> layer 1-4 timeout
+        L4TOUT  -> layer 1-4 timeout
         L4CON   -> layer 1-4 connection problem, for example
                    "Connection refused" (tcp rst) or "No route to host" (icmp)
         L6OK    -> check passed on layer 6
