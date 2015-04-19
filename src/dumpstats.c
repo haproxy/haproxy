@@ -2429,13 +2429,6 @@ static void cli_io_handler(struct appctx *appctx)
 	}
 
  out:
-	/* update all other flags and resync with the other side */
-	si_applet_done(si);
-
-	/* we don't want to expire timeouts while we're processing requests */
-	si_ic(si)->rex = TICK_ETERNITY;
-	si_oc(si)->wex = TICK_ETERNITY;
-
 	DPRINTF(stderr, "%s@%d: st=%d, rqf=%x, rpf=%x, rqh=%d, rqs=%d, rh=%d, rs=%d\n",
 		__FUNCTION__, __LINE__,
 		si->state, req->flags, res->flags, req->buf->i, req->buf->o, res->buf->i, res->buf->o);
@@ -4961,14 +4954,8 @@ static void http_stats_io_handler(struct appctx *appctx)
 			res->flags |= CF_READ_NULL;
 		}
 	}
-
  out:
-	/* update all other flags and resync with the other side */
-	si_applet_done(si);
-
-	/* we don't want to expire timeouts while we're processing requests */
-	si_ic(si)->rex = TICK_ETERNITY;
-	si_oc(si)->wex = TICK_ETERNITY;
+	/* just to make gcc happy */ ;
 }
 
 

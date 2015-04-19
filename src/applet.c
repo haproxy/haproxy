@@ -38,6 +38,6 @@ void applet_run_active()
 		}
 
 		curr->applet->fct(curr);
-		/* must not dereference curr nor si now because it might have been freed */
+		si_applet_done(si);
 	}
 }

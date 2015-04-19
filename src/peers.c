@@ -1043,11 +1043,7 @@ incomplete:
 		}
 	}
 out:
-	si_applet_done(si);
 	si_oc(si)->flags |= CF_READ_DONTWAIT;
-	/* we don't want to expire timeouts while we're processing requests */
-	si_ic(si)->rex = TICK_ETERNITY;
-	si_oc(si)->wex = TICK_ETERNITY;
 	return;
 full:
 	si->flags |= SI_FL_WAIT_ROOM;

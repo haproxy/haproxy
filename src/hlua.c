@@ -1446,11 +1446,11 @@ static void hlua_socket_handler(struct appctx *appctx)
 		si_ic(si)->flags |= CF_READ_NULL;
 		hlua_com_wake(&appctx->ctx.hlua.wake_on_read);
 		hlua_com_wake(&appctx->ctx.hlua.wake_on_write);
-		goto leave;
+		return;
 	}
 
 	if (!(c->flags & CO_FL_CONNECTED))
-		goto leave;
+		return;
 
 	/* This function is called after the connect. */
 	appctx->ctx.hlua.connected = 1;
@@ -1462,9 +1462,6 @@ static void hlua_socket_handler(struct appctx *appctx)
 	/* Wake the tasks which wants to read if the buffer contains data. */
 	if (channel_is_empty(si_ic(si)))
 		hlua_com_wake(&appctx->ctx.hlua.wake_on_read);
-
- leave:
-	si_applet_done(si);
 }
 
 /* This function is called when the "struct stream" is destroyed.
