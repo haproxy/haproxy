@@ -2262,10 +2262,10 @@ struct task *process_stream(struct task *t)
 		if ((sess->fe->options & PR_O_CONTSTATS) && (s->flags & SF_BE_ASSIGNED))
 			stream_process_counters(s);
 
-		if (si_f->state == SI_ST_EST && obj_type(si_f->end) != OBJ_TYPE_APPCTX)
+		if (si_f->state == SI_ST_EST)
 			si_update(si_f);
 
-		if (si_b->state == SI_ST_EST && obj_type(si_b->end) != OBJ_TYPE_APPCTX)
+		if (si_b->state == SI_ST_EST)
 			si_update(si_b);
 
 		req->flags &= ~(CF_READ_NULL|CF_READ_PARTIAL|CF_WRITE_NULL|CF_WRITE_PARTIAL|CF_READ_ATTACHED);
@@ -2287,23 +2287,6 @@ struct task *process_stream(struct task *t)
 		    (tick_isset(req->wex) || tick_isset(res->rex))) {
 			req->flags |= CF_READ_NOEXP;
 			req->rex = TICK_ETERNITY;
-		}
-
-		/* When any of the stream interfaces is attached to an applet,
-		 * we have to call it here. Note that this one may wake the
-		 * task up again. If at least one applet was called, the current
-		 * task might have been woken up, in which case we don't want it
-		 * to be requeued to the wait queue but rather to the run queue
-		 * to run ASAP. The bitwise "or" in the condition ensures that
-		 * both functions are always called and that we wake up if at
-		 * least one did something.
-		 */
-		if ((si_applet_call(si_b) | si_applet_call(si_f)) != 0) {
-			if (task_in_rq(t)) {
-				t->expire = TICK_ETERNITY;
-				stream_release_buffers(s);
-				return t;
-			}
 		}
 
 	update_exp_and_leave:
