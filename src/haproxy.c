@@ -79,9 +79,10 @@
 #include <types/acl.h>
 #include <types/peers.h>
 
-#include <proto/auth.h>
 #include <proto/acl.h>
+#include <proto/applet.h>
 #include <proto/arg.h>
+#include <proto/auth.h>
 #include <proto/backend.h>
 #include <proto/channel.h>
 #include <proto/checks.h>
@@ -1487,12 +1488,13 @@ void run_poll_loop()
 			break;
 
 		/* expire immediately if events are pending */
-		if (fd_cache_num || run_queue || signal_queue_len)
+		if (fd_cache_num || run_queue || signal_queue_len || !LIST_ISEMPTY(&applet_runq))
 			next = now_ms;
 
 		/* The poller will ensure it returns around <next> */
 		cur_poller.poll(&cur_poller, next);
 		fd_process_cached_events();
+		applet_run_active();
 	}
 }
 

@@ -31,6 +31,8 @@
 
 extern struct list applet_runq;
 
+void applet_run_active();
+
 /* Initializes all required fields for a new appctx. Note that it does the
  * minimum acceptable initialization for an appctx. This means only the
  * 3 integer states st0, st1, st2 are zeroed.
@@ -74,6 +76,15 @@ static inline void appctx_wakeup(struct appctx *appctx)
 {
 	if (LIST_ISEMPTY(&appctx->runq))
 		LIST_ADDQ(&applet_runq, &appctx->runq);
+}
+
+/* removes an applet from the list of active applets */
+static inline void appctx_pause(struct appctx *appctx)
+{
+	if (!LIST_ISEMPTY(&appctx->runq)) {
+		LIST_DEL(&appctx->runq);
+		LIST_INIT(&appctx->runq);
+	}
 }
 
 #endif /* _PROTO_APPLET_H */
