@@ -2439,11 +2439,6 @@ static void cli_io_handler(struct appctx *appctx)
 	DPRINTF(stderr, "%s@%d: st=%d, rqf=%x, rpf=%x, rqh=%d, rqs=%d, rh=%d, rs=%d\n",
 		__FUNCTION__, __LINE__,
 		si->state, req->flags, res->flags, req->buf->i, req->buf->o, res->buf->i, res->buf->o);
-
-	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO)) {
-		/* check that we have released everything then unregister */
-		stream_int_unregister_handler(si);
-	}
 }
 
 /* This function dumps information onto the stream interface's read buffer.
@@ -4974,11 +4969,6 @@ static void http_stats_io_handler(struct appctx *appctx)
 	/* we don't want to expire timeouts while we're processing requests */
 	si_ic(si)->rex = TICK_ETERNITY;
 	si_oc(si)->wex = TICK_ETERNITY;
-
-	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO)) {
-		/* check that we have released everything then unregister */
-		stream_int_unregister_handler(si);
-	}
 }
 
 
