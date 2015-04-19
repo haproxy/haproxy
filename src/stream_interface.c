@@ -394,6 +394,7 @@ struct appctx *stream_int_register_handler(struct stream_interface *si, struct a
 		return NULL;
 
 	si->flags |= SI_FL_WAIT_DATA;
+	appctx_wakeup(appctx);
 	return si_appctx(si);
 }
 
@@ -1569,6 +1570,8 @@ static void stream_int_shutr_applet(struct stream_interface *si)
 	ic->rex = TICK_ETERNITY;
 	si->flags &= ~SI_FL_WAIT_ROOM;
 
+	/* Note: on shutr, we don't call the applet */
+
 	if (si->state != SI_ST_EST && si->state != SI_ST_CON)
 		return;
 
@@ -1581,10 +1584,6 @@ static void stream_int_shutr_applet(struct stream_interface *si)
 		/* we want to immediately forward this close to the write side */
 		return stream_int_shutw_applet(si);
 	}
-
-	/* note that if the task exists, it must unregister itself once it runs */
-	if (!(si->flags & SI_FL_DONT_WAKE))
-		task_wakeup(si_task(si), TASK_WOKEN_IO);
 }
 
 /*
@@ -1605,6 +1604,9 @@ static void stream_int_shutw_applet(struct stream_interface *si)
 	oc->flags |= CF_SHUTW;
 	oc->wex = TICK_ETERNITY;
 	si->flags &= ~SI_FL_WAIT_DATA;
+
+	/* on shutw we always wake the applet up */
+	appctx_wakeup(si_appctx(si));
 
 	switch (si->state) {
 	case SI_ST_EST:
@@ -1633,10 +1635,6 @@ static void stream_int_shutw_applet(struct stream_interface *si)
 		ic->rex = TICK_ETERNITY;
 		si->exp = TICK_ETERNITY;
 	}
-
-	/* note that if the task exists, it must unregister itself once it runs */
-	if (!(si->flags & SI_FL_DONT_WAKE))
-		task_wakeup(si_task(si), TASK_WOKEN_IO);
 }
 
 /* chk_rcv function for applets */
@@ -1650,17 +1648,14 @@ static void stream_int_chk_rcv_applet(struct stream_interface *si)
 
 	if (unlikely(si->state != SI_ST_EST || (ic->flags & (CF_SHUTR|CF_DONT_READ))))
 		return;
+	/* here we only wake the applet up if it was waiting for some room */
+	if (!(si->flags & SI_FL_WAIT_ROOM))
+		return;
 
-	if (!channel_may_recv(ic) || ic->pipe) {
-		/* stop reading */
-		si->flags |= SI_FL_WAIT_ROOM;
-	}
-	else {
+	if (channel_may_recv(ic) && !ic->pipe) {
 		/* (re)start reading */
-		si->flags &= ~SI_FL_WAIT_ROOM;
-		if (!(si->flags & SI_FL_DONT_WAKE))
-			task_wakeup(si_task(si), TASK_WOKEN_IO);
-	}
+		appctx_wakeup(si_appctx(si));
+        }
 }
 
 /* chk_snd function for applets */
@@ -1675,19 +1670,18 @@ static void stream_int_chk_snd_applet(struct stream_interface *si)
 	if (unlikely(si->state != SI_ST_EST || (oc->flags & CF_SHUTW)))
 		return;
 
-	if (!(si->flags & SI_FL_WAIT_DATA) ||        /* not waiting for data */
-	    channel_is_empty(oc))           /* called with nothing to send ! */
+	/* we only wake the applet up if it was waiting for some data */
+
+	if (!(si->flags & SI_FL_WAIT_DATA))
 		return;
 
-	/* Otherwise there are remaining data to be sent in the buffer,
-	 * so we tell the handler.
-	 */
-	si->flags &= ~SI_FL_WAIT_DATA;
 	if (!tick_isset(oc->wex))
 		oc->wex = tick_add_ifset(now_ms, oc->wto);
 
-	if (!(si->flags & SI_FL_DONT_WAKE))
-		task_wakeup(si_task(si), TASK_WOKEN_IO);
+	if (!channel_is_empty(oc)) {
+		/* (re)start sending */
+		appctx_wakeup(si_appctx(si));
+	}
 }
 
 /*

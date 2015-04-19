@@ -2428,14 +2428,14 @@ static void cli_io_handler(struct appctx *appctx)
 		res->flags |= CF_READ_NULL;
 	}
 
+ out:
 	/* update all other flags and resync with the other side */
-	si_update(si);
+	si_applet_done(si);
 
 	/* we don't want to expire timeouts while we're processing requests */
 	si_ic(si)->rex = TICK_ETERNITY;
 	si_oc(si)->wex = TICK_ETERNITY;
 
- out:
 	DPRINTF(stderr, "%s@%d: st=%d, rqf=%x, rpf=%x, rqh=%d, rqs=%d, rh=%d, rs=%d\n",
 		__FUNCTION__, __LINE__,
 		si->state, req->flags, res->flags, req->buf->i, req->buf->o, res->buf->i, res->buf->o);
@@ -4897,7 +4897,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 			if (bi_putchk(si_ic(si), &trash) == -1) {
 				si->flags |= SI_FL_WAIT_ROOM;
 				si_ic(si)->to_forward = last_fwd;
-				goto fail;
+				goto out;
 			}
 		}
 
@@ -4948,7 +4948,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 			chunk_printf(&trash, "\r\n0\r\n\r\n");
 			if (bi_putchk(si_ic(si), &trash) == -1) {
 				si->flags |= SI_FL_WAIT_ROOM;
-				goto fail;
+				goto out;
 			}
 		}
 		/* eat the whole request */
@@ -4967,15 +4967,14 @@ static void http_stats_io_handler(struct appctx *appctx)
 		}
 	}
 
- fail:
+ out:
 	/* update all other flags and resync with the other side */
-	si_update(si);
+	si_applet_done(si);
 
 	/* we don't want to expire timeouts while we're processing requests */
 	si_ic(si)->rex = TICK_ETERNITY;
 	si_oc(si)->wex = TICK_ETERNITY;
 
- out:
 	if (unlikely(si->state == SI_ST_DIS || si->state == SI_ST_CLO)) {
 		/* check that we have released everything then unregister */
 		stream_int_unregister_handler(si);

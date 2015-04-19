@@ -1446,11 +1446,11 @@ static void hlua_socket_handler(struct appctx *appctx)
 		si_ic(si)->flags |= CF_READ_NULL;
 		hlua_com_wake(&appctx->ctx.hlua.wake_on_read);
 		hlua_com_wake(&appctx->ctx.hlua.wake_on_write);
-		return;
+		goto leave;
 	}
 
 	if (!(c->flags & CO_FL_CONNECTED))
-		return;
+		goto leave;
 
 	/* This function is called after the connect. */
 	appctx->ctx.hlua.connected = 1;
@@ -1462,6 +1462,9 @@ static void hlua_socket_handler(struct appctx *appctx)
 	/* Wake the tasks which wants to read if the buffer contains data. */
 	if (channel_is_empty(si_ic(si)))
 		hlua_com_wake(&appctx->ctx.hlua.wake_on_read);
+
+ leave:
+	si_applet_done(si);
 }
 
 /* This function is called when the "struct stream" is destroyed.
@@ -1631,7 +1634,7 @@ __LJMP static int hlua_socket_receive_yield(struct lua_State *L, int status, lua
 	bo_skip(oc, len + skip_at_end);
 
 	/* Don't wait anything. */
-	si_update(&socket->s->si[0]);
+	si_applet_done(&socket->s->si[0]);
 
 	/* If the pattern reclaim to read all the data
 	 * in the connection, got out.
@@ -1808,7 +1811,7 @@ static int hlua_socket_write_yield(struct lua_State *L,int status, lua_KContext 
 	}
 
 	/* update buffers. */
-	si_update(&socket->s->si[0]);
+	si_applet_done(&socket->s->si[0]);
 	socket->s->req.rex = TICK_ETERNITY;
 	socket->s->res.wex = TICK_ETERNITY;
 

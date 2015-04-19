@@ -1038,17 +1038,16 @@ incomplete:
 				si_shutw(si);
 				si_shutr(si);
 				si_ic(si)->flags |= CF_READ_NULL;
-				goto quit;
+				goto out;
 			}
 		}
 	}
 out:
-	si_update(si);
+	si_applet_done(si);
 	si_oc(si)->flags |= CF_READ_DONTWAIT;
 	/* we don't want to expire timeouts while we're processing requests */
 	si_ic(si)->rex = TICK_ETERNITY;
 	si_oc(si)->wex = TICK_ETERNITY;
-quit:
 	return;
 full:
 	si->flags |= SI_FL_WAIT_ROOM;
