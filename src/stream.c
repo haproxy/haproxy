@@ -361,35 +361,20 @@ int stream_alloc_recv_buffer(struct channel *chn)
 
 /* Allocates a work buffer for stream <s>. It is meant to be called inside
  * process_stream(). It will only allocate the side needed for the function
- * to work fine. For a regular connection, only the response is needed so that
- * an error message may be built and returned. In case where the initiator is
- * an applet (eg: peers), then we need to allocate the request buffer for the
- * applet to be able to send its data (in this case a response is not needed).
- * Request buffers are never picked from the reserved pool, but response
- * buffers may be allocated from the reserve. This is critical to ensure that
- * a response may always flow and will never block a server from releasing a
- * connection. Returns 0 in case of failure, non-zero otherwise.
+ * to work fine, which is the response buffer so that an error message may be
+ * built and returned. Response buffers may be allocated from the reserve, this
+ * is critical to ensure that a response may always flow and will never block a
+ * server from releasing a connection. Returns 0 in case of failure, non-zero
+ * otherwise.
  */
 int stream_alloc_work_buffer(struct stream *s)
 {
-	int margin;
-	struct buffer **buf;
-
-	if (objt_appctx(s->si[0].end)) {
-		buf = &s->req.buf;
-		margin = global.tune.reserved_bufs;
-	}
-	else {
-		buf = &s->res.buf;
-		margin = 0;
-	}
-
 	if (!LIST_ISEMPTY(&s->buffer_wait)) {
 		LIST_DEL(&s->buffer_wait);
 		LIST_INIT(&s->buffer_wait);
 	}
 
-	if (b_alloc_margin(buf, margin))
+	if (b_alloc_margin(&s->res.buf, 0))
 		return 1;
 
 	LIST_ADDQ(&buffer_wq, &s->buffer_wait);
