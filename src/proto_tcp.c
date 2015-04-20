@@ -1125,11 +1125,14 @@ int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 	 * and never in the ACL or converters. In this case, we initialise the
 	 * current rule, and go to the action execution point.
 	 */
-	if (s->current_rule_list == &s->be->tcp_req.inspect_rules) {
-		rule = LIST_ELEM(s->current_rule, typeof(rule), list);
-		goto resume_execution;
+	if (s->current_rule) {
+		rule = s->current_rule;
+		s->current_rule = NULL;
+		if (s->current_rule_list == &s->be->tcp_req.inspect_rules)
+			goto resume_execution;
 	}
 	s->current_rule_list = &s->be->tcp_req.inspect_rules;
+
 	list_for_each_entry(rule, &s->be->tcp_req.inspect_rules, list) {
 		enum acl_test_res ret = ACL_TEST_PASS;
 
@@ -1144,9 +1147,7 @@ int tcp_inspect_request(struct stream *s, struct channel *req, int an_bit)
 		}
 
 		if (ret) {
-
 resume_execution:
-
 			/* we have a matching rule. */
 			if (rule->action == TCP_ACT_REJECT) {
 				channel_abort(req);
@@ -1216,7 +1217,7 @@ resume_execution:
 			else {
 				/* Custom keywords. */
 				if (rule->action_ptr(rule, s->be, s) == 0) {
-					s->current_rule = &rule->list;
+					s->current_rule = rule;
 					goto missing_data;
 				}
 
@@ -1283,11 +1284,14 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 	 * and never in the ACL or converters. In this case, we initialise the
 	 * current rule, and go to the action execution point.
 	 */
-	if (s->current_rule_list == &s->be->tcp_rep.inspect_rules) {
-		rule = LIST_ELEM(s->current_rule, typeof(rule), list);
-		goto resume_execution;
+	if (s->current_rule) {
+		rule = s->current_rule;
+		s->current_rule = NULL;
+		if (s->current_rule_list == &s->be->tcp_rep.inspect_rules)
+			goto resume_execution;
 	}
 	s->current_rule_list = &s->be->tcp_rep.inspect_rules;
+
 	list_for_each_entry(rule, &s->be->tcp_rep.inspect_rules, list) {
 		enum acl_test_res ret = ACL_TEST_PASS;
 
@@ -1306,9 +1310,7 @@ int tcp_inspect_response(struct stream *s, struct channel *rep, int an_bit)
 		}
 
 		if (ret) {
-
 resume_execution:
-
 			/* we have a matching rule. */
 			if (rule->action == TCP_ACT_REJECT) {
 				channel_abort(rep);
@@ -1336,7 +1338,7 @@ resume_execution:
 				/* Custom keywords. */
 				if (!rule->action_ptr(rule, s->be, s)) {
 					channel_dont_close(rep);
-					s->current_rule = &rule->list;
+					s->current_rule = rule;
 					return 0;
 				}
 

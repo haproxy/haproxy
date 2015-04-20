@@ -3359,11 +3359,14 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct stream 
 	 * and never in the ACL or converters. In this case, we initialise the
 	 * current rule, and go to the action execution point.
 	 */
-	if (s->current_rule_list == rules) {
-		rule = LIST_ELEM(s->current_rule, typeof(rule), list);
-		goto resume_execution;
+	if (s->current_rule) {
+		rule = s->current_rule;
+		s->current_rule = NULL;
+		if (s->current_rule_list == rules)
+			goto resume_execution;
 	}
 	s->current_rule_list = rules;
+
 	list_for_each_entry(rule, rules, list) {
 		if (rule->action >= HTTP_REQ_ACT_MAX)
 			continue;
@@ -3383,7 +3386,6 @@ http_req_get_intercept_rule(struct proxy *px, struct list *rules, struct stream 
 		}
 
 resume_execution:
-
 		switch (rule->action) {
 		case HTTP_REQ_ACT_ALLOW:
 			return HTTP_RULE_RES_STOP;
@@ -3566,7 +3568,7 @@ resume_execution:
 
 		case HTTP_REQ_ACT_CUSTOM_CONT:
 			if (!rule->action_ptr(rule, px, s)) {
-				s->current_rule = &rule->list;
+				s->current_rule = rule;
 				return HTTP_RULE_RES_YIELD;
 			}
 			break;
@@ -3637,11 +3639,14 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct stream 
 	 * and never in the ACL or converters. In this case, we initialise the
 	 * current rule, and go to the action execution point.
 	 */
-	if (s->current_rule_list == rules) {
-		rule = LIST_ELEM(s->current_rule, typeof(rule), list);
-		goto resume_execution;
+	if (s->current_rule) {
+		rule = s->current_rule;
+		s->current_rule = NULL;
+		if (s->current_rule_list == rules)
+			goto resume_execution;
 	}
 	s->current_rule_list = rules;
+
 	list_for_each_entry(rule, rules, list) {
 		if (rule->action >= HTTP_RES_ACT_MAX)
 			continue;
@@ -3661,7 +3666,6 @@ http_res_get_intercept_rule(struct proxy *px, struct list *rules, struct stream 
 		}
 
 resume_execution:
-
 		switch (rule->action) {
 		case HTTP_RES_ACT_ALLOW:
 			return HTTP_RULE_RES_STOP; /* "allow" rules are OK */
@@ -3814,7 +3818,7 @@ resume_execution:
 
 		case HTTP_RES_ACT_CUSTOM_CONT:
 			if (!rule->action_ptr(rule, px, s)) {
-				s->current_rule = &rule->list;
+				s->current_rule = rule;
 				return HTTP_RULE_RES_YIELD;
 			}
 			break;
