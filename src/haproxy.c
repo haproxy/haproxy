@@ -1762,7 +1762,7 @@ int main(int argc, char **argv)
 
 #ifdef USE_CPU_AFFINITY
 		if (proc < global.nbproc &&  /* child */
-		    proc < 32 &&             /* only the first 32 processes may be pinned */
+		    proc < LONGBITS &&       /* only the first 32/64 processes may be pinned */
 		    global.cpu_map[proc])    /* only do this if the process has a CPU map */
 			sched_setaffinity(0, sizeof(unsigned long), (void *)&global.cpu_map[proc]);
 #endif
