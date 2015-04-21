@@ -72,6 +72,8 @@ enum {
 	SI_FL_NOLINGER   = 0x0080,  /* may close without lingering. One-shot. */
 	SI_FL_NOHALF     = 0x0100,  /* no half close, close both sides at once */
 	SI_FL_SRC_ADDR   = 0x1000,  /* get the source ip/port with getsockname */
+	SI_FL_WANT_PUT   = 0x2000,  /* an applet would like to put some data into the buffer */
+	SI_FL_WANT_GET   = 0x4000,  /* an applet would like to get some data from the buffer */
 };
 
 /* A stream interface has 3 parts :
