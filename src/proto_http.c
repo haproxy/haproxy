@@ -4343,7 +4343,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	struct session *sess = s->sess;
 	struct http_txn *txn = s->txn;
 	struct http_msg *msg = &txn->req;
-	struct connection *cli_conn = objt_conn(s->si[1].end);
+	struct connection *cli_conn = objt_conn(strm_sess(s)->origin);
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY)) {
 		/* we need more data */
