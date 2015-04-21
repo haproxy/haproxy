@@ -393,7 +393,7 @@ struct appctx *stream_int_register_handler(struct stream_interface *si, struct a
 	if (!appctx)
 		return NULL;
 
-	si->flags |= SI_FL_WAIT_DATA;
+	si_applet_cant_get(si);
 	appctx_wakeup(appctx);
 	return si_appctx(si);
 }
@@ -1433,14 +1433,9 @@ void si_applet_done(struct stream_interface *si)
 			ic->rex = tick_add_ifset(now_ms, ic->rto);
 	}
 
-	/* get away from the active list if we can't work anymore, that is
-	 * we're blocked both for reads or writes or once both sides are closed.
-	 * FIXME: we may have a problem here with bidirectional applets which
-	 * might block on a single direction while the other one is still free.
-	 */
-	if ((si->flags & (SI_FL_WAIT_ROOM|SI_FL_WAIT_DATA)) ||
-	    (ic->flags & CF_DONT_READ) ||
-	    (ic->flags & CF_SHUTR && oc->flags & CF_SHUTW))
+	/* get away from the active list if we can't work anymore. */
+	if (((si->flags & (SI_FL_WANT_PUT|SI_FL_WAIT_ROOM)) != SI_FL_WANT_PUT) &&
+	    ((si->flags & (SI_FL_WANT_GET|SI_FL_WAIT_DATA)) != SI_FL_WANT_GET))
 		appctx_pause(si_appctx(si));
 
 	/* wake the task up only when needed */
@@ -1531,10 +1526,11 @@ void stream_int_update_applet(struct stream_interface *si)
 		}
 	}
 
-	if (!(si->flags & (SI_FL_WAIT_ROOM|SI_FL_WAIT_DATA)) &&
-	    !(ic->flags & CF_DONT_READ) &&
-	    (!(ic->flags & CF_SHUTR) || !(oc->flags & CF_SHUTW)))
+	if (((si->flags & (SI_FL_WANT_PUT|SI_FL_WAIT_ROOM)) == SI_FL_WANT_PUT) ||
+	    ((si->flags & (SI_FL_WANT_GET|SI_FL_WAIT_DATA)) == SI_FL_WANT_GET))
 		appctx_wakeup(si_appctx(si));
+	else
+		appctx_pause(si_appctx(si));
 }
 
 /*

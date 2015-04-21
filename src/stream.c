@@ -200,7 +200,7 @@ struct stream *stream_new(struct session *sess, struct task *t, enum obj_type *o
 	if (conn)
 		conn_data_want_recv(conn);
 	else if (appctx)
-		s->si[0].flags |= SI_FL_WAIT_DATA;
+		si_applet_want_get(&s->si[0]);
 
 	if (sess->fe->accept && sess->fe->accept(s) < 0)
 		goto out_fail_accept;

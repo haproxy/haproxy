@@ -557,7 +557,7 @@ static int stats_dump_table_head_to_buffer(struct chunk *msg, struct stream_inte
 		chunk_appendf(msg, "# contents not dumped due to insufficient privileges\n");
 
 	if (bi_putchk(si_ic(si), msg) == -1) {
-		si->flags |= SI_FL_WAIT_ROOM;
+		si_applet_cant_put(si);
 		return 0;
 	}
 
@@ -630,7 +630,7 @@ static int stats_dump_table_entry_to_buffer(struct chunk *msg, struct stream_int
 	chunk_appendf(msg, "\n");
 
 	if (bi_putchk(si_ic(si), msg) == -1) {
-		si->flags |= SI_FL_WAIT_ROOM;
+		si_applet_cant_put(si);
 		return 0;
 	}
 
@@ -1311,7 +1311,7 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 			/* return server's effective weight at the moment */
 			snprintf(trash.str, trash.size, "%d (initial %d)\n", sv->uweight, sv->iweight);
 			if (bi_putstr(si_ic(si), trash.str) == -1)
-				si->flags |= SI_FL_WAIT_ROOM;
+				si_applet_cant_put(si);
 
 			return 1;
 		}
@@ -2247,7 +2247,7 @@ static void cli_io_handler(struct appctx *appctx)
 			 * would want to return some info right after parsing.
 			 */
 			if (buffer_almost_full(si_ib(si))) {
-				si->flags |= SI_FL_WAIT_ROOM;
+				si_applet_cant_put(si);
 				break;
 			}
 
@@ -2326,7 +2326,7 @@ static void cli_io_handler(struct appctx *appctx)
 				if (bi_putstr(si_ic(si), appctx->ctx.cli.msg) != -1)
 					appctx->st0 = STAT_CLI_PROMPT;
 				else
-					si->flags |= SI_FL_WAIT_ROOM;
+					si_applet_cant_put(si);
 				break;
 			case STAT_CLI_PRINT_FREE:
 				if (bi_putstr(si_ic(si), appctx->ctx.cli.err) != -1) {
@@ -2334,7 +2334,7 @@ static void cli_io_handler(struct appctx *appctx)
 					appctx->st0 = STAT_CLI_PROMPT;
 				}
 				else
-					si->flags |= SI_FL_WAIT_ROOM;
+					si_applet_cant_put(si);
 				break;
 			case STAT_CLI_O_INFO:
 				if (stats_dump_info_to_buffer(si))
@@ -2384,7 +2384,7 @@ static void cli_io_handler(struct appctx *appctx)
 				if (bi_putstr(si_ic(si), appctx->st1 ? "\n> " : "\n") != -1)
 					appctx->st0 = STAT_CLI_GETREQ;
 				else
-					si->flags |= SI_FL_WAIT_ROOM;
+					si_applet_cant_put(si);
 			}
 
 			/* If the output functions are still there, it means they require more room. */
@@ -2541,7 +2541,7 @@ static int stats_dump_info_to_buffer(struct stream_interface *si)
 	             );
 
 	if (bi_putchk(si_ic(si), &trash) == -1) {
-		si->flags |= SI_FL_WAIT_ROOM;
+		si_applet_cant_put(si);
 		return 0;
 	}
 
@@ -2556,7 +2556,7 @@ static int stats_dump_pools_to_buffer(struct stream_interface *si)
 {
 	dump_pools_to_trash();
 	if (bi_putchk(si_ic(si), &trash) == -1) {
-		si->flags |= SI_FL_WAIT_ROOM;
+		si_applet_cant_put(si);
 		return 0;
 	}
 	return 1;
@@ -3809,7 +3809,7 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 		if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
 			stats_dump_html_px_hdr(si, px, uri);
 			if (bi_putchk(rep, &trash) == -1) {
-				si->flags |= SI_FL_WAIT_ROOM;
+				si_applet_cant_put(si);
 				return 0;
 			}
 		}
@@ -3821,7 +3821,7 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 		/* print the frontend */
 		if (stats_dump_fe_stats(si, px)) {
 			if (bi_putchk(rep, &trash) == -1) {
-				si->flags |= SI_FL_WAIT_ROOM;
+				si_applet_cant_put(si);
 				return 0;
 			}
 		}
@@ -3834,7 +3834,7 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 		/* stats.l has been initialized above */
 		for (; appctx->ctx.stats.l != &px->conf.listeners; appctx->ctx.stats.l = l->by_fe.n) {
 			if (buffer_almost_full(rep->buf)) {
-				si->flags |= SI_FL_WAIT_ROOM;
+				si_applet_cant_put(si);
 				return 0;
 			}
 
@@ -3853,7 +3853,7 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 			/* print the frontend */
 			if (stats_dump_li_stats(si, px, l, uri ? uri->flags : 0)) {
 				if (bi_putchk(rep, &trash) == -1) {
-					si->flags |= SI_FL_WAIT_ROOM;
+					si_applet_cant_put(si);
 					return 0;
 				}
 			}
@@ -3870,7 +3870,7 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 			enum srv_stats_colour sv_colour;
 
 			if (buffer_almost_full(rep->buf)) {
-				si->flags |= SI_FL_WAIT_ROOM;
+				si_applet_cant_put(si);
 				return 0;
 			}
 
@@ -3949,7 +3949,7 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 
 			if (stats_dump_sv_stats(si, px, uri ? uri->flags : 0, sv, sv_state, sv_colour)) {
 				if (bi_putchk(rep, &trash) == -1) {
-					si->flags |= SI_FL_WAIT_ROOM;
+					si_applet_cant_put(si);
 					return 0;
 				}
 			}
@@ -3962,7 +3962,7 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 		/* print the backend */
 		if (stats_dump_be_stats(si, px, uri ? uri->flags : 0)) {
 			if (bi_putchk(rep, &trash) == -1) {
-				si->flags |= SI_FL_WAIT_ROOM;
+				si_applet_cant_put(si);
 				return 0;
 			}
 		}
@@ -3974,7 +3974,7 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 		if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
 			stats_dump_html_px_end(si, px);
 			if (bi_putchk(rep, &trash) == -1) {
-				si->flags |= SI_FL_WAIT_ROOM;
+				si_applet_cant_put(si);
 				return 0;
 			}
 		}
@@ -4367,7 +4367,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 			stats_dump_csv_header();
 
 		if (bi_putchk(rep, &trash) == -1) {
-			si->flags |= SI_FL_WAIT_ROOM;
+			si_applet_cant_put(si);
 			return 0;
 		}
 
@@ -4378,7 +4378,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 		if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
 			stats_dump_html_info(si, uri);
 			if (bi_putchk(rep, &trash) == -1) {
-				si->flags |= SI_FL_WAIT_ROOM;
+				si_applet_cant_put(si);
 				return 0;
 			}
 		}
@@ -4392,7 +4392,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 		/* dump proxies */
 		while (appctx->ctx.stats.px) {
 			if (buffer_almost_full(rep->buf)) {
-				si->flags |= SI_FL_WAIT_ROOM;
+				si_applet_cant_put(si);
 				return 0;
 			}
 
@@ -4414,7 +4414,7 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 		if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
 			stats_dump_html_end();
 			if (bi_putchk(rep, &trash) == -1) {
-				si->flags |= SI_FL_WAIT_ROOM;
+				si_applet_cant_put(si);
 				return 0;
 			}
 		}
@@ -4784,7 +4784,7 @@ static int stats_send_http_headers(struct stream_interface *si)
 	s->logs.tv_request = now;
 
 	if (bi_putchk(si_ic(si), &trash) == -1) {
-		si->flags |= SI_FL_WAIT_ROOM;
+		si_applet_cant_put(si);
 		return 0;
 	}
 
@@ -4831,7 +4831,7 @@ static int stats_send_http_redirect(struct stream_interface *si)
 	s->logs.tv_request = now;
 
 	if (bi_putchk(si_ic(si), &trash) == -1) {
-		si->flags |= SI_FL_WAIT_ROOM;
+		si_applet_cant_put(si);
 		return 0;
 	}
 
@@ -4883,7 +4883,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 			si_ic(si)->to_forward = 0;
 			chunk_printf(&trash, "\r\n000000\r\n");
 			if (bi_putchk(si_ic(si), &trash) == -1) {
-				si->flags |= SI_FL_WAIT_ROOM;
+				si_applet_cant_put(si);
 				si_ic(si)->to_forward = last_fwd;
 				goto out;
 			}
@@ -4909,7 +4909,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 			if (last_len != data_len) {
 				chunk_printf(&trash, "\r\n%06x\r\n", (last_len - data_len));
 				if (bi_putchk(si_ic(si), &trash) == -1)
-					si->flags |= SI_FL_WAIT_ROOM;
+					si_applet_cant_put(si);
 
 				si_ic(si)->total += (last_len - data_len);
 				si_ib(si)->i     += (last_len - data_len);
@@ -4935,7 +4935,7 @@ static void http_stats_io_handler(struct appctx *appctx)
 		if (appctx->ctx.stats.flags & STAT_CHUNKED) {
 			chunk_printf(&trash, "\r\n0\r\n\r\n");
 			if (bi_putchk(si_ic(si), &trash) == -1) {
-				si->flags |= SI_FL_WAIT_ROOM;
+				si_applet_cant_put(si);
 				goto out;
 			}
 		}
@@ -5024,7 +5024,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct st
 		/* stream changed, no need to go any further */
 		chunk_appendf(&trash, "  *** session terminated while we were watching it ***\n");
 		if (bi_putchk(si_ic(si), &trash) == -1) {
-			si->flags |= SI_FL_WAIT_ROOM;
+			si_applet_cant_put(si);
 			return 0;
 		}
 		appctx->ctx.sess.uid = 0;
@@ -5307,7 +5307,7 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct st
 			     sess->res.buf->size);
 
 		if (bi_putchk(si_ic(si), &trash) == -1) {
-			si->flags |= SI_FL_WAIT_ROOM;
+			si_applet_cant_put(si);
 			return 0;
 		}
 
@@ -5332,7 +5332,7 @@ static int stats_pats_list(struct stream_interface *si)
 		chunk_reset(&trash);
 		chunk_appendf(&trash, "# id (file) description\n");
 		if (bi_putchk(si_ic(si), &trash) == -1) {
-			si->flags |= SI_FL_WAIT_ROOM;
+			si_applet_cant_put(si);
 			return 0;
 		}
 
@@ -5362,7 +5362,7 @@ static int stats_pats_list(struct stream_interface *si)
 				/* let's try again later from this stream. We add ourselves into
 				 * this stream's users so that it can remove us upon termination.
 				 */
-				si->flags |= SI_FL_WAIT_ROOM;
+				si_applet_cant_put(si);
 				return 0;
 			}
 
@@ -5481,7 +5481,7 @@ static int stats_map_lookup(struct stream_interface *si)
 				/* let's try again later from this stream. We add ourselves into
 				 * this stream's users so that it can remove us upon termination.
 				 */
-				si->flags |= SI_FL_WAIT_ROOM;
+				si_applet_cant_put(si);
 				return 0;
 			}
 
@@ -5532,7 +5532,7 @@ static int stats_pat_list(struct stream_interface *si)
 				/* let's try again later from this stream. We add ourselves into
 				 * this stream's users so that it can remove us upon termination.
 				 */
-				si->flags |= SI_FL_WAIT_ROOM;
+				si_applet_cant_put(si);
 				return 0;
 			}
 
@@ -5737,7 +5737,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 				/* let's try again later from this stream. We add ourselves into
 				 * this stream's users so that it can remove us upon termination.
 				 */
-				si->flags |= SI_FL_WAIT_ROOM;
+				si_applet_cant_put(si);
 				LIST_ADDQ(&curr_sess->back_refs, &appctx->ctx.sess.bref.users);
 				return 0;
 			}
@@ -5754,7 +5754,7 @@ static int stats_dump_sess_to_buffer(struct stream_interface *si)
 				chunk_appendf(&trash, "Session not found.\n");
 
 			if (bi_putchk(si_ic(si), &trash) == -1) {
-				si->flags |= SI_FL_WAIT_ROOM;
+				si_applet_cant_put(si);
 				return 0;
 			}
 
@@ -6035,7 +6035,7 @@ static int stats_dump_errors_to_buffer(struct stream_interface *si)
 
 		if (bi_putchk(si_ic(si), &trash) == -1) {
 			/* Socket buffer full. Let's try again later from the same point */
-			si->flags |= SI_FL_WAIT_ROOM;
+			si_applet_cant_put(si);
 			return 0;
 		}
 
@@ -6120,7 +6120,7 @@ static int stats_dump_errors_to_buffer(struct stream_interface *si)
 
 			if (bi_putchk(si_ic(si), &trash) == -1) {
 				/* Socket buffer full. Let's try again later from the same point */
-				si->flags |= SI_FL_WAIT_ROOM;
+				si_applet_cant_put(si);
 				return 0;
 			}
 			appctx->ctx.errors.ptr = 0;
@@ -6132,7 +6132,7 @@ static int stats_dump_errors_to_buffer(struct stream_interface *si)
 			chunk_appendf(&trash,
 				     "  WARNING! update detected on this snapshot, dump interrupted. Please re-check!\n");
 			if (bi_putchk(si_ic(si), &trash) == -1) {
-				si->flags |= SI_FL_WAIT_ROOM;
+				si_applet_cant_put(si);
 				return 0;
 			}
 			goto next;
@@ -6150,7 +6150,7 @@ static int stats_dump_errors_to_buffer(struct stream_interface *si)
 
 			if (bi_putchk(si_ic(si), &trash) == -1) {
 				/* Socket buffer full. Let's try again later from the same point */
-				si->flags |= SI_FL_WAIT_ROOM;
+				si_applet_cant_put(si);
 				return 0;
 			}
 			appctx->ctx.errors.ptr = newptr;

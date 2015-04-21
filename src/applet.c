@@ -37,6 +37,13 @@ void applet_run_active()
 			continue;
 		}
 
+		/* We always pretend the applet can't get and doesn't want to
+		 * put, it's up to it to change this if needed. This ensures
+		 * that one applet which ignores any event will not spin.
+		 */
+		si_applet_cant_get(si);
+		si_applet_stop_put(si);
+
 		curr->applet->fct(curr);
 		si_applet_done(si);
 	}

@@ -1046,7 +1046,7 @@ out:
 	si_oc(si)->flags |= CF_READ_DONTWAIT;
 	return;
 full:
-	si->flags |= SI_FL_WAIT_ROOM;
+	si_applet_cant_put(si);
 	goto out;
 }
 
