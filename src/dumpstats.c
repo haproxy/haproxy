@@ -2919,14 +2919,28 @@ static int stats_dump_li_stats(struct stream_interface *si, struct proxy *px, st
 	return 1;
 }
 
+enum srv_stats_state {
+	SRV_STATS_STATE_DOWN = 0,
+	SRV_STATS_STATE_DOWN_AGENT,
+	SRV_STATS_STATE_GOING_UP,
+	SRV_STATS_STATE_UP_GOING_DOWN,
+	SRV_STATS_STATE_UP,
+	SRV_STATS_STATE_NOLB_GOING_DOWN,
+	SRV_STATS_STATE_NOLB,
+	SRV_STATS_STATE_DRAIN_GOING_DOWN,
+	SRV_STATS_STATE_DRAIN,
+	SRV_STATS_STATE_NO_CHECK,
+
+	SRV_STATS_STATE_COUNT, /* Must be last */
+};
+
 /* Dumps a line for server <sv> and proxy <px> to the trash and uses the state
  * from stream interface <si>, stats flags <flags>, and server state <state>.
  * The caller is responsible for clearing the trash if needed. Returns non-zero
- * if it emits anything, zero otherwise. The <state> parameter can take the
- * following values : 0=DOWN, 1=DOWN(agent) 2=going up, 3=going down, 4=UP, 5,6=NOLB,
- * 7,8=DRAIN, 9=unchecked.
+ * if it emits anything, zero otherwise.
  */
-static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, int flags, struct server *sv, int state)
+static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, int flags, struct server *sv,
+			       enum srv_stats_state state)
 {
 	struct appctx *appctx = __objt_appctx(si->end);
 	struct server *via, *ref;
@@ -2943,17 +2957,17 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 		ref = ref->track;
 
 	if (appctx->ctx.stats.flags & STAT_FMT_HTML) {
-		static char *srv_hlt_st[10] = {
-			"DOWN",
-			"DOWN (agent)",
-			"DN %d/%d &uarr;",
-			"UP %d/%d &darr;",
-			"UP",
-			"NOLB %d/%d &darr;",
-			"NOLB",
-			"DRAIN %d/%d &darr;",
-			"DRAIN",
-			"<i>no check</i>"
+		static char *srv_hlt_st[SRV_STATS_STATE_COUNT] = {
+			[SRV_STATS_STATE_DOWN]			= "DOWN",
+			[SRV_STATS_STATE_DOWN_AGENT]		= "DOWN (agent)",
+			[SRV_STATS_STATE_GOING_UP]		= "DN %d/%d &uarr;",
+			[SRV_STATS_STATE_UP_GOING_DOWN]		= "UP %d/%d &darr;",
+			[SRV_STATS_STATE_UP]			= "UP",
+			[SRV_STATS_STATE_NOLB_GOING_DOWN]	= "NOLB %d/%d &darr;",
+			[SRV_STATS_STATE_NOLB]			= "NOLB",
+			[SRV_STATS_STATE_DRAIN_GOING_DOWN]	= "DRAIN %d/%d &darr;",
+			[SRV_STATS_STATE_DRAIN]			= "DRAIN",
+			[SRV_STATS_STATE_NO_CHECK]		= "<i>no check</i>",
 		};
 
 		if (sv->admin & SRV_ADMF_MAINT)
@@ -3197,17 +3211,17 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			chunk_appendf(&trash, "<td class=ac>-</td></tr>\n");
 	}
 	else { /* CSV mode */
-		static char *srv_hlt_st[10] = {
-			"DOWN,",
-			"DOWN (agent),",
-			"DOWN %d/%d,",
-			"UP %d/%d,",
-			"UP,",
-			"NOLB %d/%d,",
-			"NOLB,",
-			"DRAIN %d/%d,",
-			"DRAIN,",
-			"no check,"
+		static char *srv_hlt_st[SRV_STATS_STATE_COUNT] = {
+			[SRV_STATS_STATE_DOWN]			= "DOWN,",
+			[SRV_STATS_STATE_DOWN_AGENT]		= "DOWN (agent),",
+			[SRV_STATS_STATE_GOING_UP]		= "DOWN %d/%d,",
+			[SRV_STATS_STATE_UP_GOING_DOWN]		= "UP %d/%d,",
+			[SRV_STATS_STATE_UP]			= "UP,",
+			[SRV_STATS_STATE_NOLB_GOING_DOWN]	= "NOLB %d/%d,",
+			[SRV_STATS_STATE_NOLB]			= "NOLB,",
+			[SRV_STATS_STATE_DRAIN_GOING_DOWN]	= "DRAIN %d/%d,",
+			[SRV_STATS_STATE_DRAIN]			= "DRAIN,",
+			[SRV_STATS_STATE_NO_CHECK]		= "no check,"
 		};
 
 		chunk_appendf(&trash,
@@ -3838,7 +3852,7 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 	case STAT_PX_ST_SV:
 		/* stats.sv has been initialized above */
 		for (; appctx->ctx.stats.sv != NULL; appctx->ctx.stats.sv = sv->next) {
-			int sv_state;
+			enum srv_stats_state sv_state;
 
 			if (buffer_almost_full(rep->buf)) {
 				si->flags |= SI_FL_WAIT_ROOM;
@@ -3860,42 +3874,38 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 				svs = svs->track;
 
 			if (sv->state == SRV_ST_RUNNING || sv->state == SRV_ST_STARTING) {
-				/* server is UP. The possibilities are :
-				 *   - UP, draining, going down    => state = 7
-				 *   - UP, going down              => state = 3
-				 *   - UP, draining                => state = 8
-				 *   - UP, checked                 => state = 4
-				 *   - UP, not checked nor tracked => state = 9
-				 */
-
 				if ((svs->check.state & CHK_ST_ENABLED) &&
 				    (svs->check.health < svs->check.rise + svs->check.fall - 1))
-					sv_state = 3;
+					sv_state = SRV_STATS_STATE_UP_GOING_DOWN;
 				else
-					sv_state = 4;
+					sv_state = SRV_STATS_STATE_UP;
 
-				if (server_is_draining(sv))
-					sv_state += 4;
+				if (server_is_draining(sv)) {
+					if (sv_state == SRV_STATS_STATE_UP_GOING_DOWN)
+						sv_state = SRV_STATS_STATE_DRAIN_GOING_DOWN;
+					else
+						sv_state = SRV_STATS_STATE_DRAIN;
+				}
 
-				if (sv_state == 4 && !(svs->check.state & CHK_ST_ENABLED))
-					sv_state = 9; /* unchecked UP */
+				if (sv_state == SRV_STATS_STATE_UP && !(svs->check.state & CHK_ST_ENABLED))
+					sv_state = SRV_STATS_STATE_NO_CHECK;
 			}
 			else if (sv->state == SRV_ST_STOPPING) {
 				if ((!(sv->check.state & CHK_ST_ENABLED) && !sv->track) ||
 				    (svs->check.health == svs->check.rise + svs->check.fall - 1))
-					sv_state = 6; /* NOLB */
+					sv_state = SRV_STATS_STATE_NOLB;
 				else
-					sv_state = 5; /* NOLB going down */
+					sv_state = SRV_STATS_STATE_NOLB_GOING_DOWN;
 			}
 			else {	/* stopped */
 				if ((svs->agent.state & CHK_ST_ENABLED) && !svs->agent.health)
-					sv_state = 1; /* DOWN (agent) */
+					sv_state = SRV_STATS_STATE_DOWN_AGENT;
 				else if ((svs->check.state & CHK_ST_ENABLED) && !svs->check.health)
-					sv_state = 0; /* DOWN */
+					sv_state = SRV_STATS_STATE_DOWN; /* DOWN */
 				else if ((svs->agent.state & CHK_ST_ENABLED) || (svs->check.state & CHK_ST_ENABLED))
-					sv_state = 2; /* going up */
+					sv_state = SRV_STATS_STATE_GOING_UP;
 				else
-					sv_state = 0; /* DOWN, unchecked */
+					sv_state = SRV_STATS_STATE_DOWN; /* DOWN, unchecked */
 			}
 
 			if (((sv_state <= 1) || (sv->admin & SRV_ADMF_MAINT)) && (appctx->ctx.stats.flags & STAT_HIDE_DOWN)) {
