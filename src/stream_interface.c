@@ -1454,6 +1454,7 @@ void si_applet_done(struct stream_interface *si)
 	       (si_opposite(si)->state != SI_ST_EST ||
 	        (channel_is_empty(oc) && !oc->to_forward)))))) {
 		task_wakeup(si_task(si), TASK_WOKEN_IO);
+		appctx_pause(si_appctx(si));
 	}
 	if (ic->flags & CF_READ_ACTIVITY)
 		ic->flags &= ~CF_READ_DONTWAIT;
