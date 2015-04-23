@@ -3906,13 +3906,14 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 					sv_colour = SRV_STATS_COLOUR_UP;
 				}
 
-				if (server_is_draining(sv)) {
-					if (sv_state == SRV_STATS_STATE_UP_GOING_DOWN) {
+				if (sv_state == SRV_STATS_STATE_UP && !svs->uweight)
+					sv_colour = SRV_STATS_COLOUR_DRAINING;
+
+				if (sv->admin & SRV_ADMF_DRAIN) {
+					if (sv_state == SRV_STATS_STATE_UP_GOING_DOWN)
 						sv_state = SRV_STATS_STATE_DRAIN_GOING_DOWN;
-					} else {
+					else
 						sv_state = SRV_STATS_STATE_DRAIN;
-						sv_colour = SRV_STATS_COLOUR_DRAINING;
-					}
 				}
 
 				if (sv_state == SRV_STATS_STATE_UP && !(svs->check.state & CHK_ST_ENABLED)) {
