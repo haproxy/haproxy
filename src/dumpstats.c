@@ -2929,6 +2929,7 @@ enum srv_stats_state {
 	SRV_STATS_STATE_NOLB,
 	SRV_STATS_STATE_DRAIN_GOING_DOWN,
 	SRV_STATS_STATE_DRAIN,
+	SRV_STATS_STATE_DRAIN_AGENT,
 	SRV_STATS_STATE_NO_CHECK,
 
 	SRV_STATS_STATE_COUNT, /* Must be last */
@@ -2989,6 +2990,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			[SRV_STATS_STATE_NOLB]			= "NOLB",
 			[SRV_STATS_STATE_DRAIN_GOING_DOWN]	= "DRAIN %d/%d &darr;",
 			[SRV_STATS_STATE_DRAIN]			= "DRAIN",
+			[SRV_STATS_STATE_DRAIN_AGENT]		= "DRAIN (agent)",
 			[SRV_STATS_STATE_NO_CHECK]		= "<i>no check</i>",
 		};
 
@@ -3243,6 +3245,7 @@ static int stats_dump_sv_stats(struct stream_interface *si, struct proxy *px, in
 			[SRV_STATS_STATE_NOLB]			= "NOLB,",
 			[SRV_STATS_STATE_DRAIN_GOING_DOWN]	= "DRAIN %d/%d,",
 			[SRV_STATS_STATE_DRAIN]			= "DRAIN,",
+			[SRV_STATS_STATE_DRAIN_AGENT]		= "DRAIN (agent)",
 			[SRV_STATS_STATE_NO_CHECK]		= "no check,"
 		};
 
@@ -3910,7 +3913,9 @@ static int stats_dump_proxy_to_buffer(struct stream_interface *si, struct proxy 
 					sv_colour = SRV_STATS_COLOUR_DRAINING;
 
 				if (sv->admin & SRV_ADMF_DRAIN) {
-					if (sv_state == SRV_STATS_STATE_UP_GOING_DOWN)
+					if (svs->agent.state & CHK_ST_ENABLED)
+						sv_state = SRV_STATS_STATE_DRAIN_AGENT;
+					else if (sv_state == SRV_STATS_STATE_UP_GOING_DOWN)
 						sv_state = SRV_STATS_STATE_DRAIN_GOING_DOWN;
 					else
 						sv_state = SRV_STATS_STATE_DRAIN;
