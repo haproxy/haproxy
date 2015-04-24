@@ -1216,7 +1216,7 @@ resume_execution:
 			}
 			else {
 				/* Custom keywords. */
-				if (rule->action_ptr(rule, s->be, s) == 0) {
+				if (rule->action_ptr && !rule->action_ptr(rule, s->be, s)) {
 					s->current_rule = rule;
 					goto missing_data;
 				}
@@ -1336,7 +1336,7 @@ resume_execution:
 			}
 			else {
 				/* Custom keywords. */
-				if (!rule->action_ptr(rule, s->be, s)) {
+				if (rule->action_ptr && !rule->action_ptr(rule, s->be, s)) {
 					channel_dont_close(rep);
 					s->current_rule = rule;
 					return 0;
@@ -1415,7 +1415,8 @@ int tcp_exec_req_rules(struct session *sess)
 			}
 			else {
 				/* Custom keywords. */
-				rule->action_ptr(rule, sess->fe, NULL);
+				if (rule->action_ptr)
+					rule->action_ptr(rule, sess->fe, NULL);
 
 				/* otherwise it's an accept */
 				break;
