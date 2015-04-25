@@ -5611,34 +5611,47 @@ option tcp-check
       In this mode, many questions may be sent and many answers may be
       analysed.
 
+    A fifth mode can be used to insert comments in different steps of the
+    script.
+
+    For each tcp-check rule you create, you can add a "comment" directive,
+    followed by a string. This string will be reported in the log and stderr
+    in debug mode. It is useful to make user-friendly error reporting.
+    The "comment" is of course optional.
+
+
   Examples :
          # perform a POP check (analyse only server's banner)
          option tcp-check
-         tcp-check expect string +OK\ POP3\ ready
+         tcp-check expect string +OK\ POP3\ ready comment POP\ protocol
 
          # perform an IMAP check (analyse only server's banner)
          option tcp-check
-         tcp-check expect string *\ OK\ IMAP4\ ready
+         tcp-check expect string *\ OK\ IMAP4\ ready comment IMAP\ protocol
 
          # look for the redis master server after ensuring it speaks well
          # redis protocol, then it exits properly.
          # (send a command then analyse the response 3 times)
          option tcp-check
+         tcp-check comment PING\ phase
          tcp-check send PING\r\n
-         tcp-check expect +PONG
+         tcp-check expect +PONGe
+         tcp-check comment role\ check
          tcp-check send info\ replication\r\n
          tcp-check expect string role:master
+         tcp-check comment QUIT\ phase
          tcp-check send QUIT\r\n
          tcp-check expect string +OK
 
          forge a HTTP request, then analyse the response
          (send many headers before analyzing)
          option tcp-check
+         tcp-check comment forge\ and\ send\ HTTP\ request
          tcp-check send HEAD\ /\ HTTP/1.1\r\n
          tcp-check send Host:\ www.mydomain.com\r\n
          tcp-check send User-Agent:\ HAProxy\ tcpcheck\r\n
          tcp-check send \r\n
-         tcp-check expect rstring HTTP/1\..\ (2..|3..)
+         tcp-check expect rstring HTTP/1\..\ (2..|3..) comment check\ HTTP\ response
 
 
   See also : "tcp-check expect", "tcp-check send"
