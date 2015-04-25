@@ -2363,7 +2363,7 @@ static int tcpcheck_get_step_id(struct check *check)
 	int i = 0;
 
 	/* not even started anything yet => step 0 = initial connect */
-	if (check->current_step)
+	if (!check->current_step)
 		return 0;
 
 	cur = check->last_started_step;
