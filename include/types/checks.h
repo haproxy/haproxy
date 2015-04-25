@@ -214,6 +214,7 @@ enum {
 struct tcpcheck_rule {
 	struct list list;                       /* list linked to from the proxy */
 	int action;                             /* action: send or expect */
+	char *comment;				/* comment to be used in the logs and on the stats socket */
 	/* match type uses NON-NULL pointer from either string or expect_regex below */
 	/* sent string is string */
 	char *string;                           /* sent or expected string */
