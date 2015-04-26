@@ -11825,6 +11825,8 @@ int http_replace_req_line(int action, const char *replace, int len,
 
 	/* commit changes and adjust end of message */
 	delta = buffer_replace2(s->req.buf, cur_ptr, cur_end, replace + offset, len - offset);
+	txn->req.sl.rq.l += delta;
+	txn->hdr_idx.v[0].len += delta;
 	http_msg_move_end(&txn->req, delta);
 	return 0;
 }
