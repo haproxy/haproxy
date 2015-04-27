@@ -39,6 +39,7 @@ struct peer_session {
 	struct shared_table *table;   /* shared table */
 	struct peer *peer;	      /* current peer */
 	struct stream *stream;        /* current transport stream */
+	struct appctx *appctx;        /* the appctx running it */
 	unsigned int flags; 	      /* peer session flags */
 	unsigned int statuscode;      /* current/last session status code */
 	unsigned int update;	      /* current peer acked update */
