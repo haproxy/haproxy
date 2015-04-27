@@ -697,7 +697,7 @@ endif
 
 OBJS = src/haproxy.o src/sessionhash.o src/base64.o src/protocol.o \
        src/uri_auth.o src/standard.o src/buffer.o src/log.o src/task.o \
-       src/chunk.o src/channel.o src/listener.o src/lru.o \
+       src/chunk.o src/channel.o src/listener.o src/lru.o src/xxhash.o \
        src/time.o src/fd.o src/pipe.o src/regex.o src/cfgparse.o src/server.o \
        src/checks.o src/queue.o src/frontend.o src/proxy.o src/peers.o \
        src/arg.o src/stick_table.o src/proto_uxst.o src/connection.o \
