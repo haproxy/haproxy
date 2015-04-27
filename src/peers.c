@@ -1143,6 +1143,10 @@ static struct stream *peer_session_create(struct peer *peer, struct peer_session
 	 */
 	s->flags = SF_ASSIGNED|SF_ADDR_SET;
 
+	/* applet is waiting for data */
+	si_applet_cant_get(&s->si[0]);
+	appctx_wakeup(appctx);
+
 	/* initiate an outgoing connection */
 	si_set_state(&s->si[1], SI_ST_ASS);
 
