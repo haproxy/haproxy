@@ -32,6 +32,7 @@
 #include <types/log.h>
 
 #include <proto/frontend.h>
+#include <proto/proto_http.h>
 #include <proto/log.h>
 #include <proto/sample.h>
 #include <proto/stream.h>
@@ -108,6 +109,10 @@ static const struct logformat_type logformat_keywords[] = {
 	{ "hrl", LOG_FMT_HDRREQUESTLIST, PR_MODE_TCP, LW_REQHDR, NULL }, /* header request list */
 	{ "hs", LOG_FMT_HDRRESPONS, PR_MODE_TCP, LW_RSPHDR, NULL },  /* header response */
 	{ "hsl", LOG_FMT_HDRRESPONSLIST, PR_MODE_TCP, LW_RSPHDR, NULL },  /* header response list */
+	{ "HM", LOG_FMT_HTTP_METHOD, PR_MODE_HTTP, LW_REQ, NULL },  /* HTTP method */
+	{ "HP", LOG_FMT_HTTP_PATH, PR_MODE_HTTP, LW_REQ, NULL },  /* HTTP path */
+	{ "HU", LOG_FMT_HTTP_URI, PR_MODE_HTTP, LW_REQ, NULL },  /* HTTP full URI */
+	{ "HV", LOG_FMT_HTTP_VERSION, PR_MODE_HTTP, LW_REQ, NULL },  /* HTTP version */
 	{ "lc", LOG_FMT_LOGCNT, PR_MODE_TCP, LW_INIT, NULL }, /* log counter */
 	{ "ms", LOG_FMT_MS, PR_MODE_TCP, LW_INIT, NULL },       /* accept date millisecond */
 	{ "pid", LOG_FMT_PID, PR_MODE_TCP, LW_INIT, NULL }, /* log pid */
@@ -923,11 +928,15 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 	struct proxy *fe = sess->fe;
 	struct proxy *be = s->be;
 	struct http_txn *txn = s->txn;
+	struct chunk chunk;
 	char *uri;
+	char *spc;
+	char *end;
 	struct tm tm;
 	int t_request;
 	int hdr;
 	int last_isspace = 1;
+	int nspaces = 0;
 	char *tmplog;
 	char *ret;
 	int iret;
@@ -1520,6 +1529,161 @@ int build_logline(struct stream *s, char *dst, size_t maxsize, struct list *list
 				tmplog = ret;
 				if (tmp->options & LOG_OPT_QUOTE)
 					LOGCHAR('"');
+				last_isspace = 0;
+				break;
+
+			case LOG_FMT_HTTP_PATH: // %HP
+				uri = txn->uri ? txn->uri : "<BADREQ>";
+
+				if (tmp->options && LOG_OPT_QUOTE)
+					LOGCHAR('"');
+
+				end = uri + strlen(uri);
+				// look for the first whitespace character
+				while (uri < end && !HTTP_IS_SPHT(*uri))
+					uri++;
+
+				// keep advancing past multiple spaces
+				while (uri < end && HTTP_IS_SPHT(*uri)) {
+					uri++; nspaces++;
+				}
+
+				// look for first space or question mark after url
+				spc = uri;
+				while (spc < end && *spc != '?' && !HTTP_IS_SPHT(*spc))
+					spc++;
+
+				if (!txn->uri || nspaces == 0) {
+					chunk.str = "<BADREQ>";
+					chunk.len = strlen("<BADREQ>");
+				} else {
+					chunk.str = uri;
+					chunk.len = spc - uri;
+				}
+
+				ret = encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk);
+				if (ret == NULL || *ret != '\0')
+					goto out;
+
+				tmplog = ret;
+				if (tmp->options && LOG_OPT_QUOTE)
+					LOGCHAR('"');
+
+				last_isspace = 0;
+				break;
+
+			case LOG_FMT_HTTP_URI: // %HU
+				uri = txn->uri ? txn->uri : "<BADREQ>";
+
+				if (tmp->options && LOG_OPT_QUOTE)
+					LOGCHAR('"');
+
+				end = uri + strlen(uri);
+				// look for the first whitespace character
+				while (uri < end && !HTTP_IS_SPHT(*uri))
+					uri++;
+
+				// keep advancing past multiple spaces
+				while (uri < end && HTTP_IS_SPHT(*uri)) {
+					uri++; nspaces++;
+				}
+
+				// look for first space after url
+				spc = uri;
+				while (spc < end && !HTTP_IS_SPHT(*spc))
+					spc++;
+
+				if (!txn->uri || nspaces == 0) {
+					chunk.str = "<BADREQ>";
+					chunk.len = strlen("<BADREQ>");
+				} else {
+					chunk.str = uri;
+					chunk.len = spc - uri;
+				}
+
+				ret = encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk);
+				if (ret == NULL || *ret != '\0')
+					goto out;
+
+				tmplog = ret;
+				if (tmp->options && LOG_OPT_QUOTE)
+					LOGCHAR('"');
+
+				last_isspace = 0;
+				break;
+
+			case LOG_FMT_HTTP_METHOD: // %HM
+				uri = txn->uri ? txn->uri : "<BADREQ>";
+				if (tmp->options && LOG_OPT_QUOTE)
+					LOGCHAR('"');
+
+				end = uri + strlen(uri);
+				// look for the first whitespace character
+				spc = uri;
+				while (spc < end && !HTTP_IS_SPHT(*spc))
+					spc++;
+
+				if (spc == end) { // odd case, we have txn->uri, but we only got a verb
+					chunk.str = "<BADREQ>";
+					chunk.len = strlen("<BADREQ>");
+				} else {
+					chunk.str = uri;
+					chunk.len = spc - uri;
+				}
+
+				ret = encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk);
+				if (ret == NULL || *ret != '\0')
+					goto out;
+
+				tmplog = ret;
+				if (tmp->options && LOG_OPT_QUOTE)
+					LOGCHAR('"');
+
+				last_isspace = 0;
+				break;
+
+			case LOG_FMT_HTTP_VERSION: // %HV
+				uri = txn->uri ? txn->uri : "<BADREQ>";
+				if (tmp->options && LOG_OPT_QUOTE)
+					LOGCHAR('"');
+
+				end = uri + strlen(uri);
+				// look for the first whitespace character
+				while (uri < end && !HTTP_IS_SPHT(*uri))
+					uri++;
+
+				// keep advancing past multiple spaces
+				while (uri < end && HTTP_IS_SPHT(*uri)) {
+					uri++; nspaces++;
+				}
+
+				// look for the next whitespace character
+				while (uri < end && !HTTP_IS_SPHT(*uri))
+					uri++;
+
+				// keep advancing past multiple spaces
+				while (uri < end && HTTP_IS_SPHT(*uri))
+					uri++;
+
+				if (!txn->uri || nspaces == 0) {
+					chunk.str = "<BADREQ>";
+					chunk.len = strlen("<BADREQ>");
+				} else if (uri == end) {
+					chunk.str = "HTTP/0.9";
+					chunk.len = strlen("HTTP/0.9");
+				} else {
+					chunk.str = uri;
+					chunk.len = end - uri;
+				}
+
+				ret = encode_chunk(tmplog, dst + maxsize, '#', url_encode_map, &chunk);
+				if (ret == NULL || *ret != '\0')
+					goto out;
+
+				tmplog = ret;
+				if (tmp->options && LOG_OPT_QUOTE)
+					LOGCHAR('"');
+
 				last_isspace = 0;
 				break;
 

@@ -13159,6 +13159,10 @@ Please refer to the table below for currently defined variables :
   | H | %CC  | captured_request_cookie                       | string      |
   | H | %CS  | captured_response_cookie                      | string      |
   |   | %H   | hostname                                      | string      |
+  | H | %HM  | HTTP method (ex: POST)                        | string      |
+  | H | %HP  | HTTP request URI without query string (path)  | string      |
+  | H | %HU  | HTTP request URI (ex: /foo?bar=baz)           | string      |
+  | H | %HV  | HTTP version (ex: HTTP/1.0)                   | string      |
   |   | %ID  | unique-id                                     | string      |
   |   | %ST  | status_code                                   | numeric     |
   |   | %T   | gmt_date_time                                 | date        |
