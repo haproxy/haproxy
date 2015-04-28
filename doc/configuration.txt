@@ -1393,7 +1393,7 @@ mailer <mailername> <ip>:<port>
 ----------
 
 Proxy configuration can be located in a set of sections :
- - defaults <name>
+ - defaults [<name>]
  - frontend <name>
  - backend  <name>
  - listen   <name>

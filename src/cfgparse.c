@@ -321,6 +321,39 @@ int str2listener(char *str, struct proxy *curproxy, struct bind_conf *bind_conf,
 	return 0;
 }
 
+/*
+ * Report a fatal Alert when there is too much arguments
+ * The index is the current keyword in args
+ * Return 0 if the number of argument is correct, otherwise emit an alert and return 1
+ * Fill err_code with an ERR_ALERT and an ERR_FATAL
+ */
+int alertif_too_many_args_idx(int maxarg, int index, const char *file, int linenum, char **args, int *err_code)
+{
+	char *kw = NULL;
+	int i;
+
+	if (!*args[index + maxarg + 1])
+		return 0;
+
+	memprintf(&kw, "%s", args[0]);
+	for (i = 1; i <= index; i++) {
+		memprintf(&kw, "%s %s", kw, args[i]);
+	}
+
+	Alert("parsing [%s:%d] : '%s' cannot handle unexpected argument '%s'.\n", file, linenum, kw, args[index + maxarg + 1]);
+	free(kw);
+	*err_code |= ERR_ALERT | ERR_FATAL;
+	return 1;
+}
+
+/*
+ * same as alertif_too_many_args_idx with a 0 index
+ */
+int alertif_too_many_args(int maxarg, const char *file, int linenum, char **args, int *err_code)
+{
+	return alertif_too_many_args_idx(maxarg, 0, file, linenum, args, err_code);
+}
+
 /* Report a warning if a rule is placed after a 'tcp-request content' rule.
  * Return 1 if the warning has been emitted, otherwise 0.
  */
@@ -547,6 +580,7 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 
 	if (!strcmp(args[0], "global")) {  /* new section */
 		/* no option, nothing special to do */
+		alertif_too_many_args(0, file, linenum, args, &err_code);
 		goto out;
 	}
 	else if (!strcmp(args[0], "ca-base")) {
@@ -1763,6 +1797,9 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+
 		err = invalid_char(args[1]);
 		if (err) {
 			Alert("parsing [%s:%d] : character '%c' is not permitted in '%s' name '%s'.\n",
@@ -2151,27 +2188,10 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		curproxy->cap = rc;
 		proxy_store_name(curproxy);
 
-		/* parse the listener address if any */
-		if ((curproxy->cap & PR_CAP_FE) && *args[2]) {
-			struct listener *l;
-
-			bind_conf = bind_conf_alloc(&curproxy->conf.bind, file, linenum, args[2]);
-
-			if (!str2listener(args[2], curproxy, bind_conf, file, linenum, &errmsg)) {
-				if (errmsg && *errmsg) {
-					indent_msg(&errmsg, 2);
-					Alert("parsing [%s:%d] : '%s %s' : %s\n", file, linenum, args[0], args[1], errmsg);
-				}
-				else
-					Alert("parsing [%s:%d] : '%s %s' : error encountered while parsing listening address '%s'.\n",
-					      file, linenum, args[0], args[1], args[2]);
-				err_code |= ERR_FATAL;
-				goto out;
-			}
-
-			list_for_each_entry(l, &bind_conf->listeners, by_bind) {
-				global.maxsock++;
-			}
+		if (alertif_too_many_args(1, file, linenum, args, &err_code)) {
+			if (curproxy->cap & PR_CAP_FE)
+				Alert("parsing [%s:%d] : please use the 'bind' keyword for listening addresses.\n", file, linenum);
+			goto out;
 		}
 
 		/* set default values */
@@ -2381,6 +2401,11 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		/* FIXME-20070101: we should do this too at the end of the
 		 * config parsing to free all default values.
 		 */
+		if (alertif_too_many_args(1, file, linenum, args, &err_code)) {
+			err_code |= ERR_ABORT;
+			goto out;
+		}
+
 		free(defproxy.check_req);
 		free(defproxy.check_command);
 		free(defproxy.check_path);
@@ -6088,6 +6113,8 @@ cfg_parse_users(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 
 		err = invalid_char(args[1]);
 		if (err) {
