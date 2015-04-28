@@ -2714,6 +2714,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
 
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+
 		if (!*args[1]) {
 			Alert("parsing [%s:%d] : '%s' expects an URI.\n",
 			      file, linenum, args[0]);
@@ -2730,6 +2733,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 		goto out;
 	}
 	else if (!strcmp(args[0], "mode")) {  /* sets the proxy mode */
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
+
 		if (!strcmp(args[1], "http")) curproxy->mode = PR_MODE_HTTP;
 		else if (!strcmp(args[1], "tcp")) curproxy->mode = PR_MODE_TCP;
 		else if (!strcmp(args[1], "health")) curproxy->mode = PR_MODE_HEALTH;
@@ -2748,6 +2754,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
+
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 
 		if (!*args[1]) {
 			Alert("parsing [%s:%d]: '%s' expects an integer argument.\n",
@@ -2807,9 +2816,13 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 	}
 	else if (!strcmp(args[0], "disabled")) {  /* disables this proxy */
+		if (alertif_too_many_args(0, file, linenum, args, &err_code))
+			goto out;
 		curproxy->state = PR_STSTOPPED;
 	}
 	else if (!strcmp(args[0], "enabled")) {  /* enables this proxy (used to revert a disabled default) */
+		if (alertif_too_many_args(0, file, linenum, args, &err_code))
+			goto out;
 		curproxy->state = PR_STNEW;
 	}
 	else if (!strcmp(args[0], "bind-process")) {  /* enable this proxy only on some processes */
@@ -3116,6 +3129,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
                 }
 
 		if (!strcmp(args[1], "command")) {
+			if (alertif_too_many_args(1, file, linenum, args, &err_code))
+				goto out;
 			if (*(args[1]) == 0) {
 				Alert("parsing [%s:%d] : missing argument after '%s'.\n",
 				      file, linenum, args[1]);
@@ -3126,6 +3141,8 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->check_command = strdup(args[2]);
 		}
 		else if (!strcmp(args[1], "path")) {
+			if (alertif_too_many_args(1, file, linenum, args, &err_code))
+				goto out;
 			if (*(args[1]) == 0) {
 				Alert("parsing [%s:%d] : missing argument after '%s'.\n",
 				      file, linenum, args[1]);
@@ -3158,6 +3175,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 
 				beg = args[1] + 11;
 				end = strchr(beg, ')');
+
+				if (alertif_too_many_args(1, file, linenum, args, &err_code))
+					goto out;
 
 				if (!end || end == beg) {
 					Alert("parsing [%s:%d] : persist rdp-cookie(name)' requires an rdp cookie name.\n",
@@ -3353,6 +3373,9 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 	else if (!strcmp(args[0], "retries")) {  /* connection retries */
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
 			err_code |= ERR_WARN;
+
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 
 		if (*(args[1]) == 0) {
 			Alert("parsing [%s:%d] : '%s' expects an integer argument (dispatch counts for one).\n",
@@ -4120,6 +4143,9 @@ stats_error_parsing:
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
+				if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
+					goto out;
+
 				if (warnifnotcap(curproxy, cfg_opts[optnum].cap, file, linenum, args[1], NULL)) {
 					err_code |= ERR_WARN;
 					goto out;
@@ -4151,6 +4177,8 @@ stats_error_parsing:
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
+				if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
+					goto out;
 				if (warnifnotcap(curproxy, cfg_opts2[optnum].cap, file, linenum, args[1], NULL)) {
 					err_code |= ERR_WARN;
 					goto out;
@@ -4179,6 +4207,8 @@ stats_error_parsing:
 		 * sections).
 		 */
 		if (strcmp(args[1], "httpclose") == 0) {
+			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
+				goto out;
 			if (kwm == KWM_STD) {
 				curproxy->options &= ~PR_O_HTTP_MODE;
 				curproxy->options |= PR_O_HTTP_PCL;
@@ -4191,6 +4221,8 @@ stats_error_parsing:
 			}
 		}
 		else if (strcmp(args[1], "forceclose") == 0) {
+			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
+				goto out;
 			if (kwm == KWM_STD) {
 				curproxy->options &= ~PR_O_HTTP_MODE;
 				curproxy->options |= PR_O_HTTP_FCL;
@@ -4203,6 +4235,8 @@ stats_error_parsing:
 			}
 		}
 		else if (strcmp(args[1], "http-server-close") == 0) {
+			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
+				goto out;
 			if (kwm == KWM_STD) {
 				curproxy->options &= ~PR_O_HTTP_MODE;
 				curproxy->options |= PR_O_HTTP_SCL;
@@ -4215,6 +4249,8 @@ stats_error_parsing:
 			}
 		}
 		else if (strcmp(args[1], "http-keep-alive") == 0) {
+			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
+				goto out;
 			if (kwm == KWM_STD) {
 				curproxy->options &= ~PR_O_HTTP_MODE;
 				curproxy->options |= PR_O_HTTP_KAL;
@@ -4227,6 +4263,8 @@ stats_error_parsing:
 			}
 		}
 		else if (strcmp(args[1], "http-tunnel") == 0) {
+			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
+				goto out;
 			if (kwm == KWM_STD) {
 				curproxy->options &= ~PR_O_HTTP_MODE;
 				curproxy->options |= PR_O_HTTP_TUN;
@@ -4290,6 +4328,8 @@ stats_error_parsing:
 					err_code |= ERR_ALERT | ERR_FATAL;
 					goto out;
 				}
+				if (alertif_too_many_args_idx(1, 1, file, linenum, args, &err_code))
+					goto out;
 			}
 			if (curproxy->conf.logformat_string != default_http_log_format &&
 			    curproxy->conf.logformat_string != default_tcp_log_format &&
@@ -4312,11 +4352,17 @@ stats_error_parsing:
 			free(curproxy->conf.lfs_file);
 			curproxy->conf.lfs_file = strdup(curproxy->conf.args.file);
 			curproxy->conf.lfs_line = curproxy->conf.args.line;
+
+			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
+				goto out;
 		}
 		else if (!strcmp(args[1], "tcpka")) {
 			/* enable TCP keep-alives on client and server streams */
 			if (warnifnotcap(curproxy, PR_CAP_BE | PR_CAP_FE, file, linenum, args[1], NULL))
 				err_code |= ERR_WARN;
+
+			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
+				goto out;
 
 			if (curproxy->cap & PR_CAP_FE)
 				curproxy->options |= PR_O_TCP_CLI_KA;
@@ -4351,6 +4397,8 @@ stats_error_parsing:
 				curproxy->check_len = snprintf(curproxy->check_req, reqlen,
 							       "%s %s %s\r\n", args[2], args[3], *args[4]?args[4]:"HTTP/1.0");
 			}
+			if (alertif_too_many_args_idx(3, 1, file, linenum, args, &err_code))
+				goto out;
 		}
 		else if (!strcmp(args[1], "ssl-hello-chk")) {
 			/* use SSLv3 CLIENT HELLO to check servers' health */
@@ -4361,6 +4409,9 @@ stats_error_parsing:
 			curproxy->check_req = NULL;
 			curproxy->options2 &= ~PR_O2_CHK_ANY;
 			curproxy->options2 |= PR_O2_SSL3_CHK;
+
+			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
+				goto out;
 		}
 		else if (!strcmp(args[1], "smtpchk")) {
 			/* use SMTP request to check servers' health */
@@ -4385,6 +4436,8 @@ stats_error_parsing:
 					curproxy->check_len = strlen(DEF_SMTP_CHECK_REQ);
 				}
 			}
+			if (alertif_too_many_args_idx(2, 1, file, linenum, args, &err_code))
+				goto out;
 		}
 		else if (!strcmp(args[1], "pgsql-check")) {
 			/* use PostgreSQL request to check servers' health */
@@ -4443,6 +4496,8 @@ stats_error_parsing:
 					}
 				} /* end while loop */
 			}
+			if (alertif_too_many_args_idx(2, 1, file, linenum, args, &err_code))
+				goto out;
 		}
 
 		else if (!strcmp(args[1], "redis-check")) {
@@ -4458,6 +4513,9 @@ stats_error_parsing:
 			curproxy->check_req = (char *) malloc(sizeof(DEF_REDIS_CHECK_REQ) - 1);
 			memcpy(curproxy->check_req, DEF_REDIS_CHECK_REQ, sizeof(DEF_REDIS_CHECK_REQ) - 1);
 			curproxy->check_len = sizeof(DEF_REDIS_CHECK_REQ) - 1;
+
+			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
+				goto out;
 		}
 
 		else if (!strcmp(args[1], "mysql-check")) {
@@ -4587,6 +4645,8 @@ stats_error_parsing:
 			curproxy->check_req = (char *) malloc(sizeof(DEF_LDAP_CHECK_REQ) - 1);
 			memcpy(curproxy->check_req, DEF_LDAP_CHECK_REQ, sizeof(DEF_LDAP_CHECK_REQ) - 1);
 			curproxy->check_len = sizeof(DEF_LDAP_CHECK_REQ) - 1;
+			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
+				goto out;
 		}
 		else if (!strcmp(args[1], "tcp-check")) {
 			/* use raw TCPCHK send/expect to check servers' health */
@@ -4597,6 +4657,8 @@ stats_error_parsing:
 			curproxy->check_req = NULL;
 			curproxy->options2 &= ~PR_O2_CHK_ANY;
 			curproxy->options2 |= PR_O2_TCPCHK_CHK;
+			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
+				goto out;
 		}
 		else if (!strcmp(args[1], "external-check")) {
 			/* excute an external command to check servers' health */
@@ -4604,6 +4666,8 @@ stats_error_parsing:
 			curproxy->check_req = NULL;
 			curproxy->options2 &= ~PR_O2_CHK_ANY;
 			curproxy->options2 |= PR_O2_EXT_CHK;
+			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
+				goto out;
 		}
 		else if (!strcmp(args[1], "forwardfor")) {
 			int cur_arg;
@@ -4722,6 +4786,9 @@ stats_error_parsing:
 		}
 		free(curproxy->defbe.name);
 		curproxy->defbe.name = strdup(args[1]);
+
+		if (alertif_too_many_args_idx(1, 0, file, linenum, args, &err_code))
+			goto out;
 	}
 	else if (!strcmp(args[0], "redispatch") || !strcmp(args[0], "redisp")) {
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
@@ -4733,6 +4800,9 @@ stats_error_parsing:
 		err_code |= ERR_WARN;
 		/* enable reconnections to dispatch */
 		curproxy->options |= PR_O_REDISP;
+
+		if (alertif_too_many_args_idx(1, 0, file, linenum, args, &err_code))
+			goto out;
 	}
 	else if (!strcmp(args[0], "http-check")) {
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], NULL))
@@ -4741,10 +4811,14 @@ stats_error_parsing:
 		if (strcmp(args[1], "disable-on-404") == 0) {
 			/* enable a graceful server shutdown on an HTTP 404 response */
 			curproxy->options |= PR_O_DISABLE404;
+			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
+				goto out;
 		}
 		else if (strcmp(args[1], "send-state") == 0) {
 			/* enable emission of the apparent state of a server in HTTP checks */
 			curproxy->options2 |= PR_O2_CHK_SNDST;
+			if (alertif_too_many_args_idx(0, 1, file, linenum, args, &err_code))
+				goto out;
 		}
 		else if (strcmp(args[1], "expect") == 0) {
 			const char *ptr_arg;
@@ -4877,6 +4951,8 @@ stats_error_parsing:
 			tcpcheck->comment = strdup(args[cur_arg + 1]);
 
 			LIST_ADDQ(&curproxy->tcpcheck_rules, &tcpcheck->list);
+			if (alertif_too_many_args_idx(1, 1, file, linenum, args, &err_code))
+				goto out;
 		}
 		else if (strcmp(args[1], "connect") == 0) {
 			const char *ptr_arg;
@@ -5205,6 +5281,8 @@ stats_error_parsing:
 	else if (!strcmp(args[0], "transparent")) {
 		/* enable transparent proxy connections */
 		curproxy->options |= PR_O_TRANSP;
+		if (alertif_too_many_args(0, file, linenum, args, &err_code))
+			goto out;
 	}
 #endif
 	else if (!strcmp(args[0], "maxconn")) {  /* maxconn */
@@ -5217,6 +5295,8 @@ stats_error_parsing:
 			goto out;
 		}
 		curproxy->maxconn = atol(args[1]);
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 	}
 	else if (!strcmp(args[0], "backlog")) {  /* backlog */
 		if (warnifnotcap(curproxy, PR_CAP_FE, file, linenum, args[0], NULL))
@@ -5228,6 +5308,8 @@ stats_error_parsing:
 			goto out;
 		}
 		curproxy->backlog = atol(args[1]);
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 	}
 	else if (!strcmp(args[0], "fullconn")) {  /* fullconn */
 		if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[0], " Maybe you want 'maxconn' instead ?"))
@@ -5239,6 +5321,8 @@ stats_error_parsing:
 			goto out;
 		}
 		curproxy->fullconn = atol(args[1]);
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 	}
 	else if (!strcmp(args[0], "grace")) {  /* grace time (ms) */
 		if (*(args[1]) == 0) {
@@ -5254,6 +5338,8 @@ stats_error_parsing:
 			goto out;
 		}
 		curproxy->grace = val;
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 	}
 	else if (!strcmp(args[0], "dispatch")) {  /* dispatch address */
 		struct sockaddr_storage *sk;
@@ -5296,6 +5382,9 @@ stats_error_parsing:
 			err_code |= ERR_ALERT | ERR_FATAL;
 			goto out;
 		}
+
+		if (alertif_too_many_args(1, file, linenum, args, &err_code))
+			goto out;
 
 		curproxy->dispatch_addr = *sk;
 		curproxy->options |= PR_O_DISPATCH;
@@ -5503,6 +5592,9 @@ stats_error_parsing:
 				global.max_syslog_len = logsrv->maxlen;
 				logline = realloc(logline, global.max_syslog_len + 1);
 			}
+
+			if (alertif_too_many_args_idx(3, arg + 1, file, linenum, args, &err_code))
+				goto out;
 
 			logsrv->facility = get_log_facility(args[arg+2]);
 			if (logsrv->facility < 0) {
