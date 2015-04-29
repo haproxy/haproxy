@@ -25,6 +25,7 @@
 #include <limits.h>
 #include <string.h>
 #include <time.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -958,5 +959,24 @@ static inline unsigned char utf8_return_length(unsigned char code)
 {
 	return code & 0x0f;
 }
+
+/* returns a 64-bit a timestamp with the finest resolution available. The
+ * unit is intentionally not specified. It's mostly used to compare dates.
+ */
+#if defined(__i386__) || defined(__x86_64__)
+static inline unsigned long long rdtsc()
+{
+     unsigned int a, d;
+     asm volatile("rdtsc" : "=a" (a), "=d" (d));
+     return a + ((unsigned long long)d << 32);
+}
+#else
+static inline unsigned long long rdtsc()
+{
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	return tv.tv_sec * 1000000 + tv.tv_usec;
+}
+#endif
 
 #endif /* _COMMON_STANDARD_H */
