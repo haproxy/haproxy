@@ -907,6 +907,22 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 			goto out;
 		}
 	}
+	else if (!strcmp(args[0], "tune.pattern.cache-size")) {
+		if (*args[1]) {
+			global.tune.pattern_cache = atoi(args[1]);
+			if (global.tune.pattern_cache < 0) {
+				Alert("parsing [%s:%d] : '%s' expects a positive numeric value\n",
+				      file, linenum, args[0]);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				goto out;
+			}
+		} else {
+			Alert("parsing [%s:%d] : '%s' expects a positive numeric value\n",
+			      file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+	}
 	else if (!strcmp(args[0], "uid")) {
 		if (global.uid != 0) {
 			Alert("parsing [%s:%d] : user/uid already specified. Continuing.\n", file, linenum);

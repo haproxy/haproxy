@@ -142,6 +142,7 @@ struct global {
 		int pipesize;      /* pipe size in bytes, system defaults if zero */
 		int max_http_hdr;  /* max number of HTTP headers, use MAX_HTTP_HDR if zero */
 		int cookie_len;    /* max length of cookie captures */
+		int pattern_cache; /* max number of entries in the pattern cache. */
 		int sslcachesize;  /* SSL cache size in session, defaults to 20000 */
 #ifdef USE_OPENSSL
 		int sslprivatecache; /* Force to use a private session cache even if nbproc > 1 */

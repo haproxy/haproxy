@@ -24,6 +24,8 @@
 #include <proto/sample.h>
 
 #include <ebsttree.h>
+#include <import/lru.h>
+#include <import/xxhash.h>
 
 char *pat_match_names[PAT_MATCH_NUM] = {
 	[PAT_MATCH_FOUND] = "found",
@@ -143,6 +145,9 @@ static struct pattern static_pattern;
 
 /* This is the root of the list of all pattern_ref avalaibles. */
 struct list pattern_reference = LIST_HEAD_INIT(pattern_reference);
+
+static struct lru64_head *pat_lru_tree;
+static unsigned long long pat_lru_seed;
 
 /*
  *
@@ -443,6 +448,8 @@ struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int
 	struct pattern_tree *elt;
 	struct pattern_list *lst;
 	struct pattern *pattern;
+	struct pattern *ret = NULL;
+	struct lru64 *lru = NULL;
 
 	/* Lookup a string in the expression's pattern tree. */
 	if (!eb_is_empty(&expr->pattern_tree)) {
@@ -468,6 +475,15 @@ struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int
 	}
 
 	/* look in the list */
+	if (pat_lru_tree) {
+		unsigned long long seed = pat_lru_seed ^ (unsigned long long)expr;
+
+		lru = lru64_get(XXH64(smp->data.str.str, smp->data.str.len, seed),
+				pat_lru_tree, expr, expr->revision);
+		if (lru && lru->domain)
+			return lru->data;
+	}
+
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
 
@@ -476,11 +492,16 @@ struct pattern *pat_match_str(struct sample *smp, struct pattern_expr *expr, int
 
 		icase = expr->mflags & PAT_MF_IGNORE_CASE;
 		if ((icase && strncasecmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) == 0) ||
-		    (!icase && strncmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) == 0))
-			return pattern;
+		    (!icase && strncmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) == 0)) {
+			ret = pattern;
+			break;
+		}
 	}
 
-	return NULL;
+	if (lru)
+		lru64_commit(lru, ret, expr, expr->revision);
+
+	return ret;
 }
 
 /* NB: For two binaries buf to be identical, it is required that their lengths match */
@@ -488,19 +509,34 @@ struct pattern *pat_match_bin(struct sample *smp, struct pattern_expr *expr, int
 {
 	struct pattern_list *lst;
 	struct pattern *pattern;
+	struct pattern *ret = NULL;
+	struct lru64 *lru = NULL;
 
-	/* Look in the list. */
+	if (pat_lru_tree) {
+		unsigned long long seed = pat_lru_seed ^ (unsigned long long)expr;
+
+		lru = lru64_get(XXH64(smp->data.str.str, smp->data.str.len, seed),
+				pat_lru_tree, expr, expr->revision);
+		if (lru && lru->domain)
+			return lru->data;
+	}
+
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
 
 		if (pattern->len != smp->data.str.len)
 			continue;
 
-		if (memcmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) == 0)
-			return pattern;
+		if (memcmp(pattern->ptr.str, smp->data.str.str, smp->data.str.len) == 0) {
+			ret = pattern;
+			break;
+		}
 	}
 
-	return NULL;
+	if (lru)
+		lru64_commit(lru, ret, expr, expr->revision);
+
+	return ret;
 }
 
 /* Executes a regex. It temporarily changes the data to add a trailing zero,
@@ -510,15 +546,31 @@ struct pattern *pat_match_reg(struct sample *smp, struct pattern_expr *expr, int
 {
 	struct pattern_list *lst;
 	struct pattern *pattern;
+	struct pattern *ret = NULL;
+	struct lru64 *lru = NULL;
 
-	/* look in the list */
+	if (pat_lru_tree) {
+		unsigned long long seed = pat_lru_seed ^ (unsigned long long)expr;
+
+		lru = lru64_get(XXH64(smp->data.str.str, smp->data.str.len, seed),
+				pat_lru_tree, expr, expr->revision);
+		if (lru && lru->domain)
+			return lru->data;
+	}
+
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
 
-		if (regex_exec2(pattern->ptr.reg, smp->data.str.str, smp->data.str.len))
-			return pattern;
+		if (regex_exec2(pattern->ptr.reg, smp->data.str.str, smp->data.str.len)) {
+			ret = pattern;
+			break;
+		}
 	}
-	return NULL;
+
+	if (lru)
+		lru64_commit(lru, ret, expr, expr->revision);
+
+	return ret;
 }
 
 /* Checks that the pattern matches the beginning of the tested string. */
@@ -530,6 +582,8 @@ struct pattern *pat_match_beg(struct sample *smp, struct pattern_expr *expr, int
 	struct pattern_tree *elt;
 	struct pattern_list *lst;
 	struct pattern *pattern;
+	struct pattern *ret = NULL;
+	struct lru64 *lru = NULL;
 
 	/* Lookup a string in the expression's pattern tree. */
 	if (!eb_is_empty(&expr->pattern_tree)) {
@@ -555,6 +609,15 @@ struct pattern *pat_match_beg(struct sample *smp, struct pattern_expr *expr, int
 	}
 
 	/* look in the list */
+	if (pat_lru_tree) {
+		unsigned long long seed = pat_lru_seed ^ (unsigned long long)expr;
+
+		lru = lru64_get(XXH64(smp->data.str.str, smp->data.str.len, seed),
+				pat_lru_tree, expr, expr->revision);
+		if (lru && lru->domain)
+			return lru->data;
+	}
+
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
 
@@ -566,9 +629,14 @@ struct pattern *pat_match_beg(struct sample *smp, struct pattern_expr *expr, int
 		    (!icase && strncmp(pattern->ptr.str, smp->data.str.str, pattern->len) != 0))
 			continue;
 
-		return pattern;
+		ret = pattern;
+		break;
 	}
-	return NULL;
+
+	if (lru)
+		lru64_commit(lru, ret, expr, expr->revision);
+
+	return ret;
 }
 
 /* Checks that the pattern matches the end of the tested string. */
@@ -577,6 +645,17 @@ struct pattern *pat_match_end(struct sample *smp, struct pattern_expr *expr, int
 	int icase;
 	struct pattern_list *lst;
 	struct pattern *pattern;
+	struct pattern *ret = NULL;
+	struct lru64 *lru = NULL;
+
+	if (pat_lru_tree) {
+		unsigned long long seed = pat_lru_seed ^ (unsigned long long)expr;
+
+		lru = lru64_get(XXH64(smp->data.str.str, smp->data.str.len, seed),
+				pat_lru_tree, expr, expr->revision);
+		if (lru && lru->domain)
+			return lru->data;
+	}
 
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
@@ -589,9 +668,14 @@ struct pattern *pat_match_end(struct sample *smp, struct pattern_expr *expr, int
 		    (!icase && strncmp(pattern->ptr.str, smp->data.str.str + smp->data.str.len - pattern->len, pattern->len) != 0))
 			continue;
 
-		return pattern;
+		ret = pattern;
+		break;
 	}
-	return  NULL;
+
+	if (lru)
+		lru64_commit(lru, ret, expr, expr->revision);
+
+	return ret;
 }
 
 /* Checks that the pattern is included inside the tested string.
@@ -604,6 +688,17 @@ struct pattern *pat_match_sub(struct sample *smp, struct pattern_expr *expr, int
 	char *c;
 	struct pattern_list *lst;
 	struct pattern *pattern;
+	struct pattern *ret = NULL;
+	struct lru64 *lru = NULL;
+
+	if (pat_lru_tree) {
+		unsigned long long seed = pat_lru_seed ^ (unsigned long long)expr;
+
+		lru = lru64_get(XXH64(smp->data.str.str, smp->data.str.len, seed),
+				pat_lru_tree, expr, expr->revision);
+		if (lru && lru->domain)
+			return lru->data;
+	}
 
 	list_for_each_entry(lst, &expr->patterns, list) {
 		pattern = &lst->pat;
@@ -617,19 +712,27 @@ struct pattern *pat_match_sub(struct sample *smp, struct pattern_expr *expr, int
 			for (c = smp->data.str.str; c <= end; c++) {
 				if (tolower(*c) != tolower(*pattern->ptr.str))
 					continue;
-				if (strncasecmp(pattern->ptr.str, c, pattern->len) == 0)
-					return pattern;
+				if (strncasecmp(pattern->ptr.str, c, pattern->len) == 0) {
+					ret = pattern;
+					goto leave;
+				}
 			}
 		} else {
 			for (c = smp->data.str.str; c <= end; c++) {
 				if (*c != *pattern->ptr.str)
 					continue;
-				if (strncmp(pattern->ptr.str, c, pattern->len) == 0)
-					return pattern;
+				if (strncmp(pattern->ptr.str, c, pattern->len) == 0) {
+					ret = pattern;
+					goto leave;
+				}
 			}
 		}
 	}
-	return NULL;
+ leave:
+	if (lru)
+		lru64_commit(lru, ret, expr, expr->revision);
+
+	return ret;
 }
 
 /* This one is used by other real functions. It checks that the pattern is
@@ -2320,6 +2423,10 @@ void pattern_finalize_config(void)
 	int i = 0;
 	struct pat_ref *ref, *ref2, *ref3;
 	struct list pr = LIST_HEAD_INIT(pr);
+
+	pat_lru_seed = random();
+	if (global.tune.pattern_cache)
+		pat_lru_tree = lru64_new(global.tune.pattern_cache);
 
 	list_for_each_entry(ref, &pattern_reference, list) {
 		if (ref->unique_id == -1) {

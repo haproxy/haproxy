@@ -295,4 +295,15 @@
 #ifndef TLS_TICKETS_NO
 #define TLS_TICKETS_NO 3
 #endif
+
+/* pattern lookup default cache size, in number of entries :
+ * 10k entries at 10k req/s mean 1% risk of a collision after 60 years, that's
+ * already much less than the memory's reliability in most machines and more
+ * durable than most admin's life expectancy. A collision will result in a
+ * valid result to be returned for a different entry from the same list.
+ */
+#ifndef DEFAULT_PAT_LRU_SIZE
+#define DEFAULT_PAT_LRU_SIZE 10000
+#endif
+
 #endif /* _COMMON_DEFAULTS_H */
