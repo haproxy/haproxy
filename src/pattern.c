@@ -978,6 +978,7 @@ int pat_idx_list_val(struct pattern_expr *expr, struct pattern *pat, char **err)
 
 	/* chain pattern in the expression */
 	LIST_ADDQ(&expr->patterns, &patl->list);
+	expr->revision = rdtsc();
 
 	/* that's ok */
 	return 1;
@@ -1006,6 +1007,7 @@ int pat_idx_list_ptr(struct pattern_expr *expr, struct pattern *pat, char **err)
 
 	/* chain pattern in the expression */
 	LIST_ADDQ(&expr->patterns, &patl->list);
+	expr->revision = rdtsc();
 
 	/* that's ok */
 	return 1;
@@ -1035,6 +1037,7 @@ int pat_idx_list_str(struct pattern_expr *expr, struct pattern *pat, char **err)
 
 	/* chain pattern in the expression */
 	LIST_ADDQ(&expr->patterns, &patl->list);
+	expr->revision = rdtsc();
 
 	/* that's ok */
 	return 1;
@@ -1071,6 +1074,7 @@ int pat_idx_list_reg(struct pattern_expr *expr, struct pattern *pat, char **err)
 
 	/* chain pattern in the expression */
 	LIST_ADDQ(&expr->patterns, &patl->list);
+	expr->revision = rdtsc();
 
 	/* that's ok */
 	return 1;
@@ -1109,6 +1113,7 @@ int pat_idx_tree_ip(struct pattern_expr *expr, struct pattern *pat, char **err)
 
 			/* Insert the entry. */
 			ebmb_insert_prefix(&expr->pattern_tree, &node->node, 4);
+			expr->revision = rdtsc();
 
 			/* that's ok */
 			return 1;
@@ -1136,6 +1141,7 @@ int pat_idx_tree_ip(struct pattern_expr *expr, struct pattern *pat, char **err)
 
 		/* Insert the entry. */
 		ebmb_insert_prefix(&expr->pattern_tree_2, &node->node, 16);
+		expr->revision = rdtsc();
 
 		/* that's ok */
 		return 1;
@@ -1179,6 +1185,7 @@ int pat_idx_tree_str(struct pattern_expr *expr, struct pattern *pat, char **err)
 
 	/* index the new node */
 	ebst_insert(&expr->pattern_tree, &node->node);
+	expr->revision = rdtsc();
 
 	/* that's ok */
 	return 1;
@@ -1220,6 +1227,7 @@ int pat_idx_tree_pfx(struct pattern_expr *expr, struct pattern *pat, char **err)
 
 	/* index the new node */
 	ebmb_insert_prefix(&expr->pattern_tree, &node->node, len);
+	expr->revision = rdtsc();
 
 	/* that's ok */
 	return 1;
@@ -1240,6 +1248,7 @@ void pat_del_list_val(struct pattern_expr *expr, struct pat_ref_elt *ref)
 		free(pat->pat.smp);
 		free(pat);
 	}
+	expr->revision = rdtsc();
 }
 
 void pat_del_tree_ip(struct pattern_expr *expr, struct pat_ref_elt *ref)
@@ -1283,6 +1292,7 @@ void pat_del_tree_ip(struct pattern_expr *expr, struct pat_ref_elt *ref)
 		free(elt->smp);
 		free(elt);
 	}
+	expr->revision = rdtsc();
 }
 
 void pat_del_list_ptr(struct pattern_expr *expr, struct pat_ref_elt *ref)
@@ -1301,6 +1311,7 @@ void pat_del_list_ptr(struct pattern_expr *expr, struct pat_ref_elt *ref)
 		free(pat->pat.smp);
 		free(pat);
 	}
+	expr->revision = rdtsc();
 }
 
 void pat_del_tree_str(struct pattern_expr *expr, struct pat_ref_elt *ref)
@@ -1328,6 +1339,7 @@ void pat_del_tree_str(struct pattern_expr *expr, struct pat_ref_elt *ref)
 		free(elt->smp);
 		free(elt);
 	}
+	expr->revision = rdtsc();
 }
 
 void pat_del_list_reg(struct pattern_expr *expr, struct pat_ref_elt *ref)
@@ -1346,11 +1358,13 @@ void pat_del_list_reg(struct pattern_expr *expr, struct pat_ref_elt *ref)
 		free(pat->pat.smp);
 		free(pat);
 	}
+	expr->revision = rdtsc();
 }
 
 void pattern_init_expr(struct pattern_expr *expr)
 {
 	LIST_INIT(&expr->patterns);
+	expr->revision = 0;
 	expr->pattern_tree = EB_ROOT;
 	expr->pattern_tree_2 = EB_ROOT;
 }
