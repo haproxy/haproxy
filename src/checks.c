@@ -316,7 +316,7 @@ static void set_server_check_status(struct check *check, short status, const cha
 
 		Warning("%s.\n", trash.str);
 		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
-		send_email_alert(s, LOG_NOTICE, "%s", trash.str);
+		send_email_alert(s, LOG_INFO, "%s", trash.str);
 	}
 }
 
