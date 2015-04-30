@@ -218,11 +218,6 @@ int http_compression_buffer_add_data(struct stream *s, struct buffer *in, struct
 
 	/* restore original buffer pointer */
 	b_rew(in, msg->next);
-
-	if (consumed_data > 0) {
-		msg->next += consumed_data;
-		msg->chunk_len -= consumed_data;
-	}
 	return consumed_data;
 }
 
@@ -307,7 +302,7 @@ int http_compression_buffer_end(struct stream *s, struct buffer **in, struct buf
 	if (msg->msg_state >= HTTP_MSG_TRAILERS) {
 		memcpy(tail, "0\r\n", 3);
 		tail += 3;
-		if (msg->msg_state >= HTTP_MSG_DONE) {
+		if (msg->msg_state >= HTTP_MSG_ENDING) {
 			memcpy(tail, "\r\n", 2);
 			tail += 2;
 		}

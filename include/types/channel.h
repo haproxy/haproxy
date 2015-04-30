@@ -157,6 +157,13 @@
 #define AN_RES_STORE_RULES      0x00080000  /* table persistence matching */
 #define AN_RES_HTTP_XFER_BODY   0x00100000  /* forward response body */
 
+#define AN_FLT_START_FE         0x01000000
+#define AN_FLT_START_BE         0x02000000
+#define AN_FLT_END              0x04000000
+#define AN_FLT_XFER_DATA        0x08000000
+
+#define AN_FLT_ALL_FE           0x0d000000
+#define AN_FLT_ALL_BE           0x0e000000
 
 /* Magic value to forward infinite size (TCP, ...), used with ->to_forward */
 #define CHN_INFINITE_FORWARD    MAX_RANGE(unsigned int)

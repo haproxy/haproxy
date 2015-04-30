@@ -266,8 +266,9 @@ int session_accept_fd(struct listener *l, int cfd, struct sockaddr_storage *addr
 	if (!strm)
 		goto out_free_task;
 
-	strm->target        = sess->listener->default_target;
-	strm->req.analysers = sess->listener->analysers;
+	strm->target         = sess->listener->default_target;
+	strm->req.analysers |= sess->listener->analysers;
+
 	return 1;
 
  out_free_task:
@@ -431,8 +432,8 @@ static int conn_complete_session(struct connection *conn)
 	if (!strm)
 		goto fail;
 
-	strm->target        = sess->listener->default_target;
-	strm->req.analysers = sess->listener->analysers;
+	strm->target         = sess->listener->default_target;
+	strm->req.analysers |= sess->listener->analysers;
 	conn->flags &= ~CO_FL_INIT_DATA;
 
 	return 0;

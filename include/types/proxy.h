@@ -38,6 +38,7 @@
 #include <types/acl.h>
 #include <types/backend.h>
 #include <types/counters.h>
+#include <types/filters.h>
 #include <types/freq_ctr.h>
 #include <types/listener.h>
 #include <types/log.h>
@@ -431,6 +432,8 @@ struct proxy {
 						 * this backend. If not specified or void, then the backend
 						 * name is used
 						 */
+
+	struct list filters;
 };
 
 struct switching_rule {

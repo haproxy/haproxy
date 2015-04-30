@@ -28,7 +28,7 @@
 #include <common/regex.h>
 
 #include <types/hdr_idx.h>
-#include <types/sample.h>
+#include <types/filters.h>
 
 /* These are the flags that are found in txn->flags */
 
@@ -170,10 +170,11 @@ enum ht_state {
 	HTTP_MSG_CHUNK_CRLF   = 31, // skipping CRLF after data chunk
 	HTTP_MSG_TRAILERS     = 32, // trailers (post-data entity headers)
 	/* we enter this state when we've received the end of the current message */
-	HTTP_MSG_DONE         = 33, // message end received, waiting for resync or close
-	HTTP_MSG_CLOSING      = 34, // shutdown_w done, not all bytes sent yet
-	HTTP_MSG_CLOSED       = 35, // shutdown_w done, all bytes sent
-	HTTP_MSG_TUNNEL       = 36, // tunneled data after DONE
+	HTTP_MSG_ENDING       = 33, // message end received, wait that the filters end too
+	HTTP_MSG_DONE         = 34, // message end received, waiting for resync or close
+	HTTP_MSG_CLOSING      = 35, // shutdown_w done, not all bytes sent yet
+	HTTP_MSG_CLOSED       = 36, // shutdown_w done, all bytes sent
+	HTTP_MSG_TUNNEL       = 37, // tunneled data after DONE
 } __attribute__((packed));
 
 /*
@@ -194,6 +195,7 @@ enum ht_state {
  * contents if something needs them during a redispatch.
  */
 #define HTTP_MSGF_WAIT_CONN   0x00000010  /* Wait for connect() to be confirmed before processing body */
+#define HTTP_MSGF_COMPRESSING 0x00000020  /* data compression is in progress */
 
 
 /* Redirect flags */

@@ -750,7 +750,7 @@ OBJS = src/haproxy.o src/base64.o src/protocol.o \
        src/session.o src/stream.o src/hdr_idx.o src/ev_select.o src/signal.o \
        src/acl.o src/sample.o src/memory.o src/freq_ctr.o src/auth.o src/proto_udp.o \
        src/compression.o src/payload.o src/hash.o src/pattern.o src/map.o \
-       src/namespace.o src/mailers.o src/dns.o src/vars.o
+       src/namespace.o src/mailers.o src/dns.o src/vars.o src/filters.o
 
 EBTREE_OBJS = $(EBTREE_DIR)/ebtree.o \
               $(EBTREE_DIR)/eb32tree.o $(EBTREE_DIR)/eb64tree.o \

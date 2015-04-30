@@ -33,6 +33,7 @@
 
 #include <types/channel.h>
 #include <types/compression.h>
+#include <types/filters.h>
 #include <types/hlua.h>
 #include <types/obj_type.h>
 #include <types/proto_http.h>
@@ -44,7 +45,6 @@
 #include <types/task.h>
 #include <types/stick_table.h>
 #include <types/vars.h>
-
 
 /* Various Stream Flags, bits values 0x01 to 0x100 (shift 0) */
 #define SF_DIRECT	0x00000001	/* connection made on the server matching the client cookie */
@@ -126,6 +126,11 @@ struct stream {
 	struct pendconn *pend_pos;      /* if not NULL, points to the position in the pending queue */
 
 	struct http_txn *txn;           /* current HTTP transaction being processed. Should become a list. */
+
+	struct {
+		struct list    filters;
+		struct filter *current[2];        /* 0: request, 1: response */
+	} strm_flt;
 
 	struct task *task;              /* the task associated with this stream */
 	struct list list;               /* position in global streams list */

@@ -45,6 +45,7 @@
 
 #include <types/capture.h>
 #include <types/compression.h>
+#include <types/filters.h>
 #include <types/global.h>
 #include <types/obj_type.h>
 #include <types/peers.h>
@@ -58,6 +59,7 @@
 #include <proto/checks.h>
 #include <proto/compression.h>
 #include <proto/dumpstats.h>
+#include <proto/filters.h>
 #include <proto/frontend.h>
 #include <proto/hdr_idx.h>
 #include <proto/lb_chash.h>
@@ -8477,6 +8479,9 @@ out_uri_auth_compat:
 			}
 		}
 
+		/* Check filter configuration, if any */
+		cfgerr += flt_check(curproxy);
+
 		if (curproxy->cap & PR_CAP_FE) {
 			if (!curproxy->accept)
 				curproxy->accept = frontend_accept;
@@ -8492,6 +8497,12 @@ out_uri_auth_compat:
 
 			/* both TCP and HTTP must check switching rules */
 			curproxy->fe_req_ana |= AN_REQ_SWITCHING_RULES;
+
+			/* Add filters analyzers if needed */
+			if (!LIST_ISEMPTY(&curproxy->filters)) {
+				curproxy->fe_req_ana |= AN_FLT_ALL_FE;
+				curproxy->fe_rsp_ana |= AN_FLT_ALL_FE;
+			}
 		}
 
 		if (curproxy->cap & PR_CAP_BE) {
@@ -8512,6 +8523,12 @@ out_uri_auth_compat:
 			 */
 			if (curproxy->options2 & PR_O2_RDPC_PRST)
 				curproxy->be_req_ana |= AN_REQ_PRST_RDP_COOKIE;
+
+			/* Add filters analyzers if needed */
+			if (!LIST_ISEMPTY(&curproxy->filters)) {
+				curproxy->be_req_ana |= AN_FLT_ALL_BE;
+				curproxy->be_rsp_ana |= AN_FLT_ALL_BE;
+			}
 		}
 	}
 

@@ -39,6 +39,7 @@
 #include <common/version.h>
 
 #include <types/capture.h>
+#include <types/filters.h>
 #include <types/global.h>
 
 #include <proto/acl.h>
@@ -51,6 +52,7 @@
 #include <proto/compression.h>
 #include <proto/dumpstats.h>
 #include <proto/fd.h>
+#include <proto/filters.h>
 #include <proto/frontend.h>
 #include <proto/log.h>
 #include <proto/hdr_idx.h>
@@ -933,6 +935,7 @@ int http_remove_header2(struct http_msg *msg, struct hdr_idx *idx, struct hdr_ct
 static void http_server_error(struct stream *s, struct stream_interface *si,
 			      int err, int finst, int status, const struct chunk *msg)
 {
+	flt_http_reply(s, status, msg);
 	channel_auto_read(si_oc(si));
 	channel_abort(si_oc(si));
 	channel_auto_close(si_oc(si));
@@ -966,6 +969,8 @@ struct chunk *http_error_message(struct stream *s, int msgnum)
 void
 http_reply_and_close(struct stream *s, short status, struct chunk *msg)
 {
+	s->txn->flags &= ~TX_WAIT_NEXT_RQ;
+	flt_http_reply(s, status, msg);
 	stream_int_retnclose(&s->si[0], msg);
 }
 
@@ -2180,10 +2185,8 @@ static inline int http_parse_chunk_size(struct http_msg *msg)
 	msg->sol = ptr - ptr_old;
 	if (unlikely(ptr < ptr_old))
 		msg->sol += buf->size;
-	msg->next = buffer_count(buf, buf->p, ptr);
 	msg->chunk_len = chunk;
 	msg->body_len += chunk;
-	msg->msg_state = chunk ? HTTP_MSG_DATA : HTTP_MSG_TRAILERS;
 	return 1;
  error:
 	msg->err_pos = buffer_count(buf, buf->p, ptr);
@@ -2211,7 +2214,7 @@ static int http_forward_trailers(struct http_msg *msg)
 	/* we have msg->next which points to next line. Look for CRLF. */
 	while (1) {
 		const char *p1 = NULL, *p2 = NULL;
-		const char *ptr = b_ptr(buf, msg->next);
+		const char *ptr = b_ptr(buf, msg->next + msg->sol);
 		const char *stop = bi_end(buf);
 		int bytes;
 
@@ -2245,21 +2248,20 @@ static int http_forward_trailers(struct http_msg *msg)
 		if (p2 >= buf->data + buf->size)
 			p2 = buf->data;
 
-		bytes = p2 - b_ptr(buf, msg->next);
+		bytes = p2 - b_ptr(buf, msg->next + msg->sol);
 		if (bytes < 0)
 			bytes += buf->size;
 
-		if (p1 == b_ptr(buf, msg->next)) {
-			/* LF/CRLF at beginning of line => end of trailers at p2.
-			 * Everything was scheduled for forwarding, there's nothing
-			 * left from this message.
-			 */
-			msg->next = buffer_count(buf, buf->p, p2);
-			msg->msg_state = HTTP_MSG_DONE;
+		/* LF/CRLF at beginning of line => end of trailers at p2.
+		 * Everything was scheduled for forwarding, there's nothing left
+		 * from this message.
+		 */
+		if (p1 == b_ptr(buf, msg->next + msg->sol)) {
+			msg->sol += bytes;
 			return 1;
 		}
+		msg->sol += bytes;
 		/* OK, next line then */
-		msg->next = buffer_count(buf, buf->p, p2);
 	}
 }
 
@@ -2299,13 +2301,7 @@ static inline int http_skip_chunk_crlf(struct http_msg *msg)
 		msg->err_pos = buffer_count(buf, buf->p, ptr);
 		return -1;
 	}
-
-	ptr++;
-	if (unlikely(ptr >= buf->data + buf->size))
-		ptr = buf->data;
-	/* Advance ->next to allow the CRLF to be forwarded */
-	msg->next += bytes;
-	msg->msg_state = HTTP_MSG_CHUNK_SIZE;
+	msg->sol = bytes;
 	return 1;
 }
 
@@ -2475,10 +2471,11 @@ int select_compression_response_header(struct stream *s, struct buffer *res)
 
 	/* compress 200,201,202,203 responses only */
 	if ((txn->status != 200) &&
-		(txn->status != 201) &&
-		(txn->status != 202) &&
-		(txn->status != 203))
+	    (txn->status != 201) &&
+	    (txn->status != 202) &&
+	    (txn->status != 203))
 		goto fail;
+
 
 	/* Content-Length is null */
 	if (!(msg->flags & HTTP_MSGF_TE_CHNK) && msg->body_len == 0)
@@ -2812,8 +2809,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			txn->status = 400;
 			msg->msg_state = HTTP_MSG_ERROR;
 			http_reply_and_close(s, txn->status, NULL);
-			req->analysers = 0;
-
+			req->analysers &= AN_FLT_END;
 			stream_inc_http_req_ctr(s);
 			proxy_inc_fe_req_ctr(sess->fe);
 			sess->fe->fe_counters.failed_req++;
@@ -2844,7 +2840,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			txn->status = 408;
 			msg->msg_state = HTTP_MSG_ERROR;
 			http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_408));
-			req->analysers = 0;
+			req->analysers &= AN_FLT_END;
 
 			stream_inc_http_req_ctr(s);
 			proxy_inc_fe_req_ctr(sess->fe);
@@ -2873,8 +2869,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			txn->status = 400;
 			msg->msg_state = HTTP_MSG_ERROR;
 			http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_400));
-			req->analysers = 0;
-
+			req->analysers &= AN_FLT_END;
 			stream_inc_http_err_ctr(s);
 			stream_inc_http_req_ctr(s);
 			proxy_inc_fe_req_ctr(sess->fe);
@@ -2930,7 +2925,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 		 */
 		txn->status = 0;
 		msg->msg_state = HTTP_MSG_RQBEFORE;
-		req->analysers = 0;
+		req->analysers &= AN_FLT_END;
 		s->logs.logwait = 0;
 		s->logs.level = 0;
 		s->res.flags &= ~CF_EXPECT_MORE; /* speed up sending a previous response */
@@ -3257,7 +3252,7 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= SF_FINST_R;
 
-	req->analysers = 0;
+	req->analysers &= AN_FLT_END;
 	req->analyse_exp = TICK_ETERNITY;
 	return 0;
 }
@@ -4260,13 +4255,14 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 		}
 		memcpy(trash.str + trash.len, "\r\n\r\n", 4);
 		trash.len += 4;
+		flt_http_reply(s, txn->status, &trash);
 		bo_inject(res->chn, trash.str, trash.len);
 		/* "eat" the request */
 		bi_fast_delete(req->chn->buf, req->sov);
 		req->next -= req->sov;
 		req->sov = 0;
-		s->req.analysers = AN_REQ_HTTP_XFER_BODY;
-		s->res.analysers = AN_RES_HTTP_XFER_BODY;
+		s->req.analysers = AN_REQ_HTTP_XFER_BODY | (s->req.analysers & AN_FLT_END);
+		s->res.analysers = AN_RES_HTTP_XFER_BODY | (s->req.analysers & AN_FLT_END);
 		req->msg_state = HTTP_MSG_CLOSED;
 		res->msg_state = HTTP_MSG_DONE;
 		/* Trim any possible response */
@@ -4282,7 +4278,7 @@ static int http_apply_redirect_rule(struct redirect_rule *rule, struct stream *s
 			trash.len += 23;
 		}
 		http_reply_and_close(s, txn->status, &trash);
-		req->chn->analysers = 0;
+		req->chn->analysers &= AN_FLT_END;
 	}
 
 	if (!(s->flags & SF_ERR_MASK))
@@ -4428,7 +4424,9 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 			select_compression_request_header(s, req->buf);
 
 		/* enable the minimally required analyzers to handle keep-alive and compression on the HTTP response */
-		req->analysers = (req->analysers & AN_REQ_HTTP_BODY) | AN_REQ_HTTP_XFER_BODY;
+		req->analysers &= (AN_REQ_HTTP_BODY | AN_FLT_END);
+		req->analysers &= ~AN_FLT_XFER_DATA;
+		req->analysers |= AN_REQ_HTTP_XFER_BODY;
 		goto done;
 	}
 
@@ -4478,7 +4476,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	 * if the client closes first.
 	 */
 	channel_dont_connect(req);
-	req->analysers = 0; /* remove switching rules etc... */
+	req->analysers &= AN_FLT_END; /* remove switching rules etc... */
 	req->analysers |= AN_REQ_HTTP_TARPIT;
 	req->analyse_exp = tick_add_ifset(now_ms,  s->be->timeout.tarpit);
 	if (!req->analyse_exp)
@@ -4527,7 +4525,7 @@ int http_process_req_common(struct stream *s, struct channel *req, int an_bit, s
 	if (!(s->flags & SF_FINST_MASK))
 		s->flags |= SF_FINST_R;
 
-	req->analysers = 0;
+	req->analysers &= AN_FLT_END;
 	req->analyse_exp = TICK_ETERNITY;
 	return 0;
 
@@ -4586,7 +4584,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 		if (unlikely((conn = si_alloc_conn(&s->si[1])) == NULL)) {
 			txn->req.msg_state = HTTP_MSG_ERROR;
 			txn->status = 500;
-			req->analysers = 0;
+			req->analysers &= AN_FLT_END;
 			http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_500));
 
 			if (!(s->flags & SF_ERR_MASK))
@@ -4819,6 +4817,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 	}
 
 	if (msg->flags & HTTP_MSGF_XFER_LEN) {
+		req->analysers &= ~AN_FLT_XFER_DATA;
 		req->analysers |= AN_REQ_HTTP_XFER_BODY;
 #ifdef TCP_QUICKACK
 		/* We expect some data from the client. Unless we know for sure
@@ -4861,7 +4860,7 @@ int http_process_request(struct stream *s, struct channel *req, int an_bit)
 
 	txn->req.msg_state = HTTP_MSG_ERROR;
 	txn->status = 400;
-	req->analysers = 0;
+	req->analysers &= AN_FLT_END;
 	http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_400));
 
 	sess->fe->fe_counters.failed_req++;
@@ -4905,7 +4904,7 @@ int http_process_tarpit(struct stream *s, struct channel *req, int an_bit)
 	if (!(req->flags & CF_READ_ERROR))
 		http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_500));
 
-	req->analysers = 0;
+	req->analysers &= AN_FLT_END;
 	req->analyse_exp = TICK_ETERNITY;
 
 	if (!(s->flags & SF_ERR_MASK))
@@ -4994,6 +4993,9 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 			stream_inc_http_err_ctr(s);
 			goto return_bad_req;
 		}
+		msg->next += msg->sol;
+		msg->sol   = 0;
+		msg->msg_state = msg->chunk_len ? HTTP_MSG_DATA : HTTP_MSG_TRAILERS;
 	}
 
 	/* Now we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state.
@@ -5057,7 +5059,7 @@ int http_wait_for_request_body(struct stream *s, struct channel *req, int an_bit
 		s->flags |= SF_FINST_R;
 
  return_err_msg:
-	req->analysers = 0;
+	req->analysers &= AN_FLT_END;
 	sess->fe->fe_counters.failed_req++;
 	if (sess->listener->counters)
 		sess->listener->counters->failed_req++;
@@ -5086,7 +5088,7 @@ int http_send_name_header(struct http_txn *txn, struct proxy* be, const char* sr
 		/* The request was already skipped, let's restore it */
 		b_rew(chn->buf, old_o);
 		txn->req.next += old_o;
-		txn->req.sov  += old_o;
+		txn->req.sov += old_o;
 	}
 
 	old_i = chn->buf->i;
@@ -5308,8 +5310,14 @@ void http_end_txn_clean_session(struct stream *s)
 			si_idle_conn(&s->si[1], &srv->idle_conns);
 	}
 
-	s->req.analysers = strm_li(s) ? strm_li(s)->analysers : 0;
-	s->res.analysers = 0;
+	if (LIST_ISEMPTY(&s->strm_flt.filters)) {
+		s->req.analysers = strm_li(s) ? strm_li(s)->analysers : 0;
+		s->res.analysers = 0;
+	}
+	else {
+		s->req.analysers &= AN_FLT_END;
+		s->res.analysers &= AN_FLT_END;
+	}
 }
 
 
@@ -5622,10 +5630,10 @@ int http_resync_states(struct stream *s)
 	    txn->rsp.msg_state == HTTP_MSG_TUNNEL ||
 	    (txn->req.msg_state == HTTP_MSG_CLOSED &&
 	     txn->rsp.msg_state == HTTP_MSG_CLOSED)) {
-		s->req.analysers = 0;
+		s->req.analysers &= AN_FLT_END;
 		channel_auto_close(&s->req);
 		channel_auto_read(&s->req);
-		s->res.analysers = 0;
+		s->res.analysers &= AN_FLT_END;
 		channel_auto_close(&s->res);
 		channel_auto_read(&s->res);
 	}
@@ -5633,10 +5641,10 @@ int http_resync_states(struct stream *s)
 		  (txn->rsp.msg_state == HTTP_MSG_CLOSED || (s->res.flags & CF_SHUTW))) ||
 		 txn->rsp.msg_state == HTTP_MSG_ERROR ||
 		 txn->req.msg_state == HTTP_MSG_ERROR) {
-		s->res.analysers = 0;
+		s->res.analysers &= AN_FLT_END;
 		channel_auto_close(&s->res);
 		channel_auto_read(&s->res);
-		s->req.analysers = 0;
+		s->req.analysers &= AN_FLT_END;
 		channel_abort(&s->req);
 		channel_auto_close(&s->req);
 		channel_auto_read(&s->req);
@@ -5673,6 +5681,7 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	struct session *sess = s->sess;
 	struct http_txn *txn = s->txn;
 	struct http_msg *msg = &s->txn->req;
+	int ret, ret2;
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
 		return 0;
@@ -5693,15 +5702,24 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 	 * an "Expect: 100-continue" header.
 	 */
 
-	if (msg->sov > 0) {
+	if (msg->msg_state == HTTP_MSG_BODY) {
 		/* we have msg->sov which points to the first byte of message
 		 * body, and req->buf.p still points to the beginning of the
 		 * message. We forward the headers now, as we don't need them
 		 * anymore, and we want to flush them.
 		 */
-		b_adv(req->buf, msg->sov);
-		msg->next -= msg->sov;
-		msg->sov = 0;
+		ret = flt_http_headers(s, msg);
+		if (ret < 0)
+			goto return_bad_req;
+		if (!ret)
+			return 0;
+
+		ret = flt_http_forward_data(s, msg, msg->sov);
+		if (ret < 0)
+			goto return_bad_req;
+		b_adv(req->buf, ret);
+		msg->next -= ret;
+		msg->sov  -= ret;
 
 		/* The previous analysers guarantee that the state is somewhere
 		 * between MSG_BODY and the first MSG_DATA. So msg->sol and
@@ -5713,6 +5731,12 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 			else
 				msg->msg_state = HTTP_MSG_DATA;
 		}
+
+		/* TODO/filters: when http-buffer-request option is set or if a
+		 * rule on url_param exists, the first chunk size could be
+		 * already parsed. In that case, msg->next is after the chunk
+		 * size (including the CRLF after the size). So this case should
+		 * be handled to */
 	}
 
 	/* Some post-connect processing might want us to refrain from starting to
@@ -5741,81 +5765,134 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		if (msg->msg_state == HTTP_MSG_DATA) {
 			/* must still forward */
 			/* we may have some pending data starting at req->buf->p */
-			if (msg->chunk_len > req->buf->i - msg->next) {
-				req->flags |= CF_WAKE_WRITE;
+			ret = flt_http_data(s, msg);
+			if (ret < 0)
+				goto aborted_xfer;
+			msg->next      += ret;
+			msg->chunk_len -= ret;
+
+			if (msg->chunk_len) {
+				/* input empty or output full */
+				if (req->buf->i > msg->next)
+					req->flags |= CF_WAKE_WRITE;
 				goto missing_data;
 			}
-			msg->next += msg->chunk_len;
-			msg->chunk_len = 0;
 
 			/* nothing left to forward */
 			if (msg->flags & HTTP_MSGF_TE_CHNK)
 				msg->msg_state = HTTP_MSG_CHUNK_CRLF;
 			else
-				msg->msg_state = HTTP_MSG_DONE;
+				msg->msg_state = HTTP_MSG_ENDING;
 		}
 		else if (msg->msg_state == HTTP_MSG_CHUNK_SIZE) {
 			/* read the chunk size and assign it to ->chunk_len, then
 			 * set ->next to point to the body and switch to DATA or
 			 * TRAILERS state.
 			 */
-			int ret = http_parse_chunk_size(msg);
-
-			if (ret == 0)
-				goto missing_data;
-			else if (ret < 0) {
-				stream_inc_http_err_ctr(s);
-				if (msg->err_pos >= 0)
-					http_capture_bad_message(&sess->fe->invalid_req, s, msg, HTTP_MSG_CHUNK_SIZE, s->be);
-				goto return_bad_req;
+			if (!msg->sol) {
+				ret = http_parse_chunk_size(msg);
+				if (ret == 0)
+					goto missing_data;
+				else if (ret < 0) {
+					stream_inc_http_err_ctr(s);
+					if (msg->err_pos >= 0)
+						http_capture_bad_message(&sess->fe->invalid_req, s, msg, HTTP_MSG_CHUNK_SIZE, s->be);
+					goto return_bad_req;
+				}
 			}
+			ret = (msg->chunk_len
+			       ? flt_http_start_chunk(s, msg)
+			       : flt_http_last_chunk(s, msg));
+			if (ret < 0)
+				goto return_bad_req;
+			if (!ret)
+				goto missing_data;
+			msg->next += msg->sol;
+			msg->sol   = 0;
+			msg->msg_state = msg->chunk_len ? HTTP_MSG_DATA : HTTP_MSG_TRAILERS;
 			/* otherwise we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state */
 		}
 		else if (msg->msg_state == HTTP_MSG_CHUNK_CRLF) {
 			/* we want the CRLF after the data */
-			int ret = http_skip_chunk_crlf(msg);
-
-			if (ret == 0)
-				goto missing_data;
-			else if (ret < 0) {
-				stream_inc_http_err_ctr(s);
-				if (msg->err_pos >= 0)
-					http_capture_bad_message(&sess->fe->invalid_req, s, msg, HTTP_MSG_CHUNK_CRLF, s->be);
-				goto return_bad_req;
+			if (!msg->sol) {
+				ret = http_skip_chunk_crlf(msg);
+				if (ret == 0)
+					goto missing_data;
+				else if (ret < 0) {
+					stream_inc_http_err_ctr(s);
+					if (msg->err_pos >= 0)
+						http_capture_bad_message(&sess->fe->invalid_req, s, msg, HTTP_MSG_CHUNK_CRLF, s->be);
+					goto return_bad_req;
+				}
 			}
+			ret = flt_http_end_chunk(s, msg);
+			if (ret < 0)
+				goto return_bad_req;
+			if (!ret)
+				goto missing_data;
+			msg->next += msg->sol;
+			msg->sol   = 0;
+			msg->msg_state = HTTP_MSG_CHUNK_SIZE;
 			/* we're in MSG_CHUNK_SIZE now */
 		}
 		else if (msg->msg_state == HTTP_MSG_TRAILERS) {
-			int ret = http_forward_trailers(msg);
-
-			if (ret == 0)
-				goto missing_data;
-			else if (ret < 0) {
-				stream_inc_http_err_ctr(s);
-				if (msg->err_pos >= 0)
-					http_capture_bad_message(&sess->fe->invalid_req, s, msg, HTTP_MSG_TRAILERS, s->be);
-				goto return_bad_req;
+			ret = 1;
+			if (!msg->sol) {
+				ret = http_forward_trailers(msg);
+				if (ret < 0) {
+					stream_inc_http_err_ctr(s);
+					if (msg->err_pos >= 0)
+						http_capture_bad_message(&sess->fe->invalid_req, s, msg, HTTP_MSG_TRAILERS, s->be);
+					goto return_bad_req;
+				}
 			}
-			/* we're in HTTP_MSG_DONE now */
+			ret2 = flt_http_chunk_trailers(s, msg);
+			if (ret2 < 0)
+				goto return_bad_req;
+			if (!ret2)
+				goto missing_data;
+			msg->next += msg->sol;
+			msg->sol   = 0;
+			if (!ret)
+				goto missing_data;
+			msg->msg_state = HTTP_MSG_ENDING;
 		}
-		else {
-			int old_state = msg->msg_state;
-
-			/* other states, DONE...TUNNEL */
-
-			/* we may have some pending data starting at req->buf->p
-			 * such as last chunk of data or trailers.
-			 */
-			b_adv(req->buf, msg->next);
-			if (unlikely(!(s->req.flags & CF_WROTE_DATA)))
-				msg->sov -= msg->next;
-			msg->next = 0;
-
+		else if (msg->msg_state == HTTP_MSG_ENDING) {
 			/* we don't want to forward closes on DONE except in
 			 * tunnel mode.
 			 */
 			if ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN)
 				channel_dont_close(req);
+			/* we may have some pending data starting at req->buf->p
+			 * such as last chunk of data or trailers.
+			 */
+			ret = flt_http_forward_data(s, msg, msg->next);
+			if (ret < 0)
+				goto return_bad_req;
+			b_adv(req->buf, ret);
+			msg->next -= ret;
+			if (unlikely(!(s->req.flags & CF_WROTE_DATA) || msg->sov > 0))
+				msg->sov -= ret;
+
+			if (msg->next)
+				goto skip_resync_states;
+
+			ret = flt_http_end(s, msg);
+			if (ret < 0)
+				goto return_bad_req;
+			if (!ret)
+				goto skip_resync_states;
+			msg->msg_state = HTTP_MSG_DONE;
+		}
+		else {
+			/* other states, DONE...TUNNEL */
+			/* we don't want to forward closes on DONE except in
+			 * tunnel mode.
+			 */
+			if ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN)
+				channel_dont_close(req);
+
+			ret = msg->msg_state;
 			if (http_resync_states(s)) {
 				/* some state changes occurred, maybe the analyser
 				 * was disabled too.
@@ -5828,12 +5905,13 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 						goto aborted_xfer;
 					}
 					if (msg->err_pos >= 0)
-						http_capture_bad_message(&sess->fe->invalid_req, s, msg, old_state, s->be);
+						http_capture_bad_message(&sess->fe->invalid_req, s, msg, ret, s->be);
 					goto return_bad_req;
 				}
 				return 1;
 			}
 
+		skip_resync_states:
 			/* If "option abortonclose" is set on the backend, we
 			 * want to monitor the client's connection and forward
 			 * any shutdown notification to the server, which will
@@ -5864,12 +5942,15 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 
  missing_data:
 	/* we may have some pending data starting at req->buf->p */
-	b_adv(req->buf, msg->next);
-	if (unlikely(!(s->req.flags & CF_WROTE_DATA)))
-		msg->sov -= msg->next + MIN(msg->chunk_len, req->buf->i);
-
-	msg->next = 0;
-	msg->chunk_len -= channel_forward(req, msg->chunk_len);
+	ret = flt_http_forward_data(s, msg, msg->next);
+	if (ret < 0)
+		goto return_bad_req;
+	b_adv(req->buf, ret);
+	msg->next -= ret;
+	if (unlikely(!(s->req.flags & CF_WROTE_DATA) || msg->sov > 0))
+		msg->sov -= ret;
+	if (LIST_ISEMPTY(&s->strm_flt.filters))
+		msg->chunk_len -= channel_forward(req, msg->chunk_len);
 
 	/* stop waiting for data if the input is closed before the end */
 	if (req->flags & CF_SHUTR) {
@@ -5919,10 +6000,6 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		sess->listener->counters->failed_req++;
 
  return_bad_req_stats_ok:
-	/* we may have some pending data starting at req->buf->p */
-	b_adv(req->buf, msg->next);
-	msg->next = 0;
-
 	txn->req.msg_state = HTTP_MSG_ERROR;
 	if (txn->status) {
 		/* Note: we don't send any error if some data were already sent */
@@ -5931,8 +6008,8 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		txn->status = 400;
 		http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_400));
 	}
-	req->analysers = 0;
-	s->res.analysers = 0; /* we're in data phase, we want to abort both directions */
+	req->analysers   &= AN_FLT_END;
+	s->res.analysers &= AN_FLT_END; /* we're in data phase, we want to abort both directions */
 
 	if (!(s->flags & SF_ERR_MASK))
 		s->flags |= SF_ERR_PRXCOND;
@@ -5953,8 +6030,8 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 		txn->status = 502;
 		http_reply_and_close(s, txn->status, http_error_message(s, HTTP_ERR_502));
 	}
-	req->analysers = 0;
-	s->res.analysers = 0; /* we're in data phase, we want to abort both directions */
+	req->analysers   &= AN_FLT_END;
+	s->res.analysers &= AN_FLT_END; /* we're in data phase, we want to abort both directions */
 
 	sess->fe->fe_counters.srv_aborts++;
 	s->be->be_counters.srv_aborts++;
@@ -6090,7 +6167,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			}
 		abort_response:
 			channel_auto_close(rep);
-			rep->analysers = 0;
+			rep->analysers &= AN_FLT_END;
 			txn->status = 502;
 			s->si[1].flags |= SI_FL_NOLINGER;
 			channel_truncate(rep);
@@ -6125,7 +6202,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			}
 
 			channel_auto_close(rep);
-			rep->analysers = 0;
+			rep->analysers &= AN_FLT_END;
 			txn->status = 502;
 			s->si[1].flags |= SI_FL_NOLINGER;
 			channel_truncate(rep);
@@ -6150,7 +6227,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			}
 
 			channel_auto_close(rep);
-			rep->analysers = 0;
+			rep->analysers &= AN_FLT_END;
 			txn->status = 504;
 			s->si[1].flags |= SI_FL_NOLINGER;
 			channel_truncate(rep);
@@ -6170,7 +6247,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			if (objt_server(s->target))
 				objt_server(s->target)->counters.cli_aborts++;
 
-			rep->analysers = 0;
+			rep->analysers &= AN_FLT_END;
 			channel_auto_close(rep);
 
 			txn->status = 400;
@@ -6200,7 +6277,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 			}
 
 			channel_auto_close(rep);
-			rep->analysers = 0;
+			rep->analysers &= AN_FLT_END;
 			txn->status = 502;
 			s->si[1].flags |= SI_FL_NOLINGER;
 			channel_truncate(rep);
@@ -6221,7 +6298,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 				goto abort_keep_alive;
 
 			s->be->be_counters.failed_resp++;
-			rep->analysers = 0;
+			rep->analysers &= AN_FLT_END;
 			channel_auto_close(rep);
 
 			if (!(s->flags & SF_ERR_MASK))
@@ -6324,6 +6401,7 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		msg->msg_state = HTTP_MSG_RPBEFORE;
 		txn->status = 0;
 		s->logs.t_data = -1; /* was not a response yet */
+		flt_http_reset(s, msg);
 		goto next_one;
 
 	case 200:
@@ -6579,8 +6657,8 @@ skip_content_length:
 	 * any other information so that the client retries.
 	 */
 	txn->status = 0;
-	rep->analysers = 0;
-	s->req.analysers = 0;
+	rep->analysers   &= AN_FLT_END;
+	s->req.analysers &= AN_FLT_END;
 	channel_auto_close(rep);
 	s->logs.logwait = 0;
 	s->logs.level = 0;
@@ -6680,7 +6758,7 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 				}
 				s->be->be_counters.failed_resp++;
 			return_srv_prx_502:
-				rep->analysers = 0;
+				rep->analysers &= AN_FLT_END;
 				txn->status = 502;
 				s->logs.t_data = -1; /* was not a valid response */
 				s->si[1].flags |= SI_FL_NOLINGER;
@@ -6899,8 +6977,11 @@ int http_process_res_common(struct stream *s, struct channel *rep, int an_bit, s
 
  skip_header_mangling:
 	if ((msg->flags & HTTP_MSGF_XFER_LEN) ||
-	    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_TUN)
+	    !LIST_ISEMPTY(&s->strm_flt.filters) ||
+	    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_TUN) {
+		rep->analysers &= ~AN_FLT_XFER_DATA;
 		rep->analysers |= AN_RES_HTTP_XFER_BODY;
+	}
 
 	/* if the user wants to log as soon as possible, without counting
 	 * bytes from the server, then this is the right moment. We have
@@ -6949,16 +7030,14 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	struct session *sess = s->sess;
 	struct http_txn *txn = s->txn;
 	struct http_msg *msg = &s->txn->rsp;
-	static struct buffer *tmpbuf = &buf_empty;
-	int compressing = 0;
-	int ret;
+	int ret, ret2;
 
 	if (unlikely(msg->msg_state < HTTP_MSG_BODY))
 		return 0;
 
 	if ((res->flags & (CF_READ_ERROR|CF_READ_TIMEOUT|CF_WRITE_ERROR|CF_WRITE_TIMEOUT)) ||
 	    ((res->flags & CF_SHUTW) && (res->to_forward || res->buf->o)) ||
-	    !s->req.analysers) {
+	     !s->req.analysers) {
 		/* Output closed while we were sending data. We must abort and
 		 * wake the other side up.
 		 */
@@ -6970,15 +7049,24 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	/* in most states, we should abort in case of early close */
 	channel_auto_close(res);
 
-	if (msg->sov > 0) {
+	if (msg->msg_state == HTTP_MSG_BODY) {
 		/* we have msg->sov which points to the first byte of message
 		 * body, and res->buf.p still points to the beginning of the
 		 * message. We forward the headers now, as we don't need them
 		 * anymore, and we want to flush them.
 		 */
-		b_adv(res->buf, msg->sov);
-		msg->next -= msg->sov;
-		msg->sov = 0;
+		ret = flt_http_headers(s, msg);
+		if (ret < 0)
+			goto return_bad_res;
+		if (!ret)
+			return 0;
+
+		ret = flt_http_forward_data(s, msg, msg->sov);
+		if (ret < 0)
+			goto return_bad_res;
+		b_adv(res->buf, ret);
+		msg->next -= ret;
+		msg->sov  -= ret;
 
 		/* The previous analysers guarantee that the state is somewhere
 		 * between MSG_BODY and the first MSG_DATA. So msg->sol and
@@ -6998,71 +7086,62 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 		goto missing_data;
 	}
 
-	if (unlikely(s->comp_algo != NULL) && msg->msg_state < HTTP_MSG_TRAILERS) {
-		/* We need a compression buffer in the DATA state to put the
-		 * output of compressed data, and in CRLF state to let the
-		 * TRAILERS state finish the job of removing the trailing CRLF.
-		 */
-		if (unlikely(!tmpbuf->size)) {
-			/* this is the first time we need the compression buffer */
-			if (b_alloc(&tmpbuf) == NULL)
-				goto aborted_xfer; /* no memory */
-		}
-
-		ret = http_compression_buffer_init(s, res->buf, tmpbuf);
-		if (ret < 0) {
-			res->flags |= CF_WAKE_WRITE;
-			goto missing_data; /* not enough spaces in buffers */
-		}
-		compressing = 1;
-	}
-
 	while (1) {
 		switch (msg->msg_state - HTTP_MSG_DATA) {
 		case HTTP_MSG_DATA - HTTP_MSG_DATA:	/* must still forward */
 			/* we may have some pending data starting at res->buf->p */
-			if (unlikely(s->comp_algo)) {
-				ret = http_compression_buffer_add_data(s, res->buf, tmpbuf);
-				if (ret < 0)
-					goto aborted_xfer;
 
-				if (msg->chunk_len) {
-					/* input empty or output full */
-					if (res->buf->i > msg->next)
-						res->flags |= CF_WAKE_WRITE;
-					goto missing_data;
-				}
-			}
-			else {
-				if (msg->chunk_len > res->buf->i - msg->next) {
-					/* output full */
+                         /* Neither content-length, nor transfer-encoding was
+			  * found, so we must read the body until the server
+			  * connection is closed. In that case, we eat data as
+			  * they come. */
+			if (!(msg->flags & HTTP_MSGF_XFER_LEN))
+				msg->chunk_len = (res->buf->i - msg->next);
+			ret = flt_http_data(s, msg);
+			if (ret < 0)
+				goto aborted_xfer;
+			msg->next      += ret;
+			msg->chunk_len -= ret;
+			if (msg->chunk_len) {
+				/* input empty or output full */
+				if (res->buf->i > msg->next)
 					res->flags |= CF_WAKE_WRITE;
-					goto missing_data;
-				}
-				msg->next += msg->chunk_len;
-				msg->chunk_len = 0;
+				goto missing_data;
 			}
 
 			/* nothing left to forward */
 			if (msg->flags & HTTP_MSGF_TE_CHNK) {
 				msg->msg_state = HTTP_MSG_CHUNK_CRLF;
+			} else if (!(msg->flags & HTTP_MSGF_XFER_LEN) &&
+				   !(res->flags & CF_SHUTR)) {
+				/* The server still sending data */
+				goto missing_data;
 			} else {
-				msg->msg_state = HTTP_MSG_DONE;
+				msg->msg_state = HTTP_MSG_ENDING;
 				break;
 			}
 			/* fall through for HTTP_MSG_CHUNK_CRLF */
 
 		case HTTP_MSG_CHUNK_CRLF - HTTP_MSG_DATA:
 			/* we want the CRLF after the data */
-
-			ret = http_skip_chunk_crlf(msg);
-			if (ret == 0)
-				goto missing_data;
-			else if (ret < 0) {
-				if (msg->err_pos >= 0)
-					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_CHUNK_CRLF, sess->fe);
-				goto return_bad_res;
+			if (!msg->sol) {
+				ret = http_skip_chunk_crlf(msg);
+				if (ret == 0)
+					goto missing_data;
+				else if (ret < 0) {
+					if (msg->err_pos >= 0)
+						http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_CHUNK_CRLF, sess->fe);
+					goto return_bad_res;
+				}
 			}
+			ret = flt_http_end_chunk(s, msg);
+			if (ret < 0)
+				goto return_bad_res;
+			if (!ret)
+				goto missing_data;
+			msg->next += msg->sol;
+			msg->sol   = 0;
+			msg->msg_state = HTTP_MSG_CHUNK_SIZE;
 			/* we're in MSG_CHUNK_SIZE now, fall through */
 
 		case HTTP_MSG_CHUNK_SIZE - HTTP_MSG_DATA:
@@ -7070,55 +7149,88 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 			 * set ->next to point to the body and switch to DATA or
 			 * TRAILERS state.
 			 */
-
-			ret = http_parse_chunk_size(msg);
-			if (ret == 0)
-				goto missing_data;
-			else if (ret < 0) {
-				if (msg->err_pos >= 0)
-					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_CHUNK_SIZE, sess->fe);
-				goto return_bad_res;
+			if (!msg->sol) {
+				ret = http_parse_chunk_size(msg);
+				if (ret == 0)
+					goto missing_data;
+				else if (ret < 0) {
+					if (msg->err_pos >= 0)
+						http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_CHUNK_SIZE, sess->fe);
+					goto return_bad_res;
+				}
 			}
+			ret = (msg->chunk_len
+			       ? flt_http_start_chunk(s, msg)
+			       : flt_http_last_chunk(s, msg));
+			if (ret < 0)
+				goto return_bad_res;
+			if (!ret)
+				goto missing_data;
+			msg->next += msg->sol;
+			msg->sol   = 0;
+			msg->msg_state = msg->chunk_len ? HTTP_MSG_DATA : HTTP_MSG_TRAILERS;
 			/* otherwise we're in HTTP_MSG_DATA or HTTP_MSG_TRAILERS state */
 			break;
 
 		case HTTP_MSG_TRAILERS - HTTP_MSG_DATA:
-			if (unlikely(compressing)) {
-				/* we need to flush output contents before syncing FSMs */
-				http_compression_buffer_end(s, &res->buf, &tmpbuf, 1);
-				compressing = 0;
+			ret = 1;
+			if (!msg->sol) {
+				ret = http_forward_trailers(msg);
+				if (ret < 0) {
+					if (msg->err_pos >= 0)
+						http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_TRAILERS, sess->fe);
+					goto return_bad_res;
+				}
 			}
-
-			ret = http_forward_trailers(msg);
-			if (ret == 0)
-				goto missing_data;
-			else if (ret < 0) {
-				if (msg->err_pos >= 0)
-					http_capture_bad_message(&s->be->invalid_rep, s, msg, HTTP_MSG_TRAILERS, sess->fe);
+			ret2 = flt_http_chunk_trailers(s, msg);
+			if (ret2 < 0)
 				goto return_bad_res;
-			}
-			/* we're in HTTP_MSG_DONE now, fall through */
+			if (!ret2)
+				goto missing_data;
+			msg->next += msg->sol;
+			msg->sol   = 0;
+			if (!ret)
+				goto missing_data;
+			msg->msg_state = HTTP_MSG_ENDING;
+			/* fall through */
 
-		default:
-			/* other states, DONE...TUNNEL */
-			if (unlikely(compressing)) {
-				/* we need to flush output contents before syncing FSMs */
-				http_compression_buffer_end(s, &res->buf, &tmpbuf, 1);
-				compressing = 0;
-			}
+		case HTTP_MSG_ENDING - HTTP_MSG_DATA:
+			/* for keep-alive we don't want to forward closes on ENDING */
+			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
+			    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL)
+				channel_dont_close(res);
 
 			/* we may have some pending data starting at res->buf->p
 			 * such as a last chunk of data or trailers.
 			 */
-			b_adv(res->buf, msg->next);
-			msg->next = 0;
+			ret = flt_http_forward_data(s, msg, msg->next);
+			if (ret < 0)
+				goto return_bad_res;
+			b_adv(res->buf, ret);
+			msg->next -= ret;
+			if (msg->sov > 0)
+				msg->sov -= ret;
 
-			ret = msg->msg_state;
+			if (msg->next)
+				goto skip_resync_states;
+
+			ret = flt_http_end(s, msg);
+			if (ret < 0)
+				goto return_bad_res;
+			if (!ret)
+				goto skip_resync_states;
+			msg->msg_state = HTTP_MSG_DONE;
+			/* fall through */
+
+		default:
+			/* other states, DONE...TUNNEL */
+
 			/* for keep-alive we don't want to forward closes on DONE */
 			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
 			    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL)
 				channel_dont_close(res);
 
+			ret = msg->msg_state;
 			if (http_resync_states(s)) {
 				/* some state changes occurred, maybe the analyser
 				 * was disabled too.
@@ -7136,22 +7248,25 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 				}
 				return 1;
 			}
+
+		skip_resync_states:
 			return 0;
 		}
 	}
 
  missing_data:
 	/* we may have some pending data starting at res->buf->p */
-	if (unlikely(compressing)) {
-		http_compression_buffer_end(s, &res->buf, &tmpbuf, msg->msg_state >= HTTP_MSG_TRAILERS);
-		compressing = 0;
-	}
+	ret = flt_http_forward_data(s, msg, msg->next);
+	if (ret < 0)
+		goto return_bad_res;
+	b_adv(res->buf, ret);
+	msg->next -= ret;
+	if (msg->sov > 0)
+		msg->sov -= ret;
 
-	if ((s->comp_algo == NULL || msg->msg_state >= HTTP_MSG_TRAILERS)) {
-		b_adv(res->buf, msg->next);
-		msg->next = 0;
+	if ((s->comp_algo == NULL || msg->msg_state >= HTTP_MSG_TRAILERS) &&
+	    LIST_ISEMPTY(&s->strm_flt.filters))
 		msg->chunk_len -= channel_forward(res, msg->chunk_len);
-	}
 
 	if (res->flags & CF_SHUTW)
 		goto aborted_xfer;
@@ -7184,7 +7299,7 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	 * Similarly, with keep-alive on the client side, we don't want to forward a
 	 * close.
 	 */
-	if ((msg->flags & HTTP_MSGF_TE_CHNK) || s->comp_algo ||
+	if ((msg->flags & HTTP_MSGF_TE_CHNK) || s->comp_algo || !msg->body_len ||
 	    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
 	    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL)
 		channel_dont_close(res);
@@ -7209,22 +7324,11 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 		objt_server(s->target)->counters.failed_resp++;
 
  return_bad_res_stats_ok:
-	if (unlikely(compressing)) {
-		http_compression_buffer_end(s, &res->buf, &tmpbuf, msg->msg_state >= HTTP_MSG_TRAILERS);
-		compressing = 0;
-	}
-
-	/* we may have some pending data starting at res->buf->p */
-	if (s->comp_algo == NULL) {
-		b_adv(res->buf, msg->next);
-		msg->next = 0;
-	}
-
 	txn->rsp.msg_state = HTTP_MSG_ERROR;
 	/* don't send any error message as we're in the body */
 	http_reply_and_close(s, txn->status, NULL);
-	res->analysers = 0;
-	s->req.analysers = 0; /* we're in data phase, we want to abort both directions */
+	res->analysers   &= AN_FLT_END;
+	s->req.analysers &= AN_FLT_END; /* we're in data phase, we want to abort both directions */
 	if (objt_server(s->target))
 		health_adjust(objt_server(s->target), HANA_STATUS_HTTP_HDRRSP);
 
@@ -7235,16 +7339,11 @@ int http_response_forward_body(struct stream *s, struct channel *res, int an_bit
 	return 0;
 
  aborted_xfer:
-	if (unlikely(compressing)) {
-		http_compression_buffer_end(s, &res->buf, &tmpbuf, msg->msg_state >= HTTP_MSG_TRAILERS);
-		compressing = 0;
-	}
-
 	txn->rsp.msg_state = HTTP_MSG_ERROR;
 	/* don't send any error message as we're in the body */
 	http_reply_and_close(s, txn->status, NULL);
-	res->analysers = 0;
-	s->req.analysers = 0; /* we're in data phase, we want to abort both directions */
+	res->analysers   &= AN_FLT_END;
+	s->req.analysers &= AN_FLT_END; /* we're in data phase, we want to abort both directions */
 
 	sess->fe->fe_counters.cli_aborts++;
 	s->be->be_counters.cli_aborts++;

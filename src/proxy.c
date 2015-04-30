@@ -35,6 +35,7 @@
 
 #include <proto/backend.h>
 #include <proto/fd.h>
+#include <proto/filters.h>
 #include <proto/hdr_idx.h>
 #include <proto/listener.h>
 #include <proto/log.h>
@@ -747,6 +748,7 @@ void init_new_proxy(struct proxy *p)
 	LIST_INIT(&p->conf.listeners);
 	LIST_INIT(&p->conf.args.list);
 	LIST_INIT(&p->tcpcheck_rules);
+	LIST_INIT(&p->filters);
 
 	/* Timeouts are defined as -1 */
 	proxy_reset_timeouts(p);
@@ -1128,6 +1130,8 @@ void resume_proxies(void)
  */
 int stream_set_backend(struct stream *s, struct proxy *be)
 {
+	struct filter *filter;
+
 	if (s->flags & SF_BE_ASSIGNED)
 		return 1;
 	s->be = be;
@@ -1135,6 +1139,20 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 	if (be->beconn > be->be_counters.conn_max)
 		be->be_counters.conn_max = be->beconn;
 	proxy_inc_be_ctr(be);
+
+	if (strm_fe(s) != be) {
+		list_for_each_entry(filter, &be->filters, list) {
+			struct filter *f = pool_alloc2(pool2_filter);
+			if (!f)
+				return 0; /* not enough memory */
+			memset(f, 0, sizeof(*f));
+			f->id    = filter->id;
+			f->ops   = filter->ops;
+			f->conf  = filter->conf;
+			f->is_backend_filter = 1;
+			LIST_ADDQ(&s->strm_flt.filters, &f->list);
+		}
+	}
 
 	/* assign new parameters to the stream from the new backend */
 	s->si[1].flags &= ~SI_FL_INDEP_STR;
@@ -1146,9 +1164,7 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 	 * be more reliable to store the list of analysers that have been run,
 	 * but what we do here is OK for now.
 	 */
-	s->req.analysers |= be->be_req_ana;
-	if (strm_li(s))
-		s->req.analysers &= ~strm_li(s)->analysers;
+	s->req.analysers |= be->be_req_ana & (strm_li(s) ? ~strm_li(s)->analysers : 0);
 
 	/* If the target backend requires HTTP processing, we have to allocate
 	 * the HTTP transaction and hdr_idx if we did not have one.

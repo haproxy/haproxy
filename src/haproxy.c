@@ -76,6 +76,7 @@
 #include <common/version.h>
 
 #include <types/capture.h>
+#include <types/filters.h>
 #include <types/global.h>
 #include <types/acl.h>
 #include <types/peers.h>
@@ -89,6 +90,7 @@
 #include <proto/checks.h>
 #include <proto/connection.h>
 #include <proto/fd.h>
+#include <proto/filters.h>
 #include <proto/hdr_idx.h>
 #include <proto/hlua.h>
 #include <proto/listener.h>
@@ -560,6 +562,7 @@ void init(int argc, char **argv)
 	char *progname;
 	char *change_dir = NULL;
 	struct tm curtime;
+	struct proxy *px;
 
 	chunk_init(&trash, malloc(global.tune.bufsize), global.tune.bufsize);
 	alloc_trash_buffers(global.tune.bufsize);
@@ -860,6 +863,15 @@ void init(int argc, char **argv)
 #ifdef USE_51DEGREES
 	init_51degrees();
 #endif
+
+	for (px = proxy; px; px = px->next) {
+		err_code |= flt_init(px);
+		if (err_code & (ERR_ABORT|ERR_FATAL)) {
+			Alert("Failed to initialize filters for proxy '%s'.\n",
+			      px->id);
+			exit(1);
+		}
+	}
 
 	if (start_checks() < 0)
 		exit(1);
@@ -1468,6 +1480,8 @@ void deinit(void)
 			free(bind_conf);
 		}
 
+		flt_deinit(p);
+
 		free(p->desc);
 		free(p->fwdfor_hdr_name);
 
@@ -1550,7 +1564,6 @@ void deinit(void)
 	pool_destroy2(pool2_sig_handlers);
 	pool_destroy2(pool2_hdr_idx);
 	pool_destroy2(pool2_http_txn);
-    
 	deinit_pollers();
 } /* end deinit() */
 

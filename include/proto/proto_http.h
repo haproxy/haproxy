@@ -126,6 +126,7 @@ struct http_txn *http_alloc_txn(struct stream *s);
 void http_init_txn(struct stream *s);
 void http_end_txn(struct stream *s);
 void http_reset_txn(struct stream *s);
+void http_end_txn_clean_session(struct stream *s);
 void http_adjust_conn_mode(struct stream *s, struct http_txn *txn, struct http_msg *msg);
 
 struct act_rule *parse_http_req_cond(const char **args, const char *file, int linenum, struct proxy *proxy);
@@ -284,6 +285,7 @@ static inline const char *http_msg_state_str(int msg_state)
 	case HTTP_MSG_DATA:        return "MSG_DATA";
 	case HTTP_MSG_CHUNK_CRLF:  return "MSG_CHUNK_CRLF";
 	case HTTP_MSG_TRAILERS:    return "MSG_TRAILERS";
+	case HTTP_MSG_ENDING:      return "MSG_ENDING";
 	case HTTP_MSG_DONE:        return "MSG_DONE";
 	case HTTP_MSG_CLOSING:     return "MSG_CLOSING";
 	case HTTP_MSG_CLOSED:      return "MSG_CLOSED";
