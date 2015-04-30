@@ -332,6 +332,7 @@ void srv_set_running(struct server *s, const char *reason)
 	srv_append_status(&trash, s, reason, xferred, 0);
 	Warning("%s.\n", trash.str);
 	send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
+	send_email_alert(s, LOG_NOTICE, "%s", trash.str);
 
 	for (srv = s->trackers; srv; srv = srv->tracknext)
 		srv_set_running(srv, NULL);
@@ -484,6 +485,7 @@ void srv_set_admin_flag(struct server *s, enum srv_admin mode)
 
 		Warning("%s.\n", trash.str);
 		send_log(s->proxy, LOG_NOTICE, "%s.\n", trash.str);
+		send_email_alert(s, LOG_NOTICE, "%s", trash.str);
 
 		if (prev_srv_count && s->proxy->srv_bck == 0 && s->proxy->srv_act == 0)
 			set_backend_down(s->proxy);
