@@ -2786,6 +2786,15 @@ email-alert level <level>
   "email-alert to" to be set and if so sending email alerts is enabled
   for the proxy.
 
+  Alerts are sent when :
+
+  * An un-paused server is marked as down and <level> is alert or lower
+  * A paused server is marked as down and <level> is notice or lower
+  * A server is marked as up or enters the drain state and <level>
+    is notice or lower
+  * "option log-health-checks" is enabled, <level> is info or lower,
+     and a health check status update occurs
+
   See also : "email-alert from", "email-alert mailers",
              "email-alert myhostname", "email-alert to",
              section 3.6 about mailers.
