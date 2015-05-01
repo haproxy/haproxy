@@ -641,7 +641,7 @@ static void chk_report_conn_err(struct connection *conn, int errno_bck, int expi
 			}
 			else if (check->last_started_step && check->last_started_step->action == TCPCHK_ACT_EXPECT) {
 				if (check->last_started_step->string)
-					chunk_appendf(chk, " (string '%s')", check->last_started_step->string);
+					chunk_appendf(chk, " (expect string '%s')", check->last_started_step->string);
 				else if (check->last_started_step->expect_regex)
 					chunk_appendf(chk, " (expect regex)");
 			}
