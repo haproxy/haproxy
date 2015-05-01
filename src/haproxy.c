@@ -1740,6 +1740,7 @@ int main(int argc, char **argv)
 
 	if (global.mode & (MODE_DAEMON | MODE_SYSTEMD)) {
 		struct proxy *px;
+		struct peers *curpeers;
 		int ret = 0;
 		int *children = calloc(global.nbproc, sizeof(int));
 		int proc;
@@ -1797,6 +1798,19 @@ int main(int argc, char **argv)
 					stop_proxy(px);
 			}
 			px = px->next;
+		}
+
+		/* we might have to unbind some peers sections from some processes */
+		for (curpeers = peers; curpeers; curpeers = curpeers->next) {
+			if (!curpeers->peers_fe)
+				continue;
+
+			if (curpeers->peers_fe->bind_proc & (1UL << proc))
+				continue;
+
+			stop_proxy(curpeers->peers_fe);
+			/* disable this peer section so that it kills itself */
+			curpeers->peers_fe = NULL;
 		}
 
 		free(children);
