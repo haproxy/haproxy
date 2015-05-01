@@ -1244,6 +1244,14 @@ peers <peersect>
   Creates a new peer list with name <peersect>. It is an independent section,
   which is referenced by one or more stick-tables.
 
+disabled
+  Disables a peers section. It disables both listening and any synchronization
+  related to this section. This is provided to disable synchronization of stick
+  tables without having to comment out all "peers" references.
+
+enable
+  This re-enables a disabled peers section which was previously disabled.
+
 peer <peername> <ip>:<port>
   Defines a peer inside a peers section.
   If <peername> is set to the local peer name (by default hostname, or forced

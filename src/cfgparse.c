@@ -1794,6 +1794,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		curpeers->conf.line = linenum;
 		curpeers->last_change = now.tv_sec;
 		curpeers->id = strdup(args[1]);
+		curpeers->state = PR_STNEW;
 	}
 	else if (strcmp(args[0], "peer") == 0) { /* peer definition */
 		struct sockaddr_storage *sk;
@@ -1919,6 +1920,12 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 			}
 		}
 	} /* neither "peer" nor "peers" */
+	else if (!strcmp(args[0], "disabled")) {  /* disables this peers section */
+		curpeers->state = PR_STSTOPPED;
+	}
+	else if (!strcmp(args[0], "enabled")) {  /* enables this peers section (used to revert a disabled default) */
+		curpeers->state = PR_STNEW;
+	}
 	else if (*args[0] != 0) {
 		Alert("parsing [%s:%d] : unknown keyword '%s' in '%s' section\n", file, linenum, args[0], cursection);
 		err_code |= ERR_ALERT | ERR_FATAL;
@@ -7007,6 +7014,10 @@ int check_config_validity()
 				curproxy->table.peers.p = NULL;
 				cfgerr++;
 			}
+			else if (curpeers->state == PR_STSTOPPED) {
+				/* silently disable this peers section */
+				curproxy->table.peers.p = NULL;
+			}
 			else if (!curpeers->peers_fe) {
 				Alert("Proxy '%s': unable to find local peer '%s' in peers section '%s'.\n",
 				      curproxy->id, localpeer, curpeers->id);
@@ -7898,14 +7909,23 @@ out_uri_auth_compat:
 		last = &peers;
 		while (*last) {
 			curpeers = *last;
-			if (curpeers->peers_fe) {
+
+			if (curpeers->state == PR_STSTOPPED) {
+				/* the "disabled" keyword was present */
+				if (curpeers->peers_fe)
+					stop_proxy(curpeers->peers_fe);
+				curpeers->peers_fe = NULL;
+			}
+			else if (!curpeers->peers_fe) {
+				Warning("Removing incomplete section 'peers %s' (no peer named '%s').\n",
+					curpeers->id, localpeer);
+			}
+			else {
 				last = &curpeers->next;
 				continue;
 			}
 
-			Warning("Removing incomplete section 'peers %s' (no peer named '%s').\n",
-				curpeers->id, localpeer);
-
+			/* clean what has been detected above */
 			p = curpeers->remote;
 			while (p) {
 				pb = p->next;
