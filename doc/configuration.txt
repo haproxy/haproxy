@@ -4336,7 +4336,9 @@ no option dontlognull
   simple port probe or scan will produce a log. If those connections pollute
   the logs too much, it is possible to enable option "dontlognull" to indicate
   that a connection on which no data has been transferred will not be logged,
-  which typically corresponds to those probes.
+  which typically corresponds to those probes. Note that errors will still be
+  returned to the client and accounted for in the stats. If this is not what is
+  desired, option http-ignore-probes can be used instead.
 
   It is generally recommended not to use this option in uncontrolled
   environments (eg: internet), otherwise scans and other malicious activities
@@ -4345,7 +4347,8 @@ no option dontlognull
   If this option has been enabled in a "defaults" section, it can be disabled
   in a specific instance by prepending the "no" keyword before it.
 
-  See also : "log", "monitor-net", "monitor-uri" and section 8 about logging.
+  See also : "log", "http-ignore-probes", "monitor-net", "monitor-uri", and
+             section 8 about logging.
 
 
 option forceclose
@@ -4439,6 +4442,40 @@ option forwardfor [ except <network> ] [ header <name> ] [ if-none ]
 
   See also : "option httpclose", "option http-server-close",
              "option forceclose", "option http-keep-alive"
+
+
+option http-ignore-probes
+no option http-ignore-probes
+  Enable or disable logging of null connections and request timeouts
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   no
+  Arguments : none
+
+  Recently some browsers started to implement a "pre-connect" feature
+  consisting in speculatively connecting to some recently visited web sites
+  just in case the user would like to visit them. This results in many
+  connections being established to web sites, which end up in 408 Request
+  Timeout if the timeout strikes first, or 400 Bad Request when the browser
+  decides to close them first. These ones pollute the log and feed the error
+  counters. There was already "option dontlognull" but it's insufficient in
+  this case. Instead, this option does the following things :
+     - prevent any 400/408 message from being sent to the client if nothing
+       was received over a connection before it was closed ;
+     - prevent any log from being emitted in this situation ;
+     - prevent any error counter from being incremented
+
+  That way the empty connection is silently ignored. Note that it is better
+  not to use this unless it is clear that it is needed, because it will hide
+  real problems. The most common reason for not receiving a request and seeing
+  a 408 is due to an MTU inconsistency between the client and an intermediary
+  element such as a VPN, which blocks too large packets. These issues are
+  generally seen with POST requests as well as GET with large cookies. The logs
+  are often the only way to detect them.
+
+  If this option has been enabled in a "defaults" section, it can be disabled
+  in a specific instance by prepending the "no" keyword before it.
+
+  See also : "log", "dontlognull", "errorfile", and section 8 about logging.
 
 
 option http-keep-alive
@@ -8334,8 +8371,8 @@ timeout http-request <timeout>
   about the problem, and the connection is closed. The logs will report
   termination codes "cR". Some recent browsers are having problems with this
   standard, well-documented behaviour, so it might be needed to hide the 408
-  code using "errorfile 408 /dev/null". See more details in the explanations of
-  the "cR" termination code in section 8.5.
+  code using "option http-ignore-probes" or "errorfile 408 /dev/null". See
+  more details in the explanations of the "cR" termination code in section 8.5.
 
   Note that this timeout only applies to the header part of the request, and
   not to any data. As soon as the empty line is received, this timeout is not
@@ -8353,7 +8390,8 @@ timeout http-request <timeout>
   effect, unless the frontend is in TCP mode, in which case the HTTP backend's
   timeout will be used.
 
-  See also : "errorfile", "timeout http-keep-alive", "timeout client".
+  See also : "errorfile", "http-ignore-probes", "timeout http-keep-alive", and
+             "timeout client".
 
 
 timeout queue <timeout>
@@ -13664,7 +13702,8 @@ easier finding and understanding.
           the request was typed by hand using a telnet client, and aborted
           too early. The HTTP status code is likely a 400 here. Sometimes this
           might also be caused by an IDS killing the connection between haproxy
-          and the client.
+          and the client. "option http-ignore-probes" can be used to ignore
+          connections without any data transfer.
 
      cR   The "timeout http-request" stroke before the client sent a full HTTP
           request. This is sometimes caused by too large TCP MSS values on the
@@ -13672,19 +13711,18 @@ easier finding and understanding.
           packets, or by clients sending requests by hand and not typing fast
           enough, or forgetting to enter the empty line at the end of the
           request. The HTTP status code is likely a 408 here. Note: recently,
-          some browsers such as Google Chrome started to break the deployed Web
-          infrastructure by aggressively implementing a new "pre-connect"
-          feature, consisting in sending connections to sites recently visited
-          without sending any request on them until the user starts to browse
-          the site. This mechanism causes massive disruption among resource-
-          limited servers, and causes a lot of 408 errors in HAProxy logs.
-          Worse, some people report that sometimes the browser displays the 408
-          error when the user expects to see the actual content (Mozilla fixed
-          this bug in 2004, while Chrome users continue to report it in 2014),
-          so in this case, using "errorfile 408 /dev/null" can be used as a
-          workaround. More information on the subject is available here :
-              https://bugzilla.mozilla.org/show_bug.cgi?id=248827
-              https://code.google.com/p/chromium/issues/detail?id=85229
+          some browsers started to implement a "pre-connect" feature consisting
+          in speculatively connecting to some recently visited web sites just
+          in case the user would like to visit them. This results in many
+          connections being established to web sites, which end up in 408
+          Request Timeout if the timeout strikes first, or 400 Bad Request when
+          the browser decides to close them first. These ones pollute the log
+          and feed the error counters. Some versions of some browsers have even
+          been reported to display the error code. It is possible to work
+          around the undesirable effects of this behaviour by adding "option
+          http-ignore-probes" in the frontend, resulting in connections with
+          zero data transfer to be totally ignored. This will definitely hide
+          the errors of people experiencing connectivity issues though.
 
      CT   The client aborted while its session was tarpitted. It is important to
           check if this happens on valid requests, in order to be sure that no

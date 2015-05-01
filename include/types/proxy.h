@@ -81,7 +81,7 @@ enum pr_mode {
 #define PR_O_DISPATCH   0x00000040      /* use dispatch mode */
 /* unused: 0x00000080 */
 #define PR_O_FWDFOR     0x00000100      /* conditionally insert x-forwarded-for with client address */
-/* unused: 0x00000200 */
+#define PR_O_IGNORE_PRB 0x00000200      /* ignore empty requests (aborts and timeouts) */
 #define PR_O_NULLNOLOG  0x00000400      /* a connect without request will not be logged */
 /* unused: 0x0800, 0x1000 */
 #define PR_O_FF_ALWAYS  0x00002000      /* always set x-forwarded-for */
