@@ -12223,6 +12223,25 @@ capture.res.ver : string
   "HTTP/1.1". Unlike "res.ver", it can be used in logs because it relies on a
   persistent flag.
 
+req.body : binary
+  This returns the HTTP request's available body as a block of data. It
+  requires that the request body has been buffered made available using
+  "option http-buffer-request". In case of chunked-encoded body, currently only
+  the first chunk is analyzed.
+
+req.body_len : integer
+  This returns the length of the HTTP request's available body in bytes. It may
+  be lower than the advertised length if the body is larger than the buffer. It
+  requires that the request body has been buffered made available using
+  "option http-buffer-request".
+
+req.body_size : integer
+  This returns the advertised length of the HTTP request's body in bytes. It
+  will represent the advertised Content-Length header, or the size of the first
+  chunk in case of chunked encoding. In order to parse the chunks, it requires
+  that the request body has been buffered made available using
+  "option http-buffer-request".
+
 req.cook([<name>]) : string
 cook([<name>]) : string (deprecated)
   This extracts the last occurrence of the cookie name <name> on a "Cookie"

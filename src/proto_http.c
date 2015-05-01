@@ -10339,6 +10339,106 @@ smp_fetch_stcode(struct proxy *px, struct session *sess, struct stream *strm, un
 	return 1;
 }
 
+/* returns the longest available part of the body. This requires that the body
+ * has been waited for using http-buffer-request.
+ */
+static int
+smp_fetch_body(struct proxy *px, struct session *sess, struct stream *strm, unsigned int opt,
+               const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct http_txn *txn = strm->txn;
+	struct http_msg *msg;
+	unsigned long len;
+	unsigned long block1;
+	char *body;
+	struct chunk *temp;
+
+	CHECK_HTTP_MESSAGE_FIRST();
+
+	if ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ)
+		msg = &txn->req;
+	else
+		msg = &txn->rsp;
+
+	len  = http_body_bytes(msg);
+	body = b_ptr(msg->chn->buf, -http_data_rewind(msg));
+
+	block1 = len;
+	if (block1 > msg->chn->buf->data + msg->chn->buf->size - body)
+		block1 = msg->chn->buf->data + msg->chn->buf->size - body;
+
+	if (block1 == len) {
+		/* buffer is not wrapped (or empty) */
+		smp->type = SMP_T_BIN;
+		smp->data.str.str = body;
+		smp->data.str.len = len;
+		smp->flags = SMP_F_VOL_TEST | SMP_F_CONST;
+	}
+	else {
+		/* buffer is wrapped, we need to defragment it */
+		temp = get_trash_chunk();
+		memcpy(temp->str, body, block1);
+		memcpy(temp->str + block1, msg->chn->buf->data, len - block1);
+		smp->type = SMP_T_BIN;
+		smp->data.str.str = temp->str;
+		smp->data.str.len = len;
+		smp->flags = SMP_F_VOL_TEST;
+	}
+	return 1;
+}
+
+
+/* returns the available length of the body. This requires that the body
+ * has been waited for using http-buffer-request.
+ */
+static int
+smp_fetch_body_len(struct proxy *px, struct session *sess, struct stream *strm, unsigned int opt,
+                   const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct http_txn *txn = strm->txn;
+	struct http_msg *msg;
+
+	CHECK_HTTP_MESSAGE_FIRST();
+
+	if ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ)
+		msg = &txn->req;
+	else
+		msg = &txn->rsp;
+
+	smp->type = SMP_T_UINT;
+	smp->data.uint = http_body_bytes(msg);
+
+	smp->flags = SMP_F_VOL_TEST;
+	return 1;
+}
+
+
+/* returns the advertised length of the body, or the advertised size of the
+ * chunks available in the buffer. This requires that the body has been waited
+ * for using http-buffer-request.
+ */
+static int
+smp_fetch_body_size(struct proxy *px, struct session *sess, struct stream *strm, unsigned int opt,
+                    const struct arg *args, struct sample *smp, const char *kw, void *private)
+{
+	struct http_txn *txn = strm->txn;
+	struct http_msg *msg;
+
+	CHECK_HTTP_MESSAGE_FIRST();
+
+	if ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ)
+		msg = &txn->req;
+	else
+		msg = &txn->rsp;
+
+	smp->type = SMP_T_UINT;
+	smp->data.uint = msg->body_len;
+
+	smp->flags = SMP_F_VOL_TEST;
+	return 1;
+}
+
+
 /* 4. Check on URL/URI. A pointer to the URI is stored. */
 static int
 smp_fetch_url(struct proxy *px, struct session *sess, struct stream *strm, unsigned int opt,
@@ -12205,6 +12305,10 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	/* HTTP version on the request path */
 	{ "req.ver",         smp_fetch_rqver,          0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
 	{ "req_ver",         smp_fetch_rqver,          0,                NULL,    SMP_T_STR,  SMP_USE_HRQHV },
+
+	{ "req.body",        smp_fetch_body,           0,                NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
+	{ "req.body_len",    smp_fetch_body_len,       0,                NULL,    SMP_T_UINT, SMP_USE_HRQHV },
+	{ "req.body_size",   smp_fetch_body_size,      0,                NULL,    SMP_T_UINT, SMP_USE_HRQHV },
 
 	/* HTTP version on the response path */
 	{ "res.ver",         smp_fetch_stver,          0,                NULL,    SMP_T_STR,  SMP_USE_HRSHV },
