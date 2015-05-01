@@ -7362,7 +7362,8 @@ stick-table type {ip | integer | string [len <length>] | binary [len <length>]}
                automatically learned from the local peer (old process) during a
                soft restart.
 
-               NOTE : peers can't be used in multi-process mode.
+               NOTE : each peers section may be referenced only by tables
+                      belonging to the same unique process.
 
     <expire>   defines the maximum duration of an entry in the table since it
                was last created, refreshed or matched. The expiration delay is
