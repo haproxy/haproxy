@@ -1482,6 +1482,7 @@ option dontlognull                   (*)  X          X         X         -
 option forceclose                    (*)  X          X         X         X
 -- keyword -------------------------- defaults - frontend - listen -- backend -
 option forwardfor                         X          X         X         X
+option http-buffer-request           (*)  X          X         X         X
 option http-ignore-probes            (*)  X          X         X         -
 option http-keep-alive               (*)  X          X         X         X
 option http-no-delay                 (*)  X          X         X         X
@@ -4453,6 +4454,28 @@ option forwardfor [ except <network> ] [ header <name> ] [ if-none ]
              "option forceclose", "option http-keep-alive"
 
 
+option http-buffer-request
+no option http-buffer-request
+  Enable or disable waiting for whole HTTP request body before proceeding
+  May be used in sections :   defaults | frontend | listen | backend
+                                 yes   |    yes   |   yes  |   yes
+  Arguments : none
+
+  It is sometimes desirable to wait for the body of an HTTP request before
+  taking a decision. This is what is being done by "balance url_param" for
+  example. The first use case is to buffer requests from slow clients before
+  connecting to the server. Another use case consists in taking the routing
+  decision based on the request body's contents. This option placed in a
+  frontend or backend forces the HTTP processing to wait until either the whole
+  body is received, or the request buffer is full, or the first chunk is
+  complete in case of chunked encoding. It can have undesired side effects with
+  some applications abusing HTTP by expecting unbufferred transmissions between
+  the frontend and the backend, so this should definitely not be used by
+  default.
+
+  See also : "option http-no-delay"
+
+
 option http-ignore-probes
 no option http-ignore-probes
   Enable or disable logging of null connections and request timeouts
@@ -4577,6 +4600,8 @@ no option http-no-delay
   is discovered. The impact of using this option is an increase of bandwidth
   usage and CPU usage, which may significantly lower performance in high
   latency environments.
+
+  See also : "option http-buffer-request"
 
 
 option http-pretend-keepalive

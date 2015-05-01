@@ -3133,6 +3133,11 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 	    ((sess->fe->options & PR_O_HTTP_MODE) != (s->be->options & PR_O_HTTP_MODE)))
 		http_adjust_conn_mode(s, txn, msg);
 
+	/* we may have to wait for the request's body */
+	if ((s->be->options & PR_O_WREQ_BODY) &&
+	    (msg->body_len || (msg->flags & HTTP_MSGF_TE_CHNK)))
+		req->analysers |= AN_REQ_HTTP_BODY;
+
 	/* end of job, return OK */
 	req->analysers &= ~an_bit;
 	req->analyse_exp = TICK_ETERNITY;
@@ -3288,7 +3293,7 @@ int http_handle_stats(struct stream *s, struct channel *req)
 	}
 
 	/* Was the status page requested with a POST ? */
-	if (unlikely(txn->meth == HTTP_METH_POST && txn->req.body_len > 0)) {
+	if (unlikely(txn->meth == HTTP_METH_POST && txn->req.body_len > 0 && msg->msg_state < HTTP_MSG_BODY)) {
 		if (appctx->ctx.stats.flags & STAT_ADMIN) {
 			/* we'll need the request body, possibly after sending 100-continue */
 			req->analysers |= AN_REQ_HTTP_BODY;

@@ -83,7 +83,8 @@ enum pr_mode {
 #define PR_O_FWDFOR     0x00000100      /* conditionally insert x-forwarded-for with client address */
 #define PR_O_IGNORE_PRB 0x00000200      /* ignore empty requests (aborts and timeouts) */
 #define PR_O_NULLNOLOG  0x00000400      /* a connect without request will not be logged */
-/* unused: 0x0800, 0x1000 */
+#define PR_O_WREQ_BODY  0x00000800      /* always wait for the HTTP request body */
+/* unused: 0x1000 */
 #define PR_O_FF_ALWAYS  0x00002000      /* always set x-forwarded-for */
 #define PR_O_PERSIST    0x00004000      /* server persistence stays effective even when server is down */
 #define PR_O_LOGASAP    0x00008000      /* log as soon as possible, without waiting for the stream to complete */

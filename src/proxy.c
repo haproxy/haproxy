@@ -940,6 +940,13 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 	if (be->options2 & PR_O2_INDEPSTR)
 		s->si[1].flags |= SI_FL_INDEP_STR;
 
+	/* We want to enable the backend-specific analysers except those which
+	 * were already run as part of the frontend/listener. Note that it would
+	 * be more reliable to store the list of analysers that have been run,
+	 * but what we do here is OK for now.
+	 */
+	s->req.analysers |= be->be_req_ana & ~strm_li(s)->analysers;
+
 	/* If the target backend requires HTTP processing, we have to allocate
 	 * the HTTP transaction and hdr_idx if we did not have one.
 	 */
@@ -971,6 +978,11 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 		if (be->mode == PR_MODE_HTTP &&
 		    (be->lbprm.algo & (BE_LB_KIND | BE_LB_PARM)) == (BE_LB_KIND_HI | BE_LB_HASH_PRM))
 			s->txn->req.flags |= HTTP_MSGF_WAIT_CONN;
+
+		/* we may request to parse a request body */
+		if ((be->options & PR_O_WREQ_BODY) &&
+		    (s->txn->req.body_len || (s->txn->req.flags & HTTP_MSGF_TE_CHNK)))
+			s->req.analysers |= AN_REQ_HTTP_BODY;
 	}
 
 	s->flags |= SF_BE_ASSIGNED;
@@ -978,13 +990,6 @@ int stream_set_backend(struct stream *s, struct proxy *be)
 		s->req.flags |= CF_NEVER_WAIT;
 		s->res.flags |= CF_NEVER_WAIT;
 	}
-
-	/* We want to enable the backend-specific analysers except those which
-	 * were already run as part of the frontend/listener. Note that it would
-	 * be more reliable to store the list of analysers that have been run,
-	 * but what we do here is OK for now.
-	 */
-	s->req.analysers |= be->be_req_ana & ~strm_li(s)->analysers;
 
 	return 1;
 }
