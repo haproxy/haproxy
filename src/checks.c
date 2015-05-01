@@ -62,6 +62,7 @@
 
 static int httpchk_expect(struct server *s, int done);
 static int tcpcheck_get_step_id(struct check *);
+static char * tcpcheck_get_step_comment(struct check *, int);
 static void tcpcheck_main(struct connection *);
 
 static const struct check_status check_statuses[HCHK_STATUS_SIZE] = {
@@ -608,6 +609,7 @@ static void chk_report_conn_err(struct connection *conn, int errno_bck, int expi
 	const char *err_msg;
 	struct chunk *chk;
 	int step;
+	char *comment;
 
 	if (check->result != CHK_RES_UNKNOWN)
 		return;
@@ -648,6 +650,10 @@ static void chk_report_conn_err(struct connection *conn, int errno_bck, int expi
 			else if (check->last_started_step && check->last_started_step->action == TCPCHK_ACT_SEND) {
 				chunk_appendf(chk, " (send)");
 			}
+
+			comment = tcpcheck_get_step_comment(check, step);
+			if (comment)
+				chunk_appendf(chk, " comment: '%s'", comment);
 		}
 	}
 
@@ -2382,9 +2388,44 @@ static int tcpcheck_get_step_id(struct check *check)
 	return i;
 }
 
+/*
+ * return the latest known comment before (including) the given stepid
+ * returns NULL if no comment found
+ */
+static char * tcpcheck_get_step_comment(struct check *check, int stepid)
+{
+	struct tcpcheck_rule *cur = NULL;
+	char *ret = NULL;
+	int i = 0;
+
+	/* not even started anything yet, return latest comment found before any action */
+	if (!check->current_step) {
+		list_for_each_entry(cur, check->tcpcheck_rules, list) {
+			if (cur->action == TCPCHK_ACT_COMMENT)
+				ret = cur->comment;
+			else
+				goto return_comment;
+		}
+	}
+
+	i = 1;
+	list_for_each_entry(cur, check->tcpcheck_rules, list) {
+		if (cur->comment)
+			ret = cur->comment;
+
+		if (i >= stepid)
+			goto return_comment;
+
+		++i;
+	}
+
+ return_comment:
+	return ret;
+}
+
 static void tcpcheck_main(struct connection *conn)
 {
-	char *contentptr;
+	char *contentptr, *comment;
 	struct tcpcheck_rule *cur, *next;
 	int done = 0, ret = 0, step = 0;
 	struct check *check = conn->owner;
@@ -2483,6 +2524,12 @@ static void tcpcheck_main(struct connection *conn)
 
 		/* have 'next' point to the next rule or NULL if we're on the last one */
 		next = (struct tcpcheck_rule *)cur->list.n;
+
+		/* bypass all comment rules */
+		while (next->action == TCPCHK_ACT_COMMENT)
+			next = (struct tcpcheck_rule *)next->list.n;
+
+		/* NULL if we're on the last rule */
 		if (&next->list == head)
 			next = NULL;
 
@@ -2572,6 +2619,9 @@ static void tcpcheck_main(struct connection *conn)
 				step = tcpcheck_get_step_id(check);
 				chunk_printf(&trash, "TCPCHK error establishing connection at step %d: %s",
 						step, strerror(errno));
+				comment = tcpcheck_get_step_comment(check, step);
+				if (comment)
+					chunk_appendf(&trash, " comment: '%s'", comment);
 				set_server_check_status(check, HCHK_STATUS_L4CON, trash.str);
 				goto out_end_tcpcheck;
 			case SF_ERR_PRXCOND:
@@ -2579,12 +2629,20 @@ static void tcpcheck_main(struct connection *conn)
 			case SF_ERR_INTERNAL:
 				step = tcpcheck_get_step_id(check);
 				chunk_printf(&trash, "TCPCHK error establishing connection at step %d", step);
+				comment = tcpcheck_get_step_comment(check, step);
+				if (comment)
+					chunk_appendf(&trash, " comment: '%s'", comment);
 				set_server_check_status(check, HCHK_STATUS_SOCKERR, trash.str);
 				goto out_end_tcpcheck;
 			}
 
 			/* allow next rule */
 			cur = (struct tcpcheck_rule *)cur->list.n;
+
+			/* bypass all comment rules */
+			while (cur->action == TCPCHK_ACT_COMMENT)
+				cur = (struct tcpcheck_rule *)cur->list.n;
+
 			check->current_step = cur;
 
 			/* don't do anything until the connection is established */
@@ -2640,6 +2698,11 @@ static void tcpcheck_main(struct connection *conn)
 
 			/* go to next rule and try to send */
 			cur = (struct tcpcheck_rule *)cur->list.n;
+
+			/* bypass all comment rules */
+			while (cur->action == TCPCHK_ACT_COMMENT)
+				cur = (struct tcpcheck_rule *)cur->list.n;
+
 			check->current_step = cur;
 		} /* end 'send' */
 		else if (check->current_step->action == TCPCHK_ACT_EXPECT) {
@@ -2688,6 +2751,9 @@ static void tcpcheck_main(struct connection *conn)
 				/* empty response */
 				step = tcpcheck_get_step_id(check);
 				chunk_printf(&trash, "TCPCHK got an empty response at step %d", step);
+				comment = tcpcheck_get_step_comment(check, step);
+				if (comment)
+					chunk_appendf(&trash, " comment: '%s'", comment);
 				set_server_check_status(check, HCHK_STATUS_L7RSP, trash.str);
 
 				goto out_end_tcpcheck;
@@ -2719,13 +2785,23 @@ static void tcpcheck_main(struct connection *conn)
 					/* we were looking for a regex */
 						chunk_printf(&trash, "TCPCHK matched unwanted content (regex) at step %d", step);
 					}
+					comment = tcpcheck_get_step_comment(check, step);
+					if (comment)
+						chunk_appendf(&trash, " comment: '%s'", comment);
 					set_server_check_status(check, HCHK_STATUS_L7RSP, trash.str);
 					goto out_end_tcpcheck;
 				}
 				/* matched and was supposed to => OK, next step */
 				else {
-					cur = (struct tcpcheck_rule*)cur->list.n;
+					/* allow next rule */
+					cur = (struct tcpcheck_rule *)cur->list.n;
+
+					/* bypass all comment rules */
+					while (cur->action == TCPCHK_ACT_COMMENT)
+						cur = (struct tcpcheck_rule *)cur->list.n;
+
 					check->current_step = cur;
+
 					if (check->current_step->action == TCPCHK_ACT_EXPECT)
 						goto tcpcheck_expect;
 					__conn_data_stop_recv(conn);
@@ -2735,6 +2811,15 @@ static void tcpcheck_main(struct connection *conn)
 			/* not matched */
 				/* not matched and was not supposed to => OK, next step */
 				if (cur->inverse) {
+					/* allow next rule */
+					cur = (struct tcpcheck_rule *)cur->list.n;
+
+					/* bypass all comment rules */
+					while (cur->action == TCPCHK_ACT_COMMENT)
+						cur = (struct tcpcheck_rule *)cur->list.n;
+
+					check->current_step = cur;
+
 					cur = (struct tcpcheck_rule*)cur->list.n;
 					check->current_step = cur;
 					if (check->current_step->action == TCPCHK_ACT_EXPECT)
@@ -2753,6 +2838,9 @@ static void tcpcheck_main(struct connection *conn)
 						chunk_printf(&trash, "TCPCHK did not match content (regex) at step %d",
 								step);
 					}
+					comment = tcpcheck_get_step_comment(check, step);
+					if (comment)
+						chunk_appendf(&trash, " comment: '%s'", comment);
 					set_server_check_status(check, HCHK_STATUS_L7RSP, trash.str);
 					goto out_end_tcpcheck;
 				}

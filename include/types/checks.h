@@ -204,6 +204,7 @@ enum {
 	TCPCHK_ACT_SEND        = 0,             /* send action, regular string format */
 	TCPCHK_ACT_EXPECT,                      /* expect action, either regular or binary string */
 	TCPCHK_ACT_CONNECT,                     /* connect action, to probe a new port */
+	TCPCHK_ACT_COMMENT,                     /* no action, simply a comment used for logs */
 };
 
 /* flags used by tcpcheck_rule->conn_opts */
