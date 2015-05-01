@@ -136,14 +136,14 @@
 /* unused: 0x00000001 */
 #define AN_REQ_INSPECT_FE       0x00000002  /* inspect request contents in the frontend */
 #define AN_REQ_WAIT_HTTP        0x00000004  /* wait for an HTTP request */
-#define AN_REQ_HTTP_PROCESS_FE  0x00000008  /* process the frontend's HTTP part */
-#define AN_REQ_SWITCHING_RULES  0x00000010  /* apply the switching rules */
-#define AN_REQ_INSPECT_BE       0x00000020  /* inspect request contents in the backend */
-#define AN_REQ_HTTP_PROCESS_BE  0x00000040  /* process the backend's HTTP part */
-#define AN_REQ_SRV_RULES        0x00000080  /* use-server rules */
-#define AN_REQ_HTTP_INNER       0x00000100  /* inner processing of HTTP request */
-#define AN_REQ_HTTP_TARPIT      0x00000200  /* wait for end of HTTP tarpit */
-#define AN_REQ_HTTP_BODY        0x00000400  /* inspect HTTP request body */
+#define AN_REQ_HTTP_BODY        0x00000008  /* wait for HTTP request body */
+#define AN_REQ_HTTP_PROCESS_FE  0x00000010  /* process the frontend's HTTP part */
+#define AN_REQ_SWITCHING_RULES  0x00000020  /* apply the switching rules */
+#define AN_REQ_INSPECT_BE       0x00000040  /* inspect request contents in the backend */
+#define AN_REQ_HTTP_PROCESS_BE  0x00000080  /* process the backend's HTTP part */
+#define AN_REQ_SRV_RULES        0x00000100  /* use-server rules */
+#define AN_REQ_HTTP_INNER       0x00000200  /* inner processing of HTTP request */
+#define AN_REQ_HTTP_TARPIT      0x00000400  /* wait for end of HTTP tarpit */
 #define AN_REQ_STICKING_RULES   0x00000800  /* table persistence matching */
 #define AN_REQ_PRST_RDP_COOKIE  0x00001000  /* persistence on rdp cookie */
 #define AN_REQ_HTTP_XFER_BODY   0x00002000  /* forward request body */

@@ -1669,6 +1669,12 @@ struct task *process_stream(struct task *t)
 					UPDATE_ANALYSERS(req->analysers, ana_list, ana_back, AN_REQ_WAIT_HTTP);
 				}
 
+				if (ana_list & AN_REQ_HTTP_BODY) {
+					if (!http_wait_for_request_body(s, req, AN_REQ_HTTP_BODY))
+						break;
+					UPDATE_ANALYSERS(req->analysers, ana_list, ana_back, AN_REQ_HTTP_BODY);
+				}
+
 				if (ana_list & AN_REQ_HTTP_PROCESS_FE) {
 					if (!http_process_req_common(s, req, AN_REQ_HTTP_PROCESS_FE, sess->fe))
 						break;
@@ -1709,12 +1715,6 @@ struct task *process_stream(struct task *t)
 					if (!http_process_request(s, req, AN_REQ_HTTP_INNER))
 						break;
 					UPDATE_ANALYSERS(req->analysers, ana_list, ana_back, AN_REQ_HTTP_INNER);
-				}
-
-				if (ana_list & AN_REQ_HTTP_BODY) {
-					if (!http_wait_for_request_body(s, req, AN_REQ_HTTP_BODY))
-						break;
-					UPDATE_ANALYSERS(req->analysers, ana_list, ana_back, AN_REQ_HTTP_BODY);
 				}
 
 				if (ana_list & AN_REQ_PRST_RDP_COOKIE) {
