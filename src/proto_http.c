@@ -2939,10 +2939,6 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 		}
 	}
 
-	/* 4. We may have to convert HTTP/0.9 requests to HTTP/1.0 */
-	if (unlikely(msg->sl.rq.v_l == 0) && !http_upgrade_v09_to_v10(txn))
-		goto return_bad_req;
-
 	/* RFC7230#2.6 has enforced the format of the HTTP version string to be
 	 * exactly one digit "." one digit. This check may be disabled using
 	 * option accept-invalid-http-request.
@@ -2960,6 +2956,11 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 			msg->err_pos = msg->sl.rq.v + 4;
 			goto return_bad_req;
 		}
+	}
+	else {
+		/* 4. We may have to convert HTTP/0.9 requests to HTTP/1.0 */
+		if (unlikely(msg->sl.rq.v_l == 0) && !http_upgrade_v09_to_v10(txn))
+			goto return_bad_req;
 	}
 
 	/* ... and check if the request is HTTP/1.1 or above */
