@@ -1393,8 +1393,8 @@ void peers_register_table(struct peers *peers, struct stktable *table)
 	st->sync_task->process = process_peer_sync;
 	st->sync_task->expire = TICK_ETERNITY;
 	st->sync_task->context = (void *)st;
-	table->sync_task =st->sync_task;
-	signal_register_task(0, table->sync_task, 0);
+	table->sync_task = st->sync_task;
+	st->sighandler = signal_register_task(0, table->sync_task, 0);
 	task_wakeup(st->sync_task, TASK_WOKEN_INIT);
 }
 

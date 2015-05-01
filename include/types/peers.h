@@ -57,6 +57,7 @@ struct peer_session {
 struct shared_table {
 	struct stktable *table;		    /* stick table to sync */
 	struct task *sync_task;		    /* main sync task */
+	struct sig_handler *sighandler;     /* signal handler */
 	struct peer_session *local_session; /* local peer session */
 	struct peer_session *sessions;	    /* peer sessions list */
 	unsigned int flags;		    /* current table resync state */
