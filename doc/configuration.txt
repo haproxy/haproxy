@@ -4108,7 +4108,7 @@ no option accept-invalid-http-request
                                  yes   |    yes   |   yes  |   no
   Arguments : none
 
-  By default, HAProxy complies with RFC2616 in terms of message parsing. This
+  By default, HAProxy complies with RFC7230 in terms of message parsing. This
   means that invalid characters in header names are not permitted and cause an
   error to be returned to the client. This is the desired behaviour as such
   forbidden characters are essentially used to build attacks exploiting server
@@ -4121,7 +4121,9 @@ no option accept-invalid-http-request
   chars 0-31, 32 (space), 34 ('"'), 60 ('<'), 62 ('>'), 92 ('\'), 94 ('^'), 96
   ('`'), 123 ('{'), 124 ('|'), 125 ('}'), 127 (delete) and anything above are
   not allowed at all. Haproxy always blocks a number of them (0..32, 127). The
-  remaining ones are blocked by default unless this option is enabled.
+  remaining ones are blocked by default unless this option is enabled. This
+  option also relaxes the test on the HTTP version format, it allows multiple
+  digits for both the major and the minor version.
 
   This option should never be enabled by default as it hides application bugs
   and open security breaches. It should only be deployed after a problem has
@@ -4147,7 +4149,7 @@ no option accept-invalid-http-response
                                  yes   |     no   |   yes  |   yes
   Arguments : none
 
-  By default, HAProxy complies with RFC2616 in terms of message parsing. This
+  By default, HAProxy complies with RFC7230 in terms of message parsing. This
   means that invalid characters in header names are not permitted and cause an
   error to be returned to the client. This is the desired behaviour as such
   forbidden characters are essentially used to build attacks exploiting server
@@ -4155,7 +4157,9 @@ no option accept-invalid-http-response
   server will emit invalid header names for whatever reason (configuration,
   implementation) and the issue will not be immediately fixed. In such a case,
   it is possible to relax HAProxy's header name parser to accept any character
-  even if that does not make sense, by specifying this option.
+  even if that does not make sense, by specifying this option. This option also
+  relaxes the test on the HTTP version format, it allows multiple digits for
+  both the major and the minor version.
 
   This option should never be enabled by default as it hides application bugs
   and open security breaches. It should only be deployed after a problem has
