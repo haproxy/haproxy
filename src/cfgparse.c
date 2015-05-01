@@ -7907,9 +7907,9 @@ out_uri_auth_compat:
 		struct peers *curpeers = peers, **last;
 		struct peer *p, *pb;
 
-		/* Remove all peers sections which don't have a valid listener.
-		 * This can happen when a peers section is never referenced and
-		 * does not contain a local peer.
+		/* Remove all peers sections which don't have a valid listener,
+		 * which are not used by any table, or which are bound to more
+		 * than one process.
 		 */
 		last = &peers;
 		while (*last) {
@@ -7924,6 +7924,18 @@ out_uri_auth_compat:
 			else if (!curpeers->peers_fe) {
 				Warning("Removing incomplete section 'peers %s' (no peer named '%s').\n",
 					curpeers->id, localpeer);
+			}
+			else if (popcount(curpeers->peers_fe->bind_proc) != 1) {
+				/* either it's totally stopped or too much used */
+				if (curpeers->peers_fe->bind_proc) {
+					Alert("Peers section '%s': peers referenced by sections "
+					      "running in different processes. Check global.nbproc"
+					      " and all tables' bind_proc settings.\n",
+					      curpeers->id);
+					cfgerr++;
+				}
+				stop_proxy(curpeers->peers_fe);
+				curpeers->peers_fe = NULL;
 			}
 			else {
 				last = &curpeers->next;
