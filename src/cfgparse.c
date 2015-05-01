@@ -7898,6 +7898,11 @@ out_uri_auth_compat:
 				global.last_checks |= cfg_opts2[optnum].checks;
 	}
 
+	/* compute the required process bindings for the peers */
+	for (curproxy = proxy; curproxy; curproxy = curproxy->next)
+		if (curproxy->table.peers.p)
+			curproxy->table.peers.p->peers_fe->bind_proc |= curproxy->bind_proc;
+
 	if (peers) {
 		struct peers *curpeers = peers, **last;
 		struct peer *p, *pb;
