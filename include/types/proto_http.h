@@ -359,7 +359,11 @@ enum {
  *  - next (parse pointer)   : next relative byte to be parsed. Always points
  *                             to a byte matching the current state.
  *
- *  - sol (start of line)    : start of current line before MSG_BODY, or zero.
+ *  - sol (start of line)    : start of current line before MSG_BODY. Starting
+ *                             from MSG_BODY, contains the length of the last
+ *                             parsed chunk size so that when added to sov it
+ *                             always points to the beginning of the current
+ *                             data chunk.
  *
  *  - eol (End of Line)      : Before HTTP_MSG_BODY, relative offset in the
  *                             buffer of the first byte which marks the end of
