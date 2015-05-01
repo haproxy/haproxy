@@ -7871,20 +7871,6 @@ out_uri_auth_compat:
 		}
 	}
 
-	/* initialize stick-tables on backend capable proxies. This must not
-	 * be done earlier because the data size may be discovered while parsing
-	 * other proxies.
-	 */
-	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
-		if (curproxy->state == PR_STSTOPPED)
-			continue;
-
-		if (!stktable_init(&curproxy->table)) {
-			Alert("Proxy '%s': failed to initialize stick-table.\n", curproxy->id);
-			cfgerr++;
-		}
-	}
-
 	/*
 	 * Recount currently required checks.
 	 */
@@ -7935,6 +7921,20 @@ out_uri_auth_compat:
 			curpeers = curpeers->next;
 			free(*last);
 			*last = curpeers;
+		}
+	}
+
+	/* initialize stick-tables on backend capable proxies. This must not
+	 * be done earlier because the data size may be discovered while parsing
+	 * other proxies.
+	 */
+	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
+		if (curproxy->state == PR_STSTOPPED)
+			continue;
+
+		if (!stktable_init(&curproxy->table)) {
+			Alert("Proxy '%s': failed to initialize stick-table.\n", curproxy->id);
+			cfgerr++;
 		}
 	}
 
