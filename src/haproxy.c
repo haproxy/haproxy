@@ -1780,6 +1780,15 @@ int main(int argc, char **argv)
 		free(global.chroot);  global.chroot = NULL;
 		free(global.pidfile); global.pidfile = NULL;
 
+		if (proc == global.nbproc) {
+			if (global.mode & MODE_SYSTEMD) {
+				protocol_unbind_all();
+				for (proc = 0; proc < global.nbproc; proc++)
+					while (waitpid(children[proc], NULL, 0) == -1 && errno == EINTR);
+			}
+			exit(0); /* parent must leave */
+		}
+
 		/* we might have to unbind some proxies from some processes */
 		px = proxy;
 		while (px != NULL) {
@@ -1788,15 +1797,6 @@ int main(int argc, char **argv)
 					stop_proxy(px);
 			}
 			px = px->next;
-		}
-
-		if (proc == global.nbproc) {
-			if (global.mode & MODE_SYSTEMD) {
-				protocol_unbind_all();
-				for (proc = 0; proc < global.nbproc; proc++)
-					while (waitpid(children[proc], NULL, 0) == -1 && errno == EINTR);
-			}
-			exit(0); /* parent must leave */
 		}
 
 		free(children);
