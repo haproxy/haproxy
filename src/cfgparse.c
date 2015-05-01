@@ -6550,12 +6550,6 @@ int check_config_validity()
 			}
 		}
 
-		if (global.nbproc > 1 && curproxy->table.peers.name) {
-			Alert("Proxy '%s': peers can't be used in multi-process mode (nbproc > 1).\n",
-			      curproxy->id);
-			cfgerr++;
-		}
-
 		switch (curproxy->mode) {
 		case PR_MODE_HEALTH:
 			cfgerr += proxy_cfg_ensure_no_http(curproxy);
