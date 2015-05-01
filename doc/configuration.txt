@@ -1482,6 +1482,7 @@ option dontlognull                   (*)  X          X         X         -
 option forceclose                    (*)  X          X         X         X
 -- keyword -------------------------- defaults - frontend - listen -- backend -
 option forwardfor                         X          X         X         X
+option http-ignore-probes            (*)  X          X         X         -
 option http-keep-alive               (*)  X          X         X         X
 option http-no-delay                 (*)  X          X         X         X
 option http-pretend-keepalive        (*)  X          X         X         X
