@@ -6235,12 +6235,11 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 
 	/* Chunked responses must have their content-length removed */
 	ctx.idx = 0;
-	if (msg->flags & HTTP_MSGF_TE_CHNK) {
+	if (use_close_only || (msg->flags & HTTP_MSGF_TE_CHNK)) {
 		while (http_find_header2("Content-Length", 14, rep->buf->p, &txn->hdr_idx, &ctx))
 			http_remove_header2(msg, &txn->hdr_idx, &ctx);
 	}
-	else while (!use_close_only &&
-	       http_find_header2("Content-Length", 14, rep->buf->p, &txn->hdr_idx, &ctx)) {
+	else while (http_find_header2("Content-Length", 14, rep->buf->p, &txn->hdr_idx, &ctx)) {
 		signed long long cl;
 
 		if (!ctx.vlen) {
