@@ -2975,42 +2975,73 @@ int http_wait_for_request(struct stream *s, struct channel *req, int an_bit)
 		capture_headers(req->buf->p, &txn->hdr_idx,
 				s->req_cap, sess->fe->req_cap);
 
-	/* 6: determine the transfer-length.
-	 * According to RFC2616 #4.4, amended by the HTTPbis working group,
-	 * the presence of a message-body in a REQUEST and its transfer length
-	 * must be determined that way (in order of precedence) :
-	 *   1. The presence of a message-body in a request is signaled by the
-	 *      inclusion of a Content-Length or Transfer-Encoding header field
-	 *      in the request's header fields.  When a request message contains
-	 *      both a message-body of non-zero length and a method that does
-	 *      not define any semantics for that request message-body, then an
-	 *      origin server SHOULD either ignore the message-body or respond
-	 *      with an appropriate error message (e.g., 413).  A proxy or
-	 *      gateway, when presented the same request, SHOULD either forward
-	 *      the request inbound with the message- body or ignore the
-	 *      message-body when determining a response.
+	/* 6: determine the transfer-length according to RFC2616 #4.4, updated
+	 * by RFC7230#3.3.3 :
 	 *
-	 *   2. If a Transfer-Encoding header field (Section 9.7) is present
-	 *      and the "chunked" transfer-coding (Section 6.2) is used, the
-	 *      transfer-length is defined by the use of this transfer-coding.
-	 *      If a Transfer-Encoding header field is present and the "chunked"
-	 *      transfer-coding is not present, the transfer-length is defined
-	 *      by the sender closing the connection.
+	 * The length of a message body is determined by one of the following
+	 *   (in order of precedence):
 	 *
-	 *   3. If a Content-Length header field is present, its decimal value in
-	 *      OCTETs represents both the entity-length and the transfer-length.
-	 *      If a message is received with both a Transfer-Encoding header
-	 *      field and a Content-Length header field, the latter MUST be ignored.
+	 *   1.  Any response to a HEAD request and any response with a 1xx
+	 *       (Informational), 204 (No Content), or 304 (Not Modified) status
+	 *       code is always terminated by the first empty line after the
+	 *       header fields, regardless of the header fields present in the
+	 *       message, and thus cannot contain a message body.
 	 *
-	 *   4. By the server closing the connection. (Closing the connection
-	 *      cannot be used to indicate the end of a request body, since that
-	 *      would leave no possibility for the server to send back a response.)
+	 *   2.  Any 2xx (Successful) response to a CONNECT request implies that
+	 *       the connection will become a tunnel immediately after the empty
+	 *       line that concludes the header fields.  A client MUST ignore any
+	 *       Content-Length or Transfer-Encoding header fields received in
+	 *       such a message.
 	 *
-	 *   Whenever a transfer-coding is applied to a message-body, the set of
-	 *   transfer-codings MUST include "chunked", unless the message indicates
-	 *   it is terminated by closing the connection.  When the "chunked"
-	 *   transfer-coding is used, it MUST be the last transfer-coding applied
-	 *   to the message-body.
+	 *   3.  If a Transfer-Encoding header field is present and the chunked
+	 *       transfer coding (Section 4.1) is the final encoding, the message
+	 *       body length is determined by reading and decoding the chunked
+	 *       data until the transfer coding indicates the data is complete.
+	 *
+	 *       If a Transfer-Encoding header field is present in a response and
+	 *       the chunked transfer coding is not the final encoding, the
+	 *       message body length is determined by reading the connection until
+	 *       it is closed by the server.  If a Transfer-Encoding header field
+	 *       is present in a request and the chunked transfer coding is not
+	 *       the final encoding, the message body length cannot be determined
+	 *       reliably; the server MUST respond with the 400 (Bad Request)
+	 *       status code and then close the connection.
+	 *
+	 *       If a message is received with both a Transfer-Encoding and a
+	 *       Content-Length header field, the Transfer-Encoding overrides the
+	 *       Content-Length.  Such a message might indicate an attempt to
+	 *       perform request smuggling (Section 9.5) or response splitting
+	 *       (Section 9.4) and ought to be handled as an error.  A sender MUST
+	 *       remove the received Content-Length field prior to forwarding such
+	 *       a message downstream.
+	 *
+	 *   4.  If a message is received without Transfer-Encoding and with
+	 *       either multiple Content-Length header fields having differing
+	 *       field-values or a single Content-Length header field having an
+	 *       invalid value, then the message framing is invalid and the
+	 *       recipient MUST treat it as an unrecoverable error.  If this is a
+	 *       request message, the server MUST respond with a 400 (Bad Request)
+	 *       status code and then close the connection.  If this is a response
+	 *       message received by a proxy, the proxy MUST close the connection
+	 *       to the server, discard the received response, and send a 502 (Bad
+	 *       Gateway) response to the client.  If this is a response message
+	 *       received by a user agent, the user agent MUST close the
+	 *       connection to the server and discard the received response.
+	 *
+	 *   5.  If a valid Content-Length header field is present without
+	 *       Transfer-Encoding, its decimal value defines the expected message
+	 *       body length in octets.  If the sender closes the connection or
+	 *       the recipient times out before the indicated number of octets are
+	 *       received, the recipient MUST consider the message to be
+	 *       incomplete and close the connection.
+	 *
+	 *   6.  If this is a request message and none of the above are true, then
+	 *       the message body length is zero (no message body is present).
+	 *
+	 *   7.  Otherwise, this is a response message without a declared message
+	 *       body length, so the message body length is determined by the
+	 *       number of octets received prior to the server closing the
+	 *       connection.
 	 */
 
 	use_close_only = 0;
@@ -6114,44 +6145,73 @@ int http_wait_for_response(struct stream *s, struct channel *rep, int an_bit)
 		capture_headers(rep->buf->p, &txn->hdr_idx,
 				s->res_cap, sess->fe->rsp_cap);
 
-	/* 4: determine the transfer-length.
-	 * According to RFC2616 #4.4, amended by the HTTPbis working group,
-	 * the presence of a message-body in a RESPONSE and its transfer length
-	 * must be determined that way :
+	/* 4: determine the transfer-length according to RFC2616 #4.4, updated
+	 * by RFC7230#3.3.3 :
 	 *
-	 *   All responses to the HEAD request method MUST NOT include a
-	 *   message-body, even though the presence of entity-header fields
-	 *   might lead one to believe they do.  All 1xx (informational), 204
-	 *   (No Content), and 304 (Not Modified) responses MUST NOT include a
-	 *   message-body.  All other responses do include a message-body,
-	 *   although it MAY be of zero length.
+	 * The length of a message body is determined by one of the following
+	 *   (in order of precedence):
 	 *
-	 *   1. Any response which "MUST NOT" include a message-body (such as the
-	 *      1xx, 204 and 304 responses and any response to a HEAD request) is
-	 *      always terminated by the first empty line after the header fields,
-	 *      regardless of the entity-header fields present in the message.
+	 *   1.  Any response to a HEAD request and any response with a 1xx
+	 *       (Informational), 204 (No Content), or 304 (Not Modified) status
+	 *       code is always terminated by the first empty line after the
+	 *       header fields, regardless of the header fields present in the
+	 *       message, and thus cannot contain a message body.
 	 *
-	 *   2. If a Transfer-Encoding header field (Section 9.7) is present and
-	 *      the "chunked" transfer-coding (Section 6.2) is used, the
-	 *      transfer-length is defined by the use of this transfer-coding.
-	 *      If a Transfer-Encoding header field is present and the "chunked"
-	 *      transfer-coding is not present, the transfer-length is defined by
-	 *      the sender closing the connection.
+	 *   2.  Any 2xx (Successful) response to a CONNECT request implies that
+	 *       the connection will become a tunnel immediately after the empty
+	 *       line that concludes the header fields.  A client MUST ignore any
+	 *       Content-Length or Transfer-Encoding header fields received in
+	 *       such a message.
 	 *
-	 *   3. If a Content-Length header field is present, its decimal value in
-	 *      OCTETs represents both the entity-length and the transfer-length.
-	 *      If a message is received with both a Transfer-Encoding header
-	 *      field and a Content-Length header field, the latter MUST be ignored.
+	 *   3.  If a Transfer-Encoding header field is present and the chunked
+	 *       transfer coding (Section 4.1) is the final encoding, the message
+	 *       body length is determined by reading and decoding the chunked
+	 *       data until the transfer coding indicates the data is complete.
 	 *
-	 *   4. If the message uses the media type "multipart/byteranges", and
-	 *      the transfer-length is not otherwise specified, then this self-
-	 *      delimiting media type defines the transfer-length.  This media
-	 *      type MUST NOT be used unless the sender knows that the recipient
-	 *      can parse it; the presence in a request of a Range header with
-	 *      multiple byte-range specifiers from a 1.1 client implies that the
-	 *      client can parse multipart/byteranges responses.
+	 *       If a Transfer-Encoding header field is present in a response and
+	 *       the chunked transfer coding is not the final encoding, the
+	 *       message body length is determined by reading the connection until
+	 *       it is closed by the server.  If a Transfer-Encoding header field
+	 *       is present in a request and the chunked transfer coding is not
+	 *       the final encoding, the message body length cannot be determined
+	 *       reliably; the server MUST respond with the 400 (Bad Request)
+	 *       status code and then close the connection.
 	 *
-	 *   5. By the server closing the connection.
+	 *       If a message is received with both a Transfer-Encoding and a
+	 *       Content-Length header field, the Transfer-Encoding overrides the
+	 *       Content-Length.  Such a message might indicate an attempt to
+	 *       perform request smuggling (Section 9.5) or response splitting
+	 *       (Section 9.4) and ought to be handled as an error.  A sender MUST
+	 *       remove the received Content-Length field prior to forwarding such
+	 *       a message downstream.
+	 *
+	 *   4.  If a message is received without Transfer-Encoding and with
+	 *       either multiple Content-Length header fields having differing
+	 *       field-values or a single Content-Length header field having an
+	 *       invalid value, then the message framing is invalid and the
+	 *       recipient MUST treat it as an unrecoverable error.  If this is a
+	 *       request message, the server MUST respond with a 400 (Bad Request)
+	 *       status code and then close the connection.  If this is a response
+	 *       message received by a proxy, the proxy MUST close the connection
+	 *       to the server, discard the received response, and send a 502 (Bad
+	 *       Gateway) response to the client.  If this is a response message
+	 *       received by a user agent, the user agent MUST close the
+	 *       connection to the server and discard the received response.
+	 *
+	 *   5.  If a valid Content-Length header field is present without
+	 *       Transfer-Encoding, its decimal value defines the expected message
+	 *       body length in octets.  If the sender closes the connection or
+	 *       the recipient times out before the indicated number of octets are
+	 *       received, the recipient MUST consider the message to be
+	 *       incomplete and close the connection.
+	 *
+	 *   6.  If this is a request message and none of the above are true, then
+	 *       the message body length is zero (no message body is present).
+	 *
+	 *   7.  Otherwise, this is a response message without a declared message
+	 *       body length, so the message body length is determined by the
+	 *       number of octets received prior to the server closing the
+	 *       connection.
 	 */
 
 	/* Skip parsing if no content length is possible. The response flags
