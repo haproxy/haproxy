@@ -396,7 +396,7 @@ int stktable_init(struct stktable *t)
 			t->exp_task->expire = TICK_ETERNITY;
 			t->exp_task->context = (void *)t;
 		}
-		if (t->peers.p && t->peers.p->peers_fe) {
+		if (t->peers.p && t->peers.p->peers_fe && t->peers.p->peers_fe->state != PR_STSTOPPED) {
 			peers_register_table(t->peers.p, t);
 		}
 
