@@ -2386,7 +2386,7 @@ static void tcpcheck_main(struct connection *conn)
 {
 	char *contentptr;
 	struct tcpcheck_rule *cur, *next;
-	int done = 0, ret = 0;
+	int done = 0, ret = 0, step = 0;
 	struct check *check = conn->owner;
 	struct server *s = check->server;
 	struct task *t = check->task;
@@ -2569,15 +2569,16 @@ static void tcpcheck_main(struct connection *conn)
 				break;
 			case SF_ERR_SRVTO: /* ETIMEDOUT */
 			case SF_ERR_SRVCL: /* ECONNREFUSED, ENETUNREACH, ... */
+				step = tcpcheck_get_step_id(check);
 				chunk_printf(&trash, "TCPCHK error establishing connection at step %d: %s",
-						tcpcheck_get_step_id(check), strerror(errno));
+						step, strerror(errno));
 				set_server_check_status(check, HCHK_STATUS_L4CON, trash.str);
 				goto out_end_tcpcheck;
 			case SF_ERR_PRXCOND:
 			case SF_ERR_RESOURCE:
 			case SF_ERR_INTERNAL:
-				chunk_printf(&trash, "TCPCHK error establishing connection at step %d",
-						tcpcheck_get_step_id(check));
+				step = tcpcheck_get_step_id(check);
+				chunk_printf(&trash, "TCPCHK error establishing connection at step %d", step);
 				set_server_check_status(check, HCHK_STATUS_SOCKERR, trash.str);
 				goto out_end_tcpcheck;
 			}
@@ -2685,8 +2686,8 @@ static void tcpcheck_main(struct connection *conn)
 					continue;
 
 				/* empty response */
-				chunk_printf(&trash, "TCPCHK got an empty response at step %d",
-						tcpcheck_get_step_id(check));
+				step = tcpcheck_get_step_id(check);
+				chunk_printf(&trash, "TCPCHK got an empty response at step %d", step);
 				set_server_check_status(check, HCHK_STATUS_L7RSP, trash.str);
 
 				goto out_end_tcpcheck;
@@ -2705,18 +2706,18 @@ static void tcpcheck_main(struct connection *conn)
 				continue; /* try to read more */
 
 			/* matched */
+			step = tcpcheck_get_step_id(check);
 			if (ret) {
 				/* matched but we did not want to => ERROR */
 				if (cur->inverse) {
 					/* we were looking for a string */
 					if (cur->string != NULL) {
 						chunk_printf(&trash, "TCPCHK matched unwanted content '%s' at step %d",
-								cur->string, tcpcheck_get_step_id(check));
+								cur->string, step);
 					}
 					else {
 					/* we were looking for a regex */
-						chunk_printf(&trash, "TCPCHK matched unwanted content (regex) at step %d",
-								tcpcheck_get_step_id(check));
+						chunk_printf(&trash, "TCPCHK matched unwanted content (regex) at step %d", step);
 					}
 					set_server_check_status(check, HCHK_STATUS_L7RSP, trash.str);
 					goto out_end_tcpcheck;
@@ -2745,12 +2746,12 @@ static void tcpcheck_main(struct connection *conn)
 					/* we were looking for a string */
 					if (cur->string != NULL) {
 						chunk_printf(&trash, "TCPCHK did not match content '%s' at step %d",
-								cur->string, tcpcheck_get_step_id(check));
+								cur->string, step);
 					}
 					else {
 					/* we were looking for a regex */
 						chunk_printf(&trash, "TCPCHK did not match content (regex) at step %d",
-								tcpcheck_get_step_id(check));
+								step);
 					}
 					set_server_check_status(check, HCHK_STATUS_L7RSP, trash.str);
 					goto out_end_tcpcheck;
