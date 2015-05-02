@@ -1,4 +1,4 @@
-2014/06/14                                                        Willy Tarreau
+2015/05/02                                                        Willy Tarreau
                                                            HAProxy Technologies
                                The PROXY protocol
                                  Versions 1 & 2
@@ -21,6 +21,8 @@ Revision history
    2014/05/18 - modify and extend PROXY protocol version 2
    2014/06/11 - fix example code to consider ver+cmd merge
    2014/06/14 - fix v2 header check in example code, and update Forwarded spec
+   2014/07/12 - update list of implementations (add Squid)
+   2015/05/02 - update list of implementations and format of the TLV add-ons
 
 
 1. Background
@@ -514,12 +516,54 @@ The second two bytes represent the length in bytes of the value (not included
 the Type and Length bytes), and following the length field is the number of
 bytes specified by the length.
 
-        struct {
+        struct pp2_tlv {
             uint8_t type;
             uint8_t length_hi;
             uint8_t length_lo;
             uint8_t value[0];
-        } tlv;
+        };
+
+The following types have already been registered for the <type> field :
+
+        #define PP2_TYPE_ALPN          0x01
+        #define PP2_TYPE_AUTHORITY     0x02
+        #define PP2_TYPE_SSL           0x20
+        #define PP2_TYPE_SSL_VERSION   0x21
+        #define PP2_TYPE_SSL_CN        0x22
+        #define PP2_TYPE_NETNS         0x30
+
+For the type PP2_TYPE_SSL, the value is itselv a defined like this :
+
+        struct pp2_tlv_ssl {
+                uint8_t  client;
+                uint32_t verify;
+                struct pp2_tlv sub_tlv[0];
+        };
+
+And the <client> field is made of a bit field from the following values,
+indicating which element is present :
+
+	#define PP2_CLIENT_SSL           0x01
+	#define PP2_CLIENT_CERT_CONN     0x02
+	#define PP2_CLIENT_CERT_SESS     0x04
+
+Each of these elements may lead to extra data being appended to this TLV using
+a second level of TLV encapsulation. It is thus possible to find multiple TLV
+values after this field. The total length of the upper TLV will reflect this.
+
+PP2_CLIENT_SSL indicates that the client connected over SSL/TLS. When this
+field is present, the string representation of the TLS version is appended at
+the end of the field in the TLV format using the type PP2_TYPE_SSL_VERSION.
+
+PP2_CLIENT_CERT_CONN indicates that the client provided a certificate over the
+current connection. PP2_CLIENT_CERT_SESS indicates that the client provided a
+certificate at least once over the TLS session this connection belongs to. In
+both cases, the string representation of the client certificate's CN may be
+appended after the SSL/TLS version using the TLV format using the type
+PP2_TYPE_SSL_CN.
+
+The type PP2_TYPE_NETNS defines the value as the string representation of the
+namespace's name.
 
 
 3. Implementations
@@ -553,10 +597,14 @@ in smtpd and postscreen in version 2.10.
 A patch is available for Stud[5] to implement version 1 of the protocol on
 incoming connections.
 
-Support for the protocol in the Varnish cache is being considered [6].
+Support for versions 1 and 2 of the protocol was added to Varnish 4.1 [6].
 
 Exim added support for version 1 and version 2 of the protocol for incoming
 connections on 2014/05/13, and will be released as part of version 4.83.
+
+Squid added support for versions 1 and 2 of the protocol in version 3.5 [7].
+
+Jetty 9.3.0 supports protocol version 1.
 
 The protocol is simple enough that it is expected that other implementations
 will appear, especially in environments such as SMTP, IMAP, FTP, RDP where the
@@ -742,7 +790,8 @@ The following links were referenced in the document.
 [3] http://www.stunnel.org/
 [4] https://github.com/bumptech/stud
 [5] https://github.com/bumptech/stud/pull/81
-[6] https://www.varnish-cache.org/trac/wiki/Future_Protocols
+[6] https://www.varnish-cache.org/docs/trunk/phk/ssl_again.html
+[7] http://wiki.squid-cache.org/Squid-3.5
 
 
 9. Sample code
