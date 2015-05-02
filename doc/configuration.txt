@@ -14303,9 +14303,9 @@ S (Servers).
      server. The server value counts the number of times that server was
      switched away from.
  17. status [LFBS]: status (UP/DOWN/NOLB/MAINT/MAINT(via)...)
- 18. weight [..BS]: server weight (server), total weight (backend)
- 19. act [..BS]: server is active (server), number of active servers (backend)
- 20. bck [..BS]: server is backup (server), number of backup servers (backend)
+ 18. weight [..BS]: total weight (backend), server weight (server)
+ 19. act [..BS]: number of active servers (backend), server is active (server)
+ 20. bck [..BS]: number of backup servers (backend), server is backup (server)
  21. chkfail [...S]: number of failed checks. (Only counts checks failed when
      the server is up.)
  22. chkdown [..BS]: number of UP->DOWN transitions. The backend counter counts
