@@ -218,11 +218,14 @@ check_user(struct userlist *ul, const char *user, const char *pass)
 {
 
 	struct auth_users *u;
+#ifdef DEBUG_AUTH
+	struct auth_groups_list *agl;
+#endif
 	const char *ep;
 
 #ifdef DEBUG_AUTH
-	fprintf(stderr, "req: userlist=%s, user=%s, pass=%s, group=%s\n",
-		ul->name, user, pass, group);
+	fprintf(stderr, "req: userlist=%s, user=%s, pass=%s\n",
+	        ul->name, user, pass);
 #endif
 
 	for (u = ul->users; u; u = u->next)

@@ -737,10 +737,10 @@ static void sess_update_stream_int(struct stream *s)
 	DPRINTF(stderr,"[%u] %s: sess=%p rq=%p, rp=%p, exp(r,w)=%u,%u rqf=%08x rpf=%08x rqh=%d rqt=%d rph=%d rpt=%d cs=%d ss=%d\n",
 		now_ms, __FUNCTION__,
 		s,
-		req, s->rep,
+		req, &s->res,
 		req->rex, s->res.wex,
 		req->flags, s->res.flags,
-		req->buf->i, req->buf->o, s->res.buf->i, s->res.buf->o, s->si[0].state, req->cons->state);
+		req->buf->i, req->buf->o, s->res.buf->i, s->res.buf->o, s->si[0].state, s->si[1].state);
 
 	if (si->state == SI_ST_ASS) {
 		/* Server assigned to connection request, we have to try to connect now */
@@ -931,10 +931,10 @@ static void sess_prepare_conn_req(struct stream *s)
 	DPRINTF(stderr,"[%u] %s: sess=%p rq=%p, rp=%p, exp(r,w)=%u,%u rqf=%08x rpf=%08x rqh=%d rqt=%d rph=%d rpt=%d cs=%d ss=%d\n",
 		now_ms, __FUNCTION__,
 		s,
-		s->req, s->rep,
+		&s->req, &s->res,
 		s->req.rex, s->res.wex,
 		s->req.flags, s->res.flags,
-		s->req.buf->i, s->req.buf->o, s->res.buf->i, s->res.buf->o, s->si[0].state, s->req.cons->state);
+		s->req.buf->i, s->req.buf->o, s->res.buf->i, s->res.buf->o, s->si[0].state, s->si[1].state);
 
 	if (si->state != SI_ST_REQ)
 		return;
