@@ -7924,9 +7924,9 @@ out_uri_auth_compat:
 				/* either it's totally stopped or too much used */
 				if (curpeers->peers_fe->bind_proc) {
 					Alert("Peers section '%s': peers referenced by sections "
-					      "running in different processes. Check global.nbproc"
-					      " and all tables' bind-process settings.\n",
-					      curpeers->id);
+					      "running in different processes (%d different ones). "
+					      "Check global.nbproc and all tables' bind-process "
+					      "settings.\n", curpeers->id, popcount(curpeers->peers_fe->bind_proc));
 					cfgerr++;
 				}
 				stop_proxy(curpeers->peers_fe);
