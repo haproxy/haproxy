@@ -7925,7 +7925,7 @@ out_uri_auth_compat:
 				if (curpeers->peers_fe->bind_proc) {
 					Alert("Peers section '%s': peers referenced by sections "
 					      "running in different processes. Check global.nbproc"
-					      " and all tables' bind_proc settings.\n",
+					      " and all tables' bind-process settings.\n",
 					      curpeers->id);
 					cfgerr++;
 				}
