@@ -1090,6 +1090,8 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 		arg++;
 	}
 
+	appctx->ctx.stats.scope_str = 0;
+	appctx->ctx.stats.scope_len = 0;
 	appctx->ctx.stats.flags = 0;
 	if (strcmp(args[0], "show") == 0) {
 		if (strcmp(args[1], "stat") == 0) {
