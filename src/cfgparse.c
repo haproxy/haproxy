@@ -7606,23 +7606,23 @@ out_uri_auth_compat:
 		list_for_each_entry(bind_conf, &curproxy->conf.bind, by_fe) {
 			unsigned long mask;
 
-			mask = bind_conf->bind_proc ? bind_conf->bind_proc : ~0UL;
+			mask = bind_conf->bind_proc ? bind_conf->bind_proc : nbits(global.nbproc);
 			curproxy->bind_proc |= mask;
 		}
 
 		if (!curproxy->bind_proc)
-			curproxy->bind_proc = ~0UL;
+			curproxy->bind_proc = nbits(global.nbproc);
 	}
 
 	if (global.stats_fe) {
 		list_for_each_entry(bind_conf, &global.stats_fe->conf.bind, by_fe) {
 			unsigned long mask;
 
-			mask = bind_conf->bind_proc ? bind_conf->bind_proc : ~0UL;
+			mask = bind_conf->bind_proc ? bind_conf->bind_proc : nbits(global.nbproc);
 			global.stats_fe->bind_proc |= mask;
 		}
 		if (!global.stats_fe->bind_proc)
-			global.stats_fe->bind_proc = ~0UL;
+			global.stats_fe->bind_proc = nbits(global.nbproc);
 	}
 
 	/* propagate bindings from frontends to backends. Don't do it if there
@@ -7639,7 +7639,7 @@ out_uri_auth_compat:
 	for (curproxy = proxy; curproxy; curproxy = curproxy->next) {
 		if (curproxy->bind_proc)
 			continue;
-		curproxy->bind_proc = ~0UL;
+		curproxy->bind_proc = nbits(global.nbproc);
 	}
 
 	/*******************************************************/
