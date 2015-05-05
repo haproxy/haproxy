@@ -6207,6 +6207,8 @@ int readcfgfile(const char *file)
 		char *end;
 		char *args[MAX_LINE_ARGS + 1];
 		char *line = thisline;
+		int dquote = 0;  /* double quote */
+		int squote = 0;  /* simple quote */
 
 		linenum++;
 
@@ -6224,15 +6226,31 @@ int readcfgfile(const char *file)
 		/* skip leading spaces */
 		while (isspace((unsigned char)*line))
 			line++;
-	
+
 		arg = 0;
 		args[arg] = line;
 
 		while (*line && arg < MAX_LINE_ARGS) {
+			if (*line == '"' && !squote) {  /* double quote outside single quotes */
+				if (dquote)
+					dquote = 0;
+				else
+					dquote = 1;
+				memmove(line, line + 1, end - (line + 1));
+				end--;
+			}
+			else if (*line == '\'' && !dquote) { /* single quote outside double quotes */
+				if (squote)
+					squote = 0;
+				else
+					squote = 1;
+				memmove(line, line + 1, end - (line + 1));
+				end--;
+			}
+			else if (*line == '\\' && !squote) {
 			/* first, we'll replace \\, \<space>, \#, \r, \n, \t, \xXX with their
 			 * C equivalent value. Other combinations left unchanged (eg: \1).
 			 */
-			if (*line == '\\') {
 				int skip = 0;
 				if (line[1] == ' ' || line[1] == '\\' || line[1] == '#') {
 					*line = line[1];
@@ -6241,7 +6259,7 @@ int readcfgfile(const char *file)
 				else if (line[1] == 'r') {
 					*line = '\r';
 					skip = 1;
-				} 
+				}
 				else if (line[1] == 'n') {
 					*line = '\n';
 					skip = 1;
@@ -6264,6 +6282,12 @@ int readcfgfile(const char *file)
 						Alert("parsing [%s:%d] : invalid or incomplete '\\x' sequence in '%s'.\n", file, linenum, args[0]);
 						err_code |= ERR_ALERT | ERR_FATAL;
 					}
+				} else if (line[1] == '"') {
+					*line = '"';
+					skip = 1;
+				} else if (line[1] == '\'') {
+					*line = '\'';
+					skip = 1;
 				}
 				if (skip) {
 					memmove(line + 1, line + 1 + skip, end - (line + skip));
@@ -6271,12 +6295,12 @@ int readcfgfile(const char *file)
 				}
 				line++;
 			}
-			else if (*line == '#' || *line == '\n' || *line == '\r') {
+			else if ((!squote && !dquote && *line == '#') || *line == '\n' || *line == '\r') {
 				/* end of string, end of loop */
 				*line = 0;
 				break;
 			}
-			else if (isspace((unsigned char)*line)) {
+			else if (!squote && !dquote && isspace((unsigned char)*line)) {
 				/* a non-escaped space is an argument separator */
 				*line++ = '\0';
 				while (isspace((unsigned char)*line))
@@ -6286,6 +6310,15 @@ int readcfgfile(const char *file)
 			else {
 				line++;
 			}
+		}
+		if (dquote) {
+			Alert("parsing [%s:%d] : Mismatched double quotes.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_FATAL;
+		}
+
+		if (squote) {
+			Alert("parsing [%s:%d] : Mismatched simple quotes.\n", file, linenum);
+			err_code |= ERR_ALERT | ERR_FATAL;
 		}
 
 		/* empty line */

@@ -39,8 +39,9 @@ Summary
 
 2.    Configuring HAProxy
 2.1.      Configuration file format
-2.2.      Time format
-2.3.      Examples
+2.2.      Quoting and escaping
+2.3.      Time format
+2.4.      Examples
 
 3.    Global parameters
 3.1.      Process management and security
@@ -366,12 +367,61 @@ HAProxy's configuration process involves 3 major sources of parameters :
 
 The configuration file syntax consists in lines beginning with a keyword
 referenced in this manual, optionally followed by one or several parameters
-delimited by spaces. If spaces have to be entered in strings, then they must be
-preceded by a backslash ('\') to be escaped. Backslashes also have to be
-escaped by doubling them.
+delimited by spaces.
 
 
-2.2. Time format
+2.2. Quoting and escaping
+-------------------------
+
+HAProxy's configuration introduces a quoting and escaping system similar to
+many programming languages. The configuration file supports 3 types: escaping
+with a backslash, weak quoting with double quotes, and strong quoting with
+single quotes.
+
+If spaces have to be entered in strings, then they must be escaped by preceding
+them by a backslash ('\') or by quoting them. Backslashes also have to be
+escaped by doubling or strong quoting them.
+
+Escaping is achieved by preceding a special character by a backslash ('\'):
+
+  \    to mark a space and differentiate it from a delimiter
+  \#   to mark a hash and differentiate it from a comment
+  \\   to use a backslash
+  \'   to use a single quote and differentiate it from strong quoting
+  \"   to use a double quote and differentiate it from weak quoting
+
+Weak quoting is achieved by using double quotes (""). Weak quoting prevents
+the interpretation of:
+
+       space as a parameter separator
+  '    single quote as a strong quoting delimiter
+  #    hash as a comment start
+
+But interpretation of escaping and special characters are not prevented by weak
+quoting.
+
+Strong quoting is achieved by using single quotes (''). Inside single quotes,
+nothing is interpreted, it's the efficient way to quote regexes.
+
+Quoted and escaped strings are replaced in memory by their interpreted
+equivalent, it allows you to perform concatenation.
+
+  Example:
+      # those are equivalents:
+      log-format %{+Q}o\ %t\ %s\ %{-Q}r
+      log-format "%{+Q}o %t %s %{-Q}r"
+      log-format '%{+Q}o %t %s %{-Q}r'
+      log-format "%{+Q}o %t"' %s %{-Q}r'
+      log-format "%{+Q}o %t"' %s'\ %{-Q}r
+
+      # those are equivalents:
+      reqrep "^([^\ :]*)\ /static/(.*)"     \1\ /\2
+      reqrep "^([^ :]*)\ /static/(.*)"     '\1 /\2'
+      reqrep "^([^ :]*)\ /static/(.*)"     "\1 /\2"
+      reqrep "^([^ :]*)\ /static/(.*)"     "\1\ /\2"
+
+
+2.3. Time format
 ----------------
 
 Some parameters involve values representing time, such as timeouts. These
@@ -388,7 +438,7 @@ for every keyword. Supported units are :
   - d  : days.    1d = 24h = 1440m = 86400s = 86400000ms
 
 
-2.3. Examples
+2.4. Examples
 -------------
 
     # Simple configuration for an HTTP proxy listening on port 80 on all
