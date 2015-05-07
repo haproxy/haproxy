@@ -10930,6 +10930,11 @@ da-csv(<prop>[,<prop>*])
 	default_backend servers
 	http-request set-header X-DeviceAtlas-Data %[req.fhdr(User-Agent),da-csv(primaryHardwareType,osName,osVersion,browserName,browserVersion)]
 
+debug
+  This converter is used as debug tool. It dumps on screen the content and the
+  type of the input sample. The sample is returned as is on its output. This
+  converter only exists when haproxy was built with debugging enabled.
+
 div(<value>)
   Divides the input value of type unsigned integer by <value>, and returns the
   result as an unsigned integer. If <value> is null, the largest unsigned

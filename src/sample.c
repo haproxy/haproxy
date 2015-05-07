@@ -1389,6 +1389,44 @@ struct sample *sample_fetch_string(struct proxy *px, struct session *sess,
 /*    These functions set the data type on return.               */
 /*****************************************************************/
 
+#ifdef DEBUG_EXPR
+static int sample_conv_debug(const struct arg *arg_p, struct sample *smp, void *private)
+{
+	int i;
+	struct sample tmp;
+
+	if (!(global.mode & MODE_QUIET) || (global.mode & (MODE_VERBOSE | MODE_STARTING))) {
+		fprintf(stderr, "[debug converter] type: %s ", smp_to_type[smp->type]);
+		if (!sample_casts[smp->type][SMP_T_STR]) {
+			fprintf(stderr, "(undisplayable)");
+		} else {
+
+			/* Copy sample fetch. This put the sample as const, the
+			 * cast will copy data if a transformation is required.
+			 */
+			memcpy(&tmp, smp, sizeof(struct sample));
+			tmp.flags = SMP_F_CONST;
+
+			if (!sample_casts[smp->type][SMP_T_STR](&tmp))
+				fprintf(stderr, "(undisplayable)");
+
+			else {
+				/* Display the displayable chars*. */
+				fprintf(stderr, "<");
+				for (i = 0; i < tmp.data.str.len; i++) {
+					if (isprint(tmp.data.str.str[i]))
+						fputc(tmp.data.str.str[i], stderr);
+					else
+						fputc('.', stderr);
+				}
+			}
+			fprintf(stderr, ">\n");
+		}
+	}
+	return 1;
+}
+#endif
+
 static int sample_conv_bin2base64(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct chunk *trash = get_trash_chunk();
@@ -2387,6 +2425,10 @@ static struct sample_fetch_kw_list smp_kws = {ILH, {
 
 /* Note: must not be declared <const> as its list will be overwritten */
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
+#ifdef DEBUG_EXPR
+	{ "debug",  sample_conv_debug,     0,            NULL, SMP_T_ANY,  SMP_T_ANY  },
+#endif
+
 	{ "base64", sample_conv_bin2base64,0,            NULL, SMP_T_BIN,  SMP_T_STR  },
 	{ "upper",  sample_conv_str2upper, 0,            NULL, SMP_T_STR,  SMP_T_STR  },
 	{ "lower",  sample_conv_str2lower, 0,            NULL, SMP_T_STR,  SMP_T_STR  },
