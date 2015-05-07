@@ -11024,6 +11024,10 @@ upper
   sample fetch function or after a transformation keyword returning a string
   type. The result is of type string.
 
+url_dec
+  Takes an url-encoded string provided as input and returns the decoded
+  version as output. The input and the output are of type string.
+
 utime(<format>[,<offset>])
   Converts an integer supposed to contain a date since epoch to a string
   representing this date in UTC time using a format defined by the <format>

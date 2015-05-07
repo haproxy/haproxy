@@ -11953,6 +11953,28 @@ expect_comma:
 	return smp->data.str.len != 0;
 }
 
+/* This fetch url-decode any input string. */
+static int sample_conv_url_dec(struct stream *stream, const struct arg *args,
+                               struct sample *smp, void *private)
+{
+	/* If the constant flag is set or if not size is avalaible at
+	 * the end of the buffer, copy the string in other buffer
+	  * before decoding.
+	 */
+	if (smp->flags & SMP_F_CONST || smp->data.str.size <= smp->data.str.len) {
+		struct chunk *str = get_trash_chunk();
+		memcpy(str->str, smp->data.str.str, smp->data.str.len);
+		smp->data.str.str = str->str;
+		smp->data.str.size = str->size;
+		smp->flags &= ~SMP_F_CONST;
+	}
+
+	/* Add final \0 required by url_decode(), and convert the input string. */
+	smp->data.str.str[smp->data.str.len] = '\0';
+	smp->data.str.len = url_decode(smp->data.str.str);
+	return 1;
+}
+
 /* This function executes one of the set-{method,path,query,uri} actions. It
  * takes the string from the variable 'replace' with length 'len', then modifies
  * the relevant part of the request line accordingly. Then it updates various
@@ -12492,6 +12514,7 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 	{ "http_date", sample_conv_http_date,  ARG1(0,SINT),     NULL, SMP_T_UINT, SMP_T_STR},
 	{ "language",  sample_conv_q_prefered, ARG2(1,STR,STR),  NULL, SMP_T_STR,  SMP_T_STR},
+	{ "url_dec",   sample_conv_url_dec,    0,                NULL, SMP_T_STR,  SMP_T_STR},
 	{ NULL, NULL, 0, 0, 0 },
 }};
 
