@@ -12709,17 +12709,18 @@ url_port : integer
   restrict access to certain systems through a proxy, for example when combined
   with option "http_proxy".
 
-urlp(<name>[,<delim>]) : string
-url_param(<name>[,<delim>]) : string
+urlp([<name>[,<delim>]]) : string
+url_param([<name>[,<delim>]]) : string
   This extracts the first occurrence of the parameter <name> in the query
   string, which begins after either '?' or <delim>, and which ends before '&',
-  ';' or <delim>. The parameter name is case-sensitive. The result is a string
-  corresponding to the value of the parameter <name> as presented in the
-  request (no URL decoding is performed). This can be used for session
+  ';' or <delim>. The parameter name is case-sensitive. If no name is given,
+  any parameter will match, and the first one will be returned. The result is
+  a string corresponding to the value of the parameter <name> as presented in
+  the request (no URL decoding is performed). This can be used for session
   stickiness based on a client ID, to extract an application cookie passed as a
   URL parameter, or in ACLs to apply some checks. Note that the ACL version of
-  this fetch do not iterate over multiple parameters and stop at the first one
-  as well.
+  this fetch iterates over multiple parameters and will iteratively report all
+  parameters values if no name is given
 
   ACL derivatives :
     urlp(<name>[,<delim>])     : exact string match
@@ -12738,7 +12739,7 @@ url_param(<name>[,<delim>]) : string
       # match http://example.com/foo;JSESSIONID=some_id
       stick on urlp(JSESSIONID,;)
 
-urlp_val(<name>[,<delim>]) : integer
+urlp_val([<name>[,<delim>])] : integer
   See "urlp" above. This one extracts the URL parameter <name> in the request
   and converts it to an integer value. This can be used for session stickiness
   based on a user ID for example, or with ACLs to match a page number or price.

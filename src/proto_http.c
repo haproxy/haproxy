@@ -11488,7 +11488,7 @@ smp_fetch_cookie_val(const struct arg *args, struct sample *smp, const char *kw,
  *
  * Example: if path = "/foo/bar/fubar?yo=mama;ye=daddy", and n = 22:
  *
- * find_query_string(path, n) points to "yo=mama;ye=daddy" string.
+ * find_query_string(path, n, '?') points to "yo=mama;ye=daddy" string.
  */
 static inline char *find_param_list(char *path, size_t path_l, char delim)
 {
@@ -11512,7 +11512,7 @@ static inline int is_param_delimiter(char c, char delim)
  */
 static char*
 find_url_param_pos(char* query_string, size_t query_string_l,
-                   char* url_param_name, size_t url_param_name_l,
+                   const char* url_param_name, size_t url_param_name_l,
                    char delim)
 {
 	char *pos, *last;
@@ -11534,31 +11534,37 @@ find_url_param_pos(char* query_string, size_t query_string_l,
 }
 
 /*
- * Given a url parameter name, returns its value and size into *value and
- * *value_l respectively, and returns non-zero. If the parameter is not found,
- * zero is returned and value/value_l are not touched.
+ * Given a url parameter name and a query string, returns its value and size
+ * into *value and *value_l respectively, and returns non-zero. An empty
+ * url_param_name matches the first available parameter. If the parameter is
+ * not found, zero is returned and value/value_l are not touched.
  */
 static int
-find_url_param_value(char* path, size_t path_l,
-                     char* url_param_name, size_t url_param_name_l,
-                     char** value, int* value_l, char delim)
+find_next_url_param(char* query_string, char *qs_end,
+                    const char* url_param_name, size_t url_param_name_l,
+                    char** value, int* value_l, char delim)
 {
-	char *query_string, *qs_end;
 	char *arg_start;
 	char *value_start, *value_end;
 
-	query_string = find_param_list(path, path_l, delim);
-	if (!query_string)
-		return 0;
-
-	qs_end = path + path_l;
-	arg_start = find_url_param_pos(query_string, qs_end - query_string,
-                                      url_param_name, url_param_name_l,
-                                      delim);
+	arg_start = query_string;
+	if (url_param_name_l) {
+		arg_start = find_url_param_pos(query_string, qs_end - query_string,
+		                               url_param_name, url_param_name_l,
+		                               delim);
+	}
 	if (!arg_start)
 		return 0;
 
-	value_start = arg_start + url_param_name_l + 1;
+	if (!url_param_name_l) {
+		value_start = memchr(arg_start, '=', qs_end - arg_start);
+		if (!value_start)
+			return 0;
+		value_start++;
+	}
+	else
+		value_start = arg_start + url_param_name_l + 1;
+
 	value_end = value_start;
 
 	while ((value_end < qs_end) && !is_param_delimiter(*value_end, delim))
@@ -11574,8 +11580,12 @@ smp_fetch_url_param(const struct arg *args, struct sample *smp, const char *kw, 
 {
 	char delim = '?';
 	struct http_msg *msg;
+	char *query_string, *qs_end;
+	const char *name;
+	int name_len;
 
-	if (!args || args[0].type != ARGT_STR ||
+	if (!args ||
+	    (args[0].type && args[0].type != ARGT_STR) ||
 	    (args[1].type && args[1].type != ARGT_STR))
 		return 0;
 
@@ -11586,14 +11596,42 @@ smp_fetch_url_param(const struct arg *args, struct sample *smp, const char *kw, 
 	if (args[1].type)
 		delim = *args[1].data.str.str;
 
-	if (!find_url_param_value(msg->chn->buf->p + msg->sl.rq.u, msg->sl.rq.u_l,
-                                 args->data.str.str, args->data.str.len,
+	query_string = smp->ctx.a[0];
+	qs_end = smp->ctx.a[1];
+
+	if (!query_string) { // first call, find the query string
+		query_string = find_param_list(msg->chn->buf->p + msg->sl.rq.u,
+		                               msg->sl.rq.u_l, delim);
+		if (!query_string)
+			return 0;
+
+		qs_end = msg->chn->buf->p + msg->sl.rq.u + msg->sl.rq.u_l;
+		smp->ctx.a[0] = query_string;
+		smp->ctx.a[1] = qs_end;
+	}
+
+	name = "";
+	name_len = 0;
+	if (args->type == ARGT_STR) {
+		name     = args->data.str.str;
+		name_len = args->data.str.len;
+	}
+
+	if (!find_next_url_param(query_string, qs_end,
+                                 name, name_len,
                                  &smp->data.str.str, &smp->data.str.len,
                                  delim))
 		return 0;
 
+	query_string = smp->data.str.str + smp->data.str.len + 1;
+	smp->ctx.a[0] = query_string;
+
 	smp->type = SMP_T_STR;
 	smp->flags = SMP_F_VOL_1ST | SMP_F_CONST;
+
+	if (query_string < qs_end)
+		smp->flags |= SMP_F_NOT_LAST;
+
 	return 1;
 }
 
@@ -12466,9 +12504,9 @@ static struct sample_fetch_kw_list sample_fetch_keywords = {ILH, {
 	{ "url32+src",       smp_fetch_url32_src,      0,                NULL,    SMP_T_BIN,  SMP_USE_HRQHV },
 	{ "url_ip",          smp_fetch_url_ip,         0,                NULL,    SMP_T_IPV4, SMP_USE_HRQHV },
 	{ "url_port",        smp_fetch_url_port,       0,                NULL,    SMP_T_UINT, SMP_USE_HRQHV },
-	{ "url_param",       smp_fetch_url_param,      ARG2(1,STR,STR),  NULL,    SMP_T_STR,  SMP_USE_HRQHV },
-	{ "urlp"     ,       smp_fetch_url_param,      ARG2(1,STR,STR),  NULL,    SMP_T_STR,  SMP_USE_HRQHV },
-	{ "urlp_val",        smp_fetch_url_param_val,  ARG2(1,STR,STR),  NULL,    SMP_T_UINT, SMP_USE_HRQHV },
+	{ "url_param",       smp_fetch_url_param,      ARG2(0,STR,STR),  NULL,    SMP_T_STR,  SMP_USE_HRQHV },
+	{ "urlp"     ,       smp_fetch_url_param,      ARG2(0,STR,STR),  NULL,    SMP_T_STR,  SMP_USE_HRQHV },
+	{ "urlp_val",        smp_fetch_url_param_val,  ARG2(0,STR,STR),  NULL,    SMP_T_UINT, SMP_USE_HRQHV },
 	{ /* END */ },
 }};
 
