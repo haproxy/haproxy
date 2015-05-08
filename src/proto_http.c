@@ -12120,6 +12120,126 @@ int parse_set_req_line(const char **args, int *orig_arg, struct proxy *px, struc
 	return 0;
 }
 
+/* This function executes the "capture" action. It executes a fetch expression,
+ * turns the result into a string and puts it in a capture slot. It always
+ * returns 1. If an error occurs the action is cancelled, but the rule
+ * processing continues.
+ */
+int http_action_req_capture(struct http_req_rule *rule, struct proxy *px, struct stream *s)
+{
+	struct session *sess = s->sess;
+	struct sample *key;
+	struct sample_expr *expr = rule->arg.act.p[0];
+	struct cap_hdr *h = rule->arg.act.p[1];
+	char **cap = s->req_cap;
+	int len;
+
+	key = sample_fetch_string(s->be, sess, s, SMP_OPT_DIR_REQ|SMP_OPT_FINAL, expr);
+	if (!key)
+		return 1;
+
+	if (cap[h->index] == NULL)
+		cap[h->index] = pool_alloc2(h->pool);
+
+	if (cap[h->index] == NULL) /* no more capture memory */
+		return 1;
+
+	len = key->data.str.len;
+	if (len > h->len)
+		len = h->len;
+
+	memcpy(cap[h->index], key->data.str.str, len);
+	cap[h->index][len] = 0;
+	return 1;
+}
+
+/* parse an "http-request capture" action. It takes a single argument which is
+ * a sample fetch expression. It stores the expression into arg->act.p[0] and
+ * the allocated hdr_cap struct into arg->act.p[1].
+ * It returns 0 on success, < 0 on error.
+ */
+int parse_http_req_capture(const char **args, int *orig_arg, struct proxy *px, struct http_req_rule *rule, char **err)
+{
+	struct sample_expr *expr;
+	struct cap_hdr *hdr;
+	int cur_arg;
+	int len;
+
+	for (cur_arg = *orig_arg; cur_arg < *orig_arg + 3 && *args[cur_arg]; cur_arg++)
+		if (strcmp(args[cur_arg], "if") == 0 ||
+		    strcmp(args[cur_arg], "unless") == 0)
+			break;
+
+	if (cur_arg < *orig_arg + 3) {
+		memprintf(err, "expects <expression> 'len' <length> ");
+		return -1;
+	}
+
+	if (!(px->cap & PR_CAP_FE)) {
+		memprintf(err, "proxy '%s' has no frontend capability", px->id);
+		return -1;
+	}
+
+	LIST_INIT((struct list *)&rule->arg.act.p[0]);
+	proxy->conf.args.ctx = ARGC_CAP;
+
+	cur_arg = *orig_arg;
+	expr = sample_parse_expr((char **)args, &cur_arg, px->conf.args.file, px->conf.args.line, err, &px->conf.args);
+	if (!expr)
+		return -1;
+
+	if (!(expr->fetch->val & SMP_VAL_FE_HRQ_HDR)) {
+		memprintf(err,
+			  "fetch method '%s' extracts information from '%s', none of which is available here",
+			  args[cur_arg-1], sample_src_names(expr->fetch->use));
+		free(expr);
+		return -1;
+	}
+
+	if (strcmp(args[cur_arg], "len") == 0) {
+		cur_arg++;
+		if (!args[cur_arg]) {
+			memprintf(err, "missing length value");
+			free(expr);
+			return -1;
+		}
+		/* we copy the table name for now, it will be resolved later */
+		len = atoi(args[cur_arg]);
+		if (len <= 0) {
+			memprintf(err, "length must be > 0");
+			free(expr);
+			return -1;
+		}
+		cur_arg++;
+	}
+
+	if (!len) {
+		memprintf(err, "a positive 'len' argument is mandatory");
+		free(expr);
+		return -1;
+	}
+
+
+	hdr = calloc(sizeof(struct cap_hdr), 1);
+	hdr->next = px->req_cap;
+	hdr->name = NULL; /* not a header capture */
+	hdr->namelen = 0;
+	hdr->len = len;
+	hdr->pool = create_pool("caphdr", hdr->len + 1, MEM_F_SHARED);
+	hdr->index = px->nb_req_cap++;
+
+	px->req_cap = hdr;
+	px->to_log |= LW_REQHDR;
+
+	rule->action       = HTTP_REQ_ACT_CUSTOM_CONT;
+	rule->action_ptr   = http_action_req_capture;
+	rule->arg.act.p[0] = expr;
+	rule->arg.act.p[1] = hdr;
+
+	*orig_arg = cur_arg;
+	return 0;
+}
+
 /*
  * Return the struct http_req_action_kw associated to a keyword.
  */
@@ -12381,6 +12501,7 @@ static struct sample_conv_kw_list sample_conv_kws = {ILH, {
 struct http_req_action_kw_list http_req_actions = {
 	.scope = "http",
 	.kw = {
+		{ "capture",    parse_http_req_capture },
 		{ "set-method", parse_set_req_line },
 		{ "set-path",   parse_set_req_line },
 		{ "set-query",  parse_set_req_line },

@@ -3243,6 +3243,7 @@ http-check send-state
 
 http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
               add-header <name> <fmt> | set-header <name> <fmt> |
+              capture <sample> len <length> |
               del-header <name> | set-nice <nice> | set-log-level <level> |
               replace-header <name> <match-regex> <replace-fmt> |
               replace-value <name> <match-regex> <replace-fmt> |
@@ -3460,6 +3461,17 @@ http-request { allow | deny | tarpit | auth [realm <realm>] | redirect <rule> |
       more) values. This lookup is done by a linear search and can be expensive
       with large lists! It is the equivalent of the "set map" command from the
       stats socket, but can be triggered by an HTTP request.
+
+    - capture <sample> len <length> :
+      captures sample expression <sample> from the request buffer, and converts
+      it to a string of at most <len> characters. The resulting string is
+      stored into the next request "capture" slot, so it will possibly appear
+      next to some captured HTTP headers. It will then automatically appear in
+      the logs, and it will be possible to extract it using sample fetch rules
+      to feed it into headers or anything. The length should be limited given
+      that this size will be allocated for each capture during the whole
+      session life. Please check section 7.3 (Fetching samples) and "capture
+      request header" for more information.
 
     - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>] :
       enables tracking of sticky counters from current request. These rules
@@ -7898,7 +7910,7 @@ tcp-request connection <action> [{if | unless} <condition>]
   accept the incoming connection. There is no specific limit to the number of
   rules which may be inserted.
 
-  Five types of actions are supported :
+  Four types of actions are supported :
     - accept :
         accepts the connection if the condition is true (when used with "if")
         or false (when used with "unless"). The first such rule executed ends
@@ -7936,8 +7948,8 @@ tcp-request connection <action> [{if | unless} <condition>]
         logs, and it will be possible to extract it using sample fetch rules to
         feed it into headers or anything. The length should be limited given
         that this size will be allocated for each capture during the whole
-        session life. Since it applies to Please check section 7.3 (Fetching
-        samples) and "capture request header" for more information.
+        session life. Please check section 7.3 (Fetching samples) and "capture
+        request header" for more information.
 
     - { track-sc0 | track-sc1 | track-sc2 } <key> [table <table>] :
         enables tracking of sticky counters from current connection. These
