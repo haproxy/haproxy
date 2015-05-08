@@ -12163,7 +12163,7 @@ int parse_http_req_capture(const char **args, int *orig_arg, struct proxy *px, s
 	struct sample_expr *expr;
 	struct cap_hdr *hdr;
 	int cur_arg;
-	int len;
+	int len = 0;
 
 	for (cur_arg = *orig_arg; cur_arg < *orig_arg + 3 && *args[cur_arg]; cur_arg++)
 		if (strcmp(args[cur_arg], "if") == 0 ||
