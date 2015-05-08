@@ -15689,6 +15689,44 @@ show pools
   as the SIGQUIT when running in foreground except that it does not flush
   the pools.
 
+show servers state [<backend>]
+  Dump the state of the servers found in the running configuration. A backend
+  name or identifier may be provided to limit the output to this backend only.
+
+  The dump has the following format:
+   - first line contains the format version (1 in this specification);
+   - second line contains the column headers, prefixed by a sharp ('#');
+   - third line and next ones contain data;
+   - each line starting by a sharp ('#') is considered as a comment.
+
+  Since multiple versions of the ouptput may co-exist, below is the list of
+  fields and their order per file format version :
+   1:
+     be_id:                       Backend unique id.
+     be_name:                     Backend label.
+     srv_id:                      Server unique id (in the backend).
+     srv_name:                    Server label.
+     srv_addr:                    Server IP address.
+     srv_op_state:                Server operational state (UP/DOWN/...).
+                                  In source code: SRV_ST_*.
+     srv_admin_state:             Server administrative state (MAINT/DRAIN/...).
+                                  In source code: SRV_ADMF_*.
+     srv_uweight:                 User visible server's weight.
+     srv_iweight:                 Server's initial weight.
+     srv_time_since_last_change:  Time since last operational change.
+     srv_check_status:            Last health check status.
+     srv_check_result:            Last check result (FAILED/PASSED/...).
+                                  In source code: CHK_RES_*.
+     srv_check_health:            Checks rise / fall current counter.
+     srv_check_state:             State of the check (ENABLED/PAUSED/...).
+                                  In source code: CHK_ST_*.
+     srv_agent_state:             State of the agent check (ENABLED/PAUSED/...).
+                                  In source code: CHK_ST_*.
+     bk_f_forced_id:              Flag to know if the backend ID is forced by
+                                  configuration.
+     srv_f_forced_id:             Flag to know if the server's ID is forced by
+                                  configuration.
+
 show sess
   Dump all known sessions. Avoid doing this on slow connections as this can
   be huge. This command is restricted and can only be issued on sockets
