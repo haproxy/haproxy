@@ -99,6 +99,11 @@ struct appctx {
 			struct pattern_expr *expr;
 			struct chunk chunk;
 		} map;
+#if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
+		struct {
+			struct tls_keys_ref *ref;
+		} tlskeys;
+#endif
 		struct {
 			int connected;
 			struct hlua_socket *socket;

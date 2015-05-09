@@ -734,6 +734,9 @@ void init(int argc, char **argv)
 	}
 
 	pattern_finalize_config();
+#if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
+	tlskeys_finalize_config();
+#endif
 
 	err_code |= check_config_validity();
 	if (err_code & (ERR_ABORT|ERR_FATAL)) {

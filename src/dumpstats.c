@@ -66,6 +66,7 @@
 
 #ifdef USE_OPENSSL
 #include <proto/ssl_sock.h>
+#include <types/ssl_sock.h>
 #endif
 
 /* stats socket states */
@@ -88,6 +89,7 @@ enum {
 	STAT_CLI_O_PAT,      /* list all entries of a pattern */
 	STAT_CLI_O_MLOOK,    /* lookup a map entry */
 	STAT_CLI_O_POOLS,    /* dump memory pools */
+	STAT_CLI_O_TLSK,     /* list all TLS ticket keys references */
 };
 
 /* Actions available for the stats admin forms */
@@ -134,6 +136,9 @@ static int stats_dump_stat_to_buffer(struct stream_interface *si, struct uri_aut
 static int stats_pats_list(struct stream_interface *si);
 static int stats_pat_list(struct stream_interface *si);
 static int stats_map_lookup(struct stream_interface *si);
+#if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
+static int stats_tlskeys_list(struct stream_interface *si);
+#endif
 static void cli_release_handler(struct appctx *appctx);
 
 /*
@@ -974,6 +979,51 @@ static struct server *expect_server_admin(struct stream *s, struct stream_interf
 	return sv;
 }
 
+/* This function is used with TLS ticket keys management. It permits to browse
+ * each reference. The variable <getnext> must contain the current node,
+ * <end> point to the root node.
+ */
+#if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
+static inline
+struct tls_keys_ref *tlskeys_list_get_next(struct tls_keys_ref *getnext, struct list *end)
+{
+	struct tls_keys_ref *ref = getnext;
+
+	while (1) {
+
+		/* Get next list entry. */
+		ref = LIST_NEXT(&ref->list, struct tls_keys_ref *, list);
+
+		/* If the entry is the last of the list, return NULL. */
+		if (&ref->list == end)
+			return NULL;
+
+		return ref;
+	}
+}
+
+static inline
+struct tls_keys_ref *tlskeys_ref_lookup_ref(const char *reference)
+{
+	int id;
+	char *error;
+
+	/* If the reference starts by a '#', this is numeric id. */
+	if (reference[0] == '#') {
+		/* Try to convert the numeric id. If the conversion fails, the lookup fails. */
+		id = strtol(reference + 1, &error, 10);
+		if (*error != '\0')
+			return NULL;
+
+		/* Perform the unique id lookup. */
+		return tlskeys_ref_lookupid(id);
+	}
+
+	/* Perform the string lookup. */
+	return tlskeys_ref_lookup(reference);
+}
+#endif
+
 /* This function is used with map and acl management. It permits to browse
  * each reference. The variable <getnext> must contain the current node,
  * <end> point to the root node and the <flags> permit to filter required
@@ -1146,6 +1196,17 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 		}
 		else if (strcmp(args[1], "table") == 0) {
 			stats_sock_table_request(si, args, STAT_CLI_O_TAB);
+		}
+		else if (strcmp(args[1], "tls-keys") == 0) {
+#if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
+			appctx->st2 = STAT_ST_INIT;
+			appctx->st0 = STAT_CLI_O_TLSK;
+#else
+			appctx->ctx.cli.msg = "HAProxy was compiled against a version of OpenSSL "
+						"that doesn't support specifying TLS ticket keys\n";
+			appctx->st0 = STAT_CLI_PRINT;
+#endif
+			return 1;
 		}
 		else if (strcmp(args[1], "map") == 0 ||
 		         strcmp(args[1], "acl") == 0) {
@@ -1812,6 +1873,42 @@ static int stats_sock_parse_request(struct stream_interface *si, char *line)
 				return 1;
 #endif
 			}
+			else if (strcmp(args[2], "tls-key") == 0) {
+#if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
+				/* Expect two parameters: the filename and the new new TLS key in encoding */
+				if (!*args[3] || !*args[4]) {
+					appctx->ctx.cli.msg = "'set ssl tls-key' expects a filename and the new TLS key in base64 encoding.\n";
+					appctx->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
+
+				appctx->ctx.tlskeys.ref = tlskeys_ref_lookup_ref(args[3]);
+				if(!appctx->ctx.tlskeys.ref) {
+					appctx->ctx.cli.msg = "'set ssl tls-key' unable to locate referenced filename\n";
+					appctx->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
+
+				trash.len = base64dec(args[4], strlen(args[4]), trash.str, trash.size);
+				if (trash.len != sizeof(struct tls_sess_key)) {
+					appctx->ctx.cli.msg = "'set ssl tls-key' received invalid base64 encoded TLS key.\n";
+					appctx->st0 = STAT_CLI_PRINT;
+					return 1;
+				}
+
+				memcpy(appctx->ctx.tlskeys.ref->tlskeys + 2 % TLS_TICKETS_NO, trash.str, trash.len);
+				appctx->ctx.tlskeys.ref->tls_ticket_enc_index = appctx->ctx.tlskeys.ref->tls_ticket_enc_index + 1 % TLS_TICKETS_NO;
+
+				appctx->ctx.cli.msg = "TLS ticket key updated!";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+#else
+				appctx->ctx.cli.msg = "HAProxy was compiled against a version of OpenSSL "
+							"that doesn't support specifying TLS ticket keys\n";
+				appctx->st0 = STAT_CLI_PRINT;
+				return 1;
+#endif
+			}
 			else {
 				appctx->ctx.cli.msg = "'set ssl' only supports 'ocsp-response'.\n";
 				appctx->st0 = STAT_CLI_PRINT;
@@ -2375,6 +2472,12 @@ static void cli_io_handler(struct appctx *appctx)
 				if (stats_dump_pools_to_buffer(si))
 					appctx->st0 = STAT_CLI_PROMPT;
 				break;
+#if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
+			case STAT_CLI_O_TLSK:
+				if (stats_tlskeys_list(si))
+					appctx->st0 = STAT_CLI_PROMPT;
+				break;
+#endif
 			default: /* abnormal state */
 				cli_release_handler(appctx);
 				appctx->st0 = STAT_CLI_PROMPT;
@@ -5320,6 +5423,64 @@ static int stats_dump_full_sess_to_buffer(struct stream_interface *si, struct st
 	appctx->ctx.sess.section = 0;
 	return 1;
 }
+
+#if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
+static int stats_tlskeys_list(struct stream_interface *si) {
+	struct appctx *appctx = __objt_appctx(si->end);
+
+	switch (appctx->st2) {
+	case STAT_ST_INIT:
+		/* Display the column headers. If the message cannot be sent,
+		 * quit the fucntion with returning 0. The function is called
+		 * later and restart at the state "STAT_ST_INIT".
+		 */
+		chunk_reset(&trash);
+		chunk_appendf(&trash, "# id (file)\n");
+		if (bi_putchk(si_ic(si), &trash) == -1) {
+			si_applet_cant_put(si);
+			return 0;
+		}
+
+		/* Now, we start the browsing of the references lists.
+		 * Note that the following call to LIST_ELEM return bad pointer. The only
+		 * avalaible field of this pointer is <list>. It is used with the function
+		 * tlskeys_list_get_next() for retruning the first avalaible entry
+		 */
+		appctx->ctx.tlskeys.ref = LIST_ELEM(&tlskeys_reference, struct tls_keys_ref *, list);
+		appctx->ctx.tlskeys.ref = tlskeys_list_get_next(appctx->ctx.tlskeys.ref, &tlskeys_reference);
+
+		appctx->st2 = STAT_ST_LIST;
+		/* fall through */
+
+	case STAT_ST_LIST:
+		while (appctx->ctx.tlskeys.ref) {
+			chunk_reset(&trash);
+
+			chunk_appendf(&trash, "%d (%s)\n", appctx->ctx.tlskeys.ref->unique_id,
+			              appctx->ctx.tlskeys.ref->filename);
+
+			if (bi_putchk(si_ic(si), &trash) == -1) {
+				/* let's try again later from this stream. We add ourselves into
+				 * this stream's users so that it can remove us upon termination.
+				 */
+				si_applet_cant_put(si);
+				return 0;
+			}
+
+			/* get next list entry and check the end of the list */
+			appctx->ctx.tlskeys.ref = tlskeys_list_get_next(appctx->ctx.tlskeys.ref, &tlskeys_reference);
+		}
+
+		appctx->st2 = STAT_ST_FIN;
+		/* fall through */
+
+	default:
+		appctx->st2 = STAT_ST_FIN;
+		return 1;
+	}
+	return 0;
+}
+#endif
 
 static int stats_pats_list(struct stream_interface *si)
 {

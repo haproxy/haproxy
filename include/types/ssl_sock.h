@@ -32,6 +32,8 @@ struct sni_ctx {
 	struct ebmb_node name;    /* node holding the servername value */
 };
 
+extern struct list tlskeys_reference;
+
 struct tls_sess_key {
 	unsigned char name[16];
 	unsigned char aes_key[16];
