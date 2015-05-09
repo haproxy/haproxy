@@ -38,4 +38,12 @@ struct tls_sess_key {
 	unsigned char hmac_key[16];
 } __attribute__((packed));
 
+struct tls_keys_ref {
+	struct list list; /* Used to chain refs. */
+	char *filename;
+	int unique_id; /* Each pattern reference have unique id. */
+	struct tls_sess_key *tlskeys;
+	int tls_ticket_enc_index;
+};
+
 #endif /* _TYPES_SSL_SOCK_H */

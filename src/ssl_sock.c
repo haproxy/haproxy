@@ -406,8 +406,8 @@ static int ssl_tlsext_ticket_key_cb(SSL *s, unsigned char key_name[16], unsigned
 	int i;
 
 	conn = (struct connection *)SSL_get_app_data(s);
-	keys = objt_listener(conn->target)->bind_conf->tls_ticket_keys;
-	head = objt_listener(conn->target)->bind_conf->tls_ticket_enc_index;
+	keys = objt_listener(conn->target)->bind_conf->keys_ref->tlskeys;
+	head = objt_listener(conn->target)->bind_conf->keys_ref->tls_ticket_enc_index;
 
 	if (enc) {
 		memcpy(key_name, keys[head].name, 16);
@@ -1783,7 +1783,7 @@ int ssl_sock_prepare_ctx(struct bind_conf *bind_conf, SSL_CTX *ctx, struct proxy
 	}
 
 #if (defined SSL_CTRL_SET_TLSEXT_TICKET_KEY_CB && TLS_TICKETS_NO > 0)
-	if(bind_conf->tls_ticket_keys) {
+	if(bind_conf->keys_ref) {
 		if (!SSL_CTX_set_tlsext_ticket_key_cb(ctx, ssl_tlsext_ticket_key_cb)) {
 			Alert("Proxy '%s': unable to set callback for TLS ticket validation for bind '%s' at [%s:%d].\n",
 				curproxy->id, bind_conf->arg, bind_conf->file, bind_conf->line);
@@ -4332,6 +4332,7 @@ static int bind_parse_tls_ticket_keys(char **args, int cur_arg, struct proxy *px
 	FILE *f;
 	int i = 0;
 	char thisline[LINESIZE];
+	struct tls_keys_ref *keys_ref;
 
 	if (!*args[cur_arg + 1]) {
 		if (err)
@@ -4339,13 +4340,16 @@ static int bind_parse_tls_ticket_keys(char **args, int cur_arg, struct proxy *px
 		return ERR_ALERT | ERR_FATAL;
 	}
 
-	conf->tls_ticket_keys = malloc(TLS_TICKETS_NO * sizeof(struct tls_sess_key));
+	keys_ref = malloc(sizeof(struct tls_keys_ref));
+	keys_ref->tlskeys = malloc(TLS_TICKETS_NO * sizeof(struct tls_sess_key));
 
 	if ((f = fopen(args[cur_arg + 1], "r")) == NULL) {
 		if (err)
 			memprintf(err, "'%s' : unable to load ssl tickets keys file", args[cur_arg+1]);
 		return ERR_ALERT | ERR_FATAL;
 	}
+
+	keys_ref->filename = strdup(args[cur_arg + 1]);
 
 	while (fgets(thisline, sizeof(thisline), f) != NULL) {
 		int len = strlen(thisline);
@@ -4356,7 +4360,7 @@ static int bind_parse_tls_ticket_keys(char **args, int cur_arg, struct proxy *px
 		if(thisline[len - 1] == '\r')
 			thisline[--len] = 0;
 
-		if (base64dec(thisline, len, (char *) (conf->tls_ticket_keys + i % TLS_TICKETS_NO), sizeof(struct tls_sess_key)) != sizeof(struct tls_sess_key)) {
+		if (base64dec(thisline, len, (char *) (keys_ref->tlskeys + i % TLS_TICKETS_NO), sizeof(struct tls_sess_key)) != sizeof(struct tls_sess_key)) {
 			if (err)
 				memprintf(err, "'%s' : unable to decode base64 key on line %d", args[cur_arg+1], i + 1);
 			return ERR_ALERT | ERR_FATAL;
@@ -4374,7 +4378,8 @@ static int bind_parse_tls_ticket_keys(char **args, int cur_arg, struct proxy *px
 
 	/* Use penultimate key for encryption, handle when TLS_TICKETS_NO = 1 */
 	i-=2;
-	conf->tls_ticket_enc_index = i < 0 ? 0 : i;
+	keys_ref->tls_ticket_enc_index = i < 0 ? 0 : i;
+	conf->keys_ref = keys_ref;
 
 	return 0;
 #else

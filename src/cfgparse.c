@@ -7996,7 +7996,11 @@ out_uri_auth_compat:
 			free(bind_conf->ciphers);
 			free(bind_conf->ecdhe);
 			free(bind_conf->crl_file);
-			free(bind_conf->tls_ticket_keys);
+			if(bind_conf->keys_ref) {
+				free(bind_conf->keys_ref->filename);
+				free(bind_conf->keys_ref->tlskeys);
+				free(bind_conf->keys_ref);
+			}
 #endif /* USE_OPENSSL */
 		}
 
