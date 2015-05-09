@@ -14772,6 +14772,13 @@ set ssl ocsp-response <response>
     echo "set ssl ocsp-response $(base64 -w 10000 resp.der)" | \
                  socat stdio /var/run/haproxy.stat
 
+set ssl tls-key <id> <tlskey>
+  Set the next TLS key for the <id> listener to <tlskey>. This key becomes the
+  ultimate key, while the penultimate one is used for encryption (others just
+  decrypt). The oldest TLS key present is overwritten. <id> is either a numeric
+  #<id> or <file> returned by "show tls-keys". <tlskey> is a base64 encoded 48
+  bit TLS ticket key (ex. openssl rand -base64 48).
+
 set table <table> key <key> [data.<data_type> <value>]*
   Create or update a stick-table entry in the table. If the key is not present,
   an entry is inserted. See stick-table in section 4.2 to find all possible
@@ -15005,6 +15012,11 @@ show table <name> [ data.<type> <operator> <value> ] | [ key <key> ]
           | socat stdio /tmp/sock1 \
           | fgrep 'key=' | cut -d' ' -f2 | cut -d= -f2 > abusers-ip.txt
           ( or | awk '/key/{ print a[split($2,a,"=")]; }' )
+
+show tls-keys
+  Dump all loaded TLS ticket keys. The TLS ticket key reference ID and the
+  file from which the keys have been loaded is shown. Both of those can be
+  used to update the TLS keys using "set ssl tls-key".
 
 shutdown frontend <frontend>
   Completely delete the specified frontend. All the ports it was bound to will
