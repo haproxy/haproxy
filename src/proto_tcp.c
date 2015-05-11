@@ -1963,10 +1963,10 @@ static int tcp_parse_tcp_req(char **args, int section_type, struct proxy *curpx,
 
 /* fetch the connection's source IPv4/IPv6 address */
 static int
-smp_fetch_src(struct proxy *px, struct session *sess, struct stream *strm, unsigned int opt,
-              const struct arg *args, struct sample *smp, const char *kw, void *private)
+smp_fetch_src(unsigned int opt, const struct arg *args, struct sample *smp,
+              const char *kw, void *private)
 {
-	struct connection *cli_conn = objt_conn(sess->origin);
+	struct connection *cli_conn = objt_conn(smp->sess->origin);
 
 	if (!cli_conn)
 		return 0;
@@ -1990,10 +1990,10 @@ smp_fetch_src(struct proxy *px, struct session *sess, struct stream *strm, unsig
 
 /* set temp integer to the connection's source port */
 static int
-smp_fetch_sport(struct proxy *px, struct session *sess, struct stream *strm, unsigned int opt,
-                const struct arg *args, struct sample *smp, const char *k, void *private)
+smp_fetch_sport(unsigned int opt, const struct arg *args, struct sample *smp,
+                const char *k, void *private)
 {
-	struct connection *cli_conn = objt_conn(sess->origin);
+	struct connection *cli_conn = objt_conn(smp->sess->origin);
 
 	if (!cli_conn)
 		return 0;
@@ -2008,10 +2008,10 @@ smp_fetch_sport(struct proxy *px, struct session *sess, struct stream *strm, uns
 
 /* fetch the connection's destination IPv4/IPv6 address */
 static int
-smp_fetch_dst(struct proxy *px, struct session *sess, struct stream *strm, unsigned int opt,
-              const struct arg *args, struct sample *smp, const char *kw, void *private)
+smp_fetch_dst(unsigned int opt, const struct arg *args, struct sample *smp,
+              const char *kw, void *private)
 {
-	struct connection *cli_conn = objt_conn(sess->origin);
+	struct connection *cli_conn = objt_conn(smp->sess->origin);
 
 	if (!cli_conn)
 		return 0;
@@ -2037,10 +2037,10 @@ smp_fetch_dst(struct proxy *px, struct session *sess, struct stream *strm, unsig
 
 /* set temp integer to the frontend connexion's destination port */
 static int
-smp_fetch_dport(struct proxy *px, struct session *sess, struct stream *strm, unsigned int opt,
-                const struct arg *args, struct sample *smp, const char *kw, void *private)
+smp_fetch_dport(unsigned int opt, const struct arg *args, struct sample *smp,
+                const char *kw, void *private)
 {
-	struct connection *cli_conn = objt_conn(sess->origin);
+	struct connection *cli_conn = objt_conn(smp->sess->origin);
 
 	if (!cli_conn)
 		return 0;

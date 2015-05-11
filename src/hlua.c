@@ -2773,7 +2773,7 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 	smp.px = hsmp->p;
 	smp.sess = hsmp->s->sess;
 	smp.strm = hsmp->s;
-	if (!f->process(hsmp->p, hsmp->s->sess, hsmp->s, 0, args, &smp, f->kw, f->private)) {
+	if (!f->process(0, args, &smp, f->kw, f->private)) {
 		if (hsmp->stringsafe)
 			lua_pushstring(L, "");
 		else
@@ -2894,7 +2894,7 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 	smp.px = hsmp->p;
 	smp.sess = hsmp->s->sess;
 	smp.strm = hsmp->s;
-	if (!conv->process(hsmp->s, args, &smp, conv->private)) {
+	if (!conv->process(args, &smp, conv->private)) {
 		if (hsmp->stringsafe)
 			lua_pushstring(L, "");
 		else
@@ -3854,10 +3854,10 @@ static int hlua_register_task(lua_State *L)
  * doesn't allow "yield" functions because the HAProxy engine cannot
  * resume converters.
  */
-static int hlua_sample_conv_wrapper(struct stream *stream, const struct arg *arg_p,
-                                    struct sample *smp, void *private)
+static int hlua_sample_conv_wrapper(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct hlua_function *fcn = (struct hlua_function *)private;
+	struct stream *stream = smp->strm;
 
 	/* In the execution wrappers linked with a stream, the
 	 * Lua context can be not initialized. This behavior
@@ -3955,80 +3955,79 @@ static int hlua_sample_conv_wrapper(struct stream *stream, const struct arg *arg
  * doesn't allow "yield" functions because the HAProxy engine cannot
  * resume sample-fetches.
  */
-static int hlua_sample_fetch_wrapper(struct proxy *px, struct session *sess,
-                                     struct stream *s, unsigned int opt,
-                                     const struct arg *arg_p,
+static int hlua_sample_fetch_wrapper(unsigned int opt, const struct arg *arg_p,
                                      struct sample *smp, const char *kw, void *private)
 {
 	struct hlua_function *fcn = (struct hlua_function *)private;
+	struct stream *stream = smp->strm;
 
 	/* In the execution wrappers linked with a stream, the
 	 * Lua context can be not initialized. This behavior
 	 * permits to save performances because a systematic
 	 * Lua initialization cause 5% performances loss.
 	 */
-	if (!s->hlua.T && !hlua_ctx_init(&s->hlua, s->task)) {
-		send_log(s->be, LOG_ERR, "Lua sample-fetch '%s': can't initialize Lua context.", fcn->name);
+	if (!stream->hlua.T && !hlua_ctx_init(&stream->hlua, stream->task)) {
+		send_log(stream->be, LOG_ERR, "Lua sample-fetch '%s': can't initialize Lua context.", fcn->name);
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 			Alert("Lua sample-fetch '%s': can't initialize Lua context.\n", fcn->name);
 		return 0;
 	}
 
 	/* If it is the first run, initialize the data for the call. */
-	if (!HLUA_IS_RUNNING(&s->hlua)) {
+	if (!HLUA_IS_RUNNING(&stream->hlua)) {
 		/* Check stack available size. */
-		if (!lua_checkstack(s->hlua.T, 2)) {
-			send_log(px, LOG_ERR, "Lua sample-fetch '%s': full stack.", fcn->name);
+		if (!lua_checkstack(stream->hlua.T, 2)) {
+			send_log(smp->px, LOG_ERR, "Lua sample-fetch '%s': full stack.", fcn->name);
 			if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 				Alert("Lua sample-fetch '%s': full stack.\n", fcn->name);
 			return 0;
 		}
 
 		/* Restore the function in the stack. */
-		lua_rawgeti(s->hlua.T, LUA_REGISTRYINDEX, fcn->function_ref);
+		lua_rawgeti(stream->hlua.T, LUA_REGISTRYINDEX, fcn->function_ref);
 
 		/* push arguments in the stack. */
-		if (!hlua_txn_new(s->hlua.T, s, px)) {
-			send_log(px, LOG_ERR, "Lua sample-fetch '%s': full stack.", fcn->name);
+		if (!hlua_txn_new(stream->hlua.T, stream, smp->px)) {
+			send_log(smp->px, LOG_ERR, "Lua sample-fetch '%s': full stack.", fcn->name);
 			if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 				Alert("Lua sample-fetch '%s': full stack.\n", fcn->name);
 			return 0;
 		}
-		s->hlua.nargs = 1;
+		stream->hlua.nargs = 1;
 
 		/* push keywords in the stack. */
 		for (; arg_p && arg_p->type != ARGT_STOP; arg_p++) {
 			/* Check stack available size. */
-			if (!lua_checkstack(s->hlua.T, 1)) {
-				send_log(px, LOG_ERR, "Lua sample-fetch '%s': full stack.", fcn->name);
+			if (!lua_checkstack(stream->hlua.T, 1)) {
+				send_log(smp->px, LOG_ERR, "Lua sample-fetch '%s': full stack.", fcn->name);
 				if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 					Alert("Lua sample-fetch '%s': full stack.\n", fcn->name);
 				return 0;
 			}
-			if (!lua_checkstack(s->hlua.T, 1)) {
-				send_log(px, LOG_ERR, "Lua sample-fetch '%s': full stack.", fcn->name);
+			if (!lua_checkstack(stream->hlua.T, 1)) {
+				send_log(smp->px, LOG_ERR, "Lua sample-fetch '%s': full stack.", fcn->name);
 				if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 					Alert("Lua sample-fetch '%s': full stack.\n", fcn->name);
 				return 0;
 			}
-			hlua_arg2lua(s->hlua.T, arg_p);
-			s->hlua.nargs++;
+			hlua_arg2lua(stream->hlua.T, arg_p);
+			stream->hlua.nargs++;
 		}
 
 		/* We must initialize the execution timeouts. */
-		s->hlua.expire = tick_add(now_ms, hlua_timeout_session);
+		stream->hlua.expire = tick_add(now_ms, hlua_timeout_session);
 
 		/* Set the currently running flag. */
-		HLUA_SET_RUN(&s->hlua);
+		HLUA_SET_RUN(&stream->hlua);
 	}
 
 	/* Execute the function. */
-	switch (hlua_ctx_resume(&s->hlua, 0)) {
+	switch (hlua_ctx_resume(&stream->hlua, 0)) {
 	/* finished. */
 	case HLUA_E_OK:
 		/* Convert the returned value in sample. */
-		hlua_lua2smp(s->hlua.T, -1, smp);
-		lua_pop(s->hlua.T, 1);
+		hlua_lua2smp(stream->hlua.T, -1, smp);
+		lua_pop(stream->hlua.T, 1);
 
 		/* Set the end of execution flag. */
 		smp->flags &= ~SMP_F_MAY_CHANGE;
@@ -4036,7 +4035,7 @@ static int hlua_sample_fetch_wrapper(struct proxy *px, struct session *sess,
 
 	/* yield. */
 	case HLUA_E_AGAIN:
-		send_log(px, LOG_ERR, "Lua sample-fetch '%s': cannot use yielded functions.", fcn->name);
+		send_log(smp->px, LOG_ERR, "Lua sample-fetch '%s': cannot use yielded functions.", fcn->name);
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 			Alert("Lua sample-fetch '%s': cannot use yielded functions.\n", fcn->name);
 		return 0;
@@ -4044,15 +4043,15 @@ static int hlua_sample_fetch_wrapper(struct proxy *px, struct session *sess,
 	/* finished with error. */
 	case HLUA_E_ERRMSG:
 		/* Display log. */
-		send_log(px, LOG_ERR, "Lua sample-fetch '%s': %s.", fcn->name, lua_tostring(s->hlua.T, -1));
+		send_log(smp->px, LOG_ERR, "Lua sample-fetch '%s': %s.", fcn->name, lua_tostring(stream->hlua.T, -1));
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
-			Alert("Lua sample-fetch '%s': %s.\n", fcn->name, lua_tostring(s->hlua.T, -1));
-		lua_pop(s->hlua.T, 1);
+			Alert("Lua sample-fetch '%s': %s.\n", fcn->name, lua_tostring(stream->hlua.T, -1));
+		lua_pop(stream->hlua.T, 1);
 		return 0;
 
 	case HLUA_E_ERR:
 		/* Display log. */
-		send_log(px, LOG_ERR, "Lua sample-fetch '%s' returns an unknown error.", fcn->name);
+		send_log(smp->px, LOG_ERR, "Lua sample-fetch '%s' returns an unknown error.", fcn->name);
 		if (!(global.mode & MODE_QUIET) || (global.mode & MODE_VERBOSE))
 			Alert("Lua sample-fetch '%s': returns an unknown error.\n", fcn->name);
 

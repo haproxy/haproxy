@@ -809,8 +809,7 @@ struct proxy *find_stktable(const char *name)
  * the table's type. This is a double conversion, but in the future we might
  * support automatic input types to perform the cast on the fly.
  */
-static int sample_conv_in_table(struct stream *stream, const struct arg *arg_p,
-                                struct sample *smp, void *private)
+static int sample_conv_in_table(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
 	struct stktable_key *key;
@@ -836,8 +835,7 @@ static int sample_conv_in_table(struct stream *stream, const struct arg *arg_p,
  * be easily performed. If the inspected parameter is not stored in the table,
  * <not found> is returned.
  */
-static int sample_conv_table_bytes_in_rate(struct stream *stream, const struct arg *arg_p,
-                                           struct sample *smp, void *private)
+static int sample_conv_table_bytes_in_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
 	struct stktable_key *key;
@@ -873,8 +871,7 @@ static int sample_conv_table_bytes_in_rate(struct stream *stream, const struct a
  * be easily performed. If the inspected parameter is not stored in the table,
  * <not found> is returned.
  */
-static int sample_conv_table_conn_cnt(struct stream *stream, const struct arg *arg_p,
-                                      struct sample *smp, void *private)
+static int sample_conv_table_conn_cnt(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
 	struct stktable_key *key;
@@ -909,8 +906,7 @@ static int sample_conv_table_conn_cnt(struct stream *stream, const struct arg *a
  * can be easily performed. If the inspected parameter is not stored in the
  * table, <not found> is returned.
  */
-static int sample_conv_table_conn_cur(struct stream *stream, const struct arg *arg_p,
-                                      struct sample *smp, void *private)
+static int sample_conv_table_conn_cur(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
 	struct stktable_key *key;
@@ -945,8 +941,7 @@ static int sample_conv_table_conn_cur(struct stream *stream, const struct arg *a
  * be easily performed. If the inspected parameter is not stored in the table,
  * <not found> is returned.
  */
-static int sample_conv_table_conn_rate(struct stream *stream, const struct arg *arg_p,
-                                       struct sample *smp, void *private)
+static int sample_conv_table_conn_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
 	struct stktable_key *key;
@@ -982,8 +977,7 @@ static int sample_conv_table_conn_rate(struct stream *stream, const struct arg *
  * be easily performed. If the inspected parameter is not stored in the table,
  * <not found> is returned.
  */
-static int sample_conv_table_bytes_out_rate(struct stream *stream, const struct arg *arg_p,
-                                            struct sample *smp, void *private)
+static int sample_conv_table_bytes_out_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
 	struct stktable_key *key;
@@ -1019,8 +1013,7 @@ static int sample_conv_table_bytes_out_rate(struct stream *stream, const struct 
  * be easily performed. If the inspected parameter is not stored in the table,
  * <not found> is returned.
  */
-static int sample_conv_table_gpc0(struct stream *stream, const struct arg *arg_p,
-                                  struct sample *smp, void *private)
+static int sample_conv_table_gpc0(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
 	struct stktable_key *key;
@@ -1055,8 +1048,7 @@ static int sample_conv_table_gpc0(struct stream *stream, const struct arg *arg_p
  * be easily performed. If the inspected parameter is not stored in the table,
  * <not found> is returned.
  */
-static int sample_conv_table_gpc0_rate(struct stream *stream, const struct arg *arg_p,
-                                       struct sample *smp, void *private)
+static int sample_conv_table_gpc0_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
 	struct stktable_key *key;
@@ -1092,8 +1084,7 @@ static int sample_conv_table_gpc0_rate(struct stream *stream, const struct arg *
  * comparisons can be easily performed. If the inspected parameter is not stored
  * in the table, <not found> is returned.
  */
-static int sample_conv_table_http_err_cnt(struct stream *stream, const struct arg *arg_p,
-                                          struct sample *smp, void *private)
+static int sample_conv_table_http_err_cnt(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
 	struct stktable_key *key;
@@ -1128,8 +1119,7 @@ static int sample_conv_table_http_err_cnt(struct stream *stream, const struct ar
  * be easily performed. If the inspected parameter is not stored in the table,
  * <not found> is returned.
  */
-static int sample_conv_table_http_err_rate(struct stream *stream, const struct arg *arg_p,
-                                           struct sample *smp, void *private)
+static int sample_conv_table_http_err_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
 	struct stktable_key *key;
@@ -1165,8 +1155,7 @@ static int sample_conv_table_http_err_rate(struct stream *stream, const struct a
  * can be easily performed. If the inspected parameter is not stored in the
  * table, <not found> is returned.
  */
-static int sample_conv_table_http_req_cnt(struct stream *stream, const struct arg *arg_p,
-                                          struct sample *smp, void *private)
+static int sample_conv_table_http_req_cnt(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
 	struct stktable_key *key;
@@ -1201,8 +1190,7 @@ static int sample_conv_table_http_req_cnt(struct stream *stream, const struct ar
  * performed. If the inspected parameter is not stored in the table, <not found>
  * is returned.
  */
-static int sample_conv_table_http_req_rate(struct stream *stream, const struct arg *arg_p,
-                                           struct sample *smp, void *private)
+static int sample_conv_table_http_req_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
 	struct stktable_key *key;
@@ -1238,8 +1226,7 @@ static int sample_conv_table_http_req_rate(struct stream *stream, const struct a
  * be easily performed. If the inspected parameter is not stored in the table,
  * <not found> is returned.
  */
-static int sample_conv_table_kbytes_in(struct stream *stream, const struct arg *arg_p,
-                                       struct sample *smp, void *private)
+static int sample_conv_table_kbytes_in(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
 	struct stktable_key *key;
@@ -1274,8 +1261,7 @@ static int sample_conv_table_kbytes_in(struct stream *stream, const struct arg *
  * be easily performed. If the inspected parameter is not stored in the table,
  * <not found> is returned.
  */
-static int sample_conv_table_kbytes_out(struct stream *stream, const struct arg *arg_p,
-                                        struct sample *smp, void *private)
+static int sample_conv_table_kbytes_out(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
 	struct stktable_key *key;
@@ -1310,8 +1296,7 @@ static int sample_conv_table_kbytes_out(struct stream *stream, const struct arg 
  * easily performed. If the inspected parameter is not stored in the table,
  * <not found> is returned.
  */
-static int sample_conv_table_server_id(struct stream *stream, const struct arg *arg_p,
-                                       struct sample *smp, void *private)
+static int sample_conv_table_server_id(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
 	struct stktable_key *key;
@@ -1346,8 +1331,7 @@ static int sample_conv_table_server_id(struct stream *stream, const struct arg *
  * can be easily performed. If the inspected parameter is not stored in the
  * table, <not found> is returned.
  */
-static int sample_conv_table_sess_cnt(struct stream *stream, const struct arg *arg_p,
-                                      struct sample *smp, void *private)
+static int sample_conv_table_sess_cnt(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
 	struct stktable_key *key;
@@ -1382,8 +1366,7 @@ static int sample_conv_table_sess_cnt(struct stream *stream, const struct arg *a
  * performed. If the inspected parameter is not stored in the table, <not found>
  * is returned.
  */
-static int sample_conv_table_sess_rate(struct stream *stream, const struct arg *arg_p,
-                                       struct sample *smp, void *private)
+static int sample_conv_table_sess_rate(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
 	struct stktable_key *key;
@@ -1419,8 +1402,7 @@ static int sample_conv_table_sess_rate(struct stream *stream, const struct arg *
  * comparisons can be easily performed. If the inspected parameter is not
  * stored in the table, <not found> is returned.
  */
-static int sample_conv_table_trackers(struct stream *stream, const struct arg *arg_p,
-                                      struct sample *smp, void *private)
+static int sample_conv_table_trackers(const struct arg *arg_p, struct sample *smp, void *private)
 {
 	struct stktable *t;
 	struct stktable_key *key;

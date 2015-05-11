@@ -270,8 +270,7 @@ struct sample_storage {
 /* Descriptor for a sample conversion */
 struct sample_conv {
 	const char *kw;                           /* configuration keyword  */
-	int (*process)(struct stream *stream,
-	               const struct arg *arg_p,
+	int (*process)(const struct arg *arg_p,
 	               struct sample *smp,
 	               void *private);            /* process function */
 	unsigned int arg_mask;                    /* arguments (ARG*()) */
@@ -294,11 +293,8 @@ struct sample_conv_expr {
 /* Descriptor for a sample fetch method */
 struct sample_fetch {
 	const char *kw;                           /* configuration keyword */
-	int (*process)(struct proxy *px,
-	               struct session *sess,
-	               struct stream *strm,
-		       unsigned int opt,          /* fetch options (SMP_OPT_*) */
-		       const struct arg *arg_p,
+	int (*process)(unsigned int opt,          /* fetch options (SMP_OPT_*) */
+	               const struct arg *arg_p,
 	               struct sample *smp,
 	               const char *kw,            /* fetch processing function */
 	               void *private);            /* private value. */
