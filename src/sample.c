@@ -1037,7 +1037,7 @@ struct sample *sample_process(struct proxy *px, struct session *sess,
 	p->sess = sess;
 	p->strm = strm;
 	p->opt  = opt;
-	if (!expr->fetch->process(opt, expr->arg_p, p, expr->fetch->kw, expr->fetch->private))
+	if (!expr->fetch->process(expr->arg_p, p, expr->fetch->kw, expr->fetch->private))
 		return NULL;
 
 	list_for_each_entry(conv_expr, &expr->conv_exprs, list) {
@@ -2131,8 +2131,7 @@ static int sample_conv_arith_even(const struct arg *arg_p,
 
 /* force TRUE to be returned at the fetch level */
 static int
-smp_fetch_true(unsigned int opt, const struct arg *args, struct sample *smp,
-               const char *kw, void *private)
+smp_fetch_true(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_BOOL;
 	smp->data.uint = 1;
@@ -2141,8 +2140,7 @@ smp_fetch_true(unsigned int opt, const struct arg *args, struct sample *smp,
 
 /* force FALSE to be returned at the fetch level */
 static int
-smp_fetch_false(unsigned int opt, const struct arg *args, struct sample *smp,
-                const char *kw, void *private)
+smp_fetch_false(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_BOOL;
 	smp->data.uint = 0;
@@ -2151,8 +2149,7 @@ smp_fetch_false(unsigned int opt, const struct arg *args, struct sample *smp,
 
 /* retrieve environment variable $1 as a string */
 static int
-smp_fetch_env(unsigned int opt, const struct arg *args, struct sample *smp,
-              const char *kw, void *private)
+smp_fetch_env(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	char *env;
 
@@ -2174,8 +2171,7 @@ smp_fetch_env(unsigned int opt, const struct arg *args, struct sample *smp,
  * of args[0] seconds.
  */
 static int
-smp_fetch_date(unsigned int opt, const struct arg *args, struct sample *smp,
-               const char *kw, void *private)
+smp_fetch_date(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->data.uint = date.tv_sec;
 
@@ -2190,8 +2186,7 @@ smp_fetch_date(unsigned int opt, const struct arg *args, struct sample *smp,
 
 /* returns the number of processes */
 static int
-smp_fetch_nbproc(unsigned int opt, const struct arg *args, struct sample *smp,
-                 const char *kw, void *private)
+smp_fetch_nbproc(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_UINT;
 	smp->data.uint = global.nbproc;
@@ -2200,8 +2195,7 @@ smp_fetch_nbproc(unsigned int opt, const struct arg *args, struct sample *smp,
 
 /* returns the number of the current process (between 1 and nbproc */
 static int
-smp_fetch_proc(unsigned int opt, const struct arg *args, struct sample *smp,
-               const char *kw, void *private)
+smp_fetch_proc(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_UINT;
 	smp->data.uint = relative_pid;
@@ -2212,8 +2206,7 @@ smp_fetch_proc(unsigned int opt, const struct arg *args, struct sample *smp,
  * range specified in argument.
  */
 static int
-smp_fetch_rand(unsigned int opt, const struct arg *args, struct sample *smp,
-               const char *kw, void *private)
+smp_fetch_rand(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->data.uint = random();
 
@@ -2228,8 +2221,7 @@ smp_fetch_rand(unsigned int opt, const struct arg *args, struct sample *smp,
 
 /* returns true if the current process is stopping */
 static int
-smp_fetch_stopping(unsigned int opt, const struct arg *args, struct sample *smp,
-                   const char *kw, void *private)
+smp_fetch_stopping(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_BOOL;
 	smp->data.uint = stopping;

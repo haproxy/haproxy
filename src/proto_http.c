@@ -10176,10 +10176,10 @@ smp_prefetch_http(struct proxy *px, struct stream *s, unsigned int opt,
  * least the type and uint value are modified.
  */
 #define CHECK_HTTP_MESSAGE_FIRST() \
-	do { int r = smp_prefetch_http(smp->px, smp->strm, opt, args, smp, 1); if (r <= 0) return r; } while (0)
+	do { int r = smp_prefetch_http(smp->px, smp->strm, smp->opt, args, smp, 1); if (r <= 0) return r; } while (0)
 
 #define CHECK_HTTP_MESSAGE_FIRST_PERM() \
-	do { int r = smp_prefetch_http(smp->px, smp->strm, opt, args, smp, 0); if (r <= 0) return r; } while (0)
+	do { int r = smp_prefetch_http(smp->px, smp->strm, smp->opt, args, smp, 0); if (r <= 0) return r; } while (0)
 
 
 /* 1. Check on METHOD
@@ -10214,8 +10214,7 @@ static int pat_parse_meth(const char *text, struct pattern *pattern, int mflags,
  * This is intended to be used with pat_match_meth() only.
  */
 static int
-smp_fetch_meth(unsigned int opt, const struct arg *args, struct sample *smp,
-               const char *kw, void *private)
+smp_fetch_meth(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	int meth;
 	struct http_txn *txn = smp->strm->txn;
@@ -10268,8 +10267,7 @@ static struct pattern *pat_match_meth(struct sample *smp, struct pattern_expr *e
 }
 
 static int
-smp_fetch_rqver(unsigned int opt, const struct arg *args, struct sample *smp,
-                const char *kw, void *private)
+smp_fetch_rqver(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = smp->strm->txn;
 	char *ptr;
@@ -10293,8 +10291,7 @@ smp_fetch_rqver(unsigned int opt, const struct arg *args, struct sample *smp,
 }
 
 static int
-smp_fetch_stver(unsigned int opt, const struct arg *args, struct sample *smp,
-                const char *kw, void *private)
+smp_fetch_stver(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn;
 	char *ptr;
@@ -10323,8 +10320,7 @@ smp_fetch_stver(unsigned int opt, const struct arg *args, struct sample *smp,
 
 /* 3. Check on Status Code. We manipulate integers here. */
 static int
-smp_fetch_stcode(unsigned int opt, const struct arg *args, struct sample *smp,
-                 const char *kw, void *private)
+smp_fetch_stcode(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn;
 	char *ptr;
@@ -10349,8 +10345,7 @@ smp_fetch_stcode(unsigned int opt, const struct arg *args, struct sample *smp,
  * has been waited for using http-buffer-request.
  */
 static int
-smp_fetch_body(unsigned int opt, const struct arg *args, struct sample *smp,
-               const char *kw, void *private)
+smp_fetch_body(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = smp->strm->txn;
 	struct http_msg *msg;
@@ -10361,7 +10356,7 @@ smp_fetch_body(unsigned int opt, const struct arg *args, struct sample *smp,
 
 	CHECK_HTTP_MESSAGE_FIRST();
 
-	if ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ)
+	if ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ)
 		msg = &txn->req;
 	else
 		msg = &txn->rsp;
@@ -10398,15 +10393,14 @@ smp_fetch_body(unsigned int opt, const struct arg *args, struct sample *smp,
  * has been waited for using http-buffer-request.
  */
 static int
-smp_fetch_body_len(unsigned int opt, const struct arg *args, struct sample *smp,
-                   const char *kw, void *private)
+smp_fetch_body_len(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = smp->strm->txn;
 	struct http_msg *msg;
 
 	CHECK_HTTP_MESSAGE_FIRST();
 
-	if ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ)
+	if ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ)
 		msg = &txn->req;
 	else
 		msg = &txn->rsp;
@@ -10424,15 +10418,14 @@ smp_fetch_body_len(unsigned int opt, const struct arg *args, struct sample *smp,
  * for using http-buffer-request.
  */
 static int
-smp_fetch_body_size(unsigned int opt, const struct arg *args, struct sample *smp,
-                    const char *kw, void *private)
+smp_fetch_body_size(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = smp->strm->txn;
 	struct http_msg *msg;
 
 	CHECK_HTTP_MESSAGE_FIRST();
 
-	if ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ)
+	if ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ)
 		msg = &txn->req;
 	else
 		msg = &txn->rsp;
@@ -10447,8 +10440,7 @@ smp_fetch_body_size(unsigned int opt, const struct arg *args, struct sample *smp
 
 /* 4. Check on URL/URI. A pointer to the URI is stored. */
 static int
-smp_fetch_url(unsigned int opt, const struct arg *args, struct sample *smp,
-              const char *kw, void *private)
+smp_fetch_url(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn;
 
@@ -10463,8 +10455,7 @@ smp_fetch_url(unsigned int opt, const struct arg *args, struct sample *smp,
 }
 
 static int
-smp_fetch_url_ip(unsigned int opt, const struct arg *args, struct sample *smp,
-                 const char *kw, void *private)
+smp_fetch_url_ip(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn;
 	struct sockaddr_storage addr;
@@ -10483,8 +10474,7 @@ smp_fetch_url_ip(unsigned int opt, const struct arg *args, struct sample *smp,
 }
 
 static int
-smp_fetch_url_port(unsigned int opt, const struct arg *args, struct sample *smp,
-                   const char *kw, void *private)
+smp_fetch_url_port(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn;
 	struct sockaddr_storage addr;
@@ -10510,8 +10500,7 @@ smp_fetch_url_port(unsigned int opt, const struct arg *args, struct sample *smp,
  * returns full lines instead (useful for User-Agent or Date for example).
  */
 static int
-smp_fetch_fhdr(unsigned int opt, const struct arg *args, struct sample *smp,
-               const char *kw, void *private)
+smp_fetch_fhdr(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct hdr_idx *idx;
 	struct hdr_ctx *ctx = smp->ctx.a[0];
@@ -10540,13 +10529,13 @@ smp_fetch_fhdr(unsigned int opt, const struct arg *args, struct sample *smp,
 	CHECK_HTTP_MESSAGE_FIRST();
 
 	idx = &smp->strm->txn->hdr_idx;
-	msg = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) ? &smp->strm->txn->req : &smp->strm->txn->rsp;
+	msg = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) ? &smp->strm->txn->req : &smp->strm->txn->rsp;
 
 	if (ctx && !(smp->flags & SMP_F_NOT_LAST))
 		/* search for header from the beginning */
 		ctx->idx = 0;
 
-	if (!occ && !(opt & SMP_OPT_ITERATE))
+	if (!occ && !(smp->opt & SMP_OPT_ITERATE))
 		/* no explicit occurrence and single fetch => last header by default */
 		occ = -1;
 
@@ -10568,8 +10557,7 @@ smp_fetch_fhdr(unsigned int opt, const struct arg *args, struct sample *smp,
  * returns full lines instead (useful for User-Agent or Date for example).
  */
 static int
-smp_fetch_fhdr_cnt(unsigned int opt, const struct arg *args, struct sample *smp,
-                   const char *kw, void *private)
+smp_fetch_fhdr_cnt(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct hdr_idx *idx;
 	struct hdr_ctx ctx;
@@ -10586,7 +10574,7 @@ smp_fetch_fhdr_cnt(unsigned int opt, const struct arg *args, struct sample *smp,
 	CHECK_HTTP_MESSAGE_FIRST();
 
 	idx = &smp->strm->txn->hdr_idx;
-	msg = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) ? &smp->strm->txn->req : &smp->strm->txn->rsp;
+	msg = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) ? &smp->strm->txn->req : &smp->strm->txn->rsp;
 
 	ctx.idx = 0;
 	cnt = 0;
@@ -10600,8 +10588,7 @@ smp_fetch_fhdr_cnt(unsigned int opt, const struct arg *args, struct sample *smp,
 }
 
 static int
-smp_fetch_hdr_names(unsigned int opt, const struct arg *args, struct sample *smp,
-                    const char *kw, void *private)
+smp_fetch_hdr_names(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct hdr_idx *idx;
 	struct hdr_ctx ctx;
@@ -10615,7 +10602,7 @@ smp_fetch_hdr_names(unsigned int opt, const struct arg *args, struct sample *smp
 	CHECK_HTTP_MESSAGE_FIRST();
 
 	idx = &smp->strm->txn->hdr_idx;
-	msg = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) ? &smp->strm->txn->req : &smp->strm->txn->rsp;
+	msg = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) ? &smp->strm->txn->req : &smp->strm->txn->rsp;
 
 	temp = get_trash_chunk();
 
@@ -10641,8 +10628,7 @@ smp_fetch_hdr_names(unsigned int opt, const struct arg *args, struct sample *smp
  * headers are considered from the first one.
  */
 static int
-smp_fetch_hdr(unsigned int opt, const struct arg *args, struct sample *smp,
-              const char *kw, void *private)
+smp_fetch_hdr(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct hdr_idx *idx;
 	struct hdr_ctx *ctx = smp->ctx.a[0];
@@ -10671,13 +10657,13 @@ smp_fetch_hdr(unsigned int opt, const struct arg *args, struct sample *smp,
 	CHECK_HTTP_MESSAGE_FIRST();
 
 	idx = &smp->strm->txn->hdr_idx;
-	msg = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) ? &smp->strm->txn->req : &smp->strm->txn->rsp;
+	msg = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) ? &smp->strm->txn->req : &smp->strm->txn->rsp;
 
 	if (ctx && !(smp->flags & SMP_F_NOT_LAST))
 		/* search for header from the beginning */
 		ctx->idx = 0;
 
-	if (!occ && !(opt & SMP_OPT_ITERATE))
+	if (!occ && !(smp->opt & SMP_OPT_ITERATE))
 		/* no explicit occurrence and single fetch => last header by default */
 		occ = -1;
 
@@ -10698,8 +10684,7 @@ smp_fetch_hdr(unsigned int opt, const struct arg *args, struct sample *smp,
  * Accepts exactly 1 argument of type string.
  */
 static int
-smp_fetch_hdr_cnt(unsigned int opt, const struct arg *args, struct sample *smp,
-                  const char *kw, void *private)
+smp_fetch_hdr_cnt(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct hdr_idx *idx;
 	struct hdr_ctx ctx;
@@ -10716,7 +10701,7 @@ smp_fetch_hdr_cnt(unsigned int opt, const struct arg *args, struct sample *smp,
 	CHECK_HTTP_MESSAGE_FIRST();
 
 	idx = &smp->strm->txn->hdr_idx;
-	msg = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) ? &smp->strm->txn->req : &smp->strm->txn->rsp;
+	msg = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) ? &smp->strm->txn->req : &smp->strm->txn->rsp;
 
 	ctx.idx = 0;
 	cnt = 0;
@@ -10735,10 +10720,9 @@ smp_fetch_hdr_cnt(unsigned int opt, const struct arg *args, struct sample *smp,
  * may or may not be appropriate for everything.
  */
 static int
-smp_fetch_hdr_val(unsigned int opt, const struct arg *args, struct sample *smp,
-                  const char *kw, void *private)
+smp_fetch_hdr_val(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	int ret = smp_fetch_hdr(opt, args, smp, kw, private);
+	int ret = smp_fetch_hdr(args, smp, kw, private);
 
 	if (ret > 0) {
 		smp->type = SMP_T_UINT;
@@ -10753,12 +10737,11 @@ smp_fetch_hdr_val(unsigned int opt, const struct arg *args, struct sample *smp,
  * It returns an IPv4 or IPv6 address.
  */
 static int
-smp_fetch_hdr_ip(unsigned int opt, const struct arg *args, struct sample *smp,
-                 const char *kw, void *private)
+smp_fetch_hdr_ip(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	int ret;
 
-	while ((ret = smp_fetch_hdr(opt, args, smp, kw, private)) > 0) {
+	while ((ret = smp_fetch_hdr(args, smp, kw, private)) > 0) {
 		if (url2ipv4((char *)smp->data.str.str, &smp->data.ipv4)) {
 			smp->type = SMP_T_IPV4;
 			break;
@@ -10785,8 +10768,7 @@ smp_fetch_hdr_ip(unsigned int opt, const struct arg *args, struct sample *smp,
  * the first '/' after the possible hostname, and ends before the possible '?'.
  */
 static int
-smp_fetch_path(unsigned int opt, const struct arg *args, struct sample *smp,
-               const char *kw, void *private)
+smp_fetch_path(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn;
 	char *ptr, *end;
@@ -10819,8 +10801,7 @@ smp_fetch_path(unsigned int opt, const struct arg *args, struct sample *smp,
  * The returned sample is of type string.
  */
 static int
-smp_fetch_base(unsigned int opt, const struct arg *args, struct sample *smp,
-               const char *kw, void *private)
+smp_fetch_base(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn;
 	char *ptr, *end, *beg;
@@ -10832,7 +10813,7 @@ smp_fetch_base(unsigned int opt, const struct arg *args, struct sample *smp,
 	txn = smp->strm->txn;
 	ctx.idx = 0;
 	if (!http_find_header2("Host", 4, txn->req.chn->buf->p, &txn->hdr_idx, &ctx) || !ctx.vlen)
-		return smp_fetch_path(opt, args, smp, kw, private);
+		return smp_fetch_path(args, smp, kw, private);
 
 	/* OK we have the header value in ctx.line+ctx.val for ctx.vlen bytes */
 	temp = get_trash_chunk();
@@ -10867,8 +10848,7 @@ smp_fetch_base(unsigned int opt, const struct arg *args, struct sample *smp,
  * high-traffic sites without having to store whole paths.
  */
 int
-smp_fetch_base32(unsigned int opt, const struct arg *args, struct sample *smp,
-                 const char *kw, void *private)
+smp_fetch_base32(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn;
 	struct hdr_ctx ctx;
@@ -10916,8 +10896,7 @@ smp_fetch_base32(unsigned int opt, const struct arg *args, struct sample *smp,
  * 8 bytes would still work.
  */
 static int
-smp_fetch_base32_src(unsigned int opt, const struct arg *args, struct sample *smp,
-                     const char *kw, void *private)
+smp_fetch_base32_src(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct chunk *temp;
 	struct connection *cli_conn = objt_conn(smp->sess->origin);
@@ -10925,7 +10904,7 @@ smp_fetch_base32_src(unsigned int opt, const struct arg *args, struct sample *sm
 	if (!cli_conn)
 		return 0;
 
-	if (!smp_fetch_base32(opt, args, smp, kw, private))
+	if (!smp_fetch_base32(args, smp, kw, private))
 		return 0;
 
 	temp = get_trash_chunk();
@@ -10955,8 +10934,7 @@ smp_fetch_base32_src(unsigned int opt, const struct arg *args, struct sample *sm
  * of type string carrying the whole query string.
  */
 static int
-smp_fetch_query(unsigned int opt, const struct arg *args, struct sample *smp,
-                const char *kw, void *private)
+smp_fetch_query(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn;
 	char *ptr, *end;
@@ -10981,8 +10959,7 @@ smp_fetch_query(unsigned int opt, const struct arg *args, struct sample *smp,
 }
 
 static int
-smp_fetch_proto_http(unsigned int opt, const struct arg *args, struct sample *smp,
-                     const char *kw, void *private)
+smp_fetch_proto_http(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	/* Note: hdr_idx.v cannot be NULL in this ACL because the ACL is tagged
 	 * as a layer7 ACL, which involves automatic allocation of hdr_idx.
@@ -10997,8 +10974,7 @@ smp_fetch_proto_http(unsigned int opt, const struct arg *args, struct sample *sm
 
 /* return a valid test if the current request is the first one on the connection */
 static int
-smp_fetch_http_first_req(unsigned int opt, const struct arg *args, struct sample *smp,
-                         const char *kw, void *private)
+smp_fetch_http_first_req(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_BOOL;
 	smp->data.uint = !(smp->strm->txn->flags & TX_NOT_FIRST);
@@ -11007,8 +10983,7 @@ smp_fetch_http_first_req(unsigned int opt, const struct arg *args, struct sample
 
 /* Accepts exactly 1 argument of type userlist */
 static int
-smp_fetch_http_auth(unsigned int opt, const struct arg *args, struct sample *smp,
-                    const char *kw, void *private)
+smp_fetch_http_auth(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 
 	if (!args || args->type != ARGT_USR)
@@ -11027,8 +11002,7 @@ smp_fetch_http_auth(unsigned int opt, const struct arg *args, struct sample *smp
 
 /* Accepts exactly 1 argument of type userlist */
 static int
-smp_fetch_http_auth_grp(unsigned int opt, const struct arg *args, struct sample *smp,
-                        const char *kw, void *private)
+smp_fetch_http_auth_grp(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	if (!args || args->type != ARGT_USR)
 		return 0;
@@ -11156,8 +11130,7 @@ extract_cookie_value(char *hdr, const char *hdr_end,
  * the "capture" option in the configuration file
  */
 static int
-smp_fetch_capture_header_req(unsigned int opt, const struct arg *args, struct sample *smp,
-                             const char *kw, void *private)
+smp_fetch_capture_header_req(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct proxy *fe = strm_fe(smp->strm);
 	int idx;
@@ -11182,8 +11155,7 @@ smp_fetch_capture_header_req(unsigned int opt, const struct arg *args, struct sa
  * the "capture" option in the configuration file
  */
 static int
-smp_fetch_capture_header_res(unsigned int opt, const struct arg *args, struct sample *smp,
-                             const char *kw, void *private)
+smp_fetch_capture_header_res(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct proxy *fe = strm_fe(smp->strm);
 	int idx;
@@ -11206,8 +11178,7 @@ smp_fetch_capture_header_res(unsigned int opt, const struct arg *args, struct sa
 
 /* Extracts the METHOD in the HTTP request, the txn->uri should be filled before the call */
 static int
-smp_fetch_capture_req_method(unsigned int opt, const struct arg *args, struct sample *smp,
-                             const char *kw, void *private)
+smp_fetch_capture_req_method(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct chunk *temp;
 	struct http_txn *txn = smp->strm->txn;
@@ -11234,8 +11205,7 @@ smp_fetch_capture_req_method(unsigned int opt, const struct arg *args, struct sa
 
 /* Extracts the path in the HTTP request, the txn->uri should be filled before the call  */
 static int
-smp_fetch_capture_req_uri(unsigned int opt, const struct arg *args, struct sample *smp,
-                          const char *kw, void *private)
+smp_fetch_capture_req_uri(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct chunk *temp;
 	struct http_txn *txn = smp->strm->txn;
@@ -11273,8 +11243,7 @@ smp_fetch_capture_req_uri(unsigned int opt, const struct arg *args, struct sampl
  * as a string (either "HTTP/1.0" or "HTTP/1.1").
  */
 static int
-smp_fetch_capture_req_ver(unsigned int opt, const struct arg *args, struct sample *smp,
-                          const char *kw, void *private)
+smp_fetch_capture_req_ver(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = smp->strm->txn;
 
@@ -11297,8 +11266,7 @@ smp_fetch_capture_req_ver(unsigned int opt, const struct arg *args, struct sampl
  * as a string (either "HTTP/1.0" or "HTTP/1.1").
  */
 static int
-smp_fetch_capture_res_ver(unsigned int opt, const struct arg *args, struct sample *smp,
-                          const char *kw, void *private)
+smp_fetch_capture_res_ver(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn = smp->strm->txn;
 
@@ -11328,8 +11296,7 @@ smp_fetch_capture_res_ver(unsigned int opt, const struct arg *args, struct sampl
  * The returned sample is of type CSTR. Can be used to parse cookies in other
  * files.
  */
-int smp_fetch_cookie(unsigned int opt, const struct arg *args, struct sample *smp,
-                     const char *kw, void *private)
+int smp_fetch_cookie(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn;
 	struct hdr_idx *idx;
@@ -11356,7 +11323,7 @@ int smp_fetch_cookie(unsigned int opt, const struct arg *args, struct sample *sm
 	txn = smp->strm->txn;
 	idx = &smp->strm->txn->hdr_idx;
 
-	if ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) {
+	if ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) {
 		msg = &txn->req;
 		hdr_name = "Cookie";
 		hdr_name_len = 6;
@@ -11366,7 +11333,7 @@ int smp_fetch_cookie(unsigned int opt, const struct arg *args, struct sample *sm
 		hdr_name_len = 10;
 	}
 
-	if (!occ && !(opt & SMP_OPT_ITERATE))
+	if (!occ && !(smp->opt & SMP_OPT_ITERATE))
 		/* no explicit occurrence and single fetch => last cookie by default */
 		occ = -1;
 
@@ -11403,7 +11370,7 @@ int smp_fetch_cookie(unsigned int opt, const struct arg *args, struct sample *sm
 		smp->flags |= SMP_F_CONST;
 		smp->ctx.a[0] = extract_cookie_value(smp->ctx.a[0], smp->ctx.a[1],
 						 args->data.str.str, args->data.str.len,
-						 (opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ,
+						 (smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ,
 						 &smp->data.str.str,
 						 &smp->data.str.len);
 		if (smp->ctx.a[0]) {
@@ -11430,8 +11397,7 @@ int smp_fetch_cookie(unsigned int opt, const struct arg *args, struct sample *sm
  * type UINT. Accepts exactly 1 argument of type string.
  */
 static int
-smp_fetch_cookie_cnt(unsigned int opt, const struct arg *args, struct sample *smp,
-                     const char *kw, void *private)
+smp_fetch_cookie_cnt(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn;
 	struct hdr_idx *idx;
@@ -11451,7 +11417,7 @@ smp_fetch_cookie_cnt(unsigned int opt, const struct arg *args, struct sample *sm
 	txn = smp->strm->txn;
 	idx = &smp->strm->txn->hdr_idx;
 
-	if ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) {
+	if ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ) {
 		msg = &txn->req;
 		hdr_name = "Cookie";
 		hdr_name_len = 6;
@@ -11483,7 +11449,7 @@ smp_fetch_cookie_cnt(unsigned int opt, const struct arg *args, struct sample *sm
 		smp->flags |= SMP_F_CONST;
 		while ((val_beg = extract_cookie_value(val_beg, val_end,
 						       args->data.str.str, args->data.str.len,
-						       (opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ,
+						       (smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_REQ,
 						       &smp->data.str.str,
 						       &smp->data.str.len))) {
 			cnt++;
@@ -11500,10 +11466,9 @@ smp_fetch_cookie_cnt(unsigned int opt, const struct arg *args, struct sample *sm
  * takes a mandatory argument of type string. It relies on smp_fetch_cookie().
  */
 static int
-smp_fetch_cookie_val(unsigned int opt, const struct arg *args, struct sample *smp,
-                     const char *kw, void *private)
+smp_fetch_cookie_val(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	int ret = smp_fetch_cookie(opt, args, smp, kw, private);
+	int ret = smp_fetch_cookie(args, smp, kw, private);
 
 	if (ret > 0) {
 		smp->type = SMP_T_UINT;
@@ -11605,8 +11570,7 @@ find_url_param_value(char* path, size_t path_l,
 }
 
 static int
-smp_fetch_url_param(unsigned int opt, const struct arg *args, struct sample *smp,
-                    const char *kw, void *private)
+smp_fetch_url_param(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	char delim = '?';
 	struct http_msg *msg;
@@ -11637,10 +11601,9 @@ smp_fetch_url_param(unsigned int opt, const struct arg *args, struct sample *smp
  * above).
  */
 static int
-smp_fetch_url_param_val(unsigned int opt, const struct arg *args, struct sample *smp,
-                        const char *kw, void *private)
+smp_fetch_url_param_val(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	int ret = smp_fetch_url_param(opt, args, smp, kw, private);
+	int ret = smp_fetch_url_param(args, smp, kw, private);
 
 	if (ret > 0) {
 		smp->type = SMP_T_UINT;
@@ -11661,8 +11624,7 @@ smp_fetch_url_param_val(unsigned int opt, const struct arg *args, struct sample 
  * as well as the path
  */
 static int
-smp_fetch_url32(unsigned int opt, const struct arg *args, struct sample *smp,
-                const char *kw, void *private)
+smp_fetch_url32(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct http_txn *txn;
 	struct hdr_ctx ctx;
@@ -11710,13 +11672,12 @@ smp_fetch_url32(unsigned int opt, const struct arg *args, struct sample *smp,
  * 8 bytes would still work.
  */
 static int
-smp_fetch_url32_src(unsigned int opt, const struct arg *args, struct sample *smp,
-                    const char *kw, void *private)
+smp_fetch_url32_src(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct chunk *temp;
 	struct connection *cli_conn = objt_conn(smp->sess->origin);
 
-	if (!smp_fetch_url32(opt, args, smp, kw, private))
+	if (!smp_fetch_url32(args, smp, kw, private))
 		return 0;
 
 	temp = get_trash_chunk();

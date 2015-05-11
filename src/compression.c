@@ -838,8 +838,7 @@ static int deflate_end(struct comp_ctx **comp_ctx)
 
 /* boolean, returns true if compression is used (either gzip or deflate) in the response */
 static int
-smp_fetch_res_comp(unsigned int opt, const struct arg *args, struct sample *smp,
-                   const char *kw, void *private)
+smp_fetch_res_comp(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	smp->type = SMP_T_BOOL;
 	smp->data.uint = (smp->strm->comp_algo != NULL);
@@ -848,8 +847,7 @@ smp_fetch_res_comp(unsigned int opt, const struct arg *args, struct sample *smp,
 
 /* string, returns algo */
 static int
-smp_fetch_res_comp_algo(unsigned int opt, const struct arg *args, struct sample *smp,
-                        const char *kw, void *private)
+smp_fetch_res_comp_algo(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	if (!smp->strm->comp_algo)
 		return 0;

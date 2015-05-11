@@ -29,10 +29,9 @@
  * used with content inspection.
  */
 static int
-smp_fetch_wait_end(unsigned int opt, const struct arg *args, struct sample *smp,
-                   const char *kw, void *private)
+smp_fetch_wait_end(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
-	if (!(opt & SMP_OPT_FINAL)) {
+	if (!(smp->opt & SMP_OPT_FINAL)) {
 		smp->flags |= SMP_F_MAY_CHANGE;
 		return 0;
 	}
@@ -43,12 +42,11 @@ smp_fetch_wait_end(unsigned int opt, const struct arg *args, struct sample *smp,
 
 /* return the number of bytes in the request buffer */
 static int
-smp_fetch_len(unsigned int opt, const struct arg *args, struct sample *smp,
-              const char *kw, void *private)
+smp_fetch_len(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	struct channel *chn;
 
-	chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
+	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
 	if (!chn->buf)
 		return 0;
 
@@ -60,15 +58,14 @@ smp_fetch_len(unsigned int opt, const struct arg *args, struct sample *smp,
 
 /* returns the type of SSL hello message (mainly used to detect an SSL hello) */
 static int
-smp_fetch_ssl_hello_type(unsigned int opt, const struct arg *args, struct sample *smp,
-                         const char *kw, void *private)
+smp_fetch_ssl_hello_type(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	int hs_len;
 	int hs_type, bleft;
 	struct channel *chn;
 	const unsigned char *data;
 
-	chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
+	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
 	if (!chn->buf)
 		goto not_ssl_hello;
 
@@ -128,8 +125,7 @@ smp_fetch_ssl_hello_type(unsigned int opt, const struct arg *args, struct sample
  * Note: this decoder only works with non-wrapping data.
  */
 static int
-smp_fetch_req_ssl_ver(unsigned int opt, const struct arg *args, struct sample *smp,
-                      const char *kw, void *private)
+smp_fetch_req_ssl_ver(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	int version, bleft, msg_len;
 	const unsigned char *data;
@@ -265,14 +261,13 @@ smp_fetch_req_ssl_ver(unsigned int opt, const struct arg *args, struct sample *s
  *             - opaque hostname[name_len bytes]
  */
 static int
-smp_fetch_ssl_hello_sni(unsigned int opt, const struct arg *args, struct sample *smp,
-                        const char *kw, void *private)
+smp_fetch_ssl_hello_sni(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	int hs_len, ext_len, bleft;
 	struct channel *chn;
 	unsigned char *data;
 
-	chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
+	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
 	if (!chn->buf)
 		goto not_ssl_hello;
 
@@ -494,20 +489,18 @@ fetch_rdp_cookie_name(struct stream *s, struct sample *smp, const char *cname, i
  * returned sample has type SMP_T_CSTR.
  */
 int
-smp_fetch_rdp_cookie(unsigned int opt, const struct arg *args, struct sample *smp,
-                     const char *kw, void *private)
+smp_fetch_rdp_cookie(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	return fetch_rdp_cookie_name(smp->strm, smp, args ? args->data.str.str : NULL, args ? args->data.str.len : 0);
 }
 
 /* returns either 1 or 0 depending on whether an RDP cookie is found or not */
 static int
-smp_fetch_rdp_cookie_cnt(unsigned int opt, const struct arg *args, struct sample *smp,
-                         const char *kw, void *private)
+smp_fetch_rdp_cookie_cnt(const struct arg *args, struct sample *smp, const char *kw, void *private)
 {
 	int ret;
 
-	ret = smp_fetch_rdp_cookie(opt, args, smp, kw, private);
+	ret = smp_fetch_rdp_cookie(args, smp, kw, private);
 
 	if (smp->flags & SMP_F_MAY_CHANGE)
 		return 0;
@@ -520,8 +513,7 @@ smp_fetch_rdp_cookie_cnt(unsigned int opt, const struct arg *args, struct sample
 
 /* extracts part of a payload with offset and length at a given position */
 static int
-smp_fetch_payload_lv(unsigned int opt, const struct arg *arg_p, struct sample *smp,
-                     const char *kw, void *private)
+smp_fetch_payload_lv(const struct arg *arg_p, struct sample *smp, const char *kw, void *private)
 {
 	unsigned int len_offset = arg_p[0].data.uint;
 	unsigned int len_size = arg_p[1].data.uint;
@@ -534,7 +526,7 @@ smp_fetch_payload_lv(unsigned int opt, const struct arg *arg_p, struct sample *s
 	/* by default buf offset == len offset + len size */
 	/* buf offset could be absolute or relative to len offset + len size if prefixed by + or - */
 
-	chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
+	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
 	if (!chn->buf)
 		return 0;
 
@@ -574,14 +566,13 @@ smp_fetch_payload_lv(unsigned int opt, const struct arg *arg_p, struct sample *s
 
 /* extracts some payload at a fixed position and length */
 static int
-smp_fetch_payload(unsigned int opt, const struct arg *arg_p, struct sample *smp,
-                  const char *kw, void *private)
+smp_fetch_payload(const struct arg *arg_p, struct sample *smp, const char *kw, void *private)
 {
 	unsigned int buf_offset = arg_p[0].data.uint;
 	unsigned int buf_size = arg_p[1].data.uint;
 	struct channel *chn;
 
-	chn = ((opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
+	chn = ((smp->opt & SMP_OPT_DIR) == SMP_OPT_DIR_RES) ? &smp->strm->res : &smp->strm->req;
 	if (!chn->buf)
 		return 0;
 

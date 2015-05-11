@@ -294,8 +294,7 @@ struct sample_conv_expr {
 /* Descriptor for a sample fetch method */
 struct sample_fetch {
 	const char *kw;                           /* configuration keyword */
-	int (*process)(unsigned int opt,          /* fetch options (SMP_OPT_*) */
-	               const struct arg *arg_p,
+	int (*process)(const struct arg *arg_p,
 	               struct sample *smp,
 	               const char *kw,            /* fetch processing function */
 	               void *private);            /* private value. */
