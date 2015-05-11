@@ -2773,6 +2773,7 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 	smp.px = hsmp->p;
 	smp.sess = hsmp->s->sess;
 	smp.strm = hsmp->s;
+	smp.opt = 0;
 	if (!f->process(0, args, &smp, f->kw, f->private)) {
 		if (hsmp->stringsafe)
 			lua_pushstring(L, "");
@@ -2894,6 +2895,7 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 	smp.px = hsmp->p;
 	smp.sess = hsmp->s->sess;
 	smp.strm = hsmp->s;
+	smp.opt = 0;
 	if (!conv->process(args, &smp, conv->private)) {
 		if (hsmp->stringsafe)
 			lua_pushstring(L, "");

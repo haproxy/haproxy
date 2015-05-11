@@ -252,6 +252,7 @@ struct sample {
 	struct proxy *px;
 	struct session *sess;
 	struct stream *strm;
+	unsigned int opt; /* fetch options (SMP_OPT_*) */
 };
 
 /* Used to store sample constant */

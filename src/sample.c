@@ -1036,6 +1036,7 @@ struct sample *sample_process(struct proxy *px, struct session *sess,
 	p->px   = px;
 	p->sess = sess;
 	p->strm = strm;
+	p->opt  = opt;
 	if (!expr->fetch->process(opt, expr->arg_p, p, expr->fetch->kw, expr->fetch->private))
 		return NULL;
 
