@@ -1033,6 +1033,9 @@ struct sample *sample_process(struct proxy *px, struct session *sess,
 		memset(p, 0, sizeof(*p));
 	}
 
+	p->px   = px;
+	p->sess = sess;
+	p->strm = strm;
 	if (!expr->fetch->process(px, sess, strm, opt, expr->arg_p, p, expr->fetch->kw, expr->fetch->private))
 		return NULL;
 

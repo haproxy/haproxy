@@ -243,6 +243,15 @@ struct sample {
 		struct meth     meth;  /* used for http method */
 	} data;                        /* sample data */
 	union smp_ctx ctx;
+
+	/* Some sample analyzer (sample-fetch or converters) needs to
+	 * known the attached proxy, session and stream. The sample-fetches
+	 * and the converters function pointers cannot be called without
+	 * these 3 pointers filled.
+	 */
+	struct proxy *px;
+	struct session *sess;
+	struct stream *strm;
 };
 
 /* Used to store sample constant */

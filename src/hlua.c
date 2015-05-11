@@ -2770,6 +2770,9 @@ __LJMP static int hlua_run_sample_fetch(lua_State *L)
 	memset(&smp, 0, sizeof(smp));
 
 	/* Run the sample fetch process. */
+	smp.px = hsmp->p;
+	smp.sess = hsmp->s->sess;
+	smp.strm = hsmp->s;
 	if (!f->process(hsmp->p, hsmp->s->sess, hsmp->s, 0, args, &smp, f->kw, f->private)) {
 		if (hsmp->stringsafe)
 			lua_pushstring(L, "");
@@ -2888,6 +2891,9 @@ __LJMP static int hlua_run_sample_conv(lua_State *L)
 	}
 
 	/* Run the sample conversion process. */
+	smp.px = hsmp->p;
+	smp.sess = hsmp->s->sess;
+	smp.strm = hsmp->s;
 	if (!conv->process(hsmp->s, args, &smp, conv->private)) {
 		if (hsmp->stringsafe)
 			lua_pushstring(L, "");
