@@ -5648,9 +5648,10 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 				msg->sov -= msg->next;
 			msg->next = 0;
 
-			/* for keep-alive we don't want to forward closes on DONE */
-			if ((txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_KAL ||
-			    (txn->flags & TX_CON_WANT_MSK) == TX_CON_WANT_SCL)
+			/* we don't want to forward closes on DONE except in
+			 * tunnel mode.
+			 */
+			if ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN)
 				channel_dont_close(req);
 			if (http_resync_states(s)) {
 				/* some state changes occurred, maybe the analyser
@@ -5674,10 +5675,15 @@ int http_request_forward_body(struct stream *s, struct channel *req, int an_bit)
 			 * want to monitor the client's connection and forward
 			 * any shutdown notification to the server, which will
 			 * decide whether to close or to go on processing the
-			 * request.
+			 * request. We only do that in tunnel mode, and not in
+			 * other modes since it can be abused to exhaust source
+			 * ports.
 			 */
 			if (s->be->options & PR_O_ABRT_CLOSE) {
 				channel_auto_read(req);
+				if ((req->flags & (CF_SHUTR|CF_READ_NULL)) &&
+				    ((txn->flags & TX_CON_WANT_MSK) != TX_CON_WANT_TUN))
+					s->si[1].flags |= SI_FL_NOLINGER;
 				channel_auto_close(req);
 			}
 			else if (s->txn->meth == HTTP_METH_POST) {
