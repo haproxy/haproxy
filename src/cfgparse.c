@@ -1986,7 +1986,6 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		curpeers->count++;
 		newpeer->next = curpeers->remote;
 		curpeers->remote = newpeer;
-		newpeer->peers = curpeers;
 		newpeer->conf.file = strdup(file);
 		newpeer->conf.line = linenum;
 
@@ -2030,6 +2029,7 @@ int cfg_parse_peers(const char *file, int linenum, char **args, int kwm)
 		if (strcmp(newpeer->id, localpeer) == 0) {
 			/* Current is local peer, it define a frontend */
 			newpeer->local = 1;
+			peers->local = newpeer;
 
 			if (!curpeers->peers_fe) {
 				if ((curpeers->peers_fe  = calloc(1, sizeof(struct proxy))) == NULL) {
@@ -8397,6 +8397,7 @@ out_uri_auth_compat:
 				curpeers->peers_fe = NULL;
 			}
 			else {
+				peers_init_sync(curpeers);
 				last = &curpeers->next;
 				continue;
 			}

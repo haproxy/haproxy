@@ -35,40 +35,23 @@
 #include <common/tools.h>
 #include <eb32tree.h>
 
-struct peer_session {
-	struct shared_table *table;   /* shared table */
-	struct peer *peer;	      /* current peer */
-	struct stream *stream;        /* current transport stream */
-	struct appctx *appctx;        /* the appctx running it */
-	unsigned int flags; 	      /* peer session flags */
-	unsigned int statuscode;      /* current/last session status code */
-	unsigned int update;	      /* current peer acked update */
-	unsigned int pushack;	      /* last commited update to ack */
-	unsigned int lastack;	      /* last acked update */
-	unsigned int lastpush;	      /* last pushed update */
-	unsigned int confirm;	      /* confirm message counter */
-	unsigned int pushed;	      /* equal to last pushed data or to table local update in case of total push
-				       * or to teaching_origin if teaching is ended */
-	unsigned int reconnect;	      /* next connect timer */
-	unsigned int teaching_origin; /* resync teaching origine update */
-	struct peer_session *next;
-};
-
 struct shared_table {
 	struct stktable *table;		    /* stick table to sync */
-	struct task *sync_task;		    /* main sync task */
-	struct sig_handler *sighandler;     /* signal handler */
-	struct peer_session *local_session; /* local peer session */
-	struct peer_session *sessions;	    /* peer sessions list */
-	unsigned int flags;		    /* current table resync state */
-	unsigned int resync_timeout;	    /* resync timeout timer */
+	int local_id;
+	int remote_id;
+	int flags;
+	uint64_t remote_data;
+	unsigned int last_acked;
+	unsigned int last_pushed;
+	unsigned int last_get;
+	unsigned int teaching_origin;
+	unsigned int update;
 	struct shared_table *next;	    /* next shared table in list */
 };
 
 struct peer {
 	int local;		  /* proxy state */
 	char *id;
-	struct peers *peers;
 	struct {
 		const char *file; /* file where the section appears */
 		int line;	  /* line where the section appears */
@@ -78,6 +61,15 @@ struct peer {
 	struct protocol *proto;	       /* peer address protocol */
 	struct xprt_ops *xprt;         /* peer socket operations at transport layer */
 	void *sock_init_arg;           /* socket operations's opaque init argument if needed */
+	unsigned int flags; 	      /* peer session flags */
+	unsigned int statuscode;      /* current/last session status code */
+	unsigned int reconnect;	      /* next connect timer */
+	unsigned int confirm;         /* confirm message counter */
+	struct stream *stream;        /* current transport stream */
+	struct appctx *appctx;        /* the appctx running it */
+	struct shared_table *remote_table;
+	struct shared_table *last_local_table;
+	struct shared_table *tables;
 	struct peer *next;	  /* next peer in the list */
 };
 
@@ -85,15 +77,19 @@ struct peer {
 struct peers {
 	int state;			 /* proxy state */
 	char *id;			 /* peer section name */
+	struct task *sync_task;		 /* main sync task */
+	struct sig_handler *sighandler;	 /* signal handler */
 	struct peer *remote;		 /* remote peers list */
+	struct peer *local;		 /* local peer list */
 	struct proxy *peers_fe;		 /* peer frontend */
 	struct {
 		const char *file;	 /* file where the section appears */
 		int line;		 /* line where the section appears */
 	} conf;				 /* config information */
-	struct shared_table *tables;	 /* registered shared tables */
 	time_t last_change;
 	struct peers *next;		 /* next peer section */
+	unsigned int flags;		 /* current peers section resync state */
+	unsigned int resync_timeout;	 /* resync timeout timer */
 	int count;			 /* total of peers */
 };
 
