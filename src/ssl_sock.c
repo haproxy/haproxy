@@ -3740,7 +3740,7 @@ smp_fetch_ssl_fc_alpn(const struct arg *args, struct sample *smp, const char *kw
 	smp->flags = SMP_F_CONST;
 	smp->type = SMP_T_STR;
 
-	conn = objt_conn(sess->origin);
+	conn = objt_conn(smp->sess->origin);
 	if (!conn || !conn->xprt_ctx || conn->xprt != &ssl_sock)
 		return 0;
 
