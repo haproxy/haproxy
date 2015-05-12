@@ -32,6 +32,10 @@
 #include <types/proxy.h>
 #include <types/task.h>
 
+#ifdef USE_51DEGREES
+#include <51Degrees.h>
+#endif
+
 #ifndef UNIX_MAX_PATH
 #define UNIX_MAX_PATH 108
 #endif
@@ -180,7 +184,21 @@ struct global {
 		char separator;
 	} deviceatlas;
 #endif
+
+#ifdef USE_51DEGREES
+	fiftyoneDegreesDataSet _51d_data_set;
+	char * _51d_data_file_path;       /* the path of the data file. this is taken from 51degrees-data-file in config. */
+	char _51d_property_seperator;    /* the seperator to use in the response for the values. this is taken from 51degrees-property-seperator from config. */
+	struct list _51d_property_names; /* list of properties to load into the data set. this is taken from 51degrees-property-name-list from config. */
+#endif
 };
+
+#ifdef USE_51DEGREES
+struct _51d_property_names {
+	struct list list;
+	char *name;
+};
+#endif
 
 extern struct global global;
 extern int  pid;                /* current process id */
