@@ -6331,7 +6331,7 @@ int readcfgfile(const char *file)
 					dquote = 0;
 				else
 					dquote = 1;
-				memmove(line, line + 1, end - (line + 1));
+				memmove(line, line + 1, end - line);
 				end--;
 			}
 			else if (*line == '\'' && !dquote) { /* single quote outside double quotes */
@@ -6339,7 +6339,7 @@ int readcfgfile(const char *file)
 					squote = 0;
 				else
 					squote = 1;
-				memmove(line, line + 1, end - (line + 1));
+				memmove(line, line + 1, end - line);
 				end--;
 			}
 			else if (*line == '\\' && !squote) {
