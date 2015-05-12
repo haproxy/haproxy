@@ -115,6 +115,10 @@
 #include <import/da.h>
 #endif
 
+#ifdef USE_51DEGREES
+#include <51Degrees.h>
+#endif
+
 /*********************************************************************/
 
 extern const struct comp_algo comp_algos[];
@@ -382,6 +386,10 @@ void display_build_opts()
 #if defined(CONFIG_HAP_NS)
 	printf("Built with network namespace support\n");
 #endif
+
+#ifdef USE_51DEGREES
+	printf("Built with 51Degrees support\n");
+#endif
 	putchar('\n');
 
 	list_pollers(stdout);
@@ -537,6 +545,12 @@ void init(int argc, char **argv)
 	char *progname;
 	char *change_dir = NULL;
 	struct tm curtime;
+#ifdef USE_51DEGREES
+	int i = 0;
+	struct _51d_property_names *name;
+	fiftyoneDegreesDataSetInitStatus _51d_dataset_status;
+	char **_51d_property_list;
+#endif
 
 	chunk_init(&trash, malloc(global.tune.bufsize), global.tune.bufsize);
 	alloc_trash_buffers(global.tune.bufsize);
@@ -1083,6 +1097,44 @@ void init(int argc, char **argv)
 
 	if (!hlua_post_init())
 		exit(1);
+
+#ifdef USE_51DEGREES
+	i = 0;
+	list_for_each_entry(name, &global._51d_property_names, list)
+		++i;
+	_51d_property_list = calloc(i, sizeof(char *));
+
+	i = 0;
+	list_for_each_entry(name, &global._51d_property_names, list)
+		_51d_property_list[i++] = name->name;
+
+	_51d_dataset_status = fiftyoneDegreesInitWithPropertyArray(global._51d_data_file_path, &global._51d_data_set, _51d_property_list, i);
+	free(_51d_property_list);
+	chunk_reset(&trash);
+	switch (_51d_dataset_status) {
+		case DATA_SET_INIT_STATUS_SUCCESS:
+			break;
+		case DATA_SET_INIT_STATUS_INSUFFICIENT_MEMORY:
+			chunk_printf(&trash, "Insufficient memory.");
+			break;
+		case DATA_SET_INIT_STATUS_CORRUPT_DATA:
+			chunk_printf(&trash, "Corrupt data.");
+			break;
+		case DATA_SET_INIT_STATUS_INCORRECT_VERSION:
+			chunk_printf(&trash, "Incorrect version.");
+			break;
+		case DATA_SET_INIT_STATUS_FILE_NOT_FOUND:
+			chunk_printf(&trash, "File not found.");
+			break;
+	}
+	if (_51d_dataset_status != DATA_SET_INIT_STATUS_SUCCESS) {
+		if (trash.len)
+			Alert("51D Setup - Error reading 51Degrees data file: %s\n", trash.str);
+		else
+			Alert("51D Setup - Error reading 51Degrees data file.\n");
+		exit(1);
+	}
+#endif
 }
 
 static void deinit_acl_cond(struct acl_cond *cond)
