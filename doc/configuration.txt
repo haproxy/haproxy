@@ -40,8 +40,9 @@ Summary
 2.    Configuring HAProxy
 2.1.      Configuration file format
 2.2.      Quoting and escaping
-2.3.      Time format
-2.4.      Examples
+2.3.      Environment variables
+2.4.      Time format
+2.5.      Examples
 
 3.    Global parameters
 3.1.      Process management and security
@@ -397,7 +398,11 @@ the interpretation of:
   '    single quote as a strong quoting delimiter
   #    hash as a comment start
 
-But interpretation of escaping and special characters are not prevented by weak
+Weak quoting permits the interpretation of variables, if you want to use a non
+-interpreted dollar within a double quoted string, you should escape it with a
+backslash ("\$"), it does not work outside weak quoting.
+
+Interpretation of escaping and special characters are not prevented by weak
 quoting.
 
 Strong quoting is achieved by using single quotes (''). Inside single quotes,
@@ -421,7 +426,26 @@ equivalent, it allows you to perform concatenation.
       reqrep "^([^ :]*)\ /static/(.*)"     "\1\ /\2"
 
 
-2.3. Time format
+2.3. Environment variables
+--------------------------
+
+HAProxy's configuration supports environment variables. Those variables are
+interpreted only within double quotes. Variables are expanded during the
+configuration parsing. Variable names must be preceded by a dollar ("$") and
+optionally enclosed with braces ("{}") similarly to what is done in Bourne
+shell. Variable names can contain alphanumerical characters or the character
+underscore ("_") but should not start with a digit.
+
+  Example:
+
+      bind "fd@${FD_APP1}"
+
+      log "${LOCAL_SYSLOG}:514" local0 notice   # send to local server
+
+      user "$HAPROXY_USER"
+
+
+2.4. Time format
 ----------------
 
 Some parameters involve values representing time, such as timeouts. These
@@ -640,10 +664,8 @@ log <address> [len <length>] <facility> [max level [min level]]
           the chroot) and uid/gid (be sure the path is appropriately
           writeable).
 
-        Any part of the address string may reference any number of environment
-        variables by preceding their name with a dollar sign ('$') and
-        optionally enclosing them with braces ('{}'), similarly to what is done
-        in Bourne shell.
+        You may want to reference some environment variables in the address
+        parameter, see section 2.3 about environment variables.
 
   <length> is an optional maximum line length. Log lines larger than this value
            will be truncated before being sent. The reason is that syslog
@@ -1318,9 +1340,8 @@ peer <peername> <ip>:<port>
   peer name. This makes it easier to maintain coherent configuration files
   across all peers.
 
-  Any part of the address string may reference any number of environment
-  variables by preceding their name with a dollar sign ('$') and optionally
-  enclosing them with braces ('{}'), similarly to what is done in Bourne shell.
+  You may want to reference some environment variables in the address
+  parameter, see section 2.3 about environment variables.
 
   Example:
     peers mypeers
@@ -2011,10 +2032,9 @@ bind /<path> [, ...] [param*]
                     - 'fd@<n>' -> use file descriptor <n> inherited from the
                       parent. The fd must be bound and may or may not already
                       be listening.
-                  Any part of the address string may reference any number of
-                  environment variables by preceding their name with a dollar
-                  sign ('$') and optionally enclosing them with braces ('{}'),
-                  similarly to what is done in Bourne shell.
+                  You may want to reference some environment variables in the
+                  address parameter, see section 2.3 about environment
+                  variables.
 
     <port_range>  is either a unique TCP port, or a port range for which the
                   proxy will accept connections for the IP address specified
@@ -2072,7 +2092,7 @@ bind /<path> [, ...] [param*]
             bind unix@ssl-frontend.sock user root mode 600 accept-proxy
 
         listen external_bind_app1
-            bind fd@${FD_APP1}
+            bind "fd@${FD_APP1}"
 
   See also : "source", "option forwardfor", "unix-bind" and the PROXY protocol
              documentation, and section 5 about bind options.
@@ -3846,10 +3866,8 @@ no log
                  inside the chroot) and uid/gid (be sure the path is
                  appropriately writeable).
 
-               Any part of the address string may reference any number of
-               environment variables by preceding their name with a dollar
-               sign ('$') and optionally enclosing them with braces ('{}'),
-               similarly to what is done in Bourne shell.
+              You may want to reference some environment variables in the
+              address parameter, see section 2.3 about environment variables.
 
     <length>   is an optional maximum line length. Log lines larger than this
                value will be truncated before being sent. The reason is that
@@ -3896,7 +3914,7 @@ no log
     log global
     log 127.0.0.1:514 local0 notice         # only send important events
     log 127.0.0.1:514 local0 notice notice  # same but limit output level
-    log ${LOCAL_SYSLOG}:514 local0 notice   # send to local server
+    log "${LOCAL_SYSLOG}:514" local0 notice   # send to local server
 
 
 log-format <string>
@@ -6525,10 +6543,9 @@ server <name> <address>[:[port]] [param*]
                     - 'ipv6@'  -> address is always IPv6
                     - 'unix@'  -> address is a path to a local unix socket
                     - 'abns@'  -> address is in abstract namespace (Linux only)
-              Any part of the address string may reference any number of
-              environment variables by preceding their name with a dollar
-              sign ('$') and optionally enclosing them with braces ('{}'),
-              similarly to what is done in Bourne shell.
+              You may want to reference some environment variables in the
+              address parameter, see section 2.3 about environment
+              variables.
 
     <port>    is an optional port specification. If set, all connections will
               be sent to this port. If unset, the same port the client
@@ -6544,9 +6561,9 @@ server <name> <address>[:[port]] [param*]
         server first  10.1.1.1:1080 cookie first  check inter 1000
         server second 10.1.1.2:1080 cookie second check inter 1000
         server transp ipv4@
-        server backup ${SRV_BACKUP}:1080 backup
-        server www1_dc1 ${LAN_DC1}.101:80
-        server www1_dc2 ${LAN_DC2}.101:80
+        server backup "${SRV_BACKUP}:1080" backup
+        server www1_dc1 "${LAN_DC1}.101:80"
+        server www1_dc2 "${LAN_DC2}.101:80"
 
   See also: "default-server", "http-send-name-header" and section 5 about
              server options
@@ -6572,10 +6589,8 @@ source <addr>[:<port>] [interface <name>]
                 - 'ipv6@' -> address is always IPv6
                 - 'unix@' -> address is a path to a local unix socket
                 - 'abns@' -> address is in abstract namespace (Linux only)
-              Any part of the address string may reference any number of
-              environment variables by preceding their name with a dollar
-              sign ('$') and optionally enclosing them with braces ('{}'),
-              similarly to what is done in Bourne shell.
+              You may want to reference some environment variables in the address
+              parameter, see section 2.3 about environment variables.
 
     <port>    is an optional port. It is normally not needed but may be useful
               in some very specific contexts. The default value of zero means

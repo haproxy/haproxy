@@ -6284,7 +6284,7 @@ int readcfgfile(const char *file)
 	int readbytes = 0;
 
 	if ((thisline = malloc(sizeof(*thisline) * linesize)) == NULL) {
-		Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+		Alert("parsing [%s] : out of memory.\n", file);
 		return -1;
 	}
 
@@ -6304,6 +6304,7 @@ int readcfgfile(const char *file)
 	if ((f=fopen(file,"r")) == NULL)
 		return -1;
 
+next_line:
 	while (fgets(thisline + readbytes, linesize - readbytes, f) != NULL) {
 		int arg, kwm = KWM_STD;
 		char *end;
@@ -6404,6 +6405,9 @@ int readcfgfile(const char *file)
 				} else if (line[1] == '\'') {
 					*line = '\'';
 					skip = 1;
+				} else if (line[1] == '$' && dquote) { /* escaping of $ only inside double quotes */
+					*line = '$';
+					skip = 1;
 				}
 				if (skip) {
 					memmove(line + 1, line + 1 + skip, end - (line + skip));
@@ -6423,10 +6427,95 @@ int readcfgfile(const char *file)
 					line++;
 				args[++arg] = line;
 			}
+			else if (dquote && *line == '$') {
+				/* environment variables are evaluated inside double quotes */
+				char *var_beg;
+				char *var_end;
+				char save_char;
+				char *value;
+				int val_len;
+				int newlinesize;
+				int braces = 0;
+
+				var_beg = line + 1;
+				var_end = var_beg;
+
+				if (*var_beg == '{') {
+					var_beg++;
+					var_end++;
+					braces = 1;
+				}
+
+				if (!isalpha((int)(unsigned char)*var_beg) && *var_beg != '_') {
+					Alert("parsing [%s:%d] : Variable expansion: Unrecognized character '%c' in variable name.\n", file, linenum, *var_beg);
+					err_code |= ERR_ALERT | ERR_FATAL;
+					goto next_line; /* skip current line */
+				}
+
+				while (isalnum((int)(unsigned char)*var_end) || *var_end == '_')
+					var_end++;
+
+				save_char = *var_end;
+				*var_end = '\0';
+				value = getenv(var_beg);
+				*var_end = save_char;
+				val_len = value ? strlen(value) : 0;
+
+				if (braces) {
+					if (*var_end == '}') {
+						var_end++;
+						braces = 0;
+					} else {
+						Alert("parsing [%s:%d] : Variable expansion: Mismatched braces.\n", file, linenum);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto next_line; /* skip current line */
+					}
+				}
+
+				newlinesize = (end - thisline) - (var_end - line) + val_len + 1;
+
+				/* if not enough space in thisline */
+				if (newlinesize  > linesize) {
+					char *newline;
+
+					newline = realloc(thisline, newlinesize * sizeof(*thisline));
+					if (newline == NULL) {
+						Alert("parsing [%s:%d] : Variable expansion: Not enough memory.\n", file, linenum);
+						err_code |= ERR_ALERT | ERR_FATAL;
+						goto next_line; /* slip current line */
+					}
+					/* recompute pointers if realloc returns a new pointer */
+					if (newline != thisline) {
+						int i;
+						int diff;
+
+						for (i = 0; i <= arg; i++) {
+							diff = args[i] - thisline;
+							args[i] = newline + diff;
+						}
+
+						diff = var_end - thisline;
+						var_end = newline + diff;
+						diff = end - thisline;
+						end = newline + diff;
+						diff = line - thisline;
+						line = newline + diff;
+						thisline = newline;
+					}
+					linesize = newlinesize;
+				}
+
+				/* insert value inside the line */
+				memmove(line + val_len, var_end, end - var_end + 1);
+				memcpy(line, value, val_len);
+				end += val_len - (var_end - line);
+				line += val_len;
+			}
 			else {
 				line++;
 			}
 		}
+
 		if (dquote) {
 			Alert("parsing [%s:%d] : Mismatched double quotes.\n", file, linenum);
 			err_code |= ERR_ALERT | ERR_FATAL;
