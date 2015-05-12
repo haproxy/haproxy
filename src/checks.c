@@ -2820,8 +2820,6 @@ static void tcpcheck_main(struct connection *conn)
 
 					check->current_step = cur;
 
-					cur = (struct tcpcheck_rule*)cur->list.n;
-					check->current_step = cur;
 					if (check->current_step->action == TCPCHK_ACT_EXPECT)
 						goto tcpcheck_expect;
 					__conn_data_stop_recv(conn);
