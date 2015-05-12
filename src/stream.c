@@ -624,7 +624,9 @@ static int sess_update_st_cer(struct stream *s)
 	}
 
 	/* If the "redispatch" option is set on the backend, we are allowed to
-	 * retry on another server for the last retry. In order to achieve this,
+	 * retry on another server. By default this redispatch occurs on the
+	 * last retry, but if configured we allow redispatches to occur on
+	 * configurable intervals, e.g. on every retry. In order to achieve this,
 	 * we must mark the stream unassigned, and eventually clear the DIRECT
 	 * bit to ignore any persistence cookie. We won't count a retry nor a
 	 * redispatch yet, because this will depend on what server is selected.
@@ -634,10 +636,15 @@ static int sess_update_st_cer(struct stream *s)
 	 * we don't care about this particular server.
 	 */
 	if (objt_server(s->target) &&
-	    (si->conn_retries == 0 ||
+	    (s->be->options & PR_O_REDISP) && !(s->flags & SF_FORCE_PRST) &&
+	    ((((s->be->redispatch_after > 0) &&
+	       ((s->be->conn_retries - si->conn_retries) %
+	        s->be->redispatch_after == 0)) ||
+	      ((s->be->redispatch_after < 0) &&
+	       ((s->be->conn_retries - si->conn_retries) %
+	        (s->be->conn_retries + 1 + s->be->redispatch_after) == 0))) ||
 	     (!(s->flags & SF_DIRECT) && s->be->srv_act > 1 &&
-	      ((s->be->lbprm.algo & BE_LB_KIND) == BE_LB_KIND_RR))) &&
-	    s->be->options & PR_O_REDISP && !(s->flags & SF_FORCE_PRST)) {
+	      ((s->be->lbprm.algo & BE_LB_KIND) == BE_LB_KIND_RR)))) {
 		sess_change_server(s, NULL);
 		if (may_dequeue_tasks(objt_server(s->target), s->be))
 			process_srv_queue(objt_server(s->target));

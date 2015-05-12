@@ -5352,11 +5352,22 @@ no option prefer-last-server
 
 
 option redispatch
+option redispatch <interval>
 no option redispatch
   Enable or disable session redistribution in case of connection failure
   May be used in sections:    defaults | frontend | listen | backend
                                  yes   |    no    |   yes  |   yes
-  Arguments : none
+  Arguments :
+    <interval> The optional integer value that controls how often redispatches
+               occur when retrying connections. Positive value P indicates a
+               redispatch is desired on every Pth retry, and negative value
+               N indicate a redispath is desired on the Nth retry prior to the
+               last retry. For example, the default of -1 preserves the
+               historical behaviour of redispatching on the last retry, a
+               positive value of 1 would indicate a redispatch on every retry,
+               and a positive value of 3 would indicate a redispatch on every
+               third retry. You can disable redispatches with a value of 0.
+
 
   In HTTP mode, if a server designated by a cookie is down, clients may
   definitely stick to it because they cannot flush the cookie, so they will not
@@ -5365,7 +5376,7 @@ no option redispatch
   Specifying "option redispatch" will allow the proxy to break their
   persistence and redistribute them to a working server.
 
-  It also allows to retry last connection to another server in case of multiple
+  It also allows to retry connections to another server in case of multiple
   connection failures. Of course, it requires having "retries" set to a nonzero
   value.
 
@@ -6373,7 +6384,8 @@ retries <value>
   been established to a server, there will be no more retry.
 
   In order to avoid immediate reconnections to a server which is restarting,
-  a turn-around timer of 1 second is applied before a retry occurs.
+  a turn-around timer of min("timeout connect", one second) is applied before
+  a retry occurs.
 
   When "option redispatch" is set, the last retry may be performed on another
   server even if a cookie references a different server.

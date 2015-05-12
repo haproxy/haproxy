@@ -325,6 +325,7 @@ struct proxy {
 	char *server_id_hdr_name;                   /* the header to use to send the server id (name) */
 	int server_id_hdr_len;                      /* the length of the id (name) header... name */
 	int conn_retries;			/* maximum number of connect retries */
+	int redispatch_after;			/* number of retries before redispatch */
 	unsigned down_trans;			/* up-down transitions */
 	unsigned down_time;			/* total time the proxy was down */
 	time_t last_change;			/* last time, when the state was changed */

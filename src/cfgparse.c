@@ -160,7 +160,6 @@ static const struct cfg_opt cfg_opts[] =
 	{ "logasap",      PR_O_LOGASAP,    PR_CAP_FE, 0, 0 },
 	{ "nolinger",     PR_O_TCP_NOLING, PR_CAP_FE | PR_CAP_BE, 0, 0 },
 	{ "persist",      PR_O_PERSIST,    PR_CAP_BE, 0, 0 },
-	{ "redispatch",   PR_O_REDISP,     PR_CAP_BE, 0, 0 },
 	{ "srvtcpka",     PR_O_TCP_SRV_KA, PR_CAP_BE, 0, 0 },
 #ifdef TPROXY
 	{ "transparent",  PR_O_TRANSP,     PR_CAP_BE, 0, 0 },
@@ -1617,6 +1616,7 @@ void init_default_instance()
 	defproxy.state = PR_STNEW;
 	defproxy.maxconn = cfg_maxpconn;
 	defproxy.conn_retries = CONN_RETRIES;
+	defproxy.redispatch_after = 0;
 
 	defproxy.defsrv.check.inter = DEF_CHKINTR;
 	defproxy.defsrv.check.fastinter = 0;
@@ -2242,6 +2242,7 @@ int cfg_parse_listen(const char *file, int linenum, char **args, int kwm)
 			curproxy->lbprm.algo = defproxy.lbprm.algo;
 			curproxy->fullconn = defproxy.fullconn;
 			curproxy->conn_retries = defproxy.conn_retries;
+			curproxy->redispatch_after = defproxy.redispatch_after;
 			curproxy->max_ka_queue = defproxy.max_ka_queue;
 
 			if (defproxy.check_req) {
@@ -4092,6 +4093,37 @@ stats_error_parsing:
 					curproxy->options &= ~PR_O_HTTP_MODE;
 				goto out;
 			}
+		}
+
+		/* Redispatch can take an integer argument that control when the
+		 * resispatch occurs. All values are relative to the retries option.
+		 * This can be cancelled using "no option xxx".
+		 */
+		if (strcmp(args[1], "redispatch") == 0) {
+			if (warnifnotcap(curproxy, PR_CAP_BE, file, linenum, args[1], NULL)) {
+				err_code |= ERR_WARN;
+				goto out;
+			}
+
+			curproxy->no_options &= ~PR_O_REDISP;
+			curproxy->options &= ~PR_O_REDISP;
+
+			switch (kwm) {
+			case KWM_STD:
+				curproxy->options |= PR_O_REDISP;
+				curproxy->redispatch_after = -1;
+				if(*args[2]) {
+					curproxy->redispatch_after = atol(args[2]);
+				}
+				break;
+			case KWM_NO:
+				curproxy->no_options |= PR_O_REDISP;
+				curproxy->redispatch_after = 0;
+				break;
+			case KWM_DEF: /* already cleared */
+				break;
+			}
+			goto out;
 		}
 
 		if (kwm != KWM_STD) {
