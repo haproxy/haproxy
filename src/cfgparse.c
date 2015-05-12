@@ -1749,6 +1749,48 @@ int cfg_parse_global(const char *file, int linenum, char **args, int kwm)
 		goto out;
 #endif
 	}
+#ifdef USE_51DEGREES
+	else if (strcmp(args[0], "51degrees-data-file") == 0) {
+		if(!*(args[1])) {
+			Alert("parsing [%s:%d]: '%s' expects a filepath to a 51Degrees data file.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		global._51d_data_file_path = strdup(args[1]);
+	}
+	else if (strcmp(args[0], "51degrees-property-seperator") == 0) {
+		if(!*(args[1])) {
+			Alert("parsing [%s:%d]: '%s' expects a ingle character.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		if (strlen(args[1]) > 1) {
+			Alert("parsing [%s:%d]: '%s' expects a ingle character, got '%s'.\n", file, linenum, args[0], args[1]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+		global._51d_property_seperator = *args[1];
+	}
+	else if (strcmp(args[0], "51degrees-property-name-list") == 0) {
+		int arg;
+		struct _51d_property_names *name;
+
+		arg = 1;
+		if (!*args[arg]) {
+			Alert("parsing [%s:%d]: '%s' expects at least one 51Degrees property name.\n", file, linenum, args[0]);
+			err_code |= ERR_ALERT | ERR_FATAL;
+			goto out;
+		}
+
+		LIST_INIT(&global._51d_property_names);
+		while (*args[arg]) {
+			name = calloc(1, sizeof(struct _51d_property_names));
+			name->name = strdup(args[arg]);
+			LIST_ADDQ(&global._51d_property_names, &name->list);
+			++arg;
+		}
+	}
+#endif
 	else {
 		struct cfg_kw_list *kwl;
 		int index;
