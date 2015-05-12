@@ -6274,12 +6274,19 @@ out:
  */
 int readcfgfile(const char *file)
 {
-	char thisline[LINESIZE];
+	char *thisline;
+	int linesize = LINESIZE;
 	FILE *f;
 	int linenum = 0;
 	int err_code = 0;
 	struct cfg_section *cs = NULL;
 	struct cfg_section *ics;
+	int readbytes = 0;
+
+	if ((thisline = malloc(sizeof(*thisline) * linesize)) == NULL) {
+		Alert("parsing [%s:%d] : out of memory.\n", file, linenum);
+		return -1;
+	}
 
 	/* Register internal sections */
 	if (!cfg_register_section("listen",   cfg_parse_listen) ||
@@ -6297,7 +6304,7 @@ int readcfgfile(const char *file)
 	if ((f=fopen(file,"r")) == NULL)
 		return -1;
 
-	while (fgets(thisline, sizeof(thisline), f) != NULL) {
+	while (fgets(thisline + readbytes, linesize - readbytes, f) != NULL) {
 		int arg, kwm = KWM_STD;
 		char *end;
 		char *args[MAX_LINE_ARGS + 1];
@@ -6309,14 +6316,28 @@ int readcfgfile(const char *file)
 
 		end = line + strlen(line);
 
-		if (end-line == sizeof(thisline)-1 && *(end-1) != '\n') {
+		if (end-line == linesize-1 && *(end-1) != '\n') {
 			/* Check if we reached the limit and the last char is not \n.
 			 * Watch out for the last line without the terminating '\n'!
 			 */
-			Alert("parsing [%s:%d]: line too long, limit: %d.\n",
-			      file, linenum, (int)sizeof(thisline)-1);
-			err_code |= ERR_ALERT | ERR_FATAL;
+			char *newline;
+			int newlinesize = linesize * 2;
+
+			newline = realloc(thisline, sizeof(*thisline) * newlinesize);
+			if (newline == NULL) {
+				Alert("parsing [%s:%d]: line too long, cannot allocate memory.\n",
+				      file, linenum);
+				err_code |= ERR_ALERT | ERR_FATAL;
+				continue;
+			}
+
+			readbytes = linesize - 1;
+			linesize = newlinesize;
+			thisline = newline;
+			continue;
 		}
+
+		readbytes = 0;
 
 		/* skip leading spaces */
 		while (isspace((unsigned char)*line))
@@ -6486,6 +6507,7 @@ int readcfgfile(const char *file)
 			break;
 	}
 	cursection = NULL;
+	free(thisline);
 	fclose(f);
 	return err_code;
 }
