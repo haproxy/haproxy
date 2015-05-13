@@ -2493,8 +2493,10 @@ static void tcpcheck_main(struct connection *conn)
 	__conn_data_stop_both(conn);
 
 	while (1) {
-		/* we have to try to flush the output buffer before reading, at the end,
-		 * or if we're about to send a string that does not fit in the remaining space.
+		/* We have to try to flush the output buffer before reading, at
+		 * the end, or if we're about to send a string that does not fit
+		 * in the remaining space. That explains why we break out of the
+		 * loop after this control.
 		 */
 		if (check->bo->o &&
 		    (&check->current_step->list == head ||
@@ -2507,16 +2509,12 @@ static void tcpcheck_main(struct connection *conn)
 					__conn_data_stop_both(conn);
 					goto out_end_tcpcheck;
 				}
-				goto out_need_io;
+				break;
 			}
 		}
 
-		/* did we reach the end ? If so, let's check that everything was sent */
-		if (&check->current_step->list == head) {
-			if (check->bo->o)
-				goto out_need_io;
+		if (&check->current_step->list == head)
 			break;
-		}
 
 		/* have 'next' point to the next rule or NULL if we're on the
 		 * last one, connect() needs this.
@@ -2717,7 +2715,7 @@ static void tcpcheck_main(struct connection *conn)
 					}
 				}
 				else
-					goto out_need_io;
+					break;
 			}
 
 			/* mark the step as started */
@@ -2836,10 +2834,14 @@ static void tcpcheck_main(struct connection *conn)
 		} /* end expect */
 	} /* end loop over double chained step list */
 
-	set_server_check_status(check, HCHK_STATUS_L7OKD, "(tcp-check)");
-	goto out_end_tcpcheck;
+	/* We're waiting for some I/O to complete, we've reached the end of the
+	 * rules, or both. Do what we have to do, otherwise we're done.
+	 */
+	if (&check->current_step->list == head && !check->bo->o) {
+		set_server_check_status(check, HCHK_STATUS_L7OKD, "(tcp-check)");
+		goto out_end_tcpcheck;
+	}
 
- out_need_io:
 	/* warning, current_step may now point to the head */
 	if (check->bo->o)
 		__conn_data_want_send(conn);
