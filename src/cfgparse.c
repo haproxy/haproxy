@@ -4712,14 +4712,13 @@ stats_error_parsing:
 			l = (struct list *)&curproxy->tcpcheck_rules;
 			if (l->p != l->n) {
 				tcpcheck = (struct tcpcheck_rule *)l->n;
-				while (tcpcheck->action == TCPCHK_ACT_COMMENT) {
+				while (&tcpcheck->list != &curproxy->tcpcheck_rules &&
+				       tcpcheck->action == TCPCHK_ACT_COMMENT) {
 					tcpcheck = (struct tcpcheck_rule *)tcpcheck->list.n;
 				}
-				/* we've reached the end of the list, and the list is full of comments */
-				if (tcpcheck == (struct tcpcheck_rule *)l)
-					tcpcheck = NULL;
 
-				if (tcpcheck && tcpcheck->action != TCPCHK_ACT_CONNECT) {
+				if (&tcpcheck->list != &curproxy->tcpcheck_rules
+				    && tcpcheck->action != TCPCHK_ACT_CONNECT) {
 					Alert("parsing [%s:%d] : first step MUST also be a 'connect' when there is a 'connect' step in the tcp-check ruleset.\n",
 					      file, linenum);
 					err_code |= ERR_ALERT | ERR_FATAL;

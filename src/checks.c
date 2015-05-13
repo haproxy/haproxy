@@ -2522,7 +2522,7 @@ static void tcpcheck_main(struct connection *conn)
 		next = (struct tcpcheck_rule *)check->current_step->list.n;
 
 		/* bypass all comment rules */
-		while (next->action == TCPCHK_ACT_COMMENT)
+		while (&next->list != head && next->action == TCPCHK_ACT_COMMENT)
 			next = (struct tcpcheck_rule *)next->list.n;
 
 		/* NULL if we're on the last rule */
@@ -2636,8 +2636,12 @@ static void tcpcheck_main(struct connection *conn)
 			check->current_step = (struct tcpcheck_rule *)check->current_step->list.n;
 
 			/* bypass all comment rules */
-			while (check->current_step->action == TCPCHK_ACT_COMMENT)
+			while (&check->current_step->list != head &&
+				check->current_step->action == TCPCHK_ACT_COMMENT)
 				check->current_step = (struct tcpcheck_rule *)check->current_step->list.n;
+
+			if (&check->current_step->list == head)
+				break;
 
 			/* don't do anything until the connection is established */
 			if (!(conn->flags & CO_FL_CONNECTED)) {
@@ -2694,8 +2698,12 @@ static void tcpcheck_main(struct connection *conn)
 			check->current_step = (struct tcpcheck_rule *)check->current_step->list.n;
 
 			/* bypass all comment rules */
-			while (check->current_step->action == TCPCHK_ACT_COMMENT)
+			while (&check->current_step->list != head &&
+				check->current_step->action == TCPCHK_ACT_COMMENT)
 				check->current_step = (struct tcpcheck_rule *)check->current_step->list.n;
+
+			if (&check->current_step->list == head)
+				break;
 		} /* end 'send' */
 		else if (check->current_step->action == TCPCHK_ACT_EXPECT) {
 			if (unlikely(check->result == CHK_RES_FAILED))
@@ -2789,8 +2797,12 @@ static void tcpcheck_main(struct connection *conn)
 					check->current_step = (struct tcpcheck_rule *)check->current_step->list.n;
 
 					/* bypass all comment rules */
-					while (check->current_step->action == TCPCHK_ACT_COMMENT)
+					while (&check->current_step->list != head &&
+					       check->current_step->action == TCPCHK_ACT_COMMENT)
 						check->current_step = (struct tcpcheck_rule *)check->current_step->list.n;
+
+					if (&check->current_step->list == head)
+						break;
 
 					if (check->current_step->action == TCPCHK_ACT_EXPECT)
 						goto tcpcheck_expect;
@@ -2805,8 +2817,12 @@ static void tcpcheck_main(struct connection *conn)
 					check->current_step = (struct tcpcheck_rule *)check->current_step->list.n;
 
 					/* bypass all comment rules */
-					while (check->current_step->action == TCPCHK_ACT_COMMENT)
+					while (&check->current_step->list != head &&
+					       check->current_step->action == TCPCHK_ACT_COMMENT)
 						check->current_step = (struct tcpcheck_rule *)check->current_step->list.n;
+
+					if (&check->current_step->list == head)
+						break;
 
 					if (check->current_step->action == TCPCHK_ACT_EXPECT)
 						goto tcpcheck_expect;
